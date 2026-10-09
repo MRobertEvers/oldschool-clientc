@@ -50,7 +50,7 @@ QD.NYLO = {
     RANGE = { melee = 1, ranged = 5, magic = 7 },
     -- a lane nylo a ranged or magic seat may shoot: this many tiles out of
     -- the box, on its lane's straight line (the lanes are walled corridors)
-    LANE_SHOT = 2,
+    LANE_SHOT = 6,
     LIFE = { small = 51, big = 52 },            -- the detonation's tick after birth
     DET_REACH = 2,
     FLICKER_WAVE = 16, SETTLE_AGE = 7,          -- c shows at the end of +7
@@ -61,6 +61,9 @@ QD.NYLO = {
     DET_COST = 21, STATION_PULL = 0.2,
     SUPPORT_LOW = 25,                           -- percent: eat over a collapse's 50
     LET_DETONATE = 4,                           -- ticks left: not worth a hit
+    BARRAGE_SEAT = 3, SPELL_RANGE = 10, CAST_EVERY = 5,
+    BARRAGE_MIN = 2,                            -- magic nylos in its 3x3 to cast
+    HELP_MARGIN = 2,                            -- another style this many more: help it
     SUPPORT_HELP = 50,
     SUPPORT_SAVE = 30,                          -- percent: every seat on its chewers                          -- percent: its chewers first under this
     EAT_COLLAPSE = 51,
@@ -84,6 +87,7 @@ function QD.raid._nylo_ids()
         { "melee_helm", "obj", "game_pest_melee_helm" }, { "tentacle", "obj", "abyssal_tentacle" },
         { "torture", "obj", "zenyte_amulet_enchanted" }, { "fire_cape", "obj", "tzhaar_cape_fire" },
         { "rapid_slot", "component", "combat_interface:style_slot_1" },
+        { "barrage", "component", "magic_spellbook:ice_barrage" },
         { "com_mode", "varp", "varp43_com_mode" },
     })
     for k, v in pairs(room) do ids[k] = v end
@@ -163,13 +167,29 @@ function QD.raid._nylo_measure(S, F)
                       key = row.slot .. "@" .. F.tick, first = F.tick, x = row.x, z = row.z }
                 S.lives[row.slot] = L
                 if lane then
-                    -- one wave a birth tick (waves are 4+ ticks apart)
-                    if S.wave_at[L.birth] == nil then
+                    -- A WAVE IS SEEN ON ITS SPAWN TILES, on the 4-tick grid: a
+                    -- nylocas does not move on its spawn tick, so one seen on a
+                    -- spawn tile was born now; one first seen further down its
+                    -- lane (held behind another, out of view) only JOINS the
+                    -- latest wave at or before its estimate (seeds n15: births
+                    -- estimated for held nylos counted 35 waves, and the
+                    -- cleanup began during wave 28)
+                    local on_spawn = (lx == 17 and (lz == 24 or lz == 25)) or (lz == 9 and (lx == 31 or lx == 32))
+                        or (lz == 24 and (lx == 45 or lx == 46)) or (lx == 46 and lz == 25)
+                    local grid = S.wave1 == nil or (F.tick - S.wave1) % 4 == 0
+                    if on_spawn and grid and S.wave_at[F.tick] == nil then
+                        S.wave1 = S.wave1 or F.tick
                         S.waves = S.waves + 1
-                        S.wave_at[L.birth] = S.waves
-                        S.wave_log[#S.wave_log + 1] = "w" .. S.waves .. "@" .. (L.birth - (S.t0 or L.birth))
+                        S.wave_at[F.tick] = S.waves
+                        S.wave_last = F.tick
+                        S.wave_log[#S.wave_log + 1] = "w" .. S.waves .. "@" .. (F.tick - (S.t0 or F.tick))
                     end
-                    L.wave = S.wave_at[L.birth]
+                    if on_spawn and grid then L.birth = F.tick end
+                    local at = nil
+                    for bt in pairs(S.wave_at) do
+                        if bt <= L.birth and (at == nil or bt > at) then at = bt end
+                    end
+                    L.wave = at and S.wave_at[at] or nil
                 else
                     S.splits = S.splits + 1
                 end
@@ -261,6 +281,7 @@ function QD.raid._nylo_best(S, F, style, skip)
         -- about to detonate and no threat to anyone: let it (it frees its slot
         -- in a few ticks either way, and the hit is worth more elsewhere)
         local spent = L.det - F.tick <= V.LET_DETONATE and not (L.aggro and near <= V.AGGRO_NEAR)
+            and not (S.phase == "cleanup" and L.size == 2)
         if L.key ~= skip and not spent and attackable(S, F, L, style) then
             -- WALKING IS THE WASTE (seed n2/sa: a kill every 4-5 ticks, the
             -- blowpipe's 2 spent walking to the next): what is in reach first.
@@ -270,7 +291,17 @@ function QD.raid._nylo_best(S, F, style, skip)
             -- detonate saves neither (seeds n8: oldest-first ran wave 31 at
             -- 312-324, Blert 260)
             local out = math.max(0, gap(F.me.x, F.me.z, L.x, L.z, L.size) - V.RANGE[style])
-            local left = L.det - F.tick
+            -- PER HIT (wiki: "prioritising the smaller ones first"): a small
+            -- is one hit and frees its cap slot for the rest of its life; a
+            -- big is two and leaves two splits, so its life left counts half
+            local left = (L.det - F.tick) / (L.size == 2 and 2 or 1)
+            -- THE CLEANUP ends at the last despawn, so the latest NATURAL end
+            -- goes first: a big's is its splits' (det + 3 + 52), which is why
+            -- a big left to detonate at the end held the room 87 ticks
+            -- (seeds n14: cleanup 265 -> 352, Blert ~32)
+            if S.phase == "cleanup" then
+                left = L.det - F.tick + (L.size == 2 and (3 + V.LIFE.small + 1) or 1)
+            end
             local k
             if L.aggro and near <= V.AGGRO_NEAR then
                 k = { 0, out, -left }
@@ -334,17 +365,25 @@ function QD.raid._nylo_target(S, F, own)
         end
         if best then L, style = best, best.style end
     end
-    if L == nil then
-        local most = 0
+    -- LOAD BALANCING: another style with HELP_MARGIN more to hit than mine
+    -- (none of mine counts as 0) is helped on its second choice. The set
+    -- goes on in the tick of the press, so a switch costs about nothing;
+    -- the 4-tick tentacle and trident fall behind while the 2-tick blowpipe
+    -- idles (seeds n16: melee and magic chewers 400+ bites a room, ranged
+    -- ~250, every support 170..230 of 230 chewed)
+    if style == own and not (L and chewing(S, F, L) and chewing(S, F, L).pct < QD.NYLO.SUPPORT_HELP) then
+        local mine = L and backlog(S, F, own) or 0
+        local most, pick = mine + (L and QD.NYLO.HELP_MARGIN or 1) - 1, nil
         for _, st in ipairs({ "melee", "ranged", "magic" }) do
             if st ~= own then
                 local n = backlog(S, F, st)
-                if n >= 1 and n > most then most, style = n, st end
+                if n > most then most, pick = n, st end
             end
         end
-        if most > 0 then
-            local first = QD.raid._nylo_best(S, F, style, nil)
-            L = QD.raid._nylo_best(S, F, style, first and first.key)
+        if pick then
+            local first = QD.raid._nylo_best(S, F, pick, nil)
+            local second = QD.raid._nylo_best(S, F, pick, first and first.key)
+            if second then L, style = second, pick end
         end
     end
     S.target_key = L and L.key or nil
@@ -434,96 +473,241 @@ end
 
 -- ===================================================================== STEP
 
-function QD.raid._nylo_step(S, F)
-    local V, ids = QD.NYLO, S.ids
-    QD.raid._nylo_measure(S, F)
-    if F.boss and not S.boss_seen then
-        S.boss_seen = F.tick
-        QD.raid._tob_trace(S, F.tick, "Vasilias lands")
-    end
-    if S.boss_seen and F.boss == nil then
-        QD.raid._tob_trace(S, F.tick, "her death")
-        return "ok"
-    end
-    local intent = {}
-    local style, target, range, station, kind, hold, life = nil, nil, nil, nil, nil, false, nil
+-- ==================================================================== PHASES
+--
+-- THE ROOM AS A STATE MACHINE (the owner, 2026-10-09: as Verzik's), one
+-- MEASURE -> DECIDE -> ACT a tick inside each phase:
+--   entry     walk to the barrier; the leader starts, a member crosses
+--             (QD.raid._nylo_enter, before the loop)
+--   waves     wave 31 not yet out: my style's nylos, cross-help, the
+--             support emergency
+--   cleanup   wave 31 out, nylos left: every nylo is anyone's, the room ends
+--             at the last despawn (Vasilias lands 16+ after it)
+--   boss_due  the room empty, no Vasilias yet: full hp and prayer, Protect
+--             from Melee, the melee set on, beside her landing (30..33,23..26)
+--   boss      her colour from her npc id: that colour's set, prayer and attack
+--   done      her row gone
+function QD.raid._nylo_phase(S, F)
+    local phase = S.phase
     if F.boss then
-        -- THE BOSS: her colour is her npc id; the melee form's first sight is M
-        local colour = ids.boss_style[F.boss.npc_id]
-        if colour and S.boss_m == nil then
-            S.boss_m = F.tick
-            QD.raid._tob_trace(S, F.tick, "her melee form (M)")
-        end
-        if colour and colour ~= S.boss_colour then
-            if S.boss_colour then
-                local since = F.tick - S.boss_m - V.SWITCH_FIRST
-                S.switch_log[#S.switch_log + 1] = colour:sub(1, 3) .. "@M+" .. (F.tick - S.boss_m)
-                    .. ((since >= 0 and since % V.SWITCH_EVERY == 0) and "" or "!")
-            end
-            S.boss_colour = colour
-        end
-        style = colour or "melee"
-        kind = colour and ("boss-" .. colour) or "boss-landing"
-        if colour then
-            target, range = F.boss, V.RANGE[style]
-            -- NEVER a press that resolves on a predicted switch tick: it swings
-            -- after the retype, a wrong style, reflected and healed
-            local next_at = F.tick + 1 - S.boss_m - V.SWITCH_FIRST
-            if next_at >= 0 and next_at % V.SWITCH_EVERY == 0 then hold = true end
-        end
-        intent.gear = missing(S, ids.sets[style])
+        phase = "boss"
+    elseif S.boss_seen then
+        phase = "done"
+    elseif S.waves >= 31 and #F.nylos == 0 then
+        phase = "boss_due"
+    elseif S.waves >= 31 then
+        phase = "cleanup"
     else
-        local own = V.STYLE_OF_SEAT[S.role] or "melee"
-        life, style = QD.raid._nylo_target(S, F, own)
-        target = life and life.row
-        range = V.RANGE[style]
-        station = V.STATION[S.role]
-        kind = life and ((life.aggro and "aggro") or "nylo") or "station"
-        if life and style ~= own then kind = "help-" .. style end
-        intent.gear = missing(S, ids.sets[style])
+        phase = "waves"
     end
+    if phase ~= S.phase then
+        QD.raid._tob_trace(S, F.tick, "phase " .. phase .. " (room tick " .. (F.tick - (S.t0 or F.tick)) .. ")")
+        S.phase_log[#S.phase_log + 1] = phase .. "@" .. (F.tick - (S.t0 or F.tick))
+        S.phase = phase
+    end
+    return phase
+end
+
+-- THE BARRAGE (the mage seat, Ancient Magicks in the kit; wiki: "Magers and
+-- rangers should prioritise killing clumps of nylocas with barrage"): the
+-- magic nylocas with the most magic ones within 1 of it, cast on only when
+-- NOTHING else is within 2 - the splash's style check runs per target and a
+-- non-magic one in it would null me on it (solver_specs/nylocas.md 3.4) - and
+-- nothing in it is one I am nulled on.
+function QD.raid._nylo_clump(S, F)
+    local V = QD.NYLO
+    local best, bn = nil, V.BARRAGE_MIN - 1
+    for _, C in ipairs(F.nylos) do
+        if attackable(S, F, C, "magic") then
+            local n, bad = 0, false
+            for _, O in ipairs(F.nylos) do
+                local g = gap(C.x, C.z, O.x, O.z, O.size)
+                if g <= 2 and not O.dying then
+                    if O.style ~= "magic" or S.nulled[O.key] then bad = true end
+                    if g <= 1 and O.style == "magic" then n = n + 1 end
+                end
+            end
+            if not bad and (n > bn or (n == bn and best and C.slot < best.slot)) then best, bn = C, n end
+        end
+    end
+    return best, bn
+end
+
+-- DECIDE, WAVES and CLEANUP: my target and the style I hit it with. In the
+-- cleanup there is nothing to come, so my own style has no claim: whatever
+-- the target rule ranks first, my worn style winning a tie.
+function QD.raid._nylo_decide_nylos(S, F, phase)
+    local V = QD.NYLO
+    local own = V.STYLE_OF_SEAT[S.role] or "melee"
+    local life, style = QD.raid._nylo_target(S, F, own)
+    local D = { style = style, life = life, target = life and life.row, range = V.RANGE[style],
+                station = V.STATION[S.role], overhead = nil }
+    D.kind = life and ((life.aggro and "aggro") or "nylo") or "station"
+    if life and style ~= own then D.kind = "help-" .. style end
+    if S.role == V.BARRAGE_SEAT and F.tick >= (S.next_cast or 0) then
+        local C, n = QD.raid._nylo_clump(S, F)
+        if C then
+            D.style, D.life, D.target, D.range = "magic", C, C.row, V.SPELL_RANGE
+            D.cast, D.kind, D.clump = true, "barrage", n
+        end
+    end
+    D.kind = phase .. ":" .. D.kind
+    return D
+end
+
+-- DECIDE, BOSS_DUE: she lands melee (her spawning form, then Ischyros), so the
+-- melee set, Protect from Melee, hp and prayer to full, and a tile beside her
+-- landing on my side (melee south, ranger west, mage east).
+function QD.raid._nylo_decide_due(S, F)
+    local V = QD.NYLO
+    local B = V.BOSS_LAND
+    local side = { [1] = { x = B.x - 1, z = B.z + 1 }, [2] = { x = B.x + 1, z = B.z - 1 },
+                   [3] = { x = B.x + V.BOSS_SIZE, z = B.z + 1 } }
+    return { style = "melee", range = 1, station = side[S.role] or side[2], kind = "boss_due",
+             overhead = S.ids.protect.melee, eat_below = F.hp_base - 20, full = true }
+end
+
+-- DECIDE, BOSS: her colour is her npc id; the melee form's first sight is M,
+-- her changes at M+9+10k. NEVER a press that resolves on a predicted change
+-- tick: it swings after the retype, a wrong style, reflected and healed.
+function QD.raid._nylo_decide_boss(S, F)
+    local V, ids = QD.NYLO, S.ids
+    local colour = ids.boss_style[F.boss.npc_id]
+    if colour and S.boss_m == nil then
+        S.boss_m = F.tick
+        QD.raid._tob_trace(S, F.tick, "her melee form (M)")
+    end
+    if colour and colour ~= S.boss_colour then
+        if S.boss_colour then
+            local since = F.tick - S.boss_m - V.SWITCH_FIRST
+            S.switch_log[#S.switch_log + 1] = colour:sub(1, 3) .. "@M+" .. (F.tick - S.boss_m)
+                .. ((since >= 0 and since % V.SWITCH_EVERY == 0) and "" or "!")
+        end
+        S.boss_colour = colour
+    end
+    local D = { style = colour or "melee", kind = colour and ("boss:" .. colour) or "boss:landing",
+                overhead = ids.protect[colour or "melee"], boss = true }
+    if colour then
+        D.target, D.range = F.boss, V.RANGE[D.style]
+        local next_at = F.tick + 1 - S.boss_m - V.SWITCH_FIRST
+        D.hold = next_at >= 0 and next_at % V.SWITCH_EVERY == 0
+    else
+        D.range = 1
+    end
+    return D
+end
+
+-- ACT: the decision's set, prayers and supplies, the plan, one order, emit.
+function QD.raid._nylo_act(S, F, D)
+    local V, ids = QD.NYLO, S.ids
+    local intent = { gear = missing(S, ids.sets[D.style]) }
     -- a held op re-sent every tick while the set goes on would repeat it: two
     -- ticks apart, unless the set wanted CHANGED (seed n3/sa t127: the swap
     -- back to melee held a tick and the attack went out with the trident)
-    if #intent.gear == 0 or (F.tick - (S.gear_sent or -10) < 2 and S.gear_style == style) then intent.gear = nil end
-    if intent.gear then S.gear_style = style end
-    local weapon = ids.weapon[style]
+    if #intent.gear == 0 or (F.tick - (S.gear_sent or -10) < 2 and S.gear_style == D.style) then intent.gear = nil end
+    if intent.gear then S.gear_style = D.style end
+    local weapon = ids.weapon[D.style]
     local armed = QD.raid._tob_worn(S, weapon)
     if not armed and intent.gear then
         for _, obj in ipairs(intent.gear) do if obj == weapon then armed = true end end
     end
     pipe_rapid(S, F)
-    local overhead = F.boss and ids.protect[S.boss_colour or "melee"] or wave_overhead(S, F)
-    local want = { overhead = overhead, boost = ids.boost[style], boost_stat = ids.boost_stat[style] }
-    if F.pct_low < V.SUPPORT_LOW then want.eat_below = V.EAT_COLLAPSE end
+    local want = { overhead = D.overhead or wave_overhead(S, F), boost = ids.boost[D.style],
+                   boost_stat = ids.boost_stat[D.style], eat_below = D.eat_below }
+    if F.pct_low < V.SUPPORT_LOW then want.eat_below = math.max(want.eat_below or 0, V.EAT_COLLAPSE) end
     QD.raid._tob_supplies(S, F, want, intent)
-    if kind ~= S.kind then
-        QD.raid._tob_trace(S, F.tick, "context " .. kind)
-        S.kind = kind
+    if D.kind ~= S.kind then
+        QD.raid._tob_trace(S, F.tick, "context " .. D.kind)
+        S.kind = D.kind
     end
-    local spec, names = QD.raid._nylo_spec(S, F, target, range or 1, station)
-    if F.boss then
+    local spec, names = QD.raid._nylo_spec(S, F, D.target, D.range or 1, D.station)
+    if D.boss then
         -- within 8 of her or she walks at whoever is nearest
         spec.zones[#spec.zones + 1] = { x = F.boss.x, z = F.boss.z, size = V.BOSS_SIZE, lo = 1, hi = V.BOSS_REACH,
             require = true, tier = "soft", cost = 2.0 }
     end
     local plan = QD.raid._tob_plan(S, F, spec, names)
-    local d = QD.raid._tob_order(S, F, plan, { target = target, range = range or 1 })
+    local d = QD.raid._tob_order(S, F, plan, { target = D.target, range = D.range or 1 })
     -- NEVER A SWING IN THE WRONG STYLE: an attack press only with the target's
     -- weapon in hand or wielded in this same tick, before the press (emit's
     -- order); one wrong-style hit nulls me on a nylo for its life
     -- (a WALK to the plan's step, not nil: a nil order after a held op is
     -- emit's cue to press the last target again)
-    if (hold or not armed) and d.order and d.order.mode == "attack" then
+    if (D.hold or not armed) and d.order and d.order.mode == "attack" then
         d.order = { mode = "walk", x = d.x, z = d.z }
     end
-    if d.order and d.order.mode == "attack" and life then
-        S.last_target_life = life
+    -- THE CAST (as the Maiden's freezer): never an attack press; a plan that
+    -- moves walks, one that stands casts, the mage set on
+    if D.cast and d.order and d.order.mode == "attack" then
+        if d.x ~= F.me.x or d.z ~= F.me.z then
+            d.order = { mode = "walk", x = d.x, z = d.z }
+        elseif armed and intent.gear == nil then
+            intent.cast = { npc = D.target, component = ids.barrage }
+            d.order = nil
+            S.order = nil
+            S.next_cast = F.tick + V.CAST_EVERY
+            S.barrages = (S.barrages or 0) + 1
+            S.barrage_hits = (S.barrage_hits or 0) + (D.clump or 0)
+        end
+    end
+    if d.order and d.order.mode == "attack" and D.life then
+        S.last_target_life = D.life
         S.attacks = S.attacks + 1
     end
     QD.raid._tob_emit(S, F, d.order, intent)
     QD.raid._tob_recent(S, F, d)
+end
+
+-- ===================================================================== STEP
+
+-- One tick: MEASURE, the PHASE, DECIDE in it, ACT.
+function QD.raid._nylo_step(S, F)
+    QD.raid._nylo_measure(S, F)
+    if F.boss and not S.boss_seen then
+        S.boss_seen = F.tick
+        QD.raid._tob_trace(S, F.tick, "Vasilias lands")
+    end
+    local phase = QD.raid._nylo_phase(S, F)
+    if phase == "done" then
+        QD.raid._tob_trace(S, F.tick, "her death")
+        return "ok"
+    end
+    local D
+    if phase == "boss" then
+        D = QD.raid._nylo_decide_boss(S, F)
+    elseif phase == "boss_due" then
+        D = QD.raid._nylo_decide_due(S, F)
+    else
+        D = QD.raid._nylo_decide_nylos(S, F, phase)
+    end
+    QD.raid._nylo_act(S, F, D)
     return nil
+end
+
+-- ==================================================================== ENTRY
+
+-- THE ENTRY PHASE: the room is arrived at on (31,49), 18 tiles north of the
+-- barrier on z=31 (tob.constant), so the walk to (31,33) puts it in view; then
+-- the shared start (the leader answers at once: nothing in the room moves
+-- before the start, the supports are added by it).
+function QD.raid._nylo_enter(S, opts)
+    local tr, me = api_drive.player_tile()
+    assert(tr == "ok", "nylocas_solve: no tile")
+    local ex, ez = me.x - me.x % 64 + QD.NYLO.ENTRY.x, me.z - me.z % 64 + QD.NYLO.ENTRY.z
+    local deadline = api_drive.tick() + 60
+    QD.raid._tob_trace(S, api_drive.tick(), "phase entry")
+    while true do
+        local F = QD.raid._tob_measure(S)
+        if F.me.x == ex and F.me.z == ez then break end
+        assert(F.tick <= deadline, "nylocas_solve: never reached the entry tile from " .. F.me.x .. "," .. F.me.z)
+        if F.tick - (S.walk_sent or -10) >= 3 then
+            api_drive.move_to(ex, ez)
+            S.walk_sent = F.tick
+        end
+        await({ event = "server_tick", match = function() return true end, note = "nylocas_solve: to the entry" }, 3)
+    end
+    QD.raid._tob_start(S, nil, opts.start_ticks)
+    S.fight_start = api_drive.tick()
 end
 
 -- ===================================================================== LOOP
@@ -532,32 +716,14 @@ function QD.raid.nylocas_solve(opts)
     opts = opts or {}
     local S = QD.raid._tob_state("nylocas_solve", QD.raid._nylo_ids(), opts, {
         lives = {}, wave_at = {}, waves = 0, splits = 0, wave_log = {}, nulled = {}, nulls = 0,
-        attacks = 0, switch_log = {},
+        attacks = 0, switch_log = {}, phase_log = {},
     })
-    -- THE WALK TO THE BARRIER: the room is arrived at on (31,49), 18 tiles
-    -- north of the barrier on z=31 (tob.constant); the start needs it in view
-    do
-        local tr, me = api_drive.player_tile()
-        assert(tr == "ok", "nylocas_solve: no tile")
-        local ex, ez = me.x - me.x % 64 + QD.NYLO.ENTRY.x, me.z - me.z % 64 + QD.NYLO.ENTRY.z
-        local deadline = api_drive.tick() + 60
-        while true do
-            local F = QD.raid._tob_measure(S)
-            if F.me.x == ex and F.me.z == ez then break end
-            assert(F.tick <= deadline, "nylocas_solve: never reached the entry tile from " .. F.me.x .. "," .. F.me.z)
-            if F.tick - (S.walk_sent or -10) >= 3 then
-                api_drive.move_to(ex, ez)
-                S.walk_sent = F.tick
-            end
-            await({ event = "server_tick", match = function() return true end, note = "nylocas_solve: to the entry" }, 3)
-        end
-    end
-    QD.raid._tob_start(S, nil, opts.start_ticks)
-    S.fight_start = api_drive.tick()
+    QD.raid._nylo_enter(S, opts)
     return QD.raid._tob_run(S, QD.raid._nylo_step, function(s)
         return QD.raid._tob_summary(s, string.format(
-            "room t0 %s; waves %d (%s); splits %d; attacks %d; nulls %d; boss landed %s, M %s; switches %s",
-            tostring(s.t0), s.waves, table.concat(s.wave_log, " "), s.splits, s.attacks, s.nulls,
+            "room t0 %s; phases %s; waves %d (%s); splits %d; attacks %d; barrages %s (%s in reach); nulls %d; boss landed %s, M %s; switches %s",
+            tostring(s.t0), table.concat(s.phase_log, " "), s.waves, table.concat(s.wave_log, " "), s.splits, s.attacks,
+            tostring(s.barrages or 0), tostring(s.barrage_hits or 0), s.nulls,
             tostring(s.boss_seen and (s.boss_seen - (s.t0 or 0))), tostring(s.boss_m and (s.boss_m - (s.t0 or 0))),
             table.concat(s.switch_log, " ")))
     end)
