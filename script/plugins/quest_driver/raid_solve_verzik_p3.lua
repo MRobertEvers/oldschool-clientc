@@ -768,10 +768,25 @@ function QD.raid._vzp3_decide(S, F)
     local decision = { x = p1.x, z = p1.z, mid = p1.mid, soft = plan.soft, lethal = plan.lethal }
     local stays = p1.x == F.me.x and p1.z == F.me.z
     local reach = target ~= nil and beside(p1.x, p1.z, b.x, b.z, V.SIZE)
+    -- A BALL HOLD IS A WALK, never an attack. An attack order follows her:
+    -- on the tick she steps, the server walks the attacker after her, off
+    -- the tile the landing reads (se t996: the "next" raider stood beside
+    -- the anchor with an attack order, she stepped, the server moved it two
+    -- away for the read, and the target ate the 74). Inside the hold window
+    -- the order that keeps the tile is the tile itself.
+    local holding = false
+    do
+        local role = QD.raid._vzp3_ball_role(S, F)
+        if role == "target" or role == "next" then
+            local land = S.ball.land
+            local read = (role == "target") and (land - 1) or ((F.pid < S.ball.cur) and land or (land - 1))
+            holding = F.tick >= read - 2 and F.tick <= read + 1
+        end
+    end
     if stays then
-        if reach then
+        if reach and not holding then
             decision.order = { mode = "attack" }
-        elseif S.order and S.order.mode == "attack" then
+        elseif holding or (S.order and S.order.mode == "attack") then
             -- an attack order under way would walk me: hold here
             decision.order = { mode = "walk", x = F.me.x, z = F.me.z }
         end
@@ -781,7 +796,7 @@ function QD.raid._vzp3_decide(S, F)
     for _, tn in ipairs(F.tornadoes) do
         if tn.mine and cheb(tn.x, tn.z, F.me.x, F.me.z) <= 3 then chased = true end
     end
-    if reach and not chased then
+    if reach and not chased and not holding then
         -- the attack's own route takes this very step: press her instead of
         -- the tile, and the swing goes out on arrival (lesson 8).  Not with
         -- a tornado at my heels: a press the server refuses (she is

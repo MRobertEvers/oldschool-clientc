@@ -300,3 +300,10 @@ one of their 837 ticks. What stood between the lanes, in the order found:
     player"). The obj ops take the script's player now, asserted. A script
     abort is a loud contract failure, and it must not be waved through: the
     sweep ran on stale state before and nobody knew.
+47. **A ball hold is a walk order.** An attack order follows her: on the
+    tick she steps, the server walks the attacker after her, off the tile
+    the landing reads. Seed se (t996): the "next" raider stood beside the
+    anchor under an attack order, she stepped, the server moved it two off
+    for the read, nobody fresh was in range and the target ate the 74. For
+    the target and next roles inside their read window the order that
+    keeps the tile is the tile itself; with it se bounces both balls clean.
