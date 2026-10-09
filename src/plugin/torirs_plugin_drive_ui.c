@@ -37,6 +37,7 @@
 
 #include "lauxlib.h"
 #include "lua.h"
+#include "plugin/torirs_drive_plan_lua.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -1428,6 +1429,8 @@ DriveUi_Route(
     int dst_x,
     int dst_z,
     int entity_size,
+    int range,
+    int steps_per_tick,
     int from_x,
     int from_z,
     int* out_x,
@@ -1456,6 +1459,7 @@ DriveUi_Route(
     assert(out_arrive_z);
     assert(out_nearest);
     assert(entity_size >= 0);
+    assert(steps_per_tick >= 1);
 
     *out_count = 0;
     *out_nearest = 0;
@@ -1515,6 +1519,14 @@ DriveUi_Route(
         &nearest_opts, out_x, out_z, cap, &nearest, &arrive_x, &arrive_z);
     if( steps < 0 )
         return DRIVE_NOT_FOUND;
+    if( range >= 0 && entity_size > 0 )
+        steps = collision_route_cut_in_range(cm, src_x, src_z, out_x, out_z, steps, steps_per_tick,
+                                             dst_x - base_x, dst_z - base_z, entity_size, range);
+    if( range >= 0 && entity_size > 0 )
+    {
+        arrive_x = steps > 0 ? out_x[steps - 1] : src_x;
+        arrive_z = steps > 0 ? out_z[steps - 1] : src_z;
+    }
     for( i = 0; i < steps; i++ )
     {
         out_x[i] += base_x;
@@ -2445,8 +2457,52 @@ lua_drive_player_tile(struct lua_State* L)
  * end of each server tick of it -- two tiles a tick running, one walking, the
  * last tick the remainder; tiles[k].run says the step is the second of a
  * tick's two. opts.size > 0 routes to the reach of an entity of that size
- * whose south-west tile is (x, z) (an npc); opts.run (boolean, default false:
+ * whose south-west tile is (x, z) (an npc); opts.range (with opts.size) is a
+ * ranged interaction's walk, cut where the server fires it (the first tick's
+ * end within range and in line of sight); opts.run (boolean, default false:
  * the caller reads its own run orb) is the rate. "not_found" = no route. */
+/* api_drive.plan(spec): the raider's beam search over the client's own
+ * collision map (plugin/torirs_drive_plan_lua.h, shared with scriptrun's
+ * d_plan). "not_visible": no player or world yet. */
+static int
+lua_drive_plan(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+    struct WorldEntity_Player* player;
+    struct CollisionMap* cm;
+    int level;
+
+    luaL_checktype(L, 1, LUA_TTABLE);
+    if( !app->world || !app->world->load_complete )
+    {
+        lua_pushstring(L, "not_visible");
+        lua_pushnil(L);
+        return 2;
+    }
+    player = drive_ui_local_player(app);
+    if( !player )
+    {
+        lua_pushstring(L, "not_visible");
+        lua_pushnil(L);
+        return 2;
+    }
+    level = player->grid_position.level;
+    if( level < 0 )
+        level = 0;
+    if( level >= COLLISION_LEVELS )
+        level = COLLISION_LEVELS - 1;
+    cm = app->world->collision_maps[level];
+    if( !cm )
+    {
+        lua_pushstring(L, "no_row");
+        lua_pushnil(L);
+        return 2;
+    }
+    return DrivePlanLua(L, 1, cm, app->world->_base_tile_x, app->world->_base_tile_z, app->world->_scene_size,
+                        player->grid_position.x + app->world->_base_tile_x,
+                        player->grid_position.z + app->world->_base_tile_z);
+}
+
 static int
 lua_drive_route(struct lua_State* L)
 {
@@ -2455,7 +2511,7 @@ lua_drive_route(struct lua_State* L)
     struct App* app = PluginDrive_App();
     int x = PluginDrive_ArgInt(L, 1);
     int z = PluginDrive_ArgInt(L, 2);
-    int size = 0, run = 0, count = 0, arrive_x = 0, arrive_z = 0, nearest = 0, per, ticks, i;
+    int size = 0, run = 0, range = -1, count = 0, arrive_x = 0, arrive_z = 0, nearest = 0, per, ticks, i;
     int from_x = 0, from_z = 0, from_level = 0;
     int start_x = -1, start_z = -1;
     enum DriveResult result;
@@ -2488,9 +2544,14 @@ lua_drive_route(struct lua_State* L)
             run = lua_toboolean(L, -1);
         }
         lua_pop(L, 1);
+        lua_getfield(L, 3, "range");
+        if( !lua_isnil(L, -1) )
+            range = (int)luaL_checkinteger(L, -1);
+        lua_pop(L, 1);
     }
     luaL_argcheck(L, size >= 0, 3, "opts.size is an entity size, 0 or more");
-    result = DriveUi_Route(app, x, z, size, start_x, start_z, path_x, path_z, DRIVE_UI_ROUTE_CAP, &count,
+    luaL_argcheck(L, range < 0 || size > 0, 3, "opts.range needs opts.size: it is a range to an entity");
+    result = DriveUi_Route(app, x, z, size, range, run ? 2 : 1, start_x, start_z, path_x, path_z, DRIVE_UI_ROUTE_CAP, &count,
         &arrive_x, &arrive_z, &nearest);
     lua_pushstring(L, DriveResultName(result));
     if( result != DRIVE_OK )
@@ -2744,6 +2805,7 @@ static struct LuaFn const LUA_DRIVE_UI_FNS[] = {
     {"projectiles", lua_drive_projectiles},
     {"player_tile", lua_drive_player_tile},
     {"route", lua_drive_route},
+    {"plan", lua_drive_plan},
     {"key", lua_drive_key},
     {"text", lua_drive_text},
     {"shot", lua_drive_shot},

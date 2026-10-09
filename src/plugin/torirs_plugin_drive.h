@@ -1382,13 +1382,19 @@ enum DriveResult DriveUi_PlayerTile(
  *  entity_size > 0: to the reach of that size's entity with its south-west
  *  tile at dst. from_x/from_z >= 0: plan the walk from that absolute tile
  *  instead of the player's (a planner asking "and from there?"); -1 for the
- *  player's own. DRIVE_NOT_FOUND: no route; DRIVE_REFUSED: dst or from
- *  outside the scene; DRIVE_NOT_VISIBLE: no player or world. */
+ *  player's own. range >= 0 (with entity_size > 0): a ranged interaction's
+ *  walk, cut where the server fires it -- the first tick's end within range
+ *  and in line of sight (collision_route_cut_in_range); -1 for a melee walk.
+ *  steps_per_tick: 2 running, 1 walking (the cut is per tick).
+ *  DRIVE_NOT_FOUND: no route; DRIVE_REFUSED: dst or from outside the scene;
+ *  DRIVE_NOT_VISIBLE: no player or world. */
 enum DriveResult DriveUi_Route(
     struct App* app,
     int dst_x,
     int dst_z,
     int entity_size,
+    int range,
+    int steps_per_tick,
     int from_x,
     int from_z,
     int* out_x,

@@ -84,3 +84,43 @@ that would have prevented each round.
     attack takes the server's shortest route, and beside her that route can
     run under her. Without a "walk beside it, then attack" plan, the cheapest
     safe choice was to wait.
+
+## What P3 added
+
+19. **Derive every read tick from the queue it runs in.** A ball landing runs
+    in the target's own player queue on tick L, before that player moves: it
+    reads the target at the end of L-1, a lower pid (moved already) at the
+    end of L, a higher pid at the end of L-1. One tick end per raider, not a
+    window. A three-tick hold against three converging tornadoes took the
+    touch on nine of sixteen seeds; a one-tick hold took none.
+20. **Key a hazard on what makes it distinct, never on an id the engine
+    reuses.** Every map projectile carries the same element id, so a web
+    table keyed on it remembered one web per special and the raiders stood
+    on the other twenty-three (184 damage a run, in the old solver and the
+    new one alike, until the key became tile plus landing tick).
+21. **A press the server may refuse is not a move.** An attack order on an
+    invulnerable boss (she is from the webs slot on) stands the raider still,
+    and a tornado at its heels stepped onto that stillness. With a chaser
+    within reach, walk the tile; press the attack only when staying.
+22. **Act on the predicted slot, not the confirmed one.** The webs slot is
+    confirmed by the auto that fails to come, on the slot tick itself; her
+    arrival reads the end of T+1. A raider walked under the centre on T-1
+    was thrown four tiles, held four ticks by the throw, and touched. The
+    schedule knows the slot a rotation ahead; the forbid starts from it.
+23. **Nobody beside her at a scan means no tank to identify.** Her melee
+    reads the tank after her own follow step, so a tank two tiles away is
+    one away when she checks. Every raider under her or three or more away
+    at the end of every slot-1 makes the melee impossible whoever the tank
+    is: zero melees on sixteen seeds, and the facing heuristic is gone.
+24. **One search, many contexts.** The rotation names the next special, so
+    the context hands the planner a goal and two to four constraints; a
+    C beam search over (tile, tick) with each tornado walked along the path
+    finds the kite-and-return that hand-written plan shapes kept missing,
+    at 3-4 million node expansions a run and no instruction-budget risk.
+    Lua keeps the facts, C keeps the search; both lanes serve it.
+25. **"Pulled to five" is "set to five".** The enrage writes `map_clock + 5`
+    over any pending slot, later as well as sooner. A schedule that moved
+    only slots beyond E+5 marked a slot due at E+4 as passed, and her first
+    enraged attack found every raider beside her: one melee on four of
+    sixteen seeds, nothing else wrong in the run. Read the assignment, not
+    the comment above it.

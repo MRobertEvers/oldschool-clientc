@@ -36,6 +36,7 @@ static char const* const DRIVE_SCRIPT_PARTS[] = {
     "plugins/quest_driver/raid_play_tob_verzik.lua",
     "plugins/quest_driver/raid_solve_verzik_p1.lua",
     "plugins/quest_driver/raid_solve_verzik_p2.lua",
+    "plugins/quest_driver/raid_solve_verzik_p3.lua",
     "plugins/quest_driver/cutscene.lua",
 };
 

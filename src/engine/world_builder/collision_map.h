@@ -526,6 +526,35 @@ collision_map_route_tiles(
     int* out_arrive_z);
 
 /*
+ * A ranged interaction's walk, cut where the server stops it. The route a
+ * ranged attack walks is the ordinary route to the target's reach
+ * (collision_map_route_tiles with its approach); the server tries the
+ * interaction at the start and after each tick's movement, and fires it --
+ * the walk ends -- the first time the player is within `range` (Chebyshev, to
+ * the target's footprint) and approached (collision_map_approached: line of
+ * sight, never overlapping). torirs_server_world.c interaction_try is the
+ * server's side of the same rule.
+ *
+ * `path_x/path_z` are the route's steps in walk order (scene-local, the
+ * player's own tile not one of them), `steps_per_tick` 2 running and 1
+ * walking. Returns how many steps are kept: 0 when the start already
+ * qualifies, `steps` when no tick's end does (the walk goes all the way).
+ */
+int
+collision_route_cut_in_range(
+    struct CollisionMap* cm,
+    int src_x,
+    int src_z,
+    int const* path_x,
+    int const* path_z,
+    int steps,
+    int steps_per_tick,
+    int dest_x,
+    int dest_z,
+    int dest_size,
+    int range);
+
+/*
  * Is (x, z) an arrival for `approach` at destination (dst_x, dst_z)?
  *
  * The same predicate the flood uses. A NULL approach means exact-tile. Used by
@@ -857,4 +886,141 @@ collision_map_naive_path(
     int* out_x,
     int* out_z);
 
+/*
+ * A raider's movement plan: a beam search over (tile, tick) for a short
+ * horizon, stay or one or two steps a tick on this collision map, scored
+ * against a declarative list of tiered constraints and carrying each chasing
+ * npc's position per beam entry. Shared by the client's drive API and the
+ * scriptrun server (plugin/torirs_drive_plan_lua.h binds it for both), so a
+ * bot plans on the lane it runs on with the same arithmetic.
+ *
+ * Ticks: `now` is the tick the source tile is the end of; step k of the path
+ * is the tile at the end of tick now + k. A constraint's window [t0, t1] is
+ * in those absolute ticks.
+ *
+ * Tiers: COLLISION_PLAN_SOFT adds its cost to the soft total,
+ * COLLISION_PLAN_DAMAGE to the damage total, COLLISION_PLAN_LETHAL adds
+ * (h - k + 1) to the lethal total (a miss earlier in the horizon counts
+ * more). Plans compare tier by tier.
+ *
+ * Chasers walk the content's tornado rule: on tick T a chaser standing on
+ * the raider's end-of-T-1 tile touches; else it steps sign(dx), sign(dz)
+ * toward that tile. The cost is charged where the path's tile at the end of
+ * tick now + k is the chaser's tile then (the touch lands on now + k + 1).
+ *
+ * The two-step move's middle tile follows the flood's own parent order (W,
+ * E, S, N before the diagonals): the straight step along the dominant axis
+ * first, the diagonal second. Forbidden tiles are charged on the middle tile
+ * too (a web sticks on the step that leaves it); zones, pulls and the goal
+ * read the tick's end tile only.
+ */
+enum
+{
+    COLLISION_PLAN_SOFT = 0,
+    COLLISION_PLAN_DAMAGE = 1,
+    COLLISION_PLAN_LETHAL = 2,
+    COLLISION_PLAN_H_MAX = 16,
+    COLLISION_PLAN_BEAM_MAX = 64,
+    COLLISION_PLAN_CHASERS_MAX = 4,
+    COLLISION_PLAN_FORBID_MAX = 256,
+    COLLISION_PLAN_ZONES_MAX = 48,
+    COLLISION_PLAN_PULLS_MAX = 8,
+};
+
+struct CollisionPlanForbid
+{
+    int x, z;          /* scene-local tile */
+    int t0, t1;        /* absolute ticks, inclusive */
+    double cost;
+    int tier;
+};
+
+/* A footprint rect [x0..x1] x [z0..z1] and a Chebyshev gap band [lo, hi]
+ * (0 = on the footprint, 1 = beside it). `require` 0: the cost applies when
+ * the gap is inside the band; 1: when it is outside. */
+struct CollisionPlanZone
+{
+    int x0, z0, x1, z1;
+    int lo, hi;
+    int t0, t1;
+    double cost;
+    int tier;
+    int require;
+};
+
+/* weight x gap to the footprint at (x, z) of `size`, every tick of the window */
+struct CollisionPlanPull
+{
+    int x, z, size;
+    int t0, t1;
+    double weight;
+};
+
+struct CollisionPlanChaser
+{
+    int x, z;
+    double cost;
+    int tier;
+};
+
+/* The attack goal: a footprint at (x, z) of `size`. Beside it (gap 1, not
+ * on a diagonal: where melee reaches) costs 0 on the preferred `side` (0 W,
+ * 1 N, 2 E, 3 S; -1 any) and `off_side` elsewhere; under it `under` when
+ * `under_ok`; anywhere else `pull` x gap. */
+struct CollisionPlanGoal
+{
+    int present;
+    int x, z, size;
+    int side;
+    int under_ok;
+    double off_side, under, pull;
+};
+
+/* weight x (margin - e) for a tile within `margin` of the box's edge */
+struct CollisionPlanEdge
+{
+    int present;
+    int x0, z0, x1, z1;
+    int margin;
+    double weight;
+};
+
+struct CollisionPlanSpec
+{
+    int src_x, src_z;   /* scene-local */
+    int now;
+    int h;              /* 1..COLLISION_PLAN_H_MAX */
+    int beam;           /* 1..COLLISION_PLAN_BEAM_MAX */
+    int steps_per_tick; /* 2 running, 1 walking */
+    double move_cost;   /* soft, per step taken */
+    int n_forbid, n_zones, n_pulls, n_chasers;
+    struct CollisionPlanForbid forbid[COLLISION_PLAN_FORBID_MAX];
+    struct CollisionPlanZone zones[COLLISION_PLAN_ZONES_MAX];
+    struct CollisionPlanPull pulls[COLLISION_PLAN_PULLS_MAX];
+    struct CollisionPlanChaser chasers[COLLISION_PLAN_CHASERS_MAX];
+    struct CollisionPlanGoal goal;
+    struct CollisionPlanEdge edge;
+};
+
+struct CollisionPlanResult
+{
+    int n;                              /* = spec->h */
+    int path_x[COLLISION_PLAN_H_MAX];   /* scene-local, end of tick now + k (k = 1..n at index k - 1) */
+    int path_z[COLLISION_PLAN_H_MAX];
+    int mid_x, mid_z;                   /* the first move's middle tile, or -1 */
+    double lethal, damage, soft;
+    /* the earliest lethal charge on the chosen path: kind 0 none, 1 forbid,
+     * 2 zone, 3 chaser; `why_index` its index in the spec; `why_k` its step */
+    int why_kind, why_index, why_k;
+    int expanded;                       /* nodes expanded, for the budget trace */
+};
+
+/* Returns 0 and fills `out`; the source tile is inside the map (asserted). */
+int
+collision_plan(
+    struct CollisionMap* cm,
+    const struct CollisionPlanSpec* spec,
+    struct CollisionPlanResult* out);
+
 #endif
+

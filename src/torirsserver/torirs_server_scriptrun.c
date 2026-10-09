@@ -50,6 +50,7 @@
 #include "3rd/lua/lauxlib.h"
 #include "3rd/lua/lua.h"
 #include "3rd/lua/lualib.h"
+#include "plugin/torirs_drive_plan_lua.h"
 
 #include <assert.h>
 #include <stdint.h>
@@ -1582,6 +1583,39 @@ enum
     SCRIPTRUN_ROUTE_CAP = 4000,
 };
 
+/* api_drive.plan(spec): the raider's beam search over this bot's own
+ * collision map (plugin/torirs_drive_plan_lua.h; the client's lua_drive_plan
+ * is the same code over the client's map). */
+static int
+d_plan(lua_State* L)
+{
+    struct ScriptBot* bot = bot_of(L);
+    struct ScriptrunCore* c = bot->core;
+    struct World* world = c->world;
+    struct CollisionMap* cm;
+    int px = 0, pz = 0, level = 0;
+
+    luaL_checktype(L, 1, LUA_TTABLE);
+    if( !c->have_collision || !ScriptrunCore_LocalTile(c, &px, &pz, &level) )
+    {
+        lua_pushstring(L, "not_visible");
+        lua_pushnil(L);
+        return 2;
+    }
+    if( level < 0 )
+        level = 0;
+    if( level >= COLLISION_LEVELS )
+        level = COLLISION_LEVELS - 1;
+    cm = world->collision_maps[level];
+    if( !cm )
+    {
+        lua_pushstring(L, "no_row");
+        lua_pushnil(L);
+        return 2;
+    }
+    return DrivePlanLua(L, 1, cm, world->_base_tile_x, world->_base_tile_z, world->_scene_size, px, pz);
+}
+
 static int
 d_route(lua_State* L)
 {
@@ -1595,7 +1629,7 @@ d_route(lua_State* L)
     struct CollisionApproach approach = { 0 };
     int x = (int)luaL_checkinteger(L, 1);
     int z = (int)luaL_checkinteger(L, 2);
-    int size = 0, run = 0, start_x = -1, start_z = -1;
+    int size = 0, run = 0, range = -1, start_x = -1, start_z = -1;
     int px = 0, pz = 0, level = 0;
     int base_x, base_z, src_x, src_z, arrive_x, arrive_z, nearest = 0, steps, per, ticks;
     struct CollisionMap* cm;
@@ -1626,8 +1660,13 @@ d_route(lua_State* L)
             run = lua_toboolean(L, -1);
         }
         lua_pop(L, 1);
+        lua_getfield(L, 3, "range");
+        if( !lua_isnil(L, -1) )
+            range = (int)luaL_checkinteger(L, -1);
+        lua_pop(L, 1);
     }
     luaL_argcheck(L, size >= 0, 3, "opts.size is an entity size, 0 or more");
+    luaL_argcheck(L, range < 0 || size > 0, 3, "opts.range needs opts.size: it is a range to an entity");
     if( !c->have_collision || !ScriptrunCore_LocalTile(c, &px, &pz, &level) )
     {
         lua_pushstring(L, "not_visible");
@@ -1681,6 +1720,15 @@ d_route(lua_State* L)
         return 2;
     }
     per = run ? 2 : 1;
+    /* a ranged interaction's walk, cut where the server fires it (the
+     * client's DriveUi_Route does the same, through the same function) */
+    if( range >= 0 && size > 0 )
+    {
+        steps = collision_route_cut_in_range(cm, src_x, src_z, path_x, path_z, steps, per, x - base_x, z - base_z,
+                                             size, range);
+        arrive_x = steps > 0 ? path_x[steps - 1] : src_x;
+        arrive_z = steps > 0 ? path_z[steps - 1] : src_z;
+    }
     ticks = (steps + per - 1) / per;
     lua_pushstring(L, "ok");
     lua_createtable(L, 0, 6);
@@ -2146,7 +2194,7 @@ static char const* const CLIENT_VERBS[] = {
     "modal_group", "modal_live", "model_points", "model_pose", "mouse_button", "mouse_move",
     "move_near", "npc_pose", "npc_record", "op_available", "option_row", "options",
     "party_host", "pause_pending", "pick_holds", "pick_point", "play", "player_delayed",
-    "pump", "quit", "render_frame", "render_skip", "route", "screen_position", "server_los",
+    "plan", "pump", "quit", "render_frame", "render_skip", "route", "screen_position", "server_los",
     "server_npc_pack", "shot", "spell_arm", "start", "stop", "tab", "tab_by_name", "tests",
     "text", "var_content", "varbit_base", "varbit_content", "vessel", "view_attach",
     "view_detach", "view_interact", "view_status", "view_watcher", "widget_at",
@@ -2222,6 +2270,7 @@ push_drive_table(
     bind(L, bot, "modal_group", d_modal_group);
     bind(L, bot, "tab", d_tab);
     bind(L, bot, "route", d_route);
+    bind(L, bot, "plan", d_plan);
     bind(L, bot, "tab_by_name", d_tab_by_name);
     bind(L, bot, "pause_pending", d_pause_pending);
     bind(L, bot, "meslayer_mode", d_meslayer_mode);

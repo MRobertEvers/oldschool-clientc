@@ -10727,6 +10727,60 @@ ToriRSServer_RunCheatLadder(
         return TORIRSSERVER_TRIGGER_RAN;
     }
 
+    if( strncmp(text, "charge ", 7) == 0 )
+    {
+        /*
+         * `::charge <item_name> <count>` -- the charges an item carries, set
+         * outright: `::charge abyssal_tentacle 10000`.
+         *
+         * A charged item's count lives on the item instance, an item var keyed
+         * by its own obj id (`inv_setvar`; charges_item_var.rs2), and `::give`
+         * hands it over with none, so a given abyssal tentacle reverts to the
+         * kraken tentacle on its first hit (abyssal_tentacle.rs2
+         * `~abyssal_tentacle_drain`). This writes the same var `~charges_item_set`
+         * writes -- worn first, where a kit wields its weapon, then the backpack
+         * -- the way `::tobkit` charges its scythe.
+         */
+        char arg[64] = { 0 };
+        char suggest[256] = { 0 };
+        int want = 0;
+        int charge_obj;
+        const struct ToriRSServerIds* ids = ToriRSServer_Ids();
+        int const where[2] = { ids->inv_worn, ids->inv_backpack };
+
+        if( sscanf(text, "charge %63s %d", arg, &want) < 2 || want < 0 )
+        {
+            say(srv, "Usage: ::charge <item_name> <count>");
+            return TORIRSSERVER_TRIGGER_RAN;
+        }
+        charge_obj = cheat_obj_from_name(arg, suggest, sizeof(suggest));
+        if( charge_obj < 0 )
+        {
+            if( suggest[0] )
+                say(srv, "Which %s? %s", arg, suggest);
+            else
+                say(srv, "No item named '%s'.", arg);
+            return TORIRSSERVER_TRIGGER_RAN;
+        }
+        for( int w = 0; w < 2; w++ )
+        {
+            struct ToriRSServerContainer* row = ToriRSServer_ContainerResolve(srv, player, where[w]);
+            if( !row )
+                continue;
+            for( int slot = 0; slot < row->slots; slot++ )
+            {
+                if( row->items[slot].obj_id != charge_obj )
+                    continue;
+                ToriRSServer_ItemSetVar(&row->items[slot], charge_obj, want);
+                ToriRSServer_ContainerMark(row, slot);
+                say(srv, "%s (%d) holds %d charge(s).", ToriRSServer_ObjInfo(charge_obj)->name, charge_obj, want);
+                return TORIRSSERVER_TRIGGER_RAN;
+            }
+        }
+        say(srv, "You are not wearing or carrying %s.", arg);
+        return TORIRSSERVER_TRIGGER_RAN;
+    }
+
     if( strncmp(text, "clearinv", 8) == 0 )
     {
         /*

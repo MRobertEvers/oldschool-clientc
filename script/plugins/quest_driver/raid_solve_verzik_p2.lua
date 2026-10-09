@@ -61,8 +61,8 @@
 QD.VZP2 = {
     CADENCE = 4, FIRST_ATTACK = 3, AFTER_SUMMON = 12, AFTER_SEVENTH = 8, ATTACKS_PER_REDS = 7,
     ZAP_EVERY = 5, ABSORB_TICKS = 5,
-    REDS_NEAR = 0.37,
-    REDS_LEAVE = 0.15,         -- her bar at or below this at a summon: the set is not worth killing          -- her bar at or below this: any attack slot may be the first summon
+    REDS_NEAR = 0.37,          -- her bar at or below this: any attack slot may be the first summon
+    REDS_LEAVE = 0.15,         -- her bar at or below this at a summon: the set is not worth killing
     HEAL_SWING = 8,            -- a swing on her in the absorb window: worse than three idle ticks
     CRAB_LIFE = 25, CRAB_BLAST = 3, CRAB_SIZE = 2,
     SIZE = 3,
@@ -103,7 +103,7 @@ function QD.raid._vzp2_now()
     return session.lockstep_tick
 end
 
-function QD.raid._vzp2_ids()
+function QD.raid._vzp2_ids(weapon)
     local function sym(kind, name)
         local r, id = api_drive.symbol(kind, name)
         assert(r == "ok", "verzik_p2_solve: no " .. kind .. " named " .. name)
@@ -135,7 +135,8 @@ function QD.raid._vzp2_ids()
         restores = { sym("obj", "br_1dose2restore"), sym("obj", "br_2dose2restore"),
                      sym("obj", "br_3dose2restore"), sym("obj", "br_4dose2restore") },
         helm = sym("obj", "serpentine_helm_charged"),
-        scythe = sym("obj", "scythe_of_vitur"),
+        -- the weapon P1 found in my hand (QD.raid._vzp1_weapon_from_hand)
+        weapon = QD.raid.vz_weapon or sym("obj", weapon or "scythe_of_vitur"),
         food = sym("obj", "anglerfish"),
         backpack = comp("inventory:items"),
         missiles = comp("prayerbook:prayer14"), magic = comp("prayerbook:prayer13"),
@@ -196,10 +197,10 @@ function QD.raid._vzp2_measure(S)
     local _, hw = api_drive.inv_count(ids.worn, ids.helm)
     F.helm_worn = (hw or 0) > 0
     -- the Dawnbringer goes with her P1 form: its last holder is left
-    -- bare-handed (so p2: punching for 550 ticks) with the scythe in the pack
-    local _, sw = api_drive.inv_count(ids.worn, ids.scythe)
-    local _, sp = api_drive.inv_count(ids.inv, ids.scythe)
-    F.scythe_held = (sw or 0) == 0 and (sp or 0) > 0
+    -- bare-handed (so p2: punching for 550 ticks) with the weapon in the pack
+    local _, sw = api_drive.inv_count(ids.worn, ids.weapon)
+    local _, sp = api_drive.inv_count(ids.inv, ids.weapon)
+    F.weapon_held = (sw or 0) == 0 and (sp or 0) > 0
     return F
 end
 
@@ -778,7 +779,7 @@ function QD.raid.verzik_p2_solve(opts)
     assert(opts.base, "verzik_p2_solve: opts.base (the room origin, verzik_p1_prepare's) is required")
     local V = QD.VZP2
     local S = {
-        ids = QD.raid._vzp2_ids(),
+        ids = QD.raid._vzp2_ids(opts.weapon),
         role = (QD_PARTY and QD_PARTY.role) or 1,
         floor = { x0 = opts.base.x + V.FLOOR.x0, x1 = opts.base.x + V.FLOOR.x1,
                   z0 = opts.base.z + V.FLOOR.z0, z1 = opts.base.z + V.FLOOR.z1 },
@@ -828,9 +829,9 @@ function QD.raid.verzik_p2_solve(opts)
             if S.role == 3 and not F.helm_worn and F.tick - (S.helm_tried or -10) >= 3 and intent.pray == nil then
                 intent.gear = S.ids.helm
                 S.helm_tried = F.tick
-            elseif F.scythe_held and F.tick - (S.scythe_tried or -10) >= 3 and intent.pray == nil then
-                intent.gear = S.ids.scythe
-                S.scythe_tried = F.tick
+            elseif F.weapon_held and F.tick - (S.weapon_tried or -10) >= 3 and intent.pray == nil then
+                intent.gear = S.ids.weapon
+                S.weapon_tried = F.tick
             end
             if F.hp < V.HP_EAT then intent.eat = true end
             -- prayer points: a super restore below the floor (the lowest dose

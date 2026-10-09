@@ -2666,3 +2666,489 @@ collision_map_naive_path(
     *out_z = curr_z;
     return 1;
 }
+
+static int
+collision_rect_distance(
+    int x,
+    int z,
+    int rx,
+    int rz,
+    int size)
+{
+    int dx = x < rx ? rx - x : (x > rx + size - 1 ? x - (rx + size - 1) : 0);
+    int dz = z < rz ? rz - z : (z > rz + size - 1 ? z - (rz + size - 1) : 0);
+    return dx > dz ? dx : dz;
+}
+
+static int
+collision_in_range_at(
+    struct CollisionMap* cm,
+    int x,
+    int z,
+    int dest_x,
+    int dest_z,
+    int dest_size,
+    int range)
+{
+    if( collision_rect_distance(x, z, dest_x, dest_z, dest_size) > range )
+        return 0;
+    return collision_map_approached(cm, x, z, dest_x, dest_z, 1, 1, dest_size, dest_size);
+}
+
+int
+collision_route_cut_in_range(
+    struct CollisionMap* cm,
+    int src_x,
+    int src_z,
+    int const* path_x,
+    int const* path_z,
+    int steps,
+    int steps_per_tick,
+    int dest_x,
+    int dest_z,
+    int dest_size,
+    int range)
+{
+    assert(cm);
+    assert(steps >= 0);
+    assert(steps == 0 || path_x);
+    assert(steps == 0 || path_z);
+    assert(steps_per_tick >= 1);
+    assert(dest_size >= 1);
+    assert(range >= 0);
+
+    if( collision_in_range_at(cm, src_x, src_z, dest_x, dest_z, dest_size, range) )
+        return 0;
+    for( int end = steps_per_tick; end < steps + steps_per_tick; end += steps_per_tick )
+    {
+        int k = end < steps ? end : steps;
+        if( collision_in_range_at(cm, path_x[k - 1], path_z[k - 1], dest_x, dest_z, dest_size, range) )
+            return k;
+    }
+    return steps;
+}
+
+/* ======================================================================
+ * collision_plan: the raider's beam search (collision_map.h for the model).
+ * ====================================================================== */
+
+struct PlanNode
+{
+    int x, z;
+    int cx[COLLISION_PLAN_CHASERS_MAX];
+    int cz[COLLISION_PLAN_CHASERS_MAX];
+    double lethal, damage, soft;
+    int parent;
+    int mid_x, mid_z;
+    int why_kind, why_index, why_k;
+    int order; /* insertion order: the tie-break that keeps the search deterministic */
+};
+
+enum
+{
+    PLAN_MOVES = 25,
+    PLAN_CAND_MAX = COLLISION_PLAN_BEAM_MAX * PLAN_MOVES,
+    PLAN_HASH = 4096,
+    PLAN_GONE = -1000, /* a chaser that has touched and faded */
+};
+
+static struct PlanNode g_plan_kept[COLLISION_PLAN_H_MAX + 1][COLLISION_PLAN_BEAM_MAX];
+static struct PlanNode g_plan_cand[PLAN_CAND_MAX];
+static int g_plan_sorted[PLAN_CAND_MAX];
+static int g_plan_hash[PLAN_HASH];
+
+static int
+plan_gap_rect(int x, int z, int x0, int z0, int x1, int z1)
+{
+    int gx = x < x0 ? x0 - x : (x > x1 ? x - x1 : 0);
+    int gz = z < z0 ? z0 - z : (z > z1 ? z - z1 : 0);
+    return gx > gz ? gx : gz;
+}
+
+static int
+plan_step_ok(struct CollisionMap* cm, int x, int z, int dx, int dz)
+{
+    int nx = x + dx, nz = z + dz;
+    if( nx < 0 || nz < 0 || nx >= cm->size_x || nz >= cm->size_z )
+        return 0;
+    if( dx == -1 && dz == 0 )
+        return collision_map_can_step_west(cm, x, z);
+    if( dx == 1 && dz == 0 )
+        return collision_map_can_step_east(cm, x, z);
+    if( dx == 0 && dz == -1 )
+        return collision_map_can_step_south(cm, x, z);
+    if( dx == 0 && dz == 1 )
+        return collision_map_can_step_north(cm, x, z);
+    if( dx == -1 && dz == -1 )
+        return collision_map_can_step_diagonal_south_west(cm, x, z);
+    if( dx == 1 && dz == -1 )
+        return collision_map_can_step_diagonal_south_east(cm, x, z);
+    if( dx == -1 && dz == 1 )
+        return collision_map_can_step_diagonal_north_west(cm, x, z);
+    if( dx == 1 && dz == 1 )
+        return collision_map_can_step_diagonal_north_east(cm, x, z);
+    return 0;
+}
+
+/* Move m: 0 stay, 1..8 one step, 9..24 two steps. Fills the end tile's
+ * offset and the middle step (dx1, dz1) for a two-step move. */
+static void
+plan_move(int m, int* dx, int* dz, int* steps)
+{
+    static const int one[8][2] = { { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 }, { -1, -1 }, { 1, -1 }, { -1, 1 }, { 1, 1 } };
+    int n = 0;
+    if( m == 0 )
+    {
+        *dx = *dz = 0;
+        *steps = 0;
+        return;
+    }
+    if( m <= 8 )
+    {
+        *dx = one[m - 1][0];
+        *dz = one[m - 1][1];
+        *steps = 1;
+        return;
+    }
+    m -= 9;
+    for( *dx = -2; *dx <= 2; (*dx)++ )
+    {
+        for( *dz = -2; *dz <= 2; (*dz)++ )
+        {
+            if( *dx != -2 && *dx != 2 && *dz != -2 && *dz != 2 )
+                continue;
+            if( n == m )
+            {
+                *steps = 2;
+                return;
+            }
+            n++;
+        }
+    }
+    assert(0 && "plan_move: move index out of range");
+}
+
+static void
+plan_charge(
+    struct PlanNode* n,
+    const struct CollisionPlanSpec* spec,
+    int tier,
+    double cost,
+    int kind,
+    int index,
+    int k)
+{
+    if( tier == COLLISION_PLAN_LETHAL )
+    {
+        n->lethal += (double)(spec->h - k + 1);
+        if( n->why_kind == 0 )
+        {
+            n->why_kind = kind;
+            n->why_index = index;
+            n->why_k = k;
+        }
+    }
+    else if( tier == COLLISION_PLAN_DAMAGE )
+        n->damage += cost;
+    else
+        n->soft += cost;
+}
+
+static void
+plan_charge_forbid(struct PlanNode* n, const struct CollisionPlanSpec* spec, int x, int z, int t, int k)
+{
+    int i;
+    for( i = 0; i < spec->n_forbid; i++ )
+    {
+        const struct CollisionPlanForbid* f = &spec->forbid[i];
+        if( f->x == x && f->z == z && t >= f->t0 && t <= f->t1 )
+            plan_charge(n, spec, f->tier, f->cost, 1, i, k);
+    }
+}
+
+static void
+plan_score(struct PlanNode* n, const struct CollisionPlanSpec* spec, int k, int steps)
+{
+    int t = spec->now + k;
+    int i;
+    plan_charge_forbid(n, spec, n->x, n->z, t, k);
+    if( n->mid_x >= 0 )
+        plan_charge_forbid(n, spec, n->mid_x, n->mid_z, t, k);
+    for( i = 0; i < spec->n_zones; i++ )
+    {
+        const struct CollisionPlanZone* zn = &spec->zones[i];
+        int gap, inside;
+        if( t < zn->t0 || t > zn->t1 )
+            continue;
+        gap = plan_gap_rect(n->x, n->z, zn->x0, zn->z0, zn->x1, zn->z1);
+        inside = gap >= zn->lo && gap <= zn->hi;
+        if( zn->require ? !inside : inside )
+            plan_charge(n, spec, zn->tier, zn->cost, 2, i, k);
+    }
+    for( i = 0; i < spec->n_pulls; i++ )
+    {
+        const struct CollisionPlanPull* p = &spec->pulls[i];
+        if( t < p->t0 || t > p->t1 )
+            continue;
+        n->soft += p->weight * plan_gap_rect(n->x, n->z, p->x, p->z, p->x + p->size - 1, p->z + p->size - 1);
+    }
+    if( spec->goal.present )
+    {
+        const struct CollisionPlanGoal* g = &spec->goal;
+        int x1 = g->x + g->size - 1, z1 = g->z + g->size - 1;
+        int gx = n->x < g->x ? g->x - n->x : (n->x > x1 ? n->x - x1 : 0);
+        int gz = n->z < g->z ? g->z - n->z : (n->z > z1 ? n->z - z1 : 0);
+        if( (gx == 1 && gz == 0) || (gx == 0 && gz == 1) )
+        {
+            int side = gx == 1 ? (n->x < g->x ? 0 : 2) : (n->z > z1 ? 1 : 3);
+            if( g->side >= 0 && side != g->side )
+                n->soft += g->off_side;
+        }
+        else if( gx == 0 && gz == 0 && g->under_ok )
+            n->soft += g->under;
+        else
+            n->soft += g->pull * (double)(gx > gz ? gx : gz);
+    }
+    if( spec->edge.present )
+    {
+        const struct CollisionPlanEdge* e = &spec->edge;
+        int d = n->x - e->x0;
+        if( e->x1 - n->x < d )
+            d = e->x1 - n->x;
+        if( n->z - e->z0 < d )
+            d = n->z - e->z0;
+        if( e->z1 - n->z < d )
+            d = e->z1 - n->z;
+        if( d < e->margin )
+            n->soft += e->weight * (double)(e->margin - d);
+    }
+    for( i = 0; i < spec->n_chasers; i++ )
+    {
+        if( n->cx[i] == n->x && n->cz[i] == n->z )
+            plan_charge(n, spec, spec->chasers[i].tier, spec->chasers[i].cost, 3, i, k);
+    }
+    n->soft += spec->move_cost * (double)steps;
+}
+
+static int
+plan_better(const struct PlanNode* a, const struct PlanNode* b)
+{
+    if( a->lethal != b->lethal )
+        return a->lethal < b->lethal;
+    if( a->damage != b->damage )
+        return a->damage < b->damage;
+    if( a->soft != b->soft )
+        return a->soft < b->soft;
+    return a->order < b->order;
+}
+
+static int
+plan_cmp(const void* pa, const void* pb)
+{
+    const struct PlanNode* a = &g_plan_cand[*(const int*)pa];
+    const struct PlanNode* b = &g_plan_cand[*(const int*)pb];
+    if( plan_better(a, b) )
+        return -1;
+    if( plan_better(b, a) )
+        return 1;
+    return 0;
+}
+
+static int
+plan_same_state(const struct PlanNode* a, const struct PlanNode* b, int n_chasers)
+{
+    int i;
+    if( a->x != b->x || a->z != b->z )
+        return 0;
+    for( i = 0; i < n_chasers; i++ )
+        if( a->cx[i] != b->cx[i] || a->cz[i] != b->cz[i] )
+            return 0;
+    return 1;
+}
+
+static unsigned
+plan_hash_state(const struct PlanNode* a, int n_chasers)
+{
+    unsigned h = (unsigned)a->x * 73856093u ^ (unsigned)a->z * 19349663u;
+    int i;
+    for( i = 0; i < n_chasers; i++ )
+        h = h * 31u + (unsigned)(a->cx[i] + 2000) * 83492791u + (unsigned)(a->cz[i] + 2000) * 2654435761u;
+    return h & (PLAN_HASH - 1);
+}
+
+int
+collision_plan(
+    struct CollisionMap* cm,
+    const struct CollisionPlanSpec* spec,
+    struct CollisionPlanResult* out)
+{
+    int k, i, m, kept_n, best;
+    assert(cm);
+    assert(spec);
+    assert(out);
+    assert(spec->h >= 1 && spec->h <= COLLISION_PLAN_H_MAX);
+    assert(spec->beam >= 1 && spec->beam <= COLLISION_PLAN_BEAM_MAX);
+    assert(spec->steps_per_tick >= 1 && spec->steps_per_tick <= 2);
+    assert(spec->n_chasers >= 0 && spec->n_chasers <= COLLISION_PLAN_CHASERS_MAX);
+    assert(spec->n_forbid >= 0 && spec->n_forbid <= COLLISION_PLAN_FORBID_MAX);
+    assert(spec->n_zones >= 0 && spec->n_zones <= COLLISION_PLAN_ZONES_MAX);
+    assert(spec->n_pulls >= 0 && spec->n_pulls <= COLLISION_PLAN_PULLS_MAX);
+    assert(spec->src_x >= 0 && spec->src_x < cm->size_x);
+    assert(spec->src_z >= 0 && spec->src_z < cm->size_z);
+
+    memset(out, 0, sizeof(*out));
+    {
+        struct PlanNode* root = &g_plan_kept[0][0];
+        memset(root, 0, sizeof(*root));
+        root->x = spec->src_x;
+        root->z = spec->src_z;
+        root->parent = -1;
+        root->mid_x = root->mid_z = -1;
+        for( i = 0; i < spec->n_chasers; i++ )
+        {
+            root->cx[i] = spec->chasers[i].x;
+            root->cz[i] = spec->chasers[i].z;
+        }
+    }
+    kept_n = 1;
+    for( k = 1; k <= spec->h; k++ )
+    {
+        int cand_n = 0;
+        int moves = spec->steps_per_tick == 2 ? PLAN_MOVES : 9;
+        for( i = 0; i < kept_n; i++ )
+        {
+            const struct PlanNode* from = &g_plan_kept[k - 1][i];
+            int ncx[COLLISION_PLAN_CHASERS_MAX], ncz[COLLISION_PLAN_CHASERS_MAX];
+            int c;
+            /* the chasers' step this tick: toward the tile the raider ended
+             * the last tick on; one that stands on it has touched and fades */
+            for( c = 0; c < spec->n_chasers; c++ )
+            {
+                int cx = from->cx[c], cz = from->cz[c];
+                if( cx == PLAN_GONE )
+                    ;
+                else if( cx == from->x && cz == from->z )
+                    cx = cz = PLAN_GONE;
+                else
+                {
+                    cx += from->x > cx ? 1 : (from->x < cx ? -1 : 0);
+                    cz += from->z > cz ? 1 : (from->z < cz ? -1 : 0);
+                }
+                ncx[c] = cx;
+                ncz[c] = cz;
+            }
+            for( m = 0; m < moves; m++ )
+            {
+                struct PlanNode* n;
+                int dx, dz, steps, mx = -1, mz = -1;
+                plan_move(m, &dx, &dz, &steps);
+                if( steps == 1 )
+                {
+                    if( !plan_step_ok(cm, from->x, from->z, dx, dz) )
+                        continue;
+                }
+                else if( steps == 2 )
+                {
+                    int ax = dx < 0 ? -dx : dx, az = dz < 0 ? -dz : dz;
+                    int d1x, d1z;
+                    if( ax == 2 && az == 2 )
+                    {
+                        d1x = dx / 2;
+                        d1z = dz / 2;
+                    }
+                    else if( ax == 2 )
+                    {
+                        d1x = dx / 2;
+                        d1z = 0;
+                    }
+                    else
+                    {
+                        d1x = 0;
+                        d1z = dz / 2;
+                    }
+                    if( !plan_step_ok(cm, from->x, from->z, d1x, d1z) )
+                        continue;
+                    mx = from->x + d1x;
+                    mz = from->z + d1z;
+                    if( !plan_step_ok(cm, mx, mz, dx - d1x, dz - d1z) )
+                        continue;
+                }
+                assert(cand_n < PLAN_CAND_MAX);
+                n = &g_plan_cand[cand_n];
+                n->x = from->x + dx;
+                n->z = from->z + dz;
+                for( c = 0; c < spec->n_chasers; c++ )
+                {
+                    n->cx[c] = ncx[c];
+                    n->cz[c] = ncz[c];
+                }
+                n->lethal = from->lethal;
+                n->damage = from->damage;
+                n->soft = from->soft;
+                n->parent = i;
+                n->mid_x = mx;
+                n->mid_z = mz;
+                n->why_kind = from->why_kind;
+                n->why_index = from->why_index;
+                n->why_k = from->why_k;
+                n->order = cand_n;
+                plan_score(n, spec, k, steps);
+                cand_n++;
+            }
+        }
+        out->expanded += cand_n;
+        assert(cand_n > 0);
+        for( i = 0; i < cand_n; i++ )
+            g_plan_sorted[i] = i;
+        qsort(g_plan_sorted, (size_t)cand_n, sizeof(int), plan_cmp);
+        /* the best per state, up to the beam width */
+        for( i = 0; i < PLAN_HASH; i++ )
+            g_plan_hash[i] = -1;
+        kept_n = 0;
+        for( i = 0; i < cand_n && kept_n < spec->beam; i++ )
+        {
+            const struct PlanNode* n = &g_plan_cand[g_plan_sorted[i]];
+            unsigned h = plan_hash_state(n, spec->n_chasers);
+            int dup = 0;
+            while( g_plan_hash[h] >= 0 )
+            {
+                if( plan_same_state(&g_plan_kept[k][g_plan_hash[h]], n, spec->n_chasers) )
+                {
+                    dup = 1;
+                    break;
+                }
+                h = (h + 1) & (PLAN_HASH - 1);
+            }
+            if( dup )
+                continue;
+            g_plan_hash[h] = kept_n;
+            g_plan_kept[k][kept_n] = *n;
+            kept_n++;
+        }
+    }
+    /* the best leaf, and its path back to the root */
+    best = 0;
+    for( i = 1; i < kept_n; i++ )
+        if( plan_better(&g_plan_kept[spec->h][i], &g_plan_kept[spec->h][best]) )
+            best = i;
+    out->n = spec->h;
+    out->lethal = g_plan_kept[spec->h][best].lethal;
+    out->damage = g_plan_kept[spec->h][best].damage;
+    out->soft = g_plan_kept[spec->h][best].soft;
+    out->why_kind = g_plan_kept[spec->h][best].why_kind;
+    out->why_index = g_plan_kept[spec->h][best].why_index;
+    out->why_k = g_plan_kept[spec->h][best].why_k;
+    for( k = spec->h; k >= 1; k-- )
+    {
+        const struct PlanNode* n = &g_plan_kept[k][best];
+        out->path_x[k - 1] = n->x;
+        out->path_z[k - 1] = n->z;
+        if( k == 1 )
+        {
+            out->mid_x = n->mid_x;
+            out->mid_z = n->mid_z;
+        }
+        best = n->parent;
+    }
+    return 0;
+}
