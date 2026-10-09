@@ -390,3 +390,28 @@ below; the timelines gave them up at once.
     three ticks. The follow itself is a sign-of-the-difference diagonal step
     (`~tob_verzik_p3_follow`), not the engine's `playerfollow` naive path,
     which is what a kiting tank would show up.
+60. **Her P3 walk is a normal npc's walk, every unsuspended tick.** Blert's
+    25 Normal trios, tank = the target of her last auto, special windows
+    excluded, P(step) per tick: tank 2+ away 0.92 on free ticks and 0.98 on
+    attack ticks (she attacks from range and keeps walking); beside her 0.01
+    and 0.00; under her 0.20 and 0.37, cardinal steps 61 to 6. The content
+    now calls `npc_walk` to the tank's tile (the engine's naive path:
+    diagonal while both axes differ, a random cardinal when the footprints
+    overlap, stopping beside) on every tick she is not suspended by the webs
+    or the yellows, attack ticks included; with the tank in reach on an
+    attack tick she stands (the attack is the tick's act). It used to be a
+    hand-rolled sign-of-the-difference step on free ticks only, which gave
+    0.15 on far ticks in the approach probe
+    (test/raids/_probe_verzik_p3_far.lua). Sixteen seeds after: 0.19/0.33
+    under, 0.06/0.00 beside, 0.94 far, no deaths. The tank label in the
+    tick log is her face entity (the last attack target), not
+    `^tob_var_vz_tank`; a diagonal step read as "under" is that proxy.
+61. **Isolate from the shared content tree when another session is mid-edit.**
+    A pack built from the shared tree compiles everyone's half-done files;
+    on 2026-10-09 another session's dotted-hunt rewrite segfaulted my
+    binary at the fight's first tick on every seed. `git -C OSRS-Content
+    worktree add --detach <wt> HEAD`, apply your own diff there, build its
+    packs with `TORIRSSERVER_CONTENT_DIR=<wt>/osrs239-content` (scripts 29 s,
+    servpack 118 s), and run the server from a scratch root of symlinks
+    whose `OSRS-Content` points at the worktree: the server resolves
+    `OSRS-Content/osrs239-content` relative to its working directory.
