@@ -1,10 +1,10 @@
--- quest-driver / raid_solve_tob_maiden: THE MAIDEN OF SUGADINTI, Normal trio.
+-- quest-driver / tob_maiden: THE MAIDEN OF SUGADINTI, Normal trio.
 --
 --   t.raid.maiden_solve(opts) -> result, detail, record
 --
 -- Called by every seat at the room's entry (the corridor side of the
 -- barrier). It starts the room (the leader) or crosses once the leader is in
--- (a member), and plays the fight on the shared loop (raid_solve_tob.lua):
+-- (a member), and plays the fight on the shared loop (tob.lua):
 -- MEASURE -> CLOCK -> CONTEXT -> PLAN -> ORDER + EMIT, one decision a server
 -- tick. It returns "ok" at her death. The plan is ROOM_SOLVERS.md 4.1.
 --
@@ -36,7 +36,7 @@
 --
 -- THE ROLES (ROOM_SOLVERS.md 4.1.1): seat 1, the leader, is the FREEZER (it
 -- leads the orb order, :597); seats 2 and 3 are DPS. Each wave is handled by
--- its spawn pattern's entry in QD.MAIDEN_WAVES (raid_solve_tob_maiden_waves.lua,
+-- its spawn pattern's entry in QD.MAIDEN_WAVES (tob_maiden_waves.lua,
 -- generated from 200 Blert rooms by tools/gen_maiden_wave_plans.py): the
 -- freezer's barrage SLOTS (+1 a 1, +6 a 2, +11 the 3s adjacent in one 3x3,
 -- +16 the 4s on one tile) from (41,30), then barrages on the biggest clump;
@@ -310,7 +310,7 @@ end
 -- ====================================================================== WAVE
 
 -- The wave, on the tick its crabs appear: its points, its key, and the
--- table's handler for that pattern (raid_solve_tob_maiden_waves.lua,
+-- table's handler for that pattern (tob_maiden_waves.lua,
 -- generated from Blert by tools/gen_maiden_wave_plans.py; ROOM_SOLVERS.md
 -- 4.1.1). Every seat reads the same rows and so holds the same handler.
 function QD.raid._maiden_wave(S, F)
@@ -540,7 +540,7 @@ function QD.raid._maiden_step(S, F)
     QD.raid._maiden_crabs(S, F)
     QD.raid._maiden_wave(S, F)
     local intent = {}
-    -- THE CONTENT PROBE (opts.ignore_crabs, test/raids/_probe_maiden.lua):
+    -- THE CONTENT PROBE (opts.ignore_crabs, test/raids/tob_maiden_probe.lua):
     -- every seat melees her and nothing else, so every crab walks its whole
     -- path to its leak untouched -- the calibration of the waves against Blert
     -- (ROOM_SOLVERS.md 4.7), not a way to play the room

@@ -13,7 +13,7 @@ from the room's geometry (a crab is saved by a cast on or before +5 for a 1,
 way at least twice, consistently with those deadlines, takes Blert's slots.
 Every entry carries how Blert's waves of its pattern compare.
 
-Writes script/plugins/quest_driver/raid_solve_tob_maiden_waves.lua. Re-run;
+Writes script/plugins/quest_driver/tob_maiden_waves.lua. Re-run;
 do not hand-edit.
 """
 import collections
@@ -27,7 +27,7 @@ REPO = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 import blert_maiden_roles as roles  # noqa: E402
 
-OUT = os.path.join(REPO, "script", "plugins", "quest_driver", "raid_solve_tob_maiden_waves.lua")
+OUT = os.path.join(REPO, "script", "plugins", "quest_driver", "tob_maiden_waves.lua")
 ORDER = ["N1", "N2", "N3", "N4i", "N4o", "S1", "S2", "S3", "S4i", "S4o"]
 # the slots' cast ticks after the spawn, and the latest cast that still saves
 # each point (it reaches the leak tile at heal - 1: heals +7 / +10 / +14 / +18)

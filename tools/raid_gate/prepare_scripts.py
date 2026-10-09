@@ -43,8 +43,8 @@ A suite given with --suite and a directory outside script/ (a scratch tests
 root for a proof) is named by its path relative to the script directory, which
 only the native lane can read.
 
-`_` files are harnesses, not tests (_conformance, _party_smoke, ...) and are
-skipped. A test whose fixture file is absent: listed, available=0. Everything
+Every .lua file in a suite is listed, whatever its name. A test whose fixture
+file is absent: listed, available=0. Everything
 else is available: Play gives it a fresh account made from its own fixture
 (src/plugin/torirs_plugin_drive.c, api.drive.play). A test that declares
 `party = <n>` is available too, with party=<n> (raid seam37,
@@ -148,21 +148,27 @@ def describe(suite, directory, directory_script_path):
     if not os.path.isdir(directory):
         return entries
     for name in sorted(os.listdir(directory)):
-        # `_` files are harnesses and stay out of the list, except the play
-        # library's own (`_play_*`: a room played through t.raid.play), which
-        # the owner watches like any room (2026-10-05).
-        # `_play_*` and the Verzik lanes (`_vz*`: _vzslow, _vzslowp3, _vzfastp3)
-        # are listed so they can be watched from the Scripts tab (owner
-        # 2026-10-07: "Give me a command to run so I can watch the slow verzik
-        # encounter in a client"); every other `_` file stays a harness part
-        if not name.endswith(".lua") or (name.startswith("_") and not name.startswith("_play_")
-                                         and not name.startswith("_vz")):
+        # EVERY test file is listed (owner, 2026-10-09: "Do not hide any
+        # scripts"). A leading `_` used to hide a file unless it was `_play_*`
+        # or `_vz*`, so the Maiden solver's `_solve_tob_maiden` never reached
+        # the Scripts tab.
+        if not name.endswith(".lua"):
             continue
         test_file = os.path.join(directory, name)
         test_id = name[:-len(".lua")]
         with open(test_file, "r", encoding="utf-8") as handle:
             source = handle.read()
         party = quest_run.read_party_size(test_file)
+        if not quest_run.FIXTURE_RE.search(source):
+            # listed all the same, with why it cannot be played (a probe or a
+            # harness part that never declared a fixture)
+            entries.append({
+                "id": test_id, "suite": suite, "title": test_id,
+                "source": script_path(directory_script_path, name), "fixture": "",
+                "legs": 0, "start": "", "party": party, "max_frames": 0,
+                "available": 0, "reason": "declares no fixture = \"...\"",
+            })
+            continue
         fixture = quest_run.read_fixture_name(test_file)
         max_frames = quest_run.read_max_frames(test_file)
         _, layout = quest_run.legs_source(test_file)

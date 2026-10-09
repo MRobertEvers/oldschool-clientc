@@ -1,15 +1,14 @@
--- _probe_maiden: the Normal Maiden trio's CONTENT under observation. Every
--- seat wears the Learner/Void kit, turns on ::god and melees her and nothing
--- else (t.raid.maiden_solve's ignore_crabs), so every crab of the 70/50/30
--- waves walks its whole path untouched to its leak; the tick log records each
--- crab's spawn, tile and leak and her heals, for the calibration against Blert
--- (ROOM_SOLVERS.md 4.7; scratchpad maiden_crab_cal.py). The frozen crabs'
--- side of the calibration comes from _solve_tob_maiden runs.
+-- tob_nylocas_probe: the Normal Nylocas trio's CONTENT under observation, no
+-- solver. Every seat wears the Learner/Void kit, turns on ::god (the damage
+-- funnel's measurement switch), crosses after the leader starts the room and
+-- stands mid-room; the tick log records every nylo's spawn, tile, type change
+-- and death, the waves, the supports and Vasilias, for the calibration against
+-- Blert (ROOM_SOLVERS.md 4.7; scratchpad nylo_cal.py). Nobody kills a nylo,
+-- so the room cap stalls waves Blert's teams do not stall: the calibration
+-- compares only what players do not drive (paths, swaps, flickers,
+-- detonations, splits, the boss's clock), and wave timing against the cap.
 local role = (QD_PARTY and QD_PARTY.role) or 1
 
--- THE LEARNER/VOID KIT (wiki_Theatre_of_Blood_Strategies.wikitext :93-126,
--- :294-330): the void melee set worn, the ranged and mage switches and the
--- supplies in the pack, one slot free for a two-handed switch.
 local WORN = {
     "game_pest_melee_helm", "elite_void_knight_top", "elite_void_knight_robes", "pest_void_knight_gloves",
     "abyssal_tentacle", "dragon_parryingdagger", "zenyte_amulet_enchanted", "tzhaar_cape_fire",
@@ -36,10 +35,6 @@ for _, obj in ipairs(WORN) do
     kit[#kit + 1] = "::give " .. obj .. " 1"
     kit[#kit + 1] = "::wield " .. obj
 end
--- THE FREEZER (seat 1, the leader: ROOM_SOLVERS.md 4.1): Ancient Magicks and
--- the Ice Barrage runes, loose (no pouch-loading cheat); two supply slots
--- fewer so the defender and the boots can come off for the cast set.
-if role == 1 then kit[#kit + 1] = "::setvar varb4070_spellbook 1" end
 for _, line in ipairs({
     "::~charge abyssal_tentacle 10000",
     "::clearinv",
@@ -65,23 +60,31 @@ else
     }) do kit[#kit + 1] = line end
 end
 
+
 local function run(t)
-    if role == 1 then t.check("maiden.ticklog", t.ticklog.start() == "ok", "") end
-    local r, d = t.raid.enter("tob", "maiden", { mode = "normal" })
-    t.check("maiden.enter", r == "ok", "p" .. role .. " " .. tostring(d))
+    if role == 1 then t.check("nylo.ticklog", t.ticklog.start() == "ok", "") end
+    local r, d = t.raid.enter("tob", "nylocas", { mode = "normal" })
+    t.check("nylo.enter", r == "ok", "p" .. role .. " " .. tostring(d))
     t.expect("party.barrier.ready", t.party.barrier("ready", 300))
     t.cheat("::synctimers", false)
-    local result, detail = t.raid.maiden_solve({ max_ticks = 2400, ignore_crabs = true })
-    t.check("maiden.probe_solve", result == "ok", tostring(detail))
+    if role == 1 then
+        t.check("nylo.start", t.player.click_loc("tob_arena_barrier", 1) == "ok", "")
+        t.chat.play({ "options", "choose:Yes, begin the fight." })
+    end
+    t.expect("party.barrier.started", t.party.barrier("started", 300))
+    if role ~= 1 then t.player.click_loc("tob_arena_barrier", 1) end
+    -- stand mid-room (local (31,24) of the room's square)
+    t.raid.tob_probe_stand(30 + role, 24)
+    t.ticks(520)
     t.expect("party.barrier.done", t.party.barrier("done", 900))
     t.finish(0)
 end
 
 return {
-    id = "_probe_maiden",
+    id = "tob_nylocas_probe",
     fixture = "fresh_lumbridge.ini",
     party = 3,
-    max_frames = 240000,
+    max_frames = 120000,
     setup = kit,
     run = run,
 }

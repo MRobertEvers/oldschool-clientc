@@ -1,1 +1,0 @@
--- quest-driver / raid_solve_tob_nylocas: see docs/minigames/theater_of_blood/ROOM_SOLVERS.md (not yet written).

@@ -1,0 +1,1 @@
+-- quest-driver / tob_relay: see docs/minigames/theater_of_blood/ROOM_SOLVERS.md (not yet written).

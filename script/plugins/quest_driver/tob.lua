@@ -1,8 +1,8 @@
--- quest-driver / raid_solve_tob: THE ROOM SOLVERS' SHARED LOOP.
+-- quest-driver / tob: THE ROOM SOLVERS' SHARED LOOP.
 --
 -- The Verzik solvers (raid_solve_verzik_p1/p2/p3.lua) each carry their loop,
 -- their measure, their supplies and their emit inline. The five room solvers
--- (raid_solve_tob_maiden/bloat/nylocas/sotetseg/xarpus.lua) run the same
+-- (tob_maiden/bloat/nylocas/sotetseg/xarpus.lua) run the same
 -- shape, so the parts that do not depend on the room live here once:
 --
 --   LOOP      one decision per server tick, on the client's boundary (the
@@ -720,7 +720,7 @@ end
 
 -- A content probe's stand: walk to (lx, lz) of the 64-aligned map square I
 -- stand in (every ToB room is one square), for tests that observe a room
--- with no solver (test/raids/_probe_nylocas.lua).
+-- with no solver (test/raids/tob_nylocas_probe.lua).
 function QD.raid.tob_probe_stand(lx, lz)
     local tr, me = api_drive.player_tile()
     assert(tr == "ok", "tob_probe_stand: no tile")
