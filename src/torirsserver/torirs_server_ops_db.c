@@ -33,12 +33,12 @@
  * ------------------------------------------------------------------
  *
  * `db_find` selects rows and `db_findnext` walks them, so there is per-script
- * iteration state. It lives on the *player* rather than on the VM state, matching
- * where this server already keeps `last_int` and the interaction — and unlike the
- * reference, which hangs it on ScriptState. The difference matters for one reason:
- * a script that suspends mid-walk (a dialogue between two rows) keeps its query
- * here, whereas a per-state copy would need the whole query preserved across the
- * park. Both are defensible; this one costs less.
+ * iteration state. It lives on the SCRIPT STATE (`state->db`), as the reference
+ * keeps it on ScriptState. It used to live on the server's active player, which
+ * an npc's script does not have (timers run with no player bound): a Nylocas
+ * support's wave read dereferenced a null player on scriptrun and would have
+ * read a stale one live. A parked script keeps its state, so a walk across a
+ * suspend keeps its query.
  */
 
 #include "torirs_server.h"
@@ -189,7 +189,7 @@ row_holds(
  */
 static const struct ToriRSServerDbRow*
 query_row(
-    const struct ToriRSServerPlayer* player,
+    const struct SSVM_State* state,
     int index)
 {
     int seen = 0;
@@ -200,21 +200,22 @@ query_row(
     /* `db_listall` is the positional cursor, so it walks the order the cache
      * documents and the client uses. `db_find` below keeps the storage-order
      * scan — see ToriRSServer_DbRowInTableOrdered for why the two differ. */
-    if( player->db_query_column < 0 )
-        return ToriRSServer_DbRowInTableOrdered(player->db_query_table, index);
-    table = ToriRSServer_DbTable(player->db_query_table);
-    if( !table || player->db_query_column >= table->column_count )
+    assert(state->db.selected);
+    if( state->db.column < 0 )
+        return ToriRSServer_DbRowInTableOrdered(state->db.table, index);
+    table = ToriRSServer_DbTable(state->db.table);
+    if( !table || state->db.column >= table->column_count )
         return NULL;
 
     for( int i = 0;; i++ )
     {
-        const struct ToriRSServerDbRow* row = ToriRSServer_DbRowInTable(player->db_query_table, i);
+        const struct ToriRSServerDbRow* row = ToriRSServer_DbRowInTable(state->db.table, i);
 
         if( !row )
             return NULL;
-        if( !row_holds(row, &table->columns[player->db_query_column],
-                       player->db_query_column, player->db_query_tuple,
-                       player->db_query_value) )
+        if( !row_holds(row, &table->columns[state->db.column],
+                       state->db.column, state->db.tuple,
+                       state->db.value) )
             continue;
         if( seen == index )
             return row;
@@ -228,9 +229,6 @@ ToriRSServer_OpsDb(
     int opcode,
     int dot)
 {
-    struct ToriRSServer* srv = (struct ToriRSServer*)state->env->host.user;
-    struct ToriRSServerPlayer* player = srv->active_player;
-
     (void)dot;
 
     switch( opcode )
@@ -411,10 +409,11 @@ ToriRSServer_OpsDb(
             SSVM_Abort(state, "db_listall on table %d, which is not defined", table_id);
             return 1;
         }
-        player->db_query_table = table_id;
-        player->db_query_index = -1;
-        player->db_query_column = -1;
-        player->db_query_tuple = -1;
+        state->db.selected = 1;
+        state->db.table = table_id;
+        state->db.index = -1;
+        state->db.column = -1;
+        state->db.tuple = -1;
         if( opcode == SS_OP_DB_LISTALL_WITH_COUNT )
             SSVM_PushInt(state, ToriRSServer_DbRowCount(table_id));
         return 1;
@@ -451,16 +450,17 @@ ToriRSServer_OpsDb(
         column = resolve_column(state, packed, &table, &column_index, &tuple_index);
         if( !column )
             return 1;
-        player->db_query_table = table->table_id;
-        player->db_query_index = -1;
-        player->db_query_column = column_index;
-        player->db_query_tuple = tuple_index;
-        player->db_query_value = value;
+        state->db.selected = 1;
+        state->db.table = table->table_id;
+        state->db.index = -1;
+        state->db.column = column_index;
+        state->db.tuple = tuple_index;
+        state->db.value = value;
         if( opcode == SS_OP_DB_FIND_WITH_COUNT )
         {
             int matched = 0;
 
-            while( query_row(player, matched) )
+            while( query_row(state, matched) )
                 matched++;
             SSVM_PushInt(state, matched);
         }
@@ -472,18 +472,18 @@ ToriRSServer_OpsDb(
     {
         const struct ToriRSServerDbRow* row;
 
-        if( player->db_query_table < 0 )
+        if( !state->db.selected )
         {
             SSVM_Abort(state, "db_findnext with no query selected");
             return 1;
         }
-        row = query_row(player, player->db_query_index + 1);
+        row = query_row(state, state->db.index + 1);
         if( !row )
         {
             SSVM_PushInt(state, -1);
             return 1;
         }
-        player->db_query_index++;
+        state->db.index++;
         SSVM_PushInt(state, row->row_id);
         return 1;
     }
@@ -496,12 +496,12 @@ ToriRSServer_OpsDb(
 
         if( !SSVM_PopInt(state, &index) )
             return 1;
-        if( player->db_query_table < 0 )
+        if( !state->db.selected )
         {
             SSVM_Abort(state, "db_findbyindex with no query selected");
             return 1;
         }
-        row = query_row(player, index);
+        row = query_row(state, index);
         SSVM_PushInt(state, row ? row->row_id : -1);
         return 1;
     }

@@ -1352,6 +1352,167 @@ ToriRSServer_HitmarkDealerFromAttackerScript(const struct ToriRSServer* srv)
     return (int)(srv->active_player - &srv->players[0]);
 }
 
+/*
+ * What every death does at its start, whichever way it starts: the tick log
+ * row, the npc's own queue emptied, the kill credit captured, and every
+ * target and mode that pointed at or from it cleared. The killing blow
+ * (`ToriRSServer_CombatHitNpc`) and `npc_die` (`ToriRSServer_CombatNpcDie`)
+ * differ only in the stage they then hand the npc to.
+ */
+static void
+npc_death_begin(
+    struct ToriRSServer* srv,
+    int slot)
+{
+    struct ToriRSServerNpc* npc = &srv->npcs[slot];
+
+    ToriRSServer_TicklogNpcDeath(srv, slot);
+    /*
+     * Drop whatever was already armed on the npc's own queue — a healer's
+     * `npc_queue(4, heal, ...)` chief among them.
+     *
+     * `ToriRSServer_CombatStopNpc` below only clears the *targets* pointed at
+     * this npc (its attacker's combat_target_npc); it does not reach into
+     * `npc->queue[]`. Without this, a heal queued a tick or two before the
+     * killing blow keeps counting down through QUEUED/ARRIVE/CORPSE — the
+     * npc phase only skips a `death_tick`-holding npc's mode/AI, not its
+     * queue drain — and `npc_statheal` (unlike this function) has no
+     * `death_tick` guard of its own. It fires, hitpoints go back above
+     * zero, and REAP (below) reads that as a scripted revive exactly like
+     * the Kalphite Queen's own `[ai_queue3]` heal-to-transform and cancels
+     * the death outright: the npc "doesn't die".
+     *
+     * Cleared here rather than guarding `npc_statheal` itself so that
+     * pattern keeps working — an `[ai_queue3]` death script still runs
+     * *after* this point and can arm its own fresh queue entries (Jad's
+     * healer-despawn `npc_queue(5, ...)`, KQ's revive) same as before.
+     */
+    for( int i = 0; i < TORIRSSERVER_NPC_QUEUE_MAX; i++ )
+        npc->queue[i].active = 0;
+    /*
+     * Capture kill attribution before combat_stop clears combat_target.
+     * Clientscript 7192 needs the npc type + a per-kill event id; each
+     * OBJ_ADD during [ai_queue3] then RUNCLIENTSCRIPTs the killers.
+     *
+     * It is captured here and *spent* three ticks later, when the drop table
+     * finally runs: by then neither side still names the other, so a credit
+     * read at that point would find nobody. `death_credit_players` is the
+     * carrier.
+     */
+    memset(npc->death_credit_players, 0, sizeof(npc->death_credit_players));
+    /* The active player delivered this hit and owns its loot even if their
+     * combat_target was already cleared or moved to another npc before a
+     * delayed projectile/poison splat landed. The scan below additionally
+     * retains everybody still fighting this npc. */
+    /* Marked `TORIRSSERVER_DEATH_CREDIT_HITTER` rather than 1: every
+     * reader of the array is a truth test, and the CORPSE stage needs to
+     * tell the player who landed the blow from the ones merely still
+     * fighting, because that player is who `[ai_queue3]` runs as
+     * (`death_hero_pid`). */
+    if( srv->active_player && srv->active_player->active &&
+        srv->active_player->pid >= 0 &&
+        srv->active_player->pid < TORIRSSERVER_PLAYER_MAX )
+        npc->death_credit_players[srv->active_player->pid] =
+            TORIRSSERVER_DEATH_CREDIT_HITTER;
+    ToriRSServer_CombatStopNpc(srv, slot);
+    /*
+     * And the *other* half of a target: the mode.
+     *
+     * `combat_target` is only one of the two things that point an npc at a
+     * player. `npc->mode` is the other — `playerfollow`, `opplayer<n>` and
+     * the rest name a victim just as durably, and `npc_setmode` states the
+     * pairing itself ("a targetless mode CLEARS THE TARGET"). Clearing one
+     * and not the other is a half-cleared aggression.
+     *
+     * Nothing acts on it while the corpse lies there — the npc phase skips
+     * anything with a `death_tick` — so it looks harmless until the respawn
+     * runs the mode again. A goblin killed mid-chase came back at its spawn
+     * tile still in `playerfollow` and walked straight back at whoever it
+     * had been fighting, ignoring its own wander radius and its leash: a
+     * fresh npc that had never been hit, hunting.
+     *
+     * Before the death sequence runs, so an `[ai_queue3]` that sets a mode
+     * on the way out keeps it — the same ordering `npc_run_mode` uses when
+     * it clears a mode before firing the trigger, and for the same reason.
+     * `[proc,npc_death]` opens with `npc_setmode(none)` too; this is the
+     * earlier half of the same claim, and it has to be the earlier half
+     * because a mode left armed for the tick between the blow and the death
+     * script is a tick of a corpse chasing somebody.
+     */
+    ToriRSServer_NpcResetDefaults(npc);
+    for( int i = 0; i < TORIRSSERVER_PLAYER_MAX; i++ )
+    {
+        if( srv->players[i].active && srv->players[i].combat_target == slot )
+        {
+            if( !npc->death_credit_players[i] )
+                npc->death_credit_players[i] = 1;
+            ToriRSServer_CombatStopPlayerAt(&srv->players[i]);
+        }
+    }
+    /* The drop table does *not* run here. `[proc,npc_default_death]` calls
+     * `gosub(npc_death)` first and only reaches its `obj_add` once that has
+     * returned — which is after `npc_del`. So the loot lands on the tick the
+     * corpse disappears, and `ToriRSServer_CombatNpcTick` is where that is. */
+}
+
+/* The death's sound and animation, then the corpse wait. */
+static void
+npc_death_arrive(
+    struct ToriRSServer* srv,
+    struct ToriRSServerNpc* npc)
+{
+    /*
+     * ONCE PER LIFE. If a script already showed this death — a Matomenos
+     * absorbed at the Maiden's feet, a red at Verzik — and a hit then
+     * landed inside it, the client is already on `death_seq` and most
+     * likely parked on its last frame. A second send does not restart it
+     * (replyMode 2), so what it produces is a corpse that never moved and
+     * then vanished. The sound goes with it: one death, one noise. The
+     * stage machinery below still runs, so the corpse is held and reaped
+     * on the engine's clock either way.
+     */
+    if( !npc->death_seq_sent )
+    {
+        npc_sound_nearby(srv, npc, npc->death_sound, 0);
+        play_npc_seq(npc, npc->death_seq);
+    }
+    else if( getenv("TORIRS_ANIM_DEBUG") )
+        fprintf(stderr,
+                "srv: npc death_seq %d already sent this life — not re-sent "
+                "(a script played it first)\n",
+                npc->death_seq);
+    npc->death_stage = TORIRSSERVER_DEATH_CORPSE;
+    npc->death_tick = srv->tick + npc_def(npc)->death_delay;
+}
+
+void
+ToriRSServer_CombatNpcDie(
+    struct ToriRSServer* srv,
+    int slot)
+{
+    struct ToriRSServerNpc* npc;
+
+    assert(srv);
+    assert(slot >= 0);
+    assert(slot < TORIRSSERVER_NPC_MAX);
+    npc = &srv->npcs[slot];
+    assert(npc->active);
+    assert(npc->death_tick < 0);
+    /*
+     * The reference's `setHitpoints(0)` then `sendDeath()`: no hitsplat, no
+     * queued stage and no `npc_arrivedelay` -- the animation is on THIS tick
+     * and the corpse wait starts with it. That is the whole difference from a
+     * killing blow, and it is measured: a Matomenos absorbed at the Maiden's
+     * feet is gone two ticks after her heal in Blert's rooms (671 of 706),
+     * where the queued death, which waits a tick for an npc that stepped the
+     * tick before, animated it at heal + 2 and freed it at heal + 4
+     * (ROOM_SOLVERS.md 4.7.1).
+     */
+    npc->hitpoints = 0;
+    npc_death_begin(srv, slot);
+    npc_death_arrive(srv, npc);
+}
+
 void
 ToriRSServer_CombatHitNpc(
     struct ToriRSServer* srv,
@@ -1574,93 +1735,7 @@ ToriRSServer_CombatHitNpc(
          */
         npc->death_stage = TORIRSSERVER_DEATH_QUEUED;
         npc->death_tick = srv->tick + 1;
-        ToriRSServer_TicklogNpcDeath(srv, slot);
-        /*
-         * Drop whatever was already armed on the npc's own queue — a healer's
-         * `npc_queue(4, heal, ...)` chief among them.
-         *
-         * `ToriRSServer_CombatStopNpc` below only clears the *targets* pointed at
-         * this npc (its attacker's combat_target_npc); it does not reach into
-         * `npc->queue[]`. Without this, a heal queued a tick or two before the
-         * killing blow keeps counting down through QUEUED/ARRIVE/CORPSE — the
-         * npc phase only skips a `death_tick`-holding npc's mode/AI, not its
-         * queue drain — and `npc_statheal` (unlike this function) has no
-         * `death_tick` guard of its own. It fires, hitpoints go back above
-         * zero, and REAP (below) reads that as a scripted revive exactly like
-         * the Kalphite Queen's own `[ai_queue3]` heal-to-transform and cancels
-         * the death outright: the npc "doesn't die".
-         *
-         * Cleared here rather than guarding `npc_statheal` itself so that
-         * pattern keeps working — an `[ai_queue3]` death script still runs
-         * *after* this point and can arm its own fresh queue entries (Jad's
-         * healer-despawn `npc_queue(5, ...)`, KQ's revive) same as before.
-         */
-        for( int i = 0; i < TORIRSSERVER_NPC_QUEUE_MAX; i++ )
-            npc->queue[i].active = 0;
-        /*
-         * Capture kill attribution before combat_stop clears combat_target.
-         * Clientscript 7192 needs the npc type + a per-kill event id; each
-         * OBJ_ADD during [ai_queue3] then RUNCLIENTSCRIPTs the killers.
-         *
-         * It is captured here and *spent* three ticks later, when the drop table
-         * finally runs: by then neither side still names the other, so a credit
-         * read at that point would find nobody. `death_credit_players` is the
-         * carrier.
-         */
-        memset(npc->death_credit_players, 0, sizeof(npc->death_credit_players));
-        /* The active player delivered this hit and owns its loot even if their
-         * combat_target was already cleared or moved to another npc before a
-         * delayed projectile/poison splat landed. The scan below additionally
-         * retains everybody still fighting this npc. */
-        /* Marked `TORIRSSERVER_DEATH_CREDIT_HITTER` rather than 1: every
-         * reader of the array is a truth test, and the CORPSE stage needs to
-         * tell the player who landed the blow from the ones merely still
-         * fighting, because that player is who `[ai_queue3]` runs as
-         * (`death_hero_pid`). */
-        if( srv->active_player && srv->active_player->active &&
-            srv->active_player->pid >= 0 &&
-            srv->active_player->pid < TORIRSSERVER_PLAYER_MAX )
-            npc->death_credit_players[srv->active_player->pid] =
-                TORIRSSERVER_DEATH_CREDIT_HITTER;
-        ToriRSServer_CombatStopNpc(srv, slot);
-        /*
-         * And the *other* half of a target: the mode.
-         *
-         * `combat_target` is only one of the two things that point an npc at a
-         * player. `npc->mode` is the other — `playerfollow`, `opplayer<n>` and
-         * the rest name a victim just as durably, and `npc_setmode` states the
-         * pairing itself ("a targetless mode CLEARS THE TARGET"). Clearing one
-         * and not the other is a half-cleared aggression.
-         *
-         * Nothing acts on it while the corpse lies there — the npc phase skips
-         * anything with a `death_tick` — so it looks harmless until the respawn
-         * runs the mode again. A goblin killed mid-chase came back at its spawn
-         * tile still in `playerfollow` and walked straight back at whoever it
-         * had been fighting, ignoring its own wander radius and its leash: a
-         * fresh npc that had never been hit, hunting.
-         *
-         * Before the death sequence runs, so an `[ai_queue3]` that sets a mode
-         * on the way out keeps it — the same ordering `npc_run_mode` uses when
-         * it clears a mode before firing the trigger, and for the same reason.
-         * `[proc,npc_death]` opens with `npc_setmode(none)` too; this is the
-         * earlier half of the same claim, and it has to be the earlier half
-         * because a mode left armed for the tick between the blow and the death
-         * script is a tick of a corpse chasing somebody.
-         */
-        ToriRSServer_NpcResetDefaults(npc);
-        for( int i = 0; i < TORIRSSERVER_PLAYER_MAX; i++ )
-        {
-            if( srv->players[i].active && srv->players[i].combat_target == slot )
-            {
-                if( !npc->death_credit_players[i] )
-                    npc->death_credit_players[i] = 1;
-                ToriRSServer_CombatStopPlayerAt(&srv->players[i]);
-            }
-        }
-        /* The drop table does *not* run here. `[proc,npc_default_death]` calls
-         * `gosub(npc_death)` first and only reaches its `obj_add` once that has
-         * returned — which is after `npc_del`. So the loot lands on the tick the
-         * corpse disappears, and `ToriRSServer_CombatNpcTick` is where that is. */
+        npc_death_begin(srv, slot);
     }
 }
 
@@ -3074,28 +3149,7 @@ npc_death_step(
          * the flinch, so the death animation overwrote the flinch in one mask
          * and the two noises arrived together.
          */
-        /*
-         * ONCE PER LIFE. If a script already showed this death — a Matomenos
-         * absorbed at the Maiden's feet, a red at Verzik — and a hit then
-         * landed inside it, the client is already on `death_seq` and most
-         * likely parked on its last frame. A second send does not restart it
-         * (replyMode 2), so what it produces is a corpse that never moved and
-         * then vanished. The sound goes with it: one death, one noise. The
-         * stage machinery below still runs, so the corpse is held and reaped
-         * on the engine's clock either way.
-         */
-        if( !npc->death_seq_sent )
-        {
-            npc_sound_nearby(srv, npc, npc->death_sound, 0);
-            play_npc_seq(npc, npc->death_seq);
-        }
-        else if( getenv("TORIRS_ANIM_DEBUG") )
-            fprintf(stderr,
-                    "srv: npc death_seq %d already sent this life — not re-sent "
-                    "(a script played it first)\n",
-                    npc->death_seq);
-        npc->death_stage = TORIRSSERVER_DEATH_CORPSE;
-        npc->death_tick = srv->tick + npc_def(npc)->death_delay;
+        npc_death_arrive(srv, npc);
         /*
          * `death_delay=0`: NO CORPSE WAIT, so `[ai_queue3]` runs on the tick of
          * the death animation rather than a tick later (raid loop seam9).

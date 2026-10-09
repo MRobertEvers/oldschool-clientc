@@ -450,7 +450,7 @@ ToriRSServer_DbRowCount(int table_id)
  * measured: it fixes this, and it also shifts 38 unrelated selftest assertions
  * that depend on the current `db_find` order. That is a separate change with a
  * separate verification pass. So the ordered walk lives here, reached only from
- * the `db_query_column < 0` branch of `query_row`, and the find path keeps the
+ * the `state->db.column < 0` branch of `query_row`, and the find path keeps the
  * storage-order scan it has always had.
  *
  * The sorted view is an array of indices built once per table on first use, so

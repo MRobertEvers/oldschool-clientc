@@ -460,6 +460,45 @@ is held to Blert's Normal trio rooms BEFORE its solver is judged. Method
    (written down, as lesson 54). A room's solver work resumes only on
    calibrated content.
 
+### 4.7.1 Maiden's crab waves, measured (2026-10-09)
+
+200 Blert rooms (600 waves, 3,600 crabs; 30 was too few: 87 waves showed 70
+distinct spawn patterns) against `_probe_maiden` (4 seeds: every seat melees
+her, no crab is touched, every crab walks to its leak) and `_solve_tob_maiden`
+(4 seeds: frozen crabs). Blert's crab path is cut the tick before a barrage's
+freeze takes hold, on the target AND its 3x3 (the freeze holds from cast + 1
+at every distance: 1,239 of 1,241 walking crabs).
+
+| measure | Blert | ours |
+|---|---|---|
+| wave spawn tick vs the 70/50/30 crossing | same tick, 587 of 600 | same tick (her form change) |
+| crabs per wave, scuffed | 6 of 10 uniform; 33/600 scuffed, never mixed | 6 of 10; 3% per spawn event |
+| unfrozen path, every point | modal tile per tick | identical to the leak tile |
+| untouched leak (heal tick - spawn) | N1/S1 7, N2/S2 10, N3/S3 14, N4/S4 18 | the same, the same tiles |
+| heal of an untouched leak | 150 (2 x 75) | 150 |
+| barrage freeze, ticks standing | plain 32 (125 of 127), sceptre 35 (645 of 645) | was 31, now 32 |
+| thaw step -> heal, per frozen tile | 9 tiles | identical on all shared tiles |
+| absorbed crab: death animation / freed, after the heal | gone at +2 (killed: +3 after 0 hp) | was anim +2 / freed +4; now +0 / +2 (96 of 96; killed +1 / +3) |
+
+- **Blert's leak event is the ARRIVAL**; her hitpoints rise a tick later (451
+  of 670). Ours logs the heal: compare heal ticks (arrival + 1 both sides).
+- **The freeze was one tick short engine-wide**: `advance_npcs` melted
+  `frozen_ticks` at the top of an npc's turn, before the step it gates, so
+  `npc_freeze(32)` stood 31. The melt is now a pass at the end of the npc
+  phase (torirs_server_world.c), so `npc_freeze(n)` is n ticks standing.
+- **An absorbed crab despawned two ticks late, with a hitsplat.** The absorb
+  ended in `npc_damage` -> the engine's queued death, whose `npc_arrivedelay`
+  waits a tick because the crab stepped onto the leak tile the tick before:
+  death animation heal+2, freed heal+4. The reference's absorb is
+  `setHitpoints(0)` straight into `sendDeath` (no hitsplat, no queued stage):
+  Blert sees it gone at heal+2 (671 of 706). New engine op `npc_die`
+  (`ToriRSServer_CombatNpcDie`): hitpoints 0, the death sound and animation
+  this tick, then the same corpse wait, `[ai_queue3]` and reap as a kill; the
+  absorb calls it. Kills are unchanged.
+- Tools: `tools/blert_fetch_tob_rooms.py` (pages back with startTime=lt),
+  `tools/blert_maiden_crab_cal.py` (this table), `tools/blert_maiden_roles.py` (freezer / DPS
+  per point and pattern, for 4.1's handlers).
+
 ## 5. Tests
 
 - `test/raids/_solve_tob_<room>.lua`, on the `_solve_verzik_p1.lua` shape: the

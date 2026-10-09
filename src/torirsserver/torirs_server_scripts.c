@@ -10653,6 +10653,24 @@ ToriRSServer_ScriptCommand(
         return 1;
     }
 
+    case SS_OP_NPC_DIE:
+    {
+        struct ToriRSServerNpc* npc = active_npc(state);
+
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_die with no active npc");
+            return 1;
+        }
+        if( npc->death_tick >= 0 )
+        {
+            SSVM_Abort(state, "npc_die on an npc already dying");
+            return 1;
+        }
+        ToriRSServer_CombatNpcDie(srv, (int)(npc - &srv->npcs[0]));
+        return 1;
+    }
+
     case SS_OP_NPC_FROZEN:
     {
         struct ToriRSServerNpc* npc = active_npc(state);

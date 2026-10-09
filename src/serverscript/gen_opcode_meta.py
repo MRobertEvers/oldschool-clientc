@@ -1001,7 +1001,7 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # script: it is the content's bug, never a value to default.
     "LAST_TRIGGER_INT": (11116, 1, 0, 1, 0),
 
-    # ---- the overhead bar's reserve and the HUD check (11117..11118) -------
+    # ---- the overhead bar's reserve, the HUD check, the absorb (11117..11119) -
     # npc_setheadbarreserve(reserve)
     # Hitpoints the active npc holds for LATER PHASES, which its overhead bar
     # (NPC_INFO HEADBAR) and the enemy health overlay do not count: they draw
@@ -1019,6 +1019,18 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # than one step of the bar. The raid gate turns the rows into a ledger row
     # (tools/quest_gate/gate.py `hudbar_check`). Pure observation.
     "NPC_HUDBAR_CHECK": (11118, 2, 0, 0, 0),
+
+    # npc_die
+    # The active npc dies NOW: hitpoints 0 with no hitsplat, its death sound and
+    # animation this tick, then the corpse wait (`death_delay`) and the reap
+    # every death ends in. The reference's `setHitpoints(0)` straight into
+    # `sendDeath()`, for an npc that ends without being killed -- the Maiden's
+    # Matomenos absorbed on reaching her (Zenyte `absorb()`). A killing blow
+    # still goes through the queued death and `npc_arrivedelay`: an absorbed
+    # crab, which stepped onto its tile the tick before, waited that extra tick
+    # and was freed two ticks after Blert sees it gone (heal + 4 against
+    # heal + 2; ROOM_SOLVERS.md 4.7.1).
+    "NPC_DIE": (11119, 0, 0, 0, 0),
 
     # npc_findowned2()(boolean)
     # Resolve the active player's familiar into the secondary NPC context. A
@@ -1290,6 +1302,7 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "NPC_SETMAXHP": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_SETHEADBARRESERVE": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_HUDBAR_CHECK": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_DIE": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_FACING_COORD": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_ATTACKNPC": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_ATTACKPLAYER": (

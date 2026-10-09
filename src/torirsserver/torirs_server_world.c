@@ -5530,20 +5530,6 @@ advance_npcs(struct ToriRSServer* srv)
             }
         }
         /*
-         * The freeze melts a tick at a time, and it is decremented here rather
-         * than in the movement phase because an npc with no route still has to
-         * thaw. Above the queue drain on purpose: a freeze stops movement only,
-         * so a frozen npc keeps running its queues and keeps fighting.
-         */
-        if( npc->active && npc->frozen_ticks > 0 )
-        {
-            npc->frozen_ticks--;
-            if( npc->frozen_ticks == 0 )
-                npc->freeze_immune_ticks = TORIRSSERVER_FREEZE_IMMUNITY_TICKS;
-        }
-        else if( npc->active && npc->freeze_immune_ticks > 0 )
-            npc->freeze_immune_ticks--;
-        /*
          * The queue drain is gated on the npc not being delayed — the reference
          * only decrements while `!this.delayed` — and the comparison is against
          * the value *after* the decrement, so an npc's delay 0 and delay 1 both
@@ -5778,6 +5764,34 @@ advance_npcs(struct ToriRSServer* srv)
             }
             npc->stuck_counter = 0;
         }
+    }
+
+    /*
+     * THE FREEZE MELTS AT THE END OF THE PHASE, after every npc has had its
+     * step, so `npc_freeze(n)` is n ticks standing still: Blert's Maiden
+     * crabs stand exactly 32 ticks under a plain Ice Barrage (41 of 41 Kodai,
+     * 9 of 9 Nightmare staff) and 35 under the accursed sceptre's (234 of
+     * 234), still from the tick after the cast and stepping on cast + 33.
+     * Melted at the top of the npc's turn, as it was, the step it gated read
+     * the value after the decrement and a barrage held 31. A pass of its own
+     * because the turn above has a dozen ways to `continue` past its step, and
+     * an npc with no route still has to thaw. A frozen npc still runs its
+     * queues and fights: a freeze stops movement only.
+     */
+    for( int slot = 0; slot < srv->npc_slot_max; slot++ )
+    {
+        struct ToriRSServerNpc* npc = &srv->npcs[slot];
+
+        if( !npc->active )
+            continue;
+        if( npc->frozen_ticks > 0 )
+        {
+            npc->frozen_ticks--;
+            if( npc->frozen_ticks == 0 )
+                npc->freeze_immune_ticks = TORIRSSERVER_FREEZE_IMMUNITY_TICKS;
+        }
+        else if( npc->freeze_immune_ticks > 0 )
+            npc->freeze_immune_ticks--;
     }
 }
 
@@ -15290,13 +15304,6 @@ ToriRSServer_WorldPlayerInit(struct ToriRSServerPlayer* player)
      * face point (scene origin), so reorient would fire a spurious FACE_COORD. */
     player->face_target_x = -1;
     player->face_target_z = -1;
-    /* The memset above leaves this 0, which is a real dbtable id — so a
-     * `db_findnext` with no query would iterate table 0 instead of reporting
-     * that nothing was selected. Same class as `session->pending_opcode`. */
-    player->db_query_table = -1;
-    player->db_query_index = -1;
-    player->db_query_column = -1;
-    player->db_query_tuple = -1;
     /* -1, not the memset's 0, because 0 is a real obj id and a real backpack
      * slot: a script reading `last_useitem` outside a use-on must get a sentinel
      * rather than "the player used a Dwarf remains on it". `Player.ts:371-374`

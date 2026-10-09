@@ -411,6 +411,23 @@ function QD.raid._maiden_step(S, F)
     QD.raid._maiden_trails(S, F)
     QD.raid._maiden_crabs(S, F)
     local intent = {}
+    -- THE CONTENT PROBE (opts.ignore_crabs, test/raids/_probe_maiden.lua):
+    -- every seat melees her and nothing else, so every crab walks its whole
+    -- path to its leak untouched -- the calibration of the waves against Blert
+    -- (ROOM_SOLVERS.md 4.7), not a way to play the room
+    if S.ignore_crabs then
+        local want_set = QD.raid._maiden_missing(S, ids.melee_set)
+        if #want_set > 0 and F.tick - (S.gear_sent or -10) >= 2 then intent.gear = want_set end
+        QD.raid._tob_supplies(S, F, { overhead = "protectfrommagic", boost = "piety", boost_stat = "attack" }, intent)
+        local station = QD.raid._maiden_station(S)
+        if S.role == 1 then station = V.TANK_TILE end
+        local spec, names = QD.raid._maiden_spec(S, F, F.boss, 1, station)
+        local plan = QD.raid._tob_plan(S, F, spec, names)
+        local d = QD.raid._tob_order(S, F, plan, { target = F.boss, range = 1 })
+        QD.raid._tob_emit(S, F, d.order, intent)
+        QD.raid._tob_recent(S, F, d)
+        return nil
+    end
     local freezer = (S.role == 1)
     local target, kind, range = nil, nil, V.PIPE_RANGE
     -- THE HAMMER OPENER (the DPS): the warhammer in hand and the special
@@ -523,7 +540,7 @@ function QD.raid.maiden_solve(opts)
     local S = QD.raid._tob_state("maiden_solve", QD.raid._maiden_ids(), opts, {
         pools = {}, pool_seen = {}, trails = {}, slug_last = {}, crab_rec = {},
         pool_probe = {}, crab_probe = {}, cast_log = {},
-        throws = 0, storms = 0,
+        throws = 0, storms = 0, ignore_crabs = opts.ignore_crabs == true,
     })
     QD.raid._tob_start(S, nil, opts.start_ticks)
     return QD.raid._tob_run(S, QD.raid._maiden_step, function(s)

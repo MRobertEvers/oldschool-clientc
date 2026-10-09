@@ -227,6 +227,23 @@ struct SSVM_State
      *  the moment a handler moves pc. */
     int dot;
 
+    /** The db query this script selected (`db_find` / `db_listall`) and its
+     *  cursor (`db_findnext`). On the SCRIPT, where the reference keeps it
+     *  (ScriptState.dbTable/dbRow): an npc's script has no player, and the
+     *  query used to live on the server's active player -- null on scriptrun,
+     *  stale on the live client -- so a Nylocas support's wave read crashed
+     *  (2026-10-09). A parked script keeps its state, so a walk survives a
+     *  suspend. `selected` 0 (the state's zeroing) is "nothing selected". */
+    struct
+    {
+        int selected;
+        int table;
+        int index;
+        int column; /* -1: the whole table (db_listall) */
+        int tuple;  /* -1: any tuple position */
+        int value;
+    } db;
+
     /** last_int / the value a queue or countdialog resumed with. */
     int32_t last_int;
     /** last_string / the copied value a namedialog resumed with. */

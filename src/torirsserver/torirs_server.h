@@ -4080,35 +4080,6 @@ struct ToriRSServerPlayer
     int last_useitem;
     int last_useslot;
 
-    /*
-     * The db query `db_listall` selects and `db_findnext` walks.
-     *
-     * **`db_query_table` must be initialised to -1, not memset to 0**, because 0
-     * is a real dbtable id — the same trap as `session->pending_opcode`. Zeroed,
-     * a `db_findnext` with no query would quietly iterate table 0 instead of
-     * reporting that nothing was selected.
-     *
-     * On the player rather than on the script state (where the reference keeps
-     * it) so a script that suspends between two rows resumes on the same query
-     * without the park having to carry it.
-     */
-    int db_query_table;
-    int db_query_index;
-    /*
-     * What `db_find` selected, or column -1 for the whole table (`db_listall`).
-     *
-     * The reference materialises the matching row ids into a list at find time;
-     * this keeps the predicate and re-tests it in `db_findnext`, which is the
-     * same walk without the allocation. The difference is visible in exactly one
-     * place and it is a place the reference does not reach either: a `.dbrow`
-     * edited between the find and the walk. Content cannot do that.
-     */
-    int db_query_column;
-    /** -1 searches every tuple position; otherwise the packed DB column's
-     *  selected tuple position. */
-    int db_query_tuple;
-    int db_query_value;
-
     /** The name typed at the login screen, which is what `displayname` returns.
      *  Nothing else in the mock has a use for it — there is one player and the
      *  wire never carries a name — but a dialogue that puts the player's words
@@ -6209,6 +6180,14 @@ ToriRSServer_CombatHitNpc(
     int slot,
     int type,
     int amount);
+/** `npc_die`: the npc dies now -- hitpoints 0 with no hitsplat, its death
+ *  sound and animation this tick, then the corpse wait and the reap. The
+ *  reference's `setHitpoints(0)` + `sendDeath()`, for an npc that ends without
+ *  being killed (a Matomenos absorbed by the Maiden). The npc must be alive. */
+void
+ToriRSServer_CombatNpcDie(
+    struct ToriRSServer* srv,
+    int slot);
 /** Arm the active NPC's 30-tick poison timer. A stronger existing timer wins;
  * equal severity refreshes its source, matching ContentAPI.applyPoison. */
 void
