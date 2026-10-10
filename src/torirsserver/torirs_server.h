@@ -899,6 +899,12 @@ struct ToriRSServerHitmark
      * deal are tinted") impossible to honour.
      */
     int dealer_slot;
+    /**
+     * Client cycles the splat waits before it is drawn -- the hitmark block's
+     * own delay field. Non-zero only for a hit whose projectile is still in
+     * the air when the hit lands (see `hit_land_cycle` on the server).
+     */
+    int delay;
 };
 
 /* The npc mask is a single byte — there is no widening bit. */
@@ -2073,6 +2079,9 @@ struct ToriRSServerQueued
      *  out" rather than discarding it. Stored and not yet read — `phase_logouts`
      *  is empty (osrs230_mockserver.md §3.9). */
     int logout_action;
+    /** The client cycle the projectile this entry's hit rides lands on, or 0;
+     *  see `ToriRSServer_ProjectileLandCycleFor`. */
+    int splat_land_cycle;
 };
 
 /** Whether a timer runs while the player is busy. */
@@ -2765,6 +2774,9 @@ struct ToriRSServerNpc
          */
         int hero_pid;
         uint32_t hero_gen;
+        /** The client cycle the projectile this entry's hit rides lands on,
+         *  or 0; see `ToriRSServer_ProjectileLandCycleFor`. */
+        int splat_land_cycle;
     } queue[TORIRSSERVER_NPC_QUEUE_MAX];
 
     /** [ai_timer]: re-runs every `timer_interval` ticks, 0 = stopped. Armed by
@@ -3662,6 +3674,21 @@ struct ToriRSServerPlayer
      */
     int temp_run;
     int face_entity;
+    /**
+     * The latch was derived by a packet handler's immediate interaction
+     * (`ToriRSServer_WorldProcessInteraction`), not by the turn's own
+     * derivation, and the next `phase_player` must not release it.
+     *
+     * LostCity derives `faceEntity` in processPlayers *before*
+     * processInteraction, so a cast already in range faces its target on the
+     * tick it fires and lets go on the next. This server resolves that cast
+     * inside the packet handler instead, which clears the interaction before
+     * any derivation has read it; the next derivation (this tick's, or the
+     * next tick's when the packet arrived between ticks) would find nothing,
+     * and the mask would ship only the release. One-shot: that derivation
+     * consumes it.
+     */
+    int face_entity_held;
     int face_x;
     int face_z;
     /**
@@ -4244,18 +4271,23 @@ struct ToriRSServerPlayer
  * npc/player interaction (so walk-to-attack faces during approach), else
  * clear. Mask only on change — FACE_ENTITY is a latch.
  */
+static inline int
+ToriRSServer_PlayerFaceEntityWanted(struct ToriRSServerPlayer const* player)
+{
+    assert(player);
+    if( player->combat_target >= 0 )
+        return player->combat_target;
+    if( player->interaction.kind == TORIRSSERVER_INTERACT_NPC )
+        return player->interaction.npc_slot;
+    if( player->interaction.kind == TORIRSSERVER_INTERACT_PLAYER )
+        return TORIRSSERVER_FACE_PLAYER_BASE + player->interaction.npc_slot;
+    return -1;
+}
+
 static inline void
 ToriRSServer_PlayerSetFaceEntity(struct ToriRSServerPlayer* player)
 {
-    int want = -1;
-
-    assert(player);
-    if( player->combat_target >= 0 )
-        want = player->combat_target;
-    else if( player->interaction.kind == TORIRSSERVER_INTERACT_NPC )
-        want = player->interaction.npc_slot;
-    else if( player->interaction.kind == TORIRSSERVER_INTERACT_PLAYER )
-        want = TORIRSSERVER_FACE_PLAYER_BASE + player->interaction.npc_slot;
+    int want = ToriRSServer_PlayerFaceEntityWanted(player);
 
     if( player->face_entity == want )
         return;
@@ -4403,6 +4435,26 @@ struct ToriRSServer
     struct ToriRSServerPlayer* active_player;
 
     int tick;
+
+    /**
+     * The last projectile a script aimed at an entity: the tick it was sent,
+     * its wire target (`slot + 1` for an npc, `-pid - 1` for a player) and the
+     * client cycle it lands on (`tick * TORIRSSERVER_CLIENT_CYCLES_PER_TICK +
+     * duration`). A queue armed on that entity in the same tick takes the
+     * landing cycle with it (`ToriRSServer_ProjectileLandCycleFor`).
+     *
+     * The hit's TICK is content's (OSRS's hit-delay formula, which Blert
+     * calibrates); the flight is the projectile's own, and is longer -- a
+     * shortbow at distance 1 hits on the next tick and its arrow lands 51
+     * cycles out. The splat used to be sent with delay 0 and so appeared
+     * while the arrow was still in the air.
+     */
+    int projectile_tick;
+    int projectile_target;
+    int projectile_land_cycle;
+    /** While a queued hit runs: the landing cycle its entry carried, else 0.
+     *  Hitmarks added then wait for it (`ToriRSServer_HitClientDelay`). */
+    int hit_land_cycle;
 
     /** Whether `map_members` reports this as a members world to content.
      *  Defaults to 1 (members) at construction — content ported from the
@@ -6171,6 +6223,22 @@ ToriRSServer_CombatAtRangeReady(
  *  is when OldSchool stops the character fighting. See its definition. */
 int
 ToriRSServer_CombatPlayerAfk(const struct ToriRSServerPlayer* player);
+
+/** Client cycles (20 ms) in one server tick (600 ms). */
+#define TORIRSSERVER_CLIENT_CYCLES_PER_TICK 30
+
+/** The landing cycle of a projectile sent THIS tick at `target` (the wire's
+ *  `slot + 1` / `-pid - 1`), or 0 when the last one sent was not at it. A
+ *  queue armed now stores it, so the hit it later lands waits for the shot. */
+int
+ToriRSServer_ProjectileLandCycleFor(
+    const struct ToriRSServer* srv,
+    int target);
+
+/** Client cycles a hitmark added now waits before it is drawn: what is left
+ *  of the flight of the projectile the running queued hit rides, else 0. */
+int
+ToriRSServer_HitClientDelay(const struct ToriRSServer* srv);
 
 /** Apply damage and the hitsplat that carries it. A zero amount is a block
  *  splat, not nothing — otherwise a miss looks like a dropped swing. */

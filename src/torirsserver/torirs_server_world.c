@@ -2058,18 +2058,13 @@ interaction_attack_refused(struct ToriRSServer* srv)
     if( !ToriRSServer_CombatSinglewayRefuses(srv, player, player->interaction.npc_slot) )
         return 0;
     /*
-     * Turn to them before letting go of them.
-     *
-     * The latch is ordinarily derived once a turn, at the top of `phase_player`
-     * and ahead of the interaction — so a walk faces the monster for every tick
-     * of the approach without anything here. The path that does NOT is the
-     * packet handler's own immediate `ToriRSServer_WorldProcessInteraction`: a
-     * bow or a cast already in range resolves inside it, on the tick the click
-     * arrived, and the clear below would leave the next derivation with nothing
-     * to read. Refusing to attack somebody while facing the other way is the
-     * same "the click did nothing" this whole seam exists to remove.
+     * The caster still turns to them before letting go of them: every caller
+     * derived the latch from this interaction before trying it — `phase_player`
+     * at the top of the turn, and a packet handler's immediate try in
+     * `ToriRSServer_WorldProcessInteraction`, which also holds it against the
+     * next derivation's release. Refusing to attack somebody while facing the
+     * other way is the same "the click did nothing" this seam exists to remove.
      */
-    ToriRSServer_PlayerSetFaceEntity(player);
     route_abandoned(player);
     ToriRSServer_WorldInteractionClear(srv);
     return 1;
@@ -2737,6 +2732,16 @@ ToriRSServer_WorldProcessInteraction(struct ToriRSServer* srv)
                     srv->active_player->delayed_until);
         return;
     }
+    /*
+     * Face the target before trying it, as `phase_player` does at the top of
+     * the turn (LostCity setFaceEntity ahead of processInteraction). A cast or
+     * a bow shot already in range resolves right here and clears the
+     * interaction, so no later derivation would ever see the npc: the caster
+     * fired at a monster behind them without turning. `face_entity_held` keeps
+     * the next derivation from releasing the latch before it has shipped.
+     */
+    ToriRSServer_PlayerSetFaceEntity(srv->active_player);
+    srv->active_player->face_entity_held = srv->active_player->face_entity >= 0;
     if( interaction_try(srv, 1) )
         return;
     interaction_continue_or_give_up(srv);
@@ -5579,9 +5584,14 @@ advance_npcs(struct ToriRSServer* srv)
                          * rather than under a stale binding. */
                         ToriRSServer_WorldSetActive(srv, NULL);
                     bound = 1;
+                    /* The hit this runs waits on the client for the
+                     * projectile it rides, if one was sent with it. */
+                    int const saved_land_cycle = srv->hit_land_cycle;
+                    srv->hit_land_cycle = npc->queue[i].splat_land_cycle;
                     ToriRSServer_ScriptsRunTriggerLastint(
                         srv, SS_TRIGGER_AI_QUEUE1 + (npc->queue[i].queue - 1), npc->type, -1, slot,
                         npc->queue[i].arg);
+                    srv->hit_land_cycle = saved_land_cycle;
                     if( bound )
                         ToriRSServer_WorldSetActive(srv, saved);
                     continue;
@@ -16625,8 +16635,14 @@ phase_player(struct ToriRSServerPlayer* player)
      * release cannot be derived. A locked or dying player is precisely the case
      * that would keep staring at whatever it was fighting. LostCity calls it
      * for every player each turn with no `delayed` gate for the same reason.
+     *
+     * The one release it defers is a latch a packet handler set when it
+     * resolved the click on the spot (`face_entity_held`): that interaction is
+     * already gone, and releasing here would ship only the release.
      */
-    ToriRSServer_PlayerSetFaceEntity(player);
+    if( !player->face_entity_held || ToriRSServer_PlayerFaceEntityWanted(player) >= 0 )
+        ToriRSServer_PlayerSetFaceEntity(player);
+    player->face_entity_held = 0;
     PP_MARK(bd_on, bd_t, PP_FACE);
 
     /*

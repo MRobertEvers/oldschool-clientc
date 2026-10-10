@@ -1555,6 +1555,8 @@ drain_queue(
         int script_id;
         int32_t args[TORIRSSERVER_QUEUE_ARG_MAX];
         int argc;
+        int splat_land_cycle;
+        int saved_land_cycle;
 
         if( !entry->active )
             continue;
@@ -1589,6 +1591,7 @@ drain_queue(
         script_id = entry->script_id;
         memcpy(args, entry->args, sizeof(args));
         argc = entry->argc;
+        splat_land_cycle = entry->splat_land_cycle;
         entry->active = 0;
         if( getenv("TORIRS_ANIM_DEBUG") )
         {
@@ -1596,7 +1599,10 @@ drain_queue(
             fprintf(stderr, "queue: script=%d (%s) FIRE tick=%d\n", script_id,
                     qs && qs->name ? qs->name : "?", srv->tick);
         }
+        saved_land_cycle = srv->hit_land_cycle;
+        srv->hit_land_cycle = splat_land_cycle;
         run_script_id(srv, script_id, args, argc, -1, 1, "queue");
+        srv->hit_land_cycle = saved_land_cycle;
     }
 }
 
@@ -2158,6 +2164,7 @@ ToriRSServer_ScriptsQueueHook(
         player->queue[i].argc = 1;
         player->queue[i].kind = TORIRSSERVER_QUEUE_NORMAL;
         player->queue[i].logout_action = 0;
+        player->queue[i].splat_land_cycle = 0;
         return 1;
     }
     /*
@@ -6675,6 +6682,8 @@ ToriRSServer_ScriptCommand(
                 npc->queue[i].hero_pid = hero ? hero->pid : -1;
                 npc->queue[i].hero_gen = hero ? hero->login_generation : 0;
             }
+            npc->queue[i].splat_land_cycle =
+                ToriRSServer_ProjectileLandCycleFor(srv, (int)(npc - &srv->npcs[0]) + 1);
             return 1;
         }
         SSVM_Abort(state, "npc %d's queue is full", npc->type);
@@ -10103,6 +10112,16 @@ ToriRSServer_ScriptCommand(
                               ToriRSServer_CoordLevel(values[0]), dst_x, dst_z, target,
                               (int)values[2], (int)values[3], (int)values[4], (int)values[5],
                               (int)values[6], (int)values[7], (int)values[8]);
+        /* For the queue this attack arms next: its splat waits for this shot
+         * to land (see `projectile_land_cycle`). A shot at the ground homes
+         * on nobody, so it times no one's splat. */
+        if( target != 0 )
+        {
+            srv->projectile_tick = srv->tick;
+            srv->projectile_target = target;
+            srv->projectile_land_cycle =
+                srv->tick * TORIRSSERVER_CLIENT_CYCLES_PER_TICK + (int)values[6];
+        }
         return 1;
     }
 
@@ -10914,6 +10933,8 @@ ToriRSServer_ScriptCommand(
             player->queue[i].argc = 1;
             player->queue[i].kind = kind;
             player->queue[i].logout_action = values[3];
+            player->queue[i].splat_land_cycle =
+                ToriRSServer_ProjectileLandCycleFor(srv, -player->pid - 1);
             return 1;
         }
         SSVM_Abort(state, "the player's queue is full");
@@ -10992,6 +11013,8 @@ ToriRSServer_ScriptCommand(
             player->queue[i].argc = n;
             player->queue[i].kind = kind;
             player->queue[i].logout_action = logout_action;
+            player->queue[i].splat_land_cycle =
+                ToriRSServer_ProjectileLandCycleFor(srv, -player->pid - 1);
             return 1;
         }
         SSVM_Abort(state, "the player's queue is full");

@@ -318,10 +318,30 @@ World_EntityDrawPositionSetToTile(
 void
 World_EntityApplyHeadbar(
     struct WorldEntityFacet_Combat* combat,
-    struct WorldEntity_Headbar bar)
+    struct WorldEntity_Headbar bar,
+    int cycle)
 {
+    int held = -1;
+
     assert(combat);
     assert(bar.type >= 0);
+    /* What the bar shows NOW, for an update that starts later. Another type's
+     * fill is a fraction of another width, so only the same type carries over. */
+    if( bar.start_cycle > cycle && combat->healthbar_type == bar.type &&
+        combat->healthbar_end_cycle > cycle )
+    {
+        int const elapsed = cycle - combat->healthbar_start_cycle;
+
+        if( elapsed < 0 )
+            held = combat->healthbar_held_fill;
+        else if( combat->healthbar_duration > elapsed )
+            held = (combat->healthbar_end_fill - combat->healthbar_start_fill) * elapsed /
+                       combat->healthbar_duration +
+                   combat->healthbar_start_fill;
+        else
+            held = combat->healthbar_end_fill;
+    }
+    combat->healthbar_held_fill = held;
     combat->healthbar_type = bar.type;
     combat->healthbar_start_cycle = bar.start_cycle;
     combat->healthbar_duration = bar.duration;

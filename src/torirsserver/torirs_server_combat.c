@@ -1315,14 +1315,47 @@ ToriRSServer_HitmarkAdd(
     int* count,
     int damage,
     int type,
-    int dealer_slot)
+    int dealer_slot,
+    int delay)
 {
     if( *count >= TORIRSSERVER_HITMARK_MAX )
         return;
     hitmarks[*count].damage = damage;
     hitmarks[*count].type = type;
     hitmarks[*count].dealer_slot = dealer_slot;
+    hitmarks[*count].delay = delay;
     (*count)++;
+}
+
+int
+ToriRSServer_ProjectileLandCycleFor(
+    const struct ToriRSServer* srv,
+    int target)
+{
+    assert(srv);
+    if( srv->projectile_tick != srv->tick || srv->projectile_target != target )
+        return 0;
+    return srv->projectile_land_cycle;
+}
+
+/*
+ * The splat waits for its projectile.
+ *
+ * Both packets leave at the end of their ticks, so the client is
+ * `(now - sent) * 30` cycles past the projectile when the hit arrives; what is
+ * left of the flight is the landing cycle minus now. A hit that is already
+ * late (the flight was shorter than the hit delay) draws at once.
+ */
+int
+ToriRSServer_HitClientDelay(const struct ToriRSServer* srv)
+{
+    int delay;
+
+    assert(srv);
+    if( srv->hit_land_cycle <= 0 )
+        return 0;
+    delay = srv->hit_land_cycle - srv->tick * TORIRSSERVER_CLIENT_CYCLES_PER_TICK;
+    return delay > 0 ? delay : 0;
 }
 
 /**
@@ -1601,7 +1634,8 @@ ToriRSServer_CombatHitNpc(
 
     ToriRSServer_HitmarkAdd(npc->hitmarks, &npc->hitmark_count, amount,
                         amount > 0 ? type : hitsplat_block(),
-                        ToriRSServer_HitmarkDealerFromAttackerScript(srv));
+                        ToriRSServer_HitmarkDealerFromAttackerScript(srv),
+                        ToriRSServer_HitClientDelay(srv));
     ToriRSServer_TicklogHitNpc(srv, slot, amount, amount > 0 ? type : hitsplat_block(), requested,
                                ToriRSServer_HitmarkDealerFromAttackerScript(srv));
 
@@ -1828,7 +1862,7 @@ ToriRSServer_CombatHitmarkPlayer(
      * no player dealt. Player-versus-player would need the attacker threaded
      * through from the script that called this. */
     ToriRSServer_HitmarkAdd(player->hitmarks, &player->hitmark_count, amount,
-                        amount > 0 ? type : hitsplat_block(), -1);
+                        amount > 0 ? type : hitsplat_block(), -1, ToriRSServer_HitClientDelay(srv));
     player->damage = player->hitmarks[0].damage;
     player->damage_type = player->hitmarks[0].type;
     player->masks |= TORIRSSERVER_PMASK_DAMAGE;
@@ -1865,7 +1899,8 @@ ToriRSServer_CombatHitmarkNpc(
      * without anybody hitting it.
      */
     ToriRSServer_HitmarkAdd(npc->hitmarks, &npc->hitmark_count, amount, type,
-                        ToriRSServer_HitmarkDealerFromAttackerScript(srv));
+                        ToriRSServer_HitmarkDealerFromAttackerScript(srv),
+                        ToriRSServer_HitClientDelay(srv));
     npc->damage = npc->hitmarks[0].damage;
     npc->damage_type = npc->hitmarks[0].type;
     npc->max_hitpoints = npc->max_hitpoints > 0 ? npc->max_hitpoints : 1;
@@ -1932,7 +1967,7 @@ ToriRSServer_CombatHitPlayerFrom(
 
     ToriRSServer_HitmarkAdd(player->hitmarks, &player->hitmark_count, amount,
                         amount > 0 ? type : (absorbed_fully ? hitsplat_shield() : hitsplat_block()),
-                        dealer_slot);
+                        dealer_slot, ToriRSServer_HitClientDelay(srv));
     /* The splat as shown: after `::god`, absorption and the clamp to the
      * hitpoints left, which is the number a recorder reads off the client. */
     ToriRSServer_TicklogHitPlayer(

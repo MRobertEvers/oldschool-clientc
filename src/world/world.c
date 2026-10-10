@@ -3043,7 +3043,7 @@ World_PlayerSetHealthbar(
     if( !World_EntityPoolIsActive(&world->entities.player, idx) )
         return;
     player = World_EntityPoolGet(&world->entities.player, idx);
-    World_EntityApplyHeadbar(&player->combat, bar);
+    World_EntityApplyHeadbar(&player->combat, bar, world->cycle);
 }
 
 void
@@ -3457,7 +3457,7 @@ World_NpcSetHealthbar(
     if( !World_EntityPoolIsActive(&world->entities.npc, idx) )
         return;
     npc = World_EntityPoolGet(&world->entities.npc, idx);
-    World_EntityApplyHeadbar(&npc->combat, bar);
+    World_EntityApplyHeadbar(&npc->combat, bar, world->cycle);
 }
 
 void

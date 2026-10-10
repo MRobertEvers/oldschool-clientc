@@ -122,7 +122,15 @@ app_overlay_build_healthbar(
     }
 
     end_span = combat->healthbar_end_fill * span / type->width;
-    if( combat->healthbar_duration > elapsed )
+    if( elapsed < 0 )
+    {
+        /* Not started: its hit is still in the air. The fill already on
+         * screen stays, and a bar that was not up yet waits for the splat. */
+        if( combat->healthbar_held_fill < 0 )
+            return;
+        drawn = combat->healthbar_held_fill * span / type->width;
+    }
+    else if( combat->healthbar_duration > elapsed )
     {
         int start_span = combat->healthbar_start_fill * span / type->width;
         drawn = (end_span - start_span) * elapsed / combat->healthbar_duration + start_span;

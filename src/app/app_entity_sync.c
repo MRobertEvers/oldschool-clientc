@@ -298,6 +298,9 @@ app_entity_spotanim_detach(
         /* The renderer's per-frame AnimateReset needs captured originals. */
         ToriDraw_ModelCaptureOriginalVertices(entry->body);
         ToriDraw_SceneElementSetModel(app->scene, entry->body_element_id, hnd);
+        /* The snapshot was taken at the bind pose; the overlays measure it
+         * before the renderer runs. */
+        app_element_pose_after_model_swap(app, entry->body_element_id);
         entry->body = NULL; /* ownership moved to the element */
         app->need_redraw = 1;
     }
@@ -500,6 +503,10 @@ app_world_sync_one_entity_spotanim(
             hnd.u.model.model = merged;
             ToriDraw_SceneElementSetModel(app->scene, element_id, hnd);
         }
+        /* Mounted at the bind pose, and the health bar, splats and overhead
+         * text read its height before the renderer poses it -- once per spot
+         * frame, so unposed this flickered for the whole graphic. */
+        app_element_pose_after_model_swap(app, element_id);
         entry->combined = merged;
         entry->applied_frame = frame;
         app->need_redraw = 1;

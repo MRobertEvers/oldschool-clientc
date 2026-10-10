@@ -2514,3 +2514,53 @@ test_obj_stack_count_at(void)
 
     World_Free(world);
 }
+
+/*
+ * A headbar that starts later keeps the fill already on screen until it does.
+ *
+ * A hit riding a projectile arrives with the rest of the flight as its start
+ * delay. The bar must not drop while the arrow is still in the air, and a bar
+ * that was not up yet must not appear before its splat.
+ */
+void
+test_delayed_headbar_holds_the_shown_fill(void)
+{
+    printf("TEST: a delayed headbar holds the fill on screen until it starts\n");
+
+    struct World* world = World_TestMakeReady(104);
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+    int ni = World_NpcSpawn(world, 7, 1234, 1, 20, 20, 1, idle);
+    struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, ni);
+    struct WorldEntity_Headbar bar = { .type = 0, .duration = 0 };
+
+    bar.start_cycle = world->cycle + 21;
+    bar.start_fill = bar.end_fill = 20;
+    bar.end_cycle = bar.start_cycle + 300;
+    World_NpcSetHealthbar(world, ni, bar);
+    TEST_ASSERT(npc->combat.healthbar_held_fill == -1, "no bar up yet: nothing to hold");
+
+    bar.start_cycle = world->cycle;
+    bar.start_fill = bar.end_fill = 30;
+    bar.end_cycle = bar.start_cycle + 300;
+    World_NpcSetHealthbar(world, ni, bar);
+
+    bar.start_cycle = world->cycle + 21;
+    bar.start_fill = bar.end_fill = 17;
+    bar.end_cycle = bar.start_cycle + 300;
+    World_NpcSetHealthbar(world, ni, bar);
+    TEST_ASSERT(npc->combat.healthbar_held_fill == 30, "the full bar stays up while the hit flies");
+    TEST_ASSERT(npc->combat.healthbar_end_fill == 17, "and the landing fill is kept for later");
+
+    bar.start_cycle = world->cycle + 40;
+    bar.start_fill = bar.end_fill = 5;
+    bar.end_cycle = bar.start_cycle + 300;
+    World_NpcSetHealthbar(world, ni, bar);
+    TEST_ASSERT(npc->combat.healthbar_held_fill == 30,
+                "a second hit in flight still shows what is on screen, not the first one's landing");
+
+    bar.type = 1;
+    World_NpcSetHealthbar(world, ni, bar);
+    TEST_ASSERT(npc->combat.healthbar_held_fill == -1, "another type's fill is not carried over");
+
+    World_Free(world);
+}

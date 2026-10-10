@@ -43560,6 +43560,30 @@ ToriRSServer_WorldSelftest(void)
                             rsab_p4(&out, spell);
                             selftest_handle(player, PKTOUT_NAME_OPNPCT, payload,
                                                  (int)rsab_len(&out));
+                            /*
+                             * Beside Hans the cast fires inside the packet
+                             * handler and clears the interaction, so no turn's
+                             * derivation ever saw him: the caster cast at an
+                             * npc without turning toward it. The latch has to
+                             * be set by the click, survive the derivation of
+                             * the turn that ships it, and let go on the next.
+                             */
+                            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 50,
+                                           "a cast beside the npc fires from the click, got %d",
+                                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                            SELFTEST_CHECK(player->face_entity == hans,
+                                           "and turns the caster toward it, face_entity %d "
+                                           "want %d",
+                                           player->face_entity, hans);
+                            selftest_tick(srv);
+                            SELFTEST_CHECK(player->face_entity == hans,
+                                           "the turn that ships the latch must not release "
+                                           "it, face_entity %d want %d",
+                                           player->face_entity, hans);
+                            selftest_tick(srv);
+                            SELFTEST_CHECK(player->face_entity == -1,
+                                           "and the next turn releases it, got %d",
+                                           player->face_entity);
                             SELFTEST_CHECK(selftest_settle(srv, 80) >= 0,
                                            "the approach to the npc should complete");
                             SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 50,

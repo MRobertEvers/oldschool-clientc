@@ -141,6 +141,7 @@ struct Mock239PlayerExt
     {
         int type;
         int value;
+        int delay;
     } hit_extra[3];
     int hit_extra_count;
     /** The actor HEADBARS block is independent from a hitmark. */

@@ -4629,6 +4629,7 @@ player_extended_v5(struct ToriRSServer* srv, struct ToriRSServerPlayer* viewer,
                     srv, viewer, subject->damage_type, subject->damage,
                     subject->hitmark_count > 0 ? subject->hitmarks[0].dealer_slot : -1);
                 ext.hit_value = subject->damage;
+                ext.hit_delay = subject->hitmark_count > 0 ? subject->hitmarks[0].delay : 0;
                 /* Splats two and onward of the same tick. The mirrors above are
                  * hitmarks[0]; everything the player took alongside it goes in
                  * the list rather than being dropped (struct ToriRSServerHitmark). */
@@ -4638,6 +4639,7 @@ player_extended_v5(struct ToriRSServer* srv, struct ToriRSServerPlayer* viewer,
                         srv, viewer, subject->hitmarks[i].type, subject->hitmarks[i].damage,
                         subject->hitmarks[i].dealer_slot);
                     ext.hit_extra[ext.hit_extra_count].value = subject->hitmarks[i].damage;
+                    ext.hit_extra[ext.hit_extra_count].delay = subject->hitmarks[i].delay;
                     ext.hit_extra_count++;
                 }
                 /* The standard bar's configuration and width are content
@@ -4662,7 +4664,13 @@ player_extended_v5(struct ToriRSServer* srv, struct ToriRSServerPlayer* viewer,
                     ext.has_headbar = 1;
                     ext.headbar_type = ToriRSServer_Ids()->healthbar_standard;
                     ext.headbar_duration = 0;
+                    /* The latest splat's delay, as the npc block does. */
                     ext.headbar_start_delay = 0;
+                    for( int i = 0; i < subject->hitmark_count; i++ )
+                    {
+                        if( subject->hitmarks[i].delay > ext.headbar_start_delay )
+                            ext.headbar_start_delay = subject->hitmarks[i].delay;
+                    }
                     ext.headbar_start_fill =
                         (subject->hitpoints * width) / subject->max_hitpoints;
                     ext.headbar_end_fill = ext.headbar_start_fill;
@@ -5732,7 +5740,9 @@ put_npc_extended_v5(
 
             v5_psmart1or2(buf, damage_type);
             v5_psmart1or2(buf, damage);
-            v5_psmart1or2(buf, 0); /* delay: lands this tick */
+            /* Cycles the client holds it back: the rest of its projectile's
+             * flight, 0 for a hit that is not riding one. */
+            v5_psmart1or2(buf, npc->hitmark_count > 0 ? npc->hitmarks[i].delay : 0);
             /* Actor.method3560 only inserts the hitmark when this slot limit is
              * positive. Revision 239 actors retain four concurrent hitmarks. */
             v5_psmart1or2(buf, 4);
@@ -5795,10 +5805,21 @@ put_npc_extended_v5(
          * support chewed by a dozen nylocas takes a bite most ticks, so its bar
          * read as flickering between its value and full.
          */
+        /*
+         * The start delay is the latest splat's: a bar that drops while the
+         * arrow carrying the damage is still in the air shows the hit before
+         * it lands. The client keeps the old fill up until then.
+         */
+        int bar_delay = 0;
+        for( int i = 0; i < npc->hitmark_count; i++ )
+        {
+            if( npc->hitmarks[i].delay > bar_delay )
+                bar_delay = npc->hitmarks[i].delay;
+        }
         rsab_p1_alt2(buf, 1);
         v5_psmart1or2(buf, headbar);
         v5_psmart1or2(buf, 0);
-        v5_psmart1or2(buf, 0);
+        v5_psmart1or2(buf, bar_delay);
         rsab_p1_alt1(buf, fill);
     }
     if( classic & TORIRSSERVER_NMASK_ANIM )

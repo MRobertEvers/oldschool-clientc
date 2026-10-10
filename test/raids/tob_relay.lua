@@ -253,10 +253,39 @@ local function restock(t, name)
     -- fixed every seat reaches Verzik on 21-25 restore doses, so 16)
     local floor_f, target_p = 6, 12
     if name == "sotetseg" then floor_f, target_p = 8, 16 end
-    for _ = 1, 20 do if fish() >= floor_f or not buy("shark") then break end end
+    -- HEALING BY THE SLOT: the whole kit rides to the end (nothing dropped),
+    -- so slots run out before points do. A shark is 20 hitpoints for 1 point
+    -- and a slot; a brew is four sips, ~64, for 3 points and a slot. While a
+    -- seat has more spendable points than free slots past `keep`, a slot is
+    -- worth a brew; after that, sharks (rl38: 8 fish a seat at Verzik).
+    -- Healing is counted in hitpoints, brews included, and the points the
+    -- prayer target needs are held back first (rl39: brews bought until the
+    -- points ran out, every seat at Verzik on 0-6 restore doses).
+    local function brew_doses()
+        local d = 0
+        for k = 1, 4 do
+            for _, nm in ipairs({ "br_" .. k .. "dosepotionofsaradomin", k .. "dosepotionofsaradomin" }) do
+                local r, c = t.inv.count(nm)
+                d = d + k * ((r == "ok" and tonumber(c)) or 0)
+            end
+        end
+        return d
+    end
+    local function heal_hp() return 20 * fish() + 16 * brew_doses() end
+    local function prayer_reserve()
+        local short = math.max(0, target_p - prayer_doses())
+        return ((short + 3) // 4) * CHEST_COST.prayer
+    end
+    local function heal(reserve)
+        local room = free_slots(t) - keep
+        local spend = points - reserve
+        if room <= 0 or spend < CHEST_COST.shark then return false end
+        if spend > room and spend >= CHEST_COST.brew then return buy("brew") end
+        return buy("shark")
+    end
+    for _ = 1, 20 do if heal_hp() >= 20 * floor_f or not heal(prayer_reserve()) then break end end
     for _ = 1, 8 do if prayer_doses() >= target_p or not buy("prayer") then break end end
-    for _ = 1, 20 do if not buy("shark") then break end end
-    for _ = 1, 6 do if not buy("brew") then break end end
+    for _ = 1, 20 do if not heal(0) then break end end
     t.check(name .. ".chest_bought", true, P .. "points " .. p0 .. " -> " .. points .. "; bought "
         .. (#bought > 0 and table.concat(bought, " ") or "nothing") .. "; free slots " .. free_slots(t))
     t.key("escape")

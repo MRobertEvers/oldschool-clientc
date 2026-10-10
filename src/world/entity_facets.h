@@ -283,6 +283,15 @@ struct WorldEntityFacet_Combat
     int healthbar_end_fill;
     /** start_cycle + duration + the type's persist window. */
     int healthbar_end_cycle;
+    /**
+     * The fill on screen when a bar that starts LATER arrived, or -1 for none.
+     * A hit riding a projectile sends its bar with the rest of the flight as
+     * the start delay; until then the reference keeps drawing the update it
+     * already had (HealthBar.get takes the newest update whose cycle has come),
+     * so the bar does not drop while the arrow is in the air. Only meaningful
+     * while `cycle < healthbar_start_cycle`.
+     */
+    int healthbar_held_fill;
 };
 
 struct WorldEntityFacet_Appearance

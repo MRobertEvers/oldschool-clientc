@@ -2209,6 +2209,14 @@ app_entity_overlay_height(
     int element_id,
     int type_height);
 
+/** Pose a just-mounted model to the frame its element already holds, so the
+ *  overlay pass (which runs before the renderer) never measures a bind pose.
+ *  Every SetModel on an animated entity element must be followed by this. */
+void
+app_element_pose_after_model_swap(
+    struct App* app,
+    int element_id);
+
 bool
 app_scene_sprite_size(
     struct App* app,

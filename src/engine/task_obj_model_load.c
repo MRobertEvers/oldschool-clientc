@@ -122,6 +122,10 @@ obj_model_render_obj_id(
     return resolved_id;
 }
 
+/* The quantity a bank note's base item is drawn at (reference
+ * getItemSprite(noteLink, 10, ...)); keep in step with the scene bridge. */
+#define OBJ_MODEL_CERT_BASE_COUNT 10
+
 /* Base item id a bank note draws on top of itself (reference genCert certlink /
  * getSprite(certlink, ...) overlay). -1 when the resolved obj is not a note or
  * is not yet resident. */
@@ -265,6 +269,14 @@ ObjModelLoad_NeedsWork(
 
             if( !CacheProvider_ObjtypeHas(provider, base_obj_id) )
                 return 1;
+            if( obj_model_resolve_count_obj_id(
+                    provider, base_obj_id, OBJ_MODEL_CERT_BASE_COUNT) > 0 )
+            {
+                base_obj_id = obj_model_resolve_count_obj_id(
+                    provider, base_obj_id, OBJ_MODEL_CERT_BASE_COUNT);
+                if( !CacheProvider_ObjtypeHas(provider, base_obj_id) )
+                    return 1;
+            }
             base_model_id = obj_model_objtype_model_id(provider, base_obj_id);
             if( base_model_id > 0 && !CacheProvider_ModelHas(provider, base_model_id) )
                 return 1;
@@ -380,6 +392,15 @@ Task_ObjModelLoad_Run(
         if( self->base_obj_id >= 0 )
         {
             PT_TASK_AWAITSELF_IF(CreateTask_ObjLoad(self->provider, self->base_obj_id));
+            /* The base is drawn at quantity 10 (reference
+             * getItemSprite(noteLink, 10, ...)): its stack variant, if any. */
+            if( obj_model_resolve_count_obj_id(
+                    self->provider, self->base_obj_id, OBJ_MODEL_CERT_BASE_COUNT) > 0 )
+            {
+                self->base_obj_id = obj_model_resolve_count_obj_id(
+                    self->provider, self->base_obj_id, OBJ_MODEL_CERT_BASE_COUNT);
+                PT_TASK_AWAITSELF_IF(CreateTask_ObjLoad(self->provider, self->base_obj_id));
+            }
             self->base_model_id =
                 obj_model_objtype_model_id(self->provider, self->base_obj_id);
             if( self->base_model_id > 0 )

@@ -232,7 +232,7 @@ write_player_extended(struct RSAreaBuf* buf, const uint8_t* appearance,
             {
                 ext_psmart1or2(buf, ext->hit_extra[i].type);
                 ext_psmart1or2(buf, ext->hit_extra[i].value);
-                ext_psmart1or2(buf, ext->hit_delay);
+                ext_psmart1or2(buf, ext->hit_extra[i].delay);
                 ext_psmart1or2(buf, slots);
             }
         }

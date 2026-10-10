@@ -128,6 +128,25 @@ local function quadrant(B, x, z)
     return (dx > 0) and "SE" or "SW"
 end
 
+-- Is a tile in quadrant `q`? Inclusive, as the content's retaliation reads it
+-- (tob_xarpus.rs2 ~tob_xarpus_in_quadrant): a tile on his centre column or
+-- row is in both neighbouring quadrants. Blert's players never swing from
+-- those after P3's first turn (3 of 3,735 attacks).
+local function in_quadrant(B, x, z, q)
+    local V = QD.XARP
+    local dx, dz = x - (B.x + V.CENTRE.x), z - (B.z + V.CENTRE.z)
+    if q == "NE" then return dx >= 0 and dz >= 0 end
+    if q == "SE" then return dx >= 0 and dz <= 0 end
+    if q == "SW" then return dx <= 0 and dz <= 0 end
+    return dx <= 0 and dz >= 0
+end
+
+-- A side-middle tile: on his centre column or row (in two quadrants at once).
+local function on_centre_line(B, x, z)
+    local V = QD.XARP
+    return x == B.x + V.CENTRE.x or z == B.z + V.CENTRE.z
+end
+
 -- Clockwise progress round his centre (radians, 0..2pi) from a to b.
 local function cw(B, a, b)
     local V = QD.XARP
@@ -637,7 +656,7 @@ function QD.raid._xarp_step(S, F)
             local best, bd = nil, nil
             for x = B.x + 31, B.x + 37 do
                 for z = B.z + 32, B.z + 38 do
-                    if beside5(B, x, z) and not F.pools[x .. "," .. z] then
+                    if beside5(B, x, z) and not F.pools[x .. "," .. z] and not on_centre_line(B, x, z) then
                         local d = cheb(F.me.x, F.me.z, x, z)
                         if bd == nil or d < bd then best, bd = { x = x, z = z }, d end
                     end
@@ -645,8 +664,8 @@ function QD.raid._xarp_step(S, F)
             end
             S.stare_tile = best
         end
-        local mine = S.stare_tile and quadrant(B, S.stare_tile.x, S.stare_tile.z)
-        if S.faced and S.turned and mine == S.faced and F.tick >= S.turned and F.tick < S.turned + V.TURN_EVERY then
+        local faced_me = S.stare_tile and S.faced and in_quadrant(B, S.stare_tile.x, S.stare_tile.z, S.faced)
+        if S.faced and S.turned and faced_me and F.tick >= S.turned and F.tick < S.turned + V.TURN_EVERY then
             -- step across: the nearest side tile in another quadrant ON MY
             -- FACE (every face spans two). Across a corner the server's path
             -- cuts under his 5x5 and takes the stomp: east (37,33) to south
@@ -658,7 +677,8 @@ function QD.raid._xarp_step(S, F)
             local best, bd = nil, nil
             for x = B.x + 31, B.x + 37 do
                 for z = B.z + 32, B.z + 38 do
-                    if beside5(B, x, z) and not F.pools[x .. "," .. z] and quadrant(B, x, z) ~= S.faced then
+                    if beside5(B, x, z) and not F.pools[x .. "," .. z] and not on_centre_line(B, x, z)
+                        and not in_quadrant(B, x, z, S.faced) then
                         local d = cheb(S.stare_tile.x, S.stare_tile.z, x, z)
                             + ((face(x, z) == my_face) and 0 or 100)
                         if bd == nil or d < bd then best, bd = { x = x, z = z }, d end
@@ -672,9 +692,8 @@ function QD.raid._xarp_step(S, F)
         end
         local goal = S.stare_tile or F.me
         local swing_tick = ((F.tick + 1 - S.Q) % 4 == 0)
-        local q_here = quadrant(B, F.me.x, F.me.z)
         local safe = (S.faced == nil) or (S.turned ~= nil and F.tick + 1 == S.turned + V.TURN_EVERY)
-            or (q_here ~= S.faced)
+            or not in_quadrant(B, F.me.x, F.me.z, S.faced)
         if F.me.x ~= goal.x or F.me.z ~= goal.z then
             order = { mode = "walk", x = goal.x, z = goal.z }
         elseif swing_tick and safe and armed and F.boss and F.form == "combat" then

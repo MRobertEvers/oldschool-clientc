@@ -424,8 +424,8 @@ function QD.raid._vzp2_side(S, F)
     return side, { x = x0 + 1, z = z0 - 1 }, { x = x0 + 1, z = z0 - 2 }
 end
 
--- What I hit: never her inside the absorb window; the Matomenos on my side
--- once they are out; the Athanatos if I carry the poison and no crab is out.
+-- What I hit: never her inside the absorb window; MY Matomenos once they are
+-- out, then her; the Athanatos if I carry the poison and no crab is out.
 function QD.raid._vzp2_target(S, F)
     if F.boss.pred then return nil, "flying" end
     -- the Athanatos first, for whoever carries the poison: alive it heals her
@@ -465,13 +465,28 @@ function QD.raid._vzp2_target(S, F)
         return F.boss, "her (last set)"
     end
     if #F.reds > 0 then
-        local pick = nil
-        for _, r in ipairs(F.reds) do
-            if pick == nil then pick = r
-            elseif S.role == 3 and r.x > pick.x then pick = r
-            elseif S.role ~= 3 and r.x < pick.x then pick = r end
+        -- EACH SEAT OWNS ONE RED FOR THE SET, chosen once per summon: the
+        -- east seat the eastmost, the two west seats the westmost, so all
+        -- three are on a red. When mine is dead I go back to her, never to
+        -- the other red: that one is across her, further than any plan's
+        -- horizon reaches, so retargeting it left the seat standing still
+        -- until its mates killed it (r0: seat 1 idle t290-t300 and
+        -- t336-t347, both reds' sets).
+        if S.red_summon ~= S.summons then S.red_summon, S.my_red = S.summons, nil end
+        if S.my_red == nil then
+            local pick = nil
+            for _, r in ipairs(F.reds) do
+                if pick == nil then pick = r
+                elseif S.role == 3 and r.x > pick.x then pick = r
+                elseif S.role ~= 3 and r.x < pick.x then pick = r end
+            end
+            S.my_red = pick.slot
         end
-        return pick, "red"
+        for _, r in ipairs(F.reds) do
+            if r.slot == S.my_red then return r, "red" end
+        end
+        if F.absorb then return nil, "absorb" end
+        return F.boss, "her (my red done)"
     end
     if F.absorb then return nil, "absorb" end
     return F.boss, "her"

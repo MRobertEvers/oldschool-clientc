@@ -206,6 +206,7 @@ app_world_npc_mount_body(
                 el->anim_external = true;
             ToriDraw_SceneAnimListInvalidate(app->scene);
         }
+        app_element_pose_after_model_swap(app, element_id);
     }
     else if( model )
     {
@@ -397,8 +398,14 @@ App_WorldNpcBodyLanded(
  *
  * It costs one extra pose per model swap and nothing per frame: the renderer's
  * own call arrives at a model already at that frame and skips.
+ *
+ * NPCs swap too, and far more often: a transformation, and above all an
+ * attached graphic, whose merged model is rebuilt on every spot frame
+ * (app_entity_sync.c). Unposed, each rebuild drew one frame of the bar at the
+ * bind pose's height -- 60 px off on a greater demon, every fourth frame for
+ * as long as a sanguinesti impact sat on it.
  */
-static void
+void
 app_element_pose_after_model_swap(
     struct App* app,
     int element_id)

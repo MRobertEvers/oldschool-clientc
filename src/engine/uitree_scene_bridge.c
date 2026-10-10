@@ -1374,12 +1374,17 @@ bridge_resolve_count_variant(
     return obj;
 }
 
-/* Which post-process border the rasterized obj icon gets. NONE matches the
- * reference cert base sub-icon (outlineRgb == -1: no shadow); SHADOW is the
+/* The quantity a bank note's base item is drawn at (reference
+ * getItemSprite(noteLink, 10, ...)), so a stack-variant item shows its pile. */
+#define BRIDGE_CERT_BASE_COUNT 10
+
+/* Which post-process border the rasterized obj icon gets. NONE is a bare
+ * raster (cc_setoutline(0) model widgets); SHADOW is the
  * normal inventory icon (outlineRgb == 0: value-1 edge + drop shadow); WHITE is
  * the "Use"-selected highlight (outlineRgb > 0: value-1 edge + white ring, and
  * a 1.04x zoom so the ring stays inside the tile); BLACK is Soft3D's
- * SpriteNewGraphicOutline(1) on a plain raster (cc_setoutline(1), no shadow). */
+ * SpriteNewGraphicOutline(1) on a plain raster (cc_setoutline(1), no shadow),
+ * which is also the reference's border 1 on a bank note's base item. */
 enum BridgeObjIconOutline
 {
     BRIDGE_ICON_OUTLINE_NONE = 0,
@@ -1581,19 +1586,20 @@ bridge_ensure_obj_icon(
 
     if( obj->inventory_model_id <= 0 && obj->cert_template > 0 )
     {
-        /* Bank note (reference ObjType.genCert + getSprite cert branch): the
-         * note's own model is the cert-template paper; the base item (cert_link)
-         * icon is rendered 1.5x and composited on top. The reference returns
-         * null (draws nothing) when the base item cannot render, so the note is
-         * withheld rather than shown as blank paper until both are resident. The
-         * reference applies the outline (white or shadow) to the template paper
-         * only; the base item sub-icon always renders with no shadow. */
+        /* Bank note (reference ObjType.genCert + the item-sprite builder's
+         * noteTemplate branch): the note's own model is the cert-template
+         * paper; the base item (cert_link) is drawn on top as
+         * getItemSprite(noteLink, 10, 1, 0, 0, true) — the count-10 variant,
+         * border 1 (the value-1 black edge, no shadow), zoom * 1.5. Client-TS
+         * passed outlineRgb -1 there (no edge), which left the item bleeding
+         * into the paper. The reference returns null (draws nothing) when the
+         * base item cannot render, so the note is withheld rather than shown as
+         * blank paper until both are resident. The note's own outline (white or
+         * shadow) applies to the template paper only. */
         struct ToriRS_Objtype* tmpl =
             CacheProvider_ObjtypeGet(bridge->provider, obj->cert_template);
-        struct ToriRS_Objtype* base =
-            obj->cert_link >= 0
-                ? CacheProvider_ObjtypeGet(bridge->provider, obj->cert_link)
-                : NULL;
+        struct ToriRS_Objtype* base = bridge_resolve_count_variant(
+            bridge->provider, obj->cert_link, BRIDGE_CERT_BASE_COUNT);
         struct ToriDraw_Sprite* base_sprite;
 
         if( !tmpl )
@@ -1602,7 +1608,7 @@ bridge_ensure_obj_icon(
                                  bridge,
                                  base,
                                  (base->zoom2d > 0 ? base->zoom2d : 2000) * 3 / 2,
-                                 BRIDGE_ICON_OUTLINE_NONE)
+                                 BRIDGE_ICON_OUTLINE_BLACK)
                            : NULL;
         if( !base_sprite )
             return -1;

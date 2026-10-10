@@ -110,10 +110,12 @@ struct WorldEntity_Headbar
 
 /** Copy a headbar onto a combat facet. Shared so the player and npc paths
  *  cannot drift; see World_PlayerSetHealthbar for why nothing is interpreted
- *  here. */
+ *  here. `cycle` is now: a bar that starts later holds the fill already on
+ *  screen until it does (`healthbar_held_fill`). */
 void
 World_EntityApplyHeadbar(
     struct WorldEntityFacet_Combat* combat,
-    struct WorldEntity_Headbar bar);
+    struct WorldEntity_Headbar bar,
+    int cycle);
 
 #endif
