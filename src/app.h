@@ -3908,6 +3908,16 @@ App_WorldApplyNpcType(
     int npc_type,
     int base_npc_type);
 
+/* The body NpcBodyLand waited for is resident: mount it and the type's ready
+ * pose, and nothing else (the type's fields were applied with the op). */
+void
+App_WorldNpcBodyLanded(
+    struct App* app,
+    int world_idx,
+    int element_id,
+    int npc_type,
+    int base_npc_type);
+
 /* Ground item stacks (zone OBJ_* packets; objtype/model already cached). */
 int
 App_WorldObjStackAdd(

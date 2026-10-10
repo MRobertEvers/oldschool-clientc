@@ -696,9 +696,21 @@ function QD.cheat(text, wait_for_reply)
             .. "starts; after t.quest.bind it would be a mid-run ::give (trap 16) -- put it in "
             .. "`setup` and withdraw with t.bank.withdraw"
     end
+    -- Every seat sends the cheat as the client's CLIENT_CHEAT packet, run at
+    -- the server's next tick (torirs_plugin_drive.c DriveCore_Cheat), so
+    -- "nothing understood it" is the server's reply line, not a return code.
+    local _, since = api_drive.message_serial()
     local result, detail = api_drive.cheat(text)
     if wait_for_reply ~= false then
         QD.msg.await("", 5)
+        local mr, list = api_drive.messages()
+        if mr == "ok" then
+            for i = 1, #list do
+                if list[i].serial > (since or 0) and string.find(list[i].text, "Unknown command: ", 1, true) == 1 then
+                    return "no_row", list[i].text
+                end
+            end
+        end
     end
     return result, detail
 end

@@ -39,6 +39,7 @@
 #include "lauxlib.h"
 #include "lua.h"
 #include "plugin/torirs_drive_plan_lua.h"
+#include "torirsserver/torirs_server.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -537,24 +538,39 @@ drive_ui_fill_npc_pose(struct WorldEntity_NPC const* npc, struct DriveNpcRow* ou
  * test are written in -- never a raw cycle.
  */
 static void
-drive_ui_fill_npc_state(struct WorldEntity_NPC const* npc, struct DriveNpcRow* out)
+drive_ui_fill_npc_state(
+    struct App const* app, struct WorldEntity_NPC const* npc, struct DriveNpcRow* out)
 {
+    int anim;
+
+    assert(app);
+    assert(app->world);
     assert(npc);
     assert(out);
 
-    /* world_cycle.c's anim_step_active: 0xFFFF and 0 both mean "no action
-     * track" (a fresh entity's zeroed track is 0). */
-    if( npc->animation.primary.anim_id == (uint16_t)-1 || npc->animation.primary.anim_id == 0 )
+    /* THE ACTION SEQ FROM ITS PACKET, as scriptrun's npc row reads it
+     * (torirs_server_scriptrun.c push_npc_row): the newest SEQUENCE op, ended
+     * once its length (the server's seqinfo, loaded on every seat) has run
+     * out, in whole server ticks. The drawn track (animation.primary) is
+     * parked while either seq's frames load (world.c's pending_set) and
+     * never ends while they are missing, so a first-seen attack read a tick
+     * late or hung on (live lane audit, 2026-10-10). anim_frame is the drawn
+     * frame when the drawn track is that seq, else 0 (scriptrun's). */
+    anim = (npc->seq_sent_id >= 0 && npc->seq_sent_id != 65535) ? npc->seq_sent_id : -1;
+    if( anim >= 0 )
     {
-        out->anim_id = -1;
-        out->anim_frame = 0;
+        int len = ToriRSServer_SeqLengthCycles(anim);
+        int now_tick = PluginDrive_ServerTickOfCycle((int)app->world->cycle);
+        int sent_tick = PluginDrive_ServerTickOfCycle((int)npc->seq_sent_cycle);
+
+        if( len > 0 && (now_tick - sent_tick) * 30 >= len )
+            anim = -1;
     }
-    else
-    {
-        out->anim_id = npc->animation.primary.anim_id;
-        out->anim_frame = npc->animation.primary.frame;
-    }
-    out->spotanim_id = npc->spotanim.id;
+    out->anim_id = anim;
+    out->anim_frame = (anim >= 0 && npc->animation.primary.anim_id == (uint16_t)anim)
+        ? npc->animation.primary.frame
+        : 0;
+    out->spotanim_id = npc->spotanim_packet_id;
     out->seq_id = npc->seq_sent_id;
     out->seq_tick =
         npc->seq_sent_id >= 0 ? PluginDrive_ServerTickOfCycle((int)npc->seq_sent_cycle) : -1;
@@ -628,8 +644,14 @@ DriveUi_Npcs(struct App* app, int radius, struct DriveNpcRow* out, int cap, int*
                     i, (void const*)npc, npc ? npc->server_slot : -1);
             continue;
         }
-        tile_x = base_x + npc->grid_position.x;
-        tile_z = base_z + npc->grid_position.z;
+        /* THE TRUE TILE (route[0] while a route is in flight), as scriptrun's
+         * row and the player rows' server_x read it: grid_position is the
+         * tile the figure is drawn stepping on, a tick behind while it walks,
+         * and the radius and the nearest-first order used it too. */
+        tile_x = base_x + (npc->pathing.route_length > 0 ? npc->pathing.route_x[0]
+                                                         : npc->grid_position.x);
+        tile_z = base_z + (npc->pathing.route_length > 0 ? npc->pathing.route_z[0]
+                                                         : npc->grid_position.z);
         if( have_player && !drive_ui_within_radius(tile_x, tile_z, px, pz, radius) )
         {
             if( getenv("TORIRS_DRIVE_DEBUG") )
@@ -693,7 +715,7 @@ DriveUi_Npcs(struct App* app, int radius, struct DriveNpcRow* out, int cap, int*
             out[j].overhead[0] = '\0';
             out[j].overhead_timer = 0;
         }
-        drive_ui_fill_npc_state(npc, &out[j]);
+        drive_ui_fill_npc_state(app, npc, &out[j]);
         /* The footprint (DriveNpcRow.size): World_NpcSetType stores the
          * config's size clamped to 1, and every reader of the entity
          * (world_cycle.c, app_world_click.c) clamps again; so does this. */

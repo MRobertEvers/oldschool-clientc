@@ -599,57 +599,23 @@ DriveSymbol_Name(enum DriveSymbolKind kind, int id, char* out, int out_cap)
 enum DriveResult
 DriveCore_Cheat(struct App* app, char const* text)
 {
-    struct ToriRSServer* srv;
-    int result;
-
     assert(app);
     assert(text);
 
-    if( !g_embed && drive_party_member() )
-    {
-        /* A party member (see drive_embed_world_as_leader's banner): no world
-         * here, so the line goes out the way a staff member's typed
-         * `::command` does -- App_SendCommand, the client's own cheat packet,
-         * handled for THIS player at the world's next boundary. The verdict
-         * is "sent", not "ran": the server's reply line arrives as a chat
-         * message (t.cheat waits for it), and the setup loop's own client
-         * reads (backpack, stats, worn) are what prove the effect. */
-        if( text[0] == ':' && text[1] == ':' )
-            text += 2;
-        return App_SendCommand(app, text) ? DRIVE_OK : DRIVE_REFUSED;
-    }
-    if( !g_embed )
-        /* Socket-server run: t.cheat's packet fallback is U6/U8, not first
-         * class yet. Answering `unsupported` rather than silently doing
-         * nothing keeps that gap visible to a test that hits it. */
-        return DRIVE_UNSUPPORTED;
-
-    /* net_out_client_cheat writes the body without the leading "::"
-     * (torirs_server_world.c:7767-7769); handle_cheat only ever sees that
-     * stripped form and in turn only strips the server-side "~" namespace
-     * escape (:7771-7774). A test author spells a cheat the way every
-     * documented example does -- "::setlevel cooking 10" -- so this call
-     * site is the one place that owns undoing the "::" the real client
-     * would already have removed. "::~foo" becomes "~foo", same as a real
-     * client's packet; "~foo" and a bare "foo" are untouched. */
+    /* EVERY SEAT SENDS THE PACKET. The client never speaks to the server
+     * except through its transport: a typed `::command` is a CLIENT_CHEAT the
+     * client queues and flushes at the end of its cycle (the reference
+     * client's doCheat, client.java:4627-4630, then the PacketWriter flush at
+     * :4233), and the server runs it at its next tick's input phase -- as
+     * every party member and every scriptrun bot already did. The leader of
+     * an embedded run used to call the server's dispatch in-process
+     * (ToriRSServer_RunCheatForTest), between ticks, for an immediate
+     * verdict; the verdict now comes from the server's own reply line
+     * ("Unknown command: ...", read by QD.cheat). The packet body is sent
+     * without the leading "::", as the client's own cheat does. */
     if( text[0] == ':' && text[1] == ':' )
         text += 2;
-
-    srv = drive_embed_world_as_leader();
-    assert(srv);
-    /* The WHOLE of handle_cheat's dispatch -- content's `[debugproc]` first,
-     * then the C ladder -- not just its first half. This used to call
-     * ToriRSServer_RunDebugprocForTest, which reaches only content, so
-     * `::give`, `::setlevel`, `::spawn`, `::wield`, `::tele <x> <z>` and every
-     * other engine cheat answered `no_row` and did nothing at all to the test
-     * that asked for one (docs/QUEST_SERVER_CHEATS.md B). The verdict
-     * vocabulary is unchanged, so the mapping below is too. */
-    result = (int)ToriRSServer_RunCheatForTest(srv, text);
-    if( result == TORIRSSERVER_TRIGGER_FAILED )
-        return DRIVE_REFUSED;
-    if( result == TORIRSSERVER_TRIGGER_RAN )
-        return DRIVE_OK;
-    return DRIVE_NO_ROW;
+    return App_SendCommand(app, text) ? DRIVE_OK : DRIVE_REFUSED;
 }
 
 enum DriveResult
@@ -3877,13 +3843,10 @@ struct DriveOwnAnimation
      *  one tick are both read by a script that reads once a tick. */
     struct DriveOwnAnimationStart history[DRIVE_OWN_ANIMATION_HISTORY];
     int starts;      /**< how many starts this process has seen */
-    int drawn;       /**< the track's seq at the last watch; -1 none */
-    int frame;       /**< the track's frame at the last watch */
-    int cycle;       /**< the track's per-frame accumulator at the last watch */
-    int loop;        /**< the track's loop counter at the last watch */
+    int seen;        /**< the local entity's seq_sent_count at the last watch */
 };
 
-static struct DriveOwnAnimation g_own_animation = { .drawn = -1 };
+static struct DriveOwnAnimation g_own_animation;
 
 /* The local player's entity-pool index, the way drive_pointer_local_player
  * finds it: the entity sync's slot for local_pid (2047 before the server
@@ -3904,10 +3867,7 @@ static void
 drive_own_animation_watch(void)
 {
     struct WorldEntity_Player const* player;
-    struct WorldEntityFacet_AnimationStep const* track;
     int idx;
-    int drawn;
-    int restarted;
 
     assert(g_app);
     if( !g_app->world )
@@ -3918,25 +3878,45 @@ drive_own_animation_watch(void)
     player = World_EntityPoolGet(&g_app->world->entities.player, idx);
     if( !player )
         return;
-    track = &player->animation.primary;
-    /* world_cycle.c's anim_step_active: 0xFFFF and 0 both mean "no action
-     * track" (a fresh entity's zeroed track is 0). */
-    drawn = (track->anim_id == (uint16_t)-1 || track->anim_id == 0) ? -1 : (int)track->anim_id;
-    restarted = drawn >= 0 && drawn == g_own_animation.drawn && track->loop <= g_own_animation.loop &&
-                (track->frame < g_own_animation.frame ||
-                    (track->frame == g_own_animation.frame && track->cycle < g_own_animation.cycle));
-    if( drawn >= 0 && (drawn != g_own_animation.drawn || restarted) )
+    /* ONE START A SEQUENCE OP (a seq >= 0), stamped with the cycle it was
+     * applied on: what scriptrun records per packet (scriptrun_core.c's
+     * own_seq). This used to watch the DRAWN track, which is parked while the
+     * seq's frames load and shows no start for a seq re-sent while it plays
+     * (live lane audit, 2026-10-10). A respawned local entity counts from 0
+     * again. */
+    if( player->seq_sent_count < g_own_animation.seen )
+        g_own_animation.seen = 0;
+    while( g_own_animation.seen < player->seq_sent_count )
     {
         struct DriveOwnAnimationStart* start =
             &g_own_animation.history[g_own_animation.starts % DRIVE_OWN_ANIMATION_HISTORY];
-        start->seq = drawn;
-        start->start_cycle = g_app->world->cycle - (track->frame == 0 ? (int)track->cycle : 0);
+        start->seq = player->seq_sent_id;
+        start->start_cycle = player->seq_sent_cycle;
         g_own_animation.starts++;
+        g_own_animation.seen++;
     }
-    g_own_animation.drawn = drawn;
-    g_own_animation.frame = track->frame;
-    g_own_animation.cycle = track->cycle;
-    g_own_animation.loop = track->loop;
+}
+
+/* A player's action seq as both lanes read it (torirs_server_scriptrun.c
+ * d_players): the newest SEQUENCE op until the seq's length (the server's
+ * seqinfo, loaded on every seat) has run out, in whole server ticks. */
+static int
+drive_player_anim(struct WorldEntity_Player const* player)
+{
+    int anim = player->seq_sent_id;
+
+    assert(g_app);
+    assert(g_app->world);
+    if( anim >= 0 )
+    {
+        int len = ToriRSServer_SeqLengthCycles(anim);
+        int now_tick = PluginDrive_ServerTickOfCycle((int)g_app->world->cycle);
+        int sent_tick = PluginDrive_ServerTickOfCycle(player->seq_sent_cycle);
+
+        if( len > 0 && (now_tick - sent_tick) * 30 >= len )
+            anim = -1;
+    }
+    return anim;
 }
 
 /* The `me` row's own-animation fields: seq and seq_tick (the newest start,
@@ -4052,10 +4032,7 @@ lua_drive_players(struct lua_State* L)
          * none), and on the `me` row what its own screen saw it START
          * (g_own_animation): seq, the client tick it started on and how many
          * starts this process has seen (a reader keys a new swing on it). */
-        lua_pushinteger(L, (player->animation.primary.anim_id == (uint16_t)-1 ||
-                               player->animation.primary.anim_id == 0)
-                               ? -1
-                               : (lua_Integer)player->animation.primary.anim_id);
+        lua_pushinteger(L, drive_player_anim(player));
         lua_setfield(L, -2, "anim");
         if( i == local_idx )
             drive_push_own_animation(L);

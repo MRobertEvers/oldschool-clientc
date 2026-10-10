@@ -244,7 +244,7 @@ Task_NpcBodyLand_Run(
              * own load. */
             if( !npc || npc->base_npc_id != self->base_npc_id || npc->npc_id != self->npc_id )
                 continue;
-            App_WorldApplyNpcType(app, idx, npc->element_id, self->npc_id, self->base_npc_id);
+            App_WorldNpcBodyLanded(app, idx, npc->element_id, self->npc_id, self->base_npc_id);
             app->need_redraw = 1;
         }
     }

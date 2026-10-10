@@ -74,6 +74,19 @@ struct WorldEntity_Player
     int loc_merge_id;
     int loc_merge_shape;
     int loc_merge_angle;
+
+    /**
+     * The newest SEQUENCE op the server sent this player, a stop (-1)
+     * included, the world cycle it was applied on, and how many starts (a
+     * seq >= 0) have been applied: what both lanes' drive rows read
+     * (`anim` = this seq until its length runs out; the local player's
+     * `seq_starts`). The drawn track (animation.primary) is parked while its
+     * frames load and never ends while they are missing (live lane audit,
+     * 2026-10-10); scriptrun never steps it at all.
+     */
+    int seq_sent_id;
+    int seq_sent_cycle;
+    int seq_sent_count;
 };
 
 #endif

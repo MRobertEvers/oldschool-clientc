@@ -1031,6 +1031,7 @@ World_PlayerSpawn(
         .combat = { .healthbar_type = -1 },
         /* Reference ClientEntity default: no attached graphic (spotanimId -1). */
         .spotanim = { .id = -1, .frame = -1 },
+        .seq_sent_id = -1,
     };
     return idx;
 }
@@ -1103,6 +1104,7 @@ World_NpcSpawn(
         .spotanim = { .id = -1, .frame = -1 },
         .seq_sent_id = -1,
         .spotanim_sent_id = -1,
+        .spotanim_packet_id = -1,
     };
     return idx;
 }
@@ -2596,6 +2598,10 @@ World_PlayerSetPrimaryAnimation(
     struct World_EntityPool* pool = &world->entities.player;
     assert(World_EntityPoolIsActive(pool, idx));
     struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
+    player->seq_sent_id = (seq_id >= 0 && seq_id != 65535) ? seq_id : -1;
+    player->seq_sent_cycle = world->cycle;
+    if( player->seq_sent_id >= 0 )
+        player->seq_sent_count++;
     world_apply_primary_animation(
         world,
         &player->animation,
@@ -2876,6 +2882,7 @@ World_NpcSetSpotanim(
         npc->spotanim_sent_id = spotanim_id;
         npc->spotanim_sent_cycle = world->cycle;
     }
+    npc->spotanim_packet_id = (spotanim_id >= 0 && spotanim_id != 65535) ? spotanim_id : -1;
     world_set_entity_spotanim(world, &npc->spotanim, spotanim_id, height, cycle_delay);
 }
 

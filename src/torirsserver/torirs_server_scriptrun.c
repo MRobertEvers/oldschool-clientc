@@ -826,13 +826,13 @@ push_npc_row(
                                                      : npc->grid_position.x);
     int tz = base_z + (npc->pathing.route_length > 0 ? npc->pathing.route_z[0]
                                                      : npc->grid_position.z);
-    int anim = npc->animation.primary.anim_id;
+    /* The newest SEQUENCE op until its length runs out (the client's
+     * per-cycle step ends the track there): the same rule the live client's
+     * row reads (torirs_plugin_drive_ui.c drive_ui_fill_npc_state). */
+    int anim = (npc->seq_sent_id >= 0 && npc->seq_sent_id != 65535) ? npc->seq_sent_id : -1;
     int len;
 
-    if( anim == 0xffff || anim == 0 )
-        anim = -1;
-    /* The track ends when the sequence does (the client's per-cycle step). */
-    if( anim >= 0 && npc->seq_sent_id == anim )
+    if( anim >= 0 )
     {
         len = ToriRSServer_SeqLengthCycles(anim);
         if( len > 0 && cycle - npc->seq_sent_cycle >= len )
@@ -903,7 +903,7 @@ push_npc_row(
     lua_setfield(L, -2, "anim_id");
     lua_pushinteger(L, 0);
     lua_setfield(L, -2, "anim_frame");
-    lua_pushinteger(L, npc->spotanim.id);
+    lua_pushinteger(L, npc->spotanim_packet_id);
     lua_setfield(L, -2, "spotanim_id");
     lua_pushinteger(L, npc->seq_sent_id);
     lua_setfield(L, -2, "seq_id");
@@ -1025,9 +1025,17 @@ d_players(lua_State* L)
         int anim;
         if( !p )
             continue;
-        anim = p->animation.primary.anim_id;
-        if( anim == 0xffff || anim == 0 )
-            anim = -1;
+        /* The newest SEQUENCE op until its length runs out: the same rule
+         * the live client's row reads (torirs_plugin_drive.c
+         * drive_player_anim). The world here is never stepped, so the track
+         * itself would never end. */
+        anim = p->seq_sent_id;
+        if( anim >= 0 )
+        {
+            int len = ToriRSServer_SeqLengthCycles(anim);
+            if( len > 0 && (int)world->cycle - p->seq_sent_cycle >= len )
+                anim = -1;
+        }
         lua_newtable(L);
         lua_pushstring(L, p->name);
         lua_setfield(L, -2, "name");

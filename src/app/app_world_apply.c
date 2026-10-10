@@ -144,29 +144,17 @@ app_world_scenery_anim_apply(
     }
 }
 
-void
-App_WorldApplyNpcType(
+/* Build the npc type's body and mount it on the element (the model half of a
+ * retype). Returns whether a model was mounted. */
+static int
+app_world_npc_mount_body(
     struct App* app,
-    int world_idx,
     int element_id,
     int npc_type,
-    int base_npc_type)
+    struct ToriRS_Npctype* npctype)
 {
-    struct ToriRS_Npctype* npctype;
-    struct ToriRS_NpcEntityFacts facts;
     struct ToriDraw_Model* model;
-
-    assert(app);
-    npctype = CacheProvider_NpctypeGet(app->provider, npc_type);
-    if( !npctype )
-        return;
-    /* Same gap-fill as the spawn path: the rung draws the body and names the
-     * ops, the shell supplies the size and idle animation it does not state.
-     * See app_npc_entity_facts. */
-    app_npc_entity_facts(app, base_npc_type, npctype, &facts);
-    if( getenv("TORIRS_ANIM_DEBUG") )
-        TORIRS_LOG(
-            "npc_retype: world_idx=%d element=%d type=%d\n", world_idx, element_id, npc_type);
+    int mounted = 0;
 
     /* Retyping TO a model-less type must actually hide the npc. Building
      * nothing here would leave the old model mounted and the entity would keep
@@ -222,7 +210,38 @@ App_WorldApplyNpcType(
     else if( model )
     {
         ToriDraw_ModelFree(model);
+        model = NULL;
     }
+
+    mounted = model != NULL;
+    return mounted;
+}
+
+void
+App_WorldApplyNpcType(
+    struct App* app,
+    int world_idx,
+    int element_id,
+    int npc_type,
+    int base_npc_type)
+{
+    struct ToriRS_Npctype* npctype;
+    struct ToriRS_NpcEntityFacts facts;
+    int model_mounted;
+
+    assert(app);
+    npctype = CacheProvider_NpctypeGet(app->provider, npc_type);
+    if( !npctype )
+        return;
+    /* Same gap-fill as the spawn path: the rung draws the body and names the
+     * ops, the shell supplies the size and idle animation it does not state.
+     * See app_npc_entity_facts. */
+    app_npc_entity_facts(app, base_npc_type, npctype, &facts);
+    if( getenv("TORIRS_ANIM_DEBUG") )
+        TORIRS_LOG(
+            "npc_retype: world_idx=%d element=%d type=%d\n", world_idx, element_id, npc_type);
+
+    model_mounted = app_world_npc_mount_body(app, element_id, npc_type, npctype);
 
     {
         /* Reference CHANGETYPE swaps walkanim_l/r (Client.ts 8460-8462). */
@@ -275,7 +294,7 @@ App_WorldApplyNpcType(
         int const primary_live = npc && npc->animation.primary.anim_id != (uint16_t)-1 &&
                                  npc->animation.primary.anim_id != 0;
 
-        if( model && !primary_live && element_id >= 0 &&
+        if( model_mounted && !primary_live && element_id >= 0 &&
             ToriDraw_SceneElementIsLive(app->scene, element_id) )
             app_world_apply_seq(app, element_id, facts.readyanim);
         if( npc )
@@ -312,11 +331,50 @@ App_WorldApplyNpcType(
                     npc->grid_position.x,
                     npc->grid_position.z,
                     npc->size,
-                    model ? "installed" : "missing");
+                    model_mounted ? "installed" : "missing");
         }
     }
     app_sync_textures(app);
     app->need_redraw = 1;
+}
+
+/* NpcBodyLand's half of a retype: the body that was on the wire is resident
+ * now, so build it and mount it, and bind the type's ready pose when no
+ * action track is live -- and nothing else. Re-applying the whole type here
+ * (App_WorldApplyNpcType) reverted every NAME_CHANGE, BAS_CHANGE and
+ * LEVEL_CHANGE the server sent after the spawn, and stamped a second
+ * npc_retype event a tick or more after the op, which scriptrun never sees
+ * (live lane audit, 2026-10-10). The type's fields were applied with the op. */
+void
+App_WorldNpcBodyLanded(
+    struct App* app,
+    int world_idx,
+    int element_id,
+    int npc_type,
+    int base_npc_type)
+{
+    struct ToriRS_Npctype* npctype;
+    struct ToriRS_NpcEntityFacts facts;
+    struct WorldEntity_NPC* npc;
+    int primary_live;
+
+    assert(app);
+    assert(app->world);
+    npctype = CacheProvider_NpctypeGet(app->provider, npc_type);
+    if( !npctype )
+        return;
+    if( !app_world_npc_mount_body(app, element_id, npc_type, npctype) )
+        return;
+    npc = World_EntityPoolGet(&app->world->entities.npc, world_idx);
+    primary_live = npc && npc->animation.primary.anim_id != (uint16_t)-1 &&
+                   npc->animation.primary.anim_id != 0;
+    if( !primary_live && npc && element_id >= 0 && ToriDraw_SceneElementIsLive(app->scene, element_id) )
+    {
+        app_npc_entity_facts(app, base_npc_type, npctype, &facts);
+        app_world_apply_seq(app, element_id, npc->idle_animations.readyanim > 0
+                                                 ? npc->idle_animations.readyanim
+                                                 : facts.readyanim);
+    }
 }
 
 /*

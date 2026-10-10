@@ -69,6 +69,14 @@ struct WorldEntity_NPC
     int spotanim_sent_id;
     int spotanim_sent_cycle;
     /**
+     * The graphic the newest SPOTANIM op set, a clear (-1) included: what
+     * scriptrun's npc row reports as spotanim_id, where `spotanim.id` is the
+     * graphic still DRAWING, cleared only once its seq has loaded and run out
+     * (world_cycle.c), so a first-seen graphic read late and a cleared one
+     * lingered (live lane audit, 2026-10-10).
+     */
+    int spotanim_packet_id;
+    /**
      * The newest FACE_COORD op the server sent this npc (`npc_facesquare`),
      * as the wire sent it -- absolute half-tiles, (tile << 1) + size -- and
      * the world cycle it arrived on. Stamped in task_exec_entity_info.c where
