@@ -131,6 +131,11 @@ src/.last_flavor
 /toolchains/winxp_profiles/verysleepy_0_7_setup.exe
 /tmp/verysleepy-0.7.2-source/
 
+# Same rule for the Java toolchain: toolchains/java-toolchain-osrs239.zip is
+# the checked-in form; run-runelite.sh unpacks it here. See
+# toolchains/README.md.
+/toolchains/unpacked/
+
 # Staged build output.
 /dist/
 

@@ -3,7 +3,8 @@
 -- raid_solve_verzik_p1/p2/p3.lua) in ONE Learner/Void kit
 -- (docs/minigames/theater_of_blood/ROOM_SOLVERS.md 6, 6.1):
 --
---   the board's party (form, apply, accept), the door's ready check, follow in;
+--   the party in at Maiden through t.raid.enter, on both lanes (the board's
+--     way in is test/raids/tob_lobby.lua, live only);
 --   per room: arrive, the room's own start sequence (the room test's), the
 --     solver on every seat, prayers off, the leader's way out (the gate, the
 --     passage: ~tob_carry_party takes every raider in the room along);
@@ -384,41 +385,14 @@ local function reward_room(t)
 end
 
 local function run(t)
-    local names = t.party.names()
-    local leader = names[1]
     if role == 1 then t.check("relay.ticklog", t.ticklog.start() == "ok", "") end
 
-    -- THE LOBBY: the board, the party, the door (the live client). Scriptrun
-    -- has no clientscripts and the board is built of them: there the party
-    -- enters at Maiden as the room tests do (QD.raid.tob_headless)
-    if t.raid.tob_headless() then
-        local r, d = t.raid.enter("tob", "maiden", { mode = "normal" })
-        t.check("party.enter", r == "ok", P .. tostring(d))
-    else
-        t.exec("lobby.goto", t.player.goto_tile, LOBBY_X - 1 + role, LOBBY_Z, 0)
-        t.expect("party.barrier.lobby", t.party.barrier("lobby", 200))
-        if role == 1 then t.exec("party.form", t.party.form, "normal") end
-        t.expect("party.barrier.formed", t.party.barrier("formed", 300))
-        if role ~= 1 then t.exec("party.apply", t.party.apply, leader) end
-        t.expect("party.barrier.applied", t.party.barrier("applied", 300))
-        if role == 1 then
-            for n = 2, #names do t.exec("party.accept." .. n, t.party.accept, names[n]) end
-        end
-        t.expect("party.barrier.accepted", t.party.barrier("accepted", 300))
-        t.key("escape")
-        t.ticks(2)
-        t.expect("party.barrier.closed", t.party.barrier("closed", 300))
-        if role == 1 then
-            local rr, rd = t.party.ready()
-            t.check("party.ready", rr == "ok", tostring(rd))
-        end
-        t.expect("party.barrier.leader_in", t.party.barrier("leader_in", 300))
-        if role ~= 1 then
-            t.msg.await("has entered the Theatre of Blood (Normal Mode)", 20)
-            local fr, fd = t.party.follow_in()
-            t.check("party.follow_in", fr == "ok", P .. tostring(fd))
-        end
-    end
+    -- THE WAY IN: t.raid.enter on both lanes, so the live and scriptrun tick
+    -- logs are the same log (the board's party and the door's ready check
+    -- spend the RNG differently, and scriptrun cannot run the board: it is
+    -- clientscripts). The board is test/raids/tob_lobby.lua, live only.
+    local r, d = t.raid.enter("tob", "maiden", { mode = "normal" })
+    t.check("party.enter", r == "ok", P .. tostring(d))
 
     local cleared = 0
     local alive = true

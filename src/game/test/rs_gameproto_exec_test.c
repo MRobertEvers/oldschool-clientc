@@ -129,6 +129,71 @@ main(void)
         printf("ok - rev239 WidgetFlags override/fallback lookup\n");
     }
 
+    /*
+     * Closing a group out of a slot drops its IF_SETEVENTS, as rev239's one
+     * close (class415.method9520 -> Statics.method12095) does on IF_CLOSESUB,
+     * on IF_OPENSUB onto an occupied slot -- the SAME group included -- and on
+     * the destination of IF_MOVESUB. Keeping them made this client answer
+     * clicks the official one ignores: a quest list armed once at login was
+     * dead in RuneLite after a journal tab switch and fine here.
+     */
+    {
+        struct App* app = calloc(1, sizeof(*app));
+        int const slot = (629 << 16) | 43;  /* side_journal:tab_container */
+        int const list = (399 << 16) | 7;   /* questlist:list */
+        int const icon = (629 << 16) | 8;   /* side_journal's own tab icon */
+        int const source = (161 << 16) | 70;
+        int const dest = (161 << 16) | 71;
+        int const moved = (500 << 16) | 2;
+        int const landed_on = (501 << 16) | 2;
+
+        assert(app);
+        app->exec_runner.queue = ToriRS_TaskQueue_New();
+        app->tree = UITree_New(2);
+        UITree_InterfaceParentSet(app->tree, slot, 399, 1);
+        App_IfEventsSet(app, list, 1, 200, 4);
+        App_IfEventsSet(app, icon, 0, 0, 2);
+
+        App_OpenSubInterface(app, slot, 399, 1);
+        TEST_EXEC_ASSERT(App_IfEventsGetAt(app, list, 5) == 0,
+                         "a same-group remount must drop the outgoing copy's arming");
+        TEST_EXEC_ASSERT(App_IfEventsGetAt(app, icon, 0) == 2,
+                         "a remount must not touch another group's arming");
+
+        /* The server's re-arm is the next packet; the mount task still
+         * queued from the open must not take it away again. */
+        App_IfEventsSet(app, list, 1, 200, 4);
+        App_CloseSubInterface(app, slot);
+        TEST_EXEC_ASSERT(App_IfEventsGetAt(app, list, 5) == 0,
+                         "IF_CLOSESUB must drop the closed group's arming");
+
+        /* The tree still records 399 in the slot, but the close is queued:
+         * the slot is empty in wire order, so opening into it closes nothing
+         * and an arming for 399 that arrives meanwhile is left alone. */
+        App_IfEventsSet(app, list, 1, 200, 4);
+        App_OpenSubInterface(app, slot, 712, 1);
+        TEST_EXEC_ASSERT(App_IfEventsGetAt(app, list, 5) == 4,
+                         "an open into a slot whose close is queued must not drop the tree's stale group");
+
+        /* IF_MOVESUB closes only what it lands on; the moved group is
+         * relinked and keeps its arming (class415.method9481). */
+        UITree_InterfaceParentSet(app->tree, source, 500, 1);
+        UITree_InterfaceParentSet(app->tree, dest, 501, 1);
+        App_IfEventsSet(app, moved, 0, 0, 2);
+        App_IfEventsSet(app, landed_on, 0, 0, 2);
+        App_MoveSubInterface(app, source, dest);
+        TEST_EXEC_ASSERT(App_IfEventsGetAt(app, moved, 0) == 2,
+                         "IF_MOVESUB must keep the moved group's arming");
+        TEST_EXEC_ASSERT(App_IfEventsGetAt(app, landed_on, 0) == 0,
+                         "IF_MOVESUB must drop the arming of the group it lands on");
+
+        ToriRS_TaskQueue_Free(app->exec_runner.queue);
+        UITree_Free(app->tree);
+        UIIfEventTable_Free(&app->if_events);
+        free(app);
+        printf("ok - closing a group out of a slot drops its IF_SETEVENTS in wire order\n");
+    }
+
     /* A TEXT node to receive IF_SETTEXT. */
     struct UITreeNodeSpec spec;
     memset(&spec, 0, sizeof(spec));

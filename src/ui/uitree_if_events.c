@@ -81,6 +81,23 @@ UIIfEventTable_Clear(struct UIIfEventTable* table)
     table->count = 0;
 }
 
+void
+UIIfEventTable_DropGroup(
+    struct UIIfEventTable* table,
+    int group_id)
+{
+    int kept = 0;
+
+    assert(table);
+    for( int i = 0; i < table->count; i++ )
+    {
+        if( ((table->ranges[i].com_id >> 16) & 0xffff) == group_id )
+            continue;
+        table->ranges[kept++] = table->ranges[i];
+    }
+    table->count = kept;
+}
+
 int
 UIIfEventTable_At(
     struct UIIfEventTable const* table,

@@ -726,6 +726,17 @@ d_skill(lua_State* L)
     return 2;
 }
 
+/* api_drive.run_energy: UPDATE_RUNENERGY's raw value, as live reads it. */
+static int
+d_run_energy(lua_State* L)
+{
+    struct ScriptBot* bot = bot_of(L);
+
+    lua_pushstring(L, "ok");
+    lua_pushinteger(L, bot->core->run_energy);
+    return 2;
+}
+
 static int
 d_varp(lua_State* L)
 {
@@ -2398,6 +2409,7 @@ push_drive_table(
     bind(L, bot, "player_tile", d_player_tile);
     bind(L, bot, "player_idle", d_player_idle);
     bind(L, bot, "skill", d_skill);
+    bind(L, bot, "run_energy", d_run_energy);
     bind(L, bot, "varp", d_varp);
     bind(L, bot, "var_server", d_varp);
     bind(L, bot, "varbit", d_varbit);

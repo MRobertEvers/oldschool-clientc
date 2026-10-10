@@ -3697,12 +3697,21 @@ App_IfHideSet(
 void
 App_IfEventsClear(struct App* app);
 
+/** Drop every IF_SETEVENTS arming on interface `group_id`'s components.
+ *  Called when that group is closed out of a slot -- the real client drops
+ *  them on every close, a same-group remount included (UIIfEventTable_DropGroup). */
+void
+App_IfEventsDropGroup(
+    struct App* app,
+    int group_id);
+
 /**
  * IF_SETEVENTS: mark slots `from`..`to` of a component as accepting input.
  *
  * Persisting WITHIN a root, like App_IfHideSet, because the server enables
  * events before the interface holding the component has mounted. Not across
- * one: `App_IfEventsClear` drops the table on IF_OPENTOP.
+ * one: `App_IfEventsClear` drops the table on IF_OPENTOP. Nor across a close
+ * of the component's own group: `App_IfEventsDropGroup`.
  */
 void
 App_IfEventsSet(

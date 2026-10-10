@@ -73,6 +73,19 @@ App_IfEventsClear(struct App* app)
     UIIfEventTable_Clear(&app->if_events);
 }
 
+void
+App_IfEventsDropGroup(
+    struct App* app,
+    int group_id)
+{
+    assert(app);
+    UIIfEventTable_DropGroup(&app->if_events, group_id);
+
+    if( torirs_env_net_debug() )
+        TORIRS_LOG("if_setevents: group %d closed, its arming dropped\n", group_id);
+    app->need_redraw = 1;
+}
+
 int
 App_IfEventsGet(
     struct App const* app,

@@ -18056,7 +18056,7 @@ ToriRSServer_WorldSelftest(void)
                 int to = -1;
 
                 ToriRSServer_CaptureBegin(srv, &arm);
-                ToriRSServer_ScriptsRunProc(srv, "[proc,quest_journal_login]", NULL, 0);
+                ToriRSServer_ScriptsRunProc(srv, "[if_open,questlist]", NULL, 0);
                 ToriRSServer_CaptureEnd(srv);
 
                 for( int p = 0; p < arm.count; p++ )

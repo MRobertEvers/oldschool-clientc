@@ -224,6 +224,9 @@ function QD.raid._tob_measure(S)
     F.energy = (er == "ok" and energy) or 0
     local rr, run_on = api_drive.varp(ids.run_on)
     F.run_on = (rr == "ok" and run_on == 1)
+    -- (run energy, 0..10000; `F.energy` above is the SPECIAL ATTACK's)
+    local re, run_energy = api_drive.run_energy()
+    F.run_energy = (re == "ok" and run_energy) or 0
     local sr, spec_on = api_drive.varp(ids.spec_on)
     F.spec_armed = (sr == "ok" and spec_on == 1)
     return F
@@ -320,7 +323,9 @@ end
 -- THE PLAN DUMP, off unless a test sets QD.raid.tob_plan_dump = { from, to }
 -- (drive ticks): every plan's spec and answer in that window, into the trace,
 -- so two lanes that walked apart can be diffed on what each one asked.
-function QD.raid._tob_plan(S, F, spec, names)
+-- (`quiet`: a trial plan whose failure is not news -- a walk tried before
+-- the run -- writes no "no safe plan" line)
+function QD.raid._tob_plan(S, F, spec, names, quiet)
     local r, plan = api_drive.plan(spec)
     assert(r == "ok", S.who .. ": api_drive.plan answered " .. tostring(r))
     local dump = QD.raid.tob_plan_dump
@@ -333,7 +338,7 @@ function QD.raid._tob_plan(S, F, spec, names)
         end
     end
     S.expanded = S.expanded + (plan.expanded or 0)
-    if plan.lethal > 0 and (S.last_inf or -10) < F.tick - 5 then
+    if not quiet and plan.lethal > 0 and (S.last_inf or -10) < F.tick - 5 then
         S.last_inf = F.tick
         local kind, idx, k = tostring(plan.why):match("(%a+)%[(%d+)%] k(%d+)")
         local lists = { zone = "zones", forbid = "forbid", chaser = "chasers", watcher = "watchers" }
@@ -401,7 +406,9 @@ function QD.raid._tob_spec(S, F, opts)
             t0 = F.tick, t1 = F.tick + spec.h })
     end
     function add.watcher(name, w)
-        if #spec.watchers >= 48 then return end
+        -- (an assert, not a drop: a watcher left out is a tile planned as
+        -- unseen that he sees; the C side holds COLLISION_PLAN_WATCHERS_MAX)
+        assert(#spec.watchers < 128, "tob plan: more than 128 watchers (" .. name .. ")")
         spec.watchers[#spec.watchers + 1] = w
         names.watchers[#spec.watchers] = name
     end
@@ -533,11 +540,13 @@ function QD.raid._tob_emit(S, F, order, intent)
     -- RUN BACK ON: the game turns run off at 0 energy and nothing turns it
     -- back on; a long Bloat drained two seats, and walking a tile a tick they
     -- stood in his stomp (relay rg t921, 58 and 48, a seat dead). Pressed once
-    -- energy is back to 5%, at most every three ticks.
-    if not F.run_on and F.energy >= 500 and F.tick - (S.run_pressed or -10) >= 3 then
+    -- energy is back to 5%, at most every three ticks. (This read the
+    -- special attack's energy, always 1000 by then, and pressed run on at 0
+    -- run energy every three ticks: a tick of run, then the server's stop.)
+    if not F.run_on and F.run_energy >= 500 and F.tick - (S.run_pressed or -10) >= 3 then
         api_drive.if_click(ids.run_orb, 1)
         S.run_pressed = F.tick
-        QD.raid._tob_trace(S, F.tick, "run back on at energy " .. F.energy)
+        QD.raid._tob_trace(S, F.tick, "run back on at run energy " .. F.run_energy)
     end
     local gear = intent.gear
     if gear and #gear == 0 then gear = nil end

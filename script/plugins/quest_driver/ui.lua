@@ -792,9 +792,10 @@ end
 -- guessed (OSRS-Content/.../interface_questjournal/scripts/quest_journal.rs2,
 -- and tools/quest_gate/quest_inventory.md "Quest journal"):
 --
---   * `~quest_journal_login` arms `if_setevents(questlist:list, 1, $count,
---     ^if_event_op2)` AT LOGIN -- the op-2 mask does not wait for the quest
---     tab to be looked at;
+--   * `~questlist_arm` arms `if_setevents(questlist:list, 1, $count,
+--     ^if_event_op2)` at login AND on every `[if_open,questlist]` -- the
+--     official client drops a group's masks whenever it closes, which a
+--     journal tab switch does;
 --   * clientscript 2633 (`questlist_draw_2633`) builds one dynamic text row
 --     per quest under `questlist:list` with `cc_create($list, 4, $n, 0)` and
 --     `cc_settext(<quest name>)`, where `$n` runs 1..db_listall(quest) and IS
@@ -1185,7 +1186,7 @@ function QD.ui.journal_open(display_name)
     end
 
     -- op 2 is "Read journal:" (clientscript 2633's own cc_setop(2, ...)); the
-    -- server's mask for it was armed at login by ~quest_journal_login.
+    -- server's mask for it was armed by ~questlist_arm when questlist mounted.
     local click_result, click_detail = api_drive.if_click(row_component_id, 2)
     if click_result ~= "ok" then
         return click_result, string.format(

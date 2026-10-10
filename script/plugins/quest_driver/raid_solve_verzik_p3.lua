@@ -112,7 +112,7 @@ QD.VZP3 = {
     GOAL_PULL = 1.0, OFF_SIDE = 0.2, UNDER = 0.4,
     POOL_PULL = 1.5, BALL_PULL = 1.5, NEXT_PULL = 0.4,
     CRAB_BLAST = 3, CRAB_SIZE = 2,
-    HP_EAT = 60, HP_BREW = 45, PRAYER_SIP = 25, COMBAT_REDOSE = 5,
+    HP_EAT = 60, HP_BREW = 45, HP_TOP = 90, PRAYER_SIP = 25, COMBAT_REDOSE = 5,
     PIETY_FLOOR = 40,          -- Piety only with points to spare (the overheads come first)
     TORNADO_RING = { 2, 10 },  -- a spawn this far from a raider (end of T-1, seen a tick later) may be its
     OWNER_MARGIN = 2,          -- another raider's votes over mine before a tornado is not mine
@@ -1015,8 +1015,14 @@ function QD.raid.verzik_p3_solve(opts)
         -- overhead lights and every press is wasted), then food, then the
         -- overhead against the style she last showed, then Piety only with
         -- points to spare.
+        -- THE TRANSITION TOPS UP. Nothing attacks while she rises, so a seat
+        -- eats (or brews, with no fish) back to HP_TOP before her first P3
+        -- auto. The zap's hops chip 3-7 off every raider that passes the ball
+        -- on, and seats came into P3 at 52-73 and died there (relay rl43 rd,
+        -- rn).
+        local topping = F.transition ~= nil and F.boss == nil
         local restore_due = F.prayer < V.PRAYER_SIP and F.tick - (S.last_drink or -10) >= 3
-        local eat_due = F.hp < V.HP_EAT and F.tick - (S.last_eat or -10) >= 3
+        local eat_due = F.hp < (topping and V.HP_TOP or V.HP_EAT) and F.tick - (S.last_eat or -10) >= 3
         if restore_due then
             intent.drink = QD.raid._vzp3_first(S, S.ids.restores)
             if intent.drink then S.last_drink = F.tick end
@@ -1026,7 +1032,7 @@ function QD.raid.verzik_p3_solve(opts)
             if food then
                 intent.eat = food
                 S.last_eat = F.tick
-            elseif F.hp < V.HP_BREW then
+            elseif topping or F.hp < V.HP_BREW then
                 intent.drink = QD.raid._vzp3_first(S, S.ids.brews)
                 if intent.drink then S.last_drink = F.tick end
             end

@@ -20,6 +20,8 @@
  *     a real answer that disables cache-authored ops, and reading it as
  *     "absent" switches every one of them back on.
  *   - clear empties without freeing, which is what IF_OPENTOP does.
+ *   - dropping a group removes every range on that group's components and
+ *     nothing else, which is what closing it out of a slot does.
  *   - a dynamic child is addressed as (container, index within it) -- the
  *     `combinedId`/`sub` pair the wire carries -- and inherits its container's
  *     armed range only when its index falls inside it.
@@ -160,6 +162,38 @@ test_a_declared_zero_is_not_an_absence(void)
     UIIfEventTable_Free(&table);
 }
 
+static void
+test_dropping_a_group_drops_only_that_group(void)
+{
+    struct UIIfEventTable table;
+    int questlist_list = (399 << 16) | 7;
+    int questlist_settings = (399 << 16) | 2;
+    int side_journal_icon = (629 << 16) | 8;
+
+    memset(&table, 0, sizeof(table));
+
+    /* The quest list armed at login, beside the journal's own tab icon. */
+    UIIfEventTable_Set(&table, questlist_list, 1, 200, 4);
+    UIIfEventTable_Set(&table, questlist_settings, 0, 0, 2);
+    UIIfEventTable_Set(&table, side_journal_icon, 0, 0, 2);
+
+    /* A tab switch closes 399 out of the journal's slot. */
+    UIIfEventTable_DropGroup(&table, 399);
+    CHECK(!UIIfEventTable_Lookup(&table, questlist_list, 5, NULL),
+          "the closed group's list kept its arming");
+    CHECK(!UIIfEventTable_Lookup(&table, questlist_settings, 0, NULL),
+          "the closed group's button kept its arming");
+    CHECK(UIIfEventTable_At(&table, side_journal_icon, 0) == 2,
+          "another group's arming was dropped with it");
+    CHECK(table.count == 1, "drop left %d entries, wanted 1", table.count);
+
+    /* The remount re-arms into the same table. */
+    UIIfEventTable_Set(&table, questlist_list, 1, 200, 4);
+    CHECK(UIIfEventTable_At(&table, questlist_list, 5) == 4, "re-arming after a drop failed");
+
+    UIIfEventTable_Free(&table);
+}
+
 /*
  * A two-node tree: a container, and one dynamic child inside it at a known
  * index. Built by hand because the real builder needs a cache, and what is
@@ -262,6 +296,7 @@ main(void)
     test_a_range_arms_every_slot_in_it();
     test_setting_an_interval_preserves_what_is_around_it();
     test_a_declared_zero_is_not_an_absence();
+    test_dropping_a_group_drops_only_that_group();
     test_a_dynamic_child_is_addressed_by_its_container();
 
     if( g_failures )

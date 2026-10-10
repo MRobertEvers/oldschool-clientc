@@ -1242,6 +1242,73 @@ static struct ToriRS_TaskVTable Task_OpenSubRefresh_VTable = {
     .free = Task_OpenSubRefresh_Free,
 };
 
+/*
+ * The group in a slot once every mount change already asked for has landed.
+ *
+ * A mount change is a task on the exec pipeline, and one caller can queue
+ * several before any of them runs: IF_RESYNC closes what the snapshot does not
+ * restate and reopens the rest, the close-modals sweep closes every modal
+ * slot, IF_MOVESUB closes one slot and opens another. The tree has not seen
+ * those yet, so the newest mount task still queued for the slot is the answer
+ * (a queued close answers 0), and the tree's record only when none is.
+ */
+static int
+app_queued_slot_group(
+    struct App const* app,
+    int target_uid)
+{
+    struct ToriRS_Task const* task;
+    int group = 0;
+    int queued = 0;
+    int idx;
+
+    assert(app);
+    assert(app->exec_runner.queue);
+    for( task = app->exec_runner.queue->head; task; task = task->next )
+    {
+        struct Task_OpenSubRefresh const* mount;
+
+        if( task->vtable != &Task_OpenSubRefresh_VTable )
+            continue;
+        mount = (struct Task_OpenSubRefresh const*)task;
+        if( mount->target_uid != target_uid )
+            continue;
+        group = mount->interface_id > 0 ? mount->interface_id : 0;
+        queued = 1;
+    }
+    if( queued || !app->tree )
+        return group;
+    idx = UITree_InterfaceParentFind(app->tree, target_uid);
+    return idx >= 0 ? app->tree->interface_parents[idx].group_id : 0;
+}
+
+/*
+ * Closing a group out of a slot disarms it, in wire order.
+ *
+ * The reference's one close, class415.method9520, ends in
+ * Statics.method12095: every IF_SETEVENTS node on the closed group's
+ * components is unlinked. IF_CLOSESUB, an IF_OPENSUB onto an occupied slot --
+ * the SAME group included, the unload flag is the only thing that differs --
+ * and the destination of an IF_MOVESUB all go through it. So a server that
+ * arms a list once at login and later remounts it has a dead list in the real
+ * client (the quest list after a journal tab switch). This client kept the
+ * arming and was kinder than the client the server has to satisfy.
+ *
+ * At the call, where the reference does it -- inside the packet's own
+ * handler, before the next packet (the server's re-arm for the incoming
+ * group) applies.
+ */
+static void
+app_disarm_slot(
+    struct App* app,
+    int target_uid)
+{
+    int group = app_queued_slot_group(app, target_uid);
+
+    if( group > 0 )
+        App_IfEventsDropGroup(app, group);
+}
+
 static void
 app_enqueue_open_sub(
     struct App* app,
@@ -1277,8 +1344,8 @@ app_enqueue_open_sub(
     TaskRunner_AddRenderBlockingSerialTask(&app->exec_runner, &task->task);
 }
 
-void
-App_OpenSubInterface(
+static void
+app_open_sub(
     struct App* app,
     int target_uid,
     int interface_id,
@@ -1305,8 +1372,8 @@ App_OpenSubInterface(
     app_enqueue_open_sub(app, target_uid, interface_id, type);
 }
 
-void
-App_CloseSubInterface(
+static void
+app_close_sub(
     struct App* app,
     int target_uid)
 {
@@ -1319,6 +1386,28 @@ App_CloseSubInterface(
             target_uid & 0xffff);
     /* iface_id <= 0 makes the mount task just clear the slot. */
     app_enqueue_open_sub(app, target_uid, -1, 0);
+}
+
+void
+App_OpenSubInterface(
+    struct App* app,
+    int target_uid,
+    int interface_id,
+    int type)
+{
+    assert(app);
+    app_disarm_slot(app, target_uid);
+    app_open_sub(app, target_uid, interface_id, type);
+}
+
+void
+App_CloseSubInterface(
+    struct App* app,
+    int target_uid)
+{
+    assert(app);
+    app_disarm_slot(app, target_uid);
+    app_close_sub(app, target_uid);
 }
 
 void
@@ -1346,7 +1435,10 @@ App_MoveSubInterface(
             type,
             (unsigned)source_uid,
             (unsigned)dest_uid);
-    App_CloseSubInterface(app, source_uid);
-    App_OpenSubInterface(app, dest_uid, group_id, type);
+    /* The reference (class415.method9481) closes only what the move lands
+     * on; the moved group is relinked, not closed, and keeps its arming. */
+    app_disarm_slot(app, dest_uid);
+    app_close_sub(app, source_uid);
+    app_open_sub(app, dest_uid, group_id, type);
 }
 

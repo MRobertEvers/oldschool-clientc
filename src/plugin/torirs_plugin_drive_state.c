@@ -602,6 +602,20 @@ lua_drive_skill(struct lua_State* L)
     return 2;
 }
 
+/* Run energy as UPDATE_RUNENERGY carried it, 0..10000 (the orb shows / 100).
+ * Not varp 300: that is the special attack's energy, and a solver that read
+ * it as this pressed run back on at 0 run energy every three ticks. */
+static int
+lua_drive_run_energy(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+
+    assert(app);
+    lua_pushstring(L, DriveResultName(DRIVE_OK));
+    lua_pushinteger(L, app->stats.run_energy_raw);
+    return 2;
+}
+
 /* app->chat.messages[] is capped at RS_CHAT_MESSAGE_MAX; a quest test never
  * needs more than that in one read. */
 #define DRIVE_STATE_MESSAGES_MAX RS_CHAT_MESSAGE_MAX
@@ -832,6 +846,7 @@ static struct LuaFn const LUA_DRIVE_STATE_FNS[] = {
     {"inv_slot", lua_drive_inv_slot},
     {"inv_capacity", lua_drive_inv_capacity},
     {"skill", lua_drive_skill},
+    {"run_energy", lua_drive_run_energy},
     {"messages", lua_drive_messages},
     {"message_serial", lua_drive_message_serial},
     {"vessel", lua_drive_vessel},

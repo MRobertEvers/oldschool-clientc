@@ -50,6 +50,16 @@ QD.BLOAT = {
     -- The pull toward HIM this replaces cornered a seat on the same tile three
     -- laps running (seeds b6/sp, b12/sb).
     HUG_PULL = 0.3,
+    -- THE HIDE (QD.raid._bloat_hide): a new hide tile must hold this long
+    -- from my arrival if any does (else the horizon), and the walk to it
+    -- pulls this hard
+    HOLD_LONG = 16, GOAL_PULL = 3,
+    -- how far round the ring a seat will go to be safe against a reversal
+    -- too, while its tile is safe only against his likely way: the whole
+    -- ring. Six tiles held a seat on the west ring with every all-branch
+    -- tile across the tank; he reversed a tick after rising and it was in
+    -- his sight (b29 sk t477-481).
+    HEDGE = 14, HEDGE_GAIN = 2,
     WATCH_COST = 50, HAND_COST = 50, STOMP_COST = 50, SPREAD_COST = 1,
 }
 
@@ -222,16 +232,29 @@ end
 -- His SW tile after `m` more ticks along the lap from index i: `speed`
 -- tiles a tick, but a run that reaches a corner stops on it for the tick
 -- (Blert: (34,24) -> (35,24) 180 times; the content walks into the corner).
+-- (memoised per start, direction and speed: the hide's hold checks ask for
+-- every m up to ~30 on every branch, and walking the lap from i each time
+-- was most of a 400000-instruction tick, b25/b26)
 local function lap_at(S, i, dir, speed, m)
+    local key = i .. ":" .. dir .. ":" .. speed
+    local memo = S.lap_memo and S.lap_memo[key]
+    if memo == nil then
+        S.lap_memo = S.lap_memo or {}
+        memo = { [0] = i }
+        S.lap_memo[key] = memo
+    end
     local L = #S.lap
-    local j = i
-    for _ = 1, m do
+    local n = #memo
+    local j = memo[n]
+    while n < m do
         for step = 1, speed do
             j = ((j - 1 + dir) % L) + 1
             if step < speed and S.lap_corner[j] then break end
         end
+        n = n + 1
+        memo[n] = j
     end
-    return S.lap[j]
+    return S.lap[memo[m]]
 end
 
 -- The branches he may take within the horizon: his direction and speed;
@@ -260,11 +283,16 @@ end
 -- The watchers: for each plan step k, the footprints his npc phase on
 -- now+k+1 can see me from (before and after its step), every branch.
 -- `now` is the tick the plan's `from` is the end of.
-function QD.raid._bloat_watchers(S, F, add, now)
+-- THE WAY HE IS GOING IS LETHAL; a reversal or the other speed is DAMAGE.
+-- All lethal, the union covered the whole hug ring once he ran with a turn
+-- possible: every plan lethal for 25 ticks and the seats wandered off the
+-- ring into a hand (b22 and b27 ti, the third down onward). A branch that
+-- happens is seen the tick after and planned round then.
+function QD.raid._bloat_watchers(S, F, add, now, h)
     local V = QD.BLOAT
     local seen = {}
-    for _, br in ipairs(QD.raid._bloat_branches(S, F)) do
-        for k = 1, V.H do
+    for bi, br in ipairs(QD.raid._bloat_branches(S, F)) do
+        for k = 1, h or V.H do
             local R = now + k + 1
             local m = moves_by(S, F, R)
             if m ~= nil then
@@ -274,7 +302,7 @@ function QD.raid._bloat_watchers(S, F, add, now)
                     if not seen[key] then
                         seen[key] = true
                         add.watcher("flies", { x = t.x, z = t.z, size = V.SIZE, t0 = now + k, t1 = now + k,
-                            tier = "lethal", cost = V.WATCH_COST })
+                            tier = (bi == 1) and "lethal" or "damage", cost = V.WATCH_COST })
                     end
                 end
             end
@@ -303,17 +331,19 @@ function QD.raid._bloat_opposite_hug(S, sw)
     return { x = S.base.x + best.x, z = S.base.z + best.z }
 end
 
-function QD.raid._bloat_spec(S, F, from, now, target)
+-- (`goal`, absolute: the hide tile -- one strong pull to it replaces the
+-- hug-ring pulls)
+function QD.raid._bloat_spec(S, F, from, now, target, goal, h)
     local V = QD.BLOAT
     local A = V.ARENA
     local spec, names, add = QD.raid._tob_spec(S, F, {
-        h = V.H, beam = V.BEAM,
+        h = h or V.H, beam = V.BEAM,
         edge = { x0 = S.base.x + A.x0, z0 = S.base.z + A.z0, x1 = S.base.x + A.x1, z1 = S.base.z + A.z1,
                  margin = 0, weight = 0.3 },
     })
     spec.from = { x = from.x, z = from.z }
     spec.now = now
-    QD.raid._bloat_watchers(S, F, add, now)
+    QD.raid._bloat_watchers(S, F, add, now, h)
     -- the hands: the impact on seen+3 reads the end of seen+2
     for _, sh in ipairs(S.shadows) do
         add.forbid("hand", { x = sh.x, z = sh.z, t0 = sh.seen + 1, t1 = sh.seen + 2, tier = "lethal", cost = V.HAND_COST })
@@ -341,7 +371,9 @@ function QD.raid._bloat_spec(S, F, from, now, target)
     -- when he gets up (seed sl b14: the leader west of him at the NE corner,
     -- 37 ticks in his sight and three flies, the members south of him clean).
     local rising = S.phase == "down" and not target and S.down_at
-    if S.phase == "walk" or rising then
+    if goal then
+        add.pull({ x = goal.x, z = goal.z, size = 1, weight = V.GOAL_PULL, t0 = now + 1, t1 = now + V.H })
+    elseif S.phase == "walk" or rising then
         local rise = rising and (S.down_at + V.RISE) or now
         for _, seg in ipairs({ { 1, 3, 2 }, { 4, V.H, 6 } }) do
             local moves = math.max(0, now + seg[3] - rise)
@@ -519,23 +551,9 @@ function QD.raid._bloat_step(S, F)
     QD.raid._bloat_track(S, F)
     QD.raid._bloat_shadows(S, F)
     local intent = {}
-    -- DECIDE: him while he is down and the stomp is not near, else hide
-    local target = nil
-    if S.phase == "down" then
-        -- THE STOMP HITS WHOEVER HE SEES (tob_bloat.rs2), and the tiles he
-        -- cannot see are round the tank, opposite him: stop swinging in time
-        -- to run there by the end of T+28, the tick it reads. The run is the
-        -- corridor's, so manhattan, two tiles a tick, and a two-tick margin.
-        -- Swinging to T+27 left the planner's beam beside him with nowhere
-        -- unseen in reach (32 of 32 seeds stomped, b19).
-        -- Once stopped for this down, stopped: the lead shrinks as I run,
-        -- and re-reading it put me back on him (sm t467-469).
-        local hug = QD.raid._bloat_opposite_hug(S, { x = F.boss.x, z = F.boss.z })
-        local run = math.abs(F.me.x - hug.x) + math.abs(F.me.z - hug.z)
-        local lead = (run + 1) // 2 + 2
-        if S.hid_for ~= S.down_at and F.tick >= S.down_at + V.STOMP - 1 - lead then S.hid_for = S.down_at end
-        if S.hid_for ~= S.down_at then target = F.boss end
-    end
+    -- DECIDE: the fight's state (QD.raid._bloat_state)
+    local state = QD.raid._bloat_state(S, F)
+    local target = (state == "attack") and F.boss or nil
     local want_set = {}
     for _, obj in ipairs(ids.melee_set) do
         if not QD.raid._tob_worn(S, obj) then want_set[#want_set + 1] = obj end
@@ -543,18 +561,221 @@ function QD.raid._bloat_step(S, F)
     if #want_set > 0 and F.tick - (S.gear_sent or -10) >= 2 then intent.gear = want_set end
     QD.raid._tob_supplies(S, F, { overhead = "protectfrommissiles",
         boost = (S.phase == "down") and "piety" or nil, boost_stat = "attack" }, intent)
-    local kind = target and "him" or S.phase
-    if kind ~= S.kind then
-        QD.raid._tob_trace(S, F.tick, "context " .. kind)
-        S.kind = kind
-    end
     -- ACT
-    local spec, names = QD.raid._bloat_spec(S, F, F.me, F.tick, target)
-    local plan = QD.raid._tob_plan(S, F, spec, names)
+    local plan
+    if state == "attack" then
+        local spec, names = QD.raid._bloat_spec(S, F, F.me, F.tick, target)
+        spec.run = F.run_on
+        plan = QD.raid._tob_plan(S, F, spec, names)
+    else
+        plan = QD.raid._bloat_hide(S, F)
+    end
     local d = QD.raid._tob_order(S, F, plan, { target = target, range = 1 })
     QD.raid._tob_emit(S, F, d.order, intent)
     QD.raid._tob_recent(S, F, d)
     return nil
+end
+
+-- ================================================================ THE FIGHT
+--
+-- A STATE MACHINE (owner 2026-10-10: "hiding -> attack -> hiding", and "not
+-- jerking around"):
+--
+--   hide     while he walks, and from the stomp's lead until he rises: on a
+--            hug-ring tile he cannot see, HELD while it stays unseen and
+--            free of hands for the horizon; only when it stops being so, to
+--            the nearest ring tile that holds from my arrival.
+--   attack   from the down until the stomp's lead: onto him and swing.
+--
+-- This replaced a beam plan re-optimised every tick under soft pulls, which
+-- weaved a tile or two a tick round the tank: two-tile ticks burn run
+-- energy, a seat emptied its bar about 450 ticks in, the server turned run
+-- off, and the last laps were planned at a speed it no longer had (flies on
+-- three seeds of 32 in the last 30 ticks, b22 se, sm, tl). A held tile
+-- restores energy.
+function QD.raid._bloat_state(S, F)
+    local V = QD.BLOAT
+    local state = "hide"
+    if S.phase == "down" and S.hid_for ~= S.down_at then
+        -- THE STOMP HITS WHOEVER HE SEES (tob_bloat.rs2), and the tiles he
+        -- cannot see are round the tank, opposite him: stop swinging in time
+        -- to get there by the end of T+28, the tick it reads -- manhattan, at
+        -- my speed, and a two-tick margin. Once stopped for this down,
+        -- stopped: the lead shrinks as I go (sm t467-469).
+        local hug = QD.raid._bloat_opposite_hug(S, { x = F.boss.x, z = F.boss.z })
+        local run = math.abs(F.me.x - hug.x) + math.abs(F.me.z - hug.z)
+        local lead = (F.run_on and (run + 1) // 2 or run) + 2
+        if F.tick >= S.down_at + V.STOMP - 1 - lead then
+            S.hid_for = S.down_at
+        else
+            state = "attack"
+        end
+    end
+    if state ~= S.state then
+        QD.raid._tob_trace(S, F.tick, "state " .. state)
+        S.state = state
+        S.hide_at = nil
+    end
+    return state
+end
+
+-- The hug ring (one tile off the tank, local 28..35), in order round it:
+-- the distance between two of its tiles is the walk round the tank.
+QD.BLOAT.RING = {}
+QD.BLOAT.RING_AT = {}
+do
+    local ring = QD.BLOAT.RING
+    for x = 28, 35 do ring[#ring + 1] = { x = x, z = 28 } end
+    for z = 29, 35 do ring[#ring + 1] = { x = 35, z = z } end
+    for x = 34, 28, -1 do ring[#ring + 1] = { x = x, z = 35 } end
+    for z = 34, 29, -1 do ring[#ring + 1] = { x = 28, z = z } end
+    for i, t in ipairs(ring) do QD.BLOAT.RING_AT[t.x .. "," .. t.z] = i end
+end
+
+-- Tiles from me to ring tile `t` (local): round the ring when I am on it,
+-- else straight (cheb).
+local function ring_dist(S, F, t)
+    local V = QD.BLOAT
+    local lx, lz = F.me.x - S.base.x, F.me.z - S.base.z
+    local i, j = V.RING_AT[lx .. "," .. lz], V.RING_AT[t.x .. "," .. t.z]
+    if i and j then
+        local d = math.abs(i - j)
+        return math.min(d, #V.RING - d)
+    end
+    return cheb(lx, lz, t.x, t.z)
+end
+
+-- Does standing on `tile` (absolute) from the end of tick `at` hold for `h`
+-- ticks: unseen by his flies and his stomp, off every hand?
+-- (one base spec per arrival tick and horizon a tick: the watchers walk his
+-- lap per branch and step, and a spec per candidate tile exhausted the
+-- instruction budget on the first tick, b25)
+function QD.raid._bloat_holds(S, F, tile, at, h, loose)
+    local V = QD.BLOAT
+    if S.holds_tick ~= F.tick then S.holds_tick, S.holds_base = F.tick, {} end
+    local base = S.holds_base[at]
+    if base == nil then
+        base = QD.raid._bloat_spec(S, F, tile, at, nil, nil, V.HOLD_LONG)
+        base.beam, base.pulls = 2, {}
+        S.holds_base[at] = base
+    end
+    local spec = {}
+    for k, v in pairs(base) do spec[k] = v end
+    spec.h = h
+    spec.from = { x = tile.x, z = tile.z }
+    spec.zones = {}
+    for i, zn in ipairs(base.zones) do spec.zones[i] = zn end
+    spec.zones[#spec.zones + 1] = { x = tile.x, z = tile.z, size = 1, lo = 0, hi = 0, require = true,
+        t0 = at + 1, t1 = at + h, tier = "lethal", cost = V.WATCH_COST }
+    local r, plan = api_drive.plan(spec)
+    assert(r == "ok", "bloat_solve: the hold plan answered " .. tostring(r))
+    S.expanded = S.expanded + (plan.expanded or 0)
+    return plan.lethal == 0 and (loose or plan.damage == 0)
+end
+
+-- How many ticks `tile` (absolute) stays safe against EVERY branch from my
+-- arrival on tick `at`, 0..HOLD_LONG (holding is monotone in the horizon, so
+-- a binary search). While he is down it is counted from his RISE, and the
+-- tile must also be safe from my arrival until then (the stomp): a tile
+-- checked only from my arrival was safe through the down and beside where
+-- he got up, and he rose and reversed onto it (b32 up: t459 -> t474).
+-- -1: not safe even until the rise.
+local function safe_ticks(S, F, tile, at)
+    local V = QD.BLOAT
+    local from = at
+    local rise = (S.phase == "down" and S.down_at) and (S.down_at + V.RISE) or nil
+    if rise and at < rise - 1 then
+        if not QD.raid._bloat_holds(S, F, tile, at, math.min(V.HOLD_LONG, rise - at)) then return -1 end
+        from = rise - 1
+    end
+    local lo, hi = 0, V.HOLD_LONG
+    while lo < hi do
+        local mid = (lo + hi + 1) // 2
+        if QD.raid._bloat_holds(S, F, tile, from, mid) then lo = mid else hi = mid - 1 end
+    end
+    return lo
+end
+
+-- The ring tile to hide on, no further than `maxd` round the ring, safe
+-- against every branch for at least `need` ticks from my arrival: of those
+-- lasting the horizon, the nearest (fewest moves); with none lasting it, the
+-- one lasting LONGEST, which is the tile opposite him -- it buys the most
+-- whichever way he goes. Never "safe the way he is going": that is the bet
+-- a reversal loses (b32 up: the last pass of the old pick was main-branch
+-- only, and chose the tile beside his rise). -> tile, its safe ticks
+local function pick_hide(S, F, maxd, need)
+    local V = QD.BLOAT
+    local speed = F.run_on and 2 or 1
+    local best, best_h, best_d = nil, -2, math.huge
+    for _, t in ipairs(V.RING) do
+        local d = ring_dist(S, F, t)
+        if d <= maxd then
+            local tile = { x = S.base.x + t.x, z = S.base.z + t.z }
+            local h = math.min(V.H, safe_ticks(S, F, tile, F.tick + (d + speed - 1) // speed))
+            if h > best_h or (h == best_h and d < best_d) then best, best_h, best_d = tile, h, d end
+        end
+    end
+    if best == nil or best_h < need then return nil, best_h end
+    return best, best_h
+end
+
+-- HIDE: hold my tile, or go to the hide tile, or pick one.
+--
+-- HELD WHILE SAFE AGAINST EVERY BRANCH -- his way, a reversal, the other
+-- speed. A tile safe only against his likely way is left for a near one
+-- (QD.BLOAT.HEDGE tiles round the ring) that is safe against all of them;
+-- with none that near, held. Held against his likely way alone, a seat on
+-- the west ring was in his sight a tick after he reversed in the south
+-- corridor, and the crossing took flies (b28 sk t477-481, the room's only
+-- damage in 32 seeds). 14 is half the ring: every tile is within it.
+--
+-- A new hide tile is the nearest that holds a LONG horizon from my arrival
+-- against every branch, else the planning horizon, else his likely way;
+-- with none, the full plan (the least-bad path).
+function QD.raid._bloat_hide(S, F)
+    local V = QD.BLOAT
+    local speed = F.run_on and 2 or 1
+    local me = { x = F.me.x, z = F.me.z }
+    local stay = { path = { { x = me.x, z = me.z } }, soft = 0, lethal = 0, damage = 0 }
+    if S.hide_at and S.hide_at.x == me.x and S.hide_at.z == me.z then S.hide_at = nil end
+    local on_ring = V.RING_AT[(me.x - S.base.x) .. "," .. (me.z - S.base.z)] ~= nil
+    if S.hide_at == nil and on_ring then
+        if QD.raid._bloat_holds(S, F, me, F.tick, V.H) then return stay end
+        -- not safe against every branch for the horizon: a tile that is,
+        -- or that lasts at least HEDGE_GAIN ticks longer than mine; else hold
+        local mine = math.max(0, safe_ticks(S, F, me, F.tick))
+        local alt, h = pick_hide(S, F, V.HEDGE, math.min(V.H, mine + V.HEDGE_GAIN))
+        if alt then
+            S.hide_at, S.hide_h = alt, h
+            QD.raid._tob_trace(S, F.tick, "hedge to " .. (alt.x - S.base.x) .. "," .. (alt.z - S.base.z)
+                .. " (safe both ways " .. h .. ", here " .. mine .. ")")
+        elseif QD.raid._bloat_holds(S, F, me, F.tick, V.H, true) then
+            -- nothing better: held, as long as the way he IS going leaves it
+            -- unseen (held when he could see it, b34: flies ten ticks running)
+            return stay
+        end
+    end
+    if S.hide_at then
+        local t = { x = S.hide_at.x - S.base.x, z = S.hide_at.z - S.base.z }
+        local eta = (ring_dist(S, F, t) + speed - 1) // speed
+        -- (kept until the way he IS going would see it: the pick already
+        -- chose the tile lasting longest both ways, and re-asking that of a
+        -- tile picked at "safe 0..4" re-picked every tick, t406-t417 of b36
+        -- so, until a seat ran onto a fresh hand shadow)
+        if not QD.raid._bloat_holds(S, F, S.hide_at, F.tick + eta, V.H, true) then S.hide_at = nil end
+    end
+    if S.hide_at == nil then
+        local h
+        S.hide_at, h = pick_hide(S, F, #V.RING, 0)
+        S.hide_h = h
+        if S.hide_at then
+            QD.raid._tob_trace(S, F.tick, "hide at " .. (S.hide_at.x - S.base.x) .. "," .. (S.hide_at.z - S.base.z)
+                .. " (safe both ways " .. h .. ")")
+        end
+    end
+    local spec, names = QD.raid._bloat_spec(S, F, F.me, F.tick, nil, S.hide_at)
+    spec.run = F.run_on
+    return QD.raid._tob_plan(S, F, spec, names)
 end
 
 -- ===================================================================== LOOP

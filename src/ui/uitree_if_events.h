@@ -73,6 +73,22 @@ UIIfEventTable_Set(
 void
 UIIfEventTable_Clear(struct UIIfEventTable* table);
 
+/**
+ * Drop everything armed on a component of interface `group_id`.
+ *
+ * Called when that group is closed out of a slot, because that is when the
+ * real client drops it: rev239 class415.method9520 (the one close every
+ * IF_CLOSESUB, IF_OPENSUB and IF_MOVESUB goes through) ends in
+ * Statics.method12095, which unlinks every events node whose component's
+ * group is the closed one. A server that armed a list once at login and then
+ * remounts it gets a dead list in the real client, so this one must not be
+ * kinder.
+ */
+void
+UIIfEventTable_DropGroup(
+    struct UIIfEventTable* table,
+    int group_id);
+
 /** The events armed for (`com_id`, `sub_id`), or 0 when nothing is. */
 int
 UIIfEventTable_At(

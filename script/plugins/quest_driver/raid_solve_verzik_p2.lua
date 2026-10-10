@@ -34,8 +34,9 @@
 --                  (torirs_server_world.c phase_player).  -> that tile is
 --                  forbidden at the end of T+N-2 and T+N-1 (both readings of
 --                  the queue's first decrement).
---   lightning      the fifth attack after the last one (none once the reds
---                  are out); from the target, each hop goes to the nearest
+--   lightning      after FOUR CABBAGES (purples, bounces and blood spells
+--                  do not count); with the reds out a due zap takes the
+--                  cabbage slot. From a random raider, each hop goes to the nearest
 --                  raider on ANOTHER tile; a hop whose midpoint is under her
 --                  ends it on her (15-20 to her); otherwise after 4 hops the
 --                  last raider's tile takes up to 48 (25 in insulated
@@ -60,7 +61,7 @@
 
 QD.VZP2 = {
     CADENCE = 4, FIRST_ATTACK = 3, AFTER_SUMMON = 12, AFTER_SEVENTH = 8, ATTACKS_PER_REDS = 7,
-    ZAP_EVERY = 5, ABSORB_TICKS = 5,
+    CABBAGES_PER_ZAP = 4, ABSORB_TICKS = 5,
     REDS_NEAR = 0.37,          -- her bar at or below this: any attack slot may be the first summon
     REDS_LEAVE = 0.15,         -- her bar at or below this at a summon: the set is not worth killing (a cap: the rate below decides)
     REDS_RATE_TICKS = 24,      -- her bar's fall over this many ticks is the kit's rate
@@ -129,6 +130,7 @@ function QD.raid._vzp2_ids(weapon)
         seq_melee = sym("seq", "verzik_phase2_attack_melee"),
         seq_heal = sym("seq", "verzik_phase2_heal"),
         urn = sym("spotanim", "verzik_phase2_ranged"),
+        lightning = sym("spotanim", "verzik_phase2_lightning"),
         athanatos_proj = sym("spotanim", "verzik_phase2_spawn_armouredtank_proj"),
         inv = sym("inv", "inv"), worn = sym("inv", "worn"),
         hitpoints = sym("stat", "hitpoints"),
@@ -245,12 +247,10 @@ function QD.raid._vzp2_clock(S, F)
                     and (V.AFTER_SEVENTH + V.AFTER_SUMMON) or V.CADENCE)
                 if S.reds_attacks >= V.ATTACKS_PER_REDS then S.next_summon = F.tick + V.AFTER_SEVENTH end
             else
-                S.since_zap = S.since_zap + 1
                 S.next_attack = F.tick + V.CADENCE
             end
         end
     end
-    -- a lightning projectile re-anchors the count (its own attack tick)
     -- the scan ticks inside the horizon: attacks at next_attack, then every 4
     F.scans = {}
     if S.next_attack then
@@ -261,12 +261,21 @@ function QD.raid._vzp2_clock(S, F)
         end
     end
     F.next_attack = S.next_attack
-    -- the next lightning: the fifth attack after the last (none with reds out)
+    -- the next lightning: once four cabbages have flown since the last
+    -- (`since_zap` counts cabbage casts, QD.raid._vzp2_projectiles). With
+    -- the reds out it is only ever the next attack: a due zap takes the
+    -- cabbage slot whenever she does not heal (Blert's reds phase: 6% zaps).
+    -- This counted every attack and was never reset, and assumed no zap with
+    -- the reds out: the seats spread on the diagonal, the ball ping-ponged
+    -- the full four hops and the last raider took up to 48 (relay rl45, 40
+    -- of 167 zaps).
     F.zap_scan = nil
-    if S.next_attack and not S.reds_out then
-        local ahead = V.ZAP_EVERY - S.since_zap
+    if S.next_attack then
+        local ahead = V.CABBAGES_PER_ZAP - S.since_zap
         if ahead < 1 then ahead = 1 end
-        F.zap_scan = S.next_attack + (ahead - 1) * V.CADENCE - 1
+        if not S.reds_out or ahead == 1 then
+            F.zap_scan = S.next_attack + (ahead - 1) * V.CADENCE - 1
+        end
     end
     F.absorb = S.absorb_until ~= nil and F.tick < S.absorb_until
     -- the ticks a swing on her would heal her: the summon's tick and the
@@ -309,6 +318,14 @@ function QD.raid._vzp2_projectiles(S, F)
                 tostring(p.cycles_left), tostring(p.target), tostring(p.launched), #projs))
         end
         if not S.seen_proj[key] then
+            -- the zap's count: one per cabbage cast (one urn a raider, all on
+            -- its tick), and back to none at a lightning (hops included)
+            if p.spotanim_id == S.ids.urn and S.cabbage_tick ~= F.tick then
+                S.cabbage_tick = F.tick
+                S.since_zap = S.since_zap + 1
+            elseif p.spotanim_id == S.ids.lightning then
+                S.since_zap = 0
+            end
             if p.spotanim_id == S.ids.urn then
                 local n = math.floor((56 + 8 * QD.raid._vzp2_cheb(cx, cz, p.dst_x, p.dst_z)) / 30)
                 S.hazards[#S.hazards + 1] = { x = p.dst_x, z = p.dst_z, ends = { [F.tick + n - 2] = true, [F.tick + n - 1] = true },
@@ -529,7 +546,12 @@ function QD.raid._vzp2_terms(S, F)
         -- at a lightning scan the formation is the whole defence: every hop
         -- must cross her, so being off my side's back tile is priced like a
         -- hit, not like a step
-        if F.zap_scan == t then return 15 * QD.raid._vzp2_cheb(x, z, back.x, back.z) end
+        -- (with the reds out the spread's STAND tiles are the formation:
+        -- west, south and east of her, every pair's midpoint under her)
+        if F.zap_scan == t then
+            local at = S.reds_out and stand or back
+            return 15 * QD.raid._vzp2_cheb(x, z, at.x, at.z)
+        end
         return 0.3 * QD.raid._vzp2_cheb(x, z, stand.x, stand.z)
     end
     -- damage: beside my target on the ticks it can be hit
