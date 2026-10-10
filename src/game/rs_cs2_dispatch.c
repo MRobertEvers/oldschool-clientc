@@ -140,10 +140,11 @@ RS_CS2_DispatchHook(
     TaskRunner_AddRenderBlockingSerialTask(runner, task);
 }
 
-void
-RS_CS2_RunScript(
+static void
+rs_cs2_run_script(
     struct RS_CS2Host* host,
     struct TaskRunner* runner,
+    int* join,
     int script_id,
     int const* int_args,
     int arg_count,
@@ -170,7 +171,46 @@ RS_CS2_RunScript(
         str_arg_count);
     if( !task )
         return;
+    if( join )
+    {
+        /* Counted before it is queued: the queue decrements on removal
+         * (ToriRS_TaskQueue_Remove), and the task cannot end before that. */
+        task->join = join;
+        (*join)++;
+    }
     TaskRunner_AddRenderBlockingSerialTask(runner, task);
+}
+
+void
+RS_CS2_RunScript(
+    struct RS_CS2Host* host,
+    struct TaskRunner* runner,
+    int script_id,
+    int const* int_args,
+    int arg_count,
+    uint64_t str_mask,
+    char const* const* str_args,
+    int str_arg_count)
+{
+    rs_cs2_run_script(
+        host, runner, NULL, script_id, int_args, arg_count, str_mask, str_args, str_arg_count);
+}
+
+void
+RS_CS2_RunScriptJoined(
+    struct RS_CS2Host* host,
+    struct TaskRunner* runner,
+    int* join,
+    int script_id,
+    int const* int_args,
+    int arg_count,
+    uint64_t str_mask,
+    char const* const* str_args,
+    int str_arg_count)
+{
+    assert(join);
+    rs_cs2_run_script(
+        host, runner, join, script_id, int_args, arg_count, str_mask, str_args, str_arg_count);
 }
 
 /*

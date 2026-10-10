@@ -1114,7 +1114,32 @@ drive_pump_once(void)
     {
         if( (int)g_app->logic_cycle - g_app->drive_events.batch_open_cycle < 20 * APP_SERVER_TICK_LOGIC_CYCLES )
             return;
+        fprintf(stderr,
+            "drive: tick fence backstop: a server tick opened at logic cycle %d never reached "
+            "its fence in 20 ticks; reading the world half-applied\n",
+            g_app->drive_events.batch_open_cycle);
         g_app->drive_events.batch_open = 0;
+    }
+    /* NOR ON A HALF-RUN ONE (App_DriveRing.cs2_pending): the scripts the
+     * tick's fence dispatched must have finished, or a read sees the UI they
+     * write a frame or more late -- after the fence, before the script's
+     * load. The same bound: a script parked for good costs one loud wait. */
+    {
+        struct App_DriveRing* ring = &g_app->drive_events;
+
+        assert(ring->cs2_pending >= 0);
+        if( ring->cs2_waived > ring->cs2_pending )
+            ring->cs2_waived = ring->cs2_pending;
+        if( ring->cs2_pending > ring->cs2_waived )
+        {
+            if( (int)g_app->logic_cycle - ring->cs2_pending_cycle < 20 * APP_SERVER_TICK_LOGIC_CYCLES )
+                return;
+            fprintf(stderr,
+                "drive: tick fence backstop: %d clientscript(s) dispatched at the tick fence "
+                "(logic cycle %d) still running after 20 ticks; reading the UI without them\n",
+                ring->cs2_pending - ring->cs2_waived, ring->cs2_pending_cycle);
+            ring->cs2_waived = ring->cs2_pending;
+        }
     }
 
     /* DRIVE_REFUSED just means the cursor fell off the ring's tail; the level

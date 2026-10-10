@@ -224,6 +224,19 @@ struct App_DriveRing
      * for the lost-fence backstop. */
     int batch_open;
     int batch_open_cycle;
+    /* The tick's CS2 is HALF-RUN: a RUNCLIENTSCRIPT the tick sent is held to
+     * its fence and dispatched there onto the asset runner
+     * (App_FlushPendingClientScripts), and one that waits on a load writes
+     * its UI frames after batch_open has closed -- where scriptrun runs it
+     * inline on the packet. `cs2_pending` counts the dispatched scripts still
+     * running (each task's join, decremented however it ends);
+     * `cs2_pending_cycle` the logic cycle of the newest dispatch, for the
+     * same backstop as batch_open; `cs2_waived` how many of the running ones
+     * a backstop gave up on (drive_pump_once), so a script that never ends
+     * costs one loud wait, not one per tick. */
+    int cs2_pending;
+    int cs2_pending_cycle;
+    int cs2_waived;
     struct App_DriveEvent entries[APP_DRIVE_RING_CAPACITY];
     /** Serial of the newest entry; 0 before the first stamp. */
     uint32_t newest_serial;

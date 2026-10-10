@@ -32,9 +32,14 @@ app_dispatch_clientscript(
      */
     int str_count = pkt_runclientscript_compact_strings(request, strp, PKT_RUNCLIENTSCRIPT_ARG_MAX);
 
-    RS_CS2_RunScript(
+    /* Counted until it ends (App_DriveRing.cs2_pending): the quest driver
+     * reads a tick only once the scripts the tick sent have run, as a
+     * scriptrun bot -- whose scripts run inline on the packet -- does. */
+    app->drive_events.cs2_pending_cycle = (int)app->logic_cycle;
+    RS_CS2_RunScriptJoined(
         &app->host,
         runner,
+        &app->drive_events.cs2_pending,
         request->script_id,
         request->intv,
         request->argc,
