@@ -4781,10 +4781,30 @@ mock-js5: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 # --scriptrun (torirs_server_scriptrun.c) hosts the quest driver's Lua parts
 # inside the server, so the server links the same Lua 5.5 object the client's
 # plugin host does (lua_unity.o) and compiles with its include path.
-torirsserver: $(OBJ_DIR) $(TORIRSSERVER_SRCS) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
+#
+# THE TARGET IS THE BINARY. This rule was named `torirsserver`, which is also
+# the name of the src/torirsserver DIRECTORY: make compared the sources against
+# the directory's mtime (when a file was last added to it), so an edit could
+# leave `make torirsserver` "up to date" -- the reason `-B` became the habit.
+# And `ToriRSServer`, the name run-runelite.sh and profile-mac.sh build, was a
+# .PHONY with no rule at all: "Nothing to be done", every time. The RuneLite
+# world ran a server from 2026-10-08 against content that had moved on; an
+# absorbed Maiden crab called `npc_die` (2026-10-09), the old binary aborted
+# the script on the unknown opcode right after stopping the crab's timer, and
+# the crab stood at her edge until it was killed (owner 2026-10-10, "the
+# nylocas get stuck at the edge of maiden"). Both names now build this file,
+# and the headers count: the sources are compiled in one invocation, so no .d
+# file says which header each one read.
+TORIRSSERVER_HDRS := $(wildcard torirsserver/*.h scriptrun/*.h serverscript/*.h content/*.h \
+		net/*.h net/rev/*.h net/rev/osrs239/*.h net/rev/osrs230/*.h net/rev/packets/*.h \
+		world/*.h engine/*.h engine/world_builder/*.h features/*.h game/rs_entity_sync.h \
+		platform/net_transport_ws*.h js5/server/*.h)
+.PHONY: torirsserver
+torirsserver ToriRSServer: $(OBJ_DIR)/torirsserver
+$(OBJ_DIR)/torirsserver: $(TORIRSSERVER_SRCS) $(TORIRSSERVER_HDRS) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/lua_unity.o \
-		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o
+		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(LUA_DIR) $(RSPROT_INCLUDES) -o $(OBJ_DIR)/torirsserver $(TORIRSSERVER_SRCS) \
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
