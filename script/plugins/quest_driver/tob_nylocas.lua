@@ -60,12 +60,21 @@ QD.NYLO = {
     H = 8, BEAM = 32,
     DET_COST = 21, STATION_PULL = 0.2,
     SUPPORT_LOW = 25,                           -- percent: eat over a collapse's 50
-    LET_DETONATE = 4,                           -- ticks left: not worth a hit
+    LET_DETONATE = 15,                          -- ticks left: it pops before it matters
     BARRAGE_SEAT = 3, SPELL_RANGE = 10, CAST_EVERY = 5,
-    BARRAGE_MIN = 2,                            -- magic nylos in its 3x3 to cast
+    BARRAGE_MIN = 2,                            -- magic nylos in its 3x3 to cast (the mage seat)
+    PREP = 6, PREP_OLD = 25,                    -- ticks before a wave; an "old" target's life left
+    RATE = { ranged = 2, melee = 4, magic = 4 },  -- the kit's attack speeds (blowpipe on Rapid)
+    CHEW_WEIGHT = 25,                           -- a chewer's value x (1 + chewed% / this)
+    AGGRO_BONUS = 150,                          -- an aggro: above every nylocas but a dying pillar's chewer
+    SAVE_BONUS = 200,                           -- a chewer on a pillar under SUPPORT_SAVE
+    AGGRO_COST = 9,                             -- a melee aggro's swing zone, per tick                           -- ticks of value an aggro is worth on top
+    KEEP_RATIO = 1.5,
+    WALK_COST = 1.0,                            -- ticks charged a tile out of reach
+    SWITCH_COST = 6,                            -- ticks a switch is charged while I have my own to hit
     HELP_MARGIN = 2,                            -- another style this many more: help it
-    SUPPORT_HELP = 50,
-    SUPPORT_SAVE = 30,                          -- percent: every seat on its chewers                          -- percent: its chewers first under this
+    SUPPORT_HELP = 50,                          -- percent: its chewers first under this
+    SUPPORT_SAVE = 30,                          -- percent: its chewers outrank all else
     EAT_COLLAPSE = 51,
 }
 
@@ -196,6 +205,7 @@ function QD.raid._nylo_measure(S, F)
                 fresh[#fresh + 1] = L
             end
             L.moved = (L.x ~= row.x or L.z ~= row.z)
+            L.dx, L.dz = row.x - L.x, row.z - L.z
             L.x, L.z, L.last = row.x, row.z, F.tick
             L.style, L.aggro, L.row = kind.style, kind.aggro, row
             L.size = kind.big and 2 or 1
@@ -238,7 +248,14 @@ end
 local function attackable(S, F, L, style)
     local V = QD.NYLO
     if L.style ~= style or L.dying or S.nulled[L.key] then return false end
-    if L.wave and L.wave >= V.FLICKER_WAVE and F.tick < L.birth + V.SETTLE_AGE then return false end
+    -- A FLICKER MUST NEVER HAVE MY ATTACK ON IT: a running attack order
+    -- swings by itself, and a swing on the tick it changes is the wrong style
+    -- (seed n24/sm t372: a trident order on a magic nylocas swung after it
+    -- turned ranged). Waves >= 16 flicker until +7; a lane nylocas whose wave
+    -- is not known (first seen off its spawn tile) is treated as one.
+    if L.lane and (L.wave == nil or L.wave >= V.FLICKER_WAVE) and F.tick < L.birth + V.SETTLE_AGE + 1 then
+        return false
+    end
     local lx, lz = L.x - S.base.x, L.z - S.base.z
     if in_box(V, lx, lz, L.size) then return true end
     if style == "melee" then return false end
@@ -266,129 +283,138 @@ local function chewing(S, F, L)
     return nil
 end
 
--- The best nylo of `style` by the priority, `skip` (a life key) left out:
--- an aggro near a raider, then a chewer, then the nylo nearest its support,
--- the older first, the lower slot on a tie. Stateless, so every seat
--- computes every style's choice alike.
-function QD.raid._nylo_best(S, F, style, skip)
+-- THE STYLE I AM WEARING, from the weapon in hand (nil: none of the three).
+local function worn_style(S)
+    local ids = S.ids
+    for _, st in ipairs({ "ranged", "melee", "magic" }) do
+        if QD.raid._tob_worn(S, ids.weapon[st]) then return st end
+    end
+    return nil
+end
+
+-- WHAT A KILL IS WORTH, in the guides' order:
+--   aggros first (wiki: "These aggro's should be prioritised first");
+--   then the newest - the life it has left is the chewing and the cap slot a
+--   kill saves (wiki: "kill newly spawned nylocas ... prioritising the
+--   smaller ones first"; Blert: "Prioritizing newer Nylocas and allowing
+--   older ones to expire naturally") - a big counting half before the cap
+--   rises (smalls first) and half again more from wave 20 (Blert: "In
+--   post-cap, the focus generally shifts to killing bigs quickly to get their
+--   splits out early"); in the cleanup a big's life runs on through its
+--   splits;
+--   and a chewer weighs by its pillar: x6 under 30%, x3 under 50%, a little
+--   above (the owner, 2026-10-09: "add some weight to the nylos attacking
+--   pillars that are about to die").
+local function kill_value(S, F, L)
     local V = QD.NYLO
-    local best, bk = nil, nil
-    for _, L in ipairs(F.nylos) do
-        local near = 99
-        for _, rd in ipairs(F.raiders) do
-            near = math.min(near, gap(rd.x, rd.z, L.x, L.z, L.size))
-        end
-        -- about to detonate and no threat to anyone: let it (it frees its slot
-        -- in a few ticks either way, and the hit is worth more elsewhere)
-        local spent = L.det - F.tick <= V.LET_DETONATE and not (L.aggro and near <= V.AGGRO_NEAR)
-            and not (S.phase == "cleanup" and L.size == 2)
-        if L.key ~= skip and not spent and attackable(S, F, L, style) then
-            -- WALKING IS THE WASTE (seed n2/sa: a kill every 4-5 ticks, the
-            -- blowpipe's 2 spent walking to the next): what is in reach first.
-            -- Then THE YOUNGEST (wiki: "kill newly spawned nylocas after
-            -- dealing with aggro's"): a kill saves the chewing it had left and
-            -- frees its cap slot for the rest of its life; one about to
-            -- detonate saves neither (seeds n8: oldest-first ran wave 31 at
-            -- 312-324, Blert 260)
-            local out = math.max(0, gap(F.me.x, F.me.z, L.x, L.z, L.size) - V.RANGE[style])
-            -- PER HIT (wiki: "prioritising the smaller ones first"): a small
-            -- is one hit and frees its cap slot for the rest of its life; a
-            -- big is two and leaves two splits, so its life left counts half
-            local left = (L.det - F.tick) / (L.size == 2 and 2 or 1)
-            -- THE CLEANUP ends at the last despawn, so the latest NATURAL end
-            -- goes first: a big's is its splits' (det + 3 + 52), which is why
-            -- a big left to detonate at the end held the room 87 ticks
-            -- (seeds n14: cleanup 265 -> 352, Blert ~32)
-            if S.phase == "cleanup" then
-                left = L.det - F.tick + (L.size == 2 and (3 + V.LIFE.small + 1) or 1)
-            end
-            local k
-            if L.aggro and near <= V.AGGRO_NEAR then
-                k = { 0, out, -left }
-            elseif chewing(S, F, L) and chewing(S, F, L).pct < V.SUPPORT_HELP then
-                -- the chewers of the WEAKEST support first
-                k = { 1, chewing(S, F, L).pct, out > 0 and 1 or 0, -left, out }
-            else
-                k = { 2, out > 0 and 1 or 0, -left, out }
-            end
-            local better = bk == nil
-            if not better then
-                local tie = true
-                for i = 1, math.max(#k, #bk) do
-                    if (k[i] or 0) ~= (bk[i] or 0) then better, tie = (k[i] or 0) < (bk[i] or 0), false break end
-                end
-                if tie then better = L.slot < best.slot end
-            end
-            if better then best, bk = L, k end
+    local left = L.det - F.tick
+    if L.size == 2 then
+        if S.phase == "cleanup" then
+            left = left + 3 + V.LIFE.small + 1
+        elseif S.waves < 20 then
+            left = left / 2
+        else
+            left = left * 1.5
         end
     end
-    return best
-end
-
--- How many nylos of `style` can be hit now.
-local function backlog(S, F, style)
-    local n = 0
-    for _, L in ipairs(F.nylos) do
-        if attackable(S, F, L, style) then n = n + 1 end
+    local v = left
+    local sp = chewing(S, F, L)
+    if sp then
+        if sp.pct < V.SUPPORT_SAVE then
+            -- a pillar about to fall outranks everything but an aggro, in the
+            -- cleanup too, where a big's splits made it the top value (seeds
+            -- e5: every collapse fell in the cleanup, room ticks 333..362)
+            v = v * 6 + V.SAVE_BONUS
+        elseif sp.pct < V.SUPPORT_HELP then
+            v = v * 3
+        else
+            v = v * (1 + (100 - sp.pct) / V.CHEW_WEIGHT)
+        end
     end
-    return n
+    if L.aggro then v = v + V.AGGRO_BONUS end
+    return v
 end
 
--- My target and the style I hit it with. My own style first, the target kept
--- while it stays attackable. With none of mine: CROSS-HELP, the other style
--- with the most to hit (Blert's trios do it with a sang; seed n1/sa: the
--- melee seat stood 78 ticks with 12 ranged and magic nylos up and the four
--- supports fell), on that style's second choice -- its owner takes the first.
+-- WHAT IT COSTS ME: the set's switch, the running to reach it (2 tiles a
+-- tick), and the weapon's speed for the hits it needs (a big two, one once
+-- its bar is half gone). A switch is cheap (its one tick) when I have nothing
+-- of my own to hit (wiki: "always be on the attack ... switch weapons") or
+-- the nylocas is chewing a pillar under SUPPORT_SAVE; otherwise it is
+-- SWITCH_COST (the owner: "switching might be overkill ... I would focus
+-- that [the dying pillars] over switching").
+local function kill_ticks(S, F, L, style, wearing, idle)
+    local V = QD.NYLO
+    local out = math.max(0, gap(F.me.x, F.me.z, L.x, L.z, L.size) - V.RANGE[style])
+    local hits = 1
+    if L.size == 2 then
+        local r = L.row
+        local half = r and r.health_ratio and r.health_scale and r.health_scale > 0
+            and r.health_ratio * 2 <= r.health_scale
+        hits = half and 1 or 2
+    end
+    local switch = 0
+    if style ~= wearing then
+        local sp = chewing(S, F, L)
+        switch = (idle or (sp and sp.pct < V.SUPPORT_SAVE)) and 1 or V.SWITCH_COST
+    end
+    -- a tile of running is charged a tick, not the half a run takes: the
+    -- target walks on and the attack starts over (seeds e3: 55% of the
+    -- seats' walks were approaches)
+    return switch + out * V.WALK_COST + V.RATE[style] * (hits - 1) + 1
+end
+
+-- MY TARGET AND THE STYLE I HIT IT WITH, measured: every nylocas any of my
+-- three sets can hit, scored as value per tick (kill_value / kill_ticks), the
+-- best taken. Switching styles is chosen when it is worth more per tick than
+-- staying (the owner, 2026-10-09: "if there is a good measure that it will
+-- help more than if you stayed"). Another style's single best nylocas is left
+-- to that style's seat; the target I have is kept unless something scores
+-- KEEP_RATIO times better.
 function QD.raid._nylo_target(S, F, own)
-    if S.target_key then
-        for _, L in ipairs(F.nylos) do
-            -- kept until it dies, a help target too: dropping it the tick one
-            -- of mine showed swapped the set back and forth (seed n3/sa t126-127)
-            if L.key == S.target_key and attackable(S, F, L, S.target_style) then return L, S.target_style end
+    local V = QD.NYLO
+    local wearing = worn_style(S)
+    local first_of = {}
+    for _, st in ipairs({ "melee", "ranged", "magic" }) do
+        if st ~= own then
+            local fb, fv = nil, nil
+            for _, L in ipairs(F.nylos) do
+                if attackable(S, F, L, st) then
+                    local v = kill_value(S, F, L)
+                    if fv == nil or v > fv or (v == fv and L.slot < fb.slot) then fb, fv = L, v end
+                end
+            end
+            first_of[st] = fb and fb.key or nil
         end
     end
-    local L, style = QD.raid._nylo_best(S, F, own, nil), own
-    -- THE SUPPORT EMERGENCY: under SUPPORT_SAVE percent, a seat with no
-    -- chewer of its own on that support takes one of another style's (seeds
-    -- n9: one support fell in four of eight, its chewers' style busy elsewhere)
-    local weak = nil
-    for _, sp in ipairs(F.supports) do
-        if sp.pct < QD.NYLO.SUPPORT_SAVE and (weak == nil or sp.pct < weak.pct) then weak = sp end
+    local best, bstyle, bscore = nil, nil, nil
+    local kept, kscore = nil, nil
+    -- idle: nothing of my own style worth a hit
+    local idle = true
+    for _, L in ipairs(F.nylos) do
+        if L.style == own and attackable(S, F, L, own)
+            and not (L.det - F.tick <= V.LET_DETONATE and not (S.phase == "cleanup" and L.size == 2)) then
+            idle = false
+        end
     end
-    if weak and not (L and chewing(S, F, L) == weak) then
-        local best, bd = nil, nil
-        for _, C in ipairs(F.nylos) do
-            if chewing(S, F, C) == weak and attackable(S, F, C, C.style) then
-                local d = gap(F.me.x, F.me.z, C.x, C.z, C.size)
-                if bd == nil or d < bd or (d == bd and C.slot < best.slot) then best, bd = C, d end
+    for _, L in ipairs(F.nylos) do
+        local st = L.style
+        local spent = L.det - F.tick <= V.LET_DETONATE and not (S.phase == "cleanup" and L.size == 2)
+        -- HELP IS MELEE ONLY (the owner, 2026-10-09: "the seats only switch to
+        -- melee to help"): my own style, or another's nylocas in melee
+        local allowed = st == own or st == "melee"
+        if allowed and not spent and attackable(S, F, L, st) and (st == own or first_of[st] ~= L.key) then
+            local score = kill_value(S, F, L) / kill_ticks(S, F, L, st, wearing, idle)
+            if L.key == S.target_key then kept, kscore = L, score end
+            if bscore == nil or score > bscore or (score == bscore and L.slot < best.slot) then
+                best, bstyle, bscore = L, st, score
             end
         end
-        if best then L, style = best, best.style end
     end
-    -- LOAD BALANCING: another style with HELP_MARGIN more to hit than mine
-    -- (none of mine counts as 0) is helped on its second choice. The set
-    -- goes on in the tick of the press, so a switch costs about nothing;
-    -- the 4-tick tentacle and trident fall behind while the 2-tick blowpipe
-    -- idles (seeds n16: melee and magic chewers 400+ bites a room, ranged
-    -- ~250, every support 170..230 of 230 chewed)
-    if style == own and not (L and chewing(S, F, L) and chewing(S, F, L).pct < QD.NYLO.SUPPORT_HELP) then
-        local mine = L and backlog(S, F, own) or 0
-        local most, pick = mine + (L and QD.NYLO.HELP_MARGIN or 1) - 1, nil
-        for _, st in ipairs({ "melee", "ranged", "magic" }) do
-            if st ~= own then
-                local n = backlog(S, F, st)
-                if n > most then most, pick = n, st end
-            end
-        end
-        if pick then
-            local first = QD.raid._nylo_best(S, F, pick, nil)
-            local second = QD.raid._nylo_best(S, F, pick, first and first.key)
-            if second then L, style = second, pick end
-        end
-    end
-    S.target_key = L and L.key or nil
-    S.target_style = L and style or nil
-    return L, (L and style or own)
+    if kept and kscore * V.KEEP_RATIO >= bscore then best, bstyle = kept, kept.style end
+    S.target_key = best and best.key or nil
+    S.target_style = best and bstyle or nil
+    if best and bstyle ~= own then S.helps = (S.helps or 0) + 1 end
+    return best, (best and bstyle or own)
 end
 
 -- ======================================================================= SPEC
@@ -412,8 +438,31 @@ function QD.raid._nylo_spec(S, F, target, range, station)
                 tier = "lethal", cost = V.DET_COST })
         end
     end
+    -- A MELEE AGGRO HUNTING ME: beside its footprint is where it swings
+    -- (diagonals count), so that is a damage zone the plan steps out of;
+    -- the prayer is kept for the ones at range
+    -- (not while Protect from Melee is lit: then its swing is 0, and a zone
+    -- kept the melee seat off the aggro it was there to kill - 40% of the
+    -- seats' walks were dodges with the target in reach)
+    for _, L in ipairs(F.nylos) do
+        if L.aggro and L.style == "melee" and not L.dying and not F.lit.protectfrommelee then
+            local mine = gap(F.me.x, F.me.z, L.x, L.z, L.size)
+            local nearest = true
+            for _, rd in ipairs(F.raiders) do
+                if not rd.me and gap(rd.x, rd.z, L.x, L.z, L.size) < mine then nearest = false end
+            end
+            if nearest and mine <= V.AGGRO_NEAR then
+                local grow = L.moved and 1 or 0
+                add.zone("aggro-melee", { x = L.x - grow, z = L.z - grow, size = L.size + 2 * grow, lo = 0, hi = 1,
+                    t0 = F.tick + 1, t1 = F.tick + 3, tier = "damage", cost = V.AGGRO_COST })
+            end
+        end
+    end
     if target then add.reach("reach", { x = target.x, z = target.z, size = target.size or 1 }, range) end
-    if station then
+    -- the station only when idle: a pull toward it while a target is in
+    -- reach steps me off the attack (seeds n20: 25-33% of each seat's wave
+    -- ticks were walks)
+    if station and not target then
         add.pull({ x = S.base.x + station.x, z = S.base.z + station.z, size = 1, weight = V.STATION_PULL,
             t0 = F.tick, t1 = F.tick + V.H })
     end
@@ -450,24 +499,49 @@ local function pipe_rapid(S, F)
     end
 end
 
--- The overhead in the waves: the style of the most aggros that can swing at
--- me (melee beside, the others within 8), a tie to melee; none: unchanged.
+-- THE OVERHEAD IN THE WAVES: an aggro swings at the raider NEAREST it
+-- (tob_nylocas.rs2 `~tob_nylo_fight_tick`; a tie to the first found), so only
+-- the aggros whose nearest raider is me and that can reach me (melee beside,
+-- the others 8) are mine to pray against, each weighed by its max hit (17 a
+-- small, 24 a big); the heaviest style is prayed, and with none the prayer is
+-- left as it is. Counting every aggro in reach prayed against the ones hunting
+-- someone else (seeds n31: the ranger took 120..290 from aggro swings).
 local function wave_overhead(S, F)
     local V = QD.NYLO
-    local count = { melee = 0, ranged = 0, magic = 0 }
+    local weight = { melee = 0, ranged = 0, magic = 0 }
     for _, L in ipairs(F.nylos) do
         if L.aggro and not L.dying then
-            local g = gap(F.me.x, F.me.z, L.x, L.z, L.size)
-            if (L.style == "melee" and g <= 2) or (L.style ~= "melee" and g <= V.AGGRO_NEAR) then
-                count[L.style] = count[L.style] + 1
+            local mine = gap(F.me.x, F.me.z, L.x, L.z, L.size)
+            local nearest = true
+            for _, rd in ipairs(F.raiders) do
+                if not rd.me and gap(rd.x, rd.z, L.x, L.z, L.size) < mine then nearest = false end
+            end
+            -- WHAT IS ATTACKING ME: an aggro facing me (its row's `facing` is
+            -- my pid + 32768) or, a tick before it turns, the one whose
+            -- nearest raider I am and that can reach me
+            local reach = (L.style == "melee") and 2 or V.AGGRO_NEAR
+            local facing_me = F.pid and L.row and L.row.facing == F.pid + 32768
+            if facing_me or (nearest and mine <= reach) then
+                -- a melee aggro reaches 1 and is stepped away from (its zone
+                -- in the spec); one at range 8 cannot be, so it is the
+                -- prayer's: melee counts half (seed n33/sc t359: two big melee
+                -- aggros beside the ranger outweighed the big magic one that
+                -- hit it through Protect from Melee)
+                local w = (L.size == 2) and 24 or 17
+                if L.style == "melee" then w = w / 2 end
+                weight[L.style] = weight[L.style] + w
             end
         end
     end
     local best = nil
     for _, st in ipairs({ "melee", "ranged", "magic" }) do
-        if count[st] > 0 and (best == nil or count[st] > count[best]) then best = st end
+        if weight[st] > 0 and (best == nil or weight[st] > weight[best]) then best = st end
     end
-    if best then S.overhead = best end
+    if best and best ~= S.overhead then
+        QD.raid._tob_trace(S, F.tick, string.format("overhead %s (mel %g rng %g mag %g)", best,
+            weight.melee, weight.ranged, weight.magic))
+        S.overhead = best
+    end
     return S.ids.protect[S.overhead or "melee"]
 end
 
@@ -511,26 +585,72 @@ end
 -- THE BARRAGE (the mage seat, Ancient Magicks in the kit; wiki: "Magers and
 -- rangers should prioritise killing clumps of nylocas with barrage"): the
 -- magic nylocas with the most magic ones within 1 of it, cast on only when
--- NOTHING else is within 2 - the splash's style check runs per target and a
+-- NOTHING else is in its 3x3 splash - the style check runs per target and a
 -- non-magic one in it would null me on it (solver_specs/nylocas.md 3.4) - and
 -- nothing in it is one I am nulled on.
 function QD.raid._nylo_clump(S, F)
     local V = QD.NYLO
     local best, bn = nil, V.BARRAGE_MIN - 1
+    -- where a nylocas stands when the cast resolves: a walker one more step
+    -- the way it last stepped (lane walks and support walks are straight
+    -- lines and diagonals), a standing one where it is
+    local function next_tile(L)
+        if L.moved then return L.x + (L.dx or 0), L.z + (L.dz or 0) end
+        return L.x, L.z
+    end
     for _, C in ipairs(F.nylos) do
-        if attackable(S, F, C, "magic") then
+        if attackable(S, F, C, "magic") and not C.moved then
             local n, bad = 0, false
+            local cx, cz = next_tile(C)
             for _, O in ipairs(F.nylos) do
-                local g = gap(C.x, C.z, O.x, O.z, O.size)
-                if g <= 2 and not O.dying then
-                    if O.style ~= "magic" or S.nulled[O.key] then bad = true end
-                    if g <= 1 and O.style == "magic" then n = n + 1 end
+                local ox, oz = next_tile(O)
+                local g = gap(cx, cz, ox, oz, O.size)
+                -- the splash is the 3x3 round the primary (player_magic.rs2:
+                -- `npc_findallany($centre, 1, 0)`), a big by its whole
+                -- footprint, AS IT WILL BE when the cast resolves, after the
+                -- next npc phase: a walker can step into it, a walking primary
+                -- moves it (seed n23/sd t345: two melee smalls stepped into a
+                -- radius-1 check's splash and were nulled)
+                -- WRONG STYLE IS ZERO, so the check is strict: a non-magic
+                -- one (or one I am nulled on, or one dying, whose bar may lie)
+                -- within 2 of the splash, now or after its step, forbids the
+                -- cast (seed n25/sd t365: a radius-1 projection let a stack of
+                -- two melee smalls into the splash). The projected 3x3 is the
+                -- count, of standing magic ones.
+                local g_now = gap(C.x, C.z, O.x, O.z, O.size)
+                if (g <= 2 or g_now <= 2) and (O.style ~= "magic" or S.nulled[O.key] or O.dying) then bad = true end
+                if not O.dying then
+                    if g <= 1 and O.style == "magic" and not O.moved then n = n + 1 end
                 end
             end
             if not bad and (n > bn or (n == bn and best and C.slot < best.slot)) then best, bn = C, n end
         end
     end
     return best, bn
+end
+
+-- THE CLOCK (as Verzik's: the room as a schedule). The wave table
+-- (QD.NYLO_WAVES, tob_nylocas_waves.lua, generated beside the content's own
+-- table) names every spawn - lane, tile, size, aggro, styles, support - and the
+-- next wave comes on the last one's tick plus its natural stall, on the 4-tick
+-- grid, held 4 more while the room is at its cap (12 before wave 20, 24 from
+-- it; corpses count). Returns the next wave's number and predicted tick.
+function QD.raid._nylo_clock(S, F)
+    local n = S.waves + 1
+    if n > 31 or S.wave_last == nil then return nil, nil end
+    local W = QD.NYLO_WAVES[S.waves]
+    local at = S.wave_last + W.stall
+    local cap = (S.waves < 20) and 12 or 24
+    if #F.nylos >= cap then at = math.max(at, F.tick + 4 - ((F.tick - S.wave1) % 4)) end
+    return n, at
+end
+
+-- The box tile a seat waits on for a spawn: one in from the lane's mouth,
+-- on the spawn's row (west, east) or column (south).
+local function lane_wait(sp)
+    if sp.lane == "W" then return { x = 27, z = sp.lz } end
+    if sp.lane == "E" then return { x = 36, z = math.min(sp.lz, 29) } end
+    return { x = sp.lx, z = 20 }
 end
 
 -- DECIDE, WAVES and CLEANUP: my target and the style I hit it with. In the
@@ -546,7 +666,7 @@ function QD.raid._nylo_decide_nylos(S, F, phase)
     if life and style ~= own then D.kind = "help-" .. style end
     if S.role == V.BARRAGE_SEAT and F.tick >= (S.next_cast or 0) then
         local C, n = QD.raid._nylo_clump(S, F)
-        if C then
+        if C and n >= V.BARRAGE_MIN then
             D.style, D.life, D.target, D.range = "magic", C, C.row, V.SPELL_RANGE
             D.cast, D.kind, D.clump = true, "barrage", n
         end
@@ -606,11 +726,12 @@ function QD.raid._nylo_act(S, F, D)
     -- back to melee held a tick and the attack went out with the trident)
     if #intent.gear == 0 or (F.tick - (S.gear_sent or -10) < 2 and S.gear_style == D.style) then intent.gear = nil end
     if intent.gear then S.gear_style = D.style end
+    -- ARMED IS WORN, SEEN: a wield sent in the tick of the press is not
+    -- enough (seed n29/sp t430: the mage set's wields went out before the
+    -- attack and the swing still left with the tentacle; the trident showed
+    -- at t431). The tick of a switch holds.
     local weapon = ids.weapon[D.style]
     local armed = QD.raid._tob_worn(S, weapon)
-    if not armed and intent.gear then
-        for _, obj in ipairs(intent.gear) do if obj == weapon then armed = true end end
-    end
     pipe_rapid(S, F)
     local want = { overhead = D.overhead or wave_overhead(S, F), boost = ids.boost[D.style],
                    boost_stat = ids.boost_stat[D.style], eat_below = D.eat_below }
@@ -641,7 +762,10 @@ function QD.raid._nylo_act(S, F, D)
     if D.cast and d.order and d.order.mode == "attack" then
         if d.x ~= F.me.x or d.z ~= F.me.z then
             d.order = { mode = "walk", x = d.x, z = d.z }
-        elseif armed and intent.gear == nil then
+        elseif not (armed and intent.gear == nil) then
+            -- not ready to cast: HOLD, never the attack the plan's order was
+            d.order = { mode = "walk", x = F.me.x, z = F.me.z }
+        else
             intent.cast = { npc = D.target, component = ids.barrage }
             d.order = nil
             S.order = nil
@@ -653,6 +777,15 @@ function QD.raid._nylo_act(S, F, D)
     if d.order and d.order.mode == "attack" and D.life then
         S.last_target_life = D.life
         S.attacks = S.attacks + 1
+    end
+    -- WHY I WALK (the sweep's accounting): to reach the target, or away from
+    -- a hazard with the target already in reach, or with no target at all
+    if d.order and d.order.mode == "walk" and (d.x ~= F.me.x or d.z ~= F.me.z) then
+        local why = "idle"
+        if D.target then
+            why = QD.raid._tob_in_reach(S, F, F.me.x, F.me.z, D.target, D.range or 1) and "dodge" or "approach"
+        end
+        S.walks[why] = (S.walks[why] or 0) + 1
     end
     QD.raid._tob_emit(S, F, d.order, intent)
     QD.raid._tob_recent(S, F, d)
@@ -716,13 +849,14 @@ function QD.raid.nylocas_solve(opts)
     opts = opts or {}
     local S = QD.raid._tob_state("nylocas_solve", QD.raid._nylo_ids(), opts, {
         lives = {}, wave_at = {}, waves = 0, splits = 0, wave_log = {}, nulled = {}, nulls = 0,
-        attacks = 0, switch_log = {}, phase_log = {},
+        attacks = 0, switch_log = {}, phase_log = {}, walks = {},
     })
     QD.raid._nylo_enter(S, opts)
     return QD.raid._tob_run(S, QD.raid._nylo_step, function(s)
         return QD.raid._tob_summary(s, string.format(
-            "room t0 %s; phases %s; waves %d (%s); splits %d; attacks %d; barrages %s (%s in reach); nulls %d; boss landed %s, M %s; switches %s",
+            "room t0 %s; phases %s; waves %d (%s); splits %d; attacks %d; walks approach %d dodge %d idle %d; barrages %s (%s in reach); nulls %d; boss landed %s, M %s; switches %s",
             tostring(s.t0), table.concat(s.phase_log, " "), s.waves, table.concat(s.wave_log, " "), s.splits, s.attacks,
+            s.walks.approach or 0, s.walks.dodge or 0, s.walks.idle or 0,
             tostring(s.barrages or 0), tostring(s.barrage_hits or 0), s.nulls,
             tostring(s.boss_seen and (s.boss_seen - (s.t0 or 0))), tostring(s.boss_m and (s.boss_m - (s.t0 or 0))),
             table.concat(s.switch_log, " ")))

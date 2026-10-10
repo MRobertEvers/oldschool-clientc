@@ -32,6 +32,7 @@ static char const* const DRIVE_SCRIPT_PARTS[] = {
     "plugins/quest_driver/tob_maiden_waves.lua",
     "plugins/quest_driver/tob_maiden.lua",
     "plugins/quest_driver/tob_bloat.lua",
+    "plugins/quest_driver/tob_nylocas_waves.lua",
     "plugins/quest_driver/tob_nylocas.lua",
     "plugins/quest_driver/tob_sotetseg.lua",
     "plugins/quest_driver/tob_xarpus.lua",

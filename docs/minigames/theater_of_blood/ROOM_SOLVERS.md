@@ -596,6 +596,50 @@ The plan:
   <= 472 (Blert max); no deaths. Then 16 seeds, then the same seed live with
   identical room rows.
 
+### 4.3.2 Nylocas v1: what it took (2026-10-09)
+
+- **CONTENT AGAINST BLERT**: `tools/blert_nylocas_cal.py`, 102 of 102 measures
+  tested (chi-square p >= 0.01 or TVD < 0.05) against 150 Normal trio rooms.
+  It took five fixes:
+  - an east-lane big now leaves the mouth on a diagonal;
+  - each spawn's TILE is the table's own (`lx`/`lz`, generated): a lane's
+    lone small and wave 30's east big were on the wrong tile;
+  - player ranged hits use OSRS's tick formula, 1 + floor(d/6) thrown / 1 +
+    floor((3+d)/6) other: the blowpipe was 1-2 ticks late;
+  - a killed nylocas's corpse length is drawn by the killing style at Blert's
+    rates (melee kills go a tick early 58/68%, the blowpipe's 13/18%);
+  - small records `death_delay=0`.
+- **THE SOLVER** is a state machine, entry -> waves -> cleanup -> boss_due ->
+  boss, MEASURE -> DECIDE -> ACT each tick on the shared loop:
+  - every nylocas is tracked by LIFE (slot, birth, age, wave on the 4-tick
+    grid from spawn-tile sightings);
+  - each seat scores every nylocas its own style or melee can hit as value per
+    tick, in the guides' order:
+    - aggros first;
+    - a chewer of a pillar under 30% (x6 + 200);
+    - then the newest (smalls first before the cap rises, bigs from wave 20;
+      in the cleanup a big counts its splits' lives);
+    - nothing within 15 ticks of detonating;
+    - the cost is a switch, the running, and the hits by weapon speed;
+  - help is melee only (the owner); only the mage seat barrages, and only
+    with nothing non-magic in or near the splash, now or after a step;
+  - an attack is pressed only with the target's weapon SEEN worn (a wield in
+    the same tick swung the old weapon);
+  - a flicker is never attacked before it settles;
+  - the overhead is against the aggros attacking me (their `facing`); a melee
+    aggro hunting me is a zone the plan steps out of unless Melee is prayed;
+  - blowpipe on Rapid; every seat runs the whole room.
+- **GREEN** (the owner): the room passes with no raider dead and no wrong-style
+  hit. **96 of 96 seeds green**. Reported, not failed:
+  - supports kept on 79% of seeds;
+  - damage a raider mean 50, p90 93;
+  - room median 502 (Blert 412).
+- **WHY SUPPORTS STILL FALL**: Blert's 150 rooms all used the Eye of Ayak and
+  149 a twisted bow; none the Learner kit's tentacle, blowpipe and trident.
+  Our worst support takes ~790 parked nylocas-ticks a room against Blert's
+  554 (max 756, which is a support's whole 230 hp). The collapses fall in
+  the cleanup.
+
 ### 4.4 Sotetseg (`solver_specs/sotetseg.md`)
 
 Facts: 5x5 at (13,38), never moves; an attack every 5 from start + 6; a ball

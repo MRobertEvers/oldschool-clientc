@@ -34,9 +34,10 @@ for _, line in ipairs({
     -- Desert Treasure done: the Ancient Magicks (the mage seat's barrage)
     "::setvar varb358_deserttreasure ^dt_complete",
 }) do kit[#kit + 1] = line end
--- THE MAGE SEAT (3) barrages magic clumps (the wiki's trio mager): Ancient
--- Magicks and the Ice Barrage runes in a rune pouch, as the Maiden's freezer
-if role == 3 then kit[#kit + 1] = "::setvar varb4070_spellbook 1" end
+-- EVERY SEAT carries the Learner/Void kit's rune pouch of blood, death and
+-- water (wiki Strategies, the Learner/Void example inventory, slot 28) and
+-- Ancient Magicks: any seat may barrage a magic clump
+kit[#kit + 1] = "::setvar varb4070_spellbook 1"
 for _, obj in ipairs(WORN) do
     kit[#kit + 1] = "::give " .. obj .. " 1"
     kit[#kit + 1] = "::wield " .. obj
@@ -52,18 +53,13 @@ for _, line in ipairs({
     "::give ma2_saradomin_cape 1",
     "::~charge toxic_tots_charged 2500",
 }) do kit[#kit + 1] = line end
-if role == 3 then
+do
     for _, line in ipairs({
         "::give bh_rune_pouch 1",
         "::setvar varb29_rune_pouch_type_1 2", "::setvar varb1624_rune_pouch_quantity_1 600",   -- water
         "::setvar varb1622_rune_pouch_type_2 7", "::setvar varb1625_rune_pouch_quantity_2 400", -- death
         "::setvar varb1623_rune_pouch_type_3 8", "::setvar varb1626_rune_pouch_quantity_3 200", -- blood
         "::give br_4dose2restore 5", "::give br_4dose2combat 2", "::give br_4doserangerspotion 1",
-        "::give br_4dosepotionofsaradomin 4", "::give anglerfish 4",
-    }) do kit[#kit + 1] = line end
-else
-    for _, line in ipairs({
-        "::give br_4dose2restore 5", "::give br_4dose2combat 2", "::give br_4doserangerspotion 2",
         "::give br_4dosepotionofsaradomin 4", "::give anglerfish 4",
     }) do kit[#kit + 1] = line end
 end
@@ -137,8 +133,11 @@ local function run(t)
     for k, v in pairs(from) do fr[#fr + 1] = k .. " " .. v end
     table.sort(fr)
     local room = (start and dead_at) and (dead_at - start) or nil
-    t.check("nylo.measure", dead_at ~= nil and lost == 0 and shielded == 0 and worst <= 120
-        and room ~= nil and room <= 472, string.format(
+    -- GREEN (the owner, 2026-10-09): the room passes with no raider dead -
+    -- her death, every seat's solve "ok" (a death answers "died") - and no
+    -- wrong-style hit. Supports lost, damage taken and the room's length are
+    -- reported, not failed.
+    t.check("nylo.measure", dead_at ~= nil and shielded == 0, string.format(
         "room %s ticks (supports t%s, her death t%s); supports lost %d of %d; shielded %d; taken %s; by %s",
         tostring(room), tostring(start), tostring(dead_at), lost, supports, shielded,
         #tk > 0 and table.concat(tk, ", ") or "none", #fr > 0 and table.concat(fr, ", ") or "nothing"))
