@@ -2006,6 +2006,25 @@ d_close_modal(lua_State* L)
     return push_result(L, "ok", "closed");
 }
 
+/* api_drive.key(name, down): the one key whose effect reaches the server.
+ * On the live client Escape runs the top level's key script, whose
+ * `if_close` sends CLOSE_MODAL (app_cs2_flush.c, rev-230 method9167); this
+ * runner has no clientscripts, so the press sends the packet itself. Every
+ * other key stays unsupported: a key that changed nothing here must not
+ * answer ok. */
+static int
+d_key(lua_State* L)
+{
+    char const* name = luaL_checkstring(L, 1);
+    int down = lua_toboolean(L, 2);
+
+    if( strcmp(name, "escape") != 0 )
+        return push_result(L, "unsupported", "scriptrun: only escape reaches the server");
+    if( down )
+        handle(bot_of(L), PKTOUT_NAME_CLOSE_MODAL, NULL, 0);
+    return push_result(L, "ok", down ? "close_modal sent" : "released");
+}
+
 /* A typed ::command, as the client sends it: CLIENT_CHEAT, a newline-ended
  * string (torirs_server_world.c handle_cheat). Its answer is the game message
  * the bot is sent, which QD.cheat awaits. */
@@ -2324,7 +2343,7 @@ d_noop(lua_State* L)
 static char const* const CLIENT_VERBS[] = {
     "action_for_slot", "botdrive", "camera", "camera_events", "camera_pose", "camera_state",
     "camera_turn_release", "camera_turn_toward", "click_armed", "events", "forget_varps",
-    "inv_arm", "inv_cast", "inv_use_on", "key", "launch_answer", "launch_close",
+    "inv_arm", "inv_cast", "inv_use_on", "launch_answer", "launch_close",
     "launch_command", "launch_open", "launch_spawn", "launch_status", "loc_copies",
     "loc_variants", "menu_rect", "menu_row_find", "menu_rows", "menu_visible", "meslayer_mode",
     "modal_group", "modal_live", "model_points", "model_pose", "mouse_button", "mouse_move",
@@ -2375,6 +2394,7 @@ push_drive_table(
     bind(L, bot, "symbol_name", d_symbol_name);
     bind(L, bot, "component", d_component);
     bind(L, bot, "cheat", d_cheat);
+    bind(L, bot, "key", d_key);
     bind(L, bot, "player_tile", d_player_tile);
     bind(L, bot, "player_idle", d_player_idle);
     bind(L, bot, "skill", d_skill);
