@@ -26,6 +26,15 @@
  * makes the sandbox structural: there is no symbol to reach around to.
  */
 
+/* ONE SEED, every process. Upstream seeds the string hash, math.random and
+ * table.sort's pivot from the time and a stack address (lauxlib.c
+ * luai_makeseed), so the same script building the same tables walked them in
+ * a different pairs() order in every process: scriptrun's bots
+ * (luaL_newstate) and the live client's (seeded 0) turned prayers off in
+ * different orders, and two scriptrun runs of one seed could too (relay rc,
+ * 2026-10-10). A quest driver's decisions must not depend on the clock. */
+#define luai_makeseed() 0u
+
 #include "lapi.c"
 #include "lauxlib.c"
 #include "lbaselib.c"

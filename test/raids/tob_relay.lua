@@ -286,9 +286,15 @@ end
 local function prayers_off(t)
     local r, _, set = t.prayer.read()
     if r == "ok" and type(set) == "table" then
-        for prayer, lit in pairs(set) do
-            if lit then t.prayer.set(prayer, false) end
+        -- in name order: one press a call, and pairs() order is the string
+        -- hash's, not the game's (relay rc: the lanes turned prayers off in
+        -- different orders)
+        local lit = {}
+        for prayer, on in pairs(set) do
+            if on then lit[#lit + 1] = prayer end
         end
+        table.sort(lit)
+        for _, prayer in ipairs(lit) do t.prayer.set(prayer, false) end
     end
 end
 

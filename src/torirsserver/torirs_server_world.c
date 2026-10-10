@@ -14037,6 +14037,50 @@ static const struct ToriRSServerPacketRoute k_packet_routes[] = {
     { PKTOUT_NAME_WINDOW_STATUS, handle_window_status },
 };
 
+/* A client input in the tick log (trigger -4): interface presses and
+ * resumes, which no trigger row names, and every input this dispatcher
+ * DROPS, with the reason -- a live seat's press thrown away behind the scene
+ * barrier and repeated a tick later looked, from the logs, like the press
+ * itself landing late (relay rc, 2026-10-10). The body's first bytes ride in
+ * the label as hex. */
+static void
+world_ticklog_packet(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
+    int name,
+    const uint8_t* payload,
+    int len,
+    char const* verdict)
+{
+    char label[TORIRSSERVER_TICKLOG_LABEL_MAX];
+    int at;
+
+    at = snprintf(label, sizeof(label), "[pkt %d %s", name, verdict);
+    for( int i = 0; i < len && i < 12 && at < (int)sizeof(label) - 4; i++ )
+        at += snprintf(label + at, sizeof(label) - (size_t)at, "%s%02x", i == 0 ? " " : "", payload[i]);
+    snprintf(label + at, sizeof(label) - (size_t)at, "]");
+    ToriRSServer_TicklogInput(srv, player, -4, name, -1, label);
+}
+
+static int
+world_packet_is_game_input(int name)
+{
+    return name != PKTOUT_NAME_MAP_BUILD_COMPLETE && name != PKTOUT_NAME_WINDOW_STATUS &&
+           name != PKTOUT_NAME_IDLE_TIMER && name != PKTOUT_NAME_NO_TIMEOUT &&
+           name != PKTOUT_NAME_EVENT_MOUSE_MOVE && name != PKTOUT_NAME_EVENT_APPLET_FOCUS;
+}
+
+static int
+world_packet_is_interface_input(int name)
+{
+    return name == PKTOUT_NAME_IF_BUTTON || name == PKTOUT_NAME_IF_BUTTONX ||
+           name == PKTOUT_NAME_IF_SUBOP || name == PKTOUT_NAME_IF_SCRIPT_TRIGGER ||
+           (name >= PKTOUT_NAME_IF_BUTTON1 && name <= PKTOUT_NAME_IF_BUTTON9) ||
+           name == PKTOUT_NAME_IF_BUTTON10 ||
+           (name >= PKTOUT_NAME_RESUME_PAUSEBUTTON && name <= PKTOUT_NAME_RESUME_P_OBJDIALOG) ||
+           name == PKTOUT_NAME_CLOSE_MODAL;
+}
+
 void
 ToriRSServer_WorldHandle(
     struct ToriRSServerPlayer* player,
@@ -14059,11 +14103,9 @@ ToriRSServer_WorldHandle(
      * canvas and liveness, but clicks/resumes/movement must not start scripts
      * whose interface and entity state have not been installed yet. */
     if( (player->login_scene_pending || player->rebuild_scene_pending) &&
-        name != PKTOUT_NAME_MAP_BUILD_COMPLETE &&
-        name != PKTOUT_NAME_WINDOW_STATUS && name != PKTOUT_NAME_IDLE_TIMER &&
-        name != PKTOUT_NAME_NO_TIMEOUT && name != PKTOUT_NAME_EVENT_MOUSE_MOVE &&
-        name != PKTOUT_NAME_EVENT_APPLET_FOCUS )
+        world_packet_is_game_input(name) )
     {
+        world_ticklog_packet(srv, player, name, payload, len, "dropped:scene");
         if( srv->verbose )
             fprintf(stderr, "torirsserver: <- packet name %d dropped behind scene barrier\n",
                     name);
@@ -14072,6 +14114,7 @@ ToriRSServer_WorldHandle(
 
     if( player->action_locked && player_action_packet(name) )
     {
+        world_ticklog_packet(srv, player, name, payload, len, "dropped:locked");
         if( srv->verbose )
             fprintf(stderr, "torirsserver: <- player action packet name %d dropped while locked\n",
                     name);
@@ -14080,6 +14123,7 @@ ToriRSServer_WorldHandle(
 
     if( player->stun_ticks > 0 && player_stun_blocks_packet(name) )
     {
+        world_ticklog_packet(srv, player, name, payload, len, "dropped:stunned");
         if( srv->verbose )
             fprintf(stderr, "torirsserver: <- player packet name %d dropped while stunned (%d)\n",
                     name, player->stun_ticks);
@@ -14088,6 +14132,7 @@ ToriRSServer_WorldHandle(
 
     if( player_delayed_blocks_packet(name) && player_delayed(srv, player) )
     {
+        world_ticklog_packet(srv, player, name, payload, len, "dropped:delayed");
         if( srv->verbose )
             fprintf(stderr,
                     "torirsserver: <- player packet name %d refused: player is delayed "
@@ -14111,6 +14156,8 @@ ToriRSServer_WorldHandle(
     if( name != PKTOUT_NAME_NO_TIMEOUT && name != PKTOUT_NAME_IDLE_TIMER &&
         name != PKTOUT_NAME_MAP_BUILD_COMPLETE && name != PKTOUT_NAME_WINDOW_STATUS )
         player->last_input_tick = (int32_t)srv->tick;
+    if( world_packet_is_interface_input(name) )
+        world_ticklog_packet(srv, player, name, payload, len, "ok");
 
     for( size_t i = 0; i < sizeof(k_packet_routes) / sizeof(k_packet_routes[0]); i++ )
     {
