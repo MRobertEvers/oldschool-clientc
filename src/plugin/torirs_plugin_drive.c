@@ -1050,21 +1050,32 @@ drive_scheduler_start(void)
     drive_scheduler_handle_status(status, error);
 }
 
-/* The server's own tick where this client has one: the embed world's counter
- * for a leader, the lockstep tick a member's last TICK frame carried, else
- * the client's cycle clock. Moves BEFORE the tick's fence is applied; the
- * driver reads PluginDrive_ServerTick. */
+/* The server's own tick, as this client was TOLD it: the tick of the last
+ * boundary whose output reached it (ToriRSServer_EmbedClientTick -- a
+ * member's TICK frame, the leader's and a solo run's own boundary), else the
+ * client's cycle clock. The same source on every seat: the embedded leader
+ * used to read its server's counter in-process, which no member can and which
+ * the client must never do (owner: "The client should NEVER speak to the
+ * server directly when embedded"). Moves BEFORE the tick's fence is applied;
+ * the driver reads PluginDrive_ServerTick. */
 static int
 drive_raw_server_tick(void)
 {
-    struct ToriRSServer* srv = PluginDrive_EmbedWorld();
-    int const lockstep = ToriRSServer_EmbedLockstepTick();
+    int const told = ToriRSServer_EmbedClientTick();
 
-    if( srv && srv->world_built )
-        return (int)srv->tick;
-    if( lockstep != TORIRSSERVER_EMBED_LOCKSTEP_NONE )
-        return lockstep;
+    if( told != TORIRSSERVER_EMBED_LOCKSTEP_NONE )
+        return told;
     return g_app && g_app->world ? (int)(g_app->world->cycle / APP_SERVER_TICK_LOGIC_CYCLES) : 0;
+}
+
+int
+PluginDrive_RawServerTick(int* out_tick)
+{
+    int const told = ToriRSServer_EmbedClientTick();
+
+    assert(out_tick);
+    *out_tick = told;
+    return told != TORIRSSERVER_EMBED_LOCKSTEP_NONE;
 }
 
 /* TORIRS_DRIVE_AWAIT_TRACE=1: one stderr line per await armed and settled,
@@ -2180,9 +2191,10 @@ PluginDrive_ServerTickOfCycle(int cycle)
 static int
 lua_drive_tick(struct lua_State* L)
 {
-    /* THE SERVER'S OWN TICK where this client has one: the embed world's
-     * counter for a leader, the lockstep tick a member is handed with every
-     * TICK frame -- the number scriptrun's core->tick is, so a script's F.tick
+    /* THE SERVER'S OWN TICK where this client has one, as its tick
+     * boundaries told it (drive_raw_server_tick: a member's TICK frame, the
+     * leader's and a solo run's own boundary; never the embed world's
+     * counter) -- the number scriptrun's core->tick is, so a script's F.tick
      * names the same tick-log row on every lane. The client's own clock
      * (world cycle / 30) runs beside the server's and gained a tick on the
      * server every few hundred (a P3 solver's rotation slots were read a

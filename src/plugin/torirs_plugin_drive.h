@@ -336,6 +336,10 @@ struct ToriRSServer* PluginDrive_EmbedWorld(void);
  * server tick a client cycle stamp belongs to (torirs_plugin_drive.c). */
 int PluginDrive_ServerTick(void);
 int PluginDrive_ServerTickOfCycle(int cycle);
+/* The raw (unfenced) server tick this client was told by its last tick
+ * boundary (ToriRSServer_EmbedClientTick): 1 and *out_tick, or 0 when no
+ * boundary has reached it (a socket run, or before the first). */
+int PluginDrive_RawServerTick(int* out_tick);
 
 /** Shutdown: drop the coroutine, close the ledger, forget the app. */
 void PluginDrive_Shutdown(void);

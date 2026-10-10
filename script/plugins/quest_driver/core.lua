@@ -744,8 +744,12 @@ function QD.until_tick(tick)
                    note = "t.until_tick " .. tostring(tick) }, tick - now + 2)
 end
 
--- t.tick() -> (ok, tick): the SERVER's tick, srv->tick, read from the
--- embedded world (raid seam 1, docs/RAID_ORCHESTRATOR.md section 4).
+-- t.tick() -> (ok, tick): the SERVER's tick (raid seam 1,
+-- docs/RAID_ORCHESTRATOR.md section 4), as the client was TOLD it: the tick of
+-- the last boundary whose output reached this client (api_drive.server_tick,
+-- ToriRSServer_EmbedClientTick -- a member's TICK frame, the leader's and a
+-- solo run's own boundary). The client never reads its embedded server's
+-- counter; every seat now answers from the one source.
 --
 -- Not api_drive.tick, which every deadline above is written against: that is
 -- the client's world cycle / 30, a clock that runs at the client's frame pace
@@ -754,8 +758,9 @@ end
 -- only srv->tick states it -- it is the clock every t.ticklog row carries.
 -- `unsupported` on a socket-server run or a binary without the seam.
 --
--- A PARTY MEMBER (raid seam22, party_death_and_member_readers) holds no world,
--- so server_tick answers unsupported there; it reads instead the tick its last
+-- A PARTY MEMBER (raid seam22, party_death_and_member_readers) holds no world;
+-- server_tick answers it from its TICK frames now, and the fallback below (for
+-- an older binary, where it answered unsupported) reads instead the tick its last
 -- TICK frame carried (api_drive.session().lockstep_tick, torirs_plugin_drive.c
 -- lua_drive_session; nil outside a party), which
 -- the leader stamped from srv->tick right after that boundary's world tick.

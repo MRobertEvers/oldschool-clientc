@@ -788,6 +788,7 @@ party_member_boundary(struct NetTransportEmbed* self)
                                self->party_boundaries, tick, digest);
                 self->party_last_tick = tick;
                 ToriRSServer_EmbedLockstepNote(tick);
+                ToriRSServer_EmbedClientTickNote(tick);
                 return;
             }
             else

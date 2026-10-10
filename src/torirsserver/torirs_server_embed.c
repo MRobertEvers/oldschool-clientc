@@ -680,6 +680,20 @@ ToriRSServer_EmbedLockstepNote(int tick)
     g_lockstep_tick = tick;
 }
 
+static int g_client_tick = TORIRSSERVER_EMBED_LOCKSTEP_NONE;
+
+int
+ToriRSServer_EmbedClientTick(void)
+{
+    return g_client_tick;
+}
+
+void
+ToriRSServer_EmbedClientTickNote(int tick)
+{
+    g_client_tick = tick;
+}
+
 /* The frame audit. One process, one frame loop: file scope is the loop's. */
 static int g_audit_armed;
 static int g_audit_polls;
@@ -1926,6 +1940,10 @@ ToriRSServer_EmbedPump(
      * by the TICK, built or not. */
     if( run_tick && embed->party_listener >= 0 )
         party_flush(embed);
+    /* The boundary's tick, handed to this process's own client with the
+     * tick's output -- what a member's TICK frame carries (party_flush). */
+    if( run_tick )
+        ToriRSServer_EmbedClientTickNote(embed->srv.world_built ? embed->srv.tick : -1);
 
     if( bd_on )
     {

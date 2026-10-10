@@ -44,20 +44,27 @@ void PluginDriveTicklog_RegisterLua(struct lua_State* L, void* script);
 /* A read returns at most this many rows per call; ticklog.lua pages. */
 #define DRIVE_TICKLOG_READ_MAX 8192
 
-/* api.drive.server_tick() -> "ok", tick | "unsupported", nil */
+/* api.drive.server_tick() -> "ok", tick | "unsupported", nil
+ *
+ * The server tick as the client was told it, unfenced: the tick of the last
+ * boundary whose output reached this client (PluginDrive_RawServerTick). Not
+ * the embedded server's counter -- the client never reads that -- so the
+ * leader, a member and a solo run answer from one source, and a member no
+ * longer needs session().lockstep_tick to stand in. "unsupported" before the
+ * first boundary and on a socket run. */
 static int
 lua_drive_server_tick(struct lua_State* L)
 {
-    struct ToriRSServer* srv = PluginDrive_EmbedWorld();
+    int tick = 0;
 
-    if( !srv )
+    if( !PluginDrive_RawServerTick(&tick) )
     {
         lua_pushstring(L, DriveResultName(DRIVE_UNSUPPORTED));
         lua_pushnil(L);
         return 2;
     }
     lua_pushstring(L, DriveResultName(DRIVE_OK));
-    lua_pushinteger(L, (lua_Integer)srv->tick);
+    lua_pushinteger(L, (lua_Integer)tick);
     return 2;
 }
 

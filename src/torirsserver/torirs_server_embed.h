@@ -351,6 +351,22 @@ void
 ToriRSServer_EmbedLockstepNote(int tick);
 
 /**
+ * The server tick of the last tick boundary whose output reached THIS
+ * process's client, in or out of a party: a member's last TICK frame, the
+ * leader's and a one-client run's own boundary (ToriRSServer_EmbedPump, as
+ * the boundary hands the tick's output to client 0). -1 while the world is
+ * unbuilt; TORIRSSERVER_EMBED_LOCKSTEP_NONE before the first boundary.
+ *
+ * The quest driver's clock (torirs_plugin_drive.c drive_raw_server_tick):
+ * the client must not read its embedded server's counter, it reads the tick
+ * the boundary told it -- one source for leader, members and solo runs.
+ */
+int
+ToriRSServer_EmbedClientTick(void);
+void
+ToriRSServer_EmbedClientTickNote(int tick);
+
+/**
  * The frame audit (seam21 item 5). A party client's transport calls
  * ...AuditPoll once per poll; the frame loop calls ...AuditFrame once per
  * App_RunOnce and ...AuditCycles with the logic cycles that frame paid.
