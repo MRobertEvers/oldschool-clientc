@@ -32,17 +32,21 @@ collision_column_link_below(
 /* Shared core for add/del of a loc's collision. `add` selects the add_* vs del_*
  * collision primitives (exact inverses), so a runtime LOC change can undo the
  * collision the original loc contributed. Mirrors Client-TS ClientBuild.addLoc /
- * locChangeUnchecked's del path (Client.ts:7763-7789). */
+ * locChangeUnchecked's del path (Client.ts:7763-7789).
+ *
+ * `maps` is the per-level set written: the world's own (world_collision_apply_loc)
+ * or a caller's copies of them (WorldBuilder_LocChangeCollisionInto, which
+ * previews a pending change without touching the world's). */
 static void
-world_collision_apply_loc(
+world_collision_apply_loc_into(
     struct WorldBuilder* builder,
+    struct CollisionMap* const* maps,
     struct ToriRS_MapLoc* map_loc,
     struct ToriRS_Location* config_loc,
     int scene_x,
     int scene_z,
     int add)
 {
-    struct World* world = builder->world;
     int level = map_loc->chunk_pos_level;
     struct CollisionMap* cm;
     enum CollisionLocAngle angle;
@@ -58,7 +62,7 @@ world_collision_apply_loc(
     if( level < 0 )
         return;
 
-    cm = world->collision_maps[level];
+    cm = maps[level];
     if( !cm )
         return;
 
@@ -112,6 +116,19 @@ world_collision_apply_loc(
     default:
         break;
     }
+}
+
+static void
+world_collision_apply_loc(
+    struct WorldBuilder* builder,
+    struct ToriRS_MapLoc* map_loc,
+    struct ToriRS_Location* config_loc,
+    int scene_x,
+    int scene_z,
+    int add)
+{
+    world_collision_apply_loc_into(
+        builder, builder->world->collision_maps, map_loc, config_loc, scene_x, scene_z, add);
 }
 
 static void

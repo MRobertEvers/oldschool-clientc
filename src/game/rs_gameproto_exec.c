@@ -566,7 +566,16 @@ zone_full_reset_locs(struct App* app)
         if( !(rec->old_type < 0 && latest->new_type < 0) &&
             !(rec->old_type == latest->new_type && rec->old_angle == latest->new_angle &&
               shape == latest->new_shape) )
+        {
             App_WorldLocChange(app, rec->x, rec->z, rec->level, rec->old_type, shape, rec->old_angle);
+            /* The driver reads the restore from here, as it reads a LOC_DEL
+             * or LOC_ADD_CHANGE from its packet (App_DriveLocChangeNote):
+             * the lane lands it behind the map loc's models, and scriptrun
+             * (ScriptrunCore_ZoneResetLocs) reverts on this packet's tick. */
+            if( world == app->world )
+                App_DriveLocChangeNote(
+                    app, rec->x, rec->z, rec->level, rec->old_type, shape, rec->old_angle);
+        }
         rec->old_shape = shape;
         rec->new_type = rec->old_type;
         rec->new_angle = rec->old_angle;

@@ -236,6 +236,10 @@ App_DriveLocChangeNote(
     c->angle = angle;
     c->base_x = base_x;
     c->base_z = base_z;
+    /* Every note follows the App_WorldLocChange that queued its change, so
+     * the newest ticket is that change's. */
+    c->lane_ticket = app->loc_lane_enqueued;
+    ring->loc_change_serial++;
 }
 
 enum DriveResult

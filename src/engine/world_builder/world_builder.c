@@ -1584,3 +1584,84 @@ WorldBuilder_ApplyLocChange(
         }
     }
 }
+
+/* The collision half of WorldBuilder_ApplyLocChange, into `maps` -- copies of
+ * the world's collision maps -- instead of the world's. See the header. */
+int
+WorldBuilder_LocChangeCollisionInto(
+    struct WorldBuilder* builder,
+    struct CollisionMap* const* maps,
+    int scene_x,
+    int scene_z,
+    int level,
+    int loc_id,
+    int shape,
+    int angle)
+{
+    struct World* world;
+    struct World_EntityPool* pool;
+    int layer = World_LocShapeToLayer(shape);
+
+    assert(builder);
+    assert(maps);
+    world = builder->world;
+    assert(world);
+
+    /* 1. Undo what stands in the layer now: every pool entry of it (both
+     *    halves of an L-shaped wall), each through the rung it was stamped
+     *    with, as ApplyLocChange's removal loop does. */
+    pool = &world->entities.scenery;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_Scenery* old = World_EntityPoolGet(pool, i);
+        struct ToriRS_Location old_resolved;
+        struct ToriRS_Location* old_base;
+        struct ToriRS_Location* old_cfg;
+
+        if( !old || old->grid_position.x != scene_x || old->grid_position.z != scene_z ||
+            old->grid_position.level != level || World_LocShapeToLayer(old->shape) != layer )
+            continue;
+        old_base = CacheProvider_LocationGet(builder->cache, old->loc_id);
+        old_cfg = old_base ? world_builder_resolve_loc_for_place(builder, old_base, &old_resolved)
+                           : NULL;
+        if( old_cfg )
+        {
+            struct ToriRS_MapLoc old_ml = {
+                .loc_id = old->loc_id,
+                .shape_select = old->shape,
+                .orientation = old->angle,
+                .chunk_pos_x = scene_x,
+                .chunk_pos_z = scene_z,
+                .chunk_pos_level = level,
+            };
+            world_collision_apply_loc_into(builder, maps, &old_ml, old_cfg, scene_x, scene_z, 0);
+        }
+    }
+
+    /* 2. Stamp the replacement (LOC_DEL passes loc_id < 0 and stops here). */
+    if( loc_id >= 0 )
+    {
+        struct ToriRS_Location* base = CacheProvider_LocationGet(builder->cache, loc_id);
+        struct ToriRS_Location resolved;
+        struct ToriRS_Location* cfg;
+
+        if( !base )
+            return 0;
+        /* NULL: the rung the varps select is no loc, which stamps nothing --
+         * the hidden placement ApplyLocChange keeps. */
+        cfg = world_builder_resolve_loc_for_place(builder, base, &resolved);
+        if( cfg )
+        {
+            struct ToriRS_MapLoc ml = {
+                .loc_id = loc_id,
+                .shape_select = shape,
+                .orientation = angle,
+                .chunk_pos_x = scene_x,
+                .chunk_pos_z = scene_z,
+                .chunk_pos_level = level,
+            };
+            world_collision_apply_loc_into(builder, maps, &ml, cfg, scene_x, scene_z, 1);
+        }
+    }
+    return 1;
+}

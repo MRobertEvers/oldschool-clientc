@@ -189,6 +189,34 @@ WorldBuilder_ApplyLocChange(
     int shape,
     int angle);
 
+/*
+ * The collision a loc change will leave once WorldBuilder_ApplyLocChange lands
+ * it, written into `maps` (COLLISION_LEVELS entries, each NULL or a copy of
+ * the world's map for that level) instead of into the world's own: whatever
+ * stands in the shape's layer on the tile now is undone, then the new loc is
+ * stamped through its multiloc rung. The world is not touched, so a preview
+ * can never unbalance the add/del pairs the landing will make.
+ *
+ * For a reader that must see the change on its packet's tick while the scene
+ * waits on the new loc's models (the quest driver's route/plan collision,
+ * torirs_plugin_drive_ui.c). One difference from the landing, deliberate: the
+ * new loc is stamped whether or not its models exist, as the server and the
+ * scriptrun lane stamp it -- ApplyLocChange stamps only a loc that spawned.
+ *
+ * Returns 0, having undone the old loc only, when the new loc's config is not
+ * resident: the caller says so rather than read the gap as open ground.
+ */
+int
+WorldBuilder_LocChangeCollisionInto(
+    struct WorldBuilder* builder,
+    struct CollisionMap* const* maps,
+    int scene_x,
+    int scene_z,
+    int level,
+    int loc_id,
+    int shape,
+    int angle);
+
 struct WorldBuilder*
 WorldBuilder_New(
     struct World* world,

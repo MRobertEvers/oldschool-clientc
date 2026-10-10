@@ -116,7 +116,8 @@ loc_append(
     int level,
     int shape,
     int angle,
-    int loc_id)
+    int loc_id,
+    int from_map)
 {
     struct ScriptrunLoc* l;
 
@@ -133,6 +134,7 @@ loc_append(
     l->shape = shape;
     l->angle = angle;
     l->loc_id = loc_id;
+    l->map_loc_id = from_map ? loc_id : -1;
 }
 
 /* The record a placed loc stamps collision with: its rung, its base footprint
@@ -265,7 +267,7 @@ ScriptrunCore_BuildCollision(struct ScriptrunCore* core)
                 /* Recorded even when its rung is no loc: a varp change or a
                  * zone change still addresses it. */
                 loc_append(core, base_x + sx, base_z + sz, map_loc->chunk_pos_level,
-                           map_loc->shape_select, map_loc->orientation, map_loc->loc_id);
+                           map_loc->shape_select, map_loc->orientation, map_loc->loc_id, 1);
                 config = placed_config(core, map_loc->loc_id, &storage);
                 if( !config )
                     continue;
@@ -460,7 +462,7 @@ ScriptrunCore_BuildInstanceCollision(
                         loc.orientation = (loc.orientation + rotation) & 3;
                         loc.chunk_pos_level = level;
                         loc_append(core, base_x + scene_x, base_z + scene_z, level, loc.shape_select,
-                                   loc.orientation, loc.loc_id);
+                                   loc.orientation, loc.loc_id, 1);
                         if( !config )
                             continue;
                         world_collision_add_loc(builder, &loc, config, scene_x, scene_z);
@@ -507,6 +509,98 @@ ScriptrunCore_CollisionFlags(
     return (int)collision_map_tile(world->collision_maps[level], sx, sz);
 }
 
+/* zone_loc_tile_at: a zone names the walked plane; a loc on a bridge column
+ * sits one cache level above it (World_LocCacheLevel). Scene tiles. */
+static int
+loc_cache_level(
+    struct ScriptrunCore const* core,
+    int sx,
+    int sz,
+    int zone_level)
+{
+    struct WorldBuilder const* builder = core->builder;
+
+    if( builder && sx >= 0 && sz >= 0 && sx < SCRIPTRUN_SCENE_SIZE && sz < SCRIPTRUN_SCENE_SIZE &&
+        zone_level >= 0 && zone_level < WORLD_MAP_TERRAIN_LEVELS - 1 &&
+        (flag_map_get(builder->flag_map, sx, sz, 1) & RSCACHE_FLOFLAG_LINK_BELOW) != 0 )
+        return zone_level + 1;
+    return zone_level;
+}
+
+/* Stamp (add) or undo one row's collision through the rung it resolves to
+ * now, as the client's ApplyLocChange does for the loc it removes or adds. */
+static void
+loc_row_collision(
+    struct ScriptrunCore* core,
+    struct ScriptrunLoc const* l,
+    int add)
+{
+    struct WorldBuilder* builder = core->builder;
+    struct ToriRS_Location storage;
+    struct ToriRS_Location* config;
+    int sx = l->x - core->world->_base_tile_x;
+    int sz = l->z - core->world->_base_tile_z;
+
+    if( !builder || sx < 0 || sz < 0 || sx >= SCRIPTRUN_SCENE_SIZE || sz >= SCRIPTRUN_SCENE_SIZE )
+        return;
+    config = placed_config(core, l->loc_id, &storage);
+    if( !config )
+        return;
+    {
+        struct ToriRS_MapLoc ml = {
+            .loc_id = l->loc_id,
+            .shape_select = l->shape,
+            .orientation = l->angle,
+            .chunk_pos_x = sx,
+            .chunk_pos_z = sz,
+            .chunk_pos_level = l->level,
+        };
+        if( add )
+            world_collision_add_loc(builder, &ml, config, sx, sz);
+        else
+            world_collision_del_loc(builder, &ml, config, sx, sz);
+    }
+}
+
+void
+ScriptrunCore_ZoneResetLocs(
+    struct ScriptrunCore* core,
+    int abs_x0,
+    int abs_z0,
+    int zone_level)
+{
+    int base_x, base_z;
+
+    assert(core);
+    base_x = core->world->_base_tile_x;
+    base_z = core->world->_base_tile_z;
+    /* Every change row goes first, then every deleted map row comes back:
+     * the client's per-key restore lands the map's loc after removing what
+     * stood there, so its stamp is the last word on a shared tile. */
+    for( int pass = 0; pass < 2; pass++ )
+    {
+        for( int i = 0; i < core->loc_count; i++ )
+        {
+            struct ScriptrunLoc* l = &core->locs[i];
+
+            if( l->x < abs_x0 || l->x >= abs_x0 + 8 || l->z < abs_z0 || l->z >= abs_z0 + 8 )
+                continue;
+            if( l->level != loc_cache_level(core, l->x - base_x, l->z - base_z, zone_level) )
+                continue;
+            if( pass == 0 && l->map_loc_id < 0 && l->loc_id >= 0 )
+            {
+                loc_row_collision(core, l, 0);
+                l->loc_id = -1;
+            }
+            else if( pass == 1 && l->map_loc_id >= 0 && l->loc_id < 0 )
+            {
+                l->loc_id = l->map_loc_id;
+                loc_row_collision(core, l, 1);
+            }
+        }
+    }
+}
+
 void
 ScriptrunCore_LocChange(
     struct ScriptrunCore* core,
@@ -526,13 +620,7 @@ ScriptrunCore_LocChange(
     assert(core);
     sx = abs_x - core->world->_base_tile_x;
     sz = abs_z - core->world->_base_tile_z;
-    /* zone_loc_tile_at: a zone names the walked plane; a loc on a bridge
-     * column sits one cache level above it (World_LocCacheLevel). */
-    level = zone_level;
-    if( builder && sx >= 0 && sz >= 0 && sx < SCRIPTRUN_SCENE_SIZE && sz < SCRIPTRUN_SCENE_SIZE &&
-        zone_level >= 0 && zone_level < WORLD_MAP_TERRAIN_LEVELS - 1 &&
-        (flag_map_get(builder->flag_map, sx, sz, 1) & RSCACHE_FLOFLAG_LINK_BELOW) != 0 )
-        level = zone_level + 1;
+    level = loc_cache_level(core, sx, sz, zone_level);
 
     /* 1. Whatever stood in this layer goes, collision undone through the same
      *    rung it was stamped with. */
@@ -559,7 +647,7 @@ ScriptrunCore_LocChange(
     /* 2. The new loc, stamped. */
     if( loc_id < 0 )
         return;
-    loc_append(core, abs_x, abs_z, level, shape, angle, loc_id);
+    loc_append(core, abs_x, abs_z, level, shape, angle, loc_id, 0);
     if( builder && sx >= 0 && sz >= 0 && sx < SCRIPTRUN_SCENE_SIZE && sz < SCRIPTRUN_SCENE_SIZE &&
         (config = placed_config(core, loc_id, &storage)) != NULL )
     {

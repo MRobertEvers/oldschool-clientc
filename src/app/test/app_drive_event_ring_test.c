@@ -19,6 +19,7 @@
  */
 #include "app.h"
 #include "game/rs_ui_slots.h"
+#include "world/world.h"
 #include "rscache_profile.h"
 
 #include <assert.h>
@@ -115,6 +116,51 @@ test_ring_wraparound_refuses_stale_cursor(void)
     assert(r == DRIVE_OK);
     assert(count == 8);
     printf("PASS: cursor 0 still reads the survivors after the wrap\n");
+}
+
+/* A loc change note carries the loc lane ticket of the change it follows
+ * (App_DriveLocChangeNote), replaces the pending note for its tile and layer,
+ * and bumps the serial the route/plan collision view is cached on. */
+static void
+test_loc_change_note_carries_the_lane_ticket(void)
+{
+    static struct App app;
+    static struct World world;
+    struct App_DriveRing const* ring = &app.drive_events;
+    uint32_t serial;
+
+    printf("drive ring: a loc change note keeps its lane ticket\n");
+
+    memset(&app, 0, sizeof(app));
+    memset(&world, 0, sizeof(world));
+    world._base_tile_x = 3200;
+    world._base_tile_z = 3200;
+    app.world = &world;
+
+    app.loc_lane_enqueued = 7;
+    App_DriveLocChangeNote(&app, 10, 12, 0, 1234, 10, 2);
+    assert(ring->loc_change_count == 1);
+    assert(ring->loc_changes[0].x == 3210);
+    assert(ring->loc_changes[0].z == 3212);
+    assert(ring->loc_changes[0].lane_ticket == 7);
+    serial = ring->loc_change_serial;
+    assert(serial != 0);
+
+    /* The delete behind it on the same tile and layer replaces the note and
+     * takes the later ticket: the record is held until THAT change lands. */
+    app.loc_lane_enqueued = 8;
+    App_DriveLocChangeNote(&app, 10, 12, 0, -1, 10, 2);
+    assert(ring->loc_change_count == 1);
+    assert(ring->loc_changes[0].loc_id == -1);
+    assert(ring->loc_changes[0].lane_ticket == 8);
+    assert(ring->loc_change_serial != serial);
+
+    /* Another layer on the tile (a wall, shape 0) is its own record. */
+    app.loc_lane_enqueued = 9;
+    App_DriveLocChangeNote(&app, 10, 12, 0, 99, 0, 0);
+    assert(ring->loc_change_count == 2);
+    assert(ring->loc_changes[1].lane_ticket == 9);
+    printf("PASS: a note keeps the newest ticket for its tile and layer\n");
 }
 
 static int
@@ -222,6 +268,7 @@ main(
 
     test_ring_order_and_second_read_empty();
     test_ring_wraparound_refuses_stale_cursor();
+    test_loc_change_note_carries_the_lane_ticket();
     test_dat1_chat_open_close_stamps_the_ring(cache_dir, ui_ini, cache_ini);
 
     printf("app_drive_event_ring_test: all cases passed\n");

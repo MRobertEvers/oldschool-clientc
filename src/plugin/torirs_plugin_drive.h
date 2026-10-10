@@ -179,6 +179,12 @@ struct App_DriveLocChange
     int32_t x, z, level, layer;
     int32_t loc_id, shape, angle;
     int32_t base_x, base_z;
+    /* The loc lane ticket of the change this record notes (App.loc_lane_
+     * enqueued as the change was queued). The record is held at least until
+     * the lane has released it (App.loc_lane_applied), so an add and the
+     * delete behind it on one tile and layer cannot retire on the scene's
+     * empty layer while the add has yet to land. */
+    uint32_t lane_ticket;
 };
 /* A map graphic as its MAP_ANIM packet said it, stamped with the world cycle
  * the packet was applied on. The world's graphic entity waits on its
@@ -204,6 +210,9 @@ struct App_DriveRing
     int map_anim_count;
     struct App_DriveLocChange loc_changes[APP_DRIVE_LOC_CHANGE_CAP];
     int loc_change_count;
+    /* Bumped whenever loc_changes is written or retired: the key the route
+     * and plan collision view (torirs_plugin_drive_ui.c) is cached on. */
+    uint32_t loc_change_serial;
     /* A server tick is HALF-APPLIED: the exec runner has started on a packet
      * of a tick whose fence (SERVER_TICK_END, or PLAYER_INFO on a revision
      * with none) has not run yet. Packets apply over several frames and the

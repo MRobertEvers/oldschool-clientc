@@ -38,6 +38,7 @@
 
 #include "lauxlib.h"
 #include "lua.h"
+#include "engine/world_builder/world_builder.h"
 #include "plugin/torirs_drive_plan_lua.h"
 #include "torirsserver/torirs_server.h"
 
@@ -947,7 +948,10 @@ drive_ui_loc_pending(
 
 /* Drop the loc changes the scenery now shows (the task landed: the new loc in
  * that tile and layer, or none there for a delete) and those from another
- * scene base (a rebuild dropped their task and the server re-sends the zone). */
+ * scene base (a rebuild dropped their task and the server re-sends the zone).
+ * Never one the loc lane has not released yet (lane_ticket): an add and the
+ * delete behind it on one tile and layer would otherwise retire on the empty
+ * layer the add has yet to fill. */
 static void
 drive_ui_locs_retire(struct App* app)
 {
@@ -964,6 +968,11 @@ drive_ui_locs_retire(struct App* app)
 
         if( c->base_x != base_x || c->base_z != base_z )
             continue;
+        if( (int32_t)(app->loc_lane_applied - c->lane_ticket) < 0 )
+        {
+            ring->loc_changes[kept++] = *c;
+            continue;
+        }
         for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
         {
             struct WorldEntity_Scenery const* sc = World_EntityPoolGet(pool, i);
@@ -979,7 +988,130 @@ drive_ui_locs_retire(struct App* app)
             continue;
         ring->loc_changes[kept++] = *c;
     }
+    if( kept != ring->loc_change_count )
+        ring->loc_change_serial++;
     ring->loc_change_count = kept;
+}
+
+/*
+ * THE COLLISION route AND plan READ: the world's maps while no loc change is
+ * waiting on the loc lane, else copies of them with each waiting change's
+ * collision applied (WorldBuilder_LocChangeCollisionInto).
+ *
+ * A LOC_ADD_CHANGE or LOC_DEL reaches the world's collision only when its lane
+ * task lands -- after the new loc's config and models load -- where scriptrun
+ * stamps it on the packet's tick (ScriptrunCore_LocChange). A door opened or
+ * a pillar dropped this tick then routed the live solver through the old
+ * state a tick longer than the scriptrun one. The copies keep the world's own
+ * maps untouched, so the lane's landing still makes the only add/del pair the
+ * world sees and nothing can apply twice; a change leaves the copies with its
+ * ring entry (drive_ui_locs_retire), when the world shows it itself.
+ *
+ * Cached on what can change it: the scene, the lane's landings, the ring.
+ */
+static struct
+{
+    struct CollisionMap* maps[COLLISION_LEVELS];
+    struct World const* world;
+    unsigned load_seq;
+    unsigned lane_applied;
+    uint32_t ring_serial;
+    int base_x, base_z;
+    int valid;
+} g_drive_ui_collision;
+
+/* The loc whose config was missing when a view was last built, so the warning
+ * below is said once per loc rather than once per read. */
+static int g_drive_ui_collision_missing_loc = -1;
+
+static struct CollisionMap* const*
+drive_ui_collision_maps(struct App* app)
+{
+    struct World* world;
+    struct App_DriveRing* ring;
+    int base_x, base_z;
+    int level, k;
+
+    assert(app);
+    world = app->world;
+    assert(world);
+    drive_ui_locs_retire(app);
+    ring = &app->drive_events;
+    if( ring->loc_change_count == 0 )
+        return world->collision_maps;
+
+    base_x = world->_base_tile_x;
+    base_z = world->_base_tile_z;
+    if( g_drive_ui_collision.valid && g_drive_ui_collision.world == world &&
+        g_drive_ui_collision.load_seq == world->load_seq &&
+        g_drive_ui_collision.lane_applied == app->loc_lane_applied &&
+        g_drive_ui_collision.ring_serial == ring->loc_change_serial &&
+        g_drive_ui_collision.base_x == base_x && g_drive_ui_collision.base_z == base_z )
+        return g_drive_ui_collision.maps;
+
+    /* The root builder answers the rung and the loc config; the copies are
+     * the world's maps, flags and route window both. */
+    assert(app->world_builder);
+    for( level = 0; level < COLLISION_LEVELS; level++ )
+    {
+        struct CollisionMap const* src = world->collision_maps[level];
+        struct CollisionMap* dst = g_drive_ui_collision.maps[level];
+
+        if( !src )
+        {
+            if( dst )
+                collision_map_free(dst);
+            g_drive_ui_collision.maps[level] = NULL;
+            continue;
+        }
+        if( dst && (dst->size_x != src->size_x || dst->size_z != src->size_z) )
+        {
+            collision_map_free(dst);
+            dst = NULL;
+        }
+        if( !dst )
+        {
+            dst = collision_map_new(src->size_x, src->size_z);
+            assert(dst);
+            g_drive_ui_collision.maps[level] = dst;
+        }
+        memcpy(dst->flags, src->flags, (size_t)src->size_x * (size_t)src->size_z * sizeof(*dst->flags));
+        dst->route_window = src->route_window;
+    }
+    for( k = 0; k < ring->loc_change_count; k++ )
+    {
+        struct App_DriveLocChange const* c = &ring->loc_changes[k];
+        int sx = c->x - base_x;
+        int sz = c->z - base_z;
+
+        /* drive_ui_locs_retire dropped every other base's. */
+        assert(c->base_x == base_x);
+        assert(c->base_z == base_z);
+        if( sx < 0 || sz < 0 || sx >= world->_scene_size || sz >= world->_scene_size )
+            continue;
+        if( !WorldBuilder_LocChangeCollisionInto(app->world_builder, g_drive_ui_collision.maps, sx,
+                sz, c->level, c->loc_id, c->shape, c->angle) &&
+            c->loc_id != g_drive_ui_collision_missing_loc )
+        {
+            /* Not a state to read quietly: the change's tile reads as the old
+             * loc removed and nothing stamped. The lane loads this config
+             * before it lands the change, so it is a read between the packet
+             * and the lane's first step. */
+            g_drive_ui_collision_missing_loc = c->loc_id;
+            fprintf(stderr,
+                "drive: route/plan collision: loc %d (pending at %d,%d,l%d) has no resident "
+                "config; its collision is missing from this read\n",
+                c->loc_id, c->x, c->z, c->level);
+        }
+    }
+    g_drive_ui_collision.world = world;
+    g_drive_ui_collision.load_seq = world->load_seq;
+    g_drive_ui_collision.lane_applied = app->loc_lane_applied;
+    g_drive_ui_collision.ring_serial = ring->loc_change_serial;
+    g_drive_ui_collision.base_x = base_x;
+    g_drive_ui_collision.base_z = base_z;
+    g_drive_ui_collision.valid = 1;
+    return g_drive_ui_collision.maps;
 }
 
 enum DriveResult
@@ -1082,6 +1214,44 @@ DriveUi_Locs(struct App* app, int radius, struct DriveLocRow* out, int cap, int*
     return DRIVE_OK;
 }
 
+/* Rank one copy into `out`, nearest the player first, keeping the nearest
+ * `cap`; with no player a full window keeps the first `cap` found. */
+static void
+drive_ui_loc_copies_insert(
+    struct DriveLocRow* out,
+    int* count,
+    int cap,
+    int have_player,
+    int px,
+    int pz,
+    struct DriveLocRow const* row)
+{
+    long distance = have_player ? drive_ui_distance2(row->tile_x, row->tile_z, px, pz) : 0;
+    int insert_at = *count < cap ? *count : cap - 1;
+    int j;
+
+    if( *count >= cap )
+    {
+        long worst = have_player
+            ? drive_ui_distance2(out[cap - 1].tile_x, out[cap - 1].tile_z, px, pz)
+            : 0;
+        if( !have_player || distance >= worst )
+            return;
+    }
+    for( j = insert_at; j > 0; j-- )
+    {
+        long prev_distance = have_player
+            ? drive_ui_distance2(out[j - 1].tile_x, out[j - 1].tile_z, px, pz)
+            : 0;
+        if( !have_player || prev_distance <= distance )
+            break;
+        out[j] = out[j - 1];
+    }
+    out[j] = *row;
+    if( *count < cap )
+        (*count)++;
+}
+
 enum DriveResult
 DriveUi_LocCopies(
     struct App* app,
@@ -1098,6 +1268,7 @@ DriveUi_LocCopies(
     int count = 0;
     int total = 0;
     struct World_EntityPool* pool;
+    struct App_DriveRing const* ring;
     int i;
 
     assert(app);
@@ -1116,6 +1287,14 @@ DriveUi_LocCopies(
     base_x = app->world->_base_tile_x;
     base_z = app->world->_base_tile_z;
 
+    /* FROM THE PACKETS where the scene lags them, exactly as DriveUi_Locs: a
+     * tile and layer with a loc change still waiting on its models answers
+     * from the change (App_DriveLocChangeNote), not from the scenery it will
+     * replace -- scriptrun's loc list is the packets', so a copy the server
+     * placed (or removed) this tick is counted on its tick on both lanes. */
+    drive_ui_locs_retire(app);
+    ring = &app->drive_events;
+
     /* Root worldview only, as DriveUi_Locs (its note says why). One pass over
      * the pool; the id test comes first, so the 8,000 rows of other scenery
      * cost one compare each and only the copies are ranked. */
@@ -1123,9 +1302,8 @@ DriveUi_LocCopies(
     for( i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
     {
         struct WorldEntity_Scenery const* sc = World_EntityPoolGet(pool, i);
+        struct DriveLocRow row;
         int tile_x, tile_z;
-        long distance;
-        int j, insert_at;
 
         if( !sc || sc->loc_id != loc_id )
             continue;
@@ -1133,37 +1311,44 @@ DriveUi_LocCopies(
         tile_z = base_z + sc->grid_position.z;
         if( have_player && !drive_ui_within_radius(tile_x, tile_z, px, pz, radius) )
             continue;
+        /* A change still waiting on its models replaces this copy. */
+        if( drive_ui_loc_pending(ring, tile_x, tile_z, sc->grid_position.level,
+                World_LocShapeToLayer(sc->shape)) )
+            continue;
         total++;
+        memset(&row, 0, sizeof(row));
+        row.loc_id = sc->loc_id;
+        row.resolved_loc_id = drive_ui_loc_resolved(app, sc->loc_id);
+        row.tile_x = tile_x;
+        row.tile_z = tile_z;
+        row.level = sc->grid_position.level;
+        row.element_id = sc->element_id;
+        row.shape = sc->shape;
+        drive_ui_element_seq(app, sc->element_id, &row.seq, &row.seq_frame);
+        drive_ui_loc_copies_insert(out, &count, cap, have_player, px, pz, &row);
+    }
+    for( i = 0; i < ring->loc_change_count; i++ )
+    {
+        struct App_DriveLocChange const* c = &ring->loc_changes[i];
+        struct DriveLocRow row;
 
-        distance = have_player ? drive_ui_distance2(tile_x, tile_z, px, pz) : 0;
-        insert_at = count < cap ? count : cap - 1;
-        if( count >= cap )
-        {
-            long worst = have_player
-                ? drive_ui_distance2(out[cap - 1].tile_x, out[cap - 1].tile_z, px, pz)
-                : 0;
-            if( !have_player || distance >= worst )
-                continue;
-        }
-        for( j = insert_at; j > 0; j-- )
-        {
-            long prev_distance = have_player
-                ? drive_ui_distance2(out[j - 1].tile_x, out[j - 1].tile_z, px, pz)
-                : 0;
-            if( !have_player || prev_distance <= distance )
-                break;
-            out[j] = out[j - 1];
-        }
-        out[j].loc_id = sc->loc_id;
-        out[j].resolved_loc_id = drive_ui_loc_resolved(app, sc->loc_id);
-        out[j].tile_x = tile_x;
-        out[j].tile_z = tile_z;
-        out[j].level = sc->grid_position.level;
-        out[j].element_id = sc->element_id;
-        out[j].shape = sc->shape;
-        drive_ui_element_seq(app, sc->element_id, &out[j].seq, &out[j].seq_frame);
-        if( count < cap )
-            count++;
+        if( c->loc_id != loc_id )
+            continue;
+        if( have_player && !drive_ui_within_radius(c->x, c->z, px, pz, radius) )
+            continue;
+        total++;
+        /* The packet's facts: no element (nothing drawn yet), no seq. */
+        memset(&row, 0, sizeof(row));
+        row.loc_id = c->loc_id;
+        row.resolved_loc_id = drive_ui_loc_resolved(app, c->loc_id);
+        row.tile_x = c->x;
+        row.tile_z = c->z;
+        row.level = c->level;
+        row.element_id = 0;
+        row.shape = c->shape;
+        row.seq = -1;
+        row.seq_frame = 0;
+        drive_ui_loc_copies_insert(out, &count, cap, have_player, px, pz, &row);
     }
     drive_ui_locs_attach_ambient(app, out, count);
     *out_count = count;
@@ -1637,7 +1822,7 @@ DriveUi_Route(
         level = 0;
     if( level >= COLLISION_LEVELS )
         level = COLLISION_LEVELS - 1;
-    cm = app->world->collision_maps[level];
+    cm = drive_ui_collision_maps(app)[level];
     if( !cm )
         return DRIVE_NO_ROW;
     base_x = app->world->_base_tile_x;
@@ -2655,7 +2840,7 @@ lua_drive_plan(struct lua_State* L)
         level = 0;
     if( level >= COLLISION_LEVELS )
         level = COLLISION_LEVELS - 1;
-    cm = app->world->collision_maps[level];
+    cm = drive_ui_collision_maps(app)[level];
     if( !cm )
     {
         lua_pushstring(L, "no_row");

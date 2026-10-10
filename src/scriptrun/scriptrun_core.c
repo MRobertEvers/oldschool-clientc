@@ -1393,6 +1393,11 @@ core_packet(
         x0 = core_base_x(core) + core->zone_base_x;
         z0 = core_base_z(core) + core->zone_base_z;
         level = core->zone_level;
+        /* ...and resets its locs to the map's, as the client's
+         * zone_full_reset_locs does: the state behind this header names only
+         * what still differs from the map, so a change the server has since
+         * reverted would otherwise stand here and not on the client. */
+        ScriptrunCore_ZoneResetLocs(core, x0, z0, level);
         for( int i = 0; i < core->obj_count; )
         {
             struct ScriptrunObj* o = &core->objs[i];
