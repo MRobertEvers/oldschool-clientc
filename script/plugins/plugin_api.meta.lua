@@ -1056,7 +1056,7 @@ except the plain readers marked as returning a value.
 ---@field loc_variants fun(loc_id: integer): string, table|nil { resolved, slots } -- the multiloc child this def draws as now, and its flattened family. `timeout` while the def is being fetched: poll again next frame.
 ---@field objs fun(radius: integer): string, table
 ---@field spotanims fun(radius: integer): string, table Map graphics (MAP_ANIM), nearest first: { spotanim_id, x, z, level, active, cycles_left, element_id }; cycles_left is CLIENT cycles. Raid seam 1, world.spotanims / world.hazard_at.
----@field projectiles fun(radius: integer): string, table Projectiles in flight, nearest DESTINATION first: { spotanim_id, src_x, src_z, dst_x, dst_z, level, target, target_npc_slot, launched, cycles_left, element_id }. Raid seam 1, world.projectiles.
+---@field projectiles fun(radius: integer): string, table Projectiles in flight, nearest DESTINATION first: { spotanim_id, src_x, src_z, dst_x, dst_z, level, target, target_npc_slot, launched, cycles_left, duration (the server-sent flight in client cycles, fixed), element_id }. Raid seam 1, world.projectiles.
 ---@field server_tick fun(): string, integer|nil The embedded server's own tick (srv->tick), not the client cycle tick(); unsupported on a socket-server run. Raid seam 1, t.tick.
 ---@field ticklog_start fun(): string, table|nil Turn the server tick log on (idempotent): { start_tick, tick, serial, path }; rows also go to <session>/ticklog.tsv. Raid seam 1.
 ---@field ticklog fun(after_serial: integer?, max: integer?, kind: string?, slot: integer?): string, table|nil Tick-log rows after a serial, kind and npc world slot filtered in C: { {serial, tick, kind, a..f, label}..., next_serial, serial, tick }; refused while the log is off.

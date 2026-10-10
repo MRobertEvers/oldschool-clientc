@@ -684,6 +684,146 @@ nobody on either grid.
   shared by 3 (each splat <= 41); 0 rags; 0 tornado hits; maze proc to the
   boss's return <= 35 (Blert median 28).
 
+### 4.4.1 Sotetseg v1: the implementation plan (2026-10-09, after Nylocas)
+
+What carries over from Maiden, Bloat and Nylocas:
+- the room synced before the solve (`::synctimers`, `::tobsyncroom`);
+- facts keyed on the tick they are FIRST SEEN;
+- an attack pressed only with the right weapon seen worn;
+- explicit phases;
+- 48 seeds and a continuous measure before a rule is kept;
+- GREEN = no raider dead, plus this room's own zero (no unprayed ball, no rag).
+
+The plan:
+- **KIT**: Learner/Void, every seat on the blowpipe set (Rapid) and Rigour.
+  Nobody within 1 of him, so no melee is ever rolled. Protect from Magic up.
+- **PHASES**:
+  - **entry**: walk to the barrier at (15,17); the leader starts, members
+    cross.
+  - **fight**: stations gap 4 from his 5x5 footprint (x13..17, z38..42), on
+    three sides: W (8,40), E (22,40), NW (9,45). The blowpipe reaches 5, and
+    the projectile time is the wiki's spacing. No tile within 1 of him is
+    ever an end tile.
+  - **death_ball** (a 1604 launched at T on target X): every raider stands
+    within 1 of X's tile over [T+13, T+15]; X holds its tile. The impact is
+    split by 3: <= 40 each, never 121 alone. Back to stations from T+16.
+  - **maze** (he turns 8387, everyone stunned 5, teleported on P+3):
+    - **runner** (the lowest pid, level 3): the path is the 33035 locs seen
+      on P+4, ordered row by row along each run. Forbid every other grid
+      cell LETHAL (middle tiles charged: the wiki's no-skip rule). The
+      tornado's tile per tick is predicted along the path and forbidden
+      with its neighbours. Walk north to the exit row, no step before P+5,
+      never the south step off the grid.
+    - **waiters** (level 0): off the grid (z22..36) at (15,20), until he
+      turns back.
+  - **post_maze**: back to the stations; his first attack is end+1.
+  - **done**: his death.
+- **PRAYER**: Protect from Magic. Protect from Missiles only for a grey (1607)
+  landing on me next tick with no red (1606) landing then, back after it.
+  The prayer is read at LANDING, so a press seen at d is in force for
+  landings from d+1.
+- **CALIBRATION** (tools/blert_sotetseg_cal.py, 150 Blert Normal trio rooms):
+  - the first attack; the attack gaps; the gap after a death ball;
+  - balls per death ball;
+  - P(melee | target adjacent);
+  - maze proc ticks and hp; the path's s0, row steps and length;
+  - maze proc to his return;
+  - the ball and ricochet landing ticks against the formula and the pid
+    rule.
+- **PROBE**, seed 1:
+  - the runner's plan on plane 3;
+  - the lit path seen on P+4;
+  - every ball landing vs prayer;
+  - the death-ball read per pid.
+- **PASS**: GREEN on 48 seeds, with:
+  - 0 unprayed ball or ricochet hits;
+  - every death ball shared by 3;
+  - 0 rags;
+  - 0 tornado hits.
+
+### 4.4.2 Sotetseg v1 as built (2026-10-09): what the plan got wrong
+
+Result: GREEN on 96 seeds (sweep so20; numbers in the commit). Blert
+calibration: every content-decided measure MATCHes; tools/blert_sotetseg_cal.py
+tests 9 and reports the player-driven ones. Scriptrun and live tick logs are
+identical on seed sa (0 differing room ticks of 446).
+
+Where the build left the plan:
+- **Melee, not the blowpipe.** His ranged defence is 150 against 70
+  stab/slash, and the probe's blowpipe missed 86%. Stations beside his faces:
+  W (12,40), E (18,40), N (15,43).
+  - The wiki's NW third seat (13,43) was tried: 45 of 48 green against 48,
+    136 hp a raider against 127.
+- **Out of his melee on his slots.** A seat that ends T-1 within 1 of him is
+  meleed 1 in 2 (1..45), which cost 184 hp per raider per room. Every seat now
+  ends T-1 two or more tiles from him on each predicted slot T.
+  - The clock comes from his attack seq: +5, +10 after a death ball, end+1
+    after a maze.
+  - Mean damage fell from 250 to about 120. The wiki's "If hit, step away
+    from Sotetseg" is the same move, made on every slot.
+  - The death-ball target holds a tile 2+ from him, its own pushed out by one.
+    Holding a station beside him under the death ball took his 45 on top of a
+    31 share (so16/sx).
+- **Landings from the server's own flight.** `api_drive.projectiles` now
+  carries `duration`, the flight as the server sent it, on both lanes. The
+  impact is `first seen + duration // 30`. A ricochet lands a tick later for a
+  recipient whose pid is below the victim's: its impact queue is on the
+  recipient, already processed that tick (6,031 ricochets, no exception).
+  - Before this, two errors killed 4 seeds in 48: a distance read off a tile
+    after the target moved, and a +/-1 window that merged a grey on T with a
+    red on T+1 into one Magic press. The unprayed hit blocked protection
+    prayers for 5 ticks, and the block cascaded.
+  - Keeping a ball's target 3+ from the others instead was worse: 4 deaths
+    in 8.
+- **No ricochet onto my own landing** (Plank2g: "watch those balls split off
+  and see where those balls go"). A ball on teammate V at L' reaches me at
+  L' + (41+8d)//30 (+1 by pid order). While something of mine lands at L, I
+  stay out of the distance band that would land it on L. At the stations every
+  ricochet is 2 ticks, so this fires only while walking (so19/uj: a stacked
+  run-in, a ball and a grey on one seat at t85, the cascade, a death).
+- **The press that breaks a block.** An unprayed hit at B blocks protection
+  until B+5 (`varp6891 > map_clock`), so a press works only from B+5. The
+  double-press throttle (every other tick) put the presses on B+4 and B+6,
+  and a ball every 5 ticks re-blocked: six blocks in a row, a seat dead with
+  94 prayer points (so20/uj).
+  - The solver now tracks the block: a protection gone dark without a press
+    of its own starts one, and a landing during it (or on its last tick)
+    extends it. It presses on the lifting tick, outside the throttle.
+  - A press decided on d is read in d's player turn, after d's impacts. It
+    covers landings from d+1, so this one is decided ON B+5.
+- **The maze as teams run it** (208 Blert mazes; Plank2g; the wiki):
+  - The runner holds 2 ticks on row 2. The team steps on behind it and keeps
+    2 rows back, ending ticks only on tiles that have glowed. It may run
+    through the runner's middle tiles: a two-tile move takes its long axis
+    first, the engine's pathing and the planner's.
+  - Once the glow reaches the last two rows the team leaves north, running
+    through row 14 ("Off on 3": a tile run through is not judged).
+  - The arena tornado now spawns every maze (team on row 3 at proc+11..14;
+    Blert median 14). It has hit no one.
+  - Maze length median 26 against Blert's 30. The gap is human reaction:
+    Blert's first glow is at proc+6..9, ours at proc+6, the first possible
+    tick.
+- **Content fixes** (OSRS-Content):
+  - The runner lands one tile SOUTH of the path's first tile, off the grid
+    (devqhp's trainer: "your character waits 1 tile south"). Blert's first
+    glow is on row 0 at proc+6 or later in 208 of 208 mazes; the old landing
+    lit it at proc+4. The maze no longer ends before the runner's first step.
+  - `::tobsyncroom` records its tick, and the maze's 4-tick check counts its
+    phase from it. The check follows the world clock's phase, and scriptrun
+    and live reach the room on different world ticks: the first maze ended 3
+    ticks apart on seed sa until this.
+- **Calibration fixes:**
+  - His melee's target is the raider within 1 of him among those hit on t+1.
+    The first row alone credited a ricochet victim.
+  - The first attack is compared on Blert rooms with no barrage on him before
+    it (a sceptre barrage at tick 5 moved it to 8 in 36 of 70 rooms; the
+    content models no barrage delay), counted from the recorder's first row
+    (7 of the 12 unbarraged "7s" were recorders a tick late).
+- **Watch:** P(melee | target adjacent) is about 41% on step-out sweeps (n 94
+  on fresh seeds; p 0.07, a pass) against 52% in Blert and 51.7% in the
+  standing sweep sg1 (n 3,054). No mechanism found: not a side, a seat, a
+  context or the read tick.
+
 ### 4.5 Xarpus (`solver_specs/xarpus.md`)
 
 Facts: exhumeds (loc 32743) E_k = E_0 + 8k, twelve, each needing a raider on it

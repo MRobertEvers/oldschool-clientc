@@ -1353,6 +1353,12 @@ struct DriveProjectileRow
     int target_npc_slot;
     int launched;
     int cycles_left;
+    /** The flight as the server sent it, in client cycles from the packet
+     *  (its end cycle): fixed for the projectile's life, so a reader keys a
+     *  landing on it whenever it looks, where cycles_left depends on how far
+     *  into the flight the client has stepped (live reads further in than
+     *  scriptrun). */
+    int duration;
     int element_id;
     /** As DriveSpotanimRow.seq / seq_frame: the projectile graphic's own
      *  sequence as its scene element plays it, -1 / -1 when none is bound. */

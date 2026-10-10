@@ -241,7 +241,8 @@ end
 -- The panel channel's wants, in priority order: prayer points, food (a brew
 -- when the food is gone), the overhead the room asks for, a boost redose,
 -- the boost prayer. `want` = { overhead = name|nil, boost = name|nil,
--- boost_stat = "attack"|"ranged"|"magic"|nil, eat_below = n }. Fills intent.
+-- boost_stat = "attack"|"ranged"|"magic"|nil, eat_below = n, brew_below = n
+-- (with no food left, a brew under this; HP_BREW when not given) }. Fills intent.
 function QD.raid._tob_supplies(S, F, want, intent)
     local V = QD.TOBS
     local eat_below = want.eat_below or V.HP_EAT
@@ -256,7 +257,7 @@ function QD.raid._tob_supplies(S, F, want, intent)
         if food then
             intent.eat = food
             S.last_eat = F.tick
-        elseif F.hp < V.HP_BREW then
+        elseif F.hp < (want.brew_below or V.HP_BREW) then
             intent.drink = QD.raid._tob_first(S, S.ids.brews)
             if intent.drink then S.last_drink = F.tick end
         end
@@ -492,7 +493,9 @@ function QD.raid._tob_emit(S, F, order, intent)
     local unequip = intent.unequip
     if unequip and #unequip == 0 then unequip = nil end
     local held = intent.eat or intent.drink or gear or intent.drop
-    if intent.pray and F.tick - (S.pray_clicked[intent.pray] or -10) >= 2 then
+    -- (intent.pray_force: a press timed by the room to land on one tick, e.g.
+    -- the tick a protection block lifts, outside the double-press throttle)
+    if intent.pray and (intent.pray_force or F.tick - (S.pray_clicked[intent.pray] or -10) >= 2) then
         QD.raid._tob_tab(S, ids.prayer_tab)
         local pr = api_drive.if_click(ids.prayers[intent.pray].button, 1)
         if pr == "ok" then

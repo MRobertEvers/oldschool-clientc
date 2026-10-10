@@ -1125,6 +1125,9 @@ d_projectiles(lua_State* L)
         lua_setfield(L, -2, "launched");
         lua_pushinteger(L, p->end_delay - elapsed > 0 ? p->end_delay - elapsed : 0);
         lua_setfield(L, -2, "cycles_left");
+        /* the flight as the server sent it (DriveProjectileRow.duration) */
+        lua_pushinteger(L, p->end_delay);
+        lua_setfield(L, -2, "duration");
         lua_pushinteger(L, 0);
         lua_setfield(L, -2, "element_id");
         lua_rawseti(L, -2, ++n);

@@ -1491,6 +1491,7 @@ DriveUi_Projectiles(
         row->target_npc_slot = p->target > 0 ? p->target - 1 : -1;
         row->launched = elapsed >= p->start_delay;
         row->cycles_left = p->end_delay - elapsed > 0 ? p->end_delay - elapsed : 0;
+        row->duration = p->end_delay;
         row->element_id = 0;
         row->seq = -1;
         row->seq_frame = 0;
@@ -2865,7 +2866,7 @@ lua_drive_spotanims(struct lua_State* L)
 
 /* api_drive.projectiles(radius) -> result, { {spotanim_id, src_x, src_z,
  * dst_x, dst_z, level, target, target_npc_slot, launched, cycles_left,
- * element_id, seq, seq_frame}, ... } nearest DESTINATION first (struct
+ * duration, element_id, seq, seq_frame}, ... } nearest DESTINATION first (struct
  * DriveProjectileRow). */
 static int
 lua_drive_projectiles(struct lua_State* L)
@@ -2908,6 +2909,8 @@ lua_drive_projectiles(struct lua_State* L)
         lua_setfield(L, -2, "launched");
         lua_pushinteger(L, rows[i].cycles_left);
         lua_setfield(L, -2, "cycles_left");
+        lua_pushinteger(L, rows[i].duration);
+        lua_setfield(L, -2, "duration");
         lua_pushinteger(L, rows[i].element_id);
         lua_setfield(L, -2, "element_id");
         lua_rawseti(L, -2, i + 1);
