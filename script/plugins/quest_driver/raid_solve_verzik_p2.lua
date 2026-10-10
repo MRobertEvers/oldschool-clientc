@@ -133,20 +133,20 @@ function QD.raid._vzp2_ids(weapon)
         inv = sym("inv", "inv"), worn = sym("inv", "worn"),
         hitpoints = sym("stat", "hitpoints"),
         prayer = sym("stat", "prayer"),
-        restores = { sym("obj", "br_1dose2restore"), sym("obj", "br_2dose2restore"),
-                     sym("obj", "br_3dose2restore"), sym("obj", "br_4dose2restore") },
+        restores = QD.raid._vzp2_restores(),
         helm = sym("obj", "serpentine_helm_charged"),
         -- the weapon P1 found in my hand (QD.raid._vzp1_weapon_from_hand)
         weapon = QD.raid.vz_weapon or sym("obj", weapon or "scythe_of_vitur"),
         food = sym("obj", "anglerfish"),
+        foods = { sym("obj", "anglerfish"), sym("obj", "mantaray"), sym("obj", "seaturtle"), sym("obj", "shark") },
         backpack = comp("inventory:items"),
         missiles = comp("prayerbook:prayer14"), magic = comp("prayerbook:prayer13"),
         missiles_lit = sym("varbit", "varb4117_prayer_protectfrommissiles"),
         magic_lit = sym("varbit", "varb4116_prayer_protectfrommagic"),
         piety = comp("prayerbook:prayer27"), piety_lit = sym("varbit", "varb4129_prayer_piety"),
         attack = sym("stat", "attack"),
-        combats = { sym("obj", "br_1dose2combat"), sym("obj", "br_2dose2combat"),
-                    sym("obj", "br_3dose2combat"), sym("obj", "br_4dose2combat") },
+        combats = QD.raid._vzp2_doses("dose2combat"),
+        brews = QD.raid._vzp2_doses("dosepotionofsaradomin"),
         inv_tab = inv_tab, prayer_tab = prayer_tab,
     }
 end
@@ -750,6 +750,30 @@ end
 
 -- ===================================================================== EMIT
 
+-- A potion's doses, lowest first: the raid's br_ ones, then the plain ones
+-- the ToB supply chest sells (enum_1952; relay rl9 bought brews no list knew).
+function QD.raid._vzp2_doses(stem)
+    local out = {}
+    for _, pre in ipairs({ "br_", "" }) do
+        for n = 1, 4 do
+            local r, id = api_drive.symbol("obj", pre .. n .. stem)
+            if r == "ok" then out[#out + 1] = id end
+        end
+    end
+    assert(#out >= 4, "verzik_p2: no doses of " .. stem)
+    return out
+end
+
+-- Super restores, then the chest's prayer potions (enum_1952).
+function QD.raid._vzp2_restores()
+    local out = QD.raid._vzp2_doses("dose2restore")
+    for n = 1, 4 do
+        local r, id = api_drive.symbol("obj", n .. "doseprayerrestore")
+        if r == "ok" then out[#out + 1] = id end
+    end
+    return out
+end
+
 function QD.raid._vzp2_held(S, obj, op)
     for slot = 0, 27 do
         local r, cell = api_drive.inv_slot(S.ids.inv, slot)
@@ -789,7 +813,7 @@ function QD.raid._vzp2_emit(S, F, plan, intent)
     -- showing: the client refuses an op on a hidden panel
     if S.tab == S.ids.inv_tab and not switched then
         if intent.eat then
-            QD.raid._vzp2_held(S, S.ids.food, 1)
+            QD.raid._vzp2_held(S, (intent.eat == true) and S.ids.food or intent.eat, 1)
             S.eats = S.eats + 1
             S.order = nil
         end
@@ -908,7 +932,25 @@ function QD.raid.verzik_p2_solve(opts)
                 intent.gear = S.ids.weapon
                 S.weapon_tried = F.tick
             end
-            if F.hp < V.HP_EAT then intent.eat = true end
+            -- (a brew when the anglerfish are gone, as P3 does: the relay's
+            -- chests sell brews, not fish, and with no fish a seat pressed
+            -- an empty eat 49 times and died, relay rl6 seat 3)
+            if F.hp < V.HP_EAT then
+                local fish = nil
+                for _, f in ipairs(S.ids.foods) do
+                    local _, n = api_drive.inv_count(S.ids.inv, f)
+                    if (n or 0) > 0 then fish = f break end
+                end
+                if fish then
+                    intent.eat = fish
+                elseif F.tick - (S.last_drink or -10) >= 3 then
+                    for _, dose in ipairs(S.ids.brews) do
+                        local _, n = api_drive.inv_count(S.ids.inv, dose)
+                        if (n or 0) > 0 then intent.drink = dose break end
+                    end
+                    if intent.drink then S.last_drink = F.tick end
+                end
+            end
             -- prayer points: a super restore below the floor (the lowest dose
             -- first), one sip per three ticks (its own timer)
             if not intent.drink and F.prayer >= V.PRAYER_SIP and F.attack <= F.attack_base + V.COMBAT_REDOSE

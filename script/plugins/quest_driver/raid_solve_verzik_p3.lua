@@ -141,7 +141,13 @@ function QD.raid._vzp3_ids(weapon)
     local _, prayer_tab = api_drive.tab_by_name("prayer")
     local function doses(stem)
         local out = {}
-        for n = 1, 4 do out[n] = sym("obj", "br_" .. n .. stem) end
+        -- (then the plain doses the ToB supply chest sells, enum_1952)
+        for _, pre in ipairs({ "br_", "" }) do
+            for n = 1, 4 do
+                local r, id = api_drive.symbol("obj", pre .. n .. stem)
+                if r == "ok" then out[#out + 1] = id end
+            end
+        end
         return out
     end
     return {
@@ -168,7 +174,10 @@ function QD.raid._vzp3_ids(weapon)
         -- the weapon P1 found in my hand (QD.raid._vzp1_weapon_from_hand)
         weapon = QD.raid.vz_weapon or sym("obj", weapon or "scythe_of_vitur"),
         food = sym("obj", "anglerfish"),
-        restores = doses("dose2restore"),
+        -- (and what the ToB supply chest sells, enum_1952: the relay's seats
+        -- reach Verzik on the chests' fish)
+        foods = { sym("obj", "anglerfish"), sym("obj", "mantaray"), sym("obj", "seaturtle"), sym("obj", "shark") },
+        restores = QD.raid._vzp3_restores(doses("dose2restore")),
         combats = doses("dose2combat"),
         brews = doses("dosepotionofsaradomin"),
         backpack = comp("inventory:items"),
@@ -940,6 +949,16 @@ end
 
 -- ===================================================================== LOOP
 
+-- The super restores, then the prayer potions the ToB supply chest sells
+-- (enum_1952, 2 points): the relay's seats bring those into P3.
+function QD.raid._vzp3_restores(list)
+    for n = 1, 4 do
+        local r, id = api_drive.symbol("obj", n .. "doseprayerrestore")
+        if r == "ok" then list[#list + 1] = id end
+    end
+    return list
+end
+
 function QD.raid.verzik_p3_solve(opts)
     opts = opts or {}
     assert(opts.base, "verzik_p3_solve: opts.base (the room origin, verzik_p1_prepare's) is required")
@@ -1002,7 +1021,7 @@ function QD.raid.verzik_p3_solve(opts)
             if intent.drink then S.last_drink = F.tick end
         end
         if not intent.drink and eat_due then
-            local food = QD.raid._vzp3_first(S, { S.ids.food })
+            local food = QD.raid._vzp3_first(S, S.ids.foods)
             if food then
                 intent.eat = food
                 S.last_eat = F.tick

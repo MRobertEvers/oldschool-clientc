@@ -631,7 +631,6 @@ d_component(lua_State* L)
     int sub = (int)luaL_optinteger(L, 2, -1);
     int id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, symbol);
 
-    (void)sub;
     if( id < 0 )
     {
         lua_pushstring(L, "not_found");
@@ -639,7 +638,12 @@ d_component(lua_State* L)
         return 2;
     }
     lua_pushstring(L, "ok");
-    lua_pushinteger(L, id);
+    /* A slot of an if_setevents component (a store's items, a list's rows)
+     * travels in the id's high bits, as the client's child widget carries its
+     * own sub: d_if_click sends it, where it used to send 0xffff and the
+     * server's last_slot read -1 (the ToB supply chest bought nothing, relay
+     * rl7). With no sub the id is the component's, as before. */
+    lua_pushinteger(L, sub >= 0 ? ((lua_Integer)id | ((lua_Integer)(sub + 1) << 32)) : (lua_Integer)id);
     return 2;
 }
 
@@ -1566,14 +1570,16 @@ static int
 d_if_click(lua_State* L)
 {
     struct ScriptBot* bot = bot_of(L);
-    int component = (int)luaL_checkinteger(L, 1);
+    lua_Integer handle = luaL_checkinteger(L, 1);
+    int component = (int)(handle & 0xffffffff);
+    int sub = (int)(handle >> 32) - 1;   /* d_component's slot, -1: none */
     int op = (int)luaL_optinteger(L, 2, 1);
 
     if( op < 1 || op > 10 )
         return push_result(L, "refused", "op out of range");
     if( !panel_showing(bot, component) )
         return push_result(L, "refused", "the node or an ancestor of it is display-hidden");
-    send_if_buttonx(bot, component, 0xffff, 0xffff, op);
+    send_if_buttonx(bot, component, sub >= 0 ? sub : 0xffff, 0xffff, op);
     return push_result(L, "ok", "button sent");
 }
 

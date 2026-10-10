@@ -105,6 +105,7 @@ function QD.raid._tob_common_ids(who, opts)
         { "energy", "varp", "varp300_sa_energy" }, { "spec_on", "varp", "varp301_sa_attack" },
         { "backpack", "component", "inventory:items" },
         { "spec_orb", "component", "orbs:specbutton" },
+        { "run_on", "varp", "varp173_option_run" }, { "run_orb", "component", "orbs:runbutton" },
     })
     for _, tab in ipairs({ "inventory", "prayer", "equipment", "magic" }) do
         local tr, id = api_drive.tab_by_name(tab)
@@ -119,21 +120,32 @@ function QD.raid._tob_common_ids(who, opts)
         assert(cr == "ok", who .. ": no component wornitems:slot" .. pos)
         ids.worn_slot[pos] = id
     end
+    -- (the raid's own doses first, then the plain ones the supply chest
+    -- sells: enum_1952 stocks 4dosepotionofsaradomin and 4dose2restore, and a
+    -- list of br_ names alone left every bought potion unused, relay rl9)
     local function doses(stem)
         local out = {}
-        for n = 1, 4 do
-            local r, id = api_drive.symbol("obj", "br_" .. n .. stem)
-            assert(r == "ok", who .. ": no obj br_" .. n .. stem)
-            out[n] = id
+        for _, pre in ipairs({ "br_", "" }) do
+            for n = 1, 4 do
+                local r, id = api_drive.symbol("obj", pre .. n .. stem)
+                if r == "ok" then out[#out + 1] = id end
+            end
         end
+        assert(#out >= 4, who .. ": no obj br_1" .. stem)
         return out
     end
+    -- (prayer potions after the super restores: the ToB chest sells them
+    -- at 2 points, enum_1953, and P3 ran its seats dry of prayer, relay rl15)
     ids.restores = doses("dose2restore")
+    for n = 1, 4 do
+        local r, id = api_drive.symbol("obj", n .. "doseprayerrestore")
+        if r == "ok" then ids.restores[#ids.restores + 1] = id end
+    end
     ids.brews = doses("dosepotionofsaradomin")
     ids.combats = doses("dose2combat")
     ids.rangings = doses("doserangerspotion")
     ids.food = {}
-    for _, name in ipairs((opts and opts.food) or { "anglerfish" }) do
+    for _, name in ipairs((opts and opts.food) or { "anglerfish", "mantaray", "seaturtle", "shark" }) do
         local r, id = api_drive.symbol("obj", name)
         assert(r == "ok", who .. ": no obj " .. name)
         ids.food[#ids.food + 1] = id
@@ -206,6 +218,8 @@ function QD.raid._tob_measure(S)
     end
     local er, energy = api_drive.varp(ids.energy)
     F.energy = (er == "ok" and energy) or 0
+    local rr, run_on = api_drive.varp(ids.run_on)
+    F.run_on = (rr == "ok" and run_on == 1)
     local sr, spec_on = api_drive.varp(ids.spec_on)
     F.spec_armed = (sr == "ok" and spec_on == 1)
     return F
@@ -267,7 +281,8 @@ function QD.raid._tob_supplies(S, F, want, intent)
     -- stat behind the highest attack bonus every other storm; restoring every
     -- point drank 38 doses in one Maiden, seed m2 seat 3), a redose only when
     -- the boost has decayed and not within BOOST_GAP of the last one
-    if not intent.drink and not intent.eat and want.boost_stat and F.tick - (S.last_drink or -10) >= 3 then
+    if not intent.drink and not intent.eat and want.boost_stat and not QD.raid.tob_boosts_held
+        and F.tick - (S.last_drink or -10) >= 3 then
         local lv = F.levels[want.boost_stat]
         if lv and lv.level < lv.base - V.DRAIN_RESTORE then
             intent.drink = QD.raid._tob_first(S, S.ids.restores)
@@ -488,6 +503,15 @@ end
 function QD.raid._tob_emit(S, F, order, intent)
     local V = QD.TOBS
     local ids = S.ids
+    -- RUN BACK ON: the game turns run off at 0 energy and nothing turns it
+    -- back on; a long Bloat drained two seats, and walking a tile a tick they
+    -- stood in his stomp (relay rg t921, 58 and 48, a seat dead). Pressed once
+    -- energy is back to 5%, at most every three ticks.
+    if not F.run_on and F.energy >= 500 and F.tick - (S.run_pressed or -10) >= 3 then
+        api_drive.if_click(ids.run_orb, 1)
+        S.run_pressed = F.tick
+        QD.raid._tob_trace(S, F.tick, "run back on at energy " .. F.energy)
+    end
     local gear = intent.gear
     if gear and #gear == 0 then gear = nil end
     local unequip = intent.unequip
@@ -774,6 +798,57 @@ end
 -- A walk order to (x, z), one packet; the server paths.
 function QD.raid.tob_move(x, z)
     return api_drive.move_to(x, z)
+end
+
+-- BETWEEN ROOMS: eat and drink back up, a tick at a time, before the next
+-- room's barrier. The content's ~tob_restore heals only the raider its room
+-- watchdog runs for, so a member reaches the next room on what the last one
+-- left (relay rl5: seat 3 out of Maiden on 16 of 99 died in Sotetseg's first
+-- death ball). Anglerfish first (it overheals), then brews; a restore for
+-- prayer under 70 or a drained stat. -> hp, prayer at the end
+function QD.raid.tob_top_up(max_ticks)
+    local S = QD.raid._tob_state("top_up", QD.raid._tob_common_ids("top_up"), {}, {})
+    local F = QD.raid._tob_measure(S)
+    local deadline = F.tick + (max_ticks or 30)
+    while F.tick <= deadline do
+        local hp_ok = F.hp >= F.hp_base - 6
+        local pray_ok = F.prayer >= 70
+        local lv = F.levels.attack
+        local drained = lv and lv.level < lv.base
+        if hp_ok and pray_ok and not drained then break end
+        local intent = {}
+        if not hp_ok and F.tick - (S.last_eat or -10) >= 3 then
+            local food = QD.raid._tob_first(S, S.ids.food)
+            if food then
+                intent.eat = food
+                S.last_eat = F.tick
+            end
+        end
+        if F.tick - (S.last_drink or -10) >= 3 then
+            if not hp_ok and intent.eat == nil then
+                intent.drink = QD.raid._tob_first(S, S.ids.brews)
+            elseif not pray_ok or drained then
+                intent.drink = QD.raid._tob_first(S, S.ids.restores)
+            end
+            if intent.drink then S.last_drink = F.tick end
+        end
+        if intent.eat == nil and intent.drink == nil and (F.tick - (S.last_drink or -10) >= 3)
+            and (F.tick - (S.last_eat or -10) >= 3) then
+            break   -- nothing left to take
+        end
+        QD.raid._tob_emit(S, F, nil, intent)
+        await({ event = "server_tick", match = function() return true end, note = "tob_top_up" }, 3)
+        F = QD.raid._tob_measure(S)
+    end
+    return F.hp, F.prayer
+end
+
+-- THE RELAY'S COMBAT POTIONS are Verzik's: the rooms before her drink no
+-- boost (QD.raid._tob_supplies), the chests sell none, and a party that
+-- reached P3 unboosted and brew-drained took it 470+ ticks against the room
+-- test's 346, and ran dry (relay rl13, four seeds of four).
+function QD.raid.tob_hold_boosts(on)
+    QD.raid.tob_boosts_held = (on == true)
 end
 
 -- My 64-tile map square ("x,z" of its corner).
