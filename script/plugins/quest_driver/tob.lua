@@ -137,6 +137,10 @@ function QD.raid._tob_common_ids(who, opts)
     -- (prayer potions after the super restores: the ToB chest sells them
     -- at 2 points, enum_1953, and P3 ran its seats dry of prayer, relay rl15)
     ids.restores = doses("dose2restore")
+    -- (a drained stat takes a super restore only: a prayer potion restores
+    -- no stat, and the top-up drank seat 1's 13 doses of them against a
+    -- drained attack before Verzik, relay rl21 rq)
+    ids.stat_restores = doses("dose2restore")
     for n = 1, 4 do
         local r, id = api_drive.symbol("obj", n .. "doseprayerrestore")
         if r == "ok" then ids.restores[#ids.restores + 1] = id end
@@ -285,7 +289,7 @@ function QD.raid._tob_supplies(S, F, want, intent)
         and F.tick - (S.last_drink or -10) >= 3 then
         local lv = F.levels[want.boost_stat]
         if lv and lv.level < lv.base - V.DRAIN_RESTORE then
-            intent.drink = QD.raid._tob_first(S, S.ids.restores)
+            intent.drink = QD.raid._tob_first(S, S.ids.stat_restores)
         elseif lv and lv.level >= lv.base and lv.level <= lv.base + V.BOOST_REDOSE
             and F.tick - (S.last_boost or -100) >= V.BOOST_GAP then
             intent.drink = QD.raid._tob_first(S, want.boost_stat == "ranged" and S.ids.rangings or S.ids.combats)
@@ -827,7 +831,10 @@ function QD.raid.tob_top_up(max_ticks)
         if F.tick - (S.last_drink or -10) >= 3 then
             if not hp_ok and intent.eat == nil then
                 intent.drink = QD.raid._tob_first(S, S.ids.brews)
-            elseif not pray_ok or drained then
+            elseif drained then
+                intent.drink = QD.raid._tob_first(S, S.ids.stat_restores)
+                    or (not pray_ok and QD.raid._tob_first(S, S.ids.restores)) or nil
+            elseif not pray_ok then
                 intent.drink = QD.raid._tob_first(S, S.ids.restores)
             end
             if intent.drink then S.last_drink = F.tick end

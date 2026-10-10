@@ -178,6 +178,7 @@ function QD.raid._vzp3_ids(weapon)
         -- reach Verzik on the chests' fish)
         foods = { sym("obj", "anglerfish"), sym("obj", "mantaray"), sym("obj", "seaturtle"), sym("obj", "shark") },
         restores = QD.raid._vzp3_restores(doses("dose2restore")),
+        stat_restores = doses("dose2restore"),
         combats = doses("dose2combat"),
         brews = doses("dosepotionofsaradomin"),
         backpack = comp("inventory:items"),
@@ -1032,8 +1033,11 @@ function QD.raid.verzik_p3_solve(opts)
         end
         if F.prayer > 0 and not F.lit[S.prot] then intent.pray = S.prot end
         if not intent.drink and not intent.eat and F.tick - (S.last_drink or -10) >= 3 then
+            -- (a drain takes a super restore only: a prayer potion restores
+            -- no stat, and every brew drains attack, so a seat out of super
+            -- restores sipped its prayer potions dry, relay rl21)
             if F.attack < F.attack_base then
-                intent.drink = QD.raid._vzp3_first(S, S.ids.restores)
+                intent.drink = QD.raid._vzp3_first(S, S.ids.stat_restores)
             elseif F.attack <= F.attack_base + V.COMBAT_REDOSE then
                 intent.drink = QD.raid._vzp3_first(S, S.ids.combats)
             end

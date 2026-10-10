@@ -219,13 +219,108 @@ end
 
 -- ================================================================== THE STACK
 
+-- THE LOOKAHEAD. Pools are permanent and one lands a spit, so a greedy pick
+-- corners the stack: on a long P2 (49 spits, relay rl21 rb/rp/rq/re) the
+-- third lap ran into its own pools on the west face and stood on B_k again
+-- (every seat spat on, then chained). Each pick is scored by how many more
+-- cycles (A beside him, then a B one run on) the pools leave open, LOOK deep,
+-- splashes ignored past the pick itself. The moves out of a tile are geometry
+-- only: built once a tile (warmed through P1, a few tiles a tick) so a search
+-- node is a handful of pool lookups (the step budget is 400000 instructions).
+local LOOK, PICK_NODES, WARM_A_TICK = 6, 60, 6
+
+-- The cycles out of a B tile: each next B (2..4 off him, a run from an A
+-- beside him that is 2 from `at`, 2+ from `at`) with the A's that reach it.
+local function moves_from(S, x0, z0)
+    local k0 = x0 .. "," .. z0
+    local M = S.moves[k0]
+    if M then return M end
+    local B = S.base
+    M = {}
+    local by_b = {}
+    for adx = -2, 2 do
+        for adz = -2, 2 do
+            local ax, az = x0 + adx, z0 + adz
+            if beside5(B, ax, az) and cheb(ax, az, x0, z0) == 2 then
+                local ak = ax .. "," .. az
+                for dx = -2, 2 do
+                    for dz = -2, 2 do
+                        local x, z = ax + dx, az + dz
+                        local g = gap5(B, x, z)
+                        if g >= 2 and g <= 4 and in_arena(B, x, z) and cheb(x, z, x0, z0) >= 2 then
+                            local bk = x .. "," .. z
+                            local m = by_b[bk]
+                            if not m then
+                                m = { x = x, z = z, k = bk, as = {} }
+                                by_b[bk] = m
+                                M[#M + 1] = m
+                            end
+                            m.as[#m.as + 1] = ak
+                        end
+                    end
+                end
+            end
+        end
+    end
+    S.moves[k0] = M
+    return M
+end
+
+-- Build a few tiles' moves a tick (P1 has 100+ idle ticks).
+local function warm_moves(S)
+    if S.warm == nil then
+        local B, A = S.base, QD.XARP.ARENA
+        S.warm, S.warm_i = {}, 1
+        for x = B.x + A.x0, B.x + A.x1 do
+            for z = B.z + A.z0, B.z + A.z1 do
+                local g = gap5(B, x, z)
+                if g >= 2 and g <= 3 then S.warm[#S.warm + 1] = { x, z } end
+            end
+        end
+        return
+    end
+    for _ = 1, WARM_A_TICK do
+        local w = S.warm[S.warm_i]
+        if w == nil then return end
+        moves_from(S, w[1], w[2])
+        S.warm_i = S.warm_i + 1
+    end
+end
+
+-- Cycles open after the stack's spit lands on `at` (marked a pool for the
+-- search).
+local function cycles_after(S, F, sim, at, depth, budget)
+    if depth == 0 then return 0 end
+    budget.n = budget.n - 1
+    if budget.n <= 0 then return 0 end
+    local k = at.x .. "," .. at.z
+    local was = sim[k]
+    sim[k] = true
+    local best = 0
+    for _, m in ipairs(moves_from(S, at.x, at.z)) do
+        if not F.pools[m.k] and not sim[m.k] then
+            local reach = false
+            for _, ak in ipairs(m.as) do
+                if not F.pools[ak] then reach = true break end
+            end
+            if reach then
+                local r = 1 + cycles_after(S, F, sim, m, depth - 1, budget)
+                if r > best then best = r end
+                if best >= depth or budget.n <= 0 then break end
+            end
+        end
+    end
+    sim[k] = was
+    return best
+end
+
 -- B: off his 5x5 by 2..4, in the arena, not a pool, Chebyshev <= 2 from where
 -- the stack is (one run tick), 2+ from the last B, and clear of every splash
--- reading at the two ends it is held. The first B clockwise of the last; the
--- inner ring first.
+-- reading at the two ends it is held. The most cycles left open first, then
+-- the inner ring, then the first clockwise of the last.
 local function pick_B(S, F, from, last_B, t0)
     local B = S.base
-    local best, best_key = nil, nil
+    local best, best_open, best_key = nil, nil, nil
     for dx = -2, 2 do
         for dz = -2, 2 do
             local x, z = from.x + dx, from.z + dz
@@ -233,8 +328,13 @@ local function pick_B(S, F, from, last_B, t0)
             if g >= 2 and g <= 4 and in_arena(B, x, z) and not F.pools[x .. "," .. z]
                 and (last_B == nil or cheb(x, z, last_B.x, last_B.z) >= 2)
                 and not splashed(S, x, z, t0) and not splashed(S, x, z, t0 + 1) then
+                local sim = {}
+                if last_B then sim[last_B.x .. "," .. last_B.z] = true end
+                local open = cycles_after(S, F, sim, { x = x, z = z }, LOOK, { n = PICK_NODES })
                 local key = g * 10 + cw(B, last_B or from, { x = x, z = z })
-                if best_key == nil or key < best_key then best, best_key = { x = x, z = z }, key end
+                if best == nil or open > best_open or (open == best_open and key < best_key) then
+                    best, best_open, best_key = { x = x, z = z }, open, key
+                end
             end
         end
     end
@@ -243,17 +343,36 @@ end
 
 -- A: beside him (not a corner), Chebyshev exactly 2 from B (one run tick,
 -- and the chain on B lands while the stack is here), not a pool, clear of the
--- splash readings at its two ends. The first clockwise of B.
+-- splash readings at its two ends. The A whose best next B leaves the most
+-- cycles open, then the first clockwise of B.
 local function pick_A(S, F, from_B, t0)
     local B = S.base
-    local best, best_key = nil, nil
+    local best, best_open, best_key = nil, nil, nil
     for dx = -2, 2 do
         for dz = -2, 2 do
             local x, z = from_B.x + dx, from_B.z + dz
             if beside5(B, x, z) and cheb(x, z, from_B.x, from_B.z) == 2 and not F.pools[x .. "," .. z]
                 and not splashed(S, x, z, t0) and not splashed(S, x, z, t0 + 1) then
+                -- the cycles open through this A: its best B_k+1, the
+                -- spit on B_k landed
                 local key = cw(B, from_B, { x = x, z = z })
-                if best_key == nil or key < best_key then best, best_key = { x = x, z = z }, key end
+                local a_open = 0
+                local ak = x .. "," .. z
+                local sim = { [from_B.x .. "," .. from_B.z] = true }
+                for _, m in ipairs(moves_from(S, from_B.x, from_B.z)) do
+                    local via = false
+                    for _, k in ipairs(m.as) do
+                        if k == ak then via = true break end
+                    end
+                    if via and not F.pools[m.k] then
+                        local r = 1 + cycles_after(S, F, sim, m, LOOK - 1, { n = PICK_NODES })
+                        if r > a_open then a_open = r end
+                    end
+                end
+                local open = a_open
+                if best == nil or open > best_open or (open == best_open and key < best_key) then
+                    best, best_open, best_key = { x = x, z = z }, open, key
+                end
             end
         end
     end
@@ -327,6 +446,19 @@ local function exhumed_goal(S, F)
     for key, pid in pairs(S.assigned) do
         if pid == F.pid then return S.exh[key] end
     end
+    -- the twelfth exhumed done (R+106; he stands at R+117): every seat to
+    -- the first stack tile now, round his feeding 3x3. Walked at the stand-up
+    -- the NE seat's path crossed his new 5x5 and took the stomp ("up to 9
+    -- damage per tick" underneath, tob_xarpus.rs2), every relay seed, rl21.
+    if S.exhumeds >= 12 and next(S.assigned) == nil then
+        if S.stack_B == nil then
+            S.stack_B = pick_B(S, F, { x = B.x + 31, z = B.z + 35 }, nil, F.tick)
+                or { x = B.x + 30, z = B.z + 35 }
+            S.B_cycle = -1
+            QD.raid._tob_trace(S, F.tick, "the stack gathers at " .. S.stack_B.x .. "," .. S.stack_B.z)
+        end
+        return { x = S.stack_B.x, z = S.stack_B.z, home = true }
+    end
     -- idle: my home (seat order)
     local seat = QD.raid._tob_seat(F) or 1
     local h = V.HOMES[((seat - 1) % #V.HOMES) + 1]
@@ -398,6 +530,7 @@ function QD.raid._xarp_step(S, F)
     end
 
     if phase == "exhumeds" then
+        warm_moves(S)
         local goal = exhumed_goal(S, F)
         if goal and (F.me.x ~= goal.x or F.me.z ~= goal.z) then
             order = { mode = "walk", x = goal.x, z = goal.z }
@@ -500,7 +633,7 @@ end
 function QD.raid.xarpus_solve(opts)
     opts = opts or {}
     local S = QD.raid._tob_state("xarpus_solve", QD.raid._xarp_ids(), opts, {
-        exh = {}, assigned = {}, landings = {}, proj_live = {}, phase_log = {},
+        exh = {}, assigned = {}, landings = {}, proj_live = {}, phase_log = {}, moves = {},
         exhumeds = 0, orbs = 0, spits = 0, turns = 0,
     })
     QD.raid._tob_trace(S, api_drive.tick(), "phase entry")
