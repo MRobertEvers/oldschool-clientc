@@ -2021,10 +2021,6 @@ app_plugin_varp(void* user, int varp_id)
  * rate nothing else believes. `era` is the same thing one level up, since it
  * carries all of them at once. None of those are here.
  *
- * `varbit_interface_resizing` is absent for a different reason: it is read
- * exactly once, at the boot that seeds the varbit, so a control over it would
- * do nothing until the next launch and say nothing about why.
- *
  * Every flag is applied LIVE. The call sites read through `app->features` and
  * `app->revconfig_profile.camera` each time they need an answer, so the two
  * that had latched a copy at boot -- the audio device's monophony rule and the

@@ -481,40 +481,6 @@ struct ToriRS_FeatureTable
      * Overridable per boot with TORIRSSERVER_RUN_ENERGY=classic|osrs2025.
      */
     int run_energy_model;
-
-    /* --- interface settings ---------------------------------------------- */
-
-    /**
-     * The varbit carrying the player's "interface resizing" setting, or 0 for
-     * an era that has no such setting (the classic default: 2004 has no
-     * resizable mode at all).
-     *
-     * This is a *client* setting — the settings panel toggles it with
-     * `setvarbit` (clientscript 3965 case 442) and no server transmits it — so
-     * an unseeded client comes up with it at 0, which is not what a real
-     * account looks like and is not a neutral value.
-     *
-     * It decides where every main modal is drawn. `~script7925` gates the
-     * cache's interface-window helper on it, and the branch it selects places
-     * the modal's panel inside the modal's own root two different ways:
-     *
-     *   on  — clamp the saved default box to the host
-     *         (`max(0, min(%varcint1170, host_w - %varcint1168))`), which
-     *         collapses to (0,0) when the host is the 512x334 mainmodal slot,
-     *         i.e. the panel lands exactly on the slot.
-     *   off — `if_setposition(if_getx(mainmodal), if_gety(mainmodal), 0, 0, …)`,
-     *         which is the slot's own *parent-relative* origin. In resizable
-     *         mode the slot is centred in `hud_container_front`, so that adds
-     *         the centring offset a second time and every modal drifts down and
-     *         right by half the chrome insets (+374,+219 at 1511x938) — out
-     *         from under the dimmer hole clientscript 910 paints for it.
-     *
-     * Off is only self-consistent where the slot's relative origin is (0,0),
-     * which is why the same proc also returns 0 for fixed window mode and for
-     * mobile. Stating it here rather than in app.c because the id is a lineage
-     * fact: rev 230's varbit table stops at 17425, so the seed no-ops there.
-     */
-    int varbit_interface_resizing;
 };
 
 /* Era getters (static singletons, like the rev tables). */

@@ -63,6 +63,8 @@ static const struct ToriRSServerSymbolRef k_refs[] = {
         { TORIRSSERVER_PACK_COMPONENT, "toplevel_osrs_stretch:mainmodal", &g_ids.com_gameframe_mainmodal },
         { TORIRSSERVER_PACK_COMPONENT, "toplevel_osrs_stretch:sidemodal", &g_ids.com_gameframe_sidemodal },
         { TORIRSSERVER_PACK_COMPONENT, "toplevel_osrs_stretch:floater", &g_ids.com_gameframe_floater },
+        { TORIRSSERVER_PACK_COMPONENT, "toplevel_osrs_stretch:hpbar_hud",
+          &g_ids.com_gameframe_hpbar_hud },
         { TORIRSSERVER_PACK_COMPONENT, "toplevel_osrs_stretch:helper_content",
           &g_ids.com_gameframe_helper },
         { TORIRSSERVER_PACK_COMPONENT, "chatbox:chatmodal", &g_ids.com_chatbox_modal },

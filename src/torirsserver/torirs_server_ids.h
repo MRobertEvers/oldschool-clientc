@@ -64,7 +64,8 @@ struct ToriRSServerIds
      *  than into the main modal. */
     int iface_worldmap;
     /**
-     * The enemy health overlay, which opens into the floater slot too.
+     * The enemy health overlay, which opens into its own `hpbar_hud` slot
+     * (com_gameframe_hpbar_hud).
      *
      * Four All Settings rows configure it (111, 299, 300, 301) and the cache
      * lays it out itself; nothing in the cache OPENS it. See
@@ -147,8 +148,19 @@ struct ToriRSServerIds
      */
     int com_gameframe_mainmodal;
     int com_gameframe_sidemodal;
-    /** The floating panel, which is where the world map goes. */
+    /** The floating panel: the world map, the skill guide and the collection
+     *  log, each a full-size overlay that places its own window inside it. */
     int com_gameframe_floater;
+    /**
+     * Where the enemy health overlay (303) mounts: the gameframe's own
+     * `hpbar_hud` slot, which every toplevel carries.
+     *
+     * Not `floater`. It used to go there, and floater holds one interface:
+     * a fight evicted an open world map / skill guide / collection log, and
+     * the close at the end of the linger closed whichever of them the player
+     * had opened since. OpenRune-Server mounts 303 on this slot too.
+     */
+    int com_gameframe_hpbar_hud;
     /**
      * Where the helper panel mounts.
      *

@@ -17489,7 +17489,7 @@ ToriRSServer_WorldSelftest(void)
             };
             int guide = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_INTERFACE, "skill_guide_v2");
             int slot = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT,
-                                              "toplevel_osrs_stretch:mainmodal");
+                                              "toplevel_osrs_stretch:floater");
             int seen[CELL_COUNT];
             int seen_count = 0;
             int shared_tab = -1;
@@ -17497,7 +17497,7 @@ ToriRSServer_WorldSelftest(void)
 
             SELFTEST_CHECK(guide > 0, "the content pack should name skill_guide_v2");
             SELFTEST_CHECK(slot > 0,
-                           "the content pack should name toplevel_osrs_stretch:mainmodal");
+                           "the content pack should name toplevel_osrs_stretch:floater");
 
             for( int i = 0; i < CELL_COUNT; i++ )
             {
@@ -17558,12 +17558,17 @@ ToriRSServer_WorldSelftest(void)
                     SELFTEST_CHECK(group == guide,
                                    "%s should mount skill_guide_v2 (%d), got %d", k_cells[i],
                                    guide, group);
+                    /* floater, as an overlay: 1904 places the window at
+                     * if_getx/if_gety(mainmodal) inside 860's own root, which
+                     * is only right when that root is the full-size floater.
+                     * On the centred mainmodal it is offset twice and clipped
+                     * (skill_guide.rs2). */
                     SELFTEST_CHECK(target == slot,
-                                   "%s should mount into toplevel's mainmodal (%d), got %d",
+                                   "%s should mount into toplevel's floater (%d), got %d",
                                    k_cells[i], slot, target);
-                    SELFTEST_CHECK(type == 0,
-                                   "%s should mount as a modal (type 0), got %d — CLOSE_MODAL "
-                                   "keys off the modal slot", k_cells[i], type);
+                    SELFTEST_CHECK(type == 1,
+                                   "%s should mount as an overlay (type 1), got %d",
+                                   k_cells[i], type);
                 }
 
                 if( run_at < 0 )
@@ -17719,25 +17724,45 @@ ToriRSServer_WorldSelftest(void)
                  * stat cells does not prove that the guide can be dismissed:
                  * without this op-1 range the authoritative client highlights
                  * a perfectly drawn close button but never builds IF_BUTTON1.
+                 *
+                 * Armed on every OPEN, not at login: the official client drops
+                 * a group's event masks when the group closes, so a login-time
+                 * mask is gone after the guide's first close. So this captures
+                 * the open (op 2 on stats:attack), not the login burst.
                  */
                 {
+                    static struct ToriRSServerCapture open_capture;
                     int close = ToriRSServer_ContentSymbol(
                         TORIRSSERVER_PACK_COMPONENT, "skill_guide_v2:close");
+                    int attack = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT,
+                                                           "stats:attack");
+                    uint8_t open_button[6];
                     int mask = -1;
                     int from = -2;
                     int to = -2;
 
-                    for( int p = 0; p < capture.count; p++ )
+                    open_button[0] = (uint8_t)(attack >> 24);
+                    open_button[1] = (uint8_t)(attack >> 16);
+                    open_button[2] = (uint8_t)(attack >> 8);
+                    open_button[3] = (uint8_t)attack;
+                    open_button[4] = 0xff;
+                    open_button[5] = 0xff;
+                    ToriRSServer_CaptureBegin(srv, &open_capture);
+                    selftest_handle(player, PKTOUT_NAME_IF_BUTTON2, open_button,
+                                    sizeof(open_button));
+                    ToriRSServer_CaptureEnd(srv);
+
+                    for( int p = 0; p < open_capture.count; p++ )
                     {
                         int ev_uid = -1;
                         int ev_from = 0;
                         int ev_to = 0;
                         uint32_t ev_mask = 0;
 
-                        if( capture.packets[p].name != PKT_NAME_IF_SETEVENTS )
+                        if( open_capture.packets[p].name != PKT_NAME_IF_SETEVENTS )
                             continue;
                         if( !ToriRSServer_WireReadIfSetevents(
-                                srv->wire, capture.packets[p].data, capture.packets[p].len,
+                                srv->wire, open_capture.packets[p].data, open_capture.packets[p].len,
                                 &ev_uid, &ev_from, &ev_to, &ev_mask) )
                             continue;
                         if( ev_uid != close )
@@ -17810,9 +17835,23 @@ ToriRSServer_WorldSelftest(void)
                 SELFTEST_CHECK(journal > 0, "the content pack should name questjournal");
                 SELFTEST_CHECK(cook_row >= 0, "the pack should name quest_cooksassistant");
 
-                ToriRSServer_CaptureBegin(srv, &arm);
-                ToriRSServer_ScriptsRunProc(srv, "[proc,skill_guide_login]", NULL, 0);
-                ToriRSServer_CaptureEnd(srv);
+                /* Armed by [if_open,skill_guide_v2], so capture an open. */
+                {
+                    int attack = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT,
+                                                           "stats:attack");
+                    uint8_t open_button[6];
+
+                    open_button[0] = (uint8_t)(attack >> 24);
+                    open_button[1] = (uint8_t)(attack >> 16);
+                    open_button[2] = (uint8_t)(attack >> 8);
+                    open_button[3] = (uint8_t)attack;
+                    open_button[4] = 0xff;
+                    open_button[5] = 0xff;
+                    ToriRSServer_CaptureBegin(srv, &arm);
+                    selftest_handle(player, PKTOUT_NAME_IF_BUTTON2, open_button,
+                                    sizeof(open_button));
+                    ToriRSServer_CaptureEnd(srv);
+                }
 
                 for( int p = 0; p < arm.count; p++ )
                 {
@@ -18490,9 +18529,12 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_INTERFACE, "collection_overview");
             int tab_container =
                 ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "side_journal:tab_container");
+            int floater = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT,
+                                                 "toplevel_osrs_stretch:floater");
 
             SELFTEST_CHECK(layer > 0, "summary_click_layer should resolve by name");
             SELFTEST_CHECK(slot > 0, "mainmodal should resolve by name");
+            SELFTEST_CHECK(floater > 0, "floater should resolve by name");
 
             /* Arming: one IF_SETEVENTS covering 0..7 with ops 1-4 (mask 30).
              * Combat Level: same if_open pushes clientscript 3954 with three
@@ -18561,7 +18603,7 @@ ToriRSServer_WorldSelftest(void)
                 int op_name;
                 int sub;
                 int expect_iface;
-                int expect_target; /* 0 = mainmodal, 1 = tab_container */
+                int expect_target; /* 0 = mainmodal, 1 = tab_container, 2 = floater */
                 const char* label;
             } cases[] = {
                 { PKTOUT_NAME_IF_BUTTON1, 3, questlist, 1, "Quest List" },
@@ -18570,8 +18612,8 @@ ToriRSServer_WorldSelftest(void)
                 { PKTOUT_NAME_IF_BUTTON2, 5, ca_bosses, 0, "CA Bosses" },
                 { PKTOUT_NAME_IF_BUTTON3, 5, ca_tasks, 0, "CA Tasks" },
                 { PKTOUT_NAME_IF_BUTTON4, 5, ca_rewards, 0, "CA Rewards" },
-                { PKTOUT_NAME_IF_BUTTON1, 6, collection, 0, "Collection Log" },
-                { PKTOUT_NAME_IF_BUTTON2, 6, collection_overview, 0, "Collection Overview" },
+                { PKTOUT_NAME_IF_BUTTON1, 6, collection, 2, "Collection Log" },
+                { PKTOUT_NAME_IF_BUTTON2, 6, collection_overview, 2, "Collection Overview" },
             };
 
             for( size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++ )
@@ -18579,8 +18621,9 @@ ToriRSServer_WorldSelftest(void)
                 static struct ToriRSServerCapture capture;
                 uint8_t button[6];
                 int open_at;
-                int expect_target =
-                    cases[i].expect_target ? tab_container : slot;
+                int expect_target = cases[i].expect_target == 2 ? floater
+                                    : cases[i].expect_target   ? tab_container
+                                                               : slot;
 
                 if( cases[i].expect_iface <= 0 || expect_target <= 0 )
                     continue;

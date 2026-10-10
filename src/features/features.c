@@ -47,8 +47,6 @@ static struct ToriRS_FeatureTable const k_features_lostcity = {
     .effects_monophonic = 1,
     /* Agility feeds the restore only; drain is weight alone. */
     .run_energy_model = TORIRS_RUN_ENERGY_CLASSIC,
-    /* No resizable mode, so no such setting. */
-    .varbit_interface_resizing = 0,
 };
 
 /*
@@ -118,9 +116,6 @@ static struct ToriRS_FeatureTable const k_features_osrs = {
      * TORIRSSERVER_RUN_ENERGY=classic rather than by editing this line.
      */
     .run_energy_model = TORIRS_RUN_ENERGY_OSRS_2025,
-    /* `settings_interface_resizing` (gameval name, archive 14). Absent from
-     * rev 230's varbit table, where the seed is a no-op. */
-    .varbit_interface_resizing = 17772,
 };
 
 /*
@@ -163,7 +158,6 @@ static struct ToriRS_FeatureTable const k_features_server_routed = {
     .effects_monophonic = 0,
     /* Same modern server generation as osrs. */
     .run_energy_model = TORIRS_RUN_ENERGY_OSRS_2025,
-    .varbit_interface_resizing = 17772,
 };
 
 struct ToriRS_FeatureTable const*

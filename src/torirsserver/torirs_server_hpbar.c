@@ -100,7 +100,7 @@ ToriRSServer_HpBarTick(
     assert(srv);
     assert(player);
 
-    if( ids->iface_hpbar_hud <= 0 )
+    if( ids->iface_hpbar_hud <= 0 || ids->com_gameframe_hpbar_hud <= 0 )
         return;
 
     slot = hpbar_target_slot(player);
@@ -169,7 +169,9 @@ ToriRSServer_HpBarTick(
         if( getenv("TORIRS_HPBAR_DEBUG") )
             fprintf(stderr, "hpbar: close\n");
         ToriRSServer_WorldSetVarpOn(srv, player, ids->varp_hpbar_hud_npc, -1);
-        ToriRSServer_SendIfClosesub(player, ToriRSServer_PlayerFloater(player));
+        /* Its own slot, not floater: see ToriRSServerIds.com_gameframe_hpbar_hud.
+         * The send remaps the stretch spelling onto the live gameframe. */
+        ToriRSServer_SendIfClosesub(player, ids->com_gameframe_hpbar_hud);
         return;
     }
 
@@ -188,23 +190,23 @@ ToriRSServer_HpBarTick(
      */
     if( !player->hpbar_open )
     {
-        int const floater = ToriRSServer_PlayerFloater(player);
+        int const host = ids->com_gameframe_hpbar_hud;
         player->hpbar_open = TORIRSSERVER_HPBAR_OPENING;
         if( getenv("TORIRS_HPBAR_DEBUG") )
             fprintf(
                 stderr,
                 "hpbar: open iface %d into %d:%d (live gameframe %d) for npc type %d (%d/%d)\n",
                 ids->iface_hpbar_hud,
-                TORIRSSERVER_COM_GROUP(floater),
-                TORIRSSERVER_COM_CHILD(floater),
+                TORIRSSERVER_COM_GROUP(host),
+                TORIRSSERVER_COM_CHILD(host),
                 ToriRSServer_PlayerGameframeIface(player),
                 want_type,
                 want_hp,
                 want_max);
         ToriRSServer_SendIfOpensub(
             player,
-            TORIRSSERVER_COM_GROUP(floater),
-            TORIRSSERVER_COM_CHILD(floater),
+            TORIRSSERVER_COM_GROUP(host),
+            TORIRSSERVER_COM_CHILD(host),
             ids->iface_hpbar_hud,
             1);
         return;

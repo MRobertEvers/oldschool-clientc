@@ -620,25 +620,16 @@ Task_AppBoot_Run(
             VarPManager_GetVarp(&app->varps, RS_CS2_VARP_AREA_VOLUME));
 
     /*
-     * Seed the "interface resizing" setting, for the same reason and with the
-     * same precedence as the four volumes above: it is a client setting nobody
-     * transmits, and the zero SetVarbitTypes leaves behind is a value, not an
-     * absence.
-     *
-     * Which era owns the id — and the whole account of what the two branches do
-     * — is in features.h. In short: at zero the cache's interface-window helper
-     * (clientscript 1898, and 1904 for the skill guide) positions a modal's
-     * panel at `if_getx/if_gety(mainmodal)`, the slot's *parent-relative*
-     * origin, inside the modal's own root. In resizable mode the slot is
-     * centred in `hud_container_front`, so that applies the centring offset
-     * twice and every main modal sits down-and-right of the hole clientscript
-     * 910 dims for it, half-under the sidebar and the chatbox.
-     *
-     * Optimistic, before the tree is built, and overridable by a server VARP —
-     * all three for the reasons stated above the volumes.
+     * No seed for `settings_interface_resizing` (varbit 17772). The C client
+     * used to force it to 1 here, which took the cache's window helpers
+     * (1898/1904) down their resizable branch and so hid a server bug the
+     * real client showed: the skill guide and collection log were mounted on
+     * the centred 512x334 `mainmodal`, and the branch the setting's default
+     * selects places their window at `if_getx/if_gety(mainmodal)` *inside*
+     * that slot -- offset twice, clipped right and bottom. The server mounts
+     * them on the full-size `floater` now, where both branches are correct,
+     * and this client starts from the same 0 as every other client.
      */
-    if( !app->boot_config_ready && app->features->varbit_interface_resizing > 0 )
-        VarPManager_SetVarbitOptimistic(&app->varps, app->features->varbit_interface_resizing, 1);
 
     /* End of the once-per-session half. A remount from here down rebuilds the
      * tree against the var state the session already has. */
