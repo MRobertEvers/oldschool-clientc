@@ -49,6 +49,31 @@ QD.XARP = {
     NEED_FROM = 2, NEED_TO = 9,
     -- P2: the spit grid
     FIRST_SPIT = 7, SPIT_EVERY = 4,
+    -- P2: THE TOUR, { Bx, Bz, Ax, Az }: every B tile the stack can reach (2..3
+    -- off his 5x5 through an A beside him at Chebyshev 2), 68 of them, each
+    -- 2+ from the last and a run from its A - no pool ever lands on a tile
+    -- still ahead. A Warnsdorff search over that graph
+    -- (tools/xarpus_stack_tour.py); the greedy pick cornered itself after 50
+    -- spits on its own pools (relay rl24 rb), and P2 runs 35-50.
+    TOUR = {
+        { 30, 35, 31, 37 }, { 29, 39, 31, 37 }, { 29, 37, 31, 35 }, { 29, 33, 31, 33 },
+        { 29, 31, 31, 33 }, { 31, 31, 31, 33 }, { 29, 32, 31, 33 }, { 29, 34, 31, 36 },
+        { 29, 38, 31, 36 }, { 29, 36, 31, 37 }, { 30, 39, 32, 38 }, { 32, 40, 32, 38 },
+        { 30, 40, 32, 38 }, { 30, 38, 32, 38 }, { 31, 40, 32, 38 }, { 33, 40, 32, 38 },
+        { 31, 39, 31, 37 }, { 30, 36, 32, 38 }, { 33, 39, 31, 37 }, { 30, 37, 31, 35 },
+        { 29, 35, 31, 37 }, { 32, 39, 34, 38 }, { 36, 40, 34, 38 }, { 34, 39, 36, 38 },
+        { 37, 40, 35, 38 }, { 35, 40, 36, 38 }, { 38, 40, 36, 38 }, { 34, 40, 36, 38 },
+        { 38, 39, 36, 38 }, { 38, 37, 36, 38 }, { 37, 39, 37, 37 }, { 39, 39, 37, 37 },
+        { 35, 39, 37, 37 }, { 39, 38, 37, 37 }, { 36, 39, 37, 37 }, { 38, 38, 37, 36 },
+        { 39, 36, 37, 34 }, { 39, 32, 37, 34 }, { 38, 36, 37, 34 }, { 39, 34, 37, 35 },
+        { 39, 37, 37, 35 }, { 39, 33, 37, 33 }, { 39, 31, 37, 33 }, { 39, 35, 37, 33 },
+        { 38, 31, 37, 33 }, { 38, 35, 37, 33 }, { 37, 31, 37, 33 }, { 38, 33, 36, 32 },
+        { 35, 31, 37, 33 }, { 38, 34, 36, 32 }, { 38, 30, 36, 32 }, { 38, 32, 36, 32 },
+        { 37, 30, 35, 32 }, { 35, 30, 33, 32 }, { 33, 31, 35, 32 }, { 36, 30, 34, 32 },
+        { 32, 31, 34, 32 }, { 36, 31, 34, 32 }, { 33, 30, 32, 32 }, { 31, 30, 32, 32 },
+        { 30, 33, 32, 32 }, { 30, 31, 32, 32 }, { 34, 31, 32, 32 }, { 30, 34, 32, 32 },
+        { 32, 30, 32, 32 }, { 30, 30, 32, 32 }, { 30, 32, 32, 32 }, { 34, 30 }
+    },
     -- P3: the turns
     TURN_EVERY = 8,
     H = 8, BEAM = 32,
@@ -379,6 +404,14 @@ local function pick_A(S, F, from_B, t0)
     return best
 end
 
+-- The tour's tile i (absolute), its A (nil on the last).
+local function tour_at(S, i)
+    local T = QD.XARP.TOUR[i]
+    if T == nil then return nil end
+    local B = S.base
+    return { x = B.x + T[1], z = B.z + T[2] }, T[3] and { x = B.x + T[3], z = B.z + T[4] } or nil
+end
+
 -- ================================================================== PHASES
 
 function QD.raid._xarp_phase(S, F)
@@ -452,9 +485,8 @@ local function exhumed_goal(S, F)
     -- damage per tick" underneath, tob_xarpus.rs2), every relay seed, rl21.
     if S.exhumeds >= 12 and next(S.assigned) == nil then
         if S.stack_B == nil then
-            S.stack_B = pick_B(S, F, { x = B.x + 31, z = B.z + 35 }, nil, F.tick)
-                or { x = B.x + 30, z = B.z + 35 }
-            S.B_cycle = -1
+            S.stack_B = tour_at(S, 1)
+            S.tour_i, S.B_cycle = 1, -1
             QD.raid._tob_trace(S, F.tick, "the stack gathers at " .. S.stack_B.x .. "," .. S.stack_B.z)
         end
         return { x = S.stack_B.x, z = S.stack_B.z, home = true }
@@ -547,20 +579,39 @@ function QD.raid._xarp_step(S, F)
         local Sk = S0 + V.SPIT_EVERY * k
         if S.stack_B == nil then
             -- THE FIRST AIM TILE: off his west face, every seat the same
-            S.stack_B = pick_B(S, F, { x = B.x + 31, z = B.z + 35 }, nil, S0 - 2)
-                or { x = B.x + 30, z = B.z + 35 }
+            S.stack_B = tour_at(S, 1)
+            S.tour_i = 1
             S.B_cycle = (t1 < S0 - 2) and -1 or k
             QD.raid._tob_trace(S, F.tick, "the stack forms at " .. S.stack_B.x .. "," .. S.stack_B.z)
         end
         if t1 >= S0 and c == 0 and S.A_cycle ~= k then
             -- A_k beside him, 2 from B_k, clear of the readings at S_k, S_k+1
-            S.stack_A = pick_A(S, F, S.stack_B, Sk)
+            -- the tour's A while the stack is on the tour, else the pick
+            local _, tA = tour_at(S, S.tour_i or 0)
+            if tA and not F.pools[tA.x .. "," .. tA.z] and not splashed(S, tA.x, tA.z, Sk)
+                and not splashed(S, tA.x, tA.z, Sk + 1) then
+                S.stack_A = tA
+            else
+                S.stack_A = pick_A(S, F, S.stack_B, Sk)
+            end
             S.A_cycle = k
             if S.stack_A == nil then QD.raid._tob_trace(S, F.tick, "no A beside him from " .. S.stack_B.x .. "," .. S.stack_B.z) end
         elseif t1 >= S0 and c == 2 and S.B_cycle ~= k + 1 then
             -- B_k+1 one run from A_k, 2+ from B_k, clear of S_k+2, S_k+3
             local from = S.stack_A or S.stack_B
-            local nb = pick_B(S, F, from, S.stack_B, Sk + 2)
+            local nb = nil
+            local tB = S.tour_i and tour_at(S, S.tour_i + 1)
+            if tB and cheb(tB.x, tB.z, from.x, from.z) <= 2 and cheb(tB.x, tB.z, S.stack_B.x, S.stack_B.z) >= 2
+                and not F.pools[tB.x .. "," .. tB.z] and not splashed(S, tB.x, tB.z, Sk + 2)
+                and not splashed(S, tB.x, tB.z, Sk + 3) then
+                nb = tB
+                S.tour_i = S.tour_i + 1
+            else
+                -- off the tour for good: the lookahead picks from here
+                if S.tour_i then QD.raid._tob_trace(S, F.tick, "off the tour at " .. S.tour_i) end
+                S.tour_i = nil
+                nb = pick_B(S, F, from, S.stack_B, Sk + 2)
+            end
             if nb then
                 S.stack_B = nb
             else
@@ -596,12 +647,20 @@ function QD.raid._xarp_step(S, F)
         end
         local mine = S.stare_tile and quadrant(B, S.stare_tile.x, S.stare_tile.z)
         if S.faced and S.turned and mine == S.faced and F.tick >= S.turned and F.tick < S.turned + V.TURN_EVERY then
-            -- step across: the nearest side tile in another quadrant
+            -- step across: the nearest side tile in another quadrant ON MY
+            -- FACE (every face spans two). Across a corner the server's path
+            -- cuts under his 5x5 and takes the stomp: east (37,33) to south
+            -- (34,32) through (35,33), 9 a seat (xs6 sa).
+            local function face(x, z)
+                return (x - B.x == 31 and 1) or (x - B.x == 37 and 2) or (z - B.z == 32 and 3) or 4
+            end
+            local my_face = face(S.stare_tile.x, S.stare_tile.z)
             local best, bd = nil, nil
             for x = B.x + 31, B.x + 37 do
                 for z = B.z + 32, B.z + 38 do
                     if beside5(B, x, z) and not F.pools[x .. "," .. z] and quadrant(B, x, z) ~= S.faced then
                         local d = cheb(S.stare_tile.x, S.stare_tile.z, x, z)
+                            + ((face(x, z) == my_face) and 0 or 100)
                         if bd == nil or d < bd then best, bd = { x = x, z = z }, d end
                     end
                 end

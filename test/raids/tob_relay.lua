@@ -246,12 +246,15 @@ local function restock(t, name)
     end
     -- (balanced: prayer to a floor, food to a floor, then prayer to the
     -- target, then food -- all-prayer left two relay seats no fish, rl16)
+    -- (food to its floor FIRST: prayer first spent all 12 of a seat's points
+    -- on prayer potions and sent Verzik's tank in with no fish, dead in P3,
+    -- relay rl24 rp. The P3 prayer drought of rl21 was the top-up sipping
+    -- prayer potions against a drained attack, not the chest: with that
+    -- fixed every seat reaches Verzik on 21-25 restore doses, so 16)
     local floor_f, target_p = 6, 12
-    if name == "sotetseg" then floor_f, target_p = 8, 24 end
-    -- (prayer to its target first: a seat that ran dry of prayer took P3
-    -- unprotected, relay rb; then food)
-    for _ = 1, 8 do if prayer_doses() >= target_p or not buy("prayer") then break end end
+    if name == "sotetseg" then floor_f, target_p = 8, 16 end
     for _ = 1, 20 do if fish() >= floor_f or not buy("shark") then break end end
+    for _ = 1, 8 do if prayer_doses() >= target_p or not buy("prayer") then break end end
     for _ = 1, 20 do if not buy("shark") then break end end
     for _ = 1, 6 do if not buy("brew") then break end end
     t.check(name .. ".chest_bought", true, P .. "points " .. p0 .. " -> " .. points .. "; bought "
@@ -459,7 +462,7 @@ return {
     id = "tob_relay",
     fixture = "fresh_lumbridge.ini",
     party = 3,
-    max_frames = 600000,
+    max_frames = 300000,   -- a relay is ~4100 ticks, 30 frames a tick; the gate ceiling is 480000
     setup = kit,
     run = run,
 }
