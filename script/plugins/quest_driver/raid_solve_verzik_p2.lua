@@ -62,6 +62,9 @@
 QD.VZP2 = {
     CADENCE = 4, FIRST_ATTACK = 3, AFTER_SUMMON = 12, AFTER_SEVENTH = 8, ATTACKS_PER_REDS = 7,
     CABBAGES_PER_ZAP = 4, ABSORB_TICKS = 5,
+    SWITCH_GAIN = 30,          -- a walk under way yields to one better by this much
+    FORMATION_GAP = 3,         -- the zap formation's tiles: 2..this from her,
+    FORMATION_GAP_WIDE = 5,    -- or out to this when a blast covers all of those
     REDS_NEAR = 0.37,          -- her bar at or below this: any attack slot may be the first summon
     REDS_LEAVE = 0.15,         -- her bar at or below this at a summon: the set is not worth killing (a cap: the rate below decides)
     REDS_RATE_TICKS = 24,      -- her bar's fall over this many ticks is the kit's rate
@@ -190,7 +193,7 @@ function QD.raid._vzp2_measure(S)
     local pr, players = api_drive.players()
     if pr == "ok" then
         for _, p in ipairs(players) do
-            if not p.me then F.mates[#F.mates + 1] = { x = p.server_x or p.x, z = p.server_z or p.z } end
+            if not p.me then F.mates[#F.mates + 1] = { x = p.server_x or p.x, z = p.server_z or p.z, name = p.name } end
         end
     end
     local hr, hp = api_drive.skill(ids.hitpoints)
@@ -509,6 +512,111 @@ function QD.raid._vzp2_target(S, F)
     return F.boss, "her"
 end
 
+-- THE ZAP FORMATION: where each seat stands at the lightning's scan tick.
+--
+-- The ball's first hop goes from a random raider to the nearest raider on
+-- another tile, and it is absorbed when that hop's midpoint is under her. Two
+-- tiles mirrored through her centre have their midpoint ON her centre, so: two
+-- seats stacked on one tile, the third on its mirror, and every possible first
+-- hop crosses her. At least two tiles out, because her attack scan makes
+-- anything within one of her lethal on that very tick (the "scan" term) -- the
+-- reds-phase spread's stand tiles are exactly that, so a spread can never be
+-- the formation, and at two out a three-way spread's diagonal pairs halve to
+-- a midpoint off her.
+--
+-- It ADAPTS: a red's blast or a cabbage on the preferred pair moves the whole
+-- pair (rl47 rg t2853: a blast held the stack off its back tile, and the ball
+-- bounced (-3,-1) <-> (0,-1) for all four hops). Every seat computes the same
+-- pair from what all three see on the same tick -- her tile, the hazards, the
+-- blasts, the three seats' tiles -- so no message is needed: roles 1 and 2
+-- take the pair's first tile, role 3 its mirror. -> my tile, or nil.
+function QD.raid._vzp2_formation(S, F)
+    if not F.zap_scan or not F.boss then return nil end
+    if S.formation_tick == F.tick then return S.formation end
+    S.formation_tick, S.formation = F.tick, nil
+    local V, b = QD.VZP2, F.boss
+    local seats = { [S.role] = F.me }
+    for r = 1, 3 do
+        if r ~= S.role then
+            local nm = QD.party.name(r)
+            for _, m in ipairs(F.mates) do
+                if nm and m.name and QD.party._same(m.name, nm) then seats[r] = m end
+            end
+        end
+    end
+    local t, left = F.zap_scan, math.max(0, F.zap_scan - F.tick)
+    local cx, cz = b.x + 1, b.z + 1
+    local reach = V.FORMATION_GAP
+    local function clear(x, z)
+        local g = QD.raid._vzp2_gap(x, z, b.x, b.z, V.SIZE)
+        if g < 2 or g > reach then return false end
+        for _, h in ipairs(F.hazards) do
+            if (h.ends[t] or h.ends[t + 1]) and h.x == x and h.z == z then return false end
+        end
+        for _, bl in ipairs(S.blasts) do
+            if t >= bl.from and t <= bl.to and QD.raid._vzp2_gap(x, z, bl.x, bl.z, V.CRAB_SIZE) <= V.CRAB_BLAST then
+                return false
+            end
+        end
+        return true
+    end
+    local function far(seat, x, z)
+        if seat == nil then return 0 end
+        return QD.raid._vzp2_cheb(seat.x, seat.z, x, z)
+    end
+    -- the default pair first (the stack west, role 3 east: what the seats are
+    -- already standing round), then every other pair, in a fixed order
+    local cands = { { x = b.x - 2, z = b.z + 1 } }
+    for dx = -V.FORMATION_GAP_WIDE, V.FORMATION_GAP_WIDE + V.SIZE - 1 do
+        for dz = -V.FORMATION_GAP_WIDE, V.FORMATION_GAP_WIDE + V.SIZE - 1 do
+            cands[#cands + 1] = { x = b.x + dx, z = b.z + dz }
+        end
+    end
+    -- LATCHED for its scan tick: re-chosen every tick from where the seats had
+    -- got to, the pair flipped corner to corner as they moved and nobody
+    -- arrived (rg t2801-t2804). Kept while both its tiles stay clear; every
+    -- seat latches on the same tick from the same reading, so they agree.
+    local latch = S.formation_latch
+    reach = V.FORMATION_GAP_WIDE
+    if latch and latch.t == t and clear(latch.stack.x, latch.stack.z) and clear(latch.single.x, latch.single.z) then
+        S.formation = (S.role == 3) and latch.single or latch.stack
+        return S.formation
+    end
+    local best, best_cost = nil, nil
+    -- (the near pairs first; further out only when a red's blast has covered
+    -- every one of them -- then the seats fled to ONE safe tile together and
+    -- the ball had no hop, rl54 rg t2884-t2889. Further out for every zap
+    -- drew the seats to far pairs and onto each other: 36 one-leg zaps, rl56)
+    for _, gap in ipairs({ V.FORMATION_GAP, V.FORMATION_GAP_WIDE }) do
+        reach = gap
+        for i, pt in ipairs(cands) do
+            local qx, qz = 2 * cx - pt.x, 2 * cz - pt.z
+            if clear(pt.x, pt.z) and clear(qx, qz) then
+                local travel = math.max(far(seats[1], pt.x, pt.z), far(seats[2], pt.x, pt.z), far(seats[3], qx, qz))
+                local late = math.max(0, travel - 2 * left)
+                local cost = late * 100 + travel * 2 + far(seats[1], pt.x, pt.z) + far(seats[2], pt.x, pt.z)
+                    + far(seats[3], qx, qz) + (i == 1 and -1 or 0)
+                if best_cost == nil or cost < best_cost then
+                    best_cost, best = cost, { stack = { x = pt.x, z = pt.z }, single = { x = qx, z = qz } }
+                end
+            end
+        end
+        if best then break end
+    end
+    if best == nil then
+        return nil
+    end
+    best.t = t
+    S.formation_latch = best
+    S.formation = (S.role == 3) and best.single or best.stack
+    if S.formation_traced ~= t then
+        S.formation_traced = t
+        QD.raid._vzp2_trace(S, F.tick, string.format("zap formation for t%d: stack %d,%d single %d,%d",
+            t, best.stack.x - b.x, best.stack.z - b.z, best.single.x - b.x, best.single.z - b.z))
+    end
+    return S.formation
+end
+
 function QD.raid._vzp2_terms(S, F)
     local V, b = QD.VZP2, F.boss
     local terms = { names = {} }
@@ -546,11 +654,35 @@ function QD.raid._vzp2_terms(S, F)
         -- at a lightning scan the formation is the whole defence: every hop
         -- must cross her, so being off my side's back tile is priced like a
         -- hit, not like a step
-        -- (with the reds out the spread's STAND tiles are the formation:
-        -- west, south and east of her, every pair's midpoint under her)
+        -- (the formation adapts to blasts and bombs, and holds in the reds
+        -- phase too: QD.raid._vzp2_formation)
         if F.zap_scan == t then
-            local at = S.reds_out and stand or back
-            return 15 * QD.raid._vzp2_cheb(x, z, at.x, at.z)
+            -- (60 a tile: one tile off is a four-hop chain and up to 48 on
+            -- the last raider, and at 15 a seat stayed a tile off to keep
+            -- swinging at a red, rg t3112)
+            local at = QD.raid._vzp2_formation(S, F) or back
+            local c = 60 * QD.raid._vzp2_cheb(x, z, at.x, at.z)
+            -- ON THE OTHER HALF'S TILE is the worst of all: role 3 on the
+            -- stack is all three on one tile, the ball has no hop and its
+            -- target takes the whole shock (rl52 rg t2889, ri t3001, rn t2991)
+            local latch = S.formation_latch
+            if latch and latch.t == t then
+                local other = (S.role == 3) and latch.stack or latch.single
+                if x == other.x and z == other.z then c = c + 300 end
+            end
+            return c
+        end
+        -- GETTING THERE IN TIME: the pull above only exists on the scan
+        -- tick, inside a few-tick horizon, too late to walk round her from
+        -- the far side (rl52: role 3 short of its tile in 8 of 11 bad zaps).
+        -- In the six ticks before it, each tile further than two a tick can
+        -- cover costs 20.
+        if F.zap_scan and t < F.zap_scan and F.zap_scan - t <= 6 then
+            local at = QD.raid._vzp2_formation(S, F)
+            if at then
+                local short = QD.raid._vzp2_cheb(x, z, at.x, at.z) - 2 * (F.zap_scan - t)
+                if short > 0 then return 20 * short end
+            end
         end
         return 0.3 * QD.raid._vzp2_cheb(x, z, stand.x, stand.z)
     end
@@ -693,7 +825,9 @@ function QD.raid._vzp2_move(S, F, terms)
         end
     end
     local _, stand, back = QD.raid._vzp2_side(S, F)
-    for _, t in ipairs({ stand, back }) do
+    -- (the zap formation's tile, wherever it adapted to)
+    local formation = QD.raid._vzp2_formation(S, F)
+    for _, t in ipairs({ stand, back, formation }) do
         for dx = -1, 1 do
             for dz = -1, 1 do orders[#orders + 1] = { mode = "walk", x = t.x + dx, z = t.z + dz } end
         end
@@ -717,6 +851,9 @@ function QD.raid._vzp2_move(S, F, terms)
     local firsts = { { mode = "walk", x = stand.x, z = stand.z } }
     if S.target then firsts[2] = { mode = "attack", target = S.target } end
     local seconds = { { mode = "walk", x = back.x, z = back.z } }
+    if formation and (formation.x ~= back.x or formation.z ~= back.z) then
+        seconds[#seconds + 1] = { mode = "walk", x = formation.x, z = formation.z }
+    end
     if S.target then seconds[2] = { mode = "attack", target = S.target } end
     for _, o1 in ipairs(firsts) do
         for j = 1, V.H - 1 do
@@ -770,12 +907,16 @@ function QD.raid._vzp2_move(S, F, terms)
                 local ok = true
                 -- the switch rule: a walk under way is not traded for one
                 -- with another first step unless it has become impossible
+                local cost = QD.raid._vzp2_score(S, F, terms, path) + w * 0.01
+                -- (unless it is better by SWITCH_GAIN: the rule kept the east
+                -- seat on a dodge walk while its zap tile was a tick away, and
+                -- the ball bounced four times, rn t2987-t2991)
                 if inc_cost < V.INF and S.order and S.order.mode == "walk" and order.mode == "walk"
-                    and w == 0 and (path[1].x ~= inc_path[1].x or path[1].z ~= inc_path[1].z) then
+                    and w == 0 and (path[1].x ~= inc_path[1].x or path[1].z ~= inc_path[1].z)
+                    and cost + V.SWITCH_GAIN >= inc_cost then
                     ok = false
                 end
                 if ok then
-                    local cost = QD.raid._vzp2_score(S, F, terms, path) + w * 0.01
                     local margin = (inc_cost < V.INF) and V.MARGIN or 0
                     if cost + margin < best_cost then best, best_cost, best_path = plan, cost, path end
                 end
