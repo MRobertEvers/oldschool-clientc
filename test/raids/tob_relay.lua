@@ -272,9 +272,13 @@ local function restock(t, name)
         return d
     end
     local function heal_hp() return 20 * fish() + 16 * brew_doses() end
+    -- (SUPER restores for the prayer target, not prayer potions: brews drain
+    -- Attack and Strength a sip, only a super restore puts them back, and a
+    -- team that bought brews and prayer potions fought P3 drained - 8 a hit
+    -- where it had 15, a P3 of 848 ticks where it had 350, rl40)
     local function prayer_reserve()
         local short = math.max(0, target_p - prayer_doses())
-        return ((short + 3) // 4) * CHEST_COST.prayer
+        return ((short + 3) // 4) * CHEST_COST.restore
     end
     local function heal(reserve)
         local room = free_slots(t) - keep
@@ -284,7 +288,7 @@ local function restock(t, name)
         return buy("shark")
     end
     for _ = 1, 20 do if heal_hp() >= 20 * floor_f or not heal(prayer_reserve()) then break end end
-    for _ = 1, 8 do if prayer_doses() >= target_p or not buy("prayer") then break end end
+    for _ = 1, 8 do if prayer_doses() >= target_p or not buy("restore") then break end end
     for _ = 1, 20 do if not heal(0) then break end end
     t.check(name .. ".chest_bought", true, P .. "points " .. p0 .. " -> " .. points .. "; bought "
         .. (#bought > 0 and table.concat(bought, " ") or "nothing") .. "; free slots " .. free_slots(t))
