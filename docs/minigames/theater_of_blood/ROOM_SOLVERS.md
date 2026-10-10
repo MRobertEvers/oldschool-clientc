@@ -869,6 +869,128 @@ hitsplat (50..75+).
 - **PASS**: heal orbs 0 on 14/16; 0 splash, pool, stomp and retaliation hits;
   P2 <= 148 ticks (Blert max, median 108); the Dawnbringer in seat 1's pack.
 
+### 4.5.1 Xarpus v1: the implementation plan (2026-10-09, after Sotetseg)
+
+What carries over from Maiden, Bloat, Nylocas and Sotetseg:
+- the room synced before the solve;
+- facts keyed on the tick they are first seen;
+- every projectile's landing from its server-sent `duration`;
+- a press decided on d covers d+1;
+- an attack pressed only with the weapon seen worn;
+- explicit phases;
+- the guides read and every mechanic Blert records calibrated;
+- GREEN = no raider dead; judged on 96 seeds;
+- scriptrun first, then one live run for an identical tick log.
+
+**The weapon: the tentacle, all three seats** (void melee, Piety). This is
+where the plan leaves the Learner guides, which range P2 with the blowpipe
+(10Boot, Patyfatycake, Strategies S:256). Every one of them first drains his
+Defence with two hammer specs and a godsword (S:841, 10Boot 1229, Patyfatycake
+1175). The Learner/Void kit carries no hammer, and his ranged +160 against
+Defence 250 leaves a blowpipe at about 15% accuracy. His melee bonuses are 0:
+"As Xarpus has no melee defence, it is encouraged to learn how to melee Xarpus"
+(S:847), and "All players should melee" (Morytania Only). The tentacle is a
+4-tick weapon, so per S:851 it "can melee every cycle", and it lands one
+hitsplat a swing, one retaliation risk in P3 (S:858).
+
+**Content fix first:** his records stated no defence bonuses, so ranged read
++0. Normal and Hard now carry the wiki infobox's 0/0/0/0 and +160 ranged
+(OSRS-Content tob.npc).
+
+**PHASES:**
+- **entry:** the barrier at z27; the leader starts, the members cross.
+- **P1, exhumeds** (12, E_k = R+9+8k, needed at the ends of E+2..E+9). Three
+  homes chosen before the fight so every arena tile is within a run of 2 ticks
+  of one (the trio guides' "triangle", 10Boot 103 and S2L 895; not the wiki's
+  centre). On each new exhumed the free raider with the shortest route takes
+  it; ties go to the lowest pid. A raider still holding its own exhumed is not
+  free. A require-zone holds the taker on the tile over [E+2, E+9]. Idle
+  raiders pull home. Everyone is off his 5x5 by the end of U = R+117.
+- **P2, the step-back stack** (S:851 "step back for 1 tick when Xarpus
+  attacks"), all three on one tile:
+  - spit k at S_k = U+7+4k aims at the stack's tile at the end of S_k-1;
+  - the stack stands on B_k (2+ from his 5x5) at the end of S_k-1;
+  - it stands on A_k (beside him, not a corner, Chebyshev 2+ from B_k) at the
+    ends of S_k and S_k+1, and swings on S_k+1 (a walk decided on S_k-1, the
+    attack on S_k);
+  - it stands on B_{k+1} (Chebyshev 2+ from B_k, not a pool, not a pending
+    landing's 3x3 at its read tick) at the ends of S_k+2 and S_k+3.
+  - The content then gives: the spit lands on B_k at S_k+3 and its splash
+    reads S_k+2 (the stack is 2+ away). The chains aim at B_{k+1} at the end
+    of S_k+2 and land S_k+5 = S_{k+1}+1, their splash reading S_{k+1}, when
+    the stack is on A_{k+1}, 2+ away. Spit k+1 lands on B_{k+1}, already a
+    pool.
+  - So: one pool a spit, all on the outer rings; no splash; the tiles beside
+    him never pooled (the wiki's "marked tiles", kept for P3); one swing every
+    4 ticks.
+- **P3, the stare** (Q = the screech, turns T_n = Q+8n, the quadrant never the
+  last). Swings only on ticks congruent to Q mod 4: on T_n a swing is free
+  (W > turned fails), and the one on T_n+4 goes out from a quadrant he does not
+  face. On seeing the turn at T_n, if he faces the stack's quadrant, the stack
+  steps across the nearest quadrant boundary on its side of him (one or two
+  tiles, beside him, never a pool). "never look in the same corner twice ...
+  players should be moving to where he last looked" (S:860); "two whip hits"
+  per turn (10Boot 1262, Patyfatycake 1205).
+- **done:** his death seq. The leader searches the skeleton for the
+  Dawnbringer (the relay's Verzik P1 needs it).
+
+**CHANNELS:** Piety; no protection prayer matters (every hit is typeless).
+Eat below 60, but "no supplies should be used in this room" (S:833): the plan
+takes no splash, so none should be needed.
+
+**BLERT** (tools/blert_xarpus_cal.py, 150 Normal trio rooms):
+- tests: the first exhumed's tick; the exhumed cadence; count 12; lifetime;
+  heal 12 and its tick offsets; P2 start after the last exhumed; the first
+  spit at P2+7; the spit gap 4; the turn gap 8, the first at Q+8; P3's start
+  hp;
+- reports: heal orbs a room, P2 and P3 lengths and spits, chained splats a
+  spit, the room's length.
+
+**PROBE**, seed 1:
+- exhumed rise and close ticks and the heal-orb read;
+- U against R+117;
+- the first spit's landing against S+3;
+- a chain's aim tile and landing;
+- the screech tick and his face row on each turn;
+- whether a walk on T+1 cancels a swing due then (unneeded if swings keep the
+  Q mod 4 phase).
+
+**PASS:** GREEN on 96 seeds, with:
+- heal orbs 0 on most seeds;
+- 0 splash, pool and stomp hits and 0 retaliations;
+- the Dawnbringer in seat 1's pack.
+
+### 4.5.2 Xarpus v1 as built (2026-10-09)
+
+96 of 96 seeds GREEN (sweep xs2): no raider died, the Dawnbringer in seat 1's
+pack every time; damage per raider mean 9 (max 18); room mean 367 ticks. Live
+and scriptrun tick logs identical on seed sa (0 of 405 room ticks).
+
+**Content fixes** (OSRS-Content):
+- **Defence bonuses.** His Normal and Hard records stated none, so his
+  ranged read +0. They now carry the infobox's 0/0/0/0 and +160 ranged.
+- **A crashing sound op.** `sound_synth` in his npc timer aborted the spawn
+  between its `loc_add` and its register writes: an exhumed a tick, forever.
+  Every npc-side sound is now `~sound_area`.
+- **Two exhumeds on one tile.** A rise could land on an open exhumed's tile;
+  the older one's close then deleted the newer loc, which healed him unseen
+  (6 of 96 seeds). The tile is now rerolled.
+
+**Calibration** (`tools/blert_xarpus_cal.py`): 9 of 11 match, against 150
+Blert rooms.
+- **First exhumed:** room tick 9 against Blert's 8 in 71% (9-11 in the rest).
+  The content's 9 was a guess ("the middle of the band").
+- **Stand-up:** 9 ticks after the last close, against Blert's 8 in 15%.
+  Both are open: no mechanism found for Blert's spread.
+- **Reported, not tested** (the kit's tentacle against real gear; the stack
+  takes no chains): P2 150 ticks against 108; P3 70 against 50; 0 chained
+  splats a spit against about 0.35.
+
+**Lane parity:** the exit is one op on the gate's copy (the server walks the
+leader to it). Waiting to see the near-side tile pressed a tick apart on the
+two lanes. Scriptrun's `locs()` now names each copy (slot + 1), and
+`world_op` honours it as the client does.
+
 ### 4.6 Verzik
 
 `raid_solve_verzik_p1/p2/p3.lua` as they are, in the same kit. Relay deltas,

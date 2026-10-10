@@ -735,6 +735,53 @@ function QD.raid._tob_summary(S, extra)
         S.press_refused or 0, S.expanded, extra or "", table.concat(S.trace, " | "), table.concat(S.recent, " "))
 end
 
+-- Is this the scriptrun lane (no screen, no clientscripts)? The relay's
+-- lobby is the party board, an interface the client's clientscripts build
+-- (tob_partylist_*.cs2: every button answers through cc_resume_pausebutton on
+-- a scripted child); scriptrun has no clientscript VM, so there the party
+-- enters as every room test does (t.raid.enter: ::tobmode, ::tobjoinroom).
+function QD.raid.tob_headless()
+    return api_drive.scriptrun == true
+end
+
+-- A loc op as ONE packet on one copy, the same on both lanes: the copy at
+-- `at` ({x, z} absolute) or else the nearest copy to me; the server walks me
+-- to it. (The pointer library's walk-then-click timed out on scriptrun at
+-- Maiden's gate and the passage, relay rl2.) -> result, the copy's tile
+function QD.raid.tob_loc_op(sym, op, at, radius)
+    local sr, id = api_drive.symbol("loc", sym)
+    assert(sr == "ok", "tob_loc_op: no loc named " .. tostring(sym))
+    local tr, me = api_drive.player_tile()
+    assert(tr == "ok", "tob_loc_op: no tile")
+    local lr, rows = api_drive.locs(radius or 40)
+    if lr ~= "ok" then return lr, nil end
+    local best, bd = nil, nil
+    for _, row in ipairs(rows) do
+        if row.loc_id == id or row.resolved_loc_id == id then
+            if at == nil then
+                local d = QD.raid._tob_cheb(me.x, me.z, row.x, row.z)
+                if bd == nil or d < bd then best, bd = row, d end
+            elseif row.x == at.x and row.z == at.z then
+                best = row
+            end
+        end
+    end
+    if best == nil then return "not_found", nil end
+    local r = api_drive.world_op("loc", best.loc_id, op, best.element_id)
+    return r, { x = best.x, z = best.z }
+end
+
+-- A walk order to (x, z), one packet; the server paths.
+function QD.raid.tob_move(x, z)
+    return api_drive.move_to(x, z)
+end
+
+-- My 64-tile map square ("x,z" of its corner).
+function QD.raid.tob_square()
+    local _, me = api_drive.player_tile()
+    return (me.x - me.x % 64) .. "," .. (me.z - me.z % 64), me
+end
+
 -- ================================================================== PROBES
 
 -- A content probe's stand: walk to (lx, lz) of the 64-aligned map square I

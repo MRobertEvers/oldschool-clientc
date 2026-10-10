@@ -1248,7 +1248,10 @@ d_locs(lua_State* L)
         lua_setfield(L, -2, "shape");
         lua_pushinteger(L, l->angle);
         lua_setfield(L, -2, "angle");
-        lua_pushinteger(L, 0);
+        /* The copy's name for world_op's pin: its slot in the core's loc
+         * list, + 1 (stable for the session; 0 is no copy). The client names
+         * a copy by its scene element; this lane has none. */
+        lua_pushinteger(L, i + 1);
         lua_setfield(L, -2, "element_id");
         lua_rawseti(L, -2, ++n);
     }
@@ -1465,6 +1468,9 @@ d_world_op(lua_State* L)
             struct ScriptrunLoc const* l = &c->locs[i];
             int d;
             if( l->loc_id != type_id )
+                continue;
+            /* a pinned copy (d_locs' element_id: the list slot + 1) */
+            if( want_element > 0 && i + 1 != want_element )
                 continue;
             /* Another floor's copy only when this floor has none (a loc's
              * level is its cache level: a bridge's differs). */
