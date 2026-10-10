@@ -266,23 +266,6 @@ end
 -- What no later room uses, left on the floor so the chests can fill the
 -- slots (relay rl12: six seeds of six reached Verzik P3 on 5-7 fish and ran
 -- dry there, with ten slots a seat holding the Nylocas' switches)
-local DROP_AFTER = {
-    maiden = { "dragon_warhammer" },
-    nylocas = { "toxic_blowpipe_loaded", "game_pest_archer_helm", "zenyte_necklace_enchanted", "avas_assembler",
-                "game_pest_mage_helm", "toxic_tots_charged", "occult_necklace", "ma2_saradomin_cape", "bh_rune_pouch" },
-}
-local function drop_spent(t, name)
-    local dropped = 0
-    for _, item in ipairs(DROP_AFTER[name] or {}) do
-        local r, c = t.inv.count(item)
-        if r == "ok" and (tonumber(c) or 0) > 0 then
-            t.player.drop(item)
-            dropped = dropped + 1
-        end
-    end
-    if dropped > 0 then t.check(name .. ".dropped", true, P .. dropped .. " item(s) no later room uses") end
-end
-
 local function prayers_off(t)
     local r, _, set = t.prayer.read()
     if r == "ok" and type(set) == "table" then
@@ -438,8 +421,9 @@ local function run(t)
         t.expect(name .. ".barrier.done", t.party.barrier(name .. "_done", 9000))
         if alive then
             prayers_off(t)
+            -- empty vials only: no equipment is dropped after a boss (owner,
+            -- 2026-10-10), every seat keeps its whole kit to the end
             drop_vials(t)
-            drop_spent(t, name)
         end
         if name == "bloat" or name == "sotetseg" then
             -- every seat through the gate to the supply chest

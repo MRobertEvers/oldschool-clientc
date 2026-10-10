@@ -28,7 +28,7 @@
 
 QD.BLOAT = {
     SIZE = 5,
-    STOMP = 29, RISE = 33, STOMP_GAP = 3,
+    STOMP = 29, RISE = 33,
     TURN_CD = 32,
     FIRST_DOWN = 39, NEXT_DOWN = 35,
     -- H 8: at 2 tiles a tick he covers 16 of the 44 in the horizon; at 6 a
@@ -320,9 +320,12 @@ function QD.raid._bloat_spec(S, F, from, now, target)
     end
     local b = F.boss
     if S.down_at and now < S.down_at + V.STOMP then
-        -- the stomp reads the end of T+28: 4+ from his footprint
-        add.zone("stomp", { x = b.x, z = b.z, size = V.SIZE, lo = 0, hi = V.STOMP_GAP,
-            t0 = S.down_at + V.STOMP - 1, t1 = S.down_at + V.STOMP - 1, tier = "lethal", cost = V.STOMP_COST })
+        -- the stomp reads the end of T+28 and hits whoever he SEES, at any
+        -- range (tob_bloat.rs2 ~tob_bloat_stomp; Blert: in sight 4-6 tiles
+        -- off 17 of 24, out of sight 2 of 79): out of his sight, as the
+        -- flies' watchers ask, not a ring round him
+        add.watcher("stomp", { x = b.x, z = b.z, size = V.SIZE, t0 = S.down_at + V.STOMP - 1,
+            t1 = S.down_at + V.STOMP - 1, tier = "lethal", cost = V.STOMP_COST })
     end
     if S.phase == "walk" then
         -- the spread: a fly at a seen raider burns everyone within 3 of it
@@ -518,7 +521,21 @@ function QD.raid._bloat_step(S, F)
     local intent = {}
     -- DECIDE: him while he is down and the stomp is not near, else hide
     local target = nil
-    if S.phase == "down" and F.tick < S.down_at + V.STOMP - 1 then target = F.boss end
+    if S.phase == "down" then
+        -- THE STOMP HITS WHOEVER HE SEES (tob_bloat.rs2), and the tiles he
+        -- cannot see are round the tank, opposite him: stop swinging in time
+        -- to run there by the end of T+28, the tick it reads. The run is the
+        -- corridor's, so manhattan, two tiles a tick, and a two-tick margin.
+        -- Swinging to T+27 left the planner's beam beside him with nowhere
+        -- unseen in reach (32 of 32 seeds stomped, b19).
+        -- Once stopped for this down, stopped: the lead shrinks as I run,
+        -- and re-reading it put me back on him (sm t467-469).
+        local hug = QD.raid._bloat_opposite_hug(S, { x = F.boss.x, z = F.boss.z })
+        local run = math.abs(F.me.x - hug.x) + math.abs(F.me.z - hug.z)
+        local lead = (run + 1) // 2 + 2
+        if S.hid_for ~= S.down_at and F.tick >= S.down_at + V.STOMP - 1 - lead then S.hid_for = S.down_at end
+        if S.hid_for ~= S.down_at then target = F.boss end
+    end
     local want_set = {}
     for _, obj in ipairs(ids.melee_set) do
         if not QD.raid._tob_worn(S, obj) then want_set[#want_set + 1] = obj end
