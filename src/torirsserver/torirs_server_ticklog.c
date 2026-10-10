@@ -34,11 +34,31 @@
  */
 
 #include "torirs_server.h"
+#include "torirs_server_content.h"
 
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+/* A VARP row's label: the varp's content name, so a lane comparison reads
+ * `varp6857_tob_damage_dealt` rather than 6857. The pack's reverse map is a
+ * linear scan, so each id is looked up once. */
+static char const*
+ticklog_varp_name(int varp)
+{
+    static char const* names[TORIRSSERVER_VARP_COUNT];
+    static unsigned char looked[TORIRSSERVER_VARP_COUNT];
+
+    assert(varp >= 0);
+    assert(varp < TORIRSSERVER_VARP_COUNT);
+    if( !looked[varp] )
+    {
+        names[varp] = ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_VARP, varp);
+        looked[varp] = 1;
+    }
+    return names[varp];
+}
 
 struct TicklogState
 {
@@ -1094,7 +1114,8 @@ ticklog_digest(struct ToriRSServer* srv)
             b = digest_add(b, (uint32_t)p->varps[v]);
             if( g_varp_shadow_seeded[pid] ? g_varp_shadow[pid][v] != p->varps[v]
                                           : (p->varps[v] != 0 && ticklog_seed_rows_on()) )
-                ticklog_push_row(TORIRSSERVER_TICKLOG_VARP, pid, v, p->varps[v], 0, 0, 0, 0, NULL);
+                ticklog_push_row(TORIRSSERVER_TICKLOG_VARP, pid, v, p->varps[v], 0, 0, 0, 0,
+                                 ticklog_varp_name(v));
             g_varp_shadow[pid][v] = p->varps[v];
         }
         g_varp_shadow_seeded[pid] = 1;

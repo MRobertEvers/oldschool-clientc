@@ -1372,11 +1372,24 @@ enum DriveResult
 DriveUi_Spotanims(
     struct App* app, int radius, struct DriveSpotanimRow* out, int cap, int* out_count)
 {
+    /*
+     * FROM THE PACKETS, NOT THE POOL, as DriveUi_Projectiles below and for the
+     * same reason: the world's graphic entity waits on its spotanim's assets,
+     * so a first-seen graphic reached these rows a tick after scriptrun listed
+     * it (Bloat's falling flesh, 2026-10-10). These rows are the applied
+     * MAP_ANIMs (App_DriveMapAnimNote) with scriptrun's arithmetic
+     * (torirs_server_scriptrun.c d_spotanims): active, and cycles_left from a
+     * 40-tick life counted from the apply. The scene element and its seq are
+     * filled from the pool's graphic on that tile once it has spawned (0 / -1
+     * before, scriptrun's values); no solver reads them.
+     */
     long distances[DRIVE_UI_HAZARD_CAP];
     int px = 0, pz = 0;
     int have_player;
     int aboard;
     int count = 0;
+    int now;
+    struct App_DriveRing const* ring;
     struct World_EntityPool* pool;
     int i;
 
@@ -1391,34 +1404,46 @@ DriveUi_Spotanims(
         return DRIVE_OK;
 
     have_player = drive_ui_search_origin(app, &px, &pz, &aboard);
+    now = (int)app->world->cycle;
+    ring = &app->drive_events;
     pool = &app->world->entities.spotanim;
-    for( i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
+    for( i = 0; i < ring->map_anim_count; i++ )
     {
-        struct WorldEntity_Spotanim const* spot = World_EntityPoolGet(pool, i);
-        int tile_x, tile_z;
+        struct App_DriveMapAnim const* a = &ring->map_anims[i];
+        int left = APP_DRIVE_MAP_ANIM_LIFE - (now - a->cycle);
+        int e;
         int j;
 
-        if( !spot )
+        if( left < 0 )
             continue;
-        tile_x = app->world->_base_tile_x + (int)(spot->draw_position.x >> 7);
-        tile_z = app->world->_base_tile_z + (int)(spot->draw_position.z >> 7);
-        if( have_player && !drive_ui_within_radius(tile_x, tile_z, px, pz, radius) )
+        if( have_player && !drive_ui_within_radius(a->x, a->z, px, pz, radius) )
             continue;
         j = drive_ui_nearest_insert(out, sizeof(*out), distances, &count, cap,
-            have_player ? drive_ui_distance2(tile_x, tile_z, px, pz) : 0);
+            have_player ? drive_ui_distance2(a->x, a->z, px, pz) : 0);
         if( j < 0 )
             continue;
-        out[j].spotanim_id = spot->spotanim_id;
-        out[j].tile_x = tile_x;
-        out[j].tile_z = tile_z;
-        out[j].level = spot->level;
-        out[j].active = spot->active;
-        /* World_CycleUpdateSpotanims: idle_cycles counts the delay down, then
-         * active_cycle counts up to lifetime and the graphic despawns. */
-        out[j].cycles_left = spot->active ? spot->lifetime - spot->active_cycle
-                                          : spot->idle_cycles + spot->lifetime;
-        out[j].element_id = spot->element_id;
-        drive_ui_element_seq(app, spot->element_id, &out[j].seq, &out[j].seq_frame);
+        out[j].spotanim_id = a->spotanim;
+        out[j].tile_x = a->x;
+        out[j].tile_z = a->z;
+        out[j].level = a->level;
+        out[j].active = 1;
+        out[j].cycles_left = left;
+        out[j].element_id = 0;
+        out[j].seq = -1;
+        out[j].seq_frame = 0;
+        for( e = World_EntityPoolHead(pool); e != WORLD_ENTITY_NIL; e = World_EntityPoolNext(pool, e) )
+        {
+            struct WorldEntity_Spotanim const* spot = World_EntityPoolGet(pool, e);
+
+            if( !spot || spot->spotanim_id != a->spotanim )
+                continue;
+            if( app->world->_base_tile_x + (int)(spot->draw_position.x >> 7) != a->x
+                || app->world->_base_tile_z + (int)(spot->draw_position.z >> 7) != a->z )
+                continue;
+            out[j].element_id = spot->element_id;
+            drive_ui_element_seq(app, spot->element_id, &out[j].seq, &out[j].seq_frame);
+            break;
+        }
     }
     *out_count = count;
     return DRIVE_OK;

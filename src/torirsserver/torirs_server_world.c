@@ -6367,6 +6367,13 @@ handle_move(
         dest_z = start_z + dz;
     }
 
+    /* The walk's destination in the tick log (trigger -1, the packed tile as
+     * the type, ctrl as the slot): a lane comparison saw two lanes' raiders
+     * split by a tile with every op input and every server row equal, and no
+     * row that named where either had been sent. */
+    ToriRSServer_TicklogInput(
+        srv, player, -1, (player->level << 28) | (dest_x << 14) | dest_z, ctrl, "[move]");
+
     /* Same-tile click: clear the route (reference sets allowRepath NONE). */
     if( waypoints == 0 && start_x == player->x && start_z == player->z )
     {
@@ -11918,6 +11925,16 @@ ToriRSServer_RunCheatForTest(
     if( text[0] == '~' )
         memmove(text, text + 1, strlen(text));
 
+    /* In the tick log exactly as handle_cheat logs the packet's: the live
+     * leader runs its cheats here, every other seat and every scriptrun bot
+     * through the packet, and the two land on the same tick (relay rc,
+     * 2026-10-10), so the rows must compare equal across lanes. */
+    {
+        char label[TORIRSSERVER_TICKLOG_LABEL_MAX];
+        snprintf(label, sizeof(label), "[cheat %s]", text);
+        ToriRSServer_TicklogInput(srv, srv->active_player, -2, 0, -1, label);
+    }
+
     result = cheat_dispatch(srv, srv->active_player, text);
     if( result == TORIRSSERVER_TRIGGER_NONE )
         say(srv, "Unknown command: %s", text);
@@ -11942,6 +11959,15 @@ handle_cheat(
      * the explicit server-side namespace escape. memmove includes the NUL. */
     if( text[0] == '~' )
         memmove(text, text + 1, strlen(text));
+
+    /* The command in the tick log (trigger -2): a harness's ::synctimers and
+     * ::tobsyncroom set every clock a comparison of two lanes depends on, and
+     * no row said on which tick either one ran. */
+    {
+        char label[TORIRSSERVER_TICKLOG_LABEL_MAX];
+        snprintf(label, sizeof(label), "[cheat %s]", text);
+        ToriRSServer_TicklogInput(srv, srv->active_player, -2, 0, -1, label);
+    }
 
     if( cheat_dispatch(srv, srv->active_player, text) == TORIRSSERVER_TRIGGER_NONE )
         say(srv, "Unknown command: %s", text);

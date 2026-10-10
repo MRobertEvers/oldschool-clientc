@@ -743,6 +743,14 @@ exec_zone_sub_packet_at(
         {
             zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
             App_WorldSpotanimSpawn(app, tile_x, tile_z, level, pkt->id, pkt->height, pkt->delay);
+            /* The spawn above requires the world; so does the note. */
+            assert(app->world);
+            App_DriveMapAnimNote(
+                app,
+                app->world->_base_tile_x + tile_x,
+                app->world->_base_tile_z + tile_z,
+                level,
+                pkt->id);
         }
         break;
     }

@@ -180,10 +180,28 @@ struct App_DriveLocChange
     int32_t loc_id, shape, angle;
     int32_t base_x, base_z;
 };
+/* A map graphic as its MAP_ANIM packet said it, stamped with the world cycle
+ * the packet was applied on. The world's graphic entity waits on its
+ * spotanim's assets the way a projectile does, so a first-seen graphic reached
+ * api_drive.spotanims a tick late -- where scriptrun, which keeps the packet,
+ * listed it in the packet's tick (2026-10-10: Bloat's falling flesh, seen a
+ * tick apart, and the relay's two lanes walked apart in his room). The
+ * drive's spotanim rows come from these records, with scriptrun's arithmetic:
+ * listed for APP_DRIVE_MAP_ANIM_LIFE cycles from the apply (scriptrun_core.c
+ * retires a floor graphic 40 ticks after it lands). Absolute tiles. */
+#define APP_DRIVE_MAP_ANIM_CAP 1024
+#define APP_DRIVE_MAP_ANIM_LIFE (40 * 30)
+struct App_DriveMapAnim
+{
+    int32_t x, z, level, spotanim;
+    int32_t cycle; /**< world cycle at the apply */
+};
 struct App_DriveRing
 {
     struct App_DriveProjectile projectiles[APP_DRIVE_PROJECTILE_CAP];
     int projectile_count;
+    struct App_DriveMapAnim map_anims[APP_DRIVE_MAP_ANIM_CAP];
+    int map_anim_count;
     struct App_DriveLocChange loc_changes[APP_DRIVE_LOC_CHANGE_CAP];
     int loc_change_count;
     /* A server tick is HALF-APPLIED: the exec runner has started on a packet
@@ -246,6 +264,8 @@ void App_DriveEvent(
 void App_DriveProjectileNote(
     struct App* app, int src_x, int src_z, int dst_x, int dst_z, int level, int spotanim,
     int target, int start_delay, int end_delay);
+/* Record a MAP_ANIM as applied (rs_gameproto_exec.c), absolute tiles. */
+void App_DriveMapAnimNote(struct App* app, int x, int z, int level, int spotanim);
 /* Record a LOC_ADD_CHANGE (or a LOC_DEL, loc_id -1) as applied
  * (rs_gameproto_exec.c), scene tiles at the loc's cache level: it replaces any
  * pending change for the same tile and layer, as the packet does. */

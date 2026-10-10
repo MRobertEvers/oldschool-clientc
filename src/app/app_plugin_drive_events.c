@@ -169,6 +169,32 @@ App_DriveProjectileNote(
 }
 
 void
+App_DriveMapAnimNote(struct App* app, int x, int z, int level, int spotanim)
+{
+    struct App_DriveRing* ring;
+    struct App_DriveMapAnim* a;
+    int now, kept, i;
+
+    assert(app);
+    ring = &app->drive_events;
+    now = app->world ? (int)app->world->cycle : 0;
+    /* The ones scriptrun still lists: scriptrun_core.c's retire rule. */
+    kept = 0;
+    for( i = 0; i < ring->map_anim_count; i++ )
+        if( now - ring->map_anims[i].cycle <= APP_DRIVE_MAP_ANIM_LIFE )
+            ring->map_anims[kept++] = ring->map_anims[i];
+    ring->map_anim_count = kept;
+    /* Scriptrun holds the same count (SCRIPTRUN_MAP_ANIMS) and asserts it. */
+    assert(ring->map_anim_count < APP_DRIVE_MAP_ANIM_CAP);
+    a = &ring->map_anims[ring->map_anim_count++];
+    a->x = x;
+    a->z = z;
+    a->level = level;
+    a->spotanim = spotanim;
+    a->cycle = now;
+}
+
+void
 App_DriveLocChangeNote(
     struct App* app, int scene_x, int scene_z, int level, int loc_id, int shape, int angle)
 {

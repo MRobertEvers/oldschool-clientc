@@ -306,9 +306,32 @@ end
 -- ==================================================================== PLAN
 
 -- api_drive.plan with the room's constraint names for the why-trace.
+-- A table as text, keys sorted (the same table reads the same on every lane).
+local function tob_dump_text(v)
+    if type(v) ~= "table" then return tostring(v) end
+    local keys = {}
+    for k in pairs(v) do keys[#keys + 1] = k end
+    table.sort(keys, function(a, b) return tostring(a) < tostring(b) end)
+    local out = {}
+    for _, k in ipairs(keys) do out[#out + 1] = tostring(k) .. "=" .. tob_dump_text(v[k]) end
+    return "{" .. table.concat(out, " ") .. "}"
+end
+
+-- THE PLAN DUMP, off unless a test sets QD.raid.tob_plan_dump = { from, to }
+-- (drive ticks): every plan's spec and answer in that window, into the trace,
+-- so two lanes that walked apart can be diffed on what each one asked.
 function QD.raid._tob_plan(S, F, spec, names)
     local r, plan = api_drive.plan(spec)
     assert(r == "ok", S.who .. ": api_drive.plan answered " .. tostring(r))
+    local dump = QD.raid.tob_plan_dump
+    if dump and F.tick >= dump[1] and F.tick <= dump[2] then
+        -- (rows of their own, 800 characters each: a solve row is cut at ~950)
+        local text = "spec " .. tob_dump_text(spec) .. " plan " .. tob_dump_text(plan)
+        for i = 1, #text, 800 do
+            QD.step("tob.plandump", "PASS", "t" .. F.tick .. " " .. S.who .. " " .. ((i - 1) // 800)
+                .. " " .. string.sub(text, i, i + 799))
+        end
+    end
     S.expanded = S.expanded + (plan.expanded or 0)
     if plan.lethal > 0 and (S.last_inf or -10) < F.tick - 5 then
         S.last_inf = F.tick
