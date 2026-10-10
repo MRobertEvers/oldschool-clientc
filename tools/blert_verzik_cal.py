@@ -185,7 +185,10 @@ def finish(R, nylo, ath, red, torn, yel, hp):
 def ours(dirs):
     rooms, seen, dupes = [], set(), 0
     for d in dirs:
-        for sess in sorted(glob.glob(d.rstrip("/") + "/*/")):
+        d = d.rstrip("/")
+        # a runs dir of session dirs, or one session dir given on its own
+        sessions = [d + "/"] if os.path.exists(d + "/ticklog.tsv") else sorted(glob.glob(d + "/*/"))
+        for sess in sessions:
             path = sess + "ticklog.tsv"
             if not os.path.exists(path):
                 continue
@@ -316,6 +319,8 @@ def our_room(path):
     # a crab special is her summon seq, crabs or none (Blert sees only spawns)
     spawned = collections.Counter(t for t in nylo if t >= ph3)
     R["crabs"] = [(t, spawned[t]) for t in summons if t >= ph3]
+    if not R["p1"] and R["ph2"] is None:
+        return None     # she stood up and the fight never ran (a debug session)
     sh = lambda v: None if v is None else v - start
     for k in ("ph2", "p2_body", "ph3", "p3_body", "end"):
         R[k] = sh(R[k])
