@@ -404,12 +404,150 @@ def rewrite_authored(values: Values, records: dict, write: bool) -> set[tuple[st
     return done
 
 
+# ---- the second pass: params whose default= named a value (2026-10-11) ------
+#
+# Every tree param that declared a value default (cachepack names them) now
+# declares its type's absence, and every record a reader can reach states the
+# value it used to inherit. Which records: every record of the type the
+# reader asks (`oc_param` on any wielded or used obj, `npc_param` on any npc),
+# except where the reader is bound by trigger to named records.
+PARAM_READERS = {
+    "obj": ["ready_baseanim", "turnonspot_baseanim", "walk_f_baseanim", "walk_b_baseanim",
+            "walk_l_baseanim", "walk_r_baseanim", "running_baseanim", "stabattack_anim",
+            "slashattack_anim", "crushattack_anim", "rangeattack_anim", "attack_anim_stance1",
+            "attack_anim_stance2", "attack_anim_stance3", "attack_anim_stance4", "defend_anim",
+            "sa_energy", "mining_rate", "mining_animation", "rune_type"],
+    "npc": ["combat_xp_multiplier"],
+}
+# A deliberate value rather than the inherited one. rune_type's default was 1,
+# ^air: every obj used on the air ruins opened them (~talisman_opens).
+PARAM_VALUE = {("obj", "rune_type"): "0"}
+# Readers bound to named records. The string default was never read (an absent
+# string param answers ""), so dropping a god cape printed an empty message.
+PARAM_NAMED = {("obj", "lose_cape_message"): (
+    ["saradomin_cape", "zamorak_cape", "guthix_cape"],
+    "The gods reclaim the game as it touches the ground.")}
+ABSENCE = {"int": "0", "boolean": "no", "string": "null"}
+
+
+def tree_params() -> dict[str, tuple[str, str, str]]:
+    """name -> (file, type, default) for every tree-declared param. A param the
+    cache's own table declares (configs/all.param, which `combat.param` restates
+    for attackrate) keeps the cache's default: that is the cache's data."""
+    with open(os.path.join(CONTENT, "configs", "all.param"), encoding="utf-8") as f:
+        cache = set(re.findall(r"^\[([^\]]+)\]", f.read(), re.M))
+    out = {}
+    root = os.path.join(CONTENT, "server", "scripts")
+    for dirpath, _, files in os.walk(root):
+        for name in files:
+            if not name.endswith(".param"):
+                continue
+            path = os.path.join(dirpath, name)
+            cur, typ = None, None
+            with open(path, encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    m = BLOCK_RE.match(line)
+                    if m:
+                        cur = m.group(1)
+                        continue
+                    if cur and line.startswith("type="):
+                        typ = line[5:].strip()
+                    if cur and line.startswith("default=") and cur not in cache:
+                        out[cur] = (path, typ, line[8:].strip())
+    return out
+
+
+def stated_params(t: str) -> dict[str, set[str]]:
+    """record -> the params some layer of this build states for it."""
+    out: dict[str, set[str]] = collections.defaultdict(set)
+    paths = [os.path.join(CONTENT, "configs", "all.%s" % t)]
+    for dirpath, _, files in os.walk(os.path.join(CONTENT, "server", "scripts")):
+        paths += [os.path.join(dirpath, n) for n in files if n.endswith("." + t)]
+    for path in paths:
+        cur = None
+        with open(path, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                m = BLOCK_RE.match(line)
+                if m:
+                    cur = m.group(1)
+                    continue
+                m = re.match(r"^\s*param=([a-z0-9_]+),(.*)$", line)
+                if cur and m and not m.group(2).strip().startswith("default"):
+                    out[cur].add(m.group(1))
+    return out
+
+
+def add_lines(path: str, additions: dict[str, list[str]]) -> int:
+    """Append lines to each named block of a generated file, adding the blocks
+    it lacks at its end."""
+    with open(path, encoding="utf-8") as f:
+        text = f.read()
+    parts = re.split(r"(?m)^(?=\[)", text)
+    seen = set()
+    for i, part in enumerate(parts):
+        m = re.match(r"^\[([^\]]+)\]", part)
+        if not m or m.group(1) not in additions:
+            continue
+        seen.add(m.group(1))
+        body = part.rstrip("\n")
+        parts[i] = body + "\n" + "\n".join(additions[m.group(1)]) + "\n\n"
+    tail = ["[%s]\n%s\n" % (n, "\n".join(additions[n])) for n in sorted(additions) if n not in seen]
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("".join(parts).rstrip("\n") + "\n\n" + "\n".join(tail))
+    return len(additions)
+
+
+def params_pass(records: dict, write: bool) -> int:
+    declared = tree_params()
+    for t, names in PARAM_READERS.items():
+        stated = stated_params(t)
+        additions: dict[str, list[str]] = collections.defaultdict(list)
+        for p in names:
+            value = PARAM_VALUE.get((t, p), declared[p][2])
+            for rec in records.get(t, {}):
+                if rec != "default" and p not in stated.get(rec, ()):
+                    additions[rec].append("param=%s,%s" % (p, value))
+            print("%s %-24s stated on %d more record(s) as %s" % (
+                t, p, sum(1 for r in additions if any(l.startswith("param=%s," % p) for l in additions[r])), value))
+        for (tt, p), (recs, text) in PARAM_NAMED.items():
+            if tt == t:
+                for rec in recs:
+                    if p not in stated.get(rec, ()):
+                        additions[rec].append("param=%s,%s" % (p, text))
+        if write:
+            add_lines(os.path.join(OUT_DIR, "server_fields.generated.%s" % t), additions)
+    # The declarations: every value default becomes its type's absence.
+    for p, (path, typ, default) in sorted(declared.items()):
+        absent = ABSENCE.get(typ, "null")
+        if default in ("", "default", "null", "empty", "-1", "0", "no"):
+            continue
+        print("param %-24s default=%s -> %s" % (p, default, absent))
+        if write:
+            with open(path, encoding="utf-8") as f:
+                lines = f.read().split("\n")
+            cur = None
+            for i, line in enumerate(lines):
+                m = BLOCK_RE.match(line)
+                if m:
+                    cur = m.group(1)
+                elif cur == p and line.strip().startswith("default="):
+                    lines[i] = "default=" + absent
+            with open(path, "w", encoding="utf-8") as f:
+                f.write("\n".join(lines))
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--report", required=True, help="cachepack --defaults-report TSV")
-    ap.add_argument("--dump", required=True, help="TORIRS_DEFS_DUMP output")
+    ap.add_argument("--dump", help="TORIRS_DEFS_DUMP output (the band pass)")
+    ap.add_argument("--params", action="store_true",
+                    help="the second pass: state every value-defaulted tree param")
     ap.add_argument("--write", action="store_true", help="write the files (else: counts only)")
     args = ap.parse_args()
+    if args.params:
+        return params_pass(read_report(args.report)[0], args.write)
 
     records, order = read_report(args.report)
     values = Values(args.dump)

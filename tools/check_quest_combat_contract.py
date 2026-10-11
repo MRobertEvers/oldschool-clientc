@@ -2849,9 +2849,15 @@ def check_troll_stronghold() -> None:
         ),
         "Troll Stronghold generated combat rows",
     )
+    # x1.0 for every npc that is not boosted is a statement on each npc now
+    # (server_fields.generated.npc), not the param's default, which is absent.
     require_text(config_text.read_text(COMBAT_PARAM),
-                 ("[combat_xp_multiplier]", "default=1000"),
+                 ("[combat_xp_multiplier]", "default=0"),
                  "Troll Stronghold combat-XP parameter")
+    require_text(config_text.read_text(
+                     CONTENT / "_explicit/configs/server_fields.generated.npc"),
+                 ("param=combat_xp_multiplier,1000",),
+                 "every unboosted npc states combat_xp_multiplier=1000")
     require_text(COMBAT_XP.read_text(),
                  ("scale(npc_param(combat_xp_multiplier), 1000, multiply($damage, 10))",),
                  "Troll Stronghold combat-XP multiplier application")
