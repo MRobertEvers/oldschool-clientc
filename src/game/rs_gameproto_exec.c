@@ -751,9 +751,16 @@ exec_zone_sub_packet_at(
         if( pkt->id != 65535 )
         {
             zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
-            App_WorldSpotanimSpawn(app, tile_x, tile_z, level, pkt->id, pkt->height, pkt->delay);
-            /* The spawn above requires the world; so does the note. */
+            /* The spawn below requires the world; so does the note. */
             assert(app->world);
+            /* The reference files a MAP_ANIM only on a tile its scene holds
+             * (worldview.method3333 before new class52), and drops the rest
+             * without a trace. Same here, so a graphic the real client cannot
+             * show is not one this client shows either. */
+            if( tile_x < 0 || tile_z < 0 || tile_x >= app->world->_scene_size ||
+                tile_z >= app->world->_scene_size )
+                break;
+            App_WorldSpotanimSpawn(app, tile_x, tile_z, level, pkt->id, pkt->height, pkt->delay);
             App_DriveMapAnimNote(
                 app,
                 app->world->_base_tile_x + tile_x,

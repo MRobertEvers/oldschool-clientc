@@ -738,6 +738,26 @@ scenery_build_loc_model(
 
     if( !config_loc->shapes )
     {
+        /*
+         * A loc whose models carry no shape list is a CENTREPIECE model and
+         * nothing else. The reference returns no model for any other shape
+         * (class393's model lookup: shapes absent and `shape != 10` -> null),
+         * so such a loc placed as ground decor, a wall or a roof draws nothing
+         * there. Shape 11 asks for 10 (scenery_add_normal), as the reference's
+         * diagonal centrepiece does. This used to hand the one model list to
+         * every shape, so the Maiden's blood-spawn trail (32984, placed as
+         * ground decor) drew here and was invisible in the real client.
+         */
+        if( shape_select != RSCACHE_LOC_SHAPE_SCENERY )
+        {
+            if( WB_ENV_SCENERY_DEBUG() )
+                fprintf(
+                    stderr,
+                    "  scenery_load_model: loc %d shape %d has no shape list: centrepiece only\n",
+                    builder->scenery_base_loc_id,
+                    shape_select);
+            return NULL;
+        }
         int count = config_loc->lengths ? config_loc->lengths[0] : 0;
         for( int i = 0; i < count && models_count < 10; i++ )
         {

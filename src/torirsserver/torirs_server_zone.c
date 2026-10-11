@@ -1921,6 +1921,78 @@ deck_zone_flush(struct ToriRSServerPlayer* player)
         if( !(live_views & (1u << view)) ) player->deck_zone_serials[view] = 0;
 }
 
+/*
+ * TORIRSSERVER_ZONE_TRACE=1 -- one line per zone event as it goes to one
+ * client, spelled the way THAT client will read it: the zone header relative to
+ * the scene it holds (`zone_base`'s arithmetic), the plane, and the tile the
+ * event lands on in that scene. A header outside 0..103, or a plane the client
+ * is not drawing, is an event the official client files nowhere -- and this
+ * server's own client resolves the same packet through the same arithmetic, so
+ * only this line can show it. TORIRSSERVER_ZONE_TRACE=mapanim (or projanim, loc,
+ * obj) narrows it to one family.
+ */
+static const char*
+zone_event_kind_name(int kind)
+{
+    switch( kind )
+    {
+    case TORIRSSERVER_ZONE_EV_LOC_ADD_CHANGE: return "loc_add";
+    case TORIRSSERVER_ZONE_EV_LOC_DEL: return "loc_del";
+    case TORIRSSERVER_ZONE_EV_OBJ_ADD: return "obj_add";
+    case TORIRSSERVER_ZONE_EV_OBJ_DEL: return "obj_del";
+    case TORIRSSERVER_ZONE_EV_OBJ_COUNT: return "obj_count";
+    case TORIRSSERVER_ZONE_EV_LOC_ANIM: return "loc_anim";
+    case TORIRSSERVER_ZONE_EV_LOC_MERGE: return "loc_merge";
+    case TORIRSSERVER_ZONE_EV_PROJANIM: return "projanim";
+    case TORIRSSERVER_ZONE_EV_MAPANIM: return "mapanim";
+    default: return "?";
+    }
+}
+
+static void
+zone_trace_event(
+    const struct ToriRSServerPlayer* player,
+    int zone_x,
+    int zone_z,
+    int zone_level,
+    const struct ToriRSServerZoneEvent* event,
+    const char* how)
+{
+    static int trace = -1;
+    static char filter[16];
+    const char* name = zone_event_kind_name(event->kind);
+    int base_x;
+    int base_z;
+    int tile_x;
+    int tile_z;
+
+    if( trace < 0 )
+    {
+        const char* value = getenv("TORIRSSERVER_ZONE_TRACE");
+
+        trace = (value && *value && *value != '0') ? 1 : 0;
+        if( trace && strcmp(value, "1") != 0 )
+            snprintf(filter, sizeof(filter), "%s", value);
+    }
+    if( !trace )
+        return;
+    if( filter[0] && strncmp(name, filter, strlen(filter)) != 0 )
+        return;
+
+    base_x = zone_x * TORIRSSERVER_ZONE_TILES - ToriRSServer_SceneOrigin(player->zone_x);
+    base_z = zone_z * TORIRSSERVER_ZONE_TILES - ToriRSServer_SceneOrigin(player->zone_z);
+    tile_x = zone_x * TORIRSSERVER_ZONE_TILES + ((event->pos >> 4) & 7);
+    tile_z = zone_z * TORIRSSERVER_ZONE_TILES + (event->pos & 7);
+    fprintf(stderr,
+            "zone_trace: tick=%d pid=%d %s %-9s id=%d abs=%d,%d,%d header=%d,%d scene_tile=%d,%d%s "
+            "player_level=%d h=%d delay=%d\n",
+            player->world ? player->world->tick : -1, player->pid, how, name, event->id, tile_x,
+            tile_z, zone_level, base_x, base_z, base_x + ((event->pos >> 4) & 7),
+            base_z + (event->pos & 7),
+            (base_x < 0 || base_z < 0 || base_x > 96 || base_z > 96) ? " OUTSIDE-SCENE" : "",
+            player->level, event->src_height, event->start_delay);
+}
+
 void
 ToriRSServer_ZoneUpdatePlayer(struct ToriRSServerPlayer* player)
 {
@@ -2012,8 +2084,14 @@ ToriRSServer_ZoneUpdatePlayer(struct ToriRSServerPlayer* player)
 
         build_shared(srv, zone);
         if( zone->shared_len > 0 )
+        {
             ToriRSServer_SendZoneEnclosed(player, zone_x, zone_z, zone_level, zone->shared,
                                        zone->shared_len);
+            for( int e = 0; e < zone->event_count; e++ )
+                if( zone->events[e].receiver_pid < 0 && !zone_event_names_npc(&zone->events[e]) )
+                    zone_trace_event(player, zone_x, zone_z, zone_level, &zone->events[e],
+                                     "shared");
+        }
 
         /*
          * Whatever is addressed to one client goes out on its own -- as a
@@ -2055,6 +2133,7 @@ ToriRSServer_ZoneUpdatePlayer(struct ToriRSServerPlayer* player)
                 continue; /* already in the shared blob */
             }
 
+            zone_trace_event(player, zone_x, zone_z, zone_level, event, "single");
             if( ToriRSServer_ZoneSubStandalone(srv->wire, event->kind) )
             {
                 ToriRSServer_SendZoneHeader(player, zone_x, zone_z, zone_level, 0);

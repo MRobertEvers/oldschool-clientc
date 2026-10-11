@@ -54,6 +54,7 @@
 
 QD.MAIDEN = {
     BODY = { x = 26, z = 28 }, SIZE = 6,
+    ENTRY = { x = 52, z = 30 },                 -- east of the barrier (x 49)
     ARENA = { x0 = 23, z0 = 18, x1 = 51, z1 = 42 },
     LEAK = { x0 = 24, z0 = 26, x1 = 32, z1 = 34 },     -- a crab's SW tile inside: it leaks
     POOL_LIFE = 10,                                     -- land .. land+10, read the tick before
@@ -711,6 +712,34 @@ function QD.raid._maiden_step(S, F)
     return nil
 end
 
+-- ==================================================================== ENTRY
+
+-- THE ENTRY PHASE: the lobby lands the party at the door end of the walkway,
+-- (79,31) in the room's two-square instance (tob.constant) - in the SECOND
+-- square, so its local x is 15, and the room's own square is the one west of
+-- it. The walk to (52,30) puts the barrier (x 49) in view; then the shared
+-- start, as Nylocas does from its arrival.
+function QD.raid._maiden_enter(S, opts)
+    local tr, me = api_drive.player_tile()
+    assert(tr == "ok", "maiden_solve: no tile")
+    local base_x = me.x - me.x % 64
+    if me.x % 64 < QD.MAIDEN.ARENA.x0 then base_x = base_x - 64 end
+    local ex, ez = base_x + QD.MAIDEN.ENTRY.x, me.z - me.z % 64 + QD.MAIDEN.ENTRY.z
+    local deadline = api_drive.tick() + 60
+    QD.raid._tob_trace(S, api_drive.tick(), "phase entry")
+    while true do
+        local F = QD.raid._tob_measure(S)
+        if F.me.x == ex and F.me.z == ez then break end
+        assert(F.tick <= deadline, "maiden_solve: never reached the entry tile from " .. F.me.x .. "," .. F.me.z)
+        if F.tick - (S.walk_sent or -10) >= 3 then
+            api_drive.move_to(ex, ez)
+            S.walk_sent = F.tick
+        end
+        await({ event = "server_tick", match = function() return true end, note = "maiden_solve: to the entry" }, 3)
+    end
+    QD.raid._tob_start(S, nil, opts.start_ticks)
+end
+
 -- ===================================================================== LOOP
 
 function QD.raid.maiden_solve(opts)
@@ -721,7 +750,7 @@ function QD.raid.maiden_solve(opts)
         throws = 0, storms = 0, ignore_crabs = opts.ignore_crabs == true,
         waves = 0, wave_log = {}, freeze_log = {}, cast_lag = QD.MAIDEN.CAST_LAG_GUESS,
     })
-    QD.raid._tob_start(S, nil, opts.start_ticks)
+    QD.raid._maiden_enter(S, opts)
     return QD.raid._tob_run(S, QD.raid._maiden_step, function(s)
         return QD.raid._tob_summary(s, string.format("storms %d, throws %d; waves %s; casts %s; froze %s",
             s.storms, s.throws, table.concat(s.wave_log, " | "), table.concat(s.cast_log, " | "),
