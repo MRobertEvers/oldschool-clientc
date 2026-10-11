@@ -113,6 +113,7 @@ QD.VZP3 = {
     POOL_PULL = 1.5, BALL_PULL = 1.5, NEXT_PULL = 0.4,
     CRAB_BLAST = 3, CRAB_SIZE = 2,
     HP_EAT = 60, HP_BREW = 45, HP_TOP = 90, PRAYER_SIP = 25, COMBAT_REDOSE = 5,
+    STAT_DRAIN = 24,           -- a super restore for Attack this far below base: two brews' worth
     PIETY_FLOOR = 40,          -- Piety only with points to spare (the overheads come first)
     TORNADO_RING = { 2, 10 },  -- a spawn this far from a raider (end of T-1, seen a tick later) may be its
     OWNER_MARGIN = 2,          -- another raider's votes over mine before a tornado is not mine
@@ -718,7 +719,13 @@ function QD.raid._vzp3_spec(S, F)
             zone("ball-next-margin", { x = anchor.x, z = anchor.z, size = 1, lo = 0, hi = 1, t0 = read - 1, t1 = read + 1, require = true, tier = "damage", cost = 30 })
             spec.pulls[#spec.pulls + 1] = { x = anchor.x, z = anchor.z, size = 1, weight = V.BALL_PULL, t0 = F.tick, t1 = read - 2 }
         else
-            zone("ball-clear", { x = anchor.x, z = anchor.z, size = 1, lo = 0, hi = 2, t0 = land - 1, t1 = land + 1, tier = "lethal" })
+            -- 3+ from the target for the WHOLE flight, not just round the
+            -- landing: kept off only for land-1..land+1, the third raider
+            -- walked up to the target mid-flight (pulled at her and at the
+            -- next raider), meant to step out, was boxed in, and all three
+            -- stood together as it landed - it exploded on every one (rl76 un
+            -- t3859-t3866, two dead)
+            zone("ball-clear", { x = anchor.x, z = anchor.z, size = 1, lo = 0, hi = 2, t0 = F.tick + 1, t1 = land + 1, tier = "lethal" })
             if nxt then
                 spec.pulls[#spec.pulls + 1] = { x = nxt.x, z = nxt.z, size = 1, weight = V.NEXT_PULL, t0 = F.tick, t1 = land + 1 }
             end
@@ -952,6 +959,65 @@ end
 
 -- The super restores, then the prayer potions the ToB supply chest sells
 -- (enum_1952, 2 points): the relay's seats bring those into P3.
+-- ====================================================== THE PRAYER BUDGET
+--
+-- Verzik is the last room and the last chest is Sotetseg's, so what a seat
+-- carries in is all the prayer it has. Every death in the relay sweeps after
+-- the zap was fixed (rl58 rn, rl59 ta tk tg) was a seat out of restores or
+-- brews in P3: prayer 0, her autos unprayed, 29s. Two things spent it:
+--   Piety, kept lit to 0 points (tk: 42 points in 105 ticks with the
+--     overhead, one a tick and a half; the overhead alone is one in 7.5 at
+--     this kit's prayer bonus, Piety alone one in 3.75), and
+--   a super restore for every brew's Attack drain in P3.
+-- So: the points I have (prayer + a dose's 31 per restore or prayer dose
+-- carried) less the overhead's drain over what is left of the fight is the
+-- SPARE. IN P3, Piety stays on while the spare is positive -- the overhead is
+-- funded to the end -- and goes OFF only when it is not: with void and whips
+-- the fight is long (P3 392 ticks against Blert's 139), 94% of P3 damage is
+-- her autos landing on every raider at a prayed 8.5 a hit, so damage is paid
+-- by the tick, and Piety's quarter off the kill time is ~110 hp a raider for
+-- ~104 prayer points. Rationing Piety to "the spare covers Piety to the end"
+-- made P3 30 ticks longer (rl58 361 -> rl64 392) and seats died out of brews
+-- with prayer to spare (rl64 se, ri). In P2 Piety still has to leave P3's
+-- (and P2 cannot go without it: the reds outlive their window, rl71). (Drained stats are restored
+-- at two brews' drain, QD.VZP3.STAT_DRAIN, not gated on the spare: skipped,
+-- the hits on her fell to 1 and the fight never ended.)
+QD.VZ_PRAYER = {
+    PER_DOSE = 31,
+    PROTECT_TICKS = 6,       -- a point per this many ticks: the overhead alone (7.5 measured, kept short)
+    PIETY_TICKS = 3.75,      -- and Piety's own share
+    P2_TICKS = 520,          -- P2's length, p90 of 32 relays (rl56/rl58: median 468)
+    P3_TICKS = 400,          -- P3's (p90 384, median 354)
+}
+
+function QD.raid.vz_prayer_doses(inv)
+    local P = QD.VZ_PRAYER
+    if P.ids == nil then
+        P.ids = {}
+        for _, stem in ipairs({ "dose2restore", "doseprayerrestore" }) do
+            for _, pre in ipairs({ "br_", "" }) do
+                for n = 1, 4 do
+                    local r, id = api_drive.symbol("obj", pre .. n .. stem)
+                    if r == "ok" then P.ids[#P.ids + 1] = { id = id, doses = n } end
+                end
+            end
+        end
+    end
+    local total = 0
+    for _, e in ipairs(P.ids) do
+        local _, c = api_drive.inv_count(inv, e.id)
+        total = total + e.doses * (c or 0)
+    end
+    return total
+end
+
+-- -> the spare points, and whether Piety is affordable, `remaining` ticks out
+function QD.raid.vz_prayer_spare(inv, prayer, remaining)
+    local P = QD.VZ_PRAYER
+    local spare = prayer + QD.raid.vz_prayer_doses(inv) * P.PER_DOSE - remaining / P.PROTECT_TICKS
+    return spare, spare >= remaining / P.PIETY_TICKS
+end
+
 function QD.raid._vzp3_restores(list)
     for n = 1, 4 do
         local r, id = api_drive.symbol("obj", n .. "doseprayerrestore")
@@ -1021,6 +1087,10 @@ function QD.raid.verzik_p3_solve(opts)
         -- on, and seats came into P3 at 52-73 and died there (relay rl43 rd,
         -- rn).
         local topping = F.transition ~= nil and F.boss == nil
+        local P = QD.VZ_PRAYER
+        local remaining = math.max(60, P.P3_TICKS - (S.entered and (F.tick - S.entered) or 0))
+        local spare = QD.raid.vz_prayer_spare(S.ids.inv, F.prayer, remaining)
+        S.piety_ok = spare > 0
         local restore_due = F.prayer < V.PRAYER_SIP and F.tick - (S.last_drink or -10) >= 3
         local eat_due = F.hp < (topping and V.HP_TOP or V.HP_EAT) and F.tick - (S.last_eat or -10) >= 3
         if restore_due then
@@ -1042,16 +1112,27 @@ function QD.raid.verzik_p3_solve(opts)
             -- (a drain takes a super restore only: a prayer potion restores
             -- no stat, and every brew drains attack, so a seat out of super
             -- restores sipped its prayer potions dry, relay rl21)
-            if F.attack < F.attack_base then
+            -- TWO BREWS' DRAIN, NOT ONE: a brew dose drains about 12 levels and
+            -- a super restore gives back about 32, so a restore after every
+            -- brew threw away 60% of it (rl60 ta: a restore three ticks after
+            -- each of six brews). Never skipped, though: with the stats
+            -- drained the raiders' hits on her fell from 19 to 1 and P3 never
+            -- ended (rl60 tk, dead of attrition 700 ticks in).
+            if F.attack <= F.attack_base - V.STAT_DRAIN then
                 intent.drink = QD.raid._vzp3_first(S, S.ids.stat_restores)
             elseif F.attack <= F.attack_base + V.COMBAT_REDOSE then
                 intent.drink = QD.raid._vzp3_first(S, S.ids.combats)
             end
             if intent.drink then S.last_drink = F.tick end
         end
-        if not intent.pray and F.prayer >= V.PIETY_FLOOR
-            and not F.lit.piety and (S.pray_clicked.piety == nil or F.tick - S.pray_clicked.piety > 6) then
-            intent.pray = "piety"
+        -- PIETY ON THE BUDGET (QD.VZ_PRAYER): on while the spare covers it to
+        -- the end of the fight, OFF when it stops covering it
+        if not intent.pray and (S.pray_clicked.piety == nil or F.tick - S.pray_clicked.piety > 6) then
+            if F.lit.piety and not S.piety_ok then
+                intent.pray = "piety"
+            elseif not F.lit.piety and S.piety_ok and F.prayer >= V.PIETY_FLOOR then
+                intent.pray = "piety"
+            end
         end
         if F.weapon_held and F.tick - (S.weapon_tried or -10) >= 3 then
             intent.gear = S.ids.weapon

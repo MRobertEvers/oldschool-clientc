@@ -151,6 +151,7 @@ function QD.raid._vzp2_ids(weapon)
         piety = comp("prayerbook:prayer27"), piety_lit = sym("varbit", "varb4129_prayer_piety"),
         attack = sym("stat", "attack"),
         combats = QD.raid._vzp2_doses("dose2combat"),
+        stat_restores = QD.raid._vzp2_doses("dose2restore"),
         brews = QD.raid._vzp2_doses("dosepotionofsaradomin"),
         inv_tab = inv_tab, prayer_tab = prayer_tab,
     }
@@ -544,24 +545,47 @@ function QD.raid._vzp2_formation(S, F)
             end
         end
     end
+    -- WHO IS IN THE FIGHT: a dead raider's seat is in the spectator cage,
+    -- off the floor. With two left, the two take one tile each, never a
+    -- stack: stacked, the ball has no hop and every zap is a full shock on
+    -- them (rl56 rm: 21 one-leg zaps after a death). The lower role takes
+    -- the pair's first tile.
+    local fl = S.floor
+    local alive = {}
+    for r = 1, 3 do
+        local st = seats[r]
+        if st and st.x >= fl.x0 and st.x <= fl.x1 and st.z >= fl.z0 and st.z <= fl.z1 then alive[#alive + 1] = r end
+    end
+    if #alive < 2 then return nil end
+    local first, mirror = { [1] = true, [2] = true }, { [3] = true }
+    if #alive == 2 then first, mirror = { [alive[1]] = true }, { [alive[2]] = true } end
+    if not first[S.role] and not mirror[S.role] then return nil end
     local t, left = F.zap_scan, math.max(0, F.zap_scan - F.tick)
     local cx, cz = b.x + 1, b.z + 1
     local reach = V.FORMATION_GAP
+    local blocked = {}
     local function clear(x, z)
         local g = QD.raid._vzp2_gap(x, z, b.x, b.z, V.SIZE)
         if g < 2 or g > reach then return false end
-        for _, h in ipairs(F.hazards) do
-            if (h.ends[t] or h.ends[t + 1]) and h.x == x and h.z == z then return false end
-        end
-        for _, bl in ipairs(S.blasts) do
-            if t >= bl.from and t <= bl.to and QD.raid._vzp2_gap(x, z, bl.x, bl.z, V.CRAB_SIZE) <= V.CRAB_BLAST then
-                return false
+        local k = x * 4096 + z
+        local hit = blocked[k]
+        if hit == nil then
+            hit = false
+            for _, h in ipairs(F.hazards) do
+                if (h.ends[t] or h.ends[t + 1]) and h.x == x and h.z == z then hit = true end
             end
+            for _, bl in ipairs(S.blasts) do
+                if t >= bl.from and t <= bl.to and QD.raid._vzp2_gap(x, z, bl.x, bl.z, V.CRAB_SIZE) <= V.CRAB_BLAST then
+                    hit = true
+                end
+            end
+            blocked[k] = hit
         end
-        return true
+        return not hit
     end
-    local function far(seat, x, z)
-        if seat == nil then return 0 end
+    local function far(r, x, z)
+        local seat = seats[r]
+        if seat == nil or not (first[r] or mirror[r]) then return 0 end
         return QD.raid._vzp2_cheb(seat.x, seat.z, x, z)
     end
     -- the default pair first (the stack west, role 3 east: what the seats are
@@ -578,8 +602,9 @@ function QD.raid._vzp2_formation(S, F)
     -- seat latches on the same tick from the same reading, so they agree.
     local latch = S.formation_latch
     reach = V.FORMATION_GAP_WIDE
-    if latch and latch.t == t and clear(latch.stack.x, latch.stack.z) and clear(latch.single.x, latch.single.z) then
-        S.formation = (S.role == 3) and latch.single or latch.stack
+    if latch and latch.t == t and latch.alive == #alive
+        and clear(latch.stack.x, latch.stack.z) and clear(latch.single.x, latch.single.z) then
+        S.formation = mirror[S.role] and latch.single or latch.stack
         return S.formation
     end
     local best, best_cost = nil, nil
@@ -592,10 +617,14 @@ function QD.raid._vzp2_formation(S, F)
         for i, pt in ipairs(cands) do
             local qx, qz = 2 * cx - pt.x, 2 * cz - pt.z
             if clear(pt.x, pt.z) and clear(qx, qz) then
-                local travel = math.max(far(seats[1], pt.x, pt.z), far(seats[2], pt.x, pt.z), far(seats[3], qx, qz))
+                local to_p, to_q, travel = 0, 0, 0
+                for r = 1, 3 do
+                    local d = first[r] and far(r, pt.x, pt.z) or far(r, qx, qz)
+                    if first[r] then to_p = to_p + d else to_q = to_q + d end
+                    if d > travel then travel = d end
+                end
                 local late = math.max(0, travel - 2 * left)
-                local cost = late * 100 + travel * 2 + far(seats[1], pt.x, pt.z) + far(seats[2], pt.x, pt.z)
-                    + far(seats[3], qx, qz) + (i == 1 and -1 or 0)
+                local cost = late * 100 + travel * 2 + to_p + to_q + (i == 1 and -1 or 0)
                 if best_cost == nil or cost < best_cost then
                     best_cost, best = cost, { stack = { x = pt.x, z = pt.z }, single = { x = qx, z = qz } }
                 end
@@ -606,9 +635,9 @@ function QD.raid._vzp2_formation(S, F)
     if best == nil then
         return nil
     end
-    best.t = t
+    best.t, best.alive = t, #alive
     S.formation_latch = best
-    S.formation = (S.role == 3) and best.single or best.stack
+    S.formation = mirror[S.role] and best.single or best.stack
     if S.formation_traced ~= t then
         S.formation_traced = t
         QD.raid._vzp2_trace(S, F.tick, string.format("zap formation for t%d: stack %d,%d single %d,%d",
@@ -667,7 +696,8 @@ function QD.raid._vzp2_terms(S, F)
             -- target takes the whole shock (rl52 rg t2889, ri t3001, rn t2991)
             local latch = S.formation_latch
             if latch and latch.t == t then
-                local other = (S.role == 3) and latch.stack or latch.single
+                local mine = S.formation
+                local other = (mine and mine.x == latch.single.x and mine.z == latch.single.z) and latch.stack or latch.single
                 if x == other.x and z == other.z then c = c + 300 end
             end
             return c
@@ -825,9 +855,14 @@ function QD.raid._vzp2_move(S, F, terms)
         end
     end
     local _, stand, back = QD.raid._vzp2_side(S, F)
-    -- (the zap formation's tile, wherever it adapted to)
+    -- (the zap formation's tile, wherever it adapted to, IN PLACE of the
+    -- back tile: it is the same job, and added beside it the extra orders
+    -- and two-click plans ran a seat out of its 400000-instruction tick,
+    -- rl59 tf t2859 -- the crashed seat stood still and the ball shocked
+    -- the other two to death)
     local formation = QD.raid._vzp2_formation(S, F)
-    for _, t in ipairs({ stand, back, formation }) do
+    if formation then back = formation end
+    for _, t in ipairs({ stand, back }) do
         for dx = -1, 1 do
             for dz = -1, 1 do orders[#orders + 1] = { mode = "walk", x = t.x + dx, z = t.z + dz } end
         end
@@ -851,9 +886,6 @@ function QD.raid._vzp2_move(S, F, terms)
     local firsts = { { mode = "walk", x = stand.x, z = stand.z } }
     if S.target then firsts[2] = { mode = "attack", target = S.target } end
     local seconds = { { mode = "walk", x = back.x, z = back.z } }
-    if formation and (formation.x ~= back.x or formation.z ~= back.z) then
-        seconds[#seconds + 1] = { mode = "walk", x = formation.x, z = formation.z }
-    end
     if S.target then seconds[2] = { mode = "attack", target = S.target } end
     for _, o1 in ipairs(firsts) do
         for j = 1, V.H - 1 do
@@ -1094,8 +1126,21 @@ function QD.raid.verzik_p2_solve(opts)
             -- overhead: Missiles for the bombs, Magic once the reds are out
             -- (the blood spell deals 0 under it)
             local want = S.reds_out and "magic" or "missiles"
+            -- Piety on the budget (QD.VZ_PRAYER, raid_solve_verzik_p3.lua):
+            -- the rest of P2 and all of P3 come out of what I carry in. (Not
+            -- off altogether: without it the reds outlived their window, healed
+            -- her, and P2 ran past 900 ticks in 5 of 8 relays, rl71.)
+            local P = QD.VZ_PRAYER
+            local remaining = math.max(0, P.P2_TICKS - (S.entered and (F.tick - S.entered) or 0)) + P.P3_TICKS
+            local _, piety_ok = QD.raid.vz_prayer_spare(S.ids.inv, F.prayer, remaining)
+            -- (the give-up count is of presses that never lit it: a lit
+            -- Piety resets it, or switching it off twice ended it for good)
+            if F.lit.piety then S.pray_presses.piety = 0 end
             if not F.lit[want] then intent.pray = want
-            elseif not F.lit.piety and (S.pray_presses.piety or 0) < 2 then
+            elseif F.lit.piety and not piety_ok and F.tick - (S.piety_off_pressed or -10) >= 4 then
+                intent.pray = "piety"
+                S.piety_off_pressed = F.tick
+            elseif not F.lit.piety and piety_ok and (S.pray_presses.piety or 0) < 2 then
                 -- Piety for the damage race; two refused presses and it is
                 -- not this account's to use
                 intent.pray = "piety"
@@ -1134,6 +1179,19 @@ function QD.raid.verzik_p2_solve(opts)
             if not intent.drink and F.prayer >= V.PRAYER_SIP and F.attack <= F.attack_base + V.COMBAT_REDOSE
                 and F.tick - (S.last_drink or -10) >= 3 then
                 for _, dose in ipairs(S.ids.combats) do
+                    local _, n = api_drive.inv_count(S.ids.inv, dose)
+                    if (n or 0) > 0 then intent.drink = dose break end
+                end
+                if intent.drink then S.last_drink = F.tick end
+            end
+            -- A DRAINED ATTACK IS RESTORED HERE TOO, at two brews' drain (as
+            -- P3, QD.VZP3.STAT_DRAIN): with the kit's fish turned to brews
+            -- and no combat dose left, P2 ran on drained stats - median 457
+            -- -> 532 ticks (rl62 -> rl76), the reds outliving their window,
+            -- and the restores P3 needed spent on the extra length (rl79 uf)
+            if not intent.drink and F.attack <= F.attack_base - QD.VZP3.STAT_DRAIN
+                and F.tick - (S.last_drink or -10) >= 3 then
+                for _, dose in ipairs(S.ids.stat_restores) do
                     local _, n = api_drive.inv_count(S.ids.inv, dose)
                     if (n or 0) > 0 then intent.drink = dose break end
                 end

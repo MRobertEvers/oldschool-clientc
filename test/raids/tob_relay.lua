@@ -69,13 +69,23 @@ for _, line in ipairs({
 -- swap failed, and her DPS seats took 209-402 against the room test's
 -- 157-229 (8 relay seeds; the room test with this kit reproduced it to the
 -- hit, and with these supplies matched the room test to the hit).
+-- HEALING BY THE SLOT, from the start: an anglerfish is 22 hitpoints a slot,
+-- a four-dose brew ~64, and the void-and-whip team pays for Verzik's long P3
+-- by the tick -- in rl72 tl every seat finished it with nothing left at all.
+-- So most of the fish became brews, and a super restore beside them for the
+-- Attack and Strength those brews drain (same slot count: seat 1 keeps its two
+-- free slots for the freezer's swap).
 for _, line in ipairs((role == 1)
-    and { "::give br_4dose2restore 4", "::give br_4dose2combat 1", "::give br_4dosepotionofsaradomin 3", "::give anglerfish 3" }
-    or { "::give br_4dose2restore 5", "::give br_4dose2combat 2", "::give br_4dosepotionofsaradomin 4", "::give anglerfish 5" }) do
+    and { "::give br_4dose2restore 5", "::give br_4dose2combat 1", "::give br_4dosepotionofsaradomin 4", "::give anglerfish 1" }
+    or { "::give br_4dose2restore 6", "::give br_4dose2combat 2", "::give br_4dosepotionofsaradomin 6", "::give anglerfish 2" }) do
     kit[#kit + 1] = line
 end
 -- seat 1 ranges (Maiden's freezer, the Nylocas' ranger): the ranging
--- potion; seats 2 and 3 a second super combat, for Verzik
+-- potion; seats 2 and 3 a second super combat, for Verzik. (Seat 2 once
+-- carried a fifth brew here instead, for tanking Maiden's blackstorms; the
+-- super combat's redoses are what keep P2 boosted, and without one P2 ran
+-- 457 -> 512 ticks median (rl62 -> rl64) and spent P3's supplies. The kit's
+-- fish-to-brews change since gives every seat the brews.)
 kit[#kit + 1] = (role == 1) and "::give br_4doserangerspotion 1" or "::give br_4dose2combat 1"
 if role == 3 then kit[#kit + 1] = "::give serpentine_helm_charged 1" end
 
@@ -330,7 +340,100 @@ local function fight(t, name)
     return result == "ok"
 end
 
+-- THE HEALING IS SHARED AT VERZIK'S DOOR. Her P3 is paid for by the tick --
+-- her autos land on every raider -- and with void and whips it runs ~390
+-- ticks, so a seat's brews and fish are its life there. The team carried
+-- enough; the wrong seat carried it: seat 3 (no slots at Bloat's chest, all
+-- its points at Sotetseg's) came in on 24-36 brew doses and left 18-23 at her
+-- death, while every P3 death was seat 1 or 2 out of healing (rl66, 19
+-- relays; rl69 ri: seat 1 in on 0 brews and 6 fish, dead, the other two
+-- finishing with 14 and 16 brew doses). So, as teams do: a seat above
+-- SHARE_HP of healing (16 a brew dose, 20 a fish) drops its extra full brews
+-- and fish on its tile, keeping SHARE_HP; then, one seat at a time in role
+-- order, a seat below it takes them up to it. Holding Bloat's points for
+-- Sotetseg's chest instead starved the middle rooms (rl67 rn: dead in
+-- Sotetseg). The floor is the message: no seat needs another's inventory.
+-- Supplies only -- no equipment changes hands.
+local SHARE_HP = 300
+-- (slots the exchange never fills: P1's Dawnbringer is dropped by one seat
+-- for the next, and a seat the exchange had filled to the last slot could not
+-- take it - P1 ran 380 ticks and raiders died to it, rl83 rm, tc)
+local SHARE_KEEP_SLOTS = 2
+local BREW_FULL = { "br_4dosepotionofsaradomin", "4dosepotionofsaradomin" }
+local FISH = { "anglerfish", "shark", "mantaray", "seaturtle" }
+local function healing_hp(t)
+    local d, f = 0, 0
+    for k = 1, 4 do
+        for _, nm in ipairs({ "br_" .. k .. "dosepotionofsaradomin", k .. "dosepotionofsaradomin" }) do
+            local r, c = t.inv.count(nm)
+            d = d + k * ((r == "ok" and tonumber(c)) or 0)
+        end
+    end
+    for _, nm in ipairs(FISH) do
+        local r, c = t.inv.count(nm)
+        f = f + ((r == "ok" and tonumber(c)) or 0)
+    end
+    return 16 * d + 20 * f
+end
+local function share_healing(t)
+    drop_vials(t)
+    local before, gave, took = healing_hp(t), 0, 0
+    -- give: a full brew (64) while that leaves SHARE_HP, then fish (20)
+    for _ = 1, 12 do
+        local dropped = false
+        for _, list in ipairs({ { BREW_FULL, 64 }, { FISH, 20 } }) do
+            if not dropped and healing_hp(t) - list[2] >= SHARE_HP then
+                for _, nm in ipairs(list[1]) do
+                    local r, c = t.inv.count(nm)
+                    if not dropped and r == "ok" and (tonumber(c) or 0) > 0 then
+                        if t.player.drop(nm) == "ok" then gave = gave + 1 end
+                        dropped = true
+                    end
+                end
+            end
+        end
+        if not dropped then break end
+    end
+    t.expect("verzik.barrier.shared", t.party.barrier("verzik_shared", 300))
+    for r = 1, 3 do
+        if role == r then
+            for _ = 1, 12 do
+                if healing_hp(t) >= SHARE_HP or free_slots(t) <= SHARE_KEEP_SLOTS then break end
+                local picked = false
+                for _, nm in ipairs({ BREW_FULL[1], BREW_FULL[2], FISH[1], FISH[2], FISH[3], FISH[4] }) do
+                    if not picked and t.world.obj_near(nm, 15) == "ok" and t.player.click_obj(nm, 3) == "ok" then
+                        took = took + 1
+                        picked = true
+                    end
+                end
+                if not picked then break end
+            end
+        end
+        t.expect("verzik.barrier.took_" .. r, t.party.barrier("verzik_took_" .. r, 300))
+    end
+    -- and nothing is left on the floor: what nobody needed goes back up,
+    -- ONE ITEM A SEAT A PASS in role order, so a surplus spreads instead of
+    -- landing on seat 1 (tl dropped two brews no seat needed, lost; then a
+    -- role-order sweep put seat 1 on 584 and 544 with the others on ~310)
+    for pass = 1, 4 do
+        for r = 1, 3 do
+            if role == r and free_slots(t) > SHARE_KEEP_SLOTS then
+                for _, nm in ipairs({ BREW_FULL[1], BREW_FULL[2], FISH[1], FISH[2], FISH[3], FISH[4] }) do
+                    if t.world.obj_near(nm, 15) == "ok" and t.player.click_obj(nm, 3) == "ok" then
+                        took = took + 1
+                        break
+                    end
+                end
+            end
+            t.expect("verzik.barrier.left_" .. pass .. "_" .. r, t.party.barrier("verzik_left_" .. pass .. "_" .. r, 300))
+        end
+    end
+    t.check("verzik.share", true, P .. string.format("healing %d -> %d hp (gave %d, took %d)",
+        before, healing_hp(t), gave, took))
+end
+
 local function verzik(t)
+    share_healing(t)
     local prep = t.raid.verzik_p1_prepare()
     t.check("verzik.prepare", prep ~= nil, P .. (prep and (prep.pillars .. " pillars searched") or "the room never came into view"))
     t.expect("verzik.barrier.ready", t.party.barrier("verzik_ready", 600))
@@ -342,6 +445,7 @@ local function verzik(t)
         t.check("verzik.begin", cr == "ok", tostring(cd))
     end
     t.expect("verzik.barrier.started", t.party.barrier("verzik_started", 900))
+    t.check("verzik.supplies_in", true, P .. supplies_text(t))
     local r1, d1 = t.raid.verzik_p1_solve({ max_ticks = 400, prep = prep, weapon = "abyssal_tentacle" })
     t.check("verzik.p1", r1 == "ok", P .. string.sub(tostring(d1), 1, 600))
     if r1 ~= "ok" then return false end
@@ -349,6 +453,7 @@ local function verzik(t)
     t.check("verzik.p2", r2 == "ok", P .. string.sub(tostring(d2), 1, 600))
     if r2 ~= "ok" then return false end
     local r3, d3 = t.raid.verzik_p3_solve({ max_ticks = 900, base = prep.base, weapon = "abyssal_tentacle" })
+    t.check("verzik.supplies_left", true, P .. supplies_text(t))
     t.check("verzik.p3", r3 == "ok", P .. string.sub(tostring(d3), 1, 600))
     return r3 == "ok"
 end
