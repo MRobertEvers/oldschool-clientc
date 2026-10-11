@@ -12,51 +12,71 @@
 #include <stdlib.h>
 #include <string.h>
 
-enum
-{
-    /* One row per shared-shop-shaped inv the tree can name. Generous over the
-     * catalogued roster (docs/SHOPS_PLAN.md §1.3: 593 distinct shops) because
-     * overflow here is a boot-time error, not a runtime one — cheaper to size
-     * past the need than to have a content author discover the ceiling. */
-    TORIRSSERVER_SHOP_DEF_MAX = 700
-};
-
-static struct ToriRSServerShopDef g_shop_defs[TORIRSSERVER_SHOP_DEF_MAX];
-static int g_shop_def_count = 0;
+/*
+ * One row per inv. Every inv states its server fields (`scope`, `restock`,
+ * `allstock`, `stackall`, `stock`), so every inv has a row, and what makes one
+ * a shop is `scope=shared` — not, as it was while only shops stated anything,
+ * whether a row exists. Grown on demand and found by id through `g_shop_index`
+ * (row + 1, 0 for none), since a container asks on every write.
+ */
+static struct ToriRSServerShopDef* g_shop_defs;
+static int g_shop_def_count;
+static int g_shop_def_capacity;
+static int* g_shop_index;
+static int g_shop_index_capacity;
 
 void
 ToriRSServer_ShopReset(void)
 {
-    memset(g_shop_defs, 0, sizeof(g_shop_defs));
+    free(g_shop_defs);
+    free(g_shop_index);
+    g_shop_defs = NULL;
+    g_shop_index = NULL;
     g_shop_def_count = 0;
+    g_shop_def_capacity = 0;
+    g_shop_index_capacity = 0;
 }
 
 static struct ToriRSServerShopDef*
 find_def(int32_t inv_id)
 {
-    for( int i = 0; i < g_shop_def_count; i++ )
-        if( g_shop_defs[i].inv_id == inv_id )
-            return &g_shop_defs[i];
-    return NULL;
+    if( inv_id < 0 || inv_id >= g_shop_index_capacity || !g_shop_index[inv_id] )
+        return NULL;
+    return &g_shop_defs[g_shop_index[inv_id] - 1];
 }
 
 struct ToriRSServerShopDef*
 ToriRSServer_ShopDefBegin(int32_t inv_id)
 {
     struct ToriRSServerShopDef* existing = find_def(inv_id);
+    struct ToriRSServerShopDef* def;
 
+    assert(inv_id >= 0);
     if( existing )
         return existing;
-    if( g_shop_def_count >= TORIRSSERVER_SHOP_DEF_MAX )
+    if( inv_id >= g_shop_index_capacity )
     {
-        fprintf(stderr, "torirsserver: %d shop definitions already parsed; inv %d dropped\n",
-                TORIRSSERVER_SHOP_DEF_MAX, (int)inv_id);
-        return NULL;
-    }
-    struct ToriRSServerShopDef* def = &g_shop_defs[g_shop_def_count++];
+        int capacity = g_shop_index_capacity ? g_shop_index_capacity : 1024;
 
+        while( capacity <= inv_id )
+            capacity *= 2;
+        g_shop_index = (int*)realloc(g_shop_index, (size_t)capacity * sizeof(*g_shop_index));
+        assert(g_shop_index);
+        memset(g_shop_index + g_shop_index_capacity, 0,
+               (size_t)(capacity - g_shop_index_capacity) * sizeof(*g_shop_index));
+        g_shop_index_capacity = capacity;
+    }
+    if( g_shop_def_count == g_shop_def_capacity )
+    {
+        g_shop_def_capacity = g_shop_def_capacity ? g_shop_def_capacity * 2 : 256;
+        g_shop_defs = (struct ToriRSServerShopDef*)realloc(
+            g_shop_defs, (size_t)g_shop_def_capacity * sizeof(*g_shop_defs));
+        assert(g_shop_defs);
+    }
+    def = &g_shop_defs[g_shop_def_count++];
     memset(def, 0, sizeof(*def));
     def->inv_id = inv_id;
+    g_shop_index[inv_id] = g_shop_def_count;
     return def;
 }
 

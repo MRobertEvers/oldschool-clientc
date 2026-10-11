@@ -1315,8 +1315,9 @@ def check_underground_pass() -> None:
         )
     for actor in ("upass_doomion_safe", "upass_holthion_safe", "upass_othainian_safe"):
         block = npc.split(f"[{actor}]", 1)[1].split("\n[", 1)[0]
-        # The config text states every key; "default" is the unset spelling.
-        require(not re.search(r"^(op2|huntmode)=(?!default$)", block, re.M),
+        # The config text states every key: no op2 ("default" is the unset
+        # spelling of a client key) and a huntmode that hunts nothing.
+        require(not re.search(r"^(op2=(?!default$)|huntmode=(?!(default|none)$))", block, re.M),
                 f"Underground Pass: {actor} regained aggression/Attack option")
         require_text(block, ("hitpoints=87", "param=magicdefence,-10",
                              "param=death_drop,null"),
@@ -4892,14 +4893,16 @@ VARP_ALLOC = ROOT / "OSRS-Content/osrs239-content/pack/varp.alloc"
 
 
 def load_content_varp_defs() -> dict[str, dict]:
-    """What load_varp_config (torirs_server_content.c) ends up answering.
+    """What the server pack answers for each varp a .varp file names.
 
-    walk_configs visits server/scripts in sorted name order and
-    ToriRSServer_ContentVarp returns the FIRST def for an id, so a later
-    duplicate section is ignored here too. A varp no .varp file declares has
-    no def at all: never transmitted, never saved.
+    The pack merges every block for a name key by key (cachepack's merge): an
+    authored file outranks a `.generated.` one (cp_merge_rank_for), so the
+    generated layer that states every varp's fields explicitly
+    (server/scripts/_explicit/) only answers for a key nothing hand-written
+    states. A varp no .varp file names has no def: never transmitted, never
+    saved.
     """
-    defs: dict[str, dict] = {}
+    keys: dict[str, dict[str, tuple[int, str, str]]] = {}
 
     def walk(directory: Path) -> None:
         for name in sorted(os.listdir(directory)):
@@ -4909,6 +4912,7 @@ def load_content_varp_defs() -> dict[str, dict]:
             if path.is_dir():
                 walk(path)
             elif name.endswith(".varp"):
+                rank = 1 if ".generated." in name else 2
                 current = None
                 for raw in config_text.read_lines(path, errors="replace"):
                     line = _strip_comment(raw).strip()
@@ -4916,22 +4920,24 @@ def load_content_varp_defs() -> dict[str, dict]:
                         continue
                     header = re.match(r"^\[([^\]]+)\]$", line)
                     if header:
-                        symbol = header.group(1)
-                        current = None
-                        if symbol not in defs:
-                            current = defs[symbol] = {
-                                "file": str(path.relative_to(CONTENT)),
-                                "transmit": False, "perm": False}
+                        current = keys.setdefault(header.group(1), {})
                         continue
                     if current is None or "=" not in line:
                         continue
                     key, value = (part.strip() for part in line.split("=", 1))
-                    if key == "transmit":
-                        current["transmit"] = value == "yes"
-                    elif key == "scope":
-                        current["perm"] = value == "perm"
+                    if key in ("transmit", "scope") and value != "default" and \
+                            rank >= current.get(key, (0, "", ""))[0]:
+                        current[key] = (rank, value, str(path.relative_to(CONTENT)))
 
     walk(CONTENT)
+    defs: dict[str, dict] = {}
+    for symbol, stated in keys.items():
+        files = sorted({where for _, _, where in stated.values()})
+        defs[symbol] = {
+            "file": ", ".join(files) if files else "(no transmit/scope stated)",
+            "transmit": stated.get("transmit", (0, "", ""))[1] == "yes",
+            "perm": stated.get("scope", (0, "", ""))[1] == "perm",
+        }
     return defs
 
 

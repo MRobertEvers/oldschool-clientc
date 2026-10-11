@@ -1461,6 +1461,240 @@ routing_report(
                type->name, routing->rank1_in_cache);
 }
 
+/* ---- defaults ------------------------------------------------------------ */
+
+/*
+ * A default is a value nobody stated about the record that reads it.
+ *
+ * Three things supply one, and this pass is the only place all three are in
+ * view at once:
+ *
+ *   [default]          a type's defaults block — what every record "is" before
+ *                      its own block applies. `npc_default.npc` said
+ *                      `param=death_drop,bones`, so a Maiden blood spawn, whose
+ *                      block said nothing about remains, left bones.
+ *   engine built-in    a band field a record does not state is read back absent,
+ *                      and the server answers with whatever its C seed holds
+ *                      (`npc_def_builtin`: retaliate 1, wanderrange 5, ...).
+ *                      This pass cannot see the number, and does not need to:
+ *                      that the record left it out is the whole finding.
+ *   param default      a tree param whose `default=` names a value
+ *                      (`default=bones`, `default=human_ready`, `default=25`)
+ *                      answers for every record that does not state it.
+ *
+ * Every one is a warning; `--defaults=error` makes the run fail while any
+ * remain. A record states a band field by writing a value for it — `key=default`
+ * is not a value (`merged_value` reads it as absent), so it is still a default.
+ *
+ * What is NOT a default here: a param whose `default=` is its type's own absence
+ * (`null`, `-1`, `0`, `no`, empty). That is how a sparse param says "this record
+ * has none" — `unbankable` on the thirty thousand objs that are bankable — and
+ * the cache's own param table (`configs/all.param`, rank 0) is the cache's data,
+ * which the client reads by the same rule.
+ */
+struct CP_DefaultsTally
+{
+    /** Records leaving each band field unstated, and the first one's name. */
+    int missing[RSCACHE_REGISTER_MAX];
+    char sample[RSCACHE_REGISTER_MAX][64];
+    int examined;
+    /** Records leaving at least one band field unstated... */
+    int records;
+    /** ...of which these state none at all. */
+    int silent;
+    /** The type's `[default]` block, and the fields it states. */
+    int have_block;
+    int block_fields;
+    struct RSCache_Presence block;
+};
+
+/** Note which of the type's band fields `record` (built from `rec`) left out. */
+static void
+defaults_note(
+    struct CP_DefaultsTally* tally,
+    const struct RSCache_Register* fields,
+    const struct CP_MergedRecord* rec,
+    const struct RSCache_BandRecord* record,
+    int stated)
+{
+    int missing = 0;
+
+    assert(tally);
+    assert(fields);
+    assert(rec);
+    assert(record);
+    if( record_is_defaults_block(rec) )
+    {
+        tally->have_block = 1;
+        tally->block_fields = stated;
+        tally->block = record->present;
+        return;
+    }
+    tally->examined++;
+    for( int f = 0; f < fields->band_count; f++ )
+    {
+        /* A band field that mirrors the client record's own (a dbtable's
+         * `column`) is the cache record's statement, `=default` included: the
+         * full-key check already makes rank 0 state it. */
+        if( RSCache_PresenceHas(&record->present, f) ||
+            fields->entries[f].client == RSCACHE_REGISTER_CLIENT_NATIVE )
+            continue;
+        if( !tally->missing[f] )
+            snprintf(tally->sample[f], sizeof(tally->sample[f]), "%s", rec->debugname);
+        tally->missing[f]++;
+        missing++;
+    }
+    if( missing )
+        tally->records++;
+    if( stated == 0 )
+        tally->silent++;
+}
+
+/** One `--defaults-report` row per band field of `rec`. A list reports its
+ *  tuple count, `empty` for a stated empty list. */
+static void
+defaults_report_record(
+    struct CP_Ctx* ctx,
+    const struct CP_Type* type,
+    const struct RSCache_Register* fields,
+    const struct CP_MergedRecord* rec,
+    const struct RSCache_BandRecord* record)
+{
+    for( int f = 0; f < fields->band_count; f++ )
+    {
+        const struct RSCache_RegisterField* field = &fields->entries[f];
+        int stated = RSCache_PresenceHas(&record->present, f);
+        char scratch[512];
+        const char* text = "";
+
+        if( stated && field->wire == RSCACHE_REGISTER_WIRE_LIST )
+        {
+            int count = record->lists[f] ? record->lists[f]->count : 0;
+
+            if( count )
+                snprintf(scratch, sizeof(scratch), "list:%d", count);
+            else
+                snprintf(scratch, sizeof(scratch), "empty");
+            text = scratch;
+        }
+        else if( stated )
+        {
+            text = merged_value(rec, field, scratch, sizeof(scratch));
+            if( !text )
+                text = "";
+        }
+        fprintf(ctx->defaults_report, "%s\t%s\t%s\t%d\t%s\n", type->name, rec->debugname,
+                field->name, stated, text);
+    }
+}
+
+/**
+ * Print one type's defaults and add them to the run's count. On stdout, so the
+ * incremental build replays it for a type it reuses (cp_incremental.c).
+ */
+static void
+defaults_report(
+    struct CP_Ctx* ctx,
+    const struct CP_Type* type,
+    const struct RSCache_Register* fields,
+    const struct CP_DefaultsTally* tally)
+{
+    if( tally->have_block )
+    {
+        printf("  %-11s defaults: a [default] block states %d field(s) for every record that "
+               "leaves them out\n",
+               type->name, tally->block_fields);
+        ctx->defaults_used++;
+    }
+    if( !tally->records )
+        return;
+    printf("  %-11s defaults: %d of %d record(s) leave a server field to a default "
+           "(%d state none of the %d)\n",
+           type->name, tally->records, tally->examined, tally->silent, fields->band_count);
+    for( int f = 0; f < fields->band_count; f++ )
+    {
+        if( !tally->missing[f] )
+            continue;
+        printf("  %-11s   %-18s %6d  %-15s e.g. [%s]\n", type->name, fields->entries[f].name,
+               tally->missing[f],
+               tally->have_block && RSCache_PresenceHas(&tally->block, f) ? "from [default]"
+                                                                          : "engine built-in",
+               tally->sample[f]);
+    }
+    ctx->defaults_used += tally->records;
+}
+
+/**
+ * Does a param's `default=` name a value, rather than its type's absence?
+ * `value` is cleaned (`cp_value_clean`).
+ */
+static int
+param_default_names_value(const char* value)
+{
+    static const char* const absent[] = { "", "null", "empty", "-1", "0", "no" };
+
+    assert(value);
+    if( cp_value_is_default(value) )
+        return 0;
+    for( size_t i = 0; i < sizeof(absent) / sizeof(absent[0]); i++ )
+    {
+        if( strcmp(value, absent[i]) == 0 )
+            return 0;
+    }
+    return 1;
+}
+
+/**
+ * The third kind: a param the tree declares (not one the cache's own table
+ * states — those are rank 0) whose `default=` names a value.
+ */
+static void
+params_defaults_check(
+    struct CP_Ctx* ctx,
+    const struct CP_MergeSet* merged)
+{
+    int count = 0;
+
+    assert(ctx);
+    assert(merged);
+    for( int r = 0; r < merged->count; r++ )
+    {
+        const struct CP_MergedRecord* rec = &merged->records[r];
+        const char* raw;
+        char value[512];
+
+        if( rec->origin_rank == 0 )
+            continue;
+        raw = key_line_value(rec, "default");
+        if( !raw )
+            continue;
+        snprintf(value, sizeof(value), "%s", raw);
+        cp_value_clean(value);
+        if( !param_default_names_value(value) )
+            continue;
+        if( !count )
+            printf("  %-11s defaults: tree params whose default names a value, read by every "
+                   "record that does not state them:\n",
+                   "param");
+        printf("  %-11s   %-28s default=%s\n", "param", rec->debugname, value);
+        count++;
+    }
+    ctx->defaults_used += count;
+}
+
+int
+cp_defaults_verdict(struct CP_Ctx* ctx)
+{
+    assert(ctx);
+    if( ctx->defaults_used == 0 )
+        return 1;
+    printf("Defaults: %d record(s) and param(s) rely on a value nobody stated (%s)\n",
+           ctx->defaults_used,
+           ctx->defaults_error ? "error: --defaults=error refuses the pack"
+                               : "warning; --defaults=error refuses the pack");
+    return !ctx->defaults_error;
+}
+
 /** Write a type's `[default]` band at (RSCACHE_SERVERPACK_DEFAULTS_GROUP, kind). */
 static int
 server_defaults_write(
@@ -1557,7 +1791,9 @@ pack_server_type(
     uint32_t band_capacity = 0;
 
     int defaults_written = 0;
+    struct CP_DefaultsTally* defaults = calloc(1, sizeof(*defaults));
 
+    assert(defaults);
     RSCache_BandRecordReset(&record);
     for( int r = 0; r < merged->count; r++ )
     {
@@ -1571,6 +1807,19 @@ pack_server_type(
 
         RSCache_BandRecordFree(&record);
         stated = server_band_build(ctx, &fields, rec, tally, &record);
+        /* Before the skip: a record that states no band field at all relies on a
+         * default for every one of them. A record of a lane this build does not
+         * include, or a tree block whose name it has no id for, is not a record
+         * here: its lane's build states it, and counts it. */
+        if( stated >= 0 &&
+            (rec->origin_rank == 0 || record_is_defaults_block(rec) ||
+             (!cp_name_is_lane(ctx, type_id, rec->debugname) &&
+              cp_name_find(ctx, type_id, rec->debugname) >= 0)) )
+        {
+            defaults_note(defaults, &fields, rec, &record, stated);
+            if( ctx->defaults_report )
+                defaults_report_record(ctx, type, &fields, rec, &record);
+        }
         if( stated <= 0 )
             continue; /* states nothing this register knows, or a list was refused */
 
@@ -1703,6 +1952,8 @@ pack_server_type(
     }
     if( unnamed )
         printf("  %-11s   %d record(s) with server fields have no id\n", type->name, unnamed);
+    defaults_report(ctx, type, &fields, defaults);
+    free(defaults);
     return 1;
 }
 
@@ -2481,8 +2732,15 @@ pack_type(
     {
         struct CP_ConfigFile layer;
 
+        /* A file that does not load is every statement in it gone; the pack
+         * that skipped it was green while 16,383 npcs lost their fields. */
         if( !cp_config_file_load(&layer, found[i]) )
-            continue;
+        {
+            fprintf(stderr, "cachepack: %s did not load (see above); refusing the pack\n",
+                    found[i]);
+            ok = 0;
+            break;
+        }
         /* Rank 0 is the cache's own record, written whole: every block states
          * every key, so an overlay can never be what hides a dropped field. */
         if( cp_merge_rank_for(i, found[i]) == 0 )
@@ -2510,6 +2768,8 @@ pack_type(
     /* Every record, client keys and server keys alike, before either band is
      * written: a new record (rank 1 only) has no rank 0 to inherit a key from,
      * and a field stated in the other spelling is refused, not guessed at. */
+    if( type_id == CP_TYPE_PARAM && server_dir )
+        params_defaults_check(ctx, &merged);
     if( !merged_records_check(ctx, type_id, &merged) )
     {
         cp_merge_free(&merged);
@@ -2771,6 +3031,8 @@ cp_pack_run(
      * a corrupt one — but the caller should know the pack was partial. A membership
      * error is not a partial write at all: the bytes are what the tree asked for
      * and the tree is what is wrong, which is still not a success. */
+    if( !cp_defaults_verdict(ctx) )
+        return 0;
     if( failed == 0 && membership_errors == 0 && ctx->warn_unresolved_name == 0 && sel->all &&
         !cp_server_stamp_write(ctx, server_dir) )
         return 0;
@@ -2930,8 +3192,14 @@ cp_server_pack_type(
     {
         struct CP_ConfigFile layer;
 
+        /* As the full pack: a file that does not load fails the type. */
         if( !cp_config_file_load(&layer, found[f]) )
-            continue;
+        {
+            fprintf(stderr, "cachepack: %s did not load (see above); refusing the pack\n",
+                    found[f]);
+            ok = 0;
+            break;
+        }
         ok = cp_merge_add(&merged, &layer, cp_merge_rank_for(f, found[f]), found[f]);
         cp_config_file_free(&layer);
     }
@@ -2946,6 +3214,8 @@ cp_server_pack_type(
      * from records that state every key, client and server, in one
      * spelling, or not at all. */
     ok = ok && merged_records_check(ctx, (enum CP_TypeId)i, &merged);
+    if( ok && i == CP_TYPE_PARAM )
+        params_defaults_check(ctx, &merged);
     routing_load(ctx, i, &routing);
     if( !ok ||
         (fields.band_count > 0 &&
@@ -3046,6 +3316,8 @@ cp_pack_server_run(
                membership_errors);
     /* Stamped only when the pack is whole and clean: a partial (--types) or
      * failed pack is never one the server may boot. */
+    if( !cp_defaults_verdict(ctx) )
+        return 0;
     if( ctx->warn_unresolved_name != 0 || membership_errors != 0 || !sel->all )
         return ctx->warn_unresolved_name == 0 && membership_errors == 0;
     return cp_server_stamp_write(ctx, server_dir);

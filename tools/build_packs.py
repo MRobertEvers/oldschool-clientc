@@ -49,6 +49,8 @@ def main():
     ap.add_argument("--lane-out", help="the lane script pack's directory")
     ap.add_argument("--lanes", default="", help="the lanes compiled into --lane-out")
     ap.add_argument("--servpack-out", help="the server pack (default <content>/server/pack)")
+    ap.add_argument("--defaults", choices=("warn", "error"), default="warn",
+                    help="a record leaving a server field to a default: warn, or refuse the pack")
     ap.add_argument("--full", action="store_true", help="recompile and repack every unit")
     ap.add_argument("--verbose", action="store_true", help="print every unit's line")
     ap.add_argument("--explain", help="why is this file's unit stale? builds nothing")
@@ -91,7 +93,8 @@ def main():
     for name, out, pack_lanes in script_packs:
         os.makedirs(out, exist_ok=True)
         jobs.append(run("%s -> %s" % (name, out), sscompile(out, pack_lanes, *extra)))
-    servpack = [args.cachepack, "pack", "--src", args.content, "--server-only"]
+    servpack = [args.cachepack, "pack", "--src", args.content, "--server-only",
+                "--defaults=" + args.defaults]
     if args.servpack_out:
         servpack += ["--server-out", args.servpack_out]
     if args.full:

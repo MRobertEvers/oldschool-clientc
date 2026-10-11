@@ -754,6 +754,22 @@ struct CP_Ctx
     int warn_reference_added;
     /** Quiet down the per-record chatter after this many of each kind. */
     int warn_limit;
+    /**
+     * Defaults: a value no record stated, supplied on its behalf.
+     *
+     * Three things supply one, and the server pack is where all three are visible:
+     * a type's `[default]` block, the engine's built-in for a band field a record
+     * leaves out, and a tree-declared param whose `default=` names a value. Each is
+     * a statement nobody made about the record that reads it -- a Maiden blood
+     * spawn dropped bones because `[default]` said so for every npc. Counted per
+     * record (and per param) over the run; `--defaults=error` (`defaults_error`)
+     * refuses a pack whose count is not zero, and the default is a warning.
+     */
+    int defaults_used;
+    int defaults_error;
+    /** `--defaults-report FILE`: every record's every band field, stated or not,
+     *  as `type\trecord\tfield\tstated\tvalue` -- what a generator states from. */
+    FILE* defaults_report;
 };
 
 /** Warn at most `warn_limit` times per counter. Returns 1 when it printed. */
@@ -1120,6 +1136,13 @@ cp_intlist_free(struct CP_IntList* list);
  *  `--lane`'s `ported/<lane>/configs`, then `server/scripts`. */
 void
 cp_walk_content(struct CP_Ctx* ctx);
+
+/**
+ * Print the run's defaults count (`CP_Ctx.defaults_used`) and decide on it:
+ * 0 when `--defaults=error` and any remain, else 1.
+ */
+int
+cp_defaults_verdict(struct CP_Ctx* ctx);
 
 /** Stamp the server pack at `server_dir` as written from this tree, now. */
 int

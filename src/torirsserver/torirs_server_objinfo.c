@@ -193,6 +193,21 @@ ToriRSServer_ObjRequireSet(
 
     if( obj_id < 0 || count < 0 || count > TORIRSSERVER_OBJ_REQUIRE_MAX )
         return 0;
+    /* An empty statement (`levelrequire=empty`, which every obj that requires
+     * nothing now states) is "no requirement": no entry, so `ToriRSServer_ObjRequire`
+     * keeps answering NULL for it, and one the cache seeded is withdrawn. */
+    if( count == 0 )
+    {
+        int index = g_requires ? require_index(obj_id) : -1;
+
+        if( index >= 0 )
+        {
+            memmove(&g_requires[index], &g_requires[index + 1],
+                    (size_t)(g_require_count - index - 1) * sizeof(*g_requires));
+            g_require_count--;
+        }
+        return 1;
+    }
     entry = require_slot(obj_id);
     if( !entry )
         return 0;

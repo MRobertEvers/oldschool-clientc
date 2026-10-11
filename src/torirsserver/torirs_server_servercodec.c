@@ -51,21 +51,6 @@ stated_int(
     return record->values[index];
 }
 
-/* `hitpoints=` is the statement "this npc is meant to be fought": the validator
- * reads `authored_combat`, and a speaking npc inheriting the engine's 10 does
- * not set it. */
-static void
-apply_npc_hitpoints(
-    void* object,
-    const struct RSCache_BandRecord* record,
-    int index)
-{
-    struct ToriRSServerNpcDef* def = (struct ToriRSServerNpcDef*)object;
-
-    def->hitpoints = stated_int(record, index);
-    def->authored_combat = 1;
-}
-
 /* `moverestrict=nomove` pins the mover through the collapsed `nomove`, which is
  * what it reads; stating any moverestrict restates nomove with it. */
 static void
@@ -144,7 +129,7 @@ static const struct RSCache_BandBinding k_npc_bindings[] = {
     BIND(struct ToriRSServerNpcDef, attack),
     BIND(struct ToriRSServerNpcDef, defence),
     BIND(struct ToriRSServerNpcDef, strength),
-    BIND_APPLY(struct ToriRSServerNpcDef, "hitpoints", hitpoints, apply_npc_hitpoints),
+    BIND(struct ToriRSServerNpcDef, hitpoints),
     BIND(struct ToriRSServerNpcDef, ranged),
     BIND(struct ToriRSServerNpcDef, magic),
     BIND(struct ToriRSServerNpcDef, attackrate),

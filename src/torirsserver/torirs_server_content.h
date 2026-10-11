@@ -568,12 +568,6 @@ struct ToriRSServerNpcDef
     struct ToriRSServerNpcDefParam* params;
     int param_count;
 
-    /** The block stated `hitpoints=`. Everything else has a defensible
-     *  default; hitpoints is the one that says "this is meant to be fought",
-     *  and the difference matters to the validator — a speaking npc inherits
-     *  the engine's 10 hitpoints and is not a combat block. */
-    int authored_combat;
-
     /*
      * Patrol route — LostCity's `defaultmode=patrol` plus `patrol1..patrolN`.
      *

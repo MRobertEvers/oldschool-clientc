@@ -111,12 +111,11 @@ int
 ToriRSServer_ContainerScope(int32_t inv_id)
 {
     /*
-     * Every inv defaults to per-player. The one exception is a shop: content
-     * declares `scope=shared` in a `.inv` file (torirs_server_content.c's
-     * load_inv_config, docs/SHOPS_PLAN.md §3.1), which registers a
-     * ToriRSServerShopDef with `shared` set. An inv nothing declared a shop
-     * definition for — the overwhelming majority of the namespace, including
-     * the player's own backpack/worn/bank — is not asked and stays PLAYER.
+     * Per-player, except a shop: content declares `scope=shared` in a `.inv`
+     * file (docs/SHOPS_PLAN.md §3.1), which sets the ToriRSServerShopDef's
+     * `shared`. Every other inv — the overwhelming majority of the namespace,
+     * including the player's own backpack/worn/bank — states `scope=perm` and
+     * stays PLAYER.
      */
     if( ToriRSServer_ShopIsShared(inv_id) )
         return TORIRSSERVER_CONTAINER_WORLD;
@@ -870,7 +869,7 @@ full_capacity(const struct ToriRSServerContainer* row)
 
     if( row->per_slot )
         return row->slots;
-    if( ToriRSServer_ShopDef(row->inv_id) )
+    if( ToriRSServer_ShopIsShared(row->inv_id) )
         return row->slots;
     for( int i = 0; i < row->slots; i++ )
         if( row->items[i].obj_id >= 0 )

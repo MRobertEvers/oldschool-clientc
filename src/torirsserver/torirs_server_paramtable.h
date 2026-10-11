@@ -49,8 +49,14 @@ struct ToriRSServerParamTable
     struct ToriRSServerParamRow* rows;
     int count;
     int capacity;
-    /** Set by `_sort`, cleared by `_read`. `_find` refuses an unsorted table. */
+    /** Set by `_sort`, cleared by `_read` and `_set_int`. `_find` refuses an
+     *  unsorted table. */
     int sorted;
+    /** `_set_int` rows not yet merged into `rows`, in call order: `_sort`
+     *  folds them in, each replacing the row its owner already had. */
+    struct ToriRSServerParamRow* pending;
+    int pending_count;
+    int pending_capacity;
 };
 
 /**
@@ -71,7 +77,10 @@ ToriRSServer_ParamTableRead(
     const struct RSCache_Params* params);
 
 /**
- * Set one int row, replacing any row this owner already has for that key.
+ * Set one int row, replacing any row this owner already has for that key — as of
+ * the next `_sort`, which the table needs before it answers anyway. Buffered
+ * because it is called once per stated field of every loc band: searching and
+ * re-sorting a table of the cache's rows per call made boot quadratic.
  *
  * The entry point the *content overlay* uses, where `_read` is the one the cache
  * uses. A `.loc` block's `param=next_loc_stage,poordooropen` is a param on that

@@ -194,18 +194,12 @@ validate_spawns(void)
                     symbol ? symbol : "?", npcs[i].npc_id, info->name, info->combat_level,
                     def->hitpoints, def->attack, def->strength, def->defence);
 
-        if( info->combat_level > 0 && def->authored_combat &&
+        if( npc_attackable(npcs[i].npc_id) && info->combat_level > 0 &&
             def->hitpoints > info->combat_level * 8 )
             report_warning(
                 "%s has %d hitpoints but the cache says combat level %d — "
                 "check the block is not transposed",
                 symbol ? symbol : info->name, def->hitpoints, info->combat_level);
-
-        if( def->authored_combat && !npc_attackable(npcs[i].npc_id) )
-            report_warning(
-                "%s has a combat block but the cache gives it no Attack op, so "
-                "nothing can fight it",
-                symbol ? symbol : info->name);
 
         /*
          * A spawn whose name belongs to somewhere else.

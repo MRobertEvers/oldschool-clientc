@@ -1261,10 +1261,22 @@ ToriRSServer_ContentEnumById(int enum_id)
 const struct ToriRSServerVarpDef*
 ToriRSServer_ContentVarp(int varp_id)
 {
-    for( int i = 0; i < g_varp_def_count; i++ )
+    /* Ascending by id, as the npc table is: one def per varp, in band order.
+     * Searched, because every varp now has one and a player's whole varp array
+     * is walked through this at login and on every save. */
+    int low = 0;
+    int high = g_varp_def_count - 1;
+
+    while( low <= high )
     {
-        if( g_varp_defs[i].varp_id == varp_id )
-            return &g_varp_defs[i];
+        int mid = low + (high - low) / 2;
+
+        if( g_varp_defs[mid].varp_id == varp_id )
+            return &g_varp_defs[mid];
+        if( g_varp_defs[mid].varp_id < varp_id )
+            low = mid + 1;
+        else
+            high = mid - 1;
     }
     return NULL;
 }
@@ -2434,20 +2446,18 @@ load_varps_pack(struct RSCache_ServerPack* pack)
         return -1;
     if( !ToriRSServer_ServPackKindLoad(pack, RSCACHE_DAT2_CONFIG_KIND_VARPLAYER, &records) )
         return -1;
-    for( int i = 0; i < g_varp_def_count; i++ )
+    for( int r = 0; r < records.count; r++ )
     {
-        for( int r = 0; r < records.count; r++ )
-        {
-            struct RSCache_Dat2ConfigVarplayer varp;
+        struct ToriRSServerVarpDef* def =
+            (struct ToriRSServerVarpDef*)ToriRSServer_ContentVarp(records.ids[r]);
+        struct RSCache_Dat2ConfigVarplayer varp;
 
-            if( records.ids[r] != g_varp_defs[i].varp_id )
-                continue;
-            memset(&varp, 0, sizeof(varp));
-            RSCache_Dat2ConfigVarplayerDecodeInplace(&varp, records.files[r], (int)records.sizes[r]);
-            if( RSCache_PresenceHas(&varp.present, RSCACHE_VARP_FIELD_CLIENTCODE) )
-                g_varp_defs[i].clientcode = varp.clientcode;
-            break;
-        }
+        if( !def )
+            continue;
+        memset(&varp, 0, sizeof(varp));
+        RSCache_Dat2ConfigVarplayerDecodeInplace(&varp, records.files[r], (int)records.sizes[r]);
+        if( RSCache_PresenceHas(&varp.present, RSCACHE_VARP_FIELD_CLIENTCODE) )
+            def->clientcode = varp.clientcode;
     }
     ToriRSServer_ServPackKindFree(&records);
     return bands;

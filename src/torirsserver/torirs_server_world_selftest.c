@@ -5669,8 +5669,7 @@ ToriRSServer_WorldSelftest(void)
                     roster_count++;
                     def = ToriRSServer_ContentNpc(npc_id);
                     SELFTEST_CHECK(
-                        def && def != fallback && def->authored_combat &&
-                            def->hitpoints > 0 && def->attackrate > 0 &&
+                        def && def != fallback && def->hitpoints > 0 && def->attackrate > 0 &&
                             def->attack_anim >= 0 && def->defend_anim >= 0 &&
                             def->death_anim >= 0,
                         "%s has authored runtime combat, cadence, and three animations",
@@ -16040,8 +16039,11 @@ ToriRSServer_WorldSelftest(void)
              * The transmitted case is asserted in the login-burst section,
              * against a varp that really is declared.
              */
-            SELFTEST_CHECK(ToriRSServer_ContentVarp(SELFTEST_VARP_GREETING_COUNT) == NULL,
-                           "mock_greeting_count should have no varp declaration");
+            /* Every cache varp now states its fields, so "undeclared" is
+             * `transmit=no` rather than no def at all. */
+            SELFTEST_CHECK(!ToriRSServer_ContentVarp(SELFTEST_VARP_GREETING_COUNT) ||
+                               !ToriRSServer_ContentVarp(SELFTEST_VARP_GREETING_COUNT)->transmit,
+                           "mock_greeting_count must not be declared transmit=yes");
             SELFTEST_CHECK(ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_VARP_SMALL, 0) < 0,
                            "an undeclared varp must stay off the wire");
 
@@ -23022,8 +23024,11 @@ ToriRSServer_WorldSelftest(void)
 
             /* An undeclared varp is server-only. The mock's own counters have
              * no .varp config, so nothing they do reaches the client. */
-            SELFTEST_CHECK(ToriRSServer_ContentVarp(SELFTEST_VARP_GREETING_COUNT) == NULL,
-                           "mock_greeting_count should have no varp declaration");
+            /* Every cache varp now states its fields, so "undeclared" is
+             * `transmit=no` rather than no def at all. */
+            SELFTEST_CHECK(!ToriRSServer_ContentVarp(SELFTEST_VARP_GREETING_COUNT) ||
+                               !ToriRSServer_ContentVarp(SELFTEST_VARP_GREETING_COUNT)->transmit,
+                           "mock_greeting_count must not be declared transmit=yes");
             SELFTEST_CHECK(ToriRSServer_ContentVarp(com_mode) != NULL &&
                                ToriRSServer_ContentVarp(com_mode)->transmit,
                            "com_mode should be declared transmit=yes");
@@ -25212,12 +25217,10 @@ ToriRSServer_WorldSelftest(void)
          *      red — and the behaviour contract is pinned whichever layer
          *      enforces it. Its presence is not, and cannot be here.
          *
-         * `param=death_drop` is never absent, which is worth stating because it
-         * looks like it should be: `general/configs/npc_default.npc`'s
-         * `[default]` block authors it and `npc_def_seed_from_cache` copies the
-         * whole default record — params included — into every block. So the
-         * value is `bones` for an npc nothing describes, and `null` is the only
-         * way to say "leaves nothing".
+         * `param=death_drop` is never absent: every npc states it (cachepack
+         * --defaults; the old `[default]` block that answered `bones` for an
+         * npc nothing described is gone), and `null` is how one says "leaves
+         * nothing".
          */
         int param_death_drop = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_PARAM, "death_drop");
         int obj_bones = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "bones");
@@ -25419,16 +25422,9 @@ ToriRSServer_WorldSelftest(void)
                     if( !def )
                         continue;
 
-                    /* Only the value is asserted. `stated` is *always* true
-                     * here and cannot be otherwise: `npc_def_seed_from_cache`
-                     * copies `[default]`'s whole param list into every def, so
-                     * `death_drop` is present on an npc no config ever
-                     * mentions. Asserting it would be a check that cannot fail
-                     * — which is exactly the property that let this bug live,
-                     * since "the param is set" was never the question. Whether
-                     * it was set *by the npc's own block* is not visible at
-                     * this seam at all; `tools/gen_npc_stats.py` owns that, and
-                     * the value is what the drop tables actually read. */
+                    /* Only the value is asserted. `stated` is always true: every
+                     * npc states `death_drop`, so "the param is set" was never
+                     * the question — the value is what the drop tables read. */
                     stated = ToriRSServer_ContentNpcParam(def, param_death_drop, &value);
                     (void)stated;
                     SELFTEST_CHECK(value == want_id,
@@ -46921,7 +46917,7 @@ ToriRSServer_WorldSelftest(void)
                 int fallback = ToriRSServer_ContentNpcDefault()->hitpoints;
 
                 SELFTEST_CHECK(fallback == 10,
-                               "npc_default.npc should still state hitpoints=10 — this "
+                               "the engine's npc seed should still be hitpoints=10 — this "
                                "stanza is about npcs that fall back to it, got %d",
                                fallback);
                 for( size_t i = 0; i < sizeof(k_adds) / sizeof(k_adds[0]); i++ )
@@ -59014,13 +59010,12 @@ ToriRSServer_WorldSelftest(void)
                 /*
                  * Her flinch and her death must be STATED as absent.
                  *
-                 * Omitting them does not mean "none": `[default]` in
-                 * `general/configs/npc_default.npc` carries the unarmed human
-                 * set, every record is seeded from it, and the fallback is the
-                 * right one for a nameless humanoid and badly wrong for a rig
-                 * this size — a 5x5 dragon playing `human_unarmedblock`. It is
-                 * also the quiet kind of wrong: the animation plays, so nothing
-                 * errors, it just is not hers.
+                 * Omitting them used not to mean "none": a `[default]` block
+                 * carried the unarmed human set for every record, right for a
+                 * nameless humanoid and badly wrong for a rig this size — a 5x5
+                 * dragon playing `human_unarmedblock`. Every record states its
+                 * animations now, so there is no fallback to inherit; this pins
+                 * that hers say none.
                  *
                  * `null` is how a record says none, and this asserts it survived
                  * to the loaded def rather than trusting the spelling.
@@ -59035,11 +59030,6 @@ ToriRSServer_WorldSelftest(void)
                         "rs2012_qbd_crystal",
                         "rs2012_qbd_hardened",
                     };
-                    const struct ToriRSServerNpcDef* base = ToriRSServer_ContentNpcDefault();
-
-                    SELFTEST_CHECK(base->defend_anim >= 0 && base->death_anim >= 0,
-                                   "the [default] block should still carry the fallback "
-                                   "human animations, else these checks prove nothing");
                     for( int f = 0; f < (int)(sizeof(k_qbd_forms) / sizeof(k_qbd_forms[0])); f++ )
                     {
                         int const id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, k_qbd_forms[f]);
@@ -59049,13 +59039,11 @@ ToriRSServer_WorldSelftest(void)
                         if( !d )
                             continue;
                         SELFTEST_CHECK(d->defend_anim < 0,
-                                       "%s must state defend_anim=null, got %d (the "
-                                       "[default] fallback is %d)",
-                                       k_qbd_forms[f], d->defend_anim, base->defend_anim);
+                                       "%s must state defend_anim=null, got %d",
+                                       k_qbd_forms[f], d->defend_anim);
                         SELFTEST_CHECK(d->death_anim < 0,
-                                       "%s must state death_anim=null, got %d (the "
-                                       "[default] fallback is %d)",
-                                       k_qbd_forms[f], d->death_anim, base->death_anim);
+                                       "%s must state death_anim=null, got %d",
+                                       k_qbd_forms[f], d->death_anim);
                     }
                 }
 

@@ -8,6 +8,7 @@
 
 #include <rscache.h>
 
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -43,8 +44,7 @@ add_row(
         struct ToriRSServerParamRow* grown =
             (struct ToriRSServerParamRow*)realloc(table->rows, (size_t)capacity * sizeof(*grown));
 
-        if( !grown )
-            return;
+        assert(grown);
         table->rows = grown;
         table->capacity = capacity;
     }
@@ -86,32 +86,88 @@ ToriRSServer_ParamTableSetInt(
     int key,
     int ival)
 {
+    struct ToriRSServerParamRow* row;
+
     assert(table);
-    /* Linear, because of who calls it: the content overlay, once at boot, with
-     * hundreds of rows against a table the cache filled with tens of thousands.
-     * A binary search would need the table sorted and this runs *after* the
-     * cache's `_read` pass and *before* `_sort`. */
-    for( int i = 0; i < table->count; i++ )
+    if( table->pending_count == table->pending_capacity )
     {
-        if( table->rows[i].owner != owner || table->rows[i].key != key )
-            continue;
-        /* An overlay row wins over the cache's — that is what an overlay is. */
-        free(table->rows[i].sval);
-        table->rows[i].sval = NULL;
-        table->rows[i].ival = ival;
-        return;
+        int capacity = table->pending_capacity ? table->pending_capacity * 2 : 4096;
+
+        table->pending = (struct ToriRSServerParamRow*)realloc(
+            table->pending, (size_t)capacity * sizeof(*table->pending));
+        assert(table->pending);
+        table->pending_capacity = capacity;
     }
-    add_row(table, owner, key, ival, NULL);
+    /* `sval` carries nothing for an int row, so it holds the call order: two
+     * sets of one (owner, key) keep the later one, as the old in-place write
+     * did. */
+    row = &table->pending[table->pending_count];
+    row->owner = owner;
+    row->key = key;
+    row->ival = ival;
+    row->sval = (char*)(intptr_t)table->pending_count;
+    table->pending_count++;
     table->sorted = 0;
+}
+
+static int
+compare_pending(
+    const void* a,
+    const void* b)
+{
+    int order = compare_row(a, b);
+
+    if( order )
+        return order;
+    return (intptr_t)((const struct ToriRSServerParamRow*)a)->sval <
+                   (intptr_t)((const struct ToriRSServerParamRow*)b)->sval
+               ? -1
+               : 1;
 }
 
 void
 ToriRSServer_ParamTableSort(struct ToriRSServerParamTable* table)
 {
+    int cache_rows;
+
     assert(table);
     if( table->rows && table->count > 1 )
         qsort(table->rows, (size_t)table->count, sizeof(*table->rows), compare_row);
     table->sorted = 1;
+    if( !table->pending_count )
+        return;
+
+    /* The overlay: the last set of each (owner, key) replaces the cache's row,
+     * or joins the table when the cache had none. Searched over the cache's
+     * rows only, which are sorted now and which the appends do not disturb. */
+    qsort(table->pending, (size_t)table->pending_count, sizeof(*table->pending),
+          compare_pending);
+    cache_rows = table->count;
+    for( int i = 0; i < table->pending_count; i++ )
+    {
+        const struct ToriRSServerParamRow* set = &table->pending[i];
+        struct ToriRSServerParamRow* row;
+
+        if( i + 1 < table->pending_count && !compare_row(set, &table->pending[i + 1]) )
+            continue;
+        row = (struct ToriRSServerParamRow*)bsearch(set, table->rows, (size_t)cache_rows,
+                                                    sizeof(*table->rows), compare_row);
+        if( row )
+        {
+            /* An overlay row wins over the cache's — that is what an overlay is. */
+            free(row->sval);
+            row->sval = NULL;
+            row->ival = set->ival;
+        }
+        else
+            add_row(table, set->owner, set->key, set->ival, NULL);
+    }
+    free(table->pending);
+    table->pending = NULL;
+    table->pending_count = 0;
+    table->pending_capacity = 0;
+    if( table->count > cache_rows )
+        qsort(table->rows, (size_t)table->count, sizeof(*table->rows), compare_row);
 }
 
 const struct ToriRSServerParamRow*
@@ -164,10 +220,14 @@ ToriRSServer_ParamTableFree(struct ToriRSServerParamTable* table)
     for( int i = 0; i < table->count; i++ )
         free(table->rows[i].sval);
     free(table->rows);
+    free(table->pending);
     table->rows = NULL;
     table->count = 0;
     table->capacity = 0;
     table->sorted = 0;
+    table->pending = NULL;
+    table->pending_count = 0;
+    table->pending_capacity = 0;
 }
 
 size_t

@@ -26,6 +26,7 @@ usage(void)
         "  cachepack pack   --src DIR --out DIR --rev NAME --asset-only\n"
         "                   --assets=interfaces,scripts [--archive-list FILE]\n"
         "  cachepack pack   --src DIR --server-only [--lane NAME]... [--server-out DIR] [--force]\n"
+        "  (either pack)    [--defaults=warn|error] [--defaults-report FILE]\n"
         "  cachepack verify --cache DIR --rev NAME --src DIR [--types a,b]\n"
         "                   [--assets[=models,sprites]] [--tmp DIR]\n"
         "  cachepack membership --src DIR --rev NAME [--types a,b] [--check-only]\n"
@@ -63,6 +64,12 @@ usage(void)
         "          lane composition. The pack is stamped with its tree's fingerprint;\n"
         "          a --server-only run whose stamp matches does nothing (--force\n"
         "          rewrites), and the server refuses a pack whose stamp does not.\n"
+        "          --defaults=warn (the default) reports every server field a record\n"
+        "          leaves to a default -- a `[default]` block, the engine's built-in\n"
+        "          for an unstated band field, a tree param whose `default=` names a\n"
+        "          value -- and --defaults=error refuses the pack while any remain.\n"
+        "          --defaults-report FILE writes every record's every server field,\n"
+        "          stated or not, as a TSV (and repacks every type, as --force).\n"
 
         "          which is the cheap form the build runs before every server boot.\n"
         "          --asset-only opens an already-complete --out in place and skips\n"
@@ -341,6 +348,8 @@ main(int argc, char** argv)
     int lane_count = 0;
     const char* server_out = NULL;
     int force_server = 0;
+    int defaults_error = 0;
+    const char* defaults_report = NULL;
     const char* asset_kinds = NULL;
     const char* archive_list_path = NULL;
     const char* tmp_dir = "build/cachepack_verify";
@@ -383,10 +392,21 @@ main(int argc, char** argv)
             }
             lanes[lane_count++] = argv[++i];
         }
+        else if( strcmp(arg, "--defaults-report") == 0 && i + 1 < argc )
+            defaults_report = argv[++i];
         else if( strcmp(arg, "--server-out") == 0 && i + 1 < argc )
             server_out = argv[++i];
         else if( strcmp(arg, "--force") == 0 )
             force_server = 1;
+        else if( strcmp(arg, "--defaults=warn") == 0 )
+            defaults_error = 0;
+        else if( strcmp(arg, "--defaults=error") == 0 )
+            defaults_error = 1;
+        else if( strncmp(arg, "--defaults", 10) == 0 )
+        {
+            fprintf(stderr, "cachepack: %s: say --defaults=warn or --defaults=error\n", arg);
+            return 1;
+        }
         else if( strcmp(arg, "--asset-only") == 0 )
             asset_only = 1;
         else if( strcmp(arg, "--assets") == 0 )
@@ -475,6 +495,19 @@ main(int argc, char** argv)
         ctx.lanes[l] = lanes[l];
     ctx.lane_count = lane_count;
     ctx.force_server = force_server;
+    ctx.defaults_error = defaults_error;
+    if( defaults_report )
+    {
+        ctx.defaults_report = fopen(defaults_report, "w");
+        if( !ctx.defaults_report )
+        {
+            fprintf(stderr, "cachepack: cannot write %s\n", defaults_report);
+            return 1;
+        }
+        fprintf(ctx.defaults_report, "type\trecord\tfield\tstated\tvalue\n");
+        /* A reused type would write no rows. */
+        ctx.force_server = 1;
+    }
     {
         struct stat self;
 

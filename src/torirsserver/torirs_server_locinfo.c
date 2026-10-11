@@ -290,11 +290,34 @@ mark_known(int loc_id)
     g_known[loc_id >> 3] |= (uint8_t)(1u << (loc_id & 7));
 }
 
+/** Rows the overlay added (rather than replaced): the server-only params a loc's
+ *  band states, which no client record carries. */
+static int g_loc_params_overlaid;
+
+/*
+ * Fold the content overlay in before the table answers. Lazily, in the reader,
+ * because every loc band adds rows: sorting per row made boot quadratic, and a
+ * separate "the overlay is finished" call is one more thing to forget —
+ * forgetting it makes every `loc_param` in the tree report "not set".
+ */
+static void
+loc_params_ready(void)
+{
+    int before;
+
+    if( g_loc_params.sorted )
+        return;
+    before = g_loc_params.count;
+    ToriRSServer_ParamTableSort(&g_loc_params);
+    g_loc_params_overlaid += g_loc_params.count - before;
+}
+
 const struct ToriRSServerParamRow*
 ToriRSServer_LocParam(
     int loc_id,
     int param_id)
 {
+    loc_params_ready();
     return ToriRSServer_ParamTableFind(&g_loc_params, loc_id, param_id);
 }
 
@@ -492,16 +515,14 @@ ToriRSServer_LocInfoCount(void)
 int
 ToriRSServer_LocInfoParamCount(void)
 {
+    loc_params_ready();
     return g_loc_params.count;
 }
-
-/** Rows the overlay added (rather than replaced): the server-only params a loc's
- *  band states, which no client record carries. */
-static int g_loc_params_overlaid;
 
 int
 ToriRSServer_LocInfoParamOverlaidCount(void)
 {
+    loc_params_ready();
     return g_loc_params_overlaid;
 }
 
@@ -511,17 +532,9 @@ ToriRSServer_LocInfoParamOverlay(
     int param_id,
     int value)
 {
-    int before = g_loc_params.count;
-
     assert(loc_id >= 0);
     assert(param_id >= 0);
     ToriRSServer_ParamTableSetInt(&g_loc_params, loc_id, param_id, value);
-    g_loc_params_overlaid += g_loc_params.count - before;
-    /* Re-sorted per row, and cheap in the way that matters: the table is already
-     * sorted, so this is qsort's best case. The alternative — a separate "the
-     * overlay is finished" call — is one more thing to forget, and forgetting it
-     * makes every `loc_param` in the tree report "not set". */
-    ToriRSServer_ParamTableSort(&g_loc_params);
 }
 
 int

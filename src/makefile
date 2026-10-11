@@ -5371,6 +5371,9 @@ test-rs2012-server-overlay:
 # and the server reads it through TORIRSSERVER_PACK_DIR=<dir>.
 SERVPACK_LANES ?=
 SERVPACK_OUT ?=
+# What a record leaving a server field to a default is: `warn` reports it,
+# `error` refuses the pack (cachepack --defaults; no implicit defaults).
+CACHEPACK_DEFAULTS ?= warn
 .PHONY: torirsserver-servpack-summoning
 # The Summoning composition's pack, beside its cache (the server finds it there).
 torirsserver-servpack-summoning:
@@ -5395,7 +5398,8 @@ torirsserver-servpack-direct:
 	cd $(REPO_ROOT) && $(CACHEPACK_BIN) pack \
 		--src $(TORIRSSERVER_CONTENT_DIR) --server-only \
 		$(foreach lane,$(SERVPACK_LANES),--lane $(lane)) \
-		$(if $(SERVPACK_OUT),--server-out $(SERVPACK_OUT),)
+		$(if $(SERVPACK_OUT),--server-out $(SERVPACK_OUT),) \
+		--defaults=$(CACHEPACK_DEFAULTS)
 
 # ---------------------------------------------------------------------------
 # Every server pack, full or incremental: one command (docs/serverpack.md)
@@ -5425,7 +5429,8 @@ torirsserver-packs: sscompile
 		--content $(TORIRSSERVER_CONTENT_DIR) \
 		--out $(TORIRSSERVER_SCRIPT_OUT) \
 		--lane-out $(TORIRSSERVER_PACKS_LANE_OUT) --lanes "$(TORIRSSERVER_PACKS_LANES)" \
-		$(if $(SERVPACK_OUT),--servpack-out $(SERVPACK_OUT),) $(PACKS_ARGS)
+		$(if $(SERVPACK_OUT),--servpack-out $(SERVPACK_OUT),) \
+		--defaults $(CACHEPACK_DEFAULTS) $(PACKS_ARGS)
 
 # The client half of the same bake: the tree written back into a cache the
 # client can boot (PORTING_GUIDE Â§1, `cachepack pack âââº client cache (--out)`).

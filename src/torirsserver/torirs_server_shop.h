@@ -61,7 +61,8 @@ ToriRSServer_ShopDefAddStock(
     int32_t baseline,
     int32_t rate);
 
-/** NULL if `inv_id` names no authored shop definition. */
+/** The inv's server definition, NULL for an id the pack has no inv for. Every
+ *  inv has one: a shop is the one whose `shared` is set. */
 const struct ToriRSServerShopDef*
 ToriRSServer_ShopDef(int32_t inv_id);
 

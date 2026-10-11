@@ -48,7 +48,7 @@
 enum
 {
     STATE_MAGIC = 0x54535043u, /* "CPST" */
-    STATE_FORMAT = 1,
+    STATE_FORMAT = 2,
     NAMES_UNIT = CP_TYPE_COUNT, /* the stat/category name tables, after every type */
     UNIT_COUNT = CP_TYPE_COUNT + 1,
 };
@@ -463,6 +463,9 @@ struct Unit
     int server_records;
     int membership_errors;
     int unresolved;
+    /* CP_Ctx.defaults_used's growth while this unit packed: replayed with its
+     * text, so a reused type still counts against --defaults=error. */
+    int defaults;
 };
 
 struct State
@@ -551,6 +554,7 @@ state_read(struct State* state, const char* path)
         unit->server_records = (int)rd_u32(&reader);
         unit->membership_errors = (int)rd_u32(&reader);
         unit->unresolved = (int)rd_u32(&reader);
+        unit->defaults = (int)rd_u32(&reader);
         unit->out_text = rd_str(&reader);
         unit->err_text = rd_str(&reader);
         count = rd_u32(&reader);
@@ -640,6 +644,7 @@ state_write(const struct State* state, const char* path)
         buf_u32(&buf, (uint32_t)unit->server_records);
         buf_u32(&buf, (uint32_t)unit->membership_errors);
         buf_u32(&buf, (uint32_t)unit->unresolved);
+        buf_u32(&buf, (uint32_t)unit->defaults);
         buf_str(&buf, unit->out_text);
         buf_str(&buf, unit->err_text);
         buf_u32(&buf, (uint32_t)unit->lookup_count);
@@ -1521,6 +1526,7 @@ cp_pack_server_incremental(
         char why_buf[512];
         struct Capture capture;
         int before_unresolved;
+        int before_defaults;
         const char* label = u == NAMES_UNIT ? "names" : cp_type(u)->name;
 
         /* The type's own files: every *.<type> the walk found, its routing
@@ -1572,6 +1578,7 @@ cp_pack_server_incremental(
             fputs(unit->out_text ? unit->out_text : "", stdout);
             fputs(unit->err_text ? unit->err_text : "", stderr);
             ctx->warn_unresolved_name += unit->unresolved;
+            ctx->defaults_used += unit->defaults;
             server_total += unit->server_records;
             membership_errors += unit->membership_errors;
             if( unit->result > 0 )
@@ -1592,6 +1599,7 @@ cp_pack_server_incremental(
         if( g_seen )
             memset(g_seen, 0, g_seen_capacity * sizeof(uint64_t));
         before_unresolved = ctx->warn_unresolved_name;
+        before_defaults = ctx->defaults_used;
         if( !capture_begin(&capture, server_dir) )
         {
             fprintf(stderr, "cachepack: cannot capture output for %s\n", label);
@@ -1609,6 +1617,7 @@ cp_pack_server_incremental(
         g_unit_writes = 0;
         capture_end(&capture, server_dir, &unit->out_text, &unit->err_text);
         unit->unresolved = ctx->warn_unresolved_name - before_unresolved;
+        unit->defaults = ctx->defaults_used - before_defaults;
         if( unit->result < 0 )
         {
             status = 0;
@@ -1639,6 +1648,12 @@ cp_pack_server_incremental(
     /* As the full build: an unresolved name or a membership error is a failed
      * pack. The live one is left as it was rather than replaced by half a pack. */
     if( ctx->warn_unresolved_name != 0 || membership_errors != 0 )
+    {
+        status = 0;
+        goto done;
+    }
+    /* --defaults=error refuses the same way: the live pack stays as it was. */
+    if( !cp_defaults_verdict(ctx) )
     {
         status = 0;
         goto done;
