@@ -831,6 +831,31 @@ function QD.raid.tob_loc_op(sym, op, at, radius)
     return r, { x = best.x, z = best.z }
 end
 
+-- An npc op as ONE packet on the nearest copy, the same on both lanes; the
+-- server walks me to it. The pointer verb (QD.player.talk_to) frames the
+-- camera first, which costs the live client frames scriptrun does not spend:
+-- Verzik's opening talk landed four ticks later live, her Protect from Magic
+-- drained a point more, and the relay's Verzik room diverged from its first
+-- tick (relay ra, 2026-10-11). -> result
+function QD.raid.tob_npc_op(sym, op, radius)
+    local sr, id = api_drive.symbol("npc", sym)
+    assert(sr == "ok", "tob_npc_op: no npc named " .. tostring(sym))
+    local tr, me = api_drive.player_tile()
+    assert(tr == "ok", "tob_npc_op: no tile")
+    local nr, rows = api_drive.npcs(radius or 40)
+    if nr ~= "ok" then return nr end
+    local best, bd = nil, nil
+    for _, row in ipairs(rows) do
+        if row.npc_id == id or row.base_npc_id == id then
+            local x, z = row.server_x or row.x, row.server_z or row.z
+            local d = QD.raid._tob_cheb(me.x, me.z, x, z)
+            if bd == nil or d < bd then best, bd = row, d end
+        end
+    end
+    if best == nil then return "not_found" end
+    return api_drive.world_op("npc", best.npc_id, op, best.element_id)
+end
+
 -- A walk order to (x, z), one packet; the server paths.
 function QD.raid.tob_move(x, z)
     return api_drive.move_to(x, z)

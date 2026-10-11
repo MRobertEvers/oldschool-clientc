@@ -294,6 +294,38 @@ cheb(int ax, int az, int bx, int bz)
     return dx > dz ? dx : dz;
 }
 
+/* The ORDER a pool read answers in: the live client's (torirs_plugin_drive_ui.c
+ * drive_ui_distance2 and its stable nearest-first insertion), squared distance
+ * with ties left in pool order. The RADIUS stays Chebyshev, as the client's
+ * drive_ui_within_radius is. A caller that takes the first row of an id
+ * (QD.drive._target_tile) must get the same copy on both lanes: unsorted objs
+ * put an older brew stack four tiles off ahead of the one underfoot, and the
+ * relay's healing exchange walked on scriptrun where live picked up (relay ra,
+ * Verzik's door, 2026-10-11). */
+static long
+dist2(int ax, int az, int bx, int bz)
+{
+    long dx = ax - bx;
+    long dz = az - bz;
+    return dx * dx + dz * dz;
+}
+
+struct PoolOrder
+{
+    int idx;
+    long dist;
+};
+
+static int
+pool_order_cmp(void const* a, void const* b)
+{
+    struct PoolOrder const* pa = a;
+    struct PoolOrder const* pb = b;
+    if( pa->dist != pb->dist )
+        return pa->dist < pb->dist ? -1 : 1;
+    return pa->idx < pb->idx ? -1 : (pa->idx > pb->idx);
+}
+
 /* -------------------------------------------------- scheduler verbs */
 
 static int
@@ -972,11 +1004,7 @@ d_npcs(lua_State* L)
     struct World_EntityPool* pool = &bot->core->world->entities.npc;
     int px = 0, pz = 0, plevel = 0;
     int have = ScriptrunCore_LocalTile(bot->core, &px, &pz, &plevel);
-    struct
-    {
-        int idx;
-        int dist;
-    } found[256];
+    struct PoolOrder found[256];
     int n = 0;
 
     for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
@@ -993,19 +1021,19 @@ d_npcs(lua_State* L)
         if( have && radius > 0 && d > radius )
             continue;
         found[n].idx = i;
-        found[n].dist = d;
+        found[n].dist = have ? dist2(tx, tz, px, pz) : 0;
         n++;
     }
-    /* Nearest first (insertion sort: a room holds a handful). */
+    /* Nearest first, the client's order (dist2 above): a stable insertion,
+     * so a tie keeps the World pool's order, as the client's does. */
     for( int a = 1; a < n; a++ )
     {
         int b = a;
         while( b > 0 && found[b - 1].dist > found[b].dist )
         {
-            int ti = found[b].idx, td = found[b].dist;
+            struct PoolOrder tmp = found[b];
             found[b] = found[b - 1];
-            found[b - 1].idx = ti;
-            found[b - 1].dist = td;
+            found[b - 1] = tmp;
             b--;
         }
     }
@@ -1214,13 +1242,25 @@ d_objs(lua_State* L)
     int have = ScriptrunCore_LocalTile(c, &px, &pz, &plevel);
     int n = 0;
 
-    lua_pushstring(L, "ok");
-    lua_newtable(L);
+    struct PoolOrder order[SCRIPTRUN_OBJS];
+    int kept = 0;
+
+    assert(c->obj_count <= SCRIPTRUN_OBJS);
     for( int i = 0; i < c->obj_count; i++ )
     {
         struct ScriptrunObj const* o = &c->objs[i];
         if( have && radius > 0 && cheb(px, pz, o->x, o->z) > radius )
             continue;
+        order[kept].idx = i;
+        order[kept].dist = have ? dist2(o->x, o->z, px, pz) : 0;
+        kept++;
+    }
+    qsort(order, (size_t)kept, sizeof(order[0]), pool_order_cmp);
+    lua_pushstring(L, "ok");
+    lua_newtable(L);
+    for( int k = 0; k < kept; k++ )
+    {
+        struct ScriptrunObj const* o = &c->objs[order[k].idx];
         lua_newtable(L);
         lua_pushinteger(L, o->obj_id);
         lua_setfield(L, -2, "obj_id");
@@ -1249,13 +1289,28 @@ d_locs(lua_State* L)
     int have = ScriptrunCore_LocalTile(c, &px, &pz, &plevel);
     int n = 0;
 
-    lua_pushstring(L, "ok");
-    lua_newtable(L);
+    /* The loc list grows with the scene (loc_capacity), so the order is
+     * sized by it rather than by a fixed array. */
+    struct PoolOrder* order = malloc(sizeof(*order) * (size_t)(c->loc_count > 0 ? c->loc_count : 1));
+    int kept = 0;
+
+    assert(order);
     for( int i = 0; i < c->loc_count; i++ )
     {
         struct ScriptrunLoc const* l = &c->locs[i];
         if( l->loc_id < 0 || (have && radius > 0 && cheb(px, pz, l->x, l->z) > radius) )
             continue;
+        order[kept].idx = i;
+        order[kept].dist = have ? dist2(l->x, l->z, px, pz) : 0;
+        kept++;
+    }
+    qsort(order, (size_t)kept, sizeof(order[0]), pool_order_cmp);
+    lua_pushstring(L, "ok");
+    lua_newtable(L);
+    for( int k = 0; k < kept; k++ )
+    {
+        int i = order[k].idx;
+        struct ScriptrunLoc const* l = &c->locs[i];
         lua_newtable(L);
         lua_pushinteger(L, l->loc_id);
         lua_setfield(L, -2, "loc_id");
@@ -1278,6 +1333,7 @@ d_locs(lua_State* L)
         lua_setfield(L, -2, "element_id");
         lua_rawseti(L, -2, ++n);
     }
+    free(order);
     return 2;
 }
 

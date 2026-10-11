@@ -93,10 +93,6 @@ local ORDER = { "maiden", "bloat", "nylocas", "sotetseg", "xarpus", "verzik" }
 local NEXT = { maiden = "bloat", bloat = "nylocas", nylocas = "sotetseg", sotetseg = "xarpus", xarpus = "verzik" }
 local MAX = { maiden = 600, bloat = 600, nylocas = 700, sotetseg = 700, xarpus = 900 }
 
-local function origin_of(t)
-    local _, here = t.world.tile()
-    return math.floor(here.x / 64) * 64, math.floor(here.z / 64) * 64, here
-end
 
 -- THE WAY OUT (tob_raid.rs2 ~tob_exit_walked: walking within reach of the
 -- room's exit advances the raid, and ~tob_carry_party takes every raider in
@@ -112,6 +108,18 @@ local OUT = {
     maiden = function(x, z) return x > 49 end, bloat = function(x, z) return x < 23 end,
     nylocas = function(x, z) return z > 31 end, sotetseg = function(x, z) return z < 19 end,
 }
+-- The room's own square. The Maiden is the exception: the lobby lands the
+-- party at the DOOR end of her walkway, (79,31) in her two-square instance
+-- (tob.constant ^tob_maiden_arrive_lx), so the arrival square is the second
+-- one and her room is the square west of it (relay h1: every gate and exit
+-- 64 tiles east, "the gate at 49,30: not_found; at -29,32").
+local function origin_of(t, name)
+    local _, here = t.world.tile()
+    local ox = math.floor(here.x / 64) * 64
+    if name == "maiden" and here.x - ox < GATE.maiden[1] then ox = ox - 64 end
+    return ox, math.floor(here.z / 64) * 64, here
+end
+
 -- (a press before the room counts as cleared -- the watchdog misses the boss
 -- two ticks after the solver sees it die -- asks to START the fight and steps
 -- no one: relay rl3 stood at Maiden's gate. So: press, look, close any
@@ -440,7 +448,15 @@ local function verzik(t)
     t.cheat("::synctimers", false)
     t.exec("verzik.prayer", t.prayer.set, "protectfrommagic", true)
     if role == 1 then
-        t.check("verzik.talk", t.player.talk_to("verzik_initial", 1) == "ok", "")
+        -- one packet, as the gates are: the pointer's camera framing cost
+        -- live four ticks scriptrun did not spend (tob.lua tob_npc_op)
+        local tr = t.raid.tob_npc_op("verzik_initial", 1)
+        t.check("verzik.talk", tr == "ok", P .. tostring(tr))
+        -- the server walks me to her first: her line opens on arrival
+        for _ = 1, 30 do
+            if t.chat.kind() ~= "none" then break end
+            t.ticks(1)
+        end
         local cr, cd = t.chat.play({ "npc:So, you wish to entertain me", "options", "choose:Yes, begin the fight." })
         t.check("verzik.begin", cr == "ok", tostring(cd))
     end
@@ -460,33 +476,52 @@ end
 
 -- Every raider: the trapdoor, the leader's chest, the teleport out.
 local function reward_room(t)
-    local dr, dd = "not_found", ""
+    -- ONE PACKET a press, the server walking me, as the gates and Verzik's
+    -- talk are: click_loc frames the camera first and live spent ticks there
+    -- that scriptrun did not (relay ra: the teleport out 4 ticks apart).
+    local dr = "not_found"
     for _ = 1, 20 do
-        dr, dd = t.player.click_loc("tob_dungeon_verzik_throne_door_opened", 1)
+        dr = t.raid.tob_loc_op("tob_dungeon_verzik_throne_door_opened", 1)
         if dr == "ok" then break end
         t.ticks(2)
     end
-    t.ticks(4)
-    local chest_sym = nil
-    for k = 0, 4 do
-        local sym = "tob_treasureroom_chest_loc" .. k
-        local lr, row = t.world.loc_near(sym, 30)
-        if lr == "ok" and row ~= nil then chest_sym = sym break end
+    -- down the trapdoor: the server walks me there first, so the chest is
+    -- looked for until it is in view
+    local chest_sym, chest_at = nil, nil
+    for _ = 1, 40 do
+        for k = 0, 4 do
+            local sym = "tob_treasureroom_chest_loc" .. k
+            local lr, row = t.world.loc_near(sym, 30)
+            if lr == "ok" and row ~= nil then chest_sym = sym break end
+        end
+        if chest_sym ~= nil then break end
+        t.ticks(1)
     end
-    t.check("raid.reward_room", dr == "ok" and chest_sym ~= nil, P .. "trapdoor " .. tostring(dr) .. " " .. string.sub(tostring(dd), 1, 100)
+    t.check("raid.reward_room", dr == "ok" and chest_sym ~= nil, P .. "trapdoor " .. tostring(dr)
         .. "; chest " .. tostring(chest_sym))
     if role == 1 and chest_sym ~= nil then
-        local cr, cd = t.player.click_loc(chest_sym, 1)
+        local cr
+        cr, chest_at = t.raid.tob_loc_op(chest_sym, 1)
+        -- walked to it, and opened
+        for _ = 1, 20 do
+            local _, me = t.world.tile()
+            if chest_at and math.abs(me.x - chest_at.x) <= 2 and math.abs(me.z - chest_at.z) <= 2 then break end
+            t.ticks(1)
+        end
         t.ticks(3)
-        t.check("raid.reward_chest", cr == "ok", tostring(cd))
+        t.check("raid.reward_chest", cr == "ok", tostring(cr))
     end
     t.expect("party.barrier.looted", t.party.barrier("looted", 600))
-    local xr, xd = t.player.click_loc("tob_treasureroom_teleportout", 1)
-    t.ticks(4)
-    local _, here = t.world.tile()
-    local home = math.abs(here.x - LOBBY_X) <= 20 and math.abs(here.z - LOBBY_Z) <= 20
-    t.check("raid.lobby", home, P .. "teleport out " .. tostring(xr) .. " " .. string.sub(tostring(xd), 1, 100)
-        .. "; at " .. here.x .. "," .. here.z)
+    local xr = t.raid.tob_loc_op("tob_treasureroom_teleportout", 1)
+    local here, home = nil, false
+    for _ = 1, 40 do
+        local _tr
+        _tr, here = t.world.tile()
+        home = math.abs(here.x - LOBBY_X) <= 20 and math.abs(here.z - LOBBY_Z) <= 20
+        if home then break end
+        t.ticks(1)
+    end
+    t.check("raid.lobby", home, P .. "teleport out " .. tostring(xr) .. "; at " .. here.x .. "," .. here.z)
 end
 
 local function run(t)
@@ -506,7 +541,7 @@ local function run(t)
         -- THE ARRIVAL: in the room's own square (the passage carried us)
         if from ~= nil then await_square(t, from, 60) end
         t.expect(name .. ".barrier.arrived", t.party.barrier(name .. "_arrived", 3000))
-        local ox, oz = origin_of(t)
+        local ox, oz = origin_of(t, name)
         from = t.raid.tob_square()
         -- back up to full before the room (the solvers' own eating is for
         -- inside it)

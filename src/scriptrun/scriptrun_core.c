@@ -1262,9 +1262,14 @@ core_rebuild(
 {
     if( core->have_scene && (zone_x != core->rebuild_zone_x || zone_z != core->rebuild_zone_z) )
     {
-        /* App_WorldRebuildShift: entities keep their world tile. */
-        int dx = (core->rebuild_zone_x - zone_x) * 8;
-        int dz = (core->rebuild_zone_z - zone_z) * 8;
+        /* App_WorldRebuildShift: entities keep their world tile. The delta is
+         * the NEW base minus the old, as task_gameproto_exec.c passes it;
+         * World_ShiftEntities subtracts it. The reverse sign moved every kept
+         * entity twice the rebuild's distance the wrong way: the Maiden, kept
+         * across the walkway entry's 6424 -> 6384 re-centre, landed 40 tiles
+         * west of the scene and her room's bots never saw her again. */
+        int dx = (zone_x - core->rebuild_zone_x) * 8;
+        int dz = (zone_z - core->rebuild_zone_z) * 8;
         World_ShiftEntities(core->world, dx, dz);
     }
     core->rebuild_zone_x = zone_x;
