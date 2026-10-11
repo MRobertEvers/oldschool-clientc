@@ -220,13 +220,19 @@ def wiki_title_for_id(npc_id: int) -> str | None:
     return _ID_INDEX.get(npc_id)
 
 
+# A lane's npc ids are its own revision's, not OldSchool's: joining one to a
+# wiki page by id would name some unrelated monster.
+JOIN_BY_ID = True
+
+
 def wiki_death_drop(gameval: str, npc_id: int) -> tuple[str, str]:
     """(value, source note). `null` whenever the wiki gives no answer."""
     if gameval in _DD_CACHE:
         return _DD_CACHE[gameval]
-    answer = ("null", "no wiki page names npc %d" % npc_id)
+    answer = ("null", "no wiki page names npc %d" % npc_id if JOIN_BY_ID
+              else "a lane npc: no OldSchool wiki page is its")
     res = wd.resolved_title(gameval)
-    if res is None and wiki_title_for_id(npc_id):
+    if res is None and JOIN_BY_ID and wiki_title_for_id(npc_id):
         res = (wiki_title_for_id(npc_id), [npc_id])
     if res is not None:
         title, ids = res
@@ -281,8 +287,9 @@ class Values:
         self.rc_relying: list[str] = []
 
     def known(self, t: str, rec: str) -> bool:
-        table = {"npc": self.npc, "loc": self.loc_ids, "varp": self.varp, "inv": self.inv,
-                 "obj": self.obj}[t]
+        if t == "loc":
+            return True  # see LOC_ABSENT
+        table = {"npc": self.npc, "varp": self.varp, "inv": self.inv, "obj": self.obj}[t]
         return rec in table
 
     def lines(self, t: str, rec: str, fld: str) -> list[str]:
@@ -309,15 +316,23 @@ class Values:
             value = raw
         return [("param=%s,%s" if fld in NPC_PARAM_SPELLED else "%s=%s") % (fld, value)]
 
+    # What a loc no band and no cache row speaks for answers: each param's
+    # absence. A lane's locs sit above the cache's record count, where the dump
+    # does not reach, and answer exactly this.
+    LOC_ABSENT = {"next_loc_stage": "-1", "mining_rock_empty": "0", "rune_type": "0",
+                  "prev_loc_stage": "-1", "temple_wall_level": "0", "funeral_pyre_struct": "-1"}
+
     def _loc(self, rec: str, fld: str) -> list[str]:
-        raw = self.loc_param[self.loc_ids[rec]][fld]
+        if rec in self.loc_ids:
+            raw = self.loc_param[self.loc_ids[rec]][fld]
+        else:
+            raw = self.LOC_ABSENT[fld]
         if fld == "rune_type":
-            if raw != "1":
-                raise SystemExit("%s: unstated rune_type answered %s, not the default" % (rec, raw))
             # Read only by the runecraft triggers on these three categories. One
-            # of those that stated nothing really did act as ^air, so it says
-            # so; every other loc has no altar.
-            if self.loc_cats.get(rec, -1) in self.rune_readers:
+            # of those that stated nothing really did act as ^air (the param's
+            # default was 1 until the params pass), so it says so; every other
+            # loc has no altar.
+            if raw == "1" and self.loc_cats.get(rec, -1) in self.rune_readers:
                 self.rc_relying.append(rec)
                 return ["param=rune_type,1 // ^air: stated none, and the runecraft trigger read the default"]
             return ["param=rune_type,0"]
@@ -365,7 +380,8 @@ DEFAULT_LINE_RE = re.compile(r"^(\s*)(?:param=)?([a-z_]+)[=,]default\s*(//.*)?$"
 BLOCK_RE = re.compile(r"^\s*\[([^\]]+)\]")
 
 
-def rewrite_authored(values: Values, records: dict, write: bool) -> set[tuple[str, str, str]]:
+def rewrite_authored(values: Values, records: dict, write: bool,
+                     lane: str | None = None) -> set[tuple[str, str, str]]:
     """An authored `<field>=default` is a default too, and it outranks the
     generated layer (cp_merge_rank_for: authored 2, *.generated.* 1), so it
     would hide the value written there. State the value on that line instead.
@@ -373,9 +389,11 @@ def rewrite_authored(values: Values, records: dict, write: bool) -> set[tuple[st
     counts those when the lane is built), and an authored overlay of a lane
     record that said `=default` defers to the lane's own value there."""
     done: set[tuple[str, str, str]] = set()
-    root = os.path.join(CONTENT, "server", "scripts")
+    roots = [os.path.join(CONTENT, "server", "scripts")]
+    if lane:
+        roots.append(os.path.join(CONTENT, "ported", lane, "configs"))
     for t, fields in BAND_FIELDS.items():
-        for dirpath, _, files in os.walk(root):
+        for dirpath, _, files in (w for root in roots for w in os.walk(root)):
             for name in files:
                 if not name.endswith("." + t) or ".generated." in name:
                     continue
@@ -544,14 +562,20 @@ def main() -> int:
     ap.add_argument("--dump", help="TORIRS_DEFS_DUMP output (the band pass)")
     ap.add_argument("--params", action="store_true",
                     help="the second pass: state every value-defaulted tree param")
+    ap.add_argument("--lane", help="a lane's pass: --report and --dump from a build with "
+                    "this lane, output into ported/<lane>/configs")
     ap.add_argument("--write", action="store_true", help="write the files (else: counts only)")
     args = ap.parse_args()
+    global OUT_DIR, JOIN_BY_ID
+    if args.lane:
+        OUT_DIR = os.path.join(CONTENT, "ported", args.lane, "configs")
+        JOIN_BY_ID = False
     if args.params:
         return params_pass(read_report(args.report)[0], args.write)
 
     records, order = read_report(args.report)
     values = Values(args.dump)
-    rewritten = rewrite_authored(values, records, args.write)
+    rewritten = rewrite_authored(values, records, args.write, args.lane)
 
     out: dict[str, list[str]] = collections.defaultdict(list)
     members: dict[str, list[str]] = collections.defaultdict(list)
@@ -589,8 +613,9 @@ def main() -> int:
             f.write(header)
             f.write("\n".join(blocks))
         print("wrote %s (%d blocks)" % (os.path.relpath(path, REPO), len(blocks)))
-    for t in ("npc", "loc", "varp"):
-        add_members(t, members[t])
+    if not args.lane:
+        for t in ("npc", "loc", "varp"):
+            add_members(t, members[t])
     return 0
 
 
