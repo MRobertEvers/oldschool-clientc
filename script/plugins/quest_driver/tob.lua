@@ -295,7 +295,11 @@ function QD.raid._tob_supplies(S, F, want, intent)
             intent.drink = QD.raid._tob_first(S, S.ids.stat_restores)
         elseif lv and lv.level >= lv.base and lv.level <= lv.base + V.BOOST_REDOSE
             and F.tick - (S.last_boost or -100) >= V.BOOST_GAP then
-            intent.drink = QD.raid._tob_first(S, want.boost_stat == "ranged" and S.ids.rangings or S.ids.combats)
+            if want.boost_stat == "ranged" then
+                intent.drink = QD.raid._tob_first(S, S.ids.rangings)
+            elseif QD.raid.tob_combat_doses(S) > QD.raid.tob_combat_reserve then
+                intent.drink = QD.raid._tob_first(S, S.ids.combats)
+            end
             if intent.drink then S.last_boost = F.tick end
         end
         if intent.drink then S.last_drink = F.tick end
@@ -913,6 +917,39 @@ end
 -- test's 346, and ran dry (relay rl13, four seeds of four).
 function QD.raid.tob_hold_boosts(on)
     QD.raid.tob_boosts_held = (on == true)
+end
+
+-- THE P3 RESERVE: super combat doses no room before Verzik's P3 may drink
+-- (owner 2026-10-11: "They should have super combats when they get to p3").
+-- Holding EVERY dose from the start lost Maiden and Sotetseg (rl14), holding
+-- none reached P3 with nothing (relay h8: 0 doses on every seat, 48 of 48),
+-- so a seat keeps this many and spends the rest. The relay sets it; P3's own
+-- redose ignores it.
+QD.raid.tob_combat_reserve = 0
+
+function QD.raid.tob_reserve_combats(doses)
+    QD.raid.tob_combat_reserve = doses
+end
+
+-- Super combat doses I carry (`S.ids.inv`: every solver's ids name the pack).
+function QD.raid.tob_combat_doses(S)
+    if QD.raid._combat_dose_ids == nil then
+        local list = {}
+        for _, pre in ipairs({ "br_", "" }) do
+            for n = 1, 4 do
+                local r, id = api_drive.symbol("obj", pre .. n .. "dose2combat")
+                if r == "ok" then list[#list + 1] = { id = id, doses = n } end
+            end
+        end
+        assert(#list >= 4, "tob_combat_doses: no super combat symbols")
+        QD.raid._combat_dose_ids = list
+    end
+    local total = 0
+    for _, d in ipairs(QD.raid._combat_dose_ids) do
+        local _, n = api_drive.inv_count(S.ids.inv, d.id)
+        total = total + (n or 0) * d.doses
+    end
+    return total
 end
 
 -- My 64-tile map square ("x,z" of its corner).

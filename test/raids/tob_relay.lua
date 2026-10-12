@@ -468,6 +468,9 @@ local function verzik(t)
     local r2, d2 = t.raid.verzik_p2_solve({ max_ticks = 900, base = prep.base, weapon = "abyssal_tentacle" })
     t.check("verzik.p2", r2 == "ok", P .. string.sub(tostring(d2), 1, 600))
     if r2 ~= "ok" then return false end
+    -- P3's reserve is P3's now (QD.raid.tob_reserve_combats)
+    t.raid.tob_reserve_combats(0)
+    t.check("verzik.p3_supplies", true, P .. supplies_text(t))
     local r3, d3 = t.raid.verzik_p3_solve({ max_ticks = 900, base = prep.base, weapon = "abyssal_tentacle" })
     t.check("verzik.supplies_left", true, P .. supplies_text(t))
     t.check("verzik.p3", r3 == "ok", P .. string.sub(tostring(d3), 1, 600))
@@ -533,6 +536,9 @@ local function run(t)
     -- clientscripts). The board is test/raids/tob_lobby.lua, live only.
     local r, d = t.raid.enter("tob", "maiden", { mode = "normal" })
     t.check("party.enter", r == "ok", P .. tostring(d))
+    -- one super combat a seat is P3's: no room before it drinks below this
+    -- (owner 2026-10-11; h8 reached P3 with none on any seat)
+    t.raid.tob_reserve_combats(4)
 
     local cleared = 0
     local alive = true

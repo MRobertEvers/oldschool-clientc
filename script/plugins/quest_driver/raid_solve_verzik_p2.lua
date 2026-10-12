@@ -70,6 +70,11 @@ QD.VZP2 = {
     REDS_RATE_TICKS = 24,      -- her bar's fall over this many ticks is the kit's rate
     HEAL_SWING = 8,            -- a swing on her in the absorb window: worse than three idle ticks
     CRAB_LIFE = 25, CRAB_BLAST = 3, CRAB_SIZE = 2,
+    CRAB_STOP = 2,             -- C: ^tob_verzik_crab_stop_range: within this of its raider it stops, and blows 2 ticks on
+    CRAB_FLOOR = 7,            -- C: ^tob_verzik_crab_min_ticks: never before this many ticks old
+    CRAB_IDLE = 3,             -- C: ^tob_verzik_crab_idle_ticks: still until this old
+    CRAB_LOOK = 6,             -- how far ahead a walking crab's stop is predicted (the planner looks H)
+    BLAST_FAR_COST = 150,      -- the 3-tile band is a flat 7 (C: ^tob_verzik_p2_nylo_blast_far): taken when nothing nearer is clear
     SIZE = 3,
     H = 5,                    -- horizon, ticks
     WAITS = 3,                -- a plan may wait up to this many ticks before its click
@@ -77,7 +82,9 @@ QD.VZP2 = {
     INF = 1e9,
     ARENA = { x = 31, z = 25 },                       -- her P2 south-west tile, local (C: ^tob_verzik_arena_l[xz])
     FLOOR = { x0 = 21, x1 = 43, z0 = 15, z1 = 32 },   -- local; the crab spawn constants' extent
-    HP_EAT = 45,
+    HP_EAT = 49,              -- above her biggest single hit, the 48 zap (slam 45, bomb 44): at 45 one zap killed (h12 sj)
+    HP_EAT_CRAB = 75,         -- with a crab within CRAB_WARN: her hit and a crab's 26 band on one tick (h18 sd: 34 + 26 at 60)
+    CRAB_WARN = 5,
     PRAYER_SIP = 25,
     COMBAT_REDOSE = 5,        -- re-dose the super combat once the boost has decayed to +5
     TRACE_CAP = 120,
@@ -129,6 +136,13 @@ function QD.raid._vzp2_ids(weapon)
         red = sym("npc", "tob_verzik_phase2_bloodnylocas"),
         crabs = { [sym("npc", "verzik_nylocas_melee")] = true, [sym("npc", "verzik_nylocas_ranged")] = true,
                   [sym("npc", "verzik_nylocas_magic")] = true },
+        -- THE DEATHS, as a raider sees them: the death animation. The
+        -- Athanatos, the reds and a crab that blows up die with no hitsplat
+        -- (`npc_die`, owner 2026-10-11), so a bar at 0 or a death splat no
+        -- longer says every death.
+        death_seqs = { [sym("seq", "top_spider_melee_death")] = true, [sym("seq", "top_spider_ranged_death")] = true,
+                       [sym("seq", "top_spider_magic_death")] = true, [sym("seq", "tob_spider_tank_death")] = true,
+                       [sym("seq", "elemental_death")] = true },
         seq_magic = sym("seq", "verzik_phase2_attack_magic"),
         seq_melee = sym("seq", "verzik_phase2_attack_melee"),
         seq_heal = sym("seq", "verzik_phase2_heal"),
@@ -186,8 +200,10 @@ function QD.raid._vzp2_measure(S)
         if id == ids.p2 then F.boss = row
         elseif id == ids.before then F.before = row
         elseif id == ids.after then F.after = row
-        elseif id == ids.athanatos and (row.health_ratio == nil or row.health_ratio ~= 0) then F.athanatos = row
-        elseif id == ids.red and (row.health_ratio == nil or row.health_ratio ~= 0) then F.reds[#F.reds + 1] = row
+        elseif id == ids.athanatos and (row.health_ratio == nil or row.health_ratio ~= 0)
+            and not ids.death_seqs[row.seq_id] then F.athanatos = row
+        elseif id == ids.red and (row.health_ratio == nil or row.health_ratio ~= 0)
+            and not ids.death_seqs[row.seq_id] then F.reds[#F.reds + 1] = row
         elseif ids.crabs[id] then F.crabs[#F.crabs + 1] = row
         end
     end
@@ -347,15 +363,49 @@ function QD.raid._vzp2_projectiles(S, F)
     F.hazards = keep
 end
 
--- Crabs.  Harmless until they die: on reaching their owner (range 1) or at
--- 25 ticks (C: ~tob_verzik_crab_tick), a crab stops where it is and its death
--- blasts everyone within 3 of it about four ticks later (tick log: s13 died
--- t212, blast t216; s11 t218, t222).  So no kiting: its death, seen as its
--- health bar reading 0, becomes a blast hazard on its footprint plus 3 for
--- the ticks the blast can read, and there are two ticks of running (four
--- tiles) to leave it -- the owner's tip: "the crab stops moving when it
--- starts exploding so you only need to move outside its distance".
+-- Crabs.  A crab that comes within 2 of its raider stops and BLOWS two ticks
+-- after its last step (C: ~tob_verzik_crab_tick / _crab_die, Blert's timeline
+-- in tob.constant), never before 7 ticks old: the blast reads where everyone
+-- stands at the end of the tick after the stop. So the stop is the warning,
+-- as it is for a player popping one: a crab within 2 of any raider is a blast
+-- next tick (its owner is not on the wire, so any raider's), on its footprint
+-- plus 3. Within 2 is the 63 and 26 bands; 3 is a flat 7 and is only priced,
+-- because from beside it one tick of running reaches 3 and no further. A crab
+-- the TEAM kills blasts from its death instead (its `[ai_queue3]`, two ticks
+-- after the killing splat), as before.
+-- A walking crab's predicted stop and blast: { x, z, from, to } or nil.
+-- C: ~tob_verzik_crab_tick - still for its first ^tob_verzik_crab_idle_ticks,
+-- then a tile a tick until it starts a tick within ^..._stop_range of its
+-- raider, then the blast on the tick after (never before its floor age).
+function QD.raid._vzp2_crab_stop(S, F, c, rec)
+    local V = QD.VZP2
+    local raiders = { { x = F.me.x, z = F.me.z } }
+    for _, m in ipairs(F.mates or {}) do raiders[#raiders + 1] = { x = m.x, z = m.z } end
+    local owner, best = nil, nil
+    for _, r in ipairs(raiders) do
+        local g = QD.raid._vzp2_gap(r.x, r.z, c.x, c.z, V.CRAB_SIZE)
+        if best == nil or g < best then owner, best = r, g end
+    end
+    local x, z = c.x, c.z
+    for k = 1, V.CRAB_LOOK do
+        local t = F.tick + k
+        if t - rec.born > V.CRAB_IDLE and QD.raid._vzp2_gap(owner.x, owner.z, x, z, V.CRAB_SIZE) <= V.CRAB_STOP then
+            local at = math.max(t, rec.born + V.CRAB_FLOOR - 1)
+            return { x = x, z = z, from = at, to = at + 1 }
+        end
+        if t - rec.born > V.CRAB_IDLE then
+            -- its 2x2 toward the raider's tile, a step on each axis that is off
+            if owner.x < x then x = x - 1 elseif owner.x > x + V.CRAB_SIZE - 1 then x = x + 1 end
+            if owner.z < z then z = z - 1 elseif owner.z > z + V.CRAB_SIZE - 1 then z = z + 1 end
+        end
+    end
+    return nil
+end
+
 function QD.raid._vzp2_crabs(S, F)
+    local V = QD.VZP2
+    S.kill_blasts = S.kill_blasts or {}
+    local stops = {}
     for _, c in ipairs(F.crabs) do
         local rec = S.crab_seen[c.slot]
         if rec == nil then
@@ -363,19 +413,50 @@ function QD.raid._vzp2_crabs(S, F)
             S.crab_seen[c.slot] = rec
             QD.raid._vzp2_trace(S, F.tick, "crab at " .. c.x .. "," .. c.z)
         end
-        -- dead: its bar at 0, or its death splat (nothing else hits a crab)
+        -- KILLED: its bar at 0 or its death splat (nothing else hits a crab);
+        -- the blast follows the death. Death on D, blast damage on D+4 (tick
+        -- log), so the blast reads the end of D+2: two ticks of running. A
+        -- window from D+1 made every escape impossible (p2n t299).
         if rec.died == nil and (c.health_ratio == 0 or (c.hit_damage ~= nil and c.hit_damage > 0)) then
             rec.died = F.tick
-            -- death on D, blast damage on D+4 (tick log), so the blast reads
-            -- the end of D+2: two ticks of running.  A window from D+1 made
-            -- every escape impossible and the raider stood still (p2n t299).
-            S.blasts[#S.blasts + 1] = { x = c.x, z = c.z, from = F.tick + 2, to = F.tick + 3 }
-            QD.raid._vzp2_trace(S, F.tick, "crab dies at " .. c.x .. "," .. c.z)
+            S.kill_blasts[#S.kill_blasts + 1] = { x = c.x, z = c.z, from = F.tick + 2, to = F.tick + 3 }
+            QD.raid._vzp2_trace(S, F.tick, "crab killed at " .. c.x .. "," .. c.z)
+        end
+        -- DETONATED: its death animation with no splat; its blast has gone off
+        if rec.died == nil and S.ids.death_seqs[c.seq_id] then rec.died = F.tick end
+        -- ITS STOP, read afresh every tick where the crab stands NOW: within 2
+        -- of a raider it blows at the end of the next tick (or at its floor
+        -- age, if later), two ticks wide because its age is counted from the
+        -- tick I first saw it, which can trail its spawn by one (rf t3223). Not
+        -- latched: in P3 they hatch beside a raider and walk on to another, and
+        -- a latch left the warning on the spawn tile (tl t3825, 63 at gap 1).
+        if rec.died == nil then
+            local near = QD.raid._vzp2_gap(F.me.x, F.me.z, c.x, c.z, V.CRAB_SIZE) <= V.CRAB_STOP
+            for _, m in ipairs(F.mates or {}) do
+                if QD.raid._vzp2_gap(m.x, m.z, c.x, c.z, V.CRAB_SIZE) <= V.CRAB_STOP then near = true end
+            end
+            if near then
+                local at = math.max(F.tick + 1, rec.born + V.CRAB_FLOOR - 1)
+                stops[#stops + 1] = { x = c.x, z = c.z, from = at, to = at + 1 }
+            else
+                -- AND WHERE IT WILL STOP (owner, 2026-10-11: look further ahead
+                -- so a raider is not trapped). One tile a tick toward its
+                -- raider - the nearest one, its owner not being on the wire -
+                -- read as standing still; the blast where it stops, so the
+                -- planner leaves room to step away from it before it arrives
+                -- rather than in the one tick after (h18 sd: pinned between
+                -- it and her slam, 26 + her 34 at 60).
+                local stop = QD.raid._vzp2_crab_stop(S, F, c, rec)
+                if stop then stops[#stops + 1] = stop end
+            end
         end
     end
     local keep = {}
-    for _, bl in ipairs(S.blasts) do if bl.to >= F.tick then keep[#keep + 1] = bl end end
-    S.blasts = keep
+    for _, bl in ipairs(S.kill_blasts) do if bl.to >= F.tick then keep[#keep + 1] = bl end end
+    S.kill_blasts = keep
+    S.blasts = {}
+    for _, bl in ipairs(keep) do S.blasts[#S.blasts + 1] = bl end
+    for _, bl in ipairs(stops) do S.blasts[#S.blasts + 1] = bl end
 end
 
 -- =================================================================== FLOOR
@@ -664,16 +745,20 @@ function QD.raid._vzp2_terms(S, F)
         end
         return 0
     end
-    -- crab blasts: within 3 of a dead crab on the ticks its blast can read
+    -- crab blasts on the ticks they read: within 2 of one is out (63, 26),
+    -- 3 is priced (a flat 7)
     if #S.blasts > 0 then
         named("blast")
         terms[#terms + 1] = function(x, z, t)
+            local cost = 0
             for _, bl in ipairs(S.blasts) do
-                if t >= bl.from and t <= bl.to and QD.raid._vzp2_gap(x, z, bl.x, bl.z, V.CRAB_SIZE) <= V.CRAB_BLAST then
-                    return V.INF
+                if t >= bl.from and t <= bl.to then
+                    local g = QD.raid._vzp2_gap(x, z, bl.x, bl.z, V.CRAB_SIZE)
+                    if g < V.CRAB_BLAST then return V.INF end
+                    if g == V.CRAB_BLAST then cost = cost + V.BLAST_FAR_COST end
                 end
             end
-            return 0
+            return cost
         end
     end
     -- my side: near its stand tile, and on its back tile at a lightning scan
@@ -1158,7 +1243,16 @@ function QD.raid.verzik_p2_solve(opts)
             -- (a brew when the anglerfish are gone, as P3 does: the relay's
             -- chests sell brews, not fish, and with no fish a seat pressed
             -- an empty eat 49 times and died, relay rl6 seat 3)
-            if F.hp < V.HP_EAT then
+            -- a crab closing in can pin me between it and her: room for both
+            local eat_at = V.HP_EAT
+            for _, c in ipairs(F.crabs) do
+                local rec = S.crab_seen[c.slot]
+                if (rec == nil or rec.died == nil)
+                    and QD.raid._vzp2_gap(F.me.x, F.me.z, c.x, c.z, V.CRAB_SIZE) <= V.CRAB_WARN then
+                    eat_at = V.HP_EAT_CRAB
+                end
+            end
+            if F.hp < eat_at then
                 local fish = nil
                 for _, f in ipairs(S.ids.foods) do
                     local _, n = api_drive.inv_count(S.ids.inv, f)
@@ -1177,7 +1271,8 @@ function QD.raid.verzik_p2_solve(opts)
             -- prayer points: a super restore below the floor (the lowest dose
             -- first), one sip per three ticks (its own timer)
             if not intent.drink and F.prayer >= V.PRAYER_SIP and F.attack <= F.attack_base + V.COMBAT_REDOSE
-                and F.tick - (S.last_drink or -10) >= 3 then
+                and F.tick - (S.last_drink or -10) >= 3
+                and QD.raid.tob_combat_doses(S) > QD.raid.tob_combat_reserve then
                 for _, dose in ipairs(S.ids.combats) do
                     local _, n = api_drive.inv_count(S.ids.inv, dose)
                     if (n or 0) > 0 then intent.drink = dose break end

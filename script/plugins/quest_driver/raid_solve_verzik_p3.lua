@@ -157,6 +157,9 @@ function QD.raid._vzp3_ids(weapon)
         bat = sym("npc", "verzik_death_bat"),
         web = sym("npc", "verzik_web_npc"),
         tornado = sym("npc", "tob_verzik_creeper"),
+        -- (QD.raid._vzp2_crabs reads a crab's death off its animation too)
+        death_seqs = { [sym("seq", "top_spider_melee_death")] = true, [sym("seq", "top_spider_ranged_death")] = true,
+                       [sym("seq", "top_spider_magic_death")] = true },
         crabs = { [sym("npc", "verzik_nylocas_melee")] = true, [sym("npc", "verzik_nylocas_ranged")] = true,
                   [sym("npc", "verzik_nylocas_magic")] = true },
         seq_melee = sym("seq", "verzik_phase3_attack_melee"),
@@ -235,7 +238,9 @@ function QD.raid._vzp3_measure(S)
         for _, p in ipairs(players) do
             local px, pz = p.server_x or p.x, p.server_z or p.z
             F.raiders[#F.raiders + 1] = { pid = p.pid, x = px, z = pz, me = p.me }
-            if p.me then F.pid = p.pid else F.mates[#F.mates + 1] = { pid = p.pid, x = p.x, z = p.z } end
+            -- (the server tile, as F.raiders: live's x is the drawn one, and
+            -- the crab look-ahead reads mates - QD.raid._vzp2_crab_stop)
+            if p.me then F.pid = p.pid else F.mates[#F.mates + 1] = { pid = p.pid, x = px, z = pz } end
         end
     end
     table.sort(F.raiders, function(a, b) return a.pid < b.pid end)
@@ -661,9 +666,11 @@ function QD.raid._vzp3_spec(S, F)
             zone("scan-ring", { x = b.x + 1, z = b.z + 1, size = V.SIZE - 2, lo = 1, hi = 1, t0 = sc.t0, t1 = sc.t1, tier = "lethal" })
         end
     end
-    -- crab blasts (the P2 model): out of 3 of a dying crab's 2x2 by D+2
+    -- crab blasts (the P2 model, QD.raid._vzp2_crabs): within 2 of its 2x2
+    -- is out (63, 26), 3 is a flat 7 and only damage
     for _, bl in ipairs(S.blasts) do
-        zone("blast", { x = bl.x, z = bl.z, size = V.CRAB_SIZE, lo = 0, hi = V.CRAB_BLAST, t0 = bl.from, t1 = bl.to, tier = "lethal" })
+        zone("blast", { x = bl.x, z = bl.z, size = V.CRAB_SIZE, lo = 0, hi = V.CRAB_BLAST - 1, t0 = bl.from, t1 = bl.to, tier = "lethal" })
+        zone("blast-far", { x = bl.x, z = bl.z, size = V.CRAB_SIZE, lo = V.CRAB_BLAST, hi = V.CRAB_BLAST, t0 = bl.from, t1 = bl.to, tier = "damage", cost = 40 })
     end
     -- webs: never on one from a tick before it lands to its explosion; the
     -- planner charges the middle tile of a run too

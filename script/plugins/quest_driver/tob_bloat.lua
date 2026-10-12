@@ -559,8 +559,21 @@ function QD.raid._bloat_step(S, F)
         if not QD.raid._tob_worn(S, obj) then want_set[#want_set + 1] = obj end
     end
     if #want_set > 0 and F.tick - (S.gear_sent or -10) >= 2 then intent.gear = want_set end
-    QD.raid._tob_supplies(S, F, { overhead = "protectfrommissiles",
-        boost = (S.phase == "down") and "piety" or nil, boost_stat = "attack" }, intent)
+    -- PRAYER BY STATE (owner 2026-10-11: Piety and Protect from Missiles on
+    -- while hiding is a waste). Piety only while attacking. No overhead at
+    -- all: his flies fire only on his walk ticks and only at a raider he can
+    -- see (tob_bloat.rs2 ~tob_bloat_walk_tick), which hiding is the answer
+    -- to, and Missiles only takes a quarter off them.
+    QD.raid._tob_supplies(S, F, { boost = (state == "attack") and "piety" or nil, boost_stat = "attack" }, intent)
+    if not intent.pray then
+        for _, name in ipairs({ "piety", "protectfrommissiles" }) do
+            local wanted = name == "piety" and state == "attack"
+            if not intent.pray and F.lit[name] and not wanted
+                and F.tick - (S.pray_clicked[name] or -10) >= 3 then
+                intent.pray = name
+            end
+        end
+    end
     -- ACT
     local plan
     if state == "attack" then
