@@ -732,6 +732,17 @@ function QD.raid._nylo_act(S, F, D)
     -- at t431). The tick of a switch holds.
     local weapon = ids.weapon[D.style]
     local armed = QD.raid._tob_worn(S, weapon)
+    -- a wield that will not take (a two-handed weapon with the defender on
+    -- and no slot to put it in) says so once, rather than standing silent
+    if armed then
+        S.wield_since = nil
+    else
+        S.wield_since = S.wield_since or F.tick
+        if F.tick - S.wield_since >= 6 and not S.wield_stuck then
+            S.wield_stuck = true
+            QD.raid._tob_trace(S, F.tick, "the " .. D.style .. " weapon will not go on (pack full?)")
+        end
+    end
     pipe_rapid(S, F)
     local want = { overhead = D.overhead or wave_overhead(S, F), boost = ids.boost[D.style],
                    boost_stat = ids.boost_stat[D.style], eat_below = D.eat_below }

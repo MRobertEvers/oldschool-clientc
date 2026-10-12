@@ -305,6 +305,14 @@ function QD.raid._vzp2_clock(S, F)
     -- under way when she summoned)
     F.heal_ticks = {}
     local T = nil
+    -- P2's SECOND PART: from her reds on, the two super combat doses kept
+    -- through the raid are drinkable (QD.raid.tob_reserve_combats, owner
+    -- 2026-10-12)
+    if (S.reds_out or (b and b.health_ratio and b.health_scale and b.health_scale > 0
+        and b.health_ratio / b.health_scale <= V.REDS_NEAR)) and QD.raid.tob_combat_reserve > 0 then
+        QD.raid.tob_reserve_combats(0)
+        QD.raid._vzp2_trace(S, F.tick, "super combat reserve released")
+    end
     if S.reds_out then
         if S.next_summon and S.next_summon >= F.tick then T = S.next_summon end
     elseif b and S.next_attack and b.health_ratio and b.health_scale and b.health_scale > 0
@@ -966,6 +974,33 @@ function QD.raid._vzp2_move(S, F, terms)
         waitable[#waitable + 1] = orders[#orders]
     end
     local best, best_cost, best_path = incumbent, inc_cost, inc_path
+    -- EQUAL WEIGHT: the shorter path, then the fewer clicks (owner,
+    -- 2026-10-12). Tiles walked over the horizon, and one click per order
+    -- the plan sends (a two-click plan is two).
+    local function moved(path)
+        local n, px, pz = 0, F.me.x, F.me.z
+        for k = 1, #(path or {}) do
+            n = n + math.max(math.abs(path[k].x - px), math.abs(path[k].z - pz))
+            px, pz = path[k].x, path[k].z
+        end
+        return n
+    end
+    local function clicks(plan)
+        if plan == nil then return 0 end
+        return (plan.order and 1 or 0) + (plan.order2 and 1 or 0)
+    end
+    local function take(plan, cost, path)
+        local margin = (inc_cost < V.INF) and V.MARGIN or 0
+        local c = cost + margin
+        if c < best_cost - 1e-9 then
+            best, best_cost, best_path = plan, cost, path
+        elseif math.abs(c - best_cost) <= 1e-9 and best_cost < V.INF then
+            local m, bm = moved(path), moved(best_path)
+            if m < bm or (m == bm and clicks(plan) < clicks(best)) then
+                best, best_cost, best_path = plan, cost, path
+            end
+        end
+    end
     -- two-click plans: in now, out (or back in) j ticks later -- scythe walking
     -- is "attack now, step to back before the scan", which no one click says
     local firsts = { { mode = "walk", x = stand.x, z = stand.z } }
@@ -986,8 +1021,7 @@ function QD.raid._vzp2_move(S, F, terms)
                         QD.raid._vzp2_trace(S, F.tick, string.format("cand o1 %s%s j%d o2 %s cost %.3f why %s inc %s path %s", o1.mode,
                             o1.x and (" " .. o1.x .. "," .. o1.z) or "", j, o2.mode, cost, tostring(why), tostring(S.inc_why), table.concat(pp, ">")))
                     end
-                    local margin = (inc_cost < V.INF) and V.MARGIN or 0
-                    if cost + margin < best_cost then best, best_cost, best_path = plan, cost, path end
+                    take(plan, cost, path)
                 end
             end
         end
@@ -1009,8 +1043,7 @@ function QD.raid._vzp2_move(S, F, terms)
                                        order2 = { mode = "attack", target = tg } }
                         local path = QD.raid._vzp2_simulate(S, F, plan)
                         local cost = QD.raid._vzp2_score(S, F, terms, path) + 0.02
-                        local margin = (inc_cost < V.INF) and V.MARGIN or 0
-                        if cost + margin < best_cost then best, best_cost, best_path = plan, cost, path end
+                        take(plan, cost, path)
                     end
                 end
             end
@@ -1034,8 +1067,7 @@ function QD.raid._vzp2_move(S, F, terms)
                     ok = false
                 end
                 if ok then
-                    local margin = (inc_cost < V.INF) and V.MARGIN or 0
-                    if cost + margin < best_cost then best, best_cost, best_path = plan, cost, path end
+                    take(plan, cost, path)
                 end
             end
         end

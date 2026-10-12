@@ -2743,7 +2743,15 @@ struct PlanNode
     int parent;
     int mid_x, mid_z;
     int why_kind, why_index, why_k;
-    int order; /* insertion order: the tie-break that keeps the search deterministic */
+    /* The tie-breaks for two plans of equal weight (owner, 2026-10-12): the
+     * SHORTER path first, then the one with FEWER CLICKS. `moved` is tiles
+     * walked; `clicks` counts a move that starts from standing or turns from
+     * the last one's heading (a straight run is one click's worth), with
+     * `dir_x`/`dir_z` that heading, 0/0 after a tick stood still. */
+    int moved;
+    int clicks;
+    int dir_x, dir_z;
+    int order; /* insertion order: the last tie-break, keeps the search deterministic */
 };
 
 enum
@@ -2922,6 +2930,13 @@ plan_score(
             continue;
         gap = plan_gap_rect(n->x, n->z, zn->x0, zn->z0, zn->x1, zn->z1);
         inside = gap >= zn->lo && gap <= zn->hi;
+        /* A ranged reach ring counts a tile only if it SEES the target: by
+         * gap alone the plan stood behind a lane wall in range and the order
+         * found no shot (Nylocas: 291 of 462 held ticks, 2026-10-12). */
+        if( inside && zn->sight &&
+            !collision_map_line_of_sight(cm, n->x, n->z, zn->x0, zn->z0, 1, 1,
+                                         zn->x1 - zn->x0 + 1, zn->z1 - zn->z0 + 1, 0) )
+            inside = 0;
         if( zn->require ? !inside : inside )
             plan_charge(n, spec, zn->tier, zn->cost, 2, i, k);
     }
@@ -2987,6 +3002,10 @@ plan_better(const struct PlanNode* a, const struct PlanNode* b)
         return a->damage < b->damage;
     if( a->soft != b->soft )
         return a->soft < b->soft;
+    if( a->moved != b->moved )
+        return a->moved < b->moved;
+    if( a->clicks != b->clicks )
+        return a->clicks < b->clicks;
     return a->order < b->order;
 }
 
@@ -3149,6 +3168,20 @@ collision_plan(
                 n->why_kind = from->why_kind;
                 n->why_index = from->why_index;
                 n->why_k = from->why_k;
+                n->moved = from->moved + steps;
+                n->clicks = from->clicks;
+                if( steps == 0 )
+                {
+                    n->dir_x = 0;
+                    n->dir_z = 0;
+                }
+                else
+                {
+                    n->dir_x = (dx > 0) - (dx < 0);
+                    n->dir_z = (dz > 0) - (dz < 0);
+                    if( n->dir_x != from->dir_x || n->dir_z != from->dir_z )
+                        n->clicks++;
+                }
                 n->order = cand_n;
                 plan_score(cm, n, spec, k, steps);
                 cand_n++;

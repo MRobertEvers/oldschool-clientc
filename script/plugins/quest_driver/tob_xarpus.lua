@@ -531,7 +531,16 @@ function QD.raid._xarp_step(S, F)
         intent.gear = want_set
         S.gear_sent = F.tick
     end
-    QD.raid._tob_supplies(S, F, { boost = "piety", boost_stat = "attack", eat_below = 60, brew_below = 50 }, intent)
+    -- PIETY ONLY FOR THE FIGHT (owner, 2026-10-12: not through the corpse
+    -- phase): on from his stand-up (stack, stare), off while the exhumeds run
+    -- and once he is dead.
+    local fighting = phase == "stack" or phase == "stare"
+    QD.raid._tob_supplies(S, F, { boost = fighting and "piety" or nil, boost_stat = "attack",
+        eat_below = 60, brew_below = 50 }, intent)
+    if not fighting and not intent.pray and F.lit.piety
+        and F.tick - (S.pray_clicked.piety or -10) >= 3 then
+        intent.pray = "piety"
+    end
     local order = nil
     local armed = QD.raid._tob_worn(S, ids.tentacle)
 

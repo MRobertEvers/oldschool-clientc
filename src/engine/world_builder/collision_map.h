@@ -955,6 +955,9 @@ struct CollisionPlanZone
     double cost;
     int tier;
     int require;
+    /* inside only with line of sight to the zone's rect as well (a ranged
+     * weapon's reach: in range AND seen, the server's own rule) */
+    int sight;
 };
 
 /* weight x gap to the footprint at (x, z) of `size`, every tick of the window */

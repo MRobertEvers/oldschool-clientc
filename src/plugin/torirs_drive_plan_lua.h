@@ -14,7 +14,7 @@
  *   h = 12, beam = 32, run = true, move_cost = 0.01
  *   chasers = { {x, z, cost, tier}, ... }           tier "soft"|"damage"|"lethal"
  *   forbid  = { {x, z, t0, t1, cost, tier}, ... }
- *   zones   = { {x, z, size (or x0,z0,x1,z1), lo, hi, t0, t1, cost, tier, require}, ... }
+ *   zones   = { {x, z, size (or x0,z0,x1,z1), lo, hi, t0, t1, cost, tier, require, sight}, ... }
  *   pulls   = { {x, z, size, weight, t0, t1}, ... }
  *   watchers = { {x, z, size, t0, t1, cost, tier}, ... }  seen by the near-edge rule
  *   goal    = { x, z, size, side, under_ok, off_side, under, pull }
@@ -211,6 +211,9 @@ DrivePlanLua(
         zn->tier = drive_plan_field_tier(L, k, COLLISION_PLAN_LETHAL);
         lua_getfield(L, k, "require");
         zn->require = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+        lua_getfield(L, k, "sight");
+        zn->sight = lua_toboolean(L, -1);
         lua_pop(L, 1);
         lua_pop(L, 1);
     }

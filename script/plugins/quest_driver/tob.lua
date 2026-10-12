@@ -404,8 +404,10 @@ function QD.raid._tob_spec(S, F, opts)
                 off_side = 0, under = 0.5, pull = pull and (pull * 10) or 1.0 }
             return
         end
+        -- (sight: in range AND seen, the server's reach for a ranged attack;
+        -- by gap alone the plan held behind a wall with no shot)
         add.zone(name, { x = t.x, z = t.z, size = n, lo = 1, hi = range, require = true,
-            tier = "soft", cost = cost or 1.0 })
+            tier = "soft", cost = cost or 1.0, sight = true })
         add.pull({ x = t.x - range, z = t.z - range, size = n + 2 * range, weight = pull or 0.1,
             t0 = F.tick, t1 = F.tick + spec.h })
     end

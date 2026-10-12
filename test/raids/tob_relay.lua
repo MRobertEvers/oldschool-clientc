@@ -44,6 +44,8 @@ for _, line in ipairs({
     "::setvar varb16098_prayer_mystic_vigour_unlocked 1",
     "::setvar varb358_deserttreasure ^dt_complete",
     "::setvar varb4070_spellbook 1",
+    -- barbarian vial smashing: a last dose leaves no vial (owner 2026-10-12)
+    "::setvar varp7348_barbarian_vial_smash 1",
 }) do kit[#kit + 1] = line end
 for _, obj in ipairs(WORN) do
     kit[#kit + 1] = "::give " .. obj .. " 1"
@@ -76,17 +78,16 @@ for _, line in ipairs({
 -- Attack and Strength those brews drain (same slot count: seat 1 keeps its two
 -- free slots for the freezer's swap).
 for _, line in ipairs((role == 1)
-    and { "::give br_4dose2restore 5", "::give br_4dose2combat 1", "::give br_4dosepotionofsaradomin 4", "::give anglerfish 1" }
+    and { "::give br_4dose2restore 5", "::give br_4dose2combat 2", "::give br_4dosepotionofsaradomin 4", "::give anglerfish 1" }
     or { "::give br_4dose2restore 6", "::give br_4dose2combat 2", "::give br_4dosepotionofsaradomin 6", "::give anglerfish 2" }) do
     kit[#kit + 1] = line
 end
--- seat 1 ranges (Maiden's freezer, the Nylocas' ranger): the ranging
--- potion; seats 2 and 3 a second super combat, for Verzik. (Seat 2 once
--- carried a fifth brew here instead, for tanking Maiden's blackstorms; the
--- super combat's redoses are what keep P2 boosted, and without one P2 ran
--- 457 -> 512 ticks median (rl62 -> rl64) and spent P3's supplies. The kit's
--- fish-to-brews change since gives every seat the brews.)
-kit[#kit + 1] = (role == 1) and "::give br_4doserangerspotion 1" or "::give br_4dose2combat 1"
+-- TWO SUPER COMBATS A SEAT (owner, 2026-10-12: "Each raider should bring 2
+-- supercombats and use supercombats throughout every room"), the last two
+-- doses kept for P2's second part and P3 (QD.raid.tob_reserve_combats below).
+-- Seat 1 ranges (Maiden's freezer, the Nylocas' ranger) and carries the
+-- ranging potion besides.
+if role == 1 then kit[#kit + 1] = "::give br_4doserangerspotion 1" end
 if role == 3 then kit[#kit + 1] = "::give serpentine_helm_charged 1" end
 
 local ORDER = { "maiden", "bloat", "nylocas", "sotetseg", "xarpus", "verzik" }
@@ -468,7 +469,8 @@ local function verzik(t)
     local r2, d2 = t.raid.verzik_p2_solve({ max_ticks = 900, base = prep.base, weapon = "abyssal_tentacle" })
     t.check("verzik.p2", r2 == "ok", P .. string.sub(tostring(d2), 1, 600))
     if r2 ~= "ok" then return false end
-    -- P3's reserve is P3's now (QD.raid.tob_reserve_combats)
+    -- (the P2 solver released the reserve at her reds; again here for a P2
+    -- that ended before her bar got there)
     t.raid.tob_reserve_combats(0)
     t.check("verzik.p3_supplies", true, P .. supplies_text(t))
     local r3, d3 = t.raid.verzik_p3_solve({ max_ticks = 900, base = prep.base, weapon = "abyssal_tentacle" })
@@ -536,9 +538,10 @@ local function run(t)
     -- clientscripts). The board is test/raids/tob_lobby.lua, live only.
     local r, d = t.raid.enter("tob", "maiden", { mode = "normal" })
     t.check("party.enter", r == "ok", P .. tostring(d))
-    -- one super combat a seat is P3's: no room before it drinks below this
-    -- (owner 2026-10-11; h8 reached P3 with none on any seat)
-    t.raid.tob_reserve_combats(4)
+    -- two doses a seat are Verzik's P2 second part and P3: no room before
+    -- drinks below this (owner 2026-10-12); the P2 solver releases them when
+    -- her bar reaches the reds (QD.VZP2.REDS_NEAR)
+    t.raid.tob_reserve_combats(2)
 
     local cleared = 0
     local alive = true
@@ -554,14 +557,27 @@ local function run(t)
         if alive then
             local hp, pr = t.raid.tob_top_up(30)
             t.check(name .. ".top_up", true, P .. "hitpoints " .. tostring(hp) .. ", prayer " .. tostring(pr)
-                .. "; " .. supplies_text(t))
+                .. "; " .. supplies_text(t) .. "; free slots " .. free_slots(t))
+            -- THE NYLOCAS' TWO-HANDED SWAP needs a free slot: every seat wears
+            -- the defender, and the blowpipe cannot go on with nowhere to put
+            -- it - the wield is refused, and seat 3 of relay h23 tg stood
+            -- through all three of Vasilias' ranged windows re-sending it.
+            -- A full pack drops its least-worth item here.
+            if name == "nylocas" and free_slots(t) < 1 then
+                local dropped = nil
+                for _, nm in ipairs({ "br_1dosepotionofsaradomin", "br_1dose2restore", "anglerfish", "br_2dosepotionofsaradomin" }) do
+                    local r, c = t.inv.count(nm)
+                    if dropped == nil and r == "ok" and (tonumber(c) or 0) > 0 and t.player.drop(nm) == "ok" then dropped = nm end
+                end
+                t.check("nylocas.swap_slot", free_slots(t) >= 1, P .. "dropped " .. tostring(dropped)
+                    .. " for the blowpipe's swap; free slots " .. free_slots(t))
+            end
         end
         -- (a seat that failed a room still meets every barrier, fighting
         -- nothing: the party stays in lock step, relay rl5 hung 3000 ticks a
         -- barrier on a caged seat)
-        -- the combat potions left after Sotetseg are Verzik's (holding them
-        -- from the start lost Maiden and Sotetseg on four seeds of four, rl14)
-        t.raid.tob_hold_boosts(name == "xarpus")
+        -- (every room drinks its super combats, owner 2026-10-12: the
+        -- reserve above is what keeps Verzik's two doses)
         local ok = false
         if alive then
             if name == "verzik" then ok = verzik(t) else ok = fight(t, name) end
