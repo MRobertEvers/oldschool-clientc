@@ -20683,21 +20683,26 @@ ToriRSServer_WorldSelftest(void)
              * that unarmed cannot see, because ceil(4/2) and floor(4/2) are the
              * same 2 and the check above is unarmed.
              *
-             * So this one holds a weapon. `rs2012_obj_24338` is the Royal
-             * crossbow, and it is here for one property: `param=attackrate,5`
-             * makes it the odd-speed case, and being a crossbow it is also the
-             * Rapid case. Both readings differ from the old arithmetic:
+             * So this one holds a weapon: the rune longsword, here for one
+             * property, its 5-tick speed (the cache's), which makes it the
+             * odd-speed case; the Rapid case is the style varp set on it. Both
+             * readings differ from the old arithmetic:
              *
              *   melee style   ceil(5/2)     = 3   (was floor(5/2)     = 2)
              *   ranged rapid  ceil((5-1)/2) = 2   (was floor(5/2) - 1 = 1)
              *
-             * `action_delay` is parked far in the future first. That is the
-             * "regardless of what it was prior" half, and it is the half a
-             * fixture that starts from an expired clock cannot fail against.
+             * Each flinch starts from an expired `action_delay`: since content
+             * b86cd99a3f (LostCity auto_retaliate.rs2:9) a swing already
+             * pending is NOT pushed back, which the last stanza checks with
+             * the clock parked far in the future.
              */
             {
+                /* A base-game 5-tick weapon, its speed the cache's: the rs2012
+                 * record this used carries `attackrate` only in that lane's
+                 * content, off in the base pack, and read as unarmed (4). Rapid
+                 * is the style varp, not the weapon, so a sword serves both. */
                 int crossbow =
-                    ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "rs2012_obj_24338");
+                    ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "rune_longsword");
                 int rhand = ToriRSServer_ContentConstantInt("wearpos_rhand", 3);
                 int rapid = ToriRSServer_ContentConstantInt("style_ranged_rapid", 5);
                 int32_t saved_input = player->last_input_tick;
@@ -20711,7 +20716,7 @@ ToriRSServer_WorldSelftest(void)
                     worn_set(player, rhand, crossbow, 1);
 
                     player->varps[damagestyle] = 0; /* melee */
-                    player->varps[action_delay] = srv->tick + 50;
+                    player->varps[action_delay] = srv->tick - 1;
                     SELFTEST_CHECK(
                         ToriRSServer_ScriptsQueueNamed(
                             srv, "[queue,playerhit_n_retaliate]", 0, goblin_uid),
@@ -20719,14 +20724,13 @@ ToriRSServer_WorldSelftest(void)
                     ToriRSServer_ScriptsProcessQueues(srv);
                     SELFTEST_CHECK(
                         player->varps[action_delay] == srv->tick + 3,
-                        "a 5-tick weapon must flinch to ceil(5/2)=3 and must overwrite a "
-                        "longer wait: wanted %d, got %d",
+                        "a 5-tick weapon must flinch to ceil(5/2)=3: wanted %d, got %d",
                         srv->tick + 3, player->varps[action_delay]);
                     ToriRSServer_CombatStopPlayer(srv);
                     ToriRSServer_WorldStepsClear(player); /* and the route it walked */
 
                     player->varps[damagestyle] = rapid;
-                    player->varps[action_delay] = srv->tick + 50;
+                    player->varps[action_delay] = srv->tick - 1;
                     SELFTEST_CHECK(
                         ToriRSServer_ScriptsQueueNamed(
                             srv, "[queue,playerhit_n_retaliate]", 0, goblin_uid),
@@ -20739,6 +20743,23 @@ ToriRSServer_WorldSelftest(void)
                         srv->tick + 2, player->varps[action_delay]);
                     ToriRSServer_CombatStopPlayer(srv);
                     ToriRSServer_WorldStepsClear(player); /* and the route it walked */
+
+                    /* And a swing already pending is never pushed back (content
+                     * b86cd99a3f, LostCity auto_retaliate.rs2:9): the flinch
+                     * only sets a delay that has run out. */
+                    player->varps[damagestyle] = 0;
+                    player->varps[action_delay] = srv->tick + 50;
+                    SELFTEST_CHECK(
+                        ToriRSServer_ScriptsQueueNamed(
+                            srv, "[queue,playerhit_n_retaliate]", 0, goblin_uid),
+                        "the pending-swing flinch fixture should queue");
+                    ToriRSServer_ScriptsProcessQueues(srv);
+                    SELFTEST_CHECK(
+                        player->varps[action_delay] == srv->tick + 50,
+                        "the flinch must not push back a pending swing: wanted %d, got %d",
+                        srv->tick + 50, player->varps[action_delay]);
+                    ToriRSServer_CombatStopPlayer(srv);
+                    ToriRSServer_WorldStepsClear(player);
                 }
 
                 /*
@@ -22076,7 +22097,7 @@ ToriRSServer_WorldSelftest(void)
          * `npc_death_step` cannot be deleted or widened to every npc without a
          * failure here.
          *
-         * 10774 is a small Nylocas record (tob.npc's 18 `death_delay=1` smalls,
+         * 10774 is a small Nylocas record (tob.npc's 18 smalls, `death_delay=0`,
          * the id set tools' nylocas analysis reads); spawned well away from
          * the player, killed by a blow struck the way `ToriRSServer_CombatHitNpc`
          * strikes one, and `last_movement` set to "moved on this tick" (the
@@ -22122,8 +22143,11 @@ ToriRSServer_WorldSelftest(void)
             struct ToriRSServerNpc* npc = &srv->npcs[small];
             int blow;
 
-            SELFTEST_CHECK(npc->def->death_delay == 1,
-                           "10774 is a small: death_delay 1, got %d",
+            /* 0 since content ff1ce0bc26: Blert's smalls despawn at hp0+1 or
+             * +2 by the killing style, and `~tob_nylo_small_killed` holds the
+             * corpse the second tick (tools/blert_nylocas_cal.py). */
+            SELFTEST_CHECK(npc->def->death_delay == 0,
+                           "10774 is a small: death_delay 0, got %d",
                            npc->def->death_delay);
             npc->anim_id = -1;
             blow = srv->tick;
@@ -22132,7 +22156,9 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(!npc->death_seq_sent,
                            "the small's death animation is not sent on the blow's tick");
             selftest_tick(srv);
-            SELFTEST_CHECK(npc->death_stage == TORIRSSERVER_DEATH_CORPSE,
+            /* No arrive wait, and with no corpse wait either it is already
+             * past the corpse (REAP) a tick after the blow. */
+            SELFTEST_CHECK(npc->death_stage >= TORIRSSERVER_DEATH_CORPSE,
                            "a small that moved on the blow's tick dies without the "
                            "arrive wait, stage %d", npc->death_stage);
             SELFTEST_CHECK(npc->death_seq_sent,
@@ -26657,9 +26683,10 @@ ToriRSServer_WorldSelftest(void)
          * then call the name uncarried. Left as an equality rather than `> 0` so
          * a half-loaded overlay — the failure that actually happens, a merge
          * dropping one source file — is also caught, at the price of this line
-         * moving with the content. */
-        SELFTEST_CHECK(ToriRSServer_LocCategoryMembers(door_closed) == 293,
-                       "and doors.loc states door_closed 293 times, got %d",
+         * moving with the content. 293 -> 298 with the Water Ravine dungeon's
+         * five doors (content 43f4303f5f). */
+        SELFTEST_CHECK(ToriRSServer_LocCategoryMembers(door_closed) == 298,
+                       "and doors.loc states door_closed 298 times, got %d",
                        ToriRSServer_LocCategoryMembers(door_closed));
         {
             int gate_main_closed =
@@ -33121,6 +33148,7 @@ ToriRSServer_WorldSelftest(void)
             int mirror = -999;
             int plane = -1;
             int col = -2;
+            int row = -2;
             int seed0 = -3;
             int ended = -1;
             int defence_back = 0;
@@ -33160,9 +33188,9 @@ ToriRSServer_WorldSelftest(void)
                 fprintf(stderr, "  Sotetseg: %s\n", text);
                 sscanf(text,
                        "tobmazestate active=%d under=%d mine=%d mirror=%d "
-                       "plane=%d col=%d row=%*d seed0=%d",
+                       "plane=%d col=%d row=%d seed0=%d",
                        &active, &realm_handle, &mine, &mirror, &plane, &col,
-                       &seed0);
+                       &row, &seed0);
             }
             /*
              * His form while the maze runs, read from the npc table rather than
@@ -33206,9 +33234,17 @@ ToriRSServer_WorldSelftest(void)
                            "(col=%d seed0=%d) - if these differ the generator's "
                            "row 0 is the portal end rather than the south edge",
                            col, seed0);
-            SELFTEST_CHECK(mirror >= 0,
-                           "the arena must be showing the runner's tile, mirror=%d",
-                           mirror);
+            /* The runner lands a tile SOUTH of the grid (content b6356d1ad2,
+             * Blert: the arena's first glow is on row 0 at proc+6 or later), so
+             * on landing there is nothing to mirror; on the grid there is. */
+            if( row < 0 )
+                SELFTEST_CHECK(mirror == -1,
+                               "a runner below the grid (row %d) mirrors nothing, mirror=%d",
+                               row, mirror);
+            else
+                SELFTEST_CHECK(mirror >= 0,
+                               "the arena must be showing the runner's tile, mirror=%d",
+                               mirror);
 
             /* Off the grid, and the room's own 4-tick cycle must notice. */
             ToriRSServer_ScriptsRunDebugproc(srv, "tobmazeout");
@@ -33699,6 +33735,69 @@ ToriRSServer_WorldSelftest(void)
                     SELFTEST_CHECK(at_val >= 0,
                                    "the bar's value varp (1737) must be on the wire");
                 }
+                /* (Before her death below: a dead boss faces nobody, and this
+                 * leg used to run after it and measure the corpse.) */
+                /*
+                 * SHE LOOKS AT THE PLAYER SHE IS SHOOTING — FROM WHERE THE
+                 * FIGHT IS ACTUALLY FOUGHT.
+                 *
+                 * `~tob_maiden_face_latch` is `npc_setmode(playerface)`, and a
+                 * mode is only as durable as `npc_mode_target_valid` lets it
+                 * be: that ends `from_spawn <= maxrange + 1`, measured from the
+                 * npc's SPAWN TILE, with `maxrange` defaulting to 7. So the
+                 * mode was reset to `none` on the tick after it was set, and
+                 * the FACE_ENTITY latch — being a latch — kept pointing
+                 * wherever it happened to be aimed when she last threw. From
+                 * outside that is the report exactly: she does not turn towards
+                 * the player she is attacking until something else re-aims her,
+                 * and a hit does, through the combat path.
+                 *
+                 * This leg has to place the player ITSELF, and that is the
+                 * whole reason it is a leg. `tobstand` parks them at
+                 * `boss.x + size + 1` — seven tiles from her spawn, which is
+                 * `maxrange + 1` for the default 7 and therefore the one
+                 * distance at which the bug cannot be observed. The room is 24
+                 * tiles deep (`^tob_maiden_fight_lx` is 22 east of her body)
+                 * and that is where a team stands.
+                 *
+                 * Ticked without `tobstand`, or it teleports the player back to
+                 * the boundary every tick and measures the fixture instead of
+                 * the boss.
+                 */
+                {
+                    int face_hits = 0;
+                    int face_saw = -2;
+
+                    ToriRSServer_WorldSetActive(srv, player);
+                    ToriRSServer_WorldTeleport(srv, srv->npcs[boss].level,
+                                           srv->npcs[boss].x + 20, srv->npcs[boss].z);
+                    for( int t = 0; t < 12; t++ )
+                    {
+                        selftest_tick(srv);
+                        if( getenv("TORIRSSERVER_TOB_FACE") )
+                            fprintf(stderr,
+                                    "    face t=%2d mode=%d face_entity=%d (want %d) "
+                                    "masks=0x%x combat_target=%d turnspeed=%d\n",
+                                    t, srv->npcs[boss].mode,
+                                    srv->npcs[boss].face_entity,
+                                    TORIRSSERVER_FACE_PLAYER_BASE + player->pid,
+                                    srv->npcs[boss].masks,
+                                    srv->npcs[boss].combat_target,
+                                    srv->npcs[boss].turnspeed);
+                        if( srv->npcs[boss].face_entity ==
+                            TORIRSSERVER_FACE_PLAYER_BASE + player->pid )
+                            face_hits++;
+                        else if( face_saw == -2 )
+                            face_saw = srv->npcs[boss].face_entity;
+                    }
+                    SELFTEST_CHECK(face_hits >= 10,
+                                   "the Maiden must face the player she is fighting "
+                                   "from across her own room, held the latch on %d "
+                                   "of 12 ticks 20 tiles out (first miss faced %d, "
+                                   "wanted %d)",
+                                   face_hits, face_saw,
+                                   TORIRSSERVER_FACE_PLAYER_BASE + player->pid);
+                }
                 /*
                  * AND SHE DIES ON SCREEN. Nothing else in the suite kills a ToB
                  * boss, so nothing else has ever exercised the death sequence -
@@ -33934,9 +34033,14 @@ ToriRSServer_WorldSelftest(void)
                                        "the raid HUD should be showing a boss bar, "
                                        "packed %d (type %d)",
                                        hud, hud_type);
-                        SELFTEST_CHECK(hud_max > 1 && hud_val > 0 && hud_val <= hud_max,
-                                       "the HUD should carry her hitpoints in tens, "
-                                       "got %d of %d",
+                        /* She is DEAD by now (the death block above), and a
+                         * dead boss's bar reads zero, still shown (owner,
+                         * 2026-10-11: the bar stuck on her last living value,
+                         * 0.8%; tob.rs2 ~tob_maiden_killed pushes the zero).
+                         * The maximum still has to be a real one. */
+                        SELFTEST_CHECK(hud_max > 1 && hud_val == 0,
+                                       "her dead bar should read zero of a real "
+                                       "maximum, got %d of %d",
                                        hud_val, hud_max);
                     }
                     /*
@@ -33975,67 +34079,6 @@ ToriRSServer_WorldSelftest(void)
                         "  Maiden crab killed short: death_seq %d, reached corpse %d, "
                         "visible for %d ticks after the blow\n",
                         victim_seq, victim_corpse, victim_alive_ticks);
-                /*
-                 * SHE LOOKS AT THE PLAYER SHE IS SHOOTING — FROM WHERE THE
-                 * FIGHT IS ACTUALLY FOUGHT.
-                 *
-                 * `~tob_maiden_face_latch` is `npc_setmode(playerface)`, and a
-                 * mode is only as durable as `npc_mode_target_valid` lets it
-                 * be: that ends `from_spawn <= maxrange + 1`, measured from the
-                 * npc's SPAWN TILE, with `maxrange` defaulting to 7. So the
-                 * mode was reset to `none` on the tick after it was set, and
-                 * the FACE_ENTITY latch — being a latch — kept pointing
-                 * wherever it happened to be aimed when she last threw. From
-                 * outside that is the report exactly: she does not turn towards
-                 * the player she is attacking until something else re-aims her,
-                 * and a hit does, through the combat path.
-                 *
-                 * This leg has to place the player ITSELF, and that is the
-                 * whole reason it is a leg. `tobstand` parks them at
-                 * `boss.x + size + 1` — seven tiles from her spawn, which is
-                 * `maxrange + 1` for the default 7 and therefore the one
-                 * distance at which the bug cannot be observed. The room is 24
-                 * tiles deep (`^tob_maiden_fight_lx` is 22 east of her body)
-                 * and that is where a team stands.
-                 *
-                 * Ticked without `tobstand`, or it teleports the player back to
-                 * the boundary every tick and measures the fixture instead of
-                 * the boss.
-                 */
-                {
-                    int face_hits = 0;
-                    int face_saw = -2;
-
-                    ToriRSServer_WorldSetActive(srv, player);
-                    ToriRSServer_WorldTeleport(srv, srv->npcs[boss].level,
-                                           srv->npcs[boss].x + 20, srv->npcs[boss].z);
-                    for( int t = 0; t < 12; t++ )
-                    {
-                        selftest_tick(srv);
-                        if( getenv("TORIRSSERVER_TOB_FACE") )
-                            fprintf(stderr,
-                                    "    face t=%2d mode=%d face_entity=%d (want %d) "
-                                    "masks=0x%x combat_target=%d turnspeed=%d\n",
-                                    t, srv->npcs[boss].mode,
-                                    srv->npcs[boss].face_entity,
-                                    TORIRSSERVER_FACE_PLAYER_BASE + player->pid,
-                                    srv->npcs[boss].masks,
-                                    srv->npcs[boss].combat_target,
-                                    srv->npcs[boss].turnspeed);
-                        if( srv->npcs[boss].face_entity ==
-                            TORIRSSERVER_FACE_PLAYER_BASE + player->pid )
-                            face_hits++;
-                        else if( face_saw == -2 )
-                            face_saw = srv->npcs[boss].face_entity;
-                    }
-                    SELFTEST_CHECK(face_hits >= 10,
-                                   "the Maiden must face the player she is fighting "
-                                   "from across her own room, held the latch on %d "
-                                   "of 12 ticks 20 tiles out (first miss faced %d, "
-                                   "wanted %d)",
-                                   face_hits, face_saw,
-                                   TORIRSSERVER_FACE_PLAYER_BASE + player->pid);
-                }
                 SELFTEST_CHECK(victim_seq > 0,
                                "a Matomenos must carry elemental_death, got %d",
                                victim_seq);
@@ -38431,9 +38474,15 @@ ToriRSServer_WorldSelftest(void)
              * A *route* rather than a straight line, and found rather than
              * named: the goblin's spawn is where the map put it, and requiring
              * eight clear tiles in a compass direction is a fact about
-             * Lumbridge that this test has no business depending on. Walking
-             * the player down a real path also means the chase has corners in
-             * it, which is the case that used to end it.
+             * Lumbridge that this test has no business depending on.
+             *
+             * But one a NAIVE chaser can follow: every step the one straight
+             * toward the route's end. Npc pursuit is the reference's naive
+             * stepper (`ToriRSServer_WorldNpcWalkTo`, "NPCs never flood"), so a
+             * route that turns round a corner is one the goblin rightly stops at
+             * - that is a safespot, not a broken chase - and the player's own
+             * router found one of those here (the goblin held 3221,3225 while
+             * the route turned north-west).
              */
             {
                 /* Scene must cover the goblin: route no longer straight-lines
@@ -38449,9 +38498,21 @@ ToriRSServer_WorldSelftest(void)
                             continue;
                         steps = ToriRSServer_SceneRoute(0, home_x, home_z, home_x + ox, home_z + oz,
                                                     flee_x, flee_z, TORIRSSERVER_STEP_MAX);
+                        int naive = steps > 0;
+
+                        /* Each step is the naive one toward the end tile. */
+                        for( int i = 1; i < steps && naive; i++ )
+                        {
+                            int ex = flee_x[steps - 1] - flee_x[i - 1];
+                            int ez = flee_z[steps - 1] - flee_z[i - 1];
+
+                            if( flee_x[i] - flee_x[i - 1] != (ex > 0) - (ex < 0) ||
+                                flee_z[i] - flee_z[i - 1] != (ez > 0) - (ez < 0) )
+                                naive = 0;
+                        }
                         /* Long enough to be a chase, short enough to stay
                          * inside the leash the next block goes on to test. */
-                        if( steps >= 6 && steps <= maxrange - 1 )
+                        if( naive && steps >= 6 && steps <= maxrange - 1 )
                             flee_steps = steps;
                     }
                 }
@@ -38541,9 +38602,7 @@ ToriRSServer_WorldSelftest(void)
                 SELFTEST_CHECK(npc->x != home_x || npc->z != home_z,
                                "which means it left its spawn tile");
 
-                /* Stand still and it arrives. This is the assertion the whole
-                 * section exists for: before the router, a chase that met one
-                 * wall never closed again however long you waited. */
+                /* Stand still and it arrives: a chase on open ground closes. */
                 for( int i = 0; i < 10; i++ )
                 {
                     player->hitpoints = player->max_hitpoints;
@@ -43279,10 +43338,12 @@ ToriRSServer_WorldSelftest(void)
                            player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
 
             /*
-             * The same loc with a *different* item still runs the loc's script —
-             * 19 is the script saying "I ran, and the item was not the bucket".
-             * That is the positive half of the transposition test: the subject
-             * does not move when the item does.
+             * The same loc with a *different* item still runs the loc's script,
+             * which DECLINES it (`trigger_decline` for any item but the bucket,
+             * selftest_useon.rs2 since content a95305c21a; it used to write 19):
+             * the bucket's 11 is not written and nothing else is. That the knife
+             * is what `last_useitem` carries, checked below, is the
+             * transposition half: the subject does not move when the item does.
              */
             selftest_park_player(srv, 3222, 3218);
             player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
@@ -43295,8 +43356,9 @@ ToriRSServer_WorldSelftest(void)
             rsab_p2(&out, 0);
             selftest_handle(player, PKTOUT_NAME_OPLOCU, payload, (int)rsab_len(&out));
             SELFTEST_CHECK(selftest_settle(srv, 40) >= 0, "the walk should complete");
-            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 19,
-                           "a different item on the same loc runs the same script, got %d",
+            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0,
+                           "a different item on the same loc is declined by the same "
+                           "script (writes nothing), got %d",
                            player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
             SELFTEST_CHECK(player->last_useitem == knife,
                            "and the item it carries is the one that was used, got %d",
@@ -48517,11 +48579,16 @@ ToriRSServer_WorldSelftest(void)
                     pending_death += player->queue[i].script_id == death->id;
                     pending_start += player->queue[i].script_id == zuk_start->id;
                 }
+                /* No death copy left WAITING: the one that started is running
+                 * (parked in its corpse delay) and its first act was to remove
+                 * the duplicate (`clearqueue(player_death)`, player/death.rs2,
+                 * ENG-51/65: one death, one run). */
                 SELFTEST_CHECK(pending_damage == 0 && pending_start == 0 &&
-                                   pending_death == 1,
-                               "early death handling should cancel Zuk work but retain the "
-                               "delayed death queue, got hit/start/death %d/%d/%d",
-                               pending_damage, pending_start, pending_death);
+                                   pending_death == 0 && player->dying,
+                               "early death handling should cancel Zuk work, and the "
+                               "running death its duplicate, got hit/start/death %d/%d/%d "
+                               "(dying %d)",
+                               pending_damage, pending_start, pending_death, player->dying);
             }
             if( overlay_hud >= 0 )
             {
@@ -51795,7 +51862,6 @@ ToriRSServer_WorldSelftest(void)
                 int stat_crafting = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, "crafting");
                 int rows_uid =
                     ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "chatmenu:options");
-                int continue_uid = (231 << 16) | 5;
 
                 SELFTEST_CHECK(npc_professor >= 0 && varp_itgronigen >= 0 && vb_starsign >= 0 &&
                                    vb_scopelooked >= 0 && obj_sapphire >= 0 && obj_tuna >= 0 &&
@@ -51817,7 +51883,6 @@ ToriRSServer_WorldSelftest(void)
                     if( slot >= 0 )
                     {
                         uint8_t opnpc[2];
-                        uint8_t resume[4];
                         uint8_t button[6];
                         int craft_xp_before;
                         int sapphire_before;
@@ -51831,10 +51896,6 @@ ToriRSServer_WorldSelftest(void)
                         ToriRSServer_VarbitSetOn(srv, player, vb_scopelooked, 1);
                         ToriRSServer_VarbitSetOn(srv, player, vb_starsign, 11); /* sign_pisces */
 
-                        resume[0] = (uint8_t)(continue_uid >> 24);
-                        resume[1] = (uint8_t)(continue_uid >> 16);
-                        resume[2] = (uint8_t)(continue_uid >> 8);
-                        resume[3] = (uint8_t)continue_uid;
                         button[4] = 0;
 
                         selftest_npc_payload(player, slot, opnpc);
@@ -51845,7 +51906,20 @@ ToriRSServer_WorldSelftest(void)
                         selftest_handle(player, PKTOUT_NAME_OPNPC1, opnpc, 2);
                         SELFTEST_CHECK(selftest_settle(srv, 10) >= 0,
                                        "the walk to observatory_professor should complete");
-                        selftest_handle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume, 4);
+                        /* Press through whatever chat line the script is parked on (npc or
+                         * player, 231:5 / 217:5) until it waits on the menu
+                         * rows: the dialogue gained a player line before the
+                         * menu, and a fixed press count fell a step behind. */
+                        for( int c = 0; c < 8 && player->active_script &&
+                                        player->resume_button_count > 0 &&
+                                        player->resume_buttons[0] != rows_uid;
+                             c++ )
+                        {
+                            int want = player->resume_buttons[0];
+                            uint8_t cont[4] = { (uint8_t)(want >> 24), (uint8_t)(want >> 16),
+                                                (uint8_t)(want >> 8), (uint8_t)want };
+                            selftest_handle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, cont, 4);
+                        }
                         SELFTEST_CHECK(player->active_script != NULL,
                                        "p_choice5 (page 1) should park on p_pausebutton");
 
@@ -51866,7 +51940,18 @@ ToriRSServer_WorldSelftest(void)
                         /* Close whatever the wrong-guess reply parked on,
                          * then talk to the professor again and page all
                          * the way to Pisces (page 4, slot 3). */
-                        selftest_handle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume, 4);
+                        for( int c = 0; c < 8 && player->active_script &&
+                                        player->resume_button_count > 0 &&
+                                        player->resume_buttons[0] != rows_uid;
+                             c++ )
+                        {
+                            int want = player->resume_buttons[0];
+                            uint8_t cont[4] = { (uint8_t)(want >> 24), (uint8_t)(want >> 16),
+                                                (uint8_t)(want >> 8), (uint8_t)want };
+                            selftest_handle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, cont, 4);
+                        }
+                        if( player->active_script )
+                            ToriRSServer_WorldCloseModal(srv);
 
                         craft_xp_before = player->stat_xp_tenths[stat_crafting];
                         sapphire_before = selftest_count_obj(player, obj_sapphire);
@@ -51876,7 +51961,20 @@ ToriRSServer_WorldSelftest(void)
                         selftest_handle(player, PKTOUT_NAME_OPNPC1, opnpc, 2);
                         SELFTEST_CHECK(selftest_settle(srv, 10) >= 0,
                                        "the second walk to observatory_professor should complete");
-                        selftest_handle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume, 4);
+                        /* Press through whatever chat line the script is parked on (npc or
+                         * player, 231:5 / 217:5) until it waits on the menu
+                         * rows: the dialogue gained a player line before the
+                         * menu, and a fixed press count fell a step behind. */
+                        for( int c = 0; c < 8 && player->active_script &&
+                                        player->resume_button_count > 0 &&
+                                        player->resume_buttons[0] != rows_uid;
+                             c++ )
+                        {
+                            int want = player->resume_buttons[0];
+                            uint8_t cont[4] = { (uint8_t)(want >> 24), (uint8_t)(want >> 16),
+                                                (uint8_t)(want >> 8), (uint8_t)want };
+                            selftest_handle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, cont, 4);
+                        }
                         SELFTEST_CHECK(player->active_script != NULL,
                                        "p_choice5 (page 1, second visit) should park again");
 
@@ -51980,9 +52078,19 @@ ToriRSServer_WorldSelftest(void)
                              * quest points are. Stopping early reads as "the
                              * quest completed but awarded no QP".
                              */
-                            for( int i = 0; i < 3; i++ )
-                                selftest_handle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON,
-                                                         resume, 4);
+                            /* (Pressed by what the script is waiting on, not
+                             * a fixed count of chat_left continues: npc and
+                             * player lines alternate here, and the count moved
+                             * when a player line was added before the menu.) */
+                            for( int c = 0; c < 10 && player->active_script &&
+                                            player->resume_button_count > 0;
+                                 c++ )
+                            {
+                                int want = player->resume_buttons[0];
+                                uint8_t cont[4] = { (uint8_t)(want >> 24), (uint8_t)(want >> 16),
+                                                    (uint8_t)(want >> 8), (uint8_t)want };
+                                selftest_handle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, cont, 4);
+                            }
                         }
 
                         SELFTEST_CHECK(player->varps[varp_itgronigen] == 7 /* itgronigen_complete */,
@@ -53766,8 +53874,18 @@ ToriRSServer_WorldSelftest(void)
                            "nothing, got obj_id=%d",
                            player->inv[0].obj_id);
 
+            /* The snake weed is a Herblore roll (`~junglepotion_snake_roll`,
+             * a miss at any level), and a miss parks the player on its
+             * message box: at 99, a few searches, the box closed between
+             * them - as quest_junglepotion_selftest.u.h's gather does. */
             player->varps[varp_jp] = 1; /* junglepotion_get_snake_weed */
-            ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC2, loc_snake, -1, loc_slot);
+            ToriRSServer_CombatSetLevel(player, stat_herblore, 99);
+            for( s = 0; s < 40 && player->inv[0].obj_id != obj_unid_snake; s++ )
+            {
+                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC2, loc_snake, -1, loc_slot);
+                ToriRSServer_WorldCloseModal(srv);
+                selftest_tick(srv);
+            }
             SELFTEST_CHECK(player->inv[0].obj_id == obj_unid_snake,
                            "searching the vine at ^junglepotion_get_snake_weed should grant "
                            "unidentified_snake_weed, got obj_id=%d",

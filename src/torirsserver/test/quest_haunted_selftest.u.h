@@ -281,7 +281,15 @@ selftest_quest_haunted(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
     SELFTEST_CHECK(loc_slot >= 0, "hauntedfountain should exist in the manor grounds");
     if( loc_slot >= 0 && obj_poison > 0 && obj_food > 0 && obj_gauge > 0 )
     {
-        int hp_before = player->hitpoints;
+        int hp_before;
+
+        /* Full health first: the piranhas bite, and a player an earlier
+         * section left on 1 hitpoint died of it, so every suspending script
+         * after (the poison pour, the spade on the compost) was dropped behind
+         * the queued death ("dropping [oplocu,hauntedfountain], which
+         * suspended while [queue,player_death] waits"). */
+        player->hitpoints = player->max_hitpoints;
+        hp_before = player->hitpoints;
 
         ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_fountain, -1, loc_slot);
         haunted_drain(srv, player, 0);
