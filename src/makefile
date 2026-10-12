@@ -4798,7 +4798,7 @@ mock-js5: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 TORIRSSERVER_HDRS := $(wildcard torirsserver/*.h scriptrun/*.h serverscript/*.h content/*.h \
 		net/*.h net/rev/*.h net/rev/osrs239/*.h net/rev/osrs230/*.h net/rev/packets/*.h \
 		world/*.h engine/*.h engine/world_builder/*.h features/*.h game/rs_entity_sync.h \
-		platform/net_transport_ws*.h js5/server/*.h)
+		platform/net_transport_ws*.h js5/server/*.h plugin/torirs_plugin_drive_parts.h)
 .PHONY: torirsserver
 torirsserver ToriRSServer: $(OBJ_DIR)/torirsserver
 $(OBJ_DIR)/torirsserver: $(TORIRSSERVER_SRCS) $(TORIRSSERVER_HDRS) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \

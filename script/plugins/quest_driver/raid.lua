@@ -126,6 +126,19 @@ QD.raid._ROOMS = {
 
 -- ToB's three modes (tob.constant ^tob_mode_*), both ways.
 QD.raid._TOB_MODES = { entry = 0, normal = 1, hard = 2 }
+-- THE MODE THE PARTY IS IN: what t.raid.enter last entered (a relay enters
+-- once, at Maiden, and every room after is the same mode).
+QD.raid.tob_mode = "normal"
+-- Every ToB npc has its mode's own record (tob.npc, tob_verzik.npc:
+-- `tob_bloat_hard`, `verzik_phase3_hard`, ...), and Hard Mode spawns only
+-- those. A name with no Hard twin (the webs, the pillars) is the same npc in
+-- every mode. -> the symbol to look up
+function QD.raid.tob_npc_name(name)
+    if QD.raid.tob_mode == "hard" and api_drive.symbol("npc", name .. "_hard") == "ok" then
+        return name .. "_hard"
+    end
+    return name
+end
 QD.raid._TOB_MODE_NAMES = { [0] = "entry", [1] = "normal", [2] = "hard" }
 
 -- Per raid: the session varp that says it is active, its read-only state
@@ -577,6 +590,7 @@ function QD.raid._enter_party(raid, room, opts)
     if mode == nil then
         return "refused", "raid.enter: unknown ToB mode '" .. tostring(mode_name) .. "' (entry, normal, hard)"
     end
+    QD.raid.tob_mode = mode_name
     QD.raid._party_enters = QD.raid._party_enters + 1
     local entered = string.format("raid_enter_%d", QD.raid._party_enters)
     local joined = string.format("raid_joined_%d", QD.raid._party_enters)
@@ -648,6 +662,7 @@ function QD.raid._enter_here(raid, room, opts)
             return "refused", "raid.enter: unknown ToB mode '" .. tostring(mode_name)
                 .. "' (entry, normal, hard)"
         end
+        QD.raid.tob_mode = mode_name
     elseif opts.mode ~= nil then
         return "refused", "raid.enter: opts.mode is ToB's; " .. raid .. " takes none"
     end

@@ -1,0 +1,11 @@
+-- tob_relay_hard: the whole Theatre of Blood in HARD MODE, a trio, lobby to
+-- lobby, every room played by its solver in the same Learner/Void kit as the
+-- Normal relay (test/raids/tob_relay.lua; the relay is
+-- script/plugins/quest_driver/tob_relay.lua). The solvers read the mode
+-- t.raid.enter entered (QD.raid.tob_mode) and play each room's Hard rules.
+--
+-- GREEN: every room cleared with no raider dead, the party back in the lobby.
+--
+--   ./src/build_rooms_opt/torirsserver --scriptrun test/raids/tob_relay_hard.lua --bots 3 \
+--       --name sa --session /tmp/relay --fixture tests/raids/fixtures/tob_normal_done.ini
+return QD_ROOT.raid.tob_relay_test("hard")

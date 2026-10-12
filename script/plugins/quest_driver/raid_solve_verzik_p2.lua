@@ -80,6 +80,7 @@ QD.VZP2 = {
     WAITS = 3,                -- a plan may wait up to this many ticks before its click
     MARGIN = 0.75,            -- a challenger must beat the plan under way by this
     INF = 1e9,
+    RUN_PLAN_MIN = 300,       -- run energy below this (3%: a few running ticks) plans at a walk
     ARENA = { x = 31, z = 25 },                       -- her P2 south-west tile, local (C: ^tob_verzik_arena_l[xz])
     FLOOR = { x0 = 21, x1 = 43, z0 = 15, z1 = 32 },   -- local; the crab spawn constants' extent
     HP_EAT = 49,              -- above her biggest single hit, the 48 zap (slam 45, bomb 44): at 45 one zap killed (h12 sj)
@@ -117,6 +118,7 @@ end
 
 function QD.raid._vzp2_ids(weapon)
     local function sym(kind, name)
+        if kind == "npc" then name = QD.raid.tob_npc_name(name) end
         local r, id = api_drive.symbol(kind, name)
         assert(r == "ok", "verzik_p2_solve: no " .. kind .. " named " .. name)
         return id
@@ -164,6 +166,7 @@ function QD.raid._vzp2_ids(weapon)
         magic_lit = sym("varbit", "varb4116_prayer_protectfrommagic"),
         piety = comp("prayerbook:prayer27"), piety_lit = sym("varbit", "varb4129_prayer_piety"),
         attack = sym("stat", "attack"),
+        run_on = sym("varp", "varp173_option_run"), run_orb = comp("orbs:runbutton"),
         combats = QD.raid._vzp2_doses("dose2combat"),
         stat_restores = QD.raid._vzp2_doses("dose2restore"),
         brews = QD.raid._vzp2_doses("dosepotionofsaradomin"),
@@ -221,6 +224,17 @@ function QD.raid._vzp2_measure(S)
     local _, gl = api_drive.varbit(ids.magic_lit)
     local _, pl = api_drive.varbit(ids.piety_lit)
     F.lit = { missiles = ml == 1, magic = gl == 1, piety = pl == 1 }
+    -- run: the varp, and the energy (0..10000) it runs on
+    local rr, run_on = api_drive.varp(ids.run_on)
+    F.run_on = (rr == "ok" and run_on == 1)
+    local re, run_energy = api_drive.run_energy()
+    F.run_energy = (re == "ok" and run_energy) or 0
+    -- ...and so the speed every route is planned at: a path planned two tiles
+    -- a tick for a raider walking one ended on the tile it meant to leave (xv6p
+    -- sb: energy 76% at P2's start, 4% by t900, out by t1000 - and from then
+    -- 40 of the 41 ticks on a Hard Mode pool were a two-tile plan walked one)
+    F.running = F.run_on and F.run_energy >= QD.VZP2.RUN_PLAN_MIN
+    S.running = F.running
     local ar, at = api_drive.skill(ids.attack)
     F.attack, F.attack_base = (ar == "ok" and at.level) or 0, (ar == "ok" and at.base_level) or 0
     local _, hw = api_drive.inv_count(ids.worn, ids.helm)
@@ -395,7 +409,7 @@ function QD.raid._vzp2_crab_stop(S, F, c, rec)
         if best == nil or g < best then owner, best = r, g end
     end
     local x, z = c.x, c.z
-    for k = 1, V.CRAB_LOOK do
+    for k = 1, (S.hm and S.hm.crab_look) or V.CRAB_LOOK do
         local t = F.tick + k
         if t - rec.born > V.CRAB_IDLE and QD.raid._vzp2_gap(owner.x, owner.z, x, z, V.CRAB_SIZE) <= V.CRAB_STOP then
             local at = math.max(t, rec.born + V.CRAB_FLOOR - 1)
@@ -480,12 +494,14 @@ function QD.raid._vzp2_under(F, x, z)
     return b ~= nil and QD.raid._vzp2_gap(x, z, b.x, b.z, QD.VZP2.SIZE) == 0
 end
 
--- The tiles a route from `from` takes, one per tick, running; cached per tick.
+-- The tiles a route from `from` takes, one per tick, at my speed (running
+-- unless the measure said otherwise); cached per tick.
 function QD.raid._vzp2_route(S, from, x, z, size)
-    local key = from.x .. "," .. from.z .. ">" .. x .. "," .. z .. ":" .. (size or 0)
+    local run = S.running ~= false
+    local key = from.x .. "," .. from.z .. ">" .. x .. "," .. z .. ":" .. (size or 0) .. (run and "r" or "w")
     local hit = S.routes[key]
     if hit ~= nil then return hit end
-    local r, rt = api_drive.route(x, z, { run = true, size = size, from = { x = from.x, z = from.z } })
+    local r, rt = api_drive.route(x, z, { run = run, size = size, from = { x = from.x, z = from.z } })
     local ticks = (r == "ok" and rt) and rt.ticks or false
     S.routes[key] = ticks
     -- the lane-parity trace: the first sixty route answers once a crab exists
@@ -520,18 +536,42 @@ end
 -- Each returns cost terms on (tile, end-of-tick) or a proposal.  A term is a
 -- function (x, z, tick) -> cost.
 
+-- The seats, and which of them take the east side (the zap formation's
+-- single tile, the east red): role 3 of Normal's three; a mode's own split
+-- (raid_solve_verzik_hm.lua: Hard Mode's five, three west and two east).
+function QD.raid._vzp2_seats(S)
+    return (S.hm and S.hm.seats) or 3
+end
+
+function QD.raid._vzp2_east(S, role)
+    if S.hm and S.hm.east then return S.hm.east[role] == true end
+    return role == 3
+end
+
+-- Which red is mine: the eastmost for the east seats (a mode's own split for
+-- the reds phase, where no zap holds the formation: raid_solve_verzik_hm.lua).
+function QD.raid._vzp2_red_east(S, role)
+    if S.hm and S.hm.red_east then return S.hm.red_east[role] == true end
+    return QD.raid._vzp2_east(S, role)
+end
+
 -- My side.  Two raiders stack west, one east, so every lightning hop crosses
 -- her; once the reds are out (no lightning) they spread west, south, east
 -- (the blood spell's 3x3).  "stand" is the melee tile, "back" one off it.
 function QD.raid._vzp2_side(S, F)
     local b = F.boss
     local x0, z0 = b.x, b.z
-    local side = (S.role == 3) and "east" or "west"
+    local side = QD.raid._vzp2_east(S, S.role) and "east" or "west"
     if S.reds_out and S.role == 2 then side = "south" end
-    if side == "north" then return side, { x = x0 + 1, z = z0 + 3 }, { x = x0 + 1, z = z0 + 4 } end
-    if side == "west" then return side, { x = x0 - 1, z = z0 + 1 }, { x = x0 - 2, z = z0 + 1 } end
-    if side == "east" then return side, { x = x0 + 3, z = z0 + 1 }, { x = x0 + 4, z = z0 + 1 } end
-    return side, { x = x0 + 1, z = z0 - 1 }, { x = x0 + 1, z = z0 - 2 }
+    local stand, back
+    if side == "north" then stand, back = { x = x0 + 1, z = z0 + 3 }, { x = x0 + 1, z = z0 + 4 }
+    elseif side == "west" then stand, back = { x = x0 - 1, z = z0 + 1 }, { x = x0 - 2, z = z0 + 1 }
+    elseif side == "east" then stand, back = { x = x0 + 3, z = z0 + 1 }, { x = x0 + 4, z = z0 + 1 }
+    else stand, back = { x = x0 + 1, z = z0 - 1 }, { x = x0 + 1, z = z0 - 2 } end
+    -- a mode's own tiles (raid_solve_verzik_hm.lua: Hard Mode's pools take
+    -- the back tile the scythe walk stepped out to)
+    if S.hm and S.hm.side then stand, back = S.hm.side(S, F, side, stand, back) end
+    return side, stand, back
 end
 
 -- What I hit: never her inside the absorb window; MY Matomenos once they are
@@ -587,8 +627,8 @@ function QD.raid._vzp2_target(S, F)
             local pick = nil
             for _, r in ipairs(F.reds) do
                 if pick == nil then pick = r
-                elseif S.role == 3 and r.x > pick.x then pick = r
-                elseif S.role ~= 3 and r.x < pick.x then pick = r end
+                elseif QD.raid._vzp2_red_east(S, S.role) and r.x > pick.x then pick = r
+                elseif not QD.raid._vzp2_red_east(S, S.role) and r.x < pick.x then pick = r end
             end
             S.my_red = pick.slot
         end
@@ -626,7 +666,7 @@ function QD.raid._vzp2_formation(S, F)
     S.formation_tick, S.formation = F.tick, nil
     local V, b = QD.VZP2, F.boss
     local seats = { [S.role] = F.me }
-    for r = 1, 3 do
+    for r = 1, QD.raid._vzp2_seats(S) do
         if r ~= S.role then
             local nm = QD.party.name(r)
             for _, m in ipairs(F.mates) do
@@ -641,12 +681,15 @@ function QD.raid._vzp2_formation(S, F)
     -- the pair's first tile.
     local fl = S.floor
     local alive = {}
-    for r = 1, 3 do
+    for r = 1, QD.raid._vzp2_seats(S) do
         local st = seats[r]
         if st and st.x >= fl.x0 and st.x <= fl.x1 and st.z >= fl.z0 and st.z <= fl.z1 then alive[#alive + 1] = r end
     end
     if #alive < 2 then return nil end
-    local first, mirror = { [1] = true, [2] = true }, { [3] = true }
+    local first, mirror = {}, {}
+    for r = 1, QD.raid._vzp2_seats(S) do
+        if QD.raid._vzp2_east(S, r) then mirror[r] = true else first[r] = true end
+    end
     if #alive == 2 then first, mirror = { [alive[1]] = true }, { [alive[2]] = true } end
     if not first[S.role] and not mirror[S.role] then return nil end
     local t, left = F.zap_scan, math.max(0, F.zap_scan - F.tick)
@@ -707,7 +750,7 @@ function QD.raid._vzp2_formation(S, F)
             local qx, qz = 2 * cx - pt.x, 2 * cz - pt.z
             if clear(pt.x, pt.z) and clear(qx, qz) then
                 local to_p, to_q, travel = 0, 0, 0
-                for r = 1, 3 do
+                for r = 1, QD.raid._vzp2_seats(S) do
                     local d = first[r] and far(r, pt.x, pt.z) or far(r, qx, qz)
                     if first[r] then to_p = to_p + d else to_q = to_q + d end
                     if d > travel then travel = d end
@@ -747,9 +790,21 @@ function QD.raid._vzp2_terms(S, F)
     end
     -- bomb and Athanatos tiles at their ends
     named("hazard")
+    -- (by tile: this is asked for every tile of every candidate path, and a
+    -- five-man's bombs made the scan the step budget's - xv5b)
+    local haz = {}
+    for _, h in ipairs(F.hazards) do
+        local k = h.x * 65536 + h.z
+        local list = haz[k]
+        if list == nil then list = {} haz[k] = list end
+        list[#list + 1] = h
+    end
     terms[#terms + 1] = function(x, z, t)
-        for _, h in ipairs(F.hazards) do
-            if h.ends[t] and h.x == x and h.z == z then return V.INF end
+        local list = haz[x * 65536 + z]
+        if list then
+            for _, h in ipairs(list) do
+                if h.ends[t] then return V.INF end
+            end
         end
         return 0
     end
@@ -832,6 +887,13 @@ function QD.raid._vzp2_terms(S, F)
             return 0
         end
     end
+    -- a mode's own hazards (raid_solve_verzik_hm.lua: Hard Mode's acid pools)
+    if S.hm and S.hm.terms then
+        S.hm.terms(S, F, function(name, fn)
+            named(name)
+            terms[#terms + 1] = fn
+        end)
+    end
     return terms
 end
 
@@ -913,15 +975,33 @@ end
 -- The cost of a path, and (when impossible) the term that made it so.
 function QD.raid._vzp2_score(S, F, terms, path)
     local total = 0
+    -- GRADED (S.hm.graded: Hard Mode): an impossible path is scored on, by
+    -- its impossible ticks and how soon the first comes, so that with every
+    -- path impossible the least bad is taken rather than standing still (xv11
+    -- sa t848-t856: a stack boxed in by its pools, bombs and a blast stood on
+    -- a pool for nine ticks, 38 + 26 + the poison, a seat dead)
+    local graded = S.hm and S.hm.graded
+    local bad, first, why = 0, nil, nil
     for k = 1, QD.VZP2.H do
         local t = F.tick + k
         local tl = path[k]
-        if QD.raid._vzp2_under(F, tl.x, tl.z) then return QD.VZP2.INF, "under her k" .. k end
-        for i, term in ipairs(terms) do
-            local c = term(tl.x, tl.z, t, k, path)
-            if c >= QD.VZP2.INF then return QD.VZP2.INF, (terms.names[i] or "?") .. " k" .. k end
-            total = total + c
+        if QD.raid._vzp2_under(F, tl.x, tl.z) then
+            if not graded then return QD.VZP2.INF, "under her k" .. k end
+            bad, first, why = bad + 1, first or k, why or ("under her k" .. k)
+        else
+            for i, term in ipairs(terms) do
+                local c = term(tl.x, tl.z, t, k, path)
+                if c >= QD.VZP2.INF then
+                    if not graded then return QD.VZP2.INF, (terms.names[i] or "?") .. " k" .. k end
+                    bad, first, why = bad + 1, first or k, why or ((terms.names[i] or "?") .. " k" .. k)
+                    break
+                end
+                total = total + c
+            end
         end
+    end
+    if bad > 0 then
+        return QD.VZP2.INF * (1 + bad + (QD.VZP2.H - first + 1)) + total, why
     end
     return total
 end
@@ -1112,6 +1192,13 @@ function QD.raid._vzp2_held(S, obj, op)
 end
 
 function QD.raid._vzp2_emit(S, F, plan, intent)
+    -- RUN BACK ON (as every room's emit, QD.raid._tob_emit): the game turns
+    -- run off at 0 energy and nothing turns it back on
+    if not F.run_on and F.run_energy >= 500 and F.tick - (S.run_pressed or -10) >= 3 then
+        api_drive.if_click(S.ids.run_orb, 1)
+        S.run_pressed = F.tick
+        QD.raid._vzp2_trace(S, F.tick, "run back on at run energy " .. F.run_energy)
+    end
     -- The panel channel: the prayer book to press a prayer (one step a tick:
     -- the panel, then the button), else the backpack.  It never holds up the
     -- interaction channel -- walking and attacking need no panel (si t407: a
@@ -1181,6 +1268,7 @@ function QD.raid.verzik_p2_solve(opts)
         hazards = {}, seen_proj = {}, crab_seen = {}, routes = {}, blasts = {}, recent = {},
         drinks = 0, attacks = 0, slams = 0, since_zap = 0, summons = 0, reds_out = false, reds_attacks = 0,
         trace = {}, hits = {}, eats = 0, clicks = 0, tab = nil, order = nil, pray_presses = {},
+        hm = opts.hm,
     }
     local start = QD.raid._vzp2_now()
     local last_hp = nil

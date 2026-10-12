@@ -66,7 +66,6 @@
 enum
 {
     SCRIPTRUN_BOTS_MAX = 8,
-    SCRIPTRUN_BARRIERS = 256,
 };
 
 enum ScriptBotState
@@ -147,9 +146,16 @@ struct ScriptRun
     /* --fixture: the save each seat logs in on ({seat} = 1-based seat). */
     char const* fixture;
     char* test_source;
-    char* barriers[SCRIPTRUN_BARRIERS];
-    int barrier_ticks[SCRIPTRUN_BARRIERS];
+    /* Every barrier name a run has marked, grown as it goes. It was a fixed
+     * 256 behind an assert the optimised build compiles out, and the five-man
+     * Hard Mode relay marks more than that: the 257th mark wrote past the
+     * names into `barrier_ticks`, and the next lookup strcmp'd a tick count
+     * as a pointer (EXC_BAD_ACCESS in d_barrier_present, relay r5a sa t2532,
+     * 2026-10-12). */
+    char** barriers;
+    int* barrier_ticks;
     int barrier_count;
+    int barrier_cap;
     int quiet;
     FILE* ledger;
     struct RSCache_Dat2Disk* cache_disk;
@@ -1107,7 +1113,10 @@ d_players(lua_State* L)
             int last = c->own_seq_count - 1;
             lua_pushinteger(L, last >= 0 ? c->own_seq[last] : -1);
             lua_setfield(L, -2, "seq");
-            lua_pushinteger(L, last >= 0 ? c->own_seq_tick[last] * SCRIPTRUN_CYCLES_PER_TICK : -1);
+            /* In ticks, as the live client's (drive_push_own_animation:
+             * "the tick in api_drive.tick's client ticks"); this pushed
+             * cycles, thirty times the live lane's number. */
+            lua_pushinteger(L, last >= 0 ? c->own_seq_tick[last] : -1);
             lua_setfield(L, -2, "seq_tick");
             lua_pushinteger(L, c->own_seq_starts);
             lua_setfield(L, -2, "seq_starts");
@@ -1119,7 +1128,7 @@ d_players(lua_State* L)
                 lua_setfield(L, -2, "n");
                 lua_pushinteger(L, c->own_seq[h]);
                 lua_setfield(L, -2, "seq");
-                lua_pushinteger(L, c->own_seq_tick[h] * SCRIPTRUN_CYCLES_PER_TICK);
+                lua_pushinteger(L, c->own_seq_tick[h]);
                 lua_setfield(L, -2, "tick");
                 lua_pushinteger(L, (c->tick - c->own_seq_tick[h]) * SCRIPTRUN_CYCLES_PER_TICK);
                 lua_setfield(L, -2, "age");
@@ -2184,7 +2193,17 @@ d_barrier_mark(lua_State* L)
     for( int i = 0; i < run->barrier_count; i++ )
         if( strcmp(run->barriers[i], file) == 0 )
             return push_result(L, "ok", NULL);
-    assert(run->barrier_count < SCRIPTRUN_BARRIERS);
+    if( run->barrier_count == run->barrier_cap )
+    {
+        int cap = run->barrier_cap ? run->barrier_cap * 2 : 256;
+        char** names = realloc(run->barriers, (size_t)cap * sizeof(*names));
+        assert(names);
+        int* ticks = realloc(run->barrier_ticks, (size_t)cap * sizeof(*ticks));
+        assert(ticks);
+        run->barriers = names;
+        run->barrier_ticks = ticks;
+        run->barrier_cap = cap;
+    }
     run->barriers[run->barrier_count] = strdup(file);
     assert(run->barriers[run->barrier_count]);
     /* STAMPED WITH THE TICK, honoured from the next tick on -- the live
@@ -3424,6 +3443,8 @@ out:
     }
     for( int i = 0; i < run.barrier_count; i++ )
         free(run.barriers[i]);
+    free(run.barriers);
+    free(run.barrier_ticks);
     free(run.test_source);
     if( run.ledger )
         fclose(run.ledger);

@@ -159,6 +159,10 @@ local function cw(B, a, b)
     return d
 end
 
+-- The geometry, for tob_xarpus_hm.lua's stare.
+QD.raid._xarp_geo = { beside5 = beside5, quadrant = quadrant, in_quadrant = in_quadrant,
+                      on_centre_line = on_centre_line }
+
 -- ================================================================== MEASURE
 
 function QD.raid._xarp_measure(S, F)
@@ -516,6 +520,66 @@ local function exhumed_goal(S, F)
     return { x = B.x + h.x, z = B.z + h.z, home = true }
 end
 
+-- P3, THE STARE (Normal): beside him; on a turn at my quadrant, across the
+-- nearest boundary; swings only on ticks = Q mod 4. -> the order
+function QD.raid._xarp_stare(S, F, B, armed)
+    local V = QD.XARP
+    local order = nil
+    -- THE STARE: beside him; on a turn at my quadrant, across the nearest
+    -- boundary; swings only on ticks = Q mod 4
+    if S.stare_tile == nil or not beside5(B, S.stare_tile.x, S.stare_tile.z) then
+        local best, bd = nil, nil
+        for x = B.x + 31, B.x + 37 do
+            for z = B.z + 32, B.z + 38 do
+                if beside5(B, x, z) and not F.pools[x .. "," .. z] and not on_centre_line(B, x, z) then
+                    local d = cheb(F.me.x, F.me.z, x, z)
+                    if bd == nil or d < bd then best, bd = { x = x, z = z }, d end
+                end
+            end
+        end
+        S.stare_tile = best
+    end
+    local faced_me = S.stare_tile and S.faced and in_quadrant(B, S.stare_tile.x, S.stare_tile.z, S.faced)
+    if S.faced and S.turned and faced_me and F.tick >= S.turned and F.tick < S.turned + V.TURN_EVERY then
+        -- step across: the nearest side tile in another quadrant ON MY
+        -- FACE (every face spans two). Across a corner the server's path
+        -- cuts under his 5x5 and takes the stomp: east (37,33) to south
+        -- (34,32) through (35,33), 9 a seat (xs6 sa).
+        local function face(x, z)
+            return (x - B.x == 31 and 1) or (x - B.x == 37 and 2) or (z - B.z == 32 and 3) or 4
+        end
+        local my_face = face(S.stare_tile.x, S.stare_tile.z)
+        local best, bd = nil, nil
+        for x = B.x + 31, B.x + 37 do
+            for z = B.z + 32, B.z + 38 do
+                if beside5(B, x, z) and not F.pools[x .. "," .. z] and not on_centre_line(B, x, z)
+                    and not in_quadrant(B, x, z, S.faced) then
+                    local d = cheb(S.stare_tile.x, S.stare_tile.z, x, z)
+                        + ((face(x, z) == my_face) and 0 or 100)
+                    if bd == nil or d < bd then best, bd = { x = x, z = z }, d end
+                end
+            end
+        end
+        if best then
+            QD.raid._tob_trace(S, F.tick, "he faces me: across to " .. quadrant(B, best.x, best.z))
+            S.stare_tile = best
+        end
+    end
+    local goal = S.stare_tile or F.me
+    local swing_tick = ((F.tick + 1 - S.Q) % 4 == 0)
+    local safe = (S.faced == nil) or (S.turned ~= nil and F.tick + 1 == S.turned + V.TURN_EVERY)
+        or not in_quadrant(B, F.me.x, F.me.z, S.faced)
+    if F.me.x ~= goal.x or F.me.z ~= goal.z then
+        order = { mode = "walk", x = goal.x, z = goal.z }
+    elseif swing_tick and safe and armed and F.boss and F.form == "combat" then
+        order = { mode = "attack", npc = F.boss }
+    elseif S.order and S.order.mode == "attack" then
+        -- "click underneath my player": no swing off the rhythm
+        order = { mode = "walk", x = F.me.x, z = F.me.z }
+    end
+    return order
+end
+
 function QD.raid._xarp_step(S, F)
     local V, ids = QD.XARP, S.ids
     QD.raid._xarp_measure(S, F)
@@ -659,58 +723,7 @@ function QD.raid._xarp_step(S, F)
             order = { mode = "walk", x = F.me.x, z = F.me.z }
         end
     elseif phase == "stare" then
-        -- THE STARE: beside him; on a turn at my quadrant, across the nearest
-        -- boundary; swings only on ticks = Q mod 4
-        if S.stare_tile == nil or not beside5(B, S.stare_tile.x, S.stare_tile.z) then
-            local best, bd = nil, nil
-            for x = B.x + 31, B.x + 37 do
-                for z = B.z + 32, B.z + 38 do
-                    if beside5(B, x, z) and not F.pools[x .. "," .. z] and not on_centre_line(B, x, z) then
-                        local d = cheb(F.me.x, F.me.z, x, z)
-                        if bd == nil or d < bd then best, bd = { x = x, z = z }, d end
-                    end
-                end
-            end
-            S.stare_tile = best
-        end
-        local faced_me = S.stare_tile and S.faced and in_quadrant(B, S.stare_tile.x, S.stare_tile.z, S.faced)
-        if S.faced and S.turned and faced_me and F.tick >= S.turned and F.tick < S.turned + V.TURN_EVERY then
-            -- step across: the nearest side tile in another quadrant ON MY
-            -- FACE (every face spans two). Across a corner the server's path
-            -- cuts under his 5x5 and takes the stomp: east (37,33) to south
-            -- (34,32) through (35,33), 9 a seat (xs6 sa).
-            local function face(x, z)
-                return (x - B.x == 31 and 1) or (x - B.x == 37 and 2) or (z - B.z == 32 and 3) or 4
-            end
-            local my_face = face(S.stare_tile.x, S.stare_tile.z)
-            local best, bd = nil, nil
-            for x = B.x + 31, B.x + 37 do
-                for z = B.z + 32, B.z + 38 do
-                    if beside5(B, x, z) and not F.pools[x .. "," .. z] and not on_centre_line(B, x, z)
-                        and not in_quadrant(B, x, z, S.faced) then
-                        local d = cheb(S.stare_tile.x, S.stare_tile.z, x, z)
-                            + ((face(x, z) == my_face) and 0 or 100)
-                        if bd == nil or d < bd then best, bd = { x = x, z = z }, d end
-                    end
-                end
-            end
-            if best then
-                QD.raid._tob_trace(S, F.tick, "he faces me: across to " .. quadrant(B, best.x, best.z))
-                S.stare_tile = best
-            end
-        end
-        local goal = S.stare_tile or F.me
-        local swing_tick = ((F.tick + 1 - S.Q) % 4 == 0)
-        local safe = (S.faced == nil) or (S.turned ~= nil and F.tick + 1 == S.turned + V.TURN_EVERY)
-            or not in_quadrant(B, F.me.x, F.me.z, S.faced)
-        if F.me.x ~= goal.x or F.me.z ~= goal.z then
-            order = { mode = "walk", x = goal.x, z = goal.z }
-        elseif swing_tick and safe and armed and F.boss and F.form == "combat" then
-            order = { mode = "attack", npc = F.boss }
-        elseif S.order and S.order.mode == "attack" then
-            -- "click underneath my player": no swing off the rhythm
-            order = { mode = "walk", x = F.me.x, z = F.me.z }
-        end
+        order = (S.stare or QD.raid._xarp_stare)(S, F, B, armed)
     end
     QD.raid._tob_recent(S, F, { x = F.me.x, z = F.me.z, order = order, lethal = 0, soft = 0 })
     QD.raid._tob_emit(S, F, order, intent)
@@ -718,10 +731,15 @@ function QD.raid._xarp_step(S, F)
 end
 
 function QD.raid.xarpus_solve(opts)
+    return QD.raid._xarp_run("xarpus_solve", nil, opts)
+end
+
+-- The solve, with a mode's own stare (tob_xarpus_hm.lua's), else Normal's.
+function QD.raid._xarp_run(who, stare, opts)
     opts = opts or {}
-    local S = QD.raid._tob_state("xarpus_solve", QD.raid._xarp_ids(), opts, {
+    local S = QD.raid._tob_state(who, QD.raid._xarp_ids(), opts, {
         exh = {}, assigned = {}, landings = {}, proj_live = {}, phase_log = {}, moves = {},
-        exhumeds = 0, orbs = 0, spits = 0, turns = 0,
+        exhumeds = 0, orbs = 0, spits = 0, turns = 0, stare = stare,
     })
     QD.raid._tob_trace(S, api_drive.tick(), "phase entry")
     QD.raid._tob_start(S, nil, opts.start_ticks)

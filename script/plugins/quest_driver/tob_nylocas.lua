@@ -108,7 +108,7 @@ function QD.raid._nylo_ids()
     for _, size in ipairs({ "", "big_" }) do
         for _, form in ipairs({ "incoming", "fighting" }) do
             for _, style in ipairs({ "melee", "ranged", "magic" }) do
-                local name = "tob_nylocas_" .. size .. form .. "_" .. style
+                local name = QD.raid.tob_npc_name("tob_nylocas_" .. size .. form .. "_" .. style)
                 local r, id = api_drive.symbol("npc", name)
                 assert(r == "ok", "nylocas_solve: no npc named " .. name)
                 ids.nylo[id] = { style = style, big = (size == "big_"), aggro = (form == "fighting") }
@@ -148,7 +148,7 @@ end
 -- slot that vanished and is filled again is a new nylo: a big's despawn and
 -- its splits' spawn can share a tick and a slot).
 function QD.raid._nylo_measure(S, F)
-    local V, ids = QD.NYLO, S.ids
+    local V, ids = S.V, S.ids
     if S.base == nil then
         S.base = { x = F.me.x - F.me.x % 64, z = F.me.z - F.me.z % 64 }
     end
@@ -246,7 +246,7 @@ end
 -- I am not nulled on it, it is not dying, a flicker has settled, and it is in
 -- the box (melee) or in the box or LANE_SHOT out on its lane (ranged, magic).
 local function attackable(S, F, L, style)
-    local V = QD.NYLO
+    local V = S.V
     if L.style ~= style or L.dying or S.nulled[L.key] then return false end
     -- A FLICKER MUST NEVER HAVE MY ATTACK ON IT: a running attack order
     -- swings by itself, and a swing on the tick it changes is the wrong style
@@ -263,10 +263,12 @@ local function attackable(S, F, L, style)
         and lz >= V.BOX.z0 - V.LANE_SHOT and lz + L.size - 1 <= V.BOX.z1
 end
 
+QD.raid._nylo_attackable = function(S, F, L, style) return attackable(S, F, L, style) end
+
 -- The nearest support centre to a nylo (Chebyshev, local): a walker's goal.
 local function support_dist(S, L)
     local best = nil
-    for _, sp in ipairs(QD.NYLO.SUPPORTS) do
+    for _, sp in ipairs(S.V.SUPPORTS) do
         local d = gap(sp.x + S.base.x + 1, sp.z + S.base.z + 1, L.x, L.z, L.size)
         if best == nil or d < best then best = d end
     end
@@ -306,7 +308,7 @@ end
 --   above (the owner, 2026-10-09: "add some weight to the nylos attacking
 --   pillars that are about to die").
 local function kill_value(S, F, L)
-    local V = QD.NYLO
+    local V = S.V
     local left = L.det - F.tick
     if L.size == 2 then
         if S.phase == "cleanup" then
@@ -317,8 +319,16 @@ local function kill_value(S, F, L)
             left = left * 1.5
         end
     end
-    local v = left
     local sp = chewing(S, F, L)
+    -- (V.SAVED_BITES, tob_nylocas_hm.lua: a walker is worth the life it will
+    -- have left WHEN IT ARRIVES - the bites a kill now saves - rather than a
+    -- flat share of its life; a nylocas walks a tile a tick and chews from 2
+    -- of a support's centre)
+    if V.SAVED_BITES and not sp and not L.aggro then
+        local arrive = math.max(0, (support_dist(S, L) or 0) - 2)
+        left = math.max(0, left - arrive)
+    end
+    local v = left
     if sp then
         if sp.pct < V.SUPPORT_SAVE then
             -- a pillar about to fall outranks everything but an aggro, in the
@@ -332,6 +342,9 @@ local function kill_value(S, F, L)
         end
     end
     if L.aggro then v = v + V.AGGRO_BONUS end
+    -- (V.WALKER_WEIGHT, tob_nylocas_hm.lua: a nylocas still walking to its
+    -- pillar chews nothing yet, and the guides leave it for the chewers)
+    if V.WALKER_WEIGHT and not sp and not L.aggro then v = v * V.WALKER_WEIGHT end
     return v
 end
 
@@ -343,7 +356,7 @@ end
 -- SWITCH_COST (the owner: "switching might be overkill ... I would focus
 -- that [the dying pillars] over switching").
 local function kill_ticks(S, F, L, style, wearing, idle)
-    local V = QD.NYLO
+    local V = S.V
     local out = math.max(0, gap(F.me.x, F.me.z, L.x, L.z, L.size) - V.RANGE[style])
     local hits = 1
     if L.size == 2 then
@@ -371,7 +384,7 @@ end
 -- to that style's seat; the target I have is kept unless something scores
 -- KEEP_RATIO times better.
 function QD.raid._nylo_target(S, F, own)
-    local V = QD.NYLO
+    local V = S.V
     local wearing = worn_style(S)
     local first_of = {}
     for _, st in ipairs({ "melee", "ranged", "magic" }) do
@@ -384,6 +397,25 @@ function QD.raid._nylo_target(S, F, own)
                 end
             end
             first_of[st] = fb and fb.key or nil
+        end
+    end
+    -- SEATS OF ONE STYLE SPLIT ITS NYLOS (V.SPLIT_SAME, tob_nylocas_hm.lua's
+    -- five: two melee and two rangers): each lower seat of my style takes its
+    -- most valuable one, and I keep off those (n5c sa: the second melee seat
+    -- swung 24 times in a room, standing behind the first on its target)
+    local taken = {}
+    if V.SPLIT_SAME then
+        for r = 1, S.role - 1 do
+            if V.STYLE_OF_SEAT[r] == own then
+                local fb, fv = nil, nil
+                for _, L in ipairs(F.nylos) do
+                    if not taken[L.key] and attackable(S, F, L, own) then
+                        local v = kill_value(S, F, L)
+                        if fv == nil or v > fv or (v == fv and L.slot < fb.slot) then fb, fv = L, v end
+                    end
+                end
+                if fb then taken[fb.key] = true end
+            end
         end
     end
     local best, bstyle, bscore = nil, nil, nil
@@ -402,7 +434,7 @@ function QD.raid._nylo_target(S, F, own)
         -- HELP IS MELEE ONLY (the owner, 2026-10-09: "the seats only switch to
         -- melee to help"): my own style, or another's nylocas in melee
         local allowed = st == own or st == "melee"
-        if allowed and not spent and attackable(S, F, L, st) and (st == own or first_of[st] ~= L.key) then
+        if allowed and not spent and not taken[L.key] and attackable(S, F, L, st) and (st == own or first_of[st] ~= L.key) then
             local score = kill_value(S, F, L) / kill_ticks(S, F, L, st, wearing, idle)
             if L.key == S.target_key then kept, kscore = L, score end
             if bscore == nil or score > bscore or (score == bscore and L.slot < best.slot) then
@@ -420,7 +452,7 @@ end
 -- ======================================================================= SPEC
 
 function QD.raid._nylo_spec(S, F, target, range, station)
-    local V = QD.NYLO
+    local V = S.V
     local B = V.BOX
     local spec, names, add = QD.raid._tob_spec(S, F, {
         h = V.H, beam = V.BEAM,
@@ -473,7 +505,9 @@ end
 local function missing(S, set)
     local out = {}
     for _, obj in ipairs(set) do
-        if not QD.raid._tob_worn(S, obj) then out[#out + 1] = obj end
+        -- (a piece the seat does not carry is not missing: the Hard Mode kit
+        -- leaves a seat's off-style boosters home, tob_relay.lua)
+        if not QD.raid._tob_worn(S, obj) and QD.raid._tob_count(S, obj) > 0 then out[#out + 1] = obj end
     end
     return out
 end
@@ -507,7 +541,7 @@ end
 -- left as it is. Counting every aggro in reach prayed against the ones hunting
 -- someone else (seeds n31: the ranger took 120..290 from aggro swings).
 local function wave_overhead(S, F)
-    local V = QD.NYLO
+    local V = S.V
     local weight = { melee = 0, ranged = 0, magic = 0 }
     for _, L in ipairs(F.nylos) do
         if L.aggro and not L.dying then
@@ -589,7 +623,7 @@ end
 -- non-magic one in it would null me on it (solver_specs/nylocas.md 3.4) - and
 -- nothing in it is one I am nulled on.
 function QD.raid._nylo_clump(S, F)
-    local V = QD.NYLO
+    local V = S.V
     local best, bn = nil, V.BARRAGE_MIN - 1
     -- where a nylocas stands when the cast resolves: a walker one more step
     -- the way it last stepped (lane walks and support walks are straight
@@ -657,14 +691,16 @@ end
 -- cleanup there is nothing to come, so my own style has no claim: whatever
 -- the target rule ranks first, my worn style winning a tie.
 function QD.raid._nylo_decide_nylos(S, F, phase)
-    local V = QD.NYLO
+    local V = S.V
     local own = V.STYLE_OF_SEAT[S.role] or "melee"
     local life, style = QD.raid._nylo_target(S, F, own)
     local D = { style = style, life = life, target = life and life.row, range = V.RANGE[style],
                 station = V.STATION[S.role], overhead = nil }
     D.kind = life and ((life.aggro and "aggro") or "nylo") or "station"
     if life and style ~= own then D.kind = "help-" .. style end
-    if S.role == V.BARRAGE_SEAT and F.tick >= (S.next_cast or 0) then
+    -- (V.BARRAGE_SEATS: a mode with more than one mage, tob_nylocas_hm.lua)
+    local barrager = (V.BARRAGE_SEATS and V.BARRAGE_SEATS[S.role]) or S.role == V.BARRAGE_SEAT
+    if barrager and F.tick >= (S.next_cast or 0) then
         local C, n = QD.raid._nylo_clump(S, F)
         if C and n >= V.BARRAGE_MIN then
             D.style, D.life, D.target, D.range = "magic", C, C.row, V.SPELL_RANGE
@@ -679,7 +715,7 @@ end
 -- melee set, Protect from Melee, hp and prayer to full, and a tile beside her
 -- landing on my side (melee south, ranger west, mage east).
 function QD.raid._nylo_decide_due(S, F)
-    local V = QD.NYLO
+    local V = S.V
     local B = V.BOSS_LAND
     local side = { [1] = { x = B.x - 1, z = B.z + 1 }, [2] = { x = B.x + 1, z = B.z - 1 },
                    [3] = { x = B.x + V.BOSS_SIZE, z = B.z + 1 } }
@@ -691,7 +727,7 @@ end
 -- her changes at M+9+10k. NEVER a press that resolves on a predicted change
 -- tick: it swings after the retype, a wrong style, reflected and healed.
 function QD.raid._nylo_decide_boss(S, F)
-    local V, ids = QD.NYLO, S.ids
+    local V, ids = S.V, S.ids
     local colour = ids.boss_style[F.boss.npc_id]
     if colour and S.boss_m == nil then
         S.boss_m = F.tick
@@ -719,7 +755,7 @@ end
 
 -- ACT: the decision's set, prayers and supplies, the plan, one order, emit.
 function QD.raid._nylo_act(S, F, D)
-    local V, ids = QD.NYLO, S.ids
+    local V, ids = S.V, S.ids
     local intent = { gear = missing(S, ids.sets[D.style]) }
     -- a held op re-sent every tick while the set goes on would repeat it: two
     -- ticks apart, unless the set wanted CHANGED (seed n3/sa t127: the swap
@@ -745,7 +781,7 @@ function QD.raid._nylo_act(S, F, D)
     end
     pipe_rapid(S, F)
     local want = { overhead = D.overhead or wave_overhead(S, F), boost = ids.boost[D.style],
-                   boost_stat = ids.boost_stat[D.style], eat_below = D.eat_below }
+                   boost_stat = ids.boost_stat[D.style], eat_below = D.eat_below, brew_below = D.brew_below }
     if F.pct_low < V.SUPPORT_LOW then want.eat_below = math.max(want.eat_below or 0, V.EAT_COLLAPSE) end
     QD.raid._tob_supplies(S, F, want, intent)
     if D.kind ~= S.kind then
@@ -753,6 +789,12 @@ function QD.raid._nylo_act(S, F, D)
         S.kind = D.kind
     end
     local spec, names = QD.raid._nylo_spec(S, F, D.target, D.range or 1, D.station)
+    if D.must then
+        -- one tile this decision requires (tob_nylocas_hm.lua: Vasilias' spread
+        -- in her ranged form, the stack in her magic form)
+        spec.zones[#spec.zones + 1] = { x = D.must.x, z = D.must.z, size = 1, lo = 0, hi = 0, require = true,
+            t0 = F.tick + 1, t1 = F.tick + V.H, tier = "damage", cost = V.MUST_COST or 4 }
+    end
     if D.boss then
         -- within 8 of her or she walks at whoever is nearest
         spec.zones[#spec.zones + 1] = { x = F.boss.x, z = F.boss.z, size = V.BOSS_SIZE, lo = 1, hi = V.BOSS_REACH,
@@ -837,7 +879,7 @@ end
 function QD.raid._nylo_enter(S, opts)
     local tr, me = api_drive.player_tile()
     assert(tr == "ok", "nylocas_solve: no tile")
-    local ex, ez = me.x - me.x % 64 + QD.NYLO.ENTRY.x, me.z - me.z % 64 + QD.NYLO.ENTRY.z
+    local ex, ez = me.x - me.x % 64 + S.V.ENTRY.x, me.z - me.z % 64 + S.V.ENTRY.z
     local deadline = api_drive.tick() + 60
     QD.raid._tob_trace(S, api_drive.tick(), "phase entry")
     while true do
@@ -857,13 +899,19 @@ end
 -- ===================================================================== LOOP
 
 function QD.raid.nylocas_solve(opts)
+    return QD.raid._nylo_run("nylocas_solve", QD.NYLO, QD.raid._nylo_step, opts)
+end
+
+-- The solve on a mode's numbers `V` and step (QD.NYLO and the step above, or
+-- tob_nylocas_hm.lua's).
+function QD.raid._nylo_run(who, V, step, opts)
     opts = opts or {}
-    local S = QD.raid._tob_state("nylocas_solve", QD.raid._nylo_ids(), opts, {
+    local S = QD.raid._tob_state(who, QD.raid._nylo_ids(), opts, {
         lives = {}, wave_at = {}, waves = 0, splits = 0, wave_log = {}, nulled = {}, nulls = 0,
-        attacks = 0, switch_log = {}, phase_log = {}, walks = {},
+        attacks = 0, switch_log = {}, phase_log = {}, walks = {}, V = V,
     })
     QD.raid._nylo_enter(S, opts)
-    return QD.raid._tob_run(S, QD.raid._nylo_step, function(s)
+    return QD.raid._tob_run(S, step, function(s)
         return QD.raid._tob_summary(s, string.format(
             "room t0 %s; phases %s; waves %d (%s); splits %d; attacks %d; walks approach %d dodge %d idle %d; barrages %s (%s in reach); nulls %d; boss landed %s, M %s; switches %s",
             tostring(s.t0), table.concat(s.phase_log, " "), s.waves, table.concat(s.wave_log, " "), s.splits, s.attacks,
@@ -886,8 +934,9 @@ function QD.raid.nylocas_symbols()
     for _, size in ipairs({ "", "big_" }) do
         for _, form in ipairs({ "incoming", "fighting" }) do
             for _, style in ipairs({ "melee", "ranged", "magic" }) do
-                local r, id = api_drive.symbol("npc", "tob_nylocas_" .. size .. form .. "_" .. style)
-                assert(r == "ok", "nylocas_symbols: no npc tob_nylocas_" .. size .. form .. "_" .. style)
+                local name = QD.raid.tob_npc_name("tob_nylocas_" .. size .. form .. "_" .. style)
+                local r, id = api_drive.symbol("npc", name)
+                assert(r == "ok", "nylocas_symbols: no npc " .. name)
                 out.nylo[id] = true
             end
         end

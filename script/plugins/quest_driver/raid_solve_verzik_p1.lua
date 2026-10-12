@@ -109,6 +109,7 @@ end
 
 function QD.raid._vzp1_ids(weapon)
     local function sym(kind, name)
+        if kind == "npc" then name = QD.raid.tob_npc_name(name) end
         local r, id = api_drive.symbol(kind, name)
         assert(r == "ok", "verzik_p1_solve: no " .. kind .. " named " .. name)
         return id
@@ -425,6 +426,8 @@ function QD.raid._vzp1_terms(S, F)
             return 3
         end)
     end
+    -- a mode's own hazards (raid_solve_verzik_hm.lua: Hard Mode's rubble)
+    if S.hm and S.hm.terms then S.hm.terms(S, F, add) end
     return terms
 end
 
@@ -686,7 +689,7 @@ function QD.raid.verzik_p1_solve(opts)
         phase = "FIGHT", hits = {}, hit_cycle_seen = {}, falls = {}, windups = {},
         trace = {}, gear_log = {}, drops = {}, hits_taken = {}, specs = {},
         dawn_drops = 0, dawn_seen = false, eats = 0, clicks = 0, hp_lost = 0,
-        routes = {}, reach_cache = {},
+        routes = {}, reach_cache = {}, hm = opts.hm,
     }
     local start = QD.raid._vzp1_now()
     -- THE INVENTORY TAB, OURS TO OPEN: every held op (the Dawnbringer, the

@@ -67,6 +67,9 @@ function QD.raid._tob_symbols(who, list)
         local r, id
         if kind == "component" then
             r, id = api_drive.component(name)
+        elseif kind == "npc" then
+            name = QD.raid.tob_npc_name(name)
+            r, id = api_drive.symbol(kind, name)
         else
             r, id = api_drive.symbol(kind, name)
         end
@@ -844,6 +847,7 @@ end
 -- drained a point more, and the relay's Verzik room diverged from its first
 -- tick (relay ra, 2026-10-11). -> result
 function QD.raid.tob_npc_op(sym, op, radius)
+    sym = QD.raid.tob_npc_name(sym)
     local sr, id = api_drive.symbol("npc", sym)
     assert(sr == "ok", "tob_npc_op: no npc named " .. tostring(sym))
     local tr, me = api_drive.player_tile()

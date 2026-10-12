@@ -100,7 +100,7 @@ end
 -- THE LAP: his SW tile every tick from the entry until it comes back to the
 -- first tile with a lap behind it. Index order is his walking order.
 function QD.raid._bloat_learn_lap(S)
-    local V = QD.BLOAT
+    local V = S.V
     local seq = {}
     local deadline = api_drive.tick() + V.LAP_TICKS
     while api_drive.tick() <= deadline do
@@ -133,7 +133,7 @@ end
 -- His index on the lap, his direction and speed from the index step, the
 -- turn cooldown (32 walking ticks from the start and from each reversal).
 function QD.raid._bloat_track(S, F)
-    local V = QD.BLOAT
+    local V = S.V
     local b = F.boss
     local i = S.lap_index[b.x .. "," .. b.z]
     local off = (i == nil)
@@ -178,7 +178,7 @@ end
 
 -- The down: the sleep seq's tick. The phase is DOWN from T to the rise T+33.
 function QD.raid._bloat_clock(S, F)
-    local V = QD.BLOAT
+    local V = S.V
     local b = F.boss
     if b.seq_id == S.ids.sleep and b.seq_tick ~= nil and b.seq_tick ~= S.sleep_seen then
         S.sleep_seen = b.seq_tick
@@ -260,7 +260,7 @@ end
 -- The branches he may take within the horizon: his direction and speed;
 -- reversed when a turn is possible; the other speed round 60%.
 function QD.raid._bloat_branches(S, F)
-    local V = QD.BLOAT
+    local V = S.V
     local dir, speed = S.dir or 1, S.speed or 1
     local out = { { dir = dir, speed = speed } }
     if S.turn_cd <= V.H + 1 then out[#out + 1] = { dir = -dir, speed = speed } end
@@ -273,9 +273,9 @@ end
 -- How many moves he has made, from now, by the end of the npc phase of tick
 -- R: one a tick while walking; none while down, then one a tick from the rise.
 local function moves_by(S, F, R)
-    if S.down_at and R < S.down_at + QD.BLOAT.RISE then return nil end
-    if S.down_at and F.tick < S.down_at + QD.BLOAT.RISE then
-        return R - (S.down_at + QD.BLOAT.RISE) + 1
+    if S.down_at and R < S.down_at + S.V.RISE then return nil end
+    if S.down_at and F.tick < S.down_at + S.V.RISE then
+        return R - (S.down_at + S.V.RISE) + 1
     end
     return R - F.tick
 end
@@ -289,7 +289,7 @@ end
 -- ring into a hand (b22 and b27 ti, the third down onward). A branch that
 -- happens is seen the tick after and planned round then.
 function QD.raid._bloat_watchers(S, F, add, now, h)
-    local V = QD.BLOAT
+    local V = S.V
     local seen = {}
     for bi, br in ipairs(QD.raid._bloat_branches(S, F)) do
         for k = 1, h or V.H do
@@ -334,7 +334,7 @@ end
 -- (`goal`, absolute: the hide tile -- one strong pull to it replaces the
 -- hug-ring pulls)
 function QD.raid._bloat_spec(S, F, from, now, target, goal, h)
-    local V = QD.BLOAT
+    local V = S.V
     local A = V.ARENA
     local spec, names, add = QD.raid._tob_spec(S, F, {
         h = h or V.H, beam = V.BEAM,
@@ -395,7 +395,7 @@ end
 -- held ON that tile (seed b1: both members flown on the tile they crossed to,
 -- which a plan starting there never charged).
 function QD.raid._bloat_safe_crossing(S, F, delay, seat, at_lz, hypothetical)
-    local V = QD.BLOAT
+    local V = S.V
     if not hypothetical then
         QD.raid._bloat_measure(S, F)
         if not F.boss then return false end
@@ -426,7 +426,7 @@ end
 -- every lane however long the party took to gather.
 function QD.raid._bloat_start_safe(S, F)
     local fight_on, cd = S.fight_on, S.turn_cd
-    S.fight_on, S.turn_cd = true, QD.BLOAT.TURN_CD
+    S.fight_on, S.turn_cd = true, S.V.TURN_CD
     local ok = QD.raid._bloat_party_window(S, F, true)
     S.fight_on, S.turn_cd = fight_on, cd
     return ok
@@ -447,7 +447,7 @@ end
 function QD.raid._bloat_fight_on(S, tick)
     if S.fight_on then return end
     S.fight_on = true
-    S.turn_cd = QD.BLOAT.TURN_CD
+    S.turn_cd = S.V.TURN_CD
     S.fight_start = tick
     QD.raid._tob_trace(S, tick, "the fight is on")
 end
@@ -467,7 +467,7 @@ end
 --              while I am outside
 -- Returns the measure of the tick I am inside.
 function QD.raid._bloat_enter(S)
-    local V = QD.BLOAT
+    local V = S.V
     QD.raid._bloat_learn_lap(S)
     local state = "approach"
     local deadline = api_drive.tick() + V.ENTRY_TICKS
@@ -475,6 +475,10 @@ function QD.raid._bloat_enter(S)
         local F = QD.raid._tob_measure(S)
         QD.raid._bloat_measure(S, F)
         if F.boss then QD.raid._bloat_track(S, F) end
+        -- the hands already falling (Hard Mode drops them from the moment the
+        -- room starts, before anyone has crossed: the crossing question asks
+        -- about them too - tob_bloat_hm.lua; Normal has none yet)
+        QD.raid._bloat_shadows(S, F)
         assert(F.tick <= deadline, "bloat_solve: the entry stuck in " .. state .. " for " .. V.ENTRY_TICKS .. " ticks")
         if state ~= S.entry_state then
             QD.raid._tob_trace(S, F.tick, "entry " .. state)
@@ -484,7 +488,7 @@ function QD.raid._bloat_enter(S)
             QD.raid._bloat_fight_on(S, F.tick)
             return F
         end
-        local stand = { x = S.base.x + V.STAND_X, z = S.base.z + (V.SEAT_Z[S.role] or V.CROSS.z) }
+        local stand = { x = S.base.x + ((V.SEAT_X and V.SEAT_X[S.role]) or V.STAND_X), z = S.base.z + (V.SEAT_Z[S.role] or V.CROSS.z) }
         if state == "approach" then
             if F.me.x == stand.x and F.me.z == stand.z then
                 S.barrier = QD.raid._tob_barrier(S)
@@ -536,7 +540,7 @@ end
 -- ===================================================================== STEP
 
 function QD.raid._bloat_step(S, F)
-    local V, ids = QD.BLOAT, S.ids
+    local V, ids = S.V, S.ids
     QD.raid._bloat_measure(S, F)
     if F.boss == nil or F.boss.seq_id == ids.death then
         if S.seen_boss then
@@ -607,7 +611,7 @@ end
 -- three seeds of 32 in the last 30 ticks, b22 se, sm, tl). A held tile
 -- restores energy.
 function QD.raid._bloat_state(S, F)
-    local V = QD.BLOAT
+    local V = S.V
     local state = "hide"
     if S.phase == "down" and S.hid_for ~= S.down_at then
         -- THE STOMP HITS WHOEVER HE SEES (tob_bloat.rs2), and the tiles he
@@ -648,7 +652,7 @@ end
 -- Tiles from me to ring tile `t` (local): round the ring when I am on it,
 -- else straight (cheb).
 local function ring_dist(S, F, t)
-    local V = QD.BLOAT
+    local V = S.V
     local lx, lz = F.me.x - S.base.x, F.me.z - S.base.z
     local i, j = V.RING_AT[lx .. "," .. lz], V.RING_AT[t.x .. "," .. t.z]
     if i and j then
@@ -664,7 +668,7 @@ end
 -- lap per branch and step, and a spec per candidate tile exhausted the
 -- instruction budget on the first tick, b25)
 function QD.raid._bloat_holds(S, F, tile, at, h, loose)
-    local V = QD.BLOAT
+    local V = S.V
     if S.holds_tick ~= F.tick then S.holds_tick, S.holds_base = F.tick, {} end
     local base = S.holds_base[at]
     if base == nil then
@@ -694,7 +698,7 @@ end
 -- he got up, and he rose and reversed onto it (b32 up: t459 -> t474).
 -- -1: not safe even until the rise.
 local function safe_ticks(S, F, tile, at)
-    local V = QD.BLOAT
+    local V = S.V
     local from = at
     local rise = (S.phase == "down" and S.down_at) and (S.down_at + V.RISE) or nil
     if rise and at < rise - 1 then
@@ -717,7 +721,7 @@ end
 -- a reversal loses (b32 up: the last pass of the old pick was main-branch
 -- only, and chose the tile beside his rise). -> tile, its safe ticks
 local function pick_hide(S, F, maxd, need)
-    local V = QD.BLOAT
+    local V = S.V
     local speed = F.run_on and 2 or 1
     local best, best_h, best_d = nil, -2, math.huge
     for _, t in ipairs(V.RING) do
@@ -746,7 +750,7 @@ end
 -- against every branch, else the planning horizon, else his likely way;
 -- with none, the full plan (the least-bad path).
 function QD.raid._bloat_hide(S, F)
-    local V = QD.BLOAT
+    local V = S.V
     local speed = F.run_on and 2 or 1
     local me = { x = F.me.x, z = F.me.z }
     local stay = { path = { { x = me.x, z = me.z } }, soft = 0, lethal = 0, damage = 0 }
@@ -794,11 +798,17 @@ end
 -- ===================================================================== LOOP
 
 function QD.raid.bloat_solve(opts)
+    return QD.raid._bloat_run("bloat_solve", QD.BLOAT, opts)
+end
+
+-- The solve, on a mode's numbers `V` (QD.BLOAT, or tob_bloat_hm.lua's).
+function QD.raid._bloat_run(who, V, opts)
     opts = opts or {}
-    local V = QD.BLOAT
-    local S = QD.raid._tob_state("bloat_solve", QD.raid._bloat_ids(), opts, {
+    local S = QD.raid._tob_state(who, QD.raid._bloat_ids(), opts, {
         shadows = {}, shadow_left = {}, downs = {}, turns = 0, hands = 0, off_lap = 0,
         turn_cd = V.TURN_CD, phase = "walk",
+        -- the room's numbers, by mode: tob_bloat_hm.lua passes Hard Mode's
+        V = V,
     })
     -- the entry, then the fight (fight_start is set as I cross)
     QD.raid._bloat_enter(S)

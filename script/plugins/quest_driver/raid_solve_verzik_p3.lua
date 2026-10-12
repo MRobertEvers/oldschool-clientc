@@ -41,8 +41,8 @@
 --                  step on that tick: 50% a melee, up to 63 on everyone at
 --                  range 1, unprayable.  A tank 2 away at the end of T-1 is 1
 --                  away after her step.  -> at the end of every slot-1,
---                  EVERY raider is under her (gap 0) or 3+ away: then no tank,
---                  whoever it is, can start one, and nobody is beside her.
+--                  her TANK is under her (gap 0) or 3+ away and the rest
+--                  swing on; with the tank not known yet, everyone does.
 --   crabs          one per raider; walks at it and dies on contact or at 25
 --                  ticks; the death blasts npc_range <= 3 of its 2x2 (63 / 26
 --                  / 8 by band), reading the end of D+2 (the P2 model).
@@ -109,6 +109,30 @@ QD.VZP3 = {
     ARENA = { x0 = 18, x1 = 46, z0 = 14, z1 = 34 },
     EDGE = 3, EDGE_WEIGHT = 0.3,
     H = 12, BEAM = 32, MOVE_COST = 0.01,
+    KITE_FAR = 4, KITE_SWING_BONUS = 25,   -- the enrage kite: a distance worth no more, a due swing's weight
+    KITE_DEPTH = 7, KITE_BEAM = 16, KITE_THREATS = 3,        -- its lookahead in ticks and the paths kept each tick
+    -- the web run: the stack's first tile (the south middle of her ring,
+    -- QD.raid._vzp3_ring), and how long a tile stepped to must stay clear
+    WEB_RUN_START = 4, WEB_RUN_HOLD = 4,
+    -- her throws (^tob_verzik_p3_web_first_throw, _throws), and how many
+    -- tick-ends a tile is mine before the web thrown at it lands under me
+    WEB_FIRST_THROW = 3, WEB_THROWS = 24, WEB_STAY = 4,
+    TANK_TRUST = 3,             -- Hard Mode: her face names the re-picked tank from the special + this
+    -- and the ticks before her resume it hands back: the planner steps off
+    -- for the resume's scan (held to it, the stack took her melee, xv30 sa
+    -- t1337: 26, 50, 46)
+    WEB_RUN_LEAVE = 3,
+    -- my swings, read off my own animation so the kite's weapon clock counts
+    -- the planner's swings too (all.seq: 1658 the whip's and the tentacle's)
+    SWING_SEQS = { [1658] = true },
+    -- THE WEAPON'S TICKS between swings (owner, 2026-10-12: "It should also
+    -- handle 5 tick weapons. The solver should be configurable for weapon
+    -- speed"): opts.weapon_ticks, else the first of these worn (the obj's
+    -- `attackrate` param, skill_combat/combat.rs2), else DEFAULT_TICKS
+    WEAPON_TICKS = { abyssal_tentacle = 4, abyssal_whip = 4, ghrazi_rapier = 4, blade_of_saeldor = 4,
+                     abyssal_bludgeon = 4, inquisitors_mace = 4, dragon_claws = 4, dragon_hunter_lance = 4,
+                     scythe_of_vitur = 5, osmumtens_fang = 5, soulreaper_axe = 5, dragon_warhammer = 6 },
+    DEFAULT_TICKS = 4,
     GOAL_PULL = 1.0, OFF_SIDE = 0.2, UNDER = 0.4,
     POOL_PULL = 1.5, BALL_PULL = 1.5, NEXT_PULL = 0.4,
     CRAB_BLAST = 3, CRAB_SIZE = 2,
@@ -116,7 +140,7 @@ QD.VZP3 = {
     STAT_DRAIN = 24,           -- a super restore for Attack this far below base: two brews' worth
     PIETY_FLOOR = 40,          -- Piety only with points to spare (the overheads come first)
     TORNADO_RING = { 2, 10 },  -- a spawn this far from a raider (end of T-1, seen a tick later) may be its
-    OWNER_MARGIN = 2,          -- another raider's votes over mine before a tornado is not mine
+    OWNER_MISSES = 2,          -- steps not heading for a raider before it is ruled out as a tornado's owner
     TRACE_CAP = 400, RECENT = 400,
 }
 
@@ -129,6 +153,7 @@ end
 
 function QD.raid._vzp3_ids(weapon)
     local function sym(kind, name)
+        if kind == "npc" then name = QD.raid.tob_npc_name(name) end
         local r, id = api_drive.symbol(kind, name)
         assert(r == "ok", "verzik_p3_solve: no " .. kind .. " named " .. name)
         return id
@@ -240,7 +265,14 @@ function QD.raid._vzp3_measure(S)
             F.raiders[#F.raiders + 1] = { pid = p.pid, x = px, z = pz, me = p.me }
             -- (the server tile, as F.raiders: live's x is the drawn one, and
             -- the crab look-ahead reads mates - QD.raid._vzp2_crab_stop)
-            if p.me then F.pid = p.pid else F.mates[#F.mates + 1] = { pid = p.pid, x = px, z = pz } end
+            if p.me then
+                F.pid = p.pid
+                -- my own swing, the tick my screen sees it start (both lanes'
+                -- `me` row counts the starts)
+                F.seq_starts, F.seq = p.seq_starts, p.seq
+            else
+                F.mates[#F.mates + 1] = { pid = p.pid, x = px, z = pz }
+            end
         end
     end
     table.sort(F.raiders, function(a, b) return a.pid < b.pid end)
@@ -260,6 +292,10 @@ function QD.raid._vzp3_measure(S)
     F.enraged = S.enraged or #F.tornadoes > 0
     F.enrage_now = F.enraged and not S.enraged
     S.enraged = F.enraged
+    if F.seq_starts and F.seq_starts ~= S.seq_starts then
+        S.seq_starts = F.seq_starts
+        if QD.VZP3.SWING_SEQS[F.seq] then S.kite_swing = F.tick end
+    end
     return F
 end
 
@@ -301,8 +337,25 @@ function QD.raid._vzp3_clock(S, F)
             S.special = S.special % #V.ROTATION + 1
             S.attacks_left = V.ATTACKS_PER_SPECIAL
             S.seen[special] = (S.seen[special] or 0) + 1
+            -- Hard Mode re-picks her tank on every special
+            -- (`~tob_verzik_special`): not known again until she faces
+            if QD.raid.tob_mode == "hard" then
+                S.tank_ok, S.tank_prev, S.face_cleared = false, S.tank_pid, false
+                -- ...and her face is the truth from T+3, and ONLY then: the
+                -- next tick's `~tob_verzik_pick_tank` names the new tank and
+                -- its `~tob_verzik_p3_follow` faces it if it is beside her or
+                -- walks (clearing the face) if not, and the client reads that
+                -- a tick on. Read at T+1 the face was the OLD tank's, a pid
+                -- other than the last one named, and that seat was taken for
+                -- the tank while the real one stood beside her (xv33 sh
+                -- t1318 -> the melee at t1344). The webs and the yellows
+                -- suspend the follow: from their resume.
+                S.tank_trust_at = (special == "webs" or special == "yellows") and math.huge or (T + V.TANK_TRUST)
+            end
         else
             S.attacks_left = math.max(S.attacks_left - 1, 0)
+            -- the first auto after the webs or the yellows: her follow runs again
+            if S.tank_trust_at == math.huge then S.tank_trust_at = T + V.TANK_TRUST end
         end
         S.suspended = nil
     end
@@ -383,12 +436,28 @@ function QD.raid._vzp3_clock(S, F)
         S.web_face_traced = b.facing
         QD.raid._vzp3_trace(S, F.tick, "webs: she faces " .. tostring(b.facing))
     end
-    -- the tank, for the trace only (whom she faces while she stands)
-    if b and b.facing ~= nil and b.facing >= 32768 and S.webs_at == nil then
-        local pid = b.facing - 32768
-        if pid ~= S.tank_pid then
-            S.tank_pid = pid
-            QD.raid._vzp3_trace(S, F.tick, "her tank: pid " .. pid)
+    -- HER TANK: whom she faces. She turns to it only while it stands at
+    -- range 1 (`~tob_verzik_p3_follow`: `~tob_verzik_face_uid`), and walking
+    -- at it clears the face, so after a Hard Mode re-pick the face still names
+    -- the last tank until she faces again: the tank is known once she faces a
+    -- different raider, or anyone after the face was cleared.
+    if b and S.webs_at == nil then
+        if b.facing ~= nil and b.facing >= 32768 then
+            local pid = b.facing - 32768
+            if not S.tank_ok then
+                if S.tank_trust_at then
+                    -- Hard Mode's re-pick: the face from its trusted tick only
+                    if F.tick >= S.tank_trust_at then S.tank_ok = true end
+                elseif pid ~= S.tank_prev or S.face_cleared or S.tank_prev == nil then
+                    S.tank_ok = true
+                end
+            end
+            if pid ~= S.tank_pid then
+                S.tank_pid = pid
+                QD.raid._vzp3_trace(S, F.tick, "her tank: pid " .. pid)
+            end
+        else
+            S.face_cleared = true
         end
     end
     -- the scan ticks in the horizon: the end of the tick before every slot.
@@ -498,11 +567,13 @@ function QD.raid._vzp3_projectiles(S, F)
 end
 
 -- Whose tornado is whose.  Each walks a step a tick at its own raider's
--- end-of-T-1 tile (sign(dx), sign(dz)) and touches only its own.  A step
--- that heads for a raider's last tile is a vote for that raider; a spawn
--- 4-8 from a raider (seen a tick late: 2-10) is a weak one.  A tornado is
--- MINE unless another raider leads me by OWNER_MARGIN votes: until it is
--- settled the planner dodges it too.
+-- end-of-T-1 tile (sign(dx), sign(dz)) and touches only its own.  BY
+-- ELIMINATION: a raider is ruled out by OWNER_MISSES steps that do not head
+-- for its last tile, or at once by a spawn outside the 4-8 ring (seen a tick
+-- late: 2-10).  A tornado is MINE while I am not ruled out.  (Votes for the
+-- raiders a step heads at never settled a tornado among five raiders round
+-- her - every step headed at three or four of them - so each seat dodged all
+-- five and swung once in 25 ticks after the enrage, xv21.)
 function QD.raid._vzp3_tornadoes(S, F)
     local V = QD.VZP3
     local seen = {}
@@ -511,32 +582,104 @@ function QD.raid._vzp3_tornadoes(S, F)
         seen[tn.slot] = true
         local rec = S.torn[tn.slot]
         if rec == nil then
-            rec = { votes = {}, born = F.tick }
+            rec = { miss = {}, born = F.tick }
             S.torn[tn.slot] = rec
             S.tornado_spawns = (S.tornado_spawns or 0) + 1
             for _, rd in ipairs(last) do
                 local d = cheb(rd.x, rd.z, tn.x, tn.z)
-                if d >= V.TORNADO_RING[1] and d <= V.TORNADO_RING[2] then rec.votes[rd.pid] = (rec.votes[rd.pid] or 0) + 1 end
+                if d < V.TORNADO_RING[1] or d > V.TORNADO_RING[2] then rec.miss[rd.pid] = V.OWNER_MISSES end
             end
         elseif rec.x and (rec.x ~= tn.x or rec.z ~= tn.z) then
+            -- (a miss only against BOTH of the raider's tiles I hold - last
+            -- tick's and this one's: which of them the step read depends on
+            -- the lane's tick, and a one-tick misread flipped owners, xv22)
             local sx, sz = tn.x - rec.x, tn.z - rec.z
-            for _, rd in ipairs(last) do
+            local now = {}
+            for _, rd in ipairs(F.raiders) do now[rd.pid] = rd end
+            local function heads(rd)
+                if rd == nil then return false end
                 local dx = (rd.x > rec.x and 1) or (rd.x < rec.x and -1) or 0
                 local dz = (rd.z > rec.z and 1) or (rd.z < rec.z and -1) or 0
-                if dx == sx and dz == sz then rec.votes[rd.pid] = (rec.votes[rd.pid] or 0) + 1 end
+                return dx == sx and dz == sz
+            end
+            for _, rd in ipairs(last) do
+                if not heads(rd) and not heads(now[rd.pid]) then rec.miss[rd.pid] = (rec.miss[rd.pid] or 0) + 1 end
             end
         end
         rec.x, rec.z = tn.x, tn.z
-        local mine_votes = rec.votes[F.pid] or 0
-        tn.mine = true
-        tn.owner = nil
-        local best, best_n = nil, -1
-        for pid, n in pairs(rec.votes) do
-            if n > best_n then best, best_n = pid, n end
+        -- an owner once settled stays, unless its own misses reach twice
+        -- the bar; all ruled out (a misread) starts over
+        if rec.owner ~= nil and (rec.miss[rec.owner] or 0) >= 2 * V.OWNER_MISSES then rec.owner = nil end
+        local left = 0
+        for _, rd in ipairs(F.raiders) do
+            if (rec.miss[rd.pid] or 0) < V.OWNER_MISSES then left = left + 1 end
         end
-        if best ~= nil and best ~= F.pid and best_n >= mine_votes + V.OWNER_MARGIN then
-            tn.mine = false
-            tn.owner = best
+        if left == 0 then rec.miss = {} end
+    end
+    -- ONE TORNADO A RAIDER (owner, 2026-10-12: "each seat should only care
+    -- about their own tornado"; `~tob_verzik_tornado_spawn` gives each its
+    -- own): a settled owner is ruled out for every other tornado, and with as
+    -- many tornadoes as raiders a raider possible for one tornado only owns
+    -- it - repeated until nothing changes. Five raiders round her made each
+    -- step head at three or four of them, so one tornado's own steps settled
+    -- it slowly and the seats dodged two or three each.
+    local cand = {}
+    for _, tn in ipairs(F.tornadoes) do
+        local rec = S.torn[tn.slot]
+        local c = {}
+        if rec.owner ~= nil then
+            c[rec.owner] = true
+        else
+            for _, rd in ipairs(F.raiders) do
+                if (rec.miss[rd.pid] or 0) < V.OWNER_MISSES then c[rd.pid] = true end
+            end
+        end
+        cand[tn.slot] = c
+    end
+    local changed = true
+    while changed do
+        changed = false
+        for _, tn in ipairs(F.tornadoes) do
+            local c = cand[tn.slot]
+            local n, only = 0, nil
+            for pid in pairs(c) do n, only = n + 1, pid end
+            if n == 1 then
+                for _, other in ipairs(F.tornadoes) do
+                    if other.slot ~= tn.slot and cand[other.slot][only] then
+                        local oc = cand[other.slot]
+                        local on = 0
+                        for _ in pairs(oc) do on = on + 1 end
+                        if on > 1 then oc[only] = nil changed = true end
+                    end
+                end
+            end
+        end
+        if #F.tornadoes == #F.raiders then
+            for _, rd in ipairs(F.raiders) do
+                local where, count = nil, 0
+                for _, tn in ipairs(F.tornadoes) do
+                    if cand[tn.slot][rd.pid] then where, count = tn.slot, count + 1 end
+                end
+                if count == 1 then
+                    local c = cand[where]
+                    local n = 0
+                    for _ in pairs(c) do n = n + 1 end
+                    if n > 1 then cand[where] = { [rd.pid] = true } changed = true end
+                end
+            end
+        end
+    end
+    for _, tn in ipairs(F.tornadoes) do
+        local rec = S.torn[tn.slot]
+        local c = cand[tn.slot]
+        local n, only = 0, nil
+        for pid in pairs(c) do n, only = n + 1, pid end
+        if rec.owner == nil and n == 1 then rec.owner = only end
+        tn.owner = rec.owner
+        if rec.owner ~= nil then
+            tn.mine = (rec.owner == F.pid)
+        else
+            tn.mine = F.pid ~= nil and c[F.pid] == true
         end
         if tn.owner ~= rec.owner_traced then
             rec.owner_traced = tn.owner
@@ -660,8 +803,14 @@ function QD.raid._vzp3_spec(S, F)
     -- cardinal tile (`~tob_verzik_p3_follow`), so under her means the INNER
     -- 5x5, which is under her after any one-tile step; her outer ring is a
     -- gap-1 tile half the time.
+    -- ONLY HER TANK STEPS OFF (owner, 2026-10-12: "The tank's whole job is
+    -- to step under and prevent her melee attack"): her melee needs the TANK
+    -- at range 1 after her follow step and then hits everyone beside her, so
+    -- with the tank under her or 3+ away the rest stay beside her and swing.
+    -- Until her tank is known (QD.raid._vzp3_clock) everybody steps off.
+    local exempt = S.tank_ok and S.tank_pid ~= nil and F.pid ~= nil and S.tank_pid ~= F.pid
     for _, sc in ipairs(F.scans) do
-        if b then
+        if b and not exempt then
             zone("scan", { x = b.x, z = b.z, size = V.SIZE, lo = 1, hi = 2, t0 = sc.t0, t1 = sc.t1, tier = "lethal" })
             zone("scan-ring", { x = b.x + 1, z = b.z + 1, size = V.SIZE - 2, lo = 1, hi = 1, t0 = sc.t0, t1 = sc.t1, tier = "lethal" })
         end
@@ -756,7 +905,10 @@ function QD.raid._vzp3_spec(S, F)
     end
     -- damage: beside her, on my role's side (so the three do not stack)
     local target = S.target
-    if target and not role then
+    if S.wr and S.wr.state ~= "done" and S.wr.tile then
+        -- the web run's stack (QD.raid._vzp3_web_run), from too far to run to
+        spec.pulls[#spec.pulls + 1] = { x = S.wr.tile.x, z = S.wr.tile.z, size = 1, weight = V.GOAL_PULL, t0 = F.tick, t1 = F.tick + V.H }
+    elseif target and not role then
         spec.goal = { x = target.x, z = target.z, size = V.SIZE, side = ({ 0, 3, 2 })[S.role] or -1,
                       under_ok = true, off_side = V.OFF_SIDE, under = V.UNDER, pull = V.GOAL_PULL }
     elseif target then
@@ -773,9 +925,451 @@ end
 
 -- ================================================================== DECIDE
 
+-- The ticks between my swings: the option, else the weapon I wear.
+function QD.raid._vzp3_weapon_ticks(S)
+    local V = QD.VZP3
+    if S.weapon_ticks_opt then return S.weapon_ticks_opt end
+    if S.weapon_table == nil then
+        S.weapon_table = {}
+        for name, ticks in pairs(V.WEAPON_TICKS) do
+            local r, id = api_drive.symbol("obj", name)
+            if r == "ok" then S.weapon_table[#S.weapon_table + 1] = { id = id, ticks = ticks, name = name } end
+        end
+        table.sort(S.weapon_table, function(a, b) return a.name < b.name end)
+    end
+    for _, w in ipairs(S.weapon_table) do
+        local _, n = api_drive.inv_count(S.ids.worn, w.id)
+        if (n or 0) > 0 then return w.ticks end
+    end
+    return V.DEFAULT_TICKS
+end
+
+-- Her edge's melee ring round a footprint at (x, z), in order round her:
+-- the south edge west to east, the east edge south to north, the north edge
+-- east to west, the west edge north to south (so CLOCKWISE is down the list).
+function QD.raid._vzp3_ring(x, z)
+    local n = QD.VZP3.SIZE
+    local ring = {}
+    for i = x, x + n - 1 do ring[#ring + 1] = { x = i, z = z - 1 } end
+    for i = z, z + n - 1 do ring[#ring + 1] = { x = x + n, z = i } end
+    for i = x + n - 1, x, -1 do ring[#ring + 1] = { x = i, z = z + n } end
+    for i = z + n - 1, z, -1 do ring[#ring + 1] = { x = x - 1, z = i } end
+    return ring
+end
+
+-- THE WEB RUN (S.hm.web_run; owner, 2026-10-12: "For hard mode, the solver
+-- should implement the web running state"; "The solver should be able to
+-- avoid ALL WEBS. Implement a 5 man web run"; "Web running should be
+-- implemented as a sub-state machine"). The wiki's Sticky webs: the team on
+-- ONE tile beside her, attacking on the same tick, a step CLOCKWISE from the
+-- south after each tile's attacks. Her webs land on the tiles the raiders
+-- stood on (`~tob_verzik_web_throw`), four ticks after the throw, so the
+-- stack's tile is safe until the first web thrown at it is a tick from
+-- landing. Every seat reads the same throws, so every seat makes the same
+-- transitions on the same tick and the stack stays one tile.
+--
+--   gather  her walk to the centre (invulnerable): to the start tile, the
+--           south middle of her ring there (clear of the knockback under
+--           her), and hold it
+--   hold    on the stack's tile: swing (attackable from the spin)
+--   join    off the stack's tile (a late seat, a crab's fuse that moved me):
+--           run to it, or the planner pulls me there from further than a run
+--   step    the stack's tile turns hazardous next tick: one ring tile
+--           clockwise, two if a lagging web holds the next and not the one
+--           between; the tile moves, so everyone is off it at once (join)
+--   lost    no clear tile clockwise: the planner, until a tile clears
+--
+-- Not with tornadoes (enraged): the kite runs the spin (QD.raid._vzp3_kite).
+-- -> a decision, or nil for the planner (S.wr.tile pulls it to the stack).
+function QD.raid._vzp3_web_run(S, F)
+    local V = QD.VZP3
+    if not (S.hm and S.hm.web_run) or S.webs_at == nil or F.boss == nil
+        or F.enraged or F.tick >= S.webs_at + V.WEB_RESUME - V.WEB_RUN_LEAVE then
+        if S.wr and S.wr.state ~= "done" then
+            QD.raid._vzp3_trace(S, F.tick, "web run: " .. S.wr.state .. " -> done")
+            S.wr.state, S.wr.tile = "done", nil
+        end
+        return nil
+    end
+    local base = S.base
+    local ring = QD.raid._vzp3_ring(base.x + V.CENTRE.x - 3, base.z + V.CENTRE.z - 3)
+    local L = #ring
+    local function at(idx) return ring[((idx - 1) % L) + 1] end
+    local function webbed(p, t0, t1)
+        for _, h in ipairs(S.web_hazards) do
+            if h.x == p.x and h.z == p.z and h.from <= t1 and h.to >= t0 then return true end
+        end
+        return false
+    end
+    local W = S.wr
+    if W == nil or W.webs_at ~= S.webs_at then
+        W = { webs_at = S.webs_at, idx = V.WEB_RUN_START, state = "gather" }
+        S.wr = W
+        QD.raid._vzp3_trace(S, F.tick, "web run: gather at " .. at(W.idx).x .. "," .. at(W.idx).z)
+    end
+    local function enter(state, why)
+        if W.state ~= state then
+            QD.raid._vzp3_trace(S, F.tick, "web run: " .. W.state .. " -> " .. state .. " (" .. why .. ")")
+            W.state = state
+        end
+    end
+    -- the stack's tile first: it moves when it turns hazardous, whatever my state
+    if webbed(at(W.idx), F.tick + 1, F.tick + 1) then
+        local to = nil
+        for step = 1, 2 do
+            local mid_ok = step == 1 or not webbed(at(W.idx - 1), F.tick + 1, F.tick + 1)
+            if mid_ok and not webbed(at(W.idx - step), F.tick + 1, F.tick + V.WEB_RUN_HOLD) then
+                to = W.idx - step
+                break
+            end
+        end
+        if to == nil then
+            enter("lost", "no clear tile clockwise of " .. at(W.idx).x .. "," .. at(W.idx).z)
+            W.tile = nil
+            return nil
+        end
+        W.idx = ((to - 1) % L) + 1
+        enter("step", "to " .. at(W.idx).x .. "," .. at(W.idx).z)
+    elseif W.state == "lost" then
+        enter("join", "the stack's tile is clear")
+    end
+    local here = at(W.idx)
+    W.tile = here
+    local on = F.me.x == here.x and F.me.z == here.z
+    if S.spin_at == nil then
+        enter("gather", "her walk")
+    elseif on then
+        enter("hold", "on the stack")
+    elseif W.state ~= "step" then
+        enter("join", "off the stack")
+    end
+    -- a crab's fuse, or a walk longer than a run's two tiles: the planner
+    if #S.blasts > 0 or cheb(F.me.x, F.me.z, here.x, here.z) > 2 then return nil end
+    local decision = { x = here.x, z = here.z, soft = 0, lethal = 0 }
+    if not on then
+        decision.order = { mode = "walk", x = here.x, z = here.z }
+    elseif W.state == "hold" and S.target == F.boss then
+        decision.order = { mode = "attack" }
+    else
+        decision.order = { mode = "walk", x = here.x, z = here.z }
+    end
+    return decision
+end
+
+-- THE ENRAGE KITE (S.hm.kite: owner, 2026-10-12: "Just kite the tornado and
+-- stay within attacking distance of verzik's edge"; "the solver should be
+-- able to get pretty close to 4 ticks per swing"). On the ring of tiles
+-- beside her edge (never under her), each tick: stand, or run one or two
+-- ring tiles; the one whose distance from where my tornado steps next is
+-- greatest, never the tile it stands on, standing to swing whenever my
+-- weapon's ticks have passed since my last (QD.raid._vzp3_weapon_ticks). A tornado steps at my last tile and
+-- touches only if it already stands there (`~tob_verzik_tornado_tick`), so
+-- running along her edge at two a tick outpaces it and a standing tick in
+-- four costs one tile: a grid model of exactly this swung once in 4.2 ticks
+-- and was never touched (kite_sim2). The planner keeps everything else: the
+-- specials, a crab's blast, and the tank's step off for her slot.
+-- -> a decision, or nil for the planner.
+function QD.raid._vzp3_kite(S, F)
+    local V, b = QD.VZP3, F.boss
+    if not (S.hm and S.hm.kite) or not F.enraged or b == nil then return nil end
+    -- her walk to the centre (invulnerable, the knockback) and the yellows'
+    -- charge are the planner's; the web SPIN, the ball and a crab's fuse are
+    -- the kite's too, as tiles it may not end a tick on (owner, 2026-10-12:
+    -- "the only time the seats should not be landing their attacks is when
+    -- there are specials and they have to prioritize avoiding lethal
+    -- damage"): with the planner there, a seat chased by its tornado walked
+    -- every tick of an enraged spin and swung none (xv28 sh t1384-1409)
+    if (S.webs_at and S.spin_at == nil) or F.charging then return nil end
+    local ball_anchor, ball_until = nil, nil
+    if S.ball then
+        local role, anchor = QD.raid._vzp3_ball_role(S, F)
+        if role == "target" or role == "next" then return nil end
+        if role == "clear" then ball_anchor, ball_until = anchor, S.ball.land + 1 end
+    end
+    -- HER MELEE IS THE KITE'S TOO (owner, 2026-10-12: "The solver should be
+    -- able to prevent ALL melees"): a seat that must be off her edge at a
+    -- scan (her tank, or everyone while the tank is not known) ends that tick
+    -- UNDER her, on the inner 5x5 (QD.raid._vzp3_spec's scan zones). Handed
+    -- to the planner for the scan, the tank with a tornado at its heels found
+    -- no safe plan and stayed: every melee of xv31 was enraged.
+    local exempt = S.tank_ok and S.tank_pid ~= nil and F.pid ~= nil and S.tank_pid ~= F.pid
+    -- (the ones that can reach me inside the horizon, the nearest
+    -- KITE_THREATS: on the enrage tick all five are unowned, and five
+    -- stepped through the beam spent the instruction budget, xv36 sc t1555)
+    local threats = {}
+    for _, tn in ipairs(F.tornadoes) do
+        local d = cheb(tn.x, tn.z, F.me.x, F.me.z)
+        if tn.mine and d <= V.KITE_DEPTH + 2 then threats[#threats + 1] = { x = tn.x, z = tn.z, d = d } end
+    end
+    table.sort(threats, function(x, y) return x.d < y.d end)
+    while #threats > V.KITE_THREATS do table.remove(threats) end
+    -- the tiles: her edge's ring (swings), and under her (no swing; not in
+    -- the webs, where she is a hard npc)
+    local function scan_at(t)
+        for _, sc in ipairs(F.scans) do
+            if t >= sc.t0 and t <= sc.t1 then return true end
+        end
+        return false
+    end
+    -- (under her only when I have a scan to dodge in the horizon: the
+    -- search over both every tick spent the instruction budget, xv32)
+    local dodge = false
+    if not exempt then
+        for d = 1, V.KITE_DEPTH do if scan_at(F.tick + d) then dodge = true end end
+    end
+    local tiles = {}
+    for _, t in ipairs(QD.raid._vzp3_ring(b.x, b.z)) do tiles[#tiles + 1] = { x = t.x, z = t.z, ring = true } end
+    if S.webs_at == nil and dodge then
+        for x = b.x + 1, b.x + V.SIZE - 2 do
+            for z = b.z + 1, b.z + V.SIZE - 2 do
+                if x == b.x + 1 or x == b.x + V.SIZE - 2 or z == b.z + 1 or z == b.z + V.SIZE - 2 then
+                    tiles[#tiles + 1] = { x = x, z = z, ring = false }
+                end
+            end
+        end
+    end
+    local N = #tiles
+    local index = {}
+    for i, t in ipairs(tiles) do index[t.x * 65536 + t.z] = i end
+    local mine = index[F.me.x * 65536 + F.me.z]
+    if mine == nil then return nil end
+    -- a run's reach (two tiles), per footprint position and tile set
+    local rkey = b.x .. "," .. b.z .. "," .. N
+    if S.kite_reach_key ~= rkey then
+        local reach = {}
+        for i = 1, N do
+            reach[i] = {}
+            for k = 1, N do
+                local dx, dz = math.abs(tiles[i].x - tiles[k].x), math.abs(tiles[i].z - tiles[k].z)
+                if dx <= 2 and dz <= 2 then reach[i][#reach[i] + 1] = k end
+            end
+        end
+        S.kite_reach_key, S.kite_reach = rkey, reach
+    end
+    local reach = S.kite_reach
+    local function sgn(v) return (v > 0 and 1) or (v < 0 and -1) or 0 end
+    -- the webs by tile
+    local haz = {}
+    for _, h in ipairs(S.web_hazards) do
+        local key = h.x * 65536 + h.z
+        local l = haz[key]
+        if l == nil then l = {} haz[key] = l end
+        l[#l + 1] = h
+    end
+    -- a tile I may not END tick `t` on (the planner's terms for the same
+    -- things: a web from a tick before it lands, a crab's blast within 2 of
+    -- its 2x2, the ball's flight within 2 of its target), and what a tile
+    -- costs (a crab's blast at 3, a flat 7)
+    local function outside(p, x, z, size)
+        local dx = math.max(x - p.x, 0, p.x - (x + size - 1))
+        local dz = math.max(z - p.z, 0, p.z - (z + size - 1))
+        return math.max(dx, dz)
+    end
+    local function webbed(p, t)
+        local l = haz[p.x * 65536 + p.z]
+        if l then
+            for _, h in ipairs(l) do
+                if t >= h.from and t <= h.to then return true end
+            end
+        end
+        return false
+    end
+    local function blocked(p, t)
+        if webbed(p, t) then return true end
+        -- (the blast's flat 7 at 3 too: "There should be NO avoidable
+        -- damage", owner 2026-10-12)
+        for _, bl in ipairs(S.blasts) do
+            if t >= bl.from and t <= bl.to and outside(p, bl.x, bl.z, V.CRAB_SIZE) <= V.CRAB_BLAST then return true end
+        end
+        if ball_anchor and t <= ball_until and cheb(p.x, p.z, ball_anchor.x, ball_anchor.z) <= 2 then return true end
+        if p.ring and not exempt and scan_at(t) then return true end
+        return false
+    end
+    local function cost(p, t)
+        for _, bl in ipairs(S.blasts) do
+            if t >= bl.from and t <= bl.to and outside(p, bl.x, bl.z, V.CRAB_SIZE) == V.CRAB_BLAST then return V.KITE_SWING_BONUS end
+        end
+        return 0
+    end
+    -- HER WEBS AT MY OWN TILES, before they are thrown: from the spin every
+    -- tick-end I stand on draws a web four ticks on (`~tob_verzik_web_throw`
+    -- reads my tile; QD.raid._vzp3_web_run steps on that clock), so a tile I
+    -- ended a tick on in the throws' window is mine for WEB_STAY tick-ends,
+    -- then a web's until it snaps. The tiles before now are the history.
+    local throw0, throw1 = nil, nil
+    if S.spin_at then throw0, throw1 = S.spin_at + V.WEB_FIRST_THROW - 1, S.spin_at + V.WEB_FIRST_THROW + V.WEB_THROWS - 2 end
+    local function own_web(p, e, e0)
+        -- standing on p at end e, having ended a tick on it at e0
+        return throw0 ~= nil and e0 >= throw0 and e0 <= throw1 and e - e0 >= V.WEB_STAY and e - e0 <= V.WEB_STAY + V.WEB_LIFE + 1
+    end
+    S.kite_hist = S.kite_hist or {}
+    local hist = {}
+    for _, h in ipairs(S.kite_hist) do
+        if F.tick - h.e <= V.WEB_STAY + V.WEB_LIFE + 1 then hist[#hist + 1] = h end
+    end
+    hist[#hist + 1] = { x = F.me.x, z = F.me.z, e = F.tick - 1 }
+    S.kite_hist = hist
+    -- SEVEN TICKS AHEAD (owner, 2026-10-12: "The tornado kiting should look
+    -- up to 7 ahead. The planner should be able to plan a weapon attack on
+    -- each of its weapon ticks"): a beam over my moves (stand, or run to a
+    -- tile within two), the tornadoes stepped at each tile I end on, a path
+    -- dropped the tick it ends on one; scored by the swings it stands for on
+    -- my weapon's ticks, then by how far the tornadoes are at its end.
+    -- (one tick ahead walked seats into a sandwich between two, all9 a4)
+    local wt = QD.raid._vzp3_weapon_ticks(S)
+    local since = F.tick - (S.kite_swing or -10)
+    -- THE TICK, in the content's order (`~tob_verzik_tornado_tick` runs in
+    -- the npc phase, before my step): a tornado standing on the tile I ended
+    -- the last tick on touches; else it steps at that tile; then I step. So
+    -- from a node (the tile I end on, the tornadoes after their step) the
+    -- next tick kills the path if a tornado stands on my tile, steps them at
+    -- my tile, and then takes my move.
+    -- The tables once per tile per depth, not per beam child (the spin's
+    -- webs are dozens of hazards: read per child, the kite spent the seat's
+    -- whole instruction budget, xv29).
+    local mine_at = {}
+    for _, h in ipairs(hist) do
+        local key = h.x * 65536 + h.z
+        local l = mine_at[key]
+        if l == nil then l = {} mine_at[key] = l end
+        l[#l + 1] = h.e
+    end
+    local bad, toll, wet = {}, {}, {}
+    for depth = 1, V.KITE_DEPTH do
+        bad[depth], toll[depth], wet[depth] = {}, {}, {}
+        for i, p in ipairs(tiles) do
+            local t = F.tick + depth
+            local own = false
+            local l = throw0 and mine_at[p.x * 65536 + p.z]
+            if l then
+                for _, e0 in ipairs(l) do
+                    if own_web(p, t, e0) then own = true break end
+                end
+            end
+            bad[depth][i] = own or blocked(p, t)
+            toll[depth][i] = cost(p, t)
+            wet[depth][i] = webbed(p, t)
+        end
+    end
+    -- THE TILES A MOVE MAY PASS: a run's two steps can go through any tile
+    -- beside both ends, and in the webs her footprint is a hard npc's, so a
+    -- run past her corner goes round it and a diagonal past it through the
+    -- open side. Reading only the straight line's middle (inside her), a run
+    -- went round through a web and stuck there for ten ticks, its tornado on
+    -- it (xv34 sa t1490, varp 5754).
+    local hard = S.webs_at ~= nil
+    local function under(x, z) return x >= b.x and x < b.x + V.SIZE and z >= b.z and z < b.z + V.SIZE end
+    local passes = {}
+    local function passes_of(a, c)
+        local key = a * 256 + c
+        local l = passes[key]
+        if l then return l end
+        l = {}
+        local pa, pc = tiles[a], tiles[c]
+        local dx, dz = pc.x - pa.x, pc.z - pa.z
+        if math.max(math.abs(dx), math.abs(dz)) == 2 then
+            for x = pa.x - 1, pa.x + 1 do
+                for z = pa.z - 1, pa.z + 1 do
+                    if (x ~= pa.x or z ~= pa.z) and math.abs(pc.x - x) <= 1 and math.abs(pc.z - z) <= 1
+                        and not (hard and under(x, z)) then
+                        l[#l + 1] = { x = x, z = z }
+                    end
+                end
+            end
+        elseif dx ~= 0 and dz ~= 0 and hard then
+            if under(pa.x + dx, pa.z) then l[#l + 1] = { x = pa.x, z = pa.z + dz } end
+            if under(pa.x, pa.z + dz) then l[#l + 1] = { x = pa.x + dx, z = pa.z } end
+        end
+        passes[key] = l
+        return l
+    end
+    local function wet_at(depth, x, z)
+        local i = index[x * 65536 + z]
+        if i then return wet[depth][i] end
+        -- off the kite's tiles: the hazards themselves
+        return webbed({ x = x, z = z }, F.tick + depth)
+    end
+    local beam = { { i = mine, ts = {}, since = since, swings = 0, depth = 0 } }
+    for _, tn in ipairs(threats) do beam[1].ts[#beam[1].ts + 1] = { x = tn.x, z = tn.z } end
+    for depth = 1, V.KITE_DEPTH do
+        local nxt = {}
+        for _, node in ipairs(beam) do
+            local here = tiles[node.i]
+            local dead = false
+            local ts = {}
+            for _, tn in ipairs(node.ts) do
+                if depth > 1 and tn.x == here.x and tn.z == here.z then dead = true end
+                ts[#ts + 1] = { x = tn.x + sgn(here.x - tn.x), z = tn.z + sgn(here.z - tn.z) }
+            end
+            if not dead then
+                for _, k in ipairs(reach[node.i]) do
+                    local p = tiles[k]
+                    local ok = not bad[depth][k]
+                    -- the tile a run passes: a web there sticks me (the
+                    -- step that leaves it, `[walktrigger,tob_verzik_web_stuck]`)
+                    if ok then
+                        for _, m in ipairs(passes_of(node.i, k)) do
+                            if wet_at(depth, m.x, m.z) then ok = false break end
+                        end
+                    end
+                    -- a tile this path ended a tick on, in the throws' window
+                    if ok and throw0 then
+                        local a = node
+                        while a and a.depth > 0 do
+                            local q = tiles[a.i]
+                            if q.x == p.x and q.z == p.z and own_web(p, F.tick + depth, F.tick + a.depth) then ok = false break end
+                            a = a.parent
+                        end
+                    end
+                    if ok then
+                        local near = 99
+                        for _, tn in ipairs(ts) do near = math.min(near, cheb(tn.x, tn.z, p.x, p.z)) end
+                        if near >= 1 then
+                            local stay = k == node.i
+                            local swing = stay and p.ring and node.since + depth - 1 >= wt
+                            local child = { i = k, ts = ts, swings = node.swings + (swing and 1 or 0),
+                                            since = swing and (1 - depth) or node.since, parent = node, depth = depth,
+                                            first = node.first or p, firststay = (depth == 1) and stay or node.firststay,
+                                            firstswing = (depth == 1) and swing or node.firstswing,
+                                            moved = (node.moved or 0) + (stay and 0 or 1),
+                                            paid = (node.paid or 0) + toll[depth][k] }
+                            child.score = child.swings * V.KITE_SWING_BONUS + math.min(near, V.KITE_FAR) * 10
+                                - child.moved * 0.1 - child.paid
+                            nxt[#nxt + 1] = child
+                        end
+                    end
+                end
+            end
+        end
+        if #nxt == 0 then break end
+        table.sort(nxt, function(x, y) return x.score > y.score end)
+        beam = {}
+        for n = 1, math.min(#nxt, V.KITE_BEAM) do beam[n] = nxt[n] end
+    end
+    local top = beam[1]
+    if top == nil or top.first == nil then return nil end
+    -- a path that dies before the horizon is no plan: the planner's terms
+    if top.depth < math.min(V.KITE_DEPTH, 2) then return nil end
+    local best = top.first
+    local decision = { x = best.x, z = best.z, soft = 0, lethal = 0 }
+    if top.firststay and top.firstswing and S.target == b then
+        decision.order = { mode = "attack" }
+        S.kite_swing = F.tick
+    else
+        decision.order = { mode = "walk", x = best.x, z = best.z }
+    end
+    return decision
+end
+
 function QD.raid._vzp3_decide(S, F)
     local V = QD.VZP3
+    local run = QD.raid._vzp3_web_run(S, F)
+    if run then run.src = "r" return run end
+    local kite = QD.raid._vzp3_kite(S, F)
+    if kite then kite.src = "k" return kite end
     local spec, names = QD.raid._vzp3_spec(S, F)
+    -- a mode's own constraints (raid_solve_verzik_hm.lua)
+    if S.hm and S.hm.spec then S.hm.spec(S, F, spec, names) end
     local r, plan = api_drive.plan(spec)
     assert(r == "ok", "verzik_p3_solve: api_drive.plan answered " .. tostring(r))
     S.expanded = (S.expanded or 0) + (plan.expanded or 0)
@@ -1039,12 +1633,13 @@ function QD.raid.verzik_p3_solve(opts)
     local V = QD.VZP3
     local S = {
         ids = QD.raid._vzp3_ids(opts.weapon),
+        weapon_ticks_opt = opts.weapon_ticks,
         base = opts.base,
         role = (QD_PARTY and QD_PARTY.role) or 1,
         seen = {}, web_seen = {}, web_hazards = {}, torn = {}, crab_seen = {}, blasts = {},
         trace = {}, hits = {}, recent = {}, pray_clicked = {},
         autos = 0, melees = 0, eats = 0, drinks = 0, clicks = 0, presses = 0,
-        prot = "magic",
+        prot = "magic", hm = opts.hm,
     }
     local start = api_drive.tick()
     local last_hp = nil
@@ -1099,7 +1694,10 @@ function QD.raid.verzik_p3_solve(opts)
         local spare = QD.raid.vz_prayer_spare(S.ids.inv, F.prayer, remaining)
         S.piety_ok = spare > 0
         local restore_due = F.prayer < V.PRAYER_SIP and F.tick - (S.last_drink or -10) >= 3
-        local eat_due = F.hp < (topping and V.HP_TOP or V.HP_EAT) and F.tick - (S.last_eat or -10) >= 3
+        -- (a mode's own floors: raid_solve_verzik_hm.lua, Hard Mode's autos)
+        local hp_eat = (S.hm and S.hm.hp_eat) or V.HP_EAT
+        local hp_brew = (S.hm and S.hm.hp_brew) or V.HP_BREW
+        local eat_due = F.hp < (topping and V.HP_TOP or hp_eat) and F.tick - (S.last_eat or -10) >= 3
         if restore_due then
             intent.drink = QD.raid._vzp3_first(S, S.ids.restores)
             if intent.drink then S.last_drink = F.tick end
@@ -1109,7 +1707,7 @@ function QD.raid.verzik_p3_solve(opts)
             if food then
                 intent.eat = food
                 S.last_eat = F.tick
-            elseif topping or F.hp < V.HP_BREW then
+            elseif topping or F.hp < hp_brew then
                 intent.drink = QD.raid._vzp3_first(S, S.ids.brews)
                 if intent.drink then S.last_drink = F.tick end
             end
@@ -1159,12 +1757,14 @@ function QD.raid.verzik_p3_solve(opts)
             QD.raid._vzp3_clock(S, F)
             QD.raid._vzp2_crabs(S, F)
             QD.raid._vzp3_tornadoes(S, F)
-            QD.raid._vzp3_pools(S, F)
+            -- (a mode's own pools: raid_solve_verzik_hm.lua, Hard Mode's three a raider)
+            if S.hm and S.hm.pools then S.hm.pools(S, F) else QD.raid._vzp3_pools(S, F) end
             S.target = QD.raid._vzp3_target(S, F)
             local d = QD.raid._vzp3_decide(S, F)
             QD.raid._vzp3_emit(S, F, d.order, intent)
-            S.recent[#S.recent + 1] = string.format("t%d @%d,%d>%d,%d %s L%d c%.1f", F.tick, F.me.x, F.me.z,
-                d.x, d.z, d.order and (d.order.mode:sub(1, 1) .. (d.order.x and (d.order.x .. "," .. d.order.z) or "")) or "-", d.lethal, d.soft)
+            S.recent[#S.recent + 1] = string.format("t%d @%d,%d>%d,%d %s L%d c%.1f %s", F.tick, F.me.x, F.me.z,
+                d.x, d.z, d.order and (d.order.mode:sub(1, 1) .. (d.order.x and (d.order.x .. "," .. d.order.z) or "")) or "-", d.lethal, d.soft,
+                d.src or "p")
             if #S.recent > V.RECENT then table.remove(S.recent, 1) end
         else
             -- the six-tick change of form: nothing to dodge; supplies and the
@@ -1180,6 +1780,7 @@ end
 -- The ids the test's tick-log measures read (a test file has no api_drive).
 function QD.raid.verzik_p3_symbols()
     local function sym(kind, name)
+        if kind == "npc" then name = QD.raid.tob_npc_name(name) end
         local r, id = api_drive.symbol(kind, name)
         assert(r == "ok", "verzik_p3_symbols: no " .. kind .. " named " .. name)
         return id

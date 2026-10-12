@@ -286,6 +286,12 @@ function QD.raid._maiden_crabs(S, F)
                 rec.frozen_until = F.tick + V.FREEZE_TICKS
                 S.freeze_log[#S.freeze_log + 1] = tostring(rec.point) .. "+" .. (c.spotanim_tick - rec.born)
                 local probe = S.lag_probe
+                -- (S.hm has two freezers: a freeze landing more than two
+                -- ticks after my cast on that crab is the other one's)
+                if probe and probe.slot == c.slot and S.hm and c.spotanim_tick - probe.tick > 2 then
+                    S.lag_probe = nil
+                    probe = nil
+                end
                 if probe and probe.slot == c.slot then
                     local lag = c.spotanim_tick - probe.tick
                     assert(lag >= 0 and lag <= 2, "maiden_solve: a barrage decided on t" .. probe.tick
@@ -298,8 +304,12 @@ function QD.raid._maiden_crabs(S, F)
                 end
             end
         end
-        if (rec.x ~= c.x or rec.z ~= c.z) and rec.frozen_until and rec.frozen_until > F.tick then
-            rec.frozen_until = nil   -- it stepped: not frozen
+        -- it stepped: not frozen (S.hm, the Hard Mode solver tob_maiden_hm.lua:
+        -- unless the freeze's graphic is this measure's own, when the step was
+        -- the npc phase BEFORE the barrage landed)
+        if (rec.x ~= c.x or rec.z ~= c.z) and rec.frozen_until and rec.frozen_until > F.tick
+            and not (S.hm and rec.gfx_tick ~= nil and rec.gfx_tick >= F.tick - 1) then
+            rec.frozen_until = nil
         end
         rec.x, rec.z = c.x, c.z
         c.point, c.born = rec.point, rec.born
@@ -369,6 +379,23 @@ end
 -- barrage every 5 ticks on the biggest clump, for damage (a frozen crab is
 -- not frozen again). Nil with no crab up.
 function QD.raid._maiden_freezer(S, F)
+    local R = QD.raid._maiden_slots(S, F)
+    if R then return R end
+    local best, best_n = nil, 0
+    for _, c in ipairs(F.crabs) do
+        local n = 0
+        for _, o in ipairs(F.crabs) do
+            if cheb(o.x, o.z, c.x, c.z) <= 1 then n = n + 1 end
+        end
+        if n > best_n or (n == best_n and c.slot < best.slot) then best, best_n = c, n end
+    end
+    if best then return { target = best, kind = "clump" } end
+    return nil
+end
+
+-- The wave handler's barrage slots (shared with tob_maiden_hm.lua): the slot
+-- due or waiting, or nil once every slot has gone or lapsed.
+function QD.raid._maiden_slots(S, F)
     local V = QD.MAIDEN
     local W = S.wave
     while W and W.plan.freeze[W.next] do
@@ -405,15 +432,6 @@ function QD.raid._maiden_freezer(S, F)
         W.next = W.next + 1
         ::continue::
     end
-    local best, best_n = nil, 0
-    for _, c in ipairs(F.crabs) do
-        local n = 0
-        for _, o in ipairs(F.crabs) do
-            if cheb(o.x, o.z, c.x, c.z) <= 1 then n = n + 1 end
-        end
-        if n > best_n or (n == best_n and c.slot < best.slot) then best, best_n = c, n end
-    end
-    if best then return { target = best, kind = "clump" } end
     return nil
 end
 
@@ -522,7 +540,9 @@ end
 function QD.raid._maiden_missing(S, set)
     local out = {}
     for _, obj in ipairs(set) do
-        if not QD.raid._tob_worn(S, obj) then out[#out + 1] = obj end
+        -- (a piece the seat does not carry is not missing: the Hard Mode kit
+        -- leaves a seat's off-style boosters home, tob_relay.lua)
+        if not QD.raid._tob_worn(S, obj) and QD.raid._tob_count(S, obj) > 0 then out[#out + 1] = obj end
     end
     return out
 end
