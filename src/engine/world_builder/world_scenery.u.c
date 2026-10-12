@@ -323,6 +323,24 @@ orientation_wall_flag(int orientation)
 }
 
 static inline enum MinimapWallFlag
+orientation_wall_flag_corner(int orientation)
+{
+    switch( orientation & 0x3 )
+    {
+    case 0:
+        return MINIMAP_WALL_CORNER_NORTHWEST;
+    case 1:
+        return MINIMAP_WALL_CORNER_NORTHEAST;
+    case 2:
+        return MINIMAP_WALL_CORNER_SOUTHEAST;
+    case 3:
+        return MINIMAP_WALL_CORNER_SOUTHWEST;
+    default:
+        return MINIMAP_WALL_NONE;
+    }
+}
+
+static inline enum MinimapWallFlag
 orientation_wall_flag_diagonal(int orientation)
 {
     switch( orientation & 0x3 )
@@ -341,8 +359,8 @@ orientation_wall_flag_diagonal(int orientation)
 }
 
 /* Minimap wall-line bits for one loc (reference drawDetail wall branches):
- * straight walls one edge, L-walls two edges, diagonal walls one diagonal;
- * corners draw nothing here. An interactive (active) wall — a door — shifts
+ * straight walls one edge, L-walls two edges, rect corners one corner pixel,
+ * diagonal walls one diagonal; tri corners (shape 1) draw nothing. An interactive (active) wall — a door — shifts
  * into the DOOR_* bits so the bake draws its line red instead of white
  * (reference: typecode > 0 picks activeRgb). Shared by the static gather and
  * the runtime loc change. */
@@ -361,6 +379,9 @@ scenery_minimap_wall_flags(
     case RSCACHE_LOC_SHAPE_WALL_TWO_SIDES:
         flags = orientation_wall_flag(orientation) |
                 orientation_wall_flag((orientation + 1) & 0x3);
+        break;
+    case RSCACHE_LOC_SHAPE_WALL_RECT_CORNER:
+        flags = orientation_wall_flag_corner(orientation);
         break;
     case RSCACHE_LOC_SHAPE_WALL_DIAGONAL:
         flags = orientation_wall_flag_diagonal(orientation);

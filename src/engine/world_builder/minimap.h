@@ -6,11 +6,15 @@
 
 struct Minimap;
 
-/* DOOR_* are the same six line positions as WALL_* shifted by
+/* DOOR_* are the same ten wall positions as WALL_* shifted by
  * MINIMAP_DOOR_SHIFT: an interactive (active) wall loc — a door — draws its
  * line red instead of white (reference minimapBuildBuffer activeRgb,
- * Client.ts:5548 / drawDetail rgb pick). */
-#define MINIMAP_DOOR_SHIFT 6
+ * Client.ts:5548 / drawDetail rgb pick). The four CORNER_* bits are the single
+ * pixel a rect-corner wall (shape 3) plots in that corner of its tile (rev239
+ * drawObject: rotation 0 NW, 1 NE, 2 SE, 3 SW) — it is what closes the gap
+ * where two straight walls meet. */
+#define MINIMAP_DOOR_SHIFT 10
+#define MINIMAP_WALL_MASK ((1 << MINIMAP_DOOR_SHIFT) - 1)
 enum MinimapWallFlag
 {
     MINIMAP_WALL_NONE = 0,
@@ -20,19 +24,27 @@ enum MinimapWallFlag
     MINIMAP_WALL_WEST = 1 << 3,
     MINIMAP_WALL_NORTHEAST_SOUTHWEST = 1 << 4,
     MINIMAP_WALL_NORTHWEST_SOUTHEAST = 1 << 5,
+    MINIMAP_WALL_CORNER_NORTHWEST = 1 << 6,
+    MINIMAP_WALL_CORNER_NORTHEAST = 1 << 7,
+    MINIMAP_WALL_CORNER_SOUTHEAST = 1 << 8,
+    MINIMAP_WALL_CORNER_SOUTHWEST = 1 << 9,
     MINIMAP_DOOR_NORTH = MINIMAP_WALL_NORTH << MINIMAP_DOOR_SHIFT,
     MINIMAP_DOOR_EAST = MINIMAP_WALL_EAST << MINIMAP_DOOR_SHIFT,
     MINIMAP_DOOR_SOUTH = MINIMAP_WALL_SOUTH << MINIMAP_DOOR_SHIFT,
     MINIMAP_DOOR_WEST = MINIMAP_WALL_WEST << MINIMAP_DOOR_SHIFT,
     MINIMAP_DOOR_NORTHEAST_SOUTHWEST = MINIMAP_WALL_NORTHEAST_SOUTHWEST << MINIMAP_DOOR_SHIFT,
     MINIMAP_DOOR_NORTHWEST_SOUTHEAST = MINIMAP_WALL_NORTHWEST_SOUTHEAST << MINIMAP_DOOR_SHIFT,
+    MINIMAP_DOOR_CORNER_NORTHWEST = MINIMAP_WALL_CORNER_NORTHWEST << MINIMAP_DOOR_SHIFT,
+    MINIMAP_DOOR_CORNER_NORTHEAST = MINIMAP_WALL_CORNER_NORTHEAST << MINIMAP_DOOR_SHIFT,
+    MINIMAP_DOOR_CORNER_SOUTHEAST = MINIMAP_WALL_CORNER_SOUTHEAST << MINIMAP_DOOR_SHIFT,
+    MINIMAP_DOOR_CORNER_SOUTHWEST = MINIMAP_WALL_CORNER_SOUTHWEST << MINIMAP_DOOR_SHIFT,
 };
 
 struct MinimapTile
 {
     uint32_t background_rgb;
     uint32_t foreground_rgb;
-    uint16_t wall;
+    uint32_t wall;
     uint16_t locs[8];
     uint8_t shape;
     uint8_t rotation;

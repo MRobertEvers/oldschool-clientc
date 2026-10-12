@@ -146,7 +146,7 @@ minimap_del_tile_wall(
     int idx = minimap_coord_idx(minimap, sx, sz, level);
 
     struct MinimapTile* tile = &minimap->tiles[idx];
-    tile->wall &= (uint16_t)~wall;
+    tile->wall &= ~(uint32_t)wall;
 }
 
 void
@@ -646,6 +646,29 @@ minimap_draw_wall_bits(
                 pixel_buffer[offset + p * stride + p] = rgb;
         }
     }
+
+    /* Rect-corner walls: one pixel in the tile's corner. */
+    static const struct
+    {
+        int bit;
+        int dx;
+        int dy;
+    } corners[4] = {
+        { MINIMAP_WALL_CORNER_NORTHWEST, 0, 0 },
+        { MINIMAP_WALL_CORNER_NORTHEAST, 3, 0 },
+        { MINIMAP_WALL_CORNER_SOUTHEAST, 3, 3 },
+        { MINIMAP_WALL_CORNER_SOUTHWEST, 0, 3 },
+    };
+    for( int c = 0; c < 4; c++ )
+    {
+        if( !(wall & corners[c].bit) )
+            continue;
+        int current_x = x + corners[c].dx;
+        int current_y = y + corners[c].dy;
+        if( current_x >= 0 && current_x < clip_width && current_y >= 0 &&
+            current_y < clip_height )
+            pixel_buffer[offset + corners[c].dy * stride + corners[c].dx] = rgb;
+    }
 }
 
 /** Wall lines: WALL_* bits draw white; DOOR_* bits (interactive wall locs —
@@ -665,13 +688,13 @@ minimap_draw_wall(
         return;
 
     minimap_draw_wall_bits(
-        pixel_buffer, stride, x, y, wall & 0x3F, 0xFFFFFFFFu, clip_width, clip_height);
+        pixel_buffer, stride, x, y, wall & MINIMAP_WALL_MASK, 0xFFFFFFFFu, clip_width, clip_height);
     minimap_draw_wall_bits(
         pixel_buffer,
         stride,
         x,
         y,
-        (wall >> MINIMAP_DOOR_SHIFT) & 0x3F,
+        (wall >> MINIMAP_DOOR_SHIFT) & MINIMAP_WALL_MASK,
         0xFFEE0000u,
         clip_width,
         clip_height);

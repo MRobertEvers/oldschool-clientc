@@ -196,6 +196,39 @@ test_minimap_push_down_colourless_deck(void)
     minimap_free(mm);
 }
 
+/* A rect-corner wall (shape 3) is one pixel in its tile's corner (rev239
+ * drawObject: rotation 0 NW, 1 NE, 2 SE, 3 SW). Without it every corner where
+ * two straight walls meet baked open. A door corner draws the same pixel red. */
+void
+test_minimap_wall_corner_pixel(void)
+{
+    struct Minimap* mm = minimap_new(4, 4);
+    TEST_ASSERT(mm != NULL, "minimap_new (corner pixel)");
+    if( !mm )
+        return;
+
+    const int sx = 1, sz = 2;
+    minimap_add_tile_wall(mm, sx, sz, 0, MINIMAP_WALL_CORNER_NORTHEAST);
+    minimap_add_tile_wall(mm, sx, sz, 0, MINIMAP_DOOR_CORNER_SOUTHWEST);
+
+    int pw = 0, ph = 0;
+    uint32_t* px = minimap_bake_argb(mm, 0, NULL, &pw, &ph);
+    TEST_ASSERT(px != NULL, "corner pixel: bake");
+    if( px )
+    {
+        int x = sx * 4;
+        int y = (4 - sz) * 4;
+        TEST_ASSERT(px[y * pw + x + 3] == 0xFFFFFFFFu, "corner pixel: NE corner white");
+        TEST_ASSERT(px[(y + 3) * pw + x] == 0xFFEE0000u, "corner pixel: SW door corner red");
+        TEST_ASSERT(px[y * pw + x] == 0xFF000000u, "corner pixel: NW corner untouched");
+        TEST_ASSERT(px[(y + 3) * pw + x + 3] == 0xFF000000u, "corner pixel: SE corner untouched");
+        TEST_ASSERT(px[y * pw + x + 2] == 0xFF000000u, "corner pixel: no north line");
+        free(px);
+    }
+
+    minimap_free(mm);
+}
+
 void
 test_builder_lifecycle(void)
 {

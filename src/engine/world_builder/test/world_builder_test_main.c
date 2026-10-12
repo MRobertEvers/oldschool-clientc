@@ -20,6 +20,7 @@ main(void)
     test_painters_tile_order();
     test_minimap_push_down();
     test_minimap_push_down_colourless_deck();
+    test_minimap_wall_corner_pixel();
     test_builder_lifecycle();
     test_rebuild_keeps_tagged_entity_elements();
     test_prerotate_placement();
