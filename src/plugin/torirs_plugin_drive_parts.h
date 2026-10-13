@@ -47,6 +47,7 @@ static char const* const DRIVE_SCRIPT_PARTS[] = {
     "plugins/quest_driver/tob2_exec.lua",
     "plugins/quest_driver/tob2_monitor.lua",
     "plugins/quest_driver/tob2_run.lua",
+    "plugins/quest_driver/tob2_budget.lua",
     "plugins/quest_driver/tob2_maiden.lua",
     "plugins/quest_driver/tob2_bloat.lua",
     "plugins/quest_driver/tob2_nylocas.lua",

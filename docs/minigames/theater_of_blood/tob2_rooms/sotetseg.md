@@ -80,11 +80,19 @@ launch tick (dbg2/q1: grey launched 241, first seen 241, land 243 correct), so n
 HP_PER_BOSS_HP = 870 team hp (174 x 5) / 4000 boss hp (K `^tob_sote_hp_5`) = 0.22.
 Tentacle swing exp 11 (PROBE), speed 4; hammer exp 22, speed 6.
 
-## Eat floors (v1 main tree's death mode)
+## Eat floors (relay brew budget, 2026-10-12)
 
-fight 50; soon/flight `2 x 188 / n + 5` (+ RICOCHET_HIT 40 if an ordinary ball lands within 3 of
-the pair), capped at 115. The rescue channel (QD.T2.rescue) eats on predicted death from the share
-hit's dmg_max in the horizon.
+fight 50. Only while a pair is IN THE AIR (stack, burst): `2 x 188 / n + 5` (80 at five), capped at
+115. No floor for "soon" (a pair the hold nulls needs no brew; 15 ticks of flight is five brews), and
+no RICOCHET_HIT (v1's +40 floored seats at 115 for prayed hits: overheal). Two styles that may land on
+one tick (their [land, land2] windows overlap) are a priced hit of 2 x 50, so the rescue eats before
+them; every ricochet's victim is named from its source tile (v1 named the same victim for both fans
+when two balls landed on one tick: brew1/q4 seat 2 dead at t196, 48 + 26 at 74 hp).
+Measured (sote_dose.py, so1..so8 / q1..q8, team doses a run): brew 36.6 / 24.6 -> 17.1 / 15.6,
+overheal 114 / 74 hp -> 0, restores ~17 / 16 unchanged, 16/16 pass, no deaths.
+Piety off in the maze only (intents.pray_off; want.boost nil there): restores 16.6 / 16.1 -> 13.8 /
+13.1 a run, brews 17.1 / 17.4, 16/16 (pray2). Off in the hold too (pray1) saved one more restore but cost
+4.6 brews and 98 team hp a run: the burst starts with Piety a tick or two late and fewer pairs are nulled.
 
 ## Probes
 

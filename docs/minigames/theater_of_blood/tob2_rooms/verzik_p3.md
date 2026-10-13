@@ -122,3 +122,151 @@ emit `act=attack` and keep a real attack (and its follow walk) going.
 4. Churn: the shared layers changed at 19:06, 19:13, 19:17 and 19:20 and the binary at 19:11, all
    during this room's probes. Single-seed comparisons across those times were confounded (vp_v2h was
    measured on other layers than vp_v2g).
+
+## Batch 5-6 (2026-10-12, ZERO AVOIDABLE in P3; binary with C batches 5/6, forbid chasers)
+
+### Damage classification (`$S/vp/avoid.py` over `hit_player`)
+| source | perceived | class | why / content |
+|---|---|---|---|
+| her auto (seq 8124 magic, 8125 ranged, 14406 the crab summon riding one), prayed | seq, projectile; lands +2..+5 | UNAVOIDABLE | hits every raider (P4); prayed half only |
+| her auto, unprayed part | head icon at landing | AVOIDABLE | the prayer channel (measured 0 on every v2 seed) |
+| the ball's last holder, 49 | projectile 1598 chain | UNAVOIDABLE | tob_verzik.rs2 `~tob_verzik_ball_land`: Hard Mode hops end at `^tob_verzik_ball_max_bounces` 3; the next holder takes `^tob_verzik_hard_ball_bounce3` (49) every ball. In hp_worst as `ball-last` |
+| ball unbounced / exploded / hop 89 or 74 | roles | AVOIDABLE | lethal require-zones at the read |
+| tornado touch (npc 10863) | v1 owners | AVOIDABLE | CHASER `forbid = true` |
+| crab blast (10858-10860), every band incl. the flat 7 at gap 3 | v1 `S.blasts` | AVOIDABLE | forbid hits (gap 0-2 and 3) |
+| her melee | scans | AVOIDABLE | lethal zones (tank / away) |
+| webs, yellows on a shared pool, the knockback | as above | AVOIDABLE | forbid |
+| poison (source -1, 3-2-1 every 30 ticks) | | UNAVOIDABLE in P3 | carried in from P2 |
+
+### Model changes
+- Her step: path = HOLD; path_alt = her other step. That is the step that flips MY reach (in to out, or out to in) when my tornado is within 2; otherwise one random cardinal step when anyone is under her, the naive follow toward a known tank 2+ off, or a step toward me. Scored as the worse.
+- `under-her` soft cost 1.5 for every mode but the tank's.
+- `B.target` does not forward `path_alt`, so the room sets it on `B.spec.targets[i]`: a GAP in tob2_plan.lua.
+- The ball margin (read-1, read+1) stays PRICED. As a rule it outranked the tornado: vp_v2n/o went to 4/8 and 1/8 with 44-57 touches the plan took.
+
+### Results, vp1..vp8 (v1 = committed, vp_v1; v2 = vp_v2r)
+| | pass | P3 ticks | team dmg | avoidable (team, 8 seeds) | touches/seed | doses/seat/100 ticks (wields excluded) |
+|---|---|---|---|---|---|---|
+| v1 | 7/8 | 375 | 1237 | 371 (crabs 268, tornado 73, her 30) | 0.4 | 7.23 |
+| v2 | 8/8 | 360 | 1130 | 248 (crabs 138, tornado 110) | 0.4 | 6.75 |
+
+Avoidable per seed (v1 / v2):
+
+| seed | vp1 | vp2 | vp3 | vp4 | vp5 | vp6 | vp7 | vp8 |
+|---|---|---|---|---|---|---|---|---|
+| v1 / v2 | 80/76 | 28/42 | 42/7 | 7/14 | 42/35 | 79/28 | 7/0 | 86/46 |
+
+The residual is not yet 0:
+- Crab 7s at gap 3: the blast is decided one tick ahead, from an owner the v1 tracker guesses as the nearest raider. The P2 worker's owner-from-face rule is not yet ported.
+- Three tornado touches: chase routes that differed from the planner's route (vp2 t1036, vp7 t988 in vp_v2q).
+
+## Batch 7 (boosts, P3 spec weapons, the ball chain; installed 2026-10-12 as tob2_verzik_p3.va.lua)
+- BOOSTS: the room owns the boost potions (`VZ.boosts`; the shared supplies keep food, the brew floor,
+  the prayer restore and Piety). A super restore at Attack OR Strength 20 under base. A super combat
+  while either is under base+5 and both are within 8 of base. Measured on 8 seeds (`stat.py`, the
+  coordinator's stat marks): Attack and Strength both +10 or more on 50% of P3 seat-ticks, against v1's 44%
+  (v1 logs Attack only). At or under base 13-20% (v1 25%). Worst -38 to -66 (v1 -77).
+- SPEC WEAPONS: dragon_claws (500, two-handed), dragon_dagger (250), crystal_halberd (300, two-handed,
+  7 ticks). Taken from opts.spec_weapon; there is no default in P3. Two-handed swaps go back to the
+  tentacle and the parrying dagger. Every seat carried its weapon (40/40 for each weapon).
+- THE BALL:
+  - The landing reads the TARGET's tile, so the target and the next meet at a tile toward the next.
+    The target walks by as much as the next cannot cover in time.
+  - The next is the unvisited raider NEAREST the target. Seats out of view (the players list is about 15 tiles)
+    come from their last-seen tiles.
+  - The hold covers the projectile's own landing as well as v1's fixed +7.
+  - Deaths fixed: claws vp3 (two kinds of un-bounced ball).
+
+| (vp1..vp8) | pass | P3 ticks | team dmg | avoidable (team) | brew doses/seat | specials/seat |
+|---|---|---|---|---|---|---|
+| v1 | 7/8 | 375 | 1237 | 371 | 13.8 | - |
+| v2 claws (va_claws) | 7/8 | 321 | 1076 | 354 | 11.4 | 2.0 |
+| v2 dagger (va_dagger) | 7/8 | 335 | 1126 | 237 | 12.1 | 4.9 |
+| v2 halberd (va_halberd) | 8/8 | 359 | 1269 | 485 | 13.7 | 4.0 |
+
+Failures:
+- claws vp6: seat 1 starved. It entered with 19 brew doses (freezer kit) and left with 0, taking 383.
+- dagger vp4: seat 3 took an UNPREDICTED tornado touch (38; plan risk 0 at t880), then the
+  unavoidable last-holder 49.
+
+## Batch 8 (installed 2026-10-12 as tob2_verzik_p3.vf.lua): crab owner from its face, burning claws, level-scaled swings
+- CRABS (`VZ.crabs`, the content's rule verified on the tick log):
+  - The owner is voted from the face square: the drive stamps face_tick a tick early, so the tile is the owner's at the end of face_tick. A match on stacked seats gives no vote.
+  - The crab steps its SW tile toward the owner's tile on each axis.
+  - Arrival at now+1 is decided from the tiles seen now. The blast reads max(born+6, A), forbidden at gap <= 3.
+  - A crab not yet arrived forbids gap <= 1 at every tick end: one wider at step 1 while the owner is unknown, plus a possible-arrival band.
+  - A wrong arrival latch is dropped when the crab moves or outlives its read.
+  - v1's nearest-raider guess is gone.
+  - Crab damage on 8 claws seeds: 64 (batch 7: 125).
+- bone_claws (burning claws) in SPEC_WEAPONS: 350, two-handed, three hits. Value 33 x HP_PER_BOSS_HP, PROBE.
+- The swing's value is scaled by current Attack/Strength (a linear PROBE model, normalised at base+10).
+
+| (vp1..vp8) | pass | P3 ticks | team dmg | avoidable | touches/seed | att&str +10 | doses/seat/100t |
+|---|---|---|---|---|---|---|---|
+| v1 | 7/8 | 375 | 1237 | 371 | 0.4 | 44% (att only) | 7.2 |
+| batch 7, dragon claws | 7/8 | 321 | 1076 | 354 | 0.9 | 50% | 8.6 |
+| batch 8, dragon claws | 8/8 | 343 | 1141 | 360 | 1.0 | 51% | 8.5 |
+| batch 8, burning claws | 8/8 | 326 | 1057 | 486 | 1.1 | 50% | 9.3 |
+
+THE REMAINING TOUCHES ARE HER STEP. `offplan.py` and `herwhy.py` over the 17 touches in vf_claws and vf_bone:
+- 15 of 17 were a chase press whose end tile moved with her step. The server re-routed to her F1, as C batch 5 models.
+- Her step was neither hold nor my single path_alt.
+- 13 of 17 steps match no naive follow toward any seat, and no seat was under her.
+
+The planner needs MULTI-ALT for her (hold plus her 8 steps, the worst scored) whenever my tornado is within 2. One alt cannot name a step the content does not determine from what a seat sees.
+## Batch 9 (OFFLINE, $S/tob2_verzik_p3.vg_offline.lua; not installed until the 128 sweep ends)
+- Combats paced on QD.T2.budget.spendable (P3 reserve 0). Ticks left = her hp left (bar x 3500, + the 1050 HM
+  heal while she is over 5%) / team dps over her last 40 ticks. With spendable x 56 >= ticks left, free;
+  otherwise one dose every ticks-left / spendable.
+  vp (full kits): unchanged (8/8, 325 ticks, 1065 dmg, 5.0 combats a seat). The relay with the budget's
+  4-dose P3 share is where it matters.
+- BURNING CLAWS' extra avoidable damage is not the weapon. No avoidable hit landed within 6 ticks of a special
+  animation (bone 11140, dragon 7514: 0 of 432 / 0 of 354). The specials all fire early, before the enrage.
+  The difference is trajectory noise across 8 seeds (per-seed 0..164) plus long-flight autos (+6..+9 ticks
+  to far seats) that avoid.py's 2..5-tick window filed as "her other".
+- BOXED IN (the plan already had rule risk at k1, no legal tile): vg_bone vp6 t1032-1037, NE corner
+  6440-6446,79-81, three crabs arriving at once with tornadoes; vp8 t990-1000, east edge. Strategy
+  needed: keep off the walls while crabs are up.
+- KEEP A LEGAL TILE OPEN (offline, $S/tob2_verzik_p3.vh_offline.lua). While a crab is up:
+  - an arrival one tick LATER (its owner within 4 of the crab's next tile) prices the blast band at now+2, at 5;
+  - the edge margin is 5 at weight 1.0.
+  Burning claws, vp1..vp8:
+
+  | | pass | P3 ticks | team dmg | crab dmg | tornado | avoidable | rule-risk plans (crab) |
+  |---|---|---|---|---|---|---|---|
+  | vg_bone | 8/8 | 325 | 1065 | 249 | 250 | 501 | 13 |
+  | vh_bone | 8/8 | 318 | 1009 | 28 | 201 | 229 | 12 |
+- SPECIALS DUMPED (owner 2026-10-12, offline $S/tob2_verzik_p3.vs_offline.lua). Every swing with a special's energy
+  is a special, at the start and through the enrage. The wield is a held entry in the plan.
+  Burning claws, vp1..vp8:
+
+  | | pass | P3 ticks | team damage | avoidable | specials/seat | energy left |
+  |---|---|---|---|---|---|---|
+  | vh_bone (corner fix) | 8/8 | 318 | 1009 | 229 | 3.0 | - |
+  | vs_bone (dump) | 8/8 | 297 | 957 | 214 | 4.0 | 109 avg (under the 350 cost) |
+
+## Batch 10 (INSTALLED 2026-10-12, $S/tob2_verzik_p3.vp9.lua): batch 9 + corner fix + special dump + path_alts
+- Her nine options with my tornado within 2: hold (path) plus 8 one-step paths (path_alts), the worst chase scored.
+- Specials through QD.T2.budget.spec_ok and intents.spec_cost (exec.spec_gate). In P3 that is energy >= cost.
+- Burning claws, vp1..vp8:
+
+| | pass | P3 ticks | team dmg | tornado touches | avoidable (true) | specials/seat | plan nodes/seat |
+|---|---|---|---|---|---|---|---|
+| vs_bone (offline) | 8/8 | 297 | 957 | 6 | 214 | 4.0 | 2.67M |
+| vp9_bone | 8/8 | 288 | 888 | 0 | 8 (crab 7+1) | 4.0 | 2.59M |
+
+  avoid.py's "her other" (30) here is prayed autos with a 6-tick flight to far seats (<= 15 each), not avoidable.
+
+## Batch 11 (OFFLINE, $S/tob2_verzik_p3.v11_offline.lua; install after the r10 128 sweep)
+- relay_r10_128 f39, seat 3 dead at t3314 to 49 (the ball's last holder, predicted: le49 at t3312, hp 84,
+  no rescue needed) + 35 (HER MELEE, seq 8123, the same tick; seat 5 took 46 of it). The ball's "next"
+  (seat 2) was her tank. Its plan had rule risk 12 "scan" at t3312: the next's hold and the tank's scan
+  collided, and it kept the hold beside her. FIX: the ball's meeting tile is moved 3+ off her footprint
+  (BALL_OFF_HER), so neither holder is in her melee at a scan.
+- The last holder cannot be picked by hp: other seats' hp is not in the players list (no shared view of
+  it). The 49 is in the target's hp_worst, and the rescue covers it.
+- path_alts gate widened to 3 (ALTS_GATE): vq_bone vp6's two touches had the tornado 3 off at the
+  decision, and a 2-tile chase toward it.
+- f39 (full relay, hm_relay_v2.lua): PASS. Burning claws, vp1..vp8 (vq2_bone): 8/8, P3 295, team 885,
+  touches 0, avoidable crab 8 + one melee (vp7 t1024, 60 on seat 5: no seat's plan broke a scan rule, so
+  some seat misread who her tank was - v1's face perception, open).

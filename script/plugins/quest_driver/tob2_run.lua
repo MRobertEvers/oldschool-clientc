@@ -36,8 +36,17 @@ end
 function QD.T2.resources(S, F)
     local want = S.t2.want
     local res = {}
+    -- THE BUDGET (tob2_budget.lua): a kind whose stock is at or under the
+    -- later rooms' reserve is not offered to the supplies at all (its id
+    -- list emptied for this one call). Absent on a binary whose parts list
+    -- predates the file: then no reserve.
+    local saved = S.ids
+    if QD.T2.budget and QD.T2.budget.filtered_ids then
+        S.ids = QD.T2.budget.filtered_ids(S, F)
+    end
     QD.raid._tob_supplies(S, F, { eat_below = want.eat_below, brew_below = want.brew_below,
                                   boost = want.boost, boost_stat = want.boost_stat }, res)
+    S.ids = saved
     return res
 end
 
@@ -114,6 +123,33 @@ function QD.T2.schedule(S, F, B, intents)
     if intents.drop then
         B.held({ name = "drop", t = held_t, ends_attack = true, swing_delay = 0 })
         backpack = true
+    end
+    -- THE SPEC CHANNEL'S PLAN: a dump the executive may make this tick
+    -- (budget.dump_due, the hammer in the pack, a melee spec_ok target, no
+    -- gear change and no special or cast of the room's): the wield as a held
+    -- entry, the special as the target's value x SPEC_VALUE.
+    S.x2.dump_plan = nil
+    if QD.T2.budget and QD.T2.budget.dump_due and S.x2.dump == nil and not intents.spec and not intents.cast
+        and not QD.T2.exec.gear_due(S, F, intents) then
+        local Bu = QD.T2.budget
+        if Bu._dump_id == nil then
+            local r, id = api_drive.symbol("obj", Bu.DUMP_WEAPON)
+            assert(r == "ok", "tob2 spec: no obj " .. Bu.DUMP_WEAPON)
+            Bu._dump_id = id
+        end
+        if QD.raid._tob_count(S, Bu._dump_id) > 0 and Bu.dump_due(S, Bu.SPEC_COST[Bu.DUMP_WEAPON]) then
+            local any = false
+            for i, m in pairs(B.tmeta) do
+                if m.spec_ok and (m.range or 1) <= 1 then
+                    any = true
+                    B.spec.targets[i].value = B.spec.targets[i].value * QD.T2.V.SPEC_VALUE
+                end
+            end
+            if any then
+                B.held({ name = "spec-wield", t = now + 1, ends_attack = true, swing_delay = 0 })
+                S.x2.dump_plan = { weapon = Bu._dump_id }
+            end
+        end
     end
     if QD.T2.exec.unequip_due(S, F, intents) then
         local t = (not QD.T2.V.TAB_SETTLES and (praying or backpack)) and (now + 2) or (now + 1)
@@ -204,7 +240,11 @@ function QD.T2.trace_tick(S, F, B, intents)
     if api_drive.ticklog_mark ~= nil then
         api_drive.ticklog_mark("t2 p" .. tostring(F.pid) .. " " .. line
             .. string.format(" s%.1f i%s sr%s le%.0f lm%.0f hp%d", r.soft or 0, tostring(B.spec.inter), tostring(B.spec.swing_ready),
-                r.land_exp or 0, r.land_max or 0, F.hp or -1))
+                r.land_exp or 0, r.land_max or 0, F.hp or -1)
+            -- the boosted Attack / Strength (levels over base: the budget's
+            -- monitor, the P3 "st" probe made permanent)
+            .. string.format(" a%ds%d", F.levels and F.levels.attack and (F.levels.attack.level - F.levels.attack.base) or 0,
+                F.levels and F.levels.strength and (F.levels.strength.level - F.levels.strength.base) or 0))
     end
     if mode ~= S.t2.mode then
         QD.raid._tob_trace(S, F.tick, "mode " .. tostring(S.t2.mode) .. " -> " .. mode)
@@ -232,6 +272,7 @@ function QD.T2.step(S, F, room)
     end
     S.t2.overheads[F.tick] = lit
     S.t2.overheads[F.tick - 64] = nil
+    if QD.T2.budget and QD.T2.budget.tick then QD.T2.budget.tick(S, F) end
     QD.T2.monitor.check(S, F)
     local res = QD.T2.resources(S, F)
     local B = QD.T2.builder(S, F, S.t2.plan_opts)
@@ -249,7 +290,9 @@ function QD.T2.step(S, F, room)
 end
 
 function QD.T2.summary(S, room)
-    local extra = (room.summary and room.summary(S)) or ""
+    -- (the monitor's counts first: the relay cuts the detail)
+    local extra = QD.T2.monitor.counts(S) .. "; " .. ((room.summary and room.summary(S)) or "")
+    if QD.T2.budget and QD.T2.budget.summary then extra = extra .. "; " .. QD.T2.budget.summary(S) end
     local R = S.t2.rescues
     if R then
         extra = extra .. string.format("; rescues asked %d taken %d no-gain %d none-left %d", R.asked, R.taken,

@@ -401,7 +401,7 @@ QD.T2.rooms.verzik_p2 = {
                 end
                 local her = function(v)
                     B.target{ name = "her", npc = b, size = P.SIZE, path = { { x = b.x, z = b.z } }, range = 1,
-                        speed = X.TENTACLE.speed, value = v, t_ok0 = t_ok0, t_ok1 = t_ok1 }
+                        speed = X.TENTACLE.speed, value = v, t_ok0 = t_ok0, t_ok1 = t_ok1, spec_ok = true }
                 end
                 local red, leave = QD.VZ2P2F.my_red(S, F)
                 if QD.VZ2P2F.ath_mine(S, F) then

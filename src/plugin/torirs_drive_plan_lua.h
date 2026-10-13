@@ -389,6 +389,8 @@ DrivePlanLua(
  *                refuse_under_way [true], swings_max [0 = unlimited],
  *                path_alt = { {x, z}, ... } [none] (the npc's other possible
  *                  step per k, same layout as path: the WORSE chase is kept),
+ *                path_alts = { { {x, z}, ... }, ... } [none] (more of them;
+ *                  path_alt + path_alts <= 9 in all, the WORST chase kept),
  *                swing_costs = { {x0, z0, x1, z1 | x, z, size [1], t0, t1 [t0],
  *                                 dmg_exp [0], dmg_max [dmg_exp], stun [0],
  *                                 forbid [false]}, ... } (<= 16)} }
@@ -402,7 +404,8 @@ DrivePlanLua(
  *   marks   = { {t_mark (>= now), r [0], t0, t1 [t0], sample, dmg_exp,
  *                dmg_max, stun, forbid} }
  *   held    = { {t, ends_attack [false], swing_delay [0], heal [0]} }
- *   chasers = { {x, z, dmg_exp, dmg_max [dmg_exp]} }
+ *   chasers = { {x, z, dmg_exp (required unless forbid), dmg_max [dmg_exp],
+ *                forbid [false]} }   a forbid touch is risk_rule, not damage
  *   watchers = { {x, z, size [1], t0, t1 [t0], dmg_exp [0], dmg_max [dmg_exp],
  *                 stun [0], forbid [false]} }  (<= 128) seen by plan's near-edge
  *                 rule, charged on the tick-end tile; footprint inside the scene
@@ -460,6 +463,40 @@ drive_aplan_push_why(lua_State* L, int kind, int index, int k)
         assert(kind < (int)(sizeof(kinds) / sizeof(kinds[0])));
         lua_pushfstring(L, "%s[%d] k%d", kinds[kind], index + 1, k);
     }
+}
+
+/* the footprint path list on top of the stack as target tg's next
+ * alternative (`which` 0 = path_alt, else path_alts[which]) */
+static void
+drive_aplan_read_alt(lua_State* L, struct ActionPlanTarget* tg, int ti, int which, struct CollisionMap* cm,
+                     int base_x, int base_z)
+{
+    int a = tg->n_alts;
+    int pn, p;
+    if( !lua_istable(L, -1) )
+        luaL_error(L, "aplan: targets[%d] alternative %d is not a list", ti, which);
+    if( a >= ACTION_PLAN_ALTS_MAX )
+        luaL_error(L, "aplan: targets[%d] has more than %d alternatives (path_alt + path_alts)", ti,
+                   ACTION_PLAN_ALTS_MAX);
+    pn = (int)lua_rawlen(L, -1);
+    if( pn < 1 || pn > ACTION_PLAN_H_MAX + 1 )
+        luaL_error(L, "aplan: targets[%d] alternative %d has %d entries, 1..%d", ti, which, pn, ACTION_PLAN_H_MAX + 1);
+    for( p = 1; p <= pn; p++ )
+    {
+        int e, px, pz;
+        lua_rawgeti(L, -1, p);
+        luaL_checktype(L, -1, LUA_TTABLE);
+        e = lua_gettop(L);
+        px = drive_plan_field_int(L, e, "x", 0, 1) - base_x;
+        pz = drive_plan_field_int(L, e, "z", 0, 1) - base_z;
+        if( px < 0 || pz < 0 || px + tg->size > cm->size_x || pz + tg->size > cm->size_z )
+            luaL_error(L, "aplan: targets[%d] alternative %d [%d] is outside the scene", ti, which, p);
+        tg->alt_x[a][p - 1] = px;
+        tg->alt_z[a][p - 1] = pz;
+        lua_pop(L, 1);
+    }
+    tg->alt_n[a] = pn;
+    tg->n_alts = a + 1;
 }
 
 static int
@@ -600,31 +637,27 @@ DriveActionPlanLua(
         }
         tg->path_n = pn;
         lua_pop(L, 1); /* path */
+        /* path_alt (one alternative) and path_alts (a list of them), both
+         * into the same up-to-9 alternatives */
         lua_getfield(L, k, "path_alt");
         if( !lua_isnil(L, -1) )
+            drive_aplan_read_alt(L, tg, i, 0, cm, base_x, base_z);
+        lua_pop(L, 1); /* path_alt */
+        lua_getfield(L, k, "path_alts");
+        if( !lua_isnil(L, -1) )
         {
+            int na;
             if( !lua_istable(L, -1) )
-                luaL_error(L, "aplan: targets[%d].path_alt is not a list", i);
-            pn = (int)lua_rawlen(L, -1);
-            if( pn < 1 || pn > ACTION_PLAN_H_MAX + 1 )
-                luaL_error(L, "aplan: targets[%d].path_alt has %d entries, 1..%d", i, pn, ACTION_PLAN_H_MAX + 1);
-            for( p = 1; p <= pn; p++ )
+                luaL_error(L, "aplan: targets[%d].path_alts is not a list", i);
+            na = (int)lua_rawlen(L, -1);
+            for( p = 1; p <= na; p++ )
             {
-                int e, px, pz;
                 lua_rawgeti(L, -1, p);
-                luaL_checktype(L, -1, LUA_TTABLE);
-                e = lua_gettop(L);
-                px = drive_plan_field_int(L, e, "x", 0, 1) - base_x;
-                pz = drive_plan_field_int(L, e, "z", 0, 1) - base_z;
-                if( px < 0 || pz < 0 || px + tg->size > cm->size_x || pz + tg->size > cm->size_z )
-                    luaL_error(L, "aplan: targets[%d].path_alt[%d] is outside the scene", i, p);
-                tg->alt_x[p - 1] = px;
-                tg->alt_z[p - 1] = pz;
+                drive_aplan_read_alt(L, tg, i, p, cm, base_x, base_z);
                 lua_pop(L, 1);
             }
-            tg->alt_n = pn;
         }
-        lua_pop(L, 1); /* path_alt */
+        lua_pop(L, 1); /* path_alts */
         lua_pop(L, 1); /* target */
     }
     spec.n_targets = n;
@@ -720,9 +753,10 @@ DriveActionPlanLua(
         k = lua_gettop(L);
         c->x = drive_plan_field_int(L, k, "x", 0, 1) - base_x;
         c->z = drive_plan_field_int(L, k, "z", 0, 1) - base_z;
+        c->forbid = drive_aplan_bool(L, k, "forbid");
         lua_getfield(L, k, "dmg_exp");
-        if( lua_isnil(L, -1) )
-            luaL_error(L, "aplan: chasers[%d].dmg_exp is required", i);
+        if( lua_isnil(L, -1) && !c->forbid )
+            luaL_error(L, "aplan: chasers[%d].dmg_exp is required (or forbid = true)", i);
         lua_pop(L, 1);
         c->dmg_exp = drive_plan_field_num(L, k, "dmg_exp", 0.0);
         c->dmg_max = drive_plan_field_num(L, k, "dmg_max", c->dmg_exp);

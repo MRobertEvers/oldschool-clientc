@@ -274,3 +274,36 @@ Results, the same 48 seeds (mb1..mb48), committed v1 vs v2:
 v1 here is the COMMITTED v1 (41c470cba) on committed content (c3d2c922c9); the
 main tree's uncommitted v1 work is newer. The live lane is not yet checked
 (every-solver-identical-ticklogs): the client objects compile, no live run.
+
+## The RESOURCE layer (2026-10-12): the relay's supplies as one budget
+
+The local planner sees 12 ticks; relays die in Verzik P3 of a problem spread over the whole raid. Measured on
+the 128-seed all-v2 relay (runs/relay_v2_128, team doses per relay):
+
+| room | brew | food | restore | combat |
+|---|---|---|---|---|
+| maiden | 3.4 | 3.9 | 11.3 | 5.2 |
+| nylocas | 10.6 | 4.3 | 24.6 | **21.6** |
+| sotetseg | **48.8** (fail runs 63.7) | 0.1 | 31.3 | 0.7 |
+| xarpus | 5.8 | 3.0 | 1.8 | 0 |
+| verzik (P1-P3) | 52.2 | 18.3 | 60.1 | 9.9 (P3: **5**) |
+
+P3 is fought with one super combat dose per seat (35 of the kit's 40 are gone before Verzik), and every brew dose
+drains Attack/Strength by about 10% + 2: a seat that brews loses its boost and never gets it back. Failing relays
+spent 17 more brew doses before P3 and then needed 52 more P3 ticks (412 vs 360), each tick an auto on every seat.
+
+THE LAYER (`tob2_budget.lua`, shared, used by QD.T2.resources in every v2 room):
+
+1. STOCK: per seat, the doses and food carried, read from the pack each tick (brew, food, restore, combat,
+   ranging), plus the chest purchases the relay makes.
+2. NEED: per remaining room, the doses it needs per seat, from the measured relay table above (the passing
+   relays' median), with Verzik's split into P1+P2 and P3. Owner rule kept: every room still boosts ("use
+   supercombats throughout every room"); it spends only its share.
+3. RESERVE: what later rooms need. A room may drink only stock minus reserve, except the rescue on predicted death,
+   which ignores the reserve (a death ends the relay sooner than any shortage).
+4. P3 POLICY (tob2_verzik_p3.lua on the budget's API): heal with FOOD while boosted (food does not drain);
+   brew only to the floor; after brews, a super restore once Attack or Strength is 20 under base, then a super
+   combat when either is under base + 5, while doses last; the swing's value = its expected damage at the CURRENT
+   boosted levels and weapon × HP_PER_BOSS_HP, so a drained seat sees what a restore and re-dose buys.
+5. MONITOR: per room, the doses spent against its share; per P3 tick, the boosted Attack/Strength (the "st" probe
+   made permanent in the decision log).

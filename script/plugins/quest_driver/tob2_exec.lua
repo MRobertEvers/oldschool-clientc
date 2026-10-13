@@ -285,6 +285,30 @@ function QD.T2.exec.world_op_send(w)
     return "not_found"
 end
 
+-- May a room's own special go out (intents.spec)? Through the budget:
+-- the cost is intents.spec_cost, else the worn weapon's (budget.SPEC_COST),
+-- else 500. Dawnbringer is exempt: P1 cannot end without its specials.
+-- Absent budget (an old parts list): yes.
+function QD.T2.exec.spec_gate(S, F, intents)
+    local Bu = QD.T2.budget
+    if Bu == nil or Bu.spec_ok == nil then return true end
+    if Bu._spec_ids == nil then
+        Bu._spec_ids = {}
+        for name, cost in pairs(Bu.SPEC_COST) do
+            local r, id = api_drive.symbol("obj", name)
+            if r == "ok" then Bu._spec_ids[id] = { name = name, cost = cost } end
+        end
+    end
+    local cost = intents.spec_cost
+    if cost == nil then
+        local wr, wcell = api_drive.inv_slot(S.ids.worn, 3)
+        local w = wr == "ok" and wcell and Bu._spec_ids[wcell.obj_id] or nil
+        if w and w.name == "dawnbringer" then return true end
+        cost = (w and w.cost) or 500
+    end
+    return Bu.spec_ok(S, cost)
+end
+
 -- The hitpoints a food or a potion gives (consume_shared.rs2 / food.rs2 /
 -- sara_brew.rs2): anglerfish 22% of base, a brew 2 + 15% of base, any other
 -- food FOOD_HEAL, any other potion 0.
@@ -491,6 +515,38 @@ function QD.T2.exec.emit(S, F, result, intents)
         held_sent = held_sent or { kind = "unequip", heal = 0, w0 = X.swing_next, w = X.swing_next }
         interrupted = true   -- E4: an unequip ends the swing as a held op does
     end
+    -- THE SPEC CHANNEL (use it or lose it; tob2_budget.lua SPECIAL ENERGY):
+    -- the hammer back to the main weapon the tick after a dump, unless the
+    -- room's own gear set does it; then a new dump when the schedule planned
+    -- one (S.x2.dump_plan) and step 1 swings at a melee target the room
+    -- marked spec_ok: the hammer on, the orb armed (below), the attack
+    -- pressed again (E4) -- the special goes out on the swing.
+    local dumping = false
+    if X.dump ~= nil and d > X.dump.t then
+        local wr, wcell = api_drive.inv_slot(ids.worn, 3)
+        local worn_now = wr == "ok" and wcell and wcell.obj_id or nil
+        if X.dump.main ~= nil and worn_now ~= X.dump.main and not gear then
+            x2_send(S, F, "held", "wield back " .. X.dump.main, QD.raid._tob_held(S, X.dump.main, QD.TOBS.OP_WIELD))
+            held_sent = held_sent or { kind = "wield", heal = 0, w0 = X.swing_next, w = X.swing_next, t = d }
+            interrupted = true
+        end
+        X.dump = nil
+    elseif X.dump_plan ~= nil and not gear and not intents.spec and not intents.cast and p1.act == "attack"
+        and p1.swing and p1.tgt and result.tmeta[p1.tgt] and result.tmeta[p1.tgt].spec_ok
+        and (result.tmeta[p1.tgt].range or 1) <= 1 then
+        local wr, wcell = api_drive.inv_slot(ids.worn, 3)
+        local main = wr == "ok" and wcell and wcell.obj_id or nil
+        local r = QD.raid._tob_held(S, X.dump_plan.weapon, QD.TOBS.OP_WIELD)
+        x2_send(S, F, "held", "spec wield " .. X.dump_plan.weapon, r)
+        if r == "ok" then
+            X.dump = { t = d, main = main }
+            X.dumps = (X.dumps or 0) + 1
+            dumping = true
+            interrupted = true
+            held_sent = held_sent or { kind = "wield", heal = 0, w0 = X.swing_next, w = X.swing_next, t = d }
+        end
+    end
+    X.dump_plan = nil
     if held_sent then held_sent.t = d end
 
     -- ------------------------------------------------ INTERACTION: the intention
@@ -569,7 +625,9 @@ function QD.T2.exec.emit(S, F, result, intents)
     -- ---------------------------------------------------------- SPECIAL (E8)
     -- the orb is a TOGGLE: pressed only while it is not armed, for an attack
     X.special.state = F.spec_armed and "armed" or "off"
-    if intents.spec and want.mode == "attack" and not F.spec_armed and d - X.special.pressed >= V.SPEC_GAP then
+    -- (a room's own special goes through the budget too: QD.T2.exec.spec_gate)
+    if (dumping or (intents.spec and QD.T2.exec.spec_gate(S, F, intents))) and want.mode == "attack"
+        and not F.spec_armed and d - X.special.pressed >= V.SPEC_GAP then
         x2_send(S, F, "special", "orb", api_drive.if_click(ids.spec_orb, 1))
         X.special.pressed = d
     end
@@ -654,6 +712,8 @@ function QD.T2.exec.emit(S, F, result, intents)
                 I.state, I.npc, I.key, I.tgt, I.sent, I.x, I.z = "attacking", n, key, want.tgt, d, nil, nil
                 local meta = result.tmeta and result.tmeta[want.tgt]
                 if meta then X.swing_speed = meta.speed end
+                -- (a dump's swing is the hammer's: its speed sets the clock)
+                if dumping and QD.T2.budget then X.swing_speed = QD.T2.budget.DUMP_SPEED end
                 pressed = true
             else
                 -- a refused press: idle, so the next tick presses again

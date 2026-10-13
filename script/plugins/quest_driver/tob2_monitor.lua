@@ -21,7 +21,20 @@
 QD.T2 = QD.T2 or {}
 QD.T2.monitor = QD.T2.monitor or {}
 
-QD.T2.MON_RULES = { "move", "swing", "refused", "threat", "stall", "held", "gap" }
+QD.T2.MON_RULES = { "move", "swing", "refused", "threat", "stall", "held", "gap", "defender", "run" }
+
+-- THE RUN GUARD (owner: "you must be running the whole time"): in a Verzik
+-- phase, run energy under RUN_GUARD (of 10000; 30%) or run toggled off is a
+-- `run` mismatch. (Measured 2026-10-12: Verzik's minimum was 58%.)
+QD.T2.RUN_GUARD = 3000
+
+-- THE DEFENDER (owner: "YOU MUST keep the dragon defender ... it gives a
+-- large melee dps boost"): a swing with a one-handed melee weapon while the
+-- shield slot does not hold the dragon_parryingdagger is a `defender`
+-- mismatch (it comes off for Maiden's cast set, the blowpipe and P3's
+-- two-handed specials, and must go back on before the next melee swing).
+QD.T2.ONE_HANDED_MELEE = { "abyssal_tentacle", "abyssal_whip", "ghrazi_rapier", "blade_of_saeldor",
+                           "dragon_warhammer", "inquisitors_mace", "dragon_scimitar", "abyssal_bludgeon" }
 
 function QD.T2.monitor.init(S)
     assert(S)
@@ -34,6 +47,14 @@ function QD.T2.monitor.init(S)
     local er, eat_seq = api_drive.symbol("seq", "human_eat")
     assert(er == "ok", "tob2 monitor: no seq named human_eat")
     M.not_swing[eat_seq] = true
+    M.one_handed = {}
+    for _, name in ipairs(QD.T2.ONE_HANDED_MELEE) do
+        local r, id = api_drive.symbol("obj", name)
+        if r == "ok" then M.one_handed[id] = name end
+    end
+    local dr, did = api_drive.symbol("obj", "dragon_parryingdagger")
+    assert(dr == "ok", "tob2 monitor: no obj named dragon_parryingdagger")
+    M.defender = did
     for _, r in ipairs(QD.T2.MON_RULES) do M.rules[r] = { n = 0, checked = 0, traced = 0 } end
     S.mon = M
 end
@@ -119,6 +140,31 @@ function QD.T2.monitor.check(S, F)
         if X.swing_speed ~= nil then X.swing_next = stamp + X.swing_speed end
         F.my_swing_stamp = stamp
     end
+    -- the run guard: Verzik on a full-enough run, toggled on
+    local room_name = S.t2 and S.t2.room or ""
+    if string.sub(room_name, 1, 6) == "verzik" then
+        local R = M.rules.run
+        R.checked = R.checked + 1
+        if not F.run_on or (F.run_energy or 0) < QD.T2.RUN_GUARD then
+            QD.T2.monitor.note(S, "run", d, room_name .. " run " .. (F.run_on and "on" or "OFF") .. " energy "
+                .. tostring(F.run_energy))
+        end
+    end
+    -- the defender rule: a one-handed melee swing without the defender
+    if F.my_swing and S.ids.worn then
+        local wr, wcell = api_drive.inv_slot(S.ids.worn, 3)
+        local weapon = wr == "ok" and wcell and wcell.obj_id or nil
+        if weapon ~= nil and M.one_handed[weapon] then
+            local R = M.rules.defender
+            R.checked = R.checked + 1
+            local sr, scell = api_drive.inv_slot(S.ids.worn, 5)
+            local shield = sr == "ok" and scell and scell.obj_id or -1
+            if shield ~= M.defender then
+                QD.T2.monitor.note(S, "defender", d, M.one_handed[weapon] .. " swing (seq " .. tostring(F.my_seq)
+                    .. ") with shield slot " .. tostring(shield) .. " in " .. tostring(S.t2 and S.t2.room))
+            end
+        end
+    end
     -- the held rule: a swing must not come before the clock the held op left
     -- (food: +FOOD_ATTACK_DELAY on a running delay, else nothing)
     if M.held_open and F.my_swing then
@@ -198,6 +244,20 @@ function QD.T2.monitor.check(S, F)
 end
 
 -- "mon move 3/120 swing 1/40 ..." (mismatches / checks per rule)
+-- The counts alone ("mon move 2/305 ... defender 0/40 swings 92"), short
+-- enough to lead the solver summary: the relay cuts a room's detail at
+-- opts.detail characters, and the counts sat behind the room's own text.
+function QD.T2.monitor.counts(S)
+    local M = S.mon
+    if M == nil then return "mon -" end
+    local out = {}
+    for _, r in ipairs(QD.T2.MON_RULES) do
+        local R = M.rules[r]
+        out[#out + 1] = r .. " " .. R.n .. "/" .. R.checked
+    end
+    return "mon " .. table.concat(out, " ") .. " swings " .. M.swings
+end
+
 function QD.T2.monitor.summary(S)
     local M = S.mon
     if M == nil then return "mon -" end

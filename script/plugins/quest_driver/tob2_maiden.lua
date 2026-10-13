@@ -166,7 +166,9 @@ QD.MAIDEN_V2 = {
     -- on after a restore sip at t355) and the 4s walked in unfrozen at t360.
     -- On a tick a cast is due, no prayer press and no sip or bite unless my hp
     -- is under CAST_HOLD_HP (a leak is ~33 hp; a sip a tick late is nothing).
-    CAST_HOLD_HP = 40,                       -- the cast set's wield + the press after it (one panel a tick, E9)
+    CAST_HOLD_HP = 40,
+    POINT_SLACK = 1,                       -- a crab first seen this far off a point, no wave under way (v1 main tree)
+    SNAP_TICKS = 60,                       -- a wave this recent: a crab first seen on a spawn path is its                       -- the cast set's wield + the press after it (one panel a tick, E9)
     RATE_TICKS = 12, RATE_MIN_DT = 4,      -- her permille rate: over the last RATE_TICKS ticks, at least RATE_MIN_DT
     -- the DPS's wave tiles off their tank turn: Chebyshev 4 from her centre
     -- (owner 2026-10-12: "Maiden non-freezer seats should alternate accepting
@@ -213,9 +215,16 @@ function MV.observe(S, F)
     QD.raid._maiden_clock(S, F)
     QD.raid._maiden_pools(S, F)
     QD.raid._maiden_trails(S, F)
+    local snapped = MV.snap_crabs(S, F)
     QD.raid._maiden_crabs(S, F)
     QD.raid._maiden_hm_marks(S, F)
     QD.raid._maiden_hm_wave(S, F)
+    -- a wave seen only after its first step (every crab snapped back a tick
+    -- or more): v1's wave reads `born == F.tick`, so it is given the spawn
+    -- tick as its tick (it reads only F.tick and F.crabs)
+    if snapped ~= nil and not (S.wave and S.wave.t0 == snapped) then
+        QD.raid._maiden_hm_wave(S, { tick = snapped, crabs = F.crabs })
+    end
     -- HER CADENCE: either attack; the gap measured, and it only shortens
     -- (HM ramps; a gap under 3 is a seq seen twice, not a cadence)
     if S.storms ~= storms or S.throws ~= throws then
@@ -231,6 +240,66 @@ function MV.observe(S, F)
     -- next threshold, for the prewave and the spawn freezes before a wave
     M.pm_hist[#M.pm_hist + 1] = { t = F.tick, pm = F.permille }
     while #M.pm_hist > 0 and M.pm_hist[1].t < F.tick - QD.MAIDEN_V2.RATE_TICKS do table.remove(M.pm_hist, 1) end
+end
+
+-- A CRAB FIRST SEEN OFF ITS SPAWN POINT (relay f7, p5 t244: S4i spawned on
+-- (49,22) at t243 out of p5's view from (24,27), first seen at t244 on (48,23)
+-- after its first step; the worktree's v1 _maiden_crabs gave it no point and
+-- born = now, and _maiden_hm_wave asserted "a crab spawned on no spawn point").
+-- The main tree's v1 snaps within POINT_SLACK; this reconstructs further: a
+-- crab of the wave under way is on its point's greedy path (her south-east
+-- tile, diagonal first) at some step since the wave's tick (walking, or
+-- frozen on the way), so its record is made here - point, born = the wave's
+-- tick - before v1's tracker sees it. No wave under way: the nearest point
+-- within POINT_SLACK, born that many ticks back. Neither: left to v1, whose
+-- assert stands (a crab on no spawn point's path is a contract break).
+-- -> the spawn tick of a crab snapped back to a tick without a wave, or nil.
+function MV.snap_crabs(S, F)
+    local V, X, M = QD.MAIDEN, QD.MAIDEN_V2, S.t2m
+    local tx, tz = V.BODY.x + V.SIZE - 1, V.BODY.z
+    local keys = {}
+    for key in pairs(V.POINTS) do keys[#keys + 1] = key end
+    table.sort(keys)
+    local new_born = nil
+    for _, c in ipairs(F.crabs) do
+        local lx, lz = c.x - S.base.x, c.z - S.base.z
+        if S.crab_rec[c.slot] == nil and V.POINTS[lx .. "," .. lz] == nil then
+            local best, born, bk = nil, nil, nil
+            local W = S.wave
+            if W ~= nil and F.tick - W.t0 >= 1 and F.tick - W.t0 <= X.SNAP_TICKS then
+                local n = F.tick - W.t0
+                for _, key in ipairs(keys) do
+                    local px, pz = key:match("^(%-?%d+),(%-?%d+)$")
+                    local x, z = tonumber(px), tonumber(pz)
+                    for k = 0, n do
+                        if x == lx and z == lz then
+                            -- (the walking match, k == n, before a frozen one)
+                            local rank = (k == n) and 0 or 1
+                            if best == nil or rank < bk then best, born, bk = V.POINTS[key], W.t0, rank end
+                            break
+                        end
+                        x = x + ((tx > x) and 1 or ((tx < x) and -1 or 0))
+                        z = z + ((tz > z) and 1 or ((tz < z) and -1 or 0))
+                    end
+                end
+            end
+            if best == nil then
+                for _, key in ipairs(keys) do
+                    local px, pz = key:match("^(%-?%d+),(%-?%d+)$")
+                    local d = cheb(lx, lz, tonumber(px), tonumber(pz))
+                    if d <= X.POINT_SLACK and (bk == nil or d < bk) then best, born, bk = V.POINTS[key], F.tick - d, d end
+                end
+                if best ~= nil then new_born = born end
+            end
+            if best ~= nil then
+                S.crab_rec[c.slot] = { born = born, x = c.x, z = c.z, point = best }
+                M.snapped = M.snapped + 1
+                QD.raid._tob_trace(S, F.tick, "crab slot" .. c.slot .. " first seen on " .. lx .. "," .. lz
+                    .. ": " .. best .. ", born t" .. born)
+            end
+        end
+    end
+    return new_born
 end
 
 -- Ticks until her hp crosses the next threshold at the recent rate, or nil
@@ -414,7 +483,7 @@ end
 function MV.her_target(S, F, B, swing, range, name)
     local X = QD.MAIDEN_V2
     return B.target{ name = name, npc = F.boss, size = QD.MAIDEN.SIZE, path = { { x = F.boss.x, z = F.boss.z } },
-        range = range, speed = swing.speed, value = swing.exp * X.HP_PER_BOSS_HP }
+        range = range, speed = swing.speed, value = swing.exp * X.HP_PER_BOSS_HP, spec_ok = true }
 end
 
 function MV.crowd(F, c)
@@ -827,7 +896,7 @@ QD.T2.rooms.maiden = {
             storm_ticks = {},
             ground = {}, ground_on = {},
             crab_last = {}, leaks = 0, kills = 0, leak_log = {},
-            slug_thaw = {}, pm_hist = {}, rescues = 0, rescue_slot = nil, claims = 0,
+            slug_thaw = {}, pm_hist = {}, rescues = 0, rescue_slot = nil, claims = 0, snapped = 0,
             opener = nil, taken = 0, last_hp = nil,
         }
     end,
@@ -1060,8 +1129,8 @@ QD.T2.rooms.maiden = {
         local modes = {}
         for k, n in pairs(M.modes) do modes[#modes + 1] = k .. "=" .. n end
         table.sort(modes)
-        return string.format("maiden v2: modes %s; rescues %d; panel claims %d; taken %d; storms %d (on me %d), throws %d; waves %d; leaks %d (%s), kills %d; froze %d (%s); casts %s; storm targets %s; cast lag %d",
-            table.concat(modes, " "), M.rescues, M.claims, M.taken, S.storms, M.on_me, S.throws, S.waves, M.leaks,
+        return string.format("maiden v2: modes %s; rescues %d; panel claims %d; crabs snapped %d; taken %d; storms %d (on me %d), throws %d; waves %d; leaks %d (%s), kills %d; froze %d (%s); casts %s; storm targets %s; cast lag %d",
+            table.concat(modes, " "), M.rescues, M.claims, M.snapped, M.taken, S.storms, M.on_me, S.throws, S.waves, M.leaks,
             table.concat(M.leak_log, " "), M.kills, #S.freeze_log, table.concat(S.freeze_log, " "),
             table.concat(S.cast_log, " | "), table.concat(M.storm_log, " "), S.cast_lag)
     end,

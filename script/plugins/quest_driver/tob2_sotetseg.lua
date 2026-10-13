@@ -76,7 +76,14 @@ QD.SOTE_V2 = {
     -- the pair's eat floor (v1 main tree DEATH_MODE): fight FIGHT_EAT; soon
     -- (DEATH_SOON casts on) and the flight: 2 x 188 / n + 5, + RICOCHET_HIT
     -- with an ordinary landing beside the pair, capped at a brew's overheal
-    FIGHT_EAT = 50, DEATH_SOON = 8, RICOCHET_HIT = 40, HEAL_CAP = 115,
+    -- THE PAIR'S FLOOR, to what the share can take and no more (Sotetseg
+    -- was the relay's biggest brew sink, 48.8 doses a relay, 63.7 in failing
+    -- ones; relay_v2_128): 2 x 188 / n + 5. RICOCHET_HIT is 0 now: v1 added
+    -- 40 for an ordinary landing beside the pair (all128f, before the prayer
+    -- channel named ricochet victims), which floored seats at 115 - brews
+    -- over 99, overheal - for hits that are prayed (r6_sote: 35 hp of
+    -- two-style hits in 48 runs)
+    FIGHT_EAT = 50, DEATH_SOON = 8, RICOCHET_HIT = 0, HEAL_CAP = 115,
     -- THE HOLD: the next threshold's permille (the maze procs at <= 666 and
     -- <= 333, S.rs2 ~tob_sote_check_maze; 0 = his death). HOLD_PM above it
     -- the team stops; the burst must cross by land - BURST_STOP (a crossing
@@ -107,6 +114,7 @@ function SV.observe(S, F)
     end
     M.obs_tick, M.obs_F = F.tick, F
     local was_maze = S.in_maze
+    local prev_live = S.proj_live
     QD.raid._sote_measure(S, F)
     if F.boss then S.seen_boss = true end
     local _, pm = api_drive.varbit(S.ids.hud)
@@ -120,7 +128,7 @@ function SV.observe(S, F)
     -- next it named maze 1's tiles known - probe so1 t370-376, five rags on
     -- maze 2's first rows, three seats dead)
     if F.phase ~= "maze_runner" then S.rtrail, S.rlast = nil, nil end
-    SV.resolve_victims(S, F)
+    SV.resolve_victims(S, F, prev_live)
     -- HIS CASTS since the last pair (one a tick): the pair is the magic
     -- attack after MAGIC_PER_BALL; a due counter is held at 9 through a maze
     -- (S.rs2 ~1429)
@@ -168,44 +176,57 @@ end
 
 -- ================================================================== HELPERS
 
--- A RICOCHET WHOSE VICTIM v1 COULD NOT NAME (no ball of v1's landing this
--- tick) gets a two-tick window [land, land2]: a red lands land + 1 when its
+-- A RICOCHET'S VICTIM, from its source tile (v1 names it as the ball that
+-- landed this tick - the last one, when two did - or, with none, gives a
+-- two-tick window [land, land2]): a red lands land + 1 when its
 -- recipient's pid is below the victim's (the recipient's queue ran first).
 -- The victim stood on the ricochet's source tile (its queue runs before its
 -- move: the end of the last tick, or this one): named from there, the window
 -- closes. Left open, a red's land2 put Magic over a grey landing that tick
 -- (r5_sote/fix5 q1 seat 2 t242: red 239 "land 242/243", grey 241 land 243;
 -- the red landed 242, the grey unprayed, a 15-tick block cascade).
-function SV.resolve_victims(S, F)
+function SV.resolve_victims(S, F, prev_live)
     local M, ids = S.t2s, S.ids
     local open = false
     for _, P in ipairs(S.incoming) do
-        if P.first == F.tick and P.land2 ~= nil then open = true end
+        if P.first == F.tick and (P.kind == "grey" or P.kind == "red") then open = true end
     end
     if open then
         local r, projs = api_drive.projectiles(0)
         if r == "ok" then
-            for _, P in ipairs(S.incoming) do
-                if P.first == F.tick and P.land2 ~= nil and P.kind ~= "death" then
-                    local want = (P.kind == "grey") and ids.grey or ids.ball
-                    for _, p in ipairs(projs) do
-                        if p.spotanim_id == want and p.target ~= nil and p.target < 0 and -p.target - 1 == P.pid
-                            and not (S.base and p.src_x == S.base.x + S.V.SRC.x and p.src_z == S.base.z + S.V.SRC.z) then
-                            local lo, hi = 0, 0
-                            local function count(list)
-                                for _, rd in ipairs(list or {}) do
-                                    if rd.pid ~= P.pid and rd.x == p.src_x and rd.z == p.src_z then
-                                        if P.pid < rd.pid then lo = lo + 1 else hi = hi + 1 end
-                                    end
+            local taken = {}
+            for _, p in ipairs(projs) do
+                local pid = (p.target ~= nil and p.target < 0) and (-p.target - 1) or nil
+                local key = pid and (p.spotanim_id .. ":" .. pid .. ":" .. p.src_x .. "," .. p.src_z)
+                local kind = (p.spotanim_id == ids.grey) and "grey" or ((p.spotanim_id == ids.ball) and "red" or nil)
+                if pid and kind and not (prev_live or {})[key]
+                    and not (S.base and p.src_x == S.base.x + S.V.SRC.x and p.src_z == S.base.z + S.V.SRC.z) then
+                    -- the new ricochet's record (v1 made one per new key, in this order)
+                    local P = nil
+                    for _, Q in ipairs(S.incoming) do
+                        if not taken[Q] and Q.first == F.tick and Q.kind == kind and Q.pid == pid then P = Q break end
+                    end
+                    if P then
+                        taken[P] = true
+                        local lo, hi = 0, 0
+                        local function count(list)
+                            for _, rd in ipairs(list or {}) do
+                                if rd.pid ~= P.pid and rd.x == p.src_x and rd.z == p.src_z then
+                                    if P.pid < rd.pid then lo = lo + 1 else hi = hi + 1 end
                                 end
                             end
-                            count(M.prev_raiders)
-                            if lo + hi == 0 then count(F.raiders) end
-                            if lo > 0 and hi == 0 then
-                                P.land, P.land2 = P.land + 1, nil
-                            elseif hi > 0 and lo == 0 then
-                                P.land2 = nil
-                            end
+                        end
+                        count(M.prev_raiders)
+                        if lo + hi == 0 then count(F.raiders) end
+                        -- (every ricochet, not only v1's unnamed ones: with two
+                        -- balls landing on one tick v1 named the same victim for
+                        -- both fans - brew2/q4 seat 2 t192: a red off seat 1 read
+                        -- as off seat 4, "196" for a 195 landing)
+                        local base = F.tick + p.duration // 30
+                        if lo > 0 and hi == 0 then
+                            P.land, P.land2 = base + 1, nil
+                        elseif hi > 0 and lo == 0 then
+                            P.land, P.land2 = base, nil
                         end
                     end
                 end
@@ -338,12 +359,29 @@ function SV.predict(S, F, B)
         local L = P.land
         if L >= now + 1 and L <= hz then
             local unprayed = S.block_until ~= nil and L <= S.block_until
-            for _, Q in ipairs(mine) do
-                if Q ~= P and Q.land == L and (Q.kind == "grey") ~= (P.kind == "grey") then unprayed = true end
-            end
             if unprayed then
                 B.hit{ name = "ball-unprayed", x0 = F.me.x - 20, z0 = F.me.z - 20, x1 = F.me.x + 20, z1 = F.me.z + 20,
                     t0 = L, t1 = L, land = 0, dmg_exp = X.BALL_AVG, dmg_max = X.BALL_MAX }
+            end
+        end
+    end
+    -- TWO STYLES THAT MAY LAND ON ONE TICK (their windows [land, land2]
+    -- overlap): whichever lands first unprayed blocks protection and the
+    -- other lands unprayed too - up to 2 x 50, unavoidable once both are in
+    -- the air, so it is priced (hp_worst), which is what lets the rescue eat
+    -- before it lands. (brew1/q4 seat 2 t192-196: a red and a grey thrown off
+    -- two victims on t192, both on t195, 48 + 26 at 74 hp, dead; v1's exact
+    -- `land ==` test missed a red known as 195/196.)
+    for i, P in ipairs(mine) do
+        for j, Q in ipairs(mine) do
+            if j > i and (Q.kind == "grey") ~= (P.kind == "grey") then
+                local a0 = math.max(P.land, Q.land)
+                local a1 = math.min(P.land2 or P.land, Q.land2 or Q.land)
+                a0 = math.max(a0, now + 1)
+                if a1 >= a0 and a0 <= hz then
+                    B.hit{ name = "two-styles", x0 = F.me.x - 20, z0 = F.me.z - 20, x1 = F.me.x + 20, z1 = F.me.z + 20,
+                        t0 = a0, t1 = math.min(a1, hz), land = 0, dmg_exp = 2 * X.BALL_AVG, dmg_max = 2 * X.BALL_MAX }
+                end
             end
         end
     end
@@ -609,7 +647,7 @@ function SV.strategy(S, F, B)
                 if target then
                     local sw = hammer and X.HAMMER or X.TENTACLE
                     B.target{ name = "him", npc = target, size = V.SIZE, path = { { x = target.x, z = target.z } },
-                        range = 1, speed = sw.speed, value = sw.exp * X.HP_PER_BOSS_HP }
+                        range = 1, speed = sw.speed, value = sw.exp * X.HP_PER_BOSS_HP, spec_ok = true }
                     I.spec = hammer
                 end
                 if station then
@@ -618,7 +656,10 @@ function SV.strategy(S, F, B)
                 end
             end
             local floor = X.FIGHT_EAT
-            if mode == "soon" or mode == "stack" or mode == "burst" then floor = SV.pair_need(S, F) end
+            -- (only with a pair in the air: 15 ticks of flight is five brews
+            -- at the 3-tick gap, and a pair the burst nulls needs none - "soon"
+            -- brewed for pairs that never landed, relay_v2_128)
+            if mode == "stack" or mode == "burst" then floor = SV.pair_need(S, F) end
             I.eat_below, I.brew_below = floor, floor
         end
         -- THE OVERHEAD: v1's rule; nothing while my protection is blocked
@@ -634,6 +675,15 @@ function SV.strategy(S, F, B)
             I.pray = nil
         end
     end
+    -- PIETY OFF IN THE MAZE (the relay's restores are P3's prayer and
+    -- stat-drain fix): nobody swings there for 30-45 ticks, and the walk
+    -- back to him covers the press on again. NOT in the hold: there the
+    -- burst starts the tick the pair is seen, and Piety a tick or two late
+    -- nulled fewer pairs - off in the hold too (pray1) saved 3.8 restores a
+    -- run and cost 4.6 brews and 98 team hp (16 seeds: 6 more pairs landed).
+    local swinging = mode ~= "wait" and mode:sub(1, 5) ~= "maze-"
+    want.boost = swinging and "piety" or nil
+    if not swinging and F.lit and F.lit.piety and I.pray ~= "piety" then I.pray_off = { "piety" } end
     if mode ~= M.mode then
         QD.raid._tob_trace(S, F.tick, "mode " .. mode .. " (bar " .. tostring(F.permille) .. ", casts " .. M.casts .. ")")
         M.mode = mode

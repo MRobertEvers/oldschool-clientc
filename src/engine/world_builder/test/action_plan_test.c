@@ -809,11 +809,12 @@ case_v(struct CollisionMap* cm)
     add_hit(11, 10, 11, 10, NOW + 1, NOW + 1, 0, 0)->forbid = 1;
     run_case(cm, "v5 no alt");
     TEST_ASSERT(g_res.act[0] == ACTION_PLAN_ATTACK && g_res.swing[0], "v5 no alt: swings at k1");
-    tg->alt_n = 2;
-    tg->alt_x[0] = 11;
-    tg->alt_z[0] = 10;
-    tg->alt_x[1] = 12;
-    tg->alt_z[1] = 10;
+    tg->n_alts = 1;
+    tg->alt_n[0] = 2;
+    tg->alt_x[0][0] = 11;
+    tg->alt_z[0][0] = 10;
+    tg->alt_x[0][1] = 12;
+    tg->alt_z[0][1] = 10;
     run_case(cm, "v5 alt");
     TEST_ASSERT(g_res.risk == 0.0, "v5 alt: no risk");
     TEST_ASSERT(g_res.act[0] != ACTION_PLAN_ATTACK, "v5 alt: the attack's worse outcome is refused");
@@ -854,6 +855,156 @@ case_w(struct CollisionMap* cm)
     report("(w) risk by cause: the rule outranks the hp estimate", before);
 }
 
+/* (x) a FORBID chaser 2 tiles away, a valuable target beside me: never
+ * touched, still swings */
+static void
+case_x(struct CollisionMap* cm)
+{
+    int before, k, swings = 0;
+    collision_map_reset(cm);
+    spec_reset(19, 20, 10);
+    g_spec.swing_ready = NOW + 1;
+    add_target(20, 20, 1, 4, 5.0);
+    g_spec.n_chasers = 1;
+    memset(&g_spec.chasers[0], 0, sizeof(g_spec.chasers[0]));
+    g_spec.chasers[0].x = 17;
+    g_spec.chasers[0].z = 20;
+    g_spec.chasers[0].forbid = 1;
+    before = run_case(cm, "x");
+    TEST_ASSERT(g_res.risk_rule == 0.0, "x: never touched");
+    TEST_ASSERT(g_res.loss == 0.0 && g_res.hp_worst == 99.0, "x: a forbid touch prices nothing anyway");
+    TEST_ASSERT(g_res.swing[0], "x: swings at k1 (the chaser needs 2 ticks)");
+    for( k = 0; k < g_res.n; k++ )
+        swings += g_res.swing[k];
+    TEST_ASSERT(swings >= 2, "x: keeps swinging when the timing allows");
+    /* stunned for 3 ticks with it 2 away: the touch is certain and named */
+    g_spec.stunned_until = NOW + 3;
+    run_case(cm, "x stunned");
+    TEST_ASSERT(g_res.risk_rule > 0.0, "x stunned: the touch cannot be avoided");
+    TEST_ASSERT(g_res.whyr_kind == ACTION_PLAN_WHY_CHASER && g_res.whyr_k == 2, "x stunned: why_rule chaser[1] k2");
+    TEST_ASSERT(g_res.risk_hp == 0.0, "x stunned: no hp risk");
+    report("(x) forbid chaser", before);
+}
+
+/* (y) nine possible steps for the target (hold + 8); only ONE of them sends
+ * my attack's chase onto the tile a forbid chaser reaches at k1: the plan
+ * must not make that ATTACK */
+static void
+case_y(struct CollisionMap* cm)
+{
+    static int rx[COLLISION_SIZE * COLLISION_SIZE], rz[COLLISION_SIZE * COLLISION_SIZE];
+    static const int steps[9][2] = { { 0, 0 }, { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 },
+                                     { -1, -1 }, { 1, -1 }, { -1, 1 }, { 1, 1 } };
+    int ex[9], ez[9];
+    int before, a, b, pick = -1, tx = 13, tz = 10, sx = 10, sz = 10;
+    struct ActionPlanTarget* tg;
+    collision_map_reset(cm);
+    /* where a press at k1 ends for each step: out of reach of F0 (gap 2), the
+     * route toward F0 is straight east, so it is replaced by the route toward
+     * F1 and I run its first 2 tiles (holding, that is (12,10): in reach, a
+     * swing at k1) */
+    for( a = 0; a < 9; a++ )
+    {
+        int n = expected_route(cm, sx, sz, tx + steps[a][0], tz + steps[a][1], 1, rx, rz,
+                               COLLISION_SIZE * COLLISION_SIZE);
+        int take = n < 2 ? n : 2;
+        ex[a] = take > 0 ? rx[take - 1] : sx;
+        ez[a] = take > 0 ? rz[take - 1] : sz;
+    }
+    for( a = 1; a < 9 && pick < 0; a++ )
+    {
+        int unique = 1;
+        for( b = 0; b < 9; b++ )
+            if( b != a && ex[b] == ex[a] && ez[b] == ez[a] )
+                unique = 0;
+        if( unique )
+            pick = a;
+    }
+    if( !g_quiet )
+    {
+        printf("  y press ends:");
+        for( a = 0; a < 9; a++ )
+            printf(" (%+d,%+d)->(%d,%d)", steps[a][0], steps[a][1], ex[a], ez[a]);
+        printf("  pick %d\n", pick);
+    }
+    TEST_ASSERT(pick > 0, "y: one step whose chase end is unique (fixture)");
+    if( pick <= 0 )
+        return;
+
+    /* h 1: the k1 outcome alone (the chaser keeps closing on the target's
+     * side after k1, which would decide a longer plan by itself) */
+    spec_reset(sx, sz, 1);
+    tg = add_target(tx, tz, 1, 4, 5.0);
+    {
+        /* the chaser lands on that end tile at the end of k1: one tile
+         * further from my end-of-k0 tile, on the same side */
+        int px = ex[pick], pz = ez[pick];
+        g_spec.n_chasers = 1;
+        memset(&g_spec.chasers[0], 0, sizeof(g_spec.chasers[0]));
+        g_spec.chasers[0].x = px + (px > sx) - (px < sx);
+        g_spec.chasers[0].z = pz + (pz > sz) - (pz < sz);
+        g_spec.chasers[0].forbid = 1;
+    }
+    before = run_case(cm, "y hold only");
+    TEST_ASSERT(g_res.act[0] == ACTION_PLAN_ATTACK && g_res.swing[0], "y hold only: presses and swings at k1");
+    TEST_ASSERT(g_res.risk_rule == 0.0, "y hold only: no touch");
+
+    tg->n_alts = 8;
+    for( a = 1; a < 9; a++ )
+    {
+        tg->alt_n[a - 1] = 2;
+        tg->alt_x[a - 1][0] = tx;
+        tg->alt_z[a - 1][0] = tz;
+        tg->alt_x[a - 1][1] = tx + steps[a][0];
+        tg->alt_z[a - 1][1] = tz + steps[a][1];
+    }
+    run_case(cm, "y 9 steps");
+    TEST_ASSERT(g_res.risk_rule == 0.0, "y 9 steps: no touch");
+    TEST_ASSERT(g_res.act[0] != ACTION_PLAN_ATTACK, "y 9 steps: the ATTACK whose chase may end on the touch is not made");
+
+    if( !g_quiet )
+    {
+        /* the cost of the alternatives: the same plan 50 times each way */
+        clock_t t0;
+        int r, e9 = 0, e0 = 0;
+        double ms9, ms0;
+        t0 = clock();
+        for( r = 0; r < 50; r++ )
+        {
+            action_plan(cm, &g_spec, &g_res);
+            e9 = g_res.expanded;
+        }
+        ms9 = (double)(clock() - t0) * 1000.0 / CLOCKS_PER_SEC / 50.0;
+        tg->n_alts = 0;
+        t0 = clock();
+        for( r = 0; r < 50; r++ )
+        {
+            action_plan(cm, &g_spec, &g_res);
+            e0 = g_res.expanded;
+        }
+        ms0 = (double)(clock() - t0) * 1000.0 / CLOCKS_PER_SEC / 50.0;
+        printf("  y cost: 9 paths %.3f ms/plan (%d expanded), 1 path %.3f ms/plan (%d expanded), h 1\n", ms9, e9,
+               ms0, e0);
+        g_spec.h = 12;
+        tg->n_alts = 8;
+        for( a = 1; a < 9; a++ )
+            tg->alt_n[a - 1] = 2;
+        t0 = clock();
+        for( r = 0; r < 20; r++ )
+            action_plan(cm, &g_spec, &g_res);
+        ms9 = (double)(clock() - t0) * 1000.0 / CLOCKS_PER_SEC / 20.0;
+        e9 = g_res.expanded;
+        tg->n_alts = 0;
+        t0 = clock();
+        for( r = 0; r < 20; r++ )
+            action_plan(cm, &g_spec, &g_res);
+        ms0 = (double)(clock() - t0) * 1000.0 / CLOCKS_PER_SEC / 20.0;
+        printf("  y cost: 9 paths %.3f ms/plan (%d expanded), 1 path %.3f ms/plan (%d expanded), h 12\n", ms9, e9,
+               ms0, g_res.expanded);
+    }
+    report("(y) nine target steps, one leads into a touch", before);
+}
+
 static void
 run_all(struct CollisionMap* cm)
 {
@@ -879,6 +1030,8 @@ run_all(struct CollisionMap* cm)
     case_u(cm);
     case_v(cm);
     case_w(cm);
+    case_x(cm);
+    case_y(cm);
 }
 
 int

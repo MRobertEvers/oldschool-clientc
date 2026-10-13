@@ -150,16 +150,29 @@
  *  - swings_max: the node counts its swings per target; the count of a
  *    target with a finite swings_max is part of the dedup key (a plan that
  *    killed it is not the same state as one that did not).
- *  - path_alt: the chase (reach, route, swing, swing costs) is run against
- *    path[k-1]/path[k] and against path_alt[k-1]/path_alt[k], each scored,
- *    and the WORSE node by the plan comparison is kept (its tile, swing and
- *    charges). Hits, marks, chasers and zones are then read on that tile.
+ *  - Alternatives (path_alts, up to 9; path_alt is one of them): the chase
+ *    (reach, route, swing, swing costs) is run against path[k-1]/path[k] and
+ *    against every alt[k-1]/alt[k], each outcome scored, and the WORST node
+ *    by the plan comparison (risk_rule, risk_hp, cost, ...) is kept: its
+ *    tile, swing and charges. Each alternative is a full path, not "differs
+ *    at k1 then follows path shifted": the room already builds full paths
+ *    and a shift rule would be a second follow model hidden in C. The cost
+ *    is one more ap_attack + ap_score per alternative on every ATTACK child
+ *    of that target, and routes toward the alternatives' footprints (cached);
+ *    a target with none costs what it did.
  *  - Risk is split by cause (Sotetseg q16: a lethal require stack and the hp
  *    estimate of his melee plus the ball share traded 1:1, and every seat
  *    stepped off the stack). A charge that is both forbid and hp-lethal
  *    counts once, as a rule. The lookahead's bound splits the same way:
  *    pending forbid hits and lethal zones feed the rule bound, pending
  *    hp-lethal hits the hp bound. The "most slack" reservation reads both.
+ *  - Forbid chasers feed the lookahead: standing still one touches in d
+ *    ticks (d its Chebyshev gap), and any move evades it on open ground, so
+ *    the bound counts only a touch that lands while a stun holds me (d <=
+ *    stun ticks left); the slack (d - 1 - stun left) joins the "most slack"
+ *    reservation. Every hazard term now has a forbid path: hits, marks,
+ *    watchers, swing costs, chasers (forbid) and zones (lethal tier). Pulls,
+ *    goal and edge are preferences, not hazards, and stay soft.
  *  - Earlier clicks break a tie before insertion order. Without it a click
  *    deferred is free (it ties at the leaf and the branch that stood first
  *    was inserted first), so the plan procrastinated: after a held op that
@@ -205,6 +218,7 @@ enum
     ACTION_PLAN_PULLS_MAX = 8,
     ACTION_PLAN_WATCHERS_MAX = 128,
     ACTION_PLAN_SWING_COSTS_MAX = 16, /* per target */
+    ACTION_PLAN_ALTS_MAX = 9,         /* per target: hold + the 8 steps */
 };
 
 enum ActionPlanAct
@@ -252,12 +266,14 @@ struct ActionPlanTarget
     int path_n; /* 1..ACTION_PLAN_H_MAX + 1 */
     int path_x[ACTION_PLAN_H_MAX + 1];
     int path_z[ACTION_PLAN_H_MAX + 1];
-    /* the npc's OTHER possible step (a follow step that is random when its
-     * target is under it): 0 none; else the chase is scored on both paths and
-     * the WORSE outcome kept. Same layout as path. */
-    int alt_n;
-    int alt_x[ACTION_PLAN_H_MAX + 1];
-    int alt_z[ACTION_PLAN_H_MAX + 1];
+    /* the npc's OTHER possible paths (a follow step the room cannot pin
+     * down): n_alts 0 none; else the chase is scored on path and on every
+     * alternative and the WORST outcome kept. Each alternative is a FULL
+     * path, same layout as path (k = 0..; short ones hold their last tile). */
+    int n_alts;
+    int alt_n[ACTION_PLAN_ALTS_MAX];
+    int alt_x[ACTION_PLAN_ALTS_MAX][ACTION_PLAN_H_MAX + 1];
+    int alt_z[ACTION_PLAN_ALTS_MAX][ACTION_PLAN_H_MAX + 1];
     int range;  /* 1 melee, > 1 ranged */
     int speed;  /* ticks between swings, >= 1 */
     double value;
@@ -323,10 +339,13 @@ struct ActionPlanHeld
     double heal;
 };
 
+/* forbid: the touch is a rule (risk_rule, why "chaser[i] kN") and charges
+ * no loss and no hp_worst; else dmg_exp / dmg_max are priced like a hit */
 struct ActionPlanChaser
 {
     int x, z;
     double dmg_exp, dmg_max;
+    int forbid;
 };
 
 struct ActionPlanSpec

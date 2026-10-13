@@ -107,6 +107,18 @@ function QD.raid.tob_relay_test(mode, opts)
         "::setvar varb1622_rune_pouch_type_2 7", "::setvar varb1625_rune_pouch_quantity_2 400",
         "::setvar varb1623_rune_pouch_type_3 8", "::setvar varb1626_rune_pouch_quantity_3 200",
     }) do kit[#kit + 1] = line end
+    -- VERZIK P3'S SPECIAL WEAPON (owner, 2026-10-12: "p3 should be using dragon
+    -- dagger or dragon claws or crystal halberd as the spec weapons, not dragon
+    -- warhammer"; then: "use burning claws as an option. In fact - prefer that
+    -- option"): Hard Mode carries one, burning claws (`bone_claws`, this cache's
+    -- name for them: configs/all.obj, special_attack.obj sa_kind 47, 350 energy,
+    -- two-handed) unless opts.spec_weapon names another (false carries none); the
+    -- warhammer stays for Maiden's opener
+    local SPEC_WEAPON = nil
+    if mode == "hard" and opts.spec_weapon ~= false then SPEC_WEAPON = opts.spec_weapon or "bone_claws" end
+    assert(SPEC_WEAPON == nil or SPEC_WEAPON == "bone_claws" or SPEC_WEAPON == "dragon_claws" or SPEC_WEAPON == "dragon_dagger"
+        or SPEC_WEAPON == "crystal_halberd", "tob_relay_test: spec_weapon " .. tostring(SPEC_WEAPON))
+    if SPEC_WEAPON then kit[#kit + 1] = "::give " .. SPEC_WEAPON .. " 1" end
     -- SEAT 1 IS MAIDEN'S FREEZER: it needs room to take the defender and boots
     -- off for its cast set (tob_maiden.lua's kit: "two supply slots fewer").
     -- With the other seats' supplies its pack had one slot free, the barrage
@@ -152,6 +164,10 @@ function QD.raid.tob_relay_test(mode, opts)
         end
         assert(#ORDER > 0, "tob_relay_test: no rooms from " .. tostring(opts.from) .. " to " .. tostring(opts.to))
     end
+    -- the v2 supply budget's rooms (tob2_budget.lua: the reserve is what the
+    -- rooms after the current one need)
+    if QD.T2 and QD.T2.budget and QD.T2.budget.set_order then QD.T2.budget.set_order(ORDER) end
+    if QD.T2 and QD.T2.budget and QD.T2.budget.set_spec then QD.T2.budget.set_spec(SPEC_WEAPON) end
     local NEXT = { maiden = "bloat", bloat = "nylocas", nylocas = "sotetseg", sotetseg = "xarpus", xarpus = "verzik" }
     local MAX = { maiden = 600, bloat = 600, nylocas = 700, sotetseg = 700, xarpus = 900 }
     if mode == "hard" then
@@ -372,9 +388,29 @@ function QD.raid.tob_relay_test(mode, opts)
             if spend > room and spend >= CHEST_COST.brew then return buy("brew") end
             return buy("shark")
         end
-        for _ = 1, 20 do if heal_hp() >= 20 * floor_f or not heal(prayer_reserve()) then break end end
-        for _ = 1, 8 do if prayer_doses() >= target_p or not buy("restore") then break end end
-        for _ = 1, 20 do if not heal(0) then break end end
+        -- BUDGET-DRIVEN (tob2_budget.lua NEED, this seat, the rooms after this
+        -- chest; 2026-10-12, relay_bud_128: 4 of the first 9 failures were
+        -- seat 1 starving in P3 -- 18 restore doses and 108-212 hp of healing,
+        -- its slots filled with restores to the old 16-dose target): restores
+        -- only up to the later rooms' need, then brews (~64 hp a slot) while
+        -- the healing carried is under the later rooms' need, sharks after;
+        -- then the rest as before. The slot reserves (`keep`) stand. Without
+        -- the budget, the old targets.
+        local Bu = QD.T2 and QD.T2.budget
+        if Bu and Bu.later_need then
+            target_p = Bu.later_need(role, name, "restore")
+            local heal_need = 16 * Bu.later_need(role, name, "brew") + 20 * Bu.later_need(role, name, "food")
+            for _ = 1, 8 do if prayer_doses() >= target_p or not buy("restore") then break end end
+            for _ = 1, 20 do
+                if heal_hp() >= heal_need then break end
+                if not ((points >= CHEST_COST.brew and buy("brew")) or buy("shark")) then break end
+            end
+            for _ = 1, 20 do if not heal(0) then break end end
+        else
+            for _ = 1, 20 do if heal_hp() >= 20 * floor_f or not heal(prayer_reserve()) then break end end
+            for _ = 1, 8 do if prayer_doses() >= target_p or not buy("restore") then break end end
+            for _ = 1, 20 do if not heal(0) then break end end
+        end
         t.check(name .. ".chest_bought", true, P .. "points " .. p0 .. " -> " .. points .. "; bought "
             .. (#bought > 0 and table.concat(bought, " ") or "nothing") .. "; free slots " .. free_slots(t))
         t.key("escape")
@@ -432,11 +468,19 @@ function QD.raid.tob_relay_test(mode, opts)
     -- Sotetseg's chest instead starved the middle rooms (rl67 rn: dead in
     -- Sotetseg). The floor is the message: no seat needs another's inventory.
     -- Supplies only -- no equipment changes hands.
-    local SHARE_HP = 300
+    -- 260, not 300 (2026-10-12, relay_bud_128): givers kept 300 while the team
+    -- held ~270 a seat in the failing relays (f36: 120/140/352/332/408), so a
+    -- low seat could never be filled; 260 levels toward the team instead
+    local SHARE_HP = 260
     -- (slots the exchange never fills: P1's Dawnbringer is dropped by one seat
     -- for the next, and a seat the exchange had filled to the last slot could not
     -- take it - P1 ran 380 ticks and raiders died to it, rl83 rm, tc)
-    local SHARE_KEEP_SLOTS = 2
+    -- ONE slot, not two (2026-10-12): the Dawnbringer is one-handed
+    -- (all.obj verzik_special_weapon wearpos2 default), so its pickup needs one
+    -- slot, and P3's two-handed spec swap needs one for the parrying dagger, never
+    -- at the same time. The second slot was a full brew the freezer seat could
+    -- not take (relay_bud_128 f36: seat 1 on 120 hp of healing took nothing)
+    local SHARE_KEEP_SLOTS = 1
     local BREW_FULL = { "br_4dosepotionofsaradomin", "4dosepotionofsaradomin" }
     local FISH = { "anglerfish", "shark", "mantaray", "seaturtle" }
     local function healing_hp(t)
@@ -543,9 +587,12 @@ function QD.raid.tob_relay_test(mode, opts)
         t.raid.tob_reserve_combats(0)
         t.check("verzik.p3_supplies", true, P .. supplies_text(t))
         local p3_suffix = (opts.v2 and opts.v2.verzik_p3) and "_v2" or SUFFIX
-        local r3, d3 = t.raid["verzik_p3" .. p3_suffix .. "_solve"]({ max_ticks = 900, base = prep.base, weapon = "abyssal_tentacle" })
+        local r3, d3 = t.raid["verzik_p3" .. p3_suffix .. "_solve"]({ max_ticks = 900, base = prep.base, weapon = "abyssal_tentacle" , spec_weapon = SPEC_WEAPON })
         t.check("verzik.supplies_left", true, P .. supplies_text(t))
         t.check("verzik.p3", r3 == "ok", P .. string.sub(tostring(d3), 1, opts.detail or 600))
+        -- a P3 death respawns ~6 ticks later and stays in lock step, so no
+        -- player.died row is ever written for it: name it from the solve's answer
+        if r3 == "died" then t.check("verzik.p3_died", false, P .. "died in P3 (the solve answered died)") end
         return r3 == "ok"
     end
 

@@ -487,7 +487,7 @@ function NV.prince_mode(S, F, B, I, P)
     local t_ok0 = (worn ~= P.colour) and (F.tick + 2) or nil
     local change = NV.next_change(P.m, F.tick + 1)
     B.target{ name = "prince", npc = row, size = V.PRINCE_SIZE, path = { { x = row.x, z = row.z } },
-        range = V.RANGE[P.colour], speed = V.SPEED[P.colour], value = V.PRINCE_SWING, t_ok0 = t_ok0, t_ok1 = change - 1 }
+        range = V.RANGE[P.colour], speed = V.SPEED[P.colour], value = V.PRINCE_SWING, t_ok0 = t_ok0, t_ok1 = change - 1, spec_ok = true }
     return t_ok0 and "switch" or "prince"
 end
 
@@ -627,7 +627,7 @@ function NV.boss_mode(S, F, B, I)
     local t_ok0 = (NV.worn_style(S) ~= D.style) and (F.tick + 2) or nil
     local change = NV.next_change(S.boss_m, F.tick + 1)
     B.target{ name = "vasilias", npc = b, size = QD.NYLO.BOSS_SIZE, path = { { x = b.x, z = b.z } },
-        range = V.RANGE[D.style], speed = V.SPEED[D.style], value = V.BOSS_SWING, t_ok0 = t_ok0, t_ok1 = change - 1 }
+        range = V.RANGE[D.style], speed = V.SPEED[D.style], value = V.BOSS_SWING, t_ok0 = t_ok0, t_ok1 = change - 1, spec_ok = true }
     -- (her colour seen first now: her first swing in it is 2 ticks on, so
     -- the overhead may wait a tick for the wield, E9's one panel a tick)
     if S.t2n.boss_colour ~= D.style then

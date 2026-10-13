@@ -402,7 +402,12 @@ ap_score(struct CollisionMap* cm, struct ActionPlanNode* n, const struct ActionP
     }
     for( i = 0; i < spec->n_chasers; i++ )
     {
-        if( n->cx[i] == n->x && n->cz[i] == n->z )
+        if( n->cx[i] != n->x || n->cz[i] != n->z )
+            continue;
+        /* a forbid chaser's touch is a rule broken, not damage priced */
+        if( spec->chasers[i].forbid )
+            ap_risk(n, spec, k, 1, ACTION_PLAN_WHY_CHASER, i);
+        else
             ap_charge(
                 n, spec, k, spec->chasers[i].dmg_exp, spec->chasers[i].dmg_max, 0, 0, ACTION_PLAN_WHY_CHASER, i);
     }
@@ -472,6 +477,7 @@ static int g_ap_pending[ACTION_PLAN_HITS_MAX];
 static int g_ap_pending_n;
 static int g_ap_pend_zone[ACTION_PLAN_ZONES_MAX];
 static int g_ap_pend_zone_n;
+static int g_ap_pend_chasers; /* any forbid chaser */
 static int g_ap_lookahead = 1; /* test knob */
 
 void
@@ -487,8 +493,12 @@ ap_pending_init(const struct ActionPlanSpec* spec)
     int i;
     g_ap_pending_n = 0;
     g_ap_pend_zone_n = 0;
+    g_ap_pend_chasers = 0;
     if( !g_ap_lookahead )
         return;
+    for( i = 0; i < spec->n_chasers; i++ )
+        if( spec->chasers[i].forbid )
+            g_ap_pend_chasers = 1;
     /* lethal-tier zones opening later in the horizon: a REQUIRE zone must be
      * reached by its t0 (Verzik P1's pillar box at the bolt's read tick), a
      * plain one must be left by it */
@@ -591,6 +601,33 @@ ap_lookahead(struct ActionPlanNode* n, const struct ActionPlanSpec* spec, int k)
         if( sl < n->slack )
             n->slack = sl;
     }
+    /* forbid chasers: one closes 1 tile a tick on my end-of-last-tick tile,
+     * so standing still it touches d ticks from now (d = Chebyshev gap). Any
+     * move outruns or sidesteps it on open ground, so the only CERTAIN touch
+     * is one that lands while a stun holds me: d <= stun ticks left. Slack
+     * is the ticks before it could touch, less the stun. */
+    if( g_ap_pend_chasers )
+    {
+        int stun_left = n->stunned_until > t ? n->stunned_until - t : 0;
+        for( i = 0; i < spec->n_chasers; i++ )
+        {
+            int dx, dz, d, sl;
+            if( !spec->chasers[i].forbid || n->cx[i] == AP_GONE )
+                continue;
+            dx = n->cx[i] - n->x;
+            dz = n->cz[i] - n->z;
+            dx = dx < 0 ? -dx : dx;
+            dz = dz < 0 ? -dz : dz;
+            d = dx > dz ? dx : dz;
+            if( d < 1 )
+                continue;
+            if( d <= stun_left && k + d <= spec->h )
+                n->bound_rule += (double)(spec->h - (k + d) + 1);
+            sl = d - 1 - stun_left;
+            if( sl < n->slack )
+                n->slack = sl;
+        }
+    }
 }
 
 static double
@@ -681,13 +718,15 @@ ap_hash_state(const struct ActionPlanNode* a, const struct ActionPlanSpec* spec,
 }
 
 static void
-ap_target_alt_at(const struct ActionPlanTarget* tg, int k, int* fx, int* fz)
+ap_target_alt_at(const struct ActionPlanTarget* tg, int a, int k, int* fx, int* fz)
 {
     int i;
-    assert(tg->alt_n >= 1);
-    i = k < tg->alt_n - 1 ? k : tg->alt_n - 1;
-    *fx = tg->alt_x[i];
-    *fz = tg->alt_z[i];
+    assert(a >= 0);
+    assert(a < tg->n_alts);
+    assert(tg->alt_n[a] >= 1);
+    i = k < tg->alt_n[a] - 1 ? k : tg->alt_n[a] - 1;
+    *fx = tg->alt_x[a][i];
+    *fz = tg->alt_z[a][i];
 }
 
 /*
@@ -696,7 +735,8 @@ ap_target_alt_at(const struct ActionPlanTarget* tg, int k, int* fx, int* fz)
  * F1 = where it stands after phase_npcs (path[k]). `n` arrives as the step's
  * base state with the click counted and inter = c; this fills the tile, the
  * middle tile, steps, the swing (value, timer, count, swing costs) and
- * chase_left. `alt` reads the target's path_alt for the next step's route.
+ * chase_left. `alt` (-1 = path) names the alternative path whose next
+ * footprint the next step's route is measured to.
  */
 static void
 ap_attack(
@@ -801,8 +841,8 @@ ap_attack(
     {
         /* the same route the next step's chase reads (cached) */
         int nfx, nfz;
-        if( alt )
-            ap_target_alt_at(tg, k + 1, &nfx, &nfz);
+        if( alt >= 0 )
+            ap_target_alt_at(tg, alt, k + 1, &nfx, &nfz);
         else
             ap_target_at(tg, k + 1, &nfx, &nfz);
         n->chase_left = ap_route(cm, tg, nfx, nfz, n->x, n->z)->len;
@@ -897,14 +937,19 @@ action_plan(
         assert(tg->swings_max >= 0);
         assert(tg->n_swing_costs >= 0);
         assert(tg->n_swing_costs <= ACTION_PLAN_SWING_COSTS_MAX);
-        assert(tg->alt_n >= 0);
-        assert(tg->alt_n <= ACTION_PLAN_H_MAX + 1);
-        for( p = 0; p < tg->alt_n; p++ )
+        assert(tg->n_alts >= 0);
+        assert(tg->n_alts <= ACTION_PLAN_ALTS_MAX);
+        for( c = 0; c < tg->n_alts; c++ )
         {
-            assert(tg->alt_x[p] >= 0);
-            assert(tg->alt_z[p] >= 0);
-            assert(tg->alt_x[p] + tg->size <= cm->size_x);
-            assert(tg->alt_z[p] + tg->size <= cm->size_z);
+            assert(tg->alt_n[c] >= 1);
+            assert(tg->alt_n[c] <= ACTION_PLAN_H_MAX + 1);
+            for( p = 0; p < tg->alt_n[c]; p++ )
+            {
+                assert(tg->alt_x[c][p] >= 0);
+                assert(tg->alt_z[c][p] >= 0);
+                assert(tg->alt_x[c][p] + tg->size <= cm->size_x);
+                assert(tg->alt_z[c][p] + tg->size <= cm->size_z);
+            }
         }
         for( p = 0; p < tg->path_n; p++ )
         {
@@ -1047,16 +1092,16 @@ action_plan(
                     pre = *n;
                     ap_target_at(tg, k - 1, &f0x, &f0z);
                     ap_target_at(tg, k, &f1x, &f1z);
-                    ap_attack(cm, spec, tg, c, k, base.inter != c, f0x, f0z, f1x, f1z, 0, n);
+                    ap_attack(cm, spec, tg, c, k, base.inter != c, f0x, f0z, f1x, f1z, -1, n);
                     ap_score(cm, n, spec, k);
-                    if( tg->alt_n > 0 )
+                    for( h = 0; h < tg->n_alts; h++ )
                     {
-                        /* the npc's other possible step: keep the WORSE of the
-                         * two outcomes (hits and chasers read its tile) */
+                        /* the npc's other possible steps: keep the WORST
+                         * outcome (hits and chasers read its tile) */
                         struct ActionPlanNode alt = pre;
-                        ap_target_alt_at(tg, k - 1, &f0x, &f0z);
-                        ap_target_alt_at(tg, k, &f1x, &f1z);
-                        ap_attack(cm, spec, tg, c, k, base.inter != c, f0x, f0z, f1x, f1z, 1, &alt);
+                        ap_target_alt_at(tg, h, k - 1, &f0x, &f0z);
+                        ap_target_alt_at(tg, h, k, &f1x, &f1z);
+                        ap_attack(cm, spec, tg, c, k, base.inter != c, f0x, f0z, f1x, f1z, h, &alt);
                         ap_score(cm, &alt, spec, k);
                         if( ap_better(n, &alt) )
                             *n = alt;
@@ -1133,7 +1178,7 @@ action_plan(
         }
         out->expanded += cand_n;
         assert(cand_n > 0);
-        if( g_ap_pending_n > 0 || g_ap_pend_zone_n > 0 )
+        if( g_ap_pending_n > 0 || g_ap_pend_zone_n > 0 || g_ap_pend_chasers )
             for( i = 0; i < cand_n; i++ )
                 ap_lookahead(&g_ap_cand[i], spec, k);
         for( i = 0; i < cand_n; i++ )

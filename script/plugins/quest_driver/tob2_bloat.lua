@@ -423,7 +423,7 @@ QD.T2.rooms.bloat = {
                 mode = "attack"
                 want.boost = "piety"
                 B.target{ name = "bloat", npc = F.boss, size = S.V.SIZE, path = { { x = F.boss.x, z = F.boss.z } },
-                    range = 1, speed = X.TENTACLE_SPEED, value = X.SWING_VALUE }
+                    range = 1, speed = X.TENTACLE_SPEED, value = X.SWING_VALUE, spec_ok = true }
             else
                 -- (Piety only while attacking: v1, owner 2026-10-11)
                 local off = {}

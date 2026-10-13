@@ -49,6 +49,9 @@
 --            hp, hit | swings_max}
 --            hp/hit: the kill limit, swings_max = ceil(hp / hit) (expected
 --            damage a swing), sent to aplan (an older binary ignores it).
+--            spec_ok = true: a target the shared spec channel may dump a
+--            special on (the pre-P3 hammer; melee targets only), budget
+--            permitting (tob2_budget.lua SPECIAL ENERGY).
 --            -> index. `needs`: what must be true before a swing at it can
 --            go out; B.plan raises t_ok0 to the executive's readiness tick
 --            (QD.T2.exec.ready_tick: one panel a tick, the cast clock).
@@ -122,6 +125,7 @@ QD.T2.V = {
     SPEC_GAP = 2,                -- E8: the spec orb toggle, at most every 2 ticks
     CAST_COOLDOWN = 5,           -- E2: the cast clock (ancient barrage), when the room gives none
     EAT_GAP = 3, DRINK_GAP = 3,  -- a food / a potion every 3 ticks
+    SPEC_VALUE = 2,              -- a spec_ok target's swing value while a dump is planned (the hammer's special)
     TAB_SETTLES = true,          -- E9: a tab switch settles in its call (tob2_exec panel)
     -- THE HELD OPS' EFFECTS (content: player/scripts/consumption/consume_shared.rs2).
     -- Food and potions keep separate 3-tick timers, so a food and a brew go
@@ -388,7 +392,7 @@ function QD.T2.builder(S, F, opts)
         end
         B.rows[i] = t.npc
         B.tmeta[i] = { name = t.name, speed = t.speed, value = t.value, range = t.range,
-                       swings_max = B.spec.targets[i].swings_max }
+                       swings_max = B.spec.targets[i].swings_max, spec_ok = t.spec_ok == true }
         if t.needs ~= nil then
             assert(type(t.needs) == "table", "tob2 target " .. tostring(t.name) .. ": needs is a table")
             B.tneeds[i] = t.needs
