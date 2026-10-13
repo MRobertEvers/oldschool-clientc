@@ -1857,14 +1857,15 @@ struct App
 
     /* Projectile hotkey latch: first press = src tile, second = dst + fire. */
     /*
-     * The loc lane: zone loc changes and loc anims apply in the order they
-     * were enqueued, but load off the packet FIFO. A task takes a ticket when
-     * it is queued (loc_lane_enqueued), loads whatever it needs on the
-     * parallel asset runner alongside the others, and only then waits for
-     * loc_lane_applied to reach the ticket before it -- so a LOC_ANIM still
-     * lands after the LOC_ADD_CHANGE it animates, a LOC_DEL after the add it
+     * The loc lane: zone loc changes apply in the order they were enqueued,
+     * but load off the packet FIFO. A task takes a ticket when it is queued
+     * (loc_lane_enqueued), loads whatever it needs on the parallel asset
+     * runner alongside the others, and only then waits for loc_lane_applied
+     * to reach the ticket before it -- so a LOC_DEL lands after the add it
      * deletes, and nine rock changes at the Inferno's door cost one model
-     * wave instead of nine, none of it parking the packets behind them.
+     * wave instead of nine, none of it parking the packets behind them. A
+     * change not yet applied is the deob's pending spawn, which a LOC_ANIM
+     * may hand its sequence to (App_WorldSceneryAnim).
      * See app_spawn_loc_lane_queue (app_world_edit.c).
      */
     unsigned loc_lane_enqueued;
@@ -4138,9 +4139,11 @@ App_WorldLoadFinish(struct App* app);
 void
 App_SendMapBuildComplete(struct App* app);
 
-/** LOC_ANIM: attach a sequence to the scenery element on a tile. `loc_shape`
- * (zone packet info >> 2) selects the loc's layer so a door animates the wall,
- * not a centrepiece/floor-decor sharing the tile. */
+/** LOC_ANIM: attach a sequence to the loc standing on a tile's layer now, and
+ * hand it to a change still pending there when the rev-239 client would (deob
+ * Statics.method1508 / class69.field666). `loc_shape` (zone packet info >> 2)
+ * selects the layer so a door animates the wall, not a centrepiece/floor-decor
+ * sharing the tile. */
 void
 App_WorldSceneryAnim(
     struct App* app,

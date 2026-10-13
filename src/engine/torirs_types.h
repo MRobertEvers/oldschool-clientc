@@ -251,6 +251,11 @@ struct ToriRS_Location
     int force_approach;
     int wall_width;
     int seq_id;
+    /** LocType `deferanimchange` (OSRS config opcode 90; deob class393.field4940).
+     *  1: a LOC_ANIM read while a change placing this loc is still pending is
+     *  carried onto it (deob Statics, the LOC_ANIM decode; see
+     *  App_WorldSceneryAnim). */
+    int defer_anim_change;
     int contoured_ground;
     int contour_ground_type;
     int contour_ground_param;

@@ -29,6 +29,8 @@
  * behind a vessel's instance handle. */
 #include "torirs_server_mapinstance.h"
 #include "torirs_server_vessel.h"
+/* The script behind a loc event, for the same-tick loc_anim report. */
+#include "ssvm.h"
 
 #include <assert.h>
 #include <limits.h>
@@ -293,6 +295,164 @@ zone_pos(
     return ((x & 7) << 4) | (z & 7);
 }
 
+/*
+ * The layer a loc shape occupies on its tile -- deob `client.field722`, the
+ * table the official client keys both its scene lookup (Statics.method1508)
+ * and its pending spawns (class69.field657) on: walls, wall decor, centrepiece
+ * and roof (diagonal walls 9 included), ground decor.
+ */
+static int
+zone_loc_layer(int shape)
+{
+    static const int layer_of_shape[23] = { 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2,
+                                            2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3 };
+
+    assert(shape >= 0);
+    assert(shape < 23);
+    return layer_of_shape[shape];
+}
+
+static int
+zone_loc_kind_is_change(int kind)
+{
+    return kind == TORIRSSERVER_ZONE_EV_LOC_ADD_CHANGE || kind == TORIRSSERVER_ZONE_EV_LOC_DEL;
+}
+
+/*
+ * A LOC_ANIM and a LOC_ADD_CHANGE / LOC_DEL for one tile and layer in one tick:
+ * the official client does not animate the loc the change places.
+ *
+ * Deob rev 239, zone packet decode:
+ *   - LOC_ADD_CHANGE and LOC_DEL only file a PENDING SPAWN (Statics.method5669,
+ *     a class69 keyed on level, x, z and layer). The pending pass
+ *     (Statics.method6346) builds it on a later client cycle, once its models
+ *     are loaded (Statics.method8953). Until then the old loc stands.
+ *   - LOC_ANIM looks the pending spawn up (Statics.method5652). If its NEW
+ *     loctype has `deferanimchange` (class393.field4940, loc opcode 90) the seq
+ *     is stored on the pending spawn (class69.field666) and the placed loc
+ *     starts on it. Otherwise the seq goes to whatever stands on the tile and
+ *     layer NOW (Statics.method1508, a new class104 DynamicObject); only when
+ *     nothing stands there is it stored on the pending spawn instead.
+ *
+ * So, read against the tick's events in packet order:
+ *   - anim AFTER an add, with a loc already standing on the layer at the start
+ *     of the tick and no deferanimchange: the old loc takes the seq and is then
+ *     replaced. The new loc plays its config `anim=`; the seq is never seen.
+ *   - anim AFTER an add onto an EMPTY layer: carried by the pending spawn.
+ *     Correct on the official client, so not reported.
+ *   - anim AFTER a delete: animates the loc being removed, or nothing.
+ *   - anim BEFORE a change: there is no pending spawn yet, so it goes to the
+ *     standing loc (which the change then replaces) or is dropped.
+ *
+ * "Standing at the start of the tick" is the first change's `replaced_loc_id`,
+ * judged per SHAPE (the zone's loc records are keyed on shape): a tile whose
+ * layer holds a different shape of the same layer is not seen. Only walls and
+ * the centrepiece layer have more than one shape, and no content mixes them.
+ *
+ * Every one is printed (the named line below), asserted in a debug build, and
+ * TORIRSSERVER_LOC_ANIM_STRICT=1 aborts an optimised one, the same lever the
+ * client's UI scan meter has. The fix is in content: place the loc a tick (or
+ * more) before animating it, as Near-Reality's rooms do.
+ *
+ * `fresh` is the event just queued; earlier events of this tick are in
+ * `zone->events[0 .. fresh)`. Only loc events reach here.
+ */
+static void
+zone_loc_anim_check(
+    struct ToriRSServer* srv,
+    struct ToriRSServerZone* zone,
+    int fresh)
+{
+    static int strict = -1;
+    const struct ToriRSServerZoneEvent* now = &zone->events[fresh];
+    const struct ToriRSServerZoneEvent* first_change = NULL;
+    const struct ToriRSServerZoneEvent* last_change = NULL;
+    const struct ToriRSServerZoneEvent* anim = NULL;
+    const struct ToriRSServerZoneEvent* change = NULL;
+    int layer = zone_loc_layer(now->shape);
+    const char* why = NULL;
+    int standing;
+
+    for( int i = 0; i < fresh; i++ )
+    {
+        const struct ToriRSServerZoneEvent* e = &zone->events[i];
+
+        if( e->kind != TORIRSSERVER_ZONE_EV_LOC_ANIM && !zone_loc_kind_is_change(e->kind) )
+            continue;
+        if( e->pos != now->pos || zone_loc_layer(e->shape) != layer )
+            continue;
+        if( zone_loc_kind_is_change(e->kind) )
+        {
+            if( !first_change )
+                first_change = e;
+            last_change = e;
+        }
+        else if( !first_change && !anim && e->id >= 0 && e->id != 65535 )
+        {
+            /* An anim with no change before it this tick: it went to the loc
+             * standing at the start of the tick. (Not a `loc_anim(null)`.) */
+            anim = e;
+        }
+    }
+
+    if( now->kind == TORIRSSERVER_ZONE_EV_LOC_ANIM )
+    {
+        /* `loc_anim(null)` (sent as 65535) stops an animation: on a loc the
+         * change replaces anyway there is nothing for it to lose. */
+        if( !last_change || now->id < 0 || now->id == 65535 )
+            return;
+        standing = first_change->replaced_loc_id;
+        if( last_change->kind == TORIRSSERVER_ZONE_EV_LOC_DEL )
+            why = "after a loc_del: it animates the loc being removed";
+        else if( ToriRSServer_LocDefersAnimChange(last_change->id) )
+            return;
+        else if( standing < 0 )
+            return;
+        else
+            why = "after a loc_add/loc_change onto a layer a loc already stands on: the standing "
+                  "loc takes the seq (Statics.method1508) and the pending change "
+                  "(Statics.method5669) then replaces it";
+        anim = now;
+        change = last_change;
+    }
+    else
+    {
+        /* Reported once, at the first change after the anim: a second change
+         * on the tile has nothing to add. */
+        if( !anim || first_change )
+            return;
+        standing = now->replaced_loc_id;
+        why = standing >= 0 ? "before the change: the standing loc takes the seq and the change "
+                              "then replaces it"
+                            : "before the change: no loc stands there and no pending spawn "
+                              "exists yet, so the seq is dropped";
+        change = now;
+    }
+
+    {
+        int x = (zone->x << 3) + ((now->pos >> 4) & 7);
+        int z = (zone->z << 3) + (now->pos & 7);
+
+        fprintf(stderr,
+                "torirsserver: loc_anim same tick as a loc change, NOT SEEN on the official "
+                "client: tick=%d abs=%d,%d,%d layer=%d seq=%d (%s) %s=%d standing=%d (%s) -- "
+                "%s. Place the loc a tick before animating it.\n",
+                srv->tick, x, z, zone->level, layer, anim->id,
+                anim->script[0] ? anim->script : "no script",
+                change->kind == TORIRSSERVER_ZONE_EV_LOC_DEL ? "loc_del" : "loc_add", change->id,
+                standing, change->script[0] ? change->script : "no script", why);
+    }
+    if( strict < 0 )
+    {
+        const char* value = getenv("TORIRSSERVER_LOC_ANIM_STRICT");
+
+        strict = value && value[0] == '1';
+    }
+    if( strict )
+        abort();
+    assert(!why && "loc_anim in the same tick as a loc change on its tile; see the line above");
+}
+
 static void
 queue_event(
     struct ToriRSServer* srv,
@@ -310,6 +470,27 @@ queue_event(
     if( zone->event_count >= zone->event_capacity )
         return;
     zone->events[zone->event_count++] = *event;
+    if( event->kind == TORIRSSERVER_ZONE_EV_LOC_ANIM || zone_loc_kind_is_change(event->kind) )
+    {
+        struct ToriRSServerZoneEvent* queued = &zone->events[zone->event_count - 1];
+        const struct SSVM_State* state = srv->script_command_state;
+
+        queued->script[0] = '\0';
+        if( state && state->script )
+        {
+            /* The proc doing it, and the script it was called from when those
+             * differ: `[proc,tob_xarpus_add_pool] in [timer,tob_xarpus]`. */
+            const struct SSVM_Script* root =
+                state->fp > 0 && state->frames[0].script ? state->frames[0].script : state->script;
+
+            if( root != state->script )
+                snprintf(queued->script, sizeof(queued->script), "%s in %s", state->script->name,
+                         root->name);
+            else
+                snprintf(queued->script, sizeof(queued->script), "%s", state->script->name);
+        }
+        zone_loc_anim_check(srv, zone, zone->event_count - 1);
+    }
     if( srv->verbose &&
         (event->kind == TORIRSSERVER_ZONE_EV_LOC_ADD_CHANGE ||
          event->kind == TORIRSSERVER_ZONE_EV_LOC_DEL ||
@@ -529,6 +710,8 @@ ToriRSServer_ZoneLocChanged(
     struct ToriRSServerZone* zone = zone_at(srv, x, z, level);
     struct ToriRSServerZoneLoc* loc;
     struct ToriRSServerZoneEvent event;
+    int fresh_record = 0;
+    int replaced;
 
     assert(ops);
     if( !zone )
@@ -537,6 +720,7 @@ ToriRSServer_ZoneLocChanged(
     loc = loc_in(zone, x, z, shape);
     if( !loc )
     {
+        fresh_record = 1;
         zone->locs = grow(zone->locs, &zone->loc_capacity, zone->loc_count + 1,
                           sizeof(*zone->locs));
         if( zone->loc_count >= zone->loc_capacity )
@@ -553,6 +737,7 @@ ToriRSServer_ZoneLocChanged(
         loc->base_loc_id = base_loc_id;
         loc->base_angle = base_angle;
     }
+    replaced = fresh_record ? base_loc_id : loc->loc_id;
     loc->loc_id = loc_id;
     loc->angle = angle;
     loc->over_base = over_base;
@@ -563,6 +748,7 @@ ToriRSServer_ZoneLocChanged(
     event.pos = zone_pos(x, z);
     event.shape = shape;
     event.angle = angle;
+    event.replaced_loc_id = replaced;
     ToriRSServer_LocOpsDefault(&event.ops);
     if( loc_id < 0 )
     {

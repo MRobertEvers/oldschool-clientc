@@ -443,7 +443,6 @@ enum AppSpawnKind
     APP_SPAWN_SPOTANIM,
     APP_SPAWN_ENTITY_SPOTANIM,
     APP_SPAWN_LOC_CHANGE,
-    APP_SPAWN_LOC_ANIM,
     APP_SPAWN_PLUGIN_OBJECT,
 };
 
@@ -524,6 +523,25 @@ struct Task_AppSpawn
     int loc_resolved_id;
     int loc_resolve_depth;
     int loc_base_seq;
+    /*
+     * APP_SPAWN_LOC_CHANGE: the sequence this PENDING change carries onto the
+     * loc it places -- the deob's class69.field666 -- in place of the loctype's
+     * own `anim=`. Written by App_WorldSceneryAnim when a LOC_ANIM for this
+     * tile and layer is read while the change is still pending (rev 239 only).
+     *
+     * Two slots because the deob's one is written under a condition this
+     * client cannot judge until the loc config has loaded: a LOC_ANIM that
+     * found nothing standing on the layer always writes it, one that found a
+     * loc writes it only when the NEW loctype has `deferanimchange`. So
+     * `loc_carry_unfound_*` is the last LOC_ANIM of the first kind and
+     * `loc_carry_any_*` the last of either; the apply reads the one the
+     * loctype's flag selects (`loc_defers_anim`, its base record's).
+     */
+    int loc_carry_unfound_seq;
+    int loc_carry_unfound_set;
+    int loc_carry_any_seq;
+    int loc_carry_any_set;
+    int loc_defers_anim;
     /** APP_SPAWN_LOC_CHANGE: the loc's models and sequence, fanned out and not yet ended. */
     int pending;
     /* APP_SPAWN_PLUGIN_OBJECT: the plugin object handle whose assets this task
@@ -1979,7 +1997,9 @@ app_wev_advance_bobs(struct App* app);
 
 
 /* ---- app_world_apply.c ---- */
-void
+/* Attach `seq_id` to the loc standing on the tile's layer now (deob
+ * Statics.method1508). Returns whether a loc stood there. */
+int
 app_world_scenery_anim_apply(
     struct App* app,
     struct World* world,
@@ -2273,11 +2293,39 @@ app_world_bind_pending_seqs(struct App* app);
 
 
 /* ---- app_world_spawn.c ---- */
-/* Queue a LOC_CHANGE or LOC_ANIM on the loc lane (App.loc_lane_*). */
+/* Queue a LOC_CHANGE on the loc lane (App.loc_lane_*). */
 void
 app_spawn_loc_lane_queue(
     struct App* app,
     struct Task_AppSpawn* task);
+
+/* The newest LOC_CHANGE on the loc lane for this view, tile, level and layer
+ * that has not been applied to the scene yet -- the deob's pending spawn for
+ * the tile (Statics.method5652) -- or NULL. */
+struct Task_AppSpawn*
+app_spawn_loc_lane_pending(
+    struct App* app,
+    int view,
+    int scene_x,
+    int scene_z,
+    int level,
+    int layer);
+
+/* A LOC_ANIM read while `pending` waits: hand it the sequence the way the deob
+ * stores it on a pending spawn. `stood` is whether a loc stood on the layer
+ * and took the sequence itself (app_world_scenery_anim_apply). */
+void
+app_spawn_loc_carry(
+    struct Task_AppSpawn* pending,
+    int seq_id,
+    int stood);
+
+/* The sequence a LOC_CHANGE places its loc on instead of the loctype's
+ * `anim=`, chosen by the loctype's deferanimchange; 0 when it carries none. */
+int
+app_spawn_loc_carried(
+    struct Task_AppSpawn const* task,
+    int* out_seq_id);
 
 struct Task_AppSpawn*
 app_spawn_task_new(

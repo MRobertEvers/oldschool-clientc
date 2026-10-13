@@ -156,6 +156,14 @@ struct ToriRSServerZoneEvent
     /** LOC_ADD_CHANGE only: the placement's own menu, written as
      *  LOC_ADD_CHANGE_V2's opCount/ops/opFlags. Neutral for every other kind. */
     struct ToriRSServerLocOps ops;
+    /** LOC_ADD_CHANGE / LOC_DEL: the loc standing on this tile and shape
+     *  before the change, -1 for none. Read by the same-tick loc_anim check
+     *  (`zone_loc_anim_check`): the first change of a tick on a tile says what
+     *  a client's scene holds there while the tick's packets are read. */
+    int replaced_loc_id;
+    /** LOC_ADD_CHANGE / LOC_DEL / LOC_ANIM: the script that queued it, for the
+     *  same-tick loc_anim check's report; "" when no script was running. */
+    char script[96];
     /** LOC_MERGE: start/end cycles, player slot, AABB offsets from the loc tile. */
     int start_cycle, end_cycle;
     int player_pid;

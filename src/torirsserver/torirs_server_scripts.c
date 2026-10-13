@@ -5341,8 +5341,37 @@ var_player_missing(
     return 1;
 }
 
+static int
+script_command(
+    struct SSVM_State* state,
+    int opcode,
+    int dot);
+
+/*
+ * Every script command, with the state that issued it published on the server
+ * for the length of the command (`script_command_state`), so a diagnostic deep
+ * in the engine -- the zone's same-tick loc_anim check -- can name the script
+ * behind an effect. Saved and restored rather than cleared: a command can run
+ * another script to completion inside itself.
+ */
 int
 ToriRSServer_ScriptCommand(
+    struct SSVM_State* state,
+    int opcode,
+    int dot)
+{
+    struct ToriRSServer* srv = (struct ToriRSServer*)state->env->host.user;
+    struct SSVM_State* outer = srv->script_command_state;
+    int handled;
+
+    srv->script_command_state = state;
+    handled = script_command(state, opcode, dot);
+    srv->script_command_state = outer;
+    return handled;
+}
+
+static int
+script_command(
     struct SSVM_State* state,
     int opcode,
     int dot)

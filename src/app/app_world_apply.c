@@ -25,33 +25,48 @@ app_world_reconcile_player_transmog(
     struct WorldEntity_Player* player);
 
 /*
- * LOC_ANIM: attach a sequence to the scenery element on a tile.
+ * LOC_ANIM: attach a sequence to the loc on a tile, the way revision 239 does.
  *
- * ON THE SERIAL EXEC FIFO, BEHIND THE SAME PACKET'S LOC_ADD_CHANGE, and that is
- * the whole reason this is a task rather than a call.
+ * AT ONCE, to whatever stands on the tile's layer NOW -- and a loc change still
+ * pending for the tile does not stand there yet. That is the official client's
+ * order, and content has to live with it, so this client keeps it rather than
+ * hiding it:
  *
- * The reference applies a zone loc change to the scene the moment it reads it -
- * it has the whole cache in hand and a loctype's models are built on demand at
- * draw time - so a LOC_ADD_CHANGE and a LOC_ANIM in one enclosed update work in
- * the order they were written. This client cannot: a change has to wait for its
- * loc config and every model it names to become resident (the reference's own
- * `changeLocAvailable` gate), so `App_WorldLocChange` enqueues an async task.
+ *   - A zone LOC_ADD_CHANGE / LOC_DEL does not touch the scene when it is read.
+ *     It files a PENDING SPAWN (deob Statics.method5669, a class69 keyed on
+ *     level, x, z and layer), and the pending pass (Statics.method6346) builds
+ *     it on a later client cycle, once the new loctype's models are loaded
+ *     (Statics.method8953). Until then the old loc stands.
+ *   - A LOC_ANIM looks that pending spawn up (Statics.method5652). If the
+ *     pending spawn's NEW loctype has `deferanimchange` (class393.field4940,
+ *     loc opcode 90) the sequence goes to the standing loc AND is stored on the
+ *     pending spawn (class69.field666). Otherwise it goes to the standing loc
+ *     (Statics.method1508: a new class104 DynamicObject on the wall, decor,
+ *     centrepiece or ground decor at that tile and layer), and only when
+ *     nothing stands there is it stored on the pending spawn instead.
+ *   - The pending pass builds the new loc with the stored sequence in place of
+ *     its `anim=` (method13799 -> method8559). A loc that took the sequence is
+ *     simply replaced.
  *
- * Applying the animation synchronously beside that made the two ops race, and
- * the loser was always the animation: `World_SceneryFindAt` ran before the
- * pending change had built the scenery, found the OLD loc or nothing at all,
- * and the sequence was dropped with no error to see. The loc then stood on
- * whatever frame its `anim=` config left it on - which is what "the loc is
- * stuck in a frame" is, every time.
+ * So `loc_add` + `loc_anim` on one tile in one tick animates the loc being
+ * replaced, and the new one arrives on its config animation -- unless the tile
+ * was empty or the new loctype defers. The server says so out loud
+ * (torirs_server_zone.c, zone_loc_anim_check); content places the loc a tick
+ * before it animates it.
  *
- * Content should not have to know any of this. The Theatre's acid pools and
- * exhumeds, the Inferno's collapsing flanks and every door script are all
- * entitled to add a loc and animate it in the same tick, exactly as the
- * reference lets them.
+ * "Stands there NOW" maps onto this client's loc lane directly. A change waits
+ * on the lane for its config and models, as the deob's waits in its pending
+ * list, and it applies to the scene only when its turn comes; until then the
+ * scene holds exactly what the deob's holds -- the old loc. So the sequence is
+ * applied to the scene synchronously, here, and the lane's pending change for
+ * the tile (app_spawn_loc_lane_pending) is the deob's pending spawn: it is
+ * handed the sequence under the deob's two conditions, and the loc it places
+ * starts on it (the LOC_CHANGE apply, app_world_spawn.c). The deferanimchange
+ * half is judged there, once the new loctype has loaded.
  *
- * The task awaits nothing itself. `ToriRS_TaskQueue_Run` runs the head task
- * until it yields and leaves the rest queued in order, so being enqueued after
- * the change IS the fix; with no change pending it lands in the same pass.
+ * Revision 239 only. The dat1 lanes reproduce the 2004-era client, whose loc
+ * changes carry no sequence: there a LOC_ANIM only ever reaches the standing
+ * loc, and one aimed at an empty tile is dropped.
  */
 void
 App_WorldSceneryAnim(
@@ -62,16 +77,31 @@ App_WorldSceneryAnim(
     int loc_shape,
     int seq_id)
 {
-    struct Task_AppSpawn* task;
+    struct World* world = NULL;
+    struct Task_AppSpawn* pending;
+    int stood = 0;
 
     assert(app);
-    task = app_spawn_task_new(app, APP_SPAWN_LOC_ANIM, scene_x, scene_z, level);
-    task->loc_shape = loc_shape;
-    task->seq_id = seq_id;
-    app_spawn_loc_lane_queue(app, task);
+    /* The view the packet addresses (SET_ACTIVE_WORLD), as every zone op uses.
+     * A scene still building holds nothing a sequence could attach to. */
+    if( WorldviewRegistry_IsLive(&app->worldviews, app->active_world) )
+    {
+        struct Worldview* wv = WorldviewRegistry_Get(&app->worldviews, app->active_world);
+        if( wv->world && wv->world->load_complete )
+            world = wv->world;
+    }
+    if( world )
+        stood = app_world_scenery_anim_apply(
+            app, world, scene_x, scene_z, level, loc_shape, seq_id);
+    if( app->cfg.cache_kind == APP_CACHE_DAT1 )
+        return;
+    pending = app_spawn_loc_lane_pending(
+        app, app->active_world, scene_x, scene_z, level, World_LocShapeToLayer(loc_shape));
+    if( pending )
+        app_spawn_loc_carry(pending, seq_id, stood);
 }
 
-void
+int
 app_world_scenery_anim_apply(
     struct App* app,
     struct World* world,
@@ -81,14 +111,16 @@ app_world_scenery_anim_apply(
     int loc_shape,
     int seq_id)
 {
+    struct WorldEntity_Scenery* scenery;
     int idx;
     assert(app);
     assert(world);
     idx = World_SceneryFindAt(world, scene_x, scene_z, level, loc_shape);
-    if( idx >= 0 )
+    scenery = idx >= 0 ? World_EntityPoolGet(&world->entities.scenery, idx) : NULL;
+    if( !scenery )
+        return 0;
     {
-        struct WorldEntity_Scenery* scenery = World_EntityPoolGet(&world->entities.scenery, idx);
-        if( scenery && scenery->element_id >= 0 )
+        if( scenery->element_id >= 0 )
         {
             struct ToriDraw_SceneElement* element;
 
@@ -156,6 +188,10 @@ app_world_scenery_anim_apply(
             app->need_redraw = 1;
         }
     }
+    /* A loc entity stood on the layer, drawn or not: that is the deob's
+     * `method1508` returning true, which is what keeps a LOC_ANIM off the
+     * pending spawn. */
+    return 1;
 }
 
 /* Build the npc type's body and mount it on the element (the model half of a

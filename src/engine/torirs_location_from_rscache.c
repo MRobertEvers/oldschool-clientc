@@ -158,6 +158,7 @@ ToriRS_LocationFromRSCacheDat2(
     loc->force_approach = src->force_approach;
     loc->wall_width = src->wall_width;
     loc->seq_id = src->seq_id;
+    loc->defer_anim_change = src->defer_anim_change ? 1 : 0;
     loc->contoured_ground = src->contoured_ground;
     loc->contour_ground_type = src->contour_ground_type;
     loc->contour_ground_param = src->contour_ground_param;

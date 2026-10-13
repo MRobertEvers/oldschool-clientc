@@ -34,9 +34,8 @@ app_world_npc_target_at_tile(
  * blocks here either -- its spot anims are created at once and drawn when
  * their assets exist.
  *
- * Kinds that ARE ordered against later packets stay on the FIFO: a loc
- * change must apply before the LOC_ANIM queued behind it for the same tile
- * (game/test/rs_gameproto_exec_test.c pins it), a ground item before the
+ * Kinds that ARE ordered against later packets stay ordered: loc changes
+ * apply in packet order on the loc lane (below), a ground item before the
  * OBJ_DEL that may follow. Off the FIFO the task captures the scene it was
  * aimed at (Task_AppSpawn.world_load_seq) so a rebuild landing first makes
  * it a no-op instead of a graphic in the wrong scene.
@@ -58,18 +57,23 @@ app_spawn_effect_queue(
 }
 
 /*
- * Queue a loc change or loc anim on the LOC LANE: the asset runner, with a
- * ticket that orders the APPLY, not the load.
+ * Queue a loc change on the LOC LANE: the asset runner, with a ticket that
+ * orders the APPLY, not the load.
  *
  * On the packet FIFO a loc change parked every packet behind it for its
  * config-then-models round trips, and a burst of them -- the nine rock locs
  * that change when TzKal-Zuk breaks loose -- paid those trips one change at
  * a time, 270 ms of frozen world for the cutscene's best moment. Here every
  * queued change loads at once and each applies the moment the one before it
- * has (App.loc_lane_applied), which keeps the two orderings the FIFO gave
- * them: a LOC_ANIM behind the LOC_ADD_CHANGE it animates, a LOC_DEL behind
- * the add it deletes. The reference does the same with its pendingLocChanges
- * list: nothing waits on a loc but the loc.
+ * has (App.loc_lane_applied), which keeps the ordering the FIFO gave them: a
+ * LOC_DEL behind the add it deletes. The reference does the same with its
+ * pending spawns (deob Statics.method5669 / method6346): nothing waits on a
+ * loc but the loc.
+ *
+ * A LOC_ANIM does NOT take the lane. The reference attaches it at once to the
+ * loc standing on the tile, which is the old one while a change is still
+ * pending; only the pending change's own carry (class69.field666) reaches the
+ * new loc. See App_WorldSceneryAnim and app_spawn_loc_lane_pending.
  */
 void
 app_spawn_loc_lane_queue(
@@ -80,7 +84,7 @@ app_spawn_loc_lane_queue(
 
     assert(app);
     assert(task);
-    assert(task->kind == APP_SPAWN_LOC_CHANGE || task->kind == APP_SPAWN_LOC_ANIM);
+    assert(task->kind == APP_SPAWN_LOC_CHANGE);
     if( WorldviewRegistry_IsLive(&app->worldviews, task->view) )
         world = WorldviewRegistry_Get(&app->worldviews, task->view)->world;
     task->world_load_seq = world ? world->load_seq : 0;

@@ -1613,26 +1613,6 @@ Task_AppSpawn_Run(
             PT_TASK_AWAITSELF_IF(CreateTask_SequenceLoad(app->provider, app->scene, self->seq_id));
         app_plugin_object_materialize_now(app, self->plugin_object);
     }
-    else if( self->kind == APP_SPAWN_LOC_ANIM )
-    {
-        /* Nothing to load: the point of the task is its TICKET on the loc
-         * lane, behind any LOC_ADD_CHANGE for the same tile in the same
-         * packet. See App_WorldSceneryAnim and app_spawn_loc_lane_queue. */
-        TASK_AWAIT_STATE(&self->task, &self->pt, app->loc_lane_applied + 1 == self->loc_ticket);
-        {
-            struct World* world = app_spawn_effect_world(self);
-            if( world )
-                app_world_scenery_anim_apply(
-                    app,
-                    world,
-                    self->tile_x,
-                    self->tile_z,
-                    self->level,
-                    self->loc_shape,
-                    self->seq_id);
-        }
-        app_spawn_loc_lane_release(self);
-    }
     else if( self->kind == APP_SPAWN_LOC_CHANGE )
     {
         /* Reference locChangeDoQueue (Client.ts:7701): a zone loc change only
@@ -1658,7 +1638,13 @@ Task_AppSpawn_Run(
                     break;
                 }
                 if( self->loc_resolve_depth == 0 )
+                {
                     self->loc_base_seq = cfg->seq_id;
+                    /* The record the change NAMES, not its transform child:
+                     * the deob reads class393.field4940 off the pending
+                     * spawn's own id (method6184(class69.field663)). */
+                    self->loc_defers_anim = cfg->defer_anim_change;
+                }
                 if( cfg->transform_count <= 0 || !cfg->transforms )
                     break;
                 int next = VarPManager_ResolveTransform(
@@ -1765,6 +1751,28 @@ Task_AppSpawn_Run(
              */
             app_loc_change_apply_ops(app, world, wv->builder, self);
             /*
+             * A LOC_ANIM this pending change carried (App_WorldSceneryAnim):
+             * the placed loc starts on it instead of on its `anim=`, the way
+             * the deob's pending pass builds the loc with class69.field666
+             * (Statics.method6346 -> method13799 -> method8559, whose seq
+             * argument wins over the loctype's own when it is >= 0). Which
+             * of the two slots counts is the new loctype's deferanimchange.
+             */
+            if( self->loc_id >= 0 )
+            {
+                int carried = -1;
+
+                if( app_spawn_loc_carried(self, &carried) )
+                    (void)app_world_scenery_anim_apply(
+                        app,
+                        world,
+                        self->tile_x,
+                        self->tile_z,
+                        self->level,
+                        self->loc_shape,
+                        carried);
+            }
+            /*
              * The cache's own "a loc was placed" script, for a loc that arrived
              * AFTER the scene was built.
              *
@@ -1813,6 +1821,79 @@ Task_AppSpawn_Run(
     }
 
     PT_END(&self->pt);
+}
+
+struct Task_AppSpawn*
+app_spawn_loc_lane_pending(
+    struct App* app,
+    int view,
+    int scene_x,
+    int scene_z,
+    int level,
+    int layer)
+{
+    struct Task_AppSpawn* newest = NULL;
+
+    assert(app);
+    assert(app->runner.queue);
+    /*
+     * The lane's changes live on the asset queue until they end, parked on
+     * their loads or on their turn, and a change that has not released its
+     * ticket has not touched the scene: the apply and the release run with no
+     * yield between them. Several may be pending for one tile when a model is
+     * slow; the deob keeps ONE pending spawn per tile and layer and overwrites
+     * it (Statics.method5669), so the newest stands for it -- it is the one
+     * whose loc ends up standing there.
+     */
+    for( struct ToriRS_Task* t = app->runner.queue->head; t; t = t->next )
+    {
+        struct Task_AppSpawn* task;
+
+        if( t->vtable != &Task_AppSpawn_VTable )
+            continue;
+        task = (struct Task_AppSpawn*)t;
+        if( task->kind != APP_SPAWN_LOC_CHANGE || task->loc_ticket_released )
+            continue;
+        if( task->view != view || task->tile_x != scene_x || task->tile_z != scene_z ||
+            task->level != level || World_LocShapeToLayer(task->loc_shape) != layer )
+            continue;
+        if( !newest || (int)(task->loc_ticket - newest->loc_ticket) > 0 )
+            newest = task;
+    }
+    return newest;
+}
+
+void
+app_spawn_loc_carry(
+    struct Task_AppSpawn* pending,
+    int seq_id,
+    int stood)
+{
+    assert(pending);
+    assert(pending->kind == APP_SPAWN_LOC_CHANGE);
+    /* Deob, the LOC_ANIM decode: a pending spawn whose loctype defers takes
+     * every sequence (class69.field666 = seq after method1508); one that does
+     * not takes it only when method1508 found nothing to attach it to. */
+    pending->loc_carry_any_seq = seq_id;
+    pending->loc_carry_any_set = 1;
+    if( !stood )
+    {
+        pending->loc_carry_unfound_seq = seq_id;
+        pending->loc_carry_unfound_set = 1;
+    }
+}
+
+int
+app_spawn_loc_carried(
+    struct Task_AppSpawn const* task,
+    int* out_seq_id)
+{
+    assert(task);
+    assert(out_seq_id);
+    if( task->loc_defers_anim ? !task->loc_carry_any_set : !task->loc_carry_unfound_set )
+        return 0;
+    *out_seq_id = task->loc_defers_anim ? task->loc_carry_any_seq : task->loc_carry_unfound_seq;
+    return 1;
 }
 
 /*

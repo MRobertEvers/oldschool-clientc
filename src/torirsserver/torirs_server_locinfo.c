@@ -145,6 +145,9 @@ static int g_op_cap;
 /** Bit per loc id: 1 when the config group holds a record for it. */
 static uint8_t* g_known;
 static int g_known_bits;
+/** Bit per loc id, sized with `g_known`: 1 when the record states
+ *  `deferanimchange` (opcode 90). See ToriRSServer_LocDefersAnimChange. */
+static uint8_t* g_defer_anim;
 
 static int
 compare_name_row(const void* a, const void* b)
@@ -285,9 +288,22 @@ mark_known(int loc_id)
         memset(grown + (g_known_bits + 7) / 8, 0,
                (size_t)(want + 7) / 8 - (size_t)(g_known_bits + 7) / 8);
         g_known = grown;
+        grown = realloc(g_defer_anim, (size_t)(want + 7) / 8);
+        assert(grown);
+        memset(grown + (g_known_bits + 7) / 8, 0,
+               (size_t)(want + 7) / 8 - (size_t)(g_known_bits + 7) / 8);
+        g_defer_anim = grown;
         g_known_bits = want;
     }
     g_known[loc_id >> 3] |= (uint8_t)(1u << (loc_id & 7));
+}
+
+int
+ToriRSServer_LocDefersAnimChange(int loc_id)
+{
+    if( loc_id < 0 || loc_id >= g_known_bits || !g_defer_anim )
+        return 0;
+    return (g_defer_anim[loc_id >> 3] >> (loc_id & 7)) & 1;
 }
 
 /** Rows the overlay added (rather than replaced): the server-only params a loc's
@@ -679,6 +695,8 @@ loc_load_record(
     g_loc_records++;
     ToriRSServer_ParamTableRead(&g_loc_params, id, &loc->params);
     mark_known(id);
+    if( loc->defer_anim_change )
+        g_defer_anim[id >> 3] |= (uint8_t)(1u << (id & 7));
     if( loc->name )
         add_name(id, loc->name);
     if( loc->size_x != 1 || loc->size_z != 1 )
@@ -790,6 +808,8 @@ ToriRSServer_LocInfoFree(void)
 
     free(g_known);
     g_known = NULL;
+    free(g_defer_anim);
+    g_defer_anim = NULL;
     g_known_bits = 0;
 
     free(g_op_blob);

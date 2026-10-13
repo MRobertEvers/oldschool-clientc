@@ -1708,6 +1708,21 @@ ToriRSServer_LocCategoryMembers(int category);
 int
 ToriRSServer_LocKnown(int loc_id);
 
+/**
+ * Does this loc's record state `deferanimchange` (config opcode 90)? 0 for an
+ * id with no record, and for everything when the cache is absent.
+ *
+ * The official client reads it in exactly one place, the zone LOC_ANIM decode
+ * (deob Statics, the class250.field3237 branch): when a pending spawn (class69)
+ * for the tile and layer holds a loctype with the flag, the sequence is stored
+ * on the pending spawn as well as attached to whatever stands there now, so
+ * the loc the change is about to place starts on it. Without the flag a loc
+ * that stands there takes the sequence and the pending change then replaces
+ * it. The zone check `zone_loc_anim_check` (torirs_server_zone.c) asks this.
+ */
+int
+ToriRSServer_LocDefersAnimChange(int loc_id);
+
 /** The param, or NULL when this struct does not carry it. An authored
  *  `.struct` row (ToriRSServer_ContentStructParam) wins over the cache's. */
 const struct ToriRSServerParamRow*
@@ -4489,6 +4504,15 @@ struct ToriRSServer
 
     /** Whose turn it is — see the header comment. Never "the player". */
     struct ToriRSServerPlayer* active_player;
+
+    /**
+     * The script state whose command is executing right now, or NULL between
+     * commands. Borrowed, and only valid for the length of one
+     * `ToriRSServer_ScriptCommand`, which sets and restores it. Read by
+     * diagnostics that want to name the script behind an engine effect (the
+     * zone's same-tick loc_anim check); nothing may act on it.
+     */
+    struct SSVM_State* script_command_state;
 
     int tick;
 
