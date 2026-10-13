@@ -88,9 +88,13 @@ rock (1357); its acid projectile is Vespula's (1364).
   phases + the final stand on the last one's wall [W]; one more per 8 players.
 - Damage: off-style keeps 34% (66% mitigation) [W]; no melee on the head or the
   mage hand ("I can't reach that!") [NR].
-- Clench (P1-P2, mage hand up): a single landed hit ≥ 1/20 of base on the left claw
-  between the null and the special clenches it for 45 ticks [M, W, P]; generic
-  specials stop while clenched; the mage hand's death cuts it to 2 ticks [NR].
+- Clench (P1-P2, mage hand up): judged at EVERY even step on the heaviest hit
+  launched at the left claw since the previous even step (one hit >= 1/20 of
+  base, not a killing blow) [M, MG]: that step is a clenched null (the even list
+  does not advance) and the claw is invulnerable for 45 ticks [P]; generic
+  specials stop while clenched. The mage hand's death: on Olm's next 2-tick poll
+  the claw unclenches and that tick counts as clenched (the ghost clench: an
+  even step on it is a clenched null) [MG].
 - The head heals to full every 5th tick until the final stand [NR].
 - P3: the first hand down regenerates at full after 50 ticks ("roughly 30
   seconds" [W]; NR 34) unless the other falls first; both down → final stand.
@@ -127,4 +131,6 @@ rock (1357); its acid projectile is Vespula's (1364).
 | crops review | acid-spray pools were laid at once, under spits still in the air | FIXED: laid on the head's own queue (`[ai_queue6,olm_head]`) as each spit lands; the solver prices a spit's tile from its landing |
 | points | the raid's points were never shown: varp6743 untransmitted, varp4609 / varbit 5431 (the raids_overlay's) never written, the overlay never mounted | FIXED in the server (`~cox_points_show`, `~cox_hud_mount`, varp4609 / 1431 / 1432 transmitted); the solver checks points = 5 x damage dealt (`points`). OPEN: the mounted overlay draws nothing (its content script's gate) |
 | ol20 t1633-1653 | falling crystals: the next aim was queued FROM the queue drain at delay 1, which fires one or two ticks later by the slot it lands in -- 1, 1, 1, then every other tick: 22 ticks of crystals for eleven, the 30-cycle projectile a tick ahead of its hit | FIXED: all thirteen entries queued at the cry (entry n lands n - 2's crystal, then aims its own; tiles in a ring of three registers, ^cox_olm_v_falling0): one a tick, landing +2, the projectile 60 cycles. (The engine quirk -- a queue from inside a drain is slot-order dependent -- is C, not touched: torirs_server_scripts.c's queue drain) |
+| ol1 t457 (strategy pass) | the ghost clench with the melee hand clenched: `~cox_olm_hand_down` set the clench to run out in (poll - now) ticks, but the claw's death queue runs before the head's timer, so it ran out -- and the unclench played, and the hand could be hit -- a tick before the poll (unclench 457, the clenched null 458) | FIXED: the poll tick itself ends a running clench and plays the unclench (`~cox_olm_fight_tick`, `v_ghost_anim` in both cases); check `ghost` 0/193 |
+| ol5 t542, ol41 t1028 | a killing blow clenched the dying claw: the hit was recorded uncapped, and Olm learns of the death only from the death queue three ticks on, so the even step between clenched a claw at 0 hp | FIXED: a hit that kills does not count toward the clench (`~cox_olm_prepare_hit`); check `clench` 0/18447 |
 | crops review | OPEN, unverified on screen: the falling-crystal target's red aura (sp_attackglow_red 246 is sent each tick); the left claw's special signs (framing); flame styling |
