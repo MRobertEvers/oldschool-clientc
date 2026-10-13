@@ -47,8 +47,8 @@ CO.V = {
         { 42, 44, 0, 0, 1 },     -- E  NORTH only
     },
     -- the clock (OLM_SPEC 3); the rise's second beat (cox_olm_rise_done,
-    -- the ghost clench's 2-tick poll grid) is the rise animation + 4
-    FIRST_P1 = 4, FIRST_LATER = 8, ACT = 4, RISE_DONE = 4,
+    -- the ghost clench's 2-tick poll grid) is the rise animation + 5 (its full length)
+    FIRST_P1 = 5, FIRST_LATER = 8, ACT = 4, RISE_DONE = 5,
     -- THE CLENCH (cox_olm_clench_check): judged at every even step on the
     -- heaviest landed hit on the melee hand since the previous even step;
     -- 1/20 of the solo hand's 600; 45 ticks (cox_olm.constant). The P3
@@ -1298,11 +1298,11 @@ function CO.predict(S, F, B)
         o.bomb_first[key] = o.bomb_first[key] or now
         local t = o.bomb_first[key] + 5
         if t >= now + 1 then
-            for d = 4, 1, -1 do
-                local c = math.min(60, 15 * (5 - d))
+            -- (60 on it, 15 less a ring, nothing past the 7x7 -- the content's
+            -- ~cox_olm_bomb_damage; each nested box adds its ring's 15)
+            for d = 3, 0, -1 do
                 B.hit({ name = "bomb", x0 = bm.x - d, z0 = bm.z - d, x1 = bm.x + d, z1 = bm.z + d, t0 = t, t1 = t,
                         dmg_exp = 15, dmg_max = 15, forbid = (d <= 2) })
-                local _ = c
             end
         end
     end
