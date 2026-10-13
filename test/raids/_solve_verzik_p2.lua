@@ -20,7 +20,6 @@ local kit = {
 }
 if role == 1 then kit[#kit + 1] = "::give verzik_special_weapon 1" end
 -- the Athanatos dies to a poisonous hit: the east raider carries the helm
-if role == 3 then kit[#kit + 1] = "::give serpentine_helm_charged 1" end
 
 local function run(t)
     if role == 1 then t.check("p1.ticklog", t.ticklog.start() == "ok", "") end

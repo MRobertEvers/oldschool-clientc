@@ -26,6 +26,10 @@
 -- `opts.from` / `opts.to` run a stretch of the raid (a room probe: the party
 -- lands at `from` through t.raid.enter and stops after `to`); the kept tests
 -- run the whole of it.
+-- `opts.fixture` / `opts.party` / `opts.max_frames` are a kept test file's own
+-- declaration: the Scripts tab reads a test file's TEXT, not this table
+-- (tools/raid_gate/prepare_scripts.py), so the file spells them out, and each
+-- one given is asserted to be this relay's.
 function QD.raid.tob_relay_test(mode, opts)
     assert(mode == "normal" or mode == "hard", "tob_relay_test: mode " .. tostring(mode))
     opts = opts or {}
@@ -42,8 +46,8 @@ function QD.raid.tob_relay_test(mode, opts)
     -- THE LEARNER/VOID KIT (wiki Strategies, the Learner/Void example): the void
     -- melee set worn; the ranged and mage switches, the rune pouch of the barrage's
     -- runes and Ancient Magicks on every seat (Maiden's freezer, the Nylocas'
-    -- barrage); Maiden's hammer and salve; seat 3 the serpentine helm for the
-    -- Athanatos (ROOM_SOLVERS 4.6: until the blowpipe's venom replaces it).
+    -- barrage); Maiden's hammer and salve. The Athanatos is whipped: the
+    -- tentacle's hit is poisonous.
     local WORN = {
         "game_pest_melee_helm", "elite_void_knight_top", "elite_void_knight_robes", "pest_void_knight_gloves",
         "abyssal_tentacle", "dragon_parryingdagger", "zenyte_amulet_enchanted", "tzhaar_cape_fire",
@@ -80,6 +84,13 @@ function QD.raid.tob_relay_test(mode, opts)
     -- Maiden and seats 3 and 4 pipe her crabs and cast in the Nylocas, so
     -- they use both (without the ranged three her room ran 707 ticks to 435,
     -- md1 m1).
+    -- P3'S SPECIAL WEAPON (owner, 2026-10-12: "is there room in the
+    -- inventories for a spec weapon that we can use to speed up P3?"): one
+    -- slot on every Hard seat, the P3 solver switching to it for a special
+    -- and back (QD.raid._vzp3_special). opts.spec_weapon names another
+    -- (raid_solve_verzik_p3.lua QD.VZP3.SPEC_WEAPONS), false carries none.
+    local SPEC_WEAPON = nil
+    if mode == "hard" and opts.spec_weapon ~= false then SPEC_WEAPON = opts.spec_weapon or "dragon_claws" end
     local RANGED_EXTRA = { "game_pest_archer_helm", "zenyte_necklace_enchanted", "avas_assembler" }
     local MAGIC_EXTRA = { "game_pest_mage_helm", "occult_necklace", "ma2_saradomin_cape" }
     local left_home = {}
@@ -99,25 +110,41 @@ function QD.raid.tob_relay_test(mode, opts)
         "::blowpipe dragon_dart 2000 2000",
     }) do kit[#kit + 1] = line end
     for _, line in ipairs(swaps) do kit[#kit + 1] = line end
-    for _, line in ipairs({
-        "::~charge toxic_tots_charged 2500",
-        "::give dragon_warhammer 1",
+    -- THE BOOKS (owner, 2026-10-12: "3 seats on ancients and 2 on arceus and
+    -- the 2 on arceus use thralls"; "the other roles also bring magic and
+    -- switch to blood barrage after the freezers have frozen the crabs"; "You
+    -- need an imbued rune pouch for that"): seats 1 and 2 freeze (Ice
+    -- Barrage: water, death, blood), seat 3 freezes in the Nylocas and blood
+    -- barrages Maiden's frozen crabs (a divine pouch's fourth slot: soul),
+    -- seats 4 and 5 are on Arceuus for greater thralls (fire, blood, cosmic).
+    -- Normal keeps every seat on Ancients with the three-slot pouch.
+    local book, pouch = 1, {
         "::give bh_rune_pouch 1",
         "::setvar varb29_rune_pouch_type_1 2", "::setvar varb1624_rune_pouch_quantity_1 600",
         "::setvar varb1622_rune_pouch_type_2 7", "::setvar varb1625_rune_pouch_quantity_2 400",
         "::setvar varb1623_rune_pouch_type_3 8", "::setvar varb1626_rune_pouch_quantity_3 200",
-    }) do kit[#kit + 1] = line end
-    -- VERZIK P3'S SPECIAL WEAPON (owner, 2026-10-12: "p3 should be using dragon
-    -- dagger or dragon claws or crystal halberd as the spec weapons, not dragon
-    -- warhammer"; then: "use burning claws as an option. In fact - prefer that
-    -- option"): Hard Mode carries one, burning claws (`bone_claws`, this cache's
-    -- name for them: configs/all.obj, special_attack.obj sa_kind 47, 350 energy,
-    -- two-handed) unless opts.spec_weapon names another (false carries none); the
-    -- warhammer stays for Maiden's opener
-    local SPEC_WEAPON = nil
-    if mode == "hard" and opts.spec_weapon ~= false then SPEC_WEAPON = opts.spec_weapon or "bone_claws" end
-    assert(SPEC_WEAPON == nil or SPEC_WEAPON == "bone_claws" or SPEC_WEAPON == "dragon_claws" or SPEC_WEAPON == "dragon_dagger"
-        or SPEC_WEAPON == "crystal_halberd", "tob_relay_test: spec_weapon " .. tostring(SPEC_WEAPON))
+    }
+    if mode == "hard" and role == 3 then
+        pouch = {
+            "::give divine_rune_pouch 1",
+            "::setvar varb29_rune_pouch_type_1 2", "::setvar varb1624_rune_pouch_quantity_1 400",
+            "::setvar varb1622_rune_pouch_type_2 7", "::setvar varb1625_rune_pouch_quantity_2 600",
+            "::setvar varb1623_rune_pouch_type_3 8", "::setvar varb1626_rune_pouch_quantity_3 600",
+            "::setvar varb14285_rune_pouch_type_4 13", "::setvar varb14286_rune_pouch_quantity_4 150",
+        }
+    elseif mode == "hard" and (role == 4 or role == 5) then
+        book = 3
+        pouch = {
+            "::give bh_rune_pouch 1",
+            "::setvar varb29_rune_pouch_type_1 4", "::setvar varb1624_rune_pouch_quantity_1 1000",
+            "::setvar varb1622_rune_pouch_type_2 8", "::setvar varb1625_rune_pouch_quantity_2 500",
+            "::setvar varb1623_rune_pouch_type_3 9", "::setvar varb1626_rune_pouch_quantity_3 100",
+        }
+    end
+    kit[#kit + 1] = "::~charge toxic_tots_charged 2500"
+    kit[#kit + 1] = "::give dragon_warhammer 1"
+    for _, line in ipairs(pouch) do kit[#kit + 1] = line end
+    kit[#kit + 1] = "::setvar varb4070_spellbook " .. book
     if SPEC_WEAPON then kit[#kit + 1] = "::give " .. SPEC_WEAPON .. " 1" end
     -- SEAT 1 IS MAIDEN'S FREEZER: it needs room to take the defender and boots
     -- off for its cast set (tob_maiden.lua's kit: "two supply slots fewer").
@@ -151,7 +178,9 @@ function QD.raid.tob_relay_test(mode, opts)
     -- Seat 1 ranges (Maiden's freezer, the Nylocas' ranger) and carries the
     -- ranging potion besides.
     if freezer_kit then kit[#kit + 1] = "::give br_4doserangerspotion 1" end
-    if role == 3 then kit[#kit + 1] = "::give serpentine_helm_charged 1" end
+    -- (no serpentine helm on any seat, owner 2026-10-12: the tentacle's hit
+    -- is a poisonous one, so a whip pops the Athanatos - tob_damage.rs2
+    -- ~tob_hit_is_poisonous)
 
     local ORDER = {}
     do
@@ -164,10 +193,7 @@ function QD.raid.tob_relay_test(mode, opts)
         end
         assert(#ORDER > 0, "tob_relay_test: no rooms from " .. tostring(opts.from) .. " to " .. tostring(opts.to))
     end
-    -- the v2 supply budget's rooms (tob2_budget.lua: the reserve is what the
-    -- rooms after the current one need)
-    if QD.T2 and QD.T2.budget and QD.T2.budget.set_order then QD.T2.budget.set_order(ORDER) end
-    if QD.T2 and QD.T2.budget and QD.T2.budget.set_spec then QD.T2.budget.set_spec(SPEC_WEAPON) end
+    local COMBAT_AFTER = { maiden = 7, bloat = 6, nylocas = 5, sotetseg = 3, xarpus = 2, verzik = 2 }
     local NEXT = { maiden = "bloat", bloat = "nylocas", nylocas = "sotetseg", sotetseg = "xarpus", xarpus = "verzik" }
     local MAX = { maiden = 600, bloat = 600, nylocas = 700, sotetseg = 700, xarpus = 900 }
     if mode == "hard" then
@@ -377,9 +403,15 @@ function QD.raid.tob_relay_test(mode, opts)
         -- Attack and Strength a sip, only a super restore puts them back, and a
         -- team that bought brews and prayer potions fought P3 drained - 8 a hit
         -- where it had 15, a P3 of 848 ticks where it had 350, rl40)
+        -- (HALF the points at most: short of both, the reserve took all 12 of
+        -- a seat's points at Sotetseg's chest and it bought four restores with
+        -- no brew or fish left - Verzik on no healing at all, relay hmt_live2
+        -- seats 2 and 3)
         local function prayer_reserve()
             local short = math.max(0, target_p - prayer_doses())
-            return ((short + 3) // 4) * CHEST_COST.restore
+            local want = ((short + 3) // 4) * CHEST_COST.restore
+            local half = ((p0 // 2) // CHEST_COST.restore) * CHEST_COST.restore
+            return math.min(want, half)
         end
         local function heal(reserve)
             local room = free_slots(t) - keep
@@ -388,38 +420,9 @@ function QD.raid.tob_relay_test(mode, opts)
             if spend > room and spend >= CHEST_COST.brew then return buy("brew") end
             return buy("shark")
         end
-        -- BUDGET-DRIVEN (tob2_budget.lua NEED, this seat, the rooms after this
-        -- chest; 2026-10-12, relay_bud_128: 4 of the first 9 failures were
-        -- seat 1 starving in P3 -- 18 restore doses and 108-212 hp of healing,
-        -- its slots filled with restores to the old 16-dose target): restores
-        -- only up to the later rooms' need, then brews (~64 hp a slot) while
-        -- the healing carried is under the later rooms' need, sharks after;
-        -- then the rest as before. The slot reserves (`keep`) stand. Without
-        -- the budget, the old targets.
-        local Bu = QD.T2 and QD.T2.budget
-        if Bu and Bu.later_need then
-            target_p = Bu.later_need(role, name, "restore")
-            local heal_need = 16 * Bu.later_need(role, name, "brew") + 20 * Bu.later_need(role, name, "food")
-            local function heal_to_need()
-                for _ = 1, 20 do
-                    if heal_hp() >= heal_need then break end
-                    if not ((points >= CHEST_COST.brew and buy("brew")) or buy("shark")) then break end
-                end
-            end
-            -- HEALING FIRST WHEN SHORT (relay_r13_128 f17: seat 4 tanked
-            -- Maiden on all 24 brew doses, Bloat's chest bought it "restore
-            -- restore shark" with 0 brews, and it died in Sotetseg): a seat
-            -- under its later healing need buys brews, then sharks, to that
-            -- need before any restore
-            if heal_hp() < heal_need then heal_to_need() end
-            for _ = 1, 8 do if prayer_doses() >= target_p or not buy("restore") then break end end
-            heal_to_need()
-            for _ = 1, 20 do if not heal(0) then break end end
-        else
-            for _ = 1, 20 do if heal_hp() >= 20 * floor_f or not heal(prayer_reserve()) then break end end
-            for _ = 1, 8 do if prayer_doses() >= target_p or not buy("restore") then break end end
-            for _ = 1, 20 do if not heal(0) then break end end
-        end
+        for _ = 1, 20 do if heal_hp() >= 20 * floor_f or not heal(prayer_reserve()) then break end end
+        for _ = 1, 8 do if prayer_doses() >= target_p or not buy("restore") then break end end
+        for _ = 1, 20 do if not heal(0) then break end end
         t.check(name .. ".chest_bought", true, P .. "points " .. p0 .. " -> " .. points .. "; bought "
             .. (#bought > 0 and table.concat(bought, " ") or "nothing") .. "; free slots " .. free_slots(t))
         t.key("escape")
@@ -458,7 +461,7 @@ function QD.raid.tob_relay_test(mode, opts)
         local suffix = (opts.v2 and opts.v2[name]) and "_v2" or SUFFIX
         local solve = t.raid[name .. suffix .. "_solve"]
         assert(solve, "tob_relay: no solver " .. name .. suffix .. "_solve")
-        local result, detail = solve({ max_ticks = MAX[name] })
+        local result, detail = solve({ max_ticks = MAX[name], spec_weapon = SPEC_WEAPON })
         t.check(name .. ".solve", result == "ok", P .. string.sub(tostring(detail), 1, opts.detail or 900))
         return result == "ok"
     end
@@ -477,20 +480,13 @@ function QD.raid.tob_relay_test(mode, opts)
     -- Sotetseg's chest instead starved the middle rooms (rl67 rn: dead in
     -- Sotetseg). The floor is the message: no seat needs another's inventory.
     -- Supplies only -- no equipment changes hands.
-    -- 260, not 300 (2026-10-12, relay_bud_128): givers kept 300 while the team
-    -- held ~270 a seat in the failing relays (f36: 120/140/352/332/408), so a
-    -- low seat could never be filled; 260 levels toward the team instead
-    local SHARE_HP = 260
+    local SHARE_HP = 300
+    local SHARE_LOW = {}
+    local SHARE_CALL = "need heals"
     -- (slots the exchange never fills: P1's Dawnbringer is dropped by one seat
     -- for the next, and a seat the exchange had filled to the last slot could not
     -- take it - P1 ran 380 ticks and raiders died to it, rl83 rm, tc)
-    -- ONE slot, not two (2026-10-12): the Dawnbringer is one-handed
-    -- (all.obj verzik_special_weapon wearpos2 default), so its pickup needs one
-    -- slot, and P3's two-handed spec swap needs one for the parrying dagger, never
-    -- at the same time. The second slot was a full brew the freezer seat could
-    -- not take (relay_bud_128 f36: seat 1 on 120 hp of healing took nothing)
-    local SHARE_KEEP_SLOTS = 1
-    local SHARE_SOTE = 200
+    local SHARE_KEEP_SLOTS = 2
     local BREW_FULL = { "br_4dosepotionofsaradomin", "4dosepotionofsaradomin" }
     local FISH = { "anglerfish", "shark", "mantaray", "seaturtle" }
     local function healing_hp(t)
@@ -507,133 +503,55 @@ function QD.raid.tob_relay_test(mode, opts)
         end
         return 16 * d + 20 * f
     end
-    -- (room, level): the exchange runs at a room's door; LEVEL is what a giver
-    -- keeps and a taker fills to. Verzik's door at level; Sotetseg's at
-    -- SHARE_SOTE (2026-10-12, relay_r10_128: 3 of 5 failures were a Sotetseg
-    -- seat out of brews - f74 seats 1/2 came in on 7 and 8 brew doses with
-    -- seat 5 on 31; four pairs at the 75 worst case need ~10-12 doses)
-    -- THE EXCHANGE ON THE SUPPLY BOARD (owner 2026-10-12: "You can use the
-    -- chat to coordinate which seats get what resources"; real public chat on
-    -- both lanes, tob2_budget.lua THE BOARD). Every seat says its healing,
-    -- givable full brews and fish,
-    -- free slots past SHARE_KEEP_SLOTS and its later rooms' healing need;
-    -- every seat computes the same allocation (QD.T2.budget.allocate: the
-    -- team's healing split by need, largest deficit from largest surplus,
-    -- whole items); a giver drops exactly its items, then each taker in role
-    -- order takes exactly its own from its giver's tile. Supplies only.
-    -- (relay_r13_128 f17: takers filled to the level in role order from a
-    -- pool short of it, and seat 4, on 0, found the floor empty and died.)
-    local BOARD_AFTER = { sotetseg = "nylocas", verzik = "xarpus" }
-    local function share_by_board(t, room)
-        drop_vials(t)
-        local Bu = QD.T2.budget
-        local t0 = api_drive.tick()
-        local function count(nm) local r, c = t.inv.count(nm) return (r == "ok" and tonumber(c)) or 0 end
-        local full, fish = 0, 0
-        for _, nm in ipairs(BREW_FULL) do full = full + count(nm) end
-        for _, nm in ipairs(FISH) do fish = fish + count(nm) end
-        local after = BOARD_AFTER[room]
-        local need = 16 * Bu.later_need(role, after, "brew") + 20 * Bu.later_need(role, after, "food")
-        local before = healing_hp(t)
-        local mine = { before, full, fish, math.max(0, free_slots(t) - SHARE_KEEP_SLOTS), need }
-        -- (the exchange number is the same on every seat: a count every seat
-        -- keeps alike, one per exchange this relay)
-        -- (the read starts BEFORE the barrier: a seat released a tick later
-        -- must not start reading after a line already arrived)
-        local since = QD.T2.board.mark()
-        t.expect(room .. ".barrier.board", t.party.barrier(room .. "_board", 300))
-        Bu.board_seq = (Bu.board_seq or 0) + 1
-        local seq = Bu.board_seq
-        local sr = QD.T2.board.say(seq, role, mine)
-        t.check(room .. ".board_said", sr == "ok", P .. "say answered " .. tostring(sr))
-        local names = t.party.names()
-        local got, deadline = {}, api_drive.tick() + 30
-        while true do
-            since = QD.T2.board.collect(seq, names, since, got)
-            local all = true
-            for r = 1, SEATS do if got[r] == nil then all = false end end
-            if all then break end
-            assert(api_drive.tick() <= deadline, "tob_relay: the supply board for " .. room .. " never filled")
-            t.ticks(1)
-        end
-        local rows = {}
-        for r = 1, SEATS do
-            local v = got[r]
-            rows[r] = { heal = v[1], full = v[2], fish = v[3], slots = v[4], need = v[5] }
-        end
-        local moves = Bu.allocate(rows)
-        -- give: exactly my items
-        local gave, took, missed = 0, 0, 0
-        for _, m in ipairs(moves) do
-            if m.from == role then
-                local list = (m.kind == "brew") and BREW_FULL or FISH
-                local dropped = false
-                for _, nm in ipairs(list) do
-                    if not dropped and count(nm) > 0 and t.player.drop(nm) == "ok" then
-                        gave, dropped = gave + 1, true
-                    end
-                end
+    -- THE SHARE, AT EVERY ROOM'S DOOR (SHARE_AT: owner, 2026-10-12, "You need
+    -- to get those to 100%"). The team carries enough and the wrong seat
+    -- carries it: of 128 relays, 26 lost a seat in Sotetseg that walked in on
+    -- 2-6 brew doses beside a seat on 29-33 (all128 r003, r006, r017); the room
+    -- alone, every seat on a full kit, cleared 127 of 128 (so128). So before
+    -- the rooms that cost most, each seat above the room's target drops its
+    -- extra full brews and fish, and the seats below it take them back ONE ITEM
+    -- A SEAT A PASS in role order (role order whole, seat 1 took all of them).
+    -- What is left goes back up the same way. A caged seat meets the barriers.
+    local function share_healing(t, room, target, alive)
+        if alive then drop_vials(t) end
+        local before, gave, took = alive and healing_hp(t) or 0, 0, 0
+        -- THE TRIGGER, SAID IN CHAT (owner, 2026-10-12: "Any seat with no
+        -- healing or too little healing should trigger the split"; "You should
+        -- have them communicate with chat"): a seat under the room's line says
+        -- so in public chat, as a raider would; two ticks after the barrier
+        -- every seat has the line in its chatbox (MESSAGE_PUBLIC, back as each
+        -- raider's PLAYER_INFO chat block), so all of them split or none does,
+        -- the same on both lanes
+        local low = SHARE_LOW[room] or 0
+        -- (every seat's read cursor is taken BEFORE a barrier, and nobody
+        -- speaks until it is passed: a seat a tick ahead said its line before
+        -- three others took their cursors, they read "no split" and never met
+        -- the shared barrier - all128e r023, Sotetseg)
+        local since = select(2, api_drive.message_serial()) or 0
+        t.expect(room .. ".barrier.presay", t.party.barrier(room .. "_presay", 300))
+        if alive and before < low then api_drive.say(SHARE_CALL) end
+        t.expect(room .. ".barrier.lowcheck", t.party.barrier(room .. "_lowcheck", 300))
+        t.ticks(2)
+        local anyone = false
+        local mr, rows = api_drive.messages()
+        if mr == "ok" then
+            for _, m in ipairs(rows) do
+                if m.serial > since and m.type == 2 and m.text and m.text:lower() == SHARE_CALL:lower() then anyone = true end
             end
         end
-        t.expect(room .. ".barrier.given", t.party.barrier(room .. "_given", 300))
-        -- take: each seat in role order, exactly its own, from its giver's tile
-        local ids = {}
-        for _, nm in ipairs(BREW_FULL) do local r, id = api_drive.symbol("obj", nm) if r == "ok" then ids[id] = "brew" end end
-        for _, nm in ipairs(FISH) do local r, id = api_drive.symbol("obj", nm) if r == "ok" then ids[id] = "fish" end end
-        for r = 1, SEATS do
-            if role == r then
-                for _, m in ipairs(moves) do
-                    if m.to == role then
-                        local giver = QD.party.name(m.from)
-                        local gx, gz = nil, nil
-                        local pr, players = api_drive.players()
-                        if pr == "ok" then
-                            for _, p in ipairs(players) do
-                                if QD.party._same(p.name, giver) then gx, gz = p.server_x or p.x, p.server_z or p.z end
-                            end
-                        end
-                        local row, bd = nil, nil
-                        local orr, objs = api_drive.objs(15)
-                        if orr == "ok" and gx then
-                            for _, o in ipairs(objs) do
-                                if ids[o.obj_id] == m.kind then
-                                    local dd = math.max(math.abs(o.x - gx), math.abs(o.z - gz))
-                                    if bd == nil or dd < bd then row, bd = o, dd end
-                                end
-                            end
-                        end
-                        local got = false
-                        if row then
-                            local h0 = healing_hp(t)
-                            if api_drive.world_op("obj", row.obj_id, 3, row.element_id) == "ok" then
-                                for _ = 1, 12 do
-                                    t.ticks(1)
-                                    if healing_hp(t) > h0 then got = true break end
-                                end
-                            end
-                        end
-                        if got then took = took + 1 else missed = missed + 1 end
-                    end
-                end
-            end
-            t.expect(room .. ".barrier.took_" .. r, t.party.barrier(room .. "_took_" .. r, 300))
+        if not anyone then
+            if alive then t.check(room .. ".share", true, P .. string.format("healing %d hp: no seat under %d, no split", before, low)) end
+            return
         end
-        t.check(room .. ".share", missed == 0, P .. string.format(
-            "board: healing %d -> %d hp (need %d; gave %d, took %d, missed %d; %d moves; %d ticks)",
-            before, healing_hp(t), need, gave, took, missed, #moves, api_drive.tick() - t0))
-    end
-
-    local function share_healing(t, room, level)
-        if QD.T2 and QD.T2.budget and QD.T2.budget.allocate and QD.T2.board and BOARD_AFTER[room] then
-            return share_by_board(t, room)
-        end
-        drop_vials(t)
-        local before, gave, took = healing_hp(t), 0, 0
-        -- give: a full brew (64) while that leaves level, then fish (20)
-        for _ = 1, 12 do
+        -- give: a full brew (64) while that leaves the target, then fish (20)
+        -- (target 0: EVERY full brew and fish, then the rounds below share
+        -- them out evenly - with the team under the old 300 line nobody gave:
+        -- all21 sa reached P3 on 760 hp of healing, two seats on none)
+        for _ = 1, 28 do
+            if not alive then break end
             local dropped = false
             for _, list in ipairs({ { BREW_FULL, 64 }, { FISH, 20 } }) do
-                if not dropped and healing_hp(t) - list[2] >= level then
+                if not dropped and healing_hp(t) - list[2] >= target then
                     for _, nm in ipairs(list[1]) do
                         local r, c = t.inv.count(nm)
                         if not dropped and r == "ok" and (tonumber(c) or 0) > 0 then
@@ -646,45 +564,43 @@ function QD.raid.tob_relay_test(mode, opts)
             if not dropped then break end
         end
         t.expect(room .. ".barrier.shared", t.party.barrier(room .. "_shared", 300))
-        for r = 1, SEATS do
-            if role == r then
-                for _ = 1, 12 do
-                    if healing_hp(t) >= level or free_slots(t) <= SHARE_KEEP_SLOTS then break end
-                    local picked = false
-                    for _, nm in ipairs({ BREW_FULL[1], BREW_FULL[2], FISH[1], FISH[2], FISH[3], FISH[4] }) do
-                        if not picked and t.world.obj_near(nm, 15) == "ok" and t.player.click_obj(nm, 3) == "ok" then
-                            took = took + 1
-                            picked = true
-                        end
-                    end
-                    if not picked then break end
+        local function take_one()
+            for _, nm in ipairs({ BREW_FULL[1], BREW_FULL[2], FISH[1], FISH[2], FISH[3], FISH[4] }) do
+                if t.world.obj_near(nm, 15) == "ok" and t.player.click_obj(nm, 3) == "ok" then
+                    took = took + 1
+                    return true
                 end
             end
-            t.expect(room .. ".barrier.took_" .. r, t.party.barrier(room .. "_took_" .. r, 300))
+            return false
+        end
+        for pass = 1, 6 do
+            for r = 1, SEATS do
+                if alive and role == r and target > 0 and healing_hp(t) < target and free_slots(t) > SHARE_KEEP_SLOTS then take_one() end
+                t.expect(room .. ".barrier.took_" .. pass .. "_" .. r, t.party.barrier(room .. "_took_" .. pass .. "_" .. r, 300))
+            end
         end
         -- and nothing is left on the floor: what nobody needed goes back up,
-        -- ONE ITEM A SEAT A PASS in role order, so a surplus spreads instead of
-        -- landing on seat 1 (tl dropped two brews no seat needed, lost; then a
-        -- role-order sweep put seat 1 on 584 and 544 with the others on ~310)
-        for pass = 1, 4 do
+        -- one item a seat a pass, so a surplus spreads instead of landing on
+        -- seat 1 (tl dropped two brews no seat needed, lost; then a role-order
+        -- sweep put seat 1 on 584 and 544 with the others on ~310)
+        for pass = 1, (target > 0) and 4 or 12 do
             for r = 1, SEATS do
-                if role == r and free_slots(t) > SHARE_KEEP_SLOTS then
-                    for _, nm in ipairs({ BREW_FULL[1], BREW_FULL[2], FISH[1], FISH[2], FISH[3], FISH[4] }) do
-                        if t.world.obj_near(nm, 15) == "ok" and t.player.click_obj(nm, 3) == "ok" then
-                            took = took + 1
-                            break
-                        end
-                    end
-                end
+                if alive and role == r and free_slots(t) > SHARE_KEEP_SLOTS then take_one() end
                 t.expect(room .. ".barrier.left_" .. pass .. "_" .. r, t.party.barrier(room .. "_left_" .. pass .. "_" .. r, 300))
             end
         end
-        t.check(room .. ".share", true, P .. string.format("healing %d -> %d hp (gave %d, took %d)",
-            before, healing_hp(t), gave, took))
+        if alive then
+            t.check(room .. ".share", true, P .. string.format("healing %d -> %d hp (gave %d, took %d)",
+                before, healing_hp(t), gave, took))
+        end
     end
+    local SHARE_AT = { nylocas = 0, sotetseg = 0 }
+    -- (the lines: what a seat spends in the rooms ahead, measured over 128
+    -- relays - Nylocas 130 a seat, Sotetseg 205, Verzik 311, all128)
+    SHARE_LOW = { nylocas = 150, sotetseg = 200, verzik = 300 }
 
     local function verzik(t)
-        share_healing(t, "verzik", SHARE_HP)
+        share_healing(t, "verzik", 0, true)
         local prep = t.raid.verzik_p1_prepare()
         t.check("verzik.prepare", prep ~= nil, P .. (prep and (prep.pillars .. " pillars searched") or "the room never came into view"))
         t.expect("verzik.barrier.ready", t.party.barrier("verzik_ready", 600))
@@ -716,12 +632,10 @@ function QD.raid.tob_relay_test(mode, opts)
         t.raid.tob_reserve_combats(0)
         t.check("verzik.p3_supplies", true, P .. supplies_text(t))
         local p3_suffix = (opts.v2 and opts.v2.verzik_p3) and "_v2" or SUFFIX
-        local r3, d3 = t.raid["verzik_p3" .. p3_suffix .. "_solve"]({ max_ticks = 900, base = prep.base, weapon = "abyssal_tentacle" , spec_weapon = SPEC_WEAPON })
+        local r3, d3 = t.raid["verzik_p3" .. p3_suffix .. "_solve"]({ max_ticks = 900, base = prep.base, weapon = "abyssal_tentacle",
+                                                                 spec_weapon = SPEC_WEAPON })
         t.check("verzik.supplies_left", true, P .. supplies_text(t))
         t.check("verzik.p3", r3 == "ok", P .. string.sub(tostring(d3), 1, opts.detail or 600))
-        -- a P3 death respawns ~6 ticks later and stays in lock step, so no
-        -- player.died row is ever written for it: name it from the solve's answer
-        if r3 == "died" then t.check("verzik.p3_died", false, P .. "died in P3 (the solve answered died)") end
         return r3 == "ok"
     end
 
@@ -819,14 +733,21 @@ function QD.raid.tob_relay_test(mode, opts)
                         .. " for the blowpipe's swap; free slots " .. free_slots(t))
                 end
             end
+            if SHARE_AT[name] then share_healing(t, name, SHARE_AT[name], alive) end
             -- (a seat that failed a room still meets every barrier, fighting
             -- nothing: the party stays in lock step, relay rl5 hung 3000 ticks a
             -- barrier on a caged seat)
             -- (every room drinks its super combats, owner 2026-10-12: the
             -- reserve above is what keeps Verzik's two doses)
+            -- HARD MODE BUDGETS THE EIGHT DOSES BY ROOM (owner, 2026-10-12:
+            -- "Are they also using supercombat?"): the early rooms drank them
+            -- down to Verzik's two before Sotetseg, 0-0.6 sips a seat there
+            -- (all128c). The reserve before each room is what the rooms after
+            -- it are owed - Maiden, Bloat, the Nylocas and Xarpus a dose,
+            -- Sotetseg two, Verzik two - so a dose a room leaves rolls on.
+            if mode == "hard" and COMBAT_AFTER[name] then t.raid.tob_reserve_combats(COMBAT_AFTER[name]) end
             local ok = false
             if alive then
-                if name == "sotetseg" then share_healing(t, "sotetseg", SHARE_SOTE) end
                 if name == "verzik" then ok = verzik(t) else ok = fight(t, name) end
             else
                 for _, b in ipairs(name == "verzik" and { "_ready", "_started" } or { "_ready", "_synced" }) do
@@ -863,7 +784,7 @@ function QD.raid.tob_relay_test(mode, opts)
         end
         t.finish(0)
     end
-    return {
+    local test = {
         id = ((mode == "normal") and "tob_relay" or ("tob_relay_" .. mode))
             .. ((opts.from or opts.to) and ("_" .. tostring(opts.from or "maiden") .. "_" .. tostring(opts.to or "verzik")) or ""),
         -- Hard Mode's door wants one completion (raid seam19); the debug landing
@@ -874,4 +795,9 @@ function QD.raid.tob_relay_test(mode, opts)
         setup = kit,
         run = run,
     }
+    for _, field in ipairs({ "fixture", "party", "max_frames" }) do
+        assert(opts[field] == nil or opts[field] == test[field], "tob_relay_test(" .. mode .. "): the test file declares "
+            .. field .. " = " .. tostring(opts[field]) .. ", the relay is " .. tostring(test[field]))
+    end
+    return test
 end

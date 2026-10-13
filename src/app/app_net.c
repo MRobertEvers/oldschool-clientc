@@ -75,6 +75,23 @@ App_SendCommand(
     return true;
 }
 
+bool
+App_SendPublicChat(
+    struct App* app,
+    char const* text)
+{
+    assert(app);
+    assert(text);
+    if( !*text )
+        return false;
+    if( !app->net || app->net->state != TORIRS_NET_GAME )
+        return false;
+    APP_NET_SEND(
+        app,
+        net_out_message_public(app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), text, 0));
+    return true;
+}
+
 /*
  * Boot / session-reset value for the two Attack options.
  *

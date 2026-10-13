@@ -102,6 +102,13 @@ struct ScriptrunInv
     int count[SCRIPTRUN_INV_SLOTS];
 };
 
+/* A message's type for a raider's public line: game/rs_chat.h's
+ * RS_CHAT_TYPE_PUBLIC, the type the live client's rows carry. */
+enum
+{
+    SCRIPTRUN_CHAT_PUBLIC = 2,
+};
+
 struct ScriptrunMessage
 {
     int serial;

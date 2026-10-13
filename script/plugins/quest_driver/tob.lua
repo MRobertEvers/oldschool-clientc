@@ -29,7 +29,11 @@
 
 QD.TOBS = {
     HP_EAT = 60, HP_BREW = 45, PRAYER_SIP = 25, BOOST_REDOSE = 5,
-    DRAIN_RESTORE = 10, BOOST_GAP = 20,
+    DRAIN_RESTORE = 10, BOOST_GAP = 20, BREW_RESTORE = 20,
+    FOOD_HEAL = 20,           -- a fish's heal, for a line above 99 (QD.raid._tob_supplies)
+    PATH_STALL = 2,
+    ARCEUUS_BOOK = 3, THRALL_RECAST = 95,   -- ^spellbook_arceuus; a greater thrall lasts 99 ticks at 99 Magic
+    RUN_PLAN_MIN = 300,       -- run energy (of 10000) a plan needs to assume running           -- ticks without a step before a walk is sent again (QD.raid._tob_path)
     BOOST_PRAYER_FLOOR = 40,   -- a boost prayer only with points to spare
     OP_EAT = 1, OP_DRINK = 1, OP_WIELD = 2, OP_DROP = 5,
     H = 12, BEAM = 32, MOVE_COST = 0.01,
@@ -230,6 +234,11 @@ function QD.raid._tob_measure(S)
     -- (run energy, 0..10000; `F.energy` above is the SPECIAL ATTACK's)
     local re, run_energy = api_drive.run_energy()
     F.run_energy = (re == "ok" and run_energy) or 0
+    -- RUNNING, for the plans: run on with a few tiles of energy left. Out of
+    -- energy a raider walks, and a run plan checks only every other tile - a
+    -- DPS seat walked over Maiden's trails a tile a tick, 22 + 22 + 26, dead
+    -- (rmaiden128 r020 seat 3)
+    F.running = F.run_on and F.run_energy >= QD.TOBS.RUN_PLAN_MIN
     local sr, spec_on = api_drive.varp(ids.spec_on)
     F.spec_armed = (sr == "ok" and spec_on == 1)
     return F
@@ -262,6 +271,28 @@ function QD.raid._tob_worn(S, obj)
     return (n or 0) > 0
 end
 
+-- A mode's constants: Normal's table copied, the mode's own on top (a key
+-- the mode leaves out, or sets to nil, is Normal's). A copy, not
+-- `setmetatable(t, { __index = base })`: the live client's plugin sandbox has
+-- no setmetatable, and the Hard Mode files that used it would not load there
+-- ("attempt to call a nil value (global 'setmetatable')", hmt_live1).
+function QD.raid._tob_derive(base, own)
+    local out = {}
+    for k, v in pairs(base) do out[k] = v end
+    for k, v in pairs(own) do out[k] = v end
+    return out
+end
+
+-- Empty backpack slots (a two-handed wield puts the shield in one).
+function QD.raid._tob_free_slots(S)
+    local n = 0
+    for slot = 0, 27 do
+        local r, cell = api_drive.inv_slot(S.ids.inv, slot)
+        if r ~= "ok" or cell == nil or cell.obj_id == nil or cell.obj_id < 0 or (cell.count or 0) == 0 then n = n + 1 end
+    end
+    return n
+end
+
 -- The panel channel's wants, in priority order: prayer points, food (a brew
 -- when the food is gone), the overhead the room asks for, a boost redose,
 -- the boost prayer. `want` = { overhead = name|nil, boost = name|nil,
@@ -276,17 +307,34 @@ function QD.raid._tob_supplies(S, F, want, intent)
         intent.drink = QD.raid._tob_first(S, S.ids.restores)
         if intent.drink then S.last_drink = F.tick end
     end
+    -- (a line above 99 - Sotetseg's death balls with a ricochet - is a brew's
+    -- overheal: food heals to 99 at most, so it is eaten only a fish under
+    -- 99, and above that the brew)
+    local over = eat_below > 99
     if not intent.drink and eat_due then
         local food = QD.raid._tob_first(S, S.ids.food)
-        if food then
+        if over and F.hp >= 99 - V.FOOD_HEAL then food = nil end
+        if over and food == nil then
+            if F.tick - (S.last_drink or -10) >= 3 then
+                intent.drink = QD.raid._tob_first(S, S.ids.brews)
+                if intent.drink then S.last_drink, S.brewed = F.tick, true end
+            end
+        elseif food then
             intent.eat = food
             S.last_eat = F.tick
         elseif F.hp < (want.brew_below or V.HP_BREW) then
             intent.drink = QD.raid._tob_first(S, S.ids.brews)
-            if intent.drink then S.last_drink = F.tick end
+            if intent.drink then S.last_drink, S.brewed = F.tick, true end
         end
     end
     if want.overhead and F.prayer > 0 and not F.lit[want.overhead] then intent.pray = want.overhead end
+    -- (Hard Mode: a stat BREWS drained is restored after two or three
+    -- doses, BREW_RESTORE under base - a super restore before a super combat
+    -- (owner, 2026-10-12: "The sip rule should prioritize a super restore
+    -- over a super combat if they are just trying to restore brewed down
+    -- stats"; "It should be 2-3 brew doses, THEN super restore") - and the
+    -- combat waits for base. S.brewed: a brew drunk since the stat was last
+    -- at base.)
     -- THE BOOST: a restore only for a real drain (a blackstorm drains the
     -- stat behind the highest attack bonus every other storm; restoring every
     -- point drank 38 doses in one Maiden, seed m2 seat 3), a redose only when
@@ -294,7 +342,9 @@ function QD.raid._tob_supplies(S, F, want, intent)
     if not intent.drink and not intent.eat and want.boost_stat and not QD.raid.tob_boosts_held
         and F.tick - (S.last_drink or -10) >= 3 then
         local lv = F.levels[want.boost_stat]
-        if lv and lv.level < lv.base - V.DRAIN_RESTORE then
+        if lv and lv.level >= lv.base then S.brewed = nil end
+        local drain = (QD.raid.tob_mode == "hard" and S.brewed) and V.BREW_RESTORE or V.DRAIN_RESTORE
+        if lv and lv.level < lv.base - drain + ((drain == V.BREW_RESTORE) and 1 or 0) then
             intent.drink = QD.raid._tob_first(S, S.ids.stat_restores)
         elseif lv and lv.level >= lv.base and lv.level <= lv.base + V.BOOST_REDOSE
             and F.tick - (S.last_boost or -100) >= V.BOOST_GAP then
@@ -363,7 +413,7 @@ function QD.raid._tob_spec(S, F, opts)
     local V = QD.TOBS
     local spec = {
         from = { x = F.me.x, z = F.me.z },
-        now = F.tick, h = opts.h or V.H, beam = opts.beam or V.BEAM, run = true,
+        now = F.tick, h = opts.h or V.H, beam = opts.beam or V.BEAM, run = F.running ~= false,
         move_cost = opts.move_cost or V.MOVE_COST,
         chasers = {}, forbid = {}, zones = {}, pulls = {}, watchers = {},
         edge = opts.edge,
@@ -432,10 +482,11 @@ end
 function QD.raid._tob_in_reach(S, F, x, z, target, range)
     local n = target.size or 1
     if range <= 1 then return QD.raid._tob_beside(x, z, target.x, target.z, n) end
-    local key = x .. "," .. z .. ">" .. target.x .. "," .. target.z .. ":" .. n .. ":" .. range
+    local run = F.running ~= false
+    local key = x .. "," .. z .. ">" .. target.x .. "," .. target.z .. ":" .. n .. ":" .. range .. (run and "r" or "w")
     local hit = S.routes[key]
     if hit ~= nil then return hit end
-    local r, rt = api_drive.route(target.x, target.z, { size = n, range = range, run = true, from = { x = x, z = z } })
+    local r, rt = api_drive.route(target.x, target.z, { size = n, range = range, run = run, from = { x = x, z = z } })
     hit = (r == "ok" and rt ~= nil and rt.ticks ~= nil and #rt.ticks == 0)
     S.routes[key] = hit
     return hit
@@ -489,7 +540,7 @@ function QD.raid._tob_order(S, F, plan, opts)
     if reach and not moving and not opts.chased and not opts.holding then
         -- the attack's own route takes this very step: press the npc instead
         -- of the tile and the swing goes out on arrival (lesson 8)
-        local rr, rt = api_drive.route(target.x, target.z, { run = true, size = target.size or 1,
+        local rr, rt = api_drive.route(target.x, target.z, { run = F.running ~= false, size = target.size or 1,
             range = (range > 1) and range or nil })
         if rr == "ok" and rt.ticks and rt.ticks[1] and rt.ticks[1].x == p1.x and rt.ticks[1].z == p1.z then
             d.order = { mode = "attack", npc = target }
@@ -524,6 +575,41 @@ end
 
 -- A side panel's tab, switched only when it is not the one showing. A tab
 -- settles in its call (lesson 32), so a press in the same tick finds it.
+-- THE THRALL (owner, 2026-10-12: "3 seats on ancients and 2 on arceus and
+-- the 2 on arceus use thralls"; "use thralls in each room"): a seat on the
+-- Arceuus book raises a greater ghost as the room's fight starts and again
+-- before it returns to the grave (a tick per Magic level: 99; skill_magic
+-- thrall.rs2), on a tick no held op or prayer press is going out. A thrall
+-- cannot follow its owner out of a room (wiki Thrall), so every room's solve
+-- starts with none; a room may refuse it (S.no_thrall: Xarpus).
+-- -> true when it cast this tick.
+function QD.raid.tob_thrall(S, F)
+    local T = QD.raid._thrall_ids
+    if T == nil then
+        local r1, sb = api_drive.symbol("varbit", "varb4070_spellbook")
+        assert(r1 == "ok", "tob_thrall: no varbit varb4070_spellbook")
+        local r2, spell = api_drive.symbol("component", "magic_spellbook:resurrect_greater_ghost")
+        assert(r2 == "ok", "tob_thrall: no component magic_spellbook:resurrect_greater_ghost")
+        local r3, tab = api_drive.tab_by_name("magic")
+        assert(r3 == "ok", "tob_thrall: no magic tab")
+        T = { spellbook = sb, spell = spell, tab = tab }
+        QD.raid._thrall_ids = T
+    end
+    if S.thrall_seat == nil then
+        local r, v = api_drive.varbit(T.spellbook)
+        S.thrall_seat = (r == "ok" and v == QD.TOBS.ARCEUUS_BOOK)
+    end
+    if S.no_thrall or not S.thrall_seat or F.tick - (S.thrall_cast or -100000) < QD.TOBS.THRALL_RECAST then return false end
+    if S.tab ~= T.tab then
+        api_drive.tab(T.tab)
+        S.tab = T.tab
+    end
+    api_drive.if_click(T.spell, 1)
+    S.thrall_cast = F.tick
+    S.thralls = (S.thralls or 0) + 1
+    return true
+end
+
 function QD.raid._tob_tab(S, tab)
     if S.tab ~= tab then
         api_drive.tab(tab)
@@ -543,6 +629,45 @@ end
 --      or a walk -- only when it differs from the one under way.
 -- intent = { pray, eat, drink, gear = {obj...}, drop, unequip = {component...},
 --            spec = true, cast = { npc = row, component = id } }
+-- THE PATH, A STATE MACHINE (owner, 2026-10-12: "change 'Pathing to' to be
+-- a state machine, that attempts to maintain a path until the decision
+-- changes, and if the 'eat' channel cancels the path, the 'pathing' state
+-- machine re-queues it"). A walk's goal is held until the decision names
+-- another; each tick it is
+--   walking   moving, or not yet a tick old: nothing sent
+--   arrived   on the goal: nothing sent
+--   requeue   a held op went out this tick (it stops the walk: a freezer
+--             eating on a slug's trail between two landing pools stood there
+--             eating, 32 a tick, dead in four - all128f r049 seat 2), or
+--             PATH_STALL ticks without a step off the goal (a click the
+--             server dropped while a barrier's crossing held me left a seat on
+--             the entry tile fifteen ticks, Bloat's flies on it - bl128
+--             r050), or pushed off the goal it had reached: sent again
+-- -> true when the click goes out this tick.
+function QD.raid._tob_path(S, F, order, interrupted)
+    local P = S.path
+    if P == nil or P.x ~= order.x or P.z ~= order.z then
+        S.path = { x = order.x, z = order.z, state = "walking", at_x = F.me.x, at_z = F.me.z,
+                   moved = F.tick, sends = 1 }
+        return true
+    end
+    local here = F.me.x == P.x and F.me.z == P.z
+    if F.me.x ~= P.at_x or F.me.z ~= P.at_z then
+        P.at_x, P.at_z, P.moved = F.me.x, F.me.z, F.tick
+    end
+    if here and not interrupted then
+        P.state = "arrived"
+        return false
+    end
+    if (interrupted and not here) or (not here and F.tick - P.moved >= QD.TOBS.PATH_STALL) then
+        P.state, P.moved, P.sends = "requeue", F.tick, P.sends + 1
+        S.walk_resent = (S.walk_resent or 0) + 1
+        return true
+    end
+    P.state = here and "arrived" or "walking"
+    return false
+end
+
 function QD.raid._tob_emit(S, F, order, intent)
     local V = QD.TOBS
     local ids = S.ids
@@ -562,6 +687,7 @@ function QD.raid._tob_emit(S, F, order, intent)
     local unequip = intent.unequip
     if unequip and #unequip == 0 then unequip = nil end
     local held = intent.eat or intent.drink or gear or intent.drop
+    if not held and not intent.pray and not intent.cast then QD.raid.tob_thrall(S, F) end
     -- (intent.pray_force: a press timed by the room to land on one tick, e.g.
     -- the tick a protection block lifts, outside the double-press throttle)
     if intent.pray and (intent.pray_force or F.tick - (S.pray_clicked[intent.pray] or -10) >= 2) then
@@ -615,6 +741,7 @@ function QD.raid._tob_emit(S, F, order, intent)
         S.order = nil
         if order == nil and S.last_target then order = { mode = "attack", npc = S.last_target } end
     end
+
     if intent.cast then
         order = { mode = "cast", npc = intent.cast.npc, component = intent.cast.component }
     end
@@ -627,7 +754,14 @@ function QD.raid._tob_emit(S, F, order, intent)
         S.spec_pressed = F.tick
     end
     if order and (order.mode == "attack" or order.mode == "cast") and order.npc == nil then order = nil end
-    if order and not QD.raid._tob_same(order, S.order) then
+    -- (a walk is the path state machine's to send: QD.raid._tob_path)
+    local send = order ~= nil and not QD.raid._tob_same(order, S.order)
+    if order and order.mode == "walk" then
+        send = QD.raid._tob_path(S, F, order, interrupted)
+    else
+        S.path = nil
+    end
+    if send then
         if order.mode == "walk" then
             api_drive.move_to(order.x, order.z)
         elseif order.mode == "cast" then

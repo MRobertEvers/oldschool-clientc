@@ -554,6 +554,20 @@ function QD.raid._bloat_step(S, F)
     QD.raid._bloat_clock(S, F)
     QD.raid._bloat_track(S, F)
     QD.raid._bloat_shadows(S, F)
+    -- STILL OUTSIDE: the barrier's op and nothing else until I am in. A held
+    -- op ends the crossing (every backpack op clears the interaction), and
+    -- the leader's first fight tick put on the melee set and drank: it stood
+    -- in the doorway walking at a tile behind the barrier, seat 5 waited on
+    -- it there, and the hands killed both (all128i-l r089, 6439,158).
+    if S.barrier and not QD.raid._tob_inside(S.barrier, F.me.x, F.me.z) then
+        if F.tick - (S.cross_sent or -10) >= 2 then
+            local r = api_drive.world_op("loc", S.barrier.loc, 1)
+            S.cross_sent = F.tick
+            QD.raid._tob_trace(S, F.tick, "crossing the barrier (fight on): " .. tostring(r))
+        end
+        QD.raid._tob_emit(S, F, nil, {})
+        return nil
+    end
     local intent = {}
     -- DECIDE: the fight's state (QD.raid._bloat_state)
     local state = QD.raid._bloat_state(S, F)

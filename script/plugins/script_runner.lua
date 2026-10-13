@@ -130,14 +130,14 @@ local HOVER_WALK_LIMIT = 20000
 -- The PARTY block (see the banner). PARTY_SEATS is the launch service's
 -- LAUNCH_SESSIONS_PARTY_MAX: a row is declared for every seat so the row set
 -- never changes.
-local PARTY_SEATS = 4
+local PARTY_SEATS = 5
 local PARTY_INTERVAL_FRAMES = 30
 -- Status reads in a row with no local player before a logout closes the
 -- party (a Fresh start's own relog happens before the party is up).
 local PARTY_LOGOUT_READS = 3
 -- The launch service probe: none | pending | yes | no, and why not.
 local launch_service = { state = "none", reason = "asking this client's launch service" }
-local windowed = { false, false, false, false }   -- seat -> its Windowed tick (seat 1 unused)
+local windowed = { false, false, false, false, false }   -- seat -> its Windowed tick (seat 1 unused)
 local party_tickets = {}        -- launch tickets queued here: {ticket =, purpose =}
 local party_status = nil        -- the last launch/status read: {session = row, seats = {[n] = row}}
 local party_status_note = "no party"
@@ -1038,7 +1038,7 @@ local function play(api, script)
     local start = start_choice
     if script.party > 1 then
         party = { size = script.party, launch = true,
-            windowed = { false, windowed[2], windowed[3], windowed[4] } }
+            windowed = { false, windowed[2], windowed[3], windowed[4], windowed[5] } }
         -- Raider 1 is the Play's own fresh account: the members look for it
         -- by that name (QD_PARTY names[1]), and every member is a fresh
         -- account too, as under run.py. A reset or as-is start would play on

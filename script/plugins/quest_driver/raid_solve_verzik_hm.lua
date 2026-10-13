@@ -13,8 +13,9 @@
 --                drawn on the hit and lands ^tob_verzik_hard_debris_land_ticks
 --                (3) later: its tile is out until then.
 --   P2 acid      an urnbomb's tile is a poison pool for 16 ticks after it lands
---                ("rotate between five tiles", :363): priced, not forbidden, so
---                the formation can still give way to a worse hazard.
+--                ("rotate between five tiles", :363): impossible, and three
+--                times a blast's weight when the planner is boxed in, so a
+--                seat takes a crab's blast before it takes the poison.
 --   P3 yellows   three pools a raider, three strikes 3 ticks apart (the last
 --                on the charge's 20th tick: blert 20-tick pools; [S] "3 ticks
 --                apart"); a pool that saved its raider is spent, so each raider
@@ -29,7 +30,9 @@ QD.VZHM = {
     RED_BURST = 2,                                   -- within this of a red's footprint at her summon (its burst reads 1 from its SW tile)                                    -- a tile short of popping my crab: more than a tick off my target (reach: 3)
     CRAB_LOOK = 1,                                   -- a walking crab's stop is read this far ahead (Normal: 6)
     BACK_CLEAR = 6,                                  -- a back tile is taken only with no pool on it over this many ticks
-    ACID_TICKS = 16, ACID_COST = 1e6,                -- ~INF (1e9): a pool is stepped on only when nothing else is open (xv5c: 856 of 1337 P2 damage was the pools and their poison)
+    STAT_DRAIN = 20,                                 -- Attack/Strength this far under base takes a super restore: two or three brew doses, then the restore (owner, 2026-10-12)
+    UNDER_WEIGHT = 4,                                -- a tick under her is four impossible ticks (graded): stomp, bounce, stun
+    ACID_TICKS = 16, ACID_WEIGHT = 3,                -- a pool tick is three impossible ticks (graded): never poisoned (owner, 2026-10-12: "no seat should be poisoned")
     YELLOW_STRIKES = { 14, 17, 20 },         -- after her charge's seq tick
     YELLOW_LAST = 20,
     YELLOW_HOP = 5,                          -- a chain step: three ticks of running, less a tile for her body
@@ -56,6 +59,7 @@ local function rubble_terms(S, F, add)
                 local prev = S.hm_rubble_left[k]
                 if prev == nil or left > prev then
                     S.hm_rubble[#S.hm_rubble + 1] = { x = row.x, z = row.z, land = F.tick + V.RUBBLE_LAND }
+                    QD.raid._vzp1_trace(S, F.tick, "rubble at " .. k .. " lands t" .. (F.tick + V.RUBBLE_LAND))
                 end
                 now[k] = left
             end
@@ -78,7 +82,7 @@ end
 function QD.raid.verzik_p1_hm_solve(opts)
     assert(QD.raid.tob_mode == "hard", "verzik_p1_hm_solve: the party is in " .. tostring(QD.raid.tob_mode) .. " mode")
     opts = opts or {}
-    opts.hm = { terms = rubble_terms }
+    opts.hm = { terms = rubble_terms, alternate = true, machine = true }
     return QD.raid.verzik_p1_solve(opts)
 end
 
@@ -102,7 +106,10 @@ local function acid_update(S, F)
                 -- drained after the thrower is read before its own step (end of
                 -- last+1 .. last+16), one drained before it after (last+2 ..
                 -- last+17), so the window is the union
-                S.hm_acid[#S.hm_acid + 1] = { x = h.x, z = h.z, from = h.last + 1, to = h.last + 1 + V.ACID_TICKS }
+                -- (a tick of margin each side: the urn's flight is read off
+                -- the throw, and a seat stepped back onto its stand as the
+                -- pool formed, all128c r019 t3275)
+                S.hm_acid[#S.hm_acid + 1] = { x = h.x, z = h.z, from = h.last, to = h.last + 2 + V.ACID_TICKS }
             end
         end
     end
@@ -128,7 +135,7 @@ local function acid_terms(S, F, add)
     end
     add("acid", function(x, z, t)
         local w = at[x * 65536 + z]
-        if w and t >= w[1] and t <= w[2] then return V.ACID_COST end
+        if w and t >= w[1] and t <= w[2] then return QD.VZP2.INF * V.ACID_WEIGHT end
         return 0
     end)
 end
@@ -210,8 +217,31 @@ local function blast_band_terms(S, F, add)
     end
 end
 
+-- A WALKING RED'S FOOTPRINT: a red walks to her to be absorbed, and a raider
+-- it walks over is inside its footprint, which the server routes out of - at
+-- her west face, into her (acid14f: eight "under her" a probe, the west seat
+-- attacking the red that walked onto it). Its tiles over the next ticks, from
+-- its last step (S.tg_step, raid_solve_verzik_p2.lua), are out.
+local function red_path_terms(S, F, add)
+    local walking = {}
+    for _, r in ipairs(F.reds or {}) do
+        local mv = S.tg_step and S.tg_step[r.slot]
+        if mv and (mv.dx ~= 0 or mv.dz ~= 0) then walking[#walking + 1] = { r = r, mv = mv } end
+    end
+    if #walking == 0 then return end
+    add("red-path", function(x, z, t)
+        for _, w in ipairs(walking) do
+            local n, k = w.r.size or 2, t - F.tick
+            local rx, rz = w.r.x + w.mv.dx * k, w.r.z + w.mv.dz * k
+            if x >= rx and x < rx + n and z >= rz and z < rz + n then return QD.VZP2.INF end
+        end
+        return 0
+    end)
+end
+
 local function hm_terms(S, F, add)
     acid_terms(S, F, add)
+    red_path_terms(S, F, add)
     pop_terms(S, F, add)
     blast_band_terms(S, F, add)
 end
@@ -277,7 +307,8 @@ function QD.raid.verzik_p2_hm_solve(opts)
     -- phase has no zap, so the split needs no formation: 3, 4, 5 east.
     opts.hm = { terms = hm_terms, side = hm_side, seats = 5, east = { [3] = true, [4] = true },
                 red_east = { [3] = true, [4] = true, [5] = true },
-                crab_look = QD.VZHM.CRAB_LOOK, graded = true }
+                crab_look = QD.VZHM.CRAB_LOOK, graded = true, under_weight = QD.VZHM.UNDER_WEIGHT,
+                athanatos = { [3] = true, [5] = true }, stat_drain = QD.VZHM.STAT_DRAIN }
     return QD.raid.verzik_p2_solve(opts)
 end
 
@@ -476,6 +507,7 @@ function QD.raid.verzik_p3_hm_solve(opts)
     -- the seats brewing only under Normal's 45 died from 47-60), so a seat
     -- out of fish brews below 70 and eats below 75
     opts.hm = { pools = yellow_pools, spec = yellow_spec, hp_eat = QD.VZHM.P3_EAT, hp_brew = QD.VZHM.P3_BREW, kite = true,
+                stat_drain = QD.VZHM.STAT_DRAIN,
                 web_run = true }
     return QD.raid.verzik_p3_solve(opts)
 end

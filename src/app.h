@@ -4535,6 +4535,17 @@ App_SendCommand(
     char const* text);
 
 /**
+ * Say `text` in public chat: MESSAGE_PUBLIC, plain colour and effect, as the
+ * chatbox sends a typed line. The line comes back in the sender's own
+ * PLAYER_INFO chat block, which is what adds the chatbox row. Returns false
+ * before the connection reaches TORIRS_NET_GAME, as App_SendCommand.
+ */
+bool
+App_SendPublicChat(
+    struct App* app,
+    char const* text);
+
+/**
  * One loop-body iteration: pump tasks, run pending 20ms logic ticks
  * (client clock, widget timers, animations), then the per-frame interaction
  * pass and emit rebuild. Returns non-zero when the frame needs re-rendering.

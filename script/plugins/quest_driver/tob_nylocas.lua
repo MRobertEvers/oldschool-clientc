@@ -434,7 +434,11 @@ function QD.raid._nylo_target(S, F, own)
         -- HELP IS MELEE ONLY (the owner, 2026-10-09: "the seats only switch to
         -- melee to help"): my own style, or another's nylocas in melee
         local allowed = st == own or st == "melee"
-        if allowed and not spent and not taken[L.key] and attackable(S, F, L, st) and (st == own or first_of[st] ~= L.key) then
+        -- (V.FLEX_HELP, Hard Mode - owner, 2026-10-12: "each role helps out
+        -- more when able": idle, nothing of my own style worth a hit, I help
+        -- on melee's best one too instead of leaving it to its seat)
+        local leave = st ~= own and first_of[st] == L.key and not (V.FLEX_HELP and idle)
+        if allowed and not spent and not taken[L.key] and attackable(S, F, L, st) and not leave then
             local score = kill_value(S, F, L) / kill_ticks(S, F, L, st, wearing, idle)
             if L.key == S.target_key then kept, kscore = L, score end
             if bscore == nil or score > bscore or (score == bscore and L.slot < best.slot) then
@@ -753,21 +757,59 @@ function QD.raid._nylo_decide_boss(S, F)
     return D
 end
 
+-- THE SPECIAL ON A MELEE PRINKIPAS OR VASILIAS (V.SPEC_PRINCE; owner,
+-- 2026-10-12: "The solver should also use specs during the melee phases of
+-- the prinkipas in the nylocas room"; "Specs should only be used on the
+-- prinkipas and the boss" - never a nylocas): while its colour is melee and a special's energy is
+-- left, the melee set's weapon is the relay's special weapon (opts.spec_weapon,
+-- raid_solve_verzik_p3.lua QD.VZP3.SPEC_WEAPONS), without the defender when it
+-- takes both hands (and only with a free slot to put the defender in); the
+-- orb armed on the press (tob.lua's emit). Out of energy or out of colour the
+-- melee set is the plain one again, so the tentacle and the defender go back
+-- on by the set's own wields.
+local function spec_set(S, F, D)
+    local V, ids = S.V, S.ids
+    local W = S.spec_wep
+    if not V.SPEC_PRINCE or W == nil or D.style ~= "melee" then return nil end
+    if not (D.boss or (D.kind and D.kind:find("prince", 1, true))) then return nil end
+    if F.energy < W.cost then return nil end
+    local worn = QD.raid._tob_worn(S, W.id)
+    if not worn and QD.raid._tob_count(S, W.id) == 0 then return nil end
+    if W.two_handed and not worn and QD.raid._tob_worn(S, ids.defender) and QD.raid._tob_free_slots(S) < 1 then return nil end
+    local set = {}
+    for _, obj in ipairs(ids.sets.melee) do
+        if obj == ids.tentacle then
+            set[#set + 1] = W.id
+        elseif not (W.two_handed and obj == ids.defender) then
+            set[#set + 1] = obj
+        end
+    end
+    return set
+end
+
 -- ACT: the decision's set, prayers and supplies, the plan, one order, emit.
 function QD.raid._nylo_act(S, F, D)
     local V, ids = S.V, S.ids
-    local intent = { gear = missing(S, ids.sets[D.style]) }
+    local special = spec_set(S, F, D)
+    local set_key = special and "melee-special" or D.style
+    local intent = { gear = missing(S, special or ids.sets[D.style]) }
     -- a held op re-sent every tick while the set goes on would repeat it: two
     -- ticks apart, unless the set wanted CHANGED (seed n3/sa t127: the swap
     -- back to melee held a tick and the attack went out with the trident)
-    if #intent.gear == 0 or (F.tick - (S.gear_sent or -10) < 2 and S.gear_style == D.style) then intent.gear = nil end
-    if intent.gear then S.gear_style = D.style end
+    if #intent.gear == 0 or (F.tick - (S.gear_sent or -10) < 2 and S.gear_style == set_key) then intent.gear = nil end
+    if intent.gear then S.gear_style = set_key end
     -- ARMED IS WORN, SEEN: a wield sent in the tick of the press is not
     -- enough (seed n29/sp t430: the mage set's wields went out before the
     -- attack and the swing still left with the tentacle; the trident showed
     -- at t431). The tick of a switch holds.
-    local weapon = ids.weapon[D.style]
+    local weapon = special and S.spec_wep.id or ids.weapon[D.style]
     local armed = QD.raid._tob_worn(S, weapon)
+    if special and armed then intent.spec = true end
+    if (special ~= nil) ~= (S.speccing or false) then
+        QD.raid._tob_trace(S, F.tick, special and ("special: " .. S.spec_wep.name .. " on the Prinkipas, energy " .. F.energy)
+            or "special: done, the melee set back")
+        S.speccing = special ~= nil
+    end
     -- a wield that will not take (a two-handed weapon with the defender on
     -- and no slot to put it in) says so once, rather than standing silent
     if armed then
@@ -784,6 +826,12 @@ function QD.raid._nylo_act(S, F, D)
                    boost_stat = ids.boost_stat[D.style], eat_below = D.eat_below, brew_below = D.brew_below }
     if F.pct_low < V.SUPPORT_LOW then want.eat_below = math.max(want.eat_below or 0, V.EAT_COLLAPSE) end
     QD.raid._tob_supplies(S, F, want, intent)
+    -- (V.SWING_FLICK, Hard Mode's swing-by-swing overhead: a flick is a
+    -- press every tick it changes - the emit's two-tick throttle refused the
+    -- third of melee/magic/melee and the swing landed on the wrong one. A
+    -- press only ever goes out for a prayer not lit, and the lit set is a
+    -- tick behind at most, so no press toggles one off)
+    if V.SWING_FLICK and intent.pray and intent.pray == want.overhead then intent.pray_force = true end
     if D.kind ~= S.kind then
         QD.raid._tob_trace(S, F.tick, "context " .. D.kind)
         S.kind = D.kind
@@ -910,10 +958,18 @@ function QD.raid._nylo_run(who, V, step, opts)
         lives = {}, wave_at = {}, waves = 0, splits = 0, wave_log = {}, nulled = {}, nulls = 0,
         attacks = 0, switch_log = {}, phase_log = {}, walks = {}, V = V,
     })
+    if opts.spec_weapon then
+        local def = QD.VZP3.SPEC_WEAPONS[opts.spec_weapon]
+        assert(def, who .. ": no special weapon named " .. tostring(opts.spec_weapon))
+        local r, id = api_drive.symbol("obj", opts.spec_weapon)
+        assert(r == "ok", who .. ": no obj " .. opts.spec_weapon)
+        S.spec_wep = { id = id, cost = def.cost, two_handed = def.two_handed, name = opts.spec_weapon }
+    end
     QD.raid._nylo_enter(S, opts)
     return QD.raid._tob_run(S, step, function(s)
         return QD.raid._tob_summary(s, string.format(
-            "room t0 %s; phases %s; waves %d (%s); splits %d; attacks %d; walks approach %d dodge %d idle %d; barrages %s (%s in reach); nulls %d; boss landed %s, M %s; switches %s",
+            "%sroom t0 %s; phases %s; waves %d (%s); splits %d; attacks %d; walks approach %d dodge %d idle %d; barrages %s (%s in reach); nulls %d; boss landed %s, M %s; switches %s",
+            s.swing_log and ("swings " .. table.concat(s.swing_log, " ") .. "; ") or "",
             tostring(s.t0), table.concat(s.phase_log, " "), s.waves, table.concat(s.wave_log, " "), s.splits, s.attacks,
             s.walks.approach or 0, s.walks.dodge or 0, s.walks.idle or 0,
             tostring(s.barrages or 0), tostring(s.barrage_hits or 0), s.nulls,

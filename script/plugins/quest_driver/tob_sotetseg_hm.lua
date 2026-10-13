@@ -30,24 +30,28 @@
 --                most, and nobody has to drink to full for it.
 -- ==========================================================================
 
--- Hard Mode's overrides over a copy of the Normal table: a copy, not a
--- metatable (the plugin sandbox has no setmetatable; QD.SOTE is complete
--- once its file has loaded, and nothing writes its fields at run time).
-QD.SOTE_HM = {
+QD.SOTE_HM = QD.raid._tob_derive(QD.SOTE, {
     -- five faces: west, east, north-centre and the north face's two ends
     STATION = { [1] = { x = 12, z = 40 }, [2] = { x = 18, z = 40 }, [3] = { x = 15, z = 43 },
                 [4] = { x = 13, z = 43 }, [5] = { x = 17, z = 43 } },
     DOT = { x = 15, z = 35 },
-    EXIT_X = 32,
+    -- the death balls' stack: beside his north face, in reach (tob_sotetseg_hm
+    -- ~_sote_hm_death_zones), gathered GATHER ticks before the hold
+    STACK = { x = 15, z = 43 }, GATHER = 3,
     -- (on the dot a raider takes a fifth of BOTH balls, 75 at most: brews
     -- to 80 while one is incoming - 99, for the four-way split, spent a seat's
     -- brews in this room, all1 sb: 28 doses into the Nylocas, 1 out of here)
     DEATH_EAT = 80,
-    -- every seat's Dragon Warhammer specials as he wakes, before the tentacle
-    HAMMER_OPENER = true, OPENER_TICKS = 24,
+    -- the death-ball mode (tob_sotetseg.lua): fight eats under FIGHT_EAT,
+    -- from his DEATH_SOON-th cast and through the flight under what a pair
+    -- can take (2 x BALL_MAX = ^tob_sote_ball_max_5 split by the living)
+    DEATH_MODE = true, FIGHT_EAT = 50, DEATH_SOON = 8, BALL_MAX = 188,
+    RICOCHET_HIT = 40, HEAL_CAP = 115,          -- a ricochet landing with the balls; a brew's overheal (99 + 16)
+    -- every seat's Dragon Warhammer specials as he wakes, and again whenever a
+    -- special's 50% has come back (tob_sotetseg.lua THE HAMMER)
+    HAMMER_SPEC = true,
     CARROT = 3,
-}
-for k, v in pairs(QD.SOTE) do if QD.SOTE_HM[k] == nil then QD.SOTE_HM[k] = v end end
+})
 
 function QD.raid._sote_hm_ids(S)
     local ids = S.ids
@@ -74,15 +78,21 @@ function QD.raid._sote_hm_death_zones(S, F, add)
     end
     if #balls == 0 then return false end
     table.sort(balls, function(a, b) return a.pid < b.pid end)
-    local dot = { x = B.x + V.DOT.x, z = B.z + V.DOT.z }
+    -- THE STACK IS BESIDE HIM (V.STACK, his north face): the split is
+    -- everyone within 1 of the ball's target as it lands, wherever that is,
+    -- so the five meet on a melee tile and swing through the flight - on the
+    -- dot three south of him a seat stood idle all 15 ticks, five balls a
+    -- fight (all128e: a hit every 6.4 ticks, a 371-tick fight). Each seat
+    -- keeps its station until GATHER ticks before the landing.
+    local tile = { x = B.x + V.STACK.x, z = B.z + V.STACK.z }
     local t0, t1 = nil, nil
     for _, P in ipairs(balls) do
         t0 = math.min(t0 or P.land, math.max(F.tick + 1, P.land - 2))
         t1 = math.max(t1 or P.land, P.land)
     end
-    local tile = dot
     add.zone("death-hold", { x = tile.x, z = tile.z, size = 1, lo = 0, hi = 0, require = true,
         t0 = t0, t1 = t1, tier = "lethal", cost = 60 })
+    if F.tick < t0 - V.GATHER then return false end
     add.pull({ x = tile.x, z = tile.z, size = 1, weight = 1.0, t0 = F.tick, t1 = t1 })
     return true
 end
@@ -100,12 +110,11 @@ function QD.raid._sote_hm_waiter(S, F, add)
     return { x = B.x + V.WAIT.x, z = B.z + V.WAIT.z }
 end
 
--- IN THE REALM: my band's lit tiles and every tile a runner has stood on are
--- the path I know; the rest of the grid is forbidden. I go to the furthest
--- tile I know (behind whoever leads where I cannot see, then up my own band),
--- and off the north end once the path I know reaches the last row: the pull
--- is the exit and the unknown tiles are forbidden.
-function QD.raid._sote_hm_runner(S, F, add)
+-- IN THE REALM, THE PATH I KNOW: my band's lit tiles and every tile a runner
+-- has stood on; the rest of the grid is forbidden. -> { known, dist (steps
+-- from row 0 along it), far (its furthest tile), mine (my distance, -1 off
+-- it), fd, band, bx, bz } for the maze's states (QD.raid._sote_hm_maze).
+function QD.raid._sote_hm_path(S, F, add)
     local V, ids = S.V, S.ids
     local R = V.REALM
     local bx, bz = F.me.x - F.me.x % 64, F.me.z - F.me.z % 64
@@ -126,6 +135,25 @@ function QD.raid._sote_hm_runner(S, F, add)
         S.band_logged = S.mazes
         S.path_log[#S.path_log + 1] = "band" .. band .. ":" .. lit
         QD.raid._tob_trace(S, F.tick, "my band " .. band .. ": " .. lit .. " lit tiles")
+    end
+    -- (the highest lit row this band is shown, and the highest of ANY band's
+    -- marker on the realm: a band that never sees the top row strands every
+    -- runner at the row below it)
+    if lr == "ok" and S.toprow_logged ~= S.mazes then
+        local mine_top, any_top = -1, -1
+        for _, row in ipairs(rows) do
+            if row.level == 3 then
+                local lz = row.z - bz
+                for k = 1, 4 do
+                    if row.loc_id == ids.parent[k] then any_top = math.max(any_top, lz) end
+                end
+                if known[row.x .. "," .. row.z] then mine_top = math.max(mine_top, lz) end
+            end
+        end
+        if any_top >= 0 then
+            S.toprow_logged = S.mazes
+            QD.raid._tob_trace(S, F.tick, "top lit row: mine " .. mine_top .. ", any band " .. any_top)
+        end
     end
     -- the runners' tiles this maze (mine included): on the realm grid only
     -- A RUN'S MIDDLE TILE TOO: a runner two tiles on since last tick ran
@@ -176,7 +204,12 @@ function QD.raid._sote_hm_runner(S, F, add)
         head = head + 1
         local d = dist[t.x .. "," .. t.z]
         local fdd = far and dist[far.x .. "," .. far.z]
-        if far == nil or d > fdd or (d == fdd and (t.x < far.x or (t.x == far.x and t.z < far.z))) then far = t end
+        -- (a tie goes to the HIGHER row, the exit's way: the top tile, one
+        -- diagonal on from the row below, tied the row-13 tile it sits over
+        -- and lost to it by x, the exit leg never came, and four runners
+        -- stood on row 13 until the plan stepped them onto an unlit tile -
+        -- every rag in smk8_sote, as all128f's)
+        if far == nil or d > fdd or (d == fdd and (t.z > far.z or (t.z == far.z and t.x < far.x))) then far = t end
         -- (eight ways: a runner cuts a corner diagonally and only the tiles a
         -- tick ends on are judged, so the trail it leaves joins diagonally -
         -- s5i sa, the party held on row 0 behind a corner cut)
@@ -208,31 +241,89 @@ function QD.raid._sote_hm_runner(S, F, add)
         S.runner_why = why
         QD.raid._tob_trace(S, F.tick, why .. " at " .. (F.me.x - bx) .. "," .. (F.me.z - bz))
     end
-    -- THE PULL: CARROT steps ahead of me along the path I know (never a goal
-    -- I can stand still in front of: a pull to the furthest known tile let the
-    -- plan wait a tick and run two for the same arrival, every tick - s5a sc),
-    -- and the exit once that path reaches the last row
-    local goal = nil
+    return { known = known, dist = dist, far = far, mine = mine, band = band, bx = bx, bz = bz,
+             fd = far and dist[far.x .. "," .. far.z] or -1 }
+end
+
+-- THE MAZE, A STATE OF HIS FIGHT (owner, 2026-10-12: "The maze solve should
+-- be modeled as a state in the state machine in the sotetseg fight"). Kept in
+-- S.maze across ticks and started afresh for each maze (S.mazes). Up top:
+--
+--   wait   the one left in the arena: off the arena grid until it ends
+--
+-- In the realm, forward only:
+--
+--   land   teleported in south of the grid; onto it behind the carrot (the
+--          first band's runner holds on row 2 for the rest to land behind)
+--   run    the carrot: CARROT steps on along the path I know
+--   exit   the path I know reaches the last row and I am within CARROT of
+--          its end: onto its top-row tile, then straight north off the grid,
+--          every tick's end on a tile I know (sent straight at an exit from
+--          the row below, the server's route ended a tick on an unlit top-row
+--          tile beside the path and three runners ragged the party - all128f's
+--          111 rag explosions, every one at the exit)
+--   off    off the north end: stay. The maze ends at the first 4-tick check
+--          with nobody on either grid (`~tob_sote_grid_occupied`) and the
+--          server takes us home. Re-derived every tick, the off-grid tile had
+--          no path distance, the exit test failed and the carrot pulled the
+--          runner back on: runners bounced between rows 36 and 38 out of step
+--          with each other, 32 of 212 mazes ran 100-130 ticks against 30-50
+--          (all128m; r004 t1731-1802: 74 ticks).
+--
+-- -> the station (goal) for the plan, or nil.
+function QD.raid._sote_hm_maze(S, F, add, phase)
+    local V = S.V
+    local R = V.REALM
+    if S.maze == nil or S.maze.n ~= S.mazes then
+        S.maze = { n = S.mazes, state = nil }
+    end
+    local M = S.maze
+    local function to(state)
+        if state ~= M.state then
+            QD.raid._tob_trace(S, F.tick, "maze " .. M.n .. ": " .. tostring(M.state) .. " -> " .. state)
+            S.path_log[#S.path_log + 1] = "m" .. M.n .. ":" .. state .. "@" .. F.tick
+            M.state = state
+        end
+    end
+    if phase == "maze_waiter" then
+        to("wait")
+        return QD.raid._sote_hm_waiter(S, F, add)
+    end
+    local P = QD.raid._sote_hm_path(S, F, add)
+    local row = F.me.z - P.bz - R.z0
     local last_row = R.z1 - R.z0
-    local fd = far and dist[far.x .. "," .. far.z] or -1
-    if far and far.z - bz - R.z0 >= last_row and mine >= fd - V.CARROT then
-        goal = { x = bx + V.EXIT_X, z = bz + R.z1 + 1 }
-    elseif far then
-        local want = math.min(fd, mine + V.CARROT)
-        for k, d in pairs(dist) do
-            local t = known[k]
+    if M.state == nil or M.state == "wait" then to("land") end
+    if M.state == "land" and row >= 0 then to("run") end
+    if M.state == "run" and P.far and P.far.z - P.bz - R.z0 >= last_row and P.mine >= P.fd - V.CARROT then to("exit") end
+    if (M.state == "run" or M.state == "exit") and row > last_row then to("off") end
+    local goal = nil
+    if M.state == "off" then
+        goal = { x = F.me.x, z = F.me.z }
+    elseif M.state == "exit" and P.far then
+        if F.me.x == P.far.x and F.me.z == P.far.z then
+            goal = { x = P.far.x, z = P.far.z + 1 }
+        else
+            goal = P.far
+        end
+    elseif P.far then
+        -- land and run: CARROT steps ahead of me along the path I know (never
+        -- a goal I can stand still in front of: a pull to the furthest known
+        -- tile let the plan wait a tick and run two for the same arrival,
+        -- every tick - s5a sc)
+        local want = math.min(P.fd, P.mine + V.CARROT)
+        for k, d in pairs(P.dist) do
+            local t = P.known[k]
             if d == want and (goal == nil or t.x < goal.x or (t.x == goal.x and t.z < goal.z)) then goal = t end
         end
     end
     -- the first band's runner holds on row 2 for the rest to land behind it
-    local row = F.me.z - bz - R.z0
-    if band == 1 then
-        if row == 2 then S.row2_ticks = (S.row2_ticks or 0) + 1 elseif row < 2 then S.row2_ticks = 0 end
+    if P.band == 1 and (M.state == "land" or M.state == "run") then
+        if row == 2 then M.row2 = (M.row2 or 0) + 1 elseif row < 2 then M.row2 = 0 end
         local stop = nil
-        if row < 0 then stop = 1 elseif row <= 2 and (S.row2_ticks or 0) < V.ROW2_HOLD then stop = 3 end
+        if row < 0 then stop = 1 elseif row <= 2 and (M.row2 or 0) < V.ROW2_HOLD then stop = 3 end
         if stop then
             for x = R.x0, R.x1 do
-                add.forbid("hold", { x = bx + x, z = bz + R.z0 + stop, t0 = F.tick + 1, t1 = F.tick + 1,
+                add.forbid("hold", { x = P.bx + x, z = P.bz + R.z0 + stop, t0 = F.tick + 1, t1 = F.tick + 1,
                     tier = "lethal", cost = 50 })
             end
         end
@@ -259,8 +350,7 @@ function QD.raid._sote_hm_step(S, F)
     local spec, names, add = QD.raid._tob_spec(S, F, { h = V.H, beam = V.BEAM })
     local target, station = QD.raid._sote_fight_zones(S, F, add, phase)
     if phase == "death_ball" and QD.raid._sote_hm_death_zones(S, F, add) then station = nil end
-    if phase == "maze_waiter" then station = QD.raid._sote_hm_waiter(S, F, add) end
-    if phase == "maze_runner" then station = QD.raid._sote_hm_runner(S, F, add) end
+    if phase == "maze_waiter" or phase == "maze_runner" then station = QD.raid._sote_hm_maze(S, F, add, phase) end
     return QD.raid._sote_act(S, F, spec, names, add, phase, target, 1, station, intent)
 end
 

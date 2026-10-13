@@ -2261,6 +2261,18 @@ lua_drive_cheat(struct lua_State* L)
     return PluginDrive_PushResult(L, result, NULL);
 }
 
+/* api_drive.say(text): a public chat line (App_SendPublicChat). A party talks
+ * through it - each seat reads the others' lines from api_drive.messages. */
+static int
+lua_drive_say(struct lua_State* L)
+{
+    char const* text = PluginDrive_ArgString(L, 1);
+    enum DriveResult result = DRIVE_UNSUPPORTED;
+    if( g_app )
+        result = App_SendPublicChat(g_app, text) ? DRIVE_OK : DRIVE_REFUSED;
+    return PluginDrive_PushResult(L, result, NULL);
+}
+
 static int
 lua_drive_ledger(struct lua_State* L)
 {
@@ -4350,6 +4362,7 @@ static struct LuaFn const LUA_DRIVE_CORE_FNS[] = {
     {"symbol", lua_drive_symbol},
     {"symbol_name", lua_drive_symbol_name},
     {"cheat", lua_drive_cheat},
+    {"say", lua_drive_say},
     {"ledger", lua_drive_ledger},
     {"report", lua_drive_report},
     {"finish", lua_drive_finish},

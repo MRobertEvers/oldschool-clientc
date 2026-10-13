@@ -19,4 +19,10 @@
 --
 -- The relay itself is the library's (script/plugins/quest_driver/tob_relay.lua),
 -- shared with test/raids/tob_relay_hard.lua.
-return QD_ROOT.raid.tob_relay_test("normal")
+-- The fields below are read from this file's text by the Scripts tab
+-- (tools/raid_gate/prepare_scripts.py); the relay asserts they are its own.
+return QD_ROOT.raid.tob_relay_test("normal", {
+    fixture = "fresh_lumbridge.ini",
+    party = 3,
+    max_frames = 300000,
+})

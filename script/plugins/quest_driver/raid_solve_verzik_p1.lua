@@ -52,6 +52,8 @@ QD.VZP1 = {
     BREAK_TO_FALL_READ = 2,   -- death animation on D, every fall reads D+2
     PILLAR_HP = 185, PILLAR_HIT_MAX = 60,
     COLLAPSE_RANGE = 3,
+    BACK_MARGIN = 1,          -- tiles of slack on the way back to the box before her bolt reads
+    FALL_WINDOW = 3,          -- the break's falls are read D+2 and land as late as D+4: clear through D+5
     DAWN_RANGE = 10,          -- all.obj verzik_special_weapon weapon_attackrange
     SPEC_COST = 350,
     WEAPON_SLOT = 3,          -- wearpos 3
@@ -264,6 +266,19 @@ function QD.raid._vzp1_cover(S, F, pillars)
             end
         end
     end
+    -- HARD MODE ALTERNATES (S.hm.alternate; owner, 2026-10-12: "The p1
+    -- strategy in hard mode tob is to use a state machine and alternate
+    -- between pillars each hit"; HMT_STRATEGIES.md: "alternate the two front
+    -- pillars after each attack"). Every pillar her bolt hits drops its
+    -- rubble round itself three ticks on, so the team is never by the one
+    -- just hit: after each read, the other front pillar.
+    --   hide    in the team pillar's box until the read
+    --   switch  the read is past: the other front pillar is the team's;
+    --           hide again once in its box
+    if S.hm and S.hm.alternate and S.prev_read and S.read ~= S.prev_read and F.tick > S.prev_read then
+        S.alt_idx = 3 - (S.alt_idx or 1)
+        S.alt_state = "switch"
+    end
     S.prev_read = S.read
     local keep, falling = {}, {}
     for _, f in ipairs(S.falls) do
@@ -275,9 +290,12 @@ function QD.raid._vzp1_cover(S, F, pillars)
     S.falls = keep
     -- the team's pillar: the first standing one that is not falling now
     local team = nil
+    local standing = {}
     for _, p in ipairs(pillars) do
-        if not falling[p.key] then team = p break end
+        if not falling[p.key] then standing[#standing + 1] = p end
     end
+    team = standing[1]
+    if S.hm and S.hm.alternate and #standing >= 2 then team = standing[S.alt_idx or 1] end
     if team and team.key ~= S.team_key then QD.raid._vzp1_trace(S, F.tick, "team pillar " .. team.key) end
     S.team_key = team and team.key or nil
     F.team = team
@@ -295,6 +313,30 @@ function QD.raid._vzp1_cover(S, F, pillars)
         end
         return d
     end
+    -- THE WAY BACK IN STEPS, the client's own route to the nearest box tile
+    -- (a box is the far side of a pillar from her: from her side the run
+    -- goes round it, and the straight-line count was short - relay hmt_live2
+    -- and seed sg seat 3: its pillar fell, its new box was across the room,
+    -- it left her side on the straight-line count and reached cover a tick
+    -- after her last bolt read it, 67 and 48). Per tile per tick, as above.
+    local steps_memo = {}
+    F.box_steps = function(x, z)
+        local key = x * 65536 + z
+        local d = steps_memo[key]
+        if d == nil then
+            d = F.box_dist(x, z)
+            if d > 0 then
+                local best = nil
+                for _, t in ipairs(F.box) do
+                    if best == nil or cheb(x, z, t.x, t.z) < cheb(x, z, best.x, best.z) then best = t end
+                end
+                local r, rt = api_drive.route(best.x, best.z, { run = true, from = { x = x, z = z } })
+                if r == "ok" and rt and rt.tiles then d = math.max(d, #rt.tiles) end
+            end
+            steps_memo[key] = d
+        end
+        return d
+    end
     if team then
         local b = F.boss or F.initial
         for _, t in ipairs(QD.raid._vzp1_box(team)) do
@@ -309,6 +351,10 @@ function QD.raid._vzp1_cover(S, F, pillars)
         end
     end
     F.falls = S.falls
+    if S.alt_state == "switch" and F.in_box[F.me.x .. "," .. F.me.z] then
+        S.alt_state = "hide"
+        QD.raid._vzp1_trace(S, F.tick, "alternate: hiding at " .. tostring(S.team_key))
+    end
 end
 
 -- The shield break, a small machine: FIGHT -> BREAK (every pillar falls,
@@ -323,7 +369,7 @@ function QD.raid._vzp1_break(S, F, pillars)
         end
         QD.raid._vzp1_trace(S, F.tick, "her shield broke: every pillar falls, read t" .. S.break_read)
     end
-    if S.phase == "BREAK" and F.tick > S.break_read + 1 then S.phase = "DONE" end
+    if S.phase == "BREAK" and F.tick > S.break_read + V.FALL_WINDOW + 1 then S.phase = "DONE" end
 end
 
 -- ================================================================ BEHAVIORS
@@ -402,25 +448,30 @@ function QD.raid._vzp1_terms(S, F)
                 -- tile short: her last bolt, judged on that read with the
                 -- pillars still standing, hit seat 0 on 6 of 16 seeds and on
                 -- every live run (33/49 at D+4). Blert never lands that bolt.
-                if F.read and t < F.read and F.box_dist(x, z) > 2 * (F.read - t) then return V.INF end
+                if F.read and t < F.read and F.box_steps(x, z) + V.BACK_MARGIN > 2 * (F.read - t) then return V.INF end
                 -- the way back, when no plan can make it: toward the box
                 return 0.05 * F.box_dist(x, z)
             end
             return 0
         end)
     end
-    -- falls: more than 3 from a falling pillar's centre at its read
+    -- falls: more than 3 from a falling pillar's centre from its read on, for
+    -- FALL_WINDOW ticks. The shield break's pillars do not all fall at D+2:
+    -- relay hmt_live2 seat 3 saw her death animation at t2826, went back to
+    -- its box by a pillar for t2828, and the pillars fell at t2830 - a 67,
+    -- and it died in P2 with 30 more. Out of her reach nothing is lost by
+    -- staying clear a few ticks longer.
     if #F.falls > 0 then
         add("fall", function(x, z, t)
             for _, f in ipairs(F.falls) do
-                if t == f.read and cheb(x, z, f.cx, f.cz) <= V.COLLAPSE_RANGE then return V.INF end
+                if t >= f.read and t <= f.read + V.FALL_WINDOW and cheb(x, z, f.cx, f.cz) <= V.COLLAPSE_RANGE then return V.INF end
             end
             return 0
         end)
     end
     -- damage: attacking, in reach
     if F.boss and S.phase == "FIGHT" then
-        local dawn = F.dawn_worn or F.dawn_ready
+        local dawn = F.dawn_ready
         add("reach", function(x, z, t, k, path)
             if path[k].attacking and QD.raid._vzp1_in_reach(S, F, x, z, dawn) then return 0 end
             return 3
@@ -516,7 +567,7 @@ function QD.raid._vzp1_same(a, b)
     return a.x == b.x and a.z == b.z
 end
 
-function QD.raid._vzp1_move(S, F, terms, P)
+function QD.raid._vzp1_move(S, F, terms, P, M)
     local V = QD.VZP1
     local incumbent = { w = V.H + 1, order = nil }
     local inc_path = QD.raid._vzp1_simulate(S, F, incumbent)
@@ -556,8 +607,12 @@ function QD.raid._vzp1_move(S, F, terms, P)
         waitable[#waitable + 1] = take
     end
     local back = box[1]
-    if F.boss and S.phase == "FIGHT" then
-        local attack = { mode = "attack", dawn = F.dawn_worn or F.dawn_ready }
+    -- (M, the machine's state: no attack at all, or the weapon it names)
+    if F.boss and S.phase == "FIGHT" and not (M and M.attack == false) then
+        -- (a worn but SPENT Dawnbringer is going back off this tick: its
+        -- swing is the melee weapon's)
+        local attack = { mode = "attack", dawn = F.dawn_ready }
+        if M and M.dawn ~= nil then attack.dawn = M.dawn end
         orders[#orders + 1] = attack
         waitable[#waitable + 1] = attack
         -- strike, then back to the box j ticks later; or the reverse
@@ -593,6 +648,49 @@ function QD.raid._vzp1_move(S, F, terms, P)
         end
     end
     return best, best_cost
+end
+
+-- ============================================================ THE MACHINE
+--
+-- HARD MODE'S P1 AS ONE STATE A TICK (S.hm.machine; owner, 2026-10-12: "The
+-- p1 solver should be a bit more rigid in its state machine. It shouldn't be
+-- fighting between what to wield, it should be handled by a state machine").
+-- The state comes from what I hold and whose turn the Dawnbringer is; the
+-- state alone names the ONE wield it may make and the orders it may give;
+-- the arbiter only chooses among those orders by the hazards (cover at her
+-- read, the rubble, the falls). Nothing else wields in P1.
+--   FETCH   my turn and it is on the floor: take it (and back to the box)
+--   SPEC    holding it with a special's energy: it in hand, then its swing
+--           with the special armed - or the box
+--   PASS    holding it spent: the weapon back in hand, then (in the box)
+--           the Dawnbringer dropped for the next seat; walks only
+--   STRIKE  not mine: the weapon's swing out and back, or the box
+-- The team's cover alternates pillars each read (QD.raid._vzp1_cover).
+function QD.raid._vzp1_machine(S, F, P)
+    local V = QD.VZP1
+    local holding = F.dawn_pack or F.dawn_worn
+    local state
+    if holding and F.energy >= V.SPEC_COST then state = "SPEC"
+    elseif holding then state = "PASS"
+    elseif #F.ground_dawn > 0 and QD.raid._vzp1_dawn_turn(S) == S.role then state = "FETCH"
+    else state = "STRIKE" end
+    if state ~= S.p1_state then
+        QD.raid._vzp1_trace(S, F.tick, "p1: " .. tostring(S.p1_state) .. " -> " .. state)
+        S.p1_state = state
+    end
+    F.dawn_ready = (state == "SPEC")
+    if state == "SPEC" then
+        if not F.dawn_worn then P.gear = S.ids.dawn end
+        return { dawn = true }
+    elseif state == "PASS" then
+        if F.dawn_worn then P.gear = S.ids.weapon
+        elseif F.in_box[F.me.x .. "," .. F.me.z] then P.drop = S.ids.dawn end
+        return { attack = false }
+    elseif state == "FETCH" then
+        P.take = nearest_first(F.ground_dawn, F.me.x, F.me.z)[1]
+        return { dawn = false }
+    end
+    return { dawn = false }
 end
 
 -- ===================================================================== EMIT
@@ -631,7 +729,12 @@ function QD.raid._vzp1_emit(S, F, plan, P)
         held = true
     end
     local o = (plan.w == 0) and plan.order or nil
-    if o == nil and held and S.order and S.order.mode == "attack" then o = S.order end
+    -- (a held op ends the swing: pressed again - but NOT after the weapon
+    -- went back on for a spent Dawnbringer, which turns a ranged swing that
+    -- stood still into a melee one the server walks at her: seed sk seat 2
+    -- t610, walked onto a rubble tile a tick before it fell)
+    local regear = P.gear ~= nil and P.gear == S.ids.weapon
+    if o == nil and held and S.order and S.order.mode == "attack" and not regear then o = S.order end
     if held and S.order and S.order.mode == "attack" then S.order = nil end
     local attacking = (o and o.mode == "attack") or (o == nil and S.order and S.order.mode == "attack")
     if attacking and F.dawn_ready and F.dawn_worn and F.tick - (S.spec_armed or -10) >= 4 then
@@ -731,7 +834,12 @@ function QD.raid.verzik_p1_solve(opts)
             and S.windups[#S.windups] ~= nil and S.read == S.windups[#S.windups] + V.WINDUP_TO_READ
         QD.raid._vzp1_cover(S, F, pillars)
         local P = {}
-        if S.phase == "FIGHT" then QD.raid._vzp1_custody(S, F, P) end
+        local M = nil
+        if S.phase == "FIGHT" and S.hm and S.hm.machine then
+            M = QD.raid._vzp1_machine(S, F, P)
+        elseif S.phase == "FIGHT" then
+            QD.raid._vzp1_custody(S, F, P)
+        end
         if F.hp < V.HP_EAT and F.in_box[F.me.x .. "," .. F.me.z] and F.tick - (S.last_eat or -10) >= 3 then
             local _, n = api_drive.inv_count(S.ids.inv, S.ids.food)
             if (n or 0) > 0 then
@@ -740,7 +848,7 @@ function QD.raid.verzik_p1_solve(opts)
             end
         end
         local terms = QD.raid._vzp1_terms(S, F)
-        local plan, cost = QD.raid._vzp1_move(S, F, terms, P)
+        local plan, cost = QD.raid._vzp1_move(S, F, terms, P, M)
         if cost >= V.INF and (S.last_inf or -10) < F.tick - 5 then -- (any impossible plan)
             S.last_inf = F.tick
             QD.raid._vzp1_trace(S, F.tick, "no safe plan at " .. F.me.x .. "," .. F.me.z .. " (" .. tostring(S.inc_why) .. ")")

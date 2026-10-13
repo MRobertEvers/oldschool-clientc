@@ -105,6 +105,7 @@ QD.MAIDEN = {
         ["38,41"] = "N1", ["42,41"] = "N2", ["46,41"] = "N3", ["50,39"] = "N4i", ["50,41"] = "N4o",
         ["38,19"] = "S1", ["42,19"] = "S2", ["46,19"] = "S3", ["50,21"] = "S4i", ["50,19"] = "S4o",
     },
+    POINT_SLACK = 1,          -- a crab first seen this far off its spawn point is still that point's
     POINT_ORDER = { "N1", "N2", "N3", "N4i", "N4o", "S1", "S2", "S3", "S4i", "S4o" },
     OPENER_TICKS = 30,                                  -- the hammer opener's cap
     H = 8, BEAM = 32,
@@ -124,7 +125,7 @@ function QD.raid._maiden_ids()
         { "dying_a", "npc", "tob_maiden_dying_a" }, { "dying_b", "npc", "tob_maiden_dying_b" },
         { "crab", "npc", "maiden_elemental" }, { "slug", "npc", "maiden_blood_slug" },
         { "seq_storm", "seq", "maiden_attack_special" }, { "seq_blood", "seq", "maiden_attack_blood" },
-        { "blood_proj", "spotanim", "maiden_blood_proj" },
+        { "blood_proj", "spotanim", "maiden_blood_proj" }, { "pool_gfx", "spotanim", "maiden_lingering_blood" },
         { "freeze_gfx", "spotanim", "ice_barrage_impact" },
         { "trail", "loc", "tob_maiden_blood" },
         { "archer_helm", "obj", "game_pest_archer_helm" }, { "pipe", "obj", "toxic_blowpipe_loaded" },
@@ -136,6 +137,8 @@ function QD.raid._maiden_ids()
         { "melee_helm", "obj", "game_pest_melee_helm" }, { "tentacle", "obj", "abyssal_tentacle" },
         { "torture", "obj", "zenyte_amulet_enchanted" }, { "fire_cape", "obj", "tzhaar_cape_fire" },
         { "barrage", "component", "magic_spellbook:ice_barrage" },
+        { "blood_barrage", "component", "magic_spellbook:blood_barrage" },
+        { "pouch_type_4", "varbit", "varb14285_rune_pouch_type_4" },
         { "hud", "varbit", "varb6448_tob_client_waveprogress_val" },
         { "rapid_slot", "component", "combat_interface:style_slot_1" },
         { "com_mode", "varp", "varp43_com_mode" },
@@ -193,6 +196,12 @@ function QD.raid._maiden_clock(S, F)
         elseif b.seq_id == S.ids.seq_storm then
             S.storms = S.storms + 1
         end
+        -- her attack cadence (either attack): the next is due a gap on, and
+        -- the gap only shortens (tob_maiden_hm.lua's storm step)
+        if b.seq_id == S.ids.seq_blood or b.seq_id == S.ids.seq_storm then
+            if S.att_last then S.att_gap = F.tick - S.att_last end
+            S.att_last = F.tick
+        end
     end
 end
 
@@ -221,6 +230,25 @@ function QD.raid._maiden_pools(S, F)
                     S.pools[#S.pools + 1] = { x = p.dst_x, z = p.dst_z, t0 = land - 1, t1 = land_extra + V.POOL_LIFE + 2,
                         expiry = land + V.POOL_LIFE }
                     S.pool_probe[#S.pool_probe + 1] = string.format("B%d %d,%d d%d land%d", B, p.dst_x, p.dst_z, d, land)
+                end
+            end
+        end
+    end
+    -- AND EVERY POOL ON THE GROUND: its lingering graphic, for a pool whose
+    -- throw was never seen in flight - a freezer barraging from a pool it was
+    -- never told of took 10 a tick for twelve ticks (all128e r022 seat 2,
+    -- t129-t141). From now to its life's end, unless a known pool covers it.
+    local sr, rows = api_drive.spotanims(0)
+    if sr == "ok" then
+        for _, row in ipairs(rows) do
+            if row.spotanim_id == S.ids.pool_gfx then
+                local known = false
+                for _, pl in ipairs(S.pools) do
+                    if pl.x == row.x and pl.z == row.z and pl.t1 >= F.tick + V.POOL_LIFE then known = true end
+                end
+                if not known then
+                    S.pools[#S.pools + 1] = { x = row.x, z = row.z, t0 = F.tick, t1 = F.tick + V.POOL_LIFE + 3,
+                        expiry = F.tick + V.POOL_LIFE }
                 end
             end
         end
@@ -271,8 +299,20 @@ function QD.raid._maiden_crabs(S, F)
     for _, c in ipairs(F.crabs) do
         local rec = S.crab_rec[c.slot]
         if rec == nil then
-            rec = { born = F.tick, x = c.x, z = c.z,
+            rec = { born = F.tick, first = F.tick, x = c.x, z = c.z,
                     point = V.POINTS[(c.x - S.base.x) .. "," .. (c.z - S.base.z)] }
+            -- (first seen a step off its point: a wake that missed the spawn
+            -- tick saw the crab after its first step, at no point, and the
+            -- wave asserted - ma128 r022 seat 4 saw S4i's crab on 48,23 at
+            -- t342. Its point is the one within a step; its birth that far back)
+            if rec.point == nil then
+                for key, name in pairs(V.POINTS) do
+                    local px, pz = key:match("^(%-?%d+),(%-?%d+)$")
+                    local d = cheb(c.x - S.base.x, c.z - S.base.z, tonumber(px), tonumber(pz))
+                    if d <= V.POINT_SLACK and (rec.point == nil or d < rec.d) then rec.point, rec.d = name, d end
+                end
+                if rec.point then rec.born = F.tick - rec.d end
+            end
             S.crab_rec[c.slot] = rec
             S.crab_probe[#S.crab_probe + 1] = string.format("slot%d born t%d at %d,%d", c.slot, F.tick, c.x - S.base.x, c.z - S.base.z)
         end
@@ -312,7 +352,7 @@ function QD.raid._maiden_crabs(S, F)
             rec.frozen_until = nil
         end
         rec.x, rec.z = c.x, c.z
-        c.point, c.born = rec.point, rec.born
+        c.point, c.born, c.first = rec.point, rec.born, rec.first
         c.frozen = rec.frozen_until ~= nil and rec.frozen_until > F.tick
         c.eta = math.max(math.max(x0 - c.x, c.x - x1, 0), math.max(z0 - c.z, c.z - z1, 0))
         if c.frozen then
@@ -336,7 +376,7 @@ end
 function QD.raid._maiden_wave(S, F)
     local have, n = {}, 0
     for _, c in ipairs(F.crabs) do
-        if c.born == F.tick then
+        if c.first == F.tick then
             assert(c.point, "maiden_solve: a crab spawned on no spawn point, at "
                 .. (c.x - S.base.x) .. "," .. (c.z - S.base.z))
             have[c.point] = true
@@ -480,7 +520,11 @@ function QD.raid._maiden_spec(S, F, target, range, station)
     add.zone("body", { x = S.base.x + V.BODY.x, z = S.base.z + V.BODY.z, size = V.SIZE, lo = 0, hi = 0, tier = "lethal" })
     for _, pl in ipairs(S.pools) do
         if pl.t0 <= horizon then
-            add.forbid("pool", { x = pl.x, z = pl.z, t0 = pl.t0, t1 = pl.t1, tier = "damage", cost = V.POOL_COST })
+            -- (FORBIDDEN, not priced: "There should be NO avoidable damage",
+            -- owner 2026-10-12. At 12 a DPS kept its station on a pool her
+            -- throw put on it and took 10 a tick for twelve ticks, all128
+            -- r082 seat 2 t129-t140; the same seat in r016 took 22s, r048 14s)
+            add.forbid("pool", { x = pl.x, z = pl.z, t0 = pl.t0, t1 = pl.t1, tier = "lethal" })
             -- the spawn an expiring pool may become steps on its first tick,
             -- onto any tile of the pool's 3x3, and lays its trail there (seed
             -- v2d/sj t317: spawned on (32,31), stepped onto the DPS on (32,30))
@@ -500,7 +544,7 @@ function QD.raid._maiden_spec(S, F, target, range, station)
         -- on t210), so the forbid runs to the end of L+30 at least, and on
         -- while the loc is still there
         add.forbid("trail", { x = tr.x, z = tr.z, t0 = tr.seen - 1,
-            t1 = math.max(tr.seen + V.TRAIL_LIFE + 1, F.tick + 1), tier = "damage", cost = V.TRAIL_COST })
+            t1 = math.max(tr.seen + V.TRAIL_LIFE + 1, F.tick + 1), tier = "lethal" })
     end
     for _, sl in ipairs(F.slugs) do
         if cheb(sl.x, sl.z, F.me.x, F.me.z) <= V.SLUG_NEAR then
@@ -511,7 +555,7 @@ function QD.raid._maiden_spec(S, F, target, range, station)
             -- trail's life (seeds m6s sf/sg/so: the freezer stepped onto the
             -- tile a spawn had just left)
             add.forbid("slug-tile", { x = sl.x, z = sl.z, t0 = F.tick + 1, t1 = F.tick + V.TRAIL_LIFE + 1,
-                tier = "damage", cost = V.SLUG_COST })
+                tier = "lethal" })
             -- its next step can be onto any tile of its 3x3, mine included: a
             -- raider standing beside a spawn took the trail it laid on the
             -- raider's own tile (seed v2a/sa t138, t390), the soft 3 this was

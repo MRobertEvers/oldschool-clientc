@@ -45,7 +45,7 @@
 --                  centre).
 --   Athanatos      cast at a raider's tile; lands 6 ticks later (up to 78 on
 --                  that tile), then heals her 9-10 every 4 ticks until a
---                  poisonous hit (a worn serpentine helm makes every hit one)
+--                  poisonous hit (every tentacle hit is one: it is whipped)
 --                  bursts it into her.  Crabs spawn with the cast.
 --   crabs          one per raider, spawned 2-6 tiles BEYOND its owner, walking
 --                  at it one tile a tick; on contact (range 1) or at 25 ticks
@@ -165,7 +165,7 @@ function QD.raid._vzp2_ids(weapon)
         missiles_lit = sym("varbit", "varb4117_prayer_protectfrommissiles"),
         magic_lit = sym("varbit", "varb4116_prayer_protectfrommagic"),
         piety = comp("prayerbook:prayer27"), piety_lit = sym("varbit", "varb4129_prayer_piety"),
-        attack = sym("stat", "attack"),
+        attack = sym("stat", "attack"), strength = sym("stat", "strength"),
         run_on = sym("varp", "varp173_option_run"), run_orb = comp("orbs:runbutton"),
         combats = QD.raid._vzp2_doses("dose2combat"),
         stat_restores = QD.raid._vzp2_doses("dose2restore"),
@@ -237,6 +237,8 @@ function QD.raid._vzp2_measure(S)
     S.running = F.running
     local ar, at = api_drive.skill(ids.attack)
     F.attack, F.attack_base = (ar == "ok" and at.level) or 0, (ar == "ok" and at.base_level) or 0
+    local sr, st = api_drive.skill(ids.strength)
+    F.strength, F.strength_base = (sr == "ok" and st.level) or 0, (sr == "ok" and st.base_level) or 0
     local _, hw = api_drive.inv_count(ids.worn, ids.helm)
     F.helm_worn = (hw or 0) > 0
     -- the Dawnbringer goes with her P1 form: its last holder is left
@@ -582,7 +584,22 @@ function QD.raid._vzp2_target(S, F)
     -- 9-10 every 4 ticks, more than a red is worth (p2o: it outlived the reds
     -- phase and her bar climbed 898 -> 1189).  Only one that landed near
     -- her: chasing one across the room broke the lightning formation (p2j).
-    if F.athanatos and F.helm_worn
+    if F.athanatos and S.hm and S.hm.athanatos and S.hm.athanatos[S.role] then
+        -- HARD MODE: A KILLER A SIDE (owner, 2026-10-12: "Some of the seats
+        -- must take the role of prioritize killing the athanatos"): a killer
+        -- on each side, and the Athanatos is the first job of the one on the
+        -- side it landed. Seat 3
+        -- alone, only within 6 of her, let it heal her 9-10 a 4 ticks for
+        -- most of a P2: eleven P2s timed out at 900 ticks, all128e. Whipped
+        -- (owner: "Tentacle whip will do. Just whip it until it pops"): a
+        -- tentacle's hit is poisonous, and the next action is its burst.
+        -- Over her own columns (north or south of her) both killers go.
+        local a, b = F.athanatos, F.boss
+        local middle = a.x >= b.x and a.x <= b.x + QD.VZP2.SIZE - 1
+        if middle or (QD.raid._vzp2_east(S, S.role) == (a.x > b.x + 1)) then
+            return a, "athanatos"
+        end
+    elseif F.athanatos and not (S.hm and S.hm.athanatos) and S.role == 3
         and QD.raid._vzp2_gap(F.athanatos.x, F.athanatos.z, F.boss.x, F.boss.z, QD.VZP2.SIZE) <= 6 then
         return F.athanatos, "athanatos"
     end
@@ -934,6 +951,23 @@ function QD.raid._vzp2_order_ticks(S, F, from, order)
         -- nearest face (under_target_routes_out), which the route below is
         -- (sa t322: a raider the red spawned on stood inside it for 12 ticks,
         -- planned as "attacking where it stands").
+        -- A WALKING TARGET (a crab, a red: Hard Mode only) is followed: the
+        -- server keeps the raider in reach of where it walks, so "in reach,
+        -- stays" stepped seats onto pools the plan never saw (acid14c r008
+        -- t1009, r007 t1111). Its last step, carried on a tick at a time.
+        local mv = S.hm and S.tg_step and S.tg_step[tg.slot]
+        if mv and (mv.dx ~= 0 or mv.dz ~= 0) and not (F.boss and tg.slot == F.boss.slot) then
+            local out, cur = {}, from
+            for k = 1, QD.VZP2.H do
+                local tx, tz = tg.x + mv.dx * k, tg.z + mv.dz * k
+                if QD.raid._vzp2_gap(cur.x, cur.z, tx, tz, tg.size or 1) ~= 1 then
+                    local r = QD.raid._vzp2_route(S, cur, tx, tz, tg.size or 1)
+                    if r and r[1] then cur = r[1] end
+                end
+                out[k] = cur
+            end
+            return out
+        end
         if QD.raid._vzp2_gap(from.x, from.z, tg.x, tg.z, tg.size or 1) == 1 then return { from } end
         return QD.raid._vzp2_route(S, from, tg.x, tg.z, tg.size or 1)
     end
@@ -987,16 +1021,25 @@ function QD.raid._vzp2_score(S, F, terms, path)
         local tl = path[k]
         if QD.raid._vzp2_under(F, tl.x, tl.z) then
             if not graded then return QD.VZP2.INF, "under her k" .. k end
-            bad, first, why = bad + 1, first or k, why or ("under her k" .. k)
+            -- (Hard Mode weighs it: her stomp is 39-51, her bounce throws two
+            -- tiles and stuns for six, and the urn lands on the stunned -
+            -- acid14e: every poisoning left went under her first)
+            bad, first, why = bad + (S.hm.under_weight or 1), first or k, why or ("under her k" .. k)
         else
             for i, term in ipairs(terms) do
                 local c = term(tl.x, tl.z, t, k, path)
                 if c >= QD.VZP2.INF then
                     if not graded then return QD.VZP2.INF, (terms.names[i] or "?") .. " k" .. k end
-                    bad, first, why = bad + 1, first or k, why or ((terms.names[i] or "?") .. " k" .. k)
-                    break
+                    -- a term may weigh a tick as several (Hard Mode's acid:
+                    -- a poisoned seat pays for the rest of the raid), and
+                    -- EVERY term's weight counts: stopping at the first hid
+                    -- the pool behind a blast or an urn on the same tick, and
+                    -- a boxed seat ran over its pools as often as round them
+                    -- (acid14: 7 of 7 pool steps "why blast k1"/"hazard k1")
+                    bad, first, why = bad + math.floor(c / QD.VZP2.INF), first or k, why or ((terms.names[i] or "?") .. " k" .. k)
+                else
+                    total = total + c
                 end
-                total = total + c
             end
         end
     end
@@ -1192,6 +1235,9 @@ function QD.raid._vzp2_held(S, obj, op)
 end
 
 function QD.raid._vzp2_emit(S, F, plan, intent)
+    -- the Arceuus seats' thrall (tob.lua QD.raid.tob_thrall), a tick with no
+    -- held op or prayer press going out
+    if not (intent.pray or intent.eat or intent.drink or intent.gear) then QD.raid.tob_thrall(S, F) end
     -- RUN BACK ON (as every room's emit, QD.raid._tob_emit): the game turns
     -- run off at 0 energy and nothing turns it back on
     if not F.run_on and F.run_energy >= 500 and F.tick - (S.run_pressed or -10) >= 3 then
@@ -1265,7 +1311,7 @@ function QD.raid.verzik_p2_solve(opts)
         role = (QD_PARTY and QD_PARTY.role) or 1,
         floor = { x0 = opts.base.x + V.FLOOR.x0, x1 = opts.base.x + V.FLOOR.x1,
                   z0 = opts.base.z + V.FLOOR.z0, z1 = opts.base.z + V.FLOOR.z1 },
-        hazards = {}, seen_proj = {}, crab_seen = {}, routes = {}, blasts = {}, recent = {},
+        hazards = {}, seen_proj = {}, crab_seen = {}, routes = {}, blasts = {}, recent = {}, hazard_log = {},
         drinks = 0, attacks = 0, slams = 0, since_zap = 0, summons = 0, reds_out = false, reds_attacks = 0,
         trace = {}, hits = {}, eats = 0, clicks = 0, tab = nil, order = nil, pray_presses = {},
         hm = opts.hm,
@@ -1350,13 +1396,9 @@ function QD.raid.verzik_p2_solve(opts)
                 -- not this account's to use
                 intent.pray = "piety"
             end
-            -- the Athanatos needs a poisonous hit: the east raider wears the helm
-            -- (retried until worn, every three ticks: a tick spent on the
-            -- prayer panel sends no held op, p2e)
-            if S.role == 3 and not F.helm_worn and F.tick - (S.helm_tried or -10) >= 3 and intent.pray == nil then
-                intent.gear = S.ids.helm
-                S.helm_tried = F.tick
-            elseif F.weapon_held and F.tick - (S.weapon_tried or -10) >= 3 and intent.pray == nil then
+            -- the weapon back in hand (retried every three ticks: a tick spent
+            -- on the prayer panel sends no held op, p2e)
+            if F.weapon_held and F.tick - (S.weapon_tried or -10) >= 3 and intent.pray == nil then
                 intent.gear = S.ids.weapon
                 S.weapon_tried = F.tick
             end
@@ -1390,7 +1432,19 @@ function QD.raid.verzik_p2_solve(opts)
             end
             -- prayer points: a super restore below the floor (the lowest dose
             -- first), one sip per three ticks (its own timer)
-            if not intent.drink and F.prayer >= V.PRAYER_SIP and F.attack <= F.attack_base + V.COMBAT_REDOSE
+            -- (Hard Mode: a super restore first, the combat only from base -
+            -- raid_solve_verzik_p3.lua's rule, S.hm.stat_drain)
+            local hm_drain = S.hm and S.hm.stat_drain
+            local hm_drained = hm_drain and (F.attack <= F.attack_base - hm_drain or F.strength <= F.strength_base - hm_drain)
+            local at_base = not hm_drain or (F.attack >= F.attack_base and F.strength >= F.strength_base)
+            if not intent.drink and hm_drained and F.tick - (S.last_drink or -10) >= 3 then
+                for _, dose in ipairs(S.ids.stat_restores) do
+                    local _, n = api_drive.inv_count(S.ids.inv, dose)
+                    if (n or 0) > 0 then intent.drink = dose break end
+                end
+                if intent.drink then S.last_drink = F.tick end
+            end
+            if not intent.drink and at_base and F.prayer >= V.PRAYER_SIP and F.attack <= F.attack_base + V.COMBAT_REDOSE
                 and F.tick - (S.last_drink or -10) >= 3
                 and QD.raid.tob_combat_doses(S) > QD.raid.tob_combat_reserve then
                 for _, dose in ipairs(S.ids.combats) do
@@ -1419,8 +1473,35 @@ function QD.raid.verzik_p2_solve(opts)
                 end
                 if intent.drink then S.last_drink = F.tick end
             end
+            -- the walkers' last steps (a target followed: _vzp2_order_ticks)
+            if S.hm then
+                local seen = {}
+                for _, set in ipairs({ F.crabs or {}, F.reds or {} }) do
+                    for _, c in ipairs(set) do
+                        local was = S.tg_last and S.tg_last[c.slot]
+                        seen[c.slot] = { x = c.x, z = c.z }
+                        S.tg_step = S.tg_step or {}
+                        if was then
+                            local dx, dz = c.x - was.x, c.z - was.z
+                            S.tg_step[c.slot] = { dx = (dx > 0 and 1) or (dx < 0 and -1) or 0,
+                                                  dz = (dz > 0 and 1) or (dz < 0 and -1) or 0 }
+                        end
+                    end
+                end
+                S.tg_last = seen
+            end
             local terms = QD.raid._vzp2_terms(S, F)
             local plan, cost, ppath = QD.raid._vzp2_move(S, F, terms)
+            -- ONE TICK AT A TIME (Hard Mode): a walk past this tick's run is
+            -- clicked as the tile the plan scored for this tick's end, so the
+            -- server's own route cannot end the tick somewhere else - a walk
+            -- from her east face to her west was routed under her, stomped
+            -- for 45 and 51 and bounced onto a fresh pool (acid14c r005 t1041)
+            if S.hm and plan.w == 0 and plan.order and plan.order.mode == "walk" and ppath[1]
+                and QD.raid._vzp2_cheb(F.me.x, F.me.z, plan.order.x, plan.order.z) > 2
+                and (ppath[1].x ~= F.me.x or ppath[1].z ~= F.me.z) then
+                plan = { w = 0, order = { mode = "walk", x = ppath[1].x, z = ppath[1].z } }
+            end
             if F.boss and not F.boss.pred and F.scans[F.tick + 1]
                 and QD.raid._vzp2_gap(ppath[1].x, ppath[1].z, F.boss.x, F.boss.z, V.SIZE) <= 1 then
                 QD.raid._vzp2_trace(S, F.tick, string.format("BESIDE AT SCAN: plan w%s %s cost %s k1 %d,%d next_attack %s",
@@ -1435,6 +1516,46 @@ function QD.raid.verzik_p2_solve(opts)
                     QD.raid._vzp2_trace(S, F.tick, string.format("%s on me (ends %s): plan w%s %s cost %s k1 %d,%d inc %s",
                         h.kind, table.concat(ends, ","), tostring(plan.w), plan.order and plan.order.mode or "none",
                         tostring(cost), ppath[1].x, ppath[1].z, tostring(S.inc_why)))
+                end
+            end
+            -- UNDER HER NOW (her stomp and bounce), and the plan that put me there
+            if S.hm and QD.raid._vzp2_under(F, F.me.x, F.me.z) and (S.under_logged or 0) < 10 then
+                S.under_logged = (S.under_logged or 0) + 1
+                S.hazard_log[#S.hazard_log + 1] = string.format("t%d UNDER HER at %d,%d; last tick %s", F.tick, F.me.x, F.me.z,
+                    tostring(S.last_plan_text))
+            end
+            -- ON A POOL NOW, and the plan that put me there
+            for _, p in ipairs(S.hm_acid or {}) do
+                if p.x == F.me.x and p.z == F.me.z and F.tick >= p.from and F.tick <= p.to
+                    and (S.acid_steps or 0) < 20 then
+                    S.acid_steps = (S.acid_steps or 0) + 1
+                    S.hazard_log[#S.hazard_log + 1] = string.format("t%d ON ACID %d,%d (pool %d..%d); last tick %s",
+                        F.tick, p.x, p.z, p.from, p.to, tostring(S.last_plan_text))
+                    break
+                end
+            end
+            do
+                local pp = {}
+                for k = 1, math.min(3, #ppath) do pp[#pp + 1] = ppath[k].x .. "," .. ppath[k].z end
+                S.last_plan_text = string.format("t%d @%d,%d w%s %s order %s cost %.0f path %s", F.tick, F.me.x, F.me.z,
+                    tostring(plan.w), plan.order and (plan.order.mode .. (plan.order.x and (" " .. plan.order.x .. "," .. plan.order.z)
+                    or (" s" .. tostring(plan.order.target and plan.order.target.slot)))) or "keep",
+                    S.order and S.order.mode or "none", cost, table.concat(pp, ">"))
+            end
+            -- A POOL STEP (Hard Mode's acid, raid_solve_verzik_hm.lua): the
+            -- chosen tile is one, past the trace cap, the first 20 a phase
+            for _, p in ipairs(S.hm_acid or {}) do
+                if p.x == ppath[1].x and p.z == ppath[1].z and F.tick + 1 >= p.from and F.tick + 1 <= p.to
+                    and (S.acid_steps or 0) < 20 then
+                    S.acid_steps = (S.acid_steps or 0) + 1
+                    local _, why = QD.raid._vzp2_score(S, F, terms, ppath)
+                    local pp = {}
+                    for k = 1, #ppath do pp[#pp + 1] = ppath[k].x .. "," .. ppath[k].z end
+                    S.hazard_log[#S.hazard_log + 1] = string.format("t%d ACID STEP to %d,%d (pool %d..%d) from %d,%d: plan w%s %s cost %.0f why %s path %s",
+                        F.tick, p.x, p.z, p.from, p.to, F.me.x, F.me.z, tostring(plan.w),
+                        plan.order and (plan.order.mode .. (plan.order.x and (" " .. plan.order.x .. "," .. plan.order.z) or "")) or "keep",
+                        cost, tostring(why), table.concat(pp, ">"))
+                    break
                 end
             end
             if cost >= V.INF and (S.last_inf or -10) < F.tick - 5 then
@@ -1455,7 +1576,8 @@ function QD.raid.verzik_p2_solve(opts)
 end
 
 function QD.raid._vzp2_summary(S)
-    return string.format("p%d: hits %s; attacks seen %d (slams %d), summons %d, clicks %d, eats %d, drinks %d; trace %s",
-        S.role, #S.hits > 0 and table.concat(S.hits, " | ") or "none", S.attacks, S.slams, S.summons,
+    return string.format("p%d: %shits %s; attacks seen %d (slams %d), summons %d, clicks %d, eats %d, drinks %d; trace %s",
+        S.role, (#(S.hazard_log or {}) > 0) and ("HAZARDS " .. table.concat(S.hazard_log, " | ") .. "; ") or "",
+        #S.hits > 0 and table.concat(S.hits, " | ") or "none", S.attacks, S.slams, S.summons,
         S.clicks, S.eats, S.drinks, table.concat(S.trace, " | "))
 end

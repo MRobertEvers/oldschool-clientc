@@ -41,7 +41,7 @@ enum
      * point of the array, and `ToriRSServer_EmbedStart` refusing a second embed is
      * about the process-wide cache tables, not about players. Kept at or below
      * TORIRSSERVER_PLAYER_MAX so a connection that handshakes always gets a slot.
-     * Five: the ToB Hard Mode relay is a five-man (test/raids/tob_relay_hard_v2.lua).
+     * Five: the ToB Hard Mode relay is a five-man (test/raids/tob_relay_hard.lua).
      */
     TORIRSSERVER_EMBED_CLIENT_MAX = 5,
 };
@@ -509,46 +509,6 @@ enum
     /** The longest MAIL or MAIL_ANSWER payload either end sends. */
     TORIRSSERVER_EMBED_LINK_MAIL_MAX = 16384,
 };
-
-/*
- * ── A member's tick-log marks on the party link ──
- *
- *   'K' MARK   member -> host, sent right before a READY: one tick-log mark
- *              row (api.drive.ticklog_mark), its label as the payload.
- *
- * A member hosts no world and so no tick log; before this its solver's marks
- * (the `t2 ...` decision rows) were dropped, and a live party's log held the
- * leader's alone where scriptrun's -- every bot in one process -- holds every
- * seat's. The host pushes each into its tick log as it takes the member's
- * frames at the boundary's barrier, BEFORE the boundary's world tick: so the
- * row carries the tick the member's script ran on, the stamp the leader's own
- * marks and every scriptrun bot's carry. A run that sends none (no member
- * script marks) sends exactly what it sent before.
- */
-enum
-{
-    TORIRSSERVER_EMBED_LINK_MARK = 'K',
-    /** The longest MARK payload: a tick-log label (TORIRSSERVER_TICKLOG_LABEL_MAX). */
-    TORIRSSERVER_EMBED_LINK_MARK_MAX = 112,
-};
-
-/** Member: this process's link to the leader is up (1) or gone (0); set by the
- *  embed transport (net_transport_embed.c). */
-void
-ToriRSServer_EmbedMemberLinkNote(int linked);
-
-/** Member: queue one tick-log mark for this tick's boundary (sent as 'K'
- *  before the READY). Returns 0, queueing nothing, when this process is not a
- *  party member with its link up. */
-int
-ToriRSServer_EmbedMemberMarkPush(char const* label);
-
-/** Member: take the oldest queued mark into `out` (NUL-terminated); 1 if
- *  there was one. */
-int
-ToriRSServer_EmbedMemberMarkTake(
-    char* out,
-    int capacity);
 
 /** The leader's answer to a member's MAIL: `body` is `size` bytes (not
  *  NUL-terminated); returns a malloc'd answer of *out_size bytes, which the

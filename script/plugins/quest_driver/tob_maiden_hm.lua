@@ -52,7 +52,14 @@ QD.MAIDEN_HM = {
     TANK_TILE = { x = 32, z = 31 }, OFF_TILES = { { x = 30, z = 27 }, { x = 25, z = 30 } },
     TANK_STORMS = 2,
     TANK_BREW = 75,
+    BLOOD_SEAT = 3, SOUL_RUNE_INDEX = 13,       -- the Ancients DPS seat; enum982_rune_pouch_rune's soulrune
     WAVE_TILE = { [3] = { x = 32, z = 33 }, [4] = { x = 31, z = 34 }, [5] = { x = 32, z = 28 } },
+    -- (and a tile further out, Chebyshev 4 from her centre, for the two whose
+    -- turn it is not: every wave tile at 3 tied with the tank, her storm took
+    -- the higher orb, and seat 3 tanked every wave - 438 and 427 taken and
+    -- dead while seat 5 took 26-38, all128 r015, r078; owner, 2026-10-12:
+    -- "Maiden non-freezer seats should alternate accepting the tank spot")
+    WAVE_FAR = { [3] = { x = 33, z = 34 }, [4] = { x = 31, z = 35 }, [5] = { x = 33, z = 27 } },
     IMMUNE = 5,
     -- THE FREEZERS' PREWAVE, nearer the threshold than Normal's 100 permille:
     -- five raiders' damage is slow on her through her heals, and a freezer
@@ -60,6 +67,11 @@ QD.MAIDEN_HM = {
     -- their trails covered the floor (m5a sf: 1669 trail tiles, three seats out
     -- of their planner budget). A spawn is frozen first until SLUG_PREWAVE.
     PRE_WAVE = 40, SLUG_PREWAVE = 20,
+    CRAB_URGENT = 4,                            -- a crab this many ticks from her outranks a blood spawn
+    -- a crab's hitpoints (^tob_maiden_crab_hp_5) and a blowpipe's hit on one, every PIPE_TICKS (all128k)
+    CRAB_HP = 100, PIPE_HIT = 12, PIPE_TICKS = 2,
+    -- the rescue freeze: a crab this old (its first freeze landed at +1) and this near her, unfrozen
+    RESCUE_AGE = 2, RESCUE_ETA = 5,
 }
 
 local function cheb(ax, az, bx, bz) return QD.raid._tob_cheb(ax, az, bx, bz) end
@@ -86,6 +98,10 @@ function QD.raid._maiden_hm_marks(S, F)
             m.till = nil
         end
         sl.frozen = m.till ~= nil and m.till > F.tick
+        -- (and its immunity once a freeze ends, as a crab's: a barrage then is
+        -- a cast wasted)
+        if m.till ~= nil and m.till > (m.thaw_seen or -1) then m.thaw_seen = m.till end
+        sl.immune = not sl.frozen and m.thaw_seen ~= nil and F.tick < m.thaw_seen + QD.MAIDEN_HM.IMMUNE
         S.slug_freeze[sl.slot] = m
     end
 end
@@ -95,7 +111,7 @@ end
 function QD.raid._maiden_hm_wave(S, F)
     local n = 0
     for _, c in ipairs(F.crabs) do
-        if c.born == F.tick then
+        if c.first == F.tick then
             assert(c.point, "maiden_hm_solve: a crab spawned on no spawn point, at "
                 .. (c.x - S.base.x) .. "," .. (c.z - S.base.z))
             n = n + 1
@@ -159,7 +175,37 @@ end
 -- THE DPS in a wave: the crabs in kill order - a walking one (nearest its
 -- leak), then lone frozen ones by thaw, then clumped ones by thaw (the
 -- freezers' barrages are on those), the freezers' own targets last - and DPS
--- seat k takes the k-th, so three blowpipes are on three crabs.
+-- seats go to them in that order, as many to a crab as its hitpoints left
+-- need before it reaches her.
+-- The Ancients DPS seat carries soul runes (its pouch's fourth slot: the
+-- relay's Hard kit); a room test's kit does not, and it pipes as before.
+function QD.raid._maiden_hm_blood_ok(S)
+    if S.blood_ok == nil then
+        local r, v = api_drive.varbit(S.ids.pouch_type_4)
+        S.blood_ok = (r == "ok" and v == QD.MAIDEN_HM.SOUL_RUNE_INDEX)
+    end
+    return S.blood_ok
+end
+
+-- The frozen crab with the most crabs within 1 of it (Blood Barrage's 3x3,
+-- player_magic.rs2 `npc_findallany($centre, 1, 0)`), two at least; the most,
+-- then the nearest her, then the slot.
+function QD.raid._maiden_hm_blood_clump(S, F)
+    local best, bn = nil, 1
+    for _, c in ipairs(F.crabs) do
+        if c.frozen then
+            local n = 0
+            for _, o in ipairs(F.crabs) do
+                if cheb(o.x, o.z, c.x, c.z) <= 1 then n = n + 1 end
+            end
+            if n > bn or (n == bn and best and (c.eta < best.eta or (c.eta == best.eta and c.slot < best.slot))) then
+                best, bn = c, n
+            end
+        end
+    end
+    return best
+end
+
 function QD.raid._maiden_hm_dps(S, F)
     if #F.crabs == 0 then return nil end
     local skip = {}
@@ -167,10 +213,19 @@ function QD.raid._maiden_hm_dps(S, F)
         local c = QD.raid._maiden_hm_side_first(S, F, r)
         if c then skip[c.slot] = true end
     end
+    -- BY THE TICKS TILL IT REACHES HER: walking, its distance; frozen, the
+    -- freeze left and then its distance. The side's first freeze and a clump
+    -- (the freezers' barrage targets) only break ties. Left to the freezers
+    -- after their first freeze, the crabs at the two spawns nearest her
+    -- leaked 46% of the time - thawed half-dead at +39..+42 and walked in,
+    -- 5.1 leaks a run, each +3.5 to every storm after (all128f, 655 of 3,840;
+    -- maiden_leaks.py)
     local function key(c)
-        if not c.frozen then return c.eta end
-        if skip[c.slot] then return 100000 + (c.thaw or 0) end
-        return ((crowd(F, c) >= 2) and 10000 or 100) + (c.thaw or 0)
+        local left = c.eta
+        if c.frozen then left = left + math.max((c.thaw or F.tick) - F.tick, 0) end
+        if skip[c.slot] then left = left + 3 end
+        if c.frozen and crowd(F, c) >= 2 then left = left + 2 end
+        return left
     end
     local order = {}
     for _, c in ipairs(F.crabs) do order[#order + 1] = c end
@@ -181,8 +236,25 @@ function QD.raid._maiden_hm_dps(S, F)
     end)
     local k = 1
     for i, r in ipairs(QD.MAIDEN_HM.DPS) do if r == S.role then k = i end end
-    local target = order[((k - 1) % #order) + 1]
-    return { target = target, kind = "pipecrab", station = QD.MAIDEN_HM.WAVE_TILE[S.role] }
+    -- AS MANY SEATS AS A CRAB NEEDS, in that order: a crab's hitpoints left
+    -- (its bar; full before the first) against what one blowpipe lands
+    -- before it reaches her. One seat a crab left the most urgent one - the
+    -- spawn beside her, 6437,84 - leaking half the time, thawed with 60-90
+    -- of its 100 taken (all128k: 187 of 373; maiden_leaks.py TILE=).
+    local H = QD.MAIDEN_HM
+    local seat, target = 0, nil
+    for _, c in ipairs(order) do
+        local hp = H.CRAB_HP
+        if c.health_ratio ~= nil and c.health_ratio >= 0 and c.health_scale ~= nil and c.health_scale > 0 then
+            hp = H.CRAB_HP * c.health_ratio / c.health_scale
+        end
+        local per_seat = H.PIPE_HIT * math.max(key(c), 1) / H.PIPE_TICKS
+        seat = seat + math.max(1, math.ceil(hp / per_seat))
+        if k <= seat then target = c break end
+    end
+    -- (more seats than the crabs need: the k-th again, as before)
+    if target == nil then target = order[((k - 1) % #order) + 1] end
+    return { target = target, kind = "pipecrab", station = QD.raid._maiden_hm_wave_tile(S) }
 end
 
 -- HARD MODE: the unfrozen blood spawn a freezer freezes - its half first,
@@ -190,7 +262,7 @@ end
 function QD.raid._maiden_hm_slug(S, F)
     local mine, other = nil, nil
     for _, sl in ipairs(F.slugs) do
-        if not sl.frozen then
+        if not sl.frozen and not sl.immune then
             local d = cheb(sl.x, sl.z, F.me.x, F.me.z)
             if side_of(S, sl.z) == S.role then
                 if mine == nil or d < mine.d or (d == mine.d and sl.slot < mine.sl.slot) then mine = { sl = sl, d = d } end
@@ -222,6 +294,13 @@ end
 
 local function is_tank(S)
     return QD.raid._maiden_hm_station(S) == QD.MAIDEN_HM.TANK_TILE
+end
+
+-- My wave tile: at 3 from her centre on my turn to tank, at 4 otherwise.
+function QD.raid._maiden_hm_wave_tile(S)
+    local H = QD.MAIDEN_HM
+    if QD.raid._maiden_hm_station(S) == H.TANK_TILE then return H.WAVE_TILE[S.role] end
+    return H.WAVE_FAR[S.role]
 end
 
 -- ===================================================================== STEP
@@ -287,9 +366,19 @@ function QD.raid._maiden_hm_step(S, F)
     local slot = nil
     local prewave = #F.crabs == 0 and F.next_threshold ~= nil and F.permille <= F.next_threshold + H.PRE_WAVE
     if freezer then
+        -- THE BLOOD SPAWNS ARE THE FREEZERS' (owner, 2026-10-12: "do the
+        -- blood spawn freezing"; "The two freezing seats should do that"):
+        -- every step a spawn takes lays a trail that never goes in Hard Mode,
+        -- and with spawns frozen only when no crab job was open (and never
+        -- near a wave) they walked 40% of their lives - 1096 trail tiles,
+        -- the floor covered, the team stood in blood (ma128 r013, r082,
+        -- r087). Now: a crab about to reach her first, then any spawn not
+        -- frozen and not immune, then the rest of the crab work.
         local R = QD.raid._maiden_hm_freezer(S, F)
-        local slug = (R == nil) and QD.raid._maiden_hm_slug(S, F) or nil
-        if slug and prewave and F.permille <= F.next_threshold + H.SLUG_PREWAVE then slug = nil end
+        local slug = QD.raid._maiden_hm_slug(S, F)
+        local urgent = R ~= nil and R.target ~= nil and R.target.eta ~= nil and R.target.eta <= H.CRAB_URGENT
+        if slug and R and not urgent then R = nil end
+        if R then slug = nil end
         if slug then prewave = false end
         if R and R.kind == "pipe" then
             target, kind, range = R.target, "pipe", V.PIPE_RANGE
@@ -318,12 +407,51 @@ function QD.raid._maiden_hm_step(S, F)
         boost = "piety"
     else
         local R = QD.raid._maiden_hm_dps(S, F)
-        if R then
+        -- BLOOD BARRAGE ON A FROZEN CLUMP (owner, 2026-10-12: "the other roles
+        -- also bring magic and switch to blood barrage after the freezers
+        -- have frozen the crabs"; "maiden should not have any leaks"): the
+        -- Ancients DPS seat (the relay's seat 3, soul runes in its divine
+        -- pouch) casts on the frozen crab with the most crabs in its 3x3 -
+        -- the runs Maiden lost had 12.2 leaks a run to the rest's 4.5, in
+        -- bursts the wave after a freeze (all128i)
+        -- THE RESCUE FREEZE: a crab two ticks old and still unfrozen within
+        -- RESCUE_ETA of her had its freeze splash (spotanim 85, ~8% of barrage
+        -- landings) or none was aimed at it, and the freezers' next cast lands
+        -- on the tick it arrives: 150 of 512 leaks were never frozen, most with
+        -- no damage taken (all128l). The Ancients DPS seat's pouch holds Ice
+        -- Barrage's runes, and its cast clock is free at a wave's start.
+        local rescue = nil
+        if S.role == H.BLOOD_SEAT then
+            for _, c in ipairs(F.crabs) do
+                if not c.frozen and not c.immune and c.born ~= nil and F.tick - c.born >= H.RESCUE_AGE
+                    and c.eta <= H.RESCUE_ETA and (rescue == nil or c.eta < rescue.eta or (c.eta == rescue.eta and c.slot < rescue.slot)) then
+                    rescue = c
+                end
+            end
+        end
+        local C = (rescue == nil and S.role == H.BLOOD_SEAT and QD.raid._maiden_hm_blood_ok(S)) and QD.raid._maiden_hm_blood_clump(S, F) or nil
+        if rescue then
+            target, kind, range = rescue, "rescue", V.SPELL_RANGE
+            want_set, want_off = QD.raid._maiden_missing(S, ids.cast_set), 0
+            boost = "augury"
+            R = nil
+        elseif C then
+            target, kind, range = C, "blood", V.SPELL_RANGE
+            -- (the cast set on, the defender and boots kept: their take-off is
+            -- the freezers' accuracy, and seat 3 has no free slot for them - it
+            -- held a blood target for 33 ticks bashing with the trident until
+            -- an eat freed one, 53 of 127 wave ticks busy; all128k r001 t178-211)
+            want_set, want_off = QD.raid._maiden_missing(S, ids.cast_set), 0
+            boost = "augury"
+            R = nil
+        end
+        if C or rescue then
+        elseif R then
             target, kind, station, range = R.target, R.kind, R.station, V.PIPE_RANGE
             want_set, boost = QD.raid._maiden_missing(S, ids.range_set), "rigour"
         else
             target, kind, range = F.boss, "her", 1
-            station = prewave and H.WAVE_TILE[S.role] or QD.raid._maiden_hm_station(S)
+            station = prewave and QD.raid._maiden_hm_wave_tile(S) or QD.raid._maiden_hm_station(S)
             want_set, boost = QD.raid._maiden_missing(S, ids.melee_set), "piety"
         end
     end
@@ -341,8 +469,9 @@ function QD.raid._maiden_hm_step(S, F)
     local d = QD.raid._tob_order(S, F, plan, { target = target, range = range })
     -- the cast: as tob_maiden.lua's - a plan that moves walks, a plan that
     -- stands casts when the set is on and the last cast's 5 ticks are gone
-    local casting = kind == "slot" or kind == "slot-wait" or kind == "clump" or kind == "slugfreeze"
-    if freezer and casting and d.order and d.order.mode == "attack" then
+    local casting = kind == "slot" or kind == "slot-wait" or kind == "clump" or kind == "slugfreeze" or kind == "blood"
+        or kind == "rescue"
+    if (freezer or kind == "blood" or kind == "rescue") and casting and d.order and d.order.mode == "attack" then
         if d.x ~= F.me.x or d.z ~= F.me.z then
             d.order = { mode = "walk", x = d.x, z = d.z }
         else
@@ -351,9 +480,11 @@ function QD.raid._maiden_hm_step(S, F)
         local ready = kind ~= "slot-wait" and d.order == nil and #want_set == 0 and want_off == 0
             and F.tick >= (S.next_cast or 0)
         if ready then
-            intent.cast = { npc = target, component = ids.barrage }
+            intent.cast = { npc = target, component = (kind == "blood") and ids.blood_barrage or ids.barrage }
             S.order = nil
             S.next_cast = F.tick + V.CAST_EVERY
+            if kind == "blood" then S.bloods = (S.bloods or 0) + 1 end
+            if kind == "rescue" then S.rescues = (S.rescues or 0) + 1 end
             local what = kind
             if kind == "slot" then
                 what = "w" .. S.wave.n .. " slot+" .. slot.at .. " cast+" .. (F.tick + S.cast_lag - S.wave.t0)

@@ -265,6 +265,50 @@ local function splashed(S, x, z, t)
     return false
 end
 
+-- THE LEG: the tile to end the next tick on, on the fewest-ticks run to
+-- `goal` over tiles that cost nothing at a tick's end. The content reads a
+-- raider's tile only there (tob_xarpus.rs2 ~tob_xarpus_ground_sweep: the
+-- stomp under his 5x5, standing on or stepping onto acid; a landing's
+-- splash, `~tob_xarpus_splash_damage`), so a run step's middle tile is free
+-- and every end is checked. A plain walk to the goal took the server's
+-- straight line under him: the stack's walk from his east face to the west
+-- quadrants at the screech stomped three seats for 2-9 on every relay seed
+-- (all128c: 1,940 of the room's 1,940 damage, every hit at Q+7). The goal
+-- itself is always allowed (an exhumed's tile, a stare tile).
+function QD.raid._xarp_leg(S, F, goal)
+    local B = S.base
+    local step = F.run_on and 2 or 1
+    local gk = goal.x .. "," .. goal.z
+    local function ok(x, z, t)
+        if x == goal.x and z == goal.z then return true end
+        if not in_arena(B, x, z) or F.pools[x .. "," .. z] then return false end
+        if S.U and gap5(B, x, z) == 0 then return false end
+        return not splashed(S, x, z, t)
+    end
+    local first = { [F.me.x .. "," .. F.me.z] = false }
+    local frontier = { { x = F.me.x, z = F.me.z } }
+    for d = 1, 20 do
+        local nextf = {}
+        for _, c in ipairs(frontier) do
+            local ck = c.x .. "," .. c.z
+            for dx = -step, step do
+                for dz = -step, step do
+                    local x, z = c.x + dx, c.z + dz
+                    local k = x .. "," .. z
+                    if first[k] == nil and ok(x, z, F.tick + d) then
+                        first[k] = first[ck] or { x = x, z = z }
+                        if k == gk then return { mode = "walk", x = first[k].x, z = first[k].z } end
+                        nextf[#nextf + 1] = { x = x, z = z }
+                    end
+                end
+            end
+        end
+        if #nextf == 0 then break end
+        frontier = nextf
+    end
+    return { mode = "walk", x = goal.x, z = goal.z }
+end
+
 -- ================================================================== THE STACK
 
 -- THE LOOKAHEAD. Pools are permanent and one lands a spit, so a greedy pick
@@ -725,6 +769,10 @@ function QD.raid._xarp_step(S, F)
     elseif phase == "stare" then
         order = (S.stare or QD.raid._xarp_stare)(S, F, B, armed)
     end
+    -- every walk somewhere else goes a leg at a time (QD.raid._xarp_leg)
+    if order and order.mode == "walk" and (order.x ~= F.me.x or order.z ~= F.me.z) then
+        order = QD.raid._xarp_leg(S, F, order)
+    end
     QD.raid._tob_recent(S, F, { x = F.me.x, z = F.me.z, order = order, lethal = 0, soft = 0 })
     QD.raid._tob_emit(S, F, order, intent)
     return nil
@@ -741,6 +789,11 @@ function QD.raid._xarp_run(who, stare, opts)
         exh = {}, assigned = {}, landings = {}, proj_live = {}, phase_log = {}, moves = {},
         exhumeds = 0, orbs = 0, spits = 0, turns = 0, stare = stare,
     })
+    -- NO THRALL HERE: in Hard Mode's P3 every landed hit turns him to the
+    -- hitter's quadrant (`~tob_xarpus_gaze_hit`), a thrall's included, so a
+    -- thrall turned him off the stare's rotation and his retaliation hit the
+    -- whole stack (all128k: 65-83 to every seat once a run, 0 before thralls).
+    S.no_thrall = true
     QD.raid._tob_trace(S, api_drive.tick(), "phase entry")
     QD.raid._tob_start(S, nil, opts.start_ticks)
     S.R = api_drive.tick()

@@ -122,9 +122,16 @@ function QD.raid._sote_measure(S, F)
                     P.kind = "death"
                     P.land = F.tick + V.DEATH_FLIGHT
                     S.deaths = S.deaths + 1
+                    S.casts = 0
                 elseif S.base and p.src_x == S.base.x + V.SRC.x and p.src_z == S.base.z + V.SRC.z then
                     P.kind = "ball"
                     P.land = F.tick + flight
+                    -- his casts since the last death ball (one a tick): the
+                    -- death ball is the attack after ten (tob_sotetseg.rs2)
+                    if S.cast_tick ~= F.tick then
+                        S.cast_tick = F.tick
+                        S.casts = (S.casts or 0) + 1
+                    end
                 else
                     -- a ricochet, off the ball that landed on its victim this
                     -- tick: its impact is queued on the recipient, so one the
@@ -570,26 +577,66 @@ function QD.raid._sote_act(S, F, spec, names, add, phase, target, range, station
     local d = QD.raid._tob_order(S, F, plan, { target = target, range = range })
     -- the void melee set, Piety; Protect from Magic (the grey rule)
     local want_set = missing(S, ids.melee_set)
-    -- THE HAMMER OPENER (V.HAMMER_OPENER, tob_sotetseg_hm.lua - owner,
-    -- 2026-10-12: "Sotetseg should be Dragon Warhammer specced at the
-    -- start"): the hammer in hand and the special armed on every swing while
-    -- a spec's 50% is left, until OPENER_TICKS into the fight; then the
-    -- tentacle again
-    if V.HAMMER_OPENER and phase == "fight" and S.opener ~= "done" and target then
-        if F.energy < 500 or F.tick - (S.fight_start or F.tick) > V.OPENER_TICKS then
-            S.opener = "done"
-            QD.raid._tob_trace(S, F.tick, "hammer opener done (energy " .. F.energy .. ")")
-        else
-            local worn = QD.raid._tob_worn(S, ids.hammer)
-            want_set = worn and {} or { ids.hammer }
-            intent.spec = worn
-        end
+    -- THE HAMMER (V.HAMMER_SPEC, tob_sotetseg_hm.lua - owner, 2026-10-12:
+    -- "Sotetseg should be Dragon Warhammer specced at the start"; "for
+    -- sotetseg, the spec weapon should be the dragon warhammer. Throughout
+    -- the fight, after the scripted warhammer spec, it should use the
+    -- warhammer when available"): whenever a spec's 50% is there in the
+    -- fight, the hammer in hand and the special armed on the swing; under it
+    -- the melee set's tentacle again. The opener is the first of these. (One-
+    -- handed: the defender stays on.)
+    local hammering = V.HAMMER_SPEC and phase == "fight" and target ~= nil and F.energy >= 500
+    if hammering then
+        local worn = QD.raid._tob_worn(S, ids.hammer)
+        want_set = worn and {} or { ids.hammer }
+        intent.spec = worn
+    end
+    if hammering ~= (S.hammering or false) then
+        QD.raid._tob_trace(S, F.tick, (hammering and "hammer: on" or "hammer: off") .. " (energy " .. F.energy .. ")")
+        S.hammering = hammering
     end
     if #want_set > 0 and F.tick - (S.gear_sent or -10) >= 2 then intent.gear = want_set end
     -- before a death ball lands, eat up (a 121 split three ways is 40 each,
     -- one a seat short of that killed two at 46 and 57, seed so3/sc)
     -- (the brews are the kit's food: two anglerfish, eight brews)
     local eat_below = (phase == "death_ball") and (V.DEATH_EAT or 75) or 60
+    -- THE DEATH-BALL MODE (V.DEATH_MODE, Hard Mode - owner, 2026-10-12:
+    -- "the sotetseg state machine should represent a deathball mode and change
+    -- the healing threshold"): FIGHT eats low, the brews kept for the balls;
+    -- SOON (his eighth cast since the last death ball: two casts and the
+    -- flight, ~25 ticks to drink in) and the ball's flight eat to what the
+    -- pair can take off a raider on the dot - 188 a ball, split among the
+    -- raiders still alive, both balls. Seats ran dry at 60-and-80 while the
+    -- pairs still came (all128e r006: 13 sips, dry at t1963, dead at t2084).
+    if V.DEATH_MODE then
+        local n = math.max(#(F.raiders or {}), 1)
+        local need = (2 * V.BALL_MAX) // n + 5
+        -- AND A RICOCHET with it: an ordinary ball landing beside the stack
+        -- throws one onto it, any style - 34 + 33 + 37 on one seat across a
+        -- landing's two ticks (all128f r023, 103 of 978 landings took three
+        -- hits). Up to a brew's overheal.
+        local land = nil
+        for _, P in ipairs(S.incoming) do
+            if P.kind == "death" and P.land >= F.tick then land = math.max(land or 0, P.land) end
+        end
+        if land then
+            for _, P in ipairs(S.incoming) do
+                if P.kind ~= "death" and P.land and P.land >= land - 3 and P.land <= land + 1 then
+                    need = need + V.RICOCHET_HIT
+                    break
+                end
+            end
+        end
+        need = math.min(V.HEAL_CAP or 99, need)
+        local mode = "fight"
+        if phase == "death_ball" then mode = "flight"
+        elseif (S.casts or 0) >= V.DEATH_SOON then mode = "soon" end
+        if mode ~= S.heal_mode then
+            QD.raid._tob_trace(S, F.tick, "heal mode " .. mode .. " (casts " .. tostring(S.casts or 0) .. ", need " .. need .. ")")
+            S.heal_mode = mode
+        end
+        eat_below = (mode == "fight") and V.FIGHT_EAT or need
+    end
     QD.raid._tob_supplies(S, F, { overhead = overhead(S, F), boost = "piety", boost_stat = "attack",
         eat_below = eat_below, brew_below = eat_below }, intent)
     -- THE PRESS THAT BREAKS A BLOCK: an unprayed ball or ricochet at B takes

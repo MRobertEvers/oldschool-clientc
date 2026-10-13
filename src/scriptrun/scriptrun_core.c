@@ -14,6 +14,8 @@
 #include "world/entity_player.h"
 #include "world/world.h"
 #include "net/rev/rsprot_bridge.h"
+#include "net/wordpack.h"
+#include <rsbuffer.h>
 
 #include <assert.h>
 #include <stdio.h>
@@ -190,6 +192,8 @@ core_local_pid(struct ScriptrunCore const* core)
 }
 
 /* game/task_exec_entity_info.c player_local_tile: routeX[0], not the grid. */
+static void core_message(struct ScriptrunCore* core, int type, char const* name, char const* text);
+
 static void
 core_player_local_tile(
     struct ScriptrunCore* core,
@@ -476,6 +480,23 @@ player_apply_op(
         }
         break;
     }
+    case PKT_PLAYER_INFO_OP_CHAT:
+        /* A raider's public line, as the client files it
+         * (task_exec_entity_info.c's PKT_PLAYER_INFO_OP_CHAT arm): the chatbox
+         * row, type public, sender the speaker. The party talks through it
+         * (tob_relay.lua's healing split), so both lanes must hear it. */
+        if( op->_chat.data && op->_chat.length > 0 )
+        {
+            struct RSCache_Buffer chatbuf;
+            char* text;
+            RSCache_BufferInit(&chatbuf, (uint8_t*)op->_chat.data, op->_chat.length);
+            text = wordpack_unpack(&chatbuf, op->_chat.length);
+            assert(text);
+            struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, idx);
+            core_message(core, SCRIPTRUN_CHAT_PUBLIC, player && player->name[0] ? player->name : "Player", text);
+            free(text);
+        }
+        break;
     case PKT_PLAYER_INFO_OP_SEQUENCE:
         World_PlayerSetPrimaryAnimation(
             world, idx, op->_sequence.sequence_id, op->_sequence.delay);

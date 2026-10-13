@@ -111,13 +111,24 @@ QD.VZP3 = {
     H = 12, BEAM = 32, MOVE_COST = 0.01,
     KITE_FAR = 4, KITE_SWING_BONUS = 25,   -- the enrage kite: a distance worth no more, a due swing's weight
     KITE_DEPTH = 7, KITE_BEAM = 16, KITE_THREATS = 3,        -- its lookahead in ticks and the paths kept each tick
+    AWAY_GAP = 3,   -- a scan with her tank unknown: off her footprint by this (her follow step leaves 2)
+    AWAY_NEAR = 4,  -- and only those tiles this close to me (two run ticks)
     -- the web run: the stack's first tile (the south middle of her ring,
     -- QD.raid._vzp3_ring), and how long a tile stepped to must stay clear
     WEB_RUN_START = 4, WEB_RUN_HOLD = 4,
     -- her throws (^tob_verzik_p3_web_first_throw, _throws), and how many
     -- tick-ends a tile is mine before the web thrown at it lands under me
     WEB_FIRST_THROW = 3, WEB_THROWS = 24, WEB_STAY = 4,
-    TANK_TRUST = 3,             -- Hard Mode: her face names the re-picked tank from the special + this
+    TANK_TRUST = 3,
+    -- the special weapons (the obj, the energy a special costs of 1000, both
+    -- hands, the special's animation): QD.raid._vzp3_special
+    SPEC_WEAPONS = {
+        dragon_claws = { cost = 500, two_handed = true, seq = "human_dragon_claws_spec" },
+        dragon_dagger = { cost = 250, two_handed = false, seq = "puncture" },
+        crystal_halberd = { cost = 300, two_handed = true, seq = "dragon_halberd_special_attack" },
+        dragon_warhammer = { cost = 500, two_handed = false, seq = "dragon_warhammer_sa_player" },
+    },
+    SPEC_RETRY = 2,             -- Hard Mode: her face names the re-picked tank from the special + this
     -- and the ticks before her resume it hands back: the planner steps off
     -- for the resume's scan (held to it, the stack took her melee, xv30 sa
     -- t1337: 26, 50, 46)
@@ -131,7 +142,8 @@ QD.VZP3 = {
     -- `attackrate` param, skill_combat/combat.rs2), else DEFAULT_TICKS
     WEAPON_TICKS = { abyssal_tentacle = 4, abyssal_whip = 4, ghrazi_rapier = 4, blade_of_saeldor = 4,
                      abyssal_bludgeon = 4, inquisitors_mace = 4, dragon_claws = 4, dragon_hunter_lance = 4,
-                     scythe_of_vitur = 5, osmumtens_fang = 5, soulreaper_axe = 5, dragon_warhammer = 6 },
+                     scythe_of_vitur = 5, osmumtens_fang = 5, soulreaper_axe = 5, dragon_warhammer = 6,
+                     dragon_dagger = 4, crystal_halberd = 7 },
     DEFAULT_TICKS = 4,
     GOAL_PULL = 1.0, OFF_SIDE = 0.2, UNDER = 0.4,
     POOL_PULL = 1.5, BALL_PULL = 1.5, NEXT_PULL = 0.4,
@@ -200,6 +212,7 @@ function QD.raid._vzp3_ids(weapon)
         web_proj = sym("spotanim", "verzik_p3_web_proj"),
         inv = sym("inv", "inv"), worn = sym("inv", "worn"),
         hitpoints = sym("stat", "hitpoints"), prayer = sym("stat", "prayer"), attack = sym("stat", "attack"),
+        strength = sym("stat", "strength"),
         -- the weapon P1 found in my hand (QD.raid._vzp1_weapon_from_hand)
         weapon = QD.raid.vz_weapon or sym("obj", weapon or "scythe_of_vitur"),
         food = sym("obj", "anglerfish"),
@@ -217,6 +230,10 @@ function QD.raid._vzp3_ids(weapon)
         magic_lit = sym("varbit", "varb4116_prayer_protectfrommagic"),
         piety_lit = sym("varbit", "varb4129_prayer_piety"),
         inv_tab = inv_tab, prayer_tab = prayer_tab,
+        -- the special (QD.raid._vzp3_special)
+        energy = sym("varp", "varp300_sa_energy"), spec_on = sym("varp", "varp301_sa_attack"),
+        spec_orb = comp("orbs:specbutton"),
+        offhand = sym("obj", "dragon_parryingdagger"),
     }
 end
 
@@ -282,6 +299,8 @@ function QD.raid._vzp3_measure(S)
     F.prayer = (qr == "ok" and pp.level) or 0
     local ar, at = api_drive.skill(ids.attack)
     F.attack, F.attack_base = (ar == "ok" and at.level) or 0, (ar == "ok" and at.base_level) or 0
+    local sr, st = api_drive.skill(ids.strength)
+    F.strength, F.strength_base = (sr == "ok" and st.level) or 0, (sr == "ok" and st.base_level) or 0
     local _, ml = api_drive.varbit(ids.missiles_lit)
     local _, gl = api_drive.varbit(ids.magic_lit)
     local _, pl = api_drive.varbit(ids.piety_lit)
@@ -289,12 +308,20 @@ function QD.raid._vzp3_measure(S)
     local _, ww = api_drive.inv_count(ids.worn, ids.weapon)
     local _, wp = api_drive.inv_count(ids.inv, ids.weapon)
     F.weapon_held = (ww or 0) == 0 and (wp or 0) > 0
+    local er, energy = api_drive.varp(ids.energy)
+    F.energy = (er == "ok" and energy) or 0
+    local sr, spec_on = api_drive.varp(ids.spec_on)
+    F.spec_on = (sr == "ok" and spec_on == 1)
     F.enraged = S.enraged or #F.tornadoes > 0
     F.enrage_now = F.enraged and not S.enraged
     S.enraged = F.enraged
     if F.seq_starts and F.seq_starts ~= S.seq_starts then
         S.seq_starts = F.seq_starts
-        if QD.VZP3.SWING_SEQS[F.seq] then S.kite_swing = F.tick end
+        if QD.VZP3.SWING_SEQS[F.seq] or (S.spec_wep and S.spec_wep.seq == F.seq) then
+            -- and the ticks of the weapon that swung: a halberd's special
+            -- holds the next swing seven ticks, whatever is wielded after it
+            S.kite_swing, S.kite_wt = F.tick, QD.raid._vzp3_weapon_ticks(S)
+        end
     end
     return F
 end
@@ -809,17 +836,27 @@ function QD.raid._vzp3_spec(S, F)
     -- with the tank under her or 3+ away the rest stay beside her and swing.
     -- Until her tank is known (QD.raid._vzp3_clock) everybody steps off.
     local exempt = S.tank_ok and S.tank_pid ~= nil and F.pid ~= nil and S.tank_pid ~= F.pid
+    -- Hard Mode, tank unknown: away (3+ off), never under her
+    -- (QD.raid._vzp3_kite's AWAY_GAP note).
+    local away = S.hm ~= nil and not (S.tank_ok and S.tank_pid ~= nil)
     for _, sc in ipairs(F.scans) do
         if b and not exempt then
             zone("scan", { x = b.x, z = b.z, size = V.SIZE, lo = 1, hi = 2, t0 = sc.t0, t1 = sc.t1, tier = "lethal" })
-            zone("scan-ring", { x = b.x + 1, z = b.z + 1, size = V.SIZE - 2, lo = 1, hi = 1, t0 = sc.t0, t1 = sc.t1, tier = "lethal" })
+            if away then
+                zone("scan-under", { x = b.x, z = b.z, size = V.SIZE, lo = 0, hi = 0, t0 = sc.t0, t1 = sc.t1, tier = "lethal" })
+            else
+                zone("scan-ring", { x = b.x + 1, z = b.z + 1, size = V.SIZE - 2, lo = 1, hi = 1, t0 = sc.t0, t1 = sc.t1, tier = "lethal" })
+            end
         end
     end
     -- crab blasts (the P2 model, QD.raid._vzp2_crabs): within 2 of its 2x2
     -- is out (63, 26), 3 is a flat 7 and only damage
     for _, bl in ipairs(S.blasts) do
         zone("blast", { x = bl.x, z = bl.z, size = V.CRAB_SIZE, lo = 0, hi = V.CRAB_BLAST - 1, t0 = bl.from, t1 = bl.to, tier = "lethal" })
-        zone("blast-far", { x = bl.x, z = bl.z, size = V.CRAB_SIZE, lo = V.CRAB_BLAST, hi = V.CRAB_BLAST, t0 = bl.from, t1 = bl.to, tier = "damage", cost = 40 })
+        -- (the flat 7 at 3 too: "There should be NO avoidable damage", owner
+        -- 2026-10-12; priced, the stacked team took it on four or five seats a
+        -- crab, xv44)
+        zone("blast-far", { x = bl.x, z = bl.z, size = V.CRAB_SIZE, lo = V.CRAB_BLAST, hi = V.CRAB_BLAST, t0 = bl.from, t1 = bl.to, tier = "lethal" })
     end
     -- webs: never on one from a tick before it lands to its explosion; the
     -- planner charges the middle tile of a run too
@@ -921,6 +958,107 @@ function QD.raid._vzp3_spec(S, F)
                       under_ok = false, off_side = V.OFF_SIDE, pull = 0.3 }
     end
     return spec, names
+end
+
+-- ================================================================= SPECIAL
+--
+-- THE SPECIAL WEAPON (S.spec_opt, the relay's opts.spec_weapon; owner,
+-- 2026-10-12: "I want the solver to be able to handle switches to spec, and
+-- then switch back ... if it decides to attack, the planner can plan to
+-- switch gear, attack, then switch back"). A sub-state machine on top of
+-- whichever decider swings this tick (the web run, the kite, the planner):
+--
+--   idle   the decider attacks, a special's energy is there, the weapon is in
+--          the pack (and a free slot for the parrying dagger, two-handed):
+--          wield
+--   wield  the weapon in hand (one held op, retried): armed
+--   armed  the orb pressed with the attack while it is off; the energy falls
+--          by a special's cost: fired - armed again while another is left,
+--          else back
+--   back   the main weapon, then (two-handed) the parrying dagger: idle
+--
+-- A wield costs no swing: the attack timer runs on through it and the
+-- emit presses the attack again in the same tick (QD.raid._vzp3_emit).
+function QD.raid._vzp3_worn(S, obj)
+    local _, n = api_drive.inv_count(S.ids.worn, obj)
+    return (n or 0) > 0
+end
+
+function QD.raid._vzp3_carried(S, obj)
+    local _, n = api_drive.inv_count(S.ids.inv, obj)
+    return (n or 0) > 0
+end
+
+function QD.raid._vzp3_free_slots(S)
+    local n = 0
+    for slot = 0, 27 do
+        local r, cell = api_drive.inv_slot(S.ids.inv, slot)
+        if r ~= "ok" or cell == nil or cell.obj_id == nil or cell.obj_id < 0 or (cell.count or 0) == 0 then n = n + 1 end
+    end
+    return n
+end
+
+function QD.raid._vzp3_special(S, F, d, intent)
+    local V = QD.VZP3
+    if S.spec_opt == nil then return end
+    if S.spec_wep == nil then
+        local def = V.SPEC_WEAPONS[S.spec_opt]
+        assert(def, "verzik_p3_solve: no special weapon named " .. tostring(S.spec_opt))
+        local r1, id = api_drive.symbol("obj", S.spec_opt)
+        assert(r1 == "ok", "verzik_p3_solve: no obj " .. S.spec_opt)
+        local r2, seq = api_drive.symbol("seq", def.seq)
+        assert(r2 == "ok", "verzik_p3_solve: no seq " .. def.seq)
+        S.spec_wep = { id = id, cost = def.cost, two_handed = def.two_handed, seq = seq, name = S.spec_opt }
+        S.spec = { state = "idle", fired = 0 }
+    end
+    local W, sp = S.spec_wep, S.spec
+    local function enter(state, why)
+        QD.raid._vzp3_trace(S, F.tick, "spec weapon: " .. sp.state .. " -> " .. state .. " (" .. why .. ")")
+        sp.state, sp.since = state, F.tick
+    end
+    local function wield(obj)
+        if intent.gear == nil and F.tick - (sp.tried or -10) >= V.SPEC_RETRY then
+            intent.gear = obj
+            sp.tried = F.tick
+        end
+    end
+    local attacking = d and d.order and d.order.mode == "attack"
+    if sp.state == "idle" then
+        if attacking and F.energy >= W.cost and QD.raid._vzp3_carried(S, W.id)
+            and (not W.two_handed or QD.raid._vzp3_free_slots(S) >= 1) then
+            enter("wield", "energy " .. F.energy)
+        end
+    end
+    if sp.state == "wield" then
+        if QD.raid._vzp3_worn(S, W.id) then
+            sp.energy = F.energy
+            enter("armed", W.name .. " in hand")
+        else
+            wield(W.id)
+        end
+    end
+    if sp.state == "armed" then
+        if F.energy <= sp.energy - W.cost + 10 then
+            sp.fired = sp.fired + 1
+            sp.energy = F.energy
+            if F.energy < W.cost then enter("back", "fired, energy " .. F.energy) end
+        elseif not QD.raid._vzp3_worn(S, W.id) then
+            enter("back", "not in hand")
+        elseif (attacking or (S.order and S.order.mode == "attack")) and not F.spec_on
+            and F.tick - (sp.pressed or -10) >= V.SPEC_RETRY then
+            intent.spec_orb = true
+            sp.pressed = F.tick
+        end
+    end
+    if sp.state == "back" then
+        if not QD.raid._vzp3_worn(S, S.ids.weapon) then
+            wield(S.ids.weapon)
+        elseif W.two_handed and not QD.raid._vzp3_worn(S, S.ids.offhand) and QD.raid._vzp3_carried(S, S.ids.offhand) then
+            wield(S.ids.offhand)
+        else
+            enter("idle", "back in hand")
+        end
+    end
 end
 
 -- ================================================================== DECIDE
@@ -1081,10 +1219,21 @@ function QD.raid._vzp3_kite(S, F)
     -- every tick of an enraged spin and swung none (xv28 sh t1384-1409)
     if (S.webs_at and S.spin_at == nil) or F.charging then return nil end
     local ball_anchor, ball_until = nil, nil
+    -- THE BALL'S CHAIN IS THE KITE'S TOO (owner, 2026-10-12: a tornado touch
+    -- in the ball is avoidable damage): the target ends its read tick ON the
+    -- landing tile, the next raider within 1 of it on its own read, and every
+    -- other tick of the path is the kite's as usual, the tornado stepped at
+    -- each. Handed to the planner, the target with a tornado at its heels
+    -- held the tile and took the touch (sj seat 4 t1362: 35).
+    local hold = nil
     if S.ball then
         local role, anchor = QD.raid._vzp3_ball_role(S, F)
-        if role == "target" or role == "next" then return nil end
         if role == "clear" then ball_anchor, ball_until = anchor, S.ball.land + 1 end
+        if role == "target" or role == "next" then
+            local land = S.ball.land
+            local read = (role == "target") and (land - 1) or ((F.pid < S.ball.cur) and land or (land - 1))
+            hold = { x = anchor.x, z = anchor.z, read = read, reach = (role == "target") and 0 or 1 }
+        end
     end
     -- HER MELEE IS THE KITE'S TOO (owner, 2026-10-12: "The solver should be
     -- able to prevent ALL melees"): a seat that must be off her edge at a
@@ -1119,7 +1268,42 @@ function QD.raid._vzp3_kite(S, F)
     end
     local tiles = {}
     for _, t in ipairs(QD.raid._vzp3_ring(b.x, b.z)) do tiles[#tiles + 1] = { x = t.x, z = t.z, ring = true } end
-    if S.webs_at == nil and dodge then
+    -- (the hold's tiles, where the ring has none of them)
+    if hold then
+        local have = {}
+        for _, t in ipairs(tiles) do have[t.x * 65536 + t.z] = true end
+        for x = hold.x - hold.reach, hold.x + hold.reach do
+            for z = hold.z - hold.reach, hold.z + hold.reach do
+                local under_her = x >= b.x and x < b.x + V.SIZE and z >= b.z and z < b.z + V.SIZE
+                if not have[x * 65536 + z] and not under_her then tiles[#tiles + 1] = { x = x, z = z, ring = false } end
+            end
+        end
+    end
+    -- TANK UNKNOWN: AWAY, NOT UNDER (owner, 2026-10-12: "tank unknown state
+    -- should be to run away from verzik until the tank is identified"): her
+    -- face names the tank only while it stands beside her and she stands
+    -- (`~tob_verzik_p3_follow`), and a seat under her sends her a random step
+    -- a tick; all128j, enraged autos: the face known on 51 of 125 ticks, 94
+    -- seat-ticks a run under her with no tank known, 3108 of her steps toward
+    -- nobody. So at a scan the unknown seats stand 3+ off her footprint (her
+    -- follow step first leaves them 2+, out of her melee), and between scans
+    -- they swing at her edge, where she faces whichever is her tank.
+    local away = S.webs_at == nil and dodge and not (S.tank_ok and S.tank_pid ~= nil)
+    if away then
+        local x0, z0 = S.base.x + V.ARENA.x0, S.base.z + V.ARENA.z0
+        local x1, z1 = S.base.x + V.ARENA.x1, S.base.z + V.ARENA.z1
+        for x = b.x - V.AWAY_GAP, b.x + V.SIZE - 1 + V.AWAY_GAP do
+            for z = b.z - V.AWAY_GAP, b.z + V.SIZE - 1 + V.AWAY_GAP do
+                local g = math.max(b.x - x, x - (b.x + V.SIZE - 1), b.z - z, z - (b.z + V.SIZE - 1))
+                -- (only the ones near me: the whole ring, 48 tiles beside her 28,
+                -- spent the instruction budget twice in all128k)
+                if g == V.AWAY_GAP and x >= x0 and x <= x1 and z >= z0 and z <= z1
+                    and cheb(x, z, F.me.x, F.me.z) <= V.AWAY_NEAR then
+                    tiles[#tiles + 1] = { x = x, z = z, ring = false }
+                end
+            end
+        end
+    elseif S.webs_at == nil and dodge then
         for x = b.x + 1, b.x + V.SIZE - 2 do
             for z = b.z + 1, b.z + V.SIZE - 2 do
                 if x == b.x + 1 or x == b.x + V.SIZE - 2 or z == b.z + 1 or z == b.z + V.SIZE - 2 then
@@ -1134,7 +1318,7 @@ function QD.raid._vzp3_kite(S, F)
     local mine = index[F.me.x * 65536 + F.me.z]
     if mine == nil then return nil end
     -- a run's reach (two tiles), per footprint position and tile set
-    local rkey = b.x .. "," .. b.z .. "," .. N
+    local rkey = b.x .. "," .. b.z .. "," .. N .. "," .. tostring(away)
     if S.kite_reach_key ~= rkey then
         local reach = {}
         for i = 1, N do
@@ -1183,6 +1367,13 @@ function QD.raid._vzp3_kite(S, F)
         end
         if ball_anchor and t <= ball_until and cheb(p.x, p.z, ball_anchor.x, ball_anchor.z) <= 2 then return true end
         if p.ring and not exempt and scan_at(t) then return true end
+        -- the hold: from a tick before the read to a tick after, only the
+        -- landing tile (the target) or a tile within one of it (the next).
+        -- The read alone was one tick wide, and a landing a tick off the
+        -- prediction found the target a step away and the next raider two
+        -- out: no bounce, the un-bounced ball's kill (xv43 sc t1416-1418).
+        -- The planner's own hold priced those ticks; the kite forbids them.
+        if hold and t >= hold.read - 1 and t <= hold.read + 1 and cheb(p.x, p.z, hold.x, hold.z) > hold.reach then return true end
         return false
     end
     local function cost(p, t)
@@ -1216,7 +1407,7 @@ function QD.raid._vzp3_kite(S, F)
     -- dropped the tick it ends on one; scored by the swings it stands for on
     -- my weapon's ticks, then by how far the tornadoes are at its end.
     -- (one tick ahead walked seats into a sandwich between two, all9 a4)
-    local wt = QD.raid._vzp3_weapon_ticks(S)
+    local wt = S.kite_wt or QD.raid._vzp3_weapon_ticks(S)
     local since = F.tick - (S.kite_swing or -10)
     -- THE TICK, in the content's order (`~tob_verzik_tornado_tick` runs in
     -- the npc phase, before my step): a tornado standing on the tile I ended
@@ -1326,7 +1517,10 @@ function QD.raid._vzp3_kite(S, F)
                         for _, tn in ipairs(ts) do near = math.min(near, cheb(tn.x, tn.z, p.x, p.z)) end
                         if near >= 1 then
                             local stay = k == node.i
-                            local swing = stay and p.ring and node.since + depth - 1 >= wt
+                            -- (never a swing in the hold's window: an attack order
+                            -- follows her off the tile, se t996)
+                            local held = hold and F.tick + depth >= hold.read - 2 and F.tick + depth <= hold.read + 1
+                            local swing = stay and p.ring and not held and node.since + depth - 1 >= wt
                             local child = { i = k, ts = ts, swings = node.swings + (swing and 1 or 0),
                                             since = swing and (1 - depth) or node.since, parent = node, depth = depth,
                                             first = node.first or p, firststay = (depth == 1) and stay or node.firststay,
@@ -1335,6 +1529,10 @@ function QD.raid._vzp3_kite(S, F)
                                             paid = (node.paid or 0) + toll[depth][k] }
                             child.score = child.swings * V.KITE_SWING_BONUS + math.min(near, V.KITE_FAR) * 10
                                 - child.moved * 0.1 - child.paid
+                            -- (a read beyond the horizon: drawn toward the tile)
+                            if hold and hold.read > F.tick + V.KITE_DEPTH then
+                                child.score = child.score - 2 * math.max(0, cheb(p.x, p.z, hold.x, hold.z) - hold.reach)
+                            end
                             nxt[#nxt + 1] = child
                         end
                     end
@@ -1350,6 +1548,8 @@ function QD.raid._vzp3_kite(S, F)
     if top == nil or top.first == nil then return nil end
     -- a path that dies before the horizon is no plan: the planner's terms
     if top.depth < math.min(V.KITE_DEPTH, 2) then return nil end
+    -- (nor one that cannot make the ball's hold inside the horizon)
+    if hold and hold.read + 1 <= F.tick + V.KITE_DEPTH and F.tick + top.depth < hold.read + 1 then return nil end
     local best = top.first
     local decision = { x = best.x, z = best.z, soft = 0, lethal = 0 }
     if top.firststay and top.firstswing and S.target == b then
@@ -1481,6 +1681,9 @@ function QD.raid._vzp3_same(a, b)
 end
 
 function QD.raid._vzp3_emit(S, F, order, intent)
+    -- the Arceuus seats' thrall (tob.lua QD.raid.tob_thrall), a tick with no
+    -- held op or prayer press going out
+    if not (intent.pray or intent.eat or intent.drink or intent.gear) then QD.raid.tob_thrall(S, F) end
     -- Each channel in one tick, in order: the prayer (its tab, then the press),
     -- the backpack (its tab, then the held op), then the interaction.  A tab is
     -- the client's own and instant, like an F-key: inputs queue in call order
@@ -1543,8 +1746,22 @@ function QD.raid._vzp3_emit(S, F, order, intent)
         if intent.eat then S.last_eat = nil end
         if intent.drink then S.last_drink = nil end
     end
+    -- the special orb (a toggle; QD.raid._vzp3_special presses it only
+    -- while it is off), after the wield and before the attack it arms
+    if intent.spec_orb then api_drive.if_click(S.ids.spec_orb, 1) end
+    -- (a walk that did not take is sent again: two ticks unmoved, off its
+    -- tile - tob.lua's emit says why)
+    if order and order.mode == "walk" and S.order and QD.raid._vzp3_same(order, S.order)
+        and (F.me.x ~= order.x or F.me.z ~= order.z) then
+        if S.walk_from and S.walk_from.x == F.me.x and S.walk_from.z == F.me.z then
+            if F.tick - S.walk_from.t >= 2 then S.order = nil end
+        else
+            S.walk_from = { x = F.me.x, z = F.me.z, t = F.tick }
+        end
+    end
     if order and not QD.raid._vzp3_same(order, S.order) then
         if order.mode == "walk" then
+            S.walk_from = { x = F.me.x, z = F.me.z, t = F.tick }
             api_drive.move_to(order.x, order.z)
         else
             local b = F.boss
@@ -1634,6 +1851,7 @@ function QD.raid.verzik_p3_solve(opts)
     local S = {
         ids = QD.raid._vzp3_ids(opts.weapon),
         weapon_ticks_opt = opts.weapon_ticks,
+        spec_opt = opts.spec_weapon,
         base = opts.base,
         role = (QD_PARTY and QD_PARTY.role) or 1,
         seen = {}, web_seen = {}, web_hazards = {}, torn = {}, crab_seen = {}, blasts = {},
@@ -1723,9 +1941,18 @@ function QD.raid.verzik_p3_solve(opts)
             -- each of six brews). Never skipped, though: with the stats
             -- drained the raiders' hits on her fell from 19 to 1 and P3 never
             -- ended (rl60 tk, dead of attrition 700 ticks in).
-            if F.attack <= F.attack_base - V.STAT_DRAIN then
+            -- (Hard Mode keeps the stats up, owner 2026-10-12: "make sure
+            -- players are not brewed down stat-wise. They need to maintain
+            -- higher stats": Attack or Strength a few levels under base takes
+            -- a super restore, and the combat waits for base)
+            local drain = (S.hm and S.hm.stat_drain) or V.STAT_DRAIN
+            local drained = F.attack <= F.attack_base - drain
+                or (S.hm and S.hm.stat_drain and F.strength <= F.strength_base - drain)
+            local at_base = not (S.hm and S.hm.stat_drain)
+                or (F.attack >= F.attack_base and F.strength >= F.strength_base)
+            if drained then
                 intent.drink = QD.raid._vzp3_first(S, S.ids.stat_restores)
-            elseif F.attack <= F.attack_base + V.COMBAT_REDOSE then
+            elseif at_base and F.attack <= F.attack_base + V.COMBAT_REDOSE then
                 intent.drink = QD.raid._vzp3_first(S, S.ids.combats)
             end
             if intent.drink then S.last_drink = F.tick end
@@ -1739,7 +1966,7 @@ function QD.raid.verzik_p3_solve(opts)
                 intent.pray = "piety"
             end
         end
-        if F.weapon_held and F.tick - (S.weapon_tried or -10) >= 3 then
+        if F.weapon_held and F.tick - (S.weapon_tried or -10) >= 3 and (S.spec == nil or S.spec.state == "idle") then
             intent.gear = S.ids.weapon
             S.weapon_tried = F.tick
         end
@@ -1761,6 +1988,7 @@ function QD.raid.verzik_p3_solve(opts)
             if S.hm and S.hm.pools then S.hm.pools(S, F) else QD.raid._vzp3_pools(S, F) end
             S.target = QD.raid._vzp3_target(S, F)
             local d = QD.raid._vzp3_decide(S, F)
+            QD.raid._vzp3_special(S, F, d, intent)
             QD.raid._vzp3_emit(S, F, d.order, intent)
             S.recent[#S.recent + 1] = string.format("t%d @%d,%d>%d,%d %s L%d c%.1f %s", F.tick, F.me.x, F.me.z,
                 d.x, d.z, d.order and (d.order.mode:sub(1, 1) .. (d.order.x and (d.order.x .. "," .. d.order.z) or "")) or "-", d.lethal, d.soft,
