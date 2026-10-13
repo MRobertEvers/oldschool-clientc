@@ -90,11 +90,14 @@ rock (1357); its acid projectile is Vespula's (1364).
   phases + the final stand on the last one's wall [W]; one more per 8 players.
 - Damage: off-style keeps 34% (66% mitigation) [W]; no melee on the head or the
   mage hand ("I can't reach that!") [NR].
-- Clench (P1-P2, mage hand up): judged at EVERY even step on the heaviest hit
-  launched at the left claw since the previous even step (one hit >= 1/20 of
-  base, not a killing blow) [M, MG]: that step is a clenched null (the even list
-  does not advance) and the claw is invulnerable for 45 ticks [P]; generic
-  specials stop while clenched. The mage hand's death: on Olm's next 2-tick poll
+- Clench (P1-P2, mage hand up): one hit >= 1/20 of base on the left claw, not
+  a killing blow [M], in "the eight ticks between null and special" [W]: a null
+  that plays opens the window, the special after it judges the heaviest hit
+  launched since, and nothing else can clench (no window after a special, in a
+  clenched or ghosted null, or from the rise to the first null). The special
+  becomes a clenched null (the even list does not advance) and the claw is
+  invulnerable for 45 ticks [P]; generic specials stop while clenched, the
+  power's phase attacks do not [W]. The mage hand's death: on Olm's next 2-tick poll
   the claw unclenches and that tick counts as clenched (the ghost clench: an
   even step on it is a clenched null) [MG].
 - The head heals to full every 5th tick until the final stand [NR].

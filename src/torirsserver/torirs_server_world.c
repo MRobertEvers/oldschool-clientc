@@ -9480,6 +9480,12 @@ reset_character_apply_fixture(
  * used to `return;` now returns RAN, and the fall-through that used to `say`
  * "Unknown command" now returns NONE and lets its caller say it.
  */
+static enum ToriRSServerTriggerResult
+cheat_dispatch(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
+    const char* text);
+
 enum ToriRSServerTriggerResult
 ToriRSServer_RunCheatLadder(
     struct ToriRSServer* srv,
@@ -10929,6 +10935,119 @@ ToriRSServer_RunCheatLadder(
             }
         }
         say(srv, "You are not wearing or carrying %s.", arg);
+        return TORIRSSERVER_TRIGGER_RAN;
+    }
+
+    if( strcmp(text, "coxolmsolo") == 0 )
+    {
+        /*
+         * `::coxolmsolo` -- the start of the Olm solo solver, by hand: the
+         * stats, prayer unlocks, varps, worn kit and backpack of
+         * test/raids/cox_olm_solo.lua's setup, then `::coxolmrush` to the
+         * tile outside the barrier. Step through it (or `::coxolm`) to wake
+         * the Olm.
+         *
+         * The kit is that test's setup list, line for line, each line
+         * dispatched exactly as the packet would dispatch it (content first,
+         * then this ladder) -- not a second implementation of what `::wield`,
+         * `::blowpipe` or `::setlevel` do. Keep the two lists the same: a
+         * change to the solver's kit is a change here.
+         *
+         * Prefixed by a bare `::resetcharacter` (reset_character_clean: any
+         * raid left, backpack and worn emptied, effects and boosts cleared,
+         * stats restored) so a live character starts from what the test's
+         * fresh account does. NOT `::resetcharacter fixture fresh_lumbridge`:
+         * that zeroes every perm varp and empties the bank. Run it first by
+         * hand for the test's exact account.
+         *
+         * Stops at the first line that did not land: a refusal, an unknown
+         * command, a wield content declined (the cheat answers "sent"), or a
+         * raid that did not start.
+         */
+        static const char* const kit[] = {
+            "resetcharacter",
+            "clearinv",
+            "setlevel attack 99", "setlevel strength 99", "setlevel defence 99",
+            "setlevel hitpoints 99", "setlevel prayer 99", "setlevel magic 99",
+            "setlevel ranged 99", "setlevel agility 99",
+            "setvar varb3888_kr_quest ^kr_complete",
+            "setvar varb3909_kr_knightwaves_state 8",
+            "setvar varb5451_prayer_rigour_unlocked 1",
+            "setvar varb5452_prayer_augury_unlocked 1",
+            "setvar varb5453_prayer_preserve_unlocked 1",
+            "setvar varp7348_barbarian_vial_smash 1",
+            "give fris_kingly_helm 1", "wield fris_kingly_helm",
+            "give barbassault_penance_fighter_torso 1", "wield barbassault_penance_fighter_torso",
+            "give black_dragonhide_chaps 1", "wield black_dragonhide_chaps",
+            "give hundred_gauntlets_level_10 1", "wield hundred_gauntlets_level_10",
+            "give abyssal_tentacle 1", "wield abyssal_tentacle",
+            "give dragon_parryingdagger 1", "wield dragon_parryingdagger",
+            "give enchanted_onyx_amulet 1", "wield enchanted_onyx_amulet",
+            "give tzhaar_cape_fire 1", "wield tzhaar_cape_fire",
+            "give dragon_boots 1", "wield dragon_boots",
+            "give nzone_berzerker_ring 1", "wield nzone_berzerker_ring",
+            "charge abyssal_tentacle 10000",
+            "give dragon_bolts_enchanted_ruby 300", "wield dragon_bolts_enchanted_ruby",
+            "clearinv",
+            "blowpipe dragon_dart 2000 2000",
+            "give avas_assembler 1",
+            "give toxic_tots_charged 1", "charge toxic_tots_charged 2500",
+            "give occult_necklace 1", "give ma2_saradomin_cape 1",
+            "give xbows_crossbow_dragon 1", "give black_dragonhide_body 1",
+            "give mystic_robe_top 1", "give mystic_robe_bottom 1",
+            "give bgs 1",
+            "give raids_vial_overload_strong_4 2", "give raids_vial_xericaid_strong_4 6",
+            "give raids_vial_revitalisation_strong_4 4", "give raids_vial_prayer_strong_4 4",
+            "give 4dosestamina 1",
+            "give bh_rune_pouch 1",
+            "setvar varb29_rune_pouch_type_1 1", "setvar varb1624_rune_pouch_quantity_1 500",
+            "setvar varb1622_rune_pouch_type_2 2", "setvar varb1625_rune_pouch_quantity_2 500",
+            "setvar varb1623_rune_pouch_type_3 5", "setvar varb1626_rune_pouch_quantity_3 500",
+            "coxolmrush",
+        };
+        int cox_active = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp5912_cox_active");
+
+        if( cox_active < 0 )
+        {
+            say(srv, "::coxolmsolo: this content has no varp5912_cox_active.");
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+        assert(cox_active < TORIRSSERVER_VARP_COUNT);
+        for( size_t i = 0; i < sizeof(kit) / sizeof(kit[0]); i++ )
+        {
+            enum ToriRSServerTriggerResult line = cheat_dispatch(srv, player, kit[i]);
+
+            if( line != TORIRSSERVER_TRIGGER_RAN )
+            {
+                say(srv, "::coxolmsolo: '%s' %s; the kit stopped there.", kit[i],
+                    line == TORIRSSERVER_TRIGGER_NONE ? "is not a command" : "was refused");
+                return TORIRSSERVER_TRIGGER_FAILED;
+            }
+            if( strncmp(kit[i], "wield ", 6) == 0 )
+            {
+                char suggest[256] = { 0 };
+                int wield_obj = cheat_obj_from_name(kit[i] + 6, suggest, sizeof(suggest));
+                int worn = 0;
+
+                /* `::wield` answered RAN, so it resolved this same name. */
+                assert(wield_obj >= 0);
+                for( int slot = 0; slot < TORIRSSERVER_WORN_SLOTS; slot++ )
+                    if( player->worn[slot].obj_id == wield_obj )
+                        worn = 1;
+                if( !worn )
+                {
+                    say(srv, "::coxolmsolo: '%s' was sent and is not worn; the kit stopped there.",
+                        kit[i]);
+                    return TORIRSSERVER_TRIGGER_FAILED;
+                }
+            }
+        }
+        if( player->varps[cox_active] == 0 )
+        {
+            say(srv, "::coxolmsolo: kit on, but no raid started; still where you were.");
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+        say(srv, "::coxolmsolo: Olm solo kit on, outside the barrier.");
         return TORIRSSERVER_TRIGGER_RAN;
     }
 

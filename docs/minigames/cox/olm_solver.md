@@ -45,9 +45,10 @@ check (`clock`).
 The count is the content's (`~cox_olm_act`, Molgoatkirby's counting guide):
 autos on the odd steps; the even steps walk their own list (null, burst, null,
 lightning, null, teleport [+ null, heal in P3]) and a CLENCHED even step is a
-clenched null that leaves the list where it is. The clench is predicted at
-every even step from the heaviest non-killing hit LAUNCHED at the melee hand
-since the last even step (>= 30), and its 45 ticks counted from its anim; the
+clenched null that leaves the list where it is. The clench is predicted at a
+special step from the heaviest non-killing hit LAUNCHED at the melee hand
+since the null before it (>= 30; no other even step can clench), and its 45
+ticks counted from its anim; the
 ghost clench from the mage hand's death anim (the next tick on the rise's
 2-tick grid). A hand's damage steers the step after its LAUNCH (the attack
 rolls as it goes out; the trident's splat lands 3-4 ticks later): a step whose
@@ -132,7 +133,7 @@ steering it have landed), `olm_mech` (`clock`, `portal`, `burst`, `one_head`;
 `special`: the claw's sign exactly when the even list and the view say a
 special fires; `auto`: the head's attack anim exactly when the step owes me an
 auto; `clench`: the clench anim exactly when a non-killing hit of 30 went out
-since the last even step; `unclench`: 45 ticks on; `ghost`: the melee hand's
+in the null-to-special window, and never on any other even step; `unclench`: 45 ticks on; `ghost`: the melee hand's
 unclench on the poll after the mage hand dies; `wall`: the flames the tick
 after a step the head attacked on; `points`), `olm_stats` (overloaded and
 undrained, every tick with something to hit), `threat` (hp lost above the

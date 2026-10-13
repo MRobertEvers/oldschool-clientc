@@ -49,9 +49,10 @@ CO.V = {
     -- the clock (OLM_SPEC 3); the rise's second beat (cox_olm_rise_done,
     -- the ghost clench's 2-tick poll grid) is the rise animation + 5 (its full length)
     FIRST_P1 = 5, FIRST_LATER = 8, ACT = 4, RISE_DONE = 5,
-    -- THE CLENCH (cox_olm_clench_check): judged at every even step on the
-    -- heaviest landed hit on the melee hand since the previous even step;
-    -- 1/20 of the solo hand's 600; 45 ticks (cox_olm.constant). The P3
+    -- THE CLENCH (cox_olm_clench_check): one hit on the melee hand of 1/20
+    -- of the solo hand's 600, in the window a null opens and the special
+    -- after it judges (wiki Strategies: "the eight ticks between null and
+    -- special"); 45 ticks (cox_olm.constant). The P3
     -- healing hand: 16 ticks (^cox_olm_protect_ticks), to the next special.
     HAND_HP = 600, CLENCH_HIT = 30, CLENCH_TICKS = 45, PROTECT_TICKS = 16,
     -- THE FIRE WALL: the row between burns this many ticks after the flames
@@ -307,12 +308,14 @@ function CO.steers(list, A)
     return CO.hit_in(list, A - 4, A - 1) > 0 or CO.hit_open(list, A - 4, A - 1)
 end
 
--- Will the next even step clench (cox_olm_clench_check), from what has
--- landed on the melee hand since the last even step? (P1/P2, the mage hand up.)
+-- Will the next even step clench (cox_olm_clench_check)? Only a special
+-- judges, and only the window the null before it opened (window_from, nil
+-- when no window is open). (P1/P2, the mage hand up.)
 function CO.clench_due(o, t_now)
     if o.glowing or not o.right_alive or not o.left_alive then return false end
     if t_now < (o.clench_until or -1) then return false end
-    return CO.hit_in(o.lhits, o.prev_even or -1, t_now, true) >= CO.V.CLENCH_HIT
+    if o.window_from == nil or CO.even_kind(o.list % CO.list_len(o)) < 2 then return false end
+    return CO.hit_in(o.lhits, o.window_from, t_now, true) >= CO.V.CLENCH_HIT
 end
 
 -- One step: state { dir, skipped }, the step's kind, my bin (an index into
@@ -796,8 +799,9 @@ function CO.head_event(S, F, what)
         o.first_act = F.tick + ((o.phase_n == 1) and V.FIRST_P1 or V.FIRST_LATER)
         o.next_k = 0
         o.dir, o.skipped = 1, false
-        -- (cox_olm_rise_done: parity, list, the clench, the ghost, all reset)
-        o.parity, o.list, o.prev_even = 0, 0, F.tick
+        -- (cox_olm_rise_done: parity, list, the clench, the ghost, all reset;
+        -- no clench window until the first null)
+        o.parity, o.list, o.window_from = 0, 0, nil
         o.ghost, o.clench_at, o.protect_signed = nil, nil, false
         o.lhits, o.rhits = {}, {}
         o.final = false
@@ -839,7 +843,7 @@ function CO.head_event(S, F, what)
             if d > 0 and u and u.A > F.tick - 4 then
                 -- (the step counted on the wrong tick: undone, run again now)
                 o.dir, o.skipped = u.dir, u.skipped
-                o.parity, o.list, o.prev_even = u.parity, u.list, u.prev_even
+                o.parity, o.list, o.window_from = u.parity, u.list, u.window_from
                 o.autos_at_me, o.specials_at_me = u.autos, u.specials
                 o.next_k = u.k
                 S.mon.rules.olm_step.checked = S.mon.rules.olm_step.checked - 1
@@ -922,31 +926,40 @@ function CO.advance(S, F)
         local A = o.first_act + 4 * o.next_k
         if A > F.tick then break end
         o.undo = { k = o.next_k, A = A, dir = o.dir, skipped = o.skipped, parity = o.parity, list = o.list,
-                   prev_even = o.prev_even, autos = o.autos_at_me, specials = o.specials_at_me }
-        -- THE STEP'S KIND: an auto on the odd steps; on an even one the
-        -- clench is judged first (the heaviest hit on the melee hand since the
-        -- last even step), then a clenched null leaves the list where it is
+                   window_from = o.window_from, autos = o.autos_at_me, specials = o.specials_at_me }
+        -- THE STEP'S KIND: an auto on the odd steps; on an even one a special
+        -- first judges the clench window its null opened (the heaviest hit on
+        -- the melee hand since that null), then a clenched null leaves the
+        -- list where it is, and a null that plays opens the next window
         local kind, clenched = 0, false
         if o.parity == 1 then
             local seen_clench = (o.clench_at == A)
             local was = (not seen_clench) and A < (o.clench_until or -1)
             local able = (not o.glowing) and o.right_alive and o.left_alive and not was
-            local t0 = o.prev_even or -1
-            -- THE CONTENT CHECK: a clench exactly when a hit of 1/20 went out
-            -- (judged once every launch in the window has shown its damage)
-            local function judge(F2)
-                local hit = CO.hit_in(o.lhits, t0, A - 1, true)
-                CO.mech(S, F2, "clench", (able and hit >= V.CLENCH_HIT) == seen_clench, string.format(
-                    "even step %d: heaviest hit %d since %d, clench %s", A, hit, t0, tostring(seen_clench)))
+            local t0 = o.window_from
+            if t0 ~= nil and CO.even_kind(o.list % len) >= 2 then
+                -- THE CONTENT CHECK: a clench exactly when a hit of 1/20 went
+                -- out in the window (judged once every launch in it has shown
+                -- its damage)
+                local function judge(F2)
+                    local hit = CO.hit_in(o.lhits, t0, A - 1, true)
+                    CO.mech(S, F2, "clench", (able and hit >= V.CLENCH_HIT) == seen_clench, string.format(
+                        "special step %d: heaviest hit %d since the null at %d, clench %s", A, hit, t0,
+                        tostring(seen_clench)))
+                end
+                if CO.hit_open(o.lhits, t0, A - 1) then o.defer[#o.defer + 1] = { due = A + 6, run = judge }
+                else judge(F) end
+            else
+                CO.mech(S, F, "clench", not seen_clench, string.format(
+                    "even step %d is no null-to-special window, clench %s", A, tostring(seen_clench)))
             end
-            if CO.hit_open(o.lhits, t0, A - 1) then o.defer[#o.defer + 1] = { due = A + 6, run = judge }
-            else judge(F) end
-            o.prev_even = A
+            o.window_from = nil
             if CO.clenched_at(o, A) then
                 kind, clenched = 1, true
             else
                 kind = CO.even_kind(o.list % len)
                 o.list = (o.list + 1) % len
+                if kind == 1 then o.window_from = A end
             end
         end
         o.parity = 1 - o.parity
