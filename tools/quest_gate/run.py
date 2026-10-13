@@ -381,8 +381,7 @@ end
 """
 
 
-def write_wrapper_script(quest_file, out_path, pass_through_without_setup=False,
-                         leg_mode=None, party=None):
+def write_wrapper_script(quest_file, out_path, leg_mode=None, party=None):
     """A copy of the quest file wrapped so its `setup` cheats run before
     `run(t)` does, matching test/quests/README.md's
     `{ id, fixture, setup = {cheats}, run = function(t) ... end }` shape.
@@ -446,16 +445,19 @@ def write_wrapper_script(quest_file, out_path, pass_through_without_setup=False,
     `ok` alone could hand run() a character at level 1 in a quest that
     assumed 60 (seam setlevel_in_setup_noop, seam pass 19).
 
-    `pass_through_without_setup` is the --script mode (run_script_direct):
-    a scratch file whose table declares no setup, or `setup = {}` (the
-    conformance and cheat harnesses), runs exactly as it did before --
-    straight into its own run(), no login-grant wait -- while one that DOES
-    declare a setup list gets it run by this same loop. Before seam pass 19
-    --script ignored the list outright, so every setup line of a scratch
-    copy was a silent no-op: parity2a measured `::setlevel` in setup "not
-    landing" three times (build/quest_gate/diag_setlevel*, diag_setup3 --
-    hitpoints still `stated=false level=10`, the client had not even been
-    sent stats) when no setup line had been issued at all.
+    Every file is wrapped, the --script mode's too (run_script_direct): a
+    scratch file whose table declares no setup, or `setup = {}` (the
+    conformance and cheat harnesses), still waits for the login grant
+    through the same loop with an empty list -- as scriptrun's bootstrap and
+    a watched Play do. It used to run straight into its own run(), no
+    wait, and so started on another server tick than scriptrun did: a
+    setup-less harness's two tick logs parted from their first row
+    (2026-10-12, start t0 here, t2 on scriptrun). Before seam pass 19
+    --script also ignored a NON-EMPTY list outright, so every setup line of
+    a scratch copy was a silent no-op: parity2a measured `::setlevel` in
+    setup "not landing" three times (build/quest_gate/diag_setlevel*,
+    diag_setup3 -- hitpoints still `stated=false level=10`, the client had
+    not even been sent stats) when no setup line had been issued at all.
     """
     # THE SETUP LOOP IS NOT HERE: QUEST.run below is QD.core_setup_run
     # (script/plugins/quest_driver/core.lua), the one definition the Scripts
@@ -500,10 +502,7 @@ def write_wrapper_script(quest_file, out_path, pass_through_without_setup=False,
         "if LEG_FROM and LEG_FROM > 1 then\n"
         "    quest_setup = nil\n"
         "end\n"
-        + ("-- --script mode: no setup list, nothing to wrap.\n"
-           "if quest_setup == nil or next(quest_setup) == nil then\n"
-           "    return QUEST\n"
-           "end\n" if pass_through_without_setup else "") +
+        +
         "local quest_run = QUEST.run\n"
         "-- The login-grant wait and the setup list, each cheat waited on until\n"
         "-- its effect reaches this client: QD.core_setup_run\n"
@@ -1574,16 +1573,18 @@ def run_script_direct(name, script_path, fixture_name, binary, manifest_path, ti
     """The --script escape hatch: runs `script_path` under
     build/quest_gate/<name>/. A file whose table declares a NON-EMPTY `setup`
     list gets it run by the same generated loop a quest run uses
-    (write_wrapper_script, pass_through_without_setup=True): before seam
-    pass 19 this path ran the file as-is and silently ignored the list, so a
-    scratch copy of a quest issued none of its setup lines and parity2a read
-    that as "::setlevel in setup is a no-op". A file with no setup, or
-    `setup = {}`, runs exactly as written. test/quests/_conformance.lua
-    is ALSO a `{ run = function(t) ... end }` table (its own `setup = {}` is
-    empty, and its comment says it re-issues any cheats itself through
-    t.cheat "so it can also run standalone"), so it loads through the same
-    zero-argument bootstrap a quest file does with no wrapping needed at
-    all. This is what lets it be driven through this runner as a direct
+    (write_wrapper_script): before seam pass 19 this path ran the file as-is
+    and silently ignored the list, so a scratch copy of a quest issued none
+    of its setup lines and parity2a read that as "::setlevel in setup is a
+    no-op". A file with no setup, or `setup = {}`, is wrapped too and waits
+    for the login grant first (QD.core_setup_run with an empty list), as
+    scriptrun's bootstrap does, so both lanes start it on the same tick.
+    test/quests/_conformance.lua is ALSO a `{ run = function(t) ... end }`
+    table (its own `setup = {}` is empty, and its comment says it re-issues
+    any cheats itself through t.cheat "so it can also run standalone"), so
+    it loads through the same zero-argument bootstrap a quest file does,
+    behind that login-grant wait. This is what lets it be driven through
+    this runner as a direct
     cross-check against `make test-quest-conformance`'s own answer, rather
     than only ever through conformance.py's separate attempt loop."""
     assert os.path.isfile(script_path), script_path
@@ -1600,7 +1601,7 @@ def run_script_direct(name, script_path, fixture_name, binary, manifest_path, ti
             wrapped_dir = os.path.join(directory, "script")
             os.makedirs(wrapped_dir, exist_ok=True)
             script = os.path.join(wrapped_dir, os.path.basename(script_path))
-            write_wrapper_script(script_path, script, pass_through_without_setup=True)
+            write_wrapper_script(script_path, script)
             return launch_and_report(name, binary, manifest_path, directory, saves, script,
                                      timeout, max_frames)
         return launch_with_stale_retry(prepare_and_launch)
@@ -1659,8 +1660,7 @@ def free_loopback_port():
     return port
 
 
-def run_party(name, source_file, fixture_name, binary, manifest_path, timeout, size,
-              pass_through_without_setup):
+def run_party(name, source_file, fixture_name, binary, manifest_path, timeout, size):
     """One party run of `source_file` under build/quest_gate/<name>/ (see the
     banner above). Returns a result dict shaped like launch_and_report's, its
     `directory` the run directory that holds the union ledger."""
@@ -1688,7 +1688,6 @@ def run_party(name, source_file, fixture_name, binary, manifest_path, timeout, s
                 os.makedirs(script_dir)
                 script = os.path.join(script_dir, os.path.basename(source_file))
                 write_wrapper_script(source_file, script,
-                                     pass_through_without_setup=pass_through_without_setup,
                                      party={"role": seat, "names": accounts})
                 seats.append((seat, account, session, script))
                 marker.write("p%d\t%s\tp%d\n" % (seat, account, seat))
@@ -2444,7 +2443,7 @@ def main():
         party = arguments.party or read_party_size(script_path)
         if party > 1:
             result = run_party(script_name, script_path, arguments.fixture, binary,
-                               manifest_path, arguments.timeout, party, True)
+                               manifest_path, arguments.timeout, party)
         else:
             result = run_script_direct(script_name, script_path, arguments.fixture,
                                         binary, manifest_path, arguments.timeout)
@@ -2489,7 +2488,7 @@ def main():
             if party_of(n) > 1:
                 results.append(run_party(arguments.name or n, quest_file,
                                          read_fixture_name(quest_file), binary,
-                                         manifest_path, arguments.timeout, party_of(n), False))
+                                         manifest_path, arguments.timeout, party_of(n)))
             else:
                 results.append(run_quest(n, binary, manifest_path, arguments.timeout))
     elif arguments.jobs == 1:

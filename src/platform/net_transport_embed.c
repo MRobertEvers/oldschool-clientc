@@ -633,7 +633,21 @@ party_close(struct NetTransportEmbed* self)
 {
 #if EMBED_PARTY_SOCKETS
     if( self->party_fd >= 0 )
+    {
+        /* Marks still queued are this tick's: the run ended before its READY.
+         * They go now, ahead of the close; the leader takes them before its
+         * log closes (torirs_server_embed.c party_final_marks). A link already
+         * gone takes nothing, and the rest are dropped with it. */
+        char mark[TORIRSSERVER_EMBED_LINK_MARK_MAX];
+
+        while( ToriRSServer_EmbedMemberMarkTake(mark, (int)sizeof(mark)) )
+        {
+            if( !ToriRSServer_EmbedLinkSend(self->party_fd, TORIRSSERVER_EMBED_LINK_MARK,
+                                            (const uint8_t*)mark, (int)strlen(mark)) )
+                break;
+        }
         close(self->party_fd);
+    }
 #endif
     if( self->party_fd >= 0 )
         ToriRSServer_EmbedPartyAuditArm(0);

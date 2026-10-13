@@ -68,6 +68,9 @@ struct ToriRSServerEmbedClient
      * boundary.
      */
     int link_fd;
+    /* party_final_marks: the link closed while the run's last marks were
+     * being taken. */
+    int link_final_closed;
     struct ToriRSServerEmbedLinkReader link_in;
     /** READY seen for the boundary being assembled. */
     int link_ready;
@@ -318,6 +321,8 @@ ToriRSServer_EmbedBotDriveRelease(struct ToriRSServerEmbed* embed)
     fprintf(stderr, "botdrive: the Play that asked for the agent ended; it drives no one now\n");
 }
 
+static void party_final_marks(struct ToriRSServerEmbed* embed);
+
 void
 ToriRSServer_EmbedStop(struct ToriRSServerEmbed* embed)
 {
@@ -333,7 +338,14 @@ ToriRSServer_EmbedStop(struct ToriRSServerEmbed* embed)
      * have. Closed first, so the two lanes' logs end alike (relay f1,
      * 2026-10-12: 25 npc_free rows on the live log's last tick). */
     if( ToriRSServer_TicklogEnabled(&embed->srv) )
+    {
+        /* The members' marks of the tick the run ended on cross at the
+         * boundary that never comes: take them now, before the log closes
+         * (party_final_marks), as scriptrun keeps every bot's mark of its
+         * last tick. */
+        party_final_marks(embed);
         ToriRSServer_TicklogDisable();
+    }
 
     for( int i = 0; i < TORIRSSERVER_EMBED_CLIENT_MAX; i++ )
     {
@@ -1815,10 +1827,70 @@ party_flush(struct ToriRSServerEmbed* embed)
     }
 }
 
+/*
+ * The end of a party run's tick log. A member sends its tick's marks ('K')
+ * before its READY, so the marks of the tick the leader finished on would
+ * cross at a boundary that never runs; a member that finished on that tick
+ * sends them as it closes (net_transport_embed.c party_close). Take every
+ * member's frames up to its READY or its close -- the marks among them are
+ * pushed, stamped with this last tick -- waiting at most the party wait.
+ * Nothing else: no drop (a logout would write the teardown into the log), no
+ * tick, no TICK frame.
+ */
+static void
+party_final_marks(struct ToriRSServerEmbed* embed)
+{
+    long deadline;
+
+    assert(embed);
+    if( embed->party_listener < 0 )
+        return;
+    deadline = ToriRSServer_EmbedNowMs() + embed->party_wait_ms;
+    for( ;; )
+    {
+        struct pollfd pfds[TORIRSSERVER_EMBED_CLIENT_MAX];
+        int ids[TORIRSSERVER_EMBED_CLIENT_MAX];
+        int count = 0;
+        long left;
+
+        for( int i = 0; i < TORIRSSERVER_EMBED_CLIENT_MAX; i++ )
+        {
+            struct ToriRSServerEmbedClient* client = &embed->clients[i];
+
+            if( !client->open || client->link_fd < 0 || client->link_final_closed )
+                continue;
+            if( !party_take_frames(client, i) || client->link_ready )
+                continue;
+            pfds[count].fd = client->link_fd;
+            pfds[count].events = POLLIN;
+            ids[count] = i;
+            count++;
+        }
+        left = deadline - ToriRSServer_EmbedNowMs();
+        if( count == 0 || left <= 0 )
+            return;
+        if( poll(pfds, (nfds_t)count, left > 50 ? 50 : (int)left) <= 0 )
+            continue;
+        for( int k = 0; k < count; k++ )
+        {
+            struct ToriRSServerEmbedClient* client = &embed->clients[ids[k]];
+
+            if( !(pfds[k].revents & (POLLIN | POLLHUP | POLLERR)) )
+                continue;
+            if( ToriRSServer_EmbedLinkFill(pfds[k].fd, &client->link_in, 0) < 0 )
+            {
+                party_take_frames(client, ids[k]);
+                client->link_final_closed = 1;
+            }
+        }
+    }
+}
+
 #else
 
 static void party_barrier(struct ToriRSServerEmbed* embed) { (void)embed; }
 static void party_flush(struct ToriRSServerEmbed* embed) { (void)embed; }
+static void party_final_marks(struct ToriRSServerEmbed* embed) { (void)embed; }
 
 #endif /* EMBED_PARTY_SOCKETS */
 
