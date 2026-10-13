@@ -140,9 +140,9 @@ enum ToriRS_RunEnergyModel
     TORIRS_RUN_ENERGY_CLASSIC = 0,
     /**
      * OldSchool after the 8 January 2025 run-energy rework
-     * (https://oldschool.runescape.wiki/w/Run_energy):
+     * (https://oldschool.runescape.wiki/w/Energy):
      *
-     *     drain   = floor((60 + 67 * clamp(weight_kg, 0, 64) / 64)
+     *     drain   = floor(floor(60 + 67 * clamp(weight_kg, 0, 64) / 64)
      *                     * (1 - agility / 300))
      *     restore = floor(agility / 10) + 15
      *

@@ -3521,6 +3521,218 @@ selftest_npc_run_seed(struct ToriRSServer* srv)
 }
 
 /*
+ * Run energy against what the player wears. OldSchool wears a weight-reducing
+ * item as a separate `_worn` obj (negative weight) and carries it as another
+ * (positive); content's ~update_weight_equipment swaps them on equip, so this
+ * goes through the real OPHELD2 / worn-tab packets rather than writing the
+ * worn inv. Then the effects the tick reads off the worn inv: the graceful
+ * restore bonus (+3/4% a piece, +30% for the set) and a ring of endurance's
+ * 15% drain cut at 500+ charges. Wiki Weight, Graceful_outfit, Energy,
+ * Ring_of_endurance. TORIRSSERVER_SELFTEST_RUNENERGY_ONLY runs it alone.
+ */
+static void
+selftest_run_energy_worn(struct ToriRSServer* srv)
+{
+    static const char* const k_pieces[6] = {
+        "graceful_hood", "graceful_cape", "graceful_top",
+        "graceful_legs", "graceful_gloves", "graceful_boots",
+    };
+    static const int k_wear[6] = {
+        TORIRSSERVER_WEAR_HEAD, TORIRSSERVER_WEAR_CAPE, TORIRSSERVER_WEAR_BODY,
+        TORIRSSERVER_WEAR_LEGS, TORIRSSERVER_WEAR_HANDS, TORIRSSERVER_WEAR_FEET,
+    };
+    int loaded;
+
+    fprintf(stderr, "ToriRSServer selftest: run energy against worn gear\n");
+    loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir());
+    if( !loaded )
+        loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir_from_src());
+    if( !loaded )
+    {
+        fprintf(stderr, "  SKIP  no compiled script pack\n");
+        return;
+    }
+
+    {
+        struct ToriRSServerPlayer* p = srv->active_player;
+        int ring = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "ring_of_endurance");
+        int gloves = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "graceful_gloves");
+        int gloves_com = ToriRSServer_EquipmentWornComponent(TORIRSSERVER_WEAR_HANDS);
+        int agility_before;
+        int energy_before;
+        int gained;
+        int spent;
+        int all_resolved = ring > 0 && gloves > 0 && gloves_com >= 0;
+
+        assert(p);
+        agility_before = p->stat_level[TORIRSSERVER_STAT_AGILITY];
+        selftest_park_player(srv, 3222, 3218);
+        for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
+        {
+            p->inv[i].obj_id = -1;
+            p->inv[i].count = 0;
+            p->inv_dirty |= 1u << i;
+        }
+        for( int i = 0; i < TORIRSSERVER_WORN_SLOTS; i++ )
+        {
+            p->worn[i].obj_id = -1;
+            p->worn[i].count = 0;
+            for( int vi = 0; vi < TORIRSSERVER_ITEM_VAR_MAX; vi++ )
+            {
+                p->worn[i].var_key[vi] = -1;
+                p->worn[i].var_val[vi] = 0;
+            }
+            p->worn_dirty |= 1u << i;
+        }
+        ToriRSServer_VarbitSet(srv, ToriRSServer_Ids()->varbit_stamina_active, 0);
+
+        /* Carried, a graceful piece weighs its positive pack weight. */
+        selftest_give(p, gloves, 1);
+        SELFTEST_CHECK(player_weight_grams(p) == 100,
+                       "graceful gloves in the pack weigh +100 g, got %d",
+                       player_weight_grams(p));
+        p->inv[0].obj_id = -1;
+        p->inv[0].count = 0;
+
+        /* Wear the set, one real Wear click at a time. */
+        for( int k = 0; k < 6 && all_resolved; k++ )
+        {
+            char worn_name[64];
+            int carried = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, k_pieces[k]);
+            int worn;
+
+            snprintf(worn_name, sizeof(worn_name), "%s_worn", k_pieces[k]);
+            worn = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, worn_name);
+            SELFTEST_CHECK(carried > 0 && worn > 0, "%s and %s should resolve", k_pieces[k],
+                           worn_name);
+            if( carried <= 0 || worn <= 0 )
+            {
+                all_resolved = 0;
+                break;
+            }
+            selftest_give(p, carried, 1);
+            selftest_opheld(srv, 2, 0);
+            selftest_tick(srv);
+            SELFTEST_CHECK(p->worn[k_wear[k]].obj_id == worn,
+                           "wearing %s puts its worn twin %s in the worn tab, got obj %d",
+                           k_pieces[k], worn_name, p->worn[k_wear[k]].obj_id);
+            SELFTEST_CHECK(p->inv[0].obj_id == -1, "and takes it out of the pack");
+        }
+
+        if( all_resolved )
+        {
+            /* -3 -4 -5 -6 -3 -4. */
+            SELFTEST_CHECK(player_weight_grams(p) == -25000,
+                           "a worn graceful set weighs -25 kg, got %d g",
+                           player_weight_grams(p));
+
+            /* Restore: R(99) = 24, x1.3 = 31; R(1) = 15, x1.3 = 19. */
+            p->stat_level[TORIRSSERVER_STAT_AGILITY] = 99;
+            steps_clear(p);
+            p->run_energy = 5000;
+            energy_before = p->run_energy;
+            selftest_tick(srv);
+            gained = p->run_energy - energy_before;
+            SELFTEST_CHECK(gained == 31, "the full set restores 31 a tick at 99, got %d", gained);
+            p->stat_level[TORIRSSERVER_STAT_AGILITY] = 1;
+            energy_before = p->run_energy;
+            selftest_tick(srv);
+            gained = p->run_energy - energy_before;
+            SELFTEST_CHECK(gained == 19, "the full set restores 19 a tick at 1, got %d", gained);
+
+            /* Take the gloves off through the worn tab: the pack gets the
+             * CARRIED obj back, and the set bonus goes. */
+            {
+                uint8_t button[9];
+
+                button[0] = (uint8_t)(gloves_com >> 24);
+                button[1] = (uint8_t)(gloves_com >> 16);
+                button[2] = (uint8_t)(gloves_com >> 8);
+                button[3] = (uint8_t)gloves_com;
+                button[4] = 0xff;
+                button[5] = 0xff;
+                button[6] = 0xff;
+                button[7] = 0xff;
+                button[8] = 1; /* Remove */
+                selftest_handle(p, PKTOUT_NAME_IF_BUTTONX, button, sizeof(button));
+            }
+            selftest_tick(srv);
+            SELFTEST_CHECK(p->worn[TORIRSSERVER_WEAR_HANDS].obj_id == -1 &&
+                               selftest_find(p, gloves) >= 0,
+                           "removing the gloves hands back graceful_gloves, not the twin");
+            SELFTEST_CHECK(player_weight_grams(p) == -22000 + 100,
+                           "five worn pieces and carried gloves weigh -21.9 kg, got %d g",
+                           player_weight_grams(p));
+            /* 17%, no set: floor(24 * 1.17) = 28. */
+            p->stat_level[TORIRSSERVER_STAT_AGILITY] = 99;
+            steps_clear(p);
+            p->run_energy = 5000;
+            energy_before = p->run_energy;
+            selftest_tick(srv);
+            gained = p->run_energy - energy_before;
+            SELFTEST_CHECK(gained == 28, "five pieces restore 28 a tick at 99, got %d", gained);
+
+            /* Ring of endurance: 500 charges cuts the drain to 85%, 499 does
+             * not. Weight is negative, so the level-99 drain is 40. */
+            p->worn[TORIRSSERVER_WEAR_RING].obj_id = ring;
+            p->worn[TORIRSSERVER_WEAR_RING].count = 1;
+            for( int charges = 499; charges <= 500; charges++ )
+            {
+                int want = charges >= 500 ? 40 * 85 / 100 : 40;
+
+                ToriRSServer_ItemSetVar(&p->worn[TORIRSSERVER_WEAR_RING], ring, charges);
+                steps_clear(p);
+                p->run_energy = TORIRSSERVER_RUN_ENERGY_MAX;
+                p->run_toggle = 1;
+                ToriRSServer_WorldWalkTo(srv, p->x + 6, p->z);
+                energy_before = p->run_energy;
+                selftest_tick(srv);
+                spent = energy_before - p->run_energy;
+                SELFTEST_CHECK(p->move_count == 2, "the ring check runs two tiles");
+                SELFTEST_CHECK(spent == want,
+                               "a ring of endurance at %d charges: drain %d, got %d", charges,
+                               want, spent);
+            }
+            /* And it does not stack with stamina: floor(40 * 0.3) = 12. */
+            ToriRSServer_VarbitSet(srv, ToriRSServer_Ids()->varbit_stamina_active, 1);
+            steps_clear(p);
+            p->run_energy = TORIRSSERVER_RUN_ENERGY_MAX;
+            p->run_toggle = 1;
+            ToriRSServer_WorldWalkTo(srv, p->x + 6, p->z);
+            energy_before = p->run_energy;
+            selftest_tick(srv);
+            spent = energy_before - p->run_energy;
+            SELFTEST_CHECK(spent == 12, "ring + stamina drains at the stamina rate, 12, got %d",
+                           spent);
+            ToriRSServer_VarbitSet(srv, ToriRSServer_Ids()->varbit_stamina_active, 0);
+        }
+
+        for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
+        {
+            p->inv[i].obj_id = -1;
+            p->inv[i].count = 0;
+            p->inv_dirty |= 1u << i;
+        }
+        for( int i = 0; i < TORIRSSERVER_WORN_SLOTS; i++ )
+        {
+            p->worn[i].obj_id = -1;
+            p->worn[i].count = 0;
+            for( int vi = 0; vi < TORIRSSERVER_ITEM_VAR_MAX; vi++ )
+            {
+                p->worn[i].var_key[vi] = -1;
+                p->worn[i].var_val[vi] = 0;
+            }
+            p->worn_dirty |= 1u << i;
+        }
+        steps_clear(p);
+        p->stat_level[TORIRSSERVER_STAT_AGILITY] = agility_before;
+        p->run_energy = TORIRSSERVER_RUN_ENERGY_MAX;
+        p->run_toggle = 0;
+    }
+    ToriRSServer_ScriptsFree(srv);
+}
+
+/*
  * Every backpack op interrupts the interaction; the equipment tab and the
  * bank grids do not. A function, not an inline stanza, so
  * TORIRSSERVER_SELFTEST_HELDOP_ONLY can run it alone.
@@ -4007,6 +4219,15 @@ ToriRSServer_WorldSelftest(void)
         fprintf(stderr, "ToriRSServer mcannon selftest: %lu checks, %d failures\n",
                 g_selftest_checks, g_selftest_failures);
         selftest_evidence_end("mcannon");
+        return g_selftest_failures;
+    }
+
+    if( getenv("TORIRSSERVER_SELFTEST_RUNENERGY_ONLY") )
+    {
+        selftest_run_energy_worn(srv);
+        fprintf(stderr, "ToriRSServer run energy selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("runenergy");
         return g_selftest_failures;
     }
 
@@ -30080,6 +30301,7 @@ ToriRSServer_WorldSelftest(void)
         player->run_energy = TORIRSSERVER_RUN_ENERGY_MAX;
         player->run_toggle = 0;
     }
+    selftest_run_energy_worn(srv);
 
     fprintf(stderr, "ToriRSServer selftest: p_temprun and p_animprotect\n");
     {

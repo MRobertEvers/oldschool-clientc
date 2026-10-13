@@ -2752,6 +2752,48 @@ ToriRSServer_WorldProcessInteraction(struct ToriRSServer* srv)
 /* ------------------------------------------------------------------ */
 
 /*
+ * The graceful restore bonus the worn inv earns, in percent: each worn obj's
+ * `graceful_energy_restore` param (player/configs/weight_reducing.obj), plus
+ * the set's 10 when six slots answer.
+ */
+static int
+player_graceful_restore_boost(const struct ToriRSServerPlayer* player)
+{
+    int param = ToriRSServer_Ids()->param_graceful_energy_restore;
+    int percent = 0;
+    int pieces = 0;
+
+    for( int i = 0; i < TORIRSSERVER_WORN_SLOTS; i++ )
+    {
+        const struct ToriRSServerObjParam* row;
+
+        if( player->worn[i].obj_id < 0 )
+            continue;
+        row = ToriRSServer_ObjParam(player->worn[i].obj_id, param);
+        if( !row || row->ival <= 0 )
+            continue;
+        percent += row->ival;
+        pieces++;
+    }
+    return ToriRSServer_RunEnergyGracefulBoost(percent, pieces);
+}
+
+/* A worn ring of endurance holding at least `^ring_of_endurance_passive_charges`
+ * (500). The charges are the ring's own item var, keyed by its obj, which is
+ * where ring_of_endurance.rs2's ~charges_item_set put them. */
+static int
+player_ring_of_endurance_passive(const struct ToriRSServerPlayer* player)
+{
+    const struct ToriRSServerIds* ids = ToriRSServer_Ids();
+    const struct ToriRSServerItem* ring = &player->worn[TORIRSSERVER_WEAR_RING];
+
+    if( ring->obj_id < 0 || ring->obj_id != ids->obj_ring_of_endurance )
+        return 0;
+    return ToriRSServer_ItemGetVar(ring, ids->obj_ring_of_endurance) >=
+           ids->ring_of_endurance_passive_charges;
+}
+
+/*
  * Everything the player is carrying, in grams, worn items included.
  *
  * The weights come out of the obj records themselves (config opcode 75), which
@@ -2804,6 +2846,13 @@ player_weight_grams(const struct ToriRSServerPlayer* player)
  *              drain per running tick               restore per idle tick
  *   classic    67 + 67*kg/64  (kg 0..64)            agility/6 + 8
  *   osrs2025   (60 + 67*kg/64) * (1 - agility/300)  agility/10 + 15
+ *
+ * and then the worn effects, which are content's data and the same under both:
+ * a stamina dose (drain x0.3) or else a ring of endurance at 500+ charges
+ * (drain x0.85), and the graceful pieces' restore bonus (+3/4% a piece, +30%
+ * for the set). `kg` is everything carried and worn, and worn weight-reducing
+ * gear is its `_worn` twin by the time it gets here (weight_reducing.enum), so
+ * a graceful set counts at -25 kg rather than its carried +3.7.
  *
  * Under classic an unencumbered player gets a hair over 149 running ticks from
  * full and a fully-laden one about half that; under osrs2025 the same player at
@@ -2879,8 +2928,10 @@ run_energy_tick(
          * array. It read nonzero, so every player in the world ran at the
          * potion rate — 40 instead of 134 — and no potion was involved.
          */
-        if( ToriRSServer_VarbitGet(player, ToriRSServer_Ids()->varbit_stamina_active) )
-            drain = drain * 3 / 10;
+        drain = ToriRSServer_RunEnergyDrainModified(
+            drain,
+            ToriRSServer_VarbitGet(player, ToriRSServer_Ids()->varbit_stamina_active),
+            player_ring_of_endurance_passive(player));
 
         player->run_energy -= drain;
         if( player->run_energy <= 0 )
@@ -2893,7 +2944,8 @@ run_energy_tick(
     }
     else if( player->run_energy < TORIRSSERVER_RUN_ENERGY_MAX )
     {
-        player->run_energy += ToriRSServer_RunEnergyRestore(model, agility);
+        player->run_energy += ToriRSServer_RunEnergyRestoreBoosted(
+            ToriRSServer_RunEnergyRestore(model, agility), player_graceful_restore_boost(player));
         if( player->run_energy > TORIRSSERVER_RUN_ENERGY_MAX )
             player->run_energy = TORIRSSERVER_RUN_ENERGY_MAX;
     }

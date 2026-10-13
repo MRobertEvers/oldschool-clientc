@@ -412,6 +412,11 @@ struct ToriRSServerIds
      *  through answered -1 for this name and the drain was decided by an
      *  out-of-bounds read. */
     int varbit_stamina_active;
+    /** The ring whose worn charge var `run_energy_tick` reads for the 15%
+     *  passive drain cut, and the obj param naming each graceful piece's
+     *  restore bonus (player/configs/weight_reducing.param). */
+    int obj_ring_of_endurance;
+    int param_graceful_energy_restore;
 
     /* --- Constants (`.constant`) --- */
 
@@ -425,6 +430,9 @@ struct ToriRSServerIds
      *  drop_tables/configs/lootdrop.constant has stated all along while
      *  `TORIRSSERVER_LOOT_TICKS` said the same 200 in C beside it. */
     int lootdrop_duration;
+    /** `^ring_of_endurance_passive_charges`: the charge count at which a worn
+     *  ring of endurance starts cutting run-energy drain. */
+    int ring_of_endurance_passive_charges;
 };
 
 /** The table. Every field is -1 until ToriRSServer_IdsResolve has run. */

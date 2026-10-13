@@ -37,4 +37,31 @@ ToriRSServer_RunEnergyRestore(
     int model,
     int agility_level);
 
+/**
+ * One tick's drain after the effects that scale it: a stamina dose
+ * (floor(0.3 * drain)) or, failing that, a worn ring of endurance holding
+ * 500+ charges (floor(0.85 * drain)). The two do not stack.
+ */
+int
+ToriRSServer_RunEnergyDrainModified(
+    int drain,
+    int stamina_active,
+    int ring_of_endurance_passive);
+
+/**
+ * The graceful restore bonus, in percent: the worn pieces' own percentages
+ * (`piece_percent`, the sum of their `graceful_energy_restore` params) plus
+ * the set's 10 when `pieces` covers all six slots.
+ */
+int
+ToriRSServer_RunEnergyGracefulBoost(
+    int piece_percent,
+    int pieces);
+
+/** floor(restore * (100 + boost_percent) / 100). */
+int
+ToriRSServer_RunEnergyRestoreBoosted(
+    int restore,
+    int boost_percent);
+
 #endif

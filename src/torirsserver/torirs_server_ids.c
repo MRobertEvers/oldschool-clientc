@@ -169,6 +169,8 @@ static const struct ToriRSServerSymbolRef k_refs[] = {
         { TORIRSSERVER_PACK_VARBIT, "varb5364_bank_hidedepositworn", &g_ids.varbit_bank_hidedepositworn },
         { TORIRSSERVER_PACK_VARBIT, "varb5450_bank_side_slot_ignoreinvlocks", &g_ids.varbit_bank_side_slot_ignore },
         { TORIRSSERVER_PACK_VARBIT, "varb25_stamina_active", &g_ids.varbit_stamina_active },
+        { TORIRSSERVER_PACK_OBJ, "ring_of_endurance", &g_ids.obj_ring_of_endurance },
+        { TORIRSSERVER_PACK_PARAM, "graceful_energy_restore", &g_ids.param_graceful_energy_restore },
         /* The combat tab's sailing switch (cache cs2 8583 reads it as
          * %varbit19153): 1 while the player stands on a vessel deck, which is
          * what makes interface 593's `switch_button` appear. Synced by
@@ -258,6 +260,7 @@ ToriRSServer_IdsResolve(void)
         { "bank_qty_10", &g_ids.bank_qty_10 },   { "bank_qty_x", &g_ids.bank_qty_x },
         { "bank_qty_all", &g_ids.bank_qty_all },
         { "lootdrop_duration", &g_ids.lootdrop_duration },
+        { "ring_of_endurance_passive_charges", &g_ids.ring_of_endurance_passive_charges },
     };
     int failed;
 

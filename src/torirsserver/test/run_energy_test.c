@@ -9,7 +9,8 @@
  *
  * References:
  *   classic  — LostCity Player.ts:705-713
- *   osrs2025 — https://oldschool.runescape.wiki/w/Run_energy (8 Jan 2025)
+ *   osrs2025 — https://oldschool.runescape.wiki/w/Energy (8 Jan 2025)
+ *   modifiers — wiki Energy, Graceful_outfit, Ring_of_endurance
  */
 
 #include "torirsserver/torirs_server_runenergy.h"
@@ -87,13 +88,13 @@ test_classic_restore(void)
 }
 
 /*
- * floor((60 + 67*kg/64) * (1 - agility/300)), floored once.
+ * floor(floor(60 + 67*kg/64) * (1 - agility/300)).
  *
  *   (0 kg, 1)   -> 60 * 299/300           = 59
  *   (0 kg, 99)  -> 60 * 201/300           = 40
  *   (64 kg, 1)  -> 127 * 299/300          = 126
  *   (64 kg, 99) -> 127 * 201/300          = 85
- *   (32 kg, 50) -> (60*64 + 67*32)/64 = 93.5, * 250/300 = 77.9 -> 77
+ *   (32 kg, 50) -> floor(93.5) = 93, * 250/300 = 77.5 -> 77
  */
 static void
 test_osrs2025_drain(void)
@@ -115,17 +116,44 @@ test_osrs2025_restore(void)
 }
 
 /*
- * The single flooring step. Computing the weight term first — the shape the
- * classic formula has — gives floor(93) * 250/300 = 77 here too, so a case
- * where the two disagree is needed or the rounding rule is untested:
- * 63 kg at level 1 is (60*64 + 67*63)/64 = 125.95..., times 299/300.
+ * The weight term is floored before the Agility scaling — the wiki's
+ * UnitsLost puts the floor around `60 + 67*weight/64` alone, and RuneLite
+ * computes it with integer division. The 32 kg case above cannot tell that
+ * from a single floor at the end, so pin one that can:
+ * 63 kg at level 1 is 60 + 67*63/64 = 125.95..., times 299/300.
+ *   two floors: floor(125) * 299/300    = floor(124.58) = 124  <- OldSchool
  *   one floor : floor(125.95 * 0.99666) = floor(125.53) = 125
- *   two floors: floor(125) * 299/300    = floor(124.58) = 124
  */
 static void
-test_osrs2025_rounds_once(void)
+test_osrs2025_floors_weight_term(void)
 {
-    check_drain(TORIRS_RUN_ENERGY_OSRS_2025, 63, 1, 125);
+    check_drain(TORIRS_RUN_ENERGY_OSRS_2025, 63, 1, 124);
+}
+
+/*
+ * Wiki Energy: stamina floor(0.3 * UnitsLost); ring of endurance (500+
+ * charges) floor(0.85 * UnitsLost), not stacking with stamina. Graceful:
+ * floor(1.3 * R) for the set, pieces 3+4+4+3+3+3.
+ */
+static void
+test_modifiers(void)
+{
+    CHECK(ToriRSServer_RunEnergyDrainModified(126, 0, 0) == 126, "no effect leaves the drain");
+    CHECK(ToriRSServer_RunEnergyDrainModified(126, 1, 0) == 37, "stamina: floor(0.3 * 126) = 37");
+    CHECK(ToriRSServer_RunEnergyDrainModified(126, 0, 1) == 107, "ring: floor(0.85 * 126) = 107");
+    CHECK(ToriRSServer_RunEnergyDrainModified(126, 1, 1) == 37,
+          "ring + stamina is the stamina rate alone");
+
+    CHECK(ToriRSServer_RunEnergyGracefulBoost(0, 0) == 0, "no graceful, no boost");
+    CHECK(ToriRSServer_RunEnergyGracefulBoost(4, 1) == 4, "a lone top is +4%%");
+    CHECK(ToriRSServer_RunEnergyGracefulBoost(17, 5) == 17, "five pieces earn no set bonus");
+    CHECK(ToriRSServer_RunEnergyGracefulBoost(20, 6) == 30, "the full set is +30%%");
+
+    /* R(99) = 24: floor(24 * 1.3) = 31. R(1) = 15: floor(15 * 1.3) = 19. */
+    CHECK(ToriRSServer_RunEnergyRestoreBoosted(24, 30) == 31, "graceful set at 99 restores 31");
+    CHECK(ToriRSServer_RunEnergyRestoreBoosted(15, 30) == 19, "graceful set at 1 restores 19");
+    CHECK(ToriRSServer_RunEnergyRestoreBoosted(15, 4) == 15, "floor(15 * 1.04) = 15");
+    CHECK(ToriRSServer_RunEnergyRestoreBoosted(24, 0) == 24, "no boost leaves the restore");
 }
 
 /* The clamps both models share, exercised through the public entry points so a
@@ -195,7 +223,8 @@ main(void)
     test_classic_restore();
     test_osrs2025_drain();
     test_osrs2025_restore();
-    test_osrs2025_rounds_once();
+    test_osrs2025_floors_weight_term();
+    test_modifiers();
     test_clamps();
     test_models_differ();
     test_feature_table_wiring();
