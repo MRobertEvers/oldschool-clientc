@@ -870,4 +870,120 @@ DriveActionPlanLua(
     return 2;
 }
 
+/* api_drive.meet_rank(spec): Verzik P3's ball meeting-tile rank
+ * (action_plan.h meet_rank), pure geometry, the same on both lanes
+ * (lua_drive_meet_rank / d_meet_rank). Absolute tiles.
+ *
+ *   spec = { t = {x, z}, n = {x, z} | nil, her = {x, z, size} | nil,
+ *            arena = {x0, z0, x1, z1}, ticks, max_level = 4, r = 12,
+ *            webs = { {x, z}, ... }, crabs = { {x, z}, ... } }
+ *   -> "ok", { {x, z, k1, k2}, ... } (best first), level (0: none), cells
+ */
+static int
+DriveMeetRankLua(lua_State* L, int spec_idx)
+{
+    static struct MeetRankSpec spec;
+    static struct MeetRankTile out[MEET_RANK_OUT_MAX];
+    int n_out = 0, cells = 0, level, i, n, k;
+    memset(&spec, 0, sizeof(spec));
+    luaL_checktype(L, spec_idx, LUA_TTABLE);
+    lua_getfield(L, spec_idx, "t");
+    luaL_checktype(L, -1, LUA_TTABLE);
+    k = lua_gettop(L);
+    spec.t_x = drive_plan_field_int(L, k, "x", 0, 1);
+    spec.t_z = drive_plan_field_int(L, k, "z", 0, 1);
+    lua_pop(L, 1);
+    lua_getfield(L, spec_idx, "n");
+    if( !lua_isnil(L, -1) )
+    {
+        k = lua_gettop(L);
+        spec.has_n = 1;
+        spec.n_x = drive_plan_field_int(L, k, "x", 0, 1);
+        spec.n_z = drive_plan_field_int(L, k, "z", 0, 1);
+    }
+    lua_pop(L, 1);
+    lua_getfield(L, spec_idx, "her");
+    if( !lua_isnil(L, -1) )
+    {
+        k = lua_gettop(L);
+        spec.has_her = 1;
+        spec.her_x = drive_plan_field_int(L, k, "x", 0, 1);
+        spec.her_z = drive_plan_field_int(L, k, "z", 0, 1);
+        spec.her_size = drive_plan_field_int(L, k, "size", 0, 1);
+    }
+    lua_pop(L, 1);
+    lua_getfield(L, spec_idx, "arena");
+    luaL_checktype(L, -1, LUA_TTABLE);
+    k = lua_gettop(L);
+    spec.ax0 = drive_plan_field_int(L, k, "x0", 0, 1);
+    spec.az0 = drive_plan_field_int(L, k, "z0", 0, 1);
+    spec.ax1 = drive_plan_field_int(L, k, "x1", 0, 1);
+    spec.az1 = drive_plan_field_int(L, k, "z1", 0, 1);
+    lua_pop(L, 1);
+    spec.ticks = drive_plan_field_int(L, spec_idx, "ticks", 0, 1);
+    spec.max_level = drive_plan_field_int(L, spec_idx, "max_level", 4, 0);
+    spec.r = drive_plan_field_int(L, spec_idx, "r", 12, 0);
+    luaL_argcheck(L, spec.ticks >= 1, spec_idx, "meet_rank: ticks >= 1");
+    luaL_argcheck(L, spec.max_level >= 1 && spec.max_level <= 4, spec_idx, "meet_rank: max_level is 1..4");
+    luaL_argcheck(L, spec.r >= 1 && spec.r <= MEET_RANK_R_MAX, spec_idx, "meet_rank: r is 1..16");
+    luaL_argcheck(L, !spec.has_her || spec.her_size >= 1, spec_idx, "meet_rank: her.size >= 1");
+    lua_getfield(L, spec_idx, "webs");
+    if( !lua_isnil(L, -1) )
+    {
+        luaL_checktype(L, -1, LUA_TTABLE);
+        n = (int)lua_rawlen(L, -1);
+        if( n > MEET_RANK_WEBS_MAX )
+            luaL_error(L, "meet_rank: more than %d webs", MEET_RANK_WEBS_MAX);
+        for( i = 1; i <= n; i++ )
+        {
+            lua_rawgeti(L, -1, i);
+            luaL_checktype(L, -1, LUA_TTABLE);
+            k = lua_gettop(L);
+            spec.web_x[i - 1] = drive_plan_field_int(L, k, "x", 0, 1);
+            spec.web_z[i - 1] = drive_plan_field_int(L, k, "z", 0, 1);
+            lua_pop(L, 1);
+        }
+        spec.n_webs = n;
+    }
+    lua_pop(L, 1);
+    lua_getfield(L, spec_idx, "crabs");
+    if( !lua_isnil(L, -1) )
+    {
+        luaL_checktype(L, -1, LUA_TTABLE);
+        n = (int)lua_rawlen(L, -1);
+        if( n > MEET_RANK_CRABS_MAX )
+            luaL_error(L, "meet_rank: more than %d crabs", MEET_RANK_CRABS_MAX);
+        for( i = 1; i <= n; i++ )
+        {
+            lua_rawgeti(L, -1, i);
+            luaL_checktype(L, -1, LUA_TTABLE);
+            k = lua_gettop(L);
+            spec.crab_x[i - 1] = drive_plan_field_int(L, k, "x", 0, 1);
+            spec.crab_z[i - 1] = drive_plan_field_int(L, k, "z", 0, 1);
+            lua_pop(L, 1);
+        }
+        spec.n_crabs = n;
+    }
+    lua_pop(L, 1);
+    level = meet_rank(&spec, out, &n_out, &cells);
+    lua_pushstring(L, "ok");
+    lua_createtable(L, n_out, 0);
+    for( i = 0; i < n_out; i++ )
+    {
+        lua_createtable(L, 0, 4);
+        lua_pushinteger(L, out[i].x);
+        lua_setfield(L, -2, "x");
+        lua_pushinteger(L, out[i].z);
+        lua_setfield(L, -2, "z");
+        lua_pushinteger(L, out[i].k1);
+        lua_setfield(L, -2, "k1");
+        lua_pushinteger(L, out[i].k2);
+        lua_setfield(L, -2, "k2");
+        lua_rawseti(L, -2, i + 1);
+    }
+    lua_pushinteger(L, level);
+    lua_pushinteger(L, cells);
+    return 4;
+}
+
 #endif

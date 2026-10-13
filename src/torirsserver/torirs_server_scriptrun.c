@@ -1851,6 +1851,15 @@ d_plan(lua_State* L)
     return DrivePlanLua(L, 1, cm, world->_base_tile_x, world->_base_tile_z, world->_scene_size, px, pz);
 }
 
+/* api_drive.meet_rank(spec): Verzik P3's ball meeting-tile rank, the same
+ * pure-geometry C as the client's lua_drive_meet_rank
+ * (plugin/torirs_drive_plan_lua.h DriveMeetRankLua). */
+static int
+d_meet_rank(lua_State* L)
+{
+    return DriveMeetRankLua(L, 1);
+}
+
 /* api_drive.aplan(spec): the ToB v2 action planner over this bot's own
  * collision map (plugin/torirs_drive_plan_lua.h DriveActionPlanLua; the
  * client's lua_drive_aplan is the same code over the client's map). */
@@ -2497,7 +2506,7 @@ static char const* const CLIENT_VERBS[] = {
     "camera_turn_release", "camera_turn_toward", "click_armed", "events", "forget_varps",
     "inv_arm", "inv_cast", "inv_use_on", "launch_answer", "launch_close",
     "launch_command", "launch_open", "launch_spawn", "launch_status", "loc_copies",
-    "loc_variants", "menu_rect", "menu_row_find", "menu_rows", "menu_visible", "meslayer_mode",
+    "loc_variants", "meet_rank", "menu_rect", "menu_row_find", "menu_rows", "menu_visible", "meslayer_mode",
     "modal_group", "modal_live", "model_points", "model_pose", "mouse_button", "mouse_move",
     "move_near", "npc_pose", "npc_record", "op_available", "option_row", "options",
     "party_host", "pause_pending", "pick_holds", "pick_point", "play", "player_delayed",
@@ -2582,6 +2591,7 @@ push_drive_table(
     bind(L, bot, "route", d_route);
     bind(L, bot, "plan", d_plan);
     bind(L, bot, "aplan", d_aplan);
+    bind(L, bot, "meet_rank", d_meet_rank);
     bind(L, bot, "say", d_say);
     bind(L, bot, "tab_by_name", d_tab_by_name);
     bind(L, bot, "pause_pending", d_pause_pending);
@@ -2795,6 +2805,117 @@ step_budget_hook(
     luaL_error(L, "instruction budget exhausted (%d)", SCRIPTRUN_STEP_BUDGET);
 }
 
+/* TORIRS_SCRIPTRUN_PROFILE=<file>: a sampling profile of the driver's Lua, one
+ * sample every PROF_EVERY instructions of a resume. A resume that runs at least
+ * TORIRS_SCRIPTRUN_PROFILE_MIN instructions (default 100000) writes its samples
+ * by function (inclusive, by the chunk line the function is defined on) and by
+ * current line (self). The budget is still enforced at the same count. */
+enum
+{
+    PROF_EVERY = 1000,
+    PROF_SLOTS = 4096,
+    PROF_DEPTH = 24,
+};
+
+struct ProfSlot
+{
+    int key;
+    int n;
+};
+
+static struct
+{
+    FILE* out;
+    int min;
+    int budget;
+    int samples;
+    struct ProfSlot incl[PROF_SLOTS];
+    struct ProfSlot self[PROF_SLOTS];
+} g_prof;
+
+static void
+prof_add(
+    struct ProfSlot* tab,
+    int key)
+{
+    unsigned h = (unsigned)key * 2654435761u;
+    for( int i = 0; i < PROF_SLOTS; i++ )
+    {
+        struct ProfSlot* slot = &tab[(h + (unsigned)i) % PROF_SLOTS];
+        if( slot->n == 0 )
+        {
+            slot->key = key;
+            slot->n = 1;
+            return;
+        }
+        if( slot->key == key )
+        {
+            slot->n++;
+            return;
+        }
+    }
+}
+
+static void
+prof_hook(
+    lua_State* L,
+    lua_Debug* debug)
+{
+    (void)debug;
+    lua_Debug ar;
+    int seen[PROF_DEPTH];
+    int nseen = 0;
+
+    g_prof.samples++;
+    if( g_prof.samples * PROF_EVERY >= g_prof.budget )
+        luaL_error(L, "instruction budget exhausted (%d)", SCRIPTRUN_STEP_BUDGET);
+    if( lua_getstack(L, 0, &ar) && lua_getinfo(L, "l", &ar) )
+        prof_add(g_prof.self, ar.currentline);
+    for( int level = 0; level < 64 && nseen < PROF_DEPTH && lua_getstack(L, level, &ar); level++ )
+    {
+        int dup = 0;
+        if( !lua_getinfo(L, "S", &ar) || ar.linedefined <= 0 )
+            continue;
+        for( int i = 0; i < nseen; i++ )
+            if( seen[i] == ar.linedefined )
+                dup = 1;
+        if( dup )
+            continue;
+        seen[nseen++] = ar.linedefined;
+        prof_add(g_prof.incl, ar.linedefined);
+    }
+}
+
+static int
+prof_cmp(
+    void const* a,
+    void const* b)
+{
+    return ((struct ProfSlot const*)b)->n - ((struct ProfSlot const*)a)->n;
+}
+
+static void
+prof_dump(
+    char const* who,
+    int tick,
+    int status)
+{
+    if( g_prof.samples * PROF_EVERY >= g_prof.min )
+    {
+        fprintf(g_prof.out, "resume %s t%d instr~%d status %d\n", who, tick, g_prof.samples * PROF_EVERY, status);
+        qsort(g_prof.incl, PROF_SLOTS, sizeof(g_prof.incl[0]), prof_cmp);
+        qsort(g_prof.self, PROF_SLOTS, sizeof(g_prof.self[0]), prof_cmp);
+        for( int i = 0; i < 25 && g_prof.incl[i].n > 0; i++ )
+            fprintf(g_prof.out, "  incl %d %d\n", g_prof.incl[i].key, g_prof.incl[i].n);
+        for( int i = 0; i < 25 && g_prof.self[i].n > 0; i++ )
+            fprintf(g_prof.out, "  self %d %d\n", g_prof.self[i].key, g_prof.self[i].n);
+        fflush(g_prof.out);
+    }
+    memset(g_prof.incl, 0, sizeof(g_prof.incl));
+    memset(g_prof.self, 0, sizeof(g_prof.self));
+    g_prof.samples = 0;
+}
+
 /* Resume with `nargs` already pushed; settle the state from the outcome. */
 static void
 bot_resume(
@@ -2813,10 +2934,25 @@ bot_resume(
             char const* e = getenv("TORIRS_SCRIPTRUN_STEP_BUDGET");
             budget = e && atoi(e) > 0 && atoi(e) < SCRIPTRUN_STEP_BUDGET ? atoi(e) : SCRIPTRUN_STEP_BUDGET;
         }
-        lua_sethook(bot->co, step_budget_hook, LUA_MASKCOUNT, budget);
+        if( g_prof.out == NULL && getenv("TORIRS_SCRIPTRUN_PROFILE") )
+        {
+            char const* m = getenv("TORIRS_SCRIPTRUN_PROFILE_MIN");
+            g_prof.out = fopen(getenv("TORIRS_SCRIPTRUN_PROFILE"), "a");
+            assert(g_prof.out);
+            g_prof.min = m && atoi(m) > 0 ? atoi(m) : 100000;
+        }
+        if( g_prof.out )
+        {
+            g_prof.budget = budget;
+            lua_sethook(bot->co, prof_hook, LUA_MASKCOUNT, PROF_EVERY);
+        }
+        else
+            lua_sethook(bot->co, step_budget_hook, LUA_MASKCOUNT, budget);
     }
     status = lua_resume(bot->co, bot->L, nargs, &nres);
     lua_sethook(bot->co, NULL, 0, 0);
+    if( g_prof.out )
+        prof_dump(bot->name, bot->core->tick, status);
 
     if( bot->resume_stamp_pending )
     {

@@ -1307,3 +1307,216 @@ action_plan(
     }
     return 0;
 }
+
+/* ======================================================== MEET RANK
+ * (action_plan.h). Mirrors tob2_verzik_p3.lua VZ.ball_meet_rank (v22) cell
+ * for cell: the padded window, the floods, the levels, the sort. */
+
+enum
+{
+    MR_W_MAX = 2 * MEET_RANK_R_MAX + 1,
+    MR_WP_MAX = MR_W_MAX + 2,
+    MR_CELLS = MR_WP_MAX * MR_WP_MAX,
+};
+
+static unsigned char g_mr_free[MR_CELLS], g_mr_under[MR_CELLS];
+static int g_mr_dt[MR_CELLS], g_mr_dn[MR_CELLS];
+static int g_mr_q[MR_CELLS];
+
+static int
+mr_gap(int x, int z, int fx, int fz, int n)
+{
+    int gx = x < fx ? fx - x : (x > fx + n - 1 ? x - (fx + n - 1) : 0);
+    int gz = z < fz ? fz - z : (z > fz + n - 1 ? z - (fz + n - 1) : 0);
+    return gx > gz ? gx : gz;
+}
+
+/* 0 acceptable, else the first failing test: 1 edge, 2 her, 3 web, 4 crab */
+static int
+mr_bad(const struct MeetRankSpec* s, int x, int z, int her_gap)
+{
+    int i;
+    if( x < s->ax0 + 1 || x > s->ax1 - 1 || z < s->az0 + 1 || z > s->az1 - 1 )
+        return 1;
+    if( s->has_her && mr_gap(x, z, s->her_x, s->her_z, s->her_size) < her_gap )
+        return 2;
+    for( i = 0; i < s->n_webs; i++ )
+        if( s->web_x[i] == x && s->web_z[i] == z )
+            return 3;
+    for( i = 0; i < s->n_crabs; i++ )
+        if( mr_gap(x, z, s->crab_x[i], s->crab_z[i], 2) <= 3 )
+            return 4;
+    return 0;
+}
+
+/* floor division (Lua's //) */
+static int
+mr_fdiv(int a, int b)
+{
+    int q = a / b;
+    if( (a % b != 0) && ((a < 0) != (b < 0)) )
+        q--;
+    return q;
+}
+
+static int
+mr_flood(int fx, int fz, int ox, int oz, int w, int wp, int* dist)
+{
+    static const int OFF_DX[8] = { -1, -1, -1, 0, 0, 1, 1, 1 };
+    static const int OFF_DZ[8] = { -1, 0, 1, -1, 1, -1, 0, 1 };
+    int off[8];
+    int px = fx - ox, pz = fz - oz, s0, h = 0, n = 0, k, reached = 0;
+    for( k = 0; k < 8; k++ )
+        off[k] = OFF_DX[k] * wp + OFF_DZ[k];
+    for( k = 0; k < wp * wp; k++ )
+        dist[k] = -1;
+    if( px < 1 || px > w || pz < 1 || pz > w )
+        return 0;
+    s0 = px * wp + pz;
+    dist[s0] = 0;
+    g_mr_q[n++] = s0;
+    while( h < n )
+    {
+        int c = g_mr_q[h++];
+        int d = dist[c] + 1;
+        int inside = g_mr_under[c];
+        reached++;
+        for( k = 0; k < 8; k++ )
+        {
+            int i = c + off[k];
+            if( (g_mr_free[i] || (inside && g_mr_under[i])) && dist[i] < 0 )
+            {
+                dist[i] = d;
+                g_mr_q[n++] = i;
+            }
+        }
+    }
+    return reached;
+}
+
+static int
+mr_cmp(const void* a, const void* b)
+{
+    const struct MeetRankTile* p = (const struct MeetRankTile*)a;
+    const struct MeetRankTile* q = (const struct MeetRankTile*)b;
+    if( p->k1 != q->k1 )
+        return p->k1 < q->k1 ? -1 : 1;
+    if( p->k2 != q->k2 )
+        return p->k2 < q->k2 ? -1 : 1;
+    if( p->x != q->x )
+        return p->x < q->x ? -1 : 1;
+    if( p->z != q->z )
+        return p->z < q->z ? -1 : 1;
+    return 0;
+}
+
+int
+meet_rank(const struct MeetRankSpec* s, struct MeetRankTile* out, int* n_out, int* cells)
+{
+    static const int OFF_DX[8] = { -1, -1, -1, 0, 0, 1, 1, 1 };
+    static const int OFF_DZ[8] = { -1, 0, 1, -1, 1, -1, 0, 1 };
+    int w, wp, mx, mz, ox, oz, px, pz, i, k, best = 99, n = 0, work = 0;
+    assert(s);
+    assert(out);
+    assert(n_out);
+    assert(s->r >= 1);
+    assert(s->r <= MEET_RANK_R_MAX);
+    assert(s->ticks >= 1);
+    assert(s->max_level >= 1);
+    assert(s->max_level <= 4);
+    assert(s->n_webs >= 0);
+    assert(s->n_webs <= MEET_RANK_WEBS_MAX);
+    assert(s->n_crabs >= 0);
+    assert(s->n_crabs <= MEET_RANK_CRABS_MAX);
+    assert(!s->has_her || s->her_size >= 1);
+    w = 2 * s->r + 1;
+    wp = w + 2;
+    mx = s->t_x;
+    mz = s->t_z;
+    if( s->has_n )
+    {
+        mx = mr_fdiv(s->t_x + s->n_x, 2);
+        mz = mr_fdiv(s->t_z + s->n_z, 2);
+    }
+    ox = mx - s->r - 1;
+    oz = mz - s->r - 1;
+    memset(g_mr_free, 0, sizeof(g_mr_free));
+    memset(g_mr_under, 0, sizeof(g_mr_under));
+    for( px = 1; px <= w; px++ )
+    {
+        int wx = px + ox;
+        int colx = wx >= s->ax0 && wx <= s->ax1;
+        int underx = s->has_her && wx >= s->her_x && wx <= s->her_x + s->her_size - 1;
+        for( pz = 1; pz <= w; pz++ )
+        {
+            int wz = pz + oz;
+            if( colx && wz >= s->az0 && wz <= s->az1 )
+            {
+                if( underx && wz >= s->her_z && wz <= s->her_z + s->her_size - 1 )
+                    g_mr_under[px * wp + pz] = 1;
+                else
+                    g_mr_free[px * wp + pz] = 1;
+            }
+        }
+    }
+    work += mr_flood(s->t_x, s->t_z, ox, oz, w, wp, g_mr_dt);
+    if( s->has_n )
+        work += mr_flood(s->n_x, s->n_z, ox, oz, w, wp, g_mr_dn);
+    /* the levels: one pass, the best level's tiles kept */
+    for( i = 0; i < wp * wp; i++ )
+    {
+        int dt = g_mr_dt[i], dn, need, lvl = 0, r3;
+        if( dt < 0 )
+            continue;
+        dn = 0;
+        if( s->has_n )
+        {
+            dn = g_mr_dn[i];
+            for( k = 0; k < 8; k++ )
+            {
+                int j = i + OFF_DX[k] * wp + OFF_DZ[k];
+                int v;
+                if( j < 0 || j >= wp * wp )
+                    continue;
+                v = g_mr_dn[j];
+                if( v >= 0 && (dn < 0 || v < dn) )
+                    dn = v;
+            }
+            if( dn < 0 )
+                continue;
+        }
+        {
+            int a = (dt + 1) / 2, b = (dn + 1) / 2;
+            need = a > b ? a : b;
+        }
+        {
+            int x = i / wp + ox, z = i % wp + oz;
+            r3 = mr_bad(s, x, z, 3);
+            if( r3 == 0 )
+                lvl = need <= s->ticks - 1 ? 1 : (need <= s->ticks ? 2 : 3);
+            else if( r3 == 2 && need <= s->ticks && mr_bad(s, x, z, 2) == 0 )
+                lvl = 4;
+            if( lvl == 0 || lvl > s->max_level )
+                continue;
+            if( lvl < best )
+            {
+                best = lvl;
+                n = 0;
+            }
+            if( lvl == best )
+            {
+                assert(n < MEET_RANK_OUT_MAX);
+                out[n].x = x;
+                out[n].z = z;
+                out[n].k1 = dt > dn ? dt : dn;
+                out[n].k2 = dt + dn;
+                n++;
+            }
+        }
+    }
+    qsort(out, (size_t)n, sizeof(out[0]), mr_cmp);
+    *n_out = n;
+    if( cells )
+        *cells = work;
+    return best <= 4 ? best : 0;
+}

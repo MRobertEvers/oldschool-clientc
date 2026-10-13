@@ -446,107 +446,59 @@ end
 --   RE-CHECK each tick: T turned unacceptable (a web landed on it, a crab
 --            blast band) -> the next tile in the same ranking, same tick on
 --            every seat. None acceptable -> batch 13's meeting tile.
-function VZ.ball_meet_rank(S, F, Bl, t_from, n_from, reads, land_hi, slack, her_gap)
-    slack = slack or 1
-    her_gap = her_gap or 3
+function VZ.ball_meet_rank(S, F, Bl, t_from, n_from, reads, land_hi, max_level)
+    -- THE RANK IS C (api_drive.meet_rank, action_plan.c meet_rank; owner
+    -- 2026-10-13: "implement the search function in C rather than lua"): the
+    -- Lua version's two 25x25 floods and its cascade spent the client's
+    -- 400000-step budget on all five seats at once (v3_1e3_256 f210 t2849,
+    -- f213 t2706). The same answer, cell for cell (action_plan.h MEET RANK):
+    --   1  3+ off her, both seats there with a tick to spare
+    --   2  3+ off her, with no tick to spare
+    --   3  3+ off her, reachable at all (the best the two can do)
+    --   4  2 off her (out of her melee's reach, in the scan band), no tick spare
+    -- in a window of 25 round the two seats' midpoint, walking round her body
+    -- (a seat under her walks out), sorted by the slower seat's walk, the
+    -- total, x, z. -> the list, its acceptability test, the level (0: none).
+    max_level = max_level or 4
     local V, A, base = QD.VZP3, QD.VZP3.ARENA, S.base
     local b = Bl.her or F.boss
-    local list, why = {}, {}
-    local function bad(x, z)
-        if x < base.x + A.x0 + 1 or x > base.x + A.x1 - 1 or z < base.z + A.z0 + 1 or z > base.z + A.z1 - 1 then return "edge" end
-        if b and QD.raid._tob_gap(x, z, b.x, b.z, V.SIZE) < her_gap then return "her" end
-        for _, h in ipairs(S.web_hazards) do
-            if h.x == x and h.z == z and h.from <= land_hi and h.to >= reads then return "web" end
+    local ticks = math.max(1, reads - F.tick)
+    local ex0, ex1, ez0, ez1 = base.x + A.x0 + 1, base.x + A.x1 - 1, base.z + A.z0 + 1, base.z + A.z1 - 1
+    local webs, wl = {}, {}
+    for _, h in ipairs(S.web_hazards) do
+        if h.from <= land_hi and h.to >= reads then
+            local key = h.x * 65536 + h.z
+            if not webs[key] then
+                webs[key] = true
+                if #wl < 128 then wl[#wl + 1] = { x = h.x, z = h.z } end
+            end
         end
-        for _, c in pairs(S.vz.crab or {}) do
-            if not c.blasted and QD.raid._tob_gap(x, z, c.x, c.z, 2) <= 3 then return "crab" end
+    end
+    local crabs, cl = {}, {}
+    for _, c in pairs(S.vz.crab or {}) do
+        if not c.blasted then
+            crabs[#crabs + 1] = c
+            if #cl < 16 then cl[#cl + 1] = { x = c.x, z = c.z } end
+        end
+    end
+    local function bad_at(x, z, her_gap)
+        if x < ex0 or x > ex1 or z < ez0 or z > ez1 then return "edge" end
+        if b and QD.raid._tob_gap(x, z, b.x, b.z, V.SIZE) < her_gap then return "her" end
+        if webs[x * 65536 + z] then return "web" end
+        for _, c in ipairs(crabs) do
+            if QD.raid._tob_gap(x, z, c.x, c.z, 2) <= 3 then return "crab" end
         end
         return nil
     end
-    local ticks = math.max(1, reads - F.tick)
-    -- WALKING distances round her body (8-way steps, her footprint at first
-    -- sight blocked, the arena's edge): by straight-line distance a tile
-    -- across her looked reachable and was not (bm_x vp10 t891: the target
-    -- 6 off with her between, plan risk from k3, the un-bounced landing)
-    -- (cheap: an 8-way flood on a 19x19 window as flat arrays; the
-    -- instruction budget is 400000 a tick, E13 - the first version spent it)
-    -- (12: two seats boxed between her body and the arena's west wall had no
-    -- acceptable tile within 7 of their midpoint - integ_d f63 t2853, edge
-    -- 144 her 81 of 225, "T none of 0", the un-bounced first hop)
-    local R = 12
-    local W = 2 * R + 1
-    -- (the window round the MIDPOINT of the two seats: round the target's
-    -- tile alone, a next 10+ off on her far side started outside it, its
-    -- flood was empty and no tile ranked - ifin3q vp10 t893)
-    local mx, mz = t_from.x, t_from.z
-    if n_from then mx, mz = (t_from.x + n_from.x) // 2, (t_from.z + n_from.z) // 2 end
-    local ox, oz = mx - R, mz - R
-    local ax0, ax1, az0, az1 = base.x + A.x0, base.x + A.x1, base.z + A.z0, base.z + A.z1
-    local hx0, hx1, hz0, hz1 = -1, -2, -1, -2
-    if b then hx0, hx1, hz0, hz1 = b.x, b.x + V.SIZE - 1, b.z, b.z + V.SIZE - 1 end
-    local DX = { -1, 0, 1, -1, 1, -1, 0, 1 }
-    local DZ = { -1, -1, -1, 0, 0, 1, 1, 1 }
-    local function bfs(from)
-        local dist = {}
-        if from == nil then return dist end
-        local fx, fz = from.x - ox, from.z - oz
-        if fx < 0 or fx >= W or fz < 0 or fz >= W then return dist end
-        local qx, qz, h, n = { fx }, { fz }, 1, 1
-        dist[fx * W + fz] = 0
-        while h <= n do
-            local cx, cz = qx[h], qz[h]
-            local d = dist[cx * W + cz] + 1
-            h = h + 1
-            for k = 1, 8 do
-                local x, z = cx + DX[k], cz + DZ[k]
-                if x >= 0 and x < W and z >= 0 and z < W and dist[x * W + z] == nil then
-                    local wx, wz = x + ox, z + oz
-                    if wx >= ax0 and wx <= ax1 and wz >= az0 and wz <= az1
-                        and not (wx >= hx0 and wx <= hx1 and wz >= hz0 and wz <= hz1) then
-                        dist[x * W + z] = d
-                        n = n + 1
-                        qx[n], qz[n] = x, z
-                    end
-                end
-            end
-        end
-        return dist
-    end
-    local dT = bfs(t_from)
-    local dN = bfs(n_from)
-    local function at(dist, x, z)
-        local lx, lz = x - ox, z - oz
-        if lx < 0 or lx >= W or lz < 0 or lz >= W then return nil end
-        return dist[lx * W + lz]
-    end
-    for x = mx - R, mx + R do
-        for z = mz - R, mz + R do
-            local dt = at(dT, x, z)
-            local dn = 0
-            if n_from and dt then
-                -- (within 1 of T: the best of T and its 8 neighbours)
-                dn = nil
-                dn = at(dN, x, z)
-                for k = 1, 8 do
-                    local v = at(dN, x + DX[k], z + DZ[k])
-                    if v and (dn == nil or v < dn) then dn = v end
-                end
-            end
-            if dt and dn and (dt + 1) // 2 <= ticks - slack and (dn + 1) // 2 <= ticks - slack then
-                local r = bad(x, z)
-                if r == nil then
-                    list[#list + 1] = { x = x, z = z, k1 = math.max(dt, dn), k2 = dt + dn }
-                end
-            end
-        end
-    end
-    table.sort(list, function(p, q)
-        if p.k1 ~= q.k1 then return p.k1 < q.k1 end
-        if p.k2 ~= q.k2 then return p.k2 < q.k2 end
-        if p.x ~= q.x then return p.x < q.x end
-        return p.z < q.z
-    end)
-    return list, bad
+    local r, list, level = api_drive.meet_rank{
+        t = { x = t_from.x, z = t_from.z }, n = n_from and { x = n_from.x, z = n_from.z } or nil,
+        her = b and { x = b.x, z = b.z, size = V.SIZE } or nil,
+        arena = { x0 = base.x + A.x0, z0 = base.z + A.z0, x1 = base.x + A.x1, z1 = base.z + A.z1 },
+        ticks = ticks, max_level = max_level, r = 12, webs = wl, crabs = cl }
+    assert(r == "ok", "meet_rank answered " .. tostring(r))
+    if level == 0 then level = 99 end
+    local gap = (level == 4) and 2 or 3
+    return list, function(x, z) return bad_at(x, z, gap) end, level
 end
 
 function VZ.ball_chain(S, F)
@@ -575,22 +527,7 @@ function VZ.ball_chain(S, F)
             Bl.meet_list, Bl.meet_i = nil, nil
             if t0 then
                 local land_hi = math.max(Bl.land, Bl.land_hi or Bl.land)
-                Bl.meet_list, Bl.meet_bad = VZ.ball_meet_rank(S, F, Bl, t0, nfrom, Bl.land - 1, land_hi)
-                -- (none with a tick to spare: with none to spare; none at all:
-                -- the best the two can do, by the slower walk - the holder's
-                -- own tile left the next 14 off round her body, ifin2_all
-                -- vp10 t893, "T none of 0" and the un-bounced 74)
-                if #Bl.meet_list == 0 then
-                    Bl.meet_list, Bl.meet_bad = VZ.ball_meet_rank(S, F, Bl, t0, nfrom, Bl.land - 1, land_hi, 0)
-                end
-                if #Bl.meet_list == 0 then
-                    Bl.meet_list, Bl.meet_bad = VZ.ball_meet_rank(S, F, Bl, t0, nfrom, Bl.land - 1, land_hi, -99)
-                end
-                -- (and only then nearer her: gap 2 is out of her melee's
-                -- reach, still inside the scan band; better than no tile)
-                if #Bl.meet_list == 0 then
-                    Bl.meet_list, Bl.meet_bad = VZ.ball_meet_rank(S, F, Bl, t0, nfrom, Bl.land - 1, land_hi, 0, 2)
-                end
+                Bl.meet_list, Bl.meet_bad, Bl.meet_level = VZ.ball_meet_rank(S, F, Bl, t0, nfrom, Bl.land - 1, land_hi)
                 Bl.meet_i = 1
             end
             if api_drive.ticklog_mark then
@@ -691,7 +628,7 @@ function VZ.ball_chain(S, F)
             if nlive then
                 local her0 = Bl.her
                 Bl.her = F.boss and { x = F.boss.x, z = F.boss.z } or her0
-                local lst = VZ.ball_meet_rank(S, F, Bl, nlive, live, hread, math.max(Bl.land, Bl.land_hi or Bl.land), 0)
+                local lst = VZ.ball_meet_rank(S, F, Bl, nlive, live, hread, math.max(Bl.land, Bl.land_hi or Bl.land), 2)
                 Bl.her = her0
                 if lst[1] then hx, hz = lst[1].x, lst[1].z end
             end
@@ -1753,6 +1690,21 @@ function VZ.strategy(S, F, B)
             and not QD.raid._tob_beside(F.me.x, F.me.z, F.boss.x, F.boss.z, QD.VZP3.SIZE) then
             hold = F.tick - 1
             read_hi = F.tick + X.H + 2
+        end
+        -- ...AND NOT WHEN THE RUN TO THE MEETING TILE HAS NO TICK TO SPARE: a
+        -- press stands me a tick, and if she steps the attack under way drags
+        -- me a tile her way; with the run needing every tick left but one the
+        -- next was 7 off at its read (v3_1e3_256 f160 t2816: beside her, it
+        -- swung, she stepped, it went a tile west, the un-bounced landing)
+        if (role == "target" or role == "next") and read and S.ball and S.ball.meet_now then
+            local T = S.ball.meet_now
+            local d = cheb(F.me.x, F.me.z, T.x, T.z)
+            local within = (role == "next" and not S.ball.fb) and 1 or ((role == "target" and S.ball.fb) and 1 or 0)
+            d = math.max(0, d - within)
+            if d > QD.VZP3_V2.BALL_RUN * (read - F.tick - 2) then
+                hold = F.tick - 1
+                read_hi = F.tick + X.H + 2
+            end
         end
         local tgt = VZ.her_target(S, F, B, I, hold, read_hi)
         if F.charging and VZ.pools(S, F, B) then

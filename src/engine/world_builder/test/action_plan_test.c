@@ -1035,6 +1035,128 @@ case_z(struct CollisionMap* cm)
     report("(z) a press at a 7x7 from beside it: no step", before);
 }
 
+/* ================================================================ MEET RANK */
+
+static struct MeetRankSpec g_mr;
+static struct MeetRankTile g_mr_out[MEET_RANK_OUT_MAX];
+
+static void
+mr_reset(int ax0, int az0, int ax1, int az1, int tx, int tz, int ticks)
+{
+    memset(&g_mr, 0, sizeof(g_mr));
+    g_mr.ax0 = ax0;
+    g_mr.az0 = az0;
+    g_mr.ax1 = ax1;
+    g_mr.az1 = az1;
+    g_mr.t_x = tx;
+    g_mr.t_z = tz;
+    g_mr.ticks = ticks;
+    g_mr.max_level = 4;
+    g_mr.r = 12;
+}
+
+static int
+mr_gap7(int x, int z, int fx, int fz)
+{
+    int gx = x < fx ? fx - x : (x > fx + 6 ? x - (fx + 6) : 0);
+    int gz = z < fz ? fz - z : (z > fz + 6 ? z - (fz + 6) : 0);
+    return gx > gz ? gx : gz;
+}
+
+/* (mr-a) f63's geometry (integ_d f63 t2853, arena-local): both seats boxed
+ * between her west side and the arena's west edge; a window of 7 held no
+ * acceptable tile, 12 does */
+static void
+case_mr_a(void)
+{
+    int n = 0, lvl, before = g_failures;
+    mr_reset(0, 0, 28, 20, 1, 3, 6);
+    g_mr.has_n = 1;
+    g_mr.n_x = 4;
+    g_mr.n_z = 2;
+    g_mr.has_her = 1;
+    g_mr.her_x = 2;
+    g_mr.her_z = 3;
+    g_mr.her_size = 7;
+    g_mr.r = 7;
+    g_mr.max_level = 3;
+    lvl = meet_rank(&g_mr, g_mr_out, &n, NULL);
+    TEST_ASSERT(lvl == 0 && n == 0, "mr-a: window 7 has no tile 3+ off her (the v20 failure)");
+    g_mr.max_level = 4;
+    g_mr.r = 12;
+    lvl = meet_rank(&g_mr, g_mr_out, &n, NULL);
+    TEST_ASSERT(lvl >= 1 && lvl <= 3, "mr-a: window 12 finds a tile 3+ off her");
+    TEST_ASSERT(n > 0 && mr_gap7(g_mr_out[0].x, g_mr_out[0].z, 2, 3) >= 3, "mr-a: the best tile is 3+ off her");
+    TEST_ASSERT(n > 0 && g_mr_out[0].x >= 1 && g_mr_out[0].z >= 1, "mr-a: the best tile is inside the edge");
+    report("(mr-a) boxed against the wall: the wider window ranks a tile", before);
+}
+
+/* (mr-b) vp10's far-side next (ifin2_all vp10 t893, arena-local): the next 14
+ * tiles from the target with her body between */
+static void
+case_mr_b(void)
+{
+    int n = 0, lvl, before = g_failures;
+    mr_reset(0, 0, 28, 20, 25, 16, 7);
+    g_mr.has_n = 1;
+    g_mr.n_x = 11;
+    g_mr.n_z = 16;
+    g_mr.has_her = 1;
+    g_mr.her_x = 12;
+    g_mr.her_z = 14;
+    g_mr.her_size = 7;
+    lvl = meet_rank(&g_mr, g_mr_out, &n, NULL);
+    TEST_ASSERT(lvl >= 1, "mr-b: a tile both reach");
+    TEST_ASSERT(n > 0 && g_mr_out[0].k1 <= 2 * 7, "mr-b: the slower seat's walk fits the ticks");
+    report("(mr-b) the next on her far side: a meeting tile round her", before);
+}
+
+/* (mr-c) no tile 3+ off her inside the edge: level 4 (gap 2), and none when
+ * max_level forbids it */
+static void
+case_mr_c(void)
+{
+    int n = 0, lvl, i, before = g_failures;
+    mr_reset(0, 0, 12, 12, 1, 6, 6);
+    g_mr.has_her = 1;
+    g_mr.her_x = 3;
+    g_mr.her_z = 3;
+    g_mr.her_size = 7;
+    lvl = meet_rank(&g_mr, g_mr_out, &n, NULL);
+    TEST_ASSERT(lvl == 4, "mr-c: only gap 2 is left: level 4");
+    for( i = 0; i < n; i++ )
+        TEST_ASSERT(mr_gap7(g_mr_out[i].x, g_mr_out[i].z, 3, 3) == 2, "mr-c: every level-4 tile is 2 off her");
+    g_mr.max_level = 3;
+    lvl = meet_rank(&g_mr, g_mr_out, &n, NULL);
+    TEST_ASSERT(lvl == 0 && n == 0, "mr-c: max_level 3 -> none");
+    report("(mr-c) the cascade: gap 2 only when nothing else", before);
+}
+
+/* (mr-d) ties: k1, k2, then x, then z; and a seat under her walks out */
+static void
+case_mr_d(void)
+{
+    int n = 0, lvl, before = g_failures;
+    mr_reset(0, 0, 30, 30, 10, 10, 6);
+    lvl = meet_rank(&g_mr, g_mr_out, &n, NULL);
+    TEST_ASSERT(lvl == 1, "mr-d: open floor, level 1");
+    TEST_ASSERT(n > 3 && g_mr_out[0].x == 10 && g_mr_out[0].z == 10, "mr-d: my own tile first (0, 0)");
+    TEST_ASSERT(n > 3 && g_mr_out[1].x == 9 && g_mr_out[1].z == 9, "mr-d: then (9,9)");
+    TEST_ASSERT(n > 3 && g_mr_out[2].x == 9 && g_mr_out[2].z == 10, "mr-d: then (9,10)");
+    TEST_ASSERT(n > 3 && g_mr_out[3].x == 9 && g_mr_out[3].z == 11, "mr-d: then (9,11)");
+    mr_reset(0, 0, 30, 30, 15, 15, 6);
+    g_mr.has_n = 1;
+    g_mr.n_x = 6;
+    g_mr.n_z = 15;
+    g_mr.has_her = 1;
+    g_mr.her_x = 12;
+    g_mr.her_z = 12;
+    g_mr.her_size = 7;
+    lvl = meet_rank(&g_mr, g_mr_out, &n, NULL);
+    TEST_ASSERT(lvl >= 1 && n > 0, "mr-d: the target under her walks out (fix4q200 f210 t2849)");
+    report("(mr-d) the sort's ties, and a seat under her", before);
+}
+
 static void
 run_all(struct CollisionMap* cm)
 {
@@ -1063,6 +1185,10 @@ run_all(struct CollisionMap* cm)
     case_x(cm);
     case_y(cm);
     case_z(cm);
+    case_mr_a();
+    case_mr_b();
+    case_mr_c();
+    case_mr_d();
 }
 
 int

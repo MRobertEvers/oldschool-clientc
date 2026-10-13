@@ -414,4 +414,59 @@ action_plan(
     const struct ActionPlanSpec* spec,
     struct ActionPlanResult* out);
 
+/*
+ * MEET RANK: Verzik P3's ball-pass meeting tile (tob2_verzik_p3.lua
+ * VZ.ball_meet_rank, here because the Lua spent the client's 400000-step
+ * budget - v3_1e3_256 f210/f213). Pure geometry, no collision map: the P3
+ * arena is open floor, and the rank must answer the same on every lane.
+ *
+ * Two 8-way walking floods in a (2R+1)^2 window round the MIDPOINT of the
+ * target's tile t and the next's tile n: her footprint is not walkable,
+ * except that a seat starting under her may walk OUT from under her (a cell
+ * under her is entered only from another). Then every tile the target's
+ * flood reached, with dn = the next's best distance to it or a neighbour
+ * (within 1 of T), need = max((dt+1)/2, (dn+1)/2) ticks of running, is
+ * levelled, best first:
+ *   1  3+ off her footprint, need <= ticks - 1
+ *   2  3+ off her, need <= ticks
+ *   3  3+ off her, reachable at all
+ *   4  exactly 2 off her (every other test passed), need <= ticks
+ * acceptable = 1+ inside the arena's edge, no web tile, gap > 3 from every
+ * live crab's 2x2. The answer is every tile of the best level <= max_level,
+ * sorted by k1 = max(dt, dn), k2 = dt + dn, then x, then z.
+ */
+enum
+{
+    MEET_RANK_R_MAX = 16,
+    MEET_RANK_WEBS_MAX = 128,
+    MEET_RANK_CRABS_MAX = 16,
+    MEET_RANK_OUT_MAX = (2 * MEET_RANK_R_MAX + 1) * (2 * MEET_RANK_R_MAX + 1),
+};
+
+struct MeetRankSpec
+{
+    int t_x, t_z;               /* the target's tile */
+    int has_n, n_x, n_z;        /* the next's tile (has_n 0: dn = 0) */
+    int has_her, her_x, her_z, her_size; /* her footprint, SW tile */
+    int ax0, az0, ax1, az1;     /* the arena, inclusive */
+    int ticks;                  /* ticks to the read, >= 1 */
+    int max_level;              /* 1..4 */
+    int r;                      /* window half-width, 1..MEET_RANK_R_MAX */
+    int n_webs;
+    int web_x[MEET_RANK_WEBS_MAX], web_z[MEET_RANK_WEBS_MAX];
+    int n_crabs;
+    int crab_x[MEET_RANK_CRABS_MAX], crab_z[MEET_RANK_CRABS_MAX];
+};
+
+struct MeetRankTile
+{
+    int x, z, k1, k2;
+};
+
+/* Fills out[0..*n_out-1] (MEET_RANK_OUT_MAX room) and returns the level
+ * (1..4), or 0 and *n_out = 0 when no tile qualifies. `cells` reports the
+ * flood work (cells reached by both floods). Contract violations asserted. */
+int
+meet_rank(const struct MeetRankSpec* spec, struct MeetRankTile* out, int* n_out, int* cells);
+
 #endif

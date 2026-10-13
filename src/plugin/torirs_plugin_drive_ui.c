@@ -2919,6 +2919,16 @@ lua_drive_aplan(struct lua_State* L)
     }
 }
 
+/* api_drive.meet_rank(spec): Verzik P3's ball meeting-tile rank
+ * (plugin/torirs_drive_plan_lua.h DriveMeetRankLua, shared with scriptrun's
+ * d_meet_rank; engine/world_builder/action_plan.c meet_rank). Pure geometry:
+ * no world, no map. */
+static int
+lua_drive_meet_rank(struct lua_State* L)
+{
+    return DriveMeetRankLua(L, 1);
+}
+
 static int
 lua_drive_route(struct lua_State* L)
 {
@@ -3225,6 +3235,7 @@ static struct LuaFn const LUA_DRIVE_UI_FNS[] = {
     {"route", lua_drive_route},
     {"plan", lua_drive_plan},
     {"aplan", lua_drive_aplan},
+    {"meet_rank", lua_drive_meet_rank},
     {"key", lua_drive_key},
     {"text", lua_drive_text},
     {"shot", lua_drive_shot},
