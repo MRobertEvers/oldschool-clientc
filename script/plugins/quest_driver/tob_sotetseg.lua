@@ -52,11 +52,29 @@ QD.SOTE = {
     -- steps on behind it and keeps FOLLOW_LAG rows back, on tiles that have
     -- glowed only (0 of 428 Blert followers ever stood off the trail)
     ROW2_HOLD = 2, FOLLOW_LAG = 2,
+    -- THE WAY OUT: the realm's portal, loc 33037 tob_sotetseg_darkrealm_exit,
+    -- 8 x 2 on realm local (29,42) (cache map m52_67; content
+    -- [oploc1,tob_sotetseg_darkrealm_exit]). The maze ends only once a runner
+    -- has ENTERED it (content ~tob_sote_realm_open; wiki_Sotetseg.wikitext:97
+    -- "enter the portal at the end to return to the arena"). Blert's runners
+    -- (118 Normal, 88 Hard, recorded from inside the realm) op it from the last
+    -- row: z37 -> z39 -> z41 at a run, a tick held beside it, a tick in it,
+    -- then beside him. PORTAL_RETRY: re-sent after that many ticks unmoved
+    -- short of it (a held op clears a pending interaction, tob2_exec.lua E5);
+    -- PORTAL_EAT: the walk's eat floor (the realm's chip is 1..3 a 7 ticks).
+    PORTAL = { x0 = 29, z0 = 42, w = 8, l = 2 }, PORTAL_RETRY = 2, PORTAL_EAT = 25,
     DEATH_FLIGHT = 15,
     H = 10, BEAM = 32,
 }
 
 local function cheb(ax, az, bx, bz) return QD.raid._tob_cheb(ax, az, bx, bz) end
+
+-- A projectile row's identity across ticks: spotanim, target, source tile and
+-- launch tick (F.tick - elapsed ticks; QD.raid._sote_measure).
+function QD.raid._sote_proj_key(p, pid)
+    local launch = api_drive.tick() - (p.duration - p.cycles_left) // 30
+    return p.spotanim_id .. ":" .. pid .. ":" .. p.src_x .. "," .. p.src_z .. ":" .. launch
+end
 local function gap(x, z, fx, fz, n) return QD.raid._tob_gap(x, z, fx, fz, n) end
 
 function QD.raid._sote_ids()
@@ -103,7 +121,14 @@ function QD.raid._sote_measure(S, F)
     for _, p in ipairs(projs) do
         local pid = (p.target ~= nil and p.target < 0) and (-p.target - 1) or nil
         if pid and (p.spotanim_id == ids.ball or p.spotanim_id == ids.grey or p.spotanim_id == ids.death) then
-            local key = p.spotanim_id .. ":" .. pid .. ":" .. p.src_x .. "," .. p.src_z
+            -- keyed with its LAUNCH tick too (both lanes count a row's elapsed
+            -- flight in whole ticks, so duration - cycles_left is 30 x the
+            -- ticks since launch): a second grey off the same victim tile at
+            -- me, thrown while the first is still in the air, shared every
+            -- other field and was never seen (tob2 g8 q39 t260: a 6-tick grey
+            -- of t255 and a 3-tick one of t260, both off pid 5's tile; the
+            -- second landed unprayed, 42 + 17 + 16)
+            local key = QD.raid._sote_proj_key(p, pid)
             live[key] = true
             -- NEW when it was not in flight LAST tick: two greys from one
             -- victim tile to one raider share every field, and keyed for good
@@ -335,6 +360,7 @@ function QD.raid._sote_step(S, F)
     end
     if phase == "maze_waiter" then station = QD.raid._sote_waiter(S, F, add) end
     if phase == "maze_runner" then station = QD.raid._sote_runner(S, F, add) end
+    if phase == "maze_runner" and QD.raid._sote_portal(S, F) then phase, station = "maze_portal", nil end
     return QD.raid._sote_act(S, F, spec, names, add, phase, target, range, station, intent)
 end
 
@@ -448,6 +474,11 @@ function QD.raid._sote_waiter(S, F, add)
     local V = S.V
     local B = S.base
     local station = nil
+    -- BACK THROUGH THE PORTAL, the maze not over yet (his re-activation is
+    -- 0..3 ticks after my return, Blert 104 of 118; Hard Mode's runners after
+    -- the first wait out the others): beside him already, so my station, off
+    -- the grid - not the waiters' tile south of it across the whole grid
+    if S.ran_maze == S.mazes then return QD.raid._sote_back(S, F, add) end
     do
         -- FOLLOW THE TRAIL: on the grid only tiles that have glowed, the goal
         -- the last of them FOLLOW_LAG rows behind the glow; before the runner
@@ -506,10 +537,85 @@ function QD.raid._sote_waiter(S, F, add)
     return station
 end
 
+-- BACK IN THE ARENA, the maze still on: the arena grid forbidden, my fight
+-- station. -> my station
+function QD.raid._sote_back(S, F, add)
+    local V = S.V
+    local B = S.base
+    local G = V.GRID
+    for x = G.x0, G.x1 do
+        for z = G.z0, G.z1 do
+            add.forbid("grid", { x = B.x + x, z = B.z + z, t0 = F.tick, t1 = F.tick + V.H, tier = "lethal", cost = 50 })
+        end
+    end
+    local st = V.STATION[S.role] or V.STATION[1]
+    return { x = B.x + st.x, z = B.z + st.z }
+end
+
+-- The portal's row in the loc listing (the copy nearest me), or nil.
+function QD.raid._sote_portal_row(S, F)
+    if S.ids.portal == nil then
+        local r, id = api_drive.symbol("loc", "tob_sotetseg_darkrealm_exit")
+        assert(r == "ok", S.who .. ": no loc named tob_sotetseg_darkrealm_exit")
+        S.ids.portal = id
+    end
+    local lr, rows = api_drive.locs(40)
+    if lr ~= "ok" then return nil end
+    local best, bd = nil, nil
+    for _, row in ipairs(rows) do
+        if row.loc_id == S.ids.portal or row.resolved_loc_id == S.ids.portal then
+            local d = cheb(F.me.x, F.me.z, row.x, row.z)
+            if bd == nil or d < bd then best, bd = row, d end
+        end
+    end
+    return best
+end
+
+-- Is my end-of-tick tile the realm grid's last row or north of it (the walk
+-- to the portal is mine to make)?
+function QD.raid._sote_at_exit(S, F)
+    local R = S.V.REALM
+    local bz = F.me.z - F.me.z % 64
+    return F.level == 3 and F.me.z - bz >= R.z1
+end
+
+-- INTO THE PORTAL (v1): from the last row, the op on the portal, the server
+-- walks me (north of the grid only: no rag) and the op takes me out. Re-sent
+-- after PORTAL_RETRY ticks unmoved, beside it too: a held op clears the
+-- pending interaction and the walk goes on without it (a_nm n5: a restore
+-- drunk on the op's tick, the runner stood beside the portal 530 ticks).
+-- The op's own hold is one unmoved tick (content: arrival, the op, in). No
+-- eat or drink on the tick it is sent (S.portal_sent = F.tick, _sote_act).
+-- -> true while it is my turn (the caller sends no walk: it would cancel it)
+function QD.raid._sote_portal(S, F)
+    local V = S.V
+    if not QD.raid._sote_at_exit(S, F) then return false end
+    local bz = F.me.z - F.me.z % 64
+    local moved = S.portal_at == nil or S.portal_at.x ~= F.me.x or S.portal_at.z ~= F.me.z
+    if moved then S.portal_still = 0 else S.portal_still = (S.portal_still or 0) + 1 end
+    S.portal_at = { x = F.me.x, z = F.me.z }
+    local why = nil
+    if S.portal_maze ~= S.mazes then
+        why = "new"
+    elseif S.portal_still >= V.PORTAL_RETRY and F.tick - S.portal_sent >= V.PORTAL_RETRY then
+        why = "stalled"
+    end
+    if why then
+        local row = QD.raid._sote_portal_row(S, F)
+        local r = row and api_drive.world_op("loc", row.loc_id, 1, row.element_id) or "not_found"
+        QD.raid._tob_trace(S, F.tick, "portal op " .. why .. ": " .. tostring(r))
+        S.portal_sent, S.portal_maze = F.tick, S.mazes
+        S.order = nil
+        S.clicks = S.clicks + 1
+    end
+    return true
+end
+
 -- THE MAZE, IN THE REALM: the lit path, the hold on row 2. -> my station
 function QD.raid._sote_runner(S, F, add)
     local V = S.V
     local station = nil
+    S.ran_maze = S.mazes
     do
         -- THE RUNNER: every realm grid cell off the lit path forbidden, the
         -- tornado and its neighbours a lethal zone, the exit row pulled to
@@ -531,7 +637,12 @@ function QD.raid._sote_runner(S, F, add)
                     end
                 end
             end
+            -- THE TOP ROW'S PATH TILE (an even row: one tile), not off the
+            -- grid: the step off is the portal's own walk (QD.raid._sote_portal)
             station = { x = bx + 32, z = bz + V.REALM.z1 + 1 }
+            for _, t in pairs(path) do
+                if t.z == bz + V.REALM.z1 then station = { x = t.x, z = t.z } end
+            end
             -- HOLD ON ROW 2 (0-based) ROW2_HOLD ticks for the team to get
             -- on behind (the wiki: "The maze runner should stop on the third
             -- row and wait"); the realm's tornado rises past row 3, not before
@@ -590,8 +701,20 @@ function QD.raid._sote_act(S, F, spec, names, add, phase, target, range, station
     -- one a seat short of that killed two at 46 and 57, seed so3/sc)
     -- (the brews are the kit's food: two anglerfish, eight brews)
     local eat_below = (phase == "death_ball") and (V.DEATH_EAT or 75) or 60
+    -- the walk to the portal: no walk order (it would cancel the op), and a
+    -- low floor (a held op clears the pending interaction)
+    if phase == "maze_portal" then
+        d.order = nil
+        eat_below = V.PORTAL_EAT
+    end
     QD.raid._tob_supplies(S, F, { overhead = overhead(S, F), boost = "piety", boost_stat = "attack",
         eat_below = eat_below, brew_below = eat_below }, intent)
+    -- the portal op's tick: no held op with it (a held op clears the pending
+    -- interaction; a_nm n5); the drink waits a tick
+    if phase == "maze_portal" and S.portal_sent == F.tick and (intent.eat or intent.drink) then
+        intent.eat, intent.drink = nil, nil
+        S.last_eat, S.last_drink = nil, nil
+    end
     -- THE PRESS THAT BREAKS A BLOCK: an unprayed ball or ricochet at B takes
     -- protection prayers away until B+5 (`varp6891 > map_clock`, prayer.rs2),
     -- so a press lands only ON B+5 or later. The every-other-tick throttle

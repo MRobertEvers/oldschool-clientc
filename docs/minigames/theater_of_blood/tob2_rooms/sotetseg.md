@@ -123,3 +123,153 @@ boosted (+10 both) 78 / 73% -> 84 / 84%, 1 hammer and ~2.8 claws a seat, 1.5 com
 
 PASS: SCRIPTRUN PASS, no raider dead, 0 wrong-style (0 unprayed ball/ricochet outside a block
 cascade). Compare v1 (hm_sotetseg_v1.lua) on the same seeds: pass, ticks, taken per seat.
+
+## The maze's end: the portal (2026-10-13)
+
+Owner: "the sotetseg maze completion requires the completer to go through the gate to get back to
+the overworld." Wiki_Sotetseg.wikitext:97: "The player must follow the red path ... and enter the
+portal at the end to return to the arena"; :102 (Hard) "all but one player into the Shadow Realm ...
+the maze divided among themselves". Content before this: the maze ended at the 4-tick check that
+found nobody on EITHER grid, and the runner was lifted out - a step off the top row (or off the south
+edge at P+5) ended it; the portal op was a shortcut to the same lift.
+
+THE PORTAL. Loc 33037 `tob_sotetseg_darkrealm_exit` (all.loc: "Portal", op1 Enter, 8 x 2,
+anim tob_sotetseg_shadow_portal; tob-qol SotetsegConstants MAZE_UNDERWORLD_PORTAL = 33037), placed by
+the cache map maps/m52_67.jl2 `3 29 42: 33037 10`: realm local x 29..36, z 42..43, four rows north
+of the grid's last row (z 37).
+
+BLERT (tools: scratchpad sote_work/blert_portal.py, blert_portal_hm.py, blert_lastmirror.py,
+blert_hm_realm.py, blert_mazelen.py; Normal = build/blert/sotetseg, 150 trio rooms, mode 11;
+Hard = 60 five-man rooms, mode 12, fetched 2026-10-13 with blert_reference.harvest). A recorder who
+IS a runner keeps its own realm tiles (x 3354..3367 = local 26..39), so the walk is visible:
+
+| | Normal | Hard |
+|---|---|---|
+| runner-recorded mazes | 118 | 88 |
+| path from the last row | z37 -> z39 -> z41 (a run; a column outside 29..36 pulled in to 29/36 on the way), z41 again, z42 (the portal's own south row), then the arena | the same, every runner |
+| last row -> arena | 5: 71, 6: 45, 7: 2 (6 = left from row 13 through row 14) | 5: 68, 6: 19, 7: 1 |
+| return tile | (3275,4327) = his SW + (-2,+1), 154 of 154 | same |
+| re-activation - runner's return | 0: 27, 1: 30, 2: 28, 3: 19, 4: 8, 5+: 5, -1: 1 | the FIRST runner through: 0: 1, 1: 6, 2: 9, 3: 9, 4: 4, 5-7: 3 (32 mazes, all runners seen) |
+| re-activation - last realm-grid tick | 5..13, mode 6; never < 5 (118) - "nobody on either grid" would be 1..4 | 3: 9, 4: 15, 5: 31, 6: 14, 7: 3 (78) |
+| runners still inside at re-activation | - | 3 of 32: they walk on and enter after (18eb075b maze 1: re-activation t171, two on z41, through t173/t174) |
+| re-activation phase, maze 2 - maze 1 mod 4 = 0 | 140 of 150 (the room's 4-tick check) | 27 of 60 (weaker; disclosed) |
+| proc -> re-activation | 14 / 25 / 29 / 33 / 51 (min, quartiles, max), mean 29.7, n 300 | 26 / 34 / 39 / 43 / 55, mean 38.4, n 120 |
+
+CONTENT (tob_sotetseg.rs2, tob.constant):
+- `~tob_sote_maze_tick`: the 4-tick check ends the maze only when the ARENA grid is empty
+  (`~tob_sote_arena_occupied`, was `~tob_sote_grid_occupied`) AND `~tob_sote_realm_open` is false:
+  the realm gone, or nobody inside, or a runner through its portal (`^tob_var_maze_exited`, realm
+  register 118, reset at `~tob_sote_start_maze`). The realm's grid is no longer asked.
+- `[oploc1,tob_sotetseg_darkrealm_exit]`: this engine runs the op the tick AFTER arrival (measured),
+  so `p_delay(^tob_sote_portal_hold_ticks = 0)`, a one-tile `p_exactmove` into the portal's nearest
+  tile (`~tob_sote_portal_tile`), `~tob_sote_enter_portal` (counted on the tick IN the portal, so the
+  check lands 0..3 after the return), `p_delay(0)`, `~tob_sote_leave_realm`. Arrival A, A+1 same
+  tile, A+2 in it, A+3 out - Blert's shape.
+- `~tob_sote_player_tick`: a runner still in the realm after the end is NOT lifted out (Hard's late
+  runners); the realm's chip (`~tob_sote_realm_chip`, factored out of `~tob_sote_runner_tick`) keeps
+  draining them until they enter.
+- `::tobmazeout` (tob_selftest.rs2) puts the runner south of the portal, not past the last row.
+
+SOLVERS. v1 Normal (tob_sotetseg.lua) and v1/v2 Hard (tob_sotetseg_hm.lua, tob2_sotetseg.lua):
+- the runner's pull is the top row's path tile (was one north of the grid); ON the last row it ops
+  the portal (`QD.raid._sote_portal`: one world_op; no walk order while it runs; re-sent after 2
+  unmoved ticks; no eat/drink on the op's tick - a held op clears the pending interaction: a_nm n5
+  before the fix stood beside the portal 530 ticks). v2: state `portal`, `intents.loc_op` on the
+  portal's element with (x, z) on its north row so the exec's stall re-send still fires beside it.
+- a seat back through the portal while the maze still runs (`S.ran_maze == S.mazes`) holds its
+  fight station off the grid (`QD.raid._sote_back`), not the waiters' tile south of the grid.
+- the arena seats already key the realm phase's end on HIS form (8387 -> 8388), which is now the
+  real return; the Normal team's "leaving" on the glow's last two rows is unchanged.
+
+THE KILL HOLD (owner, live: "at like 1.7% hp left, they all just stood there for a long while after
+a red ball and stopped attacking until the next red ball"). Not a lane divergence: scriptrun does it
+too - `SV.fight_mode` held within HOLD_PM of EVERY threshold, the kill (0) included, so from a few
+casts after a pair to the next pair the team stood still (relay_r17_128 f1 t1995-2028; b_hm: 42 of 48
+runs, 1150 seat-1 hold ticks, no hit on him for 41 ticks). At the kill the hold buys nothing: killing
+him now nulls the next pair as surely as killing him under it. Now no hold at th 0 (the burst through
+a pair in the air stays): a_hm 0 hold ticks, longest no-hit gap after the last maze 5.
+
+RESULTS (scriptrun, 48 seeds each, before = v3 48b1733a1 content+solvers, after = this):
+
+| | pass | runs with a death | wrong-style hits (runs) | team dmg | death-ball | chip | maze (proc->react) | realm (proc->out) | fight ticks |
+|---|---|---|---|---|---|---|---|---|---|
+| Normal before (n1-n48) | 48 | 0 | 4 (4) | 326 | 288 | 11 | 26.1 | 26.1 | 416 |
+| Normal after | 48 | 0 | 0 (0) | 323 | 295 | 8 | 25.4 | 22.7 | 411 |
+| Hard v2 before (q1-q48) | 48 | 0 | 10 (8) | 538 | 467 | 46 | 26.1 | 26.1 | 348 |
+| Hard v2 after | 48 | 0 | 20 (11) | 517 | 442 | 45 | 27.9 | 27.3 | 330 |
+
+Our walk now matches Blert's: last row -> out 5 on every runner, re-activation 0..3 after the
+(first) return. Our maze length is set by the ARENA team, not the runner (Normal re-activation is
+7..10 after the runner's last row, before and after): the team leaves the grid late against Blert's
+teams. Hard's wrong-style rise is the kill phase (2 -> 10 hits, 2 -> 5 runs): two styles landing on
+one seat in one tick while fighting (q27 t415 "two-styles k3", predicted, no escape) - the hold used
+to keep the team still and spread there. That is the shared planner's two-style escape, not the maze.
+
+Relays (scriptrun, before -> after, all PASS, no raider dead): Hard v2 f1 3409 -> 3321 ticks, f15
+3194 -> 3169, f43 3164 -> 3136; Normal r1 3754 -> 3865, r2 3991 -> 3849, r3 3662 -> 3617.
+
+Parity (Normal n1, live `run.py tob_sotetseg --party 3 --name n1` against scriptrun, kindcmp
+--align abs): both end on t517; every input, mark, player tile, hit and projectile identical. The
+only rows that differ: maze 2's REALM tornado (npc 8389, plane 3, spawned t356 when the runner - p2,
+not the host - passed row 3) walks the path on scriptrun (15 npc_tile rows, freed t372 on its last
+tile) and never moves live (no npc_tile, freed t372 on its spawn tile). Maze 1's realm tornado, whose
+runner was p1 (the embedding host), is identical on both lanes. So the live lane does not run a
+plane-3 npc's timer when only a REMOTE seat stands in the realm instance: an engine/embed divergence
+that predates this change (the tornado code is untouched); it did not touch the runner here (behind
+him), but it can. OPEN.
+
+## Zero wrong-style (2026-10-13)
+
+The measure: every damaging hit of his outside the maze and the death-ball windows that is not his
+melee (seq 8138 at T, its splat at T+1 on one raider; Protect from Magic is the standing overhead, so
+a melee is unprayed by design). The first count (window heuristic, sote_damage_by_cause.ball_at)
+also counted melees: before 7 hits / 5 runs, after-portal 19 / 11 (b_hm, a_hm, 48 seeds).
+
+Four causes, found one seed at a time (sote-overhead / sote-victim tick-log marks behind
+QD.SOTE_V2.DEBUG_MARKS, off by default):
+
+1. ENGINE: a zone that LOADS for a client on a tick drops that tick's projectiles. The FULL and its
+   state carry locs and objs, so that tick's zone events were skipped; nothing carries a projectile.
+   Runners lifted out of the realm (q36: three of them, t345) never saw the grey thrown at them on
+   t346; the raider walking back from the far end lost the ball at itself. TORIRSSERVER_ZONE_TRACE
+   showed the server sending the t346 projanim to the two raiders already there and nobody else.
+   Fix: `zone_send_transients` (src/torirsserver/torirs_server_zone.c) sends the load tick's
+   PROJANIM and MAPANIM after the state. Six other rooms' harnesses, one seed each, HEAD binary vs
+   this: tick logs byte-identical (maiden, bloat, nylocas, xarpus, verzik P1/P2, verzik P3).
+2. PERCEPTION, a key collision: a projectile was keyed spotanim:target:source tile, so a second grey
+   off the same victim tile at me, thrown while the first was still in the air, was never seen
+   (q39 t260: a 6-tick grey of t255 and a 3-tick one of t260). Now keyed with its launch tick too
+   (`QD.raid._sote_proj_key`, tob_sotetseg.lua; both lanes count elapsed flight in whole ticks).
+3. PERCEPTION, the ricochet's order: a ricochet lands +1 on a recipient with a lower pid than its
+   victim. With the victim out of sight (21 tiles north) v1 named the wrong one (q27 t403) and the
+   grey was expected a tick late. `SV.resolve_victims` now falls back to the balls landing this tick
+   whose target is not seen elsewhere, then to every room raider not in sight (`M.party_pids`).
+4. TWO STYLES ON ONE TICK that position could have avoided (q12/q31/q45 fight start, q3/q13 the
+   walk back, q27/q35 two balls landing on two victims on one tick): `SV.landing_guard` replaces
+   v1's priced ricochet band with forbids. Every landing on me whose flight my tile still decides -
+   a ricochet off a ball landing on a teammate (Lv + (41+8d)//30, +1 below the victim's pid, my
+   tile at the end of Lv or Lv-1), his next ball at me (T + (56+8d)//30, my tile at the end of T-1),
+   and the ricochet off his next ball to any teammate - is forbidden on a tile that puts it on a
+   tick where something already in the air at me lands (the other style), or where another such
+   landing fixed on the same tick or the next lands. `SV.victim_hold`: a raider more than
+   HOLD_RING (4) from his SRC holds its tile while his ball is in the air at it, so the others read
+   its ricochet tile right (q3: the victim walked 3 tiles in the two ticks before its impact).
+
+Results (scriptrun, the final code):
+
+| | seeds | pass | runs with a death | wrong-style | team dmg | death ball | pairs landed/run |
+|---|---|---|---|---|---|---|---|
+| Hard v2 before (v3 HEAD) | q1-48 | 48 | 0 | 7 (5 runs) | 538 | 467 | 2.48 +- 0.09 |
+| Hard v2 portal + kill-hold, no guard | q1-48 | 48 | 0 | 12 (7 runs) | 510 | 438 | 2.35 +- 0.09 |
+| Hard v2 final | q1-96 | 96 | 0 | 0 | 528 | 466 | 2.40 +- 0.07 |
+| Normal final | n1-48 | 48 | 0 | 0 | 323 | 295 | - |
+
+(Hard final q1-48 alone: team 555, death 489; q49-96: ~501. The death-ball term is the rolls of
+the pairs that land - sd 195 a run, se 28 on 48 - and pairs landed did not move.)
+Relays (scriptrun, final): HM v2 f1 3465 / f15 3098 / f43 3172 ticks, Normal r1 3865 / r2 3849 /
+r3 3617: all PASS, no raider dead, 0 wrong-style in the Sotetseg room.
+Parity: HM v2 relay f1 live (`run.py tob_relay_hard_v2 --party 5 --name f1`) against scriptrun,
+kindcmp --align abs: 0 differing ticks over all 3465.
+Server selftest (`torirsserver --selftest`): the Sotetseg maze stanza now checks that stepping off
+the grid does NOT end the maze and that the portal does (`::tobmazeportal`); the four other FAILs
+(the starting-kit stanza) fail identically on HEAD.

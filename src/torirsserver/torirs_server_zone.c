@@ -1993,6 +1993,67 @@ zone_trace_event(
             player->level, event->src_height, event->start_delay);
 }
 
+/*
+ * This tick's TRANSIENT events in `zone` -- a projectile in flight, a spotanim
+ * on a tile -- sent to one client on its own, the way the loaded path below
+ * sends a per-client event. For the tick a zone LOADS for a client: the FULL
+ * and its state (`write_state`) carry the zone's locs and objs, which is why
+ * that tick's loc and obj events are skipped (they would arrive twice), but no
+ * state carries a projectile or a map spotanim, so skipping them lost them.
+ *
+ * Measured (ToB HM Sotetseg, seed q36, TORIRSSERVER_ZONE_TRACE=1): three
+ * runners lifted out of the shadow realm on t345 had the arena's zones load on
+ * t346; the grey ricochet fired at one of them on t346 was sent to the two
+ * raiders who had been in the arena all along and to nobody else, the runner
+ * never saw it, prayed Magic, took 49 and a prayer block. The waiter walking
+ * back from the far end lost the death of its own ball the same way (t344).
+ */
+static void
+zone_send_transients(
+    struct ToriRSServerPlayer* player,
+    struct ToriRSServerZone* zone,
+    int zone_x,
+    int zone_z,
+    int zone_level)
+{
+    struct ToriRSServer* srv = player->world;
+
+    assert(player);
+    assert(zone);
+    if( zone->event_count == 0 )
+        return;
+    for( int e = 0; e < zone->event_count; e++ )
+    {
+        const struct ToriRSServerZoneEvent* event = &zone->events[e];
+        struct ToriRSServerZoneEvent local;
+
+        if( event->kind != TORIRSSERVER_ZONE_EV_PROJANIM && event->kind != TORIRSSERVER_ZONE_EV_MAPANIM )
+            continue;
+        if( event->receiver_pid >= 0 && event->receiver_pid != player->pid )
+            continue;
+        if( zone_event_names_npc(event) )
+        {
+            local = *event;
+            local.target = projanim_target_for_client(player, event->target);
+            event = &local;
+        }
+        zone_trace_event(player, zone_x, zone_z, zone_level, event, "load");
+        if( ToriRSServer_ZoneSubStandalone(srv->wire, event->kind) )
+        {
+            ToriRSServer_SendZoneHeader(player, zone_x, zone_z, zone_level, 0);
+            ToriRSServer_SendZoneSub(player, event);
+            continue;
+        }
+        {
+            uint8_t one[256];
+            int written = ToriRSServer_EncodeZoneSub(srv->wire, one, (int)sizeof(one), event);
+
+            if( written > 0 )
+                ToriRSServer_SendZoneEnclosed(player, zone_x, zone_z, zone_level, one, written);
+        }
+    }
+}
+
 void
 ToriRSServer_ZoneUpdatePlayer(struct ToriRSServerPlayer* player)
 {
@@ -2073,7 +2134,12 @@ ToriRSServer_ZoneUpdatePlayer(struct ToriRSServerPlayer* player)
             {
                 ToriRSServer_SendZoneHeader(player, zone_x, zone_z, zone_level, 1);
                 if( zone )
+                {
                     write_state(player, zone, INT_MIN, INT_MIN);
+                    /* ...but not this tick's projectiles and map spotanims,
+                     * which no state carries (zone_send_transients). */
+                    zone_send_transients(player, zone, zone_x, zone_z, zone_level);
+                }
             }
             entry->loaded = 1;
             continue;

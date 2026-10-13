@@ -33356,8 +33356,12 @@ ToriRSServer_WorldSelftest(void)
          *      literally puts seed 7 under the player's feet);
          *   3. the arena's mirror lights - one tile, tracking a player in
          *      another instance, which is the only thing the team can see;
-         *   4. stepping off the grid ends it within one 4-tick cycle, and he
-         *      comes back as the combat form with his Defence whole.
+         *   4. stepping off the grid does NOT end it (the runner must enter
+         *      the portal: wiki_Sotetseg.wikitext:97; Blert, 118 of 118 Normal
+         *      mazes re-activate 0..3 ticks after the runner's return and never
+         *      sooner than 5 after the last realm-grid tile), and entering the
+         *      portal ends it within one 4-tick cycle, with him back as the
+         *      combat form and his Defence whole.
          */
         {
             static struct ToriRSServerCapture maze;
@@ -33373,6 +33377,7 @@ ToriRSServer_WorldSelftest(void)
             int row = -2;
             int seed0 = -3;
             int ended = -1;
+            int held = -1;
             int defence_back = 0;
             int maze_form_ok = 0;
             char form[32] = "?";
@@ -33468,8 +33473,29 @@ ToriRSServer_WorldSelftest(void)
                                "the arena must be showing the runner's tile, mirror=%d",
                                mirror);
 
-            /* Off the grid, and the room's own 4-tick cycle must notice. */
+            /* Off the grid: the maze holds - the runner has not gone through
+             * the portal. */
             ToriRSServer_ScriptsRunDebugproc(srv, "tobmazeout");
+            for( int t = 0; t < 6; t++ )
+                selftest_tick(srv);
+            ToriRSServer_CaptureBegin(srv, &maze);
+            ToriRSServer_ScriptsRunDebugproc(srv, "tobmazestate");
+            ToriRSServer_CaptureEnd(srv);
+            for( int w = ToriRSServer_CaptureFindNamed(&maze, PKT_NAME_MESSAGE_GAME, 0); w >= 0;
+                 w = ToriRSServer_CaptureFindNamed(&maze, PKT_NAME_MESSAGE_GAME, w + 1) )
+            {
+                const char* text = selftest_message_text(srv, &maze.packets[w]);
+
+                if( text && strncmp(text, "tobmazestate", 12) == 0 )
+                    sscanf(text, "tobmazestate active=%d", &held);
+            }
+            SELFTEST_CHECK(held == 1,
+                           "stepping off the grid must NOT end the maze before the "
+                           "runner enters the portal, active=%d",
+                           held);
+
+            /* Through the portal, and the room's own 4-tick cycle must notice. */
+            ToriRSServer_ScriptsRunDebugproc(srv, "tobmazeportal");
             for( int t = 0; t < 6; t++ )
                 selftest_tick(srv);
             ToriRSServer_CaptureBegin(srv, &maze);
@@ -33501,7 +33527,7 @@ ToriRSServer_WorldSelftest(void)
                 }
             }
             SELFTEST_CHECK(ended == 0,
-                           "stepping off the grid must end the maze within one "
+                           "entering the portal must end the maze within one "
                            "4-tick cycle, active=%d",
                            ended);
             SELFTEST_CHECK(strcmp(form, "combat") == 0,

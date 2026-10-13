@@ -92,6 +92,10 @@ function QD.raid._sote_hm_waiter(S, F, add)
     local V = S.V
     local B = S.base
     local G = V.GRID
+    -- a runner back through the portal while the others finish (the maze
+    -- ends on the first runner's portal, Blert Hard; the content's 4-tick
+    -- check): beside him, off the grid (tob_sotetseg.lua _sote_back)
+    if S.ran_maze == S.mazes then return QD.raid._sote_back(S, F, add) end
     for x = G.x0, G.x1 do
         for z = G.z0, G.z1 do
             add.forbid("grid", { x = B.x + x, z = B.z + z, t0 = F.tick, t1 = F.tick + V.H, tier = "lethal", cost = 50 })
@@ -108,6 +112,7 @@ end
 function QD.raid._sote_hm_runner(S, F, add)
     local V, ids = S.V, S.ids
     local R = V.REALM
+    S.ran_maze = S.mazes
     local bx, bz = F.me.x - F.me.x % 64, F.me.z - F.me.z % 64
     local _, band = api_drive.varbit(ids.band_varbit)
     band = band or 0
@@ -216,7 +221,9 @@ function QD.raid._sote_hm_runner(S, F, add)
     local last_row = R.z1 - R.z0
     local fd = far and dist[far.x .. "," .. far.z] or -1
     if far and far.z - bz - R.z0 >= last_row and mine >= fd - V.CARROT then
-        goal = { x = bx + V.EXIT_X, z = bz + R.z1 + 1 }
+        -- the path's top tile; the step off it is the portal's own walk
+        -- (QD.raid._sote_portal)
+        goal = { x = far.x, z = far.z }
     elseif far then
         local want = math.min(fd, mine + V.CARROT)
         for k, d in pairs(dist) do
@@ -261,6 +268,7 @@ function QD.raid._sote_hm_step(S, F)
     if phase == "death_ball" and QD.raid._sote_hm_death_zones(S, F, add) then station = nil end
     if phase == "maze_waiter" then station = QD.raid._sote_hm_waiter(S, F, add) end
     if phase == "maze_runner" then station = QD.raid._sote_hm_runner(S, F, add) end
+    if phase == "maze_runner" and QD.raid._sote_portal(S, F) then phase, station = "maze_portal", nil end
     return QD.raid._sote_act(S, F, spec, names, add, phase, target, 1, station, intent)
 end
 

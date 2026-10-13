@@ -154,10 +154,14 @@ Message strings (api_drive.messages): `<col=bf0000>A large ball of energy is sho
   Its body may need 2 lateral steps when the col offset changes between rows -> may lag a tick there.
 - END (S.rs2:1282-1330, 1351-1435): checks only on ticks with map_clock % 4 == 0 (S.rs2:1390-1391;
   "off on 3"), not before the landing; in the NPC phase (end-of-previous-tick tiles). If nobody stands
-  on EITHER grid -> maze ends: boss back to 8388, defence restored, first attack end+1, mirror and
-  arena tornado cleared. The runner, still in the realm, is moved on its next player tick to
-  local (11,39) = boss SW + (-2,+1) (S.rs2:1471-1475, 1627-1634; tob.c:2871-2872), gap 2 from him.
-  The portal (op1 on 33037) does the same any time (S.rs2:1621-1625).
+  on the ARENA grid AND a runner has ENTERED the portal (or the realm is empty: every runner out or
+  dead) -> maze ends: boss back to 8388, defence restored, first attack end+1, mirror and arena
+  tornado cleared (2026-10-13, ~tob_sote_realm_open; it used to end on "nobody on either grid", so a
+  runner stepping off the top row ended it). THE PORTAL (op1 on 33037, 8x2 at realm local (29,42)):
+  the op runs the tick after the runner arrives beside it, steps them in (z42) the next tick, counts
+  them through (^tob_var_maze_exited) and lifts them out a tick later to local (11,39) = boss SW +
+  (-2,+1): Blert's arrival A, A+1 same tile, A+2 in it, A+3 out (tob2_rooms/sotetseg.md "The maze's
+  end"). A Hard Mode runner still inside after the end walks on and enters it too; nobody is lifted.
 - Blert maze length proc -> reactivation: 14..47, median 28 (sote_maze.csv, n=26).
 
 ## 4. PERCEPTION
@@ -242,8 +246,8 @@ CONTEXTS:
    not 33035, LETHAL, all ticks (<=180 entries; CM.h:944 FORBID_MAX 256). Tornado: predict its tile
    per tick (spawn tick = the tick after my end-of-tick row first >= 3, tile index j at T+1+j along
    the path) and forbid that path tile and its two neighbours on the path for that tick, LETHAL.
-   Goal: pull to the exit row (z38, row 15) -- leaving the grid north ends the maze at the next
-   %4 tick; the portal click is not needed. No move before P+5 (stunned). steps_per_tick 2 (run on).
+   Goal: the top row's path tile; ON it, the op on the portal (the server walks z37 -> z39 -> z41,
+   off the grid only); the maze ends only once a runner has entered it. No move before P+5 (stunned). steps_per_tick 2 (run on).
 4. MAZE-WAITER (my level 0, maze active). Stay OFF the grid: forbid z22..36 x9..22 LETHAL. Hold at
    (15,20)/(15,21). v2 option: follow the mirror trail (only tiles that have shown 33035), one tick
    behind, never past row 2 until the runner is >=4 path tiles ahead (or the realm tornado spawns
@@ -276,10 +280,9 @@ PASS CRITERIA (tick log, 16 seeds by `--name`):
 
 ## 8. OPEN QUESTIONS / RISKS
 
-1. CONTENT LOOPHOLE: nothing stops the runner stepping SOUTH off the realm grid (z22 is open floor,
-   S.rs2:2003-2006) at P+5: with the team at (15,20) nobody is on either grid, and the next %4 check
-   ends the maze in ~5-8 ticks. Live OSRS needs the portal. Owner ruling needed; the spec's runner
-   walks the path north. Likewise the arena team never has to enter the grid.
+1. CLOSED 2026-10-13 (owner: "the completer [must] go through the gate"): the maze ends only once a
+   runner has entered the portal, so stepping off the realm grid (south or north) ends nothing. The
+   arena team still never has to enter the grid.
 2. Run skipping: content checks only end-of-tick tiles; wiki says no skipping. The planner charges
    middles, so we obey the wiki. If the owner wants the wiki rule, it is a content fix (check the
    path the step took).

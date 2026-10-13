@@ -75,10 +75,8 @@ QD.SOTE_V2 = {
     MELEE_MAX = 45, MELEE_AVG = 23, MELEE_ROLL = 2,
     ATTACK_GAP = 5,
     -- BALLS AND RICOCHETS: 1..50 when unprayed (blocked, or a second style the
-    -- same tick); a second hit of mine landing with one already due costs the
-    -- hit and a block's cascade (BLOCK_COST, PROBE), at P(I am a recipient)
-    -- 2/4 x P(the other style) 1/2
-    BALL_AVG = 25.5, BALL_MAX = 50, BLOCK_COST = 25, RICO_P = 0.25,
+    -- same tick - which SV.landing_guard forbids rather than prices)
+    BALL_AVG = 25.5, BALL_MAX = 50,
     -- THE DEATH BALLS: 1..188 each (^tob_sote_ball_max_5), two at two targets
     -- (^tob_sote_ball_count_hard), split by the raiders within 1 of a target.
     DB_MAX = 188, DB_AVG = 94.5, DB_FLIGHT = 15,
@@ -111,6 +109,13 @@ QD.SOTE_V2 = {
     -- pair (189) per ~60 fight ticks; the wait is the casts still to come.
     HOLD = true, HOLD_PM = 35, BURST_STOP = 3,
     MAGIC_PER_BALL = 10, TICK_COST = 3.2, PAIR_EXP = 189, P_NULL = 0.7,
+    -- SV.landing_guard: the tiles round me it judges (two a tick for the
+    -- horizon's first ticks), and its cap on forbids a tick
+    GUARD_R = 5, GUARD_MAX = 300,
+    DEBUG_MARKS = false,
+    -- SV.victim_hold: a raider farther than this from his SRC holds its tile
+    -- while a ball of his is in the air at it (the stations are at 3)
+    HOLD_RING = 4,
     TORNADO_AVG = 40, TORNADO_MAX = 45,     -- ^tob_sote_tornado 35..45 (tob.constant ~1668)
     STATION_PULL = 0.3, HOLD_PULL = 0.5, MAZE_PULL = 1.0,
     F_KEYS = { "level", "boss", "tornadoes", "maze", "path", "permille", "phase" },
@@ -206,6 +211,9 @@ end
 -- the red landed 242, the grey unprayed, a 15-tick block cascade).
 function SV.resolve_victims(S, F, prev_live)
     local M, ids = S.t2s, S.ids
+    -- every raider this room has shown me (all are in sight at its start)
+    M.party_pids = M.party_pids or {}
+    for _, rd in ipairs(F.raiders) do M.party_pids[rd.pid] = true end
     local open = false
     for _, P in ipairs(S.incoming) do
         if P.first == F.tick and (P.kind == "grey" or P.kind == "red") then open = true end
@@ -216,7 +224,7 @@ function SV.resolve_victims(S, F, prev_live)
             local taken = {}
             for _, p in ipairs(projs) do
                 local pid = (p.target ~= nil and p.target < 0) and (-p.target - 1) or nil
-                local key = pid and (p.spotanim_id .. ":" .. pid .. ":" .. p.src_x .. "," .. p.src_z)
+                local key = pid and QD.raid._sote_proj_key(p, pid)
                 local kind = (p.spotanim_id == ids.grey) and "grey" or ((p.spotanim_id == ids.ball) and "red" or nil)
                 if pid and kind and not (prev_live or {})[key]
                     and not (S.base and p.src_x == S.base.x + S.V.SRC.x and p.src_z == S.base.z + S.V.SRC.z) then
@@ -237,11 +245,52 @@ function SV.resolve_victims(S, F, prev_live)
                         end
                         count(M.prev_raiders)
                         if lo + hi == 0 then count(F.raiders) end
+                        -- A VICTIM OUT OF SIGHT (a raider walking back from the
+                        -- far end is past the player list's reach): the balls
+                        -- of his landing now whose target is not seen on
+                        -- another tile; when they all put the victim on one
+                        -- side of me, that is the order (g8 q27 t403: two balls
+                        -- landed, on pid 4 beside me and on pid 0 21 tiles
+                        -- north; v1 named pid 4, the grey off pid 0 was read a
+                        -- tick late, landed unprayed and blocked protection
+                        -- over the next ricochet: 20 + 9 + 42)
+                        -- (and when that ball was not seen either - it was
+                        -- thrown while I stood in the realm - every raider of
+                        -- the room not in sight now: g8 q15 t211, the runners
+                        -- back from the realm at t205 never saw the ball of t204)
+                        if lo + hi == 0 then
+                            local seen = {}
+                            for _, rd in ipairs(F.raiders) do seen[rd.pid] = rd end
+                            for _, Q in ipairs(S.incoming) do
+                                if Q.kind == "ball" and Q.land == F.tick and Q.pid ~= P.pid then
+                                    local rd = seen[Q.pid]
+                                    if rd == nil or (rd.x == p.src_x and rd.z == p.src_z) then
+                                        if P.pid < Q.pid then lo = lo + 1 else hi = hi + 1 end
+                                    end
+                                end
+                            end
+                        end
+                        if lo + hi == 0 then
+                            local seen = {}
+                            for _, rd in ipairs(F.raiders) do seen[rd.pid] = true end
+                            for q in pairs(M.party_pids) do
+                                if not seen[q] and q ~= P.pid then
+                                    if P.pid < q then lo = lo + 1 else hi = hi + 1 end
+                                end
+                            end
+                        end
                         -- (every ricochet, not only v1's unnamed ones: with two
                         -- balls landing on one tick v1 named the same victim for
                         -- both fans - brew2/q4 seat 2 t192: a red off seat 1 read
                         -- as off seat 4, "196" for a 195 landing)
                         local base = F.tick + p.duration // 30
+                        if QD.SOTE_V2.DEBUG_MARKS then
+                            local rs = {}
+                            for _, rd in ipairs(F.raiders) do rs[#rs + 1] = rd.pid .. "@" .. rd.x .. "," .. rd.z end
+                            api_drive.ticklog_mark("sote-victim p" .. F.pid .. " t" .. F.tick .. " " .. kind .. ">" .. P.pid
+                                .. " src " .. p.src_x .. "," .. p.src_z .. " lo " .. lo .. " hi " .. hi .. " base " .. base
+                                .. " raiders " .. table.concat(rs, " "))
+                        end
                         if lo > 0 and hi == 0 then
                             P.land, P.land2 = base + 1, nil
                         elseif hi > 0 and lo == 0 then
@@ -275,9 +324,9 @@ function SV.adapter(S, F, B)
         if name == "tornado" and S.t2s.unknown then return end   -- the runner's: SV.maze prices it on the path
         local z = { name = name }
         for k, v in pairs(zn) do z[k] = v end
-        if name == "ricochet-onto-mine" then
-            z.tier, z.cost = "damage", X.RICO_P * (X.BALL_AVG + X.BLOCK_COST)
-        end
+        -- (v1's ricochet band: SV.landing_guard forbids the same tiles, and
+        -- the ones it cannot see)
+        if name == "ricochet-onto-mine" then return end
         B.zone(z)
     end
     function add.pull(pl)
@@ -337,6 +386,18 @@ function SV.overhead(S, F)
             local sure = P.land == F.tick + 1 and (P.land2 == nil or P.land2 == P.land)
             if next_land and P.kind == "grey" then grey_next = true grey_sure = grey_sure or sure end
             if next_land and (P.kind == "ball" or P.kind == "red") then red_next = true red_sure = red_sure or sure end
+        end
+    end
+    -- (QD.SOTE_V2.DEBUG_MARKS: what the overhead saw, a tick-log mark a
+    -- tick; off, the tick log is the same)
+    if QD.SOTE_V2.DEBUG_MARKS then
+        local L = {}
+        for _, P in ipairs(S.incoming) do
+            if P.pid == F.pid and P.kind ~= "death" then L[#L + 1] = P.kind .. "@" .. P.first .. ">" .. P.land .. "/" .. tostring(P.land2) end
+        end
+        if #L > 0 then
+            api_drive.ticklog_mark("sote-overhead p" .. F.pid .. " t" .. F.tick .. " " .. table.concat(L, " ")
+                .. " lit " .. tostring(F.lit.protectfrommagic) .. tostring(F.lit.protectfrommissiles) .. " blk " .. tostring(S.block_until))
         end
     end
     if grey_sure and not red_sure then return "protectfrommissiles" end
@@ -429,7 +490,15 @@ function SV.fight_mode(S, F)
     local th = SV.threshold(F.permille)
     if X.HOLD and F.permille - th <= X.HOLD_PM then
         if pair and F.tick <= pair.land - X.BURST_STOP then return "burst", pair end
-        if pair == nil then
+        -- NEVER AT THE KILL (th 0): killing him now nulls the next pair as
+        -- surely as killing him under it, and sooner - the hold there only
+        -- stood the team still from a few casts after one pair to the next
+        -- (owner 2026-10-12, live: "at like 1.7% hp left, they all just stood
+        -- there for a long while after a red ball and stopped attacking until
+        -- the next red ball"; scriptrun the same, relay_r17_128 f1 t1995-2028,
+        -- 33 ticks held at the kill). The burst still runs there: a pair in
+        -- the air is nulled by his death before it lands.
+        if pair == nil and th > 0 then
             local wait = math.max(0, X.MAGIC_PER_BALL - M.casts) * X.ATTACK_GAP + X.ATTACK_GAP
             if wait * X.TICK_COST <= X.P_NULL * X.PAIR_EXP then return "hold", nil end
         end
@@ -454,34 +523,159 @@ function SV.stack_zones(S, F, B)
     end
 end
 
--- v1's ricochet-onto-my-landing band (_sote_fight_zones) for the tick a
--- hit of mine lands when its victim was not known (P.land2 = land + 1): v1
--- banded only P.land, and a grey of unknown victim landing land2 met a red
--- from a second victim on that tick - one unprayed, the block, a third hit
--- in it: 46 + 24 + 45 on seat 1 (r5_sote q16 t352-354).
-function SV.ricochet_land2(S, F, B)
-    local X = QD.SOTE_V2
-    for _, Pm in ipairs(S.incoming) do
-        if Pm.pid == F.pid and Pm.kind ~= "death" and Pm.land2 and Pm.land2 >= F.tick + 2 then
-            for _, Pv in ipairs(S.incoming) do
-                if Pv.kind == "ball" and Pv.pid ~= F.pid and Pv.land < Pm.land2 then
-                    local order = (F.pid < Pv.pid) and 1 or 0
-                    local ft = Pm.land2 - Pv.land - order
-                    local tm = (F.pid < Pv.pid) and Pv.land or (Pv.land - 1)
-                    if ft >= 1 and tm >= F.tick + 1 then
-                        local dmin = math.max(0, -((41 - 30 * ft) // 8))
-                        local dmax = (30 * (ft + 1) - 1 - 41) // 8
-                        local V_ = nil
-                        for _, rd in ipairs(F.raiders) do if rd.pid == Pv.pid then V_ = rd end end
-                        if V_ and dmax >= dmin and #B.spec.zones < QD.T2.V.ZONES_MAX - 4 then
-                            B.zone{ name = "ricochet-onto-land2", x = V_.x, z = V_.z, size = 1, lo = dmin, hi = dmax,
-                                t0 = tm, t1 = tm, tier = "damage", cost = X.RICO_P * (X.BALL_AVG + X.BLOCK_COST) }
-                        end
+-- NO TWO STYLES ON ONE TICK (owner: 0 wrong-style). Protection blocks one
+-- style a tick; a second style landing with it goes through and blocks
+-- protection for 5 ticks (the cascade). Every landing on me that is still
+-- MINE TO MOVE is a flight fixed by my tile at one tick:
+--   a ricochet off a ball landing on a teammate V at Lv: Lv + (41 + 8d) // 30,
+--     +1 when my pid is below V's (my impact queue runs first), d my distance
+--     from V when V's queue runs - the end of Lv when my pid is lower, of
+--     Lv - 1 otherwise (content [proc,tob_sote_ricochet]; 6,031 ricochets on
+--     v1's sweep so7). Style random: it clashes with anything.
+--   his next ball at me (1 in 5): T + (56 + 8d) // 30, d from his SRC at the
+--     end of T - 1 (his NPC turn reads it). Always magic: it clashes only
+--     with a grey.
+-- So on each such tick every tile that would put one of those on a tick
+-- where something else of mine lands - a projectile already in the air at
+-- me (its landing window [land, land2]), or another of these off the same
+-- tick's tiles - is forbidden. Measured (a_hm/c_hm, 48 seeds, 12 hits in 7
+-- runs): q12/q31/q45 a ricochet onto the tick of his ball at me; q37/q3 his
+-- ball onto a ricochet's tick; q35/q27 two ricochets off two victims whose
+-- balls landed on one tick (a long flight to the raider walking back from
+-- the far end and a short one to the next target) - v1's band saw only the
+-- first, and priced it.
+function SV.landing_guard(S, F, B)
+    if F.level == 3 or F.maze or S.base == nil then return end
+    local X, V = QD.SOTE_V2, S.V
+    local now, hz = F.tick, F.tick + B.h
+    local me = F.pid
+    local fixed = {}
+    for _, P in ipairs(S.incoming) do
+        if P.pid == me and P.kind ~= "death" then
+            for t = P.land, P.land2 or P.land do
+                if t >= now + 1 then fixed[#fixed + 1] = { t = t, grey = P.kind == "grey" } end
+            end
+        end
+    end
+    local tile_of = {}
+    for _, rd in ipairs(F.raiders) do tile_of[rd.pid] = rd end
+    -- the ricochets still mine to move: { tm, lv, o, v }
+    local rics = {}
+    for _, P in ipairs(S.incoming) do
+        if P.kind == "ball" and P.pid ~= me and tile_of[P.pid] then
+            local o = (me < P.pid) and 1 or 0
+            local tm = (me < P.pid) and P.land or (P.land - 1)
+            if tm >= now + 1 and tm <= hz then
+                rics[#rics + 1] = { tm = tm, lv = P.land, o = o, v = tile_of[P.pid] }
+            end
+        end
+    end
+    local slots = {}
+    if F.boss and F.boss.npc_id == S.ids.boss and S.slot_next then
+        for k = 0, 3 do
+            local T = S.slot_next + X.ATTACK_GAP * k
+            if T - 1 >= now + 1 and T - 1 <= hz then slots[#slots + 1] = T end
+        end
+    end
+    if #rics == 0 and #slots == 0 then return end
+    if #fixed == 0 and #rics + #slots <= 1 then return end
+    local function clash_fixed(t, grey_only)
+        for _, f in ipairs(fixed) do
+            if f.t == t and (not grey_only or f.grey) then return true end
+        end
+        return false
+    end
+    local src = { x = S.base.x + V.SRC.x, z = S.base.z + V.SRC.z }
+    -- every landing still mine to move: the tick my tile fixes it, its
+    -- landing from a tile, and whether it is magic (his ball)
+    local mov = {}
+    for _, r in ipairs(rics) do
+        mov[#mov + 1] = { tk = r.tm, red = false, land = function(x, z)
+            return r.lv + (41 + 8 * cheb(x, z, r.v.x, r.v.z)) // 30 + r.o end }
+    end
+    for _, T in ipairs(slots) do
+        mov[#mov + 1] = { tk = T - 1, red = true, land = function(x, z)
+            return T + (56 + 8 * cheb(x, z, src.x, src.z)) // 30 end }
+    end
+    -- THE RICOCHETS THAT MAY COME: his ball at slot T may go to any teammate
+    -- V (1 in 5); it lands T + (56 + 8 d(V, SRC)) // 30 and its ricochet at
+    -- me is fixed by my tile a tick or so later - one tick of notice from the
+    -- throw, too few to step out of a band (g8 q13 t342: a ricochet off the
+    -- teammate beside me onto the tick of a grey known since t339). Judged
+    -- only against what is already in the air at me (fixed), the teammate on
+    -- its tile now.
+    local hyp = {}
+    for _, T in ipairs(slots) do
+        for _, rd in ipairs(F.raiders) do
+            if rd.pid ~= me then
+                local lv = T + (56 + 8 * cheb(rd.x, rd.z, src.x, src.z)) // 30
+                local o = (me < rd.pid) and 1 or 0
+                local tm = (me < rd.pid) and lv or (lv - 1)
+                if tm >= now + 1 and tm <= hz then
+                    hyp[#hyp + 1] = { tk = tm, land = function(x, z)
+                        return lv + (41 + 8 * cheb(x, z, rd.x, rd.z)) // 30 + o end }
+                end
+            end
+        end
+    end
+    local R = X.GUARD_R
+    local n = 0
+    local function forbid(x, z, t, name)
+        if n >= X.GUARD_MAX then return end
+        n = n + 1
+        B.hit{ name = name, x = x, z = z, size = 1, t0 = t, t1 = t, forbid = true }
+    end
+    for dx = -R, R do
+        for dz = -R, R do
+            local x, z = F.me.x + dx, F.me.z + dz
+            local l = {}
+            for i, m in ipairs(mov) do l[i] = m.land(x, z) end
+            for _, h in ipairs(hyp) do
+                if clash_fixed(h.land(x, z), false) then forbid(x, z, h.tk, "two-styles-maybe") end
+            end
+            for i, m in ipairs(mov) do
+                -- against what is already in the air at me (his ball is
+                -- magic: only a grey clashes with it)
+                if clash_fixed(l[i], m.red) then forbid(x, z, m.tk, m.red and "two-styles-ball" or "two-styles-ric") end
+                -- against another landing fixed on the same tick or the next
+                -- (my tile barely changes in one tick: judged on one tile,
+                -- at both ticks); two of his balls are both magic
+                for j = i + 1, #mov do
+                    local m2 = mov[j]
+                    if math.abs(m2.tk - m.tk) <= 1 and l[j] == l[i] and not (m.red and m2.red) then
+                        forbid(x, z, m.tk, "two-styles-pair")
+                        if m2.tk ~= m.tk then forbid(x, z, m2.tk, "two-styles-pair") end
                     end
                 end
             end
         end
     end
+end
+
+-- THE VICTIM HOLDS: a ball of his at me ricochets off the tile I stand on
+-- at the end of its landing tick - 1 (its impact queue runs before my move),
+-- and every teammate's SV.landing_guard reads my tile NOW as that tile. So
+-- with a ball of his in the air at me I stand still until it lands.
+-- (g8 q3 t251-253: pid 3 walking back from the far end, a teammate judged
+-- the ricochet off pid 3's tile of t251, pid 3 was 3 tiles on at t253, and
+-- the clash showed only a tick before it, past escaping.)
+function SV.victim_hold(S, F, B)
+    if F.level == 3 or F.maze or S.base == nil then return end
+    -- ONLY OFF THE STATION RING: at a station (3 from his SRC) every flight
+    -- is 2 ticks and nothing clashes; the clashes come from a raider walking
+    -- in or back (g8 q3, q12, q31). Held at the stations too, the burst lost
+    -- swings: 48 seeds, pairs landed 2.35 -> 2.48 a run, team damage +52.
+    local src = { x = S.base.x + S.V.SRC.x, z = S.base.z + S.V.SRC.z }
+    if cheb(F.me.x, F.me.z, src.x, src.z) <= QD.SOTE_V2.HOLD_RING then return end
+    local last = nil
+    for _, P in ipairs(S.incoming) do
+        if P.kind == "ball" and P.pid == F.pid and P.land - 1 >= F.tick + 1 then
+            last = math.max(last or 0, P.land - 1)
+        end
+    end
+    if last == nil then return end
+    B.zone{ name = "victim-hold", x = F.me.x, z = F.me.z, size = 1, lo = 0, hi = 0, require = true,
+        t0 = F.tick + 1, t1 = math.min(last, F.tick + B.h), tier = "lethal", cost = 30 }
 end
 
 -- THE SPECIALS (QD.SOTE_V2.CLAWS' note). Sets I.gear / I.spec /
@@ -614,8 +808,12 @@ end
 -- (tob_sotetseg_hm.lua ~_sote_hm_maze, all128m), forward only:
 --   land -> run   CARROT path steps past the furthest I have reached
 --   exit          the path I know reaches the last row and I am within
---                 CARROT of its end: its top tile, then one north
---   off           north of the grid: stay
+--                 CARROT of its end: its top tile
+--   portal        on the last row (or north of it): the op on the portal
+--                 (intents.loc_op); the server walks me out of the grid's
+--                 north end and the op takes me back (content
+--                 [oploc1,tob_sotetseg_darkrealm_exit]; the maze ends only on
+--                 a runner's portal, ~tob_sote_realm_open)
 function SV.maze(S, F, B, add)
     local X, V, M = QD.SOTE_V2, S.V, S.t2s
     if F.phase == "maze_waiter" then
@@ -669,12 +867,23 @@ function SV.maze(S, F, B, add)
     end
     if Z.state == "land" and row >= 0 then to("run") end
     if Z.state == "run" and far and far.z - bz - R.z0 >= last_row and Z.best >= fd - V.CARROT then to("exit") end
-    if (Z.state == "run" or Z.state == "exit") and row > last_row then to("off") end
+    if Z.state ~= "portal" and QD.raid._sote_at_exit(S, F) then to("portal") end
     local goal = nil
-    if Z.state == "off" then
-        goal = { x = F.me.x, z = F.me.z }
+    M.portal_op = nil
+    if Z.state == "portal" then
+        -- the op, on the portal's row (its element). Its (x, z) is the
+        -- portal's NORTH row in my column, two from where I arrive: the
+        -- exec re-sends after PATH_STALL ticks unmoved short of "near" (1),
+        -- so a runner left beside it without the op (a_nm n5: a held op
+        -- cleared it) is sent again, and the op's own hold (one unmoved
+        -- tick, content) is not
+        local pr = QD.raid._sote_portal_row(S, F)
+        if pr then
+            local ax = math.max(bx + V.PORTAL.x0, math.min(bx + V.PORTAL.x0 + V.PORTAL.w - 1, F.me.x))
+            M.portal_op = { loc = pr.loc_id, op = 1, element = pr.element_id, x = ax, z = bz + V.PORTAL.z0 + V.PORTAL.l - 1 }
+        end
     elseif Z.state == "exit" and far then
-        if F.me.x == far.x and F.me.z == far.z then goal = { x = far.x, z = far.z + 1 } else goal = far end
+        goal = far
     elseif far and row < 0 then
         -- LANDING, south of the grid: onto the path's first row. (The
         -- first band's row-2 hold forbids row 1 for the next tick, every
@@ -745,10 +954,17 @@ function SV.strategy(S, F, B)
         if F.phase == "maze_waiter" or F.phase == "maze_runner" then
             mode, detail = SV.maze(S, F, B, add)
             I.eat_below, I.brew_below = X.FIGHT_EAT, X.FIGHT_EAT
+            if F.phase == "maze_runner" and M.portal_op then
+                -- (a held op clears the pending interaction: the walk's
+                -- floor is low, the realm's chip is 1..3 a 7 ticks)
+                I.loc_op = M.portal_op
+                I.eat_below, I.brew_below = V.PORTAL_EAT, V.PORTAL_EAT
+            end
         else
             -- v1's fight terms: the target, the station, the ricochet band
             local target, station = QD.raid._sote_fight_zones(S, F, add, F.phase)
-            SV.ricochet_land2(S, F, B)
+            SV.landing_guard(S, F, B)
+            SV.victim_hold(S, F, B)
             local pair
             mode, pair = SV.fight_mode(S, F)
             SV.stack_zones(S, F, B)
