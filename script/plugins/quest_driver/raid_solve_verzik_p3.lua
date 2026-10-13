@@ -343,9 +343,10 @@ function QD.raid._vzp3_clock(S, F)
                 S.tank_ok, S.tank_prev, S.face_cleared = false, S.tank_pid, false
                 -- ...and her face is the truth from T+3, and ONLY then: the
                 -- next tick's `~tob_verzik_pick_tank` names the new tank and
-                -- its `~tob_verzik_p3_follow` faces it if it is beside her or
-                -- walks (clearing the face) if not, and the client reads that
-                -- a tick on. Read at T+1 the face was the OLD tank's, a pid
+                -- its `~tob_verzik_p3_follow` faces it, beside her or walking
+                -- at it (she keeps the face while she walks, the PLAYERFACE
+                -- walk, 2026-10-13), and the client reads that a tick on.
+                -- Read at T+1 the face was the OLD tank's, a pid
                 -- other than the last one named, and that seat was taken for
                 -- the tank while the real one stood beside her (xv33 sh
                 -- t1318 -> the melee at t1344). The webs and the yellows
@@ -436,11 +437,12 @@ function QD.raid._vzp3_clock(S, F)
         S.web_face_traced = b.facing
         QD.raid._vzp3_trace(S, F.tick, "webs: she faces " .. tostring(b.facing))
     end
-    -- HER TANK: whom she faces. She turns to it only while it stands at
-    -- range 1 (`~tob_verzik_p3_follow`: `~tob_verzik_face_uid`), and walking
-    -- at it clears the face, so after a Hard Mode re-pick the face still names
-    -- the last tank until she faces again: the tank is known once she faces a
-    -- different raider, or anyone after the face was cleared.
+    -- HER TANK: whom she faces (`~tob_verzik_p3_follow`: `~tob_verzik_face_uid`),
+    -- beside her or walking at it - her walk keeps the face (the PLAYERFACE
+    -- walk, 2026-10-13; before it a walk cleared the face and a Hard Mode
+    -- re-pick was learned only when she reached the new tank). So the face
+    -- names the new tank from the T+3 trust tick: the tank is known once she
+    -- faces a different raider, or anyone after the face was cleared.
     if b and S.webs_at == nil then
         if b.facing ~= nil and b.facing >= 32768 then
             local pid = b.facing - 32768

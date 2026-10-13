@@ -42139,6 +42139,36 @@ ToriRSServer_WorldSelftest(void)
                            "and steps it once no mode owns the tick, at %d,%d", npc->x, npc->z);
 
             /*
+             * `playerface` is the one standing mode that walks a SCRIPT's
+             * waypoint, facing as it goes: an OSRS npc keeps its face entity
+             * while it moves (Verzik P3 stepping out from under her tank, owner
+             * 2026-10-13). Content used to have to drop to `none` to walk, and
+             * `none` releases the latch, so every step shipped "face nobody".
+             * A waypoint the npc's own movers queued (wander's roll, a chase)
+             * is still held, so a wanderer asked a question across a counter
+             * does not stroll off mid-sentence.
+             */
+            npc->mode = TORIRSSERVER_NPCMODE_PLAYERFACE;
+            ToriRSServer_NpcSetModeTarget(npc, player);
+            npc_queue_waypoint(npc, start_x + 4, start_z);
+            selftest_tick(srv);
+            SELFTEST_CHECK(npc->x == start_x + 1 && npc->z == start_z,
+                           "a face-mode npc holds a waypoint its own mover queued, moved to %d,%d",
+                           npc->x, npc->z);
+            ToriRSServer_WorldNpcQueueWaypoint(npc, start_x + 4, start_z);
+            selftest_tick(srv);
+            SELFTEST_CHECK(npc->x == start_x + 2 && npc->z == start_z,
+                           "a face-mode npc walks the waypoint npc_walk queued, at %d,%d",
+                           npc->x, npc->z);
+            SELFTEST_CHECK(npc->mode == TORIRSSERVER_NPCMODE_PLAYERFACE &&
+                               npc->face_entity == TORIRSSERVER_FACE_PLAYER_BASE + player->pid,
+                           "and keeps facing its player through the step, mode %d face %d want %d",
+                           npc->mode, npc->face_entity,
+                           TORIRSSERVER_FACE_PLAYER_BASE + player->pid);
+            npc->mode = TORIRSSERVER_NPCMODE_NONE;
+            ToriRSServer_NpcSetModeTarget(npc, NULL);
+
+            /*
              * And an OWNED npc parked in that same modeless state faces its
              * owner rather than nobody.
              *

@@ -9,9 +9,12 @@
 --
 --   the party in at Maiden through t.raid.enter, on both lanes (the board's
 --     way in is test/raids/tob_lobby.lua, live only);
---   per room: arrive, the room's own start sequence (the room test's), the
---     solver on every seat, prayers off, the leader's way out (the gate, the
---     passage: ~tob_carry_party takes every raider in the room along);
+--   per room: arrive, every seat WALKS to the room's door (the corridor side
+--     of its barrier), the room's own start sequence (the room test's), the
+--     solver on every seat, prayers off, and EVERY SEAT'S OWN way out (the
+--     gate, the supply chest after Bloat and after Sotetseg, the passage: each
+--     raider's walk into it is its own transition, tob_raid.rs2
+--     [queue,tob_transition_build]; nobody is carried);
 --   the supply chest after Bloat and after Sotetseg (restores, then brews);
 --   the Dawnbringer: the Xarpus solver's leader takes it from the skeleton;
 --   Verzik P1, P2, P3; the trapdoor, the reward chest, the teleport out.
@@ -176,20 +179,34 @@ function QD.raid.tob_relay_test(mode, opts)
     end
 
 
-    -- THE WAY OUT (tob_raid.rs2 ~tob_exit_walked: walking within reach of the
-    -- room's exit advances the raid, and ~tob_carry_party takes every raider in
-    -- the old room along). The gate first: that copy of the barrier, pinned to
-    -- the room's gate tile (tob.constant ^tob_<room>_gate_lx/lz), steps me
-    -- across. One packet each (t.raid.tob_loc_op, tob_move): the pointer
-    -- library's walk-then-click timed out on scriptrun (relay rl2).
-    local GATE = { maiden = { 49, 30 }, bloat = { 23, 31 }, nylocas = { 31, 31 }, sotetseg = { 15, 19 } }
+    -- THE WAY OUT, EVERY SEAT ITS OWN (owner, 2026-10-12: "they need to run to
+    -- the next room and click the door, or go to the chest then click the door.
+    -- They should not just appear in the next room - that is not how real tob
+    -- works"). tob_raid.rs2 ~tob_exit_walked: walking within reach of the
+    -- room's exit is MY transition; the first raider through builds the next
+    -- room and every later one follows into it (^tob_var_next_handle). The gate
+    -- first: that copy of the barrier, pinned to the room's gate tile
+    -- (tob.constant ^tob_<room>_gate_lx/lz), steps me across. One packet each
+    -- (t.raid.tob_loc_op, tob_move): the pointer library's walk-then-click timed
+    -- out on scriptrun (relay rl2).
+    -- (Xarpus' north gate too: the leader crosses it for the Dawnbringer inside
+    -- the solver, and every other seat has to cross it to reach the door out)
+    local GATE = { maiden = { 49, 30 }, bloat = { 23, 31 }, nylocas = { 31, 31 }, sotetseg = { 15, 19 }, xarpus = { 34, 43 } }
     local EXIT = { maiden = { 40, 6 }, bloat = { 5, 31 }, nylocas = { 39, 51 }, sotetseg = { 15, 5 }, xarpus = { 33, 48 } }
 
     -- Which side of each gate is OUT of the arena (local tiles).
     local OUT = {
         maiden = function(x, z) return x > 49 end, bloat = function(x, z) return x < 23 end,
         nylocas = function(x, z) return z > 31 end, sotetseg = function(x, z) return z < 19 end,
+        xarpus = function(x, z) return z > 43 end,
     }
+    -- THE DOOR: the room's entry tile, on the corridor side of its barrier
+    -- (tob.constant ^tob_<room>_entry_lx/lz, tob_raid.rs2 ~tob_room_entry).
+    -- Every seat walks there from the far end of the corridor it arrived in
+    -- before the room's ready barrier, so the room's start-state sync is behind
+    -- a barrier every seat reached on foot. Verzik has none: her chamber is
+    -- walked into on arrival (~tob_room_arrive) and started by talking to her.
+    local DOOR = { maiden = { 52, 30 }, bloat = { 42, 31 }, nylocas = { 31, 33 }, sotetseg = { 15, 17 }, xarpus = { 34, 24 } }
     -- The room's own square. The Maiden is the exception: the lobby lands the
     -- party at the DOOR end of her walkway, (79,31) in her two-square instance
     -- (tob.constant ^tob_maiden_arrive_lx), so the arrival square is the second
@@ -231,6 +248,44 @@ function QD.raid.tob_relay_test(mode, opts)
             t.ticks(1)
         end
         return false, from
+    end
+
+    -- Walk to the room's door (DOOR), one walk order, the server pathing.
+    local function walk_to_door(t, name, ox, oz)
+        local d = DOOR[name]
+        if d == nil then return true end
+        local tx, tz = ox + d[1], oz + d[2]
+        local at, sent, me = false, nil, nil
+        for i = 1, 90 do
+            local _tr
+            _tr, me = t.world.tile()
+            if me.x == tx and me.z == tz then at = true break end
+            if sent == nil or i - sent >= 30 then
+                t.raid.tob_move(tx, tz)
+                sent = i
+            end
+            t.ticks(1)
+        end
+        t.check(name .. ".door", at, P .. "walked to the door at " .. d[1] .. "," .. d[2] .. "; at "
+            .. (me.x - ox) .. "," .. (me.z - oz))
+        return at
+    end
+
+    -- A seat let out of the cage when the room was won stands at the room's
+    -- entry, outside the arena (tob_spectate.rs2 ~tob_spectate_tick). Bloat is
+    -- the one room whose entry barrier is not its way out (x40 in, x23 out):
+    -- that seat crosses back in first, then walks out with the rest.
+    local function into_arena(t, name, ox, oz)
+        if name ~= "bloat" then return end
+        local _tr, me = t.world.tile()
+        if me.x - ox <= 40 then return end
+        for _ = 1, 4 do
+            t.key("escape")
+            t.raid.tob_loc_op("tob_arena_barrier", 1)
+            t.ticks(5)
+            _tr, me = t.world.tile()
+            if me.x - ox <= 40 then return end
+        end
     end
 
     local function leave_room(t, name, ox, oz)
@@ -819,6 +874,8 @@ function QD.raid.tob_relay_test(mode, opts)
                         .. " for the blowpipe's swap; free slots " .. free_slots(t))
                 end
             end
+            -- TO THE DOOR, every seat on foot, before the room's ready barrier
+            walk_to_door(t, name, ox, oz)
             -- (a seat that failed a room still meets every barrier, fighting
             -- nothing: the party stays in lock step, relay rl5 hung 3000 ticks a
             -- barrier on a caged seat)
@@ -841,18 +898,17 @@ function QD.raid.tob_relay_test(mode, opts)
                 -- 2026-10-10), every seat keeps its whole kit to the end
                 drop_vials(t)
             end
-            if name == "bloat" or name == "sotetseg" then
-                -- every seat through the gate to the supply chest
-                if alive then
-                    through_gate(t, name, ox, oz)
-                    restock(t, name)
-                end
-                t.expect(name .. ".barrier.chest", t.party.barrier(name .. "_chest", 3000))
-            end
             if alive then cleared = cleared + 1 end
-            if name ~= "verzik" and role == 1 and name ~= ORDER[#ORDER] then
-                if name ~= "bloat" and name ~= "sotetseg" then through_gate(t, name, ox, oz) end
-                if not leave_room(t, name, ox, oz) then break end
+            -- EVERY SEAT WALKS OUT ON ITS OWN: through the gate, to the supply
+            -- chest after Bloat and after Sotetseg, then into the passage, which
+            -- takes ME (and only me) to the next room. No barrier between: each
+            -- seat goes when it is done, as raiders do; the next room's arrival
+            -- barrier gathers them.
+            if name ~= "verzik" then
+                into_arena(t, name, ox, oz)
+                through_gate(t, name, ox, oz)
+                if alive and (name == "bloat" or name == "sotetseg") then restock(t, name) end
+                if name ~= ORDER[#ORDER] and not leave_room(t, name, ox, oz) then break end
             end
         end
         if cleared == #ORDER and ORDER[#ORDER] == "verzik" then reward_room(t) end

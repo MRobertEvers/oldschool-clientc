@@ -583,8 +583,9 @@ copy that adds `party = 3,`. The lobby is `_party_smoke`'s phase B (`t.party.for
 `apply`, `accept`, `ready`, `follow_in`). Each room is barrier-synced: `<room>_arrived` (the
 leader reads `t.raid.state`), `<room>_entrance`, `<room>_started` (the starting seat answers the
 barrier's question, the others cross), then ONE `t.raid.play` per raider, then `<room>_done`.
-The leader walks every way out. Its walk into the passage carries everyone standing in the old
-room's square (`tob_raid.rs2 ~tob_carry_party`). Every raider goes down Verzik's trapdoor.
+The leader walks every way out. NOTE (2026-10-12): the passage no longer carries anyone but the
+raider who walks into it (`tob_raid.rs2 ~tob_follow_room`, docs/minigames/theater_of_blood/
+ROOM_TRANSITIONS.md), so this test's members stay in the old room until it walks them out too. Every raider goes down Verzik's trapdoor.
 
 - **A seat is not a role.** `t.raid.play(plan, {role = n})` (raid_play.lua, seam39) plays the
   plan's role n on whichever seat calls it. The relay's `ROLE_IN` gives each room its own map:

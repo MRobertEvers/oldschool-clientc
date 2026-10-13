@@ -71,6 +71,15 @@ QD.NYLO_V2 = {
     CLAWS = { name = "bone_claws", cost = 350, mult = 6 },
     SPEC_LEAD = 4,
     TARGETS = 5,
+    -- THE PAIR AFFINITY (owner, 2026-10-12: "the ranges and magers always end
+    -- up attacking the same nylo ... put affinity on the duplicate roles"):
+    -- the two seats of a style (ranged 1+5, magic 3+4) split that style's
+    -- nylocas between them, each to the seat nearer it, from the view every
+    -- seat shares (the pair's tiles, the rows); P_KILL is one hit's chance to
+    -- finish a fresh small one (measured, 48 seeds: 0.65-0.70 per seat), so a
+    -- small one with a raider's projectile in flight is worth (1-P_KILL)^n
+    AFFINITY = true, P_KILL = 0.65, AFF_EMPTY = 0.5, AFF_URGENT_PCT = 30,
+    BURST_TICKS = 3,                    -- a big one this near its detonation may burst into smalls (barrage_safe)
     KEEP = 1.5, SWITCH_TICKS = 6, WALK_TICKS = 1, SAVE_PCT = 30,
     LIFE = { [1] = 51, [2] = 52 }, SETTLE_AGE = 7, FLICKER_WAVE = 16,
     STATION_PULL = 0.2, EDGE_WEIGHT = 1.0, BOSS_NEAR_COST = 2,
@@ -89,7 +98,7 @@ QD.NYLO_V2 = {
     -- Vasilias' landing: a tile beside it per seat (boss_due)
     DUE_SIDE = { [1] = { x = 30, z = 22 }, [2] = { x = 31, z = 22 }, [3] = { x = 32, z = 22 },
                  [4] = { x = 33, z = 22 }, [5] = { x = 29, z = 23 } },
-    F_KEYS = { "supports", "nylos", "boss", "pct_low", "princes", "prince", "phase" },
+    F_KEYS = { "supports", "nylos", "boss", "pct_low", "princes", "prince", "phase", "inflight", "shots", "split" },
 }
 
 local NV = {}
@@ -109,6 +118,22 @@ function NV.observe(S, F)
         return
     end
     M.obs_tick, M.obs_F = F.tick, F
+    -- THE HITS IN FLIGHT: every raider's projectile at an npc (the nylocas
+    -- and the Prinkipas only throw at raiders), by its target's slot, the
+    -- same rows on every seat's view
+    F.inflight, F.shots = {}, {}
+    local pr, projs = api_drive.projectiles(0)
+    if pr == "ok" then
+        for _, p in ipairs(projs) do
+            local s = p.target_npc_slot
+            if s ~= nil and s >= 0 and (p.cycles_left or 0) > 0 then
+                F.inflight[s] = (F.inflight[s] or 0) + 1
+                -- (its shooter: the raider on its source tile, for the split)
+                F.shots[s] = F.shots[s] or {}
+                F.shots[s][#F.shots[s] + 1] = { x = p.src_x, z = p.src_z }
+            end
+        end
+    end
     -- my attack under way: the life v1's measure reads my nulls on
     local XI = S.x2 and S.x2.interact
     if XI and XI.state == "attacking" and XI.npc and S.lives[XI.npc.slot] then
@@ -497,18 +522,174 @@ function NV.nylo_target(S, F, B, L, style, v, t_ok0, name)
         speed = V.SPEED[style], value = v / NV.hits(L), t_ok0 = t_ok0 }
 end
 
--- The nylocas of `style` I may hit now, by value; the ones claimed by the
--- seats of that style taken out (v1 SPLIT_SAME / first_of: each lower seat
--- of my style takes its best; a helper leaves every owner seat its best).
-function NV.candidates(S, F, style, own)
+-- A kill's worth left after the hits already in flight at it: a one-hit
+-- nylocas with n raider projectiles on the way is dead before my hit lands
+-- with 1 - (1 - P_KILL)^n (a big one needing two keeps its worth for one).
+function NV.inflight_mult(F, L)
+    local n = (F.inflight and L.row and F.inflight[L.row.slot]) or 0
+    if n == 0 then return 1 end
+    local h = NV.hits(L)
+    if h == 1 then return (1 - QD.NYLO_V2.P_KILL) ^ n end
+    if n >= h then return 1 - QD.NYLO_V2.P_KILL end
+    return 1
+end
+
+-- THE PAIR OF MY STYLE: { a, b } (roles, a < b) when two seats share my
+-- style and both stand in the room, else nil. A Prinkipas in its "now" or
+-- "focus" state takes the pair off the nylocas (wave 10/20: every seat;
+-- wave 30: the focus seat is on it and the guard seat guards or joins it),
+-- so no split then: the seat left on the nylocas owns them all.
+function NV.pair(S, F, style)
+    local V, VH = QD.NYLO_V2, QD.NYLO_HM
+    if not V.AFFINITY or #F.raiders ~= 5 then return nil end
+    for _, P in ipairs(F.princes) do
+        if P.colour and P.m and (P.state == "now" or P.state == "focus") then return nil end
+    end
+    local pair = {}
+    for r = 1, 5 do if VH.STYLE_OF_SEAT[r] == style then pair[#pair + 1] = r end end
+    if #pair ~= 2 then return nil end
+    return pair
+end
+
+-- THE SPLIT: each nylocas of the pair's style to the pair seat nearer it
+-- (footprint gap from the seat's tile; a tie to the seat whose STATION is
+-- nearer, then the lower role), then, if one seat holds none and the other
+-- two or more, the one cheapest to hand over (gap to it - gap to the
+-- holder, then the lowest x, z) moves. A pure function of the rows' tiles
+-- and the pair's tiles: every seat computes the same. (Never the npc's
+-- slot: each client numbers the npcs its own way -- q1 t185: one nylocas
+-- was slot 118 to seat 1 and 124 to seat 5.)
+-- -> owner[L.key] = role, for the list `nylos`
+function NV.split(S, F, pair, nylos)
+    local ra, rb = F.raiders[pair[1]], F.raiders[pair[2]]
+    local owner, n, d, held = {}, { [pair[1]] = 0, [pair[2]] = 0 }, {}, {}
+    for _, L in ipairs(nylos) do
+        local ga, gb = gap(ra.x, ra.z, L.x, L.z, L.size), gap(rb.x, rb.z, L.x, L.z, L.size)
+        -- HELD: a pair seat's projectile in flight at it (its source tile is
+        -- that seat's tile, give or take the step since) keeps it that
+        -- seat's while the shot flies -- the split never hands a nylocas
+        -- over mid-attack (dbg4 q1 t146: the partner's walked across the
+        -- line between two darts)
+        local by = { [pair[1]] = false, [pair[2]] = false }
+        for _, sh in ipairs((F.shots and L.row and F.shots[L.row.slot]) or {}) do
+            local da, db = cheb(ra.x, ra.z, sh.x, sh.z), cheb(rb.x, rb.z, sh.x, sh.z)
+            if da <= 1 and da < db then by[pair[1]] = true
+            elseif db <= 1 and db < da then by[pair[2]] = true end
+        end
+        local o
+        if by[pair[1]] ~= by[pair[2]] then
+            o = by[pair[1]] and pair[1] or pair[2]
+            held[L.key] = true
+        elseif ga ~= gb then o = (ga < gb) and pair[1] or pair[2]
+        else
+            local sa, sb = QD.NYLO_HM.STATION[pair[1]], QD.NYLO_HM.STATION[pair[2]]
+            local bx, bz = S.base.x, S.base.z
+            local ha = gap(bx + sa.x, bz + sa.z, L.x, L.z, L.size)
+            local hb = gap(bx + sb.x, bz + sb.z, L.x, L.z, L.size)
+            o = (hb < ha) and pair[2] or pair[1]
+        end
+        owner[L.key], n[o], d[L.key] = o, n[o] + 1, ga - gb
+    end
+    -- THE BALANCE: one seat holding none while the other holds two or more
+    -- takes over the one cheapest to hand over (never one under a shot)
+    for i = 1, 2 do
+        local to, from = pair[i], pair[3 - i]
+        if n[to] == 0 and n[from] >= 2 then
+            local best, bc = nil, nil
+            for _, L in ipairs(nylos) do
+                if owner[L.key] == from and not held[L.key] then
+                    local c = (i == 1) and d[L.key] or -d[L.key]
+                    if bc == nil or c < bc or (c == bc and (L.x < best.x or (L.x == best.x and L.z < best.z))) then
+                        best, bc = L, c
+                    end
+                end
+            end
+            if best then owner[best.key], n[to], n[from] = to, 1, n[from] - 1 end
+        end
+    end
+    return owner
+end
+
+-- The split of `style`'s nylocas for this tick, cached on F: over every
+-- one the pair may swing at in the plan's horizon -- attackable now, or a
+-- lane nylocas settling into the style (the intercept's targets: q1 t188, a
+-- lane target outside the split was the one the partner swung at).
+function NV.split_of(S, F, pair, style)
+    F.split = F.split or {}
+    local owner = F.split[style]
+    if owner then return owner end
+    local ls = {}
+    for _, L in ipairs(F.nylos) do
+        if QD.raid._nylo_attackable(S, F, L, style) then
+            ls[#ls + 1] = L
+        elseif L.lane and not L.dying and not L.aggro then
+            local st = NV.settle(S, F, L)
+            if st == style then ls[#ls + 1] = L end
+        end
+    end
+    owner = NV.split(S, F, pair, ls)
+    F.split[style] = owner
+    return owner
+end
+
+-- Urgent: chewing a pillar under AFF_URGENT_PCT -- either seat of the pair.
+function NV.urgent(S, F, L)
+    if L.aggro then return false end
+    local sp, chewing = NV.pillar_of(S, F, L)
+    return chewing and sp ~= nil and sp.pct < QD.NYLO_V2.AFF_URGENT_PCT
+end
+
+-- The nylocas of `style` I may hit now, by value (after the hits in flight).
+-- MY OWN STYLE, IN A PAIR (`free` false): only the ones the split gives me
+-- and the urgent ones; none of those: the partner's at AFF_EMPTY of their
+-- worth. Otherwise (a helper; no pair; the guard's own pick, `free`) the ones
+-- claimed by the seats of that style taken out (v1 SPLIT_SAME / first_of:
+-- each lower seat of my style takes its best; a helper leaves every owner
+-- seat its best).
+function NV.candidates(S, F, style, own, free)
     local V = QD.NYLO_HM
+    local M = S.t2n
     local list = {}
     for _, L in ipairs(F.nylos) do
         if QD.raid._nylo_attackable(S, F, L, style) then
-            list[#list + 1] = { L = L, v = NV.value(S, F, L) }
+            local m = NV.inflight_mult(F, L)
+            if m < 1 then M.aff_flight = M.aff_flight + 1 end
+            list[#list + 1] = { L = L, v = NV.value(S, F, L) * m }
         end
     end
-    table.sort(list, function(a, b) return a.v > b.v or (a.v == b.v and a.L.slot < b.L.slot) end)
+    local function sorted(t)
+        table.sort(t, function(a, b) return a.v > b.v or (a.v == b.v and a.L.slot < b.L.slot) end)
+        return t
+    end
+    local pair = (style == own and not free) and NV.pair(S, F, style) or nil
+    if pair then
+        local owner = NV.split_of(S, F, pair, style)
+        local mine, other = {}, {}
+        for _, c in ipairs(list) do
+            -- (an URGENT one is both seats': splitting a falling pillar's
+            -- chewers too, or sharing them at a discount, lost a pillar on
+            -- 14 of 144 seeds against 10 shared -- a8/a9 vs a6)
+            if owner[c.L.key] == S.role or NV.urgent(S, F, c.L) then mine[#mine + 1] = c
+            else other[#other + 1] = c end
+        end
+        if #mine > 0 then
+            M.aff_own = M.aff_own + 1
+            return sorted(mine)
+        end
+        -- (the partner's: only the ones needing two hits -- a one-hit nylocas
+        -- is the partner's swing already, and a second one at it is wasted
+        -- P_KILL of the time)
+        local out = {}
+        for _, c in ipairs(other) do
+            if NV.hits(c.L) >= 2 then
+                c.v = c.v * QD.NYLO_V2.AFF_EMPTY
+                out[#out + 1] = c
+            end
+        end
+        if #out > 0 then M.aff_empty = M.aff_empty + 1 end
+        return sorted(out)
+    end
+    sorted(list)
     local taken = {}
     for r = 1, 5 do
         if r ~= S.role and V.STYLE_OF_SEAT[r] == style and (style ~= own or r < S.role) then
@@ -534,6 +715,14 @@ function NV.lane_targets(S, F, style, have)
             local st, t_ok0 = NV.settle(S, F, L)
             if st == style then out[#out + 1] = { L = L, v = NV.value(S, F, L), t_ok0 = t_ok0 } end
         end
+    end
+    -- (in a pair: only the lane nylocas the split gives me)
+    local pair = (style == (QD.NYLO_HM.STYLE_OF_SEAT[S.role] or "melee")) and NV.pair(S, F, style) or nil
+    if pair and #out > 0 then
+        local owner = NV.split_of(S, F, pair, style)
+        local mine = {}
+        for _, c in ipairs(out) do if owner[c.L.key] == S.role then mine[#mine + 1] = c end end
+        out = mine
     end
     table.sort(out, function(a, b) return a.v > b.v or (a.v == b.v and a.L.slot < b.L.slot) end)
     return out
@@ -567,6 +756,35 @@ function NV.prince_mode(S, F, B, I, P)
     return t_ok0 and "switch" or "prince"
 end
 
+-- v1's clump check sees the nylocas standing; two things put a WRONG style
+-- into the splash on the cast's own tick (nulls on 48 seeds, a3-a5: q8, q20,
+-- q32, q35 t375 -- each a big one's two smalls spawned on its tiles the tick
+-- the barrage went out; q29 t368 -- a Prinkipas beside the clump):
+--  * a big one within 2 of the splash that may die or burst before the cast
+--    resolves: its detonation within BURST_TICKS, a raider's projectile at
+--    it, or a bar already down (one hit finishes it; it splits into two
+--    smalls of any style on its tiles);
+--  * a Prinkipas within 2 of the splash (its colour changes on its own clock).
+function NV.barrage_safe(S, F, C)
+    local V = QD.NYLO_V2
+    local cx, cz = C.x + (C.moved and (C.dx or 0) or 0), C.z + (C.moved and (C.dz or 0) or 0)
+    local function near(x, z, size)
+        return gap(cx, cz, x, z, size) <= 2 or gap(C.x, C.z, x, z, size) <= 2
+    end
+    for _, O in ipairs(F.nylos) do
+        if O.size == 2 and near(O.x, O.z, 2) then
+            local r = O.row
+            local hurt = r and r.health_ratio and r.health_scale and r.health_scale > 0 and r.health_ratio < r.health_scale
+            local shot = (F.inflight and r and F.inflight[r.slot] or 0) > 0
+            if O.det - F.tick <= V.BURST_TICKS or shot or hurt or O.dying then return false end
+        end
+    end
+    for _, P in ipairs(F.princes) do
+        if near(P.row.x, P.row.z, V.PRINCE_SIZE) then return false end
+    end
+    return true
+end
+
 -- The nylocas modes: guard, barrage, nylo, switch, intercept.
 function NV.nylo_mode(S, F, B, I, phase)
     local V, VH = QD.NYLO_V2, QD.NYLO_HM
@@ -580,7 +798,7 @@ function NV.nylo_mode(S, F, B, I, phase)
     if guard == nil and V.BARRAGE_SEATS[S.role] and worn == "magic" and #NV.gear(S, "magic") == 0
         and F.tick - S.x2.interact.cast_sent >= V.BARRAGE_SPEED then
         local C, n = QD.raid._nylo_clump(S, F)
-        if C and n >= VH.BARRAGE_MIN then
+        if C and n >= VH.BARRAGE_MIN and NV.barrage_safe(S, F, C) then
             local v = 0
             for _, O in ipairs(F.nylos) do
                 if O.style == "magic" and not O.dying and gap(C.x, C.z, O.x, O.z, O.size) <= 1 then v = v + NV.value(S, F, O) end
@@ -599,7 +817,7 @@ function NV.nylo_mode(S, F, B, I, phase)
     if guard then styles = { guard.style } end
     local scored = {}
     for _, st in ipairs(styles) do
-        local list = NV.candidates(S, F, st, own)
+        local list = NV.candidates(S, F, st, own, guard ~= nil)
         if guard then
             -- the guarded pillar's chewers only
             local gsp = NV.pillar_of(S, F, guard.life)
@@ -640,16 +858,31 @@ function NV.nylo_mode(S, F, B, I, phase)
         have[c.L.key] = true
         n = n + 1
     end
-    -- THE INTERCEPT: the lane nylocas of my style not hittable yet, at the
-    -- tick they settle (the planner walks me to meet them)
+    -- THE INTERCEPT: the lane nylocas of my style not hittable yet. A
+    -- SETTLED one is a target; one still flickering is only a pull to its
+    -- tile at its settle tick: an attack press is not held for t_ok0 -- the
+    -- server swings the moment it is in reach, in the style it shows then
+    -- (a3 q25 t348: a trident press at a wave-31 flicker, still ranged:
+    -- the shield; two nulls in 48 seeds once the pair split left lane
+    -- targets in the plan more often)
+    local early = nil
     if n < V.TARGETS and guard == nil then
         for _, c in ipairs(NV.lane_targets(S, F, style, have)) do
             if n >= V.TARGETS then break end
-            NV.nylo_target(S, F, B, c.L, style, c.v, math.max(c.t_ok0, t_sw or (F.tick + 1)), "lane")
-            n = n + 1
+            if c.t_ok0 <= F.tick + 1 then
+                NV.nylo_target(S, F, B, c.L, style, c.v, math.max(c.t_ok0, t_sw or (F.tick + 1)), "lane")
+                n = n + 1
+            elseif early == nil then
+                early = c
+            end
         end
     end
-    if best_s == nil and phase == "waves" then
+    if n == 0 and early and phase == "waves" then
+        local path = NV.path(S, F, early.L, B.h)
+        local at = path[math.min(#path, math.max(1, early.t_ok0 - F.tick + 1))]
+        B.pull{ name = "lane", x = at.x, z = at.z, size = early.L.size, weight = V.STATION_PULL,
+            t0 = F.tick + 1, t1 = F.tick + B.h }
+    elseif best_s == nil and phase == "waves" then
         local m = QD.raid._nylo_hm_intercept(S, F)
         local st = m or VH.STATION[S.role]
         B.pull{ name = m and "mouth" or "station", x = S.base.x + st.x, z = S.base.z + st.z, size = 1,
@@ -746,6 +979,7 @@ QD.T2.rooms.nylocas = {
             taken = 0, last_hp = nil, supports_max = 0, barrages = 0,
             choice = "melee", pray_switches = 0, collapse_hits = 0, pray_waits = 0,
             sp = { state = "idle", fired = 0, energy = 0 },
+            aff_own = 0, aff_empty = 0, aff_flight = 0,
         }
     end,
 
@@ -961,10 +1195,10 @@ QD.T2.rooms.nylocas = {
         local modes = {}
         for k, n in pairs(M.modes) do modes[#modes + 1] = k .. "=" .. n end
         table.sort(modes)
-        return string.format("nylocas v2: modes %s; taken %d; nulls %d; waves %d (%s); phases %s; supports lost %d; reached %d; bites %d; casts %d; claws %d; pray switches %d waits %d; boss landed %s, M %s; switches %s",
+        return string.format("nylocas v2: modes %s; taken %d; nulls %d; waves %d (%s); phases %s; supports lost %d; reached %d; bites %d; casts %d; claws %d; affinity own %d empty %d flight %d; pray switches %d waits %d; boss landed %s, M %s; switches %s",
             table.concat(modes, " "), M.taken, S.nulls, S.waves, table.concat(S.wave_log, " "),
             table.concat(S.phase_log, " "), M.supports_max - #(M.obs_F and M.obs_F.supports or {}), M.reached_n,
-            M.bites, S.casts or 0, M.sp.fired, M.pray_switches, M.pray_waits, tostring(S.boss_seen and (S.boss_seen - (S.t0 or 0))),
+            M.bites, S.casts or 0, M.sp.fired, M.aff_own, M.aff_empty, M.aff_flight, M.pray_switches, M.pray_waits, tostring(S.boss_seen and (S.boss_seen - (S.t0 or 0))),
             tostring(S.boss_m and (S.boss_m - (S.t0 or 0))), table.concat(S.switch_log, " "))
     end,
 }

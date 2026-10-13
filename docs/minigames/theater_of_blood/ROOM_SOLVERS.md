@@ -1093,9 +1093,13 @@ at every distance: 1,239 of 1,241 walking crabs).
    ready check; everyone follows in.
 2. **Each room**: barrier `pre`, `t.raid.<room>_solve` on every seat (it starts
    the room), barrier `post`.
-3. **Between rooms**: the cleared barrier is a gate; the passage
-   (`tob_dungeon_walkway_exit_clickbox`, Xarpus' `tob_dungeon_xarpus_arena_door_exit`)
-   carries every raider in the old room into the next (`~tob_carry_party`).
+3. **Between rooms**: EVERY seat walks out on its own: the cleared barrier is a
+   gate, the passage (`tob_dungeon_walkway_exit_clickbox`, Xarpus'
+   `tob_dungeon_xarpus_arena_door_exit`) takes the raider who walks into it, and
+   only that raider, into the next room (the first one builds it, the rest
+   follow, `^tob_var_next_handle`; the last out frees the old room). In the next
+   room every seat walks to the room's door before the ready barrier. Rules and
+   sources: ROOM_TRANSITIONS.md.
 4. **Supply chests** after Bloat and after Sotetseg (`tob_midway_chest_closed`
    -> `tob_midway_stores`, a points store; `varb6460_tob_midwaychest_points`):
    each seat buys restores first, then food, for the rooms ahead.

@@ -21,7 +21,8 @@
 --   mode     when                                          terms
 --   cross    outside the barrier after the entry           barrier op every CROSS_GAP; nothing held; my tile held
 --   wait     no Bloat row                                  none
---   attack   down, before the stomp lead (v1 _bloat_state) B.target Bloat (melee, tentacle); Piety
+--   attack   down, before the stomp lead (v1 _bloat_state) B.target Bloat (melee, tentacle); Piety;
+--                                                          the special machine (MB.special) below
 --   hold     hiding; my ring tile holds every branch       B.pull to my tile (GOAL_PULL)
 --            (or nothing better and it holds his way)
 --   hedge    a ring tile within HEDGE lasting longer       B.pull to it
@@ -62,6 +63,28 @@ QD.BLOAT_V2 = {
     -- every crossing tile is safe on every arrival delay.
     CROSS_LZ = { 30, 31, 32, 33 }, CROSS_DELAYS = { 1, 2, 3 },
     ENTRY_TICKS = 400,
+    -- THE SPECIALS (owner 2026-10-12: "in bloat, just use specs when
+    -- available"). Before this the only special was the budget's dump - a
+    -- warhammer whenever energy reached 960 (tob2_budget dump_due), two a seat
+    -- a run (the first down and ~240 ticks later; sp_b_base: 480 hammers in
+    -- 48 runs, 32 a hammer). Energy enters the room at 1000 (every room clear
+    -- refills it, ~tob_restore_party) and nothing is owed before Verzik
+    -- (budget spec_ok), so: the burning claws (obj bone_claws, 350, two-handed,
+    -- speed 4 as the tentacle's) on every swing at him while energy >= 350 -
+    -- ~80 a special on Maiden (sp_m_base: 861 hits of 288 specials, 26.6 a
+    -- hit) against the hammer's 32. Only in the attack mode (he is down,
+    -- before the stomp lead): wield on the walk in (the swing clock is idle
+    -- there), armed for the swing, the melee set back the moment a special
+    -- leaves under 350 or the seat turns to hide. The swing clock is the
+    -- tentacle's, so a special costs the down nothing but the wield's panel.
+    -- HAMMER_ROLES: seats that open the first down with ONE warhammer instead
+    -- (its 30% defence drain helps every later swing; empty = claws only).
+    SPECIALS = true,
+    CLAWS = { name = "bone_claws", cost = 350 },
+    HAMMER = { name = "dragon_warhammer", cost = 500 },
+    HAMMER_ROLES = {},
+    SPEC_SWING = 2,                       -- an armed swing's value, x SWING_VALUE
+    ARM_TICKS = 8,                        -- armed this long with no special: back
 }
 
 local MB = {}
@@ -189,6 +212,93 @@ function MB.hide_goal(S, F)
     return nil, "hug"
 end
 
+-- ================================================================ SPECIALS
+
+-- THE SPECIAL MACHINE (QD.BLOAT_V2.SPECIALS' note; tob2_sotetseg.lua
+-- SV.special's shape): [opener: the hammer, armed until it fired once, the
+-- first down only] -> idle -> wield (the claws, two-handed: a free slot) ->
+-- armed (the orb rides the plan's attack) -> back (the melee set) -> idle.
+-- `attack`: the room's attack mode this tick. Sets I.gear / I.spec /
+-- I.spec_cost when the special owns the tick; -> true when armed.
+function MB.special(S, F, I, attack)
+    local X, M = QD.BLOAT_V2, S.t2b
+    local sp = M.sp
+    local function enter(state, why)
+        QD.raid._tob_trace(S, F.tick, "spec: " .. sp.state .. " -> " .. state .. " (" .. why .. ")")
+        sp.state, sp.since = state, F.tick
+    end
+    if not X.SPECIALS then return false end
+    if sp.state == "opener" then
+        if not attack then
+            if sp.began then enter("back", "the first down is over") end
+        elseif sp.hammer == nil or QD.raid._tob_count(S, sp.hammer) == 0 or F.energy < X.HAMMER.cost then
+            enter("back", "no hammer special")
+        elseif sp.e0 ~= nil and F.energy <= sp.e0 - X.HAMMER.cost + 10 then
+            sp.hammers = sp.hammers + 1
+            enter("back", "hammer fired, energy " .. F.energy)
+        elseif QD.raid._tob_worn(S, sp.hammer) then
+            sp.began = true
+            sp.e0 = sp.e0 or F.energy
+            I.gear, I.spec, I.spec_cost = {}, true, X.HAMMER.cost
+            return true
+        else
+            sp.began = true
+            I.gear = { sp.hammer }
+            return false
+        end
+    end
+    if (sp.state == "wield" or sp.state == "armed") and not attack then enter("back", "hide") end
+    if sp.state == "armed" and F.tick - sp.since > X.ARM_TICKS then enter("back", "no special in " .. X.ARM_TICKS) end
+    -- THE WEAPON: the claws; a seat with no free slot for the two-handed
+    -- wield over the defender (seat 3 carries the serpentine helm: a full
+    -- pack) swings the warhammer instead, one-handed (as the budget's dump
+    -- did, but at 500 rather than 960)
+    if sp.state == "idle" and attack then
+        local w = nil
+        if sp.id and F.energy >= X.CLAWS.cost and QD.raid._tob_count(S, sp.id) > 0 and QD.T2.exec.free_slots(S) >= 1 then
+            w = { obj = sp.id, cost = X.CLAWS.cost, two_hand = true, name = "claws" }
+        elseif sp.hammer and F.energy >= X.HAMMER.cost and QD.raid._tob_count(S, sp.hammer) > 0 then
+            w = { obj = sp.hammer, cost = X.HAMMER.cost, two_hand = false, name = "hammer" }
+        end
+        if w and QD.T2.exec.spec_gate(S, F, { spec_cost = w.cost }) then
+            sp.w = w
+            enter("wield", w.name .. ", energy " .. F.energy)
+        end
+    end
+    local w = sp.w
+    if sp.state == "wield" then
+        if QD.raid._tob_worn(S, w.obj) then
+            sp.energy = F.energy
+            enter("armed", w.name .. " in hand")
+        else
+            I.gear = { { obj = w.obj, two_hand = w.two_hand } }
+            return false
+        end
+    end
+    if sp.state == "armed" then
+        if F.energy <= sp.energy - w.cost + 10 then
+            if w.two_hand then sp.fired = sp.fired + 1 else sp.hammers = sp.hammers + 1 end
+            sp.energy, sp.since = F.energy, F.tick
+            if F.energy < w.cost then enter("back", "fired, energy " .. F.energy) end
+        elseif not QD.raid._tob_worn(S, w.obj) then
+            enter("back", "not in hand")
+        end
+        if sp.state == "armed" then
+            I.gear, I.spec, I.spec_cost = {}, true, w.cost
+            return true
+        end
+    end
+    -- back and idle: the room's melee set (the caller's I.gear)
+    if sp.state == "back" then
+        local all = true
+        for _, obj in ipairs(S.ids.melee_set) do
+            if not QD.raid._tob_worn(S, obj) then all = false end
+        end
+        if all then enter("idle", "melee set on") end
+    end
+    return false
+end
+
 -- ===================================================================== ENTRY
 
 -- Is the party's leader inside the barrier?
@@ -304,7 +414,14 @@ QD.T2.rooms.bloat = {
         S.room = "bloat"
         S.t2.plan_opts.h = opts.h or QD.BLOAT_V2.H
         S.t2.plan_opts.beam = opts.beam or QD.BLOAT_V2.BEAM
-        S.t2b = { opts = opts, modes = {}, mode = nil, obs_tick = nil, cross_sent = -10, swings_planned = 0 }
+        S.t2b = { opts = opts, modes = {}, mode = nil, obs_tick = nil, cross_sent = -10, swings_planned = 0,
+                  sp = { state = "idle", since = 0, fired = 0, hammers = 0, id = nil, hammer = nil } }
+        -- the special weapons the kit carries (a symbol the cache lacks: none)
+        local cr, claws = api_drive.symbol("obj", QD.BLOAT_V2.CLAWS.name)
+        if cr == "ok" then S.t2b.sp.id = claws end
+        local hr, hammer = api_drive.symbol("obj", QD.BLOAT_V2.HAMMER.name)
+        if hr == "ok" then S.t2b.sp.hammer = hammer end
+        if QD.BLOAT_V2.HAMMER_ROLES[S.role or 0] then S.t2b.sp.state = "opener" end
     end,
 
     -- v1's entry: the lap, the stand by the east barrier, the leader's start
@@ -422,9 +539,12 @@ QD.T2.rooms.bloat = {
             if state == "attack" then
                 mode = "attack"
                 want.boost = "piety"
+                local armed = MB.special(S, F, I, true)
                 B.target{ name = "bloat", npc = F.boss, size = S.V.SIZE, path = { { x = F.boss.x, z = F.boss.z } },
-                    range = 1, speed = X.TENTACLE_SPEED, value = X.SWING_VALUE, spec_ok = true }
+                    range = 1, speed = X.TENTACLE_SPEED, value = X.SWING_VALUE * (armed and X.SPEC_SWING or 1),
+                    spec_ok = true }
             else
+                MB.special(S, F, I, false)
                 -- (Piety only while attacking: v1, owner 2026-10-11)
                 local off = {}
                 for _, name in ipairs({ "piety", "protectfrommissiles" }) do
@@ -478,9 +598,9 @@ QD.T2.rooms.bloat = {
                 corners[#corners + 1] = (S.lap[i].x - S.base.x) .. "," .. (S.lap[i].z - S.base.z)
             end
         end
-        return string.format("bloat v2: modes %s; lap %d (%s), off-lap reads %d; downs at %s; turns %d; hand tiles %d",
+        return string.format("bloat v2: modes %s; lap %d (%s), off-lap reads %d; downs at %s; turns %d; hand tiles %d; specials: hammers %d claws %d",
             table.concat(modes, " "), S.lap and #S.lap or 0, table.concat(corners, " "), S.off_lap,
-            table.concat(S.downs, ","), S.turns, S.hands)
+            table.concat(S.downs, ","), S.turns, S.hands, M.sp.hammers, M.sp.fired)
     end,
 }
 

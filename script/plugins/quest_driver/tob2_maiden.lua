@@ -192,6 +192,28 @@ QD.MAIDEN_V2 = {
     SPEC_MARGIN = 2,
     CLAWS = { name = "bone_claws", cost = 350, speed = 4, exp = 33 },
     HAMMER_COST = 500,
+    -- THE FREEZERS' CLAWS (owner 2026-10-12: "the mager roles in maiden
+    -- should also dump their claw specs when the window is safe to do so").
+    -- Seats 1 and 2 never hammer, so they enter her fight on 1000 energy and
+    -- bank 2 a tick: two claws at the start, one more between waves. Their
+    -- window is F-her ONLY - no crab up, no spawn to freeze, no prewave, no
+    -- slot due - and it closes (a sequence under way goes back at once) on a
+    -- margin that also pays for the way back: the claws are melee, so the
+    -- freezer stands on her SOUTH face (FZ_FACE: Chebyshev 4 from her centre,
+    -- like the off tiles, so the storm stays the tank's at 3 - the freezers
+    -- are the lowest orbs and take every tie), and from there its wave station
+    -- is 5-6 ticks of running against the 2-3 from its F-her station: FZ_TICKS
+    -- is that difference plus two. The rate's estimate lags a burst (the
+    -- team's claws land together when a wave clears, ~80 a special,
+    -- maiden_fight.py sp_m_base): FZ_PM permille more than PRE_WAVE is kept
+    -- in hand on top of the rate (~210 of her ~3500 hp, two to three claws).
+    -- MEASURED: the summary's "fz waves" (per wave: the ticks the freezer
+    -- stood ready - cast set on, on its station - before the wave, and the
+    -- ticks since its claws came off).
+    FZ_SPECS = true,
+    FZ_FACE = { [1] = { x = 29, z = 27 }, [2] = { x = 31, z = 27 } },
+    FZ_PM = 60, FZ_TICKS = 5,
+    FZ_ARM_TICKS = 12,                     -- armed this long with no special fired: back to the blowpipe
     EDGE_WEIGHT = 0.3,
     CRAB_URGENT = 4,                       -- a crab this many ticks from her outranks a spawn (v1 main tree)
     -- THE BARRAGE CLOCK AROUND A WAVE (v2s48: slot+1 dropped late 34 times;
@@ -294,6 +316,7 @@ function MV.observe(S, F)
     MV.observe_ground(S, F)
     MV.observe_crabs(S, F)
     MV.observe_slugs(S, F)
+    MV.fz_measure(S, F)
     -- THE GATE'S MEASURE: a special energy fall (any special: mine or the
     -- budget's dump) on a tick after the gate was closed
     if M.energy_last ~= nil and F.energy < M.energy_last - 50 then
@@ -563,6 +586,96 @@ function MV.spec_open(S, F, swing)
     local ttw = MV.ticks_to_wave(S, F)
     if ttw ~= nil and ttw <= 1 + swing.speed + 1 + X.SPEC_MARGIN then return false end
     return true
+end
+
+-- THE FREEZERS' WINDOW (QD.MAIDEN_V2.FZ_SPECS' note): the special's
+-- sequence AND the way back to the wave station fit before the prewave.
+-- (The caller adds F-her's own conditions: no slot, no spawn, no prewave.)
+function MV.fz_open(S, F)
+    local X, H = QD.MAIDEN_V2, QD.MAIDEN_HM
+    if not (X.SPECIALS and X.FZ_SPECS) then return false end
+    if #F.crabs > 0 then return false end
+    if F.next_threshold == nil then return true end
+    if F.permille <= F.next_threshold + H.PRE_WAVE + X.FZ_PM then return false end
+    local ttw = MV.ticks_to_wave(S, F)
+    if ttw ~= nil and ttw <= X.PREP_TICKS + 1 + X.CLAWS.speed + 1 + X.FZ_TICKS then return false end
+    return true
+end
+
+-- THE FREEZERS' CLAWS: idle -> wield (the claws, with the melee helm, amulet
+-- and cape: void's melee set) -> armed (the orb rides the plan's attack on
+-- her) -> back (the mode's own set: the blowpipe's, or the cast set) -> idle
+-- once the claws are off. Runs every tick a freezer is up; `open` false sends
+-- a wield or an armed back the same tick. Sets I.gear / I.spec / I.spec_cost
+-- when the claws own the tick; -> X.CLAWS then, else nil.
+function MV.fz_special(S, F, I, open)
+    local X, M, ids = QD.MAIDEN_V2, S.t2m, S.ids
+    local sp = M.fsp
+    local function enter(state, why)
+        QD.raid._tob_trace(S, F.tick, "fz spec: " .. sp.state .. " -> " .. state .. " (" .. why .. ")")
+        sp.state, sp.since = state, F.tick
+    end
+    if sp.id == nil then return nil end
+    if (sp.state == "wield" or sp.state == "armed") and not open then enter("back", "gate") end
+    if sp.state == "armed" and F.tick - sp.since > X.FZ_ARM_TICKS then enter("back", "no special in " .. X.FZ_ARM_TICKS) end
+    if sp.state == "idle" and open and F.energy >= X.CLAWS.cost and QD.raid._tob_count(S, sp.id) > 0
+        and QD.T2.exec.spec_gate(S, F, { spec_cost = X.CLAWS.cost }) then
+        enter("wield", "energy " .. F.energy)
+    end
+    local extras = QD.raid._maiden_missing(S, { ids.melee_helm, ids.torture, ids.fire_cape })
+    if sp.state == "wield" then
+        if QD.raid._tob_worn(S, sp.id) then
+            sp.energy = F.energy
+            enter("armed", "claws in hand")
+        else
+            extras[#extras + 1] = { obj = sp.id, two_hand = true }
+            I.gear = extras
+            return X.CLAWS
+        end
+    end
+    if sp.state == "armed" then
+        if F.energy <= sp.energy - X.CLAWS.cost + 10 then
+            sp.fired, sp.energy, sp.since = sp.fired + 1, F.energy, F.tick
+            if F.energy < X.CLAWS.cost then enter("back", "fired, energy " .. F.energy) end
+        elseif not QD.raid._tob_worn(S, sp.id) then
+            enter("back", "not in hand")
+        end
+        if sp.state == "armed" then
+            I.gear, I.spec, I.spec_cost = extras, true, X.CLAWS.cost
+            return X.CLAWS
+        end
+    end
+    if sp.state == "back" and not QD.raid._tob_worn(S, sp.id) then enter("idle", "claws off") end
+    return nil
+end
+
+-- THE FREEZERS' MARGIN, measured once a tick (observe): per wave, how long the
+-- freezer had stood ready (the cast set on, within 1 of its wave station)
+-- before the wave's tick, and the ticks since its claws last came off.
+function MV.fz_measure(S, F)
+    local M, H = S.t2m, QD.MAIDEN_HM
+    if S.role ~= 1 and S.role ~= 2 then return end
+    local sp = M.fsp
+    local inhand = sp.id ~= nil and QD.raid._tob_worn(S, sp.id)
+    if sp.inhand_last and not inhand then sp.off_t = F.tick end
+    sp.inhand_last = inhand
+    if S.waves ~= sp.waves_seen then
+        sp.waves_seen = S.waves
+        if S.wave ~= nil and #sp.wlog < 12 then
+            local t0 = S.wave.t0
+            local slack = sp.ready_since and (t0 - sp.ready_since) or -1
+            local off = (sp.off_t and sp.off_t > (sp.last_t0 or -1)) and tostring(t0 - sp.off_t) or "-"
+            sp.wlog[#sp.wlog + 1] = "w" .. S.waves .. ":" .. slack .. "/" .. off .. (inhand and "!" or "")
+            if inhand then sp.inhand_waves = sp.inhand_waves + 1 end
+            sp.last_t0 = t0
+        end
+    end
+    local st = abs_tile(S, H.FREEZER_STATION[S.role])
+    if #QD.raid._maiden_missing(S, S.ids.cast_set) == 0 and cheb(F.me.x, F.me.z, st.x, st.z) <= 1 then
+        sp.ready_since = sp.ready_since or F.tick
+    else
+        sp.ready_since = nil
+    end
 end
 
 function MV.her_target(S, F, B, swing, range, name)
@@ -843,6 +956,7 @@ function MV.freezer(S, F, B, I, prewave)
     -- before the wave held slot+1 to t238)
     local R = QD.raid._maiden_hm_freezer(S, F)
     local slug = MV.slug_pick(S, F)
+    local slug_raw = slug
     local urgent = R ~= nil and R.target ~= nil and R.target.eta ~= nil and R.target.eta <= X.CRAB_URGENT
     local slot_soon = R ~= nil and R.slot ~= nil and S.wave ~= nil
         and S.wave.t0 + R.slot.at - (F.tick + S.cast_lag) <= X.BARRAGE.speed
@@ -864,6 +978,9 @@ function MV.freezer(S, F, B, I, prewave)
         local first = math.max(F.tick + (worn and 0 or X.SETUP_TICKS), sent + X.BARRAGE.speed) + S.cast_lag
         if first + 1 >= F.tick + R.target.eta then R = { target = R.target, kind = "pipe" } end
     end
+    -- THE CLAWS (QD.MAIDEN_V2.FZ_SPECS): only where F-her would be, every
+    -- tick (a closed window sends the claws back in this same tick)
+    local claws = MV.fz_special(S, F, I, R == nil and not prewave and slug_raw == nil and MV.fz_open(S, F))
     if R and R.kind == "pipe" then
         MV.set_gear(S, I, ids.range_set, "rigour", "ranged")
         MV.pipe_crab(S, F, B, R.target, 1, "pipe")
@@ -881,6 +998,12 @@ function MV.freezer(S, F, B, I, prewave)
         local ready = MV.cast_gear(S, I)
         MV.cast_target(S, F, B, I, slug, "slugfreeze", nil, ready)
         return "F-slugfreeze"
+    elseif claws then
+        -- on her south face (FZ_FACE), Piety; the gear and the orb are set
+        I.boost, I.boost_stat = "piety", "attack"
+        MV.her_target(S, F, B, claws, 1, "claws")
+        MV.station_pull(S, F, B, X.FZ_FACE[S.role], "face")
+        return "F-claws"
     end
     MV.set_gear(S, I, ids.range_set, "rigour", "ranged")
     MV.her_target(S, F, B, X.PIPE, QD.MAIDEN.PIPE_RANGE, "her")
@@ -1139,11 +1262,12 @@ QD.T2.rooms.maiden = {
             storm_w = {}, tank_role = QD.MAIDEN_HM.DPS[1], tank_changes = 0,
             spec_fires = 0, spec_closed = 0, energy_last = nil, gate_prev = nil,
             sp = { state = "opener", hammers = 0, fired = 0, id = nil },
+            fsp = { state = "idle", fired = 0, id = nil, since = 0, wlog = {}, inhand_waves = 0 },
         }
         -- the burning claws, when the kit carries them (the relay's Hard kit;
         -- a symbol the cache lacks leaves the claws out, the hammer opener stays)
         local cr, claws = api_drive.symbol("obj", QD.MAIDEN_V2.CLAWS.name)
-        if cr == "ok" then S.t2m.sp.id = claws end
+        if cr == "ok" then S.t2m.sp.id, S.t2m.fsp.id = claws, claws end
     end,
 
     -- The blowpipe on Rapid before the room (the press is an IF_BUTTON; the
@@ -1380,8 +1504,8 @@ QD.T2.rooms.maiden = {
         for pid, w in pairs(M.storm_w) do loads[#loads + 1] = "pid" .. pid .. "=" .. w end
         table.sort(loads)
         loads = table.concat(loads, ",")
-        return string.format("maiden v2: modes %s; hammers %d claws %d; specials %d (gate closed %d); tank p%d (changes %d, loads %s); rescues %d; panel claims %d; crabs snapped %d; taken %d; storms %d (on me %d), throws %d; waves %d; leaks %d (%s), kills %d; froze %d (%s); casts %s; storm targets %s; cast lag %d",
-            table.concat(modes, " "), M.sp.hammers, M.sp.fired, M.spec_fires, M.spec_closed, M.tank_role, M.tank_changes, loads, M.rescues, M.claims, M.snapped, M.taken, S.storms, M.on_me, S.throws, S.waves, M.leaks,
+        return string.format("maiden v2: modes %s; hammers %d claws %d; fz claws %d (waves %s, in hand %d); specials %d (gate closed %d); tank p%d (changes %d, loads %s); rescues %d; panel claims %d; crabs snapped %d; taken %d; storms %d (on me %d), throws %d; waves %d; leaks %d (%s), kills %d; froze %d (%s); casts %s; storm targets %s; cast lag %d",
+            table.concat(modes, " "), M.sp.hammers, M.sp.fired, M.fsp.fired, table.concat(M.fsp.wlog, " "), M.fsp.inhand_waves, M.spec_fires, M.spec_closed, M.tank_role, M.tank_changes, loads, M.rescues, M.claims, M.snapped, M.taken, S.storms, M.on_me, S.throws, S.waves, M.leaks,
             table.concat(M.leak_log, " "), M.kills, #S.freeze_log, table.concat(S.freeze_log, " "),
             table.concat(S.cast_log, " | "), table.concat(M.storm_log, " "), S.cast_lag)
     end,

@@ -189,12 +189,68 @@ window_collision(
 /* The window a query at (x,z) resolves through: the bound window when it
  * covers the tile, else any built window that does. Coherence (see the pool
  * comment) is what makes "any" correct. NULL when nothing covers it. */
+/*
+ * THE WINDOW A WORLD QUERY READS MUST NOT DEPEND ON WHO IS BOUND.
+ *
+ * Every window is built from the same world, so wherever two of them cover a
+ * tile they agree -- except on each window's own outer ring, which
+ * collision_map_reset paints COLL_FLAG_BOUNDS: the edge of a 104-tile view,
+ * not a wall. The lookups below used to take the BOUND window first (the
+ * active player's), so a tile on the bound window's ring read as a wall while
+ * another player's window had the floor there, and the npc phase -- which
+ * runs under whichever player the host bound last -- walked or stalled by
+ * lane. A 3x3 Sotetseg realm tornado (plane 3, runner p2) stood still on the
+ * live party, where the leader's window was bound, and walked on scriptrun
+ * (2026-10-13, Normal Sotetseg n1, maze 2: x 6428 was the ring of one window
+ * and open floor in the other).
+ *
+ * So a query first takes a window that holds the whole asked-about rectangle
+ * INSIDE its ring -- the bound one if it does, else the first in pool order --
+ * and only when none does falls back to plain containment, as before.
+ */
+static int
+window_holds_inside(
+    const struct ToriRSServerSceneWindow* window,
+    int x0,
+    int z0,
+    int x1,
+    int z1)
+{
+    if( window->base_x < 0 )
+        return 0;
+    return x0 >= window->base_x + 1 && x1 <= window->base_x + SCENE_TILES - 2 &&
+           z0 >= window->base_z + 1 && z1 <= window->base_z + SCENE_TILES - 2;
+}
+
+static struct ToriRSServerSceneWindow*
+window_inside(
+    int x0,
+    int z0,
+    int x1,
+    int z1)
+{
+    assert(x0 <= x1);
+    assert(z0 <= z1);
+    scene_windows_ensure();
+    if( window_holds_inside(g_bound, x0, z0, x1, z1) )
+        return g_bound;
+    for( int i = 0; i < TORIRSSERVER_SCENE_WINDOW_MAX; i++ )
+    {
+        if( window_holds_inside(&g_windows[i], x0, z0, x1, z1) )
+            return &g_windows[i];
+    }
+    return NULL;
+}
+
 static struct ToriRSServerSceneWindow*
 window_containing(
     int x,
     int z)
 {
-    scene_windows_ensure();
+    struct ToriRSServerSceneWindow* inside = window_inside(x, z, x, z);
+
+    if( inside )
+        return inside;
     if( window_contains(g_bound, x, z) )
         return g_bound;
     for( int i = 0; i < TORIRSSERVER_SCENE_WINDOW_MAX; i++ )
@@ -214,7 +270,11 @@ window_containing2(
     int x2,
     int z2)
 {
-    scene_windows_ensure();
+    struct ToriRSServerSceneWindow* inside = window_inside(
+        x < x2 ? x : x2, z < z2 ? z : z2, x > x2 ? x : x2, z > z2 ? z : z2);
+
+    if( inside )
+        return inside;
     if( window_contains(g_bound, x, z) && window_contains(g_bound, x2, z2) )
         return g_bound;
     for( int i = 0; i < TORIRSSERVER_SCENE_WINDOW_MAX; i++ )
@@ -2141,9 +2201,18 @@ ToriRSServer_SceneCanTravelTyped(
     int extra_flag,
     int coll_type)
 {
-    struct ToriRSServerSceneWindow* window = window_containing2(x, z, x + offset_x, z + offset_z);
-    struct CollisionMap* map = window ? window_collision(window, level) : NULL;
+    /* The footprint at both ends of the step, not two corners: a size-3 npc
+     * reads two tiles past its anchor (window_inside). */
+    int fx0 = offset_x < 0 ? x + offset_x : x;
+    int fz0 = offset_z < 0 ? z + offset_z : z;
+    int fx1 = (offset_x > 0 ? x + offset_x : x) + (size > 1 ? size - 1 : 0);
+    int fz1 = (offset_z > 0 ? z + offset_z : z) + (size > 1 ? size - 1 : 0);
+    struct ToriRSServerSceneWindow* window = window_inside(fx0, fz0, fx1, fz1);
+    struct CollisionMap* map;
 
+    if( !window )
+        window = window_containing2(x, z, x + offset_x, z + offset_z);
+    map = window ? window_collision(window, level) : NULL;
     if( !map || size < 1 )
         return 0;
     return collision_map_can_travel_typed(map, x - window->base_x, z - window->base_z, offset_x,

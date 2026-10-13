@@ -111,3 +111,66 @@ warhammer dump) are gone from both targets. Private root, same binary, ny1..ny8 
 | deaths / nulls | 0 / 0 | 0 / 0 |
 272 claws specials, every one with a melee-form Prinkipas/Vasilias alive; 390 claws -> tentacle
 swaps, every one with the defender in the same tick.
+
+## The pair affinity (owner, 2026-10-12)
+Owner: "the ranges and magers always end up attacking the same nylo, often resulting in wasted hits.
+Perhaps you can put affinity on the duplicate roles."
+
+THE CAUSE, confirmed from the tick logs (`hit_npc`'s f column is the dealer pid; a hit on a nylocas already
+dead is never logged, so a swing with no hit of its own is a wasted one). `NV.candidates` removed, for each
+lower seat of my style, that seat's TOP-VALUE nylocas. But the planner picks among up to 5 targets by value
+against time, walk included, so the seat often swung at a different one, and the "claimed" nylocas was
+not the one the partner actually attacked. On 48 seeds, 452 of seat 5's wasted swings went out ON THE SAME
+TICK as seat 1's at the same nylocas, and seat 1's hit landed first. For the mages, 183 of seat 4's wasted
+swings came AFTER seat 3's trident was already in flight at the same nylocas, and 160 went out on the same
+tick. Nothing checked for a hit already on the way.
+
+THE CHANGE (`tob2_nylocas.lua`). Everything comes from the view every seat shares: the pair's tiles, the rows'
+tiles, the projectiles. There is no barrier mark and no side channel.
+- `NV.split`: every nylocas of the pair's style goes to the pair seat nearer it (footprint gap from the seat's
+  tile). A tie goes to the seat whose STATION is nearer. If one seat then holds none and the other holds two or
+  more, the cheapest one to hand over moves. One nylocas is never split by its npc SLOT: each client numbers
+  the npcs its own way (q1 t185: slot 118 to seat 1, 124 to seat 5).
+- HELD: a pair seat's projectile in flight at a nylocas (its source tile is that seat's tile) keeps it that
+  seat's for as long as the shot flies.
+- `NV.split_of` caches the split per tick and covers the lane nylocas settling into the style too. Splitting
+  only the attackable ones left lane targets outside the split, and those were the ones the partner swung at.
+- `NV.candidates`, own style in a pair: only my share, plus the URGENT ones (chewing a pillar under 30%). Those
+  are both seats': splitting a falling pillar's chewers lost a pillar on 14 of 144 seeds, against 10 when they
+  were shared. With none of my own, I take the partner's nylocas that need two hits, at AFF_EMPTY (0.5) of
+  their worth. No split while a Prinkipas is in its now/focus state, and none for the guard seat's pick
+  (`free`).
+- `NV.inflight_mult`: a one-hit nylocas with n raider projectiles at it is worth (1 - P_KILL)^n. P_KILL is
+  0.65, measured over 48 seeds: a seat's first hit finishes a fresh small one 0.65-0.70 of the time.
+- Two NULL hazards the split exposed, both also present on base (4 shields, 6 nulls on 144 seeds):
+  - `NV.barrage_safe`: no barrage when a big nylocas within 2 of the splash may burst on the cast's tick
+    (detonation within 3, a projectile at it, or a bar already down). Its two smalls of any style spawn on its
+    tiles (q8, q20, q32, q35, base q74/q124). No barrage either with a Prinkipas within 2 of the splash.
+  - A lane nylocas still flickering is only a pull to its settle tile, never a target. An attack press does
+    not wait for t_ok0, so the server swings the moment the nylocas is in reach, in whatever style it shows
+    then (a3 q25 t348, base q142).
+
+Same binary (build_tob2f_opt), seeds q1..q144, the same harness (hm_nylocas_v2.lua):
+| | before | after |
+|---|---|---|
+| pass | 144/144 | 144/144 |
+| wasted swings / seed (s1 s2 s3 s4 s5) | 31.1 (0.9 0.9 6.5 10.2 12.7) | 16.8 (0.5 1.4 3.6 4.1 7.2) |
+| ranged pair / magic pair wasted | 13.6 / 16.7 | 7.7 / 7.6 |
+| duplicate-target swings / seed, ranged / magic | 28.1 / 21.7 | 8.2 / 8.1 |
+| overkill hp / seed (s3 s4 s5) | 11.1 15.9 22.2 | 5.7 6.2 10.6 |
+| room ticks (done) | 446.1 | 443.7 |
+| pillar hp chewed / seed | 432.6 | 415.9 |
+| supports lost (seeds) | 19 (17) | 11 (10) |
+| team damage | 259 | 240 |
+| deaths / nulls (shields) | 0 / 6 (4) | 0 / 0 (0) |
+| barrage casts / seed | 9.4 | 5.9 |
+How the metrics are defined:
+- duplicate-target swing: a pair seat swings at the nylocas its partner is attacking, on the same tick, while
+  another nylocas of the pair's style stands.
+- wasted swing: a swing with no hit of its own (its target died first).
+
+Scorer: nyaff.py in the worker's scratch root.
+- Variant a9: split the urgent ones too, with an urgent-first balance, sharing the partner's at 0.85 unless
+  under its shot. Result: wasted 15.4, duplicates 6.5 / 6.0, room 441.7, BUT pillars lost on 14 seeds.
+- Not done: the live lane. Projectile rows are built in whole server ticks on both lanes
+  (drive_ui_projectiles), as Maiden's storm reads already rely on.

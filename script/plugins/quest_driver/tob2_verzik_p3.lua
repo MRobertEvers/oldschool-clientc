@@ -81,6 +81,7 @@ QD.VZP3_V2 = {
     -- the ball pass (VZ.ball_chain): "follow" (the next keeps near the
     -- kiting target) or "fixed" (the target holds, the next takes a fixed
     -- neighbour); the follow pull a tick (> a swing's ~4.3), the gap-2 price
+    BALL_RUN = 2,               -- tiles a tick a seat runs (the meet fallback's reach test)
     BALL_DESIGN = "meet", BALL_NEAR_COST = 6, BALL_CLEAR2_COST = 2,
     BALL_OFF_HER = 3,
     ALTS_GATE = 3,              -- her nine options (path_alts) with my tornado (or a live crab, +1) this close
@@ -621,12 +622,52 @@ function VZ.ball_chain(S, F)
         end
         local m = Bl.meet_list[Bl.meet_i]
         if m then ttile = { x = m.x, z = m.z } else ttile = Bl.ttile end
+        -- THE HOLDER CANNOT REACH T ANY MORE -> THE NEXT COMES TO IT. The
+        -- first tick the holder, seen THIS tick (a shared fact: no stale
+        -- last-seen tile), stands farther from T than it can run before its
+        -- read (RUN tiles a tick), every seat latches H = that tile: the
+        -- holder within 1 of H at its read, the next ON H at its read, the
+        -- rest 3+ off H (relay_r16_128 f15 t3053-3060: its own tornado walked
+        -- it off T and a chase press took the last tick; 6 off T at the read,
+        -- the next on T, the un-bounced 62). H under her: no fallback.
+        if Bl.fb_for ~= Bl.cur then Bl.fb_for, Bl.fb = Bl.cur, nil end
+        local live = nil
+        for _, rd in ipairs(F.raiders) do if rd.pid == Bl.cur then live = { x = rd.x, z = rd.z } end end
+        local hread = Bl.land - 1
+        -- (not on the LAST hop: no bounce follows it, the holder takes 49
+        -- wherever it stands; vf19 f24/f35 fell back there and a moved H
+        -- walked three seats into the tornadoes, 4 touches, 156)
+        if Bl.fb == nil and live and hread >= F.tick + 1 and #(Bl.order or {}) < 4
+            and cheb(live.x, live.z, ttile.x, ttile.z) > QD.VZP3_V2.BALL_RUN * (hread - F.tick)
+            and (F.boss == nil or QD.raid._tob_gap(live.x, live.z, F.boss.x, F.boss.z, QD.VZP3.SIZE) >= 1) then
+            -- (H: the MIDPOINT of the holder and T, both close in - the next
+            -- is within 1 of T and its read may be the holder's; vf19x f15
+            -- t3056: H on the holder left the next 5 off with 2 ticks. Capped
+            -- at what the holder can still run with a step to spare; a step
+            -- under her stops it short)
+            local d = cheb(live.x, live.z, ttile.x, ttile.z)
+            local hx, hz = live.x, live.z
+            for _ = 1, math.min((d + 1) // 2, math.max(0, QD.VZP3_V2.BALL_RUN * (hread - F.tick) - 1)) do
+                local nx = hx + ((ttile.x > hx) and 1 or ((ttile.x < hx) and -1 or 0))
+                local nz = hz + ((ttile.z > hz) and 1 or ((ttile.z < hz) and -1 or 0))
+                if F.boss and QD.raid._tob_gap(nx, nz, F.boss.x, F.boss.z, QD.VZP3.SIZE) < 1 then break end
+                hx, hz = nx, nz
+            end
+            Bl.fb = { x = hx, z = hz, at = F.tick }
+            P.ball_fb = (P.ball_fb or 0) + 1
+            if api_drive.ticklog_mark then
+                api_drive.ticklog_mark(string.format("vzb p%s t%d meet fallback cur %s at %d,%d T %d,%d H %d,%d read %d",
+                    tostring(F.pid), F.tick, tostring(Bl.cur), live.x, live.z, ttile.x, ttile.z, hx, hz, hread))
+            end
+        end
+        if Bl.fb then ttile = { x = Bl.fb.x, z = Bl.fb.z } end
         Bl.meet_now = ttile
     end
     if ttile == nil then return nil end
-    if Bl.cur == F.pid then return "target", ttile, Bl.next_pid, Bl.ntile end
-    if Bl.visited[F.pid] then return "clear", ttile, Bl.next_pid, Bl.ntile end
-    return (Bl.next_pid == F.pid) and "next" or "clear", ttile, Bl.next_pid, Bl.ntile
+    local fb = Bl.fb ~= nil and QD.VZP3_V2.BALL_DESIGN == "meet"
+    if Bl.cur == F.pid then return "target", ttile, Bl.next_pid, Bl.ntile, fb end
+    if Bl.visited[F.pid] then return "clear", ttile, Bl.next_pid, Bl.ntile, fb end
+    return (Bl.next_pid == F.pid) and "next" or "clear", ttile, Bl.next_pid, Bl.ntile, fb
 end
 
 -- THE BALL'S FLIGHT IS NOT A CONSTANT. v1 lands every throw at first sight
@@ -1324,7 +1365,7 @@ end
 function VZ.ball(S, F, B)
     local X = QD.VZP3_V2
     if S.ball == nil then return nil end
-    local role, ttile, next_pid, ntile = VZ.ball_chain(S, F)
+    local role, ttile, next_pid, ntile, fb = VZ.ball_chain(S, F)
     if role == nil then return nil end
     local now, land = F.tick, S.ball.land
     local land_hi = math.max(land, S.ball.land_hi or land)
@@ -1338,12 +1379,15 @@ function VZ.ball(S, F, B)
                 B.hit{ name = "ball-last", x0 = base.x + A.x0, z0 = base.z + A.z0, x1 = base.x + A.x1, z1 = base.z + A.z1,
                     t0 = land - 1, t1 = land - 1, dmg_exp = 49, dmg_max = 49 }
             end
-            B.zone{ name = "ball-" .. role, x = ttile.x, z = ttile.z, size = 1, lo = 0, hi = (role == "target") and 0 or 1,
+            -- (fallback H: the next ON H, the holder within 1 of it)
+            local hi = (role == "target") and 0 or 1
+            if fb then hi = (role == "target") and 1 or 0 end
+            B.zone{ name = "ball-" .. role, x = ttile.x, z = ttile.z, size = 1, lo = 0, hi = hi,
                 require = true, t0 = read, t1 = read_hi, tier = "lethal" }
             return role, read, read_hi
         end
-        B.zone{ name = "ball-clear", x = ttile.x, z = ttile.z, size = 1, lo = 0, hi = 1, t0 = land - 1, t1 = land_hi,
-            tier = "lethal" }
+        B.zone{ name = "ball-clear", x = ttile.x, z = ttile.z, size = 1, lo = 0, hi = fb and 2 or 1, t0 = land - 1,
+            t1 = land_hi, tier = "lethal" }
         return role, nil
     end
     -- THE LAST HOLDER EATS IT (~tob_verzik_ball_land: Hard Mode's hops end at
@@ -1574,7 +1618,7 @@ QD.T2.rooms.verzik_p3 = {
         local P = S.vz
         local bn = string.format("boosts restore %d combat %d (ticks left at the end %s); hp-safety brews %d",
             P.boost_n.restore or 0, P.boost_n.combat or 0, tostring(P.ticks_left and math.floor(P.ticks_left)),
-            P.safety_n or 0)
+            P.safety_n or 0) .. string.format("; ball fallbacks %d", P.ball_fb or 0)
         local modes = {}
         for k, n in pairs(P.modes) do modes[#modes + 1] = k .. "=" .. n end
         table.sort(modes)

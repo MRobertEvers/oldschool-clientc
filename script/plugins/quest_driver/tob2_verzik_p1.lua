@@ -45,7 +45,7 @@ QD.VZ2P1 = {
     SPEC_COST = 350,
     FALL_WINDOW = 3,                      -- a fall reads R+3 (D+2 at the break) and lands as late as +3 more (main tree)
     COLLAPSE_RANGE = 3,
-    RUBBLE_LAND = 3,                      -- the shadow drawn on the pillar hit, lands 3 later
+    RUBBLE_LAND = 4,                      -- the shadow drawn on the pillar hit, lands 4 later (^tob_verzik_hard_debris_land_ticks)
     STARTED_AGO = 8,                      -- v1: the fight started this long before the solve
     FETCH_PULL = 2, PASS_PULL = 0.3, FETCH_HER = 0.2,
     BACK_MARGIN = 1,                      -- tiles of slack on the way back (main tree: a pillar makes the run longer than the gap)
@@ -179,8 +179,8 @@ function QD.VZ2P1F.cover(S, F, pillars)
 end
 
 -- HARD MODE'S RUBBLE (raid_solve_verzik_hm.lua's reader is a file local, so
--- it is ported): every pillar the bolt hits draws Bloat's falling-flesh
--- shadow on each of three tiles; a new one (or a restarted cycle) lands
+-- it is ported): every pillar the bolt hits draws the falling-debris
+-- shadow (gargboss_debris_shadow_120) on each of three tiles; a new one (or a restarted cycle) lands
 -- RUBBLE_LAND ticks on, reading the tick end before.
 function QD.VZ2P1F.rubble(S, F)
     local M = S.t2v
@@ -233,8 +233,8 @@ QD.T2.rooms.verzik_p1 = {
         for _, k in ipairs({ "p1", "initial", "transition", "pillar", "windup", "death", "dawn", "weapon" }) do
             S.ids[k] = v[k]
         end
-        local rr, gfx = api_drive.symbol("spotanim", "tob_bloat_falling_flesh1")
-        assert(rr == "ok", S.who .. ": no spotanim tob_bloat_falling_flesh1")
+        local rr, gfx = api_drive.symbol("spotanim", "gargboss_debris_shadow_120")
+        assert(rr == "ok", S.who .. ": no spotanim gargboss_debris_shadow_120")
         S.ids.rubble_gfx = gfx
         S.room = "verzik_p1"
         S.trace = S.trace or {}

@@ -5,9 +5,11 @@
 --
 --   the party in at Maiden through t.raid.enter, on both lanes (the board's
 --     way in is test/raids/tob_lobby.lua, live only);
---   per room: arrive, the room's own start sequence (the room test's), the
---     solver on every seat, prayers off, the leader's way out (the gate, the
---     passage: ~tob_carry_party takes every raider in the room along);
+--   per room: arrive, every seat walks to the room's door, the room's own
+--     start sequence (the room test's), the solver on every seat, prayers off,
+--     and every seat's own way out (the gate, the chest, the passage: each
+--     raider's walk into it takes that raider, and only that raider, onward;
+--     docs/minigames/theater_of_blood/ROOM_TRANSITIONS.md);
 --   the supply chest after Bloat and after Sotetseg (restores, then brews);
 --   the Dawnbringer: the Xarpus solver's leader takes it from the skeleton;
 --   Verzik P1, P2, P3; the trapdoor, the reward chest, the teleport out.

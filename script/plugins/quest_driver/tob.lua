@@ -671,7 +671,9 @@ function QD.raid._tob_barrier(S)
     assert(lr == "ok", S.who .. ": locs answered " .. tostring(lr))
     local tiles = {}
     for _, row in ipairs(rows) do
-        if row.loc_id == bid or row.resolved_loc_id == bid then tiles[#tiles + 1] = { x = row.x, z = row.z } end
+        if row.loc_id == bid or row.resolved_loc_id == bid then
+            tiles[#tiles + 1] = { x = row.x, z = row.z, element = row.element_id }
+        end
     end
     assert(#tiles > 0, S.who .. ": no tob_arena_barrier within 12 of " .. me.x .. "," .. me.z)
     local same_x = true
@@ -681,6 +683,25 @@ function QD.raid._tob_barrier(S)
     local line = tiles[1][axis]
     local entry = (me[axis] > line) and 1 or -1
     return { tiles = tiles, axis = axis, line = line, entry = entry, loc = bid }
+end
+
+-- THE COPY I CROSS: the nearest of this room's barrier tiles (B.tiles), named
+-- by its element, never "the nearest copy of the id". Rooms coexist now -- a
+-- raider walks out of the last room on its own, and that room stays built for
+-- whoever is still in it (tob_raid.rs2 ^tob_var_next_handle) -- and a scene
+-- window is wider than a room, so the last room's barriers are in view. The
+-- id-only pick prefers a copy on my own level, and the Nylocas barrier is a
+-- bridge loc (cache level 1, walked on plane 0): every member's press went to
+-- Bloat's barrier 64 tiles away, after Bloat was freed, and the server dropped
+-- it (relay walk p1 f1: "nylocas_v2_solve: never got inside the room").
+function QD.raid._tob_barrier_copy(B, me)
+    local best, bd = nil, nil
+    for _, t in ipairs(B.tiles) do
+        local d = QD.raid._tob_cheb(me.x, me.z, t.x, t.z)
+        if bd == nil or d < bd then best, bd = t, d end
+    end
+    assert(best, "tob_barrier_copy: the barrier has no tiles")
+    return best
 end
 
 -- Is (x, z) on the fight side of the barrier?
@@ -696,7 +717,10 @@ end
 -- where the click and the walk to the barrier took a number of ticks no rule
 -- can predict (Bloat seed b1: 24).
 function QD.raid._tob_leader_start(S, answer_go)
-    local cr, cd = QD.player.click_loc("tob_arena_barrier", 1)
+    local tr, me = api_drive.player_tile()
+    assert(tr == "ok", S.who .. ": no tile")
+    local copy = QD.raid._tob_barrier_copy(S.barrier, me)
+    local cr, cd = QD.player.click_loc("tob_arena_barrier", 1, { at = { copy.x, copy.z } })
     assert(cr == "ok", S.who .. ": the barrier click answered " .. tostring(cr) .. " " .. tostring(cd))
     local or_, od = QD.chat.play({ "options" })
     assert(or_ == "ok", S.who .. ": the start question answered " .. tostring(or_) .. " " .. tostring(od))
@@ -721,7 +745,8 @@ end
 -- I am still outside.
 function QD.raid._tob_member_cross(S, F)
     if F.tick - (S.cross_sent or -10) < 2 then return end
-    local r = api_drive.world_op("loc", S.barrier.loc, 1)
+    local copy = QD.raid._tob_barrier_copy(S.barrier, F.me)
+    local r = api_drive.world_op("loc", S.barrier.loc, 1, copy.element)
     S.cross_sent = F.tick
     QD.raid._tob_trace(S, F.tick, "crossing the barrier: " .. tostring(r))
 end

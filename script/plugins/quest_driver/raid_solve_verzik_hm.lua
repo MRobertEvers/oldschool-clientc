@@ -8,10 +8,10 @@
 -- Hard_Mode :359-375, docs/minigames/theater_of_blood/HMT_STRATEGIES.md):
 --
 --   P1 rubble    each pillar her bolt hits drops three 1x1 rubble within 3 of
---                its edge, up to 35 and a stun; the shadow (Bloat's falling
---                flesh graphic, tob_verzik.rs2 ~tob_verzik_pillar_debris) is
---                drawn on the hit and lands ^tob_verzik_hard_debris_land_ticks
---                (3) later: its tile is out until then.
+--                its edge, up to 35 and a stun; the shadow (the falling-debris
+--                shadow gargboss_debris_shadow_120, tob_verzik.rs2
+--                ~tob_verzik_pillar_debris) is drawn on the hit and lands
+--                ^tob_verzik_hard_debris_land_ticks (4) later: its tile is out until then.
 --   P2 acid      an urnbomb's tile is a poison pool for 16 ticks after it lands
 --                ("rotate between five tiles", :363): priced, not forbidden, so
 --                the formation can still give way to a worse hazard.
@@ -23,7 +23,7 @@
 -- ==========================================================================
 
 QD.VZHM = {
-    RUBBLE_LAND = 3,
+    RUBBLE_LAND = 4,
     P3_EAT = 75, P3_BREW = 70,                       -- P3 floors over her biggest Hard auto (61)
     POP_PULL = 4,
     RED_BURST = 2,                                   -- within this of a red's footprint at her summon (its burst reads 1 from its SW tile)                                    -- a tile short of popping my crab: more than a tick off my target (reach: 3)
@@ -42,8 +42,8 @@ QD.VZHM = {
 local function rubble_terms(S, F, add)
     local V = QD.VZHM
     if S.hm_rubble_gfx == nil then
-        local r, id = api_drive.symbol("spotanim", "tob_bloat_falling_flesh1")
-        assert(r == "ok", "verzik_p1_hm_solve: no spotanim tob_bloat_falling_flesh1")
+        local r, id = api_drive.symbol("spotanim", "gargboss_debris_shadow_120")
+        assert(r == "ok", "verzik_p1_hm_solve: no spotanim gargboss_debris_shadow_120")
         S.hm_rubble_gfx, S.hm_rubble, S.hm_rubble_left = id, {}, {}
     end
     local r, rows = api_drive.spotanims(0)

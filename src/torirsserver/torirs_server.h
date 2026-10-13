@@ -2543,6 +2543,15 @@ struct ToriRSServerNpc
     int follow_x, follow_z;       /* snapshot of target's last_step at top of turn */
     struct ToriRSServerStep waypoints[TORIRSSERVER_WAYPOINT_MAX];
     int waypoint_index; /* -1 idle; counts down like player */
+    /**
+     * The queued waypoint came from a script's `npc_walk`
+     * (`ToriRSServer_WorldNpcQueueWaypoint`), not from a mover of the npc's own
+     * (wander's roll, a mode's chase or escape step). Read only by the
+     * `playerface` mode, which walks a scripted waypoint while it faces and
+     * leaves any other where it is -- see that case in `npc_run_mode`.
+     * Cleared by every other writer of the queue (`npc_queue_waypoint`).
+     */
+    int waypoint_scripted;
     int stuck_counter;
     int size;      /* footprint; from npcinfo at spawn, default 1 */
     int turnspeed; /* NpcType.turnspeed; from npcinfo at spawn. 0 = never turns */

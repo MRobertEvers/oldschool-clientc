@@ -898,6 +898,7 @@ npc_queue_waypoint(struct ToriRSServerNpc* npc, int x, int z)
     npc->waypoints[0].x = (int16_t)x;
     npc->waypoints[0].z = (int16_t)z;
     npc->waypoint_index = 0;
+    npc->waypoint_scripted = 0;
 }
 
 void
@@ -3966,6 +3967,7 @@ ToriRSServer_WorldNpcQueueWaypoint(
 {
     assert(npc);
     npc_queue_waypoint(npc, x, z);
+    npc->waypoint_scripted = 1;
 }
 
 /*
@@ -5313,7 +5315,32 @@ npc_run_mode(
          * What ends it is `npc_mode_target_valid` above — the record's
          * `maxrange` leash measured from the npc's spawn tile, a floor change,
          * or the player going away.
+         *
+         * FACING IS NOT HOLDING STILL. The mode calls no mover of its own, but
+         * a walk a SCRIPT queued (`npc_walk`) is walked, by the noMode drain
+         * below, with the latch above still on the player. That is the OSRS
+         * rule for an npc with an interaction target: the client turns it to
+         * the faced entity every cycle and the step does not override it, so
+         * a boss stepping out from under her tank, or closing on him, keeps
+         * looking at him (owner 2026-10-13: "Verzik needs to maintain her face
+         * entity towards the tank even if she is pathing 'away'"; Blert reads
+         * her tank as her interacting target through P3,
+         * VerzikDataTracker.java:651).
+         *
+         * Before, the only way to walk was `npc_setmode(none)` first, which
+         * drops the target, so `ToriRSServer_NpcFaceClearIfIdle` sent "face
+         * nobody" at the end of the turn and every observer saw her turn to
+         * the direction of travel on each step. LostCity's `playerFaceMode`
+         * has no `updateMovement()`; its bosses walk while facing through
+         * `aiMode`'s chase, which content here does not use (Verzik is
+         * `retaliate=no` so her scripted walk owns her movement).
+         *
+         * Scripted only: a waypoint wander rolled, or a chase left behind, is
+         * not walked under this mode, so `~chatnpcrange` still holds a
+         * wanderer where the conversation found it.
          */
+        if( npc->waypoint_index >= 0 && npc->waypoint_scripted )
+            return 0;
         return 1;
 
     default:
