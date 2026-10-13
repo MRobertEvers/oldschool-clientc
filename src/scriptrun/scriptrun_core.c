@@ -167,6 +167,14 @@ ScriptrunCore_BeginTick(
             core->map_anims[kept++] = *a;
     }
     core->map_anim_count = kept;
+    kept = 0;
+    for( int i = 0; i < core->loc_anim_count; i++ )
+    {
+        struct ScriptrunLocAnim const* a = &core->loc_anims[i];
+        if( core->tick - a->tick <= SCRIPTRUN_LOC_ANIM_TICKS )
+            core->loc_anims[kept++] = *a;
+    }
+    core->loc_anim_count = kept;
 }
 
 /* ------------------------------------------------------------------ helpers */
@@ -1197,6 +1205,22 @@ core_zone_sub(
         }
         break;
     }
+    case PKT_NAME_LOC_ANIM:
+    {
+        struct PktLocAnim const* pkt = payload;
+        struct ScriptrunLocAnim* a;
+        core_zone_tile(core, pkt->pos, &x, &z, &level);
+        /* the live ring asserts the same capacity (APP_DRIVE_LOC_ANIM_CAP) */
+        assert(core->loc_anim_count < SCRIPTRUN_LOC_ANIMS);
+        a = &core->loc_anims[core->loc_anim_count++];
+        a->x = x;
+        a->z = z;
+        a->level = level;
+        a->shape = pkt->info >> 2;
+        a->seq = pkt->seq_id;
+        a->tick = core->tick;
+        break;
+    }
     case PKT_NAME_MAP_ANIM:
     {
         struct PktMapAnim const* pkt = payload;
@@ -1476,6 +1500,9 @@ core_packet(
         break;
     case PKT_NAME_MAP_ANIM:
         core_zone_sub(core, pkt_name, &packet._map_anim);
+        break;
+    case PKT_NAME_LOC_ANIM:
+        core_zone_sub(core, pkt_name, &packet._loc_anim);
         break;
     case PKT_NAME_MAP_PROJANIM:
         core_zone_sub(core, pkt_name, &packet._map_projanim);

@@ -741,6 +741,10 @@ exec_zone_sub_packet_at(
         struct PktLocAnim const* pkt = payload;
         zone_loc_tile_at(app, at, pkt->pos, &tile_x, &tile_z, &level);
         App_WorldSceneryAnim(app, tile_x, tile_z, level, pkt->info >> 2, pkt->seq_id);
+        /* The driver reads the animation from the packet, not from the
+         * scenery that waits on the loc's models (App_DriveLocAnimNote). */
+        if( App_ActiveWorldview(app)->world == app->world )
+            App_DriveLocAnimNote(app, tile_x, tile_z, level, pkt->info >> 2, pkt->seq_id);
         break;
     }
     case PKT_NAME_MAP_ANIM:

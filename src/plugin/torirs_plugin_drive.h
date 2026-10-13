@@ -202,12 +202,28 @@ struct App_DriveMapAnim
     int32_t x, z, level, spotanim;
     int32_t cycle; /**< world cycle at the apply */
 };
+/* A LOC_ANIM as its packet said it, stamped with the world cycle of the
+ * apply: the sequence a placed loc started. The scenery's animation waits on
+ * the loc's models; a boss whose body is a loc (the Great Olm's head) tells
+ * its facing and its attacks only by these, so the drive reads the packet,
+ * as scriptrun does (scriptrun_core.c, SCRIPTRUN_LOC_ANIMS). Rows are listed
+ * for APP_DRIVE_LOC_ANIM_TICKS server ticks after the tick that sent them.
+ * Absolute tiles. */
+#define APP_DRIVE_LOC_ANIM_CAP 256
+#define APP_DRIVE_LOC_ANIM_TICKS 40
+struct App_DriveLocAnim
+{
+    int32_t x, z, level, shape, seq;
+    int32_t cycle; /**< world cycle at the apply */
+};
 struct App_DriveRing
 {
     struct App_DriveProjectile projectiles[APP_DRIVE_PROJECTILE_CAP];
     int projectile_count;
     struct App_DriveMapAnim map_anims[APP_DRIVE_MAP_ANIM_CAP];
     int map_anim_count;
+    struct App_DriveLocAnim loc_anims[APP_DRIVE_LOC_ANIM_CAP];
+    int loc_anim_count;
     struct App_DriveLocChange loc_changes[APP_DRIVE_LOC_CHANGE_CAP];
     int loc_change_count;
     /* Bumped whenever loc_changes is written or retired: the key the route
@@ -288,6 +304,8 @@ void App_DriveProjectileNote(
     int target, int start_delay, int end_delay);
 /* Record a MAP_ANIM as applied (rs_gameproto_exec.c), absolute tiles. */
 void App_DriveMapAnimNote(struct App* app, int x, int z, int level, int spotanim);
+/* Record a LOC_ANIM as applied (rs_gameproto_exec.c), scene tiles. */
+void App_DriveLocAnimNote(struct App* app, int scene_x, int scene_z, int level, int shape, int seq);
 /* Record a LOC_ADD_CHANGE (or a LOC_DEL, loc_id -1) as applied
  * (rs_gameproto_exec.c), scene tiles at the loc's cache level: it replaces any
  * pending change for the same tile and layer, as the packet does. */

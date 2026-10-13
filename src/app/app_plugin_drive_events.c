@@ -195,6 +195,35 @@ App_DriveMapAnimNote(struct App* app, int x, int z, int level, int spotanim)
 }
 
 void
+App_DriveLocAnimNote(struct App* app, int scene_x, int scene_z, int level, int shape, int seq)
+{
+    struct App_DriveRing* ring;
+    struct App_DriveLocAnim* a;
+    int now, kept, i;
+
+    assert(app);
+    assert(app->world);
+    ring = &app->drive_events;
+    now = (int)app->world->cycle;
+    /* Retire by cycles with a tick of slack: the rows themselves are judged
+     * by the server tick (DriveUi_LocAnims), scriptrun's rule. */
+    kept = 0;
+    for( i = 0; i < ring->loc_anim_count; i++ )
+        if( now - ring->loc_anims[i].cycle <= (APP_DRIVE_LOC_ANIM_TICKS + 2) * 30 )
+            ring->loc_anims[kept++] = ring->loc_anims[i];
+    ring->loc_anim_count = kept;
+    /* Scriptrun holds the same count (SCRIPTRUN_LOC_ANIMS) and asserts it. */
+    assert(ring->loc_anim_count < APP_DRIVE_LOC_ANIM_CAP);
+    a = &ring->loc_anims[ring->loc_anim_count++];
+    a->x = app->world->_base_tile_x + scene_x;
+    a->z = app->world->_base_tile_z + scene_z;
+    a->level = level;
+    a->shape = shape;
+    a->seq = seq;
+    a->cycle = now;
+}
+
+void
 App_DriveLocChangeNote(
     struct App* app, int scene_x, int scene_z, int level, int loc_id, int shape, int angle)
 {

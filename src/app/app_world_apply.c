@@ -116,9 +116,23 @@ app_world_scenery_anim_apply(
              *
              * Config-animated locs already arrive in this representation;
              * their yaw is the desired value and the guard leaves them alone.
+             *
+             * ...and so do config-animated CENTREPIECES, which carry their
+             * turn differently: scenery_add_normal builds them unrotated and
+             * applies the map orientation as the model's post_orient after
+             * every pose (deob ObjectComposition -> SequenceDefinition
+             * transformObjectModel: un-rotate, frame, re-rotate), with yaw 0.
+             * The yaw test alone took that yaw 0 for "baked", un-baked a turn
+             * that was never baked and added a draw-time yaw over the
+             * post_orient: the Great Olm's head and claws (5x8 locs at angle
+             * 1/3, config idle seqs, then a LOC_ANIM from the rise on) stood
+             * turned out of their wall, the rock frame jutting into the arena
+             * where the same model as the static cave sits flat in the recess
+             * (test/raids/cox_olm_rise_compare.lua, 2026-10-13).
              */
             if( element && ToriDraw_ModelKindIsFull(element->model.kind) &&
                 element->model.u.model.model &&
+                element->model.u.model.model->post_orient == 0 &&
                 (loc_shape == RSCACHE_LOC_SHAPE_SCENERY ||
                  loc_shape == RSCACHE_LOC_SHAPE_SCENERY_DIAGONAL) )
             {

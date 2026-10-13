@@ -48,6 +48,7 @@ enum
      * is an assert, never a dropped graphic (the dropped one is the newest,
      * the one a bot must dodge). */
     SCRIPTRUN_MAP_ANIMS = 1024,
+    SCRIPTRUN_LOC_ANIMS = 256,
     SCRIPTRUN_LOCS = 1024,
     SCRIPTRUN_OBJS = 512,
     SCRIPTRUN_MOUNTS = 64,
@@ -117,6 +118,19 @@ struct ScriptrunProjectile
     int target;                            /* the wire's target field */
     int launch_cycle;                      /* world cycle it was received */
     int start_delay, end_delay;            /* cycles after receipt */
+};
+
+/* A LOC_ANIM as its packet said it: the sequence a placed loc started, on
+ * the tick that sent it. Kept for SCRIPTRUN_LOC_ANIM_TICKS, the live ring's
+ * APP_DRIVE_LOC_ANIM_LIFE. (The Great Olm's head is a loc: its facing and its
+ * attacks are told only by these.) */
+enum { SCRIPTRUN_LOC_ANIM_TICKS = 40 };
+struct ScriptrunLocAnim
+{
+    int x, z, level; /* absolute */
+    int shape;
+    int seq;
+    int tick; /* core->tick at the apply: the tick that sent it */
 };
 
 struct ScriptrunMapAnim
@@ -199,6 +213,8 @@ struct ScriptrunCore
     int projectile_count;
     struct ScriptrunMapAnim map_anims[SCRIPTRUN_MAP_ANIMS];
     int map_anim_count;
+    struct ScriptrunLocAnim loc_anims[SCRIPTRUN_LOC_ANIMS];
+    int loc_anim_count;
     /* Every placed loc the bot knows: the map's (cache level, base id) and
      * every zone change since. loc_id -1 is a removed one. */
     struct ScriptrunLoc* locs;

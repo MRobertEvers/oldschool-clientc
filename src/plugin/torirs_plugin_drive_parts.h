@@ -56,6 +56,7 @@ static char const* const DRIVE_SCRIPT_PARTS[] = {
     "plugins/quest_driver/tob2_verzik_p1.lua",
     "plugins/quest_driver/tob2_verzik_p2.lua",
     "plugins/quest_driver/tob2_verzik_p3.lua",
+    "plugins/quest_driver/cox2_olm.lua",
     "plugins/quest_driver/cutscene.lua",
 };
 

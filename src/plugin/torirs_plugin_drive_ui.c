@@ -3161,6 +3161,57 @@ lua_drive_spotanims(struct lua_State* L)
     return 2;
 }
 
+/* api_drive.loc_anims(radius) -> result, { {x, z, level, shape, seq_id,
+ * tick}, ... } every applied LOC_ANIM sent in the last
+ * APP_DRIVE_LOC_ANIM_TICKS server ticks, oldest first, `tick` the server tick
+ * that sent it (PluginDrive_ServerTickOfCycle, lesson 67). Scriptrun's
+ * d_loc_anims answers the same rows. */
+static int
+lua_drive_loc_anims(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+    int radius = PluginDrive_ArgOptInt(L, 1, 0);
+    struct App_DriveRing const* ring;
+    int px = 0, pz = 0, aboard = 0;
+    int have_player;
+    int now_tick;
+    int n = 0;
+    int i;
+
+    assert(app);
+    lua_pushstring(L, DriveResultName(DRIVE_OK));
+    lua_newtable(L);
+    if( !app->world )
+        return 2;
+    have_player = drive_ui_search_origin(app, &px, &pz, &aboard);
+    now_tick = PluginDrive_ServerTickOfCycle((int)app->world->cycle);
+    ring = &app->drive_events;
+    for( i = 0; i < ring->loc_anim_count; i++ )
+    {
+        struct App_DriveLocAnim const* a = &ring->loc_anims[i];
+        int tick = PluginDrive_ServerTickOfCycle(a->cycle);
+        if( now_tick - tick > APP_DRIVE_LOC_ANIM_TICKS )
+            continue;
+        if( have_player && !drive_ui_within_radius(a->x, a->z, px, pz, radius) )
+            continue;
+        lua_createtable(L, 0, 6);
+        lua_pushinteger(L, a->x);
+        lua_setfield(L, -2, "x");
+        lua_pushinteger(L, a->z);
+        lua_setfield(L, -2, "z");
+        lua_pushinteger(L, a->level);
+        lua_setfield(L, -2, "level");
+        lua_pushinteger(L, a->shape);
+        lua_setfield(L, -2, "shape");
+        lua_pushinteger(L, a->seq);
+        lua_setfield(L, -2, "seq_id");
+        lua_pushinteger(L, tick);
+        lua_setfield(L, -2, "tick");
+        lua_rawseti(L, -2, ++n);
+    }
+    return 2;
+}
+
 /* api_drive.projectiles(radius) -> result, { {spotanim_id, src_x, src_z,
  * dst_x, dst_z, level, target, target_npc_slot, launched, cycles_left,
  * duration, element_id, seq, seq_frame}, ... } nearest DESTINATION first (struct
@@ -3230,6 +3281,7 @@ static struct LuaFn const LUA_DRIVE_UI_FNS[] = {
     {"loc_variants", lua_drive_loc_variants},
     {"objs", lua_drive_objs},
     {"spotanims", lua_drive_spotanims},
+    {"loc_anims", lua_drive_loc_anims},
     {"projectiles", lua_drive_projectiles},
     {"player_tile", lua_drive_player_tile},
     {"route", lua_drive_route},

@@ -1247,6 +1247,45 @@ d_spotanims(lua_State* L)
     return 2;
 }
 
+/* api_drive.loc_anims(radius) -> "ok", { {x, z, level, shape, seq_id, tick},
+ * ... } every LOC_ANIM received in the last SCRIPTRUN_LOC_ANIM_TICKS ticks,
+ * oldest first, `tick` the tick that sent it (the live ring's rows,
+ * torirs_plugin_drive_ui.c lua_drive_loc_anims). */
+static int
+d_loc_anims(lua_State* L)
+{
+    struct ScriptBot* bot = bot_of(L);
+    struct ScriptrunCore* c = bot->core;
+    int radius = (int)luaL_optinteger(L, 1, 0); /* <= 0: all (drive_ui_within_radius) */
+    int px = 0, pz = 0, plevel = 0;
+    int have = ScriptrunCore_LocalTile(c, &px, &pz, &plevel);
+    int n = 0;
+
+    lua_pushstring(L, "ok");
+    lua_newtable(L);
+    for( int i = 0; i < c->loc_anim_count; i++ )
+    {
+        struct ScriptrunLocAnim const* a = &c->loc_anims[i];
+        if( have && radius > 0 && cheb(px, pz, a->x, a->z) > radius )
+            continue;
+        lua_newtable(L);
+        lua_pushinteger(L, a->x);
+        lua_setfield(L, -2, "x");
+        lua_pushinteger(L, a->z);
+        lua_setfield(L, -2, "z");
+        lua_pushinteger(L, a->level);
+        lua_setfield(L, -2, "level");
+        lua_pushinteger(L, a->shape);
+        lua_setfield(L, -2, "shape");
+        lua_pushinteger(L, a->seq);
+        lua_setfield(L, -2, "seq_id");
+        lua_pushinteger(L, a->tick);
+        lua_setfield(L, -2, "tick");
+        lua_rawseti(L, -2, ++n);
+    }
+    return 2;
+}
+
 static int
 d_objs(lua_State* L)
 {
@@ -2573,6 +2612,7 @@ push_drive_table(
     bind(L, bot, "spotanims", d_spotanims);
     bind(L, bot, "objs", d_objs);
     bind(L, bot, "locs", d_locs);
+    bind(L, bot, "loc_anims", d_loc_anims);
     bind(L, bot, "loc_copies", d_empty_list);
     bind(L, bot, "messages", d_messages);
     bind(L, bot, "message_serial", d_message_serial);
