@@ -9,12 +9,13 @@
 -- THE IDEA. Olm acts every 4 ticks and only at whoever stands in the view his
 -- head faces; where I stand at the end of the tick before each action decides
 -- whether it fires, skips, or turns his head -- and so what the NEXT action
--- does. The strategy runs his own rule (OLM_SPEC 3) over every way of
--- standing in the next four read ticks (five view bins, 5^4 sequences),
--- scores each in hp (an auto at me, a special fired, a swing landed), and
--- hands the planner the winning bin for each read tick. 4:1 on the melee hand
--- and 3:0 on the mage hand are what that search finds; nothing here scripts
--- them.
+-- does. The strategy runs his own rule (OLM_SPEC 3, the content's step) and
+-- hands the planner a view bin for each read tick: the MELEE hand first, by
+-- the 4:1 (CO.cycle); the MAGE hand only while the melee hand is clenched or
+-- dead, by HEAD RUNNING (CO.headrun: the head turns on every step and never
+-- attacks); P3 its own states (both hands down inside the regen); the head by
+-- the step search (CO.search: every way of standing in the next four reads,
+-- scored in hp).
 --
 -- Perception is only what the client is sent: the head's and claws' loc
 -- animations (api_drive.loc_anims), npc rows, projectiles, graphics, locs and
@@ -45,8 +46,22 @@ CO.V = {
         { 37, 41, 0, 1, 1 },     -- D  MIDDLE + NORTH
         { 42, 44, 0, 0, 1 },     -- E  NORTH only
     },
-    -- the clock (OLM_SPEC 3)
-    FIRST_P1 = 4, FIRST_LATER = 8, ACT = 4,
+    -- the clock (OLM_SPEC 3); the rise's second beat (cox_olm_rise_done,
+    -- the ghost clench's 2-tick poll grid) is the rise animation + 4
+    FIRST_P1 = 4, FIRST_LATER = 8, ACT = 4, RISE_DONE = 4,
+    -- THE CLENCH (cox_olm_clench_check): judged at every even step on the
+    -- heaviest landed hit on the melee hand since the previous even step;
+    -- 1/20 of the solo hand's 600; 45 ticks (cox_olm.constant). The P3
+    -- healing hand: 8 ticks (^cox_olm_protect_ticks).
+    HAND_HP = 600, CLENCH_HIT = 30, CLENCH_TICKS = 45, PROTECT_TICKS = 8,
+    -- the clench's end: back to the melee hand this many ticks before it is
+    -- hittable again (the gear switch and the 4:1's first read)
+    MELEE_LEAD = 4,
+    -- a seen auto in a flame phase (or P3 / the final stand): a third of the
+    -- time a phase attack, one of the power's; a fire wall judges where I
+    -- END the step tick (cox_olm_fire_wall: the walls land the tick after
+    -- the cast), so standing still on a tile a wall fits costs this
+    WALL_RISK = 6,
     -- THE CURRENCY (hp): an auto that reaches me (prayed 80% off, plus the
     -- 1/3 chance it is a phase attack), a special that fires, a swing landed
     -- (expected damage x HP_PER_BOSS_HP; PROBE: measure from the tick logs)
@@ -57,6 +72,9 @@ CO.V = {
     SPECIAL_COST = { [2] = 10, [3] = 10, [4] = 14, [5] = 6 },
     SWING_VALUE = 2.5,
     REQ_COST = 12,          -- a read tick off the chosen bin (above a cast: ol1p t808 stayed to cast)
+    -- head running: a read in view is an attack the method exists to deny
+    -- (ol1 t138: a cast from the long line left the next read a tile short)
+    RUN_REQ_COST = 30,
     MOVE_BIN = 8,           -- tiles a run covers between two reads (4 ticks x 2)
     -- P3: both hands down to this, then the kills; above a swing's max so a
     -- low hand is not killed by accident (ol1t: the mage hand at 60 outlived
@@ -222,42 +240,173 @@ function CO.most_of(s, m, n, side, extra_left, extra_right)
     return 2
 end
 
-function CO.step_kind(c)
-    local slot = c % 4
-    if slot == 0 or slot == 2 then return 0 end
-    if slot == 1 then return 1 end
-    return 2 + c // 4
+-- THE ROTATION (cox_olm_act; Molgoatkirby's counting guide): the steps
+-- alternate, an auto on every odd one; the even ones walk a list of their
+-- own -- null, crystal burst, null, lightning, null, teleport (+ null, heal
+-- in the penultimate) -- that does NOT advance on a clenched even step (a
+-- "clenched null"). The list's item i -> its kind (cox_olm_even_kind):
+-- 1 null, 2 burst, 3 lightning, 4 teleport, 5 heal.
+function CO.even_kind(i)
+    if i % 2 == 0 then return 1 end
+    return 2 + i // 2
+end
+
+function CO.list_len(o)
+    return o.glowing and 8 or 6
+end
+
+-- Is an even step at tick t a clenched null? The clench (its 45 ticks from
+-- the even step it came on) or the ghost clench's one tick.
+function CO.clenched_at(o, t)
+    return t < (o.clench_until or -1) or o.ghost == t
+end
+
+-- Can the left claw special at tick t (cox_olm_claw_special: up, not
+-- clenched, not healing, and neither hand on its P3 regen bar)?
+function CO.can_special(o, t)
+    if not o.left_alive or o.final then return false end
+    -- (the healing hand from the tick after its sign: the sign's own step fired it)
+    if t < (o.clench_until or -1) or (t > (o.protect_at or -1) and t < (o.protect_until or -1)) then return false end
+    if o.glowing and not o.right_alive then return false end
+    return true
+end
+
+-- The heaviest resolved hit among a hand's launches over ticks [t0, t1]
+-- (0 if none), and whether one there is still in the air (its damage not
+-- shown yet).
+-- (no_kill: leave out a killing blow -- cox_olm_prepare_hit: it does not clench)
+function CO.hit_in(list, t0, t1, no_kill)
+    assert(list, "cox_olm: hit_in without a launch list")
+    local best = 0
+    for _, h in ipairs(list) do
+        if h.t >= t0 and h.t <= t1 and h.dmg and h.dmg > best and not (no_kill and h.kill) then best = h.dmg end
+    end
+    return best
+end
+
+function CO.hit_open(list, t0, t1)
+    assert(list, "cox_olm: hit_open without a launch list")
+    for _, h in ipairs(list) do
+        if h.t >= t0 and h.t <= t1 and h.dmg == nil then return true end
+    end
+    return false
+end
+
+-- Does a hand steer step A (damage launched at it since the last step)?
+-- (open launches count: the plan assumes they land)
+function CO.steers(list, A)
+    return CO.hit_in(list, A - 4, A - 1) > 0 or CO.hit_open(list, A - 4, A - 1)
+end
+
+-- Will the next even step clench (cox_olm_clench_check), from what has
+-- landed on the melee hand since the last even step? (P1/P2, the mage hand up.)
+function CO.clench_due(o, t_now)
+    if o.glowing or not o.right_alive or not o.left_alive then return false end
+    if t_now < (o.clench_until or -1) then return false end
+    return CO.hit_in(o.lhits, o.prev_even or -1, t_now, true) >= CO.V.CLENCH_HIT
 end
 
 -- One step: state { dir, skipped }, the step's kind, my bin (an index into
 -- CO.V.BINS; nil = I am not in the chamber), the hand flags, whether the
 -- left claw can special. -> new dir, new skipped, autos at me, special fired
+-- (cox_olm_act, step for step: an empty view is ALWAYS a skip -- an auto
+-- owed, a special lost, the head to the most players; a seen null or special
+-- with nothing owed re-targets, and a special it turns away from still goes
+-- off; otherwise the owed auto first, then the step's own.)
 function CO.step(dir, skipped, kind, bin, side, extra_left, extra_right, can_special)
     local b = bin and CO.V.BINS[bin]
-    local lz = b and b[1]
-    local inview = b ~= nil and (CO.in_view(dir, b[1]) or CO.in_view(dir, b[2]))
     -- (a bin is wholly in or out of every view by construction)
-    if not inview or (kind > 0 and not skipped) then
+    local inview = b ~= nil and CO.in_view(dir, b[1])
+    local function most()
+        return CO.most_of(b and b[3] or 0, b and b[4] or 0, b and b[5] or 0, side, extra_left, extra_right)
+    end
+    if not inview then
         if kind == 0 then skipped = true end
-        local most = CO.most_of(b and b[3] or 0, b and b[4] or 0, b and b[5] or 0, side, extra_left, extra_right)
-        if most ~= dir then
-            local autos, fired = 0, false
-            if kind >= 2 and inview then
-                if skipped then autos = 1 end
-                skipped = false
-                fired = can_special
-            end
-            return most, skipped, autos, fired
-        end
+        return most(), skipped, 0, false
+    end
+    if kind > 0 and not skipped then
+        local m = most()
+        if m ~= dir then return m, skipped, 0, kind >= 2 and can_special end
         if kind == 1 then return dir, skipped, 0, false end
     end
     local debt = skipped
-    skipped = false
-    if kind == 0 then return dir, skipped, inview and 1 or 0, false end
-    local autos = (debt and inview) and 1 or 0
-    if kind == 1 then return dir, skipped, autos, false end
-    return dir, skipped, autos, can_special
-    -- (lz kept for the trace)
+    if kind == 0 then return dir, false, 1, false end
+    return dir, false, debt and 1 or 0, kind >= 2 and can_special
+end
+
+-- The kind of the next step the count has not played yet.
+function CO.next_kind(S, F)
+    local o = S.o
+    if o.parity == 0 then return 0 end
+    local A = o.first_act + 4 * o.next_k
+    if CO.clench_due(o, F.tick) or CO.clenched_at(o, A) then return 1 end
+    return CO.even_kind(o.list % CO.list_len(o))
+end
+
+-- THE STEPS AHEAD from the model's state: every step whose read (A - 1) is
+-- after now and at most tmax, up to n: { A, kind, slot, can }. A step whose
+-- read is already behind me (A - 1 <= now < A) is played with the tile I am
+-- on, and the state after it is the search's start. The 4:1's slot is the
+-- step's place in its four: 0 the auto before a null, 1 the null, 2 the auto
+-- before a special, 3 the special (a clenched null counts as a null).
+-- -> steps, dir, skipped (after the pending step)
+function CO.steps_ahead(S, F, n, tmax)
+    local o = S.o
+    local out = {}
+    local dir, skipped = o.dir, o.skipped
+    if o.first_act == nil then return out, dir, skipped end
+    local parity, list, len = o.parity, o.list, CO.list_len(o)
+    local cl_until = o.clench_until or -1
+    local due = CO.clench_due(o, F.tick)
+    local k = o.next_k
+    local raw = {}
+    while #out < n do
+        local A = o.first_act + 4 * k
+        if A - 1 > tmax then break end
+        local kind
+        if parity == 1 then
+            if due then cl_until, due = A + CO.V.CLENCH_TICKS, false end
+            if A < cl_until or o.ghost == A then
+                kind = 1
+            else
+                kind = CO.even_kind(list % len)
+                list = (list + 1) % len
+            end
+        else
+            kind = 0
+        end
+        parity = 1 - parity
+        local can = CO.can_special(o, A) and A >= cl_until
+        local st = { A = A, kind = kind, can = can }
+        raw[#raw + 1] = st
+        if A - 1 > F.tick then
+            out[#out + 1] = st
+        elseif A > F.tick then
+            -- (the pending step: my read tile is fixed; its steer is what
+            -- has landed since the last step)
+            local lx, lz = CO.local_of(S, F.me.x, F.me.z)
+            local bin = (lx >= CO.V.CH.x0 and lx <= CO.V.CH.x1) and CO.bin_of(lz) or nil
+            dir, skipped = CO.step(dir, skipped, kind, bin, o.side or 0, CO.steers(o.lhits, A), CO.steers(o.rhits, A), can)
+        end
+        k = k + 1
+    end
+    -- the slots: an auto's from the even step after it
+    for i, st in ipairs(raw) do
+        if st.kind == 0 then
+            local nx = raw[i + 1]
+            st.slot = (nx and nx.kind >= 2) and 2 or 0
+        else
+            st.slot = (st.kind >= 2) and 3 or 1
+        end
+    end
+    -- (a last auto with no even step after it in the list: from the list)
+    local last = raw[#raw]
+    if last and last.kind == 0 then
+        local E = last.A + 4
+        local nk = (E < cl_until or o.ghost == E) and 1 or CO.even_kind(list % len)
+        last.slot = (nk >= 2) and 2 or 0
+    end
+    return out, dir, skipped
 end
 
 -- ================================================================= OBSERVE
@@ -383,7 +532,19 @@ function CO.observe(S, F)
     -- THE FIRE WALL: its flames' first sight (they burn the row between at
     -- + 10, read against the end of + 9: cox_olm_wall_tick), and the two rows
     if #o.fire > 0 then
-        if o.fire_first == nil then o.fire_first = F.tick end
+        if o.fire_first == nil then
+            o.fire_first = F.tick
+            -- THE CONTENT CHECK: the walls stand the tick after the cast -- a
+            -- step the head attacked on (its cast projectile flies 15 cycles,
+            -- too short to be seen alike on both lanes: not used)
+            local cast = false
+            for _, e in ipairs(o.events) do
+                if e.tick == F.tick - 1 and e.kind == "attack" then cast = true end
+            end
+            local on_step = o.first_act ~= nil and (F.tick - 1 - o.first_act) % 4 == 0
+            CO.mech(S, F, "wall", cast and on_step, string.format("flames seen %d: no head attack on a step at %d",
+                F.tick, F.tick - 1))
+        end
         local z0, z1 = nil, nil
         for _, fw in ipairs(o.fire) do
             z0 = (z0 == nil or fw.z < z0) and fw.z or z0
@@ -396,17 +557,47 @@ function CO.observe(S, F)
     -- the hands' last hitsplats: a landed hit since the last action steers
     -- (and my swings' landing rate on each, for the search: solo, every
     -- hitsplat on a claw is mine)
-    for _, h in ipairs({ { "left_row", "hit_left", "left" }, { "right_row", "hit_right", "right" } }) do
+    -- MY ATTACKS ON THE HANDS, by their LAUNCH (cox_olm_prepare_hit runs as
+    -- the attack goes out: the steer and the clench's heaviest hit count
+    -- from the launch tick, in the player phase after the head acted -- so
+    -- toward the first step AFTER it; the trident's hitsplat lands 3-4 ticks
+    -- later, the tentacle's one): the swing the monitor saw this tick, on
+    -- the hand I aimed at; each hitsplat resolves the oldest open launch
+    if F.my_swing and (o.aim_hand == "left" or o.aim_hand == "right") then
+        local list = (o.aim_hand == "left") and o.lhits or o.rhits
+        list[#list + 1] = { t = F.my_swing_stamp or F.tick }
+        o.launches = (o.launches or 0) + 1
+    end
+    for _, h in ipairs({ { "left_row", "hit_left", "left", "lhits" }, { "right_row", "hit_right", "right", "rhits" } }) do
         local row = o[h[1]]
-        if row and row.hit_cycle and row.hit_cycle ~= o[h[2] .. "_cycle"] then
+        local list = o[h[4]]
+        -- (a new hitsplat: its start cycle changes to another live one -- a
+        -- splat running out reads cycle 0, damage -1, and is not a hit)
+        if row and row.hit_cycle and row.hit_cycle > 0 and (row.hit_damage or -1) >= 0
+            and row.hit_cycle ~= o[h[2] .. "_cycle"] then
             o[h[2] .. "_cycle"] = row.hit_cycle
             local acc = o.acc[h[3]]
             acc.n = acc.n + 1
-            if (row.hit_damage or 0) > 0 then
-                o[h[2]] = true
-                acc.h = acc.h + 1
+            local dmg = row.hit_damage or 0
+            if dmg > 0 then acc.h = acc.h + 1 else o[h[2] .. "_splash"] = F.tick end
+            local open = nil
+            for _, e in ipairs(list) do
+                if e.dmg == nil and e.t < F.tick then open = e break end
             end
+            if open == nil then
+                -- (a hitsplat with no launch seen: taken as a swing the tick before)
+                open = { t = F.tick - 1 }
+                list[#list + 1] = open
+                o.orphans = (o.orphans or 0) + 1
+            end
+            open.dmg = dmg
+            open.kill = dmg > 0 and (row.health_scale or 0) > 0 and (row.health_ratio or 1) == 0
         end
+        -- (a launch with no hitsplat in 8 ticks did nothing)
+        for _, e in ipairs(list) do
+            if e.dmg == nil and e.t < F.tick - 8 then e.dmg = 0 end
+        end
+        while #list > 0 and list[1].t < F.tick - 30 do table.remove(list, 1) end
     end
     if o.ox == nil then return end
     -- the loc animations: the head's tells and the left claw's signs
@@ -466,7 +657,6 @@ function CO.observe(S, F)
     -- the autos' style: the head's projectiles, the last seen
     local pr, projs = api_drive.projectiles(0)
     o.spheres, o.auto_inflight, o.spits = {}, false, {}
-    local fw_rows = {}
     if pr == "ok" then
         for _, p in ipairs(projs) do
             -- the life siphon's two spits (the final stand): the two tiles that
@@ -483,14 +673,6 @@ function CO.observe(S, F)
             if p.spotanim_id == ids.acid_spit and (p.target or -1) <= 0 and (p.cycles_left or 0) > 0 then
                 o.spits[#o.spits + 1] = { x = p.dst_x, z = p.dst_z, land = F.tick + (p.cycles_left + 15) // 30 }
             end
-            -- THE FIRE WALL'S CAST (cox_olm_fire_wall): two projectiles from
-            -- the head to the rows either side of the player it chose, z +- 1;
-            -- the flames stand two ticks later, and THEN block (ol20 t212,
-            -- t244: the plan only saw the flames, a tick too late to run the
-            -- two tiles out; trapped, and a seedling under me burst for 31)
-            if p.spotanim_id == ids.fw_travel and (p.target or -1) <= 0 then
-                fw_rows[p.dst_z] = true
-            end
             if p.spotanim_id == ids.proj_magic or p.spotanim_id == ids.proj_ranged then
                 o.auto_inflight = o.auto_inflight or (p.cycles_left or 0) > 0
             end
@@ -500,15 +682,6 @@ function CO.observe(S, F)
             elseif p.spotanim_id == ids.sph_ranged then o.spheres[#o.spheres + 1] = "ranged"
             elseif p.spotanim_id == ids.sph_melee then o.spheres[#o.spheres + 1] = "melee" end
         end
-    end
-    -- (first sight is the cast tick; the pair is in the air two ticks)
-    local z0, z1 = nil, nil
-    for z in pairs(fw_rows) do
-        z0 = (z0 == nil or z < z0) and z or z0
-        z1 = (z1 == nil or z > z1) and z or z1
-    end
-    if z0 and z1 - z0 == 2 and (o.fw_cast == nil or o.fw_cast.z0 ~= z0 or F.tick - o.fw_cast.tick > 4) then
-        o.fw_cast = { tick = F.tick, z0 = z0, z1 = z1 }
     end
     -- graphics: lightning bolts, the portal, crystal shadows (first sight;
     -- the portal's tile and first sight are remembered across the ticks its
@@ -583,10 +756,14 @@ function CO.head_event(S, F, what)
         o.first_act = F.tick + ((o.phase_n == 1) and V.FIRST_P1 or V.FIRST_LATER)
         o.next_k = 0
         o.dir, o.skipped = 1, false
-        o.hit_left, o.hit_right = false, false
+        -- (cox_olm_rise_done: parity, list, the clench, the ghost, all reset)
+        o.parity, o.list, o.prev_even = 0, 0, F.tick
+        o.ghost, o.clench_at, o.protect_signed = nil, nil, false
+        o.lhits, o.rhits = {}, {}
         o.final = false
         o.left_alive, o.right_alive = true, true
         o.clench_until = -1
+        o.protect_until, o.protect_at = -1, nil
         QD.raid._tob_trace(S, F.tick, "olm rise " .. o.phase_n .. (o.glowing and " (glowing)" or "") .. " side " .. tostring(o.side))
         return
     end
@@ -620,7 +797,8 @@ function CO.head_event(S, F, what)
             local u = o.undo
             if d > 0 and u and u.A > F.tick - 4 then
                 -- (the step counted on the wrong tick: undone, run again now)
-                o.dir, o.skipped, o.hit_left, o.hit_right = u.dir, u.skipped, u.hit_left, u.hit_right
+                o.dir, o.skipped = u.dir, u.skipped
+                o.parity, o.list, o.prev_even = u.parity, u.list, u.prev_even
                 o.autos_at_me, o.specials_at_me = u.autos, u.specials
                 o.next_k = u.k
                 S.mon.rules.olm_step.checked = S.mon.rules.olm_step.checked - 1
@@ -636,13 +814,36 @@ function CO.claw_event(S, F, what)
     local sign = what:match("sign:(%d)")
     if sign then
         o.signs[#o.signs + 1] = { tick = F.tick, kind = tonumber(sign) }
-        if tonumber(sign) == 5 then o.protect_until = F.tick + 16 end
+        if #o.signs > 32 then table.remove(o.signs, 1) end
+        -- (the healing hand: 8 ticks, ^cox_olm_protect_ticks; its register
+        -- stays set for the phase, which ends the ghost's animation)
+        if tonumber(sign) == 5 then
+            o.protect_at = F.tick
+            o.protect_until = F.tick + CO.V.PROTECT_TICKS
+            o.protect_signed = true
+        end
         return
     end
-    if what == "clench" then o.clench_until = F.tick + 45
-    elseif what == "unclench" then o.clench_until = F.tick
+    if what == "clench" then
+        o.clench_at = F.tick
+        o.clench_until = F.tick + CO.V.CLENCH_TICKS
+    elseif what == "unclench" then
+        o.unclench_at = F.tick
+        if F.tick < (o.clench_until or -1) then o.clench_until = F.tick end
     elseif what == "left_down" then o.left_alive = false
-    elseif what == "right_down" then o.right_alive = false
+    elseif what == "right_down" then
+        o.right_alive = false
+        -- THE GHOST CLENCH (cox_olm_hand_down): Olm polls the mage hand every
+        -- two ticks, on the rise's parity; on the poll after it dies Olm
+        -- counts as clenched for that one tick (an even step on it is a
+        -- clenched null), and a clench running ends there
+        local rc = (o.rise_tick or 0) + CO.V.RISE_DONE
+        local g = F.tick + 1
+        if (g - rc) % 2 ~= 0 then g = g + 1 end
+        o.ghost = g
+        if F.tick < (o.clench_until or -1) then o.clench_until = g end
+        QD.raid._tob_trace(S, F.tick, string.format("olm mage hand down: ghost clench at %d%s", g,
+            (o.first_act and (g - o.first_act) % 4 == 0) and " (a step)" or ""))
     elseif what == "left_up" and o.phase_n > 0 and F.tick > (o.rise_tick or 0) + 5 then o.left_alive = true
     elseif what == "right_up" and o.phase_n > 0 and F.tick > (o.rise_tick or 0) + 5 then o.right_alive = true end
     if not o.left_alive and not o.right_alive and o.glowing then o.final = true end
@@ -662,49 +863,128 @@ end
 function CO.advance(S, F)
     local o = S.o
     if o.first_act == nil then return end
-    local len = o.glowing and 16 or 12
+    local V = CO.V
+    local len = CO.list_len(o)
     while true do
         local A = o.first_act + 4 * o.next_k
         if A > F.tick then break end
-        local kind = CO.step_kind(o.next_k % len)
-        o.undo = { k = o.next_k, A = A, dir = o.dir, skipped = o.skipped, hit_left = o.hit_left,
-                   hit_right = o.hit_right, autos = o.autos_at_me, specials = o.specials_at_me }
+        o.undo = { k = o.next_k, A = A, dir = o.dir, skipped = o.skipped, parity = o.parity, list = o.list,
+                   prev_even = o.prev_even, autos = o.autos_at_me, specials = o.specials_at_me }
+        -- THE STEP'S KIND: an auto on the odd steps; on an even one the
+        -- clench is judged first (the heaviest hit on the melee hand since the
+        -- last even step), then a clenched null leaves the list where it is
+        local kind, clenched = 0, false
+        if o.parity == 1 then
+            local seen_clench = (o.clench_at == A)
+            local was = (not seen_clench) and A < (o.clench_until or -1)
+            local able = (not o.glowing) and o.right_alive and o.left_alive and not was
+            local t0 = o.prev_even or -1
+            -- THE CONTENT CHECK: a clench exactly when a hit of 1/20 went out
+            -- (judged once every launch in the window has shown its damage)
+            local function judge(F2)
+                local hit = CO.hit_in(o.lhits, t0, A - 1, true)
+                CO.mech(S, F2, "clench", (able and hit >= V.CLENCH_HIT) == seen_clench, string.format(
+                    "even step %d: heaviest hit %d since %d, clench %s", A, hit, t0, tostring(seen_clench)))
+            end
+            if CO.hit_open(o.lhits, t0, A - 1) then o.defer[#o.defer + 1] = { due = A + 6, run = judge }
+            else judge(F) end
+            o.prev_even = A
+            if CO.clenched_at(o, A) then
+                kind, clenched = 1, true
+            else
+                kind = CO.even_kind(o.list % len)
+                o.list = (o.list + 1) % len
+            end
+        end
+        o.parity = 1 - o.parity
         local me = QD.T2.tile_at(S, A - 1) or F.me
         local _, lz = CO.local_of(S, me.x, me.z)
         local lx = me.x - o.ox
         local bin = (lx >= CO.V.CH.x0 and lx <= CO.V.CH.x1) and CO.bin_of(lz) or nil
-        local can = o.left_alive and not o.final and (o.clench_until or -1) < A
-        local dir, skipped, autos, fired = CO.step(o.dir, o.skipped, kind, bin, o.side or 0, o.hit_left, o.hit_right, can)
+        local can = CO.can_special(o, A)
+        local el, er = CO.steers(o.lhits, A), CO.steers(o.rhits, A)
+        -- (the final stand's head down: the step after its death acts on nothing)
+        local dying = o.final and (o.head_row == nil or ((o.head_row.health_scale or 0) > 0 and (o.head_row.health_ratio or 1) == 0))
+        local dir, skipped, autos, fired = CO.step(o.dir, o.skipped, kind, bin, o.side or 0, el, er, can)
         -- what was seen at A: a turn names the new facing
-        local seen = nil
+        local seen, attacked = nil, false
         for _, e in ipairs(o.events) do
-            if e.tick == A then seen = e end
-        end
-        if seen and seen.kind == "turn" and seen.dir ~= dir then
-            QD.T2.monitor.note(S, "olm_step", A, string.format("k%d kind %d bin %s: model %d, turned %d",
-                o.next_k, kind, tostring(bin), dir, seen.dir))
-            dir = seen.dir
-        elseif seen == nil and dir ~= o.dir then
-            QD.T2.monitor.note(S, "olm_step", A, string.format("k%d kind %d bin %s: model turned %d, none seen",
-                o.next_k, kind, tostring(bin), dir))
-            dir = o.dir
-        end
-        S.mon.rules.olm_step.checked = S.mon.rules.olm_step.checked + 1
-        -- THE 4:1'S TELL: a special step skipped (no claw sign on its tick),
-        -- per state (the final stand has none to skip)
-        if kind >= 2 and not o.final and o.m and o.m.state then
-            local sp = o.spec_tally[o.m.state] or { due = 0, fired = 0 }
-            o.spec_tally[o.m.state] = sp
-            sp.due = sp.due + 1
-            for _, sg in ipairs(o.signs) do
-                if sg.tick == A then sp.fired = sp.fired + 1 break end
+            if e.tick == A then
+                seen = e
+                if e.kind == "attack" then attacked = true end
             end
+        end
+        local sign = nil
+        for _, sg in ipairs(o.signs) do
+            if sg.tick == A then sign = sg.kind end
+        end
+        -- THE CONTENT CHECK: the special the list and the view say fires, and
+        -- only it (the even list, the clenched null, the ghost clench)
+        if o.left_alive and not o.final and not dying then
+            local want = fired and kind or nil
+            CO.mech(S, F, "special", want == sign, string.format("k%d at %d kind %d%s bin %s dir %d: model %s, sign %s",
+                o.next_k, A, kind, clenched and " (clenched null)" or "", tostring(bin), o.dir,
+                tostring(want), tostring(sign)))
+        end
+        -- THE STEP CHECK (olm_step): the facing the model turns to against
+        -- the one seen; judged once every launch steering it has shown its
+        -- damage (a trident cast 1-3 ticks before the step is still in the
+        -- air). The live state takes the seen facing.
+        local rec = { A = A, k = o.next_k, kind = kind, bin = bin, dir = o.dir, skipped = o.skipped, can = can,
+                      side = o.side or 0, got = (seen and seen.kind == "turn") and seen.dir or o.dir }
+        if dying then
+            -- (no check: the head is down)
+        elseif CO.hit_open(o.lhits, A - 4, A - 1) or CO.hit_open(o.rhits, A - 4, A - 1) then
+            o.defer[#o.defer + 1] = { due = A + 6, run = function(F2) CO.judge_step(S, F2, rec) end }
+        else
+            CO.judge_step(S, F, rec)
+        end
+        dir = rec.got
+        -- THE CONTENT CHECK: the head attacks exactly when the model's step
+        -- owes me an auto (the caught-up one included)
+        CO.mech(S, F, "auto", dying or ((autos > 0) == attacked), string.format("k%d at %d kind %d bin %s dir %d owed %s: model %d autos, attack anim %s",
+            o.next_k, A, kind, tostring(bin), o.dir, tostring(o.skipped), autos, tostring(attacked)))
+        -- THE TELLS, per state: autos owed and fired at me, specials due and
+        -- signed, clenched nulls, and HEAD RUNS (a step the head turned on
+        -- without attacking: nothing fired)
+        if o.m and o.m.state then
+            local tl = o.spec_tally[o.m.state] or { steps = 0, autos = 0, autos_hit = 0, due = 0, fired = 0, clenched = 0, runs = 0 }
+            o.spec_tally[o.m.state] = tl
+            tl.steps = tl.steps + 1
+            if kind == 0 then tl.autos = tl.autos + 1 end
+            tl.autos_hit = tl.autos_hit + autos
+            if clenched then tl.clenched = tl.clenched + 1 end
+            if kind >= 2 and not o.final then
+                tl.due = tl.due + 1
+                if sign then tl.fired = tl.fired + 1 end
+            end
+            if seen and seen.kind == "turn" and not attacked and sign == nil then tl.runs = tl.runs + 1 end
         end
         o.dir, o.skipped = dir, skipped
         o.autos_at_me = o.autos_at_me + autos
         if fired then o.specials_at_me = o.specials_at_me + 1 end
-        o.hit_left, o.hit_right = false, false
+        -- (the step's 4:1 slot, as CO.steps_ahead names it)
+        if kind == 0 then
+            local nk = CO.clenched_at(o, A + 4) and 1 or CO.even_kind(o.list % len)
+            o.last_slot = (nk >= 2) and 2 or 0
+        else
+            o.last_slot = (kind >= 2) and 3 or 1
+        end
         o.next_k = o.next_k + 1
+    end
+end
+
+-- One step judged: the model's turn, from the launches' resolved damage,
+-- against the facing seen.
+function CO.judge_step(S, F, r)
+    local o = S.o
+    local el = CO.hit_in(o.lhits, r.A - 4, r.A - 1) > 0
+    local er = CO.hit_in(o.rhits, r.A - 4, r.A - 1) > 0
+    local dir = CO.step(r.dir, r.skipped, r.kind, r.bin, r.side, el, er, r.can)
+    S.mon.rules.olm_step.checked = S.mon.rules.olm_step.checked + 1
+    if dir ~= r.got then
+        QD.T2.monitor.note(S, "olm_step", r.A, string.format("k%d kind %d bin %s dir %d%s steer %s/%s: model %d, seen %d",
+            r.k, r.kind, tostring(r.bin), r.dir, r.skipped and " owed" or "", tostring(el), tostring(er), dir, r.got))
     end
 end
 
@@ -715,18 +995,7 @@ end
 function CO.search(S, F, target, B, canon)
     local o, V = S.o, CO.V
     if o.first_act == nil or o.side == nil then return nil end
-    local len = o.glowing and 16 or 12
-    local steps = {}
-    local k = o.next_k
-    while #steps < 4 do
-        local A = o.first_act + 4 * k
-        if A - 1 > F.tick + S.t2.plan_opts.h then break end
-        if A - 1 > F.tick then
-            steps[#steps + 1] = { A = A, kind = CO.step_kind(k % len), slot = k % 4,
-                                  can = o.left_alive and not o.final and (o.clench_until or -1) < A }
-        end
-        k = k + 1
-    end
+    local steps, dir0, skipped0 = CO.steps_ahead(S, F, 4, F.tick + S.t2.plan_opts.h)
     if #steps == 0 then return nil end
     -- THE REACH: the target's rows in z (grown by the range for magic and
     -- ranged) and, for melee, the one column beside the claw; the hand a
@@ -802,8 +1071,8 @@ function CO.search(S, F, target, B, canon)
                     end
                 end
                 local p_any = (swings > 0) and (1 - (1 - p) ^ swings) or 0
-                local base_l = (i == 1) and o.hit_left or false
-                local base_r = (i == 1) and o.hit_right or false
+                local base_l = (i == 1) and CO.steers(o.lhits, st.A) or false
+                local base_r = (i == 1) and CO.steers(o.rhits, st.A) or false
                 local e, path, likely = 0, nil, nil
                 for _, out in ipairs({ { true, p_any }, { false, 1 - p_any } }) do
                     local w = out[2]
@@ -847,7 +1116,7 @@ function CO.search(S, F, target, B, canon)
         memo[key] = { sc, path }
         return sc, path
     end
-    local score, path = walk(1, o.dir, o.skipped, CO.bin_of(my_lz) or 3, F.tick, ready0 or F.tick + 1)
+    local score, path = walk(1, dir0, skipped0, CO.bin_of(my_lz) or 3, F.tick, ready0 or F.tick + 1)
     local reads = {}
     for j, st in ipairs(steps) do reads[j] = { t = st.A - 1, bin = path[j], kind = st.kind } end
     return { reads = reads, score = score }
@@ -872,6 +1141,25 @@ end
 
 function CO.check(S, F)
     local o = S.o
+    -- the checks waiting on a launch's damage
+    if #o.defer > 0 then
+        local keep = {}
+        for _, d in ipairs(o.defer) do
+            if F.tick >= d.due then d.run(F) else keep[#keep + 1] = d end
+        end
+        o.defer = keep
+    end
+    -- THE GHOST CLENCH (cox_olm_hand_down): the melee hand's unclench plays
+    -- on the poll after the mage hand dies (not under the P3 healing hand)
+    if o.ghost == F.tick and o.left_alive and not o.protect_signed then
+        CO.mech(S, F, "ghost", o.unclench_at == F.tick, string.format("ghost clench at %d: unclench seen %s",
+            F.tick, tostring(o.unclench_at)))
+    end
+    -- the clench's own end: 45 ticks from the even step it came on
+    if o.clench_at and F.tick == o.clench_at + CO.V.CLENCH_TICKS and o.left_alive and o.ghost == nil then
+        CO.mech(S, F, "unclench", o.unclench_at == F.tick, string.format("clench at %d: unclench seen %s",
+            o.clench_at, tostring(o.unclench_at)))
+    end
     -- the solo portal: the swap at first sight + 8 reads my tile at the end
     -- of + 7; off it, min(50, 5 a tile) and a teleport onto it (I may run up
     -- to 2 tiles in the same tick after it)
@@ -1045,31 +1333,9 @@ function CO.predict(S, F, B)
         B.hit({ name = "flame", x = fw.x, z = fw.z, t0 = now + 1, t1 = now + h, sample = "pass", dmg_exp = 50, dmg_max = 65,
                 forbid = true })
     end
-    -- THE WALL BEFORE ITS FLAMES (its cast, seen at C: cox_olm_wall_tick
-    -- stands the flames at C + 2, reading the end of C + 1 for the leap
-    -- (8-10, out a row), and burns the row between at C + 12, reading the
-    -- end of C + 11): off all three rows by the end of C + 1 -- two tiles
-    -- out, one tick's run -- and nothing lands. Priced, not forbidden: a
-    -- leap (9) is better than a trap, and a trap a Water Strike gets out of
-    -- is better than a forbid elsewhere; the flames themselves block.
-    local fc = o.fw_cast
-    if fc and o.fire_first == nil and fc.tick + 2 > now then
-        local C = fc.tick
-        local x0, x1 = o.ox + V.WALL_X0, o.ox + V.WALL_X1
-        local zm = fc.z0 + 1
-        if C + 1 >= now + 1 then
-            for _, z in ipairs({ fc.z0, fc.z1 }) do
-                B.hit({ name = "leap", x0 = x0, z0 = z, x1 = x1, z1 = z, t0 = C + 1, t1 = C + 1, dmg_exp = 9, dmg_max = 10 })
-            end
-        end
-        for _, z in ipairs({ fc.z0, fc.z1 }) do
-            B.hit({ name = "flame", x0 = x0, z0 = z, x1 = x1, z1 = z, t0 = math.max(now + 1, C + 2), t1 = now + h,
-                    sample = "pass", dmg_exp = 50, dmg_max = 65, forbid = true })
-        end
-        if C + 11 <= now + h then
-            B.hit({ name = "burn", x0 = x0, z0 = zm, x1 = x1, z1 = zm, t0 = C + 11, t1 = C + 11, dmg_exp = 57, dmg_max = 65 })
-        end
-    end
+    -- (the wall before its flames: cast at a step C, the leap judged on where
+    -- I ENDED C -- the dodge is the step tick's own run, CO.wall_risk; the
+    -- flames stand and block from C + 1, the terms above)
     -- the falling crystals on me: one aimed each tick A at the tile I ended
     -- A - 1 on, landing at A + 2 on whoever ended A + 1 there -- never end a
     -- tick on the tile I ended two ticks before (ol20 t1651-1653: the rule
@@ -1108,9 +1374,10 @@ end
 -- cause and every decision-log row carries the state (intents.mode).
 --
 --   wait          no head up: before the first rise
---   mage          P1/P2, the mage hand up: the trident 3:0 (the search)
---   melee         P1/P2, the mage hand down: the tentacle 4:1 (CO.cycle:
---                 its own sub-machine, cycle / recover:<cause>)
+--   melee         P1/P2, the melee hand up and not clenched: the tentacle
+--                 4:1 (CO.cycle: its own sub-machine, cycle / recover:<cause>)
+--   mage          P1/P2, the melee hand clenched (or dead), the mage hand
+--                 up: the trident, HEAD RUNNING (CO.headrun: 3:0)
 --   interim       the hands down, Olm fallen: 33 ticks of crystals; wait
 --                 on the next wall's start tile (he rises on the other wall)
 --   p3-low-melee  the penultimate (head glowing): the melee hand to LOW_HP
@@ -1119,7 +1386,8 @@ end
 --   p3-kill-melee the melee hand dead first (its infinity heal: hold off it
 --                 while the sign shows, on the mage hand if it is high)
 --   p3-kill-mage  the mage hand dead inside the regen
---   head          the final stand: the blowpipe on the head (the search)
+--                 (the p3 melee states 4:1, the p3 mage states head-run)
+--   head          the final stand: the crossbow on the head (the search)
 function CO.machine(S, F)
     local o, V = S.o, CO.V
     local m = o.m
@@ -1135,8 +1403,22 @@ function CO.machine(S, F)
     elseif o.first_act == nil then
         state = (o.phase_n > 0) and "interim" or "wait"
     elseif not o.glowing then
-        if mage_t then state, tgt = "mage", mage_t
-        elseif melee_t then state, tgt = "melee", melee_t
+        -- THE MELEE HAND FIRST, by the 4:1; the mage hand only while the melee
+        -- hand is dead or CLENCHED (invulnerable: its 45 ticks go to head
+        -- running the mage hand), back to the 4:1 MELEE_LEAD ticks before
+        -- it can be hit again
+        -- (and from the tick the coming even step is KNOWN to clench -- a hit
+        -- of 1/20 since the last one, its hitsplat up -- when it is 3 ticks
+        -- off or less: from the ring finger the mid skip is 7 tiles, and the
+        -- clench's own anim leaves 3 ticks to the next read; ol1..48: 293 of
+        -- the mage state's 305 autos were that first read)
+        local clenched = L ~= nil and F.tick < (o.clench_until or -1) - V.MELEE_LEAD
+        if L ~= nil and not clenched and o.first_act and CO.clench_due(o, F.tick) then
+            local E = o.first_act + 4 * (o.next_k + ((o.parity == 1) and 0 or 1))
+            if E - F.tick <= 3 then clenched = true end
+        end
+        if melee_t and not (clenched and mage_t) then state, tgt = "melee", melee_t
+        elseif mage_t then state, tgt = "mage", mage_t
         else state = "interim" end
     else
         -- (a hand never hit shows no health bar: unknown is FULL -- ol1i
@@ -1207,15 +1489,16 @@ end
 function CO.cycle(S, F, B, target)
     local o, V = S.o, CO.V
     local c = o.cyc
-    if c == nil or c.phase ~= o.phase_n then
+    -- (a new loop on every entry to a melee state: a phase, the clench's end)
+    if c == nil or c.phase ~= o.phase_n or c.entry ~= o.m.since then
         c = { state = "recover", cause = "enter", since = F.tick, k = o.next_k - 1, phase = o.phase_n,
-              autos = o.autos_at_me, specials = o.specials_at_me, n = 0 }
+              autos = o.autos_at_me, specials = o.specials_at_me, n = (c and c.n) or 0, entry = o.m.since }
         o.cyc = c
     end
     local last_k = o.next_k - 1
     if last_k ~= c.k and last_k >= 0 then
         c.k = last_k
-        local slot = last_k % 4
+        local slot = o.last_slot or 0
         local d, sk = CO.canon(o.side, slot)
         local ok = (o.dir == d and o.skipped == sk)
         local was = c.state
@@ -1239,14 +1522,12 @@ function CO.cycle(S, F, B, target)
         return CO.search(S, F, target, B, true), "recover-" .. c.cause
     end
     -- CYCLE: the loop's reads, their bins and the guide's tiles
-    local len = o.glowing and 16 or 12
     local reads = {}
-    local k = o.next_k
-    while true do
-        local A = o.first_act + 4 * k
-        if A - 1 > F.tick + B.h then break end
-        if A - 1 > F.tick then
-            local slot = k % 4
+    local steps = CO.steps_ahead(S, F, 8, F.tick + B.h)
+    for _, st in ipairs(steps) do
+        local A = st.A
+        do
+            local slot = st.slot
             local lz = CO.cycle_lz(o.side, slot)
             -- THE FLAME SKIP (guides: "after hit 2, step one more tile toward
             -- the wall, so Olm cannot fit a wall when it autos you"): a wall
@@ -1256,13 +1537,147 @@ function CO.cycle(S, F, B, target)
             if slot == 0 and (o.power == "flame" or o.glowing) then
                 lz = (o.side == 0) and 43 or 28
             end
-            reads[#reads + 1] = { t = A - 1, bin = CO.bin_of(lz), kind = CO.step_kind(k % len), slot = slot }
+            reads[#reads + 1] = { t = A - 1, bin = CO.bin_of(lz), kind = st.kind, slot = slot, lz = lz }
             local x, z = CO.abs_of(S, target.col, lz)
             B.pull({ name = "cycle", x = x, z = z, size = 1, weight = V.CYCLE_PULL, t0 = A - 1, t1 = A - 1 })
         end
-        k = k + 1
     end
     return { reads = reads, score = 0 }, "cycle"
+end
+
+-- HEAD RUNNING, the mage hand (Synq 2:18:34, "4-tick mage running";
+-- OLM_OSRS_RULES 4.3): unseen at EVERY read, so every step is a skip and a
+-- turn and Olm never attacks. The read's tile is named by the facing it
+-- finds (H the melee hand's view: north on the west wall; G the mage hand's;
+-- M the middle), so that the turn it makes sends the head away from the
+-- NEXT read's tile (cox_olm_act: nobody in view -> skip, turn to the most):
+--   H -> the mid skip (z 35: S + M). The cast since the last step steers it
+--        (R6: the damaged hand's side counts one more) -> G; a splash -> M.
+--   G -> between (z 38: M + N) -> M (the middle wins the tie).
+--   M -> the ring finger (z 42: N only) -> H (the west wall's N/S tie: N).
+-- Three casts a 12-tick loop, one on each step tick: from the ring finger
+-- dragged two tiles into reach, at the mid skip, between. The east wall
+-- mirrors z -> 72 - z (its H is the south). A splash reads as M at the
+-- next step and the table goes on from there: no hit taken.
+-- (by the facing, the out-of-view tiles in preference: the second is the
+-- one in reach when the first is not -- after a splash turned the head to
+-- the middle from the mid skip, the ring finger is 7 tiles off and three
+-- ticks away; the mage side's long line, z 30, is 5, and turns it to G)
+CO.RUN_LZ = { H = { 35, 30 }, G = { 38, 42 }, M = { 42, 30 }, H_SPLASH = { 30, 35 } }
+
+function CO.run_cands(side, dir, splash)
+    local H = (side == 0) and 2 or 0
+    local key = (dir == H) and (splash and "H_SPLASH" or "H") or ((dir == 1) and "M" or "G")
+    local out = {}
+    for i, z in ipairs(CO.RUN_LZ[key]) do out[i] = (side == 0) and z or (72 - z) end
+    return out
+end
+
+function CO.headrun(S, F, B, target)
+    local o, V = S.o, CO.V
+    if o.first_act == nil or o.side == nil then return nil end
+    local steps, dir, skipped = CO.steps_ahead(S, F, 4, F.tick + B.h)
+    local reads, windows = {}, {}
+    local _, from_z = CO.local_of(S, F.me.x, F.me.z)
+    local t_from = F.tick
+    for i, st in ipairs(steps) do
+        -- the first window's cast is known once its hitsplat is up: a splash
+        -- since the last step and no damage is the turn to the middle
+        local er = true
+        if i == 1 then
+            local hit = CO.hit_in(o.rhits, st.A - 4, st.A - 1) > 0 or CO.hit_open(o.rhits, st.A - 4, st.A - 1)
+            local splash = (o.hit_right_splash or -1) >= st.A - 3
+            if splash and not hit then er = false end
+        end
+        local cands = CO.run_cands(o.side, dir, not er)
+        local reach = 2 * ((st.A - 1) - t_from)
+        local lz = cands[1]
+        for _, z in ipairs(cands) do
+            if math.abs(z - from_z) <= reach then lz = z break end
+        end
+        local bin = CO.bin_of(lz)
+        reads[#reads + 1] = { t = st.A - 1, bin = bin, kind = st.kind, lz = lz, cost = V.RUN_REQ_COST }
+        -- (a REQUIRED zone over the bin's rows: the plan's late-hazard
+        -- lookahead keeps a run that pays off only at the read -- a beam
+        -- ranked on the cost so far cast instead and fell a tile short, ol1
+        -- t138; the portal's lesson)
+        local b = V.BINS[bin]
+        local zc, zh = (b[1] + b[2]) // 2, (b[2] - b[1]) // 2
+        local zx, zz = CO.abs_of(S, target.col, zc)
+        B.zone({ name = "headrun", x = zx, z = zz, size = 1, lo = 0, hi = zh, t0 = st.A - 1, t1 = st.A - 1,
+                 require = true, tier = "damage", cost = V.RUN_REQ_COST })
+        local x, z = CO.abs_of(S, target.col, lz)
+        B.pull({ name = "headrun", x = x, z = z, size = 1, weight = V.CYCLE_PULL, t0 = st.A - 1, t1 = st.A - 1 })
+        -- THE CAST WINDOW before this read: a cast stands the tick it goes
+        -- out (out of reach, it drags me two tiles toward the hand first:
+        -- the ring finger's), so it fits where the run to the read still
+        -- does after it; else only once I am there
+        local t_read = st.A - 1
+        local d = math.abs(lz - from_z)
+        local need = (d + 1) // 2
+        local toward = (o.side == 0 and lz < from_z) or (o.side == 1 and lz > from_z)
+        local far = target.lz and math.max(0, target.lz - from_z, from_z - (target.lz + 4)) > target.range
+        local w0, w1
+        if 1 + need <= t_read - t_from then
+            w0, w1 = t_from + 1, t_read
+        elseif toward and far and 1 + (math.max(0, d - 2) + 1) // 2 <= t_read - t_from then
+            w0, w1 = t_from + 1, t_from + 1
+        else
+            w0, w1 = t_from + need + 1, t_read
+        end
+        if w0 <= w1 then windows[#windows + 1] = { t0 = w0, t1 = w1 } end
+        dir, skipped = CO.step(dir, skipped, st.kind, bin, o.side, false, er, st.can)
+        from_z, t_from = lz, t_read
+    end
+    return { reads = reads, score = 0, windows = windows }
+end
+
+-- THE FIRE WALL'S DODGE, before it is cast (OLM_OSRS_RULES 6, "click one
+-- tick before"): the walls judge where I END the step tick a seen auto lands
+-- on (cox_olm_fire_wall: they stand the tick after, the leap on z +- 1, the
+-- trap on z), so in a flame phase -- and P3 and the final stand, which have
+-- every power -- a seen auto on a tile a wall fits (both its rows in the
+-- head's view, z 29..42) prices staying within a tile of the read tile on
+-- the step tick. The 4:1's flame skip (z 43 west, 28 east) fits none.
+function CO.wall_risk(S, F, B, res)
+    local o, V = S.o, CO.V
+    if o.first_act == nil or o.side == nil then return end
+    if not (o.power == "flame" or o.glowing) then return end
+    local function fits(dir, lz)
+        return lz > 28 and lz < 43 and CO.in_view(dir, lz + 1) and CO.in_view(dir, lz - 1)
+    end
+    local function bin_fits(dir, bin, lz)
+        if lz then return fits(dir, lz) end
+        local b = V.BINS[bin]
+        for z = b[1], b[2] do
+            if fits(dir, z) then return true end
+        end
+        return false
+    end
+    local function mark(A)
+        if #B.spec.marks < QD.T2.V.MARKS_MAX then
+            B.mark({ name = "wallrisk", t_mark = A - 1, r = 1, t0 = A, t1 = A, dmg_exp = V.WALL_RISK, dmg_max = 10 })
+        end
+    end
+    -- the pending step: its read is the tile I am on now
+    local A = o.first_act + 4 * o.next_k
+    if A - 1 == F.tick then
+        local lx, lz = CO.local_of(S, F.me.x, F.me.z)
+        local bin = (lx >= V.CH.x0 and lx <= V.CH.x1) and CO.bin_of(lz) or nil
+        if bin then
+            local _, _, autos = CO.step(o.dir, o.skipped, CO.next_kind(S, F), bin, o.side, false, false, false)
+            if autos > 0 and fits(o.dir, lz) then mark(A) end
+        end
+    end
+    if res == nil then return end
+    local steps, d, sk = CO.steps_ahead(S, F, 4, F.tick + B.h)
+    for i, st in ipairs(steps) do
+        local r = res.reads[i]
+        if r == nil or r.t ~= st.A - 1 or r.bin == nil then break end
+        local d2, s2, autos = CO.step(d, sk, st.kind, r.bin, o.side, false, false, st.can)
+        if autos > 0 and bin_fits(d, r.bin, r.lz) then mark(st.A) end
+        d, sk = d2, s2
+    end
 end
 
 function CO.gear(S, style)
@@ -1330,12 +1745,14 @@ function CO.prayers(S, F, intents, res)
         local want = o.auto_inflight
         local A = o.first_act + 4 * o.next_k
         if not want and A - F.tick <= 3 then
-            local kind = CO.step_kind(o.next_k % (o.glowing and 16 or 12))
+            local kind = CO.next_kind(S, F)
             local lx, lz = CO.local_of(S, F.me.x, F.me.z)
             local bins = { (lx >= CO.V.CH.x0 and lx <= CO.V.CH.x1) and CO.bin_of(lz) or nil }
             if res and res.reads and res.reads[1] and res.reads[1].t == A - 1 then bins[2] = res.reads[1].bin end
+            local el = CO.steers(o.lhits, A)
+            local er = CO.steers(o.rhits, A)
             for _, b in pairs(bins) do
-                local _, _, autos = CO.step(o.dir, o.skipped, kind, b, o.side or 0, o.hit_left, o.hit_right, false)
+                local _, _, autos = CO.step(o.dir, o.skipped, kind, b, o.side or 0, el, er, false)
                 if autos > 0 then want = true end
             end
         end
@@ -1547,6 +1964,8 @@ end
 function CO.strategy(S, F, B)
     local o, V, ids = S.o, CO.V, S.ids
     local mode, tgt = CO.machine(S, F)
+    -- (the hand a swing seen next tick went at: observe's launches)
+    o.aim_hand = tgt and tgt.hand or nil
     local intents = { mode = mode, eat_below = V.EAT_BELOW, brew_below = V.BREW_BELOW }
     if o.ox == nil then
         return intents
@@ -1575,12 +1994,23 @@ function CO.strategy(S, F, B)
             while n < 5 do
                 local sw = o.first_act + 4 * k + 1
                 if sw > F.tick + B.h then break end
-                if sw > F.tick then
+                -- (not while it is clenched: a hit then is a 0 and a message)
+                if sw > F.tick and sw >= (o.clench_until or -1) then
                     B.target({ name = mode .. "@" .. sw, npc = tgt.row, size = 5, range = target.range,
                                speed = target.speed, value = V.SWING_VALUE, t_ok0 = sw, t_ok1 = sw })
                     n = n + 1
                 end
                 k = k + 1
+            end
+        elseif QD.raid._tob_worn(S, weapon) and tgt.style == "magic" and o.first_act then
+            -- (head running: the casts only in the windows the reads leave,
+            -- CO.headrun)
+            o.run_res = CO.headrun(S, F, B, target)
+            for _, w in ipairs((o.run_res and o.run_res.windows) or {}) do
+                if w.t1 > F.tick and #B.spec.targets < 5 then
+                    B.target({ name = mode .. "@" .. w.t0, npc = tgt.row, size = 5, range = target.range,
+                               speed = target.speed, value = V.SWING_VALUE, t_ok0 = math.max(w.t0, F.tick + 1), t_ok1 = w.t1 })
+                end
             end
         elseif QD.raid._tob_worn(S, weapon) then
             B.target({ name = mode, npc = tgt.row, size = 5, range = target.range, speed = target.speed,
@@ -1603,17 +2033,24 @@ function CO.strategy(S, F, B)
             tostring(o.head_row and o.head_row.npc_id), tostring(o.head_row and o.head_row.x), tostring(o.head_row and o.head_row.z),
             tostring(I.state), table.concat(sent, " ")))
     end
-    -- THE READS: the 4:1 machine on the melee hand, the step search for
-    -- everything else (the mage hand's 3:0, the head) -> the read ticks' bins
+    -- THE READS: the 4:1 machine on the melee hand, head running on the
+    -- mage hand, the step search for the head -> the read ticks' bins
     local res
     if target and tgt.style == "melee" and QD.raid._tob_worn(S, ids.tentacle) then
         local sub
         res, sub = CO.cycle(S, F, B, target)
         intents.mode = mode .. ":" .. sub
+    elseif target and tgt.style == "magic" then
+        -- (the mage hand: head running, from the gear switch on -- the
+        -- reads do not wait for the trident)
+        res = o.run_res or CO.headrun(S, F, B, target)
+        o.run_res = nil
+        intents.mode = mode .. ":headrun"
     else
         res = CO.search(S, F, target, B)
     end
     o.plan = res
+    CO.wall_risk(S, F, B, res)
     o.fight_style = tgt and tgt.style or nil
     CO.check_stats(S, F)
     CO.douse(S, F, B, intents, target)
@@ -1631,7 +2068,7 @@ function CO.strategy(S, F, B)
     end
     if res then
         for i, r in ipairs(res.reads) do
-            CO.require_bin(S, B, r.t, r.bin, V.REQ_COST, "read" .. i)
+            CO.require_bin(S, B, r.t, r.bin, r.cost or V.REQ_COST, "read" .. i)
         end
     end
     -- in the chamber, out of the hazards' way when there is nothing to hit;
@@ -1680,7 +2117,7 @@ QD.T2.register("cox_olm", {
             left_alive = false, right_alive = false, final = false,
             m = { state = "init", since = 0 }, mech = {}, spec_tally = {},
             dealt = 0, dealt_seen = {}, dealt_last = -10,
-            hit_left = false, hit_right = false,
+            parity = 0, list = 0, lhits = {}, rhits = {}, defer = {},
             autos_at_me = 0, specials_at_me = 0,
             seed_first = {}, bomb_first = {}, bolt_col = {}, shadow_seen = {},
             acc = { left = { n = 0, h = 0 }, right = { n = 0, h = 0 }, head = { n = 0, h = 0 } },
@@ -1732,16 +2169,19 @@ QD.T2.register("cox_olm", {
         local mech = {}
         for name, t in pairs(o.mech) do mech[#mech + 1] = string.format("%s %d/%d", name, t.bad, t.n) end
         table.sort(mech)
+        -- THE TELLS per state: steps; autos skipped / owed; specials skipped /
+        -- due; head runs (turned, nothing fired) / steps; clenched nulls
         local tally = {}
         for st, sp in pairs(o.spec_tally) do
-            tally[#tally + 1] = string.format("%s %d/%d", st, sp.due - sp.fired, sp.due)
+            tally[#tally + 1] = string.format("%s: steps %d autos skipped %d/%d specials skipped %d/%d runs %d clenched %d",
+                st, sp.steps, sp.autos - sp.autos_hit, sp.autos, sp.due - sp.fired, sp.due, sp.runs, sp.clenched)
         end
         table.sort(tally)
         local c = o.cyc
         return string.format("olm: points %s (dealt %d), phases %d, state %s, autos at me %d, specials at me %d, step mismatches %d/%d, "
-            .. "mechanic mismatches {%s}, 4:1 entries %d, stats bad %d/%d ticks, specials skipped {%s}",
+            .. "mechanic mismatches {%s}, 4:1 entries %d, stats bad %d/%d ticks, launches %d (hitsplats with none %d), tells {%s}",
             tostring(o.points), o.dealt, o.phase_n, o.m.state, o.autos_at_me, o.specials_at_me, S.mon.rules.olm_step.n,
             S.mon.rules.olm_step.checked, table.concat(mech, ", "), c and c.n or 0,
-            o.stat_bad or 0, S.mon.rules.olm_stats.checked, table.concat(tally, ", "))
+            o.stat_bad or 0, S.mon.rules.olm_stats.checked, o.launches or 0, o.orphans or 0, table.concat(tally, "; "))
     end,
 })
