@@ -972,23 +972,29 @@ World_NpcDespawn(
 
 /** `target` is the wire target-entity id (see WorldEntity_Projectile.target):
  * non-zero makes the arc home on that entity's live position every cycle,
- * WORLD_PROJECTILE_TARGET_NONE pins it to dst_x/dst_z. */
+ * WORLD_PROJECTILE_TARGET_NONE pins it to dst_x/dst_z. `source` is the wire
+ * source-actor id in the same encoding (NONE: launch from src_x/src_z/h1).
+ * `h1` is the absolute start y; `start_height` the offset above the source
+ * ground it was made from. */
 int
 World_ProjectileSpawn(
     struct World* world,
     int element_id,
-    int level,
+    int src_level,
+    int dst_level,
     int src_x,
     int src_z,
     int dst_x,
     int dst_z,
     int h1,
+    int start_height,
     int end_height,
     int t1,
     int t2,
     int angle,
     int startpos,
-    int target);
+    int target,
+    int source);
 
 void
 World_ProjectileDespawn(
@@ -1378,8 +1384,8 @@ World_NpcSetSpotanim(
     int height,
     int cycle_delay);
 
-/* CHANGE_TYPE (transmog): caller passes the new size + anim set (with the
- * reference walkanim_l/r swap already applied). */
+/* CHANGE_TYPE (transmog): caller passes the new size + anim set (the dat1
+ * left/right crossing is done in the type conversion, not here). */
 void
 World_NpcSetType(
     struct World* world,
@@ -1728,6 +1734,10 @@ World_SetFeatures(
 /** enum ToriRS_MoverModel for this world; classic when no table is set. */
 int
 World_MoverModel(struct World const* world);
+
+/** enum ToriRS_ProjectileModel of the world's era; classic with no table. */
+int
+World_ProjectileModel(struct World const* world);
 
 void
 World_MoversAdvance(

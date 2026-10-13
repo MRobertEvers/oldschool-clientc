@@ -168,16 +168,28 @@ struct PktNpcInfo_NameChange
     char* name; /* heap */
 };
 
+/* rev-239 NPC_INFO 0x100000 (Statics.java 47640): one bit per movement seq,
+ * in this order -- 0 turn left, 1 turn right, 2 walk, 3 walk back, 4 walk
+ * left, 5 walk right, 6 run, 7 run back, 8 run left, 9 run right, 10 crawl,
+ * 11 crawl back, 12 crawl left, 13 crawl right, 14 ready. */
 struct PktNpcInfo_BasChange
 {
     uint32_t mask;
     int readyanim;
     int walkanim;
     int turnanim;
+    int turnanim_r;
     int runanim;
     int walkanim_b;
     int walkanim_r;
     int walkanim_l;
+    int runanim_b;
+    int runanim_l;
+    int runanim_r;
+    int crawlanim;
+    int crawlanim_b;
+    int crawlanim_l;
+    int crawlanim_r;
 };
 
 struct PktNpcInfoOp

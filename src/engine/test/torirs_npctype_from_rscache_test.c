@@ -144,6 +144,19 @@ test_dat1_has_no_multinpc(void)
     TEST_ASSERT(npctype->transform_varbit == -1, "dat1 states no varbit switch");
     TEST_ASSERT(npctype->transform_varp == -1, "dat1 states no varp switch");
     TEST_ASSERT(npctype->transform_count == 0, "dat1 carries no multiNpc opcode");
+    TEST_ASSERT(!npctype->no_rotation_flag, "dat1 has no opcode 109");
+    free(npctype->transforms);
+    free(npctype);
+
+    /* Opcode 17's third and fourth ids cross here, once: Client-TS swaps the
+     * pair onto the entity, and doing it in the conversion gives walkanim_r one
+     * meaning in both eras (the step toward a higher yaw). */
+    memset(&src, 0, sizeof(src));
+    src.walkanim_r = 822; /* opcode 17's third id */
+    src.walkanim_l = 823; /* opcode 17's fourth id */
+    npctype = ToriRS_NpctypeFromRSCacheDat1(2, &src);
+    TEST_ASSERT(npctype->walkanim_r == 823, "dat1: the fourth id is the right step");
+    TEST_ASSERT(npctype->walkanim_l == 822, "dat1: the third id is the left step");
 
     /* Not ToriRS_NpctypeFree: it pulls in the whole torirs_types.c
      * component-hook dependency chain for a struct this test built by hand
@@ -174,6 +187,9 @@ test_dat2_carries_the_movement_animation_set(void)
 
     memset(&src, 0, sizeof(src));
     src.walking_animation = 819;
+    src.rotate_left_animation = 822;
+    src.rotate_right_animation = 823;
+    src.rotation_flag = true;
     src.idle_rotate_left_animation = 820;
     src.idle_rotate_right_animation = 821;
     src.run_animation = 824;
@@ -188,6 +204,11 @@ test_dat2_carries_the_movement_animation_set(void)
     npctype = ToriRS_NpctypeFromRSCacheDat2(998, &src);
     TEST_ASSERT(npctype != NULL, "decode succeeds");
     TEST_ASSERT(npctype->walkanim == 819, "walk animation carried");
+    /* No crossing on dat2: rev-239 plays opcode 17's fourth id (field1485)
+     * for the step toward a higher yaw, which is walkanim_r. */
+    TEST_ASSERT(npctype->walkanim_l == 822, "dat2: rotate-left is the left step");
+    TEST_ASSERT(npctype->walkanim_r == 823, "dat2: rotate-right is the right step");
+    TEST_ASSERT(!npctype->no_rotation_flag, "no opcode 109: the flag stays clear");
     TEST_ASSERT(npctype->turnanim_l == 820, "opcode 15 turn-left carried");
     TEST_ASSERT(npctype->turnanim_r == 821, "opcode 16 turn-right carried");
     TEST_ASSERT(npctype->runanim == 824, "opcode 114 run carried");
@@ -207,6 +228,8 @@ test_dat2_carries_the_movement_animation_set(void)
     TEST_ASSERT(npctype->runanim == -1, "absent run animation reads -1, not 0");
     TEST_ASSERT(npctype->turnanim_l == -1, "absent turn animation reads -1, not 0");
     TEST_ASSERT(npctype->crawlanim == -1, "absent crawl animation reads -1, not 0");
+    /* A zeroed decoder struct reads as "opcode 109 seen" (rotation_flag false). */
+    TEST_ASSERT(npctype->no_rotation_flag, "opcode 109 reaches the npc type");
 }
 
 /*

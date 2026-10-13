@@ -24,6 +24,7 @@ static struct ToriRS_FeatureTable const k_features_lostcity = {
     /* The era's own client moves actors once per 20ms cycle and nowhere else;
      * a frame-paced mover would be smoother than the thing being reproduced. */
     .mover_model = TORIRS_MOVER_CYCLE_INTEGER,
+    .projectile_model = TORIRS_PROJECTILE_MODEL_CLASSIC,
     .approach_model = TORIRS_APPROACH_LEGACY_SHAPE,
     .npc_approach_uses_size = 0,
     .under_target_routes_out = 0,
@@ -82,6 +83,7 @@ static struct ToriRS_FeatureTable const k_features_osrs = {
     /* class105.method3611 per rendered frame; method3520 keeps only the
      * per-cycle facing/sequence half. See the enum. */
     .mover_model = TORIRS_MOVER_FRAME_DELTA,
+    .projectile_model = TORIRS_PROJECTILE_MODEL_REV239,
     .approach_model = TORIRS_APPROACH_RECT,
     .npc_approach_uses_size = 1,
     .under_target_routes_out = 1,
@@ -131,6 +133,7 @@ static struct ToriRS_FeatureTable const k_features_server_routed = {
     .pathing_mode = TORIRS_PATHING_SERVER_AUTHORITATIVE,
     /* Any post-2004 client this tree speaks draws on the frame clock. */
     .mover_model = TORIRS_MOVER_FRAME_DELTA,
+    .projectile_model = TORIRS_PROJECTILE_MODEL_REV239,
     .approach_model = TORIRS_APPROACH_RECT,
     .npc_approach_uses_size = 1,
     /* Same router and same exclusive rectangle as osrs, so the same answer. */

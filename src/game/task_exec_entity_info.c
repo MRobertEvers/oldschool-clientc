@@ -1524,11 +1524,19 @@ npc_apply_op(
             uint32_t mask = op->_bas_change.mask;
 
             if( mask & (1u << 0) ) npc->idle_animations.turnanim = op->_bas_change.turnanim;
+            if( mask & (1u << 1) ) npc->idle_animations.turnanim_r = op->_bas_change.turnanim_r;
             if( mask & (1u << 2) ) npc->idle_animations.walkanim = op->_bas_change.walkanim;
             if( mask & (1u << 3) ) npc->idle_animations.walkanim_b = op->_bas_change.walkanim_b;
             if( mask & (1u << 4) ) npc->idle_animations.walkanim_l = op->_bas_change.walkanim_l;
             if( mask & (1u << 5) ) npc->idle_animations.walkanim_r = op->_bas_change.walkanim_r;
             if( mask & (1u << 6) ) npc->idle_animations.runanim = op->_bas_change.runanim;
+            if( mask & (1u << 7) ) npc->idle_animations.runanim_b = op->_bas_change.runanim_b;
+            if( mask & (1u << 8) ) npc->idle_animations.runanim_l = op->_bas_change.runanim_l;
+            if( mask & (1u << 9) ) npc->idle_animations.runanim_r = op->_bas_change.runanim_r;
+            if( mask & (1u << 10) ) npc->idle_animations.crawlanim = op->_bas_change.crawlanim;
+            if( mask & (1u << 11) ) npc->idle_animations.crawlanim_b = op->_bas_change.crawlanim_b;
+            if( mask & (1u << 12) ) npc->idle_animations.crawlanim_l = op->_bas_change.crawlanim_l;
+            if( mask & (1u << 13) ) npc->idle_animations.crawlanim_r = op->_bas_change.crawlanim_r;
             if( mask & (1u << 14) ) npc->idle_animations.readyanim = op->_bas_change.readyanim;
         }
         break;

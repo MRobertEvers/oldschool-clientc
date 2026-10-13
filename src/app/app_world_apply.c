@@ -259,22 +259,27 @@ App_WorldApplyNpcType(
     model_mounted = app_world_npc_mount_body(app, element_id, npc_type, npctype);
 
     {
-        /* Reference CHANGETYPE swaps walkanim_l/r (Client.ts 8460-8462). */
         struct WorldEntityFacet_IdleAnimations idle = {
             .readyanim = facts.readyanim,
             .walkanim = facts.walkanim,
-            /* Opcodes 15/114 rather than the -1 pair that used to sit here.
-             * `World_EntityFace` takes turnanim over walkanim and
-             * `World_UpdateMoverMovementAndAnimation` takes runanim over
-             * walkanim at speed; both were already written and neither had
-             * anything to read. The run set gets the same left/right swap the
-             * walk set does -- it is the same reference line (Client.ts
-             * 8460-8462), which swaps the pair for every movement set. */
+            /* The whole movement set, straight across. The Client-TS
+             * left/right crossing (Client.ts 8460-8462) is done once, in the
+             * dat1 type conversion, because rev-239 has no such swap: here
+             * `walkanim_r` already means "the step toward a higher yaw" in
+             * both eras (torirs_npctype_from_rscache.c). */
             .turnanim = facts.turnanim,
+            .turnanim_r = facts.turnanim_r,
             .runanim = facts.runanim,
             .walkanim_b = facts.walkanim_b,
-            .walkanim_r = facts.walkanim_l,
-            .walkanim_l = facts.walkanim_r,
+            .walkanim_r = facts.walkanim_r,
+            .walkanim_l = facts.walkanim_l,
+            .runanim_b = facts.runanim_b,
+            .runanim_r = facts.runanim_r,
+            .runanim_l = facts.runanim_l,
+            .crawlanim = facts.crawlanim,
+            .crawlanim_b = facts.crawlanim_b,
+            .crawlanim_r = facts.crawlanim_r,
+            .crawlanim_l = facts.crawlanim_l,
             /* Read off the DRAWN type, and deliberately not gap-filled from the
              * shell the way size and readyanim are: it is a bare boolean whose
              * absent value and whose authored-false value are the same bit, so
@@ -319,6 +324,7 @@ App_WorldApplyNpcType(
             npc->minimap_visible = npctype->minimap_visible;
             npc->interactable = npctype->interactable;
             npc->facing.turn_speed = npctype->turn_speed;
+            npc->facing.no_rotation_flag = npctype->no_rotation_flag;
             snprintf(npc->name, sizeof(npc->name), "%s", npctype->name);
             for( int i = 0; i < 5; i++ )
                 snprintf(
@@ -691,10 +697,20 @@ App_WorldApplyPlayerAppearance(
             .readyanim = appearance->readyanim,
             .walkanim = appearance->walkanim,
             .turnanim = appearance->turnanim,
+            /* rev-239 class60: field1481 = field1480 -- one turn seq both ways. */
+            .turnanim_r = appearance->turnanim,
             .runanim = appearance->runanim,
             .walkanim_b = appearance->walkanim_b,
             .walkanim_r = appearance->walkanim_r,
             .walkanim_l = appearance->walkanim_l,
+            /* The appearance block states no run or crawl directions. */
+            .runanim_b = -1,
+            .runanim_r = -1,
+            .runanim_l = -1,
+            .crawlanim = -1,
+            .crawlanim_b = -1,
+            .crawlanim_r = -1,
+            .crawlanim_l = -1,
         };
         World_PlayerSetAppearance(
             app->world,

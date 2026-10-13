@@ -29,6 +29,16 @@ main(void)
     test_delaymove_gate();
     test_walk_keeps_up();
     test_mover_model_flag();
+    test_rev239_faces_before_it_moves();
+    test_rev239_same_tile_keeps_its_yaw();
+    test_rev239_snap_keeps_the_readyanim();
+    test_rev239_mode1_keeps_its_facing_on_a_walk();
+    test_rev239_turn_seq_follows_the_direction();
+    test_rev239_run_and_crawl_directions();
+    test_rev239_opcode_109_catchup();
+    test_rev239_frame_mover_drops_the_z_carry();
+    test_rev239_exact_move_order();
+    test_rev239_projectile_ends();
     test_stop_settles_promptly();
     test_entity_face();
     test_entity_face_across_frames();

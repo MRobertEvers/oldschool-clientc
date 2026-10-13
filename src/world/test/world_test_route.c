@@ -1342,8 +1342,8 @@ test_minusedlevel_entity_draw(void)
         int sx = 45 * 128 + 64;
         int sz = 45 * 128 + 64;
         World_ProjectileSpawn(
-            world, 211, 1, sx, sz, sx + 128, sz, 100, 40, 0, 60, 45, 128,
-            WORLD_PROJECTILE_TARGET_NONE);
+            world, 211, 1, 1, sx, sz, sx + 128, sz, 100, 0, 40, 0, 60, 45, 128,
+            WORLD_PROJECTILE_TARGET_NONE, WORLD_PROJECTILE_TARGET_NONE);
         World_SpotanimSpawn(world, 212, 1, 46 * 128 + 64, 46 * 128 + 64, 0, 0, 0, 100);
         World_ObjStackAdd(world, 213, 47, 47, 1, 995, 1, "Coins", actions);
         World_ObjStackAdd(world, 214, 48, 48, 0, 995, 1, "Coins", actions);
@@ -1352,8 +1352,8 @@ test_minusedlevel_entity_draw(void)
         int same_sx = 49 * 128 + 64;
         int same_sz = 49 * 128 + 64;
         World_ProjectileSpawn(
-            world, 215, 0, same_sx, same_sz, same_sx + 128, same_sz, 100, 40, 0, 60, 45, 0,
-            WORLD_PROJECTILE_TARGET_NONE);
+            world, 215, 0, 0, same_sx, same_sz, same_sx + 128, same_sz, 100, 0, 40, 0, 60, 45,
+            0, WORLD_PROJECTILE_TARGET_NONE, WORLD_PROJECTILE_TARGET_NONE);
 
         World_TestCycle(world, 1);
 

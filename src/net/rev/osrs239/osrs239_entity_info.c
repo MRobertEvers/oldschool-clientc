@@ -1595,11 +1595,19 @@ npc_extended(
             {
                 op->_bas_change.mask = bas;
                 op->_bas_change.turnanim = values[0];
+                op->_bas_change.turnanim_r = values[1];
                 op->_bas_change.walkanim = values[2];
                 op->_bas_change.walkanim_b = values[3];
                 op->_bas_change.walkanim_l = values[4];
                 op->_bas_change.walkanim_r = values[5];
                 op->_bas_change.runanim = values[6];
+                op->_bas_change.runanim_b = values[7];
+                op->_bas_change.runanim_l = values[8];
+                op->_bas_change.runanim_r = values[9];
+                op->_bas_change.crawlanim = values[10];
+                op->_bas_change.crawlanim_b = values[11];
+                op->_bas_change.crawlanim_l = values[12];
+                op->_bas_change.crawlanim_r = values[13];
                 op->_bas_change.readyanim = values[14];
             }
         }

@@ -420,10 +420,9 @@ struct ToriRS_Npctype
     int walkanim_b;
     int walkanim_r;
     int walkanim_l;
-    /** Opcodes 15/16: turn-on-the-spot, left and right. The world facet carries
-     *  one `turnanim`; the reference picks by turn direction, which this client
-     *  does not model, so the left one is the entity's turn animation and the
-     *  right is carried for the day it does. */
+    /** Opcodes 15/16: turn-on-the-spot, left and right. The world facet's
+     *  `turnanim` is the left one and `turnanim_r` the right; rev-239
+     *  Statics.method1 picks by the direction the yaw is stepping. */
     int turnanim_l;
     int turnanim_r;
     /** Opcodes 114/115: the run set, chosen by the mover at speed. */
@@ -431,9 +430,9 @@ struct ToriRS_Npctype
     int runanim_b;
     int runanim_r;
     int runanim_l;
-    /** Opcodes 116/117: the crawl set. Decoded and carried; this client's mover
-     *  has no crawl speed band to select it with, so nothing reads these yet --
-     *  stated here so that the next person finds a field rather than a gap. */
+    /** Opcodes 116/117: the crawl set. rev-239 method3520 selects it at move
+     *  speed <= 2, which is the ordinary walk while still turning toward the
+     *  step -- not only a crawl-typed step. */
     int crawlanim;
     int crawlanim_b;
     int crawlanim_r;
@@ -441,6 +440,11 @@ struct ToriRS_Npctype
     /** NpcType.turnspeed (dat1 opcode 103, default 32). 0 = the entity never
      *  turns — Client-TS entityFace returns immediately for those. */
     int turn_speed;
+    /** NpcType opcode 109: the record clears rev-239's class405.field5146. Such
+     *  an npc does not slow to speed 2 while turning mid-walk, and its queue
+     *  catch-up rungs sit one tile earlier (method3520 / method3611). dat1 has
+     *  no such opcode. */
+    bool no_rotation_flag;
     /** NpcType opcode 130 (rev 236+): when an ACTION animation finishes, the
      *  entity's idle animator is reset to frame 0 instead of being left wherever
      *  it drifted to underneath. The reference gates its `method9990` on this
@@ -600,10 +604,15 @@ struct ToriRS_NpcEntityFacts
     int walkanim_l;
     int walkanim_r;
     int turnanim;
+    int turnanim_r;
     int runanim;
     int runanim_b;
     int runanim_l;
     int runanim_r;
+    int crawlanim;
+    int crawlanim_b;
+    int crawlanim_l;
+    int crawlanim_r;
 };
 
 /**

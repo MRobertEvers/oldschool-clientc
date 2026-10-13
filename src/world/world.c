@@ -977,8 +977,11 @@ World_ProjectileMove(
     p->y += p->vy * delta_d + p->ay * 0.5 * delta_d * delta_d;
     p->vy += p->ay * delta_d;
 
+    /* Truncate, THEN add the quarter turn: `(int)(atan2 * 325.949) + 1024`
+     * in both class50.method940 and ClientProj.update. Adding first rounds a
+     * negative angle the other way, one yaw unit off. */
     p->orientation.yaw =
-        ((int)(atan2(p->vx, p->vz) * WORLD_PROJECTILE_ANGLE_TO_RPI2048 + 1024.0)) & 0x7ff;
+        ((int)(atan2(p->vx, p->vz) * WORLD_PROJECTILE_ANGLE_TO_RPI2048) + 1024) & 0x7ff;
     p->orientation.pitch =
         ((int)(atan2(p->vy, p->velocity) * WORLD_PROJECTILE_ANGLE_TO_RPI2048)) & 0x7ff;
 }
@@ -1129,18 +1132,21 @@ int
 World_ProjectileSpawn(
     struct World* world,
     int element_id,
-    int level,
+    int src_level,
+    int dst_level,
     int src_x,
     int src_z,
     int dst_x,
     int dst_z,
     int h1,
+    int start_height,
     int end_height,
     int t1,
     int t2,
     int angle,
     int startpos,
-    int target)
+    int target,
+    int source)
 {
     assert(world);
     assert(element_id >= 0);
@@ -1152,17 +1158,21 @@ World_ProjectileSpawn(
     struct WorldEntity_Projectile* p = World_EntityPoolGet(pool, idx);
     *p = (struct WorldEntity_Projectile){
         .element_id = element_id,
-        .level = level,
-        .dst_level = level,
+        .level = src_level,
+        .dst_level = dst_level,
         .src_x = src_x,
         .src_z = src_z,
         .h1 = h1,
+        .start_height = start_height,
         .end_height = end_height,
         .t1 = t1,
         .t2 = t2,
         .angle = angle,
         .startpos = startpos,
         .target = target,
+        .source = source,
+        .wire_dst_x = dst_x,
+        .wire_dst_z = dst_z,
         .spotanim_id = -1,
         .dst_x = dst_x,
         .dst_z = dst_z,
@@ -2348,6 +2358,14 @@ World_MoverModel(struct World const* world)
 {
     assert(world);
     return world->features ? world->features->mover_model : TORIRS_MOVER_CYCLE_INTEGER;
+}
+
+int
+World_ProjectileModel(struct World const* world)
+{
+    assert(world);
+    return world->features ? world->features->projectile_model
+                           : TORIRS_PROJECTILE_MODEL_CLASSIC;
 }
 
 void

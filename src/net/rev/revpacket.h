@@ -447,6 +447,10 @@ struct PktMapProjAnim
     int dst_abs_x;
     int dst_abs_z;
     int dst_abs_level;
+
+    /* Revision 239's source ACTOR, in the target's encoding (>0 npc slot + 1,
+     * <0 player -(slot) - 1); 0 = none, which every classic packet is. */
+    int source;
 };
 
 struct PktMapAnim

@@ -12,13 +12,22 @@
 struct WorldEntity_Projectile
 {
     int element_id;
+    /** The source's plane: the one the projectile is painted on (rev-239
+     *  method4319 adds it on field374, the source level). */
     int level;
+    /** The destination's plane: the one the landing height is sampled on
+     *  (rev-239 method8271 called with field357). */
     int dst_level;
 
-    /* Immutable params (world units / ticks). */
+    /* Launch params (world units / ticks). src_x/src_z/h1 are fixed at spawn
+     * unless `source` names an actor, in which case the first launched cycle
+     * re-reads them from that actor. */
     int src_x;
     int src_z;
     int h1;
+    /** Height above the source ground the arc starts at (the wire start
+     *  height, already x4). Kept so a source actor's ground can be re-read. */
+    int start_height;
     int end_height;
     int t1;
     int t2;
@@ -31,6 +40,14 @@ struct WorldEntity_Projectile
      * Kept in the wire encoding rather than split into kind+slot so the
      * despawn/re-sync id space stays the server's. */
     int target;
+    /** Wire source-actor id, same encoding as `target` (rev-239 MapProjAnimV2
+     *  `source_index`, Statics.method8271's first argument);
+     *  WORLD_PROJECTILE_TARGET_NONE when the packet names none. */
+    int source;
+    /** The destination as the packet stated it. rev-239 aims back here every
+     *  cycle the target actor cannot be found. */
+    int wire_dst_x;
+    int wire_dst_z;
 
     /** The spotanimtype this projectile draws (MAP_PROJANIM's id), -1 for a
      *  model-only one (the debug hotkey). World never reads it; the quest

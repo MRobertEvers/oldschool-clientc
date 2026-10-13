@@ -630,7 +630,7 @@ main(void)
          * its asset chain parked every later packet (200-400 ms a graphic
          * through a browser cache). The FIFO stays empty. */
         App_WorldSpotanimSpawn(app, 12, 34, 0, 1234 /* spotanim */, 92, 0);
-        App_WorldProjectileSpawn(app, 10, 30, 12, 34, 0, 1235, 43, 31, 41, 60, 16, 15, 0);
+        App_WorldProjectileSpawn(app, 10, 30, 0, 12, 34, 0, 1235, 43, 31, 41, 60, 16, 15, 0, 0);
         assert(app->exec_runner.queue->head == NULL);
         assert(head->next->next != NULL);
         assert(head->next->next->next != NULL);
