@@ -32,6 +32,8 @@ local function run(t)
 end
 
 return {
+    id = "cox_olm_douse",
+    fixture = "fresh_lumbridge.ini",
     max_frames = 20000,
     setup = { "::maxstats", "::give bh_rune_pouch 1",
         "::setvar varb29_rune_pouch_type_1 1", "::setvar varb1624_rune_pouch_quantity_1 50",
