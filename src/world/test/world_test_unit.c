@@ -107,7 +107,7 @@ test_pathing_helpers(void)
 
     World_EntityPathingPushStep(&pathing, WORLD_PATHSTEP_RUN, 1); /* north */
     TEST_ASSERT(pathing.route_z[0] == 51, "push step north");
-    TEST_ASSERT(pathing.route_run[0] == 1, "run flag");
+    TEST_ASSERT(pathing.route_step[0] == 1, "run flag");
 
     /* All 8 directions from a fixed base */
     for( int dir = 0; dir < 8; dir++ )
@@ -2815,6 +2815,194 @@ test_rev239_run_and_crawl_directions(void)
                     "backing at speed 8");
         TEST_ASSERT(test_secondary_seq(&crawler->animation) == (e == 0 ? 503 : idle.walkanim_l),
                     "side-stepping at speed 2");
+        World_Free(world);
+    }
+}
+
+static int
+test_abortanim_postanim(void* userdata, int seq_id)
+{
+    (void)userdata;
+    if( seq_id == 903 )
+        return -1; /* still loading */
+    return seq_id == 901 ? 1 : 2; /* ABORTANIM for seq 901, MERGE otherwise */
+}
+
+/*
+ * What a step does on arrival, before any mover runs -- rev-239
+ * Statics.method1338 (player), class86.method2896 / method2949 (npc) and
+ * class105.method3529 (placement). Each block names the deob line it pins.
+ */
+void
+test_rev239_step_arrival_rules(void)
+{
+    printf("TEST: rev-239 step arrival rules\n");
+    struct World_SeqSource seq = {
+        .userdata = NULL,
+        .preanim_move = test_abortanim_postanim,
+        .postanim_move = test_abortanim_postanim,
+    };
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+
+    /* method1338 / method2896: an ABORTANIM primary ends when a step is
+     * queued; a MERGE one keeps playing. */
+    {
+        struct World* world = World_TestMakeReadyEra(104, ToriRS_Features_OSRS());
+        World_SetSeqSource(world, &seq);
+        int pi = World_PlayerSpawn(world, 1, 0, 40, 40, idle);
+        struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, pi);
+        int ni = World_NpcSpawn(world, 2, 1, 0, 50, 50, 1, idle);
+        struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, ni);
+
+        World_PlayerPathJump(world, pi, true, 40, 40);
+        World_NpcPathJump(world, ni, true, 50, 50);
+        World_PlayerSetPrimaryAnimation(world, pi, 901, 0);
+        World_PlayerPathJumpCollisionAware(world, pi, NULL, false, 41, 40, WORLD_PATHSTEP_WALK);
+        TEST_ASSERT(player->animation.primary.anim_id == (uint16_t)-1,
+                    "player step aborts an ABORTANIM seq");
+
+        World_NpcSetPrimaryAnimation(world, ni, 901, 0);
+        World_NpcPathPushStep(world, ni, WORLD_PATHSTEP_WALK, 4);
+        TEST_ASSERT(npc->animation.primary.anim_id == (uint16_t)-1,
+                    "npc step aborts an ABORTANIM seq");
+
+        World_NpcSetPrimaryAnimation(world, ni, 902, 0);
+        World_NpcPathPushStep(world, ni, WORLD_PATHSTEP_WALK, 4);
+        TEST_ASSERT(npc->animation.primary.anim_id == 902, "a MERGE seq survives a step");
+
+        /* class95.method3189: an explicit player teleport goes straight to
+         * method3529 and keeps the seq. */
+        World_PlayerSetPrimaryAnimation(world, pi, 901, 0);
+        World_PlayerPathJumpCollisionAware(world, pi, NULL, true, 60, 60, WORLD_PATHSTEP_WALK);
+        TEST_ASSERT(player->animation.primary.anim_id == 901,
+                    "an explicit player teleport keeps its seq");
+        World_Free(world);
+    }
+
+    /* method3529: a placement zeroes the catch-up and preanim counters. */
+    {
+        struct World* world = World_TestMakeReadyEra(104, ToriRS_Features_OSRS());
+        int pi = World_PlayerSpawn(world, 1, 0, 40, 40, idle);
+        struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, pi);
+
+        World_PlayerPathJump(world, pi, true, 40, 40);
+        player->animation.anim_delay_move = 5;
+        player->animation.preanim_route_length = 3;
+        World_PlayerPathJumpCollisionAware(world, pi, NULL, true, 70, 70, WORLD_PATHSTEP_WALK);
+        TEST_ASSERT(player->animation.anim_delay_move == 0, "teleport clears anim_delay_move");
+        TEST_ASSERT(player->animation.preanim_route_length == 0,
+                    "teleport clears preanim_route_length");
+        World_Free(world);
+    }
+
+    /* method1338 -> method3511: in facing mode 0 a step drops a held angle;
+     * in mode 1 it stays. */
+    {
+        struct World* world = World_TestMakeReadyEra(104, ToriRS_Features_OSRS());
+        int pi = World_PlayerSpawn(world, 1, 0, 40, 40, idle);
+        struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, pi);
+
+        World_PlayerPathJump(world, pi, true, 40, 40);
+        player->facing.face_during_movement = false;
+        player->facing.direct_angle = 1024;
+        player->facing.instant = true;
+        World_PlayerPathJumpCollisionAware(world, pi, NULL, false, 41, 40, WORLD_PATHSTEP_WALK);
+        TEST_ASSERT(player->facing.direct_angle == -1 && !player->facing.instant,
+                    "mode 0 step drops the held face angle");
+
+        player->facing.face_during_movement = true;
+        player->facing.direct_angle = 1024;
+        World_PlayerPathJumpCollisionAware(world, pi, NULL, false, 42, 40, WORLD_PATHSTEP_WALK);
+        TEST_ASSERT(player->facing.direct_angle == 1024, "mode 1 step keeps the face angle");
+        World_Free(world);
+    }
+
+    /* method1338 has no 8-tile window: a far in-scene step is queued, an
+     * out-of-scene one is a placement. */
+    {
+        struct World* world = World_TestMakeReadyEra(104, ToriRS_Features_OSRS());
+        int pi = World_PlayerSpawn(world, 1, 0, 40, 40, idle);
+        struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, pi);
+
+        World_PlayerPathJump(world, pi, true, 40, 40);
+        World_PlayerPathJumpCollisionAware(world, pi, NULL, false, 52, 40, WORLD_PATHSTEP_WALK);
+        TEST_ASSERT(player->pathing.route_length == 1 && player->pathing.route_x[0] == 52,
+                    "a 12-tile player step is queued, not placed");
+        World_PlayerPathJumpCollisionAware(world, pi, NULL, false, 104, 40, WORLD_PATHSTEP_WALK);
+        TEST_ASSERT(player->pathing.route_length == 0, "an out-of-scene step is a placement");
+        World_Free(world);
+    }
+
+    /* method3520 reads the hold off a SeqType it always has. A seq still
+     * loading here (rule -1) must not freeze the walk or bank catch-up. */
+    {
+        struct World* world = World_TestMakeReadyEra(104, ToriRS_Features_OSRS());
+        World_SetSeqSource(world, &seq);
+
+        /* pre: the seq lands with the route already queued (preanim rule);
+         * post: it lands first and the steps follow (postanim rule). */
+        for( int post = 0; post < 2; post++ )
+        {
+            int pi = World_PlayerSpawn(world, 1 + post, 0, 40, 40 + post * 10, idle);
+            struct WorldEntity_Player* player =
+                World_EntityPoolGet(&world->entities.player, pi);
+            int start_x;
+
+            World_PlayerPathJump(world, pi, true, 40, 40 + post * 10);
+            if( post )
+                World_PlayerSetPrimaryAnimation(world, pi, 903, 0);
+            World_PlayerPathPushStep(world, pi, WORLD_PATHSTEP_WALK, 4);
+            World_PlayerPathPushStep(world, pi, WORLD_PATHSTEP_WALK, 4);
+            if( !post )
+                World_PlayerSetPrimaryAnimation(world, pi, 903, 0);
+            TEST_ASSERT((player->animation.preanim_route_length > 0) == !post,
+                        "the case reaches the rule it names");
+            start_x = (int)player->draw_position.x;
+            World_TestCycle(world, 1);
+            TEST_ASSERT((int)player->draw_position.x > start_x, "an unloaded seq does not hold");
+            TEST_ASSERT(player->animation.anim_delay_move == 0,
+                        "an unloaded seq banks no catch-up");
+        }
+        World_Free(world);
+    }
+
+    /* class95.method3189: the camera's player (the local one) within 12 tiles
+     * of the scene edge is placed, not walked; anyone else walks. */
+    {
+        struct World* world = World_TestMakeReadyEra(104, ToriRS_Features_OSRS());
+        int li = World_PlayerSpawn(world, 1, 0, 10, 40, idle);
+        int oi = World_PlayerSpawn(world, 2, 0, 10, 50, idle);
+        struct WorldEntity_Player* local = World_EntityPoolGet(&world->entities.player, li);
+        struct WorldEntity_Player* other = World_EntityPoolGet(&world->entities.player, oi);
+
+        local->server_pid = 5;
+        other->server_pid = 6;
+        world->local_pid = 5;
+        World_PlayerPathJump(world, li, true, 10, 40);
+        World_PlayerPathJump(world, oi, true, 10, 50);
+        World_PlayerPathJumpCollisionAware(world, li, NULL, false, 11, 40, WORLD_PATHSTEP_WALK);
+        World_PlayerPathJumpCollisionAware(world, oi, NULL, false, 11, 50, WORLD_PATHSTEP_WALK);
+        TEST_ASSERT(local->pathing.route_length == 0 &&
+                        local->draw_position.x == (uint32_t)(11 * 128 + 64),
+                    "local player near the scene edge is placed");
+        TEST_ASSERT(other->pathing.route_length == 1, "another player near the edge walks");
+        World_Free(world);
+    }
+
+    /* method3611: a crawl step moves at half a walk. */
+    {
+        struct World* world = World_TestMakeReadyEra(104, ToriRS_Features_OSRS());
+        int ni = World_NpcSpawn(world, 2, 1, 0, 50, 50, 1, idle);
+        struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, ni);
+        int start_x;
+
+        World_NpcPathJump(world, ni, true, 50, 50);
+        npc->orientation.yaw = 1536;
+        npc->orientation.dst_yaw = 1536;
+        start_x = (int)npc->draw_position.x;
+        World_NpcPathPushStep(world, ni, WORLD_PATHSTEP_CRAWL, 4);
+        World_TestCycle(world, 1);
+        TEST_ASSERT((int)npc->draw_position.x == start_x + 2, "crawl moves 2 a cycle");
         World_Free(world);
     }
 }

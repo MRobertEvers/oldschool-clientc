@@ -1994,23 +1994,84 @@ World_RegisterSceneryPick(
     };
 }
 
+/*
+ * A step was queued for an actor, or it was put down somewhere: a primary seq
+ * whose postanim_move is ABORTANIM (1) ends on the spot. DELAYMOVE (0) and
+ * MERGE (2) keep playing -- what those do to the route is the mover's
+ * business (World_MoverHeldByAnim).
+ *
+ * rev-239 does this on every queued step (Statics.method1338 for a player,
+ * class86.method2896 for an npc) and on an npc's placement
+ * (class86.method2949). The one placement that keeps the seq is a player's
+ * explicit teleport, which goes straight to method3529 -- see
+ * World_PlayerPathJumpCollisionAware. Rev-239 lane only.
+ */
 static void
-World_PathJumpEntity(
-    struct WorldEntityFacet_Pathing* pathing,
+World_ActorRouteAbortAnim(
+    struct World* world,
+    struct WorldEntityFacet_Animation* animation)
+{
+    int seq = animation->primary.anim_id;
+
+    if( World_MoverModel(world) != TORIRS_MOVER_FRAME_DELTA )
+        return;
+    if( animation->primary.anim_id == (uint16_t)-1 || !world->seq_source.postanim_move )
+        return;
+    if( world->seq_source.postanim_move(world->seq_source.userdata, seq) != 1 )
+        return;
+    animation->primary.anim_id = (uint16_t)-1;
+    animation->primary.frame = 0;
+    animation->primary.cycle = 0;
+    animation->primary.delay = 0;
+    animation->primary.loop = 0;
+    animation->pending_set = 0;
+}
+
+/*
+ * The actor was put down on a tile rather than walked there. On rev-239 the
+ * route's two counters go with the route (class105.method3529 zeroes field1462
+ * and field1531): a stale anim_delay_move would spend its speed-8 catch-up on
+ * the first walk after the placement, and a stale preanim_route_length would
+ * judge a DELAYMOVE seq by the preanim rule instead of the postanim one.
+ */
+static void
+World_ActorPlaced(
+    struct World const* world,
+    struct WorldEntityFacet_Animation* animation,
     struct WorldEntityFacet_DrawPosition* draw,
     struct WorldEntityFacet_GridPosition* grid,
     int size,
-    bool force_teleport,
     int x,
     int z)
 {
-    enum World_PathingJump jump = World_EntityPathingJump(pathing, force_teleport, x, z);
-    if( jump == WORLD_PATHING_JUMP_TELEPORT )
+    if( World_MoverModel(world) == TORIRS_MOVER_FRAME_DELTA )
     {
-        World_EntityDrawPositionSetToTile(draw, x, z, size, size);
-        grid->x = x;
-        grid->z = z;
+        animation->anim_delay_move = 0;
+        animation->preanim_route_length = 0;
     }
+    World_EntityDrawPositionSetToTile(draw, x, z, size, size);
+    grid->x = x;
+    grid->z = z;
+}
+
+/*
+ * rev-239 Statics.method1338's opening: a player whose facing mode is 0 (face
+ * the route) drops a FACE_ANGLE it was still holding for the end of the walk
+ * (method3511 clears field298 and the instant flag), so a step that arrives
+ * after the angle cancels it. Players only -- the npc steps (method2896) leave
+ * it pending. Rev-239 lane only.
+ */
+static void
+World_PlayerStepDropsFaceAngle(
+    struct World* world,
+    struct WorldEntity_Player* player)
+{
+    if( World_MoverModel(world) != TORIRS_MOVER_FRAME_DELTA )
+        return;
+    if( player->facing.face_during_movement )
+        return;
+    player->facing.direct_angle = -1;
+    player->facing.instant = false;
 }
 
 void
@@ -2024,6 +2085,8 @@ World_PlayerPathPushStep(
     struct World_EntityPool* pool = &world->entities.player;
     assert(World_EntityPoolIsActive(pool, idx));
     struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
+    World_ActorRouteAbortAnim(world, &player->animation);
+    World_PlayerStepDropsFaceAngle(world, player);
     World_EntityPathingPushStep(&player->pathing, step_type, direction);
 }
 
@@ -2038,9 +2101,13 @@ World_NpcPathPushStep(
     struct World_EntityPool* pool = &world->entities.npc;
     assert(World_EntityPoolIsActive(pool, idx));
     struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
+    World_ActorRouteAbortAnim(world, &npc->animation);
     World_EntityPathingPushStep(&npc->pathing, step_type, direction);
 }
 
+/* rev-239's npc placement, class86.method2949, and the relative-position
+ * player op: abort an ABORTANIM seq, walk when within 8 tiles of the newest
+ * queued tile, put the actor down otherwise. */
 void
 World_PlayerPathJump(
     struct World* world,
@@ -2055,16 +2122,26 @@ World_PlayerPathJump(
     struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
     /* Player.resetPath: `x = pathX * 128 + transformedSize() * 64`. */
     assert(player->transmog_size >= 1);
-    World_PathJumpEntity(
-        &player->pathing,
-        &player->draw_position,
-        &player->grid_position,
-        player->transmog_size,
-        force_teleport,
-        x,
-        z);
+    World_ActorRouteAbortAnim(world, &player->animation);
+    if( World_EntityPathingJump(&player->pathing, force_teleport, x, z) ==
+        WORLD_PATHING_JUMP_TELEPORT )
+        World_ActorPlaced(
+            world,
+            &player->animation,
+            &player->draw_position,
+            &player->grid_position,
+            player->transmog_size,
+            x,
+            z);
 }
 
+/*
+ * rev-239 class95.method3189 -> Statics.method1338, the GPI move. A teleport
+ * (traversal 127, or opcode 3 with no traversal of its own) goes straight to
+ * method3529 and keeps the primary seq; every other traversal runs
+ * method1338: abort an ABORTANIM seq, drop a held face angle in mode 0, then
+ * queue the step -- with no 8-tile window -- unless it leaves the scene.
+ */
 void
 World_PlayerPathJumpCollisionAware(
     struct World* world,
@@ -2079,16 +2156,39 @@ World_PlayerPathJumpCollisionAware(
     struct World_EntityPool* pool = &world->entities.player;
     assert(World_EntityPoolIsActive(pool, idx));
     struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
-    enum World_PathingJump jump = World_EntityPathingJumpCollisionAware(
-        &player->pathing, collision, force_teleport, x, z, step_type);
+    enum World_PathingJump jump;
+
+    /* class95.method3189: the camera's target player, in the root view, standing
+     * within 12 tiles of the scene edge (outside 1536..11776 on either axis) is
+     * placed rather than walked -- its scene is about to be rebuilt round it.
+     * The target is client.field774 under camera-target type 0, which login
+     * sets to the local player; this client has no CAM_TARGET, so the target
+     * is always the local player. */
+    if( !force_teleport && player->view_placement.home_view == 0 && world->local_pid >= 0 &&
+        player->server_pid == world->local_pid &&
+        (player->draw_position.x < 1536u || player->draw_position.x >= 11776u ||
+         player->draw_position.z < 1536u || player->draw_position.z >= 11776u) )
+        force_teleport = true;
+
+    if( !force_teleport )
+    {
+        World_ActorRouteAbortAnim(world, &player->animation);
+        World_PlayerStepDropsFaceAngle(world, player);
+    }
+    jump = World_EntityPathingJumpCollisionAware(
+        &player->pathing, collision, force_teleport, x, z, step_type, world->_scene_size);
     if( jump == WORLD_PATHING_JUMP_TELEPORT )
     {
         /* Player.resetPath centres a placement on transformedSize(). */
         assert(player->transmog_size >= 1);
-        World_EntityDrawPositionSetToTile(
-            &player->draw_position, x, z, player->transmog_size, player->transmog_size);
-        player->grid_position.x = x;
-        player->grid_position.z = z;
+        World_ActorPlaced(
+            world,
+            &player->animation,
+            &player->draw_position,
+            &player->grid_position,
+            player->transmog_size,
+            x,
+            z);
     }
 }
 
@@ -2105,8 +2205,11 @@ World_NpcPathJump(
     assert(World_EntityPoolIsActive(pool, idx));
     struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
     int size = npc->size > 0 ? npc->size : 1;
-    World_PathJumpEntity(
-        &npc->pathing, &npc->draw_position, &npc->grid_position, size, force_teleport, x, z);
+    World_ActorRouteAbortAnim(world, &npc->animation);
+    if( World_EntityPathingJump(&npc->pathing, force_teleport, x, z) ==
+        WORLD_PATHING_JUMP_TELEPORT )
+        World_ActorPlaced(
+            world, &npc->animation, &npc->draw_position, &npc->grid_position, size, x, z);
 }
 
 void

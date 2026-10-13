@@ -584,11 +584,15 @@ player_apply_op(
         }
         if( player )
             player->view_placement.home_view = home_view;
-        int step_type =
-            op->_local_xz_level.has_move_speed &&
-                    op->_local_xz_level.move_speed == PKT_PLAYER_TRAVERSAL_RUN
-                ? WORLD_PATHSTEP_RUN
-                : WORLD_PATHSTEP_WALK;
+        int step_type = WORLD_PATHSTEP_WALK;
+
+        /* class174: 2 run, 0 crawl, anything else the walk default. */
+        if( op->_local_xz_level.has_move_speed &&
+            op->_local_xz_level.move_speed == PKT_PLAYER_TRAVERSAL_RUN )
+            step_type = WORLD_PATHSTEP_RUN;
+        else if( op->_local_xz_level.has_move_speed &&
+                 op->_local_xz_level.move_speed == PKT_PLAYER_TRAVERSAL_CRAWL )
+            step_type = WORLD_PATHSTEP_CRAWL;
         struct CollisionMap* collision = NULL;
 
         /* `level` is a uint8_t, so only the upper bound is a real test. A
@@ -613,7 +617,7 @@ player_apply_op(
             entity_debug_log(
                 "entity_sync: player traversal=%d run=%d\n",
                 op->_local_xz_level.move_speed,
-                player->pathing.route_run[0]);
+                player->pathing.route_step[0]);
         }
         if( player )
             player->grid_position.level = op->_local_xz_level.level;
@@ -1304,6 +1308,15 @@ npc_apply_op(
                 self->app, npc_trace_type_of(self->app, idx), self->cur_slot, -1, idx, -1,
                 "MOVE_RUN", (int)op->_bitvalue);
             World_NpcPathPushStep(world, idx, WORLD_PATHSTEP_RUN, (int)op->_bitvalue);
+        }
+        break;
+    case PKT_NPC_INFO_OPBITS_CRAWLDIR:
+        if( idx >= 0 )
+        {
+            npc_trace(
+                self->app, npc_trace_type_of(self->app, idx), self->cur_slot, -1, idx, -1,
+                "MOVE_CRAWL", (int)op->_bitvalue);
+            World_NpcPathPushStep(world, idx, WORLD_PATHSTEP_CRAWL, (int)op->_bitvalue);
         }
         break;
     case PKT_NPC_INFO_OP_DELTA_XZ:

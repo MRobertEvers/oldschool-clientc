@@ -1914,8 +1914,11 @@ osrs239_npc_info_read(
             if( Net_BitBufferGbits(&buf, 1) )
                 npc_queue_extended(&r, list_idx);
         }
-        else
+        else if( Net_BitBufferGbits(&buf, 1) )
         {
+            /* Type 2 carries its own traversal bit (deob Statics ~47110:
+             * gBits(1) == 1 is two run steps, 0 one crawl step; rsprot's
+             * pRun / pCrawl write the same). */
             for( int step = 0; step < 2; step++ )
             {
                 int dir = Net_BitBufferGbits(&buf, 3);
@@ -1924,6 +1927,16 @@ osrs239_npc_info_read(
                 if( op )
                     op->_bitvalue = (uint64_t)dir;
             }
+            if( Net_BitBufferGbits(&buf, 1) )
+                npc_queue_extended(&r, list_idx);
+        }
+        else
+        {
+            int dir = Net_BitBufferGbits(&buf, 3);
+
+            op = npc_op(&r, PKT_NPC_INFO_OPBITS_CRAWLDIR);
+            if( op )
+                op->_bitvalue = (uint64_t)dir;
             if( Net_BitBufferGbits(&buf, 1) )
                 npc_queue_extended(&r, list_idx);
         }

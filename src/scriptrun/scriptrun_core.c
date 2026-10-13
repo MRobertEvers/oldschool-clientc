@@ -103,6 +103,9 @@ ScriptrunCore_SetLocalIndex(
     assert(core);
     assert(index >= 0);
     core->esync->local_pid = index;
+    /* The live client mirrors this every frame (app_world_frame); the world's
+     * local-player rules (the scene-edge teleport, the off-band reset) read it. */
+    core->world->local_pid = index;
     if( core->player_decoder_state )
     {
         osrs239_playerinfo_set_local(index);
@@ -440,11 +443,15 @@ player_apply_op(
         struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, idx);
         int next_x = op->_local_xz_level.x - core_base_x(core);
         int next_z = op->_local_xz_level.z - core_base_z(core);
-        int step_type = op->_local_xz_level.has_move_speed &&
-                                op->_local_xz_level.move_speed == PKT_PLAYER_TRAVERSAL_RUN
-                            ? WORLD_PATHSTEP_RUN
-                            : WORLD_PATHSTEP_WALK;
+        int step_type = WORLD_PATHSTEP_WALK;
 
+        /* class174: 2 run, 0 crawl, anything else the walk default. */
+        if( op->_local_xz_level.has_move_speed &&
+            op->_local_xz_level.move_speed == PKT_PLAYER_TRAVERSAL_RUN )
+            step_type = WORLD_PATHSTEP_RUN;
+        else if( op->_local_xz_level.has_move_speed &&
+                 op->_local_xz_level.move_speed == PKT_PLAYER_TRAVERSAL_CRAWL )
+            step_type = WORLD_PATHSTEP_CRAWL;
         World_PlayerPathJumpCollisionAware(
             world, idx, NULL, op->_local_xz_level.jump, next_x, next_z, step_type);
         if( player )
@@ -918,6 +925,10 @@ npc_apply_op(
     case PKT_NPC_INFO_OPBITS_RUNDIR:
         if( idx >= 0 )
             World_NpcPathPushStep(world, idx, WORLD_PATHSTEP_RUN, (int)op->_bitvalue);
+        break;
+    case PKT_NPC_INFO_OPBITS_CRAWLDIR:
+        if( idx >= 0 )
+            World_NpcPathPushStep(world, idx, WORLD_PATHSTEP_CRAWL, (int)op->_bitvalue);
         break;
     case PKT_NPC_INFO_OP_DELTA_XZ:
         if( idx >= 0 )

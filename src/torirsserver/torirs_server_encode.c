@@ -6112,12 +6112,11 @@ npc_info_encode(struct ToriRSServerPlayer* player)
     /*
      * Revision 239's npc stream.
      *
-     * The HIGH-RESOLUTION section is byte-for-byte the shape the classic
-     * encoder below already writes -- an 8-bit count, then per npc a
-     * "has update" bit and a 2-bit type (0 stay, 1 walk, 2 run/crawl,
-     * 3 remove). That is why it is duplicated here rather than shared: the
-     * agreement is a coincidence of two revisions, not a guarantee, and a
-     * shared body would silently follow whichever one changed first.
+     * The HIGH-RESOLUTION section is nearly the shape the classic encoder
+     * below writes -- an 8-bit count, then per npc a "has update" bit and a
+     * 2-bit type (0 stay, 1 walk, 2 run/crawl, 3 remove) -- except that type
+     * 2 carries one more bit, run (1) or crawl (0), which the classic record
+     * does not. That is why it is duplicated here rather than shared.
      *
      * The LOW-RESOLUTION adds are where it diverges, and every field moved:
      *
@@ -6302,11 +6301,13 @@ npc_info_encode(struct ToriRSServerPlayer* player)
 
                 if( npc->run_dir >= 0 )
                 {
-                    /* Two tiles this tick — update type 2, two 3-bit
-                     * directions. `playerfollow` is the only mover that fills
-                     * `run_dir`; see `ToriRSServerNpc.run_dir`. */
+                    /* Two tiles this tick — update type 2, its traversal bit
+                     * (1 run, 0 crawl: deob Statics ~47110, rsprot pRun), two
+                     * 3-bit directions. `playerfollow` is the only mover that
+                     * fills `run_dir`; see `ToriRSServerNpc.run_dir`. */
                     rsab_pbit(&buf, 1, 1);
-                    rsab_pbit(&buf, 2, 2); /* run */
+                    rsab_pbit(&buf, 2, 2);
+                    rsab_pbit(&buf, 1, 1); /* run */
                     rsab_pbit(&buf, 3, npc->step_dir);
                     rsab_pbit(&buf, 3, npc->run_dir);
                     rsab_pbit(&buf, 1, extended);

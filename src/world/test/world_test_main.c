@@ -36,6 +36,7 @@ main(void)
     test_rev239_turn_seq_follows_the_direction();
     test_rev239_run_and_crawl_directions();
     test_rev239_opcode_109_catchup();
+    test_rev239_step_arrival_rules();
     test_rev239_frame_mover_drops_the_z_carry();
     test_rev239_exact_move_order();
     test_rev239_projectile_ends();

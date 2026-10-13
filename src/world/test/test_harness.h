@@ -150,6 +150,7 @@ void test_rev239_mode1_keeps_its_facing_on_a_walk(void);
 void test_rev239_turn_seq_follows_the_direction(void);
 void test_rev239_run_and_crawl_directions(void);
 void test_rev239_opcode_109_catchup(void);
+void test_rev239_step_arrival_rules(void);
 void test_rev239_frame_mover_drops_the_z_carry(void);
 void test_rev239_exact_move_order(void);
 void test_rev239_projectile_ends(void);

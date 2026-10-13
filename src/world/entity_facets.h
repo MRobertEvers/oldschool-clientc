@@ -104,7 +104,9 @@ struct WorldEntityFacet_EntitySpotanim
  * of queued tiles (0 = idle). Each tick the draw position moves toward
  * route[route_length - 1]; when it arrives, route_length is decremented.
  *
- * route_run[i] is 1 for a run step, 0 for walk. Queue depth is capped at 9.
+ * route_step[i] is the step's WORLD_PATHSTEP_* (walk, run or crawl) -- rev-239
+ * class174, which the mover reads to double or halve the step's speed. Queue
+ * depth is capped at 9.
  * Coordinates are world tiles; draw position uses 128 sub-tile units per tile.
  */
 struct WorldEntityFacet_Pathing
@@ -112,7 +114,7 @@ struct WorldEntityFacet_Pathing
     uint8_t route_length;
     uint8_t route_x[10];
     uint8_t route_z[10];
-    uint8_t route_run[10];
+    uint8_t route_step[10];
     /*
      * Set by spawn, cleared by the first positional op. While it is set the
      * entity has no position the server has confirmed, and its first

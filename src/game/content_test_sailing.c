@@ -519,7 +519,7 @@ void ContentTestSailing_PeerState(struct App* app, struct ToriRSServerEmbed* emb
         actor ? (int)actor->draw_position.x : -1, actor ? (int)actor->draw_position.z : -1,
         actor ? actor->view_placement.x : -1, actor ? actor->view_placement.z : -1,
         actor ? actor->pathing.route_length : -1,
-        actor && actor->pathing.route_length ? actor->pathing.route_run[actor->pathing.route_length-1] : -1,
+        actor && actor->pathing.route_length ? actor->pathing.route_step[actor->pathing.route_length-1] : -1,
         projected ? "true" : "false", projected ? screen_x : -1, projected ? screen_y : -1,
         actor && peer_picked(app, actor->element_id) ? "true" : "false",
         boat ? boat->index : 0, can_navigate ? "true" : "false",

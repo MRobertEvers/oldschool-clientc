@@ -192,6 +192,8 @@ World_EntityPathingPushXZ(
     int z,
     int step_type)
 {
+    assert(step_type == WORLD_PATHSTEP_WALK || step_type == WORLD_PATHSTEP_RUN ||
+           step_type == WORLD_PATHSTEP_CRAWL);
     if( pathing->route_length < 9 )
         pathing->route_length++;
 
@@ -199,12 +201,12 @@ World_EntityPathingPushXZ(
     {
         pathing->route_x[i] = pathing->route_x[i - 1];
         pathing->route_z[i] = pathing->route_z[i - 1];
-        pathing->route_run[i] = pathing->route_run[i - 1];
+        pathing->route_step[i] = pathing->route_step[i - 1];
     }
 
     pathing->route_x[0] = (uint8_t)x;
     pathing->route_z[0] = (uint8_t)z;
-    pathing->route_run[0] = step_type == WORLD_PATHSTEP_RUN ? 1 : 0;
+    pathing->route_step[0] = (uint8_t)step_type;
     pathing->unplaced = 0;
 }
 
@@ -257,14 +259,23 @@ World_EntityPathingJumpCollisionAware(
     bool force_teleport,
     int x,
     int z,
-    int step_type)
+    int step_type,
+    int scene_size)
 {
     int src_x = pathing->route_x[0];
     int src_z = pathing->route_z[0];
     /* The run-route smoothing below queues intermediate tiles, and queuing is
      * a placement -- it would clear `unplaced` and turn the endpoint jump
-     * into a walk from the spawn tile. Decide the teleport once, up front. */
-    bool teleport = force_teleport || pathing->unplaced != 0;
+     * into a walk from the spawn tile. Decide the teleport once, up front.
+     *
+     * rev-239 Statics.method1338 has no 8-tile window (that is the npc's
+     * class86.method2949): a step is queued whenever both the
+     * new tile and the newest queued one lie inside the scene (method3333),
+     * however far apart they are, and method3520's 288-unit snap is what puts
+     * an actor down when it cannot walk there. */
+    bool teleport = force_teleport || pathing->unplaced != 0 || x < 0 || z < 0 ||
+                    x >= scene_size || z >= scene_size || src_x >= scene_size ||
+                    src_z >= scene_size;
 
     /* RuneLite rev-239 Statics.method3189 -> method2600: RUN traversal is
      * geometry-independent from the GPI WALK/RUN displacement opcode. Before
@@ -289,18 +300,16 @@ World_EntityPathingJumpCollisionAware(
             collision, src_x, src_z, x, z, &nearest, route_x, route_z, 10, NULL);
 
         /* try_route is destination-first; actor queues are filled source-first.
-         * Exclude route[0], because World_EntityPathingJump queues the reported
-         * endpoint below exactly as method3189 does after method2600 returns. */
+         * Exclude route[0]: the reported endpoint is queued below exactly as
+         * method3189 does after method2600 returns. */
         for( int i = route_len - 1; i > 0; i-- )
             World_EntityPathingPushXZ(pathing, route_x[i], route_z[i], step_type);
     }
 
-    {
-        enum World_PathingJump jump = World_EntityPathingJump(pathing, teleport, x, z);
-        if( jump == WORLD_PATHING_JUMP_WALK )
-            pathing->route_run[0] = step_type == WORLD_PATHSTEP_RUN ? 1 : 0;
-        return jump;
-    }
+    if( teleport )
+        return World_EntityPathingJump(pathing, true, x, z);
+    World_EntityPathingPushXZ(pathing, x, z, step_type);
+    return WORLD_PATHING_JUMP_WALK;
 }
 
 void

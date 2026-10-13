@@ -169,7 +169,8 @@ sailing_decode_moving_npc(struct ToriRSServer* srv, struct ToriRSServerPlayer* v
             present = 1;
             if( op->kind == PKT_NPC_INFO_OP_DELTA_XZ )
             { x = viewer->obs_x + op->_delta_xz.dx; z = viewer->obs_z + op->_delta_xz.dz; }
-            else if( op->kind == PKT_NPC_INFO_OPBITS_WALKDIR || op->kind == PKT_NPC_INFO_OPBITS_RUNDIR )
+            else if( op->kind == PKT_NPC_INFO_OPBITS_WALKDIR || op->kind == PKT_NPC_INFO_OPBITS_RUNDIR ||
+                     op->kind == PKT_NPC_INFO_OPBITS_CRAWLDIR )
             { x += dx[op->_bitvalue & 7]; z += dz[op->_bitvalue & 7]; }
         }
         if( op->kind == PKT_NPC_INFO_OP_SAY ) free(op->_say.text);

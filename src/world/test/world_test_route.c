@@ -1133,14 +1133,14 @@ test_route_coordinate_coincidence(void)
         World_PlayerPathJump(world, corner_pi, true, 30, 30);
         collision_map_add_floor(cm, 31, 30);
         World_EntityPathingJumpCollisionAware(
-            &corner->pathing, cm, false, 31, 31, WORLD_PATHSTEP_RUN);
+            &corner->pathing, cm, false, 31, 31, WORLD_PATHSTEP_RUN, world->_scene_size);
         TEST_ASSERT(corner->pathing.route_length == 2,
                     "blocked net diagonal retains its corner waypoint");
         TEST_ASSERT(corner->pathing.route_x[1] == 30 && corner->pathing.route_z[1] == 31,
                     "corner waypoint takes the legal north-first route");
         TEST_ASSERT(corner->pathing.route_x[0] == 31 && corner->pathing.route_z[0] == 31,
                     "corner-aware route retains the authoritative endpoint");
-        TEST_ASSERT(corner->pathing.route_run[1] == 1 && corner->pathing.route_run[0] == 1,
+        TEST_ASSERT(corner->pathing.route_step[1] == 1 && corner->pathing.route_step[0] == 1,
                     "both reconstructed corner legs retain RUN traversal");
 
         for( int cycle = 0; cycle < 64 && corner->pathing.route_length == 2; cycle++ )

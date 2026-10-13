@@ -5,8 +5,12 @@
 
 #include <stdbool.h>
 
+/* A queued step's traversal, rev-239 class174: run doubles the step speed and
+ * crawl halves it (class105.method3520 / method3611). The 2004 wire has no
+ * crawl, so only the rev-239 decoders queue one. */
 #define WORLD_PATHSTEP_WALK 0
 #define WORLD_PATHSTEP_RUN 1
+#define WORLD_PATHSTEP_CRAWL 2
 
 struct CollisionMap;
 
@@ -36,8 +40,10 @@ World_EntityPathingJump(
     int x,
     int z);
 
-/* RuneLite rev-239 method2600 equivalent: RUN traversal pathfinds locally to
- * the reported endpoint and queues intermediate turns before that endpoint. */
+/* rev-239 Statics.method1338 (the GPI player move): queue (x, z) whenever it
+ * and the newest queued tile are inside a `scene_size` scene -- no 8-tile
+ * window -- and teleport otherwise. A RUN step first pathfinds locally to the
+ * endpoint and queues the intermediate turns (method2600). */
 enum World_PathingJump
 World_EntityPathingJumpCollisionAware(
     struct WorldEntityFacet_Pathing* pathing,
@@ -45,7 +51,8 @@ World_EntityPathingJumpCollisionAware(
     bool force_teleport,
     int x,
     int z,
-    int step_type);
+    int step_type,
+    int scene_size);
 
 void
 World_EntityDrawPositionSetToTile(

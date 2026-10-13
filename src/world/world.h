@@ -145,7 +145,10 @@ struct ToriRS_FeatureTable;
  * the scene animation registry (ToriDraw_Animation carries the seq meta).
  * Getters return sane defaults for unknown/unloaded seq ids:
  *   frame_count 0, frame_duration 1, frame_step 0, max_loops 99,
- *   priority 5, duplicate_behavior -1, preanim_move 0, postanim_move 0.
+ *   priority -1 (the priority gate waits for the load), duplicate_behavior -1,
+ *   preanim_move -1, postanim_move -1.
+ * A -1 move rule means "not known yet": it neither holds the route nor
+ * aborts on a step (rev-239 decides both from a SeqType it always has).
  */
 struct World_SeqSource
 {

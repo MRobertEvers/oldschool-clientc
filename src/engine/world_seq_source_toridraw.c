@@ -128,7 +128,8 @@ world_seq_source_toridraw_preanim_move(
     int seq_id)
 {
     struct ToriDraw_Animation* anim = world_seq_source_toridraw_anim(userdata, seq_id);
-    return anim ? anim->preanim_move : 0;
+    /* -1 = not loaded yet: no hold and no abort (World_MoverHeldByAnim). */
+    return anim ? anim->preanim_move : -1;
 }
 
 static int
@@ -137,7 +138,8 @@ world_seq_source_toridraw_postanim_move(
     int seq_id)
 {
     struct ToriDraw_Animation* anim = world_seq_source_toridraw_anim(userdata, seq_id);
-    return anim ? anim->postanim_move : 0;
+    /* -1 = not loaded yet: no hold and no abort (World_MoverHeldByAnim). */
+    return anim ? anim->postanim_move : -1;
 }
 
 static int

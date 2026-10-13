@@ -79,13 +79,13 @@ test_unbound_source_answers_defaults(void)
             seq_id);
         CHECK(vtable.frame_step(&source, seq_id) == 0, "seq %d frame_step is not 0", seq_id);
         CHECK(vtable.max_loops(&source, seq_id) == 99, "seq %d max_loops is not 99", seq_id);
-        CHECK(vtable.priority(&source, seq_id) == 5, "seq %d priority is not 5", seq_id);
+        CHECK(vtable.priority(&source, seq_id) == -1, "seq %d priority is not -1", seq_id);
         CHECK(
             vtable.duplicate_behavior(&source, seq_id) == -1,
             "seq %d duplicate_behavior is not -1",
             seq_id);
-        CHECK(vtable.preanim_move(&source, seq_id) == 0, "seq %d preanim_move is not 0", seq_id);
-        CHECK(vtable.postanim_move(&source, seq_id) == 0, "seq %d postanim_move is not 0", seq_id);
+        CHECK(vtable.preanim_move(&source, seq_id) == -1, "seq %d preanim_move is not -1", seq_id);
+        CHECK(vtable.postanim_move(&source, seq_id) == -1, "seq %d postanim_move is not -1", seq_id);
         CHECK(vtable.stretches(&source, seq_id) == 0, "seq %d stretches is not 0", seq_id);
     }
 

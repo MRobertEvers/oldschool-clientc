@@ -52,6 +52,9 @@ enum PktNpcInfoOpKind
     PKT_NPC_INFO_OPBITS_INFO,
     PKT_NPC_INFO_OPBITS_WALKDIR,
     PKT_NPC_INFO_OPBITS_RUNDIR,
+    /* rev-239 only: one 3-bit direction taken at crawl speed (class174
+     * field2475, half a walk). */
+    PKT_NPC_INFO_OPBITS_CRAWLDIR,
     /* Npc config id; width is the reader's `type_bits`. */
     PKT_NPC_INFO_OPBITS_NPCTYPE,
     PKT_NPC_INFO_OP_DELTA_XZ,

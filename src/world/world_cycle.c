@@ -68,6 +68,8 @@ static int cycle_seq_postanim_move(struct World* world, int seq_id);
  *              server says it stands and closes the gap
  *   8          catching up the cycles a DELAYMOVE seq held it still for
  *   x2         the step arrived as a run step
+ *   /2         the step arrived as a crawl step (rev-239 only; the 2004
+ *              wire cannot say crawl)
  *
  * The 6/8 rungs are not decoration and must not be capped back to walking
  * speed: 30 cycles at speed 4 covers 120 of a tile's 128 units, so an entity
@@ -80,9 +82,6 @@ static int cycle_seq_postanim_move(struct World* world, int seq_id);
  * takes the other branch of the same block on rev-239: no speed-2 turn, and
  * the 6/8 thresholds one tile earlier (>1 / >2 rather than >2 / >3). The 2004
  * client has no such opcode.
- *
- * rev-239 also halves the speed for a CRAWL step (class174.field2475). Not
- * reachable here: no revision this tree speaks emits a crawl step.
  */
 static int
 World_MoverStepSpeed(
@@ -117,8 +116,10 @@ World_MoverStepSpeed(
         if( consume_delay_move )
             info->animation->anim_delay_move--;
     }
-    if( info->pathing->route_run[route_length - 1] )
+    if( info->pathing->route_step[route_length - 1] == WORLD_PATHSTEP_RUN )
         move_speed <<= 1;
+    else if( info->pathing->route_step[route_length - 1] == WORLD_PATHSTEP_CRAWL )
+        move_speed >>= 1;
 
     return move_speed;
 }
@@ -210,6 +211,12 @@ World_MoverRemapSeq(
  *
  * A primary seq that forbids movement freezes the route where it is and banks
  * a cycle in anim_delay_move for the speed-8 catch-up above.
+ *
+ * Only a seq KNOWN to be DELAYMOVE holds. rev-239 reads the rule off a SeqType
+ * it always has (field5406, loaded synchronously); here a seq can still be
+ * loading when the packet lands, and its rule reads -1. Guessing DELAYMOVE for
+ * it froze the actor and banked catch-up cycles the reference never banks, so
+ * the actor surged at speed 8 once the load landed.
  */
 static bool
 World_MoverHeldByAnim(struct World_MoverInfo* info, bool bank_held_cycle)
@@ -798,7 +805,7 @@ cycle_seq_preanim_move(
 {
     if( world->seq_source.preanim_move )
         return world->seq_source.preanim_move(world->seq_source.userdata, seq_id);
-    return 0;
+    return -1;
 }
 
 static int
@@ -808,7 +815,7 @@ cycle_seq_postanim_move(
 {
     if( world->seq_source.postanim_move )
         return world->seq_source.postanim_move(world->seq_source.userdata, seq_id);
-    return 0;
+    return -1;
 }
 
 static int
@@ -1400,15 +1407,16 @@ World_CycleUpdatePlayers(
                     .animation = &player->animation,
                     .facing = &player->facing,
                     .placement = &player->view_placement,
-                    .size_x = 1,
-                    .size_z = 1,
+                    /* field1478 for a player too: a transmog's footprint. */
+                    .size_x = player->transmog_size,
+                    .size_z = player->transmog_size,
                 };
                 World_CycleActor(
                     &info,
                     &player->exact_move,
                     &player->spotanim,
                     world->local_pid >= 0 && player->server_pid == world->local_pid,
-                    1);
+                    player->transmog_size);
             }
             /* Overhead chat expiry (reference Client.ts:3161). */
             if( player->chat.timer > 0 && --player->chat.timer == 0 )
@@ -2334,8 +2342,8 @@ World_MoversAdvance(
                     .idle = &player->idle_animations,
                     .animation = &player->animation,
                     .facing = &player->facing,
-                    .size_x = 1,
-                    .size_z = 1,
+                    .size_x = player->transmog_size,
+                    .size_z = player->transmog_size,
                 };
                 World_MoverAdvance(&info, cycles);
             }
