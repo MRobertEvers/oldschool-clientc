@@ -51,6 +51,25 @@ QD.SOTE_V2 = {
     HP_PER_BOSS_HP = 0.22,
     TENTACLE = { speed = 4, exp = 11 },     -- PROBE: measure on the tick log
     HAMMER = { speed = 6, exp = 22 },
+    -- THE SPECIALS (owner 2026-10-12: "After opening with a hammer spec,
+    -- switch to using the spec weapon whenever available"; every room clear
+    -- refills special energy to 1000, ~tob_restore_party, so none is owed
+    -- later). THE OPENER: one Dragon Warhammer special a seat. It drains
+    -- 30% of his CURRENT Defence on a hit that deals damage
+    -- (pvm_dragon_warhammer.rs2 ~46: divide(multiply(npc_stat(defence), 30),
+    -- 100)); his Defence is 200 (tob.npc [tob_sotetseg_combat_hard]) with a
+    -- floor of 100 (^tob_sote_defence_floor, clamped on his own tick,
+    -- tob_sotetseg.rs2 ~tob_sote_defence_floor): 200 -> 140 -> 98 = 100. TWO
+    -- landed hammers reach the floor, a third does nothing; five seats
+    -- swinging one each lands two with room to spare. THEN the burning claws
+    -- (obj bone_claws, the relay's P3 weapon, carried): 350 energy, two-handed,
+    -- three hits at 75-175 / 50-150 / 25-125% of max (pvm_bone_claws.rs2) -
+    -- on every swing at him with 350 left. P3's machine (tob2_verzik_p3.lua
+    -- VZ.special): wield -> armed (the orb rides the plan's attack) -> back
+    -- (the tentacle AND the defender: the melee set) -> idle.
+    CLAWS = { name = "bone_claws", cost = 350, speed = 4, exp = 33 },
+    DRAIN_AT = 20, REDOSE_UNDER = 5, RESTORE_FIRST = 8,   -- P3's (QD.VZP3_V2)
+    HAMMER_COST = 500, OPENER_TICKS = 30, SPEC_RETRY = 2,
     -- HIS MELEE: a slot's target within 1 at T-1, one in two, 1..45 (Protect
     -- from Magic is up, so unprayed). Per seat: 1/n x 1/2 x 23.
     MELEE_MAX = 45, MELEE_AVG = 23, MELEE_ROLL = 2,
@@ -464,6 +483,106 @@ function SV.ricochet_land2(S, F, B)
     end
 end
 
+-- THE SPECIALS (QD.SOTE_V2.CLAWS' note). Sets I.gear / I.spec /
+-- I.spec_cost for this tick; -> the swing the plan prices.
+function SV.special(S, F, I, mode)
+    local X, M, ids = QD.SOTE_V2, S.t2s, S.ids
+    local sp = M.sp
+    local function enter(state, why)
+        QD.raid._tob_trace(S, F.tick, "spec: " .. sp.state .. " -> " .. state .. " (" .. why .. ")")
+        sp.state = state
+    end
+    local swings = mode ~= "hold"
+    -- THE OPENER: the hammer in hand and armed until it fired once (energy
+    -- down by its cost), or OPENER_TICKS into the fight
+    if sp.state == "opener" then
+        local fired = sp.e0 ~= nil and F.energy <= sp.e0 - X.HAMMER_COST + 10
+        if fired or F.energy < X.HAMMER_COST or F.tick - (S.fight_start or F.tick) > X.OPENER_TICKS then
+            sp.hammers = sp.hammers + (fired and 1 or 0)
+            enter("back", fired and "hammer fired" or "opener over")
+        elseif QD.raid._tob_worn(S, ids.hammer) then
+            sp.e0 = sp.e0 or F.energy
+            I.gear, I.spec, I.spec_cost = {}, true, X.HAMMER_COST
+            return X.HAMMER
+        else
+            I.gear = { ids.hammer }
+            return X.TENTACLE
+        end
+    end
+    local last = S.t2.last
+    local attacking = last ~= nil and last.path[1].act == "attack"
+    if sp.state == "idle" and sp.id and swings and attacking and QD.raid._tob_count(S, sp.id) > 0
+        and QD.T2.exec.spec_gate(S, F, { spec_cost = X.CLAWS.cost }) and QD.T2.exec.free_slots(S) >= 1 then
+        enter("wield", "energy " .. F.energy)
+    end
+    if sp.state == "wield" then
+        if QD.raid._tob_worn(S, sp.id) then
+            sp.energy = F.energy
+            enter("armed", "claws in hand")
+        elseif not swings then
+            enter("back", "no swing")
+        else
+            I.gear = { { obj = sp.id, two_hand = true } }
+            return X.TENTACLE
+        end
+    end
+    if sp.state == "armed" then
+        if F.energy <= sp.energy - X.CLAWS.cost + 10 then
+            sp.fired = sp.fired + 1
+            sp.energy = F.energy
+            if F.energy < X.CLAWS.cost then enter("back", "fired, energy " .. F.energy) end
+        elseif not QD.raid._tob_worn(S, sp.id) then
+            enter("back", "not in hand")
+        end
+        if sp.state == "armed" then
+            I.gear, I.spec, I.spec_cost = {}, true, X.CLAWS.cost
+            return X.CLAWS
+        end
+    end
+    -- back and idle: the melee set (the tentacle and the defender)
+    I.gear = ids.melee_set
+    if sp.state == "back" then
+        local all = true
+        for _, obj in ipairs(ids.melee_set) do
+            if not QD.raid._tob_worn(S, obj) then all = false end
+        end
+        if all then enter("idle", "melee set on") end
+    end
+    return X.TENTACLE
+end
+
+-- THE BOOST (owner 2026-10-12: "Sotetseg should also prioritize super
+-- combats"; the budget's NEED gives Sotetseg 2 combat doses a seat): P3's
+-- rule (tob2_verzik_p3.lua VZ.boosts), on the budget's spendable stock.
+-- Every tick the potion timer allows and the resource channel drank
+-- nothing (hp and prayer first):
+--   Attack or Strength DRAIN_AT under base (two or three brew doses) -> a super restore
+--   either under base + REDOSE_UNDER, both within RESTORE_FIRST of base -> a super combat
+--   otherwise drained RESTORE_FIRST or more                             -> a super restore
+-- The fight's first tick is the first such tick: it opens boosted.
+function SV.boosts(S, F, I)
+    local X, M = QD.SOTE_V2, S.t2s
+    local a, st = F.levels.attack, F.levels.strength
+    if a == nil or st == nil or a.base <= 0 then return end
+    if S.last_drink == F.tick or I.drink ~= nil then return end
+    if F.tick < S.x2.held.drink_until then return end
+    local Bu = QD.T2.budget
+    local function can(kind) return Bu == nil or Bu.spendable == nil or Bu.spendable(S, kind) > 0 end
+    local low = math.min(a.level - a.base, st.level - st.base)
+    local drink, why = nil, nil
+    if low <= -X.DRAIN_AT then
+        if can("restore") then drink, why = QD.raid._tob_first(S, S.ids.stat_restores), "restore" end
+    elseif low < X.REDOSE_UNDER and low > -X.RESTORE_FIRST then
+        if can("combat") then drink, why = QD.raid._tob_first(S, S.ids.combats), "combat" end
+    elseif low <= -X.RESTORE_FIRST then
+        if can("restore") then drink, why = QD.raid._tob_first(S, S.ids.stat_restores), "restore" end
+    end
+    if drink == nil then return end
+    I.drink = drink
+    S.last_drink = F.tick
+    M.boost_n[why] = (M.boost_n[why] or 0) + 1
+end
+
 -- The eat floor for the pair (v1 main tree's DEATH_MODE).
 function SV.pair_need(S, F)
     local X = QD.SOTE_V2
@@ -632,12 +751,7 @@ function SV.strategy(S, F, B)
             local pair
             mode, pair = SV.fight_mode(S, F)
             SV.stack_zones(S, F, B)
-            local hammer = F.energy >= 500 and QD.raid._tob_worn(S, ids.hammer)
-            if F.energy >= 500 then
-                I.gear = { ids.hammer }
-            else
-                I.gear = ids.melee_set
-            end
+            local sw = SV.special(S, F, I, mode)
             if mode == "hold" then
                 if station then
                     local ht = SV.hold_tile(S, station)
@@ -645,16 +759,17 @@ function SV.strategy(S, F, B)
                 end
             else
                 if target then
-                    local sw = hammer and X.HAMMER or X.TENTACLE
                     B.target{ name = "him", npc = target, size = V.SIZE, path = { { x = target.x, z = target.z } },
                         range = 1, speed = sw.speed, value = sw.exp * X.HP_PER_BOSS_HP, spec_ok = true }
-                    I.spec = hammer
+                else
+                    I.spec = nil
                 end
                 if station then
                     B.pull{ name = "station", x = station.x, z = station.z, size = 1, weight = X.STATION_PULL,
                         t0 = F.tick + 1, t1 = F.tick + B.h }
                 end
             end
+            SV.boosts(S, F, I)
             local floor = X.FIGHT_EAT
             -- (only with a pair in the air: 15 ticks of flight is five brews
             -- at the 3-tick gap, and a pair the burst nulls needs none - "soon"
@@ -714,12 +829,18 @@ QD.T2.rooms.sotetseg = {
         S.incoming, S.proj_live, S.trail, S.trail_seen = {}, {}, {}, {}
         S.deaths, S.mazes, S.phase_log, S.path_log = 0, 0, {}, {}
         S.V = QD.SOTE_HM
+        do
+            local r, id = api_drive.symbol("obj", QD.SOTE_V2.CLAWS.name)
+            assert(r == "ok", "sotetseg_v2_solve: no obj " .. QD.SOTE_V2.CLAWS.name)
+            S.t2s_claws = id
+        end
         S.room = "sotetseg"
         S.t2.plan_opts.h = S.t2.plan_opts.h or QD.SOTE_V2.H
         S.t2.plan_opts.beam = S.t2.plan_opts.beam or QD.SOTE_V2.BEAM
         S.t2s = {
             opts = opts, modes = {}, mode = nil, casts = 0, pairs = {}, cast_log = {}, nulled = 0,
             holds = 0, blocks = 0, taken = 0, last_hp = nil, permille = nil,
+            sp = { state = "opener", hammers = 0, fired = 0, id = S.t2s_claws }, boost_n = {},
         }
     end,
 
@@ -750,8 +871,8 @@ QD.T2.rooms.sotetseg = {
         local modes = {}
         for k, n in pairs(M.modes) do modes[#modes + 1] = k .. "=" .. n end
         table.sort(modes)
-        return string.format("sotetseg v2: modes %s; taken %d; pairs %d (casts before %s), nulled %d; holds %d; blocks %d; mazes %d",
-            table.concat(modes, " "), M.taken, #M.pairs, table.concat(M.cast_log, ","), M.nulled, M.holds, M.blocks, S.mazes)
+        return string.format("sotetseg v2: modes %s; taken %d; pairs %d (casts before %s), nulled %d; holds %d; blocks %d; mazes %d; hammers %d claws %d; combat %d restore %d",
+            table.concat(modes, " "), M.taken, #M.pairs, table.concat(M.cast_log, ","), M.nulled, M.holds, M.blocks, S.mazes, M.sp.hammers, M.sp.fired, M.boost_n.combat or 0, M.boost_n.restore or 0)
     end,
 }
 

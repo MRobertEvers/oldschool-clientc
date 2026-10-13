@@ -68,12 +68,17 @@ QD.T2.budget.NEED = {
         { brew = 2, food = 0, restore = 5, combat = 4, ranging = 0 },
         { brew = 1, food = 1, restore = 5, combat = 5, ranging = 0 } },
     -- team mean: brew 48.8, food 0.1, restore 31.3, combat 0.7, ranging 0.0
+    -- Sotetseg's super combats are POLICY (owner 2026-10-12: "Sotetseg should
+    -- also prioritize super combats ... budget more super combats for sote"):
+    -- measured spend was 0 (the doses went to the Nylocas), so the fight ran
+    -- unboosted; two a seat (start boosted, re-boost after its brews). The walk
+    -- holds them back from the Nylocas.
     sotetseg = {
-        { brew = 10, food = 0, restore = 6, combat = 0, ranging = 0 },
-        { brew = 10, food = 0, restore = 6, combat = 0, ranging = 0 },
-        { brew = 10, food = 0, restore = 6, combat = 0, ranging = 0 },
-        { brew = 10, food = 0, restore = 7, combat = 0, ranging = 0 },
-        { brew = 10, food = 0, restore = 6, combat = 0, ranging = 0 } },
+        { brew = 10, food = 0, restore = 6, combat = 2, ranging = 0 },
+        { brew = 10, food = 0, restore = 6, combat = 2, ranging = 0 },
+        { brew = 10, food = 0, restore = 6, combat = 2, ranging = 0 },
+        { brew = 10, food = 0, restore = 7, combat = 2, ranging = 0 },
+        { brew = 10, food = 0, restore = 6, combat = 2, ranging = 0 } },
     -- team mean: brew 5.8, food 3.0, restore 1.8, combat 0.0, ranging 0.0
     xarpus = {
         { brew = 0, food = 0, restore = 0, combat = 0, ranging = 0 },

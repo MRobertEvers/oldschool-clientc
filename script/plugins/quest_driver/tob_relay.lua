@@ -481,6 +481,7 @@ function QD.raid.tob_relay_test(mode, opts)
     -- at the same time. The second slot was a full brew the freezer seat could
     -- not take (relay_bud_128 f36: seat 1 on 120 hp of healing took nothing)
     local SHARE_KEEP_SLOTS = 1
+    local SHARE_SOTE = 200
     local BREW_FULL = { "br_4dosepotionofsaradomin", "4dosepotionofsaradomin" }
     local FISH = { "anglerfish", "shark", "mantaray", "seaturtle" }
     local function healing_hp(t)
@@ -497,14 +498,19 @@ function QD.raid.tob_relay_test(mode, opts)
         end
         return 16 * d + 20 * f
     end
-    local function share_healing(t)
+    -- (room, level): the exchange runs at a room's door; LEVEL is what a giver
+    -- keeps and a taker fills to. Verzik's door at level; Sotetseg's at
+    -- SHARE_SOTE (2026-10-12, relay_r10_128: 3 of 5 failures were a Sotetseg
+    -- seat out of brews - f74 seats 1/2 came in on 7 and 8 brew doses with
+    -- seat 5 on 31; four pairs at the 75 worst case need ~10-12 doses)
+    local function share_healing(t, room, level)
         drop_vials(t)
         local before, gave, took = healing_hp(t), 0, 0
-        -- give: a full brew (64) while that leaves SHARE_HP, then fish (20)
+        -- give: a full brew (64) while that leaves level, then fish (20)
         for _ = 1, 12 do
             local dropped = false
             for _, list in ipairs({ { BREW_FULL, 64 }, { FISH, 20 } }) do
-                if not dropped and healing_hp(t) - list[2] >= SHARE_HP then
+                if not dropped and healing_hp(t) - list[2] >= level then
                     for _, nm in ipairs(list[1]) do
                         local r, c = t.inv.count(nm)
                         if not dropped and r == "ok" and (tonumber(c) or 0) > 0 then
@@ -516,11 +522,11 @@ function QD.raid.tob_relay_test(mode, opts)
             end
             if not dropped then break end
         end
-        t.expect("verzik.barrier.shared", t.party.barrier("verzik_shared", 300))
+        t.expect(room .. ".barrier.shared", t.party.barrier(room .. "_shared", 300))
         for r = 1, SEATS do
             if role == r then
                 for _ = 1, 12 do
-                    if healing_hp(t) >= SHARE_HP or free_slots(t) <= SHARE_KEEP_SLOTS then break end
+                    if healing_hp(t) >= level or free_slots(t) <= SHARE_KEEP_SLOTS then break end
                     local picked = false
                     for _, nm in ipairs({ BREW_FULL[1], BREW_FULL[2], FISH[1], FISH[2], FISH[3], FISH[4] }) do
                         if not picked and t.world.obj_near(nm, 15) == "ok" and t.player.click_obj(nm, 3) == "ok" then
@@ -531,7 +537,7 @@ function QD.raid.tob_relay_test(mode, opts)
                     if not picked then break end
                 end
             end
-            t.expect("verzik.barrier.took_" .. r, t.party.barrier("verzik_took_" .. r, 300))
+            t.expect(room .. ".barrier.took_" .. r, t.party.barrier(room .. "_took_" .. r, 300))
         end
         -- and nothing is left on the floor: what nobody needed goes back up,
         -- ONE ITEM A SEAT A PASS in role order, so a surplus spreads instead of
@@ -547,15 +553,15 @@ function QD.raid.tob_relay_test(mode, opts)
                         end
                     end
                 end
-                t.expect("verzik.barrier.left_" .. pass .. "_" .. r, t.party.barrier("verzik_left_" .. pass .. "_" .. r, 300))
+                t.expect(room .. ".barrier.left_" .. pass .. "_" .. r, t.party.barrier(room .. "_left_" .. pass .. "_" .. r, 300))
             end
         end
-        t.check("verzik.share", true, P .. string.format("healing %d -> %d hp (gave %d, took %d)",
+        t.check(room .. ".share", true, P .. string.format("healing %d -> %d hp (gave %d, took %d)",
             before, healing_hp(t), gave, took))
     end
 
     local function verzik(t)
-        share_healing(t)
+        share_healing(t, "verzik", SHARE_HP)
         local prep = t.raid.verzik_p1_prepare()
         t.check("verzik.prepare", prep ~= nil, P .. (prep and (prep.pillars .. " pillars searched") or "the room never came into view"))
         t.expect("verzik.barrier.ready", t.party.barrier("verzik_ready", 600))
@@ -697,6 +703,7 @@ function QD.raid.tob_relay_test(mode, opts)
             -- reserve above is what keeps Verzik's two doses)
             local ok = false
             if alive then
+                if name == "sotetseg" then share_healing(t, "sotetseg", SHARE_SOTE) end
                 if name == "verzik" then ok = verzik(t) else ok = fight(t, name) end
             else
                 for _, b in ipairs(name == "verzik" and { "_ready", "_started" } or { "_ready", "_synced" }) do

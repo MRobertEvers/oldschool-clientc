@@ -270,3 +270,34 @@ The planner needs MULTI-ALT for her (hold plus her 8 steps, the worst scored) wh
 - f39 (full relay, hm_relay_v2.lua): PASS. Burning claws, vp1..vp8 (vq2_bone): 8/8, P3 295, team 885,
   touches 0, avoidable crab 8 + one melee (vp7 t1024, 60 on seat 5: no seat's plan broke a scan rule, so
   some seat misread who her tank was - v1's face perception, open).
+
+## Batch 12 (INSTALLED 2026-10-12, $S/tob2_verzik_p3.v12.lua): batch 11 + the dead seat out of the ball chain
+- relay_r10_128 f123, two seats lost:
+  - Seat 4 starved: it entered P3 with 0 fish and 3 brew doses, and died at hp 2.
+  - Seat 3 ate the un-bounced Hard Mode ball, which kills (`$hit = $cur`, 68 at hp 68) at t3420. Its "next" was seat 4: dead, caged at t3404, but its last arena tile was 9 ticks old and still in `seen_at`.
+- Fix:
+  - a seat seen outside the arena (the cage) is forgotten at once;
+  - a "next" no longer seen is picked again.
+- f123 rerun (full relay, current shared layers): PASS. vp1..vp8 (vq3_bone): 8/8, the same as vq2_bone.
+- runs/sote_share/f91: seat 5 starved, with no avoidable damage.
+  - It entered with 0 fish and 11 brew doses.
+  - It took 258 in P3, all from her autos (24 prayed hits, mean 9.6 against the team's 6.5-7.7, plus one unprayed of 13 like every seat).
+  - It died at t3239 with the team holding 10 brew doses.
+  - This needs in-fight sharing or a larger share for the seat that runs dry. P3's own lever is fewer ticks.
+
+## Prototype: a healing exchange in the P2 -> P3 transition (NOT installed; $S/tob2_verzik_p3.share_proto.lua)
+- Design (VZ.share):
+  - Forecast = 16 x brew doses + 20 x fish + hp over the floor - 0.75 x 330 (P3 intake) - 30.
+  - A seat with 64 or more spare drops a full brew (at most 2).
+  - A seat in deficit takes the nearest full brew on the floor (a Take, keeping 2 slots free).
+  - Perception only.
+- Measured on f91, f123, f36, f66, f68, f71 (full relay, current shared layers):
+  - The baseline (batch 12) PASSES all six, with no seat deaths.
+  - The door share now lands every seat in P3 on 18-30 brew doses (the poorest seat per seed: 18, 18, 22, 18, 27, 22).
+  - The naive prototype also passes all six with identical P3 ticks. But every seat forecast a surplus and dropped, no seat was in deficit, and the brews stayed on the floor: team brew doses left at her death 32-64 against the baseline's 70-96 (6-8 a seat lost).
+  - Not worth installing as is.
+- If starvation comes back: the giver cannot see a taker's need (no side channel), so a perception-only version needs a signal:
+  1. A deficit seat walks to a fixed REQUEST tile on the first transition tick.
+  2. Givers who see a seat there drop on that tile; the taker takes.
+  3. A giver takes back its own drop if it is still there when the window ends.
+  The window is short: her form appears about 4 ticks into the P3 solve and her first auto lands about 10 ticks later.

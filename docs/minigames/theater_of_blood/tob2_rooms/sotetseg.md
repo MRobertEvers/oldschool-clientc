@@ -94,6 +94,17 @@ Piety off in the maze only (intents.pray_off; want.boost nil there): restores 16
 13.1 a run, brews 17.1 / 17.4, 16/16 (pray2). Off in the hold too (pray1) saved one more restore but cost
 4.6 brews and 98 team hp a run: the burst starts with Piety a tick or two late and fewer pairs are nulled.
 
+## Specials and boosts (owner 2026-10-12)
+
+Opener: ONE Dragon Warhammer special a seat (30% of his current Defence on a damaging hit,
+pvm_dragon_warhammer.rs2 ~46; Defence 200, floor 100, ^tob_sote_defence_floor: two landed hammers reach
+the floor). Then burning claws (bone_claws, 350, two-handed) on every swing at him with the energy, P3's
+machine (wield -> armed -> back to the melee set, defender included). Not in the maze or the hold.
+Super combats by P3's rule (restore at -20, combat under +5) on the budget's spendable stock.
+spec2 vs pray2 (so1-8 / q1-8): fight 368 / 360 -> 346 / 360 ticks, pairs landed 21 / 21 -> 19 / 18,
+brews 17.1 / 17.4 -> 14.6 / 16.5, restores 13.8 / 13.1 -> 10.9 / 12.8, team damage 513 / 558 -> 491 / 502,
+boosted (+10 both) 78 / 73% -> 84 / 84%, 1 hammer and ~2.8 claws a seat, 1.5 combats a seat-run; 16/16.
+
 ## Probes
 
 1. Cast counter vs the pair (S.casts at each pair; 10 expected).

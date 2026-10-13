@@ -78,6 +78,8 @@ QD.VZP3_V2 = {
     STACK_COST = 2.0, STACK_PULL = 0.5,
     -- the ball and the yellows' approach pulls (v1 1.5)
     BALL_PULL = 1.5, BALL_MARGIN = 30, POOL_PULL = 1.5,
+    BALL_OFF_HER = 3,
+    ALTS_GATE = 3,              -- her nine options (path_alts) with my tornado this close           -- the ball's meeting tile this far off her footprint (out of her melee after her step)
     STATION_PULL = 0.05,
     UNDER_COST = 1.5,           -- a tick ended under her (her random step), < a swing's 4.3        -- a seat's side of her ring (the ball explodes on 2+ round its target)
     EDGE = 3, EDGE_WEIGHT = 0.3,
@@ -144,11 +146,17 @@ function VZ.observe(S, F)
     -- the raiders still in the fight (a dead seat sits in the cage; v1)
     local A, base = QD.VZP3.ARENA, S.base
     local alive, mates = {}, {}
+    P.seen_at = P.seen_at or {}
     for _, rd in ipairs(F.raiders) do
         local lx, lz = rd.x - base.x, rd.z - base.z
         if lx >= A.x0 and lx <= A.x1 and lz >= A.z0 and lz <= A.z1 then
             alive[#alive + 1] = rd
             if not rd.me then mates[#mates + 1] = rd end
+        else
+            -- (a seat in the spectator cage is dead: forgotten at once - its
+            -- last arena tile, 9 ticks old, made it the ball's "next" and the
+            -- target ate the un-bounced kill, relay_r10_128 f123 t3412-3420)
+            P.seen_at[rd.pid] = nil
         end
     end
     F.raiders, F.mates = alive, mates
@@ -425,9 +433,34 @@ function VZ.ball_role(S, F)
                 Bl.meet = { x = mx, z = mz }
             end
         end
+        -- OFF HER MELEE: the meeting tile 3+ off her footprint. Held beside
+        -- her, the pair holds through a scan; when one of them is her tank
+        -- (or no tank is known) the hold and the scan's rule collide, and
+        -- the tank kept the hold: her melee landed on both with the 49
+        -- (relay_r10_128 f39 t3314: 49 + 35, seat 3 dead; seat 2 "next",
+        -- plan risk 12 "scan" at t3312)
+        local b2 = F.boss
+        if b2 then
+            local V = QD.VZP3
+            local A, base = V.ARENA, S.base
+            local cx, cz = b2.x + V.SIZE // 2, b2.z + V.SIZE // 2
+            for _ = 1, 6 do
+                if QD.raid._tob_gap(Bl.meet.x, Bl.meet.z, b2.x, b2.z, V.SIZE) >= QD.VZP3_V2.BALL_OFF_HER then break end
+                local dx = (Bl.meet.x > cx) and 1 or ((Bl.meet.x < cx) and -1 or 0)
+                local dz = (Bl.meet.z > cz) and 1 or ((Bl.meet.z < cz) and -1 or 0)
+                if dx == 0 and dz == 0 then dz = -1 end
+                local nx, nz = Bl.meet.x + dx, Bl.meet.z + dz
+                if nx < base.x + A.x0 + 1 or nx > base.x + A.x1 - 1 then nx = Bl.meet.x end
+                if nz < base.z + A.z0 + 1 or nz > base.z + A.z1 - 1 then nz = Bl.meet.z end
+                if nx == Bl.meet.x and nz == Bl.meet.z then break end
+                Bl.meet = { x = nx, z = nz }
+            end
+        end
         QD.raid._vzp3_trace(S, F.tick, "ball next: pid " .. tostring(Bl.next_pid) .. " (" .. tostring(bd) .. " off), meet "
             .. Bl.meet.x .. "," .. Bl.meet.z)
     end
+    -- (the next no longer seen - dead, or gone out of view: chosen again)
+    if Bl.next_for == Bl.cur and Bl.next_pid ~= nil and seen[Bl.next_pid] == nil then Bl.next_for = nil end
     local nxt = nil
     for _, rd in ipairs(F.raiders) do if rd.pid == Bl.next_pid then nxt = rd end end
     local meet = Bl.meet or Bl.anchor
@@ -963,7 +996,9 @@ function VZ.her_path(S, F)
     -- (a follow is diagonal-capable, a random step cardinal).
     local chased = false
     for _, tn in ipairs(F.tornadoes) do
-        if tn.mine and cheb(tn.x, tn.z, F.me.x, F.me.z) <= 2 then chased = true end
+        -- (within 3: a chase press runs 2 tiles, and toward a tornado 3 off
+        -- it ends beside it - vq_bone vp6 t1123, t1126)
+        if tn.mine and cheb(tn.x, tn.z, F.me.x, F.me.z) <= QD.VZP3_V2.ALTS_GATE then chased = true end
     end
     -- (and BESIDE her, the step that takes me OUT of reach: an attack
     -- under way then follows her, off the tile the plan held, toward the
