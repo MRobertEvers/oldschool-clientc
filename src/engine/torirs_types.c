@@ -913,10 +913,15 @@ ToriRS_NpctypeEntityFacts(
     out->walkanim_l = drawn->walkanim_l;
     out->walkanim_r = drawn->walkanim_r;
     out->turnanim = drawn->turnanim_l;
+    out->turnanim_r = drawn->turnanim_r;
     out->runanim = drawn->runanim;
     out->runanim_b = drawn->runanim_b;
     out->runanim_l = drawn->runanim_l;
     out->runanim_r = drawn->runanim_r;
+    out->crawlanim = drawn->crawlanim;
+    out->crawlanim_b = drawn->crawlanim_b;
+    out->crawlanim_l = drawn->crawlanim_l;
+    out->crawlanim_r = drawn->crawlanim_r;
 
     /* No shell, or a rung that IS its own shell, has nothing to fill from. */
     if( !shell || shell == drawn )
@@ -934,6 +939,16 @@ ToriRS_NpctypeEntityFacts(
         out->walkanim_l = shell->walkanim_l;
     if( out->turnanim < 0 )
         out->turnanim = shell->turnanim_l;
+    if( out->turnanim_r < 0 )
+        out->turnanim_r = shell->turnanim_r;
+    if( out->crawlanim < 0 )
+        out->crawlanim = shell->crawlanim;
+    if( out->crawlanim_b < 0 )
+        out->crawlanim_b = shell->crawlanim_b;
+    if( out->crawlanim_l < 0 )
+        out->crawlanim_l = shell->crawlanim_l;
+    if( out->crawlanim_r < 0 )
+        out->crawlanim_r = shell->crawlanim_r;
     if( out->runanim < 0 )
         out->runanim = shell->runanim;
     if( out->runanim_b < 0 )

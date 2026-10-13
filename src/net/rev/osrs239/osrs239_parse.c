@@ -478,6 +478,7 @@ osrs239_read_zone_sub(
         p->peak = m.angle;
         p->src_height = m.start_height / 4;
         p->target = sign24(m.target_index);
+        p->source = sign24(m.source_index);
         /*
          * Keep the CLIENT index verbatim. The rev-239 PLAYER_INFO/GPI path
          * stores that same 1-based index in WorldEntity_Player.server_pid, and

@@ -161,9 +161,10 @@ App_WorldProjectileSpawn(
     struct App* app,
     int src_x,
     int src_z,
+    int src_level,
     int dst_x,
     int dst_z,
-    int level,
+    int dst_level,
     int spotanim_id,
     int src_height,
     int dst_height,
@@ -171,18 +172,19 @@ App_WorldProjectileSpawn(
     int end_delay,
     int peak,
     int arc,
-    int target)
+    int target,
+    int source)
 {
     struct Task_AppSpawn* task;
     assert(app);
     /* Destination tile and level go through the task's tile_x, tile_z and level
      * (seeded by app_spawn_task_new); source tile and level go through
      * src_tile_x, src_tile_z and src_level. */
-    task = app_spawn_task_new(app, APP_SPAWN_PROJECTILE_SPOT, dst_x, dst_z, level);
+    task = app_spawn_task_new(app, APP_SPAWN_PROJECTILE_SPOT, dst_x, dst_z, dst_level);
     task->spotanim_id = spotanim_id;
     task->src_tile_x = src_x;
     task->src_tile_z = src_z;
-    task->src_level = level;
+    task->src_level = src_level;
     task->proj_src_height = src_height;
     task->proj_dst_height = dst_height;
     task->proj_start_delay = start_delay;
@@ -190,6 +192,7 @@ App_WorldProjectileSpawn(
     task->proj_peak = peak;
     task->proj_arc = arc;
     task->proj_target = target;
+    task->proj_source = source;
     app_spawn_effect_queue(app, task);
 }
 

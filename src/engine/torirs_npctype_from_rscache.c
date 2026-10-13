@@ -166,8 +166,19 @@ ToriRS_NpctypeFromRSCacheDat1(
     npctype->readyanim = src->readyanim;
     npctype->walkanim = src->walkanim;
     npctype->walkanim_b = src->walkanim_b;
-    npctype->walkanim_r = src->walkanim_r;
-    npctype->walkanim_l = src->walkanim_l;
+    /*
+     * Opcode 17's third and fourth ids, crossed. dat1_config_npc names them
+     * walkanim_r / walkanim_l in that order (NpcType.ts), and Client-TS then
+     * swaps the pair onto the entity (`npc.walkanim_r = type.walkanim_l`,
+     * Client.ts 8460-8462), so the step turned toward a HIGHER yaw plays the
+     * fourth id. dat2 names the same two ids rotate_left / rotate_right, and
+     * rev-239 plays the fourth (field1485) for that step with no swap at all.
+     * Doing the crossing here, once, gives `walkanim_r` one meaning in both
+     * eras -- the seq for a step toward a higher yaw -- and lets the entity
+     * spawn copy the set straight across.
+     */
+    npctype->walkanim_r = src->walkanim_l;
+    npctype->walkanim_l = src->walkanim_r;
     /* dat1 genuinely has no turn/run/crawl opcodes -- the claim the dat2 path
      * inherited by accident is true here. -1 across the set so the mover's
      * `!= -1` tests fall back to walkanim, as they did before any of this. */
@@ -182,6 +193,7 @@ ToriRS_NpctypeFromRSCacheDat1(
     npctype->crawlanim_r = -1;
     npctype->crawlanim_l = -1;
     npctype->turn_speed = src->turnspeed;
+    npctype->no_rotation_flag = false;
     npctype->width_scale = src->resizeh > 0 ? src->resizeh : 128;
     npctype->height_scale = src->resizev > 0 ? src->resizev : 128;
     /* dat1 has no overhead-height opcode; -1 means "use the model's height". */
@@ -348,6 +360,8 @@ ToriRS_NpctypeFromRSCacheDat2(
      * Inferno's Ancestral Glyph states 0 so it slides along its row still facing
      * the arena, and with 32 forced it swung to face east and west as it walked. */
     npctype->turn_speed = src->rotation_speed;
+    /* Opcode 109; decoded as `rotation_flag = false`, default true. */
+    npctype->no_rotation_flag = !src->rotation_flag;
     /* The dat2 decoder calloc's its struct, so an absent opcode 97/98 reads 0, not the
      * 128 the reference defaults to — map it here or every unscaled npc collapses. */
     npctype->width_scale = src->width_scale > 0 ? src->width_scale : 128;

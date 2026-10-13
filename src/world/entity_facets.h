@@ -8,11 +8,28 @@ struct WorldEntityFacet_IdleAnimations
 {
     int readyanim;
     int walkanim;
+    /** Turn on the spot toward a LOWER yaw (rev-239 field1480, NpcType opcode
+     *  15; a player's appearance turn seq). */
     int turnanim;
+    /** Turn on the spot toward a HIGHER yaw (rev-239 field1481, NpcType opcode
+     *  16). A player's is its turnanim: class60 copies field1480 into it. */
+    int turnanim_r;
     int runanim;
     int walkanim_b;
     int walkanim_r;
     int walkanim_l;
+    /** The rest of the run set (NpcType opcode 115), and the crawl set
+     *  (116/117). rev-239 class105.method3520 swaps a walk direction for its run
+     *  twin at speed >= 8 and for its crawl twin at speed <= 2 -- speed 2 being
+     *  the ordinary "still turning toward the step" walk. -1 = none; a player
+     *  has none of these (its appearance block carries walk/run only). */
+    int runanim_b;
+    int runanim_r;
+    int runanim_l;
+    int crawlanim;
+    int crawlanim_b;
+    int crawlanim_r;
+    int crawlanim_l;
     /** NpcType opcode 130. See World_StepEntityAnimation: when the action track
      *  finishes, an entity carrying this restarts its idle from frame 0 rather
      *  than revealing it wherever it drifted to underneath. Players are always
@@ -245,6 +262,15 @@ struct WorldEntityFacet_Facing
     /** NpcType.turnspeed (players: 32). 0 = the entity never turns and
      *  entityFace returns immediately. */
     int turn_speed;
+    /** Consecutive cycles spent mid-turn (rev-239 field1513, Statics.method1).
+     *  A turn that has lasted more than 25 cycles keeps its turn-on-the-spot
+     *  seq on the cycle it lands. */
+    uint16_t turn_cycles;
+    /** NpcType opcode 109 (rev-239 class405.field5146 cleared): no speed-2
+     *  slowdown while turning, and the queue catch-up rungs one tile earlier
+     *  (6 at depth > 1, 8 at > 2). false for players and for every npc that
+     *  does not state it. */
+    bool no_rotation_flag;
 };
 
 #define WORLD_ENTITY_DAMAGE_SLOTS 4

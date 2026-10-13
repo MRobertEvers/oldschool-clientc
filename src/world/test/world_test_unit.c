@@ -433,8 +433,7 @@ test_projectile(void)
     struct World* world = World_TestMakeReady(104);
 
     int idx = World_ProjectileSpawn(
-        world, 30, 0, 1000, 1000, 2000, 2000, 200, 50, 2, 20, 10, 64,
-        WORLD_PROJECTILE_TARGET_NONE);
+        world, 30, 0, 0, 1000, 1000, 2000, 2000, 200, 0, 50, 2, 20, 10, 64, WORLD_PROJECTILE_TARGET_NONE, WORLD_PROJECTILE_TARGET_NONE);
     struct WorldEntity_Projectile* p = World_EntityPoolGet(&world->entities.projectile, idx);
     TEST_ASSERT(p->element_id == 30 && !p->launched, "proj spawn");
     TEST_ASSERT(p->t1 == 2 && p->t2 == 20, "proj times");
@@ -454,7 +453,7 @@ test_projectile(void)
 
     /* Auto-despawn past t2 via cycle */
     idx = World_ProjectileSpawn(
-        world, 31, 0, 128, 128, 256, 256, 100, 0, 0, 3, 0, 0, WORLD_PROJECTILE_TARGET_NONE);
+        world, 31, 0, 0, 128, 128, 256, 256, 100, 0, 0, 0, 3, 0, 0, WORLD_PROJECTILE_TARGET_NONE, WORLD_PROJECTILE_TARGET_NONE);
     for( int t = 0; t < 10; t++ )
         World_TestCycle(world, 1);
     TEST_ASSERT(world->entities.projectile.active_count == 0, "auto despawn t2");
@@ -485,8 +484,7 @@ test_projectile_target(void)
 
     /* Cast at the npc's tile — the wire destination is its position right now. */
     int idx = World_ProjectileSpawn(
-        world, 40, 0, 10 * 128 + 64, 10 * 128 + 64, 50 * 128 + 64, 50 * 128 + 64, 100, 40, 0, 40,
-        10, 0, /*target=*/3 + 1);
+        world, 40, 0, 0, 10 * 128 + 64, 10 * 128 + 64, 50 * 128 + 64, 50 * 128 + 64, 100, 0, 40, 0, 40, 10, 0, /*target=*/3 + 1, WORLD_PROJECTILE_TARGET_NONE);
     struct WorldEntity_Projectile* proj =
         World_EntityPoolGet(&world->entities.projectile, idx);
     TEST_ASSERT(proj->dst_x == 50 * 128 + 64, "initial aim is the cast-time tile");
@@ -532,8 +530,7 @@ test_projectile_target(void)
      * is how the local player resolves too (its pid is world->local_pid). */
     World_EventsClear(world);
     idx = World_ProjectileSpawn(
-        world, 41, 0, 10 * 128 + 64, 10 * 128 + 64, 10 * 128 + 64, 10 * 128 + 64, 100, 40, 0, 40,
-        10, 0, /*target=*/-7 - 1);
+        world, 41, 0, 0, 10 * 128 + 64, 10 * 128 + 64, 10 * 128 + 64, 10 * 128 + 64, 100, 0, 40, 0, 40, 10, 0, /*target=*/-7 - 1, WORLD_PROJECTILE_TARGET_NONE);
     proj = World_EntityPoolGet(&world->entities.projectile, idx);
     World_TestCycle(world, 1);
     TEST_ASSERT(proj->dst_x == (int)player->draw_position.x, "dst re-aimed at the player");
@@ -543,8 +540,7 @@ test_projectile_target(void)
     /* An unknown slot leaves the aim point alone rather than snapping to 0,0. */
     World_EventsClear(world);
     idx = World_ProjectileSpawn(
-        world, 42, 0, 10 * 128 + 64, 10 * 128 + 64, 30 * 128 + 64, 30 * 128 + 64, 100, 40, 0, 40,
-        10, 0, /*target=*/999 + 1);
+        world, 42, 0, 0, 10 * 128 + 64, 10 * 128 + 64, 30 * 128 + 64, 30 * 128 + 64, 100, 0, 40, 0, 40, 10, 0, /*target=*/999 + 1, WORLD_PROJECTILE_TARGET_NONE);
     proj = World_EntityPoolGet(&world->entities.projectile, idx);
     World_TestCycle(world, 1);
     TEST_ASSERT(proj->dst_x == 30 * 128 + 64 && proj->dst_z == 30 * 128 + 64,
@@ -554,8 +550,7 @@ test_projectile_target(void)
     /* No target at all: the destination never moves. */
     World_EventsClear(world);
     idx = World_ProjectileSpawn(
-        world, 43, 0, 10 * 128 + 64, 10 * 128 + 64, 50 * 128 + 64, 50 * 128 + 64, 100, 40, 0, 40,
-        10, 0, WORLD_PROJECTILE_TARGET_NONE);
+        world, 43, 0, 0, 10 * 128 + 64, 10 * 128 + 64, 50 * 128 + 64, 50 * 128 + 64, 100, 0, 40, 0, 40, 10, 0, WORLD_PROJECTILE_TARGET_NONE, WORLD_PROJECTILE_TARGET_NONE);
     proj = World_EntityPoolGet(&world->entities.projectile, idx);
     World_NpcPathJump(world, ni, true, 40, 40);
     for( int t = 0; t < 5; t++ )
@@ -1229,14 +1224,29 @@ test_entity_face(void)
     TEST_ASSERT(npc->orientation.yaw == 1536,
                 "npc tracks a player due east at the exact cardinal yaw");
 
-    /* turn_speed 0 freezes facing entirely (reference early return). */
+    /* turn_speed 0 never turns. rev-239 method6710 has no early return: it
+     * still consumes the location (dst_yaw moves, the turn steps by zero),
+     * where Client-TS entityFace returns before choosing and leaves it
+     * pending -- pinned under the LostCity table below. */
     npc->facing.turn_speed = 0;
     npc->orientation.yaw = 500;
     World_NpcFaceCoord(world, ni, square_x, square_z);
     for( int t = 0; t < 8; t++ )
         World_TestCycle(world, 1);
     TEST_ASSERT(npc->orientation.yaw == 500, "turn_speed 0 never turns");
-    TEST_ASSERT(npc->facing.square_x == square_x, "turn_speed 0 leaves the square pending");
+    TEST_ASSERT(npc->facing.square_x == 0, "rev-239: turn_speed 0 still consumes the square");
+    World_Free(world);
+
+    world = World_TestMakeReadyEra(104, ToriRS_Features_LostCity());
+    ni = World_NpcSpawn(world, 2, 1, 0, 50, 60, 1, idle);
+    npc = World_EntityPoolGet(&world->entities.npc, ni);
+    npc->facing.turn_speed = 0;
+    npc->orientation.yaw = 500;
+    World_NpcFaceCoord(world, ni, square_x, square_z);
+    for( int t = 0; t < 8; t++ )
+        World_TestCycle(world, 1);
+    TEST_ASSERT(npc->orientation.yaw == 500, "Client-TS: turn_speed 0 never turns");
+    TEST_ASSERT(npc->facing.square_x == square_x, "Client-TS: the square stays pending");
 
     World_Free(world);
 }
@@ -1613,7 +1623,7 @@ test_rebuild_shift(void)
     int oi = World_ObjStackAdd(world, 4, 50, 50, 0, 995, 1, "Coins", actions);
     int far_oi = World_ObjStackAdd(world, 5, 2, 2, 0, 995, 1, "Coins", actions);
     int pri = World_ProjectileSpawn(
-        world, 6, 0, 40, 40, 44, 44, 100, 40, 0, 60, 45, 128, WORLD_PROJECTILE_TARGET_NONE);
+        world, 6, 0, 0, 40, 40, 44, 44, 100, 0, 40, 0, 60, 45, 128, WORLD_PROJECTILE_TARGET_NONE, WORLD_PROJECTILE_TARGET_NONE);
     int si = World_SpotanimSpawn(world, 7, 0, 41 * 128, 41 * 128, 0, 0, 0, 100);
     TEST_ASSERT(pi >= 0 && ni >= 0 && near_ni >= 0 && oi >= 0 && far_oi >= 0 && pri >= 0 && si >= 0,
                 "spawns");
@@ -2563,4 +2573,435 @@ test_delayed_headbar_holds_the_shown_fill(void)
     TEST_ASSERT(npc->combat.healthbar_held_fill == -1, "another type's fill is not carried over");
 
     World_Free(world);
+}
+
+/*
+ * rev-239 against Client-TS on the cycle clock: every case below runs both
+ * eras, because each is a place where the two references disagree and the
+ * LostCity lane must keep the 2004 answer.
+ */
+static int
+test_secondary_seq(struct WorldEntityFacet_Animation const* animation)
+{
+    return animation->secondary.anim_id == (uint16_t)-1 ? -1 : (int)animation->secondary.anim_id;
+}
+
+/* class105.method3606 runs method6710 (facing) BEFORE method3520 (move), so the
+ * walk sequence is picked against the face target; Client-TS steers by the
+ * route first and picks against that. Walking away from the npc it faces, a
+ * rev-239 actor plays its forward walk and a 2004 one its backward walk. */
+void
+test_rev239_faces_before_it_moves(void)
+{
+    printf("TEST: rev-239 faces before it moves\n");
+    struct ToriRS_FeatureTable const* eras[2] = { ToriRS_Features_OSRS(),
+                                                  ToriRS_Features_LostCity() };
+
+    for( int e = 0; e < 2; e++ )
+    {
+        struct World* world = World_TestMakeReadyEra(104, eras[e]);
+        struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+        int pi = World_PlayerSpawn(world, 1, 0, 40, 40, idle);
+        int ni = World_NpcSpawn(world, 2, 1, 0, 40, 35, 1, idle);
+        struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, pi);
+        struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, ni);
+
+        npc->server_slot = 3;
+        World_PlayerFaceEntity(world, pi, 3);
+        World_TestCycle(world, 64);
+        TEST_ASSERT(player->orientation.yaw == 0, "faces the npc to the south");
+
+        World_PlayerPathPushStep(world, pi, WORLD_PATHSTEP_WALK, 1); /* north: away */
+        World_Cycle(world, 1);
+        if( e == 0 )
+            TEST_ASSERT(test_secondary_seq(&player->animation) == idle.walkanim,
+                        "rev-239: walking away from the face target plays the forward walk");
+        else
+            TEST_ASSERT(test_secondary_seq(&player->animation) == idle.walkanim_b,
+                        "Client-TS: walking away from the face target plays the back walk");
+        World_Free(world);
+    }
+}
+
+/* method3534 answers -1 for the tile the actor already stands on, and the
+ * facing pass keeps what it had; routeMove's last `else` writes 0 (south). */
+void
+test_rev239_same_tile_keeps_its_yaw(void)
+{
+    printf("TEST: rev-239 a step onto the actor's own tile keeps its yaw\n");
+    struct ToriRS_FeatureTable const* eras[2] = { ToriRS_Features_OSRS(),
+                                                  ToriRS_Features_LostCity() };
+
+    for( int e = 0; e < 2; e++ )
+    {
+        struct World* world = World_TestMakeReadyEra(104, eras[e]);
+        struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+        int pi = World_PlayerSpawn(world, 1, 0, 40, 40, idle);
+        struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, pi);
+
+        player->orientation.yaw = 512;
+        player->orientation.dst_yaw = 512;
+        player->pathing.route_length = 1;
+        player->pathing.route_x[0] = 40;
+        player->pathing.route_z[0] = 40;
+        World_Cycle(world, 1);
+        if( e == 0 )
+            TEST_ASSERT(player->orientation.dst_yaw == 512, "rev-239: dst_yaw unchanged");
+        else
+            TEST_ASSERT(player->orientation.dst_yaw == 0, "Client-TS: dst_yaw goes south");
+        World_Free(world);
+    }
+}
+
+/* A snap hands the movement track the readyanim in both references; rev-239
+ * also retires the tile in the same pass. */
+void
+test_rev239_snap_keeps_the_readyanim(void)
+{
+    printf("TEST: a far snap keeps the readyanim\n");
+    struct ToriRS_FeatureTable const* eras[2] = { ToriRS_Features_OSRS(),
+                                                  ToriRS_Features_LostCity() };
+
+    for( int e = 0; e < 2; e++ )
+    {
+        struct World* world = World_TestMakeReadyEra(104, eras[e]);
+        struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+        int pi = World_PlayerSpawn(world, 1, 0, 40, 40, idle);
+        struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, pi);
+
+        /* Already facing the step, so the turn has nothing to say. */
+        player->orientation.yaw = 1536;
+        player->orientation.dst_yaw = 1536;
+        player->pathing.route_length = 2;
+        player->pathing.route_x[1] = 45;
+        player->pathing.route_z[1] = 40;
+        player->pathing.route_x[0] = 46;
+        player->pathing.route_z[0] = 40;
+        World_Cycle(world, 1);
+        TEST_ASSERT(player->draw_position.x == (uint32_t)(45 * 128 + 64), "snapped onto the tile");
+        TEST_ASSERT(test_secondary_seq(&player->animation) == idle.readyanim,
+                    "a snap leaves the readyanim on, not nothing");
+        if( e == 0 )
+            TEST_ASSERT(player->pathing.route_length == 1, "rev-239: the snap retires the tile");
+        else
+            TEST_ASSERT(player->pathing.route_length == 2, "Client-TS: the next pass retires it");
+        World_Free(world);
+    }
+}
+
+/* Movement mode 1 (method3536): rev-239 never steers by the route, so an actor
+ * told to face a direction walks the whole route facing it. */
+void
+test_rev239_mode1_keeps_its_facing_on_a_walk(void)
+{
+    printf("TEST: rev-239 movement mode 1 walks without turning\n");
+    struct ToriRS_FeatureTable const* eras[2] = { ToriRS_Features_OSRS(),
+                                                  ToriRS_Features_LostCity() };
+
+    for( int e = 0; e < 2; e++ )
+    {
+        struct World* world = World_TestMakeReadyEra(104, eras[e]);
+        struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+        int pi = World_PlayerSpawn(world, 1, 0, 40, 40, idle);
+        struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, pi);
+
+        player->facing.face_during_movement = true;
+        World_PlayerFaceAngle(world, pi, 512, true);
+        for( int i = 0; i < 3; i++ )
+            World_PlayerPathPushStep(world, pi, WORLD_PATHSTEP_WALK, 1);
+        World_TestCycle(world, 4);
+        if( e == 0 )
+            TEST_ASSERT(player->orientation.dst_yaw == 512 && player->orientation.yaw == 512,
+                        "rev-239: still facing the angle mid-walk");
+        else
+            TEST_ASSERT(player->orientation.dst_yaw == 1024,
+                        "Client-TS: the route takes the facing back");
+        World_Free(world);
+    }
+}
+
+/* Statics.method1: the turn-on-the-spot seq follows the turn's direction, and
+ * a turn that lasted more than 25 cycles keeps it on the cycle it lands. */
+void
+test_rev239_turn_seq_follows_the_direction(void)
+{
+    printf("TEST: rev-239 turn seq follows the turn direction\n");
+    struct ToriRS_FeatureTable const* eras[2] = { ToriRS_Features_OSRS(),
+                                                  ToriRS_Features_LostCity() };
+
+    for( int e = 0; e < 2; e++ )
+    {
+        struct World* world = World_TestMakeReadyEra(104, eras[e]);
+        struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+        idle.turnanim = 300;
+        idle.turnanim_r = 301;
+        int ni = World_NpcSpawn(world, 2, 1, 0, 40, 40, 1, idle);
+        struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, ni);
+
+        World_Cycle(world, 1); /* readyanim on */
+        World_NpcFaceAngle(world, ni, 512, false);
+        World_Cycle(world, 1);
+        TEST_ASSERT(test_secondary_seq(&npc->animation) == (e == 0 ? 301 : 300),
+                    "turning toward a higher yaw");
+
+        npc->orientation.yaw = 512;
+        npc->orientation.dst_yaw = 512;
+        World_Cycle(world, 1);
+        World_NpcFaceAngle(world, ni, 0, false);
+        World_Cycle(world, 1);
+        TEST_ASSERT(test_secondary_seq(&npc->animation) == 300, "turning toward a lower yaw");
+        World_Free(world);
+    }
+
+    {
+        struct World* world = World_TestMakeReadyEra(104, ToriRS_Features_OSRS());
+        struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+        idle.turnanim = 300;
+        idle.turnanim_r = 301;
+        int ni = World_NpcSpawn(world, 2, 1, 0, 40, 40, 1, idle);
+        struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, ni);
+
+        npc->facing.turn_speed = 4;
+        World_Cycle(world, 1);
+        /* 122 at 4 a cycle: 30 steps, and the 31st lands by the snap. */
+        World_NpcFaceAngle(world, ni, 122, false);
+        World_Cycle(world, 31);
+        TEST_ASSERT(npc->orientation.yaw == 122, "long turn landed");
+        TEST_ASSERT(test_secondary_seq(&npc->animation) == 301,
+                    "a turn over 25 cycles keeps its seq on the landing cycle");
+
+        World_Cycle(world, 1);
+        World_NpcFaceAngle(world, ni, 128, false); /* 6 away: two cycles */
+        World_Cycle(world, 2);
+        TEST_ASSERT(npc->orientation.yaw == 128, "short turn landed");
+        TEST_ASSERT(test_secondary_seq(&npc->animation) == idle.readyanim,
+                    "a short turn drops its seq on the landing cycle");
+        World_Free(world);
+    }
+}
+
+/* method3520's remap: run twins at speed >= 8 for every direction, crawl twins
+ * at speed <= 2. Client-TS only ever swaps the forward walk for the run. */
+void
+test_rev239_run_and_crawl_directions(void)
+{
+    printf("TEST: rev-239 run and crawl directional seqs\n");
+    struct ToriRS_FeatureTable const* eras[2] = { ToriRS_Features_OSRS(),
+                                                  ToriRS_Features_LostCity() };
+
+    for( int e = 0; e < 2; e++ )
+    {
+        struct World* world = World_TestMakeReadyEra(104, eras[e]);
+        struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+        idle.runanim_b = 401;
+        idle.crawlanim_l = 503;
+
+        /* Backing east at speed 8: turn_speed 0 keeps it facing west. */
+        int ri = World_NpcSpawn(world, 2, 1, 0, 40, 40, 1, idle);
+        struct WorldEntity_NPC* runner = World_EntityPoolGet(&world->entities.npc, ri);
+        runner->facing.turn_speed = 0;
+        runner->orientation.yaw = 512;
+        runner->orientation.dst_yaw = 512;
+        for( int i = 0; i < 4; i++ )
+            World_NpcPathPushStep(world, ri, WORLD_PATHSTEP_WALK, 4);
+
+        /* Side-stepping east at speed 2 while turning from south. */
+        int ci = World_NpcSpawn(world, 3, 1, 0, 60, 60, 1, idle);
+        struct WorldEntity_NPC* crawler = World_EntityPoolGet(&world->entities.npc, ci);
+        World_NpcPathPushStep(world, ci, WORLD_PATHSTEP_WALK, 4);
+
+        World_Cycle(world, 1);
+        TEST_ASSERT(test_secondary_seq(&runner->animation) == (e == 0 ? 401 : idle.walkanim_b),
+                    "backing at speed 8");
+        TEST_ASSERT(test_secondary_seq(&crawler->animation) == (e == 0 ? 503 : idle.walkanim_l),
+                    "side-stepping at speed 2");
+        World_Free(world);
+    }
+}
+
+/* NpcType opcode 109 (class405.field5146 cleared): catch-up one tile earlier. */
+void
+test_rev239_opcode_109_catchup(void)
+{
+    printf("TEST: npc opcode 109 catch-up rungs\n");
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+
+    {
+        struct World* world = World_TestMakeReadyEra(104, ToriRS_Features_OSRS());
+        int ai = World_NpcSpawn(world, 2, 1, 0, 40, 40, 1, idle);
+        int bi = World_NpcSpawn(world, 3, 1, 0, 40, 60, 1, idle);
+        struct WorldEntity_NPC* a = World_EntityPoolGet(&world->entities.npc, ai);
+        struct WorldEntity_NPC* b = World_EntityPoolGet(&world->entities.npc, bi);
+        int ax = (int)a->draw_position.x;
+        int bx = (int)b->draw_position.x;
+
+        b->facing.no_rotation_flag = true;
+        a->orientation.yaw = a->orientation.dst_yaw = 1536;
+        b->orientation.yaw = b->orientation.dst_yaw = 1536;
+        for( int i = 0; i < 2; i++ )
+        {
+            World_NpcPathPushStep(world, ai, WORLD_PATHSTEP_WALK, 4);
+            World_NpcPathPushStep(world, bi, WORLD_PATHSTEP_WALK, 4);
+        }
+        World_MoversAdvance(world, 1.0f);
+        TEST_ASSERT((int)a->draw_position.x - ax == 4, "two queued: an ordinary npc walks");
+        TEST_ASSERT((int)b->draw_position.x - bx == 6, "two queued: an opcode-109 npc catches up");
+        World_Free(world);
+    }
+    {
+        struct World* world = World_TestMakeReadyEra(104, ToriRS_Features_LostCity());
+        int bi = World_NpcSpawn(world, 3, 1, 0, 40, 60, 1, idle);
+        struct WorldEntity_NPC* b = World_EntityPoolGet(&world->entities.npc, bi);
+        int bx = (int)b->draw_position.x;
+
+        b->facing.no_rotation_flag = true;
+        b->orientation.yaw = b->orientation.dst_yaw = 1536;
+        World_NpcPathPushStep(world, bi, WORLD_PATHSTEP_WALK, 4);
+        World_NpcPathPushStep(world, bi, WORLD_PATHSTEP_WALK, 4);
+        World_Cycle(world, 1);
+        TEST_ASSERT((int)b->draw_position.x - bx == 4, "Client-TS has no opcode 109");
+        World_Free(world);
+    }
+}
+
+/* method3611 measures the z overshoot with the wrong sign, so only an x
+ * overshoot carries into the next tile. Ported as found. */
+void
+test_rev239_frame_mover_drops_the_z_carry(void)
+{
+    printf("TEST: rev-239 frame mover drops a north/south carry\n");
+    struct World* world = World_TestMakeReadyEra(104, ToriRS_Features_OSRS());
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+    int ni = World_PlayerSpawn(world, 1, 0, 40, 40, idle);
+    int ei = World_PlayerSpawn(world, 2, 0, 40, 60, idle);
+    struct WorldEntity_Player* north = World_EntityPoolGet(&world->entities.player, ni);
+    struct WorldEntity_Player* east = World_EntityPoolGet(&world->entities.player, ei);
+
+    World_PlayerPathPushStep(world, ni, WORLD_PATHSTEP_WALK, 1);
+    World_PlayerPathPushStep(world, ni, WORLD_PATHSTEP_WALK, 1);
+    World_PlayerPathPushStep(world, ei, WORLD_PATHSTEP_WALK, 4);
+    World_PlayerPathPushStep(world, ei, WORLD_PATHSTEP_WALK, 4);
+    /* 33 cycles at speed 4 is 132 units: one tile and 4 over. */
+    World_MoversAdvance(world, 33.0f);
+    TEST_ASSERT(north->draw_position.fz == (float)(41 * 128 + 64), "north: the 4 over is dropped");
+    TEST_ASSERT(north->pathing.route_length == 1, "north: the first tile retired");
+    TEST_ASSERT(east->draw_position.fx == (float)(41 * 128 + 64 + 4), "east: the 4 over carries");
+    TEST_ASSERT(east->pathing.route_length == 1, "east: the first tile retired");
+    World_Free(world);
+}
+
+/* method3520 glides while `end >= cycle`; Client-TS while `end > cycle`. On the
+ * boundary cycle rev-239 is still turning, Client-TS has snapped the yaw. And a
+ * forced move's facing is written after rev-239's facing pass, so it beats a
+ * face target there; under Client-TS the face target overwrites it. */
+void
+test_rev239_exact_move_order(void)
+{
+    printf("TEST: rev-239 exact move boundary and facing\n");
+    struct ToriRS_FeatureTable const* eras[2] = { ToriRS_Features_OSRS(),
+                                                  ToriRS_Features_LostCity() };
+
+    for( int e = 0; e < 2; e++ )
+    {
+        struct World* world = World_TestMakeReadyEra(104, eras[e]);
+        struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+        int pi = World_PlayerSpawn(world, 1, 0, 40, 40, idle);
+        struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, pi);
+
+        World_PlayerSetExactMoveDetailed(world, pi, 41, 40, 45, 40, 10, 2, 1024, true);
+        World_Cycle(world, 2);
+        TEST_ASSERT(player->draw_position.x == (uint32_t)(41 * 128 + 64), "on the start tile");
+        if( e == 0 )
+            TEST_ASSERT(player->orientation.yaw == 64, "rev-239: still gliding, still turning");
+        else
+            TEST_ASSERT(player->orientation.yaw == 1024, "Client-TS: phase 2 snapped the yaw");
+        World_Free(world);
+    }
+
+    for( int e = 0; e < 2; e++ )
+    {
+        struct World* world = World_TestMakeReadyEra(104, eras[e]);
+        struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+        int pi = World_PlayerSpawn(world, 1, 0, 40, 40, idle);
+        int ni = World_NpcSpawn(world, 2, 1, 0, 40, 35, 1, idle);
+        struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, pi);
+        struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, ni);
+
+        npc->server_slot = 3;
+        World_PlayerFaceEntity(world, pi, 3);
+        World_TestCycle(world, 64);
+        World_PlayerSetExactMoveDetailed(world, pi, 41, 40, 45, 40, 10, 5, 512, true);
+        World_Cycle(world, 1);
+        if( e == 0 )
+            TEST_ASSERT(player->orientation.dst_yaw == 512, "rev-239: the forced move's facing wins");
+        else
+            TEST_ASSERT(player->orientation.dst_yaw != 512, "Client-TS: the face target wins");
+        World_Free(world);
+    }
+}
+
+/* class50.method940 / Statics.method8271: the source actor is read on the first
+ * live cycle, a vanished target sends the arc back to the packet destination,
+ * and the yaw truncates before the quarter turn. */
+void
+test_rev239_projectile_ends(void)
+{
+    printf("TEST: rev-239 projectile source, vanished target, yaw rounding\n");
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+
+    {
+        struct World* world = World_TestMakeReadyEra(104, ToriRS_Features_OSRS());
+        int ni = World_NpcSpawn(world, 2, 1, 0, 20, 20, 1, idle);
+        struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, ni);
+        npc->server_slot = 3;
+        World_SetHeightFn(world, test_height_fn, NULL);
+
+        int idx = World_ProjectileSpawn(
+            world, 40, 0, 0, 10 * 128 + 64, 10 * 128 + 64, 30 * 128 + 64, 30 * 128 + 64, 100, 40,
+            40, 3, 40, 10, 0, WORLD_PROJECTILE_TARGET_NONE, /*source=*/3 + 1);
+        struct WorldEntity_Projectile* proj = World_EntityPoolGet(&world->entities.projectile, idx);
+        World_NpcPathJump(world, ni, true, 25, 20);
+        World_TestCycle(world, 4);
+        TEST_ASSERT(proj->launched, "launched");
+        TEST_ASSERT(proj->src_x == (int)npc->draw_position.x &&
+                        proj->src_z == (int)npc->draw_position.z,
+                    "launches from where the caster stands at launch");
+        TEST_ASSERT(proj->h1 == 500 - 40, "start height re-read off the caster's ground");
+        World_Free(world);
+    }
+
+    struct ToriRS_FeatureTable const* eras[2] = { ToriRS_Features_OSRS(),
+                                                  ToriRS_Features_LostCity() };
+    for( int e = 0; e < 2; e++ )
+    {
+        struct World* world = World_TestMakeReadyEra(104, eras[e]);
+        int ni = World_NpcSpawn(world, 2, 1, 0, 50, 50, 1, idle);
+        struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, ni);
+        npc->server_slot = 3;
+
+        int idx = World_ProjectileSpawn(
+            world, 41, 0, 0, 10 * 128 + 64, 10 * 128 + 64, 50 * 128 + 64, 50 * 128 + 64, 100, 0,
+            40, 0, 40, 10, 0, /*target=*/3 + 1, WORLD_PROJECTILE_TARGET_NONE);
+        struct WorldEntity_Projectile* proj = World_EntityPoolGet(&world->entities.projectile, idx);
+        World_NpcPathJump(world, ni, true, 70, 50);
+        World_TestCycle(world, 1);
+        TEST_ASSERT(proj->dst_x == 70 * 128 + 64, "tracks the npc");
+        World_NpcDespawn(world, ni);
+        World_TestCycle(world, 1);
+        if( e == 0 )
+            TEST_ASSERT(proj->dst_x == 50 * 128 + 64, "rev-239: back to the packet destination");
+        else
+            TEST_ASSERT(proj->dst_x == 70 * 128 + 64, "Client-TS: the last aim point stands");
+        World_Free(world);
+    }
+
+    {
+        struct WorldEntity_Projectile p = { 0 };
+        p.vx = -1.0;
+        p.vz = 30.0;
+        p.velocity = sqrt(901.0);
+        World_ProjectileMove(&p, 1);
+        /* atan2(-1, 30) * 325.949 = -10.86: truncated -10, plus 1024. */
+        TEST_ASSERT(p.orientation.yaw == 1014, "truncate before the quarter turn");
+    }
 }

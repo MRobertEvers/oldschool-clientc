@@ -512,6 +512,8 @@ struct Task_AppSpawn
     int proj_peak;
     int proj_arc;
     int proj_target;
+    /* rev-239 MapProjAnimV2 source actor (wire encoding, 0 = none). */
+    int proj_source;
     /* APP_SPAWN_LOC_CHANGE (zone LOC_ADD_CHANGE / LOC_DEL): the replacement loc
      * (-1 = pure delete), its map shape/angle, and the nested model-list cursor
      * (loc models are [shape_entry][model]; both indices must survive awaits). */

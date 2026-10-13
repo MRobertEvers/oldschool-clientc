@@ -4188,15 +4188,18 @@ App_CinemaCameraSnapAngle(struct App* app);
  * `src_height`/`dst_height` are the raw wire bytes (×4 applied internally);
  * `start_delay`/`end_delay`/`peak`/`arc` are the wire trajectory params
  * (Client-TS t1/t2/angle/startpos). `target` is the wire target-entity id
- * (>0 npc, <0 player) — stored but live retargeting is a follow-on. */
+ * (>0 npc, <0 player) the arc homes on; `source` the actor it launches from,
+ * same encoding, 0 = none (only rev-239's MapProjAnimV2 names one). The two
+ * levels are the source's (painted on) and the destination's (landed on). */
 void
 App_WorldProjectileSpawn(
     struct App* app,
     int src_x,
     int src_z,
+    int src_level,
     int dst_x,
     int dst_z,
-    int level,
+    int dst_level,
     int spotanim_id,
     int src_height,
     int dst_height,
@@ -4204,7 +4207,8 @@ App_WorldProjectileSpawn(
     int end_delay,
     int peak,
     int arc,
-    int target);
+    int target,
+    int source);
 
 /* Apply a zone LOC_ADD_CHANGE / LOC_DEL (reference locChangeCreate +
  * locChangeDoQueue): enqueues an async task on the serial exec FIFO that awaits

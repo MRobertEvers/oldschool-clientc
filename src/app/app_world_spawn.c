@@ -57,6 +57,7 @@ app_world_spawn_projectile_spot_now(
     int peak,
     int arc,
     int target,
+    int source,
     int late);
 static void
 app_loc_change_apply_ops(
@@ -525,10 +526,18 @@ app_world_spawn_player_now(
             .readyanim = APP_PLAYER_SEQ_READY,
             .walkanim = APP_PLAYER_SEQ_WALK,
             .turnanim = APP_PLAYER_SEQ_TURN,
+            .turnanim_r = APP_PLAYER_SEQ_TURN,
             .runanim = APP_PLAYER_SEQ_RUN,
             .walkanim_b = APP_PLAYER_SEQ_WALK_B,
             .walkanim_r = APP_PLAYER_SEQ_WALK_R,
             .walkanim_l = APP_PLAYER_SEQ_WALK_L,
+            .runanim_b = -1,
+            .runanim_r = -1,
+            .runanim_l = -1,
+            .crawlanim = -1,
+            .crawlanim_b = -1,
+            .crawlanim_r = -1,
+            .crawlanim_l = -1,
         };
         idx = World_PlayerSpawn(app->world, element_id, level, tile_x, tile_z, idle);
     }
@@ -710,23 +719,28 @@ app_world_spawn_npc_now(
 
     bd_t = bd_us ? PlatformWindow_TicksUs() : 0;
     {
-        /* Config movement anims (dat1 has no turn/run for npcs; the reference
-         * walkanim_l/r swap applies here at spawn like at CHANGE_TYPE). */
+        /* Config movement anims (dat1 has no turn/run for npcs). */
         struct WorldEntityFacet_IdleAnimations idle = {
             .readyanim = facts.readyanim,
             .walkanim = facts.walkanim,
-            /* Opcodes 15/114 rather than the -1 pair that used to sit here.
-             * `World_EntityFace` takes turnanim over walkanim and
-             * `World_UpdateMoverMovementAndAnimation` takes runanim over
-             * walkanim at speed; both were already written and neither had
-             * anything to read. The run set gets the same left/right swap the
-             * walk set does -- it is the same reference line (Client.ts
-             * 8460-8462), which swaps the pair for every movement set. */
+            /* The whole movement set, straight across. The Client-TS
+             * left/right crossing (Client.ts 8460-8462) is done once, in the
+             * dat1 type conversion, because rev-239 has no such swap: here
+             * `walkanim_r` already means "the step toward a higher yaw" in
+             * both eras (torirs_npctype_from_rscache.c). */
             .turnanim = facts.turnanim,
+            .turnanim_r = facts.turnanim_r,
             .runanim = facts.runanim,
             .walkanim_b = facts.walkanim_b,
-            .walkanim_r = facts.walkanim_l,
-            .walkanim_l = facts.walkanim_r,
+            .walkanim_r = facts.walkanim_r,
+            .walkanim_l = facts.walkanim_l,
+            .runanim_b = facts.runanim_b,
+            .runanim_r = facts.runanim_r,
+            .runanim_l = facts.runanim_l,
+            .crawlanim = facts.crawlanim,
+            .crawlanim_b = facts.crawlanim_b,
+            .crawlanim_r = facts.crawlanim_r,
+            .crawlanim_l = facts.crawlanim_l,
             .idle_anim_restart = npctype->idle_anim_restart ? 1 : 0,
         };
         idx = World_NpcSpawn(app->world, element_id, npc_id, level, tile_x, tile_z, size, idle);
@@ -754,6 +768,7 @@ app_world_spawn_npc_now(
             npc->minimap_visible = npctype->minimap_visible;
             npc->interactable = npctype->interactable;
             npc->facing.turn_speed = npctype->turn_speed;
+            npc->facing.no_rotation_flag = npctype->no_rotation_flag;
             snprintf(npc->name, sizeof(npc->name), "%s", npctype->name);
             for( int i = 0; i < 5; i++ )
                 snprintf(
@@ -880,17 +895,20 @@ app_world_spawn_projectile_now(
         world,
         element_id,
         src_level,
+        src_level,
         src_x,
         src_z,
         dst_x,
         dst_z,
         src_y,
+        160,
         144, /* end height above target ground (36 * 4) */
         0,
         t2,
         15, /* launch slope (1/2048 circle units) */
         64,
-        target);
+        target,
+        WORLD_PROJECTILE_TARGET_NONE);
     /* Bind the spotanim's sequence so the projectile model animates in flight
      * (v1 Task_*ProjectileAdd loads the seq, then ElementSetSequenceId). The
      * element is left non-external, so app_world_tick_animations advances the
@@ -1003,6 +1021,7 @@ app_world_spawn_projectile_spot_now(
     int peak,
     int arc,
     int target,
+    int source,
     int late)
 {
     struct ToriRS_Spotanimtype* spot;
@@ -1068,18 +1087,21 @@ app_world_spawn_projectile_spot_now(
     idx = World_ProjectileSpawn(
         world,
         element_id,
+        src_level,
         dst_level,
         src_x,
         src_z,
         dst_x,
         dst_z,
         src_y,
+        src_height * 4,
         dst_height * 4,
         start_delay,
         end_delay,
         peak,
         arc,
-        target);
+        target,
+        source);
     {
         /* Which graphic it is, for the quest driver's hazard readers
          * (WorldEntity_Projectile.spotanim_id); World itself never reads it. */
@@ -1561,6 +1583,7 @@ Task_AppSpawn_Run(
                     self->proj_peak,
                     self->proj_arc,
                     self->proj_target,
+                    self->proj_source,
                     app_spawn_effect_late(self, world));
         }
     }

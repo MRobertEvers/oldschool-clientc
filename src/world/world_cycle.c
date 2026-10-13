@@ -27,11 +27,31 @@ struct World_MoverInfo
     struct WorldEntityFacet_IdleAnimations* idle;
     struct WorldEntityFacet_Animation* animation;
     struct WorldEntityFacet_Facing* facing;
+    struct WorldEntityFacet_ViewPlacement const* placement;
     int size_x;
     int size_z;
 };
 
 static int anim_step_active(struct WorldEntityFacet_AnimationStep const* step);
+static bool World_MoverHeldByAnim(struct World_MoverInfo* info, bool bank_held_cycle);
+
+/*
+ * Is this world on rev-239's actor model?
+ *
+ * The mover enum is the era seam for everything an actor does on the cycle
+ * clock, not only for how it travels: under FRAME_DELTA the per-cycle pass is
+ * rev-239's class105.method3606 (facing, then move, then the off-scene reset,
+ * then the turn), and under CYCLE_INTEGER it is Client-TS moveEntity (move,
+ * then facing and turn together). The two orders pick different walk
+ * sequences for the same input, so they cannot be mixed -- see
+ * World_CycleActor.
+ */
+static bool
+World_ActorModelRev239(struct World const* world)
+{
+    return World_MoverModel(world) == TORIRS_MOVER_FRAME_DELTA;
+}
+
 static int cycle_seq_preanim_move(struct World* world, int seq_id);
 static int cycle_seq_postanim_move(struct World* world, int seq_id);
 
@@ -56,10 +76,13 @@ static int cycle_seq_postanim_move(struct World* world, int seq_id);
  * the queue overflows, which is what read as the player "stuttering" behind a
  * moving target.
  *
- * rev-239 also halves the speed for a CRAWL step (class174.field2475) and
- * gives NPCs whose record carries config opcode 109 the lower 6/8 thresholds
- * (>1 / >2 rather than >2 / >3). Neither is reachable here: no revision this
- * tree speaks emits a crawl step, and the opcode is not decoded.
+ * An NPC whose record carries config opcode 109 (class405.field5146 cleared)
+ * takes the other branch of the same block on rev-239: no speed-2 turn, and
+ * the 6/8 thresholds one tile earlier (>1 / >2 rather than >2 / >3). The 2004
+ * client has no such opcode.
+ *
+ * rev-239 also halves the speed for a CRAWL step (class174.field2475). Not
+ * reachable here: no revision this tree speaks emits a crawl step.
  */
 static int
 World_MoverStepSpeed(
@@ -69,13 +92,23 @@ World_MoverStepSpeed(
 {
     int move_speed = 4;
 
-    if( info->orientation->yaw != info->orientation->dst_yaw &&
-        info->facing->entity_id == WORLD_FACING_ENTITY_NONE && info->facing->turn_speed != 0 )
-        move_speed = 2;
-    if( route_length > 2 )
-        move_speed = 6;
-    if( route_length > 3 )
-        move_speed = 8;
+    if( !info->facing->no_rotation_flag || !World_ActorModelRev239(info->world) )
+    {
+        if( info->orientation->yaw != info->orientation->dst_yaw &&
+            info->facing->entity_id == WORLD_FACING_ENTITY_NONE && info->facing->turn_speed != 0 )
+            move_speed = 2;
+        if( route_length > 2 )
+            move_speed = 6;
+        if( route_length > 3 )
+            move_speed = 8;
+    }
+    else
+    {
+        if( route_length > 1 )
+            move_speed = 6;
+        if( route_length > 2 )
+            move_speed = 8;
+    }
     if( info->animation->anim_delay_move > 0 && route_length > 1 )
     {
         move_speed = 8;
@@ -88,6 +121,88 @@ World_MoverStepSpeed(
         move_speed <<= 1;
 
     return move_speed;
+}
+
+/*
+ * The yaw that faces the next queued tile from where the actor is drawn.
+ *
+ * rev-239 class105.method3534 and the 2004 routeMove block are the same table
+ * except for one cell: an actor already standing on the tile. Client-TS writes
+ * 0 there (south); rev-239 answers -1, "no opinion", and the facing pass keeps
+ * whatever it had. `same_tile_yaw` is that cell.
+ */
+static int
+World_MoverRouteYaw(
+    struct World_MoverInfo const* info,
+    int same_tile_yaw)
+{
+    int route_length = info->pathing->route_length;
+    int x = (int)info->draw_position->x;
+    int z = (int)info->draw_position->z;
+    int dstX;
+    int dstZ;
+
+    assert(route_length > 0);
+    dstX = info->pathing->route_x[route_length - 1] * 128 + info->size_x * 64;
+    dstZ = info->pathing->route_z[route_length - 1] * 128 + info->size_z * 64;
+    if( x < dstX )
+    {
+        if( z < dstZ )
+            return 1280;
+        if( z > dstZ )
+            return 1792;
+        return 1536;
+    }
+    if( x > dstX )
+    {
+        if( z < dstZ )
+            return 768;
+        if( z > dstZ )
+            return 256;
+        return 512;
+    }
+    if( z < dstZ )
+        return 1024;
+    if( z > dstZ )
+        return 0;
+    return same_tile_yaw;
+}
+
+/*
+ * rev-239 method3520's speed remap: a walk direction becomes its run twin at
+ * speed >= 8 and its crawl twin at speed <= 2. An if/else-if chain in the
+ * reference, which the early returns reproduce: a direction whose twin is
+ * missing falls through to the next comparison rather than stopping.
+ */
+static int
+World_MoverRemapSeq(
+    struct WorldEntityFacet_IdleAnimations const* idle,
+    int seq,
+    int move_speed)
+{
+    if( move_speed >= 8 )
+    {
+        if( seq == idle->walkanim && idle->runanim != -1 )
+            return idle->runanim;
+        if( seq == idle->walkanim_b && idle->runanim_b != -1 )
+            return idle->runanim_b;
+        if( seq == idle->walkanim_l && idle->runanim_l != -1 )
+            return idle->runanim_l;
+        if( seq == idle->walkanim_r && idle->runanim_r != -1 )
+            return idle->runanim_r;
+    }
+    else if( move_speed <= 2 )
+    {
+        if( seq == idle->walkanim && idle->crawlanim != -1 )
+            return idle->crawlanim;
+        if( seq == idle->walkanim_b && idle->crawlanim_b != -1 )
+            return idle->crawlanim_b;
+        if( seq == idle->walkanim_l && idle->crawlanim_l != -1 )
+            return idle->crawlanim_l;
+        if( seq == idle->walkanim_r && idle->crawlanim_r != -1 )
+            return idle->crawlanim_r;
+    }
+    return seq;
 }
 
 /*
@@ -123,10 +238,11 @@ World_MoverHeldByAnim(struct World_MoverInfo* info, bool bank_held_cycle)
 }
 
 /**
- * Per client cycle (20ms): rev-239 class105.method3520.
+ * Per client cycle (20ms): rev-239 class105.method3520 / Client-TS routeMove.
  *
- * Chooses the facing and the walk/run sequence for the step in progress, and
- * hands back the secondary seq id (-1 = clear). It deliberately does NOT move
+ * Chooses the walk/run sequence for the step in progress (and, on the classic
+ * lane only, the facing -- rev-239 faced already, in World_EntityFaceTarget),
+ * and hands back the secondary seq id (-1 = clear). It deliberately does NOT move
  * the entity -- that is World_MoversAdvance, which runs per render frame. The
  * split is the reference's, and it is the whole of "smooth": movement is
  * integrated against real elapsed time, while the decisions that only change
@@ -168,12 +284,20 @@ World_UpdateMoverMovementAndAnimation(struct World_MoverInfo* info)
         float dz = (float)dstZ - info->draw_position->fz;
         float far = fabsf(dx) > fabsf(dz) ? fabsf(dx) : fabsf(dz);
 
+        /* Both references hand the movement track the readyanim on a snap
+         * (method3520's var12 / routeMove's opening secondaryAnim write);
+         * clearing it instead left the actor unposed for a cycle. rev-239 also
+         * retires the tile in the same pass, so the next cycle steers for the
+         * tile behind it rather than re-arriving on this one. */
         if( far > 288.0f )
         {
             World_DrawPositionSet(info->draw_position, dstX, dstZ);
             info->grid_position->x = info->pathing->route_x[route_length - 1];
             info->grid_position->z = info->pathing->route_z[route_length - 1];
-            return -1;
+            info->pathing->route_length--;
+            if( info->animation->preanim_route_length > 0 )
+                info->animation->preanim_route_length--;
+            return seqId;
         }
     }
     else if( dstX - x > 256 || dstX - x < -256 || dstZ - z > 256 || dstZ - z < -256 )
@@ -181,31 +305,15 @@ World_UpdateMoverMovementAndAnimation(struct World_MoverInfo* info)
         World_DrawPositionSet(info->draw_position, dstX, dstZ);
         info->grid_position->x = info->pathing->route_x[route_length - 1];
         info->grid_position->z = info->pathing->route_z[route_length - 1];
-        return -1;
+        return seqId;
     }
 
-    if( x < dstX )
-    {
-        if( z < dstZ )
-            info->orientation->dst_yaw = 1280;
-        else if( z > dstZ )
-            info->orientation->dst_yaw = 1792;
-        else
-            info->orientation->dst_yaw = 1536;
-    }
-    else if( x > dstX )
-    {
-        if( z < dstZ )
-            info->orientation->dst_yaw = 768;
-        else if( z > dstZ )
-            info->orientation->dst_yaw = 256;
-        else
-            info->orientation->dst_yaw = 512;
-    }
-    else if( z < dstZ )
-        info->orientation->dst_yaw = 1024;
-    else
-        info->orientation->dst_yaw = 0;
+    /* Client-TS steers here. rev-239 does not: its facing pass already ran
+     * this cycle (method6710, World_EntityFaceTarget) and chose the route
+     * direction only if nothing outranked it, so the walk sequence below is
+     * picked against the face target, not against the step. */
+    if( !World_ActorModelRev239(info->world) )
+        info->orientation->dst_yaw = (uint16_t)World_MoverRouteYaw(info, 0);
 
     int deltaYaw = (info->orientation->dst_yaw - info->orientation->yaw) & 0x7ff;
     if( deltaYaw > 1024 )
@@ -224,9 +332,13 @@ World_UpdateMoverMovementAndAnimation(struct World_MoverInfo* info)
 
     /* Speed 8 is a run whatever queued the step: an entity closing a queue
      * backlog runs, which is how both references show a walk that has fallen
-     * behind (method3520's `var20 >= 8` remap, Client.ts's `moveSpeed >= 8`). */
+     * behind (method3520's `var20 >= 8` remap, Client.ts's `moveSpeed >= 8`).
+     * Client-TS only ever swaps the forward walk; rev-239 swaps every
+     * direction, and crawls at speed <= 2. */
     int move_speed = World_MoverStepSpeed(info, route_length, /*consume_delay_move=*/true);
-    if( move_speed >= 8 && seqId == info->idle->walkanim && info->idle->runanim != -1 )
+    if( World_ActorModelRev239(info->world) )
+        seqId = World_MoverRemapSeq(info->idle, seqId, move_speed);
+    else if( move_speed >= 8 && seqId == info->idle->walkanim && info->idle->runanim != -1 )
         seqId = info->idle->runanim;
 
     /*
@@ -335,12 +447,21 @@ World_MoverAdvance(
                 info->draw_position->fx = (float)dstX;
             }
         }
+        /*
+         * The z overshoot is measured the WRONG way round, on purpose. rev-239
+         * computes it as `(dst - z) / speed` past a northward tile and
+         * `(z - dst) / speed` past a southward one -- both negative -- so its
+         * `Math.max` always keeps the x carry and a pure north/south step drops
+         * the rest of the frame at every tile. Read from the bytecode of
+         * method3611 (fsub operand order), not the decompile. A diagonal does
+         * not notice: its x overshoot is the same size and carries.
+         */
         if( fz < (float)dstZ )
         {
             info->draw_position->fz += step;
             if( info->draw_position->fz > (float)dstZ )
             {
-                float slack = (info->draw_position->fz - (float)dstZ) / (float)move_speed;
+                float slack = ((float)dstZ - info->draw_position->fz) / (float)move_speed;
                 leftover = leftover > slack ? leftover : slack;
                 info->draw_position->fz = (float)dstZ;
             }
@@ -350,7 +471,7 @@ World_MoverAdvance(
             info->draw_position->fz -= step;
             if( info->draw_position->fz < (float)dstZ )
             {
-                float slack = ((float)dstZ - info->draw_position->fz) / (float)move_speed;
+                float slack = (info->draw_position->fz - (float)dstZ) / (float)move_speed;
                 leftover = leftover > slack ? leftover : slack;
                 info->draw_position->fz = (float)dstZ;
             }
@@ -376,27 +497,37 @@ World_MoverAdvance(
     }
 }
 
-/* Reference entity-facing update, run once per entity per cycle right after
- * the movement step and before entity animation.
+/*
+ * Which way should the actor face: rev-239 Statics.method6710, and the
+ * target half of Client-TS entityFace. Sets dst_yaw; the turn toward it is
+ * World_EntityTurn.
  *
- * Facing source precedence follows rev-239 Statics.method6710: a consumable
- * direct angle first, then a pending location, then an entity target.  Only
- * the first eligible source is applied in a cycle.
- * The yaw is then stepped toward dst_yaw by turn_speed, and an entity that is
- * idle-animating while still mid-turn swaps to its turn/walk seq.
+ * Source precedence is method6710's: a consumable direct angle first, then a
+ * pending location, then an entity target (or, with the target gone, its
+ * fallback angle). Only the first eligible source is applied in a cycle.
  *
- * Returns the secondary seq id to apply, or -1 to leave it alone. */
-static int
-World_EntityFace(
-    struct World* world,
-    struct WorldEntityFacet_Facing* facing,
-    struct WorldEntityFacet_DrawPosition const* draw_position,
-    struct WorldEntityFacet_ViewPlacement const* placement,
-    struct WorldEntityFacet_Orientation* orientation,
-    struct WorldEntityFacet_Pathing const* pathing,
-    struct WorldEntityFacet_IdleAnimations const* idle,
-    struct WorldEntityFacet_Animation const* animation)
+ * Two things only rev-239 does here:
+ *
+ *  - The route direction is the LAST fallback (method3534), taken only when no
+ *    source above produced a yaw, the movement mode is 0 (method3536), and no
+ *    DELAYMOVE seq is holding the route. Client-TS instead steers inside
+ *    routeMove, before any of this, and lets these sources overwrite it. In
+ *    mode 1 rev-239 never steers by the route at all: an actor told to face a
+ *    direction keeps facing it for the whole walk.
+ *  - A source that arrived flagged instant snaps the yaw on the spot (the
+ *    `var4` tail of method6710), before the mover picks a walk sequence. Only
+ *    the angle and location sources carry the flag there.
+ */
+static void
+World_EntityFaceTarget(struct World_MoverInfo* info)
 {
+    struct World* world = info->world;
+    struct WorldEntityFacet_Facing* facing = info->facing;
+    struct WorldEntityFacet_ViewPlacement const* placement = info->placement;
+    struct WorldEntityFacet_Orientation* orientation = info->orientation;
+    struct WorldEntityFacet_Pathing const* pathing = info->pathing;
+    struct WorldEntityFacet_Animation const* animation = info->animation;
+    bool const rev239 = World_ActorModelRev239(world);
     int dst_x;
     int dst_z;
     /* Cross-frame facing (SAILING): all direction math below runs in the
@@ -405,13 +536,17 @@ World_EntityFace(
      * hull's angle) taken back out before it goes on the element, because a
      * homed actor's element yaw is deck-frame and the descent adds the
      * hull's yaw at draw. Root actors: identity, offset 0. */
-    int self_x = (int)draw_position->x;
-    int self_z = (int)draw_position->z;
+    int self_x = (int)info->draw_position->x;
+    int self_z = (int)info->draw_position->z;
     int frame_yaw = 0;
     bool applied = false;
+    bool snap = false;
 
-    if( facing->turn_speed == 0 )
-        return -1;
+    /* Client-TS entityFace returns before choosing anything for an actor that
+     * cannot turn. method6710 has no such test: the yaw still never moves
+     * (the turn steps by 0), but dst_yaw does, and the walk sequence reads it. */
+    if( !rev239 && facing->turn_speed == 0 )
+        return;
     if( world->actor_root_frame_fn && placement )
         world->actor_root_frame_fn(
             world->actor_root_frame_userdata, placement, &self_x, &self_z, &frame_yaw);
@@ -425,15 +560,21 @@ World_EntityFace(
         orientation->dst_yaw = (uint16_t)((facing->direct_angle - frame_yaw) & 0x7ff);
         facing->direct_angle = -1;
         applied = true;
+        if( rev239 )
+        {
+            snap = facing->instant;
+            facing->instant = false;
+        }
     }
 
     /* FaceSquare is in absolute half-tiles; `- base - base` converts the
      * doubled coordinate straight into fine units at 64 per half-tile.
-     * Applies while standing still or held by DELAYMOVE, unless revision-239
-     * movement mode 1 explicitly permits facing during a route. */
+     * Applies while standing still, or during a route in movement mode 1
+     * (method3565). Client-TS also lets a DELAYMOVE hold release it; rev-239
+     * keeps it pending until the route is done. */
     if( !applied && (facing->square_x != 0 || facing->square_z != 0) &&
         (facing->face_during_movement || pathing->route_length == 0 ||
-         animation->anim_delay_move > 0) )
+         (!rev239 && animation->anim_delay_move > 0)) )
     {
         dst_x = self_x -
                 (facing->square_x - world->_base_tile_x - world->_base_tile_x) * 64;
@@ -448,6 +589,11 @@ World_EntityFace(
         facing->square_x = 0;
         facing->square_z = 0;
         applied = true;
+        if( rev239 )
+        {
+            snap = facing->instant;
+            facing->instant = false;
+        }
     }
 
     if( !applied && facing->entity_id != WORLD_FACING_ENTITY_NONE )
@@ -492,41 +638,113 @@ World_EntityFace(
                                       WORLD_YAW_FROM_RADIANS)) -
                                 frame_yaw) &
                                0x7ff);
+            applied = true;
         }
         else if( facing->fallback_angle >= 0 )
         {
             orientation->dst_yaw =
                 (uint16_t)((facing->fallback_angle - frame_yaw) & 0x7ff);
+            applied = true;
         }
     }
 
+    if( !rev239 )
+        return;
+
+    /* method6710's `var3 == -1` tail: method3534 behind method3536. The route
+     * yaw is taken in the actor's own frame, as the mover always took it. */
+    if( !applied && pathing->route_length > 0 && !facing->face_during_movement &&
+        !World_MoverHeldByAnim(info, /*bank_held_cycle=*/false) )
     {
-        int remaining_yaw = (orientation->dst_yaw - orientation->yaw) & 0x7ff;
+        int route_yaw = World_MoverRouteYaw(info, -1);
+        if( route_yaw >= 0 )
+            orientation->dst_yaw = (uint16_t)route_yaw;
+    }
+    if( snap )
+        orientation->yaw = orientation->dst_yaw;
+}
+
+/*
+ * Step the yaw toward dst_yaw, and pick the turn-on-the-spot sequence.
+ * Returns the secondary seq id to apply, or -1 to leave it alone.
+ *
+ * Client-TS entityFace's tail: one `turnanim`, played while an idling actor
+ * has not finished turning, and an instant flag that snaps the turn.
+ *
+ * rev-239 Statics.method1: the seq follows the turn's DIRECTION -- turnanim
+ * toward a lower yaw, turnanim_r toward a higher -- and is kept on the cycle
+ * the turn lands once the turn has lasted more than 25 cycles. The instant
+ * snap already happened in World_EntityFaceTarget.
+ */
+static int
+World_EntityTurn(struct World_MoverInfo* info)
+{
+    struct WorldEntityFacet_Facing* facing = info->facing;
+    struct WorldEntityFacet_Orientation* orientation = info->orientation;
+    struct WorldEntityFacet_IdleAnimations const* idle = info->idle;
+    struct WorldEntityFacet_Animation const* animation = info->animation;
+    int remaining_yaw = (orientation->dst_yaw - orientation->yaw) & 0x7ff;
+
+    if( World_ActorModelRev239(info->world) )
+    {
+        int dir;
+        bool still_turning = true;
+
         if( remaining_yaw == 0 )
         {
-            facing->instant = false;
+            facing->turn_cycles = 0;
             return -1;
         }
-
-        if( facing->instant )
+        if( facing->turn_cycles < UINT16_MAX )
+            facing->turn_cycles++;
+        dir = remaining_yaw > 1024 ? -1 : 1;
+        orientation->yaw = (uint16_t)(orientation->yaw + facing->turn_speed * dir);
+        if( remaining_yaw < facing->turn_speed || remaining_yaw > 2048 - facing->turn_speed )
         {
             orientation->yaw = orientation->dst_yaw;
-            facing->instant = false;
-            return -1;
+            still_turning = false;
         }
-
-        if( remaining_yaw < facing->turn_speed || remaining_yaw > 2048 - facing->turn_speed )
-            orientation->yaw = orientation->dst_yaw;
-        else if( remaining_yaw > 1024 )
-            orientation->yaw = (uint16_t)(orientation->yaw - facing->turn_speed);
-        else
-            orientation->yaw = (uint16_t)(orientation->yaw + facing->turn_speed);
         orientation->yaw &= 0x7ff;
 
-        if( animation->secondary.anim_id == (uint16_t)idle->readyanim &&
-            orientation->yaw != orientation->dst_yaw )
-            return idle->turnanim != -1 ? idle->turnanim : idle->walkanim;
+        if( facing->turn_speed > 0 &&
+            animation->secondary.anim_id == (uint16_t)idle->readyanim &&
+            (facing->turn_cycles > 25 || still_turning) )
+        {
+            if( dir == -1 && idle->turnanim != -1 )
+                return idle->turnanim;
+            if( dir == 1 && idle->turnanim_r != -1 )
+                return idle->turnanim_r;
+            return idle->walkanim;
+        }
+        return -1;
     }
+
+    if( facing->turn_speed == 0 )
+        return -1;
+    if( remaining_yaw == 0 )
+    {
+        facing->instant = false;
+        return -1;
+    }
+
+    if( facing->instant )
+    {
+        orientation->yaw = orientation->dst_yaw;
+        facing->instant = false;
+        return -1;
+    }
+
+    if( remaining_yaw < facing->turn_speed || remaining_yaw > 2048 - facing->turn_speed )
+        orientation->yaw = orientation->dst_yaw;
+    else if( remaining_yaw > 1024 )
+        orientation->yaw = (uint16_t)(orientation->yaw - facing->turn_speed);
+    else
+        orientation->yaw = (uint16_t)(orientation->yaw + facing->turn_speed);
+    orientation->yaw &= 0x7ff;
+
+    if( animation->secondary.anim_id == (uint16_t)idle->readyanim &&
+        orientation->yaw != orientation->dst_yaw )
+        return idle->turnanim != -1 ? idle->turnanim : idle->walkanim;
     return -1;
 }
 
@@ -968,10 +1186,16 @@ World_UpdateExactMove(
     /* Exact move clears the DELAYMOVE hold counter (Client.ts 3765 / 3790). */
     anim->anim_delay_move = 0;
 
-    if( exact->move_end > world->cycle )
+    /* The phase boundary is the era's: Client-TS glides while `end > cycle`,
+     * rev-239 method3520 while `end >= cycle`, so its last glide cycle divides
+     * by max(1, 0) and lands exactly on the start tile. */
+    if( World_ActorModelRev239(world) ? exact->move_end >= world->cycle
+                                      : exact->move_end > world->cycle )
     {
+        /* rev-239 divides by Math.max(1, end - cycle). */
+        int const delta_raw = exact->move_end - world->cycle;
+        int const delta = delta_raw > 1 ? delta_raw : 1;
         /* Phase 1: glide toward the START tile. */
-        int delta = exact->move_end - world->cycle;
         int dst_x = exact->start_x * 128 + size * 64;
         int dst_z = exact->start_z * 128 + size * 64;
         World_DrawPositionSet(
@@ -1097,6 +1321,59 @@ World_ActorLeftSceneReset(
     pathing->route_length = 0;
 }
 
+/*
+ * One actor, one cycle.
+ *
+ * rev-239 class105.method3606 + Statics.method1: facing (method6710), then the
+ * move (method3520, exact or routed), then the off-scene reset (method3545),
+ * then the turn. Client-TS moveEntity: the move, then entityFace (which both
+ * chooses and turns). The difference is not cosmetic -- the mover picks the
+ * walk sequence against dst_yaw, so under rev-239 an actor walking away from
+ * the entity it faces plays its forward walk, and under Client-TS its
+ * backward one. An exact move writes its direction after the facing pass on
+ * rev-239, so it wins there; under Client-TS a face target overrides it.
+ */
+static void
+World_CycleActor(
+    struct World_MoverInfo* info,
+    struct WorldEntityFacet_ExactMove* exact,
+    struct WorldEntityFacet_EntitySpotanim* spotanim,
+    bool is_local_player,
+    int size)
+{
+    struct World* world = info->world;
+    bool const rev239 = World_ActorModelRev239(world);
+    int face_seq;
+
+    if( rev239 )
+        World_EntityFaceTarget(info);
+    if( !World_UpdateExactMove(
+            world, exact, info->draw_position, info->orientation, info->animation, size) )
+    {
+        int seqId = World_UpdateMoverMovementAndAnimation(info);
+        World_ApplySecondaryAnim(info->animation, seqId);
+    }
+    /* else: exact move overrides route movement; the secondary anim keeps
+     * whatever it was (reference skips routeMove). */
+    World_ActorLeftSceneReset(
+        world,
+        is_local_player,
+        info->placement,
+        info->pathing,
+        info->draw_position,
+        exact,
+        info->animation,
+        spotanim,
+        size);
+    if( !rev239 )
+        World_EntityFaceTarget(info);
+    face_seq = World_EntityTurn(info);
+    if( face_seq != -1 )
+        World_ApplySecondaryAnim(info->animation, face_seq);
+    World_StepEntityAnimation(
+        world, info->animation, spotanim, info->pathing, info->draw_position, info->idle);
+}
+
 static void
 World_CycleUpdatePlayers(
     struct World* world,
@@ -1112,18 +1389,6 @@ World_CycleUpdatePlayers(
             if( !player || player->element_id < 0 )
                 continue;
 
-            if( World_UpdateExactMove(
-                    world,
-                    &player->exact_move,
-                    &player->draw_position,
-                    &player->orientation,
-                    &player->animation,
-                    1) )
-            {
-                /* Exact move overrides route movement; the secondary anim
-                 * keeps whatever it was (reference skips routeMove). */
-            }
-            else
             {
                 struct World_MoverInfo info = {
                     .world = world,
@@ -1134,44 +1399,17 @@ World_CycleUpdatePlayers(
                     .idle = &player->idle_animations,
                     .animation = &player->animation,
                     .facing = &player->facing,
+                    .placement = &player->view_placement,
                     .size_x = 1,
                     .size_z = 1,
                 };
-                int seqId = World_UpdateMoverMovementAndAnimation(&info);
-                World_ApplySecondaryAnim(&player->animation, seqId);
+                World_CycleActor(
+                    &info,
+                    &player->exact_move,
+                    &player->spotanim,
+                    world->local_pid >= 0 && player->server_pid == world->local_pid,
+                    1);
             }
-            World_ActorLeftSceneReset(
-                world,
-                world->local_pid >= 0 && player->server_pid == world->local_pid,
-                &player->view_placement,
-                &player->pathing,
-                &player->draw_position,
-                &player->exact_move,
-                &player->animation,
-                &player->spotanim,
-                1);
-            /* Reference moveEntity order: move (route or exact) -> entityFace
-             * -> entityAnim. entityFace runs on both move branches. */
-            {
-                int face_seq = World_EntityFace(
-                    world,
-                    &player->facing,
-                    &player->draw_position,
-                    &player->view_placement,
-                    &player->orientation,
-                    &player->pathing,
-                    &player->idle_animations,
-                    &player->animation);
-                if( face_seq != -1 )
-                    World_ApplySecondaryAnim(&player->animation, face_seq);
-            }
-            World_StepEntityAnimation(
-                world,
-                &player->animation,
-                &player->spotanim,
-                &player->pathing,
-                &player->draw_position,
-                &player->idle_animations);
             /* Overhead chat expiry (reference Client.ts:3161). */
             if( player->chat.timer > 0 && --player->chat.timer == 0 )
                 player->chat.message[0] = '\0';
@@ -1195,17 +1433,6 @@ World_CycleUpdateNpcs(
                 continue;
 
             int size = npc->size > 0 ? npc->size : 1;
-            if( World_UpdateExactMove(
-                    world,
-                    &npc->exact_move,
-                    &npc->draw_position,
-                    &npc->orientation,
-                    &npc->animation,
-                    size) )
-            {
-                /* Exact move overrides route movement. */
-            }
-            else
             {
                 struct World_MoverInfo info = {
                     .world = world,
@@ -1216,38 +1443,12 @@ World_CycleUpdateNpcs(
                     .idle = &npc->idle_animations,
                     .animation = &npc->animation,
                     .facing = &npc->facing,
+                    .placement = &npc->view_placement,
                     .size_x = size,
                     .size_z = size,
                 };
-                int seqId = World_UpdateMoverMovementAndAnimation(&info);
-                World_ApplySecondaryAnim(&npc->animation, seqId);
+                World_CycleActor(&info, &npc->exact_move, &npc->spotanim, false, size);
             }
-            World_ActorLeftSceneReset(
-                world,
-                false,
-                &npc->view_placement,
-                &npc->pathing,
-                &npc->draw_position,
-                &npc->exact_move,
-                &npc->animation,
-                &npc->spotanim,
-                size);
-            {
-                int face_seq = World_EntityFace(
-                    world,
-                    &npc->facing,
-                    &npc->draw_position,
-                    &npc->view_placement,
-                    &npc->orientation,
-                    &npc->pathing,
-                    &npc->idle_animations,
-                    &npc->animation);
-                if( face_seq != -1 )
-                    World_ApplySecondaryAnim(&npc->animation, face_seq);
-            }
-            World_StepEntityAnimation(
-                world, &npc->animation, &npc->spotanim, &npc->pathing, &npc->draw_position,
-                &npc->idle_animations);
             /* Overhead chat expiry (reference Client.ts:3174). */
             if( npc->chat.timer > 0 && --npc->chat.timer == 0 )
                 npc->chat.message[0] = '\0';
@@ -1255,32 +1456,38 @@ World_CycleUpdateNpcs(
     }
 }
 
-/* Re-aim a projectile at its target entity's *live* draw position (reference
- * addProjectiles, which looks the entity up fresh every cycle and calls
- * setTarget with the position it holds right now, so the arc bends to follow a
- * target that walked after the cast). Positive wire ids are NPC slots + 1,
- * negative are player slots as -(slot) - 1 — the local player included, since
- * it sits in the player pool under its own server pid.
+/*
+ * Where a projectile end's actor stands right now, in ROOT fine units.
  *
- * A target that is not currently synced leaves the last aim point standing:
- * that is what the reference's `if (npc)` / `if (player)` guards do, and it
- * matters here because entity slots go briefly unresolved across a rebuild. */
-static void
-World_ProjectileTrackTarget(
+ * `wire_id` is the MAP_PROJANIM encoding: `slot + 1` for an NPC, `-(slot) - 1`
+ * for a player (the local one included, under its own server pid) -- the same
+ * for target and, on rev-239, source (Statics.method8271: method6326 tests
+ * `> 0`, method6893 is `-id - 1`). Returns false when the actor is not
+ * currently synced.
+ *
+ * A target drawn by a world-entity view stands at a projected root position,
+ * and a HOMED rider's draw position is deck-local outright -- both answered by
+ * the same root-frame hook the facing math uses. The projectile lives in the
+ * ROOT world (deob: one world per projectile), so its ends must too; without
+ * this an arrow chasing a rider re-aims at deck-local numbers and flies at the
+ * map corner. `*on_deck` says the actor rides a view, whose ground this world
+ * cannot sample.
+ */
+static bool
+World_ProjectileActorAt(
     struct World* world,
-    struct WorldEntity_Projectile* proj)
+    int wire_id,
+    int* out_x,
+    int* out_z,
+    bool* on_deck)
 {
     struct WorldEntityFacet_DrawPosition const* dst = NULL;
     struct WorldEntityFacet_ViewPlacement const* placement = NULL;
-    int fx;
-    int fz;
 
-    if( proj->target == WORLD_PROJECTILE_TARGET_NONE )
-        return;
-
-    if( proj->target > 0 )
+    assert(wire_id != WORLD_PROJECTILE_TARGET_NONE);
+    if( wire_id > 0 )
     {
-        struct WorldEntity_NPC* npc = World_NpcGetByServerSlot(world, proj->target - 1);
+        struct WorldEntity_NPC* npc = World_NpcGetByServerSlot(world, wire_id - 1);
         if( npc )
         {
             dst = &npc->draw_position;
@@ -1289,38 +1496,96 @@ World_ProjectileTrackTarget(
     }
     else
     {
-        struct WorldEntity_Player* player = World_PlayerGetByServerPid(world, -proj->target - 1);
+        struct WorldEntity_Player* player = World_PlayerGetByServerPid(world, -wire_id - 1);
         if( player )
         {
             dst = &player->draw_position;
             placement = &player->view_placement;
         }
     }
-
     if( !dst )
-        return;
+        return false;
 
-    fx = (int)dst->x;
-    fz = (int)dst->z;
-    /* A target drawn by a world-entity view stands at a projected root
-     * position, and a HOMED rider's draw position is deck-local outright —
-     * both answered by the same root-frame hook the facing math uses. The
-     * projectile lives in the ROOT world (deob: one world per projectile), so
-     * the aim point must too; without this an arrow chasing a rider re-aims
-     * at deck-local numbers and flies at the map corner. */
-    if( placement && placement->view_id != 0 && world->actor_root_frame_fn )
+    *out_x = (int)dst->x;
+    *out_z = (int)dst->z;
+    *on_deck = placement && placement->view_id != 0;
+    if( *on_deck && world->actor_root_frame_fn )
     {
         int frame_yaw = 0;
 
         world->actor_root_frame_fn(
-            world->actor_root_frame_userdata, placement, &fx, &fz, &frame_yaw);
+            world->actor_root_frame_userdata, placement, out_x, out_z, &frame_yaw);
+    }
+    return true;
+}
+
+/* Re-aim a projectile at its target entity's *live* draw position (reference
+ * addProjectiles / method8271, which look the entity up fresh every cycle, so
+ * the arc bends to follow a target that walked after the cast).
+ *
+ * A target that is not currently synced is where the eras part. Client-TS
+ * re-aims only `if (npc)` / `if (player)`, so the last aim point stands --
+ * which matters here because entity slots go briefly unresolved across a
+ * rebuild. rev-239's method8271 falls back to the packet's own destination
+ * coordinate, so a target that vanishes mid-flight pulls the arc back to the
+ * cast tile. */
+static void
+World_ProjectileTrackTarget(
+    struct World* world,
+    struct WorldEntity_Projectile* proj)
+{
+    int fx;
+    int fz;
+    bool on_deck;
+
+    if( proj->target == WORLD_PROJECTILE_TARGET_NONE )
+        return;
+
+    if( !World_ProjectileActorAt(world, proj->target, &fx, &fz, &on_deck) )
+    {
+        if( World_ProjectileModel(world) == TORIRS_PROJECTILE_MODEL_REV239 )
+        {
+            proj->dst_x = proj->wire_dst_x;
+            proj->dst_z = proj->wire_dst_z;
+        }
+        return;
     }
 
-    /* dst_level stays the projectile's own level: the reference samples the
-     * target's height with getAvH(npc.x, npc.z, *proj.level*), not the
-     * entity's level. */
+    /* dst_level stays the projectile's destination level: the reference
+     * samples the target's height on the packet's level, not the entity's. */
     proj->dst_x = fx;
     proj->dst_z = fz;
+}
+
+/*
+ * rev-239 class50.method940, the `!field371` branch: on the first cycle a
+ * projectile is live, its start is read off the SOURCE actor where it stands
+ * then -- not where the packet found it -- so a shot from a caster that walked
+ * during the start delay leaves from the caster. Only MapProjAnimV2 names a
+ * source; a classic packet leaves `source` NONE and the spawn tile stands.
+ *
+ * The start height is re-sampled from the ground under the new position. A
+ * source riding a boat keeps its spawn height: the spawn composed it from the
+ * deck (app_world_ground_composed), which this world's height hook cannot.
+ */
+static void
+World_ProjectileTrackSource(
+    struct World* world,
+    struct WorldEntity_Projectile* proj)
+{
+    int fx;
+    int fz;
+    bool on_deck;
+
+    assert(!proj->launched);
+    assert(proj->source != WORLD_PROJECTILE_TARGET_NONE);
+    if( !World_ProjectileActorAt(world, proj->source, &fx, &fz, &on_deck) )
+        return;
+    proj->src_x = fx;
+    proj->src_z = fz;
+    if( !on_deck && world->height_fn )
+        proj->h1 = world->height_fn(world->height_userdata, fx, fz, proj->level) -
+                   proj->start_height;
 }
 
 static void
@@ -1352,6 +1617,8 @@ World_CycleUpdateProjectiles(
 
         if( cycles_elapsed > 0 )
         {
+            if( !p->launched && p->source != WORLD_PROJECTILE_TARGET_NONE )
+                World_ProjectileTrackSource(world, p);
             World_ProjectileTrackTarget(world, p);
             World_ProjectileSetTarget(world, p, p->cycle);
             World_ProjectileMove(p, cycles_elapsed);

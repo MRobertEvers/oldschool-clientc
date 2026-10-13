@@ -194,6 +194,31 @@ enum ToriRS_MoverModel
 };
 
 /**
+ * How a projectile finds its two ends while it flies.
+ *
+ * Both eras integrate the same arc (ClientProj.update / class50.method940). They
+ * differ in where the arc starts and in what it aims at when its target goes
+ * away.
+ */
+enum ToriRS_ProjectileModel
+{
+    /**
+     * Client-TS: launches from the packet's source tile; a target that stops
+     * being synced leaves the last aim point standing (addProjectiles only
+     * re-aims `if (npc)`).
+     */
+    TORIRS_PROJECTILE_MODEL_CLASSIC = 0,
+    /**
+     * rev-239 (Statics.method8271, re-resolved every cycle): a vanished target
+     * sends the arc back to the packet's destination coordinate. The packet's
+     * source ACTOR, when it names one, is where the arc leaves from on its
+     * first cycle -- that half needs no flag, since only MapProjAnimV2 carries
+     * one.
+     */
+    TORIRS_PROJECTILE_MODEL_REV239 = 1,
+};
+
+/**
  * Whether the Controls panel's two "Attack" dropdowns exist, and what the
  * combat-level comparison does when they do not.
  *
@@ -233,8 +258,12 @@ struct ToriRS_FeatureTable
 
     /** enum ToriRS_PathingMode. 0 = client-side BFS. */
     int pathing_mode;
-    /** enum ToriRS_MoverModel. 0 = the 2004 per-cycle integer mover. */
+    /** enum ToriRS_MoverModel. 0 = the 2004 per-cycle integer mover. The same
+     *  switch carries the per-cycle actor order (facing before or after the
+     *  move) and the rev-239 anim-set choices; see world_cycle.c. */
     int mover_model;
+    /** enum ToriRS_ProjectileModel. 0 = Client-TS. */
+    int projectile_model;
     /** enum ToriRS_ApproachModel. 0 = legacy shape tests. */
     int approach_model;
     /**

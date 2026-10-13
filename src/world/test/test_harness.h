@@ -47,10 +47,18 @@ World_TestDefaultIdle(void)
         .readyanim = 100,
         .walkanim = 200,
         .turnanim = 300,
+        .turnanim_r = 300,
         .runanim = 400,
         .walkanim_b = 201,
         .walkanim_r = 202,
         .walkanim_l = 203,
+        .runanim_b = -1,
+        .runanim_r = -1,
+        .runanim_l = -1,
+        .crawlanim = -1,
+        .crawlanim_b = -1,
+        .crawlanim_r = -1,
+        .crawlanim_l = -1,
     };
 }
 
@@ -135,6 +143,16 @@ void test_cycle_movers(void);
 void test_delaymove_gate(void);
 void test_walk_keeps_up(void);
 void test_mover_model_flag(void);
+void test_rev239_faces_before_it_moves(void);
+void test_rev239_same_tile_keeps_its_yaw(void);
+void test_rev239_snap_keeps_the_readyanim(void);
+void test_rev239_mode1_keeps_its_facing_on_a_walk(void);
+void test_rev239_turn_seq_follows_the_direction(void);
+void test_rev239_run_and_crawl_directions(void);
+void test_rev239_opcode_109_catchup(void);
+void test_rev239_frame_mover_drops_the_z_carry(void);
+void test_rev239_exact_move_order(void);
+void test_rev239_projectile_ends(void);
 void test_stop_settles_promptly(void);
 void test_entity_face(void);
 void test_entity_face_across_frames(void);

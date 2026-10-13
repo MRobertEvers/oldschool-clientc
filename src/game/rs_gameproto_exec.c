@@ -795,10 +795,14 @@ exec_zone_sub_packet_at(
          * is also the initial aim point). peak/arc are Client-TS angle/startpos.
          * pkt->target names the entity the arc then homes on each cycle. */
         struct PktMapProjAnim const* pkt = payload;
-        int src_tx, src_tz, dst_tx, dst_tz;
+        int src_tx, src_tz, dst_tx, dst_tz, src_level;
         zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
         src_tx = tile_x;
         src_tz = tile_z;
+        /* The zone's plane is the SOURCE's; rev-239 states the landing plane
+         * separately in the absolute coord, and paints the projectile on the
+         * source's (method4319 adds it on field374). */
+        src_level = level;
         if( pkt->dst_abs )
         {
             /* Revision 239 states the landing point as an absolute CoordGrid;
@@ -836,6 +840,7 @@ exec_zone_sub_packet_at(
             app,
             src_tx,
             src_tz,
+            src_level,
             dst_tx,
             dst_tz,
             level,
@@ -846,7 +851,8 @@ exec_zone_sub_packet_at(
             pkt->end_delay,
             pkt->peak,
             pkt->arc,
-            pkt->target);
+            pkt->target,
+            pkt->source);
         break;
     }
     case PKT_NAME_LOC_MERGE:
