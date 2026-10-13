@@ -220,7 +220,7 @@ setup(void)
     }
 
     RS_Hitsplats_Init(&g_hitsplats);
-    CHECK(RS_Hitsplats_SetTypes(&g_hitsplats, sprite_ids, durations, slot_policies, variants,
+    CHECK(RS_Hitsplats_SetTypes(&g_hitsplats, sprite_ids, durations, slot_policies, NULL, variants,
                                 TYPE_COUNT),
           "SetTypes");
 
@@ -392,7 +392,7 @@ main(void)
         for( int i = 0; i < 4; i++ )
             sprites[i] = 100 + i;
         RS_Hitsplats_Init(&plain);
-        CHECK(RS_Hitsplats_SetTypes(&plain, sprites, NULL, NULL, NULL, 4), "SetTypes no variants");
+        CHECK(RS_Hitsplats_SetTypes(&plain, sprites, NULL, NULL, NULL, NULL, 4), "SetTypes no variants");
         CHECK_EQ(RS_Hitsplats_ResolveType(&plain, &g_varps, 2), 2, "no selector table: identity");
         CHECK_EQ(RS_Hitsplats_ResolveType(&plain, &g_varps, 99), 99, "out of range: identity");
         RS_Hitsplats_Free(&plain);

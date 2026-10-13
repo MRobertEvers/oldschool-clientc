@@ -49,6 +49,7 @@ Task_Dat2HitsplatLoad_Run(
     int* sprite_ids = NULL;
     int* durations = NULL;
     int* slot_policies = NULL;
+    int* text_offsets_y = NULL;
     struct RS_HitsplatVariants* variants = NULL;
     int count = 0;
     int decoded = 0;
@@ -93,6 +94,7 @@ Task_Dat2HitsplatLoad_Run(
     sprite_ids = malloc((size_t)count * sizeof(*sprite_ids));
     durations = malloc((size_t)count * sizeof(*durations));
     slot_policies = malloc((size_t)count * sizeof(*slot_policies));
+    text_offsets_y = malloc((size_t)count * sizeof(*text_offsets_y));
     /* calloc, not malloc: a type with no opcode 17/18 must read back as
      * `count == 0` and `ids == NULL`, which is how `ResolveType` tells an
      * ordinary appearance from a selector. */
@@ -100,6 +102,7 @@ Task_Dat2HitsplatLoad_Run(
     assert(sprite_ids);
     assert(durations);
     assert(slot_policies);
+    assert(text_offsets_y);
     assert(variants);
     /* -1 is "no sprite", and it is a real state rather than a hole: a quarter
      * of cache.osrs230's records genuinely carry no opcode 5. */
@@ -110,6 +113,7 @@ Task_Dat2HitsplatLoad_Run(
          * 12 behaves exactly as it did when both were hardcoded in the client. */
         durations[i] = WORLD_HITMARK_DEFAULT_DURATION;
         slot_policies[i] = WORLD_HITMARK_POLICY_DISCARD;
+        text_offsets_y[i] = 0;
     }
 
     for( int i = 0; i < filelist->file_count; i++ )
@@ -137,6 +141,7 @@ Task_Dat2HitsplatLoad_Run(
         sprite_ids[id] = entry.sprite_id;
         durations[id] = entry.duration;
         slot_policies[id] = entry.slot_policy;
+        text_offsets_y[id] = entry.text_offset_y;
         /*
          * The selector, laid out as the reference lays it out: the stream's
          * `variant_count` ids followed by the opcode-18 fallback, so the array
@@ -170,8 +175,8 @@ Task_Dat2HitsplatLoad_Run(
     RSCache_FileListFree(filelist);
     RSCache_Dat2DiskArchiveFree(archive);
 
-    if( !RS_Hitsplats_SetTypes(task->hitsplats, sprite_ids, durations, slot_policies, variants,
-                               count) )
+    if( !RS_Hitsplats_SetTypes(task->hitsplats, sprite_ids, durations, slot_policies,
+                               text_offsets_y, variants, count) )
     {
         for( int i = 0; i < count; i++ )
             free(variants[i].ids);
@@ -179,6 +184,7 @@ Task_Dat2HitsplatLoad_Run(
         free(sprite_ids);
         free(durations);
         free(slot_policies);
+        free(text_offsets_y);
         PT_EXIT(&task->pt);
     }
     /*

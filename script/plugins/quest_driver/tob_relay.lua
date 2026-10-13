@@ -793,12 +793,26 @@ function QD.raid.tob_relay_test(mode, opts)
         end
         -- down the trapdoor: the server walks me there first, so the chest is
         -- looked for until it is in view
+        -- (the five chest symbols in ONE C-filtered read, api_drive.locs_of:
+        -- five world.loc_near calls a tick each walked the whole scenery pool
+        -- twice, the relay's heaviest tick after P3, 128k instructions, c22m)
         local chest_sym, chest_at = nil, nil
+        local chest_ids, chest_syms = {}, {}
+        for k = 0, 4 do
+            local sym = "tob_treasureroom_chest_loc" .. k
+            local sr, id = api_drive.symbol("loc", sym)
+            if sr == "ok" then chest_ids[#chest_ids + 1], chest_syms[#chest_syms + 1] = id, sym end
+        end
         for _ = 1, 40 do
-            for k = 0, 4 do
-                local sym = "tob_treasureroom_chest_loc" .. k
-                local lr, row = t.world.loc_near(sym, 30)
-                if lr == "ok" and row ~= nil then chest_sym = sym break end
+            local lr, rows = "not_found", nil
+            if #chest_ids > 0 then lr, rows = api_drive.locs_of(30, chest_ids) end
+            if lr == "ok" then
+                for k, id in ipairs(chest_ids) do
+                    for _, row in ipairs(rows) do
+                        if row.loc_id == id or row.resolved_loc_id == id then chest_sym = chest_syms[k] break end
+                    end
+                    if chest_sym ~= nil then break end
+                end
             end
             if chest_sym ~= nil then break end
             t.ticks(1)

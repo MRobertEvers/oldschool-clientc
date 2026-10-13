@@ -1391,6 +1391,78 @@ d_locs(lua_State* L)
     return 2;
 }
 
+/* api_drive.locs_of(radius, ids): d_locs's rows, in its order, kept only
+ * where the loc id is one of `ids` (the client's lua_drive_locs_of also
+ * keeps a resolved_loc_id match; here the two are the same id). */
+static int
+d_locs_of(lua_State* L)
+{
+    struct ScriptBot* bot = bot_of(L);
+    struct ScriptrunCore* c = bot->core;
+    int radius = (int)luaL_optinteger(L, 1, 0);
+    int px = 0, pz = 0, plevel = 0;
+    int have = ScriptrunCore_LocalTile(c, &px, &pz, &plevel);
+    int n = 0, n_ids, ids[16];
+    struct PoolOrder* order;
+    int kept = 0;
+
+    luaL_checktype(L, 2, LUA_TTABLE);
+    n_ids = (int)lua_rawlen(L, 2);
+    luaL_argcheck(L, n_ids >= 1 && n_ids <= 16, 2, "locs_of: 1..16 ids");
+    for( int k = 0; k < n_ids; k++ )
+    {
+        lua_rawgeti(L, 2, k + 1);
+        ids[k] = (int)luaL_checkinteger(L, -1);
+        lua_pop(L, 1);
+    }
+    order = malloc(sizeof(*order) * (size_t)(c->loc_count > 0 ? c->loc_count : 1));
+    assert(order);
+    for( int i = 0; i < c->loc_count; i++ )
+    {
+        struct ScriptrunLoc const* l = &c->locs[i];
+        if( l->loc_id < 0 || (have && radius > 0 && cheb(px, pz, l->x, l->z) > radius) )
+            continue;
+        order[kept].idx = i;
+        order[kept].dist = have ? dist2(l->x, l->z, px, pz) : 0;
+        kept++;
+    }
+    /* the same sort as d_locs over the same rows, THEN the filter: the kept
+     * rows' order is d_locs's order */
+    qsort(order, (size_t)kept, sizeof(order[0]), pool_order_cmp);
+    lua_pushstring(L, "ok");
+    lua_newtable(L);
+    for( int k = 0; k < kept; k++ )
+    {
+        int i = order[k].idx, j;
+        struct ScriptrunLoc const* l = &c->locs[i];
+        for( j = 0; j < n_ids; j++ )
+            if( l->loc_id == ids[j] )
+                break;
+        if( j == n_ids )
+            continue;
+        lua_newtable(L);
+        lua_pushinteger(L, l->loc_id);
+        lua_setfield(L, -2, "loc_id");
+        lua_pushinteger(L, l->loc_id);
+        lua_setfield(L, -2, "resolved_loc_id");
+        lua_pushinteger(L, l->x);
+        lua_setfield(L, -2, "x");
+        lua_pushinteger(L, l->z);
+        lua_setfield(L, -2, "z");
+        lua_pushinteger(L, l->level);
+        lua_setfield(L, -2, "level");
+        lua_pushinteger(L, l->shape);
+        lua_setfield(L, -2, "shape");
+        lua_pushinteger(L, l->angle);
+        lua_setfield(L, -2, "angle");
+        lua_pushinteger(L, i + 1);
+        lua_setfield(L, -2, "element_id");
+        lua_rawseti(L, -2, ++n);
+    }
+    free(order);
+    return 2;
+}
+
 static int
 d_empty_list(lua_State* L)
 {
@@ -1888,6 +1960,62 @@ d_plan(lua_State* L)
         return 2;
     }
     return DrivePlanLua(L, 1, cm, world->_base_tile_x, world->_base_tile_z, world->_scene_size, px, pz);
+}
+
+/* The relay's heavy Lua in C: the same functions the client binds
+ * (plugin/torirs_drive_plan_lua.h). */
+static int
+d_yellow_chains(lua_State* L)
+{
+    return DriveYellowChainsLua(L);
+}
+
+static int
+d_yellow_match(lua_State* L)
+{
+    return DriveYellowMatchLua(L);
+}
+
+static int
+d_tiles_nearest(lua_State* L)
+{
+    return DriveTilesNearestLua(L);
+}
+
+static int
+d_sote_guard(lua_State* L)
+{
+    return DriveSoteGuardLua(L);
+}
+
+/* api_drive.bloat_first_bad(spec, x, z, at): over this bot's collision map,
+ * as d_aplan reads it. */
+static int
+d_bloat_first_bad(lua_State* L)
+{
+    struct ScriptBot* bot = bot_of(L);
+    struct ScriptrunCore* c = bot->core;
+    struct World* world = c->world;
+    struct CollisionMap* cm;
+    int px = 0, pz = 0, level = 0;
+
+    luaL_checktype(L, 1, LUA_TTABLE);
+    if( !c->have_collision || !ScriptrunCore_LocalTile(c, &px, &pz, &level) )
+    {
+        lua_pushstring(L, "not_visible");
+        return 1;
+    }
+    if( level < 0 )
+        level = 0;
+    if( level >= COLLISION_LEVELS )
+        level = COLLISION_LEVELS - 1;
+    cm = world->collision_maps[level];
+    if( !cm )
+    {
+        lua_pushstring(L, "no_row");
+        return 1;
+    }
+    return DriveBloatFirstBadLua(L, 1, cm, world->_base_tile_x, world->_base_tile_z);
 }
 
 /* api_drive.meet_rank(spec): Verzik P3's ball meeting-tile rank, the same
@@ -2541,19 +2669,19 @@ d_noop(lua_State* L)
  * bound above answer "unsupported" rather than being nil, so a part that probes
  * a capability degrades the way it does on a client without it. */
 static char const* const CLIENT_VERBS[] = {
-    "action_for_slot", "aplan", "botdrive", "camera", "camera_events", "camera_pose", "camera_state",
+    "action_for_slot", "aplan", "bloat_first_bad", "botdrive", "camera", "camera_events", "camera_pose", "camera_state",
     "camera_turn_release", "camera_turn_toward", "click_armed", "events", "forget_varps",
     "inv_arm", "inv_cast", "inv_use_on", "launch_answer", "launch_close",
     "launch_command", "launch_open", "launch_spawn", "launch_status", "loc_copies",
-    "loc_variants", "meet_rank", "menu_rect", "menu_row_find", "menu_rows", "menu_visible", "meslayer_mode",
+    "loc_variants", "locs_of", "meet_rank", "menu_rect", "menu_row_find", "menu_rows", "menu_visible", "meslayer_mode",
     "modal_group", "modal_live", "model_points", "model_pose", "mouse_button", "mouse_move",
     "move_near", "npc_pose", "npc_record", "op_available", "option_row", "options",
     "party_host", "pause_pending", "pick_holds", "pick_point", "play", "player_delayed",
     "plan", "pump", "quit", "render_frame", "render_skip", "route", "say", "screen_position", "server_los",
-    "server_npc_pack", "shot", "spell_arm", "start", "stop", "tab", "tab_by_name", "tests",
-    "text", "var_content", "varbit_base", "varbit_content", "vessel", "view_attach",
+    "server_npc_pack", "shot", "sote_guard", "spell_arm", "start", "stop", "tab", "tab_by_name", "tests",
+    "text", "tiles_nearest", "var_content", "varbit_base", "varbit_content", "vessel", "view_attach",
     "view_detach", "view_interact", "view_status", "view_watcher", "widget_at",
-    "widget_bounds", "widget_model", "widget_own_hidden", "world_gate",
+    "widget_bounds", "widget_model", "widget_own_hidden", "world_gate", "yellow_chains", "yellow_match",
 };
 
 static void
@@ -2632,6 +2760,12 @@ push_drive_table(
     bind(L, bot, "plan", d_plan);
     bind(L, bot, "aplan", d_aplan);
     bind(L, bot, "meet_rank", d_meet_rank);
+    bind(L, bot, "yellow_chains", d_yellow_chains);
+    bind(L, bot, "yellow_match", d_yellow_match);
+    bind(L, bot, "tiles_nearest", d_tiles_nearest);
+    bind(L, bot, "sote_guard", d_sote_guard);
+    bind(L, bot, "bloat_first_bad", d_bloat_first_bad);
+    bind(L, bot, "locs_of", d_locs_of);
     bind(L, bot, "say", d_say);
     bind(L, bot, "tab_by_name", d_tab_by_name);
     bind(L, bot, "pause_pending", d_pause_pending);

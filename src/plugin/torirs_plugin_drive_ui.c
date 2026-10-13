@@ -2919,6 +2919,112 @@ lua_drive_aplan(struct lua_State* L)
     }
 }
 
+/* The relay's heavy Lua in C (plugin/torirs_drive_plan_lua.h; scriptrun binds
+ * the same functions): pure ones take no world. */
+static int
+lua_drive_yellow_chains(struct lua_State* L)
+{
+    return DriveYellowChainsLua(L);
+}
+
+static int
+lua_drive_yellow_match(struct lua_State* L)
+{
+    return DriveYellowMatchLua(L);
+}
+
+static int
+lua_drive_tiles_nearest(struct lua_State* L)
+{
+    return DriveTilesNearestLua(L);
+}
+
+static int
+lua_drive_sote_guard(struct lua_State* L)
+{
+    return DriveSoteGuardLua(L);
+}
+
+/* api_drive.bloat_first_bad(spec, x, z, at): over the client's collision map
+ * at the player's level, as lua_drive_aplan reads it. */
+static int
+lua_drive_bloat_first_bad(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+    struct WorldEntity_Player* player;
+    struct CollisionMap* cm;
+    int level;
+
+    luaL_checktype(L, 1, LUA_TTABLE);
+    if( !app->world || !app->world->load_complete )
+    {
+        lua_pushstring(L, "not_visible");
+        return 1;
+    }
+    player = drive_ui_local_player(app);
+    if( !player )
+    {
+        lua_pushstring(L, "not_visible");
+        return 1;
+    }
+    level = player->grid_position.level;
+    if( level < 0 )
+        level = 0;
+    if( level >= COLLISION_LEVELS )
+        level = COLLISION_LEVELS - 1;
+    cm = drive_ui_collision_maps(app)[level];
+    if( !cm )
+    {
+        lua_pushstring(L, "no_row");
+        return 1;
+    }
+    return DriveBloatFirstBadLua(L, 1, cm, app->world->_base_tile_x, app->world->_base_tile_z);
+}
+
+/* api_drive.locs_of(radius, ids) -> api_drive.locs(radius)'s rows, in its
+ * order, kept only where loc_id or resolved_loc_id is one of `ids` (the
+ * filter the room loops did over every row in Lua). */
+static int
+lua_drive_locs_of(struct lua_State* L)
+{
+    enum
+    {
+        DRIVE_UI_POOL_CAP = 8192,
+        DRIVE_UI_IDS_MAX = 16
+    };
+    struct App* app = PluginDrive_App();
+    int radius = PluginDrive_ArgOptInt(L, 1, 0);
+    static struct DriveLocRow rows[DRIVE_UI_POOL_CAP];
+    int ids[DRIVE_UI_IDS_MAX];
+    int n_ids, count = 0, i, j, n = 0;
+    enum DriveResult result;
+
+    assert(app);
+    luaL_checktype(L, 2, LUA_TTABLE);
+    n_ids = (int)lua_rawlen(L, 2);
+    luaL_argcheck(L, n_ids >= 1 && n_ids <= DRIVE_UI_IDS_MAX, 2, "locs_of: 1..16 ids");
+    for( i = 0; i < n_ids; i++ )
+    {
+        lua_rawgeti(L, 2, i + 1);
+        ids[i] = (int)luaL_checkinteger(L, -1);
+        lua_pop(L, 1);
+    }
+    result = DriveUi_Locs(app, radius, rows, DRIVE_UI_POOL_CAP, &count);
+    lua_pushstring(L, DriveResultName(result));
+    lua_newtable(L);
+    for( i = 0; i < count; i++ )
+    {
+        for( j = 0; j < n_ids; j++ )
+            if( rows[i].loc_id == ids[j] || rows[i].resolved_loc_id == ids[j] )
+                break;
+        if( j == n_ids )
+            continue;
+        drive_ui_push_loc_row(L, &rows[i]);
+        lua_rawseti(L, -2, ++n);
+    }
+    return 2;
+}
+
 /* api_drive.meet_rank(spec): Verzik P3's ball meeting-tile rank
  * (plugin/torirs_drive_plan_lua.h DriveMeetRankLua, shared with scriptrun's
  * d_meet_rank; engine/world_builder/action_plan.c meet_rank). Pure geometry:
@@ -3288,6 +3394,12 @@ static struct LuaFn const LUA_DRIVE_UI_FNS[] = {
     {"plan", lua_drive_plan},
     {"aplan", lua_drive_aplan},
     {"meet_rank", lua_drive_meet_rank},
+    {"yellow_chains", lua_drive_yellow_chains},
+    {"yellow_match", lua_drive_yellow_match},
+    {"tiles_nearest", lua_drive_tiles_nearest},
+    {"sote_guard", lua_drive_sote_guard},
+    {"bloat_first_bad", lua_drive_bloat_first_bad},
+    {"locs_of", lua_drive_locs_of},
     {"key", lua_drive_key},
     {"text", lua_drive_text},
     {"shot", lua_drive_shot},

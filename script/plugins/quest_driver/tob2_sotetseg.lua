@@ -591,11 +591,13 @@ function SV.landing_guard(S, F, B)
     local mov = {}
     for _, r in ipairs(rics) do
         mov[#mov + 1] = { tk = r.tm, red = false, land = function(x, z)
-            return r.lv + (41 + 8 * cheb(x, z, r.v.x, r.v.z)) // 30 + r.o end }
+            return r.lv + (41 + 8 * cheb(x, z, r.v.x, r.v.z)) // 30 + r.o end,
+            c = { tk = r.tm, red = false, a = r.lv, o = r.o, x = r.v.x, z = r.v.z } }
     end
     for _, T in ipairs(slots) do
         mov[#mov + 1] = { tk = T - 1, red = true, land = function(x, z)
-            return T + (56 + 8 * cheb(x, z, src.x, src.z)) // 30 end }
+            return T + (56 + 8 * cheb(x, z, src.x, src.z)) // 30 end,
+            c = { tk = T - 1, red = true, a = T, o = 0, x = src.x, z = src.z } }
     end
     -- THE RICOCHETS THAT MAY COME: his ball at slot T may go to any teammate
     -- V (1 in 5); it lands T + (56 + 8 d(V, SRC)) // 30 and its ricochet at
@@ -613,42 +615,26 @@ function SV.landing_guard(S, F, B)
                 local tm = (me < rd.pid) and lv or (lv - 1)
                 if tm >= now + 1 and tm <= hz then
                     hyp[#hyp + 1] = { tk = tm, land = function(x, z)
-                        return lv + (41 + 8 * cheb(x, z, rd.x, rd.z)) // 30 + o end }
+                        return lv + (41 + 8 * cheb(x, z, rd.x, rd.z)) // 30 + o end,
+                        c = { tk = tm, lv = lv, o = o, x = rd.x, z = rd.z } }
                 end
             end
         end
     end
-    local R = X.GUARD_R
-    local n = 0
-    local function forbid(x, z, t, name)
-        if n >= X.GUARD_MAX then return end
-        n = n + 1
-        B.hit{ name = name, x = x, z = z, size = 1, t0 = t, t1 = t, forbid = true }
-    end
-    for dx = -R, R do
-        for dz = -R, R do
-            local x, z = F.me.x + dx, F.me.z + dz
-            local l = {}
-            for i, m in ipairs(mov) do l[i] = m.land(x, z) end
-            for _, h in ipairs(hyp) do
-                if clash_fixed(h.land(x, z), false) then forbid(x, z, h.tk, "two-styles-maybe") end
-            end
-            for i, m in ipairs(mov) do
-                -- against what is already in the air at me (his ball is
-                -- magic: only a grey clashes with it)
-                if clash_fixed(l[i], m.red) then forbid(x, z, m.tk, m.red and "two-styles-ball" or "two-styles-ric") end
-                -- against another landing fixed on the same tick or the next
-                -- (my tile barely changes in one tick: judged on one tile,
-                -- at both ticks); two of his balls are both magic
-                for j = i + 1, #mov do
-                    local m2 = mov[j]
-                    if math.abs(m2.tk - m.tk) <= 1 and l[j] == l[i] and not (m.red and m2.red) then
-                        forbid(x, z, m.tk, "two-styles-pair")
-                        if m2.tk ~= m.tk then forbid(x, z, m2.tk, "two-styles-pair") end
-                    end
-                end
-            end
-        end
+    -- THE SCAN, IN C (api_drive.sote_guard, the same tiles, tests and order
+    -- as the Lua it replaced; its peak was Sotetseg's heaviest tick, 119k):
+    -- every tile within GUARD_R of me against what is already in the air
+    -- at me (his ball is magic: only a grey clashes with it), and against
+    -- another landing fixed on the same tick or the next (judged on one
+    -- tile at both ticks); two of his balls are both magic.
+    local spec = { me = { x = F.me.x, z = F.me.z }, r = X.GUARD_R, max = X.GUARD_MAX, fixed = fixed, mov = {}, hyp = {} }
+    for _, m in ipairs(mov) do spec.mov[#spec.mov + 1] = m.c end
+    for _, h in ipairs(hyp) do spec.hyp[#spec.hyp + 1] = h.c end
+    local gr, out = api_drive.sote_guard(spec)
+    assert(gr == "ok", "sote_guard answered " .. tostring(gr))
+    local NAMES = { [0] = "two-styles-maybe", [1] = "two-styles-ball", [2] = "two-styles-ric", [3] = "two-styles-pair" }
+    for _, f in ipairs(out) do
+        B.hit{ name = NAMES[f[4]], x = f[1], z = f[2], size = 1, t0 = f[3], t1 = f[3], forbid = true }
     end
 end
 

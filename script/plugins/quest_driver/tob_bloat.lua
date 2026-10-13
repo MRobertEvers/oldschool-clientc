@@ -667,27 +667,45 @@ end
 -- (one base spec per arrival tick and horizon a tick: the watchers walk his
 -- lap per branch and step, and a spec per candidate tile exhausted the
 -- instruction budget on the first tick, b25)
-function QD.raid._bloat_holds(S, F, tile, at, h, loose)
+-- (IN C, api_drive.bloat_first_bad, owner 2026-10-13 "port any heavy lua
+-- functions to C": the hold was a plan per tile and horizon over a spec
+-- whose watchers walked his lap per branch and step - Bloat's heaviest
+-- ticks, 109k median and 160k peak of the 400000 budget, c22m. A plan held
+-- on one tile by a lethal require zone has no lethal charge exactly when
+-- no lethal term touches that tile on those ticks: his footprints of the
+-- way he is going (the flies, lethal), a hand, the stomp; the other
+-- branches are damage. The C reads the same terms _bloat_spec gave the
+-- plan - _bloat_watchers' footprints, the hands, the stomp - with the
+-- plan's own sight rule (collision_plan_watcher_sees), and answers the
+-- first tick each tier touches the tile.)
+function QD.raid._bloat_hold_spec(S, F)
     local V = S.V
-    if S.holds_tick ~= F.tick then S.holds_tick, S.holds_base = F.tick, {} end
-    local base = S.holds_base[at]
-    if base == nil then
-        base = QD.raid._bloat_spec(S, F, tile, at, nil, nil, V.HOLD_LONG)
-        base.beam, base.pulls = 2, {}
-        S.holds_base[at] = base
+    if S.hold_spec_tick == F.tick then return S.hold_spec end
+    local corner = {}
+    for i = 1, #S.lap do corner[i] = S.lap_corner[i] == true end
+    local hands = {}
+    for _, sh in ipairs(S.shadows) do hands[#hands + 1] = { x = sh.x, z = sh.z, t0 = sh.seen + 1, t1 = sh.seen + 2 } end
+    local spec = { lap = S.lap, corner = corner, size = V.SIZE, pos = S.pos, branches = QD.raid._bloat_branches(S, F),
+        tick = F.tick, down_at = S.down_at, rise = V.RISE, hold_long = V.HOLD_LONG, hands = hands }
+    if S.down_at and F.boss then
+        spec.stomp = { x = F.boss.x, z = F.boss.z, t = S.down_at + V.STOMP - 1, before = S.down_at + V.STOMP }
     end
-    local spec = {}
-    for k, v in pairs(base) do spec[k] = v end
-    spec.h = h
-    spec.from = { x = tile.x, z = tile.z }
-    spec.zones = {}
-    for i, zn in ipairs(base.zones) do spec.zones[i] = zn end
-    spec.zones[#spec.zones + 1] = { x = tile.x, z = tile.z, size = 1, lo = 0, hi = 0, require = true,
-        t0 = at + 1, t1 = at + h, tier = "lethal", cost = V.WATCH_COST }
-    local r, plan = api_drive.plan(spec)
-    assert(r == "ok", "bloat_solve: the hold plan answered " .. tostring(r))
-    S.expanded = S.expanded + (plan.expanded or 0)
-    return plan.lethal == 0 and (loose or plan.damage == 0)
+    S.hold_spec_tick, S.hold_spec, S.hold_memo = F.tick, spec, {}
+    return spec
+end
+
+function QD.raid._bloat_holds(S, F, tile, at, h, loose)
+    local spec = QD.raid._bloat_hold_spec(S, F)
+    local key = tile.x .. "," .. tile.z .. "@" .. at
+    local memo = S.hold_memo[key]
+    if memo == nil then
+        local r, lt, dt = api_drive.bloat_first_bad(spec, tile.x, tile.z, at)
+        assert(r == "ok", "bloat_solve: bloat_first_bad answered " .. tostring(r))
+        memo = { lt, dt }
+        S.hold_memo[key] = memo
+    end
+    local lt, dt = memo[1], memo[2]
+    return (lt == 0 or lt > at + h) and (loose or dt == 0 or dt > at + h)
 end
 
 -- How many ticks `tile` (absolute) stays safe against EVERY branch from my

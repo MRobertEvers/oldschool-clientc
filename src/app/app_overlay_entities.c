@@ -370,10 +370,16 @@ app_overlay_build_entity(
          * available draws the number alone, which is what this used to do
          * always.
          */
+        snprintf(text, sizeof(text), "%d", combat->damage_values[i]);
         {
             int splat_sprite = RS_Hitsplats_SpriteFor(&app->hitsplats, splat_type);
             int splat_scene = -1;
             int splat_frame = 0;
+            bool from_archive = false;
+            /* Client.ts's placement: the splat's top-left at (x-12, y-12) and
+             * the white number centred one px left of x. */
+            int splat_x = screen_x - 12;
+            int text_cx = screen_x - 1;
 
             if( splat_sprite >= 0 )
                 splat_scene = UITreeSceneBridge_EnsureSprite(&app->bridge, splat_sprite);
@@ -385,12 +391,62 @@ app_overlay_build_entity(
                  * id space from the config table. The two agree today only
                  * because a dat1 cache has no selectors to resolve. */
                 splat_frame = combat->damage_types[i];
+                from_archive = true;
             }
+
+            /*
+             * OldSchool's placement (deob Statics.method10685), which sizes the
+             * splat around its text rather than pinning it at x-12:
+             *
+             *   total = 2 + body_w          (2 + text_w when there is no body)
+             *   left  = x - (total >> 1)
+             *   body drawn at left + 2      (its x offset cancelled, its y kept)
+             *   text  left-aligned at left + 2 + (body_w - text_w) / 2
+             *
+             * For the 24-px damage body that is x-11, not x-12, and the number
+             * sits two px right of where centring on x-1 put it. The icon, left
+             * and right pieces (opcodes 3/4/6) would widen `total` too; nothing
+             * here draws them yet, so they are left out of the sum as well.
+             *
+             * The overlay text is drawn centred (x - width/2), so the left edge
+             * is reached by handing it left + text_w/2 — the same measure the
+             * renderers centre with, so the two halves cancel exactly.
+             */
+            if( app->hitsplats.count > 0 && !from_archive )
+            {
+                int body_w = 0;
+                int body_crop_x = 0;
+                int const text_w = font_id >= 0 ? app_measure_text_cb(app, font_id, text) : 0;
+                int total;
+                int left;
+                int text_left;
+
+                if( splat_scene >= 0 )
+                {
+                    int count = 0;
+                    struct ToriDraw_Sprite** frames =
+                        ToriDraw_SceneSpriteGet(app->scene, splat_scene, &count);
+                    if( frames && count > 0 && frames[0] )
+                    {
+                        body_w = frames[0]->width;
+                        body_crop_x = frames[0]->crop_x;
+                    }
+                }
+                total = 2 + (body_w > 0 ? body_w : text_w);
+                left = screen_x - (total >> 1);
+                text_left = left + 2;
+                if( body_w > 0 )
+                    text_left += (body_w - text_w) / 2;
+                /* The blit adds crop_x back; the reference cancels it. */
+                splat_x = left + 2 - body_crop_x;
+                text_cx = text_left + text_w / 2;
+            }
+
             if( splat_scene >= 0 )
             {
                 struct UITreeEntityOverlay spr = {
                     .kind = UITREE_ENTITY_OVERLAY_SPRITE,
-                    .x = screen_x - 12,
+                    .x = splat_x,
                     .y = screen_y - 12,
                     .w = 0,
                     .h = 0,
@@ -399,25 +455,37 @@ app_overlay_build_entity(
                 };
                 app_overlay_push(app, &spr);
             }
-        }
-        snprintf(text, sizeof(text), "%d", combat->damage_values[i]);
-        if( font_id >= 0 )
-        {
-            /* Black shadow then white, offset by one px — reference draws the
-             * number twice (Client.ts:4931-4932). */
-            struct UITreeEntityOverlay num = {
-                .kind = UITREE_ENTITY_OVERLAY_TEXT,
-                .x = screen_x,
-                .y = screen_y + 4,
-                .font_id = font_id,
-                .color = 0xFF000000u,
-            };
-            snprintf(num.text, sizeof(num.text), "%s", text);
-            app_overlay_push(app, &num);
-            num.x = screen_x - 1;
-            num.y = screen_y + 3;
-            num.color = 0xFFFFFFFFu;
-            app_overlay_push(app, &num);
+
+            if( font_id >= 0 )
+            {
+                /*
+                 * White over a black copy one px down-right — reference draws
+                 * the number twice (Client.ts:4931-4932; the deob's shadowed
+                 * draw is the same offset).
+                 *
+                 * The baseline is the splat's top + 15 in both eras; OldSchool
+                 * adds the resolved type's opcode 13 below it (deob
+                 * Statics.method10685: `field5304 + var36 + 15`). cache.osrs239
+                 * states 1 for damage and block and 2 for poison and most of the
+                 * max-hit family, so leaving it out drew every number one or two
+                 * pixels high. A dat1 cache has no table and answers 0, which is
+                 * Client.ts's layout unchanged.
+                 */
+                int const text_dy = RS_Hitsplats_TextOffsetYFor(&app->hitsplats, splat_type);
+                struct UITreeEntityOverlay num = {
+                    .kind = UITREE_ENTITY_OVERLAY_TEXT,
+                    .x = text_cx + 1,
+                    .y = screen_y + 4 + text_dy,
+                    .font_id = font_id,
+                    .color = 0xFF000000u,
+                };
+                snprintf(num.text, sizeof(num.text), "%s", text);
+                app_overlay_push(app, &num);
+                num.x = text_cx;
+                num.y = screen_y + 3 + text_dy;
+                num.color = 0xFFFFFFFFu;
+                app_overlay_push(app, &num);
+            }
         }
     }
 }

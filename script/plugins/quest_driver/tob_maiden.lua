@@ -233,7 +233,8 @@ end
 -- The trails (loc rows, by tile and first sight) and each spawn's last step.
 function QD.raid._maiden_trails(S, F)
     local V = QD.MAIDEN
-    local r, rows = api_drive.locs(2 * V.H + 2)
+    -- (only the trail rows, filtered in C: api_drive.locs_of)
+    local r, rows = api_drive.locs_of(2 * V.H + 2, { S.ids.trail })
     local here = {}
     if r == "ok" then
         for _, row in ipairs(rows) do

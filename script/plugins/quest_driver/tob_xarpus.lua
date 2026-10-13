@@ -203,7 +203,11 @@ function QD.raid._xarp_measure(S, F)
     end
     -- THE LOCS: exhumeds (keyed on tile, first seen), pools
     F.pools = {}
-    local lr, rows = api_drive.locs(16)
+    -- (only the rows of these locs, filtered in C: api_drive.locs_of; the
+    -- filter over every loc row was a third of Xarpus's instructions)
+    local want = {}
+    for _, id in ipairs({ ids.exhumed, ids.pool, ids.skeleton }) do want[#want + 1] = id end
+    local lr, rows = api_drive.locs_of(16, want)
     if lr ~= "ok" then rows = {} end
     local seen = {}
     F.skeleton = nil

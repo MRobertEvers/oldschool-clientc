@@ -99,6 +99,8 @@ struct RS_Hitsplats
     int* durations;
     /** Opcode 12: -1 discard, 0 evict oldest, 1 evict smallest. Defaults to -1. */
     int* slot_policies;
+    /** Opcode 13: extra pixels down for the number's baseline. Defaults to 0. */
+    int* text_offsets_y;
     /** Per type; `count == 0` on a type that is a plain appearance. May be NULL
      *  for a cache whose records carry no selector at all. */
     struct RS_HitsplatVariants* variants;
@@ -112,10 +114,10 @@ void
 RS_Hitsplats_Free(struct RS_Hitsplats* hitsplats);
 
 /**
- * Takes ownership of all four arrays, and of every `variants[i].ids`.
+ * Takes ownership of all five arrays, and of every `variants[i].ids`.
  *
- * `durations`/`slot_policies` may be NULL, in which case every type reports the
- * reference's defaults; `variants` may be NULL, in which case no type is a
+ * `durations`/`slot_policies`/`text_offsets_y` may be NULL, in which case every
+ * type reports the reference's defaults; `variants` may be NULL, in which case no type is a
  * selector and `ResolveType` is the identity.
  */
 int
@@ -124,6 +126,7 @@ RS_Hitsplats_SetTypes(
     int* sprite_ids,
     int* durations,
     int* slot_policies,
+    int* text_offsets_y,
     struct RS_HitsplatVariants* variants,
     int count);
 
@@ -162,6 +165,13 @@ RS_Hitsplats_DurationFor(
 /** Slot-full policy. Falls back to the reference's -1 (discard the new splat). */
 int
 RS_Hitsplats_SlotPolicyFor(
+    struct RS_Hitsplats const* hitsplats,
+    int hitsplat_type);
+
+/** Opcode 13 for a hitsplat type: pixels the number's baseline sits below the
+ *  reference's `top + 15`. Falls back to the reference's 0. */
+int
+RS_Hitsplats_TextOffsetYFor(
     struct RS_Hitsplats const* hitsplats,
     int hitsplat_type);
 
