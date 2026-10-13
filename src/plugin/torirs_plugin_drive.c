@@ -280,7 +280,7 @@ static int g_demand_camera_saved;
  * Play run as a member has the QD_PARTY a run.py member's wrapper gives. */
 enum
 {
-    DRIVE_PARTY_MAX = 4,
+    DRIVE_PARTY_MAX = 5,
     DRIVE_ACCOUNT_MAX = 16,
 };
 static int g_demand_party_role;
@@ -3382,7 +3382,7 @@ lua_drive_party_host(struct lua_State* L)
         "drive.party_host: the party link is not available on this platform");
 #else
     if( port < 1 || port > 65535 || size < 2 || size > DRIVE_PARTY_MAX )
-        return PluginDrive_PushResult(L, DRIVE_REFUSED, "drive.party_host: port 1..65535, size 2..4");
+        return PluginDrive_PushResult(L, DRIVE_REFUSED, "drive.party_host: port 1..65535, size 2..5");
     if( !g_embed || !ToriRSServer_EmbedWorld(g_embed) )
         return PluginDrive_PushResult(L, DRIVE_REFUSED,
             "drive.party_host: this client hosts no world (a member, or not logged in)");

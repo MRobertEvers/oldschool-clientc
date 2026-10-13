@@ -30,7 +30,10 @@
 --                most, and nobody has to drink to full for it.
 -- ==========================================================================
 
-QD.SOTE_HM = setmetatable({
+-- Hard Mode's overrides over a copy of the Normal table: a copy, not a
+-- metatable (the plugin sandbox has no setmetatable; QD.SOTE is complete
+-- once its file has loaded, and nothing writes its fields at run time).
+QD.SOTE_HM = {
     -- five faces: west, east, north-centre and the north face's two ends
     STATION = { [1] = { x = 12, z = 40 }, [2] = { x = 18, z = 40 }, [3] = { x = 15, z = 43 },
                 [4] = { x = 13, z = 43 }, [5] = { x = 17, z = 43 } },
@@ -43,7 +46,8 @@ QD.SOTE_HM = setmetatable({
     -- every seat's Dragon Warhammer specials as he wakes, before the tentacle
     HAMMER_OPENER = true, OPENER_TICKS = 24,
     CARROT = 3,
-}, { __index = QD.SOTE })
+}
+for k, v in pairs(QD.SOTE) do if QD.SOTE_HM[k] == nil then QD.SOTE_HM[k] = v end end
 
 function QD.raid._sote_hm_ids(S)
     local ids = S.ids

@@ -27,6 +27,7 @@
 
 #include "plugin/torirs_plugin_lua.h"
 #include "torirsserver/torirs_server.h"
+#include "torirsserver/torirs_server_embed.h"
 
 #include "lauxlib.h"
 #include "lua.h"
@@ -228,6 +229,21 @@ lua_drive_ticklog_mark(struct lua_State* L)
 
     if( !srv )
     {
+        /* A party member: its world, and so its tick log, is the leader's.
+         * The mark crosses the link before this tick's READY and the leader
+         * pushes it at the boundary, stamped with this tick (the 'K' frame,
+         * torirs_server_embed.h) -- as scriptrun pushes every bot's mark
+         * into its one log. The leader's serial is not known here: 0. */
+        if( ToriRSServer_EmbedMemberMarkPush(label) )
+        {
+            lua_pushstring(L, DriveResultName(DRIVE_OK));
+            lua_createtable(L, 0, 2);
+            lua_pushinteger(L, 0);
+            lua_setfield(L, -2, "serial");
+            lua_pushinteger(L, (lua_Integer)PluginDrive_ServerTick());
+            lua_setfield(L, -2, "tick");
+            return 2;
+        }
         lua_pushstring(L, DriveResultName(DRIVE_UNSUPPORTED));
         lua_pushnil(L);
         return 2;

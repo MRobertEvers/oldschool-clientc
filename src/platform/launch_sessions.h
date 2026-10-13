@@ -56,8 +56,8 @@
 enum
 {
     /* torirs_server_embed.h TORIRSSERVER_EMBED_CLIENT_MAX: a party is the
-     * leader (seat 1) and up to three members. */
-    LAUNCH_SESSIONS_PARTY_MAX = 4,
+     * leader (seat 1) and up to four members. */
+    LAUNCH_SESSIONS_PARTY_MAX = 5,
     LAUNCH_SESSIONS_SESSION_MAX = 8,
     LAUNCH_SESSIONS_MAILBOX_MAX = 16,
     LAUNCH_SESSIONS_SEAT_ENV_MAX = 16,

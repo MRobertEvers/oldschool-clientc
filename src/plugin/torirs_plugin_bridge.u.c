@@ -4210,6 +4210,38 @@ app_plugin_world_op(struct App* app, enum DrivePickKind kind, int element_id, in
 }
 
 /*
+ * OPLOC `option` (1..5) on a loc the SERVER has placed at (`abs_x`,`abs_z`)
+ * that this client's scenery does not show yet: a zone change waits on its
+ * models before the scene lands it (App_DriveLocChangeNote), so there is no
+ * element to pick and app_plugin_world_op cannot reach it. The wire wants only
+ * the op, the tile and the id (net_out_oploc); the server paths, as it does for
+ * every op under the server-authoritative era (app_try_move_op sends no route
+ * there). This is what scriptrun's d_world_op sends for the same press, on the
+ * tick its packet-built loc list shows the change -- a live seat pressing the
+ * Verzik throne door the tick it opened acted two ticks late otherwise (relay
+ * f1, 2026-10-12). Returns 0 when there is no game connection or a "Use"
+ * selection is armed (an OPLOCU needs the scene's pick path).
+ */
+int
+app_plugin_loc_op_at(struct App* app, int loc_id, int abs_x, int abs_z, int option)
+{
+    assert(app);
+    assert(loc_id >= 0);
+    assert(option >= 1);
+    assert(option <= 5);
+    if( !app->net || app->net->state != TORIRS_NET_GAME || app->objsel.active )
+        return 0;
+    TORIRS_REPORT(
+        "quest-driver: drive.op bypass pending loc=%d at %d,%d option=%d\n", loc_id, abs_x, abs_z,
+        option);
+    APP_NET_SEND(
+        app,
+        net_out_oploc(
+            app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), option, abs_x, abs_z, loc_id));
+    return 1;
+}
+
+/*
  * The backpack half of the same bypass (verbs-pointer, ARCHITECT.md S1: this
  * function sits inside "the app_plugin_world_op case" of this shared file).
  *

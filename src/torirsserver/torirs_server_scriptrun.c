@@ -106,6 +106,11 @@ struct ScriptBot
     lua_State* L;
     lua_State* co;
     int co_ref;
+    /* The server tick the bot logged in on (its scene is answered after it). */
+    int login_tick;
+    /* load and pcall, kept for the bootstrap alone (bot_lua_init). */
+    int bootstrap_load_ref;
+    int bootstrap_pcall_ref;
     enum ScriptBotState state;
     int await_level_ref;
     int await_kind;      /* an event kind, or -1 for any (with a match) */
@@ -2617,23 +2622,25 @@ core_screen(lua_State* L)
 
 /* --------------------------------------------------------- Lua state */
 
-/* The bootstrap: what tools/quest_gate/run.py's wrapper does, in short. The
- * setup list's cheats, then run(t), then finish. */
+/* The bootstrap: what tools/quest_gate/run.py's wrapper does. The setup list
+ * runs through QD.core_setup_run (script/plugins/quest_driver/core.lua), the
+ * ONE setup loop the wrapper and a watched Play run too -- the login-grant
+ * wait and every cheat waited on until its effect reaches this bot -- then
+ * run(t), then finish. It used to run the list with a fixed t.ticks(2) on
+ * either side and no waits, and so entered every test a tick from the live
+ * client: every absolute stamp in the two tick logs differed (2026-10-12). */
 static char const* const BOOTSTRAP =
-    "local src, t, path = ...\n"
+    "local src, t, path, load, pcall = ...\n"
     "local chunk, err = load(src, '=' .. path, 't')\n"
     "if not chunk then error('test does not compile: ' .. tostring(err)) end\n"
     "local QUEST = chunk()\n"
     "if type(QUEST) ~= 'table' or type(QUEST.run) ~= 'function' then\n"
     "  error('test did not return { run = function(t) ... end }')\n"
     "end\n"
-    "t.ticks(2)\n"
-    "for _, line in ipairs(QUEST.setup or {}) do\n"
-    "  local r, d = t.cheat(line)\n"
-    "  if r ~= 'ok' then t.step('setup ' .. line, 'FAIL', tostring(r) .. ' ' .. tostring(d)) end\n"
+    "if QUEST.setup ~= nil and type(QUEST.setup) ~= 'table' then\n"
+    "  error('test setup is a ' .. type(QUEST.setup) .. ', not a table of cheat lines')\n"
     "end\n"
-    "t.ticks(2)\n"
-    "local ok, e = pcall(QUEST.run, t)\n"
+    "local ok, e = pcall(t.core_setup_run(QUEST.setup, QUEST.run), t)\n"
     "if not ok then t.step('script-error', 'FAIL', tostring(e)) ; t.finish(1) ; return end\n"
     "t.finish(0)\n";
 
@@ -2661,6 +2668,25 @@ bot_lua_init(struct ScriptBot* bot)
     {
         luaL_requiref(L, lib->name, lib->func, 1);
         lua_pop(L, 1);
+    }
+    /* The plugin host's sandbox (torirs_plugin_lua.c lua_open_sandbox_libs):
+     * the same globals removed, so a part that calls one of them fails to
+     * load here exactly as it fails on the live client. The bootstrap alone
+     * keeps load and pcall, handed to it as arguments. */
+    lua_getglobal(L, "load");
+    bot->bootstrap_load_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+    lua_getglobal(L, "pcall");
+    bot->bootstrap_pcall_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+    {
+        static char const* const REMOVE[] = {
+            "dofile", "loadfile", "load", "require", "print", "warn",
+            "pcall", "xpcall", "setmetatable", "getmetatable",
+        };
+        for( size_t i = 0; i < sizeof(REMOVE) / sizeof(REMOVE[0]); i++ )
+        {
+            lua_pushnil(L);
+            lua_setglobal(L, REMOVE[i]);
+        }
     }
 
     /* The parts, in the client's order, then the plugin file last: the only
@@ -2742,6 +2768,8 @@ bot_lua_init(struct ScriptBot* bot)
     lua_pushstring(bot->co, run->test_source);
     lua_getglobal(bot->co, "QD_ROOT");
     lua_pushstring(bot->co, run->test_path);
+    lua_rawgeti(bot->co, LUA_REGISTRYINDEX, bot->bootstrap_load_ref);
+    lua_rawgeti(bot->co, LUA_REGISTRYINDEX, bot->bootstrap_pcall_ref);
     bot->state = SCRIPTBOT_START;
     bot->await_level_ref = LUA_NOREF;
     bot->await_match_ref = LUA_NOREF;
@@ -2878,7 +2906,7 @@ bot_step_once(struct ScriptBot* bot)
          * (drive_demand_begin): what came before is not this script's. */
         bot->event_cursor = c->event_serial;
         bot->state = SCRIPTBOT_DONE; /* until it yields */
-        bot_resume(bot, 3);
+        bot_resume(bot, 5);
         return 1;
     }
 
@@ -3384,7 +3412,10 @@ ToriRSServer_ScriptRun(
         }
         srv->active_player = player;
         ToriRSServer_WorldLogin(player);
-        scene_ack(player);
+        /* No MAP_BUILD_COMPLETE here: the bot has not been sent the login's
+         * scene yet. It answers it from the loop, a boundary later (login_tick
+         * below), as a client does. */
+        bot->login_tick = (int)srv->tick;
         fprintf(stderr, "scriptrun: %s is pid %d at %d,%d\n", bot->name, player->pid, player->x,
                 player->z);
     }
@@ -3425,7 +3456,18 @@ ToriRSServer_ScriptRun(
         for( int i = 0; i < run.count; i++ )
         {
             struct ScriptBot* bot = &run.bots[i];
-            scene_ack(bot->player);
+            /* A client answers a scene it has RECEIVED: the login's arrives
+             * with the output of the boundary that logged it in (on the live
+             * party the login and that boundary's world tick are one pump,
+             * torirs_server_embed.c), so the earliest MAP_BUILD_COMPLETE is
+             * the NEXT boundary's input. Acking at the login itself started
+             * the login burst -- and [login]'s newplayer_inv grant, and so
+             * every later tick -- one tick ahead of the live client: every
+             * absolute stamp in the two tick logs differed by one
+             * (2026-10-12, relay f1/f2). A rebuild later on is acked from
+             * here, the boundary after the tick that sent it, as before. */
+            if( (int)srv->tick > bot->login_tick )
+                scene_ack(bot->player);
             if( !bot->finished )
                 bot_step(bot);
             if( !bot->finished && bot->state != SCRIPTBOT_DONE )

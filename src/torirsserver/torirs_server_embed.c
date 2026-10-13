@@ -326,6 +326,15 @@ ToriRSServer_EmbedStop(struct ToriRSServerEmbed* embed)
     ToriRSServer_BotDriveStop(embed->botdrive);
     embed->botdrive = NULL;
 
+    /* The tick log is the run's, and the run ended with its last tick: the
+     * shutdown's logouts below free every npc their zones spawned, and those
+     * rows (stamped with the last tick, no tick between) described a
+     * teardown scriptrun's run -- which never logs its bots out -- does not
+     * have. Closed first, so the two lanes' logs end alike (relay f1,
+     * 2026-10-12: 25 npc_free rows on the live log's last tick). */
+    if( ToriRSServer_TicklogEnabled(&embed->srv) )
+        ToriRSServer_TicklogDisable();
+
     for( int i = 0; i < TORIRSSERVER_EMBED_CLIENT_MAX; i++ )
     {
         struct ToriRSServerEmbedClient* client = &embed->clients[i];
@@ -786,6 +795,63 @@ static char* g_member_commands[EMBED_MEMBER_COMMANDS_MAX];
 static int g_member_command_count;
 static char g_member_mail_last[256];
 static int g_member_mail_answers;
+/* The member's tick-log marks for its next boundary ('K'). */
+static int g_member_linked;
+static char** g_member_marks;
+static int g_member_mark_count;
+static int g_member_mark_capacity;
+
+void
+ToriRSServer_EmbedMemberLinkNote(int linked)
+{
+    g_member_linked = linked != 0;
+}
+
+int
+ToriRSServer_EmbedMemberMarkPush(char const* label)
+{
+    char* copy;
+    size_t length;
+
+    assert(label);
+    if( !g_member_linked )
+        return 0;
+    if( g_member_mark_count == g_member_mark_capacity )
+    {
+        int capacity = g_member_mark_capacity ? g_member_mark_capacity * 2 : 16;
+        char** grown = realloc(g_member_marks, (size_t)capacity * sizeof(*grown));
+
+        assert(grown);
+        g_member_marks = grown;
+        g_member_mark_capacity = capacity;
+    }
+    length = strlen(label);
+    if( length >= TORIRSSERVER_EMBED_LINK_MARK_MAX )
+        length = TORIRSSERVER_EMBED_LINK_MARK_MAX - 1;
+    copy = malloc(length + 1);
+    assert(copy);
+    memcpy(copy, label, length);
+    copy[length] = '\0';
+    g_member_marks[g_member_mark_count++] = copy;
+    return 1;
+}
+
+int
+ToriRSServer_EmbedMemberMarkTake(
+    char* out,
+    int capacity)
+{
+    assert(out);
+    assert(capacity > 0);
+    if( g_member_mark_count == 0 )
+        return 0;
+    snprintf(out, (size_t)capacity, "%s", g_member_marks[0]);
+    free(g_member_marks[0]);
+    memmove(&g_member_marks[0], &g_member_marks[1],
+            (size_t)(g_member_mark_count - 1) * sizeof(g_member_marks[0]));
+    g_member_mark_count--;
+    return 1;
+}
 
 void
 ToriRSServer_EmbedMemberStatusPost(char const* status)
@@ -1132,7 +1198,8 @@ ToriRSServer_EmbedLinkSend(
     assert(len == 0 || data);
     assert(type == TORIRSSERVER_EMBED_LINK_DATA || type == TORIRSSERVER_EMBED_LINK_READY ||
            type == TORIRSSERVER_EMBED_LINK_TICK || type == TORIRSSERVER_EMBED_LINK_SEAT ||
-           type == TORIRSSERVER_EMBED_LINK_MAIL || type == TORIRSSERVER_EMBED_LINK_MAIL_ANSWER);
+           type == TORIRSSERVER_EMBED_LINK_MAIL || type == TORIRSSERVER_EMBED_LINK_MAIL_ANSWER ||
+           type == TORIRSSERVER_EMBED_LINK_MARK);
     header[0] = (uint8_t)type;
     link_put_u32(header + 1, (uint32_t)len);
     if( !link_write_all(fd, header, (int)sizeof(header)) )
@@ -1567,6 +1634,19 @@ party_take_frames(
             assert(client->mail_answer);
             if( client->mail_answer_size > TORIRSSERVER_EMBED_LINK_MAIL_MAX )
                 client->mail_answer_size = TORIRSSERVER_EMBED_LINK_MAIL_MAX;
+        }
+        else if( type == TORIRSSERVER_EMBED_LINK_MARK )
+        {
+            /* A member's tick-log mark ('K'): pushed now, at the barrier,
+             * before this boundary's world tick -- the tick its script ran
+             * on, as the leader's own marks are stamped. */
+            char label[TORIRSSERVER_EMBED_LINK_MARK_MAX];
+
+            if( len <= 0 || len >= TORIRSSERVER_EMBED_LINK_MARK_MAX )
+                return 0;
+            memcpy(label, payload, (size_t)len);
+            label[len] = '\0';
+            ToriRSServer_TicklogMark(label);
         }
         else if( type == TORIRSSERVER_EMBED_LINK_READY )
         {

@@ -638,6 +638,7 @@ party_close(struct NetTransportEmbed* self)
     if( self->party_fd >= 0 )
         ToriRSServer_EmbedPartyAuditArm(0);
     self->party_fd = -1;
+    ToriRSServer_EmbedMemberLinkNote(0);
     ToriRSServer_EmbedLinkReaderFree(&self->party_in);
 }
 
@@ -750,6 +751,21 @@ party_member_boundary(struct NetTransportEmbed* self)
             return;
         }
     }
+    /* This tick's tick-log marks ('K'), before the READY: the leader pushes
+     * them at its barrier, stamped with the tick they were made on. */
+    {
+        char mark[TORIRSSERVER_EMBED_LINK_MARK_MAX];
+
+        while( ToriRSServer_EmbedMemberMarkTake(mark, (int)sizeof(mark)) )
+        {
+            if( !ToriRSServer_EmbedLinkSend(self->party_fd, TORIRSSERVER_EMBED_LINK_MARK,
+                                            (const uint8_t*)mark, (int)strlen(mark)) )
+            {
+                party_member_lost(self, "closed");
+                return;
+            }
+        }
+    }
     if( !ToriRSServer_EmbedLinkSend(self->party_fd, TORIRSSERVER_EMBED_LINK_READY, ready,
                                     TORIRSSERVER_EMBED_LINK_READY_LEN) )
     {
@@ -854,6 +870,7 @@ party_member_poll(
                     return;
                 }
                 self->party_ever_joined = 1;
+                ToriRSServer_EmbedMemberLinkNote(1);
                 TORIRS_ERR("net: party: joined the leader on 127.0.0.1:%d (seat %d)\n",
                            self->party_join_port, self->party_seat);
                 self->party_closed = 0;

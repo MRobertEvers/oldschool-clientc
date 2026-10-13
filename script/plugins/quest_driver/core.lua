@@ -1127,16 +1127,42 @@ end
 --      click path) and log in as options.account, whose save the C side
 --      wrote from the test's fixture -- a fresh account per Play, as every
 --      test assumes; a failure is ONE FAIL row, watch.account, and the end;
---   4. core_run_test_wrapped below: write_wrapper_script's QUEST.run, copied
---      from the Lua run.py generates (every comment dropped; run.py's
---      docstring and the generated file carry them), so the login-grant wait
---      and the setup list are the ones a test run gets.
+--   4. QD.core_setup_run below: the login-grant wait and the setup list.
 --
--- Nothing here runs on a test run: the bootstrap that calls it exists only in
--- an on-demand client. KEEP core_run_test_wrapped IN STEP with
--- write_wrapper_script: a change there is a change here.
-local function core_run_test_wrapped(quest_setup, quest_run)
+-- QD.core_setup_run(quest_setup, quest_run) -> function(t): THE ONE SETUP
+-- LOOP. Every lane that runs a test runs its setup through this function and
+-- no copy of it: run.py's generated wrapper (tools/quest_gate/run.py
+-- write_wrapper_script: QUEST.run = QD_ROOT.core_setup_run(...)), scriptrun's
+-- bootstrap (torirsserver/torirs_server_scriptrun.c BOOTSTRAP) and a watched
+-- Play (QD.core_run_test below). The waits are part of the run: a lane that
+-- skipped them entered the raid on another absolute tick, and every stamp in
+-- its tick log -- marks, clock varps, instance vars -- was a tick off
+-- (owner, 2026-10-12: identical tick logs, absolute stamps included).
+-- Before 2026-10-12 run.py generated this Lua inline and core.lua carried a
+-- hand-kept copy, while scriptrun ran its own list with fixed t.ticks(2).
+function QD.core_setup_run(quest_setup, quest_run)
+    assert(type(quest_run) == "function", "core_setup_run: no run function")
+    assert(quest_setup == nil or type(quest_setup) == "table", "core_setup_run: setup is not a table")
     return function(t)
+        -- WAIT FOR THE LOGIN GRANT before the first setup cheat.
+        --
+        -- The backpack a fixture starts with is not in the fixture: the
+        -- containers are adopted EMPTY (torirs_server_world.c, "what goes
+        -- in them the first time a character connects is content's") and
+        -- content's [login,_] -> [proc,newplayer_inv] fills them on a
+        -- later tick than the one this script starts on.  Measured
+        -- 2026-09-19 (build/quest_gate/closer_setup2 row 1,
+        -- closer_setup3): `::clearinv` issued on the first frame answers
+        -- "Cleared 0 item(s).", the fourteen tutorial slots land behind
+        -- it, and a `::give` before the grant is overwritten by it -- a
+        -- setup list that answered `ok` three times and left the world it
+        -- promised in none of them.  A fixed `t.ticks(n)` does not fix it
+        -- (the grant landed on tick 1 in one run and after three cheats in
+        -- the next); the arrival itself is the signal, so wait for it.
+        --
+        -- Bounded, and proceeding either way: a fixture whose character
+        -- really does hold nothing pays the budget and runs its setup
+        -- anyway, rather than failing a quest over an empty backpack.
         t.await({ level = function()
             for slot = 0, 27 do
                 local slot_result, cell = t.inv.slot(slot)
@@ -1147,6 +1173,32 @@ local function core_run_test_wrapped(quest_setup, quest_run)
             return false
         end, note = "setup: the login grant" }, 10)
         t.settle()
+        -- A CHEAT'S REPLY OUTRUNS ITS EFFECT by exactly one server tick.
+        --
+        -- t.cheat waits for the reply line (core.lua: QD.cheat ->
+        -- msg.await), and the server SAYS `Gave 3 x Egg (1944).` from
+        -- inside the ladder branch itself, while the backpack the same
+        -- branch just wrote reaches the client in the container
+        -- listener's UPDATE_INV at the END of that tick
+        -- (torirs_server_world.c, the ::give branch: `the backpack's
+        -- listener sends an UPDATE_INV without this branch knowing a
+        -- packet exists`).  So the setup loop used to hand run() a client
+        -- that had heard about the items and not yet received them, and
+        -- every quest whose first rows read t.inv.count saw an empty
+        -- backpack from a setup that had answered `ok` three times.
+        -- Measured 2026-09-21 (build/quest_gate/lag_probe): row `lag.t0`
+        -- FAIL `egg: absent`, row `lag.t1` -- one t.ticks(1) later --
+        -- PASS `3`.  Two seam fixers reported it as `::give from setup
+        -- lands nothing` (docs/QUEST_AUTHORING.md trap 23).
+        --
+        -- A ::give is therefore not done when it answers: it is done when
+        -- the CLIENT can count the items, which is also the only check
+        -- that catches the ladder's own silent misses -- `::give
+        -- nosuchitemname` and an ambiguous name both `say()` their
+        -- complaint and return RAN, i.e. `ok`, having given nothing
+        -- (same file, `No item named '%s'.` / `Which %s? %s`).  Each one
+        -- is now a FAIL row named after the cheat, exactly like a cheat
+        -- that answered no_row.
         local function setup_give(text)
             local name, count = string.match(text, "^%s*:*give%s+([%w_]+)%s*(%d*)")
             if not name then
@@ -1158,6 +1210,10 @@ local function core_run_test_wrapped(quest_setup, quest_run)
             end
             return name, wanted
         end
+        -- Name-free fingerprint of the backpack: every slot's count, plus
+        -- one per occupied slot so an item ARRIVING in an empty slot
+        -- moves it too.  What the fallback below watches when a ::give
+        -- names something this client cannot count.
         local function setup_backpack_mark()
             local mark = 0
             for slot = 0, 27 do
@@ -1177,6 +1233,10 @@ local function core_run_test_wrapped(quest_setup, quest_run)
             end
             return true
         end
+        -- `::setlevel <stat> <level>` -> stat, level; nil for any other line.
+        -- A line that STARTS as a setlevel (the engine's own strncmp prefix)
+        -- but does not parse is ("", nil): the engine answers ok to it
+        -- and sets nothing.
         local function setup_setlevel(text)
             if not string.match(text, "^%s*:*setlevel") then
                 return nil
@@ -1187,6 +1247,13 @@ local function core_run_test_wrapped(quest_setup, quest_run)
             end
             return stat, tonumber(level)
         end
+        -- `::wield <item>` -> item; nil for any other line.  The cheat
+        -- answers once the synthesized Wield click is SENT (seam pass 29:
+        -- it used to take only an obj id, print its Usage line for a name
+        -- and answer ok -- arthur fought Mordred unarmed behind a green
+        -- setup), and content may still refuse the wield (a level, a
+        -- quest), so the line is done only when the WORN container holds
+        -- the item (QD.ui._worn_count, ui.lua).
         local function setup_wield(text)
             return string.match(text, "^%s*:*wield%s+([%w_]+)%s*$")
         end
@@ -1208,6 +1275,9 @@ local function core_run_test_wrapped(quest_setup, quest_run)
         end
         if type(quest_setup) == "table" then
             for _, cheat in ipairs(quest_setup) do
+                -- Counted BEFORE the cheat: a setup list that gives the
+                -- same item twice, or gives one the login grant already
+                -- put there, is waiting for an INCREASE, not for a total.
                 local give_name, give_count = setup_give(cheat)
                 local before = nil
                 local before_mark = nil
@@ -1216,6 +1286,13 @@ local function core_run_test_wrapped(quest_setup, quest_run)
                     if count_result == "ok" then
                         before = count_total
                     else
+                        -- A name this client cannot resolve to an obj: the
+                        -- server's own cheat_obj_from_name is fuzzy and may
+                        -- still have matched one -- but `::give
+                        -- nosuchitemname` reaches the SAME `ok` (it say()s
+                        -- `No item named` and returns RAN), so the whole
+                        -- backpack is watched for any movement instead of
+                        -- taking the cheat at its word.
                         before_mark = setup_backpack_mark()
                     end
                 end
@@ -1255,6 +1332,10 @@ local function core_run_test_wrapped(quest_setup, quest_run)
                     local landed = t.inv.await(give_name, before + give_count, 10)
                     if landed ~= "ok" then
                         local after_result, after_total = t.inv.count(give_name)
+                        -- Short of the count asked for is the BACKPACK's
+                        -- limit speaking (`Gave 21 x Egg (1944), 7 did not
+                        -- fit.`), not a setup that did not happen; nothing
+                        -- arriving at all is.
                         if after_result ~= "ok" or after_total <= before then
                             setup_failed(cheat, "the cheat answered ok and no "
                                 .. give_name
@@ -1292,6 +1373,7 @@ local function core_run_test_wrapped(quest_setup, quest_run)
                         return
                     end
                 elseif level_stat ~= nil then
+                    -- ok is not a level: wait for the client's reading.
                     local level_last = "unread"
                     local level_landed = t.await({ level = function()
                         local read_result, reading = t.skill.read(level_stat)
@@ -1310,6 +1392,9 @@ local function core_run_test_wrapped(quest_setup, quest_run)
                         return
                     end
                 elseif string.match(cheat, "^%s*:*clearinv") then
+                    -- The same race, and the one cheat every generated
+                    -- setup list opens with: an unfinished ::clearinv also
+                    -- makes the NEXT give's before-count wrong.
                     local cleared = t.await({ level = setup_backpack_empty,
                         note = "setup: ::clearinv reaching the client" }, 10)
                     if cleared ~= "ok" then
@@ -1319,9 +1404,15 @@ local function core_run_test_wrapped(quest_setup, quest_run)
                     end
                 end
             end
+            -- Every OTHER cheat (::setvar, a quest's own reset
+            -- debugproc) has the same one-tick reply/effect gap with no
+            -- single reading to wait on, so the loop ends on the tick
+            -- boundary its last reply outran.  run()'s first row reads a
+            -- client that has seen the setup, which is what `setup` means.
             t.ticks(1)
             t.settle()
         end
+
         return quest_run(t)
     end
 end
@@ -1422,5 +1513,5 @@ function QD.core_run_test(loader, options)
     api_drive.report(string.format("watch: camera %s; %s (%s) on %s: %s; %s", tostring(camera_result),
         tostring(options.id),
         tostring(options.suite), tostring(options.account), tostring(options.start or "fresh"), tostring(start_detail)))
-    return core_run_test_wrapped(quest_setup, QUEST.run)(QD)
+    return QD.core_setup_run(quest_setup, QUEST.run)(QD)
 end

@@ -30,7 +30,10 @@
 -- (south-east).
 -- ==========================================================================
 
-QD.NYLO_HM = setmetatable({
+-- Hard Mode's overrides over a copy of the Normal table: a copy, not a
+-- metatable (the plugin sandbox has no setmetatable; QD.NYLO is complete
+-- once its file has loaded, and nothing writes its fields at run time).
+QD.NYLO_HM = {
     -- THE STYLES BY RATE: two blowpipes (2 ticks) for ranged, two tridents
     -- (4) for magic, and melee's one whip has every other seat's help (help
     -- is melee only, QD.raid._nylo_target). With one mage the magic nylocas
@@ -76,7 +79,8 @@ QD.NYLO_HM = setmetatable({
     -- the next one, all2 a3 and a6)
     SUPPORT_LOW = 40, EAT_COLLAPSE = 65,
     LANE_READY = 3,                             -- a settled lane nylocas is in LANE_SHOT of the box from +3
-}, { __index = QD.NYLO })
+}
+for k, v in pairs(QD.NYLO) do if QD.NYLO_HM[k] == nil then QD.NYLO_HM[k] = v end end
 
 function QD.raid._nylo_hm_ids(S)
     local ids = S.ids

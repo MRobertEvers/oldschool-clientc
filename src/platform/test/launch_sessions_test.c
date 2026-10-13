@@ -402,9 +402,9 @@ case_open_spawn_status(void)
     answer = ask(table, "open", "pid=999999\nport=43600\nsize=3\nsaves=/tmp\n");
     check("open refuses a leader pid that is not running", starts_with(answer, "error: "));
     free(answer);
-    snprintf(body, sizeof(body), "pid=%d\nport=43600\nsize=5\nsaves=%s\n", leader, g_saves);
+    snprintf(body, sizeof(body), "pid=%d\nport=43600\nsize=6\nsaves=%s\n", leader, g_saves);
     answer = ask(table, "open", body);
-    check("open refuses a party larger than the embed server's 4", starts_with(answer, "error: "));
+    check("open refuses a party larger than the embed server's 5", starts_with(answer, "error: "));
     free(answer);
 
     open_session(table, leader, 3, auth, sizeof(auth));

@@ -81,6 +81,7 @@
  * app_try_move and app_minimenu_run_option. Not declared in any header this
  * file may include (app.h is closed; app_internal.h is app-layer-private). */
 extern int app_plugin_world_op(struct App* app, enum DrivePickKind kind, int element_id, int option);
+extern int app_plugin_loc_op_at(struct App* app, int loc_id, int abs_x, int abs_z, int option);
 extern int app_plugin_world_walk_to(struct App* app, int abs_x, int abs_z);
 extern int app_plugin_world_walk_near(struct App* app, enum DrivePickKind kind, int element_id);
 extern int app_plugin_inv_op(
@@ -1472,6 +1473,52 @@ drive_pointer_world_element(
     return DRIVE_OK;
 }
 
+/*
+ * The press on a loc the server placed that the scene does not show yet (a
+ * zone change waiting on its models; DriveUi_Locs answers it from the change
+ * itself, element 0). The nearest such copy of `id`, as DriveUi_Locs orders
+ * them, and its config's op row; the packet is the OPLOC scriptrun's
+ * d_world_op sends for it (app_plugin_loc_op_at).
+ */
+static enum DriveResult
+drive_pointer_pending_loc_op(struct App* app, int id, int option)
+{
+    enum
+    {
+        DRIVE_POINTER_LOC_ROWS = 8192
+    };
+    static struct DriveLocRow rows[DRIVE_POINTER_LOC_ROWS];
+    struct ToriRS_Location* cfg;
+    enum DriveResult result;
+    int count = 0;
+    int i;
+
+    assert(app);
+    /* (examine and an armed use: the scene's pick path only) */
+    if( option < 1 || option > 5 )
+        return DRIVE_NOT_FOUND;
+    result = DriveUi_Locs(app, 0, rows, DRIVE_POINTER_LOC_ROWS, &count);
+    if( result != DRIVE_OK )
+        return result;
+    for( i = 0; i < count; i++ )
+        if( rows[i].loc_id == id && rows[i].element_id == 0 )
+            break;
+    if( i == count )
+        return DRIVE_NOT_FOUND;
+    assert(app->provider);
+    cfg = CacheProvider_LocationGet(app->provider, id);
+    /* The lane loads the config before it lands the change; between the
+     * packet and that, the row cannot be named (DriveUi_Locs's collision
+     * read says so too). */
+    if( !cfg )
+        return DRIVE_NOT_FOUND;
+    if( cfg->actions[option - 1][0] == '\0' )
+        return DRIVE_NO_ROW;
+    if( !app_plugin_loc_op_at(app, id, rows[i].tile_x, rows[i].tile_z, option) )
+        return DRIVE_NOT_FOUND;
+    return DRIVE_OK;
+}
+
 enum DriveResult
 DrivePointer_WorldOp(struct App* app, enum DrivePickKind kind, int id, int option, int want_element)
 {
@@ -1482,6 +1529,12 @@ DrivePointer_WorldOp(struct App* app, enum DrivePickKind kind, int id, int optio
     assert(app);
     if( kind != DRIVE_PICK_NPC && kind != DRIVE_PICK_LOC && kind != DRIVE_PICK_OBJ )
         return DRIVE_UNSUPPORTED;
+    /* A loc row's element 0 is DriveUi_Locs's "drawn by nothing yet" (a
+     * change still waiting on its models), and scriptrun's d_world_op reads an
+     * element of 0 as naming no copy: the nearest copy, the pending ones
+     * included (below). */
+    if( kind == DRIVE_PICK_LOC && want_element == 0 )
+        want_element = -1;
     /*
      * THE COPY THE SCRIPT NAMED. scriptrun's d_world_op takes an optional
      * element id and acts on that copy or answers not_found; this lane took
@@ -1492,6 +1545,8 @@ DrivePointer_WorldOp(struct App* app, enum DrivePickKind kind, int id, int optio
      * exist, be of the type, and be in view, as on scriptrun.
      */
     resolved = drive_pointer_world_element(app, kind, id, want_element, &element_id);
+    if( resolved == DRIVE_NOT_FOUND && kind == DRIVE_PICK_LOC && want_element < 0 )
+        return drive_pointer_pending_loc_op(app, id, option);
     if( resolved != DRIVE_OK )
         return resolved;
     resolved = DrivePointer_OpAvailable(app, kind, id, option, &available);

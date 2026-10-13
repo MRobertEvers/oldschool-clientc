@@ -15899,12 +15899,21 @@ ToriRSServer_WorldLogin(struct ToriRSServerPlayer* player)
      * A missing file is a new character, not an error — `ToriRSServer_LoadPlayer`
      * says so by returning 0 on ENOENT — so there is nothing to handle here.
      */
+    /* The occupancy follows the player to where the save puts them.
+     * ToriRSServer_WorldPlayerInit stamped the home tile, and the load moves
+     * x/z without a step: before this the stamp stayed on the home tile for
+     * the life of the world -- a PLAYER_OCC nobody stood on, blocking every
+     * npc that wandered onto Lumbridge's courtyard (relay f2, 2026-10-12: a
+     * man stood blocked at 3222,3217 on scriptrun, and the two lanes' logs
+     * parted on it). Restamped below, once the boat has placed them too. */
+    player_set_occupancy(player, 0);
     if( !ToriRSServer_LoadPlayer(player, ToriRSServer_SavePath(player->display_name)) )
         ToriRSServer_WorldPlaceNewCharacter(player);
     /* Reconstruct an at-sea owned boat before the login scene/GPI coordinate
      * is emitted. The save holds a safe root fallback and relative deck tile,
      * so a process restart never treats a recycled pool square as a location. */
     ToriRSServer_VesselLogin(srv, player);
+    player_set_occupancy(player, 1);
     /* The save restores boosted HP into the stat array; the DAMAGE mask and
      * death check read player->hitpoints. LostCity's PlayerLoading writes both
      * together (`levels[i] = sav.g1()`); hydrate here so a returning character

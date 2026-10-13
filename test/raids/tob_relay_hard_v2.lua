@@ -13,6 +13,10 @@ return QD_ROOT.raid.tob_relay_test("hard", {
     fixture = "tob_normal_done.ini",
     party = 5,
     detail = 3000,
+    -- read by tools/quest_gate/run.py (TORIRS_MAX_FRAMES, the live lane's frame
+    -- budget): the relay's own 300000 sits in tob_relay.lua, which run.py
+    -- does not read, so without this a live relay stopped at 60000 frames
+    max_frames = 300000,
     v2 = { maiden = true, bloat = true, nylocas = true, sotetseg = true, xarpus = true,
            verzik_p1 = true, verzik_p2 = true, verzik_p3 = true },
 })
