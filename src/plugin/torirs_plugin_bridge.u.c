@@ -1696,6 +1696,38 @@ static bool app_plugin_scene_origin(void* user,int* x,int* z)
     return true;
 }
 
+/*
+ * One zone of the kept rebuild grid. The scene is 13 zones a side centred on
+ * the rebuild's zone with the south-west six zones off (world.c's
+ * `zone_center - 52/8`), which is the packet's own indexing.
+ */
+static bool
+app_plugin_instance_zone(
+    void* user, int level, int zone_x, int zone_z, struct ToriRS_InstanceZone* out)
+{
+    struct App* app = user;
+    int32_t packed;
+    int dx;
+    int dz;
+
+    assert(app);
+    assert(out);
+    if( !app->rebuild_instance_active || level < 0 || level > 3 )
+        return false;
+    dx = zone_x - (app->rebuild_instance_zone_x - 6);
+    dz = zone_z - (app->rebuild_instance_zone_z - 6);
+    if( dx < 0 || dx >= 13 || dz < 0 || dz >= 13 )
+        return false;
+    packed = app->rebuild_instance_zones[level * 169 + dx * 13 + dz];
+    if( packed == 0 )
+        return false;
+    out->rotation = (packed >> 1) & 3;
+    out->template_tile_z = ((packed >> 3) & 0x7ff) * 8;
+    out->template_tile_x = ((packed >> 14) & 0x3ff) * 8;
+    out->template_level = (packed >> 24) & 3;
+    return true;
+}
+
 static int
 app_plugin_local_player(void* user, struct ToriRS_PlayerSnapshot* out)
 {
@@ -6520,6 +6552,7 @@ app_plugin_engine(struct App* app)
     engine.memory_bytes = app_plugin_memory_bytes;
     engine.local_player = app_plugin_local_player;
     engine.scene_origin = app_plugin_scene_origin;
+    engine.instance_zone = app_plugin_instance_zone;
     engine.npc_next = app_plugin_npc_next;
     engine.npc_by_slot = app_plugin_npc_by_slot;
     engine.player_next = app_plugin_player_next;

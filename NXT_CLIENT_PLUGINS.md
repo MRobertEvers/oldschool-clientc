@@ -55,13 +55,13 @@ To re-derive any of it:
 3rd/rscache/tools/cs2/cs2 decompile --cache cache.osrs239 --rev osrs239 --out /tmp/cs2 6716 3965 3962 4181
 ```
 
-## Status: 53 of 74
+## Status: 54 of 74
 
 | | rows | |
 |---|---:|---|
-| **working** | 53 | 30 driven by the cache, 4 by builtins, 17 by the server, 2 by the client |
+| **working** | 54 | 30 driven by the cache, 5 by builtins, 17 by the server, 2 by the client |
 | **partial** | 4 | 164, and 173 / 176 / 179 |
-| **not started** | 17 | classified below -- 6 + 11, and **bucket C is empty** |
+| **not started** | 16 | classified below -- 6 + 10, and **bucket C is empty** |
 
 The count moved by twelve, and **bucket C -- the twelve rows this document called
 "the only open problems" -- is empty**. The paragraph that justified calling them
@@ -96,6 +96,7 @@ See "Client triggers" and "Scripted entity overlays" below.
 | 248 | Cannon low on ammo notification | `nxt-cannon-ammo` |
 | 249 | Cannon low on ammo amount | `nxt-cannon-ammo` |
 | 250 | Cannon out of ammo notification | `nxt-cannon-ammo` |
+| 118 | Chambers of Xeric helper | `nxt-cox-helper` -- see "118 is the C++ client's own overlay" |
 | 165 | Highlight Agility shortcuts | cache |
 | 210 | Highlight Agility shortcuts - Shortcut Requirements | cache |
 | 258 | NPC highlight - Display name | cache |
@@ -251,7 +252,7 @@ that does not write `%varbit14176` is a harness in which the row can never
 fire, which is what kept this builtin silent in 307 captures. See
 `tools/porcelain_gate/shots/README.md`, `cannon-*`.
 
-**B. the cache implements it; it needs the right context** -- 11 rows
+**B. the cache implements it; it needs the right context** -- 10 rows
 
 Reclassified by measurement rather than by eye. For every row, the scripts that
 READ its var were separated from the one that WRITES it and from the settings
@@ -263,7 +264,6 @@ is one the cache already implements; what it is missing is a situation.
 | 81 | Last Man Standing fog colour | 1346 | being in LMS |
 | 111 | Show normal health overlay | 4731 | interface 303, which only the server opens |
 | 116 | Data orbs - Regeneration indicators | 4718 4723 6052 6060 | the orbs' own layout pass |
-| 118 | Chambers of Xeric helper | 4663 | being in CoX |
 | 242 | Tears of Guthix timers | 6679 | content that starts one -- the drawable and the server entry points are done; see the timer note below |
 | 245 | Herbiboar helper | 4743 6853 | being at a herbiboar |
 | 274 | Clue scroll helper - Menu highlights | 6477 6479 | a clue in hand |
@@ -407,9 +407,63 @@ Three shapes, and none of them is a missing opcode:
   already route their lay, so the timer arrives with snare, net, box, deadfall,
   pitfall, magic box, rabbit snare and monkey trap at once. Kind 3, Tears of
   Guthix (242), has no content here to start one.
-- **A place or an item.** 81, 118, 245, 274, 276 are unverifiable rather than
-  unimplemented: a fresh Lumbridge login does not reach LMS, CoX, a herbiboar
-  or a clue scroll.
+- **A place or an item.** 81, 245, 274, 276 are unverifiable rather than
+  unimplemented: a fresh Lumbridge login does not reach LMS, a herbiboar
+  or a clue scroll. (118 used to sit here, read off its one cache reader;
+  that reader turned out to be the cache stepping ASIDE -- below.)
+
+### 118 is the C++ client's own overlay
+
+The row's one reader, `raids_overlay_content` (4663), does not implement it --
+it gets out of the way of it:
+
+```
+if (~torirs_duel_notice = 1 & %varb12347_cox_helper_disabled = 0) {
+    return;
+}
+```
+
+`~torirs_duel_notice` (proc 100, misnamed here) is "an enhanced client"
+(clienttype enhanced / 5 / 10, or 7 / 8), and this client is 10. So with the
+row ticked the CS2 points box draws NOTHING -- raid overlay mounted, empty --
+and the cache expects the client to draw the helper itself. Unticked, the CS2
+box comes back.
+
+The C++ client's helper is in no build we have (the wiki marks it "Mobile and
+Steam clients only"; the rev 216 decompilation and the current Mac client lack
+every one of its strings, its cache adds only gamevals). Its one picture, the
+wiki's `Chambers_of_Xeric_helper.png`, is therefore the spec, and
+`nxt-cox-helper` (`src/plugin/plugins/nxt_cox_helper*.c`) is held to it pixel
+for pixel: `make -C src test-nxt-cox-helper` paints the picture's eleven rooms
+from the shipped art and compares all 25,480 pixels. What it is made of: the
+cache's `tradebacking` (graphic_297) at alpha 155, script1192's two frames,
+p11 at 0xff981f -- the CS2 box's own art.
+
+What it shows, and from where:
+
+- **the rooms**, in path order, "<kind> ... <name> <A/B/C>", read from the
+  instance's dynamic-rebuild TEMPLATES -- the only thing a client is told about
+  a layout. The client used to drop that grid after the load; it is kept now
+  (`App::rebuild_instance_zones`) and offered as `api->world.instance_zone`.
+  A template's row, plane and x cell name the room and its door variant, and
+  its rotation plus the variant name its exit, so the path is walked, not
+  guessed (`nxt_cox_layout.c`). Checked against the server's own deal:
+  `test/raids/cox_helper_layout.lua`, seed 5, all sixteen rows.
+- **the points** and **the time**, from the vars
+  `raids_overlay_databox_1511` reads. The time is counted by the builtin:
+  the cache's own counter (`raids_overlay_timer`, 2289) is installed by the
+  script that returned, and only for a clock already above zero -- which is
+  why the server now starts it at 1, not 0.
+- **the arrow** collapses the room list, as an owned control (a plugin menu
+  row sorts under "Walk here").
+
+Unconfirmed, because the picture does not show them: the room names it does
+not list (Shamans, Vasa, Vespula, Vanguards, Ice demon, Crabs, Thieving), which
+letter is which variant, the collapsed state's look, and the op's wording.
+
+Its shots need the builtin let through the quest gate's plugin rule:
+`QUEST_ALSO_PLUGINS=nxt-cox-helper` (and `TORIRS_COX_HELPER_TRACE=1` says why
+it is not drawn, and prints its room list).
 
 **C. no reader anywhere -- the client or the server owns it whole** -- 12 rows
 

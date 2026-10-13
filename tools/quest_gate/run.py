@@ -839,7 +839,10 @@ def client_env(directory, saves, script, max_frames=int(DEFAULT_MAX_FRAMES), ext
         # client. TORIRS_PLUGIN_ONLY is torirs_plugin_registry.c's switch;
         # "lua" is TORIRS_PLUGIN_LUA.id. Proved 2026-09-20: doric green, 23
         # shots, zero plugin= lines in client.log.
-        "TORIRS_PLUGIN_ONLY": "lua",
+        # QUEST_ALSO_PLUGINS=<id>[,<id>] adds builtins for a run that is ABOUT
+        # one (a native overlay's own shots); unset, the rule above holds.
+        "TORIRS_PLUGIN_ONLY": ",".join(
+            ["lua"] + [p for p in os.environ.get("QUEST_ALSO_PLUGINS", "").split(",") if p]),
         "TORIRS_PLUGIN_LOG": "1",
         "TORIRS_CONTENT_TEST": directory,
         "TORIRS_QUEST_SCRIPT": script,

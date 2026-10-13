@@ -30,6 +30,10 @@ CO.V = {
     H = 14, BEAM = 48,
     -- the chamber (chamber-local; OLM_SPEC 2)
     CH = { x0 = 11, z0 = 26, x1 = 21, z1 = 44 },
+    -- the fire wall's ten tiles a row (cox_olm.constant wall_x0..x1: the
+    -- whole walkable width) and the bolts' two ends (bolt_lower_z / upper_z:
+    -- a bolt walks 17 tiles, 27 -> 43 north or 44 -> 28 south)
+    WALL_X0 = 12, WALL_X1 = 21, BOLT_LO = 27, BOLT_HI = 44, BOLT_TILES = 17,
     SEP_Z = 36, MID_Z0 = 31, MID_Z1 = 41,
     HEAD_LOC_Z = 34, WEST_LOC_X = 4, EAST_LOC_X = 22,
     UPPER_Z = 39, LOWER_Z = 29,
@@ -437,6 +441,9 @@ function CO.observe(S, F)
     if mr == "ok" then
         for _, m in ipairs(msgs) do
             if m.serial > (o.msg_serial or 0) then
+                -- (cox_olm_falling_tick: the first aim the tick after the
+                -- cry, then one a tick for eleven; each lands 2 ticks after
+                -- its aim: the last read is the end of cry + 12, one spare)
                 if string.find(m.text or "", "chosen you as its target", 1, true) then
                     o.target_until = F.tick + 13
                 end
@@ -459,6 +466,7 @@ function CO.observe(S, F)
     -- the autos' style: the head's projectiles, the last seen
     local pr, projs = api_drive.projectiles(0)
     o.spheres, o.auto_inflight, o.spits = {}, false, {}
+    local fw_rows = {}
     if pr == "ok" then
         for _, p in ipairs(projs) do
             -- the life siphon's two spits (the final stand): the two tiles that
@@ -475,6 +483,14 @@ function CO.observe(S, F)
             if p.spotanim_id == ids.acid_spit and (p.target or -1) <= 0 and (p.cycles_left or 0) > 0 then
                 o.spits[#o.spits + 1] = { x = p.dst_x, z = p.dst_z, land = F.tick + (p.cycles_left + 15) // 30 }
             end
+            -- THE FIRE WALL'S CAST (cox_olm_fire_wall): two projectiles from
+            -- the head to the rows either side of the player it chose, z +- 1;
+            -- the flames stand two ticks later, and THEN block (ol20 t212,
+            -- t244: the plan only saw the flames, a tick too late to run the
+            -- two tiles out; trapped, and a seedling under me burst for 31)
+            if p.spotanim_id == ids.fw_travel and (p.target or -1) <= 0 then
+                fw_rows[p.dst_z] = true
+            end
             if p.spotanim_id == ids.proj_magic or p.spotanim_id == ids.proj_ranged then
                 o.auto_inflight = o.auto_inflight or (p.cycles_left or 0) > 0
             end
@@ -484,6 +500,15 @@ function CO.observe(S, F)
             elseif p.spotanim_id == ids.sph_ranged then o.spheres[#o.spheres + 1] = "ranged"
             elseif p.spotanim_id == ids.sph_melee then o.spheres[#o.spheres + 1] = "melee" end
         end
+    end
+    -- (first sight is the cast tick; the pair is in the air two ticks)
+    local z0, z1 = nil, nil
+    for z in pairs(fw_rows) do
+        z0 = (z0 == nil or z < z0) and z or z0
+        z1 = (z1 == nil or z > z1) and z or z1
+    end
+    if z0 and z1 - z0 == 2 and (o.fw_cast == nil or o.fw_cast.z0 ~= z0 or F.tick - o.fw_cast.tick > 4) then
+        o.fw_cast = { tick = F.tick, z0 = z0, z1 = z1 }
     end
     -- graphics: lightning bolts, the portal, crystal shadows (first sight;
     -- the portal's tile and first sight are remembered across the ticks its
@@ -509,7 +534,27 @@ function CO.observe(S, F)
         local sp = c.sp
         if fresh then
             if sp.spotanim_id == ids.bolt then
-                o.bolts[#o.bolts + 1] = { x = sp.x, z = sp.z }
+                -- THE BOLT'S DIRECTION, per column (one bolt a column): the
+                -- way it moved since its last tile; at first sight, from the
+                -- end it starts at (ol20 t227: the old rule guessed from the
+                -- half the bolt was in and looked up the tile behind THAT
+                -- guess, so every bolt past the middle was predicted walking
+                -- back the way it came -- the plan stood in its path, 24 and
+                -- a stun, and the auto it then could not pray landed 16)
+                local _, lz = CO.local_of(S, sp.x, sp.z)
+                local c = o.bolt_col[sp.x]
+                local dz
+                if c and F.tick - c.tick <= 2 and c.z ~= sp.z then
+                    dz = (sp.z > c.z) and 1 or -1
+                elseif c and F.tick - c.tick <= 2 then
+                    dz = c.dz
+                else
+                    dz = (lz - V.BOLT_LO <= V.BOLT_HI - lz) and 1 or -1
+                end
+                o.bolt_col[sp.x] = { z = sp.z, tick = F.tick, dz = dz }
+                -- (tiles still to walk: 17 in all from its end)
+                local left = (dz > 0) and (V.BOLT_LO + V.BOLT_TILES - 1 - lz) or (lz - (V.BOLT_HI - V.BOLT_TILES + 1))
+                o.bolts[#o.bolts + 1] = { x = sp.x, z = sp.z, dz = dz, left = math.max(0, left) }
             elseif sp.spotanim_id == ids.portal then
                 -- (sent 10/8/6/4 ticks before the swap: a send more than 4
                 -- ticks after the last is a new portal)
@@ -928,12 +973,8 @@ function CO.predict(S, F, B)
     -- lightning: each bolt walks one tile a tick away from its end; the tile
     -- it reaches on tick k is read at the end of k-1
     for _, bt in ipairs(o.bolts) do
-        local _, lz = CO.local_of(S, bt.x, bt.z)
-        local dz = (lz <= 35) and 1 or -1
-        local key = bt.x .. ":" .. (bt.z - dz)
-        dz = o.bolt_dir[key] or dz
-        o.bolt_dir[bt.x .. ":" .. bt.z] = dz
-        for k = 1, h do
+        local dz = bt.dz
+        for k = 1, math.min(h, bt.left) do
             local z = bt.z + dz * k
             B.hit({ name = "bolt", x = bt.x, z = z, t0 = now + k - 1, t1 = now + k - 1, dmg_exp = 20, dmg_max = 25,
                     forbid = true })
@@ -944,6 +985,14 @@ function CO.predict(S, F, B)
         local t = o.portal_first + 7
         if t >= now + 1 then
             local px, pz = o.portal_tile.x, o.portal_tile.z
+            -- ON IT, as a rule: the rings below are priced only at the swap,
+            -- so a beam ranked on the cost so far dropped every run to the
+            -- tile before it got there (ol20 t795-802 and t1297-1304: 6 and
+            -- 9 tiles out with 7 ticks to spare, it stayed and took 25 and
+            -- 40 -- and the first one put it 3 from a crystal bomb, 30 more).
+            -- A required zone is in the plan's late-hazard lookahead.
+            B.zone({ name = "portal", x = px, z = pz, size = 1, lo = 0, hi = 0, t0 = t, t1 = t,
+                     tier = "lethal", require = true })
             -- (every ring to the chamber's far corner: off 10 or more is the
             -- 50 cap, not free -- ol1f t224 sat 11 off and took it)
             for d = 1, 20 do
@@ -973,8 +1022,11 @@ function CO.predict(S, F, B)
     for _, sh in ipairs(o.shadows) do
         local t = sh.land
         if t >= now + 1 then
+            -- (beside it is 10-16: forbid too -- ol20 t1628 priced it under
+            -- a read's cost and stood beside one in the final stand, where
+            -- nothing heals)
             B.hit({ name = "crystal", x0 = sh.x - 1, z0 = sh.z - 1, x1 = sh.x + 1, z1 = sh.z + 1, t0 = t, t1 = t,
-                    dmg_exp = 13, dmg_max = 16 })
+                    dmg_exp = 13, dmg_max = 16, forbid = true })
             B.hit({ name = "crystal", x = sh.x, z = sh.z, t0 = t, t1 = t, dmg_exp = 20, dmg_max = 25, forbid = true })
         end
     end
@@ -993,11 +1045,39 @@ function CO.predict(S, F, B)
         B.hit({ name = "flame", x = fw.x, z = fw.z, t0 = now + 1, t1 = now + h, sample = "pass", dmg_exp = 50, dmg_max = 65,
                 forbid = true })
     end
-    -- the falling crystals on me: a crystal on the tile I ended the previous tick on
+    -- THE WALL BEFORE ITS FLAMES (its cast, seen at C: cox_olm_wall_tick
+    -- stands the flames at C + 2, reading the end of C + 1 for the leap
+    -- (8-10, out a row), and burns the row between at C + 12, reading the
+    -- end of C + 11): off all three rows by the end of C + 1 -- two tiles
+    -- out, one tick's run -- and nothing lands. Priced, not forbidden: a
+    -- leap (9) is better than a trap, and a trap a Water Strike gets out of
+    -- is better than a forbid elsewhere; the flames themselves block.
+    local fc = o.fw_cast
+    if fc and o.fire_first == nil and fc.tick + 2 > now then
+        local C = fc.tick
+        local x0, x1 = o.ox + V.WALL_X0, o.ox + V.WALL_X1
+        local zm = fc.z0 + 1
+        if C + 1 >= now + 1 then
+            for _, z in ipairs({ fc.z0, fc.z1 }) do
+                B.hit({ name = "leap", x0 = x0, z0 = z, x1 = x1, z1 = z, t0 = C + 1, t1 = C + 1, dmg_exp = 9, dmg_max = 10 })
+            end
+        end
+        for _, z in ipairs({ fc.z0, fc.z1 }) do
+            B.hit({ name = "flame", x0 = x0, z0 = z, x1 = x1, z1 = z, t0 = math.max(now + 1, C + 2), t1 = now + h,
+                    sample = "pass", dmg_exp = 50, dmg_max = 65, forbid = true })
+        end
+        if C + 11 <= now + h then
+            B.hit({ name = "burn", x0 = x0, z0 = zm, x1 = x1, z1 = zm, t0 = C + 11, t1 = C + 11, dmg_exp = 57, dmg_max = 65 })
+        end
+    end
+    -- the falling crystals on me: one aimed each tick A at the tile I ended
+    -- A - 1 on, landing at A + 2 on whoever ended A + 1 there -- never end a
+    -- tick on the tile I ended two ticks before (ol20 t1651-1653: the rule
+    -- was "one tick before", and the crystals ran past its window)
     if o.target_until and o.target_until >= now + 1 then
-        for k = 1, math.min(h, o.target_until - now) do
+        for k = 0, math.min(h, o.target_until - now) - 1 do
             if #B.spec.marks < QD.T2.V.MARKS_MAX then
-                B.mark({ name = "falling", t_mark = now + k - 1, r = 0, t0 = now + k, t1 = now + k,
+                B.mark({ name = "falling", t_mark = now + k - 1, r = 0, t0 = now + k + 1, t1 = now + k + 1,
                          dmg_exp = 17, dmg_max = 20, forbid = true })
             end
         end
@@ -1602,7 +1682,7 @@ QD.T2.register("cox_olm", {
             dealt = 0, dealt_seen = {}, dealt_last = -10,
             hit_left = false, hit_right = false,
             autos_at_me = 0, specials_at_me = 0,
-            seed_first = {}, bomb_first = {}, bolt_dir = {}, shadow_seen = {},
+            seed_first = {}, bomb_first = {}, bolt_col = {}, shadow_seen = {},
             acc = { left = { n = 0, h = 0 }, right = { n = 0, h = 0 }, head = { n = 0, h = 0 } },
             pools = {}, seedlings = {}, bombs = {}, bolts = {}, shadows = {}, fire = {}, spheres = {},
         }

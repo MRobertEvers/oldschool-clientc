@@ -243,6 +243,13 @@ struct ToriRS_PluginEngine
     size_t (*memory_bytes)(void* user);
 
     bool (*scene_origin)(void* user, int* tile_x, int* tile_z);
+    /** @see ToriRS_WorldApi::instance_zone. Optional: absent answers false. */
+    bool (*instance_zone)(
+        void* user,
+        int level,
+        int zone_x,
+        int zone_z,
+        struct ToriRS_InstanceZone* out);
     int (*local_player)(
         void* user,
         struct ToriRS_PlayerSnapshot* out);

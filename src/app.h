@@ -2875,6 +2875,16 @@ struct App
      * packets early-out when the world is already active. */
     int rebuild_zone_x;
     int rebuild_zone_z;
+    /** The root scene's dynamic-rebuild template grid, KEPT: the world load
+     *  consumes it and the packet's copy is freed, but it is the only thing a
+     *  client is told about an instance's layout (the CoX helper's room list
+     *  is read from it). `[level*169 + zone_x*13 + zone_z]`, packed as
+     *  struct PktMapRebuild documents; centred on its own zone, so a reader
+     *  never pairs one rebuild's grid with another's scene base. */
+    int32_t rebuild_instance_zones[4 * 13 * 13];
+    int rebuild_instance_zone_x;
+    int rebuild_instance_zone_z;
+    bool rebuild_instance_active;
 
     /* ---- interaction state (Part 6) ---- */
     /** "Use <item> with ..." selection (reference objSelected). */

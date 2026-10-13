@@ -606,6 +606,17 @@ struct ToriRS_ConfigApi
     TORIRS_API_V2_MODULE_RESERVED;
 };
 
+/** One zone of an instanced scene, as the dynamic rebuild names it. */
+struct ToriRS_InstanceZone
+{
+    /** The template zone's south-west tile, absolute. */
+    int template_tile_x;
+    int template_tile_z;
+    int template_level;
+    /** Clockwise quarter-turns, 0..3. */
+    int rotation;
+};
+
 struct ToriRS_WorldApi
 {
     uint32_t struct_size;
@@ -638,7 +649,18 @@ struct ToriRS_WorldApi
         struct ToriRS_Api* api,
         int iterator,
         struct ToriRS_ScenerySnapshot* out);
-    TORIRS_API_V2_MODULE_RESERVED;
+    /** What one zone of the current INSTANCED scene was copied from: the
+     *  dynamic rebuild's template for (level, zone_x, zone_z), zones being
+     *  absolute tiles / 8. False on a normal scene, for a zone outside the
+     *  scene and for a void zone. This is all a client is told about an
+     *  instance's layout -- what a raid's room list is derived from. */
+    bool (*instance_zone)(
+        struct ToriRS_Api* api,
+        int level,
+        int zone_x,
+        int zone_z,
+        struct ToriRS_InstanceZone* out);
+    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 1])(void);
 };
 
 struct ToriRS_InputApi

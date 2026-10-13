@@ -882,6 +882,8 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	plugin/plugins/loot_tracker.c \
 	plugin/plugins/nxt_highlight.c \
 	plugin/plugins/nxt_bird_nest.c plugin/plugins/nxt_cannon_ammo.c \
+	plugin/plugins/nxt_cox_helper.c plugin/plugins/nxt_cox_helper_paint.c \
+	plugin/plugins/nxt_cox_layout.c \
 	painters/painters.c \
 	painters/painters_cull_project.c \
 	painters/scene_occluders.c \
@@ -2835,8 +2837,21 @@ test-nxt-plugins: $(OBJ_DIR) \
 		$(PORCELAIN_SRCS) \
 		plugin/plugins/nxt_highlight.c \
 		plugin/plugins/nxt_bird_nest.c plugin/plugins/nxt_cannon_ammo.c \
+		plugin/plugins/nxt_cox_helper.c plugin/plugins/nxt_cox_helper_paint.c \
+		plugin/plugins/nxt_cox_layout.c plugin/plugins/plugin_draw.c \
 		plugin/test/nxt_activities_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/nxt_activities_test
+
+# The Chambers of Xeric helper: the room walk against the server's own
+# generator, and the paint against the C++ client's one published picture,
+# pixel for pixel (plugin/test/data/cox_helper_wiki.png).
+test-nxt-cox-helper: $(OBJ_DIR) $(OBJ_DIR)/stb_image_tools_impl.o \
+		plugin/test/nxt_cox_helper_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/nxt_cox_helper_test \
+		plugin/plugins/nxt_cox_layout.c plugin/plugins/nxt_cox_helper_paint.c \
+		plugin/plugins/plugin_draw.c $(OBJ_DIR)/stb_image_tools_impl.o \
+		plugin/test/nxt_cox_helper_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/nxt_cox_helper_test
 
 # The LuaLS declarations are a public API too. Derive the callable/table
 # inventory from the real registration arrays and compare it bidirectionally

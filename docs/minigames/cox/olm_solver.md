@@ -49,12 +49,12 @@ check (`clock`).
 | acid pool | its tile, every tick it stands (forbid) |
 | acid drip | a mark: the tile I end tick k-1 on holds a pool from k, 16 ticks (forbid) |
 | seedling | its tile at first sight + 2 (forbid); the sight kept to the burst even when a pool replaces the loc |
-| lightning | each bolt's tile at each future tick (forbid) |
-| portal | rings of min(50, 5 a tile) out to the chamber's far corner at first sight + 7 |
+| lightning | each bolt's tile at each future tick, to the end of its 17 (forbid); its direction carried per column from the tile it was on before, at first sight from the end nearer |
+| portal | rings of min(50, 5 a tile) out to the chamber's far corner at first sight + 7, and a required (lethal) zone on the tile itself then, so the plan's lookahead runs to it |
 | crystal bomb | rings at first sight + 5 |
-| fire wall | the row between the walls at the flames' first sight + 9 (57-65, forbid); the flames themselves (forbid: they block) |
-| falling crystals | a mark: never end two ticks on one tile |
-| shadows | 3x3 at the landing |
+| fire wall | from its CAST (the two olm_firewall_travel projectiles name rows z±1, seen at C): the leap rows at the end of C + 1 (9), the flames from C + 2 (forbid, pass: they block), the row between at C + 11 (57) -- two tiles out in one run and nothing lands; once the flames stand: the row between at their first sight + 9 (57-65, forbid), the flames (forbid) |
+| falling crystals | a mark: never end a tick on the tile I ended two ticks before (aimed at A on the end of A - 1, landing at A + 2 on the end of A + 1), cry + 13 |
+| shadows | 3x3 at the landing (forbid: 10-16 beside, 16-25 under) |
 | my overload | 10 a hit, unprayable, at the drink + 1, 3, 5, 7, 9 |
 
 ## STRATEGY: the fight as a state machine

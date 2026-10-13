@@ -458,6 +458,18 @@ static bool v2_world_scene_origin(struct ToriRS_Api* api,int* x,int* z)
 }
 
 static bool
+v2_world_instance_zone(
+    struct ToriRS_Api* api, int level, int zone_x, int zone_z, struct ToriRS_InstanceZone* out)
+{
+    struct ToriRS_PluginHost* host = v2_runtime(api)->context->host;
+
+    assert(out);
+    if( !host->engine.instance_zone )
+        return false;
+    return host->engine.instance_zone(host->engine.user, level, zone_x, zone_z, out);
+}
+
+static bool
 v2_world_local_player(
     struct ToriRS_Api* api,
     struct ToriRS_PlayerSnapshot* out)
@@ -3389,6 +3401,7 @@ v2_runtime_init(
             .player_next = v2_world_player_next,
             .item_next = v2_world_item_next,
             .scenery_next = v2_world_scenery_next,
+            .instance_zone = v2_world_instance_zone,
         },
         .input = {
             .struct_size = sizeof(runtime->api.input),

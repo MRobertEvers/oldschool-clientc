@@ -146,6 +146,23 @@
 #define NXT_VARP_CANNON_AMMO "varp3_cannon_ammo"
 #define NXT_VARP_CANNON_COORD "varp3551_cannon_coord"
 
+/* ---- Chambers of Xeric -------------------------------------------------- */
+
+/** "Chambers of Xeric helper". INVERTED. The cache's raids_overlay_content
+ *  (4663) steps aside on an enhanced client while this reads 0, which is the
+ *  native helper's cue -- @see nxt_cox_helper.c. */
+#define NXT_VARBIT_COX_HELPER "varb12347_cox_helper_disabled"
+
+/* The raid's own state, as raids_overlay_databox_1511 reads it. */
+#define NXT_VARP_RAIDS_PLAYERSCORE "varp4609_raids_playerscore"
+#define NXT_VARBIT_RAIDS_PARTYSCORE "varb5431_raids_client_partyscore"
+/** Raid time in server ticks. The client advances it, once a tick, while
+ *  the progress below is under 5 (raids_overlay_timer). */
+#define NXT_VARBIT_RAIDS_TIMER "varb6386_raids_timer"
+#define NXT_VARBIT_RAIDS_PROGRESS "varb5425_raids_client_progress"
+/** raids_overlay, which the server opens while the player is in a raid. */
+#define NXT_IFACE_RAIDS_OVERLAY "raids_overlay"
+
 /* ---- back to General --------------------------------------------------- */
 
 /** "Highlight poll booths". INVERTED -- clientscript 8319 lights them when

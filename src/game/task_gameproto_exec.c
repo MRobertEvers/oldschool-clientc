@@ -218,6 +218,19 @@ Task_GameProtoExec_Run(
             rebuild_instance_compute_chunks(self, self->packet._map_rebuild.zones);
         else
             rebuild_compute_chunks(self);
+        /* Kept for the plugins: @see App::rebuild_instance_zones. */
+        _Static_assert(
+            sizeof(app->rebuild_instance_zones) ==
+                PKT_MAP_REBUILD_ZONES * sizeof(app->rebuild_instance_zones[0]),
+            "the kept grid is the packet's");
+        app->rebuild_instance_active = self->packet._map_rebuild.zones != NULL;
+        app->rebuild_instance_zone_x = self->zone_x;
+        app->rebuild_instance_zone_z = self->zone_z;
+        if( app->rebuild_instance_active )
+            memcpy(
+                app->rebuild_instance_zones,
+                self->packet._map_rebuild.zones,
+                sizeof(app->rebuild_instance_zones));
         /* Entities carry scene-local coords relative to the old base;
          * capture it so they can be shifted onto the new one (Client-TS
          * shifts by mapBuildBaseX - mapBuildPrevBaseX). (world, builder)

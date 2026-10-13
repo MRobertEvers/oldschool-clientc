@@ -1306,6 +1306,21 @@ end
 -- with a cheaper recovery of its own (QD.player._npc_cover_recovery) can try
 -- it before paying for five unsettled poses.  Nothing passes it but that
 -- recovery's callers, so every other press is exactly what it was.
+-- A native overlay's own control is no menu TARGET -- no npc, loc or
+-- component names it -- so a test reaches it by pixel: move there, let a
+-- frame's hover rebuild put its row on top, then press (the CoX helper's
+-- arrow, test/raids/cox_helper_layout.lua). Two verbs because the wait
+-- between them is the caller's: `t.drive.pointer_to(x, y); t.ticks(1);
+-- t.drive.left_click(x, y)`.
+function QD.drive.pointer_to(x, y)
+    return api_drive.mouse_move(x, y)
+end
+
+function QD.drive.left_click(x, y)
+    api_drive.mouse_button("left", 1, x, y)
+    return api_drive.mouse_button("left", 0, x, y)
+end
+
 function QD.drive.click_minimenu(target, option, deadline, before_retry, single)
     deadline = deadline or 4
 

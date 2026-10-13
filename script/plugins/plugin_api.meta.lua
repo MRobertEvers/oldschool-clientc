@@ -225,6 +225,7 @@ warn = nil
 
 ---@class torirs.WorldApi
 ---@field scene_origin fun(): integer?, integer? Current southwest scene corner in absolute tiles, or nil without a world; works on mid-session enable.
+---@field instance_zone fun(level: integer, zone_x: integer, zone_z: integer): integer?, integer?, integer?, integer? The template an instanced scene zone (absolute tiles / 8) was copied from: template tile x, z, level and clockwise rotation; nil on a normal scene, outside it, or for a void zone.
 ---@field local_player fun(): torirs.PlayerSnap?
 ---@field npc_next fun(cursor?: integer): integer?, torirs.NpcSnap?
 ---@field npc_by_slot fun(server_slot: integer): torirs.NpcSnap?

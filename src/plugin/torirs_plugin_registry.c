@@ -45,6 +45,7 @@ extern struct ToriRS_PluginDef const TORIRS_PLUGIN_LUA;
 extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_HIGHLIGHT;
 extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_BIRD_NEST;
 extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_CANNON_AMMO;
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_COX_HELPER;
 
 static struct ToriRS_PluginDef const* const PLUGIN_TABLE[] = {
     /*
@@ -79,6 +80,7 @@ static struct ToriRS_PluginDef const* const PLUGIN_TABLE[] = {
     &TORIRS_PLUGIN_NXT_HIGHLIGHT,
     &TORIRS_PLUGIN_NXT_BIRD_NEST,
     &TORIRS_PLUGIN_NXT_CANNON_AMMO,
+    &TORIRS_PLUGIN_NXT_COX_HELPER,
     &TORIRS_PLUGIN_LUA,
 };
 
@@ -90,9 +92,25 @@ PluginRegistry_RegisterAll(struct ToriRS_PluginHost* host)
     char const* only=getenv("TORIRS_PLUGIN_ONLY");
     if( only && *only )
     {
+        /* A comma list, registered in table order: "lua,nxt-cox-helper" is
+         * the quest driver plus the one builtin a visual check is about. */
         for( size_t i=0; i<sizeof(PLUGIN_TABLE)/sizeof(PLUGIN_TABLE[0]); ++i )
-            if( strcmp(only,PLUGIN_TABLE[i]->id)==0 )
-            { (void)PluginHost_Register(host,PLUGIN_TABLE[i]); return; }
+        {
+            size_t const len=strlen(PLUGIN_TABLE[i]->id);
+            for( char const* at=only; *at; )
+            {
+                char const* end=strchr(at,',');
+                size_t const n=end ? (size_t)(end-at) : strlen(at);
+                if( n==len && strncmp(at,PLUGIN_TABLE[i]->id,len)==0 )
+                {
+                    (void)PluginHost_Register(host,PLUGIN_TABLE[i]);
+                    break;
+                }
+                at+=n;
+                if( *at==',' )
+                    at++;
+            }
+        }
         return; /* The capture gate rejects a missing selected plugin. */
     }
 
