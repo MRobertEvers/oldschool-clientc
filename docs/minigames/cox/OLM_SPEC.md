@@ -15,6 +15,8 @@ Sources, in the order they outrank each other (ROOM_AGENT.md precedence):
   clench, first head action 4 ticks after the rise in P1 and 8 later.
 - **G** solo guides (`sources/olm_4to1_research.md`, ~20 videos, two tile-marker
   exports in `sources/olm_tiles/`): the 4:1 loop and its tiles.
+  Cited by name where one guide states a number: **SQ** Synq, **TG** the team
+  guide (yt sACYyrEdD7w), **AY** AsukaYen.
 - **NR** Near-Reality greatolm/ (not authoritative; its view boxes reproduce
   every wiki safespot and every guide tile, so they are used as the model).
 
@@ -68,19 +70,19 @@ rock (1357); its acid projectile is Vespula's (1364).
 |---|---|
 | auto | at everyone in view; projectile (65,15), 30 + 18 + 5/tile cycles; lands at floor(cycles/30) ticks; max 27 P1-P2, 28 P3, 29 final [W]; accuracy (250+9)(60+64) vs the player's defence roll; the matching protect prayer READ AT LANDING takes 80% [W 75-80%, NR 0.2]; 1/5 style switch after attacking [M] |
 | sphere | 1 in 20 autos, never twice running [NR]; any protect overhead on at launch is turned off and prayer halved [W]; lands +4 [NR]: half current hp unless its prayer is on then [W] |
-| phase attack | replaces an auto 1/3 (1/2 final) [M], not twice in one 4-step cycle [NR], then two plain autos first [G]; picks the power's attack not used this phase [M] |
+| phase attack | replaces an auto 1/3 (1/2 final) [M], not twice in one 4-step cycle [NR], then two plain autos first [G]; picks among the attacks not used this phase [M]: the power's two in P1-P2, all six in P3 and the final stand |
 | acid spray | 7-12 pools in view, each where its spit lands; pool 16 ticks; 3-6 + poison each tick stood on [W] |
-| acid drip | one player in view; for 21 ticks a pool on every tile they end a tick on; standing on a pool hurts [W] |
-| deep burn | one player in view; 6 hits of 5 every 7 ticks, all combat stats -2 each [W]; spreads to adjacent players [W] |
-| fire wall | rows z±1 of one player in view, 10 tiles from the far wall; a player on a wall row leaps out (8-10) at +2; the row between burns 50-65 at +12; fails without a row either side [W] |
+| acid drip | one player in view; for 21 ticks a pool on every tile they walk over (a running tick pools the tile stepped through too) [TG, SQ]; standing on a pool hurts; pools poison from 2 [W] |
+| deep burn | one player in view; 6 hits of 5 every 8 ticks [SQ], all combat stats -2 each, `olm_burnwithme_pl_spot` on each [W, P]; spreads to adjacent players [W] (not implemented: party size 1) |
+| fire wall | rows z±1 of one player in view, 10 tiles from the far wall; lands +1 (judged on the cast tick); a player on a wall row leaps (8-10) outward or into the gap at random [W]; the row between burns 50-65 8 ticks after the walls land ("in 5 seconds") [W]; fails without both rows open [W]; doused by water/ice spells, Humidify beside a flame, a watering can or a gourd vial [W, SQ] |
 | falling crystals | one player in view, 11 crystals, one a tick (from the tick after the cry) on the tile they ended the previous tick on, each landing 2 ticks after its aim (60-cycle projectile) on whoever ended the tick before there, 15-20 [W; cadence and flight: Zenyte FallingCrystal] |
-| crystal bombs | 2 (3 at 8+) at tiles ≥3 apart, placed +4, blow +10: 60 within 1, 45 at 2, 30 at 3, 15 at 4 [W] |
-| crystal burst | a seedling under every player; the burst 3 ticks later (reads end of +2) shoves and hits 10-40 [NR] |
-| lightning | 4 bolts (5 at 6+), distinct columns x 12..20, each end at least once; one tile a tick for 17 ticks; on your tile: 15-25, protect prayers off and blocked 5 ticks, bound 8 [NR, W] |
+| crystal bombs | 2 (3 at 8+) at tiles ≥3 apart, placed +3, blow +9; 7x7: 60 on it, 45 at 1, 30 at 2, 15 at 3 [owner, SQ] |
+| crystal burst | a seedling under every player; the burst and its shatter graphic 3 ticks later (reads end of +2) [AY, P] shoves and hits 10-40 [NR] |
+| lightning | 4 bolts (5 at 6+), distinct columns x 12..20, each from either end at random ("they can spawn all in one side" [SQ]); the first shows on the cast tick [P], then one tile a tick, 17 tiles; on your tile: 15-25, protect prayers off and blocked 5 ticks, bound 8 [NR, W] |
 | teleport (solo) | a tile within 10 [W patch]; shown +1,+3,+5,+7; at +9 (reads end of +8): 0 on it, else 5 a tile (max 50) and moved there [W] |
-| protection (P3) | the left claw heals from damage for 16 ticks [NR; W "two attacks"] |
+| protection (P3) | the left claw heals from damage for 16 ticks, "until the next special" [TG, NR; W "two of Olm's attacks" = the two autos] |
 | life siphon (final) | 1 in 16 autos, 10-attack cooldown [NR, W patch]; two tiles in view, shine +3, at +8 everyone off them takes 1-18 and Olm heals 5x [W] |
-| transition / final crystals | up to 4 in the air, one at a player every 5 ticks; shadow, lands +4 (reads end of +3): 16-25 under, 10-16 beside [W] |
+| transition / final crystals | up to 4 in the air, one at a player every 4 ticks; shadow `gargboss_debris_shadow_120` [P], lands +4 (reads end of +3): 16-25 under, 10-16 beside [W] |
 
 ## 5. Hands, phases
 
@@ -106,9 +108,10 @@ rock (1357); its acid projectile is Vespula's (1364).
 - Prayer on autos is read at landing (NR, the shape of Verzik's), not at the
   release: no source settles it for Olm; flights are 1-3 ticks. PROBE.
 - P3 regeneration 50 ticks (wiki) over NR's 34.
-- The fire wall's flames do not block movement (NR clips the tiles); the solver
-  treats crossing them as forbidden. GAP: content.
-- Dousing a fire wall (water/ice spells, Humidify) is not implemented. GAP.
+- The fire wall's flames block movement (`blockwalk=all`).
+- Dousing: water/ice spells (`cox_olm_douse`), the watering can and the gourd
+  vial (`cox_olm_douse.rs2`), Humidify beside a flame (one tile; the reach is not
+  published). Tests: cox_olm_douse, cox_olm_douse_op, cox_olm_douse_water.
 - Teleport pairs for parties are not implemented: every player gets a tile.
   GAP (solo is exact).
 - "Scuffed" Olm (G: some effects a tick late at random) is not modelled.

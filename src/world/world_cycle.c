@@ -2190,15 +2190,65 @@ World_CycleRegisterPainterDynamics(struct World* world)
         if( grid_x < 0 || grid_z < 0 || grid_x >= world->_scene_size ||
             grid_z >= world->_scene_size )
             continue;
-        painter_add_normal_scenery(
-            world->painter,
-            grid_x,
-            grid_z,
-            local_level,
-            s->element_id,
-            1,
-            1,
-            (world->scene ? ToriDraw_SceneElementOcclusionHeight(world->scene, s->element_id) : 0));
+        {
+            /*
+             * The graphic's SPAN is its model's reach, not one tile.
+             *
+             * The reference adds a map anim with addDynamic's 60-unit pad,
+             * which is one tile for a tile-centred graphic -- right for a
+             * splash, and wrong for anything wider: the Great Olm's crystal
+             * bomb explodes over a 7x7, and registered on its own tile it was
+             * drawn before every nearer tile, whose ground and scenery then
+             * painted over the half of the explosion that reached across
+             * them. A graphic whose posed model reaches past the pad gets a
+             * footprint over the tiles it actually covers, so the painter
+             * draws it after them. The cylinder test first: the vertex walk
+             * is only paid for a graphic that is wide at all.
+             */
+            int sx = grid_x;
+            int sz = grid_z;
+            int size_x = 1;
+            int size_z = 1;
+            int const radius =
+                world->scene ? ToriDraw_SceneElementModelRadius(world->scene, s->element_id) : 0;
+
+            if( radius > WORLD_PROJECTILE_PAINTER_PADDING )
+            {
+                struct World_PainterFootprint footprint;
+                int reach_x = 0;
+                int reach_z = 0;
+                int pad;
+
+                ToriDraw_SceneElementModelReachXZ(world->scene, s->element_id, &reach_x, &reach_z);
+                pad = reach_x > reach_z ? reach_x : reach_z;
+                if( pad < WORLD_PROJECTILE_PAINTER_PADDING )
+                    pad = WORLD_PROJECTILE_PAINTER_PADDING;
+                if( World_EntityPainterFootprint(
+                        (int)s->draw_position.x,
+                        (int)s->draw_position.z,
+                        pad,
+                        /*yaw=*/0,
+                        /*forward_padding=*/0,
+                        world->_scene_size,
+                        &footprint) )
+                {
+                    sx = footprint.sx;
+                    sz = footprint.sz;
+                    size_x = footprint.size_x;
+                    size_z = footprint.size_z;
+                }
+            }
+            painter_add_normal_scenery(
+                world->painter,
+                sx,
+                sz,
+                local_level,
+                s->element_id,
+                size_x,
+                size_z,
+                (world->scene ? ToriDraw_SceneElementOcclusionHeight(world->scene, s->element_id)
+                              : 0));
+        }
     }
 
     /* Plugin-owned objects, last, so a plugin's marker sits in front of a

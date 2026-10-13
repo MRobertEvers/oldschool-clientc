@@ -52,8 +52,11 @@ CO.V = {
     -- THE CLENCH (cox_olm_clench_check): judged at every even step on the
     -- heaviest landed hit on the melee hand since the previous even step;
     -- 1/20 of the solo hand's 600; 45 ticks (cox_olm.constant). The P3
-    -- healing hand: 8 ticks (^cox_olm_protect_ticks).
-    HAND_HP = 600, CLENCH_HIT = 30, CLENCH_TICKS = 45, PROTECT_TICKS = 8,
+    -- healing hand: 16 ticks (^cox_olm_protect_ticks), to the next special.
+    HAND_HP = 600, CLENCH_HIT = 30, CLENCH_TICKS = 45, PROTECT_TICKS = 16,
+    -- THE FIRE WALL: the row between burns this many ticks after the flames
+    -- land (^cox_olm_wall_ticks)
+    WALL_TICKS = 8,
     -- the clench's end: back to the melee hand this many ticks before it is
     -- hittable again (the gear switch and the 4:1's first read)
     MELEE_LEAD = 4,
@@ -112,7 +115,7 @@ function CO.ids(opts)
         { "fw_travel", "spotanim", "olm_firewall_travel" },
         { "bolt", "spotanim", "olm_shockwave" }, { "acid_spit", "spotanim", "olm_acid_spit" }, { "portal", "spotanim", "olm_playerswap_0" },
         { "siphon_spit", "spotanim", "olm_healme_spit" },
-        { "shadow", "spotanim", "gargboss_debris_shadow_90" },
+        { "shadow", "spotanim", "gargboss_debris_shadow_120" },
         -- the kit: We Do Raids' minimum (test/raids/cox_olm_solo.lua)
         { "pipe", "obj", "toxic_blowpipe_loaded" }, { "assembler", "obj", "avas_assembler" },
         { "trident", "obj", "toxic_tots_charged" },
@@ -530,7 +533,7 @@ function CO.observe(S, F)
         CO.mech(S, F, "one_head", false, heads .. " head npcs in the chamber")
     end
     -- THE FIRE WALL: its flames' first sight (they burn the row between at
-    -- + 10, read against the end of + 9: cox_olm_wall_tick), and the two rows
+    -- + WALL_TICKS, read against the end of the tick before: cox_olm_wall_tick), and the two rows
     if #o.fire > 0 then
         if o.fire_first == nil then
             o.fire_first = F.tick
@@ -815,7 +818,7 @@ function CO.claw_event(S, F, what)
     if sign then
         o.signs[#o.signs + 1] = { tick = F.tick, kind = tonumber(sign) }
         if #o.signs > 32 then table.remove(o.signs, 1) end
-        -- (the healing hand: 8 ticks, ^cox_olm_protect_ticks; its register
+        -- (the healing hand: 16 ticks, ^cox_olm_protect_ticks; its register
         -- stays set for the phase, which ends the ghost's animation)
         if tonumber(sign) == 5 then
             o.protect_at = F.tick
@@ -1320,14 +1323,14 @@ function CO.predict(S, F, B)
     end
     -- the fire wall: the row between its two at the burn (50-65), and its
     -- flames, which a player cannot walk through (blockwalk=all)
-    if o.fire_first and o.fire_z1 and o.fire_z1 - o.fire_z0 == 2 and o.fire_first + 9 >= now + 1 then
+    if o.fire_first and o.fire_z1 and o.fire_z1 - o.fire_z0 == 2 and o.fire_first + V.WALL_TICKS - 1 >= now + 1 then
         local x0, x1 = nil, nil
         for _, fw in ipairs(o.fire) do
             x0 = (x0 == nil or fw.x < x0) and fw.x or x0
             x1 = (x1 == nil or fw.x > x1) and fw.x or x1
         end
         B.hit({ name = "burn", x0 = x0, z0 = o.fire_z0 + 1, x1 = x1, z1 = o.fire_z0 + 1,
-                t0 = o.fire_first + 9, t1 = o.fire_first + 9, dmg_exp = 57, dmg_max = 65, forbid = true })
+                t0 = o.fire_first + V.WALL_TICKS - 1, t1 = o.fire_first + V.WALL_TICKS - 1, dmg_exp = 57, dmg_max = 65, forbid = true })
     end
     for _, fw in ipairs(o.fire) do
         B.hit({ name = "flame", x = fw.x, z = fw.z, t0 = now + 1, t1 = now + h, sample = "pass", dmg_exp = 50, dmg_max = 65,
@@ -1456,12 +1459,19 @@ end
 -- finger (z 42), hit 3 there, hit 4 at the thumb (39), touch the mid skip
 -- (35) for the second auto's read, hit 1 at the thumb, back to the ring
 -- finger for the special's read.
---   (one change from the guides: the NULL's read on the ring finger, not on
---   tile 3 (z 40). Tile 3 is in both the middle and the north views: on a 0
---   the head "noodles" middle there and the second auto then sees the mid
---   skip. The ring finger is north-only; the step model says the head stays.)
+--   The NULL's read is the guides' tile 3 (z 40) once hit 3 is out (landed
+--   with damage, or still in the air): tile 3 is in both the middle and the north views, and the damaged
+--   melee hand's steer counts the north once more, so the head stays; from
+--   there the thumb is one tile, hit 4 goes out on it a tick after the null,
+--   and the mid skip is two running ticks off for the second auto's read.
+--   On a 0 (or before hit 3 shows) it is the ring finger (z 42, north only):
+--   at tile 3 the head would "noodle" middle and the second auto then sees
+--   the mid skip; from the ring finger hit 4 cannot reach the mid skip in
+--   time (an attack in reach swings where I stand), so that loop is a 3:1.
 -- The east wall mirrors it: z -> 72 - z.
 CO.CYCLE_LZ = { [3] = 42, [0] = 42, [1] = 42, [2] = 35 }
+-- (the null's read once hit 3 is out)
+CO.CYCLE_TILE3_LZ = 40
 
 function CO.cycle_lz(side, slot)
     local z = CO.CYCLE_LZ[slot]
@@ -1529,6 +1539,21 @@ function CO.cycle(S, F, B, target)
         do
             local slot = st.slot
             local lz = CO.cycle_lz(o.side, slot)
+            -- (hit 3 in the air counts, as in the step model: its splat can show
+            -- after the click that must reach tile 3 in time -- ol1 t1190)
+            if slot == 1 and CO.steers(o.lhits, A) then
+                lz = (o.side == 0) and CO.CYCLE_TILE3_LZ or (72 - CO.CYCLE_TILE3_LZ)
+            end
+            -- (the null's read, once: on the last tick a click still reaches it)
+            if slot == 1 and F.tick == A - 2 then
+                local _, my_lz = CO.local_of(S, F.me.x, F.me.z)
+                local near = {}
+                for _, h in ipairs(o.lhits) do
+                    if h.t >= A - 8 then near[#near + 1] = tostring(h.t) .. ":" .. tostring(h.dmg) end
+                end
+                QD.raid._tob_trace(S, F.tick, string.format("olm 4:1 null A%d read lz %d (hit 3 %s), at lz %d; launches %s",
+                    A, lz, CO.steers(o.lhits, A) and "out" or "none", my_lz, table.concat(near, " ")))
+            end
             -- THE FLAME SKIP (guides: "after hit 2, step one more tile toward
             -- the wall, so Olm cannot fit a wall when it autos you"): a wall
             -- needs a row either side inside z 27..44 (cox_olm_fire_wall), so
