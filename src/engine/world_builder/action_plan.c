@@ -1520,3 +1520,524 @@ meet_rank(const struct MeetRankSpec* s, struct MeetRankTile* out, int* n_out, in
         *cells = work;
     return best <= 4 ? best : 0;
 }
+
+/* ================================================== LUA'S TABLE.SORT
+ * (action_plan.h lua_sort): 3rd/lua/ltablib.c auxsort and partition,
+ * operation for operation, on an index array (1-based as the Lua's). */
+
+static int* g_ls_a;
+static int (*g_ls_lt)(int, int, const void*);
+static const void* g_ls_ud;
+static int g_ls_det;
+
+#define LS_A(i) g_ls_a[(i) - 1]
+
+static int
+ls_lt(int x, int y)
+{
+    return g_ls_lt(x, y, g_ls_ud);
+}
+
+static void
+ls_swap(unsigned i, unsigned j)
+{
+    int t = LS_A(i);
+    LS_A(i) = LS_A(j);
+    LS_A(j) = t;
+}
+
+static unsigned
+ls_partition(unsigned lo, unsigned up, int pv)
+{
+    unsigned i = lo, j = up - 1;
+    for( ;; )
+    {
+        while( ls_lt(LS_A(++i), pv) )
+            assert(i != up - 1);
+        while( ls_lt(pv, LS_A(--j)) )
+            assert(j >= i);
+        if( j < i )
+        {
+            /* a[up - 1] = a[i], a[i] = P */
+            LS_A(up - 1) = LS_A(i);
+            LS_A(i) = pv;
+            return i;
+        }
+        ls_swap(i, j);
+    }
+}
+
+static void
+ls_aux(unsigned lo, unsigned up)
+{
+    while( lo < up )
+    {
+        unsigned p, n;
+        int pv;
+        if( ls_lt(LS_A(up), LS_A(lo)) )
+            ls_swap(lo, up);
+        if( up - lo == 1 )
+            return;
+        p = (lo + up) / 2; /* rnd stays 0 (a randomization is flagged below) */
+        if( ls_lt(LS_A(p), LS_A(lo)) )
+            ls_swap(p, lo);
+        else if( ls_lt(LS_A(up), LS_A(p)) )
+            ls_swap(p, up);
+        if( up - lo == 2 )
+            return;
+        pv = LS_A(p);
+        LS_A(p) = LS_A(up - 1);
+        LS_A(up - 1) = pv;
+        p = ls_partition(lo, up, pv);
+        if( p - lo < up - p )
+        {
+            ls_aux(lo, p - 1);
+            n = p - lo;
+            lo = p + 1;
+        }
+        else
+        {
+            ls_aux(p + 1, up);
+            n = up - p;
+            up = p - 1;
+        }
+        if( lo < up && (up - lo) / 128 > n && up - lo >= 100u )
+            g_ls_det = 0; /* the Lua would randomize its next pivot here */
+    }
+}
+
+int
+lua_sort(int* a, int n, int (*lt)(int, int, const void*), const void* ud)
+{
+    assert(a || n == 0);
+    assert(lt);
+    if( n <= 1 )
+        return 1;
+    g_ls_a = a;
+    g_ls_lt = lt;
+    g_ls_ud = ud;
+    g_ls_det = 1;
+    ls_aux(1, (unsigned)n);
+    return g_ls_det;
+}
+
+/* ============================================================ YELLOWS */
+
+static int
+yl_cheb(int ax, int az, int bx, int bz)
+{
+    int dx = ax > bx ? ax - bx : bx - ax, dz = az > bz ? az - bz : bz - az;
+    return dx > dz ? dx : dz;
+}
+
+struct YlChain
+{
+    int a, m, b, step, len;
+};
+
+static struct YlChain g_yl_all[YELLOW_ALL_MAX];
+static int g_yl_through[YELLOW_POOLS_MAX][YELLOW_ALL_MAX];
+static int g_yl_through_n[YELLOW_POOLS_MAX];
+
+static int
+yl_len_lt(int x, int y, const void* ud)
+{
+    (void)ud;
+    return g_yl_all[x].len < g_yl_all[y].len;
+}
+
+static struct
+{
+    int np, hop, nodes, work;
+    unsigned char used[YELLOW_POOLS_MAX];
+    int cur[YELLOW_CHAINS_MAX], ncur;
+    int best[YELLOW_CHAINS_MAX], nbest, have_best, best_cost;
+} g_yl;
+
+static void
+yl_rec(int cost, int left)
+{
+    int p = -1, i, k;
+    if( g_yl.work > g_yl.nodes )
+        return;
+    if( g_yl.have_best && cost >= g_yl.best_cost )
+        return;
+    if( left == 0 )
+    {
+        g_yl.have_best = 1;
+        g_yl.best_cost = cost;
+        g_yl.nbest = g_yl.ncur;
+        for( k = 0; k < g_yl.ncur; k++ )
+            g_yl.best[k] = g_yl.cur[k];
+        return;
+    }
+    for( i = 0; i < g_yl.np; i++ )
+        if( !g_yl.used[i] )
+        {
+            p = i;
+            break;
+        }
+    if( p < 0 )
+        return;
+    for( k = 0; k < g_yl_through_n[p]; k++ )
+    {
+        const struct YlChain* c = &g_yl_all[g_yl_through[p][k]];
+        g_yl.work++;
+        if( c->step <= g_yl.hop && !g_yl.used[c->a] && !g_yl.used[c->m] && !g_yl.used[c->b] )
+        {
+            g_yl.used[c->a] = g_yl.used[c->m] = g_yl.used[c->b] = 1;
+            assert(g_yl.ncur < YELLOW_CHAINS_MAX);
+            g_yl.cur[g_yl.ncur++] = g_yl_through[p][k];
+            yl_rec(cost + c->len, left - 1);
+            g_yl.ncur--;
+            g_yl.used[c->a] = g_yl.used[c->m] = g_yl.used[c->b] = 0;
+        }
+    }
+}
+
+int
+yellow_chains(const int* px, const int* pz, int np, int n, int hop0, int top, int nodes, int out[][3], int* hop_out)
+{
+    int d[YELLOW_POOLS_MAX][YELLOW_POOLS_MAX];
+    int i, j, a, m, b, nall = 0, hop;
+    assert(px);
+    assert(pz);
+    assert(out);
+    assert(hop_out);
+    assert(np >= 0);
+    assert(np <= YELLOW_POOLS_MAX);
+    assert(n >= 1);
+    assert(n <= YELLOW_CHAINS_MAX);
+    for( i = 0; i < np; i++ )
+        for( j = 0; j < np; j++ )
+            d[i][j] = yl_cheb(px[i], pz[i], px[j], pz[j]);
+    for( i = 0; i < np; i++ )
+        g_yl_through_n[i] = 0;
+    for( m = 0; m < np; m++ )
+        for( a = 0; a < np; a++ )
+            if( a != m && d[a][m] <= top )
+                for( b = a + 1; b < np; b++ )
+                    if( b != m && d[m][b] <= top )
+                    {
+                        struct YlChain* c = &g_yl_all[nall];
+                        assert(nall < YELLOW_ALL_MAX);
+                        c->a = a;
+                        c->m = m;
+                        c->b = b;
+                        c->step = d[a][m] > d[m][b] ? d[a][m] : d[m][b];
+                        c->len = d[a][m] + d[m][b];
+                        g_yl_through[a][g_yl_through_n[a]++] = nall;
+                        g_yl_through[m][g_yl_through_n[m]++] = nall;
+                        g_yl_through[b][g_yl_through_n[b]++] = nall;
+                        nall++;
+                    }
+    for( i = 0; i < np; i++ )
+        lua_sort(g_yl_through[i], g_yl_through_n[i], yl_len_lt, NULL);
+    for( hop = hop0; hop <= top; hop++ )
+    {
+        memset(&g_yl, 0, sizeof(g_yl));
+        g_yl.np = np;
+        g_yl.hop = hop;
+        g_yl.nodes = nodes;
+        yl_rec(0, n);
+        if( g_yl.have_best )
+        {
+            for( i = 0; i < g_yl.nbest; i++ )
+            {
+                const struct YlChain* c = &g_yl_all[g_yl.best[i]];
+                out[i][0] = c->a;
+                out[i][1] = c->m;
+                out[i][2] = c->b;
+            }
+            *hop_out = hop;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static struct
+{
+    int nr, nc;
+    const int *rx, *rz, *c1x, *c1z, *c3x, *c3z;
+    unsigned char taken[YELLOW_CHAINS_MAX];
+    int pick[YELLOW_CHAINS_MAX], rev[YELLOW_CHAINS_MAX];
+    int best_pick[YELLOW_CHAINS_MAX], best_rev[YELLOW_CHAINS_MAX];
+    int have_best, best_cost;
+} g_ym;
+
+static void
+ym_rec(int j, int cost)
+{
+    int c;
+    if( g_ym.have_best && cost >= g_ym.best_cost )
+        return;
+    if( j >= g_ym.nr )
+    {
+        int k;
+        g_ym.have_best = 1;
+        g_ym.best_cost = cost;
+        for( k = 0; k < g_ym.nr; k++ )
+        {
+            g_ym.best_pick[k] = g_ym.pick[k];
+            g_ym.best_rev[k] = g_ym.rev[k];
+        }
+        return;
+    }
+    for( c = 0; c < g_ym.nc; c++ )
+    {
+        if( !g_ym.taken[c] )
+        {
+            int a = yl_cheb(g_ym.rx[j], g_ym.rz[j], g_ym.c1x[c], g_ym.c1z[c]);
+            int b = yl_cheb(g_ym.rx[j], g_ym.rz[j], g_ym.c3x[c], g_ym.c3z[c]);
+            int w = b < a ? b : a;
+            g_ym.taken[c] = 1;
+            g_ym.pick[j] = c;
+            g_ym.rev[j] = b < a;
+            ym_rec(j + 1, cost + w);
+            g_ym.taken[c] = 0;
+        }
+    }
+}
+
+int
+yellow_match(const int* rx, const int* rz, int nr, const int* c1x, const int* c1z, const int* c3x, const int* c3z,
+             int nc, int* pick, int* rev)
+{
+    int k;
+    assert(nr >= 0);
+    assert(nr <= YELLOW_CHAINS_MAX);
+    assert(nc >= 0);
+    assert(nc <= YELLOW_CHAINS_MAX);
+    assert(pick);
+    assert(rev);
+    memset(&g_ym, 0, sizeof(g_ym));
+    g_ym.nr = nr;
+    g_ym.nc = nc;
+    g_ym.rx = rx;
+    g_ym.rz = rz;
+    g_ym.c1x = c1x;
+    g_ym.c1z = c1z;
+    g_ym.c3x = c3x;
+    g_ym.c3z = c3z;
+    ym_rec(0, 0);
+    if( !g_ym.have_best )
+        return 0;
+    for( k = 0; k < nr; k++ )
+    {
+        pick[k] = g_ym.best_pick[k];
+        rev[k] = g_ym.best_rev[k];
+    }
+    return 1;
+}
+
+/* ====================================================== NEAREST TILES */
+
+struct TnKey
+{
+    int i, d, x, z;
+};
+
+static int
+tn_cmp(const void* pa, const void* pb)
+{
+    const struct TnKey* p = (const struct TnKey*)pa;
+    const struct TnKey* q = (const struct TnKey*)pb;
+    if( p->d != q->d )
+        return p->d < q->d ? -1 : 1;
+    if( p->x != q->x )
+        return p->x < q->x ? -1 : 1;
+    if( p->z != q->z )
+        return p->z < q->z ? -1 : 1;
+    return p->i < q->i ? -1 : (p->i > q->i ? 1 : 0);
+}
+
+int
+tiles_nearest(int fx, int fz, const int* tx, const int* tz, int n, int max_d, int cap, int* out)
+{
+    static struct TnKey keys[8192];
+    int i, k = 0;
+    assert(n >= 0);
+    assert(n <= 8192);
+    assert(out || cap == 0);
+    for( i = 0; i < n; i++ )
+    {
+        int d = yl_cheb(tx[i], tz[i], fx, fz);
+        if( d <= max_d )
+        {
+            keys[k].i = i;
+            keys[k].d = d;
+            keys[k].x = tx[i];
+            keys[k].z = tz[i];
+            k++;
+        }
+    }
+    qsort(keys, (size_t)k, sizeof(keys[0]), tn_cmp);
+    if( k > cap )
+        k = cap;
+    for( i = 0; i < k; i++ )
+        out[i] = keys[i].i;
+    return k;
+}
+
+/* ========================================================= BLOAT HOLDS */
+
+static int
+bl_lap_at(const struct BloatHoldSpec* s, int dir, int speed, int m)
+{
+    int L = s->n_lap, j = s->pos, n, step;
+    for( n = 0; n < m; n++ )
+    {
+        for( step = 1; step <= speed; step++ )
+        {
+            int q = (j - 1 + dir) % L;
+            if( q < 0 )
+                q += L;
+            j = q + 1;
+            if( step < speed && s->corner[j - 1] )
+                break;
+        }
+    }
+    return j - 1;
+}
+
+void
+bloat_first_bad(struct CollisionMap* cm, const struct BloatHoldSpec* s, int x, int z, int at, int* lethal_t, int* damage_t)
+{
+    int t, i;
+    assert(cm);
+    assert(s);
+    assert(lethal_t);
+    assert(damage_t);
+    assert(s->n_lap >= 1);
+    assert(s->pos >= 1);
+    assert(s->pos <= s->n_lap);
+    *lethal_t = 0;
+    *damage_t = 0;
+    for( t = at + 1; t <= at + s->hold_long; t++ )
+    {
+        int lethal = 0, damage = 0, R = t + 1, m, have_m = 1;
+        for( i = 0; i < s->n_hands; i++ )
+            if( s->hand_x[i] == x && s->hand_z[i] == z && t >= s->hand_t0[i] && t <= s->hand_t1[i] )
+                lethal = 1;
+        if( s->has_stomp && at < s->stomp_before && t == s->stomp_t &&
+            collision_plan_watcher_sees(cm, s->stomp_x, s->stomp_z, s->size, x, z) )
+            lethal = 1;
+        /* moves_by (tob_bloat.lua) */
+        if( s->has_down && R < s->down_at + s->rise )
+            have_m = 0;
+        else if( s->has_down && s->tick < s->down_at + s->rise )
+            m = R - (s->down_at + s->rise) + 1;
+        else
+            m = R - s->tick;
+        if( have_m )
+        {
+            int bi, mv;
+            for( bi = 0; bi < s->n_br; bi++ )
+            {
+                if( bi == 0 ? lethal : (lethal || damage) )
+                    continue;
+                for( mv = 0; mv < 2; mv++ )
+                {
+                    int moved = mv == 0 ? m - 1 : m;
+                    int j = bl_lap_at(s, s->br_dir[bi], s->br_speed[bi], moved > 0 ? moved : 0);
+                    if( collision_plan_watcher_sees(cm, s->lap_x[j], s->lap_z[j], s->size, x, z) )
+                    {
+                        if( bi == 0 )
+                            lethal = 1;
+                        else
+                            damage = 1;
+                        break;
+                    }
+                }
+            }
+        }
+        if( lethal && *lethal_t == 0 )
+            *lethal_t = t;
+        if( (lethal || damage) && *damage_t == 0 )
+            *damage_t = t;
+        if( *lethal_t )
+            return;
+    }
+}
+
+/* ======================================================== SOTE GUARD */
+
+static int
+sg_land_mov(const struct SoteGuardSpec* s, int i, int x, int z)
+{
+    int d = yl_cheb(x, z, s->mov_x[i], s->mov_z[i]);
+    if( s->mov_red[i] )
+        return s->mov_a[i] + (56 + 8 * d) / 30;
+    return s->mov_a[i] + (41 + 8 * d) / 30 + s->mov_o[i];
+}
+
+static int
+sg_clash(const struct SoteGuardSpec* s, int t, int grey_only)
+{
+    int i;
+    for( i = 0; i < s->n_fixed; i++ )
+        if( s->fixed_t[i] == t && (!grey_only || s->fixed_grey[i]) )
+            return 1;
+    return 0;
+}
+
+int
+sote_guard(const struct SoteGuardSpec* s, int* out_x, int* out_z, int* out_t, int* out_kind)
+{
+    int n = 0, dx, dz, i, j;
+    int l[SOTE_MOV_MAX];
+    assert(s);
+    assert(s->n_mov >= 0);
+    assert(s->n_mov <= SOTE_MOV_MAX);
+    assert(s->n_hyp >= 0);
+    assert(s->n_hyp <= SOTE_HYP_MAX);
+    assert(s->n_fixed >= 0);
+    assert(s->n_fixed <= SOTE_FIXED_MAX);
+    assert(s->max >= 0);
+    assert(s->max <= SOTE_OUT_MAX);
+#define SG_FORBID(X, Z, T, K)                                                                                          \
+    do                                                                                                                 \
+    {                                                                                                                  \
+        if( n < s->max )                                                                                               \
+        {                                                                                                              \
+            out_x[n] = (X);                                                                                            \
+            out_z[n] = (Z);                                                                                            \
+            out_t[n] = (T);                                                                                            \
+            out_kind[n] = (K);                                                                                         \
+            n++;                                                                                                       \
+        }                                                                                                              \
+    } while( 0 )
+    for( dx = -s->r; dx <= s->r; dx++ )
+    {
+        for( dz = -s->r; dz <= s->r; dz++ )
+        {
+            int x = s->mx + dx, z = s->mz + dz;
+            for( i = 0; i < s->n_mov; i++ )
+                l[i] = sg_land_mov(s, i, x, z);
+            for( i = 0; i < s->n_hyp; i++ )
+            {
+                int lh = s->hyp_lv[i] + (41 + 8 * yl_cheb(x, z, s->hyp_x[i], s->hyp_z[i])) / 30 + s->hyp_o[i];
+                if( sg_clash(s, lh, 0) )
+                    SG_FORBID(x, z, s->hyp_tk[i], SOTE_MAYBE);
+            }
+            for( i = 0; i < s->n_mov; i++ )
+            {
+                if( sg_clash(s, l[i], s->mov_red[i]) )
+                    SG_FORBID(x, z, s->mov_tk[i], s->mov_red[i] ? SOTE_BALL : SOTE_RIC);
+                for( j = i + 1; j < s->n_mov; j++ )
+                {
+                    int dt = s->mov_tk[j] - s->mov_tk[i];
+                    if( (dt <= 1 && dt >= -1) && l[j] == l[i] && !(s->mov_red[i] && s->mov_red[j]) )
+                    {
+                        SG_FORBID(x, z, s->mov_tk[i], SOTE_PAIR);
+                        if( s->mov_tk[j] != s->mov_tk[i] )
+                            SG_FORBID(x, z, s->mov_tk[j], SOTE_PAIR);
+                    }
+                }
+            }
+        }
+    }
+#undef SG_FORBID
+    return n;
+}

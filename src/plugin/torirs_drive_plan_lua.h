@@ -986,4 +986,329 @@ DriveMeetRankLua(lua_State* L, int spec_idx)
     return 4;
 }
 
+/* ---------------------------------------------------------------------
+ * The relay's heavy Lua, in C (action_plan.h; owner 2026-10-13). Each verb
+ * takes plain tiles and answers what its Lua original answered.
+ * ------------------------------------------------------------------ */
+
+/* read list[i].x / .z (1-based, the list at `idx`) into xs/zs, at most max */
+static int
+drive_tiles_read(lua_State* L, int idx, const char* what, int max, int* xs, int* zs)
+{
+    int n, i, k;
+    luaL_checktype(L, idx, LUA_TTABLE);
+    n = (int)lua_rawlen(L, idx);
+    if( n > max )
+        luaL_error(L, "%s: more than %d entries", what, max);
+    for( i = 1; i <= n; i++ )
+    {
+        lua_rawgeti(L, idx, i);
+        luaL_checktype(L, -1, LUA_TTABLE);
+        k = lua_gettop(L);
+        xs[i - 1] = drive_plan_field_int(L, k, "x", 0, 1);
+        zs[i - 1] = drive_plan_field_int(L, k, "z", 0, 1);
+        lua_pop(L, 1);
+    }
+    return n;
+}
+
+/* api_drive.yellow_chains(pools, n, hop, top, nodes) -> "ok",
+ * { {i, j, k}, ... } (1-based pool indices) and the hop, or "ok", nil */
+static int
+DriveYellowChainsLua(lua_State* L)
+{
+    static int px[YELLOW_POOLS_MAX], pz[YELLOW_POOLS_MAX];
+    static int out[YELLOW_CHAINS_MAX][3];
+    int np = drive_tiles_read(L, 1, "yellow_chains pools", YELLOW_POOLS_MAX, px, pz);
+    int n = (int)luaL_checkinteger(L, 2);
+    int hop0 = (int)luaL_checkinteger(L, 3);
+    int top = (int)luaL_checkinteger(L, 4);
+    int nodes = (int)luaL_checkinteger(L, 5);
+    int hop = 0, i, k;
+    luaL_argcheck(L, n >= 1 && n <= YELLOW_CHAINS_MAX, 2, "yellow_chains: n is 1..8");
+    lua_pushstring(L, "ok");
+    if( !yellow_chains(px, pz, np, n, hop0, top, nodes, out, &hop) )
+    {
+        lua_pushnil(L);
+        return 2;
+    }
+    lua_createtable(L, n, 0);
+    for( i = 0; i < n; i++ )
+    {
+        lua_createtable(L, 3, 0);
+        for( k = 0; k < 3; k++ )
+        {
+            lua_pushinteger(L, out[i][k] + 1);
+            lua_rawseti(L, -2, k + 1);
+        }
+        lua_rawseti(L, -2, i + 1);
+    }
+    lua_pushinteger(L, hop);
+    return 3;
+}
+
+/* api_drive.yellow_match(raiders, firsts, thirds) -> "ok", { {chain, rev}, ... }
+ * (1-based chain index per raider, rev true = run from its third pool), or nil */
+static int
+DriveYellowMatchLua(lua_State* L)
+{
+    static int rx[YELLOW_CHAINS_MAX], rz[YELLOW_CHAINS_MAX];
+    static int c1x[YELLOW_CHAINS_MAX], c1z[YELLOW_CHAINS_MAX], c3x[YELLOW_CHAINS_MAX], c3z[YELLOW_CHAINS_MAX];
+    static int pick[YELLOW_CHAINS_MAX], rev[YELLOW_CHAINS_MAX];
+    int nr = drive_tiles_read(L, 1, "yellow_match raiders", YELLOW_CHAINS_MAX, rx, rz);
+    int nc = drive_tiles_read(L, 2, "yellow_match firsts", YELLOW_CHAINS_MAX, c1x, c1z);
+    int nc3 = drive_tiles_read(L, 3, "yellow_match thirds", YELLOW_CHAINS_MAX, c3x, c3z);
+    int j;
+    luaL_argcheck(L, nc == nc3, 3, "yellow_match: firsts and thirds differ in length");
+    lua_pushstring(L, "ok");
+    if( !yellow_match(rx, rz, nr, c1x, c1z, c3x, c3z, nc, pick, rev) )
+    {
+        lua_pushnil(L);
+        return 2;
+    }
+    lua_createtable(L, nr, 0);
+    for( j = 0; j < nr; j++ )
+    {
+        lua_createtable(L, 2, 0);
+        lua_pushinteger(L, pick[j] + 1);
+        lua_rawseti(L, -2, 1);
+        lua_pushboolean(L, rev[j]);
+        lua_rawseti(L, -2, 2);
+        lua_rawseti(L, -2, j + 1);
+    }
+    return 2;
+}
+
+/* api_drive.tiles_nearest(from, tiles, max_d, cap) -> "ok", { i, ... } (1-based
+ * indices into tiles: within Chebyshev max_d, nearest first, then x, z) */
+static int
+DriveTilesNearestLua(lua_State* L)
+{
+    static int tx[8192], tz[8192], out[8192];
+    int fx, fz, n, max_d, cap, k, i;
+    luaL_checktype(L, 1, LUA_TTABLE);
+    fx = drive_plan_field_int(L, 1, "x", 0, 1);
+    fz = drive_plan_field_int(L, 1, "z", 0, 1);
+    n = drive_tiles_read(L, 2, "tiles_nearest tiles", 8192, tx, tz);
+    max_d = (int)luaL_checkinteger(L, 3);
+    cap = (int)luaL_checkinteger(L, 4);
+    luaL_argcheck(L, cap >= 0, 4, "tiles_nearest: cap >= 0");
+    if( cap > n )
+        cap = n;
+    k = tiles_nearest(fx, fz, tx, tz, n, max_d, cap, out);
+    lua_pushstring(L, "ok");
+    lua_createtable(L, k, 0);
+    for( i = 0; i < k; i++ )
+    {
+        lua_pushinteger(L, out[i] + 1);
+        lua_rawseti(L, -2, i + 1);
+    }
+    return 2;
+}
+
+/* api_drive.bloat_first_bad(spec, x, z, at) -> "ok", lethal_t, damage_t (0 =
+ * none in at+1 .. at+hold_long). spec (absolute tiles): lap = {{x,z},...},
+ * corner = {bool,...}, size, pos, branches = {{dir, speed}, ...} (the first
+ * lethal), tick, down_at|nil, rise, hold_long, hands = {{x,z,t0,t1},...},
+ * stomp = {x, z, t, before}|nil. Over the lane's collision map (the flies'
+ * sight is api_drive.plan's watcher rule). */
+static int
+DriveBloatFirstBadLua(lua_State* L, int idx, struct CollisionMap* cm, int base_x, int base_z)
+{
+    static struct BloatHoldSpec s;
+    int x, z, at, i, k, n, lt = 0, dt = 0;
+    memset(&s, 0, sizeof(s));
+    luaL_checktype(L, idx, LUA_TTABLE);
+    s.n_lap = 0;
+    lua_getfield(L, idx, "lap");
+    {
+        static int lx[BLOAT_LAP_MAX], lz[BLOAT_LAP_MAX];
+        s.n_lap = drive_tiles_read(L, lua_gettop(L), "bloat_first_bad lap", BLOAT_LAP_MAX, lx, lz);
+        for( i = 0; i < s.n_lap; i++ )
+        {
+            s.lap_x[i] = lx[i] - base_x;
+            s.lap_z[i] = lz[i] - base_z;
+        }
+    }
+    lua_pop(L, 1);
+    luaL_argcheck(L, s.n_lap >= 1, idx, "bloat_first_bad: an empty lap");
+    lua_getfield(L, idx, "corner");
+    luaL_checktype(L, -1, LUA_TTABLE);
+    for( i = 0; i < s.n_lap; i++ )
+    {
+        lua_rawgeti(L, -1, i + 1);
+        s.corner[i] = (unsigned char)lua_toboolean(L, -1);
+        lua_pop(L, 1);
+    }
+    lua_pop(L, 1);
+    s.size = drive_plan_field_int(L, idx, "size", 0, 1);
+    s.pos = drive_plan_field_int(L, idx, "pos", 0, 1);
+    luaL_argcheck(L, s.pos >= 1 && s.pos <= s.n_lap, idx, "bloat_first_bad: pos is off the lap");
+    lua_getfield(L, idx, "branches");
+    luaL_checktype(L, -1, LUA_TTABLE);
+    n = (int)lua_rawlen(L, -1);
+    luaL_argcheck(L, n >= 1 && n <= BLOAT_BRANCHES_MAX, idx, "bloat_first_bad: 1..4 branches");
+    for( i = 1; i <= n; i++ )
+    {
+        lua_rawgeti(L, -1, i);
+        k = lua_gettop(L);
+        s.br_dir[i - 1] = drive_plan_field_int(L, k, "dir", 0, 1);
+        s.br_speed[i - 1] = drive_plan_field_int(L, k, "speed", 0, 1);
+        lua_pop(L, 1);
+    }
+    s.n_br = n;
+    lua_pop(L, 1);
+    s.tick = drive_plan_field_int(L, idx, "tick", 0, 1);
+    lua_getfield(L, idx, "down_at");
+    if( !lua_isnil(L, -1) )
+    {
+        s.has_down = 1;
+        s.down_at = (int)luaL_checkinteger(L, -1);
+    }
+    lua_pop(L, 1);
+    s.rise = drive_plan_field_int(L, idx, "rise", 0, 1);
+    s.hold_long = drive_plan_field_int(L, idx, "hold_long", 0, 1);
+    lua_getfield(L, idx, "hands");
+    if( !lua_isnil(L, -1) )
+    {
+        luaL_checktype(L, -1, LUA_TTABLE);
+        n = (int)lua_rawlen(L, -1);
+        if( n > BLOAT_HANDS_MAX )
+            luaL_error(L, "bloat_first_bad: more than %d hands", BLOAT_HANDS_MAX);
+        for( i = 1; i <= n; i++ )
+        {
+            lua_rawgeti(L, -1, i);
+            k = lua_gettop(L);
+            s.hand_x[i - 1] = drive_plan_field_int(L, k, "x", 0, 1) - base_x;
+            s.hand_z[i - 1] = drive_plan_field_int(L, k, "z", 0, 1) - base_z;
+            s.hand_t0[i - 1] = drive_plan_field_int(L, k, "t0", 0, 1);
+            s.hand_t1[i - 1] = drive_plan_field_int(L, k, "t1", 0, 1);
+            lua_pop(L, 1);
+        }
+        s.n_hands = n;
+    }
+    lua_pop(L, 1);
+    lua_getfield(L, idx, "stomp");
+    if( !lua_isnil(L, -1) )
+    {
+        k = lua_gettop(L);
+        s.has_stomp = 1;
+        s.stomp_x = drive_plan_field_int(L, k, "x", 0, 1) - base_x;
+        s.stomp_z = drive_plan_field_int(L, k, "z", 0, 1) - base_z;
+        s.stomp_t = drive_plan_field_int(L, k, "t", 0, 1);
+        s.stomp_before = drive_plan_field_int(L, k, "before", 0, 1);
+    }
+    lua_pop(L, 1);
+    /* every footprint casts from inside the scene (api_drive.plan's rule) */
+    for( i = 0; i < s.n_lap; i++ )
+        if( s.lap_x[i] < 0 || s.lap_z[i] < 0 || s.lap_x[i] + s.size > cm->size_x || s.lap_z[i] + s.size > cm->size_z )
+            luaL_error(L, "bloat_first_bad: lap[%d] is outside the scene", i + 1);
+    if( s.has_stomp &&
+        (s.stomp_x < 0 || s.stomp_z < 0 || s.stomp_x + s.size > cm->size_x || s.stomp_z + s.size > cm->size_z) )
+        luaL_error(L, "bloat_first_bad: the stomp is outside the scene");
+    x = (int)luaL_checkinteger(L, idx + 1) - base_x;
+    z = (int)luaL_checkinteger(L, idx + 2) - base_z;
+    at = (int)luaL_checkinteger(L, idx + 3);
+    bloat_first_bad(cm, &s, x, z, at, &lt, &dt);
+    lua_pushstring(L, "ok");
+    lua_pushinteger(L, lt);
+    lua_pushinteger(L, dt);
+    return 3;
+}
+
+/* api_drive.sote_guard(spec) -> "ok", { {x, z, t, kind}, ... } (kind 0 maybe,
+ * 1 ball, 2 ric, 3 pair). spec: me = {x,z}, r, max, fixed = {{t, grey}},
+ * mov = {{tk, red, a, o, x, z}} (red: a = T, x/z = src; else a = lv, x/z =
+ * the victim), hyp = {{tk, lv, o, x, z}} */
+static int
+DriveSoteGuardLua(lua_State* L)
+{
+    static struct SoteGuardSpec s;
+    static int ox[SOTE_OUT_MAX], oz[SOTE_OUT_MAX], ot[SOTE_OUT_MAX], ok[SOTE_OUT_MAX];
+    int i, k, n;
+    memset(&s, 0, sizeof(s));
+    luaL_checktype(L, 1, LUA_TTABLE);
+    lua_getfield(L, 1, "me");
+    luaL_checktype(L, -1, LUA_TTABLE);
+    k = lua_gettop(L);
+    s.mx = drive_plan_field_int(L, k, "x", 0, 1);
+    s.mz = drive_plan_field_int(L, k, "z", 0, 1);
+    lua_pop(L, 1);
+    s.r = drive_plan_field_int(L, 1, "r", 0, 1);
+    s.max = drive_plan_field_int(L, 1, "max", 0, 1);
+    luaL_argcheck(L, s.max >= 0 && s.max <= SOTE_OUT_MAX, 1, "sote_guard: max is 0..512");
+    lua_getfield(L, 1, "fixed");
+    luaL_checktype(L, -1, LUA_TTABLE);
+    n = (int)lua_rawlen(L, -1);
+    if( n > SOTE_FIXED_MAX )
+        luaL_error(L, "sote_guard: more than %d fixed", SOTE_FIXED_MAX);
+    for( i = 1; i <= n; i++ )
+    {
+        lua_rawgeti(L, -1, i);
+        k = lua_gettop(L);
+        s.fixed_t[i - 1] = drive_plan_field_int(L, k, "t", 0, 1);
+        lua_getfield(L, k, "grey");
+        s.fixed_grey[i - 1] = (unsigned char)lua_toboolean(L, -1);
+        lua_pop(L, 2);
+    }
+    s.n_fixed = n;
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "mov");
+    luaL_checktype(L, -1, LUA_TTABLE);
+    n = (int)lua_rawlen(L, -1);
+    if( n > SOTE_MOV_MAX )
+        luaL_error(L, "sote_guard: more than %d mov", SOTE_MOV_MAX);
+    for( i = 1; i <= n; i++ )
+    {
+        lua_rawgeti(L, -1, i);
+        k = lua_gettop(L);
+        s.mov_tk[i - 1] = drive_plan_field_int(L, k, "tk", 0, 1);
+        lua_getfield(L, k, "red");
+        s.mov_red[i - 1] = (unsigned char)lua_toboolean(L, -1);
+        lua_pop(L, 1);
+        s.mov_a[i - 1] = drive_plan_field_int(L, k, "a", 0, 1);
+        s.mov_o[i - 1] = drive_plan_field_int(L, k, "o", 0, 0);
+        s.mov_x[i - 1] = drive_plan_field_int(L, k, "x", 0, 1);
+        s.mov_z[i - 1] = drive_plan_field_int(L, k, "z", 0, 1);
+        lua_pop(L, 1);
+    }
+    s.n_mov = n;
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "hyp");
+    luaL_checktype(L, -1, LUA_TTABLE);
+    n = (int)lua_rawlen(L, -1);
+    if( n > SOTE_HYP_MAX )
+        luaL_error(L, "sote_guard: more than %d hyp", SOTE_HYP_MAX);
+    for( i = 1; i <= n; i++ )
+    {
+        lua_rawgeti(L, -1, i);
+        k = lua_gettop(L);
+        s.hyp_tk[i - 1] = drive_plan_field_int(L, k, "tk", 0, 1);
+        s.hyp_lv[i - 1] = drive_plan_field_int(L, k, "lv", 0, 1);
+        s.hyp_o[i - 1] = drive_plan_field_int(L, k, "o", 0, 1);
+        s.hyp_x[i - 1] = drive_plan_field_int(L, k, "x", 0, 1);
+        s.hyp_z[i - 1] = drive_plan_field_int(L, k, "z", 0, 1);
+        lua_pop(L, 1);
+    }
+    s.n_hyp = n;
+    lua_pop(L, 1);
+    n = sote_guard(&s, ox, oz, ot, ok);
+    lua_pushstring(L, "ok");
+    lua_createtable(L, n, 0);
+    for( i = 0; i < n; i++ )
+    {
+        lua_createtable(L, 4, 0);
+        lua_pushinteger(L, ox[i]);
+        lua_rawseti(L, -2, 1);
+        lua_pushinteger(L, oz[i]);
+        lua_rawseti(L, -2, 2);
+        lua_pushinteger(L, ot[i]);
+        lua_rawseti(L, -2, 3);
+        lua_pushinteger(L, ok[i]);
+        lua_rawseti(L, -2, 4);
+        lua_rawseti(L, -2, i + 1);
+    }
+    return 2;
+}
+
 #endif

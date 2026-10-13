@@ -469,4 +469,117 @@ struct MeetRankTile
 int
 meet_rank(const struct MeetRankSpec* spec, struct MeetRankTile* out, int* n_out, int* cells);
 
+/*
+ * THE RELAY'S HEAVY LUA, IN C (owner 2026-10-13: "port any heavy lua
+ * functions to C"). Each mirrors its Lua original exactly, ties included;
+ * tob2 worker's side-by-side runs compared every call.
+ */
+
+/* lua_sort: Lua 5.4's table.sort (ltablib.c auxsort, rnd 0) over an index
+ * array, so a comparator with ties orders them as the Lua did. Returns 1, or
+ * 0 if Lua would have randomized a pivot (an array > 100 with a badly
+ * unbalanced partition: the Lua's own order was then not deterministic). */
+int
+lua_sort(int* a, int n, int (*lt)(int, int, const void*), const void* ud);
+
+/* YELLOWS (raid_solve_verzik_hm.lua _vzhm_yellow_chains / _match). */
+enum
+{
+    YELLOW_POOLS_MAX = 32,
+    YELLOW_CHAINS_MAX = 8,
+    YELLOW_ALL_MAX = 8192,
+};
+
+/* pools px/pz[0..np-1] (the caller's order); n chains of three, every step
+ * <= hop for hop = hop0 .. top, least total, the search capped at `nodes`
+ * chains looked at per hop. -> 1 and out[c][0..2] (0-based pool indices),
+ * *hop_out; 0 none. */
+int
+yellow_chains(const int* px, const int* pz, int np, int n, int hop0, int top, int nodes, int out[][3], int* hop_out);
+
+/* raiders rx/rz[0..nr-1], chains given as ends' tiles (c1 = first pool,
+ * c3 = third): the matching with the least walk to a first pool, each chain
+ * run from its nearer end. -> 1 and pick[j] (chain index), rev[j] (1 =
+ * reversed); 0 none. */
+int
+yellow_match(const int* rx, const int* rz, int nr, const int* c1x, const int* c1z, const int* c3x, const int* c3z,
+             int nc, int* pick, int* rev);
+
+/* NEAREST TILES (tob2_maiden.lua's trails): the indices of tiles within
+ * Chebyshev max_d of (fx, fz), by distance, then x, then z; at most cap.
+ * -> the count written to out. */
+int
+tiles_nearest(int fx, int fz, const int* tx, const int* tz, int n, int max_d, int cap, int* out);
+
+/* BLOAT HOLDS (tob_bloat.lua _bloat_holds over _bloat_spec's terms that can
+ * be lethal or damage): the first tick in at+1 .. at+hold_long a seat
+ * standing on (x, z) is seen by a lethal footprint (his way, the first
+ * branch) or stands on a hand, and the first it is seen by a damage
+ * footprint (the other branches). Local scene tiles. */
+enum
+{
+    BLOAT_LAP_MAX = 128,
+    BLOAT_BRANCHES_MAX = 4,
+    BLOAT_HANDS_MAX = 256,
+};
+
+struct BloatHoldSpec
+{
+    int n_lap;
+    int lap_x[BLOAT_LAP_MAX], lap_z[BLOAT_LAP_MAX];
+    unsigned char corner[BLOAT_LAP_MAX];
+    int size;
+    int pos;            /* 1-based lap index */
+    int n_br;
+    int br_dir[BLOAT_BRANCHES_MAX], br_speed[BLOAT_BRANCHES_MAX];
+    int tick;           /* F.tick */
+    int has_down, down_at, rise;
+    int hold_long;
+    int n_hands;
+    int hand_x[BLOAT_HANDS_MAX], hand_z[BLOAT_HANDS_MAX], hand_t0[BLOAT_HANDS_MAX], hand_t1[BLOAT_HANDS_MAX];
+    int has_stomp, stomp_x, stomp_z, stomp_t, stomp_before; /* the stomp's watcher in a spec whose now < stomp_before */
+};
+
+void
+bloat_first_bad(struct CollisionMap* cm, const struct BloatHoldSpec* s, int x, int z, int at, int* lethal_t, int* damage_t);
+
+/* SOTETSEG'S LANDING GUARD (tob2_sotetseg.lua SV.landing_guard's scan): every
+ * tile within r of (mx, mz), in dx then dz order, the forbids it makes, in
+ * the Lua's order, at most max. */
+enum
+{
+    SOTE_FIXED_MAX = 64,
+    SOTE_MOV_MAX = 16,
+    SOTE_HYP_MAX = 32,
+    SOTE_OUT_MAX = 512,
+};
+
+struct SoteGuardSpec
+{
+    int mx, mz, r, max;
+    int n_fixed;
+    int fixed_t[SOTE_FIXED_MAX];
+    unsigned char fixed_grey[SOTE_FIXED_MAX];
+    int n_mov;
+    int mov_tk[SOTE_MOV_MAX];
+    unsigned char mov_red[SOTE_MOV_MAX];  /* 1: his ball at slot T (land T + (56 + 8d(src)) / 30) */
+    int mov_a[SOTE_MOV_MAX];              /* ricochet: lv; slot: T */
+    int mov_o[SOTE_MOV_MAX];              /* ricochet: o */
+    int mov_x[SOTE_MOV_MAX], mov_z[SOTE_MOV_MAX]; /* ricochet: the victim; slot: src */
+    int n_hyp;
+    int hyp_tk[SOTE_HYP_MAX], hyp_lv[SOTE_HYP_MAX], hyp_o[SOTE_HYP_MAX], hyp_x[SOTE_HYP_MAX], hyp_z[SOTE_HYP_MAX];
+};
+
+enum SoteGuardKind
+{
+    SOTE_MAYBE = 0,  /* "two-styles-maybe" */
+    SOTE_BALL = 1,   /* "two-styles-ball" */
+    SOTE_RIC = 2,    /* "two-styles-ric" */
+    SOTE_PAIR = 3,   /* "two-styles-pair" */
+};
+
+/* -> the count; out_x/z/t/kind[0..count-1]. */
+int
+sote_guard(const struct SoteGuardSpec* s, int* out_x, int* out_z, int* out_t, int* out_kind);
+
 #endif

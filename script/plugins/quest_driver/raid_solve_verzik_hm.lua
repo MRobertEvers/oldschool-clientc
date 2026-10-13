@@ -294,97 +294,33 @@ end
 -- least total walking first; a node cap keeps it inside the step budget. Each
 -- seat splits the same sorted pools the same way, so the seats agree.
 function QD.raid._vzhm_yellow_chains(pools, n)
+    -- (in C, api_drive.yellow_chains: the same split, ties and node cap
+    -- included - this Lua's chain search made Verzik P3's heaviest ticks,
+    -- 100-111k instructions of the 400000 budget, v3_1e3_256 / c22m)
     local V = QD.VZHM
-    local np = #pools
-    local d = {}
-    for i = 1, np do
-        d[i] = {}
-        for j = 1, np do d[i][j] = QD.raid._tob_cheb(pools[i].x, pools[i].z, pools[j].x, pools[j].z) end
-    end
-    -- every chain through each pool (a, m, b with m the middle), its
-    -- longer step and its length; built once at the loosest hop
-    local top = V.YELLOW_HOP + 3
-    local through = {}
-    for i = 1, np do through[i] = {} end
-    for m = 1, np do
-        for a = 1, np do
-            if a ~= m and d[a][m] <= top then
-                for b = a + 1, np do
-                    if b ~= m and d[m][b] <= top then
-                        local c = { a, m, b, step = math.max(d[a][m], d[m][b]), len = d[a][m] + d[m][b] }
-                        through[a][#through[a] + 1] = c
-                        through[m][#through[m] + 1] = c
-                        through[b][#through[b] + 1] = c
-                    end
-                end
-            end
-        end
-    end
-    for i = 1, np do table.sort(through[i], function(x, y) return x.len < y.len end) end
-    for hop = V.YELLOW_HOP, top do
-        local used, cur, best, best_cost, work = {}, {}, nil, nil, 0
-        local function rec(cost, left)
-            if work > V.YELLOW_NODES then return end
-            if best_cost and cost >= best_cost then return end
-            if left == 0 then
-                best_cost, best = cost, {}
-                for k, c in ipairs(cur) do best[k] = c end
-                return
-            end
-            local p = nil
-            for i = 1, np do if not used[i] then p = i break end end
-            if p == nil then return end
-            for _, c in ipairs(through[p]) do
-                work = work + 1
-                if c.step <= hop and not used[c[1]] and not used[c[2]] and not used[c[3]] then
-                    used[c[1]], used[c[2]], used[c[3]] = true, true, true
-                    cur[#cur + 1] = c
-                    rec(cost + c.len, left - 1)
-                    cur[#cur] = nil
-                    used[c[1]], used[c[2]], used[c[3]] = false, false, false
-                end
-            end
-        end
-        rec(0, n)
-        if best then
-            local out = {}
-            for k, c in ipairs(best) do out[k] = { pools[c[1]], pools[c[2]], pools[c[3]] } end
-            return out, hop
-        end
-    end
-    return nil
+    local r, idx, hop = api_drive.yellow_chains(pools, n, V.YELLOW_HOP, V.YELLOW_HOP + 3, V.YELLOW_NODES)
+    assert(r == "ok", "yellow_chains answered " .. tostring(r))
+    if idx == nil then return nil end
+    local out = {}
+    for k, c in ipairs(idx) do out[k] = { pools[c[1]], pools[c[2]], pools[c[3]] } end
+    return out, hop
 end
 
 -- Chains to raiders (in F.raiders' order, the same on every seat): the
 -- matching with the least walk to the first pool, each chain run from
 -- whichever end is nearer. n <= 5: every permutation.
 function QD.raid._vzhm_yellow_match(raiders, chains)
-    local n = #raiders
-    local function walk(rd, c)
-        local a = QD.raid._tob_cheb(rd.x, rd.z, c[1].x, c[1].z)
-        local b = QD.raid._tob_cheb(rd.x, rd.z, c[3].x, c[3].z)
-        if b < a then return b, { c[3], c[2], c[1] } end
-        return a, c
+    -- (in C, api_drive.yellow_match: the same search, the same order)
+    local firsts, thirds = {}, {}
+    for c, ch in ipairs(chains) do firsts[c], thirds[c] = ch[1], ch[3] end
+    local r, picks = api_drive.yellow_match(raiders, firsts, thirds)
+    assert(r == "ok", "yellow_match answered " .. tostring(r))
+    if picks == nil then return nil end
+    local best = {}
+    for jj, p in ipairs(picks) do
+        local c = chains[p[1]]
+        best[jj] = p[2] and { c[3], c[2], c[1] } or c
     end
-    local best, best_cost = nil, nil
-    local taken, pick = {}, {}
-    local function rec(j, cost)
-        if best_cost and cost >= best_cost then return end
-        if j > n then
-            best_cost, best = cost, {}
-            for k = 1, n do best[k] = pick[k] end
-            return
-        end
-        for c = 1, #chains do
-            if not taken[c] then
-                local w, ordered = walk(raiders[j], chains[c])
-                taken[c], pick[j] = true, ordered
-                rec(j + 1, cost + w)
-                taken[c] = false
-            end
-        end
-    end
-    rec(1, 0)
     return best
 end
 

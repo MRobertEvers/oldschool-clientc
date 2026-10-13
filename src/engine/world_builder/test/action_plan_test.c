@@ -1157,6 +1157,152 @@ case_mr_d(void)
     report("(mr-d) the sort's ties, and a seat under her", before);
 }
 
+/* ============================================= THE RELAY'S KERNELS IN C
+ * Expected answers below were produced by the Lua each kernel replaced
+ * (tob2 worker's fuzz: 1397 seeded cases, every answer identical). */
+
+static int g_lsk[16];
+static int
+lsk_lt(int a, int b, const void* u)
+{
+    (void)u;
+    return g_lsk[a] < g_lsk[b];
+}
+
+/* (k-sort) table.sort's order of equal keys */
+static void
+case_k_sort(void)
+{
+    int keys[9] = { 0, 0, 4, 0, 1, 0, 0, 1, 4 };
+    int want[9] = { 1, 4, 7, 2, 6, 5, 8, 3, 9 };
+    int a[9], i, ok = 1, before = g_failures;
+    for( i = 0; i < 9; i++ )
+    {
+        g_lsk[i] = keys[i];
+        a[i] = i;
+    }
+    TEST_ASSERT(lua_sort(a, 9, lsk_lt, NULL) == 1, "k-sort: deterministic");
+    for( i = 0; i < 9; i++ )
+        ok = ok && a[i] + 1 == want[i];
+    TEST_ASSERT(ok, "k-sort: Lua's order of the ties");
+    report("(k-sort) lua_sort orders ties as table.sort", before);
+}
+
+/* (k-yellow) the yellows' split and match */
+static void
+case_k_yellow(void)
+{
+    int px[16] = { 25, 23, 8, 27, 21, 17, 7, 14, 4, 3, 27, 16, 24, 3, 25, 1 };
+    int pz[16] = { 11, 6, 5, 13, 4, 15, 15, 8, 4, 2, 3, 16, 19, 6, 9, 3 };
+    int want[5][3] = { { 4, 1, 15 }, { 5, 2, 11 }, { 3, 8, 7 }, { 12, 6, 13 }, { 10, 9, 14 } };
+    int out[8][3], hop = 0, i, k, ok = 1, before = g_failures;
+    int qx[10] = { 2, 28, 8, 10, 12, 12, 5, 25, 9, 9 }, qz[10] = { 8, 7, 5, 11, 5, 4, 8, 16, 16, 0 };
+    TEST_ASSERT(yellow_chains(px, pz, 16, 5, 5, 8, 3000, out, &hop) == 1, "k-yellow: a split");
+    TEST_ASSERT(hop == 7, "k-yellow: at hop 7");
+    for( i = 0; i < 5; i++ )
+        for( k = 0; k < 3; k++ )
+            ok = ok && out[i][k] + 1 == want[i][k];
+    TEST_ASSERT(ok, "k-yellow: the Lua's chains, in its order");
+    TEST_ASSERT(yellow_chains(qx, qz, 10, 3, 5, 8, 3000, out, &hop) == 0, "k-yellow: no split -> none");
+    {
+        int rx[2] = { 0, 30 }, rz[2] = { 0, 0 }, c1x[2] = { 29, 1 }, c1z[2] = { 0, 0 }, c3x[2] = { 2, 28 }, c3z[2] = { 0, 0 };
+        int pick[2], rev[2];
+        TEST_ASSERT(yellow_match(rx, rz, 2, c1x, c1z, c3x, c3z, 2, pick, rev) == 1, "k-yellow: a match");
+        TEST_ASSERT(pick[0] == 1 && rev[0] == 0 && pick[1] == 0 && rev[1] == 0, "k-yellow: each raider its near chain");
+    }
+    report("(k-yellow) yellow_chains / yellow_match", before);
+}
+
+/* (k-near) nearest tiles: distance, then x, then z, capped */
+static void
+case_k_near(void)
+{
+    int tx[26] = { 18, 39, 12, 1, 2, 30, 25, 10, 21, 33, 25, 38, 19, 38, 13, 5, 36, 7, 3, 15, 31, 35, 4, 13, 14, 17 };
+    int tz[26] = { 3, 10, 12, 34, 18, 14, 10, 17, 16, 0, 0, 31, 21, 26, 36, 29, 33, 19, 24, 1, 12, 19, 2, 28, 14, 9 };
+    int out[26], n, before = g_failures;
+    n = tiles_nearest(33, 28, tx, tz, 26, 5, 12, out);
+    TEST_ASSERT(n == 3 && out[0] == 16 && out[1] == 13 && out[2] == 11, "k-near: 17 14 12 (1-based)");
+    report("(k-near) tiles_nearest", before);
+}
+
+/* (k-sote) the landing guard's scan, in the Lua's order */
+static void
+case_k_sote(void)
+{
+    static struct SoteGuardSpec s;
+    int ox[64], oz[64], ot[64], ok[64], n, i, good = 1, before = g_failures;
+    int want[7][4] = { { 23, 28, 1010, 0 }, { 23, 29, 1010, 0 }, { 24, 28, 1010, 0 }, { 24, 29, 1010, 0 },
+                       { 25, 28, 1010, 0 }, { 25, 29, 1010, 0 }, { 26, 28, 1010, 0 } };
+    memset(&s, 0, sizeof(s));
+    s.mx = 25;
+    s.mz = 27;
+    s.r = 2;
+    s.max = 7;
+    s.n_fixed = 2;
+    s.fixed_t[0] = 1001;
+    s.fixed_grey[0] = 1;
+    s.fixed_t[1] = 1003;
+    s.n_mov = 3;
+    s.mov_tk[0] = 1003, s.mov_red[0] = 1, s.mov_a[0] = 1008, s.mov_o[0] = 0, s.mov_x[0] = 23, s.mov_z[0] = 18;
+    s.mov_tk[1] = 1002, s.mov_red[1] = 1, s.mov_a[1] = 1007, s.mov_o[1] = 1, s.mov_x[1] = 18, s.mov_z[1] = 26;
+    s.mov_tk[2] = 1004, s.mov_red[2] = 1, s.mov_a[2] = 1007, s.mov_o[2] = 1, s.mov_x[2] = 30, s.mov_z[2] = 29;
+    s.n_hyp = 2;
+    s.hyp_tk[0] = 1006, s.hyp_lv[0] = 1007, s.hyp_o[0] = 1, s.hyp_x[0] = 29, s.hyp_z[0] = 16;
+    s.hyp_tk[1] = 1010, s.hyp_lv[1] = 1001, s.hyp_o[1] = 0, s.hyp_x[1] = 21, s.hyp_z[1] = 34;
+    n = sote_guard(&s, ox, oz, ot, ok);
+    TEST_ASSERT(n == 7, "k-sote: capped at max 7");
+    for( i = 0; i < 7 && i < n; i++ )
+        good = good && ox[i] == want[i][0] && oz[i] == want[i][1] && ot[i] == want[i][2] && ok[i] == want[i][3];
+    TEST_ASSERT(good, "k-sote: the Lua's forbids, in its order");
+    report("(k-sote) sote_guard", before);
+}
+
+/* (k-bloat) the hold's first bad ticks: his footprint's sight, a hand, the
+ * down, the other branch as damage */
+static void
+case_k_bloat(struct CollisionMap* cm)
+{
+    static struct BloatHoldSpec s;
+    int lt, dt, before = g_failures;
+    collision_map_reset(cm);
+    memset(&s, 0, sizeof(s));
+    s.n_lap = 4;
+    s.lap_x[0] = 10, s.lap_z[0] = 10; /* SW tiles of a 5x5 walking east */
+    s.lap_x[1] = 11, s.lap_z[1] = 10;
+    s.lap_x[2] = 12, s.lap_z[2] = 10;
+    s.lap_x[3] = 13, s.lap_z[3] = 10;
+    s.size = 5;
+    s.pos = 1;
+    s.n_br = 1;
+    s.br_dir[0] = 1;
+    s.br_speed[0] = 1;
+    s.tick = 100;
+    s.rise = 33;
+    s.hold_long = 16;
+    /* open ground: a tile south of his footprint is seen from the first tick */
+    bloat_first_bad(cm, &s, 12, 5, 100, &lt, &dt);
+    TEST_ASSERT(lt == 101 && dt == 101, "k-bloat: seen at once in the open");
+    /* down past the horizon (no footprints): a hand at 104 is the first lethal */
+    s.has_down = 1;
+    s.down_at = 110;
+    s.n_hands = 1;
+    s.hand_x[0] = 12, s.hand_z[0] = 5, s.hand_t0[0] = 104, s.hand_t1[0] = 105;
+    bloat_first_bad(cm, &s, 12, 5, 100, &lt, &dt);
+    TEST_ASSERT(lt == 104 && dt == 104, "k-bloat: down, the hand's tick");
+    /* and without the hand: unseen */
+    s.n_hands = 0;
+    bloat_first_bad(cm, &s, 12, 5, 100, &lt, &dt);
+    TEST_ASSERT(lt == 0 && dt == 0, "k-bloat: down past the horizon: unseen");
+    s.has_down = 0;
+    s.n_br = 2;
+    s.br_dir[0] = 1, s.br_speed[0] = 1;
+    s.br_dir[1] = -1, s.br_speed[1] = 1;
+    bloat_first_bad(cm, &s, 4, 12, 100, &lt, &dt);
+    TEST_ASSERT(dt != 0 && (lt == 0 || dt <= lt), "k-bloat: the other branch is damage first");
+    collision_map_reset(cm);
+    report("(k-bloat) bloat_first_bad", before);
+}
+
 static void
 run_all(struct CollisionMap* cm)
 {
@@ -1189,6 +1335,11 @@ run_all(struct CollisionMap* cm)
     case_mr_b();
     case_mr_c();
     case_mr_d();
+    case_k_sort();
+    case_k_yellow();
+    case_k_near();
+    case_k_sote();
+    case_k_bloat(cm);
 }
 
 int

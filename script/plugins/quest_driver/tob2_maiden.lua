@@ -1422,18 +1422,16 @@ QD.T2.rooms.maiden = {
         end
         -- TRAILS: HM never fade; forbidden while seen. Nearest first, within
         -- what a horizon's running reaches, capped.
-        local trails = {}
-        for _, tr in pairs(S.trails) do
-            if cheb(tr.x, tr.z, F.me.x, F.me.z) <= 2 * X.H + 1 then trails[#trails + 1] = tr end
-        end
-        table.sort(trails, function(p, q)
-            local dp, dq = cheb(p.x, p.z, F.me.x, F.me.z), cheb(q.x, q.z, F.me.x, F.me.z)
-            if dp ~= dq then return dp < dq end
-            if p.x ~= q.x then return p.x < q.x end
-            return p.z < q.z
-        end)
-        for i, tr in ipairs(trails) do
-            if i > X.TRAIL_CAP or #B.spec.hits >= X.HITS_ROOM then break end
+        -- (the nearest-first sort in C, api_drive.tiles_nearest: a Lua
+        -- comparator over every Hard Mode trail was most of Maiden's heaviest
+        -- ticks, up to 230k instructions, c22m)
+        local all = {}
+        for _, tr in pairs(S.trails) do all[#all + 1] = tr end
+        local tr_r, near = api_drive.tiles_nearest(F.me, all, 2 * X.H + 1, X.TRAIL_CAP)
+        assert(tr_r == "ok", "tiles_nearest answered " .. tostring(tr_r))
+        for _, k in ipairs(near) do
+            if #B.spec.hits >= X.HITS_ROOM then break end
+            local tr = all[k]
             B.hit{ name = "trail", x = tr.x, z = tr.z, size = 1, t0 = now + 1, t1 = hz, sample = "end",
                 dmg_exp = X.TRAIL_EXP, dmg_max = X.TRAIL_MAX, forbid = true }
         end
