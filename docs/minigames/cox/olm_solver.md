@@ -37,7 +37,7 @@ slots it leaves open and the head phase from the wiki's "Minimum" setup
 | chat | the phase's power; "smothered you in acid" (the drip); "chosen you as its target" (falling crystals) |
 | my overload | its dose count falling (the timer varp is not transmitted) |
 
-The rotation is counted, as a player counts it, from the rise (P1 + 4, later
+The rotation is counted, as a player counts it, from the rise (P1 + 9, later
 + 8), and RE-ANCHORED on the first action seen off the count (a turn or an
 attack; the step counted on the wrong tick is undone). The offset is a content
 check (`clock`).

@@ -48,7 +48,7 @@ CO.V = {
     },
     -- the clock (OLM_SPEC 3); the rise's second beat (cox_olm_rise_done,
     -- the ghost clench's 2-tick poll grid) is the rise animation + 5 (its full length)
-    FIRST_P1 = 5, FIRST_LATER = 8, ACT = 4, RISE_DONE = 5,
+    FIRST_P1 = 9, FIRST_LATER = 8, ACT = 4, RISE_DONE = 5,
     -- THE CLENCH (cox_olm_clench_check): one hit on the melee hand of 1/20
     -- of the solo hand's 600, in the window a null opens and the special
     -- after it judges (wiki Strategies: "the eight ticks between null and

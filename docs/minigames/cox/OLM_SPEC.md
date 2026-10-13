@@ -50,8 +50,9 @@ rock (1357); its acid projectile is Vespula's (1364).
 ## 3. The clock
 
 - Rise: the head's spawn anim, 10 ticks after the barrier (P1) or 24 after the
-  fall; the claws and the risen locs 4 ticks later. First action: rise + 4 (P1),
-  rise + 8 (later) [P]. Then every 4 ticks.
+  fall; the claws and the risen locs 4 ticks later. First action: the tracker counts
+  from the "rises with the power" message (the risen-loc swap, rise + 5): +4 in
+  P1, +3 later [P], so rise + 9 (P1), rise + 8 (later). Then every 4 ticks.
 - Rotation [W]: auto, empty, auto, crystal burst, auto, empty, auto, lightning,
   auto, empty, auto, teleport; the penultimate phase adds auto, empty, auto,
   left-claw protection [NR].
