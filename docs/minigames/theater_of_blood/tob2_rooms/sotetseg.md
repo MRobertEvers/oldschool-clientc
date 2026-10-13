@@ -94,6 +94,13 @@ Piety off in the maze only (intents.pray_off; want.boost nil there): restores 16
 13.1 a run, brews 17.1 / 17.4, 16/16 (pray2). Off in the hold too (pray1) saved one more restore but cost
 4.6 brews and 98 team hp a run: the burst starts with Piety a tick or two late and fewer pairs are nulled.
 
+## The block cascade's floor
+
+Two styles that may land on one tick (or protection already blocked) floor the seat at a brew's
+overheal cap (115) until 5 ticks past the overlap / the block's end. The rescue cannot act there: the
+two-style max (2 x 50) is beyond any brew, so no heal lowers the plan's risk. (relay_r12_128 f32 seat 2:
+foreseen t1956, no drink until t1960, 25 + 7 + 48 + 26 in renewed blocks, dead t1972; passes now.)
+
 ## Specials and boosts (owner 2026-10-12)
 
 Opener: ONE Dragon Warhammer special a seat (30% of his current Defence on a damaging hit,

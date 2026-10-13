@@ -91,3 +91,23 @@ Vasilias' form tiles (dot only works if nobody is nearer than it: the bounce spa
 target's tile), pre-move after her second attack, her melee tiles on her south edge; Prinkipas ties
 random (Vasilias' rule), not lowest pid. Monitor (final 8 seeds): move 4.0%, swing 18.9% (mostly
 "predicted, none": a one-hit nylo killed by another seat), threat 1.9%, stall 0.
+
+## Burning claws (owner, 2026-10-12)
+`NV.special` (Sotetseg's / P3's machine): idle -> wield (bone_claws, two-handed, a free slot)
+-> armed (intents.spec, spec_cost 350, through QD.T2.exec.spec_gate) -> back (the melee set:
+tentacle AND dragon defender) -> idle. Active only while I swing melee at a melee Prinkipas or at
+Vasilias' melee form, the weapon in hand, and her/its colour change >= SPEC_LEAD (4) ticks on (the
+target's t_ok1 = change - 1 keeps every swing off the change tick). The spec_ok marks (the shared
+warhammer dump) are gone from both targets. Private root, same binary, ny1..ny8 + q1..q8:
+| | before (r6 file) | claws |
+|---|---|---|
+| pass | 16/16 | 16/16 |
+| room ticks | 467 | 448 |
+| Prinkipas kill (all three) | 37.4 | 31.8 (waves 10/20: 9 / 14 vs 18 / 23) |
+| Vasilias kill | 105.3 | 95.1 |
+| specials per seat | 2.0 hammer | 3.4 claws |
+| team damage | 342 | 286 |
+| supports lost | 9 | 3 |
+| deaths / nulls | 0 / 0 | 0 / 0 |
+272 claws specials, every one with a melee-form Prinkipas/Vasilias alive; 390 claws -> tentacle
+swaps, every one with the defender in the same tick.

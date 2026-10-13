@@ -398,6 +398,7 @@ function SV.predict(S, F, B)
                 local a1 = math.min(P.land2 or P.land, Q.land2 or Q.land)
                 a0 = math.max(a0, now + 1)
                 if a1 >= a0 and a0 <= hz then
+                    S.t2s.cascade_until = math.max(S.t2s.cascade_until or 0, math.min(a1, hz) + 5)
                     B.hit{ name = "two-styles", x0 = F.me.x - 20, z0 = F.me.z - 20, x1 = F.me.x + 20, z1 = F.me.z + 20,
                         t0 = a0, t1 = math.min(a1, hz), land = 0, dmg_exp = 2 * X.BALL_AVG, dmg_max = 2 * X.BALL_MAX }
                 end
@@ -775,6 +776,20 @@ function SV.strategy(S, F, B)
             -- at the 3-tick gap, and a pair the burst nulls needs none - "soon"
             -- brewed for pairs that never landed, relay_v2_128)
             if mode == "stack" or mode == "burst" then floor = SV.pair_need(S, F) end
+            -- THE BLOCK CASCADE: two styles that may land on one tick, or my
+            -- protection blocked, put every hit on me unprayed until the
+            -- block lifts, and a hit in the block renews it. The rescue
+            -- cannot act on it: a two-style landing's max (2 x 50) is past
+            -- any brew, so no heal lowers the plan's risk and the shared
+            -- rescue adopts none. So the floor goes to a brew's overheal cap
+            -- from the moment it is foreseen (relay_r12_128 f32 seat 2:
+            -- two styles foreseen at t1956, no drink until the first hit at
+            -- t1960, then 25 + 7 + 48 + 26 over twelve ticks of renewed
+            -- blocks, dead at t1972 still drinking).
+            local M = S.t2s
+            if (S.block_until ~= nil and S.block_until >= F.tick) or (M.cascade_until or 0) >= F.tick then
+                floor = math.max(floor, X.HEAL_CAP)
+            end
             I.eat_below, I.brew_below = floor, floor
         end
         -- THE OVERHEAD: v1's rule; nothing while my protection is blocked

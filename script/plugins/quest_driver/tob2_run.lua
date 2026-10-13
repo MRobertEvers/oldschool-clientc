@@ -170,8 +170,19 @@ end
 -- intents then carry the eat and the drink.
 function QD.T2.rescue(S, F, B, intents)
     local r = B.result
-    if (r.risk or 0) <= 0 or r.hp_worst == nil or r.hp_worst > 0 then return end
     local d = F.tick
+    -- the plan's risk by cause (action_plan.c): risk_rule (forbids, lethal
+    -- zones) a heal never changes, risk_hp (hp_worst <= 0) it can; an older
+    -- binary answers risk alone
+    local split = r.risk_hp ~= nil and r.risk_rule ~= nil
+    local hp_risk = split and r.risk_hp or (((r.hp_worst or 1) <= 0) and (r.risk or 0) or 0)
+    if hp_risk <= 0 or r.hp_worst == nil or r.hp_worst > 0 then
+        S.t2.rescue_run = 0
+        return
+    end
+    -- at most RESCUE_RUN consecutive ticks of rescue while the hp risk
+    -- persists (food + brew, then what the timers allow next tick)
+    if (S.t2.rescue_run or 0) >= QD.T2.V.RESCUE_RUN then return end
     local H = S.x2.held
     local t = QD.T2.held_tick(S, F, intents)
     local extra, drop = {}, {}
@@ -200,17 +211,30 @@ function QD.T2.rescue(S, F, B, intents)
     end
     R.asked = R.asked + 1
     local r2 = B.replan(extra, drop)
-    -- ADOPTED ONLY WHEN THE HEAL LOWERS THE RISK. A heal never changes a
-    -- forbid term's risk, so a forbid-driven plan (with hp_worst below 0 from
-    -- some other term's dmg_max) gets the same risk and a higher hp_worst --
-    -- and the old tie-break on hp_worst adopted exactly that: Bloat seats
-    -- drank 7-13 brews and fish at full hp beside his hands and branch
-    -- watchers, and the overheal wore off as "-1 hits" (Bloat worker,
-    -- 2026-10-12).
-    if (r2.risk or 0) >= (r.risk or 0) then
+    -- THE ADOPT RULE, BY CAUSE. Without the split: only when the total risk
+    -- falls (a forbid-driven plan gets the same risk and a higher hp_worst;
+    -- adopting that was Bloat's waste, 7-13 brews and fish at full hp).
+    -- With it (relay f32, relay_r12_128: a Sotetseg seat at 74 foresaw two
+    -- ricochets of 50 on one tick, hp_worst -26; one brew could not lift it
+    -- above 0, nothing was adopted, and it died): risk_rule unchanged (a heal
+    -- cannot touch it) and either risk_hp falls, or it is equal and
+    -- hp_worst rises by at least half the heal -- a burst one heal cannot
+    -- fully cover still gets the heal.
+    local adopt
+    if split and r2.risk_rule ~= nil and r2.risk_hp ~= nil then
+        local heal = 0
+        for _, e in ipairs(extra) do heal = heal + (e.heal or 0) end
+        local same_rule = math.abs(r2.risk_rule - r.risk_rule) < 1e-6
+        adopt = same_rule and (r2.risk_hp < r.risk_hp - 1e-6
+            or (math.abs(r2.risk_hp - r.risk_hp) < 1e-6 and (r2.hp_worst or 0) >= (r.hp_worst or 0) + 0.5 * heal))
+    else
+        adopt = (r2.risk or 0) < (r.risk or 0)
+    end
+    if not adopt then
         R.refused = (R.refused or 0) + 1
         return
     end
+    S.t2.rescue_run = (S.t2.rescue_run or 0) + 1
     R.taken = R.taken + 1
     B.adopt(r2)
     intents.eat, intents.drink = eat, drink

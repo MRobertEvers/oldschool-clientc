@@ -125,6 +125,7 @@ QD.T2.V = {
     SPEC_GAP = 2,                -- E8: the spec orb toggle, at most every 2 ticks
     CAST_COOLDOWN = 5,           -- E2: the cast clock (ancient barrage), when the room gives none
     EAT_GAP = 3, DRINK_GAP = 3,  -- a food / a potion every 3 ticks
+    RESCUE_RUN = 2,              -- consecutive ticks of rescue while the plan's hp risk persists
     SPEC_VALUE = 2,              -- a spec_ok target's swing value while a dump is planned (the hammer's special)
     TAB_SETTLES = true,          -- E9: a tab switch settles in its call (tob2_exec panel)
     -- THE HELD OPS' EFFECTS (content: player/scripts/consumption/consume_shared.rs2).

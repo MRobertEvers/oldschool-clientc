@@ -421,18 +421,14 @@ function VZ.ball_role(S, F)
         -- (vz_claws vp3 t951-957: the target ate the un-bounced 74). The
         -- target walks toward the next by as much as the next cannot cover
         -- in time, plus a tile; every seat that sees both computes the same.
+        -- THE MEETING TILE FROM WHAT EVERY SEAT SEES THE SAME: the target's
+        -- tile at the ball's first sight and her footprint, pushed off her
+        -- (below). The walk toward the next (vz_claws vp3) used the next's
+        -- distance from each seat's own view - a seat out of view is a stale
+        -- last-seen tile - and two seats held two different tiles 2 apart
+        -- (relay_r12_128 f40 t3299: no bounce, the un-bounced kill). The next
+        -- is the NEAREST unvisited seat now, which reaches it in time.
         Bl.meet = { x = Bl.anchor.x, z = Bl.anchor.z }
-        if best then
-            local ticks = math.max(0, (Bl.land - 1) - F.tick)
-            local need = bd - 1 - 2 * ticks + 1
-            local b = F.boss
-            for _ = 1, math.max(0, need) do
-                local mx = Bl.meet.x + ((best.x > Bl.meet.x) and 1 or ((best.x < Bl.meet.x) and -1 or 0))
-                local mz = Bl.meet.z + ((best.z > Bl.meet.z) and 1 or ((best.z < Bl.meet.z) and -1 or 0))
-                if b and QD.raid._tob_gap(mx, mz, b.x, b.z, QD.VZP3.SIZE) == 0 then break end
-                Bl.meet = { x = mx, z = mz }
-            end
-        end
         -- OFF HER MELEE: the meeting tile 3+ off her footprint. Held beside
         -- her, the pair holds through a scan; when one of them is her tank
         -- (or no tank is known) the hold and the scan's rule collide, and

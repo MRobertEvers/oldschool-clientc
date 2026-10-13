@@ -301,3 +301,16 @@ The planner needs MULTI-ALT for her (hold plus her 8 steps, the worst scored) wh
   2. Givers who see a seat there drop on that tile; the taker takes.
   3. A giver takes back its own drop if it is still there when the window ends.
   The window is short: her form appears about 4 ticks into the P3 solve and her first auto lands about 10 ticks later.
+
+## Batch 13 (INSTALLED 2026-10-12, $S/tob2_verzik_p3.v13.lua): the ball's meeting tile from shared facts only
+- relay_r12_128 f40, seat 5 killed by the un-bounced Hard Mode ball (74, its hp) at t3300.
+  - The target held its meeting tile 6432,152 at the read (end of t3298).
+  - The next (seat 1) held beside a different tile, 2 off.
+  - The meeting tile was the anchor pushed off her and WALKED TOWARD THE NEXT by a distance read from each
+    seat's own view. A seat out of view is a stale last-seen tile, so two seats computed two tiles.
+- Fix: the meeting tile = the target's tile at first sight, pushed 3+ off her footprint, nothing else.
+  Every seat sees the same tile. The next is the nearest unvisited seat.
+- A first attempt (the next follows the target's live tile from read-2) made it worse: 4/8 on vp1..vp8. The
+  target oscillates between ticks and the next chased a tick behind. Reverted.
+- f40 (full relay, current layers): PASS (the old trajectory does not reproduce). vp1..vp8: identical to
+  batch 12 (8/8, P3 295, 0 touches).

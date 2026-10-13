@@ -64,6 +64,12 @@ QD.NYLO_V2 = {
     -- aggro at twice a fresh walker, and the walkers reached their pillars)
     P_UNPRAYED = 0.1, DET_NEAR = 4,
     PRINCE_SWING = 12, BOSS_SWING = 3,
+    -- the claws special (NV.special): its cost, a swing worth `mult` of a
+    -- tentacle's (three hits at 150/100/75% of max vs one at ~50%), and the
+    -- ticks before a colour change it needs (wield d, press d+1, swing d+2,
+    -- the change >= d+3, +1 margin)
+    CLAWS = { name = "bone_claws", cost = 350, mult = 6 },
+    SPEC_LEAD = 4,
     TARGETS = 5,
     KEEP = 1.5, SWITCH_TICKS = 6, WALK_TICKS = 1, SAVE_PCT = 30,
     LIFE = { [1] = 51, [2] = 52 }, SETTLE_AGE = 7, FLICKER_WAVE = 16,
@@ -302,7 +308,74 @@ function NV.worn_style(S)
     for _, st in ipairs({ "ranged", "melee", "magic" }) do
         if QD.raid._tob_worn(S, S.ids.weapon[st]) then return st end
     end
+    -- (the burning claws are a melee weapon: slash, the style check's melee)
+    if S.ids.claws and QD.raid._tob_worn(S, S.ids.claws) then return "melee" end
     return nil
+end
+
+-- THE CLAWS (owner, 2026-10-12: "dump burning claws specials on the melee
+-- Prinkipas and the boss in her melee form whenever able"; every room clear
+-- refills the energy to 1000, ~tob_restore_party, so nothing is owed on).
+-- bone_claws: 350 energy, two-handed, three hits at 75-175 / 50-150 /
+-- 25-125% of max (pvm_bone_claws.rs2). The machine is Sotetseg's / P3's
+-- (tob2_sotetseg.lua SV.special): idle -> wield (the claws on, two-handed:
+-- a free slot for the defender) -> armed (intents.spec: the orb rides the
+-- plan's attack, through QD.T2.exec.spec_gate) -> back (the melee set: the
+-- tentacle AND the dragon defender, owner: the defender on for every
+-- tentacle swing) -> idle. `active`: this tick I swing melee at a melee
+-- Prinkipas or at her melee form, with its colour change far enough on for
+-- the wield, the press and the swing (SPEC_LEAD) -- never on a change tick,
+-- so never a wrong-style hit (HM reflects). Off `active` the mode's own set
+-- takes the claws off (its weapon replaces them).
+function NV.special(S, F, I, active)
+    local V, M, ids = QD.NYLO_V2, S.t2n, S.ids
+    local sp = M.sp
+    local function enter(state, why)
+        QD.raid._tob_trace(S, F.tick, "spec: " .. sp.state .. " -> " .. state .. " (" .. why .. ")")
+        sp.state = state
+    end
+    M.sp_tick = F.tick
+    local held = ids.claws ~= nil and QD.raid._tob_worn(S, ids.claws)
+    if not active then
+        if sp.state ~= "idle" then
+            if held then
+                if sp.state ~= "back" then enter("back", "no melee target") end
+            else
+                enter("idle", "claws off")
+            end
+        end
+        return false
+    end
+    if sp.state == "idle" and ids.claws and QD.raid._tob_count(S, ids.claws) > 0 and F.energy >= V.CLAWS.cost
+        and QD.T2.exec.spec_gate(S, F, { spec_cost = V.CLAWS.cost }) and QD.T2.exec.free_slots(S) >= 1 then
+        enter("wield", "energy " .. F.energy)
+    end
+    if sp.state == "wield" then
+        if held then
+            sp.energy = F.energy
+            enter("armed", "claws in hand")
+        else
+            I.gear = { { obj = ids.claws, two_hand = true } }
+            return true
+        end
+    end
+    if sp.state == "armed" then
+        if F.energy <= sp.energy - V.CLAWS.cost + 10 then
+            sp.fired = sp.fired + 1
+            sp.energy = F.energy
+            if F.energy < V.CLAWS.cost then enter("back", "fired, energy " .. F.energy) end
+        elseif not held then
+            enter("back", "not in hand")
+        end
+        if sp.state == "armed" then
+            I.gear, I.spec, I.spec_cost = nil, true, V.CLAWS.cost
+            return true
+        end
+    end
+    -- back and idle: the melee set (the tentacle and the defender)
+    I.gear = NV.gear(S, "melee")
+    if sp.state == "back" and #I.gear == 0 then enter("idle", "melee set on") end
+    return false
 end
 
 -- The set's objs not worn and carried (the blowpipe two-handed).
@@ -486,8 +559,11 @@ function NV.prince_mode(S, F, B, I, P)
     -- (a switch tick: the target from the tick the weapon is worn, now+2)
     local t_ok0 = (worn ~= P.colour) and (F.tick + 2) or nil
     local change = NV.next_change(P.m, F.tick + 1)
+    local spec = NV.special(S, F, I, P.colour == "melee" and t_ok0 == nil and change - F.tick >= V.SPEC_LEAD)
     B.target{ name = "prince", npc = row, size = V.PRINCE_SIZE, path = { { x = row.x, z = row.z } },
-        range = V.RANGE[P.colour], speed = V.SPEED[P.colour], value = V.PRINCE_SWING, t_ok0 = t_ok0, t_ok1 = change - 1, spec_ok = true }
+        range = V.RANGE[P.colour], speed = V.SPEED[P.colour], value = V.PRINCE_SWING * (I.spec and V.CLAWS.mult or 1),
+        t_ok0 = t_ok0, t_ok1 = change - 1 }
+    if spec and I.spec then return "claws" end
     return t_ok0 and "switch" or "prince"
 end
 
@@ -626,8 +702,10 @@ function NV.boss_mode(S, F, B, I)
     if D.target == nil or S.boss_m == nil then return "landing" end
     local t_ok0 = (NV.worn_style(S) ~= D.style) and (F.tick + 2) or nil
     local change = NV.next_change(S.boss_m, F.tick + 1)
+    NV.special(S, F, I, D.style == "melee" and t_ok0 == nil and change - F.tick >= V.SPEC_LEAD)
     B.target{ name = "vasilias", npc = b, size = QD.NYLO.BOSS_SIZE, path = { { x = b.x, z = b.z } },
-        range = V.RANGE[D.style], speed = V.SPEED[D.style], value = V.BOSS_SWING, t_ok0 = t_ok0, t_ok1 = change - 1, spec_ok = true }
+        range = V.RANGE[D.style], speed = V.SPEED[D.style], value = V.BOSS_SWING * (I.spec and V.CLAWS.mult or 1),
+        t_ok0 = t_ok0, t_ok1 = change - 1 }
     -- (her colour seen first now: her first swing in it is 2 ticks on, so
     -- the overhead may wait a tick for the wield, E9's one panel a tick)
     if S.t2n.boss_colour ~= D.style then
@@ -649,6 +727,11 @@ QD.T2.rooms.nylocas = {
         S.lives, S.wave_at, S.waves, S.splits, S.wave_log = {}, {}, 0, 0, {}
         S.nulled, S.nulls, S.attacks, S.switch_log, S.phase_log, S.walks = {}, 0, 0, {}, {}, {}
         QD.raid._nylo_hm_ids(S)
+        do
+            local r, id = api_drive.symbol("obj", QD.NYLO_V2.CLAWS.name)
+            assert(r == "ok", "nylocas_v2_solve: no obj named " .. QD.NYLO_V2.CLAWS.name)
+            S.ids.claws = id
+        end
         S.ids.attack_seq_style = {}
         for name, st in pairs({ top_spider_melee_attack = "melee", top_spider_ranged_attack = "ranged",
                                 top_spider_magic_attack = "magic" }) do
@@ -662,6 +745,7 @@ QD.T2.rooms.nylocas = {
             swing = {}, spawn = {}, reached = {}, reached_n = 0, bites = 0,
             taken = 0, last_hp = nil, supports_max = 0, barrages = 0,
             choice = "melee", pray_switches = 0, collapse_hits = 0, pray_waits = 0,
+            sp = { state = "idle", fired = 0, energy = 0 },
         }
     end,
 
@@ -847,6 +931,9 @@ QD.T2.rooms.nylocas = {
         want.eat_below = I.eat_below or M.opts.eat_below
         want.brew_below = I.eat_below and math.max(I.eat_below - V.BREW_DOSE, V.BREW_MIN) or M.opts.brew_below
         I.eat_below = nil
+        -- (every other mode: the machine stands down; the mode's set takes
+        -- the claws off)
+        if M.sp_tick ~= F.tick then NV.special(S, F, I, false) end
         if I.gear and #I.gear == 0 then I.gear = nil end
         if mode ~= M.mode then
             QD.raid._tob_trace(S, F.tick, "mode " .. mode)
@@ -874,10 +961,10 @@ QD.T2.rooms.nylocas = {
         local modes = {}
         for k, n in pairs(M.modes) do modes[#modes + 1] = k .. "=" .. n end
         table.sort(modes)
-        return string.format("nylocas v2: modes %s; taken %d; nulls %d; waves %d (%s); phases %s; supports lost %d; reached %d; bites %d; casts %d; pray switches %d waits %d; boss landed %s, M %s; switches %s",
+        return string.format("nylocas v2: modes %s; taken %d; nulls %d; waves %d (%s); phases %s; supports lost %d; reached %d; bites %d; casts %d; claws %d; pray switches %d waits %d; boss landed %s, M %s; switches %s",
             table.concat(modes, " "), M.taken, S.nulls, S.waves, table.concat(S.wave_log, " "),
             table.concat(S.phase_log, " "), M.supports_max - #(M.obs_F and M.obs_F.supports or {}), M.reached_n,
-            M.bites, S.casts or 0, M.pray_switches, M.pray_waits, tostring(S.boss_seen and (S.boss_seen - (S.t0 or 0))),
+            M.bites, S.casts or 0, M.sp.fired, M.pray_switches, M.pray_waits, tostring(S.boss_seen and (S.boss_seen - (S.t0 or 0))),
             tostring(S.boss_m and (S.boss_m - (S.t0 or 0))), table.concat(S.switch_log, " "))
     end,
 }
