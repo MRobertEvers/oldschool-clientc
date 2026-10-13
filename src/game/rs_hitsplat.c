@@ -32,9 +32,11 @@ RS_Hitsplats_Free(struct RS_Hitsplats* hitsplats)
     free(hitsplats->sprite_ids);
     free(hitsplats->durations);
     free(hitsplats->slot_policies);
+    free(hitsplats->text_offsets_y);
     hitsplats->sprite_ids = NULL;
     hitsplats->durations = NULL;
     hitsplats->slot_policies = NULL;
+    hitsplats->text_offsets_y = NULL;
     hitsplats->count = 0;
 }
 
@@ -44,6 +46,7 @@ RS_Hitsplats_SetTypes(
     int* sprite_ids,
     int* durations,
     int* slot_policies,
+    int* text_offsets_y,
     struct RS_HitsplatVariants* variants,
     int count)
 {
@@ -56,9 +59,11 @@ RS_Hitsplats_SetTypes(
     free(hitsplats->sprite_ids);
     free(hitsplats->durations);
     free(hitsplats->slot_policies);
+    free(hitsplats->text_offsets_y);
     hitsplats->sprite_ids = sprite_ids;
     hitsplats->durations = durations;
     hitsplats->slot_policies = slot_policies;
+    hitsplats->text_offsets_y = text_offsets_y;
     hitsplats->variants = variants;
     hitsplats->count = count;
     return 1;
@@ -126,4 +131,14 @@ RS_Hitsplats_SpriteFor(
     if( !hitsplats->sprite_ids || hitsplat_type < 0 || hitsplat_type >= hitsplats->count )
         return -1;
     return hitsplats->sprite_ids[hitsplat_type];
+}
+
+int
+RS_Hitsplats_TextOffsetYFor(
+    struct RS_Hitsplats const* hitsplats,
+    int hitsplat_type)
+{
+    if( !hitsplats->text_offsets_y || hitsplat_type < 0 || hitsplat_type >= hitsplats->count )
+        return 0;
+    return hitsplats->text_offsets_y[hitsplat_type];
 }
