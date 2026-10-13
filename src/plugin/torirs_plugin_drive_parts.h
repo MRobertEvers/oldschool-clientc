@@ -43,6 +43,18 @@ static char const* const DRIVE_SCRIPT_PARTS[] = {
     "plugins/quest_driver/tob_xarpus.lua",
     "plugins/quest_driver/tob_xarpus_hm.lua",
     "plugins/quest_driver/tob_relay.lua",
+    "plugins/quest_driver/tob2_plan.lua",
+    "plugins/quest_driver/tob2_exec.lua",
+    "plugins/quest_driver/tob2_monitor.lua",
+    "plugins/quest_driver/tob2_run.lua",
+    "plugins/quest_driver/tob2_maiden.lua",
+    "plugins/quest_driver/tob2_bloat.lua",
+    "plugins/quest_driver/tob2_nylocas.lua",
+    "plugins/quest_driver/tob2_sotetseg.lua",
+    "plugins/quest_driver/tob2_xarpus.lua",
+    "plugins/quest_driver/tob2_verzik_p1.lua",
+    "plugins/quest_driver/tob2_verzik_p2.lua",
+    "plugins/quest_driver/tob2_verzik_p3.lua",
     "plugins/quest_driver/cutscene.lua",
 };
 

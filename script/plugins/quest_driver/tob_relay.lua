@@ -408,8 +408,11 @@ function QD.raid.tob_relay_test(mode, opts)
             t.check(name .. ".sync", sr == "ok", tostring(sd))
         end
         t.expect(name .. ".barrier.synced", t.party.barrier(name .. "_synced", 300))
-        local solve = t.raid[name .. SUFFIX .. "_solve"]
-        assert(solve, "tob_relay: no solver " .. name .. SUFFIX .. "_solve")
+        -- v2 rooms (TOB2_DESIGN.md): `opts.v2 = { maiden = true, ... }` plays
+        -- those rooms with QD.raid.<room>_v2_solve; every other room stays v1
+        local suffix = (opts.v2 and opts.v2[name]) and "_v2" or SUFFIX
+        local solve = t.raid[name .. suffix .. "_solve"]
+        assert(solve, "tob_relay: no solver " .. name .. suffix .. "_solve")
         local result, detail = solve({ max_ticks = MAX[name] })
         t.check(name .. ".solve", result == "ok", P .. string.sub(tostring(detail), 1, opts.detail or 900))
         return result == "ok"
@@ -529,17 +532,18 @@ function QD.raid.tob_relay_test(mode, opts)
         end
         t.expect("verzik.barrier.started", t.party.barrier("verzik_started", 900))
         t.check("verzik.supplies_in", true, P .. supplies_text(t))
-        local r1, d1 = t.raid["verzik_p1" .. SUFFIX .. "_solve"]({ max_ticks = 400, prep = prep, weapon = "abyssal_tentacle" })
+        local r1, d1 = t.raid["verzik_p1" .. ((opts.v2 and opts.v2.verzik_p1) and "_v2" or SUFFIX) .. "_solve"]({ max_ticks = 400, prep = prep, weapon = "abyssal_tentacle" })
         t.check("verzik.p1", r1 == "ok", P .. string.sub(tostring(d1), 1, opts.detail or 600))
         if r1 ~= "ok" then return false end
-        local r2, d2 = t.raid["verzik_p2" .. SUFFIX .. "_solve"]({ max_ticks = 900, base = prep.base, weapon = "abyssal_tentacle" })
+        local r2, d2 = t.raid["verzik_p2" .. ((opts.v2 and opts.v2.verzik_p2) and "_v2" or SUFFIX) .. "_solve"]({ max_ticks = 900, base = prep.base, weapon = "abyssal_tentacle" })
         t.check("verzik.p2", r2 == "ok", P .. string.sub(tostring(d2), 1, opts.detail or 600))
         if r2 ~= "ok" then return false end
         -- (the P2 solver released the reserve at her reds; again here for a P2
         -- that ended before her bar got there)
         t.raid.tob_reserve_combats(0)
         t.check("verzik.p3_supplies", true, P .. supplies_text(t))
-        local r3, d3 = t.raid["verzik_p3" .. SUFFIX .. "_solve"]({ max_ticks = 900, base = prep.base, weapon = "abyssal_tentacle" })
+        local p3_suffix = (opts.v2 and opts.v2.verzik_p3) and "_v2" or SUFFIX
+        local r3, d3 = t.raid["verzik_p3" .. p3_suffix .. "_solve"]({ max_ticks = 900, base = prep.base, weapon = "abyssal_tentacle" })
         t.check("verzik.supplies_left", true, P .. supplies_text(t))
         t.check("verzik.p3", r3 == "ok", P .. string.sub(tostring(d3), 1, opts.detail or 600))
         return r3 == "ok"

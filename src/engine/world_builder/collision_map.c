@@ -2909,6 +2909,23 @@ plan_seen(struct CollisionMap* cm, const struct CollisionPlanWatcher* w, int x, 
     return 0;
 }
 
+int
+collision_plan_watcher_sees(struct CollisionMap* cm, int wx, int wz, int size, int x, int z)
+{
+    struct CollisionPlanWatcher w;
+    assert(cm);
+    assert(size >= 1);
+    assert(wx >= 0);
+    assert(wz >= 0);
+    assert(wx + size <= cm->size_x);
+    assert(wz + size <= cm->size_z);
+    memset(&w, 0, sizeof(w));
+    w.x = wx;
+    w.z = wz;
+    w.size = size;
+    return plan_seen(cm, &w, x, z);
+}
+
 static void
 plan_score(
     struct CollisionMap* cm,

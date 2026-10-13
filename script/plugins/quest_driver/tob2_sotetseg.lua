@@ -1,0 +1,711 @@
+-- quest-driver / tob2_sotetseg: SOTETSEG, HARD MODE, five raiders, on the v2
+-- layers (docs/minigames/theater_of_blood/TOB2_DESIGN.md). The plan:
+-- docs/minigames/theater_of_blood/tob2_rooms/sotetseg.md.
+--
+--   QD.raid.sotetseg_v2_solve(opts) -> result, detail, S
+--
+-- This file is the room's PREDICT and STRATEGY. The perception and the maze
+-- are v1's, CALLED (tob_sotetseg.lua, tob_sotetseg_hm.lua): _sote_measure (his
+-- clock, every projectile keyed and landed, my protection block, the arena
+-- trail, the realm path), _sote_phase (fight / death_ball / maze_* / done),
+-- _sote_fight_zones (the ricochet-onto-my-landing band), _sote_hm_runner and
+-- _sote_hm_waiter (the maze), through an adapter from v1's `add` onto B.
+--
+-- ===================================================================== MODES
+--
+--   wait       no boss row or no base yet
+--   fight      him (tentacle; the hammer whenever a special is there, owner
+--              2026-10-12), station pull
+--   soon       fight with his DEATH_SOON-th cast since the last pair: the
+--              pair's eat floor (v1 main tree's death mode)
+--   hold       within HOLD_PM permille of the next threshold (666, 333, the
+--              kill), no pair in flight, and the wait for the pair pays: no
+--              target, the hold tile (station one step out, gap 2: no melee
+--              licence, so every slot is a counted ball)
+--   burst      within HOLD_PM, a pair in flight, now <= land - BURST_STOP: him,
+--              through the threshold, so the maze (or his death) nulls the pair
+--   stack      a pair in flight otherwise: him until its window, then everyone
+--              on D (targets on D, the others within 1 of it) over [L-2, L]
+--   maze-wait  the one left up top (v1 waiter)
+--   maze-run   in the realm (v1 runner)
+--   maze-off   north of the realm grid: stay (main-tree lesson, all128m: the
+--              carrot pulled finished runners back onto the grid)
+--
+-- WHY THE HOLD (the budget's dominant term, 158 of 174 a seat-run): a death
+-- ball rolls 1..188 and THEN divides it among the raiders within 1 of its
+-- target (S.rs2 [queue,tob_sote_ball_impact]): the team takes the whole roll
+-- whatever the stack's size. The stack moves damage between seats, it cannot
+-- shrink it. What does: a pair that never lands - nulled when a maze is
+-- active at its impact or he is dead (~tob_sote_maze_nulls_hit,
+-- ~tob_sote_dead).
+-- ==========================================================================
+
+QD.T2 = QD.T2 or {}
+QD.T2.rooms = QD.T2.rooms or {}
+
+QD.SOTE_V2 = {
+    H = 10, BEAM = 32,                      -- v1's Sotetseg horizon and beam
+    -- THE ONE CURRENCY. HP_PER_BOSS_HP = team hp taken / boss hp dealt: the
+    -- oracle's 174 a seat-run x 5 = 870 over his 4000 (tob.constant
+    -- ^tob_sote_hp_5) = 0.22. PROBE: refine from budget.py.
+    HP_PER_BOSS_HP = 0.22,
+    TENTACLE = { speed = 4, exp = 11 },     -- PROBE: measure on the tick log
+    HAMMER = { speed = 6, exp = 22 },
+    -- HIS MELEE: a slot's target within 1 at T-1, one in two, 1..45 (Protect
+    -- from Magic is up, so unprayed). Per seat: 1/n x 1/2 x 23.
+    MELEE_MAX = 45, MELEE_AVG = 23, MELEE_ROLL = 2,
+    ATTACK_GAP = 5,
+    -- BALLS AND RICOCHETS: 1..50 when unprayed (blocked, or a second style the
+    -- same tick); a second hit of mine landing with one already due costs the
+    -- hit and a block's cascade (BLOCK_COST, PROBE), at P(I am a recipient)
+    -- 2/4 x P(the other style) 1/2
+    BALL_AVG = 25.5, BALL_MAX = 50, BLOCK_COST = 25, RICO_P = 0.25,
+    -- THE DEATH BALLS: 1..188 each (^tob_sote_ball_max_5), two at two targets
+    -- (^tob_sote_ball_count_hard), split by the raiders within 1 of a target.
+    DB_MAX = 188, DB_AVG = 94.5, DB_FLIGHT = 15,
+    -- D: two north of his north face, OUT of his melee. The pair lands on
+    -- T+15, which is also a slot (T+10, T+15 after a pair), read at the tick
+    -- end L-1 - the pair's own read. On a tile in reach (v1 main tree's
+    -- (15,43)) the share's max (2 x 188/n) and the melee's 45 together put
+    -- hp_worst <= 0 there, a risk equal to leaving the stack's lethal zone,
+    -- and the tie went to the step off D on L-1: the two targets ended L-1
+    -- two apart, each ball split three ways, two seats dead (r5_sote q16
+    -- t388-391; v2_sote_48 q16 t152 did the same step and was lucky).
+    STACK = { x = 15, z = 44 },
+    GATHER = 3, STACK_PULL = 0.5,
+    -- the pair's eat floor (v1 main tree DEATH_MODE): fight FIGHT_EAT; soon
+    -- (DEATH_SOON casts on) and the flight: 2 x 188 / n + 5, + RICOCHET_HIT
+    -- with an ordinary landing beside the pair, capped at a brew's overheal
+    FIGHT_EAT = 50, DEATH_SOON = 8, RICOCHET_HIT = 40, HEAL_CAP = 115,
+    -- THE HOLD: the next threshold's permille (the maze procs at <= 666 and
+    -- <= 333, S.rs2 ~tob_sote_check_maze; 0 = his death). HOLD_PM above it
+    -- the team stops; the burst must cross by land - BURST_STOP (a crossing
+    -- swing at land-2 procs the maze in his NPC turn before the impact).
+    -- Hold iff wait x TICK_COST <= P_NULL x PAIR_EXP: a fight tick costs a
+    -- pair (189) per ~60 fight ticks; the wait is the casts still to come.
+    HOLD = true, HOLD_PM = 35, BURST_STOP = 3,
+    MAGIC_PER_BALL = 10, TICK_COST = 3.2, PAIR_EXP = 189, P_NULL = 0.7,
+    TORNADO_AVG = 40, TORNADO_MAX = 45,     -- ^tob_sote_tornado 35..45 (tob.constant ~1668)
+    STATION_PULL = 0.3, HOLD_PULL = 0.5, MAZE_PULL = 1.0,
+    F_KEYS = { "level", "boss", "tornadoes", "maze", "path", "permille", "phase" },
+}
+
+local SV = {}
+local function cheb(ax, az, bx, bz) return math.max(math.abs(ax - bx), math.abs(az - bz)) end
+
+-- =================================================================== OBSERVE
+
+-- v1's perception, once a tick (_sote_measure keys projectiles against last
+-- tick's, _sote_phase counts mazes: run twice they would miscount).
+function SV.observe(S, F)
+    local M = S.t2s
+    if M.obs_tick == F.tick then
+        if M.obs_F ~= F then
+            for _, k in ipairs(QD.SOTE_V2.F_KEYS) do F[k] = M.obs_F[k] end
+        end
+        return
+    end
+    M.obs_tick, M.obs_F = F.tick, F
+    local was_maze = S.in_maze
+    QD.raid._sote_measure(S, F)
+    if F.boss then S.seen_boss = true end
+    local _, pm = api_drive.varbit(S.ids.hud)
+    F.permille = (pm ~= nil and pm > 0) and pm or (M.permille or 1000)
+    if M.permille == nil or F.permille // 50 ~= M.permille // 50 then
+        QD.raid._tob_trace(S, F.tick, "his bar " .. F.permille)
+    end
+    M.permille = F.permille
+    F.phase = QD.raid._sote_phase(S, F)
+    -- (v1 _sote_hm_step: the runners' trail is one maze's; carried into the
+    -- next it named maze 1's tiles known - probe so1 t370-376, five rags on
+    -- maze 2's first rows, three seats dead)
+    if F.phase ~= "maze_runner" then S.rtrail, S.rlast = nil, nil end
+    SV.resolve_victims(S, F)
+    -- HIS CASTS since the last pair (one a tick): the pair is the magic
+    -- attack after MAGIC_PER_BALL; a due counter is held at 9 through a maze
+    -- (S.rs2 ~1429)
+    for _, P in ipairs(S.incoming) do
+        if P.first == F.tick then
+            if P.kind == "ball" and M.cast_tick ~= F.tick then
+                M.cast_tick = F.tick
+                M.casts = M.casts + 1
+            elseif P.kind == "death" and M.pair_tick ~= F.tick then
+                M.pair_tick = F.tick
+                M.pairs[#M.pairs + 1] = { first = F.tick, land = P.land, casts = M.casts, pm = F.permille, nulled = false }
+                M.cast_log[#M.cast_log + 1] = tostring(M.casts)
+                M.casts = 0
+            end
+        end
+    end
+    if was_maze and not S.in_maze and M.casts > 9 then M.casts = 9 end
+    -- A PAIR NULLED: a maze or his death before its landing
+    for _, pr in ipairs(M.pairs) do
+        if not pr.nulled and not pr.landed and F.tick <= pr.land then
+            if F.maze or F.phase == "done" or S.dying then
+                pr.nulled = true
+                M.nulled = M.nulled + 1
+                QD.raid._tob_trace(S, F.tick, "pair of t" .. pr.first .. " nulled")
+            end
+        elseif not pr.nulled and F.tick > pr.land then
+            pr.landed = true
+        end
+    end
+    -- THE MAZE'S STUN (S.rs2: p_stun(5) on the proc, no step before P+5;
+    -- M5: a stunned seat's packets are dropped): from his maze form first seen
+    if F.boss and F.boss.npc_id == S.ids.boss_maze and M.maze_seen ~= S.mazes then
+        M.maze_seen = S.mazes
+        S.x2.stunned_until = F.tick + 4
+        QD.raid._tob_trace(S, F.tick, "maze " .. S.mazes .. " proc seen at bar " .. F.permille)
+    end
+    -- MY PROTECTION BLOCKS (v1 measures S.block_until)
+    if S.block_until and S.block_until ~= M.block_seen then
+        M.block_seen = S.block_until
+        M.blocks = M.blocks + 1
+    end
+    if M.last_hp and F.hp < M.last_hp then M.taken = M.taken + (M.last_hp - F.hp) end
+    M.last_hp = F.hp
+end
+
+-- ================================================================== HELPERS
+
+-- A RICOCHET WHOSE VICTIM v1 COULD NOT NAME (no ball of v1's landing this
+-- tick) gets a two-tick window [land, land2]: a red lands land + 1 when its
+-- recipient's pid is below the victim's (the recipient's queue ran first).
+-- The victim stood on the ricochet's source tile (its queue runs before its
+-- move: the end of the last tick, or this one): named from there, the window
+-- closes. Left open, a red's land2 put Magic over a grey landing that tick
+-- (r5_sote/fix5 q1 seat 2 t242: red 239 "land 242/243", grey 241 land 243;
+-- the red landed 242, the grey unprayed, a 15-tick block cascade).
+function SV.resolve_victims(S, F)
+    local M, ids = S.t2s, S.ids
+    local open = false
+    for _, P in ipairs(S.incoming) do
+        if P.first == F.tick and P.land2 ~= nil then open = true end
+    end
+    if open then
+        local r, projs = api_drive.projectiles(0)
+        if r == "ok" then
+            for _, P in ipairs(S.incoming) do
+                if P.first == F.tick and P.land2 ~= nil and P.kind ~= "death" then
+                    local want = (P.kind == "grey") and ids.grey or ids.ball
+                    for _, p in ipairs(projs) do
+                        if p.spotanim_id == want and p.target ~= nil and p.target < 0 and -p.target - 1 == P.pid
+                            and not (S.base and p.src_x == S.base.x + S.V.SRC.x and p.src_z == S.base.z + S.V.SRC.z) then
+                            local lo, hi = 0, 0
+                            local function count(list)
+                                for _, rd in ipairs(list or {}) do
+                                    if rd.pid ~= P.pid and rd.x == p.src_x and rd.z == p.src_z then
+                                        if P.pid < rd.pid then lo = lo + 1 else hi = hi + 1 end
+                                    end
+                                end
+                            end
+                            count(M.prev_raiders)
+                            if lo + hi == 0 then count(F.raiders) end
+                            if lo > 0 and hi == 0 then
+                                P.land, P.land2 = P.land + 1, nil
+                            elseif hi > 0 and lo == 0 then
+                                P.land2 = nil
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    M.prev_raiders = F.raiders
+end
+
+-- v1's `add` (tob.lua _tob_spec) onto B, for the v1 functions called here.
+-- A forbid is a forbidden hit sampled on the run's middle tile too (the
+-- owner's no-skipping rule in the maze); his slot zone is priced as the
+-- melee hit instead; the ricochet band is a damage zone priced in hp.
+function SV.adapter(S, F, B)
+    local X = QD.SOTE_V2
+    local now = F.tick
+    local add = {}
+    function add.forbid(name, fb)
+        if name == "unknown" and S.t2s.unknown then S.t2s.unknown[fb.x .. "," .. fb.z] = true end
+        local t0 = math.max(fb.t0 or (now + 1), now + 1)
+        local t1 = fb.t1 or t0
+        if t1 < t0 then return end
+        B.hit{ name = name, x = fb.x, z = fb.z, size = 1, t0 = t0, t1 = t1, sample = "pass", forbid = true }
+    end
+    function add.zone(name, zn)
+        if name == "slot" then return end
+        if name == "tornado" and S.t2s.unknown then return end   -- the runner's: SV.maze prices it on the path
+        local z = { name = name }
+        for k, v in pairs(zn) do z[k] = v end
+        if name == "ricochet-onto-mine" then
+            z.tier, z.cost = "damage", X.RICO_P * (X.BALL_AVG + X.BLOCK_COST)
+        end
+        B.zone(z)
+    end
+    function add.pull(pl)
+        local p = { name = "v1-pull" }
+        for k, v in pairs(pl) do p[k] = v end
+        B.pull(p)
+    end
+    function add.chaser() end
+    function add.reach() end
+    function add.watcher() end
+    return add
+end
+
+-- The next threshold's permille: 666, 333, then his death.
+function SV.threshold(pm)
+    if pm > 666 then return 666 end
+    if pm > 333 then return 333 end
+    return 0
+end
+
+-- The pair in flight (the latest), or nil.
+function SV.pair(S, F)
+    local pr = nil
+    for _, P in ipairs(S.incoming) do
+        if P.kind == "death" and P.land >= F.tick then
+            if pr == nil or P.land > pr.land then pr = P end
+        end
+    end
+    return pr
+end
+
+function SV.footprint(S)
+    local V = S.V
+    local x0, z0 = S.base.x + V.SW.x, S.base.z + V.SW.z
+    return x0, z0, x0 + V.SIZE - 1, z0 + V.SIZE - 1
+end
+
+-- My station one step further out from his footprint (gap 2).
+function SV.hold_tile(S, st)
+    local x0, z0, x1, z1 = SV.footprint(S)
+    local x, z = st.x, st.z
+    if x < x0 then x = x - 1 elseif x > x1 then x = x + 1 end
+    if z < z0 then z = z - 1 elseif z > z1 then z = z + 1 end
+    return { x = x, z = z }
+end
+
+-- v1's overhead rule (tob_sotetseg.lua `overhead`, a file local there):
+-- Protect from Magic; Missiles for the tick a grey lands on me with no ball
+-- or red landing then.
+-- A landing KNOWN for next tick (one tick window) outranks one that only
+-- may land then (a victim still unnamed): its style is the press.
+function SV.overhead(S, F)
+    local grey_next, red_next, grey_sure, red_sure = false, false, false, false
+    for _, P in ipairs(S.incoming) do
+        if P.pid == F.pid and P.kind ~= "death" then
+            local next_land = P.land <= F.tick + 1 and (P.land2 or P.land) >= F.tick + 1
+            local sure = P.land == F.tick + 1 and (P.land2 == nil or P.land2 == P.land)
+            if next_land and P.kind == "grey" then grey_next = true grey_sure = grey_sure or sure end
+            if next_land and (P.kind == "ball" or P.kind == "red") then red_next = true red_sure = red_sure or sure end
+        end
+    end
+    if grey_sure and not red_sure then return "protectfrommissiles" end
+    if red_sure and not grey_sure then return "protectfrommagic" end
+    if grey_next and not red_next then return "protectfrommissiles" end
+    return "protectfrommagic"
+end
+
+-- ================================================================== PREDICT
+
+function SV.predict(S, F, B)
+    SV.observe(S, F)
+    if S.base == nil or F.phase == "done" then return end
+    local X, V = QD.SOTE_V2, S.V
+    local now, hz = F.tick, F.tick + B.h
+    local n = math.max(#F.raiders, 1)
+    if F.level ~= 3 then
+        -- HIS BODY: never stood on
+        local x0, z0, x1, z1 = SV.footprint(S)
+        B.hit{ name = "body", x0 = x0, z0 = z0, x1 = x1, z1 = z1, t0 = now + 1, t1 = hz, forbid = true }
+        -- HIS MELEE on each slot T, read at the tick end T-1
+        if not F.maze and F.boss and F.boss.npc_id == S.ids.boss and S.slot_next then
+            for k = 0, 3 do
+                local T = S.slot_next + X.ATTACK_GAP * k
+                if T - 1 >= now + 1 and T - 1 <= hz then
+                    B.hit{ name = "melee", x0 = x0 - 1, z0 = z0 - 1, x1 = x1 + 1, z1 = z1 + 1, t0 = T - 1, t1 = T - 1,
+                        dmg_exp = X.MELEE_AVG / (n * X.MELEE_ROLL), dmg_max = X.MELEE_MAX }
+                end
+            end
+        end
+    end
+    -- BALLS AND RICOCHETS AT ME: they follow me; prayed unless my protection
+    -- is blocked at the landing, or two styles land on one tick
+    local mine = {}
+    for _, P in ipairs(S.incoming) do
+        if P.pid == F.pid and P.kind ~= "death" then mine[#mine + 1] = P end
+    end
+    for _, P in ipairs(mine) do
+        local L = P.land
+        if L >= now + 1 and L <= hz then
+            local unprayed = S.block_until ~= nil and L <= S.block_until
+            for _, Q in ipairs(mine) do
+                if Q ~= P and Q.land == L and (Q.kind == "grey") ~= (P.kind == "grey") then unprayed = true end
+            end
+            if unprayed then
+                B.hit{ name = "ball-unprayed", x0 = F.me.x - 20, z0 = F.me.z - 20, x1 = F.me.x + 20, z1 = F.me.z + 20,
+                    t0 = L, t1 = L, land = 0, dmg_exp = X.BALL_AVG, dmg_max = X.BALL_MAX }
+            end
+        end
+    end
+    -- THE PAIR'S SHARE ON THE STACK: everyone within 1 of D at the read
+    -- (target and higher pids the end of L-1, lower pids the end of L; the
+    -- splat a tick after the impact, so land = 2 from the read); the
+    -- expected stack is everyone alive
+    if F.level ~= 3 and not F.maze then
+        local D = { x = S.base.x + X.STACK.x, z = S.base.z + X.STACK.z }
+        for _, P in ipairs(S.incoming) do
+            if P.kind == "death" and P.land - 1 >= now + 1 and P.land - 1 <= hz then
+                B.hit{ name = "pair-share", x0 = D.x - 1, z0 = D.z - 1, x1 = D.x + 1, z1 = D.z + 1,
+                    t0 = P.land - 1, t1 = P.land - 1, land = 2, dmg_exp = X.DB_AVG / n, dmg_max = X.DB_MAX / n }
+            end
+        end
+    end
+end
+
+-- ================================================================= STRATEGY
+
+-- The fight's modes: hold / burst / stack / soon / fight.
+function SV.fight_mode(S, F)
+    local X, M = QD.SOTE_V2, S.t2s
+    local pair = SV.pair(S, F)
+    local th = SV.threshold(F.permille)
+    if X.HOLD and F.permille - th <= X.HOLD_PM then
+        if pair and F.tick <= pair.land - X.BURST_STOP then return "burst", pair end
+        if pair == nil then
+            local wait = math.max(0, X.MAGIC_PER_BALL - M.casts) * X.ATTACK_GAP + X.ATTACK_GAP
+            if wait * X.TICK_COST <= X.P_NULL * X.PAIR_EXP then return "hold", nil end
+        end
+    end
+    if pair then return "stack", pair end
+    if M.casts >= X.DEATH_SOON then return "soon", nil end
+    return "fight", nil
+end
+
+-- THE PAIR'S WINDOW: targets on D, the others within 1 of it, [L-2, L].
+function SV.stack_zones(S, F, B)
+    local X = QD.SOTE_V2
+    local D = { x = S.base.x + X.STACK.x, z = S.base.z + X.STACK.z }
+    for _, P in ipairs(S.incoming) do
+        if P.kind == "death" and P.land >= F.tick + 1 then
+            local hi = (P.pid == F.pid) and 0 or 1
+            B.zone{ name = (hi == 0) and "pair-on-D" or "pair-by-D", x = D.x, z = D.z, size = 1, lo = 0, hi = hi,
+                require = true, t0 = math.max(F.tick + 1, P.land - 2), t1 = P.land, tier = "lethal", cost = 60 }
+            B.pull{ name = "stack", x = D.x, z = D.z, size = 1, weight = X.STACK_PULL,
+                t0 = math.max(F.tick + 1, P.land - 2 - X.GATHER), t1 = P.land }
+        end
+    end
+end
+
+-- v1's ricochet-onto-my-landing band (_sote_fight_zones) for the tick a
+-- hit of mine lands when its victim was not known (P.land2 = land + 1): v1
+-- banded only P.land, and a grey of unknown victim landing land2 met a red
+-- from a second victim on that tick - one unprayed, the block, a third hit
+-- in it: 46 + 24 + 45 on seat 1 (r5_sote q16 t352-354).
+function SV.ricochet_land2(S, F, B)
+    local X = QD.SOTE_V2
+    for _, Pm in ipairs(S.incoming) do
+        if Pm.pid == F.pid and Pm.kind ~= "death" and Pm.land2 and Pm.land2 >= F.tick + 2 then
+            for _, Pv in ipairs(S.incoming) do
+                if Pv.kind == "ball" and Pv.pid ~= F.pid and Pv.land < Pm.land2 then
+                    local order = (F.pid < Pv.pid) and 1 or 0
+                    local ft = Pm.land2 - Pv.land - order
+                    local tm = (F.pid < Pv.pid) and Pv.land or (Pv.land - 1)
+                    if ft >= 1 and tm >= F.tick + 1 then
+                        local dmin = math.max(0, -((41 - 30 * ft) // 8))
+                        local dmax = (30 * (ft + 1) - 1 - 41) // 8
+                        local V_ = nil
+                        for _, rd in ipairs(F.raiders) do if rd.pid == Pv.pid then V_ = rd end end
+                        if V_ and dmax >= dmin and #B.spec.zones < QD.T2.V.ZONES_MAX - 4 then
+                            B.zone{ name = "ricochet-onto-land2", x = V_.x, z = V_.z, size = 1, lo = dmin, hi = dmax,
+                                t0 = tm, t1 = tm, tier = "damage", cost = X.RICO_P * (X.BALL_AVG + X.BLOCK_COST) }
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- The eat floor for the pair (v1 main tree's DEATH_MODE).
+function SV.pair_need(S, F)
+    local X = QD.SOTE_V2
+    local n = math.max(#F.raiders, 1)
+    local need = (2 * X.DB_MAX) // n + 5
+    local land = nil
+    for _, P in ipairs(S.incoming) do
+        if P.kind == "death" and P.land >= F.tick then land = math.max(land or 0, P.land) end
+    end
+    if land then
+        for _, P in ipairs(S.incoming) do
+            if P.kind ~= "death" and P.land and P.land >= land - 3 and P.land <= land + 1 then
+                need = need + X.RICOCHET_HIT
+                break
+            end
+        end
+    end
+    return math.min(X.HEAL_CAP, need)
+end
+
+-- v1's maze, as modes. -> mode
+-- The waiter is v1's. The runner's terms (the unknown tiles forbidden, the
+-- tornado, the first band's row-2 hold) are v1's _sote_hm_runner; its GOAL
+-- is not used: a carrot re-derived every tick from my path distance pulled
+-- runners BACK whenever my tile fell out of the distance map (probe so1
+-- t214-217: four runners stepped back into the tornado's 5x5 and out onto an
+-- unlit tile, three rags at once). The main tree's state machine instead
+-- (tob_sotetseg_hm.lua ~_sote_hm_maze, all128m), forward only:
+--   land -> run   CARROT path steps past the furthest I have reached
+--   exit          the path I know reaches the last row and I am within
+--                 CARROT of its end: its top tile, then one north
+--   off           north of the grid: stay
+function SV.maze(S, F, B, add)
+    local X, V, M = QD.SOTE_V2, S.V, S.t2s
+    if F.phase == "maze_waiter" then
+        local st = QD.raid._sote_hm_waiter(S, F, add)
+        B.pull{ name = "wait", x = st.x, z = st.z, size = 1, weight = X.MAZE_PULL, t0 = F.tick + 1, t1 = F.tick + B.h }
+        return "maze-wait"
+    end
+    M.unknown = {}
+    QD.raid._sote_hm_runner(S, F, add)
+    local R = V.REALM
+    local bx, bz = F.me.x - F.me.x % 64, F.me.z - F.me.z % 64
+    local known, dist, queue = {}, {}, {}
+    for x = R.x0, R.x1 do
+        for z = R.z0, R.z1 do
+            local k = (bx + x) .. "," .. (bz + z)
+            if not M.unknown[k] then
+                known[k] = { x = bx + x, z = bz + z }
+                if z == R.z0 then dist[k] = 0 queue[#queue + 1] = known[k] end
+            end
+        end
+    end
+    M.unknown = nil
+    table.sort(queue, function(a, b) return a.x < b.x end)
+    local head, far = 1, nil
+    while head <= #queue do
+        local t = queue[head]
+        head = head + 1
+        local d = dist[t.x .. "," .. t.z]
+        local fdd = far and dist[far.x .. "," .. far.z]
+        if far == nil or d > fdd or (d == fdd and (t.z > far.z or (t.z == far.z and t.x < far.x))) then far = t end
+        for _, o in ipairs({ { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 }, { 1, 1 }, { 1, -1 }, { -1, 1 }, { -1, -1 } }) do
+            local k = (t.x + o[1]) .. "," .. (t.z + o[2])
+            if known[k] and dist[k] == nil then
+                dist[k] = d + 1
+                queue[#queue + 1] = known[k]
+            end
+        end
+    end
+    if M.mz == nil or M.mz.n ~= S.mazes then M.mz = { n = S.mazes, state = "land", best = -1 } end
+    local Z = M.mz
+    local row = F.me.z - bz - R.z0
+    local last_row = R.z1 - R.z0
+    local mine = dist[F.me.x .. "," .. F.me.z] or -1
+    local fd = far and dist[far.x .. "," .. far.z] or -1
+    if mine > Z.best then Z.best = mine end
+    local function to(state)
+        if state ~= Z.state then
+            QD.raid._tob_trace(S, F.tick, "maze " .. Z.n .. ": " .. Z.state .. " -> " .. state .. " at row " .. row)
+            Z.state = state
+        end
+    end
+    if Z.state == "land" and row >= 0 then to("run") end
+    if Z.state == "run" and far and far.z - bz - R.z0 >= last_row and Z.best >= fd - V.CARROT then to("exit") end
+    if (Z.state == "run" or Z.state == "exit") and row > last_row then to("off") end
+    local goal = nil
+    if Z.state == "off" then
+        goal = { x = F.me.x, z = F.me.z }
+    elseif Z.state == "exit" and far then
+        if F.me.x == far.x and F.me.z == far.z then goal = { x = far.x, z = far.z + 1 } else goal = far end
+    elseif far and row < 0 then
+        -- LANDING, south of the grid: onto the path's first row. (The
+        -- first band's row-2 hold forbids row 1 for the next tick, every
+        -- tick; with the carrot two rows up a step now and a step later
+        -- cost the same, the plan put it off for 740 ticks - probe so1
+        -- maze 2, p4dbg t349: stay, soft 3.0)
+        for k, d in pairs(dist) do
+            local t = known[k]
+            local gd = goal and cheb(goal.x, goal.z, F.me.x, F.me.z)
+            local td = cheb(t.x, t.z, F.me.x, F.me.z)
+            if d == 0 and (goal == nil or td < gd or (td == gd and t.x < goal.x)) then goal = t end
+        end
+    elseif far then
+        local want = math.min(fd, Z.best + V.CARROT)
+        for k, d in pairs(dist) do
+            local t = known[k]
+            if d == want and (goal == nil or t.x < goal.x or (t.x == goal.x and t.z < goal.z)) then goal = t end
+        end
+    end
+    -- THE TORNADO (S.rs2 ~1907-1969): each tick it hits whoever ended the
+    -- last tick on its path tile, then walks one path tile on. Its centre
+    -- (body SW + 1) at path distance d0 reaches distance d0 + k on now + k,
+    -- read at the tick end now + k - 1; a tick's lag at a column change is
+    -- d0 + k - 1. 35..45 a touch: priced, not forbidden (v1's 5x5 lethal
+    -- zone round it left a runner waiting on the path ahead no safe tile:
+    -- probe so1 t217, three runners onto an unlit tile)
+    for _, tn in ipairs(F.tornadoes) do
+        local cx, cz = tn.x + 1, tn.z + 1
+        local d0 = dist[cx .. "," .. cz]
+        if d0 then
+            for k, d in pairs(dist) do
+                local j = d - d0
+                if j >= 0 and j <= B.h then
+                    local t = known[k]
+                    for _, w in ipairs({ j, j + 1 }) do
+                        if w >= 1 and w <= B.h then
+                            B.hit{ name = "tornado", x = t.x, z = t.z, size = 1, t0 = F.tick + w, t1 = F.tick + w,
+                                dmg_exp = X.TORNADO_AVG, dmg_max = X.TORNADO_MAX }
+                        end
+                    end
+                end
+            end
+        else
+            B.hit{ name = "tornado-body", x = tn.x, z = tn.z, size = 3, t0 = F.tick + 1, t1 = F.tick + 2,
+                dmg_exp = X.TORNADO_AVG, dmg_max = X.TORNADO_MAX }
+        end
+    end
+    local nk = 0
+    for _ in pairs(known) do nk = nk + 1 end
+    Z.why = string.format(" k%d f%d m%d b%d g%s su%d", nk, fd, mine, Z.best, goal and (goal.x .. "," .. goal.z) or "-", S.x2.stunned_until)
+    if goal then
+        B.pull{ name = "carrot", x = goal.x, z = goal.z, size = 1, weight = X.MAZE_PULL, t0 = F.tick + 1, t1 = F.tick + B.h }
+    end
+    return "maze-" .. Z.state, Z.why
+end
+
+function SV.strategy(S, F, B)
+    SV.observe(S, F)
+    local X, M, V, ids = QD.SOTE_V2, S.t2s, S.V, S.ids
+    local I = { pray = "protectfrommagic" }
+    local mode, detail
+    local want = S.t2.want
+    want.boost, want.boost_stat = "piety", "attack"
+    if S.base == nil or F.phase == "done" then
+        mode, I.pray = "wait", nil
+    else
+        local add = SV.adapter(S, F, B)
+        if F.phase == "maze_waiter" or F.phase == "maze_runner" then
+            mode, detail = SV.maze(S, F, B, add)
+            I.eat_below, I.brew_below = X.FIGHT_EAT, X.FIGHT_EAT
+        else
+            -- v1's fight terms: the target, the station, the ricochet band
+            local target, station = QD.raid._sote_fight_zones(S, F, add, F.phase)
+            SV.ricochet_land2(S, F, B)
+            local pair
+            mode, pair = SV.fight_mode(S, F)
+            SV.stack_zones(S, F, B)
+            local hammer = F.energy >= 500 and QD.raid._tob_worn(S, ids.hammer)
+            if F.energy >= 500 then
+                I.gear = { ids.hammer }
+            else
+                I.gear = ids.melee_set
+            end
+            if mode == "hold" then
+                if station then
+                    local ht = SV.hold_tile(S, station)
+                    B.pull{ name = "hold", x = ht.x, z = ht.z, size = 1, weight = X.HOLD_PULL, t0 = F.tick + 1, t1 = F.tick + B.h }
+                end
+            else
+                if target then
+                    local sw = hammer and X.HAMMER or X.TENTACLE
+                    B.target{ name = "him", npc = target, size = V.SIZE, path = { { x = target.x, z = target.z } },
+                        range = 1, speed = sw.speed, value = sw.exp * X.HP_PER_BOSS_HP }
+                    I.spec = hammer
+                end
+                if station then
+                    B.pull{ name = "station", x = station.x, z = station.z, size = 1, weight = X.STATION_PULL,
+                        t0 = F.tick + 1, t1 = F.tick + B.h }
+                end
+            end
+            local floor = X.FIGHT_EAT
+            if mode == "soon" or mode == "stack" or mode == "burst" then floor = SV.pair_need(S, F) end
+            I.eat_below, I.brew_below = floor, floor
+        end
+        -- THE OVERHEAD: v1's rule; nothing while my protection is blocked
+        -- (a press is refused), the press ON the block's last tick forced
+        -- (v1: decided on B+5, read after B+5's impacts)
+        I.pray = SV.overhead(S, F)
+        if S.block_until and F.tick < S.block_until then
+            I.pray = nil
+        elseif S.block_until and F.tick == S.block_until then
+            I.pray_force = true
+            QD.raid._tob_trace(S, F.tick, "press " .. I.pray .. " to land as the block lifts")
+        elseif F.lit[I.pray] then
+            I.pray = nil
+        end
+    end
+    if mode ~= M.mode then
+        QD.raid._tob_trace(S, F.tick, "mode " .. mode .. " (bar " .. tostring(F.permille) .. ", casts " .. M.casts .. ")")
+        M.mode = mode
+        if mode == "hold" then M.holds = M.holds + 1 end
+    end
+    M.modes[mode] = (M.modes[mode] or 0) + 1
+    I.mode = mode .. (detail or "")
+    return I
+end
+
+-- ===================================================================== ROOM
+
+QD.T2.rooms.sotetseg = {
+    ids = function(opts)
+        local ids = QD.raid._sote_ids()
+        for k, v in pairs(QD.raid._tob_symbols("sotetseg_v2", {
+            { "hud", "varbit", "varb6448_tob_client_waveprogress_val" },
+        })) do ids[k] = v end
+        return ids
+    end,
+
+    init = function(S, opts)
+        opts = opts or {}
+        S.who = S.who or "sotetseg_v2_solve"
+        S.role = S.role or (QD_PARTY and QD_PARTY.role) or 1
+        QD.raid._sote_hm_ids(S)
+        -- v1's perception state (_sote_run's extra)
+        S.incoming, S.proj_live, S.trail, S.trail_seen = {}, {}, {}, {}
+        S.deaths, S.mazes, S.phase_log, S.path_log = 0, 0, {}, {}
+        S.V = QD.SOTE_HM
+        S.room = "sotetseg"
+        S.t2.plan_opts.h = S.t2.plan_opts.h or QD.SOTE_V2.H
+        S.t2.plan_opts.beam = S.t2.plan_opts.beam or QD.SOTE_V2.BEAM
+        S.t2s = {
+            opts = opts, modes = {}, mode = nil, casts = 0, pairs = {}, cast_log = {}, nulled = 0,
+            holds = 0, blocks = 0, taken = 0, last_hp = nil, permille = nil,
+        }
+    end,
+
+    -- v1's entry and start (tob_sotetseg.lua _sote_run).
+    enter = function(S)
+        QD.raid._tob_trace(S, api_drive.tick(), "phase entry")
+        QD.raid._tob_start(S, nil, S.t2s.opts.start_ticks)
+        S.fight_start = api_drive.tick()
+    end,
+
+    predict = function(S, F, B) SV.predict(S, F, B) end,
+    strategy = function(S, F, B) return SV.strategy(S, F, B) end,
+
+    done = function(S, F)
+        SV.observe(S, F)
+        if F.phase == "done" then
+            if not S.t2s.ended then
+                S.t2s.ended = true
+                QD.raid._tob_trace(S, F.tick, "his death")
+            end
+            return "ok"
+        end
+        return nil
+    end,
+
+    summary = function(S)
+        local M = S.t2s
+        local modes = {}
+        for k, n in pairs(M.modes) do modes[#modes + 1] = k .. "=" .. n end
+        table.sort(modes)
+        return string.format("sotetseg v2: modes %s; taken %d; pairs %d (casts before %s), nulled %d; holds %d; blocks %d; mazes %d",
+            table.concat(modes, " "), M.taken, #M.pairs, table.concat(M.cast_log, ","), M.nulled, M.holds, M.blocks, S.mazes)
+    end,
+}
+
+function QD.raid.sotetseg_v2_solve(opts)
+    assert(QD.raid.tob_mode == "hard", "sotetseg_v2_solve: the party is in " .. tostring(QD.raid.tob_mode) .. " mode")
+    return QD.T2.solve("sotetseg", opts or {})
+end

@@ -1039,6 +1039,12 @@ struct CollisionPlanResult
     int expanded;                       /* nodes expanded, for the budget trace */
 };
 
+/* The watcher's near-edge rule above (plan_seen), for a footprint at
+ * (wx, wz) of `size` (inside the map, asserted): does it see (x, z)? Shared
+ * with action_plan's watchers so the two planners cannot disagree. */
+int
+collision_plan_watcher_sees(struct CollisionMap* cm, int wx, int wz, int size, int x, int z);
+
 /* Returns 0 and fills `out`; the source tile is inside the map (asserted). */
 int
 collision_plan(

@@ -1818,6 +1818,39 @@ d_plan(lua_State* L)
     return DrivePlanLua(L, 1, cm, world->_base_tile_x, world->_base_tile_z, world->_scene_size, px, pz);
 }
 
+/* api_drive.aplan(spec): the ToB v2 action planner over this bot's own
+ * collision map (plugin/torirs_drive_plan_lua.h DriveActionPlanLua; the
+ * client's lua_drive_aplan is the same code over the client's map). */
+static int
+d_aplan(lua_State* L)
+{
+    struct ScriptBot* bot = bot_of(L);
+    struct ScriptrunCore* c = bot->core;
+    struct World* world = c->world;
+    struct CollisionMap* cm;
+    int px = 0, pz = 0, level = 0;
+
+    luaL_checktype(L, 1, LUA_TTABLE);
+    if( !c->have_collision || !ScriptrunCore_LocalTile(c, &px, &pz, &level) )
+    {
+        lua_pushstring(L, "not_visible");
+        lua_pushnil(L);
+        return 2;
+    }
+    if( level < 0 )
+        level = 0;
+    if( level >= COLLISION_LEVELS )
+        level = COLLISION_LEVELS - 1;
+    cm = world->collision_maps[level];
+    if( !cm )
+    {
+        lua_pushstring(L, "no_row");
+        lua_pushnil(L);
+        return 2;
+    }
+    return DriveActionPlanLua(L, 1, cm, world->_base_tile_x, world->_base_tile_z, world->_scene_size, px, pz);
+}
+
 static int
 d_route(lua_State* L)
 {
@@ -2427,7 +2460,7 @@ d_noop(lua_State* L)
  * bound above answer "unsupported" rather than being nil, so a part that probes
  * a capability degrades the way it does on a client without it. */
 static char const* const CLIENT_VERBS[] = {
-    "action_for_slot", "botdrive", "camera", "camera_events", "camera_pose", "camera_state",
+    "action_for_slot", "aplan", "botdrive", "camera", "camera_events", "camera_pose", "camera_state",
     "camera_turn_release", "camera_turn_toward", "click_armed", "events", "forget_varps",
     "inv_arm", "inv_cast", "inv_use_on", "launch_answer", "launch_close",
     "launch_command", "launch_open", "launch_spawn", "launch_status", "loc_copies",
@@ -2515,6 +2548,7 @@ push_drive_table(
     bind(L, bot, "tab", d_tab);
     bind(L, bot, "route", d_route);
     bind(L, bot, "plan", d_plan);
+    bind(L, bot, "aplan", d_aplan);
     bind(L, bot, "tab_by_name", d_tab_by_name);
     bind(L, bot, "pause_pending", d_pause_pending);
     bind(L, bot, "meslayer_mode", d_meslayer_mode);

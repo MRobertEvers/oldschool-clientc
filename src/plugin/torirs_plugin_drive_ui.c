@@ -2864,6 +2864,61 @@ lua_drive_plan(struct lua_State* L)
     }
 }
 
+/* api_drive.aplan(spec): the ToB v2 action planner over the client's own
+ * collision map (plugin/torirs_drive_plan_lua.h DriveActionPlanLua, shared
+ * with scriptrun's d_aplan; engine/world_builder/action_plan.c). The same
+ * player/map reading as lua_drive_plan. "not_visible": no player or world. */
+static int
+lua_drive_aplan(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+    struct WorldEntity_Player* player;
+    struct CollisionMap* cm;
+    int level;
+
+    luaL_checktype(L, 1, LUA_TTABLE);
+    if( !app->world || !app->world->load_complete )
+    {
+        lua_pushstring(L, "not_visible");
+        lua_pushnil(L);
+        return 2;
+    }
+    player = drive_ui_local_player(app);
+    if( !player )
+    {
+        lua_pushstring(L, "not_visible");
+        lua_pushnil(L);
+        return 2;
+    }
+    level = player->grid_position.level;
+    if( level < 0 )
+        level = 0;
+    if( level >= COLLISION_LEVELS )
+        level = COLLISION_LEVELS - 1;
+    cm = drive_ui_collision_maps(app)[level];
+    if( !cm )
+    {
+        lua_pushstring(L, "no_row");
+        lua_pushnil(L);
+        return 2;
+    }
+    /* The TRUE tile (route[0] while a route is in flight), the same reading
+     * as DriveUi_PlayerTile and scriptrun's d_plan: grid_position is the
+     * drawn tile, a tile behind the server's while the figure steps, and a
+     * plan from it reads "step onto my own tile" as "stay" (the live leader
+     * stood while its tornado walked on, 2026-10-09). */
+    {
+        int tx, tz, tl, dest_x, dest_z, flag_x, flag_z, draw_x, draw_z;
+        if( !App_LocalPlayerTiles(app, &tx, &tz, &tl, &dest_x, &dest_z, &flag_x, &flag_z, &draw_x, &draw_z) )
+        {
+            lua_pushstring(L, "not_visible");
+            lua_pushnil(L);
+            return 2;
+        }
+        return DriveActionPlanLua(L, 1, cm, app->world->_base_tile_x, app->world->_base_tile_z, app->world->_scene_size, tx, tz);
+    }
+}
+
 static int
 lua_drive_route(struct lua_State* L)
 {
@@ -3169,6 +3224,7 @@ static struct LuaFn const LUA_DRIVE_UI_FNS[] = {
     {"player_tile", lua_drive_player_tile},
     {"route", lua_drive_route},
     {"plan", lua_drive_plan},
+    {"aplan", lua_drive_aplan},
     {"key", lua_drive_key},
     {"text", lua_drive_text},
     {"shot", lua_drive_shot},

@@ -1,0 +1,1264 @@
+/*
+ * action_plan: the ToB v2 beam search over my actions (action_plan.h for the
+ * model, TOB2_DESIGN.md "PLAN" for the spec). Modelled on collision_plan
+ * (collision_map.c): static buffers, one kept beam per step, the best node
+ * per state up to the beam width, the path read back through parents.
+ */
+#include "action_plan.h"
+
+#include "features/features.h"
+
+#include <assert.h>
+#include <limits.h>
+#include <stdlib.h>
+#include <string.h>
+
+struct ActionPlanNode
+{
+    int x, z;
+    int mid_x, mid_z;
+    int inter;
+    int swing_ready;
+    int stunned_until;
+    double hp_worst;
+    int mark_x[ACTION_PLAN_MARKS_MAX];
+    int mark_z[ACTION_PLAN_MARKS_MAX];
+    int cx[ACTION_PLAN_CHASERS_MAX];
+    int cz[ACTION_PLAN_CHASERS_MAX];
+    double risk, loss, soft, value;
+    /* risk split by cause (risk = risk_rule + risk_hp): a RULE (forbid,
+     * lethal zone) against an hp ESTIMATE (hp_worst <= 0 from priced damage);
+     * compared rule first, then hp. The first charge of each names its why. */
+    double risk_rule, risk_hp;
+    int whyr_kind, whyr_index, whyr_k;
+    int whyh_kind, whyh_index, whyh_k;
+    int steps, clicks;
+    /* the sum of the steps k on which a click was made: among equals the
+     * plan that clicks EARLIER wins (action_plan.h) */
+    int click_k;
+    /* the last walk's heading, 0/0 after a stand or an attack (v1's click
+     * count: a straight run is one click's worth) */
+    int dir_x, dir_z;
+    int act, tgt, swing;
+    /* an attack under way: the route steps still to walk to the target's
+     * reach (0 in reach), -1 when no attack; the beam's progress measure */
+    int chase_left;
+    int refused;
+    unsigned char swings[ACTION_PLAN_TARGETS_MAX]; /* swings made per target */
+    /* the late-hazard lookahead: a lower bound on the risk still to come
+     * (ranked with risk), and the ticks to spare against the tightest
+     * pending hazard (INT_MAX when none) */
+    double bound_rule, bound_hp;
+    int slack;
+    int parent;
+    int why_kind, why_index, why_k;
+    int order;
+};
+
+enum
+{
+    AP_WALKS = 24,
+    AP_CHILDREN = ACTION_PLAN_TARGETS_MAX + 1 + AP_WALKS,
+    AP_CAND_MAX = ACTION_PLAN_BEAM_MAX * AP_CHILDREN,
+    AP_HASH = 4096,
+    AP_GONE = -1000, /* a chaser that has touched and faded */
+    AP_CLAMP = 15,
+    AP_NO_ROUTE = 1 << 20,
+};
+
+static struct ActionPlanNode g_ap_kept[ACTION_PLAN_H_MAX + 1][ACTION_PLAN_BEAM_MAX];
+static struct ActionPlanNode g_ap_cand[AP_CAND_MAX];
+static int g_ap_sorted[AP_CAND_MAX];
+static unsigned char g_ap_reserved[AP_CAND_MAX];
+static int g_ap_hash[AP_HASH];
+static double g_ap_click_cost, g_ap_move_cost; /* for the qsort comparator */
+
+/* collision_map.c's plan_step_ok (static there): one legal step. */
+static int
+ap_step_ok(struct CollisionMap* cm, int x, int z, int dx, int dz)
+{
+    int nx = x + dx, nz = z + dz;
+    if( nx < 0 || nz < 0 || nx >= cm->size_x || nz >= cm->size_z )
+        return 0;
+    if( dx == -1 && dz == 0 )
+        return collision_map_can_step_west(cm, x, z);
+    if( dx == 1 && dz == 0 )
+        return collision_map_can_step_east(cm, x, z);
+    if( dx == 0 && dz == -1 )
+        return collision_map_can_step_south(cm, x, z);
+    if( dx == 0 && dz == 1 )
+        return collision_map_can_step_north(cm, x, z);
+    if( dx == -1 && dz == -1 )
+        return collision_map_can_step_diagonal_south_west(cm, x, z);
+    if( dx == 1 && dz == -1 )
+        return collision_map_can_step_diagonal_south_east(cm, x, z);
+    if( dx == -1 && dz == 1 )
+        return collision_map_can_step_diagonal_north_west(cm, x, z);
+    if( dx == 1 && dz == 1 )
+        return collision_map_can_step_diagonal_north_east(cm, x, z);
+    return 0;
+}
+
+static int
+ap_gap_rect(int x, int z, int x0, int z0, int x1, int z1)
+{
+    int gx = x < x0 ? x0 - x : (x > x1 ? x - x1 : 0);
+    int gz = z < z0 ? z0 - z : (z > z1 ? z - z1 : 0);
+    return gx > gz ? gx : gz;
+}
+
+static int
+ap_iabs(int v)
+{
+    return v < 0 ? -v : v;
+}
+
+/* Walk m: 1..8 one step, 9..24 two steps (collision_map.c's plan_move with
+ * the stay taken out). */
+static void
+ap_walk(int m, int* dx, int* dz, int* steps)
+{
+    static const int one[8][2] = { { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 }, { -1, -1 }, { 1, -1 }, { -1, 1 }, { 1, 1 } };
+    int n = 0;
+    assert(m >= 1);
+    assert(m <= AP_WALKS);
+    if( m <= 8 )
+    {
+        *dx = one[m - 1][0];
+        *dz = one[m - 1][1];
+        *steps = 1;
+        return;
+    }
+    m -= 9;
+    for( *dx = -2; *dx <= 2; (*dx)++ )
+    {
+        for( *dz = -2; *dz <= 2; (*dz)++ )
+        {
+            if( *dx != -2 && *dx != 2 && *dz != -2 && *dz != 2 )
+                continue;
+            if( n == m )
+            {
+                *steps = 2;
+                return;
+            }
+            n++;
+        }
+    }
+    assert(0 && "ap_walk: move index out of range");
+}
+
+static void
+ap_target_at(const struct ActionPlanTarget* tg, int k, int* fx, int* fz)
+{
+    int i = k < tg->path_n - 1 ? k : tg->path_n - 1;
+    *fx = tg->path_x[i];
+    *fz = tg->path_z[i];
+}
+
+/* The entity approach the server routes an attack by: rsmod
+ * reachExclusiveRectangle (shape -2) for a size-1 mover -- cardinal-adjacent,
+ * never overlapping, and no WALL on my tile's edge toward the footprint (the
+ * source tile's directional wall bit only: the footprint's own occupancy or
+ * full-block flags do not matter). */
+static void
+ap_approach(const struct ActionPlanTarget* tg, struct CollisionApproach* ap)
+{
+    collision_approach_from_shape(-2, 0, tg->size, tg->size, 0, 1, ap);
+}
+
+/* Reach (action_plan.h): melee is the approach above (collision_map_reached,
+ * the predicate the server's interaction uses); ranged is Chebyshev gap
+ * 1..range and collision_map_approached (line of sight, never overlapping),
+ * the server's ranged rule (collision_map.c collision_in_range_at). */
+static int
+ap_in_reach(struct CollisionMap* cm, const struct ActionPlanTarget* tg, int fx, int fz, int x, int z)
+{
+    if( tg->range <= 1 )
+    {
+        struct CollisionApproach ap;
+        ap_approach(tg, &ap);
+        return collision_map_reached(cm, x, z, fx, fz, &ap) != 0;
+    }
+    {
+        int x1 = fx + tg->size - 1, z1 = fz + tg->size - 1;
+        int gx = x < fx ? fx - x : (x > x1 ? x - x1 : 0);
+        int gz = z < fz ? fz - z : (z > z1 ? z - z1 : 0);
+        int gap = gx > gz ? gx : gz;
+        if( gap < 1 || gap > tg->range )
+            return 0;
+        return collision_map_approached(cm, x, z, fx, fz, 1, 1, tg->size, tg->size) != 0;
+    }
+}
+
+/* The route cache: the first two tiles of the server's route from a tile to
+ * a footprint, per action_plan call. Keyed on (from, footprint SW, size): the
+ * route does not depend on the range (a ranged attack walks the same route
+ * and stops where it fires) nor on k (a target standing still shares it). */
+struct ApRoute
+{
+    int used;
+    int fx, fz, size, x, z;
+    int n;   /* tiles kept, 0..2 (0: arrived or no route) */
+    int len; /* the whole route's steps; AP_NO_ROUTE when there is none */
+    int straight; /* one direction from the source to the end: one waypoint */
+    int tx[2], tz[2];
+};
+
+enum
+{
+    AP_ROUTE_HASH = 8192,
+    AP_ROUTE_FILL_MAX = AP_ROUTE_HASH / 2,
+};
+
+static struct ApRoute g_ap_route[AP_ROUTE_HASH];
+static int g_ap_route_fill;
+static int g_ap_route_floods;
+static int g_ap_route_nocache; /* test knob: 1 floods every call */
+static int g_ap_route_x[COLLISION_SIZE * COLLISION_SIZE];
+static int g_ap_route_z[COLLISION_SIZE * COLLISION_SIZE];
+
+static void
+ap_route_flood(struct CollisionMap* cm, const struct ActionPlanTarget* tg, int fx, int fz, int x, int z, struct ApRoute* r)
+{
+    const struct ToriRS_FeatureTable* features = ToriRS_Features_OSRS();
+    struct CollisionNearestOpts nearest = { 0 };
+    struct CollisionApproach ap;
+    int steps, i, used = 0, ax = fx, az = fz;
+    /* d_route's options for an entity route (torirs_server_scriptrun.c), so
+     * the plan walks what api_drive.route(x, z, {size}) answers */
+    ap_approach(tg, &ap);
+    nearest.range = features->op_click_nearest_range;
+    nearest.max_dist = 100;
+    nearest.rank_by_rect_distance = features->nearest_ranks_by_rect_distance;
+    nearest.unbounded = 0;
+    g_ap_route_floods++;
+    steps = collision_map_route_tiles(
+        cm, x, z, fx, fz, &ap, &nearest, g_ap_route_x, g_ap_route_z, COLLISION_SIZE * COLLISION_SIZE, &used, &ax, &az);
+    r->n = 0;
+    r->len = steps < 0 ? AP_NO_ROUTE : steps;
+    r->straight = 1;
+    for( i = 1; i < steps; i++ )
+    {
+        int dx0 = g_ap_route_x[0] - x, dz0 = g_ap_route_z[0] - z;
+        if( g_ap_route_x[i] - g_ap_route_x[i - 1] != dx0 || g_ap_route_z[i] - g_ap_route_z[i - 1] != dz0 )
+        {
+            r->straight = 0;
+            break;
+        }
+    }
+    for( i = 0; i < steps && i < 2; i++ )
+    {
+        r->tx[i] = g_ap_route_x[i];
+        r->tz[i] = g_ap_route_z[i];
+        r->n++;
+    }
+}
+
+static const struct ApRoute*
+ap_route(struct CollisionMap* cm, const struct ActionPlanTarget* tg, int fx, int fz, int x, int z)
+{
+    static struct ApRoute scratch;
+    unsigned h;
+    if( g_ap_route_nocache || g_ap_route_fill >= AP_ROUTE_FILL_MAX )
+    {
+        ap_route_flood(cm, tg, fx, fz, x, z, &scratch);
+        return &scratch;
+    }
+    h = ((unsigned)x * 73856093u ^ (unsigned)z * 19349663u ^ (unsigned)fx * 83492791u ^ (unsigned)fz * 2654435761u ^
+         (unsigned)tg->size * 40503u) &
+        (AP_ROUTE_HASH - 1);
+    while( g_ap_route[h].used )
+    {
+        const struct ApRoute* r = &g_ap_route[h];
+        if( r->x == x && r->z == z && r->fx == fx && r->fz == fz && r->size == tg->size )
+            return r;
+        h = (h + 1) & (AP_ROUTE_HASH - 1);
+    }
+    g_ap_route[h].used = 1;
+    g_ap_route[h].x = x;
+    g_ap_route[h].z = z;
+    g_ap_route[h].fx = fx;
+    g_ap_route[h].fz = fz;
+    g_ap_route[h].size = tg->size;
+    ap_route_flood(cm, tg, fx, fz, x, z, &g_ap_route[h]);
+    g_ap_route_fill++;
+    return &g_ap_route[h];
+}
+
+/* One step's risk: (h - k + 1), to the rule or the hp half; the first of
+ * each names its why, and the first overall names `why`. */
+static void
+ap_risk(struct ActionPlanNode* n, const struct ActionPlanSpec* spec, int k, int rule, int kind, int index)
+{
+    double r = (double)(spec->h - k + 1);
+    n->risk += r;
+    if( rule )
+    {
+        n->risk_rule += r;
+        if( n->whyr_kind == ACTION_PLAN_WHY_NONE )
+        {
+            n->whyr_kind = kind;
+            n->whyr_index = index;
+            n->whyr_k = k;
+        }
+    }
+    else
+    {
+        n->risk_hp += r;
+        if( n->whyh_kind == ACTION_PLAN_WHY_NONE )
+        {
+            n->whyh_kind = kind;
+            n->whyh_index = index;
+            n->whyh_k = k;
+        }
+    }
+    if( n->why_kind == ACTION_PLAN_WHY_NONE )
+    {
+        n->why_kind = kind;
+        n->why_index = index;
+        n->why_k = k;
+    }
+}
+
+static void
+ap_charge(
+    struct ActionPlanNode* n,
+    const struct ActionPlanSpec* spec,
+    int k,
+    double dmg_exp,
+    double dmg_max,
+    int stun,
+    int forbid,
+    int kind,
+    int index)
+{
+    int t = spec->now + k;
+    n->loss += dmg_exp;
+    n->hp_worst -= dmg_max;
+    if( stun > 0 && t + stun > n->stunned_until )
+        n->stunned_until = t + stun;
+    if( forbid )
+        ap_risk(n, spec, k, 1, kind, index);
+    else if( n->hp_worst <= 0.0 )
+        ap_risk(n, spec, k, 0, kind, index);
+}
+
+static int
+ap_in_rect(int x, int z, const struct ActionPlanHit* hit)
+{
+    return x >= hit->x0 && x <= hit->x1 && z >= hit->z0 && z <= hit->z1;
+}
+
+static int
+ap_near(int x, int z, int mx, int mz, int r)
+{
+    return ap_iabs(x - mx) <= r && ap_iabs(z - mz) <= r;
+}
+
+static void
+ap_score(struct CollisionMap* cm, struct ActionPlanNode* n, const struct ActionPlanSpec* spec, int k)
+{
+    int t = spec->now + k;
+    int i;
+    for( i = 0; i < spec->n_hits; i++ )
+    {
+        const struct ActionPlanHit* hit = &spec->hits[i];
+        int on;
+        if( t < hit->t0 || t > hit->t1 )
+            continue;
+        on = ap_in_rect(n->x, n->z, hit);
+        if( !on && hit->sample == ACTION_PLAN_SAMPLE_PASS && n->mid_x >= 0 )
+            on = ap_in_rect(n->mid_x, n->mid_z, hit);
+        if( on )
+            ap_charge(n, spec, k, hit->dmg_exp, hit->dmg_max, hit->stun, hit->forbid, ACTION_PLAN_WHY_HIT, i);
+    }
+    for( i = 0; i < spec->n_watchers; i++ )
+    {
+        const struct ActionPlanWatcher* w = &spec->watchers[i];
+        if( t < w->t0 || t > w->t1 )
+            continue;
+        /* the tick-END tile only, like an "end" hit (collision_plan reads its
+         * watchers the same way) */
+        if( collision_plan_watcher_sees(cm, w->x, w->z, w->size, n->x, n->z) )
+            ap_charge(n, spec, k, w->dmg_exp, w->dmg_max, w->stun, w->forbid, ACTION_PLAN_WHY_WATCHER, i);
+    }
+    for( i = 0; i < spec->n_marks; i++ )
+    {
+        const struct ActionPlanMark* mk = &spec->marks[i];
+        /* read before the record: a mark lands on a tile recorded earlier */
+        if( n->mark_x[i] >= 0 && t >= mk->t0 && t <= mk->t1 )
+        {
+            int on = ap_near(n->x, n->z, n->mark_x[i], n->mark_z[i], mk->r);
+            if( !on && mk->sample == ACTION_PLAN_SAMPLE_PASS && n->mid_x >= 0 )
+                on = ap_near(n->mid_x, n->mid_z, n->mark_x[i], n->mark_z[i], mk->r);
+            if( on )
+                ap_charge(n, spec, k, mk->dmg_exp, mk->dmg_max, mk->stun, mk->forbid, ACTION_PLAN_WHY_MARK, i);
+        }
+        if( t == mk->t_mark )
+        {
+            n->mark_x[i] = n->x;
+            n->mark_z[i] = n->z;
+        }
+    }
+    for( i = 0; i < spec->n_chasers; i++ )
+    {
+        if( n->cx[i] == n->x && n->cz[i] == n->z )
+            ap_charge(
+                n, spec, k, spec->chasers[i].dmg_exp, spec->chasers[i].dmg_max, 0, 0, ACTION_PLAN_WHY_CHASER, i);
+    }
+    for( i = 0; i < spec->n_zones; i++ )
+    {
+        const struct CollisionPlanZone* zn = &spec->zones[i];
+        int gap, inside;
+        if( t < zn->t0 || t > zn->t1 )
+            continue;
+        gap = ap_gap_rect(n->x, n->z, zn->x0, zn->z0, zn->x1, zn->z1);
+        inside = gap >= zn->lo && gap <= zn->hi;
+        if( inside && zn->sight &&
+            !collision_map_line_of_sight(
+                cm, n->x, n->z, zn->x0, zn->z0, 1, 1, zn->x1 - zn->x0 + 1, zn->z1 - zn->z0 + 1, 0) )
+            inside = 0;
+        if( zn->require ? inside : !inside )
+            continue;
+        if( zn->tier == COLLISION_PLAN_LETHAL )
+            ap_risk(n, spec, k, 1, ACTION_PLAN_WHY_ZONE, i);
+        else if( zn->tier == COLLISION_PLAN_DAMAGE )
+            n->loss += zn->cost;
+        else
+            n->soft += zn->cost;
+    }
+    for( i = 0; i < spec->n_pulls; i++ )
+    {
+        const struct CollisionPlanPull* p = &spec->pulls[i];
+        if( t < p->t0 || t > p->t1 )
+            continue;
+        n->soft += p->weight * ap_gap_rect(n->x, n->z, p->x, p->z, p->x + p->size - 1, p->z + p->size - 1);
+    }
+    if( spec->goal.present )
+    {
+        const struct CollisionPlanGoal* g = &spec->goal;
+        int x1 = g->x + g->size - 1, z1 = g->z + g->size - 1;
+        int gx = n->x < g->x ? g->x - n->x : (n->x > x1 ? n->x - x1 : 0);
+        int gz = n->z < g->z ? g->z - n->z : (n->z > z1 ? n->z - z1 : 0);
+        if( (gx == 1 && gz == 0) || (gx == 0 && gz == 1) )
+        {
+            int side = gx == 1 ? (n->x < g->x ? 0 : 2) : (n->z > z1 ? 1 : 3);
+            if( g->side >= 0 && side != g->side )
+                n->soft += g->off_side;
+        }
+        else if( gx == 0 && gz == 0 && g->under_ok )
+            n->soft += g->under;
+        else
+            n->soft += g->pull * (double)(gx > gz ? gx : gz);
+    }
+    if( spec->edge.present )
+    {
+        const struct CollisionPlanEdge* e = &spec->edge;
+        int d = n->x - e->x0;
+        if( e->x1 - n->x < d )
+            d = e->x1 - n->x;
+        if( n->z - e->z0 < d )
+            d = n->z - e->z0;
+        if( e->z1 - n->z < d )
+            d = e->z1 - n->z;
+        if( d < e->margin )
+            n->soft += e->weight * (double)(e->margin - d);
+    }
+}
+
+/* The late-hazard lookahead (action_plan.h): the hits that are certainly
+ * lethal and open later in the horizon, found once per call. */
+static int g_ap_pending[ACTION_PLAN_HITS_MAX];
+static int g_ap_pending_n;
+static int g_ap_pend_zone[ACTION_PLAN_ZONES_MAX];
+static int g_ap_pend_zone_n;
+static int g_ap_lookahead = 1; /* test knob */
+
+void
+action_plan_lookahead_enable(int on)
+{
+    g_ap_lookahead = on != 0;
+}
+
+static void
+ap_pending_init(const struct ActionPlanSpec* spec)
+{
+    double heal = 0.0;
+    int i;
+    g_ap_pending_n = 0;
+    g_ap_pend_zone_n = 0;
+    if( !g_ap_lookahead )
+        return;
+    /* lethal-tier zones opening later in the horizon: a REQUIRE zone must be
+     * reached by its t0 (Verzik P1's pillar box at the bolt's read tick), a
+     * plain one must be left by it */
+    for( i = 0; i < spec->n_zones; i++ )
+    {
+        const struct CollisionPlanZone* zn = &spec->zones[i];
+        if( zn->tier != COLLISION_PLAN_LETHAL )
+            continue;
+        if( zn->t0 <= spec->now + 1 || zn->t0 > spec->now + spec->h )
+            continue;
+        g_ap_pend_zone[g_ap_pend_zone_n++] = i;
+    }
+    for( i = 0; i < spec->n_held; i++ )
+        if( spec->held[i].t > spec->now && spec->held[i].heal > 0.0 )
+            heal += spec->held[i].heal;
+    for( i = 0; i < spec->n_hits; i++ )
+    {
+        const struct ActionPlanHit* hit = &spec->hits[i];
+        if( hit->t0 <= spec->now + 1 || hit->t0 > spec->now + spec->h )
+            continue;
+        if( !hit->forbid && hit->dmg_max < spec->hp + heal )
+            continue;
+        g_ap_pending[g_ap_pending_n++] = i;
+    }
+}
+
+/* n->bound: the risk the pending hazards will certainly still charge (a node
+ * that cannot be off a hazard's rect when it opens, by straight-line running);
+ * n->slack: ticks to spare against the tightest one. */
+static void
+ap_lookahead(struct ActionPlanNode* n, const struct ActionPlanSpec* spec, int k)
+{
+    int t = spec->now + k;
+    int per = spec->run ? 2 : 1;
+    int start = n->stunned_until > t ? n->stunned_until : t;
+    int i;
+    n->bound_rule = 0.0;
+    n->bound_hp = 0.0;
+    n->slack = INT_MAX;
+    for( i = 0; i < g_ap_pending_n; i++ )
+    {
+        const struct ActionPlanHit* hit = &spec->hits[g_ap_pending[i]];
+        int d = 0, need, avail, sl;
+        if( hit->t0 <= t )
+            continue;
+        if( n->x >= hit->x0 && n->x <= hit->x1 && n->z >= hit->z0 && n->z <= hit->z1 )
+        {
+            d = n->x - hit->x0;
+            if( hit->x1 - n->x < d )
+                d = hit->x1 - n->x;
+            if( n->z - hit->z0 < d )
+                d = n->z - hit->z0;
+            if( hit->z1 - n->z < d )
+                d = hit->z1 - n->z;
+            d++;
+        }
+        need = (d + per - 1) / per;
+        avail = hit->t0 - start;
+        if( avail < 0 )
+            avail = 0;
+        sl = avail - need;
+        if( sl < 0 )
+        {
+            if( hit->forbid )
+                n->bound_rule += (double)(spec->h - (hit->t0 - spec->now) + 1);
+            else
+                n->bound_hp += (double)(spec->h - (hit->t0 - spec->now) + 1);
+        }
+        if( sl < n->slack )
+            n->slack = sl;
+    }
+    for( i = 0; i < g_ap_pend_zone_n; i++ )
+    {
+        const struct CollisionPlanZone* zn = &spec->zones[g_ap_pend_zone[i]];
+        int g, d, need, avail, sl;
+        if( zn->t0 <= t )
+            continue;
+        /* the zone's own measure: the Chebyshev gap to its rect, against
+         * its band [lo, hi]; one tile moved changes the gap by at most 1 */
+        g = ap_gap_rect(n->x, n->z, zn->x0, zn->z0, zn->x1, zn->z1);
+        if( zn->require )
+            d = g < zn->lo ? zn->lo - g : (g > zn->hi ? g - zn->hi : 0);
+        else if( g < zn->lo || g > zn->hi )
+            d = 0;
+        else
+        {
+            /* out past hi, or in below lo (only when lo > 0: the gap
+             * cannot go under 0) */
+            d = zn->hi - g + 1;
+            if( zn->lo > 0 && g - zn->lo + 1 < d )
+                d = g - zn->lo + 1;
+        }
+        need = (d + per - 1) / per;
+        avail = zn->t0 - start;
+        if( avail < 0 )
+            avail = 0;
+        sl = avail - need;
+        if( sl < 0 )
+            n->bound_rule += (double)(spec->h - (zn->t0 - spec->now) + 1);
+        if( sl < n->slack )
+            n->slack = sl;
+    }
+}
+
+static double
+ap_cost(const struct ActionPlanNode* n)
+{
+    return n->loss + n->soft + (double)n->clicks * g_ap_click_cost + (double)n->steps * g_ap_move_cost - n->value;
+}
+
+static int
+ap_better(const struct ActionPlanNode* a, const struct ActionPlanNode* b)
+{
+    double ca, cb;
+    if( a->risk_rule + a->bound_rule != b->risk_rule + b->bound_rule )
+        return a->risk_rule + a->bound_rule < b->risk_rule + b->bound_rule;
+    if( a->risk_hp + a->bound_hp != b->risk_hp + b->bound_hp )
+        return a->risk_hp + a->bound_hp < b->risk_hp + b->bound_hp;
+    ca = ap_cost(a);
+    cb = ap_cost(b);
+    if( ca != cb )
+        return ca < cb;
+    if( a->steps != b->steps )
+        return a->steps < b->steps;
+    if( a->clicks != b->clicks )
+        return a->clicks < b->clicks;
+    if( a->click_k != b->click_k )
+        return a->click_k < b->click_k;
+    return a->order < b->order;
+}
+
+static int
+ap_cmp(const void* pa, const void* pb)
+{
+    const struct ActionPlanNode* a = &g_ap_cand[*(const int*)pa];
+    const struct ActionPlanNode* b = &g_ap_cand[*(const int*)pb];
+    if( ap_better(a, b) )
+        return -1;
+    if( ap_better(b, a) )
+        return 1;
+    return 0;
+}
+
+static int
+ap_clamp(int v)
+{
+    return v < 0 ? 0 : (v > AP_CLAMP ? AP_CLAMP : v);
+}
+
+/* The dedup key: (x, z, inter, min(swing_ready - t, 15), stun ticks left
+ * clamped the same way, the recorded mark tiles, the chasers). */
+static int
+ap_same_state(const struct ActionPlanNode* a, const struct ActionPlanNode* b, const struct ActionPlanSpec* spec, int t)
+{
+    int i;
+    if( a->x != b->x || a->z != b->z || a->inter != b->inter )
+        return 0;
+    if( ap_clamp(a->swing_ready - t) != ap_clamp(b->swing_ready - t) )
+        return 0;
+    if( ap_clamp(a->stunned_until - t) != ap_clamp(b->stunned_until - t) )
+        return 0;
+    for( i = 0; i < spec->n_targets; i++ )
+        if( spec->targets[i].swings_max > 0 && a->swings[i] != b->swings[i] )
+            return 0;
+    for( i = 0; i < spec->n_marks; i++ )
+        if( a->mark_x[i] != b->mark_x[i] || a->mark_z[i] != b->mark_z[i] )
+            return 0;
+    for( i = 0; i < spec->n_chasers; i++ )
+        if( a->cx[i] != b->cx[i] || a->cz[i] != b->cz[i] )
+            return 0;
+    return 1;
+}
+
+static unsigned
+ap_hash_state(const struct ActionPlanNode* a, const struct ActionPlanSpec* spec, int t)
+{
+    unsigned h = (unsigned)a->x * 73856093u ^ (unsigned)a->z * 19349663u;
+    int i;
+    h = h * 31u + (unsigned)(a->inter + 2) * 83492791u;
+    h = h * 31u + (unsigned)ap_clamp(a->swing_ready - t) * 2654435761u;
+    h = h * 31u + (unsigned)ap_clamp(a->stunned_until - t) * 40503u;
+    for( i = 0; i < spec->n_targets; i++ )
+        if( spec->targets[i].swings_max > 0 )
+            h = h * 31u + (unsigned)a->swings[i] * 2246822519u;
+    for( i = 0; i < spec->n_marks; i++ )
+        h = h * 31u + (unsigned)(a->mark_x[i] + 2) * 83492791u + (unsigned)(a->mark_z[i] + 2) * 19349663u;
+    for( i = 0; i < spec->n_chasers; i++ )
+        h = h * 31u + (unsigned)(a->cx[i] + 2000) * 83492791u + (unsigned)(a->cz[i] + 2000) * 2654435761u;
+    return h & (AP_HASH - 1);
+}
+
+static void
+ap_target_alt_at(const struct ActionPlanTarget* tg, int k, int* fx, int* fz)
+{
+    int i;
+    assert(tg->alt_n >= 1);
+    i = k < tg->alt_n - 1 ? k : tg->alt_n - 1;
+    *fx = tg->alt_x[i];
+    *fz = tg->alt_z[i];
+}
+
+/*
+ * ATTACK on target c at step k, the server's order (action_plan.h "ATTACK"):
+ * F0 = the footprint the npc stands on while my click is handled (path[k-1]),
+ * F1 = where it stands after phase_npcs (path[k]). `n` arrives as the step's
+ * base state with the click counted and inter = c; this fills the tile, the
+ * middle tile, steps, the swing (value, timer, count, swing costs) and
+ * chase_left. `alt` reads the target's path_alt for the next step's route.
+ */
+static void
+ap_attack(
+    struct CollisionMap* cm,
+    const struct ActionPlanSpec* spec,
+    const struct ActionPlanTarget* tg,
+    int c,
+    int k,
+    int press,
+    int f0x,
+    int f0z,
+    int f1x,
+    int f1z,
+    int alt,
+    struct ActionPlanNode* n)
+{
+    int t = spec->now + k;
+    int sx = n->x, sz = n->z;
+    int fired = 0, fire_x = sx, fire_z = sz;
+    int fired_f0 = 0;
+    int moved = 0;
+
+    n->mid_x = n->mid_z = -1;
+    /* the press's own try, in the packet handler between ticks, against the
+     * npc's tile then (handle_opnpc -> ToriRSServer_WorldProcessInteraction ->
+     * interaction_try): reached = the op fires now and the route is dropped */
+    if( press && ap_in_reach(cm, tg, f0x, f0z, sx, sz) )
+        fired = fired_f0 = 1;
+    /* phase_player's pre-move try, against F1 from my tile */
+    if( ap_in_reach(cm, tg, f1x, f1z, sx, sz) )
+        fired = 1;
+    else
+    {
+        /* combat_target is set once an Attack op has fired (p_opnpc(2)'s
+         * re-arm): ToriRSServer_CombatPlayerApproach then stops a weapon IN
+         * RANGE -- Chebyshev gap <= range, no sight test, 0 included -- and
+         * re-routes toward F1 otherwise */
+        int combat = !press || fired_f0;
+        int gap = ap_gap_rect(sx, sz, f1x, f1z, f1x + tg->size - 1, f1z + tg->size - 1);
+        if( !(combat && tg->range > 1 && gap <= tg->range) )
+        {
+            const struct ApRoute* r;
+            int take = spec->run ? 2 : 1;
+            if( press && !fired_f0 )
+            {
+                /* the handler routed toward F0; interaction_path_to_pathing_
+                 * target re-routes toward F1 only at the last waypoint, i.e.
+                 * when that route is one straight run */
+                r = ap_route(cm, tg, f0x, f0z, sx, sz);
+                if( r->straight )
+                    r = ap_route(cm, tg, f1x, f1z, sx, sz);
+            }
+            else
+                r = ap_route(cm, tg, f1x, f1z, sx, sz);
+            if( take > r->n )
+                take = r->n;
+            if( take > 0 )
+            {
+                n->x = r->tx[take - 1];
+                n->z = r->tz[take - 1];
+                if( take == 2 )
+                {
+                    n->mid_x = r->tx[0];
+                    n->mid_z = r->tz[0];
+                }
+                n->steps += take;
+                moved = 1;
+            }
+            /* the post-move try; a swing that already went out in the
+             * handler keeps its tile */
+            if( !fired && ap_in_reach(cm, tg, f1x, f1z, n->x, n->z) )
+            {
+                fired = 1;
+                fire_x = n->x;
+                fire_z = n->z;
+            }
+        }
+    }
+    (void)moved;
+    if( fired && t >= n->swing_ready )
+    {
+        int j;
+        n->swing = 1;
+        n->value += tg->value;
+        if( n->swings[c] < 255 )
+            n->swings[c]++;
+        n->swing_ready = t + tg->speed;
+        for( j = 0; j < tg->n_swing_costs; j++ )
+        {
+            const struct ActionPlanSwingCost* sc = &tg->swing_costs[j];
+            if( t < sc->t0 || t > sc->t1 )
+                continue;
+            if( fire_x < sc->x0 || fire_x > sc->x1 || fire_z < sc->z0 || fire_z > sc->z1 )
+                continue;
+            ap_charge(n, spec, k, sc->dmg_exp, sc->dmg_max, sc->stun, sc->forbid, ACTION_PLAN_WHY_SWING_COST,
+                      c * ACTION_PLAN_SWING_COSTS_MAX + j);
+        }
+    }
+    if( ap_in_reach(cm, tg, f1x, f1z, n->x, n->z) )
+        n->chase_left = 0;
+    else
+    {
+        /* the same route the next step's chase reads (cached) */
+        int nfx, nfz;
+        if( alt )
+            ap_target_alt_at(tg, k + 1, &nfx, &nfz);
+        else
+            ap_target_at(tg, k + 1, &nfx, &nfz);
+        n->chase_left = ap_route(cm, tg, nfx, nfz, n->x, n->z)->len;
+    }
+}
+
+/* A new candidate from the step's base state (held ops applied, chasers
+ * stepped); the caller sets the action's fields, then scores it. */
+static struct ActionPlanNode*
+ap_child(const struct ActionPlanNode* base, int parent, int* cand_n)
+{
+    struct ActionPlanNode* n;
+    assert(*cand_n < AP_CAND_MAX);
+    n = &g_ap_cand[*cand_n];
+    *n = *base;
+    n->parent = parent;
+    n->mid_x = -1;
+    n->mid_z = -1;
+    n->act = ACTION_PLAN_STAY;
+    n->tgt = -1;
+    n->swing = 0;
+    n->chase_left = -1;
+    n->refused = 0;
+    n->bound_rule = 0.0;
+    n->bound_hp = 0.0;
+    n->slack = INT_MAX;
+    n->order = *cand_n;
+    (*cand_n)++;
+    return n;
+}
+
+void
+action_plan_route_cache_enable(int on)
+{
+    g_ap_route_nocache = !on;
+}
+
+int
+action_plan(
+    struct CollisionMap* cm,
+    const struct ActionPlanSpec* spec,
+    struct ActionPlanResult* out)
+{
+    int k, i, m, c, kept_n, best;
+    assert(cm);
+    assert(spec);
+    assert(out);
+    assert(spec->h >= 1);
+    assert(spec->h <= ACTION_PLAN_H_MAX);
+    assert(spec->beam >= 1);
+    assert(spec->beam <= ACTION_PLAN_BEAM_MAX);
+    assert(spec->n_targets >= 0);
+    assert(spec->n_targets <= ACTION_PLAN_TARGETS_MAX);
+    assert(spec->n_hits >= 0);
+    assert(spec->n_hits <= ACTION_PLAN_HITS_MAX);
+    assert(spec->n_marks >= 0);
+    assert(spec->n_marks <= ACTION_PLAN_MARKS_MAX);
+    assert(spec->n_held >= 0);
+    assert(spec->n_held <= ACTION_PLAN_HELD_MAX);
+    assert(spec->n_chasers >= 0);
+    assert(spec->n_chasers <= ACTION_PLAN_CHASERS_MAX);
+    assert(spec->n_zones >= 0);
+    assert(spec->n_zones <= ACTION_PLAN_ZONES_MAX);
+    assert(spec->n_pulls >= 0);
+    assert(spec->n_pulls <= ACTION_PLAN_PULLS_MAX);
+    assert(spec->n_watchers >= 0);
+    assert(spec->n_watchers <= ACTION_PLAN_WATCHERS_MAX);
+    for( i = 0; i < spec->n_watchers; i++ )
+    {
+        /* every tile a watcher casts from is inside the map */
+        assert(spec->watchers[i].size >= 1);
+        assert(spec->watchers[i].x >= 0);
+        assert(spec->watchers[i].z >= 0);
+        assert(spec->watchers[i].x + spec->watchers[i].size <= cm->size_x);
+        assert(spec->watchers[i].z + spec->watchers[i].size <= cm->size_z);
+    }
+    assert(spec->inter >= -1);
+    assert(spec->inter < spec->n_targets);
+    assert(spec->src_x >= 0);
+    assert(spec->src_x < cm->size_x);
+    assert(spec->src_z >= 0);
+    assert(spec->src_z < cm->size_z);
+    for( i = 0; i < spec->n_targets; i++ )
+    {
+        const struct ActionPlanTarget* tg = &spec->targets[i];
+        int p;
+        assert(tg->size >= 1);
+        assert(tg->speed >= 1);
+        assert(tg->range >= 1);
+        assert(tg->path_n >= 1);
+        assert(tg->path_n <= ACTION_PLAN_H_MAX + 1);
+        assert(tg->swings_max >= 0);
+        assert(tg->n_swing_costs >= 0);
+        assert(tg->n_swing_costs <= ACTION_PLAN_SWING_COSTS_MAX);
+        assert(tg->alt_n >= 0);
+        assert(tg->alt_n <= ACTION_PLAN_H_MAX + 1);
+        for( p = 0; p < tg->alt_n; p++ )
+        {
+            assert(tg->alt_x[p] >= 0);
+            assert(tg->alt_z[p] >= 0);
+            assert(tg->alt_x[p] + tg->size <= cm->size_x);
+            assert(tg->alt_z[p] + tg->size <= cm->size_z);
+        }
+        for( p = 0; p < tg->path_n; p++ )
+        {
+            /* every footprint tile a reach test reads is inside the map */
+            assert(tg->path_x[p] >= 0);
+            assert(tg->path_z[p] >= 0);
+            assert(tg->path_x[p] + tg->size <= cm->size_x);
+            assert(tg->path_z[p] + tg->size <= cm->size_z);
+        }
+    }
+    for( i = 0; i < spec->n_marks; i++ )
+    {
+        assert(spec->marks[i].t_mark >= spec->now);
+        assert(spec->marks[i].r >= 0);
+    }
+
+    memset(g_ap_route, 0, sizeof(g_ap_route));
+    g_ap_route_fill = 0;
+    g_ap_route_floods = 0;
+    ap_pending_init(spec);
+    g_ap_click_cost = spec->click_cost;
+    g_ap_move_cost = spec->move_cost;
+    memset(out, 0, sizeof(*out));
+    {
+        struct ActionPlanNode* root = &g_ap_kept[0][0];
+        memset(root, 0, sizeof(*root));
+        root->x = spec->src_x;
+        root->z = spec->src_z;
+        root->mid_x = root->mid_z = -1;
+        root->inter = spec->inter;
+        root->swing_ready = spec->swing_ready;
+        root->stunned_until = spec->stunned_until;
+        root->hp_worst = spec->hp;
+        root->parent = -1;
+        root->tgt = -1;
+        for( i = 0; i < spec->n_marks; i++ )
+        {
+            int at_now = spec->marks[i].t_mark == spec->now;
+            root->mark_x[i] = at_now ? spec->src_x : -1;
+            root->mark_z[i] = at_now ? spec->src_z : -1;
+        }
+        for( i = 0; i < spec->n_chasers; i++ )
+        {
+            root->cx[i] = spec->chasers[i].x;
+            root->cz[i] = spec->chasers[i].z;
+        }
+    }
+    kept_n = 1;
+    for( k = 1; k <= spec->h; k++ )
+    {
+        int t = spec->now + k;
+        int cand_n = 0;
+        for( i = 0; i < kept_n; i++ )
+        {
+            const struct ActionPlanNode* from = &g_ap_kept[k - 1][i];
+            struct ActionPlanNode base = *from;
+            struct ActionPlanNode* n;
+            int h;
+
+            /* 1. held ops at t, BEFORE the action (E4/M6) */
+            for( h = 0; h < spec->n_held; h++ )
+            {
+                const struct ActionPlanHeld* hd = &spec->held[h];
+                if( hd->t != t )
+                    continue;
+                if( t + hd->swing_delay > base.swing_ready )
+                    base.swing_ready = t + hd->swing_delay;
+                base.hp_worst += hd->heal;
+                if( hd->ends_attack )
+                    base.inter = -1;
+            }
+            /* 2. the chasers step toward my end-of-(t-1) tile; one standing
+             * on it has touched and fades (collision_plan's rule) */
+            for( c = 0; c < spec->n_chasers; c++ )
+            {
+                int cx = from->cx[c], cz = from->cz[c];
+                if( cx == AP_GONE )
+                    ;
+                else if( cx == from->x && cz == from->z )
+                    cx = cz = AP_GONE;
+                else
+                {
+                    cx += from->x > cx ? 1 : (from->x < cx ? -1 : 0);
+                    cz += from->z > cz ? 1 : (from->z < cz ? -1 : 0);
+                }
+                base.cx[c] = cx;
+                base.cz[c] = cz;
+            }
+
+            /* 3. the action */
+            if( t <= base.stunned_until )
+            {
+                /* M5: no move, no swing; a press would be refused */
+                n = ap_child(&base, i, &cand_n);
+                n->dir_x = n->dir_z = 0;
+                ap_score(cm, n, spec, k);
+                continue;
+            }
+            for( c = 0; c < spec->n_targets; c++ )
+            {
+                const struct ActionPlanTarget* tg = &spec->targets[c];
+                int dead = tg->swings_max > 0 && base.swings[c] >= tg->swings_max;
+                if( dead )
+                {
+                    /* it no longer exists: never pressed; an attack under way
+                     * on it is dropped by the server, no click */
+                    if( base.inter != c )
+                        continue;
+                    n = ap_child(&base, i, &cand_n);
+                    n->act = ACTION_PLAN_ATTACK;
+                    n->tgt = c;
+                    n->dir_x = n->dir_z = 0;
+                    n->inter = -1;
+                    n->refused = 1;
+                    ap_score(cm, n, spec, k);
+                    continue;
+                }
+                n = ap_child(&base, i, &cand_n);
+                n->act = ACTION_PLAN_ATTACK;
+                n->tgt = c;
+                n->dir_x = n->dir_z = 0;
+                if( base.inter != c )
+                {
+                    n->clicks++;
+                    n->click_k += k;
+                }
+                if( (t < tg->t_ok0 || t > tg->t_ok1) && (base.inter != c || tg->refuse_under_way) )
+                {
+                    /* lesson 21: the press is refused, I stand; an attack
+                     * under way too unless the target says it is still
+                     * swung (refuse_under_way = 0) */
+                    n->inter = -1;
+                    n->refused = 1;
+                }
+                else
+                {
+                    struct ActionPlanNode pre;
+                    int f0x, f0z, f1x, f1z;
+                    n->inter = c;
+                    pre = *n;
+                    ap_target_at(tg, k - 1, &f0x, &f0z);
+                    ap_target_at(tg, k, &f1x, &f1z);
+                    ap_attack(cm, spec, tg, c, k, base.inter != c, f0x, f0z, f1x, f1z, 0, n);
+                    ap_score(cm, n, spec, k);
+                    if( tg->alt_n > 0 )
+                    {
+                        /* the npc's other possible step: keep the WORSE of the
+                         * two outcomes (hits and chasers read its tile) */
+                        struct ActionPlanNode alt = pre;
+                        ap_target_alt_at(tg, k - 1, &f0x, &f0z);
+                        ap_target_alt_at(tg, k, &f1x, &f1z);
+                        ap_attack(cm, spec, tg, c, k, base.inter != c, f0x, f0z, f1x, f1z, 1, &alt);
+                        ap_score(cm, &alt, spec, k);
+                        if( ap_better(n, &alt) )
+                            *n = alt;
+                    }
+                    continue;
+                }
+                ap_score(cm, n, spec, k);
+            }
+            /* STAY: a walk to my own tile when an attack is under way (E3) */
+            n = ap_child(&base, i, &cand_n);
+            n->dir_x = n->dir_z = 0;
+            if( base.inter != -1 )
+            {
+                n->clicks++;
+                n->click_k += k;
+                n->inter = -1;
+            }
+            ap_score(cm, n, spec, k);
+            /* WALK: click the tick's end tile (E6) */
+            for( m = 1; m <= (spec->run ? AP_WALKS : 8); m++ )
+            {
+                int dx, dz, steps, mx = -1, mz = -1, ndx, ndz;
+                ap_walk(m, &dx, &dz, &steps);
+                if( steps == 1 )
+                {
+                    if( !ap_step_ok(cm, base.x, base.z, dx, dz) )
+                        continue;
+                }
+                else
+                {
+                    int ax = ap_iabs(dx), az = ap_iabs(dz);
+                    int d1x, d1z;
+                    if( ax == 2 && az == 2 )
+                    {
+                        d1x = dx / 2;
+                        d1z = dz / 2;
+                    }
+                    else if( ax == 2 )
+                    {
+                        d1x = dx / 2;
+                        d1z = 0;
+                    }
+                    else
+                    {
+                        d1x = 0;
+                        d1z = dz / 2;
+                    }
+                    if( !ap_step_ok(cm, base.x, base.z, d1x, d1z) )
+                        continue;
+                    mx = base.x + d1x;
+                    mz = base.z + d1z;
+                    if( !ap_step_ok(cm, mx, mz, dx - d1x, dz - d1z) )
+                        continue;
+                }
+                n = ap_child(&base, i, &cand_n);
+                n->act = ACTION_PLAN_WALK;
+                n->x = base.x + dx;
+                n->z = base.z + dz;
+                n->mid_x = mx;
+                n->mid_z = mz;
+                n->inter = -1;
+                n->steps += steps;
+                ndx = (dx > 0) - (dx < 0);
+                ndz = (dz > 0) - (dz < 0);
+                if( ndx != base.dir_x || ndz != base.dir_z )
+                {
+                    n->clicks++;
+                    n->click_k += k;
+                }
+                n->dir_x = ndx;
+                n->dir_z = ndz;
+                ap_score(cm, n, spec, k);
+            }
+        }
+        out->expanded += cand_n;
+        assert(cand_n > 0);
+        if( g_ap_pending_n > 0 || g_ap_pend_zone_n > 0 )
+            for( i = 0; i < cand_n; i++ )
+                ap_lookahead(&g_ap_cand[i], spec, k);
+        for( i = 0; i < cand_n; i++ )
+            g_ap_sorted[i] = i;
+        qsort(g_ap_sorted, (size_t)cand_n, sizeof(int), ap_cmp);
+        /* the best per state, up to the beam width -- with slots RESERVED,
+         * per target, for the best node whose attack on it is under way and
+         * for the one with the fewest route steps left to its reach. A chase
+         * pays clicks and steps for ticks before its swing's value lands, so
+         * a plain cost-ranked beam fills with cheap stands and walks, and the
+         * cheapest attacking node is always the chase begun a tick ago: the
+         * far end of a chase round a wall was dropped every step and the plan
+         * stood still for the whole horizon. Reserved nodes keep their sorted
+         * place. */
+        {
+            int best_cost[ACTION_PLAN_TARGETS_MAX], best_left[ACTION_PLAN_TARGETS_MAX];
+            int best_slack = -1;
+            int pending = 0;
+            for( c = 0; c < ACTION_PLAN_TARGETS_MAX; c++ )
+                best_cost[c] = best_left[c] = -1;
+            for( i = 0; i < cand_n; i++ )
+            {
+                const struct ActionPlanNode* n = &g_ap_cand[g_ap_sorted[i]];
+                g_ap_reserved[g_ap_sorted[i]] = 0;
+                if( n->slack != INT_MAX && (best_slack < 0 || n->slack > g_ap_cand[best_slack].slack) )
+                    best_slack = g_ap_sorted[i];
+                if( n->inter < 0 )
+                    continue;
+                if( best_cost[n->inter] < 0 )
+                    best_cost[n->inter] = g_ap_sorted[i];
+                if( n->chase_left >= 0 &&
+                    (best_left[n->inter] < 0 || n->chase_left < g_ap_cand[best_left[n->inter]].chase_left) )
+                    best_left[n->inter] = g_ap_sorted[i];
+            }
+            for( c = 0; c < spec->n_targets; c++ )
+            {
+                if( best_cost[c] >= 0 && pending < spec->beam && !g_ap_reserved[best_cost[c]] )
+                {
+                    g_ap_reserved[best_cost[c]] = 1;
+                    pending++;
+                }
+                if( best_left[c] >= 0 && pending < spec->beam && !g_ap_reserved[best_left[c]] )
+                {
+                    g_ap_reserved[best_left[c]] = 1;
+                    pending++;
+                }
+            }
+            /* the node with the most ticks to spare against a late hazard */
+            if( best_slack >= 0 && pending < spec->beam && !g_ap_reserved[best_slack] )
+            {
+                g_ap_reserved[best_slack] = 1;
+                pending++;
+            }
+            for( i = 0; i < AP_HASH; i++ )
+                g_ap_hash[i] = -1;
+            kept_n = 0;
+            for( i = 0; i < cand_n && kept_n < spec->beam; i++ )
+            {
+                const struct ActionPlanNode* n = &g_ap_cand[g_ap_sorted[i]];
+                int reserved = g_ap_reserved[g_ap_sorted[i]];
+                unsigned hh;
+                int dup = 0;
+                if( !reserved && kept_n + pending >= spec->beam )
+                    continue;
+                hh = ap_hash_state(n, spec, t);
+                while( g_ap_hash[hh] >= 0 )
+                {
+                    if( ap_same_state(&g_ap_kept[k][g_ap_hash[hh]], n, spec, t) )
+                    {
+                        dup = 1;
+                        break;
+                    }
+                    hh = (hh + 1) & (AP_HASH - 1);
+                }
+                if( reserved )
+                    pending--;
+                if( dup )
+                    continue;
+                g_ap_hash[hh] = kept_n;
+                g_ap_kept[k][kept_n] = *n;
+                kept_n++;
+            }
+        }
+    }
+    /* the best leaf, and its path back to the root */
+    best = 0;
+    for( i = 1; i < kept_n; i++ )
+        if( ap_better(&g_ap_kept[spec->h][i], &g_ap_kept[spec->h][best]) )
+            best = i;
+    {
+        const struct ActionPlanNode* leaf = &g_ap_kept[spec->h][best];
+        out->n = spec->h;
+        out->risk = leaf->risk;
+        out->loss = leaf->loss;
+        out->soft = leaf->soft;
+        out->value = leaf->value;
+        out->hp_worst = leaf->hp_worst;
+        out->cost = ap_cost(leaf);
+        out->steps = leaf->steps;
+        out->clicks = leaf->clicks;
+        out->risk_rule = leaf->risk_rule;
+        out->risk_hp = leaf->risk_hp;
+        out->whyr_kind = leaf->whyr_kind;
+        out->whyr_index = leaf->whyr_index;
+        out->whyr_k = leaf->whyr_k;
+        out->whyh_kind = leaf->whyh_kind;
+        out->whyh_index = leaf->whyh_index;
+        out->whyh_k = leaf->whyh_k;
+        out->why_kind = leaf->why_kind;
+        out->why_index = leaf->why_index;
+        out->why_k = leaf->why_k;
+    }
+    out->routes = g_ap_route_floods;
+    for( k = spec->h; k >= 1; k-- )
+    {
+        const struct ActionPlanNode* n = &g_ap_kept[k][best];
+        out->path_x[k - 1] = n->x;
+        out->path_z[k - 1] = n->z;
+        out->mid_x[k - 1] = n->mid_x;
+        out->mid_z[k - 1] = n->mid_z;
+        out->act[k - 1] = n->act;
+        out->tgt[k - 1] = n->tgt;
+        out->swing[k - 1] = n->swing;
+        out->refused[k - 1] = n->refused;
+        best = n->parent;
+    }
+    return 0;
+}

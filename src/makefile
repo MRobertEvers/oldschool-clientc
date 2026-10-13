@@ -947,7 +947,7 @@ TORIRSSERVER_CORE_SRCS = torirsserver/torirs_server_world.c \
 	torirsserver/torirs_server_scene.c torirsserver/torirs_server_loc_ops.c torirsserver/torirs_server_mapinstance.c torirsserver/torirs_server_vessel.c \
 	world/wev.c \
 	torirsserver/torirs_server_zone.c torirsserver/torirs_server_zone_index.c torirsserver/torirs_server_worldmap.c torirsserver/torirs_server_varbit.c \
-	engine/world_builder/collision_map.c features/features.c \
+	engine/world_builder/collision_map.c engine/world_builder/action_plan.c features/features.c \
 	platform/net_transport_ws_frame.c platform/net_transport_ws_handshake.c $(SS_SRCS)
 
 # EMBED_SERVER=1: link the rev-230 server into the client, so a manifest saying
@@ -971,6 +971,7 @@ EMBED_SERVER_DUP_SRCS = features/features.c \
 	platform/net_transport_ws_frame.c \
 	platform/net_transport_ws_handshake.c \
 	engine/world_builder/collision_map.c \
+	engine/world_builder/action_plan.c \
 	$(RSAREABUF_DIR)/rsareabuf.c \
 	$(INI_SRC)
 SRCS += $(filter-out $(EMBED_SERVER_DUP_SRCS),$(TORIRSSERVER_CORE_SRCS))
@@ -1238,7 +1239,7 @@ WB_OBJS = $(OBJ_DIR)/world_builder.o \
 	$(OBJ_DIR)/shademap.o $(OBJ_DIR)/sharelight_map.o $(OBJ_DIR)/terrain_shapemap.o \
 	$(OBJ_DIR)/contour_ground.o $(OBJ_DIR)/decor_buildmap.o $(OBJ_DIR)/occluder_buildmap.o \
 	$(OBJ_DIR)/world_decode_tile.o \
-	$(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o $(OBJ_DIR)/wb_minimap.o \
+	$(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o $(OBJ_DIR)/action_plan.o $(OBJ_DIR)/wb_minimap.o \
 	$(OBJ_DIR)/toridraw_model_from_torirs.o
 
 # Make does not otherwise notice compiler/linker flag changes: an object built
@@ -1654,6 +1655,8 @@ $(OBJ_DIR)/heightmap.o: $(WB_DIR)/heightmap.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $(WB_DIR)/heightmap.c -o $@
 $(OBJ_DIR)/collision_map.o: $(WB_DIR)/collision_map.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $(WB_DIR)/collision_map.c -o $@
+$(OBJ_DIR)/action_plan.o: $(WB_DIR)/action_plan.c $(WB_DIR)/action_plan.h $(WB_DIR)/collision_map.h | $(OBJ_DIR)
+	$(CC) $(CFLAGS) -c $(WB_DIR)/action_plan.c -o $@
 $(OBJ_DIR)/wb_minimap.o: $(WB_DIR)/minimap.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $(WB_DIR)/minimap.c -o $@
 
@@ -1672,6 +1675,16 @@ test-world-builder: $(OBJ_DIR) $(WB_TEST_OBJS)
 		$(WB_TEST_SRCS) $(WB_TEST_OBJS) $(LDFLAGS)
 	mkdir -p $(OBJ_DIR)
 	./$(OBJ_DIR)/world_builder_test
+
+# The ToB v2 action planner (engine/world_builder/action_plan.c) on hand-built
+# open collision maps. Asserts stay on whatever OPT says: they are half the check.
+.PHONY: test-action-plan
+test-action-plan: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -I$(SRC_DIR)/engine/world_builder/test \
+		-o $(OBJ_DIR)/action_plan_test \
+		engine/world_builder/test/action_plan_test.c engine/world_builder/action_plan.c \
+		engine/world_builder/collision_map.c features/features.c -lm
+	./$(OBJ_DIR)/action_plan_test
 
 # CS2 math/bit opcode unit test (pure VM): reuse the main link set minus main.o.
 .PHONY: test-cs2-invother
@@ -4798,7 +4811,8 @@ mock-js5: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 TORIRSSERVER_HDRS := $(wildcard torirsserver/*.h scriptrun/*.h serverscript/*.h content/*.h \
 		net/*.h net/rev/*.h net/rev/osrs239/*.h net/rev/osrs230/*.h net/rev/packets/*.h \
 		world/*.h engine/*.h engine/world_builder/*.h features/*.h game/rs_entity_sync.h \
-		platform/net_transport_ws*.h js5/server/*.h plugin/torirs_plugin_drive_parts.h)
+		platform/net_transport_ws*.h js5/server/*.h plugin/torirs_plugin_drive_parts.h \
+		plugin/torirs_drive_plan_lua.h)
 .PHONY: torirsserver
 torirsserver ToriRSServer: $(OBJ_DIR)/torirsserver
 $(OBJ_DIR)/torirsserver: $(TORIRSSERVER_SRCS) $(TORIRSSERVER_HDRS) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
