@@ -56,6 +56,37 @@
  * this whole category is full of.
  */
 
+/*
+ * ---- what makes it VISIBLE: clientscript 2376 ----
+ *
+ * The panel's body, 303:5 `hp`, is authored `hidden=yes`, and the update
+ * script (2103) returns at once while it is hidden. The only thing that unhides
+ * it is `hp_hud_open` (2377), reached only from `hp_hud_handle_event` (2376) --
+ * and nothing in the cache or the rev-239 client calls 2376. The server does,
+ * with RUNCLIENTSCRIPT and the same nineteen components 303's onload hands
+ * 2099. Without it the panel was mounted and fed and never once drawn.
+ *
+ * 2376 runs after the data it shows (varps go out the moment they are written,
+ * so a send after the writes arrives after them): on the first data tick, and
+ * whenever the npc it shows changes, which 2377 answers with a forced redraw
+ * (a new name) rather than the var-transmit hook's plain one.
+ */
+static int const k_hpbar_hud_event_children[19] = {
+    0, 2, 4, 5, 8, 10, 20, 13, 14, 15, 9, 6, 7, 11, 18, 19, 16, 17, 3,
+};
+
+static void
+hpbar_send_open_event(
+    struct ToriRSServerPlayer* player,
+    int iface)
+{
+    int args[19];
+
+    for( int i = 0; i < 19; i++ )
+        args[i] = (iface << 16) | k_hpbar_hud_event_children[i];
+    ToriRSServer_SendRunClientscript(player, 2376, args, 19);
+}
+
 /** How long the overlay lingers after the last exchange, in ticks.
  *
  *  Not zero: combat drops the target for a moment between an npc dying and the
@@ -223,7 +254,11 @@ ToriRSServer_HpBarTick(
          * without pretending they changed.
          */
         int const first = player->hpbar_open == TORIRSSERVER_HPBAR_OPENING;
+        int shown_type;
         int base;
+
+        assert(ids->varp_hpbar_hud_npc >= 0);
+        shown_type = player->varps[ids->varp_hpbar_hud_npc];
 
         player->hpbar_open = TORIRSSERVER_HPBAR_LIVE;
         ToriRSServer_WorldSetVarpOn(srv, player, ids->varp_hpbar_hud_npc, want_type);
@@ -235,5 +270,7 @@ ToriRSServer_HpBarTick(
             if( base >= 0 )
                 ToriRSServer_WorldMarkVarp(player, base);
         }
+        if( first || shown_type != want_type )
+            hpbar_send_open_event(player, ids->iface_hpbar_hud);
     }
 }
