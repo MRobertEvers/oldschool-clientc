@@ -68,6 +68,7 @@ QD.VZP3_V2 = {
     -- taken, 4/8): priced (8) unless this is set
     BLAST_FAR_FORBID = true,
     MY_CRAB_COST = 1.0,
+    CRAB_OWNER_GAP = 4, CRAB_OWNER_COST = 3,     -- within 4 of another crab's owner, a tick-end (vp11)
     CRAB_EARLY = 5, CRAB_EARLY_REACH = 4,        -- a blast a tick later, priced: > a swing's ~4
     EDGE_CRAB_MARGIN = 5, EDGE_CRAB_WEIGHT = 1.0, -- off the walls while a crab is up         -- a tick within 2 of my own crab (it lights the fuse; escapable)    -- ZERO AVOIDABLE (owner 2026-10-12) supersedes the pricing; the touches it cost in vp_v2n were the ball margin's (below) and the priced chaser
     -- webs: on one from a tick before it lands to its explosion, the middle
@@ -76,6 +77,7 @@ QD.VZP3_V2 = {
     WEB_DMG = 20, WEB_MAX = 40, WEB_STAY = 4, WEB_LIFE = 12, MARK_AHEAD = 7,
     -- the stack (v1 web run) as soft costs: off its tile a tick costs this
     STACK_COST = 2.0, STACK_PULL = 0.5,
+    WEB_HELD = 32,              -- she is held through the web special's 32 ticks from its slot (VZ.her_held)
     -- THE WEB LAP (VZ.web_lap): the swing tick of side k is the spin + LAP_FIRST
     -- + LAP_CYCLE k; on the side's middle tile for LAP_ON tick-ends ending at
     -- it; a seat that cannot make it pays LAP_MISS a tick-end instead
@@ -105,6 +107,7 @@ QD.VZP3_V2 = {
     -- f15 62 = all it had), the window of autos it must also outlive (one
     -- brew a DRINK_GAP: a landing within SAFE_WIN cannot be drunk for)
     BALL_MISS = 74, SAFE_WIN = 3, NEXT_FLOOR = 90,
+    BALL_MISS_BY_HOP = { 89, 74, 49 },  -- a miss after 1 / 2 / 3 bounces (0: her hitpoints level, a kill)
     SPEC_RETRY = 2,
     -- boosts (VZ.boosts): a super restore at DRAIN_AT under base, a super
     -- combat while either stat is under base + REDOSE_UNDER (a restore first
@@ -443,14 +446,15 @@ end
 --   RE-CHECK each tick: T turned unacceptable (a web landed on it, a crab
 --            blast band) -> the next tile in the same ranking, same tick on
 --            every seat. None acceptable -> batch 13's meeting tile.
-function VZ.ball_meet_rank(S, F, Bl, t_from, n_from, reads, land_hi, slack)
+function VZ.ball_meet_rank(S, F, Bl, t_from, n_from, reads, land_hi, slack, her_gap)
     slack = slack or 1
+    her_gap = her_gap or 3
     local V, A, base = QD.VZP3, QD.VZP3.ARENA, S.base
     local b = Bl.her or F.boss
     local list, why = {}, {}
     local function bad(x, z)
         if x < base.x + A.x0 + 1 or x > base.x + A.x1 - 1 or z < base.z + A.z0 + 1 or z > base.z + A.z1 - 1 then return "edge" end
-        if b and QD.raid._tob_gap(x, z, b.x, b.z, V.SIZE) < 3 then return "her" end
+        if b and QD.raid._tob_gap(x, z, b.x, b.z, V.SIZE) < her_gap then return "her" end
         for _, h in ipairs(S.web_hazards) do
             if h.x == x and h.z == z and h.from <= land_hi and h.to >= reads then return "web" end
         end
@@ -466,7 +470,10 @@ function VZ.ball_meet_rank(S, F, Bl, t_from, n_from, reads, land_hi, slack)
     -- 6 off with her between, plan risk from k3, the un-bounced landing)
     -- (cheap: an 8-way flood on a 19x19 window as flat arrays; the
     -- instruction budget is 400000 a tick, E13 - the first version spent it)
-    local R = 9
+    -- (12: two seats boxed between her body and the arena's west wall had no
+    -- acceptable tile within 7 of their midpoint - integ_d f63 t2853, edge
+    -- 144 her 81 of 225, "T none of 0", the un-bounced first hop)
+    local R = 12
     local W = 2 * R + 1
     -- (the window round the MIDPOINT of the two seats: round the target's
     -- tile alone, a next 10+ off on her far side started outside it, its
@@ -512,8 +519,8 @@ function VZ.ball_meet_rank(S, F, Bl, t_from, n_from, reads, land_hi, slack)
         if lx < 0 or lx >= W or lz < 0 or lz >= W then return nil end
         return dist[lx * W + lz]
     end
-    for x = mx - 7, mx + 7 do
-        for z = mz - 7, mz + 7 do
+    for x = mx - R, mx + R do
+        for z = mz - R, mz + R do
             local dt = at(dT, x, z)
             local dn = 0
             if n_from and dt then
@@ -578,6 +585,11 @@ function VZ.ball_chain(S, F)
                 end
                 if #Bl.meet_list == 0 then
                     Bl.meet_list, Bl.meet_bad = VZ.ball_meet_rank(S, F, Bl, t0, nfrom, Bl.land - 1, land_hi, -99)
+                end
+                -- (and only then nearer her: gap 2 is out of her melee's
+                -- reach, still inside the scan band; better than no tile)
+                if #Bl.meet_list == 0 then
+                    Bl.meet_list, Bl.meet_bad = VZ.ball_meet_rank(S, F, Bl, t0, nfrom, Bl.land - 1, land_hi, 0, 2)
                 end
                 Bl.meet_i = 1
             end
@@ -855,9 +867,20 @@ function VZ.hp_floor(S, F)
     if Bl and Bl.cur and Bl.land then
         local hi = math.max(Bl.land, Bl.land_hi or Bl.land)
         if hi + 1 >= now and Bl.cur == F.pid then
-            local miss = (#(Bl.order or {}) >= 4) and 49 or X.BALL_MISS
-            local f = miss + VZ.auto_landings(S, F, Bl.land - 1, hi + X.SAFE_WIN) * auto + 1
-            if f > floor then floor, why = f, "ball-holder" end
+            -- THE MISS BY HOP (content ~tob_verzik_ball_damage, Hard Mode):
+            -- bounces so far 0 -> the hitpoints LEVEL, or the current hp if
+            -- higher (an instant kill: no floor survives it, only the bounce),
+            -- 1 -> 89, 2 -> 74, 3+ -> 49. The floor read 74 for every hop and
+            -- the first holder sat at 96 over a floor of 75 (integ_d f63
+            -- t2853-2860: 99 intended, 96 dealt, dead)
+            local bounces = math.max(0, #(Bl.order or {}) - 1)
+            if bounces >= 1 then
+                local miss = X.BALL_MISS_BY_HOP[math.min(bounces, 3)]
+                local f = miss + VZ.auto_landings(S, F, Bl.land - 1, hi + X.SAFE_WIN) * auto + 1
+                if f > floor then floor, why = f, "ball-holder" end
+            else
+                why = "ball-first (no floor survives a miss)"
+            end
         elseif hi + 1 >= now and Bl.next_pid == F.pid and X.NEXT_FLOOR > floor then
             floor, why = X.NEXT_FLOOR, "ball-next"
         end
@@ -1163,6 +1186,21 @@ function VZ.predict(S, F, B)
     if live then
         B.edge{ x0 = ax0, z0 = az0, x1 = ax1, z1 = az1, margin = X.EDGE_CRAB_MARGIN, weight = X.EDGE_CRAB_WEIGHT }
     end
+    -- NOT BESIDE ANOTHER CRAB'S OWNER: a crab walks to its owner and blasts
+    -- there, gap 3 round its 2x2 - up to five tiles from the owner. Two owners
+    -- a tile apart, each crab coming from its own side, left neither a tile
+    -- out of both bands when the arrivals were seen a tick ahead (ifin3_all
+    -- vp11 t939-942: 58 and 31). Priced over the next three tick-ends.
+    for _, c in pairs(S.vz.crab or {}) do
+        if c.seen == now and not c.blasted and c.owner ~= nil and c.owner ~= F.pid then
+            for _, rd in ipairs(F.raiders) do
+                if rd.pid == c.owner then
+                    B.zone{ name = "crab-owner", x = rd.x, z = rd.z, size = 1, lo = 0, hi = X.CRAB_OWNER_GAP,
+                        t0 = now + 1, t1 = now + 3, tier = "soft", cost = X.CRAB_OWNER_COST }
+                end
+            end
+        end
+    end
 
     -- WEBS: seen ones (v1 S.web_hazards) forbidden with the run's middle; my
     -- own tick-end tiles in the throws' window: MARKS ahead, hits behind
@@ -1199,9 +1237,9 @@ function VZ.predict(S, F, B)
         B.hit{ name = "knockback", x = cx, z = cz, size = V.SIZE, t0 = math.max(webs_due, now + 1),
             t1 = webs_due + 12, sample = "pass", dmg_exp = 10, dmg_max = 10, forbid = true }
     end
-    if S.webs_at and S.spin_at then
-        B.hit{ name = "her-webs", x = b.x, z = b.z, size = V.SIZE, t0 = now + 1, t1 = hz, sample = "pass",
-            dmg_exp = 0, dmg_max = 0, forbid = true }
+    if S.webs_at and S.spin_at and S.webs_at + X.WEB_HELD >= now + 1 then
+        B.hit{ name = "her-webs", x = b.x, z = b.z, size = V.SIZE, t0 = now + 1,
+            t1 = math.min(hz, S.webs_at + X.WEB_HELD), sample = "pass", dmg_exp = 0, dmg_max = 0, forbid = true }
     end
 
     -- THE YELLOWS: every pool but mine[k] at strike k's read
@@ -1311,6 +1349,20 @@ function VZ.her_target(S, F, B, I, hold_read, hold_hi)
     return i
 end
 
+-- IS SHE HELD AT tick t? The yellows' charge, and the web special for its
+-- 32 ticks from its slot (^tob_verzik_p3_web_special_ticks): she follows again
+-- from slot + 33 (c19: her first step after the spin at slot +33..+46, 65 of
+-- 84 at +41), though S.webs_at stays set until her clock resumes at +42.
+-- Every "S.webs_at == nil" gate on her movement read the tail of the special
+-- as held: no step alternatives with my tornado beside me, the plan saw her
+-- standing, priced a chase step for the press, and the server stood me as
+-- she stepped into reach - the touch at "risk 0" (cfb_rl f1 t2885-2887: her
+-- step 6429,149 -> 148 at slot +39, alts 0).
+function VZ.her_held(S, F, t)
+    if F.charging then return true end
+    return S.webs_at ~= nil and t <= S.webs_at + QD.VZP3_V2.WEB_HELD
+end
+
 -- HER FOOTPRINT AHEAD (T1, v1 header): she follows her known tank a step a
 -- tick (the naive step, each axis toward it) while it is 2+ off her
 -- footprint, stands while it is beside her; under her she steps at random
@@ -1322,7 +1374,8 @@ function VZ.her_path(S, F)
     local x, z = b.x, b.z
     local path = { { x = x, z = z } }
     local tank = nil
-    if VZ.tank_known(S) and S.webs_at == nil and not F.charging then
+    local held = VZ.her_held(S, F, F.tick + 1)
+    if VZ.tank_known(S) and not held then
         for _, rd in ipairs(F.raiders) do if rd.pid == S.tank_pid then tank = rd end end
     end
     -- (her NEXT step only, then held: followed over the whole horizon the
@@ -1343,7 +1396,7 @@ function VZ.her_path(S, F)
     for _, rd in ipairs(F.raiders) do
         if QD.raid._tob_gap(rd.x, rd.z, x, z, V.SIZE) == 0 then under = true end
     end
-    if under and S.webs_at == nil and not F.charging then
+    if under and not held then
         for _, d in ipairs({ { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }) do
             if ax == x and az == z and QD.raid._tob_beside(F.me.x, F.me.z, x + d[1], z + d[2], V.SIZE)
                 and not QD.raid._tob_beside(F.me.x, F.me.z, x, z, V.SIZE) then
@@ -1358,7 +1411,7 @@ function VZ.her_path(S, F)
                 end
             end
         end
-    elseif S.webs_at ~= nil or F.charging then
+    elseif held then
         -- (the webs and the yellows hold her where they put her: no step.
         -- The "toward me" step below put her ON a seat standing beside her
         -- during the spin, and the plan scored the worse outcome - the seat
@@ -1406,7 +1459,7 @@ function VZ.her_path(S, F)
     -- were a step that neither the hold nor one alternative named
     -- (herwhy.py: most match no follow toward any seat)
     for _ = 1, X.H do path[#path + 1] = { x = x, z = z } end
-    if chased and S.webs_at == nil and not F.charging then
+    if chased and not held then
         local alts = {}
         for _, d in ipairs({ { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 }, { 1, 1 }, { 1, -1 }, { -1, 1 }, { -1, -1 } }) do
             local a = { { x = x, z = z } }
@@ -1746,7 +1799,7 @@ function VZ.strategy(S, F, B)
         -- UNDER HER sends her a random step a tick and breaks every seat's
         -- reach (vp_v2l): a soft price on ending a tick under her, for every
         -- mode but the tank's (its scans need the inner 5x5; the rule wins)
-        if mode ~= "tank" and S.webs_at == nil then
+        if mode ~= "tank" and not VZ.her_held(S, F, F.tick + 1) then
             B.zone{ name = "under-her", x = F.boss.x, z = F.boss.z, size = QD.VZP3.SIZE, lo = 0, hi = 0,
                 t0 = F.tick + 1, t1 = F.tick + X.H, tier = "soft", cost = X.UNDER_COST }
         end

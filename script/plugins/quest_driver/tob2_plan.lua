@@ -56,7 +56,7 @@
 --            go out; B.plan raises t_ok0 to the executive's readiness tick
 --            (QD.T2.exec.ready_tick: one panel a tick, the cast clock).
 --   B.held{name, t, ends_attack=true, swing_delay, heal}
---   B.chaser{name, x, z, dmg_exp, dmg_max}
+--   B.chaser{name, x, z, dmg_exp, dmg_max, forbid}   (forbid: a touch is a rule, no hp charged)
 --   B.zone{...}, B.pull{...}, B.goal{...}, B.edge{...}   (api_drive.plan's, hp)
 --   B.prayer_factor = {magic=0, ranged=0, melee=0}   (room-settable)
 --   B.prayed(style, t, factor) -> 0..1;  B.pray_at(name, t);  B.unpray_at(name, t);
@@ -443,7 +443,12 @@ function QD.T2.builder(S, F, opts)
         assert(c)
         assert(#B.spec.chasers < V.CHASERS_MAX, "tob2: more than " .. V.CHASERS_MAX .. " chasers (" .. tostring(c.name) .. ")")
         local i = #B.spec.chasers + 1
-        B.spec.chasers[i] = { x = c.x, z = c.z, dmg_exp = c.dmg_exp or 0, dmg_max = c.dmg_max or c.dmg_exp or 0 }
+        -- (forbid forwarded: action_plan.c's chaser forbid makes the touch a
+        -- RULE; dropped here, Verzik P3's "a touch is a RULE" tornadoes were
+        -- priced at half hp all along and the kite took 6 touches for 216 on
+        -- 51 relays with plan risk 0 - integ ifin3_rl f11 t3028-3030)
+        B.spec.chasers[i] = { x = c.x, z = c.z, dmg_exp = c.dmg_exp or 0, dmg_max = c.dmg_max or c.dmg_exp or 0,
+                              forbid = c.forbid == true }
         named("chaser", c.name, i)
         return i
     end
