@@ -273,8 +273,8 @@ d.text((28, y), "Sources: sprite names — the cache's gameval table. Roles — 
                 "keyed on varbit 10236 (hitsplat tinting) and 14196 (max hit).", font=f10, fill=DIM); y += 14
 d.text((28, y), "Identities — net.runelite.api.HitsplatID, agreeing with Near-Reality/Zenyte's HitType where the two overlap "
                 "(SHIELD 18/19, ARMOUR 20/21, CHARGE 22/23, DISCHARGE 24/25).", font=f10, fill=DIM); y += 14
-d.text((28, y), "Note: RuneLite puts POISON at 65, i.e. the green splash family. The green up/down-blob family (records 7/8/9/38) that "
-                "all.hitsplat.compack calls “poison” is a different glyph and has no external name.", font=f10, fill=RED); y += 22
+d.text((28, y), "Note: RuneLite puts POISON at 65, i.e. the green splash family, and all.hitsplat.compack names it so. The green "
+                "up/down-blob family (records 7/8/9/38) carried that name until 2026-10-13; it has no external name.", font=f10, fill=DIM); y += 22
 
 sheet = sheet.crop((0, 0, W, y))
 sheet.save(OUT)

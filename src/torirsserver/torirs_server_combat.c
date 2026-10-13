@@ -565,9 +565,11 @@ hitsplat_poison(void)
 {
     int id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_HITSPLAT, "hitsplat_poison");
 
-    /* rev-230's poison hitsplat id. The fallback keeps a reduced content pack
-     * observable rather than converting poison into an ordinary damage splat. */
-    return id >= 0 ? id : 7;
+    /* The green splash leaf (`hitmark_2`); 65/66 are its wrappers. Not 7: that
+     * is a green up/down blob the content pack misnamed as poison until
+     * 2026-10-13. The fallback keeps a reduced content pack observable rather
+     * than converting poison into an ordinary damage splat. */
+    return id >= 0 ? id : 68;
 }
 
 static int

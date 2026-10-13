@@ -24326,6 +24326,12 @@ ToriRSServer_WorldSelftest(void)
                        "hitsplat_damage should be 28 (sprite 1359, gameval hitmark_1)");
         SELFTEST_CHECK(ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_HITSPLAT, "hitsplat_block") == 26,
                        "hitsplat_block should be 26 (sprite 1358, gameval hitmark_0)");
+        /* Poison was 7 (`hitmark_18`, a green up/down blob) until 2026-10-13;
+         * 68 is the green splash RuneLite's POISON 65 wraps. */
+        SELFTEST_CHECK(ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_HITSPLAT, "hitsplat_poison") == 68,
+                       "hitsplat_poison should be 68 (sprite 1360, gameval hitmark_2)");
+        SELFTEST_CHECK(ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_HITSPLAT, "hitsplat_poison_me") == 65,
+                       "hitsplat_poison_me should be 65 (RuneLite POISON)");
 
         /* Attackability is the cache's own op list, which is what the client's
          * right-click menu reads. */
