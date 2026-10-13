@@ -168,6 +168,23 @@ App_DriveProjectileNote(
     p->cycle = now;
 }
 
+int
+App_DriveMapAnimElapsed(struct App_DriveMapAnim const* a)
+{
+    /*
+     * Cycles since the apply, as scriptrun counts them (d_spotanims: its
+     * core's cycle moves exactly 30 a tick): whole ticks from the tick that
+     * SENT it to the tick perceived now, so a row read on the tick its packet
+     * is perceived has elapsed 30 on both lanes -- DriveUi_Projectiles' rule.
+     * The client's own cycle is not that clock: a watched client runs on the
+     * wall clock, two reads a tick apart were 29 or 31 cycles apart, and a
+     * solver that keyed a new graphic on cycles_left took an old crystal
+     * shadow for a new one every few ticks (Olm, coxolmso17, 2026-10-13).
+     */
+    assert(a);
+    return (PluginDrive_ServerTick() - PluginDrive_ServerTickOfCycle(a->cycle)) * APP_SERVER_TICK_LOGIC_CYCLES;
+}
+
 void
 App_DriveMapAnimNote(struct App* app, int x, int z, int level, int spotanim)
 {
@@ -181,7 +198,7 @@ App_DriveMapAnimNote(struct App* app, int x, int z, int level, int spotanim)
     /* The ones scriptrun still lists: scriptrun_core.c's retire rule. */
     kept = 0;
     for( i = 0; i < ring->map_anim_count; i++ )
-        if( now - ring->map_anims[i].cycle <= APP_DRIVE_MAP_ANIM_LIFE )
+        if( App_DriveMapAnimElapsed(&ring->map_anims[i]) <= APP_DRIVE_MAP_ANIM_LIFE )
             ring->map_anims[kept++] = ring->map_anims[i];
     ring->map_anim_count = kept;
     /* Scriptrun holds the same count (SCRIPTRUN_MAP_ANIMS) and asserts it. */

@@ -33,7 +33,7 @@ slots it leaves open and the head phase from the wiki's "Minimum" setup
 | the hands, the head | `npcs` rows; my swings (the monitor's) on the hand I aimed at, each resolved by the next hitsplat on it (a splat running out reads cycle 0: not a hit); a hitsplat at health 0 is a kill |
 | the auto's style | `projectiles` 1339 magic / 1340 ranged |
 | spheres | `projectiles` 1341/1343/1345 |
-| hazards | `locs` acid pools, seedlings, bombs, bursts; `spotanims` lightning, portal, shadows -- a FRESH send is a tile's largest `cycles_left` rising (both lanes; scriptrun keeps a floor graphic 40 ticks, the client its sequence); `npcs` olm_firewall_npc |
+| hazards | `locs` acid pools, seedlings, bombs, bursts; `spotanims` lightning, portal, shadows -- a FRESH send is one whose birth stamp (my tick x 30 + `cycles_left`, constant across reads of one graphic: both lanes list a floor graphic 40 ticks from its apply) matches none seen within 10 cycles -- not "`cycles_left` fell by less than 30", which a watched client on the wall clock (29 or 31 cycles a tick) broke: every old shadow read as new again, its landing pushed 3 ticks on, and the plan stood under it; `npcs` olm_firewall_npc |
 | chat | the phase's power; "smothered you in acid" (the drip); "chosen you as its target" (falling crystals) |
 | my overload | its dose count falling (the timer varp is not transmitted) |
 
@@ -70,9 +70,17 @@ steering launch is still in the air is judged when it lands.
 
 ## STRATEGY: the fight as a state machine
 
-`CO.machine`: wait -> melee <-> mage -> interim -> (P2) -> interim ->
+`CO.machine`: wait -> melee <-> mage -> between -> (P2) -> between ->
 p3-low-melee -> p3-low-mage -> p3-kill-melee -> p3-kill-mage -> head. Every
-change is traced with its cause. A hand never hit shows no health bar: unknown
+change is traced with its cause.
+
+- **between** (between phases) is entered on the retreat -- the chat's
+  "retreats into the depths", or both claws seen down before the glowing
+  phase, whichever is read first (`CO.retreat`) -- and left on the next rise.
+  No target, no reads, no wall pricing: the 33-tick crystal rain (every shadow
+  a forbidden 3x3 at its landing) is its whole job, with a pull toward the
+  next wall's start tile. The rain runs on past the rise; the shadows are
+  `CO.predict`'s in every state. A hand never hit shows no health bar: unknown
 is FULL.
 
 - **melee first** (P1/P2): the melee hand by the 4:1 while it is up and not

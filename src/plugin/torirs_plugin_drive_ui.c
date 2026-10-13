@@ -1586,7 +1586,8 @@ DriveUi_Spotanims(
      * it (Bloat's falling flesh, 2026-10-10). These rows are the applied
      * MAP_ANIMs (App_DriveMapAnimNote) with scriptrun's arithmetic
      * (torirs_server_scriptrun.c d_spotanims): active, and cycles_left from a
-     * 40-tick life counted from the apply. The scene element and its seq are
+     * 40-tick life counted from the apply in whole server ticks
+     * (App_DriveMapAnimElapsed), not off the client's cycle. The scene element and its seq are
      * filled from the pool's graphic on that tile once it has spawned (0 / -1
      * before, scriptrun's values); no solver reads them.
      */
@@ -1595,7 +1596,6 @@ DriveUi_Spotanims(
     int have_player;
     int aboard;
     int count = 0;
-    int now;
     struct App_DriveRing const* ring;
     struct World_EntityPool* pool;
     int i;
@@ -1611,13 +1611,12 @@ DriveUi_Spotanims(
         return DRIVE_OK;
 
     have_player = drive_ui_search_origin(app, &px, &pz, &aboard);
-    now = (int)app->world->cycle;
     ring = &app->drive_events;
     pool = &app->world->entities.spotanim;
     for( i = 0; i < ring->map_anim_count; i++ )
     {
         struct App_DriveMapAnim const* a = &ring->map_anims[i];
-        int left = APP_DRIVE_MAP_ANIM_LIFE - (now - a->cycle);
+        int left = APP_DRIVE_MAP_ANIM_LIFE - App_DriveMapAnimElapsed(a);
         int e;
         int j;
 

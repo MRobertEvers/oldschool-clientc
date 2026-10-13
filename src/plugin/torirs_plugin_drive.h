@@ -194,7 +194,9 @@ struct App_DriveLocChange
  * tick apart, and the relay's two lanes walked apart in his room). The
  * drive's spotanim rows come from these records, with scriptrun's arithmetic:
  * listed for APP_DRIVE_MAP_ANIM_LIFE cycles from the apply (scriptrun_core.c
- * retires a floor graphic 40 ticks after it lands). Absolute tiles. */
+ * retires a floor graphic 40 ticks after it lands), the cycles counted in
+ * whole server ticks (App_DriveMapAnimElapsed), never off the client's own
+ * cycle. Absolute tiles. */
 #define APP_DRIVE_MAP_ANIM_CAP 1024
 #define APP_DRIVE_MAP_ANIM_LIFE (40 * 30)
 struct App_DriveMapAnim
@@ -304,6 +306,7 @@ void App_DriveProjectileNote(
     int target, int start_delay, int end_delay);
 /* Record a MAP_ANIM as applied (rs_gameproto_exec.c), absolute tiles. */
 void App_DriveMapAnimNote(struct App* app, int x, int z, int level, int spotanim);
+int App_DriveMapAnimElapsed(struct App_DriveMapAnim const* a);
 /* Record a LOC_ANIM as applied (rs_gameproto_exec.c), scene tiles. */
 void App_DriveLocAnimNote(struct App* app, int scene_x, int scene_z, int level, int shape, int seq);
 /* Record a LOC_ADD_CHANGE (or a LOC_DEL, loc_id -1) as applied

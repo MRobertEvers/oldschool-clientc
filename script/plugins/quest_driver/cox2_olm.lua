@@ -86,9 +86,15 @@ CO.V = {
     REGEN = 50,             -- P3: the first hand down rises again this many ticks later
     CYCLE_PULL = 1.5,       -- 4:1: hp a tile off the guide's tile at a read
     CANON_VALUE = 8,        -- recovery: hp for a plan that ends back in the 4:1 loop
-    -- the interim: where the next phase starts (the guides' "P2/P3 mage start",
-    -- chamber-local), by the wall Olm will rise on
+    -- BETWEEN PHASES: where the next phase starts (the guides' "P2/P3 mage
+    -- start", chamber-local), by the wall Olm will rise on; the crystals rain
+    -- this many ticks from the retreat (^cox_olm_transition_crystals), on
+    -- past the rise
     START = { [0] = { 14, 40 }, [1] = { 19, 32 } },
+    RAIN_TICKS = 33,
+    -- a graphic's birth stamp matches across reads within this many cycles
+    -- (CO.observe: a watched client's tick is 30 cycles give or take a frame)
+    SPOT_JITTER = 10,
     -- (no food in the kit: Xeric's aid (+) is the healing, ~19 a dose)
     EAT_BELOW = 55, BREW_BELOW = 65,
     RANGE = { melee = 1, magic = 7, ranged = 7 },
@@ -653,6 +659,10 @@ function CO.observe(S, F)
                 if string.find(m.text or "", "smothered you in acid", 1, true) then
                     o.drip_until = F.tick + 23
                 end
+                -- the retreat: between phases (cox_olm_switch_side)
+                if string.find(m.text or "", "retreats into the depths", 1, true) then
+                    CO.retreat(S, F, "chat")
+                end
             end
         end
         if #msgs > 0 then o.msg_serial = math.max(o.msg_serial or 0, msgs[1].serial) end
@@ -690,57 +700,84 @@ function CO.observe(S, F)
     -- the portal's tile and first sight are remembered across the ticks its
     -- graphic is not sent)
     o.bolts, o.shadows = {}, {}
-    -- A FRESH SEND, lane neutral: the largest cycles_left on a tile rises
-    -- (a new graphic) instead of falling by a tick's 30 (scriptrun retires a
-    -- floor graphic 40 ticks after it lands; the client by its sequence)
+    -- A FRESH SEND, lane neutral, by the graphic's BIRTH STAMP: my tick in
+    -- cycles plus its cycles_left (both lanes list a floor graphic 40 ticks
+    -- from its apply) is the same number at every read of one graphic, and
+    -- a later send on the tile is at least a tick's 30 on. Matched within
+    -- SPOT_JITTER, not exactly: a watched client runs on the wall clock, so
+    -- two reads a tick apart are 29 or 31 cycles apart, not 30. (The old
+    -- rule -- fresh when cycles_left fell by less than 30 -- took every
+    -- 29-cycle read of an OLD shadow for a new one and put its landing 3
+    -- ticks on again, each time: on a watched Play the crystals landed while
+    -- the plan saw them still in the air, and it stood under them.)
     local sr, spots = api_drive.spotanims(0)
-    local cur = {}
+    local born = o.spot_born
+    local fresh_rows = {}
     if sr == "ok" then
         for _, sp in ipairs(spots) do
-            local key = sp.spotanim_id .. ":" .. sp.x .. ":" .. sp.z
-            local c = cur[key]
-            if c == nil or sp.cycles_left > c.left then cur[key] = { sp = sp, left = sp.cycles_left } end
+            if sp.cycles_left > 0 then
+                local key = sp.spotanim_id .. ":" .. sp.x .. ":" .. sp.z
+                local b = F.tick * 30 + sp.cycles_left
+                local list = born[key]
+                if list == nil then
+                    list = {}
+                    born[key] = list
+                end
+                local known = nil
+                for _, e in ipairs(list) do
+                    if math.abs(e.b - b) <= V.SPOT_JITTER then known = e end
+                end
+                if known then
+                    known.last = F.tick
+                else
+                    list[#list + 1] = { b = b, last = F.tick }
+                    -- (two sends on one tile in one tick are one graphic: one landing)
+                    fresh_rows[key] = sp
+                end
+            end
         end
     end
-    local prev = o.spot_prev or {}
-    o.spot_prev = {}
-    for key, c in pairs(cur) do
-        o.spot_prev[key] = c.left
-        local fresh = prev[key] == nil or c.left > prev[key] - 30
-        local sp = c.sp
-        if fresh then
-            if sp.spotanim_id == ids.bolt then
-                -- THE BOLT'S DIRECTION, per column (one bolt a column): the
-                -- way it moved since its last tile; at first sight, from the
-                -- end it starts at (ol20 t227: the old rule guessed from the
-                -- half the bolt was in and looked up the tile behind THAT
-                -- guess, so every bolt past the middle was predicted walking
-                -- back the way it came -- the plan stood in its path, 24 and
-                -- a stun, and the auto it then could not pray landed 16)
-                local _, lz = CO.local_of(S, sp.x, sp.z)
-                local c = o.bolt_col[sp.x]
-                local dz
-                if c and F.tick - c.tick <= 2 and c.z ~= sp.z then
-                    dz = (sp.z > c.z) and 1 or -1
-                elseif c and F.tick - c.tick <= 2 then
-                    dz = c.dz
-                else
-                    dz = (lz - V.BOLT_LO <= V.BOLT_HI - lz) and 1 or -1
-                end
-                o.bolt_col[sp.x] = { z = sp.z, tick = F.tick, dz = dz }
-                -- (tiles still to walk: 17 in all from its end)
-                local left = (dz > 0) and (V.BOLT_LO + V.BOLT_TILES - 1 - lz) or (lz - (V.BOLT_HI - V.BOLT_TILES + 1))
-                o.bolts[#o.bolts + 1] = { x = sp.x, z = sp.z, dz = dz, left = math.max(0, left) }
-            elseif sp.spotanim_id == ids.portal then
-                -- (sent 10/8/6/4 ticks before the swap: a send more than 4
-                -- ticks after the last is a new portal)
-                if o.portal_last == nil or F.tick - o.portal_last > 4 then
-                    o.portal_tile, o.portal_first = { x = sp.x, z = sp.z }, F.tick
-                end
-                o.portal_last = F.tick
-            elseif sp.spotanim_id == ids.shadow then
-                o.shadow_seen[key] = { x = sp.x, z = sp.z, land = F.tick + 3 }
+    -- (a graphic no longer listed has expired: forget it)
+    for key, list in pairs(born) do
+        local keep = {}
+        for _, e in ipairs(list) do
+            if e.last == F.tick then keep[#keep + 1] = e end
+        end
+        born[key] = (#keep > 0) and keep or nil
+    end
+    for key, sp in pairs(fresh_rows) do
+        if sp.spotanim_id == ids.bolt then
+            -- THE BOLT'S DIRECTION, per column (one bolt a column): the
+            -- way it moved since its last tile; at first sight, from the
+            -- end it starts at (ol20 t227: the old rule guessed from the
+            -- half the bolt was in and looked up the tile behind THAT
+            -- guess, so every bolt past the middle was predicted walking
+            -- back the way it came -- the plan stood in its path, 24 and
+            -- a stun, and the auto it then could not pray landed 16)
+            local _, lz = CO.local_of(S, sp.x, sp.z)
+            local c = o.bolt_col[sp.x]
+            local dz
+            if c and F.tick - c.tick <= 2 and c.z ~= sp.z then
+                dz = (sp.z > c.z) and 1 or -1
+            elseif c and F.tick - c.tick <= 2 then
+                dz = c.dz
+            else
+                dz = (lz - V.BOLT_LO <= V.BOLT_HI - lz) and 1 or -1
             end
+            o.bolt_col[sp.x] = { z = sp.z, tick = F.tick, dz = dz }
+            -- (tiles still to walk: 17 in all from its end)
+            local left = (dz > 0) and (V.BOLT_LO + V.BOLT_TILES - 1 - lz) or (lz - (V.BOLT_HI - V.BOLT_TILES + 1))
+            o.bolts[#o.bolts + 1] = { x = sp.x, z = sp.z, dz = dz, left = math.max(0, left) }
+        elseif sp.spotanim_id == ids.portal then
+            -- (sent 10/8/6/4 ticks before the swap: a send more than 4
+            -- ticks after the last is a new portal)
+            if o.portal_last == nil or F.tick - o.portal_last > 4 then
+                o.portal_tile, o.portal_first = { x = sp.x, z = sp.z }, F.tick
+            end
+            o.portal_last = F.tick
+        elseif sp.spotanim_id == ids.shadow then
+            -- (by send: an earlier shadow on the tile may not have landed yet)
+            o.shadow_seen[key .. "@" .. F.tick] = { x = sp.x, z = sp.z, land = F.tick + 3 }
         end
     end
     for key, sh in pairs(o.shadow_seen) do
@@ -767,6 +804,7 @@ function CO.head_event(S, F, what)
         o.left_alive, o.right_alive = true, true
         o.clench_until = -1
         o.protect_until, o.protect_at = -1, nil
+        o.between = nil
         QD.raid._tob_trace(S, F.tick, "olm rise " .. o.phase_n .. (o.glowing and " (glowing)" or "") .. " side " .. tostring(o.side))
         return
     end
@@ -812,6 +850,17 @@ function CO.head_event(S, F, what)
     end
 end
 
+-- OLM RETREATS (cox_olm_switch_side: both hands down before the glowing
+-- phase): BETWEEN PHASES until the next rise. The chat names the tick; both
+-- claws seen down is the same moment, whichever is read first.
+function CO.retreat(S, F, cause)
+    local o = S.o
+    if o.between or o.glowing then return end
+    o.between = { since = F.tick, rain_until = F.tick + CO.V.RAIN_TICKS }
+    QD.raid._tob_trace(S, F.tick, string.format("olm retreats (%s): between phases, crystals to %d",
+        cause, o.between.rain_until))
+end
+
 function CO.claw_event(S, F, what)
     local o = S.o
     local sign = what:match("sign:(%d)")
@@ -850,6 +899,7 @@ function CO.claw_event(S, F, what)
     elseif what == "left_up" and o.phase_n > 0 and F.tick > (o.rise_tick or 0) + 5 then o.left_alive = true
     elseif what == "right_up" and o.phase_n > 0 and F.tick > (o.rise_tick or 0) + 5 then o.right_alive = true end
     if not o.left_alive and not o.right_alive and o.glowing then o.final = true end
+    if not o.left_alive and not o.right_alive and not o.glowing and o.phase_n > 0 then CO.retreat(S, F, "claws") end
 end
 
 -- The bin a chamber-local z is in.
@@ -1376,13 +1426,18 @@ end
 -- Each state names what to hit, in what gear; a change is traced with its
 -- cause and every decision-log row carries the state (intents.mode).
 --
---   wait          no head up: before the first rise
+--   wait          nothing to hit: before the first rise, or a hand's row
+--                 not in view yet
 --   melee         P1/P2, the melee hand up and not clenched: the tentacle
 --                 4:1 (CO.cycle: its own sub-machine, cycle / recover:<cause>)
 --   mage          P1/P2, the melee hand clenched (or dead), the mage hand
 --                 up: the trident, HEAD RUNNING (CO.headrun: 3:0)
---   interim       the hands down, Olm fallen: 33 ticks of crystals; wait
---                 on the next wall's start tile (he rises on the other wall)
+--   between       BETWEEN PHASES: from the retreat (both hands down before
+--                 the glowing phase, CO.retreat) to the next rise. Nothing
+--                 to hit and no head to read: no reads, no swings; the
+--                 crystal rain (RAIN_TICKS, every shadow a forbidden 3x3 at
+--                 its landing, CO.predict) is the whole job, on the way to
+--                 the start tile of the wall he rises on next
 --   p3-low-melee  the penultimate (head glowing): the melee hand to LOW_HP
 --   p3-low-mage   ... then the mage hand to LOW_HP ("leave both hands
 --                 around 75": the first one down regenerates in REGEN ticks)
@@ -1401,10 +1456,12 @@ function CO.machine(S, F)
     local mage_t = R and { row = R, style = "magic", hand = "right" } or nil
     if o.ox == nil then
         state = "wait"
+    elseif o.between then
+        state = "between"
     elseif o.final then
         state, tgt = "head", o.head_row and { row = o.head_row, style = "ranged" } or nil
     elseif o.first_act == nil then
-        state = (o.phase_n > 0) and "interim" or "wait"
+        state = "wait"
     elseif not o.glowing then
         -- THE MELEE HAND FIRST, by the 4:1; the mage hand only while the melee
         -- hand is dead or CLENCHED (invulnerable: its 45 ticks go to head
@@ -1422,7 +1479,7 @@ function CO.machine(S, F)
         end
         if melee_t and not (clenched and mage_t) then state, tgt = "melee", melee_t
         elseif mage_t then state, tgt = "mage", mage_t
-        else state = "interim" end
+        else state = "wait" end
     else
         -- (a hand never hit shows no health bar: unknown is FULL -- ol1i
         -- killed the melee hand with the mage hand's health unread and at 585,
@@ -1440,7 +1497,7 @@ function CO.machine(S, F)
             -- (the mage hand went first: the melee hand inside its regen)
             state, tgt = "p3-kill-melee", (not healing) and melee_t or nil
         else
-            state = "interim"
+            state = "wait"
         end
     end
     if m.state ~= state then
@@ -2071,11 +2128,12 @@ function CO.strategy(S, F, B)
         res = o.run_res or CO.headrun(S, F, B, target)
         o.run_res = nil
         intents.mode = mode .. ":headrun"
-    else
+    elseif mode ~= "between" then
         res = CO.search(S, F, target, B)
     end
     o.plan = res
-    CO.wall_risk(S, F, B, res)
+    -- (between phases the head does not act: no step to read, no wall cast)
+    if mode ~= "between" then CO.wall_risk(S, F, B, res) end
     o.fight_style = tgt and tgt.style or nil
     CO.check_stats(S, F)
     CO.douse(S, F, B, intents, target)
@@ -2097,8 +2155,9 @@ function CO.strategy(S, F, B)
         end
     end
     -- in the chamber, out of the hazards' way when there is nothing to hit;
-    -- in the interim, on the start tile of the wall he rises on next
-    if mode == "interim" and o.side ~= nil then
+    -- between phases, toward the start tile of the wall he rises on next (a
+    -- pull, not a zone: every crystal's forbid outranks it)
+    if mode == "between" and o.side ~= nil then
         local st = V.START[1 - o.side]
         local sx, sz = CO.abs_of(S, st[1], st[2])
         B.pull({ name = "start", x = sx, z = sz, size = 1, weight = 0.3, t0 = F.tick, t1 = F.tick + B.h })
@@ -2144,7 +2203,7 @@ QD.T2.register("cox_olm", {
             dealt = 0, dealt_seen = {}, dealt_last = -10,
             parity = 0, list = 0, lhits = {}, rhits = {}, defer = {},
             autos_at_me = 0, specials_at_me = 0,
-            seed_first = {}, bomb_first = {}, bolt_col = {}, shadow_seen = {},
+            seed_first = {}, bomb_first = {}, bolt_col = {}, shadow_seen = {}, spot_born = {},
             acc = { left = { n = 0, h = 0 }, right = { n = 0, h = 0 }, head = { n = 0, h = 0 } },
             pools = {}, seedlings = {}, bombs = {}, bolts = {}, shadows = {}, fire = {}, spheres = {},
         }

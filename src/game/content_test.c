@@ -502,6 +502,37 @@ static void wev_json(struct App* app, char* out, size_t capacity)
     snprintf(out+used,capacity-(size_t)used,"]}");
 }
 
+/*
+ * The quest clock's step: 20 ms a frame, the frame-locked clock every proof
+ * runs on -- which puts each server tick exactly 30 client cycles after the
+ * last. A WATCHED client (a Scripts-tab Play) runs on the wall clock, where
+ * frames are uneven and a tick is 29 or 31 cycles as often as 30; a driver
+ * reader that counted the client's own cycle drifted from scriptrun there and
+ * on no proof lane (the Olm crystal shadows, coxolmso17, 2026-10-13).
+ * TORIRS_CONTENT_TEST_JITTER=1 gives that unevenness deterministically: the
+ * same 20 ms on average, in steps of 0 to 40, so ticks fall 29 to 31 frames
+ * apart, and a jittered run's tick log must equal the locked run's -- any
+ * difference is a reader on the client's clock.
+ */
+static uint64_t quest_clock_step_ms(void)
+{
+    /* (seven steps, 140 ms: a period that divides 30 frames would put every
+     * tick 30 frames apart again and perturb nothing) */
+    static const uint64_t steps[] = { 20, 40, 0, 30, 10, 20, 20 };
+    static int jitter = -1;
+    static unsigned at;
+
+    if( jitter < 0 )
+    {
+        const char* knob = getenv("TORIRS_CONTENT_TEST_JITTER");
+        jitter = knob && knob[0] && atoi(knob) != 0;
+    }
+    if( !jitter )
+        return 20;
+    at = (at + 1) % (unsigned)(sizeof(steps) / sizeof(steps[0]));
+    return steps[at];
+}
+
 uint64_t ContentTest_Begin(struct App* app, struct NetTransport* transport,
                           struct ToriRS_CmdBus* bus, uint64_t real_now)
 {
@@ -537,7 +568,7 @@ uint64_t ContentTest_Begin(struct App* app, struct NetTransport* transport,
          * business knowing that variable's name.
          */
         if( !capture_path[0] && !App_AsyncPending(app) && PluginDrive_ClockWantsStep(app) )
-            test_now += 20;
+            test_now += quest_clock_step_ms();
         NetTransport_TestClock(transport, test_now);
         return test_now;
     }
