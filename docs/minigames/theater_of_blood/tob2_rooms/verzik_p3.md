@@ -314,3 +314,28 @@ The planner needs MULTI-ALT for her (hold plus her 8 steps, the worst scored) wh
   target oscillates between ticks and the next chased a tick behind. Reverted.
 - f40 (full relay, current layers): PASS (the old trajectory does not reproduce). vp1..vp8: identical to
   batch 12 (8/8, P3 295, 0 touches).
+
+## Batch 14 (INSTALLED 2026-10-12, $S/tob2_verzik_p3.v14_meet.lua): the ball pass as a ranked meeting tile
+- Owner's design, planned like the yellows:
+  - Chosen when the hop is first seen, from shared facts: the target's first-sight tile, the next =
+    the nearest unvisited seat (ties to the lower pid), her footprint at first sight.
+  - T = the acceptable tile minimising the slower seat's WALK (an 8-way flood round her body, not
+    straight-line distance), then the sum, then x, z.
+  - Acceptable = in the arena 1 off its edge, 3+ off her, no web at the reads, no crab band, and both
+    seats can walk to it before their reads.
+  - Rules ONLY at the read ticks: the target on T, the next within 1, everyone else 2+ off. No hold
+    and no pull: both keep kiting and swinging.
+  - Re-checked each tick: an unacceptable T moves both to the next in the ranking (logged "vzb ... meet skip").
+- Ball scorer ($S/vp/ballscore.py; landings bounced / unbounced / exploded / forced last 49):
+
+  | | vp1..vp16 | f43 f40 f60 (full relay) |
+  |---|---|---|
+  | batch 13 | 48 / 0 / 0 / 16, 16/16 pass, P3 292 | f43 FAIL (relay r14: 3 bad in 513) |
+  | pid-chain "follow" | 14 / 4 / 0 / 4 (vp1..8), 4/8 | f43, f40 FAIL |
+  | pid-chain "fixed" (hold) | 25 / 1 / 0 / 7 (vp1..8), 6/8, 4.1 touches/seed | f76 FAIL |
+  | follow + hold across the read | 30 / 2 / 1 / 6 (vp1..8), 5/8 | f43, f40, f60 FAIL |
+  | **meet (ranked tile)** | **48 / 0 / 0 / 16, 16/16, P3 277** | **all PASS, 9 / 0 / 0 / 3** |
+
+  The chain in pid order put the next 10+ tiles away across her body; "nearest" from first-sight tiles
+  does not. Crab damage on vp1..vp16 was 286 vs batch 13's 86, all in dps/kite modes (none during a
+  ball role), in two seeds (vp5, vp8): a trajectory difference, not the ball design.

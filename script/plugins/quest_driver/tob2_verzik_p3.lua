@@ -78,14 +78,24 @@ QD.VZP3_V2 = {
     STACK_COST = 2.0, STACK_PULL = 0.5,
     -- the ball and the yellows' approach pulls (v1 1.5)
     BALL_PULL = 1.5, BALL_MARGIN = 30, POOL_PULL = 1.5,
+    -- the ball pass (VZ.ball_chain): "follow" (the next keeps near the
+    -- kiting target) or "fixed" (the target holds, the next takes a fixed
+    -- neighbour); the follow pull a tick (> a swing's ~4.3), the gap-2 price
+    BALL_DESIGN = "meet", BALL_NEAR_COST = 6, BALL_CLEAR2_COST = 2,
     BALL_OFF_HER = 3,
-    ALTS_GATE = 3,              -- her nine options (path_alts) with my tornado this close           -- the ball's meeting tile this far off her footprint (out of her melee after her step)
+    ALTS_GATE = 3,              -- her nine options (path_alts) with my tornado (or a live crab, +1) this close
+    CRAB_SPREAD_PULL = 0.3,     -- a kiting seat's pull to its own side of her while a crab is up
     STATION_PULL = 0.05,
     UNDER_COST = 1.5,           -- a tick ended under her (her random step), < a swing's 4.3        -- a seat's side of her ring (the ball explodes on 2+ round its target)
     EDGE = 3, EDGE_WEIGHT = 0.3,
     -- FLOORS (QD.VZHM 75/70 is over an UNPRAYED 61; every auto is prayed,
     -- oracle P4, and QD.T2.rescue eats on a predicted death)
     EAT_FLOOR = 65, BREW_FLOOR = 65, TOP_UP = 90,
+    -- THE HP-SAFETY INVARIANT (VZ.hp_floor): the un-bounced ball's hit on its
+    -- holder (74 every time it was seen, relay_r13..r16: f71 75->1, f78 68,
+    -- f15 62 = all it had), the window of autos it must also outlive (one
+    -- brew a DRINK_GAP: a landing within SAFE_WIN cannot be drunk for)
+    BALL_MISS = 74, SAFE_WIN = 3, NEXT_FLOOR = 90,
     SPEC_RETRY = 2,
     -- boosts (VZ.boosts): a super restore at DRAIN_AT under base, a super
     -- combat while either stat is under base + REDOSE_UNDER (a restore first
@@ -149,14 +159,20 @@ function VZ.observe(S, F)
     P.seen_at = P.seen_at or {}
     for _, rd in ipairs(F.raiders) do
         local lx, lz = rd.x - base.x, rd.z - base.z
+        P.roster = P.roster or {}
+        P.dead = P.dead or {}
         if lx >= A.x0 and lx <= A.x1 and lz >= A.z0 and lz <= A.z1 then
             alive[#alive + 1] = rd
+            P.roster[rd.pid] = true
             if not rd.me then mates[#mates + 1] = rd end
         else
             -- (a seat in the spectator cage is dead: forgotten at once - its
             -- last arena tile, 9 ticks old, made it the ball's "next" and the
             -- target ate the un-bounced kill, relay_r10_128 f123 t3412-3420)
             P.seen_at[rd.pid] = nil
+            -- (and out of the ball's chain for good: the chain order is the
+            -- roster in pid order, the caged seats out)
+            if P.roster[rd.pid] then P.dead[rd.pid] = true end
         end
     end
     F.raiders, F.mates = alive, mates
@@ -383,86 +399,234 @@ function VZ.ball_read(S, F, role, land)
     return (F.pid < S.ball.cur) and land or (land - 1)
 end
 
--- THE BALL'S CHAIN, my seat's role (v1 _vzp3_ball_role, with its NEXT
--- raider picked as the unvisited one NEAREST the anchor when the hop is
--- first seen, ties to the lower pid - the same on every seat's view - and
--- latched: v1's lowest-unvisited-pid sent seat 2 fifteen tiles across the
--- floor while an unvisited seat stood beside the anchor, and the target
--- ate the un-bounced ball (vx_claws vp3 t944-952).
-function VZ.ball_role(S, F)
+-- THE BALL PASS AS A PROTOCOL (owner 2026-10-12: "a better algorithm for
+-- passing the bounce"), from facts every seat sees the same (E14):
+--   TARGET   the projectile's target pid (v1 S.ball.cur)
+--   NEXT     the first seat after the target in pid order (cyclic) that is
+--            alive (seen in the arena, never in the cage) and has not held the
+--            ball this chain - pids alone, no positions (the old "nearest"
+--            read each seat's own view, and two views picked two seats)
+--   design "fixed"  the target HOLDS its tile at first sight; the next takes
+--            a fixed neighbour of it (the walkable one farthest from her
+--            footprint at first sight, ties N,E,S,W,NE,SE,SW,NW)
+--   design "follow" (PREFERRED, owner): the target kites freely; the next
+--            keeps its swings and its tornado and is pulled (soft, above a
+--            swing) to within 1 of the target's predicted tile, and must be
+--            there (a rule) on its read tick
+--   EVERYONE ELSE  forbidden within 1 of the target at the read ticks
+-- -> role ("target" | "next" | "clear"), the target's tile (fixed: at first
+-- sight; follow: predicted), the next's pid, the next's tile (fixed only).
+-- DESIGN "meet" (owner 2026-10-12, the main candidate): a RANKED MEETING
+-- TILE, planned like the yellows. Chosen once when the hop is first seen,
+-- from shared facts only (every seat's first-sight tiles of the target and
+-- the next, her footprint then):
+--   NEXT     the unvisited seat nearest the target's first-sight tile, ties
+--            to the lower pid
+--   T        the acceptable tile minimising the slower seat's walk (max of
+--            the two Chebyshev distances), then their sum, then x, z;
+--            acceptable = inside the arena (1 off its edge), 3+ off her
+--            footprint, no web on it at the reads, no crab blast band on it,
+--            and both seats can run to it before their reads (2 tiles a tick)
+--   RULES    only at the read ticks: the target ON T, the next within 1 of
+--            T, everyone else 2+ off T. No hold, no pull: both kite and swing
+--            freely; the planner's lookahead brings them in time.
+--   RE-CHECK each tick: T turned unacceptable (a web landed on it, a crab
+--            blast band) -> the next tile in the same ranking, same tick on
+--            every seat. None acceptable -> batch 13's meeting tile.
+function VZ.ball_meet_rank(S, F, Bl, t_from, n_from, reads, land_hi)
+    local V, A, base = QD.VZP3, QD.VZP3.ARENA, S.base
+    local b = Bl.her or F.boss
+    local list, why = {}, {}
+    local function bad(x, z)
+        if x < base.x + A.x0 + 1 or x > base.x + A.x1 - 1 or z < base.z + A.z0 + 1 or z > base.z + A.z1 - 1 then return "edge" end
+        if b and QD.raid._tob_gap(x, z, b.x, b.z, V.SIZE) < 3 then return "her" end
+        for _, h in ipairs(S.web_hazards) do
+            if h.x == x and h.z == z and h.from <= land_hi and h.to >= reads then return "web" end
+        end
+        for _, c in pairs(S.vz.crab or {}) do
+            if not c.blasted and QD.raid._tob_gap(x, z, c.x, c.z, 2) <= 3 then return "crab" end
+        end
+        return nil
+    end
+    local ticks = math.max(1, reads - F.tick)
+    -- WALKING distances round her body (8-way steps, her footprint at first
+    -- sight blocked, the arena's edge): by straight-line distance a tile
+    -- across her looked reachable and was not (bm_x vp10 t891: the target
+    -- 6 off with her between, plan risk from k3, the un-bounced landing)
+    -- (cheap: an 8-way flood on a 19x19 window as flat arrays; the
+    -- instruction budget is 400000 a tick, E13 - the first version spent it)
+    local R = 9
+    local W = 2 * R + 1
+    local ox, oz = t_from.x - R, t_from.z - R
+    local ax0, ax1, az0, az1 = base.x + A.x0, base.x + A.x1, base.z + A.z0, base.z + A.z1
+    local hx0, hx1, hz0, hz1 = -1, -2, -1, -2
+    if b then hx0, hx1, hz0, hz1 = b.x, b.x + V.SIZE - 1, b.z, b.z + V.SIZE - 1 end
+    local DX = { -1, 0, 1, -1, 1, -1, 0, 1 }
+    local DZ = { -1, -1, -1, 0, 0, 1, 1, 1 }
+    local function bfs(from)
+        local dist = {}
+        if from == nil then return dist end
+        local fx, fz = from.x - ox, from.z - oz
+        if fx < 0 or fx >= W or fz < 0 or fz >= W then return dist end
+        local qx, qz, h, n = { fx }, { fz }, 1, 1
+        dist[fx * W + fz] = 0
+        while h <= n do
+            local cx, cz = qx[h], qz[h]
+            local d = dist[cx * W + cz] + 1
+            h = h + 1
+            for k = 1, 8 do
+                local x, z = cx + DX[k], cz + DZ[k]
+                if x >= 0 and x < W and z >= 0 and z < W and dist[x * W + z] == nil then
+                    local wx, wz = x + ox, z + oz
+                    if wx >= ax0 and wx <= ax1 and wz >= az0 and wz <= az1
+                        and not (wx >= hx0 and wx <= hx1 and wz >= hz0 and wz <= hz1) then
+                        dist[x * W + z] = d
+                        n = n + 1
+                        qx[n], qz[n] = x, z
+                    end
+                end
+            end
+        end
+        return dist
+    end
+    local dT = bfs(t_from)
+    local dN = bfs(n_from)
+    local function at(dist, x, z)
+        local lx, lz = x - ox, z - oz
+        if lx < 0 or lx >= W or lz < 0 or lz >= W then return nil end
+        return dist[lx * W + lz]
+    end
+    for x = t_from.x - 7, t_from.x + 7 do
+        for z = t_from.z - 7, t_from.z + 7 do
+            local dt = at(dT, x, z)
+            local dn = 0
+            if n_from and dt then
+                -- (within 1 of T: the best of T and its 8 neighbours)
+                dn = nil
+                dn = at(dN, x, z)
+                for k = 1, 8 do
+                    local v = at(dN, x + DX[k], z + DZ[k])
+                    if v and (dn == nil or v < dn) then dn = v end
+                end
+            end
+            if dt and dn and (dt + 1) // 2 <= ticks - 1 and (dn + 1) // 2 <= ticks - 1 then
+                local r = bad(x, z)
+                if r == nil then
+                    list[#list + 1] = { x = x, z = z, k1 = math.max(dt, dn), k2 = dt + dn }
+                end
+            end
+        end
+    end
+    table.sort(list, function(p, q)
+        if p.k1 ~= q.k1 then return p.k1 < q.k1 end
+        if p.k2 ~= q.k2 then return p.k2 < q.k2 end
+        if p.x ~= q.x then return p.x < q.x end
+        return p.z < q.z
+    end)
+    return list, bad
+end
+
+function VZ.ball_chain(S, F)
     local Bl = S.ball
-    if Bl == nil or Bl.land == nil or F.pid == nil then return nil end
-    -- (the target out of view: its last tile seen, if recent)
-    local seen = S.vz.seen_at or {}
-    if Bl.anchor == nil and Bl.cur ~= nil and seen[Bl.cur] and F.tick - seen[Bl.cur].t <= 10 then
-        Bl.anchor = { x = seen[Bl.cur].x, z = seen[Bl.cur].z }
-    end
-    if Bl.anchor == nil then return nil end
-    -- (no "every raider visited" end: Hard Mode never dissipates - the
-    -- holder after three hops eats 49 - and F.raiders is only the seats in
-    -- VIEW: three of five at times, vdbg vp3, so the count said "over"
-    -- mid-chain and the next raider took no role)
+    local P = S.vz
+    if Bl == nil or Bl.land == nil or Bl.cur == nil or F.pid == nil then return nil end
+    -- the roster in pid order, the dead out
+    local pids = {}
+    for pid in pairs(P.roster or {}) do if not (P.dead or {})[pid] then pids[#pids + 1] = pid end end
+    table.sort(pids)
     if Bl.next_for ~= Bl.cur then
-        -- (from MY view: the players list holds only the seats in view, so a
-        -- latched pid could be one I cannot see; I claim "next" only when no
-        -- unvisited seat I can see is nearer the anchor)
-        local best, bd = nil, nil
-        for _, rd in pairs(seen) do
-            if F.tick - rd.t <= 10 and not Bl.visited[rd.pid] and rd.pid ~= Bl.cur then
-                local d = cheb(rd.x, rd.z, Bl.anchor.x, Bl.anchor.z)
-                if bd == nil or d < bd or (d == bd and rd.pid < best.pid) then best, bd = rd, d end
+        Bl.next_for, Bl.next_pid = Bl.cur, nil
+        if QD.VZP3_V2.BALL_DESIGN == "meet" then
+            local seen = P.seen_at or {}
+            local t0 = Bl.anchor or (seen[Bl.cur] and { x = seen[Bl.cur].x, z = seen[Bl.cur].z }) or nil
+            local best, bd, nfrom = nil, nil, nil
+            for _, rd in pairs(seen) do
+                if F.tick - rd.t <= 10 and not Bl.visited[rd.pid] and rd.pid ~= Bl.cur and not (P.dead or {})[rd.pid] and t0 then
+                    local d = cheb(rd.x, rd.z, t0.x, t0.z)
+                    if bd == nil or d < bd or (d == bd and rd.pid < best) then best, bd, nfrom = rd.pid, d, { x = rd.x, z = rd.z } end
+                end
+            end
+            Bl.next_pid = best
+            Bl.ttile, Bl.ntile = t0, nil
+            Bl.her = F.boss and { x = F.boss.x, z = F.boss.z } or nil
+            Bl.meet_list, Bl.meet_i = nil, nil
+            if t0 then
+                local land_hi = math.max(Bl.land, Bl.land_hi or Bl.land)
+                Bl.meet_list, Bl.meet_bad = VZ.ball_meet_rank(S, F, Bl, t0, nfrom, Bl.land - 1, land_hi)
+                Bl.meet_i = 1
+            end
+            if api_drive.ticklog_mark then
+                local m = Bl.meet_list and Bl.meet_list[1]
+                api_drive.ticklog_mark(string.format("vzb p%s t%d meet cur %s next %s t0 %s T %s of %d land %s",
+                    tostring(F.pid), F.tick, tostring(Bl.cur), tostring(Bl.next_pid),
+                    t0 and (t0.x .. "," .. t0.z) or "-", m and (m.x .. "," .. m.z) or "none",
+                    Bl.meet_list and #Bl.meet_list or 0, tostring(Bl.land)))
             end
         end
-        Bl.next_pid, Bl.next_for = best and best.pid or nil, Bl.cur
-        -- THE MEETING TILE. The landing reads raiders within 1 of the
-        -- TARGET'S tile (`~tob_verzik_ball_land`: huntall($at, ...)), not of
-        -- where it was first seen. v1 held the target still and sent the
-        -- next to it: from across her, 15 tiles in 6 ticks, it never came
-        -- (vz_claws vp3 t951-957: the target ate the un-bounced 74). The
-        -- target walks toward the next by as much as the next cannot cover
-        -- in time, plus a tile; every seat that sees both computes the same.
-        -- THE MEETING TILE FROM WHAT EVERY SEAT SEES THE SAME: the target's
-        -- tile at the ball's first sight and her footprint, pushed off her
-        -- (below). The walk toward the next (vz_claws vp3) used the next's
-        -- distance from each seat's own view - a seat out of view is a stale
-        -- last-seen tile - and two seats held two different tiles 2 apart
-        -- (relay_r12_128 f40 t3299: no bounce, the un-bounced kill). The next
-        -- is the NEAREST unvisited seat now, which reaches it in time.
-        Bl.meet = { x = Bl.anchor.x, z = Bl.anchor.z }
-        -- OFF HER MELEE: the meeting tile 3+ off her footprint. Held beside
-        -- her, the pair holds through a scan; when one of them is her tank
-        -- (or no tank is known) the hold and the scan's rule collide, and
-        -- the tank kept the hold: her melee landed on both with the 49
-        -- (relay_r10_128 f39 t3314: 49 + 35, seat 3 dead; seat 2 "next",
-        -- plan risk 12 "scan" at t3312)
-        local b2 = F.boss
-        if b2 then
-            local V = QD.VZP3
-            local A, base = V.ARENA, S.base
-            local cx, cz = b2.x + V.SIZE // 2, b2.z + V.SIZE // 2
-            for _ = 1, 6 do
-                if QD.raid._tob_gap(Bl.meet.x, Bl.meet.z, b2.x, b2.z, V.SIZE) >= QD.VZP3_V2.BALL_OFF_HER then break end
-                local dx = (Bl.meet.x > cx) and 1 or ((Bl.meet.x < cx) and -1 or 0)
-                local dz = (Bl.meet.z > cz) and 1 or ((Bl.meet.z < cz) and -1 or 0)
-                if dx == 0 and dz == 0 then dz = -1 end
-                local nx, nz = Bl.meet.x + dx, Bl.meet.z + dz
-                if nx < base.x + A.x0 + 1 or nx > base.x + A.x1 - 1 then nx = Bl.meet.x end
-                if nz < base.z + A.z0 + 1 or nz > base.z + A.z1 - 1 then nz = Bl.meet.z end
-                if nx == Bl.meet.x and nz == Bl.meet.z then break end
-                Bl.meet = { x = nx, z = nz }
+        local at = nil
+        if QD.VZP3_V2.BALL_DESIGN == "meet" then at = nil goto chosen end
+        for i, pid in ipairs(pids) do if pid == Bl.cur then at = i end end
+        if at then
+            for k = 1, #pids - 1 do
+                local pid = pids[((at - 1 + k) % #pids) + 1]
+                if not Bl.visited[pid] and pid ~= Bl.cur then Bl.next_pid = pid break end
             end
         end
-        QD.raid._vzp3_trace(S, F.tick, "ball next: pid " .. tostring(Bl.next_pid) .. " (" .. tostring(bd) .. " off), meet "
-            .. Bl.meet.x .. "," .. Bl.meet.z)
+        ::chosen::
+        -- the target's tile at first sight (v1's anchor; out of my view, its
+        -- last-seen tile) and her footprint then: the fixed design's tiles
+        local seen = P.seen_at or {}
+        Bl.ttile = Bl.anchor or (seen[Bl.cur] and { x = seen[Bl.cur].x, z = seen[Bl.cur].z }) or nil
+        Bl.ntile = nil
+        local b = F.boss
+        if Bl.ttile and b then
+            local V, A, base = QD.VZP3, QD.VZP3.ARENA, S.base
+            local best, bg = nil, -1
+            for _, d in ipairs({ { 0, 1 }, { 1, 0 }, { 0, -1 }, { -1, 0 }, { 1, 1 }, { 1, -1 }, { -1, -1 }, { -1, 1 } }) do
+                local x, z = Bl.ttile.x + d[1], Bl.ttile.z + d[2]
+                local inside = x >= base.x + A.x0 and x <= base.x + A.x1 and z >= base.z + A.z0 and z <= base.z + A.z1
+                local g = QD.raid._tob_gap(x, z, b.x, b.z, V.SIZE)
+                if inside and g >= 1 and g > bg then best, bg = { x = x, z = z }, g end
+            end
+            Bl.ntile = best
+        end
+        if api_drive.ticklog_mark then
+            api_drive.ticklog_mark(string.format("vzb p%s t%d chain cur %s next %s ttile %s ntile %s land %s",
+                tostring(F.pid), F.tick, tostring(Bl.cur), tostring(Bl.next_pid),
+                Bl.ttile and (Bl.ttile.x .. "," .. Bl.ttile.z) or "-", Bl.ntile and (Bl.ntile.x .. "," .. Bl.ntile.z) or "-",
+                tostring(Bl.land)))
+        end
     end
-    -- (the next no longer seen - dead, or gone out of view: chosen again)
-    if Bl.next_for == Bl.cur and Bl.next_pid ~= nil and seen[Bl.next_pid] == nil then Bl.next_for = nil end
-    local nxt = nil
-    for _, rd in ipairs(F.raiders) do if rd.pid == Bl.next_pid then nxt = rd end end
-    local meet = Bl.meet or Bl.anchor
-    if Bl.cur == F.pid then return "target", meet, nxt end
-    if Bl.visited[F.pid] then return nil end
-    return (Bl.next_pid == F.pid) and "next" or "clear", meet, nxt
+    -- the target's tile now (follow): seen, else last seen; its step from the
+    -- tick before carried one tick on (it kites; widened by the zone's 1)
+    local cur = nil
+    for _, rd in ipairs(F.raiders) do if rd.pid == Bl.cur then cur = { x = rd.x, z = rd.z } end end
+    if cur == nil and P.seen_at and P.seen_at[Bl.cur] then cur = { x = P.seen_at[Bl.cur].x, z = P.seen_at[Bl.cur].z } end
+    local ttile = Bl.ttile
+    if QD.VZP3_V2.BALL_DESIGN == "follow" then ttile = cur or Bl.ttile end
+    if QD.VZP3_V2.BALL_DESIGN == "meet" and Bl.meet_list then
+        -- re-check: the chosen tile turned unacceptable -> the next in rank
+        local skipped = {}
+        while Bl.meet_list[Bl.meet_i] do
+            local m = Bl.meet_list[Bl.meet_i]
+            local r = Bl.meet_bad(m.x, m.z)
+            if r == nil then break end
+            skipped[#skipped + 1] = m.x .. "," .. m.z .. ":" .. r
+            Bl.meet_i = Bl.meet_i + 1
+        end
+        if #skipped > 0 and api_drive.ticklog_mark then
+            local m = Bl.meet_list[Bl.meet_i]
+            api_drive.ticklog_mark(string.format("vzb p%s t%d meet skip %s -> %s", tostring(F.pid), F.tick,
+                table.concat(skipped, " "), m and (m.x .. "," .. m.z) or "none (batch 13 tile)"))
+        end
+        local m = Bl.meet_list[Bl.meet_i]
+        if m then ttile = { x = m.x, z = m.z } else ttile = Bl.ttile end
+        Bl.meet_now = ttile
+    end
+    if ttile == nil then return nil end
+    if Bl.cur == F.pid then return "target", ttile, Bl.next_pid, Bl.ntile end
+    if Bl.visited[F.pid] then return "clear", ttile, Bl.next_pid, Bl.ntile end
+    return (Bl.next_pid == F.pid) and "next" or "clear", ttile, Bl.next_pid, Bl.ntile
 end
 
 -- THE BALL'S FLIGHT IS NOT A CONSTANT. v1 lands every throw at first sight
@@ -514,6 +678,89 @@ function VZ.speed(S, I)
     return QD.raid._vzp3_weapon_ticks(S)
 end
 
+-- ========================================================= HP SAFETY
+--
+-- THE INVARIANT (owner 2026-10-12, "ensure that p3 stops having those
+-- deaths"): no seat ends a tick where the worst damage that can still reach
+-- it before its next possible heal kills it. Every P3 death of r15/r16 was
+-- the ball's un-bounced 74 on a holder at 62-75 (f15 p2 t3061, f71 p5 t3127
+-- then an auto of 17 at hp 17, f78 p1 t3155): the bounce failed (a tornado
+-- or her chase pulled the holder off T) and nothing had planned for a miss.
+--   worst   the prayed max of every auto landing within SAFE_WIN (a brew
+--           cannot land between them), and on the ball's HOLDER the miss
+--           (BALL_MISS; 49 on the last hop) plus the autos landing from the
+--           tick before it to SAFE_WIN after it (drunk for during the flight,
+--           7+ ticks: two or three brews from first sight)
+--   floor   worst + 1, at least EAT_FLOOR; the next holder NEXT_FLOOR (its
+--           own flight starts at the bounce)
+-- Under the floor a brew OUTRANKS the boosts and the swing (a potion costs
+-- no attack delay, C2; the boosts share its timer, C1 - f15 p2 drank a super
+-- combat at t3059 as the holder at 71 and the brew at t3060 met the timer).
+-- A prayer restore under PRAYER_SIP keeps the timer (unprayed autos are 61).
+function VZ.auto_landings(S, F, t0, t1)
+    local X, V, P = QD.VZP3_V2, QD.VZP3, S.vz
+    local n = 0
+    if P.auto_at then
+        local L = P.auto_at + X.AUTO_LAND
+        if L >= t0 and L <= t1 then n = n + 1 end
+    end
+    if S.next_slot then
+        local cad = F.enraged and V.CADENCE_ENRAGED or V.CADENCE
+        local special = V.ROTATION[S.special]
+        local i = 0
+        while i <= 16 do
+            local T = S.next_slot + i * cad
+            local L = T + X.AUTO_LAND
+            if L > t1 or i > (S.attacks_left or 0) or (i == S.attacks_left and special ~= "crabs") then break end
+            if L >= t0 and T > F.tick then n = n + 1 end
+            i = i + 1
+        end
+    end
+    return n
+end
+
+function VZ.hp_floor(S, F)
+    local X = QD.VZP3_V2
+    local now = F.tick
+    local auto = math.floor(X.AUTO_MAX * X.PRAYED)
+    local floor = math.max(X.EAT_FLOOR, VZ.auto_landings(S, F, now + 1, now + X.SAFE_WIN) * auto + 1)
+    local why = "autos"
+    local Bl = S.ball
+    if Bl and Bl.cur and Bl.land then
+        local hi = math.max(Bl.land, Bl.land_hi or Bl.land)
+        if hi + 1 >= now and Bl.cur == F.pid then
+            local miss = (#(Bl.order or {}) >= 4) and 49 or X.BALL_MISS
+            local f = miss + VZ.auto_landings(S, F, Bl.land - 1, hi + X.SAFE_WIN) * auto + 1
+            if f > floor then floor, why = f, "ball-holder" end
+        elseif hi + 1 >= now and Bl.next_pid == F.pid and X.NEXT_FLOOR > floor then
+            floor, why = X.NEXT_FLOOR, "ball-next"
+        end
+    end
+    return floor, why
+end
+
+function VZ.hp_safety(S, F, I)
+    local X, P = QD.VZP3_V2, S.vz
+    local floor, why = VZ.hp_floor(S, F)
+    P.hp_floor = floor
+    local want = S.t2.want
+    -- (the resource channel reads these next tick; food stops at base)
+    want.eat_below = math.max(want.eat_below or 0, math.min(floor, F.hp_base or floor))
+    want.brew_below = math.max(want.brew_below or 0, floor)
+    if F.hp >= floor then return end
+    if F.tick < S.x2.held.drink_until then return end
+    if S.last_drink == F.tick and I.drink == nil then return end   -- the resource channel drank (a brew or a restore)
+    if (F.prayer or 0) < QD.TOBS.PRAYER_SIP and I.drink == nil then return end
+    local brew = QD.raid._tob_first(S, S.ids.brews)
+    if brew == nil then return end
+    if I.drink ~= brew then
+        I.drink = brew
+        S.last_drink = F.tick
+        P.safety_n = (P.safety_n or 0) + 1
+        QD.raid._vzp3_trace(S, F.tick, string.format("hp-safety brew: hp %d < floor %d (%s)", F.hp, floor, why))
+    end
+end
+
 -- ================================================================== BOOSTS
 --
 -- THE TEAM KEPT SUPER-COMBATTED (coordinator's probe, runs/st_v1, st_v2:
@@ -533,6 +780,14 @@ function VZ.boosts(S, F, I)
     local a, st = F.levels.attack, F.levels.strength
     if a == nil or st == nil or a.base <= 0 then return end
     if S.last_drink == F.tick then return end              -- the resource channel drank this tick
+    if F.hp < (VZ.hp_floor(S, F)) then return end           -- hp first (VZ.hp_safety)
+    -- (no boost and no stat restore while the ball is mine or I am its next:
+    -- the potion timer is the holder's brew's - f15 p2's super combat at
+    -- t3059, f78 p1's restore at t3148; a prayer restore under PRAYER_SIP is
+    -- the resource channel's and still goes)
+    local Bl = S.ball
+    if Bl and Bl.cur and Bl.land and math.max(Bl.land, Bl.land_hi or Bl.land) + 1 >= F.tick
+        and (Bl.cur == F.pid or Bl.next_pid == F.pid) then return end
     if F.tick < S.x2.held.drink_until then return end      -- the potion timer (C1)
     local da, ds = a.level - a.base, st.level - st.base
     local low = math.min(da, ds)
@@ -996,6 +1251,15 @@ function VZ.her_path(S, F)
         -- it ends beside it - vq_bone vp6 t1123, t1126)
         if tn.mine and cheb(tn.x, tn.z, F.me.x, F.me.z) <= QD.VZP3_V2.ALTS_GATE then chased = true end
     end
+    -- (a live crab near me gates them too: a chase press whose end tile
+    -- moved with her step ended within 1 of an arriving crab, bm3_all vp5
+    -- t913 - the crab's arrival band is then a rule the plan must see on
+    -- every one of her steps)
+    for _, c in pairs(S.vz.crab or {}) do
+        if c.seen == F.tick and not c.blasted and QD.raid._tob_gap(F.me.x, F.me.z, c.x, c.z, 2) <= QD.VZP3_V2.ALTS_GATE + 1 then
+            chased = true
+        end
+    end
     -- (and BESIDE her, the step that takes me OUT of reach: an attack
     -- under way then follows her, off the tile the plan held, toward the
     -- tornado - vp_v2q vp2 t1001)
@@ -1060,43 +1324,82 @@ end
 function VZ.ball(S, F, B)
     local X = QD.VZP3_V2
     if S.ball == nil then return nil end
-    local role, anchor, nxt = VZ.ball_role(S, F)
+    local role, ttile, next_pid, ntile = VZ.ball_chain(S, F)
     if role == nil then return nil end
     local now, land = F.tick, S.ball.land
     local land_hi = math.max(land, S.ball.land_hi or land)
-    if role == "target" or role == "next" then
-        local read = VZ.ball_read(S, F, role)
-        local read_hi = VZ.ball_read(S, F, role, land_hi)
-        local hi = (role == "target") and 0 or 1
-        -- THE LAST HOLDER EATS IT (tob_verzik.rs2 ~tob_verzik_ball_land:
-        -- Hard Mode's hops end at ^tob_verzik_ball_max_bounces 3, and the
-        -- holder after them takes ^tob_verzik_hard_ball_bounce3 = 49, every
-        -- ball: UNAVOIDABLE, priced, so the rescue eats for it with an auto
-        -- landing beside it - relay_v2a_48's 49s were the burst deaths)
-        if role == "target" and #S.ball.order >= 4 and land >= now + 1 then
-            local A, base = QD.VZP3.ARENA, S.base
-            B.hit{ name = "ball-last", x0 = base.x + A.x0, z0 = base.z + A.z0, x1 = base.x + A.x1, z1 = base.z + A.z1,
-                t0 = land - 1, t1 = land - 1, dmg_exp = 49, dmg_max = 49 }
+    local follow = X.BALL_DESIGN == "follow"
+    if X.BALL_DESIGN == "meet" then
+        -- like the yellows: rules ONLY at the read ticks, no hold, no pull
+        if role == "target" or role == "next" then
+            local read, read_hi = VZ.ball_read(S, F, role), VZ.ball_read(S, F, role, land_hi)
+            if role == "target" and #S.ball.order >= 4 and land >= now + 1 then
+                local A, base = QD.VZP3.ARENA, S.base
+                B.hit{ name = "ball-last", x0 = base.x + A.x0, z0 = base.z + A.z0, x1 = base.x + A.x1, z1 = base.z + A.z1,
+                    t0 = land - 1, t1 = land - 1, dmg_exp = 49, dmg_max = 49 }
+            end
+            B.zone{ name = "ball-" .. role, x = ttile.x, z = ttile.z, size = 1, lo = 0, hi = (role == "target") and 0 or 1,
+                require = true, t0 = read, t1 = read_hi, tier = "lethal" }
+            return role, read, read_hi
         end
-        B.zone{ name = "ball-" .. role, x = anchor.x, z = anchor.z, size = 1, lo = 0, hi = hi, require = true,
+        B.zone{ name = "ball-clear", x = ttile.x, z = ttile.z, size = 1, lo = 0, hi = 1, t0 = land - 1, t1 = land_hi,
+            tier = "lethal" }
+        return role, nil
+    end
+    -- THE LAST HOLDER EATS IT (~tob_verzik_ball_land: Hard Mode's hops end at
+    -- 3, the next holder takes 49): unavoidable, priced for the rescue
+    if role == "target" and #S.ball.order >= 4 and land >= now + 1 then
+        local A, base = QD.VZP3.ARENA, S.base
+        B.hit{ name = "ball-last", x0 = base.x + A.x0, z0 = base.z + A.z0, x1 = base.x + A.x1, z1 = base.z + A.z1,
+            t0 = land - 1, t1 = land - 1, dmg_exp = 49, dmg_max = 49 }
+    end
+    if role == "target" then
+        local read, read_hi = VZ.ball_read(S, F, role), VZ.ball_read(S, F, role, land_hi)
+        if follow then
+            -- the target kites freely, EXCEPT across its read: from the tick
+            -- before it, it holds the tile it stands on (the next follows a
+            -- tick behind; a target that kited off on its read tick left the
+            -- next 2 away, bf_vp vp1 t937). A hold is a walk (lesson 47).
+            if now + 1 >= read - 1 and now + 1 <= read_hi then
+                B.zone{ name = "ball-hold", x = F.me.x, z = F.me.z, size = 1, lo = 0, hi = 0, require = true,
+                    t0 = now + 1, t1 = read_hi, tier = "lethal" }
+                return role, read, read_hi
+            end
+            return role, nil, nil
+        end
+        -- fixed: hold the tile from first sight to the read (a walk, lesson 47)
+        B.zone{ name = "ball-hold", x = ttile.x, z = ttile.z, size = 1, lo = 0, hi = 0, require = true,
+            t0 = now + 1, t1 = read_hi, tier = "lethal" }
+        return role, read, read_hi
+    end
+    if role == "next" then
+        local read, read_hi = VZ.ball_read(S, F, role), VZ.ball_read(S, F, role, land_hi)
+        if follow then
+            -- near the target every tick (soft, above a swing), within 1 of it
+            -- at the read (a rule)
+            if read - 1 >= now + 1 then
+                B.zone{ name = "ball-near", x = ttile.x, z = ttile.z, size = 1, lo = 0, hi = 1, require = true,
+                    t0 = now + 1, t1 = read - 1, tier = "soft", cost = X.BALL_NEAR_COST }
+            end
+            B.zone{ name = "ball-next", x = ttile.x, z = ttile.z, size = 1, lo = 0, hi = 1, require = true,
+                t0 = read, t1 = read_hi, tier = "lethal" }
+            return role, read, read_hi
+        end
+        local t = ntile or ttile
+        local hi = ntile and 0 or 1
+        B.zone{ name = "ball-next", x = t.x, z = t.z, size = 1, lo = 0, hi = hi, require = true,
             t0 = read, t1 = read_hi, tier = "lethal" }
-        -- (a tick either side LETHAL too: v1 main xv43 sc t1416-1418, a landing
-        -- a tick off the prediction found the target a step away - the
-        -- un-bounced ball's kill; every other tick is the kite's, the
-        -- tornadoes are chasers in this same plan)
-        -- (PRICED, not a rule: lethal, it outranked the tornado and four
-        -- seeds of eight lost seats to touches taken to hold it, vp_v2n/o;
-        -- the read tick is the rule)
-        B.zone{ name = "ball-margin", x = anchor.x, z = anchor.z, size = 1, lo = 0, hi = hi, require = true,
-            t0 = read - 1, t1 = read_hi + 1, tier = "damage", cost = X.BALL_MARGIN }
-        if read - 2 >= now + 1 then
-            B.pull{ name = "ball-pull", x = anchor.x, z = anchor.z, size = 1, weight = X.BALL_PULL, t0 = now + 1, t1 = read - 2 }
+        if read - 1 >= now + 1 then
+            B.pull{ name = "ball-pull", x = t.x, z = t.z, size = 1, weight = X.BALL_PULL, t0 = now + 1, t1 = read - 1 }
         end
         return role, read, read_hi
     end
-    -- clear: 3+ from the target for the whole flight (v1 rl76)
-    B.zone{ name = "ball-clear", x = anchor.x, z = anchor.z, size = 1, lo = 0, hi = 2, t0 = now + 1, t1 = land_hi + 1,
+    -- EVERYONE ELSE: not within 1 of the target at the read ticks (a lower
+    -- pid is read at the landing, a higher one a tick before); 2 priced
+    B.zone{ name = "ball-clear", x = ttile.x, z = ttile.z, size = 1, lo = 0, hi = 1, t0 = land - 1, t1 = land_hi,
         tier = "lethal" }
+    B.zone{ name = "ball-clear2", x = ttile.x, z = ttile.z, size = 1, lo = 2, hi = 2, t0 = land - 1, t1 = land_hi,
+        tier = "soft", cost = X.BALL_CLEAR2_COST }
     return role, nil
 end
 
@@ -1125,13 +1428,13 @@ end
 
 -- A seat's side of her ring, so the five do not stand in one clump (the ball
 -- explodes on two or more within 1 of its target).
-function VZ.station(S, F, B)
+function VZ.station(S, F, B, weight)
     local X = QD.VZP3_V2
     local b = F.boss
     local ring = QD.raid._vzp3_ring(b.x, b.z)
     local seat = QD.raid._tob_seat(F) or S.role
     local p = ring[((seat - 1) * 6 + 3) % #ring + 1]
-    B.pull{ name = "station", x = p.x, z = p.z, size = 1, weight = X.STATION_PULL, t0 = F.tick + 1, t1 = F.tick + X.H }
+    B.pull{ name = "station", x = p.x, z = p.z, size = 1, weight = weight or X.STATION_PULL, t0 = F.tick + 1, t1 = F.tick + X.H }
 end
 
 function VZ.strategy(S, F, B)
@@ -1152,6 +1455,7 @@ function VZ.strategy(S, F, B)
     if spare <= 0 and F.lit.piety then I.pray_off = { "piety" } end
     want.eat_below, want.brew_below = X.EAT_FLOOR, X.BREW_FLOOR
     VZ.boosts(S, F, I)
+    VZ.hp_safety(S, F, I)
     local mode
     if F.boss == nil then
         -- the change of form: nothing attacks, top up (v1 HP_TOP)
@@ -1162,6 +1466,15 @@ function VZ.strategy(S, F, B)
         if P.spec and P.spec.state == "idle" and F.weapon_held then I.gear = { S.ids.weapon } end
         local role, read, read_hi = VZ.ball(S, F, B)
         local hold = (role == "target" or role == "next") and read or nil
+        -- THE BALL'S TARGET AND NEXT SWING ONLY FROM WHERE THEY STAND: an
+        -- attack that needs a chase follows her, and her steps dragged the
+        -- target 7 off its meeting tile (relay_r15_128 f71 t3121-3125, plan
+        -- risk from k3, the un-bounced 74). Beside her: swing; else no her.
+        if (role == "target" or role == "next") and F.boss
+            and not QD.raid._tob_beside(F.me.x, F.me.z, F.boss.x, F.boss.z, QD.VZP3.SIZE) then
+            hold = F.tick - 1
+            read_hi = F.tick + X.H + 2
+        end
         local tgt = VZ.her_target(S, F, B, I, hold, read_hi)
         if F.charging and VZ.pools(S, F, B) then
             mode = "yellows"
@@ -1173,6 +1486,14 @@ function VZ.strategy(S, F, B)
             mode = "web-" .. tostring(S.wr.state)
         elseif F.enraged then
             mode = "kite"
+            -- (spread while a crab is up: seats sharing a tile and a view plan
+            -- the same path, so four kited in one clump to the west edge and
+            -- one crab's arrival caught all four, bm3_all vp5 t1138-1148; the
+            -- seat's own station side breaks the tie)
+            for _, c in pairs(P.crab or {}) do
+                if c.seen == F.tick and not c.blasted then P.crab_up = F.tick end
+            end
+            if P.crab_up == F.tick then VZ.station(S, F, B, X.CRAB_SPREAD_PULL) end
         elseif VZ.exempt(S, F) then
             mode = "dps"
             VZ.station(S, F, B)
@@ -1251,8 +1572,9 @@ QD.T2.rooms.verzik_p3 = {
 
     summary = function(S)
         local P = S.vz
-        local bn = string.format("boosts restore %d combat %d (ticks left at the end %s)", P.boost_n.restore or 0,
-            P.boost_n.combat or 0, tostring(P.ticks_left and math.floor(P.ticks_left)))
+        local bn = string.format("boosts restore %d combat %d (ticks left at the end %s); hp-safety brews %d",
+            P.boost_n.restore or 0, P.boost_n.combat or 0, tostring(P.ticks_left and math.floor(P.ticks_left)),
+            P.safety_n or 0)
         local modes = {}
         for k, n in pairs(P.modes) do modes[#modes + 1] = k .. "=" .. n end
         table.sort(modes)
