@@ -2582,6 +2582,11 @@ $(OBJ_DIR)/rscache_unity.o: $(RSCACHE_UNITY_SRC) | $(OBJ_DIR)
 $(OBJ_DIR)/stb_image_impl.o: $(STB_DIR)/stb_image_impl.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -w -c $(STB_DIR)/stb_image_impl.c -o $@
 
+# The tests' and tools' stb: PNG + JPEG with stdio (3rd/stb/stb_image_tools_impl.c).
+# Never in a client link -- it defines the same symbols as stb_image_impl.o.
+$(OBJ_DIR)/stb_image_tools_impl.o: $(STB_DIR)/stb_image_tools_impl.c | $(OBJ_DIR)
+	$(CC) $(CFLAGS) -w -c $(STB_DIR)/stb_image_tools_impl.c -o $@
+
 $(OBJ_DIR)/rsprot_unity.o: $(RSPROT_UNITY_SRC) | $(OBJ_DIR)
 	$(CC) $(RSPROT_CFLAGS) -w -c $(RSPROT_UNITY_SRC) -o $@
 
