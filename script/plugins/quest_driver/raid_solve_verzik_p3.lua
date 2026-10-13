@@ -102,7 +102,7 @@ QD.VZP3 = {
     WEB_LIFE = 12, WEB_FLIGHT = 4, WEB_KNOCK = 3,
     BALL_FLIGHT = 7, BALL_HOP = 6,  -- C: 227 and 185 cycles over 30, the queue delays
     ENRAGE_PULL = 5,
-    CENTRE = { x = 32, z = 25 },  -- her middle for the webs, local to the room's origin
+    CENTRE = { x = 32, z = 24 },  -- her middle for the webs, local to the room's origin (Blert: her SW at 29,21; with ^tob_verzik_centre_lz 24)
     -- the P3 floor, local to the room's origin (the pools' scatter round her
     -- centre tile is 13 x 9; the spectator cage sits north of it, local z
     -- 37): a raider off it is out of the fight

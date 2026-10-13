@@ -1005,6 +1005,36 @@ case_y(struct CollisionMap* cm)
     report("(y) nine target steps, one leads into a touch", before);
 }
 
+/* (z) a press at a BIG npc (Verzik P3's 7x7) from the middle of its south
+ * edge: the server fires from where I stand -- no step */
+static void
+case_z(struct CollisionMap* cm)
+{
+    int before, x, z;
+    struct ActionPlanTarget* tg;
+    collision_map_reset(cm);
+    for( x = 10; x <= 16; x++ )
+        for( z = 10; z <= 16; z++ )
+            block_tile(cm, x, z);
+    spec_reset(13, 9, 6);
+    g_spec.swing_ready = NOW + 1;
+    tg = add_target(10, 10, 1, 4, 5.0);
+    tg->size = 7;
+    before = run_case(cm, "z big blocked");
+    TEST_ASSERT(g_res.path_x[0] == 13 && g_res.path_z[0] == 9, "z: stands where it presses");
+    TEST_ASSERT(g_res.act[0] == ACTION_PLAN_ATTACK, "z: attacks");
+    TEST_ASSERT(g_res.swing[0], "z: the swing at k1");
+    collision_map_reset(cm);
+    spec_reset(13, 9, 6);
+    g_spec.swing_ready = NOW + 1;
+    tg = add_target(10, 10, 1, 4, 5.0);
+    tg->size = 7;
+    run_case(cm, "z big open");
+    TEST_ASSERT(g_res.path_x[0] == 13 && g_res.path_z[0] == 9, "z open: stands where it presses");
+    TEST_ASSERT(g_res.swing[0], "z open: the swing at k1");
+    report("(z) a press at a 7x7 from beside it: no step", before);
+}
+
 static void
 run_all(struct CollisionMap* cm)
 {
@@ -1032,6 +1062,7 @@ run_all(struct CollisionMap* cm)
     case_w(cm);
     case_x(cm);
     case_y(cm);
+    case_z(cm);
 }
 
 int

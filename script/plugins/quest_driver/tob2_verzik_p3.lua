@@ -76,6 +76,12 @@ QD.VZP3_V2 = {
     WEB_DMG = 20, WEB_MAX = 40, WEB_STAY = 4, WEB_LIFE = 12, MARK_AHEAD = 7,
     -- the stack (v1 web run) as soft costs: off its tile a tick costs this
     STACK_COST = 2.0, STACK_PULL = 0.5,
+    -- THE WEB LAP (VZ.web_lap): the swing tick of side k is the spin + LAP_FIRST
+    -- + LAP_CYCLE k; on the side's middle tile for LAP_ON tick-ends ending at
+    -- it; a seat that cannot make it pays LAP_MISS a tick-end instead
+    WEB_DESIGN = "lap",         -- "lap" (owner 2026-10-13) | "stack" (v1's web run, batch 17)
+    LAP_ENRAGED = true,         -- the lap with her tornadoes up too (the wiki's "pogwebs" start from it)
+    LAP_FIRST = 2, LAP_CYCLE = 5, LAP_ON = 2, LAP_MISS = 12, LAP_EXACT = 3, LAP_GATHER = 6, LAP_PULL = 1.0,
     -- the ball and the yellows' approach pulls (v1 1.5)
     BALL_PULL = 1.5, BALL_MARGIN = 30, POOL_PULL = 1.5,
     -- the ball pass (VZ.ball_chain): "follow" (the next keeps near the
@@ -86,6 +92,8 @@ QD.VZP3_V2 = {
     BALL_OFF_HER = 3,
     ALTS_GATE = 3,              -- her nine options (path_alts) with my tornado (or a live crab, +1) this close
     CRAB_SPREAD_PULL = 0.3,     -- a kiting seat's pull to its own side of her while a crab is up
+    KITE_SPREAD_PULL = 0.3,     -- ... and in every other enraged kite (b17c f13)
+    MATE_COST = 1.0,            -- a tick-end on a mate's tile now (kite / dps / away), the next two ticks
     STATION_PULL = 0.05,
     UNDER_COST = 1.5,           -- a tick ended under her (her random step), < a swing's 4.3        -- a seat's side of her ring (the ball explodes on 2+ round its target)
     EDGE = 3, EDGE_WEIGHT = 0.3,
@@ -191,6 +199,7 @@ function VZ.observe(S, F)
     if F.boss == nil then return end
     local autos = S.autos
     QD.raid._vzp3_projectiles(S, F)
+    VZ.web_track(S, F)
     VZ.ball_flight(S, F)
     QD.raid._vzp3_clock(S, F)
     if S.autos ~= autos and not F.ball_thrown then P.auto_at = F.tick end
@@ -434,7 +443,8 @@ end
 --   RE-CHECK each tick: T turned unacceptable (a web landed on it, a crab
 --            blast band) -> the next tile in the same ranking, same tick on
 --            every seat. None acceptable -> batch 13's meeting tile.
-function VZ.ball_meet_rank(S, F, Bl, t_from, n_from, reads, land_hi)
+function VZ.ball_meet_rank(S, F, Bl, t_from, n_from, reads, land_hi, slack)
+    slack = slack or 1
     local V, A, base = QD.VZP3, QD.VZP3.ARENA, S.base
     local b = Bl.her or F.boss
     local list, why = {}, {}
@@ -458,7 +468,12 @@ function VZ.ball_meet_rank(S, F, Bl, t_from, n_from, reads, land_hi)
     -- instruction budget is 400000 a tick, E13 - the first version spent it)
     local R = 9
     local W = 2 * R + 1
-    local ox, oz = t_from.x - R, t_from.z - R
+    -- (the window round the MIDPOINT of the two seats: round the target's
+    -- tile alone, a next 10+ off on her far side started outside it, its
+    -- flood was empty and no tile ranked - ifin3q vp10 t893)
+    local mx, mz = t_from.x, t_from.z
+    if n_from then mx, mz = (t_from.x + n_from.x) // 2, (t_from.z + n_from.z) // 2 end
+    local ox, oz = mx - R, mz - R
     local ax0, ax1, az0, az1 = base.x + A.x0, base.x + A.x1, base.z + A.z0, base.z + A.z1
     local hx0, hx1, hz0, hz1 = -1, -2, -1, -2
     if b then hx0, hx1, hz0, hz1 = b.x, b.x + V.SIZE - 1, b.z, b.z + V.SIZE - 1 end
@@ -497,8 +512,8 @@ function VZ.ball_meet_rank(S, F, Bl, t_from, n_from, reads, land_hi)
         if lx < 0 or lx >= W or lz < 0 or lz >= W then return nil end
         return dist[lx * W + lz]
     end
-    for x = t_from.x - 7, t_from.x + 7 do
-        for z = t_from.z - 7, t_from.z + 7 do
+    for x = mx - 7, mx + 7 do
+        for z = mz - 7, mz + 7 do
             local dt = at(dT, x, z)
             local dn = 0
             if n_from and dt then
@@ -510,7 +525,7 @@ function VZ.ball_meet_rank(S, F, Bl, t_from, n_from, reads, land_hi)
                     if v and (dn == nil or v < dn) then dn = v end
                 end
             end
-            if dt and dn and (dt + 1) // 2 <= ticks - 1 and (dn + 1) // 2 <= ticks - 1 then
+            if dt and dn and (dt + 1) // 2 <= ticks - slack and (dn + 1) // 2 <= ticks - slack then
                 local r = bad(x, z)
                 if r == nil then
                     list[#list + 1] = { x = x, z = z, k1 = math.max(dt, dn), k2 = dt + dn }
@@ -554,6 +569,16 @@ function VZ.ball_chain(S, F)
             if t0 then
                 local land_hi = math.max(Bl.land, Bl.land_hi or Bl.land)
                 Bl.meet_list, Bl.meet_bad = VZ.ball_meet_rank(S, F, Bl, t0, nfrom, Bl.land - 1, land_hi)
+                -- (none with a tick to spare: with none to spare; none at all:
+                -- the best the two can do, by the slower walk - the holder's
+                -- own tile left the next 14 off round her body, ifin2_all
+                -- vp10 t893, "T none of 0" and the un-bounced 74)
+                if #Bl.meet_list == 0 then
+                    Bl.meet_list, Bl.meet_bad = VZ.ball_meet_rank(S, F, Bl, t0, nfrom, Bl.land - 1, land_hi, 0)
+                end
+                if #Bl.meet_list == 0 then
+                    Bl.meet_list, Bl.meet_bad = VZ.ball_meet_rank(S, F, Bl, t0, nfrom, Bl.land - 1, land_hi, -99)
+                end
                 Bl.meet_i = 1
             end
             if api_drive.ticklog_mark then
@@ -640,18 +665,33 @@ function VZ.ball_chain(S, F)
         if Bl.fb == nil and live and hread >= F.tick + 1 and #(Bl.order or {}) < 4
             and cheb(live.x, live.z, ttile.x, ttile.z) > QD.VZP3_V2.BALL_RUN * (hread - F.tick)
             and (F.boss == nil or QD.raid._tob_gap(live.x, live.z, F.boss.x, F.boss.z, QD.VZP3.SIZE) >= 1) then
-            -- (H: the MIDPOINT of the holder and T, both close in - the next
-            -- is within 1 of T and its read may be the holder's; vf19x f15
-            -- t3056: H on the holder left the next 5 off with 2 ticks. Capped
-            -- at what the holder can still run with a step to spare; a step
-            -- under her stops it short)
-            local d = cheb(live.x, live.z, ttile.x, ttile.z)
-            local hx, hz = live.x, live.z
-            for _ = 1, math.min((d + 1) // 2, math.max(0, QD.VZP3_V2.BALL_RUN * (hread - F.tick) - 1)) do
-                local nx = hx + ((ttile.x > hx) and 1 or ((ttile.x < hx) and -1 or 0))
-                local nz = hz + ((ttile.z > hz) and 1 or ((ttile.z < hz) and -1 or 0))
-                if F.boss and QD.raid._tob_gap(nx, nz, F.boss.x, F.boss.z, QD.VZP3.SIZE) < 1 then break end
-                hx, hz = nx, nz
+            -- (H BY WALKING REACH: the meeting rank again from the two seats'
+            -- tiles NOW, her footprint NOW, roles swapped - the next ON H, the
+            -- holder within 1 - with no tick to spare: the first acceptable
+            -- tile (3+ off her, no web, no crab band) both can still walk to
+            -- round her body. lap4_all vp9 t866: the straight-line midpoint
+            -- stopped on the holder's own tile (its first step was under her)
+            -- and the next, 8 tiles off on her far side, could not reach it.
+            -- None -> the midpoint as before, never under her.)
+            local nlive = nil
+            for _, rd in ipairs(F.raiders) do if rd.pid == Bl.next_pid then nlive = { x = rd.x, z = rd.z } end end
+            local hx, hz = nil, nil
+            if nlive then
+                local her0 = Bl.her
+                Bl.her = F.boss and { x = F.boss.x, z = F.boss.z } or her0
+                local lst = VZ.ball_meet_rank(S, F, Bl, nlive, live, hread, math.max(Bl.land, Bl.land_hi or Bl.land), 0)
+                Bl.her = her0
+                if lst[1] then hx, hz = lst[1].x, lst[1].z end
+            end
+            if hx == nil then
+                local d = cheb(live.x, live.z, ttile.x, ttile.z)
+                hx, hz = live.x, live.z
+                for _ = 1, math.min((d + 1) // 2, math.max(0, QD.VZP3_V2.BALL_RUN * (hread - F.tick) - 1)) do
+                    local nx = hx + ((ttile.x > hx) and 1 or ((ttile.x < hx) and -1 or 0))
+                    local nz = hz + ((ttile.z > hz) and 1 or ((ttile.z < hz) and -1 or 0))
+                    if F.boss and QD.raid._tob_gap(nx, nz, F.boss.x, F.boss.z, QD.VZP3.SIZE) < 1 then break end
+                    hx, hz = nx, nz
+                end
             end
             Bl.fb = { x = hx, z = hz, at = F.tick }
             P.ball_fb = (P.ball_fb or 0) + 1
@@ -668,6 +708,51 @@ function VZ.ball_chain(S, F)
     if Bl.cur == F.pid then return "target", ttile, Bl.next_pid, Bl.ntile, fb end
     if Bl.visited[F.pid] then return "clear", ttile, Bl.next_pid, Bl.ntile, fb end
     return (Bl.next_pid == F.pid) and "next" or "clear", ttile, Bl.next_pid, Bl.ntile, fb
+end
+
+-- WEBS ONCE EACH. v1's S.web_hazards keys a web by its tile and "first
+-- sight + 4", and a web projectile is in sight for four ticks: every tick it
+-- was read again it added a hazard a tick later, so a web that landed at L
+-- and freed at L+12 (npc_free, idbg2 vp1: S3's web 816..828) stood in the
+-- plan until L+15 - and the web lap's return to S3 at 830 read as blocked
+-- (lap-S risk from k5, the E-to-S leg given up). Here a projectile is the same
+-- one while its tile matches one of last tick's and its cycles_left fell;
+-- its landing stays the one from its first sight. -> P.web_hz, the hazards.
+function VZ.web_track(S, F)
+    local P, V = S.vz, QD.VZP3
+    P.web_hz, P.web_keys = P.web_hz or {}, P.web_keys or {}
+    local r, projs = api_drive.projectiles(0)
+    if r == "ok" then
+        local prev, cur = P.webp or {}, {}
+        for _, p in ipairs(projs) do
+            if p.spotanim_id == S.ids.web_proj and p.dst_x ~= nil then
+                local land = nil
+                for _, q in ipairs(prev) do
+                    if not q.used and q.x == p.dst_x and q.z == p.dst_z and q.cl > (p.cycles_left or 0) then
+                        land, q.used = q.land, true
+                        break
+                    end
+                end
+                land = land or (F.tick + V.WEB_FLIGHT)
+                cur[#cur + 1] = { x = p.dst_x, z = p.dst_z, cl = p.cycles_left or 0, land = land }
+                local key = p.dst_x .. "," .. p.dst_z .. "@" .. land
+                if not P.web_keys[key] then
+                    P.web_keys[key] = true
+                    P.web_hz[#P.web_hz + 1] = { x = p.dst_x, z = p.dst_z, from = land - 1, to = land + V.WEB_LIFE }
+                end
+            end
+        end
+        P.webp = cur
+    end
+    local keep = {}
+    for _, h in ipairs(P.web_hz) do if h.to >= F.tick then keep[#keep + 1] = h end end
+    -- (a web on the floor no projectile announced: v1's rule, from now)
+    for _, w in ipairs(F.webs) do
+        local known = false
+        for _, h in ipairs(keep) do if h.x == w.x and h.z == w.z then known = true break end end
+        if not known then keep[#keep + 1] = { x = w.x, z = w.z, from = F.tick, to = F.tick + V.WEB_LIFE } end
+    end
+    P.web_hz = keep
 end
 
 -- THE BALL'S FLIGHT IS NOT A CONSTANT. v1 lands every throw at first sight
@@ -1081,7 +1166,7 @@ function VZ.predict(S, F, B)
 
     -- WEBS: seen ones (v1 S.web_hazards) forbidden with the run's middle; my
     -- own tick-end tiles in the throws' window: MARKS ahead, hits behind
-    for _, h in ipairs(S.web_hazards) do
+    for _, h in ipairs(S.vz.web_hz or S.web_hazards) do
         if h.to >= now + 1 then
             B.hit{ name = "web", x = h.x, z = h.z, t0 = math.max(h.from, now + 1), t1 = h.to, sample = "pass",
                 dmg_exp = X.WEB_DMG, dmg_max = X.WEB_MAX, forbid = true }
@@ -1273,10 +1358,22 @@ function VZ.her_path(S, F)
                 end
             end
         end
+    elseif S.webs_at ~= nil or F.charging then
+        -- (the webs and the yellows hold her where they put her: no step.
+        -- The "toward me" step below put her ON a seat standing beside her
+        -- during the spin, and the plan scored the worse outcome - the seat
+        -- shoved a tile out: every web-lap swing showed "attack>" a tile off
+        -- the side's middle (idbg vp1 t811-841), and with the lap's tile exact
+        -- the plan never swung)
     elseif tank and QD.raid._tob_gap(tank.x, tank.z, x, z, V.SIZE) >= 2 then
         if tank.x < x then ax = x - 1 elseif tank.x > x + V.SIZE - 1 then ax = x + 1 end
         if tank.z < z then az = z - 1 elseif tank.z > z + V.SIZE - 1 then az = z + 1 end
-    else
+    elseif QD.raid._tob_gap(F.me.x, F.me.z, x, z, V.SIZE) >= 2 then
+        -- (toward me only from 2+ off: were I her tank she stands while I
+        -- am beside her (T1). From beside her the step put her ON me and the
+        -- plan scored the press as a shove a tile out - a tile the server
+        -- never moves me to: ifin_rl f78 t2800, the ball's next pressed at
+        -- her expecting that tile, stood a tile short and the holder ate 76)
         if F.me.x < x then ax = x - 1 elseif F.me.x > x + V.SIZE - 1 then ax = x + 1 end
         if F.me.z < z then az = z - 1 elseif F.me.z > z + V.SIZE - 1 then az = z + 1 end
     end
@@ -1325,6 +1422,91 @@ function VZ.her_path(S, F)
         for _ = 1, X.H do alt[#alt + 1] = { x = ax, z = az } end
     end
     return path, alt
+end
+
+-- THE WEB LAP (owner 2026-10-13: "the human-like solution, where all the
+-- players death dot up on the far side of verzik and then run clockwise
+-- around, attacking on the middle tile of each side of verzik").
+-- The humans' rule, both sources agreeing:
+--   wiki Theatre_of_Blood/Strategies, Sticky webs: "a clockwise rotation
+--   starting from the south, attacking once every 5 ticks ... the players
+--   must attack on the same tick and tile"; her webs are thrown "three at a
+--   time if they are not on the same tile".
+--   Blert, 25 Normal trios (build/blert/verzik, vp/blert_webs.txt): the
+--   first attack on S3 (the south edge's middle of her 7x7) in 24 of 25, then
+--   W3, N3, E3, S3 ... one swing a side, 5 ticks apart (web tick +2, +7,
+--   +12 ...), all three on one tile; between, a run of 8 tiles round the
+--   corner in 4 ticks.
+-- So, from shared facts only (her centre is fixed for the webs, the spin
+-- tick every seat sees):
+--   GATHER   her walk to the centre: everyone to M0, the SOUTH middle - the
+--            side away from her throne, the humans' "far side" (soft; the
+--            knockback keeps us off the centre)
+--   SIDE k   swing tick A_k = spin + LAP_FIRST + LAP_CYCLE k, on M_k (S, W, N,
+--            E, S ... = clockwise) at the tick-ends A_k - 1 and A_k: lethal
+--            when I can still run there, else LAP_MISS a tick-end (a late
+--            seat skips that side and joins the next - the wiki's re-sync);
+--            free between (the 8-tile run). Her webs land four ticks after
+--            the throw on the tile read, so they land behind the stack, and
+--            a side comes round again only after 20 ticks (a web lives 16).
+--   DONE     past the last throw: the room's usual modes.
+-- -> the state ("gather" | "S" | "W" | "N" | "E"), or nil when not in a lap.
+function VZ.lap_tiles(S, F)
+    local V = QD.VZP3
+    -- (her footprint as SEEN once she spins - the room's constant only
+    -- predicts it for the gather: Blert's 25 Normal trios hold her SW at
+    -- region-local 29,21 for the whole special, ~tob_verzik_web_corner puts
+    -- it at 29,22)
+    local sx, sz = S.base.x + V.CENTRE.x - 3, S.base.z + V.CENTRE.z - 3
+    if S.spin_at and F and F.boss then sx, sz = F.boss.x, F.boss.z end
+    local m = (V.SIZE - 1) // 2
+    return {
+        { x = sx + m, z = sz - 1, side = "S" },
+        { x = sx - 1, z = sz + m, side = "W" },
+        { x = sx + m, z = sz + V.SIZE, side = "N" },
+        { x = sx + V.SIZE, z = sz + m, side = "E" },
+    }
+end
+
+function VZ.web_lap(S, F, B)
+    local X, V = QD.VZP3_V2, QD.VZP3
+    if S.webs_at == nil or (F.enraged and not X.LAP_ENRAGED) or F.tick >= S.webs_at + V.WEB_RESUME - V.WEB_RUN_LEAVE then
+        return nil
+    end
+    local now, hz = F.tick, F.tick + X.H
+    local M = VZ.lap_tiles(S, F)
+    if S.spin_at == nil then
+        B.zone{ name = "lap-gather", x = M[1].x, z = M[1].z, size = 1, lo = 0, hi = 0, require = true,
+            t0 = now + 1, t1 = hz, tier = "soft", cost = X.LAP_GATHER }
+        B.pull{ name = "lap-pull", x = M[1].x, z = M[1].z, size = 1, weight = X.LAP_PULL, t0 = now + 1, t1 = hz }
+        return "gather"
+    end
+    local th0, th1 = VZ.throws(S)
+    local A0 = S.spin_at + X.LAP_FIRST
+    local state = nil
+    for k = 0, 16 do
+        local A = A0 + X.LAP_CYCLE * k
+        if A - X.LAP_ON + 1 > th1 + X.WEB_STAY then break end
+        if A >= now + 1 and A - X.LAP_ON + 1 <= hz then
+            local m = M[(k % 4) + 1]
+            state = state or m.side
+            local t0 = math.max(now + 1, A - X.LAP_ON + 1)
+            local reach = cheb(F.me.x, F.me.z, m.x, m.z) <= QD.VZP3_V2.BALL_RUN * (t0 - now)
+            -- (ON M at both tick-ends: the stack is one tile, as the wiki's
+            -- "same tick and tile". Her path holds during the webs (VZ.her_path),
+            -- so the plan's press from M stands on M.)
+            -- (enraged, a RULE no longer: her tornadoes still chase, a chaser
+            -- is priced in hp, and two tick-ends on M with mine a tile behind
+            -- is a touch - ilua3q vp2 t1026, vp9 t925: 5 touches, all on M;
+            -- soft there, the touch outranks the side)
+            B.zone{ name = "lap-" .. m.side, x = m.x, z = m.z, size = 1, lo = 0, hi = 0, require = true,
+                t0 = t0, t1 = A, tier = (reach and not F.enraged) and "lethal" or "soft", cost = X.LAP_MISS }
+            if not reach then
+                B.pull{ name = "lap-pull", x = m.x, z = m.z, size = 1, weight = X.LAP_PULL, t0 = now + 1, t1 = t0 }
+            end
+        end
+    end
+    return state
 end
 
 -- THE STACK (v1 web run's tile, S.wr) as soft require-zones: the tile now
@@ -1526,7 +1708,9 @@ function VZ.strategy(S, F, B)
             mode = "yellows-wait"
         elseif role then
             mode = "ball-" .. role
-        elseif not F.enraged and S.webs_at and VZ.stack(S, F, B) then
+        elseif (X.LAP_ENRAGED or not F.enraged) and S.webs_at and X.WEB_DESIGN == "lap" and VZ.web_lap(S, F, B) then
+            mode = "web-lap"
+        elseif not F.enraged and S.webs_at and X.WEB_DESIGN ~= "lap" and VZ.stack(S, F, B) then
             mode = "web-" .. tostring(S.wr.state)
         elseif F.enraged then
             mode = "kite"
@@ -1537,7 +1721,11 @@ function VZ.strategy(S, F, B)
             for _, c in pairs(P.crab or {}) do
                 if c.seen == F.tick and not c.blasted then P.crab_up = F.tick end
             end
-            if P.crab_up == F.tick then VZ.station(S, F, B, X.CRAB_SPREAD_PULL) end
+            -- (in EVERY enraged kite, not only with a crab up: b17c f13
+            -- t3148-3157, five seats on one tile planned one path, the five
+            -- tornadoes in single file behind them, all five touched on one
+            -- tick - two dead)
+            VZ.station(S, F, B, (P.crab_up == F.tick) and X.CRAB_SPREAD_PULL or X.KITE_SPREAD_PULL)
         elseif VZ.exempt(S, F) then
             mode = "dps"
             VZ.station(S, F, B)
@@ -1545,6 +1733,15 @@ function VZ.strategy(S, F, B)
             mode = "tank"
         else
             mode = "away"
+        end
+        -- NOT ON A MATE'S TILE (the kite, the dps, the away seats: seats
+        -- sharing a tile and a view plan the same path; the station's pull
+        -- breaks the tie, this prices the clump itself)
+        if mode == "kite" or mode == "dps" or mode == "away" then
+            for _, m in ipairs(F.mates or {}) do
+                B.zone{ name = "mate", x = m.x, z = m.z, size = 1, lo = 0, hi = 0,
+                    t0 = F.tick + 1, t1 = F.tick + 2, tier = "soft", cost = X.MATE_COST }
+            end
         end
         -- UNDER HER sends her a random step a tick and breaks every seat's
         -- reach (vp_v2l): a soft price on ending a tick under her, for every
