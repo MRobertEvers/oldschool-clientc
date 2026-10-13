@@ -493,3 +493,130 @@ function QD.T2.budget.later_need(seat, room, kind)
     end
     return total
 end
+
+-- ================================================================ THE BOARD
+--
+-- THE SUPPLY BOARD (owner 2026-10-12: "You can use the chat to coordinate
+-- which seats get what resources"; "the scriptrun lane must use real chat.
+-- It must use the same channels as the live client"). Every seat says ONE
+-- public chat line -- "sup <exchange> <seat> <healing> <brews> <fish>
+-- <slots> <need>", digits and spaces, well under the 80 characters a line
+-- carries -- through api_drive.say (the client's own MESSAGE_PUBLIC), and
+-- every seat reads every seat's line from the player-info chat block
+-- (api_drive.messages, type 2, under the speaker's name; QD.chat.public).
+-- Said after tick T, read by every seat in view at T+1, the speaker too.
+-- The allocation below is then computed from the same numbers on every seat.
+QD.T2.board = QD.T2.board or {}
+QD.T2.board.FIELDS = 5
+
+-- The newest chat serial now: read lines after it.
+function QD.T2.board.mark()
+    local r, _, newest = QD.chat.public(0)
+    assert(r == "ok", "tob2 board: the chat answered " .. tostring(r))
+    return newest
+end
+
+-- Say my line for exchange `seq`. -> the verb's answer
+function QD.T2.board.say(seq, seat, vals)
+    assert(math.type(seq) == "integer")
+    assert(math.type(seat) == "integer")
+    assert(#vals == QD.T2.board.FIELDS, "tob2 board: a line carries " .. QD.T2.board.FIELDS .. " values")
+    local parts = { "sup", tostring(seq), tostring(seat) }
+    for _, v in ipairs(vals) do
+        assert(math.type(v) == "integer" and v >= 0, "tob2 board: value " .. tostring(v))
+        parts[#parts + 1] = tostring(v)
+    end
+    local line = table.concat(parts, " ")
+    assert(#line <= 80, "tob2 board: line over 80 characters")
+    return QD.chat.say(line)
+end
+
+-- Read the lines said since `since` for exchange `seq` into `got` (seat ->
+-- values), by the speaker's NAME (`names[seat]`, the relay's party list);
+-- the seat number in the line must agree with the speaker. -> newest serial
+function QD.T2.board.collect(seq, names, since, got)
+    local r, rows, newest = QD.chat.public(since)
+    assert(r == "ok", "tob2 board: the chat answered " .. tostring(r))
+    for _, m in ipairs(rows) do
+        local text = string.lower(m.text or "")
+        local q, seat, rest = text:match("^sup (%d+) (%d+) (.*)$")
+        if q and tonumber(q) == seq then
+            seat = tonumber(seat)
+            local who = nil
+            for n, name in ipairs(names) do
+                if QD.party._same(m.sender, name) then who = n end
+            end
+            assert(who ~= nil, "tob2 board: a supply line from " .. tostring(m.sender) .. ", not of the party")
+            assert(who == seat, "tob2 board: " .. tostring(m.sender) .. " said seat " .. seat .. ", is seat " .. who)
+            local vals = {}
+            for v in rest:gmatch("%d+") do vals[#vals + 1] = tonumber(v) end
+            assert(#vals == QD.T2.board.FIELDS, "tob2 board: a line of " .. #vals .. " values: " .. text)
+            got[seat] = vals
+        end
+    end
+    return newest
+end
+
+-- THE ALLOCATION (pure; every seat computes it from the same board).
+-- rows[seat] = { heal = hp of healing carried (16 a brew dose, 20 a fish),
+-- full = full brews it may give, fish = fish it may give, slots = free
+-- slots it may fill, need = hp of healing its later rooms need }.
+-- Target per seat = the team's healing split in proportion to need (equal
+-- when no seat needs any); then, repeatedly, the largest deficit takes from
+-- the largest surplus one whole item -- a full brew (64) when the giver's
+-- surplus and the taker's deficit are each at least half of it, else a fish
+-- (20) on the same rule -- ties to the lower seat. -> transfers
+-- { {from, to, kind = "brew"|"fish"}, ... }, targets {seat -> hp}.
+QD.T2.budget.ITEM_HP = { brew = 64, fish = 20 }
+
+function QD.T2.budget.allocate(rows)
+    local n = #rows
+    assert(n >= 1)
+    local total, needs = 0, 0
+    for s = 1, n do
+        local r = rows[s]
+        assert(r.heal and r.full and r.fish and r.slots and r.need, "tob2 allocate: seat " .. s .. " row incomplete")
+        total = total + r.heal
+        needs = needs + r.need
+    end
+    local target, have, full, fish, slots = {}, {}, {}, {}, {}
+    for s = 1, n do
+        local r = rows[s]
+        target[s] = (needs > 0) and (total * r.need / needs) or (total / n)
+        have[s], full[s], fish[s], slots[s] = r.heal, r.full, r.fish, r.slots
+    end
+    local moves = {}
+    for _ = 1, 200 do
+        -- the largest deficit that has a slot
+        local to, dmax = nil, 0
+        for s = 1, n do
+            local def = target[s] - have[s]
+            if slots[s] > 0 and def > dmax then to, dmax = s, def end
+        end
+        if to == nil then break end
+        local done = false
+        for _, kind in ipairs({ "brew", "fish" }) do
+            if not done then
+                local hp = QD.T2.budget.ITEM_HP[kind]
+                if dmax >= hp / 2 then
+                    local from, smax = nil, 0
+                    for s = 1, n do
+                        local stock = (kind == "brew") and full[s] or fish[s]
+                        local sur = have[s] - target[s]
+                        if s ~= to and stock > 0 and sur >= hp / 2 and sur > smax then from, smax = s, sur end
+                    end
+                    if from then
+                        moves[#moves + 1] = { from = from, to = to, kind = kind }
+                        have[from], have[to] = have[from] - hp, have[to] + hp
+                        if kind == "brew" then full[from] = full[from] - 1 else fish[from] = fish[from] - 1 end
+                        slots[to] = slots[to] - 1
+                        slots[from] = slots[from] + 1
+                        done = true
+                    end
+                end
+            end
+        end
+        if not done then break end
+    end
+    return moves, target
+end

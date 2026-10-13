@@ -133,7 +133,65 @@ QD.MAIDEN_V2 = {
     HITS_ROOM = 500,                       -- trails stop here (tob2_plan asserts at HITS_MAX 512)
     -- STRATEGY TERMS (hp)
     STATION_PULL = 0.3,                    -- v1's pull weight, a tile a tick
-    TANK_HOLD = 6,                         -- the tank handing a storm to the orb tie-break: > a prayed storm's 4.5-5.7
+    -- THE TANK KEEPS THE STORM: the hold's price is HOLD_MULT x the prayed
+    -- storm's expected damage (max/2 x 0.5 = 9 at no leaks, x FOCUS on a
+    -- third) + TANK_HOLD. It was a flat 6 under the 9 a prayed storm costs, so
+    -- the tank stepped two tiles off her face on T-2 every storm (f17 t133,
+    -- t143: soft 6.6 to keep it, loss 9 to take it) and the storm fell to the
+    -- off seat at 4 with the lower orb - p4 took 10-14 storms a run.
+    TANK_HOLD = 2, HOLD_MULT = 2,
+    -- THE TANK, LEVELLED (relay_r13_128 f17: seat 4 tanked Maiden for 306 in
+    -- 22 storms, drank 24 brew doses there and died three rooms later; the
+    -- fixed TANK_STORMS count let every storm the tank missed fall on the
+    -- lower orb at 4 - p4's OFF tile - so p4 took 10-14 storms a run to p5's
+    -- 2-5, mb1-mb8). Every seat sees each storm projectile's target
+    -- (target = -(pid+1)): a DPS seat's LOAD is its storms (the third in a row
+    -- counts FOCUS). The tank hands over when it has had two in a row (the
+    -- +25% third never lands) or carries LEVEL_GAP more than the lightest DPS
+    -- seat; the next tank is the lightest (ties: the lower seat). The same
+    -- projectiles on every seat give the same tank (E14). (Damage, not count:
+    -- a player row carries no hitsplat on scriptrun, so the dice are not
+    -- shared; a prayed storm on the tank is U(0..max)/2 for whoever takes it,
+    -- so equal counts are equal expected damage.)
+    LEVEL_GAP = 2,
+    -- THE BATCH'S TWO HALVES, each measured alone (coordinator 2026-10-12):
+    -- LEVEL = the tank levelling (the hold's cost, the storm dedupe window,
+    -- the rotation by load, NONTANK_MULT); SPECIALS = one hammer a DPS seat,
+    -- the claws between waves, the wave gate. Off, each half is the installed
+    -- version's rule (the TANK_STORMS rotation, a flat TANK_HOLD_V1, a 2-tick
+    -- dedupe; the hammer opener to under 500 energy, no claws, no gate).
+    LEVEL = false, SPECIALS = true,
+    TANK_HOLD_V1 = 6, STORM_DEDUPE_V1 = 2, HAMMERS_V1 = 2,
+    NONTANK_MULT = 3,                      -- a DPS seat not tanking prices a storm on it x this
+    -- THE SPECIALS (owner 2026-10-12: "maiden should start with hammer specs
+    -- and players should prioritize burning claw specs at the start and
+    -- between each crab phase"). HER DEFENCE: 200 on every Hard Mode form
+    -- (tob.npc [tob_maiden_100_hard] .. [tob_maiden_30_hard]); a landed
+    -- warhammer special takes 30% of the CURRENT level
+    -- (pvm_dragon_warhammer.rs2:46-48, divide(multiply(npc_stat(defence),
+    -- 30), 100)); the drain is npc->stat_drain, which the form changes keep
+    -- (torirs_server_scripts.c npc_changetype_rehydrate rebases hitpoints
+    -- only) and nothing regenerates; she has NO floor (only Sotetseg has one,
+    -- ^tob_sote_defence_floor). 200 -> 140 -> 98 -> 68 -> 47: her defence roll
+    -- (level + 9) falls to 71%, 51%, 37%, 27% - a tentacle at an even roll
+    -- goes from 50% to 64%, 75%, 82%, 87% to hit. The third landing is the last
+    -- worth a 500-energy special over a 350 claws special (~33): ONE HAMMER A
+    -- DPS SEAT (three swung, ~2-3 land), then the claws.
+    HAMMERS = 1,
+    -- THE WAVE GATE (owner 2026-10-12: "The wave is always a priority over
+    -- speccing maiden"; "a clean buffer where a seat doesn't waste time
+    -- speccing when it transitions to handling a wave"). A RULE, not a value:
+    -- no special starts, and one under way goes back at once, while a crab is
+    -- alive, or while the next wave is within the special's sequence - wield
+    -- 1 + the special weapon's speed + the swap back 1 + SPEC_MARGIN ticks by
+    -- her hp rate (MV.ticks_to_wave), or her bar within PRE_WAVE permille of
+    -- the threshold whatever the rate says (one round of three claws is ~100
+    -- of her 3500 = 29 permille: the burst itself can cross it). SPEC_MARGIN
+    -- 2: the walk from her face to a wave tile (2 tiles at 2 a tick, run) and
+    -- the blowpipe's wield; measured: the first crab swing after a spawn.
+    SPEC_MARGIN = 2,
+    CLAWS = { name = "bone_claws", cost = 350, speed = 4, exp = 33 },
+    HAMMER_COST = 500,
     EDGE_WEIGHT = 0.3,
     CRAB_URGENT = 4,                       -- a crab this many ticks from her outranks a spawn (v1 main tree)
     -- THE BARRAGE CLOCK AROUND A WAVE (v2s48: slot+1 dropped late 34 times;
@@ -236,6 +294,14 @@ function MV.observe(S, F)
     MV.observe_ground(S, F)
     MV.observe_crabs(S, F)
     MV.observe_slugs(S, F)
+    -- THE GATE'S MEASURE: a special energy fall (any special: mine or the
+    -- budget's dump) on a tick after the gate was closed
+    if M.energy_last ~= nil and F.energy < M.energy_last - 50 then
+        M.spec_fires = M.spec_fires + 1
+        if M.gate_prev == false then M.spec_closed = M.spec_closed + 1 end
+    end
+    M.energy_last = F.energy
+    M.gate_prev = MV.spec_open(S, F, QD.MAIDEN_V2.CLAWS)
     -- HER HP RATE (permille a tick, the wave bar's varbit): the ticks to the
     -- next threshold, for the prewave and the spawn freezes before a wave
     M.pm_hist[#M.pm_hist + 1] = { t = F.tick, pm = F.permille }
@@ -324,11 +390,18 @@ function MV.observe_storms(S, F)
         for _, p in ipairs(projs) do
             if p.spotanim_id == S.ids.shadow_proj and p.target ~= nil and p.target < 0 then
                 local pid = -p.target - 1
-                local launch = (M.att_last and F.tick - M.att_last <= 2) and M.att_last or F.tick
+                -- (the projectile is seen from its launch T to its landing,
+                -- T + STORM_FLIGHT: within that window it is her last attack's
+                -- storm - a 2-tick window counted each storm up to three times,
+                -- the focus count and the tank's load with it)
+                local win = X.LEVEL and (X.STORM_FLIGHT + 1) or X.STORM_DEDUPE_V1
+                local launch = (M.att_last and F.tick - M.att_last <= win) and M.att_last or F.tick
                 local key = pid .. "@" .. launch
                 if not M.storm_seen[key] then
                     M.storm_seen[key] = true
                     if pid == M.storm_pid then M.storm_consec = M.storm_consec + 1 else M.storm_pid, M.storm_consec = pid, 1 end
+                    M.storm_w[pid] = (M.storm_w[pid] or 0) + ((M.storm_consec >= 3) and X.FOCUS or 1)
+                    if X.LEVEL then MV.retank(S, F) end
                     if pid == F.pid then
                         M.on_me = M.on_me + 1
                         -- the prayer read at the launch (R3): the bit as measured on it
@@ -480,10 +553,25 @@ function MV.slug_path(S, F, sl, h)
     return path
 end
 
+-- Is the wave gate open for a special of `swing` (QD.MAIDEN_V2.SPEC_MARGIN's note)?
+function MV.spec_open(S, F, swing)
+    local X = QD.MAIDEN_V2
+    if not X.SPECIALS then return true end
+    if #F.crabs > 0 then return false end
+    if F.next_threshold == nil then return true end
+    if F.permille <= F.next_threshold + QD.MAIDEN_HM.PRE_WAVE then return false end
+    local ttw = MV.ticks_to_wave(S, F)
+    if ttw ~= nil and ttw <= 1 + swing.speed + 1 + X.SPEC_MARGIN then return false end
+    return true
+end
+
 function MV.her_target(S, F, B, swing, range, name)
     local X = QD.MAIDEN_V2
     return B.target{ name = name, npc = F.boss, size = QD.MAIDEN.SIZE, path = { { x = F.boss.x, z = F.boss.z } },
-        range = range, speed = swing.speed, value = swing.exp * X.HP_PER_BOSS_HP, spec_ok = true }
+        range = range, speed = swing.speed, value = swing.exp * X.HP_PER_BOSS_HP,
+        -- (the budget's hammer dump fires only on a spec_ok melee target:
+        -- the wave gate closes it too)
+        spec_ok = MV.spec_open(S, F, X.HAMMER) }
 end
 
 function MV.crowd(F, c)
@@ -642,15 +730,21 @@ function MV.deadline(S, F, c)
     local X = QD.MAIDEN_V2
     if c.frozen then return math.max((c.thaw or F.tick) - F.tick, 0) + c.eta end
     local land = MV.slot_land(S, c)
-    if land ~= nil and land > F.tick and land - F.tick < c.eta then return c.eta + X.FREEZE_TICKS_V1 end
+    -- (a freeze landing ON the crab's eta still saves it: the 4s' +16 cast
+    -- holds from +17 and they would leak at +18. With `<` the walking 4s
+    -- read as the most urgent crabs for their first 16 ticks - deadline 17,
+    -- their eta - and every DPS seat shot them while the +16 slot froze them
+    -- anyway; their twins on the other side went into the freeze at 100 and
+    -- thawed unkilled at +48: mt48_A, 54 of 57 north leaks thawed frozen,
+    -- diag mb8 t168-t184 S4i 100 -> 3, N4i/N4o 100 at their freeze)
+    if land ~= nil and land > F.tick and land - F.tick <= c.eta then return c.eta + X.FREEZE_TICKS_V1 end
     return c.eta
 end
 
 -- A DPS role's wave tile (the tank's turn at 3 from her centre, the others' at 4).
 function MV.wave_tile(S, role)
     local H, X = QD.MAIDEN_HM, QD.MAIDEN_V2
-    local turn = (S.storms // H.TANK_STORMS) % #H.DPS
-    if H.DPS[turn + 1] == role then return H.WAVE_TILE[role] end
+    if MV.tank_of(S) == role then return H.WAVE_TILE[role] end
     return X.WAVE_FAR[role]
 end
 
@@ -664,8 +758,14 @@ function MV.dps_pick(S, F)
         dl[c] = MV.deadline(S, F, c)
         order[#order + 1] = c
     end
+    -- (equal deadlines - the N and S twins of a point - go most hitpoints
+    -- left first: by slot alone one side's twin took every first seat, wave
+    -- after wave)
+    local hp = {}
+    for _, c in ipairs(F.crabs) do hp[c] = MV.crab_hp(c) end
     table.sort(order, function(a, b)
         if dl[a] ~= dl[b] then return dl[a] < dl[b] end
+        if hp[a] ~= hp[b] then return hp[a] > hp[b] end
         return a.slot < b.slot
     end)
     -- the freezers' own crab once their slots are done: their side's first
@@ -790,8 +890,59 @@ end
 
 -- ===================================================================== DPS
 
+-- The tank's role: levelled (MV.retank), else the installed TANK_STORMS rotation.
+function MV.tank_of(S)
+    local H = QD.MAIDEN_HM
+    if QD.MAIDEN_V2.LEVEL then return S.t2m.tank_role end
+    return H.DPS[(S.storms // H.TANK_STORMS) % #H.DPS + 1]
+end
+
 function MV.is_tank(S)
-    return QD.raid._maiden_hm_station(S) == QD.MAIDEN_HM.TANK_TILE
+    return S.role == MV.tank_of(S)
+end
+
+-- The pid of a DPS role: its rank in pid order (the orb convention, E14).
+function MV.role_pid(F, role)
+    local rd = F.raiders[role]
+    return rd and rd.pid or nil
+end
+
+-- THE TANK, after each storm seen (QD.MAIDEN_V2.LEVEL_GAP's note).
+function MV.retank(S, F)
+    local X, M, H = QD.MAIDEN_V2, S.t2m, QD.MAIDEN_HM
+    local cur = M.tank_role
+    local function load(r)
+        local pid = MV.role_pid(F, r)
+        return pid and (M.storm_w[pid] or 0) or 1000000
+    end
+    local mn = nil
+    for _, r in ipairs(H.DPS) do if mn == nil or load(r) < mn then mn = load(r) end end
+    local two = M.storm_pid ~= nil and M.storm_pid == MV.role_pid(F, cur) and M.storm_consec >= 2
+    if not two and load(cur) - mn < X.LEVEL_GAP then return end
+    local best = nil
+    for _, r in ipairs(H.DPS) do
+        if not (two and r == cur) and (best == nil or load(r) < load(best)) then best = r end
+    end
+    if best ~= nil and best ~= cur then
+        M.tank_role, M.tank_changes = best, M.tank_changes + 1
+        QD.raid._tob_trace(S, F.tick, "tank -> p" .. best .. (two and " (two in a row)" or " (load)"))
+    end
+end
+
+-- A DPS role's station between waves: the tank's tile, the other two the
+-- off tiles in role order (v1 _maiden_hm_station's layout).
+function MV.station(S, role)
+    local H = QD.MAIDEN_HM
+    local tank = MV.tank_of(S)
+    if role == tank then return H.TANK_TILE end
+    local off = 0
+    for _, r in ipairs(H.DPS) do
+        if r ~= tank then
+            off = off + 1
+            if r == role then return H.OFF_TILES[off] end
+        end
+    end
+    return H.TANK_TILE
 end
 
 -- THE TANK KEEPS THE STORM: a soft price on ending her decision tick's T-1
@@ -802,24 +953,110 @@ function MV.tank_hold(S, F, B, station)
     local cx, cz = S.base.x + X.CENTRE.x, S.base.z + X.CENTRE.z
     local st = abs_tile(S, station)
     local d = cheb(st.x, st.z, cx, cz)
+    local maxs = (X.STORM_BASE + X.STORM_PER_LEAK * M.leaks) // 10
+    local cost = X.LEVEL and (X.HOLD_MULT * (maxs / 4) * X.FOCUS + X.TANK_HOLD) or X.TANK_HOLD_V1
     for _, a in ipairs(M.storm_ticks) do
         B.zone{ name = "tank-hold", x = cx, z = cz, size = 1, lo = d + 1, hi = 60, t0 = a - 1, t1 = a - 1,
-            tier = "soft", cost = X.TANK_HOLD }
+            tier = "soft", cost = cost }
     end
+end
+
+-- THE SPECIALS (QD.MAIDEN_V2.HAMMERS' note; tob2_sotetseg.lua SV.special's
+-- machine): opener (the hammer, HAMMERS specials) -> back (the melee set:
+-- the tentacle AND the defender) -> idle -> wield (the claws, two-handed:
+-- a free slot) -> armed (the orb rides the plan's attack on her) -> back.
+-- Only in the melee modes on her; a wave (the blowpipe) sends a wield or an
+-- armed back. Sets I.gear / I.spec / I.spec_cost; -> the swing priced.
+function MV.special(S, F, I)
+    local X, M, ids = QD.MAIDEN_V2, S.t2m, S.ids
+    local sp = M.sp
+    local function enter(state, why)
+        QD.raid._tob_trace(S, F.tick, "spec: " .. sp.state .. " -> " .. state .. " (" .. why .. ")")
+        sp.state = state
+    end
+    -- THE WAVE GATE: a sequence that cannot finish before the wave is not
+    -- started, and one under way goes back now
+    local claws_open = MV.spec_open(S, F, X.CLAWS)
+    if (sp.state == "wield" or sp.state == "armed") and not claws_open then
+        enter("back", "wave gate")
+    end
+    if sp.state == "opener" and not MV.spec_open(S, F, X.HAMMER) then
+        enter("back", "wave gate, hammers " .. sp.hammers)
+    end
+    if sp.state == "opener" then
+        local fired = sp.e0 ~= nil and F.energy <= sp.e0 - X.HAMMER_COST + 10
+        if fired then
+            sp.hammers, sp.e0 = sp.hammers + 1, nil
+        end
+        if sp.hammers >= (X.SPECIALS and X.HAMMERS or X.HAMMERS_V1) or F.energy < X.HAMMER_COST
+            or F.tick - (S.fight_start or F.tick) > QD.MAIDEN.OPENER_TICKS then
+            enter("back", "hammers " .. sp.hammers .. ", energy " .. F.energy)
+        elseif QD.raid._tob_worn(S, ids.hammer) then
+            sp.e0 = sp.e0 or F.energy
+            I.gear, I.spec, I.spec_cost = {}, true, X.HAMMER_COST
+            return X.HAMMER
+        else
+            I.gear = { ids.hammer }
+            return X.TENTACLE
+        end
+    end
+    local last = S.t2.last
+    local attacking = last ~= nil and last.path ~= nil and last.path[1] ~= nil and last.path[1].act == "attack"
+    if sp.state == "idle" and X.SPECIALS and claws_open and sp.id and attacking and F.energy >= X.CLAWS.cost and QD.raid._tob_count(S, sp.id) > 0
+        and QD.T2.exec.spec_gate(S, F, { spec_cost = X.CLAWS.cost }) and QD.T2.exec.free_slots(S) >= 1 then
+        enter("wield", "energy " .. F.energy)
+    end
+    if sp.state == "wield" then
+        if QD.raid._tob_worn(S, sp.id) then
+            sp.energy = F.energy
+            enter("armed", "claws in hand")
+        else
+            I.gear = { { obj = sp.id, two_hand = true } }
+            return X.TENTACLE
+        end
+    end
+    if sp.state == "armed" then
+        if F.energy <= sp.energy - X.CLAWS.cost + 10 then
+            sp.fired = sp.fired + 1
+            sp.energy = F.energy
+            if F.energy < X.CLAWS.cost then enter("back", "fired, energy " .. F.energy) end
+        elseif not QD.raid._tob_worn(S, sp.id) then
+            enter("back", "not in hand")
+        end
+        if sp.state == "armed" then
+            I.gear, I.spec, I.spec_cost = {}, true, X.CLAWS.cost
+            return X.CLAWS
+        end
+    end
+    -- back and idle: the melee set (the tentacle and the defender, the
+    -- same tick: one gear list)
+    I.gear = QD.raid._maiden_missing(S, ids.melee_set)
+    if sp.state == "back" and #I.gear == 0 then enter("idle", "melee set on") end
+    return X.TENTACLE
 end
 
 function MV.dps(S, F, B, I, prewave)
     local H, ids, X, M = QD.MAIDEN_HM, S.ids, QD.MAIDEN_V2, S.t2m
-    if M.opener == "hammer" then
-        local worn = QD.raid._tob_worn(S, ids.hammer)
-        I.gear = worn and {} or { ids.hammer }
-        I.boost, I.boost_stat = "piety", "attack"
-        I.spec = worn and F.energy >= 500
-        MV.her_target(S, F, B, X.HAMMER, 1, "hammer")
-        return "D-hammer"
-    end
     local tank = MV.is_tank(S)
+    if M.sp.state == "opener" then
+        I.boost, I.boost_stat = "piety", "attack"
+        local swing = MV.special(S, F, I)
+        if M.sp.state == "opener" then
+            MV.her_target(S, F, B, swing, 1, "hammer")
+            if X.LEVEL then
+                local st = MV.station(S, S.role)
+                MV.station_pull(S, F, B, st, "station")
+                if tank then MV.tank_hold(S, F, B, st) end
+            end
+            return "D-hammer"
+        end
+    end
     if tank then I.brew_below = H.TANK_BREW end
+    -- (a crab up: a special under way goes back at once - the wave first)
+    if X.SPECIALS and #F.crabs > 0 and (M.sp.state == "wield" or M.sp.state == "armed" or M.sp.state == "opener") then
+        QD.raid._tob_trace(S, F.tick, "spec: " .. M.sp.state .. " -> back (a wave)")
+        M.sp.state = "back"
+    end
     local rescue = MV.rescue_pick(S, F)
     if rescue then
         -- the cast set on (no unequip: the freezers' accuracy rule, and no
@@ -853,13 +1090,14 @@ function MV.dps(S, F, B, I, prewave)
         end
         return "D-pipecrab"
     end
-    MV.set_gear(S, I, ids.melee_set, "piety", "attack")
-    MV.her_target(S, F, B, X.TENTACLE, 1, "her")
+    I.boost, I.boost_stat = "piety", "attack"
+    local swing = MV.special(S, F, I)
+    MV.her_target(S, F, B, swing, 1, (swing == X.CLAWS) and "claws" or "her")
     local station
     if prewave then
         station = tank and H.WAVE_TILE[S.role] or X.WAVE_FAR[S.role]
     else
-        station = QD.raid._maiden_hm_station(S)
+        station = MV.station(S, S.role)
     end
     MV.station_pull(S, F, B, station, "station")
     if tank then MV.tank_hold(S, F, B, station) end
@@ -898,7 +1136,14 @@ QD.T2.rooms.maiden = {
             crab_last = {}, leaks = 0, kills = 0, leak_log = {},
             slug_thaw = {}, pm_hist = {}, rescues = 0, rescue_slot = nil, claims = 0, snapped = 0,
             opener = nil, taken = 0, last_hp = nil,
+            storm_w = {}, tank_role = QD.MAIDEN_HM.DPS[1], tank_changes = 0,
+            spec_fires = 0, spec_closed = 0, energy_last = nil, gate_prev = nil,
+            sp = { state = "opener", hammers = 0, fired = 0, id = nil },
         }
+        -- the burning claws, when the kit carries them (the relay's Hard kit;
+        -- a symbol the cache lacks leaves the claws out, the hammer opener stays)
+        local cr, claws = api_drive.symbol("obj", QD.MAIDEN_V2.CLAWS.name)
+        if cr == "ok" then S.t2m.sp.id = claws end
     end,
 
     -- The blowpipe on Rapid before the room (the press is an IF_BUTTON; the
@@ -1006,10 +1251,18 @@ QD.T2.rooms.maiden = {
                     -- here (Protect from Magic halves, K:285) and given no style
                     local f = B.prayed("magic", T, 0.5)
                     if M.storm_pid == F.pid and M.storm_consec >= 2 then f = f * X.FOCUS end
+                    -- (a seat that is not the tank: the storm on it unlevels the
+                    -- rotation - priced NONTANK_MULT times; the dmg_max is the
+                    -- storm's own)
+                    -- (DPS seats only: a freezer pricing it x3 walked off its
+                    -- slot tile when the DPS chased crabs past it - mb6 lvl
+                    -- slots dropped late 6 to 1)
+                    local dps = S.role ~= 1 and S.role ~= 2
+                    local mult = (X.LEVEL and dps and not MV.is_tank(S)) and X.NONTANK_MULT or 1
                     -- (charged at the tick end she reads, T-1; land: it lands
                     -- T+5, for the monitor's threat rule)
                     B.hit{ name = "storm", x0 = cx - r, z0 = cz - r, x1 = cx + r, z1 = cz + r, t0 = T - 1, t1 = T - 1,
-                        sample = "end", dmg_exp = a.p_storm * (maxs / 2) * f, dmg_max = math.floor(maxs * f),
+                        sample = "end", dmg_exp = mult * a.p_storm * (maxs / 2) * f, dmg_max = math.floor(maxs * f),
                         land = X.STORM_FLIGHT + 1 }
                 end
             end
@@ -1073,13 +1326,7 @@ QD.T2.rooms.maiden = {
             mode, I.pray = "wait", nil
         else
             local freezer = (S.role == 1 or S.role == 2)
-            if not freezer and M.opener ~= "done" then
-                if M.opener == nil then M.opener = "hammer" end
-                if F.energy < 500 or F.tick - S.fight_start > V.OPENER_TICKS then
-                    M.opener = "done"
-                    QD.raid._tob_trace(S, F.tick, "hammer opener done (energy " .. F.energy .. ")")
-                end
-            end
+
             local ttw = MV.ticks_to_wave(S, F)
             local prewave = #F.crabs == 0 and F.next_threshold ~= nil
                 and (F.permille <= F.next_threshold + QD.MAIDEN_HM.PRE_WAVE
@@ -1129,8 +1376,12 @@ QD.T2.rooms.maiden = {
         local modes = {}
         for k, n in pairs(M.modes) do modes[#modes + 1] = k .. "=" .. n end
         table.sort(modes)
-        return string.format("maiden v2: modes %s; rescues %d; panel claims %d; crabs snapped %d; taken %d; storms %d (on me %d), throws %d; waves %d; leaks %d (%s), kills %d; froze %d (%s); casts %s; storm targets %s; cast lag %d",
-            table.concat(modes, " "), M.rescues, M.claims, M.snapped, M.taken, S.storms, M.on_me, S.throws, S.waves, M.leaks,
+        local loads = {}
+        for pid, w in pairs(M.storm_w) do loads[#loads + 1] = "pid" .. pid .. "=" .. w end
+        table.sort(loads)
+        loads = table.concat(loads, ",")
+        return string.format("maiden v2: modes %s; hammers %d claws %d; specials %d (gate closed %d); tank p%d (changes %d, loads %s); rescues %d; panel claims %d; crabs snapped %d; taken %d; storms %d (on me %d), throws %d; waves %d; leaks %d (%s), kills %d; froze %d (%s); casts %s; storm targets %s; cast lag %d",
+            table.concat(modes, " "), M.sp.hammers, M.sp.fired, M.spec_fires, M.spec_closed, M.tank_role, M.tank_changes, loads, M.rescues, M.claims, M.snapped, M.taken, S.storms, M.on_me, S.throws, S.waves, M.leaks,
             table.concat(M.leak_log, " "), M.kills, #S.freeze_log, table.concat(S.freeze_log, " "),
             table.concat(S.cast_log, " | "), table.concat(M.storm_log, " "), S.cast_lag)
     end,

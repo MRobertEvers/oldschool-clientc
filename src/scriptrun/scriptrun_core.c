@@ -1,6 +1,8 @@
 #include "scriptrun_core.h"
 
+#include "game/rs_chat.h" /* RS_CHAT_TYPE_PUBLIC: the client chatbox's type */
 #include "game/rs_entity_sync.h"
+#include "net/wordpack.h"
 #include "net/rev/gameproto_parse.h"
 #include "net/rev/gameproto_revisions.h"
 #include "net/rev/packets/pkt_npc_info.h"
@@ -388,6 +390,13 @@ player_ensure_now(struct PlayerApply* self)
     }
 }
 
+static void
+core_message(
+    struct ScriptrunCore* core,
+    int type,
+    char const* name,
+    char const* text);
+
 /* game/task_exec_entity_info.c player_apply_op, applied at once (no awaits). */
 static void
 player_apply_op(
@@ -505,7 +514,37 @@ player_apply_op(
         break;
     case PKT_PLAYER_INFO_OP_SAY:
         if( op->_say.text )
+        {
+            /* the client's arm: a chatbox row (public, the speaker's name)
+             * and the overhead line */
+            struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, idx);
+            core_message(core, RS_CHAT_TYPE_PUBLIC, player && player->name[0] ? player->name : "Player",
+                         op->_say.text);
+            ScriptrunCore_Event(core, SCRIPTRUN_EV_CHAT_MESSAGE, core->message_serial, RS_CHAT_TYPE_PUBLIC, 0, 0);
             World_PlayerSetChat(world, idx, op->_say.text, 0, 0);
+        }
+        break;
+    case PKT_PLAYER_INFO_OP_CHAT:
+        /* Public chat (the player-info chat block, the sender's own included:
+         * the server echoes a line only this way). The client's arm in
+         * game/task_exec_entity_info.c, minus the UI: unpack, a chatbox row of
+         * type RS_CHAT_TYPE_PUBLIC under the speaker's name, the overhead. */
+        if( op->_chat.data && op->_chat.length > 0 )
+        {
+            struct RSCache_Buffer chatbuf;
+            char* text;
+            RSCache_BufferInit(&chatbuf, (uint8_t*)op->_chat.data, op->_chat.length);
+            text = wordpack_unpack(&chatbuf, op->_chat.length);
+            if( text )
+            {
+                struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, idx);
+                core_message(core, RS_CHAT_TYPE_PUBLIC, player && player->name[0] ? player->name : "Player", text);
+                ScriptrunCore_Event(core, SCRIPTRUN_EV_CHAT_MESSAGE, core->message_serial, RS_CHAT_TYPE_PUBLIC, 0,
+                                    0);
+                World_PlayerSetChat(world, idx, text, op->_chat.colour_effect >> 8, op->_chat.colour_effect & 0xff);
+                free(text);
+            }
+        }
         break;
     case PKT_PLAYER_INFO_OP_DAMAGE:
     case PKT_PLAYER_INFO_OP_DAMAGE2:

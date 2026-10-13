@@ -26,6 +26,9 @@
 #include "plugin/torirs_plugin_lua.h"
 
 #include "game/rs_chat.h"
+#include "game/rs_cs2_host.h"
+#include "net/net.h"
+#include "net/wordpack.h"
 #include "game/rs_player_stats.h"
 #include "inv/inv_manager.h"
 #include "torirsserver/torirs_server.h"
@@ -658,6 +661,49 @@ lua_drive_messages(struct lua_State* L)
     return 2;
 }
 
+/* api_drive.say(text) -> "ok" | "refused" | "not_visible": a line of PUBLIC
+ * chat through the chatbox's own send path -- the RS_CS2SocialSend
+ * CS2_OP_CHAT_SENDPUBLIC queues (game/rs_cs2_host.c), which the App's flush
+ * turns into MESSAGE_PUBLIC (net_out_message_public ->
+ * wordpack_message_public_body), colour/effect 0. Refused as scriptrun's
+ * d_say refuses (wordpack_says; a "::" line is a command). No local echo:
+ * the line comes back in the speaker's own player-info chat block. */
+static int
+lua_drive_say(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+    char const* text = luaL_checkstring(L, 1);
+    struct RS_CS2SocialSend send;
+
+    assert(app);
+    if( !wordpack_says(text) )
+    {
+        lua_pushstring(L, "refused");
+        lua_pushstring(L, "say: empty, over 80 characters, or a character chat cannot carry");
+        return 2;
+    }
+    if( text[0] == ':' && text[1] == ':' )
+    {
+        lua_pushstring(L, "refused");
+        lua_pushstring(L, "say: a :: line is a command, not chat");
+        return 2;
+    }
+    if( !app->net || app->net->state != TORIRS_NET_GAME )
+    {
+        lua_pushstring(L, "not_visible");
+        lua_pushstring(L, "say: not in game");
+        return 2;
+    }
+    memset(&send, 0, sizeof(send));
+    send.kind = RS_CS2_SOCIAL_SEND_MESSAGE_PUBLIC;
+    send.colour_effect = 0;
+    snprintf(send.text, sizeof(send.text), "%s", text);
+    RS_CS2Host_SendPush(&app->host, &send);
+    lua_pushstring(L, "ok");
+    lua_pushstring(L, "said");
+    return 2;
+}
+
 static int
 lua_drive_message_serial(struct lua_State* L)
 {
@@ -849,6 +895,7 @@ static struct LuaFn const LUA_DRIVE_STATE_FNS[] = {
     {"run_energy", lua_drive_run_energy},
     {"messages", lua_drive_messages},
     {"message_serial", lua_drive_message_serial},
+    {"say", lua_drive_say},
     {"vessel", lua_drive_vessel},
     {"player_delayed", lua_drive_player_delayed},
     {NULL, NULL},

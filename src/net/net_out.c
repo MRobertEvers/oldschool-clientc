@@ -1724,9 +1724,8 @@ net_out_message_public(
     p1(&b, 0); /* length placeholder */
     len_pos = (int)b.position - 1;
     start = (int)b.position;
-    p1(&b, (colour_effect >> 8) & 0xff); /* colour */
-    p1(&b, colour_effect & 0xff);        /* effect */
-    wordpack_pack(&b, text);
+    /* the body's one writer, shared with scriptrun's api_drive.say */
+    wordpack_message_public_body(&b, text, colour_effect);
     buf[1 + len_pos] = (uint8_t)((int)b.position - start);
     return 1 + (int)b.position;
 }

@@ -1570,3 +1570,42 @@ function QD.game.runedraw(policy)
             .. " debt=" .. tostring(state.debt) .. (state.signed and " SIGNED" or ""),
     }
 end
+
+-- t.chat.say(text) -> ("ok"|"refused"|"not_visible"|"unsupported", detail):
+-- one line of PUBLIC chat, the packet the chatbox sends (MESSAGE_PUBLIC,
+-- colour/effect 0), on both lanes (api_drive.say). Refused: empty, over 80
+-- characters, a character chat cannot carry, or a "::" line. Every player in
+-- view reads it -- the speaker too -- through the player-info chat block on
+-- the server's next tick: t.chat.public.
+function QD.chat.say(text)
+    assert(type(text) == "string")
+    if api_drive.say == nil then
+        return "unsupported", "t.chat.say: this binary has no api_drive.say (rebuild)"
+    end
+    return api_drive.say(text)
+end
+
+-- t.chat.public(since) -> ("ok", rows, newest): the PUBLIC chat lines
+-- (chatbox type 2) with serial > since, oldest first, each {sender, text,
+-- serial}; `newest` is the newest serial read (pass it back as `since`).
+-- Text arrives as the chat codec gives it back: lower case, sentence-cased.
+function QD.chat.public(since)
+    assert(math.type(since) == "integer")
+    local result, rows = api_drive.messages(100)
+    if result ~= "ok" then
+        return result, rows, since
+    end
+    local out, newest = {}, since
+    for i = #rows, 1, -1 do
+        local m = rows[i]
+        if m.serial > since then
+            if m.serial > newest then
+                newest = m.serial
+            end
+            if m.type == 2 then
+                out[#out + 1] = { sender = m.sender, text = m.text, serial = m.serial }
+            end
+        end
+    end
+    return "ok", out, newest
+end

@@ -52,6 +52,7 @@
 #include "3rd/lua/lua.h"
 #include "3rd/lua/lualib.h"
 #include "plugin/torirs_drive_plan_lua.h"
+#include "net/wordpack.h"
 
 #include <assert.h>
 #include <stdint.h>
@@ -1394,6 +1395,33 @@ d_message_serial(lua_State* L)
 
 /* ----------------------------------------------------------- inputs */
 
+/* api_drive.say(text) -> "ok" | "refused": a line of PUBLIC chat, as the
+ * client's chatbox sends it -- MESSAGE_PUBLIC, colour/effect 0, the body from
+ * wordpack_message_public_body (the client's net_out_message_public writes it
+ * through the same function), queued like every bot input for the next tick
+ * boundary. Refused: a line wordpack would not carry as typed (empty, over 80,
+ * a character outside its table: wordpack_says) and a "::" line (the chatbox
+ * sends that as a command, not as chat). The line comes back to every player
+ * in view, the speaker included, in the player-info chat block
+ * (scriptrun_core.c player_apply_op), as it does to a client. */
+static int
+d_say(lua_State* L)
+{
+    struct ScriptBot* bot = bot_of(L);
+    char const* text = luaL_checkstring(L, 1);
+    uint8_t payload[2 + WORDPACK_TEXT_MAX];
+    struct RSCache_Buffer b;
+
+    if( !wordpack_says(text) )
+        return push_result(L, "refused", "say: empty, over 80 characters, or a character chat cannot carry");
+    if( text[0] == ':' && text[1] == ':' )
+        return push_result(L, "refused", "say: a :: line is a command, not chat");
+    RSCache_BufferInit(&b, payload, (uint32_t)sizeof(payload));
+    wordpack_message_public_body(&b, text, 0);
+    handle(bot, PKTOUT_NAME_MESSAGE_PUBLIC, payload, (int)b.position);
+    return push_result(L, "ok", "said");
+}
+
 static int
 d_move_to(lua_State* L)
 {
@@ -2468,7 +2496,7 @@ static char const* const CLIENT_VERBS[] = {
     "modal_group", "modal_live", "model_points", "model_pose", "mouse_button", "mouse_move",
     "move_near", "npc_pose", "npc_record", "op_available", "option_row", "options",
     "party_host", "pause_pending", "pick_holds", "pick_point", "play", "player_delayed",
-    "plan", "pump", "quit", "render_frame", "render_skip", "route", "screen_position", "server_los",
+    "plan", "pump", "quit", "render_frame", "render_skip", "route", "say", "screen_position", "server_los",
     "server_npc_pack", "shot", "spell_arm", "start", "stop", "tab", "tab_by_name", "tests",
     "text", "var_content", "varbit_base", "varbit_content", "vessel", "view_attach",
     "view_detach", "view_interact", "view_status", "view_watcher", "widget_at",
@@ -2549,6 +2577,7 @@ push_drive_table(
     bind(L, bot, "route", d_route);
     bind(L, bot, "plan", d_plan);
     bind(L, bot, "aplan", d_aplan);
+    bind(L, bot, "say", d_say);
     bind(L, bot, "tab_by_name", d_tab_by_name);
     bind(L, bot, "pause_pending", d_pause_pending);
     bind(L, bot, "meslayer_mode", d_meslayer_mode);

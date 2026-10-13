@@ -400,11 +400,20 @@ function QD.raid.tob_relay_test(mode, opts)
         if Bu and Bu.later_need then
             target_p = Bu.later_need(role, name, "restore")
             local heal_need = 16 * Bu.later_need(role, name, "brew") + 20 * Bu.later_need(role, name, "food")
-            for _ = 1, 8 do if prayer_doses() >= target_p or not buy("restore") then break end end
-            for _ = 1, 20 do
-                if heal_hp() >= heal_need then break end
-                if not ((points >= CHEST_COST.brew and buy("brew")) or buy("shark")) then break end
+            local function heal_to_need()
+                for _ = 1, 20 do
+                    if heal_hp() >= heal_need then break end
+                    if not ((points >= CHEST_COST.brew and buy("brew")) or buy("shark")) then break end
+                end
             end
+            -- HEALING FIRST WHEN SHORT (relay_r13_128 f17: seat 4 tanked
+            -- Maiden on all 24 brew doses, Bloat's chest bought it "restore
+            -- restore shark" with 0 brews, and it died in Sotetseg): a seat
+            -- under its later healing need buys brews, then sharks, to that
+            -- need before any restore
+            if heal_hp() < heal_need then heal_to_need() end
+            for _ = 1, 8 do if prayer_doses() >= target_p or not buy("restore") then break end end
+            heal_to_need()
             for _ = 1, 20 do if not heal(0) then break end end
         else
             for _ = 1, 20 do if heal_hp() >= 20 * floor_f or not heal(prayer_reserve()) then break end end
@@ -503,7 +512,121 @@ function QD.raid.tob_relay_test(mode, opts)
     -- SHARE_SOTE (2026-10-12, relay_r10_128: 3 of 5 failures were a Sotetseg
     -- seat out of brews - f74 seats 1/2 came in on 7 and 8 brew doses with
     -- seat 5 on 31; four pairs at the 75 worst case need ~10-12 doses)
+    -- THE EXCHANGE ON THE SUPPLY BOARD (owner 2026-10-12: "You can use the
+    -- chat to coordinate which seats get what resources"; real public chat on
+    -- both lanes, tob2_budget.lua THE BOARD). Every seat says its healing,
+    -- givable full brews and fish,
+    -- free slots past SHARE_KEEP_SLOTS and its later rooms' healing need;
+    -- every seat computes the same allocation (QD.T2.budget.allocate: the
+    -- team's healing split by need, largest deficit from largest surplus,
+    -- whole items); a giver drops exactly its items, then each taker in role
+    -- order takes exactly its own from its giver's tile. Supplies only.
+    -- (relay_r13_128 f17: takers filled to the level in role order from a
+    -- pool short of it, and seat 4, on 0, found the floor empty and died.)
+    local BOARD_AFTER = { sotetseg = "nylocas", verzik = "xarpus" }
+    local function share_by_board(t, room)
+        drop_vials(t)
+        local Bu = QD.T2.budget
+        local t0 = api_drive.tick()
+        local function count(nm) local r, c = t.inv.count(nm) return (r == "ok" and tonumber(c)) or 0 end
+        local full, fish = 0, 0
+        for _, nm in ipairs(BREW_FULL) do full = full + count(nm) end
+        for _, nm in ipairs(FISH) do fish = fish + count(nm) end
+        local after = BOARD_AFTER[room]
+        local need = 16 * Bu.later_need(role, after, "brew") + 20 * Bu.later_need(role, after, "food")
+        local before = healing_hp(t)
+        local mine = { before, full, fish, math.max(0, free_slots(t) - SHARE_KEEP_SLOTS), need }
+        -- (the exchange number is the same on every seat: a count every seat
+        -- keeps alike, one per exchange this relay)
+        -- (the read starts BEFORE the barrier: a seat released a tick later
+        -- must not start reading after a line already arrived)
+        local since = QD.T2.board.mark()
+        t.expect(room .. ".barrier.board", t.party.barrier(room .. "_board", 300))
+        Bu.board_seq = (Bu.board_seq or 0) + 1
+        local seq = Bu.board_seq
+        local sr = QD.T2.board.say(seq, role, mine)
+        t.check(room .. ".board_said", sr == "ok", P .. "say answered " .. tostring(sr))
+        local names = t.party.names()
+        local got, deadline = {}, api_drive.tick() + 30
+        while true do
+            since = QD.T2.board.collect(seq, names, since, got)
+            local all = true
+            for r = 1, SEATS do if got[r] == nil then all = false end end
+            if all then break end
+            assert(api_drive.tick() <= deadline, "tob_relay: the supply board for " .. room .. " never filled")
+            t.ticks(1)
+        end
+        local rows = {}
+        for r = 1, SEATS do
+            local v = got[r]
+            rows[r] = { heal = v[1], full = v[2], fish = v[3], slots = v[4], need = v[5] }
+        end
+        local moves = Bu.allocate(rows)
+        -- give: exactly my items
+        local gave, took, missed = 0, 0, 0
+        for _, m in ipairs(moves) do
+            if m.from == role then
+                local list = (m.kind == "brew") and BREW_FULL or FISH
+                local dropped = false
+                for _, nm in ipairs(list) do
+                    if not dropped and count(nm) > 0 and t.player.drop(nm) == "ok" then
+                        gave, dropped = gave + 1, true
+                    end
+                end
+            end
+        end
+        t.expect(room .. ".barrier.given", t.party.barrier(room .. "_given", 300))
+        -- take: each seat in role order, exactly its own, from its giver's tile
+        local ids = {}
+        for _, nm in ipairs(BREW_FULL) do local r, id = api_drive.symbol("obj", nm) if r == "ok" then ids[id] = "brew" end end
+        for _, nm in ipairs(FISH) do local r, id = api_drive.symbol("obj", nm) if r == "ok" then ids[id] = "fish" end end
+        for r = 1, SEATS do
+            if role == r then
+                for _, m in ipairs(moves) do
+                    if m.to == role then
+                        local giver = QD.party.name(m.from)
+                        local gx, gz = nil, nil
+                        local pr, players = api_drive.players()
+                        if pr == "ok" then
+                            for _, p in ipairs(players) do
+                                if QD.party._same(p.name, giver) then gx, gz = p.server_x or p.x, p.server_z or p.z end
+                            end
+                        end
+                        local row, bd = nil, nil
+                        local orr, objs = api_drive.objs(15)
+                        if orr == "ok" and gx then
+                            for _, o in ipairs(objs) do
+                                if ids[o.obj_id] == m.kind then
+                                    local dd = math.max(math.abs(o.x - gx), math.abs(o.z - gz))
+                                    if bd == nil or dd < bd then row, bd = o, dd end
+                                end
+                            end
+                        end
+                        local got = false
+                        if row then
+                            local h0 = healing_hp(t)
+                            if api_drive.world_op("obj", row.obj_id, 3, row.element_id) == "ok" then
+                                for _ = 1, 12 do
+                                    t.ticks(1)
+                                    if healing_hp(t) > h0 then got = true break end
+                                end
+                            end
+                        end
+                        if got then took = took + 1 else missed = missed + 1 end
+                    end
+                end
+            end
+            t.expect(room .. ".barrier.took_" .. r, t.party.barrier(room .. "_took_" .. r, 300))
+        end
+        t.check(room .. ".share", missed == 0, P .. string.format(
+            "board: healing %d -> %d hp (need %d; gave %d, took %d, missed %d; %d moves; %d ticks)",
+            before, healing_hp(t), need, gave, took, missed, #moves, api_drive.tick() - t0))
+    end
+
     local function share_healing(t, room, level)
+        if QD.T2 and QD.T2.budget and QD.T2.budget.allocate and QD.T2.board and BOARD_AFTER[room] then
+            return share_by_board(t, room)
+        end
         drop_vials(t)
         local before, gave, took = healing_hp(t), 0, 0
         -- give: a full brew (64) while that leaves level, then fish (20)

@@ -27,6 +27,35 @@ wordpack_char_index(char c)
 }
 
 void
+wordpack_message_public_body(
+    struct RSCache_Buffer* buffer,
+    const char* str,
+    int colour_effect)
+{
+    assert(buffer);
+    assert(str);
+    p1(buffer, (colour_effect >> 8) & 0xff); /* colour */
+    p1(buffer, colour_effect & 0xff);        /* effect */
+    wordpack_pack(buffer, str);
+}
+
+int
+wordpack_says(const char* str)
+{
+    size_t len;
+    assert(str);
+    len = strlen(str);
+    if( len < 1 || len > WORDPACK_TEXT_MAX )
+        return 0;
+    for( size_t i = 0; i < len; i++ )
+    {
+        if( wordpack_char_index((char)tolower((unsigned char)str[i])) < 0 )
+            return 0;
+    }
+    return 1;
+}
+
+void
 wordpack_pack(
     struct RSCache_Buffer* buffer,
     const char* str)

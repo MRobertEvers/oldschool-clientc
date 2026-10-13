@@ -307,3 +307,28 @@ THE LAYER (`tob2_budget.lua`, shared, used by QD.T2.resources in every v2 room):
    boosted levels and weapon × HP_PER_BOSS_HP, so a drained seat sees what a restore and re-dose buys.
 5. MONITOR: per room, the doses spent against its share; per P3 tick, the boosted Attack/Strength (the "st" probe
    made permanent in the decision log).
+6. THE SUPPLY BOARD: how the seats coordinate supplies (2026-10-12). The owner's rulings were "You can use the
+   chat to coordinate which seats get what resources" and "the scriptrun lane must use real chat. It must use
+   the same channels as the live client." The board is REAL PUBLIC CHAT on both lanes:
+   - Each seat sends one line through `api_drive.say` (the client's own MESSAGE_PUBLIC).
+   - Each seat reads every seat's line from the player-info chat block: `api_drive.messages` type 2, under the
+     speaker's name (`QD.chat.public`).
+   - A line said after tick T is read by every seat in view at T+1, the speaker included.
+   - (A first version, installed for a few hours, used the party barrier marks because scriptrun then had no
+     chat verb; it was replaced as soon as `say` existed. The outcomes were identical on f17/f36/f66.)
+   - THE MESSAGE (`QD.T2.board.say/collect`, tob2_budget.lua): "sup <exchange> <seat> <healing> <brews> <fish>
+     <slots> <need>": digits and spaces, under 80 characters, parsed case-insensitively (the codec lower-cases).
+     A line is matched to its seat by the speaker's name (the relay's party list), and the seat number in it
+     must agree (asserted).
+   - THE ALLOCATION (`QD.T2.budget.allocate`, pure; every seat computes it from the same board): each seat's
+     target is the team's healing split in proportion to its later need. Then, repeatedly, the largest deficit
+     takes one whole item from the largest surplus. A full brew (64 hp) goes when both surplus and deficit are at
+     least half its value; otherwise a fish (20 hp) on the same rule. Ties go to the lower seat.
+   - THE EXCHANGE (tob_relay.lua `share_by_board`, at Sotetseg's and Verzik's doors): every seat says its line,
+     then waits (30 ticks, asserted) until all five lines are read. Each giver drops exactly its assigned items. Then, behind one
+     barrier, each taker in role order picks up its own items from its giver's tile. Supplies only.
+   - Probes (runs/fixX vs relay_r13_128):
+     - f17: seat 4 reached the Sotetseg door on 0 hp of healing in the old exchange and died. On the board it
+       entered Sotetseg on 304; the relay later failed on a P3 death of seat 2.
+     - f36, f66: both pass.
+     - Exchange cost: 8-17 ticks a door, against 39-79 before.

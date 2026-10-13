@@ -1,0 +1,18 @@
+-- tob_relay_hard_v2: the whole Theatre of Blood in HARD MODE, five seats, lobby
+-- to lobby, every room played by its v2 solver (docs/minigames/theater_of_blood/
+-- TOB2_DESIGN.md) in the committed void kit with burning claws for Verzik P3.
+--
+-- GREEN: every room cleared with no raider dead, the party back in the lobby.
+--
+-- scriptrun (the fast lane):
+--   ./src/build_tob2_opt/torirsserver --scriptrun test/raids/tob_relay_hard_v2.lua --bots 5 \
+--       --name f1 --ticks 12000 --session /tmp/relay --fixture tests/raids/fixtures/tob_normal_done.ini
+-- live client (the same seed must produce the same tick log):
+--   python3 tools/raid_gate/run.py tob_relay_hard_v2 --party 5 --name f1 --no-publish
+return QD_ROOT.raid.tob_relay_test("hard", {
+    fixture = "tob_normal_done.ini",
+    party = 5,
+    detail = 3000,
+    v2 = { maiden = true, bloat = true, nylocas = true, sotetseg = true, xarpus = true,
+           verzik_p1 = true, verzik_p2 = true, verzik_p3 = true },
+})
