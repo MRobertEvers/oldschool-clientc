@@ -546,10 +546,11 @@
 #define SS_OP_NPC_SETHEADBARRESERVE 11117
 #define SS_OP_NPC_HUDBAR_CHECK 11118
 #define SS_OP_NPC_DIE 11119
+#define SS_OP_NPC_MAXHIT_ROLLED 11120
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11120
+#define SS_OPCODE_MAX 11121
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 524
+#define SS_OPCODE_COUNT 525
 
 #endif

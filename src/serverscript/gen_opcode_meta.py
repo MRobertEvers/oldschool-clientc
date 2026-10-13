@@ -1032,6 +1032,19 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # heal + 2; ROOM_SOLVERS.md 4.7.1).
     "NPC_DIE": (11119, 0, 0, 0, 0),
 
+    # npc_maxhit_rolled(damage)
+    # The active player's damage roll against the active npc just came up on
+    # its own maximum, `damage`. The engine notes it and marks the hit carrying
+    # that damage when it lands on this npc, which is what setting 279's max-hit
+    # splat is sent for. Called by content's roll funnels
+    # (`~player_npc_damage_roll`, `~player_npc_damage_range`,
+    # `~fang_damage_roll`), the only code that knows the max of THIS roll -- a
+    # spell's, a powered staff's, a special's, a scaled bow's. The encoder used
+    # to compare the landed number with `%com_maxhit`, the melee/ranged max,
+    # and so flagged coincidences and missed every other max. LostCity's 2004
+    # protocol has no max-hit splat, so there is no reference name.
+    "NPC_MAXHIT_ROLLED": (11120, 1, 0, 0, 0),
+
     # npc_findowned2()(boolean)
     # Resolve the active player's familiar into the secondary NPC context. A
     # targeted trigger can retain its primary target while `.npc_*` addresses
@@ -1303,6 +1316,10 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "NPC_SETHEADBARRESERVE": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_HUDBAR_CHECK": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_DIE": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_MAXHIT_ROLLED": (
+        (1 << POINTER_BITS["active_player"]) | (1 << POINTER_BITS["active_npc"]),
+        0,
+    ),
     "NPC_FACING_COORD": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_ATTACKNPC": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_ATTACKPLAYER": (

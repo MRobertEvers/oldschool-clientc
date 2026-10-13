@@ -148,7 +148,6 @@ static const struct ToriRSServerSymbolRef k_refs[] = {
         { TORIRSSERVER_PACK_VARP, "varp394_slayer_count", &g_ids.varp_slayer_count },
         { TORIRSSERVER_PACK_VARP, "varp3546_cluehelper_infobox_clue",
           &g_ids.varp_cluehelper_infobox_clue },
-        { TORIRSSERVER_PACK_VARP, "varp6287_com_maxhit", &g_ids.varp_com_maxhit },
         { TORIRSSERVER_PACK_VARBIT, "varb14195_settings_hitsplat_threshold",
           &g_ids.varbit_hitsplat_threshold },
         { TORIRSSERVER_PACK_VARBIT, "varb1777_ironman", &g_ids.varbit_ironman },

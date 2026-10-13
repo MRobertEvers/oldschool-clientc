@@ -6,7 +6,7 @@
 /* Included by exactly one translation unit: ss_meta.c. */
 
 /* Opcode names, for traces and the loud stub's report. */
-static const char* const g_ss_opcode_names[11120] = {
+static const char* const g_ss_opcode_names[11121] = {
     [0] = "PUSH_CONSTANT_INT",
     [1] = "PUSH_VARP",
     [2] = "POP_VARP",
@@ -531,6 +531,7 @@ static const char* const g_ss_opcode_names[11120] = {
     [11117] = "NPC_SETHEADBARRESERVE",
     [11118] = "NPC_HUDBAR_CHECK",
     [11119] = "NPC_DIE",
+    [11120] = "NPC_MAXHIT_ROLLED",
 };
 
 /* Per-opcode stack signature and runtime-safety metadata.
@@ -540,7 +541,7 @@ static const char* const g_ss_opcode_names[11120] = {
  *
  * known == 0 means neither engine.rs2 nor MANUAL_META declared this
  * opcode, so its arity is unknown and it must not be executed. */
-static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11120] = {
+static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11121] = {
     [0] = { 0, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* PUSH_CONSTANT_INT */
     [1] = { 0, 0, 1, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* PUSH_VARP */
     [2] = { 1, 0, 0, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* POP_VARP */
@@ -1065,6 +1066,7 @@ static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11120] = {
     [11117] = { 1, 0, 0, 0, 1, 0, 0, 0, 0x010, 0x000 }, /* NPC_SETHEADBARRESERVE */
     [11118] = { 2, 0, 0, 0, 1, 0, 0, 0, 0x010, 0x000 }, /* NPC_HUDBAR_CHECK */
     [11119] = { 0, 0, 0, 0, 1, 0, 0, 0, 0x010, 0x000 }, /* NPC_DIE */
+    [11120] = { 1, 0, 0, 0, 1, 0, 0, 0, 0x011, 0x000 }, /* NPC_MAXHIT_ROLLED */
 };
 
 /* Trigger names, for script-name parsing and diagnostics. */

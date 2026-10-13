@@ -666,41 +666,33 @@ hitsplat_family_of(int type)
 }
 
 /**
- * Was this the dealer's own maximum, and does it clear their threshold?
+ * Does this max hit clear the dealer's threshold?
  *
- * `%com_maxhit` is written by `[proc,player_combat_stat]` -- the max hit is a
- * game-design calculation and lives in content, which is why this reads a varp
- * instead of computing one. A dealer whose max hit has never been computed
- * reads 0, and 0 can never equal a damage that got here, so a server with no
- * combat scripts loaded simply never promotes.
+ * WHETHER a hit was a max hit is not decided here: it is the hitmark's
+ * `max_hit`, stamped when the hit landed from the roll that made it (see
+ * struct ToriRSServerMaxRoll). This used to compare the damage with the
+ * dealer's `%com_maxhit`, which is the melee/ranged max of the weapon in hand
+ * -- not the max of the roll. A trident or a spell rolls the spell's max, a
+ * special its own multiple, a twisted bow its scaled one, a scythe's second
+ * hit half; every one of those sent the max-hit splat for whichever ordinary
+ * hit happened to equal the weapon number, and none for its own true max.
  *
  * Setting 280's threshold (varbit 14195) is the other half, and it is the one
  * thing about these two rows a var selector cannot express: it is a comparison
  * against the damage, not a lookup. Nine bits, so 0..511.
  */
 static int
-hitsplat_is_max_hit(
-    const struct ToriRSServer* srv,
+hitsplat_max_clears_threshold(
     const struct ToriRSServerPlayer* dealer,
     int damage)
 {
     const struct ToriRSServerIds* ids = ToriRSServer_Ids();
-    int max_hit;
     int threshold;
 
-    (void)srv;
-    if( !dealer || damage <= 0 || !ids )
+    assert(dealer);
+    if( damage <= 0 )
         return 0;
-    if( ids->varp_com_maxhit < 0 )
-        return 0;
-
-    if( ids->varp_com_maxhit >= TORIRSSERVER_VARP_COUNT )
-        return 0;
-    max_hit = dealer->varps[ids->varp_com_maxhit];
-    if( max_hit <= 0 || damage != max_hit )
-        return 0;
-
-    threshold = ids->varbit_hitsplat_threshold >= 0
+    threshold = ids && ids->varbit_hitsplat_threshold >= 0
                     ? ToriRSServer_VarbitGet(dealer, ids->varbit_hitsplat_threshold)
                     : 0;
     return damage >= threshold;
@@ -851,7 +843,8 @@ ToriRSServer_HitsplatForViewer(
     const struct ToriRSServerPlayer* viewer,
     int type,
     int damage,
-    int dealer_slot)
+    int dealer_slot,
+    int max_hit)
 {
     const struct hitsplat_family* family = hitsplat_family_of(type);
     const struct ToriRSServerPlayer* dealer = NULL;
@@ -877,7 +870,9 @@ ToriRSServer_HitsplatForViewer(
      */
     viewer_is_dealer = (dealer == NULL) || (dealer == viewer);
 
-    if( viewer_is_dealer && family->max_me && hitsplat_is_max_hit(srv, dealer, damage) )
+    /* `dealer` is NULL for damage nobody owns, and nobody's roll has no max. */
+    if( max_hit && dealer && viewer_is_dealer && family->max_me &&
+        hitsplat_max_clears_threshold(dealer, damage) )
     {
         promoted = hitsplat_symbol(family->max_me);
         if( promoted >= 0 )
@@ -1316,7 +1311,8 @@ ToriRSServer_HitmarkAdd(
     int damage,
     int type,
     int dealer_slot,
-    int delay)
+    int delay,
+    int max_hit)
 {
     if( *count >= TORIRSSERVER_HITMARK_MAX )
         return;
@@ -1324,7 +1320,83 @@ ToriRSServer_HitmarkAdd(
     hitmarks[*count].type = type;
     hitmarks[*count].dealer_slot = dealer_slot;
     hitmarks[*count].delay = delay;
+    hitmarks[*count].max_hit = max_hit;
     (*count)++;
+}
+
+void
+ToriRSServer_CombatNoteMaxRoll(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* dealer,
+    int npc_slot,
+    int damage)
+{
+    struct ToriRSServerMaxRoll* roll;
+
+    assert(srv);
+    assert(dealer);
+    assert(npc_slot >= 0);
+    assert(npc_slot < TORIRSSERVER_NPC_MAX);
+    if( damage <= 0 )
+        return; /* a max of 0 is a roll that cannot hit, not a max hit */
+
+    /* Full: the oldest entry is the one whose hit is least likely to come. */
+    if( dealer->maxroll_count >= TORIRSSERVER_MAXROLL_MAX )
+    {
+        memmove(&dealer->maxrolls[0], &dealer->maxrolls[1],
+                sizeof(dealer->maxrolls[0]) * (TORIRSSERVER_MAXROLL_MAX - 1));
+        dealer->maxroll_count = TORIRSSERVER_MAXROLL_MAX - 1;
+    }
+    roll = &dealer->maxrolls[dealer->maxroll_count++];
+    roll->npc_slot = npc_slot;
+    roll->npc_generation = srv->npcs[npc_slot].generation;
+    roll->damage = damage;
+    roll->tick = srv->tick;
+    if( getenv("TORIRSSERVER_SPLAT_DEBUG") )
+        fprintf(stderr, "  MAXROLL tick=%d dealer=%s npc=%d damage=%d\n", srv->tick,
+                dealer->display_name, npc_slot, damage);
+}
+
+/**
+ * Is this landing hit one of the dealer's max rolls? Claims the entry if so.
+ *
+ * Matched on the npc and on the damage the script dealt (before the clamp to
+ * the hitpoints left), oldest first. Entries past their age are dropped on the
+ * way, so a roll whose hit never came cannot match a later one.
+ *
+ * Damage nothing rolled -- recoil, a curse's proc, a familiar, a cannon --
+ * finds no entry and is an ordinary splat, however its number compares.
+ */
+static int
+maxroll_claim(
+    struct ToriRSServer* srv,
+    int dealer_slot,
+    int npc_slot,
+    int damage)
+{
+    struct ToriRSServerPlayer* dealer;
+    int kept = 0;
+    int claimed = 0;
+
+    if( dealer_slot < 0 || dealer_slot >= TORIRSSERVER_PLAYER_MAX || damage <= 0 )
+        return 0;
+    dealer = &srv->players[dealer_slot];
+    for( int i = 0; i < dealer->maxroll_count; i++ )
+    {
+        struct ToriRSServerMaxRoll const roll = dealer->maxrolls[i];
+
+        if( srv->tick - roll.tick > TORIRSSERVER_MAXROLL_TICKS )
+            continue;
+        if( !claimed && roll.npc_slot == npc_slot &&
+            roll.npc_generation == srv->npcs[npc_slot].generation && roll.damage == damage )
+        {
+            claimed = 1;
+            continue;
+        }
+        dealer->maxrolls[kept++] = roll;
+    }
+    dealer->maxroll_count = kept;
+    return claimed;
 }
 
 int
@@ -1632,10 +1704,20 @@ ToriRSServer_CombatHitNpc(
             npc->damaged_by_players[dealer] = 1;
     }
 
-    ToriRSServer_HitmarkAdd(npc->hitmarks, &npc->hitmark_count, amount,
-                        amount > 0 ? type : hitsplat_block(),
-                        ToriRSServer_HitmarkDealerFromAttackerScript(srv),
-                        ToriRSServer_HitClientDelay(srv));
+    {
+        int const dealer = ToriRSServer_HitmarkDealerFromAttackerScript(srv);
+        /* Claimed on the damage dealt, shown only when the splat still says
+         * it: an overkill clamped to the hitpoints left is not the max. */
+        int const max_hit = maxroll_claim(srv, dealer, slot, requested) && amount == requested;
+
+        if( getenv("TORIRSSERVER_SPLAT_DEBUG") && dealer >= 0 && requested > 0 )
+            fprintf(stderr, "  HIT tick=%d npc=%d dealer=%d damage=%d shown=%d max_hit=%d\n",
+                    srv->tick, slot, dealer, requested, amount, max_hit);
+
+        ToriRSServer_HitmarkAdd(npc->hitmarks, &npc->hitmark_count, amount,
+                                amount > 0 ? type : hitsplat_block(), dealer,
+                                ToriRSServer_HitClientDelay(srv), max_hit);
+    }
     ToriRSServer_TicklogHitNpc(srv, slot, amount, amount > 0 ? type : hitsplat_block(), requested,
                                ToriRSServer_HitmarkDealerFromAttackerScript(srv));
 
@@ -1862,7 +1944,7 @@ ToriRSServer_CombatHitmarkPlayer(
      * no player dealt. Player-versus-player would need the attacker threaded
      * through from the script that called this. */
     ToriRSServer_HitmarkAdd(player->hitmarks, &player->hitmark_count, amount,
-                        amount > 0 ? type : hitsplat_block(), -1, ToriRSServer_HitClientDelay(srv));
+                        amount > 0 ? type : hitsplat_block(), -1, ToriRSServer_HitClientDelay(srv), 0);
     player->damage = player->hitmarks[0].damage;
     player->damage_type = player->hitmarks[0].type;
     player->masks |= TORIRSSERVER_PMASK_DAMAGE;
@@ -1900,7 +1982,7 @@ ToriRSServer_CombatHitmarkNpc(
      */
     ToriRSServer_HitmarkAdd(npc->hitmarks, &npc->hitmark_count, amount, type,
                         ToriRSServer_HitmarkDealerFromAttackerScript(srv),
-                        ToriRSServer_HitClientDelay(srv));
+                        ToriRSServer_HitClientDelay(srv), 0);
     npc->damage = npc->hitmarks[0].damage;
     npc->damage_type = npc->hitmarks[0].type;
     npc->max_hitpoints = npc->max_hitpoints > 0 ? npc->max_hitpoints : 1;
@@ -1967,7 +2049,7 @@ ToriRSServer_CombatHitPlayerFrom(
 
     ToriRSServer_HitmarkAdd(player->hitmarks, &player->hitmark_count, amount,
                         amount > 0 ? type : (absorbed_fully ? hitsplat_shield() : hitsplat_block()),
-                        dealer_slot, ToriRSServer_HitClientDelay(srv));
+                        dealer_slot, ToriRSServer_HitClientDelay(srv), 0);
     /* The splat as shown: after `::god`, absorption and the clamp to the
      * hitpoints left, which is the number a recorder reads off the client. */
     ToriRSServer_TicklogHitPlayer(

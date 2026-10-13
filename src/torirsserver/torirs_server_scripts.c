@@ -10786,6 +10786,34 @@ ToriRSServer_ScriptCommand(
         return 1;
     }
 
+    case SS_OP_NPC_MAXHIT_ROLLED:
+    {
+        int32_t damage;
+        /* Readable, like the `npc_type` the roll funnels already asked: a roll
+         * may be made against an npc `npc_del`ed earlier this tick (the gear
+         * selftest's fang rolls are). No hit can land on it, so there is
+         * nothing to note -- but it is the funnel's own target, not a bug. */
+        struct ToriRSServerNpc* npc = active_npc_readable(state);
+
+        if( !SSVM_PopInt(state, &damage) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_maxhit_rolled with no active npc");
+            return 1;
+        }
+        if( !srv->active_player )
+        {
+            SSVM_Abort(state, "npc_maxhit_rolled with no active player");
+            return 1;
+        }
+        if( !npc->active )
+            return 1;
+        ToriRSServer_CombatNoteMaxRoll(srv, srv->active_player, (int)(npc - &srv->npcs[0]),
+                                       damage);
+        return 1;
+    }
+
     case SS_OP_NPC_FROZEN:
     {
         struct ToriRSServerNpc* npc = active_npc(state);

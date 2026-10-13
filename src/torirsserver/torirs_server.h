@@ -905,6 +905,49 @@ struct ToriRSServerHitmark
      * the air when the hit lands (see `hit_land_cycle` on the server).
      */
     int delay;
+    /**
+     * 1 when this hit is the dealer's roll coming up on its own maximum -- the
+     * max of THAT roll (the spell's, the staff's, the special's, the bow's
+     * scaled one), as content's damage roll stated it through
+     * `npc_maxhit_rolled`. See `struct ToriRSServerMaxRoll`.
+     *
+     * A flag on the hit rather than a comparison at the encoder, because the
+     * encoder only has the number: comparing it to the dealer's
+     * `%com_maxhit` -- the melee/ranged max -- sent the max-hit splat for any
+     * hit that happened to equal that number (a trident hit, a recoil, a spec
+     * that rolled under its own boosted max) and withheld it from every true
+     * max hit whose roll was not the plain weapon's.
+     */
+    int max_hit;
+};
+
+/*
+ * One damage roll that came up on its own maximum, waiting for its hit to land.
+ *
+ * The roll and the hit are ticks apart -- a melee hit lands the tick after the
+ * swing, a projectile when it arrives, the dual macuahuitl's second hit a tick
+ * after the first -- and between them the same player may roll again. So a
+ * roll is not a single "last max" slot but a short list, and a landing hit
+ * claims the entry for its own npc and its own damage.
+ *
+ * `npc_generation` keeps a slot reused by a fresh spawn from inheriting an
+ * entry; `tick` lets an entry whose hit never came (the npc died first, the
+ * damage was capped on the way) age out instead of matching a later hit.
+ */
+enum
+{
+    TORIRSSERVER_MAXROLL_MAX = 8,
+    /** Longer than any roll-to-landing gap in the game (a projectile across
+     *  ten tiles is about four ticks). */
+    TORIRSSERVER_MAXROLL_TICKS = 10
+};
+
+struct ToriRSServerMaxRoll
+{
+    int npc_slot;
+    int npc_generation;
+    int damage;
+    int tick;
 };
 
 /* The npc mask is a single byte — there is no widening bit. */
@@ -3739,6 +3782,10 @@ struct ToriRSServerPlayer
      *  Inferno a whole wave lands on them together. */
     struct ToriRSServerHitmark hitmarks[TORIRSSERVER_HITMARK_MAX];
     int hitmark_count;
+    /** This player's damage rolls that hit their own maximum and have not
+     *  landed yet; oldest first. See struct ToriRSServerMaxRoll. */
+    struct ToriRSServerMaxRoll maxrolls[TORIRSSERVER_MAXROLL_MAX];
+    int maxroll_count;
     /** The first of them, mirrored — see the npc's copy of this field. */
     int damage;
     int damage_type;
@@ -4963,8 +5010,9 @@ ToriRSServer_VarpClientCount(void);
  *
  * @param viewer      who is being sent this splat.
  * @param type        what content asked for.
- * @param damage      the number on the splat, for the max-hit test.
+ * @param damage      the number on the splat, for the max-hit threshold.
  * @param dealer_slot who dealt it, or -1.
+ * @param max_hit     the hitmark's `max_hit`: the dealer's roll was its max.
  */
 int
 ToriRSServer_HitsplatForViewer(
@@ -4972,7 +5020,20 @@ ToriRSServer_HitsplatForViewer(
     const struct ToriRSServerPlayer* viewer,
     int type,
     int damage,
-    int dealer_slot);
+    int dealer_slot,
+    int max_hit);
+
+/**
+ * `npc_maxhit_rolled(damage)`: the active player's damage roll against the
+ * active npc just came up on its own maximum, `damage`. The hit carrying it is
+ * marked `max_hit` when it lands. See struct ToriRSServerMaxRoll.
+ */
+void
+ToriRSServer_CombatNoteMaxRoll(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* dealer,
+    int npc_slot,
+    int damage);
 
 /**
  * Is this npc's loot restricted away from this player?

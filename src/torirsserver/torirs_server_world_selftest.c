@@ -61378,44 +61378,100 @@ ToriRSServer_WorldSelftest(void)
             dealer->world = srv;
 
             SELFTEST_CHECK(ToriRSServer_HitsplatForViewer(srv, viewer, leaf_damage, 3,
-                                                      viewer_slot) == me,
+                                                      viewer_slot, 0) == me,
                            "your own damage takes the untinted `_me` wrapper");
             SELFTEST_CHECK(ToriRSServer_HitsplatForViewer(srv, viewer, leaf_damage, 3,
-                                                      dealer_slot) == other,
+                                                      dealer_slot, 0) == other,
                            "another player's damage takes the `_other` wrapper, "
                            "which is the one setting 5 tints");
-            SELFTEST_CHECK(ToriRSServer_HitsplatForViewer(srv, viewer, leaf_damage, 3, -1) == me,
+            SELFTEST_CHECK(ToriRSServer_HitsplatForViewer(srv, viewer, leaf_damage, 3, -1, 0) ==
+                               me,
                            "damage nobody dealt is NOT tinted as somebody else's");
             SELFTEST_CHECK(heal < 0 ||
-                               ToriRSServer_HitsplatForViewer(srv, viewer, heal, 3, dealer_slot) ==
-                                   heal,
+                               ToriRSServer_HitsplatForViewer(srv, viewer, heal, 3, dealer_slot,
+                                                              0) == heal,
                            "a family with no wrapper is left exactly as content asked");
 
-            if( hs_ids && hs_ids->varp_com_maxhit >= 0 &&
-                hs_ids->varp_com_maxhit < TORIRSSERVER_VARP_COUNT )
+            /* The max-hit wrapper follows the HIT's flag, and nothing else. */
+            SELFTEST_CHECK(ToriRSServer_HitsplatForViewer(srv, dealer, leaf_damage, 9,
+                                                      dealer_slot, 1) == max_me,
+                           "a hit whose roll came up on its max takes the max-hit wrapper");
+            SELFTEST_CHECK(ToriRSServer_HitsplatForViewer(srv, dealer, leaf_damage, 9,
+                                                      dealer_slot, 0) == me,
+                           "the same number from a roll that was NOT its max does not");
+            SELFTEST_CHECK(ToriRSServer_HitsplatForViewer(srv, viewer, leaf_damage, 9, -1, 1) ==
+                               me,
+                           "damage nobody owns is never a max hit");
+            /* Setting 280: the floor. A max hit under the threshold is still a
+             * max hit and still must not get the splat -- which is the one part
+             * of these two rows a var selector cannot express, because it is a
+             * comparison against the damage. */
+            if( hs_ids && hs_ids->varbit_hitsplat_threshold >= 0 )
             {
-                dealer->varps[hs_ids->varp_com_maxhit] = 9;
+                ToriRSServer_VarbitSetOn(srv, dealer, hs_ids->varbit_hitsplat_threshold, 20);
                 SELFTEST_CHECK(ToriRSServer_HitsplatForViewer(srv, dealer, leaf_damage, 9,
-                                                          dealer_slot) == max_me,
-                               "a hit equal to your own max hit takes the max-hit wrapper");
-                SELFTEST_CHECK(ToriRSServer_HitsplatForViewer(srv, dealer, leaf_damage, 8,
-                                                          dealer_slot) == me,
-                               "a hit below your max hit does not");
-                /* Setting 280: the floor. A max hit under the threshold is
-                 * still a max hit and still must not get the splat -- which is
-                 * the one part of these two rows a var selector cannot express,
-                 * because it is a comparison against the damage. */
-                if( hs_ids->varbit_hitsplat_threshold >= 0 )
-                {
-                    ToriRSServer_VarbitSetOn(srv, dealer, hs_ids->varbit_hitsplat_threshold, 20);
-                    SELFTEST_CHECK(ToriRSServer_HitsplatForViewer(srv, dealer, leaf_damage, 9,
-                                                              dealer_slot) == me,
-                                   "a max hit below setting 280's threshold gets no max splat");
-                    ToriRSServer_VarbitSetOn(srv, dealer, hs_ids->varbit_hitsplat_threshold, 0);
-                }
-                SELFTEST_CHECK(ToriRSServer_HitsplatForViewer(srv, viewer, leaf_damage, 9,
-                                                          dealer_slot) == other,
-                               "somebody ELSE's max hit is still just their damage to you");
+                                                          dealer_slot, 1) == me,
+                               "a max hit below setting 280's threshold gets no max splat");
+                ToriRSServer_VarbitSetOn(srv, dealer, hs_ids->varbit_hitsplat_threshold, 0);
+            }
+            SELFTEST_CHECK(ToriRSServer_HitsplatForViewer(srv, viewer, leaf_damage, 9,
+                                                      dealer_slot, 1) == other,
+                           "somebody ELSE's max hit is still just their damage to you");
+
+            /*
+             * Where the flag comes from: `npc_maxhit_rolled` notes the roll, and
+             * the hit that lands on that npc with that damage claims it.
+             *
+             * The bug this replaced compared the landed number with the
+             * dealer's `%com_maxhit`, so these are the cases it got wrong: a
+             * roll with a different max (a staff, a spec) whose ordinary hit
+             * equals the weapon number, and damage nothing rolled at all.
+             */
+            {
+                struct ToriRSServerNpc* target = &srv->npcs[1];
+                int const target_slot = 1;
+
+                memset(target, 0, sizeof(*target));
+                target->active = 1;
+                target->death_tick = -1;
+                target->combat_target = 0; /* already fighting: no retaliation */
+                target->hitpoints = 200;
+                target->max_hitpoints = 200;
+                ToriRSServer_WorldSetActive(srv, dealer);
+
+                ToriRSServer_CombatNoteMaxRoll(srv, dealer, target_slot, 27);
+                ToriRSServer_CombatHitNpc(srv, target_slot, leaf_damage, 9);
+                ToriRSServer_CombatHitNpc(srv, target_slot, leaf_damage, 27);
+                ToriRSServer_CombatHitNpc(srv, target_slot, leaf_damage, 27);
+                SELFTEST_CHECK(target->hitmark_count == 3 && !target->hitmarks[0].max_hit &&
+                                   target->hitmarks[1].max_hit && !target->hitmarks[2].max_hit,
+                               "a noted max roll marks the one hit that carries it, once "
+                               "(saw %d hits, flags %d %d %d)",
+                               target->hitmark_count, target->hitmarks[0].max_hit,
+                               target->hitmarks[1].max_hit, target->hitmarks[2].max_hit);
+
+                /* A roll whose hit never came ages out rather than waiting for
+                 * a coincidence. */
+                target->hitmark_count = 0;
+                ToriRSServer_CombatNoteMaxRoll(srv, dealer, target_slot, 14);
+                srv->tick += TORIRSSERVER_MAXROLL_TICKS + 1;
+                ToriRSServer_CombatHitNpc(srv, target_slot, leaf_damage, 14);
+                srv->tick -= TORIRSSERVER_MAXROLL_TICKS + 1;
+                SELFTEST_CHECK(target->hitmark_count == 1 && !target->hitmarks[0].max_hit &&
+                                   dealer->maxroll_count == 0,
+                               "a max roll older than its window marks nothing");
+
+                /* A fresh npc in the same slot is not the one that was rolled on. */
+                target->hitmark_count = 0;
+                ToriRSServer_CombatNoteMaxRoll(srv, dealer, target_slot, 14);
+                target->generation++;
+                ToriRSServer_CombatHitNpc(srv, target_slot, leaf_damage, 14);
+                SELFTEST_CHECK(target->hitmark_count == 1 && !target->hitmarks[0].max_hit,
+                               "a max roll does not follow its slot to the next spawn");
+
+                ToriRSServer_WorldSetActive(srv, NULL);
+                memset(target, 0, sizeof(*target));
+                dealer->maxroll_count = 0;
             }
 
             /*
@@ -61454,8 +61510,8 @@ ToriRSServer_WorldSelftest(void)
                                victim->hitmark_count > 0 ? victim->hitmarks[0].dealer_slot : -99);
                 if( victim->hitmark_count > 0 )
                     SELFTEST_CHECK(ToriRSServer_HitsplatForViewer(srv, victim, leaf_damage, 3,
-                                                              victim->hitmarks[0].dealer_slot) ==
-                                       me,
+                                                              victim->hitmarks[0].dealer_slot,
+                                                              0) == me,
                                    "... so it draws untinted");
 
                 victim->hitmark_count = 0;
@@ -61466,8 +61522,8 @@ ToriRSServer_WorldSelftest(void)
                                victim->hitmark_count > 0 ? victim->hitmarks[0].dealer_slot : -99);
                 if( victim->hitmark_count > 0 )
                     SELFTEST_CHECK(ToriRSServer_HitsplatForViewer(srv, victim, leaf_damage, 3,
-                                                              victim->hitmarks[0].dealer_slot) ==
-                                       other,
+                                                              victim->hitmarks[0].dealer_slot,
+                                                              0) == other,
                                    "... so the victim sees the TINTED wrapper");
 
                 ToriRSServer_WorldSetActive(srv, NULL);

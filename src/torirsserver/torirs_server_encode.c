@@ -4627,7 +4627,8 @@ player_extended_v5(struct ToriRSServer* srv, struct ToriRSServerPlayer* viewer,
                 ext.has_hit = 1;
                 ext.hit_type = ToriRSServer_HitsplatForViewer(
                     srv, viewer, subject->damage_type, subject->damage,
-                    subject->hitmark_count > 0 ? subject->hitmarks[0].dealer_slot : -1);
+                    subject->hitmark_count > 0 ? subject->hitmarks[0].dealer_slot : -1,
+                    subject->hitmark_count > 0 ? subject->hitmarks[0].max_hit : 0);
                 ext.hit_value = subject->damage;
                 ext.hit_delay = subject->hitmark_count > 0 ? subject->hitmarks[0].delay : 0;
                 /* Splats two and onward of the same tick. The mirrors above are
@@ -4637,7 +4638,7 @@ player_extended_v5(struct ToriRSServer* srv, struct ToriRSServerPlayer* viewer,
                 {
                     ext.hit_extra[ext.hit_extra_count].type = ToriRSServer_HitsplatForViewer(
                         srv, viewer, subject->hitmarks[i].type, subject->hitmarks[i].damage,
-                        subject->hitmarks[i].dealer_slot);
+                        subject->hitmarks[i].dealer_slot, subject->hitmarks[i].max_hit);
                     ext.hit_extra[ext.hit_extra_count].value = subject->hitmarks[i].damage;
                     ext.hit_extra[ext.hit_extra_count].delay = subject->hitmarks[i].delay;
                     ext.hit_extra_count++;
@@ -5731,12 +5732,14 @@ put_npc_extended_v5(
                 npc->hitmark_count > 0 ? npc->hitmarks[i].type : npc->damage_type;
             int const dealer =
                 npc->hitmark_count > 0 ? npc->hitmarks[i].dealer_slot : -1;
+            int const max_hit = npc->hitmark_count > 0 ? npc->hitmarks[i].max_hit : 0;
             /* Per RECIPIENT, which is the whole reason this cannot be decided
              * where the hit lands: one npc's splat list is encoded once per
              * player watching, and "was this my damage" is a fact about the
              * pair. See ToriRSServer_HitsplatForViewer. */
             int const damage_type =
-                ToriRSServer_HitsplatForViewer(recipient->world, recipient, stated, damage, dealer);
+                ToriRSServer_HitsplatForViewer(recipient->world, recipient, stated, damage, dealer,
+                                               max_hit);
 
             v5_psmart1or2(buf, damage_type);
             v5_psmart1or2(buf, damage);
