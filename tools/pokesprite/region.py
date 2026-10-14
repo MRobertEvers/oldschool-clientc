@@ -19,6 +19,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import layers  # noqa: E402
+import pokesprite as ps  # noqa: E402
 import locs  # noqa: E402
 from store import Store  # noqa: E402
 
@@ -170,7 +171,9 @@ def default_kits(gender):
 NOTHING_TO_DRAW = ("no drawable faces", "nothing visible in any frame")
 
 
-def settle_empty(store, key, err):
+def settle_empty(store, key, err, raw=None):
+    if raw:
+        ps.drop_raw(raw)
     text = str(err)
     if any(m in text for m in NOTHING_TO_DRAW):
         st = Store(store)
@@ -186,6 +189,9 @@ def run_npc(npc, seqs, work, store, anims=None):
     if seqs:
         args += ["--anims", ",".join("s%d=%d" % (s, s) for s in sorted(seqs))]
     r = subprocess.run(args, capture_output=True, text=True)
+    # A failed subject's renders too: its sheet never stored, so nothing else
+    # drops them (POKESPRITE_KEEP_RAW=1 keeps them to debug the failure).
+    ps.drop_raw(os.path.join(work, "npc_%d" % npc, "_raw"))
     return "ok" if r.returncode == 0 else "FAILED: " + (r.stderr.strip().splitlines() or ["?"])[-1]
 
 
@@ -216,7 +222,8 @@ def main():
                 print("loc %d shape %d seq %d: ok" % (loc, shape, seq), flush=True)
             except (SystemExit, Exception) as e:
                 print("loc %d shape %d seq %d: %s" % (loc, shape, seq, settle_empty(
-                    a.store, "loc/%d/%d/%d" % (loc, shape, seq), e)), flush=True)
+                    a.store, "loc/%d/%d/%d" % (loc, shape, seq), e,
+                    os.path.join(a.work, "loc_%d_%d" % (loc, shape)))), flush=True)
         for gender in (("m", "f") if a.only in (None, "players") else ()):
             todo = {"kit:%d" % k: PLAYER_SEQS for k in default_kits(gender)}
             n = layers.generate(todo, os.path.join(a.work, "layers_raw"), a.store, gender)
@@ -249,20 +256,24 @@ def main():
             locs.generate_spot(spot, a.work, a.store)
             print("spot %d: ok" % spot)
         except (SystemExit, Exception) as e:
-            print("spot %d: %s" % (spot, settle_empty(a.store, "spot/%d" % spot, e)))
+            print("spot %d: %s" % (spot, settle_empty(a.store, "spot/%d" % spot, e,
+                                                            os.path.join(a.work, "spot_%d_z%d" % (
+                                                                spot, locs.SPOT_ZOOM)))))
     for obj in sorted(obj_keys):
         try:
             locs.generate_obj(obj, a.work, a.store)
             print("obj %d: ok" % obj)
         except (SystemExit, Exception) as e:
-            print("obj %d: %s" % (obj, settle_empty(a.store, "obj/%d" % obj, e)))
+            print("obj %d: %s" % (obj, settle_empty(a.store, "obj/%d" % obj, e,
+                                                          os.path.join(a.work, "obj_%d" % obj))))
     for loc, shape, seq in sorted(loc_keys):
         try:
             locs.generate(loc, shape, seq, a.work, a.store)
             print("loc %d shape %d seq %d: ok" % (loc, shape, seq))
         except (SystemExit, Exception) as e:
             print("loc %d shape %d seq %d: %s" % (loc, shape, seq, settle_empty(
-                a.store, "loc/%d/%d/%d" % (loc, shape, seq), e)))
+                a.store, "loc/%d/%d/%d" % (loc, shape, seq), e,
+                os.path.join(a.work, "loc_%d_%d" % (loc, shape)))))
     for gender, by_layer in sorted(layer_seqs.items()):
         todo = {L: sorted(s) for L, s in sorted(by_layer.items())}
         n = layers.generate(todo, os.path.join(a.work, "layers_raw"), a.store, gender)
