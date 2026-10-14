@@ -270,6 +270,7 @@ void test_widget_skin(void);
 void test_widget_skin_survives_cc_rebuild(void);
 void test_widget_idempotent_edits(void);
 void test_frame_provide(void);
+void test_layer_clip_compounds(void);
 void test_walk_topology(void);
 void test_mounted_world_resize(void);
 void test_hover_input(void);

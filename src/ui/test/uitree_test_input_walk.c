@@ -217,8 +217,8 @@ hit_test_interactive_recursive(
     struct UITreeScrollClip child_surface = surface ? *surface : (struct UITreeScrollClip){ 0 };
 
     /* Same shared clip rule as the emit walk (UITree_LayerChildClip), so hitboxes
-     * match drawn pixels: clip to own bounds ∩ the enclosing surface, never
-     * compounded with ancestor layers. Screen coords — scroll_off_x/y already
+     * match drawn pixels: own bounds ∩ the clip it was drawn under (OldSchool)
+     * or ∩ the enclosing surface (2004). Screen coords — scroll_off_x/y already
      * folds in any drag delta, matching emit's drag-shifted clip. */
     {
         struct UITreeScrollClip cc, cs;
@@ -233,8 +233,11 @@ hit_test_interactive_recursive(
          * every click on the target resolve to node 0 instead. */
         if( UITree_LayerCullsChildren(component, bw, bh) )
             return -1;
-        if( UITree_LayerChildClip(
-                component, surface, bx - scroll_off_x, by - scroll_off_y, bw, bh, &cc, &cs) )
+        enum UITreeChildClip const rule = UITree_LayerChildClip(
+            tree, component, clip, surface, bx - scroll_off_x, by - scroll_off_y, bw, bh, &cc, &cs);
+        if( rule == UITREE_CHILD_CLIP_EMPTY )
+            return -1;
+        if( rule == UITREE_CHILD_CLIP_SET )
         {
             child_clip = cc;
             child_surface = cs;
@@ -428,8 +431,11 @@ collect_nodes_recursive(
          * it can be hit either (same rule as emit_walk_node). */
         if( UITree_LayerCullsChildren(component, bw, bh) )
             return;
-        if( UITree_LayerChildClip(
-                component, surface, bx - scroll_off_x, by - scroll_off_y, bw, bh, &cc, &cs) )
+        enum UITreeChildClip const rule = UITree_LayerChildClip(
+            tree, component, clip, surface, bx - scroll_off_x, by - scroll_off_y, bw, bh, &cc, &cs);
+        if( rule == UITREE_CHILD_CLIP_EMPTY )
+            return;
+        if( rule == UITREE_CHILD_CLIP_SET )
         {
             child_clip = cc;
             child_surface = cs;
@@ -775,16 +781,19 @@ find_hovered_recursive(
     struct UITreeScrollClip child_surface = surface ? *surface : (struct UITreeScrollClip){ 0 };
 
     /* Same shared clip rule as the emit walk (UITree_LayerChildClip), so hover
-     * matches drawn pixels: own bounds ∩ enclosing surface, never compounded
-     * with ancestor layers. Screen coords (emit clips at x - scroll_off). */
+     * matches drawn pixels: own bounds ∩ the clip it was drawn under
+     * (OldSchool) or ∩ the enclosing surface (2004). Screen coords (emit clips at x - scroll_off). */
     {
         struct UITreeScrollClip cc, cs;
         /* Collapsed clipping layer: nothing under it is drawn, so nothing under
          * it can be hit either (same rule as emit_walk_node). */
         if( UITree_LayerCullsChildren(component, bw, bh) )
             return;
-        if( UITree_LayerChildClip(
-                component, surface, bx - scroll_off_x, by - scroll_off_y, bw, bh, &cc, &cs) )
+        enum UITreeChildClip const rule = UITree_LayerChildClip(
+            tree, component, clip, surface, bx - scroll_off_x, by - scroll_off_y, bw, bh, &cc, &cs);
+        if( rule == UITREE_CHILD_CLIP_EMPTY )
+            return;
+        if( rule == UITREE_CHILD_CLIP_SET )
         {
             child_clip = cc;
             child_surface = cs;

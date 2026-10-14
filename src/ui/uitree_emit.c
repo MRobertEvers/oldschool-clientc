@@ -2754,21 +2754,29 @@ emit_walk_node(
     child_clip = parent_clip;
     child_surface = surface_clip;
     {
-        /* Shared interface layer child-clip rule (UITree_LayerChildClip): clip to
-         * own bounds ∩ the enclosing surface, never compounded with ancestor
-         * layers — same helper the hit/hover/drop walks use, so drawn pixels and
-         * hitboxes agree. UITreeEmitClip and UITreeScrollClip are the same rect;
-         * convert at this one seam. */
+        /* Shared interface layer child-clip rule (UITree_LayerChildClip): own
+         * bounds ∩ the clip this node was drawn under (OldSchool) or ∩ the
+         * enclosing surface (2004) — same helper the hit/hover/drop walks use,
+         * so drawn pixels and hitboxes agree. UITreeEmitClip and
+         * UITreeScrollClip are the same rect; convert at this one seam. */
         int clip_x = x - scroll_off_x + (in_drag ? drag_dx : 0);
         int clip_y = y - scroll_off_y + (in_drag ? drag_dy : 0);
         struct UITreeScrollClip surf = { surface_clip->x, surface_clip->y, surface_clip->w,
                                          surface_clip->h };
+        struct UITreeScrollClip encl = { parent_clip->x, parent_clip->y, parent_clip->w,
+                                         parent_clip->h };
         struct UITreeScrollClip cc, cs;
-        /* Collapsed clipping layer: its children are clipped away entirely.
-         * Returning here also skips this node's own draw, which costs nothing —
-         * the types that clip (RS_LAYER, sidebar, chat, inv grid) paint no
-         * content of their own. */
-        if( UITree_LayerChildClip(c, &surf, clip_x, clip_y, w, h, &cc, &cs) )
+        enum UITreeChildClip const rule =
+            UITree_LayerChildClip(tree, c, &encl, &surf, clip_x, clip_y, w, h, &cc, &cs);
+        /* Wholly outside the clip it was drawn under: its children are clipped
+         * away entirely. Returning here also skips this node's own draw, which
+         * draws nothing either -- it would be clipped by that same clip. */
+        if( rule == UITREE_CHILD_CLIP_EMPTY )
+        {
+            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_EMIT_SKIP, 1);
+            return;
+        }
+        if( rule == UITREE_CHILD_CLIP_SET )
         {
             layer_clip = (struct UITreeEmitClip){ cc.clip_x, cc.clip_y, cc.clip_w, cc.clip_h };
             layer_surface = (struct UITreeEmitClip){ cs.clip_x, cs.clip_y, cs.clip_w, cs.clip_h };

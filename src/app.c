@@ -434,6 +434,9 @@ App_Init(
      * era's art, not of the widget — see UITree.mask_keep_opaque. RS2 (634)
      * ships a stencil, OldSchool a corner cover. */
     app->tree->mask_keep_opaque = RSCache_IsRs2Dat2(CacheProvider_Profile(app->provider)) ? 1 : 0;
+    /* So is whether a layer's clip compounds with its ancestors' -- see
+     * UITree.layer_clip_compounds. */
+    app->tree->layer_clip_compounds = RSCache_IsOsrs(CacheProvider_Profile(app->provider)) ? 1 : 0;
     InvManager_Init(&app->invs);
     VarPManager_Init(&app->varps);
     VarCManager_Init(&app->varcs);

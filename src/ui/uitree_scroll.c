@@ -28,8 +28,8 @@ UITree_ComponentEstablishesSurface(struct UITreeComponent const* component)
     if( component->type == UIELEM_BUILTIN_CHAT || component->type == UIELEM_BUILTIN_SIDEBAR )
         return true;
 
-    /* A scroll viewport is a surface too. Layer clips are deliberately NOT
-     * compounded with ancestor layers (see UITree_LayerChildClip), which is right
+    /* A scroll viewport is a surface too. On a tree that does not compound
+     * layer clips (the 2004 rule, see UITree_LayerChildClip) that is right
      * for plain nested layers but wrong here: an IF3 scroll area is a viewport
      * layer holding a content layer sized to the *scroll extent*, so the content
      * layer's own box is taller/wider than what may be shown. Without the
@@ -61,9 +61,11 @@ UITree_LayerCullsChildren(
     return UITree_ComponentClipsChildren(component) && (box_w <= 0 || box_h <= 0);
 }
 
-bool
+enum UITreeChildClip
 UITree_LayerChildClip(
+    struct UITree const* tree,
     struct UITreeComponent const* component,
+    struct UITreeScrollClip const* enclosing,
     struct UITreeScrollClip const* surface,
     int box_x,
     int box_y,
@@ -74,6 +76,7 @@ UITree_LayerChildClip(
 {
     struct UITreeScrollClip const empty = { 0, 0, 0, 0 };
 
+    assert(tree);
     /* A collapsed clipping layer cannot be answered with a rect: an empty rect
      * means "unbounded" in this API, which is the opposite of what a zero-sized
      * clip means. Callers must ask UITree_LayerCullsChildren first and prune the
@@ -81,22 +84,34 @@ UITree_LayerChildClip(
      * is what drew the orb "empty" overlays at full size over the fills, so
      * every minimap orb was a black circle. */
     if( !UITree_ComponentClipsChildren(component) || box_w <= 0 || box_h <= 0 )
-        return false;
+        return UITREE_CHILD_CLIP_INHERIT;
     /* A plugin gameframe placed a surface somewhere under this layer, in
      * canvas coordinates. The layer's own box is the lane's geometry and
      * clips nothing while that declaration stands -- see
      * UITreeComponent.frame_stretched. */
     if( component->frame_stretched )
-        return false;
+        return UITREE_CHILD_CLIP_INHERIT;
 
-    /* Own box ∩ enclosing surface — NOT compounded with ancestor layers
-     * (reference Pix2D.setClipping overwrites, clamping only to the surface). */
-    *out_child = surface ? *surface : empty;
-    UITree_ScrollIntersectClip(out_child, box_x, box_y, box_w, box_h);
+    if( tree->layer_clip_compounds )
+    {
+        /* Own box ∩ the clip this layer was drawn under (rev 239
+         * class163.method5467). Disjoint is not a rect this API can say. */
+        *out_child = enclosing ? *enclosing : empty;
+        UITree_ScrollIntersectClip(out_child, box_x, box_y, box_w, box_h);
+        if( out_child->clip_w <= 0 || out_child->clip_h <= 0 )
+            return UITREE_CHILD_CLIP_EMPTY;
+    }
+    else
+    {
+        /* Own box ∩ enclosing surface -- NOT compounded with ancestor layers
+         * (2004 Pix2D.setBounds overwrites, clamping only to the surface). */
+        *out_child = surface ? *surface : empty;
+        UITree_ScrollIntersectClip(out_child, box_x, box_y, box_w, box_h);
+    }
 
     *out_surface =
         UITree_ComponentEstablishesSurface(component) ? *out_child : (surface ? *surface : empty);
-    return true;
+    return UITREE_CHILD_CLIP_SET;
 }
 
 bool

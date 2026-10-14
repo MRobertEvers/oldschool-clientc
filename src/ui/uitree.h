@@ -1695,6 +1695,13 @@ struct UITree
      *  Set once from the cache profile, because it is a property of the era's
      *  art rather than of any one widget. */
     uint8_t mask_keep_opaque;
+    /** A clipping layer's children are clipped to its box ∩ the clip the
+     *  layer was itself drawn under, so every ancestor layer bounds every
+     *  descendant (rev 239 class163.method5467), instead of to its box ∩ the
+     *  surface (the 2004 client's Pix2D.setBounds). @see UITree_LayerChildClip.
+     *
+     *  Set once from the cache profile: OldSchool compounds. */
+    uint8_t layer_clip_compounds;
     /** Key bindings resolved at bake from the [hotkey:…] sections. Lives on the
      *  tree because the node indices it holds only mean anything for this tree;
      *  a rebuild re-resolves them from the manifest. */

@@ -7568,16 +7568,19 @@ drop_target_pick_in_subtree(
     child_clip = clip ? *clip : (struct UITreeScrollClip){ 0 };
     child_surface = surface ? *surface : (struct UITreeScrollClip){ 0 };
     /* Same shared clip rule as the emit walk (UITree_LayerChildClip), so drop
-     * targets match drawn pixels: own bounds ∩ enclosing surface, never
-     * compounded with ancestor layers. */
+     * targets match drawn pixels: own bounds ∩ the clip it was drawn under
+     * (OldSchool) or ∩ the enclosing surface (2004). */
     {
         struct UITreeScrollClip cc, cs;
         /* Collapsed clipping layer: nothing under it is drawn, so nothing under
          * it can be hit either (same rule as emit_walk_node). */
         if( UITree_LayerCullsChildren(c, w, h) )
             return 0;
-        if( UITree_LayerChildClip(
-                c, surface, x - scroll_off_x, y - scroll_off_y, w, h, &cc, &cs) )
+        enum UITreeChildClip const rule = UITree_LayerChildClip(
+            tree, c, clip, surface, x - scroll_off_x, y - scroll_off_y, w, h, &cc, &cs);
+        if( rule == UITREE_CHILD_CLIP_EMPTY )
+            return 0;
+        if( rule == UITREE_CHILD_CLIP_SET )
         {
             child_clip = cc;
             child_surface = cs;

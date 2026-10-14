@@ -22,9 +22,10 @@ layer_clips(struct UITree const* tree, int32_t layer)
     struct UITreeComponent const* c = &tree->components[layer];
     struct UITreeScrollClip child;
     struct UITreeScrollClip surface;
-    return UITree_LayerChildClip(c, NULL, c->position.abs_x, c->position.abs_y,
+    return UITree_LayerChildClip(tree, c, NULL, NULL, c->position.abs_x, c->position.abs_y,
                                  c->position.width, c->position.height, &child, &surface)
-           ? 1 : 0;
+                   == UITREE_CHILD_CLIP_SET
+               ? 1 : 0;
 }
 
 void test_frame_provide(void)
