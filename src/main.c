@@ -8441,9 +8441,27 @@ main(
 
         /* Audio backend. Opening a device is allowed to fail — a machine with no
          * sound card, or a headless CI box, keeps running silently rather than
-         * refusing to start, which is the same courtesy the renderer gets. */
+         * refusing to start, which is the same courtesy the renderer gets.
+         *
+         * A headless run (SDL's dummy video driver) runs with audio off: it
+         * never opens a device, so a harness that forgot SDL_AUDIODRIVER=dummy
+         * does not play the game through the speakers, and it does not pay to
+         * decode and mix into nothing. TORIRS_HEADLESS_AUDIO=1 opens the device
+         * anyway (a headless audio proof: TORIRS_SIM_SOUND, TORIRS_AUDIO_WAV). */
         audio = PlatformAudio_New();
-        if( !PlatformAudio_Init(audio, TORIRS_AUDIO_SAMPLE_RATE) )
+        bool audio_off = false;
+        {
+            char const* video = getenv("SDL_VIDEODRIVER");
+            char const* force = getenv("TORIRS_HEADLESS_AUDIO");
+            audio_off = (video && strcmp(video, "dummy") == 0) &&
+                        !(force && strcmp(force, "1") == 0);
+        }
+        if( audio_off )
+        {
+            TORIRS_LOG("audio: headless run; off (TORIRS_HEADLESS_AUDIO=1 opens the device)\n");
+            App_SetAudioDevicePresent(&app, false);
+        }
+        else if( !PlatformAudio_Init(audio, TORIRS_AUDIO_SAMPLE_RATE) )
         {
             TORIRS_LOG("audio: no device; running silent\n");
             /* Silence is free: without this the game still decodes every clip
