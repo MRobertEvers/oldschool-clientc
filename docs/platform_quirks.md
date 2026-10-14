@@ -1762,12 +1762,14 @@ manifests platform-neutral unless they are intended for one lane only.
 
 - **Status:** Contract
 - **Applies to:** Web build
-- **Behavior:** The module uses mimalloc, starts with a 256 MiB heap, permits
+- **Behavior:** The module uses dlmalloc, starts with a 256 MiB heap, permits
   growth up to the wasm32 4 GiB ceiling, reserves an 8 MiB stack, keeps the
   runtime alive, and forces filesystem support.
-- **Reason:** Boot interleaves multi-megabyte temporary archives with small
-  long-lived allocations. The previous allocator fragmented badly; the 4 GiB
-  value is a ceiling, not an up-front reservation.
+- **Reason:** The heap's high-water mark is the page's footprint for the rest
+  of the session, so the allocator must not hold more than the client does.
+  mimalloc on wasm32 over-allocates every arena by its 16 MiB alignment and
+  keeps the excess (442 MiB heap for ~129 MiB live); dlmalloc stays within the
+  initial heap. The 4 GiB value is a ceiling, not an up-front reservation.
 - **Source:** [`src/platform/platform.mk`](../src/platform/platform.mk)
 
 ### WEB-AUDIO-001 - Audio starts only after interaction

@@ -469,16 +469,23 @@ These are page chrome, defined inline in `index.html` and independent of
 
 ## Memory
 
-The default web link is `-sMALLOC=mimalloc`, `-sINITIAL_MEMORY=256MB`,
+The default web link is `-sMALLOC=dlmalloc`, `-sINITIAL_MEMORY=256MB`,
 `-sALLOW_MEMORY_GROWTH=1`, `-sMAXIMUM_MEMORY=4GB` (the wasm32 limit — headroom,
 not a reservation).
 
 A wasm heap never shrinks, so a boot's allocation *pattern* matters in a way it
 does not natively. Two things this forced:
 
-- The client allocates and frees multi-megabyte archives for the whole boot
-  interleaved with small long-lived ones, which is what fragments dlmalloc.
-  mimalloc handles the mixed-size churn.
+- The allocator's own overhead is permanent. mimalloc was used here for a
+  while and cost more than the client did: on wasm32 its 16–32 MB arenas must
+  be 16 MB-aligned, and it gets each one from emmalloc by over-allocating
+  size + alignment and keeping all of it (emmalloc cannot free part of a
+  block). An osrs239 login reserved 352 MB to hold 159 MB and grew the heap to
+  442 MB, for ~129 MB that ToriMem counted live. dlmalloc peaks at ~150 MB for
+  the same login and ~155 MB for a cold boot, inside the 256 MB initial heap,
+  with the same frame and boot times (2026-10-14). mimalloc had replaced
+  dlmalloc after a boot ran past 2 GB, but that boot was churning on the bug
+  below and on an archive decoded hundreds of times, both since fixed.
 - `struct Task_CS2Run` used to embed its ~2.9 MB VM. A *queued* task has not
   started and has nothing for a VM to hold, which is invisible when the
   pipeline drains inside a frame and fatal when it does not: a boot that queues

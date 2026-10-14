@@ -501,12 +501,22 @@ else ifeq ($(PLATFORM),web)
   # /boot/ route into the virtual filesystem before main() runs, which is what
   # lets one build open any manifest. FORCE_FILESYSTEM below is for that.
 
-  # Memory. The client allocates and frees multi-megabyte archives for the whole
-  # boot (a dat2 config group is a couple of MB) interleaved with small
-  # long-lived ones. A wasm heap never shrinks, so that pattern is exactly what
-  # fragments dlmalloc — the same osrs230 boot that peaks at 250MB natively ran
-  # the default allocator past the 2GB ceiling. mimalloc handles the mixed-size
-  # churn, and the 4GB maximum is the wasm32 limit, i.e. headroom rather than a
+  # Memory. A wasm heap never shrinks, so the allocator's peak footprint is the
+  # page's footprint for the rest of the session. dlmalloc is the one that
+  # tracks what is live: an osrs239 login peaks at ~150MB of heap for ~125MB
+  # that ToriMem counts live, a cold boot (every cache group fetched and
+  # decoded) at ~155MB, and the 256MB initial heap never grows.
+  #
+  # NOT mimalloc. On wasm32 its arenas (16-32MB) must be 16MB-aligned, and it
+  # gets one from emmalloc by over-allocating size + alignment and keeping all
+  # of it, because emmalloc cannot free part of a block: every arena costs
+  # about twice its size, for good. The same login reserved 352MB to hold
+  # 159MB and grew the heap to 442MB (2026-10-14). It was chosen when a boot
+  # ran dlmalloc past 2GB, but that boot was churning on bugs since fixed -- a
+  # 2.9MB VM in every queued task, an archive decoded hundreds of times -- not
+  # on the allocator. Frame and boot times measured the same with either.
+  #
+  # The 4GB maximum is the wasm32 limit, i.e. headroom rather than a
   # reservation (growth is on demand).
   # MIN_WEBGL_VERSION=1 MAX_WEBGL_VERSION=2: the module contains both GPU
   # renderers, so the runtime has to be able to make either context.
@@ -534,7 +544,7 @@ else ifeq ($(PLATFORM),web)
                       -sMIN_WEBGL_VERSION=1 \
                       -sMAX_WEBGL_VERSION=2 \
                       -sGL_SUPPORT_AUTOMATIC_ENABLE_EXTENSIONS=0 \
-                      -sMALLOC=mimalloc \
+                      -sMALLOC=dlmalloc \
                       -sALLOW_MEMORY_GROWTH=1 \
                       -sINITIAL_MEMORY=268435456 \
                       -sMAXIMUM_MEMORY=4294967296 \
