@@ -1344,7 +1344,9 @@ ev_pose(int frame)
             g_anim->skeletal->matrices )
             ToriDraw_ModelAnimateSkeletal(m, g_anim->skeletal, frame);
     }
-    else if( g_anim->base && g_anim->frames )
+    /* A frame with no transforms holds the rest pose -- the renderer's own
+     * hole-frame rule, as the attached graphic's path above applies it. */
+    else if( g_anim->base && g_anim->frames && g_anim->frames[frame].length > 0 )
         ToriDraw_ModelAnimateFrame(m, g_anim->base, &g_anim->frames[frame]);
     apply_chibi(m);
 }

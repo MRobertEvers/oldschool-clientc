@@ -116,6 +116,7 @@ def render(layer, seq, yaw, out, gender="m"):
             "--seq", str(seq), "--yaw", str(yaw), "--zoom", str(ZOOM), "--side", str(SIDE),
             "--fit", "1", "--frame-height", "200", "--full", "--pitch", str(PITCH),
             "--chibi", CHIBI, "--materials", "--out", out])
+    ps.mark_rendered(out)
 
 
 def load_frames(d):
@@ -450,7 +451,7 @@ def generate(layer_seqs, raw, store_root, gender="m"):
         for seq in seqs:
             for fname, yaw in FACINGS:
                 d = os.path.join(raw, L.replace(":", "_"), str(seq), fname)
-                if not os.path.exists(os.path.join(d, "faces.txt")):
+                if not ps.rendered(d):
                     render(L, seq, yaw, d, gender)
         clips = {(str(seq), fname): load_frames(os.path.join(raw, L.replace(":", "_"), str(seq),
                                                              fname))
@@ -514,7 +515,7 @@ def main():
             for label, seq in SEQS:
                 for fname, yaw in FACINGS:
                     d = os.path.join(raw, L.replace(":", "_"), label, fname)
-                    if not os.path.exists(os.path.join(d, "faces.txt")):
+                    if not ps.rendered(d):
                         render(L, seq, yaw, d)
     preps, pool = {}, []
     for L in layers:

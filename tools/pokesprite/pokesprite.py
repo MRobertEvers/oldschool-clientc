@@ -97,6 +97,34 @@ BUDGET = 15  # colours, transparency is the 16th
 
 # ------------------------------------------------------------------ helpers
 
+_STAMP = []
+
+
+def renderer_stamp():
+    """The identity of the ev_sheet doing the rendering: a hash of the binary,
+    so a rebuild that changes nothing invalidates nothing."""
+    if not _STAMP:
+        import hashlib
+        _STAMP.append(hashlib.sha1(open(EV_SHEET, "rb").read()).hexdigest())
+    return _STAMP[0]
+
+
+def rendered(d):
+    """Whether `d` holds a finished render by THIS ev_sheet. A render dir is
+    reused across runs, and one from an older renderer (before textures, say)
+    would otherwise be reused for good."""
+    try:
+        with open(os.path.join(d, ".ev_sheet")) as f:
+            return f.read() == renderer_stamp() and os.path.exists(os.path.join(d, "faces.txt"))
+    except OSError:
+        return False
+
+
+def mark_rendered(d):
+    with open(os.path.join(d, ".ev_sheet"), "w") as f:
+        f.write(renderer_stamp())
+
+
 def run(cmd):
     r = subprocess.run(cmd, capture_output=True, text=True)
     if r.returncode != 0:

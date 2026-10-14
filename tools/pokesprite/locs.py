@@ -51,11 +51,12 @@ def generate_obj(obj, work, store_root):
     from store import Store
     raw = os.path.join(work, "obj_%d" % obj)
     d = os.path.join(raw, "s-1_r0")
-    if not os.path.exists(os.path.join(d, "faces.txt")):
+    if not ps.rendered(d):
         os.makedirs(d, exist_ok=True)
         ps.run([ps.EV_SHEET, "--rev", "osrs239", ps.CACHE, "--obj", str(obj), "--zoom", str(ZOOM),
                 "--side", str(SIDE), "--fit", "1", "--frame-height", str(FRAME_HEIGHT), "--full",
                 "--pitch", str(PITCH), "--materials", "--out", d])
+        ps.mark_rendered(d)
     frames, boxes, _ncol = ps.stylise(raw, [("s-1", -1)], [("r0", 0)], F, ZOOM, SIDE, 16, None)
     b = boxes["s-1"]
     gx, gy = ground_px()
@@ -77,13 +78,14 @@ def generate_spot(spot, work, store_root):
     raw = os.path.join(work, "spot_%d_z%d" % (spot, SPOT_ZOOM))
     for rname, yaw in ps.FACINGS:
         d = os.path.join(raw, "s_%s" % rname)
-        if os.path.exists(os.path.join(d, "faces.txt")):
+        if ps.rendered(d):
             continue
         os.makedirs(d, exist_ok=True)
         ps.run([ps.EV_SHEET, "--rev", "osrs239", ps.CACHE, "--spotanim", str(spot), "--yaw",
                 str(yaw), "--zoom", str(SPOT_ZOOM), "--side", str(SIDE), "--fit", "1",
                 "--frame-height", str(FRAME_HEIGHT), "--full", "--pitch", str(PITCH),
                 "--materials", "--out", d])
+        ps.mark_rendered(d)
     frames, boxes, _ncol = ps.stylise(raw, [("s", -1)], ps.FACINGS, F, SPOT_ZOOM, SIDE, 24, None,
                                       thin=True)
     b = boxes["s"]
@@ -100,7 +102,7 @@ def render(loc, shape, seq, raw):
     label = "s%d" % seq
     for rname, yaw in ROTATIONS:
         d = os.path.join(raw, "%s_%s" % (label, rname))
-        if os.path.exists(os.path.join(d, "faces.txt")):
+        if ps.rendered(d):
             continue
         os.makedirs(d, exist_ok=True)
         cmd = [ps.EV_SHEET, "--rev", "osrs239", ps.CACHE, "--loc", str(loc), "--shape", str(shape),
@@ -111,6 +113,7 @@ def render(loc, shape, seq, raw):
         if seq >= 0:
             cmd += ["--seq", str(seq)]
         _o, err = ps.run(cmd)
+        ps.mark_rendered(d)
         if "canvas edge" in err:
             print("warning: loc %d shape %d %s touches the canvas edge" % (loc, shape, rname))
     return label
