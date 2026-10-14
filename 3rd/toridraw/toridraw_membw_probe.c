@@ -49,6 +49,7 @@
  */
 
 #include <assert.h>
+#include "toridraw_alloc.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -90,7 +91,7 @@ alloc_aligned(size_t bytes)
 {
     /* 64-byte aligned: a P4 cache line, so a "sequential" walk really is one
      * line at a time and not two half-lines. */
-    void* raw = malloc(bytes + 64);
+    void* raw = TORIDRAW_MALLOC(bytes + 64);
     assert(raw);
     uintptr_t p = ((uintptr_t)raw + 63u) & ~(uintptr_t)63u;
     return (void*)p;

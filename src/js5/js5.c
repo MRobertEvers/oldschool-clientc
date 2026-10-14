@@ -1,3 +1,5 @@
+#include "mem/torirs_mem.h"
+#include "mem/torimem_rscache.h"
 #include "js5.h"
 #include <assert.h>
 
@@ -882,19 +884,20 @@ js5_decode_reference(
 
     struct RSCache_Dat2DiskArchive packed;
     memset(&packed, 0, sizeof(packed));
-    packed.data = (char*)malloc(container_size);
-    assert(packed.data);
+    /* lib:rscache: DecryptDecompress replaces this buffer with its own on
+     * success, so either way rscache's group owns what is freed below. */
+    packed.data = (char*)RSCACHE_MALLOC(container_size);
     memcpy(packed.data, raw, container_size);
     packed.data_size = (int)container_size;
     if( !RSCache_ArchiveDecryptDecompress(&packed, NULL) )
     {
-        free(packed.data);
+        RSCACHE_FREE(packed.data);
         return NULL;
     }
 
     struct RSCache_ReferenceTable* table =
         RSCache_ReferenceTableNewDecode(packed.data, packed.data_size);
-    free(packed.data);
+    RSCACHE_FREE(packed.data);
     if( !table )
         return NULL;
     if( (uint32_t)table->version != expected_version ||

@@ -1,4 +1,5 @@
 #include "xtea_config.h"
+#include "rscache_alloc.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -142,7 +143,7 @@ RSCache_XteaConfigLoadKeys(const char* filename)
     long size = ftell(file);
     fseek(file, 0, SEEK_SET);
 
-    char* json = malloc(size + 1);
+    char* json = RSCACHE_MALLOC(size + 1);
     if( !json )
     {
         fclose(file);
@@ -153,10 +154,10 @@ RSCache_XteaConfigLoadKeys(const char* filename)
     json[size] = '\0';
     fclose(file);
 
-    xtea_keys = malloc(MAX_XTEA_KEYS * sizeof(struct XteaKey));
+    xtea_keys = RSCACHE_MALLOC(MAX_XTEA_KEYS * sizeof(struct XteaKey));
     if( !xtea_keys )
     {
-        free(json);
+        RSCACHE_FREE(json);
         return -1;
     }
 
@@ -164,8 +165,8 @@ RSCache_XteaConfigLoadKeys(const char* filename)
     skip_whitespace(&p);
     if( *p != '[' )
     {
-        free(json);
-        free(xtea_keys);
+        RSCACHE_FREE(json);
+        RSCACHE_FREE(xtea_keys);
         xtea_keys = NULL;
         return -1;
     }
@@ -180,7 +181,7 @@ RSCache_XteaConfigLoadKeys(const char* filename)
             p++;
     }
 
-    free(json);
+    RSCACHE_FREE(json);
     return xtea_key_count;
 }
 
@@ -202,7 +203,7 @@ RSCache_XteaConfigCleanupKeys(void)
 {
     if( xtea_keys )
     {
-        free(xtea_keys);
+        RSCACHE_FREE(xtea_keys);
         xtea_keys = NULL;
         xtea_key_count = 0;
     }

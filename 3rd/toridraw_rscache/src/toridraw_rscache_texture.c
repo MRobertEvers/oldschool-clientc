@@ -1,4 +1,5 @@
 #include "toridraw_rscache.h"
+#include "toridraw_alloc.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -36,7 +37,7 @@ build_adjusted_palette(
     assert(palette);
     assert(palette_length > 0);
 
-    adjusted = malloc((size_t)palette_length * sizeof(*adjusted));
+    adjusted = TORIDRAW_MALLOC((size_t)palette_length * sizeof(*adjusted));
     assert(adjusted);
     for( i = 0; i < palette_length; i++ )
     {
@@ -86,7 +87,7 @@ ToriDraw_RSCacheTextureFromSprite(
             opaque = false;
     }
 
-    pixels = calloc((size_t)dest_size * (size_t)dest_size, sizeof(*pixels));
+    pixels = TORIDRAW_CALLOC((size_t)dest_size * (size_t)dest_size, sizeof(*pixels));
     assert(pixels);
 
     /*
@@ -129,9 +130,9 @@ ToriDraw_RSCacheTextureFromSprite(
         assert(0 && "sprite size is not 64 or 128 and does not match dest_size");
     }
 
-    free(adjusted);
+    TORIDRAW_FREE(adjusted);
 
-    texture = calloc(1, sizeof(*texture));
+    texture = TORIDRAW_CALLOC(1, sizeof(*texture));
     assert(texture);
     texture->texels = pixels;
     texture->width = dest_size;

@@ -1,4 +1,5 @@
 #include "sound_synth.h"
+#include "../rscache_alloc.h"
 
 #include "../rsbuffer.h"
 
@@ -101,8 +102,8 @@ decode_envelope_stages(
     SOUND_NEED(buffer, envelope->stage_count * 4);
     if( envelope->stage_count > 0 )
     {
-        envelope->times = malloc((size_t)envelope->stage_count * sizeof(int));
-        envelope->levels = malloc((size_t)envelope->stage_count * sizeof(int));
+        envelope->times = RSCACHE_MALLOC((size_t)envelope->stage_count * sizeof(int));
+        envelope->levels = RSCACHE_MALLOC((size_t)envelope->stage_count * sizeof(int));
         if( !envelope->times || !envelope->levels )
             return false;
         for( int i = 0; i < envelope->stage_count; i++ )
@@ -130,8 +131,8 @@ decode_envelope(
 static void
 free_envelope(struct RSCache_SoundEnvelope* envelope)
 {
-    free(envelope->times);
-    free(envelope->levels);
+    RSCACHE_FREE(envelope->times);
+    RSCACHE_FREE(envelope->levels);
     envelope->times = NULL;
     envelope->levels = NULL;
     envelope->stage_count = 0;
@@ -242,8 +243,8 @@ decode_filter(
      * filter across it anyway. Leaving it empty would freeze the sweep at zero.
      * Encode writes no stage list for this case, so the round trip is unaffected. */
     filter->envelope.stage_count = 2;
-    filter->envelope.times = malloc(2 * sizeof(int));
-    filter->envelope.levels = malloc(2 * sizeof(int));
+    filter->envelope.times = RSCACHE_MALLOC(2 * sizeof(int));
+    filter->envelope.levels = RSCACHE_MALLOC(2 * sizeof(int));
     if( !filter->envelope.times || !filter->envelope.levels )
         return false;
     filter->envelope.times[0] = 0;
@@ -333,7 +334,7 @@ free_tone(struct RSCache_SoundTone* tone)
     free_envelope(&tone->release);
     free_envelope(&tone->attack);
     free_envelope(&tone->filter.envelope);
-    free(tone);
+    RSCACHE_FREE(tone);
 }
 
 static bool
@@ -348,7 +349,7 @@ decode_effect(
         if( g1(buffer) == 0 )
             continue;
         buffer->position--;
-        effect->tones[slot] = malloc(sizeof(struct RSCache_SoundTone));
+        effect->tones[slot] = RSCACHE_MALLOC(sizeof(struct RSCache_SoundTone));
         if( !effect->tones[slot] )
             return false;
         if( !decode_tone(effect->tones[slot], buffer, flags) )
@@ -373,7 +374,7 @@ RSCache_SoundEffectNewDecode(
     if( !data || data_size <= 0 )
         return NULL;
 
-    effect = malloc(sizeof(*effect));
+    effect = RSCACHE_MALLOC(sizeof(*effect));
     if( !effect )
         return NULL;
     memset(effect, 0, sizeof(*effect));
@@ -404,7 +405,7 @@ RSCache_SoundBankNewDecode(
     if( !data || data_size <= 0 )
         return NULL;
 
-    bank = malloc(sizeof(*bank));
+    bank = RSCACHE_MALLOC(sizeof(*bank));
     if( !bank )
         return NULL;
     memset(bank, 0, sizeof(*bank));
@@ -430,7 +431,7 @@ RSCache_SoundBankNewDecode(
                 struct RSCache_SoundEffect** grown;
                 if( grow < want )
                     grow = want;
-                grown = realloc(bank->effects, (size_t)grow * sizeof(*grown));
+                grown = RSCACHE_REALLOC(bank->effects, (size_t)grow * sizeof(*grown));
                 if( !grown )
                     goto error;
                 memset(grown + capacity, 0, (size_t)(grow - capacity) * sizeof(*grown));
@@ -447,7 +448,7 @@ RSCache_SoundBankNewDecode(
             bank->effects[id] = NULL;
         }
 
-        effect = malloc(sizeof(*effect));
+        effect = RSCACHE_MALLOC(sizeof(*effect));
         if( !effect )
             goto error;
         memset(effect, 0, sizeof(*effect));
@@ -463,7 +464,7 @@ RSCache_SoundBankNewDecode(
         if( bank->order_count == order_capacity )
         {
             int grow = order_capacity ? order_capacity * 2 : 64;
-            int* grown = realloc(bank->order, (size_t)grow * sizeof(int));
+            int* grown = RSCACHE_REALLOC(bank->order, (size_t)grow * sizeof(int));
             if( !grown )
                 goto error;
             bank->order = grown;
@@ -757,7 +758,7 @@ RSCache_SoundEffectFree(struct RSCache_SoundEffect* effect)
         return;
     for( int slot = 0; slot < RSCACHE_SOUND_TONES; slot++ )
         free_tone(effect->tones[slot]);
-    free(effect);
+    RSCACHE_FREE(effect);
 }
 
 void
@@ -767,7 +768,7 @@ RSCache_SoundBankFree(struct RSCache_SoundBank* bank)
         return;
     for( int id = 0; id < bank->count; id++ )
         RSCache_SoundEffectFree(bank->effects[id]);
-    free(bank->effects);
-    free(bank->order);
-    free(bank);
+    RSCACHE_FREE(bank->effects);
+    RSCACHE_FREE(bank->order);
+    RSCACHE_FREE(bank);
 }

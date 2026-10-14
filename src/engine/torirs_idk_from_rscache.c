@@ -1,3 +1,4 @@
+#include "mem/torirs_mem.h"
 #include "engine/torirs_idk_from_rscache.h"
 
 #include <assert.h>
@@ -13,7 +14,7 @@ ToriRS_IdkFromRSCacheDat1(
 
     assert(src);
 
-    idk = calloc(1, sizeof(*idk));
+    idk = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*idk));
     assert(idk);
 
     idk->id = idk_id;
@@ -26,7 +27,7 @@ ToriRS_IdkFromRSCacheDat1(
     if( src->models_count > 0 )
     {
         idk->model_ids_count = src->models_count;
-        idk->model_ids = malloc((size_t)src->models_count * sizeof(int));
+        idk->model_ids = ToriMem_Alloc(ToriMem_Assets(), (size_t)src->models_count * sizeof(int));
         assert(idk->model_ids);
         memcpy(idk->model_ids, src->models, (size_t)src->models_count * sizeof(int));
     }
@@ -44,7 +45,7 @@ ToriRS_IdkFromRSCacheDat2(
 
     assert(src);
 
-    idk = calloc(1, sizeof(*idk));
+    idk = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*idk));
     assert(idk);
 
     idk->id = idk_id;
@@ -64,7 +65,7 @@ ToriRS_IdkFromRSCacheDat2(
     if( src->model_ids_count > 0 )
     {
         idk->model_ids_count = src->model_ids_count;
-        idk->model_ids = malloc((size_t)src->model_ids_count * sizeof(int));
+        idk->model_ids = ToriMem_Alloc(ToriMem_Assets(), (size_t)src->model_ids_count * sizeof(int));
         assert(idk->model_ids);
         memcpy(idk->model_ids, src->model_ids, (size_t)src->model_ids_count * sizeof(int));
     }

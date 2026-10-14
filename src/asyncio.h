@@ -2,6 +2,7 @@
 #define ASYNCIO_H
 
 #define MINIPT_ENABLE_USER_PTR 1
+#include "mem/torirs_mem.h"
 #include <3rd/minipt.h>
 
 #include "perf/torirs_perf.h"
@@ -263,6 +264,12 @@ struct ToriRS_Task
     struct ToriRS_TaskVTable* vtable;
     char name[32];
 
+    /* The task's own lifetime group: an arena under the TASKS pool, made on
+     * the first ToriRS_TaskMem() and ended by task_free after the vtable's
+     * free has run. NULL for a task that never allocated from it. Lives
+     * outside the task struct so the vtable may free the struct itself. */
+    struct ToriMem_Group* mem;
+
     /* Set by TASK_AWAIT_STATE for the duration of one yield: this task is
      * waiting on state only some OTHER queue can change. Cleared on every
      * resume, so it always describes the yield that just happened.
@@ -407,10 +414,27 @@ task_free(struct ToriRS_Task* task)
         task->io.data_size = 0;
     }
     ToriRS_IO_ClearItem(&task->io);
+    /* The group outlives the struct by one step: the vtable frees what the
+     * task owns and the struct; then the group's end checks that everything
+     * the task took from ToriRS_TaskMem() was freed (src/mem/torirs_mem.h). */
+    struct ToriMem_Group* mem = task->mem;
     if( task->vtable->free )
         task->vtable->free(task);
     else
         free(task);
+    ToriMem_GroupDelete(mem);
+}
+
+/** The task's own arena, made on first use. Scratch a task holds across a
+ *  PT_YIELD / PT_WAIT / TASK_AWAIT belongs here, not in FRAME: the frame
+ *  resets while the task waits. Free every block before the task ends. */
+static inline struct ToriMem_Group*
+ToriRS_TaskMem(struct ToriRS_Task* task)
+{
+    assert(task);
+    if( !task->mem )
+        task->mem = ToriMem_ArenaNew(task->name[0] ? task->name : "task", ToriMem_Tasks(), 0);
+    return task->mem;
 }
 
 /** Run `task` once in the io context `io` names. The caller has set

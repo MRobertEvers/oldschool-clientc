@@ -1,4 +1,5 @@
 #include "dat1_anim_frame.h"
+#include "../rscache_alloc.h"
 
 #include "../rsbuffer.h"
 
@@ -15,7 +16,7 @@ RSCache_Dat1AnimBaseFramesNewDecode(
     assert(data_size >= 8);
 
     struct RSCache_Dat1AnimBaseFrames* animbaseframes =
-        malloc(sizeof(struct RSCache_Dat1AnimBaseFrames));
+        RSCACHE_MALLOC(sizeof(struct RSCache_Dat1AnimBaseFrames));
     if( !animbaseframes )
         return NULL;
     memset(animbaseframes, 0, sizeof(struct RSCache_Dat1AnimBaseFrames));
@@ -59,7 +60,7 @@ RSCache_Dat1AnimBaseFramesNewDecode(
     animbaseframes->base = RSCache_Dat1AnimBaseNewDecode(data + pos, data_size - pos);
     if( !animbaseframes->base )
     {
-        free(animbaseframes);
+        RSCACHE_FREE(animbaseframes);
         return NULL;
     }
 
@@ -75,7 +76,7 @@ RSCache_Dat1AnimBaseFramesNewDecode(
     memset(z, 0, 500 * sizeof(int));
     memset(synthesized_scratch, 0, 500 * sizeof(bool));
 
-    animbaseframes->frames = malloc((size_t)total * sizeof(struct RSCache_Dat1AnimFrame));
+    animbaseframes->frames = RSCACHE_MALLOC((size_t)total * sizeof(struct RSCache_Dat1AnimFrame));
     if( !animbaseframes->frames )
     {
         RSCache_Dat1AnimBaseFramesFree(animbaseframes);
@@ -97,7 +98,7 @@ RSCache_Dat1AnimBaseFramesNewDecode(
         animframe->flag_count = group_count;
         if( group_count > 0 )
         {
-            animframe->bone_flags = malloc((size_t)group_count);
+            animframe->bone_flags = RSCACHE_MALLOC((size_t)group_count);
             if( !animframe->bone_flags )
             {
                 RSCache_Dat1AnimBaseFramesFree(animbaseframes);
@@ -179,11 +180,11 @@ RSCache_Dat1AnimBaseFramesNewDecode(
         animframe->length = current;
         if( current > 0 )
         {
-            animframe->groups = malloc((size_t)current * sizeof(int16_t));
-            animframe->x = malloc((size_t)current * sizeof(int16_t));
-            animframe->y = malloc((size_t)current * sizeof(int16_t));
-            animframe->z = malloc((size_t)current * sizeof(int16_t));
-            animframe->synthesized = calloc((size_t)current, sizeof(bool));
+            animframe->groups = RSCACHE_MALLOC((size_t)current * sizeof(int16_t));
+            animframe->x = RSCACHE_MALLOC((size_t)current * sizeof(int16_t));
+            animframe->y = RSCACHE_MALLOC((size_t)current * sizeof(int16_t));
+            animframe->z = RSCACHE_MALLOC((size_t)current * sizeof(int16_t));
+            animframe->synthesized = RSCACHE_CALLOC((size_t)current, sizeof(bool));
             if( !animframe->groups || !animframe->x || !animframe->y || !animframe->z ||
                 !animframe->synthesized )
             {
@@ -212,7 +213,7 @@ RSCache_Dat1AnimBaseNewDecode(
     assert(data != NULL);
     (void)data_size;
 
-    struct RSCache_Dat1AnimBase* animbase = malloc(sizeof(struct RSCache_Dat1AnimBase));
+    struct RSCache_Dat1AnimBase* animbase = RSCACHE_MALLOC(sizeof(struct RSCache_Dat1AnimBase));
     if( !animbase )
         return NULL;
     memset(animbase, 0, sizeof(struct RSCache_Dat1AnimBase));
@@ -223,15 +224,15 @@ RSCache_Dat1AnimBaseNewDecode(
 
     int length = g1(&buffer);
     animbase->length = length;
-    animbase->types = malloc((size_t)length * sizeof(uint8_t));
-    animbase->labels = malloc((size_t)length * sizeof(uint8_t*));
-    animbase->label_counts = malloc((size_t)length * sizeof(uint16_t));
+    animbase->types = RSCACHE_MALLOC((size_t)length * sizeof(uint8_t));
+    animbase->labels = RSCACHE_MALLOC((size_t)length * sizeof(uint8_t*));
+    animbase->label_counts = RSCACHE_MALLOC((size_t)length * sizeof(uint16_t));
     if( !animbase->types || !animbase->labels || !animbase->label_counts )
     {
-        free(animbase->types);
-        free(animbase->labels);
-        free(animbase->label_counts);
-        free(animbase);
+        RSCACHE_FREE(animbase->types);
+        RSCACHE_FREE(animbase->labels);
+        RSCACHE_FREE(animbase->label_counts);
+        RSCACHE_FREE(animbase);
         return NULL;
     }
     memset(animbase->types, 0, (size_t)length * sizeof(uint8_t));
@@ -246,15 +247,15 @@ RSCache_Dat1AnimBaseNewDecode(
     for( int i = 0; i < length; i++ )
     {
         int count = g1(&buffer);
-        animbase->labels[i] = malloc((size_t)count * sizeof(uint8_t));
+        animbase->labels[i] = RSCACHE_MALLOC((size_t)count * sizeof(uint8_t));
         if( !animbase->labels[i] )
         {
             for( int k = 0; k < i; k++ )
-                free(animbase->labels[k]);
-            free(animbase->labels);
-            free(animbase->label_counts);
-            free(animbase->types);
-            free(animbase);
+                RSCACHE_FREE(animbase->labels[k]);
+            RSCACHE_FREE(animbase->labels);
+            RSCACHE_FREE(animbase->label_counts);
+            RSCACHE_FREE(animbase->types);
+            RSCACHE_FREE(animbase);
             return NULL;
         }
         animbase->label_counts[i] = (uint16_t)count;
@@ -272,12 +273,12 @@ cache_dat_animbase_free(struct RSCache_Dat1AnimBase* base)
     if( base->labels )
     {
         for( int i = 0; i < base->length; i++ )
-            free(base->labels[i]);
-        free(base->labels);
+            RSCACHE_FREE(base->labels[i]);
+        RSCACHE_FREE(base->labels);
     }
-    free(base->label_counts);
-    free(base->types);
-    free(base);
+    RSCACHE_FREE(base->label_counts);
+    RSCACHE_FREE(base->types);
+    RSCACHE_FREE(base);
 }
 
 void
@@ -285,12 +286,12 @@ RSCache_Dat1AnimFrameFreeInplace(struct RSCache_Dat1AnimFrame* frame)
 {
     if( !frame )
         return;
-    free(frame->groups);
-    free(frame->x);
-    free(frame->y);
-    free(frame->z);
-    free(frame->bone_flags);
-    free(frame->synthesized);
+    RSCACHE_FREE(frame->groups);
+    RSCACHE_FREE(frame->x);
+    RSCACHE_FREE(frame->y);
+    RSCACHE_FREE(frame->z);
+    RSCACHE_FREE(frame->bone_flags);
+    RSCACHE_FREE(frame->synthesized);
     memset(frame, 0, sizeof(*frame));
 }
 
@@ -300,7 +301,7 @@ RSCache_Dat1AnimFrameFree(struct RSCache_Dat1AnimFrame* animframe)
     if( !animframe )
         return;
     RSCache_Dat1AnimFrameFreeInplace(animframe);
-    free(animframe);
+    RSCACHE_FREE(animframe);
 }
 
 void
@@ -312,10 +313,10 @@ RSCache_Dat1AnimBaseFramesFree(struct RSCache_Dat1AnimBaseFrames* abf)
     {
         for( int i = 0; i < abf->frame_count; i++ )
             RSCache_Dat1AnimFrameFreeInplace(&abf->frames[i]);
-        free(abf->frames);
+        RSCACHE_FREE(abf->frames);
     }
     cache_dat_animbase_free(abf->base);
-    free(abf);
+    RSCACHE_FREE(abf);
 }
 
 uint32_t
@@ -427,16 +428,16 @@ RSCache_Dat1AnimBaseFramesEncode(
     }
     uint32_t del_cap = (uint32_t)abf->frame_count;
 
-    uint8_t* head = malloc(head_cap ? head_cap : 1);
-    uint8_t* tran1 = malloc(tran1_cap ? tran1_cap : 1);
-    uint8_t* tran2 = malloc(tran2_cap ? tran2_cap : 1);
-    uint8_t* del = malloc(del_cap ? del_cap : 1);
+    uint8_t* head = RSCACHE_MALLOC(head_cap ? head_cap : 1);
+    uint8_t* tran1 = RSCACHE_MALLOC(tran1_cap ? tran1_cap : 1);
+    uint8_t* tran2 = RSCACHE_MALLOC(tran2_cap ? tran2_cap : 1);
+    uint8_t* del = RSCACHE_MALLOC(del_cap ? del_cap : 1);
     if( !head || !tran1 || !tran2 || !del )
     {
-        free(head);
-        free(tran1);
-        free(tran2);
-        free(del);
+        RSCACHE_FREE(head);
+        RSCACHE_FREE(tran1);
+        RSCACHE_FREE(tran2);
+        RSCACHE_FREE(del);
         return 0;
     }
 
@@ -469,10 +470,10 @@ RSCache_Dat1AnimBaseFramesEncode(
                 int bone = frame->groups[j];
                 if( bone < 0 || bone >= frame->flag_count )
                 {
-                    free(head);
-                    free(tran1);
-                    free(tran2);
-                    free(del);
+                    RSCACHE_FREE(head);
+                    RSCACHE_FREE(tran1);
+                    RSCACHE_FREE(tran2);
+                    RSCACHE_FREE(del);
                     return 0;
                 }
                 int flags = frame->bone_flags[bone];
@@ -487,13 +488,13 @@ RSCache_Dat1AnimBaseFramesEncode(
         else
         {
             /* Semantic fallback: one non-zero flag byte per real group index. */
-            uint8_t* flags_tmp = calloc((size_t)group_count, 1);
+            uint8_t* flags_tmp = RSCACHE_CALLOC((size_t)group_count, 1);
             if( group_count > 0 && !flags_tmp )
             {
-                free(head);
-                free(tran1);
-                free(tran2);
-                free(del);
+                RSCACHE_FREE(head);
+                RSCACHE_FREE(tran1);
+                RSCACHE_FREE(tran2);
+                RSCACHE_FREE(del);
                 return 0;
             }
             for( int j = 0; j < frame->length; j++ )
@@ -501,11 +502,11 @@ RSCache_Dat1AnimBaseFramesEncode(
                 int bone = frame->groups[j];
                 if( bone < 0 || bone >= group_count )
                 {
-                    free(flags_tmp);
-                    free(head);
-                    free(tran1);
-                    free(tran2);
-                    free(del);
+                    RSCACHE_FREE(flags_tmp);
+                    RSCACHE_FREE(head);
+                    RSCACHE_FREE(tran1);
+                    RSCACHE_FREE(tran2);
+                    RSCACHE_FREE(del);
                     return 0;
                 }
                 int flags = 0;
@@ -533,7 +534,7 @@ RSCache_Dat1AnimBaseFramesEncode(
                 if( flags & 4 )
                     pshortsmart(&tran2_b, frame->z[j]);
             }
-            free(flags_tmp);
+            RSCACHE_FREE(flags_tmp);
         }
     }
 
@@ -549,31 +550,31 @@ RSCache_Dat1AnimBaseFramesEncode(
     if( head_length > 0xFFFFu || tran1_length > 0xFFFFu || tran2_length > 0xFFFFu ||
         del_length > 0xFFFFu )
     {
-        free(head);
-        free(tran1);
-        free(tran2);
-        free(del);
+        RSCACHE_FREE(head);
+        RSCACHE_FREE(tran1);
+        RSCACHE_FREE(tran2);
+        RSCACHE_FREE(del);
         return 0;
     }
 
     uint32_t base_bound = RSCache_Dat1AnimBaseEncodeBound(abf->base);
-    uint8_t* base_bytes = malloc(base_bound ? base_bound : 1);
+    uint8_t* base_bytes = RSCACHE_MALLOC(base_bound ? base_bound : 1);
     if( !base_bytes )
     {
-        free(head);
-        free(tran1);
-        free(tran2);
-        free(del);
+        RSCACHE_FREE(head);
+        RSCACHE_FREE(tran1);
+        RSCACHE_FREE(tran2);
+        RSCACHE_FREE(del);
         return 0;
     }
     uint32_t base_size = RSCache_Dat1AnimBaseEncode(abf->base, base_bytes, base_bound);
     if( base_size == 0 )
     {
-        free(base_bytes);
-        free(head);
-        free(tran1);
-        free(tran2);
-        free(del);
+        RSCACHE_FREE(base_bytes);
+        RSCACHE_FREE(head);
+        RSCACHE_FREE(tran1);
+        RSCACHE_FREE(tran2);
+        RSCACHE_FREE(del);
         return 0;
     }
 
@@ -589,10 +590,10 @@ RSCache_Dat1AnimBaseFramesEncode(
     p2(&out_b, (int)tran2_length);
     p2(&out_b, (int)del_length);
 
-    free(base_bytes);
-    free(head);
-    free(tran1);
-    free(tran2);
-    free(del);
+    RSCACHE_FREE(base_bytes);
+    RSCACHE_FREE(head);
+    RSCACHE_FREE(tran1);
+    RSCACHE_FREE(tran2);
+    RSCACHE_FREE(del);
     return out_b.position;
 }

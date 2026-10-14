@@ -1,4 +1,5 @@
 #include "toridraw_eip_sample.h"
+#include "toridraw_alloc.h"
 
 #include <assert.h>
 #include <stdint.h>
@@ -297,7 +298,7 @@ eip_init(void)
     g_eip.want_stacks = (v && atoi(v) != 0);
     if( g_eip.want_stacks )
     {
-        g_eip.stack_buf = (uint32_t*)calloc(
+        g_eip.stack_buf = (uint32_t*)TORIDRAW_CALLOC(
             (size_t)EIP_STACK_MAX * EIP_STACK_DEPTH, sizeof(uint32_t));
         assert(g_eip.stack_buf);
     }
@@ -311,7 +312,7 @@ eip_init(void)
     g_eip.base = (uintptr_t)mod;
     g_eip.image_size = (uint32_t)nt->OptionalHeader.SizeOfImage;
     g_eip.bins = (g_eip.image_size >> EIP_BIN_SHIFT) + 1u;
-    g_eip.bin = (uint32_t*)calloc(g_eip.bins, sizeof(uint32_t));
+    g_eip.bin = (uint32_t*)TORIDRAW_CALLOC(g_eip.bins, sizeof(uint32_t));
     assert(g_eip.bin);
 }
 
@@ -468,7 +469,7 @@ ToriDraw_EipSampleStop(const char* label)
             fputc('\n', sf);
         }
         fclose(sf);
-        free(g_eip.stack_buf);
+        TORIDRAW_FREE(g_eip.stack_buf);
         g_eip.stack_buf = NULL;
     }
 #endif

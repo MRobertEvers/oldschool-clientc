@@ -1,4 +1,5 @@
 #include "rscache_register.h"
+#include "rscache_alloc.h"
 
 #include <assert.h>
 #include <stdint.h>
@@ -433,13 +434,13 @@ RSCache_RegisterLoad(
     size = ftell(file);
     fseek(file, 0, SEEK_SET);
     assert(size >= 0);
-    data = malloc((size_t)size + 1);
+    data = RSCACHE_MALLOC((size_t)size + 1);
     assert(data);
     if( fread(data, 1, (size_t)size, file) != (size_t)size )
     {
         fprintf(stderr, "%s: short read\n", path);
         fclose(file);
-        free(data);
+        RSCACHE_FREE(data);
         RSCache_RegisterParse(reg, type, "", 0);
         reg->rejected++;
         return 0;
@@ -447,7 +448,7 @@ RSCache_RegisterLoad(
     fclose(file);
     count = RSCache_RegisterParse(reg, type, data, (size_t)size);
     reg->from_file = 1;
-    free(data);
+    RSCACHE_FREE(data);
     return count;
 }
 

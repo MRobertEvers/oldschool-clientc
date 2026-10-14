@@ -1,3 +1,5 @@
+#include "mem/torirs_mem.h"
+#include "mem/torimem_toridraw.h"
 #include "plugin/torirs_plugin_mesh.h"
 
 #include "toridraw.h"
@@ -91,12 +93,13 @@ ToriRS_PluginMeshBuildModel(struct ToriRS_PluginMesh const* mesh)
     model->face_alphas =
         ToriDraw_BufCopy(mesh->face_alpha, (size_t)mesh->face_count, sizeof(*model->face_alphas));
 
-    model->face_colors_a = calloc((size_t)mesh->face_count, sizeof(*model->face_colors_a));
-    model->face_colors_b = calloc((size_t)mesh->face_count, sizeof(*model->face_colors_b));
-    model->face_colors_c = calloc((size_t)mesh->face_count, sizeof(*model->face_colors_c));
-    assert(model->face_colors_a);
-    assert(model->face_colors_b);
-    assert(model->face_colors_c);
+    /* lib:toridraw: the model's arrays; ToriDraw_ModelFree frees them. */
+    model->face_colors_a =
+        TORIDRAW_CALLOC((size_t)mesh->face_count, sizeof(*model->face_colors_a));
+    model->face_colors_b =
+        TORIDRAW_CALLOC((size_t)mesh->face_count, sizeof(*model->face_colors_b));
+    model->face_colors_c =
+        TORIDRAW_CALLOC((size_t)mesh->face_count, sizeof(*model->face_colors_c));
 
     return model;
 }

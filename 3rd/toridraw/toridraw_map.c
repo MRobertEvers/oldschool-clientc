@@ -1,4 +1,5 @@
 #include "toridraw_map.h"
+#include "toridraw_alloc.h"
 
 #include <assert.h>
 #include <stddef.h>
@@ -297,7 +298,7 @@ ToriDraw_MapNew(
 {
     (void)flags;
     int status;
-    struct ToriDraw_Map* m = malloc(sizeof(struct ToriDraw_Map));
+    struct ToriDraw_Map* m = TORIDRAW_MALLOC(sizeof(struct ToriDraw_Map));
     assert(m);
     memset(m, 0, sizeof(struct ToriDraw_Map));
     status = ToriDraw_MapInit(
@@ -314,7 +315,7 @@ ToriDraw_MapNew(
 
     if( status != TORIDRAW_MAP_OK )
     {
-        free(m);
+        TORIDRAW_FREE(m);
         return NULL;
     }
     return m;
@@ -323,7 +324,7 @@ ToriDraw_MapNew(
 void
 ToriDraw_MapFree(struct ToriDraw_Map* m)
 {
-    free(m);
+    TORIDRAW_FREE(m);
 }
 
 void*
@@ -502,7 +503,7 @@ ToriDraw_MapIterGetMap(struct ToriDraw_MapIter* it)
 struct ToriDraw_MapIter*
 ToriDraw_MapIterNew(struct ToriDraw_Map* m)
 {
-    struct ToriDraw_MapIter* it = malloc(sizeof(struct ToriDraw_MapIter));
+    struct ToriDraw_MapIter* it = TORIDRAW_MALLOC(sizeof(struct ToriDraw_MapIter));
     assert(it);
     it->idx = 0;
     it->m = m;
@@ -512,7 +513,7 @@ ToriDraw_MapIterNew(struct ToriDraw_Map* m)
 void
 ToriDraw_MapIterFree(struct ToriDraw_MapIter* it)
 {
-    free(it);
+    TORIDRAW_FREE(it);
 }
 
 void*

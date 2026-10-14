@@ -1,3 +1,4 @@
+#include "mem/torirs_mem.h"
 #include "engine/torirs_flotype_from_rscache.h"
 
 #include <assert.h>
@@ -12,7 +13,7 @@ ToriRS_FlotypeFromRSCacheOverlay(
 
     assert(src);
 
-    flotype = calloc(1, sizeof(*flotype));
+    flotype = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*flotype));
     assert(flotype);
 
     flotype->id = flo_id;
@@ -33,7 +34,7 @@ ToriRS_FlotypeFromRSCacheUnderlay(
 
     assert(src);
 
-    flotype = calloc(1, sizeof(*flotype));
+    flotype = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*flotype));
     assert(flotype);
 
     flotype->id = underlay_id;

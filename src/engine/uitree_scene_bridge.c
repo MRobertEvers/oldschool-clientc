@@ -1,3 +1,5 @@
+#include "mem/torirs_mem.h"
+#include "mem/torimem_toridraw.h"
 #include "../perf/torirs_perf.h"
 #include "uitree_scene_bridge.h"
 
@@ -528,7 +530,7 @@ bridge_ensure_debug_font_at(
      * but `baked` is static and its glyph_alpha rows point into a const blob
      * (see torirs_debug_font_baked.h). Handing the scene the baked struct
      * would free .rdata. */
-    copy = malloc(sizeof(*copy));
+    copy = TORIDRAW_MALLOC(sizeof(*copy));
     assert(copy);
     memcpy(copy, baked, sizeof(*copy));
     for( int i = 0; i < TORIDRAW_FONT_GLYPH_COUNT; i++ )
@@ -540,7 +542,7 @@ bridge_ensure_debug_font_at(
         bytes = (size_t)baked->glyph_width[i] * (size_t)baked->glyph_height[i];
         if( bytes == 0 )
             continue;
-        copy->glyph_alpha[i] = malloc(bytes);
+        copy->glyph_alpha[i] = TORIDRAW_MALLOC(bytes);
         assert(copy->glyph_alpha[i]);
         memcpy(copy->glyph_alpha[i], baked->glyph_alpha[i], bytes);
     }
@@ -583,12 +585,12 @@ UITreeSceneBridge_EnsureChromeSkin(struct UITreeSceneBridge* bridge)
     /* One scene entry holding every skin image, so a chrome slot is just an
      * atlas index into it -- the same shape a multi-frame cache sprite already
      * has, which is why the render command needs no new field to reach these. */
-    sprites = calloc((size_t)count, sizeof(*sprites));
+    sprites = TORIDRAW_CALLOC((size_t)count, sizeof(*sprites));
     assert(sprites);
     for( int i = 0; i < count; i++ )
     {
         struct ToriRSChromeSkin_Sprite const* baked = ToriRSChromeSkin_Get(i);
-        struct ToriDraw_Sprite* spr = calloc(1, sizeof(*spr));
+        struct ToriDraw_Sprite* spr = TORIDRAW_CALLOC(1, sizeof(*spr));
         size_t const bytes = (size_t)baked->w * (size_t)baked->h * sizeof(uint32_t);
 
         assert(spr);
@@ -601,7 +603,7 @@ UITreeSceneBridge_EnsureChromeSkin(struct UITreeSceneBridge* bridge)
         spr->alpha_channel = 1;
         /* Deep copy, for the reason the font path above deep-copies: the scene
          * frees every sprite it holds, and these pixels are `static const`. */
-        spr->pixels_argb = malloc(bytes);
+        spr->pixels_argb = TORIDRAW_MALLOC(bytes);
         assert(spr->pixels_argb);
         memcpy(spr->pixels_argb, baked->argb, bytes);
         sprites[i] = spr;
@@ -633,7 +635,7 @@ UITreeSceneBridge_EnsureInkwell(struct UITreeSceneBridge* bridge)
      * any style -- and a touch the freedom to pick a colour -- without either
      * causing an upload mid-frame.
      */
-    sprites = calloc((size_t)count, sizeof(*sprites));
+    sprites = TORIDRAW_CALLOC((size_t)count, sizeof(*sprites));
     assert(sprites);
     for( int style = 0; style < TORIRS_INKWELL_STYLE_COUNT; style++ )
     {
@@ -641,7 +643,7 @@ UITreeSceneBridge_EnsureInkwell(struct UITreeSceneBridge* bridge)
         {
             for( int frame = 0; frame < TORIRS_INKWELL_FRAMES; frame++, at++ )
             {
-                struct ToriDraw_Sprite* spr = calloc(1, sizeof(*spr));
+                struct ToriDraw_Sprite* spr = TORIDRAW_CALLOC(1, sizeof(*spr));
                 size_t const bytes = (size_t)size * (size_t)size * sizeof(uint32_t);
 
                 assert(spr);
@@ -656,7 +658,7 @@ UITreeSceneBridge_EnsureInkwell(struct UITreeSceneBridge* bridge)
                 spr->alpha_channel = 1;
                 /* Deep copy: the scene frees every sprite it holds, and the
                  * generator hands back a pointer into its own static table. */
-                spr->pixels_argb = malloc(bytes);
+                spr->pixels_argb = TORIDRAW_MALLOC(bytes);
                 assert(spr->pixels_argb);
                 memcpy(spr->pixels_argb,
                        ToriRSInkwell_Frame(style, colour, frame), bytes);
@@ -696,7 +698,7 @@ bridge_publish_argb(
 
     bytes = (size_t)width * (size_t)height * sizeof(uint32_t);
 
-    sprite = calloc(1, sizeof(*sprite));
+    sprite = TORIDRAW_CALLOC(1, sizeof(*sprite));
     assert(sprite);
     sprite->width = width;
     sprite->height = height;
@@ -709,11 +711,11 @@ bridge_publish_argb(
     /* Deep copy, for the reason the skin path above deep-copies: the scene
      * frees every sprite it holds, and these pixels belong to the decode the
      * caller is about to free. */
-    sprite->pixels_argb = malloc(bytes);
+    sprite->pixels_argb = TORIDRAW_MALLOC(bytes);
     assert(sprite->pixels_argb);
     memcpy(sprite->pixels_argb, argb, bytes);
 
-    sprites = calloc(1, sizeof(*sprites));
+    sprites = TORIDRAW_CALLOC(1, sizeof(*sprites));
     assert(sprites);
     sprites[0] = sprite;
 
@@ -1490,7 +1492,7 @@ bridge_rasterize_obj_icon(
         sprite = ToriDraw_SpriteNewFromArgbOwned(outlined, ow, oh);
         if( !sprite )
         {
-            free(outlined);
+            TORIDRAW_FREE(outlined);
             TORIRS_PERF_STAGE_END(TORIRS_PERF_STAGE_UI_ICON);
             return NULL;
         }
@@ -1633,7 +1635,7 @@ bridge_ensure_obj_icon(
             return -1;
     }
 
-    frames = malloc(sizeof(*frames));
+    frames = TORIDRAW_MALLOC(sizeof(*frames));
     assert(frames);
     frames[0] = sprite;
 
@@ -1830,7 +1832,7 @@ bridge_texture_from_torirs(const struct ToriRS_Texture* rs)
     if( !rs->texels || rs->width <= 0 || rs->height <= 0 )
         return NULL;
 
-    texture = calloc(1, sizeof(*texture));
+    texture = TORIDRAW_CALLOC(1, sizeof(*texture));
     assert(texture);
 
     texture->texels = rs->texels;

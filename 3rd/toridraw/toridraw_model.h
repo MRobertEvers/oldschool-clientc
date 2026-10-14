@@ -2,6 +2,7 @@
 #define TORIDRAW_MODEL_H
 
 #include "toridraw_animation.h"
+#include "toridraw_alloc.h"
 #include "toridraw_types.h"
 #include "toridraw_shared_model.h"
 
@@ -20,7 +21,7 @@ ToriDraw_BufCopy(
 {
     assert(src);
     assert(count > 0);
-    void* dst = malloc(count * elem_size);
+    void* dst = TORIDRAW_MALLOC(count * elem_size);
     assert(dst);
     memcpy(dst, src, count * elem_size);
     return dst;
@@ -106,7 +107,7 @@ ToriDraw_ModelNew(
     int face_count,
     uint8_t flags)
 {
-    struct ToriDraw_Model* model = calloc(1, sizeof(struct ToriDraw_Model));
+    struct ToriDraw_Model* model = TORIDRAW_CALLOC(1, sizeof(struct ToriDraw_Model));
     assert(model);
     model->flags = flags;
     model->vertex_count = vertex_count;
@@ -121,6 +122,12 @@ ToriDraw_NormalsNew(
 
 void
 ToriDraw_NormalsFree(struct ToriDraw_Normals* normals);
+
+/** Free every recycled normals block ToriDraw_NormalsFree parked in the pool.
+ *  The pool lives as long as the process; a host drains it at shutdown, after
+ *  the last model is freed, so its blocks are not reported as never freed. */
+void
+ToriDraw_NormalsPoolDrain(void);
 
 void
 ToriDraw_BonesFree(struct ToriDraw_Bones* bones);
@@ -405,8 +412,8 @@ ToriDraw_TextureFree(struct ToriDraw_Texture* texture)
     if( !texture )
         return;
     if( !texture->borrowed_texels )
-        free(texture->texels);
-    free(texture);
+        TORIDRAW_FREE(texture->texels);
+    TORIDRAW_FREE(texture);
 }
 
 static inline void

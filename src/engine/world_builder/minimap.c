@@ -1,3 +1,5 @@
+#include "mem/torirs_mem.h"
+#include "mem/torimem_toridraw.h"
 #include "minimap.h"
 
 #include <assert.h>
@@ -820,7 +822,9 @@ minimap_bake_argb(
     const int pw = minimap->width * 4;
     const int ph = minimap->height * 4;
     const int plane = minimap->width * minimap->height;
-    uint32_t* pixels = (uint32_t*)malloc((size_t)pw * (size_t)ph * sizeof(uint32_t));
+    /* lib:toridraw: the one caller hands it to ToriDraw_SpriteNewFromArgbOwned. */
+    uint32_t* pixels =
+        (uint32_t*)TORIDRAW_MALLOC((size_t)pw * (size_t)ph * sizeof(uint32_t));
     assert(pixels);
 
     if( level < 0 )

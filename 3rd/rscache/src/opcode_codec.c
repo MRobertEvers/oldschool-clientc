@@ -1,4 +1,5 @@
 #include "opcode_codec.h"
+#include "rscache_alloc.h"
 
 #include "datatypes/dat2_config_healthbar.h"
 #include "datatypes/dat2_config_hitsplat.h"
@@ -1189,7 +1190,7 @@ RSCache_OpcodeCodecRecordDecode(
 
     assert(codec != NULL);
     assert(cache != NULL);
-    record = calloc(1, codec->record_size);
+    record = RSCACHE_CALLOC(1, codec->record_size);
     assert(record != NULL);
 
     if( codec->record_init )
@@ -1204,7 +1205,7 @@ RSCache_OpcodeCodecRecordDecode(
          * NULL would read fields the decoder never reached. */
         if( codec->record_free )
             codec->record_free(record);
-        free(record);
+        RSCACHE_FREE(record);
         return NULL;
     }
     if( out_consumed )
@@ -1220,5 +1221,5 @@ RSCache_OpcodeCodecRecordFree(
     assert(record != NULL);
     if( codec && codec->record_free )
         codec->record_free(record);
-    free(record);
+    RSCACHE_FREE(record);
 }

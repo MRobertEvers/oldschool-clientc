@@ -7,6 +7,8 @@
  * app/app_internal.h, and nothing outside the layer may include either.
  */
 
+#include "mem/torirs_mem.h"
+#include "mem/torimem_toridraw.h"
 #include "app/app_internal.h"
 
 /* Private to this unit, declared up front so definition order is free. */
@@ -1347,9 +1349,10 @@ App_ViewSplitDrawRunner(
     App_Render(app, target, width, height);
     split->offscreen = 0;
 
-    /* Its FrameEnd freed what it held itself; the array is ours. */
+    /* Its FrameEnd freed what it held itself; the array is ours to drop,
+     * and toridraw grew it (lib:toridraw). */
     assert(scene->pending_pose_count == 0);
-    free(scene->pending_poses);
+    TORIDRAW_FREE(scene->pending_poses);
     scene->pending_poses = saved_poses;
     scene->pending_pose_count = saved_pose_count;
     scene->pending_pose_cap = saved_pose_cap;

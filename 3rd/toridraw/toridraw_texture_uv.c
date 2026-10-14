@@ -41,6 +41,7 @@
  */
 
 #include "toridraw_texture_uv.h"
+#include "toridraw_alloc.h"
 #include <assert.h>
 
 #include "graphics/raster/texture/texmap_common.h"
@@ -154,7 +155,7 @@ ToriDraw_ComputeTextureUvBases(
     if( !model->render_types )
         return true;
 
-    int* min_x = (int*)malloc((size_t)count * 6 * sizeof(int));
+    int* min_x = (int*)TORIDRAW_MALLOC((size_t)count * 6 * sizeof(int));
     assert(min_x);
     int* max_x = min_x + count;
     int* min_y = max_x + count;
@@ -269,7 +270,7 @@ ToriDraw_ComputeTextureUvBases(
         out_basis[i].valid = true;
     }
 
-    free(min_x);
+    TORIDRAW_FREE(min_x);
     return true;
 }
 
@@ -321,13 +322,13 @@ ToriDraw_ComputeTextureUv(
     struct ToriDraw_TextureUvBasis* bases = NULL;
     if( model->textured_face_count > 0 )
     {
-        bases = (struct ToriDraw_TextureUvBasis*)malloc(
+        bases = (struct ToriDraw_TextureUvBasis*)TORIDRAW_MALLOC(
             (size_t)model->textured_face_count * sizeof(*bases));
         if( !bases )
             return false;
         if( !ToriDraw_ComputeTextureUvBases(model, bases) )
         {
-            free(bases);
+            TORIDRAW_FREE(bases);
             bases = NULL;
         }
     }
@@ -473,6 +474,6 @@ ToriDraw_ComputeTextureUv(
         dst[5] = v[2];
     }
 
-    free(bases);
+    TORIDRAW_FREE(bases);
     return true;
 }

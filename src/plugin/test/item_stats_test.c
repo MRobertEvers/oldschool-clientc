@@ -1,3 +1,4 @@
+#include <stdbool.h>
 /*
  * The item-stats plugin, run against a hand-built api table.
  *
@@ -40,6 +41,24 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "mem/torirs_mem.h"
+
+/* The decoder writes into a lifetime group its caller names; this test keeps
+ * its images in plain malloc (they share slots with malloc'd publishes), so
+ * the decode lands in FRAME and is copied out. */
+static bool
+test_png_decode_argb(const void* data, int size, int* w, int* h, uint32_t** out)
+{
+    uint32_t* px = NULL;
+    if( !PngDecode_Argb(ToriMem_Frame(), data, size, w, h, &px) )
+        return false;
+    *out = malloc((size_t)*w * (size_t)*h * sizeof(*px));
+    assert(*out);
+    memcpy(*out, px, (size_t)*w * (size_t)*h * sizeof(*px));
+    ToriMem_Free(ToriMem_Frame(), px);
+    return true;
+}
+
 
 static int g_failures;
 static int g_checks;
@@ -301,7 +320,7 @@ fake_image_load(char const* name)
     assert(bytes);
     size = (long)fread(bytes, 1, (size_t)size, f);
     fclose(f);
-    if( !PngDecode_Argb(bytes, (int)size, &g_atlas_w, &g_atlas_h, &g_atlas_px) )
+    if( !test_png_decode_argb(bytes, (int)size, &g_atlas_w, &g_atlas_h, &g_atlas_px) )
     {
         free(bytes);
         return -1;

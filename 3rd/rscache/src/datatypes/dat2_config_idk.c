@@ -1,4 +1,5 @@
 #include "dat2_config_idk.h"
+#include "../rscache_alloc.h"
 
 #include "../rsbuffer.h"
 #include "dat2_configs.h"
@@ -14,7 +15,7 @@ RSCache_Dat2ConfigIdkNewDecode(
     char* buffer,
     int buffer_size)
 {
-    struct RSCache_Dat2ConfigIdk* idk = malloc(sizeof(struct RSCache_Dat2ConfigIdk));
+    struct RSCache_Dat2ConfigIdk* idk = RSCACHE_MALLOC(sizeof(struct RSCache_Dat2ConfigIdk));
     assert(idk);
 
     RSCache_Dat2ConfigIdkDecodeInplace(idk, buffer, buffer_size);
@@ -22,9 +23,30 @@ RSCache_Dat2ConfigIdkNewDecode(
 }
 
 void
+RSCache_Dat2ConfigIdkFreeInplace(struct RSCache_Dat2ConfigIdk* idk)
+{
+    assert(idk);
+    RSCACHE_FREE(idk->model_ids);
+    RSCACHE_FREE(idk->recolors_from);
+    RSCACHE_FREE(idk->recolors_to);
+    RSCACHE_FREE(idk->retextures_from);
+    RSCACHE_FREE(idk->retextures_to);
+    idk->model_ids = NULL;
+    idk->recolors_from = NULL;
+    idk->recolors_to = NULL;
+    idk->retextures_from = NULL;
+    idk->retextures_to = NULL;
+}
+
+void
 RSCache_Dat2ConfigIdkFree(struct RSCache_Dat2ConfigIdk* idk)
 {
-    free(idk);
+    if( !idk )
+        return;
+    /* The arrays too: this freed only the struct, so every identkit the
+     * client's build cache dropped leaked its model and recolour lists. */
+    RSCache_Dat2ConfigIdkFreeInplace(idk);
+    RSCACHE_FREE(idk);
 }
 
 void
@@ -197,9 +219,9 @@ RSCache_Dat2ConfigIdkDecodeOp(
         case 2:
         case 5:
             /* The same list, with u16 or u32 ids. */
-            free(idk->model_ids);
+            RSCACHE_FREE(idk->model_ids);
             idk->model_ids_count = g1(buffer);
-            idk->model_ids = malloc((size_t)(idk->model_ids_count + 1) * sizeof(int));
+            idk->model_ids = RSCACHE_MALLOC((size_t)(idk->model_ids_count + 1) * sizeof(int));
             assert(idk->model_ids);
             for( int i = 0; i < idk->model_ids_count; i++ )
                 idk->model_ids[i] = opcode == 2 ? g2(buffer) : g4(buffer);
@@ -210,12 +232,12 @@ RSCache_Dat2ConfigIdkDecodeOp(
             RSCache_PresenceSet(&idk->present, RSCACHE_IDK_FIELD_NOT_SELECTABLE);
             break;
         case 40:
-            free(idk->recolors_from);
-            free(idk->recolors_to);
+            RSCACHE_FREE(idk->recolors_from);
+            RSCACHE_FREE(idk->recolors_to);
             idk->recolor_count = g1(buffer);
-            idk->recolors_from = malloc((size_t)(idk->recolor_count + 1) * sizeof(int));
+            idk->recolors_from = RSCACHE_MALLOC((size_t)(idk->recolor_count + 1) * sizeof(int));
             assert(idk->recolors_from);
-            idk->recolors_to = malloc((size_t)(idk->recolor_count + 1) * sizeof(int));
+            idk->recolors_to = RSCACHE_MALLOC((size_t)(idk->recolor_count + 1) * sizeof(int));
             assert(idk->recolors_to);
             for( int i = 0; i < idk->recolor_count; i++ )
             {
@@ -225,12 +247,12 @@ RSCache_Dat2ConfigIdkDecodeOp(
             RSCache_PresenceSet(&idk->present, RSCACHE_IDK_FIELD_RECOLOURS);
             break;
         case 41:
-            free(idk->retextures_from);
-            free(idk->retextures_to);
+            RSCACHE_FREE(idk->retextures_from);
+            RSCACHE_FREE(idk->retextures_to);
             idk->retexture_count = g1(buffer);
-            idk->retextures_from = malloc((size_t)(idk->retexture_count + 1) * sizeof(int));
+            idk->retextures_from = RSCACHE_MALLOC((size_t)(idk->retexture_count + 1) * sizeof(int));
             assert(idk->retextures_from);
-            idk->retextures_to = malloc((size_t)(idk->retexture_count + 1) * sizeof(int));
+            idk->retextures_to = RSCACHE_MALLOC((size_t)(idk->retexture_count + 1) * sizeof(int));
             assert(idk->retextures_to);
             for( int i = 0; i < idk->retexture_count; i++ )
             {

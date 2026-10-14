@@ -2,6 +2,10 @@
 #define TORIRS_JPEG_DECODE_H
 
 #include <stdbool.h>
+
+/* `out_group` is where the pixels live: the caller knows how long it keeps
+ * them (src/mem/torirs_mem.h); the decoder does not. */
+#include "mem/torirs_mem.h"
 #include <stdint.h>
 
 /**
@@ -19,6 +23,7 @@
  */
 bool
 JpegDecode_Argb(
+    struct ToriMem_Group* out_group,
     const void* data,
     int data_size,
     int* out_width,
@@ -44,6 +49,7 @@ JpegDecode_Argb(
  */
 bool
 JpegDecode_ArgbRsCache(
+    struct ToriMem_Group* out_group,
     const void* data,
     int data_size,
     int* out_width,

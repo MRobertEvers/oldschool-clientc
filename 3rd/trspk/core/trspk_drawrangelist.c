@@ -1,4 +1,5 @@
 #include "trspk_drawrangelist.h"
+#include "../trspk_alloc.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -8,10 +9,10 @@ struct TRSPK_DrawRangeList*
 trspk_drawrangelist_create(uint32_t capacity)
 {
     struct TRSPK_DrawRangeList* list =
-        (struct TRSPK_DrawRangeList*)malloc(sizeof(struct TRSPK_DrawRangeList));
+        (struct TRSPK_DrawRangeList*)TRSPK_MALLOC(sizeof(struct TRSPK_DrawRangeList));
     assert(list != NULL);
 
-    list->items = (struct TRSPK_DrawRange*)malloc(sizeof(struct TRSPK_DrawRange) * capacity);
+    list->items = (struct TRSPK_DrawRange*)TRSPK_MALLOC(sizeof(struct TRSPK_DrawRange) * capacity);
     assert(list->items != NULL);
 
     list->capacity = capacity;
@@ -25,8 +26,8 @@ trspk_drawrangelist_create(uint32_t capacity)
 void
 trspk_drawrangelist_free(struct TRSPK_DrawRangeList* list)
 {
-    free(list->items);
-    free(list);
+    TRSPK_FREE(list->items);
+    TRSPK_FREE(list);
 }
 
 void

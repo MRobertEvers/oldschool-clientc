@@ -1,3 +1,5 @@
+#include "mem/torimem_rscache.h"
+#include "mem/torirs_mem.h"
 #include "engine/torirs_sound_from_rscache.h"
 #include <assert.h>
 
@@ -25,11 +27,16 @@ ToriRS_SoundFromRSCache(
     if( !RSCache_SoundEffectRender(profile, effect, &pcm) )
         return NULL;
 
-    sound = calloc(1, sizeof(*sound));
+    sound = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*sound));
     assert(sound);
 
     sound->id = sound_id;
-    sound->pcm = pcm.samples; /* ownership moves to the ToriRS type */
+    /* ownership moves to the ToriRS type: RSCache -> ASSET */
+    sound->pcm = pcm.samples && pcm.sample_count > 0
+                     ? ToriMem_TakeFromRSCache(ToriMem_Assets(), pcm.samples, (size_t)pcm.sample_count)
+                     : NULL;
+    if( !sound->pcm )
+        RSCACHE_FREE(pcm.samples);
     sound->sample_count = pcm.sample_count;
     sound->sample_rate = pcm.sample_rate;
     sound->channels = 1;
@@ -49,10 +56,11 @@ ToriRS_SoundFromRSCacheSample(
     assert(sample);
     if( !sample->samples || sample->sample_count <= 0 || sample->sample_rate <= 0 )
         return NULL;
-    sound = calloc(1, sizeof(*sound));
+    sound = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*sound));
     assert(sound);
     sound->id = sound_id;
-    sound->pcm16 = sample->samples;
+    sound->pcm16 = ToriMem_TakeFromRSCache(
+        ToriMem_Assets(), sample->samples, (size_t)sample->sample_count * sizeof(*sample->samples));
     sample->samples = NULL;
     sound->sample_count = sample->sample_count;
     sound->sample_rate = sample->sample_rate;
@@ -77,9 +85,9 @@ ToriRS_SoundExpandLoops(
     if( !sound->pcm || sound->sample_count <= 0 )
         return NULL;
 
-    copy = malloc((size_t)sound->sample_count);
-    assert(copy);
-    memcpy(copy, sound->pcm, (size_t)sound->sample_count);
+    /* RSCache's: RSCache_SoundPcmExpandLoops grows it with its own realloc.
+     * The result is taken into ASSET below. */
+    copy = ToriMem_MemdupIntoRSCache(sound->pcm, (size_t)sound->sample_count);
 
     memset(&pcm, 0, sizeof(pcm));
     pcm.samples = copy;
@@ -94,10 +102,10 @@ ToriRS_SoundExpandLoops(
          * un-looped copy is still a correct single play. */
         if( out_sample_count )
             *out_sample_count = pcm.sample_count;
-        return pcm.samples;
+        return ToriMem_TakeFromRSCache(ToriMem_Assets(), pcm.samples, (size_t)pcm.sample_count);
     }
 
     if( out_sample_count )
         *out_sample_count = pcm.sample_count;
-    return pcm.samples;
+    return ToriMem_TakeFromRSCache(ToriMem_Assets(), pcm.samples, (size_t)pcm.sample_count);
 }

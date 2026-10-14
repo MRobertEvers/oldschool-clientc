@@ -1,3 +1,4 @@
+#include "mem/torirs_mem.h"
 #include "engine/torirs_objtype_from_rscache.h"
 
 #include <assert.h>
@@ -38,8 +39,8 @@ torirs_objtype_copy_recolors(
     if( count <= 0 )
         return;
 
-    dst->recolors_from = malloc((size_t)count * sizeof(int));
-    dst->recolors_to = malloc((size_t)count * sizeof(int));
+    dst->recolors_from = ToriMem_Alloc(ToriMem_Assets(), (size_t)count * sizeof(int));
+    dst->recolors_to = ToriMem_Alloc(ToriMem_Assets(), (size_t)count * sizeof(int));
     assert(dst->recolors_from);
     assert(dst->recolors_to);
     memcpy(dst->recolors_from, from, (size_t)count * sizeof(int));
@@ -87,7 +88,7 @@ ToriRS_ObjtypeFromRSCacheDat1(
 
     assert(src);
 
-    objtype = calloc(1, sizeof(*objtype));
+    objtype = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*objtype));
     assert(objtype);
     objtype->wearpos = -1;
     objtype->wearpos2 = -1;
@@ -170,7 +171,7 @@ torirs_objtype_copy_params(
         return;
 
     dst->param_count = src->count;
-    dst->params = calloc((size_t)src->count, sizeof(*dst->params));
+    dst->params = ToriMem_Calloc(ToriMem_Assets(), (size_t)src->count, sizeof(*dst->params));
     assert(dst->params);
     for( i = 0; i < src->count; i++ )
     {
@@ -178,7 +179,7 @@ torirs_objtype_copy_params(
         if( src->kinds && src->kinds[i] == RSCACHE_PARAM_STRING )
         {
             char const* s = (char const*)src->values[i];
-            dst->params[i].string_value = strdup(s ? s : "");
+            dst->params[i].string_value = ToriMem_Strdup(ToriMem_Assets(), s ? s : "");
             assert(dst->params[i].string_value);
         }
         else if( src->values[i] )
@@ -200,7 +201,7 @@ ToriRS_ObjtypeFromRSCacheDat2(
 
     assert(src);
 
-    objtype = calloc(1, sizeof(*objtype));
+    objtype = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*objtype));
     assert(objtype);
     objtype->wearpos = src->wearpos_1;
     objtype->wearpos2 = src->wearpos_2;

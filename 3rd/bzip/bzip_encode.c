@@ -251,7 +251,7 @@ bwt_transform(
     uint32_t length,
     uint8_t* out)
 {
-    uint32_t* rotations = malloc((size_t)length * sizeof(uint32_t));
+    uint32_t* rotations = BZIP_MALLOC((size_t)length * sizeof(uint32_t));
     if( !rotations )
         return UINT32_MAX;
 
@@ -271,7 +271,7 @@ bwt_transform(
         out[i] = in[(rotations[i] + length - 1) % length];
     }
 
-    free(rotations);
+    BZIP_FREE(rotations);
     return primary;
 }
 
@@ -394,16 +394,16 @@ huffman_code_lengths(
     /* Weights are packed as (weight << 8) | depth so ties break on depth, and a
      * floor of 1 keeps unused symbols in the tree — bzip2 does the same, because
      * every symbol needs a code even if it never occurs. */
-    uint64_t* node_weight = malloc(sizeof(uint64_t) * (size_t)(alpha_size * 2 + 2));
-    int* node_parent = malloc(sizeof(int) * (size_t)(alpha_size * 2 + 2));
+    uint64_t* node_weight = BZIP_MALLOC(sizeof(uint64_t) * (size_t)(alpha_size * 2 + 2));
+    int* node_parent = BZIP_MALLOC(sizeof(int) * (size_t)(alpha_size * 2 + 2));
     if( !node_weight || !node_parent )
     {
         /* Degrade to a flat code rather than emitting nothing: still a valid
          * stream, just larger. */
         for( int i = 0; i < alpha_size; i++ )
             lengths[i] = (uint8_t)(max_len < 8 ? max_len : 8);
-        free(node_weight);
-        free(node_parent);
+        BZIP_FREE(node_weight);
+        BZIP_FREE(node_parent);
         return;
     }
 
@@ -481,8 +481,8 @@ huffman_code_lengths(
         }
     }
 
-    free(node_weight);
-    free(node_parent);
+    BZIP_FREE(node_weight);
+    BZIP_FREE(node_parent);
 }
 
 /** Canonical codes for a set of lengths, in bzip2's order (shorter first). */
@@ -547,7 +547,7 @@ encode_block_payload(
     static uint8_t lengths[BZIP_ENCODE_MAX_TABLES][258];
     static uint32_t codes[BZIP_ENCODE_MAX_TABLES][258];
     static uint32_t freq[BZIP_ENCODE_MAX_TABLES][258];
-    uint8_t* selectors = malloc(group_count ? group_count : 1);
+    uint8_t* selectors = BZIP_MALLOC(group_count ? group_count : 1);
     if( !selectors )
         return;
 
@@ -689,7 +689,7 @@ encode_block_payload(
             bw_put(writer, codes[table][symbols[i]], lengths[table][symbols[i]]);
     }
 
-    free(selectors);
+    BZIP_FREE(selectors);
 }
 
 uint32_t
@@ -721,16 +721,16 @@ bzip_compress(
     bw_put(&writer, 'h', 8);
     bw_put(&writer, (uint32_t)('0' + level), 8);
 
-    uint8_t* rle1 = malloc(block_limit + 64);
-    uint8_t* bwt = malloc(block_limit + 64);
+    uint8_t* rle1 = BZIP_MALLOC(block_limit + 64);
+    uint8_t* bwt = BZIP_MALLOC(block_limit + 64);
     /* Each input byte can produce at most one symbol, plus the run codes and the
      * end-of-block marker. */
-    uint16_t* symbols = malloc(sizeof(uint16_t) * (size_t)(block_limit + 64) * 2);
+    uint16_t* symbols = BZIP_MALLOC(sizeof(uint16_t) * (size_t)(block_limit + 64) * 2);
     if( !rle1 || !bwt || !symbols )
     {
-        free(rle1);
-        free(bwt);
-        free(symbols);
+        BZIP_FREE(rle1);
+        BZIP_FREE(bwt);
+        BZIP_FREE(symbols);
         return 0;
     }
 
@@ -830,9 +830,9 @@ bzip_compress(
     bw_put(&writer, stream_crc, 32);
     bw_flush(&writer);
 
-    free(rle1);
-    free(bwt);
-    free(symbols);
+    BZIP_FREE(rle1);
+    BZIP_FREE(bwt);
+    BZIP_FREE(symbols);
 
     if( writer.overflow )
         return 0;

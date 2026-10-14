@@ -1,4 +1,5 @@
 #include "dat2_config_obj.h"
+#include "../rscache_alloc.h"
 
 #include "dat2_entity_ops.h"
 
@@ -331,7 +332,7 @@ RSCache_Dat2ConfigObjInit(struct RSCache_Dat2ConfigObj* object)
     /* Client defaults below, and nothing stated: a decoded opcode sets its bit. */
     RSCache_PresenceReset(&object->present);
 
-    object->name = malloc(5);
+    object->name = RSCACHE_MALLOC(5);
     assert(object->name);
     strcpy(object->name, "null");
 
@@ -397,9 +398,10 @@ RSCache_Dat2ConfigObjNewDecode(
     char* buffer,
     int buffer_size)
 {
-    struct RSCache_Dat2ConfigObj* object = malloc(sizeof(struct RSCache_Dat2ConfigObj));
+    struct RSCache_Dat2ConfigObj* object = RSCACHE_MALLOC(sizeof(struct RSCache_Dat2ConfigObj));
     assert(object);
-    RSCache_Dat2ConfigObjInit(object);
+    /* No Init here: the decode inits, and a second Init's memset dropped the
+     * first one's "null" name -- 5 bytes leaked per obj decoded. */
     RSCache_Dat2ConfigObjDecodeInplaceFlags(object, buffer, buffer_size, 0);
     return object;
 }
@@ -413,9 +415,9 @@ RSCache_Dat2ConfigObjNewDecodeProfile(
     struct RSCache_Dat2ConfigObj* object;
 
     assert(cache);
-    object = malloc(sizeof(struct RSCache_Dat2ConfigObj));
+    object = RSCACHE_MALLOC(sizeof(struct RSCache_Dat2ConfigObj));
     assert(object);
-    RSCache_Dat2ConfigObjInit(object);
+    /* The decode inits (see RSCache_Dat2ConfigObjNewDecode). */
     RSCache_Dat2ConfigObjDecodeInplaceFlags(
         object, buffer, buffer_size, RSCache_Dat2ConfigObjFlags(cache));
     return object;
@@ -429,30 +431,30 @@ RSCache_Dat2ConfigObjFreeInplace(struct RSCache_Dat2ConfigObj* object)
     if( !object )
         return;
 
-    free(object->name);
-    free(object->examine);
-    free(object->recolors_from);
-    free(object->recolors_to);
-    free(object->retextures_from);
-    free(object->retextures_to);
+    RSCACHE_FREE(object->name);
+    RSCACHE_FREE(object->examine);
+    RSCACHE_FREE(object->recolors_from);
+    RSCACHE_FREE(object->recolors_to);
+    RSCACHE_FREE(object->retextures_from);
+    RSCACHE_FREE(object->retextures_to);
     for( i = 0; i < 5; i++ )
     {
-        free(object->actions[i]);
-        free(object->hidden_actions[i]);
-        free(object->if_actions[i]);
+        RSCACHE_FREE(object->actions[i]);
+        RSCACHE_FREE(object->hidden_actions[i]);
+        RSCACHE_FREE(object->if_actions[i]);
         if( object->sub_actions[i] )
         {
             for( int j = 0; j < 20; j++ )
-                free(object->sub_actions[i][j]);
-            free(object->sub_actions[i]);
+                RSCACHE_FREE(object->sub_actions[i][j]);
+            RSCACHE_FREE(object->sub_actions[i]);
         }
     }
     RSCache_EntityOpsFreeInplace(&object->entity_ops);
     for( i = 0; i < object->params.count; i++ )
-        free(object->params.values[i]);
-    free(object->params.keys);
-    free(object->params.values);
-    free(object->params.kinds);
+        RSCACHE_FREE(object->params.values[i]);
+    RSCACHE_FREE(object->params.keys);
+    RSCACHE_FREE(object->params.values);
+    RSCACHE_FREE(object->params.kinds);
 }
 
 void
@@ -461,7 +463,7 @@ RSCache_Dat2ConfigObjFree(struct RSCache_Dat2ConfigObj* object)
     if( !object )
         return;
     RSCache_Dat2ConfigObjFreeInplace(object);
-    free(object);
+    RSCACHE_FREE(object);
 }
 
 void
@@ -495,10 +497,10 @@ obj_b670_read_string(
     char* s = gcstring(buffer);
     if( !slot )
     {
-        free(s);
+        RSCACHE_FREE(s);
         return;
     }
-    free(*slot);
+    RSCACHE_FREE(*slot);
     *slot = s;
 }
 
@@ -511,10 +513,10 @@ obj_b670_read_pairs(
 {
     int length = gushortsmart(buffer);
 
-    free(*out_from);
-    free(*out_to);
-    *out_from = length > 0 ? malloc((size_t)length * sizeof(int)) : NULL;
-    *out_to = length > 0 ? malloc((size_t)length * sizeof(int)) : NULL;
+    RSCACHE_FREE(*out_from);
+    RSCACHE_FREE(*out_to);
+    *out_from = length > 0 ? RSCACHE_MALLOC((size_t)length * sizeof(int)) : NULL;
+    *out_to = length > 0 ? RSCACHE_MALLOC((size_t)length * sizeof(int)) : NULL;
     *out_count = (*out_from && *out_to) ? length : 0;
 
     for( int i = 0; i < length; i++ )
@@ -652,10 +654,10 @@ obj_decode_op_rs2_530(
         int** from = opcode == 40 ? &object->recolors_from : &object->retextures_from;
         int** to = opcode == 40 ? &object->recolors_to : &object->retextures_to;
         int* stored = opcode == 40 ? &object->recolor_count : &object->retexture_count;
-        free(*from);
-        free(*to);
-        *from = count ? malloc((size_t)count * sizeof(int)) : NULL;
-        *to = count ? malloc((size_t)count * sizeof(int)) : NULL;
+        RSCACHE_FREE(*from);
+        RSCACHE_FREE(*to);
+        *from = count ? RSCACHE_MALLOC((size_t)count * sizeof(int)) : NULL;
+        *to = count ? RSCACHE_MALLOC((size_t)count * sizeof(int)) : NULL;
         *stored = (*from && *to) ? count : 0;
         for( int i = 0; i < count; i++ )
         {
@@ -1065,12 +1067,12 @@ RSCache_Dat2ConfigObjDecodeOp(
             OBJ_SET(MODEL);
             break;
         case 2:
-            free(object->name);
+            RSCACHE_FREE(object->name);
             object->name = gcstring(buffer);
             OBJ_SET(NAME);
             break;
         case 3:
-            free(object->examine);
+            RSCACHE_FREE(object->examine);
             object->examine = gcstring(buffer);
             OBJ_SET(DESC);
             break;
@@ -1095,7 +1097,7 @@ RSCache_Dat2ConfigObjDecodeOp(
             OBJ_SET(YOF2D);
             break;
         case 9:
-            free(gcstring(buffer));
+            RSCACHE_FREE(gcstring(buffer));
             break;
         case 11:
             object->stacking_behaviour = 1;
@@ -1152,8 +1154,8 @@ RSCache_Dat2ConfigObjDecodeOp(
         case 34:
         {
             int idx = opcode - 30;
-            free(object->actions[idx]);
-            free(object->hidden_actions[idx]);
+            RSCACHE_FREE(object->actions[idx]);
+            RSCACHE_FREE(object->hidden_actions[idx]);
             object->hidden_actions[idx] = NULL;
             object->actions[idx] = gcstring(buffer);
             /* The client hides an op spelled "hidden"; keep the spelling so the
@@ -1171,17 +1173,17 @@ RSCache_Dat2ConfigObjDecodeOp(
         case 37:
         case 38:
         case 39:
-            free(object->if_actions[opcode - 35]);
+            RSCACHE_FREE(object->if_actions[opcode - 35]);
             object->if_actions[opcode - 35] = gcstring(buffer);
             OBJ_SET_AT(IOP1, opcode - 35);
             break;
         case 40:
         {
             int recolor_count = g1(buffer);
-            free(object->recolors_from);
-            free(object->recolors_to);
-            object->recolors_from = malloc(recolor_count * sizeof(int));
-            object->recolors_to = malloc(recolor_count * sizeof(int));
+            RSCACHE_FREE(object->recolors_from);
+            RSCACHE_FREE(object->recolors_to);
+            object->recolors_from = RSCACHE_MALLOC(recolor_count * sizeof(int));
+            object->recolors_to = RSCACHE_MALLOC(recolor_count * sizeof(int));
             for( int i = 0; i < recolor_count; i++ )
             {
                 object->recolors_from[i] = g2(buffer);
@@ -1194,10 +1196,10 @@ RSCache_Dat2ConfigObjDecodeOp(
         case 41:
         {
             int retexture_count = g1(buffer);
-            free(object->retextures_from);
-            free(object->retextures_to);
-            object->retextures_from = malloc(retexture_count * sizeof(int));
-            object->retextures_to = malloc(retexture_count * sizeof(int));
+            RSCACHE_FREE(object->retextures_from);
+            RSCACHE_FREE(object->retextures_to);
+            object->retextures_from = RSCACHE_MALLOC(retexture_count * sizeof(int));
+            object->retextures_to = RSCACHE_MALLOC(retexture_count * sizeof(int));
             for( int i = 0; i < retexture_count; i++ )
             {
                 object->retextures_from[i] = g2(buffer);
@@ -1217,7 +1219,7 @@ RSCache_Dat2ConfigObjDecodeOp(
             bool valid = action_id >= 0 && action_id < 5;
             if( valid && !object->sub_actions[action_id] )
             {
-                object->sub_actions[action_id] = (char**)malloc(20 * sizeof(char*));
+                object->sub_actions[action_id] = (char**)RSCACHE_MALLOC(20 * sizeof(char*));
                 memset(object->sub_actions[action_id], 0, 20 * sizeof(char*));
             }
 
@@ -1229,11 +1231,11 @@ RSCache_Dat2ConfigObjDecodeOp(
                 char* string = gcstring(buffer);
                 if( valid && sub_action_id >= 0 && sub_action_id < 20 )
                 {
-                    free(object->sub_actions[action_id][sub_action_id]);
+                    RSCACHE_FREE(object->sub_actions[action_id][sub_action_id]);
                     object->sub_actions[action_id][sub_action_id] = string;
                 }
                 else
-                    free(string);
+                    RSCACHE_FREE(string);
             }
             /* An out-of-range op index is consumed and dropped: nothing stored. */
             if( valid )

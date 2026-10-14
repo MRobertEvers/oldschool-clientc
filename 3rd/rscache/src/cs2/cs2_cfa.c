@@ -1,4 +1,5 @@
 #include "cs2_cfa.h"
+#include "../rscache_alloc.h"
 
 #include <assert.h>
 #include <stdarg.h>
@@ -204,14 +205,14 @@ static void
 cs2_post_order(struct cs2_flow* flow, struct cs2_block** order, int* order_count)
 {
     struct cs2_block** stack =
-        (struct cs2_block**)calloc((size_t)flow->block_count, sizeof(*stack));
-    int* next_succ = (int*)calloc((size_t)flow->block_count, sizeof(int));
-    bool* seen = (bool*)calloc((size_t)flow->block_count, sizeof(bool));
+        (struct cs2_block**)RSCACHE_CALLOC((size_t)flow->block_count, sizeof(*stack));
+    int* next_succ = (int*)RSCACHE_CALLOC((size_t)flow->block_count, sizeof(int));
+    bool* seen = (bool*)RSCACHE_CALLOC((size_t)flow->block_count, sizeof(bool));
     if( !stack || !next_succ || !seen )
     {
-        free(stack);
-        free(next_succ);
-        free(seen);
+        RSCACHE_FREE(stack);
+        RSCACHE_FREE(next_succ);
+        RSCACHE_FREE(seen);
         *order_count = 0;
         return;
     }
@@ -243,9 +244,9 @@ cs2_post_order(struct cs2_flow* flow, struct cs2_block** order, int* order_count
         }
     }
 
-    free(stack);
-    free(next_succ);
-    free(seen);
+    RSCACHE_FREE(stack);
+    RSCACHE_FREE(next_succ);
+    RSCACHE_FREE(seen);
 }
 
 static struct cs2_block*
@@ -280,7 +281,7 @@ static bool
 cs2_dominator_tree(struct cs2_flow* flow)
 {
     struct cs2_block** order =
-        (struct cs2_block**)calloc((size_t)flow->block_count, sizeof(*order));
+        (struct cs2_block**)RSCACHE_CALLOC((size_t)flow->block_count, sizeof(*order));
     if( !order )
         return false;
     int order_count = 0;
@@ -310,7 +311,7 @@ cs2_dominator_tree(struct cs2_flow* flow)
                     new_idom = cs2_dom_intersect(flow, pred, new_idom);
                 if( flow->failed )
                 {
-                    free(order);
+                    RSCACHE_FREE(order);
                     return false;
                 }
             }
@@ -323,7 +324,7 @@ cs2_dominator_tree(struct cs2_flow* flow)
             }
         }
     }
-    free(order);
+    RSCACHE_FREE(order);
     if( flow->failed )
         return false;
 
@@ -341,7 +342,7 @@ static bool
 cs2_dominates(struct cs2_flow* flow, struct cs2_block* root, struct cs2_block* block)
 {
     struct cs2_block** stack =
-        (struct cs2_block**)calloc((size_t)flow->block_count + 1, sizeof(*stack));
+        (struct cs2_block**)RSCACHE_CALLOC((size_t)flow->block_count + 1, sizeof(*stack));
     if( !stack )
         return false;
     int top = 0;
@@ -362,7 +363,7 @@ cs2_dominates(struct cs2_flow* flow, struct cs2_block* root, struct cs2_block* b
                 stack[top++] = child;
         }
     }
-    free(stack);
+    RSCACHE_FREE(stack);
     return found;
 }
 

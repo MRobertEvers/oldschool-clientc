@@ -1,3 +1,4 @@
+#include "mem/torirs_mem.h"
 #include "engine/torirs_spotanimtype_from_rscache.h"
 
 #include <assert.h>
@@ -12,7 +13,7 @@ ToriRS_SpotanimtypeFromRSCacheDat1(
     struct ToriRS_Spotanimtype* dst;
 
     assert(src);
-    dst = calloc(1, sizeof(*dst));
+    dst = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*dst));
     assert(dst);
 
     dst->id = spotanim_id;
@@ -38,7 +39,7 @@ ToriRS_SpotanimtypeFromRSCacheDat2(
     struct ToriRS_Spotanimtype* dst;
 
     assert(src);
-    dst = calloc(1, sizeof(*dst));
+    dst = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*dst));
     assert(dst);
 
     dst->id = spotanim_id;

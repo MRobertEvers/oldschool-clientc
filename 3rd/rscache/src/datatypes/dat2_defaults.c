@@ -1,4 +1,5 @@
 #include "dat2_defaults.h"
+#include "../rscache_alloc.h"
 
 #include "../rsbuffer.h"
 
@@ -271,12 +272,12 @@ RSCache_Dat2DefaultsRoundTrips(
         return 0;
 
     bound = RSCache_Dat2DefaultsEncodeBound(defaults);
-    scratch = (uint8_t*)malloc(bound);
+    scratch = (uint8_t*)RSCACHE_MALLOC(bound);
     assert(scratch);
 
     written = RSCache_Dat2DefaultsEncode(defaults, scratch, bound);
     same = written == (uint32_t)data_size && memcmp(scratch, data, (size_t)data_size) == 0;
-    free(scratch);
+    RSCACHE_FREE(scratch);
     return same;
 }
 
@@ -371,11 +372,11 @@ RSCache_Dat2DefaultsColoursRoundTrips(
         return 0;
 
     bound = RSCache_Dat2DefaultsColoursEncodeBound(colours);
-    scratch = (uint8_t*)malloc(bound);
+    scratch = (uint8_t*)RSCACHE_MALLOC(bound);
     assert(scratch);
 
     written = RSCache_Dat2DefaultsColoursEncode(colours, scratch, bound);
     same = written == (uint32_t)data_size && memcmp(scratch, data, (size_t)data_size) == 0;
-    free(scratch);
+    RSCACHE_FREE(scratch);
     return same;
 }

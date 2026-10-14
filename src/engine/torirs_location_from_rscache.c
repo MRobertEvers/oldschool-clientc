@@ -1,3 +1,4 @@
+#include "mem/torirs_mem.h"
 #include "engine/torirs_location_from_rscache.h"
 
 #include <assert.h>
@@ -36,7 +37,7 @@ torirs_dup_int_array(
         return NULL;
     assert(src);
 
-    dst = malloc((size_t)count * sizeof(int));
+    dst = ToriMem_Alloc(ToriMem_Assets(), (size_t)count * sizeof(int));
     assert(dst);
     memcpy(dst, src, (size_t)count * sizeof(int));
     return dst;
@@ -63,7 +64,7 @@ torirs_location_copy_shapes_models(
     if( !src->models || src->shapes_and_model_count <= 0 )
         return;
 
-    dst->models = calloc((size_t)src->shapes_and_model_count, sizeof(int*));
+    dst->models = ToriMem_Calloc(ToriMem_Assets(), (size_t)src->shapes_and_model_count, sizeof(int*));
     assert(dst->models);
     for( int i = 0; i < src->shapes_and_model_count; i++ )
     {
@@ -91,7 +92,7 @@ torirs_location_copy_params(struct ToriRS_Location* dst, struct RSCache_Params c
         return;
 
     dst->param_count = src->count;
-    dst->params = calloc((size_t)src->count, sizeof(*dst->params));
+    dst->params = ToriMem_Calloc(ToriMem_Assets(), (size_t)src->count, sizeof(*dst->params));
     assert(dst->params);
     for( int i = 0; i < src->count; i++ )
     {
@@ -99,7 +100,7 @@ torirs_location_copy_params(struct ToriRS_Location* dst, struct RSCache_Params c
         if( src->kinds && src->kinds[i] == RSCACHE_PARAM_STRING )
         {
             char const* str = (char const*)src->values[i];
-            dst->params[i].string_value = strdup(str ? str : "");
+            dst->params[i].string_value = ToriMem_Strdup(ToriMem_Assets(), str ? str : "");
             assert(dst->params[i].string_value);
         }
         else if( src->values[i] )
@@ -121,7 +122,7 @@ ToriRS_LocationFromRSCacheDat2(
 
     assert(src);
 
-    loc = calloc(1, sizeof(*loc));
+    loc = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*loc));
     assert(loc);
 
     loc->id = loc_id;
@@ -186,7 +187,7 @@ ToriRS_LocationFromRSCacheDat2(
     loc->ambient_sound_ticks_max = src->ambient_sound_ticks_max;
     if( src->ambient_sound_id_count > 0 && src->ambient_sound_ids )
     {
-        loc->ambient_sound_ids = malloc((size_t)src->ambient_sound_id_count * sizeof(int));
+        loc->ambient_sound_ids = ToriMem_Alloc(ToriMem_Assets(), (size_t)src->ambient_sound_id_count * sizeof(int));
         assert(loc->ambient_sound_ids);
         memcpy(
             loc->ambient_sound_ids,

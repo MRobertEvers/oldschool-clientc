@@ -1,3 +1,5 @@
+#include "mem/torirs_mem.h"
+#include "mem/torimem_toridraw.h"
 #include "platform/platform_renderer_soft3d.h"
 
 #include "graphics/fb_clear.h"
@@ -259,7 +261,7 @@ soft3d_outline_cache_get(
         uint32_t* shadowed =
             ToriDraw_SpriteNewGraphicShadow(outlined, ow, oh, graphic_shadow, &fw, &fh);
         if( final_px && final_px != src )
-            free(final_px);
+            TORIDRAW_FREE(final_px); /* the outline: toridraw's output */
         if( !shadowed )
             return NULL;
         final_px = shadowed;
@@ -271,7 +273,7 @@ soft3d_outline_cache_get(
         return NULL;
     }
 
-    free(cache[victim].pixels);
+    TORIDRAW_FREE(cache[victim].pixels); /* toridraw's outline/shadow output */
     cache[victim].src = src;
     cache[victim].sw = sw;
     cache[victim].sh = sh;
@@ -573,8 +575,7 @@ soft3d_layer_end(struct ToriPlatform_Renderer_Soft3D* soft)
 
     {
         int const columns = bx1 - bx0;
-        int* lx = (int*)malloc((size_t)columns * sizeof(int));
-        assert(lx);
+        int* lx = ToriMem_Alloc(ToriMem_Frame(), (size_t)columns * sizeof(int));
         for( int x = 0; x < columns; x++ )
             lx[x] = soft3d_owner(bx0 + x, soft->width, soft->layout_w);
         for( int y = by0; y < by1; y++ )
@@ -589,7 +590,7 @@ soft3d_layer_end(struct ToriPlatform_Renderer_Soft3D* soft)
                     drow[bx0 + x] = v;
             }
         }
-        free(lx);
+        ToriMem_Free(ToriMem_Frame(), lx);
     }
 }
 
@@ -797,7 +798,9 @@ soft3d_draw_sprite(
         }
     }
 
-    spr_px = malloc(pixel_count * sizeof(uint32_t));
+    /* lib:toridraw: ToriDraw_SpriteTransformPixels may free this buffer and
+     * hand back its own, so every buffer on this path is toridraw's. */
+    spr_px = TORIDRAW_MALLOC(pixel_count * sizeof(uint32_t));
     assert(spr_px);
     memcpy(spr_px, spr->pixels_argb, pixel_count * sizeof(uint32_t));
 
@@ -817,10 +820,10 @@ soft3d_draw_sprite(
         if( cached )
         {
             size_t n = (size_t)sw2 * (size_t)sh2;
-            uint32_t* copy = malloc(n * sizeof(uint32_t));
+            uint32_t* copy = TORIDRAW_MALLOC(n * sizeof(uint32_t));
             assert(copy);
             memcpy(copy, cached, n * sizeof(uint32_t));
-            free(spr_px);
+            TORIDRAW_FREE(spr_px);
             spr_px = copy;
             sw = sw2;
             sh = sh2;
@@ -856,10 +859,10 @@ soft3d_draw_sprite(
                 /* clamp writes into the renderer scratch — copy out so the
                  * later TransformPixels free stays well-defined. */
                 size_t n = (size_t)nominal_w * (size_t)nominal_h;
-                uint32_t* owned = malloc(n * sizeof(uint32_t));
+                uint32_t* owned = TORIDRAW_MALLOC(n * sizeof(uint32_t));
                 assert(owned);
                 memcpy(owned, clamped, n * sizeof(uint32_t));
-                free(spr_px);
+                TORIDRAW_FREE(spr_px);
                 spr_px = owned;
                 sw = nominal_w;
                 sh = nominal_h;
@@ -920,7 +923,7 @@ soft3d_draw_sprite(
         }
     }
 
-    free(spr_px);
+    TORIDRAW_FREE(spr_px);
 }
 
 static void
@@ -1452,7 +1455,7 @@ ToriPlatform_Renderer_Soft3D_Free(struct ToriPlatform_Renderer_Soft3D* soft)
     if( soft->scratch )
     {
         for( i = 0; i < SOFT3D_OUTLINE_CACHE_SLOTS; i++ )
-            free(soft->scratch->outline_cache[i].pixels);
+            TORIDRAW_FREE(soft->scratch->outline_cache[i].pixels);
         free(soft->scratch->blit);
         free(soft->scratch->layer);
         free(soft->scratch->segment);

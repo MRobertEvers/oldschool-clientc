@@ -1,3 +1,4 @@
+#include "mem/torirs_mem.h"
 #include "engine/torirs_map_from_rscache.h"
 
 #include <assert.h>
@@ -15,7 +16,7 @@ ToriRS_MapTerrainFromRSCache(
 
     assert(src);
 
-    terrain = calloc(1, sizeof(*terrain));
+    terrain = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*terrain));
     assert(terrain);
 
     terrain->map_x = map_x;
@@ -50,7 +51,7 @@ ToriRS_MapLocsFromRSCache(const struct RSCache_MapLocs* src)
 
     assert(src);
 
-    locs = calloc(1, sizeof(*locs));
+    locs = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*locs));
     assert(locs);
 
     locs->chunk_mapx = src->chunk_mapx;
@@ -59,7 +60,7 @@ ToriRS_MapLocsFromRSCache(const struct RSCache_MapLocs* src)
 
     if( src->locs_count > 0 && src->locs )
     {
-        locs->locs = malloc((size_t)src->locs_count * sizeof(*locs->locs));
+        locs->locs = ToriMem_Alloc(ToriMem_Assets(), (size_t)src->locs_count * sizeof(*locs->locs));
         assert(locs->locs);
         for( int i = 0; i < src->locs_count; i++ )
         {

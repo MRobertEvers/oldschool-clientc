@@ -1,4 +1,5 @@
 #include "dat2_config_sequence.h"
+#include "../rscache_alloc.h"
 
 #include "../dat2disk.h"
 #include "../rsbuffer.h"
@@ -242,8 +243,8 @@ add_frame_sound(
     if( map->count >= map->capacity )
     {
         int new_capacity = map->capacity == 0 ? 4 : map->capacity * 2;
-        map->frames = realloc(map->frames, new_capacity * sizeof(int));
-        map->sounds = realloc(map->sounds, new_capacity * sizeof(struct RSCache_Dat2ConfigFrameSound));
+        map->frames = RSCACHE_REALLOC(map->frames, new_capacity * sizeof(int));
+        map->sounds = RSCACHE_REALLOC(map->sounds, new_capacity * sizeof(struct RSCache_Dat2ConfigFrameSound));
         map->capacity = new_capacity;
     }
     map->frames[map->count] = frame;
@@ -404,8 +405,8 @@ decode_sequence_rs2(
         {
             int count = g2(buffer);
             def->frame_count = count;
-            def->frame_lengths = calloc((size_t)count, sizeof(int));
-            def->frame_ids = calloc((size_t)count, sizeof(int));
+            def->frame_lengths = RSCACHE_CALLOC((size_t)count, sizeof(int));
+            def->frame_ids = RSCACHE_CALLOC((size_t)count, sizeof(int));
             for( int i = 0; i < count; i++ )
                 def->frame_lengths[i] = g2(buffer);
             for( int i = 0; i < count; i++ )
@@ -422,7 +423,7 @@ decode_sequence_rs2(
         case 3:
         {
             int count = g1(buffer);
-            def->interleave_leave = calloc((size_t)count + 1, sizeof(int));
+            def->interleave_leave = RSCACHE_CALLOC((size_t)count + 1, sizeof(int));
             for( int i = 0; i < count; i++ )
                 def->interleave_leave[i] = g1(buffer);
             def->interleave_leave[count] = 9999999;
@@ -465,7 +466,7 @@ decode_sequence_rs2(
         {
             int count = g1(buffer);
             def->chat_frame_id_count = count;
-            def->chat_frame_ids = calloc((size_t)count, sizeof(int));
+            def->chat_frame_ids = RSCACHE_CALLOC((size_t)count, sizeof(int));
             for( int i = 0; i < count; i++ )
                 def->chat_frame_ids[i] = g2(buffer);
             for( int i = 0; i < count; i++ )
@@ -560,7 +561,7 @@ decode_sequence_rs2(
                 if( string_value )
                 {
                     char* value = gcstring(buffer);
-                    free(value);
+                    RSCACHE_FREE(value);
                 }
                 else
                     (void)g4(buffer);
@@ -605,8 +606,8 @@ decode_sequence_v1(
         {
             int var3 = g2(buffer);
             def->frame_count = var3;
-            def->frame_lengths = malloc(var3 * sizeof(int));
-            def->frame_ids = malloc(var3 * sizeof(int));
+            def->frame_lengths = RSCACHE_MALLOC(var3 * sizeof(int));
+            def->frame_ids = RSCACHE_MALLOC(var3 * sizeof(int));
             memset(def->frame_lengths, 0, var3 * sizeof(int));
             memset(def->frame_ids, 0, var3 * sizeof(int));
 
@@ -632,7 +633,7 @@ decode_sequence_v1(
         case 3:
         {
             int var3 = g1(buffer);
-            def->interleave_leave = malloc((var3 + 1) * sizeof(int));
+            def->interleave_leave = RSCACHE_MALLOC((var3 + 1) * sizeof(int));
             memset(def->interleave_leave, 0, (var3 + 1) * sizeof(int));
             for( int var4 = 0; var4 < var3; ++var4 )
             {
@@ -678,7 +679,7 @@ decode_sequence_v1(
         {
             int var3 = g1(buffer);
             def->chat_frame_id_count = var3;
-            def->chat_frame_ids = malloc(var3 * sizeof(int));
+            def->chat_frame_ids = RSCACHE_MALLOC(var3 * sizeof(int));
             memset(def->chat_frame_ids, 0, var3 * sizeof(int));
             for( int var4 = 0; var4 < var3; ++var4 )
             {
@@ -711,7 +712,7 @@ decode_sequence_v1(
             break;
         case 17:
         {
-            def->anim_maya_masks = calloc(256, sizeof(bool));
+            def->anim_maya_masks = RSCACHE_CALLOC(256, sizeof(bool));
             int var3 = g1(buffer);
             for( int var4 = 0; var4 < var3; ++var4 )
             {
@@ -761,8 +762,8 @@ decode_sequence_v2(
         {
             int var3 = g2(buffer);
             def->frame_count = var3;
-            def->frame_lengths = malloc(var3 * sizeof(int));
-            def->frame_ids = malloc(var3 * sizeof(int));
+            def->frame_lengths = RSCACHE_MALLOC(var3 * sizeof(int));
+            def->frame_ids = RSCACHE_MALLOC(var3 * sizeof(int));
             memset(def->frame_lengths, 0, var3 * sizeof(int));
             memset(def->frame_ids, 0, var3 * sizeof(int));
 
@@ -788,7 +789,7 @@ decode_sequence_v2(
         case 3:
         {
             int var3 = g1(buffer);
-            def->interleave_leave = malloc((var3 + 1) * sizeof(int));
+            def->interleave_leave = RSCACHE_MALLOC((var3 + 1) * sizeof(int));
             memset(def->interleave_leave, 0, (var3 + 1) * sizeof(int));
             for( int var4 = 0; var4 < var3; ++var4 )
             {
@@ -834,7 +835,7 @@ decode_sequence_v2(
         {
             int var3 = g1(buffer);
             def->chat_frame_id_count = var3;
-            def->chat_frame_ids = malloc(var3 * sizeof(int));
+            def->chat_frame_ids = RSCACHE_MALLOC(var3 * sizeof(int));
             memset(def->chat_frame_ids, 0, var3 * sizeof(int));
             for( int var4 = 0; var4 < var3; ++var4 )
             {
@@ -867,7 +868,7 @@ decode_sequence_v2(
             break;
         case 17:
         {
-            def->anim_maya_masks = calloc(256, sizeof(bool));
+            def->anim_maya_masks = RSCACHE_CALLOC(256, sizeof(bool));
             int var3 = g1(buffer);
             for( int var4 = 0; var4 < var3; ++var4 )
             {
@@ -917,8 +918,8 @@ decode_sequence_v3(
         {
             int var3 = g2(buffer);
             def->frame_count = var3;
-            def->frame_lengths = malloc(var3 * sizeof(int));
-            def->frame_ids = malloc(var3 * sizeof(int));
+            def->frame_lengths = RSCACHE_MALLOC(var3 * sizeof(int));
+            def->frame_ids = RSCACHE_MALLOC(var3 * sizeof(int));
             memset(def->frame_lengths, 0, var3 * sizeof(int));
             memset(def->frame_ids, 0, var3 * sizeof(int));
 
@@ -944,7 +945,7 @@ decode_sequence_v3(
         case 3:
         {
             int var3 = g1(buffer);
-            def->interleave_leave = malloc((var3 + 1) * sizeof(int));
+            def->interleave_leave = RSCACHE_MALLOC((var3 + 1) * sizeof(int));
             memset(def->interleave_leave, 0, (var3 + 1) * sizeof(int));
             for( int var4 = 0; var4 < var3; ++var4 )
             {
@@ -990,7 +991,7 @@ decode_sequence_v3(
         {
             int var3 = g1(buffer);
             def->chat_frame_id_count = var3;
-            def->chat_frame_ids = malloc(var3 * sizeof(int));
+            def->chat_frame_ids = RSCACHE_MALLOC(var3 * sizeof(int));
             memset(def->chat_frame_ids, 0, var3 * sizeof(int));
             for( int var4 = 0; var4 < var3; ++var4 )
             {
@@ -1023,7 +1024,7 @@ decode_sequence_v3(
             break;
         case 17:
         {
-            def->anim_maya_masks = calloc(256, sizeof(bool));
+            def->anim_maya_masks = RSCACHE_CALLOC(256, sizeof(bool));
             int var3 = g1(buffer);
             for( int var4 = 0; var4 < var3; ++var4 )
             {
@@ -1395,7 +1396,7 @@ RSCache_Dat2ConfigSequenceFree(struct RSCache_Dat2ConfigSequence* def)
 
     RSCache_Dat2ConfigSequenceFreeInplace(def);
 
-    free(def);
+    RSCACHE_FREE(def);
 }
 
 void
@@ -1406,35 +1407,35 @@ RSCache_Dat2ConfigSequenceFreeInplace(struct RSCache_Dat2ConfigSequence* def)
 
     if( def->frame_ids )
     {
-        free(def->frame_ids);
+        RSCACHE_FREE(def->frame_ids);
     }
     if( def->frame_lengths )
     {
-        free(def->frame_lengths);
+        RSCACHE_FREE(def->frame_lengths);
     }
     if( def->interleave_leave )
     {
-        free(def->interleave_leave);
+        RSCACHE_FREE(def->interleave_leave);
     }
     if( def->chat_frame_ids )
     {
-        free(def->chat_frame_ids);
+        RSCACHE_FREE(def->chat_frame_ids);
     }
     if( def->anim_maya_masks )
     {
-        free(def->anim_maya_masks);
+        RSCACHE_FREE(def->anim_maya_masks);
     }
     if( def->debug_name )
     {
-        free(def->debug_name);
+        RSCACHE_FREE(def->debug_name);
     }
     if( def->frame_sounds.frames )
     {
-        free(def->frame_sounds.frames);
+        RSCACHE_FREE(def->frame_sounds.frames);
     }
     if( def->frame_sounds.sounds )
     {
-        free(def->frame_sounds.sounds);
+        RSCACHE_FREE(def->frame_sounds.sounds);
     }
 }
 
@@ -1523,7 +1524,7 @@ RSCache_Dat2ConfigSequenceNewDecodeProfile(
     int data_size)
 {
     assert(cache);
-    struct RSCache_Dat2ConfigSequence* def = malloc(sizeof(struct RSCache_Dat2ConfigSequence));
+    struct RSCache_Dat2ConfigSequence* def = RSCACHE_MALLOC(sizeof(struct RSCache_Dat2ConfigSequence));
     memset(def, 0, sizeof(struct RSCache_Dat2ConfigSequence));
     RSCache_Dat2ConfigSequenceDecodeProfile(def, cache, data, data_size);
     return def;
@@ -1581,7 +1582,7 @@ RSCache_Dat1ConfigSequenceNewDecode(
     char* buffer,
     int buffer_size)
 {
-    struct RSCache_Dat1ConfigSequence* def = malloc(sizeof(struct RSCache_Dat1ConfigSequence));
+    struct RSCache_Dat1ConfigSequence* def = RSCACHE_MALLOC(sizeof(struct RSCache_Dat1ConfigSequence));
     memset(def, 0, sizeof(struct RSCache_Dat1ConfigSequence));
 
     RSCache_Dat1ConfigSequenceDecodeInplace(def, buffer, buffer_size);
@@ -1610,9 +1611,9 @@ RSCache_Dat1ConfigSequenceDecodeInplace(
         case 1:
             def->frame_count = g1(&buffer);
 
-            def->frames = malloc(def->frame_count * sizeof(int));
-            def->iframes = malloc(def->frame_count * sizeof(int));
-            def->delay = malloc(def->frame_count * sizeof(int));
+            def->frames = RSCACHE_MALLOC(def->frame_count * sizeof(int));
+            def->iframes = RSCACHE_MALLOC(def->frame_count * sizeof(int));
+            def->delay = RSCACHE_MALLOC(def->frame_count * sizeof(int));
             memset(def->frames, 0, def->frame_count * sizeof(int));
             memset(def->iframes, 0, def->frame_count * sizeof(int));
             memset(def->delay, 0, def->frame_count * sizeof(int));
@@ -1638,7 +1639,7 @@ RSCache_Dat1ConfigSequenceDecodeInplace(
         case 3:
         {
             int count = g1(&buffer);
-            def->walkmerge = malloc((count + 1) * sizeof(int));
+            def->walkmerge = RSCACHE_MALLOC((count + 1) * sizeof(int));
             memset(def->walkmerge, 0, (count + 1) * sizeof(int));
             for( int i = 0; i < count; i++ )
             {
@@ -1685,11 +1686,11 @@ RSCache_Dat1ConfigSequenceFree(struct RSCache_Dat1ConfigSequence* seq)
 {
     if( !seq )
         return;
-    free(seq->frames);
-    free(seq->iframes);
-    free(seq->delay);
-    free(seq->walkmerge);
-    free(seq);
+    RSCACHE_FREE(seq->frames);
+    RSCACHE_FREE(seq->iframes);
+    RSCACHE_FREE(seq->delay);
+    RSCACHE_FREE(seq->walkmerge);
+    RSCACHE_FREE(seq);
 }
 
 uint32_t

@@ -666,10 +666,9 @@ recenter_model(struct ToriDraw_Model* m, const int* explicit_center)
         if( y > max_y ) max_y = y;
     }
 
-    if( !m->bounds_cylinder )
-        m->bounds_cylinder = calloc(1, sizeof(struct ToriDraw_BoundsCylinder));
-    assert(m->bounds_cylinder);
-    struct ToriDraw_BoundsCylinder* bc = m->bounds_cylinder;
+    /* Embedded in the model since c511945fd; the flag replaces the NULL test. */
+    struct ToriDraw_BoundsCylinder* bc = &m->bounds_cylinder;
+    m->has_bounds_cylinder = true;
     bc->min_y = min_y;
     bc->max_y = max_y;
     bc->radius = (int)sqrt((double)radius2);
@@ -1551,12 +1550,12 @@ main(int argc, char** argv)
 
     recenter_model(model, have_focus ? focus : NULL);
 
-    if( pose_stats && model->bounds_cylinder )
+    if( pose_stats && model->has_bounds_cylinder )
     {
         /* The framing radius after the recentre, and the depth-table room this
          * subject needs: the sort indexes faces by projected depth, so a model
          * needs its whole diameter in levels no matter where the camera sits. */
-        int const reach = model->bounds_cylinder->min_z_depth_any_rotation;
+        int const reach = model->bounds_cylinder.min_z_depth_any_rotation;
         printf(
             "pose stats: radius %d depth_levels_needed %d\n",
             reach,
@@ -1592,7 +1591,7 @@ main(int argc, char** argv)
     center_y = 0;
     extent = focus_radius > 0
                  ? focus_radius
-                 : (model->bounds_cylinder ? model->bounds_cylinder->min_z_depth_any_rotation
+                 : (model->has_bounds_cylinder ? model->bounds_cylinder.min_z_depth_any_rotation
                                            : 512);
     if( extent < 1 )
         extent = 1;
@@ -1735,8 +1734,8 @@ main(int argc, char** argv)
 
             reach = focus_radius > 0
                         ? focus_radius
-                        : (model->bounds_cylinder
-                               ? model->bounds_cylinder->min_z_depth_any_rotation
+                        : (model->has_bounds_cylinder
+                               ? model->bounds_cylinder.min_z_depth_any_rotation
                                : 512);
             dist = (int)((double)reach * (double)TORIDRAW_PROJECTION_SCALE_DEFAULT /
                          (0.45 * (double)tile * req_zoom));

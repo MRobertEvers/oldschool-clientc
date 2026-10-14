@@ -1,4 +1,5 @@
 #include "compression.h"
+#include "rscache_alloc.h"
 
 #include "bzip.h"
 #include "checksum.h"
@@ -269,7 +270,7 @@ RSCache_CompressionBzipCompress(
     /* Compress into scratch so the magic can be dropped without shifting the
      * caller's buffer around. */
     uint32_t scratch_size = bzip_compress_bound((uint32_t)data_length);
-    uint8_t* scratch = malloc(scratch_size);
+    uint8_t* scratch = RSCACHE_MALLOC(scratch_size);
     if( !scratch )
         return 0;
 
@@ -277,18 +278,18 @@ RSCache_CompressionBzipCompress(
         bzip_compress(scratch, scratch_size, data, (uint32_t)data_length, BZIP_CACHE_LEVEL);
     if( written <= BZIP_MAGIC_SIZE )
     {
-        free(scratch);
+        RSCACHE_FREE(scratch);
         return 0;
     }
 
     uint32_t payload = written - BZIP_MAGIC_SIZE;
     if( (uint32_t)out_length < payload )
     {
-        free(scratch);
+        RSCACHE_FREE(scratch);
         return 0;
     }
 
     memcpy(out, scratch + BZIP_MAGIC_SIZE, payload);
-    free(scratch);
+    RSCACHE_FREE(scratch);
     return payload;
 }

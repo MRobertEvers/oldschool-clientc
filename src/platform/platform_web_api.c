@@ -26,6 +26,8 @@
  * responsibility.
  */
 
+#include "mem/torirs_mem.h"
+#include "mem/torimem_rscache.h"
 #include <rscache.h>
 
 #include <assert.h>
@@ -68,17 +70,15 @@ ToriRS_WebApi_ArchiveDecode(
     if( !container || size <= 0 )
         return NULL;
 
-    archive = malloc(sizeof(*archive));
-    assert(archive);
-    memset(archive, 0, sizeof(*archive));
+    /* lib:rscache: the archive and its data are freed by RSCache_Dat2DiskArchiveFree. */
+    archive = RSCACHE_CALLOC(1, sizeof(*archive));
 
     /*
      * The decode works in place and replaces `data` with the decompressed
      * buffer, so it is handed a copy it may own. Borrowing the JS-side buffer
      * would hand rscache a pointer it is entitled to free.
      */
-    archive->data = malloc((size_t)size);
-    assert(archive->data);
+    archive->data = RSCACHE_MALLOC((size_t)size);
     memcpy(archive->data, container, (size_t)size);
     archive->data_size = size;
     archive->table_id = table_id;
@@ -228,8 +228,7 @@ ToriRS_WebApi_Dat1ArchiveDecode(
     /* Decompression works in place and replaces `data`, so it is handed a copy
      * it may own -- borrowing the JS-side buffer would hand rscache a pointer
      * it is entitled to free. */
-    raw.data = malloc((size_t)size);
-    assert(raw.data);
+    raw.data = RSCACHE_MALLOC((size_t)size);
     memcpy(raw.data, container, (size_t)size);
     raw.data_size = size;
     raw.table_id = table_id;
@@ -240,13 +239,12 @@ ToriRS_WebApi_Dat1ArchiveDecode(
     if( format != RSCACHE_ARCHIVE_FORMAT_DAT_MULTIFILE &&
         !RSCache_ArchiveDecompressDat(&raw, format) )
     {
-        free(raw.data);
+        RSCACHE_FREE(raw.data);
         return NULL;
     }
 
-    archive = malloc(sizeof(*archive));
-    assert(archive);
-    memset(archive, 0, sizeof(*archive));
+    /* lib:rscache: freed by RSCache_Dat1DiskArchiveFree. */
+    archive = RSCACHE_CALLOC(1, sizeof(*archive));
     archive->data = raw.data;
     archive->data_size = raw.data_size;
     archive->archive_id = archive_id;

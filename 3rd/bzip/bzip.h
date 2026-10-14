@@ -15,6 +15,33 @@
 #include <unistd.h>
 #endif
 
+/*
+ * Every heap allocation bzip makes goes through one replaceable allocator.
+ * The default is libc. A host that installs its own does so before the first
+ * call into the library, and installs the same allocator in every library it
+ * links, or none, when blocks cross between them: a block allocated by one allocator
+ * and freed by another is heap corruption.
+ */
+struct BZip_Allocator
+{
+    void* (*malloc_fn)(size_t size, void* user);
+    void* (*calloc_fn)(size_t count, size_t size, void* user);
+    void* (*realloc_fn)(void* ptr, size_t size, void* user);
+    void (*free_fn)(void* ptr, void* user);
+    void* user;
+};
+
+extern struct BZip_Allocator g_bzip_allocator;
+
+/** Every field but `user` is required. */
+void
+bzip_set_allocator(const struct BZip_Allocator* allocator);
+
+#define BZIP_MALLOC(size) g_bzip_allocator.malloc_fn((size), g_bzip_allocator.user)
+#define BZIP_CALLOC(count, size) g_bzip_allocator.calloc_fn((count), (size), g_bzip_allocator.user)
+#define BZIP_REALLOC(ptr, size) g_bzip_allocator.realloc_fn((ptr), (size), g_bzip_allocator.user)
+#define BZIP_FREE(ptr) g_bzip_allocator.free_fn((ptr), g_bzip_allocator.user)
+
 /* Constants for huffman coding */
 #define MAX_GROUPS 6
 #define GROUP_SIZE 50       /* 64 would have been more efficient */

@@ -1,3 +1,5 @@
+#include "mem/torirs_mem.h"
+#include "mem/torimem_rscache.h"
 #include "platform_x_io_ondemand.h"
 
 #include "platform_x_http.h"
@@ -1664,8 +1666,12 @@ od_archive_from_wire(
     struct RSCache_Dat1DiskArchive* archive;
     struct RSCache_Dat2DiskArchive raw = { 0 };
 
-    raw.data = data;
+    /* rscache may free or replace these bytes (the decompress below), so
+     * from here they are lib:rscache's: one copy at the boundary, made where
+     * ondemand takes ownership of the wire buffer. */
+    raw.data = ToriMem_MemdupIntoRSCache(data, size > 0 ? (size_t)size : 0);
     raw.data_size = size;
+    free(data);
 
     /*
      * The last two bytes are the file's VERSION, not payload.
@@ -1692,7 +1698,7 @@ od_archive_from_wire(
      */
     if( raw.data_size < 2 )
     {
-        free(raw.data);
+        RSCACHE_FREE(raw.data);
         return NULL;
     }
     raw.data_size -= 2;
@@ -1711,13 +1717,12 @@ od_archive_from_wire(
             table_id,
             archive_id,
             raw.data_size);
-        free(raw.data);
+        RSCACHE_FREE(raw.data);
         return NULL;
     }
 
-    archive = malloc(sizeof(struct RSCache_Dat1DiskArchive));
-    assert(archive);
-    memset(archive, 0, sizeof(struct RSCache_Dat1DiskArchive));
+    /* lib:rscache: freed by RSCache_Dat1DiskArchiveFree. */
+    archive = RSCACHE_CALLOC(1, sizeof(struct RSCache_Dat1DiskArchive));
     archive->data = raw.data;
     archive->data_size = raw.data_size;
     archive->archive_id = archive_id;
@@ -1765,6 +1770,13 @@ PlatformXIOOnDemand_ArchiveLoad(
         }
         if( !raw.data )
             return NULL;
+        {
+            /* The jag archive's bytes are freed by RSCache_Dat1DiskArchiveFree:
+             * lib:rscache's from here (one copy at the boundary). */
+            char* wire = raw.data;
+            raw.data = ToriMem_MemdupIntoRSCache(wire, (size_t)raw.data_size);
+            free(wire);
+        }
         od_tally(table_id, archive_id, raw.data_size);
         /* A jag archive is stored as it arrives. */
         od_cache_store(od, table_id, archive_id, raw.data, raw.data_size);
@@ -1786,9 +1798,8 @@ PlatformXIOOnDemand_ArchiveLoad(
         return od_archive_from_wire(od, table_id, archive_id, data, size);
     }
 
-    archive = malloc(sizeof(struct RSCache_Dat1DiskArchive));
-    assert(archive);
-    memset(archive, 0, sizeof(struct RSCache_Dat1DiskArchive));
+    /* lib:rscache: freed by RSCache_Dat1DiskArchiveFree. */
+    archive = RSCACHE_CALLOC(1, sizeof(struct RSCache_Dat1DiskArchive));
     archive->data = raw.data;
     archive->data_size = raw.data_size;
     archive->archive_id = archive_id;

@@ -1,3 +1,4 @@
+#include "mem/torirs_mem.h"
 #include "minimap.h"
 
 #include <assert.h>
@@ -393,7 +394,7 @@ minimap_bake_argb(
 
     const int pw = minimap->width * 4;
     const int ph = minimap->height * 4;
-    uint32_t* pixels = (uint32_t*)malloc((size_t)pw * (size_t)ph * sizeof(uint32_t));
+    uint32_t* pixels = (uint32_t*)ToriMem_Alloc(ToriMem_Assets(), (size_t)pw * (size_t)ph * sizeof(uint32_t));
     assert(pixels);
 
     const uint32_t black_argb = 0xFF000000u;
@@ -451,10 +452,10 @@ minimap_render_to_sprite(struct Minimap* minimap)
     if( !pixels )
         return NULL;
 
-    struct ToriRS_Sprite* sprite = calloc(1, sizeof(*sprite));
+    struct ToriRS_Sprite* sprite = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*sprite));
     assert(sprite);
 
-    sprite->frames = calloc(1, sizeof(*sprite->frames));
+    sprite->frames = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*sprite->frames));
     assert(sprite->frames);
 
     sprite->frame_count = 1;

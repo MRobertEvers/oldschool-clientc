@@ -1,3 +1,5 @@
+#include "mem/torirs_mem.h"
+#include "mem/torimem_rscache.h"
 #include "platform/io_wire.h"
 
 #include <assert.h>
@@ -464,8 +466,9 @@ apply_cache_dat2(
     struct IOWireResponse const* resp,
     struct ToriRS_IOItem* item)
 {
-    struct RSCache_Dat2DiskArchive* archive = calloc(1, sizeof(*archive));
-    assert(archive);
+    /* lib:rscache: the consumer frees it with RSCache_Dat2DiskArchiveFree. */
+    struct RSCache_Dat2DiskArchive* archive =
+        RSCACHE_CALLOC(1, sizeof(*archive));
 
     archive->table_id = resp->v[0];
     archive->archive_id = resp->v[1];
@@ -474,14 +477,12 @@ apply_cache_dat2(
     archive->data_size = resp->blob_len;
     if( resp->blob_len > 0 )
     {
-        archive->data = malloc((size_t)resp->blob_len);
-        assert(archive->data);
-        memcpy(archive->data, resp->blob, (size_t)resp->blob_len);
+        archive->data = ToriMem_MemdupIntoRSCache(resp->blob, (size_t)resp->blob_len);
     }
     if( resp->aux_count > 0 )
     {
-        archive->file_ids = malloc((size_t)resp->aux_count * sizeof(int));
-        assert(archive->file_ids);
+        archive->file_ids =
+            RSCACHE_MALLOC((size_t)resp->aux_count * sizeof(int));
         for( int i = 0; i < resp->aux_count; i++ )
             archive->file_ids[i] = aux_at(resp->aux, i);
     }
@@ -496,8 +497,9 @@ apply_cache_dat1(
     struct IOWireResponse const* resp,
     struct ToriRS_IOItem* item)
 {
-    struct RSCache_Dat1DiskArchive* archive = calloc(1, sizeof(*archive));
-    assert(archive);
+    /* lib:rscache: the consumer frees it with RSCache_Dat1DiskArchiveFree. */
+    struct RSCache_Dat1DiskArchive* archive =
+        RSCACHE_CALLOC(1, sizeof(*archive));
 
     archive->table_id = resp->v[0];
     archive->archive_id = resp->v[1];
@@ -507,9 +509,7 @@ apply_cache_dat1(
     archive->data_size = resp->blob_len;
     if( resp->blob_len > 0 )
     {
-        archive->data = malloc((size_t)resp->blob_len);
-        assert(archive->data);
-        memcpy(archive->data, resp->blob, (size_t)resp->blob_len);
+        archive->data = ToriMem_MemdupIntoRSCache(resp->blob, (size_t)resp->blob_len);
     }
 
     item->data = archive;
@@ -620,8 +620,9 @@ IOWire_FreeLoadedItem(struct ToriRS_IOItem* item)
         break;
     case TORIRS_IOK_REFERENCE_TABLE:
         /* The server never decodes one (it forwards the archive bytes), so
-         * item->data here is a plain byte run. See io_server_load. */
-        free(item->data);
+         * item->data here is a plain byte run -- taken out of an rscache
+         * archive (io_server_load), so lib:rscache's. */
+        RSCACHE_FREE(item->data);
         break;
     default:
         free(item->data);

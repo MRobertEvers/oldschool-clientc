@@ -390,6 +390,11 @@ struct RSCache_ServerPack;
 int
 ToriRSServer_SceneLocConfigsLoad(struct RSCache_ServerPack* pack);
 
+/** Release what ToriRSServer_SceneLocConfigsLoad loaded: the raw records and
+ *  every decoded config in the cache. Boot teardown calls it. */
+void
+ToriRSServer_SceneLocConfigsFree(void);
+
 int
 ToriRSServer_SceneBuild(
     const char* cache_dir,

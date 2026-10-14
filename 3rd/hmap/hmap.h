@@ -18,6 +18,33 @@
 #include <stdlib.h>
 #include <string.h>
 
+/*
+ * Every heap allocation hmap makes goes through one replaceable allocator.
+ * The default is libc. A host that installs its own does so before the first
+ * call into the library, and installs the same allocator in every library it
+ * links, or none, when blocks cross between them: a block allocated by one allocator
+ * and freed by another is heap corruption.
+ */
+struct HMap_Allocator
+{
+    void* (*malloc_fn)(size_t size, void* user);
+    void* (*calloc_fn)(size_t count, size_t size, void* user);
+    void* (*realloc_fn)(void* ptr, size_t size, void* user);
+    void (*free_fn)(void* ptr, void* user);
+    void* user;
+};
+
+extern struct HMap_Allocator g_hmap_allocator;
+
+/** Every field but `user` is required. */
+void
+hmap_set_allocator(const struct HMap_Allocator* allocator);
+
+#define HMAP_MALLOC(size) g_hmap_allocator.malloc_fn((size), g_hmap_allocator.user)
+#define HMAP_CALLOC(count, size) g_hmap_allocator.calloc_fn((count), (size), g_hmap_allocator.user)
+#define HMAP_REALLOC(ptr, size) g_hmap_allocator.realloc_fn((ptr), (size), g_hmap_allocator.user)
+#define HMAP_FREE(ptr) g_hmap_allocator.free_fn((ptr), g_hmap_allocator.user)
+
 #define HMAP_OK 0
 #define HMAP_NOMEM 1
 #define HMAP_BADARG 2
@@ -200,6 +227,59 @@ hmap_iter_next(struct HMapIter* it);
 #ifdef HMAP_IMPLEMENTATION
 #ifndef HMAP_IMPLEMENTATION_ONCE
 #define HMAP_IMPLEMENTATION_ONCE
+
+static void*
+hmap_libc_malloc(
+    size_t size,
+    void* user)
+{
+    (void)user;
+    return malloc(size);
+}
+
+static void*
+hmap_libc_calloc(
+    size_t count,
+    size_t size,
+    void* user)
+{
+    (void)user;
+    return calloc(count, size);
+}
+
+static void*
+hmap_libc_realloc(
+    void* ptr,
+    size_t size,
+    void* user)
+{
+    (void)user;
+    return realloc(ptr, size);
+}
+
+static void
+hmap_libc_free(
+    void* ptr,
+    void* user)
+{
+    (void)user;
+    free(ptr);
+}
+
+struct HMap_Allocator g_hmap_allocator = {
+    hmap_libc_malloc, hmap_libc_calloc, hmap_libc_realloc, hmap_libc_free, NULL,
+};
+
+void
+hmap_set_allocator(const struct HMap_Allocator* allocator)
+{
+    assert(allocator);
+    assert(allocator->malloc_fn);
+    assert(allocator->calloc_fn);
+    assert(allocator->realloc_fn);
+    assert(allocator->free_fn);
+    g_hmap_allocator = *allocator;
+}
 
 #include <stdint.h>
 #include <string.h>
@@ -506,7 +586,7 @@ hmap_new(
 {
     (void)flags;
     int status;
-    struct HMap* m = malloc(sizeof(struct HMap));
+    struct HMap* m = HMAP_MALLOC(sizeof(struct HMap));
     assert(m);
     memset(m, 0, sizeof(struct HMap));
     status = hmap_init(
@@ -522,7 +602,7 @@ hmap_new(
 
     if( status != HMAP_OK )
     {
-        free(m);
+        HMAP_FREE(m);
         return NULL;
     }
     return m;
@@ -532,7 +612,7 @@ void*
 hmap_free(struct HMap* m)
 {
     void* buffer = hmap_buffer_ptr(m);
-    free(m);
+    HMAP_FREE(m);
     return buffer;
 }
 
@@ -695,7 +775,7 @@ hmap_resize(
 struct HMapIter*
 hmap_iter_new(struct HMap* m)
 {
-    struct HMapIter* it = malloc(sizeof(struct HMapIter));
+    struct HMapIter* it = HMAP_MALLOC(sizeof(struct HMapIter));
     assert(it);
     memset(it, 0, sizeof(struct HMapIter));
     it->idx = 0;
@@ -706,21 +786,25 @@ hmap_iter_new(struct HMap* m)
 void
 hmap_iter_free(struct HMapIter* it)
 {
-    free(it);
+    HMAP_FREE(it);
 }
 
 void*
 hmap_iter_next(struct HMapIter* it)
 {
-    assert(it && it->m && it->m->entries);
-    assert(it->idx < it->m->capacity);
-    it->idx++;
+    /* `idx` is the next slot to look at. This used to step before looking,
+     * so slot 0 was never visited: every walk missed the entry there, and
+     * every cache cleared by a walk leaked it. */
+    assert(it);
+    assert(it->m);
+    assert(it->m->entries);
+    assert(it->idx <= it->m->capacity);
     while( it->idx < it->m->capacity )
     {
-        HMapSlotHeader* h = hmap_slot_header_at(it->m, it->idx);
+        size_t at = it->idx++;
+        HMapSlotHeader* h = hmap_slot_header_at(it->m, at);
         if( h->state == HMAP_SLOT_FULL )
-            return hmap_slot_entry_ptr(it->m, it->idx);
-        it->idx++;
+            return hmap_slot_entry_ptr(it->m, at);
     }
     return NULL;
 }

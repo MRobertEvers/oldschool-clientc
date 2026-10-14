@@ -1,7 +1,61 @@
 #include "rsareabuf.h"
 
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
+
+static void*
+rsab_libc_malloc(
+    size_t size,
+    void* user)
+{
+    (void)user;
+    return malloc(size);
+}
+
+static void*
+rsab_libc_calloc(
+    size_t count,
+    size_t size,
+    void* user)
+{
+    (void)user;
+    return calloc(count, size);
+}
+
+static void*
+rsab_libc_realloc(
+    void* ptr,
+    size_t size,
+    void* user)
+{
+    (void)user;
+    return realloc(ptr, size);
+}
+
+static void
+rsab_libc_free(
+    void* ptr,
+    void* user)
+{
+    (void)user;
+    free(ptr);
+}
+
+struct RSAreaBuf_Allocator g_rsab_allocator = {
+    rsab_libc_malloc, rsab_libc_calloc, rsab_libc_realloc, rsab_libc_free, NULL,
+};
+
+void
+rsab_set_allocator(const struct RSAreaBuf_Allocator* allocator)
+{
+    assert(allocator);
+    assert(allocator->malloc_fn);
+    assert(allocator->calloc_fn);
+    assert(allocator->realloc_fn);
+    assert(allocator->free_fn);
+    g_rsab_allocator = *allocator;
+}
 
 /* ------------------------------------------------------------------ */
 /* Arena                                                               */
@@ -75,7 +129,7 @@ rsab_open_heap(
     struct RSAreaBuf* buf,
     size_t capacity)
 {
-    void* mem = calloc(capacity ? capacity : 1, 1);
+    void* mem = RSAB_CALLOC(capacity ? capacity : 1, 1);
     memset(buf, 0, sizeof(*buf));
     if( !mem )
         return false;
@@ -100,7 +154,7 @@ void
 rsab_close(struct RSAreaBuf* buf)
 {
     if( buf->owns_data )
-        free(buf->data);
+        RSAB_FREE(buf->data);
     memset(buf, 0, sizeof(*buf));
 }
 

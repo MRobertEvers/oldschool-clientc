@@ -1,4 +1,5 @@
 #include "dat2_config_enum.h"
+#include "../rscache_alloc.h"
 
 #include "../rsbuffer.h"
 
@@ -53,7 +54,7 @@ RSCache_Dat2ConfigEnumDecodeInplace(
         case 3:
         {
             char* s = gcstring(&buf);
-            free(entry->default_string);
+            RSCACHE_FREE(entry->default_string);
             entry->default_string = s;
             RSCache_PresenceSet(&entry->present, RSCACHE_ENUM_FIELD_DEFAULT_STRING);
             break;
@@ -73,9 +74,9 @@ RSCache_Dat2ConfigEnumDecodeInplace(
                 if( count >= key_cap )
                 {
                     int new_cap = key_cap < 8 ? 8 : key_cap * 2;
-                    int* new_keys = realloc(keys, (size_t)new_cap * sizeof(int));
+                    int* new_keys = RSCACHE_REALLOC(keys, (size_t)new_cap * sizeof(int));
                     char** new_strings =
-                        realloc(string_values, (size_t)new_cap * sizeof(char*));
+                        RSCACHE_REALLOC(string_values, (size_t)new_cap * sizeof(char*));
                     assert(new_keys);
                     assert(new_strings);
                     keys = new_keys;
@@ -99,8 +100,8 @@ RSCache_Dat2ConfigEnumDecodeInplace(
                 if( count >= key_cap )
                 {
                     int new_cap = key_cap < 8 ? 8 : key_cap * 2;
-                    int* new_keys = realloc(keys, (size_t)new_cap * sizeof(int));
-                    int* new_values = realloc(int_values, (size_t)new_cap * sizeof(int));
+                    int* new_keys = RSCACHE_REALLOC(keys, (size_t)new_cap * sizeof(int));
+                    int* new_values = RSCACHE_REALLOC(int_values, (size_t)new_cap * sizeof(int));
                     assert(new_keys);
                     assert(new_values);
                     keys = new_keys;
@@ -124,9 +125,9 @@ RSCache_Dat2ConfigEnumDecodeInplace(
                 if( count >= key_cap )
                 {
                     int new_cap = key_cap < 8 ? 8 : key_cap * 2;
-                    int* new_keys = realloc(keys, (size_t)new_cap * sizeof(int));
+                    int* new_keys = RSCACHE_REALLOC(keys, (size_t)new_cap * sizeof(int));
                     int64_t* new_values =
-                        realloc(long_values, (size_t)new_cap * sizeof(int64_t));
+                        RSCACHE_REALLOC(long_values, (size_t)new_cap * sizeof(int64_t));
                     assert(new_keys);
                     assert(new_values);
                     keys = new_keys;
@@ -265,19 +266,19 @@ RSCache_Dat2ConfigEnumFreeInplace(struct RSCache_Dat2ConfigEnum* entry)
 
     if( !entry )
         return;
-    free(entry->keys);
+    RSCACHE_FREE(entry->keys);
     entry->keys = NULL;
-    free(entry->int_values);
+    RSCACHE_FREE(entry->int_values);
     entry->int_values = NULL;
-    free(entry->long_values);
+    RSCACHE_FREE(entry->long_values);
     entry->long_values = NULL;
-    free(entry->default_string);
+    RSCACHE_FREE(entry->default_string);
     entry->default_string = NULL;
     if( entry->string_values )
     {
         for( i = 0; i < entry->count; i++ )
-            free(entry->string_values[i]);
-        free(entry->string_values);
+            RSCACHE_FREE(entry->string_values[i]);
+        RSCACHE_FREE(entry->string_values);
         entry->string_values = NULL;
     }
     entry->count = 0;
@@ -289,7 +290,7 @@ RSCache_Dat2ConfigEnumFree(struct RSCache_Dat2ConfigEnum* entry)
     if( !entry )
         return;
     RSCache_Dat2ConfigEnumFreeInplace(entry);
-    free(entry);
+    RSCACHE_FREE(entry);
 }
 
 uint32_t

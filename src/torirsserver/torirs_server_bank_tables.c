@@ -21,6 +21,8 @@
  * Nothing here sends a packet, touches a player, or needs a server. Everything
  * that does stayed in `torirs_server_bank.c`.
  */
+#include "mem/torirs_mem.h"
+#include "mem/torimem_rscache.h"
 #include "torirs_server_servpack.h"
 #include "torirs_server_bank.h"
 
@@ -92,13 +94,13 @@ load_varbits(const struct ToriRSServerKindRecords* records)
         if( varbit.basevar < 0 || varbit.startbit < 0 || varbit.endbit > 31 ||
             varbit.endbit < varbit.startbit )
         {
-            free(varbit.debugname);
+            RSCACHE_FREE(varbit.debugname); /* rscache decoded it */
             continue;
         }
         g_varbits[file_id].basevar = (int16_t)varbit.basevar;
         g_varbits[file_id].lsb = (int8_t)varbit.startbit;
         g_varbits[file_id].msb = (int8_t)varbit.endbit;
-        free(varbit.debugname);
+        RSCACHE_FREE(varbit.debugname); /* rscache decoded it */
         loaded++;
     }
     return loaded;

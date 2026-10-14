@@ -1,4 +1,5 @@
 #include "dat1_config_obj.h"
+#include "../rscache_alloc.h"
 
 #include "../filelist.h"
 #include "../rsbuffer.h"
@@ -77,11 +78,11 @@ RSCache_Dat1ConfigObjDecodeOp(
         obj->model = g2(buffer);
         break;
     case 2:
-        free(obj->name);
+        RSCACHE_FREE(obj->name);
         obj->name = gstringnewline(buffer);
         break;
     case 3:
-        free(obj->desc);
+        RSCACHE_FREE(obj->desc);
         obj->desc = gstringnewline(buffer);
         break;
     case 4:
@@ -167,13 +168,13 @@ RSCache_Dat1ConfigObjDecodeOp(
 
             if( is_hidden )
             {
-                free(action);
-                free(obj->op[opcode - 30]);
+                RSCACHE_FREE(action);
+                RSCACHE_FREE(obj->op[opcode - 30]);
                 obj->op[opcode - 30] = NULL;
             }
             else
             {
-                free(obj->op[opcode - 30]);
+                RSCACHE_FREE(obj->op[opcode - 30]);
                 obj->op[opcode - 30] = action;
             }
         }
@@ -185,15 +186,15 @@ RSCache_Dat1ConfigObjDecodeOp(
     }
     case 35 ... 39:
     {
-        free(obj->iop[opcode - 35]);
+        RSCACHE_FREE(obj->iop[opcode - 35]);
         obj->iop[opcode - 35] = gstringnewline(buffer);
         break;
     }
     case 40:
     {
         int count = g1(buffer);
-        obj->recol_s = malloc(count * sizeof(int));
-        obj->recol_d = malloc(count * sizeof(int));
+        obj->recol_s = RSCACHE_MALLOC(count * sizeof(int));
+        obj->recol_d = RSCACHE_MALLOC(count * sizeof(int));
         obj->recol_count = count;
         for( int i = 0; i < count; i++ )
         {
@@ -233,8 +234,8 @@ RSCache_Dat1ConfigObjDecodeOp(
     {
         if( obj->countobj == NULL || obj->countco == NULL )
         {
-            obj->countobj = malloc(10 * sizeof(int));
-            obj->countco = malloc(10 * sizeof(int));
+            obj->countobj = RSCACHE_MALLOC(10 * sizeof(int));
+            obj->countco = RSCACHE_MALLOC(10 * sizeof(int));
             obj->countobj_count = 10;
             memset(obj->countobj, 0, 10 * sizeof(int));
             memset(obj->countco, 0, 10 * sizeof(int));
@@ -273,7 +274,7 @@ RSCache_Dat1ConfigObjDecodeOp(
 struct RSCache_Dat1ConfigObj*
 RSCache_Dat1ConfigObjDecodeOne(void* data, int size)
 {
-    struct RSCache_Dat1ConfigObj* obj = malloc(sizeof(struct RSCache_Dat1ConfigObj));
+    struct RSCache_Dat1ConfigObj* obj = RSCACHE_MALLOC(sizeof(struct RSCache_Dat1ConfigObj));
     struct RSCache_Buffer buffer;
 
     RSCache_Dat1ConfigObjInit(obj);
@@ -310,12 +311,12 @@ RSCache_Dat1ConfigObjListNewDecode(
     char* data,
     int data_size)
 {
-    struct RSCache_Dat1ConfigObjList* obj_list = malloc(sizeof(struct RSCache_Dat1ConfigObjList));
+    struct RSCache_Dat1ConfigObjList* obj_list = RSCACHE_MALLOC(sizeof(struct RSCache_Dat1ConfigObjList));
     memset(obj_list, 0, sizeof(struct RSCache_Dat1ConfigObjList));
     struct RSCache_FileListDatIndexed* filelist_indexed =
         RSCache_FileListDatIndexedNewFromDecode(index_data, index_data_size, data, data_size);
 
-    obj_list->objs = malloc(filelist_indexed->offset_count * sizeof(struct RSCache_Dat1ConfigObj*));
+    obj_list->objs = RSCACHE_MALLOC(filelist_indexed->offset_count * sizeof(struct RSCache_Dat1ConfigObj*));
     obj_list->objs_count = filelist_indexed->offset_count;
 
     for( int i = 0; i < filelist_indexed->offset_count; i++ )
@@ -342,16 +343,16 @@ RSCache_Dat1ConfigObjFreeInplace(struct RSCache_Dat1ConfigObj* obj)
 {
     if( !obj )
         return;
-    free(obj->name);
-    free(obj->desc);
-    free(obj->recol_s);
-    free(obj->recol_d);
-    free(obj->countobj);
-    free(obj->countco);
+    RSCACHE_FREE(obj->name);
+    RSCACHE_FREE(obj->desc);
+    RSCACHE_FREE(obj->recol_s);
+    RSCACHE_FREE(obj->recol_d);
+    RSCACHE_FREE(obj->countobj);
+    RSCACHE_FREE(obj->countco);
     for( int i = 0; i < 5; i++ )
     {
-        free(obj->op[i]);
-        free(obj->iop[i]);
+        RSCACHE_FREE(obj->op[i]);
+        RSCACHE_FREE(obj->iop[i]);
     }
     /* Not a full re-init: the caller owns the struct and may still read the
      * scalar fields. Only the owned pointers are cleared, so a second free is
@@ -377,7 +378,7 @@ RSCache_Dat1ConfigObjFree(struct RSCache_Dat1ConfigObj* obj)
     if( !obj )
         return;
     RSCache_Dat1ConfigObjFreeInplace(obj);
-    free(obj);
+    RSCACHE_FREE(obj);
 }
 
 uint32_t

@@ -1,4 +1,5 @@
 #include "dat2_config_flo.h"
+#include "../rscache_alloc.h"
 
 #include "../rscache_profile.h"
 
@@ -50,7 +51,7 @@ RSCache_Dat2ConfigOverlayNewDecode(
     int data_size)
 {
     struct RSCache_Dat2ConfigOverlay* overlay =
-        (struct RSCache_Dat2ConfigOverlay*)malloc(sizeof(struct RSCache_Dat2ConfigOverlay));
+        (struct RSCache_Dat2ConfigOverlay*)RSCACHE_MALLOC(sizeof(struct RSCache_Dat2ConfigOverlay));
     assert(overlay);
 
     RSCache_Dat2ConfigOverlayDecodeInplace(overlay, data, data_size);
@@ -112,7 +113,7 @@ RSCache_Dat2ConfigOverlayDecodeInplaceFlags(
         }
         else if( opcode == 6 && !(flags & RSCACHE_CONFIG_FLO_DECODE_RS2) )
         {
-            free(overlay->flotype_name);
+            RSCACHE_FREE(overlay->flotype_name);
             overlay->flotype_name = gstringnewline(&buffer);
             RSCache_PresenceSet(&overlay->present, RSCACHE_OVERLAY_FIELD_FLOTYPE_NAME);
         }
@@ -273,7 +274,7 @@ RSCache_Dat2ConfigOverlayFree(struct RSCache_Dat2ConfigOverlay* overlay)
         return;
 
     RSCache_Dat2ConfigOverlayFreeInplace(overlay);
-    free(overlay);
+    RSCACHE_FREE(overlay);
 }
 
 void
@@ -281,7 +282,7 @@ RSCache_Dat2ConfigOverlayFreeInplace(struct RSCache_Dat2ConfigOverlay* overlay)
 {
     if( !overlay )
         return;
-    free(overlay->flotype_name);
+    RSCACHE_FREE(overlay->flotype_name);
 }
 
 struct RSCache_Dat2ConfigUnderlay*
@@ -290,7 +291,7 @@ RSCache_Dat2ConfigUnderlayNewDecode(
     int data_size)
 {
     struct RSCache_Dat2ConfigUnderlay* underlay =
-        (struct RSCache_Dat2ConfigUnderlay*)malloc(sizeof(struct RSCache_Dat2ConfigUnderlay));
+        (struct RSCache_Dat2ConfigUnderlay*)RSCACHE_MALLOC(sizeof(struct RSCache_Dat2ConfigUnderlay));
     assert(underlay);
 
     RSCache_Dat2ConfigUnderlayDecodeInplace(underlay, data, data_size);
@@ -370,7 +371,7 @@ RSCache_Dat2ConfigUnderlayFree(struct RSCache_Dat2ConfigUnderlay* underlay)
 
     RSCache_Dat2ConfigUnderlayFreeInplace(underlay);
 
-    free(underlay);
+    RSCACHE_FREE(underlay);
 }
 
 void

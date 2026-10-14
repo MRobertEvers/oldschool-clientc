@@ -3711,11 +3711,11 @@ app_plugin_image_publish(
 
     /* ARGB, not RGB: interface art is a cut-out, and an orb whose alpha was
      * dropped arrives as a black square with a disc drawn on it. */
-    if( !PngDecode_Argb(data, size, &w, &h, &pixels) )
+    if( !PngDecode_Argb(ToriMem_Frame(), data, size, &w, &h, &pixels) )
         return 0;
 
     scene_id = UITreeSceneBridge_PublishPluginImage(&app->bridge, slot, w, h, pixels);
-    free(pixels);
+    ToriMem_Free(ToriMem_Frame(), pixels);
     if( scene_id < 0 )
         return 0;
 

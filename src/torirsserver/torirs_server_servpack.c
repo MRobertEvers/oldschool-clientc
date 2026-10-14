@@ -1,3 +1,5 @@
+#include "mem/torirs_mem.h"
+#include "mem/torimem_rscache.h"
 #include "torirs_server_servpack.h"
 
 #include <assert.h>
@@ -139,7 +141,7 @@ ToriRSServer_ServPackEachRecord(
         if( !RSCache_ServerPackRecordsBegin(&cursor, payload, payload_size) )
         {
             report_invalid(pack, group, archive, "is too short to hold its record count");
-            free(owned);
+            RSCACHE_FREE(owned);
             return -1;
         }
         for( ;; )
@@ -156,13 +158,13 @@ ToriRSServer_ServPackEachRecord(
             if( next < 0 || RSCache_ServerPackRecordsArchive(id) != archive )
             {
                 report_invalid(pack, group, archive, "holds a malformed record list");
-                free(owned);
+                RSCACHE_FREE(owned);
                 return -1;
             }
             visit(context, id, body, size);
             visited++;
         }
-        free(owned);
+        RSCACHE_FREE(owned);
     }
     return visited;
 }
@@ -198,7 +200,7 @@ ToriRSServer_ServPackEachBand(
         }
         visit(context, id, band, size);
         visited++;
-        free(owned);
+        RSCACHE_FREE(owned);
     }
     return visited;
 }
@@ -327,7 +329,7 @@ ToriRSServer_ServPackClientIdBound(
         bound = ids[count - 1] + 1;
         free(ids);
     }
-    free(owned);
+    RSCACHE_FREE(owned);
     if( count < 0 )
     {
         report_invalid(pack, RSCACHE_SERVERPACK_CLIENT_IDS_GROUP, config_kind,

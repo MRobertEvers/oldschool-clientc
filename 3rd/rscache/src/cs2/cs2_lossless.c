@@ -1,4 +1,5 @@
 #include "cs2_lossless.h"
+#include "../rscache_alloc.h"
 
 #include <limits.h>
 #include <stdlib.h>
@@ -233,7 +234,7 @@ cs2_lossless_get_string(struct cs2_lossless_reader* reader)
         reader->failed = true;
         return NULL;
     }
-    char* text = (char*)malloc((size_t)length + 1);
+    char* text = (char*)RSCACHE_MALLOC((size_t)length + 1);
     if( !text )
     {
         reader->failed = true;
@@ -244,7 +245,7 @@ cs2_lossless_get_string(struct cs2_lossless_reader* reader)
     text[length] = '\0';
     if( reader->failed )
     {
-        free(text);
+        RSCACHE_FREE(text);
         return NULL;
     }
     return text;
@@ -282,10 +283,10 @@ RSCache_CS2_LosslessDecode(
     if( !reader.failed )
     {
         script->op_count = (int)op_count;
-        script->opcodes = (uint16_t*)calloc(op_count, sizeof(*script->opcodes));
-        script->int_operands = (int*)calloc(op_count, sizeof(*script->int_operands));
-        script->long_operands = (int64_t*)calloc(op_count, sizeof(*script->long_operands));
-        script->string_operands = (char**)calloc(op_count, sizeof(*script->string_operands));
+        script->opcodes = (uint16_t*)RSCACHE_CALLOC(op_count, sizeof(*script->opcodes));
+        script->int_operands = (int*)RSCACHE_CALLOC(op_count, sizeof(*script->int_operands));
+        script->long_operands = (int64_t*)RSCACHE_CALLOC(op_count, sizeof(*script->long_operands));
+        script->string_operands = (char**)RSCACHE_CALLOC(op_count, sizeof(*script->string_operands));
         if( !script->opcodes || !script->int_operands || !script->long_operands ||
             !script->string_operands )
             reader.failed = true;

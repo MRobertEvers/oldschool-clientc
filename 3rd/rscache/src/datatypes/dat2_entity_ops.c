@@ -1,4 +1,5 @@
 #include "dat2_entity_ops.h"
+#include "../rscache_alloc.h"
 
 #include <assert.h>
 #include <ctype.h>
@@ -20,24 +21,24 @@ RSCache_EntityOpsFreeInplace(struct RSCache_EntityOps* ops)
     assert(ops);
     for( i = 0; i < RSCACHE_ENTITY_OPS_SLOTS; i++ )
     {
-        free(ops->ops[i]);
+        RSCACHE_FREE(ops->ops[i]);
         ops->ops[i] = NULL;
     }
     for( i = 0; i < ops->sub_ops_count; i++ )
-        free(ops->sub_ops[i].text);
-    free(ops->sub_ops);
+        RSCACHE_FREE(ops->sub_ops[i].text);
+    RSCACHE_FREE(ops->sub_ops);
     ops->sub_ops = NULL;
     ops->sub_ops_count = 0;
 
     for( i = 0; i < ops->cond_ops_count; i++ )
-        free(ops->cond_ops[i].text);
-    free(ops->cond_ops);
+        RSCACHE_FREE(ops->cond_ops[i].text);
+    RSCACHE_FREE(ops->cond_ops);
     ops->cond_ops = NULL;
     ops->cond_ops_count = 0;
 
     for( i = 0; i < ops->cond_sub_ops_count; i++ )
-        free(ops->cond_sub_ops[i].text);
-    free(ops->cond_sub_ops);
+        RSCACHE_FREE(ops->cond_sub_ops[i].text);
+    RSCACHE_FREE(ops->cond_sub_ops);
     ops->cond_sub_ops = NULL;
     ops->cond_sub_ops_count = 0;
 }
@@ -73,10 +74,10 @@ RSCache_EntityOpsDecodeOp(
     assert(index >= 0 && index < RSCACHE_ENTITY_OPS_SLOTS);
 
     text = gcstring(buffer);
-    free(ops->ops[index]);
+    RSCACHE_FREE(ops->ops[index]);
     if( text && entity_ops_is_hidden(text) )
     {
-        free(text);
+        RSCACHE_FREE(text);
         ops->ops[index] = NULL;
     }
     else
@@ -100,7 +101,7 @@ RSCache_EntityOpsDecodeSubOp(
     index = g1(buffer) & 0xFF;
     sub_id = g1(buffer) & 0xFF;
 
-    grown = realloc(ops->sub_ops, (size_t)(ops->sub_ops_count + 1) * sizeof(*grown));
+    grown = RSCACHE_REALLOC(ops->sub_ops, (size_t)(ops->sub_ops_count + 1) * sizeof(*grown));
     assert(grown);
     ops->sub_ops = grown;
     ops->sub_ops[ops->sub_ops_count].index = index;
@@ -121,7 +122,7 @@ RSCache_EntityOpsDecodeCondOp(
     assert(buffer);
 
     index = g1(buffer) & 0xFF;
-    grown = realloc(ops->cond_ops, (size_t)(ops->cond_ops_count + 1) * sizeof(*grown));
+    grown = RSCACHE_REALLOC(ops->cond_ops, (size_t)(ops->cond_ops_count + 1) * sizeof(*grown));
     assert(grown);
     ops->cond_ops = grown;
     ops->cond_ops[ops->cond_ops_count].index = index;
@@ -146,7 +147,7 @@ RSCache_EntityOpsDecodeCondSubOp(
 
     index = g1(buffer) & 0xFF;
     grown =
-        realloc(ops->cond_sub_ops, (size_t)(ops->cond_sub_ops_count + 1) * sizeof(*grown));
+        RSCACHE_REALLOC(ops->cond_sub_ops, (size_t)(ops->cond_sub_ops_count + 1) * sizeof(*grown));
     assert(grown);
     ops->cond_sub_ops = grown;
     ops->cond_sub_ops[ops->cond_sub_ops_count].index = index;

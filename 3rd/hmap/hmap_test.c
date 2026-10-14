@@ -395,6 +395,57 @@ test_resize_shrink(void)
     printf("  OK\n");
 }
 
+/* A hash every key shares, chosen so it starts probing at slot 0 under either
+ * slot formula (hmap_slot_index); a hash of 0 itself is remapped to 1. The
+ * map in the test below has 32 slots. */
+static uint64_t
+zero_hash(const void* key, size_t key_size, void* arg)
+{
+    (void)key;
+    (void)key_size;
+    (void)arg;
+#if HMAP_HASH_DEFAULT == HMAP_HASH_FNV64
+    return 32; /* 32 % 32 */
+#else
+    return 0x100000001ull; /* low ^ high == 0 */
+#endif
+}
+
+/* Every key starts at slot 0, so the first insert lands there. A walk that
+ * steps before it looks never sees it. */
+static void
+test_iteration_visits_slot_zero(void)
+{
+    printf("TEST: iteration visits slot 0\n");
+
+    uint8_t buf[4096];
+    struct HMap m;
+
+    TEST_CHECK(
+        hmap_init(&m, buf, sizeof(buf), sizeof(Entry), sizeof(int), 32, zero_hash, int_eq, NULL) ==
+        HMAP_OK);
+
+    for( int i = 0; i < 3; i++ )
+    {
+        Entry* e = hmap_search(&m, &i, HMAP_INSERT);
+        assert(e);
+        e->value = i * 3;
+    }
+
+    struct HMapIter* it = hmap_iter_new(&m);
+    int seen = 0;
+    Entry* e = NULL;
+    while( (e = hmap_iter_next(it)) )
+    {
+        assert(e->value == e->key * 3);
+        seen++;
+    }
+    TEST_CHECK(seen == 3);
+    hmap_iter_free(it);
+
+    printf("  OK\n");
+}
+
 static void
 test_resize_preserves_iteration(void)
 {
@@ -511,6 +562,7 @@ main(void)
     test_tombstone_reuse();
     test_full_table();
     test_iteration();
+    test_iteration_visits_slot_zero();
 
     test_resize_grow();
     test_resize_shrink();

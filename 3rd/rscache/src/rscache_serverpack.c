@@ -1,4 +1,5 @@
 #include "rscache_serverpack.h"
+#include "rscache_alloc.h"
 
 #include "archive.h"
 #include "checksum.h"
@@ -367,10 +368,10 @@ fingerprint_push(
     if( files->count == files->capacity )
     {
         files->capacity = files->capacity ? files->capacity * 2 : 1024;
-        files->paths = realloc(files->paths, (size_t)files->capacity * sizeof(*files->paths));
+        files->paths = RSCACHE_REALLOC(files->paths, (size_t)files->capacity * sizeof(*files->paths));
         assert(files->paths);
     }
-    files->paths[files->count] = strdup(path);
+    files->paths[files->count] = RSCache_Strdup(path);
     assert(files->paths[files->count]);
     files->count++;
 }
@@ -575,7 +576,7 @@ RSCache_ServerPackFingerprint(
     {
         CHUNK = 1 << 20,
     };
-    uint8_t* chunk = malloc(CHUNK);
+    uint8_t* chunk = RSCACHE_MALLOC(CHUNK);
     struct FingerprintFiles files;
     uint64_t hash = 14695981039346656037ull;
     int version = RSCACHE_SERVERPACK_VERSION;
@@ -614,10 +615,10 @@ RSCache_ServerPackFingerprint(
         else
             size = -1;
         hash = fnv1a(hash, &size, sizeof(size));
-        free(files.paths[i]);
+        RSCACHE_FREE(files.paths[i]);
     }
-    free(files.paths);
-    free(chunk);
+    RSCACHE_FREE(files.paths);
+    RSCACHE_FREE(chunk);
     return hash;
 }
 
@@ -792,7 +793,7 @@ RSCache_ServerPackRead(
         !RSCache_ServerPackUnframe((const uint8_t*)archive.data, (uint32_t)archive.data_size,
                                    kind, out_payload, out_size) )
     {
-        free(archive.data);
+        RSCACHE_FREE(archive.data);
         return RSCACHE_SERVERPACK_INVALID;
     }
     *out_owned = archive.data;

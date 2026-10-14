@@ -1,4 +1,5 @@
 #include "trspk_triangles.h"
+#include "../trspk_alloc.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -7,7 +8,7 @@
 void
 trspk_triangles_free(struct TRSPK_Triangles* triangles)
 {
-    free(triangles->config);
+    TRSPK_FREE(triangles->config);
     triangles->config = NULL;
     triangles->cap = 0u;
 }
@@ -24,7 +25,7 @@ trspk_triangles_ensure(
     while( new_cap < tri_count )
         new_cap *= 2u;
 
-    int* grown = (int*)realloc(triangles->config, new_cap * sizeof(int));
+    int* grown = (int*)TRSPK_REALLOC(triangles->config, new_cap * sizeof(int));
     assert(grown != NULL);
     if( triangles->cap > 0u )
         memset(grown + triangles->cap, 0xFF, (new_cap - triangles->cap) * sizeof(int));

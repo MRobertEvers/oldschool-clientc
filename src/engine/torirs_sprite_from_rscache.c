@@ -1,3 +1,5 @@
+#include "mem/torimem_rscache.h"
+#include "mem/torirs_mem.h"
 #include "engine/torirs_sprite_from_rscache.h"
 
 #include "engine/torirs_types.h"
@@ -27,7 +29,9 @@ sprite_frame_from_dat2_sprite(
     if( !px )
         return frame;
 
-    frame.pixels_argb = (uint32_t*)px;
+    /* The decoder's pixels become the cache's (RSCache -> ASSET). */
+    frame.pixels_argb = (uint32_t*)ToriMem_TakeFromRSCache(
+        ToriMem_Assets(), px, (size_t)def->crop_width * (size_t)def->crop_height * sizeof(int));
     /* dat2 pixels arrive as (alpha << 24) | palette colour, the per-pixel
      * alpha table applied. @see ToriDraw_Sprite::alpha_channel. */
     frame.alpha_channel = 1;
@@ -53,10 +57,10 @@ ToriRS_SpriteFromDat2Pack(
     if( pack->count <= 0 )
         return NULL;
 
-    sprite = calloc(1, sizeof(*sprite));
+    sprite = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*sprite));
     assert(sprite);
 
-    sprite->frames = calloc((size_t)pack->count, sizeof(*sprite->frames));
+    sprite->frames = ToriMem_Calloc(ToriMem_Assets(), (size_t)pack->count, sizeof(*sprite->frames));
     assert(sprite->frames);
     sprite->frame_count = pack->count;
     snprintf(sprite->name, sizeof(sprite->name), "spr:%d", sprite_id);
@@ -92,7 +96,7 @@ sprite_frame_from_dat1_pix8(struct RSCache_Dat1Pix8 const* pix8)
         return frame;
 
     n = pix8->width * pix8->height;
-    argb = calloc((size_t)n, sizeof(uint32_t));
+    argb = ToriMem_Calloc(ToriMem_Assets(), (size_t)n, sizeof(uint32_t));
     assert(argb);
 
     for( int i = 0; i < n; i++ )
@@ -131,7 +135,7 @@ sprite_frame_from_dat1_pix32(struct RSCache_Dat1Pix32 const* pix32)
     if( pix32->draw_width <= 0 || pix32->draw_height <= 0 )
         return frame;
 
-    argb = calloc((size_t)pix32->draw_width * (size_t)pix32->draw_height, sizeof(uint32_t));
+    argb = ToriMem_Calloc(ToriMem_Assets(), (size_t)pix32->draw_width * (size_t)pix32->draw_height, sizeof(uint32_t));
     assert(argb);
 
     copy_w = pix32->stride_x > pix32->draw_width ? pix32->draw_width : pix32->stride_x;
@@ -232,9 +236,9 @@ ToriRS_SpriteFromDat1Jagfile(
 
     frame_count = atlas_count > 0 ? atlas_count : 1;
 
-    sprite = calloc(1, sizeof(*sprite));
+    sprite = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*sprite));
     assert(sprite);
-    sprite->frames = calloc((size_t)frame_count, sizeof(*sprite->frames));
+    sprite->frames = ToriMem_Calloc(ToriMem_Assets(), (size_t)frame_count, sizeof(*sprite->frames));
     assert(sprite->frames);
     sprite->frame_count = frame_count;
     strncpy(sprite->name, data_filename, sizeof(sprite->name) - 1);
@@ -342,7 +346,7 @@ ToriRS_SpriteApplyCrop(
         if( w <= 0 || h <= 0 )
             continue;
 
-        cropped = calloc((size_t)w * (size_t)h, sizeof(uint32_t));
+        cropped = ToriMem_Calloc(ToriMem_Assets(), (size_t)w * (size_t)h, sizeof(uint32_t));
         assert(cropped);
         for( int y = 0; y < h; y++ )
             memcpy(
@@ -350,7 +354,7 @@ ToriRS_SpriteApplyCrop(
                 frame->pixels_argb + (size_t)(oy + y) * frame->width + ox,
                 (size_t)w * sizeof(uint32_t));
 
-        free(frame->pixels_argb);
+        ToriMem_Free(ToriMem_Assets(), frame->pixels_argb);
         frame->pixels_argb = cropped;
         frame->width = w;
         frame->height = h;

@@ -1,4 +1,5 @@
 #include "dat2_config_inv.h"
+#include "../rscache_alloc.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -81,10 +82,10 @@ RSCache_Dat2ConfigInvFreeInplace(struct RSCache_Dat2ConfigInv* entry)
     if( !entry )
         return;
     for( i = 0; i < entry->params.count; i++ )
-        free(entry->params.values[i]);
-    free(entry->params.keys);
-    free(entry->params.values);
-    free(entry->params.kinds);
+        RSCACHE_FREE(entry->params.values[i]);
+    RSCACHE_FREE(entry->params.keys);
+    RSCACHE_FREE(entry->params.values);
+    RSCACHE_FREE(entry->params.kinds);
     entry->params.keys = NULL;
     entry->params.values = NULL;
     entry->params.kinds = NULL;

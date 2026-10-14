@@ -1,3 +1,4 @@
+#include "mem/torirs_mem.h"
 #include "engine/torirs_component_from_rscache.h"
 
 #include "engine/torirs_component_hook.h"
@@ -132,8 +133,8 @@ torirs_component_copy_scripts(
     if( scripts_count <= 0 || !scripts )
         return;
 
-    dst->scripts = calloc((size_t)scripts_count, sizeof(int*));
-    dst->scripts_lengths = calloc((size_t)scripts_count, sizeof(int));
+    dst->scripts = ToriMem_Calloc(ToriMem_Assets(), (size_t)scripts_count, sizeof(int*));
+    dst->scripts_lengths = ToriMem_Calloc(ToriMem_Assets(), (size_t)scripts_count, sizeof(int));
     assert(dst->scripts);
     assert(dst->scripts_lengths);
 
@@ -145,7 +146,7 @@ torirs_component_copy_scripts(
         assert(scripts_lengths && scripts_lengths[i] > 0);
         int len = scripts_lengths[i];
 
-        dst->scripts[i] = malloc((size_t)len * sizeof(int));
+        dst->scripts[i] = ToriMem_Alloc(ToriMem_Assets(), (size_t)len * sizeof(int));
         assert(dst->scripts[i]);
         memcpy(dst->scripts[i], scripts[i], (size_t)len * sizeof(int));
         dst->scripts_lengths[i] = len;
@@ -158,7 +159,7 @@ torirs_component_copy_scripts(
 
     if( script_comparator )
     {
-        dst->script_comparator = malloc((size_t)comparator_count * sizeof(int));
+        dst->script_comparator = ToriMem_Alloc(ToriMem_Assets(), (size_t)comparator_count * sizeof(int));
         assert(dst->script_comparator);
         memcpy(
             dst->script_comparator, script_comparator, (size_t)comparator_count * sizeof(int));
@@ -166,7 +167,7 @@ torirs_component_copy_scripts(
 
     if( script_operand )
     {
-        dst->script_operand = malloc((size_t)comparator_count * sizeof(int));
+        dst->script_operand = ToriMem_Alloc(ToriMem_Assets(), (size_t)comparator_count * sizeof(int));
         assert(dst->script_operand);
         memcpy(dst->script_operand, script_operand, (size_t)comparator_count * sizeof(int));
     }
@@ -338,7 +339,7 @@ ToriRS_ComponentFromRSCacheDat2(const struct RSCache_Dat2Component* src)
 {
     assert(src);
 
-    struct ToriRS_Component* dst = calloc(1, sizeof(struct ToriRS_Component));
+    struct ToriRS_Component* dst = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(struct ToriRS_Component));
     assert(dst);
 
     dst->id = src->id;
@@ -475,7 +476,7 @@ ToriRS_ComponentFromRSCacheDat1(const struct RSCache_Dat1ConfigComponent* src)
 {
     assert(src);
 
-    struct ToriRS_Component* dst = calloc(1, sizeof(struct ToriRS_Component));
+    struct ToriRS_Component* dst = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(struct ToriRS_Component));
     assert(dst);
 
     dst->id = src->id;
@@ -628,12 +629,12 @@ ToriRS_ComponentPackFromRSCacheDat1(
     if( !root )
         return NULL;
 
-    visited = calloc((size_t)list->components_count, sizeof(uint8_t));
-    stack = calloc((size_t)list->components_count, sizeof(int));
-    parent_of = calloc((size_t)list->components_count, sizeof(int));
-    rel_x_of = calloc((size_t)list->components_count, sizeof(int));
-    rel_y_of = calloc((size_t)list->components_count, sizeof(int));
-    order = calloc((size_t)list->components_count, sizeof(int));
+    visited = ToriMem_Calloc(ToriMem_Assets(), (size_t)list->components_count, sizeof(uint8_t));
+    stack = ToriMem_Calloc(ToriMem_Assets(), (size_t)list->components_count, sizeof(int));
+    parent_of = ToriMem_Calloc(ToriMem_Assets(), (size_t)list->components_count, sizeof(int));
+    rel_x_of = ToriMem_Calloc(ToriMem_Assets(), (size_t)list->components_count, sizeof(int));
+    rel_y_of = ToriMem_Calloc(ToriMem_Assets(), (size_t)list->components_count, sizeof(int));
+    order = ToriMem_Calloc(ToriMem_Assets(), (size_t)list->components_count, sizeof(int));
     assert(visited);
     assert(stack);
     assert(parent_of);
@@ -680,10 +681,10 @@ ToriRS_ComponentPackFromRSCacheDat1(
         }
     }
 
-    pack = calloc(1, sizeof(struct ToriRS_ComponentPack));
+    pack = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(struct ToriRS_ComponentPack));
     assert(pack);
     pack->component_count = order_count;
-    pack->components = calloc((size_t)order_count, sizeof(struct ToriRS_Component));
+    pack->components = ToriMem_Calloc(ToriMem_Assets(), (size_t)order_count, sizeof(struct ToriRS_Component));
     assert(pack->components);
 
     for( int i = 0; i < order_count; i++ )
@@ -694,17 +695,17 @@ ToriRS_ComponentPackFromRSCacheDat1(
         if( !converted )
             continue;
         pack->components[i] = *converted;
-        free(converted);
+        ToriMem_Free(ToriMem_Assets(), converted);
         ToriRS_ComponentApplyWalkLayout(
             &pack->components[i], parent_of[comp_id], rel_x_of[comp_id], rel_y_of[comp_id]);
     }
 
-    free(visited);
-    free(stack);
-    free(parent_of);
-    free(rel_x_of);
-    free(rel_y_of);
-    free(order);
+    ToriMem_Free(ToriMem_Assets(), visited);
+    ToriMem_Free(ToriMem_Assets(), stack);
+    ToriMem_Free(ToriMem_Assets(), parent_of);
+    ToriMem_Free(ToriMem_Assets(), rel_x_of);
+    ToriMem_Free(ToriMem_Assets(), rel_y_of);
+    ToriMem_Free(ToriMem_Assets(), order);
     return pack;
 }
 
@@ -750,11 +751,11 @@ ToriRS_ComponentPackFromRSCacheDat2(const struct RSCache_Dat2ComponentPack* src)
     if( src->component_count <= 0 || !src->components )
         return NULL;
 
-    struct ToriRS_ComponentPack* pack = calloc(1, sizeof(struct ToriRS_ComponentPack));
+    struct ToriRS_ComponentPack* pack = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(struct ToriRS_ComponentPack));
     assert(pack);
 
     pack->component_count = src->component_count;
-    pack->components = calloc((size_t)pack->component_count, sizeof(struct ToriRS_Component));
+    pack->components = ToriMem_Calloc(ToriMem_Assets(), (size_t)pack->component_count, sizeof(struct ToriRS_Component));
     assert(pack->components);
 
     for( int i = 0; i < pack->component_count; i++ )
@@ -764,7 +765,7 @@ ToriRS_ComponentPackFromRSCacheDat2(const struct RSCache_Dat2ComponentPack* src)
         if( !converted )
             continue;
         pack->components[i] = *converted;
-        free(converted);
+        ToriMem_Free(ToriMem_Assets(), converted);
     }
 
     torirs_component_pack_apply_layout(pack, src);

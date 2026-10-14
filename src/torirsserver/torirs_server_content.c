@@ -20,6 +20,8 @@
  * and a config block overlays that.
  */
 
+#include "mem/torirs_mem.h"
+#include "mem/torimem_rscache.h"
 #include "torirs_server_content.h"
 #include <assert.h>
 
@@ -2400,11 +2402,7 @@ load_idk_pack(struct RSCache_ServerPack* pack)
             g_idk_bodypart[records.ids[i]] = (int8_t)idk.body_part_id;
             loaded++;
         }
-        free(idk.model_ids);
-        free(idk.recolors_from);
-        free(idk.recolors_to);
-        free(idk.retextures_from);
-        free(idk.retextures_to);
+        RSCache_Dat2ConfigIdkFreeInplace(&idk);
     }
     ToriRSServer_ServPackKindFree(&records);
     return loaded;
@@ -3022,10 +3020,10 @@ ToriRSServer_ContentLoadPack(struct RSCache_ServerPack* pack)
             return -1;
         if( !npc_apply_band(&g_npc_default, band, size, -1, "server/pack npc [default]") )
         {
-            free(owned);
+            RSCACHE_FREE(owned);
             return -1;
         }
-        free(owned);
+        RSCACHE_FREE(owned);
     }
 
     npc_bands = ToriRSServer_ServPackEachBand(pack, RSCACHE_DAT2_CONFIG_KIND_NPC, npc_load_band,

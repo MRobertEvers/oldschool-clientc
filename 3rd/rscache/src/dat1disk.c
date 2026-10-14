@@ -1,4 +1,5 @@
 #include "dat1disk.h"
+#include "rscache_alloc.h"
 
 #include "archive.h"
 #include "datatypes/mapsquares.h"
@@ -61,15 +62,15 @@ RSCache_Dat1DiskNewFromDirectory(char const* directory)
     struct RSCache_FileListDat* filelist = NULL;
     char* file_data = NULL;
 
-    struct RSCache_Dat1Disk* cache = malloc(sizeof(struct RSCache_Dat1Disk));
+    struct RSCache_Dat1Disk* cache = RSCACHE_MALLOC(sizeof(struct RSCache_Dat1Disk));
     if( !cache )
         return NULL;
     memset(cache, 0, sizeof(struct RSCache_Dat1Disk));
 
-    cache->directory = strdup(directory);
+    cache->directory = RSCache_Strdup(directory);
     if( !cache->directory )
     {
-        free(cache);
+        RSCACHE_FREE(cache);
         return NULL;
     }
 
@@ -78,8 +79,8 @@ RSCache_Dat1DiskNewFromDirectory(char const* directory)
     {
         RSCACHE_LOG("Failed to open dat file\n");
         RSCACHE_LOG("Directory: %s\n", cache->directory);
-        free(cache->directory);
-        free(cache);
+        RSCACHE_FREE(cache->directory);
+        RSCACHE_FREE(cache);
         return NULL;
     }
 
@@ -118,8 +119,8 @@ RSCache_Dat1DiskNewFromDirectory(char const* directory)
 error:
     if( cache->dat_file )
         fclose(cache->dat_file);
-    free(cache->directory);
-    free(cache);
+    RSCACHE_FREE(cache->directory);
+    RSCACHE_FREE(cache);
     return NULL;
 }
 
@@ -133,8 +134,8 @@ RSCache_Dat1DiskFree(struct RSCache_Dat1Disk* cache)
         fclose(cache->dat_file);
 
     RSCache_MapSquaresFree(cache->map_squares);
-    free(cache->directory);
-    free(cache);
+    RSCACHE_FREE(cache->directory);
+    RSCACHE_FREE(cache);
 }
 
 struct RSCache_Dat1DiskArchive*
@@ -145,7 +146,7 @@ RSCache_Dat1DiskArchiveNewLoad(
 {
     assert(cache);
 
-    struct RSCache_Dat1DiskArchive* archive = malloc(sizeof(struct RSCache_Dat1DiskArchive));
+    struct RSCache_Dat1DiskArchive* archive = RSCACHE_MALLOC(sizeof(struct RSCache_Dat1DiskArchive));
     if( !archive )
         return NULL;
     memset(archive, 0, sizeof(struct RSCache_Dat1DiskArchive));
@@ -200,8 +201,8 @@ RSCache_Dat1DiskArchiveNewLoad(
 
 error:
     if( raw.data )
-        free(raw.data);
-    free(archive);
+        RSCACHE_FREE(raw.data);
+    RSCACHE_FREE(archive);
     return NULL;
 }
 
@@ -212,9 +213,9 @@ RSCache_Dat1DiskArchiveFree(struct RSCache_Dat1DiskArchive* archive)
         return;
 
     if( archive->data )
-        free(archive->data);
+        RSCACHE_FREE(archive->data);
 
-    free(archive);
+    RSCACHE_FREE(archive);
 }
 
 int

@@ -1,3 +1,5 @@
+#include "mem/torirs_mem.h"
+#include "mem/torimem_rscache.h"
 #include "engine/dat2/dat2_buildcache.h"
 
 #include "engine/dat2/dat2_tasks.h"
@@ -1548,7 +1550,8 @@ dat2_buildcache_underlays_init_from_archive(
         if( dat2_buildcache_underlay_get(dat2_buildcache, id) )
             continue;
 
-        underlay = malloc(sizeof(struct RSCache_Dat2ConfigUnderlay));
+        /* lib:rscache: RSCache_Dat2ConfigUnderlayFree releases it. */
+        underlay = RSCACHE_MALLOC(sizeof(struct RSCache_Dat2ConfigUnderlay));
         RSCache_Dat2ConfigUnderlayDecodeInplaceFlags(
             underlay, filelist->files[i], filelist->file_sizes[i], flo_flags);
         if( !underlay )
@@ -1663,7 +1666,8 @@ dat2_buildcache_overlays_init_from_archive(
         if( dat2_buildcache_overlay_get(dat2_buildcache, id) )
             continue;
 
-        overlay = malloc(sizeof(struct RSCache_Dat2ConfigOverlay));
+        /* lib:rscache: RSCache_Dat2ConfigOverlayFree releases it. */
+        overlay = RSCACHE_MALLOC(sizeof(struct RSCache_Dat2ConfigOverlay));
         RSCache_Dat2ConfigOverlayDecodeInplaceFlags(
             overlay, filelist->files[i], filelist->file_sizes[i], flo_flags);
         if( !overlay )

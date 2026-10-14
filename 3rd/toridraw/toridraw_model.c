@@ -1,4 +1,5 @@
 #include "toridraw_model.h"
+#include "toridraw_alloc.h"
 
 #include "osrs/palette.h"
 #include "toridraw_animation.h"
@@ -368,15 +369,15 @@ ToriDraw_NormalsNew(
 
     if( !normals )
     {
-        normals = malloc(sizeof(struct ToriDraw_Normals));
+        normals = TORIDRAW_MALLOC(sizeof(struct ToriDraw_Normals));
         assert(normals);
         memset(normals, 0, sizeof(struct ToriDraw_Normals));
-        normals->vertex_normals = malloc(sizeof(struct ToriDraw_Normal) * (size_t)vertex_count);
+        normals->vertex_normals = TORIDRAW_MALLOC(sizeof(struct ToriDraw_Normal) * (size_t)vertex_count);
         assert(normals->vertex_normals);
         normals->vertex_normals_cap = vertex_count;
         if( face_count > 0 )
         {
-            normals->face_normals = malloc(sizeof(struct ToriDraw_Normal) * (size_t)face_count);
+            normals->face_normals = TORIDRAW_MALLOC(sizeof(struct ToriDraw_Normal) * (size_t)face_count);
             assert(normals->face_normals);
             normals->face_normals_cap = face_count;
         }
@@ -397,6 +398,19 @@ ToriDraw_NormalsNew(
 }
 
 void
+ToriDraw_NormalsPoolDrain(void)
+{
+    for( int i = 0; i < g_normals_pool_count; i++ )
+    {
+        TORIDRAW_FREE(g_normals_pool[i]->vertex_normals);
+        TORIDRAW_FREE(g_normals_pool[i]->face_normals);
+        TORIDRAW_FREE(g_normals_pool[i]);
+        g_normals_pool[i] = NULL;
+    }
+    g_normals_pool_count = 0;
+}
+
+void
 ToriDraw_NormalsFree(struct ToriDraw_Normals* normals)
 {
     if( !normals )
@@ -406,9 +420,9 @@ ToriDraw_NormalsFree(struct ToriDraw_Normals* normals)
         g_normals_pool[g_normals_pool_count++] = normals;
         return;
     }
-    free(normals->vertex_normals);
-    free(normals->face_normals);
-    free(normals);
+    TORIDRAW_FREE(normals->vertex_normals);
+    TORIDRAW_FREE(normals->face_normals);
+    TORIDRAW_FREE(normals);
 }
 
 void
@@ -419,11 +433,11 @@ ToriDraw_BonesFree(struct ToriDraw_Bones* bones)
     if( bones->bones )
     {
         for( int i = 0; i < bones->bones_count; i++ )
-            free(bones->bones[i]);
-        free(bones->bones);
+            TORIDRAW_FREE(bones->bones[i]);
+        TORIDRAW_FREE(bones->bones);
     }
-    free(bones->bones_sizes);
-    free(bones);
+    TORIDRAW_FREE(bones->bones_sizes);
+    TORIDRAW_FREE(bones);
 }
 
 struct ToriDraw_Bones*
@@ -437,12 +451,12 @@ ToriDraw_BonesCopy(const struct ToriDraw_Bones* src)
     assert(src->bones);
     assert(src->bones_sizes);
 
-    struct ToriDraw_Bones* dst = calloc(1, sizeof(struct ToriDraw_Bones));
+    struct ToriDraw_Bones* dst = TORIDRAW_CALLOC(1, sizeof(struct ToriDraw_Bones));
     assert(dst);
 
     dst->bones_count = src->bones_count;
-    dst->bones = calloc((size_t)src->bones_count, sizeof(boneint_t*));
-    dst->bones_sizes = malloc((size_t)src->bones_count * sizeof(boneint_t));
+    dst->bones = TORIDRAW_CALLOC((size_t)src->bones_count, sizeof(boneint_t*));
+    dst->bones_sizes = TORIDRAW_MALLOC((size_t)src->bones_count * sizeof(boneint_t));
     assert(dst->bones);
     assert(dst->bones_sizes);
 
@@ -457,7 +471,7 @@ ToriDraw_BonesCopy(const struct ToriDraw_Bones* src)
             continue;
         }
 
-        dst->bones[i] = malloc((size_t)bone_length * sizeof(boneint_t));
+        dst->bones[i] = TORIDRAW_MALLOC((size_t)bone_length * sizeof(boneint_t));
         assert(dst->bones[i]);
         memcpy(dst->bones[i], src->bones[i], (size_t)bone_length * sizeof(boneint_t));
     }
@@ -471,30 +485,30 @@ ToriDraw_ModelFree_arrays(struct ToriDraw_Model* m)
     /* One block, or thirteen arrays. @see ToriDraw_Model::arrays_block. */
     if( m->arrays_block )
     {
-        free(m->arrays_block);
+        TORIDRAW_FREE(m->arrays_block);
     }
     else
     {
-        free(m->vertices_x);
-        free(m->vertices_y);
-        free(m->vertices_z);
-        free(m->face_colors_a);
-        free(m->face_colors_b);
-        free(m->face_colors_c);
+        TORIDRAW_FREE(m->vertices_x);
+        TORIDRAW_FREE(m->vertices_y);
+        TORIDRAW_FREE(m->vertices_z);
+        TORIDRAW_FREE(m->face_colors_a);
+        TORIDRAW_FREE(m->face_colors_b);
+        TORIDRAW_FREE(m->face_colors_c);
 
         /* Every array is this model's -- that is what the type means now. A
          * placement borrowing its faces is a ToriDraw_ModelLentFaces, which
          * NULLs the twelve aliases before calling this and then drops its
          * share of the loan; see ToriDraw_ModelLentFacesFree. */
-#define TORIDRAW_FACE_FREE(field) free(m->field);
+#define TORIDRAW_FACE_FREE(field) TORIDRAW_FREE(m->field);
         TORIDRAW_MODEL_FACE_FIELDS(TORIDRAW_FACE_FREE)
 #undef TORIDRAW_FACE_FREE
     }
 
-    free(m->original_vertices_x);
-    free(m->original_vertices_y);
-    free(m->original_vertices_z);
-    free(m->original_face_alphas);
+    TORIDRAW_FREE(m->original_vertices_x);
+    TORIDRAW_FREE(m->original_vertices_y);
+    TORIDRAW_FREE(m->original_vertices_z);
+    TORIDRAW_FREE(m->original_face_alphas);
     ToriDraw_NormalsFree(m->normals);
     ToriDraw_NormalsFree(m->merged_normals);
     ToriDraw_BonesFree(m->vertex_bones);
@@ -503,16 +517,16 @@ ToriDraw_ModelFree_arrays(struct ToriDraw_Model* m)
     if( m->animaya_groups )
     {
         for( int i = 0; i < m->animaya_vertex_count; i++ )
-            free(m->animaya_groups[i]);
-        free(m->animaya_groups);
+            TORIDRAW_FREE(m->animaya_groups[i]);
+        TORIDRAW_FREE(m->animaya_groups);
     }
     if( m->animaya_scales )
     {
         for( int i = 0; i < m->animaya_vertex_count; i++ )
-            free(m->animaya_scales[i]);
-        free(m->animaya_scales);
+            TORIDRAW_FREE(m->animaya_scales[i]);
+        TORIDRAW_FREE(m->animaya_scales);
     }
-    free(m->animaya_group_counts);
+    TORIDRAW_FREE(m->animaya_group_counts);
 }
 
 struct ToriDraw_ModelHD*
@@ -523,7 +537,7 @@ ToriDraw_ModelHDFromModel(struct ToriDraw_Model* model)
     if( !model )
         return NULL;
 
-    hd = (struct ToriDraw_ModelHD*)calloc(1, sizeof(*hd));
+    hd = (struct ToriDraw_ModelHD*)TORIDRAW_CALLOC(1, sizeof(*hd));
     assert(hd);
     /* The shell is copied by value below and the original is freed without
      * going through ToriDraw_ModelFree, so a borrowed-topology holder would be
@@ -535,7 +549,7 @@ ToriDraw_ModelHDFromModel(struct ToriDraw_Model* model)
      * the shell afterwards must not go through ToriDraw_ModelFree — that would
      * release the arrays the HD model now owns. */
     hd->base = *model;
-    free(model);
+    TORIDRAW_FREE(model);
     return hd;
 }
 
@@ -544,12 +558,12 @@ ToriDraw_ModelHDFree(struct ToriDraw_ModelHD* hd)
 {
     if( !hd )
         return;
-    free(hd->texture_mappings);
+    TORIDRAW_FREE(hd->texture_mappings);
     hd->texture_mappings = NULL;
     /* The base is embedded by value, so its arrays are released here and the
      * single allocation covering both is freed once. */
     ToriDraw_ModelFree_arrays(&hd->base);
-    free(hd);
+    TORIDRAW_FREE(hd);
 }
 
 void
@@ -562,7 +576,7 @@ ToriDraw_ModelFree(struct ToriDraw_Model* model)
     if( !model )
         return;
     ToriDraw_ModelFree_arrays(model);
-    free(model);
+    TORIDRAW_FREE(model);
 }
 
 void
@@ -733,10 +747,10 @@ ToriDraw_ModelCaptureOriginalVertices(struct ToriDraw_Model* model)
      * 6 bytes per vertex per call, which on a 7,837-vertex import like the QBD is
      * ~46 KB every time its sequence changes -- once per attack, per phase, per
      * retype -- plus the face-alpha copy. Free before reallocating. */
-    free(model->original_vertices_x);
-    free(model->original_vertices_y);
-    free(model->original_vertices_z);
-    free(model->original_face_alphas);
+    TORIDRAW_FREE(model->original_vertices_x);
+    TORIDRAW_FREE(model->original_vertices_y);
+    TORIDRAW_FREE(model->original_vertices_z);
+    TORIDRAW_FREE(model->original_face_alphas);
     model->original_vertices_x = NULL;
     model->original_vertices_y = NULL;
     model->original_vertices_z = NULL;
@@ -745,9 +759,9 @@ ToriDraw_ModelCaptureOriginalVertices(struct ToriDraw_Model* model)
     if( vc == 0 )
         return;
 
-    model->original_vertices_x = malloc(vc * sizeof(vertexint_t));
-    model->original_vertices_y = malloc(vc * sizeof(vertexint_t));
-    model->original_vertices_z = malloc(vc * sizeof(vertexint_t));
+    model->original_vertices_x = TORIDRAW_MALLOC(vc * sizeof(vertexint_t));
+    model->original_vertices_y = TORIDRAW_MALLOC(vc * sizeof(vertexint_t));
+    model->original_vertices_z = TORIDRAW_MALLOC(vc * sizeof(vertexint_t));
     /* ToriDraw_ModelAnimateReset gates on original_vertices_x alone, so a
      * partial capture would let it memcpy from a NULL y/z. All three or none. */
     assert(model->original_vertices_x);
@@ -761,7 +775,7 @@ ToriDraw_ModelCaptureOriginalVertices(struct ToriDraw_Model* model)
     if( model->face_alphas && model->face_count > 0 )
     {
         size_t const fc = (size_t)model->face_count;
-        model->original_face_alphas = malloc(fc * sizeof(alphaint_t));
+        model->original_face_alphas = TORIDRAW_MALLOC(fc * sizeof(alphaint_t));
         assert(model->original_face_alphas);
         memcpy(model->original_face_alphas, model->face_alphas, fc * sizeof(alphaint_t));
     }

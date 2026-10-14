@@ -1,4 +1,5 @@
 #include "dat1_config_idk.h"
+#include "../rscache_alloc.h"
 
 #include "../rsbuffer.h"
 
@@ -49,7 +50,7 @@ RSCache_Dat1ConfigIdkDecodeOp(
         break;
     case 2:
         idk->models_count = g1(buffer);
-        idk->models = malloc(idk->models_count * sizeof(int));
+        idk->models = RSCACHE_MALLOC(idk->models_count * sizeof(int));
         memset(idk->models, 0, idk->models_count * sizeof(int));
         for( int i = 0; i < idk->models_count; i++ )
         {
@@ -86,7 +87,7 @@ RSCache_Dat1ConfigIdkDecodeOp(
 static struct RSCache_Dat1ConfigIdk*
 decode_idk(struct RSCache_Buffer* inb)
 {
-    struct RSCache_Dat1ConfigIdk* idk = malloc(sizeof(struct RSCache_Dat1ConfigIdk));
+    struct RSCache_Dat1ConfigIdk* idk = RSCACHE_MALLOC(sizeof(struct RSCache_Dat1ConfigIdk));
 
     RSCache_Dat1ConfigIdkInit(idk);
 
@@ -125,7 +126,7 @@ RSCache_Dat1ConfigIdkListNewDecode(
     void* jagfile_idkdat_data,
     int jagfile_idkdat_data_size)
 {
-    struct RSCache_Dat1ConfigIdkList* idk_list = malloc(sizeof(struct RSCache_Dat1ConfigIdkList));
+    struct RSCache_Dat1ConfigIdkList* idk_list = RSCACHE_MALLOC(sizeof(struct RSCache_Dat1ConfigIdkList));
     memset(idk_list, 0, sizeof(struct RSCache_Dat1ConfigIdkList));
 
     struct RSCache_Buffer buffer;
@@ -135,7 +136,7 @@ RSCache_Dat1ConfigIdkListNewDecode(
         (uint32_t)(jagfile_idkdat_data_size));
 
     int idk_count = g2(&buffer);
-    idk_list->idks = malloc(idk_count * sizeof(struct RSCache_Dat1ConfigIdk*));
+    idk_list->idks = RSCACHE_MALLOC(idk_count * sizeof(struct RSCache_Dat1ConfigIdk*));
     memset(idk_list->idks, 0, idk_count * sizeof(struct RSCache_Dat1ConfigIdk*));
 
     idk_list->idks_count = idk_count;
@@ -158,7 +159,7 @@ RSCache_Dat1ConfigIdkFreeInplace(struct RSCache_Dat1ConfigIdk* idk)
 {
     if( !idk )
         return;
-    free(idk->models);
+    RSCACHE_FREE(idk->models);
     idk->models = NULL;
     idk->models_count = 0;
 }
@@ -169,7 +170,7 @@ RSCache_Dat1ConfigIdkFree(struct RSCache_Dat1ConfigIdk* idk)
     if( !idk )
         return;
     RSCache_Dat1ConfigIdkFreeInplace(idk);
-    free(idk);
+    RSCACHE_FREE(idk);
 }
 uint32_t
 RSCache_Dat1ConfigIdkEncodeBound(const struct RSCache_Dat1ConfigIdk* idk)

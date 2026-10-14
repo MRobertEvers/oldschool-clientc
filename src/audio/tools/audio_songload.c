@@ -1,3 +1,4 @@
+#include "mem/torimem_rscache.h"
 #include "audio/tools/audio_songload.h"
 #include <assert.h>
 
@@ -24,7 +25,8 @@ archive_of(
 static int16_t*
 widen(const struct RSCache_SoundPcm* pcm)
 {
-    int16_t* out = malloc((size_t)pcm->sample_count * sizeof(int16_t));
+    /* ASSET: the sound bank takes it. */
+    int16_t* out = ToriMem_Alloc(ToriMem_Assets(), (size_t)pcm->sample_count * sizeof(int16_t));
 
     assert(out);
     for( int i = 0; i < pcm->sample_count; i++ )
@@ -58,18 +60,23 @@ load_sample(
         RSCache_Dat2DiskArchiveFree(archive);
         if( !sample )
             return false;
+        int16_t* samples = NULL;
+        if( sample->samples && sample->sample_count > 0 )
+        {
+            samples = ToriMem_TakeFromRSCache(
+                ToriMem_Assets(), sample->samples, (size_t)sample->sample_count * sizeof(*sample->samples));
+            sample->samples = NULL; /* the bank's now, kept or freed */
+        }
         ok = ToriRS_SoundBank_AddSample(
                  &load->bank,
                  table,
                  sample_id,
-                 sample->samples,
+                 samples,
                  sample->sample_count,
                  sample->sample_rate,
                  sample->loop_start,
                  sample->loop_end,
                  sample->loop) != NULL;
-        if( ok )
-            sample->samples = NULL; /* ownership moved into the bank */
         RSCache_AudioSampleFree(sample);
         return ok;
     }

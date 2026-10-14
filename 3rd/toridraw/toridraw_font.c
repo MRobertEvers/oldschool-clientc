@@ -1,4 +1,5 @@
 #include "toridraw_font.h"
+#include "toridraw_alloc.h"
 
 #include "osrs/colors.h"
 
@@ -419,10 +420,10 @@ ToriDraw_FontFree(struct ToriDraw_Font* font)
         return;
     for( int i = 0; i < TORIDRAW_FONT_GLYPH_COUNT; i++ )
     {
-        free(font->glyph_alpha[i]);
+        TORIDRAW_FREE(font->glyph_alpha[i]);
         font->glyph_alpha[i] = NULL;
     }
-    free(font);
+    TORIDRAW_FREE(font);
 }
 
 bool

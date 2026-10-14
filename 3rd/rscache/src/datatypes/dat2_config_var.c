@@ -1,4 +1,5 @@
 #include "dat2_config_var.h"
+#include "../rscache_alloc.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -62,7 +63,7 @@ RSCache_Dat2ConfigVarbitDecodeOp(
     if( opcode == 10 )
     {
         char* name = gcstring(buffer);
-        free(entry->debugname);
+        RSCACHE_FREE(entry->debugname);
         entry->debugname = name;
         RSCache_PresenceSet(&entry->present, RSCACHE_VARBIT_FIELD_DEBUGNAME);
         return true;
@@ -148,7 +149,7 @@ RSCache_Dat2ConfigVarbitFreeInplace(struct RSCache_Dat2ConfigVarbit* entry)
 {
     if( !entry )
         return;
-    free(entry->debugname);
+    RSCACHE_FREE(entry->debugname);
     entry->debugname = NULL;
 }
 
@@ -158,7 +159,7 @@ RSCache_Dat2ConfigVarbitFree(struct RSCache_Dat2ConfigVarbit* entry)
     if( !entry )
         return;
     RSCache_Dat2ConfigVarbitFreeInplace(entry);
-    free(entry);
+    RSCACHE_FREE(entry);
 }
 
 /* ------------------------------------------------------------ varplayer --- */

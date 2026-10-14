@@ -1,4 +1,5 @@
 #include "dat2_config_bas.h"
+#include "../rscache_alloc.h"
 
 #include "../rsbuffer.h"
 #include "../rscache_profile.h"
@@ -196,7 +197,7 @@ bas_new_decode(
     int data_size,
     int codec_version)
 {
-    struct RSCache_Dat2ConfigBas* bas = calloc(1, sizeof(*bas));
+    struct RSCache_Dat2ConfigBas* bas = RSCACHE_CALLOC(1, sizeof(*bas));
     if( !bas )
         return NULL;
 
@@ -281,5 +282,5 @@ RSCache_Dat2ConfigBasEncode(
 void
 RSCache_Dat2ConfigBasFree(struct RSCache_Dat2ConfigBas* bas)
 {
-    free(bas);
+    RSCACHE_FREE(bas);
 }

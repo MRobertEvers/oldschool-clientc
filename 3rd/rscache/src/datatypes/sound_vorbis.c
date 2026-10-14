@@ -1,4 +1,5 @@
 #include "sound_vorbis.h"
+#include "../rscache_alloc.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -229,7 +230,7 @@ codebook_build_tree(struct vorbis_codebook* book)
     int available[33];
     int next_free = 0;
 
-    codewords = calloc((size_t)(book->entries > 0 ? book->entries : 1), sizeof(int));
+    codewords = RSCACHE_CALLOC((size_t)(book->entries > 0 ? book->entries : 1), sizeof(int));
     if( !codewords )
         return false;
     memset(available, 0, sizeof(available));
@@ -277,10 +278,10 @@ codebook_build_tree(struct vorbis_codebook* book)
     }
 
     book->huffman_size = 8;
-    book->huffman = calloc((size_t)book->huffman_size, sizeof(int));
+    book->huffman = RSCACHE_CALLOC((size_t)book->huffman_size, sizeof(int));
     if( !book->huffman )
     {
-        free(codewords);
+        RSCACHE_FREE(codewords);
         return false;
     }
 
@@ -312,10 +313,10 @@ codebook_build_tree(struct vorbis_codebook* book)
                 int* grown;
                 while( node >= grown_size )
                     grown_size *= 2;
-                grown = realloc(book->huffman, (size_t)grown_size * sizeof(int));
+                grown = RSCACHE_REALLOC(book->huffman, (size_t)grown_size * sizeof(int));
                 if( !grown )
                 {
-                    free(codewords);
+                    RSCACHE_FREE(codewords);
                     return false;
                 }
                 memset(grown + book->huffman_size, 0,
@@ -329,18 +330,18 @@ codebook_build_tree(struct vorbis_codebook* book)
             next_free = node + 1;
     }
 
-    free(codewords);
+    RSCACHE_FREE(codewords);
     return true;
 }
 
 static void
 codebook_release(struct vorbis_codebook* book)
 {
-    free(book->lengths);
-    free(book->multiplicands);
-    free(book->vectors);
-    free(book->vector_pool);
-    free(book->huffman);
+    RSCACHE_FREE(book->lengths);
+    RSCACHE_FREE(book->multiplicands);
+    RSCACHE_FREE(book->vectors);
+    RSCACHE_FREE(book->vector_pool);
+    RSCACHE_FREE(book->huffman);
     memset(book, 0, sizeof(*book));
 }
 
@@ -356,7 +357,7 @@ codebook_decode(
     book->entries = bits_read(bits, 24);
     if( book->dimensions <= 0 || book->entries <= 0 || book->entries > (1 << 24) )
         return false;
-    book->lengths = calloc((size_t)book->entries, sizeof(int));
+    book->lengths = RSCACHE_CALLOC((size_t)book->entries, sizeof(int));
     if( !book->lengths )
         return false;
 
@@ -409,7 +410,7 @@ codebook_decode(
         if( lookup_values <= 0 )
             return false;
 
-        book->multiplicands = calloc((size_t)lookup_values, sizeof(int));
+        book->multiplicands = RSCACHE_CALLOC((size_t)lookup_values, sizeof(int));
         if( !book->multiplicands )
             return false;
         for( int i = 0; i < lookup_values; i++ )
@@ -418,8 +419,8 @@ codebook_decode(
             return false;
 
         book->vector_pool =
-            calloc((size_t)book->entries * (size_t)book->dimensions, sizeof(float));
-        book->vectors = calloc((size_t)book->entries, sizeof(float*));
+            RSCACHE_CALLOC((size_t)book->entries * (size_t)book->dimensions, sizeof(float));
+        book->vectors = RSCACHE_CALLOC((size_t)book->entries, sizeof(float*));
         if( !book->vector_pool || !book->vectors )
             return false;
         for( int i = 0; i < book->entries; i++ )
@@ -549,14 +550,14 @@ floor_release(struct vorbis_floor* floor)
     if( floor->class_subbook )
     {
         for( int i = 0; i < floor->class_count; i++ )
-            free(floor->class_subbook[i]);
-        free(floor->class_subbook);
+            RSCACHE_FREE(floor->class_subbook[i]);
+        RSCACHE_FREE(floor->class_subbook);
     }
-    free(floor->partition_class);
-    free(floor->class_dimensions);
-    free(floor->class_subclasses);
-    free(floor->class_masterbook);
-    free(floor->x_list);
+    RSCACHE_FREE(floor->partition_class);
+    RSCACHE_FREE(floor->class_dimensions);
+    RSCACHE_FREE(floor->class_subclasses);
+    RSCACHE_FREE(floor->class_masterbook);
+    RSCACHE_FREE(floor->x_list);
     memset(floor, 0, sizeof(*floor));
 }
 
@@ -574,7 +575,7 @@ floor_decode(
         return false; /* only floor type 1 exists in this corpus */
 
     floor->partition_count = bits_read(bits, 5);
-    floor->partition_class = calloc((size_t)(floor->partition_count + 1), sizeof(int));
+    floor->partition_class = RSCACHE_CALLOC((size_t)(floor->partition_count + 1), sizeof(int));
     if( !floor->partition_class )
         return false;
     for( int i = 0; i < floor->partition_count; i++ )
@@ -587,10 +588,10 @@ floor_decode(
     floor->class_count = class_max;
     if( class_max > 0 )
     {
-        floor->class_dimensions = calloc((size_t)class_max, sizeof(int));
-        floor->class_subclasses = calloc((size_t)class_max, sizeof(int));
-        floor->class_masterbook = calloc((size_t)class_max, sizeof(int));
-        floor->class_subbook = calloc((size_t)class_max, sizeof(int*));
+        floor->class_dimensions = RSCACHE_CALLOC((size_t)class_max, sizeof(int));
+        floor->class_subclasses = RSCACHE_CALLOC((size_t)class_max, sizeof(int));
+        floor->class_masterbook = RSCACHE_CALLOC((size_t)class_max, sizeof(int));
+        floor->class_subbook = RSCACHE_CALLOC((size_t)class_max, sizeof(int*));
         if( !floor->class_dimensions || !floor->class_subclasses || !floor->class_masterbook ||
             !floor->class_subbook )
             return false;
@@ -606,7 +607,7 @@ floor_decode(
         if( subclasses != 0 )
             floor->class_masterbook[i] = bits_read(bits, 8);
         subbook_count = 1 << subclasses;
-        floor->class_subbook[i] = calloc((size_t)subbook_count, sizeof(int));
+        floor->class_subbook[i] = RSCACHE_CALLOC((size_t)subbook_count, sizeof(int));
         if( !floor->class_subbook[i] )
             return false;
         for( int j = 0; j < subbook_count; j++ )
@@ -621,7 +622,7 @@ floor_decode(
         return false;
 
     floor->x_count = x_count;
-    floor->x_list = calloc((size_t)x_count, sizeof(int));
+    floor->x_list = RSCACHE_CALLOC((size_t)x_count, sizeof(int));
     if( !floor->x_list )
         return false;
     floor->x_list[0] = 0;
@@ -893,7 +894,7 @@ struct vorbis_residue
 static void
 residue_release(struct vorbis_residue* residue)
 {
-    free(residue->books);
+    RSCACHE_FREE(residue->books);
     memset(residue, 0, sizeof(*residue));
 }
 
@@ -913,7 +914,7 @@ residue_decode(
     if( residue->partition_size <= 0 || residue->classifications <= 0 )
         return false;
 
-    cascade = calloc((size_t)residue->classifications, sizeof(int));
+    cascade = RSCACHE_CALLOC((size_t)residue->classifications, sizeof(int));
     if( !cascade )
         return false;
     for( int i = 0; i < residue->classifications; i++ )
@@ -925,15 +926,15 @@ residue_decode(
         cascade[i] = high << 3 | low;
     }
 
-    residue->books = calloc((size_t)residue->classifications * 8, sizeof(int));
+    residue->books = RSCACHE_CALLOC((size_t)residue->classifications * 8, sizeof(int));
     if( !residue->books )
     {
-        free(cascade);
+        RSCACHE_FREE(cascade);
         return false;
     }
     for( int i = 0; i < residue->classifications * 8; i++ )
         residue->books[i] = (cascade[i >> 3] & 1 << (i & 7)) != 0 ? bits_read(bits, 8) : -1;
-    free(cascade);
+    RSCACHE_FREE(cascade);
     return !bits->overrun;
 }
 
@@ -950,8 +951,8 @@ struct vorbis_mapping
 static void
 mapping_release(struct vorbis_mapping* mapping)
 {
-    free(mapping->floor_of_submap);
-    free(mapping->residue_of_submap);
+    RSCACHE_FREE(mapping->floor_of_submap);
+    RSCACHE_FREE(mapping->residue_of_submap);
     memset(mapping, 0, sizeof(*mapping));
 }
 
@@ -970,8 +971,8 @@ mapping_decode(
     if( mapping->submap_count <= 0 || mapping->submap_count > 16 )
         return false;
 
-    mapping->floor_of_submap = calloc((size_t)mapping->submap_count, sizeof(int));
-    mapping->residue_of_submap = calloc((size_t)mapping->submap_count, sizeof(int));
+    mapping->floor_of_submap = RSCACHE_CALLOC((size_t)mapping->submap_count, sizeof(int));
+    mapping->residue_of_submap = RSCACHE_CALLOC((size_t)mapping->submap_count, sizeof(int));
     if( !mapping->floor_of_submap || !mapping->residue_of_submap )
         return false;
     for( int i = 0; i < mapping->submap_count; i++ )
@@ -1016,10 +1017,10 @@ struct RSCache_VorbisSetup
 static void
 window_tables_release(struct vorbis_window_tables* tables)
 {
-    free(tables->twiddle_a);
-    free(tables->twiddle_b);
-    free(tables->twiddle_c);
-    free(tables->bit_reverse);
+    RSCACHE_FREE(tables->twiddle_a);
+    RSCACHE_FREE(tables->twiddle_b);
+    RSCACHE_FREE(tables->twiddle_c);
+    RSCACHE_FREE(tables->bit_reverse);
     memset(tables, 0, sizeof(*tables));
 }
 
@@ -1035,10 +1036,10 @@ window_tables_build(
 
     if( n < 8 )
         return false;
-    tables->twiddle_a = calloc((size_t)half, sizeof(float));
-    tables->twiddle_b = calloc((size_t)half, sizeof(float));
-    tables->twiddle_c = calloc((size_t)quarter, sizeof(float));
-    tables->bit_reverse = calloc((size_t)eighth, sizeof(int));
+    tables->twiddle_a = RSCACHE_CALLOC((size_t)half, sizeof(float));
+    tables->twiddle_b = RSCACHE_CALLOC((size_t)half, sizeof(float));
+    tables->twiddle_c = RSCACHE_CALLOC((size_t)quarter, sizeof(float));
+    tables->bit_reverse = RSCACHE_CALLOC((size_t)eighth, sizeof(int));
     if( !tables->twiddle_a || !tables->twiddle_b || !tables->twiddle_c || !tables->bit_reverse )
         return false;
 
@@ -1089,7 +1090,7 @@ RSCache_VorbisSetupFree(struct RSCache_VorbisSetup* setup)
         mapping_release(&setup->mappings[i]);
     window_tables_release(&setup->window[0]);
     window_tables_release(&setup->window[1]);
-    free(setup);
+    RSCACHE_FREE(setup);
 }
 
 struct RSCache_VorbisSetup*
@@ -1103,7 +1104,7 @@ RSCache_VorbisSetupNewDecode(
 
     if( !data || data_size <= 0 )
         return NULL;
-    setup = calloc(1, sizeof(*setup));
+    setup = RSCACHE_CALLOC(1, sizeof(*setup));
     if( !setup )
         return NULL;
     bits_init(&bits, (const uint8_t*)data, data_size);
@@ -1708,16 +1709,16 @@ RSCache_AudioSampleNew(
 
     if( sample_count < 0 )
         return NULL;
-    sample = calloc(1, sizeof(*sample));
+    sample = RSCACHE_CALLOC(1, sizeof(*sample));
     if( !sample )
         return NULL;
     sample->sample_rate = sample_rate;
     sample->sample_count = sample_count;
     sample->loop_end = sample_count;
-    sample->samples = calloc((size_t)(sample_count > 0 ? sample_count : 1), sizeof(int16_t));
+    sample->samples = RSCACHE_CALLOC((size_t)(sample_count > 0 ? sample_count : 1), sizeof(int16_t));
     if( !sample->samples )
     {
-        free(sample);
+        RSCACHE_FREE(sample);
         return NULL;
     }
     return sample;
@@ -1728,8 +1729,8 @@ RSCache_AudioSampleFree(struct RSCache_AudioSample* sample)
 {
     if( !sample )
         return;
-    free(sample->samples);
-    free(sample);
+    RSCACHE_FREE(sample->samples);
+    RSCACHE_FREE(sample);
 }
 
 static int
@@ -1790,8 +1791,8 @@ RSCache_VorbisSampleNewDecode(
     sample->loop = loop;
 
     stream.setup = setup;
-    stream.work = calloc((size_t)setup->blocksize_long, sizeof(float));
-    stream.previous = calloc((size_t)setup->blocksize_long, sizeof(float));
+    stream.work = RSCACHE_CALLOC((size_t)setup->blocksize_long, sizeof(float));
+    stream.previous = RSCACHE_CALLOC((size_t)setup->blocksize_long, sizeof(float));
     for( int i = 0; i < setup->residue_count; i++ )
     {
         const struct vorbis_residue* residue = &setup->residues[i];
@@ -1801,9 +1802,9 @@ RSCache_VorbisSampleNewDecode(
             max_partitions = partitions;
     }
     stream.classifications_size = max_partitions > 0 ? max_partitions : 1;
-    stream.classifications = calloc((size_t)stream.classifications_size, sizeof(int));
+    stream.classifications = RSCACHE_CALLOC((size_t)stream.classifications_size, sizeof(int));
     out_capacity = setup->blocksize_long;
-    out = calloc((size_t)out_capacity, sizeof(float));
+    out = RSCACHE_CALLOC((size_t)out_capacity, sizeof(float));
     if( !stream.work || !stream.previous || !stream.classifications || !out )
         goto fail;
 
@@ -1838,17 +1839,17 @@ RSCache_VorbisSampleNewDecode(
         }
     }
 
-    free(stream.work);
-    free(stream.previous);
-    free(stream.classifications);
-    free(out);
+    RSCACHE_FREE(stream.work);
+    RSCACHE_FREE(stream.previous);
+    RSCACHE_FREE(stream.classifications);
+    RSCACHE_FREE(out);
     return sample;
 
 fail:
-    free(stream.work);
-    free(stream.previous);
-    free(stream.classifications);
-    free(out);
+    RSCACHE_FREE(stream.work);
+    RSCACHE_FREE(stream.previous);
+    RSCACHE_FREE(stream.classifications);
+    RSCACHE_FREE(out);
     RSCache_AudioSampleFree(sample);
     return NULL;
 }

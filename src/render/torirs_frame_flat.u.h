@@ -2,6 +2,7 @@
  * each copy contains this frame's posed geometry, with the native scene Y
  * scale and HSL override already applied. World-only replay shares ownership
  * with its parent frame, so command pointers remain valid until FrameEnd. */
+#include "mem/torirs_mem.h"
 #include "toridraw_model.h"
 #include "toridraw_model_transform.h"
 
@@ -68,8 +69,9 @@ frame_flat_model(struct ToriRS_FrameFlatArena* arena,
         if( copy->face_textures ) copy->face_textures[i] = -1;
     }
     ToriDraw_ModelSetBoundsCylinder(copy);
-    struct ToriRS_FrameFlatModel* entry = calloc(1, sizeof(*entry));
-    assert(entry);
+    /* FRAME: built in ToriRS_FrameBegin's frame, freed in its FrameEnd. */
+    struct ToriRS_FrameFlatModel* entry =
+        ToriMem_Calloc(ToriMem_Frame(), 1, sizeof(*entry));
     *entry = (struct ToriRS_FrameFlatModel){copy, key, scale, hsl, arena->head};
     arena->head = entry;
     return ToriDraw_ModelHandleOwned(copy);
@@ -84,8 +86,8 @@ frame_flat_free(struct ToriRS_FrameFlatArena* arena)
     {
         struct ToriRS_FrameFlatModel* next = p->next;
         ToriDraw_ModelFree(p->model);
-        free(p);
+        ToriMem_Free(ToriMem_Frame(), p);
         p = next;
     }
-    free(arena);
+    ToriMem_Free(ToriMem_Frame(), arena);
 }

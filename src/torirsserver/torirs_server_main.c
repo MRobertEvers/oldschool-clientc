@@ -35,6 +35,8 @@
  *                       harnesses use 2 so typed ::commands take the golden
  *                       CLIENT_CHEAT path (default 0)
  */
+#include "mem/torirs_mem.h"
+#include "mem/torirs_mem_libs.h"
 #include "torirs_server.h"
 
 #include "torirs_server_boot.h"
@@ -128,6 +130,17 @@ main(
      */
     char const* rev_name = getenv("TORIRSSERVER_REV");
     const struct ToriRSServerWire* wire;
+
+    /* Before anything allocates: the arena mode and site tracking fix every
+     * block's layout (src/mem/torirs_mem.h). */
+    ToriMem_Init();
+    /* Every library the server links allocates from its lib:* group; server
+     * code that frees rscache's output names lib:rscache
+     * (src/mem/torirs_mem_libs.h). */
+    ToriMem_InstallBZip();
+    ToriMem_InstallRSAreaBuf();
+    ToriMem_InstallRSProt();
+    ToriMem_InstallRSCache();
 
     for( int i = 1; i < argc - 1; i++ )
         if( strcmp(argv[i], "--rev") == 0 )
@@ -297,6 +310,7 @@ main(
     {
         int failures = ToriRSServer_WorldSelftest();
         ToriRSServer_BootFree();
+        ToriMem_Shutdown();
         return failures ? 1 : 0;
     }
 
@@ -335,6 +349,7 @@ main(
         status = ToriRSServer_BotRun(&srv, &config, argc, argv);
         ToriRSServer_ScriptsFree(&srv);
         ToriRSServer_BootFree();
+        ToriMem_Shutdown();
         return status;
     }
     if( scriptrun )
@@ -342,6 +357,7 @@ main(
         status = ToriRSServer_ScriptRun(&srv, &config, argc, argv);
         ToriRSServer_ScriptsFree(&srv);
         ToriRSServer_BootFree();
+        ToriMem_Shutdown();
         return status;
     }
 
@@ -363,5 +379,6 @@ main(
 #ifdef _WIN32
     WSACleanup();
 #endif
+    ToriMem_Shutdown();
     return status;
 }

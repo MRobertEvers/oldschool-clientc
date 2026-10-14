@@ -1,4 +1,5 @@
 #include "music_patch.h"
+#include "../rscache_alloc.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -77,11 +78,11 @@ RSCache_MusicPatchFree(struct RSCache_MusicPatch* patch)
         return;
     for( int i = 0; i < patch->envelope_count; i++ )
     {
-        free(patch->envelopes[i].amplitude);
-        free(patch->envelopes[i].release);
+        RSCACHE_FREE(patch->envelopes[i].amplitude);
+        RSCACHE_FREE(patch->envelopes[i].release);
     }
-    free(patch->envelopes);
-    free(patch);
+    RSCACHE_FREE(patch->envelopes);
+    RSCACHE_FREE(patch);
 }
 
 /**
@@ -197,7 +198,7 @@ RSCache_MusicPatchNewDecode(
 
     if( !data || data_size <= 0 )
         return NULL;
-    patch = calloc(1, sizeof(*patch));
+    patch = RSCACHE_CALLOC(1, sizeof(*patch));
     if( !patch )
         return NULL;
     for( int i = 0; i < 128; i++ )
@@ -216,7 +217,7 @@ RSCache_MusicPatchNewDecode(
     group_count_len = pr_run_length(&reader);
     if( reader.overrun )
         goto fail;
-    group_counts = malloc((size_t)(group_count_len + 1));
+    group_counts = RSCACHE_MALLOC((size_t)(group_count_len + 1));
     if( !group_counts )
         goto fail;
     for( int i = 0; i < group_count_len; i++ )
@@ -229,7 +230,7 @@ RSCache_MusicPatchNewDecode(
     pan_count_len = pr_run_length(&reader);
     if( reader.overrun )
         goto fail;
-    pan_counts = malloc((size_t)(pan_count_len + 1));
+    pan_counts = RSCACHE_MALLOC((size_t)(pan_count_len + 1));
     if( !pan_counts )
         goto fail;
     for( int i = 0; i < pan_count_len; i++ )
@@ -242,7 +243,7 @@ RSCache_MusicPatchNewDecode(
     envelope_count_len = pr_run_length(&reader);
     if( reader.overrun )
         goto fail;
-    envelope_counts = malloc((size_t)(envelope_count_len + 1));
+    envelope_counts = RSCACHE_MALLOC((size_t)(envelope_count_len + 1));
     if( !envelope_counts )
         goto fail;
     for( int i = 0; i < envelope_count_len; i++ )
@@ -256,7 +257,7 @@ RSCache_MusicPatchNewDecode(
      * past the current". Run 0 is implicit and run 1 always uses set 1, which
      * is why the walk starts at 2 with `last = 1` and `count = 2`.
      */
-    envelope_tree = calloc((size_t)(envelope_count_len > 0 ? envelope_count_len : 1), 1);
+    envelope_tree = RSCACHE_CALLOC((size_t)(envelope_count_len > 0 ? envelope_count_len : 1), 1);
     if( !envelope_tree )
         goto fail;
     if( envelope_count_len > 1 )
@@ -291,7 +292,7 @@ RSCache_MusicPatchNewDecode(
     if( envelope_set_count > 0 )
     {
         patch->envelopes =
-            calloc((size_t)envelope_set_count, sizeof(struct RSCache_MusicPatchEnvelope));
+            RSCACHE_CALLOC((size_t)envelope_set_count, sizeof(struct RSCache_MusicPatchEnvelope));
         if( !patch->envelopes )
             goto fail;
     }
@@ -304,7 +305,7 @@ RSCache_MusicPatchNewDecode(
         if( amplitude_pairs > 0 )
         {
             envelope->amplitude_len = amplitude_pairs * 2;
-            envelope->amplitude = calloc((size_t)envelope->amplitude_len, 1);
+            envelope->amplitude = RSCACHE_CALLOC((size_t)envelope->amplitude_len, 1);
             if( !envelope->amplitude )
                 goto fail;
         }
@@ -312,7 +313,7 @@ RSCache_MusicPatchNewDecode(
         if( release_pairs > 0 )
         {
             envelope->release_len = release_pairs * 2 + 2;
-            envelope->release = calloc((size_t)envelope->release_len, 1);
+            envelope->release = RSCACHE_CALLOC((size_t)envelope->release_len, 1);
             if( !envelope->release )
                 goto fail;
             envelope->release[1] = 64;
@@ -324,14 +325,14 @@ RSCache_MusicPatchNewDecode(
     volume_ramp_len = pr_u8(&reader) * 2;
     if( volume_ramp_len > 0 )
     {
-        volume_ramp = calloc((size_t)volume_ramp_len, 1);
+        volume_ramp = RSCACHE_CALLOC((size_t)volume_ramp_len, 1);
         if( !volume_ramp )
             goto fail;
     }
     pan_ramp_len = pr_u8(&reader) * 2;
     if( pan_ramp_len > 0 )
     {
-        pan_ramp = calloc((size_t)pan_ramp_len, 1);
+        pan_ramp = RSCACHE_CALLOC((size_t)pan_ramp_len, 1);
         if( !pan_ramp )
             goto fail;
     }
@@ -339,7 +340,7 @@ RSCache_MusicPatchNewDecode(
     sample_count_len = pr_run_length(&reader);
     if( reader.overrun )
         goto fail;
-    sample_counts = malloc((size_t)(sample_count_len + 1));
+    sample_counts = RSCACHE_MALLOC((size_t)(sample_count_len + 1));
     if( !sample_counts )
         goto fail;
     for( int i = 0; i < sample_count_len; i++ )
@@ -572,23 +573,23 @@ RSCache_MusicPatchNewDecode(
         goto fail;
     patch->_consumed = reader.pos;
 
-    free(group_counts);
-    free(pan_counts);
-    free(envelope_counts);
-    free(sample_counts);
-    free(envelope_tree);
-    free(volume_ramp);
-    free(pan_ramp);
+    RSCACHE_FREE(group_counts);
+    RSCACHE_FREE(pan_counts);
+    RSCACHE_FREE(envelope_counts);
+    RSCACHE_FREE(sample_counts);
+    RSCACHE_FREE(envelope_tree);
+    RSCACHE_FREE(volume_ramp);
+    RSCACHE_FREE(pan_ramp);
     return patch;
 
 fail:
-    free(group_counts);
-    free(pan_counts);
-    free(envelope_counts);
-    free(sample_counts);
-    free(envelope_tree);
-    free(volume_ramp);
-    free(pan_ramp);
+    RSCACHE_FREE(group_counts);
+    RSCACHE_FREE(pan_counts);
+    RSCACHE_FREE(envelope_counts);
+    RSCACHE_FREE(sample_counts);
+    RSCACHE_FREE(envelope_tree);
+    RSCACHE_FREE(volume_ramp);
+    RSCACHE_FREE(pan_ramp);
     RSCache_MusicPatchFree(patch);
     return NULL;
 }

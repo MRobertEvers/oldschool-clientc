@@ -92,6 +92,11 @@ RSCache_Dat2ConfigIdkDecodeOp(
 void
 RSCache_Dat2ConfigIdkFree(struct RSCache_Dat2ConfigIdk* idk);
 
+/** Free the decoded arrays of a record decoded in place; the struct is the
+ *  caller's. */
+void
+RSCache_Dat2ConfigIdkFreeInplace(struct RSCache_Dat2ConfigIdk* idk);
+
 void
 RSCache_Dat2ConfigIdkDecodeInplace(
     struct RSCache_Dat2ConfigIdk* idk,

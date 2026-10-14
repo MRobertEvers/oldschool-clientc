@@ -1,4 +1,5 @@
 #include "rscache.h"
+#include "../rscache_alloc.h"
 
 
 #include <assert.h>
@@ -49,7 +50,7 @@ RSCache_ModelBonesNewDecode(
     int vertex_bone_map_count)
 {
     struct RSCache_ModelBones* bones =
-        (struct RSCache_ModelBones*)malloc(sizeof(struct RSCache_ModelBones));
+        (struct RSCache_ModelBones*)RSCACHE_MALLOC(sizeof(struct RSCache_ModelBones));
     if( !bones )
         return NULL;
 
@@ -71,21 +72,21 @@ RSCache_ModelBonesNewDecode(
 
     // Allocate arrays
     bones->bones_count = num_bones + 1;
-    bones->bones = (uint16_t**)malloc((num_bones + 1) * sizeof(uint16_t*));
-    bones->bones_sizes = (uint16_t*)malloc((num_bones + 1) * sizeof(uint16_t));
+    bones->bones = (uint16_t**)RSCACHE_MALLOC((num_bones + 1) * sizeof(uint16_t*));
+    bones->bones_sizes = (uint16_t*)RSCACHE_MALLOC((num_bones + 1) * sizeof(uint16_t));
 
     if( !bones->bones || !bones->bones_sizes )
     {
-        free(bones->bones);
-        free(bones->bones_sizes);
-        free(bones);
+        RSCACHE_FREE(bones->bones);
+        RSCACHE_FREE(bones->bones_sizes);
+        RSCACHE_FREE(bones);
         return NULL;
     }
 
     // Allocate each group array
     for( int i = 0; i <= num_bones; i++ )
     {
-        bones->bones[i] = (uint16_t*)malloc((size_t)bone_counts[i] * sizeof(uint16_t));
+        bones->bones[i] = (uint16_t*)RSCACHE_MALLOC((size_t)bone_counts[i] * sizeof(uint16_t));
         bones->bones_sizes[i] = 0;
     }
 
@@ -143,9 +144,9 @@ prov_reset(struct RSCache_ModelProvenance* prov)
     if( !prov )
         return;
 
-    free(prov->face_index_types);
-    free(prov->face_info_bytes);
-    free(prov->tail);
+    RSCACHE_FREE(prov->face_index_types);
+    RSCACHE_FREE(prov->face_info_bytes);
+    RSCACHE_FREE(prov->tail);
     memset(prov, 0, sizeof(*prov));
 }
 
@@ -160,7 +161,7 @@ prov_bytes(
     if( !out || count <= 0 )
         return;
 
-    uint8_t* copy = (uint8_t*)malloc((size_t)count);
+    uint8_t* copy = (uint8_t*)RSCACHE_MALLOC((size_t)count);
     if( !copy )
         return;
     memcpy(copy, data + from, (size_t)count);
@@ -215,7 +216,7 @@ decode_ob2(
     if( !inputData || inputLength < 18 )
         return NULL;
 
-    struct RSCache_Model* model = (struct RSCache_Model*)malloc(sizeof(struct RSCache_Model));
+    struct RSCache_Model* model = (struct RSCache_Model*)RSCACHE_MALLOC(sizeof(struct RSCache_Model));
     memset(model, 0, sizeof(struct RSCache_Model));
     if( !model )
         return NULL;
@@ -321,22 +322,22 @@ decode_ob2(
     model->textured_face_count = textured_face_count;
 
     // Allocate memory for vertices
-    model->vertices_x = (int*)malloc(vertex_count * sizeof(int));
-    model->vertices_y = (int*)malloc(vertex_count * sizeof(int));
-    model->vertices_z = (int*)malloc(vertex_count * sizeof(int));
+    model->vertices_x = (int*)RSCACHE_MALLOC(vertex_count * sizeof(int));
+    model->vertices_y = (int*)RSCACHE_MALLOC(vertex_count * sizeof(int));
+    model->vertices_z = (int*)RSCACHE_MALLOC(vertex_count * sizeof(int));
     memset(model->vertices_x, 0, vertex_count * sizeof(int));
     memset(model->vertices_y, 0, vertex_count * sizeof(int));
     memset(model->vertices_z, 0, vertex_count * sizeof(int));
 
     // Allocate memory for faces
-    model->face_indices_a = (int*)malloc(face_count * sizeof(int));
-    model->face_indices_b = (int*)malloc(face_count * sizeof(int));
-    model->face_indices_c = (int*)malloc(face_count * sizeof(int));
-    model->face_colors = (uint16_t*)malloc((size_t)face_count * sizeof(uint16_t));
-    model->face_priorities = (uint8_t*)malloc((size_t)face_count * sizeof(uint8_t));
+    model->face_indices_a = (int*)RSCACHE_MALLOC(face_count * sizeof(int));
+    model->face_indices_b = (int*)RSCACHE_MALLOC(face_count * sizeof(int));
+    model->face_indices_c = (int*)RSCACHE_MALLOC(face_count * sizeof(int));
+    model->face_colors = (uint16_t*)RSCACHE_MALLOC((size_t)face_count * sizeof(uint16_t));
+    model->face_priorities = (uint8_t*)RSCACHE_MALLOC((size_t)face_count * sizeof(uint8_t));
     if( has_alpha == 1 )
     {
-        model->face_alphas = (uint8_t*)malloc((size_t)face_count * sizeof(uint8_t));
+        model->face_alphas = (uint8_t*)RSCACHE_MALLOC((size_t)face_count * sizeof(uint8_t));
         memset(model->face_alphas, 0, (size_t)face_count * sizeof(uint8_t));
     }
     memset(model->face_indices_a, 0, face_count * sizeof(int));
@@ -345,32 +346,32 @@ decode_ob2(
     memset(model->face_colors, 0, (size_t)face_count * sizeof(uint16_t));
     memset(model->face_priorities, 0, (size_t)face_count * sizeof(uint8_t));
 
-    model->face_infos = (uint8_t*)malloc((size_t)face_count * sizeof(uint8_t));
-    model->face_textures = (int16_t*)malloc((size_t)face_count * sizeof(int16_t));
-    model->face_texture_coords = (int16_t*)malloc((size_t)face_count * sizeof(int16_t));
+    model->face_infos = (uint8_t*)RSCACHE_MALLOC((size_t)face_count * sizeof(uint8_t));
+    model->face_textures = (int16_t*)RSCACHE_MALLOC((size_t)face_count * sizeof(int16_t));
+    model->face_texture_coords = (int16_t*)RSCACHE_MALLOC((size_t)face_count * sizeof(int16_t));
     memset(model->face_infos, 0, (size_t)face_count * sizeof(uint8_t));
     memset(model->face_textures, 0, (size_t)face_count * sizeof(int16_t));
     memset(model->face_texture_coords, 0, (size_t)face_count * sizeof(int16_t));
 
     model->textured_p_coordinate =
-        (uint16_t*)malloc((size_t)textured_face_count * sizeof(uint16_t));
+        (uint16_t*)RSCACHE_MALLOC((size_t)textured_face_count * sizeof(uint16_t));
     model->textured_m_coordinate =
-        (uint16_t*)malloc((size_t)textured_face_count * sizeof(uint16_t));
+        (uint16_t*)RSCACHE_MALLOC((size_t)textured_face_count * sizeof(uint16_t));
     model->textured_n_coordinate =
-        (uint16_t*)malloc((size_t)textured_face_count * sizeof(uint16_t));
+        (uint16_t*)RSCACHE_MALLOC((size_t)textured_face_count * sizeof(uint16_t));
     memset(model->textured_p_coordinate, 0, (size_t)textured_face_count * sizeof(uint16_t));
     memset(model->textured_m_coordinate, 0, (size_t)textured_face_count * sizeof(uint16_t));
     memset(model->textured_n_coordinate, 0, (size_t)textured_face_count * sizeof(uint16_t));
 
     if( has_vertex_labels == 1 )
     {
-        model->vertex_bone_map = (uint8_t*)malloc((size_t)vertex_count * sizeof(uint8_t));
+        model->vertex_bone_map = (uint8_t*)RSCACHE_MALLOC((size_t)vertex_count * sizeof(uint8_t));
         memset(model->vertex_bone_map, 0, (size_t)vertex_count * sizeof(uint8_t));
     }
 
     if( has_face_labels == 1 )
     {
-        model->face_bone_map = (uint8_t*)malloc((size_t)face_count * sizeof(uint8_t));
+        model->face_bone_map = (uint8_t*)RSCACHE_MALLOC((size_t)face_count * sizeof(uint8_t));
         memset(model->face_bone_map, 0, (size_t)face_count * sizeof(uint8_t));
     }
 
@@ -581,7 +582,7 @@ decode_ob2(
 
         if( !hasValidTexFace )
         {
-            free(model->face_texture_coords);
+            RSCACHE_FREE(model->face_texture_coords);
             model->face_texture_coords = NULL;
         }
     }
@@ -591,15 +592,15 @@ decode_ob2(
 
     if( !has_faceinfos )
     {
-        free(model->face_infos);
+        RSCACHE_FREE(model->face_infos);
         model->face_infos = NULL;
     }
 
     if( !has_textures )
     {
-        free(model->face_textures);
+        RSCACHE_FREE(model->face_textures);
         model->face_textures = NULL;
-        free(model->face_texture_coords);
+        RSCACHE_FREE(model->face_texture_coords);
         model->face_texture_coords = NULL;
     }
 
@@ -614,7 +615,7 @@ decode_ob3(
     struct RSCache_ModelProvenance* prov)
 
 {
-    struct RSCache_Model* model = (struct RSCache_Model*)malloc(sizeof(struct RSCache_Model));
+    struct RSCache_Model* model = (struct RSCache_Model*)RSCACHE_MALLOC(sizeof(struct RSCache_Model));
     memset(model, 0, sizeof(struct RSCache_Model));
 
     int headerOffset = inputLength - 23;
@@ -672,7 +673,7 @@ decode_ob3(
          * re-encode could not lay the mapping section out. `version3` already
          * stored them; this is the same field. */
         model->texture_render_types =
-            (unsigned char*)malloc((size_t)textured_face_count * sizeof(unsigned char));
+            (unsigned char*)RSCACHE_MALLOC((size_t)textured_face_count * sizeof(unsigned char));
 
         for( int i = 0; i < textured_face_count; ++i )
         {
@@ -806,30 +807,30 @@ decode_ob3(
     model->face_count = face_count;
     model->textured_face_count = textured_face_count;
 
-    model->vertices_x = (int*)malloc(vertex_count * sizeof(int));
-    model->vertices_y = (int*)malloc(vertex_count * sizeof(int));
-    model->vertices_z = (int*)malloc(vertex_count * sizeof(int));
+    model->vertices_x = (int*)RSCACHE_MALLOC(vertex_count * sizeof(int));
+    model->vertices_y = (int*)RSCACHE_MALLOC(vertex_count * sizeof(int));
+    model->vertices_z = (int*)RSCACHE_MALLOC(vertex_count * sizeof(int));
 
     /* Zeroed, not just allocated: a face whose index type is 0 has none of the
      * three assigned, and reading back uninitialised heap is undefined where the
      * reference implementation reads a zeroed array. */
-    model->face_indices_a = (int*)calloc((size_t)face_count, sizeof(int));
-    model->face_indices_b = (int*)calloc((size_t)face_count, sizeof(int));
-    model->face_indices_c = (int*)calloc((size_t)face_count, sizeof(int));
+    model->face_indices_a = (int*)RSCACHE_CALLOC((size_t)face_count, sizeof(int));
+    model->face_indices_b = (int*)RSCACHE_CALLOC((size_t)face_count, sizeof(int));
+    model->face_indices_c = (int*)RSCACHE_CALLOC((size_t)face_count, sizeof(int));
 
     if( has_packed_vertex_groups == 1 )
     {
-        model->vertex_bone_map = (uint8_t*)malloc((size_t)vertex_count * sizeof(uint8_t));
+        model->vertex_bone_map = (uint8_t*)RSCACHE_MALLOC((size_t)vertex_count * sizeof(uint8_t));
     }
 
     if( has_face_render_types == 1 )
     {
-        model->face_infos = (uint8_t*)malloc((size_t)face_count * sizeof(uint8_t));
+        model->face_infos = (uint8_t*)RSCACHE_MALLOC((size_t)face_count * sizeof(uint8_t));
     }
 
     if( model_priority == 255 )
     {
-        model->face_priorities = (uint8_t*)malloc((size_t)face_count * sizeof(uint8_t));
+        model->face_priorities = (uint8_t*)RSCACHE_MALLOC((size_t)face_count * sizeof(uint8_t));
     }
     else
     {
@@ -838,17 +839,17 @@ decode_ob3(
 
     if( has_face_transparencies == 1 )
     {
-        model->face_alphas = (uint8_t*)malloc((size_t)face_count * sizeof(uint8_t));
+        model->face_alphas = (uint8_t*)RSCACHE_MALLOC((size_t)face_count * sizeof(uint8_t));
     }
 
     if( has_packed_transparency_vertex_groups == 1 )
     {
-        model->face_bone_map = (uint8_t*)malloc((size_t)face_count * sizeof(uint8_t));
+        model->face_bone_map = (uint8_t*)RSCACHE_MALLOC((size_t)face_count * sizeof(uint8_t));
     }
 
     if( has_face_textures == 1 )
     {
-        model->face_textures = (int16_t*)malloc((size_t)face_count * sizeof(int16_t));
+        model->face_textures = (int16_t*)RSCACHE_MALLOC((size_t)face_count * sizeof(int16_t));
     }
 
     if( has_face_textures == 1 && textured_face_count > 0 )
@@ -857,20 +858,20 @@ decode_ob3(
          * start at a defined value. Zero matches the reference, whose array is
          * zero-initialised; the entries are read only behind a
          * `face_textures[i] != -1` test either way. */
-        model->face_texture_coords = (int16_t*)calloc((size_t)face_count, sizeof(int16_t));
+        model->face_texture_coords = (int16_t*)RSCACHE_CALLOC((size_t)face_count, sizeof(int16_t));
     }
 
-    model->face_colors = (uint16_t*)malloc((size_t)face_count * sizeof(uint16_t));
+    model->face_colors = (uint16_t*)RSCACHE_MALLOC((size_t)face_count * sizeof(uint16_t));
 
     if( textured_face_count > 0 )
     {
         /* Zeroed: only render-type-0 (simple) triangles have p/m/n in the stream. */
         model->textured_p_coordinate =
-            (uint16_t*)calloc((size_t)textured_face_count, sizeof(uint16_t));
+            (uint16_t*)RSCACHE_CALLOC((size_t)textured_face_count, sizeof(uint16_t));
         model->textured_m_coordinate =
-            (uint16_t*)calloc((size_t)textured_face_count, sizeof(uint16_t));
+            (uint16_t*)RSCACHE_CALLOC((size_t)textured_face_count, sizeof(uint16_t));
         model->textured_n_coordinate =
-            (uint16_t*)calloc((size_t)textured_face_count, sizeof(uint16_t));
+            (uint16_t*)RSCACHE_CALLOC((size_t)textured_face_count, sizeof(uint16_t));
     }
 
     int previousVertexX = 0;
@@ -1034,14 +1035,14 @@ decode_ob3(
      */
     if( complexTextureFaceCount > 0 && textured_face_count > 0 )
     {
-        model->texture_scale_x = (int32_t*)calloc((size_t)textured_face_count, sizeof(int32_t));
-        model->texture_scale_y = (int32_t*)calloc((size_t)textured_face_count, sizeof(int32_t));
-        model->texture_scale_z = (int32_t*)calloc((size_t)textured_face_count, sizeof(int32_t));
-        model->texture_rotation = (int8_t*)calloc((size_t)textured_face_count, sizeof(int8_t));
-        model->texture_direction = (int8_t*)calloc((size_t)textured_face_count, sizeof(int8_t));
-        model->texture_speed = (int8_t*)calloc((size_t)textured_face_count, sizeof(int8_t));
-        model->texture_trans_u = (int8_t*)calloc((size_t)textured_face_count, sizeof(int8_t));
-        model->texture_trans_v = (int8_t*)calloc((size_t)textured_face_count, sizeof(int8_t));
+        model->texture_scale_x = (int32_t*)RSCACHE_CALLOC((size_t)textured_face_count, sizeof(int32_t));
+        model->texture_scale_y = (int32_t*)RSCACHE_CALLOC((size_t)textured_face_count, sizeof(int32_t));
+        model->texture_scale_z = (int32_t*)RSCACHE_CALLOC((size_t)textured_face_count, sizeof(int32_t));
+        model->texture_rotation = (int8_t*)RSCACHE_CALLOC((size_t)textured_face_count, sizeof(int8_t));
+        model->texture_direction = (int8_t*)RSCACHE_CALLOC((size_t)textured_face_count, sizeof(int8_t));
+        model->texture_speed = (int8_t*)RSCACHE_CALLOC((size_t)textured_face_count, sizeof(int8_t));
+        model->texture_trans_u = (int8_t*)RSCACHE_CALLOC((size_t)textured_face_count, sizeof(int8_t));
+        model->texture_trans_v = (int8_t*)RSCACHE_CALLOC((size_t)textured_face_count, sizeof(int8_t));
     }
 
     int cursorSimple = offsetOfSimpleTextureMapping;
@@ -1145,7 +1146,7 @@ decode_version2__osrs_extended(
     int inputLength,
     struct RSCache_ModelProvenance* prov)
 {
-    struct RSCache_Model* model = (struct RSCache_Model*)malloc(sizeof(struct RSCache_Model));
+    struct RSCache_Model* model = (struct RSCache_Model*)RSCACHE_MALLOC(sizeof(struct RSCache_Model));
     if( !model )
         return NULL;
     memset(model, 0, sizeof(struct RSCache_Model));
@@ -1235,42 +1236,42 @@ decode_version2__osrs_extended(
     model->face_count = face_count;
     model->textured_face_count = textured_face_count;
 
-    model->vertices_x = (int*)malloc(vertex_count * sizeof(int));
-    model->vertices_y = (int*)malloc(vertex_count * sizeof(int));
-    model->vertices_z = (int*)malloc(vertex_count * sizeof(int));
+    model->vertices_x = (int*)RSCACHE_MALLOC(vertex_count * sizeof(int));
+    model->vertices_y = (int*)RSCACHE_MALLOC(vertex_count * sizeof(int));
+    model->vertices_z = (int*)RSCACHE_MALLOC(vertex_count * sizeof(int));
 
     /* Zeroed for the index-type-0 case; see the note in decode_ob3. */
-    model->face_indices_a = (int*)calloc((size_t)face_count, sizeof(int));
-    model->face_indices_b = (int*)calloc((size_t)face_count, sizeof(int));
-    model->face_indices_c = (int*)calloc((size_t)face_count, sizeof(int));
+    model->face_indices_a = (int*)RSCACHE_CALLOC((size_t)face_count, sizeof(int));
+    model->face_indices_b = (int*)RSCACHE_CALLOC((size_t)face_count, sizeof(int));
+    model->face_indices_c = (int*)RSCACHE_CALLOC((size_t)face_count, sizeof(int));
 
     if( textured_face_count > 0 )
     {
         model->texture_render_types =
-            (unsigned char*)malloc(textured_face_count * sizeof(unsigned char));
+            (unsigned char*)RSCACHE_MALLOC(textured_face_count * sizeof(unsigned char));
         model->textured_p_coordinate =
-            (uint16_t*)malloc((size_t)textured_face_count * sizeof(uint16_t));
+            (uint16_t*)RSCACHE_MALLOC((size_t)textured_face_count * sizeof(uint16_t));
         model->textured_m_coordinate =
-            (uint16_t*)malloc((size_t)textured_face_count * sizeof(uint16_t));
+            (uint16_t*)RSCACHE_MALLOC((size_t)textured_face_count * sizeof(uint16_t));
         model->textured_n_coordinate =
-            (uint16_t*)malloc((size_t)textured_face_count * sizeof(uint16_t));
+            (uint16_t*)RSCACHE_MALLOC((size_t)textured_face_count * sizeof(uint16_t));
     }
 
     if( has_packed_vertex_groups == 1 )
     {
-        model->vertex_bone_map = (uint8_t*)malloc((size_t)vertex_count * sizeof(uint8_t));
+        model->vertex_bone_map = (uint8_t*)RSCACHE_MALLOC((size_t)vertex_count * sizeof(uint8_t));
     }
 
     if( has_face_render_types == 1 )
     {
-        model->face_infos = (uint8_t*)malloc((size_t)face_count * sizeof(uint8_t));
-        model->face_texture_coords = (int16_t*)malloc((size_t)face_count * sizeof(int16_t));
-        model->face_textures = (int16_t*)malloc((size_t)face_count * sizeof(int16_t));
+        model->face_infos = (uint8_t*)RSCACHE_MALLOC((size_t)face_count * sizeof(uint8_t));
+        model->face_texture_coords = (int16_t*)RSCACHE_MALLOC((size_t)face_count * sizeof(int16_t));
+        model->face_textures = (int16_t*)RSCACHE_MALLOC((size_t)face_count * sizeof(int16_t));
     }
 
     if( model_priority == 255 )
     {
-        model->face_priorities = (uint8_t*)malloc((size_t)face_count * sizeof(uint8_t));
+        model->face_priorities = (uint8_t*)RSCACHE_MALLOC((size_t)face_count * sizeof(uint8_t));
     }
     else
     {
@@ -1279,23 +1280,23 @@ decode_version2__osrs_extended(
 
     if( has_face_transparencies == 1 )
     {
-        model->face_alphas = (uint8_t*)malloc((size_t)face_count * sizeof(uint8_t));
+        model->face_alphas = (uint8_t*)RSCACHE_MALLOC((size_t)face_count * sizeof(uint8_t));
     }
 
     if( has_packed_transparency_vertex_groups == 1 )
     {
-        model->face_bone_map = (uint8_t*)malloc((size_t)face_count * sizeof(uint8_t));
+        model->face_bone_map = (uint8_t*)RSCACHE_MALLOC((size_t)face_count * sizeof(uint8_t));
     }
 
     if( hasAnimayaGroups == 1 )
     {
         model->animaya_vertex_count = vertex_count;
-        model->animaya_group_counts = calloc((size_t)vertex_count, sizeof(uint8_t));
-        model->animaya_groups = calloc((size_t)vertex_count, sizeof(uint8_t*));
-        model->animaya_scales = calloc((size_t)vertex_count, sizeof(uint8_t*));
+        model->animaya_group_counts = RSCACHE_CALLOC((size_t)vertex_count, sizeof(uint8_t));
+        model->animaya_groups = RSCACHE_CALLOC((size_t)vertex_count, sizeof(uint8_t*));
+        model->animaya_scales = RSCACHE_CALLOC((size_t)vertex_count, sizeof(uint8_t*));
     }
 
-    model->face_colors = (uint16_t*)malloc((size_t)face_count * sizeof(uint16_t));
+    model->face_colors = (uint16_t*)RSCACHE_MALLOC((size_t)face_count * sizeof(uint16_t));
 
     offset = offsetOfVertexFlags;
     int vertexXOffset = offsetOfVertexXData;
@@ -1350,8 +1351,8 @@ decode_version2__osrs_extended(
                 model->animaya_group_counts[i] = (uint8_t)animayaGroupCount;
             if( animayaGroupCount > 0 && model->animaya_groups && model->animaya_scales )
             {
-                model->animaya_groups[i] = malloc((size_t)animayaGroupCount);
-                model->animaya_scales[i] = malloc((size_t)animayaGroupCount);
+                model->animaya_groups[i] = RSCACHE_MALLOC((size_t)animayaGroupCount);
+                model->animaya_scales[i] = RSCACHE_MALLOC((size_t)animayaGroupCount);
             }
             for( int j = 0; j < animayaGroupCount; ++j )
             {
@@ -1496,7 +1497,7 @@ decode_version2__osrs_extended(
         int hasOffsets = RSCache_BufferG1At(inputData, &offset);
         if( hasOffsets == 1 )
         {
-            model->face_z_offsets = (int8_t*)malloc((size_t)face_count);
+            model->face_z_offsets = (int8_t*)RSCACHE_MALLOC((size_t)face_count);
             for( int i = 0; i < face_count; ++i )
             {
                 int8_t b = (int8_t)RSCache_BufferG1At(inputData, &offset);
@@ -1535,14 +1536,14 @@ decode_version2__osrs_extended(
 
         if( !anyFaceUsesTextureCoords )
         {
-            free(model->face_texture_coords);
+            RSCACHE_FREE(model->face_texture_coords);
             model->face_texture_coords = NULL;
         }
     }
 
     if( !foundFaceTextures )
     {
-        free(model->face_textures);
+        RSCACHE_FREE(model->face_textures);
         model->face_textures = NULL;
     }
 
@@ -1558,7 +1559,7 @@ decode_version3__osrs_material(
     int inputLength,
     struct RSCache_ModelProvenance* prov)
 {
-    struct RSCache_Model* model = (struct RSCache_Model*)malloc(sizeof(struct RSCache_Model));
+    struct RSCache_Model* model = (struct RSCache_Model*)RSCACHE_MALLOC(sizeof(struct RSCache_Model));
     memset(model, 0, sizeof(struct RSCache_Model));
 
     int headerOffset = inputLength - 26;
@@ -1588,7 +1589,7 @@ decode_version3__osrs_material(
     if( texTriangleCount > 0 )
     {
         model->texture_render_types =
-            (unsigned char*)malloc(texTriangleCount * sizeof(unsigned char));
+            (unsigned char*)RSCACHE_MALLOC(texTriangleCount * sizeof(unsigned char));
         headerOffset = 0;
 
         for( int i = 0; i < texTriangleCount; ++i )
@@ -1697,28 +1698,28 @@ decode_version3__osrs_material(
     model->face_count = faceCount;
     model->textured_face_count = texTriangleCount;
 
-    model->vertices_x = (int*)malloc(vertexCount * sizeof(int));
-    model->vertices_y = (int*)malloc(vertexCount * sizeof(int));
-    model->vertices_z = (int*)malloc(vertexCount * sizeof(int));
+    model->vertices_x = (int*)RSCACHE_MALLOC(vertexCount * sizeof(int));
+    model->vertices_y = (int*)RSCACHE_MALLOC(vertexCount * sizeof(int));
+    model->vertices_z = (int*)RSCACHE_MALLOC(vertexCount * sizeof(int));
 
     /* Zeroed for the index-type-0 case; see the note in decode_ob3. */
-    model->face_indices_a = (int*)calloc((size_t)faceCount, sizeof(int));
-    model->face_indices_b = (int*)calloc((size_t)faceCount, sizeof(int));
-    model->face_indices_c = (int*)calloc((size_t)faceCount, sizeof(int));
+    model->face_indices_a = (int*)RSCACHE_CALLOC((size_t)faceCount, sizeof(int));
+    model->face_indices_b = (int*)RSCACHE_CALLOC((size_t)faceCount, sizeof(int));
+    model->face_indices_c = (int*)RSCACHE_CALLOC((size_t)faceCount, sizeof(int));
 
     if( hasPackedVertexGroups == 1 )
     {
-        model->vertex_bone_map = (uint8_t*)malloc((size_t)vertexCount * sizeof(uint8_t));
+        model->vertex_bone_map = (uint8_t*)RSCACHE_MALLOC((size_t)vertexCount * sizeof(uint8_t));
     }
 
     if( hasFaceInfos == 1 )
     {
-        model->face_infos = (uint8_t*)malloc((size_t)faceCount * sizeof(uint8_t));
+        model->face_infos = (uint8_t*)RSCACHE_MALLOC((size_t)faceCount * sizeof(uint8_t));
     }
 
     if( hasFacePriorities == 255 )
     {
-        model->face_priorities = (uint8_t*)malloc((size_t)faceCount * sizeof(uint8_t));
+        model->face_priorities = (uint8_t*)RSCACHE_MALLOC((size_t)faceCount * sizeof(uint8_t));
     }
     else
     {
@@ -1727,45 +1728,45 @@ decode_version3__osrs_material(
 
     if( hasFaceAlphas == 1 )
     {
-        model->face_alphas = (uint8_t*)malloc((size_t)faceCount * sizeof(uint8_t));
+        model->face_alphas = (uint8_t*)RSCACHE_MALLOC((size_t)faceCount * sizeof(uint8_t));
     }
 
     if( hasPackedTransparencyVertexGroups == 1 )
     {
-        model->face_bone_map = (uint8_t*)malloc((size_t)faceCount * sizeof(uint8_t));
+        model->face_bone_map = (uint8_t*)RSCACHE_MALLOC((size_t)faceCount * sizeof(uint8_t));
         memset(model->face_bone_map, 0, (size_t)faceCount * sizeof(uint8_t));
     }
 
     if( hasFaceTextures == 1 )
     {
-        model->face_textures = (int16_t*)malloc((size_t)faceCount * sizeof(int16_t));
+        model->face_textures = (int16_t*)RSCACHE_MALLOC((size_t)faceCount * sizeof(int16_t));
     }
 
     if( hasFaceTextures == 1 && texTriangleCount > 0 )
     {
         /* Zeroed; see the matching note in decode_ob3. */
-        model->face_texture_coords = (int16_t*)calloc((size_t)faceCount, sizeof(int16_t));
+        model->face_texture_coords = (int16_t*)RSCACHE_CALLOC((size_t)faceCount, sizeof(int16_t));
     }
 
     if( hasAnimayaGroups == 1 )
     {
         model->animaya_vertex_count = vertexCount;
-        model->animaya_group_counts = calloc((size_t)vertexCount, sizeof(uint8_t));
-        model->animaya_groups = calloc((size_t)vertexCount, sizeof(uint8_t*));
-        model->animaya_scales = calloc((size_t)vertexCount, sizeof(uint8_t*));
+        model->animaya_group_counts = RSCACHE_CALLOC((size_t)vertexCount, sizeof(uint8_t));
+        model->animaya_groups = RSCACHE_CALLOC((size_t)vertexCount, sizeof(uint8_t*));
+        model->animaya_scales = RSCACHE_CALLOC((size_t)vertexCount, sizeof(uint8_t*));
     }
 
-    model->face_colors = (uint16_t*)malloc((size_t)faceCount * sizeof(uint16_t));
+    model->face_colors = (uint16_t*)RSCACHE_MALLOC((size_t)faceCount * sizeof(uint16_t));
 
     if( texTriangleCount > 0 )
     {
         /* Zeroed: only render-type-0 triangles have p/m/n in the stream. */
         model->textured_p_coordinate =
-            (uint16_t*)calloc((size_t)texTriangleCount, sizeof(uint16_t));
+            (uint16_t*)RSCACHE_CALLOC((size_t)texTriangleCount, sizeof(uint16_t));
         model->textured_m_coordinate =
-            (uint16_t*)calloc((size_t)texTriangleCount, sizeof(uint16_t));
+            (uint16_t*)RSCACHE_CALLOC((size_t)texTriangleCount, sizeof(uint16_t));
         model->textured_n_coordinate =
-            (uint16_t*)calloc((size_t)texTriangleCount, sizeof(uint16_t));
+            (uint16_t*)RSCACHE_CALLOC((size_t)texTriangleCount, sizeof(uint16_t));
     }
 
     offset = texTriangleCount;
@@ -1821,8 +1822,8 @@ decode_version3__osrs_material(
                 model->animaya_group_counts[i] = (uint8_t)animayaGroupCount;
             if( animayaGroupCount > 0 && model->animaya_groups && model->animaya_scales )
             {
-                model->animaya_groups[i] = malloc((size_t)animayaGroupCount);
-                model->animaya_scales[i] = malloc((size_t)animayaGroupCount);
+                model->animaya_groups[i] = RSCACHE_MALLOC((size_t)animayaGroupCount);
+                model->animaya_scales[i] = RSCACHE_MALLOC((size_t)animayaGroupCount);
             }
             for( int j = 0; j < animayaGroupCount; ++j )
             {
@@ -1969,7 +1970,7 @@ decode_version3__osrs_material(
         int hasOffsets = RSCache_BufferG1At(inputData, &offset);
         if( hasOffsets == 1 )
         {
-            model->face_z_offsets = (int8_t*)malloc((size_t)faceCount);
+            model->face_z_offsets = (int8_t*)RSCACHE_MALLOC((size_t)faceCount);
             for( int i = 0; i < faceCount; ++i )
             {
                 int8_t b = (int8_t)RSCache_BufferG1At(inputData, &offset);
@@ -2059,10 +2060,10 @@ RSCache_ModelProvenanceFree(struct RSCache_ModelProvenance* provenance)
     if( !provenance )
         return;
 
-    free(provenance->face_index_types);
-    free(provenance->face_info_bytes);
-    free(provenance->tail);
-    free(provenance);
+    RSCACHE_FREE(provenance->face_index_types);
+    RSCACHE_FREE(provenance->face_info_bytes);
+    RSCACHE_FREE(provenance->tail);
+    RSCACHE_FREE(provenance);
 }
 
 struct RSCache_Model*
@@ -2075,7 +2076,7 @@ RSCache_ModelNewDecodeProvenance(
     if( out_provenance )
     {
         *out_provenance = NULL;
-        prov = (struct RSCache_ModelProvenance*)calloc(1, sizeof(*prov));
+        prov = (struct RSCache_ModelProvenance*)RSCACHE_CALLOC(1, sizeof(*prov));
         if( !prov )
             return NULL;
     }
@@ -2123,7 +2124,7 @@ RSCache_ModelNewDecodeProvenance(
     {
         if( !model->face_alphas )
         {
-            model->face_alphas = (uint8_t*)malloc((size_t)model->face_count * sizeof(uint8_t));
+            model->face_alphas = (uint8_t*)RSCACHE_MALLOC((size_t)model->face_count * sizeof(uint8_t));
             memset(model->face_alphas, 0, (size_t)model->face_count * sizeof(uint8_t));
         }
     }
@@ -3011,7 +3012,7 @@ RSCache_ModelEncode(
 struct RSCache_Model*
 RSCache_ModelNewCopy(struct RSCache_Model* model)
 {
-    struct RSCache_Model* copy = (struct RSCache_Model*)malloc(sizeof(struct RSCache_Model));
+    struct RSCache_Model* copy = (struct RSCache_Model*)RSCACHE_MALLOC(sizeof(struct RSCache_Model));
     memset(copy, 0, sizeof(struct RSCache_Model));
 
     /* Not geometry, but load-bearing on it: the ToriRS adaptor keys the reference's
@@ -3020,9 +3021,9 @@ RSCache_ModelNewCopy(struct RSCache_Model* model)
     copy->format_version = model->format_version;
 
     copy->vertex_count = model->vertex_count;
-    copy->vertices_x = (int*)malloc(model->vertex_count * sizeof(int));
-    copy->vertices_y = (int*)malloc(model->vertex_count * sizeof(int));
-    copy->vertices_z = (int*)malloc(model->vertex_count * sizeof(int));
+    copy->vertices_x = (int*)RSCACHE_MALLOC(model->vertex_count * sizeof(int));
+    copy->vertices_y = (int*)RSCACHE_MALLOC(model->vertex_count * sizeof(int));
+    copy->vertices_z = (int*)RSCACHE_MALLOC(model->vertex_count * sizeof(int));
 
     memcpy(copy->vertices_x, model->vertices_x, model->vertex_count * sizeof(int));
     memcpy(copy->vertices_y, model->vertices_y, model->vertex_count * sizeof(int));
@@ -3030,7 +3031,7 @@ RSCache_ModelNewCopy(struct RSCache_Model* model)
 
     if( model->vertex_bone_map )
     {
-        copy->vertex_bone_map = (uint8_t*)malloc((size_t)model->vertex_count * sizeof(uint8_t));
+        copy->vertex_bone_map = (uint8_t*)RSCACHE_MALLOC((size_t)model->vertex_count * sizeof(uint8_t));
         memcpy(
             copy->vertex_bone_map,
             model->vertex_bone_map,
@@ -3038,7 +3039,7 @@ RSCache_ModelNewCopy(struct RSCache_Model* model)
     }
     if( model->face_bone_map )
     {
-        copy->face_bone_map = (uint8_t*)malloc((size_t)model->face_count * sizeof(uint8_t));
+        copy->face_bone_map = (uint8_t*)RSCACHE_MALLOC((size_t)model->face_count * sizeof(uint8_t));
         memcpy(
             copy->face_bone_map, model->face_bone_map, (size_t)model->face_count * sizeof(uint8_t));
     }
@@ -3046,38 +3047,38 @@ RSCache_ModelNewCopy(struct RSCache_Model* model)
     copy->face_count = model->face_count;
     if( model->face_indices_a )
     {
-        copy->face_indices_a = (int*)malloc(model->face_count * sizeof(int));
+        copy->face_indices_a = (int*)RSCACHE_MALLOC(model->face_count * sizeof(int));
 
         memcpy(copy->face_indices_a, model->face_indices_a, model->face_count * sizeof(int));
     }
 
     if( model->face_indices_b )
     {
-        copy->face_indices_b = (int*)malloc(model->face_count * sizeof(int));
+        copy->face_indices_b = (int*)RSCACHE_MALLOC(model->face_count * sizeof(int));
         memcpy(copy->face_indices_b, model->face_indices_b, model->face_count * sizeof(int));
     }
 
     if( model->face_indices_c )
     {
-        copy->face_indices_c = (int*)malloc(model->face_count * sizeof(int));
+        copy->face_indices_c = (int*)RSCACHE_MALLOC(model->face_count * sizeof(int));
         memcpy(copy->face_indices_c, model->face_indices_c, model->face_count * sizeof(int));
     }
 
     if( model->face_alphas )
     {
-        copy->face_alphas = (uint8_t*)malloc((size_t)model->face_count * sizeof(uint8_t));
+        copy->face_alphas = (uint8_t*)RSCACHE_MALLOC((size_t)model->face_count * sizeof(uint8_t));
         memcpy(copy->face_alphas, model->face_alphas, (size_t)model->face_count * sizeof(uint8_t));
     }
 
     if( model->face_infos )
     {
-        copy->face_infos = (uint8_t*)malloc((size_t)model->face_count * sizeof(uint8_t));
+        copy->face_infos = (uint8_t*)RSCACHE_MALLOC((size_t)model->face_count * sizeof(uint8_t));
         memcpy(copy->face_infos, model->face_infos, (size_t)model->face_count * sizeof(uint8_t));
     }
 
     if( model->face_priorities )
     {
-        copy->face_priorities = (uint8_t*)malloc((size_t)model->face_count * sizeof(uint8_t));
+        copy->face_priorities = (uint8_t*)RSCACHE_MALLOC((size_t)model->face_count * sizeof(uint8_t));
         memcpy(
             copy->face_priorities,
             model->face_priorities,
@@ -3086,7 +3087,7 @@ RSCache_ModelNewCopy(struct RSCache_Model* model)
 
     if( model->face_colors )
     {
-        copy->face_colors = (uint16_t*)malloc((size_t)model->face_count * sizeof(uint16_t));
+        copy->face_colors = (uint16_t*)RSCACHE_MALLOC((size_t)model->face_count * sizeof(uint16_t));
         memcpy(copy->face_colors, model->face_colors, (size_t)model->face_count * sizeof(uint16_t));
     }
 
@@ -3096,7 +3097,7 @@ RSCache_ModelNewCopy(struct RSCache_Model* model)
     if( model->textured_p_coordinate )
     {
         copy->textured_p_coordinate =
-            (uint16_t*)malloc((size_t)model->textured_face_count * sizeof(uint16_t));
+            (uint16_t*)RSCACHE_MALLOC((size_t)model->textured_face_count * sizeof(uint16_t));
         memcpy(
             copy->textured_p_coordinate,
             model->textured_p_coordinate,
@@ -3106,7 +3107,7 @@ RSCache_ModelNewCopy(struct RSCache_Model* model)
     if( model->textured_m_coordinate )
     {
         copy->textured_m_coordinate =
-            (uint16_t*)malloc((size_t)model->textured_face_count * sizeof(uint16_t));
+            (uint16_t*)RSCACHE_MALLOC((size_t)model->textured_face_count * sizeof(uint16_t));
         memcpy(
             copy->textured_m_coordinate,
             model->textured_m_coordinate,
@@ -3116,7 +3117,7 @@ RSCache_ModelNewCopy(struct RSCache_Model* model)
     if( model->textured_n_coordinate )
     {
         copy->textured_n_coordinate =
-            (uint16_t*)malloc((size_t)model->textured_face_count * sizeof(uint16_t));
+            (uint16_t*)RSCACHE_MALLOC((size_t)model->textured_face_count * sizeof(uint16_t));
 
         memcpy(
             copy->textured_n_coordinate,
@@ -3126,14 +3127,14 @@ RSCache_ModelNewCopy(struct RSCache_Model* model)
 
     if( model->face_textures )
     {
-        copy->face_textures = (int16_t*)malloc((size_t)model->face_count * sizeof(int16_t));
+        copy->face_textures = (int16_t*)RSCACHE_MALLOC((size_t)model->face_count * sizeof(int16_t));
         memcpy(
             copy->face_textures, model->face_textures, (size_t)model->face_count * sizeof(int16_t));
     }
 
     if( model->face_texture_coords )
     {
-        copy->face_texture_coords = (int16_t*)malloc((size_t)model->face_count * sizeof(int16_t));
+        copy->face_texture_coords = (int16_t*)RSCACHE_MALLOC((size_t)model->face_count * sizeof(int16_t));
         memcpy(
             copy->face_texture_coords,
             model->face_texture_coords,
@@ -3143,7 +3144,7 @@ RSCache_ModelNewCopy(struct RSCache_Model* model)
     if( model->texture_render_types )
     {
         copy->texture_render_types =
-            (unsigned char*)malloc(model->textured_face_count * sizeof(unsigned char));
+            (unsigned char*)RSCACHE_MALLOC(model->textured_face_count * sizeof(unsigned char));
         memcpy(
             copy->texture_render_types,
             model->texture_render_types,
@@ -3152,7 +3153,7 @@ RSCache_ModelNewCopy(struct RSCache_Model* model)
 
     if( model->face_z_offsets )
     {
-        copy->face_z_offsets = (int8_t*)malloc((size_t)model->face_count);
+        copy->face_z_offsets = (int8_t*)RSCACHE_MALLOC((size_t)model->face_count);
         if( copy->face_z_offsets )
             memcpy(copy->face_z_offsets, model->face_z_offsets, (size_t)model->face_count);
     }
@@ -3164,9 +3165,9 @@ RSCache_ModelNewCopy(struct RSCache_Model* model)
     {
         int vc = model->animaya_vertex_count;
         copy->animaya_vertex_count = vc;
-        copy->animaya_group_counts = (uint8_t*)malloc((size_t)vc * sizeof(uint8_t));
-        copy->animaya_groups = (uint8_t**)calloc((size_t)vc, sizeof(uint8_t*));
-        copy->animaya_scales = (uint8_t**)calloc((size_t)vc, sizeof(uint8_t*));
+        copy->animaya_group_counts = (uint8_t*)RSCACHE_MALLOC((size_t)vc * sizeof(uint8_t));
+        copy->animaya_groups = (uint8_t**)RSCACHE_CALLOC((size_t)vc, sizeof(uint8_t*));
+        copy->animaya_scales = (uint8_t**)RSCACHE_CALLOC((size_t)vc, sizeof(uint8_t*));
         if( copy->animaya_group_counts && copy->animaya_groups && copy->animaya_scales )
         {
             memcpy(copy->animaya_group_counts, model->animaya_group_counts, (size_t)vc);
@@ -3175,8 +3176,8 @@ RSCache_ModelNewCopy(struct RSCache_Model* model)
                 int cnt = (int)model->animaya_group_counts[i];
                 if( cnt <= 0 )
                     continue;
-                copy->animaya_groups[i] = (uint8_t*)malloc((size_t)cnt);
-                copy->animaya_scales[i] = (uint8_t*)malloc((size_t)cnt);
+                copy->animaya_groups[i] = (uint8_t*)RSCACHE_MALLOC((size_t)cnt);
+                copy->animaya_scales[i] = (uint8_t*)RSCACHE_MALLOC((size_t)cnt);
                 if( copy->animaya_groups[i] && model->animaya_groups[i] )
                     memcpy(copy->animaya_groups[i], model->animaya_groups[i], (size_t)cnt);
                 if( copy->animaya_scales[i] && model->animaya_scales[i] )
@@ -3224,8 +3225,8 @@ copy_vertex(
             model->animaya_group_counts[new_vertex_count] = (uint8_t)cnt;
             if( cnt > 0 )
             {
-                model->animaya_groups[new_vertex_count] = (uint8_t*)malloc((size_t)cnt);
-                model->animaya_scales[new_vertex_count] = (uint8_t*)malloc((size_t)cnt);
+                model->animaya_groups[new_vertex_count] = (uint8_t*)RSCACHE_MALLOC((size_t)cnt);
+                model->animaya_scales[new_vertex_count] = (uint8_t*)RSCACHE_MALLOC((size_t)cnt);
                 if( model->animaya_groups[new_vertex_count] && other->animaya_groups[vertex_index] )
                     memcpy(
                         model->animaya_groups[new_vertex_count],
@@ -3255,7 +3256,7 @@ RSCache_ModelNewMerge(
     struct RSCache_Model** models,
     int model_count)
 {
-    struct RSCache_Model* model = (struct RSCache_Model*)malloc(sizeof(struct RSCache_Model));
+    struct RSCache_Model* model = (struct RSCache_Model*)RSCACHE_MALLOC(sizeof(struct RSCache_Model));
     memset(model, 0, sizeof(struct RSCache_Model));
 
     /* All parts of a merge come from one era; carry the version so a later adaptation
@@ -3308,16 +3309,16 @@ RSCache_ModelNewMerge(
             has_animaya = true;
     }
 
-    int* vertices_x = (int*)malloc(vertex_count * sizeof(int));
-    int* vertices_y = (int*)malloc(vertex_count * sizeof(int));
-    int* vertices_z = (int*)malloc(vertex_count * sizeof(int));
+    int* vertices_x = (int*)RSCACHE_MALLOC(vertex_count * sizeof(int));
+    int* vertices_y = (int*)RSCACHE_MALLOC(vertex_count * sizeof(int));
+    int* vertices_z = (int*)RSCACHE_MALLOC(vertex_count * sizeof(int));
     memset(vertices_x, 0, vertex_count * sizeof(int));
     memset(vertices_y, 0, vertex_count * sizeof(int));
     memset(vertices_z, 0, vertex_count * sizeof(int));
 
-    int* face_indices_a = (int*)malloc(face_count * sizeof(int));
-    int* face_indices_b = (int*)malloc(face_count * sizeof(int));
-    int* face_indices_c = (int*)malloc(face_count * sizeof(int));
+    int* face_indices_a = (int*)RSCACHE_MALLOC(face_count * sizeof(int));
+    int* face_indices_b = (int*)RSCACHE_MALLOC(face_count * sizeof(int));
+    int* face_indices_c = (int*)RSCACHE_MALLOC(face_count * sizeof(int));
     memset(face_indices_a, 0, face_count * sizeof(int));
     memset(face_indices_b, 0, face_count * sizeof(int));
     memset(face_indices_c, 0, face_count * sizeof(int));
@@ -3325,63 +3326,63 @@ RSCache_ModelNewMerge(
     uint8_t* face_alphas = NULL;
     if( has_face_render_alphas )
     {
-        face_alphas = (uint8_t*)malloc((size_t)face_count * sizeof(uint8_t));
+        face_alphas = (uint8_t*)RSCACHE_MALLOC((size_t)face_count * sizeof(uint8_t));
         memset(face_alphas, 0, (size_t)face_count * sizeof(uint8_t));
     }
 
     uint8_t* face_infos = NULL;
     if( has_face_render_infos )
     {
-        face_infos = (uint8_t*)malloc((size_t)face_count * sizeof(uint8_t));
+        face_infos = (uint8_t*)RSCACHE_MALLOC((size_t)face_count * sizeof(uint8_t));
         memset(face_infos, 0, (size_t)face_count * sizeof(uint8_t));
     }
 
     uint8_t* face_priorities = NULL;
     if( has_face_render_prios )
     {
-        face_priorities = (uint8_t*)malloc((size_t)face_count * sizeof(uint8_t));
+        face_priorities = (uint8_t*)RSCACHE_MALLOC((size_t)face_count * sizeof(uint8_t));
         memset(face_priorities, 0, (size_t)face_count * sizeof(uint8_t));
     }
 
     uint16_t* face_colors = NULL;
     if( has_face_render_colors )
     {
-        face_colors = (uint16_t*)malloc((size_t)face_count * sizeof(uint16_t));
+        face_colors = (uint16_t*)RSCACHE_MALLOC((size_t)face_count * sizeof(uint16_t));
         memset(face_colors, 0, (size_t)face_count * sizeof(uint16_t));
     }
 
     uint16_t* textured_p_coordinate = NULL;
     if( has_face_render_textures )
     {
-        textured_p_coordinate = (uint16_t*)malloc((size_t)textured_face_count * sizeof(uint16_t));
+        textured_p_coordinate = (uint16_t*)RSCACHE_MALLOC((size_t)textured_face_count * sizeof(uint16_t));
         memset(textured_p_coordinate, 0, (size_t)textured_face_count * sizeof(uint16_t));
     }
 
     uint16_t* textured_m_coordinate = NULL;
     if( has_face_render_textures )
     {
-        textured_m_coordinate = (uint16_t*)malloc((size_t)textured_face_count * sizeof(uint16_t));
+        textured_m_coordinate = (uint16_t*)RSCACHE_MALLOC((size_t)textured_face_count * sizeof(uint16_t));
         memset(textured_m_coordinate, 0, (size_t)textured_face_count * sizeof(uint16_t));
     }
 
     uint16_t* textured_n_coordinate = NULL;
     if( has_face_render_textures )
     {
-        textured_n_coordinate = (uint16_t*)malloc((size_t)textured_face_count * sizeof(uint16_t));
+        textured_n_coordinate = (uint16_t*)RSCACHE_MALLOC((size_t)textured_face_count * sizeof(uint16_t));
         memset(textured_n_coordinate, 0, (size_t)textured_face_count * sizeof(uint16_t));
     }
 
     uint8_t* vertex_bone_map = NULL;
     if( has_vertex_bones )
     {
-        vertex_bone_map = (uint8_t*)malloc((size_t)vertex_count * sizeof(uint8_t));
+        vertex_bone_map = (uint8_t*)RSCACHE_MALLOC((size_t)vertex_count * sizeof(uint8_t));
         memset(vertex_bone_map, 0, (size_t)vertex_count * sizeof(uint8_t));
     }
 
     uint8_t* face_bone_map = NULL;
     if( has_face_bones )
     {
-        face_bone_map = (uint8_t*)malloc((size_t)face_count * sizeof(uint8_t));
+        face_bone_map = (uint8_t*)RSCACHE_MALLOC((size_t)face_count * sizeof(uint8_t));
         memset(face_bone_map, 0, (size_t)face_count * sizeof(uint8_t));
     }
 
@@ -3390,17 +3391,17 @@ RSCache_ModelNewMerge(
     uint8_t** animaya_scales = NULL;
     if( has_animaya )
     {
-        animaya_group_counts = (uint8_t*)calloc((size_t)vertex_count, sizeof(uint8_t));
-        animaya_groups = (uint8_t**)calloc((size_t)vertex_count, sizeof(uint8_t*));
-        animaya_scales = (uint8_t**)calloc((size_t)vertex_count, sizeof(uint8_t*));
+        animaya_group_counts = (uint8_t*)RSCACHE_CALLOC((size_t)vertex_count, sizeof(uint8_t));
+        animaya_groups = (uint8_t**)RSCACHE_CALLOC((size_t)vertex_count, sizeof(uint8_t*));
+        animaya_scales = (uint8_t**)RSCACHE_CALLOC((size_t)vertex_count, sizeof(uint8_t*));
     }
 
     int16_t* face_textures = NULL;
     int16_t* face_texture_coords = NULL;
     if( has_face_render_textures )
     {
-        face_textures = (int16_t*)malloc((size_t)face_count * sizeof(int16_t));
-        face_texture_coords = (int16_t*)malloc((size_t)face_count * sizeof(int16_t));
+        face_textures = (int16_t*)RSCACHE_MALLOC((size_t)face_count * sizeof(int16_t));
+        face_texture_coords = (int16_t*)RSCACHE_MALLOC((size_t)face_count * sizeof(int16_t));
 
         memset(face_textures, 0, (size_t)face_count * sizeof(int16_t));
         memset(face_texture_coords, 0, (size_t)face_count * sizeof(int16_t));
@@ -3409,7 +3410,7 @@ RSCache_ModelNewMerge(
     unsigned char* texture_render_types = NULL;
     if( has_face_render_textures )
     {
-        texture_render_types = (unsigned char*)malloc(textured_face_count * sizeof(unsigned char));
+        texture_render_types = (unsigned char*)RSCACHE_MALLOC(textured_face_count * sizeof(unsigned char));
         memset(texture_render_types, 0, textured_face_count * sizeof(unsigned char));
     }
 
@@ -3562,11 +3563,11 @@ RSCache_ModelBonesFree(struct RSCache_ModelBones* modelbones)
         return;
 
     for( int i = 0; i < modelbones->bones_count; i++ )
-        free(modelbones->bones[i]);
-    free(modelbones->bones);
-    free(modelbones->bones_sizes);
+        RSCACHE_FREE(modelbones->bones[i]);
+    RSCACHE_FREE(modelbones->bones);
+    RSCACHE_FREE(modelbones->bones_sizes);
 
-    free(modelbones);
+    RSCACHE_FREE(modelbones);
 }
 
 void
@@ -3576,77 +3577,77 @@ RSCache_ModelFree(struct RSCache_Model* model)
         return;
 
     if( model->face_bone_map )
-        free(model->face_bone_map);
+        RSCACHE_FREE(model->face_bone_map);
 
     if( model->vertices_x )
-        free(model->vertices_x);
+        RSCACHE_FREE(model->vertices_x);
     if( model->vertices_y )
-        free(model->vertices_y);
+        RSCACHE_FREE(model->vertices_y);
     if( model->vertices_z )
-        free(model->vertices_z);
+        RSCACHE_FREE(model->vertices_z);
     if( model->vertex_bone_map )
-        free(model->vertex_bone_map);
+        RSCACHE_FREE(model->vertex_bone_map);
     if( model->face_indices_a )
-        free(model->face_indices_a);
+        RSCACHE_FREE(model->face_indices_a);
     if( model->face_indices_b )
-        free(model->face_indices_b);
+        RSCACHE_FREE(model->face_indices_b);
     if( model->face_indices_c )
-        free(model->face_indices_c);
+        RSCACHE_FREE(model->face_indices_c);
     if( model->face_colors )
-        free(model->face_colors);
+        RSCACHE_FREE(model->face_colors);
     if( model->face_priorities )
-        free(model->face_priorities);
+        RSCACHE_FREE(model->face_priorities);
         if( model->face_alphas )
-        free(model->face_alphas);
+        RSCACHE_FREE(model->face_alphas);
     if( model->face_infos )
-        free(model->face_infos);
+        RSCACHE_FREE(model->face_infos);
     if( model->textured_p_coordinate )
-        free(model->textured_p_coordinate);
+        RSCACHE_FREE(model->textured_p_coordinate);
     if( model->textured_m_coordinate )
-        free(model->textured_m_coordinate);
+        RSCACHE_FREE(model->textured_m_coordinate);
     if( model->textured_n_coordinate )
-        free(model->textured_n_coordinate);
+        RSCACHE_FREE(model->textured_n_coordinate);
     if( model->face_texture_coords )
-        free(model->face_texture_coords);
+        RSCACHE_FREE(model->face_texture_coords);
     if( model->texture_render_types )
-        free(model->texture_render_types);
+        RSCACHE_FREE(model->texture_render_types);
     /* The complex-mapping arrays are allocated as a set, but freed individually
      * so a partially-successful allocation still releases what it got. */
     if( model->texture_scale_x )
-        free(model->texture_scale_x);
+        RSCACHE_FREE(model->texture_scale_x);
     if( model->texture_scale_y )
-        free(model->texture_scale_y);
+        RSCACHE_FREE(model->texture_scale_y);
     if( model->texture_scale_z )
-        free(model->texture_scale_z);
+        RSCACHE_FREE(model->texture_scale_z);
     if( model->texture_rotation )
-        free(model->texture_rotation);
+        RSCACHE_FREE(model->texture_rotation);
     if( model->texture_direction )
-        free(model->texture_direction);
+        RSCACHE_FREE(model->texture_direction);
     if( model->texture_speed )
-        free(model->texture_speed);
+        RSCACHE_FREE(model->texture_speed);
     if( model->texture_trans_u )
-        free(model->texture_trans_u);
+        RSCACHE_FREE(model->texture_trans_u);
     if( model->texture_trans_v )
-        free(model->texture_trans_v);
+        RSCACHE_FREE(model->texture_trans_v);
     if( model->face_textures )
-        free(model->face_textures);
+        RSCACHE_FREE(model->face_textures);
 
     if( model->face_z_offsets )
-        free(model->face_z_offsets);
+        RSCACHE_FREE(model->face_z_offsets);
 
     if( model->animaya_groups )
     {
         for( int i = 0; i < model->animaya_vertex_count; i++ )
-            free(model->animaya_groups[i]);
-        free(model->animaya_groups);
+            RSCACHE_FREE(model->animaya_groups[i]);
+        RSCACHE_FREE(model->animaya_groups);
     }
     if( model->animaya_scales )
     {
         for( int i = 0; i < model->animaya_vertex_count; i++ )
-            free(model->animaya_scales[i]);
-        free(model->animaya_scales);
+            RSCACHE_FREE(model->animaya_scales[i]);
+        RSCACHE_FREE(model->animaya_scales);
     }
-    free(model->animaya_group_counts);
+    RSCACHE_FREE(model->animaya_group_counts);
 
-    free(model);
+    RSCACHE_FREE(model);
 }

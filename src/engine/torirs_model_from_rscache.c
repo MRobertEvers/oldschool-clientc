@@ -1,3 +1,5 @@
+#include "mem/torirs_mem.h"
+#include "mem/torimem_rscache.h"
 #include "engine/torirs_model_from_rscache.h"
 
 #include <3rd/toridraw/toridraw.h>
@@ -72,20 +74,20 @@ torirs_bones_new(
     const uint8_t* bone_map,
     int bone_count)
 {
-    struct ToriRS_Bones* bones = malloc(sizeof(struct ToriRS_Bones));
+    struct ToriRS_Bones* bones = ToriMem_Alloc(ToriMem_Assets(), sizeof(struct ToriRS_Bones));
     assert(bones);
     memset(bones, 0, sizeof(struct ToriRS_Bones));
 
     struct RSCache_ModelBones* model_bones = RSCache_ModelBonesNewDecode(bone_map, bone_count);
     if( !model_bones )
     {
-        free(bones);
+        ToriMem_Free(ToriMem_Assets(), bones);
         return NULL;
     }
 
     bones->bones_count = model_bones->bones_count;
-    bones->bones = malloc(sizeof(gc_boneint_t*) * (size_t)bones->bones_count);
-    bones->bones_sizes = malloc(sizeof(gc_boneint_t) * (size_t)bones->bones_count);
+    bones->bones = ToriMem_Alloc(ToriMem_Assets(), sizeof(gc_boneint_t*) * (size_t)bones->bones_count);
+    bones->bones_sizes = ToriMem_Alloc(ToriMem_Assets(), sizeof(gc_boneint_t) * (size_t)bones->bones_count);
     assert(bones->bones);
     assert(bones->bones_sizes);
     memset(bones->bones, 0, sizeof(gc_boneint_t*) * (size_t)bones->bones_count);
@@ -96,7 +98,7 @@ torirs_bones_new(
 
     for( int i = 0; i < bones->bones_count; i++ )
     {
-        bones->bones[i] = malloc(sizeof(gc_boneint_t) * (size_t)model_bones->bones_sizes[i]);
+        bones->bones[i] = ToriMem_Alloc(ToriMem_Assets(), sizeof(gc_boneint_t) * (size_t)model_bones->bones_sizes[i]);
         assert(bones->bones[i]);
         for( int j = 0; j < model_bones->bones_sizes[i]; j++ )
             bones->bones[i][j] = (gc_boneint_t)model_bones->bones[i][j];
@@ -114,12 +116,12 @@ torirs_steal_vertices_int32(
     assert(src);
     assert(count > 0);
 
-    gc_vertexint_t* dst = malloc((size_t)count * sizeof(gc_vertexint_t));
+    gc_vertexint_t* dst = ToriMem_Alloc(ToriMem_Assets(), (size_t)count * sizeof(gc_vertexint_t));
     assert(dst);
 
     for( int i = 0; i < count; i++ )
         dst[i] = (gc_vertexint_t)src[i];
-    free(src);
+    RSCACHE_FREE(src); /* the decoder's array */
     return dst;
 }
 
@@ -132,12 +134,12 @@ torirs_steal_face_indices_int32(
         return NULL;
     assert(src);
 
-    gc_faceint_t* dst = malloc((size_t)count * sizeof(gc_faceint_t));
+    gc_faceint_t* dst = ToriMem_Alloc(ToriMem_Assets(), (size_t)count * sizeof(gc_faceint_t));
     assert(dst);
 
     for( int i = 0; i < count; i++ )
         dst[i] = (gc_faceint_t)src[i];
-    free(src);
+    RSCACHE_FREE(src); /* the decoder's array */
     return dst;
 }
 
@@ -244,41 +246,43 @@ torirs_model_move_from_rscache(
     int fc = src->face_count;
     if( src->face_colors && fc > 0 )
     {
-        dst->face_colors = (gc_hsl16_t*)src->face_colors;
+        dst->face_colors = (gc_hsl16_t*)ToriMem_TakeFromRSCache(
+            ToriMem_Assets(), src->face_colors, (size_t)fc * sizeof(*src->face_colors));
         src->face_colors = NULL;
     }
 
     if( fc > 0 )
     {
-        dst->face_colors_a = (gc_hsl16_t*)calloc((size_t)fc, sizeof(gc_hsl16_t));
-        dst->face_colors_b = (gc_hsl16_t*)calloc((size_t)fc, sizeof(gc_hsl16_t));
-        dst->face_colors_c = (gc_hsl16_t*)calloc((size_t)fc, sizeof(gc_hsl16_t));
+        dst->face_colors_a = (gc_hsl16_t*)ToriMem_Calloc(ToriMem_Assets(), (size_t)fc, sizeof(gc_hsl16_t));
+        dst->face_colors_b = (gc_hsl16_t*)ToriMem_Calloc(ToriMem_Assets(), (size_t)fc, sizeof(gc_hsl16_t));
+        dst->face_colors_c = (gc_hsl16_t*)ToriMem_Calloc(ToriMem_Assets(), (size_t)fc, sizeof(gc_hsl16_t));
     }
 
     if( src->face_alphas && fc > 0 )
     {
-        dst->face_alphas = src->face_alphas;
+        dst->face_alphas = ToriMem_TakeFromRSCache(
+            ToriMem_Assets(), src->face_alphas, (size_t)fc * sizeof(*src->face_alphas));
         src->face_alphas = NULL;
     }
 
     if( src->face_infos && fc > 0 )
     {
-        dst->face_infos = malloc((size_t)fc * sizeof(int));
+        dst->face_infos = ToriMem_Alloc(ToriMem_Assets(), (size_t)fc * sizeof(int));
         assert(dst->face_infos);
         for( int i = 0; i < fc; i++ )
             dst->face_infos[i] = (int)src->face_infos[i];
-        free(src->face_infos);
+        RSCACHE_FREE(src->face_infos);
         src->face_infos = NULL;
     }
 
     if( src->face_priorities && fc > 0 )
     {
         size_t nbytes = torirs_face_priorities_byte_count(fc);
-        dst->face_priorities = calloc(nbytes, 1);
+        dst->face_priorities = ToriMem_Calloc(ToriMem_Assets(), nbytes, 1);
         assert(dst->face_priorities);
         for( int i = 0; i < fc; i++ )
             torirs_set_face_priority(dst->face_priorities, i, src->face_priorities[i]);
-        free(src->face_priorities);
+        RSCACHE_FREE(src->face_priorities);
         src->face_priorities = NULL;
     }
 
@@ -289,9 +293,13 @@ torirs_model_move_from_rscache(
     if( tfc > 0 && src->textured_p_coordinate && src->textured_m_coordinate &&
         src->textured_n_coordinate )
     {
-        dst->textured_p_coordinate = (gc_faceint_t*)src->textured_p_coordinate;
-        dst->textured_m_coordinate = (gc_faceint_t*)src->textured_m_coordinate;
-        dst->textured_n_coordinate = (gc_faceint_t*)src->textured_n_coordinate;
+        size_t tbytes = (size_t)tfc * sizeof(*src->textured_p_coordinate);
+        dst->textured_p_coordinate = (gc_faceint_t*)ToriMem_TakeFromRSCache(
+            ToriMem_Assets(), src->textured_p_coordinate, tbytes);
+        dst->textured_m_coordinate = (gc_faceint_t*)ToriMem_TakeFromRSCache(
+            ToriMem_Assets(), src->textured_m_coordinate, tbytes);
+        dst->textured_n_coordinate = (gc_faceint_t*)ToriMem_TakeFromRSCache(
+            ToriMem_Assets(), src->textured_n_coordinate, tbytes);
         src->textured_p_coordinate = NULL;
         src->textured_m_coordinate = NULL;
         src->textured_n_coordinate = NULL;
@@ -299,18 +307,19 @@ torirs_model_move_from_rscache(
 
     if( tfc > 0 && src->texture_render_types )
     {
-        dst->texture_render_types = src->texture_render_types;
+        dst->texture_render_types = ToriMem_TakeFromRSCache(
+            ToriMem_Assets(), src->texture_render_types, (size_t)tfc * sizeof(*src->texture_render_types));
         src->texture_render_types = NULL;
     }
 
     if( fc > 0 && src->face_texture_coords )
     {
-        dst->face_texture_coords = malloc((size_t)fc * sizeof(gc_faceint_t));
+        dst->face_texture_coords = ToriMem_Alloc(ToriMem_Assets(), (size_t)fc * sizeof(gc_faceint_t));
         assert(dst->face_texture_coords);
         for( int i = 0; i < fc; i++ )
             dst->face_texture_coords[i] = (gc_faceint_t)ToriDraw_NormalizeFaceTextureCoord(
                 (int)src->face_texture_coords[i], tfc);
-        free(src->face_texture_coords);
+        RSCACHE_FREE(src->face_texture_coords);
         src->face_texture_coords = NULL;
     }
 
@@ -318,7 +327,8 @@ torirs_model_move_from_rscache(
 
     if( fc > 0 && src->face_textures )
     {
-        dst->face_textures = (gc_faceint_t*)src->face_textures;
+        dst->face_textures = (gc_faceint_t*)ToriMem_TakeFromRSCache(
+            ToriMem_Assets(), src->face_textures, (size_t)fc * sizeof(*src->face_textures));
         src->face_textures = NULL;
     }
 
@@ -334,12 +344,12 @@ torirs_model_move_from_rscache(
         src->animaya_scales )
     {
         int vc = src->animaya_vertex_count;
-        struct ToriRS_AnimayaSkin* skin = calloc(1, sizeof(struct ToriRS_AnimayaSkin));
+        struct ToriRS_AnimayaSkin* skin = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(struct ToriRS_AnimayaSkin));
         assert(skin);
         skin->vertex_count = vc;
-        skin->group_counts = malloc((size_t)vc);
-        skin->groups = calloc((size_t)vc, sizeof(uint8_t*));
-        skin->scales = calloc((size_t)vc, sizeof(uint8_t*));
+        skin->group_counts = ToriMem_Alloc(ToriMem_Assets(), (size_t)vc);
+        skin->groups = ToriMem_Calloc(ToriMem_Assets(), (size_t)vc, sizeof(uint8_t*));
+        skin->scales = ToriMem_Calloc(ToriMem_Assets(), (size_t)vc, sizeof(uint8_t*));
         assert(skin->group_counts);
         assert(skin->groups);
         assert(skin->scales);
@@ -349,8 +359,8 @@ torirs_model_move_from_rscache(
             int cnt = skin->group_counts[i];
             if( cnt <= 0 )
                 continue;
-            skin->groups[i] = malloc((size_t)cnt);
-            skin->scales[i] = malloc((size_t)cnt);
+            skin->groups[i] = ToriMem_Alloc(ToriMem_Assets(), (size_t)cnt);
+            skin->scales[i] = ToriMem_Alloc(ToriMem_Assets(), (size_t)cnt);
             assert(skin->groups[i]);
             assert(skin->scales[i]);
             /* The source arrays stay guarded: a decoded model may carry a group
@@ -365,7 +375,7 @@ torirs_model_move_from_rscache(
 
     if( dst->vertex_count > 0 && dst->vertices_x && dst->vertices_y && dst->vertices_z )
     {
-        dst->bounds_cylinder = malloc(sizeof(struct ToriRS_BoundsCylinder));
+        dst->bounds_cylinder = ToriMem_Alloc(ToriMem_Assets(), sizeof(struct ToriRS_BoundsCylinder));
         assert(dst->bounds_cylinder);
         torirs_calculate_bounds_cylinder(
             dst->bounds_cylinder,
@@ -385,7 +395,7 @@ ToriRS_ModelFromRSCache(struct RSCache_Model* src)
 {
     assert(src);
 
-    struct ToriRS_Model* dst = calloc(1, sizeof(struct ToriRS_Model));
+    struct ToriRS_Model* dst = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(struct ToriRS_Model));
     assert(dst);
 
     torirs_model_move_from_rscache(dst, src);

@@ -1,3 +1,5 @@
+#include "mem/torimem_rscache.h"
+#include "mem/torirs_mem.h"
 #include "engine/torirs_worldmap_from_rscache.h"
 
 #include "engine/torirs_types.h"
@@ -341,8 +343,8 @@ area_from_rscache(
     struct RSCache_WorldMapArea const* entry)
 {
     area->id = entry->id;
-    area->internal_name = entry->internal_name ? strdup(entry->internal_name) : NULL;
-    area->external_name = entry->external_name ? strdup(entry->external_name) : NULL;
+    area->internal_name = entry->internal_name ? ToriMem_Strdup(ToriMem_Assets(), entry->internal_name) : NULL;
+    area->external_name = entry->external_name ? ToriMem_Strdup(ToriMem_Assets(), entry->external_name) : NULL;
     area->origin = entry->origin;
     area->background_colour = entry->background_colour;
     area->is_main = entry->is_main;
@@ -350,7 +352,7 @@ area_from_rscache(
 
     if( entry->section_count > 0 )
     {
-        area->sections = calloc((size_t)entry->section_count, sizeof(*area->sections));
+        area->sections = ToriMem_Calloc(ToriMem_Assets(), (size_t)entry->section_count, sizeof(*area->sections));
         assert(area->sections);
         for( int i = 0; i < entry->section_count; i++ )
             section_from_rscache(&area->sections[i], &entry->sections[i]);
@@ -361,7 +363,7 @@ area_from_rscache(
     if( entry->region_count > 0 )
     {
         area->region_sources =
-            calloc((size_t)entry->region_count, sizeof(*area->region_sources));
+            ToriMem_Calloc(ToriMem_Assets(), (size_t)entry->region_count, sizeof(*area->region_sources));
         assert(area->region_sources);
         for( int i = 0; i < entry->region_count; i++ )
         {
@@ -386,7 +388,7 @@ area_from_rscache(
 
     if( entry->icon_count > 0 )
     {
-        area->icons = calloc((size_t)entry->icon_count, sizeof(*area->icons));
+        area->icons = ToriMem_Calloc(ToriMem_Assets(), (size_t)entry->icon_count, sizeof(*area->icons));
         assert(area->icons);
         for( int i = 0; i < entry->icon_count; i++ )
         {
@@ -410,9 +412,9 @@ ToriRS_WorldMapAreasFromRSCacheDat2(
     if( count <= 0 )
         return NULL;
 
-    out = calloc(1, sizeof(*out));
+    out = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*out));
     assert(out);
-    out->areas = calloc((size_t)count, sizeof(*out->areas));
+    out->areas = ToriMem_Calloc(ToriMem_Assets(), (size_t)count, sizeof(*out->areas));
     assert(out->areas);
     out->count = count;
 
@@ -429,15 +431,15 @@ ToriRS_WorldMapAreasFree(struct ToriRS_WorldMapAreas* areas)
         return;
     for( int i = 0; i < areas->count; i++ )
     {
-        free(areas->areas[i].internal_name);
-        free(areas->areas[i].external_name);
-        free(areas->areas[i].sections);
-        free(areas->areas[i].icons);
-        free(areas->areas[i].region_sources);
-        free(areas->areas[i].overview_pixels);
+        ToriMem_Free(ToriMem_Assets(), areas->areas[i].internal_name);
+        ToriMem_Free(ToriMem_Assets(), areas->areas[i].external_name);
+        ToriMem_Free(ToriMem_Assets(), areas->areas[i].sections);
+        ToriMem_Free(ToriMem_Assets(), areas->areas[i].icons);
+        ToriMem_Free(ToriMem_Assets(), areas->areas[i].region_sources);
+        ToriMem_Free(ToriMem_Assets(), areas->areas[i].overview_pixels);
     }
-    free(areas->areas);
-    free(areas);
+    ToriMem_Free(ToriMem_Assets(), areas->areas);
+    ToriMem_Free(ToriMem_Assets(), areas);
 }
 
 struct ToriRS_WorldMapArea*
@@ -463,13 +465,14 @@ ToriRS_MapElementFromRSCacheDat2(
 
     assert(entry);
 
-    element = calloc(1, sizeof(*element));
+    element = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*element));
     assert(element);
     element->id = element_id;
     element->text_size = entry->text_size;
     element->category = entry->category;
     element->sprite_id = entry->sprite_id;
-    element->name = entry->name;
+    if( entry->name )
+        element->name = ToriMem_TakeStrFromRSCache(ToriMem_Assets(), entry->name);
     entry->name = NULL;
 
     return element;
@@ -480,6 +483,6 @@ ToriRS_MapElementFree(struct ToriRS_MapElement* element)
 {
     if( !element )
         return;
-    free(element->name);
-    free(element);
+    ToriMem_Free(ToriMem_Assets(), element->name);
+    ToriMem_Free(ToriMem_Assets(), element);
 }

@@ -1,3 +1,5 @@
+#include "mem/torirs_mem.h"
+#include "mem/torimem_toridraw.h"
 #include "toridraw_font_from_torirs.h"
 
 #include "engine/torirs_types.h"
@@ -17,7 +19,7 @@ ToriDraw_FontFromToriRS(struct ToriRS_Font const* src)
     assert(src);
     assert(TORIRS_FONT_GLYPH_COUNT == TORIDRAW_FONT_GLYPH_COUNT);
 
-    dst = calloc(1, sizeof(*dst));
+    dst = TORIDRAW_CALLOC(1, sizeof(*dst));
     assert(dst);
 
     for( i = 0; i < TORIDRAW_FONT_GLYPH_COUNT; i++ )
@@ -36,7 +38,7 @@ ToriDraw_FontFromToriRS(struct ToriRS_Font const* src)
             continue;
 
         nbytes = (size_t)w * (size_t)h;
-        dst->glyph_alpha[i] = malloc(nbytes);
+        dst->glyph_alpha[i] = TORIDRAW_MALLOC(nbytes);
         assert(dst->glyph_alpha[i]);
         memcpy(dst->glyph_alpha[i], src->glyph_alpha[i], nbytes);
     }

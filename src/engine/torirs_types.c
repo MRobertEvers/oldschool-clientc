@@ -1,3 +1,4 @@
+#include "mem/torirs_mem.h"
 #include "torirs_types.h"
 
 #include <assert.h>
@@ -14,7 +15,7 @@ ToriRS_MapTerrainSizeOf(const struct ToriRS_MapTerrain* terrain)
 void
 ToriRS_MapTerrainFree(struct ToriRS_MapTerrain* terrain)
 {
-    free(terrain);
+    ToriMem_Free(ToriMem_Assets(), terrain);
 }
 
 size_t
@@ -32,8 +33,8 @@ ToriRS_MapLocsFree(struct ToriRS_MapLocs* locs)
 {
     if( !locs )
         return;
-    free(locs->locs);
-    free(locs);
+    ToriMem_Free(ToriMem_Assets(), locs->locs);
+    ToriMem_Free(ToriMem_Assets(), locs);
 }
 
 size_t
@@ -46,7 +47,7 @@ ToriRS_FlotypeSizeOf(const struct ToriRS_Flotype* flotype)
 void
 ToriRS_FlotypeFree(struct ToriRS_Flotype* flotype)
 {
-    free(flotype);
+    ToriMem_Free(ToriMem_Assets(), flotype);
 }
 
 static void
@@ -56,8 +57,8 @@ torirs_location_free_models(struct ToriRS_Location* loc)
     if( !loc->models )
         return;
     for( int i = 0; i < loc->shapes_and_model_count; i++ )
-        free(loc->models[i]);
-    free(loc->models);
+        ToriMem_Free(ToriMem_Assets(), loc->models[i]);
+    ToriMem_Free(ToriMem_Assets(), loc->models);
     loc->models = NULL;
 }
 
@@ -103,22 +104,22 @@ ToriRS_LocationFree(struct ToriRS_Location* loc)
 {
     if( !loc )
         return;
-    free(loc->shapes);
+    ToriMem_Free(ToriMem_Assets(), loc->shapes);
     torirs_location_free_models(loc);
-    free(loc->lengths);
-    free(loc->recolors_from);
-    free(loc->recolors_to);
-    free(loc->retextures_from);
-    free(loc->retextures_to);
+    ToriMem_Free(ToriMem_Assets(), loc->lengths);
+    ToriMem_Free(ToriMem_Assets(), loc->recolors_from);
+    ToriMem_Free(ToriMem_Assets(), loc->recolors_to);
+    ToriMem_Free(ToriMem_Assets(), loc->retextures_from);
+    ToriMem_Free(ToriMem_Assets(), loc->retextures_to);
     if( loc->params )
     {
         for( int i = 0; i < loc->param_count; i++ )
-            free(loc->params[i].string_value);
-        free(loc->params);
+            ToriMem_Free(ToriMem_Assets(), loc->params[i].string_value);
+        ToriMem_Free(ToriMem_Assets(), loc->params);
     }
-    free(loc->transforms);
-    free(loc->ambient_sound_ids);
-    free(loc);
+    ToriMem_Free(ToriMem_Assets(), loc->transforms);
+    ToriMem_Free(ToriMem_Assets(), loc->ambient_sound_ids);
+    ToriMem_Free(ToriMem_Assets(), loc);
 }
 
 void
@@ -126,20 +127,20 @@ ToriRS_NpctypeFree(struct ToriRS_Npctype* npctype)
 {
     if( !npctype )
         return;
-    free(npctype->models);
-    free(npctype->heads);
-    free(npctype->recolors_from);
-    free(npctype->recolors_to);
-    free(npctype->retextures_from);
-    free(npctype->retextures_to);
+    ToriMem_Free(ToriMem_Assets(), npctype->models);
+    ToriMem_Free(ToriMem_Assets(), npctype->heads);
+    ToriMem_Free(ToriMem_Assets(), npctype->recolors_from);
+    ToriMem_Free(ToriMem_Assets(), npctype->recolors_to);
+    ToriMem_Free(ToriMem_Assets(), npctype->retextures_from);
+    ToriMem_Free(ToriMem_Assets(), npctype->retextures_to);
     if( npctype->params )
     {
         for( int i = 0; i < npctype->param_count; i++ )
-            free(npctype->params[i].string_value);
-        free(npctype->params);
+            ToriMem_Free(ToriMem_Assets(), npctype->params[i].string_value);
+        ToriMem_Free(ToriMem_Assets(), npctype->params);
     }
-    free(npctype->transforms);
-    free(npctype);
+    ToriMem_Free(ToriMem_Assets(), npctype->transforms);
+    ToriMem_Free(ToriMem_Assets(), npctype);
 }
 
 size_t
@@ -170,8 +171,8 @@ ToriRS_IdkFree(struct ToriRS_Idk* idk)
 {
     if( !idk )
         return;
-    free(idk->model_ids);
-    free(idk);
+    ToriMem_Free(ToriMem_Assets(), idk->model_ids);
+    ToriMem_Free(ToriMem_Assets(), idk);
 }
 
 size_t
@@ -191,15 +192,15 @@ ToriRS_ObjtypeFree(struct ToriRS_Objtype* objtype)
     int i;
     if( !objtype )
         return;
-    free(objtype->recolors_from);
-    free(objtype->recolors_to);
+    ToriMem_Free(ToriMem_Assets(), objtype->recolors_from);
+    ToriMem_Free(ToriMem_Assets(), objtype->recolors_to);
     if( objtype->params )
     {
         for( i = 0; i < objtype->param_count; i++ )
-            free(objtype->params[i].string_value);
-        free(objtype->params);
+            ToriMem_Free(ToriMem_Assets(), objtype->params[i].string_value);
+        ToriMem_Free(ToriMem_Assets(), objtype->params);
     }
-    free(objtype);
+    ToriMem_Free(ToriMem_Assets(), objtype);
 }
 
 size_t
@@ -219,7 +220,7 @@ void
 ToriRS_SpotanimtypeFree(struct ToriRS_Spotanimtype* spotanimtype)
 {
     /* No owned arrays — all fields are fixed-size. */
-    free(spotanimtype);
+    ToriMem_Free(ToriMem_Assets(), spotanimtype);
 }
 
 size_t
@@ -238,12 +239,12 @@ torirs_animbase_free(struct ToriRS_AnimBase* base)
     if( base->bone_groups )
     {
         for( int i = 0; i < base->length; i++ )
-            free(base->bone_groups[i]);
-        free(base->bone_groups);
+            ToriMem_Free(ToriMem_Assets(), base->bone_groups[i]);
+        ToriMem_Free(ToriMem_Assets(), base->bone_groups);
     }
-    free(base->bone_group_lengths);
-    free(base->types);
-    free(base);
+    ToriMem_Free(ToriMem_Assets(), base->bone_group_lengths);
+    ToriMem_Free(ToriMem_Assets(), base->types);
+    ToriMem_Free(ToriMem_Assets(), base);
 }
 
 static size_t
@@ -296,17 +297,17 @@ ToriRS_AnimayaSkinFree(struct ToriRS_AnimayaSkin* skin)
     if( skin->groups )
     {
         for( int i = 0; i < skin->vertex_count; i++ )
-            free(skin->groups[i]);
-        free(skin->groups);
+            ToriMem_Free(ToriMem_Assets(), skin->groups[i]);
+        ToriMem_Free(ToriMem_Assets(), skin->groups);
     }
     if( skin->scales )
     {
         for( int i = 0; i < skin->vertex_count; i++ )
-            free(skin->scales[i]);
-        free(skin->scales);
+            ToriMem_Free(ToriMem_Assets(), skin->scales[i]);
+        ToriMem_Free(ToriMem_Assets(), skin->scales);
     }
-    free(skin->group_counts);
-    free(skin);
+    ToriMem_Free(ToriMem_Assets(), skin->group_counts);
+    ToriMem_Free(ToriMem_Assets(), skin);
 }
 
 size_t
@@ -325,8 +326,8 @@ ToriRS_SkeletalAnimFree(struct ToriRS_SkeletalAnim* skeletal)
 {
     if( !skeletal )
         return;
-    free(skeletal->matrices);
-    free(skeletal);
+    ToriMem_Free(ToriMem_Assets(), skeletal->matrices);
+    ToriMem_Free(ToriMem_Assets(), skeletal);
 }
 
 static size_t
@@ -376,15 +377,15 @@ ToriRS_AnimationFree(struct ToriRS_Animation* anim)
     {
         for( int i = 0; i < anim->frame_count; i++ )
         {
-            free(anim->frames[i].groups);
-            free(anim->frames[i].x);
-            free(anim->frames[i].y);
-            free(anim->frames[i].z);
+            ToriMem_Free(ToriMem_Assets(), anim->frames[i].groups);
+            ToriMem_Free(ToriMem_Assets(), anim->frames[i].x);
+            ToriMem_Free(ToriMem_Assets(), anim->frames[i].y);
+            ToriMem_Free(ToriMem_Assets(), anim->frames[i].z);
         }
-        free(anim->frames);
+        ToriMem_Free(ToriMem_Assets(), anim->frames);
     }
 
-    free(anim);
+    ToriMem_Free(ToriMem_Assets(), anim);
 }
 
 static void
@@ -395,11 +396,11 @@ torirs_bones_free(struct ToriRS_Bones* bones)
     if( bones->bones )
     {
         for( int i = 0; i < bones->bones_count; i++ )
-            free(bones->bones[i]);
-        free(bones->bones);
+            ToriMem_Free(ToriMem_Assets(), bones->bones[i]);
+        ToriMem_Free(ToriMem_Assets(), bones->bones);
     }
-    free(bones->bones_sizes);
-    free(bones);
+    ToriMem_Free(ToriMem_Assets(), bones->bones_sizes);
+    ToriMem_Free(ToriMem_Assets(), bones);
 }
 
 static size_t
@@ -477,49 +478,49 @@ ToriRS_ModelReleaseArrays(struct ToriRS_Model* model)
     if( !model )
         return;
 
-    free(model->vertices_x);
+    ToriMem_Free(ToriMem_Assets(), model->vertices_x);
     model->vertices_x = NULL;
-    free(model->vertices_y);
+    ToriMem_Free(ToriMem_Assets(), model->vertices_y);
     model->vertices_y = NULL;
-    free(model->vertices_z);
+    ToriMem_Free(ToriMem_Assets(), model->vertices_z);
     model->vertices_z = NULL;
-    free(model->face_colors_a);
+    ToriMem_Free(ToriMem_Assets(), model->face_colors_a);
     model->face_colors_a = NULL;
-    free(model->face_colors_b);
+    ToriMem_Free(ToriMem_Assets(), model->face_colors_b);
     model->face_colors_b = NULL;
-    free(model->face_colors_c);
+    ToriMem_Free(ToriMem_Assets(), model->face_colors_c);
     model->face_colors_c = NULL;
-    free(model->face_indices_a);
+    ToriMem_Free(ToriMem_Assets(), model->face_indices_a);
     model->face_indices_a = NULL;
-    free(model->face_indices_b);
+    ToriMem_Free(ToriMem_Assets(), model->face_indices_b);
     model->face_indices_b = NULL;
-    free(model->face_indices_c);
+    ToriMem_Free(ToriMem_Assets(), model->face_indices_c);
     model->face_indices_c = NULL;
-    free(model->face_textures);
+    ToriMem_Free(ToriMem_Assets(), model->face_textures);
     model->face_textures = NULL;
-    free(model->face_alphas);
+    ToriMem_Free(ToriMem_Assets(), model->face_alphas);
     model->face_alphas = NULL;
-    free(model->face_infos);
+    ToriMem_Free(ToriMem_Assets(), model->face_infos);
     model->face_infos = NULL;
-    free(model->face_priorities);
+    ToriMem_Free(ToriMem_Assets(), model->face_priorities);
     model->face_priorities = NULL;
-    free(model->face_colors);
+    ToriMem_Free(ToriMem_Assets(), model->face_colors);
     model->face_colors = NULL;
-    free(model->textured_p_coordinate);
+    ToriMem_Free(ToriMem_Assets(), model->textured_p_coordinate);
     model->textured_p_coordinate = NULL;
-    free(model->textured_m_coordinate);
+    ToriMem_Free(ToriMem_Assets(), model->textured_m_coordinate);
     model->textured_m_coordinate = NULL;
-    free(model->textured_n_coordinate);
+    ToriMem_Free(ToriMem_Assets(), model->textured_n_coordinate);
     model->textured_n_coordinate = NULL;
-    free(model->texture_render_types);
+    ToriMem_Free(ToriMem_Assets(), model->texture_render_types);
     model->texture_render_types = NULL;
-    free(model->face_texture_coords);
+    ToriMem_Free(ToriMem_Assets(), model->face_texture_coords);
     model->face_texture_coords = NULL;
     torirs_bones_free(model->vertex_bones);
     model->vertex_bones = NULL;
     torirs_bones_free(model->face_bones);
     model->face_bones = NULL;
-    free(model->bounds_cylinder);
+    ToriMem_Free(ToriMem_Assets(), model->bounds_cylinder);
     model->bounds_cylinder = NULL;
     ToriRS_AnimayaSkinFree(model->animaya_skin);
     model->animaya_skin = NULL;
@@ -569,7 +570,7 @@ ToriRS_ModelFree(struct ToriRS_Model* model)
         return;
 
     ToriRS_ModelReleaseArrays(model);
-    free(model);
+    ToriMem_Free(ToriMem_Assets(), model);
 }
 
 size_t
@@ -588,8 +589,8 @@ ToriRS_TextureFree(struct ToriRS_Texture* texture)
 {
     if( !texture )
         return;
-    free(texture->texels);
-    free(texture);
+    ToriMem_Free(ToriMem_Assets(), texture->texels);
+    ToriMem_Free(ToriMem_Assets(), texture);
 }
 
 size_t
@@ -628,19 +629,19 @@ ToriRS_SequenceFree(struct ToriRS_Sequence* seq)
         {
             for( int i = 0; i < seq->resolved->frame_count; i++ )
             {
-                free(seq->resolved->frames[i].groups);
-                free(seq->resolved->frames[i].x);
-                free(seq->resolved->frames[i].y);
-                free(seq->resolved->frames[i].z);
+                ToriMem_Free(ToriMem_Assets(), seq->resolved->frames[i].groups);
+                ToriMem_Free(ToriMem_Assets(), seq->resolved->frames[i].x);
+                ToriMem_Free(ToriMem_Assets(), seq->resolved->frames[i].y);
+                ToriMem_Free(ToriMem_Assets(), seq->resolved->frames[i].z);
             }
-            free(seq->resolved->frames);
+            ToriMem_Free(ToriMem_Assets(), seq->resolved->frames);
         }
-        free(seq->resolved);
+        ToriMem_Free(ToriMem_Assets(), seq->resolved);
     }
-    free(seq->frames);
-    free(seq->iframes);
-    free(seq->delay);
-    free(seq);
+    ToriMem_Free(ToriMem_Assets(), seq->frames);
+    ToriMem_Free(ToriMem_Assets(), seq->iframes);
+    ToriMem_Free(ToriMem_Assets(), seq->delay);
+    ToriMem_Free(ToriMem_Assets(), seq);
 }
 
 static size_t
@@ -658,8 +659,8 @@ ToriRS_SpriteFrameFree(struct ToriRS_SpriteFrame* frame)
 {
     if( !frame )
         return;
-    free(frame->pixels_argb);
-    free(frame);
+    ToriMem_Free(ToriMem_Assets(), frame->pixels_argb);
+    ToriMem_Free(ToriMem_Assets(), frame);
 }
 
 size_t
@@ -684,10 +685,10 @@ ToriRS_SpriteFree(struct ToriRS_Sprite* sprite)
     if( sprite->frames )
     {
         for( int i = 0; i < sprite->frame_count; i++ )
-            free(sprite->frames[i].pixels_argb);
-        free(sprite->frames);
+            ToriMem_Free(ToriMem_Assets(), sprite->frames[i].pixels_argb);
+        ToriMem_Free(ToriMem_Assets(), sprite->frames);
     }
-    free(sprite);
+    ToriMem_Free(ToriMem_Assets(), sprite);
 }
 
 size_t
@@ -709,8 +710,8 @@ ToriRS_FontFree(struct ToriRS_Font* font)
     if( !font )
         return;
     for( int i = 0; i < TORIRS_FONT_GLYPH_COUNT; i++ )
-        free(font->glyph_alpha[i]);
-    free(font);
+        ToriMem_Free(ToriMem_Assets(), font->glyph_alpha[i]);
+    ToriMem_Free(ToriMem_Assets(), font);
 }
 
 size_t
@@ -726,9 +727,9 @@ ToriRS_SoundFree(struct ToriRS_Sound* sound)
 {
     if( !sound )
         return;
-    free(sound->pcm);
-    free(sound->pcm16);
-    free(sound);
+    ToriMem_Free(ToriMem_Assets(), sound->pcm);
+    ToriMem_Free(ToriMem_Assets(), sound->pcm16);
+    ToriMem_Free(ToriMem_Assets(), sound);
 }
 
 void
@@ -738,16 +739,16 @@ ToriRS_EnumFree(struct ToriRS_Enum* e)
 
     if( !e )
         return;
-    free(e->default_string);
-    free(e->keys);
-    free(e->int_values);
+    ToriMem_Free(ToriMem_Assets(), e->default_string);
+    ToriMem_Free(ToriMem_Assets(), e->keys);
+    ToriMem_Free(ToriMem_Assets(), e->int_values);
     if( e->string_values )
     {
         for( i = 0; i < e->count; i++ )
-            free(e->string_values[i]);
-        free(e->string_values);
+            ToriMem_Free(ToriMem_Assets(), e->string_values[i]);
+        ToriMem_Free(ToriMem_Assets(), e->string_values);
     }
-    free(e);
+    ToriMem_Free(ToriMem_Assets(), e);
 }
 
 void
@@ -760,10 +761,10 @@ ToriRS_StructFree(struct ToriRS_Struct* s)
     if( s->params )
     {
         for( i = 0; i < s->param_count; i++ )
-            free(s->params[i].string_value);
-        free(s->params);
+            ToriMem_Free(ToriMem_Assets(), s->params[i].string_value);
+        ToriMem_Free(ToriMem_Assets(), s->params);
     }
-    free(s);
+    ToriMem_Free(ToriMem_Assets(), s);
 }
 
 void
@@ -771,8 +772,8 @@ ToriRS_ParamTypeFree(struct ToriRS_ParamType* p)
 {
     if( !p )
         return;
-    free(p->default_string);
-    free(p);
+    ToriMem_Free(ToriMem_Assets(), p->default_string);
+    ToriMem_Free(ToriMem_Assets(), p);
 }
 
 void
@@ -818,7 +819,7 @@ ToriRS_ComponentInvSlotsEnsure(struct ToriRS_Component* component)
 
     if( !component->inv_slots )
     {
-        component->inv_slots = calloc(1, sizeof(*component->inv_slots));
+        component->inv_slots = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*component->inv_slots));
         assert(component->inv_slots);
     }
     return component->inv_slots;
@@ -836,7 +837,7 @@ torirs_component_release_owned(struct ToriRS_Component* component)
 
     /* Ahead of the CS1 early-out below too: an inventory grid need not carry
      * any scripts, and the columns are owned either way. */
-    free(component->inv_slots);
+    ToriMem_Free(ToriMem_Assets(), component->inv_slots);
     component->inv_slots = NULL;
 
     if( !component->scripts_lengths )
@@ -845,15 +846,15 @@ torirs_component_release_owned(struct ToriRS_Component* component)
     if( component->scripts )
     {
         for( int i = 0; i < component->scripts_count; i++ )
-            free(component->scripts[i]);
-        free(component->scripts);
+            ToriMem_Free(ToriMem_Assets(), component->scripts[i]);
+        ToriMem_Free(ToriMem_Assets(), component->scripts);
         component->scripts = NULL;
     }
-    free(component->scripts_lengths);
+    ToriMem_Free(ToriMem_Assets(), component->scripts_lengths);
     component->scripts_lengths = NULL;
-    free(component->script_comparator);
+    ToriMem_Free(ToriMem_Assets(), component->script_comparator);
     component->script_comparator = NULL;
-    free(component->script_operand);
+    ToriMem_Free(ToriMem_Assets(), component->script_operand);
     component->script_operand = NULL;
 }
 
@@ -864,7 +865,7 @@ ToriRS_ComponentFree(struct ToriRS_Component* component)
         return;
 
     torirs_component_release_owned(component);
-    free(component);
+    ToriMem_Free(ToriMem_Assets(), component);
 }
 
 void
@@ -877,9 +878,9 @@ ToriRS_ComponentPackFree(struct ToriRS_ComponentPack* pack)
     {
         for( int i = 0; i < pack->component_count; i++ )
             torirs_component_release_owned(&pack->components[i]);
-        free(pack->components);
+        ToriMem_Free(ToriMem_Assets(), pack->components);
     }
-    free(pack);
+    ToriMem_Free(ToriMem_Assets(), pack);
 }
 
 size_t

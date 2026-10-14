@@ -1,4 +1,5 @@
 #include "dat2_worldmap_geography.h"
+#include "../rscache_alloc.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -22,7 +23,7 @@ worldmap_decor_add(
     {
         int capacity = list->capacity ? list->capacity * 2 : 2;
         struct RSCache_WorldMapDecor* grown =
-            (struct RSCache_WorldMapDecor*)realloc(list->items, (size_t)capacity * sizeof(*grown));
+            (struct RSCache_WorldMapDecor*)RSCACHE_REALLOC(list->items, (size_t)capacity * sizeof(*grown));
         if( !grown )
             return false;
         list->items = grown;
@@ -347,7 +348,7 @@ RSCache_WorldMapGeographyFreeInplace(struct RSCache_WorldMapGeography* geography
     for( int plane = 0; plane < RSCACHE_WORLDMAP_MAX_PLANES; plane++ )
     {
         for( int i = 0; i < RSCACHE_WORLDMAP_TILE_AREA; i++ )
-            free(geography->decor[plane][i].items);
+            RSCACHE_FREE(geography->decor[plane][i].items);
     }
     memset(geography, 0, sizeof(*geography));
 }

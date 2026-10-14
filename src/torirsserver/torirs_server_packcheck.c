@@ -1,3 +1,5 @@
+#include "mem/torirs_mem.h"
+#include "mem/torimem_rscache.h"
 #include "torirs_server_packcheck.h"
 
 #include "rscache_serverpack.h"
@@ -397,9 +399,9 @@ ToriRSServer_PackCheck(
         {
             if( !known(&check, inputs[i]) )
                 report(&check, "new", inputs[i]);
-            free(inputs[i]);
+            RSCACHE_FREE(inputs[i]); /* RSCache_ServerPackInputs' */
         }
-        free(inputs);
+        RSCACHE_FREE(inputs);
     }
     else
     {

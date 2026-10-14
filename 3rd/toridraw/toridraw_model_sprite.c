@@ -1,4 +1,5 @@
 #include "toridraw_model_sprite.h"
+#include "toridraw_alloc.h"
 
 #include "toridraw.h"
 #include "toridraw_model.h"
@@ -619,14 +620,14 @@ ToriDraw_SpriteNewFromModelRasterExtents(
     camera.projection_scale = TORIDRAW_PROJECTION_SCALE_DEFAULT;
 
     size_t pixel_count = (size_t)width * (size_t)height;
-    toripixel_t* pixels = calloc(pixel_count, sizeof(toripixel_t));
+    toripixel_t* pixels = TORIDRAW_CALLOC(pixel_count, sizeof(toripixel_t));
     assert(pixels);
 
     ToriDraw_RenderModel2SortFacesWithTable(hnd, scene, ToriDraw_KernelGetSpriteBaker());
     ToriDraw_RenderModel3RasterWithTable(
         scene, &view_port, &camera, pixels, ToriDraw_KernelGetSpriteBaker());
 
-    uint32_t* argb = malloc(pixel_count * sizeof(uint32_t));
+    uint32_t* argb = TORIDRAW_MALLOC(pixel_count * sizeof(uint32_t));
     assert(argb);
 
     for( size_t i = 0; i < pixel_count; i++ )
@@ -635,7 +636,7 @@ ToriDraw_SpriteNewFromModelRasterExtents(
         argb[i] = (rgb & 0xFFFFFFu) ? (rgb | 0xFF000000u) : 0u;
     }
 
-    free(pixels);
+    TORIDRAW_FREE(pixels);
 
     if( postprocess_outline )
         ToriDraw_SpritePostprocessObjIconOutline(argb, width, height);
@@ -698,13 +699,13 @@ ToriDraw_SpriteNewFromModelRaster(
     position.z = cos_pitch;
 
     size_t pixel_count = (size_t)width * (size_t)height;
-    toripixel_t* pixels = calloc(pixel_count, sizeof(toripixel_t));
+    toripixel_t* pixels = TORIDRAW_CALLOC(pixel_count, sizeof(toripixel_t));
     assert(pixels);
 
     ToriDraw_RenderModelWithTable(
         hnd, scene, &position, &view_port, &camera, pixels, ToriDraw_KernelGetSpriteBaker());
 
-    uint32_t* argb = malloc(pixel_count * sizeof(uint32_t));
+    uint32_t* argb = TORIDRAW_MALLOC(pixel_count * sizeof(uint32_t));
     assert(argb);
 
     for( size_t i = 0; i < pixel_count; i++ )
@@ -713,7 +714,7 @@ ToriDraw_SpriteNewFromModelRaster(
         argb[i] = rgb ? (rgb | 0xFF000000u) : 0u;
     }
 
-    free(pixels);
+    TORIDRAW_FREE(pixels);
 
     if( postprocess_outline )
         ToriDraw_SpritePostprocessObjIconOutline(argb, width, height);
@@ -788,7 +789,7 @@ ToriDraw_SpriteNewFromObjIconRaster(
     }
 
     size_t render_pixel_count = (size_t)render_w * (size_t)render_h;
-    toripixel_t* render_pixels = calloc(render_pixel_count, sizeof(toripixel_t));
+    toripixel_t* render_pixels = TORIDRAW_CALLOC(render_pixel_count, sizeof(toripixel_t));
     assert(render_pixels);
 
     view_port.width = render_w;
@@ -801,7 +802,7 @@ ToriDraw_SpriteNewFromObjIconRaster(
         ToriDraw_KernelGetSpriteBaker());
 
     size_t out_pixel_count = (size_t)width * (size_t)height;
-    uint32_t* argb = malloc(out_pixel_count * sizeof(uint32_t));
+    uint32_t* argb = TORIDRAW_MALLOC(out_pixel_count * sizeof(uint32_t));
     assert(argb);
 
     if( osrs_icon )
@@ -826,7 +827,7 @@ ToriDraw_SpriteNewFromObjIconRaster(
         }
     }
 
-    free(render_pixels);
+    TORIDRAW_FREE(render_pixels);
 
     if( postprocess_outline )
         ToriDraw_SpritePostprocessObjIconOutline(argb, width, height);

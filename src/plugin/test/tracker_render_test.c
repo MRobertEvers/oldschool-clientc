@@ -1,3 +1,4 @@
+#include <stdbool.h>
 /*
  * What the two trackers actually LOOK like, as pixels.
  *
@@ -30,6 +31,24 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "mem/torirs_mem.h"
+
+/* The decoder writes into a lifetime group its caller names; this test keeps
+ * its images in plain malloc (they share slots with malloc'd publishes), so
+ * the decode lands in FRAME and is copied out. */
+static bool
+test_png_decode_argb(const void* data, int size, int* w, int* h, uint32_t** out)
+{
+    uint32_t* px = NULL;
+    if( !PngDecode_Argb(ToriMem_Frame(), data, size, w, h, &px) )
+        return false;
+    *out = malloc((size_t)*w * (size_t)*h * sizeof(*px));
+    assert(*out);
+    memcpy(*out, px, (size_t)*w * (size_t)*h * sizeof(*px));
+    ToriMem_Free(ToriMem_Frame(), px);
+    return true;
+}
+
 
 static int g_failures;
 static int g_checks;
@@ -356,7 +375,7 @@ fake_image_load(void* ctx, char const* name)
             return -1;
     }
     a = asset_find(name);
-    if( !a || !PngDecode_Argb(a->bytes, a->size, &w, &h, &px) )
+    if( !a || !test_png_decode_argb(a->bytes, a->size, &w, &h, &px) )
         return -1;
     slot = image_alloc(w, h);
     if( slot < 0 )
@@ -1412,7 +1431,7 @@ check_png_contract(
     asset = asset_find(name);
     if( !asset )
         return;
-    decoded = PngDecode_Argb(asset->bytes, asset->size, &width, &height, &pixels);
+    decoded = test_png_decode_argb(asset->bytes, asset->size, &width, &height, &pixels);
     CHECK(decoded, "%s decodes", name);
     if( !decoded )
         return;
@@ -1444,7 +1463,7 @@ sprite_opaque_matches(char const* name, int dst_x, int dst_y)
         return false;
     asset = asset_find(name);
     if( !asset ||
-        !PngDecode_Argb(asset->bytes, asset->size, &width, &height, &pixels) )
+        !test_png_decode_argb(asset->bytes, asset->size, &width, &height, &pixels) )
         return false;
     for( int y = 0; y < height; y++ )
         for( int x = 0; x < width; x++ )
@@ -1477,7 +1496,7 @@ png_pixel(char const* name, int x, int y)
     if( !fake_asset_load(NULL, name) )
         return 0;
     asset = asset_find(name);
-    if( asset && PngDecode_Argb(asset->bytes, asset->size, &width, &height, &pixels) &&
+    if( asset && test_png_decode_argb(asset->bytes, asset->size, &width, &height, &pixels) &&
         x >= 0 && y >= 0 && x < width && y < height )
         answer = pixels[y * width + x];
     free(pixels);
@@ -2684,7 +2703,7 @@ load_caption_atlas(struct PluginDraw_Atlas* atlas)
         return 0;
     if( !PluginDraw_AtlasParse(atlas, ini->bytes, (size_t)ini->size) )
         return 0;
-    if( !PngDecode_Argb(png->bytes, png->size, &atlas->w, &atlas->h, &atlas->px) )
+    if( !test_png_decode_argb(png->bytes, png->size, &atlas->w, &atlas->h, &atlas->px) )
         return 0;
     atlas->ready = 1;
     return 1;

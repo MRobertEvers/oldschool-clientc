@@ -1,3 +1,5 @@
+#include "mem/torirs_mem.h"
+#include "mem/torimem_toridraw.h"
 #include "toridraw_sprite_from_torirs.h"
 
 #include "engine/torirs_types.h"
@@ -32,7 +34,12 @@ ToriDraw_SpriteFromToriRSFrame(struct ToriRS_SpriteFrame* frame)
      * already known positive, ToriDraw_SpriteNewFromArgbOwned cannot return
      * NULL, so the buffer cannot be stranded between the two owners.
      */
-    argb = frame->pixels_argb;
+    /* The move, said to the allocator too: the cache's pixels (ASSET) are
+     * toridraw's now, and ToriDraw_SpriteFree releases them. */
+    argb = ToriMem_GiveToToriDraw(
+        ToriMem_Assets(),
+        frame->pixels_argb,
+        (size_t)frame->width * (size_t)frame->height * sizeof(*frame->pixels_argb));
     frame->pixels_argb = NULL;
 
     spr = ToriDraw_SpriteNewFromArgbOwned(argb, frame->width, frame->height);
@@ -63,7 +70,7 @@ ToriDraw_SpritesFromToriRS(
         return NULL;
 
     count = src->frame_count;
-    sprites = calloc((size_t)count, sizeof(struct ToriDraw_Sprite*));
+    sprites = TORIDRAW_CALLOC((size_t)count, sizeof(struct ToriDraw_Sprite*));
     assert(sprites);
 
     for( i = 0; i < count; i++ )
@@ -73,7 +80,7 @@ ToriDraw_SpritesFromToriRS(
         {
             for( int j = 0; j < i; j++ )
                 ToriDraw_SpriteFree(sprites[j]);
-            free(sprites);
+            TORIDRAW_FREE(sprites);
             return NULL;
         }
     }

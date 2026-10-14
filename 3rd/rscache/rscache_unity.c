@@ -4,6 +4,7 @@
 #include "rscache.h"
 
 // clang-format off
+#include "src/rscache_alloc.c"
 #include "src/rscache_profile.c"
 #include "src/checksum.c"
 #include "src/whirlpool.c"

@@ -53,6 +53,33 @@
 #include <stddef.h>
 #include <stdint.h>
 
+/*
+ * Every heap allocation rsareabuf makes goes through one replaceable allocator.
+ * The default is libc. A host that installs its own does so before the first
+ * call into the library, and installs the same allocator in every library it
+ * links, or none, when blocks cross between them: a block allocated by one allocator
+ * and freed by another is heap corruption.
+ */
+struct RSAreaBuf_Allocator
+{
+    void* (*malloc_fn)(size_t size, void* user);
+    void* (*calloc_fn)(size_t count, size_t size, void* user);
+    void* (*realloc_fn)(void* ptr, size_t size, void* user);
+    void (*free_fn)(void* ptr, void* user);
+    void* user;
+};
+
+extern struct RSAreaBuf_Allocator g_rsab_allocator;
+
+/** Every field but `user` is required. */
+void
+rsab_set_allocator(const struct RSAreaBuf_Allocator* allocator);
+
+#define RSAB_MALLOC(size) g_rsab_allocator.malloc_fn((size), g_rsab_allocator.user)
+#define RSAB_CALLOC(count, size) g_rsab_allocator.calloc_fn((count), (size), g_rsab_allocator.user)
+#define RSAB_REALLOC(ptr, size) g_rsab_allocator.realloc_fn((ptr), (size), g_rsab_allocator.user)
+#define RSAB_FREE(ptr) g_rsab_allocator.free_fn((ptr), g_rsab_allocator.user)
+
 /* String terminators. Older revisions newline-terminate, newer ones NUL. */
 #define RSAB_JSTR_NEWLINE 0x0A
 #define RSAB_JSTR_NUL 0x00

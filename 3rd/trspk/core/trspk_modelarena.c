@@ -1,4 +1,5 @@
 #include "trspk_modelarena.h"
+#include "../trspk_alloc.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -121,7 +122,7 @@ lookup_rebuild(struct TRSPK_ModelArena* arena, uint32_t min_buckets)
     if( buckets != arena->lookup_bucket_count || arena->lookup_buckets == NULL )
     {
         uint32_t* grown =
-            (uint32_t*)realloc(arena->lookup_buckets, buckets * sizeof(uint32_t));
+            (uint32_t*)TRSPK_REALLOC(arena->lookup_buckets, buckets * sizeof(uint32_t));
         assert(grown != NULL);
         arena->lookup_buckets = grown;
         arena->lookup_bucket_count = buckets;
@@ -209,7 +210,7 @@ ensure_slot_capacity(
         new_cap *= 2u;
 
     struct TRSPK_ModelSlot* grown =
-        (struct TRSPK_ModelSlot*)realloc(arena->slots, new_cap * sizeof(struct TRSPK_ModelSlot));
+        (struct TRSPK_ModelSlot*)TRSPK_REALLOC(arena->slots, new_cap * sizeof(struct TRSPK_ModelSlot));
     assert(grown != NULL);
     arena->slots = grown;
     arena->slot_capacity = new_cap;
@@ -307,14 +308,14 @@ trspk_modelarena_create(
     assert(triangles != NULL);
     assert(page_size > 0u);
 
-    struct TRSPK_ModelArena* arena = (struct TRSPK_ModelArena*)malloc(sizeof(struct TRSPK_ModelArena));
+    struct TRSPK_ModelArena* arena = (struct TRSPK_ModelArena*)TRSPK_MALLOC(sizeof(struct TRSPK_ModelArena));
     assert(arena != NULL);
     memset(arena, 0, sizeof(struct TRSPK_ModelArena));
 
     if( initial_slot_capacity == 0u )
         initial_slot_capacity = TRSPK_MODELARENA_INIT_SLOT_CAP;
 
-    arena->slots = (struct TRSPK_ModelSlot*)calloc(
+    arena->slots = (struct TRSPK_ModelSlot*)TRSPK_CALLOC(
         initial_slot_capacity, sizeof(struct TRSPK_ModelSlot));
     assert(arena->slots != NULL);
 
@@ -335,14 +336,14 @@ trspk_modelarena_create_chain16(
 {
     assert(chain != NULL);
 
-    struct TRSPK_ModelArena* arena = (struct TRSPK_ModelArena*)malloc(sizeof(struct TRSPK_ModelArena));
+    struct TRSPK_ModelArena* arena = (struct TRSPK_ModelArena*)TRSPK_MALLOC(sizeof(struct TRSPK_ModelArena));
     assert(arena != NULL);
     memset(arena, 0, sizeof(struct TRSPK_ModelArena));
 
     if( initial_slot_capacity == 0u )
         initial_slot_capacity = TRSPK_MODELARENA_INIT_SLOT_CAP;
 
-    arena->slots = (struct TRSPK_ModelSlot*)calloc(
+    arena->slots = (struct TRSPK_ModelSlot*)TRSPK_CALLOC(
         initial_slot_capacity, sizeof(struct TRSPK_ModelSlot));
     assert(arena->slots != NULL);
 
@@ -360,9 +361,9 @@ trspk_modelarena_free(struct TRSPK_ModelArena* arena)
     if( arena == NULL )
         return;
 
-    free(arena->lookup_buckets);
-    free(arena->slots);
-    free(arena);
+    TRSPK_FREE(arena->lookup_buckets);
+    TRSPK_FREE(arena->slots);
+    TRSPK_FREE(arena);
 }
 
 uint32_t
@@ -562,7 +563,7 @@ trspk_modelarena_gc(struct TRSPK_ModelArena* arena)
         return result;
     }
 
-    struct TRSPK_ModelSlot** alive = (struct TRSPK_ModelSlot**)malloc(
+    struct TRSPK_ModelSlot** alive = (struct TRSPK_ModelSlot**)TRSPK_MALLOC(
         arena->slot_count * sizeof(struct TRSPK_ModelSlot*));
     assert(alive != NULL);
 
@@ -605,7 +606,7 @@ trspk_modelarena_gc(struct TRSPK_ModelArena* arena)
         write_cursor = compacted_base + slot->vertex_count;
     }
 
-    free(alive);
+    TRSPK_FREE(alive);
 
     arena->write_cursor = write_cursor;
     if( arena->vbo->vertex_count > write_cursor )
@@ -643,7 +644,7 @@ trspk_modelarena_rebuild(
         return;
     }
 
-    saved = (struct TRSPK_ModelSlot*)malloc(saved_count * sizeof(struct TRSPK_ModelSlot));
+    saved = (struct TRSPK_ModelSlot*)TRSPK_MALLOC(saved_count * sizeof(struct TRSPK_ModelSlot));
     assert(saved != NULL);
 
     uint32_t write = 0u;
@@ -665,7 +666,7 @@ trspk_modelarena_rebuild(
         rebuild_fn(arena, slot_index, user_data);
     }
 
-    free(saved);
+    TRSPK_FREE(saved);
 }
 
 void

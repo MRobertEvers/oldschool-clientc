@@ -1,4 +1,5 @@
 #include "dat1_config_npc.h"
+#include "../rscache_alloc.h"
 
 #include "../filelist.h"
 #include "../rsbuffer.h"
@@ -84,7 +85,7 @@ RSCache_Dat1ConfigNpcDecodeOp(
     case 1:
     {
         int count = g1(buffer);
-        npc->models = malloc(count * sizeof(int));
+        npc->models = RSCACHE_MALLOC(count * sizeof(int));
         npc->models_count = count;
         for( int i = 0; i < count; i++ )
         {
@@ -94,13 +95,13 @@ RSCache_Dat1ConfigNpcDecodeOp(
     }
     case 2:
     {
-        free(npc->name);
+        RSCACHE_FREE(npc->name);
         npc->name = gstringnewline(buffer);
         break;
     }
     case 3:
     {
-        free(npc->desc);
+        RSCACHE_FREE(npc->desc);
         npc->desc = gstringnewline(buffer);
         break;
     }
@@ -138,7 +139,7 @@ RSCache_Dat1ConfigNpcDecodeOp(
         int op_idx = opcode - 30;
         if( op_idx >= 5 )
         {
-            free(action);
+            RSCACHE_FREE(action);
             break;
         }
         if( action != NULL )
@@ -164,19 +165,19 @@ RSCache_Dat1ConfigNpcDecodeOp(
 
             if( is_hidden )
             {
-                free(action);
-                free(npc->op[op_idx]);
+                RSCACHE_FREE(action);
+                RSCACHE_FREE(npc->op[op_idx]);
                 npc->op[op_idx] = NULL;
             }
             else
             {
-                free(npc->op[op_idx]);
+                RSCACHE_FREE(npc->op[op_idx]);
                 npc->op[op_idx] = action;
             }
         }
         else
         {
-            free(npc->op[op_idx]);
+            RSCACHE_FREE(npc->op[op_idx]);
             npc->op[op_idx] = NULL;
         }
         break;
@@ -184,8 +185,8 @@ RSCache_Dat1ConfigNpcDecodeOp(
     case 40:
     {
         int count = g1(buffer);
-        npc->recol_s = malloc(count * sizeof(int));
-        npc->recol_d = malloc(count * sizeof(int));
+        npc->recol_s = RSCACHE_MALLOC(count * sizeof(int));
+        npc->recol_d = RSCACHE_MALLOC(count * sizeof(int));
         npc->recol_count = count;
         for( int i = 0; i < count; i++ )
         {
@@ -197,7 +198,7 @@ RSCache_Dat1ConfigNpcDecodeOp(
     case 60:
     {
         int count = g1(buffer);
-        npc->heads = malloc(count * sizeof(int));
+        npc->heads = RSCACHE_MALLOC(count * sizeof(int));
         npc->heads_count = count;
         for( int i = 0; i < count; i++ )
         {
@@ -274,7 +275,7 @@ RSCache_Dat1ConfigNpcDecodeOp(
 struct RSCache_Dat1ConfigNpc*
 RSCache_Dat1ConfigNpcDecodeOne(struct RSCache_Buffer* buffer)
 {
-    struct RSCache_Dat1ConfigNpc* npc = malloc(sizeof(struct RSCache_Dat1ConfigNpc));
+    struct RSCache_Dat1ConfigNpc* npc = RSCACHE_MALLOC(sizeof(struct RSCache_Dat1ConfigNpc));
 
     RSCache_Dat1ConfigNpcInit(npc);
 
@@ -311,13 +312,13 @@ RSCache_Dat1ConfigNpcListNewDecode(
     char* data,
     int data_size)
 {
-    struct RSCache_Dat1ConfigNpcList* npc_list = malloc(sizeof(struct RSCache_Dat1ConfigNpcList));
+    struct RSCache_Dat1ConfigNpcList* npc_list = RSCACHE_MALLOC(sizeof(struct RSCache_Dat1ConfigNpcList));
     memset(npc_list, 0, sizeof(struct RSCache_Dat1ConfigNpcList));
 
     struct RSCache_FileListDatIndexed* filelist_indexed =
         RSCache_FileListDatIndexedNewFromDecode(index_data, index_data_size, data, data_size);
 
-    npc_list->npcs = malloc(filelist_indexed->offset_count * sizeof(struct RSCache_Dat1ConfigNpc*));
+    npc_list->npcs = RSCACHE_MALLOC(filelist_indexed->offset_count * sizeof(struct RSCache_Dat1ConfigNpc*));
     memset(npc_list->npcs, 0, filelist_indexed->offset_count * sizeof(struct RSCache_Dat1ConfigNpc));
 
     npc_list->npcs_count = filelist_indexed->offset_count;
@@ -349,14 +350,14 @@ RSCache_Dat1ConfigNpcFreeInplace(struct RSCache_Dat1ConfigNpc* npc)
 {
     if( !npc )
         return;
-    free(npc->name);
-    free(npc->desc);
-    free(npc->models);
-    free(npc->heads);
-    free(npc->recol_s);
-    free(npc->recol_d);
+    RSCACHE_FREE(npc->name);
+    RSCACHE_FREE(npc->desc);
+    RSCACHE_FREE(npc->models);
+    RSCACHE_FREE(npc->heads);
+    RSCACHE_FREE(npc->recol_s);
+    RSCACHE_FREE(npc->recol_d);
     for( int i = 0; i < 5; i++ )
-        free(npc->op[i]);
+        RSCACHE_FREE(npc->op[i]);
     /* Only the owned pointers are cleared, not the scalars: the caller still
      * owns the struct and may read it. A second free is then a no-op. */
     npc->name = NULL;
@@ -378,7 +379,7 @@ RSCache_Dat1ConfigNpcFree(struct RSCache_Dat1ConfigNpc* npc)
     if( !npc )
         return;
     RSCache_Dat1ConfigNpcFreeInplace(npc);
-    free(npc);
+    RSCACHE_FREE(npc);
 }
 
 void
@@ -390,9 +391,9 @@ RSCache_Dat1ConfigNpcListFree(struct RSCache_Dat1ConfigNpcList* list)
     {
         for( int i = 0; i < list->npcs_count; i++ )
             RSCache_Dat1ConfigNpcFree(list->npcs[i]);
-        free(list->npcs);
+        RSCACHE_FREE(list->npcs);
     }
-    free(list);
+    RSCACHE_FREE(list);
 }
 
 uint32_t

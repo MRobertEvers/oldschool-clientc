@@ -1,0 +1,8 @@
+# Every place a lifetime group is reset or ended (tools/torimem/check_group_ends.py).
+# file                                     function                 call                     # group: why here
+src/app/app_frame.c                        App_RunOnce              ToriMem_FrameEnd         # FRAME (client): a frame is one App_RunOnce to the next, every lane
+src/torirsserver/torirs_server_host.c      ToriRSServer_HostRun     ToriMem_FrameEnd         # FRAME (standalone server): one host-loop iteration
+src/torirsserver/torirs_server_world.c     ToriRSServer_WorldTick   ToriMem_CheckedRewind    # FRAME tick scope: a tick frees its scratch; nested inside the client frame when embedded
+src/asyncio.h                              task_free                ToriMem_GroupDelete      # task:*: after the vtable free, every task
+src/main.c                                 main_shutdown            ToriMem_Shutdown         # PROCESS + lib:* (client): every exit from main
+src/torirsserver/torirs_server_main.c      main                     ToriMem_Shutdown         # PROCESS + lib:* (server): each mode's exit

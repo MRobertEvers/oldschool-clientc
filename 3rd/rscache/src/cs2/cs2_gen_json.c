@@ -1,4 +1,5 @@
 #include "cs2_gen_json.h"
+#include "../rscache_alloc.h"
 
 #include "cs2_gen.h"
 #include "../rsbuffer.h"
@@ -76,7 +77,7 @@ cs2_json_put_string_body(struct cs2_json_writer* writer, const char* text)
     int needed = RSCache_Cp1252ToUtf8(text, stack_buffer, (int)sizeof(stack_buffer));
     if( needed >= (int)sizeof(stack_buffer) )
     {
-        buffer = (char*)malloc((size_t)needed + 1);
+        buffer = (char*)RSCACHE_MALLOC((size_t)needed + 1);
         if( !buffer )
         {
             cs2_json_fail(writer, "out of memory converting a string constant");
@@ -117,7 +118,7 @@ cs2_json_put_string_body(struct cs2_json_writer* writer, const char* text)
         RSCache_CS2_StrBufAppendChar(writer->out, (char)ch);
     }
     if( buffer != stack_buffer )
-        free(buffer);
+        RSCACHE_FREE(buffer);
 }
 
 static void

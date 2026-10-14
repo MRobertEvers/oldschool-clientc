@@ -1,4 +1,5 @@
 #include "dat2_config_spotanim.h"
+#include "../rscache_alloc.h"
 
 #include "../rsbuffer.h"
 
@@ -114,7 +115,7 @@ decode_dat2_spotanim(
          * uses the same opcode as a payload-free terrain-conformance preset. */
         else if( opcode == 9 && !rs2_727 )
         {
-            free(s->name);
+            RSCACHE_FREE(s->name);
             s->name = gcstring(buffer);
             RSCache_PresenceSet(&s->present, RSCACHE_SPOTANIM_FIELD_NAME);
         }
@@ -316,7 +317,7 @@ RSCache_Dat2ConfigSpotanimNewDecode(int revision, char* data, int data_size)
 
     (void)revision;
 
-    s = calloc(1, sizeof(*s));
+    s = RSCACHE_CALLOC(1, sizeof(*s));
     assert(s);
     RSCache_Dat2ConfigSpotanimDecodeInplace(s, data, data_size);
     (void)buffer;
@@ -329,7 +330,7 @@ RSCache_Dat2ConfigSpotanimNewDecodeProfile(
     char* data,
     int data_size)
 {
-    struct RSCache_Dat2ConfigSpotanim* s = calloc(1, sizeof(*s));
+    struct RSCache_Dat2ConfigSpotanim* s = RSCACHE_CALLOC(1, sizeof(*s));
     assert(s);
     RSCache_Dat2ConfigSpotanimDecodeInplaceProfile(s, cache, data, data_size);
     return s;
@@ -383,7 +384,7 @@ RSCache_Dat2ConfigSpotanimFreeInplace(struct RSCache_Dat2ConfigSpotanim* spotani
 {
     if( !spotanim )
         return;
-    free(spotanim->name);
+    RSCACHE_FREE(spotanim->name);
     spotanim->name = NULL;
 }
 
@@ -393,7 +394,7 @@ RSCache_Dat2ConfigSpotanimFree(struct RSCache_Dat2ConfigSpotanim* spotanim)
     if( !spotanim )
         return;
     RSCache_Dat2ConfigSpotanimFreeInplace(spotanim);
-    free(spotanim);
+    RSCACHE_FREE(spotanim);
 }
 
 uint32_t

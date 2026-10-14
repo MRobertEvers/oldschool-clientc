@@ -1,4 +1,5 @@
 #include "dat2_frame.h"
+#include "../rscache_alloc.h"
 
 #include "../dat2disk.h"
 #include "../rsbuffer.h"
@@ -103,7 +104,7 @@ frame_new_decode(
         codec_version == RSCACHE_CODEC_FRAME_V1 || codec_version == RSCACHE_CODEC_FRAME_V2);
 
     // Initialize the frame definition
-    struct RSCache_Dat2Frame* def = malloc(sizeof(struct RSCache_Dat2Frame));
+    struct RSCache_Dat2Frame* def = RSCACHE_MALLOC(sizeof(struct RSCache_Dat2Frame));
     memset(def, 0, sizeof(struct RSCache_Dat2Frame));
 
     def->_id = id;
@@ -130,19 +131,19 @@ frame_new_decode(
     data.position = (uint32_t)header_size + (uint32_t)length;
 
     // Allocate temporary arrays for processing
-    int* index_frame_ids = malloc(500 * sizeof(int));
-    int* scratch_translator_x = malloc(500 * sizeof(int));
-    int* scratch_translator_y = malloc(500 * sizeof(int));
-    int* scratch_translator_z = malloc(500 * sizeof(int));
+    int* index_frame_ids = RSCACHE_MALLOC(500 * sizeof(int));
+    int* scratch_translator_x = RSCACHE_MALLOC(500 * sizeof(int));
+    int* scratch_translator_y = RSCACHE_MALLOC(500 * sizeof(int));
+    int* scratch_translator_z = RSCACHE_MALLOC(500 * sizeof(int));
     /* Entry count is bounded by `length`: a real entry consumes bone index i and a
      * synthesized one a distinct index below it, with last_i advancing past both, so
      * together they never exceed one entry per bone. */
-    bool* scratch_synthesized = calloc(500, sizeof(bool));
+    bool* scratch_synthesized = RSCACHE_CALLOC(500, sizeof(bool));
 
     /* Capture the flag stream verbatim before the cursor walks it — see the
      * provenance note in the header. */
     def->flag_count = length;
-    def->bone_flags = length > 0 ? malloc((size_t)length) : NULL;
+    def->bone_flags = length > 0 ? RSCACHE_MALLOC((size_t)length) : NULL;
     if( length > 0 && def->bone_flags )
         memcpy(def->bone_flags, buffer->data + buffer->position, (size_t)length);
 
@@ -247,23 +248,23 @@ frame_new_decode(
     if( data.position != data.size )
     {
         // Handle error - data size mismatch
-        free(index_frame_ids);
-        free(scratch_translator_x);
-        free(scratch_translator_y);
-        free(scratch_translator_z);
-        free(scratch_synthesized);
-        free(def->bone_flags);
-        free(def);
+        RSCACHE_FREE(index_frame_ids);
+        RSCACHE_FREE(scratch_translator_x);
+        RSCACHE_FREE(scratch_translator_y);
+        RSCACHE_FREE(scratch_translator_z);
+        RSCACHE_FREE(scratch_synthesized);
+        RSCACHE_FREE(def->bone_flags);
+        RSCACHE_FREE(def);
         return NULL;
     }
 
     // Allocate final arrays
     def->translator_count = index;
-    def->index_frame_ids = malloc(index * sizeof(int));
-    def->translator_arg_x = malloc(index * sizeof(int));
-    def->translator_arg_y = malloc(index * sizeof(int));
-    def->translator_arg_z = malloc(index * sizeof(int));
-    def->synthesized = calloc((size_t)(index > 0 ? index : 1), sizeof(bool));
+    def->index_frame_ids = RSCACHE_MALLOC(index * sizeof(int));
+    def->translator_arg_x = RSCACHE_MALLOC(index * sizeof(int));
+    def->translator_arg_y = RSCACHE_MALLOC(index * sizeof(int));
+    def->translator_arg_z = RSCACHE_MALLOC(index * sizeof(int));
+    def->synthesized = RSCACHE_CALLOC((size_t)(index > 0 ? index : 1), sizeof(bool));
 
     // Copy data to final arrays
     for( int i = 0; i < index; ++i )
@@ -276,11 +277,11 @@ frame_new_decode(
     }
 
     // Free temporary arrays
-    free(index_frame_ids);
-    free(scratch_translator_x);
-    free(scratch_translator_y);
-    free(scratch_translator_z);
-    free(scratch_synthesized);
+    RSCACHE_FREE(index_frame_ids);
+    RSCACHE_FREE(scratch_translator_x);
+    RSCACHE_FREE(scratch_translator_y);
+    RSCACHE_FREE(scratch_translator_z);
+    RSCACHE_FREE(scratch_synthesized);
 
     return def;
 }
@@ -443,22 +444,22 @@ RSCache_Dat2FrameFree(struct RSCache_Dat2Frame* def)
 
     if( def->index_frame_ids )
     {
-        free(def->index_frame_ids);
+        RSCACHE_FREE(def->index_frame_ids);
     }
     if( def->translator_arg_x )
     {
-        free(def->translator_arg_x);
+        RSCACHE_FREE(def->translator_arg_x);
     }
     if( def->translator_arg_y )
     {
-        free(def->translator_arg_y);
+        RSCACHE_FREE(def->translator_arg_y);
     }
     if( def->translator_arg_z )
     {
-        free(def->translator_arg_z);
+        RSCACHE_FREE(def->translator_arg_z);
     }
-    free(def->bone_flags);
-    free(def->synthesized);
+    RSCACHE_FREE(def->bone_flags);
+    RSCACHE_FREE(def->synthesized);
 
-    free(def);
+    RSCACHE_FREE(def);
 }

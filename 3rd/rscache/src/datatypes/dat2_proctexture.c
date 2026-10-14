@@ -1,4 +1,5 @@
 #include "dat2_proctexture.h"
+#include "../rscache_alloc.h"
 
 #include "rsbuffer.h"
 
@@ -174,14 +175,14 @@ RSCache_Dat2MaterialTableNewDecode(
     if( count < 0 || count > 0xFFFF )
         return NULL;
 
-    table = calloc(1, sizeof(*table));
+    table = RSCACHE_CALLOC(1, sizeof(*table));
     if( !table )
         return NULL;
     table->count = count;
-    table->materials = calloc((size_t)(count > 0 ? count : 1), sizeof(*table->materials));
+    table->materials = RSCACHE_CALLOC((size_t)(count > 0 ? count : 1), sizeof(*table->materials));
     if( !table->materials )
     {
-        free(table);
+        RSCACHE_FREE(table);
         return NULL;
     }
 
@@ -251,8 +252,8 @@ RSCache_Dat2MaterialTableFree(struct RSCache_Dat2MaterialTable* table)
 {
     if( !table )
         return;
-    free(table->materials);
-    free(table);
+    RSCACHE_FREE(table->materials);
+    RSCACHE_FREE(table);
 }
 
 /* --- operation defaults --------------------------------------------------------------- */
@@ -427,7 +428,7 @@ proctex_decode_rasterizer(
     if( count <= 0 )
         return;
 
-    op->u.rasterizer.shapes = calloc((size_t)count, sizeof(*op->u.rasterizer.shapes));
+    op->u.rasterizer.shapes = RSCACHE_CALLOC((size_t)count, sizeof(*op->u.rasterizer.shapes));
     if( !op->u.rasterizer.shapes )
         return;
     op->u.rasterizer.shape_count = (uint8_t)count;
@@ -1156,7 +1157,7 @@ proctex_dep_add(
         if( (*list)[i] == value )
             return;
 
-    grown = realloc(*list, (size_t)(*count + 1) * sizeof(int32_t));
+    grown = RSCACHE_REALLOC(*list, (size_t)(*count + 1) * sizeof(int32_t));
     if( !grown )
         return;
     *list = grown;
@@ -1186,17 +1187,17 @@ RSCache_Dat2ProcTextureNewDecode(
     if( operation_count <= 0 || operation_count >= RSCACHE_PROCTEX_MAX_OPS )
         return NULL;
 
-    texture = calloc(1, sizeof(*texture));
+    texture = RSCACHE_CALLOC(1, sizeof(*texture));
     if( !texture )
         return NULL;
     texture->id = texture_id;
     texture->colour_op = -1;
     texture->alpha_op = -1;
     texture->monochrome_op = -1;
-    texture->operations = calloc((size_t)operation_count, sizeof(*texture->operations));
+    texture->operations = RSCACHE_CALLOC((size_t)operation_count, sizeof(*texture->operations));
     if( !texture->operations )
     {
-        free(texture);
+        RSCACHE_FREE(texture);
         return NULL;
     }
     texture->operation_count = operation_count;
@@ -1349,10 +1350,10 @@ RSCache_Dat2ProcTextureFree(struct RSCache_Dat2ProcTexture* texture)
     {
         for( i = 0; i < texture->_alloc_count; i++ )
             if( texture->operations[i].type == RSCACHE_PROCTEX_RASTERIZER )
-                free(texture->operations[i].u.rasterizer.shapes);
-        free(texture->operations);
+                RSCACHE_FREE(texture->operations[i].u.rasterizer.shapes);
+        RSCACHE_FREE(texture->operations);
     }
-    free(texture->sprite_dependencies);
-    free(texture->texture_dependencies);
-    free(texture);
+    RSCACHE_FREE(texture->sprite_dependencies);
+    RSCACHE_FREE(texture->texture_dependencies);
+    RSCACHE_FREE(texture);
 }

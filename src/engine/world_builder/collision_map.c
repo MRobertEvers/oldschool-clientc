@@ -1,3 +1,4 @@
+#include "mem/torirs_mem.h"
 #include "collision_map.h"
 
 #include "features/features.h" /* enum ToriRS_NearestModel */
@@ -1600,10 +1601,11 @@ collision_tiles_backtrace(
     if( end_x == src_x && end_z == src_z )
         return 0;
 
-    tmp_x = (int*)malloc((size_t)buf_size * sizeof(int));
-    tmp_z = (int*)malloc((size_t)buf_size * sizeof(int));
-    assert(tmp_x);
-    assert(tmp_z);
+    /* Route scratch: one mark, released by the rewind before returning. */
+    struct ToriMem_Group* frame = ToriMem_Frame();
+    struct ToriMem_Mark scratch = ToriMem_Mark(frame);
+    tmp_x = ToriMem_Alloc(frame, (size_t)buf_size * sizeof(int));
+    tmp_z = ToriMem_Alloc(frame, (size_t)buf_size * sizeof(int));
 
     while( path_len < buf_size && (trace_x != src_x || trace_z != src_z) )
     {
@@ -1631,8 +1633,7 @@ collision_tiles_backtrace(
         path_z[i] = tmp_z[path_len - 1 - i];
     }
 
-    free(tmp_x);
-    free(tmp_z);
+    ToriMem_Rewind(frame, scratch);
     return n;
 }
 
@@ -1714,14 +1715,14 @@ route_tiles_impl(
         return 0;
     }
 
-    dir_map = (int*)malloc((size_t)buf_size * sizeof(int));
-    dist_map = (int*)malloc((size_t)buf_size * sizeof(int));
-    queue_x = (int*)malloc((size_t)buf_size * sizeof(int));
-    queue_z = (int*)malloc((size_t)buf_size * sizeof(int));
-    assert(dir_map);
-    assert(dist_map);
-    assert(queue_x);
-    assert(queue_z);
+    /* About 170 KB at a 104x104 scene, every step and click: FRAME scratch,
+     * released by the rewind on each way out. */
+    struct ToriMem_Group* frame = ToriMem_Frame();
+    struct ToriMem_Mark scratch = ToriMem_Mark(frame);
+    dir_map = ToriMem_Alloc(frame, (size_t)buf_size * sizeof(int));
+    dist_map = ToriMem_Alloc(frame, (size_t)buf_size * sizeof(int));
+    queue_x = ToriMem_Alloc(frame, (size_t)buf_size * sizeof(int));
+    queue_z = ToriMem_Alloc(frame, (size_t)buf_size * sizeof(int));
 
     arrived = collision_flood(
         cm, src_x, src_z, dst_x, dst_z, approach, dir_map, dist_map, queue_x, queue_z, &end_x,
@@ -1737,10 +1738,7 @@ route_tiles_impl(
 
     if( !arrived )
     {
-        free(dir_map);
-        free(dist_map);
-        free(queue_x);
-        free(queue_z);
+        ToriMem_Rewind(frame, scratch);
         return -1;
     }
 
@@ -1751,10 +1749,7 @@ route_tiles_impl(
 
     n = collision_tiles_backtrace(cm, src_x, src_z, end_x, end_z, dir_map, path_x, path_z, max_path);
 
-    free(dir_map);
-    free(dist_map);
-    free(queue_x);
-    free(queue_z);
+    ToriMem_Rewind(frame, scratch);
     return n;
 }
 
@@ -1808,14 +1803,12 @@ collision_map_try_route(
         dst_z < 0 || dst_x >= cm->size_x || dst_z >= cm->size_z )
         return -1;
 
-    int* dir_map = (int*)malloc((size_t)buf_size * sizeof(int));
-    int* dist_map = (int*)malloc((size_t)buf_size * sizeof(int));
-    int* queue_x = (int*)malloc((size_t)buf_size * sizeof(int));
-    int* queue_z = (int*)malloc((size_t)buf_size * sizeof(int));
-    assert(dir_map);
-    assert(dist_map);
-    assert(queue_x);
-    assert(queue_z);
+    struct ToriMem_Group* frame = ToriMem_Frame();
+    struct ToriMem_Mark scratch = ToriMem_Mark(frame);
+    int* dir_map = ToriMem_Alloc(frame, (size_t)buf_size * sizeof(int));
+    int* dist_map = ToriMem_Alloc(frame, (size_t)buf_size * sizeof(int));
+    int* queue_x = ToriMem_Alloc(frame, (size_t)buf_size * sizeof(int));
+    int* queue_z = ToriMem_Alloc(frame, (size_t)buf_size * sizeof(int));
 
     int arrived = collision_flood(
         cm, src_x, src_z, dst_x, dst_z, NULL, dir_map, dist_map, queue_x, queue_z, NULL, NULL);
@@ -1836,10 +1829,7 @@ collision_map_try_route(
         ? collision_route_backtrace(cm, src_x, src_z, end_x, end_z, dir_map, route_x, route_z, max_route)
         : -1;
 
-    free(dir_map);
-    free(dist_map);
-    free(queue_x);
-    free(queue_z);
+    ToriMem_Rewind(frame, scratch);
     return length;
 }
 
@@ -1865,14 +1855,12 @@ collision_map_try_route_op(
         dst_z < 0 || dst_x >= cm->size_x || dst_z >= cm->size_z )
         return -1;
 
-    int* dir_map = (int*)malloc((size_t)buf_size * sizeof(int));
-    int* dist_map = (int*)malloc((size_t)buf_size * sizeof(int));
-    int* queue_x = (int*)malloc((size_t)buf_size * sizeof(int));
-    int* queue_z = (int*)malloc((size_t)buf_size * sizeof(int));
-    assert(dir_map);
-    assert(dist_map);
-    assert(queue_x);
-    assert(queue_z);
+    struct ToriMem_Group* frame = ToriMem_Frame();
+    struct ToriMem_Mark scratch = ToriMem_Mark(frame);
+    int* dir_map = ToriMem_Alloc(frame, (size_t)buf_size * sizeof(int));
+    int* dist_map = ToriMem_Alloc(frame, (size_t)buf_size * sizeof(int));
+    int* queue_x = ToriMem_Alloc(frame, (size_t)buf_size * sizeof(int));
+    int* queue_z = ToriMem_Alloc(frame, (size_t)buf_size * sizeof(int));
 
     /* Arrival is whichever approach tile the flood reaches first (or the exact
      * tile). Client-TS passes tryNearest = false for every type-2 tryMove, so
@@ -1897,10 +1885,7 @@ collision_map_try_route_op(
         ? collision_route_backtrace(cm, src_x, src_z, end_x, end_z, dir_map, route_x, route_z, max_route)
         : -1;
 
-    free(dir_map);
-    free(dist_map);
-    free(queue_x);
-    free(queue_z);
+    ToriMem_Rewind(frame, scratch);
     return length;
 }
 

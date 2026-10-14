@@ -1,4 +1,5 @@
 #include "toridraw_scene.h"
+#include "toridraw_alloc.h"
 
 #include "toridraw_animation.h"
 #include "toridraw_font.h"
@@ -86,7 +87,7 @@ td_scene_map_new(
 {
     int buffer_size = ToriDraw_MapBufferSizeFor(entry_size, capacity);
     struct ToriDraw_MapConfig config = {
-        .buffer = malloc(buffer_size),
+        .buffer = TORIDRAW_MALLOC(buffer_size),
         .buffer_size = buffer_size,
         .key_size = sizeof(int),
         .entry_size = entry_size,
@@ -100,7 +101,7 @@ td_scene_map_free(struct ToriDraw_Map* map)
     if( !map )
         return;
 
-    free(ToriDraw_MapBufferPtr(map));
+    TORIDRAW_FREE(ToriDraw_MapBufferPtr(map));
     ToriDraw_MapFree(map);
 }
 
@@ -131,14 +132,14 @@ td_scene_maybe_grow_hmap(struct ToriDraw_Map* map)
     size_t new_capacity = (size_t)capacity * 2;
     size_t esize = ToriDraw_MapEntrySize(map);
     size_t new_buffer_size = ToriDraw_MapBufferSizeFor(esize, new_capacity);
-    void* new_buffer = malloc(new_buffer_size);
+    void* new_buffer = TORIDRAW_MALLOC(new_buffer_size);
     assert(new_buffer);
 
     void* old_buffer = NULL;
     int rc = ToriDraw_MapResize(map, new_buffer, new_buffer_size, new_capacity, &old_buffer);
     assert(rc == TORIDRAW_MAP_OK);
     (void)rc;
-    free(old_buffer);
+    TORIDRAW_FREE(old_buffer);
 }
 
 static void
@@ -183,7 +184,7 @@ td_event_queue_reserve(struct ToriDraw_EventQueue* queue)
     next = queue->cap ? queue->cap + queue->cap / 2 : 256;
     if( next > TORIDRAW_SCENE_EVENT_QUEUE_MAX_SIZE )
         next = TORIDRAW_SCENE_EVENT_QUEUE_MAX_SIZE;
-    grown = realloc(queue->events, (size_t)next * sizeof(*queue->events));
+    grown = TORIDRAW_REALLOC(queue->events, (size_t)next * sizeof(*queue->events));
     assert(grown);
     queue->events = grown;
     queue->cap = next;
@@ -304,7 +305,7 @@ td_scene_retain_pending_pose(
     if( scene->pending_pose_count >= scene->pending_pose_cap )
     {
         int new_cap = scene->pending_pose_cap ? scene->pending_pose_cap * 2 : 64;
-        struct ToriDraw_ScenePendingPose* grown = realloc(
+        struct ToriDraw_ScenePendingPose* grown = TORIDRAW_REALLOC(
             scene->pending_poses, (size_t)new_cap * sizeof(struct ToriDraw_ScenePendingPose));
         if( !grown )
             return;
@@ -458,7 +459,7 @@ td_scene_allocate_element_id(
         /* calloc already hands back the zeroed state td_scene_reset_element
          * would write, and scene_id is assigned below on both paths, so only
          * the one non-zero default is left to set. */
-        element = calloc(1, sizeof(struct ToriDraw_SceneElement));
+        element = TORIDRAW_CALLOC(1, sizeof(struct ToriDraw_SceneElement));
         assert(element);
         element->anim_seq_id = -1;
     }
@@ -467,7 +468,7 @@ td_scene_allocate_element_id(
     if( id < 0 )
     {
         if( scene->elements.free_head == TORIDRAW_INTRUSIVE_NIL )
-            free(element);
+            TORIDRAW_FREE(element);
         return -1;
     }
 
@@ -639,7 +640,7 @@ td_scene_free_all_elements(struct ToriDraw_Scene* scene)
             continue;
         if( ToriDraw_IntrusiveListIsLive(&scene->elements, i) )
             td_scene_dispose_element_model(element);
-        free(element);
+        TORIDRAW_FREE(element);
     }
     ToriDraw_IntrusiveListFree(&scene->elements);
 }
@@ -680,7 +681,7 @@ ToriDraw_SceneGraphShutdown(struct ToriDraw_Scene* scene)
         if( scene->pending_poses[i].model )
             ToriDraw_ModelFree(scene->pending_poses[i].model);
     }
-    free(scene->pending_poses);
+    TORIDRAW_FREE(scene->pending_poses);
 
     td_scene_free_models_map(scene->models_hmap);
     td_scene_map_free(scene->models_hmap);
@@ -698,7 +699,7 @@ ToriDraw_SceneGraphShutdown(struct ToriDraw_Scene* scene)
             {
                 for( int i = 0; i < entry->count; i++ )
                     ToriDraw_SpriteFree(entry->sprites[i]);
-                free(entry->sprites);
+                TORIDRAW_FREE(entry->sprites);
             }
         }
         ToriDraw_MapIterFree(iter);
@@ -771,7 +772,7 @@ ToriDraw_SceneSpriteAdd(
             scene, TORIDRAW_EVENT_SPRITE_UNLOAD, element_id, entry->sprites, entry->count);
         for( int i = 0; i < entry->count; i++ )
             ToriDraw_SpriteFree(entry->sprites[i]);
-        free(entry->sprites);
+        TORIDRAW_FREE(entry->sprites);
     }
 
     entry->id = element_id;
@@ -803,7 +804,7 @@ ToriDraw_SceneSpriteRemove(
             scene, TORIDRAW_EVENT_SPRITE_UNLOAD, element_id, entry->sprites, entry->count);
         for( int i = 0; i < entry->count; i++ )
             ToriDraw_SpriteFree(entry->sprites[i]);
-        free(entry->sprites);
+        TORIDRAW_FREE(entry->sprites);
     }
     entry->sprites = NULL;
     entry->count = 0;
@@ -887,10 +888,10 @@ ToriDraw_SoundNew(
 
     if( !samples || sample_count <= 0 )
     {
-        free(samples);
+        TORIDRAW_FREE(samples);
         return NULL;
     }
-    sound = calloc(1, sizeof(*sound));
+    sound = TORIDRAW_CALLOC(1, sizeof(*sound));
     assert(sound);
     sound->samples = samples;
     sound->sample_count = sample_count;
@@ -907,8 +908,8 @@ ToriDraw_SoundFree(struct ToriDraw_Sound* sound)
 {
     if( !sound )
         return;
-    free(sound->samples);
-    free(sound);
+    TORIDRAW_FREE(sound->samples);
+    TORIDRAW_FREE(sound);
 }
 
 void
@@ -1652,7 +1653,7 @@ ToriDraw_SceneAnimatedElements(
             while( cap < live )
                 cap <<= 1;
             {
-                int* grown = (int*)realloc(scene->anim_list, (size_t)cap * sizeof(int));
+                int* grown = (int*)TORIDRAW_REALLOC(scene->anim_list, (size_t)cap * sizeof(int));
                 assert(grown);
                 scene->anim_list = grown;
                 scene->anim_list_cap = cap;

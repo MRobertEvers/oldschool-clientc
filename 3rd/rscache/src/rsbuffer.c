@@ -1,4 +1,5 @@
 #include "rsbuffer.h"
+#include "rscache_alloc.h"
 
 #include <assert.h>
 #include <stdbool.h>
@@ -29,7 +30,7 @@ RSCache_BufferInitAlloc(
     if( initial_capacity == 0 )
         initial_capacity = RSCACHE_BUFFER_DEFAULT_CAPACITY;
 
-    buffer->data = malloc(initial_capacity);
+    buffer->data = RSCACHE_MALLOC(initial_capacity);
     if( !buffer->data )
     {
         buffer->size = 0;
@@ -50,7 +51,7 @@ RSCache_BufferRelease(struct RSCache_Buffer* buffer)
     if( !buffer )
         return;
     if( buffer->owns_data )
-        free(buffer->data);
+        RSCACHE_FREE(buffer->data);
     buffer->data = NULL;
     buffer->size = 0;
     buffer->position = 0;
@@ -102,7 +103,7 @@ RSCache_BufferEnsure(
         capacity = doubled > capacity ? doubled : needed;
     }
 
-    uint8_t* data = realloc(buffer->data, capacity);
+    uint8_t* data = RSCACHE_REALLOC(buffer->data, capacity);
     if( !data )
         return false;
 
@@ -497,7 +498,7 @@ read_string(
 
     // Reset position and allocate string
     buffer->position = pos;
-    char* string = malloc(length + 1);
+    char* string = RSCACHE_MALLOC(length + 1);
     int i = 0;
 
     while( buffer->position < buffer->size )
@@ -778,11 +779,11 @@ params_cleanup_partial(struct RSCache_Params* params)
     for( int j = 0; j < params->count; j++ )
     {
         if( params->values[j] )
-            free(params->values[j]);
+            RSCACHE_FREE(params->values[j]);
     }
-    free(params->keys);
-    free(params->values);
-    free(params->kinds);
+    RSCACHE_FREE(params->keys);
+    RSCACHE_FREE(params->values);
+    RSCACHE_FREE(params->kinds);
     params->keys = NULL;
     params->values = NULL;
     params->kinds = NULL;
@@ -806,18 +807,18 @@ RSCache_BufferReadParams(
     while( capacity < length )
         capacity <<= 1;
 
-    params->keys = malloc(capacity * sizeof(int));
-    params->values = malloc(capacity * sizeof(void*));
-    params->kinds = malloc(capacity * sizeof(uint8_t));
+    params->keys = RSCACHE_MALLOC(capacity * sizeof(int));
+    params->values = RSCACHE_MALLOC(capacity * sizeof(void*));
+    params->kinds = RSCACHE_MALLOC(capacity * sizeof(uint8_t));
 
     if( !params->keys || !params->values || !params->kinds )
     {
         RSCACHE_LOG(
             "RSCache_BufferReadParams: Failed to allocate params arrays of capacity %d\n",
             capacity);
-        free(params->keys);
-        free(params->values);
-        free(params->kinds);
+        RSCACHE_FREE(params->keys);
+        RSCACHE_FREE(params->values);
+        RSCACHE_FREE(params->kinds);
         params->keys = NULL;
         params->values = NULL;
         params->kinds = NULL;
@@ -860,7 +861,7 @@ RSCache_BufferReadParams(
                 params_cleanup_partial(params);
                 return;
             }
-            value = malloc((size_t)str_len + 1);
+            value = RSCACHE_MALLOC((size_t)str_len + 1);
             if( !value )
             {
                 RSCACHE_LOG(
@@ -885,7 +886,7 @@ RSCache_BufferReadParams(
                 params_cleanup_partial(params);
                 return;
             }
-            value = malloc(sizeof(int64_t));
+            value = RSCACHE_MALLOC(sizeof(int64_t));
             if( !value )
             {
                 RSCACHE_LOG(
@@ -907,7 +908,7 @@ RSCache_BufferReadParams(
                 params_cleanup_partial(params);
                 return;
             }
-            value = malloc(sizeof(int));
+            value = RSCACHE_MALLOC(sizeof(int));
             if( !value )
             {
                 RSCACHE_LOG(

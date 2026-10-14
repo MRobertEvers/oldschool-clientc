@@ -1,4 +1,5 @@
 #include "dat2_config_soundscape.h"
+#include "../rscache_alloc.h"
 
 #include "../rsbuffer.h"
 
@@ -61,12 +62,12 @@ RSCache_Dat2ConfigSoundscapeDecodeInplace(
              * int[n]`, so a second opcode 1 replaces the first outright. */
             if( entry->loop_ids )
                 entry->superseded_loops++;
-            free(entry->loop_ids);
+            RSCACHE_FREE(entry->loop_ids);
             entry->loop_ids = NULL;
             entry->loop_count = 0;
             if( count > 0 )
             {
-                entry->loop_ids = (int*)malloc((size_t)count * sizeof(int));
+                entry->loop_ids = (int*)RSCACHE_MALLOC((size_t)count * sizeof(int));
                 if( !entry->loop_ids )
                     return;
                 entry->loop_count = count;
@@ -89,7 +90,7 @@ RSCache_Dat2ConfigSoundscapeDecodeInplace(
 
             if( count > 0 )
             {
-                ids = (int*)malloc((size_t)count * sizeof(int));
+                ids = (int*)RSCACHE_MALLOC((size_t)count * sizeof(int));
                 if( !ids )
                     return;
             }
@@ -113,7 +114,7 @@ RSCache_Dat2ConfigSoundscapeDecodeInplace(
             else
             {
                 entry->dropped_sets++;
-                free(ids);
+                RSCACHE_FREE(ids);
             }
             break;
         }
@@ -147,7 +148,7 @@ struct RSCache_Dat2ConfigSoundscape*
 RSCache_Dat2ConfigSoundscapeNewDecode(const void* data, int data_size)
 {
     struct RSCache_Dat2ConfigSoundscape* entry =
-        (struct RSCache_Dat2ConfigSoundscape*)calloc(1, sizeof(*entry));
+        (struct RSCache_Dat2ConfigSoundscape*)RSCACHE_CALLOC(1, sizeof(*entry));
 
     if( !entry )
         return NULL;
@@ -160,12 +161,12 @@ RSCache_Dat2ConfigSoundscapeFreeInplace(struct RSCache_Dat2ConfigSoundscape* ent
 {
     if( !entry )
         return;
-    free(entry->loop_ids);
+    RSCACHE_FREE(entry->loop_ids);
     entry->loop_ids = NULL;
     entry->loop_count = 0;
     for( int i = 0; i < RSCACHE_SOUNDSCAPE_MAX_SETS; i++ )
     {
-        free(entry->sets[i].ids);
+        RSCACHE_FREE(entry->sets[i].ids);
         entry->sets[i].ids = NULL;
         entry->sets[i].id_count = 0;
     }
@@ -178,7 +179,7 @@ RSCache_Dat2ConfigSoundscapeFree(struct RSCache_Dat2ConfigSoundscape* entry)
     if( !entry )
         return;
     RSCache_Dat2ConfigSoundscapeFreeInplace(entry);
-    free(entry);
+    RSCACHE_FREE(entry);
 }
 
 uint32_t

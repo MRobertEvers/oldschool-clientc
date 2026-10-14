@@ -1,3 +1,4 @@
+#include "mem/torirs_mem.h"
 #include "uitree_frame.h"
 
 #include "plugin/torirs_plugin_host_types.h"
@@ -1223,8 +1224,8 @@ frame_collect_chrome(
      * a cache toplevel's chat container may itself carry an op, and hiding
      * it would hide the chat log the provider just moved inside it.
      */
-    keep = calloc(tree->component_count ? tree->component_count : 1, sizeof(*keep));
-    assert(keep);
+    keep = ToriMem_Calloc(
+        ToriMem_Frame(), tree->component_count ? tree->component_count : 1, sizeof(*keep));
     PA_INC(collect_chrome_calls);
     PA_ADD(collect_chrome_iters, tree->component_count);
     PA_ADD(collect_chrome_bytes, tree->component_count ? tree->component_count : 1);
@@ -1257,7 +1258,7 @@ frame_collect_chrome(
             continue;
         frame_record_hidden(tree, fl, (int32_t)i);
     }
-    free(keep);
+    ToriMem_Free(ToriMem_Frame(), keep);
 }
 
 static int
@@ -2214,13 +2215,12 @@ UITree_FrameSlotsStale(struct UITree* tree)
     uint64_t const pa_t0 = PerfAudit_Now();
     PA_INC(slots_stale_calls);
     PA_ADD(slots_stale_bytes, sizeof(*next));
-    next = calloc(1, sizeof(*next));
-    assert(next);
+    next = ToriMem_Calloc(ToriMem_Frame(), 1, sizeof(*next));
     frame_collect_slots(tree, next);
     stale = memcmp(next->slot_node, fl->slot_node, sizeof(next->slot_node)) != 0 ||
             memcmp(next->slot_incarnation, fl->slot_incarnation, sizeof(next->slot_incarnation)) != 0 ||
             memcmp(next->slot_node_count, fl->slot_node_count, sizeof(next->slot_node_count)) != 0;
-    free(next);
+    ToriMem_Free(ToriMem_Frame(), next);
     PA_ADD(slots_stale_ns, PerfAudit_Now() - pa_t0);
     PA_ADD(slots_stale_true, stale ? 1 : 0);
     return stale;

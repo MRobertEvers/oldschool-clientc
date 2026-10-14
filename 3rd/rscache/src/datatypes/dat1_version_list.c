@@ -1,4 +1,5 @@
 #include "dat1_version_list.h"
+#include "../rscache_alloc.h"
 
 #include "../archive.h"
 #include "../filelist.h"
@@ -18,7 +19,7 @@ copy_bytes(
     if( size == 0 )
         return NULL;
     assert(src != NULL);
-    void* copy = malloc(size);
+    void* copy = RSCACHE_MALLOC(size);
     if( !copy )
         return NULL;
     memcpy(copy, src, size);
@@ -55,7 +56,7 @@ decode_u16_array(
     int count = data_size / 2;
     if( count <= 0 )
         return NULL;
-    uint16_t* out = malloc((size_t)count * sizeof(uint16_t));
+    uint16_t* out = RSCACHE_MALLOC((size_t)count * sizeof(uint16_t));
     if( !out )
         return NULL;
     struct RSCache_Buffer buffer;
@@ -79,7 +80,7 @@ decode_i32_array(
     int count = data_size / 4;
     if( count <= 0 )
         return NULL;
-    int32_t* out = malloc((size_t)count * sizeof(int32_t));
+    int32_t* out = RSCACHE_MALLOC((size_t)count * sizeof(int32_t));
     if( !out )
         return NULL;
     struct RSCache_Buffer buffer;
@@ -118,7 +119,7 @@ encode_u16_array(
     if( count <= 0 )
         return NULL;
     assert(values != NULL);
-    uint8_t* out = malloc((size_t)count * 2u);
+    uint8_t* out = RSCACHE_MALLOC((size_t)count * 2u);
     if( !out )
         return NULL;
     struct RSCache_Buffer buffer;
@@ -140,7 +141,7 @@ encode_i32_array(
     if( count <= 0 )
         return NULL;
     assert(values != NULL);
-    uint8_t* out = malloc((size_t)count * 4u);
+    uint8_t* out = RSCACHE_MALLOC((size_t)count * 4u);
     if( !out )
         return NULL;
     struct RSCache_Buffer buffer;
@@ -162,7 +163,7 @@ encode_map_index(
         return NULL;
     assert(squares->squares != NULL);
     int size = squares->squares_count * 7;
-    uint8_t* out = malloc((size_t)size);
+    uint8_t* out = RSCACHE_MALLOC((size_t)size);
     if( !out )
         return NULL;
     struct RSCache_Buffer buffer;
@@ -193,7 +194,7 @@ jag_upsert(
     int idx = RSCache_FileListDatFindFileByName(jag, name);
     if( idx >= 0 )
     {
-        free(jag->files[idx]);
+        RSCACHE_FREE(jag->files[idx]);
         jag->files[idx] = (char*)data;
         jag->file_sizes[idx] = size;
         jag->file_name_hashes[idx] = hash;
@@ -201,9 +202,9 @@ jag_upsert(
     }
 
     int new_count = jag->file_count + 1;
-    char** files = realloc(jag->files, (size_t)new_count * sizeof(char*));
-    int* sizes = realloc(jag->file_sizes, (size_t)new_count * sizeof(int));
-    int* hashes = realloc(jag->file_name_hashes, (size_t)new_count * sizeof(int));
+    char** files = RSCACHE_REALLOC(jag->files, (size_t)new_count * sizeof(char*));
+    int* sizes = RSCACHE_REALLOC(jag->file_sizes, (size_t)new_count * sizeof(int));
+    int* hashes = RSCACHE_REALLOC(jag->file_name_hashes, (size_t)new_count * sizeof(int));
     if( !files || !sizes || !hashes )
     {
         /* Leave jag pointers alone if realloc failed mid-way — caller owns data. */
@@ -238,7 +239,7 @@ upsert_u16(
         return false;
     if( !jag_upsert(jag, name, encoded, size) )
     {
-        free(encoded);
+        RSCACHE_FREE(encoded);
         return false;
     }
     return true;
@@ -257,7 +258,7 @@ upsert_i32(
         return false;
     if( !jag_upsert(jag, name, encoded, size) )
     {
-        free(encoded);
+        RSCACHE_FREE(encoded);
         return false;
     }
     return true;
@@ -279,7 +280,7 @@ upsert_bytes(
     }
     if( !jag_upsert(jag, name, encoded, count) )
     {
-        free(encoded);
+        RSCACHE_FREE(encoded);
         return false;
     }
     return true;
@@ -290,7 +291,7 @@ RSCache_Dat1VersionListNewFromJagfile(struct RSCache_FileListDat* jag)
 {
     assert(jag != NULL);
 
-    struct RSCache_Dat1VersionList* vl = calloc(1, sizeof(*vl));
+    struct RSCache_Dat1VersionList* vl = RSCACHE_CALLOC(1, sizeof(*vl));
     if( !vl )
         return NULL;
 
@@ -370,7 +371,7 @@ RSCache_Dat1VersionListEncodeIntoJagfile(
             return 0;
         if( !jag_upsert(jag, "map_index", map_data, map_size) )
         {
-            free(map_data);
+            RSCACHE_FREE(map_data);
             return 0;
         }
     }
@@ -383,17 +384,17 @@ RSCache_Dat1VersionListFree(struct RSCache_Dat1VersionList* vl)
 {
     if( !vl )
         return;
-    free(vl->model_version);
-    free(vl->anim_version);
-    free(vl->midi_version);
-    free(vl->map_version);
-    free(vl->model_crc);
-    free(vl->anim_crc);
-    free(vl->midi_crc);
-    free(vl->map_crc);
-    free(vl->model_index);
-    free(vl->anim_index);
-    free(vl->midi_index);
+    RSCACHE_FREE(vl->model_version);
+    RSCACHE_FREE(vl->anim_version);
+    RSCACHE_FREE(vl->midi_version);
+    RSCACHE_FREE(vl->map_version);
+    RSCACHE_FREE(vl->model_crc);
+    RSCACHE_FREE(vl->anim_crc);
+    RSCACHE_FREE(vl->midi_crc);
+    RSCACHE_FREE(vl->map_crc);
+    RSCACHE_FREE(vl->model_index);
+    RSCACHE_FREE(vl->anim_index);
+    RSCACHE_FREE(vl->midi_index);
     RSCache_MapSquaresFree(vl->map_squares);
-    free(vl);
+    RSCACHE_FREE(vl);
 }

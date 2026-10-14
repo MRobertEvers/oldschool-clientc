@@ -1,4 +1,5 @@
 #include "toridraw_rscache.h"
+#include "toridraw_alloc.h"
 
 #include <assert.h>
 #include <limits.h>
@@ -56,7 +57,7 @@ narrow_vertices(
     assert(src);
     assert(count > 0);
 
-    dst = malloc((size_t)count * sizeof(*dst));
+    dst = TORIDRAW_MALLOC((size_t)count * sizeof(*dst));
     assert(dst);
     for( i = 0; i < count; i++ )
         dst[i] = (vertexint_t)src[i];
@@ -74,7 +75,7 @@ narrow_face_indices(
     assert(src);
     assert(count > 0);
 
-    dst = malloc((size_t)count * sizeof(*dst));
+    dst = TORIDRAW_MALLOC((size_t)count * sizeof(*dst));
     assert(dst);
     for( i = 0; i < count; i++ )
         dst[i] = (faceint_t)src[i];
@@ -92,7 +93,7 @@ buf_copy(
     assert(src);
     assert(count > 0);
 
-    dst = malloc(count * elem_size);
+    dst = TORIDRAW_MALLOC(count * elem_size);
     assert(dst);
     memcpy(dst, src, count * elem_size);
     return dst;
@@ -125,7 +126,7 @@ bones_from_bone_map(
     if( !decoded )
         return NULL;
 
-    bones = calloc(1, sizeof(*bones));
+    bones = TORIDRAW_CALLOC(1, sizeof(*bones));
     assert(bones);
     bones->bones_count = decoded->bones_count;
     if( decoded->bones_count <= 0 )
@@ -134,8 +135,8 @@ bones_from_bone_map(
         return bones;
     }
 
-    bones->bones = calloc((size_t)decoded->bones_count, sizeof(boneint_t*));
-    bones->bones_sizes = calloc((size_t)decoded->bones_count, sizeof(boneint_t));
+    bones->bones = TORIDRAW_CALLOC((size_t)decoded->bones_count, sizeof(boneint_t*));
+    bones->bones_sizes = TORIDRAW_CALLOC((size_t)decoded->bones_count, sizeof(boneint_t));
     assert(bones->bones);
     assert(bones->bones_sizes);
 
@@ -144,7 +145,7 @@ bones_from_bone_map(
         bones->bones_sizes[i] = (boneint_t)decoded->bones_sizes[i];
         if( decoded->bones_sizes[i] <= 0 )
             continue;
-        bones->bones[i] = malloc((size_t)decoded->bones_sizes[i] * sizeof(boneint_t));
+        bones->bones[i] = TORIDRAW_MALLOC((size_t)decoded->bones_sizes[i] * sizeof(boneint_t));
         assert(bones->bones[i]);
         for( j = 0; j < decoded->bones_sizes[i]; j++ )
             bones->bones[i][j] = (boneint_t)decoded->bones[i][j];
@@ -226,7 +227,7 @@ finish_model(
     {
         size_t nbytes = face_priority_byte_count(fc);
 
-        dst->face_priorities = calloc(nbytes, 1);
+        dst->face_priorities = TORIDRAW_CALLOC(nbytes, 1);
         assert(dst->face_priorities);
         for( i = 0; i < fc; i++ )
             set_face_priority(dst->face_priorities, i, src->face_priorities[i]);
@@ -234,7 +235,7 @@ finish_model(
 
     if( src->face_texture_coords && fc > 0 )
     {
-        dst->face_texture_coords = malloc((size_t)fc * sizeof(faceint_t));
+        dst->face_texture_coords = TORIDRAW_MALLOC((size_t)fc * sizeof(faceint_t));
         assert(dst->face_texture_coords);
         for( i = 0; i < fc; i++ )
             dst->face_texture_coords[i] = (faceint_t)ToriDraw_NormalizeFaceTextureCoord(
@@ -244,7 +245,7 @@ finish_model(
     /* face_infos is int in ToriDraw and uint8_t in the cache. */
     if( src->face_infos && fc > 0 )
     {
-        dst->face_infos = malloc((size_t)fc * sizeof(int));
+        dst->face_infos = TORIDRAW_MALLOC((size_t)fc * sizeof(int));
         assert(dst->face_infos);
         for( i = 0; i < fc; i++ )
             dst->face_infos[i] = (int)src->face_infos[i];
@@ -263,9 +264,9 @@ finish_model(
         int vc = src->animaya_vertex_count;
 
         dst->animaya_vertex_count = vc;
-        dst->animaya_group_counts = malloc((size_t)vc);
-        dst->animaya_groups = calloc((size_t)vc, sizeof(uint8_t*));
-        dst->animaya_scales = calloc((size_t)vc, sizeof(uint8_t*));
+        dst->animaya_group_counts = TORIDRAW_MALLOC((size_t)vc);
+        dst->animaya_groups = TORIDRAW_CALLOC((size_t)vc, sizeof(uint8_t*));
+        dst->animaya_scales = TORIDRAW_CALLOC((size_t)vc, sizeof(uint8_t*));
         assert(dst->animaya_group_counts);
         assert(dst->animaya_groups);
         assert(dst->animaya_scales);
@@ -277,8 +278,8 @@ finish_model(
 
             if( cnt <= 0 )
                 continue;
-            dst->animaya_groups[i] = malloc((size_t)cnt);
-            dst->animaya_scales[i] = malloc((size_t)cnt);
+            dst->animaya_groups[i] = TORIDRAW_MALLOC((size_t)cnt);
+            dst->animaya_scales[i] = TORIDRAW_MALLOC((size_t)cnt);
             assert(dst->animaya_groups[i]);
             assert(dst->animaya_scales[i]);
             /* A decoded model may carry a group count for a vertex it has no
@@ -301,9 +302,9 @@ finish_model(
      * rather than a NULL dereference in the raster. */
     if( fc > 0 )
     {
-        dst->face_colors_a = calloc((size_t)fc, sizeof(hsl16_t));
-        dst->face_colors_b = calloc((size_t)fc, sizeof(hsl16_t));
-        dst->face_colors_c = calloc((size_t)fc, sizeof(hsl16_t));
+        dst->face_colors_a = TORIDRAW_CALLOC((size_t)fc, sizeof(hsl16_t));
+        dst->face_colors_b = TORIDRAW_CALLOC((size_t)fc, sizeof(hsl16_t));
+        dst->face_colors_c = TORIDRAW_CALLOC((size_t)fc, sizeof(hsl16_t));
         assert(dst->face_colors_a);
         assert(dst->face_colors_b);
         assert(dst->face_colors_c);
@@ -394,9 +395,9 @@ ToriDraw_RSCacheModelSteal(struct RSCache_Model* src)
         dst->vertices_y = narrow_vertices(src->vertices_y, src->vertex_count);
         dst->vertices_z = narrow_vertices(src->vertices_z, src->vertex_count);
         apply_format_scale_down(dst, src->format_version);
-        free(src->vertices_x);
-        free(src->vertices_y);
-        free(src->vertices_z);
+        RSCACHE_FREE(src->vertices_x);
+        RSCACHE_FREE(src->vertices_y);
+        RSCACHE_FREE(src->vertices_z);
         src->vertices_x = NULL;
         src->vertices_y = NULL;
         src->vertices_z = NULL;
@@ -407,9 +408,9 @@ ToriDraw_RSCacheModelSteal(struct RSCache_Model* src)
         dst->face_indices_a = narrow_face_indices(src->face_indices_a, fc);
         dst->face_indices_b = narrow_face_indices(src->face_indices_b, fc);
         dst->face_indices_c = narrow_face_indices(src->face_indices_c, fc);
-        free(src->face_indices_a);
-        free(src->face_indices_b);
-        free(src->face_indices_c);
+        RSCACHE_FREE(src->face_indices_a);
+        RSCACHE_FREE(src->face_indices_b);
+        RSCACHE_FREE(src->face_indices_c);
         src->face_indices_a = NULL;
         src->face_indices_b = NULL;
         src->face_indices_c = NULL;

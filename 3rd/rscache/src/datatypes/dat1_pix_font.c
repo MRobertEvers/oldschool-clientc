@@ -1,4 +1,5 @@
 #include "dat1_pix_font.h"
+#include "../rscache_alloc.h"
 
 #include "../rsbuffer.h"
 
@@ -59,7 +60,7 @@ RSCache_Dat1PixFontNewDecode(
     void* index_data,
     int index_data_size)
 {
-    struct RSCache_Dat1PixFont* pixfont = malloc(sizeof(struct RSCache_Dat1PixFont));
+    struct RSCache_Dat1PixFont* pixfont = RSCACHE_MALLOC(sizeof(struct RSCache_Dat1PixFont));
     if( !pixfont )
         return NULL;
     memset(pixfont, 0, sizeof(struct RSCache_Dat1PixFont));
@@ -90,7 +91,7 @@ RSCache_Dat1PixFontNewDecode(
         int type = g1(&indexbuf);
         int len = w * h;
 
-        pixfont->char_mask[i] = malloc(len * sizeof(int));
+        pixfont->char_mask[i] = RSCACHE_MALLOC(len * sizeof(int));
         if( !pixfont->char_mask[i] )
         {
             RSCache_Dat1PixFontFree(pixfont);
@@ -159,7 +160,7 @@ RSCache_Dat1PixFontFullNewDecode(
     int index_data_size,
     int quill)
 {
-    struct RSCache_Dat1PixFont* pixfont = malloc(sizeof(struct RSCache_Dat1PixFont));
+    struct RSCache_Dat1PixFont* pixfont = RSCACHE_MALLOC(sizeof(struct RSCache_Dat1PixFont));
     if( !pixfont )
         return NULL;
     memset(pixfont, 0, sizeof(struct RSCache_Dat1PixFont));
@@ -189,7 +190,7 @@ RSCache_Dat1PixFontFullNewDecode(
         // The pixel bytes are one sequential stream shared by every record, so
         // a record this struct cannot address still has to be READ -- skipping
         // it would shift every glyph after it. Decode into scratch and drop it.
-        int* mask = malloc((len > 0 ? len : 1) * sizeof(int));
+        int* mask = RSCACHE_MALLOC((len > 0 ? len : 1) * sizeof(int));
         if( !mask )
         {
             RSCache_Dat1PixFontFree(pixfont);
@@ -220,11 +221,11 @@ RSCache_Dat1PixFontFullNewDecode(
         int slot = index_of_char((uint8_t)code);
         if( slot < 0 || slot >= RSCACHE_DAT1_PIXFONT_CHAR_COUNT )
         {
-            free(mask);
+            RSCACHE_FREE(mask);
             continue;
         }
 
-        free(pixfont->char_mask[slot]);
+        RSCACHE_FREE(pixfont->char_mask[slot]);
         pixfont->char_mask[slot] = mask;
         pixfont->char_mask_width[slot] = w;
         pixfont->char_mask_height[slot] = h;
@@ -277,7 +278,7 @@ RSCache_Dat1PixFontFree(struct RSCache_Dat1PixFont* pixfont)
         return;
     for( int i = 0; i < RSCACHE_DAT1_PIXFONT_CHAR_COUNT; i++ )
     {
-        free(pixfont->char_mask[i]);
+        RSCACHE_FREE(pixfont->char_mask[i]);
     }
-    free(pixfont);
+    RSCACHE_FREE(pixfont);
 }

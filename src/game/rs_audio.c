@@ -1,3 +1,5 @@
+#include "mem/torirs_mem.h"
+#include "mem/torimem_toridraw.h"
 #include "rs_audio.h"
 
 #include "rs_soundscape.h"
@@ -364,8 +366,8 @@ publish_sound(
     if( !decoded || (!decoded->pcm && !decoded->pcm16) || decoded->sample_count <= 0 )
         return NULL;
 
-    widened = malloc((size_t)decoded->sample_count * sizeof(int16_t));
-    assert(widened);
+    /* lib:toridraw: ToriDraw_SoundNew adopts it; the scene frees it. */
+    widened = TORIDRAW_MALLOC((size_t)decoded->sample_count * sizeof(int16_t));
     if( decoded->pcm16 )
         memcpy(widened, decoded->pcm16,
                (size_t)decoded->sample_count * sizeof(*widened));

@@ -1,4 +1,5 @@
 #include "toridraw_model_transform.h"
+#include "toridraw_alloc.h"
 
 #include "toridraw_model.h"
 
@@ -58,7 +59,7 @@ ToriDraw_BonesMerge(
     if( max_bones <= 0 )
         return NULL;
 
-    int* group_sizes = calloc((size_t)max_bones, sizeof(int));
+    int* group_sizes = TORIDRAW_CALLOC((size_t)max_bones, sizeof(int));
     assert(group_sizes);
 
     for( int i = 0; i < model_count; i++ )
@@ -75,12 +76,12 @@ ToriDraw_BonesMerge(
             group_sizes[g] += (int)bones->bones_sizes[g];
     }
 
-    struct ToriDraw_Bones* out = calloc(1, sizeof(struct ToriDraw_Bones));
+    struct ToriDraw_Bones* out = TORIDRAW_CALLOC(1, sizeof(struct ToriDraw_Bones));
     assert(out);
 
     out->bones_count = max_bones;
-    out->bones = calloc((size_t)max_bones, sizeof(boneint_t*));
-    out->bones_sizes = malloc((size_t)max_bones * sizeof(boneint_t));
+    out->bones = TORIDRAW_CALLOC((size_t)max_bones, sizeof(boneint_t*));
+    out->bones_sizes = TORIDRAW_MALLOC((size_t)max_bones * sizeof(boneint_t));
     assert(out->bones);
     assert(out->bones_sizes);
 
@@ -93,7 +94,7 @@ ToriDraw_BonesMerge(
         if( group_size <= 0 )
             continue;
 
-        out->bones[g] = malloc((size_t)group_size * sizeof(boneint_t));
+        out->bones[g] = TORIDRAW_MALLOC((size_t)group_size * sizeof(boneint_t));
         assert(out->bones[g]);
 
         int write_pos = 0;
@@ -119,7 +120,7 @@ ToriDraw_BonesMerge(
         }
     }
 
-    free(group_sizes);
+    TORIDRAW_FREE(group_sizes);
     return out;
 }
 
@@ -189,7 +190,7 @@ ToriDraw_ModelSteal(struct ToriDraw_Model* src)
 {
     assert(src);
 
-    struct ToriDraw_Model* dst = calloc(1, sizeof(struct ToriDraw_Model));
+    struct ToriDraw_Model* dst = TORIDRAW_CALLOC(1, sizeof(struct ToriDraw_Model));
     assert(dst);
 
     ToriDraw_ModelMoveArrays(dst, src);
@@ -295,7 +296,7 @@ ToriDraw_ModelCopy(const struct ToriDraw_Model* src)
 {
     assert(src);
 
-    struct ToriDraw_Model* dst = calloc(1, sizeof(struct ToriDraw_Model));
+    struct ToriDraw_Model* dst = TORIDRAW_CALLOC(1, sizeof(struct ToriDraw_Model));
     assert(dst && "ToriDraw_ModelCopy: failed to allocate destination model");
 
     dst->flags = src->flags;
@@ -317,9 +318,9 @@ ToriDraw_ModelCopy(const struct ToriDraw_Model* src)
 
     if( src->vertex_count > 0 )
     {
-        dst->vertices_x = (vertexint_t*)malloc((size_t)src->vertex_count * sizeof(vertexint_t));
-        dst->vertices_y = (vertexint_t*)malloc((size_t)src->vertex_count * sizeof(vertexint_t));
-        dst->vertices_z = (vertexint_t*)malloc((size_t)src->vertex_count * sizeof(vertexint_t));
+        dst->vertices_x = (vertexint_t*)TORIDRAW_MALLOC((size_t)src->vertex_count * sizeof(vertexint_t));
+        dst->vertices_y = (vertexint_t*)TORIDRAW_MALLOC((size_t)src->vertex_count * sizeof(vertexint_t));
+        dst->vertices_z = (vertexint_t*)TORIDRAW_MALLOC((size_t)src->vertex_count * sizeof(vertexint_t));
         memcpy(dst->vertices_x, src->vertices_x, (size_t)src->vertex_count * sizeof(vertexint_t));
         memcpy(dst->vertices_y, src->vertices_y, (size_t)src->vertex_count * sizeof(vertexint_t));
         memcpy(dst->vertices_z, src->vertices_z, (size_t)src->vertex_count * sizeof(vertexint_t));
@@ -348,9 +349,9 @@ ToriDraw_ModelCopy(const struct ToriDraw_Model* src)
         if( src->original_vertices_x && src->original_vertices_y && src->original_vertices_z )
         {
             size_t const nbytes = (size_t)src->vertex_count * sizeof(vertexint_t);
-            dst->original_vertices_x = (vertexint_t*)malloc(nbytes);
-            dst->original_vertices_y = (vertexint_t*)malloc(nbytes);
-            dst->original_vertices_z = (vertexint_t*)malloc(nbytes);
+            dst->original_vertices_x = (vertexint_t*)TORIDRAW_MALLOC(nbytes);
+            dst->original_vertices_y = (vertexint_t*)TORIDRAW_MALLOC(nbytes);
+            dst->original_vertices_z = (vertexint_t*)TORIDRAW_MALLOC(nbytes);
             /* All three or none: the reset gates on x alone and would memcpy
              * from a NULL y/z. */
             assert(dst->original_vertices_x);
@@ -365,7 +366,7 @@ ToriDraw_ModelCopy(const struct ToriDraw_Model* src)
 #define COPY_ARRAY(DST, SRC, COUNT, TYPE)                                                          \
     if( (SRC) && (COUNT) > 0 )                                                                     \
     {                                                                                              \
-        (DST) = (TYPE*)malloc((size_t)(COUNT) * sizeof(TYPE));                                     \
+        (DST) = (TYPE*)TORIDRAW_MALLOC((size_t)(COUNT) * sizeof(TYPE));                                     \
         memcpy((DST), (SRC), (size_t)(COUNT) * sizeof(TYPE));                                      \
     }
 
@@ -407,14 +408,14 @@ ToriDraw_ModelCopy(const struct ToriDraw_Model* src)
 
     if( src->face_infos && src->face_count > 0 )
     {
-        dst->face_infos = (int*)malloc((size_t)src->face_count * sizeof(int));
+        dst->face_infos = (int*)TORIDRAW_MALLOC((size_t)src->face_count * sizeof(int));
         memcpy(dst->face_infos, src->face_infos, (size_t)src->face_count * sizeof(int));
     }
 
     if( src->face_priorities && src->face_count > 0 )
     {
         size_t nbytes = ToriDraw_FacePrioritiesByteCount(src->face_count);
-        dst->face_priorities = (uint8_t*)malloc(nbytes);
+        dst->face_priorities = (uint8_t*)TORIDRAW_MALLOC(nbytes);
         memcpy(dst->face_priorities, src->face_priorities, nbytes);
     }
 
@@ -432,9 +433,9 @@ ToriDraw_ModelCopy(const struct ToriDraw_Model* src)
     {
         int vc = src->animaya_vertex_count;
         dst->animaya_vertex_count = vc;
-        dst->animaya_group_counts = (uint8_t*)malloc((size_t)vc);
-        dst->animaya_groups = (uint8_t**)calloc((size_t)vc, sizeof(uint8_t*));
-        dst->animaya_scales = (uint8_t**)calloc((size_t)vc, sizeof(uint8_t*));
+        dst->animaya_group_counts = (uint8_t*)TORIDRAW_MALLOC((size_t)vc);
+        dst->animaya_groups = (uint8_t**)TORIDRAW_CALLOC((size_t)vc, sizeof(uint8_t*));
+        dst->animaya_scales = (uint8_t**)TORIDRAW_CALLOC((size_t)vc, sizeof(uint8_t*));
         assert(dst->animaya_group_counts);
         assert(dst->animaya_groups);
         assert(dst->animaya_scales);
@@ -446,8 +447,8 @@ ToriDraw_ModelCopy(const struct ToriDraw_Model* src)
             if( cnt <= 0 )
                 continue;
 
-            dst->animaya_groups[i] = (uint8_t*)malloc((size_t)cnt);
-            dst->animaya_scales[i] = (uint8_t*)malloc((size_t)cnt);
+            dst->animaya_groups[i] = (uint8_t*)TORIDRAW_MALLOC((size_t)cnt);
+            dst->animaya_scales[i] = (uint8_t*)TORIDRAW_MALLOC((size_t)cnt);
             assert(dst->animaya_groups[i]);
             assert(dst->animaya_scales[i]);
 
@@ -529,7 +530,7 @@ ToriDraw_ModelNewMerge(
             has_animaya = true;
     }
 
-    struct ToriDraw_Model* out = calloc(1, sizeof(struct ToriDraw_Model));
+    struct ToriDraw_Model* out = TORIDRAW_CALLOC(1, sizeof(struct ToriDraw_Model));
     assert(out);
 
     out->vertex_count = total_vertices;
@@ -545,17 +546,17 @@ ToriDraw_ModelNewMerge(
 
     if( total_vertices > 0 )
     {
-        out->vertices_x = (vertexint_t*)malloc((size_t)total_vertices * sizeof(vertexint_t));
-        out->vertices_y = (vertexint_t*)malloc((size_t)total_vertices * sizeof(vertexint_t));
-        out->vertices_z = (vertexint_t*)malloc((size_t)total_vertices * sizeof(vertexint_t));
+        out->vertices_x = (vertexint_t*)TORIDRAW_MALLOC((size_t)total_vertices * sizeof(vertexint_t));
+        out->vertices_y = (vertexint_t*)TORIDRAW_MALLOC((size_t)total_vertices * sizeof(vertexint_t));
+        out->vertices_z = (vertexint_t*)TORIDRAW_MALLOC((size_t)total_vertices * sizeof(vertexint_t));
     }
 
     if( total_vertices > 0 && has_animaya )
     {
         out->animaya_vertex_count = total_vertices;
-        out->animaya_group_counts = (uint8_t*)calloc((size_t)total_vertices, sizeof(uint8_t));
-        out->animaya_groups = (uint8_t**)calloc((size_t)total_vertices, sizeof(uint8_t*));
-        out->animaya_scales = (uint8_t**)calloc((size_t)total_vertices, sizeof(uint8_t*));
+        out->animaya_group_counts = (uint8_t*)TORIDRAW_CALLOC((size_t)total_vertices, sizeof(uint8_t));
+        out->animaya_groups = (uint8_t**)TORIDRAW_CALLOC((size_t)total_vertices, sizeof(uint8_t*));
+        out->animaya_scales = (uint8_t**)TORIDRAW_CALLOC((size_t)total_vertices, sizeof(uint8_t*));
         assert(out->animaya_group_counts);
         assert(out->animaya_groups);
         assert(out->animaya_scales);
@@ -563,19 +564,19 @@ ToriDraw_ModelNewMerge(
 
     if( total_faces > 0 )
     {
-        out->face_indices_a = (faceint_t*)malloc((size_t)total_faces * sizeof(faceint_t));
-        out->face_indices_b = (faceint_t*)malloc((size_t)total_faces * sizeof(faceint_t));
-        out->face_indices_c = (faceint_t*)malloc((size_t)total_faces * sizeof(faceint_t));
+        out->face_indices_a = (faceint_t*)TORIDRAW_MALLOC((size_t)total_faces * sizeof(faceint_t));
+        out->face_indices_b = (faceint_t*)TORIDRAW_MALLOC((size_t)total_faces * sizeof(faceint_t));
+        out->face_indices_c = (faceint_t*)TORIDRAW_MALLOC((size_t)total_faces * sizeof(faceint_t));
         if( has_face_colors )
         {
-            out->face_colors_a = (hsl16_t*)calloc((size_t)total_faces, sizeof(hsl16_t));
-            out->face_colors_b = (hsl16_t*)calloc((size_t)total_faces, sizeof(hsl16_t));
-            out->face_colors_c = (hsl16_t*)calloc((size_t)total_faces, sizeof(hsl16_t));
-            out->face_colors = (hsl16_t*)calloc((size_t)total_faces, sizeof(hsl16_t));
+            out->face_colors_a = (hsl16_t*)TORIDRAW_CALLOC((size_t)total_faces, sizeof(hsl16_t));
+            out->face_colors_b = (hsl16_t*)TORIDRAW_CALLOC((size_t)total_faces, sizeof(hsl16_t));
+            out->face_colors_c = (hsl16_t*)TORIDRAW_CALLOC((size_t)total_faces, sizeof(hsl16_t));
+            out->face_colors = (hsl16_t*)TORIDRAW_CALLOC((size_t)total_faces, sizeof(hsl16_t));
         }
         if( has_face_textures )
         {
-            out->face_textures = (faceint_t*)malloc((size_t)total_faces * sizeof(faceint_t));
+            out->face_textures = (faceint_t*)TORIDRAW_MALLOC((size_t)total_faces * sizeof(faceint_t));
             assert(out->face_textures);
             for( int fi = 0; fi < total_faces; fi++ )
                 out->face_textures[fi] = (faceint_t)-1;
@@ -583,15 +584,15 @@ ToriDraw_ModelNewMerge(
         if( has_face_alphas )
             /* Zeroed: faces from alpha-less inputs must stay opaque (raster
              * inverts stored alpha, 0 -> 0xFF). */
-            out->face_alphas = (alphaint_t*)calloc((size_t)total_faces, sizeof(alphaint_t));
+            out->face_alphas = (alphaint_t*)TORIDRAW_CALLOC((size_t)total_faces, sizeof(alphaint_t));
         if( has_face_infos )
-            out->face_infos = (int*)calloc((size_t)total_faces, sizeof(int));
+            out->face_infos = (int*)TORIDRAW_CALLOC((size_t)total_faces, sizeof(int));
         if( has_face_priorities )
             out->face_priorities =
-                (uint8_t*)calloc(ToriDraw_FacePrioritiesByteCount(total_faces), 1);
+                (uint8_t*)TORIDRAW_CALLOC(ToriDraw_FacePrioritiesByteCount(total_faces), 1);
         if( has_tex_coords )
         {
-            out->face_texture_coords = (faceint_t*)malloc((size_t)total_faces * sizeof(faceint_t));
+            out->face_texture_coords = (faceint_t*)TORIDRAW_MALLOC((size_t)total_faces * sizeof(faceint_t));
             assert(out->face_texture_coords);
             /* Faces from coord-less inputs must read untextured. */
             for( int fi = 0; fi < total_faces; fi++ )
@@ -602,22 +603,22 @@ ToriDraw_ModelNewMerge(
     if( total_textured_faces > 0 && has_textured_coords )
     {
         out->textured_p_coordinate =
-            (faceint_t*)malloc((size_t)total_textured_faces * sizeof(faceint_t));
+            (faceint_t*)TORIDRAW_MALLOC((size_t)total_textured_faces * sizeof(faceint_t));
         out->textured_m_coordinate =
-            (faceint_t*)malloc((size_t)total_textured_faces * sizeof(faceint_t));
+            (faceint_t*)TORIDRAW_MALLOC((size_t)total_textured_faces * sizeof(faceint_t));
         out->textured_n_coordinate =
-            (faceint_t*)malloc((size_t)total_textured_faces * sizeof(faceint_t));
+            (faceint_t*)TORIDRAW_MALLOC((size_t)total_textured_faces * sizeof(faceint_t));
     }
     if( total_textured_faces > 0 && has_texture_render_types )
         out->texture_render_types =
-            (uint8_t*)calloc((size_t)total_textured_faces, sizeof(uint8_t));
+            (uint8_t*)TORIDRAW_CALLOC((size_t)total_textured_faces, sizeof(uint8_t));
 
     int vtx_off = 0;
     int face_off = 0;
     int tex_face_off = 0;
 
-    int* vertex_offsets = calloc((size_t)model_count, sizeof(int));
-    int* face_offsets = calloc((size_t)model_count, sizeof(int));
+    int* vertex_offsets = TORIDRAW_CALLOC((size_t)model_count, sizeof(int));
+    int* face_offsets = TORIDRAW_CALLOC((size_t)model_count, sizeof(int));
     assert(vertex_offsets);
     assert(face_offsets);
 
@@ -643,8 +644,8 @@ ToriDraw_ModelNewMerge(
                 out->animaya_group_counts[dst_v] = (uint8_t)cnt;
                 if( cnt > 0 && m->animaya_groups && m->animaya_scales )
                 {
-                    out->animaya_groups[dst_v] = (uint8_t*)malloc((size_t)cnt);
-                    out->animaya_scales[dst_v] = (uint8_t*)malloc((size_t)cnt);
+                    out->animaya_groups[dst_v] = (uint8_t*)TORIDRAW_MALLOC((size_t)cnt);
+                    out->animaya_scales[dst_v] = (uint8_t*)TORIDRAW_MALLOC((size_t)cnt);
                     assert(out->animaya_groups[dst_v]);
                     assert(out->animaya_scales[dst_v]);
                     if( m->animaya_groups[v] )
@@ -722,8 +723,8 @@ ToriDraw_ModelNewMerge(
     out->vertex_bones = ToriDraw_BonesMerge(models, vertex_offsets, model_count, true);
     out->face_bones = ToriDraw_BonesMerge(models, face_offsets, model_count, false);
 
-    free(vertex_offsets);
-    free(face_offsets);
+    TORIDRAW_FREE(vertex_offsets);
+    TORIDRAW_FREE(face_offsets);
 
     ToriDraw_ModelAssertPnmTextureInvariant(out);
     return out;

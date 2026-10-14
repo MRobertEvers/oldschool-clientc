@@ -1,6 +1,8 @@
 #ifndef WORLD_SHARELIGHT_U_C
 #define WORLD_SHARELIGHT_U_C
 
+#include "mem/torirs_mem.h"
+#include "mem/torimem_toridraw.h"
 #include "heightmap.h"
 #include "sharelight_map.h"
 #include "toridraw_light_model.h"
@@ -160,7 +162,8 @@ ToriDraw_ModelFaceInfosEnsureZero(struct ToriDraw_Model* model)
     assert(model);
     if( !model->face_infos && model->face_count > 0 )
     {
-        model->face_infos = calloc((size_t)model->face_count, sizeof(int));
+        /* lib:toridraw: the scene model's own array; ToriDraw_ModelFree frees it. */
+        model->face_infos = TORIDRAW_CALLOC((size_t)model->face_count, sizeof(int));
         assert(model->face_infos);
     }
     return model->face_infos;

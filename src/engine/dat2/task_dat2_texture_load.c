@@ -1,3 +1,4 @@
+#include "mem/torirs_mem.h"
 #include "engine/dat2/dat2_tasks.h"
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
@@ -307,13 +308,13 @@ proctex_bake(
         return NULL;
     }
 
-    pixels = calloc((size_t)size * (size_t)size, sizeof(*pixels));
+    pixels = ToriMem_Calloc(ToriMem_Assets(), (size_t)size * (size_t)size, sizeof(*pixels));
     assert(pixels);
 
     gen = ProcTexGenerator_New(proctex_resolve_sprite, proctex_resolve_texture, bc);
     if( !gen )
     {
-        free(pixels);
+        ToriMem_Free(ToriMem_Assets(), pixels);
         return NULL;
     }
 
@@ -326,12 +327,12 @@ proctex_bake(
             TORIRS_ERR("proctex %d: render failed (unsupported=%d)\n",
                     texture_id, unsupported);
         ProcTexGenerator_Free(gen);
-        free(pixels);
+        ToriMem_Free(ToriMem_Assets(), pixels);
         return NULL;
     }
     ProcTexGenerator_Free(gen);
 
-    texture = calloc(1, sizeof(*texture));
+    texture = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*texture));
     assert(texture);
     texture->texels = pixels;
     texture->width = size;
@@ -406,7 +407,7 @@ texture_bake(
     assert(layer_count > 0);
     assert(dest_size == 64 || dest_size == 128);
 
-    pixels = calloc((size_t)dest_size * (size_t)dest_size, sizeof(*pixels));
+    pixels = ToriMem_Calloc(ToriMem_Assets(), (size_t)dest_size * (size_t)dest_size, sizeof(*pixels));
     assert(pixels);
 
     opaque = true;
@@ -497,7 +498,7 @@ texture_bake(
         free(adjusted_palette);
     }
 
-    texture = calloc(1, sizeof(*texture));
+    texture = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*texture));
     assert(texture);
 
     texture->texels = pixels;

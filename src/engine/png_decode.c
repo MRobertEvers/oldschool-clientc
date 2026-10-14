@@ -1,3 +1,4 @@
+#include "mem/torirs_mem.h"
 #include "engine/png_decode.h"
 #include <assert.h>
 
@@ -92,6 +93,7 @@ png_unfilter(
  * second thing to get the Paeth predictor wrong in. */
 static bool
 png_decode(
+    struct ToriMem_Group* out_group,
     const void* data,
     int data_size,
     int* out_width,
@@ -141,7 +143,7 @@ png_decode(
         }
         else if( memcmp(type, "IDAT", 4) == 0 )
         {
-            uint8_t* grown = (uint8_t*)realloc(idat, idat_size + length);
+            uint8_t* grown = (uint8_t*)ToriMem_Realloc(ToriMem_Frame(), idat, idat_size + length);
             assert(grown);
             idat = grown;
             memcpy(idat + idat_size, payload, length);
@@ -160,7 +162,7 @@ png_decode(
 
     {
         mz_ulong raw_size = (mz_ulong)((size_t)height * ((size_t)width * bytes_per_pixel + 1));
-        raw = (uint8_t*)malloc(raw_size);
+        raw = (uint8_t*)ToriMem_Alloc(ToriMem_Frame(), raw_size);
         assert(raw);
         if( mz_uncompress(raw, &raw_size, idat, (mz_ulong)idat_size) != MZ_OK )
             goto done;
@@ -171,7 +173,7 @@ png_decode(
     if( !png_unfilter(raw, width, height, bytes_per_pixel) )
         goto done;
 
-    pixels = (uint32_t*)malloc((size_t)width * height * sizeof(*pixels));
+    pixels = (uint32_t*)ToriMem_Alloc(out_group, (size_t)width * height * sizeof(*pixels));
     assert(pixels);
 
     for( int row = 0; row < height; row++ )
@@ -195,30 +197,32 @@ png_decode(
     ok = true;
 
 done:
-    free(pixels);
-    free(raw);
-    free(idat);
+    ToriMem_Free(out_group, pixels);
+    ToriMem_Free(ToriMem_Frame(), raw);
+    ToriMem_Free(ToriMem_Frame(), idat);
     return ok;
 }
 
 bool
 PngDecode_Rgb(
+    struct ToriMem_Group* out_group,
     const void* data,
     int data_size,
     int* out_width,
     int* out_height,
     uint32_t** out_pixels)
 {
-    return png_decode(data, data_size, out_width, out_height, out_pixels, false);
+    return png_decode(out_group, data, data_size, out_width, out_height, out_pixels, false);
 }
 
 bool
 PngDecode_Argb(
+    struct ToriMem_Group* out_group,
     const void* data,
     int data_size,
     int* out_width,
     int* out_height,
     uint32_t** out_pixels)
 {
-    return png_decode(data, data_size, out_width, out_height, out_pixels, true);
+    return png_decode(out_group, data, data_size, out_width, out_height, out_pixels, true);
 }

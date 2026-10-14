@@ -23,6 +23,7 @@
  */
 
 #include "toridraw_render_hd.h"
+#include "toridraw_alloc.h"
 
 #include "graphics/raster/texture/texmap_common.h"
 #include "graphics/winding.h"
@@ -1549,8 +1550,8 @@ ToriDraw_ModelBuildTextureMappings(
      */
     int vc = hd->base.vertex_count;
     int fc = hd->base.face_count;
-    int* vx = (int*)malloc((size_t)(vc > 0 ? vc : 1) * sizeof(int) * 3);
-    int* fi = (int*)malloc((size_t)(fc > 0 ? fc : 1) * sizeof(int) * 3);
+    int* vx = (int*)TORIDRAW_MALLOC((size_t)(vc > 0 ? vc : 1) * sizeof(int) * 3);
+    int* fi = (int*)TORIDRAW_MALLOC((size_t)(fc > 0 ? fc : 1) * sizeof(int) * 3);
     assert(vx);
     assert(fi);
     int* vy = vx + vc;
@@ -1600,28 +1601,28 @@ ToriDraw_ModelBuildTextureMappings(
     src.trans_v = trans_v;
 
     struct ToriDraw_TextureUvBasis* bases =
-        (struct ToriDraw_TextureUvBasis*)calloc((size_t)count, sizeof(*bases));
+        (struct ToriDraw_TextureUvBasis*)TORIDRAW_CALLOC((size_t)count, sizeof(*bases));
     if( !bases )
     {
-        free(vx);
-        free(fi);
+        TORIDRAW_FREE(vx);
+        TORIDRAW_FREE(fi);
         return false;
     }
     if( !ToriDraw_ComputeTextureUvBases(&src, bases) )
     {
-        free(bases);
-        free(vx);
-        free(fi);
+        TORIDRAW_FREE(bases);
+        TORIDRAW_FREE(vx);
+        TORIDRAW_FREE(fi);
         return false;
     }
 
     struct ToriDraw_TexMapping* out =
-        (struct ToriDraw_TexMapping*)calloc((size_t)count, sizeof(*out));
+        (struct ToriDraw_TexMapping*)TORIDRAW_CALLOC((size_t)count, sizeof(*out));
     if( !out )
     {
-        free(bases);
-        free(vx);
-        free(fi);
+        TORIDRAW_FREE(bases);
+        TORIDRAW_FREE(vx);
+        TORIDRAW_FREE(fi);
         return false;
     }
 
@@ -1673,10 +1674,10 @@ ToriDraw_ModelBuildTextureMappings(
         }
     }
 
-    free(bases);
-    free(vx);
-    free(fi);
-    free(hd->texture_mappings);
+    TORIDRAW_FREE(bases);
+    TORIDRAW_FREE(vx);
+    TORIDRAW_FREE(fi);
+    TORIDRAW_FREE(hd->texture_mappings);
     hd->texture_mappings = out;
     return true;
 }

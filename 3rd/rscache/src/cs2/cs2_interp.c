@@ -1,4 +1,5 @@
 #include "cs2_interp.h"
+#include "../rscache_alloc.h"
 
 #include <assert.h>
 #include <stdarg.h>
@@ -1855,13 +1856,13 @@ cs2_translate(struct cs2_interp* interp)
             return NULL;
         }
         const struct RSCache_CS2_ScriptSwitch* sw = &interp->script->switch_tables[table];
-        int* keys = (int*)malloc((size_t)(sw->case_count > 0 ? sw->case_count : 1) * sizeof(int));
+        int* keys = (int*)RSCACHE_MALLOC((size_t)(sw->case_count > 0 ? sw->case_count : 1) * sizeof(int));
         int* targets =
-            (int*)malloc((size_t)(sw->case_count > 0 ? sw->case_count : 1) * sizeof(int));
+            (int*)RSCACHE_MALLOC((size_t)(sw->case_count > 0 ? sw->case_count : 1) * sizeof(int));
         if( !keys || !targets )
         {
-            free(keys);
-            free(targets);
+            RSCACHE_FREE(keys);
+            RSCACHE_FREE(targets);
             cs2_fail(interp, "script %d pc %d: out of memory reading a switch table",
                      interp->script_id, interp->pc);
             return NULL;
@@ -1874,8 +1875,8 @@ cs2_translate(struct cs2_interp* interp)
         }
         struct RSCache_CS2_Insn* insn =
             RSCache_CS2_InsnSwitch(arena, expression, keys, targets, sw->case_count);
-        free(keys);
-        free(targets);
+        RSCACHE_FREE(keys);
+        RSCACHE_FREE(targets);
         return insn;
     }
 
@@ -2272,7 +2273,7 @@ cs2_add_labels(
 {
     struct RSCache_CS2_Arena* arena = cs2_arena(interp);
 
-    bool* is_target = (bool*)calloc((size_t)count + 1, sizeof(bool));
+    bool* is_target = (bool*)RSCACHE_CALLOC((size_t)count + 1, sizeof(bool));
     if( !is_target )
         return false;
 
@@ -2290,7 +2291,7 @@ cs2_add_labels(
                     "script %d: branch target %d is outside the script",
                     interp->script_id,
                     insn->target_id);
-                free(is_target);
+                RSCACHE_FREE(is_target);
                 return false;
             }
             is_target[insn->target_id] = true;
@@ -2306,7 +2307,7 @@ cs2_add_labels(
                         "script %d: switch target %d is outside the script",
                         interp->script_id,
                         target);
-                    free(is_target);
+                    RSCACHE_FREE(is_target);
                     return false;
                 }
                 is_target[target] = true;
@@ -2317,11 +2318,11 @@ cs2_add_labels(
         }
     }
 
-    struct RSCache_CS2_Insn** labels = (struct RSCache_CS2_Insn**)calloc(
+    struct RSCache_CS2_Insn** labels = (struct RSCache_CS2_Insn**)RSCACHE_CALLOC(
         (size_t)count + 1, sizeof(struct RSCache_CS2_Insn*));
     if( !labels )
     {
-        free(is_target);
+        RSCACHE_FREE(is_target);
         return false;
     }
 
@@ -2357,8 +2358,8 @@ cs2_add_labels(
         }
     }
 
-    free(is_target);
-    free(labels);
+    RSCACHE_FREE(is_target);
+    RSCACHE_FREE(labels);
     return true;
 }
 
@@ -2392,7 +2393,7 @@ cs2_interpret_one(struct cs2_interp* interp, int script_id)
     interp->return_type_count = RSCache_CS2_ScriptReturnTypes(
         script, interp->return_types, CS2_INTERP_MAX_STACK_TYPES);
 
-    struct RSCache_CS2_Insn** instructions = (struct RSCache_CS2_Insn**)calloc(
+    struct RSCache_CS2_Insn** instructions = (struct RSCache_CS2_Insn**)RSCACHE_CALLOC(
         (size_t)(script->op_count > 0 ? script->op_count : 1),
         sizeof(struct RSCache_CS2_Insn*));
     if( !instructions )
@@ -2404,7 +2405,7 @@ cs2_interpret_one(struct cs2_interp* interp, int script_id)
         struct RSCache_CS2_Insn* insn = cs2_translate(interp);
         if( !insn || interp->failed )
         {
-            free(instructions);
+            RSCACHE_FREE(instructions);
             return false;
         }
         instructions[interp->pc] = insn;
@@ -2420,7 +2421,7 @@ cs2_interpret_one(struct cs2_interp* interp, int script_id)
                 interp->pc,
                 opcode,
                 interp->stack.count);
-            free(instructions);
+            RSCACHE_FREE(instructions);
             return false;
         }
     }
@@ -2540,7 +2541,7 @@ cs2_interpret_one(struct cs2_interp* interp, int script_id)
             RSCache_CS2_VarIntern(interp->fs, RSCACHE_CS2_VAR_STRING, script_id, i));
 
     bool ok = cs2_add_labels(interp, instructions, script->op_count, &function->instructions);
-    free(instructions);
+    RSCACHE_FREE(instructions);
     if( !ok )
         return false;
 

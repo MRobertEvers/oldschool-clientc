@@ -1,4 +1,5 @@
 #include "sound_render.h"
+#include "../rscache_alloc.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -575,13 +576,13 @@ RSCache_SoundEffectRender(
             max_tone_samples = need;
     }
 
-    pcm = malloc((size_t)allocated_count);
+    pcm = RSCACHE_MALLOC((size_t)allocated_count);
     tone_samples =
-        max_tone_samples > 0 ? malloc((size_t)max_tone_samples * sizeof(int32_t)) : NULL;
+        max_tone_samples > 0 ? RSCACHE_MALLOC((size_t)max_tone_samples * sizeof(int32_t)) : NULL;
     if( !pcm || (max_tone_samples > 0 && !tone_samples) )
     {
-        free(pcm);
-        free(tone_samples);
+        RSCACHE_FREE(pcm);
+        RSCACHE_FREE(tone_samples);
         return false;
     }
 
@@ -635,7 +636,7 @@ RSCache_SoundEffectRender(
         for( int sample = 0; sample < allocated_count; sample++ )
             pcm[sample] = (uint8_t)(pcm[sample] ^ 0x80); /* signed -> unsigned bias */
 
-    free(tone_samples);
+    RSCACHE_FREE(tone_samples);
 
     out->samples = pcm;
     out->sample_count = reported_count;
@@ -679,7 +680,7 @@ RSCache_SoundPcmExpandLoops(
     if( loop_count == 1 )
         return true;
     total = pcm->sample_count + span * (loop_count - 1);
-    grown = realloc(pcm->samples, (size_t)total);
+    grown = RSCACHE_REALLOC(pcm->samples, (size_t)total);
     if( !grown )
         return false;
     pcm->samples = grown;
@@ -766,7 +767,7 @@ RSCache_SoundPcmRelease(struct RSCache_SoundPcm* pcm)
 {
     if( !pcm )
         return;
-    free(pcm->samples);
+    RSCACHE_FREE(pcm->samples);
     pcm->samples = NULL;
     pcm->sample_count = 0;
 }

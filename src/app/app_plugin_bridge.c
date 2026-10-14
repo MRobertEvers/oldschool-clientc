@@ -15,4 +15,5 @@
 #include "perf_audit.h"
 #include "plugin/porcelain/torirs_porcelain.h"
 
+#include "mem/torirs_mem.h"
 #include "plugin/torirs_plugin_bridge.u.c"

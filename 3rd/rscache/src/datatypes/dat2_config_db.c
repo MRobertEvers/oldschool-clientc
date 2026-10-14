@@ -1,4 +1,5 @@
 #include "dat2_config_db.h"
+#include "../rscache_alloc.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -28,7 +29,7 @@ read_column_fields(
         return NULL;
 
     total = tuple_count * type_count;
-    values = calloc((size_t)total, sizeof(*values));
+    values = RSCACHE_CALLOC((size_t)total, sizeof(*values));
     if( !values )
     {
         *out_tuple_count = 0;
@@ -64,11 +65,11 @@ free_column_inplace(struct RSCache_DbColumn* col)
     {
         int total = col->tuple_count * col->type_count;
         for( int i = 0; i < total; i++ )
-            free(col->values[i].string_value);
-        free(col->values);
+            RSCACHE_FREE(col->values[i].string_value);
+        RSCACHE_FREE(col->values);
         col->values = NULL;
     }
-    free(col->types);
+    RSCACHE_FREE(col->types);
     col->types = NULL;
     col->type_count = 0;
     col->tuple_count = 0;
@@ -93,7 +94,7 @@ decode_columns(
      * lists is out of range and lands in the scratch. */
     if( alloc > 0 )
     {
-        cols = calloc((size_t)alloc, sizeof(*cols));
+        cols = RSCACHE_CALLOC((size_t)alloc, sizeof(*cols));
         assert(cols);
     }
 
@@ -116,7 +117,7 @@ decode_columns(
         }
 
         type_count = RSCache_BufferG1(buf);
-        types = type_count > 0 ? malloc((size_t)type_count * sizeof(int)) : NULL;
+        types = type_count > 0 ? RSCACHE_MALLOC((size_t)type_count * sizeof(int)) : NULL;
         for( int i = 0; i < type_count; i++ )
             types[i] = RSCache_BufferReadUnsignedShortSmart(buf);
 
@@ -185,7 +186,7 @@ RSCache_Dat2ConfigDbRowFreeInplace(struct RSCache_Dat2ConfigDbRow* entry)
     {
         for( int i = 0; i < entry->column_count; i++ )
             free_column_inplace(&entry->columns[i]);
-        free(entry->columns);
+        RSCACHE_FREE(entry->columns);
         entry->columns = NULL;
     }
     entry->column_count = 0;
@@ -231,7 +232,7 @@ RSCache_Dat2ConfigDbTableFreeInplace(struct RSCache_Dat2ConfigDbTable* entry)
     {
         for( int i = 0; i < entry->column_count; i++ )
             free_column_inplace(&entry->columns[i]);
-        free(entry->columns);
+        RSCACHE_FREE(entry->columns);
         entry->columns = NULL;
     }
     entry->column_count = 0;
@@ -262,7 +263,7 @@ RSCache_Dat2DbIndexFileDecodeInplace(
         entry->tuple_size = 0;
         return;
     }
-    entry->tuples = calloc((size_t)entry->tuple_size, sizeof(*entry->tuples));
+    entry->tuples = RSCACHE_CALLOC((size_t)entry->tuple_size, sizeof(*entry->tuples));
     if( !entry->tuples )
     {
         entry->tuple_size = 0;
@@ -279,7 +280,7 @@ RSCache_Dat2DbIndexFileDecodeInplace(
             tuple->entry_count = 0;
             continue;
         }
-        tuple->entries = calloc((size_t)tuple->entry_count, sizeof(*tuple->entries));
+        tuple->entries = RSCACHE_CALLOC((size_t)tuple->entry_count, sizeof(*tuple->entries));
         if( !tuple->entries )
         {
             tuple->entry_count = 0;
@@ -303,7 +304,7 @@ RSCache_Dat2DbIndexFileDecodeInplace(
             ent->row_count = RSCache_BufferReadVarInt2(&buf);
             if( ent->row_count > 0 )
             {
-                ent->row_ids = malloc((size_t)ent->row_count * sizeof(int));
+                ent->row_ids = RSCACHE_MALLOC((size_t)ent->row_count * sizeof(int));
                 for( int r = 0; r < ent->row_count; r++ )
                     ent->row_ids[r] = RSCache_BufferReadVarInt2(&buf);
             }
@@ -321,12 +322,12 @@ RSCache_Dat2DbIndexFileFreeInplace(struct RSCache_DbIndexFile* entry)
         struct RSCache_DbIndexTuple* tuple = &entry->tuples[tp];
         for( int e = 0; e < tuple->entry_count; e++ )
         {
-            free(tuple->entries[e].string_value);
-            free(tuple->entries[e].row_ids);
+            RSCACHE_FREE(tuple->entries[e].string_value);
+            RSCACHE_FREE(tuple->entries[e].row_ids);
         }
-        free(tuple->entries);
+        RSCACHE_FREE(tuple->entries);
     }
-    free(entry->tuples);
+    RSCACHE_FREE(entry->tuples);
     entry->tuples = NULL;
     entry->tuple_size = 0;
 }

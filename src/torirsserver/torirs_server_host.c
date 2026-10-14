@@ -3,6 +3,7 @@
  * See torirs_server_host.h for why the socket server stopped serving one
  * connection at a time.
  */
+#include "mem/torirs_mem.h"
 #include "torirs_server_host.h"
 #include <assert.h>
 #include <signal.h>
@@ -677,5 +678,9 @@ ToriRSServer_HostRun(
             if( now_ms() - host->next_tick > 5 * TORIRSSERVER_TICK_MS )
                 host->next_tick = now_ms() + TORIRSSERVER_TICK_MS;
         }
+
+        /* The standalone server's FRAME reset: one loop iteration is its
+         * frame. (The tick inside it is a checked scope of its own.) */
+        ToriMem_FrameEnd();
     }
 }

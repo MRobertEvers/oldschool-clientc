@@ -1,4 +1,5 @@
 #include "toridraw_vec.h"
+#include "toridraw_alloc.h"
 
 #include <assert.h>
 #include <string.h>
@@ -42,7 +43,7 @@ ToriDraw_VecNew(
     if( element_size == 0 )
         return NULL;
 
-    struct ToriDraw_Vec* v = malloc(sizeof(struct ToriDraw_Vec));
+    struct ToriDraw_Vec* v = TORIDRAW_MALLOC(sizeof(struct ToriDraw_Vec));
     assert(v);
 
     v->element_size = element_size;
@@ -51,7 +52,7 @@ ToriDraw_VecNew(
 
     if( initial_capacity > 0 )
     {
-        v->data = malloc(initial_capacity * element_size);
+        v->data = TORIDRAW_MALLOC(initial_capacity * element_size);
         assert(v->data);
     }
     else
@@ -68,8 +69,8 @@ ToriDraw_VecFree(struct ToriDraw_Vec* v)
     if( !v )
         return;
 
-    free(v->data);
-    free(v);
+    TORIDRAW_FREE(v->data);
+    TORIDRAW_FREE(v);
 }
 
 int
@@ -83,7 +84,7 @@ ToriDraw_VecReserve(
         return TORIDRAW_VEC_OK;
 
     size_t new_bytes = new_capacity * v->element_size;
-    unsigned char* new_data = realloc(v->data, new_bytes);
+    unsigned char* new_data = TORIDRAW_REALLOC(v->data, new_bytes);
     assert(new_data);
 
     v->data = new_data;
@@ -125,14 +126,14 @@ ToriDraw_VecShrinkToFit(struct ToriDraw_Vec* v)
 
     if( v->size == 0 )
     {
-        free(v->data);
+        TORIDRAW_FREE(v->data);
         v->data = NULL;
         v->capacity = 0;
         return TORIDRAW_VEC_OK;
     }
 
     size_t new_bytes = v->size * v->element_size;
-    unsigned char* new_data = realloc(v->data, new_bytes);
+    unsigned char* new_data = TORIDRAW_REALLOC(v->data, new_bytes);
     assert(new_data);
 
     v->data = new_data;
@@ -340,7 +341,7 @@ ToriDraw_VecIterNew(struct ToriDraw_Vec* v)
 {
     assert(v);
 
-    struct ToriDraw_VecIter* it = malloc(sizeof(struct ToriDraw_VecIter));
+    struct ToriDraw_VecIter* it = TORIDRAW_MALLOC(sizeof(struct ToriDraw_VecIter));
     assert(it);
 
     it->vec = v;
@@ -351,7 +352,7 @@ ToriDraw_VecIterNew(struct ToriDraw_Vec* v)
 void
 ToriDraw_VecIterFree(struct ToriDraw_VecIter* it)
 {
-    free(it);
+    TORIDRAW_FREE(it);
 }
 
 void*

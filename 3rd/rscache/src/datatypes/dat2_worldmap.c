@@ -1,4 +1,5 @@
 #include "dat2_worldmap.h"
+#include "../rscache_alloc.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -113,7 +114,7 @@ RSCache_WorldMapAreaDecodeInplace(
     if( section_count <= 0 )
         return true;
 
-    entry->sections = calloc((size_t)section_count, sizeof(*entry->sections));
+    entry->sections = RSCACHE_CALLOC((size_t)section_count, sizeof(*entry->sections));
     if( !entry->sections )
         return false;
 
@@ -202,7 +203,7 @@ RSCache_WorldMapAreaDecodeIconsInplace(
      * count has to wait — read data0 into the array, then grow for data1. */
     if( data0_count > 0 )
     {
-        entry->regions = calloc((size_t)data0_count, sizeof(*entry->regions));
+        entry->regions = RSCACHE_CALLOC((size_t)data0_count, sizeof(*entry->regions));
         if( !entry->regions )
             return;
         for( int i = 0; i < data0_count; i++ )
@@ -214,7 +215,7 @@ RSCache_WorldMapAreaDecodeIconsInplace(
     data1_count = RSCache_BufferG2(&buffer);
     if( data1_count > 0 )
     {
-        struct RSCache_WorldMapRegion* grown = (struct RSCache_WorldMapRegion*)realloc(
+        struct RSCache_WorldMapRegion* grown = (struct RSCache_WorldMapRegion*)RSCACHE_REALLOC(
             entry->regions, (size_t)(data0_count + data1_count) * sizeof(*entry->regions));
         if( !grown )
             return;
@@ -229,7 +230,7 @@ RSCache_WorldMapAreaDecodeIconsInplace(
     if( count <= 0 )
         return;
 
-    entry->icons = calloc((size_t)count, sizeof(*entry->icons));
+    entry->icons = RSCACHE_CALLOC((size_t)count, sizeof(*entry->icons));
     if( !entry->icons )
         return;
 
@@ -247,11 +248,11 @@ RSCache_WorldMapAreaFreeInplace(struct RSCache_WorldMapArea* entry)
 {
     if( !entry )
         return;
-    free(entry->internal_name);
-    free(entry->external_name);
-    free(entry->regions);
-    free(entry->sections);
-    free(entry->icons);
+    RSCACHE_FREE(entry->internal_name);
+    RSCACHE_FREE(entry->external_name);
+    RSCACHE_FREE(entry->regions);
+    RSCACHE_FREE(entry->sections);
+    RSCACHE_FREE(entry->icons);
     memset(entry, 0, sizeof(*entry));
 }
 

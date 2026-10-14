@@ -1,3 +1,4 @@
+#include "mem/torirs_mem.h"
 #include "engine/jpeg_decode.h"
 
 #include <assert.h>
@@ -13,6 +14,7 @@
  * 0xFFRRGGBB words. */
 static bool
 jpeg_decode_rgb_to_argb(
+    struct ToriMem_Group* out_group,
     const unsigned char* data,
     int data_size,
     int* out_width,
@@ -25,6 +27,7 @@ jpeg_decode_rgb_to_argb(
     unsigned char* rgb;
     uint32_t* pixels;
 
+    assert(out_group);
     assert(data);
     assert(out_width);
     assert(out_height);
@@ -40,7 +43,7 @@ jpeg_decode_rgb_to_argb(
         return false;
     }
 
-    pixels = malloc((size_t)width * (size_t)height * sizeof(*pixels));
+    pixels = ToriMem_Alloc(out_group, (size_t)width * (size_t)height * sizeof(*pixels));
     assert(pixels);
 
     for( size_t i = 0, n = (size_t)width * (size_t)height; i < n; i++ )
@@ -59,6 +62,7 @@ jpeg_decode_rgb_to_argb(
 
 bool
 JpegDecode_Argb(
+    struct ToriMem_Group* out_group,
     const void* data,
     int data_size,
     int* out_width,
@@ -73,11 +77,12 @@ JpegDecode_Argb(
         return false;
 
     return jpeg_decode_rgb_to_argb(
-        (const unsigned char*)data, data_size, out_width, out_height, out_pixels);
+        out_group, (const unsigned char*)data, data_size, out_width, out_height, out_pixels);
 }
 
 bool
 JpegDecode_ArgbRsCache(
+    struct ToriMem_Group* out_group,
     const void* data,
     int data_size,
     int* out_width,
@@ -96,7 +101,7 @@ JpegDecode_ArgbRsCache(
 
     /* A copy, so the jagfile member the caller still holds is not rewritten
      * under it -- these bytes are cached and decoded more than once. */
-    patched = malloc((size_t)data_size);
+    patched = ToriMem_Alloc(ToriMem_Frame(), (size_t)data_size);
     assert(patched);
     memcpy(patched, data, (size_t)data_size);
 
@@ -104,7 +109,7 @@ JpegDecode_ArgbRsCache(
      * cache whose title image is well-formed, which lc254's is. */
     patched[0] = 0xFF;
 
-    ok = jpeg_decode_rgb_to_argb(patched, data_size, out_width, out_height, out_pixels);
-    free(patched);
+    ok = jpeg_decode_rgb_to_argb(out_group, patched, data_size, out_width, out_height, out_pixels);
+    ToriMem_Free(ToriMem_Frame(), patched);
     return ok;
 }

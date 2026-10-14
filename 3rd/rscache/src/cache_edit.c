@@ -1,4 +1,5 @@
 #include "cache_edit.h"
+#include "rscache_alloc.h"
 
 #include "archive.h"
 #include "checksum.h"
@@ -65,7 +66,7 @@ dat2_edit_copy_bytes(
     if( size == 0 )
         return NULL;
     assert(data != NULL);
-    uint8_t* copy = malloc(size);
+    uint8_t* copy = RSCACHE_MALLOC(size);
     if( !copy )
         return NULL;
     memcpy(copy, data, size);
@@ -81,7 +82,7 @@ dat2_edit_push_put(
     {
         int new_capacity = edit->put_capacity == 0 ? 8 : edit->put_capacity * 2;
         struct RSCache_Dat2EditPut* grown =
-            realloc(edit->puts, (size_t)new_capacity * sizeof(*grown));
+            RSCACHE_REALLOC(edit->puts, (size_t)new_capacity * sizeof(*grown));
         if( !grown )
             return false;
         edit->puts = grown;
@@ -97,8 +98,8 @@ dat2_edit_free_puts(struct RSCache_Dat2Edit* edit)
     if( !edit || !edit->puts )
         return;
     for( int i = 0; i < edit->put_count; i++ )
-        free(edit->puts[i].data);
-    free(edit->puts);
+        RSCACHE_FREE(edit->puts[i].data);
+    RSCACHE_FREE(edit->puts);
     edit->puts = NULL;
     edit->put_count = 0;
     edit->put_capacity = 0;
@@ -112,8 +113,8 @@ dat2_edit_file_entries_free(
     if( !entries )
         return;
     for( int i = 0; i < count; i++ )
-        free(entries[i].data);
-    free(entries);
+        RSCACHE_FREE(entries[i].data);
+    RSCACHE_FREE(entries);
 }
 
 static void
@@ -121,7 +122,7 @@ dat2_edit_write_info_free(struct RSCache_Dat2EditWriteInfo* info)
 {
     if( !info )
         return;
-    free(info->file_ids);
+    RSCACHE_FREE(info->file_ids);
     info->file_ids = NULL;
     info->file_count = 0;
 }
@@ -173,8 +174,8 @@ dat2_edit_index_free(struct dat2_edit_file_index* index)
 {
     if( !index )
         return;
-    free(index->keys);
-    free(index->vals);
+    RSCACHE_FREE(index->keys);
+    RSCACHE_FREE(index->vals);
     index->keys = NULL;
     index->vals = NULL;
     index->capacity = 0;
@@ -215,12 +216,12 @@ dat2_edit_index_grow(struct dat2_edit_file_index* index, int min_capacity)
 
     grown.capacity = capacity;
     grown.count = 0;
-    grown.keys = malloc((size_t)capacity * sizeof(*grown.keys));
-    grown.vals = malloc((size_t)capacity * sizeof(*grown.vals));
+    grown.keys = RSCACHE_MALLOC((size_t)capacity * sizeof(*grown.keys));
+    grown.vals = RSCACHE_MALLOC((size_t)capacity * sizeof(*grown.vals));
     if( !grown.keys || !grown.vals )
     {
-        free(grown.keys);
-        free(grown.vals);
+        RSCACHE_FREE(grown.keys);
+        RSCACHE_FREE(grown.vals);
         return false;
     }
     for( int i = 0; i < capacity; i++ )
@@ -348,7 +349,7 @@ dat2_edit_encode_and_write(
     assert(out_info != NULL);
 
     uint32_t bound = RSCache_ArchiveEncodeBound(payload_size, RSCACHE_ARCHIVE_COMPRESSION_GZIP);
-    uint8_t* container = malloc(bound ? bound : 1);
+    uint8_t* container = RSCACHE_MALLOC(bound ? bound : 1);
     if( !container )
         return false;
 
@@ -361,14 +362,14 @@ dat2_edit_encode_and_write(
         NULL);
     if( container_size == 0 )
     {
-        free(container);
+        RSCACHE_FREE(container);
         return false;
     }
 
     if( RSCache_Dat2DiskWriteArchive(
             directory, table_id, archive_id, container, (int)container_size) != 0 )
     {
-        free(container);
+        RSCACHE_FREE(container);
         return false;
     }
 
@@ -379,7 +380,7 @@ dat2_edit_encode_and_write(
     out_info->uncompressed = (int)payload_size;
     RSCache_Whirlpool(container, container_size, out_info->whirlpool);
 
-    free(container);
+    RSCACHE_FREE(container);
     return true;
 }
 
@@ -415,7 +416,7 @@ dat2_edit_load_existing_files(
     }
 
     struct RSCache_Dat2EditFileEntry* entries =
-        calloc((size_t)archive->file_count, sizeof(*entries));
+        RSCACHE_CALLOC((size_t)archive->file_count, sizeof(*entries));
     if( !entries )
     {
         RSCache_FileListFree(filelist);
@@ -469,7 +470,7 @@ dat2_edit_apply_file_put(
 
     if( pos >= 0 )
     {
-        free((*entries)[pos].data);
+        RSCACHE_FREE((*entries)[pos].data);
         (*entries)[pos].data = copy;
         (*entries)[pos].size = size;
         return true;
@@ -479,10 +480,10 @@ dat2_edit_apply_file_put(
     {
         int new_capacity = *capacity == 0 ? 8 : *capacity * 2;
         struct RSCache_Dat2EditFileEntry* grown =
-            realloc(*entries, (size_t)new_capacity * sizeof(*grown));
+            RSCACHE_REALLOC(*entries, (size_t)new_capacity * sizeof(*grown));
         if( !grown )
         {
-            free(copy);
+            RSCACHE_FREE(copy);
             return false;
         }
         *entries = grown;
@@ -554,14 +555,14 @@ dat2_edit_commit_file_group(
 
     struct RSCache_FileList filelist = { 0 };
     filelist.file_count = count;
-    filelist.files = malloc((size_t)count * sizeof(char*));
-    filelist.file_sizes = malloc((size_t)count * sizeof(int));
-    int* file_ids = malloc((size_t)count * sizeof(int));
+    filelist.files = RSCACHE_MALLOC((size_t)count * sizeof(char*));
+    filelist.file_sizes = RSCACHE_MALLOC((size_t)count * sizeof(int));
+    int* file_ids = RSCACHE_MALLOC((size_t)count * sizeof(int));
     if( !filelist.files || !filelist.file_sizes || !file_ids )
     {
-        free(filelist.files);
-        free(filelist.file_sizes);
-        free(file_ids);
+        RSCACHE_FREE(filelist.files);
+        RSCACHE_FREE(filelist.file_sizes);
+        RSCACHE_FREE(file_ids);
         dat2_edit_file_entries_free(entries, count);
         return false;
     }
@@ -574,23 +575,23 @@ dat2_edit_commit_file_group(
     }
 
     uint32_t group_bound = RSCache_FileListEncodeBound(&filelist);
-    uint8_t* group = malloc(group_bound ? group_bound : 1);
+    uint8_t* group = RSCACHE_MALLOC(group_bound ? group_bound : 1);
     if( !group )
     {
-        free(filelist.files);
-        free(filelist.file_sizes);
-        free(file_ids);
+        RSCACHE_FREE(filelist.files);
+        RSCACHE_FREE(filelist.file_sizes);
+        RSCACHE_FREE(file_ids);
         dat2_edit_file_entries_free(entries, count);
         return false;
     }
 
     uint32_t group_size = RSCache_FileListEncode(&filelist, group, group_bound);
-    free(filelist.files);
-    free(filelist.file_sizes);
+    RSCACHE_FREE(filelist.files);
+    RSCACHE_FREE(filelist.file_sizes);
     if( group_size == 0 )
     {
-        free(group);
-        free(file_ids);
+        RSCACHE_FREE(group);
+        RSCACHE_FREE(file_ids);
         dat2_edit_file_entries_free(entries, count);
         return false;
     }
@@ -598,11 +599,11 @@ dat2_edit_commit_file_group(
     memset(out_info, 0, sizeof(*out_info));
     bool ok = dat2_edit_encode_and_write(
         directory, table_id, archive_id, group, group_size, out_info);
-    free(group);
+    RSCACHE_FREE(group);
     dat2_edit_file_entries_free(entries, count);
     if( !ok )
     {
-        free(file_ids);
+        RSCACHE_FREE(file_ids);
         return false;
     }
 
@@ -659,7 +660,7 @@ dat2_edit_reftable_ensure_archive(
     if( archive_id >= table->archive_count )
     {
         int new_count = archive_id + 1;
-        struct RSCache_ReferenceTableArchive* grown = realloc(
+        struct RSCache_ReferenceTableArchive* grown = RSCACHE_REALLOC(
             table->archives, (size_t)new_count * sizeof(struct RSCache_ReferenceTableArchive));
         if( !grown )
             return false;
@@ -677,7 +678,7 @@ dat2_edit_reftable_ensure_archive(
         return true;
     }
 
-    int* grown_ids = realloc(table->ids, (size_t)(table->id_count + 1) * sizeof(int));
+    int* grown_ids = RSCACHE_REALLOC(table->ids, (size_t)(table->id_count + 1) * sizeof(int));
     if( !grown_ids )
         return false;
     table->ids = grown_ids;
@@ -711,7 +712,7 @@ dat2_edit_ensure_table(
     if( disk->tables[table_id] )
         return disk->tables[table_id];
 
-    struct RSCache_ReferenceTable* table = calloc(1, sizeof(*table));
+    struct RSCache_ReferenceTable* table = RSCACHE_CALLOC(1, sizeof(*table));
     if( !table )
         return NULL;
     table->format = 7;
@@ -740,7 +741,7 @@ dat2_edit_set_children(
     struct RSCache_ReferenceTableArchiveFile* files = NULL;
     if( file_count > 0 )
     {
-        files = calloc((size_t)file_count, sizeof(*files));
+        files = RSCACHE_CALLOC((size_t)file_count, sizeof(*files));
         if( !files )
             return false;
         for( int i = 0; i < file_count; i++ )
@@ -750,9 +751,9 @@ dat2_edit_set_children(
     /* A decoded archive's children are a slice of the table's pool — replacing
      * them just abandons the slice; only an owned array is freed. */
     if( !RSCache_ReferenceTableChildrenPooled(table, archive->children.files) )
-        free(archive->children.files);
+        RSCACHE_FREE(archive->children.files);
     if( !RSCache_ReferenceTableChildNameHashesPooled(table, archive->children.name_hashes) )
-        free(archive->children.name_hashes);
+        RSCACHE_FREE(archive->children.name_hashes);
     archive->children.files = files;
     /* A child list built from ids alone carries no names, which is what the
      * calloc'd array used to say by leaving every name_hash zero. */
@@ -815,31 +816,31 @@ dat2_edit_write_reference_table(
     table->version += 1;
 
     uint32_t bound = RSCache_ReferenceTableEncodeBound(table);
-    uint8_t* raw = malloc(bound ? bound : 1);
+    uint8_t* raw = RSCACHE_MALLOC(bound ? bound : 1);
     if( !raw )
         return false;
 
     uint32_t raw_size = RSCache_ReferenceTableEncode(table, raw, bound);
     if( raw_size == 0 )
     {
-        free(raw);
+        RSCACHE_FREE(raw);
         return false;
     }
 
     uint32_t cbound = RSCache_ArchiveEncodeBound(raw_size, RSCACHE_ARCHIVE_COMPRESSION_GZIP);
-    uint8_t* container = malloc(cbound ? cbound : 1);
+    uint8_t* container = RSCACHE_MALLOC(cbound ? cbound : 1);
     if( !container )
     {
-        free(raw);
+        RSCACHE_FREE(raw);
         return false;
     }
 
     uint32_t container_size = RSCache_ArchiveEncode(
         container, cbound, raw, raw_size, RSCACHE_ARCHIVE_COMPRESSION_GZIP, NULL);
-    free(raw);
+    RSCACHE_FREE(raw);
     if( container_size == 0 )
     {
-        free(container);
+        RSCACHE_FREE(container);
         return false;
     }
 
@@ -849,7 +850,7 @@ dat2_edit_write_reference_table(
         table_id,
         container,
         (int)container_size);
-    free(container);
+    RSCACHE_FREE(container);
     return rc == 0;
 }
 
@@ -858,7 +859,7 @@ RSCache_Dat2EditNew(struct RSCache_Dat2Disk* disk)
 {
     assert(disk != NULL);
 
-    struct RSCache_Dat2Edit* edit = calloc(1, sizeof(*edit));
+    struct RSCache_Dat2Edit* edit = RSCACHE_CALLOC(1, sizeof(*edit));
     if( !edit )
         return NULL;
     edit->disk = disk;
@@ -871,7 +872,7 @@ RSCache_Dat2EditFree(struct RSCache_Dat2Edit* edit)
     if( !edit )
         return;
     dat2_edit_free_puts(edit);
-    free(edit);
+    RSCACHE_FREE(edit);
 }
 
 bool
@@ -901,7 +902,7 @@ RSCache_Dat2EditPutFile(
 
     if( !dat2_edit_push_put(edit, put) )
     {
-        free(put.data);
+        RSCACHE_FREE(put.data);
         return false;
     }
     return true;
@@ -932,7 +933,7 @@ RSCache_Dat2EditPutArchive(
 
     if( !dat2_edit_push_put(edit, put) )
     {
-        free(put.data);
+        RSCACHE_FREE(put.data);
         return false;
     }
     return true;
@@ -972,7 +973,7 @@ RSCache_Dat2EditCommit(
     }
     if( archive_key_count > 0 )
     {
-        archive_keys = malloc((size_t)archive_key_count * sizeof(*archive_keys));
+        archive_keys = RSCACHE_MALLOC((size_t)archive_key_count * sizeof(*archive_keys));
         if( !archive_keys )
             return false;
         int k = 0;
@@ -1014,7 +1015,7 @@ RSCache_Dat2EditCommit(
         {
             int new_capacity = write_capacity == 0 ? 8 : write_capacity * 2;
             struct RSCache_Dat2EditWriteInfo* grown =
-                realloc(writes, (size_t)new_capacity * sizeof(*grown));
+                RSCACHE_REALLOC(writes, (size_t)new_capacity * sizeof(*grown));
             if( !grown )
                 goto done;
             writes = grown;
@@ -1037,7 +1038,7 @@ RSCache_Dat2EditCommit(
         {
             int new_capacity = write_capacity == 0 ? 8 : write_capacity * 2;
             struct RSCache_Dat2EditWriteInfo* grown =
-                realloc(writes, (size_t)new_capacity * sizeof(*grown));
+                RSCACHE_REALLOC(writes, (size_t)new_capacity * sizeof(*grown));
             if( !grown )
                 goto done;
             writes = grown;
@@ -1098,8 +1099,8 @@ RSCache_Dat2EditCommit(
 done:
     for( int i = 0; i < write_count; i++ )
         dat2_edit_write_info_free(&writes[i]);
-    free(writes);
-    free(archive_keys);
+    RSCACHE_FREE(writes);
+    RSCACHE_FREE(archive_keys);
     return ok;
 }
 
@@ -1141,7 +1142,7 @@ dat1_edit_copy_bytes(
     if( size == 0 )
         return NULL;
     assert(data != NULL);
-    uint8_t* copy = malloc(size);
+    uint8_t* copy = RSCACHE_MALLOC(size);
     if( !copy )
         return NULL;
     memcpy(copy, data, size);
@@ -1157,7 +1158,7 @@ dat1_edit_push_put(
     {
         int new_capacity = edit->put_capacity == 0 ? 8 : edit->put_capacity * 2;
         struct RSCache_Dat1EditPut* grown =
-            realloc(edit->puts, (size_t)new_capacity * sizeof(*grown));
+            RSCACHE_REALLOC(edit->puts, (size_t)new_capacity * sizeof(*grown));
         if( !grown )
             return false;
         edit->puts = grown;
@@ -1173,8 +1174,8 @@ dat1_edit_free_puts(struct RSCache_Dat1Edit* edit)
     if( !edit || !edit->puts )
         return;
     for( int i = 0; i < edit->put_count; i++ )
-        free(edit->puts[i].data);
-    free(edit->puts);
+        RSCACHE_FREE(edit->puts[i].data);
+    RSCACHE_FREE(edit->puts);
     edit->puts = NULL;
     edit->put_count = 0;
     edit->put_capacity = 0;
@@ -1194,7 +1195,7 @@ dat1_edit_jag_upsert(
     int idx = RSCache_FileListDatFindFileByName(jag, name);
     if( idx >= 0 )
     {
-        free(jag->files[idx]);
+        RSCACHE_FREE(jag->files[idx]);
         jag->files[idx] = (char*)data;
         jag->file_sizes[idx] = size;
         jag->file_name_hashes[idx] = hash;
@@ -1202,9 +1203,9 @@ dat1_edit_jag_upsert(
     }
 
     int new_count = jag->file_count + 1;
-    char** files = realloc(jag->files, (size_t)new_count * sizeof(char*));
-    int* sizes = realloc(jag->file_sizes, (size_t)new_count * sizeof(int));
-    int* hashes = realloc(jag->file_name_hashes, (size_t)new_count * sizeof(int));
+    char** files = RSCACHE_REALLOC(jag->files, (size_t)new_count * sizeof(char*));
+    int* sizes = RSCACHE_REALLOC(jag->file_sizes, (size_t)new_count * sizeof(int));
+    int* hashes = RSCACHE_REALLOC(jag->file_name_hashes, (size_t)new_count * sizeof(int));
     if( !files || !sizes || !hashes )
     {
         if( files )
@@ -1233,18 +1234,18 @@ dat1_edit_write_jagfile(
 {
     assert(directory && jag);
     uint32_t bound = RSCache_FileListDatEncodeBound(jag);
-    uint8_t* encoded = malloc(bound ? bound : 1);
+    uint8_t* encoded = RSCACHE_MALLOC(bound ? bound : 1);
     if( !encoded )
         return false;
     uint32_t size = RSCache_FileListDatEncode(jag, true, encoded, bound);
     if( size == 0 )
     {
-        free(encoded);
+        RSCACHE_FREE(encoded);
         return false;
     }
     int rc = RSCache_Dat1DiskWriteArchive(
         directory, RSCACHE_DAT1_DISK_TABLE_CONFIGS, archive_id, encoded, (int)size);
-    free(encoded);
+    RSCACHE_FREE(encoded);
     return rc == 0;
 }
 
@@ -1276,7 +1277,7 @@ dat1_edit_ensure_u16(
     if( id < *count )
         return true;
     int new_count = id + 1;
-    uint16_t* grown = realloc(*arr, (size_t)new_count * sizeof(uint16_t));
+    uint16_t* grown = RSCACHE_REALLOC(*arr, (size_t)new_count * sizeof(uint16_t));
     if( !grown )
         return false;
     for( int i = *count; i < new_count; i++ )
@@ -1298,7 +1299,7 @@ dat1_edit_ensure_i32(
     if( id < *count )
         return true;
     int new_count = id + 1;
-    int32_t* grown = realloc(*arr, (size_t)new_count * sizeof(int32_t));
+    int32_t* grown = RSCACHE_REALLOC(*arr, (size_t)new_count * sizeof(int32_t));
     if( !grown )
         return false;
     for( int i = *count; i < new_count; i++ )
@@ -1320,7 +1321,7 @@ dat1_edit_ensure_u8(
     if( id < *count )
         return true;
     int new_count = id + 1;
-    uint8_t* grown = realloc(*arr, (size_t)new_count);
+    uint8_t* grown = RSCACHE_REALLOC(*arr, (size_t)new_count);
     if( !grown )
         return false;
     for( int i = *count; i < new_count; i++ )
@@ -1352,14 +1353,14 @@ dat1_edit_gzip_payload(
     }
 
     uint32_t bound = RSCache_CompressionGzipCompressBound((int)size);
-    uint8_t* packed = malloc(bound ? bound : 1);
+    uint8_t* packed = RSCACHE_MALLOC(bound ? bound : 1);
     if( !packed )
         return false;
     uint32_t packed_size =
         RSCache_CompressionGzipCompress(packed, (int)bound, data, (int)size);
     if( packed_size == 0 )
     {
-        free(packed);
+        RSCACHE_FREE(packed);
         return false;
     }
     *out_bytes = packed;
@@ -1413,12 +1414,12 @@ dat1_edit_splice_indexed(
             total += 1; /* empty opcode-0 record */
     }
 
-    uint8_t* new_dat = malloc(total ? total : 1);
-    int* new_offsets = malloc((size_t)count * sizeof(int));
+    uint8_t* new_dat = RSCACHE_MALLOC(total ? total : 1);
+    int* new_offsets = RSCACHE_MALLOC((size_t)count * sizeof(int));
     if( !new_dat || !new_offsets )
     {
-        free(new_dat);
-        free(new_offsets);
+        RSCACHE_FREE(new_dat);
+        RSCACHE_FREE(new_offsets);
         RSCache_FileListDatIndexedFree(indexed);
         return false;
     }
@@ -1458,11 +1459,11 @@ dat1_edit_splice_indexed(
     rebuilt.offset_count = count;
 
     uint32_t idx_bound = RSCache_FileListDatIndexedEncodeIndexBound(&rebuilt);
-    uint8_t* new_idx = malloc(idx_bound ? idx_bound : 1);
+    uint8_t* new_idx = RSCACHE_MALLOC(idx_bound ? idx_bound : 1);
     if( !new_idx )
     {
-        free(new_dat);
-        free(new_offsets);
+        RSCACHE_FREE(new_dat);
+        RSCACHE_FREE(new_offsets);
         RSCache_FileListDatIndexedFree(indexed);
         return false;
     }
@@ -1470,9 +1471,9 @@ dat1_edit_splice_indexed(
         RSCache_FileListDatIndexedEncodeIndex(&rebuilt, new_idx, idx_bound);
     if( idx_size == 0 )
     {
-        free(new_dat);
-        free(new_offsets);
-        free(new_idx);
+        RSCACHE_FREE(new_dat);
+        RSCACHE_FREE(new_offsets);
+        RSCACHE_FREE(new_idx);
         RSCache_FileListDatIndexedFree(indexed);
         return false;
     }
@@ -1480,16 +1481,16 @@ dat1_edit_splice_indexed(
     /* Transfer ownership of new_dat into the jag; free old via upsert. */
     if( !dat1_edit_jag_upsert(jag, dat_name, new_dat, (int)cursor) )
     {
-        free(new_dat);
-        free(new_offsets);
-        free(new_idx);
+        RSCACHE_FREE(new_dat);
+        RSCACHE_FREE(new_offsets);
+        RSCACHE_FREE(new_idx);
         RSCache_FileListDatIndexedFree(indexed);
         return false;
     }
-    free(new_offsets);
+    RSCACHE_FREE(new_offsets);
     if( !dat1_edit_jag_upsert(jag, idx_name, new_idx, (int)idx_size) )
     {
-        free(new_idx);
+        RSCACHE_FREE(new_idx);
         RSCache_FileListDatIndexedFree(indexed);
         return false;
     }
@@ -1522,7 +1523,7 @@ dat1_edit_splice_seq(
     {
         int new_count = seq_id + 1;
         struct RSCache_Dat1ConfigSeq* grown =
-            realloc(list->seqs, (size_t)new_count * sizeof(*grown));
+            RSCACHE_REALLOC(list->seqs, (size_t)new_count * sizeof(*grown));
         if( !grown )
         {
             RSCache_Dat1ConfigSeqListFree(list);
@@ -1552,7 +1553,7 @@ dat1_edit_splice_seq(
         &list->seqs[seq_id], (char*)record, (int)record_size);
 
     uint32_t bound = RSCache_Dat1ConfigSeqListEncodeBound(list);
-    uint8_t* encoded = malloc(bound ? bound : 1);
+    uint8_t* encoded = RSCACHE_MALLOC(bound ? bound : 1);
     if( !encoded )
     {
         RSCache_Dat1ConfigSeqListFree(list);
@@ -1562,12 +1563,12 @@ dat1_edit_splice_seq(
     RSCache_Dat1ConfigSeqListFree(list);
     if( size == 0 )
     {
-        free(encoded);
+        RSCACHE_FREE(encoded);
         return false;
     }
     if( !dat1_edit_jag_upsert(jag, "seq.dat", encoded, (int)size) )
     {
-        free(encoded);
+        RSCACHE_FREE(encoded);
         return false;
     }
     return true;
@@ -1577,7 +1578,7 @@ struct RSCache_Dat1Edit*
 RSCache_Dat1EditNew(struct RSCache_Dat1Disk* disk)
 {
     assert(disk != NULL);
-    struct RSCache_Dat1Edit* edit = calloc(1, sizeof(*edit));
+    struct RSCache_Dat1Edit* edit = RSCACHE_CALLOC(1, sizeof(*edit));
     if( !edit )
         return NULL;
     edit->disk = disk;
@@ -1590,7 +1591,7 @@ RSCache_Dat1EditFree(struct RSCache_Dat1Edit* edit)
     if( !edit )
         return;
     dat1_edit_free_puts(edit);
-    free(edit);
+    RSCACHE_FREE(edit);
 }
 
 bool
@@ -1613,7 +1614,7 @@ RSCache_Dat1EditPutNpc(
         return false;
     if( !dat1_edit_push_put(edit, put) )
     {
-        free(put.data);
+        RSCACHE_FREE(put.data);
         return false;
     }
     return true;
@@ -1639,7 +1640,7 @@ RSCache_Dat1EditPutSeq(
         return false;
     if( !dat1_edit_push_put(edit, put) )
     {
-        free(put.data);
+        RSCACHE_FREE(put.data);
         return false;
     }
     return true;
@@ -1663,7 +1664,7 @@ RSCache_Dat1EditPutSeqList(
         return false;
     if( !dat1_edit_push_put(edit, put) )
     {
-        free(put.data);
+        RSCACHE_FREE(put.data);
         return false;
     }
     return true;
@@ -1691,7 +1692,7 @@ RSCache_Dat1EditPutModel(
         return false;
     if( !dat1_edit_push_put(edit, put) )
     {
-        free(put.data);
+        RSCACHE_FREE(put.data);
         return false;
     }
     return true;
@@ -1719,7 +1720,7 @@ RSCache_Dat1EditPutAnimArchive(
         return false;
     if( !dat1_edit_push_put(edit, put) )
     {
-        free(put.data);
+        RSCACHE_FREE(put.data);
         return false;
     }
     return true;
@@ -1782,7 +1783,7 @@ RSCache_Dat1EditCommit(
                     goto done;
                 if( !dat1_edit_jag_upsert(configs, "seq.dat", copy, (int)put->size) )
                 {
-                    free(copy);
+                    RSCACHE_FREE(copy);
                     goto done;
                 }
             }
@@ -1826,12 +1827,12 @@ RSCache_Dat1EditCommit(
             if( RSCache_Dat1DiskWriteArchive(
                     directory, table_id, put->id, packed, (int)packed_size) != 0 )
             {
-                free(packed);
+                RSCACHE_FREE(packed);
                 goto done;
             }
 
             int32_t crc = (int32_t)RSCache_Crc32Buffer(packed, packed_size);
-            free(packed);
+            RSCACHE_FREE(packed);
 
             if( put->kind == RSCACHE_DAT1_EDIT_PUT_MODEL )
             {

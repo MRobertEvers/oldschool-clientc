@@ -1,3 +1,4 @@
+#include "mem/torirs_mem.h"
 #include "editor.h"
 
 #include "editor_derive.h"
@@ -97,7 +98,7 @@ seed_provider(
     terrain = CacheProvider_MapTerrainGet(provider, map_id);
     if( !terrain )
     {
-        terrain = malloc(sizeof(*terrain));
+        terrain = ToriMem_Alloc(ToriMem_Assets(), sizeof(*terrain));
         assert(terrain);
         memset(terrain, 0, sizeof(*terrain));
         CacheProvider_MapTerrainAdd(provider, map_id, terrain);
@@ -113,12 +114,12 @@ seed_provider(
     locs = CacheProvider_MapSceneryGet(provider, map_id);
     if( !locs )
     {
-        locs = malloc(sizeof(*locs));
+        locs = ToriMem_Alloc(ToriMem_Assets(), sizeof(*locs));
         assert(locs);
         memset(locs, 0, sizeof(*locs));
         CacheProvider_MapSceneryAdd(provider, map_id, locs);
     }
-    free(locs->locs);
+    ToriMem_Free(ToriMem_Assets(), locs->locs);
     locs->locs = NULL;
     Editor_SquareDeriveLocs(square, locs);
 

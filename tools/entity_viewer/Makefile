@@ -85,7 +85,8 @@ DEP_OBJS := \
 	$(BUILD)/miniz.o \
 	$(BUILD)/bmp.o \
 	$(BUILD)/xteas.o \
-	$(BUILD)/ini.o
+	$(BUILD)/ini.o \
+	$(BUILD)/torirs_mem.o
 
 .PHONY: all clean wasm all-web
 all: ev_catalog ev_server ev_swing ev_sheet
@@ -117,6 +118,12 @@ $(BUILD)/xteas.o: $(THIRD)/xteas/xteas.c | $(BUILD)
 
 $(BUILD)/ini.o: $(THIRD)/ini/ini.c | $(BUILD)
 	$(CC) $(DEP_CFLAGS) -c $< -o $@
+
+# The lifetime groups (src/mem). The engine files this tool shares allocate
+# through them; the libraries keep libc here, since nothing installs ToriMem
+# into them (see src/mem/torirs_mem_libs.h).
+$(BUILD)/torirs_mem.o: $(REPO)/src/mem/torirs_mem.c | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD)/ev_catalog.o: ev_catalog.c | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -430,8 +437,10 @@ EM_OPT := -O3 -flto -mnontrapping-fptoint $(EM_SIMD)
 # The sources and the link settings both flavors share. Only the optimization
 # set, the sanitizer flags and the memory settings differ below, so the two
 # modules cannot drift in what they export or how the page reaches them.
+# toridraw_font.c is not listed: toridraw_unity.c includes it (since c11df1d39),
+# and listing it too is a duplicate-symbol link failure.
 EM_SRCS := ev_wasm.c ev_render.c ev_wire.c $(TORIDRAW)/toridraw_unity.c \
-	$(TORIDRAW)/toridraw_font.c $(TORIDRAW)/toridraw_model_sprite.c
+	$(TORIDRAW)/toridraw_model_sprite.c
 EM_LINK := -sMODULARIZE=1 -sEXPORT_NAME=EVModule \
 	-sALLOW_MEMORY_GROWTH=1 -sFILESYSTEM=0 -sENVIRONMENT=web \
 	-sEXPORTED_FUNCTIONS='[$(EM_EXPORTS)]' \

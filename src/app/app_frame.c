@@ -7,6 +7,7 @@
  * app/app_internal.h, and nothing outside the layer may include either.
  */
 
+#include "mem/torirs_mem.h"
 #include "app/app_internal.h"
 #include "perf_audit.h"
 
@@ -663,6 +664,12 @@ App_RunOnce(
 
     assert(app);
     assert(input);
+
+    /* The FRAME group's one reset site: a frame runs from one App_RunOnce to
+     * the next, rendering included, in the live loop and every headless lane.
+     * Whatever the last frame took from ToriMem_Frame() must have been freed
+     * or rewound by now, and the reset checks it (src/mem/torirs_mem.h). */
+    ToriMem_FrameEnd();
 
 #ifdef TORIRS_EMBED_SERVER
     /* Exactly one frame per transport poll while a party link is up. */

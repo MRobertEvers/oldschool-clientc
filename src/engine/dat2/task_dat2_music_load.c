@@ -1,3 +1,5 @@
+#include "mem/torimem_rscache.h"
+#include "mem/torirs_mem.h"
 #include "audio/torirs_music.h"
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
@@ -79,9 +81,9 @@ static int16_t*
 widen_effect(
     const struct RSCache_SoundPcm* pcm)
 {
-    int16_t* out = malloc((size_t)pcm->sample_count * sizeof(int16_t));
+    /* ASSET: ToriRS_SoundBank_AddSample adopts it. */
+    int16_t* out = ToriMem_Alloc(ToriMem_Assets(), (size_t)pcm->sample_count * sizeof(int16_t));
 
-    assert(out);
     for( int i = 0; i < pcm->sample_count; i++ )
         out[i] = (int16_t)(((int)pcm->samples[i] - 128) << 8);
     return out;
@@ -145,18 +147,26 @@ add_music_sample(
         setup, archive->data, archive->data_size);
     if( !sample )
         return false;
+    int16_t* samples = NULL;
+    if( sample->samples && sample->sample_count > 0 )
+    {
+        samples = ToriMem_TakeFromRSCache(
+            ToriMem_Assets(), sample->samples, (size_t)sample->sample_count * sizeof(*sample->samples));
+        sample->samples = NULL;
+    }
     ok = ToriRS_SoundBank_AddSample(
              &task->player->bank,
              TORIRS_SOUNDBANK_TABLE_MUSIC,
              id,
-             sample->samples,
+             samples,
              sample->sample_count,
              sample->sample_rate,
              sample->loop_start,
              sample->loop_end,
              sample->loop) != NULL;
-    if( ok )
-        sample->samples = NULL; /* ownership moved into the bank */
+    /* Ownership moved into the bank on success AND on failure: AddSample
+     * frees what it cannot keep. A buffer that was not taken (no samples)
+     * is still the decoder's and goes with it. */
     RSCache_AudioSampleFree(sample);
     return ok;
 }

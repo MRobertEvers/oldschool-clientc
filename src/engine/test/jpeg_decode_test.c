@@ -11,6 +11,7 @@
  * A cache that is not checked out is skipped, not failed.
  */
 
+#include "mem/torirs_mem.h"
 #include "engine/jpeg_decode.h"
 
 #include <rscache.h>
@@ -109,6 +110,7 @@ test_dat1_title(void)
         {
             CHECK(
                 JpegDecode_ArgbRsCache(
+                    ToriMem_Process(),
                     jagfile->files[member], jagfile->file_sizes[member], &width, &height, &pixels),
                 "dat1 title.dat decodes");
             if( pixels )
@@ -122,7 +124,7 @@ test_dat1_title(void)
                 CHECK(width == 383, "dat1 title is the 383-wide half-backdrop");
                 CHECK(height == 503, "dat1 title is 503 tall");
                 check_plausible_image(pixels, width, height, "dat1 title pixels are a photograph");
-                free(pixels);
+                ToriMem_Free(ToriMem_Process(), pixels);
                 pixels = NULL;
             }
         }
@@ -191,6 +193,7 @@ test_dat2_title(void)
         {
             CHECK(
                 JpegDecode_ArgbRsCache(
+                    ToriMem_Process(),
                     archive->data, archive->data_size, &width, &height, &pixels),
                 "dat2 title.jpg decodes");
             if( pixels )
@@ -201,7 +204,7 @@ test_dat2_title(void)
                 CHECK(width > 0 && width <= 765, "dat2 title is a half-screen backdrop");
                 CHECK(height >= 500, "dat2 title covers the screen height");
                 check_plausible_image(pixels, width, height, "dat2 title pixels are a photograph");
-                free(pixels);
+                ToriMem_Free(ToriMem_Process(), pixels);
                 pixels = NULL;
             }
             RSCache_Dat2DiskArchiveFree(archive);

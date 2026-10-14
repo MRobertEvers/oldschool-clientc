@@ -1,3 +1,5 @@
+#include "mem/torirs_mem.h"
+#include "mem/torimem_toridraw.h"
 #include "engine/dat2/task_dat2_sequence_load.h"
 
 #include "asyncio.h"
@@ -142,9 +144,8 @@ seq_copy_frame_sounds(
 
     anim->frame_sounds.count = seq->frame_sounds.count;
     anim->frame_sounds.frame_indices =
-        malloc((size_t)seq->frame_sounds.count * sizeof(int));
-    anim->frame_sounds.sounds = malloc(
-        (size_t)seq->frame_sounds.count * sizeof(struct ToriDraw_AnimFrameSound));
+        TORIDRAW_MALLOC((size_t)seq->frame_sounds.count * sizeof(int));
+    anim->frame_sounds.sounds = TORIDRAW_MALLOC((size_t)seq->frame_sounds.count * sizeof(struct ToriDraw_AnimFrameSound));
 
     if( anim->frame_sounds.frame_indices && anim->frame_sounds.sounds )
     {
@@ -168,8 +169,8 @@ seq_copy_frame_sounds(
     else
     {
         /* Allocation failed; clear the partial state */
-        free(anim->frame_sounds.frame_indices);
-        free(anim->frame_sounds.sounds);
+        TORIDRAW_FREE(anim->frame_sounds.frame_indices);
+        TORIDRAW_FREE(anim->frame_sounds.sounds);
         anim->frame_sounds.frame_indices = NULL;
         anim->frame_sounds.sounds = NULL;
         anim->frame_sounds.count = 0;
@@ -195,7 +196,7 @@ seq_register_result(struct Task_Dat2SequenceLoad* self)
      * it exactly like a classic seq and only the pose call branches. */
     if( self->skeletal )
     {
-        anim = calloc(1, sizeof(*anim));
+        anim = TORIDRAW_CALLOC(1, sizeof(*anim));
         assert(anim);
         int play_frames = self->skeletal->frame_count;
         if( self->seq && self->seq->anim_maya_end > self->seq->anim_maya_start )
@@ -254,7 +255,7 @@ seq_register_result(struct Task_Dat2SequenceLoad* self)
     }
     if( !anim )
     {
-        anim = calloc(1, sizeof(*anim));
+        anim = TORIDRAW_CALLOC(1, sizeof(*anim));
         if( getenv("TORIRS_ANIM_DEBUG") )
             TORIRS_LOG("seq_load: seq=%d unavailable (config=%p frame_count=%d framemap=%p)\n",
                 self->seq_id,

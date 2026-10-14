@@ -1,4 +1,5 @@
 #include "maps.h"
+#include "../rscache_alloc.h"
 
 #include "../archive.h"
 #include "../dat2disk.h"
@@ -448,7 +449,7 @@ RSCache_MapTerrainNewFromDecodeFlags(
     int map_z,
     int flags)
 {
-    struct RSCache_MapTerrain* map_terrain = malloc(sizeof(struct RSCache_MapTerrain));
+    struct RSCache_MapTerrain* map_terrain = RSCACHE_MALLOC(sizeof(struct RSCache_MapTerrain));
     if( !map_terrain )
         return NULL;
     memset(map_terrain, 0, sizeof(struct RSCache_MapTerrain));
@@ -513,7 +514,7 @@ RSCache_MapTerrainNewFromDecodeFlags(
     if( buffer.position < buffer.size )
     {
         map_terrain->trailing_size = (int)(buffer.size - buffer.position);
-        map_terrain->trailing = malloc((size_t)map_terrain->trailing_size);
+        map_terrain->trailing = RSCACHE_MALLOC((size_t)map_terrain->trailing_size);
         if( map_terrain->trailing )
             memcpy(map_terrain->trailing, buffer.data + buffer.position,
                    (size_t)map_terrain->trailing_size);
@@ -650,8 +651,8 @@ RSCache_MapTerrainFree(struct RSCache_MapTerrain* map_terrain)
 {
     if( map_terrain )
     {
-        free(map_terrain->trailing);
-        free(map_terrain);
+        RSCACHE_FREE(map_terrain->trailing);
+        RSCACHE_FREE(map_terrain);
     }
 }
 
@@ -731,7 +732,7 @@ RSCache_MapLocsNewDecode(
     char* data,
     int data_size)
 {
-    struct RSCache_MapLocs* map_locs = malloc(sizeof(struct RSCache_MapLocs));
+    struct RSCache_MapLocs* map_locs = RSCACHE_MALLOC(sizeof(struct RSCache_MapLocs));
     if( !map_locs )
         return NULL;
     memset(map_locs, 0, sizeof(struct RSCache_MapLocs));
@@ -761,10 +762,10 @@ RSCache_MapLocsNewDecode(
         (void)id;
     }
 
-    map_locs->locs = malloc(sizeof(struct RSCache_MapLoc) * count);
+    map_locs->locs = RSCACHE_MALLOC(sizeof(struct RSCache_MapLoc) * count);
     if( !map_locs->locs )
     {
-        free(map_locs);
+        RSCACHE_FREE(map_locs);
         return NULL;
     }
     map_locs->locs_count = count;
@@ -872,7 +873,7 @@ RSCache_MapLocsEncode(
         return buffer.position;
     }
 
-    struct map_loc_order* order = malloc((size_t)count * sizeof(*order));
+    struct map_loc_order* order = RSCACHE_MALLOC((size_t)count * sizeof(*order));
     if( !order )
         return 0;
     for( int i = 0; i < count; i++ )
@@ -885,7 +886,7 @@ RSCache_MapLocsEncode(
             loc->chunk_pos_level > 3 || loc->shape_select < 0 || loc->shape_select > 63 ||
             loc->orientation < 0 || loc->orientation > 3 )
         {
-            free(order);
+            RSCACHE_FREE(order);
             return 0;
         }
         order[i].index = i;
@@ -918,7 +919,7 @@ RSCache_MapLocsEncode(
     }
     p1(&buffer, 0);
 
-    free(order);
+    RSCACHE_FREE(order);
     return buffer.position;
 }
 
@@ -927,8 +928,8 @@ RSCache_MapLocsFree(struct RSCache_MapLocs* map_locs)
 {
     if( map_locs )
     {
-        free(map_locs->locs);
-        free(map_locs);
+        RSCACHE_FREE(map_locs->locs);
+        RSCACHE_FREE(map_locs);
     }
 }
 

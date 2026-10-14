@@ -1,4 +1,5 @@
 #include "dat2disk.h"
+#include "rscache_alloc.h"
 
 #include "archive.h"
 #include "reference_table.h"
@@ -165,7 +166,7 @@ RSCache_Dat2DiskDat2FileReadArchive(
     }
 
     int out_len = 0;
-    out = malloc((size_t)length);
+    out = RSCACHE_MALLOC((size_t)length);
     if( !out )
         goto error;
     memset(out, 0, length);
@@ -282,7 +283,7 @@ RSCache_Dat2DiskDat2FileReadArchive(
 
 error:
     if( out )
-        free(out);
+        RSCACHE_FREE(out);
     return -1;
 }
 
@@ -786,14 +787,14 @@ dat2_file_store_get(
             index_record.length,
             &archive) != 0 )
     {
-        free(archive.data);
+        RSCACHE_FREE(archive.data);
         return -1;
     }
     /* A record the index points at but whose chain yielded nothing is a
      * corrupt cache, not an absent archive. */
     if( !archive.data || archive.data_size <= 0 )
     {
-        free(archive.data);
+        RSCACHE_FREE(archive.data);
         return -1;
     }
 
@@ -1179,17 +1180,17 @@ dat2disk_new_from_directory(
         return NULL;
 
     struct RSCache_Dat2Disk* disk =
-        (struct RSCache_Dat2Disk*)malloc(sizeof(struct RSCache_Dat2Disk));
+        (struct RSCache_Dat2Disk*)RSCACHE_MALLOC(sizeof(struct RSCache_Dat2Disk));
     if( !disk )
         return NULL;
 
     memset(disk, 0, sizeof(struct RSCache_Dat2Disk));
     disk->profile = RSCache_ProfileZero();
     disk->profile_set = 0;
-    disk->directory = strdup(directory);
+    disk->directory = RSCache_Strdup(directory);
     if( !disk->directory )
     {
-        free(disk);
+        RSCACHE_FREE(disk);
         return NULL;
     }
 
@@ -1198,8 +1199,8 @@ dat2disk_new_from_directory(
     disk->dat2_file = fopen(path, dat2_mode);
     if( !disk->dat2_file )
     {
-        free(disk->directory);
-        free(disk);
+        RSCACHE_FREE(disk->directory);
+        RSCACHE_FREE(disk);
         return NULL;
     }
 
@@ -1261,7 +1262,7 @@ RSCache_Dat2DiskNewFromStore(
         return NULL;
 
     struct RSCache_Dat2Disk* disk =
-        (struct RSCache_Dat2Disk*)malloc(sizeof(struct RSCache_Dat2Disk));
+        (struct RSCache_Dat2Disk*)RSCACHE_MALLOC(sizeof(struct RSCache_Dat2Disk));
     if( !disk )
         return NULL;
 
@@ -1269,10 +1270,10 @@ RSCache_Dat2DiskNewFromStore(
     disk->profile = RSCache_ProfileZero();
     disk->profile_set = 0;
     disk->store = *store;
-    disk->directory = strdup(label ? label : "store");
+    disk->directory = RSCache_Strdup(label ? label : "store");
     if( !disk->directory )
     {
-        free(disk);
+        RSCACHE_FREE(disk);
         return NULL;
     }
 
@@ -1286,7 +1287,7 @@ struct RSCache_Dat2Disk*
 RSCache_Dat2DiskNewUninitialized(void)
 {
     struct RSCache_Dat2Disk* disk =
-        (struct RSCache_Dat2Disk*)malloc(sizeof(struct RSCache_Dat2Disk));
+        (struct RSCache_Dat2Disk*)RSCACHE_MALLOC(sizeof(struct RSCache_Dat2Disk));
     if( !disk )
         return NULL;
     memset(disk, 0, sizeof(struct RSCache_Dat2Disk));
@@ -1315,8 +1316,8 @@ RSCache_Dat2DiskFree(struct RSCache_Dat2Disk* disk)
             RSCache_ReferenceTableFree(disk->tables[i]);
     }
 
-    free(disk->directory);
-    free(disk);
+    RSCACHE_FREE(disk->directory);
+    RSCACHE_FREE(disk);
 }
 
 struct RSCache_Dat2DiskArchive*
@@ -1334,15 +1335,15 @@ RSCache_Dat2DiskArchiveNewLoadRaw(
         return NULL;
     if( !data || size <= 0 )
     {
-        free(data);
+        RSCACHE_FREE(data);
         return NULL;
     }
 
     struct RSCache_Dat2DiskArchive* archive =
-        (struct RSCache_Dat2DiskArchive*)malloc(sizeof(struct RSCache_Dat2DiskArchive));
+        (struct RSCache_Dat2DiskArchive*)RSCACHE_MALLOC(sizeof(struct RSCache_Dat2DiskArchive));
     if( !archive )
     {
-        free(data);
+        RSCACHE_FREE(data);
         return NULL;
     }
     memset(archive, 0, sizeof(struct RSCache_Dat2DiskArchive));
@@ -1403,11 +1404,11 @@ RSCache_Dat2DiskArchiveInitMetadataFromTable(
     archive->revision = archive_reference->version;
     archive->file_count = archive_reference->children.count;
 
-    free(archive->file_ids);
+    RSCACHE_FREE(archive->file_ids);
     archive->file_ids = NULL;
     if( archive->file_count > 0 )
     {
-        archive->file_ids = malloc((size_t)archive->file_count * sizeof(int));
+        archive->file_ids = RSCACHE_MALLOC((size_t)archive->file_count * sizeof(int));
         assert(archive->file_ids);
         for( int i = 0; i < archive->file_count; i++ )
             archive->file_ids[i] = RSCache_ReferenceTableChildId(archive_reference, i);
@@ -1478,10 +1479,10 @@ RSCache_Dat2DiskInstallReferenceTableRaw(
         return false;
 
     struct RSCache_Dat2DiskArchive* archive =
-        (struct RSCache_Dat2DiskArchive*)calloc(1, sizeof(*archive));
+        (struct RSCache_Dat2DiskArchive*)RSCACHE_CALLOC(1, sizeof(*archive));
     if( !archive )
         return false;
-    archive->data = malloc((size_t)data_size);
+    archive->data = RSCACHE_MALLOC((size_t)data_size);
     if( !archive->data )
     {
         RSCache_Dat2DiskArchiveFree(archive);
@@ -1551,10 +1552,10 @@ RSCache_Dat2DiskArchiveFree(struct RSCache_Dat2DiskArchive* archive)
     }
 
     if( archive->data )
-        free(archive->data);
+        RSCACHE_FREE(archive->data);
 
-    free(archive->file_ids);
-    free(archive);
+    RSCACHE_FREE(archive->file_ids);
+    RSCACHE_FREE(archive);
 }
 
 void

@@ -1,4 +1,5 @@
 #include "cs2_dfa.h"
+#include "../rscache_alloc.h"
 
 #include <assert.h>
 #include <stdarg.h>
@@ -567,7 +568,7 @@ cs2_try_replace_in(
     struct RSCache_CS2_Expr** copy = stack_copy;
     if( count > (int)(sizeof(stack_copy) / sizeof(stack_copy[0])) )
     {
-        copy = (struct RSCache_CS2_Expr**)malloc((size_t)count * sizeof(*copy));
+        copy = (struct RSCache_CS2_Expr**)RSCACHE_MALLOC((size_t)count * sizeof(*copy));
         if( !copy )
             return false;
     }
@@ -577,7 +578,7 @@ cs2_try_replace_in(
     struct RSCache_CS2_Expr* replaced =
         cs2_replace_sub_expr(dfa, copy, count, defs, def_count, by);
     if( copy != stack_copy )
-        free(copy);
+        RSCACHE_FREE(copy);
     if( !replaced )
         return false;
     *target = replaced;

@@ -1,4 +1,5 @@
 #include "dat2_component.h"
+#include "../rscache_alloc.h"
 
 #include "../filelist.h"
 #include "../rsbuffer.h"
@@ -18,7 +19,7 @@ static char*
 read_jstring(struct RSCache_Buffer* buf)
 {
     char* s = gcstring(buf);
-    return s ? s : strdup("");
+    return s ? s : RSCache_Strdup("");
 }
 
 static void
@@ -31,9 +32,9 @@ free_script_vars(
     for( int32_t i = 0; i < n; i++ )
     {
         if( v[i].type == RSCACHE_DAT2_COMPONENT_SCRIPT_VAR_STRING && v[i].value.s )
-            free(v[i].value.s);
+            RSCACHE_FREE(v[i].value.s);
     }
-    free(v);
+    RSCACHE_FREE(v);
 }
 
 static struct RSCache_Dat2ComponentScriptVar*
@@ -49,7 +50,7 @@ read_arguments(
         return NULL;
     }
     struct RSCache_Dat2ComponentScriptVar* args =
-        calloc((size_t)len, sizeof(struct RSCache_Dat2ComponentScriptVar));
+        RSCACHE_CALLOC((size_t)len, sizeof(struct RSCache_Dat2ComponentScriptVar));
     if( !args )
     {
         *outLen = 0;
@@ -86,7 +87,7 @@ read_triggers(
         *outLen = 0;
         return NULL;
     }
-    int32_t* t = malloc(sizeof(int32_t) * (size_t)len);
+    int32_t* t = RSCACHE_MALLOC(sizeof(int32_t) * (size_t)len);
     if( !t )
     {
         *outLen = 0;
@@ -132,27 +133,27 @@ RSCache_Dat2ComponentFree(struct RSCache_Dat2Component* c)
     if( !c )
         return;
 
-    free(c->text);
-    free(c->pauseText);
-    free(c->name);
-    free(c->option);
-    free(c->activeText);
-    free(c->targetText);
-    free(c->opBase);
-    free(c->targetVerb);
+    RSCACHE_FREE(c->text);
+    RSCACHE_FREE(c->pauseText);
+    RSCACHE_FREE(c->name);
+    RSCACHE_FREE(c->option);
+    RSCACHE_FREE(c->activeText);
+    RSCACHE_FREE(c->targetText);
+    RSCACHE_FREE(c->opBase);
+    RSCACHE_FREE(c->targetVerb);
 
-    free(c->objTypes);
-    free(c->objCounts);
+    RSCACHE_FREE(c->objTypes);
+    RSCACHE_FREE(c->objCounts);
     if( c->objOps )
     {
         for( int i = 0; i < 5; i++ )
-            free(c->objOps[i]);
-        free(c->objOps);
+            RSCACHE_FREE(c->objOps[i]);
+        RSCACHE_FREE(c->objOps);
     }
 
-    free(c->invSlotOffsetX);
-    free(c->invSlotOffsetY);
-    free(c->invSlotGraphicId);
+    RSCACHE_FREE(c->invSlotOffsetX);
+    RSCACHE_FREE(c->invSlotOffsetY);
+    RSCACHE_FREE(c->invSlotGraphicId);
 
     free_script_vars(c->onLoad, c->onLoadLen);
     free_script_vars(c->onMouseOver, c->onMouseOverLen);
@@ -175,21 +176,21 @@ RSCache_Dat2ComponentFree(struct RSCache_Dat2Component* c)
     free_script_vars(c->onVarcTransmit, c->onVarcTransmitLen);
     free_script_vars(c->onVarcstrTransmit, c->onVarcstrTransmitLen);
 
-    free(c->varpTriggers);
-    free(c->inventoryTriggers);
-    free(c->statTriggers);
-    free(c->varcTriggers);
-    free(c->varcstrTriggers);
+    RSCACHE_FREE(c->varpTriggers);
+    RSCACHE_FREE(c->inventoryTriggers);
+    RSCACHE_FREE(c->statTriggers);
+    RSCACHE_FREE(c->varcTriggers);
+    RSCACHE_FREE(c->varcstrTriggers);
 
     if( c->cs1Scripts )
     {
         for( int32_t i = 0; i < c->cs1ScriptsLen; i++ )
-            free(c->cs1Scripts[i]);
-        free(c->cs1Scripts);
+            RSCACHE_FREE(c->cs1Scripts[i]);
+        RSCACHE_FREE(c->cs1Scripts);
     }
-    free(c->cs1ScriptsLengths);
-    free(c->cs1ComparisonOpcodes);
-    free(c->cs1ComparisonOperands);
+    RSCACHE_FREE(c->cs1ScriptsLengths);
+    RSCACHE_FREE(c->cs1ComparisonOpcodes);
+    RSCACHE_FREE(c->cs1ComparisonOperands);
 
     if( c->createdComponents )
     {
@@ -198,19 +199,19 @@ RSCache_Dat2ComponentFree(struct RSCache_Dat2Component* c)
             if( c->createdComponents[i] )
             {
                 RSCache_Dat2ComponentFree(c->createdComponents[i]);
-                free(c->createdComponents[i]);
+                RSCACHE_FREE(c->createdComponents[i]);
             }
         }
-        free(c->createdComponents);
+        RSCACHE_FREE(c->createdComponents);
     }
 
     if( c->ops )
     {
         for( int32_t i = 0; i < c->opsLen; i++ )
-            free(c->ops[i]);
-        free(c->ops);
+            RSCACHE_FREE(c->ops[i]);
+        RSCACHE_FREE(c->ops);
     }
-    free(c->opCursors);
+    RSCACHE_FREE(c->opCursors);
 }
 
 struct RSCache_Dat2ComponentDecodeRev
@@ -311,8 +312,8 @@ RSCache_Dat2ComponentDecodeIf1(
     if( condCount > 0 )
     {
         self->cs1ComparisonLen = condCount;
-        self->cs1ComparisonOpcodes = malloc(sizeof(int32_t) * (size_t)condCount);
-        self->cs1ComparisonOperands = malloc(sizeof(int32_t) * (size_t)condCount);
+        self->cs1ComparisonOpcodes = RSCACHE_MALLOC(sizeof(int32_t) * (size_t)condCount);
+        self->cs1ComparisonOperands = RSCACHE_MALLOC(sizeof(int32_t) * (size_t)condCount);
         for( int32_t i = 0; i < condCount; i++ )
         {
             self->cs1ComparisonOpcodes[i] = g1(buf);
@@ -324,13 +325,13 @@ RSCache_Dat2ComponentDecodeIf1(
     if( scriptCount > 0 )
     {
         self->cs1ScriptsLen = scriptCount;
-        self->cs1Scripts = calloc((size_t)scriptCount, sizeof(int32_t*));
-        self->cs1ScriptsLengths = calloc((size_t)scriptCount, sizeof(int32_t));
+        self->cs1Scripts = RSCACHE_CALLOC((size_t)scriptCount, sizeof(int32_t*));
+        self->cs1ScriptsLengths = RSCACHE_CALLOC((size_t)scriptCount, sizeof(int32_t));
         for( int32_t i = 0; i < scriptCount; i++ )
         {
             int32_t opCount = g2(buf);
             self->cs1ScriptsLengths[i] = opCount;
-            self->cs1Scripts[i] = malloc(sizeof(int32_t) * (size_t)opCount);
+            self->cs1Scripts[i] = RSCACHE_MALLOC(sizeof(int32_t) * (size_t)opCount);
             for( int32_t j = 0; j < opCount; j++ )
             {
                 int32_t v = g2(buf);
@@ -354,8 +355,8 @@ RSCache_Dat2ComponentDecodeIf1(
         self->widthMode = 3;
         self->heightMode = 3;
         int32_t cells = self->baseWidth * self->baseHeight;
-        self->objCounts = calloc((size_t)cells, sizeof(int32_t));
-        self->objTypes = calloc((size_t)cells, sizeof(int32_t));
+        self->objCounts = RSCACHE_CALLOC((size_t)cells, sizeof(int32_t));
+        self->objTypes = RSCACHE_CALLOC((size_t)cells, sizeof(int32_t));
 
         int32_t local282 = g1(buf);
         int32_t local286 = g1(buf);
@@ -373,9 +374,9 @@ RSCache_Dat2ComponentDecodeIf1(
         self->marginX = g1(buf);
         self->marginY = g1(buf);
 
-        self->invSlotOffsetX = calloc(20, sizeof(int32_t));
-        self->invSlotOffsetY = calloc(20, sizeof(int32_t));
-        self->invSlotGraphicId = calloc(20, sizeof(int32_t));
+        self->invSlotOffsetX = RSCACHE_CALLOC(20, sizeof(int32_t));
+        self->invSlotOffsetY = RSCACHE_CALLOC(20, sizeof(int32_t));
+        self->invSlotGraphicId = RSCACHE_CALLOC(20, sizeof(int32_t));
         for( int i = 0; i < 20; i++ )
         {
             int32_t flag = g1(buf);
@@ -389,7 +390,7 @@ RSCache_Dat2ComponentDecodeIf1(
             else
                 self->invSlotGraphicId[i] = -1;
         }
-        self->objOps = calloc(5, sizeof(char*));
+        self->objOps = RSCACHE_CALLOC(5, sizeof(char*));
         for( int i = 0; i < 5; i++ )
         {
             char* op = read_jstring(buf);
@@ -400,7 +401,7 @@ RSCache_Dat2ComponentDecodeIf1(
             }
             else
             {
-                free(op);
+                RSCACHE_FREE(op);
                 self->objOps[i] = NULL;
             }
         }
@@ -420,9 +421,9 @@ RSCache_Dat2ComponentDecodeIf1(
     }
     if( self->type == 4 )
     {
-        free(self->text);
+        RSCACHE_FREE(self->text);
         self->text = read_jstring(buf);
-        free(self->activeText);
+        RSCACHE_FREE(self->activeText);
         self->activeText = read_jstring(buf);
     }
     if( self->type == 1 || self->type == 3 || self->type == 4 )
@@ -472,8 +473,8 @@ RSCache_Dat2ComponentDecodeIf1(
         self->heightMode = 3;
         self->widthMode = 3;
         int32_t cells = self->baseWidth * self->baseHeight;
-        self->objCounts = calloc((size_t)cells, sizeof(int32_t));
-        self->objTypes = calloc((size_t)cells, sizeof(int32_t));
+        self->objCounts = RSCACHE_CALLOC((size_t)cells, sizeof(int32_t));
+        self->objTypes = RSCACHE_CALLOC((size_t)cells, sizeof(int32_t));
 
         self->textHorizontalAlignment = g1(buf);
         self->textFont = g2(buf);
@@ -488,7 +489,7 @@ RSCache_Dat2ComponentDecodeIf1(
         if( local729 == 1 )
             self->clickMask |= 0x40000000;
 
-        self->objOps = calloc(5, sizeof(char*));
+        self->objOps = RSCACHE_CALLOC(5, sizeof(char*));
         for( int i = 0; i < 5; i++ )
         {
             char* op = read_jstring(buf);
@@ -499,22 +500,22 @@ RSCache_Dat2ComponentDecodeIf1(
             }
             else
             {
-                free(op);
+                RSCACHE_FREE(op);
                 self->objOps[i] = NULL;
             }
         }
     }
     if( self->type == 8 )
     {
-        free(self->text);
+        RSCACHE_FREE(self->text);
         self->text = read_jstring(buf);
     }
 
     if( self->buttonType == 2 || self->type == 2 )
     {
-        free(self->targetVerb);
+        RSCACHE_FREE(self->targetVerb);
         self->targetVerb = read_jstring(buf);
-        free(self->targetText);
+        RSCACHE_FREE(self->targetText);
         self->targetText = read_jstring(buf);
         int32_t local808 = g2(buf) & 0x3F;
         self->clickMask |= local808 << 11;
@@ -522,18 +523,18 @@ RSCache_Dat2ComponentDecodeIf1(
     if( self->buttonType == 1 || self->buttonType == 4 || self->buttonType == 5 ||
         self->buttonType == 6 )
     {
-        free(self->option);
+        RSCACHE_FREE(self->option);
         self->option = read_jstring(buf);
         if( !self->option || self->option[0] == '\0' )
         {
-            free(self->option);
+            RSCACHE_FREE(self->option);
             self->optionFromDefault = true;
             if( self->buttonType == 1 )
-                self->option = strdup(kOptionOk);
+                self->option = RSCache_Strdup(kOptionOk);
             else if( self->buttonType == 4 || self->buttonType == 5 )
-                self->option = strdup(kOptionSelect);
+                self->option = RSCache_Strdup(kOptionSelect);
             else
-                self->option = strdup(kOptionContinue);
+                self->option = RSCache_Strdup(kOptionContinue);
         }
     }
     if( self->buttonType == 1 || self->buttonType == 4 || self->buttonType == 5 )
@@ -607,7 +608,7 @@ decode_if3_rs2(
     {
         self->type &= 0x7F;
         /* Unused by the client beyond being stored; read to stay aligned. */
-        free(self->pauseText);
+        RSCACHE_FREE(self->pauseText);
         self->pauseText = read_jstring(buf);
     }
 
@@ -727,7 +728,7 @@ decode_if3_rs2(
             if( self->textFont == 65535 )
                 self->textFont = -1;
         }
-        free(self->text);
+        RSCACHE_FREE(self->text);
         self->text = read_jstring(buf);
         self->textLineHeight = g1(buf);
         self->textHorizontalAlignment = g1(buf);
@@ -779,7 +780,7 @@ decode_if3_rs2(
         }
     }
 
-    free(self->name);
+    RSCACHE_FREE(self->name);
     self->name = read_jstring(buf);
 
     {
@@ -792,11 +793,11 @@ decode_if3_rs2(
             if( self->ops )
             {
                 for( int32_t i = 0; i < self->opsLen; i++ )
-                    free(self->ops[i]);
-                free(self->ops);
+                    RSCACHE_FREE(self->ops[i]);
+                RSCACHE_FREE(self->ops);
             }
             self->opsLen = op_count;
-            self->ops = calloc((size_t)op_count, sizeof(char*));
+            self->ops = RSCACHE_CALLOC((size_t)op_count, sizeof(char*));
             for( int32_t i = 0; i < op_count; i++ )
                 self->ops[i] = read_jstring(buf);
         }
@@ -806,9 +807,9 @@ decode_if3_rs2(
         if( cursor_count > 0 )
         {
             int32_t slot = g1(buf);
-            free(self->opCursors);
+            RSCACHE_FREE(self->opCursors);
             self->opCursorsLen = slot + 1;
-            self->opCursors = malloc(sizeof(int32_t) * (size_t)self->opCursorsLen);
+            self->opCursors = RSCACHE_MALLOC(sizeof(int32_t) * (size_t)self->opCursorsLen);
             for( int32_t i = 0; i < self->opCursorsLen; i++ )
                 self->opCursors[i] = -1;
             self->opCursors[slot] = g2(buf);
@@ -822,11 +823,11 @@ decode_if3_rs2(
         }
     }
 
-    free(self->opBase);
+    RSCACHE_FREE(self->opBase);
     self->opBase = read_jstring(buf);
     if( self->opBase[0] == '\0' )
     {
-        free(self->opBase);
+        RSCACHE_FREE(self->opBase);
         self->opBase = NULL;
     }
 
@@ -834,7 +835,7 @@ decode_if3_rs2(
     self->dragDeadTime = (uint8_t)g1(buf);
     self->dragRender = (g1(buf) == 1);
 
-    free(self->targetVerb);
+    RSCACHE_FREE(self->targetVerb);
     self->targetVerb = read_jstring(buf);
 
     /* The seven target bits (clickMask >> 11 & 0x7F) gate a target-mask triplet.
@@ -876,7 +877,7 @@ decode_if3_rs2(
         for( int32_t i = 0; i < count; i++ )
         {
             g3(buf);
-            free(read_jstring(buf));
+            RSCACHE_FREE(read_jstring(buf));
         }
     }
 
@@ -1039,7 +1040,7 @@ RSCache_Dat2ComponentDecodeIf3(
         self->textFont = g2(buf);
         if( self->textFont == 65535 )
             self->textFont = -1;
-        free(self->text);
+        RSCACHE_FREE(self->text);
         self->text = read_jstring(buf);
         self->textLineHeight = g1(buf);
         self->textHorizontalAlignment = g1(buf);
@@ -1061,7 +1062,7 @@ RSCache_Dat2ComponentDecodeIf3(
     }
 
     self->clickMask = g3(buf);
-    free(self->name);
+    RSCACHE_FREE(self->name);
     self->name = read_jstring(buf);
 
     int32_t actionCount = g1(buf);
@@ -1070,11 +1071,11 @@ RSCache_Dat2ComponentDecodeIf3(
         if( self->ops )
         {
             for( int32_t i = 0; i < self->opsLen; i++ )
-                free(self->ops[i]);
-            free(self->ops);
+                RSCACHE_FREE(self->ops[i]);
+            RSCACHE_FREE(self->ops);
         }
         self->opsLen = actionCount;
-        self->ops = calloc((size_t)actionCount, sizeof(char*));
+        self->ops = RSCACHE_CALLOC((size_t)actionCount, sizeof(char*));
         for( int32_t i = 0; i < actionCount; i++ )
             self->ops[i] = read_jstring(buf);
     }
@@ -1083,7 +1084,7 @@ RSCache_Dat2ComponentDecodeIf3(
     self->dragDeadTime = (uint8_t)g1(buf);
     self->dragRender = (g1(buf) == 1);
 
-    free(self->targetVerb);
+    RSCACHE_FREE(self->targetVerb);
     self->targetVerb = read_jstring(buf);
 
     self->serverActiveProperties.events = self->clickMask;
@@ -1598,21 +1599,21 @@ RSCache_Dat2ComponentSetOp(
     int32_t need = i + 1;
     if( !self->ops || need > self->opsLen )
     {
-        char** nops = calloc((size_t)need, sizeof(char*));
+        char** nops = RSCACHE_CALLOC((size_t)need, sizeof(char*));
         if( !nops )
             return;
         if( self->ops )
         {
             for( int32_t j = 0; j < self->opsLen; j++ )
                 nops[j] = self->ops[j];
-            free(self->ops);
+            RSCACHE_FREE(self->ops);
         }
         self->ops = nops;
         self->opsLen = need;
     }
     if( self->ops[i] )
-        free(self->ops[i]);
-    self->ops[i] = op ? strdup(op) : NULL;
+        RSCACHE_FREE(self->ops[i]);
+    self->ops[i] = op ? RSCache_Strdup(op) : NULL;
 }
 
 struct RSCache_Dat2Component*
@@ -1625,7 +1626,7 @@ RSCache_Dat2ComponentNewDecode(
     assert(data != NULL);
     assert(data_size > 0);
 
-    struct RSCache_Dat2Component* comp = calloc(1, sizeof(struct RSCache_Dat2Component));
+    struct RSCache_Dat2Component* comp = RSCACHE_CALLOC(1, sizeof(struct RSCache_Dat2Component));
     assert(comp != NULL);
 
     struct RSCache_Buffer buf;
@@ -1652,12 +1653,12 @@ RSCache_Dat2ComponentPackFree(struct RSCache_Dat2ComponentPack* pack)
             if( pack->components[i] )
             {
                 RSCache_Dat2ComponentFree(pack->components[i]);
-                free(pack->components[i]);
+                RSCACHE_FREE(pack->components[i]);
             }
         }
-        free(pack->components);
+        RSCACHE_FREE(pack->components);
     }
-    free(pack);
+    RSCACHE_FREE(pack);
 }
 
 struct RSCache_Dat2ComponentPack*
@@ -1670,11 +1671,11 @@ RSCache_Dat2ComponentPackNewFromFileList(
     assert(filelist != NULL);
     assert(filelist->file_count > 0);
 
-    struct RSCache_Dat2ComponentPack* pack = calloc(1, sizeof(struct RSCache_Dat2ComponentPack));
+    struct RSCache_Dat2ComponentPack* pack = RSCACHE_CALLOC(1, sizeof(struct RSCache_Dat2ComponentPack));
     assert(pack != NULL);
 
     pack->component_count = filelist->file_count;
-    pack->components = calloc((size_t)filelist->file_count, sizeof(struct RSCache_Dat2Component*));
+    pack->components = RSCACHE_CALLOC((size_t)filelist->file_count, sizeof(struct RSCache_Dat2Component*));
     assert(pack->components != NULL);
 
     /* Probed once: this loop runs for every component of every interface. */

@@ -1,4 +1,5 @@
 #include "toridraw_shared_model.h"
+#include "toridraw_alloc.h"
 
 #include "toridraw_model.h"
 
@@ -40,7 +41,7 @@ shared_model_bucket(int64_t key)
 struct ToriDraw_SharedModelStore*
 ToriDraw_SharedModelStoreNew(void)
 {
-    struct ToriDraw_SharedModelStore* store = calloc(1, sizeof(*store));
+    struct ToriDraw_SharedModelStore* store = TORIDRAW_CALLOC(1, sizeof(*store));
 
     assert(store);
     return store;
@@ -54,7 +55,7 @@ ToriDraw_SharedModelStoreFree(struct ToriDraw_SharedModelStore* store)
     /* Entries are removed by their last holder, so an occupied store here means
      * a placement outlived the scene that placed it. */
     assert(store->count == 0);
-    free(store);
+    TORIDRAW_FREE(store);
 }
 
 int
@@ -108,10 +109,10 @@ ToriDraw_SharedModelStorePublish(
      * arrays move across with the shell and the caller's ToriDraw_Model is
      * spent. Taking ownership is the whole transaction -- there is no moment
      * afterwards at which a plain ToriDraw_Model* to this geometry exists. */
-    entry = calloc(1, sizeof(*entry));
+    entry = TORIDRAW_CALLOC(1, sizeof(*entry));
     assert(entry);
     entry->base = *model;
-    free(model);
+    TORIDRAW_FREE(model);
     entry->store = store;
     entry->key = key;
     entry->holders = 1;
@@ -146,7 +147,7 @@ ToriDraw_SharedModelRelease(struct ToriDraw_SharedModel* shared)
      * ToriDraw_ModelFree is not the right call: it would free a shell this
      * struct does not have. */
     ToriDraw_ModelFree_arrays(&shared->base);
-    free(shared);
+    TORIDRAW_FREE(shared);
 }
 
 /*
@@ -244,7 +245,7 @@ struct ToriDraw_SharedFacesStore
 struct ToriDraw_SharedFacesStore*
 ToriDraw_SharedFacesStoreNew(void)
 {
-    struct ToriDraw_SharedFacesStore* store = calloc(1, sizeof(*store));
+    struct ToriDraw_SharedFacesStore* store = TORIDRAW_CALLOC(1, sizeof(*store));
 
     assert(store);
     return store;
@@ -258,7 +259,7 @@ ToriDraw_SharedFacesStoreFree(struct ToriDraw_SharedFacesStore* store)
     /* Sets are removed by their last lender, so an occupied store here means a
      * placement outlived the scene that placed it. */
     assert(store->count == 0);
-    free(store);
+    TORIDRAW_FREE(store);
 }
 
 int
@@ -279,7 +280,7 @@ shared_faces_dup(
 
     if( !src || count <= 0 )
         return NULL;
-    dst = malloc((size_t)count * elem_size);
+    dst = TORIDRAW_MALLOC((size_t)count * elem_size);
     assert(dst);
     memcpy(dst, src, (size_t)count * elem_size);
     return dst;
@@ -317,10 +318,10 @@ ToriDraw_SharedFacesStoreBorrow(
      * offset zero and copied by value, so the arrays move with the shell and
      * the caller's ToriDraw_Model is spent -- there is no moment afterwards at
      * which a plain, writable pointer to this geometry exists. */
-    lent = calloc(1, sizeof(*lent));
+    lent = TORIDRAW_CALLOC(1, sizeof(*lent));
     assert(lent);
     lent->base = *model;
-    free(model);
+    TORIDRAW_FREE(model);
 
     faces = shared_faces_find(store, key);
     if( faces )
@@ -334,7 +335,7 @@ ToriDraw_SharedFacesStoreBorrow(
         assert(faces->face_count == lent->base.face_count);
         assert(faces->textured_face_count == lent->base.textured_face_count);
 
-#define TORIDRAW_SHARED_FACES_ADOPT(field)                                                             free(lent->base.field);                                                                            lent->base.field = faces->field;
+#define TORIDRAW_SHARED_FACES_ADOPT(field)                                                             TORIDRAW_FREE(lent->base.field);                                                                            lent->base.field = faces->field;
         TORIDRAW_SHARED_FACE_FIELDS(TORIDRAW_SHARED_FACES_ADOPT)
 #undef TORIDRAW_SHARED_FACES_ADOPT
 
@@ -345,7 +346,7 @@ ToriDraw_SharedFacesStoreBorrow(
 
     /* First placement of this topology: its arrays move into the set, and it
      * keeps aliases to them like every later lender. */
-    faces = calloc(1, sizeof(*faces));
+    faces = TORIDRAW_CALLOC(1, sizeof(*faces));
     assert(faces);
     faces->face_count = lent->base.face_count;
     faces->textured_face_count = lent->base.textured_face_count;
@@ -413,7 +414,7 @@ ToriDraw_SharedFacesStoreClone(
     if( !faces || !faces->has_template )
         return none;
 
-    lent = calloc(1, sizeof(*lent));
+    lent = TORIDRAW_CALLOC(1, sizeof(*lent));
     assert(lent);
 
     /* Scalars first, then every pointer is replaced: the template's own
@@ -478,7 +479,7 @@ ToriDraw_ModelLentFacesFree(struct ToriDraw_ModelLentFaces* lent)
 
     ToriDraw_ModelFree_arrays(&lent->base);
     ToriDraw_SharedFacesRelease(lent->faces);
-    free(lent);
+    TORIDRAW_FREE(lent);
 }
 
 void
@@ -501,16 +502,16 @@ ToriDraw_SharedFacesRelease(struct ToriDraw_SharedFaces* faces)
     *link = faces->next;
     store->count--;
 
-    free(faces->template_vertices_x);
-    free(faces->template_vertices_y);
-    free(faces->template_vertices_z);
-    free(faces->template_face_colors_a);
-    free(faces->template_face_colors_b);
-    free(faces->template_face_colors_c);
-    free(faces->template_face_infos);
+    TORIDRAW_FREE(faces->template_vertices_x);
+    TORIDRAW_FREE(faces->template_vertices_y);
+    TORIDRAW_FREE(faces->template_vertices_z);
+    TORIDRAW_FREE(faces->template_face_colors_a);
+    TORIDRAW_FREE(faces->template_face_colors_b);
+    TORIDRAW_FREE(faces->template_face_colors_c);
+    TORIDRAW_FREE(faces->template_face_infos);
 
-#define TORIDRAW_SHARED_FACES_FREE(field) free(faces->field);
+#define TORIDRAW_SHARED_FACES_FREE(field) TORIDRAW_FREE(faces->field);
     TORIDRAW_SHARED_FACE_FIELDS(TORIDRAW_SHARED_FACES_FREE)
 #undef TORIDRAW_SHARED_FACES_FREE
-    free(faces);
+    TORIDRAW_FREE(faces);
 }

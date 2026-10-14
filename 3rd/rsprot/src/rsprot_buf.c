@@ -15,6 +15,61 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include "rsprot_alloc.h"
+#include <assert.h>
+
+static void*
+rsprot_libc_malloc(
+    size_t size,
+    void* user)
+{
+    (void)user;
+    return malloc(size);
+}
+
+static void*
+rsprot_libc_calloc(
+    size_t count,
+    size_t size,
+    void* user)
+{
+    (void)user;
+    return calloc(count, size);
+}
+
+static void*
+rsprot_libc_realloc(
+    void* ptr,
+    size_t size,
+    void* user)
+{
+    (void)user;
+    return realloc(ptr, size);
+}
+
+static void
+rsprot_libc_free(
+    void* ptr,
+    void* user)
+{
+    (void)user;
+    free(ptr);
+}
+
+struct RSProt_Allocator g_rsprot_allocator = {
+    rsprot_libc_malloc, rsprot_libc_calloc, rsprot_libc_realloc, rsprot_libc_free, NULL,
+};
+
+void
+rsprot_set_allocator(const struct RSProt_Allocator* allocator)
+{
+    assert(allocator);
+    assert(allocator->malloc_fn);
+    assert(allocator->calloc_fn);
+    assert(allocator->realloc_fn);
+    assert(allocator->free_fn);
+    g_rsprot_allocator = *allocator;
+}
 
 #define HALF_UBYTE 0x80
 
@@ -54,7 +109,7 @@ bool rsprot_buf_ensure(RsprotBuf *b, int32_t extra)
 		}
 		cap *= 2;
 	}
-	grown = (uint8_t *)realloc(b->data, (size_t)cap);
+	grown = (uint8_t *)RSPROT_REALLOC(b->data, (size_t)cap);
 	if (!grown) {
 		b->err |= RSPROT_BUF_ERR_ALLOC;
 		return false;
@@ -121,7 +176,7 @@ bool rsprot_buf_alloc(RsprotBuf *b, int32_t cap)
 	b->bit_rpos = -1;
 	if (cap < 16)
 		cap = 16;
-	b->data = (uint8_t *)malloc((size_t)cap);
+	b->data = (uint8_t *)RSPROT_MALLOC((size_t)cap);
 	if (!b->data) {
 		b->err |= RSPROT_BUF_ERR_ALLOC;
 		return false;
@@ -136,7 +191,7 @@ void rsprot_buf_free(RsprotBuf *b)
 	if (!b)
 		return;
 	if (b->owned)
-		free(b->data);
+		RSPROT_FREE(b->data);
 	memset(b, 0, sizeof(*b));
 	b->bit_wpos = -1;
 	b->bit_rpos = -1;

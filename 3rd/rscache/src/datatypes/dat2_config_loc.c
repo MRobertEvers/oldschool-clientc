@@ -1,4 +1,5 @@
 #include "dat2_config_loc.h"
+#include "../rscache_alloc.h"
 
 #include "dat2_entity_ops.h"
 
@@ -100,7 +101,7 @@ RSCache_Dat2ConfigLocNewDecodeProfile(
     int buffer_size)
 {
     assert(cache);
-    struct RSCache_Dat2ConfigLoc* loc = malloc(sizeof(struct RSCache_Dat2ConfigLoc));
+    struct RSCache_Dat2ConfigLoc* loc = RSCACHE_MALLOC(sizeof(struct RSCache_Dat2ConfigLoc));
     assert(loc);
     memset(loc, 0, sizeof(struct RSCache_Dat2ConfigLoc));
 
@@ -117,7 +118,7 @@ RSCache_Dat2ConfigLocFree(struct RSCache_Dat2ConfigLoc* loc)
 
     RSCache_Dat2ConfigLocFreeInplace(loc);
 
-    free(loc);
+    RSCACHE_FREE(loc);
 }
 
 void
@@ -128,44 +129,44 @@ RSCache_Dat2ConfigLocFreeInplace(struct RSCache_Dat2ConfigLoc* loc)
 
     for( int i = 0; i < 10; i++ )
     {
-        free(loc->actions[i]);
-        free(loc->hidden_actions[i]);
+        RSCACHE_FREE(loc->actions[i]);
+        RSCACHE_FREE(loc->hidden_actions[i]);
     }
-    free(loc->name);
-    free(loc->desc);
+    RSCACHE_FREE(loc->name);
+    RSCACHE_FREE(loc->desc);
 
-    free(loc->shapes);
+    RSCACHE_FREE(loc->shapes);
     if( loc->models )
     {
         for( int i = 0; i < loc->shapes_and_model_count; i++ )
         {
-            free(loc->models[i]);
+            RSCACHE_FREE(loc->models[i]);
         }
-        free(loc->models);
+        RSCACHE_FREE(loc->models);
     }
 
-    free(loc->lengths);
+    RSCACHE_FREE(loc->lengths);
 
-    free(loc->recolors_from);
-    free(loc->recolors_to);
-    free(loc->retextures_from);
-    free(loc->retextures_to);
-    free(loc->transforms);
-    free(loc->ambient_sound_ids);
-    free(loc->random_seq_ids);
-    free(loc->random_seq_delays);
-    free(loc->campaign_ids);
+    RSCACHE_FREE(loc->recolors_from);
+    RSCACHE_FREE(loc->recolors_to);
+    RSCACHE_FREE(loc->retextures_from);
+    RSCACHE_FREE(loc->retextures_to);
+    RSCACHE_FREE(loc->transforms);
+    RSCACHE_FREE(loc->ambient_sound_ids);
+    RSCACHE_FREE(loc->random_seq_ids);
+    RSCACHE_FREE(loc->random_seq_delays);
+    RSCACHE_FREE(loc->campaign_ids);
 
     RSCache_EntityOpsFreeInplace(&loc->entity_ops);
 
     if( loc->params.values )
     {
         for( int i = 0; i < loc->params.count; i++ )
-            free(loc->params.values[i]);
-        free(loc->params.values);
+            RSCACHE_FREE(loc->params.values[i]);
+        RSCACHE_FREE(loc->params.values);
     }
-    free(loc->params.keys);
-    free(loc->params.kinds);
+    RSCACHE_FREE(loc->params.keys);
+    RSCACHE_FREE(loc->params.kinds);
 }
 
 void
@@ -778,13 +779,13 @@ loc_release_model_table(struct RSCache_Dat2ConfigLoc* loc)
     if( loc->models )
     {
         for( int i = 0; i < loc->shapes_and_model_count; i++ )
-            free(loc->models[i]);
-        free(loc->models);
+            RSCACHE_FREE(loc->models[i]);
+        RSCACHE_FREE(loc->models);
         loc->models = NULL;
     }
-    free(loc->shapes);
+    RSCACHE_FREE(loc->shapes);
     loc->shapes = NULL;
-    free(loc->lengths);
+    RSCACHE_FREE(loc->lengths);
     loc->lengths = NULL;
     loc->shapes_and_model_count = 0;
 }
@@ -807,9 +808,9 @@ loc_read_models_rs2(
     loc_release_model_table(loc);
     *out_installed = true;
     loc->shapes_and_model_count = count;
-    loc->shapes = (int*)malloc((size_t)count * sizeof(int));
-    loc->models = (int**)malloc((size_t)count * sizeof(int*));
-    loc->lengths = (int*)malloc((size_t)count * sizeof(int));
+    loc->shapes = (int*)RSCACHE_MALLOC((size_t)count * sizeof(int));
+    loc->models = (int**)RSCACHE_MALLOC((size_t)count * sizeof(int*));
+    loc->lengths = (int*)RSCACHE_MALLOC((size_t)count * sizeof(int));
     assert(loc->shapes);
     assert(loc->models);
     assert(loc->lengths);
@@ -823,7 +824,7 @@ loc_read_models_rs2(
 
         int model_count = g1(buffer);
         loc->lengths[i] = model_count;
-        loc->models[i] = model_count > 0 ? (int*)malloc((size_t)model_count * sizeof(int)) : NULL;
+        loc->models[i] = model_count > 0 ? (int*)RSCACHE_MALLOC((size_t)model_count * sizeof(int)) : NULL;
         if( model_count > 0 )
             assert(loc->models[i]);
 
@@ -934,8 +935,8 @@ loc_read_action(
 {
     char* action = gstringfl(buffer, flags);
 
-    free(loc->actions[action_index]);
-    free(loc->hidden_actions[action_index]);
+    RSCACHE_FREE(loc->actions[action_index]);
+    RSCACHE_FREE(loc->hidden_actions[action_index]);
     loc->hidden_actions[action_index] = NULL;
     if( action && strcasecmp(action, "hidden") == 0 )
     {
@@ -1005,9 +1006,9 @@ RSCache_Dat2ConfigLocDecodeOp(
             }
 
             loc_release_model_table(loc);
-            loc->shapes = (int*)malloc(count * sizeof(int));
-            loc->models = (int**)malloc(count * sizeof(int*));
-            loc->lengths = (int*)malloc(count * sizeof(int));
+            loc->shapes = (int*)RSCACHE_MALLOC(count * sizeof(int));
+            loc->models = (int**)RSCACHE_MALLOC(count * sizeof(int*));
+            loc->lengths = (int*)RSCACHE_MALLOC(count * sizeof(int));
             assert(loc->shapes);
             assert(loc->models);
             assert(loc->lengths);
@@ -1015,7 +1016,7 @@ RSCache_Dat2ConfigLocDecodeOp(
             loc->shapes_and_model_count = count;
             for( int i = 0; i < count; i++ )
             {
-                loc->models[i] = (int*)malloc(1 * sizeof(int));
+                loc->models[i] = (int*)RSCACHE_MALLOC(1 * sizeof(int));
                 assert(loc->models[i]);
                 loc->models[i][0] = LOC_READ_MODEL_ID(buffer, flags);
                 loc->shapes[i] = g1(buffer);
@@ -1025,12 +1026,12 @@ RSCache_Dat2ConfigLocDecodeOp(
             break;
         }
         case 2:
-            free(loc->name);
+            RSCACHE_FREE(loc->name);
             loc->name = gstringfl(buffer, flags);
             LOC_STATE(NAME);
             break;
         case 3:
-            free(loc->desc);
+            RSCACHE_FREE(loc->desc);
             loc->desc = gstringfl(buffer, flags);
             LOC_STATE(DESC);
             break;
@@ -1067,11 +1068,11 @@ RSCache_Dat2ConfigLocDecodeOp(
             loc->shapes_and_model_count = 1;
 
             loc->shapes = NULL;
-            loc->models = (int**)malloc(1 * sizeof(int*));
+            loc->models = (int**)RSCACHE_MALLOC(1 * sizeof(int*));
             assert(loc->models);
-            loc->models[0] = (int*)malloc(count * sizeof(int));
+            loc->models[0] = (int*)RSCACHE_MALLOC(count * sizeof(int));
             assert(loc->models[0]);
-            loc->lengths = (int*)malloc(1 * sizeof(int));
+            loc->lengths = (int*)RSCACHE_MALLOC(1 * sizeof(int));
             assert(loc->lengths);
             loc->lengths[0] = count;
             for( int i = 0; i < count; i++ )
@@ -1095,9 +1096,9 @@ RSCache_Dat2ConfigLocDecodeOp(
             }
 
             loc_release_model_table(loc);
-            loc->shapes = (int*)malloc(count * sizeof(int));
-            loc->models = (int**)malloc(count * sizeof(int*));
-            loc->lengths = (int*)malloc(count * sizeof(int));
+            loc->shapes = (int*)RSCACHE_MALLOC(count * sizeof(int));
+            loc->models = (int**)RSCACHE_MALLOC(count * sizeof(int*));
+            loc->lengths = (int*)RSCACHE_MALLOC(count * sizeof(int));
             assert(loc->shapes);
             assert(loc->models);
             assert(loc->lengths);
@@ -1105,7 +1106,7 @@ RSCache_Dat2ConfigLocDecodeOp(
             loc->shapes_and_model_count = count;
             for( int i = 0; i < count; i++ )
             {
-                loc->models[i] = (int*)malloc(1 * sizeof(int));
+                loc->models[i] = (int*)RSCACHE_MALLOC(1 * sizeof(int));
                 assert(loc->models[i]);
                 loc->models[i][0] = g4(buffer);
                 loc->shapes[i] = g1(buffer);
@@ -1129,11 +1130,11 @@ RSCache_Dat2ConfigLocDecodeOp(
             loc_release_model_table(loc);
             loc->shapes_and_model_count = 1;
             loc->shapes = NULL;
-            loc->models = (int**)malloc(1 * sizeof(int*));
+            loc->models = (int**)RSCACHE_MALLOC(1 * sizeof(int*));
             assert(loc->models);
-            loc->models[0] = (int*)malloc(count * sizeof(int));
+            loc->models[0] = (int*)RSCACHE_MALLOC(count * sizeof(int));
             assert(loc->models[0]);
-            loc->lengths = (int*)malloc(1 * sizeof(int));
+            loc->lengths = (int*)RSCACHE_MALLOC(1 * sizeof(int));
             assert(loc->lengths);
             loc->lengths[0] = count;
             for( int i = 0; i < count; i++ )
@@ -1229,15 +1230,15 @@ RSCache_Dat2ConfigLocDecodeOp(
         case 40:
         {
             int count = g1(buffer);
-            free(loc->recolors_from);
-            free(loc->recolors_to);
+            RSCACHE_FREE(loc->recolors_from);
+            RSCACHE_FREE(loc->recolors_to);
             loc->recolors_from = NULL;
             loc->recolors_to = NULL;
             loc->recolor_count = count;
             if( count > 0 )
             {
-                loc->recolors_from = malloc(count * sizeof(int));
-                loc->recolors_to = malloc(count * sizeof(int));
+                loc->recolors_from = RSCACHE_MALLOC(count * sizeof(int));
+                loc->recolors_to = RSCACHE_MALLOC(count * sizeof(int));
                 assert(loc->recolors_from);
                 assert(loc->recolors_to);
                 for( int i = 0; i < count; i++ )
@@ -1252,15 +1253,15 @@ RSCache_Dat2ConfigLocDecodeOp(
         case 41:
         {
             int count = g1(buffer);
-            free(loc->retextures_from);
-            free(loc->retextures_to);
+            RSCACHE_FREE(loc->retextures_from);
+            RSCACHE_FREE(loc->retextures_to);
             loc->retextures_from = NULL;
             loc->retextures_to = NULL;
             loc->retexture_count = count;
             if( count > 0 )
             {
-                loc->retextures_from = malloc(count * sizeof(int));
-                loc->retextures_to = malloc(count * sizeof(int));
+                loc->retextures_from = RSCACHE_MALLOC(count * sizeof(int));
+                loc->retextures_to = RSCACHE_MALLOC(count * sizeof(int));
                 assert(loc->retextures_from);
                 assert(loc->retextures_to);
                 for( int i = 0; i < count; i++ )
@@ -1375,9 +1376,9 @@ RSCache_Dat2ConfigLocDecodeOp(
             }
 
             int count = g1(buffer);
-            free(loc->transforms);
+            RSCACHE_FREE(loc->transforms);
             loc->transform_count = count + 2;
-            loc->transforms = malloc((count + 2) * sizeof(int));
+            loc->transforms = RSCACHE_MALLOC((count + 2) * sizeof(int));
             assert(loc->transforms);
 
             for( int i = 0; i <= count; i++ )
@@ -1429,12 +1430,12 @@ RSCache_Dat2ConfigLocDecodeOp(
                   (RSCACHE_CONFIG_LOC_DECODE_KRONOS | RSCACHE_CONFIG_LOC_DECODE_RS2)) )
                 loc->ambient_sound_retain = g1(buffer);
             int count = g1(buffer);
-            free(loc->ambient_sound_ids);
+            RSCACHE_FREE(loc->ambient_sound_ids);
             loc->ambient_sound_ids = NULL;
             loc->ambient_sound_id_count = count;
             if( count > 0 )
             {
-                loc->ambient_sound_ids = malloc(count * sizeof(int));
+                loc->ambient_sound_ids = RSCACHE_MALLOC(count * sizeof(int));
                 assert(loc->ambient_sound_ids);
                 for( int i = 0; i < count; i++ )
                 {
@@ -1642,15 +1643,15 @@ RSCache_Dat2ConfigLocDecodeOp(
         case 106:
         {
             int count = g1(buffer);
-            free(loc->random_seq_ids);
-            free(loc->random_seq_delays);
+            RSCACHE_FREE(loc->random_seq_ids);
+            RSCACHE_FREE(loc->random_seq_delays);
             loc->random_seq_ids = NULL;
             loc->random_seq_delays = NULL;
             loc->random_seq_id_count = count;
             if( count > 0 )
             {
-                loc->random_seq_ids = malloc(count * sizeof(int));
-                loc->random_seq_delays = malloc(count * sizeof(int));
+                loc->random_seq_ids = RSCACHE_MALLOC(count * sizeof(int));
+                loc->random_seq_delays = RSCACHE_MALLOC(count * sizeof(int));
                 assert(loc->random_seq_ids);
                 assert(loc->random_seq_delays);
                 for( int i = 0; i < count; i++ )
@@ -1676,12 +1677,12 @@ RSCache_Dat2ConfigLocDecodeOp(
         case 160:
         {
             int count = g1(buffer);
-            free(loc->campaign_ids);
+            RSCACHE_FREE(loc->campaign_ids);
             loc->campaign_ids = NULL;
             loc->campaign_id_count = count;
             if( count > 0 )
             {
-                loc->campaign_ids = malloc(count * sizeof(int));
+                loc->campaign_ids = RSCACHE_MALLOC(count * sizeof(int));
                 assert(loc->campaign_ids);
                 for( int i = 0; i < count; i++ )
                 {

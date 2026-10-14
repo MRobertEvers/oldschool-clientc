@@ -1,4 +1,5 @@
 #include "music_song.h"
+#include "../rscache_alloc.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -190,7 +191,7 @@ song_patch_for(
     if( song->patch_count >= *capacity )
     {
         int next = *capacity > 0 ? *capacity * 2 : 16;
-        grown = realloc(song->patches, (size_t)next * sizeof(*song->patches));
+        grown = RSCACHE_REALLOC(song->patches, (size_t)next * sizeof(*song->patches));
         if( !grown )
             return NULL;
         song->patches = grown;
@@ -208,9 +209,9 @@ RSCache_MusicSongFree(struct RSCache_MusicSong* song)
 {
     if( !song )
         return;
-    free(song->midi);
-    free(song->patches);
-    free(song);
+    RSCACHE_FREE(song->midi);
+    RSCACHE_FREE(song->patches);
+    RSCACHE_FREE(song);
 }
 
 struct RSCache_MusicSong*
@@ -436,15 +437,15 @@ RSCache_MusicSongNewDecode(
     if( total_bytes <= 0 || total_bytes > (1 << 26) )
         return NULL;
 
-    song = calloc(1, sizeof(*song));
+    song = RSCACHE_CALLOC(1, sizeof(*song));
     if( !song )
         return NULL;
     song->track_count = track_count;
     song->division = division;
-    song->midi = calloc((size_t)total_bytes, 1);
+    song->midi = RSCACHE_CALLOC((size_t)total_bytes, 1);
     if( !song->midi )
     {
-        free(song);
+        RSCACHE_FREE(song);
         return NULL;
     }
     song->midi_size = total_bytes;

@@ -1,4 +1,5 @@
 #include "dat2_sprites.h"
+#include "../rscache_alloc.h"
 
 #include "../rsbuffer.h"
 #include "../rscache_profile.h"
@@ -23,8 +24,8 @@ RSCache_Dat2SpriteFlags(const struct RSCache* cache)
 static void
 sprite_free_contents(struct RSCache_Dat2Sprite* sprite)
 {
-    free(sprite->palette_pixels);
-    free(sprite->pixel_alphas);
+    RSCACHE_FREE(sprite->palette_pixels);
+    RSCACHE_FREE(sprite->pixel_alphas);
     sprite->palette_pixels = NULL;
     sprite->pixel_alphas = NULL;
 }
@@ -48,7 +49,7 @@ RSCache_Dat2SpritePackNewDecode(
     if( !data || length < 7 )
         return NULL;
 
-    pack = calloc(1, sizeof(*pack));
+    pack = RSCACHE_CALLOC(1, sizeof(*pack));
     if( !pack )
         return NULL;
 
@@ -64,10 +65,10 @@ RSCache_Dat2SpritePackNewDecode(
     memory_height = g2(&buffer);
     palette_length = g1(&buffer) + 1;
 
-    sprites = calloc((size_t)sprite_count, sizeof(*sprites));
+    sprites = RSCACHE_CALLOC((size_t)sprite_count, sizeof(*sprites));
     if( !sprites )
     {
-        free(pack);
+        RSCACHE_FREE(pack);
         return NULL;
     }
     pack->sprites = sprites;
@@ -91,7 +92,7 @@ RSCache_Dat2SpritePackNewDecode(
     buffer.position =
         (uint32_t)(length - 7 - sprite_count * 8 - (palette_length - 1) * 3);
 
-    palette = calloc((size_t)palette_length, sizeof(int));
+    palette = RSCACHE_CALLOC((size_t)palette_length, sizeof(int));
     if( !palette )
     {
         RSCache_Dat2SpritePackFree(pack);
@@ -120,12 +121,12 @@ RSCache_Dat2SpritePackNewDecode(
         int j;
         int k;
 
-        pixel_idx = calloc((size_t)dimension, sizeof(uint8_t));
-        pixel_alpha = calloc((size_t)dimension, sizeof(uint8_t));
+        pixel_idx = RSCACHE_CALLOC((size_t)dimension, sizeof(uint8_t));
+        pixel_alpha = RSCACHE_CALLOC((size_t)dimension, sizeof(uint8_t));
         if( !pixel_idx || !pixel_alpha )
         {
-            free(pixel_idx);
-            free(pixel_alpha);
+            RSCACHE_FREE(pixel_idx);
+            RSCACHE_FREE(pixel_alpha);
             RSCache_Dat2SpritePackFree(pack);
             return NULL;
         }
@@ -189,16 +190,16 @@ RSCache_Dat2SpritePackNewDecode(
             if( sprite->width != sprite->crop_width || sprite->height != sprite->crop_height )
             {
                 int dimension = sprite->width * sprite->height;
-                uint8_t* pixel_idx = calloc((size_t)dimension, sizeof(uint8_t));
-                uint8_t* pixel_alphas = calloc((size_t)dimension, sizeof(uint8_t));
+                uint8_t* pixel_idx = RSCACHE_CALLOC((size_t)dimension, sizeof(uint8_t));
+                uint8_t* pixel_alphas = RSCACHE_CALLOC((size_t)dimension, sizeof(uint8_t));
                 int index = 0;
                 int y;
                 int x;
 
                 if( !pixel_idx || !pixel_alphas )
                 {
-                    free(pixel_idx);
-                    free(pixel_alphas);
+                    RSCACHE_FREE(pixel_idx);
+                    RSCACHE_FREE(pixel_alphas);
                     RSCache_Dat2SpritePackFree(pack);
                     return NULL;
                 }
@@ -214,8 +215,8 @@ RSCache_Dat2SpritePackNewDecode(
                         index++;
                     }
                 }
-                free(sprite->palette_pixels);
-                free(sprite->pixel_alphas);
+                RSCACHE_FREE(sprite->palette_pixels);
+                RSCACHE_FREE(sprite->pixel_alphas);
                 sprite->palette_pixels = pixel_idx;
                 sprite->pixel_alphas = pixel_alphas;
                 sprite->crop_width = sprite->width;
@@ -345,14 +346,14 @@ RSCache_Dat2SpritePackFree(struct RSCache_Dat2SpritePack* pack)
     if( !pack )
         return;
 
-    free(pack->palette);
+    RSCACHE_FREE(pack->palette);
     if( pack->sprites )
     {
         for( i = 0; i < pack->count; i++ )
             sprite_free_contents(&pack->sprites[i]);
-        free(pack->sprites);
+        RSCACHE_FREE(pack->sprites);
     }
-    free(pack);
+    RSCACHE_FREE(pack);
 }
 
 int*
@@ -374,7 +375,7 @@ RSCache_Dat2SpriteGetPixels(
     if( pixel_count <= 0 )
         return NULL;
 
-    pixels = calloc((size_t)pixel_count, sizeof(int));
+    pixels = RSCACHE_CALLOC((size_t)pixel_count, sizeof(int));
     if( !pixels )
         return NULL;
 

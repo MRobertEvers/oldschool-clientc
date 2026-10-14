@@ -23,6 +23,7 @@
  * Skips the render half cleanly when no cache is present.
  */
 
+#include "mem/torimem_rscache.h"
 #include "audio/torirs_audio.h"
 #include "audio/torirs_midi_synth.h"
 #include "audio/torirs_midi_synth.h"
@@ -717,8 +718,13 @@ static void
 test_soundbank_refcounts(void)
 {
     struct ToriRS_SoundBank bank;
-    int16_t* a = make_tone(100, 22050, 440.0);
-    int16_t* b = make_tone(100, 22050, 660.0);
+    /* The bank takes ASSET blocks. */
+    int16_t* tone_a = make_tone(100, 22050, 440.0);
+    int16_t* tone_b = make_tone(100, 22050, 660.0);
+    int16_t* a = ToriMem_Memdup(ToriMem_Assets(), tone_a, 100 * sizeof(int16_t));
+    int16_t* b = ToriMem_Memdup(ToriMem_Assets(), tone_b, 100 * sizeof(int16_t));
+    free(tone_a);
+    free(tone_b);
 
     ToriRS_SoundBank_Init(&bank);
     CHECK(ToriRS_SoundBank_AddSample(
@@ -877,20 +883,24 @@ test_render_song(
                 RSCache_Dat2DiskArchiveFree(archive);
                 if( !pcm )
                     continue;
+                int16_t* samples = NULL;
+                if( pcm->samples && pcm->sample_count > 0 )
+                {
+                    samples = ToriMem_TakeFromRSCache(
+                        ToriMem_Assets(), pcm->samples, (size_t)pcm->sample_count * sizeof(*pcm->samples));
+                    pcm->samples = NULL; /* the bank's now, kept or freed */
+                }
                 if( ToriRS_SoundBank_AddSample(
                         &bank,
                         table,
                         sample_id,
-                        pcm->samples,
+                        samples,
                         pcm->sample_count,
                         pcm->sample_rate,
                         pcm->loop_start,
                         pcm->loop_end,
                         pcm->loop) )
-                {
                     report.samples_loaded++;
-                    pcm->samples = NULL; /* ownership moved into the bank */
-                }
                 RSCache_AudioSampleFree(pcm);
             }
             else
@@ -915,7 +925,7 @@ test_render_song(
                     RSCache_SoundPcmRelease(&pcm);
                     continue;
                 }
-                widened = malloc((size_t)pcm.sample_count * sizeof(int16_t));
+                widened = ToriMem_Alloc(ToriMem_Assets(), (size_t)pcm.sample_count * sizeof(int16_t));
                 for( int s = 0; s < pcm.sample_count; s++ )
                     widened[s] = (int16_t)(((int)pcm.samples[s] - 128) << 8);
                 if( ToriRS_SoundBank_AddSample(

@@ -1,4 +1,5 @@
 #include "dat2_config_struct.h"
+#include "../rscache_alloc.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -94,13 +95,13 @@ RSCache_Dat2ConfigStructFreeInplace(struct RSCache_Dat2ConfigStruct* entry)
     if( entry->params.values )
     {
         for( i = 0; i < entry->params.count; i++ )
-            free(entry->params.values[i]);
-        free(entry->params.values);
+            RSCACHE_FREE(entry->params.values[i]);
+        RSCACHE_FREE(entry->params.values);
         entry->params.values = NULL;
     }
-    free(entry->params.keys);
+    RSCACHE_FREE(entry->params.keys);
     entry->params.keys = NULL;
-    free(entry->params.kinds);
+    RSCACHE_FREE(entry->params.kinds);
     entry->params.kinds = NULL;
     entry->params.count = 0;
     entry->params.capacity = 0;
@@ -112,7 +113,7 @@ RSCache_Dat2ConfigStructFree(struct RSCache_Dat2ConfigStruct* entry)
     if( !entry )
         return;
     RSCache_Dat2ConfigStructFreeInplace(entry);
-    free(entry);
+    RSCACHE_FREE(entry);
 }
 
 uint32_t

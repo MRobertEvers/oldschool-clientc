@@ -1,4 +1,5 @@
 #include "dat2_texture.h"
+#include "../rscache_alloc.h"
 
 #include "../rsbuffer.h"
 
@@ -23,7 +24,7 @@ texture_decode_simplified(
     def->animation_speed = g1(&buffer);
 
     def->sprite_ids_count = 1;
-    def->sprite_ids = malloc(sizeof(int));
+    def->sprite_ids = RSCACHE_MALLOC(sizeof(int));
     assert(def->sprite_ids);
     def->sprite_ids[0] = sprite_id;
     def->sprite_types = NULL;
@@ -112,7 +113,7 @@ RSCache_Dat2TextureNewDecodeProfile(
     char* data,
     int length)
 {
-    struct RSCache_Dat2Texture* def = malloc(sizeof(struct RSCache_Dat2Texture));
+    struct RSCache_Dat2Texture* def = RSCACHE_MALLOC(sizeof(struct RSCache_Dat2Texture));
     assert(def);
     memset(def, 0, sizeof(struct RSCache_Dat2Texture));
 
@@ -128,7 +129,7 @@ RSCache_Dat2TextureFree(struct RSCache_Dat2Texture* texture)
     if( !texture )
         return;
     RSCache_Dat2TextureFreeInplace(texture);
-    free(texture);
+    RSCACHE_FREE(texture);
 }
 
 void
@@ -137,9 +138,9 @@ RSCache_Dat2TextureFreeInplace(struct RSCache_Dat2Texture* texture)
     if( !texture )
         return;
 
-    free(texture->sprite_ids);
-    free(texture->sprite_types);
-    free(texture->transforms);
+    RSCACHE_FREE(texture->sprite_ids);
+    RSCACHE_FREE(texture->sprite_types);
+    RSCACHE_FREE(texture->transforms);
 }
 
 struct RSCache_Dat2Texture*
@@ -157,7 +158,7 @@ RSCache_Dat2TextureDecodeInplace(
     int count = g1(&buffer);
     def->sprite_ids_count = count;
 
-    def->sprite_ids = malloc(count * sizeof(int));
+    def->sprite_ids = RSCACHE_MALLOC(count * sizeof(int));
     assert(def->sprite_ids);
 
     for( int i = 0; i < count; i++ )
@@ -165,7 +166,7 @@ RSCache_Dat2TextureDecodeInplace(
 
     if( count > 1 )
     {
-        def->sprite_types = malloc((count - 1) * sizeof(int));
+        def->sprite_types = RSCACHE_MALLOC((count - 1) * sizeof(int));
         assert(def->sprite_types);
 
         for( int i = 0; i < count - 1; i++ )
@@ -179,7 +180,7 @@ RSCache_Dat2TextureDecodeInplace(
             g1(&buffer);
     }
 
-    def->transforms = malloc(count * sizeof(int));
+    def->transforms = RSCACHE_MALLOC(count * sizeof(int));
     assert(def->transforms);
 
     for( int i = 0; i < count; i++ )

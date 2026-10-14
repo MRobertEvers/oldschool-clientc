@@ -1,3 +1,4 @@
+#include "mem/torirs_mem.h"
 #include "engine/torirs_component_hook.h"
 
 #include "engine/torirs_types.h"
@@ -84,7 +85,7 @@ ToriRS_ComponentHookInit(
     assert(kind >= 0 && kind < TORIRS_COMPONENT_HOOK_COUNT);
     if( !component->hooks[kind] )
         component->hooks[kind] =
-            (struct ToriRS_ScriptHook*)calloc(1, sizeof(struct ToriRS_ScriptHook));
+            (struct ToriRS_ScriptHook*)ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(struct ToriRS_ScriptHook));
     return component->hooks[kind];
 }
 
@@ -95,7 +96,7 @@ ToriRS_ComponentHooksFree(struct ToriRS_Component* component)
         return;
     for( int i = 0; i < TORIRS_COMPONENT_HOOK_COUNT; i++ )
     {
-        free(component->hooks[i]);
+        ToriMem_Free(ToriMem_Assets(), component->hooks[i]);
         component->hooks[i] = NULL;
     }
 }

@@ -1,4 +1,5 @@
 #include "../rscache_valuetype.h"
+#include "../rscache_alloc.h"
 #include "dat2_config_param.h"
 
 #include <assert.h>
@@ -109,7 +110,7 @@ RSCache_Dat2ConfigParamDecodeOp(
     case 5:
     {
         char* str = gcstring(buffer);
-        free(entry->default_string);
+        RSCACHE_FREE(entry->default_string);
         entry->default_string = str;
         RSCache_PresenceSet(&entry->present, RSCACHE_PARAM_FIELD_DEFAULT_STRING);
         return true;
@@ -208,7 +209,7 @@ void
 RSCache_Dat2ConfigParamFreeInplace(struct RSCache_Dat2ConfigParam* entry)
 {
     assert(entry != NULL);
-    free(entry->default_string);
+    RSCACHE_FREE(entry->default_string);
     entry->default_string = NULL;
 }
 
@@ -217,7 +218,7 @@ RSCache_Dat2ConfigParamFree(struct RSCache_Dat2ConfigParam* entry)
 {
     assert(entry != NULL);
     RSCache_Dat2ConfigParamFreeInplace(entry);
-    free(entry);
+    RSCACHE_FREE(entry);
 }
 
 uint32_t

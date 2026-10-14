@@ -1,3 +1,4 @@
+#include "mem/torirs_mem.h"
 #include "engine/torirs_npctype_from_rscache.h"
 
 #include <assert.h>
@@ -37,7 +38,7 @@ torirs_npctype_copy_models(
     if( models_count <= 0 )
         return;
 
-    dst->models = malloc((size_t)models_count * sizeof(int));
+    dst->models = ToriMem_Alloc(ToriMem_Assets(), (size_t)models_count * sizeof(int));
     assert(dst->models);
     memcpy(dst->models, models, (size_t)models_count * sizeof(int));
 }
@@ -55,7 +56,7 @@ torirs_npctype_copy_heads(
         return;
     }
 
-    dst->heads = malloc((size_t)heads_count * sizeof(int));
+    dst->heads = ToriMem_Alloc(ToriMem_Assets(), (size_t)heads_count * sizeof(int));
     assert(dst->heads);
     memcpy(dst->heads, heads, (size_t)heads_count * sizeof(int));
 }
@@ -75,8 +76,8 @@ torirs_npctype_copy_pairs_int(
     assert(src_from);
     assert(src_to);
 
-    *dst_from = malloc((size_t)count * sizeof(int));
-    *dst_to = malloc((size_t)count * sizeof(int));
+    *dst_from = ToriMem_Alloc(ToriMem_Assets(), (size_t)count * sizeof(int));
+    *dst_to = ToriMem_Alloc(ToriMem_Assets(), (size_t)count * sizeof(int));
     assert(*dst_from);
     assert(*dst_to);
     memcpy(*dst_from, src_from, (size_t)count * sizeof(int));
@@ -103,7 +104,7 @@ torirs_npctype_copy_params(struct ToriRS_Npctype* dst, struct RSCache_Params con
         return;
 
     dst->param_count = src->count;
-    dst->params = calloc((size_t)src->count, sizeof(*dst->params));
+    dst->params = ToriMem_Calloc(ToriMem_Assets(), (size_t)src->count, sizeof(*dst->params));
     assert(dst->params);
     for( int i = 0; i < src->count; i++ )
     {
@@ -111,7 +112,7 @@ torirs_npctype_copy_params(struct ToriRS_Npctype* dst, struct RSCache_Params con
         if( src->kinds && src->kinds[i] == RSCACHE_PARAM_STRING )
         {
             char const* str = (char const*)src->values[i];
-            dst->params[i].string_value = strdup(str ? str : "");
+            dst->params[i].string_value = ToriMem_Strdup(ToriMem_Assets(), str ? str : "");
             assert(dst->params[i].string_value);
         }
         else if( src->values[i] )
@@ -133,7 +134,7 @@ ToriRS_NpctypeFromRSCacheDat1(
 
     assert(src);
 
-    npctype = calloc(1, sizeof(*npctype));
+    npctype = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*npctype));
     assert(npctype);
 
     npctype->id = npc_id;
@@ -240,7 +241,7 @@ ToriRS_NpctypeFromRSCacheDat2(
 
     assert(src);
 
-    npctype = calloc(1, sizeof(*npctype));
+    npctype = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*npctype));
     assert(npctype);
 
     npctype->id = npc_id;
@@ -426,7 +427,7 @@ ToriRS_NpctypeFromRSCacheDat2(
     npctype->transform_varp = src->varp_index;
     if( src->configs_count > 0 )
     {
-        npctype->transforms = malloc((size_t)src->configs_count * sizeof(int));
+        npctype->transforms = ToriMem_Alloc(ToriMem_Assets(), (size_t)src->configs_count * sizeof(int));
         assert(npctype->transforms);
         memcpy(npctype->transforms, src->configs, (size_t)src->configs_count * sizeof(int));
         npctype->transform_count = src->configs_count;

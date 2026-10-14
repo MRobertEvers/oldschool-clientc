@@ -16,6 +16,7 @@
 
 // Unity
 // clang-format off
+#include "rscache_alloc.h"
 #include "rscache_profile.h"
 #include "rsbuffer.h"
 #include "checksum.h"

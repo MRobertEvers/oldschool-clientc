@@ -1,3 +1,4 @@
+#include "mem/torirs_mem.h"
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
 #include "engine/dat2/dat2_tasks.h"
@@ -167,21 +168,22 @@ task_dat2_worldmap_attach_compositetextures(
         area = ToriRS_WorldMapAreasGet(areas, file_id);
         if( !area )
             continue;
-        if( !PngDecode_Rgb(files->files[i], files->file_sizes[i], &width, &height, &rgb) )
+        if( !PngDecode_Rgb(ToriMem_Frame(), files->files[i], files->file_sizes[i], &width, &height, &rgb) )
         {
             TORIRS_ERR("worldmap: compositetexture %d: PNG decode failed\n", file_id);
             continue;
         }
         assert(width > 0 && height > 0 && rgb);
         pixel_count = width * height;
-        argb = malloc((size_t)pixel_count * sizeof(*argb));
+        /* The area owns it; ToriRS_WorldMapAreasFree releases it from ASSET. */
+        argb = ToriMem_Alloc(ToriMem_Assets(), (size_t)pixel_count * sizeof(*argb));
         assert(argb);
         /* PngDecode_Rgb drops alpha to 0; overview sprites need opaque ARGB. */
         for( int p = 0; p < pixel_count; p++ )
             argb[p] = 0xFF000000u | (rgb[p] & 0xFFFFFFu);
-        free(rgb);
+        ToriMem_Free(ToriMem_Frame(), rgb);
 
-        free(area->overview_pixels);
+        ToriMem_Free(ToriMem_Assets(), area->overview_pixels);
         area->overview_pixels = argb;
         area->overview_width = width;
         area->overview_height = height;

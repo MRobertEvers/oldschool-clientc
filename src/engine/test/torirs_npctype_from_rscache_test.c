@@ -13,6 +13,7 @@
  * the shell's where it does not (ToriRS_NpctypeEntityFacts, below).
  */
 #include "engine/torirs_npctype_from_rscache.h"
+#include "engine/torirs_types.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -54,11 +55,7 @@ test_dat2_carries_multinpc_fields(void)
             npctype->transforms[2] == -1 && npctype->transforms[3] == -1,
         "transforms array contents match configs verbatim");
 
-    /* Not ToriRS_NpctypeFree: it pulls in the whole torirs_types.c
-     * component-hook dependency chain for a struct this test built by hand
-     * and with none of those fields set. Free directly. */
-    free(npctype->transforms);
-    free(npctype);
+    ToriRS_NpctypeFree(npctype);
 }
 
 static void
@@ -76,11 +73,7 @@ test_dat2_no_multinpc_leaves_transform_count_zero(void)
     TEST_ASSERT(npctype->transform_count == 0, "no opcode 106 -> no transform table");
     TEST_ASSERT(npctype->transforms == NULL, "no opcode 106 -> no transforms array");
 
-    /* Not ToriRS_NpctypeFree: it pulls in the whole torirs_types.c
-     * component-hook dependency chain for a struct this test built by hand
-     * and with none of those fields set. Free directly. */
-    free(npctype->transforms);
-    free(npctype);
+    ToriRS_NpctypeFree(npctype);
 }
 
 /*
@@ -109,8 +102,7 @@ test_dat2_carries_the_examine_string(void)
         strcmp(npctype->desc, "A dangerous cave-dwelling creature.") == 0,
         "opcode 3 lands on ToriRS_Npctype.desc");
 
-    free(npctype->transforms);
-    free(npctype);
+    ToriRS_NpctypeFree(npctype);
 }
 
 /* A record that states none leaves the field empty, which is what makes the
@@ -127,8 +119,7 @@ test_dat2_without_examine_leaves_desc_empty(void)
     TEST_ASSERT(npctype != NULL, "decode succeeds");
     TEST_ASSERT(npctype->desc[0] == '\0', "no opcode 3 -> empty desc");
 
-    free(npctype->transforms);
-    free(npctype);
+    ToriRS_NpctypeFree(npctype);
 }
 
 static void
@@ -145,8 +136,7 @@ test_dat1_has_no_multinpc(void)
     TEST_ASSERT(npctype->transform_varp == -1, "dat1 states no varp switch");
     TEST_ASSERT(npctype->transform_count == 0, "dat1 carries no multiNpc opcode");
     TEST_ASSERT(!npctype->no_rotation_flag, "dat1 has no opcode 109");
-    free(npctype->transforms);
-    free(npctype);
+    ToriRS_NpctypeFree(npctype);
 
     /* Opcode 17's third and fourth ids cross here, once: Client-TS swaps the
      * pair onto the entity, and doing it in the conversion gives walkanim_r one
@@ -158,11 +148,7 @@ test_dat1_has_no_multinpc(void)
     TEST_ASSERT(npctype->walkanim_r == 823, "dat1: the fourth id is the right step");
     TEST_ASSERT(npctype->walkanim_l == 822, "dat1: the third id is the left step");
 
-    /* Not ToriRS_NpctypeFree: it pulls in the whole torirs_types.c
-     * component-hook dependency chain for a struct this test built by hand
-     * and with none of those fields set. Free directly. */
-    free(npctype->transforms);
-    free(npctype);
+    ToriRS_NpctypeFree(npctype);
 }
 
 /*

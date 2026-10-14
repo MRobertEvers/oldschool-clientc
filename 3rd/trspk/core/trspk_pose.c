@@ -1,4 +1,5 @@
 #include "trspk_pose.h"
+#include "../trspk_alloc.h"
 #include "toridraw_element_id.h"
 
 #include <assert.h>
@@ -18,7 +19,7 @@ trspk_pose_table_grow_elements(
     while( new_cap < min_count )
         new_cap *= 2u;
 
-    struct TRSPK_PoseElement* new_elements = (struct TRSPK_PoseElement*)realloc(
+    struct TRSPK_PoseElement* new_elements = (struct TRSPK_PoseElement*)TRSPK_REALLOC(
         table->elements, new_cap * sizeof(struct TRSPK_PoseElement));
     if( !new_elements )
         return false;
@@ -47,7 +48,7 @@ trspk_pose_track_grow_poses(
     while( new_cap < min_cap )
         new_cap *= 2u;
 
-    uint32_t* new_base = (uint32_t*)realloc(track->vertex_base, new_cap * sizeof(uint32_t));
+    uint32_t* new_base = (uint32_t*)TRSPK_REALLOC(track->vertex_base, new_cap * sizeof(uint32_t));
     if( !new_base )
         return false;
 
@@ -79,10 +80,10 @@ trspk_pose_table_free(struct TRSPK_PoseTable* table)
     for( uint32_t i = 0u; i < table->element_cap; ++i )
     {
         for( int t = 0; t < TRSPK_POSE_TRACK_COUNT; ++t )
-            free(table->elements[i].tracks[t].vertex_base);
+            TRSPK_FREE(table->elements[i].tracks[t].vertex_base);
     }
 
-    free(table->elements);
+    TRSPK_FREE(table->elements);
     table->elements = NULL;
     table->element_count = 0u;
     table->element_cap = 0u;

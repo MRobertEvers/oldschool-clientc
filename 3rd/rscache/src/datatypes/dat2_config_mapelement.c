@@ -1,4 +1,5 @@
 #include "dat2_config_mapelement.h"
+#include "../rscache_alloc.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -50,9 +51,9 @@ read_polygon(
 {
     int count = RSCache_BufferG1(buffer);
 
-    free(entry->polygon_points);
-    free(entry->polygon_point_flags);
-    free(entry->polygon_extra);
+    RSCACHE_FREE(entry->polygon_points);
+    RSCACHE_FREE(entry->polygon_point_flags);
+    RSCACHE_FREE(entry->polygon_extra);
     entry->polygon_points = NULL;
     entry->polygon_point_flags = NULL;
     entry->polygon_extra = NULL;
@@ -60,9 +61,9 @@ read_polygon(
     entry->polygon_point_count = count;
     if( count > 0 )
     {
-        entry->polygon_points = malloc((size_t)count * 2 * sizeof(int));
+        entry->polygon_points = RSCACHE_MALLOC((size_t)count * 2 * sizeof(int));
         assert(entry->polygon_points);
-        entry->polygon_point_flags = malloc((size_t)count * sizeof(int));
+        entry->polygon_point_flags = RSCACHE_MALLOC((size_t)count * sizeof(int));
         assert(entry->polygon_point_flags);
     }
     for( int i = 0; i < count * 2; i++ )
@@ -71,7 +72,7 @@ read_polygon(
     entry->polygon_extra_count = RSCache_BufferG1(buffer);
     if( entry->polygon_extra_count > 0 )
     {
-        entry->polygon_extra = malloc((size_t)entry->polygon_extra_count * sizeof(int));
+        entry->polygon_extra = RSCACHE_MALLOC((size_t)entry->polygon_extra_count * sizeof(int));
         assert(entry->polygon_extra);
     }
     for( int i = 0; i < entry->polygon_extra_count; i++ )
@@ -85,7 +86,7 @@ replace_string(
     char** slot,
     struct RSCache_Buffer* buffer)
 {
-    free(*slot);
+    RSCACHE_FREE(*slot);
     *slot = RSCache_BufferReadStringNullTerminated(buffer);
 }
 
@@ -420,18 +421,18 @@ RSCache_MapElementFreeInplace(struct RSCache_MapElement* entry)
 {
     if( !entry )
         return;
-    free(entry->name);
+    RSCACHE_FREE(entry->name);
     for( int i = 0; i < RSCACHE_MAPELEMENT_OPS; i++ )
-        free(entry->ops[i]);
-    free(entry->target_name);
-    free(entry->polygon_points);
-    free(entry->polygon_point_flags);
-    free(entry->polygon_extra);
+        RSCACHE_FREE(entry->ops[i]);
+    RSCACHE_FREE(entry->target_name);
+    RSCACHE_FREE(entry->polygon_points);
+    RSCACHE_FREE(entry->polygon_point_flags);
+    RSCACHE_FREE(entry->polygon_extra);
     for( int i = 0; i < entry->params.count; i++ )
-        free(entry->params.values[i]);
-    free(entry->params.values);
-    free(entry->params.keys);
-    free(entry->params.kinds);
+        RSCACHE_FREE(entry->params.values[i]);
+    RSCACHE_FREE(entry->params.values);
+    RSCACHE_FREE(entry->params.keys);
+    RSCACHE_FREE(entry->params.kinds);
     memset(entry, 0, sizeof(*entry));
 }
 

@@ -1,3 +1,6 @@
+#include "mem/torirs_mem.h"
+#include "mem/torimem_rscache.h"
+#include "mem/torimem_toridraw.h"
 #include "engine/toridraw_animation_from_rscache.h"
 #include <assert.h>
 
@@ -18,12 +21,12 @@ anim_base_from_framemap(struct RSCache_Dat2Framemap const* fm)
     int i;
     int len = fm->length;
 
-    base = calloc(1, sizeof(*base));
+    base = TORIDRAW_CALLOC(1, sizeof(*base));
     assert(base);
     base->length = len;
-    base->types = len > 0 ? calloc((size_t)len, sizeof(uint8_t)) : NULL;
-    base->bone_groups = len > 0 ? calloc((size_t)len, sizeof(uint8_t*)) : NULL;
-    base->bone_group_lengths = len > 0 ? calloc((size_t)len, sizeof(uint16_t)) : NULL;
+    base->types = len > 0 ? TORIDRAW_CALLOC((size_t)len, sizeof(uint8_t)) : NULL;
+    base->bone_groups = len > 0 ? TORIDRAW_CALLOC((size_t)len, sizeof(uint8_t*)) : NULL;
+    base->bone_group_lengths = len > 0 ? TORIDRAW_CALLOC((size_t)len, sizeof(uint16_t)) : NULL;
 
     for( i = 0; i < len; i++ )
     {
@@ -81,7 +84,7 @@ anim_base_from_framemap(struct RSCache_Dat2Framemap const* fm)
             base->bone_group_lengths[i] = (uint16_t)glen;
         if( base->bone_groups )
         {
-            base->bone_groups[i] = glen > 0 ? calloc((size_t)glen, sizeof(uint8_t)) : NULL;
+            base->bone_groups[i] = glen > 0 ? TORIDRAW_CALLOC((size_t)glen, sizeof(uint8_t)) : NULL;
             for( j = 0; j < glen && base->bone_groups[i]; j++ )
                 base->bone_groups[i][j] = (uint8_t)fm->bone_groups[i][j];
         }
@@ -103,10 +106,10 @@ anim_frame_from_rscache(
     out->delay = delay;
     if( n <= 0 )
         return;
-    out->groups = calloc((size_t)n, sizeof(int16_t));
-    out->x = calloc((size_t)n, sizeof(int16_t));
-    out->y = calloc((size_t)n, sizeof(int16_t));
-    out->z = calloc((size_t)n, sizeof(int16_t));
+    out->groups = TORIDRAW_CALLOC((size_t)n, sizeof(int16_t));
+    out->x = TORIDRAW_CALLOC((size_t)n, sizeof(int16_t));
+    out->y = TORIDRAW_CALLOC((size_t)n, sizeof(int16_t));
+    out->z = TORIDRAW_CALLOC((size_t)n, sizeof(int16_t));
     for( i = 0; i < n; i++ )
     {
         if( out->groups )
@@ -134,7 +137,7 @@ ToriDraw_AnimationFromRSCache(
     if( !framemap || !frames || frame_count <= 0 )
         return NULL;
 
-    anim = calloc(1, sizeof(*anim));
+    anim = TORIDRAW_CALLOC(1, sizeof(*anim));
     assert(anim);
     anim->base = anim_base_from_framemap(framemap);
     anim->frame_count = frame_count;
@@ -144,7 +147,7 @@ ToriDraw_AnimationFromRSCache(
      * that never attach seq meta. */
     anim->replaceheldleft = -1;
     anim->replaceheldright = -1;
-    anim->frames = calloc((size_t)frame_count, sizeof(struct ToriDraw_AnimFrame));
+    anim->frames = TORIDRAW_CALLOC((size_t)frame_count, sizeof(struct ToriDraw_AnimFrame));
     assert(anim->frames);
     if( !anim->base )
     {
@@ -164,12 +167,12 @@ anim_base_from_dat1(struct RSCache_Dat1AnimBase const* src)
     int len = src->length;
     int i;
 
-    base = calloc(1, sizeof(*base));
+    base = TORIDRAW_CALLOC(1, sizeof(*base));
     assert(base);
     base->length = len;
-    base->types = len > 0 ? calloc((size_t)len, sizeof(uint8_t)) : NULL;
-    base->bone_groups = len > 0 ? calloc((size_t)len, sizeof(uint8_t*)) : NULL;
-    base->bone_group_lengths = len > 0 ? calloc((size_t)len, sizeof(uint16_t)) : NULL;
+    base->types = len > 0 ? TORIDRAW_CALLOC((size_t)len, sizeof(uint8_t)) : NULL;
+    base->bone_groups = len > 0 ? TORIDRAW_CALLOC((size_t)len, sizeof(uint8_t*)) : NULL;
+    base->bone_group_lengths = len > 0 ? TORIDRAW_CALLOC((size_t)len, sizeof(uint16_t)) : NULL;
 
     for( i = 0; i < len; i++ )
     {
@@ -183,7 +186,7 @@ anim_base_from_dat1(struct RSCache_Dat1AnimBase const* src)
             base->bone_group_lengths[i] = (uint16_t)glen;
         if( base->bone_groups )
         {
-            base->bone_groups[i] = glen > 0 ? calloc((size_t)glen, sizeof(uint8_t)) : NULL;
+            base->bone_groups[i] = glen > 0 ? TORIDRAW_CALLOC((size_t)glen, sizeof(uint8_t)) : NULL;
             for( j = 0; j < glen && base->bone_groups[i] && src->labels && src->labels[i]; j++ )
                 base->bone_groups[i][j] = src->labels[i][j];
         }
@@ -209,10 +212,10 @@ anim_frame_from_dat1(
     if( len <= 0 )
         return;
 
-    out->groups = calloc((size_t)len, sizeof(int16_t));
-    out->x = calloc((size_t)len, sizeof(int16_t));
-    out->y = calloc((size_t)len, sizeof(int16_t));
-    out->z = calloc((size_t)len, sizeof(int16_t));
+    out->groups = TORIDRAW_CALLOC((size_t)len, sizeof(int16_t));
+    out->x = TORIDRAW_CALLOC((size_t)len, sizeof(int16_t));
+    out->y = TORIDRAW_CALLOC((size_t)len, sizeof(int16_t));
+    out->z = TORIDRAW_CALLOC((size_t)len, sizeof(int16_t));
     for( i = 0; i < len; i++ )
     {
         if( out->groups )
@@ -240,7 +243,7 @@ ToriDraw_AnimationFromRSCacheDat1(
     if( !base || !frames || frame_count <= 0 )
         return NULL;
 
-    anim = calloc(1, sizeof(*anim));
+    anim = TORIDRAW_CALLOC(1, sizeof(*anim));
     assert(anim);
     anim->base = anim_base_from_dat1(base);
     anim->frame_count = frame_count;
@@ -248,7 +251,7 @@ ToriDraw_AnimationFromRSCacheDat1(
     /* Reference SeqType default: no held-item override (see dat2 constructor). */
     anim->replaceheldleft = -1;
     anim->replaceheldright = -1;
-    anim->frames = calloc((size_t)frame_count, sizeof(struct ToriDraw_AnimFrame));
+    anim->frames = TORIDRAW_CALLOC((size_t)frame_count, sizeof(struct ToriDraw_AnimFrame));
     assert(anim->frames);
     if( !anim->base )
     {
@@ -280,15 +283,22 @@ ToriDraw_SkeletalAnimFromRSCache(
         return NULL;
     if( frame_count <= 0 || bone_count <= 0 )
     {
-        free(palette);
+        RSCACHE_FREE(palette); /* RSCache_Dat2SkeletalBaseBakePalette's */
         return NULL;
     }
 
-    skeletal = calloc(1, sizeof(*skeletal));
+    skeletal = TORIDRAW_CALLOC(1, sizeof(*skeletal));
     assert(skeletal);
     skeletal->id = seq_id;
     skeletal->bone_count = bone_count;
     skeletal->frame_count = frame_count;
+    /* rscache's palette becomes toridraw's; ToriDraw_SkeletalAnimFree releases
+     * it. Both libraries allocate through ToriMem or both through libc
+     * (install every library or none), so the handoff moves nothing -- with
+     * ToriMem it only re-labels the block as toridraw's. */
+    assert(ToriMem_RSCacheInstalled() == ToriMem_ToriDrawInstalled());
+    if( ToriMem_ToriDrawInstalled() )
+        palette = ToriMem_Adopt(palette, ToriMem_LibToriDraw());
     skeletal->matrices = palette;
     return skeletal;
 }

@@ -6,6 +6,8 @@
  * app/app_internal.h, and nothing outside the layer may include either.
  */
 
+#include "mem/torirs_mem.h"
+#include "mem/torimem_toridraw.h"
 #include "app/app_internal.h"
 #include "boot_telemetry.h"
 
@@ -209,7 +211,7 @@ app_title_flames_tick(
     for( int side = 0; side < TORIRS_FLAME_SIDES; side++ )
     {
         size_t bytes = (size_t)app->flames->width * app->flames->height * sizeof(uint32_t);
-        uint32_t* copy = malloc(bytes);
+        uint32_t* copy = TORIDRAW_MALLOC(bytes); /* Owned by the sprite */
         struct ToriDraw_Sprite* sprite;
         struct ToriDraw_Sprite** sprites;
 
@@ -218,10 +220,10 @@ app_title_flames_tick(
         sprite = ToriDraw_SpriteNewFromArgbOwned(copy, app->flames->width, app->flames->height);
         if( !sprite )
         {
-            free(copy);
+            TORIDRAW_FREE(copy);
             continue;
         }
-        sprites = malloc(sizeof(*sprites));
+        sprites = TORIDRAW_MALLOC(sizeof(*sprites)); /* SceneSpriteAdd frees it */
         assert(sprites);
         sprites[0] = sprite;
         /* Adding over a live id frees what was there and re-emits the load, so

@@ -1,4 +1,5 @@
 #include "dat2_config_npc.h"
+#include "../rscache_alloc.h"
 
 #include "dat2_entity_ops.h"
 
@@ -561,7 +562,7 @@ RSCache_Dat2ConfigNpcNewDecodeProfile(
     char* data,
     int data_size)
 {
-    struct RSCache_Dat2ConfigNpc* npc = calloc(1, sizeof(struct RSCache_Dat2ConfigNpc));
+    struct RSCache_Dat2ConfigNpc* npc = RSCACHE_CALLOC(1, sizeof(struct RSCache_Dat2ConfigNpc));
     assert(npc);
     RSCache_Dat2ConfigNpcInit(npc);
 
@@ -583,28 +584,28 @@ RSCache_Dat2ConfigNpcFreeInplace(struct RSCache_Dat2ConfigNpc* npc)
     if( !npc )
         return;
 
-    free(npc->name);
-    free(npc->desc);
-    free(npc->models);
-    free(npc->recolor_to_find);
-    free(npc->recolor_to_replace);
-    free(npc->retexture_to_find);
-    free(npc->retexture_to_replace);
-    free(npc->chathead_models);
-    free(npc->head_icon_archive_ids);
-    free(npc->head_icon_sprite_index);
-    free(npc->actions[0]);
-    free(npc->actions[1]);
-    free(npc->actions[2]);
-    free(npc->actions[3]);
-    free(npc->actions[4]);
-    free(npc->configs);
+    RSCACHE_FREE(npc->name);
+    RSCACHE_FREE(npc->desc);
+    RSCACHE_FREE(npc->models);
+    RSCACHE_FREE(npc->recolor_to_find);
+    RSCACHE_FREE(npc->recolor_to_replace);
+    RSCACHE_FREE(npc->retexture_to_find);
+    RSCACHE_FREE(npc->retexture_to_replace);
+    RSCACHE_FREE(npc->chathead_models);
+    RSCACHE_FREE(npc->head_icon_archive_ids);
+    RSCACHE_FREE(npc->head_icon_sprite_index);
+    RSCACHE_FREE(npc->actions[0]);
+    RSCACHE_FREE(npc->actions[1]);
+    RSCACHE_FREE(npc->actions[2]);
+    RSCACHE_FREE(npc->actions[3]);
+    RSCACHE_FREE(npc->actions[4]);
+    RSCACHE_FREE(npc->configs);
     RSCache_EntityOpsFreeInplace(&npc->entity_ops);
     for( int i = 0; i < npc->params.count; i++ )
-        free(npc->params.values[i]);
-    free(npc->params.keys);
-    free(npc->params.values);
-    free(npc->params.kinds);
+        RSCACHE_FREE(npc->params.values[i]);
+    RSCACHE_FREE(npc->params.keys);
+    RSCACHE_FREE(npc->params.values);
+    RSCACHE_FREE(npc->params.kinds);
 }
 
 void
@@ -613,7 +614,7 @@ RSCache_Dat2ConfigNpcFree(struct RSCache_Dat2ConfigNpc* npc)
     if( !npc )
         return;
     RSCache_Dat2ConfigNpcFreeInplace(npc);
-    free(npc);
+    RSCACHE_FREE(npc);
 }
 
 
@@ -648,8 +649,8 @@ npc_b669_read_model_list(
 {
     int length = g_count(buffer);
 
-    free(*out_ids);
-    *out_ids = length > 0 ? malloc((size_t)length * sizeof(int)) : NULL;
+    RSCACHE_FREE(*out_ids);
+    *out_ids = length > 0 ? RSCACHE_MALLOC((size_t)length * sizeof(int)) : NULL;
     *out_count = *out_ids ? length : 0;
 
     for( int i = 0; i < length; i++ )
@@ -671,10 +672,10 @@ npc_b669_read_pairs(
 {
     int length = g_count(buffer);
 
-    free(*out_from);
-    free(*out_to);
-    *out_from = length > 0 ? malloc((size_t)length * sizeof(int)) : NULL;
-    *out_to = length > 0 ? malloc((size_t)length * sizeof(int)) : NULL;
+    RSCACHE_FREE(*out_from);
+    RSCACHE_FREE(*out_to);
+    *out_from = length > 0 ? RSCACHE_MALLOC((size_t)length * sizeof(int)) : NULL;
+    *out_to = length > 0 ? RSCACHE_MALLOC((size_t)length * sizeof(int)) : NULL;
     *out_count = (*out_from && *out_to) ? length : 0;
 
     for( int i = 0; i < length; i++ )
@@ -698,10 +699,10 @@ npc_b669_read_string(
     char* s = gcstring(buffer);
     if( !slot )
     {
-        free(s);
+        RSCACHE_FREE(s);
         return;
     }
-    free(*slot);
+    RSCACHE_FREE(*slot);
     *slot = s;
 }
 
@@ -727,8 +728,8 @@ npc_b669_read_morphs(
         g2(buffer);
 
     int length = g1(buffer);
-    free(npc->configs);
-    npc->configs = length > 0 ? malloc((size_t)length * sizeof(int)) : NULL;
+    RSCACHE_FREE(npc->configs);
+    npc->configs = length > 0 ? RSCACHE_MALLOC((size_t)length * sizeof(int)) : NULL;
     npc->configs_count = npc->configs ? length : 0;
     for( int i = 0; i < length; i++ )
     {
@@ -774,7 +775,7 @@ npc_decode_op_rs2_b669(
         npc_b669_read_string(buffer, &npc->actions[opcode - 0x1E]);
         if( npc->actions[opcode - 0x1E] && strcmp(npc->actions[opcode - 0x1E], "Hidden") == 0 )
         {
-            free(npc->actions[opcode - 0x1E]);
+            RSCACHE_FREE(npc->actions[opcode - 0x1E]);
             npc->actions[opcode - 0x1E] = NULL;
         }
         /* Stated even when it said "Hidden": the encoder writes a NULL slot
@@ -834,10 +835,10 @@ npc_decode_op_rs2_b669(
         return true;
     case 0x66: /* head icon — the pre-210 bare u16 shape */
     {
-        free(npc->head_icon_archive_ids);
-        free(npc->head_icon_sprite_index);
-        npc->head_icon_archive_ids = malloc(sizeof(int));
-        npc->head_icon_sprite_index = malloc(sizeof(short));
+        RSCACHE_FREE(npc->head_icon_archive_ids);
+        RSCACHE_FREE(npc->head_icon_sprite_index);
+        npc->head_icon_archive_ids = RSCACHE_MALLOC(sizeof(int));
+        npc->head_icon_sprite_index = RSCACHE_MALLOC(sizeof(short));
         if( npc->head_icon_archive_ids && npc->head_icon_sprite_index )
         {
             npc->head_icon_count = 1;
@@ -1101,7 +1102,7 @@ RSCache_Dat2ConfigNpcDecodeOp(
                 return false;
             }
             int length = g1(buffer);
-            npc->models = malloc(length * sizeof(int));
+            npc->models = RSCACHE_MALLOC(length * sizeof(int));
             if( !npc->models )
             {
                 printf("decode_npc_type: Failed to allocate models array of size %d\n", length);
@@ -1115,7 +1116,7 @@ RSCache_Dat2ConfigNpcDecodeOp(
                 {
                     printf(
                         "decode_npc_type: Buffer overflow while reading models at index %d\n", idx);
-                    free(npc->models);
+                    RSCACHE_FREE(npc->models);
                     npc->models = NULL;
                     npc->models_count = 0;
                     return false;
@@ -1139,12 +1140,10 @@ RSCache_Dat2ConfigNpcDecodeOp(
                 printf("decode_npc_type: Buffer overflow while reading name string\n");
                 return false;
             }
-            npc->name = malloc(str_len + 1);
-            if( !npc->name )
-            {
-                printf("decode_npc_type: Failed to allocate name string of length %d\n", str_len);
-                return false;
-            }
+            /* A record may state the name twice; the later one wins. */
+            RSCACHE_FREE(npc->name);
+            npc->name = RSCACHE_MALLOC(str_len + 1);
+            assert(npc->name);
             memset(npc->name, 0, str_len + 1);
             greadto(buffer, npc->name, str_len + 1, str_len + 1);
             NPC_SET(NAME);
@@ -1176,12 +1175,9 @@ RSCache_Dat2ConfigNpcDecodeOp(
                 printf("decode_npc_type: Buffer overflow while reading desc string\n");
                 return false;
             }
-            npc->desc = malloc(str_len + 1);
-            if( !npc->desc )
-            {
-                printf("decode_npc_type: Failed to allocate desc string of length %d\n", str_len);
-                return false;
-            }
+            RSCACHE_FREE(npc->desc);
+            npc->desc = RSCACHE_MALLOC(str_len + 1);
+            assert(npc->desc);
             memset(npc->desc, 0, str_len + 1);
             greadto(buffer, npc->desc, str_len + 1, str_len + 1);
             NPC_SET(DESC);
@@ -1251,13 +1247,16 @@ RSCache_Dat2ConfigNpcDecodeOp(
             {
                 return false;
             }
-            npc->actions[idx] = malloc(str_len + 1);
+            /* A record may state an op twice; the first one used to leak. */
+            RSCACHE_FREE(npc->actions[idx]);
+            npc->actions[idx] = RSCACHE_MALLOC(str_len + 1);
+            assert(npc->actions[idx]);
             greadto(buffer, npc->actions[idx], str_len + 1, str_len + 1);
 
             // Check if string is "Hidden"
             if( strcmp(npc->actions[idx], "Hidden") == 0 )
             {
-                free(npc->actions[idx]);
+                RSCACHE_FREE(npc->actions[idx]);
                 npc->actions[idx] = NULL;
             }
             /* Stated even when it said "Hidden": the encoder writes a NULL slot
@@ -1268,8 +1267,8 @@ RSCache_Dat2ConfigNpcDecodeOp(
         case 40:
         {
             int length = g1(buffer);
-            npc->recolor_to_find = malloc(length * sizeof(int));
-            npc->recolor_to_replace = malloc(length * sizeof(int));
+            npc->recolor_to_find = RSCACHE_MALLOC(length * sizeof(int));
+            npc->recolor_to_replace = RSCACHE_MALLOC(length * sizeof(int));
             npc->recolor_count = length;
 
             for( int idx = 0; idx < length; ++idx )
@@ -1283,8 +1282,8 @@ RSCache_Dat2ConfigNpcDecodeOp(
         case 41:
         {
             int length = g1(buffer);
-            npc->retexture_to_find = malloc(length * sizeof(int));
-            npc->retexture_to_replace = malloc(length * sizeof(int));
+            npc->retexture_to_find = RSCACHE_MALLOC(length * sizeof(int));
+            npc->retexture_to_replace = RSCACHE_MALLOC(length * sizeof(int));
             npc->retexture_count = length;
 
             for( int idx = 0; idx < length; ++idx )
@@ -1298,7 +1297,7 @@ RSCache_Dat2ConfigNpcDecodeOp(
         case 60:
         {
             int length = g1(buffer);
-            npc->chathead_models = malloc(length * sizeof(int));
+            npc->chathead_models = RSCACHE_MALLOC(length * sizeof(int));
             npc->chathead_models_count = length;
 
             for( int idx = 0; idx < length; ++idx )
@@ -1315,8 +1314,8 @@ RSCache_Dat2ConfigNpcDecodeOp(
                 goto unknown_opcode;
             {
                 int length = g1(buffer);
-                free(npc->models);
-                npc->models = malloc((size_t)length * sizeof(int));
+                RSCACHE_FREE(npc->models);
+                npc->models = RSCACHE_MALLOC((size_t)length * sizeof(int));
                 assert(npc->models);
                 npc->models_count = length;
                 for( int idx = 0; idx < length; ++idx )
@@ -1331,8 +1330,8 @@ RSCache_Dat2ConfigNpcDecodeOp(
                 goto unknown_opcode;
             {
                 int length = g1(buffer);
-                free(npc->chathead_models);
-                npc->chathead_models = malloc((size_t)length * sizeof(int));
+                RSCACHE_FREE(npc->chathead_models);
+                npc->chathead_models = RSCACHE_MALLOC((size_t)length * sizeof(int));
                 assert(npc->chathead_models);
                 npc->chathead_models_count = length;
                 for( int idx = 0; idx < length; ++idx )
@@ -1435,8 +1434,8 @@ RSCache_Dat2ConfigNpcDecodeOp(
 
             if( !rev210_head_icons )
             {
-                npc->head_icon_archive_ids = malloc(sizeof(int));
-                npc->head_icon_sprite_index = malloc(sizeof(short));
+                npc->head_icon_archive_ids = RSCACHE_MALLOC(sizeof(int));
+                npc->head_icon_sprite_index = RSCACHE_MALLOC(sizeof(short));
                 npc->head_icon_count = 1;
                 npc->head_icon_archive_ids[0] = default_head_icon_archive;
                 npc->head_icon_sprite_index[0] = (short)(g2(buffer));
@@ -1450,8 +1449,8 @@ RSCache_Dat2ConfigNpcDecodeOp(
                     ++len;
                 }
 
-                npc->head_icon_archive_ids = malloc(len * sizeof(int));
-                npc->head_icon_sprite_index = malloc(len * sizeof(short));
+                npc->head_icon_archive_ids = RSCACHE_MALLOC(len * sizeof(int));
+                npc->head_icon_sprite_index = RSCACHE_MALLOC(len * sizeof(short));
                 npc->head_icon_count = len;
 
                 for( int i = 0; i < len; i++ )
@@ -1492,7 +1491,7 @@ RSCache_Dat2ConfigNpcDecodeOp(
             }
 
             int length = g1(buffer);
-            npc->configs = malloc((length + 2) * sizeof(int));
+            npc->configs = RSCACHE_MALLOC((length + 2) * sizeof(int));
             npc->configs_count = length + 2;
 
             for( int idx = 0; idx <= length; ++idx )
@@ -1610,7 +1609,7 @@ RSCache_Dat2ConfigNpcDecodeOp(
             }
 
             int length = g1(buffer);
-            npc->configs = malloc((length + 2) * sizeof(int));
+            npc->configs = RSCACHE_MALLOC((length + 2) * sizeof(int));
             npc->configs_count = length + 2;
 
             for( int idx = 0; idx <= length; ++idx )

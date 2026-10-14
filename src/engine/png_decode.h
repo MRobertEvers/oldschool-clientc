@@ -2,6 +2,10 @@
 #define TORIRS_PNG_DECODE_H
 
 #include <stdbool.h>
+
+/* `out_group` is where the pixels live: the caller knows how long it keeps
+ * them (src/mem/torirs_mem.h); the decoder does not. */
+#include "mem/torirs_mem.h"
 #include <stdint.h>
 
 /**
@@ -13,6 +17,7 @@
  */
 bool
 PngDecode_Rgb(
+    struct ToriMem_Group* out_group,
     const void* data,
     int data_size,
     int* out_width,
@@ -35,6 +40,7 @@ PngDecode_Rgb(
  */
 bool
 PngDecode_Argb(
+    struct ToriMem_Group* out_group,
     const void* data,
     int data_size,
     int* out_width,

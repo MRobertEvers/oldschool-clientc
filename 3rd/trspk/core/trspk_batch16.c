@@ -1,4 +1,5 @@
 #include "trspk_batch16.h"
+#include "../trspk_alloc.h"
 #include "toridraw_element_id.h"
 
 #include <assert.h>
@@ -93,11 +94,11 @@ trspk_batch16_ensure_lookup(
     if( needed <= batch->lookup_capacity )
         return true;
 
-    uint32_t* lookup = (uint32_t*)calloc((size_t)needed, sizeof(uint32_t));
+    uint32_t* lookup = (uint32_t*)TRSPK_CALLOC((size_t)needed, sizeof(uint32_t));
     if( !lookup )
         return false;
 
-    free(batch->lookup);
+    TRSPK_FREE(batch->lookup);
     batch->lookup = lookup;
     batch->lookup_capacity = needed;
     for( uint32_t i = 0u; i < batch->entry_count; i++ )
@@ -122,7 +123,7 @@ trspk_batch16_ensure_entries(
         capacity *= 2u;
     }
 
-    struct TRSPK_Batch16Entry* entries = (struct TRSPK_Batch16Entry*)realloc(
+    struct TRSPK_Batch16Entry* entries = (struct TRSPK_Batch16Entry*)TRSPK_REALLOC(
         batch->entries, (size_t)capacity * sizeof(struct TRSPK_Batch16Entry));
     if( !entries )
         return false;
@@ -148,7 +149,7 @@ trspk_batch16_ensure_chunk_array(
         capacity *= 2u;
     }
 
-    struct TRSPK_Batch16Chunk** chunks = (struct TRSPK_Batch16Chunk**)realloc(
+    struct TRSPK_Batch16Chunk** chunks = (struct TRSPK_Batch16Chunk**)TRSPK_REALLOC(
         batch->chunks, (size_t)capacity * sizeof(struct TRSPK_Batch16Chunk*));
     if( !chunks )
         return false;
@@ -169,13 +170,13 @@ trspk_batch16_activate_chunk(
             return NULL;
 
         struct TRSPK_Batch16Chunk* chunk =
-            (struct TRSPK_Batch16Chunk*)calloc(1u, sizeof(struct TRSPK_Batch16Chunk));
+            (struct TRSPK_Batch16Chunk*)TRSPK_CALLOC(1u, sizeof(struct TRSPK_Batch16Chunk));
         if( !chunk )
             return NULL;
         chunk->vbo = trspk_vbo_create(0u, batch->format);
         if( !chunk->vbo )
         {
-            free(chunk);
+            TRSPK_FREE(chunk);
             return NULL;
         }
         batch->chunks[chunk_index] = chunk;
@@ -223,7 +224,7 @@ trspk_batch16_create(enum TRSPK_VertexFormat format)
         return NULL;
 
     struct TRSPK_Batch16* batch =
-        (struct TRSPK_Batch16*)calloc(1u, sizeof(struct TRSPK_Batch16));
+        (struct TRSPK_Batch16*)TRSPK_CALLOC(1u, sizeof(struct TRSPK_Batch16));
     if( !batch )
         return NULL;
     batch->format = format;
@@ -244,13 +245,13 @@ trspk_batch16_destroy(struct TRSPK_Batch16* batch)
         {
             trspk_vbo_free(chunk->vbo);
             trspk_triangles_free(&chunk->triangles);
-            free(chunk);
+            TRSPK_FREE(chunk);
         }
     }
-    free(batch->chunks);
-    free(batch->entries);
-    free(batch->lookup);
-    free(batch);
+    TRSPK_FREE(batch->chunks);
+    TRSPK_FREE(batch->entries);
+    TRSPK_FREE(batch->lookup);
+    TRSPK_FREE(batch);
 }
 
 void

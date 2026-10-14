@@ -1,4 +1,5 @@
 #include "trspk_vbochain16.h"
+#include "../trspk_alloc.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -22,7 +23,7 @@ ensure_page_array_capacity(struct TRSPK_VBOChain16* chain, uint32_t needed)
         new_cap *= 2u;
 
     struct TRSPK_VBO** grown =
-        (struct TRSPK_VBO**)realloc(chain->pages, sizeof(struct TRSPK_VBO*) * new_cap);
+        (struct TRSPK_VBO**)TRSPK_REALLOC(chain->pages, sizeof(struct TRSPK_VBO*) * new_cap);
     assert(grown != NULL);
     chain->pages = grown;
     chain->page_capacity = new_cap;
@@ -52,7 +53,7 @@ struct TRSPK_VBOChain16*
 trspk_vbochain16_create(enum TRSPK_VertexFormat format)
 {
     struct TRSPK_VBOChain16* chain =
-        (struct TRSPK_VBOChain16*)malloc(sizeof(struct TRSPK_VBOChain16));
+        (struct TRSPK_VBOChain16*)TRSPK_MALLOC(sizeof(struct TRSPK_VBOChain16));
     assert(chain != NULL);
     memset(chain, 0, sizeof(struct TRSPK_VBOChain16));
 
@@ -75,8 +76,8 @@ trspk_vbochain16_free(struct TRSPK_VBOChain16* chain)
     for( uint32_t i = 0u; i < chain->page_count; ++i )
         trspk_vbo_free(chain->pages[i]);
 
-    free(chain->pages);
-    free(chain);
+    TRSPK_FREE(chain->pages);
+    TRSPK_FREE(chain);
 }
 
 void

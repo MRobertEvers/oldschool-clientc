@@ -20,6 +20,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+#if defined(_WIN32)
+/* The build force-includes platform/win32_compat.h, which includes <stdlib.h>
+ * before the _CRT_RAND_S above is seen, so stdlib never declares rand_s. */
+errno_t __cdecl rand_s(unsigned int* random_value);
+#endif
+
 #if defined(__APPLE__)
 #include <TargetConditionals.h>
 #endif

@@ -1,3 +1,5 @@
+#include "mem/torirs_mem.h"
+#include "mem/torimem_rscache.h"
 #include "editor_derive.h"
 
 #include "editor_doc.h"
@@ -29,7 +31,7 @@ Editor_SquareDeriveTerrain(
     /* 1. Authored record -> the cache's terrain struct, unfixed. `height` here
      *    is the raw wire value (0 where the file said nothing), which is
      *    exactly what the decoder would have produced. */
-    terrain = malloc(sizeof(*terrain));
+    terrain = RSCACHE_MALLOC(sizeof(*terrain));
     assert(terrain);
     memset(terrain, 0, sizeof(*terrain));
     terrain->map_x = square->map_x;
@@ -65,7 +67,7 @@ Editor_SquareDeriveTerrain(
 
     if( square->trailing_size > 0 )
     {
-        terrain->trailing = malloc((size_t)square->trailing_size);
+        terrain->trailing = RSCACHE_MALLOC((size_t)square->trailing_size);
         assert(terrain->trailing);
         memcpy(terrain->trailing, square->trailing, (size_t)square->trailing_size);
         terrain->trailing_size = square->trailing_size;
@@ -121,7 +123,7 @@ Editor_SquareDeriveLocs(
 
     if( square->loc_count > 0 )
     {
-        out_locs->locs = malloc((size_t)square->loc_count * sizeof(*out_locs->locs));
+        out_locs->locs = ToriMem_Alloc(ToriMem_Assets(), (size_t)square->loc_count * sizeof(*out_locs->locs));
         assert(out_locs->locs);
         for( int i = 0; i < square->loc_count; i++ )
         {

@@ -1,4 +1,5 @@
 #include "toridraw_2d.h"
+#include "toridraw_alloc.h"
 
 #include "graphics/dash_restrict.h"
 #include "toridraw_blit_simd.h"
@@ -728,7 +729,7 @@ ToriDraw2D_BlitArgbTiledScaledAlpha(
     int const stride = view_port->stride;
     /* The tile column of every buffer column, once: a divide per pixel of a
      * chat-sized backdrop is the whole cost of the blit otherwise. */
-    int* columns = (int*)malloc((size_t)draw_w * sizeof(int));
+    int* columns = (int*)TORIDRAW_MALLOC((size_t)draw_w * sizeof(int));
     assert(columns);
     for( int x = 0; x < draw_w; x++ )
     {
@@ -745,7 +746,7 @@ ToriDraw2D_BlitArgbTiledScaledAlpha(
         for( int x = 0; x < draw_w; x++ )
             toridraw2d_blend_argb_unclipped(&drow[x], srow[columns[x]], alpha);
     }
-    free(columns);
+    TORIDRAW_FREE(columns);
 }
 
 void

@@ -209,7 +209,8 @@ apply_obj_levelrequire(
     list = record->lists[index];
     if( list )
     {
-        assert(list->arity == 2);
+        /* `field=empty` decodes as a list with no tuples and no arity. */
+        assert(list->count == 0 || list->arity == 2);
         for( int i = 0; i < list->count && count < TORIRSSERVER_OBJ_REQUIRE_MAX; i++ )
         {
             stats[count] = list->items[i * 2].i;
@@ -276,7 +277,8 @@ apply_inv_stock(
     list = record->lists[index];
     if( !list )
         return;
-    assert(list->arity == 3);
+    /* `stock=empty` decodes as a list with no tuples and no arity. */
+    assert(list->count == 0 || list->arity == 3);
     for( int i = 0; i < list->count; i++ )
     {
         if( !ToriRSServer_ShopDefAddStock(def, list->items[i * 3].i, list->items[i * 3 + 1].i,
@@ -318,7 +320,8 @@ apply_dbtable_column(
     list = record->lists[index];
     if( !list )
         return;
-    assert(list->arity == 1);
+    /* `field=empty` decodes as a list with no tuples and no arity. */
+    assert(list->count == 0 || list->arity == 1);
     for( int i = 0; i < list->count; i++ )
     {
         const char* line = list->items[i].s;

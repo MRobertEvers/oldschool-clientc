@@ -44,6 +44,7 @@
 #include <sys/stat.h>
 #ifdef _WIN32
 #include <direct.h>
+#include <process.h> /* getpid */
 #endif
 #if !defined(_WIN32) && !defined(__EMSCRIPTEN__) && !defined(TORIRS_PLATFORM_WEB)
 /* The launch channel's free loopback port and the party host's listener. */

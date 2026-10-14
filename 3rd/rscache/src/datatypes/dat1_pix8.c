@@ -1,4 +1,5 @@
 #include "dat1_pix8.h"
+#include "../rscache_alloc.h"
 
 #include "../rsbuffer.h"
 
@@ -23,7 +24,7 @@ RSCache_Dat1Pix8New(
     int index_data_size,
     int sprite_idx)
 {
-    struct RSCache_Dat1Pix8* pix8 = malloc(sizeof(struct RSCache_Dat1Pix8));
+    struct RSCache_Dat1Pix8* pix8 = RSCACHE_MALLOC(sizeof(struct RSCache_Dat1Pix8));
     if( !pix8 )
         return NULL;
     memset(pix8, 0, sizeof(struct RSCache_Dat1Pix8));
@@ -37,10 +38,10 @@ RSCache_Dat1Pix8New(
     int crop_width = g2(&indexbuf);
     int crop_height = g2(&indexbuf);
     int palette_count = g1(&indexbuf);
-    int* palette = malloc(palette_count * sizeof(int));
+    int* palette = RSCACHE_MALLOC(palette_count * sizeof(int));
     if( !palette )
     {
-        free(pix8);
+        RSCACHE_FREE(pix8);
         return NULL;
     }
     memset(palette, 0, palette_count * sizeof(int));
@@ -64,8 +65,8 @@ RSCache_Dat1Pix8New(
 
     if( databuf.position > databuf.size || indexbuf.position > indexbuf.size )
     {
-        free(palette);
-        free(pix8);
+        RSCACHE_FREE(palette);
+        RSCACHE_FREE(pix8);
         return NULL;
     }
 
@@ -76,11 +77,11 @@ RSCache_Dat1Pix8New(
     int pixel_order = g1(&indexbuf);
     int pixel_count = width * height;
 
-    uint8_t* pixels = malloc(pixel_count * sizeof(uint8_t));
+    uint8_t* pixels = RSCACHE_MALLOC(pixel_count * sizeof(uint8_t));
     if( !pixels )
     {
-        free(palette);
-        free(pix8);
+        RSCACHE_FREE(palette);
+        RSCACHE_FREE(pix8);
         return NULL;
     }
     memset(pixels, 0, pixel_count * sizeof(uint8_t));
@@ -115,7 +116,7 @@ RSCache_Dat1Pix8Free(struct RSCache_Dat1Pix8* pix8)
 {
     if( !pix8 )
         return;
-    free(pix8->pixels);
-    free(pix8->palette);
-    free(pix8);
+    RSCACHE_FREE(pix8->pixels);
+    RSCACHE_FREE(pix8->palette);
+    RSCACHE_FREE(pix8);
 }

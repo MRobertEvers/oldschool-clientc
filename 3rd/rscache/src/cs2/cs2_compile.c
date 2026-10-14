@@ -24,6 +24,7 @@
  */
 
 #include "cs2_compile.h"
+#include "../rscache_alloc.h"
 
 #include "../rsbuffer.h"
 #include "cs2_command.h"
@@ -191,10 +192,10 @@ static void
 cs2_cc_ops_free(struct cs2_cc_ops* ops)
 {
     for( int i = 0; i < ops->count; i++ )
-        free(ops->string_operands[i]);
-    free(ops->opcodes);
-    free(ops->int_operands);
-    free(ops->string_operands);
+        RSCACHE_FREE(ops->string_operands[i]);
+    RSCACHE_FREE(ops->opcodes);
+    RSCACHE_FREE(ops->int_operands);
+    RSCACHE_FREE(ops->string_operands);
     memset(ops, 0, sizeof(*ops));
 }
 
@@ -206,10 +207,10 @@ cs2_cc_ops_reserve(struct cs2_cc_ops* ops, int needed)
     int capacity = ops->capacity ? ops->capacity * 2 : 128;
     while( capacity < needed )
         capacity *= 2;
-    uint16_t* opcodes = (uint16_t*)realloc(ops->opcodes, (size_t)capacity * sizeof(uint16_t));
-    int* int_operands = (int*)realloc(ops->int_operands, (size_t)capacity * sizeof(int));
+    uint16_t* opcodes = (uint16_t*)RSCACHE_REALLOC(ops->opcodes, (size_t)capacity * sizeof(uint16_t));
+    int* int_operands = (int*)RSCACHE_REALLOC(ops->int_operands, (size_t)capacity * sizeof(int));
     char** string_operands =
-        (char**)realloc(ops->string_operands, (size_t)capacity * sizeof(char*));
+        (char**)RSCACHE_REALLOC(ops->string_operands, (size_t)capacity * sizeof(char*));
     if( opcodes )
         ops->opcodes = opcodes;
     if( int_operands )
@@ -249,7 +250,7 @@ cs2_cc_emit_string(struct cs2_cc_compiler* cc, const char* text)
     if( cc->failed )
         return;
     size_t length = strlen(text ? text : "");
-    char* copy = (char*)malloc(length + 1);
+    char* copy = (char*)RSCACHE_MALLOC(length + 1);
     if( !copy )
     {
         cs2_cc_fail(cc, "out of memory");
@@ -271,7 +272,7 @@ cs2_cc_rollback(struct cs2_cc_compiler* cc, int mark)
 {
     for( int i = mark; i < cc->ops.count; i++ )
     {
-        free(cc->ops.string_operands[i]);
+        RSCACHE_FREE(cc->ops.string_operands[i]);
         cc->ops.string_operands[i] = NULL;
         cc->ops.opcodes[i] = 0;
         cc->ops.int_operands[i] = 0;
@@ -2892,7 +2893,7 @@ cs2_cc_switch(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type subject_type)
     /* 256 was not enough: `[proc,skill_guide_build]` and three others carry
      * more, the same way the decoder's switch tables had to stop being `[32]`
      * of `[256]`. Heap, because 1,024 of these is 2 MB of stack. */
-    struct cs2_cc_case* cases = (struct cs2_cc_case*)calloc(1024, sizeof(*cases));
+    struct cs2_cc_case* cases = (struct cs2_cc_case*)RSCACHE_CALLOC(1024, sizeof(*cases));
     if( !cases )
     {
         cs2_cc_fail(cc, "out of memory for a switch");
@@ -3061,9 +3062,9 @@ cs2_cc_switch(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type subject_type)
             if( entries->count == entries->capacity )
             {
                 int capacity = entries->capacity ? entries->capacity * 2 : 16;
-                entries->keys = (int*)realloc(entries->keys, (size_t)capacity * sizeof(int));
+                entries->keys = (int*)RSCACHE_REALLOC(entries->keys, (size_t)capacity * sizeof(int));
                 entries->targets =
-                    (int*)realloc(entries->targets, (size_t)capacity * sizeof(int));
+                    (int*)RSCACHE_REALLOC(entries->targets, (size_t)capacity * sizeof(int));
                 if( !entries->keys || !entries->targets )
                 {
                     cs2_cc_fail(cc, "out of memory");
@@ -3125,7 +3126,7 @@ cs2_cc_switch(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type subject_type)
     /* A `break` lands after the default body, not on it. */
     cs2_cc_jumps_patch(cc, &ends, cc->ops.count);
 done:
-    free(cases);
+    RSCACHE_FREE(cases);
 }
 
 /** `return;` / `return(a, b);` */
@@ -3781,16 +3782,16 @@ cs2_cc_drop_redundant_branches(struct cs2_cc_compiler* cc)
     if( cc->failed || cc->ops.count <= 0 )
         return;
 
-    int* absolute = (int*)malloc((size_t)cc->ops.count * sizeof(int));
-    int* mapping = (int*)malloc((size_t)(cc->ops.count + 1) * sizeof(int));
+    int* absolute = (int*)RSCACHE_MALLOC((size_t)cc->ops.count * sizeof(int));
+    int* mapping = (int*)RSCACHE_MALLOC((size_t)(cc->ops.count + 1) * sizeof(int));
     int* switch_pcs = NULL;
     if( cc->switch_count > 0 )
-        switch_pcs = (int*)malloc((size_t)cc->switch_count * sizeof(int));
+        switch_pcs = (int*)RSCACHE_MALLOC((size_t)cc->switch_count * sizeof(int));
     if( !absolute || !mapping || (cc->switch_count > 0 && !switch_pcs) )
     {
-        free(absolute);
-        free(mapping);
-        free(switch_pcs);
+        RSCACHE_FREE(absolute);
+        RSCACHE_FREE(mapping);
+        RSCACHE_FREE(switch_pcs);
         return; /* Nothing is lost by skipping the pass: the code is correct. */
     }
 
@@ -3849,7 +3850,7 @@ cs2_cc_drop_redundant_branches(struct cs2_cc_compiler* cc)
             }
             else
             {
-                free(cc->ops.string_operands[i]);
+                RSCACHE_FREE(cc->ops.string_operands[i]);
                 cc->ops.string_operands[i] = NULL;
             }
         }
@@ -3883,9 +3884,9 @@ cs2_cc_drop_redundant_branches(struct cs2_cc_compiler* cc)
         }
     }
 
-    free(absolute);
-    free(mapping);
-    free(switch_pcs);
+    RSCACHE_FREE(absolute);
+    RSCACHE_FREE(mapping);
+    RSCACHE_FREE(switch_pcs);
 }
 
 /* -------------------------------------------------------------------------
@@ -4055,12 +4056,12 @@ RSCache_CS2_Compile(
         struct RSCache_CS2_Script* script = &out->script;
         RSCache_CS2_ScriptInit(script);
         script->script_id = cc.script_id;
-        script->signature = (char*)calloc(1, 1);
+        script->signature = (char*)RSCACHE_CALLOC(1, 1);
         script->op_count = cc.ops.count;
         script->opcodes = cc.ops.opcodes;
         script->int_operands = cc.ops.int_operands;
         script->string_operands = cc.ops.string_operands;
-        script->long_operands = (int64_t*)calloc((size_t)cc.ops.count, sizeof(int64_t));
+        script->long_operands = (int64_t*)RSCACHE_CALLOC((size_t)cc.ops.count, sizeof(int64_t));
         script->int_argument_count = cc.frame_counts_override ? cc.override_int_argument_count
                                                               : cc.int_argument_count;
         script->string_argument_count = cc.frame_counts_override
@@ -4120,8 +4121,8 @@ RSCache_CS2_Compile(
     cs2_cc_ops_free(&cc.ops);
     for( int i = 0; i < cc.switch_count; i++ )
     {
-        free(cc.switches[i].keys);
-        free(cc.switches[i].targets);
+        RSCACHE_FREE(cc.switches[i].keys);
+        RSCACHE_FREE(cc.switches[i].targets);
     }
     RSCache_CS2_ArenaFree(&cc.arena);
     return ok;

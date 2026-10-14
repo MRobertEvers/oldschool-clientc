@@ -1,3 +1,5 @@
+#include "mem/torirs_mem.h"
+#include "mem/torimem_toridraw.h"
 #include "engine/boot_bar.h"
 #include "platform/platform_sdl2_renderer_gl3.h"
 
@@ -1139,7 +1141,7 @@ gl3_clamp_to_nominal(
     if( nominal_w <= 0 || nominal_h <= 0 || src_w <= 0 || src_h <= 0 )
         return NULL;
     assert(src);
-    dst = calloc((size_t)nominal_w * (size_t)nominal_h, sizeof(uint32_t));
+    dst = TORIDRAW_CALLOC((size_t)nominal_w * (size_t)nominal_h, sizeof(uint32_t));
     assert(dst);
     for( y = 0; y < src_h; y++ )
     {
@@ -1234,8 +1236,9 @@ gl3_sprite_prepare_pixels(
     ox = sp->crop_x;
     oy = sp->crop_y;
     pixel_count = (size_t)sw * (size_t)sh;
-    spr_px = malloc(pixel_count * sizeof(uint32_t));
-    assert(spr_px);
+    /* lib:toridraw: the variant path hands this to ToriDraw_SpriteTransformPixels
+     * and the outline/shadow builders, which free it and return their own. */
+    spr_px = TORIDRAW_MALLOC(pixel_count * sizeof(uint32_t));
     memcpy(spr_px, sp->pixels_argb, pixel_count * sizeof(uint32_t));
     *out_px = spr_px;
     *out_w = sw;
@@ -1443,7 +1446,7 @@ gl3_sprite_ensure_variant(
             ToriDraw_SpriteNewGraphicOutline(spr_px, sw, sh, cmd->outline, &sw2, &sh2);
         if( outlined )
         {
-            free(spr_px);
+            TORIDRAW_FREE(spr_px);
             spr_px = outlined;
             sw = sw2;
             sh = sh2;
@@ -1457,7 +1460,7 @@ gl3_sprite_ensure_variant(
             ToriDraw_SpriteNewGraphicShadow(spr_px, sw, sh, cmd->graphic_shadow, &sw2, &sh2);
         if( shadowed )
         {
-            free(spr_px);
+            TORIDRAW_FREE(spr_px);
             spr_px = shadowed;
             sw = sw2;
             sh = sh2;
@@ -1472,7 +1475,7 @@ gl3_sprite_ensure_variant(
                 gl3_clamp_to_nominal(spr_px, sw, sh, ox, oy, nominal_w, nominal_h);
             if( clamped )
             {
-                free(spr_px);
+                TORIDRAW_FREE(spr_px);
                 spr_px = clamped;
                 sw = nominal_w;
                 sh = nominal_h;
@@ -1494,7 +1497,7 @@ gl3_sprite_ensure_variant(
         if( !gl3_sprite_upload_rgba(
                 renderer, (uint8_t const*)spr_px, (uint32_t)sw * 4u, sw, sh, NULL, uv) )
         {
-            free(spr_px);
+            TORIDRAW_FREE(spr_px);
             return false;
         }
         variant->u0 = uv[0];
@@ -1516,7 +1519,7 @@ gl3_sprite_ensure_variant(
         *out_sw = sw;
         *out_sh = sh;
     }
-    free(spr_px);
+    TORIDRAW_FREE(spr_px);
     return true;
 }
 

@@ -1,3 +1,5 @@
+#include "mem/torirs_mem.h"
+#include "mem/torimem_rscache.h"
 #include "js5_rscache.h"
 #include <assert.h>
 
@@ -43,7 +45,8 @@ static void
 js5_rscache_release_raw(void* user, uint8_t* data)
 {
     (void)user;
-    free(data);
+    /* Taken out of an rscache archive above: lib:rscache owns it. */
+    RSCACHE_FREE(data);
 }
 
 static int

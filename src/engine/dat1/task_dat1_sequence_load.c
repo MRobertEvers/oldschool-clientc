@@ -1,3 +1,5 @@
+#include "mem/torirs_mem.h"
+#include "mem/torimem_toridraw.h"
 #include "engine/dat1/dat1_tasks.h"
 #include "engine/cache_provider.h"
 #include "engine/dat1/dat1_buildcache.h"
@@ -56,7 +58,7 @@ seq_register_result(
 {
     if( !anim )
     {
-        anim = calloc(1, sizeof(*anim));
+        anim = TORIDRAW_CALLOC(1, sizeof(*anim));
         if( getenv("TORIRS_ANIM_DEBUG") )
             TORIRS_LOG("dat1 seq_load: seq=%d unavailable\n", self->seq_id);
     }

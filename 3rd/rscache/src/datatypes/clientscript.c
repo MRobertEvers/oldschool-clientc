@@ -1,4 +1,5 @@
 #include "clientscript.h"
+#include "../rscache_alloc.h"
 
 #include "../rsbuffer.h"
 #include "cs2_opcode_decode.h"
@@ -153,7 +154,7 @@ cs2_script_try_decode_footer(
     if( op_count <= 0 || op_count > 65536 )
         return NULL;
 
-    struct RSCache_ClientScript* out = calloc(1, sizeof(*out));
+    struct RSCache_ClientScript* out = RSCACHE_CALLOC(1, sizeof(*out));
     if( !out )
         return NULL;
 
@@ -199,10 +200,10 @@ cs2_script_try_decode_footer(
         }
     }
 
-    script->opcodes = calloc((size_t)op_count, sizeof(uint16_t));
-    script->int_operands = calloc((size_t)op_count, sizeof(int));
-    script->long_operands = calloc((size_t)op_count, sizeof(int64_t));
-    script->string_operands = calloc((size_t)op_count, sizeof(char*));
+    script->opcodes = RSCACHE_CALLOC((size_t)op_count, sizeof(uint16_t));
+    script->int_operands = RSCACHE_CALLOC((size_t)op_count, sizeof(int));
+    script->long_operands = RSCACHE_CALLOC((size_t)op_count, sizeof(int64_t));
+    script->string_operands = RSCACHE_CALLOC((size_t)op_count, sizeof(char*));
     if( !script->opcodes || !script->int_operands || !script->long_operands ||
         !script->string_operands )
     {
@@ -433,5 +434,5 @@ RSCache_ClientScriptFree(struct RSCache_ClientScript* script)
     if( !script )
         return;
     RSCache_ClientScriptFreeInplace(script);
-    free(script);
+    RSCACHE_FREE(script);
 }

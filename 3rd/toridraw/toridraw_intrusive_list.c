@@ -1,4 +1,5 @@
 #include "toridraw_intrusive_list.h"
+#include "toridraw_alloc.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -13,7 +14,7 @@ td_intrusive_grow(struct ToriDraw_IntrusiveList* list)
     int new_cap = list->capacity ? list->capacity * TORIDRAW_INTRUSIVE_GROWTH_FACTOR
                                  : TORIDRAW_INTRUSIVE_INITIAL_CAPACITY;
     struct ToriDraw_IntrusiveNode* grown =
-        realloc(list->nodes, (size_t)new_cap * sizeof(struct ToriDraw_IntrusiveNode));
+        TORIDRAW_REALLOC(list->nodes, (size_t)new_cap * sizeof(struct ToriDraw_IntrusiveNode));
     if( !grown )
         return false;
     list->nodes = grown;
@@ -36,7 +37,7 @@ ToriDraw_IntrusiveListFree(struct ToriDraw_IntrusiveList* list)
 {
     if( !list )
         return;
-    free(list->nodes);
+    TORIDRAW_FREE(list->nodes);
     memset(list, 0, sizeof(*list));
     list->head = TORIDRAW_INTRUSIVE_NIL;
     list->tail = TORIDRAW_INTRUSIVE_NIL;

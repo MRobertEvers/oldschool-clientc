@@ -1,4 +1,5 @@
 #include "cs2_decompile.h"
+#include "../rscache_alloc.h"
 
 #include "cs2_cfa.h"
 #include "cs2_compile.h"
@@ -106,12 +107,12 @@ RSCache_CS2_Decompile(
                             RSCache_ClientScriptFreeInplace(&rebuilt);
                     }
                     const char* text = RSCache_CS2_StrBufCStr(&buffer);
-                    source = (char*)malloc((size_t)buffer.length + 1);
+                    source = (char*)RSCACHE_MALLOC((size_t)buffer.length + 1);
                     if( source )
                         memcpy(source, text, (size_t)buffer.length + 1);
                     if( out_name && source )
                     {
-                        *out_name = (char*)malloc(strlen(name) + 1);
+                        *out_name = (char*)RSCACHE_MALLOC(strlen(name) + 1);
                         if( *out_name )
                             memcpy(*out_name, name, strlen(name) + 1);
                     }
@@ -171,12 +172,12 @@ RSCache_CS2_DecompileJson(
                         error_capacity) )
                 {
                     const char* text = RSCache_CS2_StrBufCStr(&buffer);
-                    document = (char*)malloc((size_t)buffer.length + 1);
+                    document = (char*)RSCACHE_MALLOC((size_t)buffer.length + 1);
                     assert(document);
                     memcpy(document, text, (size_t)buffer.length + 1);
                     if( out_name )
                     {
-                        *out_name = (char*)malloc(strlen(name) + 1);
+                        *out_name = (char*)RSCACHE_MALLOC(strlen(name) + 1);
                         assert(*out_name);
                         memcpy(*out_name, name, strlen(name) + 1);
                     }

@@ -1,4 +1,5 @@
 #include "dat1_config_seq.h"
+#include "../rscache_alloc.h"
 
 #include "../rsbuffer.h"
 
@@ -42,9 +43,9 @@ RSCache_Dat1ConfigSeqDecodeOp(
     case 1:
     {
         seq->frame_count = g1(buffer);
-        seq->frames = calloc((size_t)seq->frame_count, sizeof(int));
-        seq->iframes = calloc((size_t)seq->frame_count, sizeof(int));
-        seq->delay = calloc((size_t)seq->frame_count, sizeof(int));
+        seq->frames = RSCACHE_CALLOC((size_t)seq->frame_count, sizeof(int));
+        seq->iframes = RSCACHE_CALLOC((size_t)seq->frame_count, sizeof(int));
+        seq->delay = RSCACHE_CALLOC((size_t)seq->frame_count, sizeof(int));
         if( !seq->frames || !seq->iframes || !seq->delay )
         {
             seq->frame_count = 0;
@@ -67,7 +68,7 @@ RSCache_Dat1ConfigSeqDecodeOp(
     case 3:
     {
         int count = g1(buffer);
-        seq->walkmerge = calloc((size_t)count + 1, sizeof(int));
+        seq->walkmerge = RSCACHE_CALLOC((size_t)count + 1, sizeof(int));
         if( !seq->walkmerge )
             return false;
         for( int i = 0; i < count; i++ )
@@ -140,10 +141,10 @@ RSCache_Dat1ConfigSeqFreeInplace(struct RSCache_Dat1ConfigSeq* seq)
 {
     if( !seq )
         return;
-    free(seq->frames);
-    free(seq->iframes);
-    free(seq->delay);
-    free(seq->walkmerge);
+    RSCACHE_FREE(seq->frames);
+    RSCACHE_FREE(seq->iframes);
+    RSCACHE_FREE(seq->delay);
+    RSCACHE_FREE(seq->walkmerge);
     memset(seq, 0, sizeof(*seq));
 }
 
@@ -159,7 +160,7 @@ RSCache_Dat1ConfigSeqListNewDecode(
     if( !data || data_size <= 0 )
         return NULL;
 
-    list = malloc(sizeof(*list));
+    list = RSCACHE_MALLOC(sizeof(*list));
     if( !list )
         return NULL;
     memset(list, 0, sizeof(*list));
@@ -169,10 +170,10 @@ RSCache_Dat1ConfigSeqListNewDecode(
     if( count <= 0 )
         return list;
 
-    list->seqs = calloc((size_t)count, sizeof(*list->seqs));
+    list->seqs = RSCACHE_CALLOC((size_t)count, sizeof(*list->seqs));
     if( !list->seqs )
     {
-        free(list);
+        RSCACHE_FREE(list);
         return NULL;
     }
     list->seqs_count = count;
@@ -195,8 +196,8 @@ RSCache_Dat1ConfigSeqListFree(struct RSCache_Dat1ConfigSeqList* list)
         return;
     for( int i = 0; i < list->seqs_count; i++ )
         RSCache_Dat1ConfigSeqFreeInplace(&list->seqs[i]);
-    free(list->seqs);
-    free(list);
+    RSCACHE_FREE(list->seqs);
+    RSCACHE_FREE(list);
 }
 
 static int

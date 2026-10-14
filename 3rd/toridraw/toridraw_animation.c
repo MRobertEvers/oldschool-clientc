@@ -1,4 +1,5 @@
 #include "toridraw_animation.h"
+#include "toridraw_alloc.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -13,12 +14,12 @@ ToriDraw_AnimbaseFree(struct ToriDraw_AnimBase* base)
     if( base->bone_groups )
     {
         for( int i = 0; i < base->length; i++ )
-            free(base->bone_groups[i]);
-        free(base->bone_groups);
+            TORIDRAW_FREE(base->bone_groups[i]);
+        TORIDRAW_FREE(base->bone_groups);
     }
-    free(base->bone_group_lengths);
-    free(base->types);
-    free(base);
+    TORIDRAW_FREE(base->bone_group_lengths);
+    TORIDRAW_FREE(base->types);
+    TORIDRAW_FREE(base);
 }
 
 void
@@ -29,14 +30,14 @@ ToriDraw_AnimationSetSeqMeta(
     assert(anim);
     assert(meta);
 
-    free(anim->walkmerge);
+    TORIDRAW_FREE(anim->walkmerge);
     anim->walkmerge = NULL;
     if( meta->walkmerge )
     {
         int count = 0;
         while( meta->walkmerge[count] != 9999999 )
             count++;
-        anim->walkmerge = malloc(((size_t)count + 1) * sizeof(int));
+        anim->walkmerge = TORIDRAW_MALLOC(((size_t)count + 1) * sizeof(int));
         assert(anim->walkmerge);
         memcpy(anim->walkmerge, meta->walkmerge, ((size_t)count + 1) * sizeof(int));
     }
@@ -173,19 +174,19 @@ ToriDraw_AnimationFree(struct ToriDraw_Animation* anim)
     {
         for( int i = 0; i < anim->frame_count; i++ )
         {
-            free(anim->frames[i].groups);
-            free(anim->frames[i].x);
-            free(anim->frames[i].y);
-            free(anim->frames[i].z);
+            TORIDRAW_FREE(anim->frames[i].groups);
+            TORIDRAW_FREE(anim->frames[i].x);
+            TORIDRAW_FREE(anim->frames[i].y);
+            TORIDRAW_FREE(anim->frames[i].z);
         }
-        free(anim->frames);
+        TORIDRAW_FREE(anim->frames);
     }
 
-    free(anim->walkmerge);
+    TORIDRAW_FREE(anim->walkmerge);
     ToriDraw_SkeletalAnimFree(anim->skeletal);
-    free(anim->frame_sounds.frame_indices);
-    free(anim->frame_sounds.sounds);
-    free(anim);
+    TORIDRAW_FREE(anim->frame_sounds.frame_indices);
+    TORIDRAW_FREE(anim->frame_sounds.sounds);
+    TORIDRAW_FREE(anim);
 }
 
 void
@@ -193,6 +194,6 @@ ToriDraw_SkeletalAnimFree(struct ToriDraw_SkeletalAnim* skeletal)
 {
     if( !skeletal )
         return;
-    free(skeletal->matrices);
-    free(skeletal);
+    TORIDRAW_FREE(skeletal->matrices);
+    TORIDRAW_FREE(skeletal);
 }

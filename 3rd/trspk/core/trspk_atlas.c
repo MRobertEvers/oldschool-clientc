@@ -1,4 +1,5 @@
 #include "trspk_atlas.h"
+#include "../trspk_alloc.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -221,7 +222,7 @@ trspk_atlas_init_grid(
     }
 
     uint32_t stride = atlas_w * channels;
-    uint8_t* pixels = (uint8_t*)calloc(1, (size_t)stride * atlas_h);
+    uint8_t* pixels = (uint8_t*)TRSPK_CALLOC(1, (size_t)stride * atlas_h);
     if( !pixels )
     {
         return false;
@@ -388,7 +389,7 @@ trspk_atlas_init_binpack(
         return false;
     }
 
-    struct TRSPK_AtlasFreeRect* free_rects = (struct TRSPK_AtlasFreeRect*)malloc(
+    struct TRSPK_AtlasFreeRect* free_rects = (struct TRSPK_AtlasFreeRect*)TRSPK_MALLOC(
         TRSPK_ATLAS_BINPACK_INIT_CAP * sizeof(*free_rects));
     if( !free_rects )
     {
@@ -396,10 +397,10 @@ trspk_atlas_init_binpack(
     }
 
     uint32_t stride = atlas_w * channels;
-    uint8_t* pixels = (uint8_t*)calloc(1, (size_t)stride * atlas_h);
+    uint8_t* pixels = (uint8_t*)TRSPK_CALLOC(1, (size_t)stride * atlas_h);
     if( !pixels )
     {
-        free(free_rects);
+        TRSPK_FREE(free_rects);
         return false;
     }
 
@@ -435,7 +436,7 @@ static bool
 binpack_grow(struct TRSPK_Atlas* atlas)
 {
     uint32_t                    new_cap    = atlas->free_rects_cap * 2u;
-    struct TRSPK_AtlasFreeRect* new_rects  = (struct TRSPK_AtlasFreeRect*)realloc(
+    struct TRSPK_AtlasFreeRect* new_rects  = (struct TRSPK_AtlasFreeRect*)TRSPK_REALLOC(
         atlas->free_rects, new_cap * sizeof(*new_rects));
     if( !new_rects )
     {
@@ -591,8 +592,8 @@ trspk_atlas_free(struct TRSPK_Atlas* atlas)
     {
         return;
     }
-    free(atlas->pixels);
-    free(atlas->free_rects);
+    TRSPK_FREE(atlas->pixels);
+    TRSPK_FREE(atlas->free_rects);
     atlas->pixels           = NULL;
     atlas->free_rects       = NULL;
     atlas->free_rects_count = 0;

@@ -55,6 +55,7 @@
  */
 
 #include "toridraw_debug.h"
+#include "toridraw_alloc.h"
 
 #if TORIDRAW_DEBUG_STATS
 
@@ -1589,9 +1590,9 @@ toridraw_dbg_verify_near_clip_gate(
             if( vcount > verify_cap )
             {
                 verify_cap = vcount;
-                verify_x = (int*)realloc(verify_x, (size_t)verify_cap * sizeof(int));
-                verify_y = (int*)realloc(verify_y, (size_t)verify_cap * sizeof(int));
-                verify_z = (int*)realloc(verify_z, (size_t)verify_cap * sizeof(int));
+                verify_x = (int*)TORIDRAW_REALLOC(verify_x, (size_t)verify_cap * sizeof(int));
+                verify_y = (int*)TORIDRAW_REALLOC(verify_y, (size_t)verify_cap * sizeof(int));
+                verify_z = (int*)TORIDRAW_REALLOC(verify_z, (size_t)verify_cap * sizeof(int));
                 assert(verify_x && verify_y && verify_z);
             }
             memcpy(verify_x, scene->screen_vertices_x, (size_t)vcount * sizeof(int));

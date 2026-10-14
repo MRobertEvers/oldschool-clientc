@@ -7,6 +7,8 @@
  * app/app_internal.h, and nothing outside the layer may include either.
  */
 
+#include "mem/torirs_mem.h"
+#include "mem/torimem_toridraw.h"
 #include "app/app_internal.h"
 
 /* Private to this unit, declared up front so definition order is free. */
@@ -480,8 +482,8 @@ app_map_editor_ghost_update(struct App* app)
                 /* RS face alpha: 0 opaque, higher more transparent. */
                 if( !model->face_alphas )
                 {
-                    model->face_alphas = malloc((size_t)model->face_count);
-                    assert(model->face_alphas);
+                    /* lib:toridraw: the model's array; ToriDraw_ModelFree frees it. */
+                    model->face_alphas = TORIDRAW_MALLOC((size_t)model->face_count);
                 }
                 memset(model->face_alphas, 150, (size_t)model->face_count);
                 MapEditorGhost_NoteFaded(&app->map_ghost);
@@ -643,7 +645,8 @@ app_map_editor_preview_update(struct App* app)
 
         if( sprite )
         {
-            struct ToriDraw_Sprite** sprites = malloc(sizeof(*sprites));
+            struct ToriDraw_Sprite** sprites =
+                TORIDRAW_MALLOC(sizeof(*sprites)); /* SceneSpriteAdd frees it */
             assert(sprites);
             sprites[0] = sprite;
             if( ToriDraw_SceneSpriteHas(app->scene, UITREE_SCENE_EDITOR_PREVIEW_ID) )
@@ -717,7 +720,8 @@ app_map_editor_preview_update(struct App* app)
 
         if( sprite )
         {
-            struct ToriDraw_Sprite** sprites = malloc(sizeof(*sprites));
+            struct ToriDraw_Sprite** sprites =
+                TORIDRAW_MALLOC(sizeof(*sprites)); /* SceneSpriteAdd frees it */
             assert(sprites);
             sprites[0] = sprite;
             /* One well, re-rendered per pick: the old sprite goes with the
@@ -802,7 +806,8 @@ app_map_editor_preview_update(struct App* app)
 
         if( sprite )
         {
-            struct ToriDraw_Sprite** sprites = malloc(sizeof(*sprites));
+            struct ToriDraw_Sprite** sprites =
+                TORIDRAW_MALLOC(sizeof(*sprites)); /* SceneSpriteAdd frees it */
             assert(sprites);
             sprites[0] = sprite;
             if( ToriDraw_SceneSpriteHas(app->scene, UITREE_SCENE_EDITOR_PREVIEW_ID) )

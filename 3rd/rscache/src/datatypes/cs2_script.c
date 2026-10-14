@@ -1,4 +1,5 @@
 #include "cs2_script.h"
+#include "../rscache_alloc.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -21,7 +22,7 @@ RSCache_CS2_ScriptAllocSwitches(struct RSCache_CS2_Script* script, int count)
         return 1;
     }
     script->switch_tables =
-        (struct RSCache_CS2_ScriptSwitch*)calloc((size_t)count, sizeof(*script->switch_tables));
+        (struct RSCache_CS2_ScriptSwitch*)RSCACHE_CALLOC((size_t)count, sizeof(*script->switch_tables));
     if( !script->switch_tables )
         return 0;
     script->switch_table_count = count;
@@ -44,7 +45,7 @@ RSCache_CS2_ScriptAllocSwitchCases(
         return 1;
     }
     table->cases =
-        (struct RSCache_CS2_ScriptSwitchCase*)calloc((size_t)case_count, sizeof(*table->cases));
+        (struct RSCache_CS2_ScriptSwitchCase*)RSCACHE_CALLOC((size_t)case_count, sizeof(*table->cases));
     if( !table->cases )
         return 0;
     table->case_count = case_count;
@@ -56,21 +57,21 @@ RSCache_CS2_ScriptFree(struct RSCache_CS2_Script* script)
 {
     if( !script )
         return;
-    free(script->signature);
-    free(script->opcodes);
-    free(script->int_operands);
-    free(script->long_operands);
+    RSCACHE_FREE(script->signature);
+    RSCACHE_FREE(script->opcodes);
+    RSCACHE_FREE(script->int_operands);
+    RSCACHE_FREE(script->long_operands);
     if( script->string_operands )
     {
         for( int i = 0; i < script->op_count; i++ )
-            free(script->string_operands[i]);
-        free(script->string_operands);
+            RSCACHE_FREE(script->string_operands[i]);
+        RSCACHE_FREE(script->string_operands);
     }
     if( script->switch_tables )
     {
         for( int i = 0; i < script->switch_table_count; i++ )
-            free(script->switch_tables[i].cases);
-        free(script->switch_tables);
+            RSCACHE_FREE(script->switch_tables[i].cases);
+        RSCACHE_FREE(script->switch_tables);
     }
     memset(script, 0, sizeof(*script));
 }

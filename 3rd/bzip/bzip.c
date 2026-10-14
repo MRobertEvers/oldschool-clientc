@@ -31,6 +31,62 @@
 
 #include "bzip.h"
 
+#include <assert.h>
+#include <stdlib.h>
+
+static void*
+bzip_libc_malloc(
+    size_t size,
+    void* user)
+{
+    (void)user;
+    return malloc(size);
+}
+
+static void*
+bzip_libc_calloc(
+    size_t count,
+    size_t size,
+    void* user)
+{
+    (void)user;
+    return calloc(count, size);
+}
+
+static void*
+bzip_libc_realloc(
+    void* ptr,
+    size_t size,
+    void* user)
+{
+    (void)user;
+    return realloc(ptr, size);
+}
+
+static void
+bzip_libc_free(
+    void* ptr,
+    void* user)
+{
+    (void)user;
+    free(ptr);
+}
+
+struct BZip_Allocator g_bzip_allocator = {
+    bzip_libc_malloc, bzip_libc_calloc, bzip_libc_realloc, bzip_libc_free, NULL,
+};
+
+void
+bzip_set_allocator(const struct BZip_Allocator* allocator)
+{
+    assert(allocator);
+    assert(allocator->malloc_fn);
+    assert(allocator->calloc_fn);
+    assert(allocator->realloc_fn);
+    assert(allocator->free_fn);
+    g_bzip_allocator = *allocator;
+}
+
 const char BZIP_HEADER[] = {'B', 'Z', 'h', '1'};
 
 const char *bunzip_errors[] = {NULL,
@@ -618,7 +674,7 @@ static int start_bunzip(bunzip_data **bdp, int in_fd, uint8_t *inbuf, int len) {
     }
 
     /* Allocate bunzip_data.  Most fields initialize to zero. */
-    if (!(bd = *bdp = malloc(i))) {
+    if (!(bd = *bdp = BZIP_MALLOC(i))) {
         return RETVAL_OUT_OF_MEMORY;
     }
 
@@ -662,7 +718,7 @@ static int start_bunzip(bunzip_data **bdp, int in_fd, uint8_t *inbuf, int len) {
        uncompressed data.  Allocate intermediate buffer for block. */
     bd->dbufSize = 100000 * (i - BZh0);
 
-    if (!(bd->dbuf = malloc(bd->dbufSize * sizeof(uint32_t)))) {
+    if (!(bd->dbuf = BZIP_MALLOC(bd->dbufSize * sizeof(uint32_t)))) {
         return RETVAL_OUT_OF_MEMORY;
     }
 
@@ -691,7 +747,7 @@ int bzip_decompress(int8_t *file_data, int file_capacity, int8_t *archive_data,
         return RETVAL_DATA_ERROR;
     }
 
-    uint8_t *headered = malloc((size_t)archive_size + 4);
+    uint8_t *headered = BZIP_MALLOC((size_t)archive_size + 4);
     if (!headered) {
         return RETVAL_OUT_OF_MEMORY;
     }
@@ -702,12 +758,12 @@ int bzip_decompress(int8_t *file_data, int file_capacity, int8_t *archive_data,
     int retval;
 
     if ((retval = start_bunzip(&bd, -1, headered, archive_size + 4)) < 0) {
-        free(headered);
+        BZIP_FREE(headered);
         /* start_bunzip publishes *bdp before it can fail on anything but the
          * allocation itself, so bd is NULL only in the out-of-memory case. */
         if (bd) {
-            free(bd->dbuf);
-            free(bd);
+            BZIP_FREE(bd->dbuf);
+            BZIP_FREE(bd);
         }
         bzip_report(retval);
         return retval;
@@ -755,9 +811,9 @@ int bzip_decompress(int8_t *file_data, int file_capacity, int8_t *archive_data,
         write_offset += chunk;
     }
 
-    free(bd->dbuf);
-    free(bd);
-    free(headered);
+    BZIP_FREE(bd->dbuf);
+    BZIP_FREE(bd);
+    BZIP_FREE(headered);
     if (retval < 0) {
         bzip_report(retval);
     }

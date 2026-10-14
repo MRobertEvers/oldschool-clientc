@@ -1,3 +1,4 @@
+#include "mem/torirs_mem.h"
 #include "engine/texture_palette_bake.h"
 
 #include "engine/torirs_types.h"
@@ -70,7 +71,7 @@ ToriRS_TextureBakeIndexed(
     if( dest_size != 64 && dest_size != 128 )
         return NULL;
 
-    adjusted_palette = malloc((size_t)palette_length * sizeof(*adjusted_palette));
+    adjusted_palette = ToriMem_Alloc(ToriMem_Assets(), (size_t)palette_length * sizeof(*adjusted_palette));
     assert(adjusted_palette);
 
     /* Reference rule: a colour that survives the 0xf8f8ff mask as 0 is the
@@ -82,7 +83,7 @@ ToriRS_TextureBakeIndexed(
         adjusted_palette[index] = (alpha << 24) | ToriRS_TextureGammaBlend(palette[index], 0.8);
     }
 
-    pixels = calloc((size_t)dest_size * (size_t)dest_size, sizeof(*pixels));
+    pixels = ToriMem_Calloc(ToriMem_Assets(), (size_t)dest_size * (size_t)dest_size, sizeof(*pixels));
     assert(pixels);
 
     for( index = 0; index < src_width * src_height; index++ )
@@ -127,14 +128,14 @@ ToriRS_TextureBakeIndexed(
     }
     else
     {
-        free(adjusted_palette);
-        free(pixels);
+        ToriMem_Free(ToriMem_Assets(), adjusted_palette);
+        ToriMem_Free(ToriMem_Assets(), pixels);
         return NULL;
     }
 
-    free(adjusted_palette);
+    ToriMem_Free(ToriMem_Assets(), adjusted_palette);
 
-    texture = calloc(1, sizeof(*texture));
+    texture = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*texture));
     assert(texture);
 
     texture->texels = pixels;

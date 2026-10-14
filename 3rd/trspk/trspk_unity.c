@@ -2,6 +2,7 @@
  * Unity build for TRSPK core (CPU-side retained-mode helpers).
  * opengl3/opengl3_sdlgl.c is compiled separately (needs SDL + GL headers).
  */
+#include "trspk_alloc.c"
 #include "core/trspk_atlas.c"
 #include "core/trspk_batch16.c"
 #include "core/trspk_core_math.c"

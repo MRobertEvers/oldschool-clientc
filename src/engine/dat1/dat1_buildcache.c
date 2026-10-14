@@ -1,3 +1,5 @@
+#include "mem/torirs_mem.h"
+#include "mem/torimem_rscache.h"
 #include "engine/dat1/dat1_buildcache.h"
 
 #include "engine/dat1/dat1_tasks.h"
@@ -1277,6 +1279,7 @@ dat1_buildcache_idks_init_from_config_jagfile(struct Dat1BuildCache* dat1_buildc
     for( int i = 0; i < idk_list->idks_count; i++ )
         dat1_buildcache_idk_add(dat1_buildcache, i, idk_list->idks[i]);
 
-    free(idk_list->idks);
-    free(idk_list);
+    /* The decoder's list (lib:rscache); the idks were copied out above. */
+    RSCACHE_FREE(idk_list->idks);
+    RSCACHE_FREE(idk_list);
 }

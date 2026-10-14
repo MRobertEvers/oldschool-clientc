@@ -51,11 +51,16 @@ $(BUILD)/torirs_types.o: $(SRC)/engine/torirs_types.c | $(BUILD)
 $(BUILD)/component_hook.o: $(SRC)/engine/torirs_component_hook.c | $(BUILD)
 	$(CC) $(DEP_CFLAGS) -c $< -o $@
 
+# The lifetime groups (src/mem): the engine files above allocate through them.
+# RSCache keeps libc here; nothing installs ToriMem into it.
+$(BUILD)/torirs_mem.o: $(SRC)/mem/torirs_mem.c | $(BUILD)
+	$(CC) $(DEP_CFLAGS) -c $< -o $@
+
 $(BUILD)/main.o: main.c | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(TARGET): $(BUILD)/main.o $(BUILD)/sprite_from_rscache.o $(BUILD)/torirs_types.o $(BUILD)/component_hook.o $(BUILD)/rscache_unity.o \
-		$(BUILD)/bzip.o $(BUILD)/bzip_encode.o $(BUILD)/miniz.o $(BUILD)/xteas.o
+		$(BUILD)/bzip.o $(BUILD)/bzip_encode.o $(BUILD)/miniz.o $(BUILD)/xteas.o $(BUILD)/torirs_mem.o
 	$(CC) $(CFLAGS) -o $@ $^ -lm
 
 clean:

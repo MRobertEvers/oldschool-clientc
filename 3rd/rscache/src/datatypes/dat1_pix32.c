@@ -1,4 +1,5 @@
 #include "dat1_pix32.h"
+#include "../rscache_alloc.h"
 
 #include "../rsbuffer.h"
 
@@ -13,7 +14,7 @@ RSCache_Dat1Pix32New(
     int index_data_size,
     int sprite_idx)
 {
-    struct RSCache_Dat1Pix32* pix32 = malloc(sizeof(struct RSCache_Dat1Pix32));
+    struct RSCache_Dat1Pix32* pix32 = RSCACHE_MALLOC(sizeof(struct RSCache_Dat1Pix32));
     if( !pix32 )
         return NULL;
     memset(pix32, 0, sizeof(struct RSCache_Dat1Pix32));
@@ -28,10 +29,10 @@ RSCache_Dat1Pix32New(
     int draw_height = g2(&indexbuf);
 
     int palette_count = g1(&indexbuf);
-    int* palette = malloc(palette_count * sizeof(int));
+    int* palette = RSCACHE_MALLOC(palette_count * sizeof(int));
     if( !palette )
     {
-        free(pix32);
+        RSCACHE_FREE(pix32);
         return NULL;
     }
     memset(palette, 0, palette_count * sizeof(int));
@@ -55,8 +56,8 @@ RSCache_Dat1Pix32New(
 
     if( databuf.position > databuf.size || indexbuf.position > indexbuf.size )
     {
-        free(palette);
-        free(pix32);
+        RSCACHE_FREE(palette);
+        RSCACHE_FREE(pix32);
         return NULL;
     }
 
@@ -67,11 +68,11 @@ RSCache_Dat1Pix32New(
     int pixel_order = g1(&indexbuf);
     int pixel_count = width * height;
 
-    int* pixels = malloc(pixel_count * sizeof(int));
+    int* pixels = RSCACHE_MALLOC(pixel_count * sizeof(int));
     if( !pixels )
     {
-        free(palette);
-        free(pix32);
+        RSCACHE_FREE(palette);
+        RSCACHE_FREE(pix32);
         return NULL;
     }
     memset(pixels, 0, pixel_count * sizeof(int));
@@ -80,9 +81,9 @@ RSCache_Dat1Pix32New(
     {
         if( databuf.position + pixel_count > databuf.size )
         {
-            free(palette);
-            free(pixels);
-            free(pix32);
+            RSCACHE_FREE(palette);
+            RSCACHE_FREE(pixels);
+            RSCACHE_FREE(pix32);
             return NULL;
         }
         for( int i = 0; i < pixel_count; i++ )
@@ -100,9 +101,9 @@ RSCache_Dat1Pix32New(
                 int pixel_index = g1(&databuf);
                 if( pixel_index < 0 || pixel_index >= palette_count )
                 {
-                    free(palette);
-                    free(pixels);
-                    free(pix32);
+                    RSCACHE_FREE(palette);
+                    RSCACHE_FREE(pixels);
+                    RSCACHE_FREE(pix32);
                     return NULL;
                 }
                 pixels[x + y * width] = palette[pixel_index];
@@ -110,7 +111,7 @@ RSCache_Dat1Pix32New(
         }
     }
 
-    free(palette);
+    RSCACHE_FREE(palette);
 
     pix32->pixels = pixels;
     pix32->draw_width = draw_width;
@@ -128,6 +129,6 @@ RSCache_Dat1Pix32Free(struct RSCache_Dat1Pix32* pix32)
 {
     if( !pix32 )
         return;
-    free(pix32->pixels);
-    free(pix32);
+    RSCACHE_FREE(pix32->pixels);
+    RSCACHE_FREE(pix32);
 }

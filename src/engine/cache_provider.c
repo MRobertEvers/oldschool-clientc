@@ -1,3 +1,4 @@
+#include "mem/torirs_mem.h"
 #include "engine/cache_provider.h"
 
 #include "cs2vm2/cs2vm2_script.h"
@@ -546,6 +547,24 @@ CacheProvider_FreeEngineCaches(struct CacheProvider* provider)
     provider->dbtable_cache = NULL;
     cache_provider_hmap_free(provider->dbindex_cache);
     provider->dbindex_cache = NULL;
+
+    /* Was missing: the map, and every geography it held, outlived teardown. */
+    if( provider->worldmap_geography_cache )
+    {
+        struct HMapIter* iter = hmap_iter_new(provider->worldmap_geography_cache);
+        struct MapEntry_ProviderWorldMapGeography* entry;
+        while( (entry = (struct MapEntry_ProviderWorldMapGeography*)hmap_iter_next(iter)) )
+        {
+            if( !entry->geography )
+                continue;
+            RSCache_WorldMapGeographyFreeInplace(entry->geography);
+            ToriMem_Free(ToriMem_Assets(), entry->geography);
+            entry->geography = NULL;
+        }
+        hmap_iter_free(iter);
+        cache_provider_hmap_free(provider->worldmap_geography_cache);
+        provider->worldmap_geography_cache = NULL;
+    }
 }
 
 void
@@ -1600,7 +1619,7 @@ CacheProvider_WorldMapGeographyAdd(
         /* Two steps, as CacheProvider_WorldMapGeographyRemove does it: the
          * struct's interior is freed in place, then the struct itself. */
         RSCache_WorldMapGeographyFreeInplace(entry->geography);
-        free(entry->geography);
+        ToriMem_Free(ToriMem_Assets(), entry->geography);
     }
     entry->geography = geography;
 }
@@ -1646,7 +1665,7 @@ CacheProvider_WorldMapGeographyRelease(
         return;
 
     RSCache_WorldMapGeographyFreeInplace(entry->geography);
-    free(entry->geography);
+    ToriMem_Free(ToriMem_Assets(), entry->geography);
     entry->geography = NULL;
     hmap_search(provider->worldmap_geography_cache, &key, HMAP_REMOVE);
 }
@@ -2556,8 +2575,8 @@ CacheProvider_IdksCleanup(struct CacheProvider* provider)
     hmap_iter_free(iter);
 
     cache_provider_hmap_free(provider->idk_cache);
-    provider->sound_cache = cache_provider_hmap_new(
-        sizeof(struct MapEntry_ProviderSound), CACHE_PROVIDER_SOUND_CAPACITY);
+    /* Only the idk map. A pasted sound_cache line here replaced the live sound
+     * map with an empty one, leaking the map and every sound it held. */
     provider->idk_cache =
         cache_provider_hmap_new(sizeof(struct MapEntry_ProviderIdk), CACHE_PROVIDER_IDK_CAPACITY);
 }

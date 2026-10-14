@@ -1,3 +1,4 @@
+#include "mem/torirs_mem.h"
 #include "audio/torirs_soundbank.h"
 #include <assert.h>
 
@@ -21,7 +22,7 @@ free_sample_slot(
     struct ToriRS_SoundBankSample* sample)
 {
     bank->sample_bytes -= (long)sample->sound.sample_count * (long)sizeof(int16_t);
-    free(sample->samples);
+    ToriMem_Free(ToriMem_Assets(), sample->samples);
     memset(sample, 0, sizeof(*sample));
     sample->table = -1;
     sample->id = -1;
@@ -140,9 +141,14 @@ ToriRS_SoundBank_AddSample(
 {
     struct ToriRS_SoundBankSample* slot;
 
+    /* The bank takes `samples` (an ASSET block) whatever happens next: kept,
+     * or freed on every failure below. The caller drops its pointer either
+     * way, and puts a decoder's buffer in ASSET first (ToriMem_TakeFromRSCache). */
+    if( samples )
+        assert(ToriMem_GroupOf(samples) == ToriMem_Assets());
     if( !bank || id < 0 || !samples || sample_count <= 0 )
     {
-        free(samples);
+        ToriMem_Free(ToriMem_Assets(), samples);
         return NULL;
     }
     slot = ToriRS_SoundBank_FindSample(bank, table, id);
@@ -159,7 +165,7 @@ ToriRS_SoundBank_AddSample(
                 realloc(bank->samples, (size_t)next * sizeof(*grown));
             if( !grown )
             {
-                free(samples);
+                ToriMem_Free(ToriMem_Assets(), samples);
                 return NULL;
             }
             bank->samples = grown;

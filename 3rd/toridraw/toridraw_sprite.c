@@ -1,4 +1,5 @@
 #include "toridraw_sprite.h"
+#include "toridraw_alloc.h"
 
 /*
  * The BMP export is the ONE thing in this library that reaches outside its own
@@ -31,7 +32,7 @@ ToriDraw_Pix8ToArgb(
     struct ToriDraw_Pix8* pix8,
     struct ToriDraw_PixPalette* palette)
 {
-    uint32_t* pixels_argb = malloc((size_t)pix8->width * (size_t)pix8->height * sizeof(uint32_t));
+    uint32_t* pixels_argb = TORIDRAW_MALLOC((size_t)pix8->width * (size_t)pix8->height * sizeof(uint32_t));
     assert(pixels_argb);
     memset(pixels_argb, 0, (size_t)pix8->width * (size_t)pix8->height * sizeof(uint32_t));
 
@@ -52,13 +53,13 @@ ToriDraw_SpriteNewFromPix8(
 {
     assert(pix8);
     assert(palette);
-    struct ToriDraw_Sprite* sprite = (struct ToriDraw_Sprite*)malloc(sizeof(struct ToriDraw_Sprite));
+    struct ToriDraw_Sprite* sprite = (struct ToriDraw_Sprite*)TORIDRAW_MALLOC(sizeof(struct ToriDraw_Sprite));
     assert(sprite);
     memset(sprite, 0, sizeof(struct ToriDraw_Sprite));
     sprite->pixels_argb = ToriDraw_Pix8ToArgb(pix8, palette);
     if( !sprite->pixels_argb )
     {
-        free(sprite);
+        TORIDRAW_FREE(sprite);
         return NULL;
     }
     sprite->width = pix8->width;
@@ -71,7 +72,7 @@ ToriDraw_SpriteNewFromPix32(struct ToriDraw_Pix32* pix32)
 {
     assert(pix32);
     assert(pix32->pixels);
-    struct ToriDraw_Sprite* sprite = (struct ToriDraw_Sprite*)malloc(sizeof(struct ToriDraw_Sprite));
+    struct ToriDraw_Sprite* sprite = (struct ToriDraw_Sprite*)TORIDRAW_MALLOC(sizeof(struct ToriDraw_Sprite));
     assert(sprite);
     memset(sprite, 0, sizeof(struct ToriDraw_Sprite));
 
@@ -80,10 +81,10 @@ ToriDraw_SpriteNewFromPix32(struct ToriDraw_Pix32* pix32)
     int height = pix32->stride_y;
 
     uint32_t* pixels =
-        malloc((size_t)pix32->draw_width * (size_t)pix32->draw_height * sizeof(uint32_t));
+        TORIDRAW_MALLOC((size_t)pix32->draw_width * (size_t)pix32->draw_height * sizeof(uint32_t));
     if( !pixels )
     {
-        free(sprite);
+        TORIDRAW_FREE(sprite);
         return NULL;
     }
     memset(pixels, 0, (size_t)pix32->draw_width * (size_t)pix32->draw_height * sizeof(uint32_t));
@@ -127,7 +128,7 @@ ToriDraw_SpriteNewFromArgbOwned(
     assert(pixels_argb);
     if( width <= 0 || height <= 0 )
         return NULL;
-    struct ToriDraw_Sprite* sprite = (struct ToriDraw_Sprite*)malloc(sizeof(struct ToriDraw_Sprite));
+    struct ToriDraw_Sprite* sprite = (struct ToriDraw_Sprite*)TORIDRAW_MALLOC(sizeof(struct ToriDraw_Sprite));
     assert(sprite);
     memset(sprite, 0, sizeof(struct ToriDraw_Sprite));
     sprite->pixels_argb = pixels_argb;
@@ -172,8 +173,8 @@ ToriDraw_Pix8Free(struct ToriDraw_Pix8* pix8)
 {
     if( !pix8 )
         return;
-    free(pix8->pixels);
-    free(pix8);
+    TORIDRAW_FREE(pix8->pixels);
+    TORIDRAW_FREE(pix8);
 }
 
 void
@@ -181,8 +182,8 @@ ToriDraw_PixpaletteFree(struct ToriDraw_PixPalette* palette)
 {
     if( !palette )
         return;
-    free(palette->palette);
-    free(palette);
+    TORIDRAW_FREE(palette->palette);
+    TORIDRAW_FREE(palette);
 }
 
 void
@@ -763,7 +764,7 @@ ToriDraw_SpriteNewGraphicOutline(
         return NULL;
     assert(src);
 
-    dst = malloc((size_t)sw * (size_t)sh * sizeof(uint32_t));
+    dst = TORIDRAW_MALLOC((size_t)sw * (size_t)sh * sizeof(uint32_t));
     assert(dst);
     memcpy(dst, src, (size_t)sw * (size_t)sh * sizeof(uint32_t));
 
@@ -773,13 +774,13 @@ ToriDraw_SpriteNewGraphicOutline(
         /* Deob: method9420(1) then method9420(16777215). Colour 1 is nearly
          * black in the RS palette; keep opaque ARGB for our blitter. */
         uint32_t outline_rgb = pass == 0 ? 0xFF000001u : 0xFFFFFFFFu;
-        uint32_t* next = malloc((size_t)sw * (size_t)sh * sizeof(uint32_t));
+        uint32_t* next = TORIDRAW_MALLOC((size_t)sw * (size_t)sh * sizeof(uint32_t));
         int y;
         int x;
 
         if( !next )
         {
-            free(dst);
+            TORIDRAW_FREE(dst);
             return NULL;
         }
         memcpy(next, dst, (size_t)sw * (size_t)sh * sizeof(uint32_t));
@@ -799,7 +800,7 @@ ToriDraw_SpriteNewGraphicOutline(
                     next[idx] = outline_rgb;
             }
         }
-        free(dst);
+        TORIDRAW_FREE(dst);
         dst = next;
     }
 
@@ -824,7 +825,7 @@ ToriDraw_SpriteNewGraphicShadow(
     int pad = 2;
     int dw = sw + pad;
     int dh = sh + pad;
-    uint32_t* dst = calloc((size_t)dw * (size_t)dh, sizeof(uint32_t));
+    uint32_t* dst = TORIDRAW_CALLOC((size_t)dw * (size_t)dh, sizeof(uint32_t));
     assert(dst);
 
     int sr = (shadow_colour >> 16) & 0xFF;
@@ -980,7 +981,7 @@ ToriDraw_SpriteTransformPixels(
     if( dst_w <= 0 || dst_h <= 0 )
         return;
 
-    uint32_t* dst = calloc((size_t)dst_w * (size_t)dst_h, sizeof(uint32_t));
+    uint32_t* dst = TORIDRAW_CALLOC((size_t)dst_w * (size_t)dst_h, sizeof(uint32_t));
     assert(dst);
 
     uint32_t const* src = *pixels_argb;
@@ -997,7 +998,7 @@ ToriDraw_SpriteTransformPixels(
         }
     }
 
-    free(*pixels_argb);
+    TORIDRAW_FREE(*pixels_argb);
     *pixels_argb = dst;
     *width = dst_w;
     *height = dst_h;
@@ -1008,8 +1009,8 @@ ToriDraw_SpriteFree(struct ToriDraw_Sprite* sprite)
 {
     if( !sprite )
         return;
-    free(sprite->pixels_argb);
-    free(sprite);
+    TORIDRAW_FREE(sprite->pixels_argb);
+    TORIDRAW_FREE(sprite);
 }
 
 #ifdef TORIDRAW_SPRITE_BMP_EXPORT
@@ -1055,7 +1056,7 @@ ToriDraw_SpriteWriteBmpFile(
         return 0;
     }
 
-    int* pixels = malloc((size_t)out_w * (size_t)out_h * sizeof(int));
+    int* pixels = TORIDRAW_MALLOC((size_t)out_w * (size_t)out_h * sizeof(int));
     assert(pixels);
 
     int const src_stride = sprite->width;
@@ -1068,7 +1069,7 @@ ToriDraw_SpriteWriteBmpFile(
     }
 
     bmp_write_file(path, pixels, out_w, out_h);
-    free(pixels);
+    TORIDRAW_FREE(pixels);
     return 0;
 }
 #endif /* TORIDRAW_SPRITE_BMP_EXPORT */

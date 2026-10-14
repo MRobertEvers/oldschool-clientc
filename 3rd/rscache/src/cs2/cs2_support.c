@@ -1,4 +1,5 @@
 #include "cs2_support.h"
+#include "../rscache_alloc.h"
 
 #include <assert.h>
 #include <stdarg.h>
@@ -33,7 +34,7 @@ RSCache_CS2_ArenaTrackVec(struct RSCache_CS2_Arena* arena, struct RSCache_CS2_Ve
     if( arena->tracked_count + 1 > arena->tracked_capacity )
     {
         int capacity = arena->tracked_capacity ? arena->tracked_capacity * 2 : 64;
-        struct RSCache_CS2_Vec** tracked = (struct RSCache_CS2_Vec**)realloc(
+        struct RSCache_CS2_Vec** tracked = (struct RSCache_CS2_Vec**)RSCACHE_REALLOC(
             arena->tracked_vecs, (size_t)capacity * sizeof(*tracked));
         if( !tracked )
         {
@@ -54,7 +55,7 @@ cs2_arena_new_block(size_t min_size)
         size = min_size;
 
     struct RSCache_CS2_ArenaBlock* block =
-        (struct RSCache_CS2_ArenaBlock*)malloc(sizeof(*block) + size);
+        (struct RSCache_CS2_ArenaBlock*)RSCACHE_MALLOC(sizeof(*block) + size);
     if( !block )
     {
         fprintf(stderr, "rscache cs2: arena out of memory (%zu bytes)\n", size);
@@ -114,13 +115,13 @@ RSCache_CS2_ArenaFree(struct RSCache_CS2_Arena* arena)
         return;
     for( int i = 0; i < arena->tracked_count; i++ )
         RSCache_CS2_VecFree(arena->tracked_vecs[i]);
-    free(arena->tracked_vecs);
+    RSCACHE_FREE(arena->tracked_vecs);
 
     struct RSCache_CS2_ArenaBlock* block = arena->head;
     while( block )
     {
         struct RSCache_CS2_ArenaBlock* next = block->next;
-        free(block);
+        RSCACHE_FREE(block);
         block = next;
     }
     memset(arena, 0, sizeof(*arena));
@@ -147,7 +148,7 @@ cs2_vec_reserve(struct RSCache_CS2_Vec* vec, int needed)
     int capacity = vec->capacity ? vec->capacity * 2 : 8;
     while( capacity < needed )
         capacity *= 2;
-    void** items = (void**)realloc(vec->items, (size_t)capacity * sizeof(void*));
+    void** items = (void**)RSCACHE_REALLOC(vec->items, (size_t)capacity * sizeof(void*));
     if( !items )
     {
         fprintf(stderr, "rscache cs2: vector out of memory\n");
@@ -235,7 +236,7 @@ RSCache_CS2_VecFree(struct RSCache_CS2_Vec* vec)
 {
     if( !vec )
         return;
-    free(vec->items);
+    RSCACHE_FREE(vec->items);
     vec->items = NULL;
     vec->count = 0;
     vec->capacity = 0;
@@ -270,7 +271,7 @@ RSCache_CS2_IntVecPush(struct RSCache_CS2_IntVec* vec, int value)
     if( vec->count + 1 > vec->capacity )
     {
         int capacity = vec->capacity ? vec->capacity * 2 : 8;
-        int* items = (int*)realloc(vec->items, (size_t)capacity * sizeof(int));
+        int* items = (int*)RSCACHE_REALLOC(vec->items, (size_t)capacity * sizeof(int));
         if( !items )
         {
             fprintf(stderr, "rscache cs2: int vector out of memory\n");
@@ -313,7 +314,7 @@ RSCache_CS2_IntVecFree(struct RSCache_CS2_IntVec* vec)
 {
     if( !vec )
         return;
-    free(vec->items);
+    RSCACHE_FREE(vec->items);
     vec->items = NULL;
     vec->count = 0;
     vec->capacity = 0;
@@ -376,7 +377,7 @@ cs2_map_grow(struct RSCache_CS2_Map* map)
 {
     int capacity = map->capacity ? map->capacity * 2 : CS2_MAP_MIN_CAPACITY;
     struct RSCache_CS2_MapEntry* entries =
-        (struct RSCache_CS2_MapEntry*)calloc((size_t)capacity, sizeof(*entries));
+        (struct RSCache_CS2_MapEntry*)RSCACHE_CALLOC((size_t)capacity, sizeof(*entries));
     if( !entries )
     {
         fprintf(stderr, "rscache cs2: map out of memory\n");
@@ -398,7 +399,7 @@ cs2_map_grow(struct RSCache_CS2_Map* map)
             j = (j + 1) & mask;
         entries[j] = old[i];
     }
-    free(old);
+    RSCACHE_FREE(old);
 }
 
 void
@@ -467,7 +468,7 @@ RSCache_CS2_MapFree(struct RSCache_CS2_Map* map)
 {
     if( !map )
         return;
-    free(map->entries);
+    RSCACHE_FREE(map->entries);
     map->entries = NULL;
     map->count = 0;
     map->capacity = 0;
@@ -501,7 +502,7 @@ cs2_int_map_grow(struct RSCache_CS2_IntMap* map)
 {
     int capacity = map->capacity ? map->capacity * 2 : CS2_MAP_MIN_CAPACITY;
     struct RSCache_CS2_IntMapEntry* entries =
-        (struct RSCache_CS2_IntMapEntry*)calloc((size_t)capacity, sizeof(*entries));
+        (struct RSCache_CS2_IntMapEntry*)RSCACHE_CALLOC((size_t)capacity, sizeof(*entries));
     if( !entries )
     {
         fprintf(stderr, "rscache cs2: int map out of memory\n");
@@ -523,7 +524,7 @@ cs2_int_map_grow(struct RSCache_CS2_IntMap* map)
             j = (j + 1) & mask;
         entries[j] = old[i];
     }
-    free(old);
+    RSCACHE_FREE(old);
 }
 
 void
@@ -591,7 +592,7 @@ RSCache_CS2_IntMapFree(struct RSCache_CS2_IntMap* map)
 {
     if( !map )
         return;
-    free(map->entries);
+    RSCACHE_FREE(map->entries);
     map->entries = NULL;
     map->count = 0;
     map->capacity = 0;
@@ -619,7 +620,7 @@ cs2_strbuf_reserve(struct RSCache_CS2_StrBuf* buf, int needed)
     int capacity = buf->capacity ? buf->capacity * 2 : 256;
     while( capacity < needed + 1 )
         capacity *= 2;
-    char* data = (char*)realloc(buf->data, (size_t)capacity);
+    char* data = (char*)RSCACHE_REALLOC(buf->data, (size_t)capacity);
     if( !data )
     {
         fprintf(stderr, "rscache cs2: string buffer out of memory\n");
@@ -682,7 +683,7 @@ RSCache_CS2_StrBufAppendFormat(struct RSCache_CS2_StrBuf* buf, const char* fmt, 
         return;
     }
 
-    char* big = (char*)malloc((size_t)n + 1);
+    char* big = (char*)RSCACHE_MALLOC((size_t)n + 1);
     if( !big )
     {
         fprintf(stderr, "rscache cs2: string format out of memory\n");
@@ -692,7 +693,7 @@ RSCache_CS2_StrBufAppendFormat(struct RSCache_CS2_StrBuf* buf, const char* fmt, 
     vsnprintf(big, (size_t)n + 1, fmt, args);
     va_end(args);
     RSCache_CS2_StrBufAppendN(buf, big, n);
-    free(big);
+    RSCACHE_FREE(big);
 }
 
 void
@@ -714,7 +715,7 @@ RSCache_CS2_StrBufFree(struct RSCache_CS2_StrBuf* buf)
 {
     if( !buf )
         return;
-    free(buf->data);
+    RSCACHE_FREE(buf->data);
     buf->data = NULL;
     buf->length = 0;
     buf->capacity = 0;

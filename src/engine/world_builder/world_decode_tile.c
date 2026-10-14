@@ -1,3 +1,5 @@
+#include "mem/torirs_mem.h"
+#include "mem/torimem_toridraw.h"
 #include "world_decode_tile.h"
 
 #include "toridraw_model.h"
@@ -332,14 +334,16 @@ decode_tile(
     if( tile_block_off < 0 )
         tile_block_off = getenv("TORIRS_NO_TILE_BLOCK") != NULL;
 
-    int16_t* tile_block =
-        tile_block_off ? NULL : (int16_t*)malloc(tile_block_shorts * sizeof(int16_t));
+    /* lib:toridraw: the block (or each array) is the tile model's, released by
+     * ToriDraw_ModelFree with the model. */
+    int16_t* tile_block = tile_block_off ? NULL
+                                         : (int16_t*)TORIDRAW_MALLOC(tile_block_shorts * sizeof(int16_t));
     size_t tile_block_at = 0;
     assert(tile_block || tile_block_off);
 
 #define TILE_BLOCK_TAKE(type, n)                                                                   \
     (tile_block ? (type*)(tile_block + tile_block_at)                                              \
-                : (type*)malloc((size_t)(n) * sizeof(type)));                                      \
+                : (type*)TORIDRAW_MALLOC((size_t)(n) * sizeof(type)));         \
     tile_block_at += (size_t)(n)
 
     /* Taken at the padded width so each slice starts on an 8-byte boundary
@@ -577,7 +581,7 @@ decode_tile(
     // int* face_texture_v_c = NULL;
     if( texture_id != -1 )
     {
-        face_texture_ids = (int*)malloc(face_count * sizeof(int));
+        face_texture_ids = (int*)ToriMem_Alloc(ToriMem_Frame(), face_count * sizeof(int));
 
         //     face_texture_u_a = (int*)malloc(face_count * sizeof(int));
         //     face_texture_v_a = (int*)malloc(face_count * sizeof(int));
@@ -674,7 +678,7 @@ decode_tile(
         // }
     }
 
-    struct ToriDraw_Model* td = calloc(1, sizeof(struct ToriDraw_Model));
+    struct ToriDraw_Model* td = TORIDRAW_CALLOC(1, sizeof(struct ToriDraw_Model));
     assert(td);
 
     td->arrays_block = tile_block;
@@ -720,7 +724,7 @@ decode_tile(
          * tile leaked one of these on every rebuild, which is ~2,000 blocks per
          * world load and the single largest source of live blocks in a session
          * (macOS `leaks`: 207,643 unreachable blocks after 98 rebuilds). */
-        free(face_texture_ids);
+        ToriMem_Free(ToriMem_Frame(), face_texture_ids);
         face_texture_ids = NULL;
         td->textured_p_coordinate[0] = 0;
         td->textured_m_coordinate[0] = 1;

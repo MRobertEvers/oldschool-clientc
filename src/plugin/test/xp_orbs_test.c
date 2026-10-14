@@ -1,3 +1,4 @@
+#include <stdbool.h>
 /*
  * The XP drop orbs plugin, run against a fake engine.
  *
@@ -36,6 +37,24 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "mem/torirs_mem.h"
+
+/* The decoder writes into a lifetime group its caller names; this test keeps
+ * its images in plain malloc (they share slots with malloc'd publishes), so
+ * the decode lands in FRAME and is copied out. */
+static bool
+test_png_decode_argb(const void* data, int size, int* w, int* h, uint32_t** out)
+{
+    uint32_t* px = NULL;
+    if( !PngDecode_Argb(ToriMem_Frame(), data, size, w, h, &px) )
+        return false;
+    *out = malloc((size_t)*w * (size_t)*h * sizeof(*px));
+    assert(*out);
+    memcpy(*out, px, (size_t)*w * (size_t)*h * sizeof(*px));
+    ToriMem_Free(ToriMem_Frame(), px);
+    return true;
+}
+
 
 extern struct ToriRS_PluginDef const TORIRS_PLUGIN_XP_ORBS;
 
@@ -503,7 +522,7 @@ fake_image_publish(void* u, int slot, void const* data, int size, int* w, int* h
     (void)u;
     if( slot < 0 || slot >= FAKE_IMAGE_SLOTS )
         return 0;
-    if( !PngDecode_Argb(data, size, &iw, &ih, &px) )
+    if( !test_png_decode_argb(data, size, &iw, &ih, &px) )
         return 0;
     free(g_image[slot].argb);
     g_image[slot].argb = px;

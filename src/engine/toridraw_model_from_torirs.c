@@ -1,3 +1,5 @@
+#include "mem/torirs_mem.h"
+#include "mem/torimem_toridraw.h"
 #include "toridraw_model_from_torirs.h"
 
 #include "cache_provider.h"
@@ -101,15 +103,15 @@ bones_from_torirs(const struct ToriRS_Bones* src)
 {
     assert(src);
 
-    struct ToriDraw_Bones* bones = calloc(1, sizeof(struct ToriDraw_Bones));
+    struct ToriDraw_Bones* bones = TORIDRAW_CALLOC(1, sizeof(struct ToriDraw_Bones));
     assert(bones);
 
     bones->bones_count = src->bones_count;
     if( src->bones_count <= 0 )
         return bones;
 
-    bones->bones = calloc((size_t)src->bones_count, sizeof(boneint_t*));
-    bones->bones_sizes = calloc((size_t)src->bones_count, sizeof(boneint_t));
+    bones->bones = TORIDRAW_CALLOC((size_t)src->bones_count, sizeof(boneint_t*));
+    bones->bones_sizes = TORIDRAW_CALLOC((size_t)src->bones_count, sizeof(boneint_t));
     assert(bones->bones);
     assert(bones->bones_sizes);
 
@@ -118,7 +120,7 @@ bones_from_torirs(const struct ToriRS_Bones* src)
         bones->bones_sizes[i] = (boneint_t)src->bones_sizes[i];
         if( src->bones_sizes[i] <= 0 )
             continue;
-        bones->bones[i] = malloc((size_t)src->bones_sizes[i] * sizeof(boneint_t));
+        bones->bones[i] = TORIDRAW_MALLOC((size_t)src->bones_sizes[i] * sizeof(boneint_t));
         assert(bones->bones[i]);
         for( int j = 0; j < src->bones_sizes[i]; j++ )
             bones->bones[i][j] = (boneint_t)src->bones[i][j];
@@ -196,9 +198,9 @@ ToriDraw_ModelFromToriRS(const struct ToriRS_Model* src)
         int vc = skin->vertex_count;
 
         dst->animaya_vertex_count = vc;
-        dst->animaya_group_counts = malloc((size_t)vc);
-        dst->animaya_groups = calloc((size_t)vc, sizeof(uint8_t*));
-        dst->animaya_scales = calloc((size_t)vc, sizeof(uint8_t*));
+        dst->animaya_group_counts = TORIDRAW_MALLOC((size_t)vc);
+        dst->animaya_groups = TORIDRAW_CALLOC((size_t)vc, sizeof(uint8_t*));
+        dst->animaya_scales = TORIDRAW_CALLOC((size_t)vc, sizeof(uint8_t*));
         assert(dst->animaya_group_counts);
         assert(dst->animaya_groups);
         assert(dst->animaya_scales);
@@ -210,8 +212,8 @@ ToriDraw_ModelFromToriRS(const struct ToriRS_Model* src)
             if( cnt <= 0 )
                 continue;
 
-            dst->animaya_groups[i] = malloc((size_t)cnt);
-            dst->animaya_scales[i] = malloc((size_t)cnt);
+            dst->animaya_groups[i] = TORIDRAW_MALLOC((size_t)cnt);
+            dst->animaya_scales[i] = TORIDRAW_MALLOC((size_t)cnt);
             assert(dst->animaya_groups[i]);
             assert(dst->animaya_scales[i]);
 

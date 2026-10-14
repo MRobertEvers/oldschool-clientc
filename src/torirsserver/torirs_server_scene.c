@@ -733,6 +733,12 @@ free_loc_configs(void)
     g_loc_clock_cursor = 0;
 }
 
+void
+ToriRSServer_SceneLocConfigsFree(void)
+{
+    free_loc_configs();
+}
+
 /*
  * Every loc config the scene decodes, from the server pack's client records (the
  * merged tree). Once per process: loc configs are not window state. The scene's

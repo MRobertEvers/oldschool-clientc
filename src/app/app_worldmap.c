@@ -6,6 +6,8 @@
  * app/app_internal.h, and nothing outside the layer may include either.
  */
 
+#include "mem/torirs_mem.h"
+#include "mem/torimem_toridraw.h"
 #include "app/app_internal.h"
 
 /* Private to this unit, declared up front so definition order is free. */
@@ -73,7 +75,7 @@ app_worldmap_flash_marker_scene(struct App* app)
         return app->worldmap.flash_scene_id;
 
     app->worldmap.flash_scene_id = -1;
-    argb = calloc((size_t)MARKER_SIZE * MARKER_SIZE, sizeof(*argb));
+    argb = TORIDRAW_CALLOC((size_t)MARKER_SIZE * MARKER_SIZE, sizeof(*argb)); /* Owned by the sprite */
     assert(argb);
 
     for( int y = 0; y < MARKER_SIZE; y++ )
@@ -93,10 +95,10 @@ app_worldmap_flash_marker_scene(struct App* app)
     sprite = ToriDraw_SpriteNewFromArgbOwned(argb, MARKER_SIZE, MARKER_SIZE);
     if( !sprite )
     {
-        free(argb);
+        TORIDRAW_FREE(argb);
         return -1;
     }
-    sprites = malloc(sizeof(*sprites));
+    sprites = TORIDRAW_MALLOC(sizeof(*sprites)); /* SceneSpriteAdd frees it */
     assert(sprites);
     sprites[0] = sprite;
     ToriDraw_SceneSpriteAdd(app->scene, UITREE_SCENE_WORLD_MAP_FLASH_SPRITE_ID, sprites, 1);
@@ -642,17 +644,17 @@ app_worldmap_ensure_overview_scene(
         return app->worldmap.overview_scene_id;
 
     nbytes = (size_t)area->overview_width * (size_t)area->overview_height * sizeof(*copy);
-    copy = malloc(nbytes);
+    copy = TORIDRAW_MALLOC(nbytes); /* Owned by the sprite */
     assert(copy);
     memcpy(copy, area->overview_pixels, nbytes);
 
     sprite = ToriDraw_SpriteNewFromArgbOwned(copy, area->overview_width, area->overview_height);
     if( !sprite )
     {
-        free(copy);
+        TORIDRAW_FREE(copy);
         return -1;
     }
-    sprites = malloc(sizeof(*sprites));
+    sprites = TORIDRAW_MALLOC(sizeof(*sprites)); /* SceneSpriteAdd frees it */
     assert(sprites);
     sprites[0] = sprite;
     ToriDraw_SceneSpriteAdd(app->scene, UITREE_SCENE_WORLD_MAP_OVERVIEW_SPRITE_ID, sprites, 1);

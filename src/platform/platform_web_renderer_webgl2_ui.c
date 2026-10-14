@@ -28,6 +28,8 @@
  * Every draw here alpha-tests at 1/255 and blends, as the D3D9 UI states do.
  */
 
+#include "mem/torirs_mem.h"
+#include "mem/torimem_toridraw.h"
 #include "es3/es3_core.h"
 
 #include "log/torirs_log.h"
@@ -1184,7 +1186,7 @@ es3_ui_clamp_sprite(
     assert(source);
     if( source_width <= 0 || source_height <= 0 || width <= 0 || height <= 0 )
         return NULL;
-    result = (uint32_t*)calloc((size_t)width * (size_t)height, sizeof(*result));
+    result = (uint32_t*)TORIDRAW_CALLOC((size_t)width * (size_t)height, sizeof(*result));
     assert(result);
     for( y = 0; y < source_height; y++ )
     {
@@ -1259,7 +1261,7 @@ es3_ui_sprite_ensure_variant(
     offset_y = sprite->crop_y;
     nominal_width = sprite->width;
     nominal_height = sprite->height;
-    pixels = (uint32_t*)malloc((size_t)width * (size_t)height * sizeof(*pixels));
+    pixels = (uint32_t*)TORIDRAW_MALLOC((size_t)width * (size_t)height * sizeof(*pixels));
     assert(pixels);
     memcpy(pixels, sprite->pixels_argb, (size_t)width * (size_t)height * sizeof(*pixels));
     if( command->outline > 0 )
@@ -1270,7 +1272,7 @@ es3_ui_sprite_ensure_variant(
             pixels, width, height, command->outline, &next_width, &next_height);
         if( next )
         {
-            free(pixels);
+            TORIDRAW_FREE(pixels);
             pixels = next;
             width = next_width;
             height = next_height;
@@ -1284,7 +1286,7 @@ es3_ui_sprite_ensure_variant(
             pixels, width, height, command->graphic_shadow, &next_width, &next_height);
         if( next )
         {
-            free(pixels);
+            TORIDRAW_FREE(pixels);
             pixels = next;
             width = next_width;
             height = next_height;
@@ -1299,7 +1301,7 @@ es3_ui_sprite_ensure_variant(
                 pixels, width, height, offset_x, offset_y, nominal_width, nominal_height);
             if( next )
             {
-                free(pixels);
+                TORIDRAW_FREE(pixels);
                 pixels = next;
                 width = nominal_width;
                 height = nominal_height;
@@ -1316,10 +1318,10 @@ es3_ui_sprite_ensure_variant(
     if( !es3_ui_upload_sprite_pixels(
             renderer, pixels, width, height, sprite->alpha_channel, NULL, out_uv) )
     {
-        free(pixels);
+        TORIDRAW_FREE(pixels);
         return false;
     }
-    free(pixels);
+    TORIDRAW_FREE(pixels);
     variant->u0 = out_uv[0];
     variant->v0 = out_uv[1];
     variant->u1 = out_uv[2];

@@ -1,3 +1,4 @@
+#include "mem/torirs_mem.h"
 #include "render/torirs_frame.h"
 #include "engine/uitree_anim.h"
 
@@ -2822,8 +2823,8 @@ ToriRS_FrameBegin(struct ToriRS_Frame* frame)
     for( int i = 1; i < TORIRS_FRAME_MAX_VIEWS; ++i )
         if( frame->views[i].live && frame->views[i].flat_hsl >= 0 )
         {
-            frame->flat_arena = calloc(1, sizeof(*frame->flat_arena));
-            assert(frame->flat_arena);
+            /* FRAME: one render's flat-HSL copies, freed in ToriRS_FrameEnd. */
+            frame->flat_arena = ToriMem_Calloc(ToriMem_Frame(), 1, sizeof(*frame->flat_arena));
             break;
         }
     /* TORIRS_PAINT_LIMIT_STEP: advance the cap once per frame (from frame

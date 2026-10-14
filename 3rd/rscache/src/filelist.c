@@ -1,4 +1,5 @@
 #include "filelist.h"
+#include "rscache_alloc.h"
 
 #include "archive.h"
 #include "bzip.h"
@@ -41,7 +42,7 @@ filelist_new_from_decode(
     int num_files,
     char** out_blob)
 {
-    struct RSCache_FileList* filelist = malloc(sizeof(struct RSCache_FileList));
+    struct RSCache_FileList* filelist = RSCACHE_MALLOC(sizeof(struct RSCache_FileList));
     assert(filelist != NULL);
 
     char* blob = NULL;
@@ -66,25 +67,25 @@ filelist_new_from_decode(
     int* file_offsets = NULL;
     int chunks = 0;
 
-    filelist->files = calloc((size_t)num_files, sizeof(char*));
-    filelist->file_sizes = calloc((size_t)num_files, sizeof(int));
+    filelist->files = RSCACHE_CALLOC((size_t)num_files, sizeof(char*));
+    filelist->file_sizes = RSCACHE_CALLOC((size_t)num_files, sizeof(int));
     if( !filelist->files || !filelist->file_sizes )
     {
-        free(filelist->files);
-        free(filelist->file_sizes);
-        free(filelist);
+        RSCACHE_FREE(filelist->files);
+        RSCACHE_FREE(filelist->file_sizes);
+        RSCACHE_FREE(filelist);
         return NULL;
     }
     filelist->file_count = num_files;
 
     if( num_files == 1 )
     {
-        filelist->files[0] = malloc((size_t)data_size > 0 ? (size_t)data_size : 1u);
+        filelist->files[0] = RSCACHE_MALLOC((size_t)data_size > 0 ? (size_t)data_size : 1u);
         if( !filelist->files[0] )
         {
-            free(filelist->files);
-            free(filelist->file_sizes);
-            free(filelist);
+            RSCACHE_FREE(filelist->files);
+            RSCACHE_FREE(filelist->file_sizes);
+            RSCACHE_FREE(filelist);
             return NULL;
         }
         memcpy(filelist->files[0], data, (size_t)data_size);
@@ -105,13 +106,13 @@ filelist_new_from_decode(
         (uint64_t)chunks * (uint64_t)num_files * 4u + 1u > (uint64_t)buffer.size )
         goto error;
 
-    chunk_sizes = malloc((size_t)chunks * sizeof(int*));
+    chunk_sizes = RSCACHE_MALLOC((size_t)chunks * sizeof(int*));
     if( !chunk_sizes )
         goto error;
 
     for( int i = 0; i < chunks; i++ )
     {
-        chunk_sizes[i] = malloc((size_t)num_files * sizeof(int));
+        chunk_sizes[i] = RSCACHE_MALLOC((size_t)num_files * sizeof(int));
         if( !chunk_sizes[i] )
         {
             RSCACHE_LOG("Failed to allocate chunk sizes\n");
@@ -119,7 +120,7 @@ filelist_new_from_decode(
         }
     }
 
-    sizes = calloc((size_t)num_files, sizeof(int));
+    sizes = RSCACHE_CALLOC((size_t)num_files, sizeof(int));
     if( !sizes )
         goto error;
 
@@ -136,7 +137,7 @@ filelist_new_from_decode(
         }
     }
 
-    file_offsets = calloc((size_t)num_files, sizeof(int));
+    file_offsets = RSCACHE_CALLOC((size_t)num_files, sizeof(int));
     if( !file_offsets )
         goto error;
 
@@ -160,7 +161,7 @@ filelist_new_from_decode(
         if( total > (uint64_t)buffer.size )
             goto error;
 
-        blob = malloc(total > 0 ? (size_t)total : 1u);
+        blob = RSCACHE_MALLOC(total > 0 ? (size_t)total : 1u);
         if( !blob )
             goto error;
 
@@ -175,7 +176,7 @@ filelist_new_from_decode(
     {
         for( int id = 0; id < num_files; id++ )
         {
-            filelist->files[id] = malloc((size_t)sizes[id] ? (size_t)sizes[id] : 1u);
+            filelist->files[id] = RSCACHE_MALLOC((size_t)sizes[id] ? (size_t)sizes[id] : 1u);
             if( !filelist->files[id] )
                 goto error;
         }
@@ -198,10 +199,10 @@ filelist_new_from_decode(
     }
 
     for( int i = 0; i < chunks; i++ )
-        free(chunk_sizes[i]);
-    free(chunk_sizes);
-    free(sizes);
-    free(file_offsets);
+        RSCACHE_FREE(chunk_sizes[i]);
+    RSCACHE_FREE(chunk_sizes);
+    RSCACHE_FREE(sizes);
+    RSCACHE_FREE(file_offsets);
 
     if( out_blob )
         *out_blob = blob;
@@ -211,20 +212,20 @@ error:
     if( chunk_sizes )
     {
         for( int i = 0; i < chunks; i++ )
-            free(chunk_sizes[i]);
-        free(chunk_sizes);
+            RSCACHE_FREE(chunk_sizes[i]);
+        RSCACHE_FREE(chunk_sizes);
     }
 
-    free(sizes);
-    free(file_offsets);
+    RSCACHE_FREE(sizes);
+    RSCACHE_FREE(file_offsets);
     if( out_blob )
     {
         /* The member pointers alias `blob` — RSCache_FileListFree would free
          * each of them individually. */
-        free(blob);
-        free(filelist->files);
-        free(filelist->file_sizes);
-        free(filelist);
+        RSCACHE_FREE(blob);
+        RSCACHE_FREE(filelist->files);
+        RSCACHE_FREE(filelist->file_sizes);
+        RSCACHE_FREE(filelist);
     }
     else
         RSCache_FileListFree(filelist);
@@ -256,12 +257,12 @@ RSCache_FileListFreeShared(
     struct RSCache_FileList* filelist,
     char* blob)
 {
-    free(blob);
+    RSCACHE_FREE(blob);
     if( !filelist )
         return;
-    free(filelist->files);
-    free(filelist->file_sizes);
-    free(filelist);
+    RSCACHE_FREE(filelist->files);
+    RSCACHE_FREE(filelist->file_sizes);
+    RSCACHE_FREE(filelist);
 }
 
 uint32_t
@@ -330,11 +331,11 @@ RSCache_FileListFree(struct RSCache_FileList* filelist)
         return;
 
     for( int i = 0; i < filelist->file_count; i++ )
-        free(filelist->files[i]);
+        RSCACHE_FREE(filelist->files[i]);
 
-    free(filelist->files);
-    free(filelist->file_sizes);
-    free(filelist);
+    RSCACHE_FREE(filelist->files);
+    RSCACHE_FREE(filelist->file_sizes);
+    RSCACHE_FREE(filelist);
 }
 
 struct RSCache_FileListDat*
@@ -356,21 +357,21 @@ RSCache_FileListDatNewFromDecode(
 
     if( is_compressed )
     {
-        char* compressed_data = malloc(size);
+        char* compressed_data = RSCACHE_MALLOC(size);
         if( !compressed_data )
             return NULL;
 
         int bytes_read = greadto(&buffer, compressed_data, size, size);
         if( bytes_read < size )
         {
-            free(compressed_data);
+            RSCACHE_FREE(compressed_data);
             return NULL;
         }
 
-        decompressed_archive = malloc(actual_size);
+        decompressed_archive = RSCACHE_MALLOC(actual_size);
         if( !decompressed_archive )
         {
-            free(compressed_data);
+            RSCACHE_FREE(compressed_data);
             return NULL;
         }
 
@@ -378,10 +379,10 @@ RSCache_FileListDatNewFromDecode(
          * assert vanished and published an uninitialised buffer. */
         int decompressed_size = RSCache_CompressionBzipDecompress(
             (uint8_t*)decompressed_archive, actual_size, (uint8_t*)compressed_data, size);
-        free(compressed_data);
+        RSCACHE_FREE(compressed_data);
         if( decompressed_size != actual_size )
         {
-            free(decompressed_archive);
+            RSCACHE_FREE(decompressed_archive);
             return NULL;
         }
 
@@ -403,16 +404,16 @@ RSCache_FileListDatNewFromDecode(
     int file_count = g2(&meta_buffer);
     data_buffer.position = meta_buffer.position + (uint32_t)file_count * 10u;
 
-    filelist = malloc(sizeof(struct RSCache_FileListDat));
+    filelist = RSCACHE_MALLOC(sizeof(struct RSCache_FileListDat));
     if( !filelist )
     {
-        free(decompressed_archive);
+        RSCACHE_FREE(decompressed_archive);
         return NULL;
     }
 
-    filelist->files = malloc(file_count * sizeof(char*));
-    filelist->file_sizes = malloc(file_count * sizeof(int));
-    filelist->file_name_hashes = malloc(file_count * sizeof(int));
+    filelist->files = RSCACHE_MALLOC(file_count * sizeof(char*));
+    filelist->file_sizes = RSCACHE_MALLOC(file_count * sizeof(int));
+    filelist->file_name_hashes = RSCACHE_MALLOC(file_count * sizeof(int));
     if( !filelist->files || !filelist->file_sizes || !filelist->file_name_hashes )
         goto error;
 
@@ -431,43 +432,43 @@ RSCache_FileListDatNewFromDecode(
 
         if( is_compressed )
         {
-            file_data = malloc(file_size);
+            file_data = RSCACHE_MALLOC(file_size);
             if( !file_data )
                 goto error;
 
             int bytes_read = greadto(&data_buffer, file_data, file_size, file_size);
             if( bytes_read < file_size )
             {
-                free(file_data);
+                RSCACHE_FREE(file_data);
                 goto error;
             }
         }
         else
         {
-            char* compressed_file_data = malloc(file_size);
+            char* compressed_file_data = RSCACHE_MALLOC(file_size);
             if( !compressed_file_data )
                 goto error;
 
             int bytes_read = greadto(&data_buffer, compressed_file_data, file_size, file_size);
             if( bytes_read < file_size )
             {
-                free(compressed_file_data);
+                RSCACHE_FREE(compressed_file_data);
                 goto error;
             }
 
-            file_data = malloc(file_actual_size);
+            file_data = RSCACHE_MALLOC(file_actual_size);
             if( !file_data )
             {
-                free(compressed_file_data);
+                RSCACHE_FREE(compressed_file_data);
                 goto error;
             }
 
             int file_decompressed_size = RSCache_CompressionBzipDecompress(
                 (uint8_t*)file_data, file_actual_size, (uint8_t*)compressed_file_data, file_size);
-            free(compressed_file_data);
+            RSCACHE_FREE(compressed_file_data);
             if( file_decompressed_size != file_actual_size )
             {
-                free(file_data);
+                RSCACHE_FREE(file_data);
                 goto error;
             }
         }
@@ -477,7 +478,7 @@ RSCache_FileListDatNewFromDecode(
         filelist->file_name_hashes[i] = name_hash;
     }
 
-    free(decompressed_archive);
+    RSCACHE_FREE(decompressed_archive);
     return filelist;
 
 error:
@@ -486,14 +487,14 @@ error:
         for( int i = 0; i < file_count; i++ )
         {
             if( filelist->files && filelist->files[i] )
-                free(filelist->files[i]);
+                RSCACHE_FREE(filelist->files[i]);
         }
-        free(filelist->files);
-        free(filelist->file_sizes);
-        free(filelist->file_name_hashes);
-        free(filelist);
+        RSCACHE_FREE(filelist->files);
+        RSCACHE_FREE(filelist->file_sizes);
+        RSCACHE_FREE(filelist->file_name_hashes);
+        RSCACHE_FREE(filelist);
     }
-    free(decompressed_archive);
+    RSCACHE_FREE(decompressed_archive);
     return NULL;
 }
 
@@ -504,12 +505,12 @@ RSCache_FileListDatFree(struct RSCache_FileListDat* filelist)
         return;
 
     for( int i = 0; i < filelist->file_count; i++ )
-        free(filelist->files[i]);
+        RSCACHE_FREE(filelist->files[i]);
 
-    free(filelist->files);
-    free(filelist->file_sizes);
-    free(filelist->file_name_hashes);
-    free(filelist);
+    RSCACHE_FREE(filelist->files);
+    RSCACHE_FREE(filelist->file_sizes);
+    RSCACHE_FREE(filelist->file_name_hashes);
+    RSCACHE_FREE(filelist);
 }
 
 int
@@ -580,7 +581,7 @@ RSCache_FileListDatEncode(
     for( int i = 0; i < filelist->file_count; i++ )
         body_capacity += (uint32_t)bzip_compress_bound((uint32_t)filelist->file_sizes[i]) + 64u;
 
-    uint8_t* body = malloc(body_capacity);
+    uint8_t* body = RSCACHE_MALLOC(body_capacity);
     if( !body )
         return 0;
 
@@ -618,7 +619,7 @@ RSCache_FileListDatEncode(
                 filelist->file_sizes[i]);
             if( written == 0 && filelist->file_sizes[i] != 0 )
             {
-                free(body);
+                RSCACHE_FREE(body);
                 return 0;
             }
             body_buffer.position += written;
@@ -642,10 +643,10 @@ RSCache_FileListDatEncode(
     if( whole_archive )
     {
         uint32_t bound = bzip_compress_bound(body_size);
-        uint8_t* packed = malloc(bound);
+        uint8_t* packed = RSCACHE_MALLOC(bound);
         if( !packed )
         {
-            free(body);
+            RSCACHE_FREE(body);
             return 0;
         }
 
@@ -653,8 +654,8 @@ RSCache_FileListDatEncode(
             RSCache_CompressionBzipCompress(packed, (int)bound, body, (int)body_size);
         if( packed_size == 0 )
         {
-            free(packed);
-            free(body);
+            RSCACHE_FREE(packed);
+            RSCACHE_FREE(body);
             return 0;
         }
 
@@ -662,7 +663,7 @@ RSCache_FileListDatEncode(
         p3(&out_buffer, (int)body_size);
         p3(&out_buffer, (int)packed_size);
         pbuf(&out_buffer, packed, (int)packed_size);
-        free(packed);
+        RSCACHE_FREE(packed);
     }
     else
     {
@@ -672,7 +673,7 @@ RSCache_FileListDatEncode(
         pbuf(&out_buffer, body, (int)body_size);
     }
 
-    free(body);
+    RSCACHE_FREE(body);
     return out_buffer.position;
 }
 
@@ -683,7 +684,7 @@ RSCache_FileListDatIndexedNewFromDecode(
     char* data,
     int data_size)
 {
-    struct RSCache_FileListDatIndexed* filelist = malloc(sizeof(struct RSCache_FileListDatIndexed));
+    struct RSCache_FileListDatIndexed* filelist = RSCACHE_MALLOC(sizeof(struct RSCache_FileListDatIndexed));
     if( !filelist )
         return NULL;
 
@@ -691,11 +692,11 @@ RSCache_FileListDatIndexedNewFromDecode(
     RSCache_BufferInit(&index_buffer, (uint8_t*)index_data, (uint32_t)index_data_size);
     int index_count = g2(&index_buffer);
 
-    filelist->offsets = malloc(index_count * sizeof(int));
+    filelist->offsets = RSCACHE_MALLOC(index_count * sizeof(int));
     filelist->offset_count = index_count;
     if( !filelist->offsets )
     {
-        free(filelist);
+        RSCACHE_FREE(filelist);
         return NULL;
     }
 
@@ -708,11 +709,11 @@ RSCache_FileListDatIndexedNewFromDecode(
         offset += delta;
     }
 
-    filelist->data = malloc(data_size);
+    filelist->data = RSCACHE_MALLOC(data_size);
     if( !filelist->data )
     {
-        free(filelist->offsets);
-        free(filelist);
+        RSCACHE_FREE(filelist->offsets);
+        RSCACHE_FREE(filelist);
         return NULL;
     }
     memcpy(filelist->data, data, (size_t)data_size);
@@ -772,7 +773,7 @@ RSCache_FileListDatIndexedFree(struct RSCache_FileListDatIndexed* filelist)
 {
     if( !filelist )
         return;
-    free(filelist->offsets);
-    free(filelist->data);
-    free(filelist);
+    RSCACHE_FREE(filelist->offsets);
+    RSCACHE_FREE(filelist->data);
+    RSCACHE_FREE(filelist);
 }

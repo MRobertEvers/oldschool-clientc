@@ -346,5 +346,8 @@ ToriRSServer_BootFree(void)
      * from — the strdup'd copies are ours, but the diagnostics on a double free
      * are much clearer when teardown mirrors load order. */
     ToriRSServer_DbFree();
+    /* Boot loaded them (ToriRSServer_SceneLocConfigsLoad); nothing else freed
+     * them, so every decoded loc was still live at exit. */
+    ToriRSServer_SceneLocConfigsFree();
     ToriRSServer_ContentFree();
 }

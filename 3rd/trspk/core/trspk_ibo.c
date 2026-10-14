@@ -1,4 +1,5 @@
 #include "trspk_ibo.h"
+#include "../trspk_alloc.h"
 
 #include <assert.h>
 #include <stdbool.h>
@@ -18,11 +19,11 @@ trspk_ibo_free_indices(struct TRSPK_IBO* ibo)
     switch( ibo->index_format )
     {
     case TRSPK_INDEX_FORMAT_U16:
-        free(ibo->indices.as_u16);
+        TRSPK_FREE(ibo->indices.as_u16);
         ibo->indices.as_u16 = NULL;
         break;
     case TRSPK_INDEX_FORMAT_U32:
-        free(ibo->indices.as_u32);
+        TRSPK_FREE(ibo->indices.as_u32);
         ibo->indices.as_u32 = NULL;
         break;
     default:
@@ -38,10 +39,10 @@ trspk_ibo_alloc_indices(
     switch( ibo->index_format )
     {
     case TRSPK_INDEX_FORMAT_U16:
-        ibo->indices.as_u16 = (uint16_t*)malloc(sizeof(uint16_t) * capacity);
+        ibo->indices.as_u16 = (uint16_t*)TRSPK_MALLOC(sizeof(uint16_t) * capacity);
         return ibo->indices.as_u16 != NULL;
     case TRSPK_INDEX_FORMAT_U32:
-        ibo->indices.as_u32 = (uint32_t*)malloc(sizeof(uint32_t) * capacity);
+        ibo->indices.as_u32 = (uint32_t*)TRSPK_MALLOC(sizeof(uint32_t) * capacity);
         return ibo->indices.as_u32 != NULL;
     default:
         return false;
@@ -57,7 +58,7 @@ trspk_ibo_grow_indices(
     {
     case TRSPK_INDEX_FORMAT_U16:
     {
-        uint16_t* grown = (uint16_t*)realloc(ibo->indices.as_u16, sizeof(uint16_t) * new_capacity);
+        uint16_t* grown = (uint16_t*)TRSPK_REALLOC(ibo->indices.as_u16, sizeof(uint16_t) * new_capacity);
         if( grown == NULL )
         {
             return false;
@@ -67,7 +68,7 @@ trspk_ibo_grow_indices(
     }
     case TRSPK_INDEX_FORMAT_U32:
     {
-        uint32_t* grown = (uint32_t*)realloc(ibo->indices.as_u32, sizeof(uint32_t) * new_capacity);
+        uint32_t* grown = (uint32_t*)TRSPK_REALLOC(ibo->indices.as_u32, sizeof(uint32_t) * new_capacity);
         if( grown == NULL )
         {
             return false;
@@ -87,7 +88,7 @@ trspk_ibochain_node_create(
     uint32_t offset)
 {
     struct TRSPK_IBOChainNode* node =
-        (struct TRSPK_IBOChainNode*)malloc(sizeof(struct TRSPK_IBOChainNode));
+        (struct TRSPK_IBOChainNode*)TRSPK_MALLOC(sizeof(struct TRSPK_IBOChainNode));
     assert(node != NULL);
 
     memset(node, 0, sizeof(struct TRSPK_IBOChainNode));
@@ -109,7 +110,7 @@ trspk_ibo_create(
     uint32_t index_count,
     enum TRSPK_IndexFormat index_format)
 {
-    struct TRSPK_IBO* ibo = (struct TRSPK_IBO*)malloc(sizeof(struct TRSPK_IBO));
+    struct TRSPK_IBO* ibo = (struct TRSPK_IBO*)TRSPK_MALLOC(sizeof(struct TRSPK_IBO));
     assert(ibo != NULL);
 
     memset(ibo, 0, sizeof(struct TRSPK_IBO));
@@ -132,7 +133,7 @@ trspk_ibo_free(struct TRSPK_IBO* ibo)
     }
 
     trspk_ibo_free_indices(ibo);
-    free(ibo);
+    TRSPK_FREE(ibo);
 }
 
 bool
@@ -162,7 +163,7 @@ trspk_ibo_reserve(
 struct TRSPK_IBOChain*
 trspk_ibochain_create(enum TRSPK_IndexFormat index_format)
 {
-    struct TRSPK_IBOChain* chain = (struct TRSPK_IBOChain*)malloc(sizeof(struct TRSPK_IBOChain));
+    struct TRSPK_IBOChain* chain = (struct TRSPK_IBOChain*)TRSPK_MALLOC(sizeof(struct TRSPK_IBOChain));
     assert(chain != NULL);
 
     memset(chain, 0, sizeof(struct TRSPK_IBOChain));
@@ -182,7 +183,7 @@ trspk_ibochain_free(struct TRSPK_IBOChain* chain)
     {
         struct TRSPK_IBOChainNode* next = node->next;
         trspk_ibo_free_indices(&node->ibo);
-        free(node);
+        TRSPK_FREE(node);
         node = next;
     }
 
@@ -191,11 +192,11 @@ trspk_ibochain_free(struct TRSPK_IBOChain* chain)
     {
         struct TRSPK_IBOChainNode* next = node->next;
         trspk_ibo_free_indices(&node->ibo);
-        free(node);
+        TRSPK_FREE(node);
         node = next;
     }
 
-    free(chain);
+    TRSPK_FREE(chain);
 }
 
 void

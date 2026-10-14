@@ -1,4 +1,5 @@
 #include "dat2_animaya.h"
+#include "../rscache_alloc.h"
 
 #include "../dat2disk.h"
 #include "../filelist.h"
@@ -722,7 +723,7 @@ RSCache_Dat2AnimMayaCurveLoad(struct RSCache_Dat2Curve* c)
     c->start_tick = c->points[0].x;
     c->end_tick = c->points[c->point_count - 1].x;
     int duration = c->end_tick - c->start_tick;
-    c->values = malloc((size_t)(duration + 1) * sizeof(float));
+    c->values = RSCACHE_MALLOC((size_t)(duration + 1) * sizeof(float));
     if( !c->values )
         return;
 
@@ -737,7 +738,7 @@ RSCache_Dat2AnimMayaCurveLoad(struct RSCache_Dat2Curve* c)
     c->min_value = 0.0f;
     c->max_value = 0.0f;
 
-    free(c->points);
+    RSCACHE_FREE(c->points);
     c->points = NULL;
     c->point_count = 0;
 }
@@ -763,9 +764,9 @@ RSCache_Dat2CurveFree(struct RSCache_Dat2Curve* c)
 {
     if( !c )
         return;
-    free(c->points);
-    free(c->values);
-    free(c);
+    RSCACHE_FREE(c->points);
+    RSCACHE_FREE(c->values);
+    RSCACHE_FREE(c);
 }
 
 void
@@ -780,9 +781,9 @@ RSCache_Dat2AnimMayaFree(struct RSCache_Dat2AnimMaya* maya)
             for( int s = 0; s < 9; s++ )
                 RSCache_Dat2CurveFree(maya->bone_curves[b].curves[s]);
         }
-        free(maya->bone_curves);
+        RSCACHE_FREE(maya->bone_curves);
     }
-    free(maya);
+    RSCACHE_FREE(maya);
 }
 
 /* ---- decode ---- */
@@ -795,7 +796,7 @@ curve_decode(
     struct RSCache_Buffer* buf,
     int version)
 {
-    struct RSCache_Dat2Curve* c = calloc(1, sizeof(struct RSCache_Dat2Curve));
+    struct RSCache_Dat2Curve* c = RSCACHE_CALLOC(1, sizeof(struct RSCache_Dat2Curve));
     if( !c )
         return NULL;
     c->id = curve_id;
@@ -808,10 +809,10 @@ curve_decode(
 
     if( count > 0 )
     {
-        c->points = malloc((size_t)count * sizeof(struct RSCache_Dat2CurvePoint));
+        c->points = RSCACHE_MALLOC((size_t)count * sizeof(struct RSCache_Dat2CurvePoint));
         if( !c->points )
         {
-            free(c);
+            RSCACHE_FREE(c);
             return NULL;
         }
         c->point_count = count;
@@ -851,7 +852,7 @@ RSCache_Dat2AnimMayaNewDecode(
     int pose_id = g1(&buf);     /* u8 poseId */
     int curve_count = g2(&buf); /* u16 curveCount */
 
-    struct RSCache_Dat2AnimMaya* maya = calloc(1, sizeof(struct RSCache_Dat2AnimMaya));
+    struct RSCache_Dat2AnimMaya* maya = RSCACHE_CALLOC(1, sizeof(struct RSCache_Dat2AnimMaya));
     if( !maya )
         return NULL;
     maya->id = id;
@@ -864,10 +865,10 @@ RSCache_Dat2AnimMayaNewDecode(
      * then resize once at the end. */
     int capacity = 64;
     struct RSCache_Dat2BoneCurves* bone_curves =
-        calloc((size_t)capacity, sizeof(struct RSCache_Dat2BoneCurves));
+        RSCACHE_CALLOC((size_t)capacity, sizeof(struct RSCache_Dat2BoneCurves));
     if( !bone_curves )
     {
-        free(maya);
+        RSCACHE_FREE(maya);
         return NULL;
     }
     int max_bone = -1;
@@ -897,7 +898,7 @@ RSCache_Dat2AnimMayaNewDecode(
                 while( new_cap <= bone_index )
                     new_cap *= 2;
                 struct RSCache_Dat2BoneCurves* grown =
-                    realloc(bone_curves, (size_t)new_cap * sizeof(struct RSCache_Dat2BoneCurves));
+                    RSCACHE_REALLOC(bone_curves, (size_t)new_cap * sizeof(struct RSCache_Dat2BoneCurves));
                 if( !grown )
                 {
                     RSCache_Dat2CurveFree(curve);

@@ -1,4 +1,5 @@
 #include "trspk_vbo.h"
+#include "../trspk_alloc.h"
 
 #include <assert.h>
 #include <stdbool.h>
@@ -36,7 +37,7 @@ trspk_vbo_realloc_if_needed(
     if( new_capacity < new_count )
         new_capacity = new_count;
 
-    void* grown = realloc(
+    void* grown = TRSPK_REALLOC(
         vbo->vertices.as_webgl1, trspk_vbo_vertex_size(vbo->format) * new_capacity);
     assert(grown != NULL);
     vbo->vertices.as_webgl1 = (struct TRSPK_VertexWebGL1*)grown;
@@ -48,7 +49,7 @@ trspk_vbo_create(
     uint32_t index_count_hint,
     enum TRSPK_VertexFormat format)
 {
-    struct TRSPK_VBO* vbo = (struct TRSPK_VBO*)malloc(sizeof(struct TRSPK_VBO));
+    struct TRSPK_VBO* vbo = (struct TRSPK_VBO*)TRSPK_MALLOC(sizeof(struct TRSPK_VBO));
     assert(vbo != NULL);
     memset(vbo, 0, sizeof(struct TRSPK_VBO));
 
@@ -121,22 +122,22 @@ trspk_vbo_free(struct TRSPK_VBO* vbo)
     switch( vbo->format )
     {
     case TRSPK_VERTEX_FORMAT_WEBGL1:
-        free(vbo->vertices.as_webgl1);
+        TRSPK_FREE(vbo->vertices.as_webgl1);
         break;
     case TRSPK_VERTEX_FORMAT_OPENGL3:
-        free(vbo->vertices.as_opengl3);
+        TRSPK_FREE(vbo->vertices.as_opengl3);
         break;
     case TRSPK_VERTEX_FORMAT_D3D9:
-        free(vbo->vertices.as_d3d9);
+        TRSPK_FREE(vbo->vertices.as_d3d9);
         break;
     case TRSPK_VERTEX_FORMAT_GLES2:
-        free(vbo->vertices.as_gles2);
+        TRSPK_FREE(vbo->vertices.as_gles2);
         break;
     default:
         break;
     }
 
-    free(vbo);
+    TRSPK_FREE(vbo);
 }
 
 void

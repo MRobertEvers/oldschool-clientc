@@ -1,4 +1,5 @@
 #include "reference_table.h"
+#include "rscache_alloc.h"
 
 #include "rsbuffer.h"
 
@@ -16,7 +17,7 @@ RSCache_ReferenceTableNewDecode(
     char* data,
     int data_size)
 {
-    struct RSCache_ReferenceTable* table = malloc(sizeof(struct RSCache_ReferenceTable));
+    struct RSCache_ReferenceTable* table = RSCACHE_MALLOC(sizeof(struct RSCache_ReferenceTable));
     if( !table )
         return NULL;
     memset(table, 0, sizeof(struct RSCache_ReferenceTable));
@@ -26,7 +27,7 @@ RSCache_ReferenceTableNewDecode(
     table->format = g1(&buffer);
     if( table->format < 5 || table->format > 7 )
     {
-        free(table);
+        RSCACHE_FREE(table);
         return NULL;
     }
 
@@ -41,10 +42,10 @@ RSCache_ReferenceTableNewDecode(
     else
         id_count = g2(&buffer);
 
-    int* ids = malloc(id_count * sizeof(int));
+    int* ids = RSCACHE_MALLOC(id_count * sizeof(int));
     if( !ids )
     {
-        free(table);
+        RSCACHE_FREE(table);
         return NULL;
     }
 
@@ -62,11 +63,11 @@ RSCache_ReferenceTableNewDecode(
     }
     max_id++;
 
-    table->archives = malloc(max_id * sizeof(struct RSCache_ReferenceTableArchive));
+    table->archives = RSCACHE_MALLOC(max_id * sizeof(struct RSCache_ReferenceTableArchive));
     if( !table->archives )
     {
-        free(ids);
-        free(table);
+        RSCACHE_FREE(ids);
+        RSCACHE_FREE(table);
         return NULL;
     }
     memset(table->archives, 0, max_id * sizeof(struct RSCache_ReferenceTableArchive));
@@ -131,9 +132,9 @@ RSCache_ReferenceTableNewDecode(
      * below could wrap and undersize the pool. */
     if( total_children > (uint64_t)buffer.size )
     {
-        free(ids);
-        free(table->archives);
-        free(table);
+        RSCACHE_FREE(ids);
+        RSCACHE_FREE(table->archives);
+        RSCACHE_FREE(table);
         return NULL;
     }
 
@@ -153,7 +154,7 @@ RSCache_ReferenceTableNewDecode(
 
     if( total_children > 0 )
     {
-        identity_bits = calloc(((size_t)id_count + 7) / 8, 1);
+        identity_bits = RSCACHE_CALLOC(((size_t)id_count + 7) / 8, 1);
         assert(identity_bits);
 
         for( int i = 0; i < id_count; i++ )
@@ -184,7 +185,7 @@ RSCache_ReferenceTableNewDecode(
         /* Zeroed rather than malloc'd: a table that declares more children than
          * its remaining bytes can supply leaves the tail of the pool unwritten,
          * and the encoder would hand those ids straight back out. */
-        table->children_pool = calloc(
+        table->children_pool = RSCACHE_CALLOC(
             (size_t)stored_children, sizeof(struct RSCache_ReferenceTableArchiveFile));
         assert(table->children_pool);
     }
@@ -197,7 +198,7 @@ RSCache_ReferenceTableNewDecode(
     if( total_children > 0 && (table->flags & FLAG_IDENTIFIERS) != 0 )
     {
         table->children_name_hash_pool =
-            calloc((size_t)total_children, sizeof(int));
+            RSCACHE_CALLOC((size_t)total_children, sizeof(int));
         assert(table->children_name_hash_pool);
         table->children_name_hash_pool_count = (size_t)total_children;
     }
@@ -243,7 +244,7 @@ RSCache_ReferenceTableNewDecode(
         }
     }
 
-    free(identity_bits);
+    RSCACHE_FREE(identity_bits);
 
     if( (table->flags & FLAG_IDENTIFIERS) != 0 )
     {
@@ -469,7 +470,7 @@ RSCache_ReferenceTableWhirlpoolSlot(
     {
         size_t was = (size_t)table->whirlpool_count * RSCACHE_REFTABLE_WHIRLPOOL_BYTES;
         size_t now = (size_t)table->archive_count * RSCACHE_REFTABLE_WHIRLPOOL_BYTES;
-        unsigned char* grown = realloc(table->whirlpools, now);
+        unsigned char* grown = RSCACHE_REALLOC(table->whirlpools, now);
         assert(grown);
         memset(grown + was, 0, now - was);
         table->whirlpools = grown;
@@ -511,7 +512,7 @@ RSCache_ReferenceTableSetHasArchive(
     {
         size_t was = ((size_t)table->present_count + 7) / 8;
         size_t now = ((size_t)table->archive_count + 7) / 8;
-        unsigned char* grown = realloc(table->present, now ? now : 1);
+        unsigned char* grown = RSCACHE_REALLOC(table->present, now ? now : 1);
         assert(grown);
         if( now > was )
             memset(grown + was, 0, now - was);
@@ -553,7 +554,7 @@ RSCache_ReferenceTableSetIdentifier(
     {
         size_t was = (size_t)table->identifier_count * sizeof(int);
         size_t now = (size_t)table->archive_count * sizeof(int);
-        int* grown = realloc(table->identifiers, now);
+        int* grown = RSCACHE_REALLOC(table->identifiers, now);
         assert(grown);
         memset((char*)grown + was, 0, now - was);
         table->identifiers = grown;
@@ -604,8 +605,8 @@ RSCache_ReferenceTableSetSizes(
     {
         size_t was = (size_t)table->size_count * sizeof(int);
         size_t now = (size_t)table->archive_count * sizeof(int);
-        int* grown_compressed = realloc(table->compressed_sizes, now);
-        int* grown_uncompressed = realloc(table->uncompressed_sizes, now);
+        int* grown_compressed = RSCACHE_REALLOC(table->compressed_sizes, now);
+        int* grown_uncompressed = RSCACHE_REALLOC(table->uncompressed_sizes, now);
         assert(grown_compressed);
         assert(grown_uncompressed);
         memset((char*)grown_compressed + was, 0, now - was);
@@ -641,7 +642,7 @@ RSCache_ReferenceTableFree(struct RSCache_ReferenceTable* table)
         return;
 
     if( table->ids )
-        free(table->ids);
+        RSCACHE_FREE(table->ids);
 
     for( int i = 0; i < table->archive_count; i++ )
     {
@@ -650,22 +651,22 @@ RSCache_ReferenceTableFree(struct RSCache_ReferenceTable* table)
          * Asked of each array separately, because the two no longer travel
          * together: an identity run has no `files` and still has name hashes. */
         if( !RSCache_ReferenceTableChildrenPooled(table, table->archives[i].children.files) )
-            free(table->archives[i].children.files);
+            RSCACHE_FREE(table->archives[i].children.files);
         if( !RSCache_ReferenceTableChildNameHashesPooled(
                 table, table->archives[i].children.name_hashes) )
-            free(table->archives[i].children.name_hashes);
+            RSCACHE_FREE(table->archives[i].children.name_hashes);
     }
 
-    free(table->children_pool);
-    free(table->children_name_hash_pool);
-    free(table->whirlpools);
-    free(table->present);
-    free(table->identifiers);
-    free(table->compressed_sizes);
-    free(table->uncompressed_sizes);
+    RSCACHE_FREE(table->children_pool);
+    RSCACHE_FREE(table->children_name_hash_pool);
+    RSCACHE_FREE(table->whirlpools);
+    RSCACHE_FREE(table->present);
+    RSCACHE_FREE(table->identifiers);
+    RSCACHE_FREE(table->compressed_sizes);
+    RSCACHE_FREE(table->uncompressed_sizes);
 
     if( table->archives )
-        free(table->archives);
+        RSCACHE_FREE(table->archives);
 
-    free(table);
+    RSCACHE_FREE(table);
 }

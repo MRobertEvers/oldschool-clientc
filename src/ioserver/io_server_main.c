@@ -60,6 +60,8 @@
  *   src/build/io_server --rev lc254 cache.rs254_zuk
  */
 
+#include "mem/torirs_mem.h"
+#include "mem/torirs_mem_libs.h"
 #include "http_server.h"
 
 #include "bootmanifest/bootmanifest.h"
@@ -1855,6 +1857,13 @@ main(
     int port = IO_SERVER_DEFAULT_PORT;
     int have_preopen = 0;
     int want_ondemand = 0;
+
+    /* Before anything allocates. This binary links the ondemand and io_wire
+     * code the client links, which hands bytes to rscache; it runs under the
+     * same allocator regime (src/mem/torirs_mem_libs.h). */
+    ToriMem_Init();
+    ToriMem_InstallRSCache();
+    ToriMem_InstallBZip();
 
     memset(&server, 0, sizeof(server));
     memset(&preopen, 0, sizeof(preopen));

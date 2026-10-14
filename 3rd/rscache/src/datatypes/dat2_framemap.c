@@ -1,4 +1,5 @@
 #include "dat2_framemap.h"
+#include "../rscache_alloc.h"
 
 #include "../dat2disk.h"
 #include "../rsbuffer.h"
@@ -129,14 +130,14 @@ framemap_new_decode(
         codec_version == RSCACHE_CODEC_FRAMEMAP_V1 || codec_version == RSCACHE_CODEC_FRAMEMAP_V2 ||
         codec_version == RSCACHE_CODEC_FRAMEMAP_V3);
 
-    struct RSCache_Dat2Framemap* def = malloc(sizeof(struct RSCache_Dat2Framemap));
+    struct RSCache_Dat2Framemap* def = RSCACHE_MALLOC(sizeof(struct RSCache_Dat2Framemap));
     memset(def, 0, sizeof(struct RSCache_Dat2Framemap));
 
     def->id = id;
     def->length = g1(buffer);
-    def->types = malloc((size_t)def->length * sizeof(int));
-    def->bone_groups = malloc((size_t)def->length * sizeof(int*));
-    def->bone_groups_lengths = malloc((size_t)def->length * sizeof(int));
+    def->types = RSCACHE_MALLOC((size_t)def->length * sizeof(int));
+    def->bone_groups = RSCACHE_MALLOC((size_t)def->length * sizeof(int*));
+    def->bone_groups_lengths = RSCACHE_MALLOC((size_t)def->length * sizeof(int));
     memset(def->types, 0, (size_t)def->length * sizeof(int));
     memset(def->bone_groups, 0, (size_t)def->length * sizeof(int*));
     memset(def->bone_groups_lengths, 0, (size_t)def->length * sizeof(int));
@@ -148,7 +149,7 @@ framemap_new_decode(
     if( codec_version >= RSCACHE_CODEC_FRAMEMAP_V2 )
     {
         def->has_transform_actor = true;
-        def->transform_actor = malloc((size_t)def->length);
+        def->transform_actor = RSCACHE_MALLOC((size_t)def->length);
         for( int i = 0; i < def->length; i++ )
             def->transform_actor[i] = (uint8_t)g1(buffer);
     }
@@ -157,7 +158,7 @@ framemap_new_decode(
     if( codec_version >= RSCACHE_CODEC_FRAMEMAP_V3 )
     {
         def->has_masks = true;
-        def->masks = malloc((size_t)def->length * sizeof(uint16_t));
+        def->masks = RSCACHE_MALLOC((size_t)def->length * sizeof(uint16_t));
         for( int i = 0; i < def->length; i++ )
             def->masks[i] = (uint16_t)g2(buffer);
     }
@@ -166,7 +167,7 @@ framemap_new_decode(
     {
         int group_length = g1(buffer);
         def->bone_groups_lengths[i] = group_length;
-        def->bone_groups[i] = malloc((size_t)group_length * sizeof(int));
+        def->bone_groups[i] = RSCACHE_MALLOC((size_t)group_length * sizeof(int));
         memset(def->bone_groups[i], 0, (size_t)group_length * sizeof(int));
     }
 
@@ -180,7 +181,7 @@ framemap_new_decode(
     if( buffer->position < buffer->size )
     {
         def->tail_size = (int)(buffer->size - buffer->position);
-        def->tail = malloc((size_t)def->tail_size);
+        def->tail = RSCACHE_MALLOC((size_t)def->tail_size);
         if( def->tail )
             memcpy(def->tail, buffer->data + buffer->position, (size_t)def->tail_size);
         buffer->position = buffer->size;
@@ -308,21 +309,21 @@ RSCache_Dat2FramemapFree(struct RSCache_Dat2Framemap* def)
         return;
 
     if( def->types )
-        free(def->types);
+        RSCACHE_FREE(def->types);
 
     if( def->bone_groups )
     {
         for( int i = 0; i < def->length; i++ )
         {
             if( def->bone_groups[i] )
-                free(def->bone_groups[i]);
+                RSCACHE_FREE(def->bone_groups[i]);
         }
-        free(def->bone_groups);
+        RSCACHE_FREE(def->bone_groups);
     }
 
-    free(def->bone_groups_lengths);
-    free(def->transform_actor);
-    free(def->masks);
-    free(def->tail);
-    free(def);
+    RSCACHE_FREE(def->bone_groups_lengths);
+    RSCACHE_FREE(def->transform_actor);
+    RSCACHE_FREE(def->masks);
+    RSCACHE_FREE(def->tail);
+    RSCACHE_FREE(def);
 }

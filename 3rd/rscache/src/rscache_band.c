@@ -1,4 +1,5 @@
 #include "rscache_band.h"
+#include "rscache_alloc.h"
 
 #include "rsbuffer.h"
 
@@ -23,13 +24,13 @@ RSCache_BandRecordFree(struct RSCache_BandRecord* record)
     {
         struct RSCache_BandList* list = record->lists[i];
 
-        free(record->strings[i]);
+        RSCACHE_FREE(record->strings[i]);
         if( list )
         {
             for( int k = 0; k < list->count * list->arity; k++ )
-                free(list->items[k].s);
-            free(list->items);
-            free(list);
+                RSCACHE_FREE(list->items[k].s);
+            RSCACHE_FREE(list->items);
+            RSCACHE_FREE(list);
         }
     }
     memset(record, 0, sizeof(*record));
@@ -45,8 +46,8 @@ RSCache_BandRecordSetString(
     assert(index >= 0);
     assert(index < RSCACHE_REGISTER_MAX);
     assert(value);
-    free(record->strings[index]);
-    record->strings[index] = strdup(value);
+    RSCACHE_FREE(record->strings[index]);
+    record->strings[index] = RSCache_Strdup(value);
     assert(record->strings[index]);
     RSCache_PresenceSet(&record->present, index);
 }
@@ -68,7 +69,7 @@ RSCache_BandRecordAppendTuple(
     list = record->lists[index];
     if( !list )
     {
-        list = calloc(1, sizeof(*list));
+        list = RSCACHE_CALLOC(1, sizeof(*list));
         assert(list);
         record->lists[index] = list;
         RSCache_PresenceSet(&record->present, index);
@@ -82,7 +83,7 @@ RSCache_BandRecordAppendTuple(
         int next = list->capacity ? list->capacity * 2 : arity * 8;
         while( next < (list->count + 1) * arity )
             next *= 2;
-        list->items = realloc(list->items, (size_t)next * sizeof(*list->items));
+        list->items = RSCACHE_REALLOC(list->items, (size_t)next * sizeof(*list->items));
         assert(list->items);
         list->capacity = next;
     }
@@ -94,7 +95,7 @@ RSCache_BandRecordAppendTuple(
         slot->s = NULL;
         if( tuple[e].s )
         {
-            slot->s = strdup(tuple[e].s);
+            slot->s = RSCache_Strdup(tuple[e].s);
             assert(slot->s);
         }
     }
@@ -217,7 +218,7 @@ get_string(struct RSCache_Buffer* buffer)
         end++;
     if( end >= buffer->size )
         return NULL;
-    out = malloc((size_t)(end - start) + 1);
+    out = RSCACHE_MALLOC((size_t)(end - start) + 1);
     assert(out);
     memcpy(out, buffer->data + start, (size_t)(end - start));
     out[end - start] = '\0';
@@ -344,7 +345,7 @@ RSCache_BandDecode(
 
             if( !text )
                 return -1;
-            free(record->strings[index]);
+            RSCACHE_FREE(record->strings[index]);
             record->strings[index] = text;
             RSCache_PresenceSet(&record->present, index);
             continue;
@@ -371,7 +372,7 @@ RSCache_BandDecode(
                         if( !tuple[e].s )
                         {
                             for( int k = 0; k < e; k++ )
-                                free(tuple[k].s);
+                                RSCACHE_FREE(tuple[k].s);
                             return -1;
                         }
                     }
@@ -380,7 +381,7 @@ RSCache_BandDecode(
                         if( RSCache_BufferRemaining(&buffer) < 4 )
                         {
                             for( int k = 0; k < e; k++ )
-                                free(tuple[k].s);
+                                RSCACHE_FREE(tuple[k].s);
                             return -1;
                         }
                         tuple[e].i = (int32_t)RSCache_BufferG4(&buffer);
@@ -388,7 +389,7 @@ RSCache_BandDecode(
                 }
                 RSCache_BandRecordAppendTuple(record, index, tuple, field->type_count);
                 for( int e = 0; e < field->type_count; e++ )
-                    free(tuple[e].s);
+                    RSCACHE_FREE(tuple[e].s);
             }
             continue;
         }

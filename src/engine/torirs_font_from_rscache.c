@@ -1,3 +1,4 @@
+#include "mem/torirs_mem.h"
 #include "engine/torirs_font_from_rscache.h"
 
 #include "engine/torirs_types.h"
@@ -95,7 +96,7 @@ font_new_from_dat2_metrics_and_sprite_pack(
     if( pack->count <= 0 )
         return NULL;
 
-    font = calloc(1, sizeof(*font));
+    font = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*font));
     assert(font);
 
     font_init_charcodeset(font);
@@ -120,7 +121,7 @@ font_new_from_dat2_metrics_and_sprite_pack(
             continue;
 
         len = (size_t)gw * (size_t)gh;
-        font->glyph_alpha[gi] = malloc(len);
+        font->glyph_alpha[gi] = ToriMem_Alloc(ToriMem_Assets(), len);
         assert(font->glyph_alpha[gi]);
 
         for( j = 0; j < len; j++ )
@@ -222,7 +223,7 @@ ToriRS_FontFromDat1Jagfile(
     if( !pixfont )
         return NULL;
 
-    font = calloc(1, sizeof(*font));
+    font = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*font));
     assert(font);
 
     font_init_charcodeset(font);
@@ -241,7 +242,7 @@ ToriRS_FontFromDat1Jagfile(
             continue;
 
         len = (size_t)gw * (size_t)gh;
-        font->glyph_alpha[gi] = malloc(len);
+        font->glyph_alpha[gi] = ToriMem_Alloc(ToriMem_Assets(), len);
         assert(font->glyph_alpha[gi]);
         for( j = 0; j < len; j++ )
             font->glyph_alpha[gi][j] = pixfont->char_mask[gi][j] != 0 ? (uint8_t)255 : (uint8_t)0;

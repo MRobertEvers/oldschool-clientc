@@ -1,3 +1,5 @@
+#include "mem/torirs_mem.h"
+#include "mem/torimem_toridraw.h"
 #include "game/rs_worldmap_render.h"
 
 #include "engine/cache_provider.h"
@@ -1245,7 +1247,7 @@ RS_WorldMapRender_RegionSprite(
         render->baked_bytes -= worldmap_slot_bytes(&render->slots[slot]);
     render->slots[slot].icon_count = 0;
 
-    pixels = calloc((size_t)size * size, sizeof(*pixels));
+    pixels = TORIDRAW_CALLOC((size_t)size * size, sizeof(*pixels)); /* Owned by the sprite */
     assert(pixels);
     {
         struct ToriDraw_Sprite** map_scenes = NULL;
@@ -1275,10 +1277,10 @@ RS_WorldMapRender_RegionSprite(
     sprite = ToriDraw_SpriteNewFromArgbOwned(pixels, size, size);
     if( !sprite )
     {
-        free(pixels);
+        TORIDRAW_FREE(pixels);
         return -1;
     }
-    sprite_list = malloc(sizeof(*sprite_list));
+    sprite_list = TORIDRAW_MALLOC(sizeof(*sprite_list)); /* SceneSpriteAdd frees it */
     assert(sprite_list);
     sprite_list[0] = sprite;
 

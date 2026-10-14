@@ -1,3 +1,4 @@
+#include "mem/torirs_mem.h"
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
 #include "engine/dat2/dat2_tasks.h"
@@ -198,7 +199,8 @@ Task_Dat2WorldMapGeographyLoad_Run(
 
     PT_BEGIN(&task->pt);
 
-    task->geography = calloc(1, sizeof(*task->geography));
+    /* ASSET: the provider's cache keeps it (CacheProvider_WorldMapGeographyAdd). */
+    task->geography = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*task->geography));
     assert(task->geography);
 
     for( task->cursor = 0; task->cursor < task->source_count; task->cursor++ )
@@ -401,6 +403,7 @@ Task_Dat2WorldMapGeographyLoad_Run(
                 int png_height = 0;
                 uint32_t* png_pixels = NULL;
                 if( PngDecode_Rgb(
+                        ToriMem_Frame(),
                         filelist->files[file_index],
                         filelist->file_sizes[file_index],
                         &png_width,
@@ -420,7 +423,7 @@ Task_Dat2WorldMapGeographyLoad_Run(
                                 png_pixels[(size_t)row * png_width + col];
                     }
                     task->geography->has_ground = true;
-                    free(png_pixels);
+                    ToriMem_Free(ToriMem_Frame(), png_pixels);
                 }
             }
             RSCache_FileListFree(filelist);
@@ -454,7 +457,7 @@ Task_Dat2WorldMapGeographyLoad_Free(struct ToriRS_Task* task_base)
     if( task->geography )
     {
         RSCache_WorldMapGeographyFreeInplace(task->geography);
-        free(task->geography);
+        ToriMem_Free(ToriMem_Assets(), task->geography);
     }
     free(task->sources);
     free(task);

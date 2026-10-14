@@ -7,6 +7,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include "rsprot_alloc.h"
 
 /* --- Base37 --------------------------------------------------------------- */
 
@@ -144,7 +145,7 @@ static bool tree_ensure(RsprotHuffman *h, int32_t node)
 {
 	while (node >= h->lookup_tree_len) {
 		int32_t new_len = h->lookup_tree_len * 2;
-		int32_t *grown = (int32_t *)realloc(h->lookup_tree, (size_t)new_len * sizeof(int32_t));
+		int32_t *grown = (int32_t *)RSPROT_REALLOC(h->lookup_tree, (size_t)new_len * sizeof(int32_t));
 		if (!grown)
 			return false;
 		memset(grown + h->lookup_tree_len, 0, (size_t)(new_len - h->lookup_tree_len) * sizeof(int32_t));
@@ -163,7 +164,7 @@ bool rsprot_huffman_create(RsprotHuffman *h, const uint8_t table[256])
 
 	memset(h, 0, sizeof(*h));
 	h->lookup_tree_len = 8;
-	h->lookup_tree = (int32_t *)calloc((size_t)h->lookup_tree_len, sizeof(int32_t));
+	h->lookup_tree = (int32_t *)RSPROT_CALLOC((size_t)h->lookup_tree_len, sizeof(int32_t));
 	if (!h->lookup_tree)
 		return false;
 
@@ -219,7 +220,7 @@ bool rsprot_huffman_create(RsprotHuffman *h, const uint8_t table[256])
 				node = h->lookup_tree[node];
 			}
 			if (!tree_ensure(h, node)) {
-				free(h->lookup_tree);
+				RSPROT_FREE(h->lookup_tree);
 				h->lookup_tree = NULL;
 				return false;
 			}
@@ -242,7 +243,7 @@ void rsprot_huffman_destroy(RsprotHuffman *h)
 {
 	if (!h)
 		return;
-	free(h->lookup_tree);
+	RSPROT_FREE(h->lookup_tree);
 	memset(h, 0, sizeof(*h));
 }
 

@@ -6,6 +6,8 @@
  * app/app_internal.h, and nothing outside the layer may include either.
  */
 
+#include "mem/torirs_mem.h"
+#include "mem/torimem_toridraw.h"
 #include "app/app_internal.h"
 #include "boot_telemetry.h"
 
@@ -176,11 +178,11 @@ app_rebuild_world_map(
     sprite = ToriDraw_SpriteNewFromArgbOwned(argb, pixel_w, pixel_h);
     if( !sprite )
     {
-        free(argb);
+        TORIDRAW_FREE(argb);
         return;
     }
 
-    sprites = malloc(sizeof(*sprites));
+    sprites = TORIDRAW_MALLOC(sizeof(*sprites)); /* SceneSpriteAdd frees it */
     assert(sprites);
     sprites[0] = sprite;
 

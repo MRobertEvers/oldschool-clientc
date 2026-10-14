@@ -1,4 +1,5 @@
 #include "toridraw.h"
+#include "toridraw_alloc.h"
 
 #include "toridraw_shared_model.h"
 #include "toridraw_types.h"
@@ -351,38 +352,38 @@ ToriDraw_SceneFreeBuffers(struct ToriDraw_Scene* scene)
     if( !scene )
         return;
 
-    free(scene->screen_vertices_x);
-    free(scene->screen_vertices_y);
-    free(scene->screen_vertices_z);
-    free(scene->orthographic_vertices_x);
-    free(scene->orthographic_vertices_y);
-    free(scene->orthographic_vertices_z);
-    free(scene->tmp_depth_face_count);
-    free(scene->tmp_depth_faces);
-    free(scene->tmp_priority_face_count);
-    free(scene->tmp_priority_depth_sum);
-    free(scene->tmp_priority_faces);
-    free(scene->tmp_flex_prio11_face_to_depth);
-    free(scene->tmp_flex_prio12_face_to_depth);
-    free(scene->sm_face_depth);
-    free(scene->sm_face_x4);
-    free(scene->sm_face_y4);
-    free(scene->sm_sort_keys);
-    free(scene->sm_sort_tmp);
-    free(scene->sm_vertex_xyz);
-    free(scene->sm_vertex_xyz16);
-    free(scene->sm_depth_offset);
-    free(scene->sm_depth_cursor);
-    free(scene->sm_faces_by_depth);
-    free(scene->sm_prio_offset);
-    free(scene->sm_prio_faces);
-    free(scene->sm_flex_prio11_face_to_depth);
-    free(scene->sm_flex_prio12_face_to_depth);
-    free(scene->tmp_face_order);
-    free(scene->tex_state);
-    free(scene->anim_list);
-    free(scene->zbuffer);
-    free(scene->event_queue.events);
+    TORIDRAW_FREE(scene->screen_vertices_x);
+    TORIDRAW_FREE(scene->screen_vertices_y);
+    TORIDRAW_FREE(scene->screen_vertices_z);
+    TORIDRAW_FREE(scene->orthographic_vertices_x);
+    TORIDRAW_FREE(scene->orthographic_vertices_y);
+    TORIDRAW_FREE(scene->orthographic_vertices_z);
+    TORIDRAW_FREE(scene->tmp_depth_face_count);
+    TORIDRAW_FREE(scene->tmp_depth_faces);
+    TORIDRAW_FREE(scene->tmp_priority_face_count);
+    TORIDRAW_FREE(scene->tmp_priority_depth_sum);
+    TORIDRAW_FREE(scene->tmp_priority_faces);
+    TORIDRAW_FREE(scene->tmp_flex_prio11_face_to_depth);
+    TORIDRAW_FREE(scene->tmp_flex_prio12_face_to_depth);
+    TORIDRAW_FREE(scene->sm_face_depth);
+    TORIDRAW_FREE(scene->sm_face_x4);
+    TORIDRAW_FREE(scene->sm_face_y4);
+    TORIDRAW_FREE(scene->sm_sort_keys);
+    TORIDRAW_FREE(scene->sm_sort_tmp);
+    TORIDRAW_FREE(scene->sm_vertex_xyz);
+    TORIDRAW_FREE(scene->sm_vertex_xyz16);
+    TORIDRAW_FREE(scene->sm_depth_offset);
+    TORIDRAW_FREE(scene->sm_depth_cursor);
+    TORIDRAW_FREE(scene->sm_faces_by_depth);
+    TORIDRAW_FREE(scene->sm_prio_offset);
+    TORIDRAW_FREE(scene->sm_prio_faces);
+    TORIDRAW_FREE(scene->sm_flex_prio11_face_to_depth);
+    TORIDRAW_FREE(scene->sm_flex_prio12_face_to_depth);
+    TORIDRAW_FREE(scene->tmp_face_order);
+    TORIDRAW_FREE(scene->tex_state);
+    TORIDRAW_FREE(scene->anim_list);
+    TORIDRAW_FREE(scene->zbuffer);
+    TORIDRAW_FREE(scene->event_queue.events);
 
     memset(scene, 0, sizeof(*scene));
 }
@@ -408,12 +409,12 @@ scene_alloc_vertices(
     if( scene->screen_vertices_x )
         return true;
 
-    scene->screen_vertices_x = malloc((size_t)caps->max_vertices * sizeof(int));
-    scene->screen_vertices_y = malloc((size_t)caps->max_vertices * sizeof(int));
-    scene->screen_vertices_z = malloc((size_t)caps->max_vertices * sizeof(int));
-    scene->orthographic_vertices_x = malloc((size_t)caps->max_vertices * sizeof(int));
-    scene->orthographic_vertices_y = malloc((size_t)caps->max_vertices * sizeof(int));
-    scene->orthographic_vertices_z = malloc((size_t)caps->max_vertices * sizeof(int));
+    scene->screen_vertices_x = TORIDRAW_MALLOC((size_t)caps->max_vertices * sizeof(int));
+    scene->screen_vertices_y = TORIDRAW_MALLOC((size_t)caps->max_vertices * sizeof(int));
+    scene->screen_vertices_z = TORIDRAW_MALLOC((size_t)caps->max_vertices * sizeof(int));
+    scene->orthographic_vertices_x = TORIDRAW_MALLOC((size_t)caps->max_vertices * sizeof(int));
+    scene->orthographic_vertices_y = TORIDRAW_MALLOC((size_t)caps->max_vertices * sizeof(int));
+    scene->orthographic_vertices_z = TORIDRAW_MALLOC((size_t)caps->max_vertices * sizeof(int));
 
     assert(scene->screen_vertices_x);
     assert(scene->screen_vertices_y);
@@ -432,7 +433,7 @@ scene_alloc_face_order(
     if( scene->tmp_face_order )
         return true;
 
-    scene->tmp_face_order = malloc((size_t)caps->max_faces * sizeof(int));
+    scene->tmp_face_order = TORIDRAW_MALLOC((size_t)caps->max_faces * sizeof(int));
     assert(scene->tmp_face_order);
     return true;
 }
@@ -450,14 +451,14 @@ scene_alloc_bucket_sort(
      * Each sort re-zeroes only the buckets it dirtied after its consumer
      * has walked them (ToriDraw_ComputeProjectedFaceOrder), so the
      * all-zero state is established here, once. */
-    scene->tmp_depth_face_count = calloc((size_t)caps->depth_levels, sizeof(faceint_t));
+    scene->tmp_depth_face_count = TORIDRAW_CALLOC((size_t)caps->depth_levels, sizeof(faceint_t));
     scene->tmp_depth_faces =
-        malloc((size_t)caps->depth_levels * (size_t)caps->depth_stride * sizeof(faceint_t));
-    scene->tmp_priority_face_count = malloc(12 * sizeof(faceint_t));
-    scene->tmp_priority_depth_sum = malloc(12 * sizeof(int));
-    scene->tmp_priority_faces = malloc(12 * (size_t)caps->priority_stride * sizeof(faceint_t));
-    scene->tmp_flex_prio11_face_to_depth = malloc((size_t)caps->flex_prio11 * sizeof(int));
-    scene->tmp_flex_prio12_face_to_depth = malloc((size_t)caps->flex_prio12 * sizeof(int));
+        TORIDRAW_MALLOC((size_t)caps->depth_levels * (size_t)caps->depth_stride * sizeof(faceint_t));
+    scene->tmp_priority_face_count = TORIDRAW_MALLOC(12 * sizeof(faceint_t));
+    scene->tmp_priority_depth_sum = TORIDRAW_MALLOC(12 * sizeof(int));
+    scene->tmp_priority_faces = TORIDRAW_MALLOC(12 * (size_t)caps->priority_stride * sizeof(faceint_t));
+    scene->tmp_flex_prio11_face_to_depth = TORIDRAW_MALLOC((size_t)caps->flex_prio11 * sizeof(int));
+    scene->tmp_flex_prio12_face_to_depth = TORIDRAW_MALLOC((size_t)caps->flex_prio12 * sizeof(int));
 
     assert(scene->tmp_depth_face_count);
     assert(scene->tmp_depth_faces);
@@ -479,18 +480,18 @@ scene_alloc_csr_sort(
     if( scene->sm_faces_by_depth )
         return true;
 
-    scene->sm_face_depth = malloc((size_t)caps->max_faces * sizeof(faceint_t));
+    scene->sm_face_depth = TORIDRAW_MALLOC((size_t)caps->max_faces * sizeof(faceint_t));
     /* calloc, not malloc: the counting sort never clears this table whole.
      * Each sort re-zeroes only the [min, max + 1] window it dirtied after
      * its consumer has walked it, so the all-zero state is established
      * here, once (the full-mode tmp_depth_face_count invariant). */
-    scene->sm_depth_offset = calloc((size_t)(caps->depth_levels + 1), sizeof(int));
-    scene->sm_depth_cursor = malloc((size_t)caps->depth_levels * sizeof(int));
-    scene->sm_faces_by_depth = malloc((size_t)caps->max_faces * sizeof(faceint_t));
-    scene->sm_prio_offset = malloc(13 * sizeof(int));
-    scene->sm_prio_faces = malloc(toridraw_prio_slices_len(caps->max_faces) * sizeof(faceint_t));
-    scene->sm_flex_prio11_face_to_depth = malloc((size_t)caps->flex_prio11 * sizeof(int));
-    scene->sm_flex_prio12_face_to_depth = malloc((size_t)caps->flex_prio12 * sizeof(int));
+    scene->sm_depth_offset = TORIDRAW_CALLOC((size_t)(caps->depth_levels + 1), sizeof(int));
+    scene->sm_depth_cursor = TORIDRAW_MALLOC((size_t)caps->depth_levels * sizeof(int));
+    scene->sm_faces_by_depth = TORIDRAW_MALLOC((size_t)caps->max_faces * sizeof(faceint_t));
+    scene->sm_prio_offset = TORIDRAW_MALLOC(13 * sizeof(int));
+    scene->sm_prio_faces = TORIDRAW_MALLOC(toridraw_prio_slices_len(caps->max_faces) * sizeof(faceint_t));
+    scene->sm_flex_prio11_face_to_depth = TORIDRAW_MALLOC((size_t)caps->flex_prio11 * sizeof(int));
+    scene->sm_flex_prio12_face_to_depth = TORIDRAW_MALLOC((size_t)caps->flex_prio12 * sizeof(int));
 
     assert(scene->sm_face_depth);
     assert(scene->sm_depth_offset);
@@ -519,14 +520,14 @@ scene_alloc_bitonic_radix_keys(
         keys <<= 1;
     /* Eight lanes of slack: the K16 block stores eight keys whole. */
     keys += 8;
-    scene->sm_sort_keys = malloc(keys * sizeof(uint32_t));
-    scene->sm_sort_tmp = malloc(keys * sizeof(uint32_t));
+    scene->sm_sort_keys = TORIDRAW_MALLOC(keys * sizeof(uint32_t));
+    scene->sm_sort_tmp = TORIDRAW_MALLOC(keys * sizeof(uint32_t));
 
     assert(scene->sm_sort_keys);
     assert(scene->sm_sort_tmp);
-    scene->sm_vertex_xyz = malloc(((size_t)caps->max_vertices + 4) * 4 * sizeof(int));
+    scene->sm_vertex_xyz = TORIDRAW_MALLOC(((size_t)caps->max_vertices + 4) * 4 * sizeof(int));
     assert(scene->sm_vertex_xyz);
-    scene->sm_vertex_xyz16 = malloc(((size_t)caps->max_vertices + 8) * 4 * sizeof(int16_t));
+    scene->sm_vertex_xyz16 = TORIDRAW_MALLOC(((size_t)caps->max_vertices + 8) * 4 * sizeof(int16_t));
     assert(scene->sm_vertex_xyz16);
     return true;
 }
@@ -543,8 +544,8 @@ scene_alloc_presort_xy(
     if( scene->sm_face_x4 )
         return true;
 
-    scene->sm_face_x4 = malloc(((size_t)caps->max_faces + 4) * 4 * sizeof(int));
-    scene->sm_face_y4 = malloc(((size_t)caps->max_faces + 4) * 4 * sizeof(int));
+    scene->sm_face_x4 = TORIDRAW_MALLOC(((size_t)caps->max_faces + 4) * 4 * sizeof(int));
+    scene->sm_face_y4 = TORIDRAW_MALLOC(((size_t)caps->max_faces + 4) * 4 * sizeof(int));
 
     assert(scene->sm_face_x4);
     assert(scene->sm_face_y4);
@@ -583,7 +584,7 @@ ToriDraw_SceneAllocBuffers(
 
     if( !caps->lazy_textures )
     {
-        scene->tex_state = calloc(1, sizeof(struct ToriDraw_TextureState));
+        scene->tex_state = TORIDRAW_CALLOC(1, sizeof(struct ToriDraw_TextureState));
         assert(scene->tex_state);
     }
 }
@@ -611,7 +612,7 @@ ToriDraw_SceneZBufferResize(
         return true;
 
     want = (size_t)stride * (size_t)rows;
-    grown = (torizdepth_t*)realloc(scene->zbuffer, want * sizeof(torizdepth_t));
+    grown = (torizdepth_t*)TORIDRAW_REALLOC(scene->zbuffer, want * sizeof(torizdepth_t));
     assert(grown);
 
     scene->zbuffer = grown;
@@ -627,7 +628,7 @@ ToriDraw_SceneZBufferFree(struct ToriDraw_Scene* scene)
 {
     if( !scene )
         return;
-    free(scene->zbuffer);
+    TORIDRAW_FREE(scene->zbuffer);
     scene->zbuffer = NULL;
     scene->zbuffer_stride = 0;
     scene->zbuffer_rows = 0;
@@ -654,7 +655,7 @@ ToriDraw_SceneTexState(struct ToriDraw_Scene* scene)
          * caller, from limits that said this model had no textures. Reaching
          * here means the model does. */
         assert(!ToriDraw_SceneIsArena(scene));
-        scene->tex_state = calloc(1, sizeof(struct ToriDraw_TextureState));
+        scene->tex_state = TORIDRAW_CALLOC(1, sizeof(struct ToriDraw_TextureState));
         assert(scene->tex_state);
     }
 
@@ -758,7 +759,7 @@ td_scene_alloc_aligned(void)
     void* raw;
     uintptr_t aligned;
 
-    raw = calloc(1, sizeof(struct ToriDraw_Scene) + TORIDRAW_SCENE_ALIGN + sizeof(void*));
+    raw = TORIDRAW_CALLOC(1, sizeof(struct ToriDraw_Scene) + TORIDRAW_SCENE_ALIGN + sizeof(void*));
     assert(raw);
     aligned = ((uintptr_t)raw + sizeof(void*) + TORIDRAW_SCENE_ALIGN - 1) &
               ~(uintptr_t)(TORIDRAW_SCENE_ALIGN - 1);
@@ -772,7 +773,7 @@ td_scene_free_aligned(struct ToriDraw_Scene* scene)
 {
     if( !scene )
         return;
-    free(((void**)scene)[-1]);
+    TORIDRAW_FREE(((void**)scene)[-1]);
 }
 
 struct ToriDraw_Scene*
@@ -904,7 +905,7 @@ static void
 td_scene_scratch_free_own(struct ToriDraw_Scene* scene)
 {
 #define TD_SCENE_SCRATCH_FREE(field) \
-    free(scene->field); \
+    TORIDRAW_FREE(scene->field); \
     scene->field = NULL;
     TD_SCENE_SCRATCH_POINTERS(TD_SCENE_SCRATCH_FREE)
 #undef TD_SCENE_SCRATCH_FREE

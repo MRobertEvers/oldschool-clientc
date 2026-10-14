@@ -19,6 +19,7 @@
  * -DTORIDRAW_TEXTURE_ID_CAPACITY.
  */
 
+#include "toridraw_alloc.c"
 #include "toridraw.c"
 #include "toridraw_animation.c"
 #include "toridraw_hsl16.c"

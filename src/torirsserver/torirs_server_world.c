@@ -16,6 +16,7 @@
  * torirs_server_world_selftest.c; what it reaches in here is declared in
  * torirs_server_world_internal.h and nowhere else.
  */
+#include "mem/torirs_mem.h"
 #include "torirs_server.h"
 #include "torirs_server_gwd_manifest.gen.h"
 #include "torirs_server_music_regions.gen.h"
@@ -18827,8 +18828,29 @@ static char const* const g_pp_names[PP_COUNT] = {
     "approach", "advance", "interact_post", "tail"
 };
 
+static void
+world_tick_body(struct ToriRSServer* srv);
+
+/*
+ * One server tick, as a checked scope inside this thread's FRAME.
+ *
+ * Not a FRAME reset: in the embedded build this runs inside the client's
+ * frame, on the client's thread, and a reset here would wipe the client's
+ * scratch mid-frame. So the tick marks the frame on entry and, on exit,
+ * checks that everything it took from ToriMem_Frame() was freed or rewound
+ * before rewinding to the mark (src/mem/torirs_mem.h).
+ */
 void
 ToriRSServer_WorldTick(struct ToriRSServer* srv)
+{
+    struct ToriMem_Group* frame = ToriMem_Frame();
+    struct ToriMem_Mark tick = ToriMem_Mark(frame);
+    world_tick_body(srv);
+    ToriMem_CheckedRewind(frame, tick);
+}
+
+static void
+world_tick_body(struct ToriRSServer* srv)
 {
     struct ToriRSServerPlayer* player;
     uint64_t bd[TICK_BD_PHASES];

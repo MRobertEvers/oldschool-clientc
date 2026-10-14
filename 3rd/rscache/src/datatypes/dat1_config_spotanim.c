@@ -1,4 +1,5 @@
 #include "dat1_config_spotanim.h"
+#include "../rscache_alloc.h"
 
 #include "../rsbuffer.h"
 
@@ -117,7 +118,7 @@ RSCache_Dat1ConfigSpotanimListNewDecode(
     if( !data || data_size <= 0 )
         return NULL;
 
-    list = malloc(sizeof(*list));
+    list = RSCACHE_MALLOC(sizeof(*list));
     if( !list )
         return NULL;
     memset(list, 0, sizeof(*list));
@@ -127,10 +128,10 @@ RSCache_Dat1ConfigSpotanimListNewDecode(
     if( count <= 0 )
         return list;
 
-    list->spotanims = calloc((size_t)count, sizeof(*list->spotanims));
+    list->spotanims = RSCACHE_CALLOC((size_t)count, sizeof(*list->spotanims));
     if( !list->spotanims )
     {
-        free(list);
+        RSCACHE_FREE(list);
         return NULL;
     }
     list->spotanims_count = count;
@@ -151,8 +152,8 @@ RSCache_Dat1ConfigSpotanimListFree(struct RSCache_Dat1ConfigSpotanimList* list)
 {
     if( !list )
         return;
-    free(list->spotanims);
-    free(list);
+    RSCACHE_FREE(list->spotanims);
+    RSCACHE_FREE(list);
 }
 
 uint32_t

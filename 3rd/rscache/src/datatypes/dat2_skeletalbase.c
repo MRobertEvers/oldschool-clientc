@@ -1,4 +1,5 @@
 #include "dat2_skeletalbase.h"
+#include "../rscache_alloc.h"
 
 #include "dat2_animaya.h"
 #include "dat2_framemap.h"
@@ -137,9 +138,9 @@ skb_bone_extract_transformations(struct RSCache_Dat2SkeletalBone* bone)
     int pc = bone->pose_count;
     RSCache_SkeletalMat4 inv;
 
-    bone->rotations = malloc((size_t)pc * sizeof(RSCache_SkeletalVec3));
-    bone->translations = malloc((size_t)pc * sizeof(RSCache_SkeletalVec3));
-    bone->scalings = malloc((size_t)pc * sizeof(RSCache_SkeletalVec3));
+    bone->rotations = RSCACHE_MALLOC((size_t)pc * sizeof(RSCache_SkeletalVec3));
+    bone->translations = RSCACHE_MALLOC((size_t)pc * sizeof(RSCache_SkeletalVec3));
+    bone->scalings = RSCACHE_MALLOC((size_t)pc * sizeof(RSCache_SkeletalVec3));
     if( !bone->rotations || !bone->translations || !bone->scalings )
         return 0;
 
@@ -219,16 +220,16 @@ RSCache_Dat2SkeletalBaseFree(struct RSCache_Dat2SkeletalBase* base)
         for( int i = 0; i < base->bone_count; i++ )
         {
             struct RSCache_Dat2SkeletalBone* b = &base->bones[i];
-            free(b->local_matrices);
-            free(b->model_matrices);
-            free(b->inverted_model_matrices);
-            free(b->rotations);
-            free(b->translations);
-            free(b->scalings);
+            RSCACHE_FREE(b->local_matrices);
+            RSCACHE_FREE(b->model_matrices);
+            RSCACHE_FREE(b->inverted_model_matrices);
+            RSCACHE_FREE(b->rotations);
+            RSCACHE_FREE(b->translations);
+            RSCACHE_FREE(b->scalings);
         }
-        free(base->bones);
+        RSCACHE_FREE(base->bones);
     }
-    free(base);
+    RSCACHE_FREE(base);
 }
 
 /* ---- decode ------------------------------------------------------------- */
@@ -264,13 +265,13 @@ RSCache_Dat2SkeletalBaseNewDecodeTail(
         (int64_t)bone_count * (2 + (int64_t)pose_count * 19 * 4) )
         return NULL;
 
-    base = calloc(1, sizeof(struct RSCache_Dat2SkeletalBase));
+    base = RSCACHE_CALLOC(1, sizeof(struct RSCache_Dat2SkeletalBase));
     if( !base )
         return NULL;
     base->id = base_id;
     base->bone_count = bone_count;
     base->pose_count = pose_count;
-    base->bones = calloc((size_t)bone_count, sizeof(struct RSCache_Dat2SkeletalBone));
+    base->bones = RSCACHE_CALLOC((size_t)bone_count, sizeof(struct RSCache_Dat2SkeletalBone));
     if( !base->bones )
     {
         RSCache_Dat2SkeletalBaseFree(base);
@@ -284,9 +285,9 @@ RSCache_Dat2SkeletalBaseNewDecodeTail(
         bone->pose_count = pose_count;
         bone->parent_id = g2b(&buffer);
 
-        bone->local_matrices = calloc((size_t)pose_count, sizeof(RSCache_SkeletalMat4));
-        bone->model_matrices = calloc((size_t)pose_count, sizeof(RSCache_SkeletalMat4));
-        bone->inverted_model_matrices = calloc((size_t)pose_count, sizeof(RSCache_SkeletalMat4));
+        bone->local_matrices = RSCACHE_CALLOC((size_t)pose_count, sizeof(RSCache_SkeletalMat4));
+        bone->model_matrices = RSCACHE_CALLOC((size_t)pose_count, sizeof(RSCache_SkeletalMat4));
+        bone->inverted_model_matrices = RSCACHE_CALLOC((size_t)pose_count, sizeof(RSCache_SkeletalMat4));
         if( !bone->local_matrices || !bone->model_matrices || !bone->inverted_model_matrices )
         {
             RSCache_Dat2SkeletalBaseFree(base);
@@ -546,14 +547,14 @@ RSCache_Dat2SkeletalBaseBakePalette(
     frame_count = found ? (max_tick + 1) : 1;
     bone_count = base->bone_count;
 
-    palette = malloc((size_t)frame_count * (size_t)bone_count * 16 * sizeof(float));
-    anim_model_matrices = malloc((size_t)bone_count * sizeof(RSCache_SkeletalMat4));
-    done = malloc((size_t)bone_count);
+    palette = RSCACHE_MALLOC((size_t)frame_count * (size_t)bone_count * 16 * sizeof(float));
+    anim_model_matrices = RSCACHE_MALLOC((size_t)bone_count * sizeof(RSCache_SkeletalMat4));
+    done = RSCACHE_MALLOC((size_t)bone_count);
     if( !palette || !anim_model_matrices || !done )
     {
-        free(palette);
-        free(anim_model_matrices);
-        free(done);
+        RSCACHE_FREE(palette);
+        RSCACHE_FREE(anim_model_matrices);
+        RSCACHE_FREE(done);
         return NULL;
     }
 
@@ -574,8 +575,8 @@ RSCache_Dat2SkeletalBaseBakePalette(
         }
     }
 
-    free(done);
-    free(anim_model_matrices);
+    RSCACHE_FREE(done);
+    RSCACHE_FREE(anim_model_matrices);
 
     *frame_count_out = frame_count;
     *bone_count_out = bone_count;

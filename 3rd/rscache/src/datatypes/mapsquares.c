@@ -1,4 +1,5 @@
 #include "mapsquares.h"
+#include "../rscache_alloc.h"
 
 #include "../rsbuffer.h"
 
@@ -10,16 +11,16 @@ RSCache_MapSquaresNewDecode(
     char* data,
     int data_size)
 {
-    struct RSCache_MapSquares* map_squares = malloc(sizeof(struct RSCache_MapSquares));
+    struct RSCache_MapSquares* map_squares = RSCACHE_MALLOC(sizeof(struct RSCache_MapSquares));
     if( !map_squares )
         return NULL;
     memset(map_squares, 0, sizeof(struct RSCache_MapSquares));
 
     int count = data_size / 7;
-    map_squares->squares = malloc(count * sizeof(struct RSCache_MapSquare));
+    map_squares->squares = RSCACHE_MALLOC(count * sizeof(struct RSCache_MapSquare));
     if( !map_squares->squares )
     {
-        free(map_squares);
+        RSCACHE_FREE(map_squares);
         return NULL;
     }
     memset(map_squares->squares, 0, count * sizeof(struct RSCache_MapSquare));
@@ -42,8 +43,8 @@ RSCache_MapSquaresFree(struct RSCache_MapSquares* map_squares)
 {
     if( !map_squares )
         return;
-    free(map_squares->squares);
-    free(map_squares);
+    RSCACHE_FREE(map_squares->squares);
+    RSCACHE_FREE(map_squares);
 }
 
 int

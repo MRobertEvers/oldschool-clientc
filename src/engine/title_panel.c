@@ -1,3 +1,4 @@
+#include "mem/torirs_mem.h"
 #include "engine/title_panel.h"
 
 #include "engine/jpeg_decode.h"
@@ -61,10 +62,10 @@ ToriRS_TitlePanelFromJpeg(
     if( data_size <= 0 )
         return NULL;
 
-    if( !JpegDecode_ArgbRsCache(data, data_size, &half_w, &half_h, &half) )
+    if( !JpegDecode_ArgbRsCache(ToriMem_Frame(), data, data_size, &half_w, &half_h, &half) )
         return NULL;
 
-    panel = calloc((size_t)TITLE_PANEL_W * TITLE_PANEL_H, sizeof(*panel));
+    panel = ToriMem_Calloc(ToriMem_Assets(), (size_t)TITLE_PANEL_W * TITLE_PANEL_H, sizeof(*panel));
     assert(panel);
 
     /* The stored half at the left, its mirror butted against the right edge.
@@ -74,9 +75,9 @@ ToriRS_TitlePanelFromJpeg(
      * still fills the panel instead of leaving a gap or running over. */
     blit_half(panel, half, half_w, half_h, 0, /*mirrored=*/0);
     blit_half(panel, half, half_w, half_h, TITLE_PANEL_W - half_w, /*mirrored=*/1);
-    free(half);
+    ToriMem_Free(ToriMem_Frame(), half); /* the decode; the panel above holds the copy */
 
-    frame = calloc(1, sizeof(*frame));
+    frame = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*frame));
     assert(frame);
     frame->pixels_argb = panel;
     frame->width = TITLE_PANEL_W;
@@ -84,7 +85,7 @@ ToriRS_TitlePanelFromJpeg(
     frame->crop_width = TITLE_PANEL_W;
     frame->crop_height = TITLE_PANEL_H;
 
-    sprite = calloc(1, sizeof(*sprite));
+    sprite = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*sprite));
     assert(sprite);
     sprite->frames = frame;
     sprite->frame_count = 1;

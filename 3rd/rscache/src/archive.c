@@ -1,4 +1,5 @@
 #include "archive.h"
+#include "rscache_alloc.h"
 
 #include "checksum.h"
 #include "compression.h"
@@ -176,19 +177,19 @@ RSCache_ArchiveDecryptDecompress(
     case NON_OSRS_PACKED_ARCHIVE_FORMAT:
     case 0:
     {
-        char* data = malloc((size_t)size);
+        char* data = RSCACHE_MALLOC((size_t)size);
         if( !data )
             return false;
 
         bytes_read = greadto(&buffer, data, size, size);
         if( bytes_read < size )
         {
-            free(data);
+            RSCACHE_FREE(data);
             return false;
         }
 
         archive_read_container_revision(&buffer, archive);
-        free(archive->data);
+        RSCACHE_FREE(archive->data);
         archive->data = data;
         archive->data_size = bytes_read;
         break;
@@ -197,21 +198,21 @@ RSCache_ArchiveDecryptDecompress(
     {
         int uncompressed_length = g4(&buffer);
 
-        char* compressed_data = malloc((size_t)size);
+        char* compressed_data = RSCACHE_MALLOC((size_t)size);
         if( !compressed_data )
             return false;
 
         bytes_read = greadto(&buffer, compressed_data, size, size);
         if( bytes_read < size )
         {
-            free(compressed_data);
+            RSCACHE_FREE(compressed_data);
             return false;
         }
 
-        char* decompressed_data = malloc((size_t)uncompressed_length);
+        char* decompressed_data = RSCACHE_MALLOC((size_t)uncompressed_length);
         if( !decompressed_data )
         {
-            free(compressed_data);
+            RSCACHE_FREE(compressed_data);
             return false;
         }
 
@@ -226,37 +227,37 @@ RSCache_ArchiveDecryptDecompress(
                 (uint8_t*)compressed_data,
                 size) == 0 )
         {
-            free(decompressed_data);
-            free(compressed_data);
+            RSCACHE_FREE(decompressed_data);
+            RSCACHE_FREE(compressed_data);
             return false;
         }
 
         archive_read_container_revision(&buffer, archive);
 
-        free(archive->data);
+        RSCACHE_FREE(archive->data);
         archive->data = decompressed_data;
         archive->data_size = uncompressed_length;
-        free(compressed_data);
+        RSCACHE_FREE(compressed_data);
         break;
     }
     case 2:
     {
         int uncompressed_length = g4(&buffer) & 0xFFFFFFFF;
-        uint8_t* compressed_data = malloc((size_t)size);
+        uint8_t* compressed_data = RSCACHE_MALLOC((size_t)size);
         if( !compressed_data )
             return false;
 
         bytes_read = greadto(&buffer, (char*)compressed_data, size, size);
         if( bytes_read < size )
         {
-            free(compressed_data);
+            RSCACHE_FREE(compressed_data);
             return false;
         }
 
-        char* decompressed_data = malloc((size_t)uncompressed_length);
+        char* decompressed_data = RSCACHE_MALLOC((size_t)uncompressed_length);
         if( !decompressed_data )
         {
-            free(compressed_data);
+            RSCACHE_FREE(compressed_data);
             return false;
         }
 
@@ -265,17 +266,17 @@ RSCache_ArchiveDecryptDecompress(
         if( RSCache_CompressionGzipDecompress(
                 (uint8_t*)decompressed_data, uncompressed_length, compressed_data, size, 0) == 0 )
         {
-            free(decompressed_data);
-            free(compressed_data);
+            RSCACHE_FREE(decompressed_data);
+            RSCACHE_FREE(compressed_data);
             return false;
         }
 
         archive_read_container_revision(&buffer, archive);
 
-        free(archive->data);
+        RSCACHE_FREE(archive->data);
         archive->data = decompressed_data;
         archive->data_size = uncompressed_length;
-        free(compressed_data);
+        RSCACHE_FREE(compressed_data);
         break;
     }
     default:
@@ -332,14 +333,14 @@ RSCache_ArchiveEncode(
     case RSCACHE_ARCHIVE_COMPRESSION_BZIP2:
     {
         uint32_t bound = RSCache_CompressionBzipCompressBound((int)data_size);
-        payload = malloc(bound ? bound : 1);
+        payload = RSCACHE_MALLOC(bound ? bound : 1);
         if( !payload )
             return 0;
         payload_size =
             RSCache_CompressionBzipCompress(payload, (int)bound, data, (int)data_size);
         if( payload_size == 0 )
         {
-            free(payload);
+            RSCACHE_FREE(payload);
             return 0;
         }
         break;
@@ -348,14 +349,14 @@ RSCache_ArchiveEncode(
     case RSCACHE_ARCHIVE_COMPRESSION_GZIP:
     {
         uint32_t bound = RSCache_CompressionGzipCompressBound((int)data_size);
-        payload = malloc(bound ? bound : 1);
+        payload = RSCACHE_MALLOC(bound ? bound : 1);
         if( !payload )
             return 0;
         payload_size =
             RSCache_CompressionGzipCompress(payload, (int)bound, data, (int)data_size);
         if( payload_size == 0 )
         {
-            free(payload);
+            RSCACHE_FREE(payload);
             return 0;
         }
         break;
@@ -372,7 +373,7 @@ RSCache_ArchiveEncode(
     uint32_t needed = 1u + 4u + (uncompressed_field ? 4u : 0u) + payload_size;
     if( out_capacity < needed )
     {
-        free(payload);
+        RSCACHE_FREE(payload);
         return 0;
     }
 
@@ -389,7 +390,7 @@ RSCache_ArchiveEncode(
         p4(&buffer, (int)data_size);
 
     pbuf(&buffer, payload ? payload : data, (int)payload_size);
-    free(payload);
+    RSCACHE_FREE(payload);
 
     if( xtea_key_nullable )
     {
@@ -446,8 +447,8 @@ RSCache_ArchiveDecompressDat(
         uint32_t uncompressed_length = 0;
         for( ;; )
         {
-            free(out);
-            out = malloc(capacity ? capacity : 1);
+            RSCACHE_FREE(out);
+            out = RSCACHE_MALLOC(capacity ? capacity : 1);
             if( !out )
                 return false;
             uncompressed_length = RSCache_CompressionGzipDecompress(
@@ -460,7 +461,7 @@ RSCache_ArchiveDecompressDat(
                 break;
             if( capacity >= (1u << 26) )
             {
-                free(out);
+                RSCACHE_FREE(out);
                 return false;
             }
             capacity *= 2;
@@ -479,12 +480,12 @@ RSCache_ArchiveDecompressDat(
          * never capacity, so nothing above here can tell the difference. */
         if( uncompressed_length < capacity )
         {
-            uint8_t* shrunk = realloc(out, uncompressed_length ? uncompressed_length : 1);
+            uint8_t* shrunk = RSCACHE_REALLOC(out, uncompressed_length ? uncompressed_length : 1);
             assert(shrunk);
             out = shrunk;
         }
 
-        free(archive->data);
+        RSCACHE_FREE(archive->data);
         archive->data = out;
         archive->data_size = (int)uncompressed_length;
         return true;

@@ -112,6 +112,7 @@ struct ToriPlatformAndroid_Renderer_GLES3;
 #include "toridraw_eip_sample.h"
 #include "toridraw_frame_ab.h"
 #include "toridraw_math.h"
+#include "toridraw_model.h"
 #include "ui/torirs_chrome_inkwell.h"
 #include "ui/uitree_hover.h"
 #include "ui/uitree_layout.h"
@@ -119,6 +120,8 @@ struct ToriPlatformAndroid_Renderer_GLES3;
 
 #include <assert.h>
 #include <bmp.h>
+#include "mem/torirs_mem.h"
+#include "mem/torirs_mem_libs.h"
 #include <rscache.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -2739,6 +2742,16 @@ main_launch_init(char const* argv0, char const* manifest_path)
                   reason ? "; it answers unsupported: " : "", reason ? reason : "");
 }
 #endif /* MAIN_LAUNCH_SERVICE */
+
+/** Every exit from main goes through here: the app frees what it owns, then
+ *  ToriMem ends every group still live and reports what was not freed. */
+static void
+main_shutdown(struct App* a)
+{
+    App_Shutdown(a);
+    ToriDraw_NormalsPoolDrain();
+    ToriMem_Shutdown();
+}
 
 /** One iteration of the frame loop. Returns 0 when the client should stop. */
 static int
@@ -6059,7 +6072,7 @@ frame_loop_tick(void)
     /* Close the final CPU calibration interval before capture/destruction. */
     TorirsPerf_Shutdown();
     frame_loop_teardown();
-    App_Shutdown(&app);
+    main_shutdown(&app);
 }
 #endif
 
@@ -6855,6 +6868,24 @@ main(
             setvbuf(stderr, NULL, _IOFBF, 65536);
     }
 
+    /* Before anything allocates: the arena mode and site tracking fix every
+     * block's layout (src/mem/torirs_mem.h). */
+    ToriMem_Init();
+    /* Every library this client links allocates from its own lib:* group.
+     * rscache and toridraw trade memory with the host and with each other:
+     * host code that frees their output names their group, and decoded
+     * arrays the cache keeps are adopted into ASSET where they are taken
+     * (src/mem/torirs_mem_libs.h). Install all of them or none. */
+    ToriMem_InstallRSCache();
+    ToriMem_InstallToriDraw();
+    ToriMem_InstallHMap();
+    ToriMem_InstallRSProt();
+    ToriMem_InstallBZip();
+    ToriMem_InstallTRSPK();
+#ifdef TORIRS_EMBED_SERVER
+    ToriMem_InstallRSAreaBuf();
+#endif
+
     ToriRS_ExecutorConfig_Init(&executor_cfg);
 
 #if MAIN_LAUNCH_SERVICE
@@ -7132,7 +7163,7 @@ main(
 #if !defined(TORIRS_PLATFORM_WEB)
     if( executor_attach_and_prime_js5() != 0 )
     {
-        App_Shutdown(&app);
+        main_shutdown(&app);
         return 1;
     }
 #endif
@@ -7224,7 +7255,7 @@ main(
 
     if( getenv("TORIRS_PREVIEW_BMP") && app.preview_state_failed )
     {
-        App_Shutdown(&app);
+        main_shutdown(&app);
         return 1;
     }
 
@@ -7844,7 +7875,7 @@ main(
         if( !path[0] )
         {
             TORIRS_LOG("TORIRS_PREVIEW_BMP requires a non-empty path\n");
-            App_Shutdown(&app);
+            main_shutdown(&app);
             return 1;
         }
         pixels = calloc((size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H, sizeof(int));
@@ -7863,7 +7894,7 @@ main(
             {
                 TORIRS_ERR("failed to write native preview tree %s\n", tree_path);
                 free(pixels);
-                App_Shutdown(&app);
+                main_shutdown(&app);
                 return 1;
             }
         }
@@ -7873,7 +7904,7 @@ main(
         if( !probe )
         {
             TORIRS_ERR("failed to write native preview %s\n", path);
-            App_Shutdown(&app);
+            main_shutdown(&app);
             return 1;
         }
         fclose(probe);
@@ -7883,7 +7914,7 @@ main(
             UITREE_LAYOUT_ROOT_W,
             UITREE_LAYOUT_ROOT_H,
             app.emit.count);
-        App_Shutdown(&app);
+        main_shutdown(&app);
         return 0;
     }
 
@@ -8098,7 +8129,7 @@ main(
         bmp_write_file("build/world.bmp", pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
         TORIRS_LOG("wrote build/world.bmp (%d emit cmds)\n", app.emit.count);
         free(pixels);
-        App_Shutdown(&app);
+        main_shutdown(&app);
         return 0;
     }
 
@@ -8123,7 +8154,7 @@ main(
         if( !platform )
         {
             TORIRS_ERR("window platform alloc failed\n");
-            App_Shutdown(&app);
+            main_shutdown(&app);
             return 1;
         }
         /* The runner camera split (struct App_ViewSplit): a script gets a view
@@ -8214,7 +8245,7 @@ main(
         {
             TORIRS_ERR("window init failed\n");
             PlatformWindow_Free(platform);
-            App_Shutdown(&app);
+            main_shutdown(&app);
             return 1;
         }
         if( !PlatformWindow_SetPresent(platform, renderer_present(renderer_launch)) ||
@@ -8226,7 +8257,7 @@ main(
             if( renderer_present(renderer_launch) != PLATFORM_PRESENT_NATIVE )
             {
                 PlatformWindow_Free(platform);
-                App_Shutdown(&app);
+                main_shutdown(&app);
                 return 1;
             }
             TORIRS_ERR("renderer: falling back to GDI Soft3D\n");
@@ -8474,7 +8505,7 @@ main(
             {
                 TORIRS_ERR("cmdbus: cannot replay %s\n", getenv("TORIRS_CMD_REPLAY"));
                 PlatformWindow_Free(platform);
-                App_Shutdown(&app);
+                main_shutdown(&app);
                 return 1;
             }
         }
@@ -8719,7 +8750,7 @@ main(
 #endif
     }
 
-    App_Shutdown(&app);
+    main_shutdown(&app);
     TorirsPerf_Shutdown();
     /*
      * The last flush. stderr is fully buffered (see the setvbuf above) and the
