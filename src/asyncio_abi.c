@@ -28,6 +28,9 @@
  */
 
 #include "asyncio.h"
+#include "mem/torirs_mem.h"
+
+#include <assert.h>
 
 #include <stddef.h>
 #include <stdint.h>
@@ -132,6 +135,17 @@ ToriRS_IO_DescribeAbi(int32_t* out)
         (int32_t)offsetof(struct IOItem_ReferenceTable, table_id);
     out[TORIRS_IO_ABI_FILE_PATH_OFF] = (int32_t)offsetof(struct IOItem_File, path);
     out[TORIRS_IO_ABI_MAX_PATH] = TORIRS_IOITEM_MAX_PATH;
+}
+
+/** A buffer for the executor to answer an item's bytes into. NET, because
+ *  that is the group ToriRS_IO_ClearItem frees an item's plain payload from
+ *  (src/mem): an emscripten _malloc placed in item->data is a libc block the
+ *  clear cannot free. Never NULL (an out-of-memory aborts). */
+EMSCRIPTEN_KEEPALIVE void*
+ToriRS_IO_AllocPayload(int size)
+{
+    assert(size >= 0);
+    return ToriMem_Alloc(ToriMem_Net(), size > 0 ? (size_t)size : 1u);
 }
 
 /** How many int32 slots ToriRS_IO_DescribeAbi writes. Asked first, so the

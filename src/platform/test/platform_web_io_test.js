@@ -52,6 +52,8 @@ const ctx = {
   HEAPU8, HEAP32,
   _malloc(n) { const p = brk; brk += (n + 7) & ~7; allocations.add(p); return p; },
   _free(p) { allocations.delete(p); },
+  /* The item payload allocator (asyncio_abi.c): the same bump heap here. */
+  _ToriRS_IO_AllocPayload(n) { const p = brk; brk += ((n || 1) + 7) & ~7; allocations.add(p); return p; },
   /* The cache format's C API. Stubbed to record its calls: what is being
    * tested here is that the executor uses it correctly, not that rscache
    * decodes (which its own C tests cover). */

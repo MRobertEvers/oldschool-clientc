@@ -252,7 +252,8 @@ mergeInto(LibraryManager.library, {
      *
      *   null            the read failed -- error_code -1 and an empty payload,
      *                   the same answer the desktop gives for an absent file
-     *   a Uint8Array    bytes, copied into a fresh _malloc the C side then owns
+     *   a Uint8Array    bytes, copied into a fresh ToriRS_IO_AllocPayload
+     *                   block (the client's NET group) the C side then owns
      *   {ptr, size}     something already IN wasm memory that C allocated -- a
      *                   decoded archive or reference table. Stored as-is: it is
      *                   a pointer to a struct, not a buffer to copy, and its
@@ -284,7 +285,9 @@ mergeInto(LibraryManager.library, {
         HEAP32[(item + a.errorOff) >> 2] = 0;
         return;
       }
-      const ptr = _malloc(result.length ? result.length : 1);
+      /* The payload is the client's NET block (ToriRS_IO_AllocPayload), not
+       * a _malloc: ToriRS_IO_ClearItem frees it from that group. */
+      const ptr = _ToriRS_IO_AllocPayload(result.length);
       if (!ptr) {
         /* Out of wasm memory is not a read failure and must not be reported as
          * one -- a caller told "no such file" would carry on with a plausible
@@ -519,6 +522,73 @@ mergeInto(LibraryManager.library, {
     },
 
     /*
+     * Read one dat2 or dat1 group and decode it: the CACHE kind's work, run
+     * by at most one request per dat2 group at a time (see the CACHE branch).
+     */
+    cacheReadDecode: async function (inst, req) {
+      /*
+       * Two awaits, and the order matters only in that both must finish
+       * before the decode: the group's bytes, and the key the cache profile
+       * says this table needs (null for everything but encrypted maps -- the
+       * host decides, because that is a property of the profile and not of
+       * these bytes).
+       */
+      const [bytes, xtea] = await Promise.all([
+        inst.host.readArchive(req.table, req.archive, req.flags),
+        inst.host.xteaKey(req.table, req.archive),
+      ]);
+      if (!bytes) { return null; }
+      if (!this.isDat1(req.flags)) {
+        this.residentKeep(inst, `${req.flags}|${req.table}|${req.archive}`, bytes);
+      }
+
+      /*
+       * WHICH DECODER, decided here, from the flags the item carries.
+       *
+       * The two containers are not variants of one format: a dat2 group is a
+       * compression byte and two lengths, a dat1 archive is a gzip stream or
+       * a jag file, and each has its own decoder in rscache. Handing dat1
+       * bytes to the dat2 one does not fail cleanly -- it reads the first
+       * byte as a compression method and reports "Unknown compression
+       * method: 31", a number that appears nowhere in the cache and names
+       * nothing about what actually went wrong.
+       *
+       * The flags decide it, not the table id: a table number means
+       * different things in the two container spaces, while the flags are
+       * what the client already sets to say which space it is asking in.
+       */
+      if (this.isDat1(req.flags)) {
+        const dat1 = this.decodeDat1Archive(bytes, req.table, req.archive);
+        if (!dat1) { return null; }
+        return { ptr: dat1, size: _ToriRS_WebApi_Dat1ArchiveStructSize() };
+      }
+
+      /*
+       * Decoded once, then handed out retained: see decodedArchive. A
+       * config group holds thousands of records, and a world load reads
+       * one record per loc it places -- 664 reads of the 600 KB bzip2 loc
+       * group in one login, measured -- so decoding per read was a
+       * bzip2 pass per record. The desktop executor has had this LRU
+       * since it was measured there.
+       */
+      const cached = this.decodedArchive(inst, req.flags, req.table, req.archive);
+      if (cached) { return { ptr: cached, size: _ToriRS_WebApi_ArchiveStructSize() }; }
+
+      const ptr = this.decodeArchive(bytes, req.table, req.archive, xtea);
+      if (!ptr) { return null; }
+
+      /* Metadata is a separate fetch, and a group whose table has no entry
+       * for it is a missing archive rather than a failure -- the same
+       * judgement the desktop makes. The executor's own table, never the
+       * client's: see refTableForMetadata. */
+      const table = await this.refTableForMetadata(inst, req.table);
+      if (table) { _ToriRS_WebApi_ArchiveApplyMetadata(ptr, table); }
+
+      this.decodedArchiveKeep(inst, req.flags, req.table, req.archive, ptr);
+      return { ptr: ptr, size: _ToriRS_WebApi_ArchiveStructSize() };
+    },
+
+    /*
      * Answer a dat2 group from memory, or say it cannot be.
      *
      * Everything here is synchronous: the decoded-archive LRU, the resident
@@ -560,9 +630,19 @@ mergeInto(LibraryManager.library, {
 
     decodedArchiveKeep: function (inst, flags, table, archive, ptr) {
       const bytes = _ToriRS_WebApi_ArchiveDataSize(ptr);
+      const key = `${flags}|${table}|${archive}`;
+      /* A second decode of a group already kept replaces it, and the LRU's
+       * reference to the old one goes with it -- Map.set alone dropped that
+       * reference, and the old archive could never be freed. */
+      const old = inst.decoded.get(key);
+      if (old) {
+        inst.decoded.delete(key);
+        inst.decodedBytes -= old.bytes;
+        _ToriRS_WebApi_ArchiveFree(old.ptr);
+      }
       /* The consumer gets its own reference now; the LRU keeps the creator's. */
       _ToriRS_WebApi_ArchiveRetain(ptr);
-      inst.decoded.set(`${flags}|${table}|${archive}`, { ptr: ptr, bytes: bytes });
+      inst.decoded.set(key, { ptr: ptr, bytes: bytes });
       inst.decodedBytes += bytes;
       for (const [k, v] of inst.decoded) {
         if (inst.decodedBytes <= this.DECODED_BUDGET_BYTES || inst.decoded.size <= 1) { break; }
@@ -670,66 +750,42 @@ mergeInto(LibraryManager.library, {
          * the same answer the desktop gives (platform_x_io.c returns the item
          * failed rather than reading table -1). */
         if (req.table < 0) { return null; }
-        /*
-         * Two awaits, and the order matters only in that both must finish
-         * before the decode: the group's bytes, and the key the cache profile
-         * says this table needs (null for everything but encrypted maps -- the
-         * host decides, because that is a property of the profile and not of
-         * these bytes).
-         */
-        const [bytes, xtea] = await Promise.all([
-          inst.host.readArchive(req.table, req.archive, req.flags),
-          inst.host.xteaKey(req.table, req.archive),
-        ]);
-        if (!bytes) { return null; }
-        if (!this.isDat1(req.flags)) {
-          this.residentKeep(inst, `${req.flags}|${req.table}|${req.archive}`, bytes);
-        }
 
         /*
-         * WHICH DECODER, decided here, from the flags the item carries.
+         * ONE decode per group at a time.
          *
-         * The two containers are not variants of one format: a dat2 group is a
-         * compression byte and two lengths, a dat1 archive is a gzip stream or
-         * a jag file, and each has its own decoder in rscache. Handing dat1
-         * bytes to the dat2 one does not fail cleanly -- it reads the first
-         * byte as a compression method and reports "Unknown compression
-         * method: 31", a number that appears nowhere in the cache and names
-         * nothing about what actually went wrong.
-         *
-         * The flags decide it, not the table id: a table number means
-         * different things in the two container spaces, while the flags are
-         * what the client already sets to say which space it is asking in.
+         * A world load asks for the same config group once per record it
+         * needs, many at once. Each request used to miss the LRU, read and
+         * decode its own copy, and then -- the metadata await below lets the
+         * others run -- all of them inserted under the same key: Map.set
+         * dropped the LRU's reference to every copy but the last, so those
+         * archives could never be freed. One osrs239 load decoded the 11
+         * config groups 438 times and grew the wasm heap to 2.2 GB
+         * (2026-10-14). Now a request that finds the group in flight waits for
+         * that decode and takes it from the LRU.
          */
-        if (this.isDat1(req.flags)) {
-          const dat1 = this.decodeDat1Archive(bytes, req.table, req.archive);
-          if (!dat1) { return null; }
-          return { ptr: dat1, size: _ToriRS_WebApi_Dat1ArchiveStructSize() };
+        const dat2 = !this.isDat1(req.flags);
+        const key = `${req.flags}|${req.table}|${req.archive}`;
+        if (dat2) {
+          const hit = this.decodedArchive(inst, req.flags, req.table, req.archive);
+          if (hit) { return { ptr: hit, size: _ToriRS_WebApi_ArchiveStructSize() }; }
+          const pending = inst.decoding.get(key);
+          if (pending) {
+            await pending;
+            const shared = this.decodedArchive(inst, req.flags, req.table, req.archive);
+            if (shared) { return { ptr: shared, size: _ToriRS_WebApi_ArchiveStructSize() }; }
+            /* It failed, or was evicted already: decode our own below. */
+          }
         }
-
-        /*
-         * Decoded once, then handed out retained: see decodedArchive. A
-         * config group holds thousands of records, and a world load reads
-         * one record per loc it places -- 664 reads of the 600 KB bzip2 loc
-         * group in one login, measured -- so decoding per read was a
-         * bzip2 pass per record. The desktop executor has had this LRU
-         * since it was measured there.
-         */
-        const cached = this.decodedArchive(inst, req.flags, req.table, req.archive);
-        if (cached) { return { ptr: cached, size: _ToriRS_WebApi_ArchiveStructSize() }; }
-
-        const ptr = this.decodeArchive(bytes, req.table, req.archive, xtea);
-        if (!ptr) { return null; }
-
-        /* Metadata is a separate fetch, and a group whose table has no entry
-         * for it is a missing archive rather than a failure -- the same
-         * judgement the desktop makes. The executor's own table, never the
-         * client's: see refTableForMetadata. */
-        const table = await this.refTableForMetadata(inst, req.table);
-        if (table) { _ToriRS_WebApi_ArchiveApplyMetadata(ptr, table); }
-
-        this.decodedArchiveKeep(inst, req.flags, req.table, req.archive, ptr);
-        return { ptr: ptr, size: _ToriRS_WebApi_ArchiveStructSize() };
+        let settle = null;
+        if (dat2 && !inst.decoding.has(key)) {
+          inst.decoding.set(key, new Promise(resolve => { settle = resolve; }));
+        }
+        try {
+          return await this.cacheReadDecode(inst, req);
+        } finally {
+          if (settle) { inst.decoding.delete(key); settle(); }
+        }
       }
 
       if (req.kind === K.CACHE_PREFETCH) {
@@ -878,6 +934,9 @@ mergeInto(LibraryManager.library, {
       refTablesReady: new Map(),
       decoded: new Map(),
       decodedBytes: 0,
+      /* key -> Promise for a dat2 group being read and decoded right now (see
+       * the CACHE branch): concurrent requests share the one decode. */
+      decoding: new Map(),
       decodedHits: 0,
       /* Raw containers by "flags|table|archive", most recent last. */
       resident: new Map(),
