@@ -6,3 +6,7 @@
 	path = OSRS-Content
 	url = https://github.com/MRobertEvers/OSRS-Content.git
 	branch = main
+[submodule "assets/pokesprite"]
+	path = assets/pokesprite
+	url = https://github.com/MRobertEvers/pokesprite-assets.git
+	branch = main
