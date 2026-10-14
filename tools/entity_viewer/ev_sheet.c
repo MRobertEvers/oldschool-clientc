@@ -476,6 +476,7 @@ usage(const char* prog)
         "  --npc <id>       render an npc\n"
         "  --player         render a player instead\n"
         "  --loc <id>       render a loc (scenery) instead, in --shape\n"
+        "  --obj <id>       render an obj's ground model (its inventory model)\n"
         "  --shape <s>      the loc shape to build (10 centrepiece, 22 ground decor,\n"
         "                   ...); -1 = the record's first [-1]\n"
         "  --gender <0|1>   0 male, 1 female [0]\n"
@@ -756,6 +757,7 @@ main(
     int as_player = 0;
     int loc_id = -1;
     int loc_shape = -1;
+    int obj_id = -1;
     int seq_id = -1;
     int fit = 160;
     int side = 512;
@@ -786,6 +788,8 @@ main(
             rev_name = argv[++i];
         else if( strcmp(argv[i], "--npc") == 0 && i + 1 < argc )
             npc_id = atoi(argv[++i]);
+        else if( strcmp(argv[i], "--obj") == 0 && i + 1 < argc )
+            obj_id = atoi(argv[++i]);
         else if( strcmp(argv[i], "--loc") == 0 && i + 1 < argc )
             loc_id = atoi(argv[++i]);
         else if( strcmp(argv[i], "--shape") == 0 && i + 1 < argc )
@@ -875,7 +879,8 @@ main(
         }
     }
 
-    if( !rev_name || !cache_dir || !out_dir || (npc_id < 0 && !as_player && loc_id < 0) )
+    if( !rev_name || !cache_dir || !out_dir ||
+        (npc_id < 0 && !as_player && loc_id < 0 && obj_id < 0) )
     {
         usage(argv[0]);
         return 2;
@@ -1007,6 +1012,10 @@ main(
     else if( loc_id >= 0 )
     {
         model = ev_build_loc_model(&cache, loc_id, loc_shape);
+    }
+    else if( obj_id >= 0 )
+    {
+        model = ev_build_obj_model(&cache, obj_id, EV_OBJ_MODEL_ITEM);
     }
     else
     {

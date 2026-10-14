@@ -42,6 +42,27 @@ def ground_px():
     return SIDE / 2.0, SIDE / 2.0 + lift * math.cos(a) * 512.0 / (ZOOM + lift * math.sin(a))
 
 
+def generate_obj(obj, work, store_root):
+    """A ground item: its inventory model, one view, at world scale -> obj/<id>."""
+    from store import Store
+    raw = os.path.join(work, "obj_%d" % obj)
+    d = os.path.join(raw, "s-1_r0")
+    if not os.path.exists(os.path.join(d, "faces.txt")):
+        os.makedirs(d, exist_ok=True)
+        ps.run([ps.EV_SHEET, "--rev", "osrs239", ps.CACHE, "--obj", str(obj), "--zoom", str(ZOOM),
+                "--side", str(SIDE), "--fit", "1", "--frame-height", str(FRAME_HEIGHT), "--full",
+                "--pitch", str(PITCH), "--materials", "--out", d])
+    frames, boxes, _ncol = ps.stylise(raw, [("s-1", -1)], [("r0", 0)], F, ZOOM, SIDE, 16, None)
+    b = boxes["s-1"]
+    gx, gy = ground_px()
+    origin = ((SIDE // 2 - b[0]) // F, (SIDE // 2 - b[1]) // F)
+    ground = (int(round((gx - b[0]) / F)), int(round((gy - b[1]) / F)))
+    st = Store(store_root)
+    st.write_rgba("obj/%d" % obj, [frames[("s-1", "r0")][0]], frames[("s-1", "r0")][1], origin,
+                  ground)
+    st.close()
+
+
 def render(loc, shape, seq, raw):
     label = "s%d" % seq
     for rname, yaw in ROTATIONS:

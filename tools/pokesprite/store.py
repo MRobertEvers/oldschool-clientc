@@ -37,7 +37,9 @@ class Store:
     def __init__(self, root):
         self.root = root
         os.makedirs(os.path.join(root, "sheets"), exist_ok=True)
-        self.db = sqlite3.connect(os.path.join(root, "index.db"))
+        # Several generator jobs may write one store at once: wait for the
+        # lock rather than fail on it.
+        self.db = sqlite3.connect(os.path.join(root, "index.db"), timeout=120)
         self.db.execute("CREATE TABLE IF NOT EXISTS sheet (key TEXT PRIMARY KEY, path TEXT NOT NULL,"
                         " kind TEXT NOT NULL, bytes INTEGER NOT NULL, generator TEXT NOT NULL)")
 
@@ -68,6 +70,14 @@ class Store:
     def write_rgba(self, key, rows, durations, origin, ground):
         """rows: one list of RGBA frames (PIL images or HxWx4 arrays) per facing."""
         self._write(key, "rgba", encode(KIND_RGBA, rows, durations, origin, ground, []))
+
+    def write_empty(self, key):
+        """An answer of "nothing to draw": a 1x1 transparent cell. For a subject
+        with no visible faces (a minimap-icon loc, an invisible npc), so the
+        client stops asking and the generator stops retrying."""
+        import numpy as np
+        blank = np.zeros((1, 1, 4), np.uint8)
+        self._write(key, "empty", encode(KIND_RGBA, [[blank]], [20], (0, 0), (0, 0), []))
 
     def write_layer(self, key, rows, durations, table):
         """rows: per facing, encoded layer frames (R material, G band, B depth,

@@ -177,7 +177,13 @@ def discover(npc_id):
     name = npcs[npc_id]
     rec = npc_record(name)
     combat = npc_combat(name)
+    # Everything the client can ask for: the movement slot plays the walk for
+    # the direction of travel relative to facing, and the turn-on-the-spot
+    # sequences while turning.
     want = [("idle", rec.get("readyanim")), ("walk", rec.get("walkanim")),
+            ("walk_b", rec.get("walkanim_b")), ("walk_l", rec.get("walkanim_l")),
+            ("walk_r", rec.get("walkanim_r")), ("turn_l", rec.get("idleleftanim")),
+            ("turn_r", rec.get("idlerightanim")),
             ("run", rec.get("runanim")), ("attack", combat.get("attack_anim")),
             ("defend", combat.get("defend_anim")), ("death", combat.get("death_anim"))]
     anims, used = [], set()
@@ -575,6 +581,10 @@ def stylise(raw, anims, facings, f, zoom, side, height, chibi):
               % (k, 100 * share[g], steps[k], "" if steps[k] == 1 else "s",
                  *[int(v) for v in base[g]], "  (feature)" if feature[k] else ""))
 
+    # Nothing on screen in any frame: an invisible subject (OSRS has locs and
+    # npcs that are only there to be clicked). Say so; there is no sprite.
+    if K == 1:
+        raise ValueError("nothing visible in any frame")
     # The sprite's one outline: the dominant material's, which is what most of
     # the silhouette borders.
     line_rgb = outline[1].copy()
@@ -725,14 +735,15 @@ def main():
                 reach = max(reach, abs(xs - side0 // 2).max(), abs(ys - side0 // 2).max())
         if P["zoom"] and not a.height:
             zoom = z0
-            height = max(1, hmax // f)
+            height = int(max(1, hmax // f))
             # Room for the probe's reach, and for an attack that reaches
             # further than the idle pose did.
-            side = min(2048, max(600, reach * 3))
+            side = int(min(2048, max(600, reach * 3)))
         else:
             zoom = int(z0 * hmax / (height * f))
             side = min(2048, max(600, height * f * 5))
-        json.dump({"zoom": zoom, "side": side, "height": height}, open(cal_path, "w"))
+        json.dump({"zoom": int(zoom), "side": int(side), "height": int(height)},
+                  open(cal_path, "w"))
         for label, seq in anims:
             for fname, yaw in FACINGS:
                 d = os.path.join(raw, "%s_%s" % (label, fname))
@@ -775,7 +786,11 @@ def main():
         meta["anims"].append({"name": label, "seq": seq, "cell": [cw, ch],
                               "origin": [ax, ay], "rows": rows})
     idle = frames[(anims[0][0], "down")][0]
-    feet = max(im.getchannel("A").getbbox()[3] for im in idle)
+    # Where it stands: the lowest drawn row of its idle pose. An idle that
+    # draws nothing (an invisible npc) stands at its origin.
+    boxes_seen = [im.getchannel("A").getbbox() for im in idle]
+    boxes_seen = [b for b in boxes_seen if b]
+    feet = max(b[3] for b in boxes_seen) if boxes_seen else meta["anims"][0]["origin"][1] + 1
     ground_dy = int(feet) - 1 - meta["anims"][0]["origin"][1]
     for an in meta["anims"]:
         an["ground"] = [an["origin"][0], an["origin"][1] + ground_dy]
@@ -797,7 +812,7 @@ def main():
     gifdir = os.path.join(a.out, "gif")
     shutil.rmtree(gifdir, ignore_errors=True)
     os.makedirs(gifdir)
-    idle_w = max(im.getchannel("A").getbbox()[2] - im.getchannel("A").getbbox()[0] for im in idle)
+    idle_w = max([b[2] - b[0] for b in (im.getchannel("A").getbbox() for im in idle) if b] or [16])
     rad = idle_w * 0.42
 
     def on_grass(im, gx, gy):

@@ -8,6 +8,7 @@
 #include "ps_compose.h"
 #include "render/torirs_pick.h"
 #include "world/entity_npc.h"
+#include "world/entity_objstack.h"
 #include "world/entity_player.h"
 #include "world/entity_scenery.h"
 #include "world/world.h"
@@ -82,9 +83,10 @@ struct PS_World
 enum ActorKind
 {
     ACTOR_DECOR = 0, /* ground decor first at equal depth: a flower never covers a foot */
-    ACTOR_LOC = 1,
-    ACTOR_NPC = 2,
-    ACTOR_PLAYER = 3,
+    ACTOR_ITEM = 1,  /* a ground item, on the decor, under anyone standing there */
+    ACTOR_LOC = 2,
+    ACTOR_NPC = 3,
+    ACTOR_PLAYER = 4,
 };
 
 struct Actor
@@ -738,6 +740,30 @@ draw_loc(
               s->head.cell_h, gx, gy, s->head.ground_x, s->head.ground_y, cx0, cy0, cx1, cy1);
 }
 
+static void
+draw_item(
+    int* bb,
+    struct PS_World* w,
+    struct WorldEntity_ObjStack* st,
+    int gx,
+    int gy,
+    int* px,
+    int stride,
+    int cx0,
+    int cy0,
+    int cx1,
+    int cy1)
+{
+    char key[64];
+    enum PS_FetchState fs;
+    snprintf(key, sizeof(key), "obj/%d", st->obj_id);
+    const struct PS_Sheet* s = PS_FetchGet(w->fetch, key, &fs);
+    if( !s )
+        return;
+    blit_cell(bb, px, stride, PS_SheetCell(s, 0, 0), s->width, s->head.cell_w, s->head.cell_h,
+              gx, gy, s->head.ground_x, s->head.ground_y, cx0, cy0, cx1, cy1);
+}
+
 static int
 by_screen_y(
     const void* a,
@@ -831,6 +857,22 @@ PS_WorldDraw(
         actors[n].is_player = sc->shape == 22 ? ACTOR_DECOR : ACTOR_LOC;
         actors[n++].index = i;
     }
+    for( int i = World_EntityPoolHead(&world->entities.obj_stack); i >= 0 && n < MAX_ACTORS;
+         i = World_EntityPoolNext(&world->entities.obj_stack, i) )
+    {
+        struct WorldEntity_ObjStack* st =
+            (struct WorldEntity_ObjStack*)World_EntityPoolAt(&world->entities.obj_stack, i);
+        if( st->grid_position.level != level )
+            continue;
+        int sx = cx + (st->grid_position.x * 128 + 64 - cam_x) * PS_TILE_PX / 128;
+        int sy = cy - (st->grid_position.z * 128 + 64 - cam_z) * PS_TILE_PX / 128;
+        if( sx < x0 - 64 || sx > x1 + 64 || sy < y0 - 32 || sy > y1 + 64 )
+            continue;
+        actors[n].screen_x = sx;
+        actors[n].screen_y = sy;
+        actors[n].is_player = ACTOR_ITEM;
+        actors[n++].index = i;
+    }
     for( int i = World_EntityPoolHead(&world->entities.player); i >= 0 && n < MAX_ACTORS;
          i = World_EntityPoolNext(&world->entities.player, i) )
     {
@@ -853,7 +895,14 @@ PS_WorldDraw(
         int bb[4] = { 1 << 30, 1 << 30, -(1 << 30), -(1 << 30) };
         int element_id;
         const struct WorldEntityFacet_Combat* combat = NULL;
-        if( a->is_player == ACTOR_LOC || a->is_player == ACTOR_DECOR )
+        if( a->is_player == ACTOR_ITEM )
+        {
+            struct WorldEntity_ObjStack* st = (struct WorldEntity_ObjStack*)World_EntityPoolAt(
+                &world->entities.obj_stack, a->index);
+            draw_item(bb, w, st, a->screen_x, a->screen_y, px, stride, x0, y0, x1, y1);
+            element_id = st->element_id;
+        }
+        else if( a->is_player == ACTOR_LOC || a->is_player == ACTOR_DECOR )
         {
             struct WorldEntity_Scenery* sc =
                 (struct WorldEntity_Scenery*)World_EntityPoolAt(&world->entities.scenery, a->index);
