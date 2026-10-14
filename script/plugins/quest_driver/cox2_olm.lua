@@ -1881,12 +1881,12 @@ function CO.prayers(S, F, intents, res)
 end
 
 -- THE ROOM'S OWN DRINKS (the supplies drink Xeric's aid and revitalisation):
---   overload (+)       five minutes: re-boosts every combat stat each 25
---                      ticks for 500, and at + 525 ends and gives back the
---                      50 it cost (five hits of 10 as it goes down). Drunk
---                      again THAT tick -- overloaded the whole fight, and a
---                      drink while it runs restarts the timer and loses the
---                      50 -- at 85+ hp (the supplies top up to it), no auto in flight
+--   overload (+)       five minutes: boosts every combat stat the tick
+--                      after the sip and each 25 ticks after, and at + 501
+--                      ends and gives back the 50 it cost (five hits of 10
+--                      from + 1 as it goes down). Drunk again THAT tick --
+--                      overloaded the whole fight; a sip while it runs is
+--                      refused -- at 85+ hp (the supplies top up to it), no auto in flight
 --   revitalisation (+) a fighting stat under its base (Xeric's aid takes 9%
 --                      + 2 a sip, deep burn 2 a hit; the overload's re-boost
 --                      only ADDS its boost, min(level + d, base + d)): at once
@@ -1973,7 +1973,7 @@ function CO.restore_due(S, F)
     if deep then return true end
     if not CO.drained(S, F) then return false end
     if o.ovl_until == nil or o.ovl_until < F.tick then return true end
-    local drunk = o.ovl_until - 525
+    local drunk = o.ovl_until - 500   -- the first boost, the tick after the sip
     local next_boost = drunk + 25 * ((F.tick - drunk) // 25 + 1)
     return next_boost - F.tick > 8
 end
@@ -2015,28 +2015,29 @@ end
 
 function CO.drinks(S, F, intents)
     local o, ids = S.o, S.ids
-    for _, d in ipairs({ { "overloads", "ovl_until", 525 }, { "enhances", "penh_until", 458 },
+    for _, d in ipairs({ { "overloads", "ovl_until", 501 }, { "enhances", "penh_until", 458 },
                          { "staminas", "stam_until", 200 } }) do
         local n = CO.doses(S, ids[d[1]])
         local key = d[1] .. "_n"
         if o[key] ~= nil and n < o[key] then
             o[d[2]] = F.tick + d[3]
-            -- THE OVERLOAD'S COST (cox_potion.rs2 cox_overload_damage): five
-            -- hits of 10 a second apart from the drink + 1 -- the first is in
-            -- by the tick its dose is seen gone (ol1k: seen 70, hits 70..78);
-            -- the 50 comes back as it ends (+525)
+            -- THE OVERLOAD'S COST (cox_potion.rs2 overload_start_t3 /
+            -- cox_overload_damage): five hits of 10 two ticks apart, the
+            -- first the tick after the sip -- the tick after its dose is seen
+            -- gone (ol1k before the delay: seen 70, hits 70..78; now 71..79);
+            -- the 50 comes back as it ends (+501)
             if d[1] == "overloads" then
                 o.ovl_hits = {}
-                for j = 0, 4 do o.ovl_hits[#o.ovl_hits + 1] = F.tick + 2 * j end
+                for j = 0, 4 do o.ovl_hits[#o.ovl_hits + 1] = F.tick + 1 + 2 * j end
             end
         end
         o[key] = n
     end
     if intents.drink or intents.eat or F.tick - (S.last_drink or -10) < 3 then return end
     local pick = nil
-    -- (again the tick it ends, not before: a drink while it runs restarts its
-    -- timer and the 50 never comes back; at 90+ it waited forever -- ol1r
-    -- drank twice, and all of P3 went without)
+    -- (again the tick it ends, not before: a sip while it runs is refused
+    -- (cox_potion.rs2 ~overload_still_active); at 90+ it waited forever --
+    -- ol1r drank twice, and all of P3 went without)
     if (o.ovl_until or -1) <= F.tick and F.hp >= 85 and CO.ovl_pending(S, F) == 0
         and not o.auto_inflight and not intents.cast then
         pick = QD.raid._tob_first(S, ids.overloads)
