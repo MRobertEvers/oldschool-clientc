@@ -3,6 +3,7 @@
 #include "app.h"
 #include "engine/world_builder/minimap.h"
 #include "game/rs_entity_sync.h"
+#include "game/rs_healthbar.h"
 #include "net/rev/packets/pkt_player_appearance.h"
 #include "ps_compose.h"
 #include "render/torirs_pick.h"
@@ -53,6 +54,8 @@ struct Drawn
 {
     int x0, y0, x1, y1; /* bounds of the pixels actually written */
     int element_id;
+    int gx; /* ground point */
+    const struct WorldEntityFacet_Combat* combat;
 };
 
 struct PS_World
@@ -337,6 +340,183 @@ draw_tiles(
     }
 }
 
+/* ----------------------------------------------------------------- overlays */
+
+/*
+ * The 3D client projects its health bars and hitsplats with its camera; this
+ * one hangs them off each sprite's drawn bounds: a Pokemon-style HP bar over
+ * the head, damage in a small pixel font on the body. Timing is the app's own
+ * (world cycle, the entity's combat facet), so they appear and expire with it.
+ */
+
+/* 3x5 digits, one row per byte, bit 2 = leftmost column. */
+static const uint8_t k_digits[10][5] = {
+    { 7, 5, 5, 5, 7 }, { 2, 6, 2, 2, 7 }, { 7, 1, 7, 4, 7 }, { 7, 1, 7, 1, 7 },
+    { 5, 5, 7, 1, 1 }, { 7, 4, 7, 1, 7 }, { 7, 4, 7, 5, 7 }, { 7, 1, 1, 1, 1 },
+    { 7, 5, 7, 5, 7 }, { 7, 5, 7, 1, 7 },
+};
+
+static void
+put(
+    int* px,
+    int stride,
+    int x,
+    int y,
+    uint32_t argb,
+    int cx0,
+    int cy0,
+    int cx1,
+    int cy1)
+{
+    if( x >= cx0 && x < cx1 && y >= cy0 && y < cy1 )
+        px[y * stride + x] = (int)argb;
+}
+
+static void
+draw_number(
+    int* px,
+    int stride,
+    int value,
+    int cx,
+    int cy,
+    int cx0,
+    int cy0,
+    int cx1,
+    int cy1)
+{
+    char buf[8];
+    int n = snprintf(buf, sizeof(buf), "%d", value);
+    int w = n * 4 - 1;
+    int x0 = cx - w / 2, y0 = cy - 2;
+    /* Dark outline first, then the white glyphs over it. */
+    for( int pass = 0; pass < 2; pass++ )
+        for( int i = 0; i < n; i++ )
+            for( int r = 0; r < 5; r++ )
+                for( int c = 0; c < 3; c++ )
+                {
+                    if( !(k_digits[buf[i] - '0'][r] & (4 >> c)) )
+                        continue;
+                    int x = x0 + i * 4 + c, y = y0 + r;
+                    if( pass == 0 )
+                    {
+                        for( int dy = -1; dy <= 1; dy++ )
+                            for( int dx = -1; dx <= 1; dx++ )
+                                put(px, stride, x + dx, y + dy, 0xFF1A1420u, cx0, cy0, cx1, cy1);
+                    }
+                    else
+                        put(px, stride, x, y, 0xFFFFFFFFu, cx0, cy0, cx1, cy1);
+                }
+}
+
+static void
+draw_splat(
+    int* px,
+    int stride,
+    int x,
+    int y,
+    int value,
+    int cx0,
+    int cy0,
+    int cx1,
+    int cy1)
+{
+    /* A zero is a block or a miss: blue. Anything else is damage: red. */
+    uint32_t fill = value == 0 ? 0xFF3A6ED8u : 0xFFD83A3Au;
+    int r = 7;
+    for( int dy = -r - 1; dy <= r + 1; dy++ )
+        for( int dx = -r - 1; dx <= r + 1; dx++ )
+        {
+            int d = dx * dx + dy * dy;
+            if( d <= r * r )
+                put(px, stride, x + dx, y + dy, fill, cx0, cy0, cx1, cy1);
+            else if( d <= (r + 1) * (r + 1) )
+                put(px, stride, x + dx, y + dy, 0xFF1A1420u, cx0, cy0, cx1, cy1);
+        }
+    draw_number(px, stride, value, x, y, cx0, cy0, cx1, cy1);
+}
+
+static int
+bar_fill(
+    struct App* app,
+    const struct WorldEntityFacet_Combat* c,
+    int cycle,
+    float* out_frac)
+{
+    if( c->healthbar_type >= 0 )
+    {
+        if( cycle >= c->healthbar_end_cycle )
+            return 0;
+        const struct RS_HealthbarType* t = RS_Healthbars_TypeFor(&app->healthbars, c->healthbar_type);
+        int width = t && t->width > 0 ? t->width : RS_HEALTHBAR_DEFAULT_WIDTH;
+        int fill;
+        if( cycle < c->healthbar_start_cycle )
+            fill = c->healthbar_held_fill >= 0 ? c->healthbar_held_fill : c->healthbar_start_fill;
+        else if( c->healthbar_duration > 0 &&
+                 cycle < c->healthbar_start_cycle + c->healthbar_duration )
+            fill = c->healthbar_start_fill + (c->healthbar_end_fill - c->healthbar_start_fill) *
+                                                 (cycle - c->healthbar_start_cycle) /
+                                                 c->healthbar_duration;
+        else
+            fill = c->healthbar_end_fill;
+        *out_frac = (float)fill / (float)width;
+        return 1;
+    }
+    /* A dat1 session's legacy bar: hitpoints, shown while in combat. */
+    if( c->combat_cycle > cycle && c->total_health > 0 )
+    {
+        *out_frac = (float)c->health / (float)c->total_health;
+        return 1;
+    }
+    return 0;
+}
+
+static void
+draw_overlays(
+    struct PS_World* w,
+    struct App* app,
+    int* px,
+    int stride,
+    int cx0,
+    int cy0,
+    int cx1,
+    int cy1)
+{
+    int const cycle = app->world->cycle;
+    for( int i = 0; i < w->drawn_count; i++ )
+    {
+        const struct Drawn* d = &w->drawn[i];
+        const struct WorldEntityFacet_Combat* c = d->combat;
+        if( !c )
+            continue;
+        float frac;
+        if( bar_fill(app, c, cycle, &frac) )
+        {
+            frac = frac < 0.0f ? 0.0f : (frac > 1.0f ? 1.0f : frac);
+            int bw = 30, bx = d->gx - bw / 2, by = d->y0 - 7;
+            uint32_t col = frac > 0.5f ? 0xFF48D058u : (frac > 0.2f ? 0xFFF0C030u : 0xFFE04030u);
+            fill_rect(px, stride, bx - 1, by - 1, bx + bw + 1, by + 5, cx0, cy0, cx1, cy1,
+                      0xFF1A1420u);
+            fill_rect(px, stride, bx, by, bx + bw, by + 4, cx0, cy0, cx1, cy1, 0xFF505860u);
+            fill_rect(px, stride, bx, by, bx + (int)(bw * frac + 0.5f), by + 4, cx0, cy0, cx1, cy1,
+                      col);
+            fill_rect(px, stride, bx, by, bx + (int)(bw * frac + 0.5f), by + 1, cx0, cy0, cx1,
+                      cy1, shade(col & 0xFFFFFFu, 125));
+        }
+        /* Up to four at once, laid out like the reference: centre, above,
+         * left, right of the body's middle. */
+        static const int off[WORLD_ENTITY_DAMAGE_SLOTS][2] = { { 0, 0 }, { 0, -16 }, { -15, -8 },
+                                                               { 15, -8 } };
+        int my = (d->y0 + d->y1) / 2;
+        for( int s = 0; s < WORLD_ENTITY_DAMAGE_SLOTS; s++ )
+        {
+            if( c->damage_start_cycles[s] > cycle || c->damage_cycles[s] <= cycle )
+                continue;
+            draw_splat(px, stride, d->gx + off[s][0], my + off[s][1], c->damage_values[s], cx0,
+                       cy0, cx1, cy1);
+        }
+    }
+}
+
 /* ------------------------------------------------------------------- actors */
 
 static int
@@ -601,6 +781,7 @@ PS_WorldDraw(
             continue;
         int bb[4] = { 1 << 30, 1 << 30, -(1 << 30), -(1 << 30) };
         int element_id;
+        const struct WorldEntityFacet_Combat* combat;
         if( a->is_player )
         {
             struct WorldEntity_Player* pl =
@@ -608,6 +789,7 @@ PS_WorldDraw(
             draw_player(bb, w, pl, a->index, a->screen_x, a->screen_y, px, stride, x0, y0, x1, y1,
                         now);
             element_id = pl->element_id;
+            combat = &pl->combat;
         }
         else
         {
@@ -616,6 +798,7 @@ PS_WorldDraw(
             draw_npc(bb, w, npc, a->index, a->screen_x, a->screen_y, px, stride, x0, y0, x1, y1,
                      now);
             element_id = npc->element_id;
+            combat = &npc->combat;
         }
         if( bb[0] < bb[2] && w->drawn_count < MAX_ACTORS )
         {
@@ -625,7 +808,21 @@ PS_WorldDraw(
             d->x1 = bb[2];
             d->y1 = bb[3];
             d->element_id = element_id;
+            d->gx = a->screen_x;
+            d->combat = combat;
         }
+    }
+    draw_overlays(w, app, px, stride, x0, y0, x1, y1);
+    /* POKECLIENT_ACTORS=1: where every actor landed, every 100 world cycles,
+     * so a headless check can aim a click at one. */
+    static int last_dump = -1000;
+    if( getenv("POKECLIENT_ACTORS") && world->cycle - last_dump >= 100 )
+    {
+        last_dump = world->cycle;
+        for( int i = 0; i < w->drawn_count; i++ )
+            fprintf(stderr, "actor cycle=%d element=%d box=%d,%d-%d,%d\n", world->cycle,
+                    w->drawn[i].element_id, w->drawn[i].x0, w->drawn[i].y0, w->drawn[i].x1,
+                    w->drawn[i].y1);
     }
 }
 
