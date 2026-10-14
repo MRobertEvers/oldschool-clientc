@@ -24,6 +24,15 @@
  */
 static int (*g_texture_available_fn)(int id, void* user) = NULL;
 static void* g_texture_available_user = NULL;
+static int (*g_texture_flatten_fn)(int id, void* user) = NULL;
+static void* g_texture_flatten_user = NULL;
+
+void
+ev_build_set_texture_flatten(int (*fn)(int, void*), void* user)
+{
+    g_texture_flatten_fn = fn;
+    g_texture_flatten_user = user;
+}
 
 void
 ev_build_set_texture_available(int (*fn)(int, void*), void* user)
@@ -360,7 +369,17 @@ strip_unavailable_textures(struct ToriDraw_Model* model)
         return;
     for( int face = 0; face < model->face_count; face++ )
         if( !ev_build_texture_available(model->face_textures[face]) )
+        {
+            /* Before lighting, so the face is lit in its flattened colour. */
+            int tex = model->face_textures[face];
+            if( tex >= 0 && g_texture_flatten_fn && model->face_colors )
+            {
+                int hsl = g_texture_flatten_fn(tex, g_texture_flatten_user);
+                if( hsl >= 0 )
+                    model->face_colors[face] = (hsl16_t)hsl;
+            }
             model->face_textures[face] = (faceint_t)-1;
+        }
 }
 
 /**

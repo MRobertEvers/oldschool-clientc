@@ -9,6 +9,7 @@
 #include "render/torirs_pick.h"
 #include "world/entity_npc.h"
 #include "world/entity_player.h"
+#include "world/entity_scenery.h"
 #include "world/world.h"
 
 #include <assert.h>
@@ -16,7 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define MAX_ACTORS 1024
+#define MAX_ACTORS 4096
 #define ANIM_NONE 0xFFFF
 
 /* The client's design recolours (src/engine/entity_model_build.c, reference
@@ -78,13 +79,30 @@ struct PS_World
     int drawn_count;
 };
 
+enum ActorKind
+{
+    ACTOR_DECOR = 0, /* ground decor first at equal depth: a flower never covers a foot */
+    ACTOR_LOC = 1,
+    ACTOR_NPC = 2,
+    ACTOR_PLAYER = 3,
+};
+
 struct Actor
 {
     int screen_x; /* ground point */
     int screen_y;
-    int is_player;
+    int is_player; /* enum ActorKind */
     int index;
 };
+
+/* Loc shapes drawn as sprites: centrepieces (10, and 11, the diagonal one) and
+ * ground decor (22). Walls come from the ground bake; roofs are not drawn in a
+ * top-down world. */
+static int
+loc_drawn_shape(int shape)
+{
+    return shape == 10 || shape == 11 || shape == 22;
+}
 
 
 struct PS_World*
@@ -638,10 +656,11 @@ draw_player(
     {
         int v = pl->appearance.slots[s];
         char key[96];
+        char const* g = pl->gender ? "f" : "m";
         if( Appearance_SlotKind(v) == APPEARANCE_SLOT_KIT )
-            snprintf(key, sizeof(key), "layer/m/kit/%d/%d", Appearance_SlotKit(v), seq);
+            snprintf(key, sizeof(key), "layer/%s/kit/%d/%d", g, Appearance_SlotKit(v), seq);
         else if( Appearance_SlotKind(v) == APPEARANCE_SLOT_OBJ )
-            snprintf(key, sizeof(key), "layer/m/obj/%d/%d", Appearance_SlotObj(v), seq);
+            snprintf(key, sizeof(key), "layer/%s/obj/%d/%d", g, Appearance_SlotObj(v), seq);
         else
             continue;
         enum PS_FetchState st;
@@ -684,6 +703,39 @@ draw_player(
     PS_Compose(&in, w->scratch, cw, ch);
     blit_cell(bb, px, stride, w->scratch, cw, cw, ch, gx, gy, first->head.ground_x,
               first->head.ground_y, cx0, cy0, cx1, cy1);
+}
+
+static void
+draw_loc(
+    int* bb,
+    struct PS_World* w,
+    struct WorldEntity_Scenery* sc,
+    int gx,
+    int gy,
+    int* px,
+    int stride,
+    int cx0,
+    int cy0,
+    int cx1,
+    int cy1,
+    uint64_t now)
+{
+    char key[96];
+    enum PS_FetchState st;
+    /* A loc that never animated reads 0 there, not "none": it is static. */
+    int seq = sc->animation.anim_id != ANIM_NONE && sc->animation.anim_id != 0
+                  ? sc->animation.anim_id
+                  : -1;
+    snprintf(key, sizeof(key), "loc/%d/%d/%d", sc->loc_id, sc->shape, seq);
+    const struct PS_Sheet* s = PS_FetchGet(w->fetch, key, &st);
+    /* No placeholder: a loc with no sheet yet is simply not drawn, rather
+     * than a block on every tree. Its miss is logged for the generator. */
+    if( !s )
+        return;
+    /* Locs loop on one shared clock: they have no start to remember. */
+    int frame = PS_SheetFrameAt(s, (int)(now % 1000000u), 1);
+    blit_cell(bb, px, stride, PS_SheetCell(s, sc->angle & 3, frame), s->width, s->head.cell_w,
+              s->head.cell_h, gx, gy, s->head.ground_x, s->head.ground_y, cx0, cy0, cx1, cy1);
 }
 
 static int
@@ -757,7 +809,26 @@ PS_WorldDraw(
             continue;
         actors[n].screen_x = cx + ((int)npc->draw_position.x - cam_x) * PS_TILE_PX / 128;
         actors[n].screen_y = cy - ((int)npc->draw_position.z - cam_z) * PS_TILE_PX / 128;
-        actors[n].is_player = 0;
+        actors[n].is_player = ACTOR_NPC;
+        actors[n++].index = i;
+    }
+    for( int i = World_EntityPoolHead(&world->entities.scenery); i >= 0 && n < MAX_ACTORS;
+         i = World_EntityPoolNext(&world->entities.scenery, i) )
+    {
+        struct WorldEntity_Scenery* sc =
+            (struct WorldEntity_Scenery*)World_EntityPoolAt(&world->entities.scenery, i);
+        if( sc->grid_position.level != level || !loc_drawn_shape(sc->shape) )
+            continue;
+        /* The footprint's centre: where the scene builder centres the model. */
+        int fx = sc->grid_position.x * 128 + (sc->size_x > 0 ? sc->size_x : 1) * 64;
+        int fz = sc->grid_position.z * 128 + (sc->size_z > 0 ? sc->size_z : 1) * 64;
+        int sx = cx + (fx - cam_x) * PS_TILE_PX / 128;
+        int sy = cy - (fz - cam_z) * PS_TILE_PX / 128;
+        if( sx < x0 - 160 || sx > x1 + 160 || sy < y0 - 32 || sy > y1 + 240 )
+            continue;
+        actors[n].screen_x = sx;
+        actors[n].screen_y = sy;
+        actors[n].is_player = sc->shape == 22 ? ACTOR_DECOR : ACTOR_LOC;
         actors[n++].index = i;
     }
     for( int i = World_EntityPoolHead(&world->entities.player); i >= 0 && n < MAX_ACTORS;
@@ -769,7 +840,7 @@ PS_WorldDraw(
             continue;
         actors[n].screen_x = cx + ((int)pl->draw_position.x - cam_x) * PS_TILE_PX / 128;
         actors[n].screen_y = cy - ((int)pl->draw_position.z - cam_z) * PS_TILE_PX / 128;
-        actors[n].is_player = 1;
+        actors[n].is_player = ACTOR_PLAYER;
         actors[n++].index = i;
     }
     qsort(actors, (size_t)n, sizeof(actors[0]), by_screen_y);
@@ -781,8 +852,15 @@ PS_WorldDraw(
             continue;
         int bb[4] = { 1 << 30, 1 << 30, -(1 << 30), -(1 << 30) };
         int element_id;
-        const struct WorldEntityFacet_Combat* combat;
-        if( a->is_player )
+        const struct WorldEntityFacet_Combat* combat = NULL;
+        if( a->is_player == ACTOR_LOC || a->is_player == ACTOR_DECOR )
+        {
+            struct WorldEntity_Scenery* sc =
+                (struct WorldEntity_Scenery*)World_EntityPoolAt(&world->entities.scenery, a->index);
+            draw_loc(bb, w, sc, a->screen_x, a->screen_y, px, stride, x0, y0, x1, y1, now);
+            element_id = sc->element_id;
+        }
+        else if( a->is_player == ACTOR_PLAYER )
         {
             struct WorldEntity_Player* pl =
                 (struct WorldEntity_Player*)World_EntityPoolAt(&world->entities.player, a->index);

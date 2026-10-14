@@ -93,10 +93,16 @@ ev_spotanim_model_id(
 void
 ev_player_spec_init(struct EV_PlayerSpec* spec);
 
+/** The body slot (0..EV_PLAYER_PARTS-1) an identity kit's body part dresses:
+ *  male parts are 0..6, female 7..13 dress the same seven slots. -1 for a
+ *  part outside both. */
+int
+ev_player_kit_slot(int body_part_id);
+
 /** Fill each body part still -1 in `kits` with the first selectable kit the
- *  cache offers for it: the default body. */
+ *  cache offers for it in `gender` (0 male, 1 female): the default body. */
 void
-ev_resolve_default_kits(struct Tool_Dat2Cache* c, int kits[EV_PLAYER_PARTS]);
+ev_resolve_default_kits(struct Tool_Dat2Cache* c, int kits[EV_PLAYER_PARTS], int gender);
 
 /**
  * Composite the player: identity-kit part models plus the gendered wear models

@@ -109,9 +109,10 @@ def depth_q(z):
     return np.clip(np.round(128 + (z - ZOOM) / 2.0), 0, 254)
 
 
-def render(layer, seq, yaw, out):
+def render(layer, seq, yaw, out, gender="m"):
     os.makedirs(out, exist_ok=True)
-    ps.run([ps.EV_SHEET, "--rev", "osrs239", ps.CACHE, "--player", "--layer", layer,
+    ps.run([ps.EV_SHEET, "--rev", "osrs239", ps.CACHE, "--player",
+            "--gender", "1" if gender == "f" else "0", "--layer", layer,
             "--seq", str(seq), "--yaw", str(yaw), "--zoom", str(ZOOM), "--side", str(SIDE),
             "--fit", "1", "--frame-height", "200", "--full", "--pitch", str(PITCH),
             "--chibi", CHIBI, "--materials", "--out", out])
@@ -403,6 +404,7 @@ def composite(layers, facing, frame_index, recolour=None):
 # ---------------------------------------------------------------- looks
 
 def idk_bodypart(kit):
+    """The kit's body part: 0..6 male, 7..13 female (the same seven slots, +7)."""
     txt = open(os.path.join(ps.CONTENT, "configs/all.idk"), "rb").read().decode("utf8", "replace")
     i = txt.index("[idk_%d]\n" % kit)
     j = txt.find("\n[", i + 2)
@@ -429,30 +431,32 @@ def look(kits, objs):
     """What the server sends: the objs, plus each kit whose body slot no obj
     covers (wearpos, wearpos2, wearpos3). Layers in that order."""
     covered = {WEARPOS_PART[p] for o in objs for p in obj_wearpos(o) if p in WEARPOS_PART}
-    keep = ["kit:%d" % k for k in kits if idk_bodypart(k) not in covered]
+    keep = ["kit:%d" % k for k in kits if idk_bodypart(k) % 7 not in covered]
     return keep + ["obj:%d" % o for o in objs]
 
 
 # ---------------------------------------------------------------- example
 
-def generate(layer_seqs, raw, store_root):
+def generate(layer_seqs, raw, store_root, gender="m"):
     """Render, stylise and store player layers: {"kit:18": [808, 819], ...}.
+    `gender` "m" or "f": the reference body and the obj wear models follow it.
 
     What the generator runs for a region or for io_server's misses. Renders
     only what is not already on disk under `raw`."""
     from store import Store, layer_key
     preps = {}
+    raw = os.path.join(raw, gender)
     for L, seqs in layer_seqs.items():
         for seq in seqs:
             for fname, yaw in FACINGS:
                 d = os.path.join(raw, L.replace(":", "_"), str(seq), fname)
                 if not os.path.exists(os.path.join(d, "faces.txt")):
-                    render(L, seq, yaw, d)
+                    render(L, seq, yaw, d, gender)
         clips = {(str(seq), fname): load_frames(os.path.join(raw, L.replace(":", "_"), str(seq),
                                                              fname))
                  for seq in seqs for fname, _ in FACINGS}
         kind, ident = L.split(":")
-        head_kit = kind == "kit" and idk_bodypart(int(ident)) in (0, 1)
+        head_kit = kind == "kit" and idk_bodypart(int(ident)) % 7 in (0, 1)
         preps[L], _ = prepare_layer(L, clips, head_kit)
     st = Store(store_root)
     n = 0
@@ -461,8 +465,8 @@ def generate(layer_seqs, raw, store_root):
         kind, ident = L.split(":")
         for seq in seqs:
             rows = [enc[(str(seq), fname)][0] for fname, _ in FACINGS]
-            st.write_layer(layer_key(kind, int(ident), seq), rows, enc[(str(seq), "down")][1],
-                           preps[L]["table"])
+            st.write_layer(layer_key(kind, int(ident), seq, gender), rows,
+                           enc[(str(seq), "down")][1], preps[L]["table"])
             n += 1
     st.close()
     return n
@@ -516,7 +520,7 @@ def main():
     for L in layers:
         clips = {(label, fname): load_frames(os.path.join(raw, L.replace(":", "_"), label, fname))
                  for label, _ in SEQS for fname, _ in FACINGS}
-        head_kit = L.startswith("kit:") and idk_bodypart(int(L[4:])) in (0, 1)
+        head_kit = L.startswith("kit:") and idk_bodypart(int(L[4:])) % 7 in (0, 1)
         preps[L], p = prepare_layer(L, clips, head_kit)
         pool += p
     cuts = LIGHT_CUTS

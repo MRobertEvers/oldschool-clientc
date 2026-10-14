@@ -79,9 +79,15 @@ CONTENT = os.path.join(ROOT, "OSRS-Content/osrs239-content")
 
 FACINGS = [("down", 0), ("left", 512), ("right", 1536), ("up", 1024)]
 
+# One scale per profile, so sizes in the 2D world are relative, not each
+# creature's own: the ground is 0.25 sprite pixels per world unit (32 px a
+# tile), i.e. zoom 683 at factor 3. Humanoids match the player layers
+# (layers.py: zoom 650, the same chibi) so an npc man and a player are one
+# size; mobs are the world scale x1.35, Pokemon's exaggeration, so a chicken
+# stays small and Jad stays huge. --height still calibrates the old way.
 PROFILES = {
-    "mob": dict(pitch=176, factor=3, chibi=None, height=None),
-    "humanoid": dict(pitch=112, factor=4, chibi="260,17,72,125", height=40),
+    "mob": dict(pitch=176, factor=3, chibi=None, height=None, zoom=round(683 / 1.35)),
+    "humanoid": dict(pitch=112, factor=3, chibi="260,17,66,135,4", height=None, zoom=650),
 }
 MOB_HEIGHT = {1: 32, 2: 44, 3: 56, 4: 64}  # by npc tile size; 5+ -> 72
 BUDGET = 15  # colours, transparency is the 16th
@@ -419,90 +425,15 @@ def paint_eyes(img, head, facing, rgb):
 
 # ------------------------------------------------------------------ main
 
-def main():
-    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    g = ap.add_mutually_exclusive_group(required=True)
-    g.add_argument("--npc", type=int)
-    g.add_argument("--player", action="store_true")
-    ap.add_argument("--appearance")
-    ap.add_argument("--wear", type=int, action="append", default=[])
-    ap.add_argument("--gender", type=int, default=0)
-    ap.add_argument("--anims", help="name=seq,... overriding discovery")
-    ap.add_argument("--profile", choices=("auto", "mob", "humanoid"), default="auto")
-    ap.add_argument("--height", type=int, help="idle sprite height in px")
-    ap.add_argument("--pitch", type=int)
-    ap.add_argument("--chibi", help="head%%,frac%%,body%%,width%% (humanoid default "
-                    "260,17,72,125); 0 disables")
-    ap.add_argument("--out", required=True)
-    ap.add_argument("--skip-render", action="store_true")
-    ap.add_argument("--store", help="also write each animation into this PokeSprite store "
-                    "(npc/<type>/<seq>), e.g. assets/pokesprite")
-    a = ap.parse_args()
-
-    if a.player:
-        name, size, anims, humanoid = "player", 1, [("idle", 808), ("walk", 819),
-                                                    ("run", 824)], True
-    else:
-        name, size, anims, humanoid = discover(a.npc)
-    if a.anims:
-        anims = [(k, int(v)) for k, v in (p.split("=") for p in a.anims.split(","))]
-    assert anims, "no animations found for %s; pass --anims" % name
-    profile = a.profile if a.profile != "auto" else ("humanoid" if humanoid else "mob")
-    P = dict(PROFILES[profile])
-    if a.pitch is not None:
-        P["pitch"] = a.pitch
-    if a.chibi is not None:
-        P["chibi"] = a.chibi if a.chibi != "0" else None
-    height = a.height or P["height"] or MOB_HEIGHT.get(size, 72)
-    f = P["factor"]
-    print("%s: profile %s, %dpx, anims %s" % (name, profile, height,
-                                             " ".join("%s=%d" % x for x in anims)))
-
-    subject = ["--player", "--gender", str(a.gender)] if a.player else ["--npc", str(a.npc)]
-    if a.player and a.appearance:
-        subject += ["--appearance", a.appearance]
-    for w in a.wear:
-        subject += ["--wear", str(w)]
-    common = ["--rev", "osrs239", CACHE] + subject + ["--pitch", str(P["pitch"]),
-                                                      "--frame-height", "200", "--full"]
-    if P["chibi"]:
-        common += ["--chibi", P["chibi"]]
-
-    raw = os.path.join(a.out, "_raw")
-    os.makedirs(a.out, exist_ok=True)
-    cal_path = os.path.join(a.out, "_calibration.json")
-    if not a.skip_render:
-        # ---- calibrate: idle height at a probe zoom -> zoom for the target
-        shutil.rmtree(raw, ignore_errors=True)
-        probe = os.path.join(raw, "_probe")
-        os.makedirs(probe)
-        z0, side0 = 1000, 1400
-        run([EV_SHEET] + common + ["--seq", str(anims[0][1]), "--zoom", str(z0),
-                                   "--side", str(side0), "--fit", "1", "--out", probe])
-        hmax = 0
-        for p in glob.glob(probe + "/f*.png"):
-            al = np.asarray(Image.open(p))[..., 3]
-            ys = np.nonzero((al >= 128).any(1))[0]
-            hmax = max(hmax, ys.max() - ys.min() + 1)
-        zoom = int(z0 * hmax / (height * f))
-        side = min(2048, max(600, height * f * 5))
-        json.dump({"zoom": zoom, "side": side}, open(cal_path, "w"))
-        for label, seq in anims:
-            for fname, yaw in FACINGS:
-                d = os.path.join(raw, "%s_%s" % (label, fname))
-                os.makedirs(d)
-                _o, err = run([EV_SHEET] + common + ["--seq", str(seq), "--yaw", str(yaw),
-                                                      "--zoom", str(zoom), "--side", str(side),
-                                                      "--fit", "1", "--materials", "--out", d])
-                if "canvas edge" in err:
-                    print("warning: %s %s touches the canvas edge (clipped)" % (label, fname))
-    cal = json.load(open(cal_path))
-    zoom, side = cal["zoom"], cal["side"]
-
+def stylise(raw, anims, facings, f, zoom, side, height, chibi):
+    """The Pokemon stage for one subject's renders: <raw>/<label>_<facing>/ for
+    every (label, seq) in anims and (facing, yaw) in facings, all at one zoom
+    on one canvas. Returns ({(label, facing): ([PIL frames], durations)},
+    {label: crop box on the canvas}, colour count)."""
     # ---- materials: the model's own base colours (ev_sheet faces.txt) -----
     # Every run renders the same model, so one face table serves them all:
     # face i has the same ID colour, base colour and head flag everywhere.
-    first = os.path.join(raw, "%s_down" % anims[0][0])
+    first = os.path.join(raw, "%s_%s" % (anims[0][0], facings[0][0]))
     frows = [l.split() for l in open(first + "/faces.txt") if not l.startswith("#")]
     nf = len(frows)
     idrgb = np.full(1 << 24, -1, np.int32)
@@ -532,7 +463,7 @@ def main():
     for label, _seq in anims:
         x0 = y0 = 10 ** 9
         x1 = y1 = -1
-        for fname, _yaw in FACINGS:
+        for fname, _yaw in facings:
             d = os.path.join(raw, "%s_%s" % (label, fname))
             lit = [np.asarray(Image.open(p).convert("RGBA")) for p in sorted(glob.glob(d + "/f*.png"))]
             ids = [np.asarray(Image.open(p).convert("RGBA")) for p in sorted(glob.glob(d + "/i*.png"))]
@@ -575,7 +506,7 @@ def main():
             face = face[by0:by1, bx0:bx1]
             li = li[by0:by1, bx0:bx1]
             m = np.where(face >= 0, gid[base_hsl[np.maximum(face, 0)]], 0)
-            hi = (face >= 0) & head_face[np.maximum(face, 0)] if P["chibi"] else None
+            hi = (face >= 0) & head_face[np.maximum(face, 0)] if chibi else None
             counts += np.bincount(m.ravel(), minlength=len(groups) + 1)
             rows.append((m, li, z, hi))
         full[key] = (rows, durs)
@@ -718,6 +649,105 @@ def main():
         frames[key] = (ims, durs)
     ncol = len({p[:3] for ims, _ in frames.values() for im in ims
                 for p in im.get_flattened_data() if p[3]})
+
+    return frames, boxes, ncol
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    g = ap.add_mutually_exclusive_group(required=True)
+    g.add_argument("--npc", type=int)
+    g.add_argument("--player", action="store_true")
+    ap.add_argument("--appearance")
+    ap.add_argument("--wear", type=int, action="append", default=[])
+    ap.add_argument("--gender", type=int, default=0)
+    ap.add_argument("--anims", help="name=seq,... overriding discovery")
+    ap.add_argument("--profile", choices=("auto", "mob", "humanoid"), default="auto")
+    ap.add_argument("--height", type=int, help="idle sprite height in px")
+    ap.add_argument("--pitch", type=int)
+    ap.add_argument("--chibi", help="head%%,frac%%,body%%,width%% (humanoid default "
+                    "260,17,72,125); 0 disables")
+    ap.add_argument("--out", required=True)
+    ap.add_argument("--skip-render", action="store_true")
+    ap.add_argument("--store", help="also write each animation into this PokeSprite store "
+                    "(npc/<type>/<seq>), e.g. assets/pokesprite")
+    a = ap.parse_args()
+
+    if a.player:
+        name, size, anims, humanoid = "player", 1, [("idle", 808), ("walk", 819),
+                                                    ("run", 824)], True
+    else:
+        name, size, anims, humanoid = discover(a.npc)
+    if a.anims:
+        anims = [(k, int(v)) for k, v in (p.split("=") for p in a.anims.split(","))]
+    assert anims, "no animations found for %s; pass --anims" % name
+    profile = a.profile if a.profile != "auto" else ("humanoid" if humanoid else "mob")
+    P = dict(PROFILES[profile])
+    if a.pitch is not None:
+        P["pitch"] = a.pitch
+    if a.chibi is not None:
+        P["chibi"] = a.chibi if a.chibi != "0" else None
+    height = a.height or P["height"] or MOB_HEIGHT.get(size, 72)  # --height / legacy only
+    f = P["factor"]
+    print("%s: profile %s, %dpx, anims %s" % (name, profile, height,
+                                             " ".join("%s=%d" % x for x in anims)))
+
+    subject = ["--player", "--gender", str(a.gender)] if a.player else ["--npc", str(a.npc)]
+    if a.player and a.appearance:
+        subject += ["--appearance", a.appearance]
+    for w in a.wear:
+        subject += ["--wear", str(w)]
+    common = ["--rev", "osrs239", CACHE] + subject + ["--pitch", str(P["pitch"]),
+                                                      "--frame-height", "200", "--full"]
+    if P["chibi"]:
+        common += ["--chibi", P["chibi"]]
+
+    raw = os.path.join(a.out, "_raw")
+    os.makedirs(a.out, exist_ok=True)
+    cal_path = os.path.join(a.out, "_calibration.json")
+    if not a.skip_render:
+        # ---- calibrate: idle height at a probe zoom -> zoom for the target
+        shutil.rmtree(raw, ignore_errors=True)
+        probe = os.path.join(raw, "_probe")
+        os.makedirs(probe)
+        # The probe sizes the canvas; the profile's zoom sets the scale, unless
+        # --height asked for a calibrated one.
+        z0 = P["zoom"] if (P["zoom"] and not a.height) else 1000
+        side0 = 1600
+        run([EV_SHEET] + common + ["--seq", str(anims[0][1]), "--zoom", str(z0),
+                                   "--side", str(side0), "--fit", "1", "--out", probe])
+        hmax, reach = 0, 0
+        for p in glob.glob(probe + "/f*.png"):
+            al = np.asarray(Image.open(p))[..., 3]
+            ys, xs = np.nonzero(al >= 128)
+            if len(ys):
+                hmax = max(hmax, ys.max() - ys.min() + 1)
+                reach = max(reach, abs(xs - side0 // 2).max(), abs(ys - side0 // 2).max())
+        if P["zoom"] and not a.height:
+            zoom = z0
+            height = max(1, hmax // f)
+            # Room for the probe's reach, and for an attack that reaches
+            # further than the idle pose did.
+            side = min(2048, max(600, reach * 3))
+        else:
+            zoom = int(z0 * hmax / (height * f))
+            side = min(2048, max(600, height * f * 5))
+        json.dump({"zoom": zoom, "side": side, "height": height}, open(cal_path, "w"))
+        for label, seq in anims:
+            for fname, yaw in FACINGS:
+                d = os.path.join(raw, "%s_%s" % (label, fname))
+                os.makedirs(d)
+                _o, err = run([EV_SHEET] + common + ["--seq", str(seq), "--yaw", str(yaw),
+                                                      "--zoom", str(zoom), "--side", str(side),
+                                                      "--fit", "1", "--materials", "--out", d])
+                if "canvas edge" in err:
+                    print("warning: %s %s touches the canvas edge (clipped)" % (label, fname))
+    cal = json.load(open(cal_path))
+    zoom, side = cal["zoom"], cal["side"]
+    height = cal.get("height", height)
+
+    frames, boxes, ncol = stylise(raw, anims, FACINGS, f, zoom, side, height, P["chibi"])
+    cx = side // 2
 
     # ---- pack ------------------------------------------------------------------
     def cell(label):
