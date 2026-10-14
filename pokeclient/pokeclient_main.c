@@ -64,13 +64,13 @@ usage(const char* argv0)
     fprintf(stderr,
             "usage: %s --manifest <boot.ini> [--user U --pass P] [--assets HOST:PORT] "
             "[--window WxH] [--frames N] [--shot PATH.bmp@FRAME] [--click X,Y@FRAME]\n"
-            "       [--exec TEXT@FRAME]\n"
+            "       [--exec TEXT@FRAME]...\n"
             "  --assets  io_server serving the PokeSprite store (default 127.0.0.1:8088)\n"
             "  --frames  exit after N frames (headless checks)\n"
             "  --shot    write the framebuffer at FRAME as a BMP (the client's own\n"
             "            pixels; never a desktop capture); up to four\n"
             "  --click   inject a left click at X,Y on FRAME (headless checks)\n"
-            "  --exec    send TEXT as a ::command on FRAME (headless checks)\n",
+            "  --exec    send TEXT as a ::command on FRAME (headless checks; up to 4)\n",
             argv0);
 }
 
@@ -89,8 +89,9 @@ main(
     int shot_count = 0;
     int click_x = -1, click_y = -1;
     long click_frame = -1;
-    char exec_text[128] = "";
-    long exec_frame = -1;
+    char exec_text[4][128];
+    long exec_frame[4];
+    int exec_count = 0;
 
     for( int i = 1; i < argc; i++ )
     {
@@ -123,7 +124,7 @@ main(
             snprintf(shot_path[shot_count], sizeof(shot_path[0]), "%.*s", (int)(at - v), v);
             shot_frame[shot_count++] = atol(at + 1);
         }
-        else if( strcmp(argv[i], "--exec") == 0 && i + 1 < argc )
+        else if( strcmp(argv[i], "--exec") == 0 && i + 1 < argc && exec_count < 4 )
         {
             const char* v = argv[++i];
             const char* at = strrchr(v, '@');
@@ -132,8 +133,8 @@ main(
                 usage(argv[0]);
                 return 2;
             }
-            snprintf(exec_text, sizeof(exec_text), "%.*s", (int)(at - v), v);
-            exec_frame = atol(at + 1);
+            snprintf(exec_text[exec_count], sizeof(exec_text[0]), "%.*s", (int)(at - v), v);
+            exec_frame[exec_count++] = atol(at + 1);
         }
         else if( strcmp(argv[i], "--click") == 0 && i + 1 < argc )
         {
@@ -290,8 +291,9 @@ main(
         CmdBus_PushFrame(&bus, now);
         PlatformWindow_PollCommands(platform, &bus);
         /* --exec: a "::" command, through the bus as typing it would go. */
-        if( frame_no == exec_frame )
-            CmdBus_PushExecText(&bus, exec_text);
+        for( int e = 0; e < exec_count; e++ )
+            if( frame_no == exec_frame[e] )
+                CmdBus_PushExecText(&bus, exec_text[e]);
         /* --click: a real press and release through the bus, as SDL would. */
         if( frame_no == click_frame - 2 )
             CmdBus_PushMouseMove(&bus, (int16_t)click_x, (int16_t)click_y);

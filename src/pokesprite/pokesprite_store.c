@@ -45,7 +45,13 @@ PokeSpriteStore_Open(const char* root)
     assert(s);
     snprintf(s->root, sizeof(s->root), "%s", root);
 
-    must(s->index, sqlite3_open_v2(path, &s->index, SQLITE_OPEN_READONLY, NULL), "open index.db");
+    /* Read-write although this never writes: the generator keeps the index in
+     * WAL mode, and a read-only connection cannot open a WAL database whose
+     * -shm file is gone (a clean close, a fresh clone) -- it has to create it. */
+    must(s->index, sqlite3_open_v2(path, &s->index, SQLITE_OPEN_READWRITE, NULL), "open index.db");
+    /* The offline generator may be writing the index while this serves: a
+     * lock held for a moment is a wait, not a failure. */
+    sqlite3_busy_timeout(s->index, 10000);
     must(s->index,
          sqlite3_prepare_v2(s->index, "SELECT path FROM sheet WHERE key = ?1", -1, &s->lookup, NULL),
          "prepare lookup");
@@ -54,6 +60,7 @@ PokeSpriteStore_Open(const char* root)
     must(s->missing,
          sqlite3_open_v2(path, &s->missing, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL),
          "open missing.db");
+    sqlite3_busy_timeout(s->missing, 10000);
     must(s->missing,
          sqlite3_exec(s->missing,
                       "CREATE TABLE IF NOT EXISTS missing (key TEXT PRIMARY KEY, first_seen TEXT, "

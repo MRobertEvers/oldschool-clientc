@@ -145,3 +145,5 @@ toridraw-debug.ndjson
 # PokeSprite store: io_server records every sheet it was asked for and lacked
 # here -- runtime state for the offline generator, never checked in.
 assets/pokesprite/missing.db
+assets/pokesprite/*.db-wal
+assets/pokesprite/*.db-shm

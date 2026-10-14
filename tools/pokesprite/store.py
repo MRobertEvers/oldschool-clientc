@@ -40,12 +40,20 @@ class Store:
         # Several generator jobs may write one store at once: wait for the
         # lock rather than fail on it.
         self.db = sqlite3.connect(os.path.join(root, "index.db"), timeout=120)
+        # WAL: io_server keeps reading while a generator writes.
+        self.db.execute("PRAGMA journal_mode=WAL")
         self.db.execute("CREATE TABLE IF NOT EXISTS sheet (key TEXT PRIMARY KEY, path TEXT NOT NULL,"
                         " kind TEXT NOT NULL, bytes INTEGER NOT NULL, generator TEXT NOT NULL)")
 
     def close(self):
         self.db.commit()
+        # Fold the write-ahead log back in, so the checked-in index.db is
+        # the whole index on its own.
+        self.db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
         self.db.close()
+
+    def has(self, key):
+        return self.db.execute("SELECT 1 FROM sheet WHERE key = ?", (key,)).fetchone() is not None
 
     def missing(self):
         """Keys io_server was asked for and did not have, most-requested first."""

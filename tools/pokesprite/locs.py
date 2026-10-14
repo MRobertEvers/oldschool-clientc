@@ -63,6 +63,32 @@ def generate_obj(obj, work, store_root):
     st.close()
 
 
+def generate_spot(spot, work, store_root):
+    """A spot animation -- a graphic on an actor or a tile, or a projectile in
+    flight -- playing its own sequence -> spot/<id>. Four facing rows, at world
+    scale: a projectile flies any way, and the client picks the row by its yaw."""
+    from store import Store
+    raw = os.path.join(work, "spot_%d" % spot)
+    for rname, yaw in ROTATIONS:
+        d = os.path.join(raw, "s_%s" % rname)
+        if os.path.exists(os.path.join(d, "faces.txt")):
+            continue
+        os.makedirs(d, exist_ok=True)
+        ps.run([ps.EV_SHEET, "--rev", "osrs239", ps.CACHE, "--spotanim", str(spot), "--yaw",
+                str(yaw), "--zoom", str(ZOOM), "--side", str(SIDE), "--fit", "1",
+                "--frame-height", str(FRAME_HEIGHT), "--full", "--pitch", str(PITCH),
+                "--materials", "--out", d])
+    frames, boxes, _ncol = ps.stylise(raw, [("s", -1)], ROTATIONS, F, ZOOM, SIDE, 24, None)
+    b = boxes["s"]
+    gx, gy = ground_px()
+    origin = ((SIDE // 2 - b[0]) // F, (SIDE // 2 - b[1]) // F)
+    ground = (int(round((gx - b[0]) / F)), int(round((gy - b[1]) / F)))
+    rows = [frames[("s", rname)][0] for rname, _ in ROTATIONS]
+    st = Store(store_root)
+    st.write_rgba("spot/%d" % spot, rows, frames[("s", "r0")][1], origin, ground)
+    st.close()
+
+
 def render(loc, shape, seq, raw):
     label = "s%d" % seq
     for rname, yaw in ROTATIONS:

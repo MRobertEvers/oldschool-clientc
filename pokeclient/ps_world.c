@@ -7,13 +7,18 @@
 #include "net/rev/packets/pkt_player_appearance.h"
 #include "ps_compose.h"
 #include "render/torirs_pick.h"
+#include "varp/varp_manager.h"
+#include <rscache.h>
 #include "world/entity_npc.h"
 #include "world/entity_objstack.h"
 #include "world/entity_player.h"
+#include "world/entity_projectile.h"
+#include "world/entity_spotanim.h"
 #include "world/entity_scenery.h"
 #include "world/world.h"
 
 #include <assert.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -87,6 +92,8 @@ enum ActorKind
     ACTOR_LOC = 2,
     ACTOR_NPC = 3,
     ACTOR_PLAYER = 4,
+    ACTOR_SPOT = 5,       /* a graphic on a tile: over what stands there */
+    ACTOR_PROJECTILE = 6, /* in flight: over everything at its depth */
 };
 
 struct Actor
@@ -95,15 +102,21 @@ struct Actor
     int screen_y;
     int is_player; /* enum ActorKind */
     int index;
+    /* Floors above the player's this stands on (a loc on a VisBelow tile):
+     * drawn after everything on the floor below, as the 3D painter draws
+     * level by level, and lifted by its floor's height. */
+    int layer;
+    int lift;
 };
 
-/* Loc shapes drawn as sprites: centrepieces (10, and 11, the diagonal one) and
- * ground decor (22). Walls come from the ground bake; roofs are not drawn in a
- * top-down world. */
+/* Loc shapes drawn as sprites: walls (0 straight, 1 diagonal corner, 2 the L
+ * corner, 3 the corner post, 9 diagonal), centrepieces (10, 11) and ground
+ * decor (22). Roofs (12..21) are not drawn in a top-down world. */
 static int
 loc_drawn_shape(int shape)
 {
-    return shape == 10 || shape == 11 || shape == 22;
+    return (shape >= 0 && shape <= 3) || shape == 9 || shape == 10 || shape == 11 ||
+           shape == 22;
 }
 
 
@@ -307,9 +320,33 @@ ensure_ground(
         return;
     w->ground = minimap_bake_argb(world->minimap, level, world->tile_flags, &w->ground_w,
                                   &w->ground_h);
-    if( w->ground )
-        for( int i = 0; i < w->ground_w * w->ground_h; i++ )
-            w->ground[i] = ground_colour(w->ground[i]);
+    if( !w->ground )
+        return;
+    /* Walls and doors are drawn as sprites from their own models now, so the
+     * bake's wall and door lines come off the ground: each takes the colour of
+     * the nearest ground pixel to its left or above (the bake's lines are one
+     * pixel wide, so that is the floor it was drawn over). */
+    int const gw = w->ground_w, gh = w->ground_h;
+    for( int y = 0; y < gh; y++ )
+        for( int x = 0; x < gw; x++ )
+        {
+            uint32_t* p = &w->ground[y * gw + x];
+            if( *p != BAKE_WALL && *p != BAKE_DOOR )
+                continue;
+            uint32_t fill = 0xFF000000u;
+            for( int k = 1; k <= 2 && fill == 0xFF000000u; k++ )
+            {
+                if( x - k >= 0 && w->ground[y * gw + x - k] != BAKE_WALL &&
+                    w->ground[y * gw + x - k] != BAKE_DOOR )
+                    fill = w->ground[y * gw + x - k];
+                else if( y - k >= 0 && w->ground[(y - k) * gw + x] != BAKE_WALL &&
+                         w->ground[(y - k) * gw + x] != BAKE_DOOR )
+                    fill = w->ground[(y - k) * gw + x];
+            }
+            *p = fill;
+        }
+    for( int i = 0; i < gw * gh; i++ )
+        w->ground[i] = ground_colour(w->ground[i]);
 }
 
 static void
@@ -707,10 +744,66 @@ draw_player(
               first->head.ground_y, cx0, cy0, cx1, cy1);
 }
 
+/*
+ * The loc a placement draws as. The scenery record keeps the MAP's id, and a
+ * multiloc (a bank booth, a barrel with a deadman variant) has no models of
+ * its own: its varbit or varp picks the child, as the scene builder does
+ * (world_builder_resolve_loc). -1 when the pick is "nothing", or when a
+ * config in the chain is not resident yet -- not drawn this frame.
+ */
+/*
+ * The level a loc paints on, or -1 when it does not show while the player is
+ * on `level`. The 3D client paints
+ * every level up to the roof check, culling a tile whose DRAW level is above
+ * it; this client always shows the player's own floor with the roofs off, so
+ * a loc shows when it stands on that floor or above it on a tile whose draw
+ * level is at or below it. The two flags that move a tile's levels:
+ *
+ *   LinkBelow (0x2 on the column's level-1 tile): a bridge or raised deck,
+ *     whose content paints a level down (ClientBuild.finishBuild trueLevel--).
+ *   VisBelow (0x8 on its own tile): seen from below, draw level 0 -- how the
+ *     Varrock square statue, placed on level 1, stands in a level-0 fountain.
+ */
+static int
+loc_paint_level(
+    struct World const* world,
+    struct WorldEntity_Scenery const* sc,
+    int level)
+{
+    int x = sc->grid_position.x, z = sc->grid_position.z, lv = sc->grid_position.level;
+    int link_below = (World_TileFlagGet(world, x, z, 1) & RSCACHE_FLOFLAG_LINK_BELOW) != 0;
+    int paint_level = lv > 0 && link_below ? lv - 1 : lv;
+    int draw_level =
+        RSCache_MapFloorVisBelowDrawLevel((uint8_t)World_TileFlagGet(world, x, z, lv), lv, link_below);
+    return paint_level >= level && draw_level <= level ? paint_level : -1;
+}
+
+static int
+resolve_loc(
+    struct App* app,
+    int loc_id)
+{
+    struct ToriRS_Location* loc = CacheProvider_LocationGet(app->provider, loc_id);
+    for( int depth = 0; loc && depth < 16; depth++ )
+    {
+        if( loc->transform_count <= 0 || !loc->transforms )
+            return loc->id;
+        int id = VarPManager_ResolveTransform(&app->varps, loc->transforms, loc->transform_count,
+                                              loc->transform_varbit, loc->transform_varp);
+        if( id < 0 )
+            return -1;
+        if( id == loc->id )
+            return id;
+        loc = CacheProvider_LocationGet(app->provider, id);
+    }
+    return -1;
+}
+
 static void
 draw_loc(
     int* bb,
     struct PS_World* w,
+    struct App* app,
     struct WorldEntity_Scenery* sc,
     int gx,
     int gy,
@@ -728,7 +821,13 @@ draw_loc(
     int seq = sc->animation.anim_id != ANIM_NONE && sc->animation.anim_id != 0
                   ? sc->animation.anim_id
                   : -1;
-    snprintf(key, sizeof(key), "loc/%d/%d/%d", sc->loc_id, sc->shape, seq);
+    /* The L corner is two straight walls, at this rotation and the next --
+     * how the scene builder makes one (Scene.addLoc shape 2). */
+    int shape = sc->shape == 2 ? 0 : sc->shape;
+    int loc_id = resolve_loc(app, sc->loc_id);
+    if( loc_id < 0 )
+        return;
+    snprintf(key, sizeof(key), "loc/%d/%d/%d", loc_id, shape, seq);
     const struct PS_Sheet* s = PS_FetchGet(w->fetch, key, &st);
     /* No placeholder: a loc with no sheet yet is simply not drawn, rather
      * than a block on every tree. Its miss is logged for the generator. */
@@ -736,8 +835,11 @@ draw_loc(
         return;
     /* Locs loop on one shared clock: they have no start to remember. */
     int frame = PS_SheetFrameAt(s, (int)(now % 1000000u), 1);
-    blit_cell(bb, px, stride, PS_SheetCell(s, sc->angle & 3, frame), s->width, s->head.cell_w,
-              s->head.cell_h, gx, gy, s->head.ground_x, s->head.ground_y, cx0, cy0, cx1, cy1);
+    int turns = sc->shape == 2 ? 2 : 1;
+    for( int t = 0; t < turns; t++ )
+        blit_cell(bb, px, stride, PS_SheetCell(s, (sc->angle + t) & 3, frame), s->width,
+                  s->head.cell_w, s->head.cell_h, gx, gy, s->head.ground_x, s->head.ground_y,
+                  cx0, cy0, cx1, cy1);
 }
 
 static void
@@ -764,6 +866,66 @@ draw_item(
               gx, gy, s->head.ground_x, s->head.ground_y, cx0, cy0, cx1, cy1);
 }
 
+/* World height to screen pixels for a graphic: the scenery camera's scale
+ * (0.25 px a unit) times cos of its 176/2048 pitch. */
+#define LIFT_PER_1000_UNITS 215
+
+/* One spot animation frame at (gx, gy) -- gy already lifted by its height.
+ * A one-shot (a graphic) is gone once its sequence has played; a projectile
+ * loops for its flight. */
+static void
+draw_spot(
+    int* bb,
+    struct PS_World* w,
+    int spot_id,
+    int facing,
+    int elapsed_ms,
+    int loop,
+    int gx,
+    int gy,
+    int* px,
+    int stride,
+    int cx0,
+    int cy0,
+    int cx1,
+    int cy1)
+{
+    char key[48];
+    enum PS_FetchState fs;
+    if( spot_id < 0 || elapsed_ms < 0 )
+        return;
+    snprintf(key, sizeof(key), "spot/%d", spot_id);
+    const struct PS_Sheet* s = PS_FetchGet(w->fetch, key, &fs);
+    if( !s || (!loop && elapsed_ms >= s->total_ms) )
+        return;
+    int frame = PS_SheetFrameAt(s, elapsed_ms, loop);
+    blit_cell(bb, px, stride, PS_SheetCell(s, facing, frame), s->width, s->head.cell_w,
+              s->head.cell_h, gx, gy, s->head.ground_x, s->head.ground_y, cx0, cy0, cx1, cy1);
+}
+
+/* An actor's own graphic (a spell landing on it, a level-up), over it. */
+static void
+draw_attached(
+    int* bb,
+    struct PS_World* w,
+    const struct WorldEntityFacet_EntitySpotanim* g,
+    int cycle,
+    int facing,
+    int gx,
+    int gy,
+    int* px,
+    int stride,
+    int cx0,
+    int cy0,
+    int cx1,
+    int cy1)
+{
+    if( g->id < 0 || g->frame < 0 || cycle < g->last_cycle )
+        return;
+    draw_spot(bb, w, g->id, facing, (cycle - g->last_cycle) * 20, 0, gx,
+              gy - g->height * LIFT_PER_1000_UNITS / 1000, px, stride, cx0, cy0, cx1, cy1);
+}
+
 static int
 by_screen_y(
     const void* a,
@@ -771,6 +933,8 @@ by_screen_y(
 {
     const struct Actor* x = (const struct Actor*)a;
     const struct Actor* y = (const struct Actor*)b;
+    if( x->layer != y->layer )
+        return x->layer - y->layer;
     return x->screen_y != y->screen_y ? x->screen_y - y->screen_y : x->is_player - y->is_player;
 }
 
@@ -833,6 +997,7 @@ PS_WorldDraw(
             (struct WorldEntity_NPC*)World_EntityPoolAt(&world->entities.npc, i);
         if( npc->grid_position.level != level || npc->multinpc_hidden )
             continue;
+        actors[n] = (struct Actor){ 0 };
         actors[n].screen_x = cx + ((int)npc->draw_position.x - cam_x) * PS_TILE_PX / 128;
         actors[n].screen_y = cy - ((int)npc->draw_position.z - cam_z) * PS_TILE_PX / 128;
         actors[n].is_player = ACTOR_NPC;
@@ -843,7 +1008,8 @@ PS_WorldDraw(
     {
         struct WorldEntity_Scenery* sc =
             (struct WorldEntity_Scenery*)World_EntityPoolAt(&world->entities.scenery, i);
-        if( sc->grid_position.level != level || !loc_drawn_shape(sc->shape) )
+        int paint_level = loc_paint_level(world, sc, level);
+        if( paint_level < 0 || !loc_drawn_shape(sc->shape) )
             continue;
         /* The footprint's centre: where the scene builder centres the model. */
         int fx = sc->grid_position.x * 128 + (sc->size_x > 0 ? sc->size_x : 1) * 64;
@@ -852,9 +1018,15 @@ PS_WorldDraw(
         int sy = cy - (fz - cam_z) * PS_TILE_PX / 128;
         if( sx < x0 - 160 || sx > x1 + 160 || sy < y0 - 32 || sy > y1 + 240 )
             continue;
+        actors[n] = (struct Actor){ 0 };
         actors[n].screen_x = sx;
         actors[n].screen_y = sy;
         actors[n].is_player = sc->shape == 22 ? ACTOR_DECOR : ACTOR_LOC;
+        actors[n].layer = paint_level - level;
+        if( paint_level > level )
+            actors[n].lift = (World_HeightAt(world, fx, fz, level) -
+                              World_HeightAt(world, fx, fz, sc->grid_position.level)) *
+                             LIFT_PER_1000_UNITS / 1000;
         actors[n++].index = i;
     }
     for( int i = World_EntityPoolHead(&world->entities.obj_stack); i >= 0 && n < MAX_ACTORS;
@@ -868,9 +1040,37 @@ PS_WorldDraw(
         int sy = cy - (st->grid_position.z * 128 + 64 - cam_z) * PS_TILE_PX / 128;
         if( sx < x0 - 64 || sx > x1 + 64 || sy < y0 - 32 || sy > y1 + 64 )
             continue;
+        actors[n] = (struct Actor){ 0 };
         actors[n].screen_x = sx;
         actors[n].screen_y = sy;
         actors[n].is_player = ACTOR_ITEM;
+        actors[n++].index = i;
+    }
+    for( int i = World_EntityPoolHead(&world->entities.spotanim); i >= 0 && n < MAX_ACTORS;
+         i = World_EntityPoolNext(&world->entities.spotanim, i) )
+    {
+        struct WorldEntity_Spotanim* sp =
+            (struct WorldEntity_Spotanim*)World_EntityPoolAt(&world->entities.spotanim, i);
+        if( !sp->active || sp->level != level )
+            continue;
+        actors[n] = (struct Actor){ 0 };
+        actors[n].screen_x = cx + ((int)sp->draw_position.x - cam_x) * PS_TILE_PX / 128;
+        actors[n].screen_y = cy - ((int)sp->draw_position.z - cam_z) * PS_TILE_PX / 128;
+        actors[n].is_player = ACTOR_SPOT;
+        actors[n++].index = i;
+    }
+    for( int i = World_EntityPoolHead(&world->entities.projectile); i >= 0 && n < MAX_ACTORS;
+         i = World_EntityPoolNext(&world->entities.projectile, i) )
+    {
+        struct WorldEntity_Projectile* pr =
+            (struct WorldEntity_Projectile*)World_EntityPoolAt(&world->entities.projectile, i);
+        /* In flight: launched, between its start and end cycles. */
+        if( !pr->launched || pr->level != level || world->cycle < pr->t1 || world->cycle > pr->t2 )
+            continue;
+        actors[n] = (struct Actor){ 0 };
+        actors[n].screen_x = cx + ((int)pr->x - cam_x) * PS_TILE_PX / 128;
+        actors[n].screen_y = cy - ((int)pr->z - cam_z) * PS_TILE_PX / 128;
+        actors[n].is_player = ACTOR_PROJECTILE;
         actors[n++].index = i;
     }
     for( int i = World_EntityPoolHead(&world->entities.player); i >= 0 && n < MAX_ACTORS;
@@ -880,6 +1080,7 @@ PS_WorldDraw(
             (struct WorldEntity_Player*)World_EntityPoolAt(&world->entities.player, i);
         if( pl->grid_position.level != level )
             continue;
+        actors[n] = (struct Actor){ 0 };
         actors[n].screen_x = cx + ((int)pl->draw_position.x - cam_x) * PS_TILE_PX / 128;
         actors[n].screen_y = cy - ((int)pl->draw_position.z - cam_z) * PS_TILE_PX / 128;
         actors[n].is_player = ACTOR_PLAYER;
@@ -895,7 +1096,31 @@ PS_WorldDraw(
         int bb[4] = { 1 << 30, 1 << 30, -(1 << 30), -(1 << 30) };
         int element_id;
         const struct WorldEntityFacet_Combat* combat = NULL;
-        if( a->is_player == ACTOR_ITEM )
+        if( a->is_player == ACTOR_SPOT )
+        {
+            struct WorldEntity_Spotanim* sp = (struct WorldEntity_Spotanim*)World_EntityPoolAt(
+                &world->entities.spotanim, a->index);
+            /* Its height is world y; the ground under it is the heightmap's. */
+            int ground = World_HeightAt(world, (int)sp->draw_position.x,
+                                        (int)sp->draw_position.z, level);
+            int lift = (ground - (int)sp->draw_position.y) * LIFT_PER_1000_UNITS / 1000;
+            draw_spot(bb, w, sp->spotanim_id, PS_FacingFromYaw(sp->orientation.yaw),
+                      (world->cycle - sp->active_cycle) * 20, 0, a->screen_x, a->screen_y - lift,
+                      px, stride, x0, y0, x1, y1);
+            element_id = -1;
+        }
+        else if( a->is_player == ACTOR_PROJECTILE )
+        {
+            struct WorldEntity_Projectile* pr = (struct WorldEntity_Projectile*)World_EntityPoolAt(
+                &world->entities.projectile, a->index);
+            int ground = World_HeightAt(world, (int)pr->x, (int)pr->z, level);
+            int lift = (ground - (int)pr->y) * LIFT_PER_1000_UNITS / 1000;
+            draw_spot(bb, w, pr->spotanim_id, PS_FacingFromYaw(pr->orientation.yaw),
+                      (world->cycle - pr->t1) * 20, 1, a->screen_x, a->screen_y - lift, px, stride,
+                      x0, y0, x1, y1);
+            element_id = -1;
+        }
+        else if( a->is_player == ACTOR_ITEM )
         {
             struct WorldEntity_ObjStack* st = (struct WorldEntity_ObjStack*)World_EntityPoolAt(
                 &world->entities.obj_stack, a->index);
@@ -906,7 +1131,7 @@ PS_WorldDraw(
         {
             struct WorldEntity_Scenery* sc =
                 (struct WorldEntity_Scenery*)World_EntityPoolAt(&world->entities.scenery, a->index);
-            draw_loc(bb, w, sc, a->screen_x, a->screen_y, px, stride, x0, y0, x1, y1, now);
+            draw_loc(bb, w, app, sc, a->screen_x, a->screen_y - a->lift, px, stride, x0, y0, x1, y1, now);
             element_id = sc->element_id;
         }
         else if( a->is_player == ACTOR_PLAYER )
@@ -915,6 +1140,8 @@ PS_WorldDraw(
                 (struct WorldEntity_Player*)World_EntityPoolAt(&world->entities.player, a->index);
             draw_player(bb, w, pl, a->index, a->screen_x, a->screen_y, px, stride, x0, y0, x1, y1,
                         now);
+            draw_attached(bb, w, &pl->spotanim, world->cycle, PS_FacingFromYaw(pl->orientation.yaw),
+                          a->screen_x, a->screen_y, px, stride, x0, y0, x1, y1);
             element_id = pl->element_id;
             combat = &pl->combat;
         }
@@ -924,6 +1151,9 @@ PS_WorldDraw(
                 (struct WorldEntity_NPC*)World_EntityPoolAt(&world->entities.npc, a->index);
             draw_npc(bb, w, npc, a->index, a->screen_x, a->screen_y, px, stride, x0, y0, x1, y1,
                      now);
+            draw_attached(bb, w, &npc->spotanim, world->cycle,
+                          PS_FacingFromYaw(npc->orientation.yaw), a->screen_x, a->screen_y, px,
+                          stride, x0, y0, x1, y1);
             element_id = npc->element_id;
             combat = &npc->combat;
         }

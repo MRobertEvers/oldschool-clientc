@@ -24,7 +24,7 @@ from store import Store  # noqa: E402
 
 
 def parse(keys):
-    npcs, layer_seqs, loc_keys, obj_keys = {}, {}, set(), set()
+    npcs, layer_seqs, loc_keys, obj_keys, spot_keys = {}, {}, set(), set(), set()
     for key in keys:
         parts = key.split("/")
         if parts[0] == "npc" and len(parts) == 3:
@@ -38,17 +38,21 @@ def parse(keys):
                                                                set()).add(seq)
         elif parts[0] == "obj" and len(parts) == 2:
             obj_keys.add(int(parts[1]))
+        elif parts[0] == "spot" and len(parts) == 2:
+            spot_keys.add(int(parts[1]))
         elif parts[0] == "loc" and len(parts) == 4:
             # An early client asked for a static loc as seq 0; it is -1.
             seq = int(parts[3])
             loc_keys.add((int(parts[1]), int(parts[2]), -1 if seq == 0 else seq))
         else:
             print("skip %s (no generator for it yet)" % key)
-    return npcs, layer_seqs, loc_keys, obj_keys
+    return npcs, layer_seqs, loc_keys, obj_keys, spot_keys
 
 
 CONTENT = os.path.join(os.path.dirname(os.path.dirname(HERE)), "OSRS-Content/osrs239-content")
-DRAWN_LOC_SHAPES = (10, 11, 22)
+# Walls (0 straight, 1 diagonal corner, 3 post, 9 diagonal; 2, the L corner,
+# is drawn from its straight wall at two rotations), centrepieces, ground decor.
+DRAWN_LOC_SHAPES = (0, 1, 2, 3, 9, 10, 11, 22)
 # Player sequences a fresh character uses: stance, walk (forward/back/left/
 # right), run.
 PLAYER_SEQS = [808, 819, 820, 821, 822, 824]
@@ -82,13 +86,41 @@ def region_npcs(sqs):
     return sorted(ids)
 
 
+_LOC = {}
+
+
+def loc_config(loc):
+    """The loc's all.loc block, "" when it has none."""
+    if not _LOC:
+        import pokesprite as ps
+        _LOC["names"] = ps.compack("loc")
+        _LOC["ids"] = {v: k for k, v in _LOC["names"].items()}
+        _LOC["txt"] = open(os.path.join(CONTENT, "configs/all.loc"), "rb").read().decode(
+            "utf8", "replace")
+    name = _LOC["names"].get(loc)
+    if not name:
+        return ""
+    txt = _LOC["txt"]
+    i = txt.find("\n[%s]\n" % name)
+    return txt[i:txt.find("\n[", i + 2)] if i >= 0 else ""
+
+
+def multiloc_children(loc):
+    """The locs a multiloc can resolve to; [] for an ordinary loc."""
+    kids = []
+    for row in loc_config(loc).splitlines():
+        if row.startswith("multiloc") and "=" in row:
+            kid = _LOC["ids"].get(row.split("=", 1)[1].strip())
+            if kid is not None and kid not in kids:
+                kids.append(kid)
+    return kids
+
+
 def region_locs(sqs):
     """(loc, shape, seq) for every drawn-shape loc the squares place (.jl2)."""
     import pokesprite as ps
-    loc_names = ps.compack("loc")
     seq_ids = {v: k for k, v in ps.compack("seq").items()}
-    anims = {}
-    txt = open(os.path.join(CONTENT, "configs/all.loc"), "rb").read().decode("utf8", "replace")
+    anims, children = {}, {}
     out = set()
     for x, z in sqs:
         p = os.path.join(CONTENT, "maps", "m%d_%d.jl2" % (x, z))
@@ -104,17 +136,17 @@ def region_locs(sqs):
             loc, shape = int(parts[0]), int(parts[1])
             if shape not in DRAWN_LOC_SHAPES:
                 continue
-            if loc not in anims:
-                name = loc_names.get(loc)
-                seq = -1
-                if name:
-                    i = txt.find("\n[%s]\n" % name)
-                    j = txt.find("\n[", i + 2)
-                    for row in txt[i:j].splitlines():
+            if shape == 2:
+                shape = 0
+            # A multiloc has no models: the client draws the child its varbit
+            # picks, which only the live game knows -- so render every child.
+            for drawn in children.setdefault(loc, multiloc_children(loc)) or [loc]:
+                if drawn not in anims:
+                    anims[drawn] = -1
+                    for row in loc_config(drawn).splitlines():
                         if row.startswith("anim=") and row[5:].strip() in seq_ids:
-                            seq = seq_ids[row[5:].strip()]
-                anims[loc] = seq
-            out.add((loc, shape, anims[loc]))
+                            anims[drawn] = seq_ids[row[5:].strip()]
+                out.add((drawn, shape, anims[drawn]))
     return sorted(out)
 
 
@@ -194,7 +226,16 @@ def main():
     st = Store(a.store)
     missing = st.missing()
     st.close()
-    npcs, layer_seqs, loc_keys, obj_keys = parse(k for k, _ in missing)
+    npcs, layer_seqs, loc_keys, obj_keys, spot_keys = parse(k for k, _ in missing)
+    # parse() rewrites an old client's seq 0 to -1, which missing() could not
+    # see was already stored.
+    st = Store(a.store)
+    # A multiloc parent has no models -- an old client asked for one; the
+    # current one asks for the child its varbit picks. Render the children.
+    loc_keys = {(kid, shape, seq) for loc, shape, seq in loc_keys
+                for kid in (multiloc_children(loc) or [loc])}
+    loc_keys = {k for k in loc_keys if not st.has("loc/%d/%d/%d" % k)}
+    st.close()
     print("missing: %d keys -> %d npcs, %d player layers, %d locs" % (
         len(missing), len(npcs), sum(len(v) for v in layer_seqs.values()), len(loc_keys)))
     done = 0
@@ -203,12 +244,18 @@ def main():
             break
         print("npc %d seqs %s: %s" % (npc, sorted(seqs), run_npc(npc, seqs, a.work, a.store)))
         done += 1
+    for spot in sorted(spot_keys):
+        try:
+            locs.generate_spot(spot, a.work, a.store)
+            print("spot %d: ok" % spot)
+        except (SystemExit, Exception) as e:
+            print("spot %d: %s" % (spot, settle_empty(a.store, "spot/%d" % spot, e)))
     for obj in sorted(obj_keys):
         try:
             locs.generate_obj(obj, a.work, a.store)
             print("obj %d: ok" % obj)
         except (SystemExit, Exception) as e:
-            print("obj %d: FAILED %s" % (obj, str(e).strip()[-200:]))
+            print("obj %d: %s" % (obj, settle_empty(a.store, "obj/%d" % obj, e)))
     for loc, shape, seq in sorted(loc_keys):
         try:
             locs.generate(loc, shape, seq, a.work, a.store)
