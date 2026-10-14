@@ -168,6 +168,7 @@ App_DriveProjectileNote(
     p->cycle = now;
 }
 
+#if defined(TORIRS_EMBED_SERVER) && TORIRS_EMBED_SERVER
 int
 App_DriveMapAnimElapsed(struct App_DriveMapAnim const* a)
 {
@@ -210,6 +211,23 @@ App_DriveMapAnimNote(struct App* app, int x, int z, int level, int spotanim)
     a->spotanim = spotanim;
     a->cycle = now;
 }
+#else /* !TORIRS_EMBED_SERVER */
+/*
+ * The map-anim ring has one reader, the quest driver (DriveUi_*, embedded
+ * server only), and its age is counted in server ticks the driver tracks
+ * (PluginDrive_ServerTick*). A client without the embedded server has
+ * neither: the packet is noted nowhere.
+ */
+void
+App_DriveMapAnimNote(struct App* app, int x, int z, int level, int spotanim)
+{
+    assert(app);
+    (void)x;
+    (void)z;
+    (void)level;
+    (void)spotanim;
+}
+#endif /* TORIRS_EMBED_SERVER */
 
 void
 App_DriveLocAnimNote(struct App* app, int scene_x, int scene_z, int level, int shape, int seq)
