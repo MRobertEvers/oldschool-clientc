@@ -130,7 +130,7 @@ frame_state(struct UITree* tree)
      * NULL pointer and no bytes. */
     if( !tree->frame_layout )
     {
-        tree->frame_layout = calloc(1, sizeof(*tree->frame_layout));
+        tree->frame_layout = ToriMem_Calloc(ToriMem_Ui(), 1, sizeof(*tree->frame_layout));
         assert(tree->frame_layout);
     }
     return tree->frame_layout;
@@ -626,7 +626,7 @@ frame_slot_candidates_refresh(struct UITree const* tree)
             uint32_t const capacity =
                 frame_slot_candidates.ids_capacity ? frame_slot_candidates.ids_capacity * 2 : 64;
             frame_slot_candidates.ids =
-                realloc(frame_slot_candidates.ids, capacity * sizeof(*frame_slot_candidates.ids));
+                ToriMem_Realloc(ToriMem_Ui(), frame_slot_candidates.ids, capacity * sizeof(*frame_slot_candidates.ids));
             assert(frame_slot_candidates.ids);
             frame_slot_candidates.ids_capacity = capacity;
         }
@@ -1686,7 +1686,7 @@ anchor_plan_grow(struct UITreeAnchorPlan* plan, void* block, size_t bytes)
     void* grown;
     assert(plan);
     assert(bytes > 0);
-    grown = realloc(block, bytes);
+    grown = ToriMem_Realloc(ToriMem_Ui(), block, bytes);
     assert(grown);
     plan->allocations++;
     return grown;
@@ -1763,7 +1763,7 @@ anchor_plan_of(struct UITree* tree)
     assert(tree);
     if( !tree->anchor_plan )
     {
-        tree->anchor_plan = calloc(1, sizeof(*tree->anchor_plan));
+        tree->anchor_plan = ToriMem_Calloc(ToriMem_Ui(), 1, sizeof(*tree->anchor_plan));
         assert(tree->anchor_plan);
         /* Epoch 0 is what a freshly grown array tail reads, so the live epochs
          * start above it. */
@@ -1782,29 +1782,29 @@ UITree_FrameAnchorPlanFree(struct UITree* tree)
     plan = tree->anchor_plan;
     if( !plan )
         return;
-    free(plan->unit_node);
-    free(plan->unit_parent);
-    free(plan->unit_child_head);
-    free(plan->unit_child_tail);
-    free(plan->unit_child_next);
-    free(plan->unit_depth);
-    free(plan->unit_order);
-    free(plan->unit_relation);
-    free(plan->unit_first);
-    free(plan->unit_tree_first);
-    free(plan->unit_record_head);
-    free(plan->unit_record_tail);
-    free(plan->unit_root_next);
-    free(plan->unit_handled);
-    free(plan->node_unit);
-    free(plan->node_stamp);
-    free(plan->unit_slot_at);
-    free(plan->unit_stamp);
-    free(plan->record_unit);
-    free(plan->record_next);
-    free(plan->root_head);
-    free(plan->output);
-    free(plan);
+    ToriMem_Free(ToriMem_Ui(), plan->unit_node);
+    ToriMem_Free(ToriMem_Ui(), plan->unit_parent);
+    ToriMem_Free(ToriMem_Ui(), plan->unit_child_head);
+    ToriMem_Free(ToriMem_Ui(), plan->unit_child_tail);
+    ToriMem_Free(ToriMem_Ui(), plan->unit_child_next);
+    ToriMem_Free(ToriMem_Ui(), plan->unit_depth);
+    ToriMem_Free(ToriMem_Ui(), plan->unit_order);
+    ToriMem_Free(ToriMem_Ui(), plan->unit_relation);
+    ToriMem_Free(ToriMem_Ui(), plan->unit_first);
+    ToriMem_Free(ToriMem_Ui(), plan->unit_tree_first);
+    ToriMem_Free(ToriMem_Ui(), plan->unit_record_head);
+    ToriMem_Free(ToriMem_Ui(), plan->unit_record_tail);
+    ToriMem_Free(ToriMem_Ui(), plan->unit_root_next);
+    ToriMem_Free(ToriMem_Ui(), plan->unit_handled);
+    ToriMem_Free(ToriMem_Ui(), plan->node_unit);
+    ToriMem_Free(ToriMem_Ui(), plan->node_stamp);
+    ToriMem_Free(ToriMem_Ui(), plan->unit_slot_at);
+    ToriMem_Free(ToriMem_Ui(), plan->unit_stamp);
+    ToriMem_Free(ToriMem_Ui(), plan->record_unit);
+    ToriMem_Free(ToriMem_Ui(), plan->record_next);
+    ToriMem_Free(ToriMem_Ui(), plan->root_head);
+    ToriMem_Free(ToriMem_Ui(), plan->output);
+    ToriMem_Free(ToriMem_Ui(), plan);
     tree->anchor_plan = NULL;
 }
 
@@ -2191,9 +2191,16 @@ void
 UITree_FrameForget(struct UITree* tree)
 {
     assert(tree);
+    /* The slot-candidate list names this tree's nodes; it is the tree's
+     * memory as much as the frame table is, so it goes with it. */
+    if( frame_slot_candidates.tree == tree )
+    {
+        ToriMem_Free(ToriMem_Ui(), frame_slot_candidates.ids);
+        memset(&frame_slot_candidates, 0, sizeof(frame_slot_candidates));
+    }
     if( !tree->frame_layout )
         return;
-    free(tree->frame_layout);
+    ToriMem_Free(ToriMem_Ui(), tree->frame_layout);
     tree->frame_layout = NULL;
 }
 

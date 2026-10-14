@@ -1,4 +1,5 @@
 #include "world.h"
+#include "mem/torirs_mem.h"
 
 #include "features/features.h"
 
@@ -18,7 +19,7 @@
 struct World*
 World_New(void)
 {
-    struct World* world = calloc(1, sizeof(struct World));
+    struct World* world = ToriMem_Calloc(ToriMem_Scene(), 1, sizeof(struct World));
     assert(world && "Failed to allocate world");
     world->local_pid = -1;
     World_EntityListInit(&world->entities);
@@ -53,21 +54,21 @@ World_Free(struct World* world)
         painters_cullmap_free(world->cullmap);
     if( world->painter )
         painter_free(world->painter);
-    free(world->tile_flags);
-    free(world->obj_raise);
-    free(world->tile_last_occupied_cycle);
-    free(world->mapscenes);
-    free(world->area_sounds);
+    ToriMem_Free(ToriMem_Scene(), world->tile_flags);
+    ToriMem_Free(ToriMem_Scene(), world->obj_raise);
+    ToriMem_Free(ToriMem_Scene(), world->tile_last_occupied_cycle);
+    ToriMem_Free(ToriMem_Scene(), world->mapscenes);
+    ToriMem_Free(ToriMem_Scene(), world->area_sounds);
     World_EntityListFree(&world->entities);
     for( int i = 0; i < world->scenery_info.count; i++ )
-        free(world->scenery_info.entries[i]);
-    free(world->scenery_info.entries);
-    free(world->scenery_info.hashes);
-    free(world->scenery_info.buckets);
-    free(world->scenery_info.chain);
-    free(world->scenery_info.memo_loc_ids);
-    free(world->scenery_info.memo_infos);
-    free(world);
+        ToriMem_Free(ToriMem_Scene(), world->scenery_info.entries[i]);
+    ToriMem_Free(ToriMem_Scene(), world->scenery_info.entries);
+    ToriMem_Free(ToriMem_Scene(), world->scenery_info.hashes);
+    ToriMem_Free(ToriMem_Scene(), world->scenery_info.buckets);
+    ToriMem_Free(ToriMem_Scene(), world->scenery_info.chain);
+    ToriMem_Free(ToriMem_Scene(), world->scenery_info.memo_loc_ids);
+    ToriMem_Free(ToriMem_Scene(), world->scenery_info.memo_infos);
+    ToriMem_Free(ToriMem_Scene(), world);
 }
 
 void
@@ -85,10 +86,8 @@ World_AddMapSceneIcon(
     if( world->mapscene_count >= world->mapscene_capacity )
     {
         int new_cap = world->mapscene_capacity ? world->mapscene_capacity * 2 : 256;
-        struct World_MapSceneIcon* grown = (struct World_MapSceneIcon*)realloc(
-            world->mapscenes, (size_t)new_cap * sizeof(*grown));
-        if( !grown )
-            return;
+        struct World_MapSceneIcon* grown = (struct World_MapSceneIcon*)ToriMem_Realloc(
+            ToriMem_Scene(), world->mapscenes, (size_t)new_cap * sizeof(*grown));
         world->mapscenes = grown;
         world->mapscene_capacity = new_cap;
     }
@@ -112,10 +111,8 @@ World_AddAreaSound(
     if( world->area_sound_count >= world->area_sound_capacity )
     {
         int new_cap = world->area_sound_capacity ? world->area_sound_capacity * 2 : 64;
-        struct World_AreaSound* grown = (struct World_AreaSound*)realloc(
-            world->area_sounds, (size_t)new_cap * sizeof(*grown));
-        if( !grown )
-            return;
+        struct World_AreaSound* grown = (struct World_AreaSound*)ToriMem_Realloc(
+            ToriMem_Scene(), world->area_sounds, (size_t)new_cap * sizeof(*grown));
         world->area_sounds = grown;
         world->area_sound_capacity = new_cap;
     }
@@ -682,23 +679,25 @@ World_ResetSceneAlloc(
 
     world->heightmap = heightmap_new(scene_size + 1, scene_size + 1, WORLD_MAP_TERRAIN_LEVELS);
     for( int i = 0; i < COLLISION_LEVELS; i++ )
-        world->collision_maps[i] = collision_map_new(scene_size, scene_size);
+        world->collision_maps[i] = collision_map_new(ToriMem_Scene(), scene_size, scene_size);
     world->minimap = minimap_new(scene_size, scene_size);
 
-    free(world->tile_flags);
-    world->tile_flags =
-        (uint8_t*)calloc((size_t)(scene_size * scene_size * WORLD_MAP_TERRAIN_LEVELS), 1);
+    ToriMem_Free(ToriMem_Scene(), world->tile_flags);
+    world->tile_flags = (uint8_t*)ToriMem_Calloc(
+        ToriMem_Scene(), (size_t)(scene_size * scene_size * WORLD_MAP_TERRAIN_LEVELS), 1);
 
-    free(world->obj_raise);
-    world->obj_raise =
-        (int16_t*)calloc((size_t)(scene_size * scene_size * WORLD_MAP_TERRAIN_LEVELS), sizeof(int16_t));
+    ToriMem_Free(ToriMem_Scene(), world->obj_raise);
+    world->obj_raise = (int16_t*)ToriMem_Calloc(
+        ToriMem_Scene(),
+        (size_t)(scene_size * scene_size * WORLD_MAP_TERRAIN_LEVELS),
+        sizeof(int16_t));
 
     /* Per-tile occupancy stamp (reference tileLastOccupiedCycle). calloc's 0
      * can never equal scene_cycle once it starts at 1, so a fresh scene reads
      * as unoccupied without an explicit clear. */
-    free(world->tile_last_occupied_cycle);
+    ToriMem_Free(ToriMem_Scene(), world->tile_last_occupied_cycle);
     world->tile_last_occupied_cycle =
-        (int*)calloc((size_t)(scene_size * scene_size), sizeof(int));
+        (int*)ToriMem_Calloc(ToriMem_Scene(), (size_t)(scene_size * scene_size), sizeof(int));
     world->scene_cycle = 0;
 
     world->painter = painter_new(
@@ -909,7 +908,7 @@ World_EmitNpcRemoved(
         .kind = WorldEventKind_EntityRemoved,
         .element_id = npc->element_id,
     };
-    event->removed_npc = malloc(sizeof(*event->removed_npc));
+    event->removed_npc = ToriMem_Alloc(ToriMem_Scene(), sizeof(*event->removed_npc));
     assert(event->removed_npc);
     *event->removed_npc = *npc;
 }
@@ -1628,10 +1627,10 @@ world_scenery_info_for_loc(
         if( table->memo_capacity == 0 )
         {
             table->memo_capacity = 4096;
-            table->memo_loc_ids =
-                malloc((size_t)table->memo_capacity * sizeof(*table->memo_loc_ids));
-            table->memo_infos =
-                malloc((size_t)table->memo_capacity * sizeof(*table->memo_infos));
+            table->memo_loc_ids = ToriMem_Alloc(
+                ToriMem_Scene(), (size_t)table->memo_capacity * sizeof(*table->memo_loc_ids));
+            table->memo_infos = ToriMem_Alloc(
+                ToriMem_Scene(), (size_t)table->memo_capacity * sizeof(*table->memo_infos));
             assert(table->memo_loc_ids);
             assert(table->memo_infos);
             for( int i = 0; i < table->memo_capacity; i++ )
@@ -1682,7 +1681,8 @@ World_SceneryInfoIntern(
 
     if( !table->buckets )
     {
-        table->buckets = malloc(sizeof(*table->buckets) * WORLD_SCENERY_INFO_BUCKETS);
+        table->buckets =
+            ToriMem_Alloc(ToriMem_Scene(), sizeof(*table->buckets) * WORLD_SCENERY_INFO_BUCKETS);
         assert(table->buckets);
         for( int i = 0; i < WORLD_SCENERY_INFO_BUCKETS; i++ )
             table->buckets[i] = -1;
@@ -1700,9 +1700,11 @@ World_SceneryInfoIntern(
     {
         int capacity = table->capacity ? table->capacity * 2 : 64;
         struct WorldEntity_SceneryInfo** entries =
-            realloc(table->entries, (size_t)capacity * sizeof(*entries));
-        uint32_t* hashes = realloc(table->hashes, (size_t)capacity * sizeof(*hashes));
-        int* chain = realloc(table->chain, (size_t)capacity * sizeof(*chain));
+            ToriMem_Realloc(ToriMem_Scene(), table->entries, (size_t)capacity * sizeof(*entries));
+        uint32_t* hashes =
+            ToriMem_Realloc(ToriMem_Scene(), table->hashes, (size_t)capacity * sizeof(*hashes));
+        int* chain =
+            ToriMem_Realloc(ToriMem_Scene(), table->chain, (size_t)capacity * sizeof(*chain));
         assert(entries);
         assert(hashes);
         assert(chain);
@@ -1712,7 +1714,7 @@ World_SceneryInfoIntern(
         table->capacity = capacity;
     }
 
-    entry = malloc(sizeof(*entry));
+    entry = ToriMem_Alloc(ToriMem_Scene(), sizeof(*entry));
     assert(entry);
     memcpy(entry, probe, sizeof(*entry));
     table->hashes[table->count] = hash;
@@ -2441,7 +2443,7 @@ World_EventsClear(struct World* world)
     assert(world);
     for( int i = 0; i < world->event_count; i++ )
     {
-        free(world->events[i].removed_npc);
+        ToriMem_Free(ToriMem_Scene(), world->events[i].removed_npc);
         world->events[i].removed_npc = NULL;
     }
     world->event_count = 0;

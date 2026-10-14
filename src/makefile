@@ -1696,7 +1696,7 @@ test-world-builder: $(OBJ_DIR) $(WB_TEST_OBJS)
 .PHONY: test-action-plan
 test-action-plan: $(OBJ_DIR)
 	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -UNDEBUG -I$(SRC_DIR)/engine/world_builder/test \
-		-o $(OBJ_DIR)/action_plan_test \
+		-o $(OBJ_DIR)/action_plan_test $(TORIMEM_SRCS) \
 		engine/world_builder/test/action_plan_test.c engine/world_builder/action_plan.c \
 		engine/world_builder/collision_map.c features/features.c -lm
 	./$(OBJ_DIR)/action_plan_test
@@ -1881,7 +1881,7 @@ test-viewport-projection: $(OBJ_DIR)
 .PHONY: test-minimap-mapscene
 test-minimap-mapscene: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/engine/world_builder \
-		-o $(OBJ_DIR)/minimap_mapscene_test$(PLATFORM_EXE_SUFFIX) \
+		-o $(OBJ_DIR)/minimap_mapscene_test$(PLATFORM_EXE_SUFFIX) $(TORIMEM_SRCS) \
 		engine/world_builder/test/minimap_mapscene_test.c engine/world_builder/minimap.c \
 		$(LDFLAGS)
 	./$(OBJ_DIR)/minimap_mapscene_test$(PLATFORM_EXE_SUFFIX)
@@ -1892,7 +1892,7 @@ test-minimap-mapscene: $(OBJ_DIR)
 # in between to blame.
 .PHONY: test-uitree-if-store
 test-uitree-if-store: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/uitree_if_store_test$(PLATFORM_EXE_SUFFIX) \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/uitree_if_store_test$(PLATFORM_EXE_SUFFIX) $(TORIMEM_SRCS) \
 		ui/test/uitree_if_store_test.c ui/uitree_if_store.c $(LDFLAGS)
 	./$(OBJ_DIR)/uitree_if_store_test$(PLATFORM_EXE_SUFFIX)
 
@@ -2087,7 +2087,7 @@ test-worldmap-drag: $(OBJ_DIR) $(OBJ_DIR)/hmap.o
 # nothing. Covers all five overlap shapes and the dynamic-child addressing.
 .PHONY: test-uitree-if-events
 test-uitree-if-events: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/uitree_if_events_test$(PLATFORM_EXE_SUFFIX) \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/uitree_if_events_test$(PLATFORM_EXE_SUFFIX) $(TORIMEM_SRCS) \
 		ui/test/uitree_if_events_test.c ui/uitree_if_events.c ui/uitree.c \
 		perf/torirs_perf.c $(LDFLAGS)
 	./$(OBJ_DIR)/uitree_if_events_test$(PLATFORM_EXE_SUFFIX)
@@ -2195,7 +2195,7 @@ test-client-scale: $(OBJ_DIR)
 # SIGKILLed and whose member must be gone within 15 s. POSIX only.
 .PHONY: test-launch-sessions
 test-launch-sessions: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/launch_sessions_test$(PLATFORM_EXE_SUFFIX) \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/launch_sessions_test$(PLATFORM_EXE_SUFFIX) $(TORIMEM_SRCS) \
 		platform/launch_sessions.c platform/test/launch_sessions_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/launch_sessions_test$(PLATFORM_EXE_SUFFIX)
 
@@ -2213,7 +2213,7 @@ test-cs2-host-request-kinds: $(OBJ_DIR)
 
 .PHONY: test-cs2-host-request-producers
 test-cs2-host-request-producers: $(OBJ_DIR) $(ASAN_DYLD_SHIM)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_host_request_producers_test \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_host_request_producers_test $(TORIMEM_SRCS) \
 		cs2vm2/test/host_request_producers_test.c \
 		cs2vm2/cs2vm2.c cs2vm2/cs2vm2_strpool.c cs2vm2/cs2_opcode_meta.c \
 		perf/torirs_perf.c $(LDFLAGS)
@@ -2221,7 +2221,7 @@ test-cs2-host-request-producers: $(OBJ_DIR) $(ASAN_DYLD_SHIM)
 
 .PHONY: test-cs2-array-fill
 test-cs2-array-fill: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_array_fill_test \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_array_fill_test $(TORIMEM_SRCS) \
 		cs2vm2/test/array_fill_test.c \
 		cs2vm2/cs2vm2.c cs2vm2/cs2vm2_strpool.c cs2vm2/cs2_opcode_meta.c \
 		perf/torirs_perf.c $(LDFLAGS)
@@ -2241,7 +2241,7 @@ test-cs2-sailing-settings: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 
 .PHONY: test-cs2-array-bounds
 test-cs2-array-bounds: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_array_bounds_test \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_array_bounds_test $(TORIMEM_SRCS) \
 		cs2vm2/test/array_bounds_test.c \
 		cs2vm2/cs2vm2.c cs2vm2/cs2vm2_strpool.c cs2vm2/cs2_opcode_meta.c \
 		perf/torirs_perf.c $(LDFLAGS)
@@ -2249,7 +2249,7 @@ test-cs2-array-bounds: $(OBJ_DIR)
 
 .PHONY: test-cs2-vm-pool
 test-cs2-vm-pool: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_vm_pool_test \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_vm_pool_test $(TORIMEM_SRCS) \
 		cs2vm2/test/vm_pool_test.c \
 		cs2vm2/cs2vm2.c cs2vm2/cs2vm2_strpool.c cs2vm2/cs2_opcode_meta.c \
 		perf/torirs_perf.c $(LDFLAGS)
@@ -2261,7 +2261,7 @@ test-cs2-vm-pool: $(OBJ_DIR)
 test-proctex-coverage: $(OBJ_DIR) $(OBJ_DIR)/proctex_generator.o $(OBJ_DIR)/rscache_unity.o \
 		$(OBJ_DIR)/bmp.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o \
 		$(OBJ_DIR)/xteas.o
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/proctex_coverage \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/proctex_coverage $(TORIMEM_SRCS) \
 		engine/proctex/test/proctex_coverage.c \
 		$(OBJ_DIR)/proctex_generator.o $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bmp.o \
 		$(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
@@ -2317,7 +2317,7 @@ plugin-beam-assets: plugin-model-extract
 rs2012-material-bake: $(OBJ_DIR) $(OBJ_DIR)/proctex_generator.o $(OBJ_DIR)/rscache_unity.o \
 		$(OBJ_DIR)/bmp.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o \
 		$(OBJ_DIR)/xteas.o
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs2012_material_bake \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs2012_material_bake $(TORIMEM_SRCS) \
 		engine/proctex/test/rs2012_material_bake.c \
 		$(OBJ_DIR)/proctex_generator.o $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bmp.o \
 		$(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
@@ -2795,12 +2795,12 @@ run: $(TARGET)
 	./$(TARGET)
 
 test-varp: $(OBJ_DIR) varp/varp_manager.c varp/varp_manager_test.c
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/varp_manager_test varp/varp_manager.c varp/varp_manager_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/varp_manager_test $(TORIMEM_SRCS) varp/varp_manager.c varp/varp_manager_test.c
 	./$(OBJ_DIR)/varp_manager_test
 
 test-preview-state: $(OBJ_DIR) game/preview_state.c game/test/preview_state_test.c \
 		game/rs_player_stats.c varp/varp_manager.c varc/varc_manager.c
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/preview_state_test \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/preview_state_test $(TORIMEM_SRCS) \
 		game/preview_state.c game/test/preview_state_test.c \
 		game/rs_player_stats.c varp/varp_manager.c varc/varc_manager.c
 	./$(OBJ_DIR)/preview_state_test
@@ -2848,7 +2848,7 @@ test-client-trigger: $(OBJ_DIR) game/rs_client_trigger.c game/rs_entity_overlay.
 # the right hit": both of the ways to get the resolution wrong still draw.
 test-hitsplat: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o game/rs_hitsplat.c \
 		varp/varp_manager.c game/test/rs_hitsplat_test.c
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_hitsplat_test \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_hitsplat_test $(TORIMEM_SRCS) \
 		game/rs_hitsplat.c varp/varp_manager.c game/test/rs_hitsplat_test.c \
 		$(OBJ_DIR)/rscache_unity.o $(LDFLAGS)
 	./$(OBJ_DIR)/rs_hitsplat_test
@@ -2874,7 +2874,7 @@ test-clientop: $(OBJ_DIR) game/rs_clientop.c game/test/rs_clientop_test.c
 # the whole category looked like before they existed. This is where that shows.
 test-nxt-plugins: $(OBJ_DIR) \
 		plugin/test/nxt_activities_test.c
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/nxt_activities_test \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/nxt_activities_test $(TORIMEM_SRCS) \
 		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
 			ui/uitree_minimenu.c revconfig/revconfig.c \
 		$(PORCELAIN_SRCS) \
@@ -2890,7 +2890,7 @@ test-nxt-plugins: $(OBJ_DIR) \
 # pixel for pixel (plugin/test/data/cox_helper_wiki.png).
 test-nxt-cox-helper: $(OBJ_DIR) $(OBJ_DIR)/stb_image_tools_impl.o \
 		plugin/test/nxt_cox_helper_test.c
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/nxt_cox_helper_test \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/nxt_cox_helper_test $(TORIMEM_SRCS) \
 		plugin/plugins/nxt_cox_layout.c plugin/plugins/nxt_cox_helper_paint.c \
 		plugin/plugins/plugin_draw.c $(OBJ_DIR)/stb_image_tools_impl.o \
 		plugin/test/nxt_cox_helper_test.c $(LDFLAGS)
@@ -2933,7 +2933,7 @@ test-plugin-lua: $(OBJ_DIR) $(OBJ_DIR)/torirs_plugin_lua.o $(OBJ_DIR)/lua_unity.
 		test-plugin-lua-api-inventory \
 		$(ASAN_DYLD_SHIM)
 	$(CC) $(CFLAGS) -DTORIRS_PLUGIN_LUA_TESTING=1 -I$(LUA_DIR) \
-		-o $(OBJ_DIR)/torirs_plugin_lua_v2_test \
+		-o $(OBJ_DIR)/torirs_plugin_lua_v2_test $(TORIMEM_SRCS) \
 		plugin/torirs_plugin_lua.c plugin/test/plugin_lua_test.c \
 		$(PORCELAIN_SRCS) \
 		plugin/porcelain/test/porcelain_testbed.c \
@@ -2980,7 +2980,7 @@ test-tracker-render: $(OBJ_DIR) plugin/plugins/xp_tracker.c plugin/plugins/loot_
 test-trackers: $(OBJ_DIR) plugin/plugins/xp_tracker.c plugin/plugins/loot_tracker.c \
 		plugin/plugins/plugin_draw.c $(PORCELAIN_SRCS) \
 		plugin/test/tracker_test.c $(ASAN_DYLD_SHIM)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/tracker_test \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/tracker_test $(TORIMEM_SRCS) \
 		plugin/plugins/xp_tracker.c plugin/plugins/loot_tracker.c \
 		plugin/plugins/plugin_draw.c $(PORCELAIN_SRCS) \
 		plugin/test/tracker_test.c $(LDFLAGS)
@@ -2988,7 +2988,7 @@ test-trackers: $(OBJ_DIR) plugin/plugins/xp_tracker.c plugin/plugins/loot_tracke
 
 test-plugin-host: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
 		plugin/test/torirs_plugin_host_test.c $(ASAN_DYLD_SHIM)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/plugin_host_test \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/plugin_host_test $(TORIMEM_SRCS) \
 		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
 		ui/uitree_minimenu.c revconfig/revconfig.c \
 		plugin/test/torirs_plugin_host_test.c $(LDFLAGS)
@@ -3004,7 +3004,7 @@ test-plugin-host: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/torirs_plugin_fr
 test-porcelain: $(OBJ_DIR) $(PORCELAIN_SRCS) \
 		plugin/porcelain/test/porcelain_testbed.c plugin/porcelain/test/porcelain_test.c \
 		$(ASAN_DYLD_SHIM)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/porcelain_test \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/porcelain_test $(TORIMEM_SRCS) \
 		$(PORCELAIN_SRCS) \
 		plugin/porcelain/test/porcelain_testbed.c plugin/porcelain/test/porcelain_test.c \
 		$(LDFLAGS)
@@ -3033,7 +3033,7 @@ test-plugin-api: plugin/torirs_plugin_api.h plugin/test/plugin_api_compile_test.
 test-tileind-v2: $(OBJ_DIR) plugin/plugins/tileind.c \
 		$(PORCELAIN_SRCS) \
 		plugin/test/tileind_v2_test.c
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/tileind_v2_test \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/tileind_v2_test $(TORIMEM_SRCS) \
 		plugin/plugins/tileind.c $(PORCELAIN_SRCS) \
 		plugin/test/tileind_v2_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/tileind_v2_test
@@ -3062,7 +3062,7 @@ test-plugin-panel-route: $(OBJ_DIR) plugin/test/plugin_panel_route_test.c \
 test-client-settings: $(OBJ_DIR) plugin/plugins/client_settings.c \
 		$(PORCELAIN_SRCS) \
 		plugin/test/client_settings_test.c
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/client_settings_test \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/client_settings_test $(TORIMEM_SRCS) \
 		$(PORCELAIN_SRCS) \
 		plugin/plugins/client_settings.c plugin/test/client_settings_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/client_settings_test
@@ -3079,7 +3079,7 @@ test-feature-flags: $(OBJ_DIR) plugin/torirs_plugin_host.c \
 		plugin/plugins/feature_flags.c \
 		$(PORCELAIN_SRCS) \
 		plugin/test/feature_flags_test.c
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/feature_flags_test \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/feature_flags_test $(TORIMEM_SRCS) \
 		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
 			ui/uitree_minimenu.c revconfig/revconfig.c \
 		$(PORCELAIN_SRCS) \
@@ -3162,7 +3162,7 @@ test-gameframe: $(OBJ_DIR) plugin/torirs_plugin_host.c \
 # Run from src/, where the shipped assets resolve.
 .PHONY: test-mobile-gameframe
 test-touch: $(OBJ_DIR) input/torirs_touch.c input/test/torirs_touch_test.c
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/torirs_touch_test \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/torirs_touch_test $(TORIMEM_SRCS) \
 		input/torirs_touch.c input/torirs_input.c input/torirs_input_cmd.c \
 		cmd/cmdbus.c cmd/cmdring.c \
 		input/test/torirs_touch_test.c $(LDFLAGS)
@@ -3184,7 +3184,7 @@ test-mobile-gameframe: $(OBJ_DIR) plugin/torirs_plugin_host.c \
 test-minimap-orbs-v2: $(OBJ_DIR) $(ASAN_DYLD_SHIM) plugin/plugins/minimap_orbs.c \
 		$(PORCELAIN_SRCS) \
 		plugin/porcelain/test/porcelain_testbed.c plugin/test/minimap_orbs_v2_test.c
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/minimap_orbs_v2_test \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/minimap_orbs_v2_test $(TORIMEM_SRCS) \
 		plugin/plugins/minimap_orbs.c $(PORCELAIN_SRCS) \
 		plugin/porcelain/test/porcelain_testbed.c \
 		plugin/test/minimap_orbs_v2_test.c $(LDFLAGS)
@@ -3203,7 +3203,7 @@ test-xp-orbs: $(OBJ_DIR) plugin/torirs_plugin_host.c \
 
 test-editor-cmd: $(OBJ_DIR) editor/editor_jm2.c editor/editor_doc.c editor/editor_cmd.c \
 		editor/test/editor_cmd_test.c
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_cmd_test \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_cmd_test $(TORIMEM_SRCS) \
 		editor/editor_jm2.c editor/editor_doc.c editor/editor_cmd.c \
 		editor/test/editor_cmd_test.c
 	./$(OBJ_DIR)/editor_cmd_test
@@ -3214,7 +3214,7 @@ test-editor-cmd: $(OBJ_DIR) editor/editor_jm2.c editor/editor_doc.c editor/edito
 # across thousands of squares at once.
 test-editor-jm2: $(OBJ_DIR) editor/editor_jm2.c editor/editor_doc.c \
 		editor/test/editor_jm2_test.c
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_jm2_test \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_jm2_test $(TORIMEM_SRCS) \
 		editor/editor_jm2.c editor/editor_doc.c editor/test/editor_jm2_test.c
 	./$(OBJ_DIR)/editor_jm2_test $(EDITOR_CONTENT_DIR)
 
@@ -3237,7 +3237,7 @@ test-editor-derive: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 # and a session without the lock cannot write at all.
 test-editor-save: $(OBJ_DIR) editor/editor_jm2.c editor/editor_doc.c editor/editor_cmd.c \
 		editor/editor_host_local.c editor/test/editor_save_test.c
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_save_test \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_save_test $(TORIMEM_SRCS) \
 		editor/editor_jm2.c editor/editor_doc.c editor/editor_cmd.c \
 		editor/editor_host_local.c editor/test/editor_save_test.c
 	rm -rf $(OBJ_DIR)/editor_save_scratch/maps
@@ -3255,7 +3255,7 @@ test-torirsmaped-embed: $(OBJ_DIR) torirsmaped/torirs_maped.c torirsmaped/torirs
 		torirsmaped/torirs_maped_embed.c editor/editor_host_local.c \
 		editor/editor_host_remote.c editor/editor_doc.c editor/editor_cmd.c \
 		editor/editor_jm2.c torirsmaped/test/maped_embed_test.c
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/maped_embed_test \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/maped_embed_test $(TORIMEM_SRCS) \
 		torirsmaped/torirs_maped.c torirsmaped/torirs_maped_buf.c \
 		torirsmaped/torirs_maped_cmdwire.c \
 		torirsmaped/torirs_maped_embed.c editor/editor_host_local.c \
@@ -3317,11 +3317,11 @@ test-npctype-multi: $(OBJ_DIR) engine/torirs_npctype_from_rscache.c \
 	./$(OBJ_DIR)/torirs_npctype_from_rscache_test
 
 test-varc: $(OBJ_DIR) varc/varc_manager.c varc/varc_manager_test.c
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/varc_manager_test varc/varc_manager.c varc/varc_manager_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/varc_manager_test $(TORIMEM_SRCS) varc/varc_manager.c varc/varc_manager_test.c
 	./$(OBJ_DIR)/varc_manager_test
 
 test-loot-store: $(OBJ_DIR) game/rs_loot_store.c game/test/rs_loot_store_test.c
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_loot_store_test game/rs_loot_store.c game/test/rs_loot_store_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_loot_store_test $(TORIMEM_SRCS) game/rs_loot_store.c game/test/rs_loot_store_test.c
 	./$(OBJ_DIR)/rs_loot_store_test
 
 # Notable-moment recognition: the text patterns behind the plugin layer's
@@ -3353,7 +3353,7 @@ SSC_SRCS = $(SS_SRCS) serverscript/ssc_lex.c serverscript/ssc_symbols.c \
 # Generated opcode/trigger tables: arities, pointer masks, ap->op trigger
 # relation, and the 64-bit lookup key that a rev-230 component uid overflows.
 test-ss-meta: $(OBJ_DIR) $(SS_SRCS) serverscript/test/ss_meta_test.c
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ss_meta_test \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ss_meta_test $(TORIMEM_SRCS) \
 		$(SS_SRCS) serverscript/test/ss_meta_test.c
 	./$(OBJ_DIR)/ss_meta_test
 
@@ -3362,7 +3362,7 @@ test-ss-meta: $(OBJ_DIR) $(SS_SRCS) serverscript/test/ss_meta_test.c
 # SKIPs when the reference server is not checked out beside this repo.
 SS_CORPUS ?= $(REPO_ROOT)/../LostCity_Server
 test-ss-corpus: $(OBJ_DIR) $(SS_SRCS) serverscript/test/ss_corpus_test.c
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ss_corpus_test \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ss_corpus_test $(TORIMEM_SRCS) \
 		$(SS_SRCS) serverscript/test/ss_corpus_test.c
 	./$(OBJ_DIR)/ss_corpus_test $(SS_CORPUS)
 
@@ -3370,7 +3370,7 @@ test-ss-corpus: $(OBJ_DIR) $(SS_SRCS) serverscript/test/ss_corpus_test.c
 # structural check and still drop or normalise a field; reproducing the original
 # bytes exactly is the only evidence it did not.
 test-ss-roundtrip: $(OBJ_DIR) $(SS_SRCS) serverscript/test/ss_roundtrip_test.c
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ss_roundtrip_test \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ss_roundtrip_test $(TORIMEM_SRCS) \
 		$(SS_SRCS) serverscript/test/ss_roundtrip_test.c
 	./$(OBJ_DIR)/ss_roundtrip_test $(SS_CORPUS)
 
@@ -3378,7 +3378,7 @@ test-ss-roundtrip: $(OBJ_DIR) $(SS_SRCS) serverscript/test/ss_roundtrip_test.c
 # Scripts are assembled in memory and loaded through the real container, so
 # these cases cover the encoder and reader on the way past. No corpus needed.
 test-ss-vm: $(OBJ_DIR) $(SS_SRCS) serverscript/test/ss_vm_test.c
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ss_vm_test \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ss_vm_test $(TORIMEM_SRCS) \
 		$(SS_SRCS) serverscript/test/ss_vm_test.c
 	./$(OBJ_DIR)/ss_vm_test
 
@@ -3387,7 +3387,7 @@ test-ss-vm: $(OBJ_DIR) $(SS_SRCS) serverscript/test/ss_vm_test.c
 # wrong still finds *a* script: swapping the first two rungs runs the category's
 # script for an item that had its own, which looks entirely reasonable in a log.
 test-ss-provider: $(OBJ_DIR) $(SS_SRCS) serverscript/test/ss_provider_test.c
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ss_provider_test \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ss_provider_test $(TORIMEM_SRCS) \
 		$(SS_SRCS) serverscript/test/ss_provider_test.c
 	./$(OBJ_DIR)/ss_provider_test
 
@@ -3395,7 +3395,7 @@ test-ss-provider: $(OBJ_DIR) $(SS_SRCS) serverscript/test/ss_provider_test.c
 # generated arity table agrees with real compiled code, and turns the VM's stack
 # size constants into measurements instead of guesses.
 test-ss-verify: $(OBJ_DIR) $(SS_SRCS) serverscript/test/ss_verify_test.c
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ss_verify_test \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ss_verify_test $(TORIMEM_SRCS) \
 		$(SS_SRCS) serverscript/test/ss_verify_test.c
 	./$(OBJ_DIR)/ss_verify_test $(SS_CORPUS)
 
@@ -3426,14 +3426,14 @@ SSC_MAIN_SRCS = serverscript/ssc_build.c serverscript/ssc_main.c
 sscompile: $(SSC_BIN)
 
 $(SSC_BIN): $(SSC_SRCS) $(SSC_MAIN_SRCS) $(wildcard serverscript/*.h) $(wildcard content/*.h) | $(OBJ_DIR)
-	$(CC) $(SSC_CFLAGS) -o $(OBJ_DIR)/sscompile $(SSC_SRCS) $(SSC_MAIN_SRCS)
+	$(CC) $(SSC_CFLAGS) -o $(OBJ_DIR)/sscompile $(TORIMEM_SRCS) $(SSC_SRCS) $(SSC_MAIN_SRCS)
 	@echo "built $(OBJ_DIR)/sscompile"
 
 # Compiler end to end: each case writes real RuneScript, compiles it, loads it
 # back through the container and runs it on the VM. Bytecode that is structurally
 # valid but semantically wrong only shows up when it runs.
 test-ssc: $(OBJ_DIR) $(SSC_SRCS) serverscript/test/ssc_test.c
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ssc_test $(SSC_SRCS) serverscript/test/ssc_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ssc_test $(TORIMEM_SRCS) $(SSC_SRCS) serverscript/test/ssc_test.c
 	./$(OBJ_DIR)/ssc_test
 
 # CS1 VM core is engine-agnostic, so the suite links only the VM sources.
@@ -3492,7 +3492,7 @@ RSPROT_PARSE_OBJS = $(OBJ_DIR)/rsprot_bridge.o $(OBJ_DIR)/rsprot_packets_unity.o
 # skip-run off-by-ones and misaligned bit sections that otherwise decode into
 # the wrong players rather than erroring.
 test-mock239-playerinfo: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock239_playerinfo_test \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock239_playerinfo_test $(TORIMEM_SRCS) \
 		torirsserver/test/mock239_playerinfo_test.c torirsserver/mock239_playerinfo.c \
 		net/rev/osrs239/osrs239_entity_info.c net/bitbuffer.c \
 		$(RSAREABUF_DIR)/rsareabuf.c -lm
@@ -3541,7 +3541,7 @@ test-torirsserver-interface-state: $(OBJ_DIR)
 	./$(OBJ_DIR)/ToriRSServer_InterfaceStateTest
 
 test-net-login: $(OBJ_DIR) $(NET_CORE_OBJS)
-	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc245_2 -o $(OBJ_DIR)/net_login_test \
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc245_2 -o $(OBJ_DIR)/net_login_test $(TORIMEM_SRCS) \
 		net/test/net_login_test.c $(NET_CORE_OBJS) -lm
 	./$(OBJ_DIR)/net_login_test
 
@@ -3556,7 +3556,7 @@ test-net-login: $(OBJ_DIR) $(NET_CORE_OBJS)
 # line 1011 gets an empty prerequisite list, links against objects nothing built,
 # and fails with "no such file or directory" on an object the recipe names.
 test-rsprot-bridge: $(OBJ_DIR) $(NET_CORE_OBJS)
-	$(CC) $(CFLAGS) $(RSPROT_INCLUDES) -o $(OBJ_DIR)/rsprot_bridge_test \
+	$(CC) $(CFLAGS) $(RSPROT_INCLUDES) -o $(OBJ_DIR)/rsprot_bridge_test $(TORIMEM_SRCS) \
 		net/rev/test/rsprot_bridge_test.c $(NET_CORE_OBJS) -lm
 	./$(OBJ_DIR)/rsprot_bridge_test
 
@@ -3573,13 +3573,13 @@ test-net-out-resume: $(OBJ_DIR) $(OBJS)
 	./$(OBJ_DIR)/net_out_resume_test
 
 test-net-loopback: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
-	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc245_2 -o $(OBJ_DIR)/net_loopback_test \
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc245_2 -o $(OBJ_DIR)/net_loopback_test $(TORIMEM_SRCS) \
 		net/test/net_loopback_test.c torirsserver/mock_server.c \
 		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
 	./$(OBJ_DIR)/net_loopback_test
 
 test-inv: $(OBJ_DIR) inv/inv_manager.c inv/inv_manager_test.c
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/inv_manager_test inv/inv_manager.c inv/inv_manager_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/inv_manager_test $(TORIMEM_SRCS) inv/inv_manager.c inv/inv_manager_test.c
 	./$(OBJ_DIR)/inv_manager_test
 
 test-world: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
@@ -3649,7 +3649,7 @@ test-trig-tables-share: $(OBJ_DIR)
 
 test-painters-occluders: $(OBJ_DIR) $(OBJ_DIR)/occluder_buildmap.o $(OBJ_DIR)/heightmap.o
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/painters -I$(SRC_DIR)/engine/world_builder \
-		-o $(OBJ_DIR)/painters_test_occluders \
+		-o $(OBJ_DIR)/painters_test_occluders $(TORIMEM_SRCS) \
 		painters/test/painters_test_occluders.c \
 		painters/scene_occluders.c \
 		$(OBJ_DIR)/occluder_buildmap.o $(OBJ_DIR)/heightmap.o
@@ -3657,7 +3657,7 @@ test-painters-occluders: $(OBJ_DIR) $(OBJ_DIR)/occluder_buildmap.o $(OBJ_DIR)/he
 
 test-painters-terrain-levels: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/painters \
-		-o $(OBJ_DIR)/painters_test_terrain_levels \
+		-o $(OBJ_DIR)/painters_test_terrain_levels $(TORIMEM_SRCS) \
 		painters/test/painters_test_terrain_levels.c \
 		painters/painters.c painters/painters_cull_project.c painters/scene_occluders.c \
 		perf/torirs_perf.c \
@@ -3666,7 +3666,7 @@ test-painters-terrain-levels: $(OBJ_DIR)
 
 test-painters-ground-decor: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/painters \
-		-o $(OBJ_DIR)/painters_test_ground_decor_dynamic \
+		-o $(OBJ_DIR)/painters_test_ground_decor_dynamic $(TORIMEM_SRCS) \
 		painters/test/painters_test_ground_decor_dynamic.c \
 		painters/painters.c painters/painters_cull_project.c painters/scene_occluders.c \
 		perf/torirs_perf.c \
@@ -3690,7 +3690,7 @@ test-painters-ground-decor: $(OBJ_DIR)
 # cycle was skipped or rebuilt. Bare painter, no cache, no world.
 test-painters-dynamic-pool: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/painters \
-		-o $(OBJ_DIR)/painters_dynamic_pool_test \
+		-o $(OBJ_DIR)/painters_dynamic_pool_test $(TORIMEM_SRCS) \
 		engine/test/painters_dynamic_pool_test.c \
 		painters/painters.c painters/painters_cull_project.c painters/scene_occluders.c \
 		perf/torirs_perf.c \
@@ -3699,7 +3699,7 @@ test-painters-dynamic-pool: $(OBJ_DIR)
 
 test-painters-world-entity: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/painters \
-		-o $(OBJ_DIR)/painters_test_world_entity \
+		-o $(OBJ_DIR)/painters_test_world_entity $(TORIMEM_SRCS) \
 		painters/test/painters_test_world_entity.c \
 		painters/painters.c painters/painters_cull_project.c painters/scene_occluders.c \
 		world/wev_deck.c \
@@ -3709,13 +3709,13 @@ test-painters-world-entity: $(OBJ_DIR)
 
 .PHONY: test-sailing-paint-order
 test-sailing-paint-order: $(OBJ_DIR)
-	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -o $(OBJ_DIR)/sailing_paint_order_test \
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -o $(OBJ_DIR)/sailing_paint_order_test $(TORIMEM_SRCS) \
 		game/test/sailing_paint_order_test.c
 	./$(OBJ_DIR)/sailing_paint_order_test
 
 .PHONY: test-wev-visibility
 test-wev-visibility: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/wev_visibility_test \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/wev_visibility_test $(TORIMEM_SRCS) \
 		world/test/wev_visibility_test.c world/wev.c -lm
 	./$(OBJ_DIR)/wev_visibility_test
 
@@ -3773,7 +3773,7 @@ test-uitree: $(OBJ_DIR) $(ASAN_DYLD_SHIM)
 .PHONY: test-sdl-chrome-geometry
 ifneq ($(filter $(PLATFORM),macos linux),)
 test-sdl-chrome-geometry: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/sdl_chrome_geometry_test \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/sdl_chrome_geometry_test $(TORIMEM_SRCS) \
 		platform/test/sdl_chrome_geometry_test.c platform/platform_sdl2.c \
 		$(PLATFORM_OBJC_SRCS) \
 		ui/torirs_chrome_rail.c engine/torirs_chrome_skin_baked.c \
@@ -3794,7 +3794,7 @@ endif
 .PHONY: test-sdl-pointer-map
 ifneq ($(filter $(PLATFORM),macos linux),)
 test-sdl-pointer-map: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/sdl_pointer_map_test \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/sdl_pointer_map_test $(TORIMEM_SRCS) \
 		platform/test/sdl_pointer_map_test.c platform/platform_sdl2.c \
 		$(PLATFORM_OBJC_SRCS) \
 		ui/torirs_chrome_rail.c engine/torirs_chrome_skin_baked.c \
@@ -3813,7 +3813,7 @@ endif
 .PHONY: test-sdl-text-input
 ifneq ($(filter $(PLATFORM),macos linux),)
 test-sdl-text-input: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/sdl_text_input_test \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/sdl_text_input_test $(TORIMEM_SRCS) \
 		platform/test/sdl_text_input_test.c platform/platform_sdl2.c \
 		$(PLATFORM_OBJC_SRCS) \
 		ui/torirs_chrome_rail.c engine/torirs_chrome_skin_baked.c \
@@ -3849,7 +3849,7 @@ test-font-markup: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(ASAN_DYLD_SHIM)
 .PHONY: test-chrome-browser-exec
 test-chrome-browser-exec: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -DTORIRS_CHROME_EXEC_BROWSER_AVAILABLE=1 \
-		-o $(OBJ_DIR)/chrome_browser_exec_test \
+		-o $(OBJ_DIR)/chrome_browser_exec_test $(TORIMEM_SRCS) \
 		ui/test/torirs_chrome_exec_browser_test.c \
 		ui/torirs_chrome_exec_winbrowser.c ui/torirs_chrome_mirror.c
 	./$(OBJ_DIR)/chrome_browser_exec_test
@@ -3862,7 +3862,7 @@ test-chrome-browser-exec: $(OBJ_DIR)
 # because it stubs EM_JS itself -- which is what lets this run on the host.
 .PHONY: test-chrome-web-skin
 test-chrome-web-skin: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -Wno-unused-parameter -o $(OBJ_DIR)/chrome_web_skin_test \
+	$(CC) $(CFLAGS) -Wno-unused-parameter -o $(OBJ_DIR)/chrome_web_skin_test $(TORIMEM_SRCS) \
 		ui/test/uitree_test_chrome_web_skin.c \
 		ui/torirs_chrome_mirror.c engine/torirs_chrome_skin_baked.c
 	./$(OBJ_DIR)/chrome_web_skin_test
@@ -3994,7 +3994,7 @@ bench-uitree: $(OBJ_DIR)
 		-I$(RSCACHE_DIR)/include -I$(TORIDRAW_DIR) -I$(BMP_DIR) -I$(HMAP_DIR) \
 		-DBENCH_ROWS=$(BENCH_ROWS) -DBENCH_ITERS=$(BENCH_ITERS) \
 		-DBENCH_STATIC_CHILDREN=$(BENCH_STATIC_CHILDREN) \
-		-o $(OBJ_DIR)/uitree_bench \
+		-o $(OBJ_DIR)/uitree_bench $(TORIMEM_SRCS) \
 		ui/uitree.c ui/uitree_hook.c ui/uitree_component_options.c engine/torirs_component_hook.c ui/uitree_layout.c ui/uitree_scroll.c ui/uitree_host.c \
 		perf/torirs_perf.c \
 		ui/test/uitree_bench.c -lm
@@ -4018,7 +4018,7 @@ bench-uitree-anchor: $(OBJ_DIR)
 	./$(OBJ_DIR)/uitree_bench_anchor
 
 test-uitree-builder: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -I$(SRC_DIR)/engine/uitree_builder -o $(OBJ_DIR)/uitree_builder_test \
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/engine/uitree_builder -o $(OBJ_DIR)/uitree_builder_test $(TORIMEM_SRCS) \
 		engine/uitree_builder/uitree_builder_manifest.c \
 		revconfig/revconfig.c revconfig/revconfig_load.c ui/torirs_chrome_inkwell.c $(INI_SRC) \
 		engine/uitree_builder/test/uitree_builder_test_manifest.c
@@ -4042,7 +4042,7 @@ test-boot-bar: $(OBJ_DIR)
 # The title screen's fire. Deterministic by construction (private seeded LCG),
 # so these are assertions about how it burns rather than eyeballing.
 test-title-flames: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/title_flames_test \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/title_flames_test $(TORIMEM_SRCS) \
 		engine/test/title_flames_test.c engine/title_flames.c -lm
 	./$(OBJ_DIR)/title_flames_test
 
@@ -4053,13 +4053,13 @@ test-title-flames: $(OBJ_DIR)
 # never moves backwards, every caption names a string that exists, and each
 # lane names work its own machinery can do.
 test-preload: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_preload_test \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_preload_test $(TORIMEM_SRCS) \
 		game/test/rs_preload_test.c game/rs_preload.c game/rs_login_replies.c \
 		revconfig/revconfig.c revconfig/revconfig_load.c ui/torirs_chrome_inkwell.c $(INI_SRC)
 	./$(OBJ_DIR)/rs_preload_test $(OBJ_DIR)
 
 test-login-replies: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_login_replies_test \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_login_replies_test $(TORIMEM_SRCS) \
 		game/test/rs_login_replies_test.c game/rs_login_replies.c \
 		revconfig/revconfig.c revconfig/revconfig_load.c $(INI_SRC)
 	./$(OBJ_DIR)/rs_login_replies_test
@@ -4084,7 +4084,7 @@ test-minimap: $(OBJ_DIR)
 
 # PLAYER_INFO / NPC_INFO bit decode + appearance blob.
 test-entity-decode: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/entity_decode_test \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/entity_decode_test $(TORIMEM_SRCS) \
 		net/test/entity_decode_test.c net/bitbuffer.c \
 		net/rev/packets/pkt_player_info.c net/rev/packets/pkt_npc_info.c \
 		net/rev/packets/pkt_player_appearance.c net/rev/lc289/lc289_entity_info.c \
@@ -4098,7 +4098,7 @@ test-entity-decode: $(OBJ_DIR)
 .PHONY: test-runclientscript
 test-runclientscript: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/rsprot_buf.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/runclientscript_test \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/runclientscript_test $(TORIMEM_SRCS) \
 		net/test/runclientscript_test.c net/rev/osrs230/osrs230_parse.c \
 		net/rev/packets/pkt_rebuild_normal.c net/rev/packets/pkt_rebuild_region.c \
 		net/bitbuffer.c \
@@ -4554,7 +4554,7 @@ scanline-compare: $(OBJ_DIR) $(OBJS)
 
 # Angle-unit guard for the compass/minimap rotated blit (camera yaw, 2048/turn).
 test-rotate-blit: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
-	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/rotate_blit_test \
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/rotate_blit_test $(TORIMEM_SRCS) \
 		render/test/rotate_blit_test.c render/trspk_sprite.c $(TORIDRAW_UNITY_LINK_OBJS)
 	./$(OBJ_DIR)/rotate_blit_test
 
@@ -4651,7 +4651,7 @@ test-social: $(OBJ_DIR) $(OBJS)
 # behind 3611-3627 and 3800-3890. Needs no cache.
 .PHONY: test-clan
 test-clan: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -UNDEBUG -o $(OBJ_DIR)/rs_clan_test \
+	$(CC) $(CFLAGS) -UNDEBUG -o $(OBJ_DIR)/rs_clan_test $(TORIMEM_SRCS) \
 		game/test/rs_clan_test.c game/rs_clan.c game/rs_friends_chat.c game/rs_social.c \
 		net/jbase37.c
 	./$(OBJ_DIR)/rs_clan_test
@@ -4765,7 +4765,7 @@ test-uitree-builder-dat1: $(OBJ_DIR) $(OBJS)
 	./$(OBJ_DIR)/uitree_builder_dat1_test $(DAT1_CACHE)
 
 test-revconfig: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -I$(SRC_DIR)/revconfig -I$(SRC_DIR)/revconfig/test -o $(OBJ_DIR)/revconfig_test \
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/revconfig -I$(SRC_DIR)/revconfig/test -o $(OBJ_DIR)/revconfig_test $(TORIMEM_SRCS) \
 		revconfig/revconfig.c revconfig/revconfig_load.c revconfig/revconfig_refs.c \
 		revconfig/revconfig_profile.c ui/torirs_chrome_inkwell.c $(INI_SRC) \
 		revconfig/test/revconfig_test_main.c revconfig/test/revconfig_test_buffer.c \
@@ -4835,14 +4835,14 @@ JS5_SERVER_SRCS = js5/server/js5_server_main.c js5/server/js5_server.c \
 
 js5-server: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/js5_server $(JS5_SERVER_SRCS) \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/js5_server $(TORIMEM_SRCS) $(JS5_SERVER_SRCS) \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm $(JS5_SOCKET_LIBS)
 	@echo "built $(OBJ_DIR)/js5_server"
 
 mock-js5: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock_js5 $(JS5_SERVER_SRCS) \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock_js5 $(TORIMEM_SRCS) $(JS5_SERVER_SRCS) \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm $(JS5_SOCKET_LIBS)
 	@echo "built $(OBJ_DIR)/mock_js5 (compatibility name)"
@@ -4917,7 +4917,7 @@ TORIRSMAPED_SRCS = torirsmaped/torirs_maped_main.c torirsmaped/torirs_maped.c \
 	editor/editor_doc.c editor/editor_cmd.c editor/editor_jm2.c
 
 torirsmaped: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/torirsmaped $(TORIRSMAPED_SRCS)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/torirsmaped $(TORIMEM_SRCS) $(TORIRSMAPED_SRCS)
 	@echo "built $(OBJ_DIR)/torirsmaped"
 
 # The controller client: a ToriRSMapEd connection in its own process with no
@@ -4937,7 +4937,7 @@ TORIRSMAPEDCTL_SRCS = torirsmaped/torirs_mapedctl_main.c torirsmaped/torirs_mape
 	torirsmaped/torirs_maped_cmdwire.c editor/editor_host_remote.c
 
 torirsmapedctl: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -DTORIRS_MAPED_NO_EMBED=1 -o $(OBJ_DIR)/torirsmapedctl $(TORIRSMAPEDCTL_SRCS)
+	$(CC) $(CFLAGS) -DTORIRS_MAPED_NO_EMBED=1 -o $(OBJ_DIR)/torirsmapedctl $(TORIMEM_SRCS) $(TORIRSMAPEDCTL_SRCS)
 	@echo "built $(OBJ_DIR)/torirsmapedctl"
 
 # A second binary from the same sources, listening on 43597 rather than 43595.
@@ -6097,7 +6097,7 @@ test-torirsserver-param: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DI
 # free and reload. No cache and no content tree; well under a second.
 .PHONY: test-torirsserver-db
 test-torirsserver-db: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -I$(SRC_DIR)/torirsserver -o $(OBJ_DIR)/server_db_test \
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/torirsserver -o $(OBJ_DIR)/server_db_test $(TORIMEM_SRCS) \
 		torirsserver/test/server_db_test.c torirsserver/torirs_server_db.c \
 		$(RSCACHE_DIR)/src/rscache_valuetype.c
 	./$(OBJ_DIR)/server_db_test
@@ -6130,7 +6130,7 @@ test-torirsserver-mapinstance: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/
 .PHONY: test-torirsserver-split
 test-torirsserver-split: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
-	$(CC) $(CFLAGS) -I$(SRC_DIR)/torirsserver -o $(OBJ_DIR)/split_test \
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/torirsserver -o $(OBJ_DIR)/split_test $(TORIMEM_SRCS) \
 		torirsserver/test/split_test.c torirsserver/torirs_server_split.c \
 		serverscript/ssvm_strpool.c \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
@@ -6425,7 +6425,7 @@ test-dbindex:
 # stale `script.dat` on disk meant the server kept booting. The corpus tests run
 # against a vendored LostCity tree and cannot see any of that.
 test-ss-symbols: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ssc_symbols_test \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ssc_symbols_test $(TORIMEM_SRCS) \
 		serverscript/test/ssc_symbols_test.c $(SSC_SRCS)
 	./$(OBJ_DIR)/ssc_symbols_test $(OBJ_DIR) $(TORIRSSERVER_CONTENT_DIR)
 
@@ -6460,7 +6460,7 @@ test-servercodec: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tomm
 .PHONY: test-loc-ops-wire
 test-loc-ops-wire: $(OBJ_DIR) $(RSPROT_TEST_DEPS) $(OBJ_DIR)/rsprot_packets_unity.o \
 		$(OBJ_DIR)/jbase37.o
-	$(CC) $(CFLAGS) $(RSPROT_INCLUDES) -o $(OBJ_DIR)/loc_ops_wire_test \
+	$(CC) $(CFLAGS) $(RSPROT_INCLUDES) -o $(OBJ_DIR)/loc_ops_wire_test $(TORIMEM_SRCS) \
 		torirsserver/test/loc_ops_wire_test.c \
 		torirsserver/torirs_server_wire.c torirsserver/torirs_server_loc_ops.c \
 		torirsserver/torirs_server_interface_state.c torirsserver/mock239_interface_setters.c \
@@ -6473,7 +6473,7 @@ test-loc-ops-wire: $(OBJ_DIR) $(RSPROT_TEST_DEPS) $(OBJ_DIR)/rsprot_packets_unit
 	./$(OBJ_DIR)/loc_ops_wire_test
 
 test-content-register: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/content_register_test \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/content_register_test $(TORIMEM_SRCS) \
 		content/test/content_register_test.c content/content_register.c $(INI_SRC)
 	./$(OBJ_DIR)/content_register_test
 
@@ -6490,7 +6490,7 @@ test-content-value: $(OBJ_DIR)
 # Header-only, like content_value.h.
 .PHONY: test-content-name-index
 test-content-name-index: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/content_name_index_test content/test/content_name_index_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/content_name_index_test $(TORIMEM_SRCS) content/test/content_name_index_test.c
 	./$(OBJ_DIR)/content_name_index_test
 
 # The server hosted in-process: a real client subsystem and a real server joined
@@ -6575,7 +6575,7 @@ test-ws-frame: $(OBJ_DIR)
 # Boot-manifest loader: parse a fixture, assert field values + relative-path
 # joining + CLI-override composition against a stub AppConfig.
 test-bootmanifest: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -I$(SRC_DIR)/bootmanifest -o $(OBJ_DIR)/bootmanifest_test \
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/bootmanifest -o $(OBJ_DIR)/bootmanifest_test $(TORIMEM_SRCS) \
 		bootmanifest/bootmanifest.c executor_config.c features/features.c \
 		ui/torirs_chrome_exec_kind.c $(INI_SRC) \
 		bootmanifest/test/bootmanifest_test.c \
@@ -6609,7 +6609,7 @@ test-scene-anim-skip: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
 # against the same stage on the scene itself: parity, bench independence,
 # the depth path's sort gate, arena exhaustion, view sync. GL-free.
 test-gles2-dualcore-stage: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
-	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/gles2_dualcore_stage_test \
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/gles2_dualcore_stage_test $(TORIMEM_SRCS) \
 		platform/platform_androidarmv7_renderer_opengles2_dualcore_stage.c \
 		platform/test/gles2_dualcore_stage_test.c $(TORIDRAW_UNITY_LINK_OBJS)
 	./$(OBJ_DIR)/gles2_dualcore_stage_test
@@ -7128,7 +7128,7 @@ WIN32_CHROME_CAPTURE_RUN_ENV := \
 endif
 test-win32-platform: $(OBJ_DIR)
 	$(CC) $(WIN32_PLATFORM_TEST_CFLAGS) -DTORIRS_WIN32_GDI_TEST_API=1 \
-		-o $(OBJ_DIR)/win32_gdi_test$(PLATFORM_EXE_SUFFIX) \
+		-o $(OBJ_DIR)/win32_gdi_test$(PLATFORM_EXE_SUFFIX) $(TORIMEM_SRCS) \
 		platform/test/win32_gdi_test.c platform/platform_win32gdi.c \
 		platform/test/win32_browser_backend_fake.c \
 		platform/platform_win32_timing.c platform/platform_app_icon.c \
@@ -7151,7 +7151,7 @@ build-win32-plugin-chrome-capture: $(OBJ_DIR)
 	$(CC) $(WIN32_PLATFORM_TEST_CFLAGS) \
 		-DTORIRS_CHROME_EXEC_BROWSER_AVAILABLE=1 \
 		-DTORIRS_WIN32_BROWSER_CAPTURE_API=1 \
-		-o $(OBJ_DIR)/win32_plugin_chrome_capture$(PLATFORM_EXE_SUFFIX) \
+		-o $(OBJ_DIR)/win32_plugin_chrome_capture$(PLATFORM_EXE_SUFFIX) $(TORIMEM_SRCS) \
 		platform/test/win32_plugin_chrome_capture.c \
 		platform/platform_win32gdi.c platform/platform_win32_timing.c \
 		platform/platform_app_icon.c $(WIN32_CHROME_BROWSER_BACKEND) \
@@ -7267,7 +7267,7 @@ test-objverify:
 # The three revision-239 music packets: encode as RSProt does, parse back.
 test-midi-packets: $(OBJ_DIR) $(RSPROT_TEST_DEPS) $(OBJ_DIR)/rsprot_packets_unity.o \
 		$(OBJ_DIR)/jbase37.o
-	$(CC) $(CFLAGS) $(RSPROT_INCLUDES) -o $(OBJ_DIR)/midi_packet_test \
+	$(CC) $(CFLAGS) $(RSPROT_INCLUDES) -o $(OBJ_DIR)/midi_packet_test $(TORIMEM_SRCS) \
 		net/rev/test/midi_packet_test.c net/rev/osrs239/osrs239_parse.c \
 		$(OBJ_DIR)/rsprot_packets_unity.o $(RSPROT_TEST_DEPS) \
 		$(OBJ_DIR)/jbase37.o -lm

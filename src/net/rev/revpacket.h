@@ -8,6 +8,7 @@
  * GameProtoPktName, never a wire opcode.
  */
 
+#include "mem/torirs_mem.h"
 #include "pktnames.h"
 
 #include <assert.h>
@@ -1152,8 +1153,7 @@ pkt_runclientscript_reset(struct RevPacket* out)
 
     if( !out->_runclientscript )
     {
-        out->_runclientscript = calloc(1, sizeof(*out->_runclientscript));
-        assert(out->_runclientscript);
+        out->_runclientscript = ToriMem_Calloc(ToriMem_Net(), 1, sizeof(*out->_runclientscript));
     }
     else
     {

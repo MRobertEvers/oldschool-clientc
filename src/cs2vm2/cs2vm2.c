@@ -4,6 +4,7 @@
  */
 
 #include "cs2vm2.h"
+#include "mem/torirs_mem.h"
 
 #include "cs2_opcode.h"
 #include "cs2_opcode_meta.h"
@@ -101,8 +102,7 @@ cs2vm2_frame_reserve_int_locals(struct CS2VM2_Frame* frame, int need)
         return;
 
     int next = cs2vm2_frame_locals_capacity_for(frame->int_locals_cap, need);
-    int* buf = (int*)realloc(frame->int_locals, (size_t)next * sizeof(*buf));
-    assert(buf);
+    int* buf = (int*)ToriMem_Realloc(ToriMem_Script(), frame->int_locals, (size_t)next * sizeof(*buf));
     memset(
         buf + frame->int_locals_cap,
         0,
@@ -123,8 +123,8 @@ cs2vm2_frame_reserve_str_locals(struct CS2VM2_Frame* frame, int need)
         return;
 
     int next = cs2vm2_frame_locals_capacity_for(frame->str_locals_cap, need);
-    char** buf = (char**)realloc(frame->str_locals, (size_t)next * sizeof(*buf));
-    assert(buf);
+    char** buf =
+        (char**)ToriMem_Realloc(ToriMem_Script(), frame->str_locals, (size_t)next * sizeof(*buf));
     memset(
         buf + frame->str_locals_cap,
         0,
@@ -267,8 +267,7 @@ cs2vm2_frame_acquire(void)
     }
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_FRAME_POOL_MISS, 1);
 
-    struct CS2VM2_Frame* frame = (struct CS2VM2_Frame*)calloc(1, sizeof(*frame));
-    assert(frame);
+    struct CS2VM2_Frame* frame = (struct CS2VM2_Frame*)ToriMem_Calloc(ToriMem_Script(), 1, sizeof(*frame));
     return frame;
 }
 
@@ -279,9 +278,9 @@ cs2vm2_frame_destroy(struct CS2VM2_Frame* frame)
 {
     if( !frame )
         return;
-    free(frame->int_locals);
-    free(frame->str_locals);
-    free(frame);
+    ToriMem_Free(ToriMem_Script(), frame->int_locals);
+    ToriMem_Free(ToriMem_Script(), frame->str_locals);
+    ToriMem_Free(ToriMem_Script(), frame);
 }
 
 static void
@@ -429,8 +428,7 @@ cs2vm2_array_reserve(
     if( cap > CS2VM2_ARRAY_CAPACITY )
         cap = CS2VM2_ARRAY_CAPACITY;
 
-    void* cells = realloc(array->cells.strings, (size_t)cap * sizeof(char*));
-    assert(cells);
+    void* cells = ToriMem_Realloc(ToriMem_Script(), array->cells.strings, (size_t)cap * sizeof(char*));
     array->cells.strings = (char**)cells;
     array->capacity = cap;
     return 1;
@@ -1347,14 +1345,13 @@ CS2VM2_Op_JoinString(
         return CS2VM2_PushStr(vm, s);
     }
 
-    char** parts = calloc((size_t)count, sizeof(char*));
-    assert(parts);
+    char** parts = ToriMem_Calloc(ToriMem_Script(), (size_t)count, sizeof(char*));
 
     for( int i = count - 1; i >= 0; i-- )
     {
         if( CS2VM2_PopStr(vm, &parts[i]) != CS2VM_EXECNO_OK )
         {
-            free(parts);
+            ToriMem_Free(ToriMem_Script(), parts);
             return CS2VM_EXECNO_ERROR;
         }
     }
@@ -1376,7 +1373,7 @@ CS2VM2_Op_JoinString(
         }
     }
     *out = '\0';
-    free(parts);
+    ToriMem_Free(ToriMem_Script(), parts);
 
     return CS2VM2_PushStr(vm, joined);
 }
@@ -4552,14 +4549,13 @@ CS2VM2_Op_IF_SetOnEventHandler(
             return CS2VM_EXECNO_ERROR;
         if( trigger_count > 0 )
         {
-            trigger_ids = calloc((size_t)trigger_count, sizeof(int));
-            assert(trigger_ids);
+            trigger_ids = ToriMem_Calloc(ToriMem_Script(), (size_t)trigger_count, sizeof(int));
 
             for( int i = trigger_count - 1; i >= 0; i-- )
             {
                 if( CS2VM2_PopInt(vm, &trigger_ids[i]) != CS2VM_EXECNO_OK )
                 {
-                    free(trigger_ids);
+                    ToriMem_Free(ToriMem_Script(), trigger_ids);
                     return CS2VM_EXECNO_ERROR;
                 }
             }
@@ -4577,7 +4573,7 @@ CS2VM2_Op_IF_SetOnEventHandler(
                 char* v = NULL;
                 if( CS2VM2_PopStr(vm, &v) != CS2VM_EXECNO_OK )
                 {
-                    free(trigger_ids);
+                    ToriMem_Free(ToriMem_Script(), trigger_ids);
                     return CS2VM_EXECNO_ERROR;
                 }
                 /* Past str_by_pos' 32 slots the value is dropped; the pool owns it. */
@@ -4594,7 +4590,7 @@ CS2VM2_Op_IF_SetOnEventHandler(
                 int v = 0;
                 if( CS2VM2_PopInt(vm, &v) != CS2VM_EXECNO_OK )
                 {
-                    free(trigger_ids);
+                    ToriMem_Free(ToriMem_Script(), trigger_ids);
                     return CS2VM_EXECNO_ERROR;
                 }
                 if( i < (int)(sizeof(int_args) / sizeof(int_args[0])) )
@@ -4609,7 +4605,7 @@ CS2VM2_Op_IF_SetOnEventHandler(
 
     if( CS2VM2_PopInt(vm, &script_id) != CS2VM_EXECNO_OK )
     {
-        free(trigger_ids);
+        ToriMem_Free(ToriMem_Script(), trigger_ids);
         return CS2VM_EXECNO_ERROR;
     }
 
@@ -4682,14 +4678,14 @@ CS2VM2_Op_IF_SetOnEventHandler(
         CS2VM_IF_SETON_CASE(IF_INPUT_SETONSUBMIT);
         CS2VM_IF_SETON_CASE(IF_INPUT_SETONCHANGE);
     default:
-        free(trigger_ids);
+        ToriMem_Free(ToriMem_Script(), trigger_ids);
         assert(0 && "unexpected IF set-on host request");
         return CS2VM_EXECNO_ERROR;
     }
 #undef CS2VM_IF_SETON_CASE
 
     int result = vm->vm->host_exec(vm, &request);
-    free(trigger_ids);
+    ToriMem_Free(ToriMem_Script(), trigger_ids);
     return result;
 }
 
@@ -4732,14 +4728,13 @@ CS2VM2_Op_CC_SetOnEventHandler(
             return CS2VM_EXECNO_ERROR;
         if( trigger_count > 0 )
         {
-            trigger_ids = calloc((size_t)trigger_count, sizeof(int));
-            assert(trigger_ids);
+            trigger_ids = ToriMem_Calloc(ToriMem_Script(), (size_t)trigger_count, sizeof(int));
 
             for( int i = trigger_count - 1; i >= 0; i-- )
             {
                 if( CS2VM2_PopInt(vm, &trigger_ids[i]) != CS2VM_EXECNO_OK )
                 {
-                    free(trigger_ids);
+                    ToriMem_Free(ToriMem_Script(), trigger_ids);
                     return CS2VM_EXECNO_ERROR;
                 }
             }
@@ -4757,7 +4752,7 @@ CS2VM2_Op_CC_SetOnEventHandler(
                 char* v = NULL;
                 if( CS2VM2_PopStr(vm, &v) != CS2VM_EXECNO_OK )
                 {
-                    free(trigger_ids);
+                    ToriMem_Free(ToriMem_Script(), trigger_ids);
                     return CS2VM_EXECNO_ERROR;
                 }
                 /* Past str_by_pos' 32 slots the value is dropped; the pool owns it. */
@@ -4774,7 +4769,7 @@ CS2VM2_Op_CC_SetOnEventHandler(
                 int v = 0;
                 if( CS2VM2_PopInt(vm, &v) != CS2VM_EXECNO_OK )
                 {
-                    free(trigger_ids);
+                    ToriMem_Free(ToriMem_Script(), trigger_ids);
                     return CS2VM_EXECNO_ERROR;
                 }
                 if( i < (int)(sizeof(int_args) / sizeof(int_args[0])) )
@@ -4789,7 +4784,7 @@ CS2VM2_Op_CC_SetOnEventHandler(
 
     if( CS2VM2_PopInt(vm, &script_id) != CS2VM_EXECNO_OK )
     {
-        free(trigger_ids);
+        ToriMem_Free(ToriMem_Script(), trigger_ids);
         return CS2VM_EXECNO_ERROR;
     }
 
@@ -4863,14 +4858,14 @@ CS2VM2_Op_CC_SetOnEventHandler(
         CS2VM_CC_SETON_CASE(CC_INPUT_SETONCHANGE);
         CS2VM_CC_SETON_CASE(CC_CRMVIEW_SETONUPDATED);
     default:
-        free(trigger_ids);
+        ToriMem_Free(ToriMem_Script(), trigger_ids);
         assert(0 && "unexpected CC set-on host request");
         return CS2VM_EXECNO_ERROR;
     }
 #undef CS2VM_CC_SETON_CASE
 
     int result = vm->vm->host_exec(vm, &request);
-    free(trigger_ids);
+    ToriMem_Free(ToriMem_Script(), trigger_ids);
     return result;
 }
 
@@ -5305,14 +5300,13 @@ CS2VM2_Op_IF_SetOnInvTransmit(
             return CS2VM_EXECNO_ERROR;
         if( trigger_count > 0 )
         {
-            trigger_ids = calloc((size_t)trigger_count, sizeof(int));
-            assert(trigger_ids);
+            trigger_ids = ToriMem_Calloc(ToriMem_Script(), (size_t)trigger_count, sizeof(int));
 
             for( int i = trigger_count - 1; i >= 0; i-- )
             {
                 if( CS2VM2_PopInt(vm, &trigger_ids[i]) != CS2VM_EXECNO_OK )
                 {
-                    free(trigger_ids);
+                    ToriMem_Free(ToriMem_Script(), trigger_ids);
                     return CS2VM_EXECNO_ERROR;
                 }
             }
@@ -5335,7 +5329,7 @@ CS2VM2_Op_IF_SetOnInvTransmit(
                 char* v = NULL;
                 if( CS2VM2_PopStr(vm, &v) != CS2VM_EXECNO_OK )
                 {
-                    free(trigger_ids);
+                    ToriMem_Free(ToriMem_Script(), trigger_ids);
                     return CS2VM_EXECNO_ERROR;
                 }
                 /* Past str_by_pos' 32 slots the value is dropped; the pool owns it. */
@@ -5352,7 +5346,7 @@ CS2VM2_Op_IF_SetOnInvTransmit(
                 int v = 0;
                 if( CS2VM2_PopInt(vm, &v) != CS2VM_EXECNO_OK )
                 {
-                    free(trigger_ids);
+                    ToriMem_Free(ToriMem_Script(), trigger_ids);
                     return CS2VM_EXECNO_ERROR;
                 }
                 if( i < (int)(sizeof(int_args) / sizeof(int_args[0])) )
@@ -5367,7 +5361,7 @@ CS2VM2_Op_IF_SetOnInvTransmit(
 
     if( CS2VM2_PopInt(vm, &script_id) != CS2VM_EXECNO_OK )
     {
-        free(trigger_ids);
+        ToriMem_Free(ToriMem_Script(), trigger_ids);
         return CS2VM_EXECNO_ERROR;
     }
 
@@ -5403,7 +5397,7 @@ CS2VM2_Op_IF_SetOnInvTransmit(
         request.u.IF_SETONINVTRANSMIT.str_arg_count = CS2VM_SETON_STR_ARG_MAX;
 
     int result = vm->vm->host_exec(vm, &request);
-    free(trigger_ids);
+    ToriMem_Free(ToriMem_Script(), trigger_ids);
     if( result != CS2VM_EXECNO_OK )
         return result;
 
@@ -15830,7 +15824,7 @@ cs2vm2_cleanup(
          * Init above skip the table entirely. */
         for( int a = 0; a < vm->threads[i].array_alloc; a++ )
         {
-            free(vm->threads[i].arrays[a].cells.strings);
+            ToriMem_Free(ToriMem_Script(), vm->threads[i].arrays[a].cells.strings);
             vm->threads[i].arrays[a].cells.strings = NULL;
             vm->threads[i].arrays[a].capacity = 0;
             vm->threads[i].arrays[a].defined = 0;
@@ -15876,7 +15870,7 @@ CS2VM2_Acquire(void)
     }
     else
     {
-        vm = (struct CS2VM2*)malloc(sizeof(*vm));
+        vm = (struct CS2VM2*)ToriMem_Alloc(ToriMem_Script(), sizeof(*vm));
         warm = false;
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_VM_POOL_MISS, 1);
     }
@@ -15928,7 +15922,7 @@ CS2VM2_Release(struct CS2VM2* vm)
     if( pooled )
         g_vm_pool[g_vm_pool_count++] = vm;
     else
-        free(vm);
+        ToriMem_Free(ToriMem_Script(), vm);
 }
 
 void
@@ -15939,7 +15933,7 @@ CS2VM2_PoolDrain(void)
         struct CS2VM2* vm = g_vm_pool[--g_vm_pool_count];
         /* Release parks warm blocks with one regular string allocation. */
         CS2VM2_Free(vm);
-        free(vm);
+        ToriMem_Free(ToriMem_Script(), vm);
     }
     /* Parked VMs hold no frames (Release empties them), so the free list is all
      * that is left to give back. */

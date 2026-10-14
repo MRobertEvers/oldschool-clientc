@@ -1,4 +1,5 @@
 #include "uitree_from_component.h"
+#include "mem/torirs_mem.h"
 
 #include "torirs_types.h"
 #include "engine/torirs_component_hook.h"
@@ -345,7 +346,7 @@ UITree_BuildFromComponentPack(
     if( pack->component_count <= 0 )
         return 0;
 
-    struct UIBuildComponent* build_cache = (struct UIBuildComponent*)calloc(
+    struct UIBuildComponent* build_cache = (struct UIBuildComponent*)ToriMem_Calloc(ToriMem_Ui(), 
         (size_t)pack->component_count, sizeof(struct UIBuildComponent));
     assert(build_cache);
 
@@ -368,6 +369,6 @@ UITree_BuildFromComponentPack(
     int result = UITree_BuildFromSource(tree, &source);
     if( result >= 0 )
         UITree_BakePackRuntimeHooks(tree, pack);
-    free(build_cache);
+    ToriMem_Free(ToriMem_Ui(), build_cache);
     return result;
 }

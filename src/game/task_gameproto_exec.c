@@ -1,4 +1,5 @@
 #include "task_gameproto_exec.h"
+#include "mem/torirs_mem.h"
 
 #include "app.h"
 #include "net/rev/gameproto_parse.h"
@@ -501,7 +502,7 @@ Task_GameProtoExec_Free(struct ToriRS_Task* base)
 {
     struct Task_GameProtoExec* self = (struct Task_GameProtoExec*)base;
     gameproto_free(&self->packet);
-    free(self);
+    ToriMem_Free(ToriMem_Session(), self);
 }
 
 static struct ToriRS_TaskVTable Task_GameProtoExec_VTable = {
@@ -517,7 +518,7 @@ CreateTask_GameProtoExec(
     struct Task_GameProtoExec* task;
 
     assert(app && packet);
-    task = calloc(1, sizeof(*task));
+    task = ToriMem_Calloc(ToriMem_Session(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_GameProtoExec_VTable;
     strncpy(task->task.name, "GameProtoExec", sizeof(task->task.name) - 1);

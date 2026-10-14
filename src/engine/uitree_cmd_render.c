@@ -1,4 +1,5 @@
 #include "uitree_cmd_render.h"
+#include "mem/torirs_mem.h"
 
 #include "platform/platform_renderer_soft3d.h"
 #include "render/torirs_frame.h"
@@ -57,11 +58,11 @@ UITreeCmd_WriteBmp(
     assert(width > 0 && height > 0);
 
     n = (size_t)width * (size_t)height;
-    pixels = calloc(n, sizeof(int));
+    pixels = ToriMem_Calloc(ToriMem_Ui(), n, sizeof(int));
     assert(pixels);
 
     UITreeCmd_RenderToPixels(scene, cmds, cmd_count, pixels, width, height);
     bmp_write_file(path, pixels, width, height);
-    free(pixels);
+    ToriMem_Free(ToriMem_Ui(), pixels);
     return 0;
 }

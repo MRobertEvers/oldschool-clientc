@@ -1,4 +1,5 @@
 #include "game/rs_worldmap.h"
+#include "mem/torirs_mem.h"
 
 #include "engine/cache_provider.h"
 #include "engine/torirs_types.h"
@@ -46,7 +47,7 @@ id_set_add(
     if( set->count == set->capacity )
     {
         int capacity = set->capacity > 0 ? set->capacity * 2 : 8;
-        int* ids = realloc(set->ids, (size_t)capacity * sizeof(*ids));
+        int* ids = ToriMem_Realloc(ToriMem_Ui(), set->ids, (size_t)capacity * sizeof(*ids));
         assert(ids);
         set->ids = ids;
         set->capacity = capacity;
@@ -78,7 +79,7 @@ id_set_clear(struct RS_WorldMapIdSet* set)
 static void
 id_set_free(struct RS_WorldMapIdSet* set)
 {
-    free(set->ids);
+    ToriMem_Free(ToriMem_Ui(), set->ids);
     set->ids = NULL;
     set->count = 0;
     set->capacity = 0;
@@ -292,7 +293,7 @@ select_area(
 struct RS_WorldMapState*
 RS_WorldMap_New(struct CacheProvider* provider)
 {
-    struct RS_WorldMapState* state = calloc(1, sizeof(*state));
+    struct RS_WorldMapState* state = ToriMem_Calloc(ToriMem_Ui(), 1, sizeof(*state));
 
     assert(state);
     state->provider = provider;
@@ -322,7 +323,7 @@ RS_WorldMap_Free(struct RS_WorldMapState* state)
     id_set_free(&state->disabled_categories);
     id_set_free(&state->flashing_elements);
     id_set_free(&state->flashing_categories);
-    free(state);
+    ToriMem_Free(ToriMem_Ui(), state);
 }
 
 bool

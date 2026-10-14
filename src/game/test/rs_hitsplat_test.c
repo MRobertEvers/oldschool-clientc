@@ -31,6 +31,7 @@
  *   grep -A4 'variantop' /tmp/hs/configs/all.hitsplat
  */
 
+#include "mem/torirs_mem.h"
 #include "game/rs_hitsplat.h"
 
 #include "datatypes/dat2_config_hitsplat.h"
@@ -145,7 +146,7 @@ install(
     if( entry.variant_count > 0 )
     {
         int n = entry.variant_count + 1;
-        int* ids = malloc((size_t)n * sizeof(*ids));
+        int* ids = ToriMem_Alloc(ToriMem_Assets(), (size_t)n * sizeof(*ids));
 
         for( int v = 0; v < entry.variant_count; v++ )
             ids[v] = entry.variants[v];
@@ -172,7 +173,7 @@ install_synthetic(
     struct RS_HitsplatVariants* variants)
 {
     int n = stream_count + 1;
-    int* ids = malloc((size_t)n * sizeof(*ids));
+    int* ids = ToriMem_Alloc(ToriMem_Assets(), (size_t)n * sizeof(*ids));
 
     for( int i = 0; i < stream_count; i++ )
         ids[i] = stream[i];
@@ -189,10 +190,10 @@ install_synthetic(
 static void
 setup(void)
 {
-    int* sprite_ids = malloc(TYPE_COUNT * sizeof(int));
-    int* durations = malloc(TYPE_COUNT * sizeof(int));
-    int* slot_policies = malloc(TYPE_COUNT * sizeof(int));
-    struct RS_HitsplatVariants* variants = calloc(TYPE_COUNT, sizeof(*variants));
+    int* sprite_ids = ToriMem_Alloc(ToriMem_Assets(), TYPE_COUNT * sizeof(int));
+    int* durations = ToriMem_Alloc(ToriMem_Assets(), TYPE_COUNT * sizeof(int));
+    int* slot_policies = ToriMem_Alloc(ToriMem_Assets(), TYPE_COUNT * sizeof(int));
+    struct RS_HitsplatVariants* variants = ToriMem_Calloc(ToriMem_Assets(), TYPE_COUNT, sizeof(*variants));
 
     for( int i = 0; i < TYPE_COUNT; i++ )
     {
@@ -387,7 +388,7 @@ main(void)
      * The dat1 path and any pre-OldSchool cache. */
     {
         struct RS_Hitsplats plain;
-        int* sprites = malloc(4 * sizeof(int));
+        int* sprites = ToriMem_Alloc(ToriMem_Assets(), 4 * sizeof(int));
 
         for( int i = 0; i < 4; i++ )
             sprites[i] = 100 + i;

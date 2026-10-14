@@ -29,6 +29,7 @@
  */
 
 #include "editor_host.h"
+#include "mem/torirs_mem.h"
 
 #include "torirsmaped/torirs_maped.h"
 
@@ -247,9 +248,8 @@ stash_broadcast(
     const uint8_t* body,
     uint32_t length)
 {
-    struct stashed_fact* fact = malloc(sizeof(*fact) + length);
+    struct stashed_fact* fact = ToriMem_Alloc(ToriMem_Editor(), sizeof(*fact) + length);
 
-    assert(fact);
     fact->next = NULL;
     fact->type = type;
     fact->length = length;
@@ -447,16 +447,14 @@ decode_two_blobs(
     /* Blob contract: NUL-terminated for the codec, `size` excluding it. */
     if( jm2_plus > 0 )
     {
-        out_jm2->data = malloc(jm2_size + 1);
-        assert(out_jm2->data);
+        out_jm2->data = ToriMem_Alloc(ToriMem_Editor(), jm2_size + 1);
         memcpy(out_jm2->data, fact + at + 8, jm2_size);
         out_jm2->data[jm2_size] = '\0';
         out_jm2->size = jm2_size;
     }
     if( jl2_plus > 0 )
     {
-        out_jl2->data = malloc(jl2_size + 1);
-        assert(out_jl2->data);
+        out_jl2->data = ToriMem_Alloc(ToriMem_Editor(), jl2_size + 1);
         memcpy(out_jl2->data, fact + at + 8 + jm2_size, jl2_size);
         out_jl2->data[jl2_size] = '\0';
         out_jl2->size = jl2_size;
@@ -532,8 +530,7 @@ remote_square_save(
 
     assert(remote);
 
-    payload = malloc(length);
-    assert(payload);
+    payload = ToriMem_Alloc(ToriMem_Editor(), length);
     ToriRSMapEd_WriteU32(payload, (uint32_t)map_x);
     ToriRSMapEd_WriteU32(payload + 4, (uint32_t)map_z);
     ToriRSMapEd_WriteU32(payload + 8, jm2_text ? (uint32_t)jm2_size + 1 : 0);
@@ -544,7 +541,7 @@ remote_square_save(
         memcpy(payload + 16 + jm2_size, jl2_text, jl2_size);
 
     status = rpc_status(remote, TORIRSMAPED_REQ_SQUARE_SAVE, payload, length, NULL);
-    free(payload);
+    ToriMem_Free(ToriMem_Editor(), payload);
     return status;
 }
 
@@ -564,8 +561,7 @@ remote_spawn_save(
 
     assert(remote);
 
-    payload = malloc(payload_length);
-    assert(payload);
+    payload = ToriMem_Alloc(ToriMem_Editor(), payload_length);
     ToriRSMapEd_WriteU32(payload, (uint32_t)map_x);
     ToriRSMapEd_WriteU32(payload + 4, (uint32_t)map_z);
     ToriRSMapEd_WriteU32(payload + 8, text ? (uint32_t)size + 1 : 0);
@@ -573,7 +569,7 @@ remote_spawn_save(
         memcpy(payload + 12, text, size);
 
     status = rpc_status(remote, TORIRSMAPED_REQ_SPAWN_SAVE, payload, payload_length, NULL);
-    free(payload);
+    ToriMem_Free(ToriMem_Editor(), payload);
     return status;
 }
 
@@ -609,12 +605,11 @@ remote_bake(
         {
             if( on_progress )
             {
-                char* line = malloc(fact_length + 1);
-                assert(line);
+                char* line = ToriMem_Alloc(ToriMem_Editor(), fact_length + 1);
                 memcpy(line, fact, fact_length);
                 line[fact_length] = '\0';
                 on_progress(progress_user_data, line);
-                free(line);
+                ToriMem_Free(ToriMem_Editor(), line);
             }
             frame_done(remote, fact_length);
             continue;
@@ -653,7 +648,7 @@ free_stash(struct maped_remote* remote)
     while( remote->stash_head )
     {
         struct stashed_fact* next = remote->stash_head->next;
-        free(remote->stash_head);
+        ToriMem_Free(ToriMem_Editor(), remote->stash_head);
         remote->stash_head = next;
     }
     remote->stash_tail = NULL;
@@ -689,7 +684,7 @@ remote_free(void* user_data)
 #endif
     free_stash(remote);
     ToriRSMapEd_BufFree(&remote->in);
-    free(remote);
+    ToriMem_Free(ToriMem_Editor(), remote);
 }
 
 static const struct EditorHost_VTable remote_vtable = {
@@ -775,15 +770,13 @@ Editor_HostOpenMapEdEmbed(
     assert(host);
     assert(content_dir);
 
-    remote = malloc(sizeof(*remote));
-    assert(remote);
-    memset(remote, 0, sizeof(*remote));
+    remote = ToriMem_Calloc(ToriMem_Editor(), 1, sizeof(*remote));
     remote->fd = -1;
 
     remote->embed = ToriRSMapEd_EmbedStart(content_dir, repo_root);
     if( !remote->embed )
     {
-        free(remote);
+        ToriMem_Free(ToriMem_Editor(), remote);
         return 0;
     }
     remote->embed_client = 0;
@@ -792,7 +785,7 @@ Editor_HostOpenMapEdEmbed(
     {
         ToriRSMapEd_EmbedStop(remote->embed);
         ToriRSMapEd_BufFree(&remote->in);
-        free(remote);
+        ToriMem_Free(ToriMem_Editor(), remote);
         return 0;
     }
 
@@ -824,9 +817,7 @@ Editor_HostOpenMapEdEmbedPeer(
         return 0;
     }
 
-    remote = malloc(sizeof(*remote));
-    assert(remote);
-    memset(remote, 0, sizeof(*remote));
+    remote = ToriMem_Calloc(ToriMem_Editor(), 1, sizeof(*remote));
     remote->fd = -1;
     remote->embed = peer_remote->embed;
     remote->embed_client = client_id;
@@ -836,7 +827,7 @@ Editor_HostOpenMapEdEmbedPeer(
     {
         ToriRSMapEd_EmbedDisconnect(remote->embed, client_id);
         ToriRSMapEd_BufFree(&remote->in);
-        free(remote);
+        ToriMem_Free(ToriMem_Editor(), remote);
         return 0;
     }
 
@@ -894,16 +885,14 @@ Editor_HostOpenMapEdTcp(
         return 0;
     }
 
-    remote = malloc(sizeof(*remote));
-    assert(remote);
-    memset(remote, 0, sizeof(*remote));
+    remote = ToriMem_Calloc(ToriMem_Editor(), 1, sizeof(*remote));
     remote->fd = fd;
 
     if( !hello(remote, (uint32_t)role, join_group) )
     {
         close(fd);
         ToriRSMapEd_BufFree(&remote->in);
-        free(remote);
+        ToriMem_Free(ToriMem_Editor(), remote);
         return 0;
     }
 
@@ -1178,7 +1167,7 @@ Editor_HostMapEdDrainFacts(
         if( !remote->stash_head )
             remote->stash_tail = NULL;
         deliver_fact(sink, fact->type, fact->data, fact->length);
-        free(fact);
+        ToriMem_Free(ToriMem_Editor(), fact);
         delivered++;
     }
 

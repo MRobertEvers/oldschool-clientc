@@ -2,6 +2,7 @@
 #define FLAG_MAP_U_C
 
 #include "flag_map.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -13,8 +14,8 @@ flag_map_new(
     int size_z,
     int levels)
 {
-    struct FlagMap* flag_map = malloc(sizeof(struct FlagMap));
-    flag_map->flags = malloc(sizeof(int) * size_x * size_z * levels);
+    struct FlagMap* flag_map = ToriMem_Alloc(ToriMem_Scene(), sizeof(struct FlagMap));
+    flag_map->flags = ToriMem_Alloc(ToriMem_Scene(), sizeof(int) * size_x * size_z * levels);
     memset(flag_map->flags, 0, sizeof(int) * size_x * size_z * levels);
     flag_map->size_x = size_x;
     flag_map->size_z = size_z;
@@ -27,8 +28,8 @@ flag_map_free(struct FlagMap* flag_map)
 {
     if( !flag_map )
         return;
-    free(flag_map->flags);
-    free(flag_map);
+    ToriMem_Free(ToriMem_Scene(), flag_map->flags);
+    ToriMem_Free(ToriMem_Scene(), flag_map);
 }
 
 static inline int

@@ -1,4 +1,5 @@
 #include "audio/torirs_mixer.h"
+#include "mem/torirs_mem.h"
 #include <assert.h>
 
 #include <stdio.h>
@@ -48,7 +49,7 @@ free_asset_slot(struct ToriRS_MixerAsset* asset)
      * the memset so a release that reloads the slot is not undone. */
     struct ToriRS_AudioSource source = asset->source;
 
-    free(asset->samples);
+    ToriMem_Free(ToriMem_Audio(), asset->samples);
     memset(asset, 0, sizeof(*asset));
     asset->asset_id = -1;
     if( source.release )
@@ -58,7 +59,7 @@ free_asset_slot(struct ToriRS_MixerAsset* asset)
 static void
 free_stream_slot(struct ToriRS_MixerStream* stream)
 {
-    free(stream->ring);
+    ToriMem_Free(ToriMem_Audio(), stream->ring);
     memset(stream, 0, sizeof(*stream));
     stream->stream_id = -1;
 }
@@ -72,10 +73,10 @@ ToriRS_Mixer_Free(struct ToriRS_Mixer* mixer)
         free_asset_slot(&mixer->assets[i]);
     for( int i = 0; i < TORIRS_MIXER_MAX_STREAMS; i++ )
         free_stream_slot(&mixer->streams[i]);
-    free(mixer->accumulator);
+    ToriMem_Free(ToriMem_Audio(), mixer->accumulator);
     mixer->accumulator = NULL;
     mixer->accumulator_frames = 0;
-    free(mixer->source_scratch);
+    ToriMem_Free(ToriMem_Audio(), mixer->source_scratch);
     mixer->source_scratch = NULL;
     mixer->source_scratch_frames = 0;
     for( int i = 0; i < TORIRS_MIXER_MAX_VOICES; i++ )
@@ -161,12 +162,12 @@ asset_load(
 
     if( command->asset_id < 0 )
     {
-        free(staged);
+        ToriMem_Free(ToriMem_Audio(), staged);
         return;
     }
     if( !generator && (!command->pcm || command->sample_count <= 0) )
     {
-        free(staged);
+        ToriMem_Free(ToriMem_Audio(), staged);
         return;
     }
 
@@ -180,8 +181,7 @@ asset_load(
     }
     else if( !copy )
     {
-        copy = malloc((size_t)command->sample_count * sizeof(int16_t));
-        assert(copy);
+        copy = ToriMem_Alloc(ToriMem_Audio(), (size_t)command->sample_count * sizeof(int16_t));
         memcpy(copy, command->pcm, (size_t)command->sample_count * sizeof(int16_t));
     }
 
@@ -193,7 +193,7 @@ asset_load(
         stop_voices_on_asset(mixer, command->asset_id);
         if( slot->source.release )
             slot->source.release(slot->source.ctx);
-        free(slot->samples);
+        ToriMem_Free(ToriMem_Audio(), slot->samples);
     }
     else
     {
@@ -207,7 +207,7 @@ asset_load(
         }
         if( !slot )
         {
-            free(copy);
+            ToriMem_Free(ToriMem_Audio(), copy);
             MIXER_TRACE("audio: asset table full, dropping asset %d\n", command->asset_id);
             return;
         }
@@ -488,15 +488,10 @@ ToriRS_Mixer_ApplyStaged(
         }
         if( !stream )
             break;
-        free(stream->ring);
+        ToriMem_Free(ToriMem_Audio(), stream->ring);
         memset(stream, 0, sizeof(*stream));
-        stream->ring =
-            calloc((size_t)TORIRS_MIXER_STREAM_FRAMES * (size_t)channels, sizeof(int16_t));
-        if( !stream->ring )
-        {
-            stream->stream_id = -1;
-            break;
-        }
+        stream->ring = ToriMem_Calloc(
+            ToriMem_Audio(), (size_t)TORIRS_MIXER_STREAM_FRAMES * (size_t)channels, sizeof(int16_t));
         stream->stream_id = command->stream_id;
         stream->channels = channels;
         stream->sample_rate =
@@ -629,8 +624,7 @@ ToriRS_Mixer_Stage(
         return;
     if( !command->pcm || command->sample_count <= 0 )
         return;
-    staged->pcm = malloc((size_t)command->sample_count * sizeof(int16_t));
-    assert(staged->pcm);
+    staged->pcm = ToriMem_Alloc(ToriMem_Audio(), (size_t)command->sample_count * sizeof(int16_t));
     memcpy(staged->pcm, command->pcm, (size_t)command->sample_count * sizeof(int16_t));
 }
 
@@ -639,7 +633,7 @@ ToriRS_Mixer_StageFree(struct ToriRS_MixerStaged* staged)
 {
     if( !staged )
         return;
-    free(staged->pcm);
+    ToriMem_Free(ToriMem_Audio(), staged->pcm);
     staged->pcm = NULL;
 }
 
@@ -688,8 +682,7 @@ ensure_accumulator(
 
     if( mixer->accumulator_frames >= frames )
         return true;
-    grown = realloc(mixer->accumulator, (size_t)frames * 2 * sizeof(int32_t));
-    assert(grown);
+    grown = ToriMem_Realloc(ToriMem_Audio(), mixer->accumulator, (size_t)frames * 2 * sizeof(int32_t));
     mixer->accumulator = grown;
     mixer->accumulator_frames = frames;
     return true;
@@ -704,8 +697,7 @@ ensure_source_scratch(
 
     if( mixer->source_scratch_frames >= frames )
         return true;
-    grown = realloc(mixer->source_scratch, (size_t)frames * 2 * sizeof(int16_t));
-    assert(grown);
+    grown = ToriMem_Realloc(ToriMem_Audio(), mixer->source_scratch, (size_t)frames * 2 * sizeof(int16_t));
     mixer->source_scratch = grown;
     mixer->source_scratch_frames = frames;
     return true;

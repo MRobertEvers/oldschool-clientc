@@ -1,4 +1,5 @@
 #include "ui/uitree_if_events.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -7,7 +8,7 @@ void
 UIIfEventTable_Free(struct UIIfEventTable* table)
 {
     assert(table);
-    free(table->ranges);
+    ToriMem_Free(ToriMem_Ui(), table->ranges);
     table->ranges = NULL;
     table->count = 0;
     table->cap = 0;
@@ -37,7 +38,7 @@ UIIfEventTable_Set(
      * on either side of an overlap; one component may have many independently
      * armed dynamic-child ranges. */
     replacement_cap = table->count + 3;
-    replacement = malloc((size_t)replacement_cap * sizeof(*replacement));
+    replacement = ToriMem_Alloc(ToriMem_Ui(), (size_t)replacement_cap * sizeof(*replacement));
     assert(replacement);
     for( int i = 0; i < table->count; i++ )
     {
@@ -68,7 +69,7 @@ UIIfEventTable_Set(
     replacement[replacement_count].to = to;
     replacement[replacement_count].events = events;
     replacement_count++;
-    free(table->ranges);
+    ToriMem_Free(ToriMem_Ui(), table->ranges);
     table->ranges = replacement;
     table->count = replacement_count;
     table->cap = replacement_cap;

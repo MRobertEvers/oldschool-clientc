@@ -25,6 +25,7 @@
  */
 
 #include "torirs_server_boot.h"
+#include "mem/torirs_mem.h"
 #include "content/content_register.h"
 #include <assert.h>
 #include "cp_membership.h"
@@ -1087,7 +1088,7 @@ validate_doors(
         if( archive->file_ids[i] > highest )
             highest = archive->file_ids[i];
     }
-    configs = calloc((size_t)(highest + 1), sizeof(*configs));
+    configs = ToriMem_Calloc(ToriMem_ServerContent(), (size_t)(highest + 1), sizeof(*configs));
     for( int i = 0; i < archive->file_count; i++ )
     {
         int id = archive->file_ids[i];
@@ -1202,7 +1203,7 @@ validate_doors(
         if( configs[i] )
             RSCache_Dat2ConfigLocFree(configs[i]);
     }
-    free(configs);
+    ToriMem_Free(ToriMem_ServerContent(), configs);
     RSCache_FileListFree(files);
     RSCache_Dat2DiskArchiveFree(archive);
 }

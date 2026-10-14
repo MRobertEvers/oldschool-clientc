@@ -1,4 +1,5 @@
 #include "shademap.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -23,9 +24,10 @@ shademap2_new(
     int tile_height,
     int levels)
 {
-    struct Shademap2* shademap = malloc(sizeof(struct Shademap2));
+    struct Shademap2* shademap = ToriMem_Alloc(ToriMem_Scene(), sizeof(struct Shademap2));
     assert(shademap);
-    shademap->map = malloc((size_t)tile_width * (size_t)tile_height * (size_t)levels * sizeof(int));
+    shademap->map = ToriMem_Alloc(
+        ToriMem_Scene(), (size_t)tile_width * (size_t)tile_height * (size_t)levels * sizeof(int));
     assert(shademap->map);
     memset(shademap->map, 0, (size_t)tile_width * (size_t)tile_height * (size_t)levels * sizeof(int));
     shademap->width = tile_width;
@@ -39,8 +41,8 @@ shademap2_free(struct Shademap2* shademap)
 {
     if( !shademap )
         return;
-    free(shademap->map);
-    free(shademap);
+    ToriMem_Free(ToriMem_Scene(), shademap->map);
+    ToriMem_Free(ToriMem_Scene(), shademap);
 }
 
 bool

@@ -396,8 +396,7 @@ test_journal_is_invisible_to_the_paint(void)
         paint_into(p, direct);
         expect(buffers_equal(direct, skipped), "the replayed registration paints like a direct one");
         painter_set_dynamics_skip(p, 1);
-        free(direct->commands);
-        free(direct);
+        painter_buffer_free(direct);
     }
 
     painter_dynamics_begin(p);
@@ -443,10 +442,8 @@ test_journal_is_invisible_to_the_paint(void)
     r = painter_dynamics_commit(p);
     expect(r == 0, "two empty cycles in a row skip");
 
-    free(rebuilt->commands);
-    free(rebuilt);
-    free(skipped->commands);
-    free(skipped);
+    painter_buffer_free(rebuilt);
+    painter_buffer_free(skipped);
     painter_free(p);
 }
 

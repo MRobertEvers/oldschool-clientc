@@ -12,6 +12,7 @@
 
 #include "app/app_internal.h"
 
+#include "mem/torirs_mem.h"
 #include "plugin/torirs_plugin_panel.u.c"
 #include "plugin/torirs_plugin_popout_nav.u.c"
 #include "plugin/torirs_plugin_lane_launcher.u.c"

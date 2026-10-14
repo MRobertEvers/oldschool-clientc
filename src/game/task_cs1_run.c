@@ -1,4 +1,5 @@
 #include <inttypes.h>
+#include "mem/torirs_mem.h"
 /*
  * CS1 evaluation task. Mirrors task_cs2_run: drive the VM, and when a host op
  * yields for a cache load, plan the yield in a flat switch and service it with
@@ -205,7 +206,7 @@ Task_CS1Eval_Free(struct ToriRS_Task* task)
 {
     struct Task_CS1Eval* self = (struct Task_CS1Eval*)task;
     assert(self);
-    free(self);
+    ToriMem_Free(ToriMem_Script(), self);
 }
 
 static struct ToriRS_TaskVTable Task_CS1Eval_VTable = {
@@ -224,7 +225,7 @@ CreateTask_CS1Eval(struct RS_CS1Host* host)
     if( host->tree->component_count == 0 )
         return NULL;
 
-    self = calloc(1, sizeof(*self));
+    self = ToriMem_Calloc(ToriMem_Script(), 1, sizeof(*self));
     assert(self);
 
     self->task.vtable = &Task_CS1Eval_VTable;

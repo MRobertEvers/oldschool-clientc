@@ -4585,7 +4585,7 @@ npc_crew_route_step(struct ToriRSServerNpc* npc, int target_x, int target_z,
     struct CollisionMap* route = NULL;
     if( source )
     {
-        route = collision_map_new(source->size_x, source->size_z);
+        route = collision_map_new(ToriMem_ServerWorld(), source->size_x, source->size_z);
         assert(route);
         route->route_window = source->route_window;
         for( int i = 0; i < source->size_x * source->size_z; ++i )
@@ -13960,7 +13960,7 @@ handle_message_private(
         fprintf(stderr, "torirsserver: <- MESSAGE_PRIVATE to=%s%s \"%s\"\n", who,
                 target_player ? "" : " (offline; dropped)", text);
     }
-    free(text);
+    ToriMem_Free(ToriMem_Net(), text); /* wordpack_unpack's */
 }
 
 /*
@@ -14020,7 +14020,7 @@ handle_message_public(
             payload[0],
             payload[1],
             text ? text : "");
-        free(text);
+        ToriMem_Free(ToriMem_Net(), text); /* wordpack_unpack's */
     }
 }
 
@@ -14971,6 +14971,10 @@ world_seat_player(
     struct ToriRSServerPlayer* player = &srv->players[pid];
     uint32_t generation;
 
+    /* The slot's last occupant must have left through BankShutdownPlayer
+     * (WorldRemovePlayer does): the memset below would otherwise drop its
+     * heap bank on the floor. */
+    assert(!player->bank.slots);
     generation = player->login_generation + 1;
     if( generation == 0 )
         generation = 1;
@@ -15081,6 +15085,10 @@ ToriRSServer_WorldPlayerFree(
 
     player->active = 0;
     player->pending_free = 1;
+    /* The bank is heap memory and the next seat memsets the slot: a free
+     * that left it (every direct caller but WorldRemovePlayer, which saves
+     * and releases first) dropped it on the floor. Idempotent. */
+    ToriRSServer_BankShutdownPlayer(player);
 
     if( srv->player_free_queue_count < TORIRSSERVER_PLAYER_MAX )
     {
@@ -15763,13 +15771,24 @@ world_static_npcs_reset(void)
     ToriRSServer_ContentNpcSpawns(&count);
     if( count != g_static_realised_count )
     {
-        free(g_static_realised);
-        g_static_realised = count > 0 ? calloc((size_t)count, 1) : NULL;
+        ToriMem_Free(ToriMem_ServerWorld(), g_static_realised);
+        g_static_realised =
+            count > 0 ? ToriMem_Calloc(ToriMem_ServerWorld(), (size_t)count, 1) : NULL;
         g_static_realised_count = g_static_realised ? count : 0;
         return;
     }
     if( g_static_realised )
         memset(g_static_realised, 0, (size_t)g_static_realised_count);
+}
+
+void
+ToriRSServer_WorldShutdown(struct ToriRSServer* srv)
+{
+    assert(srv);
+    ToriRSServer_WorldReset(srv);
+    ToriMem_Free(ToriMem_ServerWorld(), g_static_realised);
+    g_static_realised = NULL;
+    g_static_realised_count = 0;
 }
 
 /* Chebyshev distance from a tile to the NEAREST of the sync's centres. */

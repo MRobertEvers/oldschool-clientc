@@ -137,7 +137,7 @@ PlatformXIO_Dat1OnDemandJagChecksumsRefresh(
  * bytes are in, which is the one thing a later decode cannot recover from the
  * bytes themselves.
  *
- * malloc'd, caller frees. NULL when no on-demand source is enabled, when the
+ * ToriMem_Net()'s, caller frees from there. NULL when no on-demand source is enabled, when the
  * square is not one this world ships, or when the server does not have it --
  * all three legitimate runtime states rather than contract violations.
  */
@@ -223,8 +223,8 @@ PlatformXIOOnDemand_ArchiveLoad(
  * socket, what a client on the other side is going to need.
  *
  * `*out_format` receives the enum RSCache_ArchiveFormat the bytes are in
- * (DAT_MULTIFILE for the table-0 jag archives, DAT for the rest). malloc'd,
- * caller frees. NULL when the server does not have it.
+ * (DAT_MULTIFILE for the table-0 jag archives, DAT for the rest). ToriMem_Net()'s,
+ * caller frees from there. NULL when the server does not have it.
  */
 uint8_t*
 PlatformXIOOnDemand_ContainerFetch(
@@ -251,8 +251,8 @@ PlatformXIOOnDemand_NewWireOnly(
  * Several raw containers at once: ContainerFetch over a list, with every wire
  * file requested before any is waited for. For io_server's batch route, so a
  * browser's fan-out crosses the LostCity socket as one pipeline rather than
- * as one blocking read per file. Each `out_data[i]` is malloc'd (caller
- * frees) or NULL when the server does not have it. Returns how many were
+ * as one blocking read per file. Each `out_data[i]` is ToriMem_Net()'s (caller
+ * frees from there) or NULL when the server does not have it. Returns how many were
  * served.
  */
 int
@@ -301,8 +301,8 @@ PlatformXIOOnDemand_Pump(struct PlatformXIOOnDemand* od);
  * FetchBegin queues the request (0) or refuses it (-1: bad id, or an endpoint
  * shuttered after a timeout); FetchPending says whether it is still on the
  * wire; FetchTake hands back the bytes AS SERVED -- version trailer and all,
- * still gzipped -- once, per waiter, or NULL for a file the server does not
- * have or the wire gave up on. Two Begins of one file share one request.
+ * still gzipped -- once, per waiter (ToriMem_Net()'s, the taker frees it from
+ * there), or NULL for a file the server does not have or the wire gave up on. Two Begins of one file share one request.
  */
 int
 PlatformXIOOnDemand_FetchBegin(

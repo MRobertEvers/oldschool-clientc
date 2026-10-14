@@ -1,4 +1,5 @@
 #include "engine/dat2/dat2_tasks.h"
+#include "mem/torirs_mem.h"
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
 #include "engine/torirs_font_from_rscache.h"
@@ -77,7 +78,7 @@ Task_Dat2FontLoad_Free(struct ToriRS_Task* task_base)
     struct Task_Dat2FontLoad* task = (struct Task_Dat2FontLoad*)task_base;
     if( task->font_archive )
         RSCache_Dat2DiskArchiveFree(task->font_archive);
-    free(task_base);
+    ToriMem_Free(ToriMem_Assets(), task_base);
 }
 
 static struct ToriRS_TaskVTable Task_Dat2FontLoad_VTable = {
@@ -99,7 +100,7 @@ CreateTask_Dat2FontLoad(
     if( CacheProvider_FontHas(provider, font_id) )
         return NULL;
 
-    task = calloc(1, sizeof(*task));
+    task = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_Dat2FontLoad_VTable;
     strcpy(task->task.name, "Dat2FontLoad");

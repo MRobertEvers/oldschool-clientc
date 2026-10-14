@@ -3,6 +3,7 @@
  */
 
 #include "torirs_server_save.h"
+#include "mem/torirs_mem.h"
 #include <assert.h>
 
 #include "torirs_server.h"
@@ -700,11 +701,11 @@ ToriRSServer_LoadPlayer(
         fclose(file);
         return 0;
     }
-    data = (uint8_t*)malloc((size_t)size);
+    data = (uint8_t*)ToriMem_Alloc(ToriMem_ServerPlayers(), (size_t)size);
     assert(data);
     if( fread(data, 1, (size_t)size, file) != (size_t)size )
     {
-        free(data);
+        ToriMem_Free(ToriMem_ServerPlayers(), data);
         fclose(file);
         fprintf(stderr, "torirsserver: could not read %s\n", path);
         return 0;
@@ -1142,7 +1143,7 @@ ToriRSServer_LoadPlayer(
         }
     }
 
-    free(data);
+    ToriMem_Free(ToriMem_ServerPlayers(), data);
 
     if( version > TORIRSSERVER_SAVE_VERSION )
         fprintf(stderr,

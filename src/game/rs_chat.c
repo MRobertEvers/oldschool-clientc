@@ -1,4 +1,5 @@
 #include "rs_chat.h"
+#include "mem/torirs_mem.h"
 
 #include "plugin/torirs_plugin_drive.h"
 #include "rs_social.h"
@@ -65,7 +66,7 @@ chat_ring_push(
 
     if( !chat->rings[type] )
     {
-        chat->rings[type] = calloc(1, sizeof(*chat->rings[type]));
+        chat->rings[type] = ToriMem_Calloc(ToriMem_Session(), 1, sizeof(*chat->rings[type]));
         assert(chat->rings[type]);
     }
     ring = chat->rings[type];
@@ -89,7 +90,7 @@ chat_ring_push(
     }
     else
     {
-        node = calloc(1, sizeof(*node));
+        node = ToriMem_Calloc(ToriMem_Session(), 1, sizeof(*node));
         assert(node);
         ring->count++;
     }
@@ -176,8 +177,8 @@ RS_Chat_Free(struct RS_Chat* chat)
         if( !ring )
             continue;
         for( i = 0; i < ring->count; i++ )
-            free(ring->lines[i]);
-        free(ring);
+            ToriMem_Free(ToriMem_Session(), ring->lines[i]);
+        ToriMem_Free(ToriMem_Session(), ring);
         chat->rings[t] = NULL;
     }
     chat->newest = NULL;

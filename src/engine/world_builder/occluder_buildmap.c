@@ -1,4 +1,5 @@
 #include "occluder_buildmap.h"
+#include "mem/torirs_mem.h"
 
 #include "heightmap.h"
 #include "painters/scene_occluders.h"
@@ -35,12 +36,12 @@ occluder_buildmap_new(
     assert(size_z > 0);
     assert(levels > 0);
 
-    map = calloc(1, sizeof(*map));
+    map = ToriMem_Calloc(ToriMem_Scene(), 1, sizeof(*map));
     assert(map);
 
     n = size_x * size_z * levels;
-    map->marks = calloc((size_t)n, sizeof(uint16_t));
-    map->floor_opacity = calloc((size_t)n, sizeof(uint8_t));
+    map->marks = ToriMem_Calloc(ToriMem_Scene(), (size_t)n, sizeof(uint16_t));
+    map->floor_opacity = ToriMem_Calloc(ToriMem_Scene(), (size_t)n, sizeof(uint8_t));
     assert(map->marks);
     assert(map->floor_opacity);
     map->size_x = size_x;
@@ -54,9 +55,9 @@ occluder_buildmap_free(struct OccluderBuildmap* map)
 {
     if( !map )
         return;
-    free(map->marks);
-    free(map->floor_opacity);
-    free(map);
+    ToriMem_Free(ToriMem_Scene(), map->marks);
+    ToriMem_Free(ToriMem_Scene(), map->floor_opacity);
+    ToriMem_Free(ToriMem_Scene(), map);
 }
 
 void

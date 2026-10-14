@@ -114,10 +114,8 @@ bucket_queue_empty(struct PainterBucketCtx* w)
 static int
 bucket_ctx_init(struct Painter* painter)
 {
-    struct PainterBucketCtx* w =
-        (struct PainterBucketCtx*)calloc(1, sizeof(struct PainterBucketCtx));
-    if( !w )
-        return -1;
+    struct PainterBucketCtx* w = (struct PainterBucketCtx*)ToriMem_Calloc(
+        ToriMem_Scene(), 1, sizeof(struct PainterBucketCtx));
     painter->bucket_ctx = w;
     return 0;
 }
@@ -128,7 +126,7 @@ bucket_ctx_free(struct Painter* painter)
     struct PainterBucketCtx* w = BM(painter);
     if( !w )
         return;
-    free(w);
+    ToriMem_Free(ToriMem_Scene(), w);
     painter->bucket_ctx = NULL;
 }
 
@@ -733,7 +731,8 @@ bucket_cursor_reserve(
         int cap = buffer->command_capacity > 0 ? buffer->command_capacity : 128;
         while( cap < want )
             cap *= 2;
-        buffer->commands = realloc(
+        buffer->commands = ToriMem_Realloc(
+            ToriMem_Render(),
             buffer->commands, (size_t)cap * sizeof(struct PaintersElementCommand));
         assert(buffer->commands);
         buffer->command_capacity = cap;
@@ -1977,7 +1976,8 @@ painter_collect_visible_depth(
         int capacity = buffer->command_capacity > 0 ? buffer->command_capacity : 128;
         while( capacity < need_cmds )
             capacity *= 2;
-        buffer->commands = (struct PaintersElementCommand*)realloc(
+        buffer->commands = (struct PaintersElementCommand*)ToriMem_Realloc(
+            ToriMem_Render(),
             buffer->commands,
             (size_t)capacity * sizeof(buffer->commands[0]));
         assert(buffer->commands);

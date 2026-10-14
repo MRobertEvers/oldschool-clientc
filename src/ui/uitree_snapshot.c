@@ -1,4 +1,5 @@
 #include "uitree_snapshot.h"
+#include "mem/torirs_mem.h"
 
 #include "uitree.h"
 #include "uitree_emit.h"
@@ -312,9 +313,7 @@ UITreeSnapshot_WriteJson(
     limit = tree->component_count < UITREE_SNAPSHOT_MAX_NODES
                 ? tree->component_count
                 : UITREE_SNAPSHOT_MAX_NODES;
-    draws = (struct SnapshotDraw*)calloc(limit ? limit : 1, sizeof(*draws));
-    if( !draws )
-        return -1;
+    draws = (struct SnapshotDraw*)ToriMem_Calloc(ToriMem_Ui(), limit ? limit : 1, sizeof(*draws));
     if( emit )
     {
         for( int i = 0; i < emit->count; i++ )
@@ -340,7 +339,7 @@ UITreeSnapshot_WriteJson(
     writer.failed = writer.fp ? 0 : 1;
     if( !writer.fp )
     {
-        free(draws);
+        ToriMem_Free(ToriMem_Ui(), draws);
         return -1;
     }
     snapshot_write(
@@ -370,7 +369,7 @@ UITreeSnapshot_WriteJson(
     failed = writer.failed || ferror(writer.fp);
     if( fclose(writer.fp) != 0 )
         failed = 1;
-    free(draws);
+    ToriMem_Free(ToriMem_Ui(), draws);
     if( failed )
     {
         remove(path);

@@ -117,7 +117,7 @@ worldmap_geo_file_cache_clear(struct Task_Dat2WorldMapGeographyLoad* task)
 {
     for( int i = 0; i < task->file_cache_count; i++ )
     {
-        free(task->file_cache[i].data);
+        ToriMem_Free(ToriRS_TaskMem(&task->task), task->file_cache[i].data);
         task->file_cache[i].data = NULL;
         task->file_cache[i].data_size = 0;
     }
@@ -154,9 +154,8 @@ worldmap_geo_file_cache_put(
     if( !data || data_size <= 0 )
         return NULL;
 
-    copy = malloc((size_t)data_size);
-    assert(copy);
-    memcpy(copy, data, (size_t)data_size);
+    /* The task's own copy, dropped with its file cache. */
+    copy = ToriMem_Memdup(ToriRS_TaskMem(&task->task), data, (size_t)data_size);
 
     entry = &task->file_cache[task->file_cache_count++];
     entry->group_id = group_id;
@@ -459,8 +458,8 @@ Task_Dat2WorldMapGeographyLoad_Free(struct ToriRS_Task* task_base)
         RSCache_WorldMapGeographyFreeInplace(task->geography);
         ToriMem_Free(ToriMem_Assets(), task->geography);
     }
-    free(task->sources);
-    free(task);
+    ToriMem_Free(ToriRS_TaskMem(task_base), task->sources);
+    ToriMem_Free(ToriMem_Assets(), task);
 }
 
 static struct ToriRS_TaskVTable Task_Dat2WorldMapGeographyLoad_VTable = {
@@ -485,16 +484,14 @@ CreateTask_Dat2WorldMapGeographyLoad(
     if( CacheProvider_WorldMapGeographyHas(provider, key) )
         return NULL;
 
-    task = calloc(1, sizeof(*task));
-    assert(task);
+    task = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*task));
     task->task.vtable = &Task_Dat2WorldMapGeographyLoad_VTable;
     strcpy(task->task.name, "Dat2WorldMapGeographyLoad");
     task->bc = (struct Dat2BuildCache*)provider;
     task->key = key;
     task->ground_group = -1;
-    task->sources = calloc((size_t)source_count, sizeof(*task->sources));
-    assert(task->sources);
-    memcpy(task->sources, sources, (size_t)source_count * sizeof(*task->sources));
+    task->sources = ToriMem_Memdup(
+        ToriRS_TaskMem(&task->task), sources, (size_t)source_count * sizeof(*task->sources));
     task->source_count = source_count;
     PT_INIT(&task->pt);
     return &task->task;

@@ -4,6 +4,7 @@
  * player never gets OPPLAYER rows.
  */
 #include "game/rs_attack_option.h"
+#include "mem/torirs_mem.h"
 #include "game/rs_ui_slots.h"
 #include "game/rs_minimenu_build.h"
 #include "game/rs_minimenu_world.h"
@@ -220,7 +221,7 @@ static void
 test_if3_item_onop_and_target_rows_match_rev239(void)
 {
     struct CacheProvider provider = { 0 };
-    struct ToriRS_Objtype* obj = calloc(1, sizeof(*obj));
+    struct ToriRS_Objtype* obj = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*obj));
     struct UITree* tree = UITree_New(4);
     struct UITreeNodeSpec parent = { 0 };
     struct UITreeNodeSpec child = { 0 };

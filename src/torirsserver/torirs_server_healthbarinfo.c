@@ -27,6 +27,7 @@
  */
 
 #include "torirs_server_servpack.h"
+#include "mem/torirs_mem.h"
 #include "torirs_server.h"
 
 #include <assert.h>
@@ -41,7 +42,7 @@ static int g_healthbar_count;
 void
 ToriRSServer_HealthbarInfoFree(void)
 {
-    free(g_healthbar_widths);
+    ToriMem_Free(ToriMem_ServerContent(), g_healthbar_widths);
     g_healthbar_widths = NULL;
     g_healthbar_count = 0;
 }
@@ -95,7 +96,8 @@ ToriRSServer_HealthbarInfoLoad(struct RSCache_ServerPack* pack)
     }
 
     g_healthbar_count = highest + 1;
-    g_healthbar_widths = (int*)malloc((size_t)g_healthbar_count * sizeof(*g_healthbar_widths));
+    g_healthbar_widths = (int*)ToriMem_Alloc(
+        ToriMem_ServerContent(), (size_t)g_healthbar_count * sizeof(*g_healthbar_widths));
     assert(g_healthbar_widths);
     for( int i = 0; i < g_healthbar_count; i++ )
         g_healthbar_widths[i] = TORIRSSERVER_HEALTHBAR_DEFAULT_WIDTH;

@@ -1,3 +1,4 @@
+#include "mem/torirs_mem.h"
 #include "pkt_rebuild_region.h"
 #include "torirs_env.h"
 #include <assert.h>
@@ -55,7 +56,7 @@ pkt_rebuild_region_read(uint8_t const* data, int len, struct RevPacket* out)
     zone_x = (data[2] << 8) | ((data[3] - 128) & 0xff);
     zone_z = (data[4] << 8) | data[5];
 
-    zones = calloc(PKT_MAP_REBUILD_ZONES, sizeof(*zones));
+    zones = ToriMem_Calloc(ToriMem_Net(), PKT_MAP_REBUILD_ZONES, sizeof(*zones));
     assert(zones);
 
     Net_BitBufferInit(&bits, data + 6, len - 6);

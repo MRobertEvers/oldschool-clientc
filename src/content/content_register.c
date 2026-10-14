@@ -3,6 +3,7 @@
  */
 
 #include "content_register.h"
+#include "mem/torirs_mem.h"
 #include <assert.h>
 
 #include "3rd/ini/ini.h"
@@ -471,11 +472,11 @@ ContentRegister_Load(
         fclose(file);
         return reg->count;
     }
-    data = (uint8_t*)malloc((size_t)size);
+    data = (uint8_t*)ToriMem_Alloc(ToriMem_ServerContent(), (size_t)size);
     assert(data);
     if( fread(data, 1, (size_t)size, file) != (size_t)size )
     {
-        free(data);
+        ToriMem_Free(ToriMem_ServerContent(), data);
         fclose(file);
         return reg->count;
     }
@@ -557,7 +558,7 @@ ContentRegister_Load(
                 strcmp(element._keyval.value, "none") == 0 ? -1 : atoi(element._keyval.value);
     }
 
-    free(data);
+    ToriMem_Free(ToriMem_ServerContent(), data);
     reg->from_file = 1;
     return reg->count;
 }

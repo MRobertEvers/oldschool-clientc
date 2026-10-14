@@ -1,3 +1,4 @@
+#include "mem/torirs_mem.h"
 #include "game/rs_hitsplat.h"
 #include <assert.h>
 
@@ -20,8 +21,8 @@ hitsplats_free_variants(struct RS_Hitsplats* hitsplats)
     if( !hitsplats->variants )
         return;
     for( int i = 0; i < hitsplats->count; i++ )
-        free(hitsplats->variants[i].ids);
-    free(hitsplats->variants);
+        ToriMem_Free(ToriMem_Assets(), hitsplats->variants[i].ids);
+    ToriMem_Free(ToriMem_Assets(), hitsplats->variants);
     hitsplats->variants = NULL;
 }
 
@@ -29,10 +30,10 @@ void
 RS_Hitsplats_Free(struct RS_Hitsplats* hitsplats)
 {
     hitsplats_free_variants(hitsplats);
-    free(hitsplats->sprite_ids);
-    free(hitsplats->durations);
-    free(hitsplats->slot_policies);
-    free(hitsplats->text_offsets_y);
+    ToriMem_Free(ToriMem_Assets(), hitsplats->sprite_ids);
+    ToriMem_Free(ToriMem_Assets(), hitsplats->durations);
+    ToriMem_Free(ToriMem_Assets(), hitsplats->slot_policies);
+    ToriMem_Free(ToriMem_Assets(), hitsplats->text_offsets_y);
     hitsplats->sprite_ids = NULL;
     hitsplats->durations = NULL;
     hitsplats->slot_policies = NULL;
@@ -56,10 +57,10 @@ RS_Hitsplats_SetTypes(
     /* Before the count is overwritten — `hitsplats_free_variants` walks the OLD
      * table and has to be told its old length. */
     hitsplats_free_variants(hitsplats);
-    free(hitsplats->sprite_ids);
-    free(hitsplats->durations);
-    free(hitsplats->slot_policies);
-    free(hitsplats->text_offsets_y);
+    ToriMem_Free(ToriMem_Assets(), hitsplats->sprite_ids);
+    ToriMem_Free(ToriMem_Assets(), hitsplats->durations);
+    ToriMem_Free(ToriMem_Assets(), hitsplats->slot_policies);
+    ToriMem_Free(ToriMem_Assets(), hitsplats->text_offsets_y);
     hitsplats->sprite_ids = sprite_ids;
     hitsplats->durations = durations;
     hitsplats->slot_policies = slot_policies;

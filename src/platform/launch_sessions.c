@@ -12,6 +12,7 @@
 #endif
 
 #include "platform/launch_sessions.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <errno.h>
@@ -51,17 +52,16 @@ struct LaunchSessions
 struct LaunchSessions*
 LaunchSessions_New(struct LaunchSessions_Config const* config)
 {
-    struct LaunchSessions* table = calloc(1, sizeof(*table));
+    struct LaunchSessions* table = ToriMem_Calloc(ToriMem_Net(), 1, sizeof(*table));
 
     (void)config;
-    assert(table);
     return table;
 }
 
 void
 LaunchSessions_Free(struct LaunchSessions* table)
 {
-    free(table);
+    ToriMem_Free(ToriMem_Net(), table);
 }
 
 char const*
@@ -80,7 +80,9 @@ LaunchSessions_Answer(
     int* out_size)
 {
     size_t length = strlen(LAUNCH_SESSIONS_UNSUPPORTED_ANSWER);
-    char* answer = malloc(length + 1);
+    /* NET: the caller (main.c) frees it from NET, or hands it on as an IO
+     * item's data, which ToriRS_IO_ClearItem frees from NET. */
+    char* answer = ToriMem_Alloc(ToriMem_Net(), length + 1);
 
     assert(table);
     assert(verb);
@@ -264,8 +266,7 @@ text_append(struct LaunchText* text, char const* format, ...)
         int capacity = text->capacity ? text->capacity : 256;
         while( capacity < text->size + needed + 1 )
             capacity *= 2;
-        text->data = realloc(text->data, (size_t)capacity);
-        assert(text->data);
+        text->data = ToriMem_Realloc(ToriMem_Net(), text->data, (size_t)capacity);
         text->capacity = capacity;
     }
     va_start(arguments, format);
@@ -296,8 +297,7 @@ request_parse(struct LaunchRequest* request, char const* body, int body_size)
     char* line;
 
     memset(request, 0, sizeof(*request));
-    request->copy = malloc((size_t)body_size + 1);
-    assert(request->copy);
+    request->copy = ToriMem_Alloc(ToriMem_Net(), (size_t)body_size + 1);
     if( body_size > 0 )
         memcpy(request->copy, body, (size_t)body_size);
     request->copy[body_size] = '\0';
@@ -519,7 +519,7 @@ static void
 mailbox_clear(struct LaunchSeat* seat)
 {
     for( int i = 0; i < seat->mailbox_count; i++ )
-        free(seat->mailbox[i]);
+        ToriMem_Free(ToriMem_Net(), seat->mailbox[i]);
     seat->mailbox_count = 0;
 }
 
@@ -528,8 +528,8 @@ mailbox_push(struct LaunchSeat* seat, char const* command)
 {
     if( seat->mailbox_count == LAUNCH_SESSIONS_MAILBOX_MAX )
         return -1;
-    seat->mailbox[seat->mailbox_count] = strdup(command);
-    assert(seat->mailbox[seat->mailbox_count]);
+    assert(command);
+    seat->mailbox[seat->mailbox_count] = ToriMem_Strdup(ToriMem_Net(), command);
     seat->mailbox_count++;
     return 0;
 }
@@ -731,21 +731,19 @@ environment_put(struct LaunchEnvironment* environment, char const* entry)
     char* copy;
 
     assert(equals);
-    copy = strdup(entry);
-    assert(copy);
+    copy = ToriMem_Strdup(ToriMem_Net(), entry);
     index = environment_find(environment, entry, (size_t)(equals - entry));
     if( index >= 0 )
     {
-        free(environment->entries[index]);
+        ToriMem_Free(ToriMem_Net(), environment->entries[index]);
         environment->entries[index] = copy;
         return;
     }
     if( environment->count + 2 > environment->capacity )
     {
         environment->capacity = environment->capacity ? environment->capacity * 2 : 64;
-        environment->entries =
-            realloc(environment->entries, sizeof(char*) * (size_t)environment->capacity);
-        assert(environment->entries);
+        environment->entries = ToriMem_Realloc(
+            ToriMem_Net(), environment->entries, sizeof(char*) * (size_t)environment->capacity);
     }
     environment->entries[environment->count++] = copy;
     environment->entries[environment->count] = NULL;
@@ -758,7 +756,7 @@ environment_set(struct LaunchEnvironment* environment, char const* key, char con
 
     text_append(&entry, "%s=%s", key, value);
     environment_put(environment, entry.data);
-    free(entry.data);
+    ToriMem_Free(ToriMem_Net(), entry.data);
 }
 
 static void
@@ -768,7 +766,7 @@ environment_unset(struct LaunchEnvironment* environment, char const* key)
 
     if( index < 0 )
         return;
-    free(environment->entries[index]);
+    ToriMem_Free(ToriMem_Net(), environment->entries[index]);
     environment->entries[index] = environment->entries[environment->count - 1];
     environment->count--;
     environment->entries[environment->count] = NULL;
@@ -778,8 +776,8 @@ static void
 environment_free(struct LaunchEnvironment* environment)
 {
     for( int i = 0; i < environment->count; i++ )
-        free(environment->entries[i]);
-    free(environment->entries);
+        ToriMem_Free(ToriMem_Net(), environment->entries[i]);
+    ToriMem_Free(ToriMem_Net(), environment->entries);
     memset(environment, 0, sizeof(*environment));
 }
 
@@ -840,7 +838,7 @@ member_environment(
     environment_set(environment, "TORIRS_CONTENT_TEST", seat->directory);
     text_append(&prefs, "%s/plugin_prefs.ini", seat->directory);
     environment_set(environment, "TORIRS_PLUGIN_PREFS", prefs.data);
-    free(prefs.data);
+    ToriMem_Free(ToriMem_Net(), prefs.data);
     /* Never the owner's preferences.ini: empty is "do not touch the file". */
     environment_set(environment, "TORIRS_PREFS", "");
     environment_set(environment, "TORIRS_STDERR_UNBUFFERED", "1");
@@ -939,7 +937,7 @@ member_spawn(struct LaunchSessions* table, struct LaunchSession* session,
                                log_path.data, 0, &pid, &process_group);
     }
     environment_free(&environment);
-    free(log_path.data);
+    ToriMem_Free(ToriMem_Net(), log_path.data);
     if( error )
         return error;
     seat->spawned = 1;
@@ -1227,7 +1225,7 @@ verb_spawn(struct LaunchSessions* table, struct LaunchRequest const* request,
     else
         text_append(answer, "ok\n");
     text_append(answer, "%s", spawned.data);
-    free(spawned.data);
+    ToriMem_Free(ToriMem_Net(), spawned.data);
 }
 
 static int
@@ -1412,7 +1410,7 @@ verb_close(struct LaunchSessions* table, struct LaunchSession* session,
                 if( member->mailbox_count == LAUNCH_SESSIONS_MAILBOX_MAX )
                 {
                     member->mailbox_count--;
-                    free(member->mailbox[member->mailbox_count]);
+                    ToriMem_Free(ToriMem_Net(), member->mailbox[member->mailbox_count]);
                 }
                 mailbox_push(member, "quit");
             }
@@ -1445,14 +1443,14 @@ LaunchSessions_UnsupportedReason(void)
 struct LaunchSessions*
 LaunchSessions_New(struct LaunchSessions_Config const* config)
 {
-    struct LaunchSessions* table = calloc(1, sizeof(*table));
+    struct LaunchSessions* table;
 
-    assert(table);
     assert(config);
     assert(config->binary_path);
     assert(config->launch_directory);
     assert(config->spawner);
     assert(config->clock_ms);
+    table = ToriMem_Calloc(ToriMem_Net(), 1, sizeof(*table));
     assert(strlen(config->binary_path) < sizeof(table->binary_path));
     assert(strlen(config->launch_directory) < sizeof(table->launch_directory));
     snprintf(table->binary_path, sizeof(table->binary_path), "%s", config->binary_path);
@@ -1545,9 +1543,18 @@ LaunchSessions_Answer(
     else
         answer_error(&answer, "no launch verb %s (open, spawn, command, mail, status, "
                               "heartbeat, close)", verb);
-    free(request.copy);
+    ToriMem_Free(ToriMem_Net(), request.copy);
     *out_size = answer.size;
-    return answer.data;
+    {
+        /* NET, like the stub's answer above: main.c frees it from NET or
+         * hands it on as an IO item's data. Copied to its exact size. */
+        char* out;
+
+        assert(answer.data);
+        out = ToriMem_Memdup(ToriMem_Net(), answer.data, (size_t)answer.size + 1);
+        ToriMem_Free(ToriMem_Net(), answer.data);
+        return out;
+    }
 }
 
 int
@@ -1670,7 +1677,7 @@ LaunchSessions_Free(struct LaunchSessions* table)
             snprintf(session->reason, sizeof(session->reason), "the host is exiting");
         session_mark_closed(table, session);
     }
-    free(table);
+    ToriMem_Free(ToriMem_Net(), table);
 }
 
 #if !defined(_WIN32)
@@ -1922,8 +1929,8 @@ system_spawn(void* context, char* const* argv, char* const* environment, char co
             child = &g_windows_children[i];
     if( !job || !child )
     {
-        free(command_line.data);
-        free(block.data);
+        ToriMem_Free(ToriMem_Net(), command_line.data);
+        ToriMem_Free(ToriMem_Net(), block.data);
         return process_group > 0 ? ESRCH : EAGAIN;
     }
     log = CreateFileA(log_path, GENERIC_WRITE, FILE_SHARE_READ, &inherit, CREATE_ALWAYS,
@@ -1938,8 +1945,8 @@ system_spawn(void* context, char* const* argv, char* const* environment, char co
                              block.data, NULL, &startup, &process);
     if( log != INVALID_HANDLE_VALUE )
         CloseHandle(log);
-    free(command_line.data);
-    free(block.data);
+    ToriMem_Free(ToriMem_Net(), command_line.data);
+    ToriMem_Free(ToriMem_Net(), block.data);
     if( !started )
         return EIO;
     if( !job->job )

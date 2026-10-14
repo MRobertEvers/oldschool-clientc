@@ -140,7 +140,7 @@ struct RS_WorldMapRender
 struct RS_WorldMapRender*
 RS_WorldMapRender_New(void)
 {
-    struct RS_WorldMapRender* render = calloc(1, sizeof(*render));
+    struct RS_WorldMapRender* render = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*render));
     assert(render);
     render->mapscene_scene_id = -1;
     for( int i = 0; i < WORLDMAP_REGION_SLOTS; i++ )
@@ -184,7 +184,7 @@ RS_WorldMapRender_SetMapScenes(
 void
 RS_WorldMapRender_Free(struct RS_WorldMapRender* render)
 {
-    free(render);
+    ToriMem_Free(ToriMem_Process(), render);
 }
 
 void

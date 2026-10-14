@@ -22,6 +22,7 @@
  */
 
 #include "torirs_server_zone.h"
+#include "mem/torirs_mem.h"
 
 #include "torirs_server.h"
 
@@ -119,7 +120,7 @@ grow(
         return base;
     while( want < needed )
         want *= 2;
-    grown = realloc(base, (size_t)want * item);
+    grown = ToriMem_Realloc(ToriMem_ServerWorld(), base, (size_t)want * item);
     assert(grown);
     *capacity = want;
     return grown;
@@ -158,7 +159,8 @@ map_rehash(
     struct ToriRSServerZoneMap* map,
     int capacity)
 {
-    struct ToriRSServerZone** slots = calloc((size_t)capacity, sizeof(*slots));
+    struct ToriRSServerZone** slots =
+        ToriMem_Calloc(ToriMem_ServerWorld(), (size_t)capacity, sizeof(*slots));
 
     assert(slots);
     for( int i = 0; i < map->capacity; i++ )
@@ -167,7 +169,7 @@ map_rehash(
             continue;
         slots[probe(slots, capacity, map->slots[i]->index)] = map->slots[i];
     }
-    free(map->slots);
+    ToriMem_Free(ToriMem_ServerWorld(), map->slots);
     map->slots = slots;
     map->capacity = capacity;
     return 1;
@@ -180,13 +182,8 @@ map_of(
 {
     if( !srv->zone_map && create )
     {
-        srv->zone_map = calloc(1, sizeof(*srv->zone_map));
-        assert(srv->zone_map);
-        if( !map_rehash(srv->zone_map, 256) )
-        {
-            free(srv->zone_map);
-            srv->zone_map = NULL;
-        }
+        srv->zone_map = ToriMem_Calloc(ToriMem_ServerWorld(), 1, sizeof(*srv->zone_map));
+        map_rehash(srv->zone_map, 256);
     }
     return srv->zone_map;
 }
@@ -211,7 +208,7 @@ zone_at(
     if( map->slots[i] )
         return map->slots[i];
 
-    zone = calloc(1, sizeof(*zone));
+    zone = ToriMem_Calloc(ToriMem_ServerWorld(), 1, sizeof(*zone));
     assert(zone);
     zone->index = index;
     zone->x = x >> 3;
@@ -269,17 +266,17 @@ ToriRSServer_ZoneFree(struct ToriRSServer* srv)
 
         if( !zone )
             continue;
-        free(zone->locs);
-        free(zone->objs);
-        free(zone->npcs);
-        free(zone->players);
-        free(zone->events);
-        free(zone->shared);
-        free(zone);
+        ToriMem_Free(ToriMem_ServerWorld(), zone->locs);
+        ToriMem_Free(ToriMem_ServerWorld(), zone->objs);
+        ToriMem_Free(ToriMem_ServerWorld(), zone->npcs);
+        ToriMem_Free(ToriMem_ServerWorld(), zone->players);
+        ToriMem_Free(ToriMem_ServerWorld(), zone->events);
+        ToriMem_Free(ToriMem_ServerWorld(), zone->shared);
+        ToriMem_Free(ToriMem_ServerWorld(), zone);
     }
-    free(map->slots);
-    free(map->dirty);
-    free(map);
+    ToriMem_Free(ToriMem_ServerWorld(), map->slots);
+    ToriMem_Free(ToriMem_ServerWorld(), map->dirty);
+    ToriMem_Free(ToriMem_ServerWorld(), map);
     srv->zone_map = NULL;
 }
 

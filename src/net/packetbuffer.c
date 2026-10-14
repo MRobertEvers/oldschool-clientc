@@ -1,4 +1,5 @@
 #include "packetbuffer.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <rsbuffer.h>
@@ -137,12 +138,9 @@ packetbuffer_read(
             packetbuffer->state = PKTBUF_PREPARE_RECEIVE;
             goto step;
         case PKTBUF_PREPARE_RECEIVE:
-            packetbuffer->data = malloc(
-                packetbuffer->packet_length > 0 ? (size_t)packetbuffer->packet_length : 1);
-            assert(packetbuffer->data);
-            memset(
-                packetbuffer->data,
-                0,
+            packetbuffer->data = ToriMem_Calloc(
+                ToriMem_Net(),
+                1,
                 packetbuffer->packet_length > 0 ? (size_t)packetbuffer->packet_length : 1);
             packetbuffer->state = PKTBUF_READ_DATA;
             goto step;
@@ -199,8 +197,7 @@ packetbuffer_ready(struct PacketBuffer* packetbuffer)
 void
 packetbuffer_reset(struct PacketBuffer* packetbuffer)
 {
-    if( packetbuffer->data )
-        free(packetbuffer->data);
+    ToriMem_Free(ToriMem_Net(), packetbuffer->data);
     packetbuffer->data = NULL;
     packetbuffer->data_size = 0;
     packetbuffer->packet_length = 0;

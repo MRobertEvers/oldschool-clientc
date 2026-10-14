@@ -187,8 +187,19 @@ SSVM_ScriptEncode(
     size_t* out_length,
     struct SSVM_Error* err);
 
+struct ToriMem_Group;
+
+/** Free a script whose fields came from server:scripts -- every script
+ *  SSVM_ScriptDecode filled. NULL ok. */
 void
 SSVM_ScriptFree(struct SSVM_Script* script);
+
+/** Free a script whose fields all came from `group`. The compiler builds its
+ *  scripts in ToriMem_Compiler() and frees them with this. NULL ok. */
+void
+SSVM_ScriptFreeIn(
+    struct ToriMem_Group* group,
+    struct SSVM_Script* script);
 
 /** Source line for a pc, or 0 when there is no line table. */
 int32_t

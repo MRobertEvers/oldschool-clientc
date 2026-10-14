@@ -2,6 +2,7 @@
 #include <assert.h>
 
 #include "ss_opcode.h"
+#include "mem/torirs_mem.h"
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -1439,10 +1440,9 @@ SSVM_StateAlloc(
     }
     else
     {
-        state = (struct SSVM_State*)malloc(sizeof(*state));
-        assert(state);
-        state->locals_arena = (char*)malloc(SSVM_LOCALS_ARENA_BYTES);
-        assert(state->locals_arena);
+        state = (struct SSVM_State*)ToriMem_Alloc(ToriMem_ServerScripts(), sizeof(*state));
+        state->locals_arena =
+            (char*)ToriMem_Alloc(ToriMem_ServerScripts(), SSVM_LOCALS_ARENA_BYTES);
     }
 
     {
@@ -1506,8 +1506,8 @@ SSVM_StateRelease(struct SSVM_State* state)
     }
     else
     {
-        free(state->locals_arena);
-        free(state);
+        ToriMem_Free(ToriMem_ServerScripts(), state->locals_arena);
+        ToriMem_Free(ToriMem_ServerScripts(), state);
     }
 }
 
@@ -1524,7 +1524,7 @@ SSVM_EnvInit(
 
     memset(env, 0, sizeof(*env));
     env->provider = provider;
-    env->reported = (uint8_t*)calloc(SS_OPCODE_MAX, 1);
+    env->reported = (uint8_t*)ToriMem_Calloc(ToriMem_ServerScripts(), SS_OPCODE_MAX, 1);
     SSVM_EnvSeed(env, 0);
 }
 
@@ -1559,12 +1559,12 @@ SSVM_EnvFree(struct SSVM_Env* env)
     {
         struct SSVM_State* next = state->pool_next;
 
-        free(state->locals_arena);
-        free(state);
+        ToriMem_Free(ToriMem_ServerScripts(), state->locals_arena);
+        ToriMem_Free(ToriMem_ServerScripts(), state);
         state = next;
     }
     env->free_list = NULL;
-    free(env->reported);
+    ToriMem_Free(ToriMem_ServerScripts(), env->reported);
     env->reported = NULL;
 }
 

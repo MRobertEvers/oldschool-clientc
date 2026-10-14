@@ -872,11 +872,10 @@ serve_file(
         res->status = 500;
         return;
     }
-    data = malloc((size_t)size ? (size_t)size : 1);
-    assert(data);
+    data = ToriMem_Alloc(ToriMem_Net(), (size_t)size ? (size_t)size : 1);
     if( size > 0 && fread(data, 1, (size_t)size, file) != (size_t)size )
     {
-        free(data);
+        ToriMem_Free(ToriMem_Net(), data);
         fclose(file);
         res->status = 500;
         return;
@@ -1104,7 +1103,7 @@ handle_ondemand_container(
         source->px, (int)table_id, (int)archive_id, (int)flags, &format, &size);
     if( !bytes || size <= 0 )
     {
-        free(bytes);
+        ToriMem_Free(ToriMem_Net(), bytes);
         server->failed++;
         res->status = 404;
         return;
@@ -1214,18 +1213,12 @@ handle_ondemand_batch(
         return;
     }
 
-    table_ids = calloc(count ? count : 1, sizeof(int));
-    archive_ids = calloc(count ? count : 1, sizeof(int));
-    flags = calloc(count ? count : 1, sizeof(int));
-    out_data = calloc(count ? count : 1, sizeof(uint8_t*));
-    out_sizes = calloc(count ? count : 1, sizeof(int));
-    out_formats = calloc(count ? count : 1, sizeof(int));
-    assert(table_ids);
-    assert(archive_ids);
-    assert(flags);
-    assert(out_data);
-    assert(out_sizes);
-    assert(out_formats);
+    table_ids = ToriMem_Calloc(ToriMem_Net(), count ? count : 1, sizeof(int));
+    archive_ids = ToriMem_Calloc(ToriMem_Net(), count ? count : 1, sizeof(int));
+    flags = ToriMem_Calloc(ToriMem_Net(), count ? count : 1, sizeof(int));
+    out_data = ToriMem_Calloc(ToriMem_Net(), count ? count : 1, sizeof(uint8_t*));
+    out_sizes = ToriMem_Calloc(ToriMem_Net(), count ? count : 1, sizeof(int));
+    out_formats = ToriMem_Calloc(ToriMem_Net(), count ? count : 1, sizeof(int));
 
     for( uint32_t i = 0; i < count; i++ )
     {
@@ -1241,8 +1234,7 @@ handle_ondemand_batch(
     total = 4;
     for( uint32_t i = 0; i < count; i++ )
         total += 4 + (size_t)(out_data[i] ? out_sizes[i] : 0);
-    out = malloc(total);
-    assert(out);
+    out = ToriMem_Alloc(ToriMem_Net(), total);
     write_u32le(out, count);
     at = 4;
     for( uint32_t i = 0; i < count; i++ )
@@ -1257,16 +1249,16 @@ handle_ondemand_batch(
             server->served++;
         else
             server->failed++;
-        free(out_data[i]);
+        ToriMem_Free(ToriMem_Net(), out_data[i]);
     }
     server->bytes_out += (long)total;
 
-    free(table_ids);
-    free(archive_ids);
-    free(flags);
-    free(out_data);
-    free(out_sizes);
-    free(out_formats);
+    ToriMem_Free(ToriMem_Net(), table_ids);
+    ToriMem_Free(ToriMem_Net(), archive_ids);
+    ToriMem_Free(ToriMem_Net(), flags);
+    ToriMem_Free(ToriMem_Net(), out_data);
+    ToriMem_Free(ToriMem_Net(), out_sizes);
+    ToriMem_Free(ToriMem_Net(), out_formats);
 
     res->status = 200;
     snprintf(res->content_type, sizeof(res->content_type), "application/octet-stream");
@@ -1356,7 +1348,7 @@ handle_status(
                     (IO_SERVER_MAX_CACHES * row) +
                     (IO_SERVER_MAX_ONDEMAND * row) +
                     (IO_SERVER_MAX_MANIFESTS * row);
-    char* page = malloc((size_t)cap);
+    char* page = ToriMem_Alloc(ToriMem_Net(), (size_t)cap);
     char escaped[IO_SERVER_ESCAPED_MAX];
     long uptime;
     int len = 0;
@@ -1644,8 +1636,7 @@ render_error_page(
      * controlled string this process handles — it arrived in the request line. */
     html_escape(req->path, escaped_path, (int)sizeof(escaped_path));
 
-    body = malloc((size_t)cap);
-    assert(body);
+    body = ToriMem_Alloc(ToriMem_Net(), (size_t)cap);
     res->body_len = snprintf(
         body, (size_t)cap,
         "<!doctype html>\n"
@@ -1698,7 +1689,7 @@ io_server_handler(
     if( strcmp(req->method, "HEAD") == 0 )
     {
         if( res->owns_body )
-            free(res->body);
+            ToriMem_Free(ToriMem_Net(), res->body);
         res->body = NULL;
         res->body_len = 0;
         res->owns_body = 0;
@@ -1777,10 +1768,9 @@ io_server_route(
         }
         if( strcmp(req->path, "/stats") == 0 )
         {
-            char* text = malloc(320);
+            char* text = ToriMem_Alloc(ToriMem_Net(), 320);
             int len;
             long sheets = 0, missing = 0;
-            assert(text);
             if( server->pokesprite )
                 PokeSpriteStore_Counts(server->pokesprite, &sheets, &missing);
             /* Which caches are open, so a page can say what it is talking to.
@@ -2031,5 +2021,8 @@ main(
     }
     for( int i = 0; i < server.ondemand_count; i++ )
         PlatformX_IO_Free(server.ondemand[i].px);
+    PokeSpriteStore_Close(server.pokesprite);
+    /* The exit walk: names anything above that was not freed. */
+    ToriMem_Shutdown();
     return 0;
 }

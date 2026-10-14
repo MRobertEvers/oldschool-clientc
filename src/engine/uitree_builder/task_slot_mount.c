@@ -1,4 +1,5 @@
 #include "task_slot_mount.h"
+#include "mem/torirs_mem.h"
 
 #include "task_pack_assets_load.h"
 #include "uitree_builder.h"
@@ -81,7 +82,7 @@ Task_SlotMount_Run(
 static void
 Task_SlotMount_Free(struct ToriRS_Task* base)
 {
-    free(base);
+    ToriMem_Free(ToriMem_Ui(), base);
 }
 
 static struct ToriRS_TaskVTable Task_SlotMount_VTable = {
@@ -101,7 +102,7 @@ CreateTask_SlotMount(
     if( owner_index < 0 )
         return NULL;
 
-    struct Task_SlotMount* task = calloc(1, sizeof(*task));
+    struct Task_SlotMount* task = ToriMem_Calloc(ToriMem_Ui(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_SlotMount_VTable;
     strncpy(task->task.name, "SlotMount", sizeof(task->task.name) - 1);

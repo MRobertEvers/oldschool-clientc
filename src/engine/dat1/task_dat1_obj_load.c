@@ -1,4 +1,5 @@
 #include "engine/dat1/dat1_tasks.h"
+#include "mem/torirs_mem.h"
 #include "engine/cache_provider.h"
 #include "engine/dat1/dat1_buildcache.h"
 #include "engine/torirs_objtype_from_rscache.h"
@@ -70,7 +71,7 @@ Task_Dat1ObjLoad_Run(
 static void
 Task_Dat1ObjLoad_Free(struct ToriRS_Task* task_base)
 {
-    free(task_base);
+    ToriMem_Free(ToriMem_Assets(), task_base);
 }
 
 static struct ToriRS_TaskVTable Task_Dat1ObjLoad_VTable = {
@@ -92,7 +93,7 @@ CreateTask_Dat1ObjLoad(
     if( CacheProvider_ObjtypeHas(provider, obj_id) )
         return NULL;
 
-    task = calloc(1, sizeof(*task));
+    task = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_Dat1ObjLoad_VTable;
     strcpy(task->task.name, "Dat1ObjLoad");

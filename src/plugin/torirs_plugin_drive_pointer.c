@@ -54,6 +54,7 @@
 
 #include "app.h"
 #include "plugin/torirs_plugin_lua.h"
+#include "mem/torirs_mem.h"
 
 #include "cmd/cmdbus.h"
 #include "game/rs_entity_sync.h"
@@ -848,7 +849,7 @@ drive_pointer_model_points(
     assert(model->face_indices_c);
     *out_faces = model->face_count;
 
-    all = malloc(sizeof(*all) * (size_t)model->face_count);
+    all = ToriMem_Alloc(ToriMem_Plugins(), sizeof(*all) * (size_t)model->face_count);
     assert(all);
     for( f = 0; f < model->face_count; f++ )
     {
@@ -907,7 +908,7 @@ drive_pointer_model_points(
         out[*out_count] = all[f];
         (*out_count)++;
     }
-    free(all);
+    ToriMem_Free(ToriMem_Plugins(), all);
     return *out_count > 0 ? DRIVE_OK : DRIVE_NOT_VISIBLE;
 }
 

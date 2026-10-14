@@ -35,6 +35,7 @@
 #include "cmd/cmdbus.h"
 #include "input/torirs_keymap.h"
 #include "plugin/torirs_plugin_lua.h"
+#include "mem/torirs_mem.h"
 
 #include "lauxlib.h"
 #include "lua.h"
@@ -801,10 +802,8 @@ drive_ui_element_seq(struct App* app, int element_id, int* out_seq, int* out_fra
 static void
 drive_ui_locs_attach_ambient(struct App* app, struct DriveLocRow* rows, int count)
 {
-    static int* s_head;     /* (level, z, x) -> emitter index + 1, 0 = none */
-    static int s_head_cap;
-    static int* s_next;     /* emitter index -> next emitter index + 1 on its tile */
-    static int s_next_cap;
+    int* head; /* (level, z, x) -> emitter index + 1, 0 = none */
+    int* next; /* emitter index -> next emitter index + 1 on its tile */
     struct World* world;
     int size;
     int tiles;
@@ -830,31 +829,22 @@ drive_ui_locs_attach_ambient(struct App* app, struct DriveLocRow* rows, int coun
     tiles = size * size * COLLISION_LEVELS;
     if( tiles <= 0 )
         return;
-    if( s_head_cap < tiles )
-    {
-        s_head = realloc(s_head, (size_t)tiles * sizeof(*s_head));
-        assert(s_head);
-        s_head_cap = tiles;
-    }
-    if( s_next_cap < world->area_sound_count )
-    {
-        s_next = realloc(s_next, (size_t)world->area_sound_count * sizeof(*s_next));
-        assert(s_next);
-        s_next_cap = world->area_sound_count;
-    }
-    memset(s_head, 0, (size_t)tiles * sizeof(*s_head));
+    /* Per read, not kept: a drive read is a test step, and a buffer kept in
+     * a static is one nobody frees. */
+    head = ToriMem_Calloc(ToriMem_Plugins(), (size_t)tiles, sizeof(*head));
+    next = ToriMem_Alloc(ToriMem_Plugins(), (size_t)world->area_sound_count * sizeof(*next));
     for( i = 0; i < world->area_sound_count; i++ )
     {
         struct World_AreaSound const* emitter = &world->area_sounds[i];
         int key;
 
-        s_next[i] = 0;
+        next[i] = 0;
         if( emitter->x < 0 || emitter->z < 0 || emitter->x >= size || emitter->z >= size ||
             emitter->level < 0 || emitter->level >= COLLISION_LEVELS )
             continue;
         key = emitter->x + emitter->z * size + emitter->level * size * size;
-        s_next[i] = s_head[key];
-        s_head[key] = i + 1;
+        next[i] = head[key];
+        head[key] = i + 1;
     }
 
     for( i = 0; i < count; i++ )
@@ -876,8 +866,8 @@ drive_ui_locs_attach_ambient(struct App* app, struct DriveLocRow* rows, int coun
 
             if( at < 0 || at >= COLLISION_LEVELS || (level >= 0 && level == rows[i].level) )
                 continue;
-            link = s_head[scene_x + scene_z * size + at * size * size];
-            for( ; link != 0 && !found; link = s_next[link - 1] )
+            link = head[scene_x + scene_z * size + at * size * size];
+            for( ; link != 0 && !found; link = next[link - 1] )
             {
                 struct World_AreaSound const* emitter = &world->area_sounds[link - 1];
                 if( emitter->loc_id == rows[i].loc_id || emitter->loc_id == rows[i].resolved_loc_id )
@@ -891,6 +881,8 @@ drive_ui_locs_attach_ambient(struct App* app, struct DriveLocRow* rows, int coun
         rows[i].ambient_inner = found->inner;
         rows[i].ambient_random = found->sound_id_count > 0 ? found->sound_id_count : 0;
     }
+    ToriMem_Free(ToriMem_Plugins(), next);
+    ToriMem_Free(ToriMem_Plugins(), head);
 }
 
 /* Insert one loc row into `out`, nearest the player first, keeping the
@@ -1071,7 +1063,7 @@ drive_ui_collision_maps(struct App* app)
         }
         if( !dst )
         {
-            dst = collision_map_new(src->size_x, src->size_z);
+            dst = collision_map_new(ToriMem_Plugins(), src->size_x, src->size_z);
             assert(dst);
             g_drive_ui_collision.maps[level] = dst;
         }
@@ -2063,11 +2055,10 @@ drive_ui_shot_read(char const* path, long* out_size)
         return NULL;
     }
     rewind(file);
-    bytes = malloc((size_t)size);
-    assert(bytes);
+    bytes = ToriMem_Alloc(ToriMem_Plugins(), (size_t)size);
     if( fread(bytes, 1, (size_t)size, file) != (size_t)size )
     {
-        free(bytes);
+        ToriMem_Free(ToriMem_Plugins(), bytes);
         fclose(file);
         return NULL;
     }
@@ -2096,7 +2087,7 @@ drive_ui_shot_dedupe(char const* path, char const* name, int keep)
          * a cache that no longer describes anything on disk: an unreadable
          * capture costs one duplicate picture at worst, a stale cache
          * silently drops a frame that really did change. */
-        free(g_drive_ui_shot_last_bytes);
+        ToriMem_Free(ToriMem_Plugins(), g_drive_ui_shot_last_bytes);
         g_drive_ui_shot_last_bytes = NULL;
         g_drive_ui_shot_last_size = 0;
         g_drive_ui_shot_last_name[0] = '\0';
@@ -2105,15 +2096,24 @@ drive_ui_shot_dedupe(char const* path, char const* name, int keep)
     if( !keep && g_drive_ui_shot_last_bytes && size == g_drive_ui_shot_last_size &&
         memcmp(bytes, g_drive_ui_shot_last_bytes, (size_t)size) == 0 )
     {
-        free(bytes);
+        ToriMem_Free(ToriMem_Plugins(), bytes);
         remove(path);
         return 1;
     }
-    free(g_drive_ui_shot_last_bytes);
+    ToriMem_Free(ToriMem_Plugins(), g_drive_ui_shot_last_bytes);
     g_drive_ui_shot_last_bytes = bytes;
     g_drive_ui_shot_last_size = size;
     snprintf(g_drive_ui_shot_last_name, sizeof(g_drive_ui_shot_last_name), "%s", name);
     return 0;
+}
+
+void
+DriveUi_Shutdown(void)
+{
+    ToriMem_Free(ToriMem_Plugins(), g_drive_ui_shot_last_bytes);
+    g_drive_ui_shot_last_bytes = NULL;
+    g_drive_ui_shot_last_size = 0;
+    g_drive_ui_shot_last_name[0] = '\0';
 }
 
 /* THE SHOT'S FILE NAME (TEST-3, waves seam pass 7, 2026-10-05).

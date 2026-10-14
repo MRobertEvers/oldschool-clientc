@@ -1,5 +1,7 @@
 #include "plugin/plugins/plugin_draw.h"
 
+#include "mem/torirs_mem.h"
+
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -168,14 +170,13 @@ PluginDraw_ImageLoad(
         (size_t)*w * (size_t)*h > SIZE_MAX / sizeof(**px) )
         return 0;
     count = (size_t)*w * (size_t)*h;
-    *px = malloc(count * sizeof(**px));
-    if( !*px ) return 0;
+    *px = ToriMem_Alloc(ToriMem_Plugins(), count * sizeof(**px));
     {
         size_t written = 0;
         if( !api->assets.image_pixels(api, *handle, *px, count, &written) ||
             written != count )
         {
-            free(*px);
+            ToriMem_Free(ToriMem_Plugins(), *px);
             *px = NULL;
             return 0;
         }
@@ -192,7 +193,7 @@ PluginDraw_ImageFree(
     assert(api);
     assert(px);
     assert(handle);
-    free(*px);
+    ToriMem_Free(ToriMem_Plugins(), *px);
     *px = NULL;
     if( handle->value ) api->assets.image_release(api, *handle);
     handle->value = 0;

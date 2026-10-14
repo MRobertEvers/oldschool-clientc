@@ -154,9 +154,18 @@ MutateTask_Run(
     PT_END(&self->pt);
 }
 
+
+/* A test fixture's task shell is calloc'd here, so it frees itself with libc:
+ * task_free requires every task to free itself. */
+static void
+test_task_free_libc(struct ToriRS_Task* task)
+{
+    free(task);
+}
+
 static struct ToriRS_TaskVTable k_mutate_vtable = {
     .run = MutateTask_Run,
-    .free = NULL,
+    .free = test_task_free_libc,
 };
 
 static struct ToriRS_Task*
@@ -349,7 +358,7 @@ AwaitStateTask_Run(
 
 static struct ToriRS_TaskVTable k_await_state_vtable = {
     .run = AwaitStateTask_Run,
-    .free = NULL,
+    .free = test_task_free_libc,
 };
 
 static void
@@ -467,7 +476,7 @@ AwaitStateChildTask_Run(
 
 static struct ToriRS_TaskVTable k_await_state_child_vtable = {
     .run = AwaitStateChildTask_Run,
-    .free = NULL,
+    .free = test_task_free_libc,
 };
 
 static struct ToriRS_Task*
@@ -504,7 +513,7 @@ AwaitStateParentTask_Run(
 
 static struct ToriRS_TaskVTable k_await_state_parent_vtable = {
     .run = AwaitStateParentTask_Run,
-    .free = NULL,
+    .free = test_task_free_libc,
 };
 
 static void

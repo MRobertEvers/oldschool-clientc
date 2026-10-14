@@ -16,6 +16,7 @@
  * zones) is left without collision for now, and says so.
  */
 #include "scriptrun_core.h"
+#include "mem/torirs_mem.h"
 
 #include "engine/torirs_location_from_rscache.h"
 #include "engine/torirs_map_from_rscache.h"
@@ -54,7 +55,7 @@ loc_config(int loc_id)
     if( loc_id >= g_locs_count )
     {
         int grow = loc_id + 1024;
-        g_locs = realloc(g_locs, (size_t)grow * sizeof(*g_locs));
+        g_locs = ToriMem_Realloc(ToriMem_ServerPlayers(), g_locs, (size_t)grow * sizeof(*g_locs));
         assert(g_locs);
         memset(g_locs + g_locs_count, 0, (size_t)(grow - g_locs_count) * sizeof(*g_locs));
         g_locs_count = grow;
@@ -124,7 +125,8 @@ loc_append(
     if( core->loc_count == core->loc_capacity )
     {
         core->loc_capacity = core->loc_capacity ? core->loc_capacity * 2 : 4096;
-        core->locs = realloc(core->locs, (size_t)core->loc_capacity * sizeof(*core->locs));
+        core->locs = ToriMem_Realloc(
+            ToriMem_ServerPlayers(), core->locs, (size_t)core->loc_capacity * sizeof(*core->locs));
         assert(core->locs);
     }
     l = &core->locs[core->loc_count++];
@@ -160,6 +162,16 @@ placed_config(
 }
 
 void
+ScriptrunCore_FreeLocConfigs(void)
+{
+    for( int i = 0; i < g_locs_count; i++ )
+        ToriRS_LocationFree(g_locs[i]);
+    ToriMem_Free(ToriMem_ServerPlayers(), g_locs);
+    g_locs = NULL;
+    g_locs_count = 0;
+}
+
+void
 ScriptrunCore_FreeCollision(struct ScriptrunCore* core)
 {
     struct WorldBuilder* builder = core->builder;
@@ -168,10 +180,10 @@ ScriptrunCore_FreeCollision(struct ScriptrunCore* core)
     {
         if( builder->flag_map )
             flag_map_free(builder->flag_map);
-        free(builder);
+        ToriMem_Free(ToriMem_ServerPlayers(), builder);
         core->builder = NULL;
     }
-    free(core->locs);
+    ToriMem_Free(ToriMem_ServerPlayers(), core->locs);
     core->locs = NULL;
     core->loc_count = 0;
     core->loc_capacity = 0;
@@ -197,10 +209,10 @@ ScriptrunCore_BuildCollision(struct ScriptrunCore* core)
     {
         if( world->collision_maps[level] )
             collision_map_free(world->collision_maps[level]);
-        world->collision_maps[level] = collision_map_new(SCRIPTRUN_SCENE_SIZE, SCRIPTRUN_SCENE_SIZE);
+        world->collision_maps[level] = collision_map_new(ToriMem_ServerPlayers(), SCRIPTRUN_SCENE_SIZE, SCRIPTRUN_SCENE_SIZE);
     }
 
-    builder = calloc(1, sizeof(*builder));
+    builder = ToriMem_Calloc(ToriMem_ServerPlayers(), 1, sizeof(*builder));
     assert(builder);
     core->builder = builder;
     builder->world = world;
@@ -363,9 +375,9 @@ ScriptrunCore_BuildInstanceCollision(
     {
         if( world->collision_maps[level] )
             collision_map_free(world->collision_maps[level]);
-        world->collision_maps[level] = collision_map_new(SCRIPTRUN_SCENE_SIZE, SCRIPTRUN_SCENE_SIZE);
+        world->collision_maps[level] = collision_map_new(ToriMem_ServerPlayers(), SCRIPTRUN_SCENE_SIZE, SCRIPTRUN_SCENE_SIZE);
     }
-    builder = calloc(1, sizeof(*builder));
+    builder = ToriMem_Calloc(ToriMem_ServerPlayers(), 1, sizeof(*builder));
     assert(builder);
     core->builder = builder;
     builder->world = world;

@@ -1,4 +1,5 @@
 #include "game/rs_cs2_host.h"
+#include "mem/torirs_mem.h"
 #include "torirs_env.h"
 
 #include "game/rs_chat.h"
@@ -2453,28 +2454,28 @@ RS_CS2Host_Free(struct RS_CS2Host* host)
     assert(host);
     RS_CS2ClientState_Free(&host->client);
     RS_ClanStore_Free(&host->clan);
-    free(host->trading_post.offers);
+    ToriMem_Free(ToriMem_Script(), host->trading_post.offers);
     memset(&host->trading_post, 0, sizeof(host->trading_post));
     RS_WorldMap_Free(host->worldmap);
     host->worldmap = NULL;
-    free(host->item_search_results);
+    ToriMem_Free(ToriMem_Script(), host->item_search_results);
     host->item_search_results = NULL;
     host->item_search_count = 0;
     host->item_search_cap = 0;
     host->item_search_index = 0;
-    free(host->db_find_rows);
+    ToriMem_Free(ToriMem_Script(), host->db_find_rows);
     host->db_find_rows = NULL;
     host->db_find_count = 0;
     host->db_find_cursor = 0;
-    free(host->inv_transmit_hooks);
+    ToriMem_Free(ToriMem_Script(), host->inv_transmit_hooks);
     host->inv_transmit_hooks = NULL;
     host->inv_transmit_hook_count = 0;
     host->inv_transmit_hook_cap = 0;
-    free(host->var_transmit_hooks);
+    ToriMem_Free(ToriMem_Script(), host->var_transmit_hooks);
     host->var_transmit_hooks = NULL;
     host->var_transmit_hook_count = 0;
     host->var_transmit_hook_cap = 0;
-    free(host->stat_transmit_hooks);
+    ToriMem_Free(ToriMem_Script(), host->stat_transmit_hooks);
     host->stat_transmit_hooks = NULL;
     host->stat_transmit_hook_count = 0;
     host->stat_transmit_hook_cap = 0;
@@ -4879,7 +4880,7 @@ exec_oc_byid(
 static void
 rs_cs2_item_search_clear(struct RS_CS2Host* host)
 {
-    free(host->item_search_results);
+    ToriMem_Free(ToriMem_Script(), host->item_search_results);
     host->item_search_results = NULL;
     host->item_search_count = 0;
     host->item_search_cap = 0;
@@ -4947,7 +4948,7 @@ exec_oc_find(
 
         host->item_search_count =
             CacheProvider_ObjtypeSearchByName(
-                provider, lower, ge_tradeable_only, &host->item_search_results);
+                provider, lower, ge_tradeable_only, ToriMem_Script(), &host->item_search_results);
         host->item_search_cap = host->item_search_count;
         host->item_search_index = 0;
     }
@@ -6311,7 +6312,7 @@ rs_cs2_grow_transmit_hooks(
     next = *cap ? *cap + *cap / 2 : 8;
     if( next > max )
         next = max;
-    grown = realloc(*hooks, (size_t)next * elem);
+    grown = ToriMem_Realloc(ToriMem_Script(), *hooks, (size_t)next * elem);
     assert(grown);
     *hooks = grown;
     *cap = next;
@@ -7022,7 +7023,7 @@ rs_cs2_clear_hooks_subtree(
     assert(tree);
     assert(root >= 0 && (uint32_t)root < tree->component_count);
 
-    stack = (int32_t*)malloc(64 * sizeof(int32_t));
+    stack = (int32_t*)ToriMem_Alloc(ToriMem_Script(), 64 * sizeof(int32_t));
     assert(stack);
     cap = 64;
     stack[sp++] = root;
@@ -7052,7 +7053,7 @@ rs_cs2_clear_hooks_subtree(
             {
                 int ncap = cap * 2;
                 int32_t* nstack =
-                    (int32_t*)realloc(stack, (size_t)ncap * sizeof(int32_t));
+                    (int32_t*)ToriMem_Realloc(ToriMem_Script(), stack, (size_t)ncap * sizeof(int32_t));
                 assert(nstack);
                 stack = nstack;
                 cap = ncap;
@@ -7060,7 +7061,7 @@ rs_cs2_clear_hooks_subtree(
             stack[sp++] = child;
         }
     }
-    free(stack);
+    ToriMem_Free(ToriMem_Script(), stack);
 }
 
 void
@@ -7804,13 +7805,13 @@ db_set_iterator(
     int const* rows,
     int count)
 {
-    free(host->db_find_rows);
+    ToriMem_Free(ToriMem_Script(), host->db_find_rows);
     host->db_find_rows = NULL;
     host->db_find_count = 0;
     host->db_find_cursor = 0;
     if( count <= 0 || !rows )
         return;
-    host->db_find_rows = malloc((size_t)count * sizeof(int));
+    host->db_find_rows = ToriMem_Alloc(ToriMem_Script(), (size_t)count * sizeof(int));
     assert(host->db_find_rows);
     memcpy(host->db_find_rows, rows, (size_t)count * sizeof(int));
     host->db_find_count = count;
@@ -8254,14 +8255,14 @@ exec_db(
                 total += t0->entries[i].row_count;
             if( total > 0 )
             {
-                int* rows = malloc((size_t)total * sizeof(int));
+                int* rows = ToriMem_Alloc(ToriMem_Script(), (size_t)total * sizeof(int));
                 int n = 0;
                 assert(rows);
                 for( int i = 0; i < t0->entry_count; i++ )
                     for( int r = 0; r < t0->entries[i].row_count; r++ )
                         rows[n++] = t0->entries[i].row_ids[r];
                 db_set_iterator(host, rows, total);
-                free(rows);
+                ToriMem_Free(ToriMem_Script(), rows);
             }
         }
         if( with_count )
@@ -8317,7 +8318,7 @@ exec_db(
         if( is_filter && host->db_find_count > 0 && host->db_find_rows )
         {
             prior_count = host->db_find_count;
-            prior_rows = malloc((size_t)prior_count * sizeof(int));
+            prior_rows = ToriMem_Alloc(ToriMem_Script(), (size_t)prior_count * sizeof(int));
             assert(prior_rows);
             memcpy(prior_rows, host->db_find_rows, (size_t)prior_count * sizeof(int));
         }
@@ -8338,7 +8339,7 @@ exec_db(
                 }
             }
             db_set_iterator(host, prior_rows, kept);
-            free(prior_rows);
+            ToriMem_Free(ToriMem_Script(), prior_rows);
         }
 
         if( with_count )

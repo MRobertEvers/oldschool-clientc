@@ -7,6 +7,7 @@
  */
 
 #include "torirs_server_transport.h"
+#include "mem/torirs_mem.h"
 #include <assert.h>
 
 #include "torirs_server_ws.h"
@@ -60,7 +61,7 @@ ToriRSServer_PipeClose(struct ToriRSServerPipe* pipe)
 void
 ToriRSServer_PipeFree(struct ToriRSServerPipe* pipe)
 {
-    free(pipe->data);
+    ToriMem_Free(ToriMem_ServerNet(), pipe->data);
     pipe->data = NULL;
     pipe->cap = 0;
     pipe->head = 0;
@@ -98,7 +99,7 @@ ToriRSServer_PipeWrite(
 
         while( want < pipe->tail + len )
             want *= 2;
-        grown = (uint8_t*)realloc(pipe->data, (size_t)want);
+        grown = (uint8_t*)ToriMem_Realloc(ToriMem_ServerNet(), pipe->data, (size_t)want);
         assert(grown);
         pipe->data = grown;
         pipe->cap = want;

@@ -1,3 +1,4 @@
+#include "mem/torirs_mem.h"
 #include "world/world.h"
 #include "painters/painters.h"
 #include "toridraw_types.h"
@@ -24,7 +25,7 @@ int main(void)
     struct WorldEntity_Scenery* loc=World_SceneryGetByElementId(world,904);assert(loc);
     loc->runtime_spawn=true;loc->painter_wall_ab=-1;
     World_SetForeignActorRegisterFn(world,borrowed,NULL);
-    struct PaintersBuffer b={.commands=calloc(128,sizeof(*b.commands)),.command_capacity=128};assert(b.commands);
+    struct PaintersBuffer b={.commands=ToriMem_Calloc(ToriMem_Render(),128,sizeof(*b.commands)),.command_capacity=128};
     painter_set_draw_distance(world->painter,16);
     World_CycleRegisterDynamics(world);painter_paint_bucket(world->painter,&b,0,0,0);
     assert(has(&b,901) && has(&b,902) && has(&b,903) && has(&b,904) && has(&b,905));
@@ -37,7 +38,7 @@ int main(void)
     World_CycleRegisterDynamics(world);painter_paint_bucket(world->painter,&b,0,0,0);
     assert(has(&b,901) && has(&b,902) && has(&b,903) && has(&b,904) && has(&b,905));
     assert(borrowed_calls==2);
-    free(b.commands);World_Free(world);
+    ToriMem_Free(ToriMem_Render(),b.commands);World_Free(world);
     puts("flat view population: own/borrowed actors and graphics removed; runtime scenery retained; next-frame restoration PASS");
     return 0;
 }

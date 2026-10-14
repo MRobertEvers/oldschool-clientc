@@ -1,4 +1,5 @@
 #include "pokesprite_store.h"
+#include "mem/torirs_mem.h"
 
 #include "pokesprite_format.h"
 
@@ -41,8 +42,8 @@ PokeSpriteStore_Open(const char* root)
     if( stat(path, &st) != 0 )
         return NULL;
 
-    struct PokeSpriteStore* s = (struct PokeSpriteStore*)calloc(1, sizeof(*s));
-    assert(s);
+    struct PokeSpriteStore* s =
+        (struct PokeSpriteStore*)ToriMem_Calloc(ToriMem_Net(), 1, sizeof(*s));
     snprintf(s->root, sizeof(s->root), "%s", root);
 
     /* Read-write although this never writes: the generator keeps the index in
@@ -87,7 +88,7 @@ PokeSpriteStore_Close(struct PokeSpriteStore* s)
     sqlite3_finalize(s->record_miss);
     sqlite3_close(s->index);
     sqlite3_close(s->missing);
-    free(s);
+    ToriMem_Free(ToriMem_Net(), s);
 }
 
 static void
@@ -139,8 +140,7 @@ PokeSpriteStore_Fetch(
     fseek(f, 0, SEEK_END);
     long n = ftell(f);
     fseek(f, 0, SEEK_SET);
-    uint8_t* bytes = (uint8_t*)malloc(n > 0 ? (size_t)n : 1u);
-    assert(bytes);
+    uint8_t* bytes = (uint8_t*)ToriMem_Alloc(ToriMem_Net(), n > 0 ? (size_t)n : 1u);
     size_t got = fread(bytes, 1, (size_t)n, f);
     fclose(f);
     if( got != (size_t)n )

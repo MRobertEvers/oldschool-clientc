@@ -167,8 +167,11 @@ enum CollisionLocAngle
     COLL_ANGLE_SOUTH = 3
 };
 
+struct ToriMem_Group;
+
 struct CollisionMap
 {
+    struct ToriMem_Group* mem; /* where this map and its flags live */
     int* flags;
     int size_x;
     int size_z;
@@ -177,8 +180,12 @@ struct CollisionMap
     int route_window;
 };
 
+/** A map whose flags, and the struct, live in `group` (the scene's for the
+ *  client's world, the server world's for the server's, ...); the map
+ *  remembers it, so collision_map_free needs no group. */
 struct CollisionMap*
 collision_map_new(
+    struct ToriMem_Group* group,
     int size_x,
     int size_z);
 

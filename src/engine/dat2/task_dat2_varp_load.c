@@ -1,4 +1,5 @@
 #include "engine/dat2/dat2_tasks.h"
+#include "mem/torirs_mem.h"
 
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
@@ -65,8 +66,9 @@ varp_types_reserve(
     if( id < task->type_count )
         return true;
     int want = id + 1;
-    struct VarPType* grown = realloc(task->types, (size_t)want * sizeof(*grown));
-    assert(grown);
+    /* Scratch for the walk: VarPManager_SetVarpTypes copies it. */
+    struct VarPType* grown =
+        ToriMem_Realloc(ToriRS_TaskMem(&task->task), task->types, (size_t)want * sizeof(*grown));
     for( int i = task->type_count; i < want; i++ )
         memset(&grown[i], 0, sizeof(grown[i]));
     task->types = grown;
@@ -123,7 +125,7 @@ varp_install(struct Task_Dat2VarpLoad* task)
             task->type_count,
             task->decoded,
             task->type_count - 1);
-    free(task->types);
+    ToriMem_Free(ToriRS_TaskMem(&task->task), task->types);
     task->types = NULL;
     task->type_count = 0;
 }
@@ -239,8 +241,9 @@ static void
 Task_Dat2VarpLoad_Free(struct ToriRS_Task* task_base)
 {
     struct Task_Dat2VarpLoad* task = (struct Task_Dat2VarpLoad*)task_base;
-    free(task->types);
-    free(task_base);
+    if( task->types )
+        ToriMem_Free(ToriRS_TaskMem(task_base), task->types);
+    ToriMem_Free(ToriMem_Assets(), task_base);
 }
 
 static struct ToriRS_TaskVTable Task_Dat2VarpLoad_VTable = {
@@ -256,7 +259,7 @@ CreateTask_Dat2VarpLoad(
     assert(provider);
     assert(varps);
 
-    struct Task_Dat2VarpLoad* task = calloc(1, sizeof(*task));
+    struct Task_Dat2VarpLoad* task = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_Dat2VarpLoad_VTable;
     strcpy(task->task.name, "Dat2VarpLoad");

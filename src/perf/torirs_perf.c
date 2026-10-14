@@ -1,4 +1,5 @@
 #include "perf/torirs_perf.h"
+#include "mem/torirs_mem.h"
 #include "log/torirs_log.h"
 
 #ifndef TORIRS_PERF_DISABLE
@@ -905,15 +906,14 @@ TorirsPerf_Init(int enabled)
     {
         if( !g_ring )
         {
-            g_ring = calloc(TORIRS_PERF_RING, sizeof(*g_ring));
-            assert(g_ring);
+            g_ring = ToriMem_Calloc(ToriMem_Process(), TORIRS_PERF_RING, sizeof(*g_ring));
         }
         else
             memset(g_ring, 0, TORIRS_PERF_RING * sizeof(*g_ring));
     }
     else if( g_ring )
     {
-        free(g_ring);
+        ToriMem_Free(ToriMem_Process(), g_ring);
         g_ring = NULL;
     }
 
@@ -958,7 +958,7 @@ TorirsPerf_Shutdown(void)
         fclose(g_window_csv);
         g_window_csv = NULL;
     }
-    free(g_ring);
+    ToriMem_Free(ToriMem_Process(), g_ring);
     g_ring = NULL;
     g_ring_count = 0;
     g_ring_head = 0;

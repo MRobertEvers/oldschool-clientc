@@ -23,6 +23,7 @@
  */
 
 #include "torirs_chrome_exec.h"
+#include "mem/torirs_mem.h"
 #include "torirs_chrome_exec_web.h"
 #include "torirs_chrome_mirror.h"
 #include "torirs_chrome_skin.h"
@@ -363,7 +364,7 @@ chrome_web_sprite_b64(struct ToriRSChromeSkin_Sprite const* spr)
     static char const* const k_alphabet =
         "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     long const bytes = (long)spr->w * (long)spr->h * 4;
-    char* out = malloc((size_t)((bytes + 2) / 3) * 4 + 1);
+    char* out = ToriMem_Alloc(ToriMem_Ui(), (size_t)((bytes + 2) / 3) * 4 + 1);
     unsigned char triple[3];
     long o = 0;
     int t = 0;
@@ -540,12 +541,7 @@ chrome_web_batch_reserve(struct ChromeWeb* s, size_t extra)
         s->batch_failed = 1;
         return 0;
     }
-    grown = realloc(s->batch_json, capacity);
-    if( !grown )
-    {
-        s->batch_failed = 1;
-        return 0;
-    }
+    grown = ToriMem_Realloc(ToriMem_Ui(), s->batch_json, capacity);
     s->batch_json = grown;
     s->batch_cap = capacity;
     return 1;
@@ -741,8 +737,6 @@ chrome_web_rail_icon(void* user, struct ToriRSChromeRailIcon const* icon)
         sprite.h = icon->height;
         sprite.argb = icon->argb;
         b64 = chrome_web_sprite_b64(&sprite);
-        if( !b64 )
-            return 0;
     }
     {
         int const sent = web_chrome_rail_icon(
@@ -751,7 +745,7 @@ chrome_web_rail_icon(void* user, struct ToriRSChromeRailIcon const* icon)
         icon->width,
         icon->height,
         b64 ? b64 : "");
-        free(b64);
+        ToriMem_Free(ToriMem_Ui(), b64);
         return sent;
     }
 }
@@ -985,7 +979,7 @@ chrome_web_poll(void* user, struct ToriRSChromeIntent* out, int max)
             break;
         if( !json[0] )
         {
-            free(json);
+            free(json); /* torimem-bare: stringToNewUTF8's, emscripten _malloc -- libc here */
             break;
         }
 
@@ -998,7 +992,7 @@ chrome_web_poll(void* user, struct ToriRSChromeIntent* out, int max)
         tail = chrome_web_after_string(json, "text");
         if( !tail )
         {
-            free(json);
+            free(json); /* torimem-bare: stringToNewUTF8's, emscripten _malloc -- libc here */
             continue;
         }
         intent.x = chrome_web_int(tail, "x", 0);
@@ -1006,7 +1000,7 @@ chrome_web_poll(void* user, struct ToriRSChromeIntent* out, int max)
         intent.selection_generation =
             (uint32_t)chrome_web_int(tail, "g", 0);
         intent.widget_serial = (uint32_t)chrome_web_int(tail, "s", 0);
-        free(json);
+        free(json); /* torimem-bare: stringToNewUTF8's, emscripten _malloc -- libc here */
 
         /* Validate the complete identity again on the wasm side. The outer
          * document already fences these values, but a queued page-A event can
@@ -1146,7 +1140,7 @@ ToriRSChromeExec_Web(void)
     struct ToriRSChromeExec exec;
 
     memset(&exec, 0, sizeof(exec));
-    free(g_chrome_web.batch_json);
+    ToriMem_Free(ToriMem_Ui(), g_chrome_web.batch_json);
     memset(&g_chrome_web, 0, sizeof(g_chrome_web));
     g_chrome_web.active_panel = -1;
     for( int i = 0; i < TORIRS_CHROME_MAX_WIDGETS; i++ )

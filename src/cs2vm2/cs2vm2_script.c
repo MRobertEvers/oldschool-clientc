@@ -1,3 +1,4 @@
+#include "mem/torirs_mem.h"
 #include "cs2vm2_script.h"
 
 #include <assert.h>
@@ -24,7 +25,7 @@ CS2VM2_ScriptAllocSwitches(
     if( count <= 0 )
         return true;
 
-    script->switch_tables = calloc((size_t)count, sizeof(*script->switch_tables));
+    script->switch_tables = ToriMem_Calloc(ToriMem_Script(), (size_t)count, sizeof(*script->switch_tables));
     assert(script->switch_tables);
     script->switch_table_count = count;
     return true;
@@ -46,7 +47,7 @@ CS2VM2_ScriptAllocSwitchCases(
     if( case_count <= 0 )
         return true;
 
-    table->cases = calloc((size_t)case_count, sizeof(*table->cases));
+    table->cases = ToriMem_Calloc(ToriMem_Script(), (size_t)case_count, sizeof(*table->cases));
     assert(table->cases);
     table->case_count = case_count;
     return true;
@@ -61,17 +62,17 @@ CS2VM2_ScriptFree(struct CS2VM2_Script* script)
     if( script->switch_tables )
     {
         for( int i = 0; i < script->switch_table_count; i++ )
-            free(script->switch_tables[i].cases);
-        free(script->switch_tables);
+            ToriMem_Free(ToriMem_Script(), script->switch_tables[i].cases);
+        ToriMem_Free(ToriMem_Script(), script->switch_tables);
     }
-    free(script->signature);
-    free(script->opcodes);
-    free(script->int_operands);
+    ToriMem_Free(ToriMem_Script(), script->signature);
+    ToriMem_Free(ToriMem_Script(), script->opcodes);
+    ToriMem_Free(ToriMem_Script(), script->int_operands);
     if( script->string_operands )
     {
         for( int i = 0; i < script->op_count; i++ )
-            free(script->string_operands[i]);
-        free(script->string_operands);
+            ToriMem_Free(ToriMem_Script(), script->string_operands[i]);
+        ToriMem_Free(ToriMem_Script(), script->string_operands);
     }
     memset(script, 0, sizeof(*script));
 }
@@ -115,25 +116,25 @@ CS2VM2_ScriptCopy(
 
     if( src->signature )
     {
-        dst->signature = strdup(src->signature);
+        dst->signature = ToriMem_Strdup(ToriMem_Script(), src->signature);
         assert(dst->signature);
     }
 
-    dst->opcodes = malloc((size_t)src->op_count * sizeof(*dst->opcodes));
+    dst->opcodes = ToriMem_Alloc(ToriMem_Script(), (size_t)src->op_count * sizeof(*dst->opcodes));
     assert(dst->opcodes);
     memcpy(dst->opcodes, src->opcodes, (size_t)src->op_count * sizeof(*dst->opcodes));
 
-    dst->int_operands = malloc((size_t)src->op_count * sizeof(*dst->int_operands));
+    dst->int_operands = ToriMem_Alloc(ToriMem_Script(), (size_t)src->op_count * sizeof(*dst->int_operands));
     assert(dst->int_operands);
     memcpy(dst->int_operands, src->int_operands, (size_t)src->op_count * sizeof(*dst->int_operands));
 
-    dst->string_operands = calloc((size_t)src->op_count, sizeof(*dst->string_operands));
+    dst->string_operands = ToriMem_Calloc(ToriMem_Script(), (size_t)src->op_count, sizeof(*dst->string_operands));
     assert(dst->string_operands);
     for( i = 0; i < src->op_count; i++ )
     {
         if( !src->string_operands[i] )
             continue;
-        dst->string_operands[i] = strdup(src->string_operands[i]);
+        dst->string_operands[i] = ToriMem_Strdup(ToriMem_Script(), src->string_operands[i]);
         assert(dst->string_operands[i]);
     }
 

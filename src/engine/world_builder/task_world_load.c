@@ -7,6 +7,7 @@
 #include "world/world.h"
 
 #include "asyncio.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -16,10 +17,12 @@
 
 #define WORLD_LOAD_MAX_CHUNKS 64
 
-/* Sorted dynamic int set (uniqueness for referenced asset ids; the id scans
- * are pure CPU between awaits, so plain heap storage on the task is fine). */
+/* Sorted dynamic int set (uniqueness for referenced asset ids). The sets live
+ * across awaits and die with the task, so they grow in the task's own arena
+ * (`mem`, set at creation). */
 struct WorldLoadIdSet
 {
+    struct ToriMem_Group* mem;
     int* items;
     int count;
     int cap;
@@ -28,7 +31,7 @@ struct WorldLoadIdSet
 static void
 idset_free(struct WorldLoadIdSet* s)
 {
-    free(s->items);
+    ToriMem_Free(s->mem, s->items);
     s->items = NULL;
     s->count = 0;
     s->cap = 0;
@@ -55,8 +58,8 @@ idset_add(
     if( s->count == s->cap )
     {
         s->cap = s->cap ? s->cap * 2 : 64;
-        s->items = realloc(s->items, (size_t)s->cap * sizeof(int));
-        assert(s->items);
+        assert(s->mem);
+        s->items = ToriMem_Realloc(s->mem, s->items, (size_t)s->cap * sizeof(int));
     }
     memmove(&s->items[lo + 1], &s->items[lo], (size_t)(s->count - lo) * sizeof(int));
     s->items[lo] = v;
@@ -191,8 +194,7 @@ world_load_collect_loc_transforms(
     if( snapshot_count <= 0 )
         return 0;
 
-    snapshot = malloc((size_t)snapshot_count * sizeof(int));
-    assert(snapshot);
+    snapshot = ToriMem_Alloc(locs->mem, (size_t)snapshot_count * sizeof(int));
     memcpy(snapshot, locs->items, (size_t)snapshot_count * sizeof(int));
 
     for( int i = 0; i < snapshot_count; i++ )
@@ -207,7 +209,7 @@ world_load_collect_loc_transforms(
                 idset_add(locs, loc->transforms[ti]);
     }
 
-    free(snapshot);
+    ToriMem_Free(locs->mem, snapshot);
     return locs->count - before;
 }
 
@@ -514,7 +516,7 @@ Task_WorldLoad_Free(struct ToriRS_Task* task_base)
     idset_free(&self->locs);
     idset_free(&self->models);
     idset_free(&self->seqs);
-    free(self);
+    ToriMem_Free(ToriMem_Scene(), self);
 }
 
 static struct ToriRS_TaskVTable Task_WorldLoad_VTable = {
@@ -554,10 +556,15 @@ CreateTask_WorldLoad(
     assert(scene_size > 0);
     assert(scene_size % 8 == 0);
 
-    task = calloc(1, sizeof(*task));
-    assert(task);
+    task = ToriMem_Calloc(ToriMem_Scene(), 1, sizeof(*task));
     task->task.vtable = &Task_WorldLoad_VTable;
     strcpy(task->task.name, "WorldLoad");
+    task->underlays.mem = ToriRS_TaskMem(&task->task);
+    task->overlays.mem = task->underlays.mem;
+    task->textures.mem = task->underlays.mem;
+    task->locs.mem = task->underlays.mem;
+    task->models.mem = task->underlays.mem;
+    task->seqs.mem = task->underlays.mem;
     task->provider = provider;
     task->builder = builder;
     task->queue = queue;

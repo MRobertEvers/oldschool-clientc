@@ -32,15 +32,18 @@
 
 struct CollisionMap*
 collision_map_new(
+    struct ToriMem_Group* group,
     int size_x,
     int size_z)
 {
-    struct CollisionMap* cm = (struct CollisionMap*)malloc(sizeof(struct CollisionMap));
+    assert(group);
+    struct CollisionMap* cm = (struct CollisionMap*)ToriMem_Alloc(group, sizeof(struct CollisionMap));
     memset(cm, 0, sizeof(struct CollisionMap));
+    cm->mem = group;
     cm->size_x = size_x;
     cm->size_z = size_z;
     cm->route_window = 0; /* whole map, until the owner states a window */
-    cm->flags = (int*)malloc((size_t)(size_x * size_z) * sizeof(int));
+    cm->flags = (int*)ToriMem_Alloc(group, (size_t)(size_x * size_z) * sizeof(int));
     collision_map_reset(cm);
     return cm;
 }
@@ -60,9 +63,10 @@ collision_map_free(struct CollisionMap* cm)
 {
     if( !cm )
         return;
-    free(cm->flags);
+    struct ToriMem_Group* group = cm->mem;
+    ToriMem_Free(group, cm->flags);
     cm->flags = NULL;
-    free(cm);
+    ToriMem_Free(group, cm);
 }
 
 void

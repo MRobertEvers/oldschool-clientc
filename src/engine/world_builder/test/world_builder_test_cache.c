@@ -638,8 +638,7 @@ test_world_builder_cache_render(void)
     }
 
     free(pixels);
-    free(pbuf->commands);
-    free(pbuf);
+    painter_buffer_free(pbuf);
 
     intset_free(&underlays);
     intset_free(&overlays);

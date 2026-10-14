@@ -1,4 +1,5 @@
 #include "net_transport.h"
+#include "mem/torirs_mem.h"
 
 #include "net/rev/gameproto_revisions.h" /* enum NetTransportKind */
 #include "platform_socket.h"
@@ -36,7 +37,7 @@ tcp_free(struct NetTransport* t)
 {
     struct NetTransportTcp* self = (struct NetTransportTcp*)t;
     PlatformSocket_Free(self->sock);
-    free(self);
+    ToriMem_Free(ToriMem_Net(), self);
 }
 
 static struct NetTransportVTable const k_tcp_vtable = {
@@ -47,8 +48,7 @@ static struct NetTransportVTable const k_tcp_vtable = {
 struct NetTransport*
 NetTransport_NewTcp(int default_port)
 {
-    struct NetTransportTcp* self = calloc(1, sizeof(*self));
-    assert(self);
+    struct NetTransportTcp* self = ToriMem_Calloc(ToriMem_Net(), 1, sizeof(*self));
     self->base.vtable = &k_tcp_vtable;
     self->sock = PlatformSocket_New(default_port);
     assert(self->sock);

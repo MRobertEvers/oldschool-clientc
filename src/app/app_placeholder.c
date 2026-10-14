@@ -59,6 +59,7 @@
  * its land needs, one await, one land.
  */
 #include "app/app_internal.h"
+#include "mem/torirs_mem.h"
 
 #include "engine/task_obj_model_load.h"
 
@@ -256,7 +257,7 @@ app_placeholder_obj_stack(
 
     assert(app);
     assert(obj_id >= 0);
-    task = calloc(1, sizeof(*task));
+    task = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*task));
     assert(task);
     task->kind = APP_PLACEHOLDER_OBJ_STACK;
     task->scene_x = scene_x;
@@ -307,7 +308,7 @@ app_placeholder_land_obj_stack(struct Task_AppPlaceholder* self)
         return;
     }
     {
-        struct Task_AppPlaceholder* again = calloc(1, sizeof(*again));
+        struct Task_AppPlaceholder* again = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*again));
         assert(again);
         again->kind = self->kind;
         again->scene_x = self->scene_x;
@@ -345,7 +346,7 @@ app_placeholder_widget_icon(
 
     if( !app->placeholder_park )
     {
-        app->placeholder_park = calloc(1, sizeof(*app->placeholder_park));
+        app->placeholder_park = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*app->placeholder_park));
         assert(app->placeholder_park);
     }
     park = app->placeholder_park;
@@ -361,7 +362,7 @@ app_placeholder_widget_icon(
         if( park->count == park->cap )
         {
             int cap = park->cap ? park->cap * 2 : 32;
-            park->icons = realloc(park->icons, (size_t)cap * sizeof(*park->icons));
+            park->icons = ToriMem_Realloc(ToriMem_Process(), park->icons, (size_t)cap * sizeof(*park->icons));
             assert(park->icons);
             park->cap = cap;
         }
@@ -414,7 +415,7 @@ app_placeholder_release_tick(struct App* app)
                   : APP_PLACEHOLDER_WIDGET_ICON_BURST;
     for( int i = 0; i < release; i++ )
     {
-        struct Task_AppPlaceholder* task = calloc(1, sizeof(*task));
+        struct Task_AppPlaceholder* task = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*task));
         assert(task);
         task->kind = APP_PLACEHOLDER_WIDGET_ICON;
         task->component_id = park->icons[i].com_id;
@@ -434,8 +435,8 @@ app_placeholder_park_free(struct App* app)
     assert(app);
     if( !app->placeholder_park )
         return;
-    free(app->placeholder_park->icons);
-    free(app->placeholder_park);
+    ToriMem_Free(ToriMem_Process(), app->placeholder_park->icons);
+    ToriMem_Free(ToriMem_Process(), app->placeholder_park);
     app->placeholder_park = NULL;
 }
 
@@ -499,7 +500,7 @@ app_placeholder_land_widget_icon(struct Task_AppPlaceholder* self)
         return;
     }
     {
-        struct Task_AppPlaceholder* again = calloc(1, sizeof(*again));
+        struct Task_AppPlaceholder* again = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*again));
         assert(again);
         again->kind = self->kind;
         again->component_id = self->component_id;
@@ -547,5 +548,5 @@ Task_AppPlaceholder_Run(
 static void
 Task_AppPlaceholder_Free(struct ToriRS_Task* base)
 {
-    free(base);
+    ToriMem_Free(ToriMem_Process(), base);
 }

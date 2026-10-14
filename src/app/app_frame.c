@@ -2736,8 +2736,8 @@ App_RunOnce(
 
                 if( prev_cap < n )
                 {
-                    free(prev);
-                    prev = malloc((size_t)n * sizeof(*prev));
+                    ToriMem_Free(ToriMem_Process(), prev);
+                    prev = ToriMem_Alloc(ToriMem_Process(), (size_t)n * sizeof(*prev));
                     assert(prev);
                     prev_cap = n;
                 }

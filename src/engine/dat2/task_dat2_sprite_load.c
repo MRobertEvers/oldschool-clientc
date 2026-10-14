@@ -1,4 +1,5 @@
 #include "engine/dat2/dat2_tasks.h"
+#include "mem/torirs_mem.h"
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
 #include "engine/torirs_sprite_from_rscache.h"
@@ -57,7 +58,7 @@ Task_Dat2SpriteLoad_Run(
 static void
 Task_Dat2SpriteLoad_Free(struct ToriRS_Task* task_base)
 {
-    free(task_base);
+    ToriMem_Free(ToriMem_Assets(), task_base);
 }
 
 static struct ToriRS_TaskVTable Task_Dat2SpriteLoad_VTable = {
@@ -79,7 +80,7 @@ CreateTask_Dat2SpriteLoad(
     if( CacheProvider_SpriteHas(provider, sprite_id) )
         return NULL;
 
-    task = calloc(1, sizeof(*task));
+    task = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_Dat2SpriteLoad_VTable;
     strcpy(task->task.name, "Dat2SpriteLoad");
@@ -198,7 +199,7 @@ Task_Dat2SpriteLoadByName_Run(
 static void
 Task_Dat2SpriteLoadByName_Free(struct ToriRS_Task* task_base)
 {
-    free(task_base);
+    ToriMem_Free(ToriMem_Assets(), task_base);
 }
 
 static struct ToriRS_TaskVTable Task_Dat2SpriteLoadByName_VTable = {
@@ -224,7 +225,7 @@ CreateTask_Dat2SpriteLoadByName(
     if( existing_id >= 0 && CacheProvider_SpriteHas(provider, existing_id) )
         return NULL;
 
-    task = calloc(1, sizeof(*task));
+    task = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_Dat2SpriteLoadByName_VTable;
     strcpy(task->task.name, "Dat2SpriteLoadByName");

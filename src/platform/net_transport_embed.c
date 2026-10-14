@@ -21,6 +21,7 @@
  */
 
 #include "net_transport.h"
+#include "mem/torirs_mem.h"
 
 #include "cmd/cmdbus.h"
 #include "net/net.h"
@@ -494,8 +495,7 @@ embed_poll(
 
                 while( cap < self->lead_out_len + (int)header.length )
                     cap *= 2;
-                self->lead_out = realloc(self->lead_out, (size_t)cap);
-                assert(self->lead_out);
+                self->lead_out = ToriMem_Realloc(ToriMem_Net(), self->lead_out, (size_t)cap);
                 self->lead_out_cap = cap;
             }
             memcpy(self->lead_out + self->lead_out_len, payload, header.length);
@@ -668,9 +668,9 @@ embed_free(struct NetTransport* transport)
     if( self->party_listener >= 0 )
         close(self->party_listener);
 #endif
-    free(self->party_pending);
-    free(self->lead_out);
-    free(self);
+    ToriMem_Free(ToriMem_Net(), self->party_pending);
+    ToriMem_Free(ToriMem_Net(), self->lead_out);
+    ToriMem_Free(ToriMem_Net(), self);
 }
 
 /* ------------------------------------------------------------------ */
@@ -689,8 +689,8 @@ party_pending_append(
 
         while( cap < self->party_pending_len + len )
             cap *= 2;
-        self->party_pending = (uint8_t*)realloc(self->party_pending, (size_t)cap);
-        assert(self->party_pending);
+        self->party_pending =
+            (uint8_t*)ToriMem_Realloc(ToriMem_Net(), self->party_pending, (size_t)cap);
         self->party_pending_cap = cap;
     }
     memcpy(self->party_pending + self->party_pending_len, data, (size_t)len);
@@ -973,10 +973,9 @@ NetTransport_CycleClock(struct NetTransport* t, unsigned long long cycles)
 struct NetTransport*
 NetTransport_NewEmbed(int default_port, char const* rev_name)
 {
-    struct NetTransportEmbed* self = calloc(1, sizeof(*self));
+    struct NetTransportEmbed* self = ToriMem_Calloc(ToriMem_Net(), 1, sizeof(*self));
 
     (void)default_port; /* nothing to bind, nothing to dial */
-    assert(self);
     self->base.vtable = &k_embed_vtable;
     self->rev_name = rev_name;
     self->last_status = -1;

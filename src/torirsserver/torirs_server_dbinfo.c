@@ -18,6 +18,7 @@
  */
 
 #include "torirs_server.h"
+#include "mem/torirs_mem.h"
 #include <assert.h>
 #include "torirs_server_content.h"
 #include "torirs_server_db.h"
@@ -77,7 +78,8 @@ import_table(
         if( src->tuple_count > 0 && src->values )
         {
             int total = src->tuple_count * src->type_count;
-            struct ToriRSServerDbValue* defaults = calloc((size_t)total, sizeof(*defaults));
+            struct ToriRSServerDbValue* defaults =
+                ToriMem_Calloc(ToriMem_ServerContent(), (size_t)total, sizeof(*defaults));
 
             assert(defaults);
             for( int i = 0; i < total; i++ )
@@ -90,7 +92,7 @@ import_table(
                     defaults[i].value = src->values[i].int_value;
             }
             ToriRSServer_DbColumnDefaultsSet(table, col, defaults, total);
-            free(defaults);
+            ToriMem_Free(ToriMem_ServerContent(), defaults);
         }
     }
     g_cache_tables++;
@@ -138,7 +140,7 @@ import_row(
             continue;
 
         total = src->tuple_count * src->type_count;
-        values = calloc((size_t)total, sizeof(*values));
+        values = ToriMem_Calloc(ToriMem_ServerContent(), (size_t)total, sizeof(*values));
         assert(values);
         for( int i = 0; i < total; i++ )
         {
@@ -150,7 +152,7 @@ import_row(
                 values[i].value = src->values[i].int_value;
         }
         ToriRSServer_DbRowColumnSet(row, col, values, total);
-        free(values);
+        ToriMem_Free(ToriMem_ServerContent(), values);
     }
     g_cache_rows++;
 }

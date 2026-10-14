@@ -1176,7 +1176,8 @@ PluginHost_ConfigDecode(
     int size);
 
 /** Encode the store. Keys at their declared default are omitted, matching
- *  RS_Prefs. Caller frees *out_data. Returns 1 on success. */
+ *  RS_Prefs. Caller frees *out_data with ToriMem_Free(ToriMem_Plugins(), ...).
+ *  Returns 1 on success. */
 int
 PluginHost_ConfigEncode(
     struct ToriRS_PluginHost const* host,

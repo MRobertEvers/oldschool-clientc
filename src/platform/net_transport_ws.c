@@ -1,4 +1,5 @@
 #include "net_transport.h"
+#include "mem/torirs_mem.h"
 #include "torirs_env.h"
 
 #include "cmd/cmdbus.h"
@@ -90,8 +91,7 @@ buf_append(struct ByteBuf* buf, uint8_t const* data, int len)
         int cap = buf->cap ? buf->cap : 1024;
         while( cap < buf->len + len )
             cap *= 2;
-        buf->data = realloc(buf->data, cap);
-        assert(buf->data);
+        buf->data = ToriMem_Realloc(ToriMem_Net(), buf->data, cap);
         buf->cap = cap;
     }
     memcpy(buf->data + buf->len, data, len);
@@ -115,7 +115,7 @@ buf_consume(struct ByteBuf* buf, int n)
 static void
 buf_free(struct ByteBuf* buf)
 {
-    free(buf->data);
+    ToriMem_Free(ToriMem_Net(), buf->data);
     buf->data = NULL;
     buf->len = buf->cap = 0;
 }
@@ -151,14 +151,13 @@ ws_queue_frame(struct NetTransportWs* self, int opcode, uint8_t const* payload, 
     uint8_t* framebuf = stackbuf;
     int cap = len + 14;
     if( cap > (int)sizeof(stackbuf) )
-        framebuf = malloc((size_t)cap);
-    assert(framebuf);
+        framebuf = ToriMem_Alloc(ToriMem_Net(), (size_t)cap);
 
     int n = ws_frame_encode(opcode, payload, len, k_mask, framebuf, cap);
     if( n > 0 )
         buf_append(&self->wire, framebuf, n);
     if( framebuf != stackbuf )
-        free(framebuf);
+        ToriMem_Free(ToriMem_Net(), framebuf);
 }
 
 static void
@@ -217,7 +216,7 @@ ws_close(struct NetTransportWs* self, struct ToriRS_CmdBus* bus, int status)
 {
     if( self->stream )
     {
-        sockstream_close(self->stream);
+        sockstream_free(self->stream); /* closes it; a bare close leaked it */
         self->stream = NULL;
     }
     self->state = WS_STATE_IDLE;
@@ -239,8 +238,8 @@ ws_drain_out(struct NetTransportWs* self, struct ToriRS_Network* net, struct Tor
         if( header.type == TORIRS_NET_OUT_CONNECT )
         {
             ws_parse_host(self, (char const*)payload, header.length);
-            if( self->stream )
-                sockstream_close(self->stream);
+            sockstream_free(self->stream); /* closes it; a bare close leaked it */
+            self->stream = NULL;
             self->wire.len = self->app.len = self->in.len = 0;
             self->app_msg_count = 0;
             self->stream = sockstream_new();
@@ -504,12 +503,12 @@ static void
 ws_free(struct NetTransport* t)
 {
     struct NetTransportWs* self = (struct NetTransportWs*)t;
-    if( self->stream )
-        sockstream_close(self->stream);
+    /* sockstream_free closes it too; a bare close leaked the stream. */
+    sockstream_free(self->stream);
     buf_free(&self->wire);
     buf_free(&self->app);
     buf_free(&self->in);
-    free(self);
+    ToriMem_Free(ToriMem_Net(), self);
 }
 
 static struct NetTransportVTable const k_ws_vtable = {
@@ -520,8 +519,7 @@ static struct NetTransportVTable const k_ws_vtable = {
 struct NetTransport*
 NetTransport_NewWs(int default_port)
 {
-    struct NetTransportWs* self = calloc(1, sizeof(*self));
-    assert(self);
+    struct NetTransportWs* self = ToriMem_Calloc(ToriMem_Net(), 1, sizeof(*self));
     self->base.vtable = &k_ws_vtable;
     self->default_port = default_port > 0 ? default_port : 43594;
     self->last_status = TORIRS_NET_STATUS_DISCONNECTED;

@@ -242,15 +242,18 @@ kind_collect(
     if( out->count == out->capacity )
     {
         out->capacity = out->capacity ? out->capacity * 2 : 1024;
-        out->ids = realloc(out->ids, (size_t)out->capacity * sizeof(*out->ids));
-        out->files = realloc(out->files, (size_t)out->capacity * sizeof(*out->files));
-        out->sizes = realloc(out->sizes, (size_t)out->capacity * sizeof(*out->sizes));
+        out->ids = ToriMem_Realloc(
+            ToriMem_ServerContent(), out->ids, (size_t)out->capacity * sizeof(*out->ids));
+        out->files = ToriMem_Realloc(
+            ToriMem_ServerContent(), out->files, (size_t)out->capacity * sizeof(*out->files));
+        out->sizes = ToriMem_Realloc(
+            ToriMem_ServerContent(), out->sizes, (size_t)out->capacity * sizeof(*out->sizes));
         assert(out->ids);
         assert(out->files);
         assert(out->sizes);
     }
     /* One spare byte so an empty body is still a distinct allocation. */
-    out->files[out->count] = malloc((size_t)size + 1);
+    out->files[out->count] = ToriMem_Alloc(ToriMem_ServerContent(), (size_t)size + 1);
     assert(out->files[out->count]);
     if( size )
         memcpy(out->files[out->count], body, size);
@@ -290,10 +293,10 @@ ToriRSServer_ServPackKindFree(struct ToriRSServerKindRecords* records)
     if( !records )
         return;
     for( int i = 0; i < records->count; i++ )
-        free(records->files[i]);
-    free(records->ids);
-    free(records->files);
-    free(records->sizes);
+        ToriMem_Free(ToriMem_ServerContent(), records->files[i]);
+    ToriMem_Free(ToriMem_ServerContent(), records->ids);
+    ToriMem_Free(ToriMem_ServerContent(), records->files);
+    ToriMem_Free(ToriMem_ServerContent(), records->sizes);
     memset(records, 0, sizeof(*records));
 }
 
@@ -322,12 +325,12 @@ ToriRSServer_ServPackClientIdBound(
     count = RSCache_ServerPackIdsDecode(payload, size, NULL, 0);
     if( count > 0 )
     {
-        int* ids = malloc((size_t)count * sizeof(int));
+        int* ids = ToriMem_Alloc(ToriMem_ServerContent(), (size_t)count * sizeof(int));
 
         assert(ids);
         RSCache_ServerPackIdsDecode(payload, size, ids, count);
         bound = ids[count - 1] + 1;
-        free(ids);
+        ToriMem_Free(ToriMem_ServerContent(), ids);
     }
     RSCACHE_FREE(owned);
     if( count < 0 )

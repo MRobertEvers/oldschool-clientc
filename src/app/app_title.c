@@ -151,7 +151,7 @@ app_title_flames_start(struct App* app)
     for( int side = 0; side < TORIRS_FLAME_SIDES; side++ )
     {
         int src_x = side == TORIRS_FLAME_LEFT ? 0 : panel->width - TORIRS_FLAME_W;
-        column[side] = malloc((size_t)TORIRS_FLAME_W * col_h * sizeof(*column[side]));
+        column[side] = ToriMem_Alloc(ToriMem_Process(), (size_t)TORIRS_FLAME_W * col_h * sizeof(*column[side]));
         assert(column[side]);
         for( int y = 0; y < col_h; y++ )
             memcpy(
@@ -167,13 +167,13 @@ app_title_flames_start(struct App* app)
     sprite_id = CacheProvider_SpriteIdByName(app->provider, "runes");
     runes = sprite_id >= 0 ? CacheProvider_SpriteGet(app->provider, sprite_id) : NULL;
 
-    app->flames = calloc(1, sizeof(*app->flames));
+    app->flames = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*app->flames));
     assert(app->flames);
     TitleFlames_Init(app->flames, pair, TORIRS_FLAME_W, col_h, runes);
     app->flames_last_ms = 0;
 
     for( int side = 0; side < TORIRS_FLAME_SIDES; side++ )
-        free(column[side]);
+        ToriMem_Free(ToriMem_Process(), column[side]);
 }
 
 void
@@ -183,7 +183,7 @@ app_title_flames_stop(struct App* app)
     if( !app->flames )
         return;
     TitleFlames_Free(app->flames);
-    free(app->flames);
+    ToriMem_Free(ToriMem_Process(), app->flames);
     app->flames = NULL;
 }
 

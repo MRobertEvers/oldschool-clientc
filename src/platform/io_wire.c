@@ -25,7 +25,7 @@ IOWireBuf_Free(struct IOWireBuf* buf)
 {
     if( !buf )
         return;
-    free(buf->data);
+    ToriMem_Free(ToriMem_Net(), buf->data);
     memset(buf, 0, sizeof(*buf));
 }
 
@@ -54,8 +54,7 @@ IOWireBuf_Append(
         uint8_t* grown;
         while( cap < buf->len + count )
             cap *= 2;
-        grown = realloc(buf->data, (size_t)cap);
-        assert(grown);
+        grown = ToriMem_Realloc(ToriMem_Net(), buf->data, (size_t)cap);
         buf->data = grown;
         buf->cap = cap;
     }
@@ -525,8 +524,8 @@ apply_bytes(
     void* data = NULL;
     if( resp->blob_len > 0 )
     {
-        data = malloc((size_t)resp->blob_len);
-        assert(data);
+        /* NET: a CONFIG_FILE/SCRIPT item's data (ToriRS_IO_ClearItem). */
+        data = ToriMem_Alloc(ToriMem_Net(), (size_t)resp->blob_len);
         memcpy(data, resp->blob, (size_t)resp->blob_len);
     }
     item->data = data;
@@ -625,7 +624,8 @@ IOWire_FreeLoadedItem(struct ToriRS_IOItem* item)
         RSCACHE_FREE(item->data);
         break;
     default:
-        free(item->data);
+        /* PlatformX_IO_LoadItem's plain payload: NET, as ToriRS_IO_ClearItem. */
+        ToriMem_Free(ToriMem_Net(), item->data);
         break;
     }
     item->data = NULL;

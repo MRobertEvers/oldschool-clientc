@@ -14,6 +14,7 @@ ToriRS_PluginMeshGrow(
     int faces,
     int want)
 {
+    struct ToriMem_Group* const mem = ToriMem_Plugins();
     int cap;
 
     assert(mesh);
@@ -26,11 +27,13 @@ ToriRS_PluginMeshGrow(
 
     if( faces )
     {
-        mesh->face_a = realloc(mesh->face_a, (size_t)cap * sizeof(*mesh->face_a));
-        mesh->face_b = realloc(mesh->face_b, (size_t)cap * sizeof(*mesh->face_b));
-        mesh->face_c = realloc(mesh->face_c, (size_t)cap * sizeof(*mesh->face_c));
-        mesh->face_color = realloc(mesh->face_color, (size_t)cap * sizeof(*mesh->face_color));
-        mesh->face_alpha = realloc(mesh->face_alpha, (size_t)cap * sizeof(*mesh->face_alpha));
+        mesh->face_a = ToriMem_Realloc(mem, mesh->face_a, (size_t)cap * sizeof(*mesh->face_a));
+        mesh->face_b = ToriMem_Realloc(mem, mesh->face_b, (size_t)cap * sizeof(*mesh->face_b));
+        mesh->face_c = ToriMem_Realloc(mem, mesh->face_c, (size_t)cap * sizeof(*mesh->face_c));
+        mesh->face_color =
+            ToriMem_Realloc(mem, mesh->face_color, (size_t)cap * sizeof(*mesh->face_color));
+        mesh->face_alpha =
+            ToriMem_Realloc(mem, mesh->face_alpha, (size_t)cap * sizeof(*mesh->face_alpha));
         assert(mesh->face_a);
         assert(mesh->face_b);
         assert(mesh->face_c);
@@ -40,9 +43,12 @@ ToriRS_PluginMeshGrow(
         return;
     }
 
-    mesh->vertices_x = realloc(mesh->vertices_x, (size_t)cap * sizeof(*mesh->vertices_x));
-    mesh->vertices_y = realloc(mesh->vertices_y, (size_t)cap * sizeof(*mesh->vertices_y));
-    mesh->vertices_z = realloc(mesh->vertices_z, (size_t)cap * sizeof(*mesh->vertices_z));
+    mesh->vertices_x =
+        ToriMem_Realloc(mem, mesh->vertices_x, (size_t)cap * sizeof(*mesh->vertices_x));
+    mesh->vertices_y =
+        ToriMem_Realloc(mem, mesh->vertices_y, (size_t)cap * sizeof(*mesh->vertices_y));
+    mesh->vertices_z =
+        ToriMem_Realloc(mem, mesh->vertices_z, (size_t)cap * sizeof(*mesh->vertices_z));
     assert(mesh->vertices_x);
     assert(mesh->vertices_y);
     assert(mesh->vertices_z);
@@ -53,14 +59,14 @@ void
 ToriRS_PluginMeshRelease(struct ToriRS_PluginMesh* mesh)
 {
     assert(mesh);
-    free(mesh->vertices_x);
-    free(mesh->vertices_y);
-    free(mesh->vertices_z);
-    free(mesh->face_a);
-    free(mesh->face_b);
-    free(mesh->face_c);
-    free(mesh->face_color);
-    free(mesh->face_alpha);
+    ToriMem_Free(ToriMem_Plugins(), mesh->vertices_x);
+    ToriMem_Free(ToriMem_Plugins(), mesh->vertices_y);
+    ToriMem_Free(ToriMem_Plugins(), mesh->vertices_z);
+    ToriMem_Free(ToriMem_Plugins(), mesh->face_a);
+    ToriMem_Free(ToriMem_Plugins(), mesh->face_b);
+    ToriMem_Free(ToriMem_Plugins(), mesh->face_c);
+    ToriMem_Free(ToriMem_Plugins(), mesh->face_color);
+    ToriMem_Free(ToriMem_Plugins(), mesh->face_alpha);
     memset(mesh, 0, sizeof(*mesh));
 }
 

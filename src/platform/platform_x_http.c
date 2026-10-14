@@ -4,6 +4,7 @@
  */
 
 #include "platform/platform_x_http.h"
+#include "mem/torirs_mem.h"
 
 #include "platform/sockstream.h"
 #include "log/torirs_log.h"
@@ -175,13 +176,12 @@ http_header_size(const char* buf, int len, int* scan_from)
 static int
 http_framed_length(const char* buf, int header_size, int* out_chunked)
 {
-    char* headers = malloc((size_t)header_size + 1);
+    char* headers = ToriMem_Alloc(ToriMem_Net(), (size_t)header_size + 1);
     char* found;
     int content_length = -1;
 
     assert(buf);
     assert(out_chunked);
-    assert(headers);
 
     /* Header names are case-insensitive on the wire. Lowercase a copy of the
      * header block rather than the whole response -- the body is binary and
@@ -198,7 +198,7 @@ http_framed_length(const char* buf, int header_size, int* out_chunked)
         content_length = atoi(found + strlen("\r\ncontent-length:"));
     found = strstr(headers, "\r\ntransfer-encoding:");
     *out_chunked = found && strstr(found, "chunked") ? 1 : 0;
-    free(headers);
+    ToriMem_Free(ToriMem_Net(), headers);
     return content_length;
 }
 
@@ -257,8 +257,7 @@ PlatformX_HttpGetTimed(
             char* bigger;
             while( grown < length + 4096 )
                 grown *= 2;
-            bigger = realloc(buffer, (size_t)grown);
-            assert(bigger);
+            bigger = ToriMem_Realloc(ToriMem_Net(), buffer, (size_t)grown);
             buffer = bigger;
             capacity = grown;
         }
@@ -359,13 +358,12 @@ PlatformX_HttpGetTimed(
         body_size = content_length;
     }
 
-    result = malloc((size_t)(body_size ? body_size : 1));
-    assert(result);
+    result = ToriMem_Alloc(ToriMem_Net(), (size_t)(body_size ? body_size : 1));
     memcpy(result, body, (size_t)body_size);
     *out_size = body_size;
 
 done:
-    free(buffer);
+    ToriMem_Free(ToriMem_Net(), buffer);
     if( stream )
     {
         sockstream_close(stream);

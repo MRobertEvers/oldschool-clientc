@@ -12,6 +12,7 @@
  */
 
 #include "../torirs_server_servpack.h"
+#include "mem/torimem_rscache.h"
 
 #include <assert.h>
 #include <rscache.h>
@@ -22,7 +23,9 @@
 static char g_test_pack_dir[1024];
 
 /** Config kind `kind`'s records as an archive (ids) and a file list (bytes).
- *  Free both with the library's own RSCache_FileListFree / ...ArchiveFree. */
+ *  Free both with the library's own RSCache_FileListFree / ...ArchiveFree, so
+ *  every block here is the library's (RSCACHE_*); the records' own bytes are
+ *  the server's (ToriRSServer_ServPackKindFree) and are copied. */
 static struct RSCache_Dat2DiskArchive*
 test_pack_group(
     int kind,
@@ -43,24 +46,25 @@ test_pack_group(
         return NULL;
     }
     RSCache_ServerPackClose(&pack);
-    archive = calloc(1, sizeof(*archive));
-    files = calloc(1, sizeof(*files));
+    archive = RSCACHE_CALLOC(1, sizeof(*archive));
+    files = RSCACHE_CALLOC(1, sizeof(*files));
     assert(archive);
     assert(files);
     archive->file_count = records.count;
-    archive->file_ids = malloc(((size_t)records.count + 1) * sizeof(int));
+    archive->file_ids = RSCACHE_MALLOC(((size_t)records.count + 1) * sizeof(int));
     files->file_count = records.count;
-    files->files = malloc(((size_t)records.count + 1) * sizeof(char*));
-    files->file_sizes = malloc(((size_t)records.count + 1) * sizeof(int));
+    files->files = RSCACHE_MALLOC(((size_t)records.count + 1) * sizeof(char*));
+    files->file_sizes = RSCACHE_MALLOC(((size_t)records.count + 1) * sizeof(int));
     assert(archive->file_ids);
     assert(files->files);
     assert(files->file_sizes);
     for( int i = 0; i < records.count; i++ )
     {
         archive->file_ids[i] = records.ids[i];
-        files->files[i] = (char*)records.files[i];
+        /* One spare byte, as the record has: an empty body is still a block. */
+        files->files[i] =
+            (char*)ToriMem_MemdupIntoRSCache(records.files[i], (size_t)records.sizes[i] + 1);
         files->file_sizes[i] = (int)records.sizes[i];
-        records.files[i] = NULL; /* now the file list's */
     }
     ToriRSServer_ServPackKindFree(&records);
     *out_files = files;

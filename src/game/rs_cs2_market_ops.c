@@ -12,6 +12,7 @@
  */
 
 #include "game/rs_cs2_host.h"
+#include "mem/torirs_mem.h"
 
 #include "cs2vm2/cs2_opcode.h"
 #include "cs2vm2/cs2_opcode_meta.h"
@@ -119,7 +120,7 @@ RS_CS2Host_ApplyTradingPost(
         return false;
 
     struct RS_CS2TradingPostOffer* const offers =
-        count > 0 ? malloc((size_t)count * sizeof(offers[0])) : NULL;
+        count > 0 ? ToriMem_Alloc(ToriMem_Script(), (size_t)count * sizeof(offers[0])) : NULL;
     assert(count == 0 || offers);
     for( int i = 0; i < count; i++ )
     {
@@ -133,11 +134,11 @@ RS_CS2Host_ApplyTradingPost(
     }
     if( r.failed )
     {
-        free(offers);
+        ToriMem_Free(ToriMem_Script(), offers);
         return false;
     }
 
-    free(post->offers);
+    ToriMem_Free(ToriMem_Script(), post->offers);
     post->offers = offers;
     post->count = count;
     post->cap = count;
@@ -230,7 +231,7 @@ trading_post_sort(
     int const count = post->count;
     if( count < 2 )
         return;
-    struct RS_CS2TradingPostOffer* scratch = malloc((size_t)count * sizeof(scratch[0]));
+    struct RS_CS2TradingPostOffer* scratch = ToriMem_Alloc(ToriMem_Script(), (size_t)count * sizeof(scratch[0]));
     assert(scratch);
     struct RS_CS2TradingPostOffer* from = post->offers;
     struct RS_CS2TradingPostOffer* to = scratch;
@@ -261,7 +262,7 @@ trading_post_sort(
     }
     if( from != post->offers )
         memcpy(post->offers, from, (size_t)count * sizeof(post->offers[0]));
-    free(scratch);
+    ToriMem_Free(ToriMem_Script(), scratch);
 }
 
 /* ---- commands ----------------------------------------------------------------- */

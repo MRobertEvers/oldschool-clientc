@@ -30,6 +30,7 @@
  */
 
 #include "net/rev/gameproto_revisions.h"
+#include "mem/torirs_mem.h"
 #include "net/rev/pktnames.h"
 #include "net/rev/revpacket.h"
 #include "rsareabuf.h"
@@ -112,7 +113,7 @@ parse(uint8_t const* data, int len, struct RevPacket* out)
 {
     /* The payload lives outside the union now, so a reused packet owns one
      * from the previous parse; zeroing over it would drop the block. */
-    free(out->_runclientscript);
+    ToriMem_Free(ToriMem_Net(), out->_runclientscript);
     memset(out, 0, sizeof(*out));
     return osrs230_parse(NULL, PKT_NAME_RUNCLIENTSCRIPT, data, len, out);
 }

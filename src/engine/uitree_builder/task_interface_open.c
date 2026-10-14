@@ -1,4 +1,5 @@
 #include "task_interface_open.h"
+#include "mem/torirs_mem.h"
 #include "torirs_env.h"
 
 #include "task_static_sprites_load.h"
@@ -200,10 +201,8 @@ Task_InterfaceOpen_PushOnLoad(struct Task_InterfaceOpen* self)
             cap = INTERFACE_OPEN_ONLOAD_MAX;
         if( self->onload_count >= cap )
             return NULL;
-        grown = (struct InterfaceOpenOnLoad*)realloc(
-            self->onloads, (size_t)cap * sizeof(*grown));
-        if( !grown )
-            return NULL;
+        grown = (struct InterfaceOpenOnLoad*)ToriMem_Realloc(
+            ToriRS_TaskMem(&self->task), self->onloads, (size_t)cap * sizeof(*grown));
         self->onloads = grown;
         self->onload_cap = cap;
     }
@@ -232,10 +231,8 @@ Task_InterfaceOpen_PushRuntimeHook(struct Task_InterfaceOpen* self)
             cap = INTERFACE_OPEN_RUNTIME_HOOK_MAX;
         if( self->runtime_hook_count >= cap )
             return NULL;
-        grown = (struct InterfaceOpenRuntimeHook*)realloc(
-            self->runtime_hooks, (size_t)cap * sizeof(*grown));
-        if( !grown )
-            return NULL;
+        grown = (struct InterfaceOpenRuntimeHook*)ToriMem_Realloc(
+            ToriRS_TaskMem(&self->task), self->runtime_hooks, (size_t)cap * sizeof(*grown));
         self->runtime_hooks = grown;
         self->runtime_hook_cap = cap;
     }
@@ -795,12 +792,11 @@ static void
 Task_InterfaceOpen_Free(struct ToriRS_Task* base)
 {
     struct Task_InterfaceOpen* self = (struct Task_InterfaceOpen*)base;
-    if( self )
-    {
-        free(self->onloads);
-        free(self->runtime_hooks);
-    }
-    free(base);
+    assert(self);
+    /* Both lists are the task's own scratch (ToriRS_TaskMem). */
+    ToriMem_Free(base->mem, self->onloads);
+    ToriMem_Free(base->mem, self->runtime_hooks);
+    ToriMem_Free(ToriMem_Ui(), base);
 }
 
 static struct ToriRS_TaskVTable Task_InterfaceOpen_VTable = {
@@ -830,7 +826,7 @@ create_interface_open_common(
     assert(bridge);
     assert(interface_id > 0);
 
-    task = calloc(1, sizeof(*task));
+    task = ToriMem_Calloc(ToriMem_Ui(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_InterfaceOpen_VTable;
     strncpy(task->task.name, name, sizeof(task->task.name) - 1);

@@ -13,6 +13,7 @@
  */
 
 #include "torirs_server_embed.h"
+#include "mem/torirs_mem.h"
 #include <assert.h>
 
 #include "torirs_server.h"
@@ -166,7 +167,7 @@ ToriRSServer_EmbedStart(char const* rev_name)
         return NULL;
     }
 
-    embed = (struct ToriRSServerEmbed*)calloc(1, sizeof(*embed));
+    embed = (struct ToriRSServerEmbed*)ToriMem_Calloc(ToriMem_ServerNet(), 1, sizeof(*embed));
     assert(embed);
     embed->party_listener = -1;
     for( int i = 0; i < TORIRSSERVER_EMBED_CLIENT_MAX; i++ )
@@ -179,7 +180,7 @@ ToriRSServer_EmbedStart(char const* rev_name)
     if( ToriRSServer_BootLoad(&embed->config) == TORIRSSERVER_BOOT_NO_PACK )
     {
         ToriRSServer_BootFree();
-        free(embed);
+        ToriMem_Free(ToriMem_ServerNet(), embed);
         return NULL;
     }
     /* Shop definitions are global (ToriRSServer_ContentLoad populated them);
@@ -207,7 +208,7 @@ ToriRSServer_EmbedStart(char const* rev_name)
             fprintf(stderr, "torirsserver: unknown embed revision '%s' (osrs230, osrs239)\n",
                     rev_name);
             ToriRSServer_BootFree();
-            free(embed);
+            ToriMem_Free(ToriMem_ServerNet(), embed);
             return NULL;
         }
         embed->srv.wire = wire;
@@ -389,9 +390,13 @@ ToriRSServer_EmbedStop(struct ToriRSServerEmbed* embed)
     ToriRSServer_BankShutdown(&embed->srv);
     ToriRSServer_ContainerShutdown(&embed->srv);
     ToriRSServer_ScriptsFree(&embed->srv);
+    /* The world dies with the session it served (net_transport_embed.c): its
+     * zones, scene windows and spawn marks, which only a reset released. */
+    ToriRSServer_WorldShutdown(&embed->srv);
+    ToriRSServer_SessionJs5Release();
     ToriRSServer_BootFree();
 
-    free(embed);
+    ToriMem_Free(ToriMem_ServerNet(), embed);
     g_embed_live = 0;
 }
 
@@ -831,7 +836,8 @@ ToriRSServer_EmbedMemberMarkPush(char const* label)
     if( g_member_mark_count == g_member_mark_capacity )
     {
         int capacity = g_member_mark_capacity ? g_member_mark_capacity * 2 : 16;
-        char** grown = realloc(g_member_marks, (size_t)capacity * sizeof(*grown));
+        char** grown =
+            ToriMem_Realloc(ToriMem_ServerNet(), g_member_marks, (size_t)capacity * sizeof(*grown));
 
         assert(grown);
         g_member_marks = grown;
@@ -840,7 +846,7 @@ ToriRSServer_EmbedMemberMarkPush(char const* label)
     length = strlen(label);
     if( length >= TORIRSSERVER_EMBED_LINK_MARK_MAX )
         length = TORIRSSERVER_EMBED_LINK_MARK_MAX - 1;
-    copy = malloc(length + 1);
+    copy = ToriMem_Alloc(ToriMem_ServerNet(), length + 1);
     assert(copy);
     memcpy(copy, label, length);
     copy[length] = '\0';
@@ -858,7 +864,7 @@ ToriRSServer_EmbedMemberMarkTake(
     if( g_member_mark_count == 0 )
         return 0;
     snprintf(out, (size_t)capacity, "%s", g_member_marks[0]);
-    free(g_member_marks[0]);
+    ToriMem_Free(ToriMem_ServerNet(), g_member_marks[0]);
     memmove(&g_member_marks[0], &g_member_marks[1],
             (size_t)(g_member_mark_count - 1) * sizeof(g_member_marks[0]));
     g_member_mark_count--;
@@ -932,12 +938,12 @@ ToriRSServer_EmbedMemberMailDeliver(
                  * pile up loses the oldest, and says so. */
                 fprintf(stderr, "torirsserver: party: launch: %d unread commands; dropping '%s'\n",
                         EMBED_MEMBER_COMMANDS_MAX, g_member_commands[0]);
-                free(g_member_commands[0]);
+                ToriMem_Free(ToriMem_ServerNet(), g_member_commands[0]);
                 memmove(g_member_commands, g_member_commands + 1,
                         sizeof(g_member_commands[0]) * (EMBED_MEMBER_COMMANDS_MAX - 1));
                 g_member_command_count--;
             }
-            command = (char*)malloc((size_t)(line_length - 8 + 1));
+            command = (char*)ToriMem_Alloc(ToriMem_ServerNet(), (size_t)(line_length - 8 + 1));
             assert(command);
             memcpy(command, text + at + 8, (size_t)(line_length - 8));
             command[line_length - 8] = '\0';
@@ -960,7 +966,7 @@ ToriRSServer_EmbedMemberCommandTake(
     if( g_member_command_count == 0 )
         return 0;
     snprintf(out, (size_t)capacity, "%s", g_member_commands[0]);
-    free(g_member_commands[0]);
+    ToriMem_Free(ToriMem_ServerNet(), g_member_commands[0]);
     memmove(g_member_commands, g_member_commands + 1,
             sizeof(g_member_commands[0]) * (size_t)(g_member_command_count - 1));
     g_member_command_count--;
@@ -1256,7 +1262,8 @@ ToriRSServer_EmbedLinkFill(
 
             while( cap - reader->tail < 65536 )
                 cap *= 2;
-            reader->data = (uint8_t*)realloc(reader->data, (size_t)cap);
+            reader->data =
+                (uint8_t*)ToriMem_Realloc(ToriMem_ServerNet(), reader->data, (size_t)cap);
             assert(reader->data);
             reader->cap = cap;
         }
@@ -1351,7 +1358,7 @@ ToriRSServer_EmbedLinkReaderFree(struct ToriRSServerEmbedLinkReader* reader)
 {
     if( !reader )
         return;
-    free(reader->data);
+    ToriMem_Free(ToriMem_ServerNet(), reader->data);
     memset(reader, 0, sizeof(*reader));
 }
 
@@ -1365,7 +1372,7 @@ embed_link_close(struct ToriRSServerEmbedClient* client)
 #endif
     client->link_fd = -1;
     client->link_ready = 0;
-    free(client->mail_answer);
+    ToriMem_Free(ToriMem_Net(), client->mail_answer);
     client->mail_answer = NULL;
     client->mail_answer_size = 0;
     ToriRSServer_EmbedLinkReaderFree(&client->link_in);
@@ -1630,7 +1637,7 @@ party_take_frames(
 
             if( len > TORIRSSERVER_EMBED_LINK_MAIL_MAX )
                 return 0;
-            free(client->mail_answer);
+            ToriMem_Free(ToriMem_Net(), client->mail_answer);
             client->mail_answer = NULL;
             client->mail_answer_size = 0;
             if( g_mail_answer )
@@ -1638,8 +1645,7 @@ party_take_frames(
                                                     len, &client->mail_answer_size);
             else
             {
-                client->mail_answer = (char*)malloc(sizeof(unsupported));
-                assert(client->mail_answer);
+                client->mail_answer = (char*)ToriMem_Alloc(ToriMem_Net(), sizeof(unsupported));
                 memcpy(client->mail_answer, unsupported, sizeof(unsupported));
                 client->mail_answer_size = (int)sizeof(unsupported) - 1;
             }
@@ -1812,7 +1818,7 @@ party_flush(struct ToriRSServerEmbed* embed)
             ok = ToriRSServer_EmbedLinkSend(client->link_fd, TORIRSSERVER_EMBED_LINK_MAIL_ANSWER,
                                              (const uint8_t*)client->mail_answer,
                                              client->mail_answer_size);
-        free(client->mail_answer);
+        ToriMem_Free(ToriMem_Net(), client->mail_answer);
         client->mail_answer = NULL;
         client->mail_answer_size = 0;
         if( ok )

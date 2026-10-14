@@ -1,4 +1,5 @@
 #include "net/rev/gameproto_revisions.h"
+#include "mem/torirs_mem.h"
 #include <assert.h>
 #include "net/rev/packets/pkt_rebuild_normal.h"
 #include "net/rev/packets/pkt_rebuild_region.h"
@@ -192,9 +193,8 @@ osrs230_parse(
             (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3];
         {
             int text_len = len - 4;
-            char* text = (char*)malloc((size_t)text_len + 1);
+            char* text = (char*)ToriMem_Alloc(ToriMem_Net(), (size_t)text_len + 1);
 
-            assert(text);
             /* Newline-terminated on the wire, like every other Jagex string. */
             memcpy(text, data + 4, (size_t)text_len);
             text[text_len] = '\0';
@@ -280,10 +280,9 @@ osrs230_parse(
         if( cur.err || capacity < 0 || capacity > 4096 )
             return 0;
         out->_update_inv_full.size = capacity;
-        out->_update_inv_full.obj_ids = malloc((size_t)capacity * sizeof(int));
-        out->_update_inv_full.obj_counts = malloc((size_t)capacity * sizeof(int));
-        assert(out->_update_inv_full.obj_ids);
-        assert(out->_update_inv_full.obj_counts);
+        out->_update_inv_full.obj_ids = ToriMem_Alloc(ToriMem_Net(), (size_t)capacity * sizeof(int));
+        out->_update_inv_full.obj_counts =
+            ToriMem_Alloc(ToriMem_Net(), (size_t)capacity * sizeof(int));
         for( int i = 0; i < capacity; i++ )
             osrs230_read_inv_slot(
                 &cur, &out->_update_inv_full.obj_ids[i], &out->_update_inv_full.obj_counts[i]);
@@ -293,8 +292,8 @@ osrs230_parse(
                 out->_update_inv_full.inv_id,
                 capacity,
                 len);
-            free(out->_update_inv_full.obj_ids);
-            free(out->_update_inv_full.obj_counts);
+            ToriMem_Free(ToriMem_Net(), out->_update_inv_full.obj_ids);
+            ToriMem_Free(ToriMem_Net(), out->_update_inv_full.obj_counts);
             out->_update_inv_full.obj_ids = NULL;
             out->_update_inv_full.obj_counts = NULL;
             out->_update_inv_full.size = 0;
@@ -321,10 +320,8 @@ osrs230_parse(
             return 0;
         /* Smallest record is 4 bytes (1 slot + 1 count + 2 obj). */
         max_entries = (len - cur.rpos) / 4 + 1;
-        out->_update_inv_partial.entries = (struct PktUpdateInvPartialEntry*)malloc(
-            (size_t)max_entries * sizeof(struct PktUpdateInvPartialEntry));
-        if( !out->_update_inv_partial.entries )
-            return 0;
+        out->_update_inv_partial.entries = (struct PktUpdateInvPartialEntry*)ToriMem_Alloc(
+            ToriMem_Net(), (size_t)max_entries * sizeof(struct PktUpdateInvPartialEntry));
         while( cur.rpos < len && written < max_entries )
         {
             struct PktUpdateInvPartialEntry* entry = &out->_update_inv_partial.entries[written];
@@ -342,7 +339,7 @@ osrs230_parse(
                 len,
                 cur.rpos,
                 written);
-            free(out->_update_inv_partial.entries);
+            ToriMem_Free(ToriMem_Net(), out->_update_inv_partial.entries);
             out->_update_inv_partial.entries = NULL;
             return 0;
         }
@@ -362,8 +359,7 @@ osrs230_parse(
         /* The leading byte is the chat type. This revision's packet has no
          * optional sender field, so `name` stays NULL. */
         out->_message_game.type = data[0];
-        out->_message_game.text = malloc((size_t)text_len + 1);
-        assert(out->_message_game.text);
+        out->_message_game.text = ToriMem_Alloc(ToriMem_Net(), (size_t)text_len + 1);
         memcpy(out->_message_game.text, data + 1, (size_t)text_len);
         out->_message_game.text[text_len] = '\0';
         return 1;

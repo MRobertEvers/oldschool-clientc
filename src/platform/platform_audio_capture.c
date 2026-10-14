@@ -1,4 +1,5 @@
 #include "platform/platform_audio_capture.h"
+#include "mem/torirs_mem.h"
 
 #include "audio/torirs_audio.h"
 #include "log/torirs_log.h"
@@ -78,14 +79,12 @@ PlatformAudioCapture_Open(
         return NULL;
     }
 
-    capture = calloc(1, sizeof(*capture));
-    assert(capture);
+    capture = ToriMem_Calloc(ToriMem_Audio(), 1, sizeof(*capture));
     capture->file = file;
     capture->sample_rate = sample_rate;
     capture->ring_frames = sample_rate * ring_seconds;
-    capture->ring =
-        calloc((size_t)capture->ring_frames * TORIRS_AUDIO_CHANNELS, sizeof(int16_t));
-    assert(capture->ring);
+    capture->ring = ToriMem_Calloc(
+        ToriMem_Audio(), (size_t)capture->ring_frames * TORIRS_AUDIO_CHANNELS, sizeof(int16_t));
     write_header(capture->file, sample_rate);
     TORIRS_REPORT(
         "audio: capturing to %s via %d-frame asynchronous ring\n",
@@ -194,6 +193,6 @@ PlatformAudioCapture_Close(struct PlatformAudioCapture* capture)
     fseek(capture->file, 40, SEEK_SET);
     fwrite(&data_bytes, 4, 1, capture->file);
     fclose(capture->file);
-    free(capture->ring);
-    free(capture);
+    ToriMem_Free(ToriMem_Audio(), capture->ring);
+    ToriMem_Free(ToriMem_Audio(), capture);
 }

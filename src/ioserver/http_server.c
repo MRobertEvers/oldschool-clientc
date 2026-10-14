@@ -1,4 +1,5 @@
 #include "http_server.h"
+#include "mem/torirs_mem.h"
 #include <assert.h>
 
 /* mingw-w64 (see src/platform/sockstream.c for the same split on the client
@@ -129,7 +130,7 @@ client_reset(struct HttpClient* client)
 {
     if( client->fd != SOCK_INVALID )
         close(client->fd);
-    free(client->buf);
+    ToriMem_Free(ToriMem_Net(), client->buf);
     client->fd = SOCK_INVALID;
     client->buf = NULL;
     client->len = 0;
@@ -150,8 +151,7 @@ client_append(
             cap *= 2;
         if( cap > HTTP_MAX_BODY + HTTP_MAX_HEADERS )
             return -1;
-        grown = realloc(client->buf, (size_t)cap);
-        assert(grown);
+        grown = ToriMem_Realloc(ToriMem_Net(), client->buf, (size_t)cap);
         client->buf = grown;
         client->cap = cap;
     }
@@ -465,7 +465,7 @@ client_try_request(
 
     rc = send_response(client->fd, &res);
     if( res.owns_body )
-        free(res.body);
+        ToriMem_Free(ToriMem_Net(), res.body); /* every owned body is net's (http_server.h) */
 
     /* Consume the request, keeping any pipelined bytes that followed it. */
     memmove(client->buf, client->buf + total, (size_t)(client->len - total));

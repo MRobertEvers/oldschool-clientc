@@ -1,4 +1,5 @@
 #include "plugin/porcelain/torirs_porcelain.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <stddef.h>
@@ -2070,7 +2071,7 @@ mobile_chat_stone_at_height(
     width = src_w * height / src_h;
     if( width <= 0 )
         return NULL;
-    sprite = malloc((size_t)src_w * (size_t)src_h * sizeof(*sprite));
+    sprite = ToriMem_Alloc(ToriMem_Plugins(), (size_t)src_w * (size_t)src_h * sizeof(*sprite));
     assert(sprite);
     if( !g_api->assets.image_pixels(
             g_api,
@@ -2080,13 +2081,13 @@ mobile_chat_stone_at_height(
             &copied) ||
         copied != (size_t)src_w * (size_t)src_h )
     {
-        free(sprite);
+        ToriMem_Free(ToriMem_Plugins(), sprite);
         return NULL;
     }
-    stone = malloc((size_t)width * (size_t)height * sizeof(*stone));
+    stone = ToriMem_Alloc(ToriMem_Plugins(), (size_t)width * (size_t)height * sizeof(*stone));
     assert(stone);
     mobile_scale_pixels(sprite, src_w, src_h, stone, width, height);
-    free(sprite);
+    ToriMem_Free(ToriMem_Plugins(), sprite);
     *stone_w = width;
     /* The end, reduced by the same ratio as the picture it was measured on, so
      * the number never has to be restated against a hardcoded source width. */
@@ -2123,13 +2124,13 @@ mobile_compose_classic_bar(
 
     /* CLEAR, and the stones are the only thing written over it: the band is a
      * row of buttons standing on the parchment, not a slab with buttons in it. */
-    out = calloc((size_t)width * (size_t)height, sizeof(*out));
+    out = ToriMem_Calloc(ToriMem_Plugins(), (size_t)width * (size_t)height, sizeof(*out));
     assert(out);
     for( int i = 0; i < cell_count; i++ )
         mobile_cut_stone(out, width, height, &cell[i], stone, stone_w, height, cap);
     handle = mobile_publish(ctx, name, width, height, out);
-    free(out);
-    free(stone);
+    ToriMem_Free(ToriMem_Plugins(), out);
+    ToriMem_Free(ToriMem_Plugins(), stone);
     return handle;
 }
 
@@ -2168,17 +2169,17 @@ mobile_compose_turned(
     if( !g_api->assets.image_size(g_api, src, &src_w, &src_h) || src_w <= 0 || src_h <= 0 )
         return handle;
 
-    px = malloc((size_t)src_w * (size_t)src_h * sizeof(*px));
+    px = ToriMem_Alloc(ToriMem_Plugins(), (size_t)src_w * (size_t)src_h * sizeof(*px));
     assert(px);
     if( !g_api->assets.image_pixels(g_api, src, px, (size_t)src_w * (size_t)src_h, &copied) ||
         copied != (size_t)src_w * (size_t)src_h )
     {
-        free(px);
+        ToriMem_Free(ToriMem_Plugins(), px);
         return handle;
     }
     /* The turned picture is the source transposed: its width is the source's
      * height, and nothing here assumes the stone is square. */
-    out = malloc((size_t)src_w * (size_t)src_h * sizeof(*out));
+    out = ToriMem_Alloc(ToriMem_Plugins(), (size_t)src_w * (size_t)src_h * sizeof(*out));
     assert(out);
     for( int row = 0; row < src_w; row++ )
     {
@@ -2214,8 +2215,8 @@ mobile_compose_turned(
         }
     }
     handle = mobile_publish(ctx, name, src_h, src_w, out);
-    free(px);
-    free(out);
+    ToriMem_Free(ToriMem_Plugins(), px);
+    ToriMem_Free(ToriMem_Plugins(), out);
     return handle;
 }
 
@@ -2509,7 +2510,7 @@ mobile_compose_window(
         }
     }
 
-    out = malloc((size_t)hole->w * (size_t)hole->h * sizeof(*out));
+    out = ToriMem_Alloc(ToriMem_Plugins(), (size_t)hole->w * (size_t)hole->h * sizeof(*out));
     assert(out);
     for( int row = 0; row < hole->h; row++ )
         for( int col = 0; col < hole->w; col++ )
@@ -2519,7 +2520,7 @@ mobile_compose_window(
             out[(row * hole->w) + col] = own[at] ? 0x00000000u : 0xff000000u;
         }
     handle = mobile_publish(ctx, name, hole->w, hole->h, out);
-    free(out);
+    ToriMem_Free(ToriMem_Plugins(), out);
     return handle;
 }
 
@@ -2594,7 +2595,7 @@ mobile_build_masks(struct MobileCall* ctx)
         return;
     pixels = width * height;
 
-    argb = malloc((size_t)pixels * sizeof(*argb));
+    argb = ToriMem_Alloc(ToriMem_Plugins(), (size_t)pixels * sizeof(*argb));
     assert(argb);
     {
         size_t copied = 0;
@@ -2602,19 +2603,19 @@ mobile_build_masks(struct MobileCall* ctx)
                 g_api, mobile_image(ctx, housing->art), argb, (size_t)pixels, &copied) ||
             copied != (size_t)pixels )
         {
-            free(argb);
+            ToriMem_Free(ToriMem_Plugins(), argb);
             return;
         }
     }
-    solid = malloc((size_t)pixels);
+    solid = ToriMem_Alloc(ToriMem_Plugins(), (size_t)pixels);
     assert(solid);
-    sealed = malloc((size_t)pixels);
+    sealed = ToriMem_Alloc(ToriMem_Plugins(), (size_t)pixels);
     assert(sealed);
-    scratch = malloc((size_t)pixels);
+    scratch = ToriMem_Alloc(ToriMem_Plugins(), (size_t)pixels);
     assert(scratch);
-    seen = malloc((size_t)pixels);
+    seen = ToriMem_Alloc(ToriMem_Plugins(), (size_t)pixels);
     assert(seen);
-    stack = malloc((size_t)pixels * sizeof(*stack));
+    stack = ToriMem_Alloc(ToriMem_Plugins(), (size_t)pixels * sizeof(*stack));
     assert(stack);
 
     /*
@@ -2679,12 +2680,12 @@ mobile_build_masks(struct MobileCall* ctx)
             hole[compass].y);
     }
 
-    free(argb);
-    free(solid);
-    free(sealed);
-    free(scratch);
-    free(seen);
-    free(stack);
+    ToriMem_Free(ToriMem_Plugins(), argb);
+    ToriMem_Free(ToriMem_Plugins(), solid);
+    ToriMem_Free(ToriMem_Plugins(), sealed);
+    ToriMem_Free(ToriMem_Plugins(), scratch);
+    ToriMem_Free(ToriMem_Plugins(), seen);
+    ToriMem_Free(ToriMem_Plugins(), stack);
 }
 
 /*
@@ -2725,20 +2726,20 @@ mobile_compose_scaled(
     if( !g_api->assets.image_size(g_api, src, &src_w, &src_h) || src_w <= 0 || src_h <= 0 )
         return handle;
 
-    px = malloc((size_t)src_w * (size_t)src_h * sizeof(*px));
+    px = ToriMem_Alloc(ToriMem_Plugins(), (size_t)src_w * (size_t)src_h * sizeof(*px));
     assert(px);
     if( !g_api->assets.image_pixels(g_api, src, px, (size_t)src_w * (size_t)src_h, &copied) ||
         copied != (size_t)src_w * (size_t)src_h )
     {
-        free(px);
+        ToriMem_Free(ToriMem_Plugins(), px);
         return handle;
     }
-    out = malloc((size_t)width * (size_t)height * sizeof(*out));
+    out = ToriMem_Alloc(ToriMem_Plugins(), (size_t)width * (size_t)height * sizeof(*out));
     assert(out);
     mobile_scale_pixels(px, src_w, src_h, out, width, height);
     handle = mobile_publish(ctx, name, width, height, out);
-    free(px);
-    free(out);
+    ToriMem_Free(ToriMem_Plugins(), px);
+    ToriMem_Free(ToriMem_Plugins(), out);
     return handle;
 }
 
@@ -2822,7 +2823,7 @@ mobile_compose_nine_slice(
         return handle;
     for( int i = 0; i < 9; i++ )
     {
-        px[i] = malloc((size_t)cell * (size_t)cell * sizeof(**px));
+        px[i] = ToriMem_Alloc(ToriMem_Plugins(), (size_t)cell * (size_t)cell * sizeof(**px));
         assert(px[i]);
         size_t copied = 0;
         if( !g_api->assets.image_pixels(
@@ -2834,11 +2835,11 @@ mobile_compose_nine_slice(
             copied != (size_t)cell * (size_t)cell )
         {
             for( int j = 0; j <= i; j++ )
-                free(px[j]);
+                ToriMem_Free(ToriMem_Plugins(), px[j]);
             return handle;
         }
     }
-    out = malloc((size_t)width * (size_t)height * sizeof(*out));
+    out = ToriMem_Alloc(ToriMem_Plugins(), (size_t)width * (size_t)height * sizeof(*out));
     assert(out);
     for( int y = 0; y < height; y++ )
     {
@@ -2853,8 +2854,8 @@ mobile_compose_nine_slice(
     }
     handle = mobile_publish(ctx, name, width, height, out);
     for( int i = 0; i < 9; i++ )
-        free(px[i]);
-    free(out);
+        ToriMem_Free(ToriMem_Plugins(), px[i]);
+    ToriMem_Free(ToriMem_Plugins(), out);
     return handle;
 }
 
@@ -3377,7 +3378,7 @@ mobile_paper_fetch(
         return 0;
     if( !g_api->assets.image_size(g_api, image, &out->w, &out->h) || out->w <= 0 || out->h <= 0 )
         return 0;
-    out->px = malloc((size_t)out->w * (size_t)out->h * sizeof(*out->px));
+    out->px = ToriMem_Alloc(ToriMem_Plugins(), (size_t)out->w * (size_t)out->h * sizeof(*out->px));
     assert(out->px);
     {
         size_t copied = 0;
@@ -3385,7 +3386,7 @@ mobile_paper_fetch(
                 g_api, image, out->px, (size_t)out->w * (size_t)out->h, &copied) ||
             copied != (size_t)out->w * (size_t)out->h )
         {
-            free(out->px);
+            ToriMem_Free(ToriMem_Plugins(), out->px);
             out->px = NULL;
             return 0;
         }
@@ -3650,7 +3651,7 @@ mobile_compose_paper(
 
     /* Zeroed, because the corners are the only pieces that cover their box
      * exactly and a tear leaves transparent pixels behind it. */
-    out = calloc((size_t)width * (size_t)height, sizeof(*out));
+    out = ToriMem_Calloc(ToriMem_Plugins(), (size_t)width * (size_t)height, sizeof(*out));
     assert(out);
 
     mobile_paper_tile_fill(
@@ -3672,20 +3673,20 @@ mobile_compose_paper(
         out, width, &corner[3], 1, 0, width - corner_w, height - corner_h, width, height);
 
     handle = mobile_publish(ctx, name, width, height, out);
-    free(out);
+    ToriMem_Free(ToriMem_Plugins(), out);
 
 done:
     for( int i = 0; i < 4; i++ )
-        free(corner[i].px);
+        ToriMem_Free(ToriMem_Plugins(), corner[i].px);
     for( int i = 0; i < MOBILE_PAPER_EDGE_VARIANTS_MAX; i++ )
     {
-        free(top[i].px);
-        free(bottom[i].px);
-        free(left[i].px);
-        free(right[i].px);
+        ToriMem_Free(ToriMem_Plugins(), top[i].px);
+        ToriMem_Free(ToriMem_Plugins(), bottom[i].px);
+        ToriMem_Free(ToriMem_Plugins(), left[i].px);
+        ToriMem_Free(ToriMem_Plugins(), right[i].px);
     }
     for( int i = 0; i < MOBILE_PAPER_FILL_VARIANTS; i++ )
-        free(fill[i].px);
+        ToriMem_Free(ToriMem_Plugins(), fill[i].px);
     return handle;
 }
 

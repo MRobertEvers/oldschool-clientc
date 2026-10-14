@@ -1,4 +1,5 @@
 #include "engine/dat2/dat2_tasks.h"
+#include "mem/torirs_mem.h"
 
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
@@ -87,7 +88,7 @@ Task_Dat2HealthbarLoad_Run(
         PT_EXIT(&task->pt);
     }
 
-    types = malloc((size_t)count * sizeof(*types));
+    types = ToriMem_Alloc(ToriMem_Assets(), (size_t)count * sizeof(*types));
     assert(types);
     for( int i = 0; i < count; i++ )
         RS_Healthbars_Defaults(&types[i]);
@@ -124,7 +125,7 @@ Task_Dat2HealthbarLoad_Run(
 
     if( !RS_Healthbars_SetTypes(task->healthbars, types, count) )
     {
-        free(types);
+        ToriMem_Free(ToriMem_Assets(), types);
         PT_EXIT(&task->pt);
     }
     TORIRS_LOG("healthbar load: %d types (%d records)\n", count, decoded);
@@ -163,7 +164,7 @@ Task_Dat2HealthbarLoad_Run(
 static void
 Task_Dat2HealthbarLoad_Free(struct ToriRS_Task* task_base)
 {
-    free(task_base);
+    ToriMem_Free(ToriMem_Assets(), task_base);
 }
 
 static struct ToriRS_TaskVTable Task_Dat2HealthbarLoad_VTable = {
@@ -179,7 +180,7 @@ CreateTask_Dat2HealthbarLoad(
     assert(provider);
     assert(healthbars);
 
-    struct Task_Dat2HealthbarLoad* task = calloc(1, sizeof(*task));
+    struct Task_Dat2HealthbarLoad* task = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_Dat2HealthbarLoad_VTable;
     strcpy(task->task.name, "Dat2HealthbarLoad");

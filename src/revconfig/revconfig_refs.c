@@ -1,4 +1,5 @@
 #include "revconfig_refs.h"
+#include "mem/torirs_mem.h"
 
 #include "revconfig_load.h"
 
@@ -19,7 +20,7 @@ RevConfigRefs_Free(struct RevConfigRefs* refs)
 {
     if( !refs )
         return;
-    free(refs->entries);
+    ToriMem_Free(ToriMem_Ui(), refs->entries);
     memset(refs, 0, sizeof(*refs));
 }
 
@@ -64,7 +65,7 @@ refs_set(
         {
             int grown = refs->capacity == 0 ? 32 : refs->capacity * 2;
             struct RevConfigRefEntry* items =
-                realloc(refs->entries, (size_t)grown * sizeof(*items));
+                ToriMem_Realloc(ToriMem_Ui(), refs->entries, (size_t)grown * sizeof(*items));
             assert(items);
             refs->entries = items;
             refs->capacity = grown;

@@ -26,6 +26,7 @@
  * the GPI init block that rides inside the login REBUILD and reset with it.
  */
 
+#include "mem/torirs_mem.h"
 #include "net/bitbuffer.h"
 #include "torirs_env.h"
 #include "net/rev/packets/pkt_npc_info.h"
@@ -593,7 +594,7 @@ player_appearance_block(
     block_len = (128 - data[(*pos)++]) & 0xff;
     if( *pos + block_len > len )
         return 0;
-    copy = (uint8_t*)malloc((size_t)block_len);
+    copy = (uint8_t*)ToriMem_Alloc(ToriMem_Net(), (size_t)block_len);
     assert(copy);
     for( int i = 0; i < block_len; i++ )
         copy[i] = (uint8_t)((data[*pos + i] - 128) & 0xff);
@@ -603,7 +604,7 @@ player_appearance_block(
 
         if( !op )
         {
-            free(copy);
+            ToriMem_Free(ToriMem_Net(), copy);
             return 0;
         }
         op->_appearance.appearance = copy;
@@ -767,7 +768,7 @@ tail_string(uint8_t const* data, int len, int* pos)
 
     while( *pos < len && data[*pos] != 0 )
         (*pos)++;
-    text = (char*)malloc((size_t)(*pos - start) + 1);
+    text = (char*)ToriMem_Alloc(ToriMem_Net(), (size_t)(*pos - start) + 1);
     assert(text);
     memcpy(text, data + start, (size_t)(*pos - start));
     text[*pos - start] = '\0';
@@ -833,7 +834,7 @@ player_extended(
             for( int option = 0; option < 3; option++ )
             {
                 char* ignored = tail_string(data, len, &pos);
-                free(ignored);
+                ToriMem_Free(ToriMem_Net(), ignored);
             }
         }
 
@@ -1025,7 +1026,7 @@ player_extended(
 
             if( payload_len > 0 && pos + payload_len <= len )
             {
-                payload = (uint8_t*)malloc((size_t)payload_len);
+                payload = (uint8_t*)ToriMem_Alloc(ToriMem_Net(), (size_t)payload_len);
                 assert(payload);
                 for( int b = 0; b < payload_len; b++ )
                     payload[payload_len - b - 1] = data[pos + b];
@@ -1048,7 +1049,7 @@ player_extended(
                     op->_chat.data = payload;
                 }
                 else
-                    free(payload);
+                    ToriMem_Free(ToriMem_Net(), payload);
             }
         }
         if( (flag & V5_PLAYER_TRANSPARENCY) != 0 )
@@ -1130,7 +1131,7 @@ player_extended(
 
             while( pos < len && data[pos] != 0 )
                 pos++;
-            text = (char*)malloc((size_t)(pos - start) + 1);
+            text = (char*)ToriMem_Alloc(ToriMem_Net(), (size_t)(pos - start) + 1);
             assert(text);
             memcpy(text, data + start, (size_t)(pos - start));
             text[pos - start] = '\0';
@@ -1141,7 +1142,7 @@ player_extended(
                 if( op )
                     op->_say.text = text;
                 else
-                    free(text);
+                    ToriMem_Free(ToriMem_Net(), text);
             }
         }
         if( (flag & V5_PLAYER_SEQUENCE) != 0 )
@@ -1534,7 +1535,7 @@ npc_extended(
 
             while( pos < len && data[pos] != 0 )
                 pos++;
-            text = (char*)malloc((size_t)(pos - start) + 1);
+            text = (char*)ToriMem_Alloc(ToriMem_Net(), (size_t)(pos - start) + 1);
             assert(text);
             memcpy(text, data + start, (size_t)(pos - start));
             text[pos - start] = '\0';
@@ -1545,7 +1546,7 @@ npc_extended(
                 if( op )
                     op->_say.text = text;
                 else
-                    free(text);
+                    ToriMem_Free(ToriMem_Net(), text);
             }
         }
         if( (flag & V5_NPC_TINTING) != 0 )
@@ -1700,7 +1701,7 @@ npc_extended(
             if( op )
                 op->_name_change.name = name;
             else
-                free(name);
+                ToriMem_Free(ToriMem_Net(), name);
         }
         if( (flag & V5_NPC_TRANSFORMATION) != 0 )
         {

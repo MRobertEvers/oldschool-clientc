@@ -14,6 +14,7 @@
  * rather than lazily per id.
  */
 #include "torirs_server_servpack.h"
+#include "mem/torirs_mem.h"
 #include "torirs_server.h"
 #include <assert.h>
 
@@ -155,11 +156,8 @@ require_slot(int obj_id)
     if( g_require_count == g_require_capacity )
     {
         int capacity = g_require_capacity ? g_require_capacity * 2 : 256;
-        struct ToriRSServerObjRequire* grown =
-            (struct ToriRSServerObjRequire*)realloc(g_requires, (size_t)capacity * sizeof(*grown));
-
-        if( !grown )
-            return NULL;
+        struct ToriRSServerObjRequire* grown = (struct ToriRSServerObjRequire*)ToriMem_Realloc(
+            ToriMem_ServerContent(), g_requires, (size_t)capacity * sizeof(*grown));
         g_requires = grown;
         g_require_capacity = capacity;
     }
@@ -357,11 +355,8 @@ add_param(
     if( g_obj_param_count == g_obj_param_capacity )
     {
         int capacity = g_obj_param_capacity ? g_obj_param_capacity * 2 : 4096;
-        struct ObjParam* grown =
-            (struct ObjParam*)realloc(g_obj_params, (size_t)capacity * sizeof(*grown));
-
-        if( !grown )
-            return;
+        struct ObjParam* grown = (struct ObjParam*)ToriMem_Realloc(
+            ToriMem_ServerContent(), g_obj_params, (size_t)capacity * sizeof(*grown));
         g_obj_params = grown;
         g_obj_param_capacity = capacity;
     }
@@ -369,7 +364,7 @@ add_param(
     row->obj_id = obj_id;
     row->key = key;
     row->ival = ival;
-    row->sval = sval ? strdup(sval) : NULL;
+    row->sval = sval ? ToriMem_Strdup(ToriMem_ServerContent(), sval) : NULL;
 }
 
 static void
@@ -457,7 +452,7 @@ ToriRSServer_ObjInfoParamOverlay(
         else
         {
             row->ival = value;
-            free(row->sval);
+            ToriMem_Free(ToriMem_ServerContent(), row->sval);
             row->sval = NULL;
             return;
         }
@@ -466,11 +461,8 @@ ToriRSServer_ObjInfoParamOverlay(
     if( g_obj_param_count == g_obj_param_capacity )
     {
         int capacity = g_obj_param_capacity ? g_obj_param_capacity * 2 : 4096;
-        struct ObjParam* grown =
-            (struct ObjParam*)realloc(g_obj_params, (size_t)capacity * sizeof(*grown));
-
-        if( !grown )
-            return;
+        struct ObjParam* grown = (struct ObjParam*)ToriMem_Realloc(
+            ToriMem_ServerContent(), g_obj_params, (size_t)capacity * sizeof(*grown));
         g_obj_params = grown;
         g_obj_param_capacity = capacity;
     }
@@ -495,10 +487,12 @@ record(
     if( obj_id < 0 || obj_id >= g_obj_count )
         return;
     entry = &g_objs[obj_id];
-    entry->name = (obj->name && strcmp(obj->name, "null") != 0) ? strdup(obj->name) : NULL;
+    entry->name = (obj->name && strcmp(obj->name, "null") != 0)
+                      ? ToriMem_Strdup(ToriMem_ServerContent(), obj->name)
+                      : NULL;
     /* Copied for the same reason the name is: the decoder's record is freed
      * behind this call. `oc_desc` is the only reader. */
-    entry->desc = obj->examine ? strdup(obj->examine) : NULL;
+    entry->desc = obj->examine ? ToriMem_Strdup(ToriMem_ServerContent(), obj->examine) : NULL;
     entry->wearpos = obj->wearpos_1;
     entry->wearpos_2 = obj->wearpos_2;
     entry->wearpos_3 = obj->wearpos_3;
@@ -533,7 +527,8 @@ record(
     entry->placeholder_id = obj->placeholder_id;
     entry->placeholder_template = obj->placeholder_template_id;
     for( int i = 0; i < 5; i++ )
-        entry->if_ops[i] = obj->if_actions[i] ? strdup(obj->if_actions[i]) : NULL;
+        entry->if_ops[i] =
+            obj->if_actions[i] ? ToriMem_Strdup(ToriMem_ServerContent(), obj->if_actions[i]) : NULL;
 
     /* Opcode 94, the general item category. Two things read it: the
      * `[opheld<n>,_<category>]` trigger, which is how content addresses "every
@@ -578,7 +573,8 @@ ToriRSServer_ObjInfoLoad(struct RSCache_ServerPack* pack)
         if( file_id + 1 > g_obj_count )
             g_obj_count = file_id + 1;
     }
-    g_objs = calloc((size_t)(g_obj_count > 0 ? g_obj_count : 1), sizeof(*g_objs));
+    g_objs = ToriMem_Calloc(
+        ToriMem_ServerContent(), (size_t)(g_obj_count > 0 ? g_obj_count : 1), sizeof(*g_objs));
     assert(g_objs);
     for( int i = 0; i < g_obj_count; i++ )
     {
@@ -625,14 +621,14 @@ ToriRSServer_ObjInfoLoad(struct RSCache_ServerPack* pack)
             continue;
         if( real < 0 || real >= g_obj_count || !g_objs[real].name )
             continue;
-        g_objs[id].name = strdup(g_objs[real].name);
+        g_objs[id].name = ToriMem_Strdup(ToriMem_ServerContent(), g_objs[real].name);
         /* And its examine text, which a note record states no more than it
          * states a name — the whole of `[cert_rake]` is `certlink` plus
          * `certtemplate`. The real client composes "Swapping this note at any
          * bank…" from the template; borrowing the item's own line is the
          * closest a server-side `oc_desc` can get without inventing text. */
         if( !g_objs[id].desc && g_objs[real].desc )
-            g_objs[id].desc = strdup(g_objs[real].desc);
+            g_objs[id].desc = ToriMem_Strdup(ToriMem_ServerContent(), g_objs[real].desc);
     }
 
     /* A bank placeholder is `null` in the cache for the same reason a note is,
@@ -647,9 +643,9 @@ ToriRSServer_ObjInfoLoad(struct RSCache_ServerPack* pack)
             continue;
         if( real < 0 || real >= g_obj_count || !g_objs[real].name )
             continue;
-        g_objs[id].name = strdup(g_objs[real].name);
+        g_objs[id].name = ToriMem_Strdup(ToriMem_ServerContent(), g_objs[real].name);
         if( !g_objs[id].desc && g_objs[real].desc )
-            g_objs[id].desc = strdup(g_objs[real].desc);
+            g_objs[id].desc = ToriMem_Strdup(ToriMem_ServerContent(), g_objs[real].desc);
     }
 
     ToriRSServer_ServPackKindFree(&records);
@@ -665,24 +661,24 @@ ToriRSServer_ObjInfoFree(void)
 {
     for( int i = 0; i < g_obj_count; i++ )
     {
-        free((void*)g_objs[i].name);
-        free((void*)g_objs[i].desc);
+        ToriMem_Free(ToriMem_ServerContent(), (void*)g_objs[i].name);
+        ToriMem_Free(ToriMem_ServerContent(), (void*)g_objs[i].desc);
         for( int op = 0; op < 5; op++ )
-            free((void*)g_objs[i].if_ops[op]);
+            ToriMem_Free(ToriMem_ServerContent(), (void*)g_objs[i].if_ops[op]);
     }
-    free(g_objs);
+    ToriMem_Free(ToriMem_ServerContent(), g_objs);
     g_objs = NULL;
     g_obj_count = 0;
 
-    free(g_requires);
+    ToriMem_Free(ToriMem_ServerContent(), g_requires);
     g_requires = NULL;
     g_require_count = 0;
     g_require_capacity = 0;
     g_require_from_cache = 0;
 
     for( int i = 0; i < g_obj_param_count; i++ )
-        free(g_obj_params[i].sval);
-    free(g_obj_params);
+        ToriMem_Free(ToriMem_ServerContent(), g_obj_params[i].sval);
+    ToriMem_Free(ToriMem_ServerContent(), g_obj_params);
     g_obj_params = NULL;
     g_obj_param_count = 0;
     g_obj_param_capacity = 0;

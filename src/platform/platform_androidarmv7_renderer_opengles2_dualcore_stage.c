@@ -6,6 +6,8 @@
  */
 #include "platform/platform_androidarmv7_renderer_opengles2_dualcore_stage.h"
 
+#include "mem/torirs_mem.h"
+
 #include "toridraw.h"
 #include "toridraw_model.h"
 #include "toridraw_raster_kernel.h"
@@ -123,15 +125,17 @@ GLES2DualCoreStageArena_Init(struct GLES2DualCoreStageArena* arena)
     arena->lead = GLES2_DUALCORE_STAGE_LEAD_DEFAULT;
 }
 
+/* Every array the arena holds is RENDER's, whoever sized it first (the
+ * renderer here, or a chain capture / replay that pre-sizes it). */
 void
 GLES2DualCoreStageArena_Free(struct GLES2DualCoreStageArena* arena)
 {
     if( !arena )
         return;
-    free(arena->results);
-    free(arena->claims);
-    free(arena->orders);
-    free(arena->feed);
+    ToriMem_Free(ToriMem_Render(), arena->results);
+    ToriMem_Free(ToriMem_Render(), arena->claims);
+    ToriMem_Free(ToriMem_Render(), arena->orders);
+    ToriMem_Free(ToriMem_Render(), arena->feed);
     memset(arena, 0, sizeof(*arena));
 }
 
@@ -153,7 +157,7 @@ GLES2DualCoreStageArena_BeginFrame(
          * the next one will be. */
         uint32_t const orders = arena->order_capacity ? arena->order_capacity * 2u
                                                       : GLES2_DUALCORE_STAGE_ORDER_CAPACITY_MIN;
-        int32_t* grown = (int32_t*)realloc(arena->orders, (size_t)orders * sizeof(*grown));
+        int32_t* grown = (int32_t*)ToriMem_Realloc(ToriMem_Render(), arena->orders, (size_t)orders * sizeof(*grown));
         assert(grown);
         arena->orders = grown;
         arena->order_capacity = orders;
@@ -162,17 +166,17 @@ GLES2DualCoreStageArena_BeginFrame(
     }
     if( !arena->orders )
     {
-        arena->orders = (int32_t*)malloc(
+        arena->orders = (int32_t*)ToriMem_Alloc(ToriMem_Render(), 
             (size_t)GLES2_DUALCORE_STAGE_ORDER_CAPACITY_MIN * sizeof(*arena->orders));
         assert(arena->orders);
         arena->order_capacity = GLES2_DUALCORE_STAGE_ORDER_CAPACITY_MIN;
     }
     if( model_commands > arena->result_capacity )
     {
-        struct GLES2DualCoreStageResult* grown = (struct GLES2DualCoreStageResult*)realloc(
+        struct GLES2DualCoreStageResult* grown = (struct GLES2DualCoreStageResult*)ToriMem_Realloc(ToriMem_Render(), 
             arena->results, (size_t)model_commands * sizeof(*grown));
         atomic_uint* claims =
-            (atomic_uint*)realloc(arena->claims, (size_t)model_commands * sizeof(*claims));
+            (atomic_uint*)ToriMem_Realloc(ToriMem_Render(), arena->claims, (size_t)model_commands * sizeof(*claims));
         assert(grown);
         assert(claims);
         arena->results = grown;
@@ -203,7 +207,7 @@ GLES2DualCoreStageArena_BeginFrame(
         }
         if( want > arena->feed_capacity )
         {
-            struct ToriRS_RenderCommand* grown = (struct ToriRS_RenderCommand*)realloc(
+            struct ToriRS_RenderCommand* grown = (struct ToriRS_RenderCommand*)ToriMem_Realloc(ToriMem_Render(), 
                 arena->feed, (size_t)want * sizeof(*grown));
             assert(grown);
             arena->feed = grown;

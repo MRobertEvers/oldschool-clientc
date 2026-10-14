@@ -1,4 +1,5 @@
 #include "task_static_sprites_load.h"
+#include "mem/torirs_mem.h"
 
 #include "engine/cache_provider.h"
 #include "engine/static_sprites.h"
@@ -79,7 +80,7 @@ Task_StaticSpritesLoad_Run(
 static void
 Task_StaticSpritesLoad_Free(struct ToriRS_Task* base)
 {
-    free(base);
+    ToriMem_Free(ToriMem_Ui(), base);
 }
 
 static struct ToriRS_TaskVTable Task_StaticSpritesLoad_VTable = {
@@ -97,7 +98,7 @@ CreateTask_StaticSpritesLoad(
     assert(provider);
     assert(bridge);
 
-    task = calloc(1, sizeof(*task));
+    task = ToriMem_Calloc(ToriMem_Ui(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_StaticSpritesLoad_VTable;
     strncpy(task->task.name, "StaticSpritesLoad", sizeof(task->task.name) - 1);

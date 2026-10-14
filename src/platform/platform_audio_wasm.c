@@ -56,6 +56,7 @@
 #if defined(__EMSCRIPTEN__)
 
 #include "platform/platform_audio.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <emscripten.h>
@@ -188,8 +189,7 @@ struct PlatformAudio
 struct PlatformAudio*
 PlatformAudio_New(void)
 {
-    struct PlatformAudio* audio = calloc(1, sizeof(*audio));
-    assert(audio);
+    struct PlatformAudio* audio = ToriMem_Calloc(ToriMem_Audio(), 1, sizeof(*audio));
     audio->sample_rate = TORIRS_AUDIO_SAMPLE_RATE;
     ToriRS_Mixer_Init(&audio->mixer, audio->sample_rate);
     return audio;
@@ -213,7 +213,7 @@ PlatformAudio_Free(struct PlatformAudio* audio)
     if( !audio )
         return;
     ToriRS_Mixer_Free(&audio->mixer);
-    free(audio);
+    ToriMem_Free(ToriMem_Audio(), audio);
 }
 
 void

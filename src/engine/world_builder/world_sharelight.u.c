@@ -118,6 +118,22 @@ static int g_slh_bucket_cap;
 static int g_slh_next_cap;
 static uint32_t g_slh_build;
 
+/* Back to empty: the next slh_reserve grows it again. Called with the
+ * builder's transient maps, so the table lives one build, not the process. */
+static void
+slh_release(void)
+{
+    ToriMem_Free(ToriMem_Scene(), g_slh_head);
+    ToriMem_Free(ToriMem_Scene(), g_slh_serial);
+    ToriMem_Free(ToriMem_Scene(), g_slh_next);
+    g_slh_head = NULL;
+    g_slh_serial = NULL;
+    g_slh_next = NULL;
+    g_slh_bucket_cap = 0;
+    g_slh_next_cap = 0;
+    g_slh_build = 0;
+}
+
 static inline uint32_t
 slh_hash(
     int x,
@@ -138,20 +154,20 @@ slh_reserve(
         want_buckets <<= 1;
     if( want_buckets > g_slh_bucket_cap )
     {
-        free(g_slh_head);
-        free(g_slh_serial);
-        g_slh_head = malloc((size_t)want_buckets * sizeof(*g_slh_head));
+        ToriMem_Free(ToriMem_Scene(), g_slh_head);
+        ToriMem_Free(ToriMem_Scene(), g_slh_serial);
+        g_slh_head = ToriMem_Alloc(ToriMem_Scene(), (size_t)want_buckets * sizeof(*g_slh_head));
         assert(g_slh_head);
-        g_slh_serial = calloc((size_t)want_buckets, sizeof(*g_slh_serial));
+        g_slh_serial = ToriMem_Calloc(ToriMem_Scene(), (size_t)want_buckets, sizeof(*g_slh_serial));
         assert(g_slh_serial);
         g_slh_bucket_cap = want_buckets;
         g_slh_build = 0;
     }
     if( vertex_count > g_slh_next_cap )
     {
-        free(g_slh_next);
+        ToriMem_Free(ToriMem_Scene(), g_slh_next);
         g_slh_next_cap = vertex_count * 2;
-        g_slh_next = malloc((size_t)g_slh_next_cap * sizeof(*g_slh_next));
+        g_slh_next = ToriMem_Alloc(ToriMem_Scene(), (size_t)g_slh_next_cap * sizeof(*g_slh_next));
         assert(g_slh_next);
     }
 }

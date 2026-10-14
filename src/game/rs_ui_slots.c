@@ -1,4 +1,5 @@
 #include "rs_ui_slots.h"
+#include "mem/torirs_mem.h"
 #include "torirs_env.h"
 
 #include "app.h"
@@ -243,7 +244,7 @@ Task_SlotMountRefresh_Run(
 static void
 Task_SlotMountRefresh_Free(struct ToriRS_Task* base)
 {
-    free(base);
+    ToriMem_Free(ToriMem_Ui(), base);
 }
 
 static struct ToriRS_TaskVTable Task_SlotMountRefresh_VTable = {
@@ -281,7 +282,7 @@ slot_mount(
         return;
     }
 
-    task = calloc(1, sizeof(*task));
+    task = ToriMem_Calloc(ToriMem_Ui(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_SlotMountRefresh_VTable;
     strncpy(task->task.name, "SlotMountRefresh", sizeof(task->task.name) - 1);

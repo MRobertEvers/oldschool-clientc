@@ -98,12 +98,7 @@ proctex_program_put(
     {
         int want = texture_id + 64;
         struct RSCache_Dat2ProcTexture** grown =
-            realloc(bc->proctex_programs, (size_t)want * sizeof(*grown));
-        if( !grown )
-        {
-            RSCache_Dat2ProcTextureFree(program);
-            return;
-        }
+            ToriMem_Realloc(ToriMem_Assets(), bc->proctex_programs, (size_t)want * sizeof(*grown));
         memset(
             grown + bc->proctex_program_capacity,
             0,
@@ -139,12 +134,7 @@ proctex_sprite_put(
     {
         int want = bc->proctex_sprite_capacity ? bc->proctex_sprite_capacity * 2 : 32;
         struct Dat2ProcTexSprite* grown =
-            realloc(bc->proctex_sprites, (size_t)want * sizeof(*grown));
-        if( !grown )
-        {
-            free(argb);
-            return;
-        }
+            ToriMem_Realloc(ToriMem_Assets(), bc->proctex_sprites, (size_t)want * sizeof(*grown));
         bc->proctex_sprites = grown;
         bc->proctex_sprite_capacity = want;
     }
@@ -230,20 +220,20 @@ proctex_resolve_texture(
         return false;
     }
 
-    pixels = calloc((size_t)size * (size_t)size, sizeof(*pixels));
+    pixels = ToriMem_Calloc(ToriMem_Assets(), (size_t)size * (size_t)size, sizeof(*pixels));
     assert(pixels);
 
     gen = ProcTexGenerator_New(proctex_resolve_sprite, proctex_resolve_texture, bc);
     if( !gen )
     {
-        free(pixels);
+        ToriMem_Free(ToriMem_Assets(), pixels);
         return false;
     }
     if( !ProcTexGenerator_Render(gen, program, size, 1.0, pixels, &unsupported, NULL) ||
         unsupported > 0 )
     {
         ProcTexGenerator_Free(gen);
-        free(pixels);
+        ToriMem_Free(ToriMem_Assets(), pixels);
         proctex_sprite_put(bc, cache_key, NULL, 0, 0);
         return false;
     }
@@ -372,7 +362,7 @@ task_dat2_texture_load_clear_packs(struct Task_Dat2TextureLoad* task)
                 RSCache_Dat2SpritePackFree(task->packs[i]);
         }
     }
-    free(task->packs);
+    ToriMem_Free(ToriMem_Assets(), task->packs);
     task->packs = NULL;
     task->def = NULL;
 }
@@ -424,7 +414,8 @@ texture_bake(
         assert(layer->palette_length > 0);
         assert(layer->width > 0 && layer->height > 0);
 
-        adjusted_palette = malloc((size_t)layer->palette_length * sizeof(*adjusted_palette));
+        adjusted_palette = ToriMem_Alloc(
+            ToriMem_Assets(), (size_t)layer->palette_length * sizeof(*adjusted_palette));
         assert(adjusted_palette);
 
         for( pi = 0; pi < layer->palette_length; pi++ )
@@ -495,7 +486,7 @@ texture_bake(
             }
         }
 
-        free(adjusted_palette);
+        ToriMem_Free(ToriMem_Assets(), adjusted_palette);
     }
 
     texture = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*texture));
@@ -529,7 +520,7 @@ texture_from_sprite_packs(
     assert(def->sprite_ids_count > 0);
     assert(dest_size == 64 || dest_size == 128);
 
-    layers = calloc((size_t)def->sprite_ids_count, sizeof(*layers));
+    layers = ToriMem_Calloc(ToriMem_Assets(), (size_t)def->sprite_ids_count, sizeof(*layers));
     assert(layers);
 
     for( i = 0; i < def->sprite_ids_count; i++ )
@@ -559,7 +550,7 @@ texture_from_sprite_packs(
         def->animation_direction,
         def->animation_speed,
         def->average_hsl);
-    free(layers);
+    ToriMem_Free(ToriMem_Assets(), layers);
     return texture;
 }
 
@@ -638,7 +629,8 @@ Task_Dat2TextureSpriteLoad_Run(
     {
         struct RSCache_Dat2Sprite* sprite = &pack->sprites[0];
         int count = sprite->width * sprite->height;
-        int32_t* argb = malloc((size_t)(count > 0 ? count : 1) * sizeof(*argb));
+        int32_t* argb =
+            ToriMem_Alloc(ToriMem_Assets(), (size_t)(count > 0 ? count : 1) * sizeof(*argb));
 
         assert(argb);
         for( int i = 0; i < count; i++ )
@@ -653,9 +645,15 @@ Task_Dat2TextureSpriteLoad_Run(
     PT_END(&task->pt);
 }
 
+static void
+Task_Dat2TextureSpriteLoad_Free(struct ToriRS_Task* task_base)
+{
+    ToriMem_Free(ToriMem_Assets(), task_base);
+}
+
 static struct ToriRS_TaskVTable Task_Dat2TextureSpriteLoad_VTable = {
     .run = Task_Dat2TextureSpriteLoad_Run,
-    .free = NULL,
+    .free = Task_Dat2TextureSpriteLoad_Free,
 };
 
 static struct ToriRS_Task*
@@ -675,7 +673,7 @@ create_sprite_load(
     if( !out_pack && proctex_sprite_get(bc, sprite_id) )
         return NULL;
 
-    task = calloc(1, sizeof(*task));
+    task = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_Dat2TextureSpriteLoad_VTable;
     strcpy(task->task.name, "Dat2TextureSpriteLoad");
@@ -882,7 +880,8 @@ Task_Dat2TextureLoad_Run(
         PT_EXIT(&task->pt);
     }
 
-    task->packs = calloc((size_t)task->def->sprite_ids_count, sizeof(*task->packs));
+    task->packs =
+        ToriMem_Calloc(ToriMem_Assets(), (size_t)task->def->sprite_ids_count, sizeof(*task->packs));
     assert(task->packs);
 
     /* Every layer's sprite, fetched together: the definition named them all.
@@ -924,7 +923,7 @@ Task_Dat2TextureLoad_Free(struct ToriRS_Task* task_base)
 {
     struct Task_Dat2TextureLoad* task = (struct Task_Dat2TextureLoad*)task_base;
     task_dat2_texture_load_clear_packs(task);
-    free(task);
+    ToriMem_Free(ToriMem_Assets(), task);
 }
 
 static struct ToriRS_TaskVTable Task_Dat2TextureLoad_VTable = {
@@ -946,7 +945,7 @@ CreateTask_Dat2TextureLoad(
     if( CacheProvider_TextureHas(provider, texture_id) )
         return NULL;
 
-    task = calloc(1, sizeof(*task));
+    task = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_Dat2TextureLoad_VTable;
     strcpy(task->task.name, "Dat2TextureLoad");

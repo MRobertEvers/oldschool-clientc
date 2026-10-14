@@ -13,6 +13,7 @@
 /* CPU-only retained-pose resolution, shared by renderer and real-chain replay. */
 #include "es2/es2_core.h"
 #include "toridraw_element_id.h"
+#include "mem/torirs_mem.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -105,16 +106,10 @@ es2_static_primary_rebuild(struct TRSPK_Renderer_ES2* renderer)
     uint32_t want = renderer->batch_poses.element_count;
     if( want > renderer->static_primary_capacity )
     {
-        struct ES2StaticPrimary* grown = calloc(want, sizeof(*grown));
-        uint32_t* bits = calloc(((size_t)want + 31) / 32, 4);
-        if( !grown || !bits )
-        {
-            free(grown);
-            free(bits);
-            return;
-        }
-        free(renderer->static_primary);
-        free(renderer->static_primary_bits);
+        struct ES2StaticPrimary* grown = ToriMem_Calloc(ToriMem_Render(), want, sizeof(*grown));
+        uint32_t* bits = ToriMem_Calloc(ToriMem_Render(), ((size_t)want + 31) / 32, 4);
+        ToriMem_Free(ToriMem_Render(), renderer->static_primary);
+        ToriMem_Free(ToriMem_Render(), renderer->static_primary_bits);
         renderer->static_primary = grown;
         renderer->static_primary_bits = bits;
         renderer->static_primary_capacity = want;

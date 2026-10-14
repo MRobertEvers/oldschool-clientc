@@ -97,6 +97,11 @@ enum ToriRSInkwellColour
 void
 ToriRSInkwell_SetDensity(int density);
 
+/** Frees the atlas ToriRSInkwell_SetDensity built (process-wide). Call at
+ *  shutdown, before the exit walk. */
+void
+ToriRSInkwell_Shutdown(void);
+
 /** The square every frame currently is, in CANVAS pixels: points x density.
  *  Whoever places or uploads the marker asks; nobody recomputes the product. */
 int

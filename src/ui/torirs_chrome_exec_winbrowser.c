@@ -3,6 +3,7 @@
  * transport; above it they consume the same local bundle and protocol-1 JSON. */
 
 #include "torirs_chrome_exec.h"
+#include "mem/torirs_mem.h"
 #include "torirs_chrome_mirror.h"
 
 #include "../platform/platform_window.h"
@@ -70,7 +71,7 @@ static struct WinBrowserExec g_winbrowser;
 
 static void json_free(struct WinBrowserJson* json)
 {
-    free(json->data);
+    ToriMem_Free(ToriMem_Ui(), json->data);
     memset(json, 0, sizeof(*json));
 }
 
@@ -92,8 +93,7 @@ static int json_reserve(struct WinBrowserJson* json, size_t extra)
     }
     if( capacity < required || capacity > WINBROWSER_RAW_MAX )
     { json->failed = 1; return 0; }
-    grown = (char*)realloc(json->data, capacity);
-    if( !grown ) { json->failed = 1; return 0; }
+    grown = (char*)ToriMem_Realloc(ToriMem_Ui(), json->data, capacity);
     json->data = grown;
     json->capacity = capacity;
     return 1;
@@ -882,7 +882,7 @@ ToriRSChromeExec_Browser(void* platform)
 {
     struct ToriRSChromeExec exec;
     memset(&exec, 0, sizeof(exec));
-    free(g_winbrowser.page_json);
+    ToriMem_Free(ToriMem_Ui(), g_winbrowser.page_json);
     memset(&g_winbrowser, 0, sizeof(g_winbrowser));
     g_winbrowser.platform = (struct PlatformWindow*)platform;
     g_winbrowser.panel = -1;

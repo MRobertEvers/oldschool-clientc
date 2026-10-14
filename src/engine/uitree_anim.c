@@ -1,4 +1,5 @@
 #include "uitree_anim.h"
+#include "mem/torirs_mem.h"
 
 #include "engine/cache_provider.h"
 #include "perf/torirs_perf.h"
@@ -25,7 +26,7 @@ widget_pose_free(void* data)
     struct WidgetModelPose* pose = data;
     if( !pose ) return;
     if( pose->model ) ToriDraw_ModelFree(pose->model);
-    free(pose);
+    ToriMem_Free(ToriMem_Ui(), pose);
 }
 
 struct ToriDraw_ModelHandle
@@ -49,8 +50,7 @@ UITreeAnim_ModelForDraw(struct ToriDraw_Scene* scene, struct UITreeModelRenderCa
     if( !pose || pose->source_revision != revision )
     {
         if( cache->release ) cache->release(cache->data);
-        pose = calloc(1, sizeof(*pose));
-        if( !pose ) abort();
+        pose = ToriMem_Calloc(ToriMem_Ui(), 1, sizeof(*pose));
         pose->model = ToriDraw_ModelCopy(source.u.model.model);
         if( !pose->model->original_vertices_x )
             ToriDraw_ModelCaptureOriginalVertices(pose->model);

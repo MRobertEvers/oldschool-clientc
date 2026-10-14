@@ -42,6 +42,7 @@
 #include "torirs_server_boot.h"
 #include "torirs_server_container.h"
 #include "torirs_server_host.h"
+#include "torirs_server_session.h"
 #include "torirs_server_shop.h"
 
 #include <signal.h>
@@ -347,7 +348,12 @@ main(
     if( botrun )
     {
         status = ToriRSServer_BotRun(&srv, &config, argc, argv);
+        /* The run's players are never logged out; their banks and containers
+         * (and the seeded shops) go here, as the socket host's do below. */
+        ToriRSServer_BankShutdown(&srv);
+        ToriRSServer_ContainerShutdown(&srv);
         ToriRSServer_ScriptsFree(&srv);
+        ToriRSServer_WorldShutdown(&srv);
         ToriRSServer_BootFree();
         ToriMem_Shutdown();
         return status;
@@ -355,7 +361,12 @@ main(
     if( scriptrun )
     {
         status = ToriRSServer_ScriptRun(&srv, &config, argc, argv);
+        /* The run's players are never logged out; their banks and containers
+         * (and the seeded shops) go here, as the socket host's do below. */
+        ToriRSServer_BankShutdown(&srv);
+        ToriRSServer_ContainerShutdown(&srv);
         ToriRSServer_ScriptsFree(&srv);
+        ToriRSServer_WorldShutdown(&srv);
         ToriRSServer_BootFree();
         ToriMem_Shutdown();
         return status;
@@ -374,6 +385,8 @@ main(
     ToriRSServer_BankShutdown(&srv);
     ToriRSServer_ContainerShutdown(&srv);
     ToriRSServer_ScriptsFree(&srv);
+    ToriRSServer_WorldShutdown(&srv);
+    ToriRSServer_SessionJs5Release();
     ToriRSServer_BootFree();
     close(listener);
 #ifdef _WIN32

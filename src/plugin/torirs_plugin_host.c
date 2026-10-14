@@ -1,6 +1,7 @@
 #include "plugin/torirs_plugin_host.h"
 
 #include "log/torirs_log.h"
+#include "mem/torirs_mem.h"
 #include "plugin/torirs_plugin_frame.h"
 #include "plugin/torirs_plugin_runtime.h"
 #include "revconfig/revconfig.h"
@@ -2274,7 +2275,7 @@ plugin_asset_drop(
     assert(host);
     assert(slot);
 
-    free(slot->data);
+    ToriMem_Free(ToriMem_Plugins(), slot->data);
     int const at = (int)(slot - host->assets);
     for( int i = at; i < host->asset_count - 1; i++ )
         host->assets[i] = host->assets[i + 1];
@@ -2806,11 +2807,9 @@ api_asset_save(
     void* copy = NULL;
     if( size > 0 )
     {
-        copy = malloc((size_t)size);
-        assert(copy);
-        memcpy(copy, data, (size_t)size);
+        copy = ToriMem_Memdup(ToriMem_Plugins(), data, (size_t)size);
     }
-    free(slot->data);
+    ToriMem_Free(ToriMem_Plugins(), slot->data);
     slot->data = copy;
     slot->size = size;
     slot->pending = false;
@@ -2955,18 +2954,23 @@ PluginHost_AssetDeliver(
     assert(plugin_name);
     assert(asset_name);
 
+    /* `data` is an IO payload (NET); the host keeps its slots in PLUGINS. A
+     * heap-to-heap move re-labels the block without copying it. */
+    if( data )
+        data = ToriMem_Move(data, ToriMem_Net(), ToriMem_Plugins());
+
     int const plugin = PluginHost_IndexOf(host, plugin_name);
     if( plugin < 0 )
     {
         /* The plugin was unregistered while its read was in flight. */
-        free(data);
+        ToriMem_Free(ToriMem_Plugins(), data);
         return;
     }
 
     struct PluginAsset* slot = plugin_asset_find(host, plugin, asset_name);
     if( !slot )
     {
-        free(data);
+        ToriMem_Free(ToriMem_Plugins(), data);
         return;
     }
 
@@ -2978,7 +2982,7 @@ PluginHost_AssetDeliver(
     slot->ready = (data != NULL);
     if( data )
     {
-        free(slot->data);
+        ToriMem_Free(ToriMem_Plugins(), slot->data);
         slot->data = data;
         slot->size = size;
     }
@@ -5021,8 +5025,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->inv_slot);
     assert(engine->inv_size);
 
-    struct ToriRS_PluginHost* host = calloc(1, sizeof(*host));
-    assert(host);
+    struct ToriRS_PluginHost* host = ToriMem_Calloc(ToriMem_Plugins(), 1, sizeof(*host));
 
     host->engine = *engine;
     host->dispatching = -1;
@@ -5116,14 +5119,23 @@ PluginHost_Free(struct ToriRS_PluginHost* host)
     for( int i = 0; i < TORIRS_PLUGIN_MODELS_MAX; i++ )
         plugin_model_drop(host, i);
     for( int i = 0; i < host->plugin_count; i++ )
+    {
+        /* plugin_teardown frees these on a runtime disable; Free never runs
+         * it, so a plugin that armed an op or a watch still holds them. */
+        ToriMem_Free(ToriMem_Plugins(), host->plugins[i].widget_ops);
+        host->plugins[i].widget_ops = NULL;
+        ToriMem_Free(ToriMem_Plugins(), host->plugins[i].widget_watches);
+        host->plugins[i].widget_watches = NULL;
+    }
+    for( int i = 0; i < host->plugin_count; i++ )
         if( host->plugins[i].v2 )
         {
-            free(host->plugins[i].v2->state);
+            ToriMem_Free(ToriMem_Plugins(), host->plugins[i].v2->state);
             host->plugins[i].v2->state = NULL;
-            free(host->plugins[i].v2);
+            ToriMem_Free(ToriMem_Plugins(), host->plugins[i].v2);
             host->plugins[i].v2 = NULL;
         }
-    free(host);
+    ToriMem_Free(ToriMem_Plugins(), host);
 }
 
 /*
@@ -6380,8 +6392,7 @@ plugin_v2_init(
     assert(!v2->state);
     if( v2->definition->state_size > 0 )
     {
-        v2->state = calloc(1, v2->definition->state_size);
-        assert(v2->state);
+        v2->state = ToriMem_Calloc(ToriMem_Plugins(), 1, v2->definition->state_size);
     }
     initialized = v2->runtime_initialized_once
                       ? plugin_v2_runtime_reinit(&v2->runtime, ctx)
@@ -6400,7 +6411,7 @@ plugin_v2_shutdown(struct PluginContext* ctx)
     assert(ctx);
     v2 = ctx->v2;
     assert(v2);
-    free(v2->state);
+    ToriMem_Free(ToriMem_Plugins(), v2->state);
     v2->state = NULL;
     plugin_v2_runtime_reset(&v2->runtime);
 }
@@ -6545,8 +6556,7 @@ PluginHost_Register(
         }
     }
 
-    v2 = calloc(1, sizeof(*v2));
-    assert(v2);
+    v2 = ToriMem_Calloc(ToriMem_Plugins(), 1, sizeof(*v2));
     memcpy(
         &v2->callbacks_storage,
         &def->callbacks,
@@ -6574,7 +6584,7 @@ PluginHost_Register(
             {
                 TORIRS_ERR(
                     "plugin: v2 frame offer %d from '%s' is invalid\n", frame_count, def->id);
-                free(v2);
+                ToriMem_Free(ToriMem_Plugins(), v2);
                 return -1;
             }
             stored = &v2->frame_offers[frame_count];
@@ -6612,7 +6622,7 @@ PluginHost_Register(
     if( host->plugin_count >= TORIRS_PLUGIN_MAX )
     {
         TORIRS_ERR("plugin: table full, refusing '%s'\n", def->id);
-        free(v2);
+        ToriMem_Free(ToriMem_Plugins(), v2);
         return -1;
     }
     if( PluginHost_IndexOf(host, def->id) >= 0 )
@@ -6620,7 +6630,7 @@ PluginHost_Register(
         TORIRS_ERR(
             "plugin: '%s' is already registered; plugin ids must be unique\n",
             def->id);
-        free(v2);
+        ToriMem_Free(ToriMem_Plugins(), v2);
         return -1;
     }
     index = host->plugin_count;
@@ -6639,7 +6649,7 @@ PluginHost_Register(
                 "plugin: '%s' has invalid frame offers (%s); refusing the provider\n",
                 def->id,
                 why);
-            free(v2);
+            ToriMem_Free(ToriMem_Plugins(), v2);
             return -1;
         }
     }
@@ -6725,9 +6735,9 @@ plugin_teardown(
     if( ctx->tearing_down )
         return;
     ctx->tearing_down = true;
-    free(ctx->widget_ops);
+    ToriMem_Free(ToriMem_Plugins(), ctx->widget_ops);
     ctx->widget_ops=NULL;
-    free(ctx->widget_watches);
+    ToriMem_Free(ToriMem_Plugins(), ctx->widget_watches);
     ctx->widget_watches = NULL;
 
     /* Selection is released first: the plugin learns it became invisible
@@ -8158,8 +8168,7 @@ PluginHost_ConfigEncode(
         cap +=
             96 + (size_t)host->plugins[i].config_count * (64 + TORIRS_PLUGIN_CONFIG_VALUE_MAX + 4);
 
-    char* buf = malloc(cap);
-    assert(buf);
+    char* buf = ToriMem_Alloc(ToriMem_Plugins(), cap);
 
     size_t at = 0;
     /* A banner rather than nothing, because this file is REWRITTEN on every

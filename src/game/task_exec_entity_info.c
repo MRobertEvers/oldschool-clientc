@@ -1,4 +1,5 @@
 #include "task_exec_entity_info.h"
+#include "mem/torirs_mem.h"
 #include "torirs_env.h"
 
 #include "app.h"
@@ -172,7 +173,7 @@ npc_trace(
  * App and hand it back instead.
  *
  * App_LogicTick settles each packet task before queueing the next, so a second
- * borrow cannot overlap the first; the busy flag with a plain calloc fallback
+ * borrow cannot overlap the first; the busy flag with a plain allocation fallback
  * keeps that a performance assumption rather than a correctness one.
  *
  * Release frees the say strings either way, then zeroes only the ops the decode
@@ -184,13 +185,11 @@ static struct PktNpcInfoOp*
 npc_ops_borrow(struct App* app)
 {
     if( app->npc_info_ops_scratch_busy )
-        return calloc(ENTITY_INFO_OPS_MAX, sizeof(struct PktNpcInfoOp));
+        return ToriMem_Calloc(ToriMem_Session(), ENTITY_INFO_OPS_MAX, sizeof(struct PktNpcInfoOp));
     if( !app->npc_info_ops_scratch )
     {
         app->npc_info_ops_scratch =
-            calloc(ENTITY_INFO_OPS_MAX, sizeof(struct PktNpcInfoOp));
-        if( !app->npc_info_ops_scratch )
-            return NULL;
+            ToriMem_Calloc(ToriMem_Session(), ENTITY_INFO_OPS_MAX, sizeof(struct PktNpcInfoOp));
     }
     app->npc_info_ops_scratch_busy = 1;
     return app->npc_info_ops_scratch;
@@ -208,7 +207,7 @@ npc_ops_release(struct App* app, struct PktNpcInfoOp* ops, int op_count)
     pkt_npc_info_ops_free(ops, op_count);
     if( ops != app->npc_info_ops_scratch )
     {
-        free(ops);
+        ToriMem_Free(ToriMem_Session(), ops);
         return;
     }
     if( op_count > 0 )
@@ -220,13 +219,11 @@ static struct PktPlayerInfoOp*
 player_ops_borrow(struct App* app)
 {
     if( app->player_info_ops_scratch_busy )
-        return calloc(ENTITY_INFO_OPS_MAX, sizeof(struct PktPlayerInfoOp));
+        return ToriMem_Calloc(ToriMem_Session(), ENTITY_INFO_OPS_MAX, sizeof(struct PktPlayerInfoOp));
     if( !app->player_info_ops_scratch )
     {
         app->player_info_ops_scratch =
-            calloc(ENTITY_INFO_OPS_MAX, sizeof(struct PktPlayerInfoOp));
-        if( !app->player_info_ops_scratch )
-            return NULL;
+            ToriMem_Calloc(ToriMem_Session(), ENTITY_INFO_OPS_MAX, sizeof(struct PktPlayerInfoOp));
     }
     app->player_info_ops_scratch_busy = 1;
     return app->player_info_ops_scratch;
@@ -244,7 +241,7 @@ player_ops_release(struct App* app, struct PktPlayerInfoOp* ops, int op_count)
     pkt_player_info_ops_free(ops, op_count);
     if( ops != app->player_info_ops_scratch )
     {
-        free(ops);
+        ToriMem_Free(ToriMem_Session(), ops);
         return;
     }
     if( op_count > 0 )
@@ -293,8 +290,8 @@ void
 Task_EntityInfoScratchFree(struct App* app)
 {
     assert(app);
-    free(app->npc_info_ops_scratch);
-    free(app->player_info_ops_scratch);
+    ToriMem_Free(ToriMem_Session(), app->npc_info_ops_scratch);
+    ToriMem_Free(ToriMem_Session(), app->player_info_ops_scratch);
     app->npc_info_ops_scratch = NULL;
     app->player_info_ops_scratch = NULL;
     app->npc_info_ops_scratch_busy = 0;
@@ -737,7 +734,7 @@ player_apply_op(
                 World_PlayerSetChat(
                     world, idx, text, op->_chat.colour_effect >> 8,
                     op->_chat.colour_effect & 0xff);
-                free(text);
+                ToriMem_Free(ToriMem_Net(), text); /* wordpack_unpack's */
             }
         }
         break;
@@ -961,7 +958,7 @@ Task_ExecPlayerInfo_Free(struct ToriRS_Task* base)
 {
     struct Task_ExecPlayerInfo* self = (struct Task_ExecPlayerInfo*)base;
     player_ops_release(self->app, self->ops, self->op_count);
-    free(self);
+    ToriMem_Free(ToriMem_Session(), self);
 }
 
 static struct ToriRS_TaskVTable Task_ExecPlayerInfo_VTable = {
@@ -981,7 +978,7 @@ CreateTask_ExecPlayerInfo(
     if( length <= 0 )
         return NULL;
     assert(data);
-    task = calloc(1, sizeof(*task));
+    task = ToriMem_Calloc(ToriMem_Session(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_ExecPlayerInfo_VTable;
     strncpy(task->task.name, "ExecPlayerInfo", sizeof(task->task.name) - 1);
@@ -1766,7 +1763,7 @@ Task_ExecNpcInfo_Free(struct ToriRS_Task* base)
 {
     struct Task_ExecNpcInfo* self = (struct Task_ExecNpcInfo*)base;
     npc_ops_release(self->app, self->ops, self->op_count);
-    free(self);
+    ToriMem_Free(ToriMem_Session(), self);
 }
 
 static struct ToriRS_TaskVTable Task_ExecNpcInfo_VTable = {
@@ -1786,7 +1783,7 @@ CreateTask_ExecNpcInfo(
     if( length <= 0 )
         return NULL;
     assert(data);
-    task = calloc(1, sizeof(*task));
+    task = ToriMem_Calloc(ToriMem_Session(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_ExecNpcInfo_VTable;
     strncpy(task->task.name, "ExecNpcInfo", sizeof(task->task.name) - 1);

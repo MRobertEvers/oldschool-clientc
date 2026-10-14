@@ -26,6 +26,7 @@
 
 #include "core/trspk_drawrangeex.h"
 #include "core/trspk_math.h"
+#include "trspk_alloc.h"
 #include "perf/torirs_perf.h"
 #include "render/trspk_sprite.h"
 
@@ -1014,12 +1015,12 @@ d3d9_ui_sprite_slot_index(struct ToriPlatformWin32_Renderer_D3D9* renderer, int 
         return -1;
     renderer->ui_sprite_slots[free_index].scene_id = scene_id;
     renderer->ui_sprite_slots[free_index].count = 0;
-    free(renderer->ui_sprite_slots[free_index].uvs);
-    free(renderer->ui_sprite_slots[free_index].loaded);
+    ToriMem_Free(ToriMem_Render(), renderer->ui_sprite_slots[free_index].uvs);
+    ToriMem_Free(ToriMem_Render(), renderer->ui_sprite_slots[free_index].loaded);
     /* A slot being handed to a different scene id keeps none of the old
      * one's atlas tiles: they belong to whatever sprite used to live here,
      * and reusing them would overwrite it. */
-    free(renderer->ui_sprite_slots[free_index].tiles);
+    ToriMem_Free(ToriMem_Render(), renderer->ui_sprite_slots[free_index].tiles);
     renderer->ui_sprite_slots[free_index].uvs = NULL;
     renderer->ui_sprite_slots[free_index].loaded = NULL;
     renderer->ui_sprite_slots[free_index].tiles = NULL;
@@ -1080,8 +1081,8 @@ d3d9_ui_upload_sprite_pixels(
     assert(source);
     padded_width = (uint32_t)width + 2u;
     padded_height = (uint32_t)height + 2u;
-    argb = (uint32_t*)malloc(
-        (size_t)padded_width * (size_t)padded_height * sizeof(*argb));
+    argb = (uint32_t*)ToriMem_Alloc(
+        ToriMem_Render(), (size_t)padded_width * (size_t)padded_height * sizeof(*argb));
     assert(argb);
     /* Linear filtering reaches half a texel beyond an enlarged quad's first
      * and last source pixels.  Keep that footprint inside this sprite rather
@@ -1128,7 +1129,7 @@ d3d9_ui_upload_sprite_pixels(
             padded_height,
             &tile);
     }
-    free(argb);
+    ToriMem_Free(ToriMem_Render(), argb);
     if( !inserted )
         return false;
     if( tile_io )
@@ -1177,16 +1178,17 @@ d3d9_ui_sprite_ensure_base(
     slot = &renderer->ui_sprite_slots[slot_index];
     if( slot->count != count || !slot->tiles )
     {
-        float* uvs = (float*)calloc((size_t)count * 4u, sizeof(float));
-        uint8_t* loaded = (uint8_t*)calloc((size_t)count, sizeof(uint8_t));
-        struct D3D9UISpriteTile* tiles = (struct D3D9UISpriteTile*)calloc(
-            (size_t)count, sizeof(*tiles));
+        float* uvs = (float*)ToriMem_Calloc(ToriMem_Render(), (size_t)count * 4u, sizeof(float));
+        uint8_t* loaded =
+            (uint8_t*)ToriMem_Calloc(ToriMem_Render(), (size_t)count, sizeof(uint8_t));
+        struct D3D9UISpriteTile* tiles = (struct D3D9UISpriteTile*)ToriMem_Calloc(
+            ToriMem_Render(), (size_t)count, sizeof(*tiles));
         assert(uvs);
         assert(loaded);
         assert(tiles);
-        free(slot->uvs);
-        free(slot->loaded);
-        free(slot->tiles);
+        ToriMem_Free(ToriMem_Render(), slot->uvs);
+        ToriMem_Free(ToriMem_Render(), slot->loaded);
+        ToriMem_Free(ToriMem_Render(), slot->tiles);
         slot->uvs = uvs;
         slot->loaded = loaded;
         slot->tiles = tiles;
@@ -1469,11 +1471,8 @@ d3d9_ui_rotmask_slot(
             uint32_t old_capacity = renderer->ui_rotmask_capacity;
             uint32_t new_capacity = old_capacity ? old_capacity * 2u
                                                  : D3D9_UI_ROTMASK_INIT_CAP;
-            struct D3D9UIRotmaskSlot* grown =
-                (struct D3D9UIRotmaskSlot*)realloc(
-                    renderer->ui_rotmasks, (size_t)new_capacity * sizeof(*grown));
-            if( !grown )
-                return NULL;
+            struct D3D9UIRotmaskSlot* grown = (struct D3D9UIRotmaskSlot*)ToriMem_Realloc(
+                ToriMem_Render(), renderer->ui_rotmasks, (size_t)new_capacity * sizeof(*grown));
             memset(
                 grown + old_capacity,
                 0,
@@ -2383,10 +2382,8 @@ d3d9_ui_bake_font(
         return false;
     d3d9_ui_flush(renderer);
     d3d9_ui_font_release_slot(slot);
-    pixels = (uint32_t*)calloc(
-        (size_t)texture_width * (size_t)texture_height, sizeof(*pixels));
-    if( !pixels )
-        return false;
+    pixels = (uint32_t*)ToriMem_Calloc(
+        ToriMem_Render(), (size_t)texture_width * (size_t)texture_height, sizeof(*pixels));
     for( i = 0; i < TORIDRAW_FONT_GLYPH_COUNT; i++ )
     {
         int glyph_width = font->glyph_width[i];
@@ -2436,14 +2433,14 @@ d3d9_ui_bake_font(
     if( FAILED(hr) )
     {
         d3d9_log_hr("CreateTexture(font atlas)", hr);
-        free(pixels);
+        ToriMem_Free(ToriMem_Render(), pixels);
         return false;
     }
     hr = IDirect3DTexture9_LockRect(slot->texture, 0u, &locked, NULL, 0u);
     if( FAILED(hr) )
     {
         d3d9_log_hr("LockRect(font atlas)", hr);
-        free(pixels);
+        ToriMem_Free(ToriMem_Render(), pixels);
         d3d9_ui_font_release_slot(slot);
         return false;
     }
@@ -2453,7 +2450,7 @@ d3d9_ui_bake_font(
             pixels + (size_t)y * texture_width,
             (size_t)texture_width * 4u);
     IDirect3DTexture9_UnlockRect(slot->texture, 0u);
-    free(pixels);
+    ToriMem_Free(ToriMem_Render(), pixels);
     slot->texture_width = texture_width;
     slot->texture_height = texture_height;
     slot->atlas_width = atlas_width;
@@ -4115,10 +4112,8 @@ d3d9_grow_static_batches(struct ToriPlatformWin32_Renderer_D3D9* renderer, uint3
             return false;
         capacity *= 2u;
     }
-    grown = (struct D3D9StaticBatch*)realloc(
-        renderer->static_batches, (size_t)capacity * sizeof(*grown));
-    if( !grown )
-        return false;
+    grown = (struct D3D9StaticBatch*)ToriMem_Realloc(
+        ToriMem_Render(), renderer->static_batches, (size_t)capacity * sizeof(*grown));
     memset(
         grown + renderer->static_batch_capacity,
         0,
@@ -4229,10 +4224,8 @@ d3d9_grow_static_pages(struct ToriPlatformWin32_Renderer_D3D9* renderer, uint32_
         }
         capacity *= 2u;
     }
-    grown = (struct D3D9StaticPageRef*)realloc(
-        renderer->static_pages, (size_t)capacity * sizeof(*grown));
-    if( !grown )
-        return false;
+    grown = (struct D3D9StaticPageRef*)ToriMem_Realloc(
+        ToriMem_Render(), renderer->static_pages, (size_t)capacity * sizeof(*grown));
     memset(
         grown + renderer->static_page_capacity,
         0,
@@ -4269,10 +4262,8 @@ d3d9_static_batch_ensure_chunk_storage(
             return false;
         capacity *= 2u;
     }
-    grown_ids = (uint32_t*)realloc(
-        batch->page_ids, (size_t)capacity * sizeof(*grown_ids));
-    if( !grown_ids )
-        return false;
+    grown_ids = (uint32_t*)ToriMem_Realloc(
+        ToriMem_Render(), batch->page_ids, (size_t)capacity * sizeof(*grown_ids));
     batch->page_ids = grown_ids;
     for( i = old_capacity; i < capacity; i++ )
     {
@@ -5091,7 +5082,7 @@ d3d9_reserve_model_indices(struct ToriPlatformWin32_Renderer_D3D9* renderer, uin
     byte_count = (size_t)capacity * sizeof(*grown);
     if( capacity != 0u && byte_count / sizeof(*grown) != capacity )
         return false;
-    grown = (uint16_t*)realloc(renderer->model_indices, byte_count);
+    grown = (uint16_t*)ToriMem_Realloc(ToriMem_Render(), renderer->model_indices, byte_count);
     assert(grown);
     renderer->model_indices = grown;
     renderer->model_index_capacity = capacity;
@@ -5398,10 +5389,10 @@ d3d9_grow_draw_ranges(struct ToriPlatformWin32_Renderer_D3D9* renderer, uint32_t
     capacity = renderer->draw_ranges->capacity;
     while( capacity < needed )
         capacity *= 2u;
-    grown = (struct TRSPK_DrawRange*)realloc(
+    /* The list's items are trspk's: trspk_drawrangelist_free releases them. */
+    grown = (struct TRSPK_DrawRange*)TRSPK_REALLOC(
         renderer->draw_ranges->items, (size_t)capacity * sizeof(*grown));
-    if( !grown )
-        return false;
+    assert(grown);
     renderer->draw_ranges->items = grown;
     renderer->draw_ranges->capacity = capacity;
     return true;
@@ -6430,7 +6421,8 @@ ToriPlatformWin32_Renderer_D3D9_New(int width, int height)
     int texture;
     if( width <= 0 || height <= 0 )
         return NULL;
-    renderer = (struct ToriPlatformWin32_Renderer_D3D9*)calloc(1u, sizeof(*renderer));
+    renderer = (struct ToriPlatformWin32_Renderer_D3D9*)ToriMem_Calloc(
+        ToriMem_Render(), 1u, sizeof(*renderer));
     assert(renderer);
     renderer->width = width;
     renderer->height = height;
@@ -6446,13 +6438,12 @@ ToriPlatformWin32_Renderer_D3D9_New(int width, int height)
     trspk_pose_table_init(&renderer->batch_poses);
     renderer->ibo_chain = trspk_ibochain_create(TRSPK_INDEX_FORMAT_U16);
     renderer->draw_ranges = trspk_drawrangelist_create(D3D9_DRAWRANGE_CAP);
-    renderer->ui_batch.vertices = (struct D3D9OverlayVertex*)malloc(
-        D3D9_UI_BATCH_MAX_VERTS * sizeof(renderer->ui_batch.vertices[0]));
+    renderer->ui_batch.vertices = (struct D3D9OverlayVertex*)ToriMem_Alloc(
+        ToriMem_Render(), D3D9_UI_BATCH_MAX_VERTS * sizeof(renderer->ui_batch.vertices[0]));
     /* ::zbuffer stays NULL here, so a renderer that never reaches Init -- the
      * headless retained test API attaches a scene without one -- runs the
      * painter path, which needs no setup. */
     if( !renderer->ibo_chain || !renderer->draw_ranges ||
-        !renderer->ui_batch.vertices ||
         !trspk_atlas_init_grid(
             &renderer->atlas,
             D3D9_ATLAS_DIM,
@@ -6782,21 +6773,22 @@ ToriPlatformWin32_Renderer_D3D9_Free(struct ToriPlatformWin32_Renderer_D3D9* ren
     for( batch = 0u; batch < renderer->static_batch_count; batch++ )
     {
         trspk_batch16_destroy(renderer->static_batches[batch].cpu);
-        free(renderer->static_batches[batch].page_ids);
+        ToriMem_Free(ToriMem_Render(), renderer->static_batches[batch].page_ids);
     }
     trspk_atlas_free(&renderer->atlas);
     trspk_atlas_free(&renderer->ui_sprite_atlas);
     for( texture = 0; texture < D3D9_UI_SPRITE_CAP; texture++ )
     {
-        free(renderer->ui_sprite_slots[texture].uvs);
-        free(renderer->ui_sprite_slots[texture].loaded);
+        ToriMem_Free(ToriMem_Render(), renderer->ui_sprite_slots[texture].uvs);
+        ToriMem_Free(ToriMem_Render(), renderer->ui_sprite_slots[texture].loaded);
+        ToriMem_Free(ToriMem_Render(), renderer->ui_sprite_slots[texture].tiles);
     }
-    free(renderer->ui_rotmasks);
-    free(renderer->ui_batch.vertices);
-    free(renderer->model_indices);
-    free(renderer->static_pages);
-    free(renderer->static_batches);
-    free(renderer);
+    ToriMem_Free(ToriMem_Render(), renderer->ui_rotmasks);
+    ToriMem_Free(ToriMem_Render(), renderer->ui_batch.vertices);
+    ToriMem_Free(ToriMem_Render(), renderer->model_indices);
+    ToriMem_Free(ToriMem_Render(), renderer->static_pages);
+    ToriMem_Free(ToriMem_Render(), renderer->static_batches);
+    ToriMem_Free(ToriMem_Render(), renderer);
 }
 
 bool

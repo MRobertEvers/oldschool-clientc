@@ -38,6 +38,7 @@
  */
 
 #include "torirs_server_db.h"
+#include "mem/torirs_mem.h"
 #include "rscache_valuetype.h"
 
 #include "content/content_value.h"
@@ -79,7 +80,7 @@ db_grow(
     if( count < *capacity )
         return array;
     *capacity = *capacity ? *capacity * 2 : 32;
-    grown = realloc(array, (size_t)*capacity * element);
+    grown = ToriMem_Realloc(ToriMem_ServerContent(), array, (size_t)*capacity * element);
     /* Not `grown ? grown : array`: that kept the old array and let the caller
      * write past its end. */
     assert(grown);
@@ -108,8 +109,8 @@ db_row_cell_ensure(
     if( row->cell_count == row->cell_capacity )
     {
         row->cell_capacity = row->cell_capacity ? row->cell_capacity * 2 : 2;
-        row->cells = realloc(
-            row->cells, (size_t)row->cell_capacity * sizeof(*row->cells));
+        row->cells = ToriMem_Realloc(
+            ToriMem_ServerContent(), row->cells, (size_t)row->cell_capacity * sizeof(*row->cells));
         assert(row->cells);
     }
     cell = &row->cells[row->cell_count++];
@@ -199,8 +200,8 @@ ToriRSServer_DbColumnNameSet(
     assert(name);
     if( index < 0 || index >= table->column_count || table->columns[index].type_count <= 0 )
         return;
-    free((void*)table->columns[index].name);
-    table->columns[index].name = strdup(name);
+    ToriMem_Free(ToriMem_ServerContent(), (void*)table->columns[index].name);
+    table->columns[index].name = ToriMem_Strdup(ToriMem_ServerContent(), name);
     assert(table->columns[index].name);
 }
 
@@ -279,9 +280,9 @@ db_by_table_cmp(
 static void
 db_index_free(void)
 {
-    free(g_by_row_id);
-    free(g_by_table);
-    free(g_table_spans);
+    ToriMem_Free(ToriMem_ServerContent(), g_by_row_id);
+    ToriMem_Free(ToriMem_ServerContent(), g_by_table);
+    ToriMem_Free(ToriMem_ServerContent(), g_table_spans);
     g_by_row_id = NULL;
     g_by_table = NULL;
     g_table_spans = NULL;
@@ -298,11 +299,13 @@ db_index_build(void)
     g_index_generation = g_rows_generation;
     if( g_row_count <= 0 )
         return;
-    g_by_row_id = malloc((size_t)g_row_count * sizeof(*g_by_row_id));
+    g_by_row_id =
+        ToriMem_Alloc(ToriMem_ServerContent(), (size_t)g_row_count * sizeof(*g_by_row_id));
     assert(g_by_row_id);
-    g_by_table = malloc((size_t)g_row_count * sizeof(*g_by_table));
+    g_by_table = ToriMem_Alloc(ToriMem_ServerContent(), (size_t)g_row_count * sizeof(*g_by_table));
     assert(g_by_table);
-    g_table_spans = malloc((size_t)g_row_count * sizeof(*g_table_spans));
+    g_table_spans =
+        ToriMem_Alloc(ToriMem_ServerContent(), (size_t)g_row_count * sizeof(*g_table_spans));
     assert(g_table_spans);
     for( int i = 0; i < g_row_count; i++ )
     {
@@ -481,13 +484,13 @@ db_ordered_build(void)
 {
     if( g_ordered_generation == g_rows_generation )
         return;
-    free(g_ordered);
+    ToriMem_Free(ToriMem_ServerContent(), g_ordered);
     g_ordered = NULL;
     g_ordered_count = 0;
     g_ordered_generation = g_rows_generation;
     if( g_row_count <= 0 )
         return;
-    g_ordered = malloc((size_t)g_row_count * sizeof(*g_ordered));
+    g_ordered = ToriMem_Alloc(ToriMem_ServerContent(), (size_t)g_row_count * sizeof(*g_ordered));
     assert(g_ordered);
     for( int i = 0; i < g_row_count; i++ )
         g_ordered[i] = i;
@@ -589,7 +592,7 @@ ToriRSServer_DbFree(void)
      * which positions hold a strdup'd string to free. */
     for( int i = 0; i < g_row_count; i++ )
     {
-        free((void*)g_rows[i].symbol);
+        ToriMem_Free(ToriMem_ServerContent(), (void*)g_rows[i].symbol);
         for( int cell = 0; cell < g_rows[i].cell_count; cell++ )
         {
             struct ToriRSServerDbRowColumn* store = &g_rows[i].cells[cell].store;
@@ -604,13 +607,13 @@ ToriRSServer_DbFree(void)
             for( int val = 0; val < store->count; val++ )
             {
                 if( column->is_string[val % column->type_count] )
-                    free((void*)store->values[val].text);
+                    ToriMem_Free(ToriMem_ServerContent(), (void*)store->values[val].text);
             }
-            free(store->values);
+            ToriMem_Free(ToriMem_ServerContent(), store->values);
         }
-        free(g_rows[i].cells);
+        ToriMem_Free(ToriMem_ServerContent(), g_rows[i].cells);
     }
-    free(g_rows);
+    ToriMem_Free(ToriMem_ServerContent(), g_rows);
     g_rows = NULL;
     g_row_count = 0;
     g_row_capacity = 0;
@@ -619,7 +622,7 @@ ToriRSServer_DbFree(void)
 
     for( int i = 0; i < g_table_count; i++ )
     {
-        free((void*)g_tables[i].symbol);
+        ToriMem_Free(ToriMem_ServerContent(), (void*)g_tables[i].symbol);
         for( int col = 0; col < g_tables[i].column_count; col++ )
         {
             struct ToriRSServerDbColumn* column = &g_tables[i].columns[col];
@@ -628,17 +631,17 @@ ToriRSServer_DbFree(void)
             {
                 if( column->type_count > 0 &&
                     column->is_string[val % column->type_count] )
-                    free((void*)column->defaults[val].text);
+                    ToriMem_Free(ToriMem_ServerContent(), (void*)column->defaults[val].text);
             }
-            free(column->defaults);
-            free((void*)g_tables[i].columns[col].name);
+            ToriMem_Free(ToriMem_ServerContent(), column->defaults);
+            ToriMem_Free(ToriMem_ServerContent(), (void*)g_tables[i].columns[col].name);
         }
     }
-    free(g_tables);
+    ToriMem_Free(ToriMem_ServerContent(), g_tables);
     g_tables = NULL;
     g_table_count = 0;
     g_table_capacity = 0;
-    free(g_ordered);
+    ToriMem_Free(ToriMem_ServerContent(), g_ordered);
     g_ordered = NULL;
     g_ordered_count = 0;
     g_ordered_generation = 0;
@@ -678,7 +681,7 @@ ToriRSServer_DbEnsureTable(
     g_tables = db_grow(g_tables, &g_table_capacity, g_table_count, sizeof(*g_tables));
     table = &g_tables[g_table_count++];
     memset(table, 0, sizeof(*table));
-    table->symbol = strdup(symbol);
+    table->symbol = ToriMem_Strdup(ToriMem_ServerContent(), symbol);
     table->table_id = table_id;
     return table;
 }
@@ -720,7 +723,7 @@ ToriRSServer_DbEnsureRow(
     g_rows = db_grow(g_rows, &g_row_capacity, g_row_count, sizeof(*g_rows));
     row = &g_rows[g_row_count++];
     memset(row, 0, sizeof(*row));
-    row->symbol = strdup(symbol);
+    row->symbol = ToriMem_Strdup(ToriMem_ServerContent(), symbol);
     row->row_id = row_id;
     row->table_id = table_id;
     g_rows_generation++;
@@ -746,13 +749,13 @@ ToriRSServer_DbColumnDefine(
 
     column = &table->columns[col_id];
     for( int i = 0; i < column->default_count; i++ )
-        free((void*)column->defaults[i].text);
-    free(column->defaults);
+        ToriMem_Free(ToriMem_ServerContent(), (void*)column->defaults[i].text);
+    ToriMem_Free(ToriMem_ServerContent(), column->defaults);
     column->defaults = NULL;
     column->default_count = 0;
     if( column->name )
-        free((void*)column->name);
-    column->name = name ? strdup(name) : NULL;
+        ToriMem_Free(ToriMem_ServerContent(), (void*)column->name);
+    column->name = name ? ToriMem_Strdup(ToriMem_ServerContent(), name) : NULL;
     column->type_count = type_count;
     for( int i = 0; i < type_count; i++ )
         column->is_string[i] = is_string[i] ? 1 : 0;
@@ -801,15 +804,19 @@ ToriRSServer_DbColumnDefaultsSet(
     for( int i = 0; i < column->default_count; i++ )
     {
         if( column->is_string[i % column->type_count] )
-            free((void*)column->defaults[i].text);
+            ToriMem_Free(ToriMem_ServerContent(), (void*)column->defaults[i].text);
     }
-    free(column->defaults);
-    column->defaults = count > 0 ? calloc((size_t)count, sizeof(*column->defaults)) : NULL;
+    ToriMem_Free(ToriMem_ServerContent(), column->defaults);
+    column->defaults =
+        count > 0
+            ? ToriMem_Calloc(ToriMem_ServerContent(), (size_t)count, sizeof(*column->defaults))
+            : NULL;
     column->default_count = column->defaults ? count : 0;
     for( int i = 0; i < column->default_count; i++ )
     {
         if( column->is_string[i % column->type_count] )
-            column->defaults[i].text = values[i].text ? strdup(values[i].text) : NULL;
+            column->defaults[i].text =
+                values[i].text ? ToriMem_Strdup(ToriMem_ServerContent(), values[i].text) : NULL;
         else
             column->defaults[i].value = values[i].value;
     }
@@ -843,9 +850,9 @@ ToriRSServer_DbRowColumnSet(
     for( int i = 0; i < store->count; i++ )
     {
         if( column->is_string[i % column->type_count] )
-            free((void*)store->values[i].text);
+            ToriMem_Free(ToriMem_ServerContent(), (void*)store->values[i].text);
     }
-    free(store->values);
+    ToriMem_Free(ToriMem_ServerContent(), store->values);
     store->values = NULL;
     store->count = 0;
     store->capacity = 0;
@@ -859,7 +866,7 @@ ToriRSServer_DbRowColumnSet(
         if( column->is_string[i % column->type_count] )
         {
             if( values[i].text )
-                copy.text = strdup(values[i].text);
+                copy.text = ToriMem_Strdup(ToriMem_ServerContent(), values[i].text);
         }
         else
         {

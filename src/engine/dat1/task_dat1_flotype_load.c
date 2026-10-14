@@ -1,4 +1,5 @@
 #include "engine/dat1/dat1_tasks.h"
+#include "mem/torirs_mem.h"
 #include "engine/cache_provider.h"
 #include "engine/dat1/dat1_buildcache.h"
 #include "engine/torirs_flotype_from_rscache.h"
@@ -117,7 +118,7 @@ Task_Dat1FlotypeLoad_Run(
 static void
 Task_Dat1FlotypeLoad_Free(struct ToriRS_Task* task_base)
 {
-    free(task_base);
+    ToriMem_Free(ToriMem_Assets(), task_base);
 }
 
 static struct ToriRS_TaskVTable Task_Dat1FlotypeLoad_VTable = {
@@ -130,7 +131,7 @@ task_dat1_flotype_load_new(
     struct CacheProvider* provider,
     int flo_id)
 {
-    struct Task_Dat1FlotypeLoad* task = calloc(1, sizeof(*task));
+    struct Task_Dat1FlotypeLoad* task = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_Dat1FlotypeLoad_VTable;
     strncpy(task->task.name, "Dat1FlotypeLoad", sizeof(task->task.name) - 1);

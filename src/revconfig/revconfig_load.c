@@ -1,4 +1,5 @@
 #include "revconfig_load.h"
+#include "mem/torirs_mem.h"
 
 #include "3rd/ini/ini.h"
 
@@ -741,7 +742,7 @@ revconfig_load_fields_from_ini_prefixed(
         return;
     }
 
-    file_data = malloc((size_t)file_size);
+    file_data = ToriMem_Alloc(ToriMem_Ui(), (size_t)file_size);
     assert(file_data);
 
     read_size = fread(file_data, 1, (size_t)file_size, f);
@@ -749,13 +750,13 @@ revconfig_load_fields_from_ini_prefixed(
 
     if( read_size == 0 )
     {
-        free(file_data);
+        ToriMem_Free(ToriMem_Ui(), file_data);
         return;
     }
 
     revconfig_load_fields_from_ini_bytes_prefixed(
         (const uint8_t*)file_data, (uint32_t)read_size, section_prefix, revconfig_buffer);
-    free(file_data);
+    ToriMem_Free(ToriMem_Ui(), file_data);
 }
 
 void

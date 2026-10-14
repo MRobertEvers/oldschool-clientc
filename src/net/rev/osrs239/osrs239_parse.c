@@ -1,4 +1,5 @@
 #include "net/rev/gameproto_revisions.h"
+#include "mem/torirs_mem.h"
 #include <assert.h>
 #include "net/rev/pktnames.h"
 #include "net/rev/revpacket.h"
@@ -219,8 +220,7 @@ gjstr_nul(RSProt_Buffer* c)
         c->err = 1;
         return NULL;
     }
-    out = (char*)malloc((size_t)(end - start) + 1);
-    assert(out);
+    out = (char*)ToriMem_Alloc(ToriMem_Net(), (size_t)(end - start) + 1);
     memcpy(out, c->data + start, (size_t)(end - start));
     out[end - start] = '\0';
     c->rpos = end + 1;
@@ -675,8 +675,7 @@ osrs239_parse(
             return 0;
         if( p->mount_count )
         {
-            p->mounts = malloc((size_t)p->mount_count * sizeof(*p->mounts));
-            assert(p->mounts);
+            p->mounts = ToriMem_Alloc(ToriMem_Net(), (size_t)p->mount_count * sizeof(*p->mounts));
         }
         for( int i = 0; i < p->mount_count; i++ )
         {
@@ -687,7 +686,7 @@ osrs239_parse(
         remaining = len - c.rpos;
         if( c.err || remaining < 0 || remaining % 16 != 0 )
         {
-            free(p->mounts);
+            ToriMem_Free(ToriMem_Net(), p->mounts);
             p->mounts = NULL;
             p->mount_count = 0;
             return 0;
@@ -695,8 +694,7 @@ osrs239_parse(
         p->event_count = remaining / 16;
         if( p->event_count )
         {
-            p->events = malloc((size_t)p->event_count * sizeof(*p->events));
-            assert(p->events);
+            p->events = ToriMem_Alloc(ToriMem_Net(), (size_t)p->event_count * sizeof(*p->events));
         }
         for( int i = 0; i < p->event_count; i++ )
         {
@@ -876,8 +874,8 @@ osrs239_parse(
         p->text = gjstr_nul(&c);
         if( c.err || !p->text )
         {
-            free(p->name);
-            free(p->text);
+            ToriMem_Free(ToriMem_Net(), p->name);
+            ToriMem_Free(ToriMem_Net(), p->text);
             p->name = NULL;
             p->text = NULL;
             return 0;
@@ -896,7 +894,7 @@ osrs239_parse(
         p->component_id = RSProt_BufferG4_3412(&c);
         if( c.err || !p->text )
         {
-            free(p->text);
+            ToriMem_Free(ToriMem_Net(), p->text);
             p->text = NULL;
             return 0;
         }
@@ -1140,10 +1138,8 @@ osrs239_parse(
         if( c.err || capacity < 0 || capacity > 4096 )
             return 0;
         p->size = capacity;
-        p->obj_ids = (int*)malloc((size_t)capacity * sizeof(int));
-        p->obj_counts = (int*)malloc((size_t)capacity * sizeof(int));
-        assert(p->obj_ids);
-        assert(p->obj_counts);
+        p->obj_ids = (int*)ToriMem_Alloc(ToriMem_Net(), (size_t)capacity * sizeof(int));
+        p->obj_counts = (int*)ToriMem_Alloc(ToriMem_Net(), (size_t)capacity * sizeof(int));
         for( int i = 0; i < capacity; i++ )
         {
             int count = RSProt_BufferG1_sub128(&c);
@@ -1155,8 +1151,8 @@ osrs239_parse(
         }
         if( c.err )
         {
-            free(p->obj_ids);
-            free(p->obj_counts);
+            ToriMem_Free(ToriMem_Net(), p->obj_ids);
+            ToriMem_Free(ToriMem_Net(), p->obj_counts);
             p->obj_ids = NULL;
             p->obj_counts = NULL;
             p->size = 0;
@@ -1179,10 +1175,8 @@ osrs239_parse(
             return 0;
         /* Empty records are only 3 bytes: slot + zero object sentinel. */
         max_entries = (len - c.rpos) / 3 + 1;
-        p->entries = (struct PktUpdateInvPartialEntry*)malloc(
-            (size_t)max_entries * sizeof(struct PktUpdateInvPartialEntry));
-        if( !p->entries )
-            return 0;
+        p->entries = (struct PktUpdateInvPartialEntry*)ToriMem_Alloc(
+            ToriMem_Net(), (size_t)max_entries * sizeof(struct PktUpdateInvPartialEntry));
         while( c.rpos < len && written < max_entries )
         {
             struct PktUpdateInvPartialEntry* entry = &p->entries[written];
@@ -1205,7 +1199,7 @@ osrs239_parse(
         }
         if( c.err || c.rpos != len )
         {
-            free(p->entries);
+            ToriMem_Free(ToriMem_Net(), p->entries);
             p->entries = NULL;
             p->count = 0;
             return 0;
@@ -1265,10 +1259,10 @@ osrs239_parse(
             snprintf(p->previous_name, sizeof(p->previous_name), "%s", previous);
             p->present = 1;
         }
-        free(name);
-        free(previous);
-        free(extra);
-        free(note);
+        ToriMem_Free(ToriMem_Net(), name);
+        ToriMem_Free(ToriMem_Net(), previous);
+        ToriMem_Free(ToriMem_Net(), extra);
+        ToriMem_Free(ToriMem_Net(), note);
         return p->present;
     }
 
@@ -1278,9 +1272,7 @@ osrs239_parse(
         int cap = len / 4 + 1;
 
         p->count = 0;
-        p->names37 = cap > 0 ? malloc((size_t)cap * sizeof(*p->names37)) : NULL;
-        if( cap > 0 && !p->names37 )
-            return 0;
+        p->names37 = ToriMem_Alloc(ToriMem_Net(), (size_t)cap * sizeof(*p->names37));
         while( c.rpos < len && !c.err )
         {
             char* name;
@@ -1293,19 +1285,19 @@ osrs239_parse(
             note = gjstr_nul(&c);
             if( !name || !previous || !note || c.err )
             {
-                free(name);
-                free(previous);
-                free(note);
+                ToriMem_Free(ToriMem_Net(), name);
+                ToriMem_Free(ToriMem_Net(), previous);
+                ToriMem_Free(ToriMem_Net(), note);
                 break;
             }
             p->names37[p->count++] = (int64_t)strtobase37(name);
-            free(name);
-            free(previous);
-            free(note);
+            ToriMem_Free(ToriMem_Net(), name);
+            ToriMem_Free(ToriMem_Net(), previous);
+            ToriMem_Free(ToriMem_Net(), note);
         }
         if( c.err || c.rpos != len )
         {
-            free(p->names37);
+            ToriMem_Free(ToriMem_Net(), p->names37);
             p->names37 = NULL;
             p->count = 0;
             return 0;
@@ -1494,7 +1486,7 @@ osrs239_parse(
                         p->strv[i][n] = s[n];
                         n++;
                     }
-                    free(s);
+                    ToriMem_Free(ToriMem_Net(), s);
                 }
                 p->strv[i][n] = '\0';
                 p->str_mask |= 1u << i;
@@ -1565,7 +1557,7 @@ osrs239_parse(
         }
         enc->count = 0;
         enc->entries =
-            (struct PktZoneSubPacket*)malloc((size_t)cap * sizeof(*enc->entries));
+            (struct PktZoneSubPacket*)ToriMem_Alloc(ToriMem_Net(), (size_t)cap * sizeof(*enc->entries));
         if( !enc->entries )
             return 0;
         while( c.rpos < len && !c.err )
@@ -1575,7 +1567,7 @@ osrs239_parse(
 
             if( enc->count == cap )
             {
-                struct PktZoneSubPacket* grown = (struct PktZoneSubPacket*)realloc(
+                struct PktZoneSubPacket* grown = (struct PktZoneSubPacket*)ToriMem_Realloc(ToriMem_Net(), 
                     enc->entries, (size_t)(cap * 2) * sizeof(*enc->entries));
 
                 if( !grown )
@@ -1720,7 +1712,7 @@ osrs239_parse(
             source_square_count > PKT_MAP_REBUILD_ZONES )
             return 0;
 
-        p->zones = calloc(PKT_MAP_REBUILD_ZONES, sizeof(*p->zones));
+        p->zones = ToriMem_Calloc(ToriMem_Net(), PKT_MAP_REBUILD_ZONES, sizeof(*p->zones));
         assert(p->zones);
         bit_pos = c.rpos * 8;
         for( int i = 0; i < PKT_MAP_REBUILD_ZONES && ok; i++ )
@@ -1730,7 +1722,7 @@ osrs239_parse(
         }
         if( !ok || (bit_pos + 7) / 8 != len )
         {
-            free(p->zones);
+            ToriMem_Free(ToriMem_Net(), p->zones);
             p->zones = NULL;
             return 0;
         }
@@ -1766,8 +1758,7 @@ osrs239_parse(
         if( len - c.rpos < 1 )
             return 0;
         p->length = len - c.rpos;
-        p->data = malloc((size_t)p->length);
-        assert(p->data);
+        p->data = ToriMem_Alloc(ToriMem_Net(), (size_t)p->length);
         memcpy(p->data, data + c.rpos, (size_t)p->length);
         return 1;
     }
@@ -1795,8 +1786,7 @@ osrs239_parse(
         if( len == 0 )
             return 1;
         p->length = len;
-        p->data = malloc((size_t)len);
-        assert(p->data);
+        p->data = ToriMem_Alloc(ToriMem_Net(), (size_t)len);
         memcpy(p->data, data, (size_t)len);
         return 1;
     }

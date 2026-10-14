@@ -74,7 +74,7 @@ static void
 argv_clear(void)
 {
     for( int i = 0; i < g_argc; i++ )
-        free(g_argv[i]);
+        free(g_argv[i]); /* torimem-bare: argv is built before main()'s ToriMem_Init */
     g_argc = 0;
 }
 
@@ -88,7 +88,9 @@ argv_push(char const* value)
         LOGE("argv full, dropping '%s'", value);
         return;
     }
-    copy = strdup(value);
+    /* argv is built before main() calls ToriMem_Init, which refuses to start
+     * after any group has allocated. */
+    copy = strdup(value); /* torimem-bare: argv, built before ToriMem_Init */
     /* An allocation failure here is an assertion, not a case to handle: an argv
      * missing its manifest boots a client that silently loads something else. */
     if( !copy )

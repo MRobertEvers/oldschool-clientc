@@ -423,8 +423,11 @@ Task_Dat2SequenceLoad_Run(
     }
 
     self->frame_count = self->seq->frame_count;
-    self->frames = calloc((size_t)self->frame_count, sizeof(struct RSCache_Dat2Frame*));
-    self->delays = calloc((size_t)self->frame_count, sizeof(int));
+    /* The task's own working set (the bake copies out of it): its arena. */
+    self->frames = ToriMem_Calloc(
+        ToriRS_TaskMem(&self->task), (size_t)self->frame_count, sizeof(struct RSCache_Dat2Frame*));
+    self->delays =
+        ToriMem_Calloc(ToriRS_TaskMem(&self->task), (size_t)self->frame_count, sizeof(int));
     self->loaded_framemap_id = -1;
     self->loaded_archive_id = -1;
 
@@ -444,8 +447,8 @@ Task_Dat2SequenceLoad_Run(
      */
     {
         int n = 0;
-        self->archive_ids = malloc((size_t)self->frame_count * sizeof(int));
-        assert(self->archive_ids);
+        self->archive_ids =
+            ToriMem_Alloc(ToriRS_TaskMem(&self->task), (size_t)self->frame_count * sizeof(int));
         for( int i = 0; i < self->frame_count; i++ )
         {
             int id = self->seq->frame_ids[i];
@@ -475,7 +478,7 @@ Task_Dat2SequenceLoad_Run(
         PT_YIELD(&self->pt);
         ToriRS_IO_ClearItem(ToriRS_IO_TaskSlot(io, 0));
     }
-    free(self->archive_ids);
+    ToriMem_Free(ToriRS_TaskMem(&self->task), self->archive_ids);
     self->archive_ids = NULL;
 
     /* 2. Per frame: its animation archive (reused while consecutive frames
@@ -571,15 +574,18 @@ Task_Dat2SequenceLoad_Free(struct ToriRS_Task* base)
 {
     struct Task_Dat2SequenceLoad* self = (struct Task_Dat2SequenceLoad*)base;
     seq_drop_frame_temporaries(self);
-    free(self->archive_ids);
+    /* Each guarded: asking for the arena here would make one mid-teardown. */
+    if( self->archive_ids )
+        ToriMem_Free(ToriRS_TaskMem(base), self->archive_ids);
     if( self->frames )
     {
         for( int i = 0; i < self->frame_count; i++ )
             if( self->frames[i] )
                 RSCache_Dat2FrameFree(self->frames[i]);
-        free(self->frames);
+        ToriMem_Free(ToriRS_TaskMem(base), self->frames);
     }
-    free(self->delays);
+    if( self->delays )
+        ToriMem_Free(ToriRS_TaskMem(base), self->delays);
     if( self->framemap )
         RSCache_Dat2FramemapFree(self->framemap);
     if( self->seq )
@@ -591,7 +597,7 @@ Task_Dat2SequenceLoad_Free(struct ToriRS_Task* base)
     /* Non-NULL only when the bake never reached seq_register_result (task
      * cancelled mid-flight); the registered animation owns it otherwise. */
     ToriDraw_SkeletalAnimFree(self->skeletal);
-    free(self);
+    ToriMem_Free(ToriMem_Assets(), self);
 }
 
 static struct ToriRS_TaskVTable Task_Dat2SequenceLoad_VTable = {
@@ -609,8 +615,7 @@ CreateTask_Dat2SequenceLoad(
     assert(provider && scene);
     if( seq_id < 0 || ToriDraw_SceneAnimationHas(scene, seq_id) )
         return NULL;
-    task = calloc(1, sizeof(*task));
-    assert(task);
+    task = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*task));
     task->task.vtable = &Task_Dat2SequenceLoad_VTable;
     strncpy(task->task.name, "Dat2SequenceLoad", sizeof(task->task.name) - 1);
     task->provider = provider;

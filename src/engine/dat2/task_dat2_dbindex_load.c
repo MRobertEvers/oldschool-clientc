@@ -1,4 +1,5 @@
 #include "engine/dat2/dat2_tasks.h"
+#include "mem/torirs_mem.h"
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
 #include "engine/torirs_db.h"
@@ -27,7 +28,7 @@ struct Task_Dat2DbTableIndexLoad
 static void
 dbindex_add_empty(struct Task_Dat2DbTableIndexLoad* task)
 {
-    struct ToriRS_DbTableIndex* idx = calloc(1, sizeof(*idx));
+    struct ToriRS_DbTableIndex* idx = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*idx));
     assert(idx);
     idx->table_id = task->table_id;
     CacheProvider_DbTableIndexAdd(&task->bc->base, task->table_id, idx);
@@ -77,13 +78,12 @@ Task_Dat2DbTableIndexLoad_Run(
         PT_EXIT(&task->pt);
     }
 
-    idx = calloc(1, sizeof(*idx));
+    idx = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*idx));
     assert(idx);
     idx->table_id = task->table_id;
     idx->file_count = filelist->file_count;
-    idx->files = calloc((size_t)idx->file_count, sizeof(*idx->files));
-    idx->file_ids = malloc((size_t)idx->file_count * sizeof(int));
-    assert(idx->files && idx->file_ids);
+    idx->files = ToriMem_Calloc(ToriMem_Assets(), (size_t)idx->file_count, sizeof(*idx->files));
+    idx->file_ids = ToriMem_Alloc(ToriMem_Assets(), (size_t)idx->file_count * sizeof(int));
 
     for( int i = 0; i < filelist->file_count; i++ )
     {
@@ -103,7 +103,7 @@ Task_Dat2DbTableIndexLoad_Run(
 static void
 Task_Dat2DbTableIndexLoad_Free(struct ToriRS_Task* task_base)
 {
-    free(task_base);
+    ToriMem_Free(ToriMem_Assets(), task_base);
 }
 
 static struct ToriRS_TaskVTable Task_Dat2DbTableIndexLoad_VTable = {
@@ -125,7 +125,7 @@ CreateTask_Dat2DbTableIndexLoad(
     if( table_id < 0 || CacheProvider_DbTableIndexHas(provider, table_id) )
         return NULL;
 
-    task = calloc(1, sizeof(*task));
+    task = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_Dat2DbTableIndexLoad_VTable;
     strcpy(task->task.name, "Dat2DbTableIndexLoad");

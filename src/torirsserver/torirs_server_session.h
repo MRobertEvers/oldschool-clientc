@@ -222,6 +222,11 @@ ToriRSServer_SessionInit(
 void
 ToriRSServer_SessionFree(struct ToriRSServerSession* session);
 
+/** Close the JS5 cache every session shares (opened on the first JS5
+ *  handshake). The host's teardown; the next handshake opens it again. */
+void
+ToriRSServer_SessionJs5Release(void);
+
 /**
  * Move whatever the transport has into the session and advance as far as the
  * bytes allow: complete the handshake, then decode and dispatch whole packets.

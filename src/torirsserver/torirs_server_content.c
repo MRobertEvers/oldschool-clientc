@@ -323,8 +323,10 @@ pack_build_indexes(struct Pack* pack)
 {
     if( pack->count <= 0 )
         return;
-    pack->by_name = malloc((size_t)pack->count * sizeof(*pack->by_name));
-    pack->by_id = malloc((size_t)pack->count * sizeof(*pack->by_id));
+    pack->by_name =
+        ToriMem_Alloc(ToriMem_ServerContent(), (size_t)pack->count * sizeof(*pack->by_name));
+    pack->by_id =
+        ToriMem_Alloc(ToriMem_ServerContent(), (size_t)pack->count * sizeof(*pack->by_id));
     assert(pack->by_name);
     assert(pack->by_id);
     for( int i = 0; i < pack->count; i++ )
@@ -340,7 +342,8 @@ pack_build_indexes(struct Pack* pack)
 
     if( pack != &g_packs[TORIRSSERVER_PACK_VARP] && pack != &g_packs[TORIRSSERVER_PACK_VARBIT] )
         return;
-    pack->by_base = malloc((size_t)pack->count * sizeof(*pack->by_base));
+    pack->by_base =
+        ToriMem_Alloc(ToriMem_ServerContent(), (size_t)pack->count * sizeof(*pack->by_base));
     assert(pack->by_base);
     pack->base_count = 0;
     for( int i = 0; i < pack->count; i++ )
@@ -367,7 +370,7 @@ pack_name_intern(
     assert(len <= PACK_NAME_CHUNK_BYTES);
     if( !chunk || chunk->used + len > PACK_NAME_CHUNK_BYTES )
     {
-        chunk = malloc(sizeof(*chunk));
+        chunk = ToriMem_Alloc(ToriMem_ServerContent(), sizeof(*chunk));
         assert(chunk);
         chunk->next = pack->names;
         chunk->used = 0;
@@ -386,7 +389,7 @@ pack_names_free(struct Pack* pack)
     while( chunk )
     {
         struct PackNameChunk* next = chunk->next;
-        free(chunk);
+        ToriMem_Free(ToriMem_ServerContent(), chunk);
         chunk = next;
     }
     pack->names = NULL;
@@ -402,7 +405,8 @@ pack_add(
     if( pack->count == pack->capacity )
     {
         int capacity = pack->capacity ? pack->capacity * 2 : 64;
-        struct PackEntry* grown = realloc(pack->entries, (size_t)capacity * sizeof(*grown));
+        struct PackEntry* grown = ToriMem_Realloc(
+            ToriMem_ServerContent(), pack->entries, (size_t)capacity * sizeof(*grown));
 
         assert(grown);
         pack->entries = grown;
@@ -481,7 +485,7 @@ load_component_symbols_from_root(
         if( pack_load(&children, path, 0) == 0 )
         {
             pack_names_free(&children);
-            free(children.entries);
+            ToriMem_Free(ToriMem_ServerContent(), children.entries);
             continue;
         }
         for( int c = 0; c < children.count; c++ )
@@ -506,7 +510,7 @@ load_component_symbols_from_root(
             loaded++;
         }
         pack_names_free(&children);
-        free(children.entries);
+        ToriMem_Free(ToriMem_ServerContent(), children.entries);
     }
     return loaded;
 }
@@ -828,7 +832,7 @@ collect_rows(
     if( total == 0 )
         return NULL;
 
-    struct SymbolRow* rows = malloc((size_t)total * sizeof(*rows));
+    struct SymbolRow* rows = ToriMem_Alloc(ToriMem_ServerContent(), (size_t)total * sizeof(*rows));
     assert(rows);
     int at = 0;
     for( int k = 0; k < kind_count; k++ )
@@ -875,7 +879,7 @@ validate_symbols(const struct ContentRegister* reg)
                           rows[i - 1].id, rows[i].id);
             collisions++;
         }
-        free(rows);
+        ToriMem_Free(ToriMem_ServerContent(), rows);
     }
 
     /* The `%name` domain, as the register declares it: all its namespaces sorted
@@ -898,7 +902,7 @@ validate_symbols(const struct ContentRegister* reg)
                           rows[i].id);
             collisions++;
         }
-        free(rows);
+        ToriMem_Free(ToriMem_ServerContent(), rows);
     }
 
     return collisions;
@@ -1161,13 +1165,10 @@ grow(
     int count,
     size_t element)
 {
-    void* grown;
-
     if( count < *capacity )
         return array;
     *capacity = *capacity ? *capacity * 2 : 32;
-    grown = realloc(array, (size_t)*capacity * element);
-    return grown ? grown : array;
+    return ToriMem_Realloc(ToriMem_ServerContent(), array, (size_t)*capacity * element);
 }
 
 /*
@@ -1349,14 +1350,16 @@ npc_def_seed_from_cache(
      * double free. Own copies, or nothing. */
     if( g_npc_default.params )
     {
-        def->params = malloc((size_t)g_npc_default.param_count * sizeof(*def->params));
+        def->params = ToriMem_Alloc(
+            ToriMem_ServerContent(), (size_t)g_npc_default.param_count * sizeof(*def->params));
         assert(def->params);
         memcpy(def->params, g_npc_default.params,
                (size_t)g_npc_default.param_count * sizeof(*def->params));
     }
     if( g_npc_default.patrol )
     {
-        def->patrol = calloc(TORIRSSERVER_NPC_PATROL_MAX, sizeof(*def->patrol));
+        def->patrol = ToriMem_Calloc(
+            ToriMem_ServerContent(), TORIRSSERVER_NPC_PATROL_MAX, sizeof(*def->patrol));
         assert(def->patrol);
         memcpy(def->patrol, g_npc_default.patrol,
                TORIRSSERVER_NPC_PATROL_MAX * sizeof(*def->patrol));
@@ -1418,8 +1421,10 @@ record_authored_param(
     }
     /* Exact-size realloc: appends are capped at PARAM_MAX per def and happen
      * only at load, so growth games buy nothing here. */
-    def->params = realloc(
-        def->params, ((size_t)def->param_count + 1) * sizeof(*def->params));
+    def->params = ToriMem_Realloc(
+        ToriMem_ServerContent(),
+        def->params,
+        ((size_t)def->param_count + 1) * sizeof(*def->params));
     assert(def->params);
     def->params[def->param_count].key = param_id;
     def->params[def->param_count].value = resolved;
@@ -1474,9 +1479,9 @@ load_constant_config(const char* path)
         }
         g_constants =
             grow(g_constants, &g_constant_capacity, g_constant_count, sizeof(*g_constants));
-        g_constants[g_constant_count].name = strdup(line + 1);
+        g_constants[g_constant_count].name = ToriMem_Strdup(ToriMem_ServerContent(), line + 1);
         assert(g_constants[g_constant_count].name);
-        g_constants[g_constant_count].text = strdup(value);
+        g_constants[g_constant_count].text = ToriMem_Strdup(ToriMem_ServerContent(), value);
         assert(g_constants[g_constant_count].text);
         ContentNameIndex_Add(&g_constant_index, g_constants[g_constant_count].name,
                              g_constant_count);
@@ -1983,13 +1988,11 @@ ToriRSServer_Scandir(
         {
             int const grown = capacity ? capacity * 2 : 16;
             struct dirent** resized =
-                realloc(entries, (size_t)grown * sizeof(*entries));
-            if( !resized )
-                break;
+                ToriMem_Realloc(ToriMem_ServerContent(), entries, (size_t)grown * sizeof(*entries));
             entries = resized;
             capacity = grown;
         }
-        slot = calloc(1, sizeof(*slot));
+        slot = ToriMem_Calloc(ToriMem_ServerContent(), 1, sizeof(*slot));
         assert(slot);
         memcpy(slot, ent, reclen);
         /* A truncated copy must still be a valid C string for the sort. */
@@ -2036,9 +2039,9 @@ walk_configs(
             else if( has_suffix(entries[i]->d_name, suffix) )
                 load(path);
         }
-        free(entries[i]);
+        ToriMem_Free(ToriMem_ServerContent(), entries[i]);
     }
-    free(entries);
+    ToriMem_Free(ToriMem_ServerContent(), entries);
 }
 
 /*
@@ -2106,7 +2109,8 @@ load_multiway(const char* path)
         if( g_multiway_count == g_multiway_capacity )
         {
             int capacity = g_multiway_capacity ? g_multiway_capacity * 2 : 1024;
-            int* grown = realloc(g_multiway, (size_t)capacity * sizeof(*grown));
+            int* grown = ToriMem_Realloc(
+                ToriMem_ServerContent(), g_multiway, (size_t)capacity * sizeof(*grown));
 
             assert(grown);
             g_multiway = grown;
@@ -2288,9 +2292,11 @@ load_param_types_pack(struct RSCache_ServerPack* pack)
     g_param_type_count = ToriRSServer_ServPackKindIdBound(&records);
     if( g_param_type_count < ToriRSServer_ContentSymbolCount(TORIRSSERVER_PACK_PARAM) )
         g_param_type_count = ToriRSServer_ContentSymbolCount(TORIRSSERVER_PACK_PARAM);
-    g_param_types = (char*)calloc((size_t)g_param_type_count + 1, 1);
+    g_param_types =
+        (char*)ToriMem_Calloc(ToriMem_ServerContent(), (size_t)g_param_type_count + 1, 1);
     assert(g_param_types);
-    g_param_defaults = (int*)calloc((size_t)g_param_type_count + 1, sizeof(int));
+    g_param_defaults =
+        (int*)ToriMem_Calloc(ToriMem_ServerContent(), (size_t)g_param_type_count + 1, sizeof(int));
     assert(g_param_defaults);
     for( int i = 0; i < records.count; i++ )
     {
@@ -2333,7 +2339,7 @@ load_enums_pack(struct RSCache_ServerPack* pack)
             grow(g_enum_defs, &g_enum_def_capacity, g_enum_def_count, sizeof(*g_enum_defs));
         def = &g_enum_defs[g_enum_def_count++];
         memset(def, 0, sizeof(*def));
-        def->symbol = strdup(symbol);
+        def->symbol = ToriMem_Strdup(ToriMem_ServerContent(), symbol);
         assert(def->symbol);
         def->input_kind = pack_kind_for_char((unsigned char)entry.input_type);
         def->output_kind = pack_kind_for_char((unsigned char)entry.output_type);
@@ -2341,15 +2347,18 @@ load_enums_pack(struct RSCache_ServerPack* pack)
         def->output_is_string = entry.output_type == 's' || entry.output_is_string;
         def->default_int = entry.default_int;
         def->default_text = "null";
-        if( def->output_is_string && entry.default_string )
+        /* A stated "null" stays the literal: ToriRSServer_ContentFree frees
+         * every default but that one, so a copy of it would never be freed. */
+        if( def->output_is_string && entry.default_string &&
+            strcmp(entry.default_string, "null") != 0 )
         {
-            def->default_text = strdup(entry.default_string);
+            def->default_text = ToriMem_Strdup(ToriMem_ServerContent(), entry.default_string);
             assert(def->default_text);
         }
         if( entry.count > 0 )
         {
-            def->values = (struct ToriRSServerEnumValue*)calloc((size_t)entry.count,
-                                                                sizeof(*def->values));
+            def->values = (struct ToriRSServerEnumValue*)ToriMem_Calloc(
+                ToriMem_ServerContent(), (size_t)entry.count, sizeof(*def->values));
             assert(def->values);
             def->capacity = entry.count;
         }
@@ -2358,9 +2367,9 @@ load_enums_pack(struct RSCache_ServerPack* pack)
             def->values[v].key = entry.keys[v];
             if( def->output_is_string )
             {
-                def->values[v].text = strdup(entry.string_values && entry.string_values[v]
-                                                 ? entry.string_values[v]
-                                                 : "");
+                def->values[v].text = ToriMem_Strdup(
+                    ToriMem_ServerContent(),
+                    entry.string_values && entry.string_values[v] ? entry.string_values[v] : "");
                 assert(def->values[v].text);
             }
             else
@@ -2388,7 +2397,7 @@ load_idk_pack(struct RSCache_ServerPack* pack)
         ToriRSServer_ServPackKindFree(&records);
         return 0;
     }
-    g_idk_bodypart = (int8_t*)malloc((size_t)g_idk_count);
+    g_idk_bodypart = (int8_t*)ToriMem_Alloc(ToriMem_ServerContent(), (size_t)g_idk_count);
     assert(g_idk_bodypart);
     memset(g_idk_bodypart, -1, (size_t)g_idk_count);
     for( int i = 0; i < records.count; i++ )
@@ -3036,7 +3045,8 @@ ToriRSServer_ContentLoadPack(struct RSCache_ServerPack* pack)
      * move the array out from under it. */
     if( g_npc_def_count > 0 )
     {
-        g_npc_defs = realloc(g_npc_defs, (size_t)g_npc_def_count * sizeof(*g_npc_defs));
+        g_npc_defs = ToriMem_Realloc(
+            ToriMem_ServerContent(), g_npc_defs, (size_t)g_npc_def_count * sizeof(*g_npc_defs));
         assert(g_npc_defs);
         g_npc_def_capacity = g_npc_def_count;
     }
@@ -3140,10 +3150,10 @@ ToriRSServer_ContentFree(void)
     for( int kind = 0; kind < TORIRSSERVER_PACK_COUNT; kind++ )
     {
         pack_names_free(&g_packs[kind]);
-        free(g_packs[kind].entries);
-        free(g_packs[kind].by_name);
-        free(g_packs[kind].by_id);
-        free(g_packs[kind].by_base);
+        ToriMem_Free(ToriMem_ServerContent(), g_packs[kind].entries);
+        ToriMem_Free(ToriMem_ServerContent(), g_packs[kind].by_name);
+        ToriMem_Free(ToriMem_ServerContent(), g_packs[kind].by_id);
+        ToriMem_Free(ToriMem_ServerContent(), g_packs[kind].by_base);
         g_packs[kind].entries = NULL;
         g_packs[kind].by_name = NULL;
         g_packs[kind].by_id = NULL;
@@ -3154,60 +3164,65 @@ ToriRSServer_ContentFree(void)
     }
     for( int i = 0; i < g_npc_def_count; i++ )
     {
-        free(g_npc_defs[i].params);
-        free(g_npc_defs[i].patrol);
+        ToriMem_Free(ToriMem_ServerContent(), g_npc_defs[i].params);
+        ToriMem_Free(ToriMem_ServerContent(), g_npc_defs[i].patrol);
     }
-    free(g_npc_defs);
+    ToriMem_Free(ToriMem_ServerContent(), g_npc_defs);
     g_npc_defs = NULL;
     g_npc_def_count = g_npc_def_capacity = 0;
-    free(g_npc_default.params);
+    ToriMem_Free(ToriMem_ServerContent(), g_npc_default.params);
     g_npc_default.params = NULL;
     g_npc_default.param_count = 0;
-    free(g_npc_default.patrol);
+    ToriMem_Free(ToriMem_ServerContent(), g_npc_default.patrol);
     g_npc_default.patrol = NULL;
     g_npc_default.patrol_count = 0;
     ToriRSServer_SceneLocOpOverlayReset();
-    free(g_loc_defs);
+    ToriMem_Free(ToriMem_ServerContent(), g_loc_defs);
     g_loc_defs = NULL;
     g_loc_def_count = g_loc_def_capacity = 0;
-    free(g_varp_defs);
+    ToriMem_Free(ToriMem_ServerContent(), g_varp_defs);
     g_varp_defs = NULL;
     g_varp_def_count = g_varp_def_capacity = 0;
-    free(g_multiway);
+    ToriMem_Free(ToriMem_ServerContent(), g_multiway);
     g_multiway = NULL;
     g_multiway_count = g_multiway_capacity = 0;
     for( int i = 0; i < g_enum_def_count; i++ )
     {
-        free((void*)g_enum_defs[i].symbol);
+        ToriMem_Free(ToriMem_ServerContent(), (void*)g_enum_defs[i].symbol);
         if( g_enum_defs[i].default_text &&
             strcmp(g_enum_defs[i].default_text, "null") != 0 )
-            free((void*)g_enum_defs[i].default_text);
+            ToriMem_Free(ToriMem_ServerContent(), (void*)g_enum_defs[i].default_text);
         for( int j = 0; j < g_enum_defs[i].count; j++ )
-            free((void*)g_enum_defs[i].values[j].text);
-        free(g_enum_defs[i].values);
+            ToriMem_Free(ToriMem_ServerContent(), (void*)g_enum_defs[i].values[j].text);
+        ToriMem_Free(ToriMem_ServerContent(), g_enum_defs[i].values);
     }
-    free(g_enum_defs);
+    ToriMem_Free(ToriMem_ServerContent(), g_enum_defs);
     g_enum_defs = NULL;
     g_enum_def_count = g_enum_def_capacity = 0;
     ContentNameIndex_Free(&g_enum_index);
     g_enum_indexed = 0;
     for( int i = 0; i < g_constant_count; i++ )
     {
-        free(g_constants[i].name);
-        free(g_constants[i].text);
+        ToriMem_Free(ToriMem_ServerContent(), g_constants[i].name);
+        ToriMem_Free(ToriMem_ServerContent(), g_constants[i].text);
     }
-    free(g_constants);
+    ToriMem_Free(ToriMem_ServerContent(), g_constants);
     g_constants = NULL;
     g_constant_count = g_constant_capacity = 0;
     ContentNameIndex_Free(&g_constant_index);
-    free(g_param_types);
+    ToriMem_Free(ToriMem_ServerContent(), g_param_types);
     g_param_types = NULL;
+    ToriMem_Free(ToriMem_ServerContent(), g_param_defaults);
+    g_param_defaults = NULL;
     g_param_type_count = 0;
+    ToriMem_Free(ToriMem_ServerContent(), g_idk_bodypart);
+    g_idk_bodypart = NULL;
+    g_idk_count = 0;
 
-    free(g_npc_spawns);
+    ToriMem_Free(ToriMem_ServerContent(), g_npc_spawns);
     g_npc_spawns = NULL;
     g_npc_spawn_count = g_npc_spawn_capacity = 0;
-    free(g_obj_spawns);
+    ToriMem_Free(ToriMem_ServerContent(), g_obj_spawns);
     g_obj_spawns = NULL;
     g_obj_spawn_count = g_obj_spawn_capacity = 0;
     g_errors = 0;

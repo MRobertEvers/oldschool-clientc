@@ -64,8 +64,17 @@ YieldTask_Run(struct ToriRS_Task* base, struct ToriRS_IOBatch* io)
     PT_END(&self->pt);
 }
 
-static struct ToriRS_TaskVTable k_write_vtable = { .run = WriteTask_Run, .free = NULL };
-static struct ToriRS_TaskVTable k_yield_vtable = { .run = YieldTask_Run, .free = NULL };
+
+/* A test fixture's task shell is calloc'd here, so it frees itself with libc:
+ * task_free requires every task to free itself. */
+static void
+test_task_free_libc(struct ToriRS_Task* task)
+{
+    free(task);
+}
+
+static struct ToriRS_TaskVTable k_write_vtable = { .run = WriteTask_Run, .free = test_task_free_libc };
+static struct ToriRS_TaskVTable k_yield_vtable = { .run = YieldTask_Run, .free = test_task_free_libc };
 
 static struct ToriRS_Task*
 new_write(int value)

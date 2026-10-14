@@ -1,6 +1,8 @@
 #include "render/trspk_sprite.h"
 #include <assert.h>
 
+#include "mem/torirs_mem.h"
+
 #include "core/trspk_swizzle_simd.h"
 #include "toridraw_math.h"
 #include "toridraw_sprite.h"
@@ -56,8 +58,7 @@ trspk_sprite_rotmask_bake(
     need = (size_t)dst_w * (size_t)dst_h;
     if( bake->capacity < need )
     {
-        uint32_t* grown = realloc(bake->pixels, need * sizeof(uint32_t));
-        assert(grown);
+        uint32_t* grown = ToriMem_Realloc(ToriMem_Render(), bake->pixels, need * sizeof(uint32_t));
         bake->pixels = grown;
         bake->capacity = need;
         grew = true;
@@ -101,7 +102,7 @@ trspk_sprite_rotmask_bake_release(struct TRSPK_RotmaskBake* bake)
 {
     if( !bake )
         return;
-    free(bake->pixels);
+    ToriMem_Free(ToriMem_Render(), bake->pixels);
     bake->pixels = NULL;
     bake->capacity = 0;
 }

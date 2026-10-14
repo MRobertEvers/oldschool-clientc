@@ -9,9 +9,11 @@
  * exists for exactly this pair of files.
  */
 #include "torirs_server.h"
+#include "mem/torirs_mem.h"
 #include "torirs_server_gwd_manifest.gen.h"
 #include "torirs_server_music_regions.gen.h"
 
+#include "torirs_server_bank.h"
 #include "torirs_server_container.h"
 #include "torirs_server_shop.h"
 #include "torirs_server_content.h"
@@ -1162,6 +1164,19 @@ selftest_lane_present(
 #define SELFTEST_LANE_RS2012 "rs2012_qbd_td"
 #define SELFTEST_LANE_RS2012_PROBE "[proc,rs2012_qbd_coord]"
 #define SELFTEST_LANE_RS2012_TD_PROBE "[proc,rs2012_td_init]"
+
+/* A stanza that is done with a secondary player drops it here rather than by
+ * clearing `active`: the slot's bank is heap memory, and a later
+ * ToriRSServer_WorldAddPlayer into the slot memsets the struct -- which is how
+ * eight banks were still live at the suite's exit. (WorldRemovePlayer also
+ * saves to disk, which a stanza must not do.) */
+static void
+selftest_drop_player(struct ToriRSServerPlayer* player)
+{
+    assert(player);
+    ToriRSServer_BankShutdownPlayer(player);
+    player->active = 0;
+}
 
 static void
 selftest_park_player(
@@ -3419,7 +3434,7 @@ selftest_npc_seed_rolls(
     int* out_rolls)
 {
     size_t lives_size = sizeof(srv->npc_seed_lives);
-    void* saved_lives = malloc(lives_size);
+    void* saved_lives = ToriMem_Alloc(ToriMem_ServerWorld(), lives_size);
     uint64_t saved_seed = srv->npc_run_seed;
     int slot;
 
@@ -3439,7 +3454,7 @@ selftest_npc_seed_rolls(
     }
     srv->npc_run_seed = saved_seed;
     memcpy(srv->npc_seed_lives, saved_lives, lives_size);
-    free(saved_lives);
+    ToriMem_Free(ToriMem_ServerWorld(), saved_lives);
 }
 
 /*
@@ -4066,14 +4081,14 @@ ToriRSServer_WorldSelftest(void)
      * stack reason and could take the same treatment; `ToriRSServerEmbed.srv` is
      * already a member of a heap object.)
      *
-     * Never freed on purpose: this is an entry point `main` calls once and is
-     * not reentrant, and the memset below still gives every run a zeroed
-     * world.
+     * Freed at the end of the run, with the world the last stanza built, so
+     * the exit walk names nothing of the suite's. The memset below still gives
+     * every run a zeroed world.
      */
     static struct ToriRSServer* srv;
 
     if( !srv )
-        srv = calloc(1, sizeof(*srv));
+        srv = ToriMem_Calloc(ToriMem_ServerWorld(), 1, sizeof(*srv));
     assert(srv);
     struct ToriRSServerPlayer* player;
     const struct ToriRSServerIds* ids = ToriRSServer_Ids();
@@ -7149,7 +7164,7 @@ ToriRSServer_WorldSelftest(void)
                      * magic selector and prove only the current target gets a
                      * landing queue. */
                     for( int i = 2; i < 5; i++ )
-                        team[i]->active = 0;
+                        selftest_drop_player(team[i]);
                     {
                         static const struct
                         {
@@ -7249,7 +7264,7 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_WorldSetActive(srv, player);
                 for( int i = 1; i < 5; i++ )
                     if( team[i] )
-                        team[i]->active = 0;
+                        selftest_drop_player(team[i]);
                 memset(player->queue, 0, sizeof(player->queue));
                 player->level = 0;
             }
@@ -9369,13 +9384,13 @@ ToriRSServer_WorldSelftest(void)
                         }
                         for( int i = 2; i < 5; i++ )
                             if( team[i] )
-                                team[i]->active = 0;
+                                selftest_drop_player(team[i]);
                     }
                     srv->npcs[boss].active = 0;
                 }
                 ToriRSServer_WorldSetActive(srv, first);
                 if( second )
-                    second->active = 0;
+                    selftest_drop_player(second);
                 memset(first->queue, 0, sizeof(first->queue));
             }
 
@@ -9459,7 +9474,7 @@ ToriRSServer_WorldSelftest(void)
                 }
                 ToriRSServer_WorldSetActive(srv, player);
                 for( int i = 1; i < joined; i++ )
-                    team[i]->active = 0;
+                    selftest_drop_player(team[i]);
                 memset(player->queue, 0, sizeof(player->queue));
             }
 
@@ -12830,7 +12845,7 @@ ToriRSServer_WorldSelftest(void)
             struct ToriRSServerNpc* familiar;
             uint32_t first_generation;
 
-            owners = calloc(1, sizeof(*owners));
+            owners = ToriMem_Calloc(ToriMem_ServerWorld(), 1, sizeof(*owners));
             assert(owners);
             first = ToriRSServer_WorldAddPlayer(owners, NULL);
             other = ToriRSServer_WorldAddPlayer(owners, NULL);
@@ -12855,7 +12870,7 @@ ToriRSServer_WorldSelftest(void)
                                familiar->face_entity == TORIRSSERVER_FACE_PLAYER_BASE + first->pid,
                            "an owned npc faces its owner, not active_player");
 
-            first->active = 0;
+            selftest_drop_player(first);
             replacement = ToriRSServer_WorldAddPlayer(owners, NULL);
             SELFTEST_CHECK(replacement == first &&
                                replacement->login_generation != first_generation,
@@ -12864,7 +12879,10 @@ ToriRSServer_WorldSelftest(void)
                            "a stale owner handle does not transfer to the replacement");
             SELFTEST_CHECK(!ToriRSServer_WorldNpcVisibleTo(owners, familiar, replacement),
                            "a stale owned npc stays hidden after pid reuse");
-            free(owners);
+            /* Its players' banks and containers are heap blocks of their own. */
+            ToriRSServer_BankShutdown(owners);
+            ToriRSServer_ContainerShutdown(owners);
+            ToriMem_Free(ToriMem_ServerWorld(), owners);
         }
 
         SELFTEST_CHECK(ToriRSServer_IdsResolve() == 0, "every id should resolve");
@@ -14029,7 +14047,7 @@ ToriRSServer_WorldSelftest(void)
                 srv->script_env->provider = saved_provider;
                 familiar->active = 0;
                 srv->npc_slot_max = slot;
-                other->active = 0;
+                selftest_drop_player(other);
                 srv->player_count = player->pid + 1;
                 ToriRSServer_WorldSetActive(srv, player);
                 player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
@@ -14121,7 +14139,7 @@ ToriRSServer_WorldSelftest(void)
                                    ".huntnext should leave the primary player alone "
                                    "(uid read %d, want %d)",
                                    player->varps[v_c], player->pid + 1);
-                    other->active = 0;
+                    selftest_drop_player(other);
                     srv->player_count = player->pid + 1;
                     ToriRSServer_WorldSetActive(srv, player);
                 }
@@ -35215,7 +35233,7 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsRunDebugproc(srv, "tobout");
             selftest_clear_pending(srv, srv->active_player);
             if( mate )
-                mate->active = 0;
+                selftest_drop_player(mate);
         }
 
         /*
@@ -62275,5 +62293,11 @@ ToriRSServer_WorldSelftest(void)
     else
         fprintf(stderr, "ToriRSServer selftest: all checks passed\n");
     selftest_evidence_end("full");
+    ToriRSServer_BankShutdown(srv);
+    ToriRSServer_ContainerShutdown(srv);
+    ToriRSServer_ScriptsFree(srv);
+    ToriRSServer_WorldShutdown(srv);
+    ToriMem_Free(ToriMem_ServerWorld(), srv);
+    srv = NULL;
     return g_selftest_failures;
 }

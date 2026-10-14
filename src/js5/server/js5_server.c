@@ -3,6 +3,7 @@
 #endif
 
 #include "js5_server.h"
+#include "mem/torirs_mem.h"
 #include <assert.h>
 
 #include "js5_server_cache.h"
@@ -466,7 +467,8 @@ Js5ServerRun(const struct Js5ServerConfig* config)
 #endif
 
     slot_count = config->max_clients + JS5_SERVER_REJECT_SLOTS;
-    clients = (struct Js5ServerClient*)calloc(slot_count, sizeof(*clients));
+    clients =
+        (struct Js5ServerClient*)ToriMem_Calloc(ToriMem_ServerNet(), slot_count, sizeof(*clients));
     assert(clients);
     for( uint32_t i = 0u; i < slot_count; i++ )
         clients[i].socket = JS5_SERVER_INVALID_SOCKET;
@@ -595,7 +597,7 @@ cleanup:
         for( uint32_t i = 0u; i < count; i++ )
             js5_server_client_reset(&clients[i], config->verbose);
     }
-    free(clients);
+    ToriMem_Free(ToriMem_ServerNet(), clients);
     js5_server_socket_close(listener);
     Js5ServerCacheFree(cache);
 #ifdef _WIN32

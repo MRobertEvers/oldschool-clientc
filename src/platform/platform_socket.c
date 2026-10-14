@@ -1,4 +1,5 @@
 #include "platform_socket.h"
+#include "mem/torirs_mem.h"
 
 #include "cmd/cmdbus.h"
 #include "net/net.h"
@@ -36,8 +37,7 @@ out_pending_append(
         int cap = sock->out_pending_cap ? sock->out_pending_cap : 1024;
         while( cap < sock->out_pending_len + len )
             cap *= 2;
-        sock->out_pending = realloc(sock->out_pending, cap);
-        assert(sock->out_pending);
+        sock->out_pending = ToriMem_Realloc(ToriMem_Net(), sock->out_pending, cap);
         sock->out_pending_cap = cap;
     }
     memcpy(sock->out_pending + sock->out_pending_len, data, len);
@@ -74,8 +74,7 @@ PlatformSocket_New(int default_port)
     assert(wsa_rc == 0);
     (void)wsa_rc; /* OPT=1 defines NDEBUG, so the assert alone would drop it */
 
-    sock = calloc(1, sizeof(*sock));
-    assert(sock);
+    sock = ToriMem_Calloc(ToriMem_Net(), 1, sizeof(*sock));
     sock->default_port = default_port > 0 ? default_port : 43594;
     sock->last_status = TORIRS_NET_STATUS_DISCONNECTED;
     return sock;
@@ -86,10 +85,10 @@ PlatformSocket_Free(struct PlatformSocket* sock)
 {
     if( !sock )
         return;
-    if( sock->stream )
-        sockstream_close(sock->stream);
-    free(sock->out_pending);
-    free(sock);
+    /* sockstream_free closes it too; a bare close leaked the stream. */
+    sockstream_free(sock->stream);
+    ToriMem_Free(ToriMem_Net(), sock->out_pending);
+    ToriMem_Free(ToriMem_Net(), sock);
 }
 
 /* "host:port" -> host + port (default_port when no colon). */
@@ -161,8 +160,7 @@ PlatformSocket_Poll(
             char host[128];
             int port;
             parse_host(sock, (char const*)payload, header.length, host, sizeof(host), &port);
-            if( sock->stream )
-                sockstream_close(sock->stream);
+            sockstream_free(sock->stream); /* closes it; a bare close leaked it */
             sock->out_pending_len = 0;
             sock->stream = sockstream_new();
             if( sock->stream )
@@ -190,7 +188,7 @@ PlatformSocket_Poll(
             sock->out_pending_len = 0;
             if( sock->stream )
             {
-                sockstream_close(sock->stream);
+                sockstream_free(sock->stream); /* closes it; a bare close leaked it */
                 sock->stream = NULL;
             }
             sock->connecting = 0;
@@ -214,7 +212,7 @@ PlatformSocket_Poll(
         else if( rc == SOCKSTREAM_CONNECT_FAILED )
         {
             sock->connecting = 0;
-            sockstream_close(sock->stream);
+            sockstream_free(sock->stream); /* closes it; a bare close leaked it */
             sock->stream = NULL;
             emit_status(sock, bus, TORIRS_NET_STATUS_FAILED);
             return;
@@ -277,7 +275,7 @@ PlatformSocket_Poll(
              * what made a killed server invisible to this client until a
              * fifteen-second silence timer noticed the absence of packets.
              */
-            sockstream_close(sock->stream);
+            sockstream_free(sock->stream); /* closes it; a bare close leaked it */
             sock->stream = NULL;
             emit_status(sock, bus, TORIRS_NET_STATUS_DISCONNECTED);
             break;

@@ -91,7 +91,7 @@ task_dat2_worldmap_decode(
             composite->data, composite->data_size, composite->file_count);
     }
 
-    entries = calloc((size_t)details_files->file_count, sizeof(*entries));
+    entries = ToriMem_Calloc(ToriMem_Assets(), (size_t)details_files->file_count, sizeof(*entries));
     assert(entries);
 
     for( int i = 0; i < details_files->file_count; i++ )
@@ -127,7 +127,7 @@ task_dat2_worldmap_decode(
 
     for( int i = 0; i < count; i++ )
         RSCache_WorldMapAreaFreeInplace(&entries[i]);
-    free(entries);
+    ToriMem_Free(ToriMem_Assets(), entries);
     RSCache_FileListFree(composite_files);
     RSCache_FileListFree(details_files);
     return areas;
@@ -300,7 +300,7 @@ Task_Dat2WorldMapLoad_Free(struct ToriRS_Task* task_base)
     /* Only set when the task is killed between archive loads. */
     RSCache_Dat2DiskArchiveFree(task->details);
     RSCache_Dat2DiskArchiveFree(task->composite);
-    free(task_base);
+    ToriMem_Free(ToriMem_Assets(), task_base);
 }
 
 static struct ToriRS_TaskVTable Task_Dat2WorldMapLoad_VTable = {
@@ -318,7 +318,7 @@ CreateTask_Dat2WorldMapLoad(struct CacheProvider* provider)
     if( CacheProvider_WorldMapGet(provider) )
         return NULL;
 
-    task = calloc(1, sizeof(*task));
+    task = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_Dat2WorldMapLoad_VTable;
     strcpy(task->task.name, "Dat2WorldMapLoad");

@@ -21,6 +21,7 @@
 #if defined(__linux__) && !defined(_GNU_SOURCE)
 #define _GNU_SOURCE
 #endif
+#include "mem/torirs_mem.h"
 #include "platform/launch_sessions.h"
 
 #include <errno.h>
@@ -263,7 +264,7 @@ reap_until(struct LaunchSessions* table, char const* status_body, char const* st
         LaunchSessions_Reap(table);
         answer = ask(table, "status", status_body);
         found = contains(answer, want);
-        free(answer);
+        ToriMem_Free(ToriMem_Net(), answer);
         if( found )
             return 1;
         sleep_ms(20);
@@ -334,7 +335,7 @@ open_session(struct LaunchSessions* table, int leader, int size, char* auth, siz
         printf("launch/open failed: %s\n", answer);
         exit(2);
     }
-    free(answer);
+    ToriMem_Free(ToriMem_Net(), answer);
     snprintf(auth, auth_size, "session=%s\ntoken=%s\n", session, token);
 }
 
@@ -349,7 +350,7 @@ seat_pid(struct LaunchSessions* table, char const* auth, int seat)
     snprintf(prefix, sizeof(prefix), "seat=%d ", seat);
     line_of(answer, prefix, line, sizeof(line));
     value_of(line, "pid=", pid, sizeof(pid));
-    free(answer);
+    ToriMem_Free(ToriMem_Net(), answer);
     return atoi(pid);
 }
 
@@ -361,7 +362,7 @@ seat_line(struct LaunchSessions* table, char const* auth, int seat, char* out, s
 
     snprintf(prefix, sizeof(prefix), "seat=%d ", seat);
     line_of(answer, prefix, out, out_size);
-    free(answer);
+    ToriMem_Free(ToriMem_Net(), answer);
 }
 
 static char*
@@ -394,18 +395,18 @@ case_open_spawn_status(void)
     answer = LaunchSessions_Answer(table, "open", "pid=1\n", 6, "10.0.0.5", &size);
     check("a non-loopback peer is refused", starts_with(answer, "error: ") &&
                                                 contains(answer, "this machine only"));
-    free(answer);
+    ToriMem_Free(ToriMem_Net(), answer);
     answer = ask(table, "open", "pid=1\nport=43600\nsize=3\nbinary=/bin/sh\n");
     check("open refuses binary= (only the host's own binary runs)",
           starts_with(answer, "error: ") && contains(answer, "binary="));
-    free(answer);
+    ToriMem_Free(ToriMem_Net(), answer);
     answer = ask(table, "open", "pid=999999\nport=43600\nsize=3\nsaves=/tmp\n");
     check("open refuses a leader pid that is not running", starts_with(answer, "error: "));
-    free(answer);
+    ToriMem_Free(ToriMem_Net(), answer);
     snprintf(body, sizeof(body), "pid=%d\nport=43600\nsize=6\nsaves=%s\n", leader, g_saves);
     answer = ask(table, "open", body);
     check("open refuses a party larger than the embed server's 5", starts_with(answer, "error: "));
-    free(answer);
+    ToriMem_Free(ToriMem_Net(), answer);
 
     open_session(table, leader, 3, auth, sizeof(auth));
     check("open answers a session and a 32-hex token", 1);
@@ -413,42 +414,42 @@ case_open_spawn_status(void)
     answer = ask(table, "status", body);
     check("status without a token is refused",
           starts_with(answer, "error: the session token is wrong or missing"));
-    free(answer);
+    ToriMem_Free(ToriMem_Net(), answer);
     snprintf(body, sizeof(body), "%.*stoken=00000000000000000000000000000000\n",
              (int)(strchr(auth, '\n') - auth + 1), auth);
     answer = ask(table, "status", body);
     check("status with a wrong token is refused",
           starts_with(answer, "error: the session token is wrong"));
-    free(answer);
+    ToriMem_Free(ToriMem_Net(), answer);
     answer = ask(table, "status", auth);
     check("status with the token: ok, state=open, seats 2 and 3 never spawned",
           starts_with(answer, "ok\n") && contains(answer, "state=open ") &&
               contains(answer, "seat=2 pid=0 alive=0") && contains(answer, "seat=3 pid=0 alive=0"));
-    free(answer);
+    ToriMem_Free(ToriMem_Net(), answer);
 
     snprintf(body, sizeof(body), "%sseat=2\naccount=a\npassword=b\nenv=DYLD_INSERT_LIBRARIES=x\n",
              auth);
     answer = ask(table, "spawn", body);
     check("spawn refuses a loader env key", starts_with(answer, "error: ") && g_fake.count == 0);
-    free(answer);
+    ToriMem_Free(ToriMem_Net(), answer);
     snprintf(body, sizeof(body), "%sseat=2\naccount=a\npassword=b\nenv=TORIRS_LAUNCH_SEAT=3\n", auth);
     answer = ask(table, "spawn", body);
     check("spawn refuses a launch-owned env key", starts_with(answer, "error: ") && g_fake.count == 0);
-    free(answer);
+    ToriMem_Free(ToriMem_Net(), answer);
     snprintf(body, sizeof(body), "%sseat=4\naccount=a\npassword=b\n", auth);
     answer = ask(table, "spawn", body);
     check("spawn refuses seat 4 of a party of 3", starts_with(answer, "error: ") && g_fake.count == 0);
-    free(answer);
+    ToriMem_Free(ToriMem_Net(), answer);
     snprintf(body, sizeof(body), "%sseat=2\naccount=a\npassword=b\nbinary=/bin/sh\n", auth);
     answer = ask(table, "spawn", body);
     check("spawn refuses binary=", starts_with(answer, "error: ") && g_fake.count == 0);
-    free(answer);
+    ToriMem_Free(ToriMem_Net(), answer);
 
     answer = spawn_two(table, auth);
     check("spawn seats 2 and 3: ok, two starts", starts_with(answer, "ok\n") && g_fake.count == 2 &&
                                                      contains(answer, "seat=2 pid=") &&
                                                      contains(answer, "seat=3 pid="));
-    free(answer);
+    ToriMem_Free(ToriMem_Net(), answer);
     seat2 = &g_fake.spawns[0];
     seat3 = &g_fake.spawns[1];
     check("argv: the host's binary and manifest, the account, headless",
@@ -513,7 +514,7 @@ case_open_spawn_status(void)
     answer = spawn_two(table, auth);
     check("spawn refuses a seat that is already running", starts_with(answer, "error: ") &&
                                                             contains(answer, "already running"));
-    free(answer);
+    ToriMem_Free(ToriMem_Net(), answer);
     seat_line(table, auth, 2, line, sizeof(line));
     check("status: seat 2 alive, its account, never mailed",
           contains(line, " alive=1 exit=- signal=- account=bloat_p2 mail_age_ms=- unread=0 status=-"));
@@ -522,15 +523,15 @@ case_open_spawn_status(void)
     snprintf(body, sizeof(body), "%sseat=all\ncommand=rm -rf /\n", auth);
     answer = ask(table, "command", body);
     check("command refuses a word that is not play/stop/cheat/quit", starts_with(answer, "error: "));
-    free(answer);
+    ToriMem_Free(ToriMem_Net(), answer);
     snprintf(body, sizeof(body), "%sseat=all\ncommand=cheat ::tele 3222 3218\n", auth);
     answer = ask(table, "command", body);
     check("command seat=all queues for both seats", starts_with(answer, "ok\nqueued=2\n"));
-    free(answer);
+    ToriMem_Free(ToriMem_Net(), answer);
     snprintf(body, sizeof(body), "%sseat=2\ncommand=play {\"id\":\"_play_bloat\"}\n", auth);
     answer = ask(table, "command", body);
     check("command seat=2 queues for one", starts_with(answer, "ok\nqueued=1\n"));
-    free(answer);
+    ToriMem_Free(ToriMem_Net(), answer);
     {
         char id[64];
         char environment_token[64] = { 0 };
@@ -543,13 +544,13 @@ case_open_spawn_status(void)
         answer = ask(table, "mail", body);
         check("mail with a wrong seat token is refused",
               starts_with(answer, "error: the seat token is wrong"));
-        free(answer);
+        ToriMem_Free(ToriMem_Net(), answer);
         snprintf(body, sizeof(body), "session=%s\ntoken=%s\nseat=2\nstatus=x\n", id,
                  strstr(auth, "token=") + 6);
         answer = ask(table, "mail", body);
         check("mail with the LEADER's token is refused (it does not take token=)",
               starts_with(answer, "error: "));
-        free(answer);
+        ToriMem_Free(ToriMem_Net(), answer);
         snprintf(body, sizeof(body),
                  "session=%s\nseat=2\nseat_token=%s\nstatus=state=playing step=3 hitpoints=99\n",
                  id, environment_token);
@@ -557,10 +558,10 @@ case_open_spawn_status(void)
         check("mail with the seat token (from the member's env): its two commands, in order",
               strcmp(answer, "ok\ncommand=cheat ::tele 3222 3218\n"
                              "command=play {\"id\":\"_play_bloat\"}\n") == 0);
-        free(answer);
+        ToriMem_Free(ToriMem_Net(), answer);
         answer = ask(table, "mail", body);
         check("a second mail: the mailbox is empty", strcmp(answer, "ok\n") == 0);
-        free(answer);
+        ToriMem_Free(ToriMem_Net(), answer);
     }
     seat_line(table, auth, 2, line, sizeof(line));
     check("status: seat 2's posted status and mail age",
@@ -579,13 +580,13 @@ case_open_spawn_status(void)
               contains(line, " alive=0 exit=- signal=9 "));
         answer = ask(table, "status", auth);
         check("the session stays open for the leader to respawn", contains(answer, "state=open "));
-        free(answer);
+        ToriMem_Free(ToriMem_Net(), answer);
         snprintf(body, sizeof(body), "%sseat=3\naccount=bloat_p3\npassword=quest\n", auth);
         answer = ask(table, "spawn", body);
         check("spawn seat 3 again: ok, a new pid in the same group",
               starts_with(answer, "ok\n") && seat_pid(table, auth, 3) != old_pid &&
                   getpgid(seat_pid(table, auth, 3)) == seat2->pid);
-        free(answer);
+        ToriMem_Free(ToriMem_Net(), answer);
     }
 
     /* the leader pid exits: the group is ended within the grace */
@@ -598,7 +599,7 @@ case_open_spawn_status(void)
         answer = ask(table, "status", auth);
         check("the leader gone: terminating at once, with the reason",
               contains(answer, "state=terminating ") && contains(answer, "reason=the leader (pid"));
-        free(answer);
+        ToriMem_Free(ToriMem_Net(), answer);
         check("... and closed (both members reaped) before the clock moved",
               reap_until(table, auth, "closed", 3000) && g_fake.now_ms == clock_before);
         check("both members are gone (kill(pid, 0) fails)", gone(pid2) && gone(pid3));
@@ -608,7 +609,7 @@ case_open_spawn_status(void)
         answer = ask(table, "spawn", body);
         check("a closed session spawns nothing", starts_with(answer, "error: ") &&
                                                      contains(answer, "is closed"));
-        free(answer);
+        ToriMem_Free(ToriMem_Net(), answer);
         {
             char id[64];
             char path[1024];
@@ -633,14 +634,14 @@ case_heartbeat(void)
     printf("-- a heartbeat that stops\n");
     open_session(table, leader, 2, auth, sizeof(auth));
     snprintf(body, sizeof(body), "%sseat=2\naccount=hb_p2\npassword=quest\n", auth);
-    free(ask(table, "spawn", body));
+    ToriMem_Free(ToriMem_Net(), ask(table, "spawn", body));
     pid2 = seat_pid(table, auth, 2);
     g_fake.now_ms += 9000;
     LaunchSessions_Reap(table);
     answer = ask(table, "heartbeat", auth);
     check("9 s without a beat: still open; heartbeat answers ok",
           strcmp(answer, "ok\nstate=open\n") == 0);
-    free(answer);
+    ToriMem_Free(ToriMem_Net(), answer);
     g_fake.now_ms += 9000;
     LaunchSessions_Reap(table);
     check("9 s after that beat: still alive", !gone(pid2));
@@ -650,7 +651,7 @@ case_heartbeat(void)
           reap_until(table, auth, "closed", 3000));
     answer = ask(table, "status", auth);
     check("reason: no heartbeat", contains(answer, "reason=no heartbeat from the leader for 11000 ms"));
-    free(answer);
+    ToriMem_Free(ToriMem_Net(), answer);
     check("the member is gone", gone(pid2));
     LaunchSessions_Free(table);
     kill_leader(leader);
@@ -672,23 +673,23 @@ case_close_and_kill(void)
     printf("-- close: quit, the grace, then the kill (and SIGKILL for a stubborn one)\n");
     open_session(table, leader, 3, auth, sizeof(auth));
     snprintf(body, sizeof(body), "%sseat=2\naccount=c_p2\npassword=quest\n", auth);
-    free(ask(table, "spawn", body));
+    ToriMem_Free(ToriMem_Net(), ask(table, "spawn", body));
     g_fake.ignore_term_next = 1; /* seat 3 ignores SIGTERM */
     snprintf(body, sizeof(body), "%sseat=3\naccount=c_p3\npassword=quest\n", auth);
-    free(ask(table, "spawn", body));
+    ToriMem_Free(ToriMem_Net(), ask(table, "spawn", body));
     pid2 = seat_pid(table, auth, 2);
     pid3 = seat_pid(table, auth, 3);
     group = getpgid(pid2);
     sleep_ms(300); /* let seat 3's shell reach its `trap` before any SIGTERM */
     answer = ask(table, "close", auth);
     check("close: ok, closing", strcmp(answer, "ok\nstate=closing\n") == 0);
-    free(answer);
+    ToriMem_Free(ToriMem_Net(), answer);
     seat_line(table, auth, 2, line, sizeof(line));
     check("close queued quit in each mailbox", contains(line, " unread=1 "));
     snprintf(body, sizeof(body), "%sseat=all\ncommand=stop\n", auth);
     answer = ask(table, "command", body);
     check("a closing session takes no new command", starts_with(answer, "error: "));
-    free(answer);
+    ToriMem_Free(ToriMem_Net(), answer);
     g_fake.now_ms += 4000;
     LaunchSessions_Reap(table);
     check("inside the quit grace nothing is killed", !gone(pid2) && !gone(pid3));
@@ -697,7 +698,7 @@ case_close_and_kill(void)
     answer = ask(table, "status", auth);
     check("after the grace: terminating, reason closed by the leader",
           contains(answer, "state=terminating ") && contains(answer, "reason=closed by the leader"));
-    free(answer);
+    ToriMem_Free(ToriMem_Net(), answer);
     sleep_ms(200);
     LaunchSessions_Reap(table);
     check("seat 2 ended on SIGTERM; seat 3 ignored it", gone(pid2) && !gone(pid3));
@@ -726,7 +727,7 @@ case_host_exit(void)
 
     printf("-- the host's own exit kills every member\n");
     open_session(table, leader, 3, auth, sizeof(auth));
-    free(spawn_two(table, auth));
+    ToriMem_Free(ToriMem_Net(), spawn_two(table, auth)); /* an answer: NET */
     pid2 = seat_pid(table, auth, 2);
     pid3 = seat_pid(table, auth, 3);
     clock_gettime(CLOCK_MONOTONIC, &start);
@@ -782,7 +783,7 @@ case_real_spawn(void)
     snprintf(body, sizeof(body), "%sseat=2\naccount=real_p2\npassword=quest\n", auth);
     answer = ask(table, "spawn", body);
     check("real spawn: ok", starts_with(answer, "ok\n"));
-    free(answer);
+    ToriMem_Free(ToriMem_Net(), answer);
     member = seat_pid(table, auth, 2);
     sleep_ms(300);
     value_of(auth, "session=", id, sizeof(id));

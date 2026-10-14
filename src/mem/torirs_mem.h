@@ -172,6 +172,58 @@ ToriMem_Vms(void);
 struct ToriMem_Group*
 ToriMem_Assets(void);
 
+/* ---- Subsystem groups ----------------------------------------------------
+ *
+ * Every allocation in src/ belongs to exactly one of these, or to FRAME, a
+ * task's arena (ToriRS_TaskMem), ASSET, or a lib:* group. Each is a HEAP
+ * group under PROCESS, made on first use from any thread. Its blocks are
+ * freed one at a time by the subsystem that owns them; the exit walk
+ * (ToriMem_Shutdown) proves each subsystem freed everything it allocated.
+ *
+ *   PROCESS (heap) -- app, boot, config, prefs: lives until exit
+ *   |
+ *   |-- client ----------------------------------------------------------
+ *   |   ui        the UI tree, interfaces, layout, chrome, revconfig
+ *   |   render    renderers, painters, raster state, GPU staging
+ *   |   audio     mixer, sound bank, audio backends   (audio thread too)
+ *   |   net       transports, IO, protocol buffers    (IO thread too)
+ *   |   session   game state from login to logout: varps, varcs, invs,
+ *   |             chat, clan, loot, social, entity state
+ *   |   scene     the built region: world builder output, collision,
+ *   |             minimap, world entities' scene data
+ *   |   plugins   the plugin host and every plugin
+ *   |   script    the CS2 VM and client script queue
+ *   |   editor    the map editor and its daemon
+ *   |   assets    the cache provider's decoded types (ToriMem_Assets)
+ *   |
+ *   |-- server ----------------------------------------------------------
+ *   |   server:content   packs, configs, db tables, content text
+ *   |   server:world     zones, npcs, locs, objs, scene, instances
+ *   |   server:players   sessions, players, banks, containers
+ *   |   server:scripts   the ServerScript VM and its states
+ *   |   server:net       links, pipes, websocket, js5 serving
+ *   |
+ *   +-- compiler  the ServerScript / CS2 compilers (build-time tools too)
+ *
+ * Today each ends at exit. Session and scene are the next to get their own
+ * checked ends: logout and region rebuild.
+ */
+struct ToriMem_Group* ToriMem_Ui(void);
+struct ToriMem_Group* ToriMem_Render(void);
+struct ToriMem_Group* ToriMem_Audio(void);
+struct ToriMem_Group* ToriMem_Net(void);
+struct ToriMem_Group* ToriMem_Session(void);
+struct ToriMem_Group* ToriMem_Scene(void);
+struct ToriMem_Group* ToriMem_Plugins(void);
+struct ToriMem_Group* ToriMem_Script(void);
+struct ToriMem_Group* ToriMem_Editor(void);
+struct ToriMem_Group* ToriMem_ServerContent(void);
+struct ToriMem_Group* ToriMem_ServerWorld(void);
+struct ToriMem_Group* ToriMem_ServerPlayers(void);
+struct ToriMem_Group* ToriMem_ServerScripts(void);
+struct ToriMem_Group* ToriMem_ServerNet(void);
+struct ToriMem_Group* ToriMem_Compiler(void);
+
 int
 ToriMem_ArenasOn(void);
 

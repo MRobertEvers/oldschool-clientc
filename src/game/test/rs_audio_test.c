@@ -20,6 +20,7 @@
  */
 
 #include "audio/torirs_audio.h"
+#include "mem/torirs_mem.h"
 #include "engine/cache_provider.h"
 #include <toridraw.h>
 #include <toridraw_scene.h>
@@ -176,7 +177,7 @@ test_boot_muted(void)
     CHECK(
         reloaded.options[RS_CS2_OPTION_DEVICE][RS_CS2_DEVICEOPTION_MASTER_VOLUME] == 100,
         "an unmuted client stays unmuted across a relaunch");
-    free(data);
+    ToriMem_Free(ToriMem_Process(), data); /* RS_Prefs_Encode allocates from PROCESS */
 }
 
 /*
@@ -227,7 +228,7 @@ test_frame_preference_persistence(void)
     CHECK(
         strstr((char const*)data, "preferred_frame=") == NULL,
         "encoding does not invent selection presence before migration");
-    free(data);
+    ToriMem_Free(ToriMem_Process(), data); /* RS_Prefs_Encode allocates from PROCESS */
     data = NULL;
 
     CHECK(
@@ -284,7 +285,7 @@ test_frame_preference_persistence(void)
             strcmp(reloaded.preferred_frame, prefs.preferred_frame) == 0 &&
             reloaded.frame_migration_version == prefs.frame_migration_version,
         "requested frame and migration state survive a round trip");
-    free(data);
+    ToriMem_Free(ToriMem_Process(), data); /* RS_Prefs_Encode allocates from PROCESS */
     data = NULL;
 
     /* A malformed explicit key is still present: it safely becomes Auto, but

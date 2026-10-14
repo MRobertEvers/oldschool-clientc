@@ -14,6 +14,7 @@
  * profile's ([preload:] with kind=index). This knows only how to open one.
  */
 #include "engine/dat2/dat2_tasks.h"
+#include "mem/torirs_mem.h"
 
 #include "engine/dat2/dat2_buildcache.h"
 #include "game/rs_login_replies.h"
@@ -263,7 +264,7 @@ Task_Dat2IndexOpen_Run(
 static void
 Task_Dat2IndexOpen_Free(struct ToriRS_Task* task_base)
 {
-    free(task_base);
+    ToriMem_Free(ToriMem_Assets(), task_base);
 }
 
 static struct ToriRS_TaskVTable Task_Dat2IndexOpen_VTable = {
@@ -277,7 +278,7 @@ CreateTask_Dat2IndexOpen(
     enum RSCache_Dat2Table table_id,
     char const* archive)
 {
-    struct Task_Dat2IndexOpen* task = calloc(1, sizeof(*task));
+    struct Task_Dat2IndexOpen* task = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*task));
 
     assert(bc);
     assert(archive);
@@ -335,8 +336,9 @@ static void
 Task_Dat2PrefetchWave_Free(struct ToriRS_Task* task_base)
 {
     struct Task_Dat2PrefetchWave* task = (struct Task_Dat2PrefetchWave*)task_base;
-    free(task->ids);
-    free(task);
+    /* Made in the arena at creation, so this never makes one mid-teardown. */
+    ToriMem_Free(ToriRS_TaskMem(task_base), task->ids);
+    ToriMem_Free(ToriMem_Assets(), task);
 }
 
 static struct ToriRS_TaskVTable Task_Dat2PrefetchWave_VTable = {
@@ -353,7 +355,7 @@ CreateTask_Dat2PrefetchWave(
     int* landed,
     int* absent)
 {
-    struct Task_Dat2PrefetchWave* task = calloc(1, sizeof(*task));
+    struct Task_Dat2PrefetchWave* task = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*task));
 
     assert(bc);
     assert(ids);
@@ -365,9 +367,7 @@ CreateTask_Dat2PrefetchWave(
     strcpy(task->task.name, "Dat2PrefetchWave");
     task->bc = bc;
     task->table_id = table_id;
-    task->ids = malloc((size_t)count * sizeof(int));
-    assert(task->ids);
-    memcpy(task->ids, ids, (size_t)count * sizeof(int));
+    task->ids = ToriMem_Memdup(ToriRS_TaskMem(&task->task), ids, (size_t)count * sizeof(int));
     task->count = count;
     task->landed = landed;
     task->absent = absent;
@@ -644,7 +644,7 @@ Task_Dat2Preload_Run(
 static void
 Task_Dat2Preload_Free(struct ToriRS_Task* task_base)
 {
-    free(task_base);
+    ToriMem_Free(ToriMem_Assets(), task_base);
 }
 
 static struct ToriRS_TaskVTable Task_Dat2Preload_VTable = {
@@ -675,7 +675,7 @@ CreateTask_Dat2Preload(
     if( indices == 0 )
         return NULL;
 
-    task = calloc(1, sizeof(*task));
+    task = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_Dat2Preload_VTable;
     strcpy(task->task.name, "Dat2Preload");

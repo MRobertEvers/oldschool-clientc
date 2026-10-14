@@ -4,6 +4,7 @@
  */
 
 #include "torirs_server_paramtable.h"
+#include "mem/torirs_mem.h"
 #include <assert.h>
 
 #include <rscache.h>
@@ -41,8 +42,8 @@ add_row(
     if( table->count == table->capacity )
     {
         int capacity = table->capacity ? table->capacity * 2 : 4096;
-        struct ToriRSServerParamRow* grown =
-            (struct ToriRSServerParamRow*)realloc(table->rows, (size_t)capacity * sizeof(*grown));
+        struct ToriRSServerParamRow* grown = (struct ToriRSServerParamRow*)ToriMem_Realloc(
+            ToriMem_ServerContent(), table->rows, (size_t)capacity * sizeof(*grown));
 
         assert(grown);
         table->rows = grown;
@@ -52,7 +53,7 @@ add_row(
     row->owner = owner;
     row->key = key;
     row->ival = ival;
-    row->sval = sval ? strdup(sval) : NULL;
+    row->sval = sval ? ToriMem_Strdup(ToriMem_ServerContent(), sval) : NULL;
 }
 
 void
@@ -93,8 +94,8 @@ ToriRSServer_ParamTableSetInt(
     {
         int capacity = table->pending_capacity ? table->pending_capacity * 2 : 4096;
 
-        table->pending = (struct ToriRSServerParamRow*)realloc(
-            table->pending, (size_t)capacity * sizeof(*table->pending));
+        table->pending = (struct ToriRSServerParamRow*)ToriMem_Realloc(
+            ToriMem_ServerContent(), table->pending, (size_t)capacity * sizeof(*table->pending));
         assert(table->pending);
         table->pending_capacity = capacity;
     }
@@ -155,14 +156,14 @@ ToriRSServer_ParamTableSort(struct ToriRSServerParamTable* table)
         if( row )
         {
             /* An overlay row wins over the cache's — that is what an overlay is. */
-            free(row->sval);
+            ToriMem_Free(ToriMem_ServerContent(), row->sval);
             row->sval = NULL;
             row->ival = set->ival;
         }
         else
             add_row(table, set->owner, set->key, set->ival, NULL);
     }
-    free(table->pending);
+    ToriMem_Free(ToriMem_ServerContent(), table->pending);
     table->pending = NULL;
     table->pending_count = 0;
     table->pending_capacity = 0;
@@ -218,9 +219,9 @@ ToriRSServer_ParamTableFree(struct ToriRSServerParamTable* table)
     if( !table )
         return;
     for( int i = 0; i < table->count; i++ )
-        free(table->rows[i].sval);
-    free(table->rows);
-    free(table->pending);
+        ToriMem_Free(ToriMem_ServerContent(), table->rows[i].sval);
+    ToriMem_Free(ToriMem_ServerContent(), table->rows);
+    ToriMem_Free(ToriMem_ServerContent(), table->pending);
     table->rows = NULL;
     table->count = 0;
     table->capacity = 0;

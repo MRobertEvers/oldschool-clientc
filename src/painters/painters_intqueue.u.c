@@ -1,6 +1,8 @@
 #ifndef PAINTERS_INTQUEUE_U_C
 #define PAINTERS_INTQUEUE_U_C
 
+#include "mem/torirs_mem.h"
+
 #include <assert.h>
 #include <stdlib.h>
 
@@ -17,7 +19,7 @@ struct IntQueue
 static inline void
 int_queue_init(struct IntQueue* queue, int capacity)
 {
-    queue->data = (int*)malloc(capacity * sizeof(int));
+    queue->data = (int*)ToriMem_Alloc(ToriMem_Scene(), capacity * sizeof(int));
     queue->length = 0;
     queue->capacity = capacity;
 }
@@ -59,7 +61,7 @@ int_queue_pop(struct IntQueue* queue)
 static inline void
 int_queue_free(struct IntQueue* queue)
 {
-    free(queue->data);
+    ToriMem_Free(ToriMem_Scene(), queue->data);
 }
 
 #endif

@@ -12,6 +12,8 @@
 #include "torirs_server_ids.h"
 #include "torirs_server_scene.h"
 #include "torirs_server_servpack.h"
+#include "torirs_server_shop.h"
+#include "torirs_server_vessel.h"
 #include "torirs_server_packcheck.h"
 #include "features/features.h"
 
@@ -349,5 +351,11 @@ ToriRSServer_BootFree(void)
     /* Boot loaded them (ToriRSServer_SceneLocConfigsLoad); nothing else freed
      * them, so every decoded loc was still live at exit. */
     ToriRSServer_SceneLocConfigsFree();
+    /* Loaded by the boot too and freed by nothing else: their next load frees
+     * the previous one, so a process that boots once kept them to exit. */
+    ToriRSServer_HealthbarInfoFree();
+    ToriRSServer_BankFree();
+    ToriRSServer_ShopReset();
+    ToriRSServer_VesselConfigsFree();
     ToriRSServer_ContentFree();
 }

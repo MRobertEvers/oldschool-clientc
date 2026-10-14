@@ -1,4 +1,5 @@
 #include "loginproto_xrsps.h"
+#include "mem/torirs_mem.h"
 
 #include "loginproto.h" /* LOGINPROTO_SUCCESS / _ERROR / _AWAIT_* */
 #include "net.h"
@@ -176,8 +177,7 @@ server_frame_len(struct XrLogin* h, int opcode, uint8_t const* data, int avail, 
 static void*
 xr_new(struct ToriRS_Network* net, char const* username, char const* password)
 {
-    struct XrLogin* h = calloc(1, sizeof(*h));
-    assert(h);
+    struct XrLogin* h = ToriMem_Calloc(ToriMem_Net(), 1, sizeof(*h));
     h->net = net;
     h->reply_code = -1;
     snprintf(h->username, sizeof(h->username), "%s", username ? username : "");
@@ -278,7 +278,7 @@ xr_poll(void* handle)
 static void
 xr_free(void* handle)
 {
-    free(handle);
+    ToriMem_Free(ToriMem_Net(), handle);
 }
 
 static int

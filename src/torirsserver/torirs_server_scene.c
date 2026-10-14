@@ -22,6 +22,7 @@
  */
 
 #include "torirs_server_servpack.h"
+#include "mem/torirs_mem.h"
 #include "torirs_server_scene.h"
 
 #include "torirs_server.h"
@@ -311,7 +312,7 @@ window_reset(struct ToriRSServerSceneWindow* window)
         collision_map_free(window->boat_collision[level]);
         window->boat_collision[level] = NULL;
     }
-    free(window->locs);
+    ToriMem_Free(ToriMem_ServerWorld(), window->locs);
     window->locs = NULL;
     window->loc_count = 0;
     window->loc_capacity = 0;
@@ -654,8 +655,8 @@ ToriRSServer_SceneLocOpOverlay(
         if( g_loc_op_overlay_count == g_loc_op_overlay_capacity )
         {
             int capacity = g_loc_op_overlay_capacity ? g_loc_op_overlay_capacity * 2 : 32;
-            struct LocOpOverlay* grown = (struct LocOpOverlay*)realloc(
-                g_loc_op_overlays, (size_t)capacity * sizeof(*grown));
+            struct LocOpOverlay* grown = (struct LocOpOverlay*)ToriMem_Realloc(
+                ToriMem_ServerContent(), g_loc_op_overlays, (size_t)capacity * sizeof(*grown));
 
             assert(grown);
             g_loc_op_overlays = grown;
@@ -666,8 +667,8 @@ ToriRSServer_SceneLocOpOverlay(
         entry->loc_id = loc_id;
     }
     /* Last statement wins, so a lane's overlay can restate a base tree's op. */
-    free(entry->ops[op_num - 1]);
-    entry->ops[op_num - 1] = strdup(text);
+    ToriMem_Free(ToriMem_ServerContent(), entry->ops[op_num - 1]);
+    entry->ops[op_num - 1] = ToriMem_Strdup(ToriMem_ServerContent(), text);
     assert(entry->ops[op_num - 1]);
 }
 
@@ -685,7 +686,7 @@ ToriRSServer_SceneLocOpOverlayClear(
     entry = loc_op_overlay(loc_id);
     if( !entry )
         return;
-    free(entry->ops[op_num - 1]);
+    ToriMem_Free(ToriMem_ServerContent(), entry->ops[op_num - 1]);
     entry->ops[op_num - 1] = NULL;
 }
 
@@ -695,9 +696,9 @@ ToriRSServer_SceneLocOpOverlayReset(void)
     for( int i = 0; i < g_loc_op_overlay_count; i++ )
     {
         for( int op = 0; op < 5; op++ )
-            free(g_loc_op_overlays[i].ops[op]);
+            ToriMem_Free(ToriMem_ServerContent(), g_loc_op_overlays[i].ops[op]);
     }
-    free(g_loc_op_overlays);
+    ToriMem_Free(ToriMem_ServerContent(), g_loc_op_overlays);
     g_loc_op_overlays = NULL;
     g_loc_op_overlay_count = 0;
     g_loc_op_overlay_capacity = 0;
@@ -717,16 +718,16 @@ free_loc_configs(void)
         if( g_loc_configs[i] )
             RSCache_Dat2ConfigLocFree(g_loc_configs[i]);
     }
-    free(g_loc_configs);
+    ToriMem_Free(ToriMem_ServerContent(), g_loc_configs);
     g_loc_configs = NULL;
     g_loc_config_count = 0;
-    free(g_loc_raw);
+    ToriMem_Free(ToriMem_ServerContent(), g_loc_raw);
     g_loc_raw = NULL;
-    free(g_loc_raw_offset);
+    ToriMem_Free(ToriMem_ServerContent(), g_loc_raw_offset);
     g_loc_raw_offset = NULL;
-    free(g_loc_raw_size);
+    ToriMem_Free(ToriMem_ServerContent(), g_loc_raw_size);
     g_loc_raw_size = NULL;
-    free(g_loc_ref);
+    ToriMem_Free(ToriMem_ServerContent(), g_loc_ref);
     g_loc_ref = NULL;
     for( int i = 0; i < LOC_CONFIG_CACHE_CAP; i++ )
         g_loc_clock_slots[i] = -1;
@@ -761,8 +762,10 @@ ToriRSServer_SceneLocConfigsLoad(struct RSCache_ServerPack* pack)
         return -1;
 
     g_loc_config_count = ToriRSServer_ServPackKindIdBound(&records);
-    g_loc_configs = calloc((size_t)(g_loc_config_count > 0 ? g_loc_config_count : 1),
-                           sizeof(*g_loc_configs));
+    g_loc_configs = ToriMem_Calloc(
+        ToriMem_ServerContent(),
+        (size_t)(g_loc_config_count > 0 ? g_loc_config_count : 1),
+        sizeof(*g_loc_configs));
     assert(g_loc_configs);
 
     /* Keep the raw bytes, not the decoded structs — loc_config() decodes on
@@ -774,13 +777,16 @@ ToriRSServer_SceneLocConfigsLoad(struct RSCache_ServerPack* pack)
 
         for( int i = 0; i < records.count; i++ )
             total += (size_t)records.sizes[i];
-        g_loc_raw = malloc(total > 0 ? total : 1);
+        g_loc_raw = ToriMem_Alloc(ToriMem_ServerContent(), total > 0 ? total : 1);
         assert(g_loc_raw);
-        g_loc_raw_offset = calloc((size_t)g_loc_config_count + 1, sizeof(*g_loc_raw_offset));
+        g_loc_raw_offset = ToriMem_Calloc(
+            ToriMem_ServerContent(), (size_t)g_loc_config_count + 1, sizeof(*g_loc_raw_offset));
         assert(g_loc_raw_offset);
-        g_loc_raw_size = calloc((size_t)g_loc_config_count + 1, sizeof(*g_loc_raw_size));
+        g_loc_raw_size = ToriMem_Calloc(
+            ToriMem_ServerContent(), (size_t)g_loc_config_count + 1, sizeof(*g_loc_raw_size));
         assert(g_loc_raw_size);
-        g_loc_ref = calloc((size_t)g_loc_config_count + 1, sizeof(*g_loc_ref));
+        g_loc_ref = ToriMem_Calloc(
+            ToriMem_ServerContent(), (size_t)g_loc_config_count + 1, sizeof(*g_loc_ref));
         assert(g_loc_ref);
 
         for( int i = 0; i < records.count; i++ )
@@ -1127,7 +1133,8 @@ record_loc_at(
     if( g_loc_count == g_loc_capacity )
     {
         int capacity = g_loc_capacity ? g_loc_capacity * 2 : 1024;
-        struct ToriRSServerSceneLoc* grown = realloc(g_locs, (size_t)capacity * sizeof(*grown));
+        struct ToriRSServerSceneLoc* grown =
+            ToriMem_Realloc(ToriMem_ServerWorld(), g_locs, (size_t)capacity * sizeof(*grown));
 
         assert(grown);
         g_locs = grown;
@@ -1446,9 +1453,9 @@ scene_build_begin(
 
     for( int level = 0; level < SCENE_LEVELS; level++ )
     {
-        g_collision[level] = collision_map_new(SCENE_TILES, SCENE_TILES);
+        g_collision[level] = collision_map_new(ToriMem_ServerWorld(), SCENE_TILES, SCENE_TILES);
         assert(g_collision[level]);
-        g_boat_collision[level] = collision_map_new(SCENE_TILES, SCENE_TILES);
+        g_boat_collision[level] = collision_map_new(ToriMem_ServerWorld(), SCENE_TILES, SCENE_TILES);
         assert(g_boat_collision[level]);
         collision_map_reset(g_collision[level]);
         /* The router's window is the era's, not the scene's — see
@@ -2026,7 +2033,8 @@ ToriRSServer_SceneAddLoc(
         if( g_loc_count == g_loc_capacity )
         {
             int capacity = g_loc_capacity ? g_loc_capacity * 2 : 1024;
-            struct ToriRSServerSceneLoc* grown = realloc(g_locs, (size_t)capacity * sizeof(*grown));
+            struct ToriRSServerSceneLoc* grown =
+                ToriMem_Realloc(ToriMem_ServerWorld(), g_locs, (size_t)capacity * sizeof(*grown));
 
             assert(grown);
             g_locs = grown;

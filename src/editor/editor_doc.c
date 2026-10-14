@@ -1,4 +1,5 @@
 #include "editor_doc.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -25,9 +26,9 @@ Editor_SquareFree(struct Editor_Square* square)
     if( !square )
         return;
 
-    free(square->locs);
-    free(square->trailing);
-    free(square->foreign);
+    ToriMem_Free(ToriMem_Editor(), square->locs);
+    ToriMem_Free(ToriMem_Editor(), square->trailing);
+    ToriMem_Free(ToriMem_Editor(), square->foreign);
     memset(square, 0, sizeof(*square));
 }
 
@@ -42,8 +43,8 @@ Editor_SquareLocAdd(
     if( square->loc_count == square->loc_capacity )
     {
         int next = square->loc_capacity ? square->loc_capacity * 2 : 256;
-        square->locs = realloc(square->locs, (size_t)next * sizeof(*square->locs));
-        assert(square->locs);
+        square->locs =
+            ToriMem_Realloc(ToriMem_Editor(), square->locs, (size_t)next * sizeof(*square->locs));
         square->loc_capacity = next;
     }
 

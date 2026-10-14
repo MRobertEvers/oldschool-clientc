@@ -24,6 +24,7 @@
 #include "es3/es3_core.h"
 
 #include "log/torirs_log.h"
+#include "mem/torirs_mem.h"
 #include "perf/torirs_perf.h"
 #include "toridraw.h"
 #include "toridraw_element_id.h"
@@ -242,7 +243,7 @@ static void
 es3_material_pose_clear(struct ES3MaterialPose* pose)
 {
     assert(pose);
-    free(pose->face_passes);
+    ToriMem_Free(ToriMem_Render(), pose->face_passes);
     memset(pose, 0, sizeof(*pose));
 }
 
@@ -265,7 +266,7 @@ es3_material_pose_set(
         passes = pose->face_passes;
     else
     {
-        passes = (uint8_t*)realloc(pose->face_passes, (size_t)face_count);
+        passes = (uint8_t*)ToriMem_Realloc(ToriMem_Render(), pose->face_passes, (size_t)face_count);
         assert(passes);
     }
     pose->face_passes = passes;
@@ -311,7 +312,7 @@ es3_material_table_set(
         struct ES3MaterialElement* grown;
         while( capacity < needed )
             capacity *= 2u;
-        grown = (struct ES3MaterialElement*)realloc(
+        grown = (struct ES3MaterialElement*)ToriMem_Realloc(ToriMem_Render(),
             table->elements, (size_t)capacity * sizeof(*grown));
         assert(grown);
         memset(
@@ -331,7 +332,7 @@ es3_material_table_set(
         struct ES3MaterialPose* grown;
         while( capacity < needed )
             capacity *= 2u;
-        grown = (struct ES3MaterialPose*)realloc(
+        grown = (struct ES3MaterialPose*)ToriMem_Realloc(ToriMem_Render(),
             track->poses, (size_t)capacity * sizeof(*grown));
         assert(grown);
         memset(
@@ -404,8 +405,8 @@ es3_material_table_free(struct ES3MaterialTable* table)
         es3_material_table_remove_element(table, (int)element);
     for( element = 0u; element < table->element_capacity; element++ )
         for( track = 0; track < TRSPK_POSE_TRACK_COUNT; track++ )
-            free(table->elements[element].tracks[track].poses);
-    free(table->elements);
+            ToriMem_Free(ToriMem_Render(), table->elements[element].tracks[track].poses);
+    ToriMem_Free(ToriMem_Render(), table->elements);
     memset(table, 0, sizeof(*table));
 }
 
@@ -454,7 +455,7 @@ es3_queue_alpha_submission(
         uint32_t* grown;
         while( capacity < needed_indices )
             capacity *= 2u;
-        grown = (uint32_t*)realloc(world->alpha_indices, (size_t)capacity * sizeof(*grown));
+        grown = (uint32_t*)ToriMem_Realloc(ToriMem_Render(), world->alpha_indices, (size_t)capacity * sizeof(*grown));
         assert(grown);
         world->alpha_indices = grown;
         world->alpha_index_capacity = capacity;
@@ -463,7 +464,7 @@ es3_queue_alpha_submission(
     {
         uint32_t capacity =
             world->alpha_submission_capacity ? world->alpha_submission_capacity * 2u : 128u;
-        struct ES3AlphaSubmission* grown = (struct ES3AlphaSubmission*)realloc(
+        struct ES3AlphaSubmission* grown = (struct ES3AlphaSubmission*)ToriMem_Realloc(ToriMem_Render(),
             world->alpha_submissions, (size_t)capacity * sizeof(*grown));
         assert(grown);
         world->alpha_submissions = grown;
@@ -517,7 +518,7 @@ es3_queue_opaque_indices(
         {
             uint32_t capacity =
                 world->opaque_bucket_capacity ? world->opaque_bucket_capacity * 2u : 64u;
-            struct ES3OpaqueBucket* grown = (struct ES3OpaqueBucket*)realloc(
+            struct ES3OpaqueBucket* grown = (struct ES3OpaqueBucket*)ToriMem_Realloc(ToriMem_Render(),
                 world->opaque_buckets, (size_t)capacity * sizeof(*grown));
             assert(grown);
             memset(
@@ -552,7 +553,7 @@ es3_queue_opaque_indices(
         uint32_t* grown;
         while( capacity < bucket->index_count + index_count )
             capacity *= 2u;
-        grown = (uint32_t*)realloc(bucket->indices, (size_t)capacity * sizeof(*grown));
+        grown = (uint32_t*)ToriMem_Realloc(ToriMem_Render(), bucket->indices, (size_t)capacity * sizeof(*grown));
         assert(grown);
         bucket->indices = grown;
         bucket->index_capacity = capacity;
@@ -580,7 +581,7 @@ es3_queue_array_range(
     {
         uint32_t capacity =
             world->array_range_capacity ? world->array_range_capacity * 2u : 1024u;
-        struct ES3ArrayRange* grown = (struct ES3ArrayRange*)realloc(
+        struct ES3ArrayRange* grown = (struct ES3ArrayRange*)ToriMem_Realloc(ToriMem_Render(),
             world->array_ranges, (size_t)capacity * sizeof(*grown));
         assert(grown);
         world->array_ranges = grown;
@@ -673,7 +674,7 @@ es3_zbuffer_create(struct TRSPK_Renderer_ES3* renderer)
 {
     struct ES3ZBufferWorld* world;
     assert(renderer);
-    world = (struct ES3ZBufferWorld*)calloc(1u, sizeof(struct ES3ZBufferWorld));
+    world = (struct ES3ZBufferWorld*)ToriMem_Calloc(ToriMem_Render(), 1u, sizeof(struct ES3ZBufferWorld));
     assert(world);
     renderer->zbuffer = world;
     return true;
@@ -690,14 +691,14 @@ es3_zbuffer_destroy(struct TRSPK_Renderer_ES3* renderer)
     es3_material_table_free(&world->materials);
     es3_material_table_free(&world->batch_materials);
     es3_material_pose_clear(&world->dynamic_material);
-    free(world->alpha_indices);
-    free(world->alpha_submissions);
+    ToriMem_Free(ToriMem_Render(), world->alpha_indices);
+    ToriMem_Free(ToriMem_Render(), world->alpha_submissions);
     for( bucket_index = 0u; bucket_index < world->opaque_bucket_capacity; bucket_index++ )
-        free(world->opaque_buckets[bucket_index].indices);
-    free(world->opaque_buckets);
-    free(world->cutout_scratch);
-    free(world->array_ranges);
-    free(world);
+        ToriMem_Free(ToriMem_Render(), world->opaque_buckets[bucket_index].indices);
+    ToriMem_Free(ToriMem_Render(), world->opaque_buckets);
+    ToriMem_Free(ToriMem_Render(), world->cutout_scratch);
+    ToriMem_Free(ToriMem_Render(), world->array_ranges);
+    ToriMem_Free(ToriMem_Render(), world);
     renderer->zbuffer = NULL;
 }
 
@@ -937,7 +938,7 @@ es3_zbuffer_reserve_cutout_scratch(struct ES3ZBufferWorld* world, uint32_t neede
     capacity = world->cutout_scratch_capacity ? world->cutout_scratch_capacity : 256u;
     while( capacity < needed )
         capacity *= 2u;
-    grown = (uint32_t*)realloc(world->cutout_scratch, (size_t)capacity * sizeof(*grown));
+    grown = (uint32_t*)ToriMem_Realloc(ToriMem_Render(), world->cutout_scratch, (size_t)capacity * sizeof(*grown));
     assert(grown);
     world->cutout_scratch = grown;
     world->cutout_scratch_capacity = capacity;

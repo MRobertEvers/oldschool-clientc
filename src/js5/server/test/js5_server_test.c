@@ -6,6 +6,7 @@
 #endif
 #endif
 
+#include "mem/torirs_mem.h"
 #include "js5/server/js5_server_cache.h"
 #include "js5/server/js5_server_session.h"
 
@@ -317,7 +318,7 @@ test_cache_master(struct TestContext* context, struct Js5ServerCache* cache)
             response[2] == 0xffu && memcmp(response + 3u, blob.data, blob.size) == 0);
 
 cleanup:
-    free(response);
+    ToriMem_Free(ToriMem_ServerNet(), response);
     Js5ServerBlobFree(&blob);
     return ok;
 }
@@ -392,7 +393,7 @@ test_fragmentation_and_modes(struct TestContext* context, struct Js5ServerCache*
     CHECK(context, stats.responses_served == 1u && stats.bytes_sent == expected_size + 1u);
 
 cleanup:
-    free(expected);
+    ToriMem_Free(ToriMem_ServerNet(), expected);
     Js5ServerSessionFree(session);
     return ok;
 }
@@ -518,8 +519,8 @@ test_priority_and_duplicates(
 
 cleanup:
     Js5ServerSessionFree(session);
-    free(master);
-    free(reference);
+    ToriMem_Free(ToriMem_ServerNet(), master);
+    ToriMem_Free(ToriMem_ServerNet(), reference);
     return ok;
 }
 
@@ -850,7 +851,7 @@ test_cache_integrity_rejection(struct TestContext* context)
 cleanup:
     Js5ServerBlobFree(&blob);
     Js5ServerCacheFree(cache);
-    free(reference);
+    free(reference); /* make_integrity_reference's, not a server response */
     free(group);
     remove_test_cache_directory(target);
     return ok;
@@ -901,14 +902,14 @@ main(int argc, char** argv)
             found_big = true;
             response = NULL;
         }
-        free(response);
+        ToriMem_Free(ToriMem_ServerNet(), response);
         if( found_reference && found_big )
             break;
     }
     if( !found_reference || !found_big )
     {
         fprintf(stderr, "js5_server_test: canonical cache lacks required reference fixtures\n");
-        free(big_response);
+        ToriMem_Free(ToriMem_ServerNet(), big_response); /* a server response */
         Js5ServerCacheFree(cache);
         return 2;
     }
@@ -924,7 +925,7 @@ main(int argc, char** argv)
     test_missing_group(&context, cache);
     test_cache_integrity_rejection(&context);
 
-    free(big_response);
+    ToriMem_Free(ToriMem_ServerNet(), big_response); /* a server response */
     Js5ServerCacheFree(cache);
     if( context.failures != 0 )
     {

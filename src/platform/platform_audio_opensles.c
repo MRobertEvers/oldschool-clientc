@@ -1,4 +1,5 @@
 #include "platform/platform_audio.h"
+#include "mem/torirs_mem.h"
 
 #include "log/torirs_log.h"
 #include "platform/platform_android.h"
@@ -288,9 +289,8 @@ close_device(struct PlatformAudio* audio)
 struct PlatformAudio*
 PlatformAudio_New(void)
 {
-    struct PlatformAudio* audio = calloc(1, sizeof(*audio));
+    struct PlatformAudio* audio = ToriMem_Calloc(ToriMem_Audio(), 1, sizeof(*audio));
 
-    assert(audio);
     /*
      * Recursive, because this lock is handed to the game as the exclusion a
      * pull source's state is mutated under (PlatformAudio_Exclusion). A locked
@@ -478,10 +478,10 @@ PlatformAudio_Init(
         return false;
     }
 
-    audio->buffers = calloc(
+    audio->buffers = ToriMem_Calloc(
+        ToriMem_Audio(),
         (size_t)OPENSLES_BUFFER_COUNT * audio->block_frames * TORIRS_AUDIO_CHANNELS,
         sizeof(int16_t));
-    assert(audio->buffers);
     audio->capture =
         PlatformAudioCapture_Open(audio->sample_rate, OPENSLES_CAPTURE_RING_SECONDS);
 
@@ -544,8 +544,8 @@ PlatformAudio_Free(struct PlatformAudio* audio)
     PlatformAudioCapture_Close(audio->capture);
     ToriRS_Mixer_Free(&audio->mixer);
     pthread_mutex_destroy(&audio->lock);
-    free(audio->buffers);
-    free(audio);
+    ToriMem_Free(ToriMem_Audio(), audio->buffers);
+    ToriMem_Free(ToriMem_Audio(), audio);
 }
 
 void

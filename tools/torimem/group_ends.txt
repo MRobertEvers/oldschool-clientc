@@ -6,3 +6,5 @@ src/torirsserver/torirs_server_world.c     ToriRSServer_WorldTick   ToriMem_Chec
 src/asyncio.h                              task_free                ToriMem_GroupDelete      # task:*: after the vtable free, every task
 src/main.c                                 main_shutdown            ToriMem_Shutdown         # PROCESS + lib:* (client): every exit from main
 src/torirsserver/torirs_server_main.c      main                     ToriMem_Shutdown         # PROCESS + lib:* (server): each mode's exit
+src/ioserver/io_server_main.c              main                     ToriMem_Shutdown         # PROCESS + net (io_server): its one exit, after the store and transport close
+src/serverscript/ssc_main.c                main                     ToriMem_Shutdown         # PROCESS + compiler (sscompile): after the build, whatever its result

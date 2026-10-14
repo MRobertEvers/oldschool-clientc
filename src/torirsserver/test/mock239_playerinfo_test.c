@@ -33,6 +33,7 @@
  *     make -C src test-mock239-playerinfo
  */
 
+#include "mem/torirs_mem.h"
 #include "torirsserver/mock239_playerinfo.h"
 #include "torirsserver/torirs_server_wire.h"
 #include "torirsserver/mock239_appearance.h"
@@ -339,7 +340,7 @@ check_gpi_tick(struct Mock239PlayerInfoState* server, struct Mock239PlayerUpdate
         else if( op->kind==PKT_PLAYER_INFO_OP_APPEARANCE )
         {
             if( target>=0 ) client->appearance[target]=op->_appearance.appearance[0];
-            free(op->_appearance.appearance);
+            ToriMem_Free(ToriMem_Net(), op->_appearance.appearance);
         }
     }
 }
@@ -551,7 +552,7 @@ main(void)
                   strcmp(name->_name_change.name, "Wire name") == 0,
               "npc name override remains aligned after preceding masks");
         if( name )
-            free(name->_name_change.name);
+            ToriMem_Free(ToriMem_Net(), name->_name_change.name);
     }
 
     /*
@@ -943,7 +944,7 @@ main(void)
                   exact->_exactmove.facing_is_yaw,
               "relative exact-move deltas/cycles/facing survive");
         if( chat )
-            free(chat->_chat.data);
+            ToriMem_Free(ToriMem_Net(), chat->_chat.data);
     }
 
     fprintf(stderr, "mock239-playerinfo: a later tick (crowd moves to section 3)\n");

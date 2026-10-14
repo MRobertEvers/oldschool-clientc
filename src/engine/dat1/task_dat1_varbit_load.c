@@ -1,4 +1,5 @@
 #include "engine/dat1/dat1_tasks.h"
+#include "mem/torirs_mem.h"
 
 #include "engine/cache_provider.h"
 #include "engine/dat1/dat1_buildcache.h"
@@ -95,7 +96,7 @@ Task_Dat1VarbitLoad_Run(
 static void
 Task_Dat1VarbitLoad_Free(struct ToriRS_Task* task_base)
 {
-    free(task_base);
+    ToriMem_Free(ToriMem_Assets(), task_base);
 }
 
 static struct ToriRS_TaskVTable Task_Dat1VarbitLoad_VTable = {
@@ -111,7 +112,7 @@ CreateTask_Dat1VarbitLoad(
     assert(provider);
     assert(varps);
 
-    struct Task_Dat1VarbitLoad* task = calloc(1, sizeof(*task));
+    struct Task_Dat1VarbitLoad* task = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_Dat1VarbitLoad_VTable;
     strcpy(task->task.name, "Dat1VarbitLoad");

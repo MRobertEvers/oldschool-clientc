@@ -1,4 +1,5 @@
 #include "cs2vm2/cs2vm2.h"
+#include "mem/torirs_mem.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -102,7 +103,7 @@ test_pool_cap_and_true_free(void)
     CS2VM2_Free(vm);
     CHECK(thread->str_pool.block_count == 0 && thread->str_pool.bytes_reserved == 0,
           "CS2VM2_Free releases the retained regular block");
-    free(vm);
+    ToriMem_Free(ToriMem_Script(), vm); /* CS2VM2_Acquire allocates the block there */
 }
 
 int

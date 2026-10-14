@@ -37,7 +37,8 @@ struct HttpResponse
     char content_type[64];   /* defaults to application/octet-stream */
     void* body;              /* may be NULL */
     int body_len;
-    /** When set, the server free()s body after writing it. */
+    /** When set, the server frees body after writing it, from ToriMem_Net():
+     *  an owned body is allocated there. */
     int owns_body;
     /**
      * Validator for this representation, sent as ETag. When set, the response

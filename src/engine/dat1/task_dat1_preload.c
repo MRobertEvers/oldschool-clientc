@@ -25,6 +25,7 @@
  * This knows only how to fetch one and where to put it.
  */
 #include "engine/dat1/dat1_tasks.h"
+#include "mem/torirs_mem.h"
 
 #include "engine/dat1/dat1_buildcache.h"
 #include "game/rs_login_replies.h"
@@ -447,7 +448,7 @@ Task_Dat1Preload_Free(struct ToriRS_Task* task_base)
     struct Task_Dat1Preload* task = (struct Task_Dat1Preload*)task_base;
     if( task->vl )
         RSCache_Dat1VersionListFree(task->vl);
-    free(task);
+    ToriMem_Free(ToriMem_Assets(), task);
 }
 
 static struct ToriRS_TaskVTable Task_Dat1Preload_VTable = {
@@ -481,7 +482,7 @@ CreateTask_Dat1Preload(
     if( work == 0 )
         return NULL;
 
-    task = calloc(1, sizeof(*task));
+    task = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_Dat1Preload_VTable;
     strcpy(task->task.name, "Dat1Preload");

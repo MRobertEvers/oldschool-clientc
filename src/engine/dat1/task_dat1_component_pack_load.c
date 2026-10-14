@@ -1,4 +1,5 @@
 #include "asyncio.h"
+#include "mem/torirs_mem.h"
 #include "cache/rscache_io.h"
 #include "engine/cache_provider.h"
 #include "engine/dat1/dat1_buildcache.h"
@@ -168,7 +169,7 @@ Task_Dat1ComponentPackLoad_Run(
 static void
 Task_Dat1ComponentPackLoad_Free(struct ToriRS_Task* task_base)
 {
-    free(task_base);
+    ToriMem_Free(ToriMem_Assets(), task_base);
 }
 
 static struct ToriRS_TaskVTable Task_Dat1ComponentPackLoad_VTable = {
@@ -190,7 +191,7 @@ CreateTask_Dat1ComponentPackLoad(
     if( CacheProvider_ComponentPackHas(provider, iface_id) )
         return NULL;
 
-    task = calloc(1, sizeof(*task));
+    task = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_Dat1ComponentPackLoad_VTable;
     strcpy(task->task.name, "Dat1ComponentPackLoad");

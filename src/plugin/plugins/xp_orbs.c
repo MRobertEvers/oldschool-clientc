@@ -1,4 +1,5 @@
 #include "plugin/porcelain/torirs_porcelain.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <math.h>
@@ -1282,10 +1283,8 @@ orb_seed_tables(struct ToriRS_Api* api, void* user, unsigned what)
     if( !g_seen_xp )
     {
         g_skill_count = count;
-        g_seen_xp = malloc((size_t)count * sizeof(*g_seen_xp));
-        assert(g_seen_xp);
-        g_track = malloc((size_t)count * sizeof(*g_track));
-        assert(g_track);
+        g_seen_xp = ToriMem_Alloc(ToriMem_Plugins(), (size_t)count * sizeof(*g_seen_xp));
+        g_track = ToriMem_Alloc(ToriMem_Plugins(), (size_t)count * sizeof(*g_track));
     }
     orb_reset(state);
     for( int index = 0; index < g_skill_count; index++ )
@@ -1668,12 +1667,11 @@ orb_load_art(struct Porcelain* porcelain, struct XpOrbState* state)
         {
             size_t const count = (size_t)*widths[i] * (size_t)*heights[i];
             size_t copied = 0;
-            uint32_t* buffer = malloc(count * sizeof(uint32_t));
-            assert(buffer);
+            uint32_t* buffer = ToriMem_Alloc(ToriMem_Plugins(), count * sizeof(uint32_t));
             if( !api->assets.image_pixels(api, image, buffer, count, &copied) ||
                 copied != count )
             {
-                free(buffer);
+                ToriMem_Free(ToriMem_Plugins(), buffer);
                 continue;
             }
             *pixels[i] = buffer;
@@ -2557,10 +2555,10 @@ orb_stop(struct ToriRS_Api* api, void* plugin_state)
      * bytes back the moment it parsed them. The decoded pixel copies and the
      * two per-skill tables are this file's own. */
     Porcelain_Close(state->porcelain);
-    free(g_skills_px);
-    free(g_text_px);
-    free(g_seen_xp);
-    free(g_track);
+    ToriMem_Free(ToriMem_Plugins(), g_skills_px);
+    ToriMem_Free(ToriMem_Plugins(), g_text_px);
+    ToriMem_Free(ToriMem_Plugins(), g_seen_xp);
+    ToriMem_Free(ToriMem_Plugins(), g_track);
     memset(state, 0, sizeof(*state));
 }
 

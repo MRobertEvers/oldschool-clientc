@@ -25,6 +25,7 @@
  *   not exist, faithfully to the deob.
  */
 
+#include "mem/torirs_mem.h"
 #include "torirs_server_vessel.h"
 
 #include "engine/world_builder/collision_map.h"
@@ -166,6 +167,14 @@ static struct WevConfigTable g_vessel_configs;
 static char g_vessel_config_cache[1024];
 static int g_vessel_configs_loaded;
 
+void
+ToriRSServer_VesselConfigsFree(void)
+{
+    WevConfigTable_Free(&g_vessel_configs);
+    g_vessel_config_cache[0] = '\0';
+    g_vessel_configs_loaded = 0;
+}
+
 static const struct WevConfig*
 vessel_config(int id)
 {
@@ -213,8 +222,8 @@ vessel_config(int id)
             }
             if( count > 0 )
             {
-                struct WevConfig* entries = calloc((size_t)count, sizeof(*entries));
-                assert(entries);
+                /* ASSET: WevConfigTable_Set takes it; WevConfigTable_Free frees it. */
+                struct WevConfig* entries = ToriMem_Calloc(ToriMem_Assets(), (size_t)count, sizeof(*entries));
                 for( int i = 0; i < count; i++ ) WevConfig_Init(&entries[i], -1);
                 for( int i = 0; i < files->file_count; i++ )
                 {

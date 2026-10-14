@@ -23,6 +23,7 @@
  */
 
 #include <dirent.h>
+#include "mem/torirs_mem.h"
 #include <assert.h>
 
 #include "torirs_server.h"
@@ -315,8 +316,10 @@ ToriRSServer_ScriptsLoad(
 
     ToriRSServer_ScriptsFree(srv);
 
-    srv->scripts = (struct SSVM_Provider*)calloc(1, sizeof(struct SSVM_Provider));
-    srv->script_env = (struct SSVM_Env*)calloc(1, sizeof(struct SSVM_Env));
+    srv->scripts = (struct SSVM_Provider*)ToriMem_Calloc(
+        ToriMem_ServerScripts(), 1, sizeof(struct SSVM_Provider));
+    srv->script_env =
+        (struct SSVM_Env*)ToriMem_Calloc(ToriMem_ServerScripts(), 1, sizeof(struct SSVM_Env));
     assert(srv->scripts);
     assert(srv->script_env);
 
@@ -828,13 +831,13 @@ ToriRSServer_ScriptsFree(struct ToriRSServer* srv)
     if( srv->script_env )
     {
         SSVM_EnvFree(srv->script_env);
-        free(srv->script_env);
+        ToriMem_Free(ToriMem_ServerScripts(), srv->script_env);
         srv->script_env = NULL;
     }
     if( srv->scripts )
     {
         SSVM_ProviderFree(srv->scripts);
-        free(srv->scripts);
+        ToriMem_Free(ToriMem_ServerScripts(), srv->scripts);
         srv->scripts = NULL;
     }
     srv->scripts_ok = 0;

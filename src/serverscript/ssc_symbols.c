@@ -18,6 +18,7 @@
 
 #include "content/content_register.h"
 #include "content/content_value.h"
+#include "mem/torirs_mem.h"
 
 #include <sys/stat.h>
 
@@ -53,16 +54,16 @@ SSC_SymbolsFree(struct SSC_Symbols* symbols)
 
     for( i = 0; i < symbols->count; i++ )
     {
-        free(symbols->entries[i].text);
-        free(symbols->entries[i].origin);
+        ToriMem_Free(ToriMem_Compiler(), symbols->entries[i].text);
+        ToriMem_Free(ToriMem_Compiler(), symbols->entries[i].origin);
     }
-    free(symbols->entries);
-    free(symbols->order);
-    free(symbols->name_slots);
-    free(symbols->name_next);
-    free(symbols->carriers);
-    free(symbols->exempt);
-    free(symbols->read_exempt);
+    ToriMem_Free(ToriMem_Compiler(), symbols->entries);
+    ToriMem_Free(ToriMem_Compiler(), symbols->order);
+    ToriMem_Free(ToriMem_Compiler(), symbols->name_slots);
+    ToriMem_Free(ToriMem_Compiler(), symbols->name_next);
+    ToriMem_Free(ToriMem_Compiler(), symbols->carriers);
+    ToriMem_Free(ToriMem_Compiler(), symbols->exempt);
+    ToriMem_Free(ToriMem_Compiler(), symbols->read_exempt);
     memset(symbols, 0, sizeof(*symbols));
 }
 
@@ -113,11 +114,10 @@ index_rebuild(struct SSC_Symbols* symbols, int capacity)
 {
     int count = symbols->count;
 
-    free(symbols->name_slots);
+    ToriMem_Free(ToriMem_Compiler(), symbols->name_slots);
     symbols->name_slot_capacity = capacity;
-    symbols->name_slots =
-        (struct SSC_SymbolSlot*)malloc((size_t)capacity * sizeof(*symbols->name_slots));
-    assert(symbols->name_slots);
+    symbols->name_slots = (struct SSC_SymbolSlot*)ToriMem_Alloc(
+        ToriMem_Compiler(), (size_t)capacity * sizeof(*symbols->name_slots));
     for( int i = 0; i < capacity; i++ )
     {
         symbols->name_slots[i].head = -1;
@@ -136,9 +136,8 @@ index_insert(struct SSC_Symbols* symbols, int entry)
 
     if( symbols->name_next_capacity < symbols->capacity )
     {
-        symbols->name_next =
-            (int32_t*)realloc(symbols->name_next, (size_t)symbols->capacity * sizeof(int32_t));
-        assert(symbols->name_next);
+        symbols->name_next = (int32_t*)ToriMem_Realloc(
+            ToriMem_Compiler(), symbols->name_next, (size_t)symbols->capacity * sizeof(int32_t));
         symbols->name_next_capacity = symbols->capacity;
     }
     /* Half full at most, so a probe run stays short. */
@@ -188,11 +187,9 @@ SSC_SymbolsAdd(
     if( symbols->count == symbols->capacity )
     {
         int capacity = symbols->capacity ? symbols->capacity * 2 : 1024;
-        struct SSC_Symbol* grown =
-            (struct SSC_Symbol*)realloc(symbols->entries, (size_t)capacity * sizeof(*grown));
+        struct SSC_Symbol* grown = (struct SSC_Symbol*)ToriMem_Realloc(
+            ToriMem_Compiler(), symbols->entries, (size_t)capacity * sizeof(*grown));
 
-        if( !grown )
-            return 0;
         symbols->entries = grown;
         symbols->capacity = capacity;
     }
@@ -202,7 +199,7 @@ SSC_SymbolsAdd(
     snprintf(entry->name, sizeof(entry->name), "%s", name);
     entry->value = value;
     entry->kind = kind;
-    entry->text = text ? strdup(text) : NULL;
+    entry->text = text ? ToriMem_Strdup(ToriMem_Compiler(), text) : NULL;
 
     symbols->sorted = 0;
     index_insert(symbols, symbols->count - 1);
@@ -244,8 +241,8 @@ ensure_sorted(struct SSC_Symbols* symbols)
     if( symbols->sorted || symbols->count == 0 )
         return;
 
-    symbols->order = (int32_t*)realloc(symbols->order, (size_t)symbols->count * sizeof(int32_t));
-    assert(symbols->order);
+    symbols->order = (int32_t*)ToriMem_Realloc(
+        ToriMem_Compiler(), symbols->order, (size_t)symbols->count * sizeof(int32_t));
     for( i = 0; i < symbols->count; i++ )
         symbols->order[i] = i;
 
@@ -603,7 +600,7 @@ SSC_SymbolsDefineConstant(
 
     if( !SSC_SymbolsAdd(symbols, name, 0, SSC_SYM_CONSTANT, text) )
         return 0;
-    symbols->entries[symbols->count - 1].origin = strdup(origin);
+    symbols->entries[symbols->count - 1].origin = ToriMem_Strdup(ToriMem_Compiler(), origin);
     return 1;
 }
 
@@ -656,7 +653,8 @@ SSC_SymbolsLoadConstants(
              * kind comes out of a generated index where "which line" answers
              * nothing. */
             snprintf(origin, sizeof(origin), "%s:%d", path, line_number);
-            symbols->entries[symbols->count - 1].origin = strdup(origin);
+            symbols->entries[symbols->count - 1].origin =
+                ToriMem_Strdup(ToriMem_Compiler(), origin);
             loaded++;
         }
     }
@@ -999,10 +997,9 @@ SSC_SymbolsLoadComponentDir(
     {
         char name[SSC_MAX_NAME];
         int id;
-    }* ifaces = calloc((size_t)scanned, sizeof(*ifaces));
+    }* ifaces = ToriMem_Calloc(ToriMem_Compiler(), (size_t)scanned, sizeof(*ifaces));
     int count = 0;
 
-    assert(ifaces);
     for( int i = 0; i < symbols->count && count < scanned; i++ )
     {
         if( symbols->entries[i].kind != SSC_SYM_INTERFACE )
@@ -1043,7 +1040,7 @@ SSC_SymbolsLoadComponentDir(
         }
         SSC_SymbolsFree(&children);
     }
-    free(ifaces);
+    ToriMem_Free(ToriMem_Compiler(), ifaces);
     return loaded;
 }
 
@@ -1332,11 +1329,9 @@ carrier_slot(
     if( symbols->carrier_count == symbols->carrier_capacity )
     {
         int next = symbols->carrier_capacity ? symbols->carrier_capacity * 2 : 256;
-        struct SSC_VarpCarrier* grown =
-            (struct SSC_VarpCarrier*)realloc(symbols->carriers, (size_t)next * sizeof(*grown));
+        struct SSC_VarpCarrier* grown = (struct SSC_VarpCarrier*)ToriMem_Realloc(
+            ToriMem_Compiler(), symbols->carriers, (size_t)next * sizeof(*grown));
 
-        if( !grown )
-            return NULL;
         symbols->carriers = grown;
         symbols->carrier_capacity = next;
     }
@@ -1494,9 +1489,9 @@ exempt_varp(
     if( *count == *capacity )
     {
         int next = *capacity ? *capacity * 2 : 16;
-        int32_t* grown = (int32_t*)realloc(*list, (size_t)next * sizeof(*grown));
+        int32_t* grown =
+            (int32_t*)ToriMem_Realloc(ToriMem_Compiler(), *list, (size_t)next * sizeof(*grown));
 
-        assert(grown);
         *list = grown;
         *capacity = next;
     }

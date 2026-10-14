@@ -1,3 +1,4 @@
+#include "mem/torirs_mem.h"
 #include "game/rs_healthbar.h"
 
 #include <assert.h>
@@ -16,7 +17,7 @@ RS_Healthbars_Free(struct RS_Healthbars* healthbars)
 {
     if( !healthbars )
         return;
-    free(healthbars->types);
+    ToriMem_Free(ToriMem_Assets(), healthbars->types);
     healthbars->types = NULL;
     healthbars->count = 0;
 }
@@ -31,7 +32,7 @@ RS_Healthbars_SetTypes(
     if( count <= 0 )
         return 0;
     assert(types);
-    free(healthbars->types);
+    ToriMem_Free(ToriMem_Assets(), healthbars->types);
     healthbars->types = types;
     healthbars->count = count;
     return 1;

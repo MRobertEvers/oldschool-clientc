@@ -3,6 +3,7 @@
  * built from, and the coordinate systems that must coincide — scene tile vs
  * absolute tile (mapBuildBase), route tile vs draw fine units (tile*128 +
  * size*64), and the painter footprint of a mover between tiles. */
+#include "mem/torirs_mem.h"
 #include "entity_pathing.h"
 #include "features/features.h"
 #include "painters/painters.h"
@@ -70,7 +71,7 @@ test_try_route(void)
 {
     printf("TEST: try_route (reference tryMove)\n");
 
-    struct CollisionMap* cm = collision_map_new(64, 64);
+    struct CollisionMap* cm = collision_map_new(ToriMem_Scene(), 64, 64);
     int route_x[256];
     int route_z[256];
     int nearest = -1;
@@ -146,7 +147,7 @@ test_try_route_nearest_models(void)
 {
     printf("TEST: try_route nearest models (ring3 vs box10_rect)\n");
 
-    struct CollisionMap* cm = collision_map_new(64, 64);
+    struct CollisionMap* cm = collision_map_new(ToriMem_Scene(), 64, 64);
     int route_x[256];
     int route_z[256];
     int nearest = -1;
@@ -260,7 +261,7 @@ test_try_route_op(void)
 {
     printf("TEST: try_route_op (reference tryMove type 2 approach)\n");
 
-    struct CollisionMap* cm = collision_map_new(64, 64);
+    struct CollisionMap* cm = collision_map_new(ToriMem_Scene(), 64, 64);
     int route_x[256];
     int route_z[256];
     int len;
@@ -320,7 +321,7 @@ test_try_route_op_forceapproach(void)
 {
     printf("TEST: try_route_op forceapproach (LocType opcode 69)\n");
 
-    struct CollisionMap* cm = collision_map_new(64, 64);
+    struct CollisionMap* cm = collision_map_new(ToriMem_Scene(), 64, 64);
     int route_x[256];
     int route_z[256];
     int len;
@@ -418,7 +419,7 @@ test_try_route_op_rect(void)
 {
     printf("TEST: try_route_op rect model (OSRS era)\n");
 
-    struct CollisionMap* cm = collision_map_new(64, 64);
+    struct CollisionMap* cm = collision_map_new(ToriMem_Scene(), 64, 64);
     int route_x[256];
     int route_z[256];
     int used_nearest = -1;
@@ -581,7 +582,7 @@ test_try_route_op_exit_strategy(void)
 {
     printf("TEST: exitStrategy dispatch + exact-tile / exclusive\n");
 
-    struct CollisionMap* cm = collision_map_new(64, 64);
+    struct CollisionMap* cm = collision_map_new(ToriMem_Scene(), 64, 64);
     struct CollisionApproach approach;
     int route_x[256];
     int route_z[256];
@@ -734,7 +735,7 @@ test_try_route_op_exit_strategy(void)
                 "island stone: a wall on the bank edge stops the leap");
     {
         /* Open one square beside the stone: no longer an island. */
-        struct CollisionMap* cm2 = collision_map_new(64, 64);
+        struct CollisionMap* cm2 = collision_map_new(ToriMem_Scene(), 64, 64);
         for( int cz = 15; cz <= 25; cz++ )
             for( int cx = 29; cx <= 31; cx++ )
                 if( !(cx == 30 && cz == 21) )
@@ -773,7 +774,7 @@ test_under_target_exit(void)
 {
     printf("TEST: exit from under a large npc\n");
 
-    struct CollisionMap* cm = collision_map_new(104, 104);
+    struct CollisionMap* cm = collision_map_new(ToriMem_Scene(), 104, 104);
     struct CollisionApproach approach;
     int route_x[256];
     int route_z[256];
@@ -987,7 +988,7 @@ test_bfs_path_source_end_truncation(void)
 {
     printf("TEST: bfs_path truncates at the source end\n");
 
-    struct CollisionMap* cm = collision_map_new(64, 64);
+    struct CollisionMap* cm = collision_map_new(ToriMem_Scene(), 64, 64);
     int path_x[8];
     int path_z[8];
     int n;
@@ -1016,7 +1017,7 @@ test_collision_loc_change_inverse(void)
 {
     printf("TEST: collision loc-change add/del inverse\n");
 
-    struct CollisionMap* cm = collision_map_new(64, 64);
+    struct CollisionMap* cm = collision_map_new(ToriMem_Scene(), 64, 64);
 
     /* Snapshot the pristine (reset) flags. */
     int baseline[64 * 64];
@@ -1389,7 +1390,7 @@ test_line_of_sight(void)
 {
     printf("TEST: line of sight / line of walk\n");
 
-    struct CollisionMap* cm = collision_map_new(32, 32);
+    struct CollisionMap* cm = collision_map_new(ToriMem_Scene(), 32, 32);
     int open;
     int sight;
     int walk;
@@ -1448,7 +1449,7 @@ test_line_of_sight_asymmetry(void)
 {
     printf("TEST: line of sight asymmetry (legacy)\n");
 
-    struct CollisionMap* cm = collision_map_new(32, 32);
+    struct CollisionMap* cm = collision_map_new(ToriMem_Scene(), 32, 32);
     int ab;
     int ba;
 
@@ -1512,7 +1513,7 @@ test_naive_path_safespot(void)
 {
     printf("TEST: naive path slides / safespots\n");
 
-    struct CollisionMap* cm = collision_map_new(32, 32);
+    struct CollisionMap* cm = collision_map_new(ToriMem_Scene(), 32, 32);
     unsigned rng = 0x5eed1234u;
     int out_x = -1;
     int out_z = -1;
@@ -1563,7 +1564,7 @@ test_occupancy_stacking(void)
 {
     printf("TEST: occupancy gates step, not route; stacking via unconditional clear\n");
 
-    struct CollisionMap* cm = collision_map_new(32, 32);
+    struct CollisionMap* cm = collision_map_new(ToriMem_Scene(), 32, 32);
     int can;
     int route_x[16];
     int route_z[16];
@@ -1607,7 +1608,7 @@ test_route_window(void)
 {
     printf("TEST: BFS window is the router's, not the map's\n");
 
-    struct CollisionMap* cm = collision_map_new(300, 300);
+    struct CollisionMap* cm = collision_map_new(ToriMem_Scene(), 300, 300);
     int path_x[512];
     int path_z[512];
     int n;
@@ -1646,7 +1647,7 @@ test_collision_types(void)
 {
     printf("TEST: moverestrict collision strategies\n");
 
-    struct CollisionMap* cm = collision_map_new(32, 32);
+    struct CollisionMap* cm = collision_map_new(ToriMem_Scene(), 32, 32);
     const int open = COLL_FLAG_OPEN;
 
     /* NORMAL: the plain mask test. */
@@ -1807,7 +1808,7 @@ test_wall_edge_symmetry(void)
 {
     printf("TEST: wall edge dual-stamp symmetry vs one-sided orphan\n");
 
-    struct CollisionMap* cm = collision_map_new(64, 64);
+    struct CollisionMap* cm = collision_map_new(ToriMem_Scene(), 64, 64);
     int a_x = 20;
     int a_z = 20;
     int b_x = 19; /* west neighbor */
@@ -1825,7 +1826,7 @@ test_wall_edge_symmetry(void)
     TEST_ASSERT(!collision_map_can_step_east(cm, b_x, b_z), "dual-stamp: B→A east blocked");
 
     collision_map_free(cm);
-    cm = collision_map_new(64, 64);
+    cm = collision_map_new(ToriMem_Scene(), 64, 64);
 
     /*
      * Orphan: only the home face. Dest-only step then allows A→B (walk through)
@@ -1849,9 +1850,9 @@ test_wall_edge_symmetry(void)
      * down onto L0.
      */
     collision_map_free(cm);
-    cm = collision_map_new(64, 64);
+    cm = collision_map_new(ToriMem_Scene(), 64, 64);
     {
-        struct CollisionMap* upper = collision_map_new(64, 64);
+        struct CollisionMap* upper = collision_map_new(ToriMem_Scene(), 64, 64);
         collision_map_add_wall(upper, a_x, a_z, 0, COLL_ANGLE_WEST, 0);
         /* Simulate post-hoc LINK_BELOW overwrite of column A only. */
         cm->flags[collision_map_index_at(cm, a_x, a_z)] =

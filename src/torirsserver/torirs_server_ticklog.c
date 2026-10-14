@@ -34,6 +34,7 @@
  */
 
 #include "torirs_server.h"
+#include "mem/torirs_mem.h"
 #include "torirs_server_content.h"
 
 #include <assert.h>
@@ -210,8 +211,8 @@ ticklog_push_row(
     if( g_ticklog.count == g_ticklog.capacity )
     {
         int capacity = g_ticklog.capacity ? g_ticklog.capacity * 2 : 4096;
-        struct ToriRSServerTicklogRow* grown =
-            realloc(g_ticklog.rows, (size_t)capacity * sizeof(*grown));
+        struct ToriRSServerTicklogRow* grown = ToriMem_Realloc(
+            ToriMem_ServerWorld(), g_ticklog.rows, (size_t)capacity * sizeof(*grown));
 
         assert(grown);
         g_ticklog.rows = grown;
@@ -358,7 +359,7 @@ ToriRSServer_TicklogEnable(
     g_ticklog.dealer_npc = -1;
     if( path && *path )
     {
-        g_ticklog.path = strdup(path);
+        g_ticklog.path = ToriMem_Strdup(ToriMem_ServerWorld(), path);
         assert(g_ticklog.path);
         g_ticklog.out = fopen(path, "w");
         /* A log the test cannot write to a file is still a log: the rows are
@@ -382,8 +383,8 @@ ToriRSServer_TicklogDisable(void)
 {
     if( g_ticklog.out )
         fclose(g_ticklog.out);
-    free(g_ticklog.rows);
-    free(g_ticklog.path);
+    ToriMem_Free(ToriMem_ServerWorld(), g_ticklog.rows);
+    ToriMem_Free(ToriMem_ServerWorld(), g_ticklog.path);
     g_ticklog.out = NULL;
     g_ticklog.rows = NULL;
     g_ticklog.path = NULL;

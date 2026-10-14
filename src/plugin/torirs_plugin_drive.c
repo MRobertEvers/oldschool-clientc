@@ -26,6 +26,7 @@
 #include "plugin/torirs_plugin_host.h"
 #include "plugin/torirs_plugin_lua.h"
 #include "plugin/task_plugin_io.h"
+#include "mem/torirs_mem.h"
 #include "torirsserver/torirs_server.h"
 #include "torirsserver/torirs_server_boot.h"
 #include "torirsserver/torirs_server_content.h"
@@ -137,7 +138,7 @@ PluginDrive_ScriptPartPath(char const* plugin_name, int index)
 void
 PluginDrive_ComposeReset(void)
 {
-    free(g_compose);
+    ToriMem_Free(ToriMem_Plugins(), g_compose);
     g_compose = NULL;
     g_compose_length = 0;
     g_compose_capacity = 0;
@@ -157,7 +158,7 @@ PluginDrive_ComposeAppend(char const* data, int length)
         int capacity = g_compose_capacity ? g_compose_capacity * 2 : 16384;
         while( capacity < g_compose_length + length + 2 )
             capacity *= 2;
-        g_compose = realloc(g_compose, (size_t)capacity);
+        g_compose = ToriMem_Realloc(ToriMem_Plugins(), g_compose, (size_t)capacity);
         assert(g_compose);
         g_compose_capacity = capacity;
     }
@@ -1026,8 +1027,7 @@ drive_scheduler_start(void)
     fseek(f, 0, SEEK_END);
     length = ftell(f);
     fseek(f, 0, SEEK_SET);
-    source = malloc((size_t)length + 1);
-    assert(source);
+    source = ToriMem_Alloc(ToriMem_Plugins(), (size_t)length + 1);
     read_bytes = fread(source, 1, (size_t)length, f);
     assert(read_bytes == (size_t)length);
     /* An assert is nothing under NDEBUG (OPT=1), so a short read is an
@@ -1038,7 +1038,7 @@ drive_scheduler_start(void)
     source[length] = '\0';
 
     g_thread = PluginLua_ThreadCreate(DRIVE_PLUGIN_NAME, path, source, (int)length, &g_thread_ref);
-    free(source);
+    ToriMem_Free(ToriMem_Plugins(), source);
     assert(g_thread);
 
     /* The `arg` half of the bootstrap's (loader, arg) -- QD_ROOT is the one
@@ -1517,10 +1517,10 @@ drive_tests_deliver(void* user, int serial, char const* path, void* data, int si
     assert(path);
     if( serial != g_tests_serial )
     {
-        free(data); /* a Refresh superseded this read */
+        ToriMem_Free(ToriMem_Net(), data); /* a Refresh superseded this read */
         return;
     }
-    free(g_tests_bytes);
+    ToriMem_Free(ToriMem_Net(), g_tests_bytes);
     g_tests_bytes = (char*)data;
     g_tests_size = data ? size : 0;
     g_tests_state = data ? DRIVE_FETCH_READY : DRIVE_FETCH_MISSING;
@@ -1539,19 +1539,19 @@ drive_play_deliver(void* user, int serial, char const* path, void* data, int siz
     assert(which <= DRIVE_PARTY_MAX);
     if( serial != g_demand_fetch_serial )
     {
-        free(data); /* the Play that asked was stopped before this landed */
+        ToriMem_Free(ToriMem_Net(), data); /* the Play that asked was stopped before this landed */
         return;
     }
     if( which == 0 )
     {
-        free(g_demand_source_bytes);
+        ToriMem_Free(ToriMem_Net(), g_demand_source_bytes);
         g_demand_source_bytes = (char*)data;
         g_demand_source_size = data ? size : 0;
         g_demand_source_state = data ? DRIVE_FETCH_READY : DRIVE_FETCH_MISSING;
     }
     else
     {
-        free(g_demand_fixture_bytes[which - 1]);
+        ToriMem_Free(ToriMem_Net(), g_demand_fixture_bytes[which - 1]);
         g_demand_fixture_bytes[which - 1] = (char*)data;
         g_demand_fixture_size[which - 1] = data ? size : 0;
         g_demand_fixture_state[which - 1] = data ? DRIVE_FETCH_READY : DRIVE_FETCH_MISSING;
@@ -1595,12 +1595,12 @@ static void
 drive_play_discard(void)
 {
     g_demand_fetch_serial++;
-    free(g_demand_source_bytes);
+    ToriMem_Free(ToriMem_Net(), g_demand_source_bytes);
     g_demand_source_bytes = NULL;
     g_demand_source_size = 0;
     for( int i = 0; i < DRIVE_PARTY_MAX; i++ )
     {
-        free(g_demand_fixture_bytes[i]);
+        ToriMem_Free(ToriMem_Net(), g_demand_fixture_bytes[i]);
         g_demand_fixture_bytes[i] = NULL;
         g_demand_fixture_size[i] = 0;
         g_demand_fixture_state[i] = DRIVE_FETCH_NONE;
@@ -3075,12 +3075,12 @@ drive_launch_deliver(void* user, int serial, char const* path, void* data, int s
         ticket->answer_size = data ? size : 0;
         return;
     }
-    free(data); /* a ticket nobody holds any more */
+    ToriMem_Free(ToriMem_Net(), data); /* a ticket nobody holds any more */
 }
 
 /* The body of a launch call: the string at `index`, or the table's key=value
- * lines (string, number or boolean values; others are skipped). Malloc'd,
- * NUL-terminated; *out_size its length. */
+ * lines (string, number or boolean values; others are skipped). From the
+ * plugins group, NUL-terminated; *out_size its length. */
 static char*
 drive_launch_body(struct lua_State* L, int index, int* out_size)
 {
@@ -3092,8 +3092,7 @@ drive_launch_body(struct lua_State* L, int index, int* out_size)
     if( lua_type(L, index) == LUA_TSTRING )
     {
         char const* text = lua_tolstring(L, index, &length);
-        body = (char*)malloc(length + 1);
-        assert(body);
+        body = ToriMem_Alloc(ToriMem_Plugins(), length + 1);
         memcpy(body, text, length);
         body[length] = '\0';
         *out_size = (int)length;
@@ -3101,8 +3100,7 @@ drive_launch_body(struct lua_State* L, int index, int* out_size)
     }
     luaL_checktype(L, index, LUA_TTABLE);
     capacity = 256;
-    body = (char*)malloc(capacity);
-    assert(body);
+    body = ToriMem_Alloc(ToriMem_Plugins(), capacity);
     body[0] = '\0';
     lua_pushnil(L);
     while( lua_next(L, index) != 0 )
@@ -3119,8 +3117,7 @@ drive_launch_body(struct lua_State* L, int index, int* out_size)
             {
                 while( capacity < need )
                     capacity *= 2;
-                body = (char*)realloc(body, capacity);
-                assert(body);
+                body = ToriMem_Realloc(ToriMem_Plugins(), body, capacity);
             }
             length += (size_t)snprintf(body + length, capacity - length, "%s=%s\n", key, value);
         }
@@ -3199,7 +3196,7 @@ drive_launch_queue(struct lua_State* L, char const* verb, char* body, int size)
             ticket = &g_launch_tickets[i];
     if( !ticket )
     {
-        free(body);
+        ToriMem_Free(ToriMem_Plugins(), body);
         return PluginDrive_PushResult(L, DRIVE_REFUSED,
             "drive.launch: 16 requests are unanswered or unread (read each with launch_answer)");
     }
@@ -3211,7 +3208,7 @@ drive_launch_queue(struct lua_State* L, char const* verb, char* body, int size)
     ticket->answer_size = 0;
     ToriRS_TaskQueue_Add(g_app->runner.queue,
         CreateTask_PluginLaunch(verb, body, size, ticket->serial, drive_launch_deliver, NULL));
-    free(body);
+    ToriMem_Free(ToriMem_Plugins(), body);
     lua_pushstring(L, DriveResultName(DRIVE_OK));
     lua_pushinteger(L, ticket->serial);
     return 2;
@@ -3263,20 +3260,18 @@ lua_drive_launch_open(struct lua_State* L)
         port = drive_free_loopback_port();
     if( port <= 0 )
     {
-        free(body);
+        ToriMem_Free(ToriMem_Plugins(), body);
         return PluginDrive_PushResult(L, DRIVE_UNSUPPORTED,
             "drive.launch_open: no loopback port (the party link is POSIX only)");
     }
     length = size + 128 + (saves ? (int)strlen(saves) : 0);
-    body = (char*)realloc(body, (size_t)length);
-    assert(body);
+    body = ToriMem_Realloc(ToriMem_Plugins(), body, (size_t)length);
     /* The service reads the FIRST pid=/port=/saves= (launch_sessions.c
      * request_value), so the filled values go first and the request's own
      * pid=/port= lines are dropped. */
     {
-        char* filled = (char*)malloc((size_t)length);
+        char* filled = ToriMem_Alloc(ToriMem_Plugins(), (size_t)length);
         int written;
-        assert(filled);
         written = snprintf(filled, (size_t)length, "pid=%d\nport=%d\n", (int)getpid(), port);
         if( !strstr(body, "saves=") && saves && saves[0] )
             written += snprintf(filled + written, (size_t)(length - written), "saves=%s\n", saves);
@@ -3294,7 +3289,7 @@ lua_drive_launch_open(struct lua_State* L)
                 line += line_length + (end ? 1 : 0);
             }
         }
-        free(body);
+        ToriMem_Free(ToriMem_Plugins(), body);
         body = filled;
         size = written;
     }
@@ -3346,7 +3341,7 @@ lua_drive_launch_answer(struct lua_State* L)
         drive_launch_forget_closed(ticket->session);
     lua_pushstring(L, DriveResultName(result));
     lua_pushstring(L, text);
-    free(ticket->answer);
+    ToriMem_Free(ToriMem_Net(), ticket->answer);
     memset(ticket, 0, sizeof(*ticket));
     return 2;
 }
@@ -4440,6 +4435,17 @@ PluginDrive_Shutdown(void)
 {
     PluginLua_SetTestModules(NULL);
     PluginDrive_ComposeReset();
+    DriveUi_Shutdown();
+    /* Fetched payloads still held (NET, as the IO items delivered them). */
+    ToriMem_Free(ToriMem_Net(), g_tests_bytes);
+    g_tests_bytes = NULL;
+    g_tests_size = 0;
+    drive_play_discard();
+    for( int i = 0; i < DRIVE_LAUNCH_TICKETS; i++ )
+    {
+        ToriMem_Free(ToriMem_Net(), g_launch_tickets[i].answer);
+        memset(&g_launch_tickets[i], 0, sizeof(g_launch_tickets[i]));
+    }
     if( g_thread )
     {
         drive_await_free_refs();

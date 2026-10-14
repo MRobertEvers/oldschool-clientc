@@ -1,4 +1,5 @@
 #include "blendmap.h"
+#include "mem/torirs_mem.h"
 
 #include "osrs/palette.h"
 
@@ -39,11 +40,12 @@ blendmap_new(
     int height,
     int levels)
 {
-    struct Blendmap* blendmap = malloc(sizeof(struct Blendmap));
+    struct Blendmap* blendmap = ToriMem_Alloc(ToriMem_Scene(), sizeof(struct Blendmap));
     memset(blendmap, 0, sizeof(struct Blendmap));
-    blendmap->underlaymap = malloc(width * height * levels * sizeof(uint32_t));
+    blendmap->underlaymap =
+        ToriMem_Alloc(ToriMem_Scene(), width * height * levels * sizeof(uint32_t));
     memset(blendmap->underlaymap, 0, width * height * levels * sizeof(uint32_t));
-    blendmap->blendmap = malloc(width * height * levels * sizeof(int32_t));
+    blendmap->blendmap = ToriMem_Alloc(ToriMem_Scene(), width * height * levels * sizeof(int32_t));
     memset(blendmap->blendmap, 0, width * height * levels * sizeof(int32_t));
     blendmap->width = width;
     blendmap->height = height;
@@ -60,9 +62,9 @@ blendmap_new(
 void
 blendmap_free(struct Blendmap* blendmap)
 {
-    free(blendmap->underlaymap);
-    free(blendmap->blendmap);
-    free(blendmap);
+    ToriMem_Free(ToriMem_Scene(), blendmap->underlaymap);
+    ToriMem_Free(ToriMem_Scene(), blendmap->blendmap);
+    ToriMem_Free(ToriMem_Scene(), blendmap);
 }
 
 void

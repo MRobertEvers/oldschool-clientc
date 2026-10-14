@@ -6,6 +6,7 @@
  * rejects them (visible, Walk-here only).
  */
 #include "app.h"
+#include "mem/torirs_mem.h"
 #include "asyncio.h"
 #include "engine/cache_provider.h"
 #include "engine/uitree_scene_bridge.h"
@@ -461,12 +462,12 @@ test_multinpc_resolution_is_per_player(void)
     struct App bob;
     struct VarPType varp_type = { 0 };
     struct VarBitType varbit_type = { .basevar = 0, .startbit = 14, .endbit = 14 };
-    struct ToriRS_Npctype* shell = calloc(1, sizeof(*shell));
-    struct ToriRS_Npctype* first = calloc(1, sizeof(*first));
-    struct ToriRS_Npctype* fallback = calloc(1, sizeof(*fallback));
-    struct ToriRS_Npctype* varbit_shell = calloc(1, sizeof(*varbit_shell));
-    struct ToriRS_Npctype* varbit_zero = calloc(1, sizeof(*varbit_zero));
-    struct ToriRS_Npctype* varbit_one = calloc(1, sizeof(*varbit_one));
+    struct ToriRS_Npctype* shell = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*shell));
+    struct ToriRS_Npctype* first = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*first));
+    struct ToriRS_Npctype* fallback = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*fallback));
+    struct ToriRS_Npctype* varbit_shell = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*varbit_shell));
+    struct ToriRS_Npctype* varbit_zero = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*varbit_zero));
+    struct ToriRS_Npctype* varbit_one = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*varbit_one));
 
     memset(&provider, 0, sizeof(provider));
     memset(&alice, 0, sizeof(alice));
@@ -488,7 +489,7 @@ test_multinpc_resolution_is_per_player(void)
     shell->transform_varbit = -1;
     shell->transform_varp = 0;
     shell->transform_count = 3;
-    shell->transforms = malloc(3 * sizeof(*shell->transforms));
+    shell->transforms = ToriMem_Alloc(ToriMem_Assets(), 3 * sizeof(*shell->transforms));
     shell->transforms[0] = -1;  /* quest stage 0: absent */
     shell->transforms[1] = 101; /* quest stage 1: first form */
     shell->transforms[2] = 102; /* out-of-range fallback */
@@ -502,7 +503,7 @@ test_multinpc_resolution_is_per_player(void)
     varbit_shell->transform_varbit = 0;
     varbit_shell->transform_varp = -1;
     varbit_shell->transform_count = 2;
-    varbit_shell->transforms = malloc(2 * sizeof(*varbit_shell->transforms));
+    varbit_shell->transforms = ToriMem_Alloc(ToriMem_Assets(), 2 * sizeof(*varbit_shell->transforms));
     varbit_shell->transforms[0] = 111;
     varbit_shell->transforms[1] = 112;
     CacheProvider_NpctypeAdd(&provider, 110, varbit_shell);
@@ -554,8 +555,8 @@ test_multinpc_interface_head_loads_selected_child(void)
     struct CacheProvider provider;
     struct CacheProviderVTable vtable;
     struct VarPType varp_type = { 0 };
-    struct ToriRS_Npctype* shell = calloc(1, sizeof(*shell));
-    struct ToriRS_Npctype* child = calloc(1, sizeof(*child));
+    struct ToriRS_Npctype* shell = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*shell));
+    struct ToriRS_Npctype* child = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*child));
     struct ToriRS_IOBatch* io;
 
     memset(&app, 0, sizeof(app));
@@ -581,13 +582,13 @@ test_multinpc_interface_head_loads_selected_child(void)
     shell->transform_varbit = -1;
     shell->transform_varp = 0;
     shell->transform_count = 2;
-    shell->transforms = malloc(2 * sizeof(*shell->transforms));
+    shell->transforms = ToriMem_Alloc(ToriMem_Assets(), 2 * sizeof(*shell->transforms));
     shell->transforms[0] = 101;
     shell->transforms[1] = 101;
     child->transform_varbit = -1;
     child->transform_varp = -1;
     child->heads_count = 1;
-    child->heads = malloc(sizeof(*child->heads));
+    child->heads = ToriMem_Alloc(ToriMem_Assets(), sizeof(*child->heads));
     child->heads[0] = 777;
     CacheProvider_NpctypeAdd(&provider, 100, shell);
     CacheProvider_NpctypeAdd(&provider, 101, child);
@@ -605,7 +606,7 @@ test_multinpc_interface_head_loads_selected_child(void)
         g_head_load_trace.model_count == 1 && g_head_load_trace.model_ids[0] == 777,
         "chathead loader requests the selected child's head model");
 
-    free(app.if_heads);
+    ToriMem_Free(ToriMem_Process(), app.if_heads);
     UITreeSceneBridge_Free(&app.bridge);
     ToriDraw_SceneFree(app.scene);
     ToriRS_IOBatch_Free(io);

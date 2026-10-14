@@ -1,4 +1,5 @@
 #include "game/rs_clan.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <ctype.h>
@@ -133,9 +134,9 @@ channel_free(struct RS_ClanChannel* channel)
 {
     if( !channel )
         return;
-    free(channel->users);
-    free(channel->sorted);
-    free(channel);
+    ToriMem_Free(ToriMem_Session(), channel->users);
+    ToriMem_Free(ToriMem_Session(), channel->sorted);
+    ToriMem_Free(ToriMem_Session(), channel);
 }
 
 static void
@@ -144,7 +145,7 @@ channel_reserve(struct RS_ClanChannel* channel, int count)
     if( count <= channel->user_cap )
         return;
     int const cap = count + 5;
-    void* const grown = realloc(channel->users, (size_t)cap * sizeof(channel->users[0]));
+    void* const grown = ToriMem_Realloc(ToriMem_Session(), channel->users, (size_t)cap * sizeof(channel->users[0]));
     assert(grown);
     channel->users = grown;
     channel->user_cap = cap;
@@ -153,7 +154,7 @@ channel_reserve(struct RS_ClanChannel* channel, int count)
 static void
 channel_invalidate_sort(struct RS_ClanChannel* channel)
 {
-    free(channel->sorted);
+    ToriMem_Free(ToriMem_Session(), channel->sorted);
     channel->sorted = NULL;
 }
 
@@ -212,7 +213,7 @@ RS_ClanStore_ApplyChannelFull(
         return true;
     }
 
-    struct RS_ClanChannel* const channel = calloc(1, sizeof(*channel));
+    struct RS_ClanChannel* const channel = ToriMem_Calloc(ToriMem_Session(), 1, sizeof(*channel));
     assert(channel);
     int const flags = g1(&r);
     bool const has_hashes = (flags & 1) != 0;
@@ -362,27 +363,27 @@ settings_free(struct RS_ClanSettings* settings)
 {
     if( !settings )
         return;
-    free(settings->affined_hash);
-    free(settings->affined_name);
-    free(settings->affined_has_name);
-    free(settings->affined_rank);
-    free(settings->affined_extra_info);
-    free(settings->affined_join_runeday);
-    free(settings->affined_muted);
-    free(settings->sorted);
-    free(settings->banned_hash);
-    free(settings->banned_name);
-    free(settings->banned_has_name);
+    ToriMem_Free(ToriMem_Session(), settings->affined_hash);
+    ToriMem_Free(ToriMem_Session(), settings->affined_name);
+    ToriMem_Free(ToriMem_Session(), settings->affined_has_name);
+    ToriMem_Free(ToriMem_Session(), settings->affined_rank);
+    ToriMem_Free(ToriMem_Session(), settings->affined_extra_info);
+    ToriMem_Free(ToriMem_Session(), settings->affined_join_runeday);
+    ToriMem_Free(ToriMem_Session(), settings->affined_muted);
+    ToriMem_Free(ToriMem_Session(), settings->sorted);
+    ToriMem_Free(ToriMem_Session(), settings->banned_hash);
+    ToriMem_Free(ToriMem_Session(), settings->banned_name);
+    ToriMem_Free(ToriMem_Session(), settings->banned_has_name);
     for( int i = 0; i < settings->setting_count; i++ )
-        free(settings->settings[i].string_value);
-    free(settings->settings);
-    free(settings);
+        ToriMem_Free(ToriMem_Session(), settings->settings[i].string_value);
+    ToriMem_Free(ToriMem_Session(), settings->settings);
+    ToriMem_Free(ToriMem_Session(), settings);
 }
 
 #define GROW(array, cap) \
     do \
     { \
-        void* const grown_ = realloc((array), (size_t)(cap) * sizeof(*(array))); \
+        void* const grown_ = ToriMem_Realloc(ToriMem_Session(), (array), (size_t)(cap) * sizeof(*(array))); \
         assert(grown_); \
         (array) = grown_; \
     } while( 0 )
@@ -474,7 +475,7 @@ settings_put(struct RS_ClanSettings* s, int id, int type)
         memset(existing, 0, sizeof(*existing));
         existing->id = id;
     }
-    free(existing->string_value);
+    ToriMem_Free(ToriMem_Session(), existing->string_value);
     existing->string_value = NULL;
     existing->type = type;
     return existing;
@@ -483,7 +484,7 @@ settings_put(struct RS_ClanSettings* s, int id, int type)
 static void
 settings_invalidate_sort(struct RS_ClanSettings* s)
 {
-    free(s->sorted);
+    ToriMem_Free(ToriMem_Session(), s->sorted);
     s->sorted = NULL;
 }
 
@@ -541,7 +542,7 @@ RS_ClanStore_ApplySettingsFull(
     int const version = g1(&r);
     if( version < 1 || version > 6 )
         return false;
-    struct RS_ClanSettings* const s = calloc(1, sizeof(*s));
+    struct RS_ClanSettings* const s = ToriMem_Calloc(ToriMem_Session(), 1, sizeof(*s));
     assert(s);
     int const flags = g1(&r);
     s->has_hashes = (flags & 1) != 0;
@@ -604,7 +605,7 @@ RS_ClanStore_ApplySettingsFull(
             {
                 char value[RS_CLAN_NAME_LEN + 1];
                 gjstr(&r, value, sizeof(value));
-                char* const copy = strdup(value);
+                char* const copy = ToriMem_Strdup(ToriMem_Session(), value);
                 assert(copy);
                 settings_put(s, id, type)->string_value = copy;
             }
@@ -826,7 +827,7 @@ RS_ClanStore_ApplySettingsDelta(
             int const id = g4(&r);
             char value[RS_CLAN_NAME_LEN + 1];
             gjstr(&r, value, sizeof(value));
-            char* const copy = strdup(value);
+            char* const copy = ToriMem_Strdup(ToriMem_Session(), value);
             assert(copy);
             settings_put(s, id, RS_CLAN_SETTING_STRING)->string_value = copy;
             break;
@@ -897,7 +898,7 @@ static void
 varclans_clear(struct RS_ClanStore* store)
 {
     for( int i = 0; i < store->varclan_count; i++ )
-        free(store->varclans[i].string_value);
+        ToriMem_Free(ToriMem_Session(), store->varclans[i].string_value);
     store->varclan_count = 0;
 }
 
@@ -937,7 +938,7 @@ RS_ClanStore_Free(struct RS_ClanStore* store)
     if( !store )
         return;
     RS_ClanStore_Reset(store, true);
-    free(store->varclans);
+    ToriMem_Free(ToriMem_Session(), store->varclans);
     store->varclans = NULL;
     store->varclan_cap = 0;
 }
@@ -992,7 +993,7 @@ RS_ClanStore_ApplyVarClan(
         char text[256];
         (void)g1(&r); /* gjstr2's version byte */
         gjstr(&r, text, sizeof(text));
-        value.string_value = strdup(text);
+        value.string_value = ToriMem_Strdup(ToriMem_Session(), text);
         assert(value.string_value);
         break;
     }
@@ -1001,7 +1002,7 @@ RS_ClanStore_ApplyVarClan(
     }
     if( r.failed )
     {
-        free(value.string_value);
+        ToriMem_Free(ToriMem_Session(), value.string_value);
         return false;
     }
     /* A VARCLAN with no profile creates one. */
@@ -1010,7 +1011,7 @@ RS_ClanStore_ApplyVarClan(
     {
         if( store->varclans[i].id != id )
             continue;
-        free(store->varclans[i].string_value);
+        ToriMem_Free(ToriMem_Session(), store->varclans[i].string_value);
         store->varclans[i] = value;
         return true;
     }
@@ -1115,9 +1116,9 @@ settings_sorted(struct RS_ClanSettings* s)
 {
     if( s->sorted || s->affined_count == 0 )
         return s->sorted;
-    char (*lower)[RS_CLAN_NAME_LEN] = malloc((size_t)s->affined_count * sizeof(*lower));
-    char const** keys = malloc((size_t)s->affined_count * sizeof(*keys));
-    s->sorted = malloc((size_t)s->affined_count * sizeof(int));
+    char (*lower)[RS_CLAN_NAME_LEN] = ToriMem_Alloc(ToriMem_Session(), (size_t)s->affined_count * sizeof(*lower));
+    char const** keys = ToriMem_Alloc(ToriMem_Session(), (size_t)s->affined_count * sizeof(*keys));
+    s->sorted = ToriMem_Alloc(ToriMem_Session(), (size_t)s->affined_count * sizeof(int));
     assert(lower);
     assert(keys);
     assert(s->sorted);
@@ -1127,8 +1128,8 @@ settings_sorted(struct RS_ClanSettings* s)
         keys[i] = s->affined_has_name[i] ? lower[i] : NULL;
     }
     sort_slots(s->sorted, s->affined_count, keys);
-    free(keys);
-    free(lower);
+    ToriMem_Free(ToriMem_Session(), keys);
+    ToriMem_Free(ToriMem_Session(), lower);
     return s->sorted;
 }
 
@@ -1239,9 +1240,9 @@ RS_ClanChannel_SortedUserSlot(
         return -1;
     if( !channel->sorted )
     {
-        char (*normal)[RS_CLAN_NAME_LEN] = malloc((size_t)channel->user_count * sizeof(*normal));
-        char const** keys = malloc((size_t)channel->user_count * sizeof(*keys));
-        channel->sorted = malloc((size_t)channel->user_count * sizeof(int));
+        char (*normal)[RS_CLAN_NAME_LEN] = ToriMem_Alloc(ToriMem_Session(), (size_t)channel->user_count * sizeof(*normal));
+        char const** keys = ToriMem_Alloc(ToriMem_Session(), (size_t)channel->user_count * sizeof(*keys));
+        channel->sorted = ToriMem_Alloc(ToriMem_Session(), (size_t)channel->user_count * sizeof(int));
         assert(normal);
         assert(keys);
         assert(channel->sorted);
@@ -1254,8 +1255,8 @@ RS_ClanChannel_SortedUserSlot(
             keys[i] = normal[i];
         }
         sort_slots(channel->sorted, channel->user_count, keys);
-        free(keys);
-        free(normal);
+        ToriMem_Free(ToriMem_Session(), keys);
+        ToriMem_Free(ToriMem_Session(), normal);
     }
     return channel->sorted[position];
 }

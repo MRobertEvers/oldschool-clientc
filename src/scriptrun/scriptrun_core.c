@@ -1,4 +1,5 @@
 #include "scriptrun_core.h"
+#include "mem/torirs_mem.h"
 
 #include "game/rs_chat.h" /* RS_CHAT_TYPE_PUBLIC: the client chatbox's type */
 #include "game/rs_entity_sync.h"
@@ -54,17 +55,19 @@ ScriptrunCore_New(struct GameProtoRevTable const* rev)
     struct ScriptrunCore* core;
 
     assert(rev);
-    core = calloc(1, sizeof(*core));
+    core = ToriMem_Calloc(ToriMem_ServerPlayers(), 1, sizeof(*core));
     assert(core);
     core->rev = rev;
     core->world = World_New();
     assert(core->world);
-    core->esync = calloc(1, sizeof(*core->esync));
+    core->esync = ToriMem_Calloc(ToriMem_ServerPlayers(), 1, sizeof(*core->esync));
     assert(core->esync);
     RS_EntitySync_Init(core->esync);
-    core->npc_ops = calloc(CORE_ENTITY_OPS_MAX, sizeof(struct PktNpcInfoOp));
+    core->npc_ops =
+        ToriMem_Calloc(ToriMem_ServerPlayers(), CORE_ENTITY_OPS_MAX, sizeof(struct PktNpcInfoOp));
     assert(core->npc_ops);
-    core->player_ops = calloc(CORE_ENTITY_OPS_MAX, sizeof(struct PktPlayerInfoOp));
+    core->player_ops = ToriMem_Calloc(
+        ToriMem_ServerPlayers(), CORE_ENTITY_OPS_MAX, sizeof(struct PktPlayerInfoOp));
     assert(core->player_ops);
     for( int i = 0; i < SCRIPTRUN_INVS; i++ )
         core->invs[i].inv_id = -1;
@@ -73,7 +76,8 @@ ScriptrunCore_New(struct GameProtoRevTable const* rev)
     core->next_element_id = 1;
     if( rev->player_info_read )
     {
-        core->player_decoder_state = calloc(1, osrs239_playerinfo_state_size());
+        core->player_decoder_state =
+            ToriMem_Calloc(ToriMem_ServerPlayers(), 1, osrs239_playerinfo_state_size());
         assert(core->player_decoder_state);
     }
     core->run_energy = 10000;
@@ -87,12 +91,12 @@ ScriptrunCore_Free(struct ScriptrunCore* core)
         return;
     ScriptrunCore_FreeCollision(core);
     RS_EntitySync_Free(core->esync);
-    free(core->esync);
+    ToriMem_Free(ToriMem_ServerPlayers(), core->esync);
     World_Free(core->world);
-    free(core->npc_ops);
-    free(core->player_ops);
-    free(core->player_decoder_state);
-    free(core);
+    ToriMem_Free(ToriMem_ServerPlayers(), core->npc_ops);
+    ToriMem_Free(ToriMem_ServerPlayers(), core->player_ops);
+    ToriMem_Free(ToriMem_ServerPlayers(), core->player_decoder_state);
+    ToriMem_Free(ToriMem_ServerPlayers(), core);
 }
 
 void
@@ -557,7 +561,7 @@ player_apply_op(
                 ScriptrunCore_Event(core, SCRIPTRUN_EV_CHAT_MESSAGE, core->message_serial, RS_CHAT_TYPE_PUBLIC, 0,
                                     0);
                 World_PlayerSetChat(world, idx, text, op->_chat.colour_effect >> 8, op->_chat.colour_effect & 0xff);
-                free(text);
+                ToriMem_Free(ToriMem_Net(), text); /* wordpack_unpack's */
             }
         }
         break;
@@ -1410,7 +1414,7 @@ core_packet(
     }
 
     /* gameproto_parse reads from a mutable buffer. */
-    data = malloc((size_t)(len > 0 ? len : 1));
+    data = ToriMem_Alloc(ToriMem_ServerPlayers(), (size_t)(len > 0 ? len : 1));
     assert(data);
     if( len > 0 )
         memcpy(data, payload, (size_t)len);
@@ -1439,7 +1443,7 @@ core_packet(
     {
         core->unhandled++;
         gameproto_free(&packet);
-        free(data);
+        ToriMem_Free(ToriMem_ServerPlayers(), data);
         return;
     }
 
@@ -1694,7 +1698,7 @@ core_packet(
         break;
     }
     gameproto_free(&packet);
-    free(data);
+    ToriMem_Free(ToriMem_ServerPlayers(), data);
 }
 
 /* ------------------------------------------------------------- readers */

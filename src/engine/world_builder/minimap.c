@@ -25,13 +25,14 @@ struct MinimapRenderCommandBuffer*
 minimap_commands_new(int hint)
 {
     struct MinimapRenderCommandBuffer* command_buffer =
-        malloc(sizeof(struct MinimapRenderCommandBuffer));
+        ToriMem_Alloc(ToriMem_Scene(), sizeof(struct MinimapRenderCommandBuffer));
     memset(command_buffer, 0, sizeof(struct MinimapRenderCommandBuffer));
 
     if( hint < 128 )
         hint = 128;
 
-    command_buffer->commands = malloc(hint * sizeof(struct MinimapRenderCommand));
+    command_buffer->commands =
+        ToriMem_Alloc(ToriMem_Scene(), hint * sizeof(struct MinimapRenderCommand));
     memset(command_buffer->commands, 0, hint * sizeof(struct MinimapRenderCommand));
 
     command_buffer->count = 0;
@@ -42,8 +43,8 @@ minimap_commands_new(int hint)
 void
 minimap_commands_free(struct MinimapRenderCommandBuffer* command_buffer)
 {
-    free(command_buffer->commands);
-    free(command_buffer);
+    ToriMem_Free(ToriMem_Scene(), command_buffer->commands);
+    ToriMem_Free(ToriMem_Scene(), command_buffer);
 }
 
 void
@@ -58,7 +59,7 @@ minimap_new(
     int width,
     int height)
 {
-    struct Minimap* minimap = malloc(sizeof(struct Minimap));
+    struct Minimap* minimap = ToriMem_Alloc(ToriMem_Scene(), sizeof(struct Minimap));
     memset(minimap, 0, sizeof(struct Minimap));
 
     minimap->width = width;
@@ -67,10 +68,10 @@ minimap_new(
 
     size_t const tile_bytes =
         (size_t)width * (size_t)height * MINIMAP_LEVELS * sizeof(struct MinimapTile);
-    minimap->tiles = malloc(tile_bytes);
+    minimap->tiles = ToriMem_Alloc(ToriMem_Scene(), tile_bytes);
     memset(minimap->tiles, 0, tile_bytes);
 
-    minimap->locs = malloc(1024 * sizeof(struct MinimapLoc));
+    minimap->locs = ToriMem_Alloc(ToriMem_Scene(), 1024 * sizeof(struct MinimapLoc));
     minimap->locs_count = 0;
     minimap->locs_capacity = 1024;
 
@@ -82,9 +83,9 @@ minimap_free(struct Minimap* minimap)
 {
     if( !minimap )
         return;
-    free(minimap->tiles);
-    free(minimap->locs);
-    free(minimap);
+    ToriMem_Free(ToriMem_Scene(), minimap->tiles);
+    ToriMem_Free(ToriMem_Scene(), minimap->locs);
+    ToriMem_Free(ToriMem_Scene(), minimap);
 }
 
 static void
@@ -95,7 +96,8 @@ ensure_loc_capacity(
     if( minimap->locs_count + count > minimap->locs_capacity )
     {
         minimap->locs_capacity *= 2;
-        minimap->locs = realloc(minimap->locs, minimap->locs_capacity * sizeof(struct MinimapLoc));
+        minimap->locs = ToriMem_Realloc(
+            ToriMem_Scene(), minimap->locs, minimap->locs_capacity * sizeof(struct MinimapLoc));
     }
 }
 
@@ -251,7 +253,8 @@ ensure_command_capacity(
         }
 
         command_buffer->capacity *= 2;
-        command_buffer->commands = realloc(
+        command_buffer->commands = ToriMem_Realloc(
+            ToriMem_Scene(),
             command_buffer->commands,
             command_buffer->capacity * sizeof(struct MinimapRenderCommand));
     }

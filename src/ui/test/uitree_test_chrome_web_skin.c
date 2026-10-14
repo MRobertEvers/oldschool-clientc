@@ -118,7 +118,7 @@ mark_hues(int slot, int* green_out, int* red_out, int* opaque_out)
             (*red_out)++;
     }
     free(bytes);
-    free(b64);
+    ToriMem_Free(ToriMem_Ui(), b64);
 }
 
 int
@@ -284,7 +284,7 @@ main(void)
                     "\"detail\":\"Provider is not installed\"") &&
                 strstr(batch.batch_json, "\"x\":0"),
             "the web executor serializes structured option fields separately");
-        free(batch.batch_json);
+        ToriMem_Free(ToriMem_Ui(), batch.batch_json);
     }
 
     {

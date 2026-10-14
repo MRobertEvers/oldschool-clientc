@@ -1,4 +1,5 @@
 #include "engine/dat2/dat2_tasks.h"
+#include "mem/torirs_mem.h"
 
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
@@ -124,8 +125,8 @@ Task_Dat2VarClanTypeLoad_Run(
     if( count > 0 )
     {
         struct ToriRS_VarClanTypes* const types = &task->bc->base.varclan_types;
-        free(types->base_type);
-        types->base_type = malloc((size_t)count);
+        ToriMem_Free(ToriMem_Assets(), types->base_type);
+        types->base_type = ToriMem_Alloc(ToriMem_Assets(), (size_t)count);
         assert(types->base_type);
         memset(types->base_type, -1, (size_t)count);
         types->count = count;
@@ -146,7 +147,7 @@ Task_Dat2VarClanTypeLoad_Run(
 static void
 Task_Dat2VarClanTypeLoad_Free(struct ToriRS_Task* task_base)
 {
-    free(task_base);
+    ToriMem_Free(ToriMem_Assets(), task_base);
 }
 
 static struct ToriRS_TaskVTable Task_Dat2VarClanTypeLoad_VTable = {
@@ -158,7 +159,7 @@ struct ToriRS_Task*
 CreateTask_Dat2VarClanTypeLoad(struct CacheProvider* provider)
 {
     assert(provider);
-    struct Task_Dat2VarClanTypeLoad* task = calloc(1, sizeof(*task));
+    struct Task_Dat2VarClanTypeLoad* task = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_Dat2VarClanTypeLoad_VTable;
     strcpy(task->task.name, "Dat2VarClanTypeLoad");

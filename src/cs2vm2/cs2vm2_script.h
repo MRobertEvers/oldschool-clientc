@@ -75,7 +75,7 @@ CS2VM2_ScriptAllocSwitchCases(
     int case_count);
 
 void
-CS2VM2_ScriptFree(struct CS2VM2_Script* script);
+CS2VM2_ScriptFree(struct CS2VM2_Script* script); /* frees the arrays from ToriMem_Script(); the struct is the caller's */
 
 bool
 CS2VM2_ScriptCopy(

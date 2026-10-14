@@ -367,6 +367,11 @@ ScriptrunCore_ZoneResetLocs(
 void
 ScriptrunCore_FreeCollision(struct ScriptrunCore* core);
 
+/** Release the decoded loc configs every bot shares. After the last core is
+ *  freed: the run's teardown. */
+void
+ScriptrunCore_FreeLocConfigs(void);
+
 /** A tile's collision word (COLL_FLAG_*), or -1 outside the scene / unbuilt. */
 int
 ScriptrunCore_CollisionFlags(

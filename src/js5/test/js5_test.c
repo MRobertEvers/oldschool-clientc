@@ -6,6 +6,7 @@
 #endif
 #endif
 
+#include "mem/torirs_mem.h"
 #include "js5/js5.h"
 #include <assert.h>
 #include "js5/js5_rscache.h"
@@ -158,7 +159,7 @@ fake_handle_frame(struct FakeJs5Transport* fake)
         {
             bool appended = fake_append(
                 fake, fake->held_response, fake->held_response_size);
-            free(fake->held_response);
+            ToriMem_Free(ToriMem_ServerNet(), fake->held_response);
             fake->held_response = response;
             fake->held_response_size = response_size;
             fake->hold_phase = 3u;
@@ -166,7 +167,7 @@ fake_handle_frame(struct FakeJs5Transport* fake)
         }
     }
     bool appended = fake_append(fake, response, response_size);
-    free(response);
+    ToriMem_Free(ToriMem_ServerNet(), response);
     return appended;
 }
 
@@ -176,7 +177,7 @@ fake_release_held_response(struct FakeJs5Transport* fake)
     if( !fake || fake->hold_phase != 3u || !fake->held_response )
         return false;
     bool appended = fake_append(fake, fake->held_response, fake->held_response_size);
-    free(fake->held_response);
+    ToriMem_Free(ToriMem_ServerNet(), fake->held_response);
     fake->held_response = NULL;
     fake->held_response_size = 0u;
     fake->hold_phase = 4u;
@@ -271,7 +272,7 @@ static void
 fake_reset_pipe(struct FakeJs5Transport* fake)
 {
     free(fake->incoming);
-    free(fake->held_response);
+    ToriMem_Free(ToriMem_ServerNet(), fake->held_response);
     fake->incoming = NULL;
     fake->incoming_size = 0u;
     fake->incoming_position = 0u;

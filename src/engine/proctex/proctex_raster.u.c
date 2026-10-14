@@ -75,7 +75,8 @@ raster_init_circle_outline(struct proctex_raster* rs, int size)
     if( size <= rs->circle_outline_size )
         return true;
     {
-        int32_t* grown = realloc(rs->circle_outline, (size_t)size * sizeof(int32_t));
+        int32_t* grown =
+            ToriMem_Realloc(ToriMem_Render(), rs->circle_outline, (size_t)size * sizeof(int32_t));
         assert(grown);
         memset(
             grown + rs->circle_outline_size,
@@ -1484,7 +1485,7 @@ proctex_op_rasterizer(struct ProcTexGenerator* gen, int op_index, int line)
     }
     else
     {
-        packed = calloc((size_t)width * (size_t)height, sizeof(int32_t));
+        packed = ToriMem_Calloc(ToriMem_Render(), (size_t)width * (size_t)height, sizeof(int32_t));
         assert(packed);
         rs.pixels = packed;
     }
@@ -1508,10 +1509,10 @@ proctex_op_rasterizer(struct ProcTexGenerator* gen, int op_index, int line)
                 out_b[x] = (rgb & 0xFF) << 4;
             }
         }
-        free(packed);
+        ToriMem_Free(ToriMem_Render(), packed);
     }
 
-    free(rs.circle_outline);
+    ToriMem_Free(ToriMem_Render(), rs.circle_outline);
     proctex_mark_all_done(cache, height);
     return true;
 }

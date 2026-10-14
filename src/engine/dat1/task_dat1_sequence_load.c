@@ -273,7 +273,7 @@ Task_Dat1SequenceLoad_Run(
 static void
 Task_Dat1SequenceLoad_Free(struct ToriRS_Task* task_base)
 {
-    free(task_base);
+    ToriMem_Free(ToriMem_Assets(), task_base);
 }
 
 static struct ToriRS_TaskVTable Task_Dat1SequenceLoad_VTable = {
@@ -294,7 +294,7 @@ CreateTask_Dat1SequenceLoad(
     if( seq_id < 0 || ToriDraw_SceneAnimationHas(scene, seq_id) )
         return NULL;
 
-    task = calloc(1, sizeof(*task));
+    task = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_Dat1SequenceLoad_VTable;
     strncpy(task->task.name, "Dat1SequenceLoad", sizeof(task->task.name) - 1);

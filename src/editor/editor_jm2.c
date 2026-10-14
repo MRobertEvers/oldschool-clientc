@@ -1,4 +1,5 @@
 #include "editor_jm2.h"
+#include "mem/torirs_mem.h"
 
 #include "editor_doc.h"
 
@@ -374,10 +375,10 @@ Editor_Jm2Parse(
     assert(text || length == 0);
 
     memset(square->tiles, 0, sizeof(square->tiles));
-    free(square->trailing);
+    ToriMem_Free(ToriMem_Editor(), square->trailing);
     square->trailing = NULL;
     square->trailing_size = 0;
-    free(square->foreign);
+    ToriMem_Free(ToriMem_Editor(), square->foreign);
     square->foreign = NULL;
 
     cursor.p = text;
@@ -413,8 +414,7 @@ Editor_Jm2Parse(
                 size_t next = foreign_capacity ? foreign_capacity * 2 : 4096;
                 while( next < foreign_length + raw_length + 1 )
                     next *= 2;
-                foreign = realloc(foreign, next);
-                assert(foreign);
+                foreign = ToriMem_Realloc(ToriMem_Editor(), foreign, next);
                 foreign_capacity = next;
             }
             memcpy(foreign + foreign_length, start, raw_length - 1);
@@ -440,21 +440,20 @@ Editor_Jm2Parse(
             size_t hex_length = (size_t)(end - hex);
             if( hex_length % 2 != 0 )
             {
-                free(foreign);
+                ToriMem_Free(ToriMem_Editor(), foreign);
                 return parse_fail(EDITOR_PARSE_BAD_TOKEN, line_number);
             }
             square->trailing_size = (int)(hex_length / 2);
             if( square->trailing_size > 0 )
             {
-                square->trailing = malloc((size_t)square->trailing_size);
-                assert(square->trailing);
+                square->trailing = ToriMem_Alloc(ToriMem_Editor(), (size_t)square->trailing_size);
                 for( int i = 0; i < square->trailing_size; i++ )
                 {
                     int high = hex_nibble(hex[i * 2]);
                     int low = hex_nibble(hex[i * 2 + 1]);
                     if( high < 0 || low < 0 )
                     {
-                        free(foreign);
+                        ToriMem_Free(ToriMem_Editor(), foreign);
                         return parse_fail(EDITOR_PARSE_BAD_TOKEN, line_number);
                     }
                     square->trailing[i] = (uint8_t)((high << 4) | low);
@@ -465,7 +464,7 @@ Editor_Jm2Parse(
 
         if( !parse_tile_key(&line, &level, &x, &z, &key_status) )
         {
-            free(foreign);
+            ToriMem_Free(ToriMem_Editor(), foreign);
             return parse_fail(key_status, line_number);
         }
 
@@ -478,7 +477,7 @@ Editor_Jm2Parse(
                     break;
                 if( !parse_tile_token(&line, tile) )
                 {
-                    free(foreign);
+                    ToriMem_Free(ToriMem_Editor(), foreign);
                     return parse_fail(EDITOR_PARSE_BAD_TOKEN, line_number);
                 }
             }
@@ -487,7 +486,7 @@ Editor_Jm2Parse(
 
     if( !seen_header )
     {
-        free(foreign);
+        ToriMem_Free(ToriMem_Editor(), foreign);
         return parse_fail(EDITOR_PARSE_BAD_HEADER, 0);
     }
 

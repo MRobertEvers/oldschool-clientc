@@ -128,7 +128,7 @@ bridge_hmap_new_keyed(
     size_t capacity)
 {
     size_t buffer_size = bridge_hmap_buffer_bytes(entry_size, capacity);
-    void* buffer = malloc(buffer_size);
+    void* buffer = ToriMem_Alloc(ToriMem_Ui(), buffer_size);
     assert(buffer);
     struct HashConfig config = {
         .key_size = key_size,
@@ -155,7 +155,7 @@ bridge_hmap_free(struct HMap* map)
 {
     if( !map )
         return;
-    free(hmap_free(map));
+    ToriMem_Free(ToriMem_Ui(), hmap_free(map));
 }
 
 /*
@@ -186,12 +186,12 @@ bridge_hmap_reserve_one(struct HMap* map)
 
     new_capacity = capacity * 2;
     new_buffer_size = bridge_hmap_buffer_bytes(map->entry_size, new_capacity);
-    new_buffer = malloc(new_buffer_size);
+    new_buffer = ToriMem_Alloc(ToriMem_Ui(), new_buffer_size);
     assert(new_buffer);
     status = hmap_resize(map, new_buffer, new_buffer_size, new_capacity, &old_buffer);
     assert(status == HMAP_OK);
     (void)status;
-    free(old_buffer);
+    ToriMem_Free(ToriMem_Ui(), old_buffer);
 }
 
 static void
@@ -917,7 +917,7 @@ UITreeSceneBridge_EnsureLocModel(struct UITreeSceneBridge* bridge, int loc_id)
     for( int i = 0; i < count; i++ )
         if( !CacheProvider_ModelHas(bridge->provider, ids[i]) )
             return -1;
-    parts = calloc((size_t)count, sizeof(*parts));
+    parts = ToriMem_Calloc(ToriMem_Ui(), (size_t)count, sizeof(*parts));
     assert(parts);
     for( int i = 0; i < count; i++ )
     {
@@ -931,7 +931,7 @@ UITreeSceneBridge_EnsureLocModel(struct UITreeSceneBridge* bridge, int loc_id)
     if( count > 1 )
         for( int i = 0; i < count; i++ )
             ToriDraw_ModelFree(parts[i]);
-    free(parts);
+    ToriMem_Free(ToriMem_Ui(), parts);
 
     /* rev239 class37.method607 -> LocType.getModel(10, 0, null terrain).
      * Unlike a placed multiloc, this uses the supplied config directly: CS2

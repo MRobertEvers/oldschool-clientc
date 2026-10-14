@@ -8,6 +8,7 @@
  */
 
 #include "app/app_internal.h"
+#include "mem/torirs_mem.h"
 
 #include "perf_audit.h"
 #include "plugin/porcelain/torirs_porcelain.h"
@@ -1072,7 +1073,7 @@ App_Init(
             goto editor_skipped;
         }
 
-        app->editor = malloc(sizeof(*app->editor));
+        app->editor = ToriMem_Alloc(ToriMem_Process(), sizeof(*app->editor));
         assert(app->editor);
         Editor_OpenHost(
             app->editor, &editor_host, editor_label, CacheProvider_Profile(app->provider));
@@ -1178,7 +1179,7 @@ App_Init(
         if( cfg->client_version > 0 )
             GameProtoRev_SetClientVersion(rev, cfg->client_version);
 
-        app->net = calloc(1, sizeof(struct ToriRS_Network));
+        app->net = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(struct ToriRS_Network));
         assert(app->net);
         ToriRS_Network_Init(app->net, rev, rsa_e, rsa_n);
         app->net_enabled = 1;
@@ -1279,6 +1280,9 @@ App_Shutdown(struct App* app)
     assert(app);
     app_prefs_flush(app);
     app_render_skip_shutdown(app);
+    /* The quest driver's Lua thread lives in the plugin host's state, and its
+     * buffers in PLUGINS and NET: it goes before the host. */
+    PluginDrive_Shutdown();
     /* Plugins first: on_stop callbacks may still read world state and the
      * config store, and both are torn down below. */
     PluginHost_Free(app->plugins);
@@ -1291,13 +1295,13 @@ App_Shutdown(struct App* app)
         if( Editor_DocHasUnsaved(&app->editor->doc) )
             TORIRS_LOG("app: map editor closing with unsaved edits\n");
         Editor_Close(app->editor);
-        free(app->editor);
+        ToriMem_Free(ToriMem_Process(), app->editor);
         app->editor = NULL;
     }
     if( app->net )
     {
         ToriRS_Network_Free(app->net);
-        free(app->net);
+        ToriMem_Free(ToriMem_Process(), app->net);
         app->net = NULL;
     }
     UITree_EmitBufferFree(&app->emit);
@@ -1306,16 +1310,16 @@ App_Shutdown(struct App* app)
     /* Before the host, which points at it. */
     RS_Chat_Free(&app->chat);
     RS_CS2Host_Free(&app->host);
-    if( app->painter_buffer )
-    {
-        free(app->painter_buffer->commands);
-        free(app->painter_buffer);
-    }
+    painter_buffer_free(app->painter_buffer);
+    app->painter_buffer = NULL;
     RS_Audio_Shutdown(&app->audio);
     /* The bed holds borrowed pointers into this table, so it has to outlive the
      * audio layer's teardown. */
     RS_Soundscapes_Free(&app->soundscapes);
     RS_Healthbars_Free(&app->healthbars);
+    /* Loaded at boot (Task_Dat2HitsplatLoad) and never freed until the exit
+     * walk named its tables. */
+    RS_Hitsplats_Free(&app->hitsplats);
     RS_EntitySync_Free(&app->esync);
     /* Frees any owned (non-root) views; the root slot only borrows the pair
      * freed just below. */
@@ -1333,7 +1337,7 @@ App_Shutdown(struct App* app)
     UITreeSceneBridge_Free(&app->bridge);
     TorirsModelInstCache_Free(&app->model_inst_cache);
     ToriPlatform_Renderer_Soft3D_Free(app->soft_chrome);
-    free(app->panel_custom_pixels);
+    ToriMem_Free(ToriMem_Plugins(), app->panel_custom_pixels);
     app->panel_custom_pixels = NULL;
     app->panel_custom_pixel_capacity = 0;
     ToriPlatform_Renderer_Soft3D_Free(app->soft);
@@ -1359,9 +1363,14 @@ App_Shutdown(struct App* app)
      * hands it back from its _Free, so releasing it any earlier would leave that
      * _Free freeing a pointer this call already returned to the allocator. */
     Task_EntityInfoScratchFree(app);
-    free(app->if_heads);
+    /* After the queues too: a parked preload task reads both tables. They
+     * were never freed, which the exit walk named (rs_login_replies.c,
+     * rs_preload.c). */
+    RS_Preload_Free(&app->preload);
+    RS_LoginReplies_Free(&app->login_replies);
+    ToriMem_Free(ToriMem_Process(), app->if_heads);
     app_placeholder_park_free(app);
-    free(app->if_player_models);
+    ToriMem_Free(ToriMem_Process(), app->if_player_models);
     /* All three of these were leaked. Only the hide array was freed, and its
      * two siblings -- plus every string the text store strdup'd -- were not.
      * They have owners now. */

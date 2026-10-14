@@ -1,4 +1,5 @@
 #include "game/rs_login_replies.h"
+#include "mem/torirs_mem.h"
 
 #include "revconfig/revconfig_load.h"
 
@@ -18,8 +19,8 @@ RS_LoginReplies_Free(struct RS_LoginReplyTable* table)
 {
     if( !table )
         return;
-    free(table->entries);
-    free(table->strings);
+    ToriMem_Free(ToriMem_Process(), table->entries);
+    ToriMem_Free(ToriMem_Process(), table->strings);
     memset(table, 0, sizeof(*table));
 }
 
@@ -68,7 +69,7 @@ RS_LoginReplies_AddFromItems(
                 {
                     int cap = table->string_capacity == 0 ? 16 : table->string_capacity * 2;
                     struct RS_LoginString* grown =
-                        realloc(table->strings, (size_t)cap * sizeof(*grown));
+                        ToriMem_Realloc(ToriMem_Process(), table->strings, (size_t)cap * sizeof(*grown));
                     assert(grown);
                     table->strings = grown;
                     table->string_capacity = cap;
@@ -93,7 +94,7 @@ RS_LoginReplies_AddFromItems(
             {
                 int cap = table->capacity == 0 ? 16 : table->capacity * 2;
                 struct RS_LoginReply* grown =
-                    realloc(table->entries, (size_t)cap * sizeof(*grown));
+                    ToriMem_Realloc(ToriMem_Process(), table->entries, (size_t)cap * sizeof(*grown));
                 assert(grown);
                 table->entries = grown;
                 table->capacity = cap;

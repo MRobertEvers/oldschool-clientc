@@ -38,6 +38,7 @@ torirs_win32_putenv(const char* name, const char* value)
     if( name_len > (size_t)-1 - value_len - 2u )
         return -1;
 
+    /* torimem-bare: the string goes to the CRT's _putenv, which may keep it */
     assignment = (char*)malloc(name_len + value_len + 2u);
     assert(assignment);
 
@@ -47,7 +48,7 @@ torirs_win32_putenv(const char* name, const char* value)
 
     result = _putenv(assignment);
     if( result != 0 )
-        free(assignment);
+        free(assignment); /* torimem-bare: the _putenv string above, refused */
     return result == 0 ? 0 : -1;
 }
 

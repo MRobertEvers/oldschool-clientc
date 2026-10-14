@@ -10,6 +10,7 @@
 
 struct CS2VM2_Script;
 struct CacheProviderVTable;
+struct ToriMem_Group;
 struct ToriRS_MusicPlayer;
 struct ToriDraw_Scene;
 struct ToriRS_Sprite;
@@ -789,13 +790,15 @@ CacheProvider_ObjtypeIdByName(
  *  whose name is present, is not "null", and (lowercased) contains
  *  `lower_query` (which the caller must already have lowercased), and -- when
  *  `ge_tradeable_only` -- which are Grand Exchange tradeable. On a match it
- *  mallocs an ascending-sorted id array into *out_ids (caller frees) and
- *  returns the count; returns 0 (and *out_ids = NULL) when nothing matches. */
+ *  allocates an ascending-sorted id array in `out_group` into *out_ids (the
+ *  caller frees it from that group) and returns the count; returns 0 (and
+ *  *out_ids = NULL) when nothing matches. */
 int
 CacheProvider_ObjtypeSearchByName(
     struct CacheProvider* provider,
     char const* lower_query,
     bool ge_tradeable_only,
+    struct ToriMem_Group* out_group,
     int** out_ids);
 
 /** The id of the first RESIDENT objtype `match` accepts, or -1 when none does.

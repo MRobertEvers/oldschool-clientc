@@ -1,4 +1,5 @@
 #include "world_builder.h"
+#include "mem/torirs_mem.h"
 #include "toridraw_element_id.h"
 
 #include "blendmap.h"
@@ -222,8 +223,8 @@ world_builder_hidden_note(
     if( builder->hidden_loc_count == builder->hidden_loc_capacity )
     {
         int capacity = builder->hidden_loc_capacity ? builder->hidden_loc_capacity * 2 : 32;
-        struct WorldBuilderHiddenLoc* items =
-            realloc(builder->hidden_locs, (size_t)capacity * sizeof(*items));
+        struct WorldBuilderHiddenLoc* items = ToriMem_Realloc(
+            ToriMem_Scene(), builder->hidden_locs, (size_t)capacity * sizeof(*items));
         assert(items);
         builder->hidden_locs = items;
         builder->hidden_loc_capacity = capacity;
@@ -244,7 +245,7 @@ static void
 world_builder_hidden_release(struct WorldBuilder* builder)
 {
     assert(builder);
-    free(builder->hidden_locs);
+    ToriMem_Free(ToriMem_Scene(), builder->hidden_locs);
     builder->hidden_locs = NULL;
     builder->hidden_loc_count = 0;
     builder->hidden_loc_capacity = 0;
@@ -316,6 +317,7 @@ world_builder_free_transient_maps(struct WorldBuilder* builder)
     if( builder->occluder_buildmap )
         occluder_buildmap_free(builder->occluder_buildmap);
     contour_ground_q_free(&builder->contour_ground_queue);
+    slh_release();
     builder->blendmap = NULL;
     builder->overlaymap = NULL;
     builder->terrain_shapemap = NULL;
@@ -426,9 +428,10 @@ world_builder_reconcile_dynamic_elements(struct WorldBuilder* builder)
     scene = builder->scene;
     assert(world && scene);
 
-    keep = (uint8_t*)calloc((size_t)TORIDRAW_SCENE_MAX_ELEMENTS, 1);
+    keep = (uint8_t*)ToriMem_Calloc(ToriMem_Scene(), (size_t)TORIDRAW_SCENE_MAX_ELEMENTS, 1);
     assert(keep && "world_builder_reconcile_dynamic_elements: keep bitmap");
-    claimed_by = (int*)malloc((size_t)TORIDRAW_SCENE_MAX_ELEMENTS * sizeof(int));
+    claimed_by =
+        (int*)ToriMem_Alloc(ToriMem_Scene(), (size_t)TORIDRAW_SCENE_MAX_ELEMENTS * sizeof(int));
     assert(claimed_by && "world_builder_reconcile_dynamic_elements: claim map");
     for( int ci = 0; ci < TORIDRAW_SCENE_MAX_ELEMENTS; ci++ )
         claimed_by[ci] = -1;
@@ -483,7 +486,8 @@ world_builder_reconcile_dynamic_elements(struct WorldBuilder* builder)
      * with the loops above. */
     if( world->foreign_dynamic_claim_fn )
     {
-        int* foreign = (int*)malloc((size_t)TORIDRAW_SCENE_MAX_ELEMENTS * sizeof(int));
+        int* foreign =
+            (int*)ToriMem_Alloc(ToriMem_Scene(), (size_t)TORIDRAW_SCENE_MAX_ELEMENTS * sizeof(int));
         int n;
         assert(foreign && "world_builder_reconcile_dynamic_elements: foreign claim list");
         n = world->foreign_dynamic_claim_fn(
@@ -495,7 +499,7 @@ world_builder_reconcile_dynamic_elements(struct WorldBuilder* builder)
             if( foreign[fi] >= 0 && foreign[fi] < TORIDRAW_SCENE_MAX_ELEMENTS )
                 world_builder_mark_element_keep(keep, foreign[fi]);
         }
-        free(foreign);
+        ToriMem_Free(ToriMem_Scene(), foreign);
     }
 
     for( id = scene->elements.head; id != TORIDRAW_INTRUSIVE_NIL; id = next )
@@ -509,8 +513,8 @@ world_builder_reconcile_dynamic_elements(struct WorldBuilder* builder)
         if( !keep[id] )
             ToriDraw_SceneElementRemove(scene, id);
     }
-    free(claimed_by);
-    free(keep);
+    ToriMem_Free(ToriMem_Scene(), claimed_by);
+    ToriMem_Free(ToriMem_Scene(), keep);
 }
 
 struct WorldBuilder*
@@ -520,7 +524,7 @@ WorldBuilder_New(
     struct ToriDraw_Scene* scene,
     struct VarPManager* varp)
 {
-    struct WorldBuilder* builder = calloc(1, sizeof(struct WorldBuilder));
+    struct WorldBuilder* builder = ToriMem_Calloc(ToriMem_Scene(), 1, sizeof(struct WorldBuilder));
     assert(builder && "Failed to allocate world builder");
     builder->world = world;
     builder->cache = cache;
@@ -545,7 +549,7 @@ WorldBuilder_Free(struct WorldBuilder* builder)
         return;
     world_builder_free_transient_maps(builder);
     world_builder_hidden_release(builder);
-    free(builder);
+    ToriMem_Free(ToriMem_Scene(), builder);
 }
 
 void

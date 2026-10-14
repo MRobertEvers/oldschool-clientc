@@ -1,4 +1,5 @@
 #include "input/torirs_input.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -65,9 +66,7 @@ try_start_drag(
 struct LibToriRS_Input*
 LibToriRS_Input_New(void)
 {
-    struct LibToriRS_Input* input = malloc(sizeof(struct LibToriRS_Input));
-    assert(input);
-    memset(input, 0, sizeof(struct LibToriRS_Input));
+    struct LibToriRS_Input* input = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(struct LibToriRS_Input));
     return input;
 }
 
@@ -100,9 +99,7 @@ LibToriRS_Input_SetDragThresholds(
 void
 LibToriRS_Input_Free(struct LibToriRS_Input* input)
 {
-    if( !input )
-        return;
-    free(input);
+    ToriMem_Free(ToriMem_Process(), input);
 }
 
 void

@@ -998,6 +998,10 @@ struct PaintersBuffer
 struct PaintersBuffer*
 painter_buffer_new();
 
+/** Frees a buffer from painter_buffer_new and its commands. NULL ok. */
+void
+painter_buffer_free(struct PaintersBuffer* buffer);
+
 int
 painter_paint(
     struct Painter* painter, //

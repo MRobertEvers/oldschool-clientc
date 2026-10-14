@@ -157,6 +157,7 @@ json_put(
             return;
         }
         o->cap = o->cap * 2 + (size_t)n + 1;
+        /* torimem-bare: the JSON goes to the web page (torirs_telemetry_json), which frees it with _free */
         o->buf = realloc(o->buf, o->cap);
         assert(o->buf);
     }
@@ -216,6 +217,7 @@ ToriRS_BootTelemetry_Json(
     struct JsonOut o = { NULL, 0, 0 };
 
     o.cap = 4096;
+    /* torimem-bare: the JSON goes to the web page (torirs_telemetry_json), which frees it with _free */
     o.buf = malloc(o.cap);
     assert(o.buf);
     o.buf[0] = '\0';

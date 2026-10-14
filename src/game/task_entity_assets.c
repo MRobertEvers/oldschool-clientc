@@ -1,4 +1,5 @@
 #include "game/task_entity_assets.h"
+#include "mem/torirs_mem.h"
 
 #include "app.h"
 #include "engine/cache_provider.h"
@@ -260,7 +261,7 @@ Task_NpcBodyLand_Free(struct ToriRS_Task* base)
      * must not leave its type marked in flight for the rest of the session. */
     if( self->registered )
         npc_body_land_forget(self->app, self->base_npc_id, self->npc_id);
-    free(base);
+    ToriMem_Free(ToriMem_Session(), base);
 }
 
 static struct ToriRS_TaskVTable Task_NpcBodyLand_VTable = {
@@ -285,7 +286,7 @@ CreateTask_NpcBodyLand(
     /* A full table is a crowd of sixty-four distinct types arriving in one
      * pass; the sixty-fifth simply loads without the dedupe, as every type
      * did before there was one. */
-    task = calloc(1, sizeof(*task));
+    task = ToriMem_Calloc(ToriMem_Session(), 1, sizeof(*task));
     assert(task);
     if( app->npc_body_lands.count < capacity )
     {
@@ -355,7 +356,7 @@ Task_PlayerBodyLand_Run(
 static void
 Task_PlayerBodyLand_Free(struct ToriRS_Task* base)
 {
-    free(base);
+    ToriMem_Free(ToriMem_Session(), base);
 }
 
 static struct ToriRS_TaskVTable Task_PlayerBodyLand_VTable = {
@@ -377,7 +378,7 @@ CreateTask_PlayerBodyLand(
     assert(slots);
     assert(seq_ids || seq_count == 0);
     assert(seq_count >= 0);
-    task = calloc(1, sizeof(*task));
+    task = ToriMem_Calloc(ToriMem_Session(), 1, sizeof(*task));
     assert(task);
     assert(seq_count <= (int)(sizeof(task->seq_ids) / sizeof(task->seq_ids[0])));
     task->task.vtable = &Task_PlayerBodyLand_VTable;
@@ -442,7 +443,7 @@ Task_PlayerTransmogLand_Run(
 static void
 Task_PlayerTransmogLand_Free(struct ToriRS_Task* base)
 {
-    free(base);
+    ToriMem_Free(ToriMem_Session(), base);
 }
 
 static struct ToriRS_TaskVTable Task_PlayerTransmogLand_VTable = {
@@ -459,7 +460,7 @@ CreateTask_PlayerTransmogLand(
 
     assert(app);
     assert(npc_id >= 0);
-    task = calloc(1, sizeof(*task));
+    task = ToriMem_Calloc(ToriMem_Session(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_PlayerTransmogLand_VTable;
     strncpy(task->task.name, "PlayerTransmogLand", sizeof(task->task.name) - 1);
@@ -560,7 +561,7 @@ Task_PlayerHeldLand_Run(
 static void
 Task_PlayerHeldLand_Free(struct ToriRS_Task* base)
 {
-    free(base);
+    ToriMem_Free(ToriMem_Session(), base);
 }
 
 static struct ToriRS_TaskVTable Task_PlayerHeldLand_VTable = {
@@ -580,7 +581,7 @@ CreateTask_PlayerHeldLand(
     assert(server_pid >= 0);
     if( seq_id < 0 )
         return NULL;
-    task = calloc(1, sizeof(*task));
+    task = ToriMem_Calloc(ToriMem_Session(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_PlayerHeldLand_VTable;
     strncpy(task->task.name, "PlayerHeldLand", sizeof(task->task.name) - 1);

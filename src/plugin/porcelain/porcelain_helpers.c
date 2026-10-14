@@ -11,6 +11,7 @@
  */
 
 #include "plugin/porcelain/porcelain_internal.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -1110,8 +1111,7 @@ Porcelain_Derived(struct Porcelain* porcelain, char const* key, void const* inpu
      */
     Porcelain_ImageForget(porcelain, key);
 
-    pixels = malloc((size_t)width * (size_t)height * sizeof(*pixels));
-    assert(pixels);
+    pixels = ToriMem_Alloc(ToriMem_Plugins(), (size_t)width * (size_t)height * sizeof(*pixels));
     porcelain->counters.allocations++;
     memset(pixels, 0, (size_t)width * (size_t)height * sizeof(*pixels));
     slot->inputs_hash = hash;
@@ -1119,7 +1119,7 @@ Porcelain_Derived(struct Porcelain* porcelain, char const* key, void const* inpu
     slot->height = height;
     if( !paint(porcelain->api, user, pixels, width, height) )
     {
-        free(pixels);
+        ToriMem_Free(ToriMem_Plugins(), pixels);
         slot->state = PORCELAIN_DERIVED_FAILED;
         if( !slot->terminal_reported )
         {
@@ -1135,7 +1135,7 @@ Porcelain_Derived(struct Porcelain* porcelain, char const* key, void const* inpu
         enum ToriRS_AssetState const state =
             porcelain->api->assets.image_compose(porcelain->api, key, width, height, pixels,
                                                  &slot->ref);
-        free(pixels);
+        ToriMem_Free(ToriMem_Plugins(), pixels);
         if( state == TORIRS_ASSET_READY )
             slot->state = PORCELAIN_DERIVED_READY;
         else if( state == TORIRS_ASSET_PENDING )

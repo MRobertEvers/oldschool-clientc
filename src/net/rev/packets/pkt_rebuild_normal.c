@@ -1,4 +1,5 @@
 #include "pkt_rebuild_normal.h"
+#include "mem/torirs_mem.h"
 #include "torirs_env.h"
 #include <assert.h>
 
@@ -42,8 +43,8 @@ pkt_rebuild_normal_read(uint8_t const* data, int len, struct RevPacket* out)
 
     if( key_count > 0 )
     {
-        out->_map_rebuild.region_keys = malloc((size_t)key_count * 4 * sizeof(int32_t));
-        assert(out->_map_rebuild.region_keys);
+        out->_map_rebuild.region_keys =
+            ToriMem_Alloc(ToriMem_Net(), (size_t)key_count * 4 * sizeof(int32_t));
         for( int i = 0; i < key_count * 4; i++ )
             out->_map_rebuild.region_keys[i] = (int32_t)g4(&buf);
     }

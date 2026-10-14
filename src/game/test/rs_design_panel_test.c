@@ -18,6 +18,7 @@
  */
 
 #include "game/rs_design_panel.h"
+#include "mem/torirs_mem.h"
 
 #include "engine/cache_provider.h"
 #include "engine/entity_model_build.h"
@@ -147,10 +148,8 @@ add_idk(
     int body_part,
     int not_selectable)
 {
-    struct ToriRS_Idk* idk = calloc(1, sizeof(*idk));
+    struct ToriRS_Idk* idk = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*idk));
 
-    if( !idk )
-        abort();
     idk->id = id;
     idk->body_part_id = body_part;
     idk->not_selectable = not_selectable ? true : false;

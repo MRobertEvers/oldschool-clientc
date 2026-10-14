@@ -1,4 +1,5 @@
 #include "loginproto.h"
+#include "mem/torirs_mem.h"
 
 #include "jbase37.h"
 
@@ -16,14 +17,12 @@ rsbuf_rsaenc(
 {
     if( buffer->size < 3 || buffer->position <= 0 )
         return -1;
-    int8_t* temp = malloc(buffer->position);
-    if( !temp )
-        return -1;
+    int8_t* temp = ToriMem_Alloc(ToriMem_Net(), buffer->position);
     memcpy(temp, buffer->data, buffer->position);
 
     int enclen = rsa_crypt(
         (struct rsa*)rsa, temp, buffer->position, buffer->data + 1, buffer->size - 2);
-    free(temp);
+    ToriMem_Free(ToriMem_Net(), temp);
 
     if( enclen <= 0 || enclen > 254 )
         return -1;
@@ -65,8 +64,7 @@ loginproto_new(
     char const* username,
     char const* password)
 {
-    struct LoginProto* loginproto = malloc(sizeof(struct LoginProto));
-    assert(loginproto);
+    struct LoginProto* loginproto = ToriMem_Alloc(ToriMem_Net(), sizeof(struct LoginProto));
     assert(rev);
     memset(loginproto, 0, sizeof(struct LoginProto));
 
@@ -124,7 +122,7 @@ loginproto_free(struct LoginProto* loginproto)
         ringbuf_free(loginproto->in);
         loginproto->in = NULL;
     }
-    free(loginproto);
+    ToriMem_Free(ToriMem_Net(), loginproto);
 }
 
 int

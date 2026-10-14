@@ -4,6 +4,7 @@
 #include "platform/platform_androidarmv7_renderer_opengles2_dualcore.h"
 
 #include "log/torirs_log.h"
+#include "mem/torirs_mem.h"
 #include "painters/painters.h"
 #include "es2/trspk_es2.h"
 #include "es2/es2_core.h"
@@ -1213,6 +1214,32 @@ ToriPlatformAndroid_Renderer_GLES2_DualCore_RenderFrame(struct ToriPlatformAndro
 
 /* ---- lifetime -------------------------------------------------------------------- */
 
+/* The lane's arena wants an extended (64-byte) alignment, and a ToriMem block
+ * only promises 16. Over-allocate from the renderer's group and keep the
+ * block's own address in the word just below the aligned lane. */
+static void*
+dualcore_aligned_new(
+    size_t align,
+    size_t size)
+{
+    uint8_t* raw;
+    uintptr_t at;
+    assert(align >= sizeof(void*));
+    assert((align & (align - 1u)) == 0u);
+    raw = (uint8_t*)ToriMem_Calloc(ToriMem_Render(), 1u, size + align + sizeof(void*));
+    at = ((uintptr_t)(raw + sizeof(void*)) + (align - 1u)) & ~(uintptr_t)(align - 1u);
+    ((void**)at)[-1] = raw;
+    return (void*)at;
+}
+
+static void
+dualcore_aligned_free(void* ptr)
+{
+    if( !ptr )
+        return;
+    ToriMem_Free(ToriMem_Render(), ((void**)ptr)[-1]);
+}
+
 struct ToriPlatformAndroid_Renderer_GLES2_DualCore*
 ToriPlatformAndroid_Renderer_GLES2_DualCore_New(struct TRSPK_Renderer_ES2* renderer, bool z_buffer)
 {
@@ -1220,10 +1247,9 @@ ToriPlatformAndroid_Renderer_GLES2_DualCore_New(struct TRSPK_Renderer_ES2* rende
     long warmup;
 
     assert(renderer);
-    /* calloc need not honor the arena's extended 64-byte alignment. */
-    if( posix_memalign((void**)&lane, _Alignof(struct ToriPlatformAndroid_Renderer_GLES2_DualCore), sizeof(*lane)) )
-        return NULL;
-    memset(lane, 0, sizeof(*lane));
+    /* A plain allocation need not honor the arena's extended 64-byte alignment. */
+    lane = (struct ToriPlatformAndroid_Renderer_GLES2_DualCore*)dualcore_aligned_new(
+        _Alignof(struct ToriPlatformAndroid_Renderer_GLES2_DualCore), sizeof(*lane));
     lane->renderer = renderer;
     lane->z_buffer = z_buffer;
     GLES2DualCoreStageArena_Init(&lane->arena);
@@ -1329,5 +1355,5 @@ ToriPlatformAndroid_Renderer_GLES2_DualCore_Free(struct ToriPlatformAndroid_Rend
     pthread_mutex_destroy(&lane->lock);
     ToriDraw_SceneScratchViewFree(lane->view);
     GLES2DualCoreStageArena_Free(&lane->arena);
-    free(lane);
+    dualcore_aligned_free(lane);
 }

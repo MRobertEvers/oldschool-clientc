@@ -423,12 +423,11 @@ fake_asset_read(void* u, char const* plugin, char const* name)
     fseek(f, 0, SEEK_END);
     size = ftell(f);
     fseek(f, 0, SEEK_SET);
-    data = malloc((size_t)size);
-    assert(data);
+    data = ToriMem_Alloc(ToriMem_Net(), (size_t)size); /* an IO payload is NET's */
     if( fread(data, 1, (size_t)size, f) != (size_t)size )
     {
         fclose(f);
-        free(data);
+        ToriMem_Free(ToriMem_Net(), data);
         return 0;
     }
     fclose(f);

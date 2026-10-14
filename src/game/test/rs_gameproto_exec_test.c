@@ -7,6 +7,7 @@
  * Also pins the REBUILD_NORMAL map-square residency predicate that used to
  * compare only the SW square and skip loads that needed an eastern square.
  */
+#include "mem/torirs_mem.h"
 #include "app.h"
 #include "app/app_internal.h"
 #include "game/rs_chat.h"
@@ -346,7 +347,7 @@ main(void)
         assert(p._map_rebuild.zones != NULL);
         assert((uint32_t)p._map_rebuild.zones[0] == descriptor);
         assert(p._map_rebuild.zones[1] == 0);
-        free(p._map_rebuild.zones);
+        ToriMem_Free(ToriMem_Net(), p._map_rebuild.zones);
 
         memset(&p, 0, sizeof(p));
         TEST_EXEC_ASSERT(
@@ -399,7 +400,7 @@ main(void)
         assert(p._update_zone_enclosed.base_z == 43);
         assert(p._update_zone_enclosed.base_x == 57);
         assert(p._update_zone_enclosed.level == 3);
-        free(p._update_zone_enclosed.entries);
+        ToriMem_Free(ToriMem_Net(), p._update_zone_enclosed.entries);
         printf("ok - revision-239 zone header planes retained\n");
     }
 

@@ -1,4 +1,5 @@
 #include "js5_server_session.h"
+#include "mem/torirs_mem.h"
 #include <assert.h>
 
 #include "js5_server_cache.h"
@@ -148,17 +149,12 @@ Js5ServerSessionNew(
         (!cache && !effective.server_full) )
         return NULL;
 
-    session = (struct Js5ServerSession*)calloc(1u, sizeof(*session));
+    session = (struct Js5ServerSession*)ToriMem_Calloc(ToriMem_ServerNet(), 1u, sizeof(*session));
     assert(session);
-    session->urgent.requests = (struct Js5ServerRequest*)calloc(
-        effective.max_pending_per_lane, sizeof(*session->urgent.requests));
-    session->normal.requests = (struct Js5ServerRequest*)calloc(
-        effective.max_pending_per_lane, sizeof(*session->normal.requests));
-    if( !session->urgent.requests || !session->normal.requests )
-    {
-        Js5ServerSessionFree(session);
-        return NULL;
-    }
+    session->urgent.requests = (struct Js5ServerRequest*)ToriMem_Calloc(
+        ToriMem_ServerNet(), effective.max_pending_per_lane, sizeof(*session->urgent.requests));
+    session->normal.requests = (struct Js5ServerRequest*)ToriMem_Calloc(
+        ToriMem_ServerNet(), effective.max_pending_per_lane, sizeof(*session->normal.requests));
     session->urgent.capacity = effective.max_pending_per_lane;
     session->normal.capacity = effective.max_pending_per_lane;
     session->cache = cache;
@@ -178,10 +174,10 @@ Js5ServerSessionFree(struct Js5ServerSession* session)
     if( !session )
         return;
     Js5ServerBlobFree(&session->current_blob);
-    free(session->urgent.requests);
-    free(session->normal.requests);
+    ToriMem_Free(ToriMem_ServerNet(), session->urgent.requests);
+    ToriMem_Free(ToriMem_ServerNet(), session->normal.requests);
     memset(session, 0, sizeof(*session));
-    free(session);
+    ToriMem_Free(ToriMem_ServerNet(), session);
 }
 
 static bool

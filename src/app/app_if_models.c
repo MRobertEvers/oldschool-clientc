@@ -8,6 +8,7 @@
  */
 
 #include "app/app_internal.h"
+#include "mem/torirs_mem.h"
 
 /* Interface chathead: load the npctype/appearance + head models, composite the
  * head into the scene (UITreeSceneBridge_Ensure*Head), and bind it onto the
@@ -234,7 +235,7 @@ Task_AppIfHead_Run(
 static void
 Task_AppIfHead_Free(struct ToriRS_Task* base)
 {
-    free(base);
+    ToriMem_Free(ToriMem_Process(), base);
 }
 
 static struct ToriRS_TaskVTable Task_AppIfHead_VTable = {
@@ -249,7 +250,7 @@ app_if_head_enqueue(
     int component_id,
     int npc_id)
 {
-    struct Task_AppIfHead* task = calloc(1, sizeof(*task));
+    struct Task_AppIfHead* task = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_AppIfHead_VTable;
     strncpy(task->task.name, "AppIfHead", sizeof(task->task.name) - 1);
@@ -286,7 +287,7 @@ app_if_head_store(
         if( app->if_head_count == app->if_head_cap )
         {
             int cap = app->if_head_cap ? app->if_head_cap * 2 : 16;
-            app->if_heads = realloc(app->if_heads, (size_t)cap * sizeof(*app->if_heads));
+            app->if_heads = ToriMem_Realloc(ToriMem_Process(), app->if_heads, (size_t)cap * sizeof(*app->if_heads));
             assert(app->if_heads);
             app->if_head_cap = cap;
         }
@@ -335,7 +336,7 @@ app_if_player_model_get(
     {
         int cap = app->if_player_model_cap ? app->if_player_model_cap * 2 : 8;
         app->if_player_models =
-            realloc(app->if_player_models, (size_t)cap * sizeof(*app->if_player_models));
+            ToriMem_Realloc(ToriMem_Process(), app->if_player_models, (size_t)cap * sizeof(*app->if_player_models));
         assert(app->if_player_models);
         app->if_player_model_cap = cap;
     }
@@ -502,7 +503,7 @@ Task_AppIfPlayerModel_Run(
 static void
 Task_AppIfPlayerModel_Free(struct ToriRS_Task* base)
 {
-    free(base);
+    ToriMem_Free(ToriMem_Process(), base);
 }
 
 static struct ToriRS_TaskVTable Task_AppIfPlayerModel_VTable = {
@@ -518,7 +519,7 @@ app_if_player_model_enqueue(
     int arg0,
     int arg1)
 {
-    struct Task_AppIfPlayerModel* task = calloc(1, sizeof(*task));
+    struct Task_AppIfPlayerModel* task = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_AppIfPlayerModel_VTable;
     strncpy(task->task.name, "AppIfPlayerModel", sizeof(task->task.name) - 1);

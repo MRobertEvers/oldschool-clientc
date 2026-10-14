@@ -1,6 +1,8 @@
 #include "gameproto_parse.h"
 #include "torirs_env.h"
 
+#include "mem/torimem_rscache.h"
+#include "mem/torirs_mem.h"
 #include "net/wordpack.h"
 
 #include <assert.h>
@@ -221,7 +223,7 @@ gameproto_parse(
     }
     case PKT_NAME_NPC_INFO:
     {
-        uint8_t* commandstream = malloc(data_size);
+        uint8_t* commandstream = ToriMem_Alloc(ToriMem_Net(), (size_t)data_size);
         memcpy(commandstream, data, data_size);
         packet->_npc_info.length = data_size;
         packet->_npc_info.data = commandstream;
@@ -229,7 +231,7 @@ gameproto_parse(
     }
     case PKT_NAME_PLAYER_INFO:
     {
-        uint8_t* commandstream = malloc(data_size);
+        uint8_t* commandstream = ToriMem_Alloc(ToriMem_Net(), (size_t)data_size);
         memcpy(commandstream, data, data_size);
         packet->_player_info.length = data_size;
         packet->_player_info.data = commandstream;
@@ -246,8 +248,10 @@ gameproto_parse(
          * The skill guide's item column was the visible half of it. */
         packet->_update_inv_full.size = g2(&buffer);
 
-        packet->_update_inv_full.obj_ids = malloc(packet->_update_inv_full.size * sizeof(int));
-        packet->_update_inv_full.obj_counts = malloc(packet->_update_inv_full.size * sizeof(int));
+        packet->_update_inv_full.obj_ids =
+            ToriMem_Alloc(ToriMem_Net(), packet->_update_inv_full.size * sizeof(int));
+        packet->_update_inv_full.obj_counts =
+            ToriMem_Alloc(ToriMem_Net(), packet->_update_inv_full.size * sizeof(int));
 
         for( int i = 0; i < packet->_update_inv_full.size; i++ )
         {
@@ -371,7 +375,7 @@ gameproto_parse(
     case PKT_NAME_IF_SETTEXT:
     {
         packet->_if_settext.component_id = g2(&buffer);
-        packet->_if_settext.text = gstringnewline(&buffer);
+        packet->_if_settext.text = ToriMem_TakeStrFromRSCache(ToriMem_Net(), gstringnewline(&buffer));
         return 1;
     }
     case PKT_NAME_IF_SETNPCHEAD:
@@ -398,7 +402,7 @@ gameproto_parse(
     }
     case PKT_NAME_MESSAGE_GAME:
     {
-        packet->_message_game.text = gstringnewline(&buffer);
+        packet->_message_game.text = ToriMem_TakeStrFromRSCache(ToriMem_Net(), gstringnewline(&buffer));
         return 1;
     }
     case PKT_NAME_MESSAGE_PRIVATE:
@@ -449,7 +453,7 @@ gameproto_parse(
         enc->base_x = g1(&buffer);
         enc->base_z = g1(&buffer);
         enc->count = 0;
-        enc->entries = malloc(cap * sizeof(*enc->entries));
+        enc->entries = ToriMem_Alloc(ToriMem_Net(), cap * sizeof(*enc->entries));
 
         while( buffer.position < (uint32_t)data_size )
         {
@@ -459,7 +463,7 @@ gameproto_parse(
             if( enc->count == cap )
             {
                 cap *= 2;
-                enc->entries = realloc(enc->entries, cap * sizeof(*enc->entries));
+                enc->entries = ToriMem_Realloc(ToriMem_Net(), enc->entries, cap * sizeof(*enc->entries));
             }
             if( !read_zone_sub_packet(&buffer, sub, &enc->entries[enc->count]) )
             {
@@ -662,7 +666,8 @@ gameproto_parse(
          * whenever a packet carried only short records and wrote past the end. */
         int max_entries = (data_size - 2) / 4 + 1;
         packet->_update_inv_partial.entries =
-            (struct PktUpdateInvPartialEntry*)malloc(max_entries * sizeof(struct PktUpdateInvPartialEntry));
+            (struct PktUpdateInvPartialEntry*)ToriMem_Alloc(
+                ToriMem_Net(), max_entries * sizeof(struct PktUpdateInvPartialEntry));
         int n = 0;
         while( buffer.position < (uint32_t)data_size )
         {
@@ -698,7 +703,7 @@ gameproto_parse(
     {
         struct PktUpdateIgnoreList* ig = &packet->_update_ignorelist;
         ig->count = data_size / 8;
-        ig->names37 = ig->count > 0 ? malloc(ig->count * sizeof(int64_t)) : NULL;
+        ig->names37 = ig->count > 0 ? ToriMem_Alloc(ToriMem_Net(), ig->count * sizeof(int64_t)) : NULL;
         for( int i = 0; i < ig->count; i++ )
             ig->names37[i] = g8(&buffer);
         return 1;
@@ -780,7 +785,7 @@ gameproto_parse(
     {
         packet->_set_player_op.slot = g1(&buffer);
         packet->_set_player_op.primary = g1(&buffer);
-        packet->_set_player_op.text = gstringnewline(&buffer);
+        packet->_set_player_op.text = ToriMem_TakeStrFromRSCache(ToriMem_Net(), gstringnewline(&buffer));
         return 1;
     }
     default:
@@ -846,6 +851,13 @@ gameproto_packet_changes_interface_mounts(enum GameProtoPktName packet_type)
     }
 }
 
+/*
+ * Every parser's heap payload is ToriMem_Net()'s, except four still on libc
+ * because code outside src/net frees them too: _map_rebuild.zones and
+ * _update_zone_enclosed.entries (rs_gameproto_exec_test frees them directly),
+ * and the wordpack_unpack text of MESSAGE_PRIVATE / MESSAGE_CLANCHANNEL
+ * (wordpack_unpack's other callers free its result with ToriMem_Free(ToriMem_Net(), )).
+ */
 void
 gameproto_free(struct RevPacket* p)
 {
@@ -856,16 +868,16 @@ gameproto_free(struct RevPacket* p)
     {
     case PKT_NAME_RUNCLIENTSCRIPT:
         /* The one payload held outside the union; see struct RevPacket. */
-        free(p->_runclientscript);
+        ToriMem_Free(ToriMem_Net(), p->_runclientscript);
         p->_runclientscript = NULL;
         break;
     case PKT_NAME_NPC_INFO:
-        free(p->_npc_info.data);
+        ToriMem_Free(ToriMem_Net(), p->_npc_info.data);
         p->_npc_info.data = NULL;
         p->_npc_info.length = 0;
         break;
     case PKT_NAME_PLAYER_INFO:
-        free(p->_player_info.data);
+        ToriMem_Free(ToriMem_Net(), p->_player_info.data);
         p->_player_info.data = NULL;
         p->_player_info.length = 0;
         break;
@@ -873,9 +885,9 @@ gameproto_free(struct RevPacket* p)
     case PKT_NAME_REBUILD_REGION:
         /* dat2/osrs230 XTEA keys (NULL on the lc254 path), and the instanced
          * descriptor grid (NULL for REBUILD_NORMAL). */
-        free(p->_map_rebuild.region_ids);
-        free(p->_map_rebuild.region_keys);
-        free(p->_map_rebuild.zones);
+        ToriMem_Free(ToriMem_Net(), p->_map_rebuild.region_ids);
+        ToriMem_Free(ToriMem_Net(), p->_map_rebuild.region_keys);
+        ToriMem_Free(ToriMem_Net(), p->_map_rebuild.zones);
         p->_map_rebuild.region_ids = NULL;
         p->_map_rebuild.region_keys = NULL;
         p->_map_rebuild.zones = NULL;
@@ -891,66 +903,66 @@ gameproto_free(struct RevPacket* p)
     case PKT_NAME_CLANSETTINGS_FULL:
     case PKT_NAME_CLANSETTINGS_DELTA:
     case PKT_NAME_UPDATE_TRADINGPOST:
-        free(p->_raw_payload.data);
+        ToriMem_Free(ToriMem_Net(), p->_raw_payload.data);
         p->_raw_payload.data = NULL;
         p->_raw_payload.length = 0;
         break;
     case PKT_NAME_MESSAGE_CLANCHANNEL:
     case PKT_NAME_MESSAGE_CLANCHANNEL_SYSTEM:
-        free(p->_message_clanchannel.text);
+        ToriMem_Free(ToriMem_Net(), p->_message_clanchannel.text);
         p->_message_clanchannel.text = NULL;
         break;
     case PKT_NAME_REBUILD_WORLDENTITY:
-        free(p->_rebuild_wev.data);
+        ToriMem_Free(ToriMem_Net(), p->_rebuild_wev.data);
         p->_rebuild_wev.data = NULL;
         p->_rebuild_wev.length = 0;
         break;
     case PKT_NAME_UPDATE_INV_FULL:
-        free(p->_update_inv_full.obj_ids);
-        free(p->_update_inv_full.obj_counts);
+        ToriMem_Free(ToriMem_Net(), p->_update_inv_full.obj_ids);
+        ToriMem_Free(ToriMem_Net(), p->_update_inv_full.obj_counts);
         p->_update_inv_full.obj_ids = NULL;
         p->_update_inv_full.obj_counts = NULL;
         p->_update_inv_full.size = 0;
         break;
     case PKT_NAME_IF_RESYNC_V2:
-        free(p->_if_resync.mounts);
-        free(p->_if_resync.events);
+        ToriMem_Free(ToriMem_Net(), p->_if_resync.mounts);
+        ToriMem_Free(ToriMem_Net(), p->_if_resync.events);
         p->_if_resync.mounts = NULL;
         p->_if_resync.events = NULL;
         p->_if_resync.mount_count = 0;
         p->_if_resync.event_count = 0;
         break;
     case PKT_NAME_IF_SETTEXT:
-        free(p->_if_settext.text);
+        ToriMem_Free(ToriMem_Net(), p->_if_settext.text);
         p->_if_settext.text = NULL;
         break;
     case PKT_NAME_MESSAGE_GAME:
-        free(p->_message_game.name);
-        free(p->_message_game.text);
+        ToriMem_Free(ToriMem_Net(), p->_message_game.name);
+        ToriMem_Free(ToriMem_Net(), p->_message_game.text);
         p->_message_game.name = NULL;
         p->_message_game.text = NULL;
         break;
     case PKT_NAME_MESSAGE_PRIVATE:
-        free(p->_message_private.text);
+        ToriMem_Free(ToriMem_Net(), p->_message_private.text);
         p->_message_private.text = NULL;
         break;
     case PKT_NAME_UPDATE_INV_PARTIAL:
-        free(p->_update_inv_partial.entries);
+        ToriMem_Free(ToriMem_Net(), p->_update_inv_partial.entries);
         p->_update_inv_partial.entries = NULL;
         p->_update_inv_partial.count = 0;
         break;
     case PKT_NAME_UPDATE_ZONE_PARTIAL_ENCLOSED:
-        free(p->_update_zone_enclosed.entries);
+        ToriMem_Free(ToriMem_Net(), p->_update_zone_enclosed.entries);
         p->_update_zone_enclosed.entries = NULL;
         p->_update_zone_enclosed.count = 0;
         break;
     case PKT_NAME_UPDATE_IGNORELIST:
-        free(p->_update_ignorelist.names37);
+        ToriMem_Free(ToriMem_Net(), p->_update_ignorelist.names37);
         p->_update_ignorelist.names37 = NULL;
         p->_update_ignorelist.count = 0;
         break;
     case PKT_NAME_SET_PLAYER_OP:
-        free(p->_set_player_op.text);
+        ToriMem_Free(ToriMem_Net(), p->_set_player_op.text);
         p->_set_player_op.text = NULL;
         break;
     default:

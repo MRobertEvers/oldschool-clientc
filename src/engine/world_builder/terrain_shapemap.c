@@ -1,4 +1,5 @@
 #include "terrain_shapemap.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -24,8 +25,10 @@ terrain_shape_map_new(
     int height,
     int levels)
 {
-    struct TerrainShapeMap* terrain_shape_map = malloc(sizeof(struct TerrainShapeMap));
-    terrain_shape_map->tiles = malloc(width * height * levels * sizeof(struct TerrainShapeMapTile));
+    struct TerrainShapeMap* terrain_shape_map =
+        ToriMem_Alloc(ToriMem_Scene(), sizeof(struct TerrainShapeMap));
+    terrain_shape_map->tiles = ToriMem_Alloc(
+        ToriMem_Scene(), width * height * levels * sizeof(struct TerrainShapeMapTile));
     memset(
         terrain_shape_map->tiles, 0, width * height * levels * sizeof(struct TerrainShapeMapTile));
     terrain_shape_map->width = width;
@@ -37,8 +40,8 @@ terrain_shape_map_new(
 void
 terrain_shape_map_free(struct TerrainShapeMap* terrain_shape_map)
 {
-    free(terrain_shape_map->tiles);
-    free(terrain_shape_map);
+    ToriMem_Free(ToriMem_Scene(), terrain_shape_map->tiles);
+    ToriMem_Free(ToriMem_Scene(), terrain_shape_map);
 }
 
 void

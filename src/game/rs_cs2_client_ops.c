@@ -17,6 +17,7 @@
  */
 
 #include "game/rs_cs2_host.h"
+#include "mem/torirs_mem.h"
 
 #include "cs2vm2/cs2_opcode.h"
 #include "cs2vm2/cs2vm2.h"
@@ -61,10 +62,10 @@ RS_CS2ClientState_Free(struct RS_CS2ClientState* state)
         return;
     for( int i = 0; i < state->translation_count; i++ )
     {
-        free(state->translations[i].key);
-        free(state->translations[i].value);
+        ToriMem_Free(ToriMem_Script(), state->translations[i].key);
+        ToriMem_Free(ToriMem_Script(), state->translations[i].value);
     }
-    free(state->translations);
+    ToriMem_Free(ToriMem_Script(), state->translations);
     state->translations = NULL;
     state->translation_count = 0;
     state->translation_cap = 0;
@@ -94,22 +95,22 @@ translation_set(
     {
         if( strcasecmp(state->translations[i].key, key) != 0 )
             continue;
-        char* const copy = strdup(value);
+        char* const copy = ToriMem_Strdup(ToriMem_Script(), value);
         assert(copy);
-        free(state->translations[i].value);
+        ToriMem_Free(ToriMem_Script(), state->translations[i].value);
         state->translations[i].value = copy;
         return;
     }
     if( state->translation_count == state->translation_cap )
     {
         int const cap = state->translation_cap ? state->translation_cap * 2 : 16;
-        void* const grown = realloc(state->translations, (size_t)cap * sizeof(state->translations[0]));
+        void* const grown = ToriMem_Realloc(ToriMem_Script(), state->translations, (size_t)cap * sizeof(state->translations[0]));
         assert(grown);
         state->translations = grown;
         state->translation_cap = cap;
     }
-    char* const key_copy = strdup(key);
-    char* const value_copy = strdup(value);
+    char* const key_copy = ToriMem_Strdup(ToriMem_Script(), key);
+    char* const value_copy = ToriMem_Strdup(ToriMem_Script(), value);
     assert(key_copy);
     assert(value_copy);
     for( char* c = key_copy; *c; c++ )

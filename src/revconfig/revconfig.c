@@ -1,4 +1,5 @@
 #include "revconfig.h"
+#include "mem/torirs_mem.h"
 
 #include "ui/torirs_chrome_inkwell.h"
 
@@ -1013,13 +1014,13 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
 struct RevConfigBuffer*
 revconfig_buffer_new(uint32_t hint)
 {
-    struct RevConfigBuffer* buffer = malloc(sizeof(struct RevConfigBuffer));
+    struct RevConfigBuffer* buffer = ToriMem_Alloc(ToriMem_Ui(), sizeof(struct RevConfigBuffer));
     assert(buffer);
     memset(buffer, 0, sizeof(struct RevConfigBuffer));
 
     if( hint > 0 )
     {
-        buffer->fields = malloc(sizeof(struct RevConfigField) * hint);
+        buffer->fields = ToriMem_Alloc(ToriMem_Ui(), sizeof(struct RevConfigField) * hint);
         assert(buffer->fields);
         buffer->field_capacity = hint;
     }
@@ -1032,8 +1033,8 @@ revconfig_buffer_free(struct RevConfigBuffer* buffer)
 {
     if( !buffer )
         return;
-    free(buffer->fields);
-    free(buffer);
+    ToriMem_Free(ToriMem_Ui(), buffer->fields);
+    ToriMem_Free(ToriMem_Ui(), buffer);
 }
 
 int
@@ -1048,9 +1049,7 @@ revconfig_buffer_push_field(
     {
         uint32_t new_capacity = buffer->field_capacity == 0 ? 16 : buffer->field_capacity * 2;
         struct RevConfigField* new_fields =
-            realloc(buffer->fields, sizeof(struct RevConfigField) * new_capacity);
-        if( !new_fields )
-            return -1;
+            ToriMem_Realloc(ToriMem_Ui(), buffer->fields, sizeof(struct RevConfigField) * new_capacity);
         buffer->fields = new_fields;
         buffer->field_capacity = new_capacity;
     }
@@ -1065,13 +1064,13 @@ revconfig_buffer_push_field(
 struct RevConfigItemBuffer*
 revconfig_item_buffer_new(uint32_t hint)
 {
-    struct RevConfigItemBuffer* buffer = malloc(sizeof(struct RevConfigItemBuffer));
+    struct RevConfigItemBuffer* buffer = ToriMem_Alloc(ToriMem_Ui(), sizeof(struct RevConfigItemBuffer));
     assert(buffer);
     memset(buffer, 0, sizeof(struct RevConfigItemBuffer));
 
     if( hint > 0 )
     {
-        buffer->items = malloc(sizeof(struct RevConfigItem) * hint);
+        buffer->items = ToriMem_Alloc(ToriMem_Ui(), sizeof(struct RevConfigItem) * hint);
         assert(buffer->items);
         buffer->item_capacity = hint;
     }
@@ -1084,8 +1083,8 @@ revconfig_item_buffer_free(struct RevConfigItemBuffer* buffer)
 {
     if( !buffer )
         return;
-    free(buffer->items);
-    free(buffer);
+    ToriMem_Free(ToriMem_Ui(), buffer->items);
+    ToriMem_Free(ToriMem_Ui(), buffer);
 }
 
 struct RevConfigItem*
@@ -1097,9 +1096,7 @@ revconfig_item_buffer_push(struct RevConfigItemBuffer* buffer)
     {
         uint32_t new_capacity = buffer->item_capacity == 0 ? 16 : buffer->item_capacity * 2;
         struct RevConfigItem* new_items =
-            realloc(buffer->items, sizeof(struct RevConfigItem) * new_capacity);
-        if( !new_items )
-            return NULL;
+            ToriMem_Realloc(ToriMem_Ui(), buffer->items, sizeof(struct RevConfigItem) * new_capacity);
         buffer->items = new_items;
         buffer->item_capacity = new_capacity;
     }

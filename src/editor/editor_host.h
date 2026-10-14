@@ -30,6 +30,8 @@
  * file outside the content tree.
  */
 
+#include "mem/torirs_mem.h"
+
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -51,7 +53,7 @@ Editor_HostBlobFree(struct EditorHost_Blob* blob)
     if( !blob )
         return;
 
-    free(blob->data);
+    ToriMem_Free(ToriMem_Editor(), blob->data);
     blob->data = NULL;
     blob->size = 0;
 }

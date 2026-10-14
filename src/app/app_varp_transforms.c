@@ -8,6 +8,7 @@
  */
 
 #include "app/app_internal.h"
+#include "mem/torirs_mem.h"
 
 /* Load and resolve only the config chain. Body and interface-head consumers
  * deliberately share this step, then await their own distinct model sets. */
@@ -120,7 +121,7 @@ Task_NpcMultiResolve_Run(
 static void
 Task_NpcMultiResolve_Free(struct ToriRS_Task* base)
 {
-    free(base);
+    ToriMem_Free(ToriMem_Process(), base);
 }
 
 static struct ToriRS_TaskVTable Task_NpcMultiResolve_VTable = {
@@ -137,7 +138,7 @@ CreateTask_NpcMultiResolve(
     struct Task_NpcMultiResolve* task;
 
     assert(app && out_npc_id);
-    task = calloc(1, sizeof(*task));
+    task = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_NpcMultiResolve_VTable;
     strncpy(task->task.name, "NpcMultiResolve", sizeof(task->task.name) - 1);
@@ -220,7 +221,7 @@ Task_NpcMultiLoad_Run(
 static void
 Task_NpcMultiLoad_Free(struct ToriRS_Task* base)
 {
-    free(base);
+    ToriMem_Free(ToriMem_Process(), base);
 }
 
 static struct ToriRS_TaskVTable Task_NpcMultiLoad_VTable = {
@@ -237,7 +238,7 @@ CreateTask_NpcMultiLoad(
     struct Task_NpcMultiLoad* task;
 
     assert(app && out_npc_id);
-    task = calloc(1, sizeof(*task));
+    task = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_NpcMultiLoad_VTable;
     strncpy(task->task.name, "NpcMultiLoad", sizeof(task->task.name) - 1);
@@ -330,7 +331,7 @@ Task_AppNpcTransform_Run(
 static void
 Task_AppNpcTransform_Free(struct ToriRS_Task* base)
 {
-    free(base);
+    ToriMem_Free(ToriMem_Process(), base);
 }
 
 static struct ToriRS_TaskVTable Task_AppNpcTransform_VTable = {
@@ -356,7 +357,7 @@ app_varp_refresh_npc_transforms(
 
         if( !npc || !app_npc_transform_depends_on_varp(app, npc->base_npc_id, varp_id) )
             continue;
-        task = calloc(1, sizeof(*task));
+        task = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*task));
         assert(task);
         task->task.vtable = &Task_AppNpcTransform_VTable;
         strncpy(task->task.name, "NpcTransform", sizeof(task->task.name) - 1);

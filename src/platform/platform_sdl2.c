@@ -1,4 +1,5 @@
 #include "platform/platform_window.h"
+#include "mem/torirs_mem.h"
 #include "platform/client_scale.h"
 #include "platform/platform_pointer_map.h"
 
@@ -637,9 +638,8 @@ sdl_mouse_button_to_torirs(int mouse_button)
 struct PlatformWindow*
 PlatformWindow_New(void)
 {
-    struct PlatformWindow* platform = malloc(sizeof(struct PlatformWindow));
-    assert(platform);
-    memset(platform, 0, sizeof(struct PlatformWindow));
+    struct PlatformWindow* platform =
+        ToriMem_Calloc(ToriMem_Process(), 1, sizeof(struct PlatformWindow));
     platform->client_scale.fit = CLIENT_SCALE_FIT_KEEP_ASPECT;
     platform->client_scale.max_pixel_height = 0;
     platform->client_scale.output_filter = CLIENT_SCALE_FILTER_NEAREST;
@@ -896,9 +896,7 @@ PlatformWindow_Init(
         platform->texture, sdl_output_filter(platform->client_scale.output_filter));
 
     size_t const pixel_count = (size_t)width * (size_t)height;
-    platform->pixels = malloc(pixel_count * sizeof(int));
-    assert(platform->pixels);
-    memset(platform->pixels, 0, pixel_count * sizeof(int));
+    platform->pixels = ToriMem_Calloc(ToriMem_Process(), pixel_count, sizeof(int));
 
     /* SDL_TEXTINPUT is how we get layout-resolved, shift-applied characters;
      * deriving them from keysyms would mean reimplementing shift tables per
@@ -1048,13 +1046,13 @@ PlatformWindow_Free(struct PlatformWindow* platform)
         SDL_DestroyTexture(platform->chrome_texture);
         platform->chrome_texture = NULL;
     }
-    free(platform->chrome_pixels);
+    ToriMem_Free(ToriMem_Process(), platform->chrome_pixels);
     platform->chrome_pixels = NULL;
     platform->chrome_rail_visible = false;
     /* Before the main window's teardown, so the aux one never outlives the
      * SDL_Quit that follows. */
     PlatformWindow_AuxClose(platform);
-    free(platform->pixels);
+    ToriMem_Free(ToriMem_Process(), platform->pixels);
     platform->pixels = NULL;
     if( platform->texture )
     {
@@ -1076,7 +1074,7 @@ PlatformWindow_Free(struct PlatformWindow* platform)
         platform->window = NULL;
     }
     SDL_Quit();
-    free(platform);
+    ToriMem_Free(ToriMem_Process(), platform);
 }
 
 int*
@@ -1372,12 +1370,11 @@ aux_make_surface(struct PlatformWindow* platform, int width, int height)
         return false;
     }
 
-    pixels = calloc((size_t)width * (size_t)height, sizeof(*pixels));
-    assert(pixels);
+    pixels = ToriMem_Calloc(ToriMem_Process(), (size_t)width * (size_t)height, sizeof(*pixels));
 
     if( platform->aux_texture )
         SDL_DestroyTexture(platform->aux_texture);
-    free(platform->aux_pixels);
+    ToriMem_Free(ToriMem_Process(), platform->aux_pixels);
     platform->aux_texture = texture;
     platform->aux_pixels = pixels;
     platform->aux_width = width;
@@ -1486,7 +1483,7 @@ PlatformWindow_AuxClose(struct PlatformWindow* platform)
         platform->aux_window = NULL;
     }
     platform->hit_aux.borderless = 0;
-    free(platform->aux_pixels);
+    ToriMem_Free(ToriMem_Process(), platform->aux_pixels);
     platform->aux_pixels = NULL;
     platform->aux_width = 0;
     platform->aux_height = 0;
@@ -1622,12 +1619,11 @@ chrome_make_surface(struct PlatformWindow* platform, int width, int height)
         }
         SDL_SetTextureScaleMode(texture, SDL_ScaleModeNearest);
     }
-    pixels = calloc((size_t)width * (size_t)height, sizeof(*pixels));
-    assert(pixels);
+    pixels = ToriMem_Calloc(ToriMem_Process(), (size_t)width * (size_t)height, sizeof(*pixels));
 
     if( platform->chrome_texture )
         SDL_DestroyTexture(platform->chrome_texture);
-    free(platform->chrome_pixels);
+    ToriMem_Free(ToriMem_Process(), platform->chrome_pixels);
     platform->chrome_texture = texture;
     platform->chrome_pixels = pixels;
     platform->chrome_width = width;
@@ -1688,7 +1684,7 @@ chrome_release_surface(struct PlatformWindow* platform)
         SDL_DestroyTexture(platform->chrome_texture);
         platform->chrome_texture = NULL;
     }
-    free(platform->chrome_pixels);
+    ToriMem_Free(ToriMem_Process(), platform->chrome_pixels);
     platform->chrome_pixels = NULL;
     platform->chrome_width = 0;
     platform->chrome_height = 0;
@@ -2897,15 +2893,13 @@ PlatformWindow_Resize(
         texture, sdl_output_filter(platform->client_scale.output_filter));
 
     pixel_count = (size_t)width * (size_t)height;
-    pixels = malloc(pixel_count * sizeof(int));
-    assert(pixels);
-    memset(pixels, 0, pixel_count * sizeof(int));
+    pixels = ToriMem_Calloc(ToriMem_Process(), pixel_count, sizeof(int));
 
     /* Swap only after both allocations succeeded: a failed resize must leave a
      * drawable window behind, not a NULL backbuffer. */
     if( platform->texture )
         SDL_DestroyTexture(platform->texture);
-    free(platform->pixels);
+    ToriMem_Free(ToriMem_Process(), platform->pixels);
     platform->texture = texture;
     platform->pixels = pixels;
     platform->width = width;
@@ -4152,8 +4146,7 @@ PlatformWindow_Present(struct PlatformWindow* platform)
             void bmp_write_file(const char* filename, int* px, int w, int h);
 
             SDL_GetRendererOutputSize(platform->renderer, &out_w, &out_h);
-            shot = malloc((size_t)out_w * (size_t)out_h * sizeof(int));
-            assert(shot);
+            shot = ToriMem_Alloc(ToriMem_Process(), (size_t)out_w * (size_t)out_h * sizeof(int));
             if( SDL_RenderReadPixels(
                     platform->renderer, NULL, SDL_PIXELFORMAT_ARGB8888, shot, out_w * (int)sizeof(int)) == 0 )
             {
@@ -4163,7 +4156,7 @@ PlatformWindow_Present(struct PlatformWindow* platform)
             }
             else
                 fprintf(stderr, "present_bmp: SDL_RenderReadPixels failed: %s\n", SDL_GetError());
-            free(shot);
+            ToriMem_Free(ToriMem_Process(), shot);
             written = 1;
         }
     }
@@ -4231,8 +4224,7 @@ sdl_software_present_create(struct PlatformWindow* platform)
     SDL_SetTextureScaleMode(
         platform->texture, sdl_output_filter(platform->client_scale.output_filter));
     pixel_count = (size_t)platform->width * (size_t)platform->height;
-    platform->pixels = calloc(pixel_count, sizeof(int));
-    assert(platform->pixels);
+    platform->pixels = ToriMem_Calloc(ToriMem_Process(), pixel_count, sizeof(int));
     return true;
 }
 
@@ -4295,7 +4287,7 @@ sdl_software_present_destroy(struct PlatformWindow* platform)
         SDL_DestroyRenderer(platform->renderer);
         platform->renderer = NULL;
     }
-    free(platform->pixels);
+    ToriMem_Free(ToriMem_Process(), platform->pixels);
     platform->pixels = NULL;
 }
 

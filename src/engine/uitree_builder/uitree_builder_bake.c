@@ -1,4 +1,5 @@
 #include "uitree_builder_bake.h"
+#include "mem/torirs_mem.h"
 
 #include "uitree_builder.h"
 #include "uitree_builder_inv.h"
@@ -505,7 +506,7 @@ uitree_builder_bake_pack_under_owner(
     if( pack->component_count <= 0 )
         return;
 
-    int32_t* index_map = calloc((size_t)pack->component_count, sizeof(int32_t));
+    int32_t* index_map = ToriMem_Calloc(ToriMem_Ui(), (size_t)pack->component_count, sizeof(int32_t));
     assert(index_map);
     for( int i = 0; i < pack->component_count; i++ )
         index_map[i] = -1;
@@ -636,7 +637,7 @@ uitree_builder_bake_pack_under_owner(
      */
     UITree_BakePackRuntimeHooks(tree, pack);
 
-    free(index_map);
+    ToriMem_Free(ToriMem_Ui(), index_map);
 }
 
 static int32_t
@@ -1209,7 +1210,7 @@ uitree_builder_bake(
     if( manifest->op_count <= 0 )
         return;
 
-    int32_t* node_index = calloc((size_t)manifest->op_count, sizeof(int32_t));
+    int32_t* node_index = ToriMem_Calloc(ToriMem_Ui(), (size_t)manifest->op_count, sizeof(int32_t));
     assert(node_index);
     for( int i = 0; i < manifest->op_count; i++ )
         node_index[i] = -1;
@@ -1250,7 +1251,7 @@ uitree_builder_bake(
 
     uitree_builder_inv_bind_tree(tree, builder, manifest, invs);
     bake_hotkeys(tree, manifest, node_index);
-    free(node_index);
+    ToriMem_Free(ToriMem_Ui(), node_index);
 }
 
 /*

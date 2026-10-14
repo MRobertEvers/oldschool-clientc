@@ -365,6 +365,10 @@ int PluginDrive_RawServerTick(int* out_tick);
 /** Shutdown: drop the coroutine, close the ledger, forget the app. */
 void PluginDrive_Shutdown(void);
 
+/** Free the shot de-duplication cache (torirs_plugin_drive_ui.c). Called by
+ *  PluginDrive_Shutdown. */
+void DriveUi_Shutdown(void);
+
 /*
  * The quest script the process was asked to run (TORIRS_QUEST_SCRIPT), or
  * NULL.  A run with no quest script still loads the driver plugin -- that is

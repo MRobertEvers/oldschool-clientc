@@ -45,8 +45,8 @@ ToriRS_SoundBank_Free(struct ToriRS_SoundBank* bank)
         free_patch_slot(&bank->patches[i]);
     for( int i = 0; i < bank->sample_count; i++ )
         free_sample_slot(bank, &bank->samples[i]);
-    free(bank->patches);
-    free(bank->samples);
+    ToriMem_Free(ToriMem_Audio(), bank->patches);
+    ToriMem_Free(ToriMem_Audio(), bank->samples);
     memset(bank, 0, sizeof(*bank));
 }
 
@@ -107,12 +107,7 @@ ToriRS_SoundBank_AddPatch(
         {
             int next = bank->patch_capacity > 0 ? bank->patch_capacity * 2 : 16;
             struct ToriRS_SoundBankPatch* grown =
-                realloc(bank->patches, (size_t)next * sizeof(*grown));
-            if( !grown )
-            {
-                RSCache_MusicPatchFree(patch);
-                return NULL;
-            }
+                ToriMem_Realloc(ToriMem_Audio(), bank->patches, (size_t)next * sizeof(*grown));
             bank->patches = grown;
             bank->patch_capacity = next;
         }
@@ -162,12 +157,7 @@ ToriRS_SoundBank_AddSample(
         {
             int next = bank->sample_capacity > 0 ? bank->sample_capacity * 2 : 64;
             struct ToriRS_SoundBankSample* grown =
-                realloc(bank->samples, (size_t)next * sizeof(*grown));
-            if( !grown )
-            {
-                ToriMem_Free(ToriMem_Assets(), samples);
-                return NULL;
-            }
+                ToriMem_Realloc(ToriMem_Audio(), bank->samples, (size_t)next * sizeof(*grown));
             bank->samples = grown;
             bank->sample_capacity = next;
             /*

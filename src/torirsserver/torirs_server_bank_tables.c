@@ -59,7 +59,8 @@ static void
 load_inv_sizes(const struct ToriRSServerKindRecords* records)
 {
     g_inv_count = ToriRSServer_ServPackKindIdBound(records);
-    g_inv_sizes = calloc((size_t)(g_inv_count > 0 ? g_inv_count : 1), sizeof(*g_inv_sizes));
+    g_inv_sizes = ToriMem_Calloc(
+        ToriMem_ServerContent(), (size_t)(g_inv_count > 0 ? g_inv_count : 1), sizeof(*g_inv_sizes));
     assert(g_inv_sizes);
 
     for( int i = 0; i < records->count; i++ )
@@ -79,7 +80,10 @@ load_varbits(const struct ToriRSServerKindRecords* records)
     int loaded = 0;
 
     g_varbit_count = ToriRSServer_ServPackKindIdBound(records);
-    g_varbits = calloc((size_t)(g_varbit_count > 0 ? g_varbit_count : 1), sizeof(*g_varbits));
+    g_varbits = ToriMem_Calloc(
+        ToriMem_ServerContent(),
+        (size_t)(g_varbit_count > 0 ? g_varbit_count : 1),
+        sizeof(*g_varbits));
     assert(g_varbits);
     for( int i = 0; i < g_varbit_count; i++ )
         g_varbits[i].basevar = -1;
@@ -140,10 +144,10 @@ ToriRSServer_BankLoad(struct RSCache_ServerPack* pack)
 void
 ToriRSServer_BankFree(void)
 {
-    free(g_varbits);
+    ToriMem_Free(ToriMem_ServerContent(), g_varbits);
     g_varbits = NULL;
     g_varbit_count = 0;
-    free(g_inv_sizes);
+    ToriMem_Free(ToriMem_ServerContent(), g_inv_sizes);
     g_inv_sizes = NULL;
     g_inv_count = 0;
 }

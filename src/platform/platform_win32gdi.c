@@ -28,6 +28,7 @@
  */
 
 #include "platform/platform_window.h"
+#include "mem/torirs_mem.h"
 #include "platform/client_scale.h"
 #include "platform/platform_app_icon.h"
 #include "platform/platform_win32_chrome.h"
@@ -1028,9 +1029,8 @@ wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 struct PlatformWindow*
 PlatformWindow_New(void)
 {
-    struct PlatformWindow* p = (struct PlatformWindow*)malloc(sizeof(*p));
-    assert(p);
-    memset(p, 0, sizeof(*p));
+    struct PlatformWindow* p =
+        (struct PlatformWindow*)ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*p));
     p->pending_resize_w = -1;
     p->pending_resize_h = -1;
     p->client_scale.output_filter = CLIENT_SCALE_FILTER_NEAREST;
@@ -2116,13 +2116,7 @@ PlatformWindow_PluginBrowserBitmapUrl(
         DeleteFileW(temporary);
         return false;
     }
-    row = (uint32_t*)malloc((size_t)width * sizeof(*row));
-    if( !row )
-    {
-        CloseHandle(handle);
-        DeleteFileW(temporary);
-        return false;
-    }
+    row = (uint32_t*)ToriMem_Alloc(ToriMem_Process(), (size_t)width * sizeof(*row));
     for( int y = height - 1; y >= 0; y-- )
     {
         for( int x = 0; x < width; x++ )
@@ -2141,13 +2135,13 @@ PlatformWindow_PluginBrowserBitmapUrl(
                 handle, row, (DWORD)((size_t)width * sizeof(*row)), &wrote, NULL) ||
             wrote != (DWORD)((size_t)width * sizeof(*row)) )
         {
-            free(row);
+            ToriMem_Free(ToriMem_Process(), row);
             CloseHandle(handle);
             DeleteFileW(temporary);
             return false;
         }
     }
-    free(row);
+    ToriMem_Free(ToriMem_Process(), row);
     CloseHandle(handle);
     if( !MoveFileExW(
             temporary, path,
@@ -2336,7 +2330,7 @@ PlatformWindow_Free(struct PlatformWindow* p)
         DestroyWindow(p->hwnd);
     if( p->timing_active )
         PlatformWin32Timing_Shutdown();
-    free(p);
+    ToriMem_Free(ToriMem_Process(), p);
 }
 
 int*

@@ -1,4 +1,5 @@
 #include "engine/dat2/dat2_tasks.h"
+#include "mem/torirs_mem.h"
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
 #include "engine/torirs_npctype_from_rscache.h"
@@ -195,7 +196,7 @@ Task_Dat2NpcLoad_Free(struct ToriRS_Task* task_base)
     /* Reached on every exit path, PT_EXIT included, so this is the only place
      * the record needs releasing. */
     RSCache_Dat2ConfigNpcFree(task->npc);
-    free(task);
+    ToriMem_Free(ToriMem_Assets(), task);
 }
 
 static struct ToriRS_TaskVTable Task_Dat2NpcLoad_VTable = {
@@ -217,7 +218,7 @@ CreateTask_Dat2NpcLoad(
     if( CacheProvider_NpctypeHas(provider, npc_id) )
         return NULL;
 
-    task = calloc(1, sizeof(*task));
+    task = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_Dat2NpcLoad_VTable;
     strcpy(task->task.name, "Dat2NpcLoad");

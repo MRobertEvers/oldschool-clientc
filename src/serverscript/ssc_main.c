@@ -44,6 +44,7 @@
  * *id*, so an unstable ordering silently repoints every call in the pack.
  */
 
+#include "mem/torirs_mem.h"
 #include "ssc.h"
 #include "ssc_build.h"
 #include "ssc_hash.h"
@@ -258,8 +259,8 @@ load_symbols(void* context, struct SSC_Symbols* symbols)
     return 1;
 }
 
-int
-main(int argc, char** argv)
+static int
+ssc_main_body(int argc, char** argv)
 {
     const char* src = NULL;
     const char* out = NULL;
@@ -710,4 +711,16 @@ main(int argc, char** argv)
     SSC_Free(compiler);
     SSC_SymbolsFree(&symbols);
     return status;
+}
+
+/* The compiler's memory is the COMPILER group's: ToriMem_Shutdown's exit walk
+ * proves a build freed everything it allocated (TORIRS_MEM_STRICT=1 makes a
+ * leak fatal). */
+int
+main(int argc, char** argv)
+{
+    ToriMem_Init();
+    int const rc = ssc_main_body(argc, argv);
+    ToriMem_Shutdown();
+    return rc;
 }

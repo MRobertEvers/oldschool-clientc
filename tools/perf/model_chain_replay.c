@@ -3,6 +3,7 @@
  * Calls the production stage and production U16 index packer. */
 #define _GNU_SOURCE
 #include "model_chain_format.h"
+#include "mem/torirs_mem.h"
 #include "platform/platform_androidarmv7_renderer_opengles2_dualcore_stage.h"
 #include "platform/platform_androidarmv7_renderer_opengles2_indices.h"
 #include "toridraw.h"
@@ -322,9 +323,9 @@ void* model_chain_open(const char* path)
     b->context.kernel=ToriDraw_KernelGetGpu();
     GLES2DualCoreStageArena_Init(&b->arena);
     b->arena.result_capacity=(uint32_t)c->count;
-    b->arena.results=calloc(c->count,sizeof(*b->arena.results));
+    b->arena.results=ToriMem_Calloc(ToriMem_Render(),c->count,sizeof(*b->arena.results));
     b->arena.order_capacity=(uint32_t)(c->faces?c->faces:1);
-    b->arena.orders=malloc((size_t)b->arena.order_capacity*4);
+    b->arena.orders=ToriMem_Alloc(ToriMem_Render(),(size_t)b->arena.order_capacity*4);
     b->indices=malloc((size_t)b->arena.order_capacity*3*2);
     if( !b->arena.results || !b->arena.orders || !b->indices ) fail("scratch allocation failed");
     run_corpus(b,c,1,0);
@@ -403,9 +404,9 @@ int main(int argc,char** argv)
     b.context.kernel=ToriDraw_KernelGetGpu();
     GLES2DualCoreStageArena_Init(&b.arena);
     b.arena.result_capacity=(uint32_t)c.count;
-    b.arena.results=calloc(c.count,sizeof(*b.arena.results));
+    b.arena.results=ToriMem_Calloc(ToriMem_Render(),c.count,sizeof(*b.arena.results));
     b.arena.order_capacity=(uint32_t)(c.faces?c.faces:1);
-    b.arena.orders=malloc((size_t)b.arena.order_capacity*4);
+    b.arena.orders=ToriMem_Alloc(ToriMem_Render(),(size_t)b.arena.order_capacity*4);
     b.indices=malloc((size_t)b.arena.order_capacity*3*2);
     if( !b.arena.results || !b.arena.orders || !b.indices ) fail("scratch allocation failed");
     run_corpus(&b,&c,1,0);
@@ -423,8 +424,8 @@ int main(int argc,char** argv)
     fflush(stdout);
     if( acquire )
     {
-        b.arena.claims=calloc(b.arena.result_count,sizeof(*b.arena.claims));
-        b.arena.feed=calloc(b.arena.result_count,sizeof(*b.arena.feed));
+        b.arena.claims=ToriMem_Calloc(ToriMem_Render(),b.arena.result_count,sizeof(*b.arena.claims));
+        b.arena.feed=ToriMem_Calloc(ToriMem_Render(),b.arena.result_count,sizeof(*b.arena.feed));
         if( !b.arena.claims || !b.arena.feed ) fail("protocol allocation failed");
         b.arena.feed_capacity=b.arena.result_count;
         atomic_store(&b.arena.feed_state,GLES2_DUALCORE_FEED_OPEN);

@@ -1,4 +1,5 @@
 #include "rs_cs2_dispatch.h"
+#include "mem/torirs_mem.h"
 
 #include "game/task_cs2_run.h"
 #include "ui/uitree_layout.h"
@@ -216,7 +217,7 @@ Task_CS2TimerFire_Run(
 static void
 Task_CS2TimerFire_Free(struct ToriRS_Task* base)
 {
-    free(base);
+    ToriMem_Free(ToriMem_Script(), base);
 }
 
 static struct ToriRS_TaskVTable Task_CS2TimerFire_VTable = {
@@ -235,7 +236,7 @@ RS_CS2_DispatchTimer(
     assert(host);
     assert(runner);
     assert(host->tree);
-    task = calloc(1, sizeof(*task));
+    task = ToriMem_Calloc(ToriMem_Script(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_CS2TimerFire_VTable;
     strncpy(task->task.name, "CS2TimerFire", sizeof(task->task.name) - 1);

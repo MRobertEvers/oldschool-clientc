@@ -35,7 +35,7 @@ void
 PokeSpriteStore_Close(struct PokeSpriteStore* store);
 
 /**
- * The .pss bytes for `key` (malloc'd, caller frees), or NULL when the index
+ * The .pss bytes for `key` (ToriMem_Net()'s, caller frees from it), or NULL when the index
  * has no such sheet -- in which case the miss is recorded. `key` must satisfy
  * PokeSprite_KeyValid.
  */

@@ -1,4 +1,5 @@
 #include "torirs_maped_embed.h"
+#include "mem/torirs_mem.h"
 
 #include "torirs_maped.h"
 
@@ -81,9 +82,7 @@ ToriRSMapEd_EmbedStart(
 
     assert(content_dir);
 
-    embed = malloc(sizeof(*embed));
-    assert(embed);
-    memset(embed, 0, sizeof(*embed));
+    embed = ToriMem_Calloc(ToriMem_Editor(), 1, sizeof(*embed));
 
     ToriRSMapEd_Open(&embed->maped, content_dir, repo_root);
     client_open(embed, &embed->clients[0]);
@@ -132,7 +131,7 @@ ToriRSMapEd_EmbedStop(struct ToriRSMapEdEmbed* embed)
             client_close(&embed->clients[i]);
     }
     ToriRSMapEd_Close(&embed->maped);
-    free(embed);
+    ToriMem_Free(ToriMem_Editor(), embed);
 }
 
 int

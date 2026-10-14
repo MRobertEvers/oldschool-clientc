@@ -5487,6 +5487,12 @@ ToriRSServer_WorldInit(
 void
 ToriRSServer_WorldReset(struct ToriRSServer* srv);
 
+/** ToriRSServer_WorldReset, then release what a reset keeps for the next world
+ *  (the static spawns' marks): the world is going away with its host. After
+ *  every player has been removed, before ToriRSServer_BootFree. */
+void
+ToriRSServer_WorldShutdown(struct ToriRSServer* srv);
+
 /** Advance one 600 ms tick: movement, npc roaming, then every packet the tick
  *  produces (rebuild, player info, npc info, container deltas, tick end). */
 void

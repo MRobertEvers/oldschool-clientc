@@ -1,4 +1,5 @@
 #include "plugin/porcelain/torirs_porcelain.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <stddef.h>
@@ -921,12 +922,11 @@ orbs_pixels(
             return NULL;
         if( !api->assets.image_size(api, ref, &w, &h) || w <= 0 || h <= 0 || w > 1024 || h > 1024 )
             return NULL;
-        argb = malloc((size_t)w * (size_t)h * sizeof(*argb));
-        assert(argb);
+        argb = ToriMem_Alloc(ToriMem_Plugins(), (size_t)w * (size_t)h * sizeof(*argb));
         if( !api->assets.image_pixels(api, ref, argb, (size_t)w * (size_t)h, &count) ||
             count != (size_t)w * (size_t)h )
         {
-            free(argb);
+            ToriMem_Free(ToriMem_Plugins(), argb);
             return NULL;
         }
         state->pixels[which] = argb;
@@ -2315,7 +2315,7 @@ orbs_stop(
      * copies and the raw digits.ini are this file's own. */
     Porcelain_Close(state->porcelain);
     for( int i = 0; i < ORB_IMG_COUNT; i++ )
-        free(state->pixels[i]);
+        ToriMem_Free(ToriMem_Plugins(), state->pixels[i]);
     if( api->assets.release )
         api->assets.release(api, "digits.ini");
     memset(state, 0, sizeof(*state));

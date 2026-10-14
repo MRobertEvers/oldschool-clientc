@@ -5,6 +5,7 @@
  * child scene contents and all markers retain their relative order. */
 #include "painters/painters.h"
 #include "world/worldview.h"
+#include "mem/torirs_mem.h"
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
@@ -29,7 +30,7 @@ sailing_paint_scratch_int_buffers(int n, int buffers)
     if( sailing_paint_scratch_int_cap < n * buffers )
     {
         sailing_paint_scratch_int_cap = n * buffers;
-        sailing_paint_scratch_ints = realloc(
+        sailing_paint_scratch_ints = ToriMem_Realloc(ToriMem_Render(), 
             sailing_paint_scratch_ints,
             (size_t)sailing_paint_scratch_int_cap * sizeof(*sailing_paint_scratch_ints));
         assert(sailing_paint_scratch_ints);
@@ -44,7 +45,7 @@ sailing_paint_scratch_command_buffer(int n)
     if( sailing_paint_scratch_command_cap < n )
     {
         sailing_paint_scratch_command_cap = n;
-        sailing_paint_scratch_commands = realloc(
+        sailing_paint_scratch_commands = ToriMem_Realloc(ToriMem_Render(), 
             sailing_paint_scratch_commands,
             (size_t)n * sizeof(*sailing_paint_scratch_commands));
         assert(sailing_paint_scratch_commands);

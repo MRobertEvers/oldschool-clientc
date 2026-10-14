@@ -3,6 +3,7 @@
  */
 
 #include "content_fields.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -170,7 +171,7 @@ ContentFields_Load(
      * section merge is the overlay (content_fields.h). */
     defaults = ContentFields_DefaultsText(type);
     defaults_size = strlen(defaults);
-    text = malloc(defaults_size + 1 + (size_t)size);
+    text = ToriMem_Alloc(ToriMem_ServerContent(), defaults_size + 1 + (size_t)size);
     assert(text);
     memcpy(text, defaults, defaults_size);
     text[defaults_size] = '\n';
@@ -179,7 +180,7 @@ ContentFields_Load(
     {
         fprintf(stderr, "%s: short read\n", path);
         fclose(file);
-        free(text);
+        ToriMem_Free(ToriMem_ServerContent(), text);
         ContentFields_Defaults(fields, type);
         fields->rejected++;
         return fields->count;
@@ -189,6 +190,6 @@ ContentFields_Load(
 
     RSCache_RegisterParse(fields, type, text, text_size);
     fields->from_file = 1;
-    free(text);
+    ToriMem_Free(ToriMem_ServerContent(), text);
     return fields->count;
 }

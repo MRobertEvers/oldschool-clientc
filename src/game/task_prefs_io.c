@@ -13,6 +13,7 @@
  */
 
 #include "game/rs_prefs.h"
+#include "mem/torirs_mem.h"
 
 #include "asyncio.h"
 
@@ -63,9 +64,17 @@ Task_PrefsLoad_Run(
     PT_END(&task->pt);
 }
 
+/* Its own deallocator: task_free's NULL-vtable fallback is a plain free(),
+ * and this shell comes from PROCESS. */
+static void
+Task_PrefsLoad_Free(struct ToriRS_Task* task_base)
+{
+    ToriMem_Free(ToriMem_Process(), task_base);
+}
+
 static struct ToriRS_TaskVTable Task_PrefsLoad_VTable = {
     .run = Task_PrefsLoad_Run,
-    .free = NULL,
+    .free = Task_PrefsLoad_Free,
 };
 
 struct ToriRS_Task*
@@ -78,7 +87,7 @@ CreateTask_PrefsLoad(
     assert(prefs);
     assert(path && *path);
 
-    task = calloc(1, sizeof(*task));
+    task = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_PrefsLoad_VTable;
     strcpy(task->task.name, "PrefsLoad");
@@ -131,8 +140,8 @@ Task_PrefsSave_Free(struct ToriRS_Task* task_base)
 {
     struct Task_PrefsSave* task = (struct Task_PrefsSave*)task_base;
 
-    free(task->data);
-    free(task);
+    ToriMem_Free(ToriMem_Process(), task->data);
+    ToriMem_Free(ToriMem_Process(), task);
 }
 
 static struct ToriRS_TaskVTable Task_PrefsSave_VTable = {
@@ -150,7 +159,7 @@ CreateTask_PrefsSave(
     assert(prefs);
     assert(path && *path);
 
-    task = calloc(1, sizeof(*task));
+    task = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_PrefsSave_VTable;
     strcpy(task->task.name, "PrefsSave");

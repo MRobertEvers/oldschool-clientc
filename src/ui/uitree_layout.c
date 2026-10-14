@@ -1,4 +1,5 @@
 #include "uitree_layout.h"
+#include "mem/torirs_mem.h"
 
 #include "log/torirs_log.h"
 #include "perf/torirs_perf.h"
@@ -197,7 +198,7 @@ UITree_LayoutInvalidateNode(struct UITree* tree, int32_t idx)
             tree->layout_dirty_overflow = 1;
             return;
         }
-        grown = realloc(tree->layout_dirty, (size_t)cap * sizeof(*grown));
+        grown = ToriMem_Realloc(ToriMem_Ui(), tree->layout_dirty, (size_t)cap * sizeof(*grown));
         assert(grown);
         tree->layout_dirty = grown;
         tree->layout_dirty_cap = cap;
@@ -686,7 +687,7 @@ layout_resolve_dirty(
         if( tree->layout_dirty_cap < need )
         {
             int32_t* grown =
-                realloc(tree->layout_dirty, (size_t)need * sizeof(*grown));
+                ToriMem_Realloc(ToriMem_Ui(), tree->layout_dirty, (size_t)need * sizeof(*grown));
             assert(grown);
             tree->layout_dirty = grown;
             tree->layout_dirty_cap = need;
@@ -815,17 +816,12 @@ UITree_LayoutResolve(
         uint32_t cap = tree->layout_cap ? tree->layout_cap : 16;
         while( cap < n )
             cap <<= 1;
-        int* new_order = realloc(tree->layout_order, (size_t)cap * sizeof(int));
-        int* new_depth = realloc(tree->layout_depth, (size_t)cap * sizeof(int));
-        uint8_t* new_changed = realloc(tree->layout_changed, (size_t)cap);
-        assert(new_order);
+        int* new_order = ToriMem_Realloc(ToriMem_Ui(), tree->layout_order, (size_t)cap * sizeof(int));
+        int* new_depth = ToriMem_Realloc(ToriMem_Ui(), tree->layout_depth, (size_t)cap * sizeof(int));
+        uint8_t* new_changed = ToriMem_Realloc(ToriMem_Ui(), tree->layout_changed, (size_t)cap);
         tree->layout_order = new_order;
-        if( new_depth )
-            tree->layout_depth = new_depth;
-        if( new_changed )
-            tree->layout_changed = new_changed;
-        if( !new_order || !new_depth || !new_changed )
-            return; /* out of memory: skip this frame rather than crash */
+        tree->layout_depth = new_depth;
+        tree->layout_changed = new_changed;
         tree->layout_cap = cap;
         tree->layout_order_valid = 0;
     }
@@ -893,7 +889,8 @@ UITree_LayoutResolve(
             }
         }
 
-        int* counts = calloc((size_t)max_depth + 1, sizeof(int));
+        /* Per-recompute scratch on the frame thread. */
+        int* counts = ToriMem_Calloc(ToriMem_Frame(), (size_t)max_depth + 1, sizeof(int));
         assert(counts);
         for( uint32_t i = 0; i < n; i++ )
             if( depth[i] >= 0 )
@@ -908,7 +905,7 @@ UITree_LayoutResolve(
         for( uint32_t i = 0; i < n; i++ )
             if( depth[i] >= 0 )
                 order[counts[depth[i]]++] = (int)i;
-        free(counts);
+        ToriMem_Free(ToriMem_Frame(), counts);
 
         tree->layout_order_count = (uint32_t)total;
         tree->layout_order_gen = tree->generation;

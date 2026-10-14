@@ -11,6 +11,7 @@
  */
 
 #include "ui/torirs_chrome_inkwell.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -194,6 +195,14 @@ ink_draw_frame(uint32_t* out, int style, int colour, int frame)
 }
 
 void
+ToriRSInkwell_Shutdown(void)
+{
+    ToriMem_Free(ToriMem_Ui(), s_atlas);
+    s_atlas = NULL;
+    s_size = 0;
+}
+
+void
 ToriRSInkwell_SetDensity(int density)
 {
     int size;
@@ -205,8 +214,8 @@ ToriRSInkwell_SetDensity(int density)
     if( s_atlas && size == s_size )
         return; /* the common call: every frame, same display, nothing to do */
 
-    free(s_atlas);
-    s_atlas = malloc(
+    ToriMem_Free(ToriMem_Ui(), s_atlas);
+    s_atlas = ToriMem_Alloc(ToriMem_Ui(), 
         (size_t)TORIRS_INKWELL_ATLAS_COUNT * (size_t)size * (size_t)size * sizeof(*s_atlas));
     assert(s_atlas);
     s_size = size;

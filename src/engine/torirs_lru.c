@@ -1,4 +1,5 @@
 #include "engine/torirs_lru.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -21,9 +22,7 @@ torirs_lru_grow(struct TorirsLru* lru)
 {
     uint32_t new_cap = lru->cap ? lru->cap * 2u : 16u;
     struct TorirsLruNode** slots =
-        (struct TorirsLruNode**)calloc(new_cap, sizeof(*slots));
-    if( !slots )
-        return false;
+        (struct TorirsLruNode**)ToriMem_Calloc(ToriMem_Assets(), new_cap, sizeof(*slots));
 
     for( uint32_t i = 0; i < lru->cap; i++ )
     {
@@ -36,7 +35,7 @@ torirs_lru_grow(struct TorirsLru* lru)
         slots[h] = n;
         n->map_slot = (int32_t)h;
     }
-    free(lru->slots);
+    ToriMem_Free(ToriMem_Assets(), lru->slots);
     lru->slots = slots;
     lru->cap = new_cap;
     return true;
@@ -53,7 +52,7 @@ TorirsLru_Init(struct TorirsLru* lru, uint32_t initial_cap, uint32_t max_entries
     uint32_t cap = 16;
     while( cap < initial_cap )
         cap <<= 1;
-    lru->slots = (struct TorirsLruNode**)calloc(cap, sizeof(*lru->slots));
+    lru->slots = (struct TorirsLruNode**)ToriMem_Calloc(ToriMem_Assets(), cap, sizeof(*lru->slots));
     assert(lru->slots);
     lru->cap = cap;
     lru->max_entries = max_entries;
@@ -65,7 +64,7 @@ TorirsLru_Free(struct TorirsLru* lru)
 {
     if( !lru )
         return;
-    free(lru->slots);
+    ToriMem_Free(ToriMem_Assets(), lru->slots);
     memset(lru, 0, sizeof(*lru));
 }
 

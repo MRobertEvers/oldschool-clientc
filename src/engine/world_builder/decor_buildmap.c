@@ -1,4 +1,5 @@
 #include "decor_buildmap.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -23,11 +24,12 @@ decor_buildmap_new(
     int size_z,
     int levels)
 {
-    struct DecorBuildMap* build_map = malloc(sizeof(struct DecorBuildMap));
+    struct DecorBuildMap* build_map = ToriMem_Alloc(ToriMem_Scene(), sizeof(struct DecorBuildMap));
     memset(build_map, 0, sizeof(struct DecorBuildMap));
-    build_map->elements = malloc(sizeof(struct DecorElementsOnWall) * size_x * size_z * levels);
+    build_map->elements = ToriMem_Alloc(
+        ToriMem_Scene(), sizeof(struct DecorElementsOnWall) * size_x * size_z * levels);
     memset(build_map->elements, 0, sizeof(struct DecorElementsOnWall) * size_x * size_z * levels);
-    build_map->offsets = malloc(sizeof(int16_t) * size_x * size_z * levels);
+    build_map->offsets = ToriMem_Alloc(ToriMem_Scene(), sizeof(int16_t) * size_x * size_z * levels);
     memset(build_map->offsets, 0, sizeof(int16_t) * size_x * size_z * levels);
     build_map->size_x = size_x;
     build_map->size_z = size_z;
@@ -40,9 +42,9 @@ decor_buildmap_free(struct DecorBuildMap* build_map)
 {
     if( !build_map )
         return;
-    free(build_map->elements);
-    free(build_map->offsets);
-    free(build_map);
+    ToriMem_Free(ToriMem_Scene(), build_map->elements);
+    ToriMem_Free(ToriMem_Scene(), build_map->offsets);
+    ToriMem_Free(ToriMem_Scene(), build_map);
 }
 
 int

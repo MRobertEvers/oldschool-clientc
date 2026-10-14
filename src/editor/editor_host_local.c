@@ -7,6 +7,7 @@
  */
 
 #include "editor_host.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <dirent.h>
@@ -83,12 +84,11 @@ read_whole_file(
     }
     rewind(file);
 
-    data = malloc((size_t)size + 1);
-    assert(data);
+    data = ToriMem_Alloc(ToriMem_Editor(), (size_t)size + 1);
 
     if( size > 0 && fread(data, 1, (size_t)size, file) != (size_t)size )
     {
-        free(data);
+        ToriMem_Free(ToriMem_Editor(), data);
         fclose(file);
         return EDITOR_HOST_IO_ERROR;
     }
@@ -368,7 +368,7 @@ local_free(void* user_data)
      * later one out of a tree nobody is editing. */
     if( host->lock_path[0] != '\0' )
         remove(host->lock_path);
-    free(host);
+    ToriMem_Free(ToriMem_Editor(), host);
 }
 
 static enum EditorHost_Status
@@ -436,9 +436,7 @@ Editor_HostOpenLocal(
     assert(host);
     assert(content_dir);
 
-    local = malloc(sizeof(*local));
-    assert(local);
-    memset(local, 0, sizeof(*local));
+    local = ToriMem_Calloc(ToriMem_Editor(), 1, sizeof(*local));
 
     snprintf(local->content_dir, sizeof(local->content_dir), "%s", content_dir);
     if( repo_root )

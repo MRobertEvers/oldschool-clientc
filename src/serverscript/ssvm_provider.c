@@ -2,6 +2,7 @@
 #include <assert.h>
 
 #include "ss_meta.h"
+#include "mem/torirs_mem.h"
 
 #include <rsareabuf.h>
 
@@ -96,11 +97,10 @@ read_whole_file(const char* path, size_t* out_length)
     }
     rewind(f);
 
-    data = (uint8_t*)malloc((size_t)size + 1);
-    assert(data);
+    data = (uint8_t*)ToriMem_Alloc(ToriMem_ServerScripts(), (size_t)size + 1);
     if( size > 0 && fread(data, 1, (size_t)size, f) != (size_t)size )
     {
-        free(data);
+        ToriMem_Free(ToriMem_ServerScripts(), data);
         fclose(f);
         return NULL;
     }
@@ -114,20 +114,18 @@ read_whole_file(const char* path, size_t* out_length)
 /* Load                                                                */
 /* ------------------------------------------------------------------ */
 
-static int
-build_indices(struct SSVM_Provider* provider, struct SSVM_Error* err)
+static void
+build_indices(struct SSVM_Provider* provider)
 {
     int32_t i;
 
     if( provider->loaded == 0 )
-        return 1;
+        return;
 
-    provider->by_name =
-        (struct SSVM_NameEntry*)calloc((size_t)provider->loaded, sizeof(*provider->by_name));
-    provider->by_key =
-        (struct SSVM_KeyEntry*)calloc((size_t)provider->loaded, sizeof(*provider->by_key));
-    if( !provider->by_name || !provider->by_key )
-        return SSVM_ErrorSet(err, -1, -1, "out of memory building script indices");
+    provider->by_name = (struct SSVM_NameEntry*)ToriMem_Calloc(
+        ToriMem_ServerScripts(), (size_t)provider->loaded, sizeof(*provider->by_name));
+    provider->by_key = (struct SSVM_KeyEntry*)ToriMem_Calloc(
+        ToriMem_ServerScripts(), (size_t)provider->loaded, sizeof(*provider->by_key));
 
     for( i = 0; i < provider->count; i++ )
     {
@@ -177,7 +175,6 @@ build_indices(struct SSVM_Provider* provider, struct SSVM_Error* err)
         if( provider->by_key[i].key == provider->by_key[i - 1].key )
             provider->duplicate_keys++;
     }
-    return 1;
 }
 
 int
@@ -236,10 +233,8 @@ SSVM_ProviderLoadMem(
     provider->count = dat_entries;
     if( dat_entries > 0 )
     {
-        provider->scripts =
-            (struct SSVM_Script*)calloc((size_t)dat_entries, sizeof(struct SSVM_Script));
-        if( !provider->scripts )
-            return SSVM_ErrorSet(err, -1, -1, "out of memory for %d scripts", dat_entries);
+        provider->scripts = (struct SSVM_Script*)ToriMem_Calloc(
+            ToriMem_ServerScripts(), (size_t)dat_entries, sizeof(struct SSVM_Script));
     }
 
     offset = dat_buf.pos;
@@ -284,11 +279,7 @@ SSVM_ProviderLoadMem(
             offset, dat_length);
     }
 
-    if( !build_indices(provider, err) )
-    {
-        SSVM_ProviderFree(provider);
-        return 0;
-    }
+    build_indices(provider);
     return 1;
 }
 
@@ -322,14 +313,14 @@ SSVM_ProviderLoadDir(
     idx = read_whole_file(idx_path, &idx_length);
     if( !idx )
     {
-        free(dat);
+        ToriMem_Free(ToriMem_ServerScripts(), dat);
         return SSVM_ErrorSet(err, -1, -1, "cannot read %s", idx_path);
     }
 
     ok = SSVM_ProviderLoadMem(provider, dat, dat_length, idx, idx_length, err);
 
-    free(dat);
-    free(idx);
+    ToriMem_Free(ToriMem_ServerScripts(), dat);
+    ToriMem_Free(ToriMem_ServerScripts(), idx);
     return ok;
 }
 
@@ -346,9 +337,9 @@ SSVM_ProviderFree(struct SSVM_Provider* provider)
         for( i = 0; i < provider->count; i++ )
             SSVM_ScriptFree(&provider->scripts[i]);
     }
-    free(provider->scripts);
-    free(provider->by_name);
-    free(provider->by_key);
+    ToriMem_Free(ToriMem_ServerScripts(), provider->scripts);
+    ToriMem_Free(ToriMem_ServerScripts(), provider->by_name);
+    ToriMem_Free(ToriMem_ServerScripts(), provider->by_key);
     memset(provider, 0, sizeof(*provider));
 }
 

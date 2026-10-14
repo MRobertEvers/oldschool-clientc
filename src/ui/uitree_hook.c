@@ -1,4 +1,5 @@
 #include "ui/uitree_hook.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -104,12 +105,12 @@ void
 UITree_HookClear(struct UITreeRuntimeScriptHook* hook)
 {
     assert(hook);
-    free(hook->argv);
+    ToriMem_Free(ToriMem_Ui(), hook->argv);
     if( hook->strv )
     {
         for( int i = 0; i < hook->str_argc; i++ )
-            free(hook->strv[i]);
-        free(hook->strv);
+            ToriMem_Free(ToriMem_Ui(), hook->strv[i]);
+        ToriMem_Free(ToriMem_Ui(), hook->strv);
     }
     memset(hook, 0, sizeof(*hook));
 }
@@ -139,7 +140,7 @@ hook_strdup(char const* s)
     if( !s )
         s = "";
     len = strlen(s);
-    out = (char*)malloc(len + 1);
+    out = (char*)ToriMem_Alloc(ToriMem_Ui(), len + 1);
     assert(out);
     memcpy(out, s, len);
     out[len] = '\0';
@@ -205,7 +206,7 @@ UITree_HookSet(
 
     if( argc > 0 )
     {
-        hook->argv = (int*)malloc((size_t)argc * sizeof(int));
+        hook->argv = (int*)ToriMem_Alloc(ToriMem_Ui(), (size_t)argc * sizeof(int));
         assert(hook->argv);
         memcpy(hook->argv, argv, (size_t)argc * sizeof(int));
         hook->argc = argc;
@@ -213,17 +214,14 @@ UITree_HookSet(
 
     if( str_argc > 0 )
     {
-        hook->strv = (char**)calloc((size_t)str_argc, sizeof(char*));
+        hook->strv = (char**)ToriMem_Calloc(ToriMem_Ui(), (size_t)str_argc, sizeof(char*));
         assert(hook->strv);
-        /* str_argc is raised as each string lands, so a mid-way OOM leaves a
-         * slot whose count matches what was actually allocated — the free
-         * path walks that count and must not run past it. */
+        /* str_argc is raised as each string lands, so the count always
+         * matches what was actually allocated — the free path walks that
+         * count and must not run past it. */
         for( int i = 0; i < str_argc; i++ )
         {
-            char* copy = hook_strdup(strv[i]);
-            if( !copy )
-                break;
-            hook->strv[i] = copy;
+            hook->strv[i] = hook_strdup(strv[i]);
             hook->str_argc = i + 1;
         }
     }
@@ -325,7 +323,7 @@ UITree_HookCopy(
 struct UITreeRuntimeHooks*
 UITree_HooksBlockNew(void)
 {
-    return (struct UITreeRuntimeHooks*)calloc(1, sizeof(struct UITreeRuntimeHooks));
+    return (struct UITreeRuntimeHooks*)ToriMem_Calloc(ToriMem_Ui(), 1, sizeof(struct UITreeRuntimeHooks));
 }
 
 void
@@ -335,7 +333,7 @@ UITree_HooksBlockFree(struct UITreeRuntimeHooks* hooks)
         return;
     for( int i = 0; i < UITREE_HOOK_SLOT_COUNT; i++ )
         UITree_HookClear(UITree_HooksSlotAt(hooks, i));
-    free(hooks);
+    ToriMem_Free(ToriMem_Ui(), hooks);
 }
 
 void

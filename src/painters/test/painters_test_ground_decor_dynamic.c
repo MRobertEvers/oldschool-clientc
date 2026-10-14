@@ -78,8 +78,7 @@ make_buffer(void)
 static void
 free_buffer(struct PaintersBuffer* buf)
 {
-    free(buf->commands);
-    free(buf);
+    painter_buffer_free(buf);
 }
 
 /* Count entity commands naming `entity`, and where the first landed. */

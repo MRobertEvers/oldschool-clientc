@@ -1,4 +1,5 @@
 #include "dat2_group_cache.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <stdint.h>
@@ -44,7 +45,7 @@ struct Dat2GroupCache
 struct Dat2GroupCache*
 Dat2GroupCache_New(size_t budget_bytes)
 {
-    struct Dat2GroupCache* cache = calloc(1, sizeof(*cache));
+    struct Dat2GroupCache* cache = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*cache));
     assert(cache);
     cache->budget = budget_bytes;
     return cache;
@@ -56,7 +57,7 @@ dat2_group_cache_release(struct Dat2GroupCacheSlot* slot, size_t* bytes)
     if( !slot->occupied )
         return;
     RSCache_FileListFreeShared(slot->group.filelist, slot->group.blob);
-    free(slot->group.file_ids);
+    ToriMem_Free(ToriMem_Assets(), slot->group.file_ids);
     assert(*bytes >= slot->group.bytes);
     *bytes -= slot->group.bytes;
     memset(slot, 0, sizeof(*slot));
@@ -103,7 +104,7 @@ Dat2GroupCache_Free(struct Dat2GroupCache* cache)
     if( getenv("DAT2_GROUP_CACHE_CENSUS") )
         dat2_group_cache_census(cache);
     Dat2GroupCache_Clear(cache);
-    free(cache);
+    ToriMem_Free(ToriMem_Assets(), cache);
 }
 
 void
@@ -238,7 +239,7 @@ Dat2GroupCache_Put(
 
     if( archive->file_ids && archive->file_count > 0 )
     {
-        file_ids = malloc((size_t)archive->file_count * sizeof(*file_ids));
+        file_ids = ToriMem_Alloc(ToriMem_Assets(), (size_t)archive->file_count * sizeof(*file_ids));
         assert(file_ids);
         memcpy(
             file_ids,
@@ -260,7 +261,7 @@ Dat2GroupCache_Put(
     if( !slot )
     {
         RSCache_FileListFreeShared(filelist, blob);
-        free(file_ids);
+        ToriMem_Free(ToriMem_Assets(), file_ids);
         return NULL;
     }
 

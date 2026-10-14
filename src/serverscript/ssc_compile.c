@@ -21,6 +21,7 @@
 #include "ssc_hash.h"
 #include <assert.h>
 
+#include "mem/torirs_mem.h"
 #include "ss_meta.h"
 #include "ssc_command_kinds.gen.h"
 #include "ssc_lex.h"
@@ -323,13 +324,26 @@ emit(struct SSC_Compiler* compiler, int opcode, int32_t operand)
     return index;
 }
 
+/** Free the string operands the build still owns: a body that failed to
+ *  compile or was discarded. finish_script takes the ones it keeps. */
+static void
+build_release_strings(struct SSC_Compiler* compiler)
+{
+    for( int i = 0; i < compiler->build.op_count; i++ )
+    {
+        ToriMem_Free(ToriMem_Compiler(), compiler->build.string_operands[i]);
+        compiler->build.string_operands[i] = NULL;
+    }
+}
+
 static int
 emit_string(struct SSC_Compiler* compiler, const char* text)
 {
     int index = emit(compiler, SS_OP_PUSH_CONSTANT_STRING, 0);
 
     if( index >= 0 )
-        compiler->build.string_operands[index] = strdup(text ? text : "");
+        compiler->build.string_operands[index] =
+            ToriMem_Strdup(ToriMem_Compiler(), text ? text : "");
     return index;
 }
 
@@ -539,10 +553,9 @@ shadow_add(struct SSC_Compiler* compiler, const char* name)
     if( compiler->shadowed_count == compiler->shadowed_capacity )
     {
         int capacity = compiler->shadowed_capacity ? compiler->shadowed_capacity * 2 : 32;
-        char (*grown)[SSC_MAX_NAME] =
-            (char(*)[SSC_MAX_NAME])realloc(compiler->shadowed, (size_t)capacity * SSC_MAX_NAME);
+        char (*grown)[SSC_MAX_NAME] = (char (*)[SSC_MAX_NAME])ToriMem_Realloc(
+            ToriMem_Compiler(), compiler->shadowed, (size_t)capacity * SSC_MAX_NAME);
 
-        assert(grown);
         compiler->shadowed = grown;
         compiler->shadowed_capacity = capacity;
     }
@@ -3335,45 +3348,33 @@ parse_header_lists(struct SSC_Compiler* compiler)
 struct SSC_Compiler*
 SSC_New(struct SSC_Symbols* symbols)
 {
-    struct SSC_Compiler* compiler = (struct SSC_Compiler*)calloc(1, sizeof(*compiler));
+    struct SSC_Compiler* compiler =
+        (struct SSC_Compiler*)ToriMem_Calloc(ToriMem_Compiler(), 1, sizeof(*compiler));
 
-    assert(compiler);
     compiler->symbols = symbols;
-    compiler->scripts =
-        (struct SSVM_Script*)calloc(SSC_MAX_SCRIPTS, sizeof(struct SSVM_Script));
-    compiler->names = (char(*)[SSC_MAX_NAME])calloc(SSC_MAX_SCRIPTS, SSC_MAX_NAME);
-    compiler->name_int_args = (int8_t*)malloc(SSC_MAX_SCRIPTS);
-    compiler->name_str_args = (int8_t*)malloc(SSC_MAX_SCRIPTS);
-    compiler->name_str_return = (int8_t*)malloc(SSC_MAX_SCRIPTS);
-    compiler->name_int_returns = (int8_t*)malloc(SSC_MAX_SCRIPTS);
-    compiler->name_str_returns = (int8_t*)malloc(SSC_MAX_SCRIPTS);
+    compiler->scripts = (struct SSVM_Script*)ToriMem_Calloc(
+        ToriMem_Compiler(), SSC_MAX_SCRIPTS, sizeof(struct SSVM_Script));
+    compiler->names =
+        (char (*)[SSC_MAX_NAME])ToriMem_Calloc(ToriMem_Compiler(), SSC_MAX_SCRIPTS, SSC_MAX_NAME);
+    compiler->name_int_args = (int8_t*)ToriMem_Alloc(ToriMem_Compiler(), SSC_MAX_SCRIPTS);
+    compiler->name_str_args = (int8_t*)ToriMem_Alloc(ToriMem_Compiler(), SSC_MAX_SCRIPTS);
+    compiler->name_str_return = (int8_t*)ToriMem_Alloc(ToriMem_Compiler(), SSC_MAX_SCRIPTS);
+    compiler->name_int_returns = (int8_t*)ToriMem_Alloc(ToriMem_Compiler(), SSC_MAX_SCRIPTS);
+    compiler->name_str_returns = (int8_t*)ToriMem_Alloc(ToriMem_Compiler(), SSC_MAX_SCRIPTS);
     /* Zeroed, i.e. SSC_SYM_UNKNOWN: a script whose header the declare pass
      * never sees hints nothing, which is how every call site behaved before. */
-    compiler->name_param_kinds = (uint8_t(*)[SS_MAX_PARAM_TYPES])calloc(
-        SSC_MAX_SCRIPTS, SS_MAX_PARAM_TYPES);
+    compiler->name_param_kinds = (uint8_t (*)[SS_MAX_PARAM_TYPES])ToriMem_Calloc(
+        ToriMem_Compiler(), SSC_MAX_SCRIPTS, SS_MAX_PARAM_TYPES);
     compiler->name_capacity = SSC_MAX_SCRIPTS;
-    compiler->name_strong = (uint8_t*)calloc(SSC_MAX_SCRIPTS, 1);
-    assert(compiler->name_strong);
-    compiler->name_slots = (int32_t*)malloc(SSC_NAME_SLOTS * sizeof(int32_t));
-    assert(compiler->name_slots);
+    compiler->name_strong = (uint8_t*)ToriMem_Calloc(ToriMem_Compiler(), SSC_MAX_SCRIPTS, 1);
+    compiler->name_slots =
+        (int32_t*)ToriMem_Alloc(ToriMem_Compiler(), SSC_NAME_SLOTS * sizeof(int32_t));
     memset(compiler->name_slots, -1, SSC_NAME_SLOTS * sizeof(int32_t));
-    if( compiler->name_int_args && compiler->name_str_args && compiler->name_str_return &&
-        compiler->name_int_returns && compiler->name_str_returns )
-    {
-        memset(compiler->name_int_args, -1, SSC_MAX_SCRIPTS);
-        memset(compiler->name_str_args, -1, SSC_MAX_SCRIPTS);
-        memset(compiler->name_str_return, -1, SSC_MAX_SCRIPTS);
-        memset(compiler->name_int_returns, -1, SSC_MAX_SCRIPTS);
-        memset(compiler->name_str_returns, -1, SSC_MAX_SCRIPTS);
-    }
-    if( !compiler->scripts || !compiler->names || !compiler->name_int_args ||
-        !compiler->name_str_args || !compiler->name_str_return ||
-        !compiler->name_int_returns || !compiler->name_str_returns ||
-        !compiler->name_param_kinds )
-    {
-        SSC_Free(compiler);
-        return NULL;
-    }
+    memset(compiler->name_int_args, -1, SSC_MAX_SCRIPTS);
+    memset(compiler->name_str_args, -1, SSC_MAX_SCRIPTS);
+    memset(compiler->name_str_return, -1, SSC_MAX_SCRIPTS);
+    memset(compiler->name_int_returns, -1, SSC_MAX_SCRIPTS);
+    memset(compiler->name_str_returns, -1, SSC_MAX_SCRIPTS);
     return compiler;
 }
 
@@ -3385,19 +3386,19 @@ SSC_Free(struct SSC_Compiler* compiler)
     if( !compiler )
         return;
     for( i = 0; i < compiler->script_count; i++ )
-        SSVM_ScriptFree(&compiler->scripts[i]);
-    free(compiler->scripts);
-    free(compiler->names);
-    free(compiler->name_slots);
-    free(compiler->name_strong);
-    free(compiler->name_int_args);
-    free(compiler->name_str_args);
-    free(compiler->name_str_return);
-    free(compiler->name_int_returns);
-    free(compiler->name_str_returns);
-    free(compiler->name_param_kinds);
-    free(compiler->shadowed);
-    free(compiler);
+        SSVM_ScriptFreeIn(ToriMem_Compiler(), &compiler->scripts[i]);
+    ToriMem_Free(ToriMem_Compiler(), compiler->scripts);
+    ToriMem_Free(ToriMem_Compiler(), compiler->names);
+    ToriMem_Free(ToriMem_Compiler(), compiler->name_slots);
+    ToriMem_Free(ToriMem_Compiler(), compiler->name_strong);
+    ToriMem_Free(ToriMem_Compiler(), compiler->name_int_args);
+    ToriMem_Free(ToriMem_Compiler(), compiler->name_str_args);
+    ToriMem_Free(ToriMem_Compiler(), compiler->name_str_return);
+    ToriMem_Free(ToriMem_Compiler(), compiler->name_int_returns);
+    ToriMem_Free(ToriMem_Compiler(), compiler->name_str_returns);
+    ToriMem_Free(ToriMem_Compiler(), compiler->name_param_kinds);
+    ToriMem_Free(ToriMem_Compiler(), compiler->shadowed);
+    ToriMem_Free(ToriMem_Compiler(), compiler);
 }
 
 int
@@ -3448,11 +3449,10 @@ read_file(const char* path, size_t* out_length)
         return NULL;
     }
 
-    data = (char*)malloc((size_t)size + 1);
-    assert(data);
+    data = (char*)ToriMem_Alloc(ToriMem_Compiler(), (size_t)size + 1);
     if( size > 0 && fread(data, 1, (size_t)size, file) != (size_t)size )
     {
-        free(data);
+        ToriMem_Free(ToriMem_Compiler(), data);
         fclose(file);
         return NULL;
     }
@@ -3531,8 +3531,8 @@ SSC_ScanDeclarations(
             if( count == capacity )
             {
                 capacity = capacity ? capacity * 2 : 16;
-                decls = (struct SSC_Decl*)realloc(decls, (size_t)capacity * sizeof(*decls));
-                assert(decls);
+                decls = (struct SSC_Decl*)ToriMem_Realloc(
+                    ToriMem_Compiler(), decls, (size_t)capacity * sizeof(*decls));
             }
             decl = &decls[count++];
             memset(decl, 0, sizeof(*decl));
@@ -3645,7 +3645,7 @@ SSC_ScanDeclarations(
         SSC_LexNext(&lexer);
     }
 
-    free(source);
+    ToriMem_Free(ToriMem_Compiler(), source);
     *out_decls = decls;
     *out_count = count;
     return 1;
@@ -3815,7 +3815,7 @@ SSC_Declare(
         else if( prepared > 0 )
             ok = SSC_DeclareAt(compiler, &decls[i], compiler->name_count, compiler->weak_source);
     }
-    free(decls);
+    ToriMem_Free(ToriMem_Compiler(), decls);
     return ok;
 }
 
@@ -3883,11 +3883,11 @@ finish_script(struct SSC_Compiler* compiler)
         return fail(compiler, "too many scripts");
 
     script = &compiler->scripts[index];
-    SSVM_ScriptFree(script);
+    SSVM_ScriptFreeIn(ToriMem_Compiler(), script);
 
     script->id = index;
-    script->name = strdup(build->name);
-    script->source_path = strdup(compiler->source_path);
+    script->name = ToriMem_Strdup(ToriMem_Compiler(), build->name);
+    script->source_path = ToriMem_Strdup(ToriMem_Compiler(), compiler->source_path);
     script->lookup_key = build->lookup_key;
     script->int_local_count = (uint16_t)build->int_locals;
     script->string_local_count = (uint16_t)build->string_locals;
@@ -3898,27 +3898,34 @@ finish_script(struct SSC_Compiler* compiler)
         script->param_types[i] = build->param_types[i];
 
     script->op_count = build->op_count;
-    script->opcodes = (uint16_t*)calloc((size_t)build->op_count, sizeof(uint16_t));
-    script->int_operands = (int32_t*)calloc((size_t)build->op_count, sizeof(int32_t));
-    script->string_operands = (char**)calloc((size_t)build->op_count, sizeof(char*));
+    script->opcodes =
+        (uint16_t*)ToriMem_Calloc(ToriMem_Compiler(), (size_t)build->op_count, sizeof(uint16_t));
+    script->int_operands =
+        (int32_t*)ToriMem_Calloc(ToriMem_Compiler(), (size_t)build->op_count, sizeof(int32_t));
+    script->string_operands =
+        (char**)ToriMem_Calloc(ToriMem_Compiler(), (size_t)build->op_count, sizeof(char*));
     memcpy(script->opcodes, build->opcodes, (size_t)build->op_count * sizeof(uint16_t));
     memcpy(script->int_operands, build->int_operands,
            (size_t)build->op_count * sizeof(int32_t));
+    /* The script takes the build's strings; the build no longer owns them. */
     for( i = 0; i < build->op_count; i++ )
+    {
         script->string_operands[i] = build->string_operands[i];
+        build->string_operands[i] = NULL;
+    }
 
     script->switch_table_count = (uint8_t)build->table_count;
     if( build->table_count )
     {
-        script->switch_tables = (struct SSVM_SwitchTable*)calloc(
-            (size_t)build->table_count, sizeof(struct SSVM_SwitchTable));
+        script->switch_tables = (struct SSVM_SwitchTable*)ToriMem_Calloc(
+            ToriMem_Compiler(), (size_t)build->table_count, sizeof(struct SSVM_SwitchTable));
         for( i = 0; i < build->table_count; i++ )
         {
             uint16_t count = build->tables[i].case_count;
 
             script->switch_tables[i].case_count = count;
-            script->switch_tables[i].cases =
-                (struct SSVM_SwitchCase*)calloc(count ? count : 1, sizeof(struct SSVM_SwitchCase));
+            script->switch_tables[i].cases = (struct SSVM_SwitchCase*)ToriMem_Calloc(
+                ToriMem_Compiler(), count ? count : 1, sizeof(struct SSVM_SwitchCase));
             memcpy(script->switch_tables[i].cases, build->cases[i],
                    (size_t)count * sizeof(struct SSVM_SwitchCase));
         }
@@ -3927,8 +3934,10 @@ finish_script(struct SSC_Compiler* compiler)
     script->line_count = (uint16_t)build->line_count;
     if( build->line_count )
     {
-        script->line_pcs = (int32_t*)calloc((size_t)build->line_count, sizeof(int32_t));
-        script->line_numbers = (int32_t*)calloc((size_t)build->line_count, sizeof(int32_t));
+        script->line_pcs = (int32_t*)ToriMem_Calloc(
+            ToriMem_Compiler(), (size_t)build->line_count, sizeof(int32_t));
+        script->line_numbers = (int32_t*)ToriMem_Calloc(
+            ToriMem_Compiler(), (size_t)build->line_count, sizeof(int32_t));
         memcpy(script->line_pcs, build->line_pcs, (size_t)build->line_count * sizeof(int32_t));
         memcpy(script->line_numbers, build->line_numbers,
                (size_t)build->line_count * sizeof(int32_t));
@@ -3980,34 +3989,39 @@ alias_script(struct SSC_Compiler* compiler, int src_index, const char* name, int
 
     src = &compiler->scripts[src_index];
     dst = &compiler->scripts[index];
-    SSVM_ScriptFree(dst);
+    SSVM_ScriptFreeIn(ToriMem_Compiler(), dst);
 
     *dst = *src;
     dst->id = index;
-    dst->name = strdup(name);
-    dst->source_path = strdup(src->source_path ? src->source_path : "");
+    dst->name = ToriMem_Strdup(ToriMem_Compiler(), name);
+    dst->source_path = ToriMem_Strdup(ToriMem_Compiler(), src->source_path ? src->source_path : "");
     /* Its own trigger, not the body's — that is the whole point of the alias. */
     dst->lookup_key = lookup_key;
 
-    dst->opcodes = (uint16_t*)calloc((size_t)src->op_count, sizeof(uint16_t));
-    dst->int_operands = (int32_t*)calloc((size_t)src->op_count, sizeof(int32_t));
-    dst->string_operands = (char**)calloc((size_t)src->op_count, sizeof(char*));
+    dst->opcodes =
+        (uint16_t*)ToriMem_Calloc(ToriMem_Compiler(), (size_t)src->op_count, sizeof(uint16_t));
+    dst->int_operands =
+        (int32_t*)ToriMem_Calloc(ToriMem_Compiler(), (size_t)src->op_count, sizeof(int32_t));
+    dst->string_operands =
+        (char**)ToriMem_Calloc(ToriMem_Compiler(), (size_t)src->op_count, sizeof(char*));
     memcpy(dst->opcodes, src->opcodes, (size_t)src->op_count * sizeof(uint16_t));
     memcpy(dst->int_operands, src->int_operands, (size_t)src->op_count * sizeof(int32_t));
     for( i = 0; i < src->op_count; i++ )
-        dst->string_operands[i] = src->string_operands[i] ? strdup(src->string_operands[i]) : NULL;
+        dst->string_operands[i] = src->string_operands[i]
+                                      ? ToriMem_Strdup(ToriMem_Compiler(), src->string_operands[i])
+                                      : NULL;
 
     if( src->switch_table_count )
     {
-        dst->switch_tables = (struct SSVM_SwitchTable*)calloc(
-            (size_t)src->switch_table_count, sizeof(struct SSVM_SwitchTable));
+        dst->switch_tables = (struct SSVM_SwitchTable*)ToriMem_Calloc(
+            ToriMem_Compiler(), (size_t)src->switch_table_count, sizeof(struct SSVM_SwitchTable));
         for( i = 0; i < src->switch_table_count; i++ )
         {
             uint16_t count = src->switch_tables[i].case_count;
 
             dst->switch_tables[i].case_count = count;
-            dst->switch_tables[i].cases =
-                (struct SSVM_SwitchCase*)calloc(count ? count : 1, sizeof(struct SSVM_SwitchCase));
+            dst->switch_tables[i].cases = (struct SSVM_SwitchCase*)ToriMem_Calloc(
+                ToriMem_Compiler(), count ? count : 1, sizeof(struct SSVM_SwitchCase));
             memcpy(dst->switch_tables[i].cases, src->switch_tables[i].cases,
                    (size_t)count * sizeof(struct SSVM_SwitchCase));
         }
@@ -4019,8 +4033,10 @@ alias_script(struct SSC_Compiler* compiler, int src_index, const char* name, int
 
     if( src->line_count )
     {
-        dst->line_pcs = (int32_t*)calloc((size_t)src->line_count, sizeof(int32_t));
-        dst->line_numbers = (int32_t*)calloc((size_t)src->line_count, sizeof(int32_t));
+        dst->line_pcs =
+            (int32_t*)ToriMem_Calloc(ToriMem_Compiler(), (size_t)src->line_count, sizeof(int32_t));
+        dst->line_numbers =
+            (int32_t*)ToriMem_Calloc(ToriMem_Compiler(), (size_t)src->line_count, sizeof(int32_t));
         memcpy(dst->line_pcs, src->line_pcs, (size_t)src->line_count * sizeof(int32_t));
         memcpy(dst->line_numbers, src->line_numbers,
                (size_t)src->line_count * sizeof(int32_t));
@@ -4082,6 +4098,7 @@ SSC_CompileFile(
 
     while( compiler->lexer.current.kind != SSC_TOK_EOF && !compiler->failed )
     {
+        build_release_strings(compiler);
         memset(&compiler->build, 0, sizeof(compiler->build));
         compiler->build.last_line = -1;
 
@@ -4166,8 +4183,6 @@ SSC_CompileFile(
          */
         if( compiler->weak_source && is_shadowed(compiler, compiler->build.name) )
         {
-            int i;
-
             if( pending_count )
             {
                 fail(compiler,
@@ -4176,8 +4191,7 @@ SSC_CompileFile(
                      compiler->build.name, pending_count);
                 break;
             }
-            for( i = 0; i < compiler->build.op_count; i++ )
-                free(compiler->build.string_operands[i]);
+            build_release_strings(compiler);
             continue;
         }
 
@@ -4196,8 +4210,10 @@ SSC_CompileFile(
                 break;
         }
     }
+    /* A failed body ends the loop still owning what it emitted. */
+    build_release_strings(compiler);
 
-    free(source);
+    ToriMem_Free(ToriMem_Compiler(), source);
     return !compiler->failed;
 }
 
@@ -4276,13 +4292,13 @@ collect_sources(
         if( *out_count == *out_capacity )
         {
             int capacity = *out_capacity ? *out_capacity * 2 : 64;
-            char** grown = (char**)realloc(*out_paths, (size_t)capacity * sizeof(char*));
+            char** grown = (char**)ToriMem_Realloc(
+                ToriMem_Compiler(), *out_paths, (size_t)capacity * sizeof(char*));
 
-            assert(grown);
             *out_paths = grown;
             *out_capacity = capacity;
         }
-        (*out_paths)[(*out_count)++] = strdup(path);
+        (*out_paths)[(*out_count)++] = ToriMem_Strdup(ToriMem_Compiler(), path);
     }
     closedir(handle);
     return 1;
@@ -4381,11 +4397,11 @@ SSC_CompileRoots(
     compiler->weak_source = 0;
 
     for( i = 0; i < strong_count; i++ )
-        free(strong[i]);
-    free(strong);
+        ToriMem_Free(ToriMem_Compiler(), strong[i]);
+    ToriMem_Free(ToriMem_Compiler(), strong);
     for( i = 0; i < weak_count; i++ )
-        free(weak[i]);
-    free(weak);
+        ToriMem_Free(ToriMem_Compiler(), weak[i]);
+    ToriMem_Free(ToriMem_Compiler(), weak);
     return ok;
 }
 
@@ -4456,7 +4472,7 @@ SSC_RecompileFile(struct SSC_Compiler* compiler, const char* path, struct SSC_Di
         for( int i = 0; i < next->script_count; i++ )
         {
             if( !next->scripts[i].op_count ) continue;
-            SSVM_ScriptFree(&compiler->scripts[i]);
+            SSVM_ScriptFreeIn(ToriMem_Compiler(), &compiler->scripts[i]);
             compiler->scripts[i] = next->scripts[i];
             memset(&next->scripts[i], 0, sizeof(next->scripts[i]));
         }
@@ -4532,16 +4548,16 @@ SSC_Write(
 
         if( needed > capacity )
         {
-            free(buffer);
+            ToriMem_Free(ToriMem_Compiler(), buffer);
             capacity = needed * 2;
-            buffer = (uint8_t*)malloc(capacity);
+            buffer = (uint8_t*)ToriMem_Alloc(ToriMem_Compiler(), capacity);
         }
         if( !SSVM_ScriptEncode(&compiler->scripts[i], buffer, capacity, &needed, &err) )
         {
             if( diag )
                 snprintf(diag->message, sizeof(diag->message), "encoding script %d: %s", i,
                          err.message);
-            free(buffer);
+            ToriMem_Free(ToriMem_Compiler(), buffer);
             fclose(dat);
             fclose(idx);
             return 0;
@@ -4555,7 +4571,7 @@ SSC_Write(
         fwrite(buffer, 1, needed, dat);
     }
 
-    free(buffer);
+    ToriMem_Free(ToriMem_Compiler(), buffer);
     fclose(dat);
     fclose(idx);
     return 1;

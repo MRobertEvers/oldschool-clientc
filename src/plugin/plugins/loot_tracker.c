@@ -1,6 +1,7 @@
 #include "plugin/plugins/plugin_draw.h"
 #include "plugin/porcelain/torirs_porcelain.h"
 #include "plugin/torirs_plugin_api.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <stddef.h>
@@ -1924,13 +1925,12 @@ lt_draw_cell(
         return;
     }
     {
-        uint32_t* px = malloc((size_t)iw * (size_t)ih * sizeof(*px));
-        assert(px);
+        uint32_t* px = ToriMem_Alloc(ToriMem_Frame(), (size_t)iw * (size_t)ih * sizeof(*px));
         if( g_api->assets.image_pixels(
                 g_api, image, px, (size_t)iw * (size_t)ih, &copied) &&
             copied == (size_t)iw * (size_t)ih )
             PluginDraw_Blit(buf, w, h, x + 2, y + 2, px, iw, ih, 0, 0, iw, ih, 0);
-        free(px);
+        ToriMem_Free(ToriMem_Frame(), px);
     }
     g_api->assets.image_release(g_api, image);
 

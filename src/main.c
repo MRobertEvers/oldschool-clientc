@@ -151,11 +151,11 @@ harness_shot(
     char const* path)
 {
     struct App* app = (struct App*)user;
-    int* pixels = (int*)calloc((size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H, sizeof(int));
+    int* pixels = (int*)ToriMem_Calloc(ToriMem_Process(), (size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H, sizeof(int));
     assert(pixels);
     App_Render(app, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
     bmp_write_file(path, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-    free(pixels);
+    ToriMem_Free(ToriMem_Process(), pixels);
 }
 
 #define DEFAULT_REVCONFIG_UI "revconfig/rs245_2lc/rs245_2lc_dat1_ui.ini"
@@ -462,18 +462,20 @@ dump_roots(struct App* app)
 /* Headless sim frames must render like the real loop does: the world pickset
  * and hover tile refresh inside App_Render, so every RunOnce that reports a
  * redraw is followed by a render into a scratch canvas. */
+/* The SIM lane's canvas, kept across frames and released by main_shutdown. */
+static int* sim_pixels = NULL;
+static size_t sim_pixel_count = 0;
+
 static void
 sim_render_frame(struct App* app)
 {
-    static int* sim_pixels = NULL;
-    static size_t sim_pixel_count = 0;
     size_t const want = (size_t)UITREE_LAYOUT_ROOT_W * (size_t)UITREE_LAYOUT_ROOT_H;
 
     /* Reallocated on growth: the canvas is no longer fixed for the life of the
      * process, and App_Render writes exactly want ints. */
     if( !sim_pixels || sim_pixel_count < want )
     {
-        int* grown = realloc(sim_pixels, want * sizeof(int));
+        int* grown = ToriMem_Realloc(ToriMem_Process(), sim_pixels, want * sizeof(int));
         assert(grown);
         sim_pixels = grown;
         sim_pixel_count = want;
@@ -2677,7 +2679,7 @@ main_launch_tick(void)
                                        (int)strlen(g_launch_opened[i]), "local", &size);
         if( strncmp(answer, "ok\nstate=open", 13) != 0 )
             g_launch_opened[i][0] = '\0';
-        free(answer);
+        ToriMem_Free(ToriMem_Net(), answer); /* LaunchSessions_Answer\'s */
         /* Every fifth second the session's own `launch/status` answer goes to
          * the log: each seat's pid, alive, exit and the status its member
          * last posted over the link -- what a headless proof reads back. */
@@ -2688,7 +2690,7 @@ main_launch_tick(void)
             for( char* line = strtok(answer, "\n"); line; line = strtok(NULL, "\n") )
                 if( strncmp(line, "ok", 2) != 0 )
                     TORIRS_REPORT("launch: status: %.400s\n", line);
-            free(answer);
+            ToriMem_Free(ToriMem_Net(), answer); /* LaunchSessions_Answer\'s */
         }
     }
     (void)LaunchSessions_Reap(g_launch_sessions);
@@ -2749,7 +2751,15 @@ static void
 main_shutdown(struct App* a)
 {
     App_Shutdown(a);
+#if MAIN_LAUNCH_SERVICE
+    /* Before the exit walk: its atexit twin ran after ToriMem_Shutdown. */
+    main_launch_free();
+#endif
+    ToriRSInkwell_Shutdown();
     ToriDraw_NormalsPoolDrain();
+    ToriMem_Free(ToriMem_Process(), sim_pixels);
+    sim_pixels = NULL;
+    sim_pixel_count = 0;
     ToriMem_Shutdown();
 }
 
@@ -3072,7 +3082,7 @@ frame_loop_step(void)
             frame_count >= series_start &&
             (frame_count - series_start) % (series_step > 0 ? series_step : 1) == 0 )
         {
-            int* pixels = calloc((size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H, sizeof(int));
+            int* pixels = ToriMem_Calloc(ToriMem_Process(), (size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H, sizeof(int));
             assert(pixels);
             char path[600];
             if( getenv("TORIRS_ANIM_DEBUG") )
@@ -3098,7 +3108,7 @@ frame_loop_step(void)
                 bmp_write_file(path_b, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
             }
             g_torirs_painter_force = 0;
-            free(pixels);
+            ToriMem_Free(ToriMem_Process(), pixels);
             series_written++;
         }
     }
@@ -5784,7 +5794,7 @@ frame_loop_teardown(void)
                 }
             }
         }
-        int* pixels = calloc((size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H, sizeof(int));
+        int* pixels = ToriMem_Calloc(ToriMem_Process(), (size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H, sizeof(int));
         assert(pixels);
         App_Render(&app, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
         if( getenv("TORIRS_TRACE_NATIVE_UI") && app.tree )
@@ -5936,7 +5946,7 @@ frame_loop_teardown(void)
         bmp_write_file(
             getenv("TORIRS_EXIT_BMP"), pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
         TORIRS_LOG("wrote %s\n", getenv("TORIRS_EXIT_BMP"));
-        free(pixels);
+        ToriMem_Free(ToriMem_Process(), pixels);
     }
 
     if( replay )
@@ -5946,13 +5956,13 @@ frame_loop_teardown(void)
          * comparison against the recorded session. */
         if( getenv("TORIRS_REPLAY_BMP") )
         {
-            int* pixels = calloc((size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H, sizeof(int));
+            int* pixels = ToriMem_Calloc(ToriMem_Process(), (size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H, sizeof(int));
             assert(pixels);
             App_Render(&app, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
             bmp_write_file(
                 getenv("TORIRS_REPLAY_BMP"), pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
             TORIRS_LOG("wrote %s\n", getenv("TORIRS_REPLAY_BMP"));
-            free(pixels);
+            ToriMem_Free(ToriMem_Process(), pixels);
         }
     }
     CmdBus_RecordClose(&bus);
@@ -7878,7 +7888,7 @@ main(
             main_shutdown(&app);
             return 1;
         }
-        pixels = calloc((size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H, sizeof(int));
+        pixels = ToriMem_Calloc(ToriMem_Process(), (size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H, sizeof(int));
         assert(pixels);
         App_Render(&app, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
         if( getenv("TORIRS_PREVIEW_TREE") )
@@ -7893,13 +7903,13 @@ main(
                                      UITREE_LAYOUT_ROOT_H) != 0 )
             {
                 TORIRS_ERR("failed to write native preview tree %s\n", tree_path);
-                free(pixels);
+                ToriMem_Free(ToriMem_Process(), pixels);
                 main_shutdown(&app);
                 return 1;
             }
         }
         bmp_write_file(path, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-        free(pixels);
+        ToriMem_Free(ToriMem_Process(), pixels);
         probe = fopen(path, "rb");
         if( !probe )
         {
@@ -8061,7 +8071,7 @@ main(
      * headless end-to-end check of the world load + render pipeline. */
     if( getenv("TORIRS_WORLD_BMP") )
     {
-        int* pixels = calloc((size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H, sizeof(int));
+        int* pixels = ToriMem_Calloc(ToriMem_Process(), (size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H, sizeof(int));
         assert(pixels);
         /* TORIRS_TEX_AUDIT=1: after the boot settles, sweep every live scene
          * element for face texture ids the scene texture map still lacks — the
@@ -8128,7 +8138,7 @@ main(
         App_Render(&app, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
         bmp_write_file("build/world.bmp", pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
         TORIRS_LOG("wrote build/world.bmp (%d emit cmds)\n", app.emit.count);
-        free(pixels);
+        ToriMem_Free(ToriMem_Process(), pixels);
         main_shutdown(&app);
         return 0;
     }

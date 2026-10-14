@@ -7,6 +7,7 @@
  */
 
 #include "torirs_server_session.h"
+#include "mem/torirs_mem.h"
 
 #include "net/rev/osrs239/loginblock.h"
 
@@ -75,7 +76,7 @@ ToriRSServer_SessionFree(struct ToriRSServerSession* session)
     isaac_free(session->cipher_in);
     session->cipher_out = NULL;
     session->cipher_in = NULL;
-    free(session->held);
+    ToriMem_Free(ToriMem_ServerNet(), session->held);
     session->held = NULL;
     session->held_len = 0;
     session->held_cap = 0;
@@ -143,7 +144,7 @@ ToriRSServer_SessionSend(
             int cap = session->held_cap ? session->held_cap : 4096;
             while( cap < session->held_len + len )
                 cap *= 2;
-            session->held = realloc(session->held, (size_t)cap);
+            session->held = ToriMem_Realloc(ToriMem_ServerNet(), session->held, (size_t)cap);
             assert(session->held);
             session->held_cap = cap;
         }
@@ -332,6 +333,14 @@ js5_cache(void)
     return g_js5;
 }
 
+void
+ToriRSServer_SessionJs5Release(void)
+{
+    Js5ServerCacheFree(g_js5);
+    g_js5 = NULL;
+    g_js5_tried = 0;
+}
+
 /**
  * The JS5 handshake: p1 15, p4 revision, p4 seed x4 -> p1 status.
  *
@@ -440,7 +449,7 @@ step_js5_serve(struct ToriRSServerSession* session)
         if( result == JS5_SERVER_CACHE_OK &&
             ToriRSServer_SessionSend(session, out, (int)out_size) < 0 )
         {
-            free(out);
+            ToriMem_Free(ToriMem_ServerNet(), out);
             session->state = TORIRSSERVER_SESSION_DEAD;
             return 1;
         }
@@ -474,7 +483,7 @@ step_js5_serve(struct ToriRSServerSession* session)
                     fprintf(stderr, "torirsserver: JS5 has no %d/%d\n", archive, group);
             }
         }
-        free(out);
+        ToriMem_Free(ToriMem_ServerNet(), out);
     }
     return served;
 }

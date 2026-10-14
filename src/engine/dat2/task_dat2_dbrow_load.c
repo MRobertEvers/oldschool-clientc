@@ -1,4 +1,5 @@
 #include "engine/dat2/dat2_tasks.h"
+#include "mem/torirs_mem.h"
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
 #include "engine/dat2/dat2_group_await.h"
@@ -60,7 +61,7 @@ Task_Dat2DbRowLoad_Run(
         PT_EXIT(&task->pt);
     }
 
-    row = calloc(1, sizeof(*row));
+    row = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*row));
     assert(row);
     row->id = task->row_id;
     RSCache_Dat2ConfigDbRowDecodeInplace(
@@ -74,7 +75,7 @@ Task_Dat2DbRowLoad_Run(
 static void
 Task_Dat2DbRowLoad_Free(struct ToriRS_Task* task_base)
 {
-    free(task_base);
+    ToriMem_Free(ToriMem_Assets(), task_base);
 }
 
 static struct ToriRS_TaskVTable Task_Dat2DbRowLoad_VTable = {
@@ -96,7 +97,7 @@ CreateTask_Dat2DbRowLoad(
     if( row_id < 0 || CacheProvider_DbRowHas(provider, row_id) )
         return NULL;
 
-    task = calloc(1, sizeof(*task));
+    task = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_Dat2DbRowLoad_VTable;
     strcpy(task->task.name, "Dat2DbRowLoad");

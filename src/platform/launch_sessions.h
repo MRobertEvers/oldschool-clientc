@@ -140,7 +140,8 @@ char const* LaunchSessions_UnsupportedReason(void);
  * `body_size` bytes of `key=value` lines (not NUL-terminated; NULL when
  * body_size is 0); `peer` is "local" for the in-process plugin channel, or
  * the caller's numeric address (only loopback is served). Returns a malloc'd
- * NUL-terminated answer and its length in *out_size; the caller frees it.
+ * NUL-terminated answer and its length in *out_size; the caller frees it
+ * with free() (libc until its consumers -- main.c, the IO item -- convert).
  */
 char* LaunchSessions_Answer(
     struct LaunchSessions* table,

@@ -3,6 +3,7 @@
  * one case per rule of TOB2_DESIGN.md "PLAN" that the planner must get right
  * before any room trusts it. `make -C src test-action-plan`.
  */
+#include "mem/torirs_mem.h"
 #include "test_harness.h"
 
 #include "engine/world_builder/action_plan.h"
@@ -1345,7 +1346,7 @@ run_all(struct CollisionMap* cm)
 int
 main(void)
 {
-    struct CollisionMap* cm = collision_map_new(40, 40);
+    struct CollisionMap* cm = collision_map_new(ToriMem_Scene(), 40, 40);
     int pass;
     printf("== action_plan unit tests ==\n");
     run_all(cm);
@@ -1367,7 +1368,7 @@ main(void)
     action_plan_route_cache_enable(1);
     collision_map_free(cm);
     /* the same on a full 104 x 104 scene: a flood's cost scales with the map */
-    cm = collision_map_new(COLLISION_SIZE, COLLISION_SIZE);
+    cm = collision_map_new(ToriMem_Scene(), COLLISION_SIZE, COLLISION_SIZE);
     for( pass = 0; pass < 2; pass++ )
     {
         clock_t t0;

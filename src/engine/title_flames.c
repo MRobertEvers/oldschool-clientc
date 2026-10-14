@@ -1,6 +1,7 @@
 #include "engine/title_flames.h"
 
 #include "engine/torirs_types.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <math.h>
@@ -466,11 +467,9 @@ TitleFlames_Init(
     bytes = (size_t)width * height * sizeof(uint32_t);
     for( int side = 0; side < TORIRS_FLAME_SIDES; side++ )
     {
-        flames->background[side] = malloc(bytes);
-        assert(flames->background[side]);
+        flames->background[side] = ToriMem_Alloc(ToriMem_Render(), bytes);
         memcpy(flames->background[side], background[side], bytes);
-        flames->out[side] = malloc(bytes);
-        assert(flames->out[side]);
+        flames->out[side] = ToriMem_Alloc(ToriMem_Render(), bytes);
         memcpy(flames->out[side], background[side], bytes);
     }
 
@@ -486,8 +485,7 @@ TitleFlames_Init(
                 continue;
 
             cells = (size_t)frame->width * frame->height;
-            rune->mask = malloc(cells);
-            assert(rune->mask);
+            rune->mask = ToriMem_Alloc(ToriMem_Render(), cells);
             /* Coverage only: the glyph's colour never reaches the screen, its
              * SHAPE does -- as a hole in the cooling map. */
             for( size_t p = 0; p < cells; p++ )
@@ -537,11 +535,11 @@ TitleFlames_Free(struct TitleFlames* flames)
         return;
     for( int side = 0; side < TORIRS_FLAME_SIDES; side++ )
     {
-        free(flames->background[side]);
-        free(flames->out[side]);
+        ToriMem_Free(ToriMem_Render(), flames->background[side]);
+        ToriMem_Free(ToriMem_Render(), flames->out[side]);
     }
     for( int i = 0; i < flames->rune_count; i++ )
-        free(flames->runes[i].mask);
+        ToriMem_Free(ToriMem_Render(), flames->runes[i].mask);
     memset(flames, 0, sizeof(*flames));
 }
 

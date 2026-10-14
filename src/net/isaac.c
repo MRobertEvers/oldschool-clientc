@@ -189,7 +189,9 @@ isaac_new(
     int* seed,
     int seed_length)
 {
+    /* torimem-bare: 3rd/rsprot/makefile builds this file standalone into its own tests, with no ToriMem core to link */
     struct Isaac* isaac = malloc(sizeof(struct Isaac));
+    assert(isaac);
 
     isaac_seed(isaac, seed, seed_length);
 
@@ -215,7 +217,7 @@ isaac_seed(
 void
 isaac_free(struct Isaac* isaac)
 {
-    free(isaac);
+    free(isaac); /* torimem-bare: see isaac_new -- linked into 3rd/rsprot's own build */
 }
 
 int
@@ -249,6 +251,7 @@ isaac_get_state(
 struct Isaac*
 isaac_from_state(const void* buf)
 {
+    /* torimem-bare: see isaac_new -- linked into 3rd/rsprot's own build */
     struct Isaac* isaac = malloc(sizeof(struct Isaac));
     assert(isaac);
     memcpy(isaac, buf, sizeof(struct Isaac));

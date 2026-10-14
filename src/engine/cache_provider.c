@@ -289,7 +289,7 @@ cache_provider_hmap_new(
     size_t capacity)
 {
     size_t buffer_size = cache_provider_hmap_buffer_bytes(entry_size, capacity);
-    void* buffer = malloc(buffer_size);
+    void* buffer = ToriMem_Alloc(ToriMem_Assets(), buffer_size);
     assert(buffer);
 
     struct HashConfig config = {
@@ -309,7 +309,7 @@ cache_provider_hmap_free(struct HMap* map)
 {
     if( !map )
         return;
-    free(hmap_free(map));
+    ToriMem_Free(ToriMem_Assets(), hmap_free(map));
 }
 
 static void
@@ -330,16 +330,16 @@ cache_provider_hmap_maybe_grow(struct HMap** map_out)
 
     new_capacity = map->capacity * 2;
     buffer_size = cache_provider_hmap_buffer_bytes(map->entry_size, new_capacity);
-    new_buffer = malloc(buffer_size);
+    new_buffer = ToriMem_Alloc(ToriMem_Assets(), buffer_size);
     assert(new_buffer);
 
     if( hmap_resize(*map_out, new_buffer, buffer_size, new_capacity, &old_buffer) != HMAP_OK )
     {
-        free(new_buffer);
+        ToriMem_Free(ToriMem_Assets(), new_buffer);
         return;
     }
 
-    free(old_buffer);
+    ToriMem_Free(ToriMem_Assets(), old_buffer);
 }
 
 static void
@@ -468,7 +468,7 @@ CacheProvider_FreeEngineCaches(struct CacheProvider* provider)
     CacheProvider_SpritesCleanup(provider);
     CacheProvider_FontsCleanup(provider);
     CacheProvider_EnumsCleanup(provider);
-    free(provider->varclan_types.base_type);
+    ToriMem_Free(ToriMem_Assets(), provider->varclan_types.base_type);
     provider->varclan_types.base_type = NULL;
     provider->varclan_types.count = 0;
     CacheProvider_StructsCleanup(provider);
@@ -655,7 +655,7 @@ cache_provider_lru_threshold(
     if( map->size <= keep )
         return 0;
 
-    stamps = malloc((size_t)map->size * sizeof(*stamps));
+    stamps = ToriMem_Alloc(ToriMem_Assets(), (size_t)map->size * sizeof(*stamps));
     assert(stamps);
 
     iter = hmap_iter_new(map);
@@ -665,14 +665,14 @@ cache_provider_lru_threshold(
 
     if( count <= keep )
     {
-        free(stamps);
+        ToriMem_Free(ToriMem_Assets(), stamps);
         return 0;
     }
 
     /* The (count - keep)th smallest stamp is the cutoff. */
     qsort(stamps, count, sizeof(*stamps), cache_provider_cmp_u64);
     threshold = stamps[count - keep - 1];
-    free(stamps);
+    ToriMem_Free(ToriMem_Assets(), stamps);
     return threshold;
 }
 
@@ -698,7 +698,7 @@ cache_provider_trim_models(struct CacheProvider* provider, size_t keep)
 
     /* Removing during iteration would disturb the probe sequence, so collect
      * the keys first and delete afterwards. */
-    doomed = malloc((size_t)provider->model_cache->size * sizeof(*doomed));
+    doomed = ToriMem_Alloc(ToriMem_Assets(), (size_t)provider->model_cache->size * sizeof(*doomed));
     assert(doomed);
 
     iter = hmap_iter_new(provider->model_cache);
@@ -719,7 +719,7 @@ cache_provider_trim_models(struct CacheProvider* provider, size_t keep)
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CACHE_MODEL_EVICT, doomed_count);
     if( doomed_count > 0 )
         cache_provider_ui_assets_changed(provider);
-    free(doomed);
+    ToriMem_Free(ToriMem_Assets(), doomed);
 }
 
 static void
@@ -742,7 +742,8 @@ cache_provider_trim_sprites(struct CacheProvider* provider, size_t keep)
     if( threshold == 0 )
         return;
 
-    doomed = malloc((size_t)provider->sprite_cache->size * sizeof(*doomed));
+    doomed =
+        ToriMem_Alloc(ToriMem_Assets(), (size_t)provider->sprite_cache->size * sizeof(*doomed));
     assert(doomed);
 
     iter = hmap_iter_new(provider->sprite_cache);
@@ -763,7 +764,7 @@ cache_provider_trim_sprites(struct CacheProvider* provider, size_t keep)
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CACHE_SPRITE_EVICT, doomed_count);
     if( doomed_count > 0 )
         cache_provider_ui_assets_changed(provider);
-    free(doomed);
+    ToriMem_Free(ToriMem_Assets(), doomed);
 }
 
 static void
@@ -786,7 +787,8 @@ cache_provider_trim_map_terrain(struct CacheProvider* provider, size_t keep)
     if( threshold == 0 )
         return;
 
-    doomed = malloc((size_t)provider->map_terrain_cache->size * sizeof(*doomed));
+    doomed = ToriMem_Alloc(
+        ToriMem_Assets(), (size_t)provider->map_terrain_cache->size * sizeof(*doomed));
     assert(doomed);
 
     iter = hmap_iter_new(provider->map_terrain_cache);
@@ -804,7 +806,7 @@ cache_provider_trim_map_terrain(struct CacheProvider* provider, size_t keep)
         if( entry && entry->terrain )
             ToriRS_MapTerrainFree(entry->terrain);
     }
-    free(doomed);
+    ToriMem_Free(ToriMem_Assets(), doomed);
 }
 
 static void
@@ -827,7 +829,8 @@ cache_provider_trim_map_scenery(struct CacheProvider* provider, size_t keep)
     if( threshold == 0 )
         return;
 
-    doomed = malloc((size_t)provider->map_scenery_cache->size * sizeof(*doomed));
+    doomed = ToriMem_Alloc(
+        ToriMem_Assets(), (size_t)provider->map_scenery_cache->size * sizeof(*doomed));
     assert(doomed);
 
     iter = hmap_iter_new(provider->map_scenery_cache);
@@ -845,7 +848,7 @@ cache_provider_trim_map_scenery(struct CacheProvider* provider, size_t keep)
         if( entry && entry->locs )
             ToriRS_MapLocsFree(entry->locs);
     }
-    free(doomed);
+    ToriMem_Free(ToriMem_Assets(), doomed);
 }
 
 void
@@ -1885,9 +1888,17 @@ CacheProvider_ClientScriptAdd(
     assert(entry && "Client script must be inserted into hmap");
 
     entry->id = script_id;
-    /* Replacing a cached value: the map owns the old one. */
+    /* Already cached: keep that one and drop the new decode. A running frame
+     * may hold the cached script (CS2VM2_Frame::script), so replacing it would
+     * free the bytecode under the VM -- which the old code hid by zeroing the
+     * script and leaking its struct, so a racing second load silently ended
+     * whatever was running it. Both decodes are of the same script. */
     if( entry->script && entry->script != script )
-        CS2VM2_ScriptFree(entry->script);
+    {
+        CS2VM2_ScriptFree(script);
+        ToriMem_Free(ToriMem_Script(), script);
+        return;
+    }
     entry->script = script;
 }
 
@@ -1929,7 +1940,11 @@ CacheProvider_ClientScriptsCleanup(struct CacheProvider* provider)
     while( (entry = (struct MapEntry_ProviderClientScript*)hmap_iter_next(iter)) )
     {
         if( entry->script )
+        {
+            /* CS2VM2_ScriptFree releases the arrays; the struct was leaked. */
             CS2VM2_ScriptFree(entry->script);
+            ToriMem_Free(ToriMem_Script(), entry->script);
+        }
     }
     hmap_iter_free(iter);
 
@@ -2211,6 +2226,7 @@ CacheProvider_ObjtypeSearchByName(
     struct CacheProvider* provider,
     char const* lower_query,
     bool ge_tradeable_only,
+    struct ToriMem_Group* out_group,
     int** out_ids)
 {
     struct HMapIter* iter;
@@ -2223,6 +2239,7 @@ CacheProvider_ObjtypeSearchByName(
         *out_ids = NULL;
     assert(provider);
     assert(lower_query);
+    assert(out_group);
     if( !provider->objtype_cache || !lower_query[0] )
         return 0;
 
@@ -2245,7 +2262,7 @@ CacheProvider_ObjtypeSearchByName(
         if( count == cap )
         {
             int new_cap = cap ? cap * 2 : 64;
-            int* grown = realloc(ids, (size_t)new_cap * sizeof(int));
+            int* grown = ToriMem_Realloc(out_group, ids, (size_t)new_cap * sizeof(int));
             assert(grown);
             ids = grown;
             cap = new_cap;
@@ -2261,7 +2278,7 @@ CacheProvider_ObjtypeSearchByName(
     if( out_ids )
         *out_ids = ids;
     else
-        free(ids);
+        ToriMem_Free(out_group, ids);
     return count;
 }
 

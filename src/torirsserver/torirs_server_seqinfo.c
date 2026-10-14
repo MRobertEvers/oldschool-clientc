@@ -23,6 +23,7 @@
  */
 
 #include "torirs_server.h"
+#include "mem/torirs_mem.h"
 #include <assert.h>
 
 #include "torirs_server_content.h"
@@ -87,13 +88,16 @@ ToriRSServer_SeqInfoLoad(struct RSCache_ServerPack* pack)
     /* Sized by the highest id present, not by the file count: the table is
      * indexed by sequence id and the ids are sparse. */
     g_seq_priority_count = ToriRSServer_ServPackKindIdBound(&records);
-    g_seq_priority = (uint8_t*)malloc((size_t)g_seq_priority_count + 1);
+    g_seq_priority =
+        (uint8_t*)ToriMem_Alloc(ToriMem_ServerContent(), (size_t)g_seq_priority_count + 1);
     assert(g_seq_priority);
     memset(g_seq_priority, TORIRSSERVER_SEQ_PRIORITY_DEFAULT, (size_t)g_seq_priority_count);
-    g_seq_cycles = (int32_t*)calloc((size_t)g_seq_priority_count + 1, sizeof(*g_seq_cycles));
+    g_seq_cycles = (int32_t*)ToriMem_Calloc(
+        ToriMem_ServerContent(), (size_t)g_seq_priority_count + 1, sizeof(*g_seq_cycles));
     assert(g_seq_cycles);
 
-    g_seqs = (struct SeqName*)calloc((size_t)records.count + 1, sizeof(*g_seqs));
+    g_seqs = (struct SeqName*)ToriMem_Calloc(
+        ToriMem_ServerContent(), (size_t)records.count + 1, sizeof(*g_seqs));
     assert(g_seqs);
     for( int i = 0; i < records.count; i++ )
     {
@@ -128,7 +132,7 @@ ToriRSServer_SeqInfoLoad(struct RSCache_ServerPack* pack)
         }
         if( seq->debug_name && seq->debug_name[0] )
         {
-            g_seqs[loaded].name = strdup(seq->debug_name);
+            g_seqs[loaded].name = ToriMem_Strdup(ToriMem_ServerContent(), seq->debug_name);
             g_seqs[loaded].id = records.ids[i];
             loaded++;
         }
@@ -166,14 +170,14 @@ ToriRSServer_SeqInfoFree(void)
     if( g_seqs )
     {
         for( int i = 0; i < g_seq_count; i++ )
-            free(g_seqs[i].name);
-        free(g_seqs);
+            ToriMem_Free(ToriMem_ServerContent(), g_seqs[i].name);
+        ToriMem_Free(ToriMem_ServerContent(), g_seqs);
     }
     g_seqs = NULL;
     g_seq_count = 0;
-    free(g_seq_priority);
+    ToriMem_Free(ToriMem_ServerContent(), g_seq_priority);
     g_seq_priority = NULL;
-    free(g_seq_cycles);
+    ToriMem_Free(ToriMem_ServerContent(), g_seq_cycles);
     g_seq_cycles = NULL;
     g_seq_priority_count = 0;
 }

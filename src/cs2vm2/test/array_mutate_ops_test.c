@@ -20,6 +20,7 @@
 #include "cs2vm2/cs2_opcode.h"
 #include "cs2vm2/cs2vm2.h"
 #include "cs2vm2/cs2vm2_script.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <stdint.h>
@@ -91,8 +92,8 @@ fixture_int_array(struct Fixture* fixture, int const* values, int count)
     struct CS2VM2_Thread* const thread = fixture->thread;
     struct CS2VM2_Array* const array = &thread->arrays[thread->array_alloc++];
     int const capacity = count + 8;
-    array->cells.strings = calloc((size_t)capacity, sizeof(char*));
-    assert(array->cells.strings);
+    /* The VM frees its arrays from its own group. */
+    array->cells.strings = ToriMem_Calloc(ToriMem_Script(), (size_t)capacity, sizeof(char*));
     array->capacity = capacity;
     array->size = count;
     array->defined = 1;
@@ -108,8 +109,8 @@ fixture_string_array(struct Fixture* fixture, char** values, int count)
     struct CS2VM2_Thread* const thread = fixture->thread;
     struct CS2VM2_Array* const array = &thread->arrays[thread->array_alloc++];
     int const capacity = count + 8;
-    array->cells.strings = calloc((size_t)capacity, sizeof(char*));
-    assert(array->cells.strings);
+    /* The VM frees its arrays from its own group. */
+    array->cells.strings = ToriMem_Calloc(ToriMem_Script(), (size_t)capacity, sizeof(char*));
     array->capacity = capacity;
     array->size = count;
     array->defined = 1;

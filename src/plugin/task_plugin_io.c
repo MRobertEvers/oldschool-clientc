@@ -27,6 +27,7 @@
 #include "plugin/torirs_plugin_lua.h"
 #include "plugin/torirs_plugin_drive.h"
 #include "log/torirs_log.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -297,7 +298,7 @@ Task_PluginBoot_Run(struct ToriRS_Task* task_base, struct ToriRS_IOBatch* io)
                 task->entries[task->at].name,
                 source,
                 source_length);
-            free(composed);
+            ToriMem_Free(ToriMem_Plugins(), composed);
             /* The manifest's own enabled=0 is applied here rather than left to
              * the settings file: it is the author's switch, and it has to work
              * for a script that has never been run and so has no saved state
@@ -374,9 +375,16 @@ Task_PluginBoot_Run(struct ToriRS_Task* task_base, struct ToriRS_IOBatch* io)
     PT_END(&task->pt);
 }
 
+/* The struct is the plugins group's: task_free's default free() is libc. */
+static void
+Task_PluginBoot_Free(struct ToriRS_Task* task_base)
+{
+    ToriMem_Free(ToriMem_Plugins(), task_base);
+}
+
 static struct ToriRS_TaskVTable Task_PluginBoot_VTable = {
     .run = Task_PluginBoot_Run,
-    .free = NULL,
+    .free = Task_PluginBoot_Free,
 };
 
 struct ToriRS_Task*
@@ -389,8 +397,7 @@ CreateTask_PluginBoot(
 
     assert(host);
 
-    task = calloc(1, sizeof(*task));
-    assert(task);
+    task = ToriMem_Calloc(ToriMem_Plugins(), 1, sizeof(*task));
     task->task.vtable = &Task_PluginBoot_VTable;
     strcpy(task->task.name, "PluginBoot");
     task->host = host;
@@ -505,9 +512,16 @@ Task_PluginAssetRead_Run(struct ToriRS_Task* task_base, struct ToriRS_IOBatch* i
     PT_END(&task->pt);
 }
 
+/* The struct is the plugins group's: task_free's default free() is libc. */
+static void
+Task_PluginAssetRead_Free(struct ToriRS_Task* task_base)
+{
+    ToriMem_Free(ToriMem_Plugins(), task_base);
+}
+
 static struct ToriRS_TaskVTable Task_PluginAssetRead_VTable = {
     .run = Task_PluginAssetRead_Run,
-    .free = NULL,
+    .free = Task_PluginAssetRead_Free,
 };
 
 struct ToriRS_Task*
@@ -523,8 +537,7 @@ CreateTask_PluginAssetRead(
     assert(plugin_name);
     assert(asset_name);
 
-    task = calloc(1, sizeof(*task));
-    assert(task);
+    task = ToriMem_Calloc(ToriMem_Plugins(), 1, sizeof(*task));
     task->task.vtable = &Task_PluginAssetRead_VTable;
     strcpy(task->task.name, "PluginAssetRead");
     task->host = host;
@@ -592,9 +605,16 @@ Task_PluginScriptRead_Run(struct ToriRS_Task* task_base, struct ToriRS_IOBatch* 
     PT_END(&task->pt);
 }
 
+/* The struct is the plugins group's: task_free's default free() is libc. */
+static void
+Task_PluginScriptRead_Free(struct ToriRS_Task* task_base)
+{
+    ToriMem_Free(ToriMem_Plugins(), task_base);
+}
+
 static struct ToriRS_TaskVTable Task_PluginScriptRead_VTable = {
     .run = Task_PluginScriptRead_Run,
-    .free = NULL,
+    .free = Task_PluginScriptRead_Free,
 };
 
 struct ToriRS_Task*
@@ -611,8 +631,7 @@ CreateTask_PluginScriptRead(
     assert(strlen(path) < TORIRS_IOITEM_MAX_PATH);
     assert(deliver);
 
-    task = calloc(1, sizeof(*task));
-    assert(task);
+    task = ToriMem_Calloc(ToriMem_Plugins(), 1, sizeof(*task));
     task->task.vtable = &Task_PluginScriptRead_VTable;
     strcpy(task->task.name, "PluginScriptRead");
     snprintf(task->path, sizeof(task->path), "%s", path);
@@ -683,8 +702,9 @@ static void
 Task_PluginLaunch_Free(struct ToriRS_Task* task_base)
 {
     struct Task_PluginLaunch* task = (struct Task_PluginLaunch*)task_base;
-    free(task->body);
+    ToriMem_Free(ToriMem_Plugins(), task->body);
     task->body = NULL;
+    ToriMem_Free(ToriMem_Plugins(), task);
 }
 
 static struct ToriRS_TaskVTable Task_PluginLaunch_VTable = {
@@ -711,13 +731,11 @@ CreateTask_PluginLaunch(
     assert(deliver);
     assert(strlen("launch/") + strlen(verb) < TORIRS_IOITEM_MAX_PATH);
 
-    task = calloc(1, sizeof(*task));
-    assert(task);
+    task = ToriMem_Calloc(ToriMem_Plugins(), 1, sizeof(*task));
     task->task.vtable = &Task_PluginLaunch_VTable;
     strcpy(task->task.name, "PluginLaunch");
     snprintf(task->path, sizeof(task->path), "launch/%s", verb);
-    task->body = malloc((size_t)size + 1);
-    assert(task->body);
+    task->body = ToriMem_Alloc(ToriMem_Plugins(), (size_t)size + 1);
     if( size > 0 )
         memcpy(task->body, body, (size_t)size);
     task->body[size] = '\0';
@@ -763,8 +781,9 @@ static void
 Task_PluginAssetWrite_Free(struct ToriRS_Task* task_base)
 {
     struct Task_PluginAssetWrite* task = (struct Task_PluginAssetWrite*)task_base;
-    free(task->data);
+    ToriMem_Free(ToriMem_Plugins(), task->data);
     task->data = NULL;
+    ToriMem_Free(ToriMem_Plugins(), task);
 }
 
 static struct ToriRS_TaskVTable Task_PluginAssetWrite_VTable = {
@@ -784,16 +803,14 @@ CreateTask_PluginAssetWrite(
     assert(data || size == 0);
     assert(size >= 0);
 
-    task = calloc(1, sizeof(*task));
-    assert(task);
+    task = ToriMem_Calloc(ToriMem_Plugins(), 1, sizeof(*task));
     task->task.vtable = &Task_PluginAssetWrite_VTable;
     strcpy(task->task.name, "PluginAssetWrite");
     snprintf(task->path, sizeof(task->path), "%s", saved_path);
     task->size = size;
     if( size > 0 )
     {
-        task->data = malloc((size_t)size);
-        assert(task->data);
+        task->data = ToriMem_Alloc(ToriMem_Plugins(), (size_t)size);
         memcpy(task->data, data, (size_t)size);
     }
     PT_INIT(&task->pt);
@@ -839,8 +856,9 @@ static void
 Task_PluginSave_Free(struct ToriRS_Task* task_base)
 {
     struct Task_PluginSave* task = (struct Task_PluginSave*)task_base;
-    free(task->data);
+    ToriMem_Free(ToriMem_Plugins(), task->data);
     task->data = NULL;
+    ToriMem_Free(ToriMem_Plugins(), task);
 }
 
 static struct ToriRS_TaskVTable Task_PluginSave_VTable = {
@@ -856,8 +874,7 @@ CreateTask_PluginSave(struct ToriRS_PluginHost const* host, char const* path)
     assert(host);
     assert(path && *path);
 
-    task = calloc(1, sizeof(*task));
-    assert(task);
+    task = ToriMem_Calloc(ToriMem_Plugins(), 1, sizeof(*task));
     task->task.vtable = &Task_PluginSave_VTable;
     strcpy(task->task.name, "PluginSave");
     snprintf(task->path, sizeof(task->path), "%s", path);

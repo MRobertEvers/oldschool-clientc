@@ -3,6 +3,7 @@
  */
 
 #include "torirs_server_shop.h"
+#include "mem/torirs_mem.h"
 #include <assert.h>
 
 #include "torirs_server.h"
@@ -28,8 +29,8 @@ static int g_shop_index_capacity;
 void
 ToriRSServer_ShopReset(void)
 {
-    free(g_shop_defs);
-    free(g_shop_index);
+    ToriMem_Free(ToriMem_ServerContent(), g_shop_defs);
+    ToriMem_Free(ToriMem_ServerContent(), g_shop_index);
     g_shop_defs = NULL;
     g_shop_index = NULL;
     g_shop_def_count = 0;
@@ -60,7 +61,8 @@ ToriRSServer_ShopDefBegin(int32_t inv_id)
 
         while( capacity <= inv_id )
             capacity *= 2;
-        g_shop_index = (int*)realloc(g_shop_index, (size_t)capacity * sizeof(*g_shop_index));
+        g_shop_index = (int*)ToriMem_Realloc(
+            ToriMem_ServerContent(), g_shop_index, (size_t)capacity * sizeof(*g_shop_index));
         assert(g_shop_index);
         memset(g_shop_index + g_shop_index_capacity, 0,
                (size_t)(capacity - g_shop_index_capacity) * sizeof(*g_shop_index));
@@ -69,8 +71,10 @@ ToriRSServer_ShopDefBegin(int32_t inv_id)
     if( g_shop_def_count == g_shop_def_capacity )
     {
         g_shop_def_capacity = g_shop_def_capacity ? g_shop_def_capacity * 2 : 256;
-        g_shop_defs = (struct ToriRSServerShopDef*)realloc(
-            g_shop_defs, (size_t)g_shop_def_capacity * sizeof(*g_shop_defs));
+        g_shop_defs = (struct ToriRSServerShopDef*)ToriMem_Realloc(
+            ToriMem_ServerContent(),
+            g_shop_defs,
+            (size_t)g_shop_def_capacity * sizeof(*g_shop_defs));
         assert(g_shop_defs);
     }
     def = &g_shop_defs[g_shop_def_count++];

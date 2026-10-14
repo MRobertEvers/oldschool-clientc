@@ -1,4 +1,5 @@
 #include "ringbuf.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <stddef.h>
@@ -23,11 +24,9 @@ ringbuf_new(size_t capacity)
     if( capacity == 0 )
         return NULL;
 
-    struct RingBuf* rb = (struct RingBuf*)malloc(sizeof(struct RingBuf));
-    assert(rb);
+    struct RingBuf* rb = (struct RingBuf*)ToriMem_Alloc(ToriMem_Net(), sizeof(struct RingBuf));
 
-    rb->buffer = (unsigned char*)malloc(capacity);
-    assert(rb->buffer);
+    rb->buffer = (unsigned char*)ToriMem_Alloc(ToriMem_Net(), capacity);
 
     rb->capacity = capacity;
     rb->head = 0;
@@ -41,9 +40,9 @@ ringbuf_free(struct RingBuf* rb)
 {
     if( !rb )
         return;
-    if( rb->owns_buffer && rb->buffer )
-        free(rb->buffer);
-    free(rb);
+    if( rb->owns_buffer )
+        ToriMem_Free(ToriMem_Net(), rb->buffer);
+    ToriMem_Free(ToriMem_Net(), rb);
 }
 
 /*-----------------------------------------------------------

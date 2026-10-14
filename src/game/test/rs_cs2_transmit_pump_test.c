@@ -56,6 +56,7 @@
  */
 
 #include "cs2vm2/cs2vm2.h"
+#include "mem/torirs_mem.h"
 #include "cs2vm2/cs2vm2_script.h"
 #include "cs2vm2/cs2_opcode.h"
 #include "3rd/rscache/src/datatypes/clientscript.h"
@@ -610,7 +611,8 @@ test_widgets_loaded_queues_stat_unhide(void)
     fx.tree->components[listener].behavior.hide = 1;
     /* The registry is heap-grown now, so a test that pokes slot 0 directly has
      * to give itself the slot first. */
-    fx.host.stat_transmit_hooks = calloc(1, sizeof(*fx.host.stat_transmit_hooks));
+    fx.host.stat_transmit_hooks =
+        ToriMem_Calloc(ToriMem_Script(), 1, sizeof(*fx.host.stat_transmit_hooks));
     assert(fx.host.stat_transmit_hooks);
     fx.host.stat_transmit_hook_cap = 1;
     fx.host.stat_transmit_hook_count = 1;
@@ -978,7 +980,7 @@ test_transmit_registry_identity(void)
     char* strings[] = {NULL, NULL, NULL};
     struct CS2VM2_Script script = {.script_id=99998, .op_count=3, .opcodes=opcodes,
         .int_operands=operands, .string_operands=strings, .int_stack_depth=1};
-    struct CS2VM2_Script* cached = malloc(sizeof(*cached));
+    struct CS2VM2_Script* cached = ToriMem_Alloc(ToriMem_Script(), sizeof(*cached));
     CS2VM2_ScriptInit(cached);
     CHECK(CS2VM2_ScriptCopy(&script, cached), "cache callback bytecode");
     CacheProvider_ClientScriptAdd(fx.host.provider, script.script_id, cached);
@@ -1225,7 +1227,7 @@ test_registry_compaction_during_callback(void)
         struct CS2VM2_Script* sources[] = {&wait_script, &paint_script};
         for( int i = 0; i < 2; ++i )
         {
-            struct CS2VM2_Script* cached = malloc(sizeof(*cached));
+            struct CS2VM2_Script* cached = ToriMem_Alloc(ToriMem_Script(), sizeof(*cached));
             CS2VM2_ScriptInit(cached);
             CHECK(CS2VM2_ScriptCopy(sources[i], cached), "copy callback fixture");
             CacheProvider_ClientScriptAdd(fx.host.provider, cached->script_id, cached);

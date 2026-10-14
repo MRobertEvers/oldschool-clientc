@@ -1,5 +1,7 @@
 #include "scene_occluders.h"
 
+#include "mem/torirs_mem.h"
+
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
@@ -17,8 +19,7 @@ scene_occluders_new(
     assert(height > 0);
     assert(levels > 0 && levels <= 4);
 
-    occ = calloc(1, sizeof(*occ));
-    assert(occ);
+    occ = ToriMem_Calloc(ToriMem_Scene(), 1, sizeof(*occ));
 
     occ->width = width;
     occ->height = height;
@@ -26,23 +27,13 @@ scene_occluders_new(
 
     for( i = 0; i < levels; i++ )
     {
-        occ->level_occluders[i] =
-            calloc((size_t)OCCLUDER_MAX_PER_LEVEL, sizeof(struct SceneOccluder));
-        if( !occ->level_occluders[i] )
-        {
-            scene_occluders_free(occ);
-            return NULL;
-        }
+        occ->level_occluders[i] = ToriMem_Calloc(
+            ToriMem_Scene(), (size_t)OCCLUDER_MAX_PER_LEVEL, sizeof(struct SceneOccluder));
         occ->level_occluder_count[i] = 0;
     }
 
-    occ->tile_cycle =
-        calloc((size_t)width * (size_t)height * (size_t)levels, sizeof(int32_t));
-    if( !occ->tile_cycle )
-    {
-        scene_occluders_free(occ);
-        return NULL;
-    }
+    occ->tile_cycle = ToriMem_Calloc(
+        ToriMem_Scene(), (size_t)width * (size_t)height * (size_t)levels, sizeof(int32_t));
 
     return occ;
 }
@@ -54,10 +45,10 @@ scene_occluders_free(struct SceneOccluders* occ)
     if( !occ )
         return;
     for( i = 0; i < 4; i++ )
-        free(occ->level_occluders[i]);
-    free(occ->ground_heights);
-    free(occ->tile_cycle);
-    free(occ);
+        ToriMem_Free(ToriMem_Scene(), occ->level_occluders[i]);
+    ToriMem_Free(ToriMem_Scene(), occ->ground_heights);
+    ToriMem_Free(ToriMem_Scene(), occ->tile_cycle);
+    ToriMem_Free(ToriMem_Scene(), occ);
 }
 
 void
@@ -130,9 +121,8 @@ scene_occluders_set_ground_heights(
     assert(levels == occ->levels);
 
     n = (size_t)ground_width * (size_t)ground_height * (size_t)levels;
-    free(occ->ground_heights);
-    occ->ground_heights = malloc(n * sizeof(int16_t));
-    assert(occ->ground_heights);
+    ToriMem_Free(ToriMem_Scene(), occ->ground_heights);
+    occ->ground_heights = ToriMem_Alloc(ToriMem_Scene(), n * sizeof(int16_t));
     memcpy(occ->ground_heights, heights, n * sizeof(int16_t));
     occ->ground_width = ground_width;
     occ->ground_height = ground_height;

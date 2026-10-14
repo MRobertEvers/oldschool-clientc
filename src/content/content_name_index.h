@@ -25,6 +25,7 @@
  */
 
 #include <assert.h>
+#include "mem/torirs_mem.h"
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -58,7 +59,7 @@ static inline void
 ContentNameIndex_Free(struct ContentNameIndex* index)
 {
     assert(index);
-    free(index->slots);
+    ToriMem_Free(ToriMem_ServerContent(), index->slots);
     index->slots = NULL;
     index->mask = 0;
     index->count = 0;
@@ -90,7 +91,7 @@ ContentNameIndex_Grow(struct ContentNameIndex* index)
     uint32_t old_capacity = old ? index->mask + 1 : 0;
     uint32_t capacity = old_capacity ? old_capacity * 2 : 64;
 
-    index->slots = calloc(capacity, sizeof(*index->slots));
+    index->slots = ToriMem_Calloc(ToriMem_ServerContent(), capacity, sizeof(*index->slots));
     assert(index->slots);
     index->mask = capacity - 1;
     for( uint32_t i = 0; i < old_capacity; i++ )
@@ -98,7 +99,7 @@ ContentNameIndex_Grow(struct ContentNameIndex* index)
         if( old[i].name )
             *ContentNameIndex_Probe(index, old[i].name, old[i].hash) = old[i];
     }
-    free(old);
+    ToriMem_Free(ToriMem_ServerContent(), old);
 }
 
 /**

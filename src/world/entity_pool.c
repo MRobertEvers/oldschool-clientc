@@ -1,4 +1,5 @@
 #include "entity_pool.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -30,16 +31,10 @@ World_EntityPoolGrow(struct World_EntityPool* pool)
                             WORLD_ENTITY_GROWTH_DENOMINATOR
                       : WORLD_ENTITY_INITIAL_CAPACITY;
     assert(new_cap > old_cap);
-    void* grown_items = realloc(pool->items, (size_t)new_cap * (size_t)pool->element_size);
-    struct World_EntityPoolNode* grown_nodes =
-        realloc(pool->nodes, (size_t)new_cap * sizeof(struct World_EntityPoolNode));
-    if( !grown_items || !grown_nodes )
-    {
-        free(grown_items);
-        free(grown_nodes);
-        return false;
-    }
-
+    void* grown_items =
+        ToriMem_Realloc(ToriMem_Scene(), pool->items, (size_t)new_cap * (size_t)pool->element_size);
+    struct World_EntityPoolNode* grown_nodes = ToriMem_Realloc(
+        ToriMem_Scene(), pool->nodes, (size_t)new_cap * sizeof(struct World_EntityPoolNode));
     pool->items = grown_items;
     pool->nodes = grown_nodes;
     pool->capacity = new_cap;
@@ -71,8 +66,8 @@ World_EntityPoolFree(struct World_EntityPool* pool)
 {
     if( !pool )
         return;
-    free(pool->items);
-    free(pool->nodes);
+    ToriMem_Free(ToriMem_Scene(), pool->items);
+    ToriMem_Free(ToriMem_Scene(), pool->nodes);
     memset(pool, 0, sizeof(*pool));
     pool->head = WORLD_ENTITY_NIL;
     pool->tail = WORLD_ENTITY_NIL;

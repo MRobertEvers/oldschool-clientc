@@ -34,6 +34,7 @@
 
 #include "cs2/cs2_command.h"
 #include "cs2vm2/cs2_opcode.h"
+#include "mem/torirs_mem.h"
 #include "cs2vm2/cs2_opcode_meta.h"
 #include "cs2vm2/cs2vm2.h"
 #include "cs2vm2/cs2vm2_opcode_stack.gen.h"
@@ -134,8 +135,7 @@ check_opcode(int opcode)
     if( strncmp(CS2_OpCode_String(opcode), "ARRAY_", 6) == 0 )
     {
         struct CS2VM2_Array* const array = &thread->arrays[thread->array_alloc++];
-        array->cells.strings = calloc(4, sizeof(char*));
-        assert(array->cells.strings);
+        array->cells.strings = ToriMem_Calloc(ToriMem_Script(), 4, sizeof(char*));
         array->capacity = 4;
         array->size = 2;
         array->defined = 1;

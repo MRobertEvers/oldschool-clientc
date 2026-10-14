@@ -1,4 +1,5 @@
 #include "engine/dat2/dat2_tasks.h"
+#include "mem/torirs_mem.h"
 
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
@@ -91,14 +92,14 @@ Task_Dat2HitsplatLoad_Run(
         PT_EXIT(&task->pt);
     }
 
-    sprite_ids = malloc((size_t)count * sizeof(*sprite_ids));
-    durations = malloc((size_t)count * sizeof(*durations));
-    slot_policies = malloc((size_t)count * sizeof(*slot_policies));
-    text_offsets_y = malloc((size_t)count * sizeof(*text_offsets_y));
+    sprite_ids = ToriMem_Alloc(ToriMem_Assets(), (size_t)count * sizeof(*sprite_ids));
+    durations = ToriMem_Alloc(ToriMem_Assets(), (size_t)count * sizeof(*durations));
+    slot_policies = ToriMem_Alloc(ToriMem_Assets(), (size_t)count * sizeof(*slot_policies));
+    text_offsets_y = ToriMem_Alloc(ToriMem_Assets(), (size_t)count * sizeof(*text_offsets_y));
     /* calloc, not malloc: a type with no opcode 17/18 must read back as
      * `count == 0` and `ids == NULL`, which is how `ResolveType` tells an
      * ordinary appearance from a selector. */
-    variants = calloc((size_t)count, sizeof(*variants));
+    variants = ToriMem_Calloc(ToriMem_Assets(), (size_t)count, sizeof(*variants));
     assert(sprite_ids);
     assert(durations);
     assert(slot_policies);
@@ -157,7 +158,7 @@ Task_Dat2HitsplatLoad_Run(
         if( entry.variant_count > 0 )
         {
             int const n = entry.variant_count + 1;
-            int* ids = malloc((size_t)n * sizeof(*ids));
+            int* ids = ToriMem_Alloc(ToriMem_Assets(), (size_t)n * sizeof(*ids));
 
             assert(ids);
             for( int v = 0; v < entry.variant_count; v++ )
@@ -179,12 +180,12 @@ Task_Dat2HitsplatLoad_Run(
                                text_offsets_y, variants, count) )
     {
         for( int i = 0; i < count; i++ )
-            free(variants[i].ids);
-        free(variants);
-        free(sprite_ids);
-        free(durations);
-        free(slot_policies);
-        free(text_offsets_y);
+            ToriMem_Free(ToriMem_Assets(), variants[i].ids);
+        ToriMem_Free(ToriMem_Assets(), variants);
+        ToriMem_Free(ToriMem_Assets(), sprite_ids);
+        ToriMem_Free(ToriMem_Assets(), durations);
+        ToriMem_Free(ToriMem_Assets(), slot_policies);
+        ToriMem_Free(ToriMem_Assets(), text_offsets_y);
         PT_EXIT(&task->pt);
     }
     /*
@@ -241,7 +242,7 @@ Task_Dat2HitsplatLoad_Run(
 static void
 Task_Dat2HitsplatLoad_Free(struct ToriRS_Task* task_base)
 {
-    free(task_base);
+    ToriMem_Free(ToriMem_Assets(), task_base);
 }
 
 static struct ToriRS_TaskVTable Task_Dat2HitsplatLoad_VTable = {
@@ -257,7 +258,7 @@ CreateTask_Dat2HitsplatLoad(
     assert(provider);
     assert(hitsplats);
 
-    struct Task_Dat2HitsplatLoad* task = calloc(1, sizeof(*task));
+    struct Task_Dat2HitsplatLoad* task = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_Dat2HitsplatLoad_VTable;
     strcpy(task->task.name, "Dat2HitsplatLoad");

@@ -1,3 +1,5 @@
+#include "mem/torimem_rscache.h"
+#include "mem/torirs_mem.h"
 #include "pkt_player_info.h"
 
 #include "net/bitbuffer.h"
@@ -291,7 +293,7 @@ pkt_player_info_reader_read(
         if( (mask & PKT_PLAYER_MASK_APPEARANCE) != 0 )
         {
             int len = g1(&rsbuf);
-            uint8_t* blob = malloc(len > 0 ? (size_t)len : 1);
+            uint8_t* blob = ToriMem_Alloc(ToriMem_Net(), len > 0 ? (size_t)len : 1);
             assert(blob);
             greadto(&rsbuf, (char*)blob, len, len);
             struct PktPlayerInfoOp* op = next_op(reader, ops, ops_capacity);
@@ -321,6 +323,8 @@ pkt_player_info_reader_read(
         if( (mask & PKT_PLAYER_MASK_SAY) != 0 )
         {
             char* text = gstringnewline(&rsbuf);
+            if( text ) /* RSCache allocated it: the op owns it in NET */
+                text = ToriMem_TakeStrFromRSCache(ToriMem_Net(), text);
             struct PktPlayerInfoOp* op = next_op(reader, ops, ops_capacity);
             op->kind = PKT_PLAYER_INFO_OP_SAY;
             op->_say.text = text;
@@ -355,7 +359,7 @@ pkt_player_info_reader_read(
             int colour_effect = g2(&rsbuf);
             int type = g1(&rsbuf);
             int chat_len = g1(&rsbuf);
-            uint8_t* payload = malloc(chat_len > 0 ? (size_t)chat_len : 1);
+            uint8_t* payload = ToriMem_Alloc(ToriMem_Net(), chat_len > 0 ? (size_t)chat_len : 1);
             assert(payload);
             greadto(&rsbuf, (char*)payload, chat_len, chat_len);
             struct PktPlayerInfoOp* op = next_op(reader, ops, ops_capacity);
@@ -416,13 +420,13 @@ pkt_player_info_ops_free(
         switch( ops[i].kind )
         {
         case PKT_PLAYER_INFO_OP_APPEARANCE:
-            free(ops[i]._appearance.appearance);
+            ToriMem_Free(ToriMem_Net(), ops[i]._appearance.appearance);
             break;
         case PKT_PLAYER_INFO_OP_SAY:
-            free(ops[i]._say.text);
+            ToriMem_Free(ToriMem_Net(), ops[i]._say.text);
             break;
         case PKT_PLAYER_INFO_OP_CHAT:
-            free(ops[i]._chat.data);
+            ToriMem_Free(ToriMem_Net(), ops[i]._chat.data);
             break;
         default:
             break;

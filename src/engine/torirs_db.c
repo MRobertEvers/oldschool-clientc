@@ -1,4 +1,5 @@
 #include "engine/torirs_db.h"
+#include "mem/torirs_mem.h"
 #include <assert.h>
 
 #include <stdlib.h>
@@ -35,9 +36,9 @@ ToriRS_DbTableIndexFree(struct ToriRS_DbTableIndex* idx)
         return;
     for( int i = 0; i < idx->file_count; i++ )
         RSCache_Dat2DbIndexFileFreeInplace(&idx->files[i]);
-    free(idx->files);
-    free(idx->file_ids);
-    free(idx);
+    ToriMem_Free(ToriMem_Assets(), idx->files);
+    ToriMem_Free(ToriMem_Assets(), idx->file_ids);
+    ToriMem_Free(ToriMem_Assets(), idx);
 }
 
 void
@@ -46,7 +47,7 @@ ToriRS_DbRowFree(struct RSCache_Dat2ConfigDbRow* row)
     if( !row )
         return;
     RSCache_Dat2ConfigDbRowFreeInplace(row);
-    free(row);
+    ToriMem_Free(ToriMem_Assets(), row);
 }
 
 void
@@ -55,5 +56,5 @@ ToriRS_DbTableFree(struct RSCache_Dat2ConfigDbTable* table)
     if( !table )
         return;
     RSCache_Dat2ConfigDbTableFreeInplace(table);
-    free(table);
+    ToriMem_Free(ToriMem_Assets(), table);
 }

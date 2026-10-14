@@ -1,4 +1,5 @@
 #include "perf/torirs_perf.h"
+#include "mem/torirs_mem.h"
 #include "torirs_env.h"
 
 #include "game/task_cs2_run.h"
@@ -1488,7 +1489,7 @@ Task_CS2Run_Run(
         /* First yield of this task buys the slot; later ones reuse it. */
         if( !self->pending )
         {
-            self->pending = malloc(sizeof(*self->pending));
+            self->pending = ToriMem_Alloc(ToriRS_TaskMem(&self->task), sizeof(*self->pending));
             assert(self->pending);
         }
         *self->pending = self->host->pending;
@@ -1700,11 +1701,12 @@ Task_CS2Run_Free(struct ToriRS_Task* task)
     assert(self);
     /* NULL when the task was dropped before it ever ran (queue teardown). */
     CS2VM2_Release(self->vm);
-    /* NULL when the task never yielded, which is the common case. */
-    free(self->pending);
+    /* NULL when the task never yielded, which is the common case. Both come
+     * from the task's arena (task->mem), which task_free ends after this. */
+    ToriMem_Free(self->task.mem, self->pending);
     for( int i = 0; i < self->str_arg_count; i++ )
-        free(self->str_args[i]);
-    free(self);
+        ToriMem_Free(self->task.mem, self->str_args[i]);
+    ToriMem_Free(ToriMem_Script(), self);
 }
 
 static struct ToriRS_TaskVTable Task_CS2Run_VTable = {
@@ -1720,7 +1722,9 @@ static struct ToriRS_TaskVTable Task_CS2Run_VTable = {
  * warning above documents, not an artefact of the storage.
  */
 static char*
-task_cs2_str_arg_dup(char const* s)
+task_cs2_str_arg_dup(
+    struct ToriMem_Group* mem,
+    char const* s)
 {
     size_t n;
     char* out;
@@ -1730,8 +1734,7 @@ task_cs2_str_arg_dup(char const* s)
     n = strlen(s);
     if( n > (size_t)(TASK_CS2_RUN_STR_ARG_LEN - 1) )
         n = (size_t)(TASK_CS2_RUN_STR_ARG_LEN - 1);
-    out = malloc(n + 1);
-    assert(out);
+    out = ToriMem_Alloc(mem, n + 1);
     memcpy(out, s, n);
     out[n] = '\0';
     return out;
@@ -1755,7 +1758,7 @@ task_cs2_run_new(
     assert(host);
     assert(host->provider);
 
-    self = calloc(1, sizeof(*self));
+    self = ToriMem_Calloc(ToriMem_Script(), 1, sizeof(*self));
     assert(self);
 
     self->task.vtable = &Task_CS2Run_VTable;
@@ -1839,7 +1842,7 @@ task_cs2_run_new(
         str_arg_count = 0;
     self->str_arg_count = str_arg_count;
     for( int i = 0; i < str_arg_count; i++ )
-        self->str_args[i] = task_cs2_str_arg_dup(str_args[i]);
+        self->str_args[i] = task_cs2_str_arg_dup(ToriRS_TaskMem(&self->task), str_args[i]);
 
     PT_INIT(&self->pt);
     /* Display dropdown / server remount: settings_client_mode (script_3998) may
@@ -1965,13 +1968,12 @@ task_cs2_hook_ref(void const* hooks, size_t stride, int index)
 }
 
 static struct Task_CS2HookSnapshot
-task_cs2_snapshot_hooks(void const* hooks, size_t stride, int count)
+task_cs2_snapshot_hooks(struct ToriMem_Group* mem, void const* hooks, size_t stride, int count)
 {
     struct Task_CS2HookSnapshot snapshot = {.count=count};
     if( count > 0 )
     {
-        snapshot.refs = malloc((size_t)count * sizeof(*snapshot.refs));
-        if( !snapshot.refs ) abort();
+        snapshot.refs = ToriMem_Alloc(mem, (size_t)count * sizeof(*snapshot.refs));
         for( int i = 0; i < count; ++i )
             snapshot.refs[i] = task_cs2_hook_ref(hooks, stride, i);
     }
@@ -2039,7 +2041,7 @@ Task_CS2InvTransmitDispatch_Run(
 
     assert(self->host);
 
-    self->snapshot = task_cs2_snapshot_hooks(self->host->inv_transmit_hooks,
+    self->snapshot = task_cs2_snapshot_hooks(ToriRS_TaskMem(&self->task), self->host->inv_transmit_hooks,
         sizeof(*self->host->inv_transmit_hooks), self->host->inv_transmit_hook_count);
     for( self->hook_index = 0; self->hook_index < self->snapshot.count; self->hook_index++ )
     {
@@ -2118,8 +2120,8 @@ Task_CS2InvTransmitDispatch_Free(struct ToriRS_Task* task)
 {
     struct Task_CS2InvTransmitDispatch* self = (struct Task_CS2InvTransmitDispatch*)task;
     assert(self);
-    free(self->snapshot.refs);
-    free(self);
+    ToriMem_Free(self->task.mem, self->snapshot.refs);
+    ToriMem_Free(ToriMem_Script(), self);
 }
 
 static struct ToriRS_TaskVTable Task_CS2InvTransmitDispatch_VTable = {
@@ -2136,7 +2138,7 @@ CreateTask_CS2InvTransmitDispatch(
 
     assert(host);
 
-    self = calloc(1, sizeof(*self));
+    self = ToriMem_Calloc(ToriMem_Script(), 1, sizeof(*self));
     assert(self);
     self->task.vtable = &Task_CS2InvTransmitDispatch_VTable;
     strcpy(self->task.name, "CS2InvTransmitDispatch");
@@ -2230,7 +2232,7 @@ Task_CS2VarTransmitDispatch_Run(
 
     assert(self->host);
 
-    self->snapshot = task_cs2_snapshot_hooks(self->host->var_transmit_hooks,
+    self->snapshot = task_cs2_snapshot_hooks(ToriRS_TaskMem(&self->task), self->host->var_transmit_hooks,
         sizeof(*self->host->var_transmit_hooks), self->host->var_transmit_hook_count);
     for( self->hook_index = 0; self->hook_index < self->snapshot.count; self->hook_index++ )
     {
@@ -2321,8 +2323,8 @@ Task_CS2VarTransmitDispatch_Free(struct ToriRS_Task* task)
 {
     struct Task_CS2VarTransmitDispatch* self = (struct Task_CS2VarTransmitDispatch*)task;
     assert(self);
-    free(self->snapshot.refs);
-    free(self);
+    ToriMem_Free(self->task.mem, self->snapshot.refs);
+    ToriMem_Free(ToriMem_Script(), self);
 }
 
 static struct ToriRS_TaskVTable Task_CS2VarTransmitDispatch_VTable = {
@@ -2340,7 +2342,7 @@ CreateTask_CS2VarTransmitDispatchSet(
 
     assert(host);
 
-    self = calloc(1, sizeof(*self));
+    self = ToriMem_Calloc(ToriMem_Script(), 1, sizeof(*self));
     assert(self);
     self->task.vtable = &Task_CS2VarTransmitDispatch_VTable;
     strcpy(self->task.name, "CS2VarTransmitDispatch");
@@ -2471,7 +2473,7 @@ Task_CS2StatTransmitDispatch_Run(
 
     assert(self->host);
 
-    self->snapshot = task_cs2_snapshot_hooks(self->host->stat_transmit_hooks,
+    self->snapshot = task_cs2_snapshot_hooks(ToriRS_TaskMem(&self->task), self->host->stat_transmit_hooks,
         sizeof(*self->host->stat_transmit_hooks), self->host->stat_transmit_hook_count);
     for( self->hook_index = 0; self->hook_index < self->snapshot.count; self->hook_index++ )
     {
@@ -2548,8 +2550,8 @@ Task_CS2StatTransmitDispatch_Free(struct ToriRS_Task* task)
     /* The hook snapshot is this task's, exactly as it is in the inv and var
      * dispatchers above; freeing only the task leaked one refs array per stat
      * change (99 of them over a 98-rebuild walk). */
-    free(self->snapshot.refs);
-    free(self);
+    ToriMem_Free(self->task.mem, self->snapshot.refs);
+    ToriMem_Free(ToriMem_Script(), self);
 }
 
 static struct ToriRS_TaskVTable Task_CS2StatTransmitDispatch_VTable = {
@@ -2567,7 +2569,7 @@ CreateTask_CS2StatTransmitDispatchSet(
 
     assert(host);
 
-    self = calloc(1, sizeof(*self));
+    self = ToriMem_Calloc(ToriMem_Script(), 1, sizeof(*self));
     assert(self);
     self->task.vtable = &Task_CS2StatTransmitDispatch_VTable;
     strcpy(self->task.name, "CS2StatTransmitDispatch");
@@ -2676,7 +2678,7 @@ Task_CS2SubChangeDispatch_Run(
 static void
 Task_CS2SubChangeDispatch_Free(struct ToriRS_Task* task)
 {
-    free(task);
+    ToriMem_Free(ToriMem_Script(), task);
 }
 
 static struct ToriRS_TaskVTable Task_CS2SubChangeDispatch_VTable = {
@@ -2690,7 +2692,7 @@ CreateTask_CS2SubChangeDispatch(struct RS_CS2Host* host)
     struct Task_CS2SubChangeDispatch* self;
 
     assert(host);
-    self = calloc(1, sizeof(*self));
+    self = ToriMem_Calloc(ToriMem_Script(), 1, sizeof(*self));
     assert(self);
     self->task.vtable = &Task_CS2SubChangeDispatch_VTable;
     strcpy(self->task.name, "CS2SubChangeDispatch");
@@ -2793,7 +2795,7 @@ Task_CS2MiscTransmitDispatch_Run(
 static void
 Task_CS2MiscTransmitDispatch_Free(struct ToriRS_Task* task)
 {
-    free(task);
+    ToriMem_Free(ToriMem_Script(), task);
 }
 
 static struct ToriRS_TaskVTable Task_CS2MiscTransmitDispatch_VTable = {
@@ -2814,7 +2816,7 @@ create_no_trigger_transmit_dispatch(
 
     assert(host);
     assert(slot_of);
-    self = calloc(1, sizeof(*self));
+    self = ToriMem_Calloc(ToriMem_Script(), 1, sizeof(*self));
     assert(self);
     self->task.vtable = &Task_CS2MiscTransmitDispatch_VTable;
     snprintf(self->task.name, sizeof(self->task.name), "%s", task_name);

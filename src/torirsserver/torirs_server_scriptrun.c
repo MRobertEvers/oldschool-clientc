@@ -28,6 +28,7 @@
  */
 
 #include "torirs_server.h"
+#include "mem/torirs_mem.h"
 #include "torirs_server_boot.h"
 #include "torirs_server_content.h"
 #include "torirs_server_wire.h"
@@ -187,7 +188,7 @@ read_file(
     fseek(f, 0, SEEK_END);
     len = ftell(f);
     fseek(f, 0, SEEK_SET);
-    buf = malloc((size_t)len + 1);
+    buf = ToriMem_Alloc(ToriMem_ServerPlayers(), (size_t)len + 1);
     assert(buf);
     got = fread(buf, 1, (size_t)len, f);
     fclose(f);
@@ -1345,7 +1346,8 @@ d_locs(lua_State* L)
 
     /* The loc list grows with the scene (loc_capacity), so the order is
      * sized by it rather than by a fixed array. */
-    struct PoolOrder* order = malloc(sizeof(*order) * (size_t)(c->loc_count > 0 ? c->loc_count : 1));
+    struct PoolOrder* order = ToriMem_Alloc(
+        ToriMem_ServerPlayers(), sizeof(*order) * (size_t)(c->loc_count > 0 ? c->loc_count : 1));
     int kept = 0;
 
     assert(order);
@@ -1387,7 +1389,7 @@ d_locs(lua_State* L)
         lua_setfield(L, -2, "element_id");
         lua_rawseti(L, -2, ++n);
     }
-    free(order);
+    ToriMem_Free(ToriMem_ServerPlayers(), order);
     return 2;
 }
 
@@ -1415,7 +1417,8 @@ d_locs_of(lua_State* L)
         ids[k] = (int)luaL_checkinteger(L, -1);
         lua_pop(L, 1);
     }
-    order = malloc(sizeof(*order) * (size_t)(c->loc_count > 0 ? c->loc_count : 1));
+    order = ToriMem_Alloc(
+        ToriMem_ServerPlayers(), sizeof(*order) * (size_t)(c->loc_count > 0 ? c->loc_count : 1));
     assert(order);
     for( int i = 0; i < c->loc_count; i++ )
     {
@@ -1459,7 +1462,7 @@ d_locs_of(lua_State* L)
         lua_setfield(L, -2, "element_id");
         lua_rawseti(L, -2, ++n);
     }
-    free(order);
+    ToriMem_Free(ToriMem_ServerPlayers(), order);
     return 2;
 }
 
@@ -2438,15 +2441,17 @@ d_barrier_mark(lua_State* L)
     if( run->barrier_count == run->barrier_cap )
     {
         int cap = run->barrier_cap ? run->barrier_cap * 2 : 256;
-        char** names = realloc(run->barriers, (size_t)cap * sizeof(*names));
+        char** names =
+            ToriMem_Realloc(ToriMem_ServerPlayers(), run->barriers, (size_t)cap * sizeof(*names));
         assert(names);
-        int* ticks = realloc(run->barrier_ticks, (size_t)cap * sizeof(*ticks));
+        int* ticks = ToriMem_Realloc(
+            ToriMem_ServerPlayers(), run->barrier_ticks, (size_t)cap * sizeof(*ticks));
         assert(ticks);
         run->barriers = names;
         run->barrier_ticks = ticks;
         run->barrier_cap = cap;
     }
-    run->barriers[run->barrier_count] = strdup(file);
+    run->barriers[run->barrier_count] = ToriMem_Strdup(ToriMem_ServerPlayers(), file);
     assert(run->barriers[run->barrier_count]);
     /* STAMPED WITH THE TICK, honoured from the next tick on -- the live
      * lane's rule (torirs_plugin_drive.c lua_drive_barrier_present: a mark
@@ -2573,7 +2578,7 @@ d_ticklog(lua_State* L)
         return luaL_error(L, "drive.ticklog: after_serial %d is negative", after);
     if( max <= 0 || max > 8192 )
         max = 8192;
-    rows = malloc((size_t)max * sizeof(*rows));
+    rows = ToriMem_Alloc(ToriMem_ServerPlayers(), (size_t)max * sizeof(*rows));
     assert(rows);
     count = ToriRSServer_TicklogReadFiltered((uint32_t)after, kind, slot, rows, max, &next_serial);
     lua_pushstring(L, "ok");
@@ -2583,7 +2588,7 @@ d_ticklog(lua_State* L)
         push_ticklog_row(L, &rows[i]);
         lua_rawseti(L, -2, i + 1);
     }
-    free(rows);
+    ToriMem_Free(ToriMem_ServerPlayers(), rows);
     lua_pushinteger(L, (lua_Integer)next_serial);
     lua_setfield(L, -2, "next_serial");
     lua_pushinteger(L, (lua_Integer)ToriRSServer_TicklogCount());
@@ -2885,23 +2890,24 @@ bot_lua_init(struct ScriptBot* bot)
         if( !src )
         {
             fprintf(stderr, "scriptrun: cannot read %s\n", path);
-            free(composed);
+            ToriMem_Free(ToriMem_ServerPlayers(), composed);
             return 0;
         }
-        composed = realloc(composed, composed_len + (size_t)len + 2);
+        composed =
+            ToriMem_Realloc(ToriMem_ServerPlayers(), composed, composed_len + (size_t)len + 2);
         assert(composed);
         memcpy(composed + composed_len, src, (size_t)len);
         composed_len += (size_t)len;
         composed[composed_len++] = '\n';
-        free(src);
+        ToriMem_Free(ToriMem_ServerPlayers(), src);
     }
     if( luaL_loadbuffer(L, composed, composed_len, "=quest-driver") != LUA_OK )
     {
         fprintf(stderr, "scriptrun: the driver does not compile: %s\n", lua_tostring(L, -1));
-        free(composed);
+        ToriMem_Free(ToriMem_ServerPlayers(), composed);
         return 0;
     }
-    free(composed);
+    ToriMem_Free(ToriMem_ServerPlayers(), composed);
     if( lua_pcall(L, 0, 1, 0) != LUA_OK )
     {
         fprintf(stderr, "scriptrun: the driver did not load: %s\n", lua_tostring(L, -1));
@@ -3856,11 +3862,12 @@ out:
             lua_close(run.bots[i].L);
         ScriptrunCore_Free(run.bots[i].core);
     }
+    ScriptrunCore_FreeLocConfigs();
     for( int i = 0; i < run.barrier_count; i++ )
-        free(run.barriers[i]);
-    free(run.barriers);
-    free(run.barrier_ticks);
-    free(run.test_source);
+        ToriMem_Free(ToriMem_ServerPlayers(), run.barriers[i]);
+    ToriMem_Free(ToriMem_ServerPlayers(), run.barriers);
+    ToriMem_Free(ToriMem_ServerPlayers(), run.barrier_ticks);
+    ToriMem_Free(ToriMem_ServerPlayers(), run.test_source);
     if( run.ledger )
         fclose(run.ledger);
     if( run.cache_disk )

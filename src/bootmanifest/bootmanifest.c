@@ -1,4 +1,5 @@
 #include "ui/torirs_chrome_exec_kind.h"
+#include "mem/torirs_mem.h"
 
 #include "bootmanifest.h"
 
@@ -1322,12 +1323,12 @@ BootManifest_LoadFile(struct BootManifest* bm, char const* path)
         return -1;
     }
 
-    char* data = malloc((size_t)file_size + 1);
+    char* data = ToriMem_Alloc(ToriMem_Process(), (size_t)file_size + 1);
     assert(data);
     if( fread(data, 1, (size_t)file_size, f) != (size_t)file_size )
     {
         fclose(f);
-        free(data);
+        ToriMem_Free(ToriMem_Process(), data);
         return -1;
     }
     fclose(f);
@@ -1380,7 +1381,7 @@ BootManifest_LoadFile(struct BootManifest* bm, char const* path)
         }
     }
 
-    free(data);
+    ToriMem_Free(ToriMem_Process(), data);
 
     if( parse_result != TORI_INI_ERR_NONE || reader.state != INI_READER_STATE_DONE )
     {

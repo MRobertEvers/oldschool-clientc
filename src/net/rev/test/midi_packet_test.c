@@ -16,6 +16,7 @@
  * byte-order mistake that 0x1111 would hide.
  */
 
+#include "mem/torirs_mem.h"
 #include "net/rev/gameproto_revisions.h"
 #include "net/rev/pktnames.h"
 #include "net/rev/revpacket.h"
@@ -329,7 +330,7 @@ test_sound_area_does_not_truncate_a_zone_batch(void)
         CHECK_EQ(out._update_zone_enclosed.entries[1]._map_anim.id, 0x0777);
     }
     if( out._update_zone_enclosed.entries )
-        free(out._update_zone_enclosed.entries);
+        ToriMem_Free(ToriMem_Net(), out._update_zone_enclosed.entries);
 }
 
 static void

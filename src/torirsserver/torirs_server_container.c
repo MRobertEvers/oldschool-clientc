@@ -3,6 +3,7 @@
  */
 
 #include "torirs_server_container.h"
+#include "mem/torirs_mem.h"
 
 #include "torirs_server.h"
 #include "torirs_server_bank.h"
@@ -239,7 +240,7 @@ ToriRSServer_ContainerResolve(
     }
 
     row_init(row, inv_id, slots, scope, scope == TORIRSSERVER_CONTAINER_WORLD ? NULL : player);
-    row->items = calloc((size_t)slots, sizeof(*row->items));
+    row->items = ToriMem_Calloc(ToriMem_ServerPlayers(), (size_t)slots, sizeof(*row->items));
     assert(row->items);
     row->owns_items = 1;
     for( int i = 0; i < slots; i++ )
@@ -271,7 +272,7 @@ ToriRSServer_ContainerAdopt(
     row = find_row(player->containers, TORIRSSERVER_CONTAINER_MAX, inv_id);
     if( row && row->owns_items )
     {
-        free(row->items);
+        ToriMem_Free(ToriMem_ServerPlayers(), row->items);
         row->items = NULL;
         row->owns_items = 0;
     }
@@ -327,7 +328,7 @@ ToriRSServer_ContainerForget(
             ToriRSServer_SendIfClearinv(row->listeners[i].player,
                                      row->listeners[i].component);
     if( row->owns_items )
-        free(row->items);
+        ToriMem_Free(ToriMem_ServerPlayers(), row->items);
     memset(row, 0, sizeof(*row));
 }
 
@@ -344,7 +345,7 @@ ToriRSServer_ContainerShutdownPlayer(struct ToriRSServerPlayer* player)
                 ToriRSServer_SendIfClearinv(row->listeners[l].player,
                                          row->listeners[l].component);
         if( row->owns_items )
-            free(row->items);
+            ToriMem_Free(ToriMem_ServerPlayers(), row->items);
         memset(row, 0, sizeof(*row));
     }
 }
@@ -360,7 +361,7 @@ ToriRSServer_ContainerShutdown(struct ToriRSServer* srv)
         struct ToriRSServerContainer* row = &srv->world_containers[i];
 
         if( row->owns_items )
-            free(row->items);
+            ToriMem_Free(ToriMem_ServerPlayers(), row->items);
         memset(row, 0, sizeof(*row));
     }
 }

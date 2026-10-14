@@ -1,4 +1,5 @@
 #include "ui/uitree_component_options.h"
+#include "mem/torirs_mem.h"
 
 #include "ui/uitree.h"
 
@@ -29,7 +30,7 @@ UITree_MenuOptionsMut(struct UITreeComponent* component)
     assert(component);
     if( !component->menu_options )
         component->menu_options =
-            (struct UITreeMenuOptions*)calloc(1, sizeof(struct UITreeMenuOptions));
+            (struct UITreeMenuOptions*)ToriMem_Calloc(ToriMem_Ui(), 1, sizeof(struct UITreeMenuOptions));
     return component->menu_options;
 }
 
@@ -78,17 +79,11 @@ UITree_MenuOptionsSet(
     if( src->submenus )
     {
         submenu_copy =
-            (struct UITreeMenuSubmenuOptions*)calloc(1, sizeof(struct UITreeMenuSubmenuOptions));
-        if( submenu_copy )
-            memcpy(submenu_copy, src->submenus, sizeof(*submenu_copy));
+            (struct UITreeMenuSubmenuOptions*)ToriMem_Calloc(ToriMem_Ui(), 1, sizeof(struct UITreeMenuSubmenuOptions));
+        memcpy(submenu_copy, src->submenus, sizeof(*submenu_copy));
     }
 
     dst = UITree_MenuOptionsMut(component);
-    if( !dst )
-    {
-        free(submenu_copy);
-        return;
-    }
     UITree_MenuSubmenuFree(dst);
     *dst = *src;
     dst->submenus = submenu_copy;
@@ -100,7 +95,7 @@ UITree_MenuOptionsFree(struct UITreeComponent* component)
     if( !component || !component->menu_options )
         return;
     UITree_MenuSubmenuFree(component->menu_options);
-    free(component->menu_options);
+    ToriMem_Free(ToriMem_Ui(), component->menu_options);
     component->menu_options = NULL;
 }
 
@@ -120,7 +115,7 @@ UITree_OpKeysMut(struct UITreeComponent* component)
 {
     assert(component);
     if( !component->op_keys )
-        component->op_keys = (struct UITreeOpKeys*)calloc(1, sizeof(struct UITreeOpKeys));
+        component->op_keys = (struct UITreeOpKeys*)ToriMem_Calloc(ToriMem_Ui(), 1, sizeof(struct UITreeOpKeys));
     return component->op_keys;
 }
 
@@ -155,8 +150,7 @@ UITree_OpKeysSet(
         return;
 
     dst = UITree_OpKeysMut(component);
-    if( dst )
-        *dst = *src;
+    *dst = *src;
 }
 
 void
@@ -164,6 +158,6 @@ UITree_OpKeysFree(struct UITreeComponent* component)
 {
     if( !component )
         return;
-    free(component->op_keys);
+    ToriMem_Free(ToriMem_Ui(), component->op_keys);
     component->op_keys = NULL;
 }

@@ -1,4 +1,5 @@
 #include "engine/dat2/dat2_tasks.h"
+#include "mem/torirs_mem.h"
 
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
@@ -56,8 +57,8 @@ varbit_types_reserve(
     if( id < task->type_count )
         return true;
     int want = id + 1;
-    struct VarBitType* grown = realloc(task->types, (size_t)want * sizeof(*grown));
-    assert(grown);
+    struct VarBitType* grown =
+        ToriMem_Realloc(ToriRS_TaskMem(&task->task), task->types, (size_t)want * sizeof(*grown));
     for( int i = task->type_count; i < want; i++ )
     {
         memset(&grown[i], 0, sizeof(grown[i]));
@@ -185,7 +186,7 @@ Task_Dat2VarbitLoad_Run(
         else
             TORIRS_LOG("varbit load: %d types (%d records, ids 0..%d)\n", task->type_count,
                    task->decoded, task->type_count - 1);
-        free(task->types);
+        ToriMem_Free(ToriRS_TaskMem(&task->task), task->types);
         task->types = NULL;
         PT_EXIT(&task->pt);
     }
@@ -227,8 +228,7 @@ Task_Dat2VarbitLoad_Run(
 
     if( type_count > 0 )
     {
-        types = calloc((size_t)type_count, sizeof(*types));
-        assert(types);
+        types = ToriMem_Calloc(ToriRS_TaskMem(&task->task), (size_t)type_count, sizeof(*types));
         for( int i = 0; i < type_count; i++ )
             types[i].basevar = -1;
     }
@@ -267,7 +267,7 @@ Task_Dat2VarbitLoad_Run(
         TORIRS_LOG("varbit load: %d types (%d records, ids 0..%d)\n", type_count, decoded,
                type_count - 1);
 
-    free(types);
+    ToriMem_Free(ToriRS_TaskMem(&task->task), types);
 
     PT_END(&task->pt);
 }
@@ -275,7 +275,11 @@ Task_Dat2VarbitLoad_Run(
 static void
 Task_Dat2VarbitLoad_Free(struct ToriRS_Task* task_base)
 {
-    free(task_base);
+    struct Task_Dat2VarbitLoad* task = (struct Task_Dat2VarbitLoad*)task_base;
+    /* A walk torn down before its install still holds the table. */
+    if( task->types )
+        ToriMem_Free(ToriRS_TaskMem(task_base), task->types);
+    ToriMem_Free(ToriMem_Assets(), task_base);
 }
 
 static struct ToriRS_TaskVTable Task_Dat2VarbitLoad_VTable = {
@@ -291,7 +295,7 @@ CreateTask_Dat2VarbitLoad(
     assert(provider);
     assert(varps);
 
-    struct Task_Dat2VarbitLoad* task = calloc(1, sizeof(*task));
+    struct Task_Dat2VarbitLoad* task = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_Dat2VarbitLoad_VTable;
     strcpy(task->task.name, "Dat2VarbitLoad");

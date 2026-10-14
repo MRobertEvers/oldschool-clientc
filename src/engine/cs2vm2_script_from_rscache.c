@@ -1,3 +1,5 @@
+#include "mem/torirs_mem.h"
+#include "mem/torimem_rscache.h"
 #include "cs2vm2_script_from_rscache.h"
 
 #include <assert.h>
@@ -60,30 +62,30 @@ cs2vm2_script_copy_heap_fields(
 
     if( src->signature )
     {
-        dst->signature = strdup(src->signature);
+        dst->signature = ToriMem_Strdup(ToriMem_Script(), src->signature);
         assert(dst->signature);
     }
 
     if( src->op_count > 0 )
     {
-        dst->opcodes = malloc((size_t)src->op_count * sizeof(*dst->opcodes));
+        dst->opcodes = ToriMem_Alloc(ToriMem_Script(), (size_t)src->op_count * sizeof(*dst->opcodes));
         assert(dst->opcodes);
         memcpy(dst->opcodes, src->opcodes, (size_t)src->op_count * sizeof(*dst->opcodes));
 
-        dst->int_operands = malloc((size_t)src->op_count * sizeof(*dst->int_operands));
+        dst->int_operands = ToriMem_Alloc(ToriMem_Script(), (size_t)src->op_count * sizeof(*dst->int_operands));
         assert(dst->int_operands);
         memcpy(
             dst->int_operands,
             src->int_operands,
             (size_t)src->op_count * sizeof(*dst->int_operands));
 
-        dst->string_operands = calloc((size_t)src->op_count, sizeof(*dst->string_operands));
+        dst->string_operands = ToriMem_Calloc(ToriMem_Script(), (size_t)src->op_count, sizeof(*dst->string_operands));
         assert(dst->string_operands);
         for( i = 0; i < src->op_count; i++ )
         {
             if( !src->string_operands[i] )
                 continue;
-            dst->string_operands[i] = strdup(src->string_operands[i]);
+            dst->string_operands[i] = ToriMem_Strdup(ToriMem_Script(), src->string_operands[i]);
             assert(dst->string_operands[i]);
         }
     }
@@ -105,7 +107,9 @@ CS2VM2_ScriptFromRSCache(
 
     CS2VM2_ScriptInit(dst);
     dst->script_id = src->script_id;
-    dst->signature = src->signature;
+    /* The decoder's arrays become the script's: taken from RSCache into
+     * SCRIPT, where CS2VM2_ScriptFree releases them. */
+    dst->signature = src->signature ? ToriMem_TakeStrFromRSCache(ToriMem_Script(), src->signature) : NULL;
     dst->local_int_count = src->local_int_count;
     dst->local_string_count = src->local_string_count;
     dst->local_long_count = src->local_long_count;
@@ -115,9 +119,18 @@ CS2VM2_ScriptFromRSCache(
     dst->int_stack_depth = 0;
     dst->str_stack_depth = 0;
     dst->op_count = src->op_count;
-    dst->opcodes = src->opcodes;
-    dst->int_operands = src->int_operands;
-    dst->string_operands = src->string_operands;
+    dst->opcodes = ToriMem_TakeFromRSCache(
+        ToriMem_Script(), src->opcodes, (size_t)src->op_count * sizeof(*dst->opcodes));
+    dst->int_operands = ToriMem_TakeFromRSCache(
+        ToriMem_Script(), src->int_operands, (size_t)src->op_count * sizeof(*dst->int_operands));
+    for( int i = 0; i < src->op_count; i++ )
+    {
+        if( src->string_operands[i] )
+            src->string_operands[i] =
+                ToriMem_TakeStrFromRSCache(ToriMem_Script(), src->string_operands[i]);
+    }
+    dst->string_operands = ToriMem_TakeFromRSCache(
+        ToriMem_Script(), src->string_operands, (size_t)src->op_count * sizeof(*dst->string_operands));
     if( !cs2vm2_script_copy_switch_tables(src, dst) )
         return false;
 

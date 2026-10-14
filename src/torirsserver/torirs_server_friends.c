@@ -1,4 +1,5 @@
 #include "torirs_server_friends.h"
+#include "mem/torirs_mem.h"
 #include <assert.h>
 
 #include "torirs_server.h"
@@ -276,8 +277,8 @@ ToriRSServer_FriendsReset(void)
 {
     for( int i = 0; i < g_roster_count; i++ )
     {
-        free(g_roster[i].friends);
-        free(g_roster[i].ignores);
+        ToriMem_Free(ToriMem_ServerPlayers(), g_roster[i].friends);
+        ToriMem_Free(ToriMem_ServerPlayers(), g_roster[i].ignores);
     }
     memset(g_roster, 0, sizeof(g_roster));
     g_roster_count = 0;
@@ -455,7 +456,8 @@ list_add(
          * bounding the count would turn into a write past the end. */
         if( wanted <= *count )
             return TORIRSSERVER_SOCIAL_FULL;
-        grown = (int64_t*)realloc(*list, (size_t)wanted * sizeof(**list));
+        grown = (int64_t*)ToriMem_Realloc(
+            ToriMem_ServerPlayers(), *list, (size_t)wanted * sizeof(**list));
         assert(grown);
         *list = grown;
         *capacity = wanted;

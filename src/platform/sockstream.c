@@ -1,4 +1,5 @@
 #include "sockstream.h"
+#include "mem/torirs_mem.h"
 
 #include "platform_mdns.h"
 
@@ -114,9 +115,7 @@ sockstream_clear_socket(struct SockStream* stream)
 struct SockStream*
 sockstream_new(void)
 {
-    struct SockStream* stream = malloc(sizeof(struct SockStream));
-    assert(stream);
-    memset(stream, 0, sizeof(struct SockStream));
+    struct SockStream* stream = ToriMem_Calloc(ToriMem_Net(), 1, sizeof(struct SockStream));
     sockstream_clear_socket(stream);
     stream->status = SOCKSTREAM_STATUS_IDLE;
     return stream;
@@ -607,5 +606,5 @@ sockstream_free(struct SockStream* stream)
     if( !stream )
         return;
     sockstream_close(stream);
-    free(stream);
+    ToriMem_Free(ToriMem_Net(), stream);
 }

@@ -104,8 +104,7 @@ js5_rscache_install_group(
     if( !storage || !storage->disk || size > (size_t)INT_MAX - 4u )
         return JS5_STORAGE_ERROR;
     assert(container);
-    uint8_t* stored = (uint8_t*)malloc(size + 4u);
-    assert(stored);
+    uint8_t* stored = (uint8_t*)ToriMem_Alloc(ToriMem_Net(), size + 4u);
     memcpy(stored, container, size);
     stored[size] = (uint8_t)(version >> 24u);
     stored[size + 1u] = (uint8_t)(version >> 16u);
@@ -116,7 +115,7 @@ js5_rscache_install_group(
      * lets the same adapter serve both backings. */
     int result = RSCache_Dat2DiskWriteArchiveTo(
         storage->disk, archive, group, stored, (int)(size + 4u));
-    free(stored);
+    ToriMem_Free(ToriMem_Net(), stored);
     return result == 0 ? JS5_STORAGE_OK : JS5_STORAGE_ERROR;
 }
 
@@ -132,9 +131,7 @@ Js5RscacheStorageInit(
     assert(storage);
     assert(disk);
     size_t length = strlen(directory) + 1u;
-    char* copy = (char*)malloc(length);
-    assert(copy);
-    memcpy(copy, directory, length);
+    char* copy = (char*)ToriMem_Memdup(ToriMem_Net(), directory, length);
     storage->disk = disk;
     storage->directory = copy;
     return true;
@@ -144,7 +141,7 @@ void
 Js5RscacheStorageClear(struct Js5RscacheStorage* storage)
 {
     assert(storage);
-    free(storage->directory);
+    ToriMem_Free(ToriMem_Net(), storage->directory);
     storage->directory = NULL;
     storage->disk = NULL;
 }

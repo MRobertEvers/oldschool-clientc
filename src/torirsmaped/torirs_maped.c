@@ -13,6 +13,7 @@
 #include "torirs_maped.h"
 
 #include "editor/editor_jm2.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -241,8 +242,7 @@ handle_square_list(
     status = maped->files.vtable->square_list(maped->files.user_data, NULL, 0, &count);
     if( status == EDITOR_HOST_OK && count > 0 )
     {
-        coords = malloc((size_t)count * 2 * sizeof(*coords));
-        assert(coords);
+        coords = ToriMem_Alloc(ToriMem_Editor(), (size_t)count * 2 * sizeof(*coords));
         status = maped->files.vtable->square_list(
             maped->files.user_data, coords, count, &count);
     }
@@ -250,8 +250,7 @@ handle_square_list(
         count = 0;
 
     length = 8 + (uint32_t)count * 8;
-    payload = malloc(length);
-    assert(payload);
+    payload = ToriMem_Alloc(ToriMem_Editor(), length);
     ToriRSMapEd_WriteU32(payload, (uint32_t)status);
     ToriRSMapEd_WriteU32(payload + 4, (uint32_t)count);
     for( int i = 0; i < count; i++ )
@@ -260,8 +259,8 @@ handle_square_list(
         ToriRSMapEd_WriteU32(payload + 12 + (uint32_t)i * 8, (uint32_t)coords[i * 2 + 1]);
     }
     send_frame(session, TORIRSMAPED_FACT_SQUARE_LIST, payload, length);
-    free(payload);
-    free(coords);
+    ToriMem_Free(ToriMem_Editor(), payload);
+    ToriMem_Free(ToriMem_Editor(), coords);
 }
 
 static void
@@ -296,8 +295,7 @@ handle_square_load(
     jl2_plus = jl2.data ? (uint32_t)jl2.size + 1 : 0;
 
     total = 12 + (uint32_t)jm2.size + (uint32_t)jl2.size;
-    payload = malloc(total);
-    assert(payload);
+    payload = ToriMem_Alloc(ToriMem_Editor(), total);
     ToriRSMapEd_WriteU32(payload, (uint32_t)status);
     ToriRSMapEd_WriteU32(payload + 4, jm2_plus);
     ToriRSMapEd_WriteU32(payload + 8, jl2_plus);
@@ -307,7 +305,7 @@ handle_square_load(
         memcpy(payload + 12 + jm2.size, jl2.data, jl2.size);
 
     send_frame(session, TORIRSMAPED_FACT_SQUARE_LOAD, payload, total);
-    free(payload);
+    ToriMem_Free(ToriMem_Editor(), payload);
     Editor_HostBlobFree(&jm2);
     Editor_HostBlobFree(&jl2);
 }
@@ -500,19 +498,16 @@ handle_square_open(
     if( status == EDITOR_HOST_OK && square && square->loaded )
     {
         jm2_size = Editor_Jm2Emit(square, NULL, 0);
-        jm2_text = malloc(jm2_size + 1);
-        assert(jm2_text);
+        jm2_text = ToriMem_Alloc(ToriMem_Editor(), jm2_size + 1);
         Editor_Jm2Emit(square, jm2_text, jm2_size + 1);
 
         jl2_size = Editor_Jl2Emit(square, NULL, 0);
-        jl2_text = malloc(jl2_size + 1);
-        assert(jl2_text);
+        jl2_text = ToriMem_Alloc(ToriMem_Editor(), jl2_size + 1);
         Editor_Jl2Emit(square, jl2_text, jl2_size + 1);
     }
 
     total = (uint32_t)(28 + jm2_size + jl2_size);
-    payload = malloc(total);
-    assert(payload);
+    payload = ToriMem_Alloc(ToriMem_Editor(), total);
     ToriRSMapEd_WriteU32(payload, (uint32_t)status);
     ToriRSMapEd_WriteU32(payload + 4, (uint32_t)map_x);
     ToriRSMapEd_WriteU32(payload + 8, (uint32_t)map_z);
@@ -525,9 +520,9 @@ handle_square_open(
     if( jl2_size > 0 )
         memcpy(payload + 28 + jm2_size, jl2_text, jl2_size);
     send_frame(session, TORIRSMAPED_FACT_SQUARE_TEXT, payload, total);
-    free(payload);
-    free(jm2_text);
-    free(jl2_text);
+    ToriMem_Free(ToriMem_Editor(), payload);
+    ToriMem_Free(ToriMem_Editor(), jm2_text);
+    ToriMem_Free(ToriMem_Editor(), jl2_text);
 }
 
 static void
@@ -637,15 +632,13 @@ handle_save_all(
         if( square->dirty_map )
         {
             jm2_length = Editor_Jm2Emit(square, NULL, 0);
-            jm2_text = malloc(jm2_length + 1);
-            assert(jm2_text);
+            jm2_text = ToriMem_Alloc(ToriMem_Editor(), jm2_length + 1);
             Editor_Jm2Emit(square, jm2_text, jm2_length + 1);
         }
         if( square->dirty_loc )
         {
             jl2_length = Editor_Jl2Emit(square, NULL, 0);
-            jl2_text = malloc(jl2_length + 1);
-            assert(jl2_text);
+            jl2_text = ToriMem_Alloc(ToriMem_Editor(), jl2_length + 1);
             Editor_Jl2Emit(square, jl2_text, jl2_length + 1);
         }
 
@@ -657,8 +650,8 @@ handle_save_all(
             jm2_length,
             jl2_text,
             jl2_length);
-        free(jm2_text);
-        free(jl2_text);
+        ToriMem_Free(ToriMem_Editor(), jm2_text);
+        ToriMem_Free(ToriMem_Editor(), jl2_text);
 
         if( status != EDITOR_HOST_OK )
         {
@@ -677,8 +670,7 @@ handle_save_all(
     if( saved > 0 )
     {
         uint32_t total = 4 + (uint32_t)saved * 8;
-        uint8_t* payload = malloc(total);
-        assert(payload);
+        uint8_t* payload = ToriMem_Alloc(ToriMem_Editor(), total);
         ToriRSMapEd_WriteU32(payload, (uint32_t)saved);
         for( int i = 0; i < saved; i++ )
         {
@@ -687,7 +679,7 @@ handle_save_all(
                 payload + 8 + (uint32_t)i * 8, (uint32_t)saved_coords[i * 2 + 1]);
         }
         broadcast(maped, TORIRSMAPED_FACT_SAVED, payload, total);
-        free(payload);
+        ToriMem_Free(ToriMem_Editor(), payload);
     }
     send_status_extra(session, TORIRSMAPED_REQ_SAVE_ALL, EDITOR_HOST_OK, (uint32_t)saved);
 }

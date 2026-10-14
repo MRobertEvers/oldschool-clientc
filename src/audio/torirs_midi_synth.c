@@ -1,4 +1,5 @@
 #include "audio/torirs_midi_synth.h"
+#include "mem/torirs_mem.h"
 #include <assert.h>
 
 #include <rscache.h>
@@ -740,7 +741,7 @@ ToriRS_MidiSynth_Free(struct ToriRS_MidiSynth* synth)
 {
     if( !synth )
         return;
-    free(synth->accumulator);
+    ToriMem_Free(ToriMem_Audio(), synth->accumulator);
     synth->accumulator = NULL;
     synth->accumulator_frames = 0;
     channel_all_sound_off(synth, -1);
@@ -1097,7 +1098,7 @@ ensure_accumulator(
 
     if( synth->accumulator_frames >= frames )
         return true;
-    grown = realloc(synth->accumulator, (size_t)frames * 2 * sizeof(int32_t));
+    grown = ToriMem_Realloc(ToriMem_Audio(), synth->accumulator, (size_t)frames * 2 * sizeof(int32_t));
     assert(grown);
     synth->accumulator = grown;
     synth->accumulator_frames = frames;

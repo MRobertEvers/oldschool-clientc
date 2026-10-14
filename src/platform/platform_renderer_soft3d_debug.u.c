@@ -502,9 +502,9 @@ soft3d_dbg_pixowner_begin(void)
     count = (size_t)rect_w * (size_t)rect_h;
     if( !g_pixowner_prev )
     {
-        g_pixowner_prev = calloc(count, sizeof(*g_pixowner_prev));
+        g_pixowner_prev = ToriMem_Calloc(ToriMem_Render(), count, sizeof(*g_pixowner_prev));
         assert(g_pixowner_prev);
-        g_pixowner_owner = calloc(count, sizeof(*g_pixowner_owner));
+        g_pixowner_owner = ToriMem_Calloc(ToriMem_Render(), count, sizeof(*g_pixowner_owner));
         assert(g_pixowner_owner);
     }
     for( size_t i = 0; i < count; i++ )
@@ -572,6 +572,16 @@ soft3d_dbg_pixowner_after_command(
 }
 
 /** One row per (owner, colour), sorted by pixel count. */
+/* The rect buffers live until the renderer that recorded them is freed. */
+static void
+soft3d_dbg_pixowner_release(void)
+{
+    ToriMem_Free(ToriMem_Render(), g_pixowner_prev);
+    ToriMem_Free(ToriMem_Render(), g_pixowner_owner);
+    g_pixowner_prev = NULL;
+    g_pixowner_owner = NULL;
+}
+
 struct PixOwnerAgg
 {
     uint32_t colour;
@@ -608,7 +618,7 @@ soft3d_dbg_pixowner_end(void)
         fprintf(out, "# filtered to colour %06x\n", (unsigned)g_pixowner_want_colour);
     fprintf(out, "# colour cmd kind elem loc terrain tile pixels\n");
 
-    agg = calloc((size_t)rect_w * (size_t)rect_h, sizeof(*agg));
+    agg = ToriMem_Calloc(ToriMem_Render(), (size_t)rect_w * (size_t)rect_h, sizeof(*agg));
     assert(agg);
     for( int i = 0; i < rect_w * rect_h; i++ )
     {
@@ -653,7 +663,7 @@ soft3d_dbg_pixowner_end(void)
                     agg[a].rec.world_z);
         fprintf(out, " pixels=%d\n", agg[a].pixels);
     }
-    free(agg);
+    ToriMem_Free(ToriMem_Render(), agg);
 
     if( out != stderr )
         fclose(out);

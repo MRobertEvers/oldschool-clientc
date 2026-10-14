@@ -1,6 +1,7 @@
 #ifndef UITREE_CANVAS_MEASURE_H
 #define UITREE_CANVAS_MEASURE_H
 #include "uitree.h"
+#include "mem/torirs_mem.h"
 #include <assert.h>
 #include <stdlib.h>
 #include <limits.h>
@@ -62,7 +63,7 @@ uitree_canvas_candidate_add(struct UITree* tree,uint32_t id)
         uint32_t cap=tree->canvas_candidate_capacity ? tree->canvas_candidate_capacity*2u : 16u;
         assert(cap>tree->canvas_candidate_capacity);
         assert(cap<=UINT32_MAX/sizeof(uint32_t));
-        uint32_t* p=realloc(tree->canvas_candidate_ids,(size_t)cap*sizeof(uint32_t));
+        uint32_t* p=ToriMem_Realloc(ToriMem_Ui(), tree->canvas_candidate_ids,(size_t)cap*sizeof(uint32_t));
         assert(p);
         tree->canvas_candidate_ids=p;tree->canvas_candidate_capacity=cap;
     }

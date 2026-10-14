@@ -8,6 +8,7 @@
  */
 
 #include "app/app_internal.h"
+#include "mem/torirs_mem.h"
 
 #include "cs2vm2.h"
 #include "boot_telemetry.h"
@@ -888,7 +889,7 @@ Task_AppBoot_Run(
 static void
 Task_AppBoot_Free(struct ToriRS_Task* base)
 {
-    free(base);
+    ToriMem_Free(ToriMem_Process(), base);
 }
 
 static struct ToriRS_TaskVTable Task_AppBoot_VTable = {
@@ -1005,7 +1006,7 @@ app_open_tree(
      * NULL on a profile that names no cache indices, which is every dat1
      * lane: their list is jag archives, loaded by other machinery.
      */
-    task = calloc(1, sizeof(*task));
+    task = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_AppBoot_VTable;
     strncpy(task->task.name, "AppBoot", sizeof(task->task.name) - 1);
@@ -1234,7 +1235,7 @@ Task_OpenSubRefresh_Run(
 static void
 Task_OpenSubRefresh_Free(struct ToriRS_Task* base)
 {
-    free(base);
+    ToriMem_Free(ToriMem_Process(), base);
 }
 
 static struct ToriRS_TaskVTable Task_OpenSubRefresh_VTable = {
@@ -1332,7 +1333,7 @@ app_enqueue_open_sub(
      */
     if( app->tree )
         UITree_SetPausePending(app->tree, -1);
-    task = calloc(1, sizeof(*task));
+    task = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_OpenSubRefresh_VTable;
     strncpy(task->task.name, "OpenSubRefresh", sizeof(task->task.name) - 1);

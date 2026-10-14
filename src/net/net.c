@@ -1,4 +1,5 @@
 #include "net.h"
+#include "mem/torirs_mem.h"
 #include "torirs_env.h"
 
 #include "cmd/cmdbus.h"
@@ -136,7 +137,7 @@ free_packet_list(struct ToriRS_Network* net)
     {
         struct RevPacketItem* next = item->next_nullable;
         gameproto_free(&item->packet);
-        free(item);
+        ToriMem_Free(ToriMem_Net(), item);
         item = next;
     }
     net->packets_head = NULL;
@@ -488,8 +489,7 @@ push_parsed_packet(
     struct ToriRS_Network* net,
     struct RevPacket const* packet)
 {
-    struct RevPacketItem* item = malloc(sizeof(*item));
-    assert(item);
+    struct RevPacketItem* item = ToriMem_Alloc(ToriMem_Net(), sizeof(*item));
     item->packet = *packet;
     item->next_nullable = NULL;
     if( net->packets_tail )
@@ -685,7 +685,7 @@ ToriRS_Network_PopPacket(
         net->packets_tail = NULL;
 
     *out = item->packet; /* heap fields transfer to the caller */
-    free(item);
+    ToriMem_Free(ToriMem_Net(), item);
     return 1;
 }
 

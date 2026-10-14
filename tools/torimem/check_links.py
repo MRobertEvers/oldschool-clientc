@@ -30,6 +30,8 @@ for t in targets:
         continue
     text = re.sub(r'\\\n', ' ', r.stdout)
     for cmd in text.split('\n'):
+        # a continuation line starts with tabs: " \t\t-o x" must read as " -o x"
+        cmd = ' ' + re.sub(r'\s+', ' ', cmd) + ' '
         if ' -o ' not in cmd or ' -c ' in cmd or 'torirs_mem' in cmd:
             continue
         hit = None

@@ -29,9 +29,10 @@ static int
 w3d_ctx_init(struct Painter* painter)
 {
     int tile_count = painter->tile_capacity;
-    struct PainterW3dCtx* w = (struct PainterW3dCtx*)calloc(1, sizeof(struct PainterW3dCtx));
+    struct PainterW3dCtx* w =
+        (struct PainterW3dCtx*)ToriMem_Calloc(ToriMem_Scene(), 1, sizeof(struct PainterW3dCtx));
     assert(w);
-    w->paints = malloc((size_t)(tile_count + 1) * sizeof(struct W3dPaint));
+    w->paints = ToriMem_Alloc(ToriMem_Scene(), (size_t)(tile_count + 1) * sizeof(struct W3dPaint));
     w->sentinel_idx = tile_count;
     assert(w->paints);
     painter->w3d_ctx = w;
@@ -44,8 +45,8 @@ w3d_ctx_free(struct Painter* painter)
     struct PainterW3dCtx* w = W3(painter);
     if( !w )
         return;
-    free(w->paints);
-    free(w);
+    ToriMem_Free(ToriMem_Scene(), w->paints);
+    ToriMem_Free(ToriMem_Scene(), w);
     painter->w3d_ctx = NULL;
 }
 

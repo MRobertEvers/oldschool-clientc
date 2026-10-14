@@ -4,6 +4,7 @@
  */
 
 #include "ssc_build.h"
+#include "mem/torirs_mem.h"
 #include "ssc_hash.h"
 #include "ssvm_provider.h"
 #include "ssvm_script.h"
@@ -149,11 +150,11 @@ read_whole(const char* path, size_t* out_length)
         fclose(file);
         return NULL;
     }
-    data = (char*)malloc((size_t)size + 1);
+    data = (char*)ToriMem_Alloc(ToriMem_Compiler(), (size_t)size + 1);
     assert(data);
     if( size > 0 && fread(data, 1, (size_t)size, file) != (size_t)size )
     {
-        free(data);
+        ToriMem_Free(ToriMem_Compiler(), data);
         fclose(file);
         return NULL;
     }
@@ -175,7 +176,7 @@ hash_file(const char* path, int* ok)
     if( !data )
         return 0;
     hash = ssc_hash_bytes(data, length, SSC_HASH_SEED);
-    free(data);
+    ToriMem_Free(ToriMem_Compiler(), data);
     return hash;
 }
 
@@ -295,8 +296,8 @@ manifest_path(const char* content_normal, const char* path)
     normal_path(path, normal, sizeof(normal));
     if( root_length && strncmp(normal, content_normal, root_length) == 0 &&
         normal[root_length] == '/' )
-        return strdup(normal + root_length + 1);
-    return strdup(normal);
+        return ToriMem_Strdup(ToriMem_Compiler(), normal + root_length + 1);
+    return ToriMem_Strdup(ToriMem_Compiler(), normal);
 }
 
 /* ------------------------------------------------------------------ */
@@ -317,7 +318,7 @@ buf_reserve(struct Buf* buf, size_t extra)
         return;
     while( buf->length + extra > buf->capacity )
         buf->capacity = buf->capacity ? buf->capacity * 2 : 65536;
-    buf->data = (uint8_t*)realloc(buf->data, buf->capacity);
+    buf->data = (uint8_t*)ToriMem_Realloc(ToriMem_Compiler(), buf->data, buf->capacity);
     assert(buf->data);
 }
 
@@ -436,8 +437,8 @@ rd_str(struct Reader* reader)
     char* text;
 
     if( !p )
-        return strdup("");
-    text = (char*)malloc((size_t)length + 1);
+        return ToriMem_Strdup(ToriMem_Compiler(), "");
+    text = (char*)ToriMem_Alloc(ToriMem_Compiler(), (size_t)length + 1);
     assert(text);
     memcpy(text, p, length);
     text[length] = '\0';
@@ -467,8 +468,8 @@ map_init(struct Map* map)
 static void
 map_free(struct Map* map)
 {
-    free(map->hashes);
-    free(map->values);
+    ToriMem_Free(ToriMem_Compiler(), map->hashes);
+    ToriMem_Free(ToriMem_Compiler(), map->values);
     memset(map, 0, sizeof(*map));
 }
 
@@ -538,8 +539,8 @@ map_grow(struct Map* map)
     int32_t* old_values = map->values;
 
     map->capacity = old_capacity ? old_capacity * 2 : 1024;
-    map->hashes = (uint64_t*)calloc(map->capacity, sizeof(uint64_t));
-    map->values = (int32_t*)malloc(map->capacity * sizeof(int32_t));
+    map->hashes = (uint64_t*)ToriMem_Calloc(ToriMem_Compiler(), map->capacity, sizeof(uint64_t));
+    map->values = (int32_t*)ToriMem_Alloc(ToriMem_Compiler(), map->capacity * sizeof(int32_t));
     assert(map->hashes);
     assert(map->values);
     memset(map->values, -1, map->capacity * sizeof(int32_t));
@@ -556,8 +557,8 @@ map_grow(struct Map* map)
         map->hashes[slot] = old_hashes[i];
         map->values[slot] = old_values[i];
     }
-    free(old_hashes);
-    free(old_values);
+    ToriMem_Free(ToriMem_Compiler(), old_hashes);
+    ToriMem_Free(ToriMem_Compiler(), old_values);
 }
 
 /* ------------------------------------------------------------------ */
@@ -790,15 +791,15 @@ input_path_equal(void* context, int32_t value, const void* key)
 static void
 unit_free(struct Unit* unit)
 {
-    free(unit->path);
-    free(unit->rel);
-    free(unit->decls);
-    free(unit->ids);
-    free(unit->queries);
+    ToriMem_Free(ToriMem_Compiler(), unit->path);
+    ToriMem_Free(ToriMem_Compiler(), unit->rel);
+    ToriMem_Free(ToriMem_Compiler(), unit->decls);
+    ToriMem_Free(ToriMem_Compiler(), unit->ids);
+    ToriMem_Free(ToriMem_Compiler(), unit->queries);
     for( int i = 0; i < unit->script_count; i++ )
-        free(unit->scripts[i].blob);
-    free(unit->scripts);
-    free(unit->warnings.data);
+        ToriMem_Free(ToriMem_Compiler(), unit->scripts[i].blob);
+    ToriMem_Free(ToriMem_Compiler(), unit->scripts);
+    ToriMem_Free(ToriMem_Compiler(), unit->warnings.data);
     memset(unit, 0, sizeof(*unit));
 }
 
@@ -806,16 +807,16 @@ unit_free(struct Unit* unit)
 static void
 unit_clear_output(struct Unit* unit)
 {
-    free(unit->queries);
+    ToriMem_Free(ToriMem_Compiler(), unit->queries);
     unit->queries = NULL;
     unit->query_count = 0;
     unit->query_capacity = 0;
     for( int i = 0; i < unit->script_count; i++ )
-        free(unit->scripts[i].blob);
-    free(unit->scripts);
+        ToriMem_Free(ToriMem_Compiler(), unit->scripts[i].blob);
+    ToriMem_Free(ToriMem_Compiler(), unit->scripts);
     unit->scripts = NULL;
     unit->script_count = 0;
-    free(unit->warnings.data);
+    ToriMem_Free(ToriMem_Compiler(), unit->warnings.data);
     memset(&unit->warnings, 0, sizeof(unit->warnings));
     unit->ambiguous = 0;
 }
@@ -851,20 +852,20 @@ static void
 state_free(struct State* state)
 {
     for( int i = 0; i < state->id_count; i++ )
-        free(state->id_names[i]);
-    free(state->id_names);
+        ToriMem_Free(ToriMem_Compiler(), state->id_names[i]);
+    ToriMem_Free(ToriMem_Compiler(), state->id_names);
     for( int i = 0; i < state->query_count; i++ )
-        free(state->queries[i].name);
-    free(state->queries);
+        ToriMem_Free(ToriMem_Compiler(), state->queries[i].name);
+    ToriMem_Free(ToriMem_Compiler(), state->queries);
     for( int i = 0; i < state->input_count; i++ )
     {
-        free(state->inputs[i].path);
-        free(state->inputs[i].rel);
+        ToriMem_Free(ToriMem_Compiler(), state->inputs[i].path);
+        ToriMem_Free(ToriMem_Compiler(), state->inputs[i].rel);
     }
-    free(state->inputs);
+    ToriMem_Free(ToriMem_Compiler(), state->inputs);
     for( int i = 0; i < state->unit_count; i++ )
         unit_free(&state->units[i]);
-    free(state->units);
+    ToriMem_Free(ToriMem_Compiler(), state->units);
     memset(state, 0, sizeof(*state));
 }
 
@@ -890,7 +891,7 @@ state_read(struct State* state, const char* path, uint64_t config_key)
     reader.length = length;
     if( rd_u32(&reader) != STATE_MAGIC_0 || rd_u32(&reader) != STATE_FORMAT )
     {
-        free(data);
+        ToriMem_Free(ToriMem_Compiler(), data);
         return "state file is from another format; numbering afresh";
     }
     state->config_key = rd_u64(&reader);
@@ -899,25 +900,26 @@ state_read(struct State* state, const char* path, uint64_t config_key)
     count = rd_u32(&reader);
     if( count > SSC_MAX_SCRIPTS )
         reader.bad = 1;
-    state->id_names = (char**)calloc(count ? count : 1, sizeof(char*));
+    state->id_names = (char**)ToriMem_Calloc(ToriMem_Compiler(), count ? count : 1, sizeof(char*));
     assert(state->id_names);
     for( uint32_t i = 0; i < count && !reader.bad; i++ )
         state->id_names[state->id_count++] = rd_str(&reader);
     if( reader.bad )
     {
-        free(data);
+        ToriMem_Free(ToriMem_Compiler(), data);
         state_free(state);
         return "state file is truncated; numbering afresh";
     }
     state->loaded = 1;
     if( state->config_key != config_key )
     {
-        free(data);
+        ToriMem_Free(ToriMem_Compiler(), data);
         return "the compiler or the build configuration changed; every unit recompiles";
     }
 
     count = rd_u32(&reader);
-    state->queries = (struct Query*)calloc(count ? count : 1, sizeof(struct Query));
+    state->queries =
+        (struct Query*)ToriMem_Calloc(ToriMem_Compiler(), count ? count : 1, sizeof(struct Query));
     assert(state->queries);
     for( uint32_t i = 0; i < count && !reader.bad; i++ )
     {
@@ -931,7 +933,8 @@ state_read(struct State* state, const char* path, uint64_t config_key)
     state->query_capacity = state->query_count;
 
     count = rd_u32(&reader);
-    state->inputs = (struct Input*)calloc(count ? count : 1, sizeof(struct Input));
+    state->inputs =
+        (struct Input*)ToriMem_Calloc(ToriMem_Compiler(), count ? count : 1, sizeof(struct Input));
     assert(state->inputs);
     for( uint32_t i = 0; i < count && !reader.bad; i++ )
     {
@@ -946,7 +949,8 @@ state_read(struct State* state, const char* path, uint64_t config_key)
     }
 
     count = rd_u32(&reader);
-    state->units = (struct Unit*)calloc(count ? count : 1, sizeof(struct Unit));
+    state->units =
+        (struct Unit*)ToriMem_Calloc(ToriMem_Compiler(), count ? count : 1, sizeof(struct Unit));
     assert(state->units);
     for( uint32_t i = 0; i < count && !reader.bad; i++ )
     {
@@ -967,8 +971,9 @@ state_read(struct State* state, const char* path, uint64_t config_key)
             reader.bad = 1;
             break;
         }
-        unit->decls = (struct SSC_Decl*)calloc(n ? n : 1, sizeof(struct SSC_Decl));
-        unit->ids = (int32_t*)calloc(n ? n : 1, sizeof(int32_t));
+        unit->decls = (struct SSC_Decl*)ToriMem_Calloc(
+            ToriMem_Compiler(), n ? n : 1, sizeof(struct SSC_Decl));
+        unit->ids = (int32_t*)ToriMem_Calloc(ToriMem_Compiler(), n ? n : 1, sizeof(int32_t));
         assert(unit->decls);
         assert(unit->ids);
         unit->decl_count = (int)n;
@@ -987,7 +992,8 @@ state_read(struct State* state, const char* path, uint64_t config_key)
             reader.bad = 1;
             break;
         }
-        unit->queries = (uint32_t*)malloc((n ? n : 1) * sizeof(uint32_t));
+        unit->queries =
+            (uint32_t*)ToriMem_Alloc(ToriMem_Compiler(), (n ? n : 1) * sizeof(uint32_t));
         assert(unit->queries);
         unit->query_count = (int)n;
         unit->query_capacity = (int)n;
@@ -1004,7 +1010,8 @@ state_read(struct State* state, const char* path, uint64_t config_key)
             reader.bad = 1;
             break;
         }
-        unit->scripts = (struct UnitScript*)calloc(n ? n : 1, sizeof(struct UnitScript));
+        unit->scripts = (struct UnitScript*)ToriMem_Calloc(
+            ToriMem_Compiler(), n ? n : 1, sizeof(struct UnitScript));
         assert(unit->scripts);
         unit->script_count = (int)n;
         for( uint32_t s = 0; s < n && !reader.bad; s++ )
@@ -1019,7 +1026,7 @@ state_read(struct State* state, const char* path, uint64_t config_key)
             p = rd_take(&reader, script->length);
             if( p && script->length )
             {
-                script->blob = (uint8_t*)malloc(script->length);
+                script->blob = (uint8_t*)ToriMem_Alloc(ToriMem_Compiler(), script->length);
                 assert(script->blob);
                 memcpy(script->blob, p, script->length);
             }
@@ -1037,7 +1044,7 @@ state_read(struct State* state, const char* path, uint64_t config_key)
     state->dat_hash = rd_u64(&reader);
     state->idx_size = (int64_t)rd_u64(&reader);
     state->idx_hash = rd_u64(&reader);
-    free(data);
+    ToriMem_Free(ToriMem_Compiler(), data);
     if( reader.bad )
     {
         /* The ids are intact (read above); only the reuse is lost. */
@@ -1072,7 +1079,8 @@ state_write(struct Build* build, const char* path, uint32_t generation, int64_t 
         buf_str(&buf, build->id_names[i] ? build->id_names[i] : "");
 
     /* Only the queries some current unit still depends on. */
-    remap = (uint32_t*)malloc(((size_t)build->query_count + 1) * sizeof(uint32_t));
+    remap = (uint32_t*)ToriMem_Alloc(
+        ToriMem_Compiler(), ((size_t)build->query_count + 1) * sizeof(uint32_t));
     assert(remap);
     for( int i = 0; i < build->query_count; i++ )
         build->queries[i].referenced = 0;
@@ -1151,7 +1159,7 @@ state_write(struct Build* build, const char* path, uint32_t generation, int64_t 
     buf_u64(&buf, dat_hash);
     buf_u64(&buf, (uint64_t)idx_size);
     buf_u64(&buf, idx_hash);
-    free(remap);
+    ToriMem_Free(ToriMem_Compiler(), remap);
 
     snprintf(temporary, sizeof(temporary), "%s.tmp", path);
     file = fopen(temporary, "wb");
@@ -1160,7 +1168,7 @@ state_write(struct Build* build, const char* path, uint32_t generation, int64_t 
         ok = 0;
     if( ok )
         ok = replace_file(temporary, path) == 0;
-    free(buf.data);
+    ToriMem_Free(ToriMem_Compiler(), buf.data);
     return ok;
 }
 
@@ -1240,11 +1248,11 @@ walk_sources(
         if( list->count == list->capacity )
         {
             list->capacity = list->capacity ? list->capacity * 2 : 1024;
-            list->files =
-                (struct WalkFile*)realloc(list->files, (size_t)list->capacity * sizeof(*list->files));
+            list->files = (struct WalkFile*)ToriMem_Realloc(
+                ToriMem_Compiler(), list->files, (size_t)list->capacity * sizeof(*list->files));
             assert(list->files);
         }
-        list->files[list->count].path = strdup(path);
+        list->files[list->count].path = ToriMem_Strdup(ToriMem_Compiler(), path);
         list->files[list->count].size = (int64_t)info.st_size;
         list->files[list->count].mtime = stat_mtime_ns(&info);
         list->count++;
@@ -1326,10 +1334,11 @@ dir_listing_hash(const char* dir)
         if( count == capacity )
         {
             capacity = capacity ? capacity * 2 : 64;
-            names = (char**)realloc(names, (size_t)capacity * sizeof(char*));
+            names = (char**)ToriMem_Realloc(
+                ToriMem_Compiler(), names, (size_t)capacity * sizeof(char*));
             assert(names);
         }
-        names[count] = strdup(name);
+        names[count] = ToriMem_Strdup(ToriMem_Compiler(), name);
         assert(names[count]);
         count++;
     }
@@ -1338,9 +1347,9 @@ dir_listing_hash(const char* dir)
     for( int i = 0; i < count; i++ )
     {
         hash = ssc_hash_str(hash, names[i]);
-        free(names[i]);
+        ToriMem_Free(ToriMem_Compiler(), names[i]);
     }
-    free(names);
+    ToriMem_Free(ToriMem_Compiler(), names);
     return hash;
 }
 
@@ -1366,14 +1375,16 @@ observe_input(void* context, const char* path, int is_dir)
     if( build->input_count == build->input_capacity )
     {
         build->input_capacity = build->input_capacity ? build->input_capacity * 2 : 1024;
-        build->inputs = (struct Input*)realloc(build->inputs,
-                                               (size_t)build->input_capacity * sizeof(struct Input));
+        build->inputs = (struct Input*)ToriMem_Realloc(
+            ToriMem_Compiler(),
+            build->inputs,
+            (size_t)build->input_capacity * sizeof(struct Input));
         assert(build->inputs);
     }
     index = build->input_count++;
     input = &build->inputs[index];
     memset(input, 0, sizeof(*input));
-    input->path = strdup(path);
+    input->path = ToriMem_Strdup(ToriMem_Compiler(), path);
     input->rel = manifest_path(build->content_normal, path);
     input->is_dir = is_dir;
     map_insert(&build->input_by_path, hash, input->path, index, input_path_equal, build);
@@ -1478,15 +1489,17 @@ query_intern(struct Build* build, int op, int32_t arg, const char* name)
     if( build->query_count == build->query_capacity )
     {
         build->query_capacity = build->query_capacity ? build->query_capacity * 2 : 65536;
-        build->queries = (struct Query*)realloc(build->queries,
-                                                (size_t)build->query_capacity * sizeof(struct Query));
+        build->queries = (struct Query*)ToriMem_Realloc(
+            ToriMem_Compiler(),
+            build->queries,
+            (size_t)build->query_capacity * sizeof(struct Query));
         assert(build->queries);
     }
     q = &build->queries[build->query_count];
     memset(q, 0, sizeof(*q));
     q->op = (uint8_t)op;
     q->arg = arg;
-    q->name = strdup(name);
+    q->name = ToriMem_Strdup(ToriMem_Compiler(), name);
     q->stamp = -1;
     key.name = q->name;
     map_insert(&build->query_by_key, hash, &key, build->query_count, query_equal, build);
@@ -1518,8 +1531,8 @@ observe_query(void* context, int op, const char* name, int32_t arg)
     if( unit->query_count == unit->query_capacity )
     {
         unit->query_capacity = unit->query_capacity ? unit->query_capacity * 2 : 64;
-        unit->queries =
-            (uint32_t*)realloc(unit->queries, (size_t)unit->query_capacity * sizeof(uint32_t));
+        unit->queries = (uint32_t*)ToriMem_Realloc(
+            ToriMem_Compiler(), unit->queries, (size_t)unit->query_capacity * sizeof(uint32_t));
         assert(unit->queries);
     }
     unit->queries[unit->query_count++] = (uint32_t)index;
@@ -1653,13 +1666,14 @@ id_table_add(struct Build* build, int id, const char* name)
     while( id >= build->id_capacity )
     {
         build->id_capacity = build->id_capacity ? build->id_capacity * 2 : 65536;
-        build->id_names = (char**)realloc(build->id_names, (size_t)build->id_capacity * sizeof(char*));
+        build->id_names = (char**)ToriMem_Realloc(
+            ToriMem_Compiler(), build->id_names, (size_t)build->id_capacity * sizeof(char*));
         assert(build->id_names);
     }
     while( build->id_count <= id )
         build->id_names[build->id_count++] = NULL;
     assert(!build->id_names[id]);
-    build->id_names[id] = strdup(name);
+    build->id_names[id] = ToriMem_Strdup(ToriMem_Compiler(), name);
     if( name[0] )
         map_insert(&build->id_by_name, ssc_hash_str(SSC_HASH_SEED, name), build->id_names[id], id,
                    id_name_equal, build);
@@ -1768,8 +1782,10 @@ compile_unit(struct Build* build, int u, struct SSC_Diag* diag)
         return 0;
 
     /* One blob per declared id, in declaration order: what script.dat holds. */
-    unit->scripts = (struct UnitScript*)calloc(unit->decl_count ? (size_t)unit->decl_count : 1,
-                                               sizeof(struct UnitScript));
+    unit->scripts = (struct UnitScript*)ToriMem_Calloc(
+        ToriMem_Compiler(),
+        unit->decl_count ? (size_t)unit->decl_count : 1,
+        sizeof(struct UnitScript));
     assert(unit->scripts);
     SSVM_ErrorClear(&err);
     for( int d = 0; d < unit->decl_count; d++ )
@@ -1787,7 +1803,7 @@ compile_unit(struct Build* build, int u, struct SSC_Diag* diag)
         if( script && script->op_count &&
             SSVM_ScriptEncode(script, NULL, 0, &needed, &err) && needed )
         {
-            out->blob = (uint8_t*)malloc(needed);
+            out->blob = (uint8_t*)ToriMem_Alloc(ToriMem_Compiler(), needed);
             assert(out->blob);
             if( !SSVM_ScriptEncode(script, out->blob, needed, &needed, &err) )
             {
@@ -1931,8 +1947,10 @@ SSC_BuildPack(const struct SSC_BuildOptions* options)
     qsort(weak.files, (size_t)weak.count, sizeof(struct WalkFile), walk_file_compare);
 
     build->unit_capacity = strong.count + weak.count;
-    build->units = (struct Unit*)calloc(build->unit_capacity ? (size_t)build->unit_capacity : 1,
-                                        sizeof(struct Unit));
+    build->units = (struct Unit*)ToriMem_Calloc(
+        ToriMem_Compiler(),
+        build->unit_capacity ? (size_t)build->unit_capacity : 1,
+        sizeof(struct Unit));
     assert(build->units);
     for( int pass = 0; pass < 2; pass++ )
     {
@@ -1997,8 +2015,8 @@ SSC_BuildPack(const struct SSC_BuildOptions* options)
                 changed_files++;
         }
     }
-    free(strong.files);
-    free(weak.files);
+    ToriMem_Free(ToriMem_Compiler(), strong.files);
+    ToriMem_Free(ToriMem_Compiler(), weak.files);
     for( int i = 0; i < build->previous.unit_count; i++ )
     {
         const struct Unit* old = &build->previous.units[i];
@@ -2101,12 +2119,13 @@ SSC_BuildPack(const struct SSC_BuildOptions* options)
                 errors++;
                 break;
             }
-            free(unit->ids);
+            ToriMem_Free(ToriMem_Compiler(), unit->ids);
             unit->ids = NULL;
         }
         {
-            int32_t* ids = (int32_t*)malloc((unit->decl_count ? (size_t)unit->decl_count : 1) *
-                                            sizeof(int32_t));
+            int32_t* ids = (int32_t*)ToriMem_Alloc(
+                ToriMem_Compiler(),
+                (unit->decl_count ? (size_t)unit->decl_count : 1) * sizeof(int32_t));
             int moved = 0;
 
             assert(ids);
@@ -2138,7 +2157,7 @@ SSC_BuildPack(const struct SSC_BuildOptions* options)
                 for( int d = 0; d < unit->decl_count; d++ )
                     moved |= unit->ids[d] != ids[d];
             }
-            free(unit->ids);
+            ToriMem_Free(ToriMem_Compiler(), unit->ids);
             unit->ids = ids;
             if( moved )
                 unit->dirty = 1;
@@ -2312,17 +2331,20 @@ SSC_BuildPack(const struct SSC_BuildOptions* options)
         struct Buf dat;
         struct Buf idx;
         struct Buf manifest;
-        const struct UnitScript** by_id =
-            (const struct UnitScript**)calloc((size_t)build->id_count + 1, sizeof(*by_id));
-        int32_t* unit_of = (int32_t*)malloc(((size_t)build->id_count + 1) * sizeof(int32_t));
+        const struct UnitScript** by_id = (const struct UnitScript**)ToriMem_Calloc(
+            ToriMem_Compiler(), (size_t)build->id_count + 1, sizeof(*by_id));
+        int32_t* unit_of = (int32_t*)ToriMem_Alloc(
+            ToriMem_Compiler(), ((size_t)build->id_count + 1) * sizeof(int32_t));
         int ambiguous = 0;
         int script_total = 0;
         uint64_t dat_hash;
         uint64_t idx_hash;
         int64_t dat_size;
         int64_t idx_size;
-        uint32_t* old_rev = (uint32_t*)calloc((size_t)build->id_count + 1, sizeof(uint32_t));
-        uint64_t* old_hash = (uint64_t*)calloc((size_t)build->id_count + 1, sizeof(uint64_t));
+        uint32_t* old_rev = (uint32_t*)ToriMem_Calloc(
+            ToriMem_Compiler(), (size_t)build->id_count + 1, sizeof(uint32_t));
+        uint64_t* old_hash = (uint64_t*)ToriMem_Calloc(
+            ToriMem_Compiler(), (size_t)build->id_count + 1, sizeof(uint64_t));
 
         assert(by_id);
         assert(unit_of);
@@ -2377,8 +2399,8 @@ SSC_BuildPack(const struct SSC_BuildOptions* options)
             if( !unit->rev )
                 unit->rev = 1;
         }
-        free(old_rev);
-        free(old_hash);
+        ToriMem_Free(ToriMem_Compiler(), old_rev);
+        ToriMem_Free(ToriMem_Compiler(), old_hash);
 
         memset(&dat, 0, sizeof(dat));
         memset(&idx, 0, sizeof(idx));
@@ -2438,14 +2460,14 @@ SSC_BuildPack(const struct SSC_BuildOptions* options)
             char* rel = manifest_path(build->content_normal, options->roots[i].dir);
 
             buf_printf(&manifest, "root %s %s\n", options->roots[i].weak ? "weak" : "strong", rel);
-            free(rel);
+            ToriMem_Free(ToriMem_Compiler(), rel);
         }
         for( int i = 0; i < options->exclude_count; i++ )
         {
             char* rel = manifest_path(build->content_normal, options->excludes[i]);
 
             buf_printf(&manifest, "exclude %s\n", rel);
-            free(rel);
+            ToriMem_Free(ToriMem_Compiler(), rel);
         }
         for( int i = 0; i < build->input_count; i++ )
         {
@@ -2492,11 +2514,11 @@ SSC_BuildPack(const struct SSC_BuildOptions* options)
             status = 2;
         if( status )
             fprintf(stderr, "sscompile: cannot write the pack into %s\n", options->out);
-        free(dat.data);
-        free(idx.data);
-        free(manifest.data);
-        free(by_id);
-        free(unit_of);
+        ToriMem_Free(ToriMem_Compiler(), dat.data);
+        ToriMem_Free(ToriMem_Compiler(), idx.data);
+        ToriMem_Free(ToriMem_Compiler(), manifest.data);
+        ToriMem_Free(ToriMem_Compiler(), by_id);
+        ToriMem_Free(ToriMem_Compiler(), unit_of);
         t_write = now_seconds() - t_mark;
 
         if( !status )
@@ -2536,20 +2558,20 @@ done:
         SSC_SymbolsFree(&build->symbols);
     for( int u = 0; u < build->unit_count; u++ )
         unit_free(&build->units[u]);
-    free(build->units);
+    ToriMem_Free(ToriMem_Compiler(), build->units);
     for( int i = 0; i < build->id_count; i++ )
-        free(build->id_names[i]);
-    free(build->id_names);
+        ToriMem_Free(ToriMem_Compiler(), build->id_names[i]);
+    ToriMem_Free(ToriMem_Compiler(), build->id_names);
     for( int i = 0; i < build->query_count; i++ )
-        free(build->queries[i].name);
-    free(build->queries);
+        ToriMem_Free(ToriMem_Compiler(), build->queries[i].name);
+    ToriMem_Free(ToriMem_Compiler(), build->queries);
     for( int i = 0; i < build->input_count; i++ )
     {
-        free(build->inputs[i].path);
-        free(build->inputs[i].rel);
+        ToriMem_Free(ToriMem_Compiler(), build->inputs[i].path);
+        ToriMem_Free(ToriMem_Compiler(), build->inputs[i].rel);
     }
-    free(build->inputs);
-    free(build->log_text.data);
+    ToriMem_Free(ToriMem_Compiler(), build->inputs);
+    ToriMem_Free(ToriMem_Compiler(), build->log_text.data);
     map_free(&build->unit_by_path);
     map_free(&build->id_by_name);
     map_free(&build->query_by_key);

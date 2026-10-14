@@ -15,6 +15,7 @@
  * than lazily per id.
  */
 #include "torirs_server_servpack.h"
+#include "mem/torirs_mem.h"
 #include "torirs_server.h"
 #include <assert.h>
 
@@ -94,7 +95,7 @@ ToriRSServer_VarbitLoad(struct RSCache_ServerPack* pack)
     }
 
     g_varbit_count = highest + 1;
-    g_varbits = calloc((size_t)g_varbit_count, sizeof(*g_varbits));
+    g_varbits = ToriMem_Calloc(ToriMem_ServerContent(), (size_t)g_varbit_count, sizeof(*g_varbits));
     assert(g_varbits);
     /* -1 is "absent". A zeroed slot would read as varp 0, which is a real varp,
      * so every unknown varbit would silently alias it. */
@@ -121,7 +122,8 @@ ToriRSServer_VarbitLoad(struct RSCache_ServerPack* pack)
      * basevar seen: a carrier query for a varp past the end must answer 0, not
      * read off the array. */
     g_carrier_count = TORIRSSERVER_VARP_COUNT;
-    g_carrier_bits = calloc((size_t)g_carrier_count, sizeof(*g_carrier_bits));
+    g_carrier_bits =
+        ToriMem_Calloc(ToriMem_ServerContent(), (size_t)g_carrier_count, sizeof(*g_carrier_bits));
     /* The ceiling is measured over every basevar, including any past the end of
      * the reverse index — that case is exactly the one worth hearing about. */
     for( int i = 0; i < g_varbit_count; i++ )
@@ -192,11 +194,11 @@ ToriRSServer_VarpClientCount(void)
 void
 ToriRSServer_VarbitFree(void)
 {
-    free(g_varbits);
+    ToriMem_Free(ToriMem_ServerContent(), g_varbits);
     g_varbits = NULL;
     g_varbit_count = 0;
     g_client_varp_count = 0;
-    free(g_carrier_bits);
+    ToriMem_Free(ToriMem_ServerContent(), g_carrier_bits);
     g_carrier_bits = NULL;
     g_carrier_count = 0;
     g_max_basevar = -1;

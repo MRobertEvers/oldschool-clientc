@@ -60,6 +60,7 @@
  */
 
 #include "torirs_server.h"
+#include "mem/torirs_mem.h"
 #include <assert.h>
 #include "torirs_server_content.h"
 #include "torirs_server_paramtable.h"
@@ -199,7 +200,7 @@ add_name(
 
         while( want < g_name_blob_len + length )
             want *= 2;
-        grown = realloc(g_name_blob, want);
+        grown = ToriMem_Realloc(ToriMem_ServerContent(), g_name_blob, want);
         assert(grown);
         g_name_blob = grown;
         g_name_blob_cap = want;
@@ -207,7 +208,8 @@ add_name(
     if( g_name_count == g_name_cap )
     {
         int want = g_name_cap ? g_name_cap * 2 : 1024;
-        struct LocNameRow* grown = realloc(g_names, (size_t)want * sizeof(*grown));
+        struct LocNameRow* grown =
+            ToriMem_Realloc(ToriMem_ServerContent(), g_names, (size_t)want * sizeof(*grown));
 
         assert(grown);
         g_names = grown;
@@ -229,7 +231,8 @@ add_size(
     if( g_size_count == g_size_cap )
     {
         int want = g_size_cap ? g_size_cap * 2 : 1024;
-        struct LocSizeRow* grown = realloc(g_sizes, (size_t)want * sizeof(*grown));
+        struct LocSizeRow* grown =
+            ToriMem_Realloc(ToriMem_ServerContent(), g_sizes, (size_t)want * sizeof(*grown));
 
         assert(grown);
         g_sizes = grown;
@@ -260,7 +263,8 @@ add_category(
     if( g_category_count == g_category_cap )
     {
         int want = g_category_cap ? g_category_cap * 2 : 1024;
-        struct LocCategoryRow* grown = realloc(g_categories, (size_t)want * sizeof(*grown));
+        struct LocCategoryRow* grown =
+            ToriMem_Realloc(ToriMem_ServerContent(), g_categories, (size_t)want * sizeof(*grown));
 
         assert(grown);
         g_categories = grown;
@@ -283,12 +287,12 @@ mark_known(int loc_id)
 
         while( want <= loc_id )
             want *= 2;
-        grown = realloc(g_known, (size_t)(want + 7) / 8);
+        grown = ToriMem_Realloc(ToriMem_ServerContent(), g_known, (size_t)(want + 7) / 8);
         assert(grown);
         memset(grown + (g_known_bits + 7) / 8, 0,
                (size_t)(want + 7) / 8 - (size_t)(g_known_bits + 7) / 8);
         g_known = grown;
-        grown = realloc(g_defer_anim, (size_t)(want + 7) / 8);
+        grown = ToriMem_Realloc(ToriMem_ServerContent(), g_defer_anim, (size_t)(want + 7) / 8);
         assert(grown);
         memset(grown + (g_known_bits + 7) / 8, 0,
                (size_t)(want + 7) / 8 - (size_t)(g_known_bits + 7) / 8);
@@ -579,7 +583,7 @@ add_op_text(const char* text)
 
         while( want < g_op_blob_len + length )
             want *= 2;
-        grown = realloc(g_op_blob, want);
+        grown = ToriMem_Realloc(ToriMem_ServerContent(), g_op_blob, want);
         assert(grown);
         g_op_blob = grown;
         g_op_blob_cap = want;
@@ -619,7 +623,8 @@ add_ops(
     if( g_op_count == g_op_cap )
     {
         int want = g_op_cap ? g_op_cap * 2 : 1024;
-        struct LocOpRow* grown = realloc(g_ops, (size_t)want * sizeof(*grown));
+        struct LocOpRow* grown =
+            ToriMem_Realloc(ToriMem_ServerContent(), g_ops, (size_t)want * sizeof(*grown));
 
         assert(grown);
         g_ops = grown;
@@ -787,36 +792,36 @@ ToriRSServer_LocInfoFree(void)
     ToriRSServer_ParamTableFree(&g_loc_params);
     g_loc_records = 0;
 
-    free(g_name_blob);
+    ToriMem_Free(ToriMem_ServerContent(), g_name_blob);
     g_name_blob = NULL;
     g_name_blob_len = 0;
     g_name_blob_cap = 0;
-    free(g_names);
+    ToriMem_Free(ToriMem_ServerContent(), g_names);
     g_names = NULL;
     g_name_count = 0;
     g_name_cap = 0;
 
-    free(g_sizes);
+    ToriMem_Free(ToriMem_ServerContent(), g_sizes);
     g_sizes = NULL;
     g_size_count = 0;
     g_size_cap = 0;
 
-    free(g_categories);
+    ToriMem_Free(ToriMem_ServerContent(), g_categories);
     g_categories = NULL;
     g_category_count = 0;
     g_category_cap = 0;
 
-    free(g_known);
+    ToriMem_Free(ToriMem_ServerContent(), g_known);
     g_known = NULL;
-    free(g_defer_anim);
+    ToriMem_Free(ToriMem_ServerContent(), g_defer_anim);
     g_defer_anim = NULL;
     g_known_bits = 0;
 
-    free(g_op_blob);
+    ToriMem_Free(ToriMem_ServerContent(), g_op_blob);
     g_op_blob = NULL;
     g_op_blob_len = 0;
     g_op_blob_cap = 0;
-    free(g_ops);
+    ToriMem_Free(ToriMem_ServerContent(), g_ops);
     g_ops = NULL;
     g_op_count = 0;
     g_op_cap = 0;

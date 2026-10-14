@@ -1,4 +1,5 @@
 #include "engine/torirs_model_inst_cache.h"
+#include "mem/torirs_mem.h"
 
 #include "perf/torirs_perf.h"
 #include "toridraw_model.h"
@@ -47,7 +48,7 @@ torirs_model_inst_free_entry(struct TorirsModelInstEntry* e)
         return;
     if( e->model )
         ToriDraw_ModelFree(e->model);
-    free(e);
+    ToriMem_Free(ToriMem_Assets(), e);
 }
 
 void
@@ -122,7 +123,7 @@ TorirsModelInstCache_Put(
         }
     }
 
-    e = (struct TorirsModelInstEntry*)calloc(1, sizeof(*e));
+    e = (struct TorirsModelInstEntry*)ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*e));
     assert(e);
     e->model = model;
     e->node.map_slot = -1;

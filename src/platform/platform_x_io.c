@@ -1,4 +1,5 @@
 #include "platform_x_io.h"
+#include "mem/torirs_mem.h"
 /*
  * Two remote cache backings, two flags, because two callers want different
  * halves. JS5 is the dat2 one and drags in the SDL2 clock its pump is paced
@@ -181,11 +182,9 @@ dat2_archive_cache_slots(void)
 struct PlatformX_IO*
 PlatformX_IO_New(void)
 {
-    struct PlatformX_IO* px = malloc(sizeof(struct PlatformX_IO));
+    struct PlatformX_IO* px = ToriMem_Calloc(ToriMem_Net(), 1, sizeof(struct PlatformX_IO));
     char const* server = getenv("TORIRS_IO_SERVER");
 
-    assert(px);
-    memset(px, 0, sizeof(struct PlatformX_IO));
     px->archive_cache_slots = dat2_archive_cache_slots();
 
     /* `host` or `host:port`; the port defaults to io_server's own. Parsed here
@@ -286,7 +285,8 @@ PlatformX_IO_InitConfigPath(
 {
     assert(px);
     assert(config_path);
-    px->config_dir = strdup(config_path);
+    ToriMem_Free(ToriMem_Net(), px->config_dir);
+    px->config_dir = ToriMem_Strdup(ToriMem_Net(), config_path);
 }
 
 void
@@ -296,7 +296,8 @@ PlatformX_IO_InitScriptPath(
 {
     assert(px);
     assert(script_path);
-    px->script_dir = strdup(script_path);
+    ToriMem_Free(ToriMem_Net(), px->script_dir);
+    px->script_dir = ToriMem_Strdup(ToriMem_Net(), script_path);
 }
 
 /* Nothing to record: this backend was given the open disk itself. */
@@ -329,12 +330,12 @@ PlatformX_IO_Free(struct PlatformX_IO* px)
 #if !defined(TORIRS_PLATFORM_X_IO_NO_ONDEMAND)
     PlatformXIOOnDemand_Free(px->dat1_on_demand);
 #endif
-    free(px->pending);
+    ToriMem_Free(ToriMem_Net(), px->pending);
     for( int i = 0; i < DAT2_ARCHIVE_CACHE_SLOTS; i++ )
         RSCache_Dat2DiskArchiveFree(px->archive_cache[i].archive);
-    free(px->config_dir);
-    free(px->script_dir);
-    free(px);
+    ToriMem_Free(ToriMem_Net(), px->config_dir);
+    ToriMem_Free(ToriMem_Net(), px->script_dir);
+    ToriMem_Free(ToriMem_Net(), px);
 }
 
 /*
@@ -419,12 +420,12 @@ read_whole_file(
         return -1;
     }
 
-    void* data = malloc((size_t)size);
-    assert(data);
+    /* NET: the bytes become an IO item's data (ToriRS_IO_ClearItem). */
+    void* data = ToriMem_Alloc(ToriMem_Net(), size > 0 ? (size_t)size : 1u);
 
     if( size > 0 && fread(data, 1, (size_t)size, fp) != (size_t)size )
     {
-        free(data);
+        ToriMem_Free(ToriMem_Net(), data);
         fclose(fp);
         return -1;
     }
@@ -664,6 +665,8 @@ stored_file_read(
         px->transport_down = status == 0;
         if( body )
         {
+            /* The body is NET's, and so is an IO item's data: it becomes the
+             * item's payload as it is (ToriRS_IO_ClearItem). */
             *out_data = body;
             *out_size = size;
             return 0;
@@ -753,8 +756,8 @@ answer_launch_item(struct ToriRS_IOItem* item)
     {
         static char const none[] = "unsupported: no launch service in this process (only a "
                                    "desktop client's embedded IO server launches clients)\n";
-        answer = (char*)malloc(sizeof(none));
-        assert(answer);
+        /* NET: an IO item's data (ToriRS_IO_ClearItem). */
+        answer = (char*)ToriMem_Alloc(ToriMem_Net(), sizeof(none));
         memcpy(answer, none, sizeof(none));
         answer_size = (int)sizeof(none) - 1;
     }
@@ -999,8 +1002,8 @@ remote_pending_alloc(struct PlatformX_IO* px)
     if( px->pending_count == px->pending_cap )
     {
         px->pending_cap = px->pending_cap ? px->pending_cap * 2 : 64;
-        px->pending = realloc(px->pending, (size_t)px->pending_cap * sizeof(*px->pending));
-        assert(px->pending);
+        px->pending = ToriMem_Realloc(
+            ToriMem_Net(), px->pending, (size_t)px->pending_cap * sizeof(*px->pending));
     }
     memset(&px->pending[px->pending_count], 0, sizeof(*px->pending));
     return &px->pending[px->pending_count++];
@@ -1717,8 +1720,7 @@ PlatformXIO_Dat1OnDemandContainerFetchMany(
     /* The same square -> archive resolution as the single fetch, done for
      * every entry before any goes on the wire; a square the world does not
      * ship becomes an id no server has, which the wire answers as absent. */
-    resolved = malloc((size_t)(count > 0 ? count : 1) * sizeof(int));
-    assert(resolved);
+    resolved = ToriMem_Alloc(ToriMem_Net(), (size_t)(count > 0 ? count : 1) * sizeof(int));
     for( int i = 0; i < count; i++ )
     {
         resolved[i] = archive_ids[i];
@@ -1730,7 +1732,7 @@ PlatformXIO_Dat1OnDemandContainerFetchMany(
     }
     served = PlatformXIOOnDemand_ContainerFetchMany(
         px->dat1_on_demand, count, table_ids, resolved, out_data, out_sizes, out_formats);
-    free(resolved);
+    ToriMem_Free(ToriMem_Net(), resolved);
     return served;
 }
 #endif

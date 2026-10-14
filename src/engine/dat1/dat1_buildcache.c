@@ -75,7 +75,7 @@ dat1_hmap_new(
     size_t capacity)
 {
     size_t buffer_size = dat1_hmap_buffer_bytes(entry_size, capacity);
-    void* buffer = malloc(buffer_size);
+    void* buffer = ToriMem_Alloc(ToriMem_Assets(), buffer_size);
     assert(buffer);
 
     struct HashConfig config = {
@@ -95,7 +95,7 @@ dat1_hmap_free(struct HMap* map)
 {
     if( !map )
         return;
-    free(hmap_free(map));
+    ToriMem_Free(ToriMem_Assets(), hmap_free(map));
 }
 
 static void
@@ -116,16 +116,16 @@ dat1_hmap_maybe_grow(struct HMap** map_out)
 
     new_capacity = map->capacity * 2;
     buffer_size = dat1_hmap_buffer_bytes(map->entry_size, new_capacity);
-    new_buffer = malloc(buffer_size);
+    new_buffer = ToriMem_Alloc(ToriMem_Assets(), buffer_size);
     assert(new_buffer);
 
     if( hmap_resize(*map_out, new_buffer, buffer_size, new_capacity, &old_buffer) != HMAP_OK )
     {
-        free(new_buffer);
+        ToriMem_Free(ToriMem_Assets(), new_buffer);
         return;
     }
 
-    free(old_buffer);
+    ToriMem_Free(ToriMem_Assets(), old_buffer);
 }
 
 static void
@@ -186,7 +186,8 @@ static struct CacheProviderVTable dat1_vtable = {
 struct Dat1BuildCache*
 dat1_buildcache_new(void)
 {
-    struct Dat1BuildCache* dat1_buildcache = calloc(1, sizeof(*dat1_buildcache));
+    struct Dat1BuildCache* dat1_buildcache =
+        ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*dat1_buildcache));
     assert(dat1_buildcache);
 
     dat1_buildcache->next_sprite_id = DAT1_SPRITE_ID_BASE;
@@ -228,9 +229,9 @@ dat1_buildcache_free(struct Dat1BuildCache* dat1_buildcache)
 
     dat1_jagfile_clear(&dat1_buildcache->config_jagfile);
     dat1_jagfile_clear(&dat1_buildcache->versionlist_jagfile);
-    free(dat1_buildcache->anim_versions);
+    ToriMem_Free(ToriMem_Assets(), dat1_buildcache->anim_versions);
     dat1_buildcache->anim_versions = NULL;
-    free(dat1_buildcache->anim_frame_dir);
+    ToriMem_Free(ToriMem_Assets(), dat1_buildcache->anim_frame_dir);
     dat1_buildcache->anim_frame_dir = NULL;
     dat1_jagfile_clear(&dat1_buildcache->media_2d_graphics_jagfile);
     dat1_jagfile_clear(&dat1_buildcache->title_fonts_jagfile);
@@ -279,7 +280,7 @@ dat1_buildcache_free(struct Dat1BuildCache* dat1_buildcache)
     dat1_hmap_free(dat1_buildcache->map_scenery_hmap);
     CacheProvider_FreeEngineCaches(&dat1_buildcache->base);
 
-    free(dat1_buildcache);
+    ToriMem_Free(ToriMem_Assets(), dat1_buildcache);
 }
 
 struct CacheProvider*
@@ -496,7 +497,8 @@ dat1_buildcache_get_anim_versions(
 
     data = (unsigned char const*)versionlist->files[data_idx];
     count = versionlist->file_sizes[data_idx] / 2;
-    dat1_buildcache->anim_versions = malloc((size_t)count * sizeof(uint16_t));
+    dat1_buildcache->anim_versions =
+        ToriMem_Alloc(ToriMem_Assets(), (size_t)count * sizeof(uint16_t));
     assert(dat1_buildcache->anim_versions);
     for( int i = 0; i < count; i++ )
         dat1_buildcache->anim_versions[i] =
@@ -535,7 +537,8 @@ dat1_anim_frame_dir_add(
         int cap = dat1_buildcache->anim_frame_dir_cap ? dat1_buildcache->anim_frame_dir_cap : 1024;
         while( cap <= max_id )
             cap *= 2;
-        dat1_buildcache->anim_frame_dir = realloc(
+        dat1_buildcache->anim_frame_dir = ToriMem_Realloc(
+            ToriMem_Assets(),
             dat1_buildcache->anim_frame_dir,
             (size_t)cap * sizeof(*dat1_buildcache->anim_frame_dir));
         assert(dat1_buildcache->anim_frame_dir);

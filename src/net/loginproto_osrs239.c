@@ -1,4 +1,5 @@
 #include "loginproto_osrs239.h"
+#include "mem/torirs_mem.h"
 
 #include "loginproto.h" /* LOGINPROTO_SUCCESS / _ERROR / _AWAIT_* + seed_fn */
 #include "net.h"
@@ -328,8 +329,7 @@ answer_proof_of_work(struct Osrs239Login* h, uint8_t const* payload, int len)
 static void*
 osrs239_new(struct ToriRS_Network* net, char const* username, char const* password)
 {
-    struct Osrs239Login* h = calloc(1, sizeof(*h));
-    assert(h);
+    struct Osrs239Login* h = ToriMem_Calloc(ToriMem_Net(), 1, sizeof(*h));
     h->net = net;
     h->reply_code = -1;
     snprintf(h->username, sizeof(h->username), "%s", username ? username : "");
@@ -583,7 +583,7 @@ osrs239_poll(void* handle)
 static void
 osrs239_free(void* handle)
 {
-    free(handle);
+    ToriMem_Free(ToriMem_Net(), handle);
 }
 
 static int

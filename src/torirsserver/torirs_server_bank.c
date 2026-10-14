@@ -27,6 +27,7 @@
  * See docs/torirs_server_bank.md.
  */
 #include "torirs_server_bank.h"
+#include "mem/torirs_mem.h"
 
 #include "torirs_server_container.h"
 
@@ -1233,7 +1234,7 @@ ToriRSServer_BankInitPlayer(struct ToriRSServerPlayer* player)
     if( size <= 0 )
         size = TORIRSSERVER_BANK_SLOTS;
 
-    bank->slots = calloc((size_t)size, sizeof(*bank->slots));
+    bank->slots = ToriMem_Calloc(ToriMem_ServerPlayers(), (size_t)size, sizeof(*bank->slots));
     assert(bank->slots);
     bank->size = size;
     for( int i = 0; i < size; i++ )
@@ -1276,7 +1277,7 @@ ToriRSServer_BankShutdownPlayer(struct ToriRSServerPlayer* player)
      * first. It never owned the storage — `owns_items` is 0 for an adopted
      * row — so forgetting it frees nothing twice. */
     ToriRSServer_ContainerForget(player, ToriRSServer_Ids()->inv_bank);
-    free(player->bank.slots);
+    ToriMem_Free(ToriMem_ServerPlayers(), player->bank.slots);
     player->bank.slots = NULL;
     player->bank.size = 0;
 }

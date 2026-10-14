@@ -1,4 +1,5 @@
 #include "heightmap.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -10,8 +11,8 @@ heightmap_new(
     int size_z,
     int levels)
 {
-    struct Heightmap* heightmap = malloc(sizeof(struct Heightmap));
-    heightmap->heights = malloc(size_x * size_z * levels * sizeof(int16_t));
+    struct Heightmap* heightmap = ToriMem_Alloc(ToriMem_Scene(), sizeof(struct Heightmap));
+    heightmap->heights = ToriMem_Alloc(ToriMem_Scene(), size_x * size_z * levels * sizeof(int16_t));
     memset(heightmap->heights, 0, size_x * size_z * levels * sizeof(int16_t));
     heightmap->size_x = size_x;
     heightmap->size_z = size_z;
@@ -35,8 +36,8 @@ heightmap_coord_idx(
 void
 heightmap_free(struct Heightmap* heightmap)
 {
-    free(heightmap->heights);
-    free(heightmap);
+    ToriMem_Free(ToriMem_Scene(), heightmap->heights);
+    ToriMem_Free(ToriMem_Scene(), heightmap);
 }
 
 static inline bool

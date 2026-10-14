@@ -402,7 +402,7 @@ gl3_upload_sprite_atlas(struct ToriPlatformSDL2_Renderer_GL3* renderer)
             uint8_t* grown;
             while( cap < need )
                 cap *= 2u;
-            grown = (uint8_t*)realloc(renderer->atlas_stage, cap);
+            grown = (uint8_t*)ToriMem_Realloc(ToriMem_Render(), renderer->atlas_stage, cap);
             assert(grown);
             renderer->atlas_stage = grown;
             renderer->atlas_stage_capacity = cap;
@@ -570,7 +570,7 @@ gl3_batch2d_reset(struct ToriPlatformSDL2_Renderer_GL3* renderer)
 static void
 gl3_batch2d_free(struct ToriPlatformSDL2_Renderer_GL3* renderer)
 {
-    free(renderer->batch2d.verts);
+    ToriMem_Free(ToriMem_Render(), renderer->batch2d.verts);
     renderer->batch2d.verts = NULL;
     renderer->batch2d.vert_count = 0u;
 }
@@ -578,10 +578,8 @@ gl3_batch2d_free(struct ToriPlatformSDL2_Renderer_GL3* renderer)
 static bool
 gl3_batch2d_init(struct ToriPlatformSDL2_Renderer_GL3* renderer)
 {
-    renderer->batch2d.verts =
-        (struct GL3Vertex2D*)malloc((size_t)GL3_2D_BATCH_MAX_VERTS * sizeof(struct GL3Vertex2D));
-    if( !renderer->batch2d.verts )
-        return false;
+    renderer->batch2d.verts = (struct GL3Vertex2D*)ToriMem_Alloc(
+        ToriMem_Render(), (size_t)GL3_2D_BATCH_MAX_VERTS * sizeof(struct GL3Vertex2D));
     gl3_batch2d_reset(renderer);
     return true;
 }
@@ -1095,11 +1093,11 @@ gl3_sprite_slot_index(
     }
     renderer->sprite_slots[free_idx].scene_id = scene_id;
     renderer->sprite_slots[free_idx].count = 0;
-    free(renderer->sprite_slots[free_idx].uvs);
-    free(renderer->sprite_slots[free_idx].loaded);
+    ToriMem_Free(ToriMem_Render(), renderer->sprite_slots[free_idx].uvs);
+    ToriMem_Free(ToriMem_Render(), renderer->sprite_slots[free_idx].loaded);
     /* The tiles belong to whatever sprite used to live in this slot;
      * reusing them for a different id would overwrite it. */
-    free(renderer->sprite_slots[free_idx].tiles);
+    ToriMem_Free(ToriMem_Render(), renderer->sprite_slots[free_idx].tiles);
     renderer->sprite_slots[free_idx].tiles = NULL;
     renderer->sprite_slots[free_idx].uvs = NULL;
     renderer->sprite_slots[free_idx].loaded = NULL;
@@ -1313,12 +1311,12 @@ gl3_sprite_ensure_base(
     if( slot->count != count )
     {
         slot->count = count;
-        free(slot->uvs);
-        free(slot->loaded);
-        free(slot->tiles);
-        slot->uvs = calloc((size_t)count * 4u, sizeof(float));
-        slot->loaded = calloc((size_t)count, sizeof(uint8_t));
-        slot->tiles = calloc((size_t)count, sizeof(*slot->tiles));
+        ToriMem_Free(ToriMem_Render(), slot->uvs);
+        ToriMem_Free(ToriMem_Render(), slot->loaded);
+        ToriMem_Free(ToriMem_Render(), slot->tiles);
+        slot->uvs = ToriMem_Calloc(ToriMem_Render(), (size_t)count * 4u, sizeof(float));
+        slot->loaded = ToriMem_Calloc(ToriMem_Render(), (size_t)count, sizeof(uint8_t));
+        slot->tiles = ToriMem_Calloc(ToriMem_Render(), (size_t)count, sizeof(*slot->tiles));
         assert(slot->uvs);
         assert(slot->loaded);
         assert(slot->tiles);
@@ -1337,10 +1335,9 @@ gl3_sprite_ensure_base(
         int upload_y = 0;
         int upload_w = sp->width;
         int upload_h = sp->height;
-        uint32_t* rgba = malloc((size_t)sp->width * (size_t)sp->height * sizeof(uint32_t));
+        uint32_t* rgba = ToriMem_Alloc(
+            ToriMem_Render(), (size_t)sp->width * (size_t)sp->height * sizeof(uint32_t));
         float uv[4];
-        if( !rgba )
-            return false;
         trspk_sprite_argb_to_rgba_for(
             sp->alpha_channel,
             (uint32_t const*)sp->pixels_argb, rgba, (size_t)sp->width * (size_t)sp->height);
@@ -1361,10 +1358,10 @@ gl3_sprite_ensure_base(
                 upload_h,
                 &slot->tiles[atlas_index], uv) )
         {
-            free(rgba);
+            ToriMem_Free(ToriMem_Render(), rgba);
             return false;
         }
-        free(rgba);
+        ToriMem_Free(ToriMem_Render(), rgba);
         slot->uvs[atlas_index * 4 + 0] = uv[0];
         slot->uvs[atlas_index * 4 + 1] = uv[1];
         slot->uvs[atlas_index * 4 + 2] = uv[2];
@@ -1681,7 +1678,7 @@ gl3_bake_font_atlas(
     int const atlas_w = max_w;
     int const atlas_h = total_h;
     size_t const pixel_count = (size_t)atlas_w * (size_t)atlas_h;
-    uint8_t* alpha = calloc(pixel_count, 1);
+    uint8_t* alpha = ToriMem_Calloc(ToriMem_Render(), pixel_count, 1);
     assert(alpha);
 
     int y = 0;
@@ -1717,7 +1714,7 @@ gl3_bake_font_atlas(
     glGenTextures(1, &tex);
     if( tex == 0u )
     {
-        free(alpha);
+        ToriMem_Free(ToriMem_Render(), alpha);
         fprintf(stderr, "gl3_bake_font_atlas: glGenTextures failed font_id=%d\n", font_id);
         return false;
     }
@@ -1739,7 +1736,7 @@ gl3_bake_font_atlas(
             alpha);
         glPixelStorei(GL_UNPACK_ALIGNMENT, unpack_align);
     }
-    free(alpha);
+    ToriMem_Free(ToriMem_Render(), alpha);
 
     if( !gl3_check_error("gl3_bake_font_atlas glTexImage2D") )
     {
@@ -2832,7 +2829,7 @@ gl3_upload_atlas_texture(struct ToriPlatformSDL2_Renderer_GL3* renderer)
         uint8_t* grown;
         while( cap < need )
             cap *= 2u;
-        grown = (uint8_t*)realloc(renderer->atlas_stage, cap);
+        grown = (uint8_t*)ToriMem_Realloc(ToriMem_Render(), renderer->atlas_stage, cap);
         assert(grown);
         renderer->atlas_stage = grown;
         renderer->atlas_stage_capacity = cap;
@@ -4702,10 +4699,8 @@ ToriPlatformSDL2_Renderer_GL3_New(
     int height)
 {
     struct ToriPlatformSDL2_Renderer_GL3* renderer =
-        (struct ToriPlatformSDL2_Renderer_GL3*)calloc(
-            1, sizeof(struct ToriPlatformSDL2_Renderer_GL3));
-    if( !renderer )
-        return NULL;
+        (struct ToriPlatformSDL2_Renderer_GL3*)ToriMem_Calloc(
+            ToriMem_Render(), 1, sizeof(struct ToriPlatformSDL2_Renderer_GL3));
 
     renderer->width = width;
     renderer->height = height;
@@ -4787,7 +4782,9 @@ fail:
     trspk_pose_table_free(&renderer->poses);
     if( trspk_atlas_is_initialized(&renderer->atlas) )
         trspk_atlas_free(&renderer->atlas);
-    free(renderer);
+    if( trspk_atlas_is_initialized(&renderer->sprite_atlas) )
+        trspk_atlas_free(&renderer->sprite_atlas);
+    ToriMem_Free(ToriMem_Render(), renderer);
     return NULL;
 }
 
@@ -4878,8 +4875,17 @@ ToriPlatformSDL2_Renderer_GL3_Free(struct ToriPlatformSDL2_Renderer_GL3* rendere
 
     if( trspk_atlas_is_initialized(&renderer->atlas) )
         trspk_atlas_free(&renderer->atlas);
+    if( trspk_atlas_is_initialized(&renderer->sprite_atlas) )
+        trspk_atlas_free(&renderer->sprite_atlas);
 
-    free(renderer->atlas_stage);
+    for( int i = 0; i < TRSPK_GL3_SPRITE_CAP; i++ )
+    {
+        ToriMem_Free(ToriMem_Render(), renderer->sprite_slots[i].uvs);
+        ToriMem_Free(ToriMem_Render(), renderer->sprite_slots[i].loaded);
+        ToriMem_Free(ToriMem_Render(), renderer->sprite_slots[i].tiles);
+    }
+
+    ToriMem_Free(ToriMem_Render(), renderer->atlas_stage);
     GL3ZB_Free(renderer);
 
     if( renderer->gl_context )
@@ -4888,7 +4894,7 @@ ToriPlatformSDL2_Renderer_GL3_Free(struct ToriPlatformSDL2_Renderer_GL3* rendere
         renderer->gl_context = NULL;
     }
 
-    free(renderer);
+    ToriMem_Free(ToriMem_Render(), renderer);
 }
 
 bool
@@ -5551,8 +5557,8 @@ ToriPlatformSDL2_Renderer_GL3_RenderFrame(struct ToriPlatformSDL2_Renderer_GL3* 
         {
             void bmp_write_file(const char* filename, int* px, int w, int h);
             int const w = present.render_w, h = present.render_h;
-            unsigned char* raw = malloc((size_t)w * h * 4);
-            int* px = malloc((size_t)w * h * sizeof(int));
+            unsigned char* raw = ToriMem_Alloc(ToriMem_Render(), (size_t)w * h * 4);
+            int* px = ToriMem_Alloc(ToriMem_Render(), (size_t)w * h * sizeof(int));
             char path[512];
             probe_last = f;
             glBindFramebuffer(GL_READ_FRAMEBUFFER, gl3->scale_fbo);
@@ -5568,8 +5574,8 @@ ToriPlatformSDL2_Renderer_GL3_RenderFrame(struct ToriPlatformSDL2_Renderer_GL3* 
             snprintf(path, sizeof(path), "%s/gl_%04d.bmp", getenv("TORIRS_PROBE_DIR"), f);
             bmp_write_file(path, px, w, h);
             fprintf(stderr, "PROBE wrote %s layout %dx%d render %dx%d\n", path, gl3->width, gl3->height, w, h);
-            free(raw);
-            free(px);
+            ToriMem_Free(ToriMem_Render(), raw);
+            ToriMem_Free(ToriMem_Render(), px);
         }
     }
 
@@ -5585,7 +5591,8 @@ ToriPlatformSDL2_Renderer_GL3_RenderFrame(struct ToriPlatformSDL2_Renderer_GL3* 
                               : 90;
         if( path && path[0] && !done && gl3->frame_clock >= (double)want )
         {
-            int* top = (int*)malloc((size_t)gl3->width * (size_t)gl3->height * sizeof(int));
+            int* top = (int*)ToriMem_Alloc(
+                ToriMem_Render(), (size_t)gl3->width * (size_t)gl3->height * sizeof(int));
             void bmp_write_file(const char* filename, int* px, int w, int h);
             done = 1;
             assert(top);
@@ -5597,7 +5604,7 @@ ToriPlatformSDL2_Renderer_GL3_RenderFrame(struct ToriPlatformSDL2_Renderer_GL3* 
                 bmp_write_file(path, top, gl3->width, gl3->height);
                 fprintf(stderr, "gl3_readback: wrote %s tex_resident=%d\n", path, resident);
             }
-            free(top);
+            ToriMem_Free(ToriMem_Render(), top);
         }
     }
 }
@@ -5749,7 +5756,7 @@ ToriPlatformSDL2_Renderer_GL3_ReadPixels(
         src_h = gl3->lb_h;
     }
 
-    fb = (int*)malloc((size_t)fb_w * (size_t)fb_h * sizeof(int));
+    fb = (int*)ToriMem_Alloc(ToriMem_Render(), (size_t)fb_w * (size_t)fb_h * sizeof(int));
     assert(fb);
 
     glPixelStorei(GL_PACK_ALIGNMENT, 1);
@@ -5793,6 +5800,6 @@ ToriPlatformSDL2_Renderer_GL3_ReadPixels(
         }
     }
 
-    free(fb);
+    ToriMem_Free(ToriMem_Render(), fb);
     return true;
 }

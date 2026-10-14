@@ -391,14 +391,49 @@ ToriMem_Vms(void)
     return &s_vms;
 }
 
-struct ToriMem_Group*
-ToriMem_Assets(void)
+/* A subsystem's heap group under PROCESS, made on first use from any thread
+ * (the audio callback and the IO and render workers reach theirs first
+ * sometimes), ended by ToriMem_Shutdown's exit walk. */
+static int s_lazy_lock;
+
+static struct ToriMem_Group*
+lazy_heap(
+    struct ToriMem_Group* g,
+    const char* name)
 {
-    static struct ToriMem_Group g;
-    if( !g.live )
-        ToriMem_GroupInit(&g, "assets", ToriMem_Process());
-    return &g;
+    if( __atomic_load_n(&g->live, __ATOMIC_ACQUIRE) )
+        return g;
+    struct ToriMem_Group* process = ToriMem_Process();
+    spin_lock(&s_lazy_lock);
+    if( !g->live )
+        ToriMem_GroupInit(g, name, process);
+    spin_unlock(&s_lazy_lock);
+    return g;
 }
+
+#define TORIMEM_SUBSYSTEM(fn, name)                                                                \
+    struct ToriMem_Group* fn(void)                                                                 \
+    {                                                                                              \
+        static struct ToriMem_Group g;                                                             \
+        return lazy_heap(&g, name);                                                                \
+    }
+
+TORIMEM_SUBSYSTEM(ToriMem_Assets, "assets")
+TORIMEM_SUBSYSTEM(ToriMem_Ui, "ui")
+TORIMEM_SUBSYSTEM(ToriMem_Render, "render")
+TORIMEM_SUBSYSTEM(ToriMem_Audio, "audio")
+TORIMEM_SUBSYSTEM(ToriMem_Net, "net")
+TORIMEM_SUBSYSTEM(ToriMem_Session, "session")
+TORIMEM_SUBSYSTEM(ToriMem_Scene, "scene")
+TORIMEM_SUBSYSTEM(ToriMem_Plugins, "plugins")
+TORIMEM_SUBSYSTEM(ToriMem_Script, "script")
+TORIMEM_SUBSYSTEM(ToriMem_Editor, "editor")
+TORIMEM_SUBSYSTEM(ToriMem_ServerContent, "server:content")
+TORIMEM_SUBSYSTEM(ToriMem_ServerWorld, "server:world")
+TORIMEM_SUBSYSTEM(ToriMem_ServerPlayers, "server:players")
+TORIMEM_SUBSYSTEM(ToriMem_ServerScripts, "server:scripts")
+TORIMEM_SUBSYSTEM(ToriMem_ServerNet, "server:net")
+TORIMEM_SUBSYSTEM(ToriMem_Compiler, "compiler")
 
 int
 ToriMem_ArenasOn(void)

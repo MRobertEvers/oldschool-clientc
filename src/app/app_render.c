@@ -276,7 +276,7 @@ App_RenderSkipCatchUp(struct App* app)
         return 0;
     if( !app->render_skip.scratch )
     {
-        app->render_skip.scratch = malloc((size_t)width * (size_t)height * sizeof(int));
+        app->render_skip.scratch = ToriMem_Alloc(ToriMem_Process(), (size_t)width * (size_t)height * sizeof(int));
         assert(app->render_skip.scratch);
     }
     /* The skipped frame, drawn now: the pick arms from the pointer it had
@@ -317,7 +317,7 @@ app_render_skip_shutdown(struct App* app)
             (unsigned long long)app->render_skip.frames_skipped,
             (unsigned long long)app->render_skip.frames_caught_up,
             app->render_skip.enabled ? "on" : "off");
-    free(app->render_skip.scratch);
+    ToriMem_Free(ToriMem_Process(), app->render_skip.scratch);
     app->render_skip.scratch = NULL;
 }
 
@@ -922,7 +922,7 @@ App_ViewAttachPlayerClient(
     app->views[APP_VIEW_RUNNER].cam_key_down = 0;
     app->views[APP_VIEW_RUNNER].cam_mmb_active = 0;
 
-    split->runner_bus = malloc(sizeof(*split->runner_bus));
+    split->runner_bus = ToriMem_Alloc(ToriMem_Process(), sizeof(*split->runner_bus));
     assert(split->runner_bus);
     CmdBus_Init(split->runner_bus);
     split->runner_painter_buffer = painter_buffer_new();
@@ -984,12 +984,11 @@ App_ViewDetachPlayerClient(struct App* app)
     app->view_split.view_count = 1;
     app->frame_view = &app->views[APP_VIEW_RUNNER];
 
-    free(split->runner_bus);
+    ToriMem_Free(ToriMem_Process(), split->runner_bus);
     split->runner_bus = NULL;
-    free(split->runner_painter_buffer->commands);
-    free(split->runner_painter_buffer);
+    painter_buffer_free(split->runner_painter_buffer);
     split->runner_painter_buffer = NULL;
-    free(split->runner_pixels);
+    ToriMem_Free(ToriMem_Process(), split->runner_pixels);
     split->runner_pixels = NULL;
     split->runner_pixels_count = 0;
     split->held_count = 0;
@@ -1318,8 +1317,8 @@ App_ViewSplitDrawRunner(
     {
         if( split->runner_pixels_count < width * height )
         {
-            free(split->runner_pixels);
-            split->runner_pixels = malloc((size_t)width * (size_t)height * sizeof(int));
+            ToriMem_Free(ToriMem_Process(), split->runner_pixels);
+            split->runner_pixels = ToriMem_Alloc(ToriMem_Process(), (size_t)width * (size_t)height * sizeof(int));
             assert(split->runner_pixels);
             split->runner_pixels_count = width * height;
         }

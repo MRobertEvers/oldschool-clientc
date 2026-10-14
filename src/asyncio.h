@@ -176,7 +176,7 @@ struct ToriRS_IOItem
 #define IOITEM_FREE_DATA(item)                                                                     \
     do                                                                                             \
     {                                                                                              \
-        free(IOITEM_DATA(item));                                                                   \
+        ToriMem_Free(ToriMem_Net(), IOITEM_DATA(item));                                           \
         IOITEM_DATA(item) = NULL;                                                                  \
         IOITEM_DATA_SIZE(item) = 0;                                                                \
     } while( 0 )
@@ -199,8 +199,10 @@ ToriRS_IO_ClearItem(struct ToriRS_IOItem* item)
     case TORIRS_IOK_CONFIG_FILE:
     case TORIRS_IOK_SCRIPT:
     case TORIRS_IOK_FILE_READ:
-        /* A plain buffer the executor malloc'd for this item. */
-        free(item->data);
+        /* A plain buffer the executor allocated for this item, in NET: an IO
+         * payload is the net group's until a consumer takes it (and frees it
+         * from NET, or moves it into its own group). */
+        ToriMem_Free(ToriMem_Net(), item->data);
         break;
     case TORIRS_IOK_CACHE:
     case TORIRS_IOK_REFERENCE_TABLE:
@@ -418,10 +420,11 @@ task_free(struct ToriRS_Task* task)
      * task owns and the struct; then the group's end checks that everything
      * the task took from ToriRS_TaskMem() was freed (src/mem/torirs_mem.h). */
     struct ToriMem_Group* mem = task->mem;
-    if( task->vtable->free )
-        task->vtable->free(task);
-    else
-        free(task);
+    /* Every task frees itself: only its creator knows which group its shell
+     * came from. (A libc fallback here was how a shell from a group got
+     * handed to free().) */
+    assert(task->vtable->free);
+    task->vtable->free(task);
     ToriMem_GroupDelete(mem);
 }
 
@@ -514,7 +517,8 @@ push_active(
     if( io->active_count == io->active_capacity )
     {
         io->active_capacity = io->active_capacity ? io->active_capacity * 2 : TORIRS_IO_MAX_ITEMS;
-        io->active = realloc(io->active, (size_t)io->active_capacity * sizeof(*io->active));
+        io->active = ToriMem_Realloc(
+            ToriMem_Process(), io->active, (size_t)io->active_capacity * sizeof(*io->active));
         assert(io->active);
     }
     io->active[io->active_count++] = item;
@@ -523,7 +527,7 @@ push_active(
 static inline struct ToriRS_IOBatch*
 ToriRS_IOBatch_New(void)
 {
-    struct ToriRS_IOBatch* io = calloc(1, sizeof(struct ToriRS_IOBatch));
+    struct ToriRS_IOBatch* io = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(struct ToriRS_IOBatch));
     assert(io != NULL);
     return io;
 }
@@ -532,8 +536,8 @@ static inline void
 ToriRS_IOBatch_Free(struct ToriRS_IOBatch* io)
 {
     assert(io != NULL);
-    free(io->active);
-    free(io);
+    ToriMem_Free(ToriMem_Process(), io->active);
+    ToriMem_Free(ToriMem_Process(), io);
 }
 
 /* The item a Queue* call fills: the task's own, which must be free -- a task
@@ -730,7 +734,7 @@ ToriRS_IOBatch_Reset(struct ToriRS_IOBatch* io)
 static inline struct ToriRS_TaskQueue*
 ToriRS_TaskQueue_New(void)
 {
-    struct ToriRS_TaskQueue* queue = calloc(1, sizeof(struct ToriRS_TaskQueue));
+    struct ToriRS_TaskQueue* queue = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(struct ToriRS_TaskQueue));
     assert(queue != NULL);
     return queue;
 }
@@ -935,7 +939,7 @@ ToriRS_TaskQueue_Free(struct ToriRS_TaskQueue* queue)
          * shutdown. */
         task_free(task);
     }
-    free(queue);
+    ToriMem_Free(ToriMem_Process(), queue);
 }
 
 /**

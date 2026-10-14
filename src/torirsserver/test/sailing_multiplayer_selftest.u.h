@@ -57,10 +57,10 @@ sailing_client_decode(struct ToriRSServerCapture* capture,
             else if( op->kind == PKT_PLAYER_INFO_OP_APPEARANCE )
             {
                 if( target >= 0 ) client->appearances[target]++;
-                free(op->_appearance.appearance);
+                ToriMem_Free(ToriMem_Net(), op->_appearance.appearance);
             }
-            else if( op->kind == PKT_PLAYER_INFO_OP_SAY ) free(op->_say.text);
-            else if( op->kind == PKT_PLAYER_INFO_OP_CHAT ) free(op->_chat.data);
+            else if( op->kind == PKT_PLAYER_INFO_OP_SAY ) ToriMem_Free(ToriMem_Net(), op->_say.text);
+            else if( op->kind == PKT_PLAYER_INFO_OP_CHAT ) ToriMem_Free(ToriMem_Net(), op->_chat.data);
         }
     }
     SELFTEST_CHECK(packets == 1, "one consecutive PLAYER_INFO reaches selected observer %d, got %d", viewer->pid, packets);
@@ -173,8 +173,8 @@ sailing_decode_moving_npc(struct ToriRSServer* srv, struct ToriRSServerPlayer* v
                      op->kind == PKT_NPC_INFO_OPBITS_CRAWLDIR )
             { x += dx[op->_bitvalue & 7]; z += dz[op->_bitvalue & 7]; }
         }
-        if( op->kind == PKT_NPC_INFO_OP_SAY ) free(op->_say.text);
-        else if( op->kind == PKT_NPC_INFO_OP_NAME_CHANGE ) free(op->_name_change.name);
+        if( op->kind == PKT_NPC_INFO_OP_SAY ) ToriMem_Free(ToriMem_Net(), op->_say.text);
+        else if( op->kind == PKT_NPC_INFO_OP_NAME_CHANGE ) ToriMem_Free(ToriMem_Net(), op->_name_change.name);
     }
     SELFTEST_CHECK(present && viewer->npc_tracked[npc_slot] &&
                    x == srv->npcs[npc_slot].obs_x && z == srv->npcs[npc_slot].obs_z,

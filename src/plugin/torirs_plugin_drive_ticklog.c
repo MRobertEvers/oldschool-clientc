@@ -26,6 +26,7 @@
 #if defined(TORIRS_EMBED_SERVER) && TORIRS_EMBED_SERVER
 
 #include "plugin/torirs_plugin_lua.h"
+#include "mem/torirs_mem.h"
 #include "torirsserver/torirs_server.h"
 #include "torirsserver/torirs_server_embed.h"
 
@@ -198,7 +199,7 @@ lua_drive_ticklog(struct lua_State* L)
         return luaL_error(L, "drive.ticklog: after_serial %d is negative", after);
     if( max <= 0 || max > DRIVE_TICKLOG_READ_MAX )
         max = DRIVE_TICKLOG_READ_MAX;
-    rows = malloc((size_t)max * sizeof(*rows));
+    rows = ToriMem_Alloc(ToriMem_Plugins(), (size_t)max * sizeof(*rows));
     assert(rows);
     count = ToriRSServer_TicklogReadFiltered((uint32_t)after, kind, slot, rows, max,
                                              &next_serial);
@@ -209,7 +210,7 @@ lua_drive_ticklog(struct lua_State* L)
         drive_ticklog_push_row(L, &rows[i]);
         lua_rawseti(L, -2, i + 1);
     }
-    free(rows);
+    ToriMem_Free(ToriMem_Plugins(), rows);
     lua_pushinteger(L, (lua_Integer)next_serial);
     lua_setfield(L, -2, "next_serial");
     lua_pushinteger(L, (lua_Integer)ToriRSServer_TicklogCount());

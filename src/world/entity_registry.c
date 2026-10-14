@@ -1,4 +1,5 @@
 #include "entity_registry.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -14,7 +15,7 @@ World_EntityRegistryInit(
     if( initial_cap <= 0 )
         initial_cap = WORLD_ENTITY_REGISTRY_INITIAL_CAP;
     reg->cap = initial_cap;
-    reg->records = calloc((size_t)initial_cap, sizeof(*reg->records));
+    reg->records = ToriMem_Calloc(ToriMem_Scene(), (size_t)initial_cap, sizeof(*reg->records));
 }
 
 void
@@ -22,7 +23,7 @@ World_EntityRegistryFree(struct World_EntityRegistry* reg)
 {
     if( !reg )
         return;
-    free(reg->records);
+    ToriMem_Free(ToriMem_Scene(), reg->records);
     reg->records = NULL;
     reg->count = 0;
     reg->cap = 0;
@@ -76,9 +77,7 @@ World_EntityRegistryRegister(
     {
         int new_cap = reg->cap ? reg->cap * 2 : WORLD_ENTITY_REGISTRY_INITIAL_CAP;
         struct World_EntityRecord* grown =
-            realloc(reg->records, (size_t)new_cap * sizeof(*grown));
-        if( !grown )
-            return false;
+            ToriMem_Realloc(ToriMem_Scene(), reg->records, (size_t)new_cap * sizeof(*grown));
         reg->records = grown;
         reg->cap = new_cap;
     }

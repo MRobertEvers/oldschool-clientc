@@ -531,7 +531,7 @@ ToriRSServer_HostRun(
     /* ~3 MB of per-connection buffers. Heap rather than a static, so a host
      * that is never run costs nothing, and rather than the stack for the
      * obvious reason. */
-    host = (struct ToriRSServerHost*)calloc(1, sizeof(*host));
+    host = (struct ToriRSServerHost*)ToriMem_Calloc(ToriMem_ServerNet(), 1, sizeof(*host));
     assert(host);
     host->srv = srv;
     host->config = config;
@@ -558,7 +558,7 @@ ToriRSServer_HostRun(
         if( ToriRSServer_HostShutdownRequested() )
         {
             host_logout_everyone(host);
-            free(host);
+            ToriMem_Free(ToriMem_ServerNet(), host);
             return 0;
         }
         int top = listener;
@@ -626,7 +626,7 @@ ToriRSServer_HostRun(
                 continue;
             perror("select");
 #endif
-            free(host);
+            ToriMem_Free(ToriMem_ServerNet(), host);
             return 1;
         }
 

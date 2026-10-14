@@ -1,4 +1,5 @@
 #include "wev.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <math.h>
@@ -90,7 +91,7 @@ wc_gstr(struct WevCur* c)
     }
     len = c->pos - start;
     c->pos++; /* the terminator */
-    out = malloc((size_t)len + 1);
+    out = ToriMem_Alloc(ToriMem_Assets(), (size_t)len + 1);
     assert(out);
     memcpy(out, c->data + start, (size_t)len);
     out[len] = '\0';
@@ -228,7 +229,7 @@ WevConfig_Decode(
             config->bounds_h = wc_g2(&c);
             break;
         case 12:
-            free(config->name);
+            ToriMem_Free(ToriMem_Assets(), config->name);
             config->name = wc_gstr(&c);
             break;
         case 14:
@@ -239,7 +240,7 @@ WevConfig_Decode(
         case 17:
         case 18:
         case 19:
-            free(config->ops[opcode - 15]);
+            ToriMem_Free(ToriMem_Assets(), config->ops[opcode - 15]);
             config->ops[opcode - 15] = wc_gstr(&c);
             break;
         case 20:
@@ -307,11 +308,11 @@ void
 WevConfig_FreeContents(struct WevConfig* config)
 {
     assert(config);
-    free(config->name);
+    ToriMem_Free(ToriMem_Assets(), config->name);
     config->name = NULL;
     for( int i = 0; i < WEV_CONFIG_OPS; i++ )
     {
-        free(config->ops[i]);
+        ToriMem_Free(ToriMem_Assets(), config->ops[i]);
         config->ops[i] = NULL;
     }
 }
@@ -352,7 +353,7 @@ WevConfigTable_Free(struct WevConfigTable* table)
         if( table->entries[i].id >= 0 )
             WevConfig_FreeContents(&table->entries[i]);
     }
-    free(table->entries);
+    ToriMem_Free(ToriMem_Assets(), table->entries);
     table->entries = NULL;
     table->count = 0;
 }

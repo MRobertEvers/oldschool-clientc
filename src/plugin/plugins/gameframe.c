@@ -1,4 +1,5 @@
 #include "plugin/porcelain/torirs_porcelain.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <stddef.h>
@@ -2019,29 +2020,29 @@ frame_compose_window(
     if( x + width > w || y + height > h )
         return handle;
 
-    px = malloc((size_t)w * (size_t)h * sizeof(*px));
+    px = ToriMem_Alloc(ToriMem_Plugins(), (size_t)w * (size_t)h * sizeof(*px));
     assert(px);
     if( !g_api->assets.image_pixels(
             g_api, src, px, (size_t)w * (size_t)h, &copied) ||
         copied != (size_t)w * (size_t)h )
     {
-        free(px);
+        ToriMem_Free(ToriMem_Plugins(), px);
         return handle;
     }
-    out = malloc((size_t)width * (size_t)height * sizeof(*out));
+    out = ToriMem_Alloc(ToriMem_Plugins(), (size_t)width * (size_t)height * sizeof(*out));
     assert(out);
     for( int row = 0; row < height; row++ )
         memcpy(
             &out[(size_t)row * (size_t)width],
             &px[(size_t)(y + row) * (size_t)w + (size_t)x],
             (size_t)width * sizeof(*out));
-    free(px);
+    ToriMem_Free(ToriMem_Plugins(), px);
 
     /* The window is the transparent run the crop is centred on. A centre that
      * is already plate means the numbers name no window at all. */
-    keep = calloc((size_t)width * (size_t)height, sizeof(*keep));
+    keep = ToriMem_Calloc(ToriMem_Plugins(), (size_t)width * (size_t)height, sizeof(*keep));
     assert(keep);
-    stack = malloc((size_t)width * (size_t)height * sizeof(*stack));
+    stack = ToriMem_Alloc(ToriMem_Plugins(), (size_t)width * (size_t)height * sizeof(*stack));
     assert(stack);
     if( (out[seed] >> 24) < 128u )
     {
@@ -2073,11 +2074,11 @@ frame_compose_window(
     for( int i = 0; i < width * height; i++ )
         if( !keep[i] )
             out[i] = 0xFF000000u;
-    free(keep);
-    free(stack);
+    ToriMem_Free(ToriMem_Plugins(), keep);
+    ToriMem_Free(ToriMem_Plugins(), stack);
 
     (void)frame_compose(ctx, name, width, height, out, &handle);
-    free(out);
+    ToriMem_Free(ToriMem_Plugins(), out);
     return handle;
 }
 
@@ -2141,13 +2142,13 @@ frame_chat_strip_pixels(struct FrameCall* ctx, int* out_w, int* out_h)
         h < FRAME_C_STRIP_BAND_Y + FRAME_CHAT_BUTTON_H )
         return NULL;
 
-    strip = malloc((size_t)w * (size_t)h * sizeof(*strip));
+    strip = ToriMem_Alloc(ToriMem_Plugins(), (size_t)w * (size_t)h * sizeof(*strip));
     assert(strip);
     if( !g_api->assets.image_pixels(
             g_api, frame_image(ctx, IMG_C_BACKBASE1), strip, (size_t)w * (size_t)h, &copied) ||
         copied != (size_t)w * (size_t)h )
     {
-        free(strip);
+        ToriMem_Free(ToriMem_Plugins(), strip);
         return NULL;
     }
     *out_w = w;
@@ -2285,13 +2286,13 @@ frame_chat_stone_at_height(struct FrameCall* ctx, int height, int* out_w, int* c
     width = src_w * height / src_h;
     if( width <= 0 )
     {
-        free(sprite);
+        ToriMem_Free(ToriMem_Plugins(), sprite);
         return NULL;
     }
-    stone = malloc((size_t)width * (size_t)height * sizeof(*stone));
+    stone = ToriMem_Alloc(ToriMem_Plugins(), (size_t)width * (size_t)height * sizeof(*stone));
     assert(stone);
     frame_scale_pixels(sprite, src_w, src_h, stone, width, height);
-    free(sprite);
+    ToriMem_Free(ToriMem_Plugins(), sprite);
     *out_w = width;
     *cap = FRAME_C_STONE_CAP * width / src_w;
     return stone;
@@ -2406,19 +2407,20 @@ frame_compose_chat_bar(
     if( base.value != 0 )
     {
         copied = 0;
-        under = malloc((size_t)under_w * (size_t)under_h * sizeof(*under));
+        under = ToriMem_Alloc(
+            ToriMem_Plugins(), (size_t)under_w * (size_t)under_h * sizeof(*under));
         assert(under);
         if( !g_api->assets.image_pixels(
                 g_api, base, under, (size_t)under_w * (size_t)under_h, &copied) ||
             copied != (size_t)under_w * (size_t)under_h )
         {
-            free(under);
-            free(strip);
+            ToriMem_Free(ToriMem_Plugins(), under);
+            ToriMem_Free(ToriMem_Plugins(), strip);
             return handle;
         }
     }
 
-    out = malloc((size_t)width * (size_t)height * sizeof(*out));
+    out = ToriMem_Alloc(ToriMem_Plugins(), (size_t)width * (size_t)height * sizeof(*out));
     assert(out);
     for( int y = 0; y < height; y++ )
     {
@@ -2438,9 +2440,9 @@ frame_compose_chat_bar(
 
         if( !stone )
         {
-            free(out);
-            free(under);
-            free(strip);
+            ToriMem_Free(ToriMem_Plugins(), out);
+            ToriMem_Free(ToriMem_Plugins(), under);
+            ToriMem_Free(ToriMem_Plugins(), strip);
             return handle;
         }
         for( int i = 0; i < cell_count; i++ )
@@ -2448,12 +2450,12 @@ frame_compose_chat_bar(
             assert(cell[i].h == cell[0].h);
             frame_cut_stone(out, width, height, &cell[i], stone, stone_w, cell[0].h, cap);
         }
-        free(stone);
+        ToriMem_Free(ToriMem_Plugins(), stone);
     }
     (void)frame_compose(ctx, name, width, height, out, &handle);
-    free(out);
-    free(under);
-    free(strip);
+    ToriMem_Free(ToriMem_Plugins(), out);
+    ToriMem_Free(ToriMem_Plugins(), under);
+    ToriMem_Free(ToriMem_Plugins(), strip);
     return handle;
 }
 
@@ -2511,15 +2513,15 @@ frame_compose_chat_backing(
         return handle;
     lip = height < FRAME_O_CHAT_BAND_LIP ? height : FRAME_O_CHAT_BAND_LIP;
 
-    px = malloc((size_t)w * (size_t)h * sizeof(*px));
+    px = ToriMem_Alloc(ToriMem_Plugins(), (size_t)w * (size_t)h * sizeof(*px));
     assert(px);
     if( !g_api->assets.image_pixels(g_api, frame_image(ctx, IMG_C_CHATBACK), px, (size_t)w * (size_t)h, &copied) ||
         copied != (size_t)w * (size_t)h )
     {
-        free(px);
+        ToriMem_Free(ToriMem_Plugins(), px);
         return handle;
     }
-    out = malloc((size_t)width * (size_t)height * sizeof(*out));
+    out = ToriMem_Alloc(ToriMem_Plugins(), (size_t)width * (size_t)height * sizeof(*out));
     assert(out);
     for( int y = 0; y < height; y++ )
     {
@@ -2560,9 +2562,9 @@ frame_compose_chat_backing(
         }
     }
     (void)frame_compose(ctx, name, width, height, out, &handle);
-    free(strip);
-    free(px);
-    free(out);
+    ToriMem_Free(ToriMem_Plugins(), strip);
+    ToriMem_Free(ToriMem_Plugins(), px);
+    ToriMem_Free(ToriMem_Plugins(), out);
     return handle;
 }
 
@@ -2584,13 +2586,13 @@ frame_art_pixels(struct FrameCall* ctx, int which, int* out_w, int* out_h)
     assert(out_h);
     if( !g_api->assets.image_size(g_api, frame_image(ctx, which), &w, &h) || w <= 0 || h <= 0 )
         return NULL;
-    px = malloc((size_t)w * (size_t)h * sizeof(*px));
+    px = ToriMem_Alloc(ToriMem_Plugins(), (size_t)w * (size_t)h * sizeof(*px));
     assert(px);
     if( !g_api->assets.image_pixels(
             g_api, frame_image(ctx, which), px, (size_t)w * (size_t)h, &copied) ||
         copied != (size_t)w * (size_t)h )
     {
-        free(px);
+        ToriMem_Free(ToriMem_Plugins(), px);
         return NULL;
     }
     *out_w = w;
@@ -2694,18 +2696,18 @@ frame_compose_chat_housing(
     side = frame_art_pixels(ctx, IMG_C_BACKLEFT2, &side_w, &side_h);
     if( !side )
     {
-        free(top);
+        ToriMem_Free(ToriMem_Plugins(), top);
         return handle;
     }
     /* Two rows are the fewest a resample can carry a silhouette in, and a
      * board wider than the picture is a housing for somebody else's frame. */
     if( top_h < 2 || top_w < width )
     {
-        free(side);
-        free(top);
+        ToriMem_Free(ToriMem_Plugins(), side);
+        ToriMem_Free(ToriMem_Plugins(), top);
         return handle;
     }
-    out = calloc((size_t)width * (size_t)height, sizeof(*out));
+    out = ToriMem_Calloc(ToriMem_Plugins(), (size_t)width * (size_t)height, sizeof(*out));
     assert(out);
 
     /*
@@ -2807,9 +2809,9 @@ frame_compose_chat_housing(
 
         if( !rail )
         {
-            free(out);
-            free(side);
-            free(top);
+            ToriMem_Free(ToriMem_Plugins(), out);
+            ToriMem_Free(ToriMem_Plugins(), side);
+            ToriMem_Free(ToriMem_Plugins(), top);
             return handle;
         }
         pillar_x = width - (rail_w - FRAME_C_RAIL_PILLAR_C);
@@ -2871,13 +2873,13 @@ frame_compose_chat_housing(
                 out[(size_t)y * (size_t)width + (size_t)x] = pixel | 0xFF000000u;
             }
         }
-        free(rail);
+        ToriMem_Free(ToriMem_Plugins(), rail);
     }
 
     (void)frame_compose(ctx, name, width, height, out, &handle);
-    free(out);
-    free(side);
-    free(top);
+    ToriMem_Free(ToriMem_Plugins(), out);
+    ToriMem_Free(ToriMem_Plugins(), side);
+    ToriMem_Free(ToriMem_Plugins(), top);
     return handle;
 }
 
@@ -2929,11 +2931,12 @@ frame_compose_osrs_band(
             part[i].w <= 0 || part[i].h < part[i].rows )
         {
             for( int j = 0; j < i; j++ )
-                free(part[j].px);
+                ToriMem_Free(ToriMem_Plugins(), part[j].px);
             return handle;
         }
         part[i].px =
-            malloc((size_t)part[i].w * (size_t)part[i].h * sizeof(*part[i].px));
+            ToriMem_Alloc(ToriMem_Plugins(),
+                          (size_t)part[i].w * (size_t)part[i].h * sizeof(*part[i].px));
         assert(part[i].px);
         if( !g_api->assets.image_pixels(
                 g_api,
@@ -2944,7 +2947,7 @@ frame_compose_osrs_band(
             copied != (size_t)part[i].w * (size_t)part[i].h )
         {
             for( int j = 0; j <= i; j++ )
-                free(part[j].px);
+                ToriMem_Free(ToriMem_Plugins(), part[j].px);
             return handle;
         }
         /* The backing's contribution is its LAST rows -- the lip the cache
@@ -2952,7 +2955,7 @@ frame_compose_osrs_band(
         part[i].from = part[i].image == IMG_O_CHATBACK ? part[i].h - part[i].rows : 0;
     }
 
-    out = malloc((size_t)width * (size_t)height * sizeof(*out));
+    out = ToriMem_Alloc(ToriMem_Plugins(), (size_t)width * (size_t)height * sizeof(*out));
     assert(out);
     for( int i = 0; i < 2; i++ )
         for( int y = 0; y < part[i].rows; y++, at++ )
@@ -2962,8 +2965,8 @@ frame_compose_osrs_band(
                                (size_t)(x % part[i].w)];
     (void)frame_compose(ctx, name, width, height, out, &handle);
     for( int i = 0; i < 2; i++ )
-        free(part[i].px);
-    free(out);
+        ToriMem_Free(ToriMem_Plugins(), part[i].px);
+    ToriMem_Free(ToriMem_Plugins(), out);
     return handle;
 }
 
@@ -3188,9 +3191,9 @@ frame_surround_piece(struct FrameCall* ctx, struct FrameSized* cache,
      * a root that states a different grid re-cuts it.
      */
     (void)snprintf(name, sizeof(name), "%s_%dx%d.png", prefix, width, height);
-    input = malloc((size_t)sw * sh * sizeof(*input));
+    input = ToriMem_Alloc(ToriMem_Plugins(), (size_t)sw * sh * sizeof(*input));
     assert(input);
-    output = malloc((size_t)width * height * sizeof(*output));
+    output = ToriMem_Alloc(ToriMem_Plugins(), (size_t)width * height * sizeof(*output));
     assert(output);
     if( g_api->assets.image_pixels(g_api, frame_image(ctx, source), input,
                                    (size_t)sw * sh, &copied) && copied == (size_t)sw * sh )
@@ -3200,8 +3203,8 @@ frame_surround_piece(struct FrameCall* ctx, struct FrameSized* cache,
                 output[y * width + x] = input[y * sw + (width < sw ? x : x * sw / width)];
         (void)frame_compose(ctx, name, width, height, output, &art);
     }
-    free(output);
-    free(input);
+    ToriMem_Free(ToriMem_Plugins(), output);
+    ToriMem_Free(ToriMem_Plugins(), input);
     if( !art.value )
         return nothing;
     if( cache->art.ref.value )
@@ -4472,8 +4475,8 @@ frame_tiled_art(struct FrameCall* ctx, struct FrameSized* cache, struct ToriRS_I
         return cache->art;
     if( !g_api->assets.image_size(g_api, tile, &tw, &th) || tw <= 0 || th <= 0 )
         return nothing;
-    in = malloc((size_t)tw * (size_t)th * sizeof(*in));
-    out = malloc((size_t)w * (size_t)h * sizeof(*out));
+    in = ToriMem_Alloc(ToriMem_Plugins(), (size_t)tw * (size_t)th * sizeof(*in));
+    out = ToriMem_Alloc(ToriMem_Plugins(), (size_t)w * (size_t)h * sizeof(*out));
     assert(in);
     assert(out);
     if( g_api->assets.image_pixels(g_api, tile, in, (size_t)tw * (size_t)th, &copied) &&
@@ -4485,8 +4488,8 @@ frame_tiled_art(struct FrameCall* ctx, struct FrameSized* cache, struct ToriRS_I
         (void)snprintf(name, sizeof(name), "frame_tiled_%d_%dx%d.png", tile.value, w, h);
         (void)frame_compose(ctx, name, w, h, out, &art);
     }
-    free(out);
-    free(in);
+    ToriMem_Free(ToriMem_Plugins(), out);
+    ToriMem_Free(ToriMem_Plugins(), in);
     if( art.value == 0 )
         return nothing;
     if( cache->art.ref.value != 0 )

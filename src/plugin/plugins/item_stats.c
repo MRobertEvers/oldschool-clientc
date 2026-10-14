@@ -1,5 +1,6 @@
 #include "plugin/porcelain/torirs_porcelain.h"
 #include "plugin/torirs_plugin_api.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <stddef.h>
@@ -2034,12 +2035,11 @@ is_load_art(struct ItemStatsRuntime* rt)
     {
         size_t const count = (size_t)g_text_w * (size_t)g_text_h;
         size_t written = 0;
-        g_text_px = malloc(count * sizeof(*g_text_px));
-        assert(g_text_px);
+        g_text_px = ToriMem_Alloc(ToriMem_Plugins(), count * sizeof(*g_text_px));
         if( !g_api->assets.image_pixels(g_api, ref, g_text_px, count, &written) ||
             written != count )
         {
-            free(g_text_px);
+            ToriMem_Free(ToriMem_Plugins(), g_text_px);
             g_text_px = NULL;
             Porcelain_Finding(g_porcelain, "image", PORCELAIN_ROLE_EL("text.png"),
                 PORCELAIN_FINDING_ASSET_ERROR, "the sheet published fewer pixels than its size");
@@ -2411,8 +2411,7 @@ is_parse_bonuses(struct ToriRS_Api* api, void* user, void const* data, size_t si
         if( g_bonus_count == cap )
         {
             cap = cap ? cap * 2 : 512;
-            g_bonus = realloc(g_bonus, (size_t)cap * sizeof(*g_bonus));
-            assert(g_bonus);
+            g_bonus = ToriMem_Realloc(ToriMem_Plugins(), g_bonus, (size_t)cap * sizeof(*g_bonus));
         }
         g_bonus[g_bonus_count++] = row;
     }
@@ -3219,10 +3218,8 @@ is_start(struct ToriRS_Api* api, void* state_ptr)
     Porcelain_ExpectUnsupported(g_porcelain, "spicy stew boost",
         "the boost is four quest varbits no revision here declares");
 
-    state->glyph = calloc(IS_GLYPH_COUNT, sizeof(*state->glyph));
-    assert(state->glyph);
-    state->tip = calloc(1, sizeof(*state->tip));
-    assert(state->tip);
+    state->glyph = ToriMem_Calloc(ToriMem_Plugins(), IS_GLYPH_COUNT, sizeof(*state->glyph));
+    state->tip = ToriMem_Calloc(ToriMem_Plugins(), 1, sizeof(*state->tip));
     state->glyph_line_h = 10;
     state->glyph_row_h = 10;
     state->lane_bonuses = -1;
@@ -3242,15 +3239,15 @@ is_stop(struct ToriRS_Api* api, void* state_ptr)
     Porcelain_Close(g_porcelain);
     g_porcelain = NULL;
     g_tip_image.value = 0;
-    free(g_text_px);
+    ToriMem_Free(ToriMem_Plugins(), g_text_px);
     g_text_px = NULL;
     g_glyph_ready = 0;
-    free(g_bonus);
+    ToriMem_Free(ToriMem_Plugins(), g_bonus);
     g_bonus = NULL;
     g_bonus_count = 0;
-    free(rt->state->glyph);
+    ToriMem_Free(ToriMem_Plugins(), rt->state->glyph);
     rt->state->glyph = NULL;
-    free(rt->state->tip);
+    ToriMem_Free(ToriMem_Plugins(), rt->state->tip);
     rt->state->tip = NULL;
 }
 

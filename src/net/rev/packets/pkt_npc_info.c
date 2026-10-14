@@ -1,3 +1,5 @@
+#include "mem/torimem_rscache.h"
+#include "mem/torirs_mem.h"
 #include "pkt_npc_info.h"
 
 #include "net/bitbuffer.h"
@@ -280,6 +282,8 @@ pkt_npc_info_reader_read(
         if( (mask & PKT_NPC_MASK_SAY) != 0 )
         {
             char* text = gstringnewline(&rsbuf);
+            if( text ) /* RSCache allocated it: the op owns it in NET */
+                text = ToriMem_TakeStrFromRSCache(ToriMem_Net(), text);
             struct PktNpcInfoOp* op = next_op(reader, ops, ops_capacity);
             op->kind = PKT_NPC_INFO_OP_SAY;
             op->_say.text = text;
@@ -338,8 +342,8 @@ pkt_npc_info_ops_free(
     for( int i = 0; i < op_count; i++ )
     {
         if( ops[i].kind == PKT_NPC_INFO_OP_SAY )
-            free(ops[i]._say.text);
+            ToriMem_Free(ToriMem_Net(), ops[i]._say.text);
         else if( ops[i].kind == PKT_NPC_INFO_OP_NAME_CHANGE )
-            free(ops[i]._name_change.name);
+            ToriMem_Free(ToriMem_Net(), ops[i]._name_change.name);
     }
 }

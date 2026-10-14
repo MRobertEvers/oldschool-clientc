@@ -3120,8 +3120,8 @@ static enum ToriRS_ContractResult widget_set_on_op(void* u,struct ToriRS_WidgetR
     if( !ctx->widget_ops )
     {
         if( !listener ) return TORIRS_CONTRACT_OK;
-        ctx->widget_ops=calloc(PLUGIN_WIDGET_OP_MAX,sizeof(*ctx->widget_ops));
-        assert(ctx->widget_ops);
+        ctx->widget_ops=
+            ToriMem_Calloc(ToriMem_Plugins(),PLUGIN_WIDGET_OP_MAX,sizeof(*ctx->widget_ops));
     }
     int slot=-1;
     bool matched=false;
@@ -3241,8 +3241,8 @@ widget_subscribe(void* user, char const* role, ToriRS_WidgetListener listener, v
     if( !ctx->widget_watches )
     {
         if( !listener ) return TORIRS_CONTRACT_OK;
-        ctx->widget_watches = calloc(PLUGIN_WIDGET_WATCH_MAX, sizeof(*ctx->widget_watches));
-        if( !ctx->widget_watches ) return TORIRS_CONTRACT_FAILED;
+        ctx->widget_watches = ToriMem_Calloc(
+            ToriMem_Plugins(), PLUGIN_WIDGET_WATCH_MAX, sizeof(*ctx->widget_watches));
     }
     int at = -1;
     for( int i = 0; i < PLUGIN_WIDGET_WATCH_MAX; ++i )

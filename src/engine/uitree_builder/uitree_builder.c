@@ -1,4 +1,5 @@
 #include "uitree_builder.h"
+#include "mem/torirs_mem.h"
 
 #include "revconfig/revconfig.h"
 
@@ -54,9 +55,9 @@ void
 UITreeBuilder_Free(struct UITreeBuilder* builder)
 {
     assert(builder);
-    free(builder->sprites);
-    free(builder->fonts);
-    free(builder->onloads);
+    ToriMem_Free(ToriMem_Ui(), builder->sprites);
+    ToriMem_Free(ToriMem_Ui(), builder->fonts);
+    ToriMem_Free(ToriMem_Ui(), builder->onloads);
     builder->sprites = NULL;
     builder->fonts = NULL;
     builder->onloads = NULL;
@@ -76,7 +77,7 @@ grow(
     if( *count < *cap )
         return ptr;
     int n = *cap == 0 ? 8 : *cap * 2;
-    void* p = realloc(ptr, (size_t)n * elem);
+    void* p = ToriMem_Realloc(ToriMem_Ui(), ptr, (size_t)n * elem);
     assert(p);
     *cap = n;
     return p;

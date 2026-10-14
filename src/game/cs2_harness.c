@@ -21,6 +21,7 @@
  */
 
 #include "game/cs2_harness.h"
+#include "mem/torirs_mem.h"
 #include <assert.h>
 
 #include "cs2vm2/cs2vm2.h"
@@ -184,7 +185,7 @@ harness_parse_case(char const* body, char const* end, struct HarnessCase* out)
                 p++;
             }
             int copy = (int)(p - text);
-            char* dup = (char*)malloc((size_t)copy + 1);
+            char* dup = (char*)ToriMem_Alloc(ToriMem_Script(), (size_t)copy + 1);
             assert(dup);
             memcpy(dup, text, (size_t)copy);
             dup[copy] = '\0';
@@ -208,7 +209,7 @@ harness_load_cases(char const* path, struct HarnessCase* cases, int max_cases)
     fseek(fp, 0, SEEK_END);
     long size = ftell(fp);
     fseek(fp, 0, SEEK_SET);
-    char* text = (char*)malloc((size_t)size + 1);
+    char* text = (char*)ToriMem_Alloc(ToriMem_Script(), (size_t)size + 1);
     assert(text);
     size_t read = fread(text, 1, (size_t)size, fp);
     text[read] = '\0';
@@ -251,7 +252,7 @@ harness_load_cases(char const* path, struct HarnessCase* cases, int max_cases)
             p = q + 1;
         }
     }
-    free(text);
+    ToriMem_Free(ToriMem_Script(), text);
     return count;
 }
 
@@ -315,16 +316,16 @@ CS2Harness_Run(
 {
     /* calloc, not malloc: these replace zero-initialised .bss, and
      * harness_load_cases only fills the cases it actually parses. */
-    struct HarnessCase* cases = calloc(HARNESS_MAX_CASES, sizeof(*cases));
+    struct HarnessCase* cases = ToriMem_Calloc(ToriMem_Script(), HARNESS_MAX_CASES, sizeof(*cases));
     assert(cases);
-    s_trace = calloc(HARNESS_TRACE_MAX, sizeof(*s_trace));
+    s_trace = ToriMem_Calloc(ToriMem_Script(), HARNESS_TRACE_MAX, sizeof(*s_trace));
     assert(s_trace);
 
     int count = harness_load_cases(cases_path, cases, HARNESS_MAX_CASES);
     if( count <= 0 )
     {
-        free(cases);
-        free(s_trace);
+        ToriMem_Free(ToriMem_Script(), cases);
+        ToriMem_Free(ToriMem_Script(), s_trace);
         s_trace = NULL;
         return 0;
     }
@@ -380,13 +381,13 @@ CS2Harness_Run(
 
         for( int s = 0; s < item->str_arg_count; s++ )
         {
-            free(item->str_args[s]);
+            ToriMem_Free(ToriMem_Script(), item->str_args[s]);
             item->str_args[s] = NULL;
         }
     }
     TORIRS_LOG("cs2_harness: done\n");
-    free(cases);
-    free(s_trace);
+    ToriMem_Free(ToriMem_Script(), cases);
+    ToriMem_Free(ToriMem_Script(), s_trace);
     s_trace = NULL;
     return count;
 }

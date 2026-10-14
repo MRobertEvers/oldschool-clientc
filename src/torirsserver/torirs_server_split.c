@@ -10,6 +10,7 @@
  */
 
 #include "torirs_server.h"
+#include "mem/torirs_mem.h"
 
 #include "serverscript/ssvm.h"
 
@@ -255,12 +256,7 @@ ToriRSServer_SplitInit(
         SSVM_Abort(state, "split_init could not load fontmetrics %d", font_id);
         return 0;
     }
-    work = strdup(text ? text : "");
-    if( !work )
-    {
-        SSVM_Abort(state, "split_init out of memory");
-        return 0;
-    }
+    work = ToriMem_Strdup(ToriMem_ServerScripts(), text ? text : "");
 
     /* The reference returns one line for an empty string. */
     do
@@ -275,7 +271,7 @@ ToriRSServer_SplitInit(
         line = SSVM_StrPoolDupLen(&state->pool, work, (size_t)point.output_end);
         if( !line )
         {
-            free(work);
+            ToriMem_Free(ToriMem_ServerScripts(), work);
             SSVM_Abort(state, "split_init out of memory");
             return 0;
         }
@@ -286,21 +282,15 @@ ToriRSServer_SplitInit(
         styles_at(work, point.rest_start, colour);
         rest_length = strlen(work + point.rest_start);
         prefix_length = strlen(colour);
-        next = (char*)malloc(prefix_length + rest_length + 1);
-        if( !next )
-        {
-            free(work);
-            SSVM_Abort(state, "split_init out of memory");
-            return 0;
-        }
+        next = (char*)ToriMem_Alloc(ToriMem_ServerScripts(), prefix_length + rest_length + 1);
         next[0] = '\0';
         strcat(next, colour);
         strcat(next, work + point.rest_start);
-        free(work);
+        ToriMem_Free(ToriMem_ServerScripts(), work);
         work = next;
     } while( 1 );
 
-    free(work);
+    ToriMem_Free(ToriMem_ServerScripts(), work);
     return 1;
 }
 

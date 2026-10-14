@@ -12,6 +12,7 @@
  */
 
 #include "torirs_server.h"
+#include "mem/torirs_mem.h"
 #include "torirs_server_servpack.h"
 #include <assert.h>
 
@@ -125,8 +126,8 @@ add_param(
     if( g_npc_param_count == g_npc_param_capacity )
     {
         int capacity = g_npc_param_capacity ? g_npc_param_capacity * 2 : 4096;
-        struct NpcParam* grown =
-            (struct NpcParam*)realloc(g_npc_params, (size_t)capacity * sizeof(*grown));
+        struct NpcParam* grown = (struct NpcParam*)ToriMem_Realloc(
+            ToriMem_ServerContent(), g_npc_params, (size_t)capacity * sizeof(*grown));
 
         assert(grown);
         g_npc_params = grown;
@@ -136,7 +137,7 @@ add_param(
     row->npc_id = npc_id;
     row->key = key;
     row->ival = ival;
-    row->sval = sval ? strdup(sval) : NULL;
+    row->sval = sval ? ToriMem_Strdup(ToriMem_ServerContent(), sval) : NULL;
     assert(!sval || row->sval);
 }
 
@@ -228,7 +229,8 @@ npc_load_record(
 
         while( want <= id )
             want *= 2;
-        grown = (struct ToriRSServerNpcInfo*)realloc(g_npcs, (size_t)want * sizeof(*grown));
+        grown = (struct ToriRSServerNpcInfo*)ToriMem_Realloc(
+            ToriMem_ServerContent(), g_npcs, (size_t)want * sizeof(*grown));
         assert(grown);
         for( int i = load->capacity; i < want; i++ )
             npc_row_defaults(&grown[i]);
@@ -250,7 +252,7 @@ npc_load_record(
 
     if( npc->name && strcmp(npc->name, "null") != 0 )
     {
-        g_npcs[id].name = strdup(npc->name);
+        g_npcs[id].name = ToriMem_Strdup(ToriMem_ServerContent(), npc->name);
         assert(g_npcs[id].name);
     }
     g_npcs[id].combat_level = npc->combat_level;
@@ -269,14 +271,16 @@ npc_load_record(
     g_npcs[id].transform_varp = npc->varp_index;
     if( npc->configs && npc->configs_count > 0 )
     {
-        g_npcs[id].transforms = (int*)malloc((size_t)npc->configs_count * sizeof(int));
+        g_npcs[id].transforms =
+            (int*)ToriMem_Alloc(ToriMem_ServerContent(), (size_t)npc->configs_count * sizeof(int));
         assert(g_npcs[id].transforms);
         memcpy(g_npcs[id].transforms, npc->configs, (size_t)npc->configs_count * sizeof(int));
         g_npcs[id].transform_count = npc->configs_count;
     }
     for( int op = 0; op < 5; op++ )
     {
-        g_npcs[id].ops[op] = npc->actions[op] ? strdup(npc->actions[op]) : NULL;
+        g_npcs[id].ops[op] =
+            npc->actions[op] ? ToriMem_Strdup(ToriMem_ServerContent(), npc->actions[op]) : NULL;
         assert(!npc->actions[op] || g_npcs[id].ops[op]);
     }
     read_combat_params(&npc->params, &g_npcs[id]);
@@ -351,19 +355,19 @@ ToriRSServer_NpcInfoFree(void)
     {
         for( int i = 0; i < g_npc_count; i++ )
         {
-            free((void*)g_npcs[i].name);
-            free(g_npcs[i].transforms);
+            ToriMem_Free(ToriMem_ServerContent(), (void*)g_npcs[i].name);
+            ToriMem_Free(ToriMem_ServerContent(), g_npcs[i].transforms);
             for( int op = 0; op < 5; op++ )
-                free((void*)g_npcs[i].ops[op]);
+                ToriMem_Free(ToriMem_ServerContent(), (void*)g_npcs[i].ops[op]);
         }
-        free(g_npcs);
+        ToriMem_Free(ToriMem_ServerContent(), g_npcs);
     }
     g_npcs = NULL;
     g_npc_count = 0;
 
     for( int i = 0; i < g_npc_param_count; i++ )
-        free(g_npc_params[i].sval);
-    free(g_npc_params);
+        ToriMem_Free(ToriMem_ServerContent(), g_npc_params[i].sval);
+    ToriMem_Free(ToriMem_ServerContent(), g_npc_params);
     g_npc_params = NULL;
     g_npc_param_count = 0;
     g_npc_param_capacity = 0;

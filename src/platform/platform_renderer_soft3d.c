@@ -186,7 +186,8 @@ soft3d_scratch(
         return NULL;
     if( pixels > soft->scratch->blit_cap )
     {
-        uint32_t* grown = (uint32_t*)realloc(soft->scratch->blit, pixels * sizeof(uint32_t));
+        uint32_t* grown = (uint32_t*)ToriMem_Realloc(
+            ToriMem_Render(), soft->scratch->blit, pixels * sizeof(uint32_t));
         assert(grown);
         soft->scratch->blit = grown;
         soft->scratch->blit_cap = pixels;
@@ -484,7 +485,7 @@ soft3d_layer_begin(struct ToriPlatform_Renderer_Soft3D* soft, int x0, int y0, in
     n = (size_t)soft->layout_w * (size_t)soft->layout_h;
     if( n > scratch->layer_cap )
     {
-        int* grown = (int*)realloc(scratch->layer, n * sizeof(int));
+        int* grown = (int*)ToriMem_Realloc(ToriMem_Render(), scratch->layer, n * sizeof(int));
         assert(grown);
         scratch->layer = grown;
         scratch->layer_cap = n;
@@ -1437,10 +1438,10 @@ soft3d_scale_world(struct ToriPlatform_Renderer_Soft3D* soft)
 struct ToriPlatform_Renderer_Soft3D*
 ToriPlatform_Renderer_Soft3D_New(void)
 {
-    struct ToriPlatform_Renderer_Soft3D* soft = calloc(1, sizeof(*soft));
+    struct ToriPlatform_Renderer_Soft3D* soft = ToriMem_Calloc(ToriMem_Render(), 1, sizeof(*soft));
 
     assert(soft);
-    soft->scratch = calloc(1, sizeof(*soft->scratch));
+    soft->scratch = ToriMem_Calloc(ToriMem_Render(), 1, sizeof(*soft->scratch));
     assert(soft->scratch);
     return soft;
 }
@@ -1456,21 +1457,22 @@ ToriPlatform_Renderer_Soft3D_Free(struct ToriPlatform_Renderer_Soft3D* soft)
     {
         for( i = 0; i < SOFT3D_OUTLINE_CACHE_SLOTS; i++ )
             TORIDRAW_FREE(soft->scratch->outline_cache[i].pixels);
-        free(soft->scratch->blit);
-        free(soft->scratch->layer);
-        free(soft->scratch->segment);
-        free(soft->scratch->taps_x);
-        free(soft->scratch->taps_y);
-        free(soft->scratch->column_sums);
+        ToriMem_Free(ToriMem_Render(), soft->scratch->blit);
+        ToriMem_Free(ToriMem_Render(), soft->scratch->layer);
+        ToriMem_Free(ToriMem_Render(), soft->scratch->segment);
+        ToriMem_Free(ToriMem_Render(), soft->scratch->taps_x);
+        ToriMem_Free(ToriMem_Render(), soft->scratch->taps_y);
+        ToriMem_Free(ToriMem_Render(), soft->scratch->column_sums);
         for( int i = 0; i < SOFT3D_SEGMENT_CACHES; i++ )
         {
-            free(soft->scratch->segment_caches[i].encoded);
-            free(soft->scratch->segment_caches[i].filtered);
-            free(soft->scratch->segment_caches[i].dirty);
+            ToriMem_Free(ToriMem_Render(), soft->scratch->segment_caches[i].encoded);
+            ToriMem_Free(ToriMem_Render(), soft->scratch->segment_caches[i].filtered);
+            ToriMem_Free(ToriMem_Render(), soft->scratch->segment_caches[i].dirty);
         }
-        free(soft->scratch);
+        ToriMem_Free(ToriMem_Render(), soft->scratch);
     }
-    free(soft);
+    soft3d_dbg_pixowner_release();
+    ToriMem_Free(ToriMem_Render(), soft);
 }
 
 void
@@ -1854,8 +1856,8 @@ soft3d_grow_ints(int** buffer, size_t* cap, size_t needed)
 {
     if( needed <= *cap )
         return;
-    free(*buffer);
-    *buffer = (int*)malloc(needed * sizeof(int));
+    ToriMem_Free(ToriMem_Render(), *buffer);
+    *buffer = (int*)ToriMem_Alloc(ToriMem_Render(), needed * sizeof(int));
     assert(*buffer);
     *cap = needed;
 }
@@ -2121,12 +2123,13 @@ soft3d_segment_end(struct ToriPlatform_Renderer_Soft3D* soft)
     {
         size_t const layout_n = (size_t)lw * (size_t)lh;
         size_t const out_n = (size_t)bw * (size_t)bh;
-        free(cache->encoded);
-        free(cache->filtered);
-        free(cache->dirty);
-        cache->encoded = (int*)malloc(layout_n * sizeof(int));
-        cache->filtered = (int*)calloc(out_n, sizeof(int));
-        cache->dirty = (unsigned char*)malloc((size_t)tiles_w * (size_t)tiles_h);
+        ToriMem_Free(ToriMem_Render(), cache->encoded);
+        ToriMem_Free(ToriMem_Render(), cache->filtered);
+        ToriMem_Free(ToriMem_Render(), cache->dirty);
+        cache->encoded = (int*)ToriMem_Alloc(ToriMem_Render(), layout_n * sizeof(int));
+        cache->filtered = (int*)ToriMem_Calloc(ToriMem_Render(), out_n, sizeof(int));
+        cache->dirty =
+            (unsigned char*)ToriMem_Alloc(ToriMem_Render(), (size_t)tiles_w * (size_t)tiles_h);
         assert(cache->encoded);
         assert(cache->filtered);
         assert(cache->dirty);

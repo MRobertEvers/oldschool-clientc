@@ -4,6 +4,7 @@
 #include "plugin/torirs_plugin_host.h"
 #include "plugin/torirs_plugin_api.h"
 #include "input/torirs_input.h"
+#include "mem/torirs_mem.h"
 
 #include "lauxlib.h"
 #include "lua.h"
@@ -311,11 +312,12 @@ lua_script_alloc(void* userdata, void* pointer, size_t old_size, size_t new_size
             assert(script->mem_used >= old_size);
             script->mem_used -= old_size;
         }
-        free(pointer);
+        free(pointer); /* torimem-bare: the lua_Alloc hook; the VM's blocks are Lua's, libc here */
         return NULL;
     }
     if( script->mem_used - was + new_size > script->memory_limit )
         return NULL;
+    /* torimem-bare: the lua_Alloc hook -- a NULL is Lua's memory-limit error, not an abort */
     pointer = realloc(pointer, new_size);
     if( pointer )
         script->mem_used = script->mem_used - was + new_size;
@@ -4872,13 +4874,13 @@ PluginLua_AddScript(
     memset(script, 0, sizeof(*script));
     script->host = host;
     script->plugin_index = -1;
-    script->source = malloc((size_t)source_len);
+    script->source = ToriMem_Alloc(ToriMem_Plugins(), (size_t)source_len);
     assert(script->source);
     memcpy(script->source, source, (size_t)source_len);
     script->source_len = source_len;
     if( !lua_script_build(script, name, source, source_len) )
     {
-        free(script->source);
+        ToriMem_Free(ToriMem_Plugins(), script->source);
         script->source = NULL;
         return -1;
     }
@@ -4886,7 +4888,7 @@ PluginLua_AddScript(
     if( index < 0 )
     {
         lua_script_release(script);
-        free(script->source);
+        ToriMem_Free(ToriMem_Plugins(), script->source);
         script->source = NULL;
         return -1;
     }
@@ -4920,8 +4922,7 @@ PluginLua_TestReplaceSource(int plugin_index, char const* source, int source_len
     {
         struct LuaScript* script = &g_scripts[i];
         if( script->plugin_index != plugin_index ) continue;
-        char* replacement = realloc(script->source, (size_t)source_len);
-        if( !replacement ) return false;
+        char* replacement = ToriMem_Realloc(ToriMem_Plugins(), script->source, (size_t)source_len);
         memcpy(replacement, source, (size_t)source_len);
         script->source = replacement;
         script->source_len = source_len;
@@ -4937,7 +4938,7 @@ PluginLua_Shutdown(void)
     for( int i = 0; i < g_script_count; i++ )
     {
         lua_script_release(&g_scripts[i]);
-        free(g_scripts[i].source);
+        ToriMem_Free(ToriMem_Plugins(), g_scripts[i].source);
         g_scripts[i].source = NULL;
         g_scripts[i].source_len = 0;
     }

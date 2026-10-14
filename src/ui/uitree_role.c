@@ -1,4 +1,5 @@
 #include "uitree_role.h"
+#include "mem/torirs_mem.h"
 
 #include "perf_audit.h"
 #include <assert.h>
@@ -136,8 +137,8 @@ role_index_rebuild(struct UITreeRoleTable* table, uint32_t capacity)
     assert(capacity);
     assert((capacity & (capacity - 1)) == 0);
     assert((uint32_t)table->count * 2 <= capacity);
-    free(table->name_index);
-    table->name_index = calloc(capacity, sizeof(*table->name_index));
+    ToriMem_Free(ToriMem_Ui(), table->name_index);
+    table->name_index = ToriMem_Calloc(ToriMem_Ui(), capacity, sizeof(*table->name_index));
     assert(table->name_index);
     table->name_index_capacity = capacity;
     for( int i = 0; i < table->count; i++ )
@@ -198,7 +199,7 @@ UITree_RoleIntern(struct UITreeRoleTable* table, char const* name)
     {
         int capacity = table->capacity ? table->capacity * 2 : 8;
         struct UITreeRoleEntry* grown =
-            realloc(table->entries, (size_t)capacity * sizeof(*grown));
+            ToriMem_Realloc(ToriMem_Ui(), table->entries, (size_t)capacity * sizeof(*grown));
         assert(grown);
         table->entries = grown;
         table->capacity = capacity;
@@ -315,11 +316,11 @@ UITree_RoleTableFree(struct UITreeRoleTable* table)
 {
     if( !table )
         return;
-    free(table->entries);
+    ToriMem_Free(ToriMem_Ui(), table->entries);
     table->entries = NULL;
     table->count = 0;
     table->capacity = 0;
-    free(table->name_index);
+    ToriMem_Free(ToriMem_Ui(), table->name_index);
     table->name_index = NULL;
     table->name_index_capacity = 0;
 }

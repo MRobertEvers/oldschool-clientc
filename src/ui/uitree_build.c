@@ -1,4 +1,5 @@
 #include "uitree_build.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -290,7 +291,7 @@ UITree_BuildFromSource(
     if( src->count <= 0 )
         return 0;
 
-    int32_t* index_map = (int32_t*)calloc((size_t)src->count, sizeof(int32_t));
+    int32_t* index_map = (int32_t*)ToriMem_Calloc(ToriMem_Ui(), (size_t)src->count, sizeof(int32_t));
     assert(index_map);
 
     for( int i = 0; i < src->count; i++ )
@@ -355,6 +356,6 @@ UITree_BuildFromSource(
         UITree_LinkUnderParent(tree, -1, idx);
     }
 
-    free(index_map);
+    ToriMem_Free(ToriMem_Ui(), index_map);
     return src->count;
 }

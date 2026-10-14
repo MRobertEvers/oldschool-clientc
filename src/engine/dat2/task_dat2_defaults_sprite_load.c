@@ -1,4 +1,5 @@
 #include "engine/dat2/dat2_tasks.h"
+#include "mem/torirs_mem.h"
 
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
@@ -147,7 +148,7 @@ Task_Dat2DefaultsSpriteLoad_Run(
 static void
 Task_Dat2DefaultsSpriteLoad_Free(struct ToriRS_Task* task_base)
 {
-    free(task_base);
+    ToriMem_Free(ToriMem_Assets(), task_base);
 }
 
 static struct ToriRS_TaskVTable Task_Dat2DefaultsSpriteLoad_VTable = {
@@ -174,7 +175,7 @@ CreateTask_Dat2DefaultsSpriteLoad(
     if( existing_id >= 0 && CacheProvider_SpriteHas(provider, existing_id) )
         return NULL;
 
-    task = calloc(1, sizeof(*task));
+    task = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_Dat2DefaultsSpriteLoad_VTable;
     strcpy(task->task.name, "Dat2DefaultsSpriteLoad");

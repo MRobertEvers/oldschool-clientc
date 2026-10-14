@@ -1,4 +1,5 @@
 #include "game/rs_preload.h"
+#include "mem/torirs_mem.h"
 
 #include "revconfig/revconfig_load.h"
 
@@ -21,7 +22,7 @@ RS_Preload_Free(struct RS_PreloadTable* table)
      * guard is not a silent-failure guard. */
     if( !table )
         return;
-    free(table->steps);
+    ToriMem_Free(ToriMem_Process(), table->steps);
     table->steps = NULL;
     table->count = 0;
     table->capacity = 0;
@@ -81,7 +82,7 @@ RS_Preload_AddFromItems(
             {
                 int cap = table->capacity == 0 ? 16 : table->capacity * 2;
                 struct RS_PreloadStep* grown =
-                    realloc(table->steps, (size_t)cap * sizeof(*grown));
+                    ToriMem_Realloc(ToriMem_Process(), table->steps, (size_t)cap * sizeof(*grown));
                 assert(grown);
                 table->steps = grown;
                 table->capacity = cap;

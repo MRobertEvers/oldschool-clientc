@@ -1,3 +1,4 @@
+#include "mem/torirs_mem.h"
 #include "wordpack.h"
 #include <assert.h>
 
@@ -102,7 +103,7 @@ wordpack_unpack(
     struct RSCache_Buffer* buffer,
     int length)
 {
-    char* out = malloc(101);
+    char* out = ToriMem_Alloc(ToriMem_Net(), 101);
     assert(out);
     memset(out, 0, 101);
 

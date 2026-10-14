@@ -1,4 +1,5 @@
 #include "varp_manager.h"
+#include "mem/torirs_mem.h"
 
 #include <stdio.h>
 
@@ -76,16 +77,16 @@ alloc_var_arrays(
     struct VarPManager* mgr,
     int count)
 {
-    free(mgr->var);
-    free(mgr->var_serv);
+    ToriMem_Free(ToriMem_Session(), mgr->var);
+    ToriMem_Free(ToriMem_Session(), mgr->var_serv);
     mgr->var = NULL;
     mgr->var_serv = NULL;
 
     if( count <= 0 )
         return true;
 
-    mgr->var = calloc((size_t)count, sizeof(int));
-    mgr->var_serv = calloc((size_t)count, sizeof(int));
+    mgr->var = ToriMem_Calloc(ToriMem_Session(), (size_t)count, sizeof(int));
+    mgr->var_serv = ToriMem_Calloc(ToriMem_Session(), (size_t)count, sizeof(int));
     assert(mgr->var);
     assert(mgr->var_serv);
     return true;
@@ -120,8 +121,8 @@ ensure_untyped_var_capacity(
     while( grown <= variable )
         grown *= 2;
 
-    var = calloc((size_t)grown, sizeof(int));
-    var_serv = calloc((size_t)grown, sizeof(int));
+    var = ToriMem_Calloc(ToriMem_Session(), (size_t)grown, sizeof(int));
+    var_serv = ToriMem_Calloc(ToriMem_Session(), (size_t)grown, sizeof(int));
     assert(var);
     assert(var_serv);
     if( mgr->varp_count > 0 )
@@ -129,8 +130,8 @@ ensure_untyped_var_capacity(
         memcpy(var, mgr->var, (size_t)mgr->varp_count * sizeof(int));
         memcpy(var_serv, mgr->var_serv, (size_t)mgr->varp_count * sizeof(int));
     }
-    free(mgr->var);
-    free(mgr->var_serv);
+    ToriMem_Free(ToriMem_Session(), mgr->var);
+    ToriMem_Free(ToriMem_Session(), mgr->var_serv);
     mgr->var = var;
     mgr->var_serv = var_serv;
     mgr->varp_count = grown;
@@ -248,19 +249,19 @@ VarPManager_Free(struct VarPManager* mgr)
     if( !mgr )
         return;
 
-    free(mgr->varp_types);
+    ToriMem_Free(ToriMem_Session(), mgr->varp_types);
     mgr->varp_types = NULL;
     mgr->varp_type_count = 0;
     mgr->varp_count = 0;
 
-    free(mgr->varbit_types);
+    ToriMem_Free(ToriMem_Session(), mgr->varbit_types);
     mgr->varbit_types = NULL;
     mgr->varbit_count = 0;
 
-    free(mgr->var);
+    ToriMem_Free(ToriMem_Session(), mgr->var);
     mgr->var = NULL;
 
-    free(mgr->var_serv);
+    ToriMem_Free(ToriMem_Session(), mgr->var_serv);
     mgr->var_serv = NULL;
 
     mgr->change_fn = NULL;
@@ -279,7 +280,7 @@ VarPManager_SetVarpTypes(
     assert(count >= 0);
     assert(count == 0 || types);
 
-    free(mgr->varp_types);
+    ToriMem_Free(ToriMem_Session(), mgr->varp_types);
     mgr->varp_types = NULL;
     mgr->varp_type_count = 0;
     mgr->varp_count = 0;
@@ -291,7 +292,7 @@ VarPManager_SetVarpTypes(
         return true;
     }
 
-    mgr->varp_types = malloc((size_t)count * sizeof(struct VarPType));
+    mgr->varp_types = ToriMem_Alloc(ToriMem_Session(), (size_t)count * sizeof(struct VarPType));
     assert(mgr->varp_types);
 
     memcpy(mgr->varp_types, types, (size_t)count * sizeof(struct VarPType));
@@ -300,7 +301,7 @@ VarPManager_SetVarpTypes(
 
     if( !alloc_var_arrays(mgr, count) )
     {
-        free(mgr->varp_types);
+        ToriMem_Free(ToriMem_Session(), mgr->varp_types);
         mgr->varp_types = NULL;
         mgr->varp_type_count = 0;
         mgr->varp_count = 0;
@@ -319,14 +320,14 @@ VarPManager_SetVarbitTypes(
     assert(count >= 0);
     assert(count == 0 || types);
 
-    free(mgr->varbit_types);
+    ToriMem_Free(ToriMem_Session(), mgr->varbit_types);
     mgr->varbit_types = NULL;
     mgr->varbit_count = 0;
 
     if( count == 0 )
         return true;
 
-    mgr->varbit_types = malloc((size_t)count * sizeof(struct VarBitType));
+    mgr->varbit_types = ToriMem_Alloc(ToriMem_Session(), (size_t)count * sizeof(struct VarBitType));
     assert(mgr->varbit_types);
 
     memcpy(mgr->varbit_types, types, (size_t)count * sizeof(struct VarBitType));
@@ -349,7 +350,7 @@ VarPManager_LoadVarpDat(
     struct VarPType* types = NULL;
     if( count > 0 )
     {
-        types = calloc((size_t)count, sizeof(struct VarPType));
+        types = ToriMem_Calloc(ToriMem_Session(), (size_t)count, sizeof(struct VarPType));
         assert(types);
 
         for( int i = 0; i < count; i++ )
@@ -357,7 +358,7 @@ VarPManager_LoadVarpDat(
     }
 
     bool ok = VarPManager_SetVarpTypes(mgr, types, count);
-    free(types);
+    ToriMem_Free(ToriMem_Session(), types);
     return ok;
 }
 
@@ -376,7 +377,7 @@ VarPManager_LoadVarbitDat(
     struct VarBitType* types = NULL;
     if( count > 0 )
     {
-        types = calloc((size_t)count, sizeof(struct VarBitType));
+        types = ToriMem_Calloc(ToriMem_Session(), (size_t)count, sizeof(struct VarBitType));
         assert(types);
 
         for( int i = 0; i < count; i++ )
@@ -396,7 +397,7 @@ VarPManager_LoadVarbitDat(
             size);
 
     bool ok = VarPManager_SetVarbitTypes(mgr, types, count);
-    free(types);
+    ToriMem_Free(ToriMem_Session(), types);
     return ok;
 }
 

@@ -8,6 +8,7 @@
  */
 
 #include "app/app_internal.h"
+#include "mem/torirs_mem.h"
 
 /* ---- Inventory obj-icon reconcile ------------------------------------- *
  *
@@ -538,7 +539,7 @@ Task_InvIconReconcile_Run(
 static void
 Task_InvIconReconcile_Free(struct ToriRS_Task* base)
 {
-    free(base);
+    ToriMem_Free(ToriMem_Process(), base);
 }
 
 static struct ToriRS_TaskVTable Task_InvIconReconcile_VTable = {
@@ -562,7 +563,7 @@ app_inv_icon_reconcile_tick(struct App* app)
     if( app->inv_icon_reconcile_inflight || !InvManager_HasUnbakedIcon(&app->invs) )
         return;
 
-    task = calloc(1, sizeof(*task));
+    task = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_InvIconReconcile_VTable;
     strncpy(task->task.name, "InvIconReconcile", sizeof(task->task.name) - 1);
@@ -592,7 +593,7 @@ Task_AppCS1Eval_Run(
 static void
 Task_AppCS1Eval_Free(struct ToriRS_Task* base)
 {
-    free(base);
+    ToriMem_Free(ToriMem_Script(), base);
 }
 
 static struct ToriRS_TaskVTable Task_AppCS1Eval_VTable = {
@@ -610,7 +611,7 @@ app_request_cs1_eval(struct App* app)
 
     if( app->cs1_eval_inflight )
         return;
-    task = calloc(1, sizeof(*task));
+    task = ToriMem_Calloc(ToriMem_Script(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_AppCS1Eval_VTable;
     strncpy(task->task.name, "AppCS1Eval", sizeof(task->task.name) - 1);

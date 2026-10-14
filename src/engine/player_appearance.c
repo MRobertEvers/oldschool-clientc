@@ -1,4 +1,5 @@
 #include "engine/player_appearance.h"
+#include "mem/torirs_mem.h"
 
 #include "asyncio.h"
 #include "engine/cache_provider.h"
@@ -167,7 +168,7 @@ Task_PlayerAppearanceLoad_Run(
 static void
 Task_PlayerAppearanceLoad_Free(struct ToriRS_Task* base)
 {
-    free(base);
+    ToriMem_Free(ToriMem_Assets(), base);
 }
 
 static struct ToriRS_TaskVTable Task_PlayerAppearanceLoad_VTable = {
@@ -180,7 +181,7 @@ CreateTask_PlayerAppearanceLoad(struct CacheProvider* provider)
 {
     struct Task_PlayerAppearanceLoad* task;
     assert(provider);
-    task = calloc(1, sizeof(*task));
+    task = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_PlayerAppearanceLoad_VTable;
     strncpy(task->task.name, "PlayerAppearanceLoad", sizeof(task->task.name) - 1);

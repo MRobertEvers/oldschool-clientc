@@ -1,4 +1,5 @@
 #include "uitree_builder_manifest.h"
+#include "mem/torirs_mem.h"
 
 #include "revconfig/revconfig_load.h"
 
@@ -21,18 +22,18 @@ uibuilder_manifest_free(struct UIBuilderManifest* m)
     assert(m);
     for( int i = 0; i < m->inv_count; i++ )
     {
-        free(m->invs[i].obj_ids);
-        free(m->invs[i].obj_counts);
+        ToriMem_Free(ToriMem_Ui(), m->invs[i].obj_ids);
+        ToriMem_Free(ToriMem_Ui(), m->invs[i].obj_counts);
         m->invs[i].obj_ids = NULL;
         m->invs[i].obj_counts = NULL;
         m->invs[i].item_count = 0;
     }
-    free(m->sprites);
-    free(m->fonts);
-    free(m->components);
-    free(m->invs);
-    free(m->ops);
-    free(m->hotkeys);
+    ToriMem_Free(ToriMem_Ui(), m->sprites);
+    ToriMem_Free(ToriMem_Ui(), m->fonts);
+    ToriMem_Free(ToriMem_Ui(), m->components);
+    ToriMem_Free(ToriMem_Ui(), m->invs);
+    ToriMem_Free(ToriMem_Ui(), m->ops);
+    ToriMem_Free(ToriMem_Ui(), m->hotkeys);
     memset(m, 0, sizeof(*m));
 }
 
@@ -142,7 +143,7 @@ grow_array(
     if( *count < *cap )
         return ptr;
     int new_cap = *cap == 0 ? 8 : *cap * 2;
-    void* grown = realloc(ptr, (size_t)new_cap * elem_size);
+    void* grown = ToriMem_Realloc(ToriMem_Ui(), ptr, (size_t)new_cap * elem_size);
     assert(grown);
     *cap = new_cap;
     return grown;
@@ -293,9 +294,8 @@ add_inv(
     s->item_count = inv->item_count;
     if( s->item_count <= 0 )
         return;
-    s->obj_ids = calloc((size_t)s->item_count, sizeof(int));
-    s->obj_counts = calloc((size_t)s->item_count, sizeof(int));
-    assert(s->obj_ids && s->obj_counts);
+    s->obj_ids = ToriMem_Calloc(ToriMem_Ui(), (size_t)s->item_count, sizeof(int));
+    s->obj_counts = ToriMem_Calloc(ToriMem_Ui(), (size_t)s->item_count, sizeof(int));
     for( int i = 0; i < s->item_count; i++ )
     {
         s->obj_ids[i] = revconfig_parse_int(inv->items[i]);

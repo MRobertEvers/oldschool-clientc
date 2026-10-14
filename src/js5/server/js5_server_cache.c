@@ -1,4 +1,5 @@
 #include "js5_server_cache.h"
+#include "mem/torirs_mem.h"
 #include <assert.h>
 
 #include <archive.h>
@@ -203,7 +204,7 @@ js5_server_build_master(
 
     size_t body_size = (size_t)(highest + 1) * JS5_MASTER_ENTRY_BYTES;
     cache->master_size = 5u + body_size;
-    cache->master = (uint8_t*)malloc(cache->master_size);
+    cache->master = (uint8_t*)ToriMem_Alloc(ToriMem_ServerNet(), cache->master_size);
     assert(cache->master);
 
     uint8_t* out = cache->master;
@@ -288,12 +289,12 @@ Js5ServerCacheOpen(const char* cache_dir)
     assert(cache_dir);
     if( !cache_dir[0] )
         return NULL;
-    cache = (struct Js5ServerCache*)calloc(1u, sizeof(*cache));
+    cache = (struct Js5ServerCache*)ToriMem_Calloc(ToriMem_ServerNet(), 1u, sizeof(*cache));
     assert(cache);
     if( snprintf(cache->directory, sizeof(cache->directory), "%s", cache_dir) >=
         (int)sizeof(cache->directory) )
     {
-        free(cache);
+        ToriMem_Free(ToriMem_ServerNet(), cache);
         return NULL;
     }
     /* Stamped before the read, so a cache rewritten *during* the open is
@@ -339,7 +340,7 @@ Js5ServerCacheRefreshIfStale(struct Js5ServerCache* cache)
     if( !probe.disk || !js5_server_build_master(&probe, cache->directory) )
     {
         RSCache_Dat2DiskFree(probe.disk);
-        free(probe.master);
+        ToriMem_Free(ToriMem_ServerNet(), probe.master);
         if( cache->refresh_failures++ == 0u )
             fprintf(
                 stderr,
@@ -355,7 +356,7 @@ Js5ServerCacheRefreshIfStale(struct Js5ServerCache* cache)
      * to a session are owned copies, so none of them dangle.
      */
     RSCache_Dat2DiskFree(cache->disk);
-    free(cache->master);
+    ToriMem_Free(ToriMem_ServerNet(), cache->master);
     cache->disk = probe.disk;
     cache->master = probe.master;
     cache->master_size = probe.master_size;
@@ -387,8 +388,8 @@ Js5ServerCacheFree(struct Js5ServerCache* cache)
     if( !cache )
         return;
     RSCache_Dat2DiskFree(cache->disk);
-    free(cache->master);
-    free(cache);
+    ToriMem_Free(ToriMem_ServerNet(), cache->master);
+    ToriMem_Free(ToriMem_ServerNet(), cache);
 }
 
 enum Js5ServerCacheResult
@@ -408,7 +409,7 @@ Js5ServerCacheLoad(
 
     if( archive == JS5_REFERENCE_INDEX && group == JS5_REFERENCE_INDEX )
     {
-        blob->data = (uint8_t*)malloc(cache->master_size);
+        blob->data = (uint8_t*)ToriMem_Alloc(ToriMem_ServerNet(), cache->master_size);
         assert(blob->data);
         memcpy(blob->data, cache->master, cache->master_size);
         blob->size = cache->master_size;
@@ -430,7 +431,7 @@ Js5ServerCacheLoad(
         RSCache_Dat2DiskArchiveFree(raw);
         return validation;
     }
-    blob->data = (uint8_t*)malloc(container_size);
+    blob->data = (uint8_t*)ToriMem_Alloc(ToriMem_ServerNet(), container_size);
     assert(blob->data);
     memcpy(blob->data, container, container_size);
     blob->size = container_size;
@@ -443,7 +444,7 @@ Js5ServerBlobFree(struct Js5ServerBlob* blob)
 {
     if( !blob )
         return;
-    free(blob->data);
+    ToriMem_Free(ToriMem_ServerNet(), blob->data);
     memset(blob, 0, sizeof(*blob));
 }
 
@@ -477,8 +478,8 @@ Js5ServerCacheBuildResponse(
         return JS5_SERVER_CACHE_ERROR;
     }
     capacity = 3u + blob.size + markers;
-    *out = (uint8_t*)malloc(capacity);
-    assert(*out);
+    /* SERVER:NET: the caller frees the response from there. */
+    *out = (uint8_t*)ToriMem_Alloc(ToriMem_ServerNet(), capacity);
 
     (*out)[position++] = archive;
     (*out)[position++] = (uint8_t)(group >> 8u);

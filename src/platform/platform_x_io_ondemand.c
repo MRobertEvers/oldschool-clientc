@@ -520,8 +520,8 @@ od_fetch_add(
     if( od->fetch_count == od->fetch_cap )
     {
         od->fetch_cap = od->fetch_cap ? od->fetch_cap * 2 : 64;
-        od->fetches = realloc(od->fetches, (size_t)od->fetch_cap * sizeof(*od->fetches));
-        assert(od->fetches);
+        od->fetches = ToriMem_Realloc(
+            ToriMem_Net(), od->fetches, (size_t)od->fetch_cap * sizeof(*od->fetches));
     }
     fetch = &od->fetches[od->fetch_count];
     memset(fetch, 0, sizeof(*fetch));
@@ -540,7 +540,7 @@ od_fetch_remove(
 {
     assert(index >= 0);
     assert(index < od->fetch_count);
-    free(od->fetches[index].data);
+    ToriMem_Free(ToriMem_Net(), od->fetches[index].data);
     od->fetch_count--;
     if( od->rx_fetch == index )
         od->rx_fetch = -1;
@@ -563,8 +563,7 @@ od_tx_append(
         od->tx_cap = od->tx_cap ? od->tx_cap * 2 : 256;
         while( od->tx_len + count > od->tx_cap )
             od->tx_cap *= 2;
-        od->tx = realloc(od->tx, (size_t)od->tx_cap);
-        assert(od->tx);
+        od->tx = ToriMem_Realloc(ToriMem_Net(), od->tx, (size_t)od->tx_cap);
     }
     memcpy(od->tx + od->tx_len, bytes, (size_t)count);
     od->tx_len += count;
@@ -621,7 +620,7 @@ od_wire_drop(
         struct OdFetch* fetch = &od->fetches[i];
         if( fetch->state != OD_FETCH_INFLIGHT && fetch->state != OD_FETCH_QUEUED )
             continue;
-        free(fetch->data);
+        ToriMem_Free(ToriMem_Net(), fetch->data);
         fetch->data = NULL;
         fetch->total = -1;
         fetch->received = 0;
@@ -674,8 +673,7 @@ od_rx_begin_chunk(struct PlatformXIOOnDemand* od)
     if( fetch->total < 0 )
     {
         fetch->total = total;
-        fetch->data = malloc((size_t)total);
-        assert(fetch->data);
+        fetch->data = ToriMem_Alloc(ToriMem_Net(), (size_t)total);
     }
     else if( fetch->total != total )
     {
@@ -935,9 +933,7 @@ PlatformXIOOnDemand_FetchTake(
     {
         if( fetch->waiters > 1 )
         {
-            *out_data = malloc((size_t)fetch->total);
-            assert(*out_data);
-            memcpy(*out_data, fetch->data, (size_t)fetch->total);
+            *out_data = ToriMem_Memdup(ToriMem_Net(), fetch->data, (size_t)fetch->total);
         }
         else
         {
@@ -1015,7 +1011,7 @@ od_jag_crc_load(struct PlatformXIOOnDemand* od)
      * -- so a short read is a failure but a long one is not. */
     if( size < 9 * 4 )
     {
-        free(body);
+        ToriMem_Free(ToriMem_Net(), body);
         return -1;
     }
 
@@ -1026,7 +1022,7 @@ od_jag_crc_load(struct PlatformXIOOnDemand* od)
             (int32_t)(((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) | ((uint32_t)p[2] << 8) |
                       (uint32_t)p[3]);
     }
-    free(body);
+    ToriMem_Free(ToriMem_Net(), body);
     od->jag_crc_valid = 1;
     return 0;
 }
@@ -1110,9 +1106,7 @@ PlatformXIOOnDemand_New(
     if( sockstream_init() != 0 )
         return NULL;
 
-    od = malloc(sizeof(struct PlatformXIOOnDemand));
-    assert(od);
-    memset(od, 0, sizeof(struct PlatformXIOOnDemand));
+    od = ToriMem_Calloc(ToriMem_Net(), 1, sizeof(struct PlatformXIOOnDemand));
 
     snprintf(od->host, sizeof(od->host), "%s", host);
     od->rx_fetch = -1;
@@ -1131,7 +1125,7 @@ PlatformXIOOnDemand_New(
             "server running?\n",
             od->host,
             od->web_port);
-        free(od);
+        ToriMem_Free(ToriMem_Net(), od);
         return NULL;
     }
 
@@ -1143,17 +1137,17 @@ PlatformXIOOnDemand_New(
             od->host,
             od->web_port,
             route);
-        free(versionlist);
-        free(od);
+        ToriMem_Free(ToriMem_Net(), versionlist);
+        ToriMem_Free(ToriMem_Net(), od);
         return NULL;
     }
 
     od->map_squares = od_decode_map_squares(versionlist, versionlist_size);
-    free(versionlist);
+    ToriMem_Free(ToriMem_Net(), versionlist);
     if( !od->map_squares )
     {
         TORIRS_LOG("ondemand: the versionlist archive carries no map_index\n");
-        free(od);
+        ToriMem_Free(ToriMem_Net(), od);
         return NULL;
     }
 
@@ -1163,7 +1157,7 @@ PlatformXIOOnDemand_New(
             od->host,
             od->game_port);
         RSCache_MapSquaresFree(od->map_squares);
-        free(od);
+        ToriMem_Free(ToriMem_Net(), od);
         return NULL;
     }
 
@@ -1187,11 +1181,11 @@ PlatformXIOOnDemand_Free(struct PlatformXIOOnDemand* od)
         sockstream_free(od->files);
     }
     for( int i = 0; i < od->fetch_count; i++ )
-        free(od->fetches[i].data);
-    free(od->fetches);
-    free(od->tx);
+        ToriMem_Free(ToriMem_Net(), od->fetches[i].data);
+    ToriMem_Free(ToriMem_Net(), od->fetches);
+    ToriMem_Free(ToriMem_Net(), od->tx);
     RSCache_MapSquaresFree(od->map_squares);
-    free(od);
+    ToriMem_Free(ToriMem_Net(), od);
 }
 
 struct RSCache_MapSquares*
@@ -1587,8 +1581,7 @@ PlatformXIOOnDemand_ContainerFetchMany(
     assert(out_sizes);
     assert(out_formats);
 
-    on_wire = calloc((size_t)(count > 0 ? count : 1), 1);
-    assert(on_wire);
+    on_wire = ToriMem_Calloc(ToriMem_Net(), (size_t)(count > 0 ? count : 1), 1);
 
     /*
      * Every wire file first, so all of them are on the socket before anything
@@ -1644,7 +1637,7 @@ PlatformXIOOnDemand_ContainerFetchMany(
         if( od->files )
             od_wait(od->files, /* for_write */ 0, 1);
     }
-    free(on_wire);
+    ToriMem_Free(ToriMem_Net(), on_wire);
     return served;
 }
 
@@ -1671,7 +1664,7 @@ od_archive_from_wire(
      * ondemand takes ownership of the wire buffer. */
     raw.data = ToriMem_MemdupIntoRSCache(data, size > 0 ? (size_t)size : 0);
     raw.data_size = size;
-    free(data);
+    ToriMem_Free(ToriMem_Net(), data);
 
     /*
      * The last two bytes are the file's VERSION, not payload.
@@ -1775,7 +1768,7 @@ PlatformXIOOnDemand_ArchiveLoad(
              * lib:rscache's from here (one copy at the boundary). */
             char* wire = raw.data;
             raw.data = ToriMem_MemdupIntoRSCache(wire, (size_t)raw.data_size);
-            free(wire);
+            ToriMem_Free(ToriMem_Net(), wire);
         }
         od_tally(table_id, archive_id, raw.data_size);
         /* A jag archive is stored as it arrives. */
@@ -1870,9 +1863,7 @@ PlatformXIOOnDemand_NewWireOnly(
     if( sockstream_init() != 0 )
         return NULL;
 
-    od = malloc(sizeof(struct PlatformXIOOnDemand));
-    assert(od);
-    memset(od, 0, sizeof(struct PlatformXIOOnDemand));
+    od = ToriMem_Calloc(ToriMem_Net(), 1, sizeof(struct PlatformXIOOnDemand));
     snprintf(od->host, sizeof(od->host), "%s", host);
     od->rx_fetch = -1;
     od->game_port = game_port > 0 ? game_port : OD_DEFAULT_GAME_PORT;
@@ -1880,7 +1871,7 @@ PlatformXIOOnDemand_NewWireOnly(
 
     if( od_open_files(od) != 0 )
     {
-        free(od);
+        ToriMem_Free(ToriMem_Net(), od);
         return NULL;
     }
     return od;
@@ -1931,7 +1922,7 @@ PlatformXIOOnDemand_JagChecksumsRefresh(
     body = od_http_get(od, "/crc", &size);
     if( !body || size < 9 * 4 )
     {
-        free(body);
+        ToriMem_Free(ToriMem_Net(), body);
         /* Unreachable right now: the cached table (if any) is still the best
          * answer, and login will say out-of-date if it is stale. */
         if( !od->jag_crc_valid )
@@ -1946,7 +1937,7 @@ PlatformXIOOnDemand_JagChecksumsRefresh(
             (int32_t)(((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) | ((uint32_t)p[2] << 8) |
                       (uint32_t)p[3]);
     }
-    free(body);
+    ToriMem_Free(ToriMem_Net(), body);
 
     if( od->jag_crc_valid && memcmp(fresh, od->jag_crc, sizeof(fresh)) != 0 )
         TORIRS_ERR("ondemand: the cache server repacked since boot; refreshed the login "

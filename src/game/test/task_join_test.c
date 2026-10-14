@@ -81,7 +81,16 @@ Loader_Run(struct ToriRS_Task* base, struct ToriRS_IOBatch* io)
     PT_END(&self->pt);
 }
 
-static struct ToriRS_TaskVTable k_loader_vtable = { .run = Loader_Run, .free = NULL };
+
+/* A test fixture's task shell is calloc'd here, so it frees itself with libc:
+ * task_free requires every task to free itself. */
+static void
+test_task_free_libc(struct ToriRS_Task* task)
+{
+    free(task);
+}
+
+static struct ToriRS_TaskVTable k_loader_vtable = { .run = Loader_Run, .free = test_task_free_libc };
 
 static struct ToriRS_Task*
 new_loader(int* landed, int* refused, int fails, int* pass_clock)
@@ -137,7 +146,7 @@ Parent_Run(struct ToriRS_Task* base, struct ToriRS_IOBatch* io)
     PT_END(&self->pt);
 }
 
-static struct ToriRS_TaskVTable k_parent_vtable = { .run = Parent_Run, .free = NULL };
+static struct ToriRS_TaskVTable k_parent_vtable = { .run = Parent_Run, .free = test_task_free_libc };
 
 static struct Parent*
 new_parent(struct ToriRS_TaskQueue* queue, int fanout, int fail_every, int* pass_clock)

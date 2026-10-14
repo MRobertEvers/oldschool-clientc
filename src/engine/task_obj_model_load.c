@@ -1,4 +1,5 @@
 #include "task_obj_model_load.h"
+#include "mem/torirs_mem.h"
 
 #include "engine/cache_provider.h"
 #include "engine/torirs_types.h"
@@ -429,9 +430,12 @@ static void
 Task_ObjModelLoad_Free(struct ToriRS_Task* base)
 {
     struct Task_ObjModelLoad* self = (struct Task_ObjModelLoad*)base;
-    free(self->obj_ids);
-    free(self->counts);
-    free(self);
+    /* Both came from the arena made at creation (obj_ids is never NULL), so
+     * this never makes a new one during teardown. */
+    ToriMem_Free(ToriRS_TaskMem(base), self->obj_ids);
+    if( self->counts )
+        ToriMem_Free(ToriRS_TaskMem(base), self->counts);
+    ToriMem_Free(ToriMem_Assets(), self);
 }
 
 static struct ToriRS_TaskVTable Task_ObjModelLoad_VTable = {
@@ -455,21 +459,15 @@ CreateTask_ObjModelLoad(
     if( !obj_model_batch_needs_work(provider, obj_ids, counts, n) )
         return NULL;
 
-    task = calloc(1, sizeof(*task));
-    assert(task);
+    task = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*task));
     task->task.vtable = &Task_ObjModelLoad_VTable;
     strncpy(task->task.name, "ObjModelLoad", sizeof(task->task.name) - 1);
     task->provider = provider;
     task->n = n;
-    task->obj_ids = malloc((size_t)n * sizeof(int));
-    assert(task->obj_ids);
-    memcpy(task->obj_ids, obj_ids, (size_t)n * sizeof(int));
+    /* The batch's own copy dies with the task: its arena. */
+    task->obj_ids = ToriMem_Memdup(ToriRS_TaskMem(&task->task), obj_ids, (size_t)n * sizeof(int));
     if( counts )
-    {
-        task->counts = malloc((size_t)n * sizeof(int));
-        assert(task->counts);
-        memcpy(task->counts, counts, (size_t)n * sizeof(int));
-    }
+        task->counts = ToriMem_Memdup(ToriRS_TaskMem(&task->task), counts, (size_t)n * sizeof(int));
     task->count_obj_id = -1;
     task->model_id = -1;
     task->base_obj_id = -1;

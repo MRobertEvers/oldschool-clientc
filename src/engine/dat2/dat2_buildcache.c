@@ -169,7 +169,7 @@ dat2_buildcache_map_new(
     size_t capacity)
 {
     size_t buffer_size = dat2_hmap_buffer_bytes(entry_size, capacity);
-    void* buffer = malloc(buffer_size);
+    void* buffer = ToriMem_Alloc(ToriMem_Assets(), buffer_size);
     assert(buffer);
 
     struct HashConfig config = {
@@ -197,7 +197,7 @@ dat2_buildcache_map_free(
 
     if( cache )
         cache->map_buffer_bytes -= dat2_hmap_buffer_size(map);
-    free(hmap_free(map));
+    ToriMem_Free(ToriMem_Assets(), hmap_free(map));
 }
 
 static void
@@ -234,14 +234,14 @@ dat2_buildcache_maybe_grow_hmap(
 
     new_capacity = map->capacity * 2;
     buffer_size = dat2_hmap_buffer_bytes(map->entry_size, new_capacity);
-    new_buffer = malloc(buffer_size);
+    new_buffer = ToriMem_Alloc(ToriMem_Assets(), buffer_size);
     assert(new_buffer);
 
     old_buffer_size = dat2_hmap_buffer_size(map);
     old_buffer = NULL;
     if( hmap_resize(map, new_buffer, buffer_size, new_capacity, &old_buffer) != HMAP_OK )
     {
-        free(new_buffer);
+        ToriMem_Free(ToriMem_Assets(), new_buffer);
         return;
     }
 
@@ -250,7 +250,7 @@ dat2_buildcache_maybe_grow_hmap(
         cache->map_buffer_bytes -= old_buffer_size;
         cache->map_buffer_bytes += buffer_size;
     }
-    free(old_buffer);
+    ToriMem_Free(ToriMem_Assets(), old_buffer);
 }
 
 static void
@@ -329,7 +329,8 @@ static struct CacheProviderVTable dat2_vtable = {
 struct Dat2BuildCache*
 dat2_buildcache_new(void)
 {
-    struct Dat2BuildCache* dat2_buildcache = calloc(1, sizeof(*dat2_buildcache));
+    struct Dat2BuildCache* dat2_buildcache =
+        ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*dat2_buildcache));
     assert(dat2_buildcache);
 
     dat2_buildcache->base.vtable = &dat2_vtable;
@@ -367,6 +368,29 @@ dat2_buildcache_new(void)
     return dat2_buildcache;
 }
 
+/* The procedural-texture store task_dat2_texture_load.c fills: the programs it
+ * decoded and the ARGB sprites the generator sampled. Nothing else releases
+ * them; before this they outlived the provider. */
+static void
+dat2_buildcache_proctex_cleanup(struct Dat2BuildCache* dat2_buildcache)
+{
+    assert(dat2_buildcache);
+    for( int i = 0; i < dat2_buildcache->proctex_program_capacity; i++ )
+    {
+        if( dat2_buildcache->proctex_programs[i] )
+            RSCache_Dat2ProcTextureFree(dat2_buildcache->proctex_programs[i]);
+    }
+    ToriMem_Free(ToriMem_Assets(), dat2_buildcache->proctex_programs);
+    dat2_buildcache->proctex_programs = NULL;
+    dat2_buildcache->proctex_program_capacity = 0;
+    for( int i = 0; i < dat2_buildcache->proctex_sprite_count; i++ )
+        ToriMem_Free(ToriMem_Assets(), dat2_buildcache->proctex_sprites[i].argb);
+    ToriMem_Free(ToriMem_Assets(), dat2_buildcache->proctex_sprites);
+    dat2_buildcache->proctex_sprites = NULL;
+    dat2_buildcache->proctex_sprite_count = 0;
+    dat2_buildcache->proctex_sprite_capacity = 0;
+}
+
 void
 dat2_buildcache_free(struct Dat2BuildCache* dat2_buildcache)
 {
@@ -387,6 +411,7 @@ dat2_buildcache_free(struct Dat2BuildCache* dat2_buildcache)
     dat2_buildcache_identkits_cleanup(dat2_buildcache);
     dat2_buildcache_clientscripts_cleanup(dat2_buildcache);
     dat2_buildcache_reference_tables_cleanup(dat2_buildcache);
+    dat2_buildcache_proctex_cleanup(dat2_buildcache);
 
     dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->models_hmap);
     dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->object_hmap);
@@ -409,7 +434,7 @@ dat2_buildcache_free(struct Dat2BuildCache* dat2_buildcache)
     for( table_id = 0; table_id < RSCACHE_DAT2_TABLE_COUNT; table_id++ )
         dat2_buildcache->reference_tables[table_id] = NULL;
 
-    free(dat2_buildcache);
+    ToriMem_Free(ToriMem_Assets(), dat2_buildcache);
 }
 
 struct CacheProvider*
@@ -755,7 +780,7 @@ dat2_buildcache_reference_tables_cleanup(struct Dat2BuildCache* dat2_buildcache)
 {
     int table_id;
 
-    free(dat2_buildcache->clientscript_names);
+    ToriMem_Free(ToriMem_Assets(), dat2_buildcache->clientscript_names);
     dat2_buildcache->clientscript_names = NULL;
     dat2_buildcache->clientscript_name_count = 0;
 

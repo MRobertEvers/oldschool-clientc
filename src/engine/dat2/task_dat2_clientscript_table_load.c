@@ -1,4 +1,5 @@
 #include "asyncio.h"
+#include "mem/torirs_mem.h"
 #include "cache/rscache_io.h"
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
@@ -58,7 +59,7 @@ Task_Dat2ClientScriptTableLoad_Run(
 static void
 Task_Dat2ClientScriptTableLoad_Free(struct ToriRS_Task* task_base)
 {
-    free(task_base);
+    ToriMem_Free(ToriMem_Assets(), task_base);
 }
 
 static struct ToriRS_TaskVTable Task_Dat2ClientScriptTableLoad_VTable = {
@@ -78,7 +79,7 @@ CreateTask_Dat2ClientScriptTableLoad(struct CacheProvider* provider)
     if( dat2_buildcache_reference_table_has(bc, RSCACHE_DAT2_TABLE_CLIENTSCRIPT) )
         return NULL;
 
-    task = calloc(1, sizeof(*task));
+    task = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_Dat2ClientScriptTableLoad_VTable;
     strcpy(task->task.name, "Dat2ClientScriptTableLoad");
@@ -121,8 +122,10 @@ dat2_clientscript_id_by_name_hash(struct CacheProvider* provider, int name_hash)
 
     if( !bc->clientscript_names )
     {
-        bc->clientscript_names = malloc(sizeof(*bc->clientscript_names) * 2 *
-                                        (size_t)(table->archive_count > 0 ? table->archive_count : 1));
+        bc->clientscript_names = ToriMem_Alloc(
+            ToriMem_Assets(),
+            sizeof(*bc->clientscript_names) * 2 *
+                (size_t)(table->archive_count > 0 ? table->archive_count : 1));
         assert(bc->clientscript_names);
         for( int i = 0; i < table->archive_count; i++ )
         {

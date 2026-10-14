@@ -12,8 +12,9 @@ proctex_mark_all_done(struct proctex_cache* cache, int height)
     memset(cache->done, 1, (size_t)height);
 }
 
-/* Permutation tables keyed by seed (0..255). Cached for the process lifetime. */
-static int8_t* g_perm_cache[256];
+/* Permutation tables keyed by seed (0..255). Cached for the process lifetime, in static
+ * storage: a table is never freed, so it is not a heap block the exit walk would count. */
+static int8_t g_perm_cache[256][512];
 static int8_t g_perm_ready[256];
 
 const int8_t*
@@ -26,14 +27,13 @@ proctex_permutations(uint8_t seed)
     if( g_perm_ready[seed] )
         return g_perm_cache[seed];
 
-    /* calloc, not malloc: the writes below cover 0..255 and 257..511, so p[256]
-     * is never assigned. The source is a Java `byte[512]`, which the JVM
-     * zero-fills, so p[256] is a defined 0 there and every lookup that lands on
-     * it is deterministic. Under malloc it was whatever the heap held, which is
-     * what made the bake nondeterministic: 246 of 512 material frames differed
-     * between two runs on identical arguments, and 392 of 660 models with them. */
-    p = calloc(512, 1);
-    assert(p);
+    /* Zero-filled static storage, never a malloc: the writes below cover 0..255 and
+     * 257..511, so p[256] is never assigned. The source is a Java `byte[512]`, which the
+     * JVM zero-fills, so p[256] is a defined 0 there and every lookup that lands on it is
+     * deterministic. Under malloc it was whatever the heap held, which is what made the
+     * bake nondeterministic: 246 of 512 material frames differed between two runs on
+     * identical arguments, and 392 of 660 models with them. */
+    p = g_perm_cache[seed];
     proctex_jrand_seed(&rnd, seed);
     for( i = 0; i < 255; i++ )
         p[i] = (int8_t)i;
@@ -45,7 +45,6 @@ proctex_permutations(uint8_t seed)
         p[index1] = p[index0];
         p[index0] = p[511 - i] = perm1;
     }
-    g_perm_cache[seed] = p;
     g_perm_ready[seed] = 1;
     return p;
 }
@@ -157,7 +156,7 @@ proctex_op_blur(struct ProcTexGenerator* gen, int op_index, int line)
     if( op->is_monochrome )
     {
         int32_t* out0 = cache->plane[0] + offset;
-        int32_t** passes = calloc((size_t)n_passes, sizeof(*passes));
+        int32_t** passes = ToriMem_Calloc(ToriMem_Render(), (size_t)n_passes, sizeof(*passes));
         assert(passes);
         for( pass = -ve + line; pass <= line + ve; pass++ )
         {
@@ -170,11 +169,11 @@ proctex_op_blur(struct ProcTexGenerator* gen, int op_index, int line)
             if( !input )
             {
                 for( idx = 0; idx < n_passes; idx++ )
-                    free(passes[idx]);
-                free(passes);
+                    ToriMem_Free(ToriMem_Render(), passes[idx]);
+                ToriMem_Free(ToriMem_Render(), passes);
                 return false;
             }
-            pass_out = malloc((size_t)width * sizeof(int32_t));
+            pass_out = ToriMem_Alloc(ToriMem_Render(), (size_t)width * sizeof(int32_t));
             assert(pass_out);
             for( x = -he; x <= he; x++ )
                 sum += input[x & gen->width_mask];
@@ -196,15 +195,15 @@ proctex_op_blur(struct ProcTexGenerator* gen, int op_index, int line)
             out0[x] = (sum * inv_passes) / 65536;
         }
         for( pass = 0; pass < n_passes; pass++ )
-            free(passes[pass]);
-        free(passes);
+            ToriMem_Free(ToriMem_Render(), passes[pass]);
+        ToriMem_Free(ToriMem_Render(), passes);
     }
     else
     {
         int32_t* out0 = cache->plane[0] + offset;
         int32_t* out1 = cache->plane[1] + offset;
         int32_t* out2 = cache->plane[2] + offset;
-        int32_t*** passes = calloc((size_t)n_passes, sizeof(*passes));
+        int32_t*** passes = ToriMem_Calloc(ToriMem_Render(), (size_t)n_passes, sizeof(*passes));
         assert(passes);
         for( pass = -ve + line; pass <= line + ve; pass++ )
         {
@@ -221,18 +220,18 @@ proctex_op_blur(struct ProcTexGenerator* gen, int op_index, int line)
                     if( passes[idx] )
                     {
                         for( p = 0; p < 3; p++ )
-                            free(passes[idx][p]);
-                        free(passes[idx]);
+                            ToriMem_Free(ToriMem_Render(), passes[idx][p]);
+                        ToriMem_Free(ToriMem_Render(), passes[idx]);
                     }
                 }
-                free(passes);
+                ToriMem_Free(ToriMem_Render(), passes);
                 return false;
             }
-            pass_out = calloc(3, sizeof(*pass_out));
+            pass_out = ToriMem_Calloc(ToriMem_Render(), 3, sizeof(*pass_out));
             assert(pass_out);
             for( p = 0; p < 3; p++ )
             {
-                pass_out[p] = malloc((size_t)width * sizeof(int32_t));
+                pass_out[p] = ToriMem_Alloc(ToriMem_Render(), (size_t)width * sizeof(int32_t));
                 assert(pass_out[p]);
             }
             for( x = -he; x <= he; x++ )
@@ -275,10 +274,10 @@ proctex_op_blur(struct ProcTexGenerator* gen, int op_index, int line)
         {
             int p;
             for( p = 0; p < 3; p++ )
-                free(passes[pass][p]);
-            free(passes[pass]);
+                ToriMem_Free(ToriMem_Render(), passes[pass][p]);
+            ToriMem_Free(ToriMem_Render(), passes[pass]);
         }
-        free(passes);
+        ToriMem_Free(ToriMem_Render(), passes);
     }
     return true;
 }
@@ -309,7 +308,7 @@ proctex_op_emboss(struct ProcTexGenerator* gen, int op_index, int line)
 
     if( !aux )
     {
-        aux = calloc(1, sizeof(*aux));
+        aux = ToriMem_Calloc(ToriMem_Render(), 1, sizeof(*aux));
         assert(aux);
         gen->aux[op_index] = aux;
     }
@@ -382,9 +381,10 @@ struct proctex_perlin_aux
     bool field0;
     uint8_t scale_x;
     uint8_t scale_y;
-    int16_t* nin0;
-    int16_t* nin1;
+    int16_t* nin0; /* -> data[0 .. octaves)        */
+    int16_t* nin1; /* -> data[octaves .. 2*octaves) */
     const int8_t* perm;
+    int16_t data[]; /* the generator frees an aux slot with one free: tables live inside it */
 };
 
 static int
@@ -449,8 +449,10 @@ proctex_op_perlin(struct ProcTexGenerator* gen, int op_index, int line)
 
     if( !aux )
     {
-        aux = calloc(1, sizeof(*aux));
-        assert(aux);
+        aux = ToriMem_Calloc(
+            ToriMem_Render(),
+            1,
+            sizeof(*aux) + 2u * (size_t)op->u.perlin.octaves * sizeof(int16_t));
         gen->aux[op_index] = aux;
     }
     if( !aux->ready )
@@ -461,10 +463,8 @@ proctex_op_perlin(struct ProcTexGenerator* gen, int op_index, int line)
         aux->scale_x = op->u.perlin.scale_x;
         aux->scale_y = op->u.perlin.scale_y;
         aux->perm = proctex_permutations(op->u.perlin.seed);
-        aux->nin0 = calloc((size_t)oct, sizeof(int16_t));
-        aux->nin1 = calloc((size_t)oct, sizeof(int16_t));
-        assert(aux->nin0);
-        assert(aux->nin1);
+        aux->nin0 = aux->data;
+        aux->nin1 = aux->data + oct;
         if( op->u.perlin.field2 <= 0 )
         {
             int n = op->u.perlin.amplitude_count;
@@ -632,7 +632,7 @@ proctex_op_voronoi(struct ProcTexGenerator* gen, int op_index, int line)
 
     if( !aux )
     {
-        aux = calloc(1, sizeof(*aux));
+        aux = ToriMem_Calloc(ToriMem_Render(), 1, sizeof(*aux));
         assert(aux);
         gen->aux[op_index] = aux;
     }
@@ -1102,8 +1102,9 @@ struct proctex_sqwave_aux
 {
     bool ready;
     int count;
-    int32_t* table0;
-    int32_t* table1;
+    int32_t* table0; /* -> data[0 .. count]           */
+    int32_t* table1; /* -> data[count + 1 .. 2*count+1] */
+    int32_t data[];  /* the generator frees an aux slot with one free: tables live inside it */
 };
 
 bool
@@ -1120,8 +1121,10 @@ proctex_op_square_waveform(struct ProcTexGenerator* gen, int op_index, int line)
 
     if( !aux )
     {
-        aux = calloc(1, sizeof(*aux));
-        assert(aux);
+        aux = ToriMem_Calloc(
+            ToriMem_Render(),
+            1,
+            sizeof(*aux) + 2u * (size_t)(op->u.square_waveform.field0 + 1) * sizeof(int32_t));
         gen->aux[op_index] = aux;
     }
     if( !aux->ready )
@@ -1132,10 +1135,8 @@ proctex_op_square_waveform(struct ProcTexGenerator* gen, int op_index, int line)
         int k = (j * op->u.square_waveform.field1) >> 12;
         int l;
         aux->count = n;
-        aux->table0 = malloc((size_t)(n + 1) * sizeof(int32_t));
-        aux->table1 = malloc((size_t)(n + 1) * sizeof(int32_t));
-        assert(aux->table0);
-        assert(aux->table1);
+        aux->table0 = aux->data;
+        aux->table1 = aux->data + (n + 1);
         for( l = 0; l < n; l++ )
         {
             aux->table1[l] = i;
@@ -1948,20 +1949,19 @@ proctex_bricks_init(struct ProcTexGenerator* gen, int op_index)
 
     if( courses <= 0 || columns <= 0 )
     {
-        aux = calloc(1, sizeof(*aux));
+        aux = ToriMem_Calloc(ToriMem_Render(), 1, sizeof(*aux));
         assert(aux);
         gen->aux[op_index] = aux;
         return aux; /* courses/columns stay 0: the caller emits a blank line */
     }
 
-    /* One allocation: the generator frees an aux slot with a single free(), so the three
-     * tables have to live inside it rather than hang off it. */
-    aux = calloc(
+    /* One allocation: the generator frees an aux slot with a single ToriMem_Free, so the
+     * three tables have to live inside it rather than hang off it. */
+    aux = ToriMem_Calloc(
+        ToriMem_Render(),
         1,
-        sizeof(*aux) + (size_t)(courses * columns + courses * (columns + 1) + courses + 1) *
-                           sizeof(int32_t));
-    if( !aux )
-        return NULL;
+        sizeof(*aux) +
+            (size_t)(courses * columns + courses * (columns + 1) + courses + 1) * sizeof(int32_t));
     aux->courses = courses;
     aux->columns = columns;
     aux->shade = aux->data;
@@ -2311,8 +2311,8 @@ proctex_op_irregular_bricks(struct ProcTexGenerator* gen, int op_index, int line
     }
 
     span_capacity = width / min_w + 1;
-    cur_spans = calloc((size_t)span_capacity, sizeof(*cur_spans));
-    prev_spans = calloc((size_t)span_capacity, sizeof(*prev_spans));
+    cur_spans = ToriMem_Calloc(ToriMem_Render(), (size_t)span_capacity, sizeof(*cur_spans));
+    prev_spans = ToriMem_Calloc(ToriMem_Render(), (size_t)span_capacity, sizeof(*prev_spans));
     assert(cur_spans);
     assert(prev_spans);
 
@@ -2501,8 +2501,8 @@ proctex_op_irregular_bricks(struct ProcTexGenerator* gen, int op_index, int line
         }
     }
 
-    free(cur_spans);
-    free(prev_spans);
+    ToriMem_Free(ToriMem_Render(), cur_spans);
+    ToriMem_Free(ToriMem_Render(), prev_spans);
     if( !ok )
         return false;
 

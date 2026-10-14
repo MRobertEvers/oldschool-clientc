@@ -1,4 +1,5 @@
 #include "uitree_emit.h"
+#include "mem/torirs_mem.h"
 
 #include "ui/torirs_chrome_inkwell.h"
 
@@ -1154,8 +1155,8 @@ UITree_EmitBufferFree(struct UITreeEmitBuffer* buf)
 {
     if( !buf )
         return;
-    free(buf->overlay_scratch);
-    free(buf->cmds);
+    ToriMem_Free(ToriMem_Ui(), buf->overlay_scratch);
+    ToriMem_Free(ToriMem_Ui(), buf->cmds);
     memset(buf, 0, sizeof(*buf));
 }
 
@@ -2456,7 +2457,7 @@ emit_buffer_append(
     {
         int n = buf->cap == 0 ? 64 : buf->cap * 2;
         struct UITreeEmitDesc* grown =
-            realloc(buf->cmds, (size_t)n * sizeof(struct UITreeEmitDesc));
+            ToriMem_Realloc(ToriMem_Ui(), buf->cmds, (size_t)n * sizeof(struct UITreeEmitDesc));
         assert(grown);
         buf->cmds = grown;
         buf->cap = n;
@@ -3434,7 +3435,7 @@ UITree_EmitWalk(
             uint32_t cap = tree->component_capacity > tree->component_count
                                ? tree->component_capacity
                                : tree->component_count;
-            uint8_t* grown = realloc(mut->emit_visited, cap);
+            uint8_t* grown = ToriMem_Realloc(ToriMem_Ui(), mut->emit_visited, cap);
             assert(grown);
             /* The new tail must not read as this walk's stamp by chance. */
             memset(grown + mut->emit_visited_cap, 0, cap - mut->emit_visited_cap);

@@ -6,6 +6,7 @@
 
 #define COBJMACROS
 #include "platform/platform_win32_browser_backend.h"
+#include "mem/torirs_mem.h"
 
 #include <exdisp.h>
 #include <mshtml.h>
@@ -386,10 +387,9 @@ static char* utf8_from_wide(WCHAR const* input)
     if( !input ) return NULL;
     bytes = WideCharToMultiByte(CP_UTF8, 0, input, -1, NULL, 0, NULL, NULL);
     if( bytes <= 0 || bytes > MSHTML_JSON_MAX ) return NULL;
-    out = (char*)malloc((size_t)bytes);
-    if( !out ) return NULL;
+    out = (char*)ToriMem_Alloc(ToriMem_Process(), (size_t)bytes);
     if( !WideCharToMultiByte(CP_UTF8, 0, input, -1, out, bytes, NULL, NULL) )
-    { free(out); return NULL; }
+    { ToriMem_Free(ToriMem_Process(), out); return NULL; }
     return out;
 }
 
@@ -400,10 +400,9 @@ static WCHAR* wide_from_utf8(char const* input)
     if( !input ) return NULL;
     chars = MultiByteToWideChar(CP_UTF8, 0, input, -1, NULL, 0);
     if( chars <= 0 || chars > MSHTML_JSON_MAX ) return NULL;
-    out = (WCHAR*)malloc((size_t)chars * sizeof(*out));
-    if( !out ) return NULL;
+    out = (WCHAR*)ToriMem_Alloc(ToriMem_Process(), (size_t)chars * sizeof(*out));
     if( !MultiByteToWideChar(CP_UTF8, 0, input, -1, out, chars) )
-    { free(out); return NULL; }
+    { ToriMem_Free(ToriMem_Process(), out); return NULL; }
     return out;
 }
 
@@ -412,7 +411,7 @@ static void outbound_push(struct PlatformWin32Browser* s, WCHAR const* message)
     char* copy = utf8_from_wide(message);
     if( !copy ) { s->send_failed = 1; return; }
     if( s->outbound_count >= MSHTML_OUTBOUND_MAX )
-    { free(copy); s->send_failed = 1; return; }
+    { ToriMem_Free(ToriMem_Process(), copy); s->send_failed = 1; return; }
     s->outbound[s->outbound_count++] = copy;
 }
 
@@ -532,22 +531,17 @@ static void inject_bridge(struct PlatformWin32Browser* s)
     {
         char* message = s->inbound[i];
         size_t size = strlen(message) + 320;
-        char* call = (char*)malloc(size);
-        if( call )
-        {
-            snprintf(call, size,
-                "(function(){var ok=false;try{ok=!!(window.ToriRSPluginChrome&&"
-                "window.ToriRSPluginChrome.receive(%s)!==false);}catch(e){}"
-                "if(!ok){try{window.external.postMessage(" 
-                "'{\"protocol\":1,\"type\":\"transport.loss\"}');}catch(e){}}})();",
-                message);
-            if( !browser_exec(s, call) )
-                s->send_failed = 1;
-            free(call);
-        }
-        else
+        char* call = (char*)ToriMem_Alloc(ToriMem_Process(), size);
+        snprintf(call, size,
+            "(function(){var ok=false;try{ok=!!(window.ToriRSPluginChrome&&"
+            "window.ToriRSPluginChrome.receive(%s)!==false);}catch(e){}"
+            "if(!ok){try{window.external.postMessage(" 
+            "'{\"protocol\":1,\"type\":\"transport.loss\"}');}catch(e){}}})();",
+            message);
+        if( !browser_exec(s, call) )
             s->send_failed = 1;
-        free(message);
+        ToriMem_Free(ToriMem_Process(), call);
+        ToriMem_Free(ToriMem_Process(), message);
         s->inbound[i] = NULL;
     }
     s->inbound_count = 0;
@@ -700,7 +694,7 @@ static int browser_exec(struct PlatformWin32Browser* s, char const* script)
     HRESULT hr = E_FAIL;
     if( !wide ) return 0;
     window = document_window(s);
-    if( !window ) { free(wide); return 0; }
+    if( !window ) { ToriMem_Free(ToriMem_Process(), wide); return 0; }
     code = SysAllocString(wide);
     language = SysAllocString(L"javascript");
     VariantInit(&result);
@@ -710,7 +704,7 @@ static int browser_exec(struct PlatformWin32Browser* s, char const* script)
     SysFreeString(language);
     SysFreeString(code);
     IHTMLWindow2_Release(window);
-    free(wide);
+    ToriMem_Free(ToriMem_Process(), wide);
     return SUCCEEDED(hr);
 }
 
@@ -746,8 +740,7 @@ PlatformWin32Browser_New(HWND parent, WCHAR const* bundle_root)
     lstrcatW(page, L"legacy-ie8.html");
     if( GetFileAttributesW(page) == INVALID_FILE_ATTRIBUTES ) return NULL;
 
-    s = (struct PlatformWin32Browser*)calloc(1, sizeof(*s));
-    if( !s ) return NULL;
+    s = (struct PlatformWin32Browser*)ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*s));
     s->parent = parent;
     s->refs = 1;
     s->client_site.lpVtbl = &CLIENT_VTBL;
@@ -812,8 +805,8 @@ void
 PlatformWin32Browser_Free(struct PlatformWin32Browser* s)
 {
     if( !s ) return;
-    for( int i = 0; i < s->inbound_count; i++ ) free(s->inbound[i]);
-    for( int i = 0; i < s->outbound_count; i++ ) free(s->outbound[i]);
+    for( int i = 0; i < s->inbound_count; i++ ) ToriMem_Free(ToriMem_Process(), s->inbound[i]);
+    for( int i = 0; i < s->outbound_count; i++ ) ToriMem_Free(ToriMem_Process(), s->outbound[i]);
     if( s->events && s->event_cookie )
         IConnectionPoint_Unadvise(s->events, s->event_cookie);
     if( s->events ) IConnectionPoint_Release(s->events);
@@ -827,7 +820,7 @@ PlatformWin32Browser_Free(struct PlatformWin32Browser* s)
         IOleObject_Release(s->ole);
     }
     if( s->com_initialized ) CoUninitialize();
-    free(s);
+    ToriMem_Free(ToriMem_Process(), s);
 }
 
 void
@@ -862,15 +855,12 @@ PlatformWin32Browser_Send(struct PlatformWin32Browser* s, char const* json)
     if( !s->ready )
     {
         if( s->inbound_count >= MSHTML_INBOUND_MAX ) return 0;
-        copy = (char*)malloc(strlen(json) + 1);
-        if( !copy ) return 0;
-        strcpy(copy, json);
+        copy = ToriMem_Strdup(ToriMem_Process(), json);
         s->inbound[s->inbound_count++] = copy;
         return 1;
     }
     size = strlen(json) + 320;
-    call = (char*)malloc(size);
-    if( !call ) return 0;
+    call = (char*)ToriMem_Alloc(ToriMem_Process(), size);
     snprintf(call, size,
         "(function(){var ok=false;try{ok=!!(window.ToriRSPluginChrome&&"
         "window.ToriRSPluginChrome.receive(%s)!==false);}catch(e){}"
@@ -878,7 +868,7 @@ PlatformWin32Browser_Send(struct PlatformWin32Browser* s, char const* json)
         "'{\"protocol\":1,\"type\":\"transport.loss\"}');}catch(e){}}})();", json);
     {
         int const sent = browser_exec(s, call);
-        free(call);
+        ToriMem_Free(ToriMem_Process(), call);
         return sent && !s->send_failed;
     }
 }
@@ -901,9 +891,9 @@ static char* browser_pull(struct PlatformWin32Browser* s)
     BSTR language;
     VARIANT result;
     char* out = NULL;
-    if( !s->ready || !wide ) { free(wide); return NULL; }
+    if( !s->ready || !wide ) { ToriMem_Free(ToriMem_Process(), wide); return NULL; }
     window = document_window(s);
-    if( !window ) { free(wide); return NULL; }
+    if( !window ) { ToriMem_Free(ToriMem_Process(), wide); return NULL; }
     code = SysAllocString(wide);
     language = SysAllocString(L"javascript");
     VariantInit(&result);
@@ -915,7 +905,7 @@ static char* browser_pull(struct PlatformWin32Browser* s)
     SysFreeString(language);
     SysFreeString(code);
     IHTMLWindow2_Release(window);
-    free(wide);
+    ToriMem_Free(ToriMem_Process(), wide);
     return out;
 }
 
@@ -940,7 +930,7 @@ PlatformWin32Browser_Poll(
     if( length >= capacity ) length = capacity - 1;
     memcpy(out_json, message, (size_t)length);
     out_json[length] = 0;
-    free(message);
+    ToriMem_Free(ToriMem_Process(), message);
     return length;
 }
 

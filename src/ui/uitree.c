@@ -1,4 +1,5 @@
 #include "uitree.h"
+#include "mem/torirs_mem.h"
 
 #include "uitree_frame.h"
 #include "uitree_input.h"
@@ -185,8 +186,7 @@ uitree_geometry_audit_stamp(struct UITree* tree, int32_t idx)
     {
         uint32_t old = audit->capacity;
         audit->capacity = tree->component_capacity;
-        audit->records = realloc(audit->records, (size_t)audit->capacity * sizeof(*audit->records));
-        if( !audit->records ) abort();
+        audit->records = ToriMem_Realloc(ToriMem_Ui(), audit->records, (size_t)audit->capacity * sizeof(*audit->records));
         memset(audit->records + old, 0, (size_t)(audit->capacity-old) * sizeof(*audit->records));
     }
     audit->records[idx].incarnation = tree->components[idx].incarnation;
@@ -219,8 +219,7 @@ UITree_GeometryAuditEnable(struct UITree* tree)
 {
     assert(tree);
     if( tree->geometry_audit ) return;
-    tree->geometry_audit = calloc(1, sizeof(*tree->geometry_audit));
-    if( !tree->geometry_audit ) abort();
+    tree->geometry_audit = ToriMem_Calloc(ToriMem_Ui(), 1, sizeof(*tree->geometry_audit));
     /* tree-walk-exempt: debug geometry audit, opt-in */
     for( uint32_t i = 0; i < tree->component_count; ++i )
         if( !tree->components[i].freed ) uitree_geometry_audit_stamp(tree, (int32_t)i);
@@ -262,8 +261,8 @@ static void
 UITreeNodeSet_Free(struct UITreeNodeSet* set)
 {
     assert(set);
-    free(set->slots);
-    free(set->pos);
+    ToriMem_Free(ToriMem_Ui(), set->slots);
+    ToriMem_Free(ToriMem_Ui(), set->pos);
     UITreeNodeSet_Init(set);
 }
 
@@ -297,7 +296,7 @@ UITreeNodeSet_EnsurePosCap(
     ncap = old_cap == 0 ? 16 : old_cap;
     while( ncap < need_cap )
         ncap *= 2;
-    p = (int32_t*)realloc(set->pos, (size_t)ncap * sizeof(int32_t));
+    p = (int32_t*)ToriMem_Realloc(ToriMem_Ui(), set->pos, (size_t)ncap * sizeof(int32_t));
     assert(p);
     for( i = old_cap; i < ncap; i++ )
         p[i] = -1;
@@ -330,7 +329,7 @@ UITreeNodeSet_Add(
     if( set->count >= set->cap )
     {
         int ncap = set->cap == 0 ? 16 : set->cap * 2;
-        slots = (int32_t*)realloc(set->slots, (size_t)ncap * sizeof(int32_t));
+        slots = (int32_t*)ToriMem_Realloc(ToriMem_Ui(), set->slots, (size_t)ncap * sizeof(int32_t));
         assert(slots);
         set->slots = slots;
         set->cap = ncap;
@@ -408,7 +407,7 @@ uitree_all_sets_free(struct UITree* tree)
     {
         for( i = 0; i < tree->group_map_cap; i++ )
             UITreeNodeSet_Free(&tree->group_map[i].nodes);
-        free(tree->group_map);
+        ToriMem_Free(ToriMem_Ui(), tree->group_map);
         tree->group_map = NULL;
         tree->group_map_cap = 0;
     }
@@ -466,7 +465,7 @@ uitree_group_bucket(
         if( !create )
             return NULL;
         cap = 16;
-        map = (struct UITreeGroupBucket*)calloc(cap, sizeof(*map));
+        map = (struct UITreeGroupBucket*)ToriMem_Calloc(ToriMem_Ui(), cap, sizeof(*map));
         assert(map);
         for( i = 0; i < cap; i++ )
             map[i].group_id = -1;
@@ -484,7 +483,7 @@ uitree_group_bucket(
         {
             uint32_t ncap = tree->group_map_cap * 2u;
             struct UITreeGroupBucket* nmap =
-                (struct UITreeGroupBucket*)calloc(ncap, sizeof(*nmap));
+                (struct UITreeGroupBucket*)ToriMem_Calloc(ToriMem_Ui(), ncap, sizeof(*nmap));
             assert(nmap);
             for( i = 0; i < ncap; i++ )
                 nmap[i].group_id = -1;
@@ -500,7 +499,7 @@ uitree_group_bucket(
                     nmap[j] = tree->group_map[i];
                 }
             }
-            free(tree->group_map);
+            ToriMem_Free(ToriMem_Ui(), tree->group_map);
             tree->group_map = nmap;
             tree->group_map_cap = ncap;
         }
@@ -798,7 +797,7 @@ UITree_MenuSubmenuSetEntry(
         return false;
     if( !opts->submenus )
     {
-        opts->submenus = calloc(1, sizeof(*opts->submenus));
+        opts->submenus = ToriMem_Calloc(ToriMem_Ui(), 1, sizeof(*opts->submenus));
         assert(opts->submenus);
     }
     strncpy(
@@ -833,7 +832,7 @@ void
 UITree_MenuSubmenuFree(struct UITreeMenuOptions* opts)
 {
     assert(opts);
-    free(opts->submenus);
+    ToriMem_Free(ToriMem_Ui(), opts->submenus);
     opts->submenus = NULL;
 }
 
@@ -858,7 +857,7 @@ UITree_InvSlotsMut(struct UITreeComponent* c)
     assert(c);
     if( !c->u.rs_inv.slots )
     {
-        c->u.rs_inv.slots = malloc(sizeof(*c->u.rs_inv.slots));
+        c->u.rs_inv.slots = ToriMem_Alloc(ToriMem_Ui(), sizeof(*c->u.rs_inv.slots));
         assert(c->u.rs_inv.slots);
         *c->u.rs_inv.slots = uitree_inv_slots_none;
     }
@@ -883,7 +882,7 @@ UITree_ChatMut(struct UITreeComponent* c)
     assert(c);
     if( !c->u.chat )
     {
-        c->u.chat = malloc(sizeof(*c->u.chat));
+        c->u.chat = ToriMem_Alloc(ToriMem_Ui(), sizeof(*c->u.chat));
         assert(c->u.chat);
         *c->u.chat = uitree_chat_none;
     }
@@ -903,7 +902,7 @@ UITree_DebugOverlayMut(struct UITreeComponent* c)
     assert(c);
     if( !c->u.debug_overlay )
     {
-        c->u.debug_overlay = malloc(sizeof(*c->u.debug_overlay));
+        c->u.debug_overlay = ToriMem_Alloc(ToriMem_Ui(), sizeof(*c->u.debug_overlay));
         assert(c->u.debug_overlay);
         *c->u.debug_overlay = uitree_debug_overlay_none;
     }
@@ -923,7 +922,7 @@ UITree_ChatButtonMut(struct UITreeComponent* c)
     assert(c);
     if( !c->u.chat_button )
     {
-        c->u.chat_button = malloc(sizeof(*c->u.chat_button));
+        c->u.chat_button = ToriMem_Alloc(ToriMem_Ui(), sizeof(*c->u.chat_button));
         assert(c->u.chat_button);
         *c->u.chat_button = uitree_chat_button_none;
     }
@@ -943,7 +942,7 @@ UITree_LoginInputMut(struct UITreeComponent* c)
     assert(c);
     if( !c->u.login_input )
     {
-        c->u.login_input = malloc(sizeof(*c->u.login_input));
+        c->u.login_input = ToriMem_Alloc(ToriMem_Ui(), sizeof(*c->u.login_input));
         assert(c->u.login_input);
         *c->u.login_input = uitree_login_input_none;
     }
@@ -987,7 +986,7 @@ uitree_child_key_slot(struct UITreeComponent const* child, int32_t key, int32_t 
 static void
 uitree_child_index_drop(struct UITreeComponent* parent)
 {
-    free(parent->child_key_index);
+    ToriMem_Free(ToriMem_Ui(), parent->child_key_index);
     parent->child_key_index = NULL;
     parent->child_key_index_cap = 0;
 }
@@ -1009,7 +1008,7 @@ uitree_visible_children_push(struct UITree* tree, struct UITreeComponent* p, int
     if( p->visible_child_count == p->visible_child_capacity )
     {
         int32_t cap = p->visible_child_capacity ? p->visible_child_capacity * 2 : 8;
-        int32_t* grown = realloc(p->visible_children, (size_t)cap * sizeof(int32_t));
+        int32_t* grown = ToriMem_Realloc(ToriMem_Ui(), p->visible_children, (size_t)cap * sizeof(int32_t));
         assert(grown);
         p->visible_children = grown;
         p->visible_child_capacity = cap;
@@ -1215,7 +1214,7 @@ uitree_child_index_build(struct UITree* tree, int32_t parent_index)
         return;
 
     int32_t const cap = max_key + 1;
-    int32_t* index = malloc((size_t)cap * 2u * sizeof(int32_t));
+    int32_t* index = ToriMem_Alloc(ToriMem_Ui(), (size_t)cap * 2u * sizeof(int32_t));
     assert(index);
     for( int32_t i = 0; i < cap * 2; i++ )
         index[i] = -1;
@@ -1230,7 +1229,7 @@ uitree_child_index_build(struct UITree* tree, int32_t parent_index)
         if( index[slot] >= 0 )
         {
             parent->child_key_index_bad = 1;
-            free(index);
+            ToriMem_Free(ToriMem_Ui(), index);
             return;
         }
         index[slot] = child;
@@ -1400,9 +1399,7 @@ push_element_unlinked(struct UITree* tree)
                     ? 16
                     : tree->component_capacity + (tree->component_capacity >> 1) + 1;
             struct UITreeComponent* new_components =
-                realloc(tree->components, new_capacity * sizeof(struct UITreeComponent));
-            if( !new_components )
-                return -1;
+                ToriMem_Realloc(ToriMem_Ui(), tree->components, new_capacity * sizeof(struct UITreeComponent));
             tree->components = new_components;
             tree->component_capacity = new_capacity;
             uitree_all_sets_ensure_pos(tree, new_capacity);
@@ -1779,7 +1776,7 @@ struct UITree*
 UITree_New(uint32_t hint)
 {
     (void)hint;
-    struct UITree* tree = malloc(sizeof(struct UITree));
+    struct UITree* tree = ToriMem_Alloc(ToriMem_Ui(), sizeof(struct UITree));
     assert(tree);
 
     memset(tree, 0, sizeof(struct UITree));
@@ -1812,8 +1809,7 @@ UITree_ModelRenderCacheMut(struct UITreeComponent* component)
     assert(component && component->type == UIELEM_RS_MODEL);
     if( !component->model_render_cache )
     {
-        component->model_render_cache = calloc(1, sizeof(*component->model_render_cache));
-        if( !component->model_render_cache ) abort();
+        component->model_render_cache = ToriMem_Calloc(ToriMem_Ui(), 1, sizeof(*component->model_render_cache));
     }
     return component->model_render_cache;
 }
@@ -1850,7 +1846,7 @@ uitree_widget_geometry_free_list(struct UITree* tree, struct UITreeWidgetGeometr
             tree->widget_anchor_edits--;
             tree->anchor_generation++;
         }
-        free(edit);
+        ToriMem_Free(ToriMem_Ui(), edit);
         edit = next;
     }
 }
@@ -1954,9 +1950,9 @@ uitree_component_free_owned(struct UITree* tree, struct UITreeComponent* c)
             owned->live--;
         }
     }
-    free(c->plugin_key);
+    ToriMem_Free(ToriMem_Ui(), c->plugin_key);
     c->plugin_key = NULL;
-    free(c->visible_children);
+    ToriMem_Free(ToriMem_Ui(), c->visible_children);
     c->visible_children = NULL;
     c->visible_child_count = 0;
     c->visible_child_capacity = 0;
@@ -1967,53 +1963,53 @@ uitree_component_free_owned(struct UITree* tree, struct UITreeComponent* c)
     {
         if( c->model_render_cache->release )
             c->model_render_cache->release(c->model_render_cache->data);
-        free(c->model_render_cache);
+        ToriMem_Free(ToriMem_Ui(), c->model_render_cache);
         c->model_render_cache = NULL;
     }
     if( c->type == UIELEM_RS_TEXT && c->u.rs_text.text )
     {
-        free((void*)c->u.rs_text.text);
+        ToriMem_Free(ToriMem_Ui(), (void*)c->u.rs_text.text);
         c->u.rs_text.text = NULL;
     }
     if( c->type == UIELEM_RS_TEXT && c->u.rs_text.text_active )
     {
-        free((void*)c->u.rs_text.text_active);
+        ToriMem_Free(ToriMem_Ui(), (void*)c->u.rs_text.text_active);
         c->u.rs_text.text_active = NULL;
     }
     if( c->type == UIELEM_RS_INV )
     {
-        free(c->u.rs_inv.slots);
+        ToriMem_Free(ToriMem_Ui(), c->u.rs_inv.slots);
         c->u.rs_inv.slots = NULL;
     }
     if( c->type == UIELEM_BUILTIN_CHAT )
     {
-        free(c->u.chat);
+        ToriMem_Free(ToriMem_Ui(), c->u.chat);
         c->u.chat = NULL;
     }
     if( c->type == UIELEM_BUILTIN_DEBUG_OVERLAY )
     {
-        free(c->u.debug_overlay);
+        ToriMem_Free(ToriMem_Ui(), c->u.debug_overlay);
         c->u.debug_overlay = NULL;
     }
     if( c->type == UIELEM_BUILTIN_CHAT_BUTTON )
     {
-        free(c->u.chat_button);
+        ToriMem_Free(ToriMem_Ui(), c->u.chat_button);
         c->u.chat_button = NULL;
     }
     if( c->type == UIELEM_BUILTIN_LOGIN_INPUT )
     {
-        free(c->u.login_input);
+        ToriMem_Free(ToriMem_Ui(), c->u.login_input);
         c->u.login_input = NULL;
     }
-    free(c->child_key_index);
+    ToriMem_Free(ToriMem_Ui(), c->child_key_index);
     c->child_key_index = NULL;
     c->child_key_index_cap = 0;
     c->child_key_index_bad = 0;
-    free(c->data_text);
+    ToriMem_Free(ToriMem_Ui(), c->data_text);
     c->data_text = NULL;
     for( int i = 0; i < c->params_count; i++ )
-        free(c->params[i].str);
-    free(c->params);
+        ToriMem_Free(ToriMem_Ui(), c->params[i].str);
+    ToriMem_Free(ToriMem_Ui(), c->params);
     c->params = NULL;
     c->params_count = 0;
     c->params_capacity = 0;
@@ -2021,15 +2017,15 @@ uitree_component_free_owned(struct UITree* tree, struct UITreeComponent* c)
     if( b->scripts )
     {
         for( int s = 0; s < b->scripts_count; s++ )
-            free(b->scripts[s]);
-        free(b->scripts);
+            ToriMem_Free(ToriMem_Ui(), b->scripts[s]);
+        ToriMem_Free(ToriMem_Ui(), b->scripts);
         b->scripts = NULL;
     }
-    free(b->scripts_lengths);
+    ToriMem_Free(ToriMem_Ui(), b->scripts_lengths);
     b->scripts_lengths = NULL;
-    free(b->script_comparator);
+    ToriMem_Free(ToriMem_Ui(), b->script_comparator);
     b->script_comparator = NULL;
-    free(b->script_operand);
+    ToriMem_Free(ToriMem_Ui(), b->script_operand);
     b->script_operand = NULL;
     b->scripts_count = 0;
     /* Both lazy blocks, and the submenus the options block owns — see
@@ -2109,7 +2105,7 @@ UITree_WalkScratchAcquire(struct UITree const* tree, int slot, size_t bytes)
     assert(!scratch->busy);
     if( scratch->bytes < bytes )
     {
-        void* grown = realloc(scratch->mem, bytes);
+        void* grown = ToriMem_Realloc(ToriMem_Ui(), scratch->mem, bytes);
         assert(grown);
         scratch->mem = grown;
         scratch->bytes = bytes;
@@ -2165,27 +2161,27 @@ UITree_Free(struct UITree* tree)
     for( uint32_t i = 0; i < tree->component_count; i++ )
         uitree_component_free_owned(tree, &tree->components[i]);
     UITree_ParkedEditsDrop(tree);
-    free(tree->id_index_keys);
-    free(tree->id_index_vals);
-    free(tree->layout_order);
-    free(tree->layout_depth);
-    free(tree->layout_changed);
-    free(tree->layout_dirty);
-    free(tree->emit_visited);
+    ToriMem_Free(ToriMem_Ui(), tree->id_index_keys);
+    ToriMem_Free(ToriMem_Ui(), tree->id_index_vals);
+    ToriMem_Free(ToriMem_Ui(), tree->layout_order);
+    ToriMem_Free(ToriMem_Ui(), tree->layout_depth);
+    ToriMem_Free(ToriMem_Ui(), tree->layout_changed);
+    ToriMem_Free(ToriMem_Ui(), tree->layout_dirty);
+    ToriMem_Free(ToriMem_Ui(), tree->emit_visited);
     for( int i = 0; i < UITREE_WALK_SCRATCH_COUNT; i++ )
-        free(tree->walk_scratch[i].mem);
-    free(tree->canvas_candidate_ids);
-    free(tree->anchor_nodes);
+        ToriMem_Free(ToriMem_Ui(), tree->walk_scratch[i].mem);
+    ToriMem_Free(ToriMem_Ui(), tree->canvas_candidate_ids);
+    ToriMem_Free(ToriMem_Ui(), tree->anchor_nodes);
     UITree_FrameAnchorPlanFree(tree);
     uitree_all_sets_free(tree);
     UITree_FrameForget(tree);
-    free(tree->components);
+    ToriMem_Free(ToriMem_Ui(), tree->components);
     if( tree->geometry_audit )
     {
-        free(tree->geometry_audit->records);
-        free(tree->geometry_audit);
+        ToriMem_Free(ToriMem_Ui(), tree->geometry_audit->records);
+        ToriMem_Free(ToriMem_Ui(), tree->geometry_audit);
     }
-    free(tree);
+    ToriMem_Free(ToriMem_Ui(), tree);
 }
 
 void
@@ -2699,8 +2695,8 @@ UITree_RebuildIdIndex(struct UITree* tree)
 
     if( cap != tree->id_index_cap || !tree->id_index_keys )
     {
-        int32_t* keys = realloc(tree->id_index_keys, cap * sizeof(int32_t));
-        int32_t* vals = realloc(tree->id_index_vals, cap * sizeof(int32_t));
+        int32_t* keys = ToriMem_Realloc(ToriMem_Ui(), tree->id_index_keys, cap * sizeof(int32_t));
+        int32_t* vals = ToriMem_Realloc(ToriMem_Ui(), tree->id_index_vals, cap * sizeof(int32_t));
         assert(keys);
         assert(vals);
         tree->id_index_keys = keys;
@@ -2943,12 +2939,12 @@ UITree_SetBehavior(
     if( dst->scripts )
     {
         for( int s = 0; s < dst->scripts_count; s++ )
-            free(dst->scripts[s]);
-        free(dst->scripts);
+            ToriMem_Free(ToriMem_Ui(), dst->scripts[s]);
+        ToriMem_Free(ToriMem_Ui(), dst->scripts);
     }
-    free(dst->scripts_lengths);
-    free(dst->script_comparator);
-    free(dst->script_operand);
+    ToriMem_Free(ToriMem_Ui(), dst->scripts_lengths);
+    ToriMem_Free(ToriMem_Ui(), dst->script_comparator);
+    ToriMem_Free(ToriMem_Ui(), dst->script_operand);
     if( dst->scripts_count > 0 )
         uitree_cs1_script_nodes_drop(tree);
     memset(dst, 0, sizeof(*dst));
@@ -2986,8 +2982,8 @@ UITree_SetBehavior(
         return;
     }
 
-    dst->scripts = calloc((size_t)src->scripts_count, sizeof(int*));
-    dst->scripts_lengths = calloc((size_t)src->scripts_count, sizeof(int));
+    dst->scripts = ToriMem_Calloc(ToriMem_Ui(), (size_t)src->scripts_count, sizeof(int*));
+    dst->scripts_lengths = ToriMem_Calloc(ToriMem_Ui(), (size_t)src->scripts_count, sizeof(int));
     assert(dst->scripts);
     assert(dst->scripts_lengths);
 
@@ -2999,7 +2995,7 @@ UITree_SetBehavior(
             (src->scripts_lengths && src->scripts_lengths[i] > 0) ? src->scripts_lengths[i] : 0;
         if( len <= 0 )
             continue;
-        dst->scripts[i] = malloc((size_t)len * sizeof(int));
+        dst->scripts[i] = ToriMem_Alloc(ToriMem_Ui(), (size_t)len * sizeof(int));
         assert(dst->scripts[i]);
         memcpy(dst->scripts[i], src->scripts[i], (size_t)len * sizeof(int));
         dst->scripts_lengths[i] = len;
@@ -3008,7 +3004,7 @@ UITree_SetBehavior(
     /* Comparator arrays are sized by their own count, not scripts_count. */
     if( src->script_comparator && src->comparator_count > 0 )
     {
-        dst->script_comparator = malloc((size_t)src->comparator_count * sizeof(int));
+        dst->script_comparator = ToriMem_Alloc(ToriMem_Ui(), (size_t)src->comparator_count * sizeof(int));
         assert(dst->script_comparator);
         memcpy(
             dst->script_comparator,
@@ -3018,7 +3014,7 @@ UITree_SetBehavior(
 
     if( src->script_operand && src->comparator_count > 0 )
     {
-        dst->script_operand = malloc((size_t)src->comparator_count * sizeof(int));
+        dst->script_operand = ToriMem_Alloc(ToriMem_Ui(), (size_t)src->comparator_count * sizeof(int));
         assert(dst->script_operand);
         memcpy(
             dst->script_operand, src->script_operand, (size_t)src->comparator_count * sizeof(int));
@@ -3048,20 +3044,20 @@ UITree_Push(
     char* text_active_owned = NULL;
     if( spec->type == UIELEM_RS_TEXT && spec->u.rs_text.text )
     {
-        text_owned = strdup(spec->u.rs_text.text);
+        text_owned = ToriMem_Strdup(ToriMem_Ui(), spec->u.rs_text.text);
         assert(text_owned);
     }
     if( spec->type == UIELEM_RS_TEXT && spec->u.rs_text.text_active )
     {
-        text_active_owned = strdup(spec->u.rs_text.text_active);
+        text_active_owned = ToriMem_Strdup(ToriMem_Ui(), spec->u.rs_text.text_active);
         assert(text_active_owned);
     }
 
     int32_t idx = push_element(tree, parent_index);
     if( idx < 0 )
     {
-        free(text_owned);
-        free(text_active_owned);
+        ToriMem_Free(ToriMem_Ui(), text_owned);
+        ToriMem_Free(ToriMem_Ui(), text_active_owned);
         return -1;
     }
 
@@ -3855,18 +3851,17 @@ UITree_CcCopy(
     if( src.type == UIELEM_RS_TEXT )
     {
         /* Push allocated nothing for text (spec carried none); own fresh copies. */
-        dst->u.rs_text.text = src.u.rs_text.text ? strdup(src.u.rs_text.text) : NULL;
+        dst->u.rs_text.text = src.u.rs_text.text ? ToriMem_Strdup(ToriMem_Ui(), src.u.rs_text.text) : NULL;
         dst->u.rs_text.text_active =
-            src.u.rs_text.text_active ? strdup(src.u.rs_text.text_active) : NULL;
+            src.u.rs_text.text_active ? ToriMem_Strdup(ToriMem_Ui(), src.u.rs_text.text_active) : NULL;
     }
 
     /* Every pointer-bearing union arm must own its allocation. Native CC_COPY
      * normally copies IF3 payloads, but this internal operation also accepts
      * dynamic engine-created nodes. Never alias their inventory/chrome data. */
 #define COPY_OWNED_ARM(arm) do { \
-    dst->u.arm = src.u.arm ? malloc(sizeof(*src.u.arm)) : NULL; \
+    dst->u.arm = src.u.arm ? ToriMem_Alloc(ToriMem_Ui(), sizeof(*src.u.arm)) : NULL; \
     if( src.u.arm ) { \
-        if( !dst->u.arm ) abort(); \
         *dst->u.arm = *src.u.arm; \
     } \
 } while( 0 )
@@ -3888,8 +3883,7 @@ UITree_CcCopy(
     dst->native_hide = src.native_hide;
     dst->colour = src.colour;
     dst->fill_colour = src.fill_colour;
-    dst->data_text = src.data_text ? strdup(src.data_text) : NULL;
-    if( src.data_text && !dst->data_text ) abort();
+    dst->data_text = src.data_text ? ToriMem_Strdup(ToriMem_Ui(), src.data_text) : NULL;
     dst->cs1_active = src.cs1_active;
     memcpy(dst->cs1_values, src.cs1_values, sizeof(dst->cs1_values));
     dst->scroll_x = src.scroll_x;
@@ -4401,10 +4395,10 @@ UITree_ApplyComponentParam(
         owned = NULL;
         if( str )
         {
-            owned = strdup(str);
+            owned = ToriMem_Strdup(ToriMem_Ui(), str);
             assert(owned);
         }
-        free(c->params[i].str);
+        ToriMem_Free(ToriMem_Ui(), c->params[i].str);
         c->params[i].str = owned;
         c->params[i].value = value;
         return true;
@@ -4413,7 +4407,7 @@ UITree_ApplyComponentParam(
     owned = NULL;
     if( str )
     {
-        owned = strdup(str);
+        owned = ToriMem_Strdup(ToriMem_Ui(), str);
         assert(owned);
     }
 
@@ -4424,12 +4418,7 @@ UITree_ApplyComponentParam(
          * reallocs. */
         int capacity = c->params_capacity ? c->params_capacity * 2 : 4;
         struct UITreeComponentParam* grown =
-            realloc(c->params, (size_t)capacity * sizeof(*grown));
-        if( !grown )
-        {
-            free(owned);
-            return false;
-        }
+            ToriMem_Realloc(ToriMem_Ui(), c->params, (size_t)capacity * sizeof(*grown));
         c->params = grown;
         c->params_capacity = capacity;
     }
@@ -4530,19 +4519,19 @@ UITree_SetTextAt(
         return true;
     }
 
-    copy = strdup(text);
+    copy = ToriMem_Strdup(ToriMem_Ui(), text);
     assert(copy);
 
     if( c->type == UIELEM_RS_TEXT )
     {
-        free((void*)c->u.rs_text.text);
+        ToriMem_Free(ToriMem_Ui(), (void*)c->u.rs_text.text);
         c->u.rs_text.text = copy;
     }
     else
     {
         /* Layers (and other non-TEXT types) still accept if_settext — loot
          * script 4298 stores the source name on info-slot layers this way. */
-        free(c->data_text);
+        ToriMem_Free(ToriMem_Ui(), c->data_text);
         c->data_text = copy;
     }
     uitree_note_mutation(tree, idx, UITREE_IMPACT_EMIT_SELF);
@@ -4722,7 +4711,7 @@ uitree_widget_geometry(struct UITreeComponent* c, uint64_t owner)
     }
     PA_INC(set_geometry_slot_iters);
     if( count >= 32 ) return NULL;
-    struct UITreeWidgetGeometry* edit = calloc(1, sizeof(*edit));
+    struct UITreeWidgetGeometry* edit = ToriMem_Calloc(ToriMem_Ui(), 1, sizeof(*edit));
     PA_INC(widget_edit_allocs);
     PA_ADD(widget_edit_bytes, sizeof(*edit));
     if( !edit ) return NULL;
@@ -4950,7 +4939,7 @@ uitree_anchor_node_remember(struct UITree* tree, int32_t idx)
     if( tree->anchor_node_count == tree->anchor_node_capacity )
     {
         uint32_t const cap = tree->anchor_node_capacity ? tree->anchor_node_capacity * 2u : 8u;
-        int32_t* grown = realloc(tree->anchor_nodes, (size_t)cap * sizeof(*grown));
+        int32_t* grown = ToriMem_Realloc(ToriMem_Ui(), tree->anchor_nodes, (size_t)cap * sizeof(*grown));
         assert(grown);
         tree->anchor_nodes = grown;
         tree->anchor_node_capacity = cap;
@@ -5125,7 +5114,7 @@ bool UITree_WidgetReset(struct UITree* tree, struct UITreeNodeRef ref, uint64_t 
                 tree->widget_anchor_edits--;
                 tree->anchor_generation++;
             }
-            free(edit);
+            ToriMem_Free(ToriMem_Ui(), edit);
             uitree_widget_refresh_hidden(tree,idx);
             uitree_note_mutation(tree, idx, UITREE_IMPACT_LAYOUT_SELF | UITREE_IMPACT_EMIT_SELF |
                                             (anchored ? UITREE_IMPACT_REACHABILITY : 0));
@@ -5194,8 +5183,7 @@ int32_t UITree_WidgetCreateText(struct UITree* tree, struct UITreeNodeRef parent
         for( uint32_t i=0; i<tree->component_count; ++i )
             if( !tree->components[i].freed && tree->components[i].plugin_owner==owner ) ++count; }
     if( count>=128 ) return -1;
-    char* saved_key=strdup(key);
-    if( !saved_key ) return -1;
+    char* saved_key=ToriMem_Strdup(ToriMem_Ui(), key);
     struct UITreeNodeSpec spec={0};
     spec.type=UIELEM_RS_TEXT; spec.component_id=-1; spec.plugin_owner=owner;
     spec.width=180; spec.height=16;
@@ -5203,7 +5191,7 @@ int32_t UITree_WidgetCreateText(struct UITree* tree, struct UITreeNodeRef parent
     spec.u.rs_text.color=0xffffff;
     spec.u.rs_text.shadowed=1;
     int32_t index=UITree_Push(tree,p,&spec);
-    if( index<0 ) { free(saved_key); return -1; }
+    if( index<0 ) { ToriMem_Free(ToriMem_Ui(), saved_key); return -1; }
     tree->components[index].plugin_key=saved_key;
     return index;
 }
@@ -5232,11 +5220,11 @@ static int32_t uitree_widget_create_owned(struct UITree* tree, struct UITreeNode
         for( uint32_t i=0; i<tree->component_count; ++i )
             if( !tree->components[i].freed && tree->components[i].plugin_owner==owner ) ++count; }
     if( count>=128 ) return -1;
-    char* saved_key=strdup(key);
+    char* saved_key=ToriMem_Strdup(ToriMem_Ui(), key);
     assert(saved_key);
     spec->component_id=-1; spec->plugin_owner=owner;
     int32_t index=UITree_Push(tree,p,spec);
-    if( index<0 ) { free(saved_key); return -1; }
+    if( index<0 ) { ToriMem_Free(ToriMem_Ui(), saved_key); return -1; }
     tree->components[index].plugin_key=saved_key;
     return index;
 }
@@ -7175,7 +7163,7 @@ UITree_ReclaimInterfaceGroup(
 
     if( gset->count > UITREE_RECLAIM_ROOTS_STACK )
     {
-        heap_roots = (int32_t*)malloc((size_t)gset->count * sizeof(int32_t));
+        heap_roots = (int32_t*)ToriMem_Alloc(ToriMem_Ui(), (size_t)gset->count * sizeof(int32_t));
         assert(heap_roots);
         roots = heap_roots;
     }
@@ -7215,7 +7203,7 @@ UITree_ReclaimInterfaceGroup(
         uitree_reclaim_subtree(tree, idx);
     }
 
-    free(heap_roots);
+    ToriMem_Free(ToriMem_Ui(), heap_roots);
     tree->canvas_candidates_valid = 0;
     tree->generation++;
 }

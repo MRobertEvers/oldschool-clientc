@@ -22,14 +22,15 @@ minimap_new(
     assert(width > 0);
     assert(height > 0);
 
-    struct Minimap* minimap = malloc(sizeof(struct Minimap));
+    struct Minimap* minimap = ToriMem_Alloc(ToriMem_Scene(), sizeof(struct Minimap));
     assert(minimap);
     memset(minimap, 0, sizeof(struct Minimap));
 
     minimap->width = width;
     minimap->height = height;
 
-    minimap->tiles = malloc((size_t)width * (size_t)height * sizeof(struct MinimapTile));
+    minimap->tiles =
+        ToriMem_Alloc(ToriMem_Scene(), (size_t)width * (size_t)height * sizeof(struct MinimapTile));
     assert(minimap->tiles);
     memset(minimap->tiles, 0, (size_t)width * (size_t)height * sizeof(struct MinimapTile));
 
@@ -41,8 +42,8 @@ minimap_free(struct Minimap* minimap)
 {
     if( !minimap )
         return;
-    free(minimap->tiles);
-    free(minimap);
+    ToriMem_Free(ToriMem_Scene(), minimap->tiles);
+    ToriMem_Free(ToriMem_Scene(), minimap);
 }
 
 void

@@ -551,8 +551,8 @@ ToriRSServer_EmbedMemberMarkTake(
     int capacity);
 
 /** The leader's answer to a member's MAIL: `body` is `size` bytes (not
- *  NUL-terminated); returns a malloc'd answer of *out_size bytes, which the
- *  caller frees. Set by the host (main.c) to its launch service; with none
+ *  NUL-terminated); returns an answer of *out_size bytes allocated in
+ *  ToriMem_Net(), which the caller frees from there. Set by the host (main.c) to its launch service; with none
  *  set a MAIL is answered `unsupported: no launch service in the leader`. */
 typedef char* (*ToriRSServerEmbedMailAnswer)(
     void* context,

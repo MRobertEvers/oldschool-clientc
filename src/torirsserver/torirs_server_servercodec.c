@@ -1,4 +1,5 @@
 #include "torirs_server_servercodec.h"
+#include "mem/torirs_mem.h"
 
 #include "torirs_server.h"
 #include "torirs_server_shop.h"
@@ -102,7 +103,7 @@ apply_npc_patrol(
     assert(index >= 0);
     assert(index < RSCACHE_REGISTER_MAX);
     list = record->lists[index];
-    free(def->patrol);
+    ToriMem_Free(ToriMem_ServerContent(), def->patrol);
     def->patrol = NULL;
     def->patrol_count = 0;
     if( !list || list->count == 0 )
@@ -111,7 +112,8 @@ apply_npc_patrol(
     count = list->count < TORIRSSERVER_NPC_PATROL_MAX ? list->count : TORIRSSERVER_NPC_PATROL_MAX;
     /* Full-size, as the text loader allocated it: a later statement may index
      * any slot. */
-    def->patrol = calloc(TORIRSSERVER_NPC_PATROL_MAX, sizeof(*def->patrol));
+    def->patrol =
+        ToriMem_Calloc(ToriMem_ServerContent(), TORIRSSERVER_NPC_PATROL_MAX, sizeof(*def->patrol));
     assert(def->patrol);
     for( int i = 0; i < count; i++ )
     {

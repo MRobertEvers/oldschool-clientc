@@ -34,7 +34,8 @@
  */
 
 /**
- * Returns a malloc'd body and writes its length to `out_size`, or NULL when the
+ * Returns a body allocated in ToriMem_Net() (the caller frees it from there)
+ * and writes its length to `out_size`, or NULL when the
  * request could not be made, the server answered anything but 200, or the
  * response could not be framed.
  *

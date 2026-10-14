@@ -7,6 +7,7 @@
  */
 
 #include "app/app_internal.h"
+#include "mem/torirs_mem.h"
 
 /* Has this npc id already been reported as unavailable?  16384 bits is 2KB and
  * covers the whole npc id space of every revision here (osrs239 tops out near
@@ -89,7 +90,7 @@ app_spawn_task_new(
     int tile_z,
     int level)
 {
-    struct Task_AppSpawn* task = calloc(1, sizeof(*task));
+    struct Task_AppSpawn* task = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_AppSpawn_VTable;
     strncpy(task->task.name, "AppSpawn", sizeof(task->task.name) - 1);
@@ -1915,6 +1916,6 @@ static void
 Task_AppSpawn_Free(struct ToriRS_Task* base)
 {
     app_spawn_loc_lane_release((struct Task_AppSpawn*)base);
-    free(base);
+    ToriMem_Free(ToriMem_Process(), base);
 }
 

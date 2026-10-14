@@ -119,7 +119,8 @@ void PluginDraw_Tile(
 /* ---- assets -------------------------------------------------------------- */
 
 /**
- * Decode one shipped PNG into a plugin-owned buffer, once.
+ * Decode one shipped PNG into a plugin-owned buffer (ToriMem_Plugins(); give
+ * it back with PluginDraw_ImageFree), once.
  *
  * @return 1 when `*px` holds the pixels. 0 is the ORDINARY state for the first
  * frames after a start -- the file crosses the IO queue -- and means "ask

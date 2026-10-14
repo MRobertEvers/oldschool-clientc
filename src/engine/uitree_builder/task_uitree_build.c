@@ -1,4 +1,5 @@
 #include "uitree_builder.h"
+#include "mem/torirs_mem.h"
 #include "uitree_builder_bake.h"
 #include "uitree_builder_manifest.h"
 
@@ -239,7 +240,7 @@ Task_UITreeBuild_Free(struct ToriRS_Task* base)
 {
     struct Task_UITreeBuild* self = (struct Task_UITreeBuild*)base;
     uibuilder_manifest_free(&self->manifest);
-    free(self);
+    ToriMem_Free(ToriMem_Ui(), self);
 }
 
 static struct ToriRS_TaskVTable Task_UITreeBuild_VTable = {
@@ -252,7 +253,7 @@ CreateTask_UITreeBuild(struct UITreeBuilder* builder)
 {
     assert(builder);
 
-    struct Task_UITreeBuild* task = calloc(1, sizeof(*task));
+    struct Task_UITreeBuild* task = ToriMem_Calloc(ToriMem_Ui(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_UITreeBuild_VTable;
     strncpy(task->task.name, "UITreeBuild", sizeof(task->task.name) - 1);

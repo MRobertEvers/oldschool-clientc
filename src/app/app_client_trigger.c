@@ -8,6 +8,7 @@
  */
 
 #include "app/app_internal.h"
+#include "mem/torirs_mem.h"
 
 /*
  * ---------------------------------------------------------------------------
@@ -102,7 +103,7 @@ Task_ClientTriggerSubject_Run(
 static void
 Task_ClientTriggerSubject_Free(struct ToriRS_Task* task_base)
 {
-    free(task_base);
+    ToriMem_Free(ToriMem_Script(), task_base);
 }
 
 static struct ToriRS_TaskVTable Task_ClientTriggerSubject_VTable = {
@@ -121,7 +122,7 @@ app_client_trigger_queue(
     assert(app);
     assert(ctx);
 
-    task = calloc(1, sizeof(*task));
+    task = ToriMem_Calloc(ToriMem_Script(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_ClientTriggerSubject_VTable;
     strcpy(task->task.name, "ClientTriggerSubject");

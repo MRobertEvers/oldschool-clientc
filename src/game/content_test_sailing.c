@@ -1,4 +1,5 @@
 #include "content_test_sailing.h"
+#include "mem/torirs_mem.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -605,7 +606,7 @@ int ContentTestSailing_Save(struct App* app, struct ToriRSServerEmbed* embed,
     if( slot < 0 ) return fail(error, cap, "all eight checkpoint slots are occupied");
     if( !checkpoints[slot] )
     {
-        checkpoints[slot] = calloc(1, sizeof(*checkpoints[slot]));
+        checkpoints[slot] = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*checkpoints[slot]));
         assert(checkpoints[slot]);
     }
     struct SailingCheckpoint* saved = checkpoints[slot];
@@ -644,7 +645,7 @@ int ContentTestSailing_Save(struct App* app, struct ToriRSServerEmbed* embed,
         ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_INV,"sailing_trawling_net")};
     for( int i=0; i<SAILING_CHECKPOINT_INVS; ++i )
     {
-        free(saved->cargo[i].items);
+        ToriMem_Free(ToriMem_Process(), saved->cargo[i].items);
         saved->cargo[i].items=NULL;
         saved->cargo[i].slots=0;
         saved->cargo[i].inv_id=cargo_ids[i];
@@ -652,7 +653,7 @@ int ContentTestSailing_Save(struct App* app, struct ToriRSServerEmbed* embed,
         struct ToriRSServerContainer* cargo=ToriRSServer_ContainerResolve(srv,player,cargo_ids[i]);
         assert(cargo);
         saved->cargo[i].slots=cargo->slots;
-        saved->cargo[i].items=malloc((size_t)cargo->slots*sizeof(*cargo->items));
+        saved->cargo[i].items=ToriMem_Alloc(ToriMem_Process(), (size_t)cargo->slots*sizeof(*cargo->items));
         assert(saved->cargo[i].items);
         memcpy(saved->cargo[i].items,cargo->items,(size_t)cargo->slots*sizeof(*cargo->items));
     }
@@ -1014,8 +1015,8 @@ void ContentTestSailing_Clear(void)
     for( int i = 0; i < SAILING_CHECKPOINT_MAX; ++i )
     {
         if( checkpoints[i] )
-            for( int j=0; j<SAILING_CHECKPOINT_INVS; ++j ) free(checkpoints[i]->cargo[j].items);
-        free(checkpoints[i]);
+            for( int j=0; j<SAILING_CHECKPOINT_INVS; ++j ) ToriMem_Free(ToriMem_Process(), checkpoints[i]->cargo[j].items);
+        ToriMem_Free(ToriMem_Process(), checkpoints[i]);
         checkpoints[i] = NULL;
     }
 }

@@ -8,6 +8,7 @@
  */
 
 #include "app/app_internal.h"
+#include "mem/torirs_mem.h"
 
 /* Private to this unit, declared up front so definition order is free. */
 static void
@@ -410,7 +411,7 @@ app_plugin_screenshots_write(
     /* Three channels, not four: the client's canvas has no alpha to carry
      * (the high byte is padding), and a PNG that claimed one would be half
      * again as large for nothing. */
-    rgb = malloc((size_t)width * (size_t)height * 3);
+    rgb = ToriMem_Alloc(ToriMem_Process(), (size_t)width * (size_t)height * 3);
     assert(rgb);
     for( int i = 0; i < width * height; i++ )
     {
@@ -420,7 +421,7 @@ app_plugin_screenshots_write(
     }
 
     png = tdefl_write_image_to_png_file_in_memory_ex(rgb, width, height, 3, &png_size, 6, MZ_FALSE);
-    free(rgb);
+    ToriMem_Free(ToriMem_Process(), rgb);
     assert(png);
 
     for( int i = 0; i < APP_PLUGIN_SCREENSHOTS_MAX; i++ )
@@ -472,7 +473,7 @@ App_DrawComplete(
     if( App_IsBooting(app, NULL) )
         return;
 
-    pixels = malloc((size_t)width * (size_t)height * sizeof(int));
+    pixels = ToriMem_Alloc(ToriMem_Process(), (size_t)width * (size_t)height * sizeof(int));
     assert(pixels);
 
     if( app->view_split.attached )
@@ -481,5 +482,5 @@ App_DrawComplete(
         app_capture_fallback_render(app, pixels, width, height);
 
     app_plugin_screenshots_write(app, pixels, width, height);
-    free(pixels);
+    ToriMem_Free(ToriMem_Process(), pixels);
 }

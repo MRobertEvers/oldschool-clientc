@@ -1,4 +1,5 @@
 #include "torirs_maped_buf.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -49,7 +50,7 @@ ToriRSMapEd_BufFree(struct ToriRSMapEdBuf* buf)
     if( !buf )
         return;
 
-    free(buf->data);
+    ToriMem_Free(ToriMem_Editor(), buf->data);
     buf->data = NULL;
     buf->cap = 0;
     buf->head = 0;
@@ -89,8 +90,7 @@ ToriRSMapEd_BufWrite(
         int cap = buf->cap > 0 ? buf->cap : 4096;
         while( cap < want )
             cap *= 2;
-        buf->data = realloc(buf->data, (size_t)cap);
-        assert(buf->data);
+        buf->data = ToriMem_Realloc(ToriMem_Editor(), buf->data, (size_t)cap);
         buf->cap = cap;
     }
 

@@ -45,6 +45,8 @@
  * `appearance_decode` hook, which is what lc289_appearance_decode below is.
  */
 
+#include "mem/torimem_rscache.h"
+#include "mem/torirs_mem.h"
 #include "net/bitbuffer.h"
 #include "net/rev/packets/pkt_npc_info.h"
 #include "net/rev/packets/pkt_player_appearance.h"
@@ -222,7 +224,7 @@ lc289_read_player_extended(
         if( (mask & PKT_PLAYER_MASK_APPEARANCE) != 0 )
         {
             int len = g1(&rsbuf);
-            uint8_t* blob = malloc(len > 0 ? (size_t)len : 1);
+            uint8_t* blob = ToriMem_Alloc(ToriMem_Net(), len > 0 ? (size_t)len : 1);
             assert(blob);
             greadto(&rsbuf, (char*)blob, len, len);
             struct PktPlayerInfoOp* op = lc289_next_player_op(dec, ops, ops_capacity);
@@ -251,6 +253,8 @@ lc289_read_player_extended(
         if( (mask & PKT_PLAYER_MASK_SAY) != 0 )
         {
             char* text = gstringnewline(&rsbuf);
+            if( text ) /* RSCache allocated it: the op owns it in NET */
+                text = ToriMem_TakeStrFromRSCache(ToriMem_Net(), text);
             struct PktPlayerInfoOp* op = lc289_next_player_op(dec, ops, ops_capacity);
             op->kind = PKT_PLAYER_INFO_OP_SAY;
             op->_say.text = text;
@@ -284,7 +288,7 @@ lc289_read_player_extended(
             int colour_effect = g2(&rsbuf);
             int type = g1(&rsbuf);
             int chat_len = g1(&rsbuf);
-            uint8_t* payload = malloc(chat_len > 0 ? (size_t)chat_len : 1);
+            uint8_t* payload = ToriMem_Alloc(ToriMem_Net(), chat_len > 0 ? (size_t)chat_len : 1);
             assert(payload);
             greadto(&rsbuf, (char*)payload, chat_len, chat_len);
             struct PktPlayerInfoOp* op = lc289_next_player_op(dec, ops, ops_capacity);
@@ -590,6 +594,8 @@ lc289_read_npc_extended(
         if( (mask & PKT_NPC_MASK_SAY) != 0 )
         {
             char* text = gstringnewline(&rsbuf);
+            if( text ) /* RSCache allocated it: the op owns it in NET */
+                text = ToriMem_TakeStrFromRSCache(ToriMem_Net(), text);
             struct PktNpcInfoOp* op = lc289_next_npc_op(dec, ops, ops_capacity);
             op->kind = PKT_NPC_INFO_OP_SAY;
             op->_say.text = text;

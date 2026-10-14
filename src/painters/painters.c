@@ -1,5 +1,6 @@
 #include "painters.h"
 #include "log/torirs_log.h"
+#include "mem/torirs_mem.h"
 
 #include "painters_i.h"
 #include "scene_occluders.h"
@@ -196,11 +197,15 @@ painter_push_element(struct Painter* painter)
     if( element >= painter->element_capacity )
     {
         painter->element_capacity *= 2;
-        painter->elements =
-            realloc(painter->elements, painter->element_capacity * sizeof(struct PaintersElement));
+        painter->elements = ToriMem_Realloc(
+            ToriMem_Scene(),
+            painter->elements,
+            painter->element_capacity * sizeof(struct PaintersElement));
 
-        painter->element_paints = realloc(
-            painter->element_paints, painter->element_capacity * sizeof(struct ElementPaint));
+        painter->element_paints = ToriMem_Realloc(
+            ToriMem_Scene(),
+            painter->element_paints,
+            painter->element_capacity * sizeof(struct ElementPaint));
     }
     memset(&painter->elements[element], 0, sizeof(struct PaintersElement));
     return element;
@@ -307,8 +312,8 @@ scenery_pool_ensure(
     int cap = painter->scenery_pool_capacity ? painter->scenery_pool_capacity : 256;
     while( cap < need )
         cap *= 2;
-    painter->scenery_pool =
-        realloc(painter->scenery_pool, (size_t)cap * sizeof(struct SceneryNode));
+    painter->scenery_pool = ToriMem_Realloc(
+        ToriMem_Scene(), painter->scenery_pool, (size_t)cap * sizeof(struct SceneryNode));
     painter->scenery_pool_capacity = cap;
 }
 
@@ -480,7 +485,7 @@ painter_new(
     int levels,
     uint32_t init_contexts)
 {
-    struct Painter* painter = malloc(sizeof(struct Painter));
+    struct Painter* painter = ToriMem_Alloc(ToriMem_Scene(), sizeof(struct Painter));
     memset(painter, 0, sizeof(struct Painter));
 
     painter->width = width;
@@ -489,7 +494,7 @@ painter_new(
 
     int tile_count = width * height * levels;
 
-    painter->tiles = malloc(tile_count * sizeof(struct PaintersTile));
+    painter->tiles = ToriMem_Alloc(ToriMem_Scene(), tile_count * sizeof(struct PaintersTile));
     memset(painter->tiles, 0, tile_count * sizeof(struct PaintersTile));
     painter->tile_count = 0;
     painter->tile_capacity = tile_count;
@@ -499,7 +504,7 @@ painter_new(
     painter->scenery_pool_capacity = 0;
     painter->static_scenery_pool_count = 0;
 
-    painter->terrain_element = malloc((size_t)tile_count * sizeof(int32_t));
+    painter->terrain_element = ToriMem_Alloc(ToriMem_Scene(), (size_t)tile_count * sizeof(int32_t));
     assert(painter->terrain_element);
     for( int i = 0; i < tile_count; i++ )
         painter->terrain_element[i] = -1;
@@ -524,14 +529,14 @@ painter_new(
                 init_painter_tile(painter_tile_at(painter, sx, sz, slevel), sx, sz, slevel);
     }
 
-    painter->tile_paints = malloc(tile_count * sizeof(struct TilePaint));
+    painter->tile_paints = ToriMem_Alloc(ToriMem_Scene(), tile_count * sizeof(struct TilePaint));
     memset(painter->tile_paints, 0, tile_count * sizeof(struct TilePaint));
 
-    painter->elements = malloc(128 * sizeof(struct PaintersElement));
+    painter->elements = ToriMem_Alloc(ToriMem_Scene(), 128 * sizeof(struct PaintersElement));
     painter->element_count = 0;
     painter->element_capacity = 128;
 
-    painter->element_paints = malloc(128 * sizeof(struct ElementPaint));
+    painter->element_paints = ToriMem_Alloc(ToriMem_Scene(), 128 * sizeof(struct ElementPaint));
     memset(painter->element_paints, 0, 128 * sizeof(struct ElementPaint));
 
     painter->bucket_ctx = NULL;
@@ -551,13 +556,13 @@ painter_new(
         bucket_ctx_free(painter);
         w3d_ctx_free(painter);
         distmetric_ctx_free(painter);
-        free(painter->tiles);
-        free(painter->scenery_pool);
-        free(painter->tile_paints);
-        free(painter->elements);
-        free(painter->element_paints);
-        free(painter->terrain_element);
-        free(painter);
+        ToriMem_Free(ToriMem_Scene(), painter->tiles);
+        ToriMem_Free(ToriMem_Scene(), painter->scenery_pool);
+        ToriMem_Free(ToriMem_Scene(), painter->tile_paints);
+        ToriMem_Free(ToriMem_Scene(), painter->elements);
+        ToriMem_Free(ToriMem_Scene(), painter->element_paints);
+        ToriMem_Free(ToriMem_Scene(), painter->terrain_element);
+        ToriMem_Free(ToriMem_Scene(), painter);
         return NULL;
     }
 
@@ -776,20 +781,20 @@ painter_free(struct Painter* painter)
 {
     if( !painter )
         return;
-    free(painter->tiles);
-    free(painter->scenery_pool);
-    free(painter->tile_paints);
-    free(painter->elements);
-    free(painter->element_paints);
-    free(painter->terrain_element);
-    free(painter->dyn_journal);
-    free(painter->dyn_previous);
+    ToriMem_Free(ToriMem_Scene(), painter->tiles);
+    ToriMem_Free(ToriMem_Scene(), painter->scenery_pool);
+    ToriMem_Free(ToriMem_Scene(), painter->tile_paints);
+    ToriMem_Free(ToriMem_Scene(), painter->elements);
+    ToriMem_Free(ToriMem_Scene(), painter->element_paints);
+    ToriMem_Free(ToriMem_Scene(), painter->terrain_element);
+    ToriMem_Free(ToriMem_Scene(), painter->dyn_journal);
+    ToriMem_Free(ToriMem_Scene(), painter->dyn_previous);
     bucket_ctx_free(painter);
     w3d_ctx_free(painter);
     distmetric_ctx_free(painter);
     if( painter->occluders )
         scene_occluders_free(painter->occluders);
-    free(painter);
+    ToriMem_Free(ToriMem_Scene(), painter);
 }
 
 int
@@ -1023,8 +1028,8 @@ painter_dyn_record(
     if( painter->dyn_journal_count == painter->dyn_journal_capacity )
     {
         int cap = painter->dyn_journal_capacity ? painter->dyn_journal_capacity * 2 : 256;
-        painter->dyn_journal =
-            realloc(painter->dyn_journal, (size_t)cap * sizeof(struct PainterDynRecord));
+        painter->dyn_journal = ToriMem_Realloc(
+            ToriMem_Scene(), painter->dyn_journal, (size_t)cap * sizeof(struct PainterDynRecord));
         assert(painter->dyn_journal);
         painter->dyn_journal_capacity = cap;
     }
@@ -1848,8 +1853,10 @@ ensure_command_capacity(
     if( buffer->command_count + count > buffer->command_capacity )
     {
         buffer->command_capacity *= 2;
-        buffer->commands = realloc(
-            buffer->commands, buffer->command_capacity * sizeof(struct PaintersElementCommand));
+        buffer->commands = ToriMem_Realloc(
+            ToriMem_Render(),
+            buffer->commands,
+            buffer->command_capacity * sizeof(struct PaintersElementCommand));
     }
 }
 
@@ -1943,16 +1950,26 @@ far_wall_flags(
     return flags;
 }
 
+/* A command buffer belongs to whoever draws from it (the app's views), not to
+ * the painter that fills it: RENDER, freed by painter_buffer_free. */
 struct PaintersBuffer*
 painter_buffer_new()
 {
-    struct PaintersBuffer* buffer = (struct PaintersBuffer*)malloc(sizeof(struct PaintersBuffer));
-
-    memset(buffer, 0x00, sizeof(struct PaintersBuffer));
+    struct PaintersBuffer* buffer = ToriMem_Calloc(ToriMem_Render(), 1, sizeof(struct PaintersBuffer));
 
     buffer->command_capacity = 128;
-    buffer->commands = malloc(sizeof(struct PaintersElementCommand) * buffer->command_capacity);
+    buffer->commands =
+        ToriMem_Alloc(ToriMem_Render(), sizeof(struct PaintersElementCommand) * buffer->command_capacity);
     return buffer;
+}
+
+void
+painter_buffer_free(struct PaintersBuffer* buffer)
+{
+    if( !buffer )
+        return;
+    ToriMem_Free(ToriMem_Render(), buffer->commands);
+    ToriMem_Free(ToriMem_Render(), buffer);
 }
 
 /* The perimeter-seed generator both drains reseed from; see the file header. */

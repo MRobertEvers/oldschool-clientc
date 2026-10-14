@@ -17,6 +17,10 @@ free and is listed per file in the baseline like any other bare call.
 
   python3 tools/torimem/check_bare_alloc.py            # check
   python3 tools/torimem/check_bare_alloc.py --update   # rewrite the baseline
+  python3 tools/torimem/check_bare_alloc.py --list src/ui/uitree.c ...   # each call
+
+A call whose memory an outside API owns is marked `torimem-bare: <reason>` in a
+comment on its line or the line above, and is not counted.
 """
 import os, re, subprocess, sys
 
@@ -44,6 +48,33 @@ def strip(src):
         out.append(c); i += 1
     return ''.join(out)
 
+# A call whose memory belongs to an outside API (SDL_GetBasePath, stbi_load,
+# getline, Lua, a browser or JNI buffer) keeps its own free. It is marked, on
+# its line or the line above, with the reason:
+#     free(path); /* torimem-bare: SDL_GetPrefPath's, freed with SDL's free */
+MARK = 'torimem-bare:'
+
+def bare_calls(f):
+    """[(line, text)] of the unmarked bare calls in `f`."""
+    raw = open(os.path.join(ROOT, f), errors='ignore').read()
+    raw_lines = raw.split('\n')
+    marked = set()
+    for i, line in enumerate(raw_lines):
+        if MARK in line:
+            marked.add(i)
+            marked.add(i + 1)
+    text = strip(raw)
+    # a libc-default wrapper body (return malloc(size);) is the hook itself
+    text = re.sub(r'_libc_(malloc|calloc|realloc|free)\([^)]*\)\s*\{[^}]*\}',
+                  lambda m: '\n' * m.group(0).count('\n'), text)
+    out = []
+    for i, line in enumerate(text.split('\n')):
+        if i in marked:
+            continue
+        for _ in CALL.findall(line):
+            out.append((i + 1, raw_lines[i].strip() if i < len(raw_lines) else ''))
+    return out
+
 def count_all():
     files = subprocess.run(['git', 'ls-files', 'src/*.c', 'src/*.h', 'src/*.inc'],
                            cwd=ROOT, capture_output=True, text=True).stdout.split()
@@ -52,12 +83,9 @@ def count_all():
         if EXEMPT.search(f):
             continue
         try:
-            text = strip(open(os.path.join(ROOT, f), errors='ignore').read())
+            n = len(bare_calls(f))
         except OSError:
             continue
-        # a libc-default wrapper body (return malloc(size);) is the hook itself
-        text = re.sub(r'_libc_(malloc|calloc|realloc|free)\([^)]*\)\s*\{[^}]*\}', '', text)
-        n = len(CALL.findall(text))
         if n:
             counts[f] = n
     return counts
@@ -73,6 +101,12 @@ def load():
     return base
 
 def main():
+    if '--list' in sys.argv:
+        # --list FILE...: every unmarked bare call, as file:line: text
+        for f in sys.argv[sys.argv.index('--list') + 1:]:
+            for line, text in bare_calls(f):
+                print('%s:%d: %s' % (f, line, text))
+        return 0
     counts = count_all()
     if '--update' in sys.argv:
         with open(BASELINE, 'w') as out:

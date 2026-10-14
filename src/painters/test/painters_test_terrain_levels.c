@@ -224,8 +224,7 @@ test_link_below_carries_ground_decor(void)
     expect(entity_emits(buf, deck_entity, &deck_index) == 1,
            "the decor is emitted exactly once, from the pushed-down tile");
 
-    free(buf->commands);
-    free(buf);
+    painter_buffer_free(buf);
     painter_free(p);
 }
 
@@ -257,8 +256,7 @@ test_bridge_underpass_draws_no_decor(void)
     expect(entity_emits(buf, under_entity, NULL) == 0,
            "the underpass decor is not emitted (reference class112:792-812)");
 
-    free(buf->commands);
-    free(buf);
+    painter_buffer_free(buf);
     painter_free(p);
 }
 
@@ -296,8 +294,7 @@ test_vis_below_reveals_the_tiles_ground_decor(void)
     expect(entity_emits(buf, plain_entity, NULL) == 0,
            "an unflagged neighbour's level-1 decor stays masked away");
 
-    free(buf->commands);
-    free(buf);
+    painter_buffer_free(buf);
     painter_free(p);
 }
 
@@ -358,8 +355,7 @@ test_stack_base_does_not_defer_static_locs(void)
     if( wall_i >= 0 && obj_i >= 0 )
         expect(obj_i < wall_i, "the dynamic 1x1 draws before the wall too — no containment");
 
-    free(buf->commands);
-    free(buf);
+    painter_buffer_free(buf);
     painter_free(p);
 }
 
@@ -492,8 +488,7 @@ test_emission_is_from_own_level_and_ordered(void)
     if( n0 == 1 && n1 == 1 )
         expect(i0 < i1, "mesh 0 first, mesh 1 after — the floor above draws on top");
 
-    free(buf->commands);
-    free(buf);
+    painter_buffer_free(buf);
     painter_free(p);
 }
 
@@ -517,8 +512,7 @@ test_empty_set_emits_nothing(void)
     n = terrain_emits(buf, 4, 4, 1, NULL);
     expect(n == 0, "no command for the emptied level");
 
-    free(buf->commands);
-    free(buf);
+    painter_buffer_free(buf);
     painter_free(p);
 }
 
@@ -570,8 +564,7 @@ test_depth_collector_emits_visible_models_once(void)
     expect(entity_emits(buf, scenery, NULL) == 1,
            "opposite camera still emits scenery once");
 
-    free(buf->commands);
-    free(buf);
+    painter_buffer_free(buf);
     painter_free(p);
 }
 
@@ -607,8 +600,7 @@ test_flagged_tile_survives_a_level_mask(void)
     expect(terrain_emits(buf, 6, 4, 1, NULL) == 0,
            "an unflagged neighbour's mesh 1 is still masked away");
 
-    free(buf->commands);
-    free(buf);
+    painter_buffer_free(buf);
     painter_free(p);
 }
 
@@ -671,8 +663,7 @@ test_bucket_emits_one_globally_distance_ordered_sweep(void)
         printf("       (%d monotone runs over %d tiles: the box painted %d corners in turn)\n",
                runs, emitted, runs);
 
-    free(buf->commands);
-    free(buf);
+    painter_buffer_free(buf);
     painter_free(p);
 #undef ORDER_SCENE
 #undef ORDER_CAM
@@ -774,8 +765,7 @@ test_seam_between_two_large_locs_keeps_the_sweep(void)
     expect(late_beside_or_behind == 0,
            "no floor beside or behind the locs, farther than the east loc's ring, follows it");
 
-    free(buf->commands);
-    free(buf);
+    painter_buffer_free(buf);
     painter_free(p);
 #undef SEAM_SCENE
 #undef SEAM_CAM_X
@@ -844,8 +834,7 @@ test_loc_behind_a_tile_in_depth_is_emitted_first(void)
         printf("       (%d of %d floor tiles in front of the ledge emitted before it)\n",
                floor_before_ledge, floor_in_front);
 
-    free(buf->commands);
-    free(buf);
+    painter_buffer_free(buf);
     painter_free(p);
 #undef BEHIND_SCENE
 #undef BEHIND_CAM_X

@@ -1,4 +1,5 @@
 #include "engine/dat2/dat2_tasks.h"
+#include "mem/torirs_mem.h"
 
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
@@ -109,7 +110,7 @@ Task_Dat2SoundscapeLoad_Run(
         PT_EXIT(&task->pt);
     }
 
-    entries = calloc((size_t)count, sizeof(*entries));
+    entries = ToriMem_Calloc(ToriMem_Assets(), (size_t)count, sizeof(*entries));
     assert(entries);
 
     for( int i = 0; i < filelist->file_count; i++ )
@@ -136,7 +137,7 @@ Task_Dat2SoundscapeLoad_Run(
 
     if( !RS_Soundscapes_SetEntries(task->soundscapes, entries, count) )
     {
-        free(entries);
+        ToriMem_Free(ToriMem_Assets(), entries);
         PT_EXIT(&task->pt);
     }
     TORIRS_LOG("soundscape load: %d ids (%d records)\n", count, decoded);
@@ -190,7 +191,7 @@ Task_Dat2SoundscapeLoad_Run(
 static void
 Task_Dat2SoundscapeLoad_Free(struct ToriRS_Task* task_base)
 {
-    free(task_base);
+    ToriMem_Free(ToriMem_Assets(), task_base);
 }
 
 static struct ToriRS_TaskVTable Task_Dat2SoundscapeLoad_VTable = {
@@ -206,7 +207,7 @@ CreateTask_Dat2SoundscapeLoad(
     assert(provider);
     assert(soundscapes);
 
-    struct Task_Dat2SoundscapeLoad* task = calloc(1, sizeof(*task));
+    struct Task_Dat2SoundscapeLoad* task = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_Dat2SoundscapeLoad_VTable;
     strcpy(task->task.name, "Dat2SoundscapeLoad");

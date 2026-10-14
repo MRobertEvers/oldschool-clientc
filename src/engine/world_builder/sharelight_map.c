@@ -1,4 +1,5 @@
 #include "sharelight_map.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -27,8 +28,8 @@ sharelight_map_pool_ensure(
     int cap = sharelight_map->pool_capacity ? sharelight_map->pool_capacity : 256;
     while( cap < need )
         cap *= 2;
-    sharelight_map->pool = realloc(
-        sharelight_map->pool, (size_t)cap * sizeof(struct SharelightMapPoolEntry));
+    sharelight_map->pool = ToriMem_Realloc(
+        ToriMem_Scene(), sharelight_map->pool, (size_t)cap * sizeof(struct SharelightMapPoolEntry));
     sharelight_map->pool_capacity = cap;
 }
 
@@ -38,10 +39,12 @@ sharelight_map_new(
     int height,
     int levels)
 {
-    struct SharelightMap* sharelight_map = malloc(sizeof(struct SharelightMap));
+    struct SharelightMap* sharelight_map =
+        ToriMem_Alloc(ToriMem_Scene(), sizeof(struct SharelightMap));
     assert(sharelight_map);
     int n_tiles = width * height * levels;
-    sharelight_map->tiles = malloc((size_t)n_tiles * sizeof(struct SharelightMapTile));
+    sharelight_map->tiles =
+        ToriMem_Alloc(ToriMem_Scene(), (size_t)n_tiles * sizeof(struct SharelightMapTile));
     assert(sharelight_map->tiles);
     for( int i = 0; i < n_tiles; i++ )
     {
@@ -64,9 +67,9 @@ sharelight_map_free(struct SharelightMap* sharelight_map)
 {
     if( !sharelight_map )
         return;
-    free(sharelight_map->tiles);
-    free(sharelight_map->pool);
-    free(sharelight_map);
+    ToriMem_Free(ToriMem_Scene(), sharelight_map->tiles);
+    ToriMem_Free(ToriMem_Scene(), sharelight_map->pool);
+    ToriMem_Free(ToriMem_Scene(), sharelight_map);
 }
 
 void

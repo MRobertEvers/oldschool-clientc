@@ -1,4 +1,5 @@
 #include "engine/dat1/dat1_tasks.h"
+#include "mem/torirs_mem.h"
 #include "engine/cache_provider.h"
 #include "engine/dat1/dat1_buildcache.h"
 #include "engine/texture_palette_bake.h"
@@ -52,13 +53,15 @@ struct Task_Dat1TextureLoad
  * it belongs in (crop_width/crop_height at crop_x/crop_y) — e.g. texture 17 is
  * a 122x124 image inside the 128x128 texture. Expand it back so the baker sees
  * a square texture; untouched border stays palette index 0 (transparent).
- * Returns an owned index buffer of crop_width * crop_height.
+ * Returns an index buffer of crop_width * crop_height, owned by `mem`.
  */
 static uint8_t*
-task_dat1_texture_expand_crop(const struct RSCache_Dat1Pix8* pix8)
+task_dat1_texture_expand_crop(
+    struct ToriMem_Group* mem,
+    const struct RSCache_Dat1Pix8* pix8)
 {
-    uint8_t* canvas = calloc((size_t)pix8->crop_width * (size_t)pix8->crop_height, 1);
-    assert(canvas);
+    uint8_t* canvas =
+        ToriMem_Calloc(mem, (size_t)pix8->crop_width * (size_t)pix8->crop_height, 1);
 
     for( int y = 0; y < pix8->height; y++ )
     {
@@ -124,12 +127,7 @@ task_dat1_texture_decode(struct Task_Dat1TextureLoad* task)
             pix8->palette_count,
             dest_size);
 
-    canvas = task_dat1_texture_expand_crop(pix8);
-    if( !canvas )
-    {
-        RSCache_Dat1Pix8Free(pix8);
-        return NULL;
-    }
+    canvas = task_dat1_texture_expand_crop(ToriRS_TaskMem(&task->task), pix8);
 
     texture = ToriRS_TextureBakeIndexed(
         canvas,
@@ -141,7 +139,7 @@ task_dat1_texture_decode(struct Task_Dat1TextureLoad* task)
         animation_direction,
         animation_speed,
         0);
-    free(canvas);
+    ToriMem_Free(ToriRS_TaskMem(&task->task), canvas);
     RSCache_Dat1Pix8Free(pix8);
     return texture;
 }
@@ -189,7 +187,7 @@ Task_Dat1TextureLoad_Run(
 static void
 Task_Dat1TextureLoad_Free(struct ToriRS_Task* task_base)
 {
-    free(task_base);
+    ToriMem_Free(ToriMem_Assets(), task_base);
 }
 
 static struct ToriRS_TaskVTable Task_Dat1TextureLoad_VTable = {
@@ -209,7 +207,7 @@ CreateTask_Dat1TextureLoad(
     if( CacheProvider_TextureHas(provider, texture_id) )
         return NULL;
 
-    task = calloc(1, sizeof(*task));
+    task = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_Dat1TextureLoad_VTable;
     strncpy(task->task.name, "Dat1TextureLoad", sizeof(task->task.name) - 1);

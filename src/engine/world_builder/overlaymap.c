@@ -1,4 +1,5 @@
 #include "overlaymap.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -33,10 +34,11 @@ overlaymap_new(
     int height,
     int levels)
 {
-    struct Overlaymap* overlaymap = malloc(sizeof(struct Overlaymap));
+    struct Overlaymap* overlaymap = ToriMem_Alloc(ToriMem_Scene(), sizeof(struct Overlaymap));
     memset(overlaymap, 0, sizeof(struct Overlaymap));
 
-    overlaymap->tiles = malloc(width * height * levels * sizeof(struct OverlaymapTile));
+    overlaymap->tiles =
+        ToriMem_Alloc(ToriMem_Scene(), width * height * levels * sizeof(struct OverlaymapTile));
     memset(overlaymap->tiles, 0, width * height * levels * sizeof(struct OverlaymapTile));
     for( int i = 0; i < width * height * levels; i++ )
         init_tile(&overlaymap->tiles[i]);
@@ -51,8 +53,8 @@ overlaymap_new(
 void
 overlaymap_free(struct Overlaymap* overlaymap)
 {
-    free(overlaymap->tiles);
-    free(overlaymap);
+    ToriMem_Free(ToriMem_Scene(), overlaymap->tiles);
+    ToriMem_Free(ToriMem_Scene(), overlaymap);
 }
 
 void

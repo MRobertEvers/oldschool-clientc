@@ -1,4 +1,5 @@
 #include "engine/cache_provider.h"
+#include "mem/torirs_mem.h"
 #include "engine/dat2/dat2_buildcache.h"
 #include "engine/dat2/dat2_tasks.h"
 #include "engine/torirs_sound_from_rscache.h"
@@ -192,7 +193,7 @@ done:
 static void
 Task_Dat2SoundLoad_Free(struct ToriRS_Task* task_base)
 {
-    free(task_base);
+    ToriMem_Free(ToriMem_Assets(), task_base);
 }
 
 static struct ToriRS_TaskVTable Task_Dat2SoundLoad_VTable = {
@@ -212,7 +213,7 @@ CreateTask_Dat2SoundLoad(
     if( CacheProvider_SoundHas(provider, sound_id) )
         return NULL;
 
-    task = calloc(1, sizeof(*task));
+    task = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_Dat2SoundLoad_VTable;
     strcpy(task->task.name, "Dat2SoundLoad");

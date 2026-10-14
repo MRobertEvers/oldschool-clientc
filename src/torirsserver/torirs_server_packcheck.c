@@ -55,11 +55,11 @@ read_whole(const char* path, size_t* out_length)
         fclose(file);
         return NULL;
     }
-    data = (char*)malloc((size_t)size + 1);
+    data = (char*)ToriMem_Alloc(ToriMem_ServerContent(), (size_t)size + 1);
     assert(data);
     if( size > 0 && fread(data, 1, (size_t)size, file) != (size_t)size )
     {
-        free(data);
+        ToriMem_Free(ToriMem_ServerContent(), data);
         fclose(file);
         return NULL;
     }
@@ -193,7 +193,7 @@ check_entry(struct Check* check, const struct Entry* entry)
         char* data = read_whole(path, &length);
         uint64_t hash = data ? ssc_hash_bytes(data, length, SSC_HASH_SEED) : 0;
 
-        free(data);
+        ToriMem_Free(ToriMem_ServerContent(), data);
         /* Touched, not changed: the same bytes the build compiled. */
         if( data && hash == entry->hash )
             return;
@@ -365,8 +365,10 @@ ToriRSServer_PackCheck(
         if( check.count == check.capacity )
         {
             check.capacity = check.capacity ? check.capacity * 2 : 4096;
-            check.entries =
-                (struct Entry*)realloc(check.entries, (size_t)check.capacity * sizeof(*check.entries));
+            check.entries = (struct Entry*)ToriMem_Realloc(
+                ToriMem_ServerContent(),
+                check.entries,
+                (size_t)check.capacity * sizeof(*check.entries));
             assert(check.entries);
         }
         check.entries[check.count++] = entry;
@@ -375,7 +377,8 @@ ToriRSServer_PackCheck(
     check.slot_capacity = 1024;
     while( check.slot_capacity < (uint32_t)check.count * 2 + 16 )
         check.slot_capacity *= 2;
-    check.slots = (int32_t*)malloc(check.slot_capacity * sizeof(int32_t));
+    check.slots =
+        (int32_t*)ToriMem_Alloc(ToriMem_ServerContent(), check.slot_capacity * sizeof(int32_t));
     assert(check.slots);
     memset(check.slots, -1, check.slot_capacity * sizeof(int32_t));
     for( int i = 0; i < check.count; i++ )
@@ -437,9 +440,9 @@ ToriRSServer_PackCheck(
                 "torirsserver: ------------------------------------------------------------\n",
                 check.stale, pack_dir);
     }
-    free(check.slots);
-    free(check.entries);
-    free(text);
+    ToriMem_Free(ToriMem_ServerContent(), check.slots);
+    ToriMem_Free(ToriMem_ServerContent(), check.entries);
+    ToriMem_Free(ToriMem_ServerContent(), text);
     return check.stale;
 }
 

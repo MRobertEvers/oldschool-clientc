@@ -18,6 +18,7 @@
  *   5. A socket the server closed is redialled and the files re-requested,
  *      once, without the caller doing anything.
  */
+#include "mem/torirs_mem.h"
 #include "platform/platform_x_io_ondemand.h"
 #include "platform/sockstream.h"
 
@@ -370,7 +371,7 @@ test_pipelined_interleaved_fetch(void)
             continue;
         }
         check_bytes(i, data[i], sizes[i]);
-        free(data[i]);
+        ToriMem_Free(ToriMem_Net(), data[i]);
     }
 
     /* The second waiter on file 1 still gets its own copy. */
@@ -379,7 +380,7 @@ test_pipelined_interleaved_fetch(void)
         int size = 0;
         TEST_CHECK(PlatformXIOOnDemand_FetchTake(od, table, 1, &again, &size) == 1);
         check_bytes(1, again, size);
-        free(again);
+        ToriMem_Free(ToriMem_Net(), again);
     }
     /* And now nobody is waiting on anything. */
     TEST_CHECK(!PlatformXIOOnDemand_FetchPending(od, table, 1));
@@ -416,8 +417,8 @@ test_hangup_is_redialled_once(void)
     TEST_CHECK(server.sessions == 2);
     check_bytes(0, data[0], sizes[0]);
     check_bytes(2, data[1], sizes[1]);
-    free(data[0]);
-    free(data[1]);
+    ToriMem_Free(ToriMem_Net(), data[0]);
+    ToriMem_Free(ToriMem_Net(), data[1]);
 
     PlatformXIOOnDemand_Free(od);
     fake_server_stop(&server, thread);

@@ -1,4 +1,5 @@
 #include "preview_state.h"
+#include "mem/torirs_mem.h"
 
 #include "game/rs_player_stats.h"
 #include "varc/varc_manager.h"
@@ -79,12 +80,7 @@ preview_state_decode(
     }
     if( count > 0 )
     {
-        records = calloc(count, sizeof(*records));
-        if( !records )
-        {
-            preview_state_error(error, error_capacity, "preview-state record allocation failed");
-            return 0;
-        }
+        records = ToriMem_Calloc(ToriMem_Session(), count, sizeof(*records));
     }
 
     for( uint32_t i = 0; i < count; i++ )
@@ -97,14 +93,14 @@ preview_state_decode(
         if( size - offset < 12 )
         {
             preview_state_error(error, error_capacity, "preview-state record header is truncated");
-            free(records);
+            ToriMem_Free(ToriMem_Session(), records);
             return 0;
         }
         kind = bytes[offset];
         if( bytes[offset + 1] || bytes[offset + 2] || bytes[offset + 3] )
         {
             preview_state_error(error, error_capacity, "preview-state reserved bytes are non-zero");
-            free(records);
+            ToriMem_Free(ToriMem_Session(), records);
             return 0;
         }
         id = preview_state_i32(bytes + offset + 4);
@@ -114,33 +110,33 @@ preview_state_decode(
         if( kind < TORIRS_PREVIEW_STATE_VARP || kind > TORIRS_PREVIEW_STATE_STAT )
         {
             preview_state_error(error, error_capacity, "preview-state record kind is invalid");
-            free(records);
+            ToriMem_Free(ToriMem_Session(), records);
             return 0;
         }
         if( id < 0 || id > TORIRS_PREVIEW_STATE_MAX_ID )
         {
             preview_state_error(error, error_capacity, "preview-state id is out of range");
-            free(records);
+            ToriMem_Free(ToriMem_Session(), records);
             return 0;
         }
         if( kind < previous_kind || (kind == previous_kind && id <= previous_id) )
         {
             preview_state_error(
                 error, error_capacity, "preview-state records are duplicated or not canonical");
-            free(records);
+            ToriMem_Free(ToriMem_Session(), records);
             return 0;
         }
         if( kind == TORIRS_PREVIEW_STATE_VARBIT &&
             VarPManager_VarbitBaseVar(varps, id) < 0 )
         {
             preview_state_error(error, error_capacity, "preview-state varbit id does not exist");
-            free(records);
+            ToriMem_Free(ToriMem_Session(), records);
             return 0;
         }
         if( kind == TORIRS_PREVIEW_STATE_STAT && id >= RS_PLAYER_STATS_SKILL_COUNT )
         {
             preview_state_error(error, error_capacity, "preview-state stat id does not exist");
-            free(records);
+            ToriMem_Free(ToriMem_Session(), records);
             return 0;
         }
         if( kind == TORIRS_PREVIEW_STATE_VARC_STRING )
@@ -148,27 +144,27 @@ preview_state_decode(
             if( payload_size > TORIRS_PREVIEW_STATE_MAX_STRING )
             {
                 preview_state_error(error, error_capacity, "preview-state string is too long");
-                free(records);
+                ToriMem_Free(ToriMem_Session(), records);
                 return 0;
             }
         }
         else if( payload_size != 4 )
         {
             preview_state_error(error, error_capacity, "preview-state integer payload is not 4 bytes");
-            free(records);
+            ToriMem_Free(ToriMem_Session(), records);
             return 0;
         }
         if( payload_size > size - offset )
         {
             preview_state_error(error, error_capacity, "preview-state payload is truncated");
-            free(records);
+            ToriMem_Free(ToriMem_Session(), records);
             return 0;
         }
         if( kind == TORIRS_PREVIEW_STATE_VARC_STRING &&
             memchr(bytes + offset, '\0', payload_size) )
         {
             preview_state_error(error, error_capacity, "preview-state string contains NUL");
-            free(records);
+            ToriMem_Free(ToriMem_Session(), records);
             return 0;
         }
 
@@ -183,7 +179,7 @@ preview_state_decode(
     if( offset != size )
     {
         preview_state_error(error, error_capacity, "preview-state packet has trailing bytes");
-        free(records);
+        ToriMem_Free(ToriMem_Session(), records);
         return 0;
     }
 
@@ -242,18 +238,14 @@ ToriRSPreviewState_ApplyBuffer(
             break;
         case TORIRS_PREVIEW_STATE_VARC_STRING:
         {
-            char* value_string = malloc((size_t)record->payload_size + 1);
-            if( !value_string )
-            {
-                /* All structural validation happened before mutation. This is
-                 * the only fallible apply operation, so make allocation failure
-                 * fatal rather than report a misleading partial success. */
-                abort();
-            }
+            /* All structural validation happened before mutation, and the
+             * allocation cannot fail (an out-of-memory aborts inside it), so
+             * the apply never reports a misleading partial success. */
+            char* value_string = ToriMem_Alloc(ToriMem_Session(), (size_t)record->payload_size + 1);
             memcpy(value_string, record->payload, record->payload_size);
             value_string[record->payload_size] = '\0';
             VarCManager_SetString(varcs, record->id, value_string);
-            free(value_string);
+            ToriMem_Free(ToriMem_Session(), value_string);
             break;
         }
         case TORIRS_PREVIEW_STATE_STAT:
@@ -267,7 +259,7 @@ ToriRSPreviewState_ApplyBuffer(
             abort();
         }
     }
-    free(records);
+    ToriMem_Free(ToriMem_Session(), records);
     RS_PlayerStats_RecomputeCombatLevel(stats);
     if( applied_count )
         *applied_count = (int)count;
@@ -310,17 +302,11 @@ ToriRSPreviewState_ApplyFile(
         preview_state_error(error, error_capacity, "preview-state file size is invalid");
         return 0;
     }
-    bytes = malloc(file_size > 0 ? (size_t)file_size : 1);
-    if( !bytes )
-    {
-        fclose(file);
-        preview_state_error(error, error_capacity, "preview-state file allocation failed");
-        return 0;
-    }
+    bytes = ToriMem_Alloc(ToriMem_Session(), file_size > 0 ? (size_t)file_size : 1);
     read_size = fread(bytes, 1, (size_t)file_size, file);
     if( fclose(file) != 0 || read_size != (size_t)file_size )
     {
-        free(bytes);
+        ToriMem_Free(ToriMem_Session(), bytes);
         preview_state_error(error, error_capacity, "cannot read preview-state packet");
         return 0;
     }
@@ -334,6 +320,6 @@ ToriRSPreviewState_ApplyFile(
         applied_stat_mask,
         error,
         error_capacity);
-    free(bytes);
+    ToriMem_Free(ToriMem_Session(), bytes);
     return result;
 }

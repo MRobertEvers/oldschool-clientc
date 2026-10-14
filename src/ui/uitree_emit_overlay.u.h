@@ -1,4 +1,5 @@
 #include <limits.h>
+#include "mem/torirs_mem.h"
 
 /* Included after the ordinary emitter. This shortcut changes no layout or draw
  * rules: it accounts a narrow mutation window and reuses emit_walk_node for the
@@ -192,8 +193,7 @@ UITree_EmitOverlayMotionRefresh(struct UITree const* tree, struct UITreeHost con
     int needed = out->count - old + scratch.count;
     if( needed > out->cap )
     {
-        struct UITreeEmitDesc* grown = realloc(out->cmds, (size_t)needed * sizeof(*grown));
-        if( !grown ) return false;
+        struct UITreeEmitDesc* grown = ToriMem_Realloc(ToriMem_Ui(), out->cmds, (size_t)needed * sizeof(*grown));
         out->cmds = grown; out->cap = needed;
     }
     if( scratch.count != old )

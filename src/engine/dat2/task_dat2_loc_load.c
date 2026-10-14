@@ -1,4 +1,5 @@
 #include "engine/dat2/dat2_tasks.h"
+#include "mem/torirs_mem.h"
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
 #include "engine/dat2/dat2_group_await.h"
@@ -156,7 +157,7 @@ Task_Dat2LocLoad_Run(
 static void
 Task_Dat2LocLoad_Free(struct ToriRS_Task* task_base)
 {
-    free(task_base);
+    ToriMem_Free(ToriMem_Assets(), task_base);
 }
 
 static struct ToriRS_TaskVTable Task_Dat2LocLoad_VTable = {
@@ -178,7 +179,7 @@ CreateTask_Dat2LocLoad(
     if( CacheProvider_LocationHas(provider, loc_id) )
         return NULL;
 
-    task = calloc(1, sizeof(*task));
+    task = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_Dat2LocLoad_VTable;
     strcpy(task->task.name, "Dat2LocLoad");

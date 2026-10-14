@@ -1,4 +1,5 @@
 #include "platform_x_io_js5_cache.h"
+#include "mem/torirs_mem.h"
 #include <assert.h>
 
 #include "js5/js5_rscache.h"
@@ -33,8 +34,8 @@ js5_cache_record_group_failure(
     if( cache->failed_group_count == cache->failed_group_capacity )
     {
         size_t capacity = cache->failed_group_capacity ? cache->failed_group_capacity * 2u : 16u;
-        uint32_t* groups = realloc(cache->failed_groups, capacity * sizeof(*groups));
-        assert(groups);
+        uint32_t* groups =
+            ToriMem_Realloc(ToriMem_Net(), cache->failed_groups, capacity * sizeof(*groups));
         cache->failed_groups = groups;
         cache->failed_group_capacity = capacity;
     }
@@ -55,11 +56,10 @@ PlatformXIOJs5Cache_New(
     if( sockstream_init() != 0 )
         return NULL;
 
-    cache = calloc(1u, sizeof(*cache));
-    assert(cache);
+    cache = ToriMem_Calloc(ToriMem_Net(), 1u, sizeof(*cache));
     if( !Js5RscacheStorageInit(&cache->storage, disk, disk->directory) )
     {
-        free(cache);
+        ToriMem_Free(ToriMem_Net(), cache);
         return NULL;
     }
     storage = Js5RscacheStorageOperations();
@@ -82,7 +82,7 @@ PlatformXIOJs5Cache_New(
     if( !cache->client )
     {
         Js5RscacheStorageClear(&cache->storage);
-        free(cache);
+        ToriMem_Free(ToriMem_Net(), cache);
         return NULL;
     }
     return cache;
@@ -96,8 +96,8 @@ PlatformXIOJs5Cache_Free(struct PlatformXIOJs5Cache* cache)
     Js5ClientFree(cache->client);
     Js5RscacheStorageClear(&cache->storage);
     /* Do not call sockstream_cleanup(): the game socket shares this process. */
-    free(cache->failed_groups);
-    free(cache);
+    ToriMem_Free(ToriMem_Net(), cache->failed_groups);
+    ToriMem_Free(ToriMem_Net(), cache);
 }
 
 int

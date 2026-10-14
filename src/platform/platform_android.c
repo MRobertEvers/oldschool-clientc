@@ -37,6 +37,7 @@
 #include "platform/client_scale.h"
 #include "platform/platform_window.h"
 #include "platform/platform_android.h"
+#include "mem/torirs_mem.h"
 
 #include "cmd/cmdbus.h"
 #include "input/torirs_input.h"
@@ -766,9 +767,8 @@ present_blit(struct PlatformWindow* p, uint32_t* dst, int stride, int win_w, int
 struct PlatformWindow*
 PlatformWindow_New(void)
 {
-    struct PlatformWindow* p = (struct PlatformWindow*)malloc(sizeof(*p));
-    assert(p);
-    memset(p, 0, sizeof(*p));
+    struct PlatformWindow* p =
+        (struct PlatformWindow*)ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*p));
     p->client_scale.fit = CLIENT_SCALE_FIT_KEEP_ASPECT;
     p->client_scale.max_pixel_height = 0;
     p->client_scale.output_filter = CLIENT_SCALE_FILTER_NEAREST;
@@ -790,9 +790,8 @@ android_make_canvas(struct PlatformWindow* p, int width, int height)
     assert(width > 0);
     assert(height > 0);
 
-    pixels = (int*)calloc((size_t)width * (size_t)height, sizeof(int));
-    assert(pixels);
-    free(p->pixels);
+    pixels = (int*)ToriMem_Calloc(ToriMem_Process(), (size_t)width * (size_t)height, sizeof(int));
+    ToriMem_Free(ToriMem_Process(), p->pixels);
     p->pixels = pixels;
     p->width = width;
     p->height = height;
@@ -883,8 +882,8 @@ PlatformWindow_Free(struct PlatformWindow* p)
 {
     if( !p )
         return;
-    free(p->pixels);
-    free(p);
+    ToriMem_Free(ToriMem_Process(), p->pixels);
+    ToriMem_Free(ToriMem_Process(), p);
 }
 
 int*

@@ -1,4 +1,5 @@
 #include "asyncio.h"
+#include "mem/torirs_mem.h"
 #include "cache/rscache_io.h"
 #include "engine/cache_provider.h"
 #include "engine/cs2vm2_script_from_rscache.h"
@@ -40,15 +41,15 @@ Task_Dat2ClientScriptLoad_Run(
         PT_EXIT(&task->pt);
     }
 
-    vm_script = calloc(1, sizeof(*vm_script));
-    assert(vm_script);
+    /* SCRIPT: a CS2VM2_Script and its arrays, wherever it is cached. */
+    vm_script = ToriMem_Calloc(ToriMem_Script(), 1, sizeof(*vm_script));
     if( !CS2VM2_ScriptCopyFromRSCache(
             &rscache_script->script,
             vm_script,
             CS2_OpcodeDialectForCache(CacheProvider_Profile(&task->bc->base)) ) )
     {
         TORIRS_ERR("Failed to convert dat2 clientscript %d\n", task->script_id);
-        free(vm_script);
+        ToriMem_Free(ToriMem_Script(), vm_script);
         RSCache_ClientScriptFree(rscache_script);
         PT_EXIT(&task->pt);
     }
@@ -75,7 +76,7 @@ Task_Dat2ClientScriptLoad_Run(
 static void
 Task_Dat2ClientScriptLoad_Free(struct ToriRS_Task* task_base)
 {
-    free(task_base);
+    ToriMem_Free(ToriMem_Assets(), task_base);
 }
 
 static struct ToriRS_TaskVTable Task_Dat2ClientScriptLoad_VTable = {
@@ -97,7 +98,7 @@ CreateTask_Dat2ClientScriptLoad(
     if( CacheProvider_ClientScriptHas(provider, script_id) )
         return NULL;
 
-    task = calloc(1, sizeof(*task));
+    task = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_Dat2ClientScriptLoad_VTable;
     strcpy(task->task.name, "Dat2ClientScriptLoad");

@@ -142,7 +142,7 @@ painters_cullmap_build(
 
     size_t raw_count =
         (size_t)pitch_raw_levels * (size_t)yaw_levels * (size_t)padded_side * (size_t)padded_side;
-    uint8_t* raw = (uint8_t*)malloc(raw_count);
+    uint8_t* raw = (uint8_t*)ToriMem_Alloc(ToriMem_Scene(), raw_count);
     assert(raw);
     memset(raw, 0, raw_count);
 
@@ -251,7 +251,7 @@ painters_cullmap_build(
 
     size_t nbits = pcull_bit_count(pitch_out_levels, yaw_levels, grid_side);
     size_t nbytes = (nbits + 7u) / 8u;
-    uint8_t* visibility = (uint8_t*)malloc(nbytes);
+    uint8_t* visibility = (uint8_t*)ToriMem_Alloc(ToriMem_Scene(), nbytes);
     assert(visibility);
     memset(visibility, 0, nbytes);
 
@@ -304,9 +304,10 @@ painters_cullmap_build(
         }
     }
 
-    free(raw);
+    ToriMem_Free(ToriMem_Scene(), raw);
 
-    struct PaintersCullMap* cm = (struct PaintersCullMap*)malloc(sizeof(struct PaintersCullMap));
+    struct PaintersCullMap* cm =
+        (struct PaintersCullMap*)ToriMem_Alloc(ToriMem_Scene(), sizeof(struct PaintersCullMap));
     assert(cm);
     cm->visibility = visibility;
     cm->radius = radius;
@@ -320,7 +321,8 @@ painters_cullmap_build(
 struct PaintersCullMap*
 painters_cullmap_new_nocull(void)
 {
-    struct PaintersCullMap* cm = (struct PaintersCullMap*)malloc(sizeof(struct PaintersCullMap));
+    struct PaintersCullMap* cm =
+        (struct PaintersCullMap*)ToriMem_Alloc(ToriMem_Scene(), sizeof(struct PaintersCullMap));
     assert(cm);
     cm->visibility = NULL;
     cm->radius = 0;
@@ -336,8 +338,8 @@ painters_cullmap_free(struct PaintersCullMap* cm)
 {
     if( !cm )
         return;
-    free(cm->visibility);
-    free(cm);
+    ToriMem_Free(ToriMem_Scene(), cm->visibility);
+    ToriMem_Free(ToriMem_Scene(), cm);
 }
 
 static int
@@ -383,11 +385,12 @@ painters_cullmap_from_blob(
         nbytes != want )
         return NULL;
 
-    uint8_t* vis = (uint8_t*)malloc(nbytes);
+    uint8_t* vis = (uint8_t*)ToriMem_Alloc(ToriMem_Scene(), nbytes);
     assert(vis);
     memcpy(vis, data, nbytes);
 
-    struct PaintersCullMap* cm = (struct PaintersCullMap*)malloc(sizeof(struct PaintersCullMap));
+    struct PaintersCullMap* cm =
+        (struct PaintersCullMap*)ToriMem_Alloc(ToriMem_Scene(), sizeof(struct PaintersCullMap));
     assert(cm);
     cm->visibility = vis;
     cm->radius = radius;

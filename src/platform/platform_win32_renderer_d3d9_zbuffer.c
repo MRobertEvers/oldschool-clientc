@@ -23,6 +23,7 @@
  * The two are peers and neither calls the other.
  */
 
+#include "mem/torirs_mem.h"
 #include "platform/platform_win32_renderer_d3d9_core.h"
 #include "toridraw_element_id.h"
 #include <assert.h>
@@ -238,7 +239,7 @@ static void
 d3d9_material_pose_clear(struct D3D9MaterialPose* pose)
 {
     assert(pose);
-    free(pose->face_passes);
+    ToriMem_Free(ToriMem_Render(), pose->face_passes);
     memset(pose, 0, sizeof(*pose));
 }
 
@@ -254,11 +255,10 @@ d3d9_material_pose_set(
     face_count = trspk_toridraw_face_count(handle);
     if( face_count <= 0 )
         return false;
-    passes = pose->face_count == (uint32_t)face_count
-        ? pose->face_passes
-        : (uint8_t*)realloc(pose->face_passes, (size_t)face_count);
-    if( !passes )
-        return false;
+    passes =
+        pose->face_count == (uint32_t)face_count
+            ? pose->face_passes
+            : (uint8_t*)ToriMem_Realloc(ToriMem_Render(), pose->face_passes, (size_t)face_count);
     pose->face_passes = passes;
     pose->face_count = (uint32_t)face_count;
     pose->opaque_count = 0u;
@@ -300,11 +300,8 @@ d3d9_material_table_set(
         struct D3D9MaterialElement* grown;
         while( capacity < needed )
             capacity *= 2u;
-        grown = (struct D3D9MaterialElement*)realloc(
-            table->elements,
-            (size_t)capacity * sizeof(*grown));
-        if( !grown )
-            return false;
+        grown = (struct D3D9MaterialElement*)ToriMem_Realloc(
+            ToriMem_Render(), table->elements, (size_t)capacity * sizeof(*grown));
         memset(
             grown + table->element_capacity,
             0,
@@ -322,11 +319,8 @@ d3d9_material_table_set(
         struct D3D9MaterialPose* grown;
         while( capacity < needed )
             capacity *= 2u;
-        grown = (struct D3D9MaterialPose*)realloc(
-            track->poses,
-            (size_t)capacity * sizeof(*grown));
-        if( !grown )
-            return false;
+        grown = (struct D3D9MaterialPose*)ToriMem_Realloc(
+            ToriMem_Render(), track->poses, (size_t)capacity * sizeof(*grown));
         memset(
             grown + track->pose_capacity,
             0,
@@ -402,8 +396,8 @@ d3d9_material_table_free(struct D3D9MaterialTable* table)
     d3d9_material_table_clear(table);
     for( uint32_t element = 0u; element < table->element_capacity; element++ )
         for( int track = 0; track < TRSPK_POSE_TRACK_COUNT; track++ )
-            free(table->elements[element].tracks[track].poses);
-    free(table->elements);
+            ToriMem_Free(ToriMem_Render(), table->elements[element].tracks[track].poses);
+    ToriMem_Free(ToriMem_Render(), table->elements);
     memset(table, 0, sizeof(*table));
 }
 
@@ -437,11 +431,8 @@ d3d9_queue_alpha_submission(
             }
             capacity *= 2u;
         }
-        grown = (uint16_t*)realloc(
-            world->alpha_indices,
-            (size_t)capacity * sizeof(*grown));
-        if( !grown )
-            return false;
+        grown = (uint16_t*)ToriMem_Realloc(
+            ToriMem_Render(), world->alpha_indices, (size_t)capacity * sizeof(*grown));
         world->alpha_indices = grown;
         world->alpha_index_capacity = capacity;
     }
@@ -450,12 +441,8 @@ d3d9_queue_alpha_submission(
         uint32_t capacity = world->alpha_submission_capacity
             ? world->alpha_submission_capacity * 2u
             : 128u;
-        struct D3D9AlphaSubmission* grown =
-            (struct D3D9AlphaSubmission*)realloc(
-                world->alpha_submissions,
-                (size_t)capacity * sizeof(*grown));
-        if( !grown )
-            return false;
+        struct D3D9AlphaSubmission* grown = (struct D3D9AlphaSubmission*)ToriMem_Realloc(
+            ToriMem_Render(), world->alpha_submissions, (size_t)capacity * sizeof(*grown));
         world->alpha_submissions = grown;
         world->alpha_submission_capacity = capacity;
     }
@@ -503,9 +490,8 @@ d3d9_queue_opaque_indices(
             uint32_t capacity = world->opaque_bucket_capacity
                 ? world->opaque_bucket_capacity * 2u
                 : 64u;
-            struct D3D9OpaqueBucket* grown = (struct D3D9OpaqueBucket*)realloc(
-                world->opaque_buckets,
-                (size_t)capacity * sizeof(*grown));
+            struct D3D9OpaqueBucket* grown = (struct D3D9OpaqueBucket*)ToriMem_Realloc(
+                ToriMem_Render(), world->opaque_buckets, (size_t)capacity * sizeof(*grown));
             assert(grown);
             memset(
                 grown + world->opaque_bucket_capacity,
@@ -527,8 +513,8 @@ d3d9_queue_opaque_indices(
         uint16_t* grown;
         while( capacity < bucket->index_count + index_count )
             capacity *= 2u;
-        grown = (uint16_t*)realloc(
-            bucket->indices, (size_t)capacity * sizeof(*grown));
+        grown = (uint16_t*)ToriMem_Realloc(
+            ToriMem_Render(), bucket->indices, (size_t)capacity * sizeof(*grown));
         assert(grown);
         bucket->indices = grown;
         bucket->index_capacity = capacity;
@@ -542,8 +528,8 @@ d3d9_queue_opaque_indices(
         uint32_t capacity = bucket->segment_capacity
             ? bucket->segment_capacity * 2u
             : 64u;
-        struct D3D9OpaqueSegment* grown = (struct D3D9OpaqueSegment*)realloc(
-            bucket->segments, (size_t)capacity * sizeof(*grown));
+        struct D3D9OpaqueSegment* grown = (struct D3D9OpaqueSegment*)ToriMem_Realloc(
+            ToriMem_Render(), bucket->segments, (size_t)capacity * sizeof(*grown));
         assert(grown);
         bucket->segments = grown;
         bucket->segment_capacity = capacity;
@@ -636,14 +622,12 @@ d3d9_build_alpha_chain(struct D3D9ZBufferWorld* world)
 bool
 d3d9_zbuffer_create(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
-    struct D3D9ZBufferWorld* world =
-        (struct D3D9ZBufferWorld*)calloc(1u, sizeof(struct D3D9ZBufferWorld));
-    if( !world )
-        return false;
+    struct D3D9ZBufferWorld* world = (struct D3D9ZBufferWorld*)ToriMem_Calloc(
+        ToriMem_Render(), 1u, sizeof(struct D3D9ZBufferWorld));
     world->alpha_ibo_chain = trspk_ibochain_create(TRSPK_INDEX_FORMAT_U16);
     if( !world->alpha_ibo_chain )
     {
-        free(world);
+        ToriMem_Free(ToriMem_Render(), world);
         return false;
     }
     renderer->zbuffer = world;
@@ -661,16 +645,16 @@ d3d9_zbuffer_destroy(struct ToriPlatformWin32_Renderer_D3D9* renderer)
     d3d9_material_table_free(&world->materials);
     d3d9_material_table_free(&world->batch_materials);
     d3d9_material_pose_clear(&world->dynamic_material);
-    free(world->alpha_indices);
-    free(world->alpha_submissions);
+    ToriMem_Free(ToriMem_Render(), world->alpha_indices);
+    ToriMem_Free(ToriMem_Render(), world->alpha_submissions);
     for( uint32_t i = 0u; i < world->opaque_bucket_capacity; i++ )
     {
-        free(world->opaque_buckets[i].indices);
-        free(world->opaque_buckets[i].segments);
+        ToriMem_Free(ToriMem_Render(), world->opaque_buckets[i].indices);
+        ToriMem_Free(ToriMem_Render(), world->opaque_buckets[i].segments);
     }
-    free(world->opaque_buckets);
-    free(world->cluster_scratch);
-    free(world);
+    ToriMem_Free(ToriMem_Render(), world->opaque_buckets);
+    ToriMem_Free(ToriMem_Render(), world->cluster_scratch);
+    ToriMem_Free(ToriMem_Render(), world);
     renderer->zbuffer = NULL;
 }
 
@@ -804,8 +788,8 @@ d3d9_push_opaque_segment(
         uint16_t* grown;
         while( capacity < segment->index_count )
             capacity *= 2u;
-        grown = (uint16_t*)realloc(
-            world->cluster_scratch, (size_t)capacity * sizeof(*grown));
+        grown = (uint16_t*)ToriMem_Realloc(
+            ToriMem_Render(), world->cluster_scratch, (size_t)capacity * sizeof(*grown));
         assert(grown);
         world->cluster_scratch = grown;
         world->cluster_scratch_capacity = capacity;

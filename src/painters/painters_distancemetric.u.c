@@ -46,7 +46,8 @@ struct DistMetricCtx
 static int
 distmetric_ctx_init(struct Painter* painter)
 {
-    struct DistMetricCtx* d = (struct DistMetricCtx*)calloc(1, sizeof(struct DistMetricCtx));
+    struct DistMetricCtx* d =
+        (struct DistMetricCtx*)ToriMem_Calloc(ToriMem_Scene(), 1, sizeof(struct DistMetricCtx));
     assert(d);
     for( int i = 0; i < PAINTER_DIST_QUEUE_BUCKETS; i++ )
         int_queue_init(&d->distance_queues[i], 1024);
@@ -63,7 +64,7 @@ distmetric_ctx_free(struct Painter* painter)
         return;
     for( int i = 0; i < PAINTER_DIST_QUEUE_BUCKETS; i++ )
         int_queue_free(&d->distance_queues[i]);
-    free(d);
+    ToriMem_Free(ToriMem_Scene(), d);
     painter->distmetric_ctx = NULL;
 }
 

@@ -93,6 +93,7 @@
  */
 
 #include "torirs_server.h"
+#include "mem/torirs_mem.h"
 #include "torirs_server_boot.h"
 #include "torirs_server_save.h"
 #include "net/rev/pktnames.h"
@@ -390,7 +391,7 @@ botrun_command(
             if( run->said_len + (size_t)len > run->said_capacity )
             {
                 run->said_capacity = (run->said_capacity + (size_t)len) * 2;
-                run->said = realloc(run->said, run->said_capacity);
+                run->said = ToriMem_Realloc(ToriMem_ServerPlayers(), run->said, run->said_capacity);
                 assert(run->said);
             }
             memcpy(run->said + run->said_len, text, (size_t)len);
@@ -433,7 +434,8 @@ botrun_side_row(
     if( run->side_count == run->side_capacity )
     {
         run->side_capacity = run->side_capacity ? run->side_capacity * 2 : 64;
-        run->side = realloc(run->side, (size_t)run->side_capacity * sizeof(*run->side));
+        run->side = ToriMem_Realloc(
+            ToriMem_ServerPlayers(), run->side, (size_t)run->side_capacity * sizeof(*run->side));
         assert(run->side);
     }
     run->side[run->side_count++] = *row;
@@ -459,7 +461,7 @@ botrun_message(
     if( run->msgs_len + (size_t)n > run->msgs_capacity )
     {
         run->msgs_capacity = (run->msgs_capacity + (size_t)n) * 2;
-        run->msgs = realloc(run->msgs, run->msgs_capacity);
+        run->msgs = ToriMem_Realloc(ToriMem_ServerPlayers(), run->msgs, run->msgs_capacity);
         assert(run->msgs);
     }
     memcpy(run->msgs + run->msgs_len, line, (size_t)n);
@@ -795,7 +797,8 @@ ToriRSServer_BotRun(
     run.srv = srv;
     run.count = bots;
     run.allowed_pid = -1;
-    run.known = calloc((size_t)BOTRUN_MAX * TORIRSSERVER_NPC_MAX, sizeof(*run.known));
+    run.known = ToriMem_Calloc(
+        ToriMem_ServerPlayers(), (size_t)BOTRUN_MAX * TORIRSSERVER_NPC_MAX, sizeof(*run.known));
     assert(run.known);
     setenv("TORIRSSERVER_RUN_NAME", name, 1);
     ToriRSServer_WorldInit(srv, ToriRSServer_BootZone(config->home_x),
@@ -864,7 +867,8 @@ ToriRSServer_BotRun(
             if( row_count == row_capacity )
             {
                 row_capacity = row_capacity ? row_capacity * 2 : BOTRUN_ROWS;
-                rows = realloc(rows, (size_t)row_capacity * sizeof(*rows));
+                rows = ToriMem_Realloc(
+                    ToriMem_ServerPlayers(), rows, (size_t)row_capacity * sizeof(*rows));
                 assert(rows);
             }
             got = ToriRSServer_TicklogRead(run.cursor, rows + row_count, row_capacity - row_count);
@@ -970,19 +974,19 @@ ToriRSServer_BotRun(
             waitpid(run.agent_pid[k], NULL, 0);
         }
     }
-    free(rows);
-    free(run.known);
-    free(run.said);
-    free(run.heard);
+    ToriMem_Free(ToriMem_ServerPlayers(), rows);
+    ToriMem_Free(ToriMem_ServerPlayers(), run.known);
+    ToriMem_Free(ToriMem_ServerPlayers(), run.said);
+    ToriMem_Free(ToriMem_ServerPlayers(), run.heard);
     if( run.record )
         fclose(run.record);
     fprintf(stderr, "botrun: %d ticks, %d commands, %d refused, ended at tick %d\n",
             (int)srv->tick, run.commands, run.refused, (int)srv->tick);
     ToriRSServer_TicklogSideSink(NULL, NULL);
     ToriRSServer_MessageSink(NULL, NULL);
-    free(run.msgs);
+    ToriMem_Free(ToriMem_ServerPlayers(), run.msgs);
     ToriRSServer_TicklogDisable();
-    free(run.side);
+    ToriMem_Free(ToriMem_ServerPlayers(), run.side);
     return status;
 }
 
@@ -1015,13 +1019,16 @@ ToriRSServer_BotDriveStart(
 
     assert(srv);
     assert(agent);
-    drive = calloc(1, sizeof(*drive));
+    drive = ToriMem_Calloc(ToriMem_ServerPlayers(), 1, sizeof(*drive));
     assert(drive);
     drive->run.srv = srv;
     drive->run.shared = 1;
     drive->run.agents = 1;
     drive->run.allowed_pid = -1;
-    drive->run.known = calloc((size_t)BOTRUN_MAX * TORIRSSERVER_NPC_MAX, sizeof(*drive->run.known));
+    drive->run.known = ToriMem_Calloc(
+        ToriMem_ServerPlayers(),
+        (size_t)BOTRUN_MAX * TORIRSSERVER_NPC_MAX,
+        sizeof(*drive->run.known));
     assert(drive->run.known);
     /* TORIRS_BOTDRIVE_TICKLOG: the rows to a file too, for the same tools a
      * bot-runner run is read with (tools/raid_agent/deaths.py, balls.py) */
@@ -1068,7 +1075,10 @@ ToriRSServer_BotDriveStep(struct ToriRSServerBotDrive* drive)
         if( row_count == drive->row_capacity )
         {
             drive->row_capacity = drive->row_capacity ? drive->row_capacity * 2 : BOTRUN_ROWS;
-            drive->rows = realloc(drive->rows, (size_t)drive->row_capacity * sizeof(*drive->rows));
+            drive->rows = ToriMem_Realloc(
+                ToriMem_ServerPlayers(),
+                drive->rows,
+                (size_t)drive->row_capacity * sizeof(*drive->rows));
             assert(drive->rows);
         }
         got = ToriRSServer_TicklogRead(run->cursor, drive->rows + row_count, drive->row_capacity - row_count);
@@ -1129,13 +1139,13 @@ ToriRSServer_BotDriveStop(struct ToriRSServerBotDrive* drive)
         waitpid(drive->run.agent_pid[0], NULL, 0);
     if( drive->run.record )
         fclose(drive->run.record);
-    free(drive->run.side);
-    free(drive->run.msgs);
-    free(drive->run.said);
-    free(drive->run.heard);
-    free(drive->run.known);
-    free(drive->rows);
-    free(drive);
+    ToriMem_Free(ToriMem_ServerPlayers(), drive->run.side);
+    ToriMem_Free(ToriMem_ServerPlayers(), drive->run.msgs);
+    ToriMem_Free(ToriMem_ServerPlayers(), drive->run.said);
+    ToriMem_Free(ToriMem_ServerPlayers(), drive->run.heard);
+    ToriMem_Free(ToriMem_ServerPlayers(), drive->run.known);
+    ToriMem_Free(ToriMem_ServerPlayers(), drive->rows);
+    ToriMem_Free(ToriMem_ServerPlayers(), drive);
 }
 
 #else /* no child processes on this host */

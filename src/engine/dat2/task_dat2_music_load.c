@@ -203,9 +203,15 @@ Task_Dat2MusicSampleLoad_Run(
     PT_END(&task->pt);
 }
 
+static void
+Task_Dat2MusicSampleLoad_Free(struct ToriRS_Task* task_base)
+{
+    ToriMem_Free(ToriMem_Assets(), task_base);
+}
+
 static struct ToriRS_TaskVTable Task_Dat2MusicSampleLoad_VTable = {
     .run = Task_Dat2MusicSampleLoad_Run,
-    .free = NULL,
+    .free = Task_Dat2MusicSampleLoad_Free,
 };
 
 static struct ToriRS_Task*
@@ -227,7 +233,7 @@ create_sample_load(
     if( id < 0 || ToriRS_SoundBank_FindSample(&player->bank, table, id) )
         return NULL;
 
-    task = calloc(1, sizeof(*task));
+    task = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_Dat2MusicSampleLoad_VTable;
     strcpy(task->task.name, "Dat2MusicSampleLoad");
@@ -317,7 +323,7 @@ Task_Dat2MusicPatchLoad_Free(struct ToriRS_Task* task_base)
     /* Only what we decoded ourselves and never handed over. */
     if( !task->borrowed )
         RSCache_MusicPatchFree(task->patch);
-    free(task);
+    ToriMem_Free(ToriMem_Assets(), task);
 }
 
 static struct ToriRS_TaskVTable Task_Dat2MusicPatchLoad_VTable = {
@@ -343,7 +349,7 @@ create_patch_load(
     assert(patch_index >= 0);
     assert(patch_index < song->patch_count);
 
-    task = calloc(1, sizeof(*task));
+    task = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_Dat2MusicPatchLoad_VTable;
     strcpy(task->task.name, "Dat2MusicPatchLoad");
@@ -486,10 +492,10 @@ Task_Dat2MusicLoad_Run(
      */
     {
         int const max_ids = task->song->patch_count * 128;
-        int* seen = malloc((size_t)(max_ids > 0 ? max_ids : 1) * sizeof(int));
+        int* seen = ToriMem_Alloc(
+            ToriRS_TaskMem(&task->task), (size_t)(max_ids > 0 ? max_ids : 1) * sizeof(int));
         int seen_count = 0;
 
-        assert(seen);
         for( int i = 0; i < task->song->patch_count && i < TORIRS_MUSIC_MAX_PATCHES; i++ )
         {
             struct ToriRS_SoundBankPatch* slot =
@@ -527,7 +533,7 @@ Task_Dat2MusicLoad_Run(
                     &task->pending);
             }
         }
-        free(seen);
+        ToriMem_Free(ToriRS_TaskMem(&task->task), seen);
     }
     while( task->pending > 0 )
     {
@@ -595,7 +601,7 @@ Task_Dat2MusicLoad_Free(struct ToriRS_Task* task_base)
      * own nothing of ours: each one freed whatever it held when the queue
      * reaped it. */
     RSCache_MusicSongFree(task->song);
-    free(task);
+    ToriMem_Free(ToriMem_Assets(), task);
 }
 
 static struct ToriRS_TaskVTable Task_Dat2MusicLoad_VTable = {
@@ -617,7 +623,7 @@ CreateTask_Dat2MusicLoad(
     if( song_id < 0 )
         return NULL;
 
-    task = calloc(1, sizeof(*task));
+    task = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_Dat2MusicLoad_VTable;
     strcpy(task->task.name, "Dat2MusicLoad");

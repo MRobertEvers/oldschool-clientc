@@ -1,4 +1,5 @@
 #include "cs2vm2_strpool.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -19,8 +20,7 @@ strpool_block_new(
     struct CS2VM2_StrPool* pool,
     size_t capacity)
 {
-    struct CS2VM2_StrPoolBlock* block = malloc(sizeof(*block) + capacity);
-    assert(block);
+    struct CS2VM2_StrPoolBlock* block = ToriMem_Alloc(ToriMem_Script(), sizeof(*block) + capacity);
 
     block->next = NULL;
     block->capacity = capacity;
@@ -76,7 +76,7 @@ CS2VM2_StrPool_Reset(struct CS2VM2_StrPool* pool)
         }
         else
         {
-            free(block);
+            ToriMem_Free(ToriMem_Script(), block);
         }
         block = next;
     }
@@ -98,7 +98,7 @@ CS2VM2_StrPool_Free(struct CS2VM2_StrPool* pool)
     while( block )
     {
         struct CS2VM2_StrPoolBlock* next = block->next;
-        free(block);
+        ToriMem_Free(ToriMem_Script(), block);
         block = next;
     }
 

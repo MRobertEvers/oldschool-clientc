@@ -2,6 +2,7 @@
 #include <assert.h>
 
 #include "ss_opcode.h"
+#include "mem/torirs_mem.h"
 
 #include <rsareabuf.h>
 
@@ -98,8 +99,7 @@ read_cstr(struct RSAreaBuf* buf)
     }
 
     length = end - start;
-    out = (char*)malloc(length + 1);
-    assert(out);
+    out = (char*)ToriMem_Alloc(ToriMem_ServerScripts(), length + 1);
     memcpy(out, buf->data + start, length);
     out[length] = '\0';
 
@@ -107,7 +107,8 @@ read_cstr(struct RSAreaBuf* buf)
     return out;
 }
 
-/* calloc that latches a flag instead of returning NULL into the caller's face.
+/* Zeroed allocation in server:scripts (SSVM_ScriptFree releases it) that
+ * latches a flag instead of returning NULL into the caller's face.
  * Every allocation here is sized from a count the decoder has already
  * range-checked, so a failure is genuinely out-of-memory. */
 static void*
@@ -117,8 +118,7 @@ alloc_zeroed(size_t count, size_t size, int* failed)
 
     if( count == 0 )
         return NULL;
-    p = calloc(count, size);
-    assert(p);
+    p = ToriMem_Calloc(ToriMem_ServerScripts(), count, size);
     /* Kept in the signature so the callers need no change; an allocation
      * failure now aborts rather than being reported through it. */
     (void)failed;
@@ -493,37 +493,46 @@ SSVM_ScriptEncode(
 /* ------------------------------------------------------------------ */
 
 void
-SSVM_ScriptFree(struct SSVM_Script* script)
+SSVM_ScriptFreeIn(
+    struct ToriMem_Group* group,
+    struct SSVM_Script* script)
 {
     int i;
 
+    assert(group);
     if( !script )
         return;
 
-    free(script->name);
-    free(script->source_path);
+    ToriMem_Free(group, script->name);
+    ToriMem_Free(group, script->source_path);
 
     if( script->string_operands )
     {
         for( i = 0; i < script->op_count; i++ )
-            free(script->string_operands[i]);
+            ToriMem_Free(group, script->string_operands[i]);
     }
-    free(script->string_operands);
-    free(script->opcodes);
-    free(script->int_operands);
+    ToriMem_Free(group, script->string_operands);
+    ToriMem_Free(group, script->opcodes);
+    ToriMem_Free(group, script->int_operands);
 
     if( script->switch_tables )
     {
         for( i = 0; i < script->switch_table_count; i++ )
-            free(script->switch_tables[i].cases);
+            ToriMem_Free(group, script->switch_tables[i].cases);
     }
-    free(script->switch_tables);
+    ToriMem_Free(group, script->switch_tables);
 
-    free(script->line_pcs);
-    free(script->line_numbers);
+    ToriMem_Free(group, script->line_pcs);
+    ToriMem_Free(group, script->line_numbers);
 
     memset(script, 0, sizeof(*script));
     script->lookup_key = -1;
+}
+
+void
+SSVM_ScriptFree(struct SSVM_Script* script)
+{
+    SSVM_ScriptFreeIn(ToriMem_ServerScripts(), script);
 }
 
 int32_t

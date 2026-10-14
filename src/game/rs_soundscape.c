@@ -1,3 +1,4 @@
+#include "mem/torirs_mem.h"
 #include "rs_soundscape.h"
 #include <assert.h>
 
@@ -16,7 +17,7 @@ RS_Soundscapes_Free(struct RS_Soundscapes* table)
 {
     if( !table )
         return;
-    free(table->entries);
+    ToriMem_Free(ToriMem_Assets(), table->entries);
     table->entries = NULL;
     table->count = 0;
 }
@@ -31,7 +32,7 @@ RS_Soundscapes_SetEntries(
         return false;
     assert(table);
     assert(entries);
-    free(table->entries);
+    ToriMem_Free(ToriMem_Assets(), table->entries);
     table->entries = entries;
     table->count = count;
     return true;

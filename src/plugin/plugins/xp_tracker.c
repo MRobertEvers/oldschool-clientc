@@ -1,6 +1,7 @@
 #include "plugin/plugins/plugin_draw.h"
 #include "plugin/porcelain/torirs_porcelain.h"
 #include "plugin/torirs_plugin_api.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <math.h>
@@ -1035,15 +1036,14 @@ xt_art_pixels(struct XtState* state, struct XtArt* art)
         return false;
 
     count = (size_t)art->w * (size_t)art->h;
-    art->px = malloc(count * sizeof(*art->px));
-    assert(art->px);
+    art->px = ToriMem_Alloc(ToriMem_Plugins(), count * sizeof(*art->px));
     if( !api->assets.image_pixels(api, ref, art->px, count, &written) ||
         written != count )
     {
         /* The handle answered a size and then refused its pixels. Terminal
          * for this run rather than a retry: the alternative is the per-draw
          * ask this whole function exists to remove. */
-        free(art->px);
+        ToriMem_Free(ToriMem_Plugins(), art->px);
         art->px = NULL;
         art->w = 0;
         art->h = 0;
@@ -2381,9 +2381,9 @@ xt_stop(struct ToriRS_Api* api, void* plugin_state)
      * goes back here; the pixel copies are this plugin's own. */
     Porcelain_Close(state->porcelain);
     state->porcelain = NULL;
-    free(state->art_font.px);
-    free(state->art_skills.px);
-    free(state->art_over.px);
+    ToriMem_Free(ToriMem_Plugins(), state->art_font.px);
+    ToriMem_Free(ToriMem_Plugins(), state->art_skills.px);
+    ToriMem_Free(ToriMem_Plugins(), state->art_over.px);
     api->assets.release(api, XT_STATE_ASSET);
     memset(state, 0, sizeof(*state));
 }

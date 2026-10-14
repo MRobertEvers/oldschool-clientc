@@ -1,4 +1,5 @@
 #include "lightmap.h"
+#include "mem/torirs_mem.h"
 
 #include "heightmap.h"
 
@@ -33,9 +34,10 @@ lightmap_new(
     int height,
     int levels)
 {
-    struct Lightmap* lightmap = malloc(sizeof(struct Lightmap));
+    struct Lightmap* lightmap = ToriMem_Alloc(ToriMem_Scene(), sizeof(struct Lightmap));
     assert(lightmap);
-    lightmap->lights = malloc((size_t)width * (size_t)height * (size_t)levels);
+    lightmap->lights =
+        ToriMem_Alloc(ToriMem_Scene(), (size_t)width * (size_t)height * (size_t)levels);
     assert(lightmap->lights);
     memset(lightmap->lights, 0, (size_t)width * (size_t)height * (size_t)levels);
     lightmap->width = width;
@@ -49,8 +51,8 @@ lightmap_free(struct Lightmap* lightmap)
 {
     if( !lightmap )
         return;
-    free(lightmap->lights);
-    free(lightmap);
+    ToriMem_Free(ToriMem_Scene(), lightmap->lights);
+    ToriMem_Free(ToriMem_Scene(), lightmap);
 }
 
 int

@@ -1,4 +1,5 @@
 #include "inv_manager.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -20,7 +21,7 @@ static void
 inv_container_free_slots(struct InvContainer* c)
 {
     assert(c);
-    free(c->slots);
+    ToriMem_Free(ToriMem_Session(), c->slots);
     c->slots = NULL;
     c->slot_count = 0;
 }
@@ -31,7 +32,7 @@ inv_container_alloc_slots(struct InvContainer* c, int slot_count)
     assert(c);
     assert(slot_count > 0);
 
-    struct InvSlot* slots = calloc((size_t)slot_count, sizeof(struct InvSlot));
+    struct InvSlot* slots = ToriMem_Calloc(ToriMem_Session(), (size_t)slot_count, sizeof(struct InvSlot));
     assert(slots);
 
     for( int i = 0; i < slot_count; i++ )
@@ -84,7 +85,7 @@ inv_container_ensure_slots(struct InvContainer* c, int slot_count)
     if( !c->slots )
         return inv_container_alloc_slots(c, slot_count);
 
-    slots = realloc(c->slots, (size_t)slot_count * sizeof(struct InvSlot));
+    slots = ToriMem_Realloc(ToriMem_Session(), c->slots, (size_t)slot_count * sizeof(struct InvSlot));
     assert(slots);
     for( int i = old_count; i < slot_count; i++ )
         inv_slot_clear(&slots[i]);

@@ -41,8 +41,7 @@ test_painters_smoke(void)
     painter_paint_bucket(painter, buffer, 16, 16, 0);
     TEST_ASSERT(buffer->command_count > 0, "painter_paint_bucket emitted commands");
 
-    free(buffer->commands);
-    free(buffer);
+    painter_buffer_free(buffer);
     painter_free(painter);
 }
 
@@ -112,8 +111,7 @@ test_painters_tile_order(void)
     TEST_ASSERT(i900 >= 0 && i103 >= 0, "dynamic and static both emitted");
     TEST_ASSERT(i103 < i900, "dynamic scenery draws after the tile's statics");
 
-    free(buffer->commands);
-    free(buffer);
+    painter_buffer_free(buffer);
     painter_free(painter);
 }
 

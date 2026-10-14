@@ -11,6 +11,7 @@
  * register at their own plane, like its locs and its borrowed actors; the
  * root keeps the reference rule (objStacks[minusedlevel] only).
  */
+#include "mem/torirs_mem.h"
 #include "world/world.h"
 #include "painters/painters.h"
 #include "toridraw_types.h"
@@ -39,7 +40,7 @@ int
 main(void)
 {
     char no_ops[5][32] = { { 0 } };
-    struct PaintersBuffer b = { .commands = calloc(256, sizeof(*b.commands)),
+    struct PaintersBuffer b = { .commands = ToriMem_Calloc(ToriMem_Render(), 256, sizeof(*b.commands)),
                                 .command_capacity = 256 };
     struct World* deck;
     struct World* root;
@@ -85,7 +86,7 @@ main(void)
         failures++;
     }
 
-    free(b.commands);
+    ToriMem_Free(ToriMem_Render(), b.commands); /* the painter grows it in RENDER */
     World_Free(root);
     World_Free(deck);
     if( failures )

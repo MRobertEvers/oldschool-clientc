@@ -405,6 +405,12 @@ ToriRSServer_VesselDisembarkPlayer(
 int
 ToriRSServer_VesselTakeBlocked(struct ToriRSServerVessel* vessel);
 
+/** Release the native vessel configs the first vessel lookup read from the
+ *  cache. The boot's teardown (ToriRSServer_BootFree); the next lookup reads
+ *  them again. */
+void
+ToriRSServer_VesselConfigsFree(void);
+
 /** Release the vessel and its deck instance. Returns 0 for a dead handle —
  *  the map-instance convention for handle-shaped deallocators. */
 int

@@ -10,6 +10,7 @@
  */
 
 #include "plugin/torirs_plugin_host.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <limits.h>
@@ -3670,7 +3671,7 @@ main(void)
                 PluginHost_ConfigEncode(hv2, &encoded, &encoded_size) && encoded &&
                     encoded_size > 0 && !strstr((char const*)encoded, "[plugin:v2-probe-b]"),
                 "rejected config text cannot create another plugin section when encoded");
-            free(encoded);
+            ToriMem_Free(ToriMem_Plugins(), encoded);
         }
         CHECK(
             g_v2_typed_calls == 3 && g_engine.objects_live == 3,
@@ -4119,17 +4120,17 @@ main(void)
             g_v2_seam.invalid == TORIRS_ASSET_INVALID,
             "invalid names are rejected before the host starts IO");
 
-        data = malloc(4);
+        data = ToriMem_Alloc(ToriMem_Net(), 4); /* an IO payload */
         memcpy(data, "DATA", 4);
         PluginHost_AssetDeliver(seam_host, "v2-seam-probe", "raw.bin", data, 4);
-        data = malloc(3);
+        data = ToriMem_Alloc(ToriMem_Net(), 3); /* an IO payload */
         memcpy(data, "IMG", 3);
         PluginHost_AssetDeliver(seam_host, "v2-seam-probe", "image.bin", data, 3);
-        data = malloc(5);
+        data = ToriMem_Alloc(ToriMem_Net(), 5); /* an IO payload */
         memcpy(data, "MODEL", 5);
         PluginHost_AssetDeliver(seam_host, "v2-seam-probe", "model.bin", data, 5);
         PluginHost_AssetDeliver(seam_host, "v2-seam-probe", "missing.bin", NULL, 0);
-        data = malloc(4);
+        data = ToriMem_Alloc(ToriMem_Net(), 4); /* an IO payload */
         memcpy(data, "FAIL", 4);
         PluginHost_AssetDeliver(seam_host, "v2-seam-probe", "bad-image.bin", data, 4);
         PluginHost_LogicTick(seam_host, 1);
@@ -4172,10 +4173,10 @@ main(void)
             "the V2 resource-incarnation probe registers");
         PluginHost_Start(aba_host);
 
-        data = malloc(3);
+        data = ToriMem_Alloc(ToriMem_Net(), 3); /* an IO payload */
         memcpy(data, "IMG", 3);
         PluginHost_AssetDeliver(aba_host, "v2-aba", "aba-old.png", data, 3);
-        data = malloc(5);
+        data = ToriMem_Alloc(ToriMem_Net(), 5); /* an IO payload */
         memcpy(data, "MODEL", 5);
         PluginHost_AssetDeliver(aba_host, "v2-aba", "aba-old.model", data, 5);
         PluginHost_FrameStart(aba_host, 1, 0);
@@ -4215,10 +4216,10 @@ main(void)
                 selection.status == TORIRS_FRAME_STATUS_ACTIVE,
             "a provided frame retains no host-side artwork, so releasing an image leaves it active");
 
-        data = malloc(3);
+        data = ToriMem_Alloc(ToriMem_Net(), 3); /* an IO payload */
         memcpy(data, "NEW", 3);
         PluginHost_AssetDeliver(aba_host, "v2-aba", "aba-new.png", data, 3);
-        data = malloc(5);
+        data = ToriMem_Alloc(ToriMem_Net(), 5); /* an IO payload */
         memcpy(data, "MODEL", 5);
         PluginHost_AssetDeliver(aba_host, "v2-aba", "aba-new.model", data, 5);
         PluginHost_LogicTick(aba_host, 3);

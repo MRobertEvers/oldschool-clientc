@@ -1,6 +1,8 @@
 #include "ssvm_strpool.h"
 #include <assert.h>
 
+#include "mem/torirs_mem.h"
+
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -37,7 +39,7 @@ SSVM_StrPoolFree(struct SSVM_StrPool* pool)
     {
         struct SSVM_StrPoolBlock* next = block->next;
 
-        free(block);
+        ToriMem_Free(ToriMem_ServerScripts(), block);
         block = next;
     }
     pool->head = NULL;
@@ -81,8 +83,8 @@ SSVM_StrPoolAlloc(
             return NULL;
         }
 
-        block = (struct SSVM_StrPoolBlock*)malloc(sizeof(*block) + capacity);
-        assert(block);
+        block = (struct SSVM_StrPoolBlock*)ToriMem_Alloc(
+            ToriMem_ServerScripts(), sizeof(*block) + capacity);
         block->next = pool->head;
         block->capacity = capacity;
         block->used = needed;

@@ -1,4 +1,5 @@
 #include "game/task_cs2_script_exec.h"
+#include "mem/torirs_mem.h"
 
 #include "cs2vm2/cs2vm2.h"
 #include "cs2vm2/cs2vm2_host.h"
@@ -28,7 +29,7 @@ struct DummyHost
 struct HMap*
 ScriptCache_New(void)
 {
-    void* buffer = malloc(SCRIPT_CACHE_BUFFER_SIZE);
+    void* buffer = ToriMem_Alloc(ToriMem_Script(), SCRIPT_CACHE_BUFFER_SIZE);
     assert(buffer);
     struct HashConfig config = {
         .key_size = sizeof(int),
@@ -52,10 +53,10 @@ ScriptCache_Free(struct HMap* scripts)
     while( (entry = (struct ScriptEntry*)hmap_iter_next(it)) )
     {
         CS2VM2_ScriptFree(entry->script);
-        free(entry->script);
+        ToriMem_Free(ToriMem_Script(), entry->script);
     }
     hmap_iter_free(it);
-    free(hmap_free(scripts));
+    ToriMem_Free(ToriMem_Script(), hmap_free(scripts));
 }
 
 struct ScriptEntry*
@@ -79,7 +80,7 @@ ScriptCache_StoreCopy(
     assert(scripts);
     assert(vm_script);
 
-    owned = malloc(sizeof(*owned));
+    owned = ToriMem_Alloc(ToriMem_Script(), sizeof(*owned));
     assert(owned);
     CS2VM2_ScriptCopy(vm_script, owned);
 
@@ -267,7 +268,7 @@ Task_CS2ScriptExec_Free(struct ToriRS_Task* task)
     /* Releases the threads' string pools. Safe even if Run never got as far as
      * CS2VM2_Init: Task_CS2ScriptExec_New callocs, so the pools read as empty. */
     CS2VM2_Free(&exec->vm);
-    free(exec);
+    ToriMem_Free(ToriMem_Script(), exec);
 }
 
 static struct ToriRS_TaskVTable Task_CS2ScriptExec_VTable = {
@@ -280,7 +281,7 @@ Task_CS2ScriptExec_New(
     struct CS2VM2_Script* script,
     struct CacheProvider* provider)
 {
-    struct Task_CS2ScriptExec* exec = calloc(1, sizeof(*exec));
+    struct Task_CS2ScriptExec* exec = ToriMem_Calloc(ToriMem_Script(), 1, sizeof(*exec));
     assert(exec != NULL);
     assert(provider);
     exec->task.vtable = &Task_CS2ScriptExec_VTable;

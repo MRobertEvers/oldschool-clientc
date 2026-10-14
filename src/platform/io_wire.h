@@ -69,7 +69,8 @@ struct IOWireCache
     char dir[IOWIRE_CACHE_DIR_MAX];
 };
 
-/** Growable output buffer. Zero-initialize (or IOWireBuf_Init) before use. */
+/** Growable output buffer. Zero-initialize (or IOWireBuf_Init) before use. Its
+ *  data is ToriMem_Net()'s: a holder that keeps it frees it from there. */
 struct IOWireBuf
 {
     uint8_t* data;

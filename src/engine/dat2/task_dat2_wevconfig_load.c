@@ -1,4 +1,5 @@
 #include "engine/dat2/dat2_tasks.h"
+#include "mem/torirs_mem.h"
 
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
@@ -83,8 +84,8 @@ Task_Dat2WevConfigLoad_Run(
         PT_EXIT(&task->pt);
     }
 
-    entries = malloc((size_t)count * sizeof(*entries));
-    assert(entries);
+    /* ASSET, like the configs' strings: WevConfigTable_Free releases it. */
+    entries = ToriMem_Alloc(ToriMem_Assets(), (size_t)count * sizeof(*entries));
     /* Holes read back as id == -1, which is what WevConfigTable_Has tests. */
     for( int i = 0; i < count; i++ )
         WevConfig_Init(&entries[i], -1);
@@ -126,7 +127,7 @@ Task_Dat2WevConfigLoad_Run(
 static void
 Task_Dat2WevConfigLoad_Free(struct ToriRS_Task* task_base)
 {
-    free(task_base);
+    ToriMem_Free(ToriMem_Assets(), task_base);
 }
 
 static struct ToriRS_TaskVTable Task_Dat2WevConfigLoad_VTable = {
@@ -142,7 +143,7 @@ CreateTask_Dat2WevConfigLoad(
     assert(provider);
     assert(table);
 
-    struct Task_Dat2WevConfigLoad* task = calloc(1, sizeof(*task));
+    struct Task_Dat2WevConfigLoad* task = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_Dat2WevConfigLoad_VTable;
     strcpy(task->task.name, "Dat2WevConfigLoad");

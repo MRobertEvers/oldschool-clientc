@@ -1,5 +1,6 @@
 #include "engine/proctex/proctex_internal.h"
 #include "log/torirs_log.h"
+#include "mem/torirs_mem.h"
 #include <assert.h>
 
 #include <stdio.h>
@@ -133,8 +134,7 @@ ProcTexGenerator_New(
 
     proctex_init_trig();
 
-    gen = calloc(1, sizeof(*gen));
-    assert(gen);
+    gen = ToriMem_Calloc(ToriMem_Render(), 1, sizeof(*gen));
     gen->sprite_fn = sprite_fn;
     gen->texture_fn = texture_fn;
     gen->user = user;
@@ -150,27 +150,27 @@ proctex_free_caches(struct ProcTexGenerator* gen)
         for( int i = 0; i < gen->cache_count; i++ )
         {
             for( int p = 0; p < 3; p++ )
-                free(gen->caches[i].plane[p]);
-            free(gen->caches[i].done);
+                ToriMem_Free(ToriMem_Render(), gen->caches[i].plane[p]);
+            ToriMem_Free(ToriMem_Render(), gen->caches[i].done);
         }
-        free(gen->caches);
+        ToriMem_Free(ToriMem_Render(), gen->caches);
         gen->caches = NULL;
     }
     if( gen->tables )
     {
         for( int i = 0; i < gen->cache_count; i++ )
-            free(gen->tables[i]);
-        free(gen->tables);
+            ToriMem_Free(ToriMem_Render(), gen->tables[i]);
+        ToriMem_Free(ToriMem_Render(), gen->tables);
         gen->tables = NULL;
     }
     if( gen->aux )
     {
         for( int i = 0; i < gen->cache_count; i++ )
-            free(gen->aux[i]);
-        free(gen->aux);
+            ToriMem_Free(ToriMem_Render(), gen->aux[i]);
+        ToriMem_Free(ToriMem_Render(), gen->aux);
         gen->aux = NULL;
     }
-    free(gen->visiting);
+    ToriMem_Free(ToriMem_Render(), gen->visiting);
     gen->visiting = NULL;
     gen->cache_count = 0;
 }
@@ -181,9 +181,9 @@ ProcTexGenerator_Free(struct ProcTexGenerator* gen)
     if( !gen )
         return;
     proctex_free_caches(gen);
-    free(gen->h_gradient);
-    free(gen->v_gradient);
-    free(gen);
+    ToriMem_Free(ToriMem_Render(), gen->h_gradient);
+    ToriMem_Free(ToriMem_Render(), gen->v_gradient);
+    ToriMem_Free(ToriMem_Render(), gen);
 }
 
 /* --- setup ----------------------------------------------------------------------------- */
@@ -202,8 +202,8 @@ proctex_setup(
 
     if( gen->width != size )
     {
-        free(gen->h_gradient);
-        gen->h_gradient = malloc((size_t)size * sizeof(int32_t));
+        ToriMem_Free(ToriMem_Render(), gen->h_gradient);
+        gen->h_gradient = ToriMem_Alloc(ToriMem_Render(), (size_t)size * sizeof(int32_t));
         assert(gen->h_gradient);
         for( int i = 0; i < size; i++ )
             gen->h_gradient[i] = (i << 12) / size;
@@ -215,8 +215,8 @@ proctex_setup(
     }
     if( gen->height != size )
     {
-        free(gen->v_gradient);
-        gen->v_gradient = malloc((size_t)size * sizeof(int32_t));
+        ToriMem_Free(ToriMem_Render(), gen->v_gradient);
+        gen->v_gradient = ToriMem_Alloc(ToriMem_Render(), (size_t)size * sizeof(int32_t));
         assert(gen->v_gradient);
         for( int i = 0; i < size; i++ )
             gen->v_gradient[i] = (i << 12) / size;
@@ -236,25 +236,28 @@ proctex_setup(
 
     proctex_free_caches(gen);
     gen->cache_count = texture->operation_count;
-    gen->caches =
-        calloc((size_t)(gen->cache_count > 0 ? gen->cache_count : 1), sizeof(*gen->caches));
-    gen->tables =
-        calloc((size_t)(gen->cache_count > 0 ? gen->cache_count : 1), sizeof(*gen->tables));
-    gen->visiting = calloc((size_t)(gen->cache_count > 0 ? gen->cache_count : 1), 1);
-    gen->aux = calloc((size_t)(gen->cache_count > 0 ? gen->cache_count : 1), sizeof(*gen->aux));
-    assert(gen->visiting);
-    assert(gen->aux);
-    if( !gen->caches || !gen->tables )
-        return false;
+    gen->caches = ToriMem_Calloc(
+        ToriMem_Render(),
+        (size_t)(gen->cache_count > 0 ? gen->cache_count : 1),
+        sizeof(*gen->caches));
+    gen->tables = ToriMem_Calloc(
+        ToriMem_Render(),
+        (size_t)(gen->cache_count > 0 ? gen->cache_count : 1),
+        sizeof(*gen->tables));
+    gen->visiting =
+        ToriMem_Calloc(ToriMem_Render(), (size_t)(gen->cache_count > 0 ? gen->cache_count : 1), 1);
+    gen->aux = ToriMem_Calloc(
+        ToriMem_Render(), (size_t)(gen->cache_count > 0 ? gen->cache_count : 1), sizeof(*gen->aux));
 
     for( int i = 0; i < gen->cache_count; i++ )
     {
         int planes = texture->operations[i].is_monochrome ? 1 : 3;
-        gen->caches[i].done = calloc((size_t)size, 1);
+        gen->caches[i].done = ToriMem_Calloc(ToriMem_Render(), (size_t)size, 1);
         assert(gen->caches[i].done);
         for( int p = 0; p < planes; p++ )
         {
-            gen->caches[i].plane[p] = calloc((size_t)size * (size_t)size, sizeof(int32_t));
+            gen->caches[i].plane[p] =
+                ToriMem_Calloc(ToriMem_Render(), (size_t)size * (size_t)size, sizeof(int32_t));
             assert(gen->caches[i].plane[p]);
         }
     }
@@ -380,7 +383,7 @@ proctex_curve_table(
     if( gen->tables[op_index] )
         return gen->tables[op_index];
 
-    table = malloc(257 * sizeof(int32_t));
+    table = ToriMem_Alloc(ToriMem_Render(), 257 * sizeof(int32_t));
     assert(table);
     proctex_curve_markers(op, markers, &count);
 
@@ -530,7 +533,7 @@ proctex_gradient_table(
     if( gen->tables[op_index] )
         return gen->tables[op_index];
 
-    table = calloc(257, sizeof(int32_t));
+    table = ToriMem_Calloc(ToriMem_Render(), 257, sizeof(int32_t));
     assert(table);
 
     /*

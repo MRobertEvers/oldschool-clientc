@@ -1,4 +1,5 @@
 #include "ui/uitree_if_store.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -29,7 +30,7 @@ UIIfIntStore_Set(
         if( store->count == store->cap )
         {
             int cap = if_store_grow(store->cap);
-            store->entries = realloc(store->entries, (size_t)cap * sizeof(*store->entries));
+            store->entries = ToriMem_Realloc(ToriMem_Ui(), store->entries, (size_t)cap * sizeof(*store->entries));
             assert(store->entries);
             store->cap = cap;
         }
@@ -56,7 +57,7 @@ void
 UIIfIntStore_Free(struct UIIfIntStore* store)
 {
     assert(store);
-    free(store->entries);
+    ToriMem_Free(ToriMem_Ui(), store->entries);
     store->entries = NULL;
     store->count = 0;
     store->cap = 0;
@@ -80,7 +81,7 @@ UIIfTextStore_Set(
         if( store->count == store->cap )
         {
             int cap = if_store_grow(store->cap);
-            store->entries = realloc(store->entries, (size_t)cap * sizeof(*store->entries));
+            store->entries = ToriMem_Realloc(ToriMem_Ui(), store->entries, (size_t)cap * sizeof(*store->entries));
             assert(store->entries);
             store->cap = cap;
         }
@@ -88,8 +89,8 @@ UIIfTextStore_Set(
         store->entries[index].text = NULL;
         store->count++;
     }
-    free(store->entries[index].text);
-    store->entries[index].text = strdup(text ? text : "");
+    ToriMem_Free(ToriMem_Ui(), store->entries[index].text);
+    store->entries[index].text = ToriMem_Strdup(ToriMem_Ui(), text ? text : "");
     assert(store->entries[index].text);
 }
 
@@ -110,8 +111,8 @@ UIIfTextStore_Free(struct UIIfTextStore* store)
 {
     assert(store);
     for( int i = 0; i < store->count; i++ )
-        free(store->entries[i].text);
-    free(store->entries);
+        ToriMem_Free(ToriMem_Ui(), store->entries[i].text);
+    ToriMem_Free(ToriMem_Ui(), store->entries);
     store->entries = NULL;
     store->count = 0;
     store->cap = 0;

@@ -1,5 +1,6 @@
 /* See rsprot_bridge.h — the rsprot codecs, wired into the inbound path. */
 #include "rsprot_bridge.h"
+#include "mem/torirs_mem.h"
 #include <assert.h>
 #include <stdio.h>
 
@@ -96,8 +97,7 @@ dup_borrowed(char const* s)
 
     assert(s);
     n = strlen(s);
-    out = (char*)malloc(n + 1);
-    assert(out);
+    out = (char*)ToriMem_Alloc(ToriMem_Net(), n + 1);
     memcpy(out, s, n + 1);
     return out;
 }
@@ -723,10 +723,8 @@ bridge_update_inv_full(int revision, uint8_t const* data, int len, struct RevPac
     p->component_id = msg.combined_id;
     p->inv_id = msg.inventory_id;
     p->size = msg.capacity;
-    p->obj_ids = (int*)malloc((size_t)msg.capacity * sizeof(int) + 1);
-    p->obj_counts = (int*)malloc((size_t)msg.capacity * sizeof(int) + 1);
-    assert(p->obj_ids);
-    assert(p->obj_counts);
+    p->obj_ids = (int*)ToriMem_Alloc(ToriMem_Net(), (size_t)msg.capacity * sizeof(int) + 1);
+    p->obj_counts = (int*)ToriMem_Alloc(ToriMem_Net(), (size_t)msg.capacity * sizeof(int) + 1);
     for( int i = 0; i < msg.capacity; i++ )
     {
         p->obj_ids[i] = slots[i].id;
@@ -760,13 +758,8 @@ bridge_update_inv_partial(int revision, uint8_t const* data, int len, struct Rev
     p->component_id = msg.combined_id;
     p->inv_id = msg.inventory_id;
     p->count = msg.count;
-    p->entries = (struct PktUpdateInvPartialEntry*)malloc(
-        (size_t)msg.count * sizeof(*p->entries) + 1);
-    if( !p->entries )
-    {
-        p->count = 0;
-        return 0;
-    }
+    p->entries = (struct PktUpdateInvPartialEntry*)ToriMem_Alloc(
+        ToriMem_Net(), (size_t)msg.count * sizeof(*p->entries) + 1);
     for( int i = 0; i < msg.count; i++ )
     {
         p->entries[i].slot = slots[i].slot;
@@ -808,8 +801,7 @@ bridge_update_ignorelist(int revision, uint8_t const* data, int len, struct RevP
 
     memset(p, 0, sizeof(*p));
     p->count = msg.count;
-    p->names37 = (int64_t*)malloc((size_t)msg.count * sizeof(int64_t) + 1);
-    assert(p->names37);
+    p->names37 = (int64_t*)ToriMem_Alloc(ToriMem_Net(), (size_t)msg.count * sizeof(int64_t) + 1);
     for( int i = 0; i < msg.count; i++ )
         p->names37[i] = entries[i].name ? (int64_t)strtobase37(entries[i].name) : 0;
     return 1;
@@ -1013,10 +1005,8 @@ bridge_if_resync(int revision, uint8_t const* data, int len, struct RevPacket* o
     p->event_count = msg.events_count;
     if( msg.sub_interfaces_count > 0 )
     {
-        p->mounts = (struct PktIfResyncMount*)malloc(
-            (size_t)msg.sub_interfaces_count * sizeof(*p->mounts));
-        if( !p->mounts )
-            return 0;
+        p->mounts = (struct PktIfResyncMount*)ToriMem_Alloc(
+            ToriMem_Net(), (size_t)msg.sub_interfaces_count * sizeof(*p->mounts));
         for( int i = 0; i < msg.sub_interfaces_count; i++ )
         {
             p->mounts[i].target_uid = subs[i].destination_combined_id;
@@ -1026,15 +1016,8 @@ bridge_if_resync(int revision, uint8_t const* data, int len, struct RevPacket* o
     }
     if( msg.events_count > 0 )
     {
-        p->events = (struct PktIfResyncEvent*)malloc(
-            (size_t)msg.events_count * sizeof(*p->events));
-        if( !p->events )
-        {
-            free(p->mounts);
-            p->mounts = NULL;
-            p->mount_count = 0;
-            return 0;
-        }
+        p->events = (struct PktIfResyncEvent*)ToriMem_Alloc(
+            ToriMem_Net(), (size_t)msg.events_count * sizeof(*p->events));
         for( int i = 0; i < msg.events_count; i++ )
         {
             p->events[i].component_id = evts[i].combined_id;

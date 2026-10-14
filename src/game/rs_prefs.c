@@ -3,6 +3,7 @@
  */
 
 #include "game/rs_prefs.h"
+#include "mem/torirs_mem.h"
 #include <assert.h>
 
 #include "3rd/ini/ini.h"
@@ -252,7 +253,7 @@ RS_Prefs_Encode(
     assert(out_size);
     *out_data = NULL;
     *out_size = 0;
-    text = (char*)malloc((size_t)cap);
+    text = (char*)ToriMem_Alloc(ToriMem_Process(), (size_t)cap);
     assert(text);
 
     len += snprintf(
@@ -272,7 +273,7 @@ RS_Prefs_Encode(
     {
         if( !prefs_frame_id_length(prefs->preferred_frame, NULL) )
         {
-            free(text);
+            ToriMem_Free(ToriMem_Process(), text);
             return 0;
         }
         len += snprintf(
@@ -314,7 +315,7 @@ RS_Prefs_Encode(
 
     if( len < 0 || len >= cap )
     {
-        free(text);
+        ToriMem_Free(ToriMem_Process(), text);
         return 0;
     }
     *out_data = text;

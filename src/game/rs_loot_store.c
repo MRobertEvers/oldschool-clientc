@@ -1,4 +1,5 @@
 #include "rs_loot_store.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <ctype.h>
@@ -43,11 +44,11 @@ ensure_source_capacity(struct LootStore* store)
         return true;
 
     int grown = store->source_cap == 0 ? 16 : store->source_cap * 2;
-    struct LootSource* buf = calloc((size_t)grown, sizeof(struct LootSource));
+    struct LootSource* buf = ToriMem_Calloc(ToriMem_Session(), (size_t)grown, sizeof(struct LootSource));
     assert(buf);
     if( store->source_count > 0 )
         memcpy(buf, store->sources, (size_t)store->source_count * sizeof(struct LootSource));
-    free(store->sources);
+    ToriMem_Free(ToriMem_Session(), store->sources);
     store->sources = buf;
     store->source_cap = grown;
     return true;
@@ -60,11 +61,11 @@ ensure_row_capacity(struct LootSource* src)
         return true;
 
     int grown = src->row_cap == 0 ? 8 : src->row_cap * 2;
-    struct LootRow* buf = calloc((size_t)grown, sizeof(struct LootRow));
+    struct LootRow* buf = ToriMem_Calloc(ToriMem_Session(), (size_t)grown, sizeof(struct LootRow));
     assert(buf);
     if( src->row_count > 0 )
         memcpy(buf, src->rows, (size_t)src->row_count * sizeof(struct LootRow));
-    free(src->rows);
+    ToriMem_Free(ToriMem_Session(), src->rows);
     src->rows = buf;
     src->row_cap = grown;
     return true;
@@ -82,9 +83,9 @@ ensure_query_capacity(
     while( grown < need )
         grown *= 2;
 
-    int* buf = calloc((size_t)grown, sizeof(int));
+    int* buf = ToriMem_Calloc(ToriMem_Session(), (size_t)grown, sizeof(int));
     assert(buf);
-    free(store->query_ids);
+    ToriMem_Free(ToriMem_Session(), store->query_ids);
     store->query_ids = buf;
     store->query_cap = grown;
     return true;
@@ -103,11 +104,11 @@ ensure_aux_capacity(struct LootAuxList* aux)
         return true;
 
     int grown = aux->cap == 0 ? 16 : aux->cap * 2;
-    char** buf = calloc((size_t)grown, sizeof(char*));
+    char** buf = ToriMem_Calloc(ToriMem_Session(), (size_t)grown, sizeof(char*));
     assert(buf);
     if( aux->count > 0 )
         memcpy(buf, aux->entries, (size_t)aux->count * sizeof(char*));
-    free(aux->entries);
+    ToriMem_Free(ToriMem_Session(), aux->entries);
     aux->entries = buf;
     aux->cap = grown;
     return true;
@@ -123,11 +124,11 @@ ensure_strlist_capacity(
         return true;
 
     int grown = *cap == 0 ? 16 : *cap * 2;
-    char** buf = calloc((size_t)grown, sizeof(char*));
+    char** buf = ToriMem_Calloc(ToriMem_Session(), (size_t)grown, sizeof(char*));
     assert(buf);
     if( *count > 0 )
         memcpy(buf, *entries, (size_t)(*count) * sizeof(char*));
-    free(*entries);
+    ToriMem_Free(ToriMem_Session(), *entries);
     *entries = buf;
     *cap = grown;
     return true;
@@ -136,8 +137,8 @@ ensure_strlist_capacity(
 static void
 free_source(struct LootSource* src)
 {
-    free(src->name);
-    free(src->rows);
+    ToriMem_Free(ToriMem_Session(), src->name);
+    ToriMem_Free(ToriMem_Session(), src->rows);
     memset(src, 0, sizeof(*src));
 }
 
@@ -145,8 +146,8 @@ static void
 free_aux(struct LootAuxList* aux)
 {
     for( int i = 0; i < aux->count; i++ )
-        free(aux->entries[i]);
-    free(aux->entries);
+        ToriMem_Free(ToriMem_Session(), aux->entries[i]);
+    ToriMem_Free(ToriMem_Session(), aux->entries);
     memset(aux, 0, sizeof(*aux));
 }
 
@@ -157,8 +158,8 @@ free_strlist(
     int* cap)
 {
     for( int i = 0; i < *count; i++ )
-        free((*entries)[i]);
-    free(*entries);
+        ToriMem_Free(ToriMem_Session(), (*entries)[i]);
+    ToriMem_Free(ToriMem_Session(), *entries);
     *entries = NULL;
     *count = 0;
     *cap = 0;
@@ -191,7 +192,7 @@ strlist_add(
         return;
     if( !ensure_strlist_capacity(entries, count, cap) )
         return;
-    (*entries)[(*count)++] = strdup(name);
+    (*entries)[(*count)++] = ToriMem_Strdup(ToriMem_Session(), name);
 }
 
 static void
@@ -219,7 +220,7 @@ strlist_remove_at(
     int* count,
     int index)
 {
-    free((*entries)[index]);
+    ToriMem_Free(ToriMem_Session(), (*entries)[index]);
     memmove(&(*entries)[index], &(*entries)[index + 1], (size_t)(*count - index - 1) * sizeof(char*));
     (*count)--;
     (*entries)[*count] = NULL;
@@ -282,7 +283,7 @@ LootStore_Free(struct LootStore* store)
 
     for( int i = 0; i < store->source_count; i++ )
         free_source(&store->sources[i]);
-    free(store->sources);
+    ToriMem_Free(ToriMem_Session(), store->sources);
 
     free_strlist(
         &store->item_ignored,
@@ -296,7 +297,7 @@ LootStore_Free(struct LootStore* store)
     for( int k = 0; k < LOOT_AUX_KIND_MAX; k++ )
         free_aux(&store->aux[k]);
 
-    free(store->query_ids);
+    ToriMem_Free(ToriMem_Session(), store->query_ids);
 
     memset(store, 0, sizeof(*store));
 }
@@ -334,7 +335,7 @@ source_find_or_create(
     src = &store->sources[store->source_count++];
     memset(src, 0, sizeof(*src));
     src->id = store->next_source_id++;
-    src->name = strdup(source_name);
+    src->name = ToriMem_Strdup(ToriMem_Session(), source_name);
     assert(src->name);
     /* A real event id of 0 must still count as the first kill. */
     src->last_event_id = INT_MIN;
@@ -647,7 +648,7 @@ LootStore_VectorInsert(
     if( index < 0 || index > list->count )
         return;
     ensure_aux_capacity(list);
-    char* copy = strdup(str);
+    char* copy = ToriMem_Strdup(ToriMem_Session(), str);
     assert(copy);
     memmove(&list->entries[index + 1], &list->entries[index],
         (size_t)(list->count - index) * sizeof(char*));
@@ -695,9 +696,9 @@ LootStore_VectorSet(
     struct LootAuxList* list = &store->aux[vector];
     if( index < 0 || index >= list->count )
         return;
-    char* copy = strdup(str);
+    char* copy = ToriMem_Strdup(ToriMem_Session(), str);
     assert(copy);
-    free(list->entries[index]);
+    ToriMem_Free(ToriMem_Session(), list->entries[index]);
     list->entries[index] = copy;
     vector_touched(store, vector);
 }
@@ -716,7 +717,7 @@ LootStore_VectorEraseAt(
     /* In order: the client's erase is a vector::erase, and this used to swap
      * the last entry into the hole, which reshuffled every list a script
      * removed from. */
-    free(list->entries[index]);
+    ToriMem_Free(ToriMem_Session(), list->entries[index]);
     memmove(&list->entries[index], &list->entries[index + 1],
         (size_t)(list->count - index - 1) * sizeof(char*));
     list->count--;
@@ -874,7 +875,7 @@ LootStore_ItemIgnoreClear(struct LootStore* store)
 {
     assert(store);
     for( int i = 0; i < store->item_ignored_count; i++ )
-        free(store->item_ignored[i]);
+        ToriMem_Free(ToriMem_Session(), store->item_ignored[i]);
     store->item_ignored_count = 0;
 }
 
@@ -948,7 +949,7 @@ LootStore_SourceIgnoreClear(struct LootStore* store)
 {
     assert(store);
     for( int i = 0; i < store->source_ignored_count; i++ )
-        free(store->source_ignored[i]);
+        ToriMem_Free(ToriMem_Session(), store->source_ignored[i]);
     store->source_ignored_count = 0;
 }
 

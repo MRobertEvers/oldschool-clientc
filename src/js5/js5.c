@@ -198,11 +198,7 @@ static char*
 js5_string_duplicate(const char* value)
 {
     assert(value);
-    size_t size = strlen(value) + 1u;
-    char* copy = (char*)malloc(size);
-    assert(copy);
-    memcpy(copy, value, size);
-    return copy;
+    return ToriMem_Strdup(ToriMem_Net(), value);
 }
 
 static uint32_t
@@ -387,14 +383,7 @@ js5_completion_push(
     bool from_network)
 {
     struct Js5CompletionNode* node =
-        (struct Js5CompletionNode*)malloc(sizeof(struct Js5CompletionNode));
-    if( !node )
-    {
-        client->last_error = JS5_ERROR_NO_MEMORY;
-        client->state = JS5_STATE_FAILED;
-        return;
-    }
-    memset(node, 0, sizeof(*node));
+        (struct Js5CompletionNode*)ToriMem_Calloc(ToriMem_Net(), 1, sizeof(struct Js5CompletionNode));
     node->value.kind = kind;
     node->value.error = error;
     node->value.archive = (uint16_t)archive;
@@ -442,7 +431,7 @@ js5_release_storage_data(struct Js5Client* client, uint8_t* data)
     if( client->storage.release_raw )
         client->storage.release_raw(client->storage_user, data);
     else
-        free(data);
+        free(data); /* torimem-bare: an adapter without release_raw hands out libc memory (js5.h) */
 }
 
 static void*
@@ -550,15 +539,10 @@ Js5ClientNew(
         config->primary_port == 0u )
         return NULL;
 
-    struct Js5Client* client = (struct Js5Client*)calloc(1u, sizeof(struct Js5Client));
-    assert(client);
+    struct Js5Client* client =
+        (struct Js5Client*)ToriMem_Calloc(ToriMem_Net(), 1u, sizeof(struct Js5Client));
     client->config = *config;
     client->host = js5_string_duplicate(config->host);
-    if( !client->host )
-    {
-        free(client);
-        return NULL;
-    }
     client->config.host = client->host;
     client->transport_user = transport_user;
     client->storage_user = storage_user;
@@ -580,8 +564,8 @@ Js5ClientNew(
     if( !client->transport.open || !client->transport.poll_connect || !client->transport.read ||
         !client->transport.write || !client->transport.close )
     {
-        free(client->host);
-        free(client);
+        ToriMem_Free(ToriMem_Net(), client->host);
+        ToriMem_Free(ToriMem_Net(), client);
         return NULL;
     }
 
@@ -622,7 +606,7 @@ js5_archive_clear(struct Js5Client* client, struct Js5Archive* archive)
 {
     if( archive->reference )
         RSCache_ReferenceTableFree(archive->reference);
-    free(archive->group_states);
+    ToriMem_Free(ToriMem_Net(), archive->group_states);
     if( client->groups_total >= archive->total_groups )
         client->groups_total -= archive->total_groups;
     if( client->groups_valid >= archive->valid_groups )
@@ -637,7 +621,7 @@ Js5ClientFree(struct Js5Client* client)
         return;
     if( client->stream )
         client->transport.close(client->transport_user, client->stream);
-    free(client->response_data);
+    ToriMem_Free(ToriMem_Net(), client->response_data);
 
     for( unsigned bucket = 0u; bucket < JS5_REQUEST_BUCKETS; bucket++ )
     {
@@ -645,7 +629,7 @@ Js5ClientFree(struct Js5Client* client)
         while( request )
         {
             struct Js5Request* next = request->hash_next;
-            free(request);
+            ToriMem_Free(ToriMem_Net(), request);
             request = next;
         }
     }
@@ -656,10 +640,10 @@ Js5ClientFree(struct Js5Client* client)
     {
         struct Js5CompletionNode* node = client->completion_first;
         client->completion_first = node->next;
-        free(node);
+        ToriMem_Free(ToriMem_Net(), node);
     }
-    free(client->host);
-    free(client);
+    ToriMem_Free(ToriMem_Net(), client->host);
+    ToriMem_Free(ToriMem_Net(), client);
 }
 
 static bool
@@ -682,7 +666,7 @@ js5_request_destroy(struct Js5Client* client, struct Js5Request* request)
     else if( request->state == JS5_REQUEST_INFLIGHT_URGENT && client->inflight_urgent > 0u )
         client->inflight_urgent--;
     js5_request_hash_remove(client, request);
-    free(request);
+    ToriMem_Free(ToriMem_Net(), request);
 }
 
 static struct Js5Request*
@@ -702,8 +686,8 @@ js5_request_new(
     if( existing )
         return existing;
 
-    struct Js5Request* request = (struct Js5Request*)calloc(1u, sizeof(*request));
-    assert(request);
+    struct Js5Request* request =
+        (struct Js5Request*)ToriMem_Calloc(ToriMem_Net(), 1u, sizeof(*request));
     request->key = key;
     request->expected_crc = crc;
     request->expected_version = version;
@@ -762,8 +746,7 @@ js5_request_promote(struct Js5Client* client, struct Js5Request* request)
         return true;
     }
 
-    urgent = (struct Js5Request*)calloc(1u, sizeof(*urgent));
-    assert(urgent);
+    urgent = (struct Js5Request*)ToriMem_Calloc(ToriMem_Net(), 1u, sizeof(*urgent));
     urgent->key = request->key;
     urgent->expected_crc = request->expected_crc;
     urgent->expected_version = request->expected_version;
@@ -933,8 +916,8 @@ js5_reference_apply(
     uint8_t* states = NULL;
     if( table->archive_count > 0 )
     {
-        states = (uint8_t*)calloc((size_t)table->archive_count, sizeof(uint8_t));
-        assert(states);
+        states = (uint8_t*)ToriMem_Calloc(
+            ToriMem_Net(), (size_t)table->archive_count, sizeof(uint8_t));
     }
 
     uint32_t total = 0u;
@@ -950,7 +933,7 @@ js5_reference_apply(
 
     if( archive->reference )
         RSCache_ReferenceTableFree(archive->reference);
-    free(archive->group_states);
+    ToriMem_Free(ToriMem_Net(), archive->group_states);
     archive->reference = table;
     archive->group_states = states;
     archive->reference_ready = true;
@@ -1408,7 +1391,7 @@ js5_scan_local(struct Js5Client* client)
 static void
 js5_response_reset(struct Js5Client* client)
 {
-    free(client->response_data);
+    ToriMem_Free(ToriMem_Net(), client->response_data);
     client->response_data = NULL;
     client->response_size = 0u;
     client->response_position = 0u;
@@ -1658,7 +1641,7 @@ js5_response_finish(struct Js5Client* client)
     client->failure_streak = 0u;
     client->last_error = JS5_ERROR_NONE;
     client->response_request = NULL;
-    free(client->response_data);
+    ToriMem_Free(ToriMem_Net(), client->response_data);
     client->response_data = NULL;
     client->response_size = 0u;
     client->response_position = 0u;
@@ -1689,8 +1672,7 @@ js5_response_begin(struct Js5Client* client)
     if( !request )
         return false;
 
-    uint8_t* response = (uint8_t*)malloc(response_size);
-    assert(response);
+    uint8_t* response = (uint8_t*)ToriMem_Alloc(ToriMem_Net(), response_size);
     response[0] = compression;
     memcpy(response + 1u, client->response_header + 4u, 4u);
     client->response_data = response;
@@ -2111,7 +2093,7 @@ Js5ClientNextCompletion(struct Js5Client* client, struct Js5Completion* completi
     if( !client->completion_first )
         client->completion_last = NULL;
     *completion = node->value;
-    free(node);
+    ToriMem_Free(ToriMem_Net(), node);
     return true;
 }
 

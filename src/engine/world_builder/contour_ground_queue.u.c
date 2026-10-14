@@ -2,6 +2,7 @@
 #define CONTOUR_GROUND_QUEUE_U_C
 
 #include "contour_ground_queue.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -41,10 +42,8 @@ contour_ground_q_push(
     if( q->count >= q->cap )
     {
         int ncap = q->cap ? q->cap * 2 : 512;
-        struct ContourGroundQueueEntry* next =
-            realloc(q->entries, (size_t)ncap * sizeof(struct ContourGroundQueueEntry));
-        if( !next )
-            return;
+        struct ContourGroundQueueEntry* next = ToriMem_Realloc(
+            ToriMem_Scene(), q->entries, (size_t)ncap * sizeof(struct ContourGroundQueueEntry));
         q->entries = next;
         q->cap = ncap;
     }
@@ -71,7 +70,7 @@ contour_ground_q_free(struct ContourGroundQueue* q)
 {
     if( !q )
         return;
-    free(q->entries);
+    ToriMem_Free(ToriMem_Scene(), q->entries);
     q->entries = NULL;
     q->count = 0;
     q->cap = 0;

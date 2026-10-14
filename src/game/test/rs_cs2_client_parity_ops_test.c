@@ -21,6 +21,7 @@
  */
 
 #include "cs2vm2/cs2_opcode.h"
+#include "mem/torirs_mem.h"
 #include "cs2vm2/cs2vm2.h"
 #include "cs2vm2/cs2vm2_script.h"
 #include "engine/cache_provider.h"
@@ -193,12 +194,12 @@ test_query_refine(void)
         CHECK(child >= 0, "dynamic child %d created", sub);
     }
 
-    struct ToriRS_ParamType* int_param = calloc(1, sizeof(*int_param));
+    struct ToriRS_ParamType* int_param = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*int_param));
     assert(int_param);
     int_param->id = 50;
     int_param->default_int = 7;
     CacheProvider_ParamAdd(fx.provider, 50, int_param);
-    struct ToriRS_ParamType* string_param = calloc(1, sizeof(*string_param));
+    struct ToriRS_ParamType* string_param = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*string_param));
     assert(string_param);
     string_param->id = 51;
     string_param->is_string = 1;
@@ -408,13 +409,13 @@ test_enum_get_inputs(void)
     printf("8020 enum_getinputs\n");
 
     fixture_init(&fx);
-    struct ToriRS_Enum* e = calloc(1, sizeof(*e));
+    struct ToriRS_Enum* e = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*e));
     assert(e);
     e->id = 77;
     e->input_type = 'i';
     e->count = 3;
-    e->keys = malloc(3 * sizeof(int));
-    e->int_values = calloc(3, sizeof(int));
+    e->keys = ToriMem_Alloc(ToriMem_Assets(), 3 * sizeof(int));
+    e->int_values = ToriMem_Calloc(ToriMem_Assets(), 3, sizeof(int));
     assert(e->keys);
     assert(e->int_values);
     e->keys[0] = 3;

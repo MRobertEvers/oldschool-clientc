@@ -4,6 +4,7 @@
 
 #define COBJMACROS
 #include "platform/platform_win32_browser_backend.h"
+#include "mem/torirs_mem.h"
 
 #if defined(__has_include)
 #  if __has_include(<WebView2.h>)
@@ -17,6 +18,7 @@
 #include <objidl.h>
 #include <ole2.h>
 
+#include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -112,7 +114,7 @@ static void wv2_destroy_state(struct PlatformWin32Browser* s)
      * allocation without dereferencing freed callback storage. */
     if( s->loader ) FreeLibrary(s->loader);
     if( s->com_initialized ) CoUninitialize();
-    free(s);
+    free(s); /* torimem-bare: COM-refcounted; the SDK's last Release may come after exit's walk */
 }
 
 static ULONG wv2_release(struct PlatformWin32Browser* s)
@@ -172,10 +174,9 @@ static WCHAR* wide_from_utf8(char const* input)
     if( !input ) return NULL;
     chars = MultiByteToWideChar(CP_UTF8, 0, input, -1, NULL, 0);
     if( chars <= 0 || chars > WV2_JSON_MAX ) return NULL;
-    out = (WCHAR*)malloc((size_t)chars * sizeof(*out));
-    if( !out ) return NULL;
+    out = (WCHAR*)ToriMem_Alloc(ToriMem_Process(), (size_t)chars * sizeof(*out));
     if( !MultiByteToWideChar(CP_UTF8, 0, input, -1, out, chars) )
-    { free(out); return NULL; }
+    { ToriMem_Free(ToriMem_Process(), out); return NULL; }
     return out;
 }
 
@@ -186,10 +187,9 @@ static char* utf8_from_wide(WCHAR const* input)
     if( !input ) return NULL;
     bytes = WideCharToMultiByte(CP_UTF8, 0, input, -1, NULL, 0, NULL, NULL);
     if( bytes <= 0 || bytes > WV2_JSON_MAX ) return NULL;
-    out = (char*)malloc((size_t)bytes);
-    if( !out ) return NULL;
+    out = (char*)ToriMem_Alloc(ToriMem_Process(), (size_t)bytes);
     if( !WideCharToMultiByte(CP_UTF8, 0, input, -1, out, bytes, NULL, NULL) )
-    { free(out); return NULL; }
+    { ToriMem_Free(ToriMem_Process(), out); return NULL; }
     return out;
 }
 
@@ -222,7 +222,7 @@ static void outbound_push(struct PlatformWin32Browser* s, WCHAR const* message)
     char* copy = utf8_from_wide(message);
     if( !copy ) { s->send_failed = 1; return; }
     if( s->outbound_count >= WV2_OUTBOUND_MAX )
-    { free(copy); s->send_failed = 1; return; }
+    { ToriMem_Free(ToriMem_Process(), copy); s->send_failed = 1; return; }
     s->outbound[s->outbound_count++] = copy;
 }
 
@@ -234,8 +234,7 @@ static int execute_json(struct PlatformWin32Browser* s, char const* json)
     HRESULT hr = E_FAIL;
     if( !s->core || !json ) return 0;
     size = strlen(json) + 192;
-    script = (char*)malloc(size);
-    if( !script ) return 0;
+    script = (char*)ToriMem_Alloc(ToriMem_Process(), size);
     snprintf(script, size,
         "(function(){try{return !!(window.ToriRSPluginChrome&&"
         "window.ToriRSPluginChrome.receive(%s)!==false);}" 
@@ -243,8 +242,8 @@ static int execute_json(struct PlatformWin32Browser* s, char const* json)
     wide = wide_from_utf8(script);
     if( wide )
         hr = ICoreWebView2_ExecuteScript(s->core, wide, &s->execute_handler);
-    free(wide);
-    free(script);
+    ToriMem_Free(ToriMem_Process(), wide);
+    ToriMem_Free(ToriMem_Process(), script);
     return SUCCEEDED(hr);
 }
 
@@ -254,7 +253,7 @@ static void flush_inbound(struct PlatformWin32Browser* s)
     {
         if( !execute_json(s, s->inbound[i]) )
             s->send_failed = 1;
-        free(s->inbound[i]);
+        ToriMem_Free(ToriMem_Process(), s->inbound[i]);
         s->inbound[i] = NULL;
     }
     s->inbound_count = 0;
@@ -629,8 +628,9 @@ PlatformWin32Browser_New(HWND parent, WCHAR const* bundle_root)
     lstrcatW(page, L"modern.html");
     if( GetFileAttributesW(page) == INVALID_FILE_ATTRIBUTES ) return NULL;
 
+    /* torimem-bare: COM-refcounted; the SDK's last Release frees it (wv2_destroy_state) */
     s = (struct PlatformWin32Browser*)calloc(1, sizeof(*s));
-    if( !s ) return NULL;
+    assert(s);
     s->parent = parent;
     s->refs = 1;
     s->environment_handler.lpVtbl = &ENVIRONMENT_VTBL;
@@ -677,8 +677,10 @@ PlatformWin32Browser_Free(struct PlatformWin32Browser* s)
 {
     if( !s ) return;
     s->closing = 1;
-    for( int i = 0; i < s->inbound_count; i++ ) free(s->inbound[i]);
-    for( int i = 0; i < s->outbound_count; i++ ) free(s->outbound[i]);
+    for( int i = 0; i < s->inbound_count; i++ ) ToriMem_Free(ToriMem_Process(), s->inbound[i]);
+    for( int i = 0; i < s->outbound_count; i++ ) ToriMem_Free(ToriMem_Process(), s->outbound[i]);
+    s->inbound_count = 0;
+    s->outbound_count = 0;
     if( s->core4 && s->download_token.value )
         ICoreWebView2_4_remove_DownloadStarting(s->core4, s->download_token);
     if( s->core )
@@ -722,9 +724,7 @@ PlatformWin32Browser_Send(struct PlatformWin32Browser* s, char const* json)
     if( !s || !json || !json[0] || strlen(json) > WV2_JSON_MAX ) return 0;
     if( s->ready ) return execute_json(s, json);
     if( s->inbound_count >= WV2_INBOUND_MAX ) return 0;
-    copy = (char*)malloc(strlen(json) + 1);
-    if( !copy ) return 0;
-    strcpy(copy, json);
+    copy = ToriMem_Strdup(ToriMem_Process(), json);
     s->inbound[s->inbound_count++] = copy;
     return 1;
 }
@@ -752,7 +752,7 @@ PlatformWin32Browser_Poll(
     if( length >= capacity ) length = capacity - 1;
     memcpy(out_json, message, (size_t)length);
     out_json[length] = 0;
-    free(message);
+    ToriMem_Free(ToriMem_Process(), message);
     return length;
 }
 
@@ -811,7 +811,7 @@ struct PlatformWin32Browser* PlatformWin32Browser_New(
     HWND parent, WCHAR const* bundle_root)
 { (void)parent; (void)bundle_root; return NULL; }
 void PlatformWin32Browser_Free(struct PlatformWin32Browser* browser)
-{ free(browser); }
+{ (void)browser; /* New never makes one: nothing to free */ }
 void PlatformWin32Browser_Resize(struct PlatformWin32Browser* b, int w, int h)
 { (void)b; (void)w; (void)h; }
 int PlatformWin32Browser_Send(struct PlatformWin32Browser* b, char const* json)

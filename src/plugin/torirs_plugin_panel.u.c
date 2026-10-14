@@ -3004,11 +3004,12 @@ app_plugin_panel_raster_custom(
         return 0;
     if( pixels > app->panel_custom_pixel_capacity )
     {
-        uint32_t* grown = realloc(
+        /* PLUGINS: the panel's custom well; App_Shutdown frees it from there. */
+        uint32_t* grown = ToriMem_Realloc(
+            ToriMem_Plugins(),
             app->panel_custom_pixels,
             pixels * sizeof(*app->panel_custom_pixels));
-        if( !grown )
-            return 0;
+        assert(grown);
         app->panel_custom_pixels = grown;
         app->panel_custom_pixel_capacity = pixels;
     }

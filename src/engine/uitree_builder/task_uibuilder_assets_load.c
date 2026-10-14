@@ -1,4 +1,5 @@
 #include "engine/cache_provider.h"
+#include "mem/torirs_mem.h"
 #include "engine/dat2/dat2_tasks.h"
 #include "engine/title_panel.h"
 #include "engine/uitree_builder/task_pack_assets_load.h"
@@ -41,7 +42,7 @@ unique_obj_add(
     if( self->unique_obj_count >= self->unique_obj_cap )
     {
         int n = self->unique_obj_cap == 0 ? 16 : self->unique_obj_cap * 2;
-        int* grown = realloc(self->unique_objs, (size_t)n * sizeof(int));
+        int* grown = ToriMem_Realloc(ToriRS_TaskMem(&self->task), self->unique_objs, (size_t)n * sizeof(int));
         assert(grown);
         self->unique_objs = grown;
         self->unique_obj_cap = n;
@@ -268,8 +269,8 @@ static void
 Task_UIBuilderAssetsLoad_Free(struct ToriRS_Task* base)
 {
     struct Task_UIBuilderAssetsLoad* self = (struct Task_UIBuilderAssetsLoad*)base;
-    free(self->unique_objs);
-    free(self);
+    ToriMem_Free(base->mem, self->unique_objs); /* the task's scratch */
+    ToriMem_Free(ToriMem_Ui(), self);
 }
 
 static struct ToriRS_TaskVTable Task_UIBuilderAssetsLoad_VTable = {
@@ -285,7 +286,7 @@ CreateTask_UIBuilderAssetsLoad(
     assert(builder);
     assert(manifest);
 
-    struct Task_UIBuilderAssetsLoad* task = calloc(1, sizeof(*task));
+    struct Task_UIBuilderAssetsLoad* task = ToriMem_Calloc(ToriMem_Ui(), 1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_UIBuilderAssetsLoad_VTable;
     strncpy(task->task.name, "UIBuilderAssetsLoad", sizeof(task->task.name) - 1);
