@@ -97,6 +97,19 @@ BUDGET = 15  # colours, transparency is the 16th
 
 # ------------------------------------------------------------------ helpers
 
+# A subject's raw renders are 1200 px canvases plus depth and vertex dumps for
+# every frame and facing: tens of MB a subject. Kept for one region they
+# reached 78 GB and filled the disk (2026-10-14), so a generator drops them
+# once the sheet is stored. POKESPRITE_KEEP_RAW=1 keeps them, to re-stylise
+# without re-rendering.
+KEEP_RAW = bool(os.environ.get("POKESPRITE_KEEP_RAW"))
+
+
+def drop_raw(d):
+    if not KEEP_RAW:
+        shutil.rmtree(d, ignore_errors=True)
+
+
 _STAMP = []
 
 
@@ -838,6 +851,7 @@ def main():
             st.write_rgba(npc_key(a.npc, an["seq"]), rows, an["rows"][0]["durations_ms"],
                           an["origin"], an["ground"])
         st.close()
+        drop_raw(raw)
         print("stored %d sheets in %s" % (len(meta["anims"]), a.store))
     sheet.save(os.path.join(a.out, "sheet.png"))
     sheet.resize((sw * 2, sh * 2), Image.NEAREST).save(os.path.join(a.out, "sheet@2x.png"))

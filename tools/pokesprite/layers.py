@@ -470,6 +470,8 @@ def generate(layer_seqs, raw, store_root, gender="m"):
                            enc[(str(seq), "down")][1], preps[L]["table"])
             n += 1
     st.close()
+    for L in layer_seqs:
+        ps.drop_raw(os.path.join(raw, L.replace(":", "_")))
     return n
 
 

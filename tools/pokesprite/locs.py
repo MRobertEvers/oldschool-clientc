@@ -66,6 +66,7 @@ def generate_obj(obj, work, store_root):
     st.write_rgba("obj/%d" % obj, [frames[("s-1", "r0")][0]], frames[("s-1", "r0")][1], origin,
                   ground)
     st.close()
+    ps.drop_raw(raw)
 
 
 def generate_spot(spot, work, store_root):
@@ -96,6 +97,7 @@ def generate_spot(spot, work, store_root):
     st = Store(store_root)
     st.write_rgba("spot/%d" % spot, rows, frames[("s", "down")][1], origin, ground)
     st.close()
+    ps.drop_raw(raw)
 
 
 def render(loc, shape, seq, raw):
@@ -133,6 +135,7 @@ def generate(loc, shape, seq, work, store_root):
     st.write_rgba("loc/%d/%d/%d" % (loc, shape, seq), rows, frames[(label, "r0")][1], origin,
                   ground)
     st.close()
+    ps.drop_raw(raw)
 
 
 def main():
