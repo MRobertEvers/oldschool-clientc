@@ -25,6 +25,7 @@
 #include "pacer.h"
 #include "platform/net_transport.h"
 #include "platform/platform_window.h"
+#include "pokesprite/pokesprite_format.h"
 #include "ps_fetch.h"
 #include "ps_render.h"
 #include "ps_world.h"
@@ -210,6 +211,9 @@ main(
     if( cfg.window_w > 0 && cfg.window_h > 0 && cfg.window_mode != CS2VM_WINDOW_MODE_FIXED )
         UITree_LayoutSetRootSize(cfg.window_w, cfg.window_h);
 
+    /* Tell the server, through the login header, that this is the 2D client
+     * (src/pokesprite/pokesprite_format.h). */
+    cfg.clienttype = POKESPRITE_CLIENT_TYPE;
     App_Init(&app, &cfg);
     if( !cfg.window_mode && App_UiLogic(&app) == APP_UI_LOGIC_CS1 )
         cfg.window_mode = CS2VM_WINDOW_MODE_FIXED;

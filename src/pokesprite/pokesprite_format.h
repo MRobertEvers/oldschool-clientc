@@ -53,6 +53,16 @@
 
 #define POKESPRITE_MAGIC "PSS1"
 
+/*
+ * The client type the PokeSprite client logs in with (the login header's
+ * clientType, which the server keeps on the player). Not one of the
+ * reference's values (1 desktop ... 10 this client's desktop, 2/3/7/8
+ * mobile): the stock interface scripts branch only on the mobile ones, so
+ * this gets the desktop layout, and the server can tell a 2D client from a
+ * 3D one -- ToriRSServer_PlayerIsPokesprite.
+ */
+#define POKESPRITE_CLIENT_TYPE 31
+
 enum PokeSpriteKind
 {
     POKESPRITE_KIND_RGBA = 1,
