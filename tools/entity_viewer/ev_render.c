@@ -891,6 +891,329 @@ ev_frame_delay(int index)
 }
 
 /*
+ * Sprite-export passes. Off by default; nothing the viewer page uses changes
+ * unless a caller turns one on.
+ *
+ * Face-ID pass (ev_set_material_pass(1)): every face drawn flat in a colour no
+ * other face has, through the SAME painter and priorities as the lit frame.
+ * Never a depth test: an OSRS model's decals (eyes, mouth, laces) are coplanar
+ * with what they decorate and only the priority order keeps them on top, so a
+ * z-buffered pass disagrees with the lit frame exactly where detail lives.
+ * Each pixel therefore names the face that won it in the real draw; the caller
+ * maps the face to its base colour, its head flag and its depth.
+ */
+static int g_material_pass = 0;
+static hsl16_t* g_face_code = NULL;
+static float* g_face_depth = NULL;
+static int g_face_cap = 0;
+static uint8_t g_rgb_used[(1u << 24) / 8u];
+
+void
+ev_set_material_pass(int on)
+{
+    g_material_pass = on;
+}
+
+/* A distinct HSL16 per face whose table colour no earlier face took and which
+ * is not the black background. Deterministic, so face i always gets the same
+ * colour. */
+static void
+ensure_face_codes(int nf)
+{
+    if( nf <= g_face_cap )
+        return;
+    g_face_code = (hsl16_t*)realloc(g_face_code, sizeof(hsl16_t) * (size_t)nf);
+    assert(g_face_code);
+    g_face_depth = (float*)realloc(g_face_depth, sizeof(float) * (size_t)nf);
+    assert(g_face_depth);
+    memset(g_rgb_used, 0, sizeof(g_rgb_used));
+    g_rgb_used[0] |= 1u;
+    int c = 0;
+    for( int i = 0; i < nf; i++ )
+    {
+        for( ;; c++ )
+        {
+            assert(c < 65536);
+            if( c == TORIDRAWHSL16_HIDDEN || c == TORIDRAWHSL16_FLAT )
+                continue;
+            unsigned int rgb = (unsigned int)ToriDraw_Hsl16ToRgb((uint16_t)c) & 0xFFFFFFu;
+            if( g_rgb_used[rgb >> 3] & (1u << (rgb & 7u)) )
+                continue;
+            g_rgb_used[rgb >> 3] |= (uint8_t)(1u << (rgb & 7u));
+            g_face_code[i] = (hsl16_t)c;
+            c++;
+            break;
+        }
+    }
+    g_face_cap = nf;
+}
+
+/* Layer rendering: only faces [first, first+count) are drawn, in every pass,
+ * while the whole model is still posed and deformed -- so one component of a
+ * composite is drawn exactly where it sits in the composite. count < 0: all. */
+static int g_face_first = 0;
+static int g_face_count = -1;
+
+void
+ev_set_face_range(
+    int first,
+    int count)
+{
+    g_face_first = first;
+    g_face_count = count;
+}
+
+static bool
+face_in_range(int i)
+{
+    return g_face_count < 0 || (i >= g_face_first && i < g_face_first + g_face_count);
+}
+
+/* Per vertex, after a face-ID pass: canvas x, canvas y, and camera z relative
+ * to the model centre (which sits at camera z == zoom). With the
+ * face-ID image this gives each pixel's exact depth by interpolating its
+ * face -- no z-buffer, so it agrees with the painter that chose the face. */
+static int* g_vtx_screen = NULL;
+static int g_vtx_screen_cap = 0;
+
+const int*
+ev_vertex_screen(void)
+{
+    return g_vtx_screen;
+}
+
+int
+ev_face_code_rgb(int face)
+{
+    assert(face >= 0);
+    assert(face < g_face_cap);
+    return ToriDraw_Hsl16ToRgb((uint16_t)g_face_code[face]) & 0xFFFFFF;
+}
+
+const float*
+ev_face_depth(void)
+{
+    return g_face_depth;
+}
+
+/*
+ * Chibi proportions, applied to the posed vertices. 0 disables.
+ *
+ * The head is chosen by WHOLE MESH, not by vertex: a connected component of
+ * the model (faces sharing vertices) is head when most of its bind-pose
+ * vertices are above the head line and it sits on the body's axis. An identity
+ * kit is its own mesh, so the hair, the jaw or a helmet scales entire or not at
+ * all; choosing per vertex tore a kit wherever it crossed the line (the back
+ * of the hair hanging to the shoulders, a beard left behind the chin).
+ *
+ * Selection uses the BIND pose, so a head stays the head when an arm swings
+ * across it; the scale is applied about the POSED neck, so the head follows
+ * the body. The body is squashed in height and widened about its own axis.
+ */
+static int g_chibi_head_pct = 0;
+static int g_chibi_frac_pct = 0;
+static int g_chibi_body_pct = 0;
+static int g_chibi_width_pct = 0;
+static uint8_t* g_head_vertex = NULL;
+static int g_head_vertex_cap = 0;
+static int g_head_vertex_n = 0;
+/* The vertices [0, n) that define the body's height and neck: a composite's
+ * identity kits. A layer added on top (a helm, a plume) is still classified
+ * against that line but cannot move it, so every layer of one body shares
+ * one head line and one pivot. 0: every vertex. */
+static int g_chibi_ref_vertices = 0;
+
+void
+ev_set_chibi_reference(int vertex_count)
+{
+    g_chibi_ref_vertices = vertex_count;
+}
+
+void
+ev_set_chibi(
+    int head_pct,
+    int head_frac_pct,
+    int body_pct,
+    int width_pct)
+{
+    g_chibi_head_pct = head_pct;
+    g_chibi_frac_pct = head_frac_pct;
+    g_chibi_body_pct = body_pct;
+    g_chibi_width_pct = width_pct;
+}
+
+int
+ev_face_is_head(
+    const struct ToriDraw_Model* m,
+    int face)
+{
+    assert(m);
+    assert(face >= 0);
+    assert(face < m->face_count);
+    int a = m->face_indices_a[face];
+    return g_head_vertex && a < g_head_vertex_n ? g_head_vertex[a] : 0;
+}
+
+static int
+uf_find(
+    int* parent,
+    int i)
+{
+    while( parent[i] != i )
+    {
+        parent[i] = parent[parent[i]];
+        i = parent[i];
+    }
+    return i;
+}
+
+static void
+select_head(
+    const struct ToriDraw_Model* m,
+    int n,
+    const vertexint_t* bx,
+    const vertexint_t* by,
+    const vertexint_t* bz,
+    int head_line,
+    int reach)
+{
+    int* parent = (int*)malloc(sizeof(int) * (size_t)n);
+    assert(parent);
+    long* stat = (long*)calloc((size_t)n * 4u, sizeof(long));
+    assert(stat);
+    for( int i = 0; i < n; i++ )
+        parent[i] = i;
+    for( int f = 0; f < m->face_count; f++ )
+    {
+        int a = m->face_indices_a[f], b = m->face_indices_b[f], c = m->face_indices_c[f];
+        if( a >= n || b >= n || c >= n )
+            continue;
+        int ra = uf_find(parent, a), rb = uf_find(parent, b), rc = uf_find(parent, c);
+        parent[rb] = ra;
+        parent[uf_find(parent, rc)] = ra;
+    }
+    /* Per component: vertex count, count above the line, sum x, sum z. */
+    for( int i = 0; i < n; i++ )
+    {
+        long* st = stat + (size_t)uf_find(parent, i) * 4u;
+        st[0]++;
+        st[1] += by[i] < head_line;
+        st[2] += bx[i];
+        st[3] += bz[i];
+    }
+    for( int i = 0; i < n; i++ )
+    {
+        const long* st = stat + (size_t)uf_find(parent, i) * 4u;
+        long mx = st[2] / st[0], mz = st[3] / st[0];
+        g_head_vertex[i] = (uint8_t)(st[1] * 2 > st[0] && mx > -reach && mx < reach &&
+                                     mz > -reach && mz < reach);
+    }
+    free(stat);
+    free(parent);
+}
+
+static void
+apply_chibi(struct ToriDraw_Model* m)
+{
+    assert(m);
+    if( g_chibi_head_pct <= 0 || g_chibi_frac_pct <= 0 )
+        return;
+
+    /* An attached graphic is not part of the body: neither head nor squash. */
+    int n = (g_combined && m == g_combined && g_spot_vertex_first >= 0)
+                ? g_spot_vertex_first : m->vertex_count;
+    const vertexint_t* bx = m->original_vertices_x ? m->original_vertices_x : m->vertices_x;
+    const vertexint_t* by = m->original_vertices_y ? m->original_vertices_y : m->vertices_y;
+    const vertexint_t* bz = m->original_vertices_z ? m->original_vertices_z : m->vertices_z;
+    if( n <= 0 )
+        return;
+    int nref = (g_chibi_ref_vertices > 0 && g_chibi_ref_vertices < n) ? g_chibi_ref_vertices : n;
+
+    /* RS models grow along -y from a floor at y=0. */
+    int top = 0;
+    for( int i = 0; i < nref; i++ )
+        if( by[i] < top )
+            top = by[i];
+    int height = -top;
+    if( height <= 0 )
+        return;
+    int head_line = top + height * g_chibi_frac_pct / 100;
+    /* Only near the body's axis: an upright staff or a raised blade reaches
+     * above the head line too, and must not be inflated with it. */
+    int reach = height * 14 / 100;
+
+    /* The selection depends only on the bind pose: make it once per model. */
+    if( m->vertex_count > g_head_vertex_cap )
+    {
+        g_head_vertex = (uint8_t*)realloc(g_head_vertex, (size_t)m->vertex_count);
+        assert(g_head_vertex);
+        g_head_vertex_cap = m->vertex_count;
+        g_head_vertex_n = 0;
+    }
+    if( g_head_vertex_n != n )
+    {
+        memset(g_head_vertex, 0, (size_t)m->vertex_count);
+        select_head(m, n, bx, by, bz, head_line, reach);
+        g_head_vertex_n = n;
+    }
+
+    /* Neck: the head meshes' lowest band, where they sit on the body. */
+    int bottom = top;
+    for( int i = 0; i < nref; i++ )
+        if( g_head_vertex[i] && by[i] > bottom )
+            bottom = by[i];
+    /* A head mesh usually carries its neck. Scaling that whole makes a
+     * column wider than the shoulders, so the scale eases in: 1x at the neck's
+     * base, the full head scale from 30% of the way up the mesh. One smooth
+     * field over the whole mesh, so nothing in it can tear. */
+    int ease = (bottom - top) * 30 / 100;
+    if( ease < 1 )
+        ease = 1;
+    int ring_line = bottom - height * 4 / 100;
+    long px = 0, py = 0, pz = 0;
+    int ring = 0;
+    for( int i = 0; i < nref; i++ )
+    {
+        if( g_head_vertex[i] && by[i] >= ring_line )
+        {
+            px += m->vertices_x[i];
+            py += m->vertices_y[i];
+            pz += m->vertices_z[i];
+            ring++;
+        }
+    }
+    if( ring == 0 )
+        return;
+    px /= ring;
+    py /= ring;
+    pz /= ring;
+
+    int body = g_chibi_body_pct > 0 ? g_chibi_body_pct : 100;
+    int width = g_chibi_width_pct > 0 ? g_chibi_width_pct : 100;
+    /* The neck moves with the body before the head is scaled about it. */
+    long npx = px * width / 100, npy = py * body / 100, npz = pz * width / 100;
+    for( int i = 0; i < n; i++ )
+    {
+        if( g_head_vertex[i] )
+        {
+            float t = (float)(bottom - by[i]) / (float)ease;
+            t = t < 0.0f ? 0.0f : (t > 1.0f ? 1.0f : t);
+            float k = 1.0f + (g_chibi_head_pct / 100.0f - 1.0f) * t * t * (3.0f - 2.0f * t);
+            m->vertices_x[i] = (vertexint_t)(npx + (m->vertices_x[i] - px) * k);
+            m->vertices_y[i] = (vertexint_t)(npy + (m->vertices_y[i] - py) * k);
+            m->vertices_z[i] = (vertexint_t)(npz + (m->vertices_z[i] - pz) * k);
+        }
+        else
+        {
+            m->vertices_x[i] = (vertexint_t)(m->vertices_x[i] * width / 100);
+            m->vertices_y[i] = (vertexint_t)(m->vertices_y[i] * body / 100);
+            m->vertices_z[i] = (vertexint_t)(m->vertices_z[i] * width / 100);
+        }
+    }
+    ToriDraw_ModelSetBoundsCylinder(m);
+}
+
+/*
  * Put the model in the pose for `frame`; -1 is the bind pose.
  *
  * Two kinds of animation, one frame index. A skeletal (Animaya) sequence has no
@@ -922,6 +1245,7 @@ ev_pose(int frame)
     if( !g_anim || frame < 0 || frame >= g_anim->frame_count )
     {
         ToriDraw_ModelSetBoundsCylinder(m);
+        apply_chibi(m);
         return;
     }
 
@@ -934,6 +1258,7 @@ ev_pose(int frame)
     }
     else if( g_anim->base && g_anim->frames )
         ToriDraw_ModelAnimateFrame(m, g_anim->base, &g_anim->frames[frame]);
+    apply_chibi(m);
 }
 
 int
@@ -1138,6 +1463,43 @@ ev_render(int width, int height, int yaw, int pitch, int zoom, int frame)
      */
     uint8_t* saved_priorities = subject->face_priorities;
     int saved_model_priority = subject->model_priority;
+
+    hsl16_t* saved_ca = subject->face_colors_a;
+    hsl16_t* saved_cb = subject->face_colors_b;
+    hsl16_t* saved_cc = subject->face_colors_c;
+    faceint_t* saved_textures = subject->face_textures;
+    alphaint_t* saved_alphas = subject->face_alphas;
+    hsl16_t* flat = NULL;
+    if( g_material_pass )
+    {
+        int nf = subject->face_count;
+        ensure_face_codes(nf);
+        flat = (hsl16_t*)malloc(sizeof(hsl16_t) * (size_t)nf * 2u);
+        assert(flat);
+        for( int i = 0; i < nf; i++ )
+        {
+            bool hidden = (saved_cc && saved_cc[i] == TORIDRAWHSL16_HIDDEN) || !face_in_range(i);
+            flat[i] = g_face_code[i];
+            flat[nf + i] = hidden ? TORIDRAWHSL16_HIDDEN : TORIDRAWHSL16_FLAT;
+        }
+        /* Opaque, so a pixel names one face rather than a blend of two. */
+        subject->face_alphas = NULL;
+        subject->face_colors_a = flat;
+        subject->face_colors_b = flat;
+        subject->face_colors_c = flat + nf;
+        subject->face_textures = NULL;
+    }
+    else if( g_face_count >= 0 )
+    {
+        /* A lit layer: the same model, the other faces hidden. */
+        assert(saved_cc);
+        int nf = subject->face_count;
+        flat = (hsl16_t*)malloc(sizeof(hsl16_t) * (size_t)nf);
+        assert(flat);
+        for( int i = 0; i < nf; i++ )
+            flat[i] = face_in_range(i) ? saved_cc[i] : TORIDRAWHSL16_HIDDEN;
+        subject->face_colors_c = flat;
+    }
     if( g_ignore_priorities )
     {
         subject->face_priorities = NULL;
@@ -1203,6 +1565,42 @@ ev_render(int width, int height, int yaw, int pitch, int zoom, int frame)
 
     subject->face_priorities = saved_priorities;
     subject->model_priority = saved_model_priority;
+    if( flat )
+    {
+        if( g_material_pass )
+        {
+            /* Each face's depth: the mean of its vertices' screen z, which is
+             * camera z relative to the model's centre (the untextured kernels
+             * do not fill the orthographic arrays; only the textured ones do).
+             * The framing puts that centre at camera z == zoom, so absolute
+             * depth is this plus zoom; compositing only needs the relative. */
+            assert(g_scene->screen_vertices_z);
+            const int* sz = g_scene->screen_vertices_z;
+            for( int i = 0; i < subject->face_count; i++ )
+                g_face_depth[i] = (float)(sz[subject->face_indices_a[i]] +
+                                          sz[subject->face_indices_b[i]] +
+                                          sz[subject->face_indices_c[i]]) / 3.0f;
+            int nv = subject->vertex_count;
+            if( nv > g_vtx_screen_cap )
+            {
+                g_vtx_screen = (int*)realloc(g_vtx_screen, sizeof(int) * 3u * (size_t)nv);
+                assert(g_vtx_screen);
+                g_vtx_screen_cap = nv;
+            }
+            for( int v = 0; v < nv; v++ )
+            {
+                g_vtx_screen[v * 3 + 0] = g_scene->screen_vertices_x[v] + width / 2;
+                g_vtx_screen[v * 3 + 1] = g_scene->screen_vertices_y[v] + height / 2;
+                g_vtx_screen[v * 3 + 2] = sz[v];
+            }
+        }
+        subject->face_alphas = saved_alphas;
+        subject->face_colors_a = saved_ca;
+        subject->face_colors_b = saved_cb;
+        subject->face_colors_c = saved_cc;
+        subject->face_textures = saved_textures;
+        free(flat);
+    }
 
     /* toripixel_t is 0x00RRGGBB; the canvas wants RGBA bytes and every pixel is
      * opaque because the background was painted first. */

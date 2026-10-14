@@ -44,6 +44,11 @@ struct EV_PlayerSpec
     /** Equipped obj ids, in draw order. -1 entries are skipped. */
     int worn[EV_PLAYER_MAX_WORN];
     int worn_count;
+    /** Set when the spec came from an appearance buffer: draw exactly the
+     *  kits and objs it names, as the client does. No default body is filled
+     *  in, and nothing is hidden, because the buffer's empty slots already
+     *  say what the equipment covers. */
+    int exact;
 };
 
 /**
@@ -87,6 +92,11 @@ ev_spotanim_model_id(
 /** Default male: every kit auto-resolved, nothing worn. */
 void
 ev_player_spec_init(struct EV_PlayerSpec* spec);
+
+/** Fill each body part still -1 in `kits` with the first selectable kit the
+ *  cache offers for it: the default body. */
+void
+ev_resolve_default_kits(struct Tool_Dat2Cache* c, int kits[EV_PLAYER_PARTS]);
 
 /**
  * Composite the player: identity-kit part models plus the gendered wear models
