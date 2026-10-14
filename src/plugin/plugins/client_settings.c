@@ -212,9 +212,14 @@ static char const* const CS_HIGH_DPI_NAME[CS_HIGH_DPI_ROWS] = {
 };
 
 /* By TORIRS_RENDERER_*. A row's stable value is the store's: the kind + 1. */
-static char const* const CS_RENDERER_VALUE[TORIRS_RENDERER_COUNT] = {
-    "1", "2", "3", "4", "5", "6", "7",
+/* kind + 1, one per kind: a short table left the WebGL and GLES3 kinds' values
+ * NULL, so the browser's and the phone's renderer rows had nothing to pick. */
+static char const* const CS_RENDERER_VALUE[] = {
+    "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13",
 };
+_Static_assert(
+    sizeof(CS_RENDERER_VALUE) / sizeof(CS_RENDERER_VALUE[0]) == TORIRS_RENDERER_COUNT,
+    "one renderer value per kind");
 static char const* const CS_RENDERER_LABEL[TORIRS_RENDERER_COUNT] = TORIRS_RENDERER_LABELS;
 
 static char const* const CS_FRAME_FILTER_VALUE[] = { "0", "1", "2", "3" };
