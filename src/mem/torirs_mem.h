@@ -11,7 +11,8 @@
  *   PROCESS (heap) --+-- FRAME[thread] (arena)          reset: frame_loop_step end
  *   ends at exit     +-- TASKS (pool) -- task:* (arena)  end: task_free
  *                    +-- VMS   (pool) -- vm:*   (arena)  reset: script done
- *                    +-- renderer, mixer, plugin:*, iface:*, cacheprovider (heap)
+ *                    +-- render (heap) -- renderer (heap)  end: renderer stop
+ *                    +-- mixer, plugin:*, iface:*, cacheprovider (heap)
  *                    +-- lib:rscache, lib:toridraw, lib:trspk, ...      end: exit
  *                    +-- SESSION (heap) --+-- SCENE (arena)  reset: region rebuild
  *                        end: App_Logout  +-- transport, the game stores
@@ -184,7 +185,11 @@ ToriMem_Assets(void);
  *   |
  *   |-- client ----------------------------------------------------------
  *   |   ui        the UI tree, interfaces, layout, chrome, revconfig
- *   |   render    renderers, painters, raster state, GPU staging
+ *   |   render    painters, Soft3D raster state, procedural textures:
+ *   |   |         what outlives any one renderer
+ *   |   +-- renderer  the running GPU renderer and every trspk block it
+ *   |             asked for (atlases, batches, model arenas); ended by
+ *   |             renderer stop, so a renderer switch proves it all freed
  *   |   audio     mixer, sound bank, audio backends   (audio thread too)
  *   |   net       transports, IO, protocol buffers    (IO thread too)
  *   |   session   game state from login to logout: varps, varcs, invs,
@@ -205,11 +210,25 @@ ToriMem_Assets(void);
  *   |
  *   +-- compiler  the ServerScript / CS2 compilers (build-time tools too)
  *
- * Today each ends at exit. Session and scene are the next to get their own
- * checked ends: logout and region rebuild.
+ * Today each ends at exit, except renderer, which ends at renderer stop.
+ * Session and scene are the next to get their own checked ends: logout and
+ * region rebuild.
  */
 struct ToriMem_Group* ToriMem_Ui(void);
 struct ToriMem_Group* ToriMem_Render(void);
+
+/** The running renderer's group, a child of render. Aborts when no renderer
+ *  is running: a renderer's memory has nowhere else to go. */
+struct ToriMem_Group* ToriMem_Renderer(void);
+
+/** Begin and end the renderer group: the host's renderer start and stop, one
+ *  renderer at a time. End checks every block the renderer allocated was
+ *  freed. */
+void
+ToriMem_RendererBegin(void);
+
+void
+ToriMem_RendererEnd(void);
 struct ToriMem_Group* ToriMem_Audio(void);
 struct ToriMem_Group* ToriMem_Net(void);
 struct ToriMem_Group* ToriMem_Session(void);

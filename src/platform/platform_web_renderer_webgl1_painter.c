@@ -233,7 +233,7 @@ es2_painter_batch_reset(
         uint64_t* grown;
         while( capacity < entry_count )
             capacity *= 2u;
-        grown = (uint64_t*)ToriMem_Realloc(ToriMem_Render(), batch->hot_serial, (size_t)capacity * sizeof(*grown));
+        grown = (uint64_t*)ToriMem_Realloc(ToriMem_Renderer(), batch->hot_serial, (size_t)capacity * sizeof(*grown));
         assert(grown);
         batch->hot_serial = grown;
         batch->hot_serial_capacity = capacity;
@@ -401,7 +401,7 @@ es2_painter_place(
         struct TRSPK_VertexGLES2* grown;
         while( capacity < renderer->hot_stage_count + span )
             capacity *= 2u;
-        grown = (struct TRSPK_VertexGLES2*)ToriMem_Realloc(ToriMem_Render(),
+        grown = (struct TRSPK_VertexGLES2*)ToriMem_Realloc(ToriMem_Renderer(),
             renderer->hot_stage, (size_t)capacity * sizeof(*grown));
         assert(grown);
         renderer->hot_stage = grown;

@@ -199,7 +199,7 @@ es2_ui_pass_reserve_vertices(struct TRSPK_Renderer_ES2* renderer, uint32_t addit
                                                  : ES2_UI_PASS_INIT_VERTICES;
     while( capacity < needed )
         capacity *= 2u;
-    grown = (struct ES2VertexUI*)ToriMem_Realloc(ToriMem_Render(),
+    grown = (struct ES2VertexUI*)ToriMem_Realloc(ToriMem_Renderer(),
         renderer->ui_pass_vertices, (size_t)capacity * sizeof(*grown));
     assert(grown);
     renderer->ui_pass_vertices = grown;
@@ -217,7 +217,7 @@ es2_ui_pass_reserve_rotmask_vertices(struct TRSPK_Renderer_ES2* renderer, uint32
     capacity = renderer->ui_pass_rotmask_capacity ? renderer->ui_pass_rotmask_capacity : 24u;
     while( capacity < needed )
         capacity *= 2u;
-    grown = (struct ES2VertexRotmask*)ToriMem_Realloc(ToriMem_Render(),
+    grown = (struct ES2VertexRotmask*)ToriMem_Realloc(ToriMem_Renderer(),
         renderer->ui_pass_rotmask_vertices, (size_t)capacity * sizeof(*grown));
     assert(grown);
     renderer->ui_pass_rotmask_vertices = grown;
@@ -233,7 +233,7 @@ es2_ui_pass_record_append(struct TRSPK_Renderer_ES2* renderer)
         uint32_t capacity = renderer->ui_pass_record_capacity
             ? renderer->ui_pass_record_capacity * 2u
             : ES2_UI_PASS_INIT_RECORDS;
-        struct ES2UIDrawRecord* grown = (struct ES2UIDrawRecord*)ToriMem_Realloc(ToriMem_Render(),
+        struct ES2UIDrawRecord* grown = (struct ES2UIDrawRecord*)ToriMem_Realloc(ToriMem_Renderer(),
             renderer->ui_pass_records, (size_t)capacity * sizeof(*grown));
         assert(grown);
         renderer->ui_pass_records = grown;
@@ -926,11 +926,11 @@ es2_ui_sprite_slot_index(struct TRSPK_Renderer_ES2* renderer, int scene_id, bool
         return -1;
     renderer->ui_sprite_slots[free_index].scene_id = scene_id;
     renderer->ui_sprite_slots[free_index].count = 0;
-    ToriMem_Free(ToriMem_Render(), renderer->ui_sprite_slots[free_index].uvs);
-    ToriMem_Free(ToriMem_Render(), renderer->ui_sprite_slots[free_index].loaded);
+    ToriMem_Free(ToriMem_Renderer(), renderer->ui_sprite_slots[free_index].uvs);
+    ToriMem_Free(ToriMem_Renderer(), renderer->ui_sprite_slots[free_index].loaded);
     /* A slot handed to a different scene id keeps none of the old one's
      * atlas tiles: they belong to whatever sprite used to live here. */
-    ToriMem_Free(ToriMem_Render(), renderer->ui_sprite_slots[free_index].tiles);
+    ToriMem_Free(ToriMem_Renderer(), renderer->ui_sprite_slots[free_index].tiles);
     renderer->ui_sprite_slots[free_index].uvs = NULL;
     renderer->ui_sprite_slots[free_index].loaded = NULL;
     renderer->ui_sprite_slots[free_index].tiles = NULL;
@@ -999,7 +999,7 @@ es2_ui_upload_sprite_pixels(
         return false;
     padded_width = (uint32_t)width + 2u;
     padded_height = (uint32_t)height + 2u;
-    padded = (uint32_t*)ToriMem_Alloc(ToriMem_Render(), (size_t)padded_width * (size_t)padded_height * sizeof(*padded));
+    padded = (uint32_t*)ToriMem_Alloc(ToriMem_Renderer(), (size_t)padded_width * (size_t)padded_height * sizeof(*padded));
     assert(padded);
     for( y = 0; y < (int)padded_height; y++ )
     {
@@ -1036,7 +1036,7 @@ es2_ui_upload_sprite_pixels(
             padded_width,
             padded_height,
             &tile);
-    ToriMem_Free(ToriMem_Render(), padded);
+    ToriMem_Free(ToriMem_Renderer(), padded);
     if( !inserted )
         return false;
     if( tile_io )
@@ -1084,16 +1084,16 @@ es2_ui_sprite_ensure_base(
     slot = &renderer->ui_sprite_slots[slot_index];
     if( slot->count != count || !slot->tiles )
     {
-        float* uvs = (float*)ToriMem_Calloc(ToriMem_Render(), (size_t)count * 4u, sizeof(float));
-        uint8_t* loaded = (uint8_t*)ToriMem_Calloc(ToriMem_Render(), (size_t)count, sizeof(uint8_t));
+        float* uvs = (float*)ToriMem_Calloc(ToriMem_Renderer(), (size_t)count * 4u, sizeof(float));
+        uint8_t* loaded = (uint8_t*)ToriMem_Calloc(ToriMem_Renderer(), (size_t)count, sizeof(uint8_t));
         struct ES2UISpriteTile* tiles =
-            (struct ES2UISpriteTile*)ToriMem_Calloc(ToriMem_Render(), (size_t)count, sizeof(*tiles));
+            (struct ES2UISpriteTile*)ToriMem_Calloc(ToriMem_Renderer(), (size_t)count, sizeof(*tiles));
         assert(uvs);
         assert(loaded);
         assert(tiles);
-        ToriMem_Free(ToriMem_Render(), slot->uvs);
-        ToriMem_Free(ToriMem_Render(), slot->loaded);
-        ToriMem_Free(ToriMem_Render(), slot->tiles);
+        ToriMem_Free(ToriMem_Renderer(), slot->uvs);
+        ToriMem_Free(ToriMem_Renderer(), slot->loaded);
+        ToriMem_Free(ToriMem_Renderer(), slot->tiles);
         slot->uvs = uvs;
         slot->loaded = loaded;
         slot->tiles = tiles;
@@ -1360,7 +1360,7 @@ es2_ui_rotmask_slot(
         {
             uint32_t old_capacity = renderer->ui_rotmask_capacity;
             uint32_t new_capacity = old_capacity ? old_capacity * 2u : ES2_UI_ROTMASK_INIT_CAP;
-            struct ES2UIRotmaskSlot* grown = (struct ES2UIRotmaskSlot*)ToriMem_Realloc(ToriMem_Render(),
+            struct ES2UIRotmaskSlot* grown = (struct ES2UIRotmaskSlot*)ToriMem_Realloc(ToriMem_Renderer(),
                 renderer->ui_rotmasks, (size_t)new_capacity * sizeof(*grown));
             assert(grown);
             memset(grown + old_capacity, 0, (size_t)(new_capacity - old_capacity) * sizeof(*grown));
@@ -2358,7 +2358,7 @@ es2_ui_bake_font(struct TRSPK_Renderer_ES2* renderer, struct ES2UIFontSlot* slot
     atlas_width += 2;
     es2_ui_flush(renderer);
     es2_ui_font_release_slot(renderer, slot);
-    texels = (uint8_t*)ToriMem_Calloc(ToriMem_Render(), (size_t)atlas_width * (size_t)atlas_height, 2u);
+    texels = (uint8_t*)ToriMem_Calloc(ToriMem_Renderer(), (size_t)atlas_width * (size_t)atlas_height, 2u);
     assert(texels);
     for( glyph = 0; glyph < TORIDRAW_FONT_GLYPH_COUNT; glyph++ )
     {
@@ -2395,7 +2395,7 @@ es2_ui_bake_font(struct TRSPK_Renderer_ES2* renderer, struct ES2UIFontSlot* slot
         GL_TEXTURE_2D, 0, GL_LUMINANCE_ALPHA, atlas_width, atlas_height, 0, GL_LUMINANCE_ALPHA,
         GL_UNSIGNED_BYTE, texels);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-    ToriMem_Free(ToriMem_Render(), texels);
+    ToriMem_Free(ToriMem_Renderer(), texels);
     slot->texture_width = atlas_width;
     slot->texture_height = atlas_height;
     slot->baked = true;
@@ -3050,7 +3050,7 @@ es2_reserve_widget_vertices(struct TRSPK_Renderer_ES2* renderer, uint32_t needed
     capacity = renderer->widget_vertex_capacity ? renderer->widget_vertex_capacity : 1024u;
     while( capacity < needed )
         capacity *= 2u;
-    grown = (struct ES2VertexUI*)ToriMem_Realloc(ToriMem_Render(), renderer->widget_vertices, (size_t)capacity * sizeof(*grown));
+    grown = (struct ES2VertexUI*)ToriMem_Realloc(ToriMem_Renderer(), renderer->widget_vertices, (size_t)capacity * sizeof(*grown));
     assert(grown);
     renderer->widget_vertices = grown;
     renderer->widget_vertex_capacity = capacity;
@@ -3271,7 +3271,7 @@ es2_ui_init_state(struct TRSPK_Renderer_ES2* renderer)
     assert(renderer);
     for( font = 0; font < ES2_UI_FONT_CAP; font++ )
         renderer->ui_fonts[font].font_id = -1;
-    renderer->ui_batch.vertices = (struct ES2VertexUI*)ToriMem_Alloc(ToriMem_Render(),
+    renderer->ui_batch.vertices = (struct ES2VertexUI*)ToriMem_Alloc(ToriMem_Renderer(),
         ES2_UI_BATCH_MAX_VERTS * sizeof(renderer->ui_batch.vertices[0]));
     assert(renderer->ui_batch.vertices);
     if( !trspk_atlas_init_binpack(
@@ -3326,16 +3326,16 @@ es2_ui_free(struct TRSPK_Renderer_ES2* renderer)
         trspk_atlas_free(&renderer->ui_sprite_atlas);
     for( slot = 0; slot < ES2_UI_SPRITE_CAP; slot++ )
     {
-        ToriMem_Free(ToriMem_Render(), renderer->ui_sprite_slots[slot].uvs);
-        ToriMem_Free(ToriMem_Render(), renderer->ui_sprite_slots[slot].loaded);
-        ToriMem_Free(ToriMem_Render(), renderer->ui_sprite_slots[slot].tiles);
+        ToriMem_Free(ToriMem_Renderer(), renderer->ui_sprite_slots[slot].uvs);
+        ToriMem_Free(ToriMem_Renderer(), renderer->ui_sprite_slots[slot].loaded);
+        ToriMem_Free(ToriMem_Renderer(), renderer->ui_sprite_slots[slot].tiles);
     }
-    ToriMem_Free(ToriMem_Render(), renderer->ui_rotmasks);
-    ToriMem_Free(ToriMem_Render(), renderer->ui_batch.vertices);
-    ToriMem_Free(ToriMem_Render(), renderer->widget_vertices);
-    ToriMem_Free(ToriMem_Render(), renderer->ui_pass_vertices);
-    ToriMem_Free(ToriMem_Render(), renderer->ui_pass_rotmask_vertices);
-    ToriMem_Free(ToriMem_Render(), renderer->ui_pass_records);
+    ToriMem_Free(ToriMem_Renderer(), renderer->ui_rotmasks);
+    ToriMem_Free(ToriMem_Renderer(), renderer->ui_batch.vertices);
+    ToriMem_Free(ToriMem_Renderer(), renderer->widget_vertices);
+    ToriMem_Free(ToriMem_Renderer(), renderer->ui_pass_vertices);
+    ToriMem_Free(ToriMem_Renderer(), renderer->ui_pass_rotmask_vertices);
+    ToriMem_Free(ToriMem_Renderer(), renderer->ui_pass_records);
     renderer->ui_batch.vertices = NULL;
     renderer->widget_vertices = NULL;
     renderer->ui_pass_vertices = NULL;

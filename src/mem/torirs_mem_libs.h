@@ -36,6 +36,20 @@ ToriMem_InstallTRSPK(void)
     TORIMEM_INSTALL_LIB(TRSPK, TRSPK_SetAllocator, ToriMem_LibTRSPK);
 }
 
+/* trspk's blocks belong to the renderer that asked for them: the host points
+ * the library at ToriMem_Renderer() when a renderer starts and back at
+ * lib:trspk when it stops, so the renderer group's end checks them too. Only
+ * where ToriMem_InstallTRSPK ran. A block is freed and reallocated by the
+ * group in its header, so moving the default never strands one. */
+static inline void
+ToriMem_PointTRSPK(struct ToriMem_Group* group)
+{
+    struct TRSPK_Allocator a = {
+        ToriMem_LibMalloc, ToriMem_LibCalloc, ToriMem_LibRealloc, ToriMem_LibFree, group,
+    };
+    TRSPK_SetAllocator(&a);
+}
+
 static inline void
 ToriMem_InstallHMap(void)
 {

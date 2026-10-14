@@ -1226,7 +1226,7 @@ dualcore_aligned_new(
     uintptr_t at;
     assert(align >= sizeof(void*));
     assert((align & (align - 1u)) == 0u);
-    raw = (uint8_t*)ToriMem_Calloc(ToriMem_Render(), 1u, size + align + sizeof(void*));
+    raw = (uint8_t*)ToriMem_Calloc(ToriMem_Renderer(), 1u, size + align + sizeof(void*));
     at = ((uintptr_t)(raw + sizeof(void*)) + (align - 1u)) & ~(uintptr_t)(align - 1u);
     ((void**)at)[-1] = raw;
     return (void*)at;
@@ -1237,7 +1237,7 @@ dualcore_aligned_free(void* ptr)
 {
     if( !ptr )
         return;
-    ToriMem_Free(ToriMem_Render(), ((void**)ptr)[-1]);
+    ToriMem_Free(ToriMem_Renderer(), ((void**)ptr)[-1]);
 }
 
 struct ToriPlatformAndroid_Renderer_GLES2_DualCore*

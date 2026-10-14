@@ -711,7 +711,7 @@ es2_reserve_upload_stage(struct TRSPK_Renderer_ES2* renderer, size_t needed)
     capacity = renderer->upload_stage_capacity ? renderer->upload_stage_capacity : 65536u;
     while( capacity < needed )
         capacity *= 2u;
-    grown = (uint8_t*)ToriMem_Realloc(ToriMem_Render(), renderer->upload_stage, capacity);
+    grown = (uint8_t*)ToriMem_Realloc(ToriMem_Renderer(), renderer->upload_stage, capacity);
     assert(grown);
     renderer->upload_stage = grown;
     renderer->upload_stage_capacity = capacity;
@@ -1356,7 +1356,7 @@ es2_grow_static_batches(struct TRSPK_Renderer_ES2* renderer, uint32_t needed)
     capacity = renderer->static_batch_capacity ? renderer->static_batch_capacity : 8u;
     while( capacity < needed )
         capacity *= 2u;
-    grown = (struct ES2StaticBatch*)ToriMem_Realloc(ToriMem_Render(),
+    grown = (struct ES2StaticBatch*)ToriMem_Realloc(ToriMem_Renderer(),
         renderer->static_batches, (size_t)capacity * sizeof(*grown));
     assert(grown);
     memset(
@@ -1455,7 +1455,7 @@ es2_grow_static_pages(struct TRSPK_Renderer_ES2* renderer, uint32_t needed)
         }
         capacity *= 2u;
     }
-    grown = (struct ES2StaticPageRef*)ToriMem_Realloc(ToriMem_Render(),
+    grown = (struct ES2StaticPageRef*)ToriMem_Realloc(ToriMem_Renderer(),
         renderer->static_pages, (size_t)capacity * sizeof(*grown));
     assert(grown);
     memset(
@@ -1481,7 +1481,7 @@ es2_static_batch_ensure_chunk_storage(struct ES2StaticBatch* batch, uint32_t chu
     capacity = batch->page_id_capacity ? batch->page_id_capacity : 4u;
     while( capacity < chunk_count )
         capacity *= 2u;
-    grown = (uint32_t*)ToriMem_Realloc(ToriMem_Render(), batch->page_ids, (size_t)capacity * sizeof(*grown));
+    grown = (uint32_t*)ToriMem_Realloc(ToriMem_Renderer(), batch->page_ids, (size_t)capacity * sizeof(*grown));
     assert(grown);
     batch->page_ids = grown;
     for( chunk = old_capacity; chunk < capacity; chunk++ )
@@ -1946,7 +1946,7 @@ es2_bake_pose_vertices(
         {
             if( (uint32_t)full_model->vertex_count>renderer->actor_world_capacity )
             {
-                float* grown=ToriMem_Realloc(ToriMem_Render(), renderer->actor_world_xyz,(size_t)full_model->vertex_count*3*sizeof(float));
+                float* grown=ToriMem_Realloc(ToriMem_Renderer(), renderer->actor_world_xyz,(size_t)full_model->vertex_count*3*sizeof(float));
                 renderer->actor_world_xyz=grown;renderer->actor_world_capacity=(uint32_t)full_model->vertex_count;
             }
             if( (uint32_t)full_model->vertex_count<=renderer->actor_world_capacity )
@@ -2089,7 +2089,7 @@ es2_bake_pose_vertices(
          * against the generic final vertex writer above. The normal fast
          * return is suppressed in this diagnostic so both paths execute. */
         size_t bytes = (size_t)written_count * 3u * sizeof(struct TRSPK_VertexGLES2);
-        struct TRSPK_VertexGLES2* direct = ToriMem_Alloc(ToriMem_Render(), bytes ? bytes : 1u);
+        struct TRSPK_VertexGLES2* direct = ToriMem_Alloc(ToriMem_Renderer(), bytes ? bytes : 1u);
         /* This renderer's encoder; @see es2_bake_ordered_fast. */
         trspk_toridraw_gles2_untextured_words(full_model, face_order, written_count, world_xyz, direct);
         if( memcmp(direct, &vbo->vertices.as_gles2[vertex_base], bytes) )
@@ -2098,7 +2098,7 @@ es2_bake_pose_vertices(
             abort();
         }
         memcpy(&vbo->vertices.as_gles2[vertex_base], direct, bytes);
-        ToriMem_Free(ToriMem_Render(), direct);
+        ToriMem_Free(ToriMem_Renderer(), direct);
         static unsigned matched_models, matched_faces;
         matched_faces += written_count;
         if( (++matched_models % 100u) == 0u )
@@ -2328,7 +2328,7 @@ es2_reserve_model_indices(struct TRSPK_Renderer_ES2* renderer, uint32_t needed)
         }
         capacity *= 2u;
     }
-    grown = (uint16_t*)ToriMem_Realloc(ToriMem_Render(), renderer->model_indices, (size_t)capacity * sizeof(*grown));
+    grown = (uint16_t*)ToriMem_Realloc(ToriMem_Renderer(), renderer->model_indices, (size_t)capacity * sizeof(*grown));
     assert(grown);
     renderer->model_indices = grown;
     renderer->model_index_capacity = capacity;
@@ -2538,7 +2538,7 @@ es2_sequence_append(struct TRSPK_Renderer_ES2* renderer)
     {
         uint32_t capacity = renderer->draw_item_capacity ? renderer->draw_item_capacity * 2u
                                                          : ES2_DRAW_ITEM_INIT;
-        struct ES2DrawItem* grown = (struct ES2DrawItem*)ToriMem_Realloc(ToriMem_Render(),
+        struct ES2DrawItem* grown = (struct ES2DrawItem*)ToriMem_Realloc(ToriMem_Renderer(),
             renderer->draw_items, (size_t)capacity * sizeof(*grown));
         assert(grown);
         renderer->draw_items = grown;
@@ -2582,7 +2582,7 @@ es2_sequence_reserve_indexed(
         uint16_t* grown;
         while( capacity < needed )
             capacity *= 2u;
-        grown = (uint16_t*)ToriMem_Realloc(ToriMem_Render(), renderer->ibo_staging, (size_t)capacity * sizeof(*grown));
+        grown = (uint16_t*)ToriMem_Realloc(ToriMem_Renderer(), renderer->ibo_staging, (size_t)capacity * sizeof(*grown));
         assert(grown);
         renderer->ibo_staging = grown;
         renderer->ibo_staging_capacity = capacity;
@@ -2797,7 +2797,7 @@ TRSPK_Renderer_ES2_New(int width, int height, char const* name)
     assert(width > 0);
     assert(height > 0);
     assert(name);
-    renderer = (struct TRSPK_Renderer_ES2*)ToriMem_Calloc(ToriMem_Render(), 1u, sizeof(*renderer));
+    renderer = (struct TRSPK_Renderer_ES2*)ToriMem_Calloc(ToriMem_Renderer(), 1u, sizeof(*renderer));
     assert(renderer);
     renderer->name = name;
     g_es2_name = name;
@@ -3264,34 +3264,34 @@ TRSPK_Renderer_ES2_Free(struct TRSPK_Renderer_ES2* renderer)
             trspk_vbo_free(renderer->groups[group].vbo_cpu);
         trspk_triangles_free(&renderer->groups[group].triangles);
     }
-    ToriMem_Free(ToriMem_Render(), renderer->hot_stage);
-    ToriMem_Free(ToriMem_Render(), renderer->actor_world_xyz);
+    ToriMem_Free(ToriMem_Renderer(), renderer->hot_stage);
+    ToriMem_Free(ToriMem_Renderer(), renderer->actor_world_xyz);
     if( renderer->frame_stream_cpu )
         trspk_vbo_free(renderer->frame_stream_cpu);
     trspk_triangles_free(&renderer->frame_stream_triangles);
-    ToriMem_Free(ToriMem_Render(), renderer->draw_items);
+    ToriMem_Free(ToriMem_Renderer(), renderer->draw_items);
     trspk_pose_table_free(&renderer->poses);
     trspk_pose_table_free(&renderer->batch_poses);
-    ToriMem_Free(ToriMem_Render(), renderer->static_primary);
-    ToriMem_Free(ToriMem_Render(), renderer->static_primary_bits);
+    ToriMem_Free(ToriMem_Renderer(), renderer->static_primary);
+    ToriMem_Free(ToriMem_Renderer(), renderer->static_primary_bits);
     es2_zbuffer_destroy(renderer);
     for( batch = 0u; batch < renderer->static_batch_count; batch++ )
     {
         trspk_batch16_destroy(renderer->static_batches[batch].cpu);
-        ToriMem_Free(ToriMem_Render(), renderer->static_batches[batch].page_ids);
-        ToriMem_Free(ToriMem_Render(), renderer->static_batches[batch].hot_serial);
+        ToriMem_Free(ToriMem_Renderer(), renderer->static_batches[batch].page_ids);
+        ToriMem_Free(ToriMem_Renderer(), renderer->static_batches[batch].hot_serial);
     }
     if( trspk_atlas_is_initialized(&renderer->atlas) )
         trspk_atlas_free(&renderer->atlas);
     es2_ui_free(renderer);
-    ToriMem_Free(ToriMem_Render(), renderer->upload_stage);
-    ToriMem_Free(ToriMem_Render(), renderer->ibo_staging);
-    ToriMem_Free(ToriMem_Render(), renderer->model_indices);
-    ToriMem_Free(ToriMem_Render(), renderer->static_pages);
-    ToriMem_Free(ToriMem_Render(), renderer->static_batches);
+    ToriMem_Free(ToriMem_Renderer(), renderer->upload_stage);
+    ToriMem_Free(ToriMem_Renderer(), renderer->ibo_staging);
+    ToriMem_Free(ToriMem_Renderer(), renderer->model_indices);
+    ToriMem_Free(ToriMem_Renderer(), renderer->static_pages);
+    ToriMem_Free(ToriMem_Renderer(), renderer->static_batches);
     if( renderer->gl_context )
         ToriPlatform_GLContext_Delete(renderer->gl_context);
-    ToriMem_Free(ToriMem_Render(), renderer);
+    ToriMem_Free(ToriMem_Renderer(), renderer);
 }
 
 /*
@@ -3475,7 +3475,7 @@ es2_frame_readback(struct TRSPK_Renderer_ES2* renderer)
     }
     if( path && path[0] && !done && renderer->frame_clock >= (double)want )
     {
-        int* top = (int*)ToriMem_Alloc(ToriMem_Render(), (size_t)renderer->width * (size_t)renderer->height * sizeof(int));
+        int* top = (int*)ToriMem_Alloc(ToriMem_Renderer(), (size_t)renderer->width * (size_t)renderer->height * sizeof(int));
         void bmp_write_file(const char* filename, int* px, int w, int h);
         done = 1;
         assert(top);
@@ -3484,7 +3484,7 @@ es2_frame_readback(struct TRSPK_Renderer_ES2* renderer)
             bmp_write_file(path, top, renderer->width, renderer->height);
             TORIRS_LOG("es2_readback: wrote %s\n", path);
         }
-        ToriMem_Free(ToriMem_Render(), top);
+        ToriMem_Free(ToriMem_Renderer(), top);
     }
 }
 }
@@ -3616,7 +3616,7 @@ TRSPK_Renderer_ES2_ReadPixels(struct TRSPK_Renderer_ES2* renderer, int* pixels, 
     if( framebuffer_w <= 0 || framebuffer_h <= 0 || renderer->letterbox_width <= 0 ||
         renderer->letterbox_height <= 0 )
         return false;
-    framebuffer = (uint8_t*)ToriMem_Alloc(ToriMem_Render(), (size_t)framebuffer_w * (size_t)framebuffer_h * 4u);
+    framebuffer = (uint8_t*)ToriMem_Alloc(ToriMem_Renderer(), (size_t)framebuffer_w * (size_t)framebuffer_h * 4u);
     assert(framebuffer);
     glPixelStorei(GL_PACK_ALIGNMENT, 1);
     if( offscreen )
@@ -3645,7 +3645,7 @@ TRSPK_Renderer_ES2_ReadPixels(struct TRSPK_Renderer_ES2* renderer, int* pixels, 
                                           ((uint32_t)source[1] << 8) | (uint32_t)source[2]);
         }
     }
-    ToriMem_Free(ToriMem_Render(), framebuffer);
+    ToriMem_Free(ToriMem_Renderer(), framebuffer);
     return true;
 }
 

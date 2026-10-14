@@ -1559,10 +1559,10 @@ renderer_publish(void)
 /*
  * Start `kind` on a window already presenting its way, with no other renderer
  * live. Also puts the App in the mode that renderer draws with. On failure
- * nothing is left behind.
+ * nothing is left behind. Runs inside the renderer memory group.
  */
 static bool
-renderer_start(enum ToriRS_RendererKind kind)
+renderer_start_kind(enum ToriRS_RendererKind kind)
 {
     assert(renderer_built(kind));
 #if defined(TORIRS_HAVE_GL3)
@@ -1735,7 +1735,32 @@ renderer_start(enum ToriRS_RendererKind kind)
     return false;
 }
 
-/* Free whichever GPU renderer is live. Soft3D has nothing to free. */
+/*
+ * Everything a renderer allocates -- its own state and, through trspk, its
+ * atlases, batches and model arenas -- lives in the renderer group from its
+ * start to its stop, and the group's end proves the stop freed all of it.
+ * Soft3D gets the group too and leaves it empty.
+ */
+static void
+renderer_memory_end(void)
+{
+    ToriMem_PointTRSPK(ToriMem_LibTRSPK());
+    ToriMem_RendererEnd();
+}
+
+static bool
+renderer_start(enum ToriRS_RendererKind kind)
+{
+    ToriMem_RendererBegin();
+    ToriMem_PointTRSPK(ToriMem_Renderer());
+    if( renderer_start_kind(kind) )
+        return true;
+    renderer_memory_end();
+    return false;
+}
+
+/* Free whichever GPU renderer is live, then check it freed everything. Soft3D
+ * has nothing to free. */
 static void
 renderer_stop(void)
 {
@@ -1768,6 +1793,7 @@ renderer_stop(void)
     ToriPlatformWin32_Renderer_D3D9_Free(d3d9);
     d3d9 = NULL;
 #endif
+    renderer_memory_end();
 }
 
 /* Move the window to `kind`'s present and start it; false leaves nothing live. */

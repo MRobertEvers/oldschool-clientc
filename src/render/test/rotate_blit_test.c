@@ -7,6 +7,7 @@
  * the quarter turns down: a marker pixel placed north of the pivot must land
  * east / south / west at yaw 512 / 1024 / 1536, and back north at 2048.
  */
+#include "mem/torirs_mem.h"
 #include "render/trspk_sprite.h"
 #include "toridraw.h"
 #include "toridraw_sprite.h"
@@ -204,6 +205,10 @@ check_bake_reuse_is_clean(struct ToriDraw_Sprite* sprite)
     struct TRSPK_RotmaskBake kept = { 0 };
     int one_bake;
 
+    /* A bake buffer is its renderer's: it lives in the renderer group, and the
+     * group's end below proves the releases freed every one. */
+    ToriMem_RendererBegin();
+
     /* The marker maps to more than one destination pixel (the >>16 inverse map
      * truncates), so the count is not 1 -- measure one bake into a never-used
      * buffer and compare the reuse cases against that rather than a literal. */
@@ -236,6 +241,7 @@ check_bake_reuse_is_clean(struct ToriDraw_Sprite* sprite)
     trspk_sprite_rotmask_bake_release(&fresh);
     trspk_sprite_rotmask_bake_release(&cleared);
     trspk_sprite_rotmask_bake_release(&kept);
+    ToriMem_RendererEnd();
     ToriDraw_SpriteFree(mask);
 }
 

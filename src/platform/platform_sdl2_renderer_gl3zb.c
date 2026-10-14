@@ -92,7 +92,7 @@ static void
 gl3_material_pose_clear(struct GL3MaterialPose* pose)
 {
     assert(pose);
-    ToriMem_Free(ToriMem_Render(), pose->face_passes);
+    ToriMem_Free(ToriMem_Renderer(), pose->face_passes);
     memset(pose, 0, sizeof(*pose));
 }
 
@@ -112,7 +112,7 @@ gl3_material_pose_set(
     passes =
         pose->face_count == (uint32_t)face_count && pose->face_passes
             ? pose->face_passes
-            : (uint8_t*)ToriMem_Realloc(ToriMem_Render(), pose->face_passes, (size_t)face_count);
+            : (uint8_t*)ToriMem_Realloc(ToriMem_Renderer(), pose->face_passes, (size_t)face_count);
     pose->face_passes = passes;
     pose->face_count = (uint32_t)face_count;
     pose->opaque_count = 0u;
@@ -174,7 +174,7 @@ gl3_material_table_set(
         while( capacity < needed )
             capacity *= 2u;
         grown = (struct GL3MaterialElement*)ToriMem_Realloc(
-            ToriMem_Render(), table->elements, (size_t)capacity * sizeof(*grown));
+            ToriMem_Renderer(), table->elements, (size_t)capacity * sizeof(*grown));
         memset(
             grown + table->element_capacity, 0,
             (size_t)(capacity - table->element_capacity) * sizeof(*grown));
@@ -193,7 +193,7 @@ gl3_material_table_set(
         while( capacity < needed )
             capacity *= 2u;
         grown = (struct GL3MaterialPose*)ToriMem_Realloc(
-            ToriMem_Render(), track->poses, (size_t)capacity * sizeof(*grown));
+            ToriMem_Renderer(), track->poses, (size_t)capacity * sizeof(*grown));
         memset(
             grown + track->pose_capacity, 0,
             (size_t)(capacity - track->pose_capacity) * sizeof(*grown));
@@ -239,7 +239,7 @@ GL3ZB_ForgetElement(
         struct GL3MaterialTrack* track = &table->elements[ToriDraw_ElementIndexOfRaw(element_id)].tracks[t];
         for( uint32_t i = 0u; i < track->pose_count; i++ )
             gl3_material_pose_clear(&track->poses[i]);
-        ToriMem_Free(ToriMem_Render(), track->poses);
+        ToriMem_Free(ToriMem_Renderer(), track->poses);
         track->poses = NULL;
         track->pose_count = 0u;
         track->pose_capacity = 0u;
@@ -262,7 +262,7 @@ GL3ZB_ForgetTrack(
     track = &table->elements[ToriDraw_ElementIndexOfRaw(element_id)].tracks[anim_index];
     for( uint32_t i = 0u; i < track->pose_count; i++ )
         gl3_material_pose_clear(&track->poses[i]);
-    ToriMem_Free(ToriMem_Render(), track->poses);
+    ToriMem_Free(ToriMem_Renderer(), track->poses);
     track->poses = NULL;
     track->pose_count = 0u;
     track->pose_capacity = 0u;
@@ -279,9 +279,9 @@ gl3_material_table_free(struct GL3MaterialTable* table)
             struct GL3MaterialTrack* track = &table->elements[e].tracks[t];
             for( uint32_t i = 0u; i < track->pose_count; i++ )
                 gl3_material_pose_clear(&track->poses[i]);
-            ToriMem_Free(ToriMem_Render(), track->poses);
+            ToriMem_Free(ToriMem_Renderer(), track->poses);
         }
-    ToriMem_Free(ToriMem_Render(), table->elements);
+    ToriMem_Free(ToriMem_Renderer(), table->elements);
     memset(table, 0, sizeof(*table));
 }
 
@@ -307,7 +307,7 @@ gl3_reserve_model_indices(
         while( cap < count )
             cap *= 2u;
         grown = (uint32_t*)ToriMem_Realloc(
-            ToriMem_Render(), renderer->model_indices, (size_t)cap * sizeof(uint32_t));
+            ToriMem_Renderer(), renderer->model_indices, (size_t)cap * sizeof(uint32_t));
         assert(grown);
         renderer->model_indices = grown;
         renderer->model_index_capacity = cap;
@@ -339,7 +339,7 @@ gl3_queue_alpha_submission(
         while( cap < renderer->alpha_index_count + index_count )
             cap *= 2u;
         grown = (uint32_t*)ToriMem_Realloc(
-            ToriMem_Render(), renderer->alpha_indices, (size_t)cap * sizeof(uint32_t));
+            ToriMem_Renderer(), renderer->alpha_indices, (size_t)cap * sizeof(uint32_t));
         assert(grown);
         renderer->alpha_indices = grown;
         renderer->alpha_index_capacity = cap;
@@ -349,7 +349,7 @@ gl3_queue_alpha_submission(
         uint32_t cap =
             renderer->alpha_submission_capacity ? renderer->alpha_submission_capacity * 2u : 128u;
         struct GL3AlphaSubmission* grown = (struct GL3AlphaSubmission*)ToriMem_Realloc(
-            ToriMem_Render(), renderer->alpha_submissions, (size_t)cap * sizeof(*grown));
+            ToriMem_Renderer(), renderer->alpha_submissions, (size_t)cap * sizeof(*grown));
         renderer->alpha_submissions = grown;
         renderer->alpha_submission_capacity = cap;
     }
@@ -528,7 +528,7 @@ GL3ZB_DrawAlphaPass(struct ToriPlatformSDL2_Renderer_GL3* renderer)
         while( cap < renderer->alpha_submission_count )
             cap *= 2u;
         grown = (uint32_t*)ToriMem_Realloc(
-            ToriMem_Render(), renderer->alpha_order, (size_t)cap * sizeof(uint32_t));
+            ToriMem_Renderer(), renderer->alpha_order, (size_t)cap * sizeof(uint32_t));
         assert(grown);
         renderer->alpha_order = grown;
         renderer->alpha_order_capacity = cap;
@@ -574,10 +574,10 @@ GL3ZB_Free(struct ToriPlatformSDL2_Renderer_GL3* renderer)
 {
     if( !renderer )
         return;
-    ToriMem_Free(ToriMem_Render(), renderer->alpha_submissions);
-    ToriMem_Free(ToriMem_Render(), renderer->alpha_indices);
-    ToriMem_Free(ToriMem_Render(), renderer->alpha_order);
-    ToriMem_Free(ToriMem_Render(), renderer->model_indices);
+    ToriMem_Free(ToriMem_Renderer(), renderer->alpha_submissions);
+    ToriMem_Free(ToriMem_Renderer(), renderer->alpha_indices);
+    ToriMem_Free(ToriMem_Renderer(), renderer->alpha_order);
+    ToriMem_Free(ToriMem_Renderer(), renderer->model_indices);
     gl3_material_table_free(&renderer->materials);
     renderer->alpha_submissions = NULL;
     renderer->alpha_indices = NULL;

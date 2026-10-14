@@ -3,8 +3,8 @@
 
 A group's end is where "always freed" is proven, so each one is a reviewed
 decision. This lists every call to ToriMem_GroupReset / GroupEnd / GroupDelete
-/ FrameEnd / CheckedRewind / Shutdown outside src/mem/ and tests, keyed by
-file and enclosing function, and compares the set with group_ends.txt:
+/ FrameEnd / CheckedRewind / Shutdown / RendererEnd outside src/mem/ and tests,
+keyed by file and enclosing function, and compares the set with group_ends.txt:
 
   - a call site not in the manifest fails: add a row naming the group it ends
     and why that function is the one place it ends;
@@ -16,7 +16,7 @@ import os, re, subprocess, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 MANIFEST = os.path.join(ROOT, 'tools', 'torimem', 'group_ends.txt')
-CALL = re.compile(r'\b(ToriMem_(?:GroupReset|GroupEnd|GroupDelete|FrameEnd|CheckedRewind|Shutdown))\s*\(')
+CALL = re.compile(r'\b(ToriMem_(?:GroupReset|GroupEnd|GroupDelete|FrameEnd|CheckedRewind|Shutdown|RendererEnd))\s*\(')
 FUNC = re.compile(r'^([A-Za-z_][A-Za-z0-9_]*)\s*\(', re.M)
 EXEMPT = re.compile(r'(^src/mem/|/test/|/tests/|_test\.c$)')
 

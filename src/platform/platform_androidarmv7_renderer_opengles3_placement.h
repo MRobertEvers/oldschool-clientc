@@ -106,10 +106,10 @@ es3_static_primary_rebuild(struct TRSPK_Renderer_ES3* renderer)
     uint32_t want = renderer->batch_poses.element_count;
     if( want > renderer->static_primary_capacity )
     {
-        struct ES3StaticPrimary* grown = ToriMem_Calloc(ToriMem_Render(), want, sizeof(*grown));
-        uint32_t* bits = ToriMem_Calloc(ToriMem_Render(), ((size_t)want + 31) / 32, 4);
-        ToriMem_Free(ToriMem_Render(), renderer->static_primary);
-        ToriMem_Free(ToriMem_Render(), renderer->static_primary_bits);
+        struct ES3StaticPrimary* grown = ToriMem_Calloc(ToriMem_Renderer(), want, sizeof(*grown));
+        uint32_t* bits = ToriMem_Calloc(ToriMem_Renderer(), ((size_t)want + 31) / 32, 4);
+        ToriMem_Free(ToriMem_Renderer(), renderer->static_primary);
+        ToriMem_Free(ToriMem_Renderer(), renderer->static_primary_bits);
         renderer->static_primary = grown;
         renderer->static_primary_bits = bits;
         renderer->static_primary_capacity = want;

@@ -435,6 +435,35 @@ TORIMEM_SUBSYSTEM(ToriMem_ServerScripts, "server:scripts")
 TORIMEM_SUBSYSTEM(ToriMem_ServerNet, "server:net")
 TORIMEM_SUBSYSTEM(ToriMem_Compiler, "compiler")
 
+/* The running renderer, under render: one at a time, begun and ended by the
+ * host's renderer start and stop. A renderer's worker thread (the GLES2 dual
+ * core lane) allocates here too, between the same two calls. */
+static struct ToriMem_Group s_renderer;
+
+struct ToriMem_Group*
+ToriMem_Renderer(void)
+{
+    if( !__atomic_load_n(&s_renderer.live, __ATOMIC_ACQUIRE) )
+        die("renderer memory asked for with no renderer running", ToriMem_Render());
+    return &s_renderer;
+}
+
+void
+ToriMem_RendererBegin(void)
+{
+    if( s_renderer.live )
+        die("a renderer began while another was running", &s_renderer);
+    ToriMem_GroupInit(&s_renderer, "renderer", ToriMem_Render());
+}
+
+void
+ToriMem_RendererEnd(void)
+{
+    if( !s_renderer.live )
+        die("a renderer ended that never began", ToriMem_Render());
+    ToriMem_GroupEnd(&s_renderer);
+}
+
 int
 ToriMem_ArenasOn(void)
 {

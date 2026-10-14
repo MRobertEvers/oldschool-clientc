@@ -37,9 +37,9 @@ es3_chain_capture(struct TRSPK_Renderer_ES3* renderer,
         ES3DualCoreStageArena_Init(&arena);
         arena.result_capacity = 1;
         /* RENDER: GLES2DualCoreStageArena_Free releases them from there. */
-        arena.results = ToriMem_Calloc(ToriMem_Render(), 1, sizeof(*arena.results));
+        arena.results = ToriMem_Calloc(ToriMem_Renderer(), 1, sizeof(*arena.results));
         arena.order_capacity = renderer->scene->max_faces;
-        arena.orders = ToriMem_Alloc(ToriMem_Render(), (size_t)arena.order_capacity * sizeof(*arena.orders));
+        arena.orders = ToriMem_Alloc(ToriMem_Renderer(), (size_t)arena.order_capacity * sizeof(*arena.orders));
     }
     if( !out || g_chain_pass < (unsigned)first_pass ) return;
     if( g_chain_pass >= (unsigned)(first_pass + pass_count) )

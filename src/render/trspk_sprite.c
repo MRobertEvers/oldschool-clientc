@@ -58,7 +58,7 @@ trspk_sprite_rotmask_bake(
     need = (size_t)dst_w * (size_t)dst_h;
     if( bake->capacity < need )
     {
-        uint32_t* grown = ToriMem_Realloc(ToriMem_Render(), bake->pixels, need * sizeof(uint32_t));
+        uint32_t* grown = ToriMem_Realloc(ToriMem_Renderer(), bake->pixels, need * sizeof(uint32_t));
         bake->pixels = grown;
         bake->capacity = need;
         grew = true;
@@ -102,7 +102,7 @@ trspk_sprite_rotmask_bake_release(struct TRSPK_RotmaskBake* bake)
 {
     if( !bake )
         return;
-    ToriMem_Free(ToriMem_Render(), bake->pixels);
+    ToriMem_Free(ToriMem_Renderer(), bake->pixels);
     bake->pixels = NULL;
     bake->capacity = 0;
 }
