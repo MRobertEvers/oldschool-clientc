@@ -260,6 +260,15 @@ ev_set_frame_height(int height);
 void
 ev_set_chibi(int head_pct, int head_frac_pct, int body_pct, int width_pct);
 
+/** With the chibi deform on: push every body (non-head) vertex this many world
+ *  units out along its normal, for chunky limbs. 0: off. */
+void
+ev_set_chibi_inflate(int units);
+
+/** Leave vertices [first, first+count) un-inflated (a weapon, a shield). */
+void
+ev_set_chibi_inflate_skip(int first, int count);
+
 /**
  * Face-ID pass: every face flat, opaque and untextured in a colour unique to
  * it (ev_face_code_rgb), through the same painter and priorities as a normal

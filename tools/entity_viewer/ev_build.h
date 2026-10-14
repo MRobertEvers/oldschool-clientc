@@ -149,4 +149,14 @@ ev_build_npc_model_hd(
 void
 ev_build_set_texture_available(int (*fn)(int id, void* user), void* user);
 
+/**
+ * Optional: the HSL16 a texture is drawn in when it cannot be drawn textured
+ * -- its average colour, which is what the reference client's low-detail
+ * mode paints a textured face with. Without it an unavailable texture leaves
+ * the face's colour field holding the texture ID, which reads as a pale grey
+ * (a tree's leaves came out white). Return -1 to keep that old behaviour.
+ */
+void
+ev_build_set_texture_flatten(int (*fn)(int id, void* user), void* user);
+
 #endif

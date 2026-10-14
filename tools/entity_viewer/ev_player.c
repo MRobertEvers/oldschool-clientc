@@ -109,8 +109,18 @@ ev_player_spec_init(struct EV_PlayerSpec* spec)
  * beard and jaw in the cache is an identity kit too, so "all of them" is a few
  * hundred heads drawn on top of each other. One per part is a body.
  */
+int
+ev_player_kit_slot(int body_part_id)
+{
+    if( body_part_id >= 0 && body_part_id < EV_PLAYER_PARTS )
+        return body_part_id;
+    if( body_part_id >= EV_PLAYER_PARTS && body_part_id < 2 * EV_PLAYER_PARTS )
+        return body_part_id - EV_PLAYER_PARTS;
+    return -1;
+}
+
 void
-ev_resolve_default_kits(struct Tool_Dat2Cache* c, int kits[EV_PLAYER_PARTS])
+ev_resolve_default_kits(struct Tool_Dat2Cache* c, int kits[EV_PLAYER_PARTS], int gender)
 {
     int found = 0;
     for( int i = 0; i < EV_PLAYER_PARTS; i++ )
@@ -122,10 +132,12 @@ ev_resolve_default_kits(struct Tool_Dat2Cache* c, int kits[EV_PLAYER_PARTS])
         struct RSCache_Dat2ConfigIdk* idk = ev_idk_load(c, id);
         if( !idk )
             continue;
-        if( !idk->is_not_selectable && idk->body_part_id >= 0 &&
-            idk->body_part_id < EV_PLAYER_PARTS && kits[idk->body_part_id] < 0 )
+        int first = gender ? EV_PLAYER_PARTS : 0;
+        if( !idk->is_not_selectable && idk->body_part_id >= first &&
+            idk->body_part_id < first + EV_PLAYER_PARTS &&
+            kits[idk->body_part_id - first] < 0 )
         {
-            kits[idk->body_part_id] = id;
+            kits[idk->body_part_id - first] = id;
             found++;
         }
         RSCache_Dat2ConfigIdkFree(idk);
@@ -198,7 +210,7 @@ ev_build_player_model(
     for( int i = 0; i < EV_PLAYER_PARTS; i++ )
         kits[i] = spec->kits[i];
     if( !spec->exact )
-        ev_resolve_default_kits(c, kits);
+        ev_resolve_default_kits(c, kits, spec->gender);
 
     /*
      * Without an appearance buffer (a default body plus --wear), emulate what

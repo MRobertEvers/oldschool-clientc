@@ -5191,6 +5191,12 @@ ToriRSServer_VarbitSetOn(
 int
 ToriRSServer_PlayerIsMobile(const struct ToriRSServerPlayer* player);
 
+/** Logged in with the 2D PokeSprite client (pokeclient/): it draws the world
+ *  from sprite sheets io_server serves, not from models, so anything that
+ *  only makes sense with a 3D camera can be told apart. */
+int
+ToriRSServer_PlayerIsPokesprite(const struct ToriRSServerPlayer* player);
+
 /** `ToriRSServer_WorldSetVarp` on a named player; side effects stay gated on the
  *  active one. */
 void

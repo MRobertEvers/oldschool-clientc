@@ -45,6 +45,8 @@
 #include "ev_config.h"
 #include "ev_player.h"
 #include "ev_render.h"
+#include "ev_textures.h"
+#include "ev_wire.h"
 #include "ev_wire.h"
 
 #include "asset_access.h"
@@ -54,6 +56,7 @@
 #include "toridraw.h"
 
 #include <assert.h>
+#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -304,8 +307,8 @@ apply_appearance(
                 fprintf(stderr, "slot %d: identity kit %d does not decode\n", s, kit);
                 return 0;
             }
-            if( idk->body_part_id >= 0 && idk->body_part_id < EV_PLAYER_PARTS )
-                spec->kits[idk->body_part_id] = kit;
+            if( ev_player_kit_slot(idk->body_part_id) >= 0 )
+                spec->kits[ev_player_kit_slot(idk->body_part_id)] = kit;
             else
                 fprintf(stderr, "slot %d: kit %d dresses no body part (%d)\n", s,
                         kit, idk->body_part_id);
@@ -473,6 +476,12 @@ usage(const char* prog)
         "\n"
         "  --npc <id>       render an npc\n"
         "  --player         render a player instead\n"
+        "  --loc <id>       render a loc (scenery) instead, in --shape\n"
+        "  --obj <id>       render an obj's ground model (its inventory model)\n"
+        "  --spotanim <id>  render a spot animation (a graphic or a projectile),\n"
+        "                   playing its own sequence unless --seq names another\n"
+        "  --shape <s>      the loc shape to build (10 centrepiece, 22 ground decor,\n"
+        "                   ...); -1 = the record's first [-1]\n"
         "  --gender <0|1>   0 male, 1 female [0]\n"
         "  --appearance <list>\n"
         "                   up to 12 comma-separated appearance slots. Each is\n"
@@ -512,12 +521,181 @@ usage(const char* prog)
         "                   inside the default body, so every layer of a body\n"
         "                   shares one pose, head line and anchor and the client\n"
         "                   can composite any appearance from them\n"
-        "  --chibi <head%%>,<frac%%>,<body%%>[,<width%%>]\n"
+        "  --chibi <head%%>,<frac%%>,<body%%>[,<width%%>[,<inflate>]]\n"
         "                   scale the head (bind-pose top frac%% of the height)\n"
         "                   by head%% about the neck, the body height by body%%\n"
-        "                   and its width by width%%, e.g. 260,17,72,125\n"
+        "                   and its width by width%%; inflate pushes the body out\n"
+        "                   along its normals by that many world units, for\n"
+        "                   chunky limbs. e.g. 260,17,66,135,6\n"
         "  --out <dir>      output directory (required)\n",
         prog);
+}
+
+/* ------------------------------------------------------- texture flattening */
+
+/*
+ * A sprite render has no texture raster, so a textured face is drawn in its
+ * texture's average colour -- the reference client's low-detail look. The
+ * average is taken over the opaque texels, gamma undone (the HSL table bakes
+ * brightness 0.8 in), and put back into HSL16 so the face is lit and grouped
+ * like any other. Cached per texture id.
+ */
+static struct EV_TextureSet g_textures;
+static int g_textures_loaded = 0;
+static int g_flat_hsl[8192];
+
+static int
+rgb_to_hsl16(
+    double r,
+    double g,
+    double b)
+{
+    r = pow(r, 1.0 / 0.8);
+    g = pow(g, 1.0 / 0.8);
+    b = pow(b, 1.0 / 0.8);
+    double mx = fmax(r, fmax(g, b)), mn = fmin(r, fmin(g, b));
+    double l = (mx + mn) / 2.0, h = 0.0, s = 0.0;
+    if( mx > mn )
+    {
+        double d = mx - mn;
+        s = l > 0.5 ? d / (2.0 - mx - mn) : d / (mx + mn);
+        if( mx == r )
+            h = (g - b) / d + (g < b ? 6.0 : 0.0);
+        else if( mx == g )
+            h = (b - r) / d + 2.0;
+        else
+            h = (r - g) / d + 4.0;
+        h /= 6.0;
+    }
+    int hh = (int)(h * 64.0) & 63;
+    int ss = (int)(s * 8.0);
+    int ll = (int)(l * 128.0);
+    ss = ss > 7 ? 7 : ss;
+    ll = ll > 127 ? 127 : ll;
+    return (hh << 10) | (ss << 7) | ll;
+}
+
+static int
+flatten_texture(
+    int id,
+    void* user)
+{
+    struct Tool_Dat2Cache* cache = (struct Tool_Dat2Cache*)user;
+    if( id < 0 || id >= (int)(sizeof(g_flat_hsl) / sizeof(g_flat_hsl[0])) )
+        return -1;
+    if( !g_textures_loaded )
+    {
+        /* The first call loads the set, and only it needs the cache. */
+        assert(cache);
+        g_textures_loaded = ev_textures_load(cache, &g_textures) ? 1 : -1;
+        for( int i = 0; i < (int)(sizeof(g_flat_hsl) / sizeof(g_flat_hsl[0])); i++ )
+            g_flat_hsl[i] = -2;
+    }
+    if( g_textures_loaded < 0 )
+        return -1;
+    if( g_flat_hsl[id] != -2 )
+        return g_flat_hsl[id];
+    const struct EV_Texture* t = ev_textures_get(&g_textures, id);
+    int result = -1;
+    if( t && t->texels && t->size > 0 )
+    {
+        double sr = 0, sg = 0, sb = 0;
+        long n = 0;
+        for( int i = 0; i < t->size * t->size; i++ )
+        {
+            uint32_t p = (uint32_t)t->texels[i];
+            if( !t->opaque && (p >> 24) < 128 )
+                continue;
+            sr += (p >> 16) & 0xFF;
+            sg += (p >> 8) & 0xFF;
+            sb += p & 0xFF;
+            n++;
+        }
+        if( n > 0 )
+            result = rgb_to_hsl16(sr / n / 255.0, sg / n / 255.0, sb / n / 255.0);
+    }
+    g_flat_hsl[id] = result;
+    return result;
+}
+
+/*
+ * Textures drawn for real.
+ *
+ * The lit frame is the shading every sprite is built from, so a textured face
+ * has to be drawn TEXTURED there: wood grain, stonework, thatch and leaves are
+ * light and dark detail, which the Pokemon stage turns into its shade bands.
+ * The cache's textures are installed into the renderer as the viewer's own
+ * EVT1 blob (the format ev_server sends the page), and the build is told they
+ * are available so it keeps them on the faces. The flatten hook above remains
+ * the fallback for a texture that did not bake, and the average it computes is
+ * a textured face's base colour in the face table (write_faces).
+ */
+static int
+texture_available(
+    int id,
+    void* user)
+{
+    (void)user;
+    return g_textures_loaded > 0 && ev_textures_get(&g_textures, id) != NULL;
+}
+
+static void
+put_u32(
+    uint8_t** p,
+    uint32_t v)
+{
+    (*p)[0] = (uint8_t)v;
+    (*p)[1] = (uint8_t)(v >> 8);
+    (*p)[2] = (uint8_t)(v >> 16);
+    (*p)[3] = (uint8_t)(v >> 24);
+    *p += 4;
+}
+
+static void
+install_textures(struct Tool_Dat2Cache* cache)
+{
+    assert(cache);
+    (void)flatten_texture(0, cache); /* loads the set */
+    if( g_textures_loaded <= 0 )
+    {
+        fprintf(stderr, "warning: textures did not load; textured faces fall back to flat\n");
+        return;
+    }
+    size_t bytes = 8;
+    int count = 0;
+    for( int i = 0; i < g_textures.count; i++ )
+        if( g_textures.items[i].texels )
+        {
+            bytes += 4 + 8 + 4u * (size_t)g_textures.items[i].size * (size_t)g_textures.items[i].size;
+            count++;
+        }
+    uint8_t* blob = (uint8_t*)malloc(bytes);
+    assert(blob);
+    uint8_t* p = blob;
+    put_u32(&p, EV_WIRE_TEXTURES_MAGIC);
+    put_u32(&p, (uint32_t)count);
+    for( int i = 0; i < g_textures.count; i++ )
+    {
+        const struct EV_Texture* t = &g_textures.items[i];
+        if( !t->texels )
+            continue;
+        put_u32(&p, (uint32_t)t->id);
+        /* The header ev_server's handle_textures_bin writes. */
+        p[0] = (uint8_t)(t->size & 0xFF);
+        p[1] = (uint8_t)((t->size >> 8) & 0xFF);
+        p[2] = (uint8_t)(t->alpha_mode >= 0 && t->alpha_mode <= 2 ? t->alpha_mode : 0);
+        p[3] = (uint8_t)((t->repeat_s ? 0 : 1) | (t->repeat_t ? 0 : 2) | (t->modulate ? 4 : 0));
+        p[4] = (uint8_t)(t->mean_luma < 1 ? 1 : t->mean_luma);
+        p[5] = p[6] = p[7] = 0;
+        p += 8;
+        for( int k = 0; k < t->size * t->size; k++ )
+            put_u32(&p, (uint32_t)t->texels[k]);
+    }
+    assert((size_t)(p - blob) == bytes);
+    int installed = ev_set_textures(blob, (int)bytes);
+    free(blob);
+    if( installed > 0 )
+        ev_build_set_texture_available(texture_available, NULL);
 }
 
 /* ------------------------------------------------------------ export passes */
@@ -641,10 +819,20 @@ write_faces(
     }
     fprintf(ff, "# face\tid_rgb\tbase_hsl16\tbase_rgb\thead\ta\tb\tc\n");
     for( int i = 0; i < model->face_count; i++ )
-        fprintf(ff, "%d\t%06x\t%d\t%06x\t%d\t%d\t%d\t%d\n", i, ev_face_code_rgb(i),
-                model->face_colors[i], ToriDraw_Hsl16ToRgb(model->face_colors[i]) & 0xFFFFFF,
-                ev_face_is_head(model, i), model->face_indices_a[i], model->face_indices_b[i],
-                model->face_indices_c[i]);
+    {
+        /* A textured face's colour field is its texture id: its material's
+         * base colour is the texture's average instead. */
+        int base = model->face_colors[i];
+        if( model->face_textures && model->face_textures[i] >= 0 )
+        {
+            int flat = flatten_texture(model->face_textures[i], NULL);
+            if( flat >= 0 )
+                base = flat;
+        }
+        fprintf(ff, "%d\t%06x\t%d\t%06x\t%d\t%d\t%d\t%d\n", i, ev_face_code_rgb(i), base,
+                ToriDraw_Hsl16ToRgb((uint16_t)base) & 0xFFFFFF, ev_face_is_head(model, i),
+                model->face_indices_a[i], model->face_indices_b[i], model->face_indices_c[i]);
+    }
     fclose(ff);
     return 1;
 }
@@ -661,6 +849,10 @@ main(
     const char* out_dir = NULL;
     int npc_id = -1;
     int as_player = 0;
+    int loc_id = -1;
+    int loc_shape = -1;
+    int obj_id = -1;
+    int spotanim_id = -1;
     int seq_id = -1;
     int fit = 160;
     int side = 512;
@@ -672,7 +864,7 @@ main(
     int fixed_zoom = 0;
     int frame_height = 0;
     int full = 0;
-    int chibi[4] = { 0, 0, 0, 0 };
+    int chibi[5] = { 0, 0, 0, 0, 0 };
     int materials = 0;
     int layer_obj = -1;
     int layer_id = -1;
@@ -691,6 +883,14 @@ main(
             rev_name = argv[++i];
         else if( strcmp(argv[i], "--npc") == 0 && i + 1 < argc )
             npc_id = atoi(argv[++i]);
+        else if( strcmp(argv[i], "--spotanim") == 0 && i + 1 < argc )
+            spotanim_id = atoi(argv[++i]);
+        else if( strcmp(argv[i], "--obj") == 0 && i + 1 < argc )
+            obj_id = atoi(argv[++i]);
+        else if( strcmp(argv[i], "--loc") == 0 && i + 1 < argc )
+            loc_id = atoi(argv[++i]);
+        else if( strcmp(argv[i], "--shape") == 0 && i + 1 < argc )
+            loc_shape = atoi(argv[++i]);
         else if( strcmp(argv[i], "--player") == 0 )
             as_player = 1;
         else if( strcmp(argv[i], "--wear") == 0 && i + 1 < argc )
@@ -753,9 +953,10 @@ main(
         }
         else if( strcmp(argv[i], "--chibi") == 0 && i + 1 < argc )
         {
-            if( sscanf(argv[++i], "%d,%d,%d,%d", &chibi[0], &chibi[1], &chibi[2], &chibi[3]) < 3 )
+            if( sscanf(argv[++i], "%d,%d,%d,%d,%d", &chibi[0], &chibi[1], &chibi[2], &chibi[3],
+                       &chibi[4]) < 3 )
             {
-                fprintf(stderr, "--chibi wants head%%,frac%%,body%%[,width%%]\n");
+                fprintf(stderr, "--chibi wants head%%,frac%%,body%%[,width%%[,inflate]]\n");
                 return 2;
             }
         }
@@ -775,7 +976,8 @@ main(
         }
     }
 
-    if( !rev_name || !cache_dir || !out_dir || (npc_id < 0 && !as_player) )
+    if( !rev_name || !cache_dir || !out_dir ||
+        (npc_id < 0 && !as_player && loc_id < 0 && obj_id < 0 && spotanim_id < 0) )
     {
         usage(argv[0]);
         return 2;
@@ -805,6 +1007,8 @@ main(
     }
     ToriDraw_Init();
     ev_init();
+    ev_build_set_texture_flatten(flatten_texture, &cache);
+    install_textures(&cache);
     /* --yaw is already the model's own rotation (ev_render sets
      * ToriDraw_Position.yaw with it); these are the other two axes of the same
      * orientation. --pitch, separately, elevates the camera. */
@@ -812,6 +1016,7 @@ main(
     if( frame_height > 0 )
         ev_set_frame_height(frame_height);
     ev_set_chibi(chibi[0], chibi[1], chibi[2], chibi[3]);
+    ev_set_chibi_inflate(chibi[4]);
 
     struct ToriDraw_Model* model = NULL;
     if( as_player )
@@ -843,15 +1048,15 @@ main(
             else
             {
                 struct RSCache_Dat2ConfigIdk* idk = ev_idk_load(&cache, layer_id);
-                if( !idk || idk->body_part_id < 0 || idk->body_part_id >= EV_PLAYER_PARTS )
+                if( !idk || ev_player_kit_slot(idk->body_part_id) < 0 )
                 {
-                    fprintf(stderr, "kit %d does not decode to a male body part\n", layer_id);
+                    fprintf(stderr, "kit %d does not decode to a body part\n", layer_id);
                     return 1;
                 }
-                spec.kits[idk->body_part_id] = layer_id;
+                spec.kits[ev_player_kit_slot(idk->body_part_id)] = layer_id;
                 RSCache_Dat2ConfigIdkFree(idk);
             }
-            ev_resolve_default_kits(&cache, spec.kits);
+            ev_resolve_default_kits(&cache, spec.kits, spec.gender);
             spec.exact = 1;
         }
         model = ev_build_player_model(&cache, &spec, &map);
@@ -878,7 +1083,44 @@ main(
             }
             ev_set_face_range(first, count);
             ev_set_chibi_reference(kit_vertices);
+            /* A weapon or a shield keeps its silhouette under inflation. */
+            if( layer_obj )
+            {
+                struct RSCache_Dat2ConfigObj* obj = ev_obj_load(&cache, layer_id);
+                assert(obj);
+                if( obj->wearpos_1 == 3 || obj->wearpos_1 == 5 )
+                {
+                    int vfirst = -1, vcount = 0;
+                    for( int p = 0; p < map.count; p++ )
+                    {
+                        const struct EV_PlayerPart* pt = &map.parts[p];
+                        if( pt->source_id == layer_id && pt->is_obj )
+                        {
+                            if( vfirst < 0 )
+                                vfirst = pt->vertex_first;
+                            vcount = pt->vertex_first + pt->vertex_count - vfirst;
+                        }
+                    }
+                    ev_set_chibi_inflate_skip(vfirst, vcount);
+                }
+                RSCache_Dat2ConfigObjFree(obj);
+            }
         }
+    }
+    else if( loc_id >= 0 )
+    {
+        model = ev_build_loc_model(&cache, loc_id, loc_shape);
+    }
+    else if( obj_id >= 0 )
+    {
+        model = ev_build_obj_model(&cache, obj_id, EV_OBJ_MODEL_ITEM);
+    }
+    else if( spotanim_id >= 0 )
+    {
+        int own_seq = -1;
+        model = ev_build_spotanim_model(&cache, spotanim_id, NULL, -1, 0, &own_seq);
+        if( seq_id < 0 )
+            seq_id = own_seq;
     }
     else
     {
@@ -886,7 +1128,8 @@ main(
     }
     if( !model )
     {
-        fprintf(stderr, "could not build the %s model\n", as_player ? "player" : "npc");
+        fprintf(stderr, "could not build the %s model\n",
+                as_player ? "player" : (loc_id >= 0 ? "loc" : "npc"));
         return 1;
     }
     if( !adopt_model(model) )

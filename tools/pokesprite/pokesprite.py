@@ -73,21 +73,70 @@ from PIL import Image, ImageDraw
 from scipy import ndimage
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-EV_SHEET = os.path.join(ROOT, "tools/entity_viewer/ev_sheet")
+# POKESPRITE_EV_SHEET names another build, e.g. a fresh one linked while a
+# long batch still runs the installed binary.
+EV_SHEET = os.environ.get("POKESPRITE_EV_SHEET") or os.path.join(ROOT, "tools/entity_viewer/ev_sheet")
 CACHE = os.path.join(ROOT, "cache.osrs239")
 CONTENT = os.path.join(ROOT, "OSRS-Content/osrs239-content")
 
 FACINGS = [("down", 0), ("left", 512), ("right", 1536), ("up", 1024)]
 
+# One scale per profile, so sizes in the 2D world are relative, not each
+# creature's own: the ground is 0.25 sprite pixels per world unit (32 px a
+# tile), i.e. zoom 683 at factor 3. Humanoids match the player layers
+# (layers.py: zoom 650, the same chibi) so an npc man and a player are one
+# size; mobs are the world scale x1.35, Pokemon's exaggeration, so a chicken
+# stays small and Jad stays huge. --height still calibrates the old way.
 PROFILES = {
-    "mob": dict(pitch=176, factor=3, chibi=None, height=None),
-    "humanoid": dict(pitch=112, factor=4, chibi="260,17,72,125", height=40),
+    "mob": dict(pitch=176, factor=3, chibi=None, height=None, zoom=round(683 / 1.35)),
+    "humanoid": dict(pitch=112, factor=3, chibi="260,17,66,135,4", height=None, zoom=650),
 }
 MOB_HEIGHT = {1: 32, 2: 44, 3: 56, 4: 64}  # by npc tile size; 5+ -> 72
 BUDGET = 15  # colours, transparency is the 16th
 
 
 # ------------------------------------------------------------------ helpers
+
+# A subject's raw renders are 1200 px canvases plus depth and vertex dumps for
+# every frame and facing: tens of MB a subject. Kept for one region they
+# reached 78 GB and filled the disk (2026-10-14), so a generator drops them
+# once the sheet is stored. POKESPRITE_KEEP_RAW=1 keeps them, to re-stylise
+# without re-rendering.
+KEEP_RAW = bool(os.environ.get("POKESPRITE_KEEP_RAW"))
+
+
+def drop_raw(d):
+    if not KEEP_RAW:
+        shutil.rmtree(d, ignore_errors=True)
+
+
+_STAMP = []
+
+
+def renderer_stamp():
+    """The identity of the ev_sheet doing the rendering: a hash of the binary,
+    so a rebuild that changes nothing invalidates nothing."""
+    if not _STAMP:
+        import hashlib
+        _STAMP.append(hashlib.sha1(open(EV_SHEET, "rb").read()).hexdigest())
+    return _STAMP[0]
+
+
+def rendered(d):
+    """Whether `d` holds a finished render by THIS ev_sheet. A render dir is
+    reused across runs, and one from an older renderer (before textures, say)
+    would otherwise be reused for good."""
+    try:
+        with open(os.path.join(d, ".ev_sheet")) as f:
+            return f.read() == renderer_stamp() and os.path.exists(os.path.join(d, "faces.txt"))
+    except OSError:
+        return False
+
+
+def mark_rendered(d):
+    with open(os.path.join(d, ".ev_sheet"), "w") as f:
+        f.write(renderer_stamp())
+
 
 def run(cmd):
     r = subprocess.run(cmd, capture_output=True, text=True)
@@ -103,6 +152,30 @@ def timing(path):
             continue
         out.append(int(line.split()[1]) * 20)
     return out
+
+
+MIN_FRAME_MS = 80
+
+
+def decimate(durs):
+    """Frame indices to keep and their durations: consecutive frames merge
+    until each lasts MIN_FRAME_MS, the total unchanged. A skeletal sequence
+    has a frame per 20ms client tick -- 120 for an idle -- which is a film,
+    not a sprite; a Pokemon sprite animates near 12 fps."""
+    keep, out, acc = [], [], 0
+    for i, d in enumerate(durs):
+        if acc == 0:
+            keep.append(i)
+        acc += d
+        if acc >= MIN_FRAME_MS:
+            out.append(acc)
+            acc = 0
+    if acc:
+        if out:
+            out[-1] += acc
+        else:
+            out.append(acc)
+    return keep[:len(out)], out
 
 
 def compack(kind):
@@ -147,7 +220,13 @@ def discover(npc_id):
     name = npcs[npc_id]
     rec = npc_record(name)
     combat = npc_combat(name)
+    # Everything the client can ask for: the movement slot plays the walk for
+    # the direction of travel relative to facing, and the turn-on-the-spot
+    # sequences while turning.
     want = [("idle", rec.get("readyanim")), ("walk", rec.get("walkanim")),
+            ("walk_b", rec.get("walkanim_b")), ("walk_l", rec.get("walkanim_l")),
+            ("walk_r", rec.get("walkanim_r")), ("turn_l", rec.get("idleleftanim")),
+            ("turn_r", rec.get("idlerightanim")),
             ("run", rec.get("runanim")), ("attack", combat.get("attack_anim")),
             ("defend", combat.get("defend_anim")), ("death", combat.get("death_anim"))]
     anims, used = [], set()
@@ -159,10 +238,17 @@ def discover(npc_id):
     humanoid = ready.startswith("human_")
     # A creature's own sequence family (lordmagmus_*) holds its other attacks.
     # A shared rig's family (human_*) holds thousands; skip it.
-    fam = ready.rsplit("_", 1)[0] + "_" if "_" in ready else None
+    # The family is what the ready and walk names share up to an underscore:
+    # lordmagmus_ready/lordmagmus_walk -> lordmagmus_, and
+    # npc_whisperer_01_idle_01/npc_whisperer_01_walk_01 -> npc_whisperer_01_.
+    walk = rec.get("walkanim", "")
+    common = os.path.commonprefix([ready, walk]) if walk and walk != "default" else ready
+    fam = common[:common.rfind("_") + 1] if "_" in common else None
     if fam and not humanoid:
-        members = sorted((k, v) for k, v in seqs.items() if v.startswith(fam))
-        if len(members) <= 16:
+        # A pet's copy and a silent copy are the same motion again.
+        members = sorted((k, v) for k, v in seqs.items() if v.startswith(fam)
+                         and not v.endswith(("_pet", "_nosound")))
+        if len(members) <= 40:
             for k, v in members:
                 if v not in used:
                     anims.append((v[len(fam):], k))
@@ -311,7 +397,30 @@ def smooth_value(val, mat, sigma):
     return out
 
 
-def downscale(mat, val, alpha, f, feature, nmat):
+def pixel_depth(face, vs, tri):
+    """Each pixel's camera z on the face that won it; 1/z is linear in screen
+    space. No z-buffer: the face comes from the painter's own draw."""
+    z = np.full(face.shape, np.inf)
+    ys, xs = np.nonzero(face >= 0)
+    if not len(ys):
+        return z
+    fc = face[ys, xs]
+    A, B, C = vs[tri[fc, 0]], vs[tri[fc, 1]], vs[tri[fc, 2]]
+    px, py = xs + 0.5, ys + 0.5
+    den = (B[:, 1] - C[:, 1]) * (A[:, 0] - C[:, 0]) + (C[:, 0] - B[:, 0]) * (A[:, 1] - C[:, 1])
+    den = np.where(np.abs(den) < 1e-9, 1e-9, den)
+    w0 = ((B[:, 1] - C[:, 1]) * (px - C[:, 0]) + (C[:, 0] - B[:, 0]) * (py - C[:, 1])) / den
+    w1 = ((C[:, 1] - A[:, 1]) * (px - C[:, 0]) + (A[:, 0] - C[:, 0]) * (py - C[:, 1])) / den
+    w = np.clip(np.stack([w0, w1, 1 - w0 - w1], 1), 0, 1)
+    w /= np.maximum(w.sum(1, keepdims=True), 1e-9)
+    z[ys, xs] = 1.0 / (w[:, 0] / A[:, 2] + w[:, 1] / B[:, 2] + w[:, 2] / C[:, 2])
+    return z
+
+
+def downscale(mat, val, alpha, f, feature, nmat, thin=False):
+    """One output pixel per f x f block. A block is covered when most of it
+    is -- or, `thin`, when a third of it is: an arrow shaft or a spell's
+    streak is a pixel or two wide in the render and would otherwise vanish."""
     H, W = mat.shape
     h, w = H // f, W // f
 
@@ -320,7 +429,8 @@ def downscale(mat, val, alpha, f, feature, nmat):
 
     mb, vb, ab = blocks(mat), blocks(val), blocks(alpha)
     cnt = np.stack([(mb == m).sum(-1) for m in range(nmat)], -1)
-    opaque = (ab >= 128).sum(-1) * 2 > f * f
+    covered = (ab >= 128).sum(-1)
+    opaque = covered * 3 >= f * f if thin else covered * 2 > f * f
     solid = cnt.copy()
     solid[..., 0] = 0
     out = solid.argmax(-1)
@@ -368,92 +478,32 @@ def paint_eyes(img, head, facing, rgb):
 
 # ------------------------------------------------------------------ main
 
-def main():
-    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    g = ap.add_mutually_exclusive_group(required=True)
-    g.add_argument("--npc", type=int)
-    g.add_argument("--player", action="store_true")
-    ap.add_argument("--appearance")
-    ap.add_argument("--wear", type=int, action="append", default=[])
-    ap.add_argument("--gender", type=int, default=0)
-    ap.add_argument("--anims", help="name=seq,... overriding discovery")
-    ap.add_argument("--profile", choices=("auto", "mob", "humanoid"), default="auto")
-    ap.add_argument("--height", type=int, help="idle sprite height in px")
-    ap.add_argument("--pitch", type=int)
-    ap.add_argument("--chibi", help="head%%,frac%%,body%%,width%% (humanoid default "
-                    "260,17,72,125); 0 disables")
-    ap.add_argument("--out", required=True)
-    ap.add_argument("--skip-render", action="store_true")
-    a = ap.parse_args()
-
-    if a.player:
-        name, size, anims, humanoid = "player", 1, [("idle", 808), ("walk", 819),
-                                                    ("run", 824)], True
-    else:
-        name, size, anims, humanoid = discover(a.npc)
-    if a.anims:
-        anims = [(k, int(v)) for k, v in (p.split("=") for p in a.anims.split(","))]
-    assert anims, "no animations found for %s; pass --anims" % name
-    profile = a.profile if a.profile != "auto" else ("humanoid" if humanoid else "mob")
-    P = dict(PROFILES[profile])
-    if a.pitch is not None:
-        P["pitch"] = a.pitch
-    if a.chibi is not None:
-        P["chibi"] = a.chibi if a.chibi != "0" else None
-    height = a.height or P["height"] or MOB_HEIGHT.get(size, 72)
-    f = P["factor"]
-    print("%s: profile %s, %dpx, anims %s" % (name, profile, height,
-                                             " ".join("%s=%d" % x for x in anims)))
-
-    subject = ["--player", "--gender", str(a.gender)] if a.player else ["--npc", str(a.npc)]
-    if a.player and a.appearance:
-        subject += ["--appearance", a.appearance]
-    for w in a.wear:
-        subject += ["--wear", str(w)]
-    common = ["--rev", "osrs239", CACHE] + subject + ["--pitch", str(P["pitch"]),
-                                                      "--frame-height", "200", "--full"]
-    if P["chibi"]:
-        common += ["--chibi", P["chibi"]]
-
-    raw = os.path.join(a.out, "_raw")
-    os.makedirs(a.out, exist_ok=True)
-    cal_path = os.path.join(a.out, "_calibration.json")
-    if not a.skip_render:
-        # ---- calibrate: idle height at a probe zoom -> zoom for the target
-        shutil.rmtree(raw, ignore_errors=True)
-        probe = os.path.join(raw, "_probe")
-        os.makedirs(probe)
-        z0, side0 = 1000, 1400
-        run([EV_SHEET] + common + ["--seq", str(anims[0][1]), "--zoom", str(z0),
-                                   "--side", str(side0), "--fit", "1", "--out", probe])
-        hmax = 0
-        for p in glob.glob(probe + "/f*.png"):
-            al = np.asarray(Image.open(p))[..., 3]
-            ys = np.nonzero((al >= 128).any(1))[0]
-            hmax = max(hmax, ys.max() - ys.min() + 1)
-        zoom = int(z0 * hmax / (height * f))
-        side = min(2048, max(600, height * f * 5))
-        json.dump({"zoom": zoom, "side": side}, open(cal_path, "w"))
-        for label, seq in anims:
-            for fname, yaw in FACINGS:
-                d = os.path.join(raw, "%s_%s" % (label, fname))
-                os.makedirs(d)
-                _o, err = run([EV_SHEET] + common + ["--seq", str(seq), "--yaw", str(yaw),
-                                                      "--zoom", str(zoom), "--side", str(side),
-                                                      "--fit", "1", "--materials", "--out", d])
-                if "canvas edge" in err:
-                    print("warning: %s %s touches the canvas edge (clipped)" % (label, fname))
-    cal = json.load(open(cal_path))
-    zoom, side = cal["zoom"], cal["side"]
-
-    # ---- materials --------------------------------------------------------
-    first = os.path.join(raw, "%s_down" % anims[0][0])
-    colours = []
-    for line in open(first + "/materials.txt"):
-        if not line.startswith("#"):
-            c, rgb, n = line.split()
-            colours.append((int(c), tuple(bytes.fromhex(rgb)), int(n)))
-    rgb_to_hsl = {rgb: c for c, rgb, _ in colours}
+def stylise(raw, anims, facings, f, zoom, side, height, chibi, thin=False):
+    """The Pokemon stage for one subject's renders: <raw>/<label>_<facing>/ for
+    every (label, seq) in anims and (facing, yaw) in facings, all at one zoom
+    on one canvas. Returns ({(label, facing): ([PIL frames], durations)},
+    {label: crop box on the canvas}, colour count). `thin` keeps one-pixel
+    detail through the downscale (see downscale)."""
+    # ---- materials: the model's own base colours (ev_sheet faces.txt) -----
+    # Every run renders the same model, so one face table serves them all:
+    # face i has the same ID colour, base colour and head flag everywhere.
+    first = os.path.join(raw, "%s_%s" % (anims[0][0], facings[0][0]))
+    frows = [l.split() for l in open(first + "/faces.txt") if not l.startswith("#")]
+    nf = len(frows)
+    idrgb = np.full(1 << 24, -1, np.int32)
+    tri = np.zeros((nf, 3), np.int64)
+    base_hsl = np.zeros(nf, np.int64)
+    head_face = np.zeros(nf, bool)
+    nfaces, rgb_of = {}, {}
+    for r in frows:
+        i = int(r[0])
+        idrgb[int(r[1], 16)] = i
+        base_hsl[i] = int(r[2])
+        head_face[i] = r[4] == "1"
+        tri[i] = (int(r[5]), int(r[6]), int(r[7]))
+        nfaces[int(r[2])] = nfaces.get(int(r[2]), 0) + 1
+        rgb_of[int(r[2])] = tuple(bytes.fromhex(r[3]))
+    colours = [(c, rgb_of[c], n) for c, n in nfaces.items()]
     groups = group_materials(colours)
 
     # ---- load; one box per animation ---------------------------------------
@@ -467,47 +517,50 @@ def main():
     for label, _seq in anims:
         x0 = y0 = 10 ** 9
         x1 = y1 = -1
-        for fname, _yaw in FACINGS:
+        for fname, _yaw in facings:
             d = os.path.join(raw, "%s_%s" % (label, fname))
             lit = [np.asarray(Image.open(p).convert("RGBA")) for p in sorted(glob.glob(d + "/f*.png"))]
-            mat = [np.asarray(Image.open(p).convert("RGBA")) for p in sorted(glob.glob(d + "/m*.png"))]
-            dep = [np.asarray(Image.open(p).convert("RGB")) for p in sorted(glob.glob(d + "/d*.png"))]
-            hd = [np.asarray(Image.open(p).convert("RGB"))[..., 0]
-                  for p in sorted(glob.glob(d + "/h*.png"))] or [None] * len(lit)
-            assert lit and len(lit) == len(mat) == len(dep) == len(hd), d
+            ids = [np.asarray(Image.open(p).convert("RGBA")) for p in sorted(glob.glob(d + "/i*.png"))]
+            vtx = [np.fromfile(p, np.int32).reshape(-1, 3).astype(np.float64)
+                   for p in sorted(glob.glob(d + "/v*.bin"))]
+            assert lit and len(lit) == len(ids) == len(vtx), d
             for im in lit:
                 ys, xs = np.nonzero(im[..., 3] >= 128)
                 if len(xs):
                     x0, x1 = min(x0, xs.min()), max(x1, xs.max() + 1)
                     y0, y1 = min(y0, ys.min()), max(y1, ys.max() + 1)
-            clips[(label, fname)] = (lit, mat, dep, hd, timing(d + "/frames.txt"))
+            durs = timing(d + "/frames.txt")
+            keep, durs = decimate(durs)
+            clips[(label, fname)] = ([lit[i] for i in keep], [ids[i] for i in keep],
+                                     [vtx[i] for i in keep], durs)
         half = up(max(cx - x0, x1 - cx) + margin)
         top = up(cx - (y0 - margin))
         bot = up((y1 + margin) - cx)
         boxes[label] = (cx - half, cx - top, cx + half, cx + bot)
 
-    # Material id per pixel (0 = none). Pixels are counted over every frame to
-    # weigh each group by what is actually seen, not by face count.
-    gid = {}
+    # Material id per pixel (0 = none), from the face that won it in the
+    # painter's own draw. Pixels are counted over every frame to weigh each
+    # group by what is actually seen, not by face count.
+    gid = np.zeros(1 << 16, np.int64)
     for i, grp in enumerate(groups):
         for c in grp:
             gid[c] = i + 1
-    lut = np.zeros(1 << 24, np.int32)
-    for rgb, c in rgb_to_hsl.items():
-        lut[(rgb[0] << 16) | (rgb[1] << 8) | rgb[2]] = gid[c]
     counts = np.zeros(len(groups) + 1, np.int64)
     full = {}
-    for key, (lit, mat, dep, hd, durs) in clips.items():
+    for key, (lit, ids, vtx, durs) in clips.items():
         bx0, by0, bx1, by1 = boxes[key[0]]
         rows = []
-        for li, mi, di, hi in zip(lit, mat, dep, hd):
-            li, mi = li[by0:by1, bx0:bx1], mi[by0:by1, bx0:bx1]
-            di = di[by0:by1, bx0:bx1].astype(np.int64)
-            z = ((di[..., 0] << 16) | (di[..., 1] << 8) | di[..., 2]) / 8.0
-            hi = None if hi is None else hi[by0:by1, bx0:bx1] > 127
-            m = lut[(mi[..., 0].astype(np.int32) << 16) | (mi[..., 1].astype(np.int32) << 8)
-                    | mi[..., 2]]
-            m[li[..., 3] < 128] = 0
+        for li, ii, vs in zip(lit, ids, vtx):
+            ii = ii.astype(np.int64)
+            face = idrgb[(ii[..., 0] << 16) | (ii[..., 1] << 8) | ii[..., 2]]
+            face[(ii[..., 3] < 128) | (li[..., 3] < 128)] = -1
+            vs = vs.copy()
+            vs[:, 2] += zoom  # screen z is relative to the model centre, at z == zoom
+            z = pixel_depth(face, vs, tri)[by0:by1, bx0:bx1]
+            face = face[by0:by1, bx0:bx1]
+            li = li[by0:by1, bx0:bx1]
+            m = np.where(face >= 0, gid[base_hsl[np.maximum(face, 0)]], 0)
+            hi = (face >= 0) & head_face[np.maximum(face, 0)] if chibi else None
             counts += np.bincount(m.ravel(), minlength=len(groups) + 1)
             rows.append((m, li, z, hi))
         full[key] = (rows, durs)
@@ -576,6 +629,10 @@ def main():
               % (k, 100 * share[g], steps[k], "" if steps[k] == 1 else "s",
                  *[int(v) for v in base[g]], "  (feature)" if feature[k] else ""))
 
+    # Nothing on screen in any frame: an invisible subject (OSRS has locs and
+    # npcs that are only there to be clicked). Say so; there is no sprite.
+    if K == 1:
+        raise ValueError("nothing visible in any frame")
     # The sprite's one outline: the dominant material's, which is what most of
     # the silhouette borders.
     line_rgb = outline[1].copy()
@@ -594,7 +651,7 @@ def main():
             m = idmap[m]
             v = li[..., :3].max(-1).astype(np.float32) / 255
             v = smooth_value(v, m, sigma)
-            mm, vv = downscale(m, v, li[..., 3], f, feature, K)
+            mm, vv = downscale(m, v, li[..., 3], f, feature, K, thin)
             # Far side of a depth jump: the line sits on what is behind, the
             # way the outer outline sits on the background.
             op = m != 0
@@ -651,6 +708,106 @@ def main():
     ncol = len({p[:3] for ims, _ in frames.values() for im in ims
                 for p in im.get_flattened_data() if p[3]})
 
+    return frames, boxes, ncol
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    g = ap.add_mutually_exclusive_group(required=True)
+    g.add_argument("--npc", type=int)
+    g.add_argument("--player", action="store_true")
+    ap.add_argument("--appearance")
+    ap.add_argument("--wear", type=int, action="append", default=[])
+    ap.add_argument("--gender", type=int, default=0)
+    ap.add_argument("--anims", help="name=seq,... overriding discovery")
+    ap.add_argument("--profile", choices=("auto", "mob", "humanoid"), default="auto")
+    ap.add_argument("--height", type=int, help="idle sprite height in px")
+    ap.add_argument("--pitch", type=int)
+    ap.add_argument("--chibi", help="head%%,frac%%,body%%,width%% (humanoid default "
+                    "260,17,72,125); 0 disables")
+    ap.add_argument("--out", required=True)
+    ap.add_argument("--skip-render", action="store_true")
+    ap.add_argument("--store", help="also write each animation into this PokeSprite store "
+                    "(npc/<type>/<seq>), e.g. assets/pokesprite")
+    a = ap.parse_args()
+
+    if a.player:
+        name, size, anims, humanoid = "player", 1, [("idle", 808), ("walk", 819),
+                                                    ("run", 824)], True
+    else:
+        name, size, anims, humanoid = discover(a.npc)
+    if a.anims:
+        anims = [(k, int(v)) for k, v in (p.split("=") for p in a.anims.split(","))]
+    assert anims, "no animations found for %s; pass --anims" % name
+    profile = a.profile if a.profile != "auto" else ("humanoid" if humanoid else "mob")
+    P = dict(PROFILES[profile])
+    if a.pitch is not None:
+        P["pitch"] = a.pitch
+    if a.chibi is not None:
+        P["chibi"] = a.chibi if a.chibi != "0" else None
+    height = a.height or P["height"] or MOB_HEIGHT.get(size, 72)  # --height / legacy only
+    f = P["factor"]
+    print("%s: profile %s, %dpx, anims %s" % (name, profile, height,
+                                             " ".join("%s=%d" % x for x in anims)))
+
+    subject = ["--player", "--gender", str(a.gender)] if a.player else ["--npc", str(a.npc)]
+    if a.player and a.appearance:
+        subject += ["--appearance", a.appearance]
+    for w in a.wear:
+        subject += ["--wear", str(w)]
+    common = ["--rev", "osrs239", CACHE] + subject + ["--pitch", str(P["pitch"]),
+                                                      "--frame-height", "200", "--full"]
+    if P["chibi"]:
+        common += ["--chibi", P["chibi"]]
+
+    raw = os.path.join(a.out, "_raw")
+    os.makedirs(a.out, exist_ok=True)
+    cal_path = os.path.join(a.out, "_calibration.json")
+    if not a.skip_render:
+        # ---- calibrate: idle height at a probe zoom -> zoom for the target
+        shutil.rmtree(raw, ignore_errors=True)
+        probe = os.path.join(raw, "_probe")
+        os.makedirs(probe)
+        # The probe sizes the canvas; the profile's zoom sets the scale, unless
+        # --height asked for a calibrated one.
+        z0 = P["zoom"] if (P["zoom"] and not a.height) else 1000
+        side0 = 1600
+        run([EV_SHEET] + common + ["--seq", str(anims[0][1]), "--zoom", str(z0),
+                                   "--side", str(side0), "--fit", "1", "--out", probe])
+        hmax, reach = 0, 0
+        for p in glob.glob(probe + "/f*.png"):
+            al = np.asarray(Image.open(p))[..., 3]
+            ys, xs = np.nonzero(al >= 128)
+            if len(ys):
+                hmax = max(hmax, ys.max() - ys.min() + 1)
+                reach = max(reach, abs(xs - side0 // 2).max(), abs(ys - side0 // 2).max())
+        if P["zoom"] and not a.height:
+            zoom = z0
+            height = int(max(1, hmax // f))
+            # Room for the probe's reach, and for an attack that reaches
+            # further than the idle pose did.
+            side = int(min(2048, max(600, reach * 3)))
+        else:
+            zoom = int(z0 * hmax / (height * f))
+            side = min(2048, max(600, height * f * 5))
+        json.dump({"zoom": int(zoom), "side": int(side), "height": int(height)},
+                  open(cal_path, "w"))
+        for label, seq in anims:
+            for fname, yaw in FACINGS:
+                d = os.path.join(raw, "%s_%s" % (label, fname))
+                os.makedirs(d)
+                _o, err = run([EV_SHEET] + common + ["--seq", str(seq), "--yaw", str(yaw),
+                                                      "--zoom", str(zoom), "--side", str(side),
+                                                      "--fit", "1", "--materials", "--out", d])
+                if "canvas edge" in err:
+                    print("warning: %s %s touches the canvas edge (clipped)" % (label, fname))
+    cal = json.load(open(cal_path))
+    zoom, side = cal["zoom"], cal["side"]
+    height = cal.get("height", height)
+
+    frames, boxes, ncol = stylise(raw, anims, FACINGS, f, zoom, side, height, P["chibi"])
+    cx = side // 2
+
     # ---- pack ------------------------------------------------------------------
     def cell(label):
         b = boxes[label]
@@ -677,10 +834,25 @@ def main():
         meta["anims"].append({"name": label, "seq": seq, "cell": [cw, ch],
                               "origin": [ax, ay], "rows": rows})
     idle = frames[(anims[0][0], "down")][0]
-    feet = max(im.getchannel("A").getbbox()[3] for im in idle)
+    # Where it stands: the lowest drawn row of its idle pose. An idle that
+    # draws nothing (an invisible npc) stands at its origin.
+    boxes_seen = [im.getchannel("A").getbbox() for im in idle]
+    boxes_seen = [b for b in boxes_seen if b]
+    feet = max(b[3] for b in boxes_seen) if boxes_seen else meta["anims"][0]["origin"][1] + 1
     ground_dy = int(feet) - 1 - meta["anims"][0]["origin"][1]
     for an in meta["anims"]:
         an["ground"] = [an["origin"][0], an["origin"][1] + ground_dy]
+    if a.store:
+        assert a.npc is not None, "the store keys npc sheets by npc type; --player has none"
+        from store import Store, npc_key
+        st = Store(a.store)
+        for an in meta["anims"]:
+            rows = [frames[(an["name"], fname)][0] for fname, _ in FACINGS]
+            st.write_rgba(npc_key(a.npc, an["seq"]), rows, an["rows"][0]["durations_ms"],
+                          an["origin"], an["ground"])
+        st.close()
+        drop_raw(raw)
+        print("stored %d sheets in %s" % (len(meta["anims"]), a.store))
     sheet.save(os.path.join(a.out, "sheet.png"))
     sheet.resize((sw * 2, sh * 2), Image.NEAREST).save(os.path.join(a.out, "sheet@2x.png"))
     json.dump(meta, open(os.path.join(a.out, "sheet.json"), "w"), indent=1)
@@ -689,7 +861,7 @@ def main():
     gifdir = os.path.join(a.out, "gif")
     shutil.rmtree(gifdir, ignore_errors=True)
     os.makedirs(gifdir)
-    idle_w = max(im.getchannel("A").getbbox()[2] - im.getchannel("A").getbbox()[0] for im in idle)
+    idle_w = max([b[2] - b[0] for b in (im.getchannel("A").getbbox() for im in idle) if b] or [16])
     rad = idle_w * 0.42
 
     def on_grass(im, gx, gy):

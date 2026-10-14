@@ -20,6 +20,7 @@
 #include "torirs_server_gwd_manifest.gen.h"
 #include "torirs_server_music_regions.gen.h"
 #include "game/sailing_settings.h"
+#include "pokesprite/pokesprite_format.h"
 
 #include "torirs_server_container.h"
 #include "torirs_server_shop.h"
@@ -14483,6 +14484,13 @@ ToriRSServer_PlayerIsMobile(const struct ToriRSServerPlayer* player)
     return player->platform_type == 2 /* ANDROID */ || player->platform_type == 3 /* APPLE */;
 }
 
+int
+ToriRSServer_PlayerIsPokesprite(const struct ToriRSServerPlayer* player)
+{
+    assert(player);
+    return player->client_type == POKESPRITE_CLIENT_TYPE;
+}
+
 /*
  * A varp id by symbol.
  *
@@ -14980,6 +14988,9 @@ world_seat_player(
     {
         player->client_type = session->client_type;
         player->platform_type = session->platform_type;
+        if( ToriRSServer_PlayerIsPokesprite(player) )
+            fprintf(stderr, "torirsserver: '%s' logged in with the PokeSprite 2D client\n",
+                    session->display_name);
     }
     /* Logging in is input, and it has to be stated: the memset's 0 reads as
      * "idle since tick 0", so anyone joining a world older than
