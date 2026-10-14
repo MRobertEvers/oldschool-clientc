@@ -95,6 +95,24 @@ class Store:
         self._write(key, "layer", encode(KIND_LAYER, rows, durations, ORIGIN, GROUND, table))
 
 
+# The widest image the client's PNG reader takes: a facing's frames wrap onto
+# more rows past it (pokesprite_format.h, "The grid").
+MAX_ROW_PX = 4096
+
+
+def frames_per_row(cell_w, frames):
+    if cell_w * frames <= MAX_ROW_PX:
+        return frames
+    return max(1, MAX_ROW_PX // cell_w)
+
+
+def cell_at(facing, frame, cell_w, frames):
+    """(x, y) of the cell, in cells, for the sheet's grid."""
+    per_row = frames_per_row(cell_w, frames)
+    rows = (frames + per_row - 1) // per_row
+    return frame % per_row, facing * rows + frame // per_row
+
+
 def encode(kind, rows, durations, origin, ground, table):
     facings = len(rows)
     assert facings in (1, 4), facings
@@ -104,11 +122,14 @@ def encode(kind, rows, durations, origin, ground, table):
     ims = [[np.asarray(im if not isinstance(im, Image.Image) else im.convert("RGBA"), np.uint8)
             for im in r] for r in rows]
     h, w = ims[0][0].shape[:2]
-    sheet = np.zeros((h * facings, w * frames, 4), np.uint8)
+    per_row = frames_per_row(w, frames)
+    band = (frames + per_row - 1) // per_row
+    sheet = np.zeros((h * facings * band, w * per_row, 4), np.uint8)
     for fi, r in enumerate(ims):
         for i, im in enumerate(r):
             assert im.shape == (h, w, 4), (im.shape, (h, w))
-            sheet[fi * h:(fi + 1) * h, i * w:(i + 1) * w] = im
+            cx, cy = cell_at(fi, i, w, frames)
+            sheet[cy * h:(cy + 1) * h, cx * w:(cx + 1) * w] = im
     png = io.BytesIO()
     Image.fromarray(sheet, "RGBA").save(png, "PNG", optimize=True)
     png = png.getvalue()

@@ -33,8 +33,14 @@
  *     u16    hsl16[hsl16_count]  the model colours it came from: a design
  *                                recolour replaces one of these
  *   u32      png_size
- *   u8       png[png_size]       8-bit RGBA; facing f, frame i is the cell at
- *                                (i * cell_w, f * cell_h)
+ *   u8       png[png_size]       8-bit RGBA, the cells in the grid below
+ *
+ * The grid: each facing is a band of `rows` rows of `per_row` cells, frames
+ * left to right, wrapping -- facing f, frame i is the cell at column
+ * i % per_row of row f * rows + i / per_row. per_row is every frame
+ * (rows = 1) unless that row would pass POKESPRITE_MAX_ROW_PX, the widest
+ * image the tree's PNG reader takes; then as many cells as fit
+ * (PokeSprite_FramesPerRow). Both are derived from the header, not stored.
  *
  * An RGBA sheet's pixels are colours. A LAYER sheet's pixels are data:
  *
@@ -79,6 +85,7 @@ enum
 #define POKESPRITE_MAX_MATERIALS 64
 #define POKESPRITE_MAX_MATERIAL_HSL 32
 #define POKESPRITE_DEPTH_NONE 255
+#define POKESPRITE_MAX_ROW_PX 4096
 
 struct PokeSpriteMaterial
 {
@@ -118,6 +125,15 @@ PokeSprite_ParseSheet(
     const uint8_t* data,
     int size,
     struct PokeSpriteSheet* out);
+
+/**
+ * Cells per sheet row for `frames` frames `cell_w` wide (see "The grid").
+ * A facing then takes (frames + per_row - 1) / per_row rows.
+ */
+int
+PokeSprite_FramesPerRow(
+    int cell_w,
+    int frames);
 
 /**
  * Whether `key` is a well-formed sheet key: [a-z0-9_/-], no "..", no leading

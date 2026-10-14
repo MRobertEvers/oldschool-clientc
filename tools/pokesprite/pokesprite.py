@@ -376,7 +376,10 @@ def pixel_depth(face, vs, tri):
     return z
 
 
-def downscale(mat, val, alpha, f, feature, nmat):
+def downscale(mat, val, alpha, f, feature, nmat, thin=False):
+    """One output pixel per f x f block. A block is covered when most of it
+    is -- or, `thin`, when a third of it is: an arrow shaft or a spell's
+    streak is a pixel or two wide in the render and would otherwise vanish."""
     H, W = mat.shape
     h, w = H // f, W // f
 
@@ -385,7 +388,8 @@ def downscale(mat, val, alpha, f, feature, nmat):
 
     mb, vb, ab = blocks(mat), blocks(val), blocks(alpha)
     cnt = np.stack([(mb == m).sum(-1) for m in range(nmat)], -1)
-    opaque = (ab >= 128).sum(-1) * 2 > f * f
+    covered = (ab >= 128).sum(-1)
+    opaque = covered * 3 >= f * f if thin else covered * 2 > f * f
     solid = cnt.copy()
     solid[..., 0] = 0
     out = solid.argmax(-1)
@@ -433,11 +437,12 @@ def paint_eyes(img, head, facing, rgb):
 
 # ------------------------------------------------------------------ main
 
-def stylise(raw, anims, facings, f, zoom, side, height, chibi):
+def stylise(raw, anims, facings, f, zoom, side, height, chibi, thin=False):
     """The Pokemon stage for one subject's renders: <raw>/<label>_<facing>/ for
     every (label, seq) in anims and (facing, yaw) in facings, all at one zoom
     on one canvas. Returns ({(label, facing): ([PIL frames], durations)},
-    {label: crop box on the canvas}, colour count)."""
+    {label: crop box on the canvas}, colour count). `thin` keeps one-pixel
+    detail through the downscale (see downscale)."""
     # ---- materials: the model's own base colours (ev_sheet faces.txt) -----
     # Every run renders the same model, so one face table serves them all:
     # face i has the same ID colour, base colour and head flag everywhere.
@@ -605,7 +610,7 @@ def stylise(raw, anims, facings, f, zoom, side, height, chibi):
             m = idmap[m]
             v = li[..., :3].max(-1).astype(np.float32) / 255
             v = smooth_value(v, m, sigma)
-            mm, vv = downscale(m, v, li[..., 3], f, feature, K)
+            mm, vv = downscale(m, v, li[..., 3], f, feature, K, thin)
             # Far side of a depth jump: the line sits on what is behind, the
             # way the outer outline sits on the background.
             op = m != 0

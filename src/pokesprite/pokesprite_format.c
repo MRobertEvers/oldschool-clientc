@@ -160,3 +160,16 @@ PokeSprite_KeyValid(const char* key)
     /* Only [a-z0-9_/-] remain, so ".." cannot occur; '.' is not allowed at all. */
     return true;
 }
+
+int
+PokeSprite_FramesPerRow(
+    int cell_w,
+    int frames)
+{
+    assert(cell_w > 0);
+    assert(frames > 0);
+    if( cell_w * frames <= POKESPRITE_MAX_ROW_PX )
+        return frames;
+    int per_row = POKESPRITE_MAX_ROW_PX / cell_w;
+    return per_row > 0 ? per_row : 1;
+}

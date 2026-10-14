@@ -84,8 +84,8 @@ main(
     int assets_port = 8088;
     long max_frames = 0;
     int window_w = 0, window_h = 0;
-    char shot_path[4][512];
-    long shot_frame[4];
+    char shot_path[16][512];
+    long shot_frame[16];
     int shot_count = 0;
     int click_x = -1, click_y = -1;
     long click_frame = -1;
@@ -112,7 +112,7 @@ main(
         }
         else if( strcmp(argv[i], "--frames") == 0 && i + 1 < argc )
             max_frames = atol(argv[++i]);
-        else if( strcmp(argv[i], "--shot") == 0 && i + 1 < argc && shot_count < 4 )
+        else if( strcmp(argv[i], "--shot") == 0 && i + 1 < argc && shot_count < 16 )
         {
             const char* v = argv[++i];
             const char* at = strrchr(v, '@');

@@ -23,8 +23,10 @@ enum PS_Facing
 struct PS_Sheet
 {
     struct PokeSpriteSheet head; /* head.png is NULL here: the pixels are below */
-    int width;                   /* cell_w * frames */
-    int height;                  /* cell_h * facings */
+    int width;                   /* cell_w * per_row */
+    int height;                  /* cell_h * facings * rows */
+    int per_row;                 /* cells per row: PokeSprite_FramesPerRow */
+    int rows;                    /* rows per facing */
     uint32_t* pixels;            /* width * height, 0xAARRGGBB */
     int total_ms;                /* one pass through the frames */
 };

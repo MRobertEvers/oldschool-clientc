@@ -28,18 +28,22 @@ PITCH = 176
 SIDE = 1200
 FRAME_HEIGHT = 200
 ROTATIONS = [("r0", 0), ("r1", 512), ("r2", 1024), ("r3", 1536)]
+# Spot animations are drawn bigger than the world they play in, the way a
+# Pokemon move's effect is: at world scale an arrow is a two-pixel dot.
+SPOT_SCALE = 1.5
+SPOT_ZOOM = round(ZOOM / SPOT_SCALE)
 # Shape 11 is the diagonal centrepiece: the same model turned a further 45.
 DIAGONAL_SHAPE = 11
 
 
-def ground_px():
+def ground_px(zoom=ZOOM):
     """Where the model's origin (the footprint centre at ground level) lands on
     the --full canvas: ev_render lifts the model by frame_height/2 and orbits at
     `zoom` with the camera at `pitch`, so the origin sits lift*cos below centre
     at depth zoom + lift*sin."""
     lift = FRAME_HEIGHT / 2.0
     a = PITCH * 2 * math.pi / 2048
-    return SIDE / 2.0, SIDE / 2.0 + lift * math.cos(a) * 512.0 / (ZOOM + lift * math.sin(a))
+    return SIDE / 2.0, SIDE / 2.0 + lift * math.cos(a) * 512.0 / (zoom + lift * math.sin(a))
 
 
 def generate_obj(obj, work, store_root):
@@ -65,27 +69,30 @@ def generate_obj(obj, work, store_root):
 
 def generate_spot(spot, work, store_root):
     """A spot animation -- a graphic on an actor or a tile, or a projectile in
-    flight -- playing its own sequence -> spot/<id>. Four facing rows, at world
-    scale: a projectile flies any way, and the client picks the row by its yaw."""
+    flight -- playing its own sequence -> spot/<id>. Four facing rows, at
+    SPOT_SCALE times world scale: a projectile flies any way, and the client picks the row by its yaw
+    -- with PS_FacingFromYaw, so the rows are a creature's FACINGS (down, left,
+    right, up), not a loc's rotations."""
     from store import Store
-    raw = os.path.join(work, "spot_%d" % spot)
-    for rname, yaw in ROTATIONS:
+    raw = os.path.join(work, "spot_%d_z%d" % (spot, SPOT_ZOOM))
+    for rname, yaw in ps.FACINGS:
         d = os.path.join(raw, "s_%s" % rname)
         if os.path.exists(os.path.join(d, "faces.txt")):
             continue
         os.makedirs(d, exist_ok=True)
         ps.run([ps.EV_SHEET, "--rev", "osrs239", ps.CACHE, "--spotanim", str(spot), "--yaw",
-                str(yaw), "--zoom", str(ZOOM), "--side", str(SIDE), "--fit", "1",
+                str(yaw), "--zoom", str(SPOT_ZOOM), "--side", str(SIDE), "--fit", "1",
                 "--frame-height", str(FRAME_HEIGHT), "--full", "--pitch", str(PITCH),
                 "--materials", "--out", d])
-    frames, boxes, _ncol = ps.stylise(raw, [("s", -1)], ROTATIONS, F, ZOOM, SIDE, 24, None)
+    frames, boxes, _ncol = ps.stylise(raw, [("s", -1)], ps.FACINGS, F, SPOT_ZOOM, SIDE, 24, None,
+                                      thin=True)
     b = boxes["s"]
-    gx, gy = ground_px()
+    gx, gy = ground_px(SPOT_ZOOM)
     origin = ((SIDE // 2 - b[0]) // F, (SIDE // 2 - b[1]) // F)
     ground = (int(round((gx - b[0]) / F)), int(round((gy - b[1]) / F)))
-    rows = [frames[("s", rname)][0] for rname, _ in ROTATIONS]
+    rows = [frames[("s", rname)][0] for rname, _ in ps.FACINGS]
     st = Store(store_root)
-    st.write_rgba("spot/%d" % spot, rows, frames[("s", "r0")][1], origin, ground)
+    st.write_rgba("spot/%d" % spot, rows, frames[("s", "down")][1], origin, ground)
     st.close()
 
 

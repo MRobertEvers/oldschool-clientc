@@ -21,6 +21,7 @@ import io
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "..", "tools", "pokesprite"))
 import layers  # noqa: E402
+from store import cell_at  # noqa: E402
 
 
 def read_pss(path):
@@ -42,7 +43,8 @@ def read_pss(path):
                       "head": bool(flags & 1), "skin": bool(flags & 2)})
     (n,) = struct.unpack_from("<I", b, off)
     img = np.asarray(Image.open(io.BytesIO(b[off + 4:off + 4 + n])).convert("RGBA"))
-    rows = [[img[f * h:(f + 1) * h, i * w:(i + 1) * w] for i in range(frames)] for f in range(facings)]
+    cells = [[cell_at(f, i, w, frames) for i in range(frames)] for f in range(facings)]
+    rows = [[img[y * h:(y + 1) * h, x * w:(x + 1) * w] for x, y in r] for r in cells]
     return rows, table
 
 

@@ -19,7 +19,9 @@ PS_SheetDecode(
     uint32_t* px = NULL;
     if( !PngDecode_Argb(head.png, head.png_size, &w, &h, &px) )
         return NULL;
-    if( w != head.cell_w * head.frames || h != head.cell_h * head.facings )
+    int per_row = PokeSprite_FramesPerRow(head.cell_w, head.frames);
+    int rows = (head.frames + per_row - 1) / per_row;
+    if( w != head.cell_w * per_row || h != head.cell_h * head.facings * rows )
     {
         free(px);
         return NULL;
@@ -31,6 +33,8 @@ PS_SheetDecode(
     s->head.png_size = 0;
     s->width = w;
     s->height = h;
+    s->per_row = per_row;
+    s->rows = rows;
     s->pixels = px;
     for( int i = 0; i < head.frames; i++ )
         s->total_ms += head.duration_ms[i] > 0 ? head.duration_ms[i] : 20;
@@ -58,8 +62,9 @@ PS_SheetCell(
     if( s->head.facings == 1 )
         facing = 0;
     assert(facing < s->head.facings);
-    return s->pixels + (size_t)facing * (size_t)s->head.cell_h * (size_t)s->width +
-           (size_t)frame * (size_t)s->head.cell_w;
+    size_t row = (size_t)facing * (size_t)s->rows + (size_t)(frame / s->per_row);
+    return s->pixels + row * (size_t)s->head.cell_h * (size_t)s->width +
+           (size_t)(frame % s->per_row) * (size_t)s->head.cell_w;
 }
 
 int

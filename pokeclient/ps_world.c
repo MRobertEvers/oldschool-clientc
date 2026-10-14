@@ -61,6 +61,8 @@ struct Drawn
 {
     int x0, y0, x1, y1; /* bounds of the pixels actually written */
     int element_id;
+    int kind; /* enum ActorKind */
+    int type; /* npc type, loc id or obj id; -1 for a player */
     int gx; /* ground point */
     const struct WorldEntityFacet_Combat* combat;
 };
@@ -669,6 +671,41 @@ draw_npc(
               s->head.cell_h, gx, gy, s->head.ground_x, s->head.ground_y, cx0, cy0, cx1, cy1);
 }
 
+/*
+ * Fill `in` with the player's layer sheets for `seq` -- exactly the
+ * appearance slots: a kit, an obj, or nothing. Returns the layer count, or
+ * -1 when some slot's sheet is not available (yet): `in` then holds only the
+ * ones that are.
+ */
+static int
+player_layers(
+    struct PS_World* w,
+    struct WorldEntity_Player* pl,
+    int seq,
+    struct PS_ComposeInput* in)
+{
+    bool complete = true;
+    char const* g = pl->gender ? "f" : "m";
+    for( int s = 0; s < 12 && in->layer_count < PS_COMPOSE_MAX_LAYERS; s++ )
+    {
+        int v = pl->appearance.slots[s];
+        char key[96];
+        if( Appearance_SlotKind(v) == APPEARANCE_SLOT_KIT )
+            snprintf(key, sizeof(key), "layer/%s/kit/%d/%d", g, Appearance_SlotKit(v), seq);
+        else if( Appearance_SlotKind(v) == APPEARANCE_SLOT_OBJ )
+            snprintf(key, sizeof(key), "layer/%s/obj/%d/%d", g, Appearance_SlotObj(v), seq);
+        else
+            continue;
+        enum PS_FetchState st;
+        const struct PS_Sheet* sh = PS_FetchGet(w->fetch, key, &st);
+        if( sh )
+            in->layers[in->layer_count++] = sh;
+        else
+            complete = false;
+    }
+    return complete ? in->layer_count : -1;
+}
+
 static void
 draw_player(
     int* bb,
@@ -687,25 +724,25 @@ draw_player(
 {
     struct PS_ComposeInput in;
     memset(&in, 0, sizeof(in));
+    int stance = pl->idle_animations.readyanim > 0 ? pl->idle_animations.readyanim : 808;
     int seq = current_seq(&pl->animation, &pl->idle_animations);
-    if( seq < 0 )
-        seq = 808;
-    /* Exactly the appearance slots: a kit, an obj, or nothing. */
-    for( int s = 0; s < 12 && in.layer_count < PS_COMPOSE_MAX_LAYERS; s++ )
+    if( seq <= 0 )
+        seq = stance;
+    /*
+     * A body with a piece missing reads as a glitch, and so does a blink to
+     * the placeholder: while any of this sequence's layers is still on its
+     * way (or was never generated), stand in the stance -- which every
+     * player shows first, so it is the set most likely to be complete.
+     */
+    if( player_layers(w, pl, seq, &in) < 0 && seq != stance )
     {
-        int v = pl->appearance.slots[s];
-        char key[96];
-        char const* g = pl->gender ? "f" : "m";
-        if( Appearance_SlotKind(v) == APPEARANCE_SLOT_KIT )
-            snprintf(key, sizeof(key), "layer/%s/kit/%d/%d", g, Appearance_SlotKit(v), seq);
-        else if( Appearance_SlotKind(v) == APPEARANCE_SLOT_OBJ )
-            snprintf(key, sizeof(key), "layer/%s/obj/%d/%d", g, Appearance_SlotObj(v), seq);
-        else
-            continue;
-        enum PS_FetchState st;
-        const struct PS_Sheet* sh = PS_FetchGet(w->fetch, key, &st);
-        if( sh )
-            in.layers[in.layer_count++] = sh;
+        struct PS_ComposeInput still;
+        memset(&still, 0, sizeof(still));
+        if( player_layers(w, pl, stance, &still) >= 0 )
+        {
+            in = still;
+            seq = stance;
+        }
     }
     for( int part = 0; part < 5; part++ )
     {
@@ -745,13 +782,6 @@ draw_player(
 }
 
 /*
- * The loc a placement draws as. The scenery record keeps the MAP's id, and a
- * multiloc (a bank booth, a barrel with a deadman variant) has no models of
- * its own: its varbit or varp picks the child, as the scene builder does
- * (world_builder_resolve_loc). -1 when the pick is "nothing", or when a
- * config in the chain is not resident yet -- not drawn this frame.
- */
-/*
  * The level a loc paints on, or -1 when it does not show while the player is
  * on `level`. The 3D client paints
  * every level up to the roof check, culling a tile whose DRAW level is above
@@ -778,6 +808,13 @@ loc_paint_level(
     return paint_level >= level && draw_level <= level ? paint_level : -1;
 }
 
+/*
+ * The loc a placement draws as. The scenery record keeps the MAP's id, and a
+ * multiloc (a bank booth, a barrel with a deadman variant) has no models of
+ * its own: its varbit or varp picks the child, as the scene builder does
+ * (world_builder_resolve_loc). -1 when the pick is "nothing", or when a
+ * config in the chain is not resident yet -- not drawn this frame.
+ */
 static int
 resolve_loc(
     struct App* app,
@@ -874,6 +911,19 @@ draw_item(
  * A one-shot (a graphic) is gone once its sequence has played; a projectile
  * loops for its flight. */
 static void
+prefetch_spot(
+    struct PS_World* w,
+    int spot_id)
+{
+    char key[48];
+    enum PS_FetchState fs;
+    if( spot_id < 0 )
+        return;
+    snprintf(key, sizeof(key), "spot/%d", spot_id);
+    (void)PS_FetchGet(w->fetch, key, &fs);
+}
+
+static void
 draw_spot(
     int* bb,
     struct PS_World* w,
@@ -920,7 +970,15 @@ draw_attached(
     int cx1,
     int cy1)
 {
-    if( g->id < 0 || g->frame < 0 || cycle < g->last_cycle )
+    if( g->id < 0 )
+        return;
+    /* A delayed graphic (a spell's landing): fetch its sheet while it waits. */
+    if( cycle < g->last_cycle )
+    {
+        prefetch_spot(w, g->id);
+        return;
+    }
+    if( g->frame < 0 )
         return;
     draw_spot(bb, w, g->id, facing, (cycle - g->last_cycle) * 20, 0, gx,
               gy - g->height * LIFT_PER_1000_UNITS / 1000, px, stride, cx0, cy0, cx1, cy1);
@@ -1064,9 +1122,18 @@ PS_WorldDraw(
     {
         struct WorldEntity_Projectile* pr =
             (struct WorldEntity_Projectile*)World_EntityPoolAt(&world->entities.projectile, i);
-        /* In flight: launched, between its start and end cycles. */
-        if( !pr->launched || pr->level != level || world->cycle < pr->t1 || world->cycle > pr->t2 )
+        /* In flight: its OWN clock has reached its start (the step despawns
+         * it past the end) -- the 3D client's test, world_cycle.c. */
+        if( pr->element_id < 0 || pr->level != level )
             continue;
+        if( pr->cycle < pr->t1 )
+        {
+            /* Queued, not yet flying: ask for its sheet now. An arrow at a
+             * tile's range lands in a few cycles, and a sheet first asked
+             * for on its first frame in the air arrives after it has. */
+            prefetch_spot(w, pr->spotanim_id);
+            continue;
+        }
         actors[n] = (struct Actor){ 0 };
         actors[n].screen_x = cx + ((int)pr->x - cam_x) * PS_TILE_PX / 128;
         actors[n].screen_y = cy - ((int)pr->z - cam_z) * PS_TILE_PX / 128;
@@ -1095,6 +1162,7 @@ PS_WorldDraw(
             continue;
         int bb[4] = { 1 << 30, 1 << 30, -(1 << 30), -(1 << 30) };
         int element_id;
+        int type = -1;
         const struct WorldEntityFacet_Combat* combat = NULL;
         if( a->is_player == ACTOR_SPOT )
         {
@@ -1116,7 +1184,7 @@ PS_WorldDraw(
             int ground = World_HeightAt(world, (int)pr->x, (int)pr->z, level);
             int lift = (ground - (int)pr->y) * LIFT_PER_1000_UNITS / 1000;
             draw_spot(bb, w, pr->spotanim_id, PS_FacingFromYaw(pr->orientation.yaw),
-                      (world->cycle - pr->t1) * 20, 1, a->screen_x, a->screen_y - lift, px, stride,
+                      (pr->cycle - pr->t1) * 20, 1, a->screen_x, a->screen_y - lift, px, stride,
                       x0, y0, x1, y1);
             element_id = -1;
         }
@@ -1126,6 +1194,7 @@ PS_WorldDraw(
                 &world->entities.obj_stack, a->index);
             draw_item(bb, w, st, a->screen_x, a->screen_y, px, stride, x0, y0, x1, y1);
             element_id = st->element_id;
+            type = st->obj_id;
         }
         else if( a->is_player == ACTOR_LOC || a->is_player == ACTOR_DECOR )
         {
@@ -1133,6 +1202,7 @@ PS_WorldDraw(
                 (struct WorldEntity_Scenery*)World_EntityPoolAt(&world->entities.scenery, a->index);
             draw_loc(bb, w, app, sc, a->screen_x, a->screen_y - a->lift, px, stride, x0, y0, x1, y1, now);
             element_id = sc->element_id;
+            type = sc->loc_id;
         }
         else if( a->is_player == ACTOR_PLAYER )
         {
@@ -1155,6 +1225,7 @@ PS_WorldDraw(
                           PS_FacingFromYaw(npc->orientation.yaw), a->screen_x, a->screen_y, px,
                           stride, x0, y0, x1, y1);
             element_id = npc->element_id;
+            type = npc->npc_id;
             combat = &npc->combat;
         }
         if( bb[0] < bb[2] && w->drawn_count < MAX_ACTORS )
@@ -1165,6 +1236,8 @@ PS_WorldDraw(
             d->x1 = bb[2];
             d->y1 = bb[3];
             d->element_id = element_id;
+            d->kind = a->is_player;
+            d->type = type;
             d->gx = a->screen_x;
             d->combat = combat;
         }
@@ -1173,13 +1246,29 @@ PS_WorldDraw(
     /* POKECLIENT_ACTORS=1: where every actor landed, every 100 world cycles,
      * so a headless check can aim a click at one. */
     static int last_dump = -1000;
+    static int last_proj_dump = -1;
+    /* Projectiles live a few cycles: list them on every new cycle. */
+    if( getenv("POKECLIENT_ACTORS") && world->cycle != last_proj_dump )
+    {
+        last_proj_dump = world->cycle;
+        for( int i = World_EntityPoolHead(&world->entities.projectile); i >= 0;
+             i = World_EntityPoolNext(&world->entities.projectile, i) )
+        {
+            struct WorldEntity_Projectile* pr =
+                (struct WorldEntity_Projectile*)World_EntityPoolAt(&world->entities.projectile, i);
+            fprintf(stderr,
+                    "projectile cycle=%d el=%d spot=%d own=%d t1=%d t2=%d level=%d/%d at %d,%d\n",
+                    world->cycle, pr->element_id, pr->spotanim_id, pr->cycle, pr->t1, pr->t2,
+                    pr->level, level, (int)pr->x >> 7, (int)pr->z >> 7);
+        }
+    }
     if( getenv("POKECLIENT_ACTORS") && world->cycle - last_dump >= 100 )
     {
         last_dump = world->cycle;
         for( int i = 0; i < w->drawn_count; i++ )
-            fprintf(stderr, "actor cycle=%d element=%d box=%d,%d-%d,%d\n", world->cycle,
-                    w->drawn[i].element_id, w->drawn[i].x0, w->drawn[i].y0, w->drawn[i].x1,
-                    w->drawn[i].y1);
+            fprintf(stderr, "actor cycle=%d element=%d kind=%d type=%d box=%d,%d-%d,%d\n",
+                    world->cycle, w->drawn[i].element_id, w->drawn[i].kind, w->drawn[i].type,
+                    w->drawn[i].x0, w->drawn[i].y0, w->drawn[i].x1, w->drawn[i].y1);
     }
 }
 
