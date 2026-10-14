@@ -26,6 +26,17 @@ RS_CS2_DispatchHook(
     int component_id,
     struct UITreeRuntimeScriptHook const* hook);
 
+/** Enqueue one onTimer fire for the node at `node_index`, reading its hook when
+ *  the fire runs rather than now. For a timer pass that runs while earlier
+ *  tasks -- a held RUNCLIENTSCRIPT released at the tick fence -- are still
+ *  queued ahead of it and may replace the hook. A node reclaimed or a hook
+ *  cleared in between fires nothing. */
+void
+RS_CS2_DispatchTimer(
+    struct RS_CS2Host* host,
+    struct TaskRunner* runner,
+    int32_t node_index);
+
 /** Run a clientscript the server named (RUNCLIENTSCRIPT), with no component
  *  context — nothing in the tree triggered it, so `.cc_*` opcodes inside it
  *  have nothing to resolve against, exactly as in the reference. Argument

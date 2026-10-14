@@ -14444,6 +14444,11 @@ ToriRSServer_WorldNpcDied(
      * the proc is a silent no-op (scripts not loaded / older packs).
      */
     ToriRSServer_ScriptsRunProcOnNpc(srv, "[proc,slayer_on_npc_kill]", slot);
+    /* Boss kill counts, for the same reason and in the same shape: a boss's
+     * `[ai_queue3]` is its own encounter script, so a count hung on any one
+     * of them misses the rest. Content decides which npc is whose boss
+     * (`[proc,collection_kc_on_kill]`, interface_collection/). */
+    ToriRSServer_ScriptsRunProcOnNpc(srv, "[proc,collection_kc_on_kill]", slot);
 }
 
 /*

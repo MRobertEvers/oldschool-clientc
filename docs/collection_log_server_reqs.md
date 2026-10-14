@@ -1,5 +1,40 @@
 # Collection Log (`collection` 621, `collection_overview` 908): what the server owes
 
+> **UPDATE 2026-10-13 — every kill feeds the log, finds announce themselves,
+> boss kill counts exist.**
+> - **Drops.** The engine records each `obj_add`/`obj_add_private` made while
+>   kill credit is armed (the loot tracker's window) and, when the death script
+>   returns, offers every one to `[proc,collection_drop]` per credited player
+>   (`ToriRSServer_ScriptsFlushLootCredit`). That covers all 3,889
+>   `obj_add(npc_coord, ...)` lines without touching them; a noted drop logs
+>   the item it notes. Explicit `~collection_earn_if_catalogued` calls beside a
+>   kill's `obj_add` were removed (they now double-count); the rule is in the
+>   proc's comment. Raid chests log when rolled (`~collection_earn_inv` on
+>   `raids_rewards` / `tob_chests`), ToA's sarcophagus, clue caskets, the Fight
+>   Cave cape and pet, herbiboar and agility pets log where they are given.
+> - **Notification.** Varbit 11959 bit 0 (setting 85) prints "New item added to
+>   your collection log: <item>"; bit 1 (setting 171) mounts interface 660 in
+>   `toplevel:notifications` and runs clientscript 3343 ("Collection log",
+>   "New item:<br><br><item>"). One popup at a time; more wait in a FIFO
+>   (varp7420..7429) for `[softtimer,collection_popup]`, 12 ticks each.
+>   Client fix that made the second popup appear: onTimer fires queued behind
+>   a fence-released RUNCLIENTSCRIPT now read the hook when they run
+>   (`RS_CS2_DispatchTimer`); before, the old timer chain re-armed itself over
+>   the one 3343 installed.
+> - **Kill counts.** `[proc,collection_kc_on_kill]` runs on every npc death
+>   (beside `slayer_on_npc_kill`), maps npc -> boss through enum
+>   `collection_kc_boss` (44 bosses), bumps the cache's `total_<boss>_kills`
+>   varp (now perm + transmitted) and prints "Your <boss> kill count is: N.".
+>   The mailbox is filled from those varps (enum `collection_mailbox_source`,
+>   65 sources). Bosses content already counts, raids/chests/completions, the
+>   Royal Titans, Doom and Sol are left out on purpose (see the enum's header).
+> - **Still open:** settings varp 2856 is `scope=temp`, so both notification
+>   bits reset at login (its other tenants are written outside the settings
+>   hub, so it cannot simply be transmitted); clue-tier counters and personal
+>   bests; raid/chest completion counts; Barrows has no chest to hook.
+>   Checks: `[proc,selftest_collection_varps]` 14 steps, and the C section
+>   "a kill's ground drops reach the collection log".
+
 > **UPDATE 2026-08-22 — every varp the client reads is now written.** The five
 > rows §3 still owed are in `interface_collection/`: the twelve
 > `collection_overview_last_itemN_date` varps (`~collection_ring_push` shifts

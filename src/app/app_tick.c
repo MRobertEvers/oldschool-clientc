@@ -607,6 +607,13 @@ app_logic_tick(struct App* app)
      * closed bank's timers must not keep running every tick. */
     {
         int timer_n = app->tree->timer_hooks.count;
+        /* Work already queued on the CS2 runner -- the tick fence releases the
+         * held RUNCLIENTSCRIPTs there just before this pass -- runs BEFORE any
+         * fire queued here, and may replace a timer hook. The reference ran
+         * those scripts inline, so its pass saw the new hook; bind each fire to
+         * the hook current when it runs (RS_CS2_DispatchTimer). With nothing
+         * queued the hook cannot change first, and the snapshot is exact. */
+        int late_bind = TaskRunner_RenderBlockingRemains(&app->runner);
         if( timer_n > 256 )
             timer_n = 256;
         for( int i = 0; i < timer_n; i++ )
@@ -619,11 +626,14 @@ app_logic_tick(struct App* app)
                 continue;
             if( UITree_ComponentOrAncestorHidden(app->tree, com_id) )
                 continue;
-            RS_CS2_DispatchHook(
-                &app->host,
-                &app->runner,
-                com_id,
-                &UITree_Hooks(&app->tree->components[idx])->on_timer);
+            if( late_bind )
+                RS_CS2_DispatchTimer(&app->host, &app->runner, idx);
+            else
+                RS_CS2_DispatchHook(
+                    &app->host,
+                    &app->runner,
+                    com_id,
+                    &UITree_Hooks(&app->tree->components[idx])->on_timer);
             /*
              * Unconditional, and it has to stay that way until the emit walk
              * reads the dirty bit.

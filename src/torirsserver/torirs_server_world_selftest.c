@@ -45391,6 +45391,79 @@ ToriRSServer_WorldSelftest(void)
         }
     }
 
+    fprintf(stderr, "ToriRSServer selftest: a kill's ground drops reach the collection log\n");
+    {
+        /*
+         * The engine half of the collection log's earn path
+         * (ToriRSServer_ScriptsFlushLootCredit): every `obj_add` a death script
+         * makes while kill credit is armed is offered to
+         * `[proc,collection_drop]`, after the script returns, to each credited
+         * player. The content half -- what is catalogued, notes logged as the
+         * item -- is `[proc,selftest_collection_varps]` step 13.
+         *
+         * Credit is armed by hand the way the corpse stage arms it, around a
+         * proc that drops a whip (Abyssal Sire's log) and bones (nobody's).
+         */
+        const int inv_collection = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_INV, "collection_transmit");
+        const int obj_whip = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "abyssal_whip");
+        const int obj_bones = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "bones");
+        const int pid = (int)(player - srv->players);
+        struct ToriRSServerContainer* row;
+        int whip_before = 0;
+        int whip_after = 0;
+        int bones_after = 0;
+        int loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir());
+
+        if( !loaded )
+            loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir_from_src());
+        SELFTEST_CHECK(loaded, "the script pack is loaded");
+        SELFTEST_CHECK(inv_collection >= 0 && obj_whip >= 0 && obj_bones >= 0,
+                       "the pack names collection_transmit / abyssal_whip / bones");
+        row = ToriRSServer_ContainerResolve(srv, player, inv_collection);
+        SELFTEST_CHECK(row != NULL, "the collection container resolves");
+        for( int i = 0; i < row->slots; i++ )
+            if( row->items[i].obj_id == obj_whip )
+                whip_before += row->items[i].count;
+
+        SELFTEST_CHECK(!srv->loot_credit_armed && srv->loot_credit_drop_count == 0,
+                       "no kill is in flight before the check");
+        srv->loot_credit_armed = 1;
+        srv->loot_credit_npc_type = 0;
+        srv->loot_credit_event_id = ++srv->loot_credit_seq;
+        memset(srv->loot_credit_players, 0, sizeof(srv->loot_credit_players));
+        srv->loot_credit_players[pid] = 1;
+        ToriRSServer_ScriptsRunProc(srv, "[proc,selftest_collection_kill_drops]", NULL, 0);
+        SELFTEST_CHECK(srv->loot_credit_drop_count == 2,
+                       "both credited drops were recorded (%d)", srv->loot_credit_drop_count);
+        for( int i = 0; i < row->slots; i++ )
+            if( row->items[i].obj_id == obj_whip )
+                whip_after += row->items[i].count;
+        SELFTEST_CHECK(whip_after == whip_before,
+                       "and nothing was logged from inside the death script");
+
+        srv->loot_credit_armed = 0;
+        ToriRSServer_ScriptsFlushLootCredit(srv);
+        memset(srv->loot_credit_players, 0, sizeof(srv->loot_credit_players));
+        whip_after = 0;
+        for( int i = 0; i < row->slots; i++ )
+        {
+            if( row->items[i].obj_id == obj_whip )
+                whip_after += row->items[i].count;
+            if( row->items[i].obj_id == obj_bones )
+                bones_after += row->items[i].count;
+        }
+        SELFTEST_CHECK(whip_after == whip_before + 1,
+                       "the flush logged the whip once (%d -> %d)", whip_before, whip_after);
+        SELFTEST_CHECK(bones_after == 0, "and did not log the bones");
+        SELFTEST_CHECK(srv->loot_credit_drop_count == 0, "the flush empties the list");
+
+        /* Unarmed, an `obj_add` is a ground spawn, not loot: nothing recorded. */
+        ToriRSServer_ScriptsRunProc(srv, "[proc,selftest_collection_kill_drops]", NULL, 0);
+        SELFTEST_CHECK(srv->loot_credit_drop_count == 0,
+                       "an obj_add with no kill credit armed is not offered to the log");
+        ToriRSServer_ScriptsFree(srv);
+    }
+
     fprintf(stderr, "ToriRSServer selftest: multicannon, Tears of Guthix, Shooting Stars, diaries\n");
     {
         /*
@@ -45660,11 +45733,14 @@ ToriRSServer_WorldSelftest(void)
                 { "[proc,selftest_hespori]", 7,
                   "the Hespori's buds make it invulnerable and six clicks "
                   "break the entangle" },
-                { "[proc,selftest_collection_varps]", 9,
+                { "[proc,selftest_collection_varps]", 14,
                   "the collection log's varps are all written: the catalog "
                   "maxes, the runeday inside its fourteen bits, the bodytype "
                   "bit, both ring columns, the subsections an item belongs "
-                  "to, and the scratch mailbox the draw path clears" },
+                  "to, and the scratch mailbox the draw path clears; a find "
+                  "pops up only when varbit 11959 asks, one popup at a time; "
+                  "a noted drop logs the item it notes; a boss kill counts "
+                  "and the mailbox shows the count" },
                 { "[proc,selftest_gilded_altar]", 6,
                   "the gilded altar is 250/300/350, not a doubling" },
                 { "[proc,selftest_bird_nests]", 7,

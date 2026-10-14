@@ -330,6 +330,15 @@ enum
     TORIRSSERVER_PLAYER_MAX = 8,
 
     /*
+     * Credited ground drops one death may record for the collection log
+     * (`ToriRSServer.loot_credit_drops`). A boss table with its tertiaries is
+     * under twenty; overflowing this is a drop script gone wrong, and it is
+     * asserted rather than truncated, because a truncated list is a log that
+     * silently misses the rare at the end of it.
+     */
+    TORIRSSERVER_LOOT_CREDIT_DROP_MAX = 256,
+
+    /*
      * Container ids, interface ids and component uids are NOT here. They are
      * the cache's numbers, not this server's, so they come from the content
      * tree by name — see torirs_server_ids.h. What stays in this file is what sizes
@@ -4952,6 +4961,32 @@ struct ToriRSServer
     unsigned char loot_credit_players[TORIRSSERVER_PLAYER_MAX];
 
     /*
+     * The same credited drops, held for the collection log.
+     *
+     * Every drop table in the tree is `obj_add(npc_coord, ...)` written
+     * straight into a death script -- 3,889 calls in 255 files -- so the log
+     * cannot be fed from each one. It is fed from here instead: each credited
+     * add is recorded while the window is armed, and
+     * `ToriRSServer_ScriptsFlushLootCredit` hands the list to
+     * `[proc,collection_drop]` once per credited player when the death script
+     * returns. Content decides what is catalogued; the engine only promises
+     * that every drop a player was credited with is offered.
+     *
+     * Not run from inside `obj_add` itself: that would start a second script
+     * while the death script is mid-instruction on the same VM.
+     *
+     * `owner_pid` is -1 for a public drop, or the one player an
+     * `obj_add_private` is visible to.
+     */
+    struct
+    {
+        int obj;
+        int count;
+        int owner_pid;
+    } loot_credit_drops[TORIRSSERVER_LOOT_CREDIT_DROP_MAX];
+    int loot_credit_drop_count;
+
+    /*
      * Vessels — the sailing hulls and their deck instances (docs/SAILING_PLAN.md
      * S1; torirs_server_vessel.c). Slot i holds handle i + 1; zero-init is an
      * empty pool. Ticked by the world's `vessels` phase, before player info.
@@ -7610,6 +7645,14 @@ ToriRSServer_ScriptsRunProc(
     const char* name,
     const int32_t* args,
     int argc);
+
+/** Offer every drop recorded during the death script that just returned to
+ *  `[proc,collection_drop](obj, count)`, once per credited player who can see
+ *  it, then empty the list. Called where kill credit is disarmed, while
+ *  `loot_credit_players` still names the killers and `loot_credit_armed` is
+ *  already 0. See `ToriRSServer.loot_credit_drops`. */
+void
+ToriRSServer_ScriptsFlushLootCredit(struct ToriRSServer* srv);
 
 /** Run a named proc with an npc made active, so `npc_stat`/`npc_param`/
  *  `npc_damage` inside it resolve to that npc. The combat swing needs it. */

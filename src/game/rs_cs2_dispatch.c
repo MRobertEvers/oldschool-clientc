@@ -140,6 +140,111 @@ RS_CS2_DispatchHook(
     TaskRunner_AddRenderBlockingSerialTask(runner, task);
 }
 
+/*
+ * One onTimer fire, bound to the hook the component holds when the fire RUNS
+ * rather than when the timer pass queued it.
+ *
+ * The reference handles the tick's packets inline -- a RUNCLIENTSCRIPT has
+ * finished before processWidgetTimers reads `onTimer` -- so a script that
+ * replaces a timer hook is always seen by the very next timer pass. This client
+ * holds RUNCLIENTSCRIPT to the server's tick fence and the fence only ENQUEUES
+ * it on this runner; the timer pass of the same logic tick then read the old
+ * hook and queued it behind the script. The stale fire ran second and, being a
+ * timer chain, re-armed itself over the hook the script had just installed.
+ *
+ * Seen as the collection log's second popup never opening: interface 660's
+ * closing chain (`notification_end`, phase 5) re-arms forever, clientscript 3343
+ * replaces it with `notification_start`, and the queued phase-5 fire put the old
+ * chain straight back -- a box shrinking to nothing, every cycle.
+ *
+ * Resolved through a node ref, not an index: the group may be reclaimed while
+ * this waits in the queue, and a recycled slot must not fire somebody else's
+ * timer.
+ */
+struct Task_CS2TimerFire
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+    struct RS_CS2Host* host;
+    struct UITreeNodeRef ref;
+};
+
+static struct ToriRS_Task*
+cs2_timer_fire_task(struct Task_CS2TimerFire* self)
+{
+    struct UITree* tree = self->host->tree;
+    struct UITreeRuntimeScriptHook const* hook;
+    char const* strp[UITREE_HOOK_STR_ARG_MAX];
+    int32_t idx;
+    int component_id;
+
+    assert(tree);
+    idx = UITree_ResolveRef(tree, self->ref);
+    if( idx < 0 )
+        return NULL;
+    component_id = tree->components[idx].component_id;
+    hook = &UITree_Hooks(&tree->components[idx])->on_timer;
+    /* Cleared since the pass (`if_setontimer(null)`): the reference would not
+     * have fired it either. */
+    if( component_id < 0 || hook->script_id <= 0 )
+        return NULL;
+    UITree_HookStrArgv(hook, strp, (int)(sizeof(strp) / sizeof(strp[0])));
+    return CreateTask_CS2RunMixed(
+        self->host,
+        hook->script_id,
+        component_id,
+        component_id,
+        UITree_HookArgs(hook),
+        hook->argc,
+        hook->str_mask,
+        strp,
+        hook->str_argc);
+}
+
+static int
+Task_CS2TimerFire_Run(
+    struct ToriRS_Task* base,
+    struct ToriRS_IOBatch* io)
+{
+    struct Task_CS2TimerFire* self = (struct Task_CS2TimerFire*)base;
+
+    PT_BEGIN(&self->pt);
+    PT_TASK_AWAITSELF_IF(cs2_timer_fire_task(self));
+    PT_END(&self->pt);
+}
+
+static void
+Task_CS2TimerFire_Free(struct ToriRS_Task* base)
+{
+    free(base);
+}
+
+static struct ToriRS_TaskVTable Task_CS2TimerFire_VTable = {
+    .run = Task_CS2TimerFire_Run,
+    .free = Task_CS2TimerFire_Free,
+};
+
+void
+RS_CS2_DispatchTimer(
+    struct RS_CS2Host* host,
+    struct TaskRunner* runner,
+    int32_t node_index)
+{
+    struct Task_CS2TimerFire* task;
+
+    assert(host);
+    assert(runner);
+    assert(host->tree);
+    task = calloc(1, sizeof(*task));
+    assert(task);
+    task->task.vtable = &Task_CS2TimerFire_VTable;
+    strncpy(task->task.name, "CS2TimerFire", sizeof(task->task.name) - 1);
+    task->host = host;
+    task->ref = UITree_RefAt(host->tree, node_index);
+    PT_INIT(&task->pt);
+    TaskRunner_AddRenderBlockingSerialTask(runner, &task->task);
+}
+
 static void
 rs_cs2_run_script(
     struct RS_CS2Host* host,

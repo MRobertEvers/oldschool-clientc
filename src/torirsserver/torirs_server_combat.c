@@ -3358,6 +3358,7 @@ npc_death_step(
                 death_record_handoff(srv, slot, queues_before);
         }
         srv->loot_credit_armed = 0;
+        ToriRSServer_ScriptsFlushLootCredit(srv);
         memset(srv->loot_credit_players, 0, sizeof(srv->loot_credit_players));
         /* A drop script may npc_delay before it reaches obj_add. Keep the
          * attribution on the npc until its parked state finishes; the resume

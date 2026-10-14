@@ -1509,6 +1509,7 @@ ToriRSServer_ScriptsResumeNpc(
     if( resume_loot_drop )
     {
         srv->loot_credit_armed = 0;
+        ToriRSServer_ScriptsFlushLootCredit(srv);
         memset(srv->loot_credit_players, 0, sizeof(srv->loot_credit_players));
         if( !npc->active_script )
         {
@@ -5031,6 +5032,52 @@ ToriRSServer_LootTrackerAddGroundObj(
         ToriRSServer_SendRunClientscript(
             player, TORIRSSERVER_SCRIPT_LOOTTRACKER_ADD_LOOT, args, 4);
     }
+
+    /* ...and recorded for the collection log, which is content and so cannot
+     * run from inside this opcode. ToriRSServer_ScriptsFlushLootCredit. */
+    assert(srv->loot_credit_drop_count < TORIRSSERVER_LOOT_CREDIT_DROP_MAX);
+    srv->loot_credit_drops[srv->loot_credit_drop_count].obj = obj;
+    srv->loot_credit_drops[srv->loot_credit_drop_count].count = count;
+    srv->loot_credit_drops[srv->loot_credit_drop_count].owner_pid =
+        private_owner ? (int)(private_owner - srv->players) : -1;
+    srv->loot_credit_drop_count++;
+}
+
+void
+ToriRSServer_ScriptsFlushLootCredit(struct ToriRSServer* srv)
+{
+    struct ToriRSServerPlayer* saved_active;
+    int drop_count;
+
+    assert(srv);
+    /* Disarmed first: a drop the proc itself made must not land in the list
+     * being walked. */
+    assert(!srv->loot_credit_armed);
+    drop_count = srv->loot_credit_drop_count;
+    srv->loot_credit_drop_count = 0;
+    if( drop_count == 0 || !srv->scripts_ok )
+        return;
+
+    saved_active = srv->active_player;
+    for( int drop_i = 0; drop_i < drop_count; drop_i++ )
+    {
+        int32_t args[2];
+
+        args[0] = srv->loot_credit_drops[drop_i].obj;
+        args[1] = srv->loot_credit_drops[drop_i].count;
+        for( int i = 0; i < TORIRSSERVER_PLAYER_MAX; i++ )
+        {
+            struct ToriRSServerPlayer* player = &srv->players[i];
+            if( !srv->loot_credit_players[i] || !player->active )
+                continue;
+            if( srv->loot_credit_drops[drop_i].owner_pid >= 0 &&
+                srv->loot_credit_drops[drop_i].owner_pid != i )
+                continue;
+            ToriRSServer_WorldSetActive(srv, player);
+            ToriRSServer_ScriptsRunProc(srv, "[proc,collection_drop]", args, 2);
+        }
+    }
+    ToriRSServer_WorldSetActive(srv, saved_active);
 }
 
 /*
