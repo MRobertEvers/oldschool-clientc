@@ -45,14 +45,14 @@ FACINGS = ps.FACINGS
 F = 3                      # humanoid pixelation factor: ~48px figures
 ZOOM = 650                 # one humanoid scale for every layer
 PITCH = 112
-CHIBI = "260,17,66,135"    # head x2.6, body 66% tall and 135% wide
+CHIBI = "260,17,66,135,4"  # head x2.6, body 66% tall, 135% wide, limbs inflated 4 units
 SIDE = 800
 # One cell for every humanoid layer: the anchor (canvas centre) is the same
 # pixel in all of them, which is what lets the client stack any set.
 # Measured over every layer of the example looks (a staff and a bow reach
-# furthest): left 151, right 144, top 135, bottom 110 canvas px, plus the
-# outline's pixel.
-HALF_W, TOP, BOT = 52 * F, 47 * F, 38 * F
+# furthest): left 153, right 148, top 135, bottom 116 canvas px with the
+# limbs inflated, plus the outline's pixel.
+HALF_W, TOP, BOT = 53 * F, 47 * F, 40 * F
 BOX = (SIDE // 2 - HALF_W, SIDE // 2 - TOP, SIDE // 2 + HALF_W, SIDE // 2 + BOT)
 CELL = ((BOX[2] - BOX[0]) // F, (BOX[3] - BOX[1]) // F)
 ORIGIN = (HALF_W // F, TOP // F)

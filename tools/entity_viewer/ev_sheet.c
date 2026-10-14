@@ -512,10 +512,12 @@ usage(const char* prog)
         "                   inside the default body, so every layer of a body\n"
         "                   shares one pose, head line and anchor and the client\n"
         "                   can composite any appearance from them\n"
-        "  --chibi <head%%>,<frac%%>,<body%%>[,<width%%>]\n"
+        "  --chibi <head%%>,<frac%%>,<body%%>[,<width%%>[,<inflate>]]\n"
         "                   scale the head (bind-pose top frac%% of the height)\n"
         "                   by head%% about the neck, the body height by body%%\n"
-        "                   and its width by width%%, e.g. 260,17,72,125\n"
+        "                   and its width by width%%; inflate pushes the body out\n"
+        "                   along its normals by that many world units, for\n"
+        "                   chunky limbs. e.g. 260,17,66,135,6\n"
         "  --out <dir>      output directory (required)\n",
         prog);
 }
@@ -672,7 +674,7 @@ main(
     int fixed_zoom = 0;
     int frame_height = 0;
     int full = 0;
-    int chibi[4] = { 0, 0, 0, 0 };
+    int chibi[5] = { 0, 0, 0, 0, 0 };
     int materials = 0;
     int layer_obj = -1;
     int layer_id = -1;
@@ -753,9 +755,10 @@ main(
         }
         else if( strcmp(argv[i], "--chibi") == 0 && i + 1 < argc )
         {
-            if( sscanf(argv[++i], "%d,%d,%d,%d", &chibi[0], &chibi[1], &chibi[2], &chibi[3]) < 3 )
+            if( sscanf(argv[++i], "%d,%d,%d,%d,%d", &chibi[0], &chibi[1], &chibi[2], &chibi[3],
+                       &chibi[4]) < 3 )
             {
-                fprintf(stderr, "--chibi wants head%%,frac%%,body%%[,width%%]\n");
+                fprintf(stderr, "--chibi wants head%%,frac%%,body%%[,width%%[,inflate]]\n");
                 return 2;
             }
         }
@@ -812,6 +815,7 @@ main(
     if( frame_height > 0 )
         ev_set_frame_height(frame_height);
     ev_set_chibi(chibi[0], chibi[1], chibi[2], chibi[3]);
+    ev_set_chibi_inflate(chibi[4]);
 
     struct ToriDraw_Model* model = NULL;
     if( as_player )
@@ -878,6 +882,28 @@ main(
             }
             ev_set_face_range(first, count);
             ev_set_chibi_reference(kit_vertices);
+            /* A weapon or a shield keeps its silhouette under inflation. */
+            if( layer_obj )
+            {
+                struct RSCache_Dat2ConfigObj* obj = ev_obj_load(&cache, layer_id);
+                assert(obj);
+                if( obj->wearpos_1 == 3 || obj->wearpos_1 == 5 )
+                {
+                    int vfirst = -1, vcount = 0;
+                    for( int p = 0; p < map.count; p++ )
+                    {
+                        const struct EV_PlayerPart* pt = &map.parts[p];
+                        if( pt->source_id == layer_id && pt->is_obj )
+                        {
+                            if( vfirst < 0 )
+                                vfirst = pt->vertex_first;
+                            vcount = pt->vertex_first + pt->vertex_count - vfirst;
+                        }
+                    }
+                    ev_set_chibi_inflate_skip(vfirst, vcount);
+                }
+                RSCache_Dat2ConfigObjFree(obj);
+            }
         }
     }
     else

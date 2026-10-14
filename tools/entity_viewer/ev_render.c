@@ -13,6 +13,7 @@
 
 #include "ev_render.h"
 #include <assert.h>
+#include <math.h>
 
 #include "ev_wire.h"
 
@@ -1014,6 +1015,28 @@ static int g_chibi_head_pct = 0;
 static int g_chibi_frac_pct = 0;
 static int g_chibi_body_pct = 0;
 static int g_chibi_width_pct = 0;
+/* World units every body (non-head) vertex is pushed out along its normal:
+ * a chibi's limbs are chunky, and widening the body only spreads them. */
+static int g_chibi_inflate = 0;
+/* Vertices [first, first+count) are not inflated: a weapon or a shield keeps
+ * its silhouette, where a fattened staff reads as a plank. */
+static int g_inflate_skip_first = 0;
+static int g_inflate_skip_count = 0;
+
+void
+ev_set_chibi_inflate(int units)
+{
+    g_chibi_inflate = units;
+}
+
+void
+ev_set_chibi_inflate_skip(
+    int first,
+    int count)
+{
+    g_inflate_skip_first = first;
+    g_inflate_skip_count = count;
+}
 static uint8_t* g_head_vertex = NULL;
 static int g_head_vertex_cap = 0;
 static int g_head_vertex_n = 0;
@@ -1110,6 +1133,69 @@ select_head(
     }
     free(stat);
     free(parent);
+}
+
+/* Push every non-head vertex of the posed body out along its area-weighted
+ * normal. The winding's sense is not assumed: the normals are flipped when,
+ * summed, they point inward. */
+static void
+inflate_body(
+    struct ToriDraw_Model* m,
+    int n)
+{
+    assert(m);
+    float* nrm = (float*)calloc((size_t)n * 3u, sizeof(float));
+    assert(nrm);
+    for( int f = 0; f < m->face_count; f++ )
+    {
+        int a = m->face_indices_a[f], b = m->face_indices_b[f], c = m->face_indices_c[f];
+        if( a >= n || b >= n || c >= n )
+            continue;
+        float ux = (float)(m->vertices_x[b] - m->vertices_x[a]);
+        float uy = (float)(m->vertices_y[b] - m->vertices_y[a]);
+        float uz = (float)(m->vertices_z[b] - m->vertices_z[a]);
+        float vx = (float)(m->vertices_x[c] - m->vertices_x[a]);
+        float vy = (float)(m->vertices_y[c] - m->vertices_y[a]);
+        float vz = (float)(m->vertices_z[c] - m->vertices_z[a]);
+        float cx = uy * vz - uz * vy, cy = uz * vx - ux * vz, cz = ux * vy - uy * vx;
+        int idx[3] = { a, b, c };
+        for( int k = 0; k < 3; k++ )
+        {
+            nrm[idx[k] * 3 + 0] += cx;
+            nrm[idx[k] * 3 + 1] += cy;
+            nrm[idx[k] * 3 + 2] += cz;
+        }
+    }
+    double mx = 0, my = 0, mz = 0;
+    for( int i = 0; i < n; i++ )
+    {
+        mx += m->vertices_x[i];
+        my += m->vertices_y[i];
+        mz += m->vertices_z[i];
+    }
+    mx /= n;
+    my /= n;
+    mz /= n;
+    double sense = 0;
+    for( int i = 0; i < n; i++ )
+        sense += nrm[i * 3 + 0] * (m->vertices_x[i] - mx) + nrm[i * 3 + 1] * (m->vertices_y[i] - my) +
+                 nrm[i * 3 + 2] * (m->vertices_z[i] - mz);
+    float sign = sense < 0 ? -1.0f : 1.0f;
+    for( int i = 0; i < n; i++ )
+    {
+        if( g_head_vertex[i] ||
+            (i >= g_inflate_skip_first && i < g_inflate_skip_first + g_inflate_skip_count) )
+            continue;
+        float x = nrm[i * 3 + 0], y = nrm[i * 3 + 1], z = nrm[i * 3 + 2];
+        float len = sqrtf(x * x + y * y + z * z);
+        if( len <= 0.0f )
+            continue;
+        float k = sign * (float)g_chibi_inflate / len;
+        m->vertices_x[i] = (vertexint_t)(m->vertices_x[i] + x * k);
+        m->vertices_y[i] = (vertexint_t)(m->vertices_y[i] + y * k);
+        m->vertices_z[i] = (vertexint_t)(m->vertices_z[i] + z * k);
+    }
+    free(nrm);
 }
 
 static void
@@ -1210,6 +1296,8 @@ apply_chibi(struct ToriDraw_Model* m)
             m->vertices_z[i] = (vertexint_t)(m->vertices_z[i] * width / 100);
         }
     }
+    if( g_chibi_inflate > 0 )
+        inflate_body(m, n);
     ToriDraw_ModelSetBoundsCylinder(m);
 }
 

@@ -105,6 +105,30 @@ def timing(path):
     return out
 
 
+MIN_FRAME_MS = 80
+
+
+def decimate(durs):
+    """Frame indices to keep and their durations: consecutive frames merge
+    until each lasts MIN_FRAME_MS, the total unchanged. A skeletal sequence
+    has a frame per 20ms client tick -- 120 for an idle -- which is a film,
+    not a sprite; a Pokemon sprite animates near 12 fps."""
+    keep, out, acc = [], [], 0
+    for i, d in enumerate(durs):
+        if acc == 0:
+            keep.append(i)
+        acc += d
+        if acc >= MIN_FRAME_MS:
+            out.append(acc)
+            acc = 0
+    if acc:
+        if out:
+            out[-1] += acc
+        else:
+            out.append(acc)
+    return keep[:len(out)], out
+
+
 def compack(kind):
     table = {}
     with open(os.path.join(CONTENT, "configs/all.%s.compack" % kind), "rb") as f:
@@ -159,10 +183,17 @@ def discover(npc_id):
     humanoid = ready.startswith("human_")
     # A creature's own sequence family (lordmagmus_*) holds its other attacks.
     # A shared rig's family (human_*) holds thousands; skip it.
-    fam = ready.rsplit("_", 1)[0] + "_" if "_" in ready else None
+    # The family is what the ready and walk names share up to an underscore:
+    # lordmagmus_ready/lordmagmus_walk -> lordmagmus_, and
+    # npc_whisperer_01_idle_01/npc_whisperer_01_walk_01 -> npc_whisperer_01_.
+    walk = rec.get("walkanim", "")
+    common = os.path.commonprefix([ready, walk]) if walk and walk != "default" else ready
+    fam = common[:common.rfind("_") + 1] if "_" in common else None
     if fam and not humanoid:
-        members = sorted((k, v) for k, v in seqs.items() if v.startswith(fam))
-        if len(members) <= 16:
+        # A pet's copy and a silent copy are the same motion again.
+        members = sorted((k, v) for k, v in seqs.items() if v.startswith(fam)
+                         and not v.endswith(("_pet", "_nosound")))
+        if len(members) <= 40:
             for k, v in members:
                 if v not in used:
                     anims.append((v[len(fam):], k))
@@ -311,6 +342,26 @@ def smooth_value(val, mat, sigma):
     return out
 
 
+def pixel_depth(face, vs, tri):
+    """Each pixel's camera z on the face that won it; 1/z is linear in screen
+    space. No z-buffer: the face comes from the painter's own draw."""
+    z = np.full(face.shape, np.inf)
+    ys, xs = np.nonzero(face >= 0)
+    if not len(ys):
+        return z
+    fc = face[ys, xs]
+    A, B, C = vs[tri[fc, 0]], vs[tri[fc, 1]], vs[tri[fc, 2]]
+    px, py = xs + 0.5, ys + 0.5
+    den = (B[:, 1] - C[:, 1]) * (A[:, 0] - C[:, 0]) + (C[:, 0] - B[:, 0]) * (A[:, 1] - C[:, 1])
+    den = np.where(np.abs(den) < 1e-9, 1e-9, den)
+    w0 = ((B[:, 1] - C[:, 1]) * (px - C[:, 0]) + (C[:, 0] - B[:, 0]) * (py - C[:, 1])) / den
+    w1 = ((C[:, 1] - A[:, 1]) * (px - C[:, 0]) + (A[:, 0] - C[:, 0]) * (py - C[:, 1])) / den
+    w = np.clip(np.stack([w0, w1, 1 - w0 - w1], 1), 0, 1)
+    w /= np.maximum(w.sum(1, keepdims=True), 1e-9)
+    z[ys, xs] = 1.0 / (w[:, 0] / A[:, 2] + w[:, 1] / B[:, 2] + w[:, 2] / C[:, 2])
+    return z
+
+
 def downscale(mat, val, alpha, f, feature, nmat):
     H, W = mat.shape
     h, w = H // f, W // f
@@ -446,14 +497,26 @@ def main():
     cal = json.load(open(cal_path))
     zoom, side = cal["zoom"], cal["side"]
 
-    # ---- materials --------------------------------------------------------
+    # ---- materials: the model's own base colours (ev_sheet faces.txt) -----
+    # Every run renders the same model, so one face table serves them all:
+    # face i has the same ID colour, base colour and head flag everywhere.
     first = os.path.join(raw, "%s_down" % anims[0][0])
-    colours = []
-    for line in open(first + "/materials.txt"):
-        if not line.startswith("#"):
-            c, rgb, n = line.split()
-            colours.append((int(c), tuple(bytes.fromhex(rgb)), int(n)))
-    rgb_to_hsl = {rgb: c for c, rgb, _ in colours}
+    frows = [l.split() for l in open(first + "/faces.txt") if not l.startswith("#")]
+    nf = len(frows)
+    idrgb = np.full(1 << 24, -1, np.int32)
+    tri = np.zeros((nf, 3), np.int64)
+    base_hsl = np.zeros(nf, np.int64)
+    head_face = np.zeros(nf, bool)
+    nfaces, rgb_of = {}, {}
+    for r in frows:
+        i = int(r[0])
+        idrgb[int(r[1], 16)] = i
+        base_hsl[i] = int(r[2])
+        head_face[i] = r[4] == "1"
+        tri[i] = (int(r[5]), int(r[6]), int(r[7]))
+        nfaces[int(r[2])] = nfaces.get(int(r[2]), 0) + 1
+        rgb_of[int(r[2])] = tuple(bytes.fromhex(r[3]))
+    colours = [(c, rgb_of[c], n) for c, n in nfaces.items()]
     groups = group_materials(colours)
 
     # ---- load; one box per animation ---------------------------------------
@@ -470,44 +533,47 @@ def main():
         for fname, _yaw in FACINGS:
             d = os.path.join(raw, "%s_%s" % (label, fname))
             lit = [np.asarray(Image.open(p).convert("RGBA")) for p in sorted(glob.glob(d + "/f*.png"))]
-            mat = [np.asarray(Image.open(p).convert("RGBA")) for p in sorted(glob.glob(d + "/m*.png"))]
-            dep = [np.asarray(Image.open(p).convert("RGB")) for p in sorted(glob.glob(d + "/d*.png"))]
-            hd = [np.asarray(Image.open(p).convert("RGB"))[..., 0]
-                  for p in sorted(glob.glob(d + "/h*.png"))] or [None] * len(lit)
-            assert lit and len(lit) == len(mat) == len(dep) == len(hd), d
+            ids = [np.asarray(Image.open(p).convert("RGBA")) for p in sorted(glob.glob(d + "/i*.png"))]
+            vtx = [np.fromfile(p, np.int32).reshape(-1, 3).astype(np.float64)
+                   for p in sorted(glob.glob(d + "/v*.bin"))]
+            assert lit and len(lit) == len(ids) == len(vtx), d
             for im in lit:
                 ys, xs = np.nonzero(im[..., 3] >= 128)
                 if len(xs):
                     x0, x1 = min(x0, xs.min()), max(x1, xs.max() + 1)
                     y0, y1 = min(y0, ys.min()), max(y1, ys.max() + 1)
-            clips[(label, fname)] = (lit, mat, dep, hd, timing(d + "/frames.txt"))
+            durs = timing(d + "/frames.txt")
+            keep, durs = decimate(durs)
+            clips[(label, fname)] = ([lit[i] for i in keep], [ids[i] for i in keep],
+                                     [vtx[i] for i in keep], durs)
         half = up(max(cx - x0, x1 - cx) + margin)
         top = up(cx - (y0 - margin))
         bot = up((y1 + margin) - cx)
         boxes[label] = (cx - half, cx - top, cx + half, cx + bot)
 
-    # Material id per pixel (0 = none). Pixels are counted over every frame to
-    # weigh each group by what is actually seen, not by face count.
-    gid = {}
+    # Material id per pixel (0 = none), from the face that won it in the
+    # painter's own draw. Pixels are counted over every frame to weigh each
+    # group by what is actually seen, not by face count.
+    gid = np.zeros(1 << 16, np.int64)
     for i, grp in enumerate(groups):
         for c in grp:
             gid[c] = i + 1
-    lut = np.zeros(1 << 24, np.int32)
-    for rgb, c in rgb_to_hsl.items():
-        lut[(rgb[0] << 16) | (rgb[1] << 8) | rgb[2]] = gid[c]
     counts = np.zeros(len(groups) + 1, np.int64)
     full = {}
-    for key, (lit, mat, dep, hd, durs) in clips.items():
+    for key, (lit, ids, vtx, durs) in clips.items():
         bx0, by0, bx1, by1 = boxes[key[0]]
         rows = []
-        for li, mi, di, hi in zip(lit, mat, dep, hd):
-            li, mi = li[by0:by1, bx0:bx1], mi[by0:by1, bx0:bx1]
-            di = di[by0:by1, bx0:bx1].astype(np.int64)
-            z = ((di[..., 0] << 16) | (di[..., 1] << 8) | di[..., 2]) / 8.0
-            hi = None if hi is None else hi[by0:by1, bx0:bx1] > 127
-            m = lut[(mi[..., 0].astype(np.int32) << 16) | (mi[..., 1].astype(np.int32) << 8)
-                    | mi[..., 2]]
-            m[li[..., 3] < 128] = 0
+        for li, ii, vs in zip(lit, ids, vtx):
+            ii = ii.astype(np.int64)
+            face = idrgb[(ii[..., 0] << 16) | (ii[..., 1] << 8) | ii[..., 2]]
+            face[(ii[..., 3] < 128) | (li[..., 3] < 128)] = -1
+            vs = vs.copy()
+            vs[:, 2] += zoom  # screen z is relative to the model centre, at z == zoom
+            z = pixel_depth(face, vs, tri)[by0:by1, bx0:bx1]
+            face = face[by0:by1, bx0:bx1]
+            li = li[by0:by1, bx0:bx1]
+            m = np.where(face >= 0, gid[base_hsl[np.maximum(face, 0)]], 0)
+            hi = (face >= 0) & head_face[np.maximum(face, 0)] if P["chibi"] else None
             counts += np.bincount(m.ravel(), minlength=len(groups) + 1)
             rows.append((m, li, z, hi))
         full[key] = (rows, durs)
