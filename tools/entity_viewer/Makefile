@@ -210,7 +210,7 @@ NATIVE_CORE := $(BUILD)/ev_build.o $(BUILD)/ev_player.o $(BUILD)/ev_config.o $(B
 	$(BUILD)/texture_palette_bake.o $(BUILD)/torirs_types.o $(BUILD)/torirs_component_hook.o \
 	$(BUILD)/torirs_model_from_rscache.o $(BUILD)/toridraw_model_from_torirs.o \
 	$(BUILD)/toridraw_animation_from_rscache.o \
-	$(BUILD)/toridraw_unity.o $(BUILD)/toridraw_font.o \
+	$(BUILD)/toridraw_unity.o \
 	$(BUILD)/toridraw_model_sprite.o
 
 ev_server: $(BUILD)/ev_server.o $(BUILD)/lc_pack.o $(NATIVE_CORE) $(COMMON_OBJS) $(DEP_OBJS) \
@@ -384,7 +384,7 @@ $(BUILD)/ev_widget_render_test.o: test/ev_widget_render_test.c | $(BUILD)
 	$(CC) $(CFLAGS) -I. -c $< -o $@
 
 ev_widget_render_test: $(BUILD)/ev_widget_render_test.o $(BUILD)/ev_render.o \
-		$(BUILD)/ev_wire.o $(BUILD)/toridraw_unity.o $(BUILD)/toridraw_font.o \
+		$(BUILD)/ev_wire.o $(BUILD)/toridraw_unity.o \
 		$(BUILD)/toridraw_model_sprite.o $(BUILD)/bmp.o
 	$(CC) $(CFLAGS) $(ASAN_LDFLAGS) -o $@ $^ -lm
 
@@ -394,7 +394,7 @@ $(BUILD)/ev_widget_ab_probe.o: test/ev_widget_ab_probe.c | $(BUILD)
 	$(CC) $(CFLAGS) -I. -c $< -o $@
 
 ev_widget_ab_probe: $(BUILD)/ev_widget_ab_probe.o $(BUILD)/ev_render.o \
-		$(BUILD)/ev_wire.o $(BUILD)/toridraw_unity.o $(BUILD)/toridraw_font.o \
+		$(BUILD)/ev_wire.o $(BUILD)/toridraw_unity.o \
 		$(BUILD)/toridraw_model_sprite.o $(BUILD)/bmp.o
 	$(CC) $(CFLAGS) $(ASAN_LDFLAGS) -o $@ $^ -lm
 

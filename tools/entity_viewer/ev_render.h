@@ -250,6 +250,54 @@ ev_render_widget(
 void
 ev_set_frame_height(int height);
 
+/**
+ * Chibi proportions for a humanoid: after posing, the head (bind-pose vertices
+ * in the top `head_frac_pct` of the height, near the body axis) is scaled by
+ * `head_pct` about the posed neck, the body's height by `body_pct` and its
+ * width by `width_pct`.
+ * head_pct 0 disables. A stylisation for sprite export, not the client's look.
+ */
+void
+ev_set_chibi(int head_pct, int head_frac_pct, int body_pct, int width_pct);
+
+/**
+ * Face-ID pass: every face flat, opaque and untextured in a colour unique to
+ * it (ev_face_code_rgb), through the same painter and priorities as a normal
+ * render, so each pixel names the face that won it. Off by default.
+ */
+void
+ev_set_material_pass(int on);
+
+/** The 0xRRGGBB a face is drawn in by the face-ID pass. */
+int
+ev_face_code_rgb(int face);
+
+/** Per face, camera depth relative to the model centre (mean of its
+ *  vertices) at the last face-ID pass. */
+const float*
+ev_face_depth(void);
+
+struct ToriDraw_Model;
+
+/** Draw only faces [first, first+count) in every pass, with the whole model
+ *  still posed and deformed: one layer of a composite. count < 0: all. */
+void
+ev_set_face_range(int first, int count);
+
+/** Chibi head line and neck pivot from vertices [0, count) only (the body's
+ *  identity kits), so layers added on top share them. 0: all vertices. */
+void
+ev_set_chibi_reference(int vertex_count);
+
+/** After a face-ID pass: per vertex, canvas x, canvas y, and camera z relative
+ *  to the model centre, which the framing places at z == zoom (3 ints). */
+const int*
+ev_vertex_screen(void);
+
+/** Whether the chibi deform took this face as head (by whole mesh). */
+int
+ev_face_is_head(const struct ToriDraw_Model* m, int face);
+
 /** Pan the view: shift where the orbit centre lands on the canvas, in canvas
  *  pixels (+x right, +y down). Persists until changed; 0,0 recentres. Kept
  *  out of ev_render's signature so existing embedders stay source- and

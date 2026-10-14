@@ -279,6 +279,7 @@ apply_appearance(
     assert(spec);
     assert(slots);
 
+    spec->exact = 1;
     for( int s = 0; s < 12; s++ )
     {
         int packed = slots[s];
@@ -493,8 +494,159 @@ usage(const char* prog)
         "  --pitch <0-2047> CAMERA elevation, which moves the eye rather than\n"
         "                   the model [128]\n"
         "  --pad <px>       transparent margin around the crop [2]\n"
+        "  --zoom <units>   fix the orbit distance instead of fitting to --fit.\n"
+        "                   With --frame-height and --full, every run at the\n"
+        "                   same values puts the model origin on the same pixel,\n"
+        "                   so sequences and directions share one anchor\n"
+        "  --frame-height <units>\n"
+        "                   pin the framing lift instead of measuring each pose\n"
+        "  --full           write the whole --side canvas, uncropped\n"
+        "  --materials      also write iNNN.png, each face flat in a colour unique\n"
+        "                   to it through the normal painter (which face won each\n"
+        "                   pixel), zNNN.bin, each face's camera depth (float32),\n"
+        "                   and faces.txt: id colour, base colour, head flag and\n"
+        "                   vertices per face\n"
+        "  --layer kit:<id>|obj:<id>\n"
+        "                   with --player: draw ONE component of a player -- an\n"
+        "                   identity kit or a worn obj -- posed and deformed\n"
+        "                   inside the default body, so every layer of a body\n"
+        "                   shares one pose, head line and anchor and the client\n"
+        "                   can composite any appearance from them\n"
+        "  --chibi <head%%>,<frac%%>,<body%%>[,<width%%>]\n"
+        "                   scale the head (bind-pose top frac%% of the height)\n"
+        "                   by head%% about the neck, the body height by body%%\n"
+        "                   and its width by width%%, e.g. 260,17,72,125\n"
         "  --out <dir>      output directory (required)\n",
         prog);
+}
+
+/* ------------------------------------------------------------ export passes */
+
+/* Render one ev_set_material_pass mode and write its RGB over `crop`, whose
+ * alpha (the lit frame's coverage) is kept. */
+static int
+write_pass(
+    const char* out_dir,
+    const char* prefix,
+    int f,
+    int mode,
+    unsigned char* crop,
+    const struct EV_Box* box,
+    int side,
+    int yaw,
+    int pitch,
+    int zoom,
+    int seq_id)
+{
+    assert(crop);
+    assert(box);
+    int cw = box->x1 - box->x0 + 1;
+    int ch = box->y1 - box->y0 + 1;
+    ev_set_bg(0xFF000000u);
+    ev_set_material_pass(mode);
+    const uint8_t* mp = ev_render(side, side, yaw, pitch, zoom, seq_id >= 0 ? f : -1);
+    ev_set_material_pass(0);
+    assert(mp);
+    for( int y = 0; y < ch; y++ )
+        for( int x = 0; x < cw; x++ )
+        {
+            const uint8_t* src =
+                mp + (((size_t)(box->y0 + y) * (size_t)side) + (size_t)(box->x0 + x)) * 4u;
+            uint8_t* dst = crop + ((size_t)y * (size_t)cw + (size_t)x) * 4u;
+            dst[0] = src[0];
+            dst[1] = src[1];
+            dst[2] = src[2];
+        }
+    char path[1024];
+    snprintf(path, sizeof(path), "%s/%s%03d.png", out_dir, prefix, f);
+    if( !png_write_rgba(path, crop, cw, ch) )
+    {
+        fprintf(stderr, "cannot write %s\n", path);
+        return 0;
+    }
+    return 1;
+}
+
+/* Per-face camera depth from the last face-ID pass, float32, face order. */
+static int
+write_face_depth(
+    const char* out_dir,
+    int f,
+    int face_count)
+{
+    const float* depth = ev_face_depth();
+    assert(depth);
+    char path[1024];
+    snprintf(path, sizeof(path), "%s/z%03d.bin", out_dir, f);
+    FILE* zf = fopen(path, "wb");
+    if( !zf || fwrite(depth, sizeof(float), (size_t)face_count, zf) != (size_t)face_count )
+    {
+        fprintf(stderr, "cannot write %s\n", path);
+        if( zf )
+            fclose(zf);
+        return 0;
+    }
+    fclose(zf);
+    return 1;
+}
+
+/* Per vertex: x, y relative to the written crop, and camera z, int32 each. */
+static int
+write_vertex_screen(
+    const char* out_dir,
+    int f,
+    int vertex_count,
+    const struct EV_Box* box)
+{
+    assert(box);
+    const int* vs = ev_vertex_screen();
+    assert(vs);
+    int* rel = (int*)malloc(sizeof(int) * 3u * (size_t)vertex_count);
+    assert(rel);
+    for( int v = 0; v < vertex_count; v++ )
+    {
+        rel[v * 3 + 0] = vs[v * 3 + 0] - box->x0;
+        rel[v * 3 + 1] = vs[v * 3 + 1] - box->y0;
+        rel[v * 3 + 2] = vs[v * 3 + 2];
+    }
+    char path[1024];
+    snprintf(path, sizeof(path), "%s/v%03d.bin", out_dir, f);
+    FILE* vf = fopen(path, "wb");
+    size_t n = (size_t)vertex_count * 3u;
+    int ok = vf && fwrite(rel, sizeof(int), n, vf) == n;
+    if( vf )
+        fclose(vf);
+    free(rel);
+    if( !ok )
+        fprintf(stderr, "cannot write %s\n", path);
+    return ok;
+}
+
+/* The face table: what each face-ID colour means. Written after the first
+ * pose, which is when the chibi deform has chosen its head. */
+static int
+write_faces(
+    const char* out_dir,
+    const struct ToriDraw_Model* model)
+{
+    assert(model);
+    assert(model->face_colors);
+    char path[1024];
+    snprintf(path, sizeof(path), "%s/faces.txt", out_dir);
+    FILE* ff = fopen(path, "wb");
+    if( !ff )
+    {
+        fprintf(stderr, "cannot write %s\n", path);
+        return 0;
+    }
+    fprintf(ff, "# face\tid_rgb\tbase_hsl16\tbase_rgb\thead\ta\tb\tc\n");
+    for( int i = 0; i < model->face_count; i++ )
+        fprintf(ff, "%d\t%06x\t%d\t%06x\t%d\t%d\t%d\t%d\n", i, ev_face_code_rgb(i),
+                model->face_colors[i], ToriDraw_Hsl16ToRgb(model->face_colors[i]) & 0xFFFFFF,
+                ev_face_is_head(model, i), model->face_indices_a[i], model->face_indices_b[i],
+                model->face_indices_c[i]);
+    fclose(ff);
+    return 1;
 }
 
 /* -------------------------------------------------------------------- main */
@@ -517,6 +669,13 @@ main(
     int model_pitch = 0;
     int roll = 0;
     int pad = 2;
+    int fixed_zoom = 0;
+    int frame_height = 0;
+    int full = 0;
+    int chibi[4] = { 0, 0, 0, 0 };
+    int materials = 0;
+    int layer_obj = -1;
+    int layer_id = -1;
     int gender = 0;
     int worn[EV_SHEET_MAX_WORN];
     int worn_count = 0;
@@ -570,6 +729,36 @@ main(
         }
         else if( strcmp(argv[i], "--pad") == 0 && i + 1 < argc )
             pad = atoi(argv[++i]);
+        else if( strcmp(argv[i], "--zoom") == 0 && i + 1 < argc )
+            fixed_zoom = atoi(argv[++i]);
+        else if( strcmp(argv[i], "--frame-height") == 0 && i + 1 < argc )
+            frame_height = atoi(argv[++i]);
+        else if( strcmp(argv[i], "--full") == 0 )
+            full = 1;
+        else if( strcmp(argv[i], "--materials") == 0 )
+            materials = 1;
+        else if( strcmp(argv[i], "--layer") == 0 && i + 1 < argc )
+        {
+            const char* v = argv[++i];
+            if( strncmp(v, "kit:", 4) == 0 )
+                layer_obj = 0;
+            else if( strncmp(v, "obj:", 4) == 0 )
+                layer_obj = 1;
+            else
+            {
+                fprintf(stderr, "--layer wants kit:<id> or obj:<id>\n");
+                return 2;
+            }
+            layer_id = atoi(v + 4);
+        }
+        else if( strcmp(argv[i], "--chibi") == 0 && i + 1 < argc )
+        {
+            if( sscanf(argv[++i], "%d,%d,%d,%d", &chibi[0], &chibi[1], &chibi[2], &chibi[3]) < 3 )
+            {
+                fprintf(stderr, "--chibi wants head%%,frac%%,body%%[,width%%]\n");
+                return 2;
+            }
+        }
         else if( strcmp(argv[i], "--out") == 0 && i + 1 < argc )
             out_dir = argv[++i];
         else if( strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0 )
@@ -620,6 +809,9 @@ main(
      * ToriDraw_Position.yaw with it); these are the other two axes of the same
      * orientation. --pitch, separately, elevates the camera. */
     ev_set_orientation(model_pitch, roll);
+    if( frame_height > 0 )
+        ev_set_frame_height(frame_height);
+    ev_set_chibi(chibi[0], chibi[1], chibi[2], chibi[3]);
 
     struct ToriDraw_Model* model = NULL;
     if( as_player )
@@ -641,7 +833,52 @@ main(
             }
             spec.worn[spec.worn_count++] = worn[i];
         }
+        if( layer_id >= 0 )
+        {
+            /* The reference body is the full default body, drawn exactly (no
+             * hiding): the layer is posed among the parts it will be
+             * composited with, and nothing it covers moves the pose. */
+            if( layer_obj )
+                spec.worn[spec.worn_count++] = layer_id;
+            else
+            {
+                struct RSCache_Dat2ConfigIdk* idk = ev_idk_load(&cache, layer_id);
+                if( !idk || idk->body_part_id < 0 || idk->body_part_id >= EV_PLAYER_PARTS )
+                {
+                    fprintf(stderr, "kit %d does not decode to a male body part\n", layer_id);
+                    return 1;
+                }
+                spec.kits[idk->body_part_id] = layer_id;
+                RSCache_Dat2ConfigIdkFree(idk);
+            }
+            ev_resolve_default_kits(&cache, spec.kits);
+            spec.exact = 1;
+        }
         model = ev_build_player_model(&cache, &spec, &map);
+        if( model && layer_id >= 0 )
+        {
+            int first = -1, count = 0, kit_vertices = 0;
+            for( int p = 0; p < map.count; p++ )
+            {
+                const struct EV_PlayerPart* pt = &map.parts[p];
+                if( !pt->is_obj )
+                    kit_vertices = pt->vertex_first + pt->vertex_count;
+                if( pt->source_id == layer_id && pt->is_obj == layer_obj )
+                {
+                    if( first < 0 )
+                        first = pt->face_first;
+                    count = pt->face_first + pt->face_count - first;
+                }
+            }
+            if( first < 0 )
+            {
+                fprintf(stderr, "layer %s:%d contributed no faces\n", layer_obj ? "obj" : "kit",
+                        layer_id);
+                return 1;
+            }
+            ev_set_face_range(first, count);
+            ev_set_chibi_reference(kit_vertices);
+        }
     }
     else
     {
@@ -694,8 +931,8 @@ main(
      * Coverage scales roughly as 1/zoom, so one corrective step lands close;
      * a couple more converge without costing anything noticeable.
      */
-    int zoom = 512;
-    for( int pass = 0; pass < 3; pass++ )
+    int zoom = fixed_zoom > 0 ? fixed_zoom : 512;
+    for( int pass = 0; fixed_zoom <= 0 && pass < 3; pass++ )
     {
         struct EV_Box b;
         box_reset(&b);
@@ -728,10 +965,20 @@ main(
         if( compose_frame(buf, side, yaw, pitch, zoom, seq_id >= 0 ? f : -1) )
             box_add_coverage(&box, buf, side);
     }
-    if( !box_valid(&box) )
+    /* Under --full an empty frame is an answer, not a failure: a layer can be
+     * wholly hidden from one side (the jaw from behind) and the frame still
+     * has to exist so every layer of a body has the same frames. */
+    if( !box_valid(&box) && !full )
     {
         fprintf(stderr, "nothing was drawn\n");
         return 1;
+    }
+    if( !box_valid(&box) )
+    {
+        box.x0 = 0;
+        box.y0 = 0;
+        box.x1 = side - 1;
+        box.y1 = side - 1;
     }
     box.x0 -= pad;
     box.y0 -= pad;
@@ -745,8 +992,6 @@ main(
         box.x1 = side - 1;
     if( box.y1 > side - 1 )
         box.y1 = side - 1;
-    int cw = box.x1 - box.x0 + 1;
-    int ch = box.y1 - box.y0 + 1;
 
     /*
      * A subject touching the canvas edge was clipped by the canvas, and the
@@ -758,6 +1003,18 @@ main(
         fprintf(stderr,
                 "warning: the subject reaches the canvas edge; raise --side "
                 "or lower --fit or it is being clipped\n");
+
+    /* A shared anchor needs a shared frame: cropping to this run's own
+     * coverage would put the origin somewhere different in every run. */
+    if( full )
+    {
+        box.x0 = 0;
+        box.y0 = 0;
+        box.x1 = side - 1;
+        box.y1 = side - 1;
+    }
+    int cw = box.x1 - box.x0 + 1;
+    int ch = box.y1 - box.y0 + 1;
 
     unsigned char* crop = (unsigned char*)malloc((size_t)cw * (size_t)ch * 4u);
     if( !crop )
@@ -776,10 +1033,11 @@ main(
     }
     fprintf(tf, "# frame\tticks\tms\n");
 
+
     int total_ticks = 0;
     for( int f = 0; f < frame_count; f++ )
     {
-        if( !compose_frame(buf, side, yaw, pitch, zoom, seq_id >= 0 ? f : -1) )
+        if( !compose_frame(buf, side, yaw, pitch, zoom, seq_id >= 0 ? f : -1) && !full )
             continue;
         for( int y = 0; y < ch; y++ )
         {
@@ -793,6 +1051,19 @@ main(
             fprintf(stderr, "cannot write %s\n", path);
             fclose(tf);
             return 1;
+        }
+        if( materials )
+        {
+            /* The lit frame's alpha is the coverage; the face-ID pass only says
+             * which face won each covered pixel. */
+            if( !write_pass(out_dir, "i", f, 1, crop, &box, side, yaw, pitch, zoom, seq_id) ||
+                !write_face_depth(out_dir, f, model->face_count) ||
+                !write_vertex_screen(out_dir, f, model->vertex_count, &box) ||
+                (f == 0 && !write_faces(out_dir, model)) )
+            {
+                fclose(tf);
+                return 1;
+            }
         }
         /* A tick is 20ms. Zero means the sequence did not say, and one tick is
          * the shortest thing it could have meant. */

@@ -109,7 +109,7 @@ ev_player_spec_init(struct EV_PlayerSpec* spec)
  * beard and jaw in the cache is an identity kit too, so "all of them" is a few
  * hundred heads drawn on top of each other. One per part is a body.
  */
-static void
+void
 ev_resolve_default_kits(struct Tool_Dat2Cache* c, int kits[EV_PLAYER_PARTS])
 {
     int found = 0;
@@ -197,7 +197,35 @@ ev_build_player_model(
 
     for( int i = 0; i < EV_PLAYER_PARTS; i++ )
         kits[i] = spec->kits[i];
-    ev_resolve_default_kits(c, kits);
+    if( !spec->exact )
+        ev_resolve_default_kits(c, kits);
+
+    /*
+     * Without an appearance buffer (a default body plus --wear), emulate what
+     * the server would have sent. Equipment takes its body slots away from the
+     * identity kits. The server
+     * sends an equipped slot as the obj and the slots its wearpos2/wearpos3
+     * cover as empty, so the client never draws the kit underneath: a full
+     * helm takes hair and jaw, a platebody takes the arms. Drawing both put
+     * the kit's hair, face and trousers through the armour.
+     *
+     * wearpos -> kit body part: 4 torso, 6 arms, 7 legs, 8 hair, 9 hands,
+     * 10 feet, 11 jaw. Head (0), cape, neck, weapon and shield have no kit.
+     */
+    static const int wearpos_part[12] = { -1, -1, -1, -1, 2, -1, 3, 5, 0, 4, 6, 1 };
+    for( int w = 0; !spec->exact && w < spec->worn_count && w < EV_PLAYER_MAX_WORN; w++ )
+    {
+        if( spec->worn[w] < 0 )
+            continue;
+        struct RSCache_Dat2ConfigObj* obj = ev_obj_load(c, spec->worn[w]);
+        if( !obj )
+            continue;
+        int pos[3] = { obj->wearpos_1, obj->wearpos_2, obj->wearpos_3 };
+        for( int k = 0; k < 3; k++ )
+            if( pos[k] >= 0 && pos[k] < 12 && wearpos_part[pos[k]] >= 0 )
+                kits[wearpos_part[pos[k]]] = -1;
+        RSCache_Dat2ConfigObjFree(obj);
+    }
 
     /* Body first, then equipment — the appearance-slot order the client walks,
      * and the order the part map's vertex ranges are stated in. */
