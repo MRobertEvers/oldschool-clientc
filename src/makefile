@@ -1482,7 +1482,10 @@ IO_SERVER_SRCS = ioserver/io_server_main.c ioserver/http_server.c \
 	platform/platform_x_io_ondemand.c \
 	platform/platform_x_http.c platform/sockstream.c platform/platform_mdns.c \
 	bootmanifest/bootmanifest.c features/features.c \
-	ui/torirs_chrome_exec_kind.c $(INI_SRC)
+	ui/torirs_chrome_exec_kind.c pokesprite/pokesprite_format.c \
+	pokesprite/pokesprite_store.c $(INI_SRC)
+# The 2D client's sheet store is indexed by sqlite (pokesprite_store.c).
+IO_SERVER_SQLITE_LIBS := -lsqlite3
 # http_server.c talks Winsock directly (see JS5_SOCKET_LIBS below for the same
 # split on sockstream.c's side) -- closesocket/WSAStartup/select/etc live in
 # ws2_32, not the CRT, so a native Windows link needs it named explicitly.
@@ -1504,7 +1507,7 @@ $(IO_SERVER_OBJ_DIR)/io_server: $(IO_SERVER_SRCS) \
 		-DTORIRS_PLATFORM_X_IO_NO_JS5=1 -DTORIRS_PLATFORM_X_IO_NO_LAUNCH=1 \
 		$(IO_SERVER_OBJ_DIR)/rscache_unity.o $(IO_SERVER_OBJ_DIR)/bzip.o \
 		$(IO_SERVER_OBJ_DIR)/bzip_encode.o $(IO_SERVER_OBJ_DIR)/miniz.o \
-		$(IO_SERVER_OBJ_DIR)/xteas.o -lm $(IO_SERVER_SOCKET_LIBS)
+		$(IO_SERVER_OBJ_DIR)/xteas.o -lm $(IO_SERVER_SOCKET_LIBS) $(IO_SERVER_SQLITE_LIBS)
 	@echo "built $@"
 
 # TORIRS_PLATFORM_X_IO_NO_LAUNCH (raid seam37): the standalone io_server does

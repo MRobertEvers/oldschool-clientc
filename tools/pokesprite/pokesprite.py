@@ -435,6 +435,8 @@ def main():
                     "260,17,72,125); 0 disables")
     ap.add_argument("--out", required=True)
     ap.add_argument("--skip-render", action="store_true")
+    ap.add_argument("--store", help="also write each animation into this PokeSprite store "
+                    "(npc/<type>/<seq>), e.g. assets/pokesprite")
     a = ap.parse_args()
 
     if a.player:
@@ -747,6 +749,16 @@ def main():
     ground_dy = int(feet) - 1 - meta["anims"][0]["origin"][1]
     for an in meta["anims"]:
         an["ground"] = [an["origin"][0], an["origin"][1] + ground_dy]
+    if a.store:
+        assert a.npc is not None, "the store keys npc sheets by npc type; --player has none"
+        from store import Store, npc_key
+        st = Store(a.store)
+        for an in meta["anims"]:
+            rows = [frames[(an["name"], fname)][0] for fname, _ in FACINGS]
+            st.write_rgba(npc_key(a.npc, an["seq"]), rows, an["rows"][0]["durations_ms"],
+                          an["origin"], an["ground"])
+        st.close()
+        print("stored %d sheets in %s" % (len(meta["anims"]), a.store))
     sheet.save(os.path.join(a.out, "sheet.png"))
     sheet.resize((sw * 2, sh * 2), Image.NEAREST).save(os.path.join(a.out, "sheet@2x.png"))
     json.dump(meta, open(os.path.join(a.out, "sheet.json"), "w"), indent=1)

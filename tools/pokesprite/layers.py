@@ -448,6 +448,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", required=True)
     ap.add_argument("--skip-render", action="store_true")
+    ap.add_argument("--store", help="also write every layer x sequence into this PokeSprite "
+                    "store (layer/m/<kit|obj>/<id>/<seq>), e.g. assets/pokesprite")
     a = ap.parse_args()
     SEQS = [("idle", 808), ("walk", 819)]
     BODY = [3, 14, 18, 26, 33, 36, 42]      # hair 3, clean-shaven jaw 14, torso, arms, hands, legs, feet
@@ -479,6 +481,18 @@ def main():
     print("shared light cuts:", {k: np.round(v, 3).tolist() for k, v in cuts.items()})
     enc = {L: encode_layer(preps[L], cuts) for L in layers}
     tables = {L: preps[L]["table"] for L in layers}
+
+    if a.store:
+        from store import Store, layer_key
+        st = Store(a.store)
+        for L in layers:
+            kind, ident = L.split(":")
+            for label, seq in SEQS:
+                rows = [enc[L][(label, fname)][0] for fname, _ in FACINGS]
+                durs = enc[L][(label, "down")][1]
+                st.write_layer(layer_key(kind, int(ident), seq), rows, durs, tables[L])
+        st.close()
+        print("stored %d layer sheets in %s" % (len(layers) * len(SEQS), a.store))
 
     W, H = CELL
     S = 3
