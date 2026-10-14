@@ -4523,6 +4523,16 @@ struct ToriRSServer
      */
     struct SSVM_State* script_command_state;
 
+    /**
+     * The server's player when the executing command began, before
+     * `ToriRSServer_ScriptCommand` pointed `active_player` at the script's own
+     * (a `huntnext`/`p_finduid` binding). NULL in an npc script, which runs
+     * with none. The ops that name a hit's DEALER read this, not
+     * `active_player`: an npc timer that found the arena player and then
+     * damaged them is not that player hitting themselves.
+     */
+    struct ToriRSServerPlayer* command_turn_player;
+
     int tick;
 
     /**

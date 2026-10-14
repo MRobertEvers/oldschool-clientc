@@ -16691,7 +16691,16 @@ phase_npc_events(struct ToriRSServer* srv)
         if( !npc->active || !npc->spawn_pending )
             continue;
         npc->spawn_pending = 0;
+        /* NO PLAYER behind a spawn, as behind a timer (phase_npcs; the
+         * reference's ScriptRunner.init(script, npc, null)). This phase runs
+         * straight after phase_clients_in, so the binding here was whichever
+         * client's packet the server handled last -- a stranger's varps read
+         * as the spawn's. A spawn that needs a player finds one. */
+        struct ToriRSServerPlayer* saved = srv->active_player;
+
+        ToriRSServer_WorldSetActive(srv, NULL);
         ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_AI_SPAWN, npc->type, -1, slot);
+        ToriRSServer_WorldSetActive(srv, saved);
     }
 }
 

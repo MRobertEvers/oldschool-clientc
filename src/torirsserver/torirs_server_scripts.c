@@ -5400,6 +5400,20 @@ script_command(
  * in the engine -- the zone's same-tick loc_anim check -- can name the script
  * behind an effect. Saved and restored rather than cleared: a command can run
  * another script to completion inside itself.
+ *
+ * And with the SCRIPT'S player as the server's for the length of the command.
+ * `huntnext`, `p_finduid` and `npc_findhero` bind the script's player
+ * (SSVM_SetActive) and nothing else, while ~150 ops read `srv->active_player`
+ * directly (if_settext, npc_say, hint_*, ...). After a bind the two named
+ * different players: in an npc timer, which runs with none (phase_npcs), the op
+ * wrote to NULL -- if_settext from Pest Control's knight timer segfaulted in
+ * ToriRSServer_Send (2026-10-13) -- and in a player's script inside a hunt loop
+ * it wrote to the player the script started on, not the one it had found.
+ * Only the field: the scene window binding (ToriRSServer_WorldSetActive) stays
+ * the turn's. A script with no player of its own leaves the turn's in place, as
+ * script_command's own fallback does. A command that rebinds the server itself
+ * keeps its binding. The turn's player stays readable as `command_turn_player`
+ * for the ops that name a hit's dealer (`damage`, `p_overhit`, `npc_poison`).
  */
 int
 ToriRSServer_ScriptCommand(
@@ -5409,10 +5423,21 @@ ToriRSServer_ScriptCommand(
 {
     struct ToriRSServer* srv = (struct ToriRSServer*)state->env->host.user;
     struct SSVM_State* outer = srv->script_command_state;
+    struct ToriRSServerPlayer* outer_turn = srv->command_turn_player;
+    struct ToriRSServerPlayer* turn = srv->active_player;
+    struct ToriRSServerPlayer* addressed =
+        (struct ToriRSServerPlayer*)SSVM_Active(state, SSVM_ENT_PLAYER);
+    int rebound = addressed && addressed != turn;
     int handled;
 
     srv->script_command_state = state;
+    srv->command_turn_player = turn;
+    if( rebound )
+        srv->active_player = addressed;
     handled = script_command(state, opcode, dot);
+    if( rebound && srv->active_player == addressed )
+        ToriRSServer_WorldSetActive(srv, turn);
+    srv->command_turn_player = outer_turn;
     srv->script_command_state = outer;
     return handled;
 }
@@ -10343,7 +10368,7 @@ script_command(
             SSVM_Abort(state, "npc_poison with no active npc");
             return 1;
         }
-        ToriRSServer_CombatPoisonNpc(srv, slot, srv->active_player, (int)severity);
+        ToriRSServer_CombatPoisonNpc(srv, slot, srv->command_turn_player, (int)severity);
         return 1;
     }
 
@@ -10365,7 +10390,9 @@ script_command(
                        (int)values[0]);
             return 1;
         }
-        saved_player = srv->active_player;
+        /* The dealer: the player the command began under, not one a hunt
+         * bound (ToriRSServer_ScriptCommand) -- none in an npc's script. */
+        saved_player = srv->command_turn_player;
         /* A script damaging its own player is the shape every self-inflicted
          * hit in the game takes — an overload's five ticks of 10, a dwarven
          * rock cake, a poison karambwan. The Nightmare Zone's absorption pool
@@ -10429,7 +10456,7 @@ script_command(
                        (int)values[0]);
             return 1;
         }
-        saved_player = srv->active_player;
+        saved_player = srv->command_turn_player; /* the dealer -- see `damage` */
         ToriRSServer_WorldSetActive(srv, target_player);
         /* The swinging npc for the tick log -- see `damage` above. */
         ToriRSServer_TicklogSetDealerNpc(active_npc_slot(state));
