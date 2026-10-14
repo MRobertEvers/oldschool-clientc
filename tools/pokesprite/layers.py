@@ -57,6 +57,14 @@ BOX = (SIDE // 2 - HALF_W, SIDE // 2 - TOP, SIDE // 2 + HALF_W, SIDE // 2 + BOT)
 CELL = ((BOX[2] - BOX[0]) // F, (BOX[3] - BOX[1]) // F)
 ORIGIN = (HALF_W // F, TOP // F)
 DEPTH_NONE = 255
+# Where a humanoid stands: the feet's bottom row in the cell (measured over the
+# default body's feet kit, idle and walk), on the anchor column. The client
+# puts this pixel on the actor's tile position.
+GROUND = (HALF_W // F, 78)
+# One set of light thresholds for EVERY humanoid layer ever generated, so a
+# layer rendered today composites with one rendered last month. Taken from the
+# pooled light of the tuned example run (inflate 4); see shared_cuts().
+LIGHT_CUTS = {2: np.array([0.53]), 3: np.array([0.48, 0.79])}
 
 # The client's design recolours (engine/entity_model_build.c, reference
 # ClientPlayer.recol1d / recol2d): index 0 is the identity colour the kit
@@ -259,7 +267,8 @@ def encode_layer(prep, cuts):
 
 
 def shared_cuts(pool):
-    """One set of light thresholds for every layer of every humanoid."""
+    """Light thresholds from a pool of layers -- how LIGHT_CUTS was measured.
+    Generation uses LIGHT_CUTS, not this, so separate runs agree."""
     vals = np.concatenate(pool)
     return {2: np.quantile(vals, ps.CUTS[2]), 3: np.quantile(vals, ps.CUTS[3])}
 
@@ -426,6 +435,39 @@ def look(kits, objs):
 
 # ---------------------------------------------------------------- example
 
+def generate(layer_seqs, raw, store_root):
+    """Render, stylise and store player layers: {"kit:18": [808, 819], ...}.
+
+    What the generator runs for a region or for io_server's misses. Renders
+    only what is not already on disk under `raw`."""
+    from store import Store, layer_key
+    preps = {}
+    for L, seqs in layer_seqs.items():
+        for seq in seqs:
+            for fname, yaw in FACINGS:
+                d = os.path.join(raw, L.replace(":", "_"), str(seq), fname)
+                if not os.path.exists(os.path.join(d, "faces.txt")):
+                    render(L, seq, yaw, d)
+        clips = {(str(seq), fname): load_frames(os.path.join(raw, L.replace(":", "_"), str(seq),
+                                                             fname))
+                 for seq in seqs for fname, _ in FACINGS}
+        kind, ident = L.split(":")
+        head_kit = kind == "kit" and idk_bodypart(int(ident)) in (0, 1)
+        preps[L], _ = prepare_layer(L, clips, head_kit)
+    st = Store(store_root)
+    n = 0
+    for L, seqs in layer_seqs.items():
+        enc = encode_layer(preps[L], LIGHT_CUTS)
+        kind, ident = L.split(":")
+        for seq in seqs:
+            rows = [enc[(str(seq), fname)][0] for fname, _ in FACINGS]
+            st.write_layer(layer_key(kind, int(ident), seq), rows, enc[(str(seq), "down")][1],
+                           preps[L]["table"])
+            n += 1
+    st.close()
+    return n
+
+
 def checker(w, h, s=4):
     bg = Image.new("RGBA", (w, h), (236, 236, 240, 255))
     d = ImageDraw.Draw(bg)
@@ -477,8 +519,9 @@ def main():
         head_kit = L.startswith("kit:") and idk_bodypart(int(L[4:])) in (0, 1)
         preps[L], p = prepare_layer(L, clips, head_kit)
         pool += p
-    cuts = shared_cuts(pool)
-    print("shared light cuts:", {k: np.round(v, 3).tolist() for k, v in cuts.items()})
+    cuts = LIGHT_CUTS
+    print("pooled light cuts this run (LIGHT_CUTS is what is used):",
+          {k: np.round(v, 3).tolist() for k, v in shared_cuts(pool).items()})
     enc = {L: encode_layer(preps[L], cuts) for L in layers}
     tables = {L: preps[L]["table"] for L in layers}
 

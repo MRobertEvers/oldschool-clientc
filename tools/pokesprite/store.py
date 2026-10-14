@@ -73,8 +73,8 @@ class Store:
         """rows: per facing, encoded layer frames (R material, G band, B depth,
         A coverage); table: layers.py material dicts. Origin and ground are the
         humanoid cell's, the same for every layer."""
-        from layers import ORIGIN
-        self._write(key, "layer", encode(KIND_LAYER, rows, durations, ORIGIN, ORIGIN, table))
+        from layers import GROUND, ORIGIN
+        self._write(key, "layer", encode(KIND_LAYER, rows, durations, ORIGIN, GROUND, table))
 
 
 def encode(kind, rows, durations, origin, ground, table):
