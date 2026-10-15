@@ -1101,6 +1101,9 @@ try {
         if (-not $env:TORIRSSERVER_CACHE -and $cacheDir) { $mockEnv['TORIRSSERVER_CACHE'] = Resolve-CachePath $cacheDir }
         if (-not $env:TORIRSSERVER_SCRIPTS -and $serverScripts) { $mockEnv['TORIRSSERVER_SCRIPTS'] = Resolve-CachePath $serverScripts }
         $mockEnv['TORIRSSERVER_REV'] = $clientRev
+        # A development lane: any password logs in. A caller testing the
+        # password check itself sets TORIRSSERVER_DEV=0.
+        if (-not $env:TORIRSSERVER_DEV) { $mockEnv['TORIRSSERVER_DEV'] = '1' }
 
         $mockProc = Start-BackgroundProcess -FilePath $mockBin -WorkingDirectory $repo -Environment $mockEnv `
             -ArgumentList @("$webGamePort", '--rev', $clientRev)

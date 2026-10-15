@@ -12,8 +12,13 @@
  *
  *   torirsserver                 checks
  *   torirsserver --dev           does not (also TORIRSSERVER_DEV=1)
- *   dev_torirsserver             does not (TORIRSSERVER_DEV=0 turns it on)
+ *   dev_/alt_/bank_torirsserver  do not (TORIRSSERVER_DEV=0 turns it on)
  *   the in-client embedded world does not; it serves one local player
+ *
+ * Every local runner starts its server in development mode: ./launch
+ * (profile `dev=0` to check), run-live.sh/.ps1, run-runelite.sh and
+ * profile-mac.sh (TORIRSSERVER_DEV=0 to check). Only the deploy package
+ * (tools/deploy) runs the plain binary as it is.
  *
  * The record lives beside the character, keyed by the same sanitised name
  * (ToriRSServer_AccountPath):

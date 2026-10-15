@@ -110,6 +110,11 @@ def _build_torirsserver(config, context):
     rev = config.get("rev") or context["manifest"].rev
     if rev:
         argv += ["--rev", rev]
+    # A launcher profile is a local run, so development mode: any password
+    # logs in (src/torirsserver/torirs_server_auth.h). A profile testing the
+    # check itself says `dev=0`.
+    if str(config.get("dev", "1")).strip().lower() not in ("0", "no", "off", "false"):
+        argv.append("--dev")
     return Service(
         name="torirsserver",
         argv=argv,

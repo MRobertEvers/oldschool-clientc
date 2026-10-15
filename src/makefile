@@ -5004,7 +5004,7 @@ torirsserver-alt: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tomm
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/lua_unity.o \
 		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o
-	$(CC) $(CFLAGS) -I$(LUA_DIR) $(RSPROT_INCLUDES) -DTORIRSSERVER_DEFAULT_PORT=43599 -o $(OBJ_DIR)/alt_torirsserver $(TORIRSSERVER_SRCS) \
+	$(CC) $(CFLAGS) -I$(LUA_DIR) $(RSPROT_INCLUDES) -DTORIRSSERVER_DEFAULT_PORT=43599 -DTORIRSSERVER_DEFAULT_DEV=1 -o $(OBJ_DIR)/alt_torirsserver $(TORIRSSERVER_SRCS) \
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/lua_unity.o \
@@ -5026,7 +5026,7 @@ torirsserver-bank: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tom
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/lua_unity.o \
 		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o
-	$(CC) $(CFLAGS) -I$(LUA_DIR) $(RSPROT_INCLUDES) -DTORIRSSERVER_DEFAULT_PORT=43601 -o $(OBJ_DIR)/bank_torirsserver $(TORIRSSERVER_SRCS) \
+	$(CC) $(CFLAGS) -I$(LUA_DIR) $(RSPROT_INCLUDES) -DTORIRSSERVER_DEFAULT_PORT=43601 -DTORIRSSERVER_DEFAULT_DEV=1 -o $(OBJ_DIR)/bank_torirsserver $(TORIRSSERVER_SRCS) \
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/lua_unity.o \

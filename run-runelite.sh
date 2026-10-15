@@ -537,6 +537,7 @@ start_server() {
     nohup env TORIRSSERVER_CACHE="$CACHE_DIR" \
         ${SERVER_SCRIPTS:+TORIRSSERVER_SCRIPTS="$SERVER_SCRIPTS"} \
         TORIRSSERVER_REV=osrs239 TORIRSSERVER_VERBOSE=1 \
+        TORIRSSERVER_DEV="${TORIRSSERVER_DEV:-1}" \
         TORIRSSERVER_JS5_REV="${CLIENT_VERSION:-239}" TORIRSSERVER_JS5_CACHE="$CACHE_DIR" \
         "$bin" "$GAME_PORT" --rev osrs239 \
         > "$(logfile server)" 2>&1 < /dev/null &

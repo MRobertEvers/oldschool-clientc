@@ -4760,7 +4760,7 @@ struct ToriRSServer
      * (torirs_server_auth.h). Zero at construction, so the in-client embedded
      * world, the selftest and the bot runs never check; torirs_server_main.c
      * turns it on for a socket server not in development mode
-     * (`--dev`, TORIRSSERVER_DEV, the dev_torirsserver build).
+     * (`--dev`, TORIRSSERVER_DEV, the dev_/alt_/bank_torirsserver builds).
      */
     int check_passwords;
 

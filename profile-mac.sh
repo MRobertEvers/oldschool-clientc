@@ -73,7 +73,8 @@ else
            ! lsof -i ":${PORT:-43594}" >/dev/null 2>&1; then
             echo "profile-mac.sh: starting src/build/torirsserver on ${PORT:-43594}"
             make -C src ToriRSServer >/dev/null
-            src/build/torirsserver "${PORT:-43594}" > "$OUT.mock.log" 2>&1 &
+            TORIRSSERVER_DEV="${TORIRSSERVER_DEV:-1}" \
+                src/build/torirsserver "${PORT:-43594}" > "$OUT.mock.log" 2>&1 &
             MOCK_PID=$!
             trap 'kill $MOCK_PID 2>/dev/null || true' EXIT
             sleep 1

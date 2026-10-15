@@ -72,8 +72,8 @@
 #endif
 
 /* Development mode -- logins skip the password check -- unless asked
- * otherwise. The `torirsserver-dev` build defines it to 1; a world others log
- * into is the default binary, which checks. */
+ * otherwise. The `torirsserver-dev`, `-alt` and `-bank` builds define it to 1;
+ * a world others log into is the default binary, which checks. */
 #ifndef TORIRSSERVER_DEFAULT_DEV
 #define TORIRSSERVER_DEFAULT_DEV 0
 #endif
