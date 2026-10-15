@@ -2059,8 +2059,21 @@ LaunchSessions_SystemSpawner(void)
 int64_t
 LaunchSessions_MonotonicMs(void* context)
 {
+    LARGE_INTEGER frequency;
+    LARGE_INTEGER counter;
+    int64_t whole;
+    int64_t remainder;
+
     (void)context;
-    return (int64_t)GetTickCount64();
+    /* Not GetTickCount64: it is Vista's, and the win32 lane targets XP. QPC
+     * succeeds on XP and later and keeps no state, so the launch service may
+     * read it from any thread. Split before scaling, as qpc_now_ms does, so a
+     * long uptime cannot overflow counter * 1000. */
+    QueryPerformanceFrequency(&frequency);
+    QueryPerformanceCounter(&counter);
+    whole = counter.QuadPart / frequency.QuadPart;
+    remainder = counter.QuadPart % frequency.QuadPart;
+    return whole * 1000 + remainder * 1000 / frequency.QuadPart;
 }
 
 int
