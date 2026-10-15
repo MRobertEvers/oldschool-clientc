@@ -53,6 +53,7 @@ enum
     SCRIPTRUN_OBJS = 512,
     SCRIPTRUN_MOUNTS = 64,
     SCRIPTRUN_SETTEXTS = 256,
+    SCRIPTRUN_SETHIDES = 1024,
     SCRIPTRUN_SCRIPT_ARGS = 32,
     /* Client logic cycles per server tick: the unit World and the drive's
      * tick() count in (src/app.h APP_SERVER_TICK_LOGIC_CYCLES). */
@@ -174,6 +175,15 @@ struct ScriptrunSetText
     char text[SCRIPTRUN_TEXT];
 };
 
+/* The last IF_SETHIDE the server sent for a component of an open group. The
+ * client keeps that flag on the component instance, so a group's entries die
+ * with it: a close, or a fresh open of the same group, forgets them. */
+struct ScriptrunSetHide
+{
+    int component;
+    int hidden;
+};
+
 struct ScriptrunScriptCall
 {
     int script_id;
@@ -231,6 +241,8 @@ struct ScriptrunCore
     int mount_count;
     struct ScriptrunSetText settexts[SCRIPTRUN_SETTEXTS];
     int settext_count;
+    struct ScriptrunSetHide sethides[SCRIPTRUN_SETHIDES];
+    int sethide_count;
     struct ScriptrunScriptCall last_script;
     int script_serial;
 
@@ -427,6 +439,15 @@ ScriptrunCore_InterfaceOpen(
 /** The text last set on `component`, or NULL. */
 char const*
 ScriptrunCore_Text(
+    struct ScriptrunCore const* core,
+    int component);
+
+/** 1 when the server's last IF_SETHIDE for `component` (since its group was
+ *  opened) hid it, 0 when it showed it, -1 when it sent none. The cache's own
+ *  `hidden` flag and a hidden parent layer are not modelled: -1 is "no
+ *  packet said", not "shown". */
+int
+ScriptrunCore_SetHide(
     struct ScriptrunCore const* core,
     int component);
 

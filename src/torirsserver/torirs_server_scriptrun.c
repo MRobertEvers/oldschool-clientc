@@ -2374,9 +2374,13 @@ d_widget_presented(lua_State* L)
     struct ScriptBot* bot = bot_of(L);
     int component = (int)luaL_checkinteger(L, 1);
 
+    /* An IF_SETHIDE the server sent counts, as on the client; the cache's
+     * own hidden flag and a hidden parent layer are not modelled here
+     * (ScriptrunCore_SetHide). */
     lua_pushstring(L, "ok");
     lua_pushboolean(L, ScriptrunCore_InterfaceOpen(bot->core, (component >> 16) & 0xffff) &&
-                           panel_showing(bot, component));
+                           panel_showing(bot, component) &&
+                           ScriptrunCore_SetHide(bot->core, component) != 1);
     return 2;
 }
 

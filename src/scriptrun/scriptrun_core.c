@@ -405,6 +405,20 @@ player_ensure_now(struct PlayerApply* self)
     }
 }
 
+/* A group's instance was replaced or closed: its IF_SETHIDE flags go with it
+ * (the client reloads the cache's components on every open). */
+static void
+core_forget_hides(
+    struct ScriptrunCore* core,
+    int group)
+{
+    int kept = 0;
+    for( int i = 0; i < core->sethide_count; i++ )
+        if( ((core->sethides[i].component >> 16) & 0xffff) != group )
+            core->sethides[kept++] = core->sethides[i];
+    core->sethide_count = kept;
+}
+
 static void
 core_message(
     struct ScriptrunCore* core,
@@ -1613,6 +1627,7 @@ core_packet(
     case PKT_NAME_IF_OPENTOP:
         core->resume_pending = -1;
         core->toplevel = packet._if_opentop.interface_id;
+        core->sethide_count = 0;
         core->mount_count = 0;
         break;
     case PKT_NAME_IF_OPENSUB:
@@ -1625,6 +1640,7 @@ core_packet(
                 break;
         if( i == core->mount_count && core->mount_count < SCRIPTRUN_MOUNTS )
             core->mount_count++;
+        core_forget_hides(core, packet._if_opensub.interface_id);
         if( i < core->mount_count )
         {
             core->mounts[i].target_uid = target;
@@ -1647,6 +1663,7 @@ core_packet(
             {
                 ScriptrunCore_Event(core, SCRIPTRUN_EV_SUB_CLOSED, packet._if_closesub.target_uid,
                                     core->mounts[i].interface_id, 0, 0);
+                core_forget_hides(core, core->mounts[i].interface_id);
                 core->mounts[i] = core->mounts[--core->mount_count];
                 break;
             }
@@ -1667,6 +1684,22 @@ core_packet(
             snprintf(core->settexts[i].text, sizeof(core->settexts[i].text), "%s",
                      packet._if_settext.text ? packet._if_settext.text : "");
         }
+        break;
+    }
+    case PKT_NAME_IF_SETHIDE:
+    {
+        int comp = packet._if_sethide.component_id;
+        int i;
+        for( i = 0; i < core->sethide_count; i++ )
+            if( core->sethides[i].component == comp )
+                break;
+        if( i == core->sethide_count )
+        {
+            assert(core->sethide_count < SCRIPTRUN_SETHIDES);
+            core->sethide_count++;
+        }
+        core->sethides[i].component = comp;
+        core->sethides[i].hidden = packet._if_sethide.hide ? 1 : 0;
         break;
     }
     case PKT_NAME_RUNCLIENTSCRIPT:
@@ -1773,4 +1806,16 @@ ScriptrunCore_Text(
         if( core->settexts[i].component == component )
             return core->settexts[i].text;
     return NULL;
+}
+
+int
+ScriptrunCore_SetHide(
+    struct ScriptrunCore const* core,
+    int component)
+{
+    assert(core);
+    for( int i = 0; i < core->sethide_count; i++ )
+        if( core->sethides[i].component == component )
+            return core->sethides[i].hidden;
+    return -1;
 }
