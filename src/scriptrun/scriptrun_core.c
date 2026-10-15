@@ -553,7 +553,7 @@ player_apply_op(
             struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, idx);
             core_message(core, RS_CHAT_TYPE_PUBLIC, player && player->name[0] ? player->name : "Player",
                          op->_say.text);
-            ScriptrunCore_Event(core, SCRIPTRUN_EV_CHAT_MESSAGE, core->message_serial, RS_CHAT_TYPE_PUBLIC, 0, 0);
+            ScriptrunCore_Event(core, SCRIPTRUN_EV_CHAT_MESSAGE, RS_CHAT_TYPE_PUBLIC, core->message_serial, 0, 0);
             World_PlayerSetChat(world, idx, op->_say.text, 0, 0);
         }
         break;
@@ -572,7 +572,7 @@ player_apply_op(
             {
                 struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, idx);
                 core_message(core, RS_CHAT_TYPE_PUBLIC, player && player->name[0] ? player->name : "Player", text);
-                ScriptrunCore_Event(core, SCRIPTRUN_EV_CHAT_MESSAGE, core->message_serial, RS_CHAT_TYPE_PUBLIC, 0,
+                ScriptrunCore_Event(core, SCRIPTRUN_EV_CHAT_MESSAGE, RS_CHAT_TYPE_PUBLIC, core->message_serial, 0,
                                     0);
                 World_PlayerSetChat(world, idx, text, op->_chat.colour_effect >> 8, op->_chat.colour_effect & 0xff);
                 ToriMem_Free(ToriMem_Net(), text); /* wordpack_unpack's */
@@ -1621,8 +1621,10 @@ core_packet(
     case PKT_NAME_MESSAGE_GAME:
         core_message(core, packet._message_game.type, packet._message_game.name,
                      packet._message_game.text);
-        ScriptrunCore_Event(core, SCRIPTRUN_EV_CHAT_MESSAGE, core->message_serial,
-                            packet._message_game.type, 0, 0);
+        /* a = type, b = serial: the client's DRIVE_STAMP (rs_chat.c
+         * RS_Chat_AddMessage), which QD.player._line_by_serial reads. */
+        ScriptrunCore_Event(core, SCRIPTRUN_EV_CHAT_MESSAGE, packet._message_game.type,
+                            core->message_serial, 0, 0);
         break;
     case PKT_NAME_IF_OPENTOP:
         core->resume_pending = -1;

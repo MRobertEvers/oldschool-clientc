@@ -675,6 +675,22 @@ ScriptrunCore_LocChange(
     }
 }
 
+int
+ScriptrunCore_LocResolvedId(
+    struct ScriptrunCore const* core,
+    int loc_id)
+{
+    struct ToriRS_Location* base;
+    struct ToriRS_Location* resolved;
+
+    assert(core);
+    base = loc_config(loc_id);
+    if( !base )
+        return loc_id;
+    resolved = resolve_loc(core, base);
+    return resolved ? resolved->id : -1;
+}
+
 char const*
 ScriptrunCore_LocOpName(
     struct ScriptrunCore const* core,

@@ -139,6 +139,12 @@ struct ScriptBot
     int exit_code;
     int rows, pass, fail;
     int errored;
+    /* The backpack cell whose "Use" row is armed (the client's objsel): a
+     * use-on press sends it as the selected item. Any other press drops it,
+     * as a click elsewhere does on the client. armed_slot -1: none. */
+    int armed_com;
+    int armed_slot;
+    int armed_obj;
 };
 
 struct ScriptRun
@@ -1370,7 +1376,7 @@ d_locs(lua_State* L)
         lua_newtable(L);
         lua_pushinteger(L, l->loc_id);
         lua_setfield(L, -2, "loc_id");
-        lua_pushinteger(L, l->loc_id);
+        lua_pushinteger(L, ScriptrunCore_LocResolvedId(c, l->loc_id));
         lua_setfield(L, -2, "resolved_loc_id");
         lua_pushinteger(L, l->x);
         lua_setfield(L, -2, "x");
@@ -1394,8 +1400,8 @@ d_locs(lua_State* L)
 }
 
 /* api_drive.locs_of(radius, ids): d_locs's rows, in its order, kept only
- * where the loc id is one of `ids` (the client's lua_drive_locs_of also
- * keeps a resolved_loc_id match; here the two are the same id). */
+ * where the loc id or its resolved multiloc child is one of `ids`, as the
+ * client's lua_drive_locs_of keeps them. */
 static int
 d_locs_of(lua_State* L)
 {
@@ -1438,15 +1444,16 @@ d_locs_of(lua_State* L)
     {
         int i = order[k].idx, j;
         struct ScriptrunLoc const* l = &c->locs[i];
+        int resolved = ScriptrunCore_LocResolvedId(c, l->loc_id);
         for( j = 0; j < n_ids; j++ )
-            if( l->loc_id == ids[j] )
+            if( l->loc_id == ids[j] || resolved == ids[j] )
                 break;
         if( j == n_ids )
             continue;
         lua_newtable(L);
         lua_pushinteger(L, l->loc_id);
         lua_setfield(L, -2, "loc_id");
-        lua_pushinteger(L, l->loc_id);
+        lua_pushinteger(L, ScriptrunCore_LocResolvedId(c, l->loc_id));
         lua_setfield(L, -2, "resolved_loc_id");
         lua_pushinteger(L, l->x);
         lua_setfield(L, -2, "x");
@@ -1570,6 +1577,78 @@ push_press(
     return 2;
 }
 
+/* The nearest perceived npc of a content type (base or live rung), or the
+ * pinned element: the copy a player would click. NULL: none in view. */
+static struct WorldEntity_NPC const*
+pick_npc(
+    struct ScriptrunCore* c,
+    int type_id,
+    int want_element,
+    int px,
+    int pz,
+    int plevel)
+{
+    struct World_EntityPool* pool = &c->world->entities.npc;
+    struct WorldEntity_NPC const* best = NULL;
+    int best_d = 1 << 30;
+    int best_tx = 0, best_tz = 0;
+
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_NPC const* npc = World_EntityPoolGet(pool, i);
+        int tx, tz, d;
+        if( !npc || npc->server_slot < 0 || (npc->npc_id != type_id && npc->base_npc_id != type_id) )
+            continue;
+        if( want_element >= 0 && npc->element_id != want_element )
+            continue;
+        tx = c->world->_base_tile_x + npc->grid_position.x;
+        tz = c->world->_base_tile_z + npc->grid_position.z;
+        d = DrivePick_Distance(tx, tz, npc->grid_position.level, px, pz, plevel);
+        if( DrivePick_Better(best != NULL, d, tx, tz, npc->server_slot, best_d, best_tx, best_tz,
+                             best ? best->server_slot : 0) )
+        {
+            best_d = d;
+            best_tx = tx;
+            best_tz = tz;
+            best = npc;
+        }
+    }
+    return best;
+}
+
+/* The nearest perceived loc of a type, or the pinned copy (d_locs'
+ * element_id: the list slot + 1). Another floor's copy only when this floor
+ * has none (a loc's level is its cache level: a bridge's differs). */
+static struct ScriptrunLoc const*
+pick_loc(
+    struct ScriptrunCore* c,
+    int type_id,
+    int want_element,
+    int px,
+    int pz,
+    int plevel)
+{
+    struct ScriptrunLoc const* best = NULL;
+    int best_d = 1 << 30;
+
+    for( int i = 0; i < c->loc_count; i++ )
+    {
+        struct ScriptrunLoc const* l = &c->locs[i];
+        int d;
+        if( l->loc_id != type_id )
+            continue;
+        if( want_element > 0 && i + 1 != want_element )
+            continue;
+        d = DrivePick_Distance(l->x, l->z, l->level, px, pz, plevel);
+        if( DrivePick_Better(best != NULL, d, l->x, l->z, 0, best_d, best ? best->x : 0, best ? best->z : 0, 0) )
+        {
+            best_d = d;
+            best = l;
+        }
+    }
+    return best;
+}
+
 /* world_op(kind, type_id, option [, element_id]): the client's
  * DrivePointer_WorldOp -- the op on an instance of a CONTENT TYPE, `no_row`
  * when its config offers no such op -- sent as the packet the row sends.
@@ -1655,31 +1734,9 @@ d_world_op(lua_State* L)
 
     if( strcmp(kind, "npc") == 0 )
     {
-        struct World_EntityPool* pool = &c->world->entities.npc;
-        struct WorldEntity_NPC const* best = NULL;
-        int best_d = 1 << 30;
-        int best_tx = 0, best_tz = 0;
+        struct WorldEntity_NPC const* best = pick_npc(c, type_id, want_element, px, pz, plevel);
         const struct ToriRSServerNpcInfo* info;
-        for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
-        {
-            struct WorldEntity_NPC const* npc = World_EntityPoolGet(pool, i);
-            int tx, tz, d;
-            if( !npc || npc->server_slot < 0 || (npc->npc_id != type_id && npc->base_npc_id != type_id) )
-                continue;
-            if( want_element >= 0 && npc->element_id != want_element )
-                continue;
-            tx = c->world->_base_tile_x + npc->grid_position.x;
-            tz = c->world->_base_tile_z + npc->grid_position.z;
-            d = DrivePick_Distance(tx, tz, npc->grid_position.level, px, pz, plevel);
-            if( DrivePick_Better(best != NULL, d, tx, tz, npc->server_slot, best_d, best_tx, best_tz,
-                                 best ? best->server_slot : 0) )
-            {
-                best_d = d;
-                best_tx = tx;
-                best_tz = tz;
-                best = npc;
-            }
-        }
+        bot->armed_slot = -1;
         if( !best )
             return push_result(L, "not_found", want_element >= 0 ? "that npc copy is not in view"
                                                                   : "no such npc in view");
@@ -1695,27 +1752,9 @@ d_world_op(lua_State* L)
     }
     if( strcmp(kind, "loc") == 0 )
     {
-        struct ScriptrunLoc const* best = NULL;
-        int best_d = 1 << 30;
+        struct ScriptrunLoc const* best = pick_loc(c, type_id, want_element, px, pz, plevel);
         char const* row;
-        for( int i = 0; i < c->loc_count; i++ )
-        {
-            struct ScriptrunLoc const* l = &c->locs[i];
-            int d;
-            if( l->loc_id != type_id )
-                continue;
-            /* a pinned copy (d_locs' element_id: the list slot + 1) */
-            if( want_element > 0 && i + 1 != want_element )
-                continue;
-            /* Another floor's copy only when this floor has none (a loc's
-             * level is its cache level: a bridge's differs). */
-            d = DrivePick_Distance(l->x, l->z, l->level, px, pz, plevel);
-            if( DrivePick_Better(best != NULL, d, l->x, l->z, 0, best_d, best ? best->x : 0, best ? best->z : 0, 0) )
-            {
-                best_d = d;
-                best = l;
-            }
-        }
+        bot->armed_slot = -1;
         if( !best )
             return push_result(L, "not_found", "no such loc in view");
         row = ScriptrunCore_LocOpName(c, best->loc_id, op);
@@ -1759,6 +1798,62 @@ d_world_op(lua_State* L)
     return luaL_error(L, "drive.world_op: unknown kind '%s'", kind);
 }
 
+/* world_use(kind, type_id [, element_id]): the armed backpack item used on
+ * the nearest (or pinned) copy of a content type -- the client's held-item
+ * row, which collapses the target's menu to one "Use <item> -> <target>" row
+ * (add_world_select_row) and leaves as OPLOCU / OPNPCU with the selected
+ * cell in the tail (mock239_inbound.c put_useon_tail). The selection is
+ * spent by the press, as the client's is. */
+static int
+d_world_use(lua_State* L)
+{
+    struct ScriptBot* bot = bot_of(L);
+    struct ScriptrunCore* c = bot->core;
+    char const* kind = luaL_checkstring(L, 1);
+    int type_id = (int)luaL_checkinteger(L, 2);
+    int want_element = (int)luaL_optinteger(L, 3, -1);
+    int px = 0, pz = 0, plevel = 0;
+    uint8_t payload[12];
+
+    if( bot->armed_slot < 0 )
+        return push_result(L, "refused", "no item is armed");
+    if( !ScriptrunCore_LocalTile(c, &px, &pz, &plevel) )
+        return push_result(L, "not_found", "not placed yet");
+    if( strcmp(kind, "loc") == 0 )
+    {
+        struct ScriptrunLoc const* best = pick_loc(c, type_id, want_element, px, pz, plevel);
+        if( !best )
+            return push_result(L, "not_found", "no such loc in view");
+        put2(payload, best->x);
+        put2(payload + 2, best->z);
+        put2(payload + 4, best->loc_id);
+        put2(payload + 6, bot->armed_obj);
+        put2(payload + 8, bot->armed_slot);
+        put2(payload + 10, bot->armed_com & 0xffff);
+        bot->armed_slot = -1;
+        handle(bot, PKTOUT_NAME_OPLOCU, payload, 12);
+    }
+    else if( strcmp(kind, "npc") == 0 )
+    {
+        struct WorldEntity_NPC const* best = pick_npc(c, type_id, want_element, px, pz, plevel);
+        if( !best )
+            return push_result(L, "not_found", "no such npc in view");
+        put2(payload, best->server_slot);
+        put2(payload + 2, bot->armed_obj);
+        put2(payload + 4, bot->armed_slot);
+        put2(payload + 6, bot->armed_com & 0xffff);
+        bot->armed_slot = -1;
+        handle(bot, PKTOUT_NAME_OPNPCU, payload, 8);
+    }
+    else
+        return luaL_error(L, "drive.world_use: kind '%s' has no use-on here", kind);
+    /* row_action: the press took the held-item row (QD.player._select_row_is_held). */
+    push_press(L, "Use", -1);
+    lua_pushstring(L, "use");
+    lua_setfield(L, -2, "row_action");
+    return 2;
+}
+
 /* IF_BUTTONX: g4 component, g2 sub, g2 obj, g1 op (mock239_if_button_decode). */
 static void
 send_if_buttonx(
@@ -1777,6 +1872,26 @@ send_if_buttonx(
     handle(bot, PKTOUT_NAME_IF_BUTTONX, payload, 9);
 }
 
+/* Arm a backpack cell's "Use" row. Idempotent for the cell already armed,
+ * as DrivePointer_InvArm is: nothing is sent either way. */
+static int
+arm_cell(
+    lua_State* L,
+    struct ScriptBot* bot,
+    int component,
+    int slot,
+    int obj)
+{
+    if( !panel_showing(bot, component) )
+        return push_result(L, "refused", "the node or an ancestor of it is display-hidden");
+    if( bot->armed_slot == slot && bot->armed_com == component && bot->armed_obj == obj )
+        return push_result(L, "ok", "already armed, nothing sent");
+    bot->armed_com = component;
+    bot->armed_slot = slot;
+    bot->armed_obj = obj;
+    return push_result(L, "ok", "armed");
+}
+
 /* A backpack cell's held op: OPHELD1..5 go out as the rev-239 backpack's
  * IF_BUTTONX ops 2, 3, 4, 6, 7 (mock239_if_button_backpack_op). */
 static int
@@ -1789,12 +1904,52 @@ d_inv_op(lua_State* L)
     int option = (int)luaL_checkinteger(L, 5);
     static int const IF_OP[6] = { 0, 2, 3, 4, 6, 7 };
 
+    if( option == -1 )
+        return arm_cell(L, bot, component, slot, obj);
     if( option < 1 || option > 5 )
         return push_result(L, "refused", "held op out of range");
     if( !panel_showing(bot, component) )
         return push_result(L, "refused", "the node or an ancestor of it is display-hidden");
+    bot->armed_slot = -1;
     send_if_buttonx(bot, component, slot, obj, IF_OP[option]);
     return push_result(L, "ok", "held op sent");
+}
+
+/* api_drive.inv_arm(component, slot, obj, count): the cell's "Use" row,
+ * which sends nothing -- the client only remembers the selection. */
+static int
+d_inv_arm(lua_State* L)
+{
+    struct ScriptBot* bot = bot_of(L);
+    return arm_cell(L, bot, (int)luaL_checkinteger(L, 1), (int)luaL_checkinteger(L, 2),
+                    (int)luaL_checkinteger(L, 3));
+}
+
+/* api_drive.inv_use_on(component, slot, obj, count): the armed item used on
+ * this cell -- OPHELDU's canonical body, target then selection
+ * (mock239_inbound.c's IF_BUTTONT translation, handle_opheldu). */
+static int
+d_inv_use_on(lua_State* L)
+{
+    struct ScriptBot* bot = bot_of(L);
+    int component = (int)luaL_checkinteger(L, 1);
+    int slot = (int)luaL_checkinteger(L, 2);
+    int obj = (int)luaL_checkinteger(L, 3);
+    uint8_t payload[16];
+
+    if( bot->armed_slot < 0 )
+        return push_result(L, "refused", "no item is armed");
+    if( !panel_showing(bot, component) )
+        return push_result(L, "refused", "the node or an ancestor of it is display-hidden");
+    put2(payload, obj);
+    put2(payload + 2, slot);
+    put4(payload + 4, component);
+    put2(payload + 8, bot->armed_obj);
+    put2(payload + 10, bot->armed_slot);
+    put4(payload + 12, bot->armed_com);
+    bot->armed_slot = -1;
+    handle(bot, PKTOUT_NAME_OPHELDU, payload, 16);
+    return push_result(L, "ok", "use-on sent");
 }
 
 static int
@@ -1810,6 +1965,7 @@ d_if_click(lua_State* L)
         return push_result(L, "refused", "op out of range");
     if( !panel_showing(bot, component) )
         return push_result(L, "refused", "the node or an ancestor of it is display-hidden");
+    bot->armed_slot = -1;
     send_if_buttonx(bot, component, sub >= 0 ? sub : 0xffff, 0xffff, op);
     return push_result(L, "ok", "button sent");
 }
@@ -2680,7 +2836,7 @@ d_noop(lua_State* L)
 static char const* const CLIENT_VERBS[] = {
     "action_for_slot", "aplan", "bloat_first_bad", "botdrive", "camera", "camera_events", "camera_pose", "camera_state",
     "camera_turn_release", "camera_turn_toward", "click_armed", "events", "forget_varps",
-    "inv_arm", "inv_cast", "inv_use_on", "launch_answer", "launch_close",
+    "inv_cast", "launch_answer", "launch_close",
     "launch_command", "launch_open", "launch_spawn", "launch_status", "loc_copies",
     "loc_variants", "locs_of", "meet_rank", "menu_rect", "menu_row_find", "menu_rows", "menu_visible", "meslayer_mode",
     "modal_group", "modal_live", "model_points", "model_pose", "mouse_button", "mouse_move",
@@ -2755,6 +2911,9 @@ push_drive_table(
     bind(L, bot, "message_serial", d_message_serial);
     bind(L, bot, "move_to", d_move_to);
     bind(L, bot, "world_op", d_world_op);
+    bind(L, bot, "world_use", d_world_use);
+    bind(L, bot, "inv_arm", d_inv_arm);
+    bind(L, bot, "inv_use_on", d_inv_use_on);
     bind(L, bot, "cast_npc", d_cast_npc);
     bind(L, bot, "inv_op", d_inv_op);
     bind(L, bot, "if_click", d_if_click);
@@ -3714,6 +3873,7 @@ ToriRSServer_ScriptRun(
         bot->run = &run;
         bot->index = i;
         bot->tab = SCRIPTRUN_TAB_INVENTORY;
+        bot->armed_slot = -1;
         bot->core = ScriptrunCore_New(run.rev);
         bot->core->cache_disk = run.cache_disk;
         run.count = i + 1;

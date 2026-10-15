@@ -1327,10 +1327,18 @@ function QD.drive.click_minimenu(target, option, deadline, before_retry, single)
     -- SCRIPTRUN (torirsserver --scriptrun): there is no screen to project onto
     -- and no menu to read. The runner sends the op the row would have sent, on
     -- the nearest perceived instance of the target's type -- the one a player
-    -- would click. A held-item use and Examine need the client's menu.
+    -- would click. A held-item use is the armed cell used on that copy
+    -- (api_drive.world_use); Examine needs the client's menu.
     if api_drive.scriptrun == true then
-        if option == "select" or option == "examine" then
-            return "unsupported", "click_minimenu: " .. tostring(option) .. " needs a client"
+        if option == "examine" then
+            return "unsupported", "click_minimenu: examine needs a client"
+        end
+        if option == "select" then
+            -- A scriptrun binary built before world_use answers as it did then.
+            if api_drive.world_use == nil then
+                return "unsupported", "click_minimenu: select needs a client (this binary predates world_use)"
+            end
+            return api_drive.world_use(target.kind, target.id, target.reach_element)
         end
         return api_drive.world_op(target.kind, target.id, option, target.reach_element)
     end

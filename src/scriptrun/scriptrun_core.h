@@ -392,6 +392,14 @@ ScriptrunCore_CollisionFlags(
     int abs_x,
     int abs_z);
 
+/** The loc a placement shows now: a multiloc's child as the bot's own
+ *  varps select it (the client's DriveLocRow.resolved_loc_id), the id
+ *  itself for a plain loc, -1 when the rung selects none. */
+int
+ScriptrunCore_LocResolvedId(
+    struct ScriptrunCore const* core,
+    int loc_id);
+
 /**
  * The menu text of a loc's op (1-based) on the rung this bot's varps select,
  * or NULL when that rung offers no such op (scriptrun_collision.c).
