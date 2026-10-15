@@ -825,6 +825,9 @@ start_torirsserver() {
             export TORIRSSERVER_SCRIPTS="$SERVER_SCRIPTS"
         fi
         export TORIRSSERVER_REV="$CLIENT_REV"
+        # A development lane: any password logs in. A caller testing the
+        # password check itself sets TORIRSSERVER_DEV=0.
+        export TORIRSSERVER_DEV="${TORIRSSERVER_DEV:-1}"
         exec "$MOCK_BIN" "$MOCK_PORT" --rev "$CLIENT_REV"
     ) &
     MOCK_PID=$!

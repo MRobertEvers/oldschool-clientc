@@ -18,6 +18,7 @@
 #include <xteas.h>
 
 #include "torirs_server.h"
+#include "torirs_server_auth.h"
 
 #include "net/isaac.h"
 #include "net/rev/osrs230/packetout.h"
@@ -558,6 +559,7 @@ step_login(
     int body_len = 0;
     uint8_t ok = 2;
 
+    assert(srv);
     if( session->in_len < 3 )
         return 0;
     /*
@@ -752,7 +754,38 @@ step_login(
         rsab_gjstr(&in, user, sizeof(user), RSAB_JSTR_NUL);
         rsab_gjstr(&in, pass, sizeof(pass), RSAB_JSTR_NUL);
     }
-    (void)pass;
+
+    /*
+     * The password, on a server that checks them (torirs_server_auth.h).
+     *
+     * Here, before the login is raised, and not in the world's login: a raise
+     * is what takes over a session already playing this name, so a check any
+     * later would let a wrong password kick the real player off. A reconnect
+     * carries no password and needs none -- the host gives the character back
+     * only to the session key it was playing on, which a password login made.
+     */
+    if( !session->reconnect && srv->check_passwords )
+    {
+        enum ToriRSServerAuthResult auth = ToriRSServer_AuthLogin(user, pass);
+
+        memset(pass, 0, sizeof(pass));
+        if( auth == TORIRSSERVER_AUTH_REFUSED || auth == TORIRSSERVER_AUTH_UNUSABLE )
+        {
+            uint8_t refused = OSRS239_LOGINRES_INVALID_USER_OR_PASS;
+
+            fprintf(stderr, "torirsserver: login refused for '%s': %s\n", user,
+                    auth == TORIRSSERVER_AUTH_REFUSED ? "wrong password"
+                                                      : "unusable name or empty password");
+            /* 3 is "invalid username or password" at 230 and 239 alike. */
+            ToriRSServer_SessionSend(session, &refused, 1);
+            session->state = TORIRSSERVER_SESSION_DEAD;
+            return 1;
+        }
+        if( auth == TORIRSSERVER_AUTH_CLAIMED )
+            fprintf(stderr, "torirsserver: '%s' had no password; the one it logged in with is now its password\n",
+                    user);
+    }
+    memset(pass, 0, sizeof(pass));
 
     /*
      * The session keeps the name; it does NOT write it onto the player here.
@@ -762,7 +795,6 @@ step_login(
      * caller copies it across with ToriRSServer_WorldSetDisplayName once the
      * world is up.
      */
-    (void)srv;
     snprintf(session->display_name, sizeof(session->display_name), "%s",
              user[0] ? user : "Player");
     fprintf(stderr, "torirsserver: %s user='%s' session=%s\n",

@@ -20,6 +20,7 @@ deleting the container outright:
 |---|---|---|
 | player saves | `C:\torirs\osrs239\saves\*.ini` | torirsserver, on logout |
 | player settings | inside those same save files | torirsserver |
+| account passwords | `C:\torirs\osrs239\saves\accounts\*.ini` (salted hashes) | torirsserver, on a name's first login |
 | server logs | `C:\torirs\osrs239\logs\` | the supervisor |
 
 **Player settings are part of the player save** — `[chat]` filters, run toggle,

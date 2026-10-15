@@ -955,7 +955,7 @@ TORIRSSERVER_CORE_SRCS = torirsserver/torirs_server_world.c \
 	torirsserver/torirs_server_friends.c \
 	torirsserver/torirs_server_ids.c \
 	torirsserver/torirs_server_boot.c torirsserver/torirs_server_save.c torirsserver/torirs_server_transport.c torirsserver/torirs_server_session.c \
-	torirsserver/torirs_server_embed.c torirsserver/torirs_server_claim.c content/content_register.c content/content_fields.c $(INI_SRC) \
+	torirsserver/torirs_server_embed.c torirsserver/torirs_server_claim.c torirsserver/torirs_server_auth.c content/content_register.c content/content_fields.c $(INI_SRC) \
 	torirsserver/torirs_server_scene.c torirsserver/torirs_server_loc_ops.c torirsserver/torirs_server_mapinstance.c torirsserver/torirs_server_vessel.c \
 	world/wev.c \
 	torirsserver/torirs_server_zone.c torirsserver/torirs_server_zone_index.c torirsserver/torirs_server_worldmap.c torirsserver/torirs_server_varbit.c \
@@ -4952,7 +4952,7 @@ torirsserver-dev: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tomm
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/lua_unity.o \
 		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o
-	$(CC) $(CFLAGS) -I$(LUA_DIR) $(RSPROT_INCLUDES) -DTORIRSSERVER_DEFAULT_PORT=43597 -o $(OBJ_DIR)/dev_torirsserver $(TORIRSSERVER_SRCS) \
+	$(CC) $(CFLAGS) -I$(LUA_DIR) $(RSPROT_INCLUDES) -DTORIRSSERVER_DEFAULT_PORT=43597 -DTORIRSSERVER_DEFAULT_DEV=1 -o $(OBJ_DIR)/dev_torirsserver $(TORIRSSERVER_SRCS) \
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/lua_unity.o \
@@ -6556,6 +6556,17 @@ test-torirsserver-reconnect-claim: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o 
 		net/net_out.c \
 		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_ReconnectClaimTest
+
+# Passwords (torirs_server_auth.h): PBKDF2-HMAC-SHA256 against published
+# vectors, then logins through the real client login machine -- a first login
+# sets the password, a wrong one is refused with response 3 and does not take
+# over the session playing, development mode lets anything in.
+test-torirsserver-login-password: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ToriRSServer_LoginPasswordTest \
+		torirsserver/test/login_password_test.c $(filter-out net/rev/osrs239/osrs239_entity_info.c net/bitbuffer.c,$(TORIRSSERVER_CORE_SRCS)) \
+		net/net_out.c \
+		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
+	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_LoginPasswordTest
 
 # mDNS response parser: name compression (including a pointer chain and a
 # self-referential one), truncation, out-of-range RDLENGTH, reserved label

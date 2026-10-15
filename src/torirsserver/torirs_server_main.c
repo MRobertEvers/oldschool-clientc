@@ -34,6 +34,9 @@
  *   TORIRSSERVER_STAFF_LEVEL=0..3 advertise rev239 staff privilege; isolated UI
  *                       harnesses use 2 so typed ::commands take the golden
  *                       CLIENT_CHEAT path (default 0)
+ *   TORIRSSERVER_DEV=1   development mode: logins skip the password check
+ *                       (also `--dev`; 0 turns the check back on in the
+ *                       dev_torirsserver build). See torirs_server_auth.h.
  */
 #include "mem/torirs_mem.h"
 #include "mem/torirs_mem_libs.h"
@@ -66,6 +69,13 @@
  * beside the default one. `src/build/torirsserver <port>` still wins over both. */
 #ifndef TORIRSSERVER_DEFAULT_PORT
 #define TORIRSSERVER_DEFAULT_PORT 43595
+#endif
+
+/* Development mode -- logins skip the password check -- unless asked
+ * otherwise. The `torirsserver-dev` build defines it to 1; a world others log
+ * into is the default binary, which checks. */
+#ifndef TORIRSSERVER_DEFAULT_DEV
+#define TORIRSSERVER_DEFAULT_DEV 0
 #endif
 
 #include <stdint.h>
@@ -116,7 +126,9 @@ main(
     /* --scriptrun: the same sessionless bots, each running a quest-driver test
      * script on a Lua state inside this process (torirs_server_scriptrun.c). */
     int scriptrun = argc > 1 && strcmp(argv[1], "--scriptrun") == 0;
-    int port = (argc > 1 && !selftest && !botrun && !scriptrun) ? atoi(argv[1]) : TORIRSSERVER_DEFAULT_PORT;
+    /* A leading flag is not a port: `torirsserver --dev` must not atoi to 0
+     * and bind wherever the kernel likes. */
+    int port = (argc > 1 && strncmp(argv[1], "--", 2) != 0) ? atoi(argv[1]) : TORIRSSERVER_DEFAULT_PORT;
     int listener = -1;
     int reuse = 1;
     /* What the startup line reports, so it names where the socket actually
@@ -235,9 +247,10 @@ main(
         addr.sin_family = AF_INET;
         /*
          * Loopback by default, and that default is deliberate: this is a
-         * development server with no authentication worth the name, and one
-         * that silently accepted connections from the network the moment it
-         * started would be a much worse default than one that has to be asked.
+         * development server first -- one that checks passwords only outside
+         * development mode -- and one that silently accepted connections from
+         * the network the moment it started would be a much worse default
+         * than one that has to be asked.
          *
          * TORIRSSERVER_BIND asks. It exists because "the client and the server
          * are on the same machine" stopped being true: the Android lane
@@ -328,6 +341,22 @@ main(
     srv.familiar_singles_assist = ToriRSServer_FlagDefaultOn("TORIRSSERVER_FAMILIAR_SINGLES");
     srv.members_world = ToriRSServer_FlagDefaultOn("TORIRSSERVER_MEMBERS_WORLD");
     srv.wire = wire;
+    {
+        /* `--dev` beats TORIRSSERVER_DEV beats the build's default. */
+        char const* dev_env = getenv("TORIRSSERVER_DEV");
+        int dev = TORIRSSERVER_DEFAULT_DEV;
+
+        if( dev_env && dev_env[0] )
+            dev = ToriRSServer_FlagDefaultOn("TORIRSSERVER_DEV");
+        for( int i = 1; i < argc; i++ )
+            if( strcmp(argv[i], "--dev") == 0 )
+                dev = 1;
+        srv.check_passwords = !dev;
+        if( !selftest && !botrun && !scriptrun )
+            fprintf(stderr, "torirsserver: %s\n",
+                    dev ? "development mode: logins do not check passwords"
+                        : "logins check passwords (accounts in <saves>/accounts/)");
+    }
     /* Shop definitions are global (ToriRSServer_ContentLoad populated them);
      * seeding their containers is per-server-instance, so it happens once the
      * boot that defined them has run. */

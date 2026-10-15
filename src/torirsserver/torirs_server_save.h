@@ -39,6 +39,26 @@ const char*
 ToriRSServer_SavePath(const char* display_name);
 
 /**
+ * Where a login name's account record lives: `<save dir>/accounts/<name>.ini`,
+ * the same sanitised name ToriRSServer_SavePath uses, so a password and a
+ * character are keyed identically. Static storage; "" for an unusable name.
+ * See torirs_server_auth.h.
+ */
+const char*
+ToriRSServer_AccountPath(const char* display_name);
+
+/**
+ * Replace `path` with `text`, the way a save is written: the directory is
+ * created, the text goes to `<path>.tmp`, and the temp is renamed over the
+ * file, so a crash leaves the old file or the new one and never half of
+ * either. Returns 1 on success; a failure is reported on stderr.
+ */
+int
+ToriRSServer_SaveWriteText(
+    const char* path,
+    const char* text);
+
+/**
  * Write the player. Returns 1 on success.
  *
  * Creates the save directory if it does not exist. Writes to a temporary file

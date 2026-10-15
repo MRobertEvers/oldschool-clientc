@@ -16,6 +16,35 @@
 #include <stdint.h>
 
 #define SHA256_DIGEST_BYTES 32
+#define SHA256_BLOCK_BYTES 64
+
+/*
+ * The same hash, fed in pieces. The server's password hashing needs it: HMAC
+ * hashes the same padded key ahead of every message, so PBKDF2 keeps the state
+ * after the key block and copies it per iteration -- two compressions an
+ * iteration instead of four. A context is plain data and may be copied.
+ */
+struct sha256_ctx
+{
+    uint32_t h[8];
+    uint64_t total;
+    uint8_t buf[SHA256_BLOCK_BYTES];
+    size_t buf_len;
+};
+
+void
+sha256_init(struct sha256_ctx* ctx);
+
+void
+sha256_update(
+    struct sha256_ctx* ctx,
+    uint8_t const* data,
+    size_t len);
+
+void
+sha256_final(
+    struct sha256_ctx* ctx,
+    uint8_t out[SHA256_DIGEST_BYTES]);
 
 void
 sha256(

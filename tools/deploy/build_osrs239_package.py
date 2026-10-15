@@ -448,6 +448,12 @@ TORIRSSERVER_SAVES (default saves/), TORIRSSERVER_VERBOSE=1.
 Logs append under logs/. Player saves live in saves/ -- keep that directory
 when unpacking a newer package over this one.
 
+Logins check passwords. A name's first login sets its password, kept as a
+salted hash in saves/accounts/<name>.ini; to reset a forgotten one, delete
+that file and the next login sets it again. A character saved before
+passwords existed is claimed the same way by whoever logs into it first.
+TORIRSSERVER_DEV=1 turns the check off -- never on a world others can reach.
+
 Starting it over SSH on Windows: a process started from an OpenSSH session
 dies with the session. Either register the startup task (above) or create
 the supervisor outside the session:

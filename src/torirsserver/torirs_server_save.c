@@ -99,12 +99,18 @@ save_mkdir_p(const char* dir)
         save_mkdir(path);
 }
 
-const char*
-ToriRSServer_SavePath(const char* display_name)
+/*
+ * The file name a login name saves under: `[a-z0-9_]`, or "" when nothing is
+ * left. The character save and the account record share it, so one name is
+ * one character is one password.
+ */
+static void
+save_file_name(
+    const char* display_name,
+    char* name,
+    size_t cap)
 {
-    static char path[1024];
-    char name[64];
-    int written = 0;
+    size_t written = 0;
 
     /*
      * The name comes off the login screen, so it is whatever the client sent.
@@ -112,8 +118,7 @@ ToriRSServer_SavePath(const char* display_name)
      * must not become a path. Anything outside [a-z0-9_] becomes '_', and a name
      * that produces nothing at all yields an empty path the caller refuses.
      */
-    for( const char* scan = display_name; scan && *scan && written < (int)sizeof(name) - 1;
-         scan++ )
+    for( const char* scan = display_name; scan && *scan && written < cap - 1; scan++ )
     {
         unsigned char ch = (unsigned char)*scan;
 
@@ -125,14 +130,95 @@ ToriRSServer_SavePath(const char* display_name)
          * mapped, so `..` cannot survive as `__`. */
     }
     name[written] = '\0';
+}
 
-    if( written == 0 )
+const char*
+ToriRSServer_SavePath(const char* display_name)
+{
+    static char path[1024];
+    char name[64];
+
+    save_file_name(display_name, name, sizeof(name));
+    if( !name[0] )
     {
         path[0] = '\0';
         return path;
     }
     snprintf(path, sizeof(path), "%s/%s.ini", save_dir(), name);
     return path;
+}
+
+const char*
+ToriRSServer_AccountPath(const char* display_name)
+{
+    static char path[1024];
+    char name[64];
+
+    save_file_name(display_name, name, sizeof(name));
+    if( !name[0] )
+    {
+        path[0] = '\0';
+        return path;
+    }
+    snprintf(path, sizeof(path), "%s/accounts/%s.ini", save_dir(), name);
+    return path;
+}
+
+/* `mkdir -p` the directory `path` is in; the save directory when it names none. */
+static void
+save_mkdir_parent(const char* path)
+{
+    char parent[1024];
+    char* slash;
+    char* backslash;
+
+    snprintf(parent, sizeof(parent), "%s", path);
+    slash = strrchr(parent, '/');
+    backslash = strrchr(parent, '\\');
+    if( backslash && (!slash || backslash > slash) )
+        slash = backslash;
+    if( slash )
+        *slash = '\0';
+    else
+        snprintf(parent, sizeof(parent), "%s", save_dir());
+    save_mkdir_p(parent);
+}
+
+int
+ToriRSServer_SaveWriteText(
+    const char* path,
+    const char* text)
+{
+    char temp[1100];
+    FILE* file;
+    size_t len;
+
+    assert(path);
+    assert(path[0]);
+    assert(text);
+    save_mkdir_parent(path);
+    snprintf(temp, sizeof(temp), "%s.tmp", path);
+    file = fopen(temp, "wb");
+    if( !file )
+    {
+        fprintf(stderr, "torirsserver: cannot write %s\n", temp);
+        return 0;
+    }
+    len = strlen(text);
+    if( fwrite(text, 1, len, file) != len )
+    {
+        fclose(file);
+        remove(temp);
+        fprintf(stderr, "torirsserver: cannot write %s\n", temp);
+        return 0;
+    }
+    if( fclose(file) != 0 || save_replace(temp, path) != 0 )
+    {
+        fprintf(stderr, "torirsserver: cannot replace %s\n", path);
+        remove(temp);
+        return 0;
+    }
+    return 1;
 }
 
 /* ------------------------------------------------------------------ */
@@ -275,7 +361,6 @@ save_player_write(
     int checkpoint)
 {
     char temp[1100];
-    char parent[1024];
     FILE* file;
     struct ToriRSServerSailingSave sailing;
     ToriRSServer_VesselCapturePlayer(player, &sailing);
@@ -297,19 +382,7 @@ save_player_write(
     /* The file's own directory, not save_dir(): a checkpoint lives one level
      * below it (`<saves>/checkpoints/<k>.ini`). For a logout save the two are
      * the same directory. */
-    snprintf(parent, sizeof(parent), "%s", path);
-    {
-        char* slash = strrchr(parent, '/');
-        char* backslash = strrchr(parent, '\\');
-
-        if( backslash && (!slash || backslash > slash) )
-            slash = backslash;
-        if( slash )
-            *slash = '\0';
-        else
-            snprintf(parent, sizeof(parent), "%s", save_dir());
-    }
-    save_mkdir_p(parent);
+    save_mkdir_parent(path);
 
     /* Write-then-rename: a crash mid-write leaves the previous save intact
      * rather than a truncated one. For a save file that is the difference

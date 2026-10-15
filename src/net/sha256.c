@@ -1,5 +1,6 @@
 #include "sha256.h"
 
+#include <assert.h>
 #include <string.h>
 
 /* FIPS 180-4. Straight reference implementation; the login handshake hashes a
@@ -97,6 +98,80 @@ sha256(uint8_t const* data, size_t len, uint8_t out[SHA256_DIGEST_BYTES])
         out[j * 4 + 1] = (uint8_t)(h[j] >> 16);
         out[j * 4 + 2] = (uint8_t)(h[j] >> 8);
         out[j * 4 + 3] = (uint8_t)h[j];
+    }
+}
+
+void
+sha256_init(struct sha256_ctx* ctx)
+{
+    static const uint32_t iv[8] = { 0x6a09e667u, 0xbb67ae85u, 0x3c6ef372u, 0xa54ff53au,
+                                    0x510e527fu, 0x9b05688cu, 0x1f83d9abu, 0x5be0cd19u };
+
+    assert(ctx);
+    memcpy(ctx->h, iv, sizeof(iv));
+    ctx->total = 0;
+    ctx->buf_len = 0;
+}
+
+void
+sha256_update(
+    struct sha256_ctx* ctx,
+    uint8_t const* data,
+    size_t len)
+{
+    assert(ctx);
+    if( len == 0 )
+        return;
+    assert(data);
+    ctx->total += len;
+    if( ctx->buf_len > 0 )
+    {
+        size_t take = SHA256_BLOCK_BYTES - ctx->buf_len;
+
+        if( take > len )
+            take = len;
+        memcpy(ctx->buf + ctx->buf_len, data, take);
+        ctx->buf_len += take;
+        data += take;
+        len -= take;
+        if( ctx->buf_len < SHA256_BLOCK_BYTES )
+            return;
+        sha256_block(ctx->h, ctx->buf);
+        ctx->buf_len = 0;
+    }
+    for( ; len >= SHA256_BLOCK_BYTES; data += SHA256_BLOCK_BYTES, len -= SHA256_BLOCK_BYTES )
+        sha256_block(ctx->h, data);
+    memcpy(ctx->buf, data, len);
+    ctx->buf_len = len;
+}
+
+void
+sha256_final(
+    struct sha256_ctx* ctx,
+    uint8_t out[SHA256_DIGEST_BYTES])
+{
+    uint64_t bits;
+
+    assert(ctx);
+    assert(out);
+    bits = ctx->total * 8;
+    ctx->buf[ctx->buf_len++] = 0x80;
+    if( ctx->buf_len > 56 )
+    {
+        memset(ctx->buf + ctx->buf_len, 0, SHA256_BLOCK_BYTES - ctx->buf_len);
+        sha256_block(ctx->h, ctx->buf);
+        ctx->buf_len = 0;
+    }
+    memset(ctx->buf + ctx->buf_len, 0, 56 - ctx->buf_len);
+    for( int b = 0; b < 8; b++ )
+        ctx->buf[63 - b] = (uint8_t)(bits >> (8 * b));
+    sha256_block(ctx->h, ctx->buf);
+    for( int j = 0; j < 8; j++ )
+    {
+        out[j * 4] = (uint8_t)(ctx->h[j] >> 24);
+        out[j * 4 + 1] = (uint8_t)(ctx->h[j] >> 16);
+        out[j * 4 + 2] = (uint8_t)(ctx->h[j] >> 8);
+        out[j * 4 + 3] = (uint8_t)ctx->h[j];
     }
 }
 

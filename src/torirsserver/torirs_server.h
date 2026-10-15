@@ -4755,6 +4755,15 @@ struct ToriRSServer
      */
     int familiar_singles_assist;
 
+    /**
+     * Whether a fresh login must present the name's password
+     * (torirs_server_auth.h). Zero at construction, so the in-client embedded
+     * world, the selftest and the bot runs never check; torirs_server_main.c
+     * turns it on for a socket server not in development mode
+     * (`--dev`, TORIRSSERVER_DEV, the dev_torirsserver build).
+     */
+    int check_passwords;
+
     /** Non-NULL only under the selftest; see ToriRSServer_CaptureBegin. */
     /** Generation of the reservation the current scene was built from, 0 when
      *  the scene is ordinary map. See `scene_centre_generation`. */
