@@ -860,8 +860,10 @@ def main() -> None:
     ):
         require(pet, f"%{VAR_NAMES['pet_insurance_' + varbit]} = 1;",
                 f"{varbit} automatic pet insurance")
-    require(pet, "~collection_earn_if_catalogued($pet, 1);",
-            "GWD pet collection logging")
+    # Both callers drop the pet at the kill, so [proc,collection_drop] logs it;
+    # an earn here as well counts it twice (OSRS-Content 391805fa95).
+    assert "collection_earn" not in pet, \
+        "GWD pet collection logging: gwd_record_pet must not earn the pet itself"
     require(proc_body(DROPS, "gwd_boss_tertiary_code"),
             "random(~gwd_boss_elite_clue_rate)",
             "classic boss conditional elite clue selector")
