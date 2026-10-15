@@ -9,6 +9,25 @@
 
 #include "app/app_internal.h"
 
+/*
+ * What an interaction click does to the map flag, before the server answers.
+ *
+ * Rev 239 writes the flag (client.field990/field900) in every interaction
+ * branch of its menu action handler -- Statics.method4394 for the loc, player
+ * and world-entity ops and their use/target forms, method2841 for ground objs,
+ * method881 for npcs -- from the clicked menu entry's param0/param1, next to
+ * the red cross. A loc's and a ground obj's params are the target's scene
+ * tile; an npc's and a player's are 0, and a flag x of 0 is the minimap's "no
+ * flag". SET_MAP_FLAG then names the tile the server actually routes to.
+ */
+enum AppOpFlag
+{
+    /** Loc and ground-obj ops: the flag goes on the target's own tile. */
+    APP_OP_FLAG_TARGET_TILE,
+    /** Npc and player ops: the flag comes down until the server routes. */
+    APP_OP_FLAG_CLEAR,
+};
+
 /* Private to this unit, declared up front so definition order is free. */
 static struct CollisionNearestOpts
 app_op_nearest_opts(struct App const* app);
@@ -18,6 +37,7 @@ app_try_move_op(
     int dst_x,
     int dst_z,
     struct CollisionApproach const* approach,
+    enum AppOpFlag flag,
     int ctrl_held);
 static struct CollisionApproach
 app_scenery_approach(
@@ -426,8 +446,7 @@ app_try_move(
      * left a minimap click with no answer for up to a tick plus the round
      * trip. Client-BFS eras latch the routed destination, server-
      * authoritative ones the (clamped) clicked tile. */
-    app->minimap.flag_tile_x = route_x[0];
-    app->minimap.flag_tile_z = route_z[0];
+    MinimapView_SetFlag(&app->minimap, route_x[0], route_z[0]);
     app->need_redraw = 1;
     return 1;
 }
@@ -459,13 +478,15 @@ app_op_nearest_opts(struct App const* app)
  *
  * Under a server-authoritative era there is no route to compute and no
  * MOVE_OPCLICK to send: the interaction packet carries the target and the
- * server paths. The map flag comes from the server's SET_MAP_FLAG. */
+ * server paths. The flag still moves on the click, as `flag` says (see
+ * enum AppOpFlag), and the server's SET_MAP_FLAG corrects it. */
 static int
 app_try_move_op(
     struct App* app,
     int dst_x,
     int dst_z,
     struct CollisionApproach const* approach,
+    enum AppOpFlag flag,
     int ctrl_held)
 {
     static int route_x[4000];
@@ -486,7 +507,14 @@ app_try_move_op(
         return 0;
 
     if( app->features->pathing_mode == TORIRS_PATHING_SERVER_AUTHORITATIVE )
+    {
+        if( flag == APP_OP_FLAG_TARGET_TILE )
+            MinimapView_SetFlag(&app->minimap, dst_x, dst_z);
+        else
+            MinimapView_ClearFlag(&app->minimap);
+        app->need_redraw = 1;
         return 1;
+    }
 
     level = player->grid_position.level;
     if( level < 0 )
@@ -527,8 +555,7 @@ app_try_move_op(
             route_len,
             ctrl_held));
 
-    app->minimap.flag_tile_x = route_x[0];
-    app->minimap.flag_tile_z = route_z[0];
+    MinimapView_SetFlag(&app->minimap, route_x[0], route_z[0]);
     app->need_redraw = 1;
     return 1;
 }
@@ -566,7 +593,8 @@ app_try_move_npc(
         approach.mover_size = 1;
     }
     return app_try_move_op(
-        app, npc->pathing.route_x[0], npc->pathing.route_z[0], &approach, ctrl_held);
+        app, npc->pathing.route_x[0], npc->pathing.route_z[0], &approach, APP_OP_FLAG_CLEAR,
+        ctrl_held);
 }
 
 /* Approach another player (Client.ts OPPLAYER1..5 / OPPLAYERU / OPPLAYERT):
@@ -591,7 +619,8 @@ app_try_move_player(
         approach.mover_size = 1;
     }
     return app_try_move_op(
-        app, player->pathing.route_x[0], player->pathing.route_z[0], &approach, ctrl_held);
+        app, player->pathing.route_x[0], player->pathing.route_z[0], &approach, APP_OP_FLAG_CLEAR,
+        ctrl_held);
 }
 
 /*
@@ -672,7 +701,7 @@ app_try_move_loc(
     if( !scenery )
         return 0;
     approach = app_scenery_approach(app, scenery);
-    app_try_move_op(app, tile_x, tile_z, &approach, ctrl_held);
+    app_try_move_op(app, tile_x, tile_z, &approach, APP_OP_FLAG_TARGET_TILE, ctrl_held);
     return 1;
 }
 
@@ -688,7 +717,7 @@ app_try_move_obj(
     int ctrl_held)
 {
     struct CollisionApproach exact = { .kind = COLL_APPROACH_EXACT, .mover_size = 1 };
-    if( !app_try_move_op(app, tile_x, tile_z, &exact, ctrl_held) )
+    if( !app_try_move_op(app, tile_x, tile_z, &exact, APP_OP_FLAG_TARGET_TILE, ctrl_held) )
     {
         struct CollisionApproach one = { 0 };
         if( app->features->approach_model == TORIRS_APPROACH_RECT )
@@ -700,7 +729,7 @@ app_try_move_obj(
             one.loc_length = 1;
             one.mover_size = 1;
         }
-        app_try_move_op(app, tile_x, tile_z, &one, ctrl_held);
+        app_try_move_op(app, tile_x, tile_z, &one, APP_OP_FLAG_TARGET_TILE, ctrl_held);
     }
 }
 

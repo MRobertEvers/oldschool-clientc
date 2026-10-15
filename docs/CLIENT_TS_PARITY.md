@@ -4485,6 +4485,11 @@ then moves it to the routed arrival or clears it; the server answers every
 move it handles or refuses with one or the other (`map_flag_send_dest`,
 `map_flag_restate_refused_move`). Waiting for the server left a minimap click
 with no feedback for up to a tick plus the round trip.
+Interaction clicks move the flag too, from the menu entry's param0/param1 as
+every interaction branch of the rev-239 menu action handler does
+(`Statics.method4394`, `method2841`, `method881`): onto the target's tile for
+loc and ground-obj ops, down for npc and player ops, whose params are 0 (the
+minimap's "no flag"). `enum AppOpFlag` in `app_world_click.c` names the two.
 The classic-centred scene rebuild (zone-6)*8 made wire local tiles equal our
 scene tiles, so the handler stores them as-is (`rs_gameproto_exec.c`). The
 older map-square-aligned base needed `scene_off`; that field is gone. Pin by
