@@ -784,9 +784,10 @@ main(void)
     fake.display[TORIRS_DISPLAY_WINDOW_FIXED] = 1;
     frame_with_page(state, TORIRS_PANEL_VIEW_PAGE);
     row = fake_row("stretch_mode");
-    CHECK(row && row->option_count == 2 && strcmp(row->option_label[0], "Keep aspect ratio") == 0 &&
-          strcmp(row->option_label[1], "Stretch to fill") == 0,
-        "a fixed window offers keep aspect and stretch");
+    CHECK(row && row->option_count == 3 && strcmp(row->option_label[0], "Keep aspect ratio") == 0 &&
+          strcmp(row->option_label[1], "Stretch to fill") == 0 &&
+          strcmp(row->option_label[2], "Don't stretch") == 0,
+        "a fixed window offers keep aspect, stretch and don't stretch");
     pick(state, "stretch_mode", "2");
     CHECK(fake.display[TORIRS_DISPLAY_STRETCH_MODE] == 2, "stretch pick writes the store");
     fake.display[TORIRS_DISPLAY_STRETCH_MODE] = 1;
