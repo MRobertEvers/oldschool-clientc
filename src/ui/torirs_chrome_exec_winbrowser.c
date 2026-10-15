@@ -877,6 +877,14 @@ static int browser_take_rail_snapshot_request(void* user)
     return requested;
 }
 
+void
+ToriRSChromeExec_BrowserShutdown(void)
+{
+    ToriMem_Free(ToriMem_Ui(), g_winbrowser.page_json);
+    g_winbrowser.page_json = NULL;
+    g_winbrowser.page_json_capacity = 0;
+}
+
 struct ToriRSChromeExec
 ToriRSChromeExec_Browser(void* platform)
 {

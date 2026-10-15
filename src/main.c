@@ -113,6 +113,7 @@ struct ToriPlatformAndroid_Renderer_GLES3;
 #include "toridraw_frame_ab.h"
 #include "toridraw_math.h"
 #include "toridraw_model.h"
+#include "ui/torirs_chrome_exec.h"
 #include "ui/torirs_chrome_inkwell.h"
 #include "ui/uitree_hover.h"
 #include "ui/uitree_layout.h"
@@ -2782,6 +2783,9 @@ main_shutdown(struct App* a)
     main_launch_free();
 #endif
     ToriRSInkwell_Shutdown();
+#if defined(TORIRS_CHROME_EXEC_BROWSER_AVAILABLE)
+    ToriRSChromeExec_BrowserShutdown();
+#endif
     ToriDraw_NormalsPoolDrain();
     ToriMem_Free(ToriMem_Process(), sim_pixels);
     sim_pixels = NULL;

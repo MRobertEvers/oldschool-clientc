@@ -675,6 +675,11 @@ ToriRSChromeExec_ForKind(int kind, void* platform, int* out_kind);
 /** One shared local DOM bundle in WebView2 (win64) or MSHTML (XP). */
 struct ToriRSChromeExec
 ToriRSChromeExec_Browser(void* platform);
+
+/** Release what the shared browser executor still holds (its last page
+ *  description). Exit only: a later ToriRSChromeExec_Browser starts afresh. */
+void
+ToriRSChromeExec_BrowserShutdown(void);
 #endif
 
 #if defined(TORIRS_CHROME_EXEC_WEB_AVAILABLE)
