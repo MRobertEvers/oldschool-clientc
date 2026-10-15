@@ -349,10 +349,10 @@ write_poh(
  * plus the two things a logout deliberately leaves behind because they belong
  * to one session and not to the character -- every non-zero varp whatever its
  * `scope` (a quest's temp progress flags live in `scope=temp` varps, and a leg
- * resumed without them is a different leg), and the player's own random
- * stream, so a fight resumed from a checkpoint rolls as it would have in the
- * full run (seam28's per-entity streams). A logout save keeps its rule: only
- * `scope=perm`, and no stream -- a character re-seeds from its name.
+ * resumed without them is a different leg), and `map_clock`. Both write the
+ * player's own random stream (seam28's per-entity streams): a checkpoint so a
+ * fight resumed from it rolls as it would have in the full run, a logout so
+ * the next session continues the stream rather than replaying it.
  */
 static int
 save_player_write(
@@ -551,17 +551,23 @@ save_player_write(
 
     write_poh(file, &player->poh);
 
+    /* Read back by the [random] case of ToriRSServer_LoadPlayer, by every
+     * save and not only a checkpoint. A character whose save carries no
+     * stream re-seeds from its NAME at login (ToriRSServer_WorldPlayerRandom),
+     * so a logout save without it made every session of that character roll
+     * the same sequence from the top. For `asdf` the sixth, ninth and tenth
+     * draws of that sequence are 0.0008, 0.0038 and 0.0045: the first kill of
+     * every session landed, and the next three swings were 0, 0 and a
+     * near-certain miss, every login (2026-10-15). A fixture carries no
+     * [random], so a test still starts from the name seed, as before. */
+    fprintf(file,
+            "\n[random]\n; the player's own streams, continued across sessions\n"
+            "engine = %u\nscript = %llu\nseeded = %d\n",
+            (unsigned)player->random.engine, (unsigned long long)player->random.script,
+            (int)player->random.seeded);
+
     if( checkpoint )
     {
-        /* Read back by the [random] case of ToriRSServer_LoadPlayer. Written
-         * only here: a logout save that carried it would change what a
-         * returning character rolls. */
-        fprintf(file,
-                "\n[random]\n; the player's own streams (checkpoint only)\n"
-                "engine = %u\nscript = %llu\nseeded = %d\n",
-                (unsigned)player->random.engine, (unsigned long long)player->random.script,
-                (int)player->random.seeded);
-
         /* Read back by the [clock] case of ToriRSServer_LoadPlayer
          * (checkpoint_restore_clock). The varps above include every one the
          * content stamps from map_clock -- `%action_delay = map_clock`,
@@ -640,7 +646,7 @@ enum SaveSection
     SAVE_CONTAINER,
     /** A `[container_var.<inv>]` section; same `section_inv` / `section_row`. */
     SAVE_CONTAINER_VAR,
-    /** `[random]` -- the player's own streams; only a checkpoint writes it. */
+    /** `[random]` -- the player's own streams; every save writes it. */
     SAVE_RANDOM,
     /** `[clock]` -- map_clock at the checkpoint; only a checkpoint writes it. */
     SAVE_CLOCK,

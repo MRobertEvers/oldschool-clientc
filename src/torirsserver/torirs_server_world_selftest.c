@@ -37643,8 +37643,19 @@ ToriRSServer_WorldSelftest(void)
                 if( file )
                     fclose(file);
                 text[got] = '\0';
-                SELFTEST_CHECK(strstr(text, "[random]") == NULL,
-                               "a logout save carries no [random] section");
+                SELFTEST_CHECK(strstr(text, "[random]") != NULL,
+                               "a logout save carries the [random] section");
+                player->random.engine = 1;
+                player->random.script = 1;
+                SELFTEST_CHECK(ToriRSServer_LoadPlayer(player, logout_path), "logout save read back");
+                SELFTEST_CHECK(player->random.engine == saved_random.engine &&
+                                   player->random.script == saved_random.script &&
+                                   player->random.seeded == saved_random.seeded,
+                               "the next session continues the player's random stream instead of "
+                               "re-seeding it from the name");
+                /* A logout save keeps only scope=perm varps: restore the temp one
+                 * the checkpoint half below carries. */
+                player->varps[temp_varp] = 4242;
                 remove(logout_path);
 
                 player->chatmodal_group = 219;
