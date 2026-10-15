@@ -417,16 +417,18 @@ app_try_move(
                 route_len,
                 ctrl_held));
 
-    /* Client-BFS eras latch the flag from the routed destination. Under
-     * SERVER_AUTHORITATIVE the server owns SET_MAP_FLAG — do not paint a
-     * local guess that the clear packet would then fight. Offline still
-     * wants the UI mark. */
-    if( app->features->pathing_mode != TORIRS_PATHING_SERVER_AUTHORITATIVE || !online )
-    {
-        app->minimap.flag_tile_x = route_x[0];
-        app->minimap.flag_tile_z = route_z[0];
-        app->need_redraw = 1;
-    }
+    /* The flag goes up with the packet, in every era. Rev 239 latches the
+     * clicked tile the moment it sends -- the minimap click in
+     * Statics.method8546 (nw.bi) and the ground click in client.method2036
+     * (client.iw) both write client.field990/field900 right after the move
+     * packet -- and SET_MAP_FLAG (client.java packet 143) later moves it to
+     * the server's arrival tile or clears it. Waiting for the server instead
+     * left a minimap click with no answer for up to a tick plus the round
+     * trip. Client-BFS eras latch the routed destination, server-
+     * authoritative ones the (clamped) clicked tile. */
+    app->minimap.flag_tile_x = route_x[0];
+    app->minimap.flag_tile_z = route_z[0];
+    app->need_redraw = 1;
     return 1;
 }
 

@@ -594,6 +594,10 @@ app_minimap_click(
                 player_x,
                 player_z,
                 0));
+        /* Latched with the packet, as app_try_move does (Statics.method8546);
+         * the server's SET_MAP_FLAG answers with the deck edge it chose. */
+        app->minimap.flag_tile_x = tile_x;
+        app->minimap.flag_tile_z = tile_z;
     }
     else
         app_try_move(app, tile_x, tile_z, 1, center_x, center_y, yaw, ctrl_held);

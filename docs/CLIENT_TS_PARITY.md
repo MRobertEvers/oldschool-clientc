@@ -4477,7 +4477,14 @@ Covered by `test_delaymove_gate` in `test-world`.
 
 ### Minimap destination flag
 
-Under `SERVER_AUTHORITATIVE` pathing the flag comes only from `SET_MAP_FLAG`.
+Every era latches the flag on the click, with the move packet, as rev 239
+does (`Statics.method8546` for the minimap, `client.method2036` for the
+ground; both write `client.field990/field900` right after sending). Under
+`SERVER_AUTHORITATIVE` pathing that is the clicked tile, and `SET_MAP_FLAG`
+then moves it to the routed arrival or clears it; the server answers every
+move it handles or refuses with one or the other (`map_flag_send_dest`,
+`map_flag_restate_refused_move`). Waiting for the server left a minimap click
+with no feedback for up to a tick plus the round trip.
 The classic-centred scene rebuild (zone-6)*8 made wire local tiles equal our
 scene tiles, so the handler stores them as-is (`rs_gameproto_exec.c`). The
 older map-square-aligned base needed `scene_off`; that field is gone. Pin by

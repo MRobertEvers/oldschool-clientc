@@ -1038,6 +1038,47 @@ queue_path_as_waypoints(
 }
 
 /*
+ * Tell the client where the route ends, or that there is none.
+ *
+ * The client latches a flag on every move click before the server sees it
+ * (rev-239 Statics.method8546 and client.method2036 set client.field990/
+ * field900 with the packet), so every move this server answers must answer
+ * the flag too: the routed destination when there is a route, a clear when
+ * there is not. A SET sent now also retires a clear queued earlier this tick
+ * (the old route's abandonment): the clear goes out at tick end, after this
+ * SET, and would take the new flag down with the old one.
+ */
+static void
+map_flag_send_dest(
+    struct ToriRSServerPlayer* player,
+    int base_x,
+    int base_z)
+{
+    if( base_x >= 0 && player->waypoint_index >= 0 && player->dest_x >= 0 )
+    {
+        ToriRSServer_SendSetMapFlag(player, player->dest_x - base_x, player->dest_z - base_z);
+        player->clear_map_flag = 0;
+    }
+    else
+        player->clear_map_flag = 1;
+}
+
+/*
+ * A move click this server refused (locked, stunned) still put a flag up on
+ * the client: put the client's flag back to the route the player is really
+ * on, or take it down.
+ */
+static void
+map_flag_restate_refused_move(
+    struct ToriRSServerPlayer* player,
+    int name)
+{
+    if( name == PKTOUT_NAME_MOVE_GAMECLICK || name == PKTOUT_NAME_MOVE_MINIMAPCLICK ||
+        name == PKTOUT_NAME_MOVE_OPCLICK )
+        map_flag_send_dest(player, ToriRSServer_SceneBaseX(), ToriRSServer_SceneBaseZ());
+}
+
+/*
  * Fill waypoints from a BFS to (x, z). Used for ground clicks and as the body
  * of walk_to_approach when the approach is EXACT.
  */
@@ -1177,15 +1218,18 @@ ToriRSServer_WorldWalkTo(
     player->dest_z = z;
     player->steps_taken = 0;
     if( !waypoints_walk_to(player, x, z) )
+    {
+        /* The client already put a flag on the click; a click that goes
+         * nowhere has to take it down (map_flag_send_dest). */
+        player->clear_map_flag = 1;
         return;
+    }
 
     /* Server owns the yellow cross: scene-local routed destination.  For an
      * unreachable click this is the move-near arrival, not the raw click. */
     base_x = ToriRSServer_SceneBaseX();
     base_z = ToriRSServer_SceneBaseZ();
-    if( base_x >= 0 && player->waypoint_index >= 0 )
-        ToriRSServer_SendSetMapFlag(
-            player, player->dest_x - base_x, player->dest_z - base_z);
+    map_flag_send_dest(player, base_x, base_z);
 }
 
 void
@@ -1241,8 +1285,7 @@ ToriRSServer_WorldWalkToApproach(
     base_x = ToriRSServer_SceneBaseX();
     base_z = ToriRSServer_SceneBaseZ();
     if( base_x >= 0 && player->waypoint_index >= 0 )
-        ToriRSServer_SendSetMapFlag(
-            player, player->dest_x - base_x, player->dest_z - base_z);
+        map_flag_send_dest(player, base_x, base_z);
 }
 
 /* ------------------------------------------------------------------ */
@@ -14324,6 +14367,7 @@ ToriRSServer_WorldHandle(
 
     if( player->action_locked && player_action_packet(name) )
     {
+        map_flag_restate_refused_move(player, name);
         world_ticklog_packet(srv, player, name, payload, len, "dropped:locked");
         if( srv->verbose )
             fprintf(stderr, "torirsserver: <- player action packet name %d dropped while locked\n",
@@ -14333,6 +14377,7 @@ ToriRSServer_WorldHandle(
 
     if( player->stun_ticks > 0 && player_stun_blocks_packet(name) )
     {
+        map_flag_restate_refused_move(player, name);
         world_ticklog_packet(srv, player, name, payload, len, "dropped:stunned");
         if( srv->verbose )
             fprintf(stderr, "torirsserver: <- player packet name %d dropped while stunned (%d)\n",
