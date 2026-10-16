@@ -1805,7 +1805,7 @@ struct App
         int com_id;
         int kind;             /* AppIfHeadKind: npc, player, obj, or raw model */
         int npc_id;           /* source id: npc, obj, or cache model */
-        int zoom;             /* IF_SETOBJECT wire zoom (modelZoom = zoom2d*100/zoom) */
+        int zoom;             /* IF_SETOBJECT third field: IF1 zoom, IF3 quantity */
         int anim_id;          /* IF_SETANIM seq for this head, or -1 (reference modelAnim) */
         uint32_t applied_gen; /* tree generation this was last applied at; 0 = pending */
     }* if_heads;

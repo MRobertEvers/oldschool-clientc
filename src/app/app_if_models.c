@@ -669,6 +669,96 @@ App_SetInterfaceObjModel(
     app_if_head_enqueue(app, APP_IFHEAD_OBJ, component_id, obj_id);
 }
 
+/* IF_SETOBJECT has two branches in the rev-239 client (deob client.java
+ * method2413, the packet-106 arm), chosen by the component's if3 flag:
+ *
+ *   IF1: modelXAn/YAn from the objtype, modelZoom = zoom2d * 100 / the wire's
+ *        third field, which is a ZOOM.
+ *   IF3: the wire's third field is a QUANTITY -- the count variant of the obj
+ *        is drawn (ObjType.getCountObj) -- and the widget takes that variant's
+ *        whole 2D view: x/y/z angles, offsetX2d/offsetY2d, and
+ *        modelZoom = zoom2d * 32 / the component's width (else its height).
+ *
+ * The IF3 half was missing: an IF3 item model (objectbox 193, the chatbox's
+ * one-item box) drew with no 2D offsets and an IF1 zoom, so an obj whose icon
+ * is offset -- logs among them -- sat off the centre of its box. */
+static struct UITreeComponent const*
+app_if_obj_node(
+    struct App const* app,
+    int com_id)
+{
+    int32_t idx = UITree_FindByComponentId(app->tree, com_id);
+    return idx >= 0 ? &app->tree->components[idx] : NULL;
+}
+
+/* The obj an IF3 widget draws for `count` (ObjType.getCountObj). */
+static int
+app_if_obj_count_variant(
+    struct App* app,
+    int obj_id,
+    int count)
+{
+    struct ToriRS_Objtype* obj = CacheProvider_ObjtypeGet(app->provider, obj_id);
+    int variant = -1;
+
+    if( !obj || count <= 1 )
+        return obj_id;
+    for( int i = 0; i < 10; i++ )
+        if( obj->count_co[i] != 0 && count >= obj->count_co[i] )
+            variant = obj->count_obj[i];
+    return variant > 0 ? variant : obj_id;
+}
+
+/* The obj the widget draws: the count variant on an IF3 component. */
+static int
+app_if_obj_shown(
+    struct App* app,
+    struct AppIfHead const* head)
+{
+    struct UITreeComponent const* node = app_if_obj_node(app, head->com_id);
+    if( node && node->if3 )
+        return app_if_obj_count_variant(app, head->npc_id, head->zoom);
+    return head->npc_id;
+}
+
+static void
+app_if_obj_pose(
+    struct App* app,
+    struct AppIfHead const* head)
+{
+    struct UITreeComponent const* node = app_if_obj_node(app, head->com_id);
+    struct ToriRS_Objtype* obj =
+        CacheProvider_ObjtypeGet(app->provider, app_if_obj_shown(app, head));
+
+    if( !obj || !node )
+        return;
+    if( node->if3 )
+    {
+        int zoom = obj->zoom2d;
+        if( node->position.width > 0 )
+            zoom = zoom * 32 / node->position.width;
+        else if( node->position.height > 0 )
+            zoom = zoom * 32 / node->position.height;
+        (void)UITree_SetModelPoseAt(
+            app->tree,
+            UITree_FindByComponentId(app->tree, head->com_id),
+            obj->offset_x2d,
+            obj->offset_y2d,
+            obj->xan2d,
+            obj->yan2d,
+            obj->zan2d,
+            zoom);
+        return;
+    }
+    if( head->zoom > 0 )
+        UITree_ApplyModelAngle(
+            app->tree,
+            head->com_id,
+            obj->xan2d,
+            obj->yan2d,
+            (obj->zoom2d > 0 ? obj->zoom2d : 2000) * 100 / head->zoom);
+}
+
 /* Bind any composited heads onto their MODEL nodes. Runs each redraw: an entry
  * applies once its scene model is ready (the load task has composited it) AND
  * its component is mounted, then only re-applies when the tree generation
@@ -705,7 +795,7 @@ app_if_head_poll(struct App* app)
         }
         else if( head->kind == APP_IFHEAD_OBJ )
         {
-            scene_id = UITreeSceneBridge_EnsureObjModel(&app->bridge, head->npc_id);
+            scene_id = UITreeSceneBridge_EnsureObjModel(&app->bridge, app_if_obj_shown(app, head));
         }
         else if( head->kind == APP_IFHEAD_MODEL )
         {
@@ -746,19 +836,9 @@ app_if_head_poll(struct App* app)
                     head->npc_id,
                     (unsigned)head->com_id,
                     scene_id);
-            /* Reference IF_SETOBJECT: modelXAn/YAn from the objtype, modelZoom
-             * = zoom2d * 100 / wire zoom (Client.ts:6342). */
+            /* IF_SETOBJECT's view: the IF1 or the IF3 branch (above). */
             if( head->kind == APP_IFHEAD_OBJ )
-            {
-                struct ToriRS_Objtype* obj = CacheProvider_ObjtypeGet(app->provider, head->npc_id);
-                if( obj && head->zoom > 0 )
-                    UITree_ApplyModelAngle(
-                        app->tree,
-                        head->com_id,
-                        obj->xan2d,
-                        obj->yan2d,
-                        (obj->zoom2d > 0 ? obj->zoom2d : 2000) * 100 / head->zoom);
-            }
+                app_if_obj_pose(app, head);
             if( head->anim_id >= 0 )
                 UITree_ApplyModelAnim(app->tree, head->com_id, head->anim_id);
             head->applied_gen = app->tree->generation;
