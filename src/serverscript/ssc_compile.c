@@ -43,6 +43,10 @@ struct SSC_Local
     char name[64];
     int slot;
     int is_string;
+    /* The namespace its declared type names (`def_dbrow`, `dbrow $row`), or
+     * SSC_SYM_UNKNOWN for `int`, `coord`, ... -- what a bare name compared
+     * with, or assigned to, this local resolves as. See last_value_kind. */
+    int kind;
 };
 
 struct SSC_Build
@@ -95,6 +99,10 @@ struct SSC_Build
      */
     int8_t return_defaults[SS_MAX_PARAM_TYPES];
     int return_count;
+    /* The namespace each declared return names (SSC_SYM_UNKNOWN for `int`,
+     * ...): `return(poh_dummy_parlour)` from a `(dbrow)` proc is the dbrow,
+     * not the same-named obj the bare lookup sorts first. */
+    uint8_t return_kinds[SS_MAX_PARAM_TYPES];
 
     int32_t line_pcs[SSC_MAX_OPS];
     int32_t line_numbers[SSC_MAX_OPS];
@@ -374,7 +382,7 @@ find_local(struct SSC_Compiler* compiler, const char* name)
 }
 
 static struct SSC_Local*
-declare_local(struct SSC_Compiler* compiler, const char* name, int is_string)
+declare_local(struct SSC_Compiler* compiler, const char* name, int is_string, int kind)
 {
     struct SSC_Build* build = &compiler->build;
     struct SSC_Local* local;
@@ -398,6 +406,9 @@ declare_local(struct SSC_Compiler* compiler, const char* name, int is_string)
             fail(compiler, "local '$%s' redeclared with a different type", name);
             return NULL;
         }
+        /* Two declarations naming different namespaces type nothing. */
+        if( local->kind != kind )
+            local->kind = SSC_SYM_UNKNOWN;
         return local;
     }
 
@@ -410,6 +421,7 @@ declare_local(struct SSC_Compiler* compiler, const char* name, int is_string)
     local = &build->locals[build->local_count++];
     snprintf(local->name, sizeof(local->name), "%.63s", name);
     local->is_string = is_string;
+    local->kind = kind;
     /* Ints and strings are addressed out of separate arrays, each indexed from
      * zero, so they need separate counters. Sharing one compiles fine and reads
      * the wrong slot at run time. */
@@ -2003,6 +2015,10 @@ parse_expression(struct SSC_Compiler* compiler, int* is_string)
         *is_string = local->is_string;
         emit(compiler, local->is_string ? SS_OP_PUSH_STRING_LOCAL : SS_OP_PUSH_INT_LOCAL,
              local->slot);
+        /* A typed local types a comparison: `if ($room = poh_dummy_parlour)`
+         * with `def_dbrow $room` is the dbrow, where the bare lookup alone
+         * took the same-named obj and the branch could never hold. */
+        compiler->last_value_kind = (enum SSC_SymbolKind)local->kind;
         SSC_LexNext(lexer);
         return 1;
     }
@@ -2830,12 +2846,24 @@ parse_statement(struct SSC_Compiler* compiler)
                 SSC_LexNext(lexer);
                 if( !SSC_LexIsPunct(lexer, ")") )
                 {
+                    /* Each value is hinted by the return it fills, while the
+                     * position is known: an argument that is a call can push
+                     * several, and past one of those the index is a guess. */
+                    enum SSC_SymbolKind saved_hint = compiler->arg_kind_hint;
+                    int return_index = 0;
+
                     for( ;; )
                     {
                         int is_string = 0;
+                        int value_is_call = lexer->current.kind == SSC_TOK_PROC;
 
+                        compiler->arg_kind_hint =
+                            (return_index >= 0 && return_index < compiler->build.return_count)
+                                ? (enum SSC_SymbolKind)compiler->build.return_kinds[return_index]
+                                : SSC_SYM_UNKNOWN;
                         if( !parse_expression(compiler, &is_string) )
                             return 0;
+                        return_index = value_is_call ? -1 : (return_index < 0 ? -1 : return_index + 1);
                         if( SSC_LexIsPunct(lexer, ",") )
                         {
                             SSC_LexNext(lexer);
@@ -2843,6 +2871,7 @@ parse_statement(struct SSC_Compiler* compiler)
                         }
                         break;
                     }
+                    compiler->arg_kind_hint = saved_hint;
                 }
                 if( !SSC_LexIsPunct(lexer, ")") )
                     return fail(compiler, "expected ')' after return values");
@@ -2872,7 +2901,7 @@ parse_statement(struct SSC_Compiler* compiler)
              * The VM zeroes locals on entry, so there is nothing to emit. */
             if( !SSC_LexIsPunct(lexer, "=") )
             {
-                if( !declare_local(compiler, local_name, is_string_type) )
+                if( !declare_local(compiler, local_name, is_string_type, param_type_kind(type)) )
                     return 0;
                 if( SSC_LexIsPunct(lexer, ";") )
                     SSC_LexNext(lexer);
@@ -2880,10 +2909,18 @@ parse_statement(struct SSC_Compiler* compiler)
             }
             SSC_LexNext(lexer);
 
-            if( !parse_expression(compiler, &value_is_string) )
-                return 0;
+            /* `def_dbrow $row = poh_dummy_parlour`: the declared type says
+             * which namespace the bare initialiser means. */
+            {
+                enum SSC_SymbolKind saved_hint = compiler->arg_kind_hint;
 
-            local = declare_local(compiler, local_name, is_string_type);
+                compiler->arg_kind_hint = param_type_kind(type);
+                if( !parse_expression(compiler, &value_is_string) )
+                    return 0;
+                compiler->arg_kind_hint = saved_hint;
+            }
+
+            local = declare_local(compiler, local_name, is_string_type, param_type_kind(type));
             if( !local )
                 return 0;
             emit(compiler, is_string_type ? SS_OP_POP_STRING_LOCAL : SS_OP_POP_INT_LOCAL,
@@ -2959,8 +2996,16 @@ parse_statement(struct SSC_Compiler* compiler)
             return fail(compiler, "expected '=' after the assignment target");
         SSC_LexNext(lexer);
 
-        if( !parse_expression(compiler, &value_is_string) )
-            return 0;
+        /* A single typed target types a bare value: `$room = poh_dummy_study`. */
+        {
+            enum SSC_SymbolKind saved_hint = compiler->arg_kind_hint;
+
+            if( target_count == 1 )
+                compiler->arg_kind_hint = (enum SSC_SymbolKind)targets[0]->kind;
+            if( !parse_expression(compiler, &value_is_string) )
+                return 0;
+            compiler->arg_kind_hint = saved_hint;
+        }
 
         for( int i = target_count - 1; i >= 0; i-- )
         {
@@ -3291,7 +3336,7 @@ parse_header_lists(struct SSC_Compiler* compiler)
 
         if( lexer->current.kind != SSC_TOK_LOCAL )
             return fail(compiler, "expected a $name after the argument type");
-        if( !declare_local(compiler, lexer->current.text, is_string) )
+        if( !declare_local(compiler, lexer->current.text, is_string, param_type_kind(type)) )
             return 0;
         if( is_string )
             compiler->build.string_args++;
@@ -3330,6 +3375,8 @@ parse_header_lists(struct SSC_Compiler* compiler)
                 if( compiler->build.return_count >= SS_MAX_PARAM_TYPES )
                     return fail(compiler, "more than %d declared returns",
                                 SS_MAX_PARAM_TYPES);
+                compiler->build.return_kinds[compiler->build.return_count] =
+                    (uint8_t)param_type_kind(lexer->current.text);
                 compiler->build.return_defaults[compiler->build.return_count++] =
                     (int8_t)return_default_for_type(lexer->current.text);
             }

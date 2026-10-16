@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import os
 """Generate the versioned Construction cache/Wiki implementation crosswalk.
 
 The cache supplies menu objects, materials, requirements, room templates and
@@ -9,6 +8,8 @@ key, so unresolved runtime facts remain explicit rather than name-guessed.
 """
 
 from __future__ import annotations
+
+import os
 
 import argparse
 import json

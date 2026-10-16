@@ -2494,6 +2494,69 @@ static struct
     { "tutorial_player_experience:button_new", "tutorial_player_experience:content", 1 },
     { "tutorial_player_experience:button_returning", "tutorial_player_experience:content", 2 },
     { "tutorial_player_experience:button_experienced", "tutorial_player_experience:content", 3 },
+    /* poh_add_room_op (652): a room button resumes the list layer's hidden
+     * child whose sub is the button's room type (poh_add_room_init's
+     * ~poh_add_room_initbutton(y, <room type>, ...); poh_room:room_type). */
+    { "poh_add_room:parlour", "poh_add_room:list", 1 },
+    { "poh_add_room:garden", "poh_add_room:list", 2 },
+    { "poh_add_room:kitchen", "poh_add_room:list", 3 },
+    { "poh_add_room:dining_room", "poh_add_room:list", 4 },
+    { "poh_add_room:bedroom", "poh_add_room:list", 5 },
+    { "poh_add_room:games_room", "poh_add_room:list", 6 },
+    { "poh_add_room:skillhall", "poh_add_room:list", 7 },
+    { "poh_add_room:questhall", "poh_add_room:list", 9 },
+    { "poh_add_room:chapel", "poh_add_room:list", 11 },
+    { "poh_add_room:workshop", "poh_add_room:list", 12 },
+    { "poh_add_room:study", "poh_add_room:list", 13 },
+    { "poh_add_room:portalroom", "poh_add_room:list", 14 },
+    { "poh_add_room:throneroom", "poh_add_room:list", 15 },
+    { "poh_add_room:oubliette", "poh_add_room:list", 16 },
+    { "poh_add_room:dungeon_corridor", "poh_add_room:list", 17 },
+    { "poh_add_room:dungeon_cross", "poh_add_room:list", 18 },
+    { "poh_add_room:dungeon_stairs", "poh_add_room:list", 19 },
+    { "poh_add_room:dungeon_treasure", "poh_add_room:list", 20 },
+    { "poh_add_room:formal_garden", "poh_add_room:list", 21 },
+    { "poh_add_room:combat_room", "poh_add_room:list", 22 },
+    { "poh_add_room:costume_room", "poh_add_room:list", 23 },
+    { "poh_add_room:menagerie_indoors", "poh_add_room:list", 24 },
+    { "poh_add_room:menagerie_outdoors", "poh_add_room:list", 25 },
+    { "poh_add_room:superior_garden", "poh_add_room:list", 26 },
+    { "poh_add_room:achievement_gallery", "poh_add_room:list", 27 },
+    { "poh_add_room:portalnexus", "poh_add_room:list", 28 },
+    { "poh_add_room:leaguehall", "poh_add_room:list", 29 },
+    /* torirs_if458_select (1405): furniture row N (enum_1461) resumes
+     * poh_furniture_creation:contents (458:2) at sub N. */
+    { "poh_furniture_creation:01", "poh_furniture_creation:contents", 1 },
+    { "poh_furniture_creation:02", "poh_furniture_creation:contents", 2 },
+    { "poh_furniture_creation:03", "poh_furniture_creation:contents", 3 },
+    { "poh_furniture_creation:04", "poh_furniture_creation:contents", 4 },
+    { "poh_furniture_creation:05", "poh_furniture_creation:contents", 5 },
+    { "poh_furniture_creation:06", "poh_furniture_creation:contents", 6 },
+    { "poh_furniture_creation:07", "poh_furniture_creation:contents", 7 },
+    { "poh_furniture_creation:08", "poh_furniture_creation:contents", 8 },
+    { "poh_furniture_creation:09", "poh_furniture_creation:contents", 9 },
+    { "poh_furniture_creation:10", "poh_furniture_creation:contents", 10 },
+    { "poh_furniture_creation:11", "poh_furniture_creation:contents", 11 },
+    { "poh_furniture_creation:12", "poh_furniture_creation:contents", 12 },
+    { "poh_furniture_creation:13", "poh_furniture_creation:contents", 13 },
+    { "poh_furniture_creation:14", "poh_furniture_creation:contents", 14 },
+    { "poh_furniture_creation:15", "poh_furniture_creation:contents", 15 },
+    { "poh_furniture_creation:16", "poh_furniture_creation:contents", 16 },
+    { "poh_furniture_creation:17", "poh_furniture_creation:contents", 17 },
+    { "poh_furniture_creation:18", "poh_furniture_creation:contents", 18 },
+    { "poh_furniture_creation:19", "poh_furniture_creation:contents", 19 },
+    { "poh_furniture_creation:20", "poh_furniture_creation:contents", 20 },
+    { "poh_furniture_creation:21", "poh_furniture_creation:contents", 21 },
+    { "poh_furniture_creation:22", "poh_furniture_creation:contents", 22 },
+    { "poh_furniture_creation:23", "poh_furniture_creation:contents", 23 },
+    { "poh_furniture_creation:24", "poh_furniture_creation:contents", 24 },
+    { "poh_furniture_creation:25", "poh_furniture_creation:contents", 25 },
+    { "poh_furniture_creation:26", "poh_furniture_creation:contents", 26 },
+    { "poh_furniture_creation:27", "poh_furniture_creation:contents", 27 },
+    { "poh_furniture_creation:28", "poh_furniture_creation:contents", 28 },
+    { "poh_furniture_creation:29", "poh_furniture_creation:contents", 29 },
+    { "poh_furniture_creation:30", "poh_furniture_creation:contents", 30 },
+    { "poh_furniture_creation:31", "poh_furniture_creation:contents", 31 },
 };
 
 /* 1 when `component` is a stone button and its press was sent. */
@@ -3316,6 +3379,21 @@ d_modal_group(lua_State* L)
     return 2;
 }
 
+/* Whether a modal is up: the live client's DriveUi_ModalLive asks whether its
+ * modal host is mounted. Here that is a mount at this player's main- or
+ * side-modal slot, the targets if_openmain / if_opensub(sidemodal) send. */
+static int
+d_modal_live(lua_State* L)
+{
+    struct ScriptBot* bot = bot_of(L);
+    int live = ScriptrunCore_MountedAt(bot->core, ToriRSServer_PlayerMainmodal(bot->player)) >= 0 ||
+               ScriptrunCore_MountedAt(bot->core, ToriRSServer_PlayerSidemodal(bot->player)) >= 0;
+
+    lua_pushstring(L, "ok");
+    lua_pushboolean(L, live);
+    return 2;
+}
+
 static int
 d_pause_pending(lua_State* L)
 {
@@ -3441,6 +3519,114 @@ d_cheat(lua_State* L)
         return push_result(L, "refused", "cheat text too long");
     handle(bot, PKTOUT_NAME_CLIENT_CHEAT, payload, len);
     return push_result(L, "ok", "sent");
+}
+
+/* api_drive.resume_namedialog(text) -> ok | refused
+ *
+ * RESUME_P_NAMEDIALOG with `text`, as an interface's own clientscript sends
+ * it (the house board's row arrow: poh_board_send_name). Scriptrun-only: the
+ * client reaches the same packet by clicking the row, which this runner
+ * cannot, having no clientscripts. */
+static int
+d_resume_namedialog(lua_State* L)
+{
+    struct ScriptBot* bot = bot_of(L);
+    char const* text = luaL_checkstring(L, 1);
+    uint8_t payload[200];
+    int len;
+
+    len = snprintf((char*)payload, sizeof(payload), "%s", text);
+    if( len < 0 || len + 1 >= (int)sizeof(payload) )
+        return push_result(L, "refused", "name text too long");
+    payload[len] = 0;
+    handle(bot, PKTOUT_NAME_RESUME_P_NAMEDIALOG, payload, len + 1);
+    return push_result(L, "ok", "resume_p_namedialog sent");
+}
+
+/* api_drive.if_drag(src_component, src_sub, dst_component, dst_sub) -> ok
+ *
+ * INV_BUTTOND (rev-230's IfButtonD), the packet a drag between two dynamic
+ * children sends: srcCom g4 LE, srcObj g2 LE, srcSlot g2 LE+128, dstCom g4
+ * BE, dstObj g2 BE+128, dstSlot g2 BE+128 (handle_inv_buttond). The objs are
+ * -1: the server reads the endpoint contents from its own state. The live
+ * client reaches it with QD.ui.drag's pixel drag, which this runner, having
+ * no layout, cannot make (the Portal Nexus configuration list). */
+static void
+put_drag_end(uint8_t* out, int com, int slot, int big_endian)
+{
+    int obj = 0xffff;
+
+    if( big_endian )
+    {
+        out[0] = (uint8_t)(com >> 24);
+        out[1] = (uint8_t)(com >> 16);
+        out[2] = (uint8_t)(com >> 8);
+        out[3] = (uint8_t)com;
+        out[4] = (uint8_t)(obj >> 8);
+        out[5] = (uint8_t)(obj + 128);
+        out[6] = (uint8_t)(slot >> 8);
+        out[7] = (uint8_t)(slot + 128);
+        return;
+    }
+    out[0] = (uint8_t)com;
+    out[1] = (uint8_t)(com >> 8);
+    out[2] = (uint8_t)(com >> 16);
+    out[3] = (uint8_t)(com >> 24);
+    out[4] = (uint8_t)obj;
+    out[5] = (uint8_t)(obj >> 8);
+    out[6] = (uint8_t)(slot + 128);
+    out[7] = (uint8_t)(slot >> 8);
+}
+
+/* api_drive.resume_script(component, sub) -> ok | refused | not_found
+ *
+ * RESUME_PAUSEBUTTON(component, sub) as an interface's own clientscript sends
+ * it -- the CS2 resume_pausebutton op -- with no server-armed resume row in
+ * between (api_drive.resume models a press on one of those). The Portal
+ * Nexus teleport list answers its p_pausebutton this way: a row click runs a
+ * clientscript that resumes telenexus_teleport:key_listeners with the row. */
+static int
+d_resume_script(lua_State* L)
+{
+    struct ScriptBot* bot = bot_of(L);
+    char const* sym = luaL_checkstring(L, 1);
+    int sub = (int)luaL_checkinteger(L, 2);
+    int component = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, sym);
+    uint8_t payload[6];
+
+    if( component < 0 )
+        return push_result(L, "not_found", sym);
+    if( !ScriptrunCore_InterfaceOpen(bot->core, (component >> 16) & 0xffff) )
+        return push_result(L, "refused", "the component's interface is not open");
+    put4(payload, component);
+    put2(payload + 4, sub);
+    bot->core->resume_pending = component;
+    handle(bot, PKTOUT_NAME_RESUME_PAUSEBUTTON, payload, 6);
+    return push_result(L, "ok", "resume_pausebutton sent");
+}
+
+static int
+d_if_drag(lua_State* L)
+{
+    struct ScriptBot* bot = bot_of(L);
+    char const* src_sym = luaL_checkstring(L, 1);
+    int src_slot = (int)luaL_checkinteger(L, 2);
+    char const* dst_sym = luaL_checkstring(L, 3);
+    int dst_slot = (int)luaL_checkinteger(L, 4);
+    int src = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, src_sym);
+    int dst = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, dst_sym);
+    uint8_t payload[16];
+
+    if( src < 0 )
+        return push_result(L, "not_found", src_sym);
+    if( dst < 0 )
+        return push_result(L, "not_found", dst_sym);
+    if( !ScriptrunCore_InterfaceOpen(bot->core, (src >> 16) & 0xffff) )
+        return push_result(L, "refused", "the drag's interface is not open");
+    put_drag_end(payload, src, src_slot, 0);
+    put_drag_end(payload + 8, dst, dst_slot, 1);
+    handle(bot, PKTOUT_NAME_INV_BUTTOND, payload, 16);
+    return push_result(L, "ok", "inv_buttond sent");
 }
 
 /* --------------------------------------------------------- interfaces */
@@ -3809,6 +3995,9 @@ push_drive_table(
     bind(L, bot, "component", d_component);
     bind(L, bot, "cheat", d_cheat);
     bind(L, bot, "key", d_key);
+    bind(L, bot, "resume_namedialog", d_resume_namedialog);
+    bind(L, bot, "if_drag", d_if_drag);
+    bind(L, bot, "resume_script", d_resume_script);
     bind(L, bot, "player_tile", d_player_tile);
     bind(L, bot, "player_idle", d_player_idle);
     bind(L, bot, "vessel", d_vessel);
@@ -3849,6 +4038,7 @@ push_drive_table(
     bind(L, bot, "group_present", d_group_present);
     bind(L, bot, "widget_text", d_widget_text);
     bind(L, bot, "modal_group", d_modal_group);
+    bind(L, bot, "modal_live", d_modal_live);
     bind(L, bot, "tab", d_tab);
     bind(L, bot, "route", d_route);
     bind(L, bot, "plan", d_plan);

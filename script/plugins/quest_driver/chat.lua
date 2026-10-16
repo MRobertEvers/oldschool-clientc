@@ -502,6 +502,19 @@ function QD.chat.name_entry(text)
     return "ok", "chat.name_entry: entered '" .. tostring(text) .. "'"
 end
 
+-- RESUME_P_NAMEDIALOG with `text`, sent the way an interface's own
+-- clientscript sends it rather than typed into the chat prompt: the house
+-- advertisement board's row arrow (poh_board_send_name) answers a
+-- p_namedialog_wait that opened no prompt, so there is no meslayer to type
+-- into. Scriptrun binds api.drive.resume_namedialog; a client without it
+-- answers "unsupported".
+function QD.chat.resume_name(text)
+    if not api_drive.resume_namedialog then
+        return "unsupported", "chat.resume_name: no resume_namedialog on this drive"
+    end
+    return api_drive.resume_namedialog(tostring(text))
+end
+
 -- api.drive.options reads dialog_options_title/_row_N directly (verbs-chat's
 -- own C, see torirs_plugin_drive_chat.c): ready only once rows 1 and 2 both
 -- resolve -- RUNCLIENTSCRIPT is held to the tick fence (app_cs2_flush.c:71,

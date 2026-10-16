@@ -3598,6 +3598,11 @@ struct ToriRSServerPlayer
      *  `if_openmain` stayed on screen forever. */
     int mainmodal_group;
     int sidemodal_group;
+    /* Set while ToriRSServer_WorldCloseModalEx runs this player's [if_close]
+     * triggers. A trigger that itself calls if_close (the Portal Nexus
+     * configuration saves and then closes) re-entered the close, ran the same
+     * trigger again and recursed until the stack ran out. */
+    int closing_modal;
     /** What is mounted in the chatbox dialogue slot (0 = nothing).
      *
      *  Tracked for the same reason as the two above, and it is the third slot
@@ -4075,6 +4080,10 @@ struct ToriRSServerPlayer
      *  and decoration rows whenever the owner enters. */
     struct ToriRSServerPohState poh;
 
+    /** Display name of the last house this player entered as a guest, for the
+     *  advertisement board's Visit-Last. Session-only. */
+    char poh_visit_last[32];
+
     /** The bank: container 95 plus the settings its interface reads out of
      *  varbits. Heap-allocated, so ToriRSServer_BankShutdown has to run before the
      *  player struct is cleared. See torirs_server_bank.h. */
@@ -4448,6 +4457,9 @@ struct ToriRSServerPlayerFreeCmd
     int pid;
     uint32_t generation; /* player->login_generation at the moment this was queued */
 };
+
+#define TORIRSSERVER_POH_BOARD_MAX 256
+#define TORIRSSERVER_POH_BOARD_FIELDS 8
 
 struct ToriRSServer
 {
@@ -5012,6 +5024,20 @@ struct ToriRSServer
      */
     struct ToriRSServerVessel vessels[TORIRSSERVER_VESSEL_MAX];
     int vessel_count;
+
+    /*
+     * House advertisement board rows (torirs_server_ops_poh.c). Session-only
+     * and world-shared: every board in every town reads this one list. Content
+     * fills `fields` and the lifetime; a row past `expires_tick` is dropped
+     * the next time any board op looks at the list.
+     */
+    struct
+    {
+        char name[32];
+        int32_t fields[TORIRSSERVER_POH_BOARD_FIELDS];
+        int expires_tick;
+    } poh_board[TORIRSSERVER_POH_BOARD_MAX];
+    int poh_board_count;
 };
 
 /* ------------------------------------------------------------------ */

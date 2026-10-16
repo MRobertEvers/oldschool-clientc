@@ -13187,7 +13187,11 @@ ToriRSServer_WorldCloseModalEx(
      * player had closed.
      */
     bank_was_open = main_group > 0 && player->bank.open;
-    if( main_group > 0 )
+    /* An if_close from inside an [if_close] trigger is the same close: the
+     * outer call unmounts, so the inner one runs no trigger of its own. */
+    int run_triggers = !player->closing_modal;
+    player->closing_modal = 1;
+    if( main_group > 0 && run_triggers )
         ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_IF_CLOSE, main_group, -1, -1);
 
     /* One screen keeps state of its own beyond the mount — the bank, which has
@@ -13219,9 +13223,12 @@ ToriRSServer_WorldCloseModalEx(
      * above because closing mainmodal may update the tracked mount table. */
     if( side_group > 0 )
     {
-        ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_IF_CLOSE, side_group, -1, -1);
+        if( run_triggers )
+            ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_IF_CLOSE, side_group, -1, -1);
         ToriRSServer_SendIfClosesub(srv->active_player, ids->com_gameframe_sidemodal);
     }
+    if( run_triggers )
+        player->closing_modal = 0;
 }
 
 void

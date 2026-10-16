@@ -6,7 +6,7 @@
 /* Included by exactly one translation unit: ss_meta.c. */
 
 /* Opcode names, for traces and the loud stub's report. */
-static const char* const g_ss_opcode_names[11121] = {
+static const char* const g_ss_opcode_names[11129] = {
     [0] = "PUSH_CONSTANT_INT",
     [1] = "PUSH_VARP",
     [2] = "POP_VARP",
@@ -532,6 +532,14 @@ static const char* const g_ss_opcode_names[11121] = {
     [11118] = "NPC_HUDBAR_CHECK",
     [11119] = "NPC_DIE",
     [11120] = "NPC_MAXHIT_ROLLED",
+    [11121] = "POH_BOARD_ADD",
+    [11122] = "POH_BOARD_REMOVE",
+    [11123] = "POH_BOARD_COUNT",
+    [11124] = "POH_BOARD_GET",
+    [11125] = "POH_BOARD_NAME",
+    [11126] = "POH_VISIT_LAST_SET",
+    [11127] = "POH_VISIT_LAST_GET",
+    [11128] = "P_NAMEDIALOG_WAIT",
 };
 
 /* Per-opcode stack signature and runtime-safety metadata.
@@ -541,7 +549,7 @@ static const char* const g_ss_opcode_names[11121] = {
  *
  * known == 0 means neither engine.rs2 nor MANUAL_META declared this
  * opcode, so its arity is unknown and it must not be executed. */
-static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11121] = {
+static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11129] = {
     [0] = { 0, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* PUSH_CONSTANT_INT */
     [1] = { 0, 0, 1, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* PUSH_VARP */
     [2] = { 1, 0, 0, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* POP_VARP */
@@ -1067,6 +1075,14 @@ static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11121] = {
     [11118] = { 2, 0, 0, 0, 1, 0, 0, 0, 0x010, 0x000 }, /* NPC_HUDBAR_CHECK */
     [11119] = { 0, 0, 0, 0, 1, 0, 0, 0, 0x010, 0x000 }, /* NPC_DIE */
     [11120] = { 1, 0, 0, 0, 1, 0, 0, 0, 0x011, 0x000 }, /* NPC_MAXHIT_ROLLED */
+    [11121] = { 9, 0, 1, 0, 1, 0, 0, 0, 0x004, 0x000 }, /* POH_BOARD_ADD */
+    [11122] = { 0, 0, 1, 0, 1, 0, 0, 0, 0x004, 0x000 }, /* POH_BOARD_REMOVE */
+    [11123] = { 0, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* POH_BOARD_COUNT */
+    [11124] = { 2, 0, 1, 0, 1, 0, 0, 0, 0x004, 0x000 }, /* POH_BOARD_GET */
+    [11125] = { 1, 0, 0, 1, 1, 0, 0, 0, 0x000, 0x000 }, /* POH_BOARD_NAME */
+    [11126] = { 0, 1, 0, 0, 1, 0, 0, 0, 0x004, 0x000 }, /* POH_VISIT_LAST_SET */
+    [11127] = { 0, 0, 0, 1, 1, 0, 0, 0, 0x004, 0x000 }, /* POH_VISIT_LAST_GET */
+    [11128] = { 0, 0, 0, 0, 1, 0, 0, 0, 0x004, 0x000 }, /* P_NAMEDIALOG_WAIT */
 };
 
 /* Trigger names, for script-name parsing and diagnostics. */

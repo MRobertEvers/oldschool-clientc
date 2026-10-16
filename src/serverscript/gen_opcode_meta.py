@@ -561,6 +561,33 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     "POH_ROOM_SET": (11055, 3, 0, 1, 0),
     "POH_ROOM_REMOVE": (11056, 1, 0, 1, 0),
 
+    # ---- house advertisement board (world-shared, session-only) ---------
+    #
+    # The board lists houses advertised by online players across the world
+    # (https://oldschool.runescape.wiki/w/House_advertisement). Content
+    # computes every column and the duration; the engine only holds the rows,
+    # keyed by the active player's name, and drops a row once its tick passes.
+    # poh_board_add(location, level, altar, nexus, jewellery, pool, spellbook,
+    #               armour, duration_ticks)(int) -- replaces this player's row.
+    "POH_BOARD_ADD": (11121, 9, 0, 1, 0),
+    # poh_board_remove()(int) -- 1 when this player had a row.
+    "POH_BOARD_REMOVE": (11122, 0, 0, 1, 0),
+    # poh_board_count()(int) -- live rows, oldest first.
+    "POH_BOARD_COUNT": (11123, 0, 0, 1, 0),
+    # poh_board_get(int $row, int $field)(int) -- fields 0..7 as added,
+    # 8 = ticks remaining, 9 = 1 when the row is the active player's.
+    "POH_BOARD_GET": (11124, 2, 0, 1, 0),
+    # poh_board_name(int $row)(string)
+    "POH_BOARD_NAME": (11125, 1, 0, 0, 1),
+    # The last house this player entered from a portal or a board, for the
+    # board's Visit-Last. Session-only, like the board itself.
+    "POH_VISIT_LAST_SET": (11126, 0, 1, 0, 0),
+    "POH_VISIT_LAST_GET": (11127, 0, 0, 0, 1),
+    # p_namedialog_wait -- suspend for RESUME_P_NAMEDIALOG like p_namedialog,
+    # but open no chat prompt: the reply comes from an interface's own
+    # clientscript (the house board's row click, poh_board_send_name).
+    "P_NAMEDIALOG_WAIT": (11128, 0, 0, 0, 0),
+
     # map_instance_owner(int $handle)(player_uid)
     #
     # The live player who allocated the reservation. A handle/coordinate says
@@ -1357,6 +1384,11 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "POH_STATE_COMMIT": (1 << POINTER_BITS["p_active_player"], 0),
     "POH_ROOM_SET": (1 << POINTER_BITS["p_active_player"], 0),
     "POH_ROOM_REMOVE": (1 << POINTER_BITS["p_active_player"], 0),
+    "POH_BOARD_ADD": (1 << POINTER_BITS["p_active_player"], 0),
+    "POH_BOARD_REMOVE": (1 << POINTER_BITS["p_active_player"], 0),
+    "POH_BOARD_GET": (1 << POINTER_BITS["p_active_player"], 0),
+    "POH_VISIT_LAST_SET": (1 << POINTER_BITS["p_active_player"], 0),
+    "POH_VISIT_LAST_GET": (1 << POINTER_BITS["p_active_player"], 0),
     "MAP_INSTANCE_OWNER": (0, 0),
     "MAP_INSTANCE_FLAG_GET": (0, 0),
     "MAP_INSTANCE_FLAG_SET": (0, 0),
@@ -1364,6 +1396,7 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "MAP_INSTANCE_VAR_GET": (0, 0),
     "MAP_INSTANCE_VAR_SET": (0, 0),
     "P_NAMEDIALOG": (1 << POINTER_BITS["p_active_player"], 0),
+    "P_NAMEDIALOG_WAIT": (1 << POINTER_BITS["p_active_player"], 0),
     "LAST_STRING": (0, 0),
     "P_FINDMUTUALFRIEND": (1 << POINTER_BITS["p_active_player"], 0),
     "P_OVERHIT": (0, 0),

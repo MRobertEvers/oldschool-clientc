@@ -200,6 +200,28 @@ function QD.ui._bounds_of(sym, sub)
     return "ok", bounds, component_id
 end
 
+-- A drag between two dynamic children, sent as the packet itself
+-- (INV_BUTTOND: source component and row, destination component and row).
+-- Scriptrun binds api.drive.if_drag; it has no layout for QD.ui.drag's
+-- pixel drag. The Portal Nexus configuration stages a destination this way.
+function QD.ui.drag_rows(src, src_sub, dst, dst_sub)
+    if not api_drive.if_drag then
+        return "unsupported", "ui.drag_rows: no if_drag on this drive (use ui.drag)"
+    end
+    return api_drive.if_drag(src, src_sub, dst, dst_sub)
+end
+
+-- RESUME_PAUSEBUTTON(component, sub) as an interface's own clientscript
+-- sends it, with no server-armed resume row (the Portal Nexus teleport list).
+-- Scriptrun binds api.drive.resume_script; a client without it answers
+-- "unsupported".
+function QD.ui.resume_script(sym, sub)
+    if not api_drive.resume_script then
+        return "unsupported", "ui.resume_script: no resume_script on this drive"
+    end
+    return api_drive.resume_script(sym, sub)
+end
+
 function QD.ui.drag(sym, sub, to)
     local where = string.format("%s sub %s", tostring(sym), tostring(sub))
     if type(to) ~= "table" or type(to.sym) ~= "string" or type(to.x) ~= "number"

@@ -2,6 +2,24 @@
   "policy": "Symbolic cache-to-Wiki reconciliation only. Numeric XP and object IDs must be fetched from the cited Wiki page revision, never copied here.",
   "rows": {
     "poh_rug_deadman": {"page": "Deadman rug"},
+    "poh_wardrobe_3": {"page": "Oak wardrobe"},
+    "poh_achievementgallery_jewellerybox_1": {"page": "Basic jewellery box", "built_loc_symbols": ["poh_jewellery_box_1", "poh_jewellery_box_1_base", "poh_jewellery_box_1_duel_arena", "poh_jewellery_box_1_castle_wars", "poh_jewellery_box_1_clan_wars", "poh_jewellery_box_1_burthorpe", "poh_jewellery_box_1_barb", "poh_jewellery_box_1_corp", "poh_jewellery_box_1_tog", "poh_jewellery_box_1_wintertodt", "poh_jewellery_box_1_colosseum"]},
+    "poh_achievementgallery_jewellerybox_2": {"page": "Fancy jewellery box", "built_loc_symbols": ["poh_jewellery_box_2", "poh_jewellery_box_2_base", "poh_jewellery_box_2_duel_arena", "poh_jewellery_box_2_castle_wars", "poh_jewellery_box_2_clan_wars", "poh_jewellery_box_2_burthorpe", "poh_jewellery_box_2_barb", "poh_jewellery_box_2_corp", "poh_jewellery_box_2_tog", "poh_jewellery_box_2_wintertodt", "poh_jewellery_box_2_warriors_guild", "poh_jewellery_box_2_champs_guild", "poh_jewellery_box_2_prayer_guild", "poh_jewellery_box_2_range_guild", "poh_jewellery_box_2_fishing_guild", "poh_jewellery_box_2_mining_guild", "poh_jewellery_box_2_crafting_guild", "poh_jewellery_box_2_cooking_guild", "poh_jewellery_box_2_woodcutting_guild", "poh_jewellery_box_2_farming_guild", "poh_jewellery_box_2_colosseum"]},
+    "poh_achievementgallery_jewellerybox_3": {"page": "Ornate jewellery box", "built_loc_symbols": ["poh_jewellery_box_3", "poh_jewellery_box_3_base", "poh_jewellery_box_3_duel_arena", "poh_jewellery_box_3_castle_wars", "poh_jewellery_box_3_clan_wars", "poh_jewellery_box_3_burthorpe", "poh_jewellery_box_3_barb", "poh_jewellery_box_3_corp", "poh_jewellery_box_3_tog", "poh_jewellery_box_3_wintertodt", "poh_jewellery_box_3_warriors_guild", "poh_jewellery_box_3_champs_guild", "poh_jewellery_box_3_prayer_guild", "poh_jewellery_box_3_range_guild", "poh_jewellery_box_3_fishing_guild", "poh_jewellery_box_3_mining_guild", "poh_jewellery_box_3_crafting_guild", "poh_jewellery_box_3_cooking_guild", "poh_jewellery_box_3_woodcutting_guild", "poh_jewellery_box_3_farming_guild", "poh_jewellery_box_3_misc", "poh_jewellery_box_3_ge", "poh_jewellery_box_3_falador_park", "poh_jewellery_box_3_dondakan_rock", "poh_jewellery_box_3_edgeville", "poh_jewellery_box_3_karamja", "poh_jewellery_box_3_draynor", "poh_jewellery_box_3_kharid", "poh_jewellery_box_3_colosseum"]},
+    "poh_achievementgallery_altar_ecumenical_fromancient": {"page": "Occult altar", "built_loc_symbols": ["poh_altar_occult", "poh_altar_occult_standard", "poh_altar_occult_ancient", "poh_altar_occult_lunar", "poh_altar_occult_arceuus"]},
+    "poh_achievementgallery_altar_ecumenical_fromlunar": {"page": "Occult altar", "built_loc_symbols": ["poh_altar_occult", "poh_altar_occult_standard", "poh_altar_occult_ancient", "poh_altar_occult_lunar", "poh_altar_occult_arceuus"]},
+    "poh_achievementgallery_altar_ecumenical_fromarceuus": {"page": "Occult altar", "built_loc_symbols": ["poh_altar_occult", "poh_altar_occult_standard", "poh_altar_occult_ancient", "poh_altar_occult_lunar", "poh_altar_occult_arceuus"]},
+    "poh_wardrobe_5": {"page": "Teak wardrobe"},
+    "poh_wardrobe_7": {"page": "Gilded wardrobe"},
+    "poh_cos_room_magic_wardrobe_oak": {"page": "Oak magic wardrobe"},
+    "poh_cos_room_magic_wardrobe_teak": {"page": "Teak magic wardrobe"},
+    "poh_cos_room_magic_wardrobe_mahogany_gilded": {
+      "page": "Gilded magic wardrobe",
+      "built_loc_symbols": [
+        "poh_cos_room_magic_wardrobe_mahogany_gilded",
+        "poh_cos_room_magic_wardrobe_open_mahogany_gilded"
+      ]
+    },
     "poh_leaguehall_rug_trailblazer": {
       "page": "Trailblazer rug (Construction)",
       "built_loc_symbols": [

@@ -13,6 +13,7 @@
 #include "ss_opcode.h"
 #include "ssc.h"
 #include "ssc_lane.h"
+#include "ssc_lex.h"
 #include "ssvm.h"
 
 #include <stdio.h>
@@ -2298,9 +2299,35 @@ test_recompile_transaction(void)
     fixture_close(&fixture);
 }
 
+/* A name's second half may begin with a digit when it is still a name
+ * (`fairyrings:1_clockwise`, a cache component); a bare number after a colon
+ * stays a number, as in a switch case. */
+static void
+test_lex_digit_led_component(void)
+{
+    struct SSC_Lexer lexer;
+    const char* src = "fairyrings:1_clockwise case 3:4";
+    const struct SSC_Token* tok;
+
+    printf("lex: digit-led component name\n");
+    SSC_LexInit(&lexer, src, strlen(src), "lex.rs2");
+    tok = SSC_LexNext(&lexer);
+    CHECK(tok->kind == SSC_TOK_IDENT && strcmp(tok->text, "fairyrings:1_clockwise") == 0,
+          "fairyrings:1_clockwise is one name");
+    tok = SSC_LexNext(&lexer);
+    CHECK(tok->kind == SSC_TOK_IDENT && strcmp(tok->text, "case") == 0, "then `case`");
+    tok = SSC_LexNext(&lexer);
+    CHECK(tok->kind == SSC_TOK_INT && tok->value == 3, "then 3");
+    tok = SSC_LexNext(&lexer);
+    CHECK(tok->kind == SSC_TOK_PUNCT && strcmp(tok->text, ":") == 0, "then the colon, alone");
+    tok = SSC_LexNext(&lexer);
+    CHECK(tok->kind == SSC_TOK_INT && tok->value == 4, "then 4");
+}
+
 int
 main(void)
 {
+    test_lex_digit_led_component();
     test_recompile_transaction();
     test_minimal();
     test_arguments_and_locals();

@@ -13864,6 +13864,11 @@ script_command(
         return 1;
     }
 
+    case SS_OP_P_NAMEDIALOG_WAIT:
+        state->last_string = "";
+        SSVM_Suspend(state, SSVM_NAMEDIALOG);
+        return 1;
+
     /*
      * `last_int` is a property of the SCRIPT STATE, not of the player — the
      * reference pushes `state.lastInt` (PlayerOps.ts) and the npc queue seeds it

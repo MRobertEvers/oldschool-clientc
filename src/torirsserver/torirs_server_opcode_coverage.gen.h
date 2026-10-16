@@ -10,7 +10,7 @@
  *
  * Coverage by layer:
  *     63  VM core
- *    342  host commands
+ *    343  host commands
  *      9  host commands (db)
  *     10  host commands (inv)
  *      8  host commands (loc)
@@ -18,8 +18,8 @@
  *     13  host commands (obj)
  *      2  host commands (param)
  *      7  host commands (player)
- *     11  host commands (poh)
- *    473  total, of 525 declared opcodes
+ *     18  host commands (poh)
+ *    481  total, of 533 declared opcodes
  */
 
 #ifndef SRC_TORIRSSERVER_TORIRS_SERVER_OPCODE_COVERAGE_GEN_H
@@ -27,8 +27,8 @@
 
 #include <stdint.h>
 
-#define TORIRSSERVER_OPCODE_COVERAGE_COUNT 473
-#define TORIRSSERVER_OPCODE_DECLARED_COUNT 525
+#define TORIRSSERVER_OPCODE_COVERAGE_COUNT 481
+#define TORIRSSERVER_OPCODE_DECLARED_COUNT 533
 
 /*
  * One past the highest opcode *value*, which is nothing like the number of
@@ -37,7 +37,7 @@
  * array by opcode wants this, not the count — using the count silently
  * treats every real opcode as out of range.
  */
-#define TORIRSSERVER_OPCODE_VALUE_LIMIT 11121
+#define TORIRSSERVER_OPCODE_VALUE_LIMIT 11129
 
 /* Ascending, so a lookup can binary-search. */
 static const uint16_t TORIRSSERVER_OPCODE_COVERAGE[TORIRSSERVER_OPCODE_COVERAGE_COUNT] = {
@@ -514,6 +514,14 @@ static const uint16_t TORIRSSERVER_OPCODE_COVERAGE[TORIRSSERVER_OPCODE_COVERAGE_
     11118, /* SS_OP_NPC_HUDBAR_CHECK (host commands) */
     11119, /* SS_OP_NPC_DIE (host commands) */
     11120, /* SS_OP_NPC_MAXHIT_ROLLED (host commands) */
+    11121, /* SS_OP_POH_BOARD_ADD (host commands (poh)) */
+    11122, /* SS_OP_POH_BOARD_REMOVE (host commands (poh)) */
+    11123, /* SS_OP_POH_BOARD_COUNT (host commands (poh)) */
+    11124, /* SS_OP_POH_BOARD_GET (host commands (poh)) */
+    11125, /* SS_OP_POH_BOARD_NAME (host commands (poh)) */
+    11126, /* SS_OP_POH_VISIT_LAST_SET (host commands (poh)) */
+    11127, /* SS_OP_POH_VISIT_LAST_GET (host commands (poh)) */
+    11128, /* SS_OP_P_NAMEDIALOG_WAIT (host commands) */
 };
 
 #endif

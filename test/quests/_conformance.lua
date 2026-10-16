@@ -2472,6 +2472,22 @@ return {
             return prompt_echoed(result, detail, "conform_test_nameprompt: conformance")
         end)
 
+        stage(function()
+            settle(3)
+            setup_cheat("::conform_test_nameprompt")
+            settle(3)
+        end)
+
+        step("chat.resume_name", function()
+            local fn = verb("chat", "resume_name")
+            if not fn then return missing("chat", "resume_name") end
+            local result, detail = fn("conformance")
+            if result ~= "ok" then
+                return result, "-> " .. describe(detail)
+            end
+            return prompt_echoed(result, detail, "conform_test_nameprompt: conformance")
+        end)
+
         -- ------------------------ phase 7: the scroll and the levelup box
 
         -- setup: a real questscroll on screen.  Nothing else in this harness
@@ -3382,6 +3398,30 @@ return {
         -- Their position is the same measurement npc.await_dead's is: LAST of
         -- the world rows, because the fight above is their only subject.
 
+        step("player.seq", function()
+            local fn = verb("player", "seq")
+            if not fn then return missing("player", "seq") end
+            local result, detail, reading = fn()
+            if result ~= "ok" then
+                return result, "-> " .. describe(detail)
+            end
+            if type(reading) ~= "table" or type(reading.seq) ~= "number" then
+                return "refused", "player.seq answered ok with no reading: " .. describe(detail)
+            end
+            return "ok", "-> " .. describe(detail)
+        end)
+        step("player.run_energy", function()
+            local fn = verb("player", "run_energy")
+            if not fn then return missing("player", "run_energy") end
+            local result, energy = fn()
+            if result ~= "ok" then
+                return result, "-> " .. describe(energy)
+            end
+            if type(energy) ~= "number" or energy < 0 or energy > 10000 then
+                return "refused", "player.run_energy answered ok with " .. describe(energy)
+            end
+            return "ok", "-> " .. energy
+        end)
         step("player.alive", function()
             local fn = verb("player", "alive")
             if not fn then return missing("player", "alive") end

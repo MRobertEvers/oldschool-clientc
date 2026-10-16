@@ -4819,15 +4819,11 @@
       "auxiliary_locs": [],
       "built_locs": [
         {
-          "id": 18784,
-          "symbol": "poh_cos_room_magic_wardrobe_oak"
-        },
-        {
-          "id": 18785,
-          "symbol": "poh_cos_room_magic_wardrobe_open_oak"
+          "id": 13157,
+          "symbol": "poh_wardrobe_3"
         }
       ],
-      "experience": 240,
+      "experience": 180,
       "flatpack": {
         "id": 8614,
         "symbol": "poh_flatpack_wardrobe3"
@@ -4859,13 +4855,19 @@
       "symbol": "poh_wardrobe_3",
       "upgrade_source_absolute": [],
       "upgrade_source_relative": [],
-      "wiki": "https://oldschool.runescape.wiki/w/Oak_magic_wardrobe",
+      "wiki": "https://oldschool.runescape.wiki/w/Oak_wardrobe",
       "wiki_match": {
-        "experience_sources": [],
-        "join": "cache menu_obj id = Wiki infobox itemid",
-        "page": "Oak magic wardrobe",
-        "revision_id": 14913643,
-        "revision_timestamp": "2025-06-01T19:59:26Z"
+        "experience_sources": [
+          {
+            "experience": 180,
+            "page": "Oak wardrobe",
+            "revision_id": 14998007
+          }
+        ],
+        "join": "reviewed symbolic reconciliation + Wiki page revision",
+        "page": "Oak wardrobe",
+        "revision_id": 14998007,
+        "revision_timestamp": "2025-10-02T14:59:02Z"
       }
     },
     {
@@ -4921,15 +4923,11 @@
       "auxiliary_locs": [],
       "built_locs": [
         {
-          "id": 18788,
-          "symbol": "poh_cos_room_magic_wardrobe_teak"
-        },
-        {
-          "id": 18789,
-          "symbol": "poh_cos_room_magic_wardrobe_open_teak"
+          "id": 13159,
+          "symbol": "poh_wardrobe_5"
         }
       ],
-      "experience": 360,
+      "experience": 270,
       "flatpack": {
         "id": 8618,
         "symbol": "poh_flatpack_wardrobe5"
@@ -4961,13 +4959,19 @@
       "symbol": "poh_wardrobe_5",
       "upgrade_source_absolute": [],
       "upgrade_source_relative": [],
-      "wiki": "https://oldschool.runescape.wiki/w/Teak_magic_wardrobe",
+      "wiki": "https://oldschool.runescape.wiki/w/Teak_wardrobe",
       "wiki_match": {
-        "experience_sources": [],
-        "join": "cache menu_obj id = Wiki infobox itemid",
-        "page": "Teak magic wardrobe",
-        "revision_id": 15150981,
-        "revision_timestamp": "2026-03-17T16:51:59Z"
+        "experience_sources": [
+          {
+            "experience": 270,
+            "page": "Teak wardrobe",
+            "revision_id": 15118770
+          }
+        ],
+        "join": "reviewed symbolic reconciliation + Wiki page revision",
+        "page": "Teak wardrobe",
+        "revision_id": 15118770,
+        "revision_timestamp": "2026-02-01T23:38:55Z"
       }
     },
     {
@@ -5023,15 +5027,11 @@
       "auxiliary_locs": [],
       "built_locs": [
         {
-          "id": 18794,
-          "symbol": "poh_cos_room_magic_wardrobe_mahogany_gilded"
-        },
-        {
-          "id": 19795,
-          "symbol": "eaglepeak_desert_cave_wall_top5"
+          "id": 13161,
+          "symbol": "poh_wardrobe_7"
         }
       ],
-      "experience": 860,
+      "experience": 720,
       "flatpack": {
         "id": 8622,
         "symbol": "poh_flatpack_wardrobe7"
@@ -5068,13 +5068,19 @@
       "symbol": "poh_wardrobe_7",
       "upgrade_source_absolute": [],
       "upgrade_source_relative": [],
-      "wiki": "https://oldschool.runescape.wiki/w/Gilded_magic_wardrobe",
+      "wiki": "https://oldschool.runescape.wiki/w/Gilded_wardrobe",
       "wiki_match": {
-        "experience_sources": [],
-        "join": "cache menu_obj id = Wiki infobox itemid",
-        "page": "Gilded magic wardrobe",
-        "revision_id": 14913490,
-        "revision_timestamp": "2025-06-01T19:40:27Z"
+        "experience_sources": [
+          {
+            "experience": 720,
+            "page": "Gilded wardrobe",
+            "revision_id": 15143796
+          }
+        ],
+        "join": "reviewed symbolic reconciliation + Wiki page revision",
+        "page": "Gilded wardrobe",
+        "revision_id": 15143796,
+        "revision_timestamp": "2026-03-06T23:50:42Z"
       }
     },
     {
@@ -22942,11 +22948,15 @@
       "auxiliary_locs": [],
       "built_locs": [
         {
-          "id": 13157,
-          "symbol": "poh_wardrobe_3"
+          "id": 18784,
+          "symbol": "poh_cos_room_magic_wardrobe_oak"
+        },
+        {
+          "id": 18785,
+          "symbol": "poh_cos_room_magic_wardrobe_open_oak"
         }
       ],
-      "experience": 180,
+      "experience": 240,
       "flatpack": {
         "id": 9852,
         "symbol": "poh_flatpack_magic_wardrobe"
@@ -22980,13 +22990,19 @@
       "upgrade_source_relative": [
         1
       ],
-      "wiki": "https://oldschool.runescape.wiki/w/Oak_wardrobe",
+      "wiki": "https://oldschool.runescape.wiki/w/Oak_magic_wardrobe",
       "wiki_match": {
-        "experience_sources": [],
-        "join": "cache menu_obj id = Wiki infobox itemid",
-        "page": "Oak wardrobe",
-        "revision_id": 14998007,
-        "revision_timestamp": "2025-10-02T14:59:02Z"
+        "experience_sources": [
+          {
+            "experience": 240,
+            "page": "Oak magic wardrobe",
+            "revision_id": 14913643
+          }
+        ],
+        "join": "reviewed symbolic reconciliation + Wiki page revision",
+        "page": "Oak magic wardrobe",
+        "revision_id": 14913643,
+        "revision_timestamp": "2025-06-01T19:59:26Z"
       }
     },
     {
@@ -23048,11 +23064,15 @@
       "auxiliary_locs": [],
       "built_locs": [
         {
-          "id": 13159,
-          "symbol": "poh_wardrobe_5"
+          "id": 18788,
+          "symbol": "poh_cos_room_magic_wardrobe_teak"
+        },
+        {
+          "id": 18789,
+          "symbol": "poh_cos_room_magic_wardrobe_open_teak"
         }
       ],
-      "experience": 270,
+      "experience": 360,
       "flatpack": {
         "id": 9854,
         "symbol": "poh_flatpack_magic_wardrobe3"
@@ -23086,13 +23106,19 @@
       "upgrade_source_relative": [
         1
       ],
-      "wiki": "https://oldschool.runescape.wiki/w/Teak_wardrobe",
+      "wiki": "https://oldschool.runescape.wiki/w/Teak_magic_wardrobe",
       "wiki_match": {
-        "experience_sources": [],
-        "join": "cache menu_obj id = Wiki infobox itemid",
-        "page": "Teak wardrobe",
-        "revision_id": 15118770,
-        "revision_timestamp": "2026-02-01T23:38:55Z"
+        "experience_sources": [
+          {
+            "experience": 360,
+            "page": "Teak magic wardrobe",
+            "revision_id": 15150981
+          }
+        ],
+        "join": "reviewed symbolic reconciliation + Wiki page revision",
+        "page": "Teak magic wardrobe",
+        "revision_id": 15150981,
+        "revision_timestamp": "2026-03-17T16:51:59Z"
       }
     },
     {
@@ -23209,11 +23235,15 @@
       "auxiliary_locs": [],
       "built_locs": [
         {
-          "id": 13161,
-          "symbol": "poh_wardrobe_7"
+          "id": 18794,
+          "symbol": "poh_cos_room_magic_wardrobe_mahogany_gilded"
+        },
+        {
+          "id": 18795,
+          "symbol": "poh_cos_room_magic_wardrobe_open_mahogany_gilded"
         }
       ],
-      "experience": 720,
+      "experience": 860,
       "flatpack": {
         "id": 9857,
         "symbol": "poh_flatpack_magic_wardrobe6"
@@ -23252,13 +23282,19 @@
       "upgrade_source_relative": [
         1
       ],
-      "wiki": "https://oldschool.runescape.wiki/w/Gilded_wardrobe",
+      "wiki": "https://oldschool.runescape.wiki/w/Gilded_magic_wardrobe",
       "wiki_match": {
-        "experience_sources": [],
-        "join": "cache menu_obj id = Wiki infobox itemid",
-        "page": "Gilded wardrobe",
-        "revision_id": 15143796,
-        "revision_timestamp": "2026-03-06T23:50:42Z"
+        "experience_sources": [
+          {
+            "experience": 860,
+            "page": "Gilded magic wardrobe",
+            "revision_id": 14913490
+          }
+        ],
+        "join": "reviewed symbolic reconciliation + Wiki page revision",
+        "page": "Gilded magic wardrobe",
+        "revision_id": 14913490,
+        "revision_timestamp": "2025-06-01T19:40:27Z"
       }
     },
     {
@@ -26697,6 +26733,10 @@
       "auxiliary_locs": [],
       "built_locs": [
         {
+          "id": 29150,
+          "symbol": "poh_altar_occult"
+        },
+        {
           "id": 31858,
           "symbol": "poh_altar_occult_standard"
         },
@@ -26766,8 +26806,14 @@
       "upgrade_source_relative": [],
       "wiki": "https://oldschool.runescape.wiki/w/Occult_altar",
       "wiki_match": {
-        "experience_sources": [],
-        "join": "cache menu_obj id = Wiki infobox itemid",
+        "experience_sources": [
+          {
+            "experience": 3445,
+            "page": "Occult altar",
+            "revision_id": 15289732
+          }
+        ],
+        "join": "reviewed symbolic reconciliation + Wiki page revision",
         "page": "Occult altar",
         "revision_id": 15289732,
         "revision_timestamp": "2026-08-07T14:01:32Z"
@@ -26776,6 +26822,10 @@
     {
       "auxiliary_locs": [],
       "built_locs": [
+        {
+          "id": 29150,
+          "symbol": "poh_altar_occult"
+        },
         {
           "id": 31858,
           "symbol": "poh_altar_occult_standard"
@@ -26844,8 +26894,14 @@
       "upgrade_source_relative": [],
       "wiki": "https://oldschool.runescape.wiki/w/Occult_altar",
       "wiki_match": {
-        "experience_sources": [],
-        "join": "cache menu_obj id = Wiki infobox itemid",
+        "experience_sources": [
+          {
+            "experience": 3445,
+            "page": "Occult altar",
+            "revision_id": 15289732
+          }
+        ],
+        "join": "reviewed symbolic reconciliation + Wiki page revision",
         "page": "Occult altar",
         "revision_id": 15289732,
         "revision_timestamp": "2026-08-07T14:01:32Z"
@@ -26854,6 +26910,10 @@
     {
       "auxiliary_locs": [],
       "built_locs": [
+        {
+          "id": 29150,
+          "symbol": "poh_altar_occult"
+        },
         {
           "id": 31858,
           "symbol": "poh_altar_occult_standard"
@@ -26917,8 +26977,14 @@
       "upgrade_source_relative": [],
       "wiki": "https://oldschool.runescape.wiki/w/Occult_altar",
       "wiki_match": {
-        "experience_sources": [],
-        "join": "cache menu_obj id = Wiki infobox itemid",
+        "experience_sources": [
+          {
+            "experience": 3445,
+            "page": "Occult altar",
+            "revision_id": 15289732
+          }
+        ],
+        "join": "reviewed symbolic reconciliation + Wiki page revision",
         "page": "Occult altar",
         "revision_id": 15289732,
         "revision_timestamp": "2026-08-07T14:01:32Z"
@@ -27096,6 +27162,10 @@
       "auxiliary_locs": [],
       "built_locs": [
         {
+          "id": 29154,
+          "symbol": "poh_jewellery_box_1"
+        },
+        {
           "id": 37492,
           "symbol": "poh_jewellery_box_1_base"
         },
@@ -27182,8 +27252,14 @@
       "upgrade_source_relative": [],
       "wiki": "https://oldschool.runescape.wiki/w/Basic_jewellery_box",
       "wiki_match": {
-        "experience_sources": [],
-        "join": "cache menu_obj id = Wiki infobox itemid",
+        "experience_sources": [
+          {
+            "experience": 605,
+            "page": "Basic jewellery box",
+            "revision_id": 15262556
+          }
+        ],
+        "join": "reviewed symbolic reconciliation + Wiki page revision",
         "page": "Basic jewellery box",
         "revision_id": 15262556,
         "revision_timestamp": "2026-07-13T18:55:42Z"
@@ -27192,6 +27268,10 @@
     {
       "auxiliary_locs": [],
       "built_locs": [
+        {
+          "id": 29155,
+          "symbol": "poh_jewellery_box_2"
+        },
         {
           "id": 37501,
           "symbol": "poh_jewellery_box_2_base"
@@ -27316,8 +27396,14 @@
       ],
       "wiki": "https://oldschool.runescape.wiki/w/Fancy_jewellery_box",
       "wiki_match": {
-        "experience_sources": [],
-        "join": "cache menu_obj id = Wiki infobox itemid",
+        "experience_sources": [
+          {
+            "experience": 1350,
+            "page": "Fancy jewellery box",
+            "revision_id": 15262554
+          }
+        ],
+        "join": "reviewed symbolic reconciliation + Wiki page revision",
         "page": "Fancy jewellery box",
         "revision_id": 15262554,
         "revision_timestamp": "2026-07-13T18:54:11Z"
@@ -27326,6 +27412,10 @@
     {
       "auxiliary_locs": [],
       "built_locs": [
+        {
+          "id": 29156,
+          "symbol": "poh_jewellery_box_3"
+        },
         {
           "id": 37520,
           "symbol": "poh_jewellery_box_3_base"
@@ -27482,8 +27572,14 @@
       ],
       "wiki": "https://oldschool.runescape.wiki/w/Ornate_jewellery_box",
       "wiki_match": {
-        "experience_sources": [],
-        "join": "cache menu_obj id = Wiki infobox itemid",
+        "experience_sources": [
+          {
+            "experience": 2680,
+            "page": "Ornate jewellery box",
+            "revision_id": 15262552
+          }
+        ],
+        "join": "reviewed symbolic reconciliation + Wiki page revision",
         "page": "Ornate jewellery box",
         "revision_id": 15262552,
         "revision_timestamp": "2026-07-13T18:53:29Z"
@@ -54245,9 +54341,9 @@
       "skill_features": 213
     },
     "unreferenced_furniture": 13,
-    "wiki_furniture_direct_id_matches": 452,
+    "wiki_furniture_direct_id_matches": 440,
     "wiki_furniture_matches": 525,
-    "wiki_furniture_symbolic_reconciliations": 73,
+    "wiki_furniture_symbolic_reconciliations": 85,
     "wiki_furniture_unresolved": 0,
     "wiki_snapshot_entries": 493
   },

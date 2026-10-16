@@ -547,10 +547,18 @@
 #define SS_OP_NPC_HUDBAR_CHECK 11118
 #define SS_OP_NPC_DIE 11119
 #define SS_OP_NPC_MAXHIT_ROLLED 11120
+#define SS_OP_POH_BOARD_ADD 11121
+#define SS_OP_POH_BOARD_REMOVE 11122
+#define SS_OP_POH_BOARD_COUNT 11123
+#define SS_OP_POH_BOARD_GET 11124
+#define SS_OP_POH_BOARD_NAME 11125
+#define SS_OP_POH_VISIT_LAST_SET 11126
+#define SS_OP_POH_VISIT_LAST_GET 11127
+#define SS_OP_P_NAMEDIALOG_WAIT 11128
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11121
+#define SS_OPCODE_MAX 11129
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 525
+#define SS_OPCODE_COUNT 533
 
 #endif

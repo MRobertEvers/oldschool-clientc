@@ -613,6 +613,12 @@ function QD.skill.snapshot()
     return "ok", snapshot
 end
 
+-- t.player.run_energy() -> ("ok", energy 0..10000): the run energy the
+-- server last sent (UPDATE_RUNENERGY), as api.drive.run_energy reads it.
+function QD.player.run_energy()
+    return api_drive.run_energy()
+end
+
 -- t.skill.expect_gain(name, xp, snapshot): `snapshot` is an earlier
 -- t.skill.snapshot() table. Accepts the delta matching `xp` in either unit
 -- the client's own experience field might be carrying -- whole xp, or the
@@ -793,6 +799,30 @@ end
 -- `t.expect("player.alive", t.player.alive())` -- which is also the right
 -- shape: t.expect takes no screenshot, and photographing a state nothing
 -- clicked is trap 4.
+-- t.player.seq() -> ok, detail, { seq, seq_tick, seq_starts, anim }
+-- The animation the player's own entity is playing, the server tick it started
+-- on, how many it has started (a repeat of the same seq still counts), and the
+-- base pose, from the same players pool the party verbs read. An op that
+-- answers only with a pose -- sitting on a chair, playing an instrument --
+-- leaves nothing else to see. `seq` is -1 while the player stands idle.
+function QD.player.seq()
+    local result, rows = api_drive.players()
+    if result ~= "ok" then
+        return result, "player.seq: no world in this client yet"
+    end
+    for _, r in ipairs(rows) do
+        if r.me then
+            local seq = r.seq or -1
+            local tick = r.seq_tick or -1
+            local starts = r.seq_starts or 0
+            local anim = r.anim or -1
+            return "ok", string.format("seq %d since tick %d (%d started), pose %d", seq, tick, starts, anim),
+                { seq = seq, seq_tick = tick, seq_starts = starts, anim = anim }
+        end
+    end
+    return "not_found", "player.seq: own player not among the " .. #rows .. " in the pool"
+end
+
 function QD.player.alive()
     local record = QD.player._death_record()
     if record then
