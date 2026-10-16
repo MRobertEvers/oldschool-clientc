@@ -183,58 +183,6 @@ function QD.sail.board(gangplank, op, ticks)
     return "ok", "sail.board (" .. aim .. "): " .. QD.sail._describe(reading)
 end
 
--- The viewport points a deck-loc hunt right-clicks, nearest the player's own
--- screen position first.  The camera follows the player, so the player is
--- drawn near the viewport's centre, and a raft or skiff puts every facility
--- within a few tiles of it.
-function QD.sail._hunt_points(step, rings)
-    local pick_result, point = api_drive.pick_point()
-    if pick_result ~= "ok" or type(point) ~= "table" or (point.view_w or 0) <= 0 then
-        return nil
-    end
-    local cx = point.view_x + math.floor(point.view_w / 2)
-    local cy = point.view_y + math.floor(point.view_h / 2)
-    local out = { { x = cx, y = cy } }
-    for ring = 1, rings do
-        for dy = -ring, ring do
-            for dx = -ring, ring do
-                if math.abs(dx) == ring or math.abs(dy) == ring then
-                    local x = cx + dx * step
-                    local y = cy + dy * step
-                    if x > point.view_x and x < point.view_x + point.view_w
-                        and y > point.view_y and y < point.view_y + point.view_h then
-                        out[#out + 1] = { x = x, y = y }
-                    end
-                end
-            end
-        end
-    end
-    return out
-end
-
--- The points AHEAD of the player once the camera faces a target: the target
--- is then drawn above the player on screen, so rows run from the player's
--- row upward to the viewport's top edge, centre column first.
-function QD.sail._ahead_points(step, half_width)
-    local pick_result, point = api_drive.pick_point()
-    if pick_result ~= "ok" or type(point) ~= "table" or (point.view_w or 0) <= 0 then
-        return nil
-    end
-    local cx = point.view_x + math.floor(point.view_w / 2)
-    local cy = point.view_y + math.floor(point.view_h / 2)
-    local out = {}
-    local y = cy
-    while y > point.view_y + 4 do
-        out[#out + 1] = { x = cx, y = y }
-        for k = 1, half_width do
-            out[#out + 1] = { x = cx - k * step, y = y }
-            out[#out + 1] = { x = cx + k * step, y = y }
-        end
-        y = y - step
-    end
-    return out
-end
-
 -- One rendered frame, so a hover lands before the press that reads it.
 function QD.sail._frame()
     local seen = 0
@@ -250,7 +198,7 @@ end
 -- Right-click each of `points` until the client's minimenu has a row whose
 -- plain text holds both `option` and `name`, then press it.  Answers the
 -- row's text, or not_found with the first rows it saw.
-function QD.sail._press_row_at(points, option, name)
+function QD.sail._press_row_at(points, option, name, target_id)
     local seen = {}
     for i = 1, #points do
         local at = points[i]
@@ -281,13 +229,23 @@ function QD.sail._press_row_at(points, option, name)
                         else
                             option_hit = string.find(plain, option, 1, true) ~= nil
                         end
-                        if option_hit and string.find(plain, name, 1, true) then
+                        if option_hit and string.find(plain, name, 1, true)
+                            and (target_id == nil or rows[r].target_id == target_id) then
+                            -- A press whose meaning lapses with time (a trim
+                            -- outside its gust FURLS the sails) is checked
+                            -- again at the click, after the hunt's frames.
+                            if QD.sail._press_guard and not QD.sail._press_guard() then
+                                QD.drive._dismiss_menu(at)
+                                return "missed", plain .. " found at " .. at.x .. "," .. at.y
+                                    .. " (probe " .. i .. ") after its moment had passed"
+                            end
                             api_drive.mouse_button("left", 1, rows[r].centre_x, rows[r].centre_y)
                             api_drive.mouse_button("left", 0, rows[r].centre_x, rows[r].centre_y)
                             return "ok", plain .. " at " .. at.x .. "," .. at.y .. " (probe " .. i .. ")"
                         end
                         if #seen < 12 and plain ~= "Cancel" and plain ~= "Walk here" then
-                            seen[#seen + 1] = plain .. "@" .. at.x .. "," .. at.y
+                            seen[#seen + 1] = plain .. (target_id ~= nil and ("#" .. tostring(rows[r].target_id)) or "")
+                                .. "@" .. at.x .. "," .. at.y
                         end
                     end
                 end
@@ -344,12 +302,20 @@ function QD.sail._frame_beside(kind, id, tx, tz, label)
         QD.sail._frame()
         local result, pos = api_drive.screen_position(kind, id)
         if result == "ok" and type(pos) == "table" and not QD.drive._under_ui(pos) then
+            -- The element's own model faces, nearest its footprint first
+            -- (api_drive.model_points), then the footprint itself.
             local out = {}
-            local offsets = { { 0, 0 }, { 0, -4 }, { 0, 4 }, { -4, 0 }, { 4, 0 }, { 0, -8 },
-                { -4, -4 }, { 4, -4 }, { 0, 8 } }
-            for k = 1, #offsets do
-                out[#out + 1] = { x = pos.x + offsets[k][1], y = pos.y + offsets[k][2] }
+            if pos.element_id ~= nil and pos.element_id >= 0 then
+                local m_result, faces = api_drive.model_points(pos.element_id, pos.x, pos.y, 12)
+                if m_result == "ok" and type(faces) == "table" then
+                    for k = 1, #faces do
+                        if not QD.drive._under_ui(faces[k]) then
+                            out[#out + 1] = { x = faces[k].x, y = faces[k].y }
+                        end
+                    end
+                end
             end
+            out[#out + 1] = { x = pos.x, y = pos.y }
             return out, aim .. " framing " .. where .. string.format(" drawn at %d,%d", pos.x, pos.y)
         end
     end
@@ -363,37 +329,156 @@ end
 -- (a stopped current duck) is the exception: it is framed by _frame_beside
 -- and pressed at its projected pixels first, because no one pose reaches it
 -- wherever the hull stopped (currentaffairs collectDuck).
-function QD.sail._press_deck_row(option, name, step, rings)
+function QD.sail._press_deck_row(option, name, step, rings, target_id)
     -- SCRIPTRUN: no screen to hunt on. The runner presses the row the hunt
     -- looks for -- "<option> <name>" on the nearest loc that offers it, a
     -- deck loc at its staging tile (api_drive.loc_row) -- as click_minimenu's
     -- scriptrun branch sends the op a menu row would have sent.
     if api_drive.scriptrun == true then
-        local result, press = api_drive.loc_row(option, name, 16)
+        local result, press = api_drive.loc_row(option, name, 16, target_id)
         if result ~= "ok" then
             local wanted = type(option) == "table" and table.concat(option, "/") or option
             return result, "loc_row '" .. wanted .. "' + '" .. name .. "': " .. tostring(press)
         end
         return "ok", tostring(press.row_text) .. " (scriptrun loc_row)"
     end
-    local npc_row = QD.sail._npc_named(name)
-    local aim
-    local points
+    -- A named root npc beside the hull (a stopped current duck); an
+    -- unnamed press (the mast's "Work") is always a deck loc.
+    local npc_row = name ~= "" and QD.sail._npc_named(name) or nil
     if npc_row then
-        points, aim = QD.sail._frame_beside("npc", npc_row.npc_id, npc_row.x, npc_row.z, name)
-    else
-        aim = "caller's pose"
-        points = {}
+        local points, aim = QD.sail._frame_beside("npc", npc_row.npc_id, npc_row.x, npc_row.z, name)
+        local result, detail = QD.sail._press_row_at(points, option, name)
+        return result, tostring(detail) .. " (" .. aim .. ")"
     end
-    local spiral = QD.sail._hunt_points(step or 24, rings or 5)
-    if not spiral then
-        return "not_visible", "no viewport pick point (" .. aim .. ")"
+    -- A deck loc: the client names its element (api_drive.deck_loc_point:
+    -- by name, by op, by loc id) and hands back the screen centroids of its
+    -- model's visible faces, pushed through the hull. Those are pressed,
+    -- nearest its footprint first. From one side it can stand behind the
+    -- crew or a taller facility (salvage.helm_again: the helm behind Jobless
+    -- Jim at yaw 1024): then the deck pose turns a quarter and asks again.
+    local op = type(option) == "string" and option or nil
+    local pose_result, pose = QD.drive._camera_pose()
+    local base = (pose_result == "ok" and type(pose) == "table") and pose.yaw or 0
+    local tried = {}
+    for turn = 0, 3 do
+        if turn > 0 then
+            QD.sail._take_pose("deck", (base + turn * 512) % 2048)
+        end
+        local r, pos = api_drive.deck_loc_point(name, op, target_id)
+        if r == "ok" and type(pos) == "table" then
+            local points = {}
+            for k = 1, #(pos.points or {}) do
+                points[#points + 1] = pos.points[k]
+            end
+            points[#points + 1] = { x = pos.x, y = pos.y }
+            local result, detail = QD.sail._press_row_at(points, option, name)
+            local aim = "deck element " .. tostring(pos.element_id) .. ", " .. #points .. " model point(s)"
+                .. (turn > 0 and (", turned " .. turn .. " quarter(s)") or "")
+            if result == "ok" or result == "missed" then
+                return result, tostring(detail) .. " (" .. aim .. ")"
+            end
+            tried[#tried + 1] = aim .. ": " .. tostring(detail)
+        else
+            tried[#tried + 1] = "not drawn (" .. tostring(r) .. ")"
+        end
     end
-    for i = 1, #spiral do
-        points[#points + 1] = spiral[i]
+    return "not_found", "deck '" .. tostring(name) .. "': " .. table.concat(tried, " ; ")
+end
+
+-- A ROOT loc beside the hull (a chartable rock, a wreck), pressed from the
+-- deck: the client draws it where the sea is, which no spiral around the
+-- rider reaches when it is a few tiles off, so it is framed beside the hull
+-- first (_frame_beside, as a stopped current duck is) and its projected
+-- pixels probed before the spiral. The row is the one naming it.
+function QD.sail._press_root_row(option, name, sym)
+    local sym_result, loc_id = api_drive.symbol("loc", sym)
+    if sym_result ~= "ok" then
+        return sym_result, "no loc " .. tostring(sym)
+    end
+    local state_result, reading = QD.sail.state()
+    local rows_result, rows = api_drive.locs(0)
+    local best = nil
+    if state_result == "ok" and reading.aboard and rows_result == "ok" and type(rows) == "table" then
+        for i = 1, #rows do
+            local row = rows[i]
+            if row.loc_id == loc_id or row.resolved_loc_id == loc_id then
+                local d = math.max(math.abs(row.x - reading.hull_x), math.abs(row.z - reading.hull_z))
+                if best == nil or d < best.d then
+                    best = { x = row.x, z = row.z, d = d }
+                end
+            end
+        end
+    end
+    local points, aim = {}, "no copy of " .. tostring(sym) .. " in the client's pool"
+    if best ~= nil then
+        points, aim = QD.sail._frame_beside("loc", loc_id, best.x, best.z, name)
+    end
+    if #points == 0 then
+        return "not_visible", "no pose drew " .. tostring(name) .. " (" .. aim .. ")"
     end
     local result, detail = QD.sail._press_row_at(points, option, name)
     return result, tostring(detail) .. " (" .. aim .. ")"
+end
+
+-- One copy of a DECK loc by its symbol: the row "<option> ..." whose target is
+-- that loc. Deck locs are not in the root pool click_loc reads
+-- (torirs_plugin_drive_ui.c DriveUi_Locs), and several deck locs can share a
+-- name (a shipyard's seven "Facility hotspot" markers), so the row is told
+-- by the loc id the client's own menu names it with.
+function QD.sail.deck_op(sym, option)
+    local sym_result, loc_id = api_drive.symbol("loc", sym)
+    if sym_result ~= "ok" then
+        return sym_result, "sail.deck_op: no loc " .. tostring(sym)
+    end
+    local result, detail = QD.sail._press_deck_row(option, "", nil, nil, loc_id)
+    return result, "sail.deck_op " .. tostring(sym) .. ": " .. tostring(detail)
+end
+
+-- The shipyard catalogue for one facility hotspot: its marker's "Build" row
+-- (boat_customisation.rs2 [oploc1,_sailing_facility_hotspot] ->
+-- ~sailing_hotspot_clicked). The scriptrun lane presses the marker loc by its
+-- symbol. On a client every marker is "Build Facility hotspot" and the deck
+-- row names its scene element, not its loc, so -- as a player tells them by
+-- where they stand -- each distinct marker row is pressed in turn until the
+-- catalogue the server opens is the wanted hotspot's
+-- (%varb19524_sailing_boat_customisation_hotspot_id), closing the others.
+function QD.sail.open_hotspot(hotspot, marker_sym, ticks)
+    local function opened_for()
+        local open_result = QD.ui.await_open("sailing_customisation", ticks or 6)
+        if open_result ~= "ok" then
+            return nil
+        end
+        local _, id = QD.var.server("varb19524_sailing_boat_customisation_hotspot_id")
+        return id
+    end
+    if api_drive.scriptrun == true then
+        local press_result, press_detail = QD.sail.deck_op(marker_sym, "Build")
+        if press_result ~= "ok" then
+            return press_result, press_detail
+        end
+        local id = opened_for()
+        if id ~= hotspot then
+            return "refused", "sail.open_hotspot: the catalogue opened for hotspot " .. tostring(id)
+        end
+        return "ok", "sail.open_hotspot " .. hotspot .. ": " .. tostring(press_detail)
+    end
+    -- The client: the marker of THIS hotspot by its own loc type (each
+    -- hotspot's placeholder is its own type), pressed on its model.
+    local sym_result, loc_id = api_drive.symbol("loc", marker_sym)
+    if sym_result ~= "ok" then
+        return sym_result, "sail.open_hotspot: no loc " .. tostring(marker_sym)
+    end
+    QD.sail._take_pose("deck")
+    local press_result, press_detail = QD.sail._press_deck_row("Build", "Facility hotspot", nil, nil, loc_id)
+    if press_result ~= "ok" then
+        return press_result, "sail.open_hotspot " .. hotspot .. ": " .. tostring(press_detail)
+    end
+    local id = opened_for()
+    if id ~= hotspot then
+        return "refused", "sail.open_hotspot " .. hotspot .. ": pressed " .. tostring(press_detail)
+            .. " but the catalogue opened for hotspot " .. tostring(id)
+    end
+    return "ok", "sail.open_hotspot " .. hotspot .. ": " .. tostring(press_detail)
 end
 
 -- Take the helm: the deck's Helm loc, op "Navigate" (configs/all.loc
@@ -871,8 +956,12 @@ function QD.sail.sail_to(x, z, radius, ticks)
         if gust_open and not QD.sail._trim_window_tried then
             QD.sail._trim_window_tried = true
             local trim_result, trim_detail = QD.sail.trim(4)
-            QD.sail.trims[#QD.sail.trims + 1] = { result = trim_result, detail = trim_detail,
-                tick = api_drive.tick() }
+            -- A window that closed before the row was found was never
+            -- pressed into: nothing to judge.
+            if trim_result ~= "missed" then
+                QD.sail.trims[#QD.sail.trims + 1] = { result = trim_result, detail = trim_detail,
+                    tick = api_drive.tick() }
+            end
         elseif not gust_open then
             QD.sail._trim_window_tried = false
         end
@@ -915,7 +1004,15 @@ function QD.sail.trim(ticks)
         return waited, "sail.trim: no gust window opened"
     end
     local serial_result, before = api_drive.message_serial()
+    -- Pressed only while the window has a tick to spare: the hunt for the
+    -- row takes frames on the client, and a click that lands as the window
+    -- closes furls the sails.
+    QD.sail._press_guard = function()
+        local r, window = QD.var.varbit("varb19111_sailing_boat_time_trim_window")
+        return r == "ok" and type(window) == "number" and window > 1
+    end
     local press_result, press_detail = QD.sail._press_deck_row("Work", "")
+    QD.sail._press_guard = nil
     if press_result ~= "ok" then
         return press_result, "sail.trim: " .. tostring(press_detail)
     end
@@ -1029,12 +1126,8 @@ function QD.sail.disembark(gangplank, ticks)
     if tile_result == "ok" and tx then
         points, aim = QD.sail._frame_beside("loc", target.id, tx, tz, gangplank)
     end
-    local spiral = QD.sail._hunt_points(16, 12)
-    if not spiral then
-        return "not_visible", "sail.disembark: no viewport pick point"
-    end
-    for i = 1, #spiral do
-        points[#points + 1] = spiral[i]
+    if #points == 0 then
+        return "not_visible", "sail.disembark: no pose drew the plank (" .. aim .. ")"
     end
     local press_result, press_detail = QD.sail._press_row_at(points, "Disembark", "Gangplank")
     if press_result ~= "ok" then
@@ -1076,7 +1169,7 @@ end
 --                                   `slot` (1..5) is pressed and the server
 --                                   has you aboard (boat selector 934, opened
 --                                   by a gangplank's Board or a shipwright)
---   t.sail.build(part)           -> ok once the shipyard catalogue's Build
+--   t.sail.build(part, name, tab)-> ok once the shipyard catalogue's Build
 --                                   row for dbrow `part` is pressed and the
 --                                   server answers (sailing_customisation)
 
@@ -1091,11 +1184,61 @@ function QD.sail.select_boat(slot, ticks)
         return open_result, "sail.select_boat: the boat selector is not open -- last line: "
             .. tostring(QD.player._last_line())
     end
-    local row_result, row = QD.ui.widget("sailing_boat_selection:boats_click_layer", slot)
-    if row_result ~= "ok" then
-        return row_result, "sail.select_boat: no row for slot " .. slot
+    local press_result, press_detail
+    if api_drive.scriptrun == true then
+        local row_result, row = QD.ui.widget("sailing_boat_selection:boats_click_layer", slot)
+        if row_result ~= "ok" then
+            return row_result, "sail.select_boat: no row for slot " .. slot
+        end
+        press_result, press_detail = QD.ui.invoke(row, 1)
+    else
+        -- The client: the boat row's own button, a clientscript child of
+        -- the selector's list (934:19) or of its recent-boat anchor (934:5),
+        -- whose op is the selector's verb (torirs_sailing_boat_sel_row; the
+        -- row's other op is Expand/Collapse). One owned boat is one row.
+        -- The selector lists one row per boat (boats_container's children,
+        -- a background and a text per row: distinct bounds are rows). A
+        -- click on the row selects it; the verb (Board/Customise/Recover/
+        -- Select) is then offered by a component the tree names, which is
+        -- pressed exactly.
+        local rows, seen_y = {}, {}
+        for _, layer in ipairs({ "sailing_boat_selection:boats_container_recent",
+            "sailing_boat_selection:boats_container" }) do
+            for sub = 0, 255 do
+                local c_result, row = api_drive.component(layer, sub)
+                if c_result == "ok" then
+                    local b_result, b = api_drive.widget_bounds(row)
+                    if b_result == "ok" and type(b) == "table" and b.height >= 20 and b.width >= 100
+                        and not seen_y[b.y] then
+                        seen_y[b.y] = true
+                        rows[#rows + 1] = b
+                    end
+                end
+            end
+        end
+        local row = rows[slot]
+        if not row then
+            return "not_found", "sail.select_boat: " .. #rows .. " boat row(s) drawn, no row " .. slot
+        end
+        local cx, cy = row.x + math.floor(row.width / 2), row.y + math.floor(row.height / 2)
+        api_drive.mouse_move(cx, cy)
+        QD.sail._frame()
+        api_drive.mouse_button("left", 1, cx, cy)
+        api_drive.mouse_button("left", 0, cx, cy)
+        QD.sail._frame()
+        QD.sail._frame()
+        press_result, press_detail = "not_found", ""
+        for _, verb in ipairs({ "Board", "Customise", "Recover", "Select" }) do
+            local r, d = QD.sail._press_op({ "sailing_boat_selection:universe" }, verb, nil)
+            press_result, press_detail = r, d
+            if r == "ok" then
+                break
+            end
+        end
+        if press_result ~= "ok" then
+            press_detail = "row " .. slot .. " clicked at " .. cx .. "," .. cy .. "; " .. tostring(press_detail)
+        end
     end
-    local press_result, press_detail = QD.ui.invoke(row, 1)
     if press_result ~= "ok" then
         return press_result, "sail.select_boat: " .. tostring(press_detail)
     end
@@ -1109,19 +1252,288 @@ function QD.sail.select_boat(slot, ticks)
 end
 
 -- The catalogue's Build row for `part` (a sailing_boat_facility or hull-part
--- dbrow symbol). Its row is a clientscript overlay whose onop sends
--- IF_SCRIPT_TRIGGER with the part's dbrow (torirs_sailing_custom_confirm,
--- 8834). A client draws the rows from cache data this driver does not
--- re-derive, so only the scriptrun lane (api_drive.sail_build) presses it.
+-- dbrow symbol; `name` its display name). Its row is a clientscript overlay
+-- whose onop sends IF_SCRIPT_TRIGGER with the part's dbrow
+-- (torirs_sailing_custom_confirm, 8834): the client presses the row its menu
+-- names "Build <name>"; the scriptrun lane, with no clientscripts, sends the
+-- trigger the row would (api_drive.sail_build).
 -- The answer is the server's next game message ("You finish building the
 -- boat part." or its refusal).
-function QD.sail.build(part, ticks)
-    if api_drive.sail_build == nil then
-        return "unsupported", "sail.build: the catalogue's Build rows are clientscript children; "
-            .. "only the scriptrun lane presses them (api_drive.sail_build)"
+-- The client's catalogue: its rows are the overlays
+-- torirs_sailing_custom_build_op (8832) creates on facility_click_layer, each
+-- with op 1 "Build" and the part's name as its op base. Each drawn child is
+-- right-clicked until the client's own menu offers "Build <name>", and that
+-- row is pressed -- the onop that row runs sends the trigger.
+QD.sail._catalogue_layer = "sailing_customisation:facility_click_layer"
+
+
+-- One step down the catalogue's list: a click on its scrollbar's down arrow,
+-- the bottom square of sailing_customisation:facility_scrollbar. False when
+-- the scrollbar is not drawn.
+function QD.sail._catalogue_scroll_down()
+    local r, handle = api_drive.component("sailing_customisation:facility_scrollbar")
+    if r ~= "ok" then
+        return false
     end
+    local b_result, b = api_drive.widget_bounds(handle)
+    if b_result ~= "ok" or type(b) ~= "table" or b.height <= 0 then
+        return false
+    end
+    local x = b.x + math.floor(b.width / 2)
+    local y = b.y + b.height - math.max(2, math.floor(b.width / 2))
+    api_drive.mouse_move(x, y)
+    QD.sail._frame()
+    api_drive.mouse_button("left", 1, x, y)
+    QD.sail._frame()
+    api_drive.mouse_button("left", 0, x, y)
+    QD.sail._frame()
+    return true
+end
+
+-- The catalogue read as a player reads it: widget text, no pointer. Each
+-- step below is ONE pointer action -- the tab, a scroll click, the Build
+-- button -- aimed at a widget found by its text, never a sweep of
+-- right-clicks over the panel hunting a menu row.
+local function catalogue_plain(text)
+    return (string.gsub(QD.player._plain_line(text or ""), "<[^>]*>", ""))
+end
+
+-- The first child of `layer` whose text answers `want`: handle, bounds, sub.
+-- The option rows are created under facility_content_main (the scrolled
+-- layer), the panel's own captions under facility_content: both are read.
+local catalogue_find_text
+function catalogue_find_text(layer, want)
+    if layer == "sailing_customisation:facility_content" then
+        local c, b, sub = catalogue_find_text("sailing_customisation:facility_content_main", want)
+        if c then
+            return c, b, sub
+        end
+    end
+    for sub = 0, 511 do
+        local c_result, child = api_drive.component(layer, sub)
+        if c_result == "ok" then
+            local t_result, text = api_drive.widget_text(child)
+            if t_result == "ok" and type(text) == "string" and want(catalogue_plain(text)) then
+                local b_result, b = api_drive.widget_bounds(child)
+                if b_result == "ok" and type(b) == "table" and b.width > 0 and b.height > 0 then
+                    return child, b, sub
+                end
+            end
+        end
+    end
+    return nil
+end
+
+-- One right-click at `at`, and the menu row `match` accepts pressed.
+local function catalogue_press_at(at, match)
+    api_drive.mouse_move(at.x, at.y)
+    QD.sail._frame()
+    api_drive.mouse_button("right", 1, at.x, at.y)
+    api_drive.mouse_button("right", 0, at.x, at.y)
+    local menu_result = QD.await({
+        level = function()
+            local r, visible = api_drive.menu_visible()
+            return r == "ok" and visible
+        end,
+        note = "sail.catalogue menu",
+    }, 2)
+    if menu_result ~= "ok" then
+        return nil, "no menu"
+    end
+    local seen = {}
+    local rows_result, rows = api_drive.menu_rows()
+    if rows_result == "ok" and type(rows) == "table" then
+        for r = 1, #rows do
+            local plain = catalogue_plain(rows[r].text)
+            if match(plain) then
+                api_drive.mouse_button("left", 1, rows[r].centre_x, rows[r].centre_y)
+                api_drive.mouse_button("left", 0, rows[r].centre_x, rows[r].centre_y)
+                return plain
+            end
+            if plain ~= "Cancel" then
+                seen[#seen + 1] = plain
+            end
+        end
+    end
+    QD.drive._dismiss_menu({ x = at.x, y = at.y, ui = true })
+    return nil, table.concat(seen, " | ")
+end
+
+-- The component offering `op` on `name` under the catalogue, read from the
+-- tree (api_drive.widget_find_op): the exact node the right-click would
+-- land on, with its drawn bounds.
+local function catalogue_find_op(op, name)
+    for _, layer in ipairs({ QD.sail._catalogue_layer, "sailing_customisation:facility_content",
+        "sailing_customisation:facility_tabs" }) do
+        local l_result, handle = api_drive.component(layer)
+        if l_result == "ok" then
+            local r, hit = api_drive.widget_find_op(handle, op, name)
+            if r == "ok" and type(hit) == "table" then
+                return hit
+            end
+        end
+    end
+    return nil
+end
+
+-- Press that exact component: its centre, one right-click, the one row.
+local function catalogue_press_op(hit, op, name)
+    local at = { x = hit.x + math.floor(hit.width / 2), y = hit.y + math.floor(hit.height / 2) }
+    local pressed, why = catalogue_press_at(at, function(plain)
+        return string.find(plain, op, 1, true) == 1 and (name == nil or string.find(plain, name, 1, true) ~= nil)
+    end)
+    if not pressed then
+        return nil, string.format("node %d (%s op %d) at %d,%d %dx%d offered no '%s' row: %s", hit.node,
+            hit.option, hit.op, hit.x, hit.y, hit.width, hit.height, op, tostring(why))
+    end
+    return pressed .. string.format(" (node %d op %d at %d,%d)", hit.node, hit.op, at.x, at.y)
+end
+
+-- Press the component under `layers` whose op `op` names `name` (nil: any):
+-- found in the tree (api_drive.widget_find_op), pressed at its own centre.
+function QD.sail._press_op(layers, op, name)
+    local misses = {}
+    for _, layer in ipairs(layers) do
+        local l_result, handle = api_drive.component(layer)
+        if l_result == "ok" then
+            local r, hit = api_drive.widget_find_op(handle, op, name)
+            if r == "ok" and type(hit) == "table" then
+                local pressed, why = catalogue_press_op(hit, op, name)
+                if pressed then
+                    return "ok", pressed .. " (" .. layer .. ")"
+                end
+                return "not_found", why
+            end
+            misses[#misses + 1] = layer .. ": " .. tostring(hit)
+        else
+            misses[#misses + 1] = layer .. ": " .. tostring(l_result)
+        end
+    end
+    return "not_found", "no component offers '" .. op .. "'" .. (name and (" " .. name) or "")
+        .. " (" .. table.concat(misses, "; ") .. ")"
+end
+
+QD.sail._press_hit = catalogue_press_op
+
+-- The list's visible window: facility_content's drawn bounds.
+local function catalogue_view()
+    local r, handle = api_drive.component("sailing_customisation:facility_content")
+    if r ~= "ok" then
+        return nil
+    end
+    local b_result, b = api_drive.widget_bounds(handle)
+    return b_result == "ok" and type(b) == "table" and b or nil
+end
+
+-- Build `name` from the open list: its Build component found in the tree,
+-- scrolled into the visible window, pressed once. nil + why when the open
+-- list does not offer it.
+local function catalogue_build_on_tab(name)
+    local hit = catalogue_find_op("Build", name)
+    if not hit then
+        return nil, "no component offers 'Build " .. name .. "' on this list"
+    end
+    local view = catalogue_view()
+    local steps = 0
+    -- Below the window: the wheel over the list, a notch at a time, until
+    -- the row is in view -- what a hand does (the list's onscrollwheel).
+    if view and hit.y + hit.height > view.y + view.height then
+        local x = view.x + math.floor(view.width / 2)
+        local y = view.y + math.floor(view.height / 2)
+        api_drive.mouse_move(x, y)
+        QD.sail._frame()
+        while hit.y + hit.height > view.y + view.height and steps < 40 do
+            if api_drive.mouse_wheel(-1) ~= "ok" then
+                break
+            end
+            QD.sail._frame()
+            steps = steps + 1
+            local again = catalogue_find_op("Build", name)
+            if not again then
+                return nil, "'Build " .. name .. "' left the tree while scrolling"
+            end
+            if again.y == hit.y and steps > 1 then
+                hit = again
+                break
+            end
+            hit = again
+        end
+        -- The list settles before the press (its layout follows the
+        -- scroll a frame behind).
+        QD.sail._frame()
+        QD.sail._frame()
+        hit = catalogue_find_op("Build", name) or hit
+    end
+    while view and hit.y + hit.height > view.y + view.height and steps < 15 do
+        if not QD.sail._catalogue_scroll_down() then
+            break
+        end
+        steps = steps + 1
+        hit = catalogue_find_op("Build", name)
+        if not hit then
+            return nil, "'Build " .. name .. "' left the tree while scrolling"
+        end
+    end
+    local pressed, why = catalogue_press_op(hit, "Build", name)
+    if not pressed then
+        return nil, why
+    end
+    return pressed .. (steps > 0 and (" after " .. steps .. " scroll step(s)") or "")
+end
+
+function QD.sail._client_build_press(name, tab)
+    -- The open list first (a hotspot's catalogue shows its own list), then
+    -- the named tab, else every tab by its label (read, not hunted).
+    local done, why = catalogue_build_on_tab(name)
+    if done then
+        return "ok", done
+    end
+    local labels = {}
+    if tab ~= nil then
+        labels[1] = tab
+    else
+        catalogue_find_text("sailing_customisation:facility_tabs", function(plain)
+            if plain ~= "" then
+                labels[#labels + 1] = plain
+            end
+            return false
+        end)
+    end
+    local tried = {}
+    for i = 1, #labels do
+        local tab_hit = catalogue_find_op("View", labels[i] .. " options")
+        if not tab_hit then
+            tried[#tried + 1] = labels[i] .. ": no tab offers 'View " .. labels[i] .. " options'"
+        else
+            local pressed, tab_why = catalogue_press_op(tab_hit, "View", labels[i] .. " options")
+            QD.sail._frame()
+            QD.sail._frame()
+            if not pressed then
+                tried[#tried + 1] = labels[i] .. ": " .. tostring(tab_why)
+            else
+                done, why = catalogue_build_on_tab(name)
+                if done then
+                    return "ok", done .. " (tab " .. labels[i] .. ")"
+                end
+                tried[#tried + 1] = labels[i] .. ": " .. tostring(why)
+            end
+        end
+    end
+    return "not_found", "sail.build: '" .. name .. "' -- open list: " .. tostring(why)
+        .. "; tabs: " .. (#tried > 0 and table.concat(tried, " | ") or "none read")
+end
+
+function QD.sail.build(part, name, tab, ticks)
     local serial_result, before = api_drive.message_serial()
-    local press_result, press_detail = api_drive.sail_build(part)
+    local press_result, press_detail
+    if api_drive.sail_build ~= nil then
+        press_result, press_detail = api_drive.sail_build(part)
+    elseif name ~= nil then
+        press_result, press_detail = QD.sail._client_build_press(name, tab)
+    else
+        return "refused", "sail.build " .. tostring(part) .. ": the client lane presses the row by the "
+            .. "part's display name -- pass it (t.sail.build(part, name))"
+    end
     if press_result ~= "ok" then
         return press_result, "sail.build " .. tostring(part) .. ": " .. tostring(press_detail)
     end
@@ -1144,23 +1556,29 @@ function QD.sail.build(part, ticks)
     if line ~= "You finish building the boat part." then
         return "refused", "sail.build " .. tostring(part) .. ": " .. tostring(line)
     end
-    return "ok", "sail.build " .. tostring(part) .. ": " .. tostring(line)
+    return "ok", "sail.build " .. tostring(part) .. ": " .. tostring(line) .. " [" .. tostring(press_detail) .. "]"
 end
 
 -- --------------------------------------------------------------- charting
 --
---   t.sail.chart(name, ticks)    -> ok once the Captain's log took the chart
---                                   of the scenery named `name` (its "Chart"
---                                   row: sailing/scripts/sailing_charting.rs2)
+--   t.sail.chart(name, sym)      -> ok once the Captain's log took the chart
+--                                   of the scenery named `name` (loc symbol
+--                                   `sym`: its "Chart" row,
+--                                   sailing/scripts/sailing_charting.rs2)
 --
 -- A chartable at sea is a ROOT loc reached from the deck at approach
 -- distance, so it is pressed through the deck-row hunt (as Prying Times'
 -- sea crate is), never click_loc, whose walk from the rider's deck tile can
 -- not arrive. Answers the game's line: "You chart ..." is ok, anything else
 -- (already charted, a level refusal) is refused with the line.
-function QD.sail.chart(name, ticks)
+function QD.sail.chart(name, sym, ticks)
     local serial_result, before = api_drive.message_serial()
-    local press_result, press_detail = QD.sail._press_deck_row("Chart", name)
+    local press_result, press_detail
+    if sym ~= nil and api_drive.scriptrun ~= true then
+        press_result, press_detail = QD.sail._press_root_row("Chart", name, sym)
+    else
+        press_result, press_detail = QD.sail._press_deck_row("Chart", name)
+    end
     if press_result ~= "ok" then
         return press_result, "sail.chart: " .. tostring(press_detail)
     end
@@ -1185,6 +1603,8 @@ function QD.sail.chart(name, ticks)
     end
     return "ok", "sail.chart: " .. tostring(line) .. " (" .. tostring(press_detail) .. ")"
 end
+
+
 
 -- ---------------------------------------------------------------- port tasks
 --
@@ -1379,7 +1799,19 @@ function QD.sail.cargo_withdraw(name, slot, ticks)
     if result ~= "ok" then
         return result, "sail.cargo_withdraw: not carrying -- last line: " .. tostring(QD.player._last_line())
     end
+    QD.sail._close_hold()
     return "ok", "sail.cargo_withdraw: carrying -- " .. tostring(QD.player._last_line())
+end
+
+-- Close the hold once its work is done, as a player does: left open it covers
+-- the viewport, and every later probe there is under the interface (the
+-- Port Sarim plank answered no row in 625 probes behind it).
+function QD.sail._close_hold()
+    if api_drive.scriptrun == true then
+        return
+    end
+    QD.key("escape")
+    QD.ui.await_close("sailing_boat_cargohold", 3)
 end
 
 -- Take every `item` out of the boat's hold into the backpack: open the hold
@@ -1457,6 +1889,7 @@ function QD.sail.hold_withdraw(item, name, ticks)
         return result, "sail.hold_withdraw: " .. tostring(item) .. " still " .. tostring(now)
             .. " in the backpack -- last line: " .. tostring(QD.player._last_line())
     end
+    QD.sail._close_hold()
     return "ok", "sail.hold_withdraw: " .. tostring(item) .. " " .. tostring(before) .. " -> " .. tostring(now)
         .. " (hold slot " .. slot .. ")"
 end

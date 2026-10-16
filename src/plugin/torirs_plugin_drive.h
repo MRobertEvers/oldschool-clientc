@@ -31,6 +31,8 @@
 
 #include <stdint.h>
 
+struct UITree;
+
 struct App;
 struct lua_State;
 struct ToriRSServer;
@@ -515,6 +517,23 @@ void PluginDriveRecord_RegisterLua(struct lua_State* L, void* script);
  * belongs is a test bug and must stop the test, not return `not_found`.
  */
 int PluginDrive_ArgInt(struct lua_State* L, int index);
+
+/*
+ * A WIDGET HANDLE: what api_drive.component(symbol, sub) answers, and what the
+ * widget reads and if_click take. A static component's handle is its
+ * component id. A clientscript child (cc_create) is found again only through
+ * its parent and its sub -- its own component id is a tree-assigned one no
+ * symbol names -- so its handle is `parent_component_id | (sub + 1) << 32`
+ * -- the scriptrun runner's spelling of the
+ * same thing (torirs_server_scriptrun.c d_component), so a driver verb means
+ * the same widget on both lanes. A bare component id is a handle with no sub,
+ * so a caller holding one (C or Lua) is unchanged.
+ */
+int64_t PluginDrive_ArgHandle(struct lua_State* L, int index);
+int64_t PluginDrive_Handle(int component_id, int sub);
+/* The tree node a handle names, or -1: the component's node, or its child at
+ * the handle's sub. */
+int32_t PluginDrive_HandleNode(struct UITree const* tree, int64_t widget);
 int PluginDrive_ArgOptInt(struct lua_State* L, int index, int fallback);
 char const* PluginDrive_ArgString(struct lua_State* L, int index);
 
@@ -815,11 +834,11 @@ enum DriveResult DriveRead_WidgetModel(
  * resolves but is not a text node.
  */
 enum DriveResult DriveRead_WidgetText(
-    struct App* app, int component_id, char const** out_text);
+    struct App* app, int64_t widget, char const** out_text);
 enum DriveResult DriveRead_WidgetPresented(
-    struct App* app, int component_id, int* out_presented);
+    struct App* app, int64_t widget, int* out_presented);
 enum DriveResult DriveRead_WidgetOwnHidden(
-    struct App* app, int component_id, int* out_own_hidden);
+    struct App* app, int64_t widget, int* out_own_hidden);
 
 /*
  * Where a live component is drawn: canvas pixels, the space
@@ -831,7 +850,7 @@ enum DriveResult DriveRead_WidgetOwnHidden(
  * not resolve to a live node.
  */
 enum DriveResult DriveRead_WidgetBounds(
-    struct App* app, int component_id, int* out_x, int* out_y, int* out_width,
+    struct App* app, int64_t widget, int* out_x, int* out_y, int* out_width,
     int* out_height);
 
 /*
@@ -1090,7 +1109,7 @@ enum DriveResult DriveUi_Component(
 /** app_plugin_if_click (D2): one path that splits IF1 button types and IF3
  *  numbered ops.  NOT app->host.trigger_op, which is the CS2 host's ring and
  *  has no IF1 counterpart. */
-enum DriveResult DriveUi_IfClick(struct App* app, int component_id, int op);
+enum DriveResult DriveUi_IfClick(struct App* app, int64_t widget, int op);
 
 /** app_plugin_tab_select, which branches CS2 vs dat1 internally -- so no lane
  *  handling and no sidetab_N precheck here. */

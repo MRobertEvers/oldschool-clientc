@@ -6666,6 +6666,15 @@ App_PluginDriveIfClick(struct App* app, int component_id, int op)
 }
 
 int
+App_PluginDriveIfClickNode(struct App* app, int32_t node, int op)
+{
+    assert(app);
+    assert(app->tree);
+    assert(node >= 0);
+    return app_plugin_click_node(app, node, op);
+}
+
+int
 App_PluginDriveTabSelect(struct App* app, int tabno)
 {
     assert(app);

@@ -598,7 +598,21 @@ DrivePointer_ScreenPosition(
     case DRIVE_PICK_NPC:
         return drive_pointer_screen_position_npc(app, id, out_x, out_y, out_element_id);
     case DRIVE_PICK_LOC:
-        return drive_pointer_screen_position_loc(app, id, out_x, out_y, out_element_id);
+    {
+        enum DriveResult result = drive_pointer_screen_position_loc(app, id, out_x, out_y, out_element_id);
+        int deck;
+        /* A loc the root scene does not hold may stand on a deck: a boat's
+         * scenery lives in its own view's world. */
+        if( result != DRIVE_NOT_FOUND || id < 0 )
+            return result;
+        {
+            int view_id = 0;
+            deck = App_DeckLocScreenPosition(app, id, NULL, NULL, out_x, out_y, out_element_id, &view_id);
+        }
+        if( deck == -2 )
+            return DRIVE_NOT_FOUND;
+        return deck < 0 ? DRIVE_NOT_VISIBLE : DRIVE_OK;
+    }
     case DRIVE_PICK_OBJ:
         return drive_pointer_screen_position_obj(app, id, out_x, out_y, out_element_id);
     case DRIVE_PICK_PLAYER:
@@ -763,6 +777,7 @@ drive_pointer_model_point_compare(void const* a, void const* b)
 static int
 drive_pointer_model_vertex_screen(
     struct App* app,
+    int view_id,
     struct ToriDraw_Position const* at,
     struct ToriDraw_Model const* model,
     int vertex,
@@ -800,6 +815,10 @@ drive_pointer_model_vertex_screen(
         vz = (vz * c - vx * s) >> 16;
         vx = tmp;
     }
+    /* A deck element's position is deck-local: through its hull, with the
+     * vertex's rise (-y) as the height above the deck. */
+    if( view_id != 0 )
+        return App_DeckPointScreen(app, view_id, at->x + (int)vx, at->z + (int)vz, -(int)vy, out_x, out_y);
     return drive_pointer_project_point(
         app, at->x + (int)vx, at->z + (int)vz, at->y + (int)vy, out_x, out_y);
 }
@@ -808,6 +827,7 @@ static enum DriveResult
 drive_pointer_model_points(
     struct App* app,
     int element_id,
+    int view_id,
     int origin_x,
     int origin_y,
     struct DriveModelPoint* out,
@@ -865,9 +885,9 @@ drive_pointer_model_points(
         if( a < 0 || b < 0 || c < 0 || a >= model->vertex_count || b >= model->vertex_count ||
             c >= model->vertex_count )
             continue;
-        if( !drive_pointer_model_vertex_screen(app, &element->world_position, model, a, &ax, &ay) ||
-            !drive_pointer_model_vertex_screen(app, &element->world_position, model, b, &bx, &by) ||
-            !drive_pointer_model_vertex_screen(app, &element->world_position, model, c, &cx, &cy) )
+        if( !drive_pointer_model_vertex_screen(app, view_id, &element->world_position, model, a, &ax, &ay) ||
+            !drive_pointer_model_vertex_screen(app, view_id, &element->world_position, model, b, &bx, &by) ||
+            !drive_pointer_model_vertex_screen(app, view_id, &element->world_position, model, c, &cx, &cy) )
             continue;
         area2 = (long)(bx - ax) * (cy - ay) - (long)(by - ay) * (cx - ax);
         if( area2 < 0 )
@@ -1027,6 +1047,25 @@ DrivePointer_MouseButton(struct App* app, int button, int down, int x, int y)
     if( !CmdBus_PushMouseButton(bus, type, (uint8_t)button, (int16_t)x, (int16_t)y) )
         return DRIVE_REFUSED;
     /* Render skip: as DrivePointer_MouseMove above. */
+    App_RenderSkipRequestDraw(app, 1);
+    return DRIVE_OK;
+}
+
+/* One wheel notch where the pointer is: +1 up, -1 down (the wheel's own
+ * command, as the platform layer sends it). Over a component with an
+ * onscrollwheel hook it scrolls that list; over the world it zooms. */
+static enum DriveResult
+drive_pointer_mouse_wheel(struct App* app, int notch)
+{
+    struct ToriRS_CmdBus* bus;
+
+    assert(app);
+    assert(notch == 1 || notch == -1);
+    bus = PluginDriveCore_CmdBus();
+    if( !bus )
+        return DRIVE_UNSUPPORTED;
+    if( !CmdBus_PushMouseWheel(bus, (int16_t)notch) )
+        return DRIVE_REFUSED;
     App_RenderSkipRequestDraw(app, 1);
     return DRIVE_OK;
 }
@@ -2425,6 +2464,75 @@ lua_drive_screen_position(struct lua_State* L)
     return 2;
 }
 
+/* api_drive.deck_loc_point(name[, op[, loc_id]]) -> result, {x, y,
+ * element_id, points = {{x, y}, ...}}: the deck loc whose name contains
+ * `name` (nil or "": any name), that offers `op` (nil: any), of type
+ * `loc_id` when given (nil: any type), where its footprint is drawn, and the screen
+ * centroids of its model's visible faces pushed through the hull, nearest
+ * the footprint first (drive_pointer_model_points) -- the pixels its model
+ * covers, to press, instead of a spiral around the deck. */
+static int
+lua_drive_deck_loc_point(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+    char const* name = lua_isnoneornil(L, 1) ? NULL : PluginDrive_ArgString(L, 1);
+    char const* op = lua_isnoneornil(L, 2) ? NULL : PluginDrive_ArgString(L, 2);
+    int loc_id = lua_isnoneornil(L, 3) ? -1 : PluginDrive_ArgInt(L, 3);
+    int x = 0, y = 0, element_id = -1, view_id = 0;
+    struct DriveModelPoint points[DRIVE_MODEL_POINT_CAP];
+    int count = 0, faces = 0;
+    int found;
+
+    assert(app);
+    if( name && name[0] == '\0' )
+        name = NULL;
+    if( !name && !op && loc_id < 0 )
+        return luaL_error(L, "drive.deck_loc_point: a name, an op or a loc id is required");
+    found = App_DeckLocScreenPosition(app, loc_id, name, op, &x, &y, &element_id, &view_id);
+    if( found < 0 )
+    {
+        lua_pushstring(L, found == -2 ? "not_found" : "not_visible");
+        lua_pushnil(L);
+        return 2;
+    }
+    lua_pushstring(L, "ok");
+    lua_createtable(L, 0, 3);
+    lua_pushinteger(L, x);
+    lua_setfield(L, -2, "x");
+    lua_pushinteger(L, y);
+    lua_setfield(L, -2, "y");
+    lua_pushinteger(L, element_id);
+    lua_setfield(L, -2, "element_id");
+    drive_pointer_model_points(app, element_id, view_id, x, y, points, DRIVE_MODEL_POINT_CAP, &count, &faces);
+    lua_createtable(L, count, 0);
+    for( int i = 0; i < count; i++ )
+    {
+        lua_createtable(L, 0, 2);
+        lua_pushinteger(L, points[i].x);
+        lua_setfield(L, -2, "x");
+        lua_pushinteger(L, points[i].y);
+        lua_setfield(L, -2, "y");
+        lua_rawseti(L, -2, i + 1);
+    }
+    lua_setfield(L, -2, "points");
+    return 2;
+}
+
+/* api_drive.mouse_wheel(notch) -> result: one wheel notch (+1 up, -1 down)
+ * at the pointer's current position; move the pointer there first. */
+static int
+lua_drive_mouse_wheel(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+    int notch = PluginDrive_ArgInt(L, 1);
+
+    assert(app);
+    if( notch != 1 && notch != -1 )
+        return luaL_error(L, "drive.mouse_wheel: notch must be 1 or -1, got %d", notch);
+    lua_pushstring(L, DriveResultName(drive_pointer_mouse_wheel(app, notch)));
+    return 1;
+}
+
 static int
 lua_drive_pick_holds(struct lua_State* L)
 {
@@ -3093,7 +3201,7 @@ lua_drive_model_points(struct lua_State* L)
     if( max < 1 || max > DRIVE_MODEL_POINT_CAP )
         return luaL_error(L, "drive.model_points: max %d outside 1..%d", max, DRIVE_MODEL_POINT_CAP);
     result = drive_pointer_model_points(
-        app, element_id, origin_x, origin_y, points, max, &count, &faces);
+        app, element_id, 0, origin_x, origin_y, points, max, &count, &faces);
     lua_pushstring(L, DriveResultName(result));
     lua_createtable(L, count, 1);
     lua_pushinteger(L, faces);
@@ -3113,6 +3221,8 @@ lua_drive_model_points(struct lua_State* L)
 
 static struct LuaFn const LUA_DRIVE_POINTER_FNS[] = {
     {"screen_position", lua_drive_screen_position},
+    {"deck_loc_point", lua_drive_deck_loc_point},
+    {"mouse_wheel", lua_drive_mouse_wheel},
     {"pick_holds", lua_drive_pick_holds},
     {"pick_point", lua_drive_pick_point},
     {"world_gate", lua_drive_world_gate},

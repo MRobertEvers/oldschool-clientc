@@ -151,8 +151,11 @@ drive_ui_model_pose(
 }
 
 enum DriveResult
-DriveUi_IfClick(struct App* app, int component_id, int op)
+DriveUi_IfClick(struct App* app, int64_t widget, int op)
 {
+    int component_id = (int)(int32_t)(widget & 0xffffffff);
+    int32_t node;
+
     assert(app);
     /*
      * The ONE dispatcher every real click reaches, via the test-only export
@@ -163,6 +166,17 @@ DriveUi_IfClick(struct App* app, int component_id, int op)
      */
     if( op < 0 || op > 10 )
         return DRIVE_REFUSED;
+    /* A child's handle presses that child's own node (its own onop, its own
+     * events), through the same node press every click reaches. */
+    if( (widget >> 32) != 0 )
+    {
+        if( !app->tree )
+            return DRIVE_NOT_VISIBLE;
+        node = PluginDrive_HandleNode(app->tree, widget);
+        if( node < 0 )
+            return DRIVE_NOT_VISIBLE;
+        return App_PluginDriveIfClickNode(app, node, op) ? DRIVE_OK : DRIVE_REFUSED;
+    }
     return App_PluginDriveIfClick(app, component_id, op) ? DRIVE_OK : DRIVE_REFUSED;
 }
 
@@ -2303,7 +2317,19 @@ lua_drive_component(struct lua_State* L)
     assert(app);
     result = DriveUi_Component(app, symbol, sub, &component_id);
     lua_pushstring(L, DriveResultName(result));
-    if( result == DRIVE_OK )
+    /* A child's handle is its PARENT's component id and its sub
+     * (PluginDrive_Handle): a cc_create child carries an id of its own that
+     * no symbol names, so the parent and the sub are what find it again --
+     * the pair the client's press reports and the server armed. */
+    if( result == DRIVE_OK && sub >= 0 )
+    {
+        int parent_component_id = -1;
+        enum DriveResult parent_result = DriveUi_Component(app, symbol, -1, &parent_component_id);
+        assert(parent_result == DRIVE_OK);
+        (void)parent_result;
+        lua_pushinteger(L, (lua_Integer)PluginDrive_Handle(parent_component_id, sub));
+    }
+    else if( result == DRIVE_OK )
         lua_pushinteger(L, component_id);
     else
         lua_pushnil(L);
@@ -2353,12 +2379,12 @@ static int
 lua_drive_if_click(struct lua_State* L)
 {
     struct App* app = PluginDrive_App();
-    int component_id = PluginDrive_ArgInt(L, 1);
+    int64_t widget = PluginDrive_ArgHandle(L, 1);
     int op = PluginDrive_ArgInt(L, 2);
     enum DriveResult result;
 
     assert(app);
-    result = DriveUi_IfClick(app, component_id, op);
+    result = DriveUi_IfClick(app, widget, op);
     return PluginDrive_PushResult(L, result, NULL);
 }
 

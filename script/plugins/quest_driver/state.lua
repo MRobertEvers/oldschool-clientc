@@ -645,6 +645,11 @@ function QD.skill.expect_gain(name, xp, snapshot)
     if delta == xp * 10 then
         return "ok", name .. ": +" .. delta .. " xp (tenths units)"
     end
+    -- The client's stat reading is WHOLE xp: a fractional gain (5.5 a piece)
+    -- shows as its floor or its ceiling, by the fraction the server carried.
+    if xp ~= math.floor(xp) and (delta == math.floor(xp) or delta == math.ceil(xp)) then
+        return "ok", name .. ": +" .. delta .. " xp (whole units of " .. xp .. ")"
+    end
     return "refused", name .. ": before=" .. before.experience .. " after=" .. after.experience
         .. " delta=" .. delta .. " expected=" .. xp .. " or " .. (xp * 10)
 end

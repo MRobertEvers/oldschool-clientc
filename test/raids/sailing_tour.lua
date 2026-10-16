@@ -49,13 +49,13 @@
 -- Generated (see header): tier 2 of each hull part a new skiff is furnished
 -- with at tier 1.
 local HULL_PARTS = {
-    { part = "sailing_boat_iron_keel_2x5", xp = 200, name = "Iron keel", varbit = "varb19266_sailing_boat_1_keel", value = 1,
+    { part = "sailing_boat_iron_keel_2x5", xp = 200, name = "Iron keel", varbit = "varb19266_sailing_boat_1_keel", value = 1, tab = "Keel",
       mats = { { "sailing_boat_keel_part_iron", 10 } } },
-    { part = "sailing_boat_oak_hull_2x5", xp = 238, name = "Oak hull", varbit = "varb19267_sailing_boat_1_hull", value = 1,
+    { part = "sailing_boat_oak_hull_2x5", xp = 238, name = "Oak hull", varbit = "varb19267_sailing_boat_1_hull", value = 1, tab = "Hull",
       mats = { { "sailing_boat_hull_part_oak", 10 }, { "nails_iron", 300 }, { "swamp_tar", 20 } } },
-    { part = "sailing_boat_oak_mast_2x5", xp = 36, name = "Oak mast and linen sails", varbit = "varb19268_sailing_boat_1_sail", value = 1,
+    { part = "sailing_boat_oak_mast_2x5", xp = 36, name = "Oak mast and linen sails", varbit = "varb19268_sailing_boat_1_sail", value = 1, tab = "Sails",
       mats = { { "oak_logs", 10 }, { "nails_iron", 40 }, { "bolt_of_linen", 5 } } },
-    { part = "sailing_boat_iron_steering_2x5", xp = 240, name = "Iron helm", varbit = "varb19269_sailing_boat_1_steering", value = 1,
+    { part = "sailing_boat_iron_steering_2x5", xp = 240, name = "Iron helm", varbit = "varb19269_sailing_boat_1_steering", value = 1, tab = "Helm",
       mats = { { "plank_oak", 3 }, { "iron_bar", 6 } } },
 }
 
@@ -80,7 +80,7 @@ local FACILITIES = {
       mats = { { "plank_teak", 8 }, { "nails", 32 }, { "relicyms_balm4", 6 } } },
 }
 -- Refused: a second chum station.
-local SECOND_CHUM = { hotspot = 3, part = "sailing_boat_facility_chum_station_2x5a",
+local SECOND_CHUM = { hotspot = 3, part = "sailing_boat_facility_chum_station_2x5a", name = "Chum station",
     refusal = "This boat already has the maximum number of that facility." }
 -- The replacement built over hotspot 6's hold.
 local HOLD_UPGRADE = { hotspot = 6, option = 2, configure = "cargo hold", part = "sailing_boat_facility_cargo_hold_oak_2x5", xp = 491, name = "Oak cargo hold",
@@ -112,7 +112,7 @@ local VOYAGES = {
         { 3082, 2984, 2 }, { 3082, 3012, 2 },
         -- Six tiles south of the Wreck of the Salty Grouper (3054,3051), whose
         -- water reaches it from the south: charted from the deck.
-        { 3053, 3045, 1, chart = "Wreck of the Salty Grouper",
+        { 3053, 3045, 1, chart = "Wreck of the Salty Grouper", chart_sym = "sailing_charting_generic_rowboat_mudskipper_sound",
           chart_varbit = "varb18582_sailing_charting_generic_rowboat_mudskipper_sound_complete" },
         { 3043, 3051, 3 }, { 3037, 3105, 3 }, { 3043, 3158, 3 },
         { 3044, 3181, 3 }, { 3052, 3181, 2 }, { 3057, 3189, 2 } } },
@@ -143,7 +143,7 @@ local DOCK_TILE = "0_47_46_58_43" -- 3066,2987, the dock at the Pandemonium's pl
 return {
     id = "sailing_tour",
     fixture = "fresh_lumbridge.ini",
-    frames = 200000,
+    max_frames = 240000,
     setup = {
         "::clearinv",
         "::maxstats",
@@ -209,7 +209,9 @@ return {
             if r ~= "ok" then
                 return r, "ui.widget " .. tostring(sym) .. " " .. tostring(w)
             end
-            return t.ui.invoke(w, 1)
+            local pr, pd = t.ui.invoke(w, 1)
+            return pr, "pressed " .. tostring(sym) .. (sub ~= nil and ("[" .. sub .. "]") or "")
+                .. (pd ~= nil and (" -- " .. tostring(pd)) or "")
         end
         function H.port()
             return H.server("varb19260_sailing_boat_1_port")
@@ -248,7 +250,7 @@ return {
         local function build(tag, p)
             H.give(p.mats)
             local _, before = t.skill.snapshot()
-            t.exec(tag .. ".build", t.sail.build, p.part)
+            t.exec(tag .. ".build", t.sail.build, p.part, p.name, p.tab)
             t.expect(tag .. ".xp", t.skill.expect_gain("construction", p.xp, before))
             local left = {}
             for i = 1, #p.mats do
@@ -276,7 +278,7 @@ return {
             if f.configure then
                 t.exec(tag .. ".configure", t.sail._press_deck_row, "Configure", f.configure)
             else
-                t.exec(tag .. ".marker", t.player.click_loc, "sailing_boat_facility_placeholder_2x5_" .. f.hotspot, 1)
+                t.exec(tag .. ".marker", t.sail.open_hotspot, f.hotspot, "sailing_boat_facility_placeholder_2x5_" .. f.hotspot)
             end
             local open_r, open_d = t.ui.await_open("sailing_customisation", 5)
             t.expect(tag .. ".catalogue", open_r, open_r == "ok" and open_d
@@ -297,9 +299,14 @@ return {
             build_facility("yard.hotspot" .. FACILITIES[i].hotspot, FACILITIES[i])
         end
         open_hotspot("yard.second_chum", SECOND_CHUM)
-        local refused_r, refused_d = t.sail.build(SECOND_CHUM.part)
-        t.check("yard.second_chum.refused", refused_r == "refused" and
-            string.find(tostring(refused_d), SECOND_CHUM.refusal, 1, true) ~= nil, tostring(refused_d))
+        -- The client draws the row blocked and its clientscript shows the
+        -- refusal itself (torirs_sailing_custom_build_op: blocked -> an error
+        -- popup, nothing sent); the scriptrun lane has no clientscript and
+        -- sends the trigger, which the server refuses with its own line.
+        -- Either way nothing is built.
+        local refused_r, refused_d = t.sail.build(SECOND_CHUM.part, SECOND_CHUM.name, nil, 3)
+        t.check("yard.second_chum.refused", refused_r ~= "ok" and (refused_r ~= "refused" or
+            string.find(tostring(refused_d), SECOND_CHUM.refusal, 1, true) ~= nil), tostring(refused_d))
         t.check("yard.second_chum.empty", H.server(hotspot_varbit(SECOND_CHUM.hotspot)) == 0,
             hotspot_varbit(SECOND_CHUM.hotspot) .. " = " .. H.server(hotspot_varbit(SECOND_CHUM.hotspot)))
         t.check("yard.hold_furnished", H.server(hotspot_varbit(6)) == 1,
@@ -426,7 +433,16 @@ return {
             -- click_loc's settle reports no answer: the rows below judge it.
             local press_r, press_d = t.player.click_loc("sailing_port_salvaging_station", 1)
             t.note("salvage.sort press: " .. tostring(press_r) .. " " .. tostring(press_d))
-            t.ticks(2 * got + 4)
+            -- Two ticks a piece once at the station; the client walks there
+            -- first (click_loc answers on the map flag), so wait on the
+            -- backpack, not a fixed count.
+            for _ = 1, 2 * got + 24 do
+                if H.count("sailing_small_shipwreck_salvage") == 0 then
+                    break
+                end
+                t.ticks(1)
+            end
+            t.ticks(1)
             t.check("salvage.sorted", H.count("sailing_small_shipwreck_salvage") == 0,
                 "salvage " .. got .. " -> " .. H.count("sailing_small_shipwreck_salvage"))
             -- 5.5 xp a piece (~sailing_sort_recipe 55 tenths; the wiki's 5.5).
@@ -452,6 +468,14 @@ return {
             t.exec(tag .. ".sails", t.sail.sails, true)
             for l = 1, #voyage.legs do
                 local leg = voyage.legs[l]
+                -- No gust is trimmed on the harbour approach (the last three
+                -- legs): a burst carries the hull into the berth's piers.
+                -- Nor on the way out or on a short leg: leaving Rimmington, a
+                -- trimmed burst ran an 8-tile leg 4 tiles past its target
+                -- onto the shore before the stop landed (client lane).
+                local prev = voyage.legs[l - 1]
+                local span = prev and math.max(math.abs(leg[1] - prev[1]), math.abs(leg[2] - prev[2])) or 0
+                t.sail.auto_trim = l > 2 and l <= #voyage.legs - 3 and span >= 12
                 t.exec(tag .. ".leg" .. l, t.sail.sail_to, leg[1], leg[2], leg[3])
                 if leg.chart then
                     -- Furled to chart, as a captain stops to look; the Chart
@@ -459,11 +483,11 @@ return {
                     local ctag = tag .. ".chart"
                     t.exec(ctag .. ".furl", t.sail.sails, false)
                     local _, before = t.skill.snapshot()
-                    t.exec(ctag, t.sail.chart, leg.chart)
+                    t.exec(ctag, t.sail.chart, leg.chart, leg.chart_sym)
                     t.expect(ctag .. ".xp", t.skill.expect_gain("sailing", 35, before))
                     t.check(ctag .. ".logged", H.server(leg.chart_varbit) == 1,
                         leg.chart_varbit .. " = " .. H.server(leg.chart_varbit))
-                    local again_r, again_d = t.sail.chart(leg.chart)
+                    local again_r, again_d = t.sail.chart(leg.chart, leg.chart_sym)
                     t.check(ctag .. ".once", again_r == "refused" and
                         string.find(tostring(again_d), "already charted", 1, true) ~= nil, tostring(again_d))
                     t.exec(ctag .. ".sails", t.sail.sails, true)

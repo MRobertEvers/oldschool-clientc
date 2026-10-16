@@ -2127,7 +2127,7 @@ d_world_op(lua_State* L)
 }
 
 /*
- * loc_row(option, name [, radius]) -> ("ok", {row_text, element_id}) |
+ * loc_row(option, name [, radius [, loc_id]]) -> ("ok", {row_text, element_id}) |
  * not_found
  *
  * The minimenu row "<option> <name>" on the nearest loc within `radius`
@@ -2169,6 +2169,7 @@ d_loc_row(lua_State* L)
     struct ScriptrunCore* c = bot->core;
     char const* name = luaL_checkstring(L, 2);
     int radius = (int)luaL_optinteger(L, 3, 16);
+    int want_id = (int)luaL_optinteger(L, 4, -1); /* a loc id, or -1: any */
     int px = 0, pz = 0, plevel = 0;
     struct ScriptrunLoc const* best = NULL;
     int best_op = 0;
@@ -2189,6 +2190,8 @@ d_loc_row(lua_State* L)
 
         loc_pick_origin(c, l, px, pz, plevel, &ox, &oz, &olevel);
         if( l->loc_id < 0 || cheb(ox, oz, l->x, l->z) > radius )
+            continue;
+        if( want_id >= 0 && l->loc_id != want_id && ScriptrunCore_LocResolvedId(c, l->loc_id) != want_id )
             continue;
         loc_name = ScriptrunCore_LocName(c, l->loc_id);
         /* An empty `name` asks for the row alone: a loc whose config names

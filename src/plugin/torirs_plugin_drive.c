@@ -21,6 +21,7 @@
 #if defined(TORIRS_EMBED_SERVER) && TORIRS_EMBED_SERVER
 
 #include "app.h"
+#include "ui/uitree.h"
 #include "game/content_test.h"
 #include "game/rs_entity_sync.h"
 #include "plugin/torirs_plugin_host.h"
@@ -501,6 +502,35 @@ PluginDrive_ArgInt(struct lua_State* L, int index)
 {
     assert(L);
     return (int)luaL_checkinteger(L, index);
+}
+
+int64_t
+PluginDrive_ArgHandle(struct lua_State* L, int index)
+{
+    assert(L);
+    return (int64_t)luaL_checkinteger(L, index);
+}
+
+int64_t
+PluginDrive_Handle(int component_id, int sub)
+{
+    if( sub < 0 )
+        return (int64_t)component_id;
+    return (int64_t)(uint32_t)component_id | ((int64_t)(sub + 1) << 32);
+}
+
+int32_t
+PluginDrive_HandleNode(struct UITree const* tree, int64_t widget)
+{
+    int component_id = (int)(int32_t)(widget & 0xffffffff);
+    int sub = (int)(widget >> 32) - 1;
+    int32_t idx;
+
+    assert(tree);
+    idx = UITree_FindByComponentId(tree, component_id);
+    if( idx >= 0 && sub >= 0 )
+        idx = UITree_FindChildBySubid(tree, idx, component_id, sub);
+    return idx;
 }
 
 int

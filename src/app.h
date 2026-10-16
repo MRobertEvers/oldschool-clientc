@@ -4872,6 +4872,14 @@ App_PluginDriveIfClick(
     int component_id,
     int op);
 
+/* The same press on one tree node: a cc_create child, which shares its
+ * parent's component id and so cannot be named by it. */
+int
+App_PluginDriveIfClickNode(
+    struct App* app,
+    int32_t node,
+    int op);
+
 int
 App_PluginDriveTabSelect(
     struct App* app,
@@ -4904,6 +4912,44 @@ int
 App_NpcElementScreenPosition(
     struct App* app,
     int element_id,
+    int* out_x,
+    int* out_y);
+
+/**
+ * Where a copy of loc type `loc_id` standing on a DECK is drawn, in canvas
+ * pixels -- or, with `loc_id` -1, of the deck loc whose type is NAMED `name`
+ * (contains `name`, the name its menu rows carry: a deck's helm changes type with its tier and
+ * its state, never its name) and, when `op` is not NULL, that offers the op
+ * `op` (a mast's "Work": its name is empty); `name` NULL takes any name: the scenery of every live root-parented world entity's own world,
+ * pushed out through its hull the way an aboard actor is
+ * (app_world_project_actor). Of the copies on screen, the one nearest the
+ * viewport's centre. 0 with the copy's scene element in `out_element_id`; -2
+ * when no deck holds the type, -1 when every copy projects off screen.
+ */
+int
+App_DeckLocScreenPosition(
+    struct App* app,
+    int loc_id,
+    char const* name,
+    char const* op,
+    int* out_x,
+    int* out_y,
+    int* out_element_id,
+    int* out_view_id);
+
+/**
+ * A point in world entity `view_id`'s deck -- deck-local fine x/z, `height`
+ * fine units above the deck -- pushed out through its hull and projected to
+ * canvas pixels, the transform an aboard actor's draw goes through. False when
+ * the view is not live or the point projects behind the eye.
+ */
+bool
+App_DeckPointScreen(
+    struct App* app,
+    int view_id,
+    int fine_x,
+    int fine_z,
+    int height,
     int* out_x,
     int* out_y);
 

@@ -43,6 +43,7 @@
 
 #include "app.h"
 #include "plugin/torirs_plugin_lua.h"
+#include "ui/uitree_component_options.h"
 #include "ui/uitree_input.h"
 #include "ui/uitree_layout.h"
 
@@ -50,6 +51,8 @@
 #include "lua.h"
 
 #include <assert.h>
+#include <stdio.h>
+#include <string.h>
 
 /*
  * struct App::if_heads[].kind stores an `enum AppIfHeadKind`
@@ -111,7 +114,7 @@ DriveRead_WidgetModel(struct App* app, int component_id, int* out_kind, int* out
 }
 
 enum DriveResult
-DriveRead_WidgetText(struct App* app, int component_id, char const** out_text)
+DriveRead_WidgetText(struct App* app, int64_t widget, char const** out_text)
 {
     struct UITree* tree;
     int32_t idx;
@@ -123,7 +126,7 @@ DriveRead_WidgetText(struct App* app, int component_id, char const** out_text)
     *out_text = "";
     tree = app->tree;
     assert(tree);
-    idx = UITree_FindByComponentId(tree, component_id);
+    idx = PluginDrive_HandleNode(tree, widget);
     if( idx < 0 )
         return DRIVE_NOT_FOUND;
 
@@ -134,7 +137,7 @@ DriveRead_WidgetText(struct App* app, int component_id, char const** out_text)
 }
 
 enum DriveResult
-DriveRead_WidgetPresented(struct App* app, int component_id, int* out_presented)
+DriveRead_WidgetPresented(struct App* app, int64_t widget, int* out_presented)
 {
     struct UITree* tree;
     int32_t idx;
@@ -145,7 +148,7 @@ DriveRead_WidgetPresented(struct App* app, int component_id, int* out_presented)
     *out_presented = 0;
     tree = app->tree;
     assert(tree);
-    idx = UITree_FindByComponentId(tree, component_id);
+    idx = PluginDrive_HandleNode(tree, widget);
     if( idx < 0 )
         return DRIVE_NOT_FOUND;
 
@@ -155,7 +158,7 @@ DriveRead_WidgetPresented(struct App* app, int component_id, int* out_presented)
 }
 
 enum DriveResult
-DriveRead_WidgetOwnHidden(struct App* app, int component_id, int* out_own_hidden)
+DriveRead_WidgetOwnHidden(struct App* app, int64_t widget, int* out_own_hidden)
 {
     struct UITree* tree;
     int32_t idx;
@@ -169,7 +172,7 @@ DriveRead_WidgetOwnHidden(struct App* app, int component_id, int* out_own_hidden
     *out_own_hidden = 1;
     tree = app->tree;
     assert(tree);
-    idx = UITree_FindByComponentId(tree, component_id);
+    idx = PluginDrive_HandleNode(tree, widget);
     if( idx < 0 )
         return DRIVE_NOT_FOUND;
 
@@ -180,7 +183,7 @@ DriveRead_WidgetOwnHidden(struct App* app, int component_id, int* out_own_hidden
 enum DriveResult
 DriveRead_WidgetBounds(
     struct App* app,
-    int component_id,
+    int64_t widget,
     int* out_x,
     int* out_y,
     int* out_width,
@@ -201,7 +204,7 @@ DriveRead_WidgetBounds(
     *out_height = 0;
     tree = app->tree;
     assert(tree);
-    idx = UITree_FindByComponentId(tree, component_id);
+    idx = PluginDrive_HandleNode(tree, widget);
     if( idx < 0 )
         return DRIVE_NOT_FOUND;
     UITree_EnsureLayoutFor(tree, idx);
@@ -231,12 +234,12 @@ static int
 lua_drive_widget_text(struct lua_State* L)
 {
     struct App* app = PluginDrive_App();
-    int component_id = PluginDrive_ArgInt(L, 1);
+    int64_t widget = PluginDrive_ArgHandle(L, 1);
     char const* text = "";
     enum DriveResult result;
 
     assert(app);
-    result = DriveRead_WidgetText(app, component_id, &text);
+    result = DriveRead_WidgetText(app, widget, &text);
     if( result != DRIVE_OK )
         return PluginDrive_PushResult(L, result, NULL);
     lua_pushstring(L, DriveResultName(result));
@@ -248,12 +251,12 @@ static int
 lua_drive_widget_presented(struct lua_State* L)
 {
     struct App* app = PluginDrive_App();
-    int component_id = PluginDrive_ArgInt(L, 1);
+    int64_t widget = PluginDrive_ArgHandle(L, 1);
     int presented = 0;
     enum DriveResult result;
 
     assert(app);
-    result = DriveRead_WidgetPresented(app, component_id, &presented);
+    result = DriveRead_WidgetPresented(app, widget, &presented);
     if( result != DRIVE_OK )
         return PluginDrive_PushResult(L, result, NULL);
     lua_pushstring(L, DriveResultName(result));
@@ -265,12 +268,12 @@ static int
 lua_drive_widget_own_hidden(struct lua_State* L)
 {
     struct App* app = PluginDrive_App();
-    int component_id = PluginDrive_ArgInt(L, 1);
+    int64_t widget = PluginDrive_ArgHandle(L, 1);
     int own_hidden = 1;
     enum DriveResult result;
 
     assert(app);
-    result = DriveRead_WidgetOwnHidden(app, component_id, &own_hidden);
+    result = DriveRead_WidgetOwnHidden(app, widget, &own_hidden);
     if( result != DRIVE_OK )
         return PluginDrive_PushResult(L, result, NULL);
     lua_pushstring(L, DriveResultName(result));
@@ -310,7 +313,7 @@ static int
 lua_drive_widget_bounds(struct lua_State* L)
 {
     struct App* app = PluginDrive_App();
-    int component_id = PluginDrive_ArgInt(L, 1);
+    int64_t widget = PluginDrive_ArgHandle(L, 1);
     int x = 0;
     int y = 0;
     int width = 0;
@@ -318,7 +321,7 @@ lua_drive_widget_bounds(struct lua_State* L)
     enum DriveResult result;
 
     assert(app);
-    result = DriveRead_WidgetBounds(app, component_id, &x, &y, &width, &height);
+    result = DriveRead_WidgetBounds(app, widget, &x, &y, &width, &height);
     if( result != DRIVE_OK )
         return PluginDrive_PushResult(L, result, NULL);
     lua_pushstring(L, DriveResultName(result));
@@ -353,7 +356,248 @@ lua_drive_widget_at(struct lua_State* L)
     return 2;
 }
 
+/* api_drive.widget_node(handle) -> ("ok", {node, component_id, parent,
+ * parent_component_id, dynamic, sub, freed}) | "not_found"
+ *
+ * Which tree node a widget handle (PluginDrive_Handle) resolves to: the
+ * diagnostic behind a press that names the wrong node -- a clientscript child
+ * is told from its parent by its sub alone. */
+static int
+lua_drive_widget_node(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+    int64_t widget = PluginDrive_ArgHandle(L, 1);
+    struct UITreeComponent const* c;
+    int32_t node;
+
+    assert(app);
+    if( !app->tree )
+        return PluginDrive_PushResult(L, DRIVE_NOT_VISIBLE, NULL);
+    node = PluginDrive_HandleNode(app->tree, widget);
+    if( node < 0 )
+        return PluginDrive_PushResult(L, DRIVE_NOT_FOUND, NULL);
+    c = &app->tree->components[node];
+    lua_pushstring(L, DriveResultName(DRIVE_OK));
+    lua_createtable(L, 0, 7);
+    lua_pushinteger(L, node);
+    lua_setfield(L, -2, "node");
+    lua_pushinteger(L, c->component_id);
+    lua_setfield(L, -2, "component_id");
+    lua_pushinteger(L, c->parent);
+    lua_setfield(L, -2, "parent");
+    lua_pushinteger(L, c->parent >= 0 ? app->tree->components[c->parent].component_id : -1);
+    lua_setfield(L, -2, "parent_component_id");
+    lua_pushboolean(L, c->dynamic != 0);
+    lua_setfield(L, -2, "dynamic");
+    lua_pushinteger(L, c->dynamic ? c->dynamic_child_index : -1);
+    lua_setfield(L, -2, "sub");
+    lua_pushboolean(L, c->freed != 0);
+    lua_setfield(L, -2, "freed");
+    return 2;
+}
+
+/* `src` with its <tag> markup dropped, into `out` (cap bytes, NUL-ended). */
+static void
+drive_read_plain(char const* src, char* out, size_t cap)
+{
+    size_t n = 0;
+    int in_tag = 0;
+
+    assert(src);
+    assert(out);
+    assert(cap > 0);
+    for( ; *src && n + 1 < cap; src++ )
+    {
+        if( *src == '<' )
+            in_tag = 1;
+        else if( *src == '>' && in_tag )
+            in_tag = 0;
+        else if( !in_tag )
+            out[n++] = *src;
+    }
+    out[n] = '\0';
+}
+
+/*
+ * api_drive.widget_find_op(layer, op, name) -> result, {handle, node, op,
+ * label, x, y, width, height, presented}: the component under `layer` (its
+ * whole subtree, clientscript children included) whose right-click op `op`
+ * reads exactly `op` and whose option name contains `name` (nil: any),
+ * markup dropped -- the row a player would pick, read from the tree instead
+ * of hunted for with the pointer. `handle` is the drive handle of that exact
+ * node (a dynamic child's is its parent's component id plus its sub), `op`
+ * the 1-based op slot. not_found when no component under the layer offers it.
+ */
+static int
+lua_drive_widget_find_op(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+    int64_t layer = PluginDrive_ArgHandle(L, 1);
+    char const* op = PluginDrive_ArgString(L, 2);
+    char const* name = lua_isnoneornil(L, 3) ? NULL : PluginDrive_ArgString(L, 3);
+    struct UITree* tree;
+    int32_t root;
+    int32_t n;
+    char seen[512];
+    size_t seen_len = 0;
+    int nodes = 0;
+
+    assert(app);
+    assert(op);
+    seen[0] = '\0';
+    tree = app->tree;
+    if( !tree )
+        return PluginDrive_PushResult(L, DRIVE_NOT_VISIBLE, NULL);
+    root = PluginDrive_HandleNode(tree, layer);
+    if( root < 0 )
+        return PluginDrive_PushResult(L, DRIVE_NOT_FOUND, NULL);
+    /* tree-walk-exempt: one layer's subtree, asked on demand by a test
+     * driver, never by the frame loop. */
+    n = tree->components[root].first_child;
+    while( n >= 0 && n != root )
+    {
+        struct UITreeComponent const* c = &tree->components[n];
+        nodes++;
+        if( !c->freed && UITree_HasMenuOptions(c) )
+        {
+            struct UITreeMenuOptions const* opts = UITree_MenuOptions(c);
+            char option[UITREE_MENU_OPTION_LEN];
+            drive_read_plain(opts->option, option, sizeof(option));
+            /* What a miss reports: each op on offer, "op:option". */
+            for( int i = 0; i < UITREE_MENU_OPTION_SLOTS && seen_len + 1 < sizeof(seen); i++ )
+            {
+                char label[UITREE_MENU_OPTION_LEN];
+                int wrote;
+                drive_read_plain(opts->ops[i], label, sizeof(label));
+                if( label[0] == '\0' )
+                    continue;
+                wrote = snprintf(seen + seen_len, sizeof(seen) - seen_len, "%s%s:%s", seen_len ? " | " : "",
+                    label, option);
+                if( wrote < 0 || (size_t)wrote >= sizeof(seen) - seen_len )
+                    break;
+                seen_len += (size_t)wrote;
+            }
+            for( int i = 0; i < UITREE_MENU_OPTION_SLOTS; i++ )
+            {
+                char label[UITREE_MENU_OPTION_LEN];
+                int x = 0, y = 0, w = 0, h = 0;
+                int64_t handle;
+                drive_read_plain(opts->ops[i], label, sizeof(label));
+                if( label[0] == '\0' || strcmp(label, op) != 0 )
+                    continue;
+                if( name && !strstr(option, name) )
+                    continue;
+                if( c->dynamic && c->parent >= 0 )
+                    handle = PluginDrive_Handle(tree->components[c->parent].component_id, c->dynamic_child_index);
+                else
+                    handle = c->component_id;
+                UITree_EnsureLayoutFor(tree, n);
+                UITree_NodeDrawnBounds(tree, n, &x, &y, &w, &h);
+                lua_pushstring(L, DriveResultName(DRIVE_OK));
+                lua_createtable(L, 0, 10);
+                lua_pushinteger(L, handle);
+                lua_setfield(L, -2, "handle");
+                lua_pushinteger(L, n);
+                lua_setfield(L, -2, "node");
+                lua_pushinteger(L, i + 1);
+                lua_setfield(L, -2, "op");
+                lua_pushstring(L, option);
+                lua_setfield(L, -2, "option");
+                lua_pushinteger(L, x);
+                lua_setfield(L, -2, "x");
+                lua_pushinteger(L, y);
+                lua_setfield(L, -2, "y");
+                lua_pushinteger(L, w);
+                lua_setfield(L, -2, "width");
+                lua_pushinteger(L, h);
+                lua_setfield(L, -2, "height");
+                lua_pushboolean(L, !UITree_NodeOrAncestorDisplayHidden(tree, n) &&
+                    UITree_NodeNativeVisible(tree, &app->ui_host, n, app->hover_com_id));
+                lua_setfield(L, -2, "presented");
+                return 2;
+            }
+        }
+        if( c->first_child >= 0 )
+        {
+            n = c->first_child;
+            continue;
+        }
+        while( n != root && tree->components[n].next_sibling < 0 )
+            n = tree->components[n].parent;
+        if( n == root )
+            break;
+        n = tree->components[n].next_sibling;
+    }
+    {
+        char detail[600];
+        snprintf(detail, sizeof(detail), "%d node(s); ops: %s", nodes, seen_len ? seen : "none");
+        return PluginDrive_PushResult(L, DRIVE_NOT_FOUND, detail);
+    }
+}
+
+/*
+ * api_drive.widget_ops_at(x, y) -> result, {{node, component_id, option,
+ * ops = {label, ...}, x, y, width, height}, ...}: the components the UI hit
+ * test stacks at canvas (x, y), topmost first, each with the right-click ops
+ * it offers right now (markup dropped; a slot with no op is ""). What a
+ * press at that pixel would be offered, read from the tree, no click.
+ */
+static int
+lua_drive_widget_ops_at(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+    int x = PluginDrive_ArgInt(L, 1);
+    int y = PluginDrive_ArgInt(L, 2);
+    int32_t hits[UITREE_INPUT_HIT_STACK_MAX];
+    int count;
+
+    assert(app);
+    if( !app->tree )
+        return PluginDrive_PushResult(L, DRIVE_NOT_VISIBLE, NULL);
+    count = UITree_CollectNodesAt(app->tree, &app->ui_host, x, y, hits, UITREE_INPUT_HIT_STACK_MAX);
+    lua_pushstring(L, DriveResultName(DRIVE_OK));
+    lua_createtable(L, count, 0);
+    for( int h = 0; h < count; h++ )
+    {
+        struct UITreeComponent const* c = &app->tree->components[hits[h]];
+        struct UITreeMenuOptions const* opts = UITree_MenuOptions(c);
+        char text[UITREE_MENU_OPTION_LEN];
+        int bx = 0, by = 0, bw = 0, bh = 0;
+
+        UITree_NodeDrawnBounds(app->tree, hits[h], &bx, &by, &bw, &bh);
+        lua_createtable(L, 0, 8);
+        lua_pushinteger(L, hits[h]);
+        lua_setfield(L, -2, "node");
+        lua_pushinteger(L, c->component_id);
+        lua_setfield(L, -2, "component_id");
+        drive_read_plain(opts->option, text, sizeof(text));
+        lua_pushstring(L, text);
+        lua_setfield(L, -2, "option");
+        lua_createtable(L, UITREE_MENU_OPTION_SLOTS, 0);
+        for( int i = 0; i < UITREE_MENU_OPTION_SLOTS; i++ )
+        {
+            drive_read_plain(opts->ops[i], text, sizeof(text));
+            lua_pushstring(L, text);
+            lua_rawseti(L, -2, i + 1);
+        }
+        lua_setfield(L, -2, "ops");
+        lua_pushinteger(L, bx);
+        lua_setfield(L, -2, "x");
+        lua_pushinteger(L, by);
+        lua_setfield(L, -2, "y");
+        lua_pushinteger(L, bw);
+        lua_setfield(L, -2, "width");
+        lua_pushinteger(L, bh);
+        lua_setfield(L, -2, "height");
+        lua_rawseti(L, -2, h + 1);
+    }
+    return 2;
+}
+
 static struct LuaFn const LUA_DRIVE_READ_FNS[] = {
+    {"widget_ops_at", lua_drive_widget_ops_at},
+    {"widget_find_op", lua_drive_widget_find_op},
+    {"widget_node", lua_drive_widget_node},
     {"widget_bounds", lua_drive_widget_bounds},
     {"widget_at", lua_drive_widget_at},
     {"widget_model", lua_drive_widget_model},

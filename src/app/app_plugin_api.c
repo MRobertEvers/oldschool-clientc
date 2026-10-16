@@ -190,6 +190,133 @@ App_NpcElementScreenPosition(
 }
 
 int
+App_DeckLocScreenPosition(
+    struct App* app,
+    int loc_id,
+    char const* name,
+    char const* op,
+    int* out_x,
+    int* out_y,
+    int* out_element_id,
+    int* out_view_id)
+{
+    struct UITreeEmitDesc const* viewport;
+    int found_any = 0;
+    int best_view = 0;
+    int best_element = -1;
+    long best_distance = 0;
+    int count;
+
+    assert(app);
+    assert(out_x);
+    assert(out_y);
+    assert(out_element_id);
+    assert(out_view_id);
+    if( loc_id < 0 )
+        assert(name || op);
+    /* `name` and `op` narrow a loc id too (a placeholder's Build row). */
+    if( !app->world || !app->world_view_valid )
+        return -1;
+    viewport = &app->world_emit_desc;
+    int const centre_x = viewport->x + viewport->w / 2;
+    int const centre_y = viewport->y + viewport->h / 2;
+    count = Wevs_ViewListCount(&app->wevs, WORLDVIEW_ROOT);
+    for( int v = 0; v < count; v++ )
+    {
+        struct Wev* wev = Wevs_ViewListAt(&app->wevs, WORLDVIEW_ROOT, v);
+        struct World_EntityPool* pool;
+
+        assert(wev);
+        if( !WorldviewRegistry_IsLive(&app->worldviews, wev->id) )
+            continue;
+        pool = &WorldviewRegistry_Get(&app->worldviews, wev->id)->world->entities.scenery;
+        for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
+        {
+            struct WorldEntity_Scenery* loc = World_EntityPoolGet(pool, i);
+            struct WorldEntityFacet_ViewPlacement placement;
+            int size_x;
+            int size_z;
+            int x;
+            int y;
+            long distance;
+
+            if( !loc )
+                continue;
+            if( loc_id >= 0 && loc->loc_id != loc_id )
+                continue;
+            if( name && !strstr(loc->info->name, name) )
+                continue;
+            if( op )
+            {
+                int offers = 0;
+                for( int a = 0; a < 5; a++ )
+                {
+                    if( strcmp(loc->info->actions[a].name, op) == 0 )
+                        offers = 1;
+                }
+                if( !offers )
+                    continue;
+            }
+            found_any = 1;
+            size_x = loc->size_x > 0 ? loc->size_x : 1;
+            size_z = loc->size_z > 0 ? loc->size_z : 1;
+            /* Deck-local fine units, the footprint's centroid; home_view set
+             * so the projection takes them as given. */
+            placement.view_id = wev->id;
+            placement.x = loc->grid_position.x * 128 + size_x * 64;
+            placement.z = loc->grid_position.z * 128 + size_z * 64;
+            placement.home_view = wev->id;
+            if( !app_world_project_actor(
+                    app, &placement, loc->grid_position.level, placement.x, placement.z, 0, &x, &y) )
+                continue;
+            if( x < viewport->x || x >= viewport->x + viewport->w || y < viewport->y ||
+                y >= viewport->y + viewport->h )
+                continue;
+            distance = (long)(x - centre_x) * (x - centre_x) + (long)(y - centre_y) * (y - centre_y);
+            if( best_element >= 0 && distance >= best_distance )
+                continue;
+            best_element = loc->element_id;
+            best_view = wev->id;
+            best_distance = distance;
+            *out_x = x;
+            *out_y = y;
+        }
+    }
+    if( best_element < 0 )
+        return found_any ? -1 : -2;
+    *out_element_id = best_element;
+    *out_view_id = best_view;
+    return 0;
+}
+
+bool
+App_DeckPointScreen(
+    struct App* app,
+    int view_id,
+    int fine_x,
+    int fine_z,
+    int height,
+    int* out_x,
+    int* out_y)
+{
+    struct WorldEntityFacet_ViewPlacement placement;
+
+    assert(app);
+    assert(view_id != WORLDVIEW_ROOT);
+    assert(out_x);
+    assert(out_y);
+    if( !app->world || !app->world_view_valid || !Wevs_IsLive(&app->wevs, view_id) ||
+        !WorldviewRegistry_IsLive(&app->worldviews, view_id) )
+        return false;
+    placement.view_id = view_id;
+    placement.x = fine_x;
+    placement.z = fine_z;
+    placement.home_view = view_id;
+    return app_world_project_actor(
+               app, &placement, app_wev_deck_level(app, view_id), fine_x, fine_z, height, out_x, out_y) != 0;
+}
+
+int
 App_NpcScreenPosition(
     struct App* app,
     int npc_id,
