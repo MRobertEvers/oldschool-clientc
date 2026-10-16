@@ -155,6 +155,10 @@ struct UIIntent
     int event_mouse_x;
     int event_mouse_y;
     int has_drag_target;
+    /** The gesture ended: this is the source's onDragComplete, not an
+     *  onDrag tick. The dispatcher sends the dual-endpoint drop packet after
+     *  it when the target is armed as a drag target. */
+    int is_drag_complete;
     int drag_target_id;
     int has_drag_target_identity;
     int32_t drag_target_node_index;

@@ -241,7 +241,7 @@ return {
             if H.building() == on then
                 return true
             end
-            t.ui.tab("settings")
+            t.ui.tab("options")
             H.press("settings_side:houseoptions")
             if t.ui.await_open("poh_options", 5) ~= "ok" then
                 t.check(tag .. ".options", false, "House Options did not open")

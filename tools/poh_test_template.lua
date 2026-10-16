@@ -179,7 +179,7 @@ return {
 
         -- House Options from the Settings side panel.
         function H.options_press(tag, button)
-            t.ui.tab("settings")
+            t.ui.tab("options")
             H.press("settings_side:houseoptions")
             local r = t.ui.await_open("poh_options", 5)
             if r ~= "ok" then

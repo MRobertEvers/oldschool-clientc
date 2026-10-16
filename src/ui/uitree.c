@@ -3,6 +3,7 @@
 
 #include "uitree_frame.h"
 #include "uitree_input.h"
+#include "uitree_host.h"
 #include "uitree_minimenu.h"
 
 #include "perf/torirs_perf.h"
@@ -7508,9 +7509,34 @@ UITree_NodeTextHash(
     return hash;
 }
 
+/* Is `c` a drop target? Its own declaration (UITree_ComponentIsDropTarget:
+ * the cache's clickmask bit 20, or a hook), or the server's: an IF_SETEVENTS
+ * drag-target bit lives in the host's event table, not on the node, and is
+ * how a server arms a component the cache did not (the Portal Nexus slots'
+ * scroll layer, which its drop script requires as the widget dropped on). */
+static int
+drop_target_accepts(
+    struct UITreeHost const* host,
+    struct UITreeComponent const* c)
+{
+    if( UITree_ComponentIsDropTarget(c) )
+        return 1;
+    if( host )
+    {
+        struct UITreeHostRequest req = {
+            .kind = UITREE_HOST_GET_IF_EVENTS,
+            .u.get_if_events.com_id = c->component_id,
+        };
+        if( (UITree_Host(host, &req) & UITREE_FLAG_DRAG_ON) != 0 )
+            return 1;
+    }
+    return 0;
+}
+
 static int
 drop_target_pick_in_subtree(
     struct UITree const* tree,
+    struct UITreeHost const* host,
     int32_t idx,
     int px,
     int py,
@@ -7603,6 +7629,7 @@ drop_target_pick_in_subtree(
                 continue;
             drop_target_pick_in_subtree(
                 tree,
+                host,
                 child,
                 px,
                 py,
@@ -7618,7 +7645,7 @@ drop_target_pick_in_subtree(
         }
     }
 
-    if( hit && UITree_ComponentIsDropTarget(c) &&
+    if( hit && drop_target_accepts(host, c) &&
         depth >= *best_depth )
     {
         *best_depth = depth;
@@ -7631,6 +7658,18 @@ drop_target_pick_in_subtree(
 int32_t
 UITree_FindDropTargetNode(
     struct UITree const* tree,
+    int px,
+    int py,
+    int exclude_component_id,
+    int* out_component_id)
+{
+    return UITree_FindDropTargetNodeHost(tree, NULL, px, py, exclude_component_id, out_component_id);
+}
+
+int32_t
+UITree_FindDropTargetNodeHost(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
     int px,
     int py,
     int exclude_component_id,
@@ -7649,6 +7688,7 @@ UITree_FindDropTargetNode(
             continue;
         drop_target_pick_in_subtree(
             tree,
+            host,
             root,
             px,
             py,

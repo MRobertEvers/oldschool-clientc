@@ -1200,6 +1200,7 @@ interact_drag_consume_pending(
             .component_id = st->drag_source_id,
             .hook = &UITree_Hooks(src)->on_drag_complete,
             .has_drag_target = 1,
+            .is_drag_complete = 1,
             .drag_target_id = st->drag_target_id,
             .has_event_mouse = 1,
             .event_mouse_x = 0,
@@ -1302,6 +1303,7 @@ interact_drag(
                 .hook = hook_by_component_id(
                     tree, ui_result->drag_source_id, pick_on_drag_complete),
                 .has_drag_target = 1,
+                .is_drag_complete = 1,
                 .drag_target_id = ui_result->drag_target_id,
             };
             if( ui_result->drag_source_idx >= 0 &&

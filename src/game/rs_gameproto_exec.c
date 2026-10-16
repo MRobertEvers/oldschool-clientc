@@ -2481,7 +2481,15 @@ RS_GameProto_Exec(
              * never re-arms it cannot leak zone updates into a boat. */
             ctx->app->active_world = WORLDVIEW_ROOT;
             ctx->app->active_world_level = 0;
-            App_FlushPendingClientScripts(ctx->app, &ctx->app->runner);
+            /* Onto the packet pipeline (behind this fence task), not the
+             * asset runner: the pipeline is a strict FIFO, so the tick's
+             * scripts run one after another in wire order, as the reference
+             * runs them inline. On the asset runner a script parked on a
+             * sprite load let the next one overtake it: the House
+             * Advertisement board's "list complete" call (poh_board_addline
+             * row 200) ran before the row call had counted its row, and drew
+             * "No houses are currently listed." over the house it listed. */
+            App_FlushPendingClientScripts(ctx->app, &ctx->app->exec_runner);
             /* The 600ms cadence a plugin actually wants: every packet of this
              * server tick is now in world state, so a snapshot read here
              * agrees with what the server believes. Anything sampled mid-tick

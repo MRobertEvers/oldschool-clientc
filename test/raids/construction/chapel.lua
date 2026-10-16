@@ -135,7 +135,7 @@ end
 -- interface must open, then RESUME_PAUSEBUTTON(component, row).
 function D.pick(t, H, tag, interface, component, row)
     t.expect(tag .. ".open", t.ui.await_open(interface, 6))
-    return t.exec(tag .. ".row", t.ui.resume_script, component, row)
+    return t.exec(tag .. ".row", t.ui.press_row, { sym = component, sub = row })
 end
 
 -- Has a message containing `text` arrived since serial `top`?
@@ -209,16 +209,22 @@ DEEP_OPS[#DEEP_OPS + 1] = { loc = "^poh_jewellery_box_%d", op = "Teleport Menu",
         -- `dest` is ~poh_jewellery_teleport's number, which the box keeps in
         -- %varb2308_poh_jewellerybox_multi to pick its multiloc child; the
         -- interface's button for it is index dest - 1.
-        local where, dest
+        local where, dest, label
         if tier == 1 then
-            where, dest = "0_38_48_8_18", 2   -- Castle Wars
+            where, dest, label = "0_38_48_8_18", 2, "Castle Wars"
         elseif tier == 2 then
-            where, dest = "0_44_55_38_44", 10 -- Warriors' Guild (a fancy box's own row)
+            where, dest, label = "0_44_55_38_44", 10, "Warriors' Guild" -- a fancy box's own row
         else
-            where, dest = "0_48_54_15_40", 24 -- Edgeville (an ornate box's own row)
+            where, dest, label = "0_48_54_15_40", 24, "Edgeville" -- an ornate box's own row
         end
         D.press(t, H, have, op, tag .. ".click")
-        D.pick(t, H, tag .. ".menu", "poh_jewellery_box", "poh_jewellery_box:universe", dest - 1)
+        -- The button that says the destination; its own clientscript answers
+        -- the box's pause on poh_jewellery_box:universe at dest - 1.
+        t.expect(tag .. ".menu.open", t.ui.await_open("poh_jewellery_box", 6))
+        t.exec(tag .. ".menu.row", t.ui.press_row,
+            { syms = { "poh_jewellery_box:dueling", "poh_jewellery_box:gaming", "poh_jewellery_box:combat",
+                "poh_jewellery_box:skills", "poh_jewellery_box:wealth", "poh_jewellery_box:glory" }, label = label },
+            { resume = { "poh_jewellery_box:universe", dest - 1 } })
         D.arrive(t, H, tag .. ".landed", where)
         -- The box now offers the last destination as its own op 3.
         D.back(t, H, tag)
@@ -380,10 +386,29 @@ local function nexus_configure(t, H, have, tag)
     local _, top = H.messages_since(-1)
     D.press(t, H, have, 3, tag .. ".configure")
     t.expect(tag .. ".open", t.ui.await_open("telenexus", 6))
-    t.exec(tag .. ".drag", t.ui.drag_rows, "telenexus:non_slotted_list", 1, "telenexus:slotted_list", 1)
+    -- Varrock's row (row 1) dropped on the slots area, then Close: with a
+    -- change staged the window asks to confirm the cost (telenexus_okbutton_
+    -- click), without one it simply closes. Confirm is pressed while the
+    -- window is still up.
+    -- A saved destination leaves the available list: drag only while
+    -- Varrock is not already in slot 1.
+    if H.server("varb6654_poh_nexus_tele_1") ~= 1 then
+        t.exec(tag .. ".drag", t.ui.drag_rows, "telenexus:non_slotted_list", 1, "telenexus:scrolling2", -1)
+        t.ticks(1)
+    end
+    t.exec(tag .. ".done", H.press, "telenexus:telenexus_donebutton")
     t.ticks(1)
-    t.exec(tag .. ".confirm", H.press, "telenexus:telenexus_confirm")
-    D.expect_said(t, H, tag .. ".saved", top, "Your Portal Nexus configuration has been saved.")
+    if H.modal() then
+        t.exec(tag .. ".confirm", H.press, "telenexus:telenexus_confirm")
+        t.ticks(2)
+    end
+    t.check(tag .. ".saved", H.server("varb6654_poh_nexus_tele_1") == 1,
+        "saved slot 1 = " .. tostring(H.server("varb6654_poh_nexus_tele_1")) .. " want 1 (Varrock); "
+        .. H.last_messages(2))
+    t.check(tag .. ".said_once", select(2, D.said(H, top, "has been saved")) ~= nil and
+        #(function() local n = {} for _, l in ipairs(H.messages_since(top)) do
+            if l:find("has been saved", 1, true) then n[#n + 1] = l end end return n end)() <= 1,
+        "the saved line is said at most once: " .. H.last_messages(3))
     local spent = 0
     for i = 1, #NEXUS_RUNES do
         spent = spent + (before[i] - H.count(NEXUS_RUNES[i]))
@@ -405,12 +430,12 @@ local function nexus_teleport(t, H, have, tag, op)
     D.press(t, H, have, op, tag .. ".scry_click")
     local tile = H.tile()
     t.expect(tag .. ".scry_menu", t.ui.await_open("telenexus_teleport", 6))
-    t.exec(tag .. ".scry_row", t.ui.resume_script, "telenexus_teleport:key_listeners", 0)
+    t.exec(tag .. ".scry_row", t.ui.press_row, { sym = "telenexus_teleport:key_listeners", sub = 0 })
     D.scried(t, H, tag .. ".scry", tile)
     D.setvars(t, { { "varb6671_poh_nexus_tele_scry_mode", "0" } })
     D.press(t, H, have, op, tag .. ".click")
     t.expect(tag .. ".menu", t.ui.await_open("telenexus_teleport", 6))
-    t.exec(tag .. ".row", t.ui.resume_script, "telenexus_teleport:key_listeners", 0)
+    t.exec(tag .. ".row", t.ui.press_row, { sym = "telenexus_teleport:key_listeners", sub = 0 })
     D.arrive(t, H, tag .. ".landed", VARROCK)
 end
 DEEP_OPS[#DEEP_OPS + 1] = { loc = "^poh_nexus_portal_%d$", op = "Teleport Menu", run = nexus_teleport }
@@ -1044,7 +1069,7 @@ return {
 
         -- House Options from the Settings side panel.
         function H.options_press(tag, button)
-            t.ui.tab("settings")
+            t.ui.tab("options")
             H.press("settings_side:houseoptions")
             local r = t.ui.await_open("poh_options", 5)
             if r ~= "ok" then

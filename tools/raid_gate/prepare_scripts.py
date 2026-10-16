@@ -147,15 +147,25 @@ def describe(suite, directory, directory_script_path):
     entries = []
     if not os.path.isdir(directory):
         return entries
+    # EVERY test file is listed (owner, 2026-10-09: "Do not hide any
+    # scripts"). A leading `_` used to hide a file unless it was `_play_*`
+    # or `_vz*`, so the Maiden solver's `_solve_tob_maiden` never reached
+    # the Scripts tab. That includes one folder down: the generated
+    # Construction rooms live in test/raids/construction/<room>.lua, listed as
+    # construction_<room> (the id each file declares); `fixtures` holds
+    # fixtures, not tests, and fixtures stay the suite's own.
+    files = []
     for name in sorted(os.listdir(directory)):
-        # EVERY test file is listed (owner, 2026-10-09: "Do not hide any
-        # scripts"). A leading `_` used to hide a file unless it was `_play_*`
-        # or `_vz*`, so the Maiden solver's `_solve_tob_maiden` never reached
-        # the Scripts tab.
-        if not name.endswith(".lua"):
-            continue
+        folder = os.path.join(directory, name)
+        if name.endswith(".lua"):
+            files.append((name[:-len(".lua")], (name,)))
+        elif os.path.isdir(folder) and name != "fixtures":
+            for inner in sorted(os.listdir(folder)):
+                if inner.endswith(".lua"):
+                    files.append((name + "_" + inner[:-len(".lua")], (name, inner)))
+    for test_id, parts in files:
+        name = os.path.join(*parts)
         test_file = os.path.join(directory, name)
-        test_id = name[:-len(".lua")]
         with open(test_file, "r", encoding="utf-8") as handle:
             source = handle.read()
         party = quest_run.read_party_size(test_file)
@@ -164,7 +174,7 @@ def describe(suite, directory, directory_script_path):
             # harness part that never declared a fixture)
             entries.append({
                 "id": test_id, "suite": suite, "title": test_id,
-                "source": script_path(directory_script_path, name), "fixture": "",
+                "source": script_path(directory_script_path, *parts), "fixture": "",
                 "legs": 0, "start": "", "party": party, "max_frames": 0,
                 "available": 0, "reason": "declares no fixture = \"...\"",
             })
@@ -187,7 +197,7 @@ def describe(suite, directory, directory_script_path):
             "id": test_id,
             "suite": suite,
             "title": title,
-            "source": script_path(directory_script_path, name),
+            "source": script_path(directory_script_path, *parts),
             "fixture": script_path(directory_script_path, "fixtures", fixture),
             "legs": legs,
             # Raid seam25: a quest's fixture (fresh_lumbridge) applied IN PLACE

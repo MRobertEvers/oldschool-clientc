@@ -145,7 +145,13 @@ function QD.ui.await_model_pose(sym, want, ticks, sub)
 end
 
 function QD.ui.invoke(widget, op)
-    return api_drive.if_click(widget, op)
+    local result, detail = api_drive.if_click(widget, op)
+    -- The client's if_click answers a bare ok; a row without a detail reads
+    -- as hollow, so say what was pressed.
+    if detail == nil then
+        detail = "ui.invoke: op " .. tostring(op) .. " on widget " .. tostring(widget) .. " -> " .. tostring(result)
+    end
+    return result, detail
 end
 
 -- ui.drag(sym, sub, to) -> ok | no_row | not_visible | refused, detail
@@ -200,26 +206,94 @@ function QD.ui._bounds_of(sym, sub)
     return "ok", bounds, component_id
 end
 
--- A drag between two dynamic children, sent as the packet itself
--- (INV_BUTTOND: source component and row, destination component and row).
--- Scriptrun binds api.drive.if_drag; it has no layout for QD.ui.drag's
--- pixel drag. The Portal Nexus configuration stages a destination this way.
+-- ui.drag_rows(src, src_sub, dst, dst_sub) -> result, detail
+-- Drag row `src_sub` of `src` onto row `dst_sub` of `dst` (the Portal Nexus
+-- configuration stages a destination this way). On the client it is the real
+-- mouse drag, ui.drag, aimed so the cursor lets go over the target row's
+-- centre -- the client's own drag machine then sends whatever it sends.
+-- Scriptrun has no layout to drag across; it sends the packet the drop
+-- makes, INV_BUTTOND (api.drive.if_drag).
 function QD.ui.drag_rows(src, src_sub, dst, dst_sub)
-    if not api_drive.if_drag then
-        return "unsupported", "ui.drag_rows: no if_drag on this drive (use ui.drag)"
+    if api_drive.if_drag then
+        return api_drive.if_drag(src, src_sub, dst, dst_sub)
     end
-    return api_drive.if_drag(src, src_sub, dst, dst_sub)
+    local sr, source = QD.ui._bounds_of(src, src_sub)
+    if sr ~= "ok" then
+        return sr, "ui.drag_rows: the row " .. tostring(src) .. "[" .. tostring(src_sub) .. "] -> " .. tostring(sr)
+    end
+    local tr, target = QD.ui._bounds_of(dst, dst_sub)
+    if tr ~= "ok" then
+        return tr, "ui.drag_rows: the target " .. tostring(dst) .. "[" .. tostring(dst_sub) .. "] -> " .. tostring(tr)
+    end
+    local pr, parent = QD.ui._bounds_of(dst, -1)
+    if pr ~= "ok" then
+        return pr, "ui.drag_rows: " .. tostring(dst) .. " -> " .. tostring(pr)
+    end
+    -- ui.drag grabs the source at its centre and lands its top-left at
+    -- (x, y) in `dst`'s own space: put that centre on the target's centre.
+    local x = (target.x - parent.x) + target.width // 2 - source.width // 2
+    local y = (target.y - parent.y) + target.height // 2 - source.height // 2
+    return QD.ui.drag(src, src_sub, { sym = dst, x = x, y = y })
 end
 
--- RESUME_PAUSEBUTTON(component, sub) as an interface's own clientscript
--- sends it, with no server-armed resume row (the Portal Nexus teleport list).
--- Scriptrun binds api.drive.resume_script; a client without it answers
--- "unsupported".
-function QD.ui.resume_script(sym, sub)
-    if not api_drive.resume_script then
-        return "unsupported", "ui.resume_script: no resume_script on this drive"
+-- The child of one of `syms` whose drawn text contains `label` (tags
+-- stripped), as sym, sub -- a button a clientscript built with cc_create.
+function QD.ui._find_labelled(syms, label)
+    for i = 1, #syms do
+        for sub = 0, 63 do
+            local r, id = api_drive.component(syms[i], sub)
+            if r == "ok" then
+                local tr, text = api_drive.widget_text(id)
+                if tr == "ok" and QD.ui._journal_plain(text):find(label, 1, true) then
+                    return syms[i], sub
+                end
+            end
+        end
     end
-    return api_drive.resume_script(sym, sub)
+    return nil, nil
+end
+
+-- ui.press_row(target, lane) -> result, detail
+-- Press a row of a list interface the way a player clicks it. `target` names
+-- the row: { sym = <component>, sub = n } -- a row the server armed with
+-- if_addresumebutton (interface 187's lj_layer1, the Portal Nexus list's
+-- key_listeners), or a clientscript button whose own op answers (the board's
+-- arrow) -- or { syms = {<component>, ...}, label = "<text>" } for a button
+-- found by what it says (a jewellery box destination). On the client it is a
+-- real op-1 click on that child (api.drive.if_click: its own onop, its own
+-- events), so the clientscript behind it runs and sends what it sends.
+-- Scriptrun runs no clientscripts and builds no such children; there `lane`
+-- names what the click ends in: { resume = { sym, sub } } -- the
+-- RESUME_PAUSEBUTTON the button's script sends (default: the target itself)
+-- -- or { name = "<text>" }, a RESUME_P_NAMEDIALOG.
+function QD.ui.press_row(target, lane)
+    lane = lane or {}
+    if api_drive.resume_script then
+        if lane.name ~= nil then
+            return api_drive.resume_namedialog(tostring(lane.name))
+        end
+        local resume = lane.resume or target
+        return api_drive.resume_script(resume.sym or resume[1], resume.sub or resume[2])
+    end
+    local sym, sub = target.sym, target.sub
+    local where = tostring(sym) .. "[" .. tostring(sub) .. "]"
+    for _ = 1, 10 do
+        if target.label ~= nil then
+            sym, sub = QD.ui._find_labelled(target.syms, target.label)
+            where = "the button saying '" .. target.label .. "'"
+        end
+        if sym ~= nil then
+            local r, id = api_drive.component(sym, sub)
+            if r == "ok" then
+                local cr, cd = api_drive.if_click(id, target.op or 1)
+                return cr, "ui.press_row: " .. where .. " clicked -> " .. tostring(cr) .. " " .. tostring(cd or "")
+            end
+        end
+        -- The interface opened this frame; its clientscript may still be
+        -- building the rows.
+        QD.ui._frames(2, "ui.press_row")
+    end
+    return "not_visible", "ui.press_row: " .. where .. " is not drawn"
 end
 
 function QD.ui.drag(sym, sub, to)
@@ -253,12 +327,20 @@ function QD.ui.drag(sym, sub, to)
     -- first, then a 5x5 grid inside the bounds.
     local grab_x, grab_y = nil, nil
     local top_seen = {}
+    -- The hit stack names a node by its own component id. A clientscript
+    -- child's handle (api_drive.component(sym, sub)) is not that id, so it is
+    -- resolved to its node's id once; a static component's are the same.
+    local source_node_id = source_id
+    local node_result, node = api_drive.widget_node(source_id)
+    if node_result == "ok" and type(node) == "table" and node.component_id ~= nil then
+        source_node_id = node.component_id
+    end
     local function try_grab(x, y)
         if grab_x ~= nil then
             return
         end
         local at_result, top = api_drive.widget_at(x, y)
-        if at_result == "ok" and top == source_id then
+        if at_result == "ok" and (top == source_id or top == source_node_id) then
             grab_x, grab_y = x, y
         elseif #top_seen < 4 then
             top_seen[#top_seen + 1] = string.format("%d,%d->%s", x, y, tostring(top))

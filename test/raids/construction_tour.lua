@@ -134,7 +134,7 @@ return {
 
         -- House Options from the Settings side panel.
         function H.options_open(tag)
-            t.exec(tag .. ".settings_tab", t.ui.tab, "settings")
+            t.exec(tag .. ".settings_tab", t.ui.tab, "options")
             t.exec(tag .. ".options", H.press, "settings_side:houseoptions")
             return t.expect(tag .. ".options_panel", t.ui.await_open("poh_options", 5))
         end

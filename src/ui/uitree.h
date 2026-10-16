@@ -3184,6 +3184,18 @@ UITree_FindDropTargetNode(
     int exclude_component_id,
     int* out_component_id);
 
+/* As UITree_FindDropTargetNode, and a node the host's IF_SETEVENTS table arms
+ * with the drag-target bit (20) counts as a drop target too -- the server's
+ * word, which the tree's own nodes do not carry. */
+int32_t
+UITree_FindDropTargetNodeHost(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    int px,
+    int py,
+    int exclude_component_id,
+    int* out_component_id);
+
 /** Cache/script hide check, including InterfaceParent mount containers. */
 int
 UITree_ComponentOrAncestorHidden(

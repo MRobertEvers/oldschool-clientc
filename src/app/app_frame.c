@@ -1647,6 +1647,19 @@ App_RunOnce(
          * reference's synchronous ScriptEvent invoke during drag. */
         struct ToriRS_TaskQueue* drag_queue = NULL;
         struct TaskRunner drag_runner;
+        /* A widget dropped on a component the server armed as a drag target
+         * (IF_SETEVENTS bit 20) is reported with the dual-endpoint packet,
+         * after the source's onDragComplete has run -- the same order the
+         * inventory drag keeps (app_minimenu.c, rev-230 "onDragComplete
+         * first"). Collected here, sent once the side queue has drained. */
+        /* Resolved before the hook runs: onDragComplete commonly redraws the
+         * list it was dragged from (the Portal Nexus rows), freeing the
+         * dragged child, so its (component, row) must be read first. */
+        struct
+        {
+            int src_com, src_sub, src_obj, dst_com, dst_sub, dst_obj;
+        } drops[UI_INTENT_MAX];
+        int drop_count = 0;
 
         for( int i = 0; i < out.intent_count; i++ )
             if( out.intents[i].hook )
@@ -1679,6 +1692,23 @@ App_RunOnce(
                 }
                 dest = &drag_runner;
             }
+            if( intent->is_drag_complete && intent->drag_target_id >= 0 &&
+                intent->drag_target_id != intent->component_id &&
+                (App_IfEventsGetEffective(app, intent->drag_target_id) & UITREE_FLAG_DRAG_ON) != 0 )
+            {
+                int32_t src_idx = UITree_FindByComponentId(app->tree, intent->component_id);
+                int32_t dst_idx = UITree_FindByComponentId(app->tree, intent->drag_target_id);
+
+                drops[drop_count].src_obj =
+                    src_idx >= 0 ? app->tree->components[src_idx].item_id : UITREE_NO_OBJ;
+                drops[drop_count].dst_obj =
+                    dst_idx >= 0 ? app->tree->components[dst_idx].item_id : UITREE_NO_OBJ;
+                UIIfEventTable_ButtonTarget(app->tree, intent->component_id,
+                    &drops[drop_count].src_com, &drops[drop_count].src_sub);
+                UIIfEventTable_ButtonTarget(app->tree, intent->drag_target_id,
+                    &drops[drop_count].dst_com, &drops[drop_count].dst_sub);
+                drop_count++;
+            }
             RS_CS2_DispatchHook(
                 &app->host, dest, intent->component_id, intent->hook ? &hook_copies[i] : NULL);
             ran_cs2 = 1;
@@ -1688,6 +1718,23 @@ App_RunOnce(
         {
             TaskRunner_Drain(&drag_runner);
             ToriRS_TaskQueue_Free(drag_queue);
+        }
+        for( int i = 0; i < drop_count && app->net; i++ )
+        {
+            APP_NET_SEND(
+                app,
+                net_out_inv_buttond(
+                    app->net->rev,
+                    app->net->random_out,
+                    _nsbuf,
+                    sizeof(_nsbuf),
+                    drops[i].src_com,
+                    drops[i].src_obj,
+                    drops[i].src_sub,
+                    drops[i].dst_com,
+                    drops[i].dst_obj,
+                    drops[i].dst_sub,
+                    0));
         }
     }
 

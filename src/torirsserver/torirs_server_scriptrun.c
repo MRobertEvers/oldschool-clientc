@@ -2990,11 +2990,14 @@ host_component(void)
  * IF_BUTTON1 on the live frame's stone when op 1 is in the stone's effective
  * events. The cache arms it on every stone (`clickmask=2`), so a stock client
  * reports every tab it opens; the server only ever sees `<live top>:stoneN`.
- * `tab_by_name` answers the standard stone order the client's [tabs] map
- * carries. */
+ * `tab_by_name` answers the standard stone order under the NAMES the
+ * client's [tabs] map carries (revconfig/osrs239/osrs239_dat2_cache.ini), so
+ * a test's t.ui.tab("options") means the same tab on both lanes; this table
+ * used to say settings/emote/skills/quest, and a test written here could not
+ * open its tab on the client. */
 static char const* const TAB_NAMES[] = {
-    "combat", "skills", "quest", "inventory", "equipment", "prayer", "magic",
-    "clan", "account", "friends", "logout", "settings", "emote", "music",
+    "combat", "stats", "quests", "inventory", "equipment", "prayer", "magic",
+    "clan", "account", "friends", "logout", "options", "emotes", "music",
 };
 
 static int

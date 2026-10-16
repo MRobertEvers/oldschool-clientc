@@ -8,10 +8,10 @@
 --       test/raids/construction_board.lua --bots 1 --name board --ticks 20000 \
 --       --session $S/board --fixture test/raids/fixtures/fresh_lumbridge.ini
 --
--- One bot, so a second player's house cannot be entered here: the row click
--- (resume_namedialog, which the interface's poh_board_send_name sends) is
--- driven with an offline name, which reaches ~poh_visit_house's checks
--- (p_findvisibleplayer never finds the asking player itself).
+-- One bot, so a second player's house cannot be entered here: the row clicked
+-- is the bot's own advert, whose name reaches ~poh_visit_house's checks
+-- (p_findvisibleplayer never finds the asking player itself). On the client
+-- it is the row's real arrow; scriptrun sends what its clientscript sends.
 
 local RIMMINGTON_PORTAL_SIDE = "0_46_50_9_24"
 
@@ -106,16 +106,27 @@ return {
         H.expect_mes("board.one_row", "Debug: board rows 1.", H.cheat("::pohboard"))
         -- name|location|level|altar|nexus|jewellery|pool|spellbook|armour
         H.expect_mes("board.row", "|1|99|Y|3|3|5|4|Y", H.cheat("::pohboard"))
+        -- The row's first field is the advertiser: this player's own name.
+        local me = nil
+        local rows = H.since(0)
+        for i = 1, #rows do
+            me = rows[i]:match("^Debug: board ([^|]+)|") or me
+        end
         H.expect_mes("add.cooldown", "once every 30 minutes", H.board(2), 20)
 
         -- ------------------------------------------ View and the row click
         t.player.click_loc("poh_board_rimmington", 1)
         local opened = t.ui.await_open("poh_board", 20)
         t.check("view.open", opened == "ok", "poh_board: " .. tostring(opened))
-        H.expect_mes("view.click_offline", "That player is not online", function()
-            local r, d = t.chat.resume_name("Nobody Here")
-            t.note("resume_namedialog: " .. tostring(r) .. " " .. tostring(d))
-        end)
+        -- Row 0 is this player's own advert, at this board's town, so it
+        -- draws the Enter House arrow (poh_board:button). Its clientscript
+        -- (poh_board_set_last_name -> poh_board_send_name) answers the parked
+        -- name wait with the row's name; a player never finds themself
+        -- "visible", so the visit's own check refuses it.
+        H.expect_mes("view.click_row", "That player is not online", function()
+            local r, d = t.ui.press_row({ sym = "poh_board:button", sub = 0 }, { name = me })
+            t.note("press_row: " .. tostring(r) .. " " .. tostring(d))
+        end, 12)
         t.check("view.closed_on_click", not H.modal(), "board still open after the row click")
 
         -- Escape closes the board and ends the parked wait: the next op runs.

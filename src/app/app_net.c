@@ -684,7 +684,9 @@ app_pump_net_packets(struct App* app)
              (uint32_t)app->logic_cycle,
              APP_CLIENTSCRIPT_FENCE_MAX_CYCLES)) )
     {
-        App_FlushPendingClientScripts(app, &app->runner);
+        /* Onto the packet pipeline, in wire order, as the fence does
+         * (rs_gameproto_exec.c, PKT_NAME_SERVER_TICK_END). */
+        App_FlushPendingClientScripts(app, &app->exec_runner);
         /* Same recovery fence for a connection whose tick was cut short:
          * once we intentionally fall back to the held scripts, allow the
          * resulting fully-settled state to publish too. */

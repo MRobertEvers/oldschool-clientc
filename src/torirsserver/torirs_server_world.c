@@ -6848,12 +6848,17 @@ ToriRSServer_TeleNexusStageDrag(
         TORIRSSERVER_PACK_COMPONENT, "telenexus:slotted_list");
     int left_click = ToriRSServer_ContentSymbol(
         TORIRSSERVER_PACK_COMPONENT, "telenexus:click_layer");
+    /* The slots' scroll layer: the client's own drop script accepts a row
+     * dropped anywhere on it (torirs_poh_nexus_drop's target 19:42), and that
+     * is the component the client names as the drop's destination. */
+    int slots_area = ToriRSServer_ContentSymbol(
+        TORIRSSERVER_PACK_COMPONENT, "telenexus:scrolling2");
     int capacity = ToriRSServer_TeleNexusCapacity(player);
 
     if( capacity == 0 || available < 0 || slotted < 0 || left_click < 0 )
         return 0;
 
-    if( src_com == available && dst_com == slotted )
+    if( src_com == available && (dst_com == slotted || (slots_area >= 0 && dst_com == slots_area)) )
     {
         int destination;
 
@@ -12733,8 +12738,14 @@ handle_if_button_op(
      * range). Resuming those made every ~p_choice* take its last option.
      * Leave the script parked; content also re-opens on last_slot outside 1..N.
      * sub < 0 means a static component (no dynamic child) — continue prompts.
+     *
+     * Only the chatmenu numbers its rows from 1. A list whose rows start at 0
+     * -- interface 187's menu (spirit trees, Xeric's talisman), the Portal
+     * Nexus teleport list -- answers row 0 with sub 0, and a skip for every
+     * registered button left its first row dead on the client.
      */
-    if( sub == 0 )
+    if( sub == 0 &&
+        uid == ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "chatmenu:options") )
     {
         struct ToriRSServerPlayer* player = srv->active_player;
         for( int i = 0; i < player->resume_button_count; i++ )

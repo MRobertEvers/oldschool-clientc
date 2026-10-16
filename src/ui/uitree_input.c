@@ -1423,8 +1423,11 @@ UITree_InputDragTick(
     src->drag_visual_x = target_x;
     src->drag_visual_y = target_y;
 
-    state->drag_target_idx = UITree_FindDropTargetNode(
-        tree, mouse_x, mouse_y, state->drag_source_id, &state->drag_target_id);
+    /* With the host: a component the server armed as a drag target
+     * (IF_SETEVENTS bit 20) is a drop target as the reference names one --
+     * the Portal Nexus slots' scroll layer, which its drop script requires. */
+    state->drag_target_idx = UITree_FindDropTargetNodeHost(
+        tree, host, mouse_x, mouse_y, state->drag_source_id, &state->drag_target_id);
     state->drag_target_incarnation =
         state->drag_target_idx >= 0 &&
                 (uint32_t)state->drag_target_idx < tree->component_count
