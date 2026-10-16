@@ -425,6 +425,10 @@ return {
             salvage_xp_before = select(2, t.skill.snapshot())
             t.exec("salvage.deploy", t.sail._press_deck_row, "Deploy", "salvaging hook")
             t.expect("salvage.deployed", t.msg.await("You deploy the hook into the shipwreck.", 4))
+            -- The captain works the hook (boat_salvaging.rs2
+            -- ~sailing_player_hook_anim): drops it, then works it each tick.
+            t.exec("salvage.player_drop", t.sail.own_anim, { "sailing_human_salvage_hook_kandarin_2x5_drop01" }, 2)
+            t.exec("salvage.player_works", t.sail.own_anim, { "sailing_human_salvage_hook_kandarin_2x5_idle01" }, 8)
             t.expect("salvage.reclaimed", t.msg.await(
                 "You salvage all you can from the shipwreck before it is reclaimed by the sea.", 300))
             local sunk_r = t.world.loc_near("sailing_small_shipwreck_stump", 80,

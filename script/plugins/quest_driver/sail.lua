@@ -1640,6 +1640,40 @@ function QD.sail.walk_set(expect)
     return ok and "ok" or "refused", table.concat(parts, " ")
 end
 
+-- Wait up to `ticks` for the local player's action seq to be one of `names`
+-- (seq symbols): ok with the name it reached, refused with what it played.
+function QD.sail.own_anim(names, ticks)
+    local want = {}
+    for i = 1, #names do
+        local r, id = api_drive.symbol("seq", names[i])
+        if r == "ok" then want[id] = names[i] end
+    end
+    local seen = {}
+    local hit = nil
+    QD.await({
+        event = "server_tick",
+        match = function()
+            local r, rows = api_drive.players()
+            if r ~= "ok" or type(rows) ~= "table" then return false end
+            for i = 1, #rows do
+                local me = rows[i]
+                if me.me then
+                    local id = me.anim or -1
+                    if (id < 0 or not want[id]) and me.seq ~= nil and want[me.seq] then id = me.seq end
+                    if want[id] then hit = want[id] return true end
+                    seen[#seen + 1] = tostring(id)
+                end
+            end
+            return false
+        end,
+        note = "sail.own_anim",
+    }, ticks or 3)
+    if hit then
+        return "ok", "playing " .. hit
+    end
+    return "refused", "played " .. table.concat(seen, ",") .. ", not " .. table.concat(names, "/")
+end
+
 -- Diagnostic: the drawn pose of the npc named `name`, sampled every frame
 -- for `frames` frames -- "yaw>dst prim/sec face view @draw_x,draw_z" -- with
 -- runs of identical samples collapsed ("xN"). What a "the crew member spins"

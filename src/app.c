@@ -493,6 +493,7 @@ App_Init(
     /* Facing across the gunwale computes in the root frame — see
      * app_wev_actor_root_frame. */
     World_SetActorRootFrameFn(app->world, app_wev_actor_root_frame, app);
+    World_SetViewBaseFn(app->world, app_wev_view_base);
     World_SetLocalPlaneFn(app->world, app_world_local_plane, app);
     app->painter_buffer = painter_buffer_new();
     assert(app->painter_buffer);

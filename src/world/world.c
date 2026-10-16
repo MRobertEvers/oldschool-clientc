@@ -594,6 +594,15 @@ World_SetForeignDynamicClaimFn(
 
 
 void
+World_SetViewBaseFn(
+    struct World* world,
+    World_ViewBaseFn fn)
+{
+    assert(world);
+    world->view_base_fn = fn;
+}
+
+void
 World_SetActorRootFrameFn(
     struct World* world,
     World_ActorRootFrameFn fn,

@@ -1938,6 +1938,13 @@ app_wev_actor_root_frame(
     int* out_frame_yaw);
 
 int
+app_wev_view_base(
+    void* userdata,
+    int view_id,
+    int* out_base_tile_x,
+    int* out_base_tile_z);
+
+int
 app_wev_terrain_height(
     void* userdata,
     int view_id,

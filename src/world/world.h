@@ -131,6 +131,19 @@ typedef int (*World_ActorRootFrameFn)(
     int* io_fine_z,
     int* out_frame_yaw);
 
+/**
+ * A view's staging base -- the absolute tile its view-local coordinates are
+ * relative to -- for an actor homed to that view. A homed actor's FaceSquare
+ * arrives in absolute (staging) coordinates while its own position is
+ * view-local; the deob does this math in the actor's own world, so the square
+ * is rebased by this before it is compared. Returns 0 for a dead view.
+ */
+typedef int (*World_ViewBaseFn)(
+    void* userdata,
+    int view_id,
+    int* out_base_tile_x,
+    int* out_base_tile_z);
+
 typedef int (*World_ForeignDynamicClaimFn)(
     void* userdata,
     struct World* world,
@@ -432,6 +445,8 @@ struct World
     /** Optional; NULL when no actor can be aboard. @see World_ActorRootFrameFn. */
     World_ActorRootFrameFn actor_root_frame_fn;
     void* actor_root_frame_userdata;
+    /** Optional, with actor_root_frame_userdata. @see World_ViewBaseFn. */
+    World_ViewBaseFn view_base_fn;
     /** Optional; NULL when no actor can be aboard. The local MAP plane
      *  (reference minusedlevel): a rider's own grid level is a DECK plane,
      *  and everything this world registers against "the local level" — the
@@ -855,6 +870,12 @@ World_SetForeignDynamicClaimFn(
     struct World* world,
     World_ForeignDynamicClaimFn fn,
     void* userdata);
+
+/** Shares World_SetActorRootFrameFn's userdata. */
+void
+World_SetViewBaseFn(
+    struct World* world,
+    World_ViewBaseFn fn);
 
 void
 World_SetActorRootFrameFn(

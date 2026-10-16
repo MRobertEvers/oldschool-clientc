@@ -1169,6 +1169,31 @@ app_wev_deck_level(
     return level;
 }
 
+/* World_ViewBaseFn: a live view's staging base tile (REBUILD_WORLDENTITY's
+ * header; WorldviewRegistry_HomeViewForAbsTile rebases riders by the same). */
+int
+app_wev_view_base(
+    void* userdata,
+    int view_id,
+    int* out_base_tile_x,
+    int* out_base_tile_z)
+{
+    struct App* app = (struct App*)userdata;
+    struct Worldview const* view;
+
+    assert(app);
+    assert(out_base_tile_x);
+    assert(out_base_tile_z);
+    if( view_id <= 0 || view_id >= WORLDVIEW_MAX || !WorldviewRegistry_IsLive(&app->worldviews, view_id) )
+        return 0;
+    view = WorldviewRegistry_Get(&app->worldviews, view_id);
+    if( view->base_x == 0 && view->base_z == 0 )
+        return 0;
+    *out_base_tile_x = view->base_x;
+    *out_base_tile_z = view->base_z;
+    return 1;
+}
+
 int
 App_WevDeckLevel(
     struct App* app,

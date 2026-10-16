@@ -583,6 +583,32 @@ World_EntityFaceTarget(struct World_MoverInfo* info)
         (facing->face_during_movement || pathing->route_length == 0 ||
          (!rev239 && animation->anim_delay_move > 0)) )
     {
+        int view_base_x = 0;
+        int view_base_z = 0;
+
+        /* A homed actor (a rider, a deckhand) faces a square of its own
+         * deck: the wire's square is absolute STAGING, its position is
+         * view-local, and the deob does this in the actor's own world -- so
+         * both stay in the deck frame and no hull yaw comes back out. Pushing
+         * only the actor out to the root aimed it at the staging area,
+         * hundreds of squares off. */
+        if( placement && placement->home_view != 0 && world->view_base_fn &&
+            world->view_base_fn(
+                world->actor_root_frame_userdata, placement->home_view, &view_base_x,
+                &view_base_z) )
+        {
+            dst_x = (int)info->draw_position->x -
+                    (facing->square_x - view_base_x - view_base_x) * 64;
+            dst_z = (int)info->draw_position->z -
+                    (facing->square_z - view_base_z - view_base_z) * 64;
+            if( dst_x != 0 || dst_z != 0 )
+                orientation->dst_yaw =
+                    (uint16_t)(((int)(atan2((double)dst_x, (double)dst_z) *
+                                      WORLD_YAW_FROM_RADIANS)) &
+                               0x7ff);
+        }
+        else
+        {
         dst_x = self_x -
                 (facing->square_x - world->_base_tile_x - world->_base_tile_x) * 64;
         dst_z = self_z -
@@ -593,6 +619,7 @@ World_EntityFaceTarget(struct World_MoverInfo* info)
                                         WORLD_YAW_FROM_RADIANS)) -
                             frame_yaw) &
                            0x7ff);
+        }
         facing->square_x = 0;
         facing->square_z = 0;
         applied = true;
