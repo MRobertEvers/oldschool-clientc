@@ -20,6 +20,9 @@
 
 /* world/world.c World_Free calls these only for a non-NULL member, and a
  * scene-less World never sets one. */
+/* ui/uitree_if_events.c's two tree lookups (Effective, ButtonTarget); the
+ * bot keeps the table and reads it with Lookup alone. */
+SCRIPTRUN_STUB(UITree_FindByComponentId)
 SCRIPTRUN_STUB(heightmap_free)
 SCRIPTRUN_STUB(minimap_free)
 SCRIPTRUN_STUB(painter_free)

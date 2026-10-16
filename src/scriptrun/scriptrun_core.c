@@ -90,6 +90,7 @@ ScriptrunCore_Free(struct ScriptrunCore* core)
     if( !core )
         return;
     ScriptrunCore_FreeCollision(core);
+    UIIfEventTable_Free(&core->if_events);
     RS_EntitySync_Free(core->esync);
     ToriMem_Free(ToriMem_ServerPlayers(), core->esync);
     World_Free(core->world);
@@ -1631,6 +1632,7 @@ core_packet(
         core->toplevel = packet._if_opentop.interface_id;
         core->sethide_count = 0;
         core->mount_count = 0;
+        UIIfEventTable_Clear(&core->if_events);
         break;
     case PKT_NAME_IF_OPENSUB:
     {
@@ -1640,6 +1642,10 @@ core_packet(
         for( i = 0; i < core->mount_count; i++ )
             if( core->mounts[i].target_uid == target )
                 break;
+        /* The group leaving the slot loses its armed events, even when the
+         * same group goes straight back in (UIIfEventTable_DropGroup). */
+        if( i < core->mount_count )
+            UIIfEventTable_DropGroup(&core->if_events, core->mounts[i].interface_id);
         if( i == core->mount_count && core->mount_count < SCRIPTRUN_MOUNTS )
             core->mount_count++;
         core_forget_hides(core, packet._if_opensub.interface_id);
@@ -1666,10 +1672,16 @@ core_packet(
                 ScriptrunCore_Event(core, SCRIPTRUN_EV_SUB_CLOSED, packet._if_closesub.target_uid,
                                     core->mounts[i].interface_id, 0, 0);
                 core_forget_hides(core, core->mounts[i].interface_id);
+                UIIfEventTable_DropGroup(&core->if_events, core->mounts[i].interface_id);
                 core->mounts[i] = core->mounts[--core->mount_count];
                 break;
             }
         }
+        break;
+    case PKT_NAME_IF_SETEVENTS:
+        UIIfEventTable_Set(&core->if_events, packet._if_setevents.component_id,
+                           packet._if_setevents.from, packet._if_setevents.to,
+                           packet._if_setevents.events);
         break;
     case PKT_NAME_IF_SETTEXT:
     {
@@ -1737,6 +1749,18 @@ core_packet(
 }
 
 /* ------------------------------------------------------------- readers */
+
+int
+ScriptrunCore_IfEvents(
+    struct ScriptrunCore const* core,
+    int com_id,
+    int sub_id,
+    unsigned* out_events)
+{
+    assert(core);
+    assert(out_events);
+    return UIIfEventTable_Lookup(&core->if_events, com_id, sub_id, out_events);
+}
 
 int
 ScriptrunCore_Varbit(

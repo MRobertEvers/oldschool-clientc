@@ -1908,6 +1908,31 @@ send_if_buttonx(
     handle(bot, PKTOUT_NAME_IF_BUTTONX, payload, 9);
 }
 
+/* What the client builds for a backpack cell (game/rs_minimenu_build.c
+ * add_obj_cell_rows): the cell's rows come from the server's IF_SETEVENTS for
+ * (component, slot) and NOTHING else -- no cache fallback on the cell path, so
+ * a cell the server never armed (or whose group was closed or reopened since)
+ * offers no rows at all and the client sends nothing. These are the three
+ * tests it makes; a press that fails one is refused here as it is there. */
+enum
+{
+    CELL_TARGET_SHIFT = 11, /* TORIRS_TARGET_MASK_IF3_SHIFT: the "Use" row */
+    CELL_TARGET_BITS = 0x3F,
+    CELL_USEABLE_ON = 1 << 21, /* UITREE_FLAG_USEABLE_ON: a use-on target */
+};
+
+static unsigned
+cell_events(
+    struct ScriptBot const* bot,
+    int component,
+    int slot)
+{
+    unsigned events = 0;
+    if( !ScriptrunCore_IfEvents(bot->core, component, slot, &events) )
+        return 0;
+    return events;
+}
+
 /* Arm a backpack cell's "Use" row. Idempotent for the cell already armed,
  * as DrivePointer_InvArm is: nothing is sent either way. */
 static int
@@ -1920,6 +1945,9 @@ arm_cell(
 {
     if( !panel_showing(bot, component) )
         return push_result(L, "refused", "the node or an ancestor of it is display-hidden");
+    if( ((cell_events(bot, component, slot) >> CELL_TARGET_SHIFT) & CELL_TARGET_BITS) == 0 )
+        return push_result(L, "refused", "the cell offers no Use row: the server has not armed "
+                                         "its target bits (IF_SETEVENTS)");
     if( bot->armed_slot == slot && bot->armed_com == component && bot->armed_obj == obj )
         return push_result(L, "ok", "already armed, nothing sent");
     bot->armed_com = component;
@@ -1966,6 +1994,9 @@ d_inv_op(lua_State* L)
         return push_result(L, "refused", "held op out of range");
     if( !panel_showing(bot, component) )
         return push_result(L, "refused", "the node or an ancestor of it is display-hidden");
+    if( (cell_events(bot, component, slot) & (1u << IF_OP[option])) == 0 )
+        return push_result(L, "refused", "the cell offers no such row: the server has not armed "
+                                         "that op (IF_SETEVENTS)");
     disarm(bot);
     send_if_buttonx(bot, component, slot, obj, IF_OP[option]);
     return push_result(L, "ok", "held op sent");
@@ -1997,6 +2028,9 @@ d_inv_use_on(lua_State* L)
         return push_result(L, "refused", "no item is armed");
     if( !panel_showing(bot, component) )
         return push_result(L, "refused", "the node or an ancestor of it is display-hidden");
+    if( (cell_events(bot, component, slot) & CELL_USEABLE_ON) == 0 )
+        return push_result(L, "refused", "the cell is not a use-on target: the server has not "
+                                         "armed it useable_on (IF_SETEVENTS)");
     put2(payload, obj);
     put2(payload + 2, slot);
     put4(payload + 4, component);

@@ -28,6 +28,8 @@
  * REBUILD_NORMAL, and from the template zones of a REBUILD_REGION.
  */
 
+#include "ui/uitree_if_events.h"
+
 #include <stdint.h>
 
 struct World;
@@ -243,6 +245,12 @@ struct ScriptrunCore
     int settext_count;
     struct ScriptrunSetHide sethides[SCRIPTRUN_SETHIDES];
     int sethide_count;
+    /* IF_SETEVENTS, kept and dropped exactly as the client keeps them (the
+     * client's own table, ui/uitree_if_events.c): set per range, the group in
+     * a slot dropped when the slot is closed or reopened (a same-group remount
+     * included), everything cleared on IF_OPENTOP. A press the client would
+     * not send for want of an armed bit is refused here too. */
+    struct UIIfEventTable if_events;
     struct ScriptrunScriptCall last_script;
     int script_serial;
 
@@ -285,6 +293,15 @@ struct ScriptrunCore
 /** A fresh core for one bot. `rev` is the world's wire revision. */
 struct ScriptrunCore*
 ScriptrunCore_New(struct GameProtoRevTable const* rev);
+
+/* The server's IF_SETEVENTS for (`com_id`, `sub_id`): 1 with the mask in
+ * `out_events` when an entry exists, 0 when the server never armed it. */
+int
+ScriptrunCore_IfEvents(
+    struct ScriptrunCore const* core,
+    int com_id,
+    int sub_id,
+    unsigned* out_events);
 
 void
 ScriptrunCore_Free(struct ScriptrunCore* core);
