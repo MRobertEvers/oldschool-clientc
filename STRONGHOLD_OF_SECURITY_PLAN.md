@@ -183,3 +183,29 @@ output. The central Death chain's existing surface maplink remains unchanged.
   is likewise already out of sync with its vendored TSV while the tracked
   generated file is clean; the Stronghold additions deliberately remain in the
   separate authored dbrow checked above.
+
+## Played end to end (2026-10-16)
+
+`test/quests/strongholdofsecurity.lua` walks all four floors on scriptrun --
+every gate pair on reach.py's route, every question the doors ask, every
+reward, ladder and rope, and the portal rules at combat level 50 -- and passes
+on 30 of 30 seeds. Playing it found what the static checks above could not:
+
+- **Every reward's restore was a no-op.** `stat_heal(skill, 0, 0)` heals
+  `0 + base * 0 / 100`; the Box of Health left Hitpoints at 97/99. Now
+  `stat_heal(skill, 0, 100)`: deficits filled to base, boosts kept.
+- **The doors' answers were generic.** The wiki gives the door's own response
+  to every option ("Wrong! Membership requires a subscription paid or a bond
+  ..."); the content said "Correct! You may pass." or "Wrong. Think carefully
+  ..." for all of them. The questions, options and per-option responses are
+  now `stronghold_questions.generated.rs2`, written verbatim from the pinned
+  page by `tools/gen_stronghold_questions.py` (run it bare to check the file
+  is current). The correct option is the one whose response begins
+  "Correct!", or "Well done!" for the bank-PIN question.
+- **Long questions and responses lost their tail.** The gate wrote one chat
+  page; the longest response is 244 characters. It now speaks through
+  `~chatnpc_specific_anim`, which paginates and needs no active npc.
+
+Not sourced: the reward objbox texts ("You find 2,000 coins and unlock the Flap
+emote ...") and the portal refusal lines are the port's own wording -- the
+wiki's reward pages and transcripts record none of them.
