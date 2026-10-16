@@ -23,7 +23,7 @@ enum
 };
 
 _Static_assert(
-    HOST_REQUEST_PRODUCER_COUNT == 894,
+    HOST_REQUEST_PRODUCER_COUNT == 895,
     "the producer replay test must exercise every hosted opcode");
 
 struct CaptureHost
@@ -163,6 +163,12 @@ exercise_producer(struct HostRequestProducerEntry const* entry)
      * a long, which this VM has no stack for. 0 selects an int value. */
     if( entry->opcode == CS2_OP_IF_QUERY_REFINE )
         thread->ints_stack[thread->ints_stack_top - 1] = 0;
+    /* CC_FIND_PARAM pops two such selectors, one per value. */
+    if( entry->opcode == CS2_OP_CC_FIND_PARAM )
+    {
+        thread->ints_stack[thread->ints_stack_top - 1] = 0;
+        thread->ints_stack[thread->ints_stack_top - 2] = 0;
+    }
 
     first_status = CS2VM2_ThreadRun(thread, &error);
     retry_status = first_status == CS2VM2_THREAD_YIELDED

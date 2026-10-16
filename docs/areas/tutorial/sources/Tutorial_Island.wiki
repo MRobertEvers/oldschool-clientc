@@ -1,0 +1,279 @@
+{{External|rs|rsc}}
+{{Infobox Location
+|name = Tutorial Island
+|image = [[File:Tutorial Island.png|300px]]
+|release = [[24 September]] [[2002]]
+|update = Tutorial island
+|members = No
+|location = [[Misthalin]]
+|race = [[Human]]s
+|teleport = [[Magic Instructor]]
+|music = [[Newbie Melody]], [[Scape Cave]]
+|map = {{Map|name=Tutorial Island|zoom=1|x=3100|y=3100}}
+|type = island
+|leagueRegion = Misthalin
+}}
+{{Relativelocation
+|location = Tutorial Island
+|north = Wizards' Tower
+|west = Karamja
+|south = The Node
+|east = Kharidian Desert
+}}
+'''Tutorial Island''' is the starting place for every new ''[[Old School RuneScape]]'' [[player character]]. It is located in the [[Misthalin|Kingdom of Misthalin]], and is connected to [[The Node]] just to the south. The island is also the starting location for the [[Learning the Ropes]] quest, which all players must complete before they can leave the island.
+
+If players get stuck during the tutorial, the required next action will be hinted at from the ''controls guide'' in the top left corner of the [[game client]] screen after a short amount of time has passed. The controls guide will also inform them to follow the instructions in the [[chat box]].
+
+Some [[skills]] can be trained on Tutorial Island, but only up to level 3.
+
+== Building one: the starting house ==
+[[File:Gielinor Guide chathead.png|left]]
+
+=== Character customisation ===
+Upon logging in to the game for the first time after [[account]] creation, players will find themselves in the '''starting house''', found at the centre of Tutorial Island. The Character Creator interface will be open, which allows setting their character's appearance, such as body type, skin colour, and clothing styles. All of these customisation options can later be altered through [[Makeover]] for free after leaving Tutorial Island.
+[[File:Player customisation interface.png|thumb|A new player can begin customising their character upon account creation.|width=400x400]]
+[[File:Starting house.png|thumb|width=500x500|The first house on the island]]
+
+=== Gielinor Guide ===
+Inside the starting house is the [[Gielinor Guide]], the first [[non-player character]] (NPC) that players will encounter and talk to. He welcomes new arrivals to the world of [[Gielinor]] and teaches how to talk to its inhabitants. He'll also ask players their experience level. Players who select "brand new" or "played in the past" will then have access to the task system [[Adventure Paths]] once they arrive on the mainland. Finally, the guide will talk about the [[settings]] menu (options).
+
+To continue the tutorial, the player needs to go outside, through the door, and follow the path to meet their first instructor. Left-click somewhere on the ground to move there. The arrow keys can be used to rotate the camera and change the view.
+
+=== Survival Expert ===
+[[File:Survival Expert chathead.png|left]]
+Brynna, the [[Survival Expert]], gives players the basics for the survival skills: [[Fishing]], [[Woodcutting]], [[Firemaking]] and [[Cooking]]. She'll give players an [[item]]: a [[small fishing net]], which ends up in the [[inventory|backpack inventory]]. The small fishing net must be used with a [[fishing spot]] in the nearby pond, by clicking on such a spot, to catch some [[raw shrimps]]. Note that instructions given to your character can be seen in the top left corner.
+
+Catching some shrimps will gain you Fishing [[experience]], which can be seen in the [[skills]] menu or interface. There, the player can find all skills, their current [[level]]s and the amount of experience. A skill can be clicked on to open up the relevant skillguide. After gaining experience from Fishing, talking to Brynna will result in her giving the player a [[bronze axe]] and a [[tinderbox]]. The axe must be used to [[Woodcutting|cut]] a [[tree]] to collect some [[logs]].
+
+Click on the tinderbox to highlight (select) it, then clicking on the logs to use the tinderbox on them, will start the animation of lighting a [[fire]]. Players must [[Cooking|cook]] the raw shrimps on the fire. Once cooked, the [[shrimps]] (and [[food]] in general) can be eaten to replenish lost [[health]].
+
+'''''Note:''' almost all skills that can be trained on Tutorial Island can be trained to level 3, but this is the highest level available here. Much faster training methods exist off the island, and higher levels than 3 can only be obtained after finishing the tutorial.'' ''Everything gathered on Tutorial Island will be lost once the player [[#Leaving_the_island_&_arriving_on_the_mainland|leaves the island]]. For this reason, it's recommended to complete the tutorial in a way that best explains the game, and focus on increasing skills after leaving the tutorial.''
+[[File:Tutorial Island kitchen.png|thumb|width=500x500|The kitchen of Tutorial Island.]]
+
+==Building two: the kitchen==
+[[File:Master Chef chathead.png|left]]
+===Master Chef===
+
+Upon entering the second building, Lev, the [[Master Chef]], shows players the finer points of [[Cooking]] by sharing how to make [[bread]]. He hands the player the required ingredients: a [[pot of flour]] and a [[bucket of water]]. The flour and water must be mixed to make [[bread dough]], which is done by using one of the two items on the other. The dough can then be baked into bread at the [[cooking range]] by using the dough on the range.
+
+After making the bread, players learn how to use the [[Music Player|music player]]. If the player has no more ingredients, they can be replenished by talking to Lev, but only if you didn't complete the [[music]] tutorial. Note that if you didn't complete the music tutorial, you can't burn your bread.
+
+When you complete this tutorial you can move on to the Quest Guide. When moving to the next building, you gain the option to use [[emotes]] and how to [[run]]. 
+
+'''''Note''': along the way, players may notice some oak trees. These trees cannot be chopped down, because they require level 15 Woodcutting. The highest Woodcutting level players can reach on Tutorial Island is level 3.''
+
+==Building three: the quest house==
+
+=== Quest Guide ===
+[[File:Quest Guide chathead.png|left]]
+[[File:Quest house.png|thumb|width=500x500|The quest house, the third building on tutorial island.]]
+The [[Quest Guide]] tells the player all about [[quest]]s. He covers using the [[quest journal]] and the colours that the quests on that list can have:
+{{List|c=1
+|1=*<span style="color: Crimson;">Red</span> means the quest has not yet been started
+*<span style="color: Yellow;">Yellow</span> means started but not finished (in progress)
+*<span style="color: Green;">Green</span> means finished}}
+
+When clicking on a [[quest]], information about that quest will be displayed. If it is red, it will indicate where to find or start it and what the requirements are. If it is yellow, it will remind you what to do next.
+
+The starting point of a quest can be easily recognised by the quest icon {{SCP|Quest}} that can be found on the [[minimap]] (and on the [[world map]]). Such a symbol can be seen in the house the player is in right now. (Note that there are various icons to show different points of interest, which will help players find their way.)
+
+Finally, the Quest Guide will tell you what quests can be about and what rewards they might offer once completed.
+
+It is now time to go down the [[ladder]] and enter some [[List of dungeons|caves]], where players will forge and use weaponry.
+
+===Mining instructor===
+[[File:Mining Instructor chathead.png|left]]
+{{Map|name=Tutorial Island mine|3096,9516|mapID=10159|align=right|caption=A map of the [[Tutorial Island Dungeon]], where both the Mining Instructor and the Combat Instructor reside.}}
+The [[Mining Instructor]], Dezzick, teaches players the basics of [[Mining]] and [[Smithing]] (which includes [[Smithing#Smelting|smelting]]). He will hand out a [[bronze pickaxe]], which must be used to [[Mining|mine]] the nearby rocks, which contain copper and tin. ''If you are unsure which is which, you can hover your mouse over a rock, which will show its name in the upper-left corner.''
+
+When players have mined a [[copper]] ore and a [[tin]] ore, they can use the [[furnace]] to [[Smithing#Smelting|smelt]] the ores, combining them into a [[bronze bar]]. Dezzick will then give the player a [[hammer]], with which the player can [[Smithing|smith]] the bar into a [[bronze dagger]] on one of the nearby [[anvil]]s. 
+
+Unlike with other skills, progressing both Mining and Smithing to level 3 here is worthwhile, as almost nowhere else in the world one can find ores, a furnace and an anvil this close to each other.''
+
+===Combat instructor===
+[[File:Vannaka chathead.png|left]]
+The [[Combat Instructor]], Vannaka, teaches the basics of the [[Melee]] and [[Ranged]] [[Combat style|types of combat]]. '''''[[Pure]]s should pay attention to the "controlling combat experience" section below.''''' 
+
+====Melee====
+Players will now learn about the [[Worn Equipment|worn inventory]], where wielded and equipped items will end up and [[equipment stats]] can be shown. After the dagger is equipped, they will be given a [[bronze sword]] and a [[wooden shield]] and will be told about the [[combat options|combat interface]], where the [[Combat Options#Attack_types|attack style]] that will be used in combat can be selected. Different attack styles give different types of experience, and [[monsters]] are weak to specific attack styles.
+
+The player will now have to kill one of the nearby rats. To do so, they must wield the bronze sword, the bronze dagger, or neither of those (fight [[unarmed]]). The attack style they select will determine what skill they will be training: [[Attack]], [[Strength]] or [[Defence]]. <u>'''''[[Hitpoints]] cannot be trained on Tutorial Island.'''''</u>
+
+As soon as you attack an opponent—in this case one of the [[Giant rat (Tutorial Island)|giant rats]]—a [[Hitpoints#Fighting|health bar]] will appear above that opponent's head, and one above your own head will also appear as soon as the opponent strikes back. Note that a fatal hit cannot be received at this time: your health will likely drop to 1 but will never reach zero. As such, eating [[food]] to replenish health is not required. This is not the case outside of the tutorial.
+
+After killing one rat, you may continue with the tutorial.
+
+==== Ranged ====
+Next up, Vannaka will talk about [[Ranged]] combat. At this point, the rat pit cannot be re-entered. He will give the player a [[shortbow]] and 50 [[bronze arrow]]s, and once again the goal is to kill one single rat. Doing so will force the player to move on. When both the Melee and Ranged combat tasks are completed, the player may talk to the instructor to learn more about combat stats, melee combat, ranged combat and the [[Wilderness]].
+
+==== Controlling combat experience ====
+In the melee fight, when ''armed'' with the sword or dagger, the [[Combat Options#Accurate|accurate]] style trains Attack, [[Combat Options#Aggressive|aggressive]] trains Strength, and [[Combat Options#Defensive|defensive]] trains Defence. (Some other weapons, obtainable only after leaving Tutorial Island, may offer the [[Combat Options#Controlled|controlled]] style, which allows training all three skills at once (four when including Hitpoints).) When ''unarmed'', Punch trains Attack, Kick trains Strength, and Block trains Defence.
+
+If you ''kill'' a rat during the melee or ranged stage, the Combat Instructor will not allow you to attack another one, forcing you to continue the tutorial. Therefore, if you want to train more while on the island, it is suggested to deal 2 damage to a rat, run to the other side of the pit to exit combat (which enables you to attack another rat) and then repeat. When you have done this a couple of times, the chance increases you will accidentally attack a rat you have harmed before, killing it instantly; it will therefore become necessary to [[switch worlds]] regularly. If another player finishes off a rat that you have already done 2 damage to, that will count as ''your'' kill.
+
+== Building four: the Tutorial Island bank ==
+[[File:Tutorial Island bank.png|thumb|width=500x500|The fourth building players visit, hosting the first bank accessible on ''RuneScape''.]]
+The next building, the [[Tutorial Island bank]], introduces players to the [[Bank of Gielinor]].  Players will visit a [[bank]] and use a [[bank booth]] to access their bank account, where they can store their possessions. Players must then look at the [[poll booth]] found in the bank; like banks, these are found in many towns across the world, and they allow the community to [[vote]] on the release of future game-changing updates.
+
+''Unlike most bank tellers, the [[Banker (Tutorial Island)|bankers]] on Tutorial Island cannot be interacted with.''
+
+=== Account guide ===
+[[File:Financial Advisor chathead.png|left]]
+The [[Account Guide]] instructs players about their [[account]] (i.e. their character). He will explain the [[Account Management]] menu and the various options within it: [[members]]hip, [[world]]s, swapping worlds with the [[world switcher]] in the logout menu, the store, [[bond]]s, the inbox, the [[name changer]] and various useful links at the bottom of the menu.
+
+The Account Guide will also mention account safety and security, which are strengthened with [[bank PIN]]s and [[authenticator]]s. For that topic, he redirects to the Customer Support webpage.
+[[File:Tutorial Island chapel.png|thumb|width=500x500|The next-to-last building on Tutorial Island: the chapel.]]
+
+== Building five: the chapel ==
+
+=== Prayer instructor ===
+[[File:Brother Brace chathead.png|left]]
+In the [[Tutorial Island chapel]], the monk [[Brother Brace]] instructs players in the [[Prayer]] skill, the Prayer list, the use of Prayers, [[Prayer points]] and recharging those, and gaining Prayer experience by burying [[bones]]. ''Note: as explained in the [[#Combat_Instructor|combat section]] on this page, at this stage of the tutorial it is no longer possible to train Prayer until you travel to the mainland unless you have gathered some bones during your time in the rat pen.''
+
+Upstairs in the chapel, the player can find an [[Church organ|organ]] on which several tunes can be played.
+
+=== Ironman Mode ===
+[[File:Ironman tutor (Tutorial Island) chathead.png|left]]
+When following the road to the next and last building on the island, players will come across [[Ironman tutor (Tutorial Island)|Paul]], who will introduce them to [[Ironman Mode]].
+
+{{List|c=1
+|*'''[[Ironman Mode#Standard|Standard]]''' Ironmen will have ''restrictions'' imposed on them: they cannot trade, take items belonging to other players, nor accept their help. In other words, they are ''entirely self-sufficient'' and do everything for themselves.
+*'''[[Ironman Mode#Hardcore|Hardcore]]''' Ironmen not only face the standard restrictions, but also have ''only one life''. In the event of a [[death]] that is not [[Minigames#Minigames|safe]], the Hardcore status will be downgraded to a standard and the stats will be frozen on the Hardcore Ironman [[hiscores]].
+*'''[[Ironman Mode#Ultimate|Ultimate]]''' Ironmen, in addition to the standard restrictions, ''cannot use the [[bank]]''. When they die, '''all''' carried items will be dropped directly to the ground and will remain there for an hour after death, after which the items will [[despawn]].}}
+
+As long as the player is on Tutorial Island they can switch freely between the three modes and being a normal player. Once they leave the island, they can speak to [[Ironman tutor|Adam the Ironman tutor]] in [[Lumbridge]] to switch further. However, Adam will let the player switch restrictions ''only downwards'': from higher to lower, the order is: Ultimate/Hardcore -> Standard -> non-Ironmen.
+
+Note that once a mode is chosen, players have one week to change their mind; once the week is over, players may not undo the changes. Players can also choose to become a [[Group Ironman Mode|Group Ironman]], which allows groups of up to five people to play with a shared bank but with the restrictions above. Players who select this option can continue to [[The Node]] south of the final building.
+
+==Building six: the Magic building==
+[[File:Magic building.png|thumb|width=500x500|The final building non-Group Ironmen see before leaving the island.]]
+
+=== Magic instructor ===
+[[File:Magic Instructor chathead.png|left]]
+The [[Magic Instructor]], Terrova, instructs players in the [[Magic]] skill, the [[Spellbook|spellbook interface]] and its filter menu, and the casting of [[spell]]s. He will hand the player five [[air rune]]s and five [[mind rune]]s, which must be used to cast the offensive spell [[Wind Strike]] on one of the nearby [[Chicken (Tutorial Island)|chicken]]s.
+
+If players drop the runes and talk to the instructor again, more runes may be collected. Players can only cast Wind Strike on the chickens '''once''' before they are instructed to move on, and additional collected runes will vanish when leaving Tutorial Island. However, players can return to the rats to train Magic up to level 3 to bypass this restriction. This will require at most 32 of each rune, since you receive Magic experience even if you miss.
+
+==Leaving the island & arriving on the mainland==
+Those that are ready to leave can speak with the Magic Instructor once more, who will direct you to use the [[Lumbridge Home Teleport]] spell from your spellbook. Moving on to the mainland will unlock access to the rest of the world of [[Gielinor]], the ability to speak in chat, and the ability to further train skills. Players will arrive in [[Lumbridge]], located north-east of Tutorial Island, with standard provisions.
+
+Before you teleport to the mainland, Terrova will ask you if you were planning to become an Ironman. If so, he will direct you back to the [[#Ironman Mode|Ironman tutor]] standing outside Terrova's house. If not, he will point out that in the town he will teleport the player to, Lumbridge, there are many tutors who are willing to teach about the many skills the player could learn.
+
+Players that ''did not'' unlock the task system [[Adventure Paths]] whilst talking to the [[#Gielinor Guide|Gielinor Guide]] at the start of the tutorial are now standing within or in front of the walled area of [[Lumbridge Castle]]. Those that ''did'' unlock that task system (''and'' have ''not'' chosen to play [[#Ironman Mode|Ironman Mode]]) will find themselves just outside the nearby [[The Sheared Ram|pub]], near [[Adventurer Jon]]. He will immediately call the player and tell them about Adventure Paths.
+
+==Permanent Tutorial Island character==
+[[File:Stayer's Bank.png|thumb|A stayer's bank.]]
+Some players decide to make a separate account for sole purpose of staying on Tutorial Island (or creating a Tutorial Island pure). The things to do on the island are very limited.
+
+Tutorial Island stayers can get level 3 in Attack, Strength, Defence, Ranged, Prayer, Magic, Mining, Smithing, Fishing, Cooking, Firemaking and Woodcutting, and can collect several items to their banks. However, Tutorial Island stayers '''cannot''' trade, vote via [[poll booth]], obtain the Ironman/Ultimate Ironman armour, smith anything except bronze daggers, or train their skills higher than level 3.
+
+Drop trading is also impossible, as all drops last 30 seconds before despawning here, regardless; items only become visible to others after at least 60 seconds.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 14 January 2026
+|update = New Player Improvements Round 2
+|change = Players can no longer train combat beyond level 3 on Tutorial Island by shooting seaborne NPCs.
+}}
+{{Subject changes
+|date = 22 October 2025
+|update = Grid Master Rewards, Poll & New Player Improvements
+|change = 
+* The "How familiar are you with Old School RuneScape?" question during character creation now has its own UI screen, featuring new progress pips.
+* Updated default settings for new players to improve visibility, usability, and accessibility.
+* Returning and experienced players receive sensible modern defaults (longer AFK timers and interface settings).
+* Tutorial Island is now a trackable miniquest with full Quest Journal integration.
+* Tutorial Island now rewards 1 [[quest point]].
+* Improved the control guide box to update dynamically, disappear, and reappear contextually.
+* NPC dialogue boxes have been rewritten for better clarity and character.
+* Added soft yellow highlights to important NPCs, Key tutorial objects, interactable objects, and Side-panel icons.
+* Woodcutting actions on Tutorial Island are now twice as fast (4 ticks instead of 8), and Fishing speed increased slightly (1 tick faster for shrimp catching).
+}}
+{{Subject changes
+|date = 16 January 2020
+|update = Twisted League Reward Shop and Game Improvements
+|change = The music track unlock message has been disabled on Tutorial Island.
+}}
+{{Subject changes
+|date = 25 October 2018
+|update = Halloween 2018 Event and Tutorial Island Improvements
+|change = 
+*Chopping wood and lighting a fire now comes before fishing and cooking a shrimp, and the first shrimp is no longer guaranteed to burn. Instead, the first is always successful. After that it can burn if you do more - 50% success at level 1.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1055752157079760896|date=26 October 2018|archiveurl=https://reldo.runescape.wiki/i/105388|archivedate=9 April 2022|notes=This reference may be outdated}}{{Better source|This is discussed on the talk page. The first one should be always successful only if the player receives an axe & tinderbox and/or chops a log and/or makes a fire. If the player uses another player's fire to cook a shrimp before doing any of that, the shrimp can be burnt with a 50% chance as before; if the shrimp is successfully cooked, the player can skip the woodcutting and firemaking part of the tutorial.}} The furnace at mining tutorial is now left-clickable.
+*Tutorials on [[music]], [[emotes]], and prospecting were removed. Learning to run was made optional.
+*Some other minor tweaks were made to impact the user interface, dialogue and default settings.
+}}
+{{Subject changes
+|date = 18 October 2018
+|update = Mobile Changes, Various Bugfixes and new Merch!
+|change = The first character met is now called Gielinor Guide instead of RuneScape Guide. [[Financial Advisor]] was replaced with [[Account Guide]].
+}}
+{{Subject changes
+|date = 16 February 2017
+|update = Party Pete's Birthday Bash
+|change = Fixed a spelling error within the Ironman banking details on tutorial island.
+}}
+{{Subject changes
+|date = 28 April 2016
+|update = Calling Pets & Deadman Death
+|poll = 
+|change = Run energy is now restored at the end of the tutorial.
+}}
+{{Subject changes
+|date = 21 August 2014
+|update = In-Game Polls & Pet Insurance
+|change = Tutorial Island has been updated to provide information about in-game polls.
+}}
+{{Subject changes
+|date = 3 April 2014
+|update = Chaos Elemental Pet & World Map
+|change = Character customization on Tutorial island now correctly applies new hairstyles and outfits.
+}}
+{{Subject changes
+|date = 22 February 2013
+|update = Patch Notes (22 February 2013)
+|change = The respawn timer for resources and NPC's on Tutorial Island has been reduced.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+{{User stats
+|Attack = 3
+|Hitpoints = 10
+|Mining = 3
+|Strength = 3
+|Agility = 1
+|Smithing = 3
+|Defence = 3
+|Herblore = 1
+|Fishing = 3
+|Ranged = 3
+|Thieving = 1
+|Cooking = 3
+|Prayer = 3
+|Crafting = 1
+|Firemaking = 3
+|Magic = 3
+|Fletching = 1
+|Woodcutting = 3
+|Runecraft = 1
+|Slayer = 1
+|Farming = 1
+|Construction = 1
+|Hunter = 1
+}}
+*The maximum total level achievable on Tutorial Island is 57.
+*The maximum experience achievable on Tutorial Island is 3334 experience points, although to get that much you must get lucky in Magic training.
+*The highest experience one can get in a skill (except Hitpoints) is 210 for Cooking.
+*The best melee weapon is a bronze sword. The best (and only) Ranged weapon is a shortbow with bronze arrows as ammunition. The best (and only) shield is a wooden shield.
+*Although there is no magic weapon, the bronze dagger gives +1 Magic attack bonus, and is the best Magic weapon available on the island.
+*Even though there is a poll booth on the Tutorial Island the characters can't vote because it requires higher level than the maximum level obtainable on the isle.
+*On certain occasions, an NPC called [[Skippy]] can be found in the starting building where the [[#Gielinor Guide|Gielinor Guide]] resides. Skippy allows players to skip the entirety of the tutorial. He cannot be found there permanently, in order to decrease the amount of [[bot]]s entering the game.
+*[[Vannaka]], the [[#Combat_Instructor|Combat Instructor]], can also be found on the mainland as a [[Slayer Master]].
+*If you speak with the Magic Instructor to get runes with a full inventory, it will erroneously tell you that Terrova gave you air and mind runes, despite no runes being added.
+
+==References==
+{{Reflist}}
+
+{{Tutorial Island}}
+{{Miniquests}}

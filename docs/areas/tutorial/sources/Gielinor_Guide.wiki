@@ -1,0 +1,78 @@
+{{External|rs=Reginald|rsc=Guide (Tutorial Island)}}
+{{Infobox NPC
+|version1 = Normal
+|version2 = 2020
+|name = Gielinor Guide
+|image = [[File:Gielinor Guide.png|250x250px]]
+|release1 = [[29 March]] [[2004]]
+|release2 = [[14 May]] [[2020]]
+|update1 = RS2 Launched!
+|update2 = Bounty Hunter Feedback Changes
+|members = No
+|race = [[Human]]
+|location = [[Tutorial Island]]
+|gender = Male
+|options = Talk-to
+|examine = Your introduction to the world of Gielinor.
+|map1 = {{Map|x=3094|y=3107|r=3|mtype=square}}
+|map2 = {{Map|x=1686|y=6115|r=3|mapID=-1|mtype=square}}
+|id1 = 3308
+|id2 = 9476
+|leagueRegion = Misthalin
+}}
+[[File:Gielinor Guide chathead.png|left]]
+The '''Gielinor Guide''' (formerly '''RuneScape Guide''') is the first [[non-player character]] (NPC) that players meet in the game. He is found in his house on [[Tutorial Island]]. He gives a brief but informative chat about the game.
+
+At this NPC, a player is required to choose their [[character]]'s looks.
+These include:
+*[[Body type|Body type]]
+*[[Hairdresser|Hair style / colour]]
+*[[Thessalia|Body style / colour]]
+*[[Thessalia|Legs style / colour]]
+*[[Thessalia|Arms style]]
+*[[Thessalia|Feet style / colour (brown or black)]]
+
+==Dialogue==
+{{Hastranscript|speaksin}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|daterange = 1 – 21 June 2004
+|change = The NPC now always appears above players standing in the same tile.
+}}
+{{Subject changes
+|date = 29 March 2004
+|update = RS2 Launched!
+|change = The NPC was permanently added with the launch of ''RuneScape 2''.
+}}
+{{Subject changes
+|date = 25 March 2004
+|update = RS2 - Duelling and Extras
+|change = The NPC was released ingame to the ''RuneScape 2'' Beta.
+}}
+{{Subject changes
+|date = 1 December 2003
+|update = RuneScape 2 Beta is Here!
+|change = The NPC was added to the ''RuneScape 2'' Beta cache.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="15"
+|[[File:Gielinor Guide (beta).png|center|300x150px]]
+|[[File:Gielinor Guide.png|center|300x150px]]
+|-
+|[[File:Gielinor Guide chathead (beta).png|center]]
+|[[File:Gielinor Guide chathead.png|center]]
+|-
+|RuneScape 2<br/>Beta
+|29 March 2004 –<br/>present
+|}
+
+==Trivia==
+*He appears to be wearing a sleeveless red [[Saradomin platebody]] and a [[red beret]].
+*His name and examine was changed to refer to the game's world, [[Gielinor]], rather than RuneScape, in [[Update:Spellbook Rework, Wise Old Man and, Increased Zoom|an update]] on [[11 October]] [[2018]].
+
+{{Tutorial Island}}
+{{Tutors}}

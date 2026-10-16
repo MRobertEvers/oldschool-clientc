@@ -1,0 +1,152 @@
+{{Infobox Quest
+|name = Learning the Ropes
+|number = 0
+|image = [[File:Tutorial Island.png|300px]]
+|release = [[22 October]] [[2025]]
+|update = Grid Master Rewards, Poll & New Player Improvements
+|aka = Tutorial Island
+|members = No
+|series = None
+|developer = [[Mod Maz]]
+}}
+'''Learning the Ropes''' is the first quest that all players must complete before they can access the mainland. It teaches the basics of the game and rewards players with some basic gear. 
+
+==Details==
+{{Quest details
+|start = Talk to the [[Quest Guide]] on [[Tutorial Island]].
+|startmap = 3094, 3107
+|difficulty = Novice
+|length = Very Short
+|description = N/A
+|requirements = 
+|items = 
+|recommended = 
+|kills = 2 [[Giant rat (Tutorial Island)|Giant rats]] (level 3) 
+|ironman = You must talk to the [[Ironman tutor (Tutorial Island)|Ironman tutor]] at the end of the quest to choose your [[Ironman Mode]] restrictions.
+|leagueRegion = <poem>
+Unlocking {{LeagueRegion|Varlamore}} {{okay}} will auto-complete the quest
+</poem>
+}}
+
+==Walkthrough==
+
+===Character customization===
+[[File:Starting house.png|thumb|left|200px|The first house on the island.]]
+Upon logging in to the game for the first time after [[account]] creation, players will find themselves in a house in the centre of [[Tutorial Island]]. The Character Creator interface will be open, which allows setting their character's appearance, such as body type, skin colour, and clothing styles. All of these customisation options can later be altered through [[Makeover]] for free after leaving Tutorial Island.
+
+===Adventure Paths===
+After customizing your appearance, you will be asked how familiar you are with ''Old School RuneScape''. To use the [[Adventure Paths]] system, you must indicate that you are either brand new, or have played in the past but not recently. [[Adventure Paths]] offer basic rewards such as [[Mithril equipment]] as you complete beginner tasks on your account, for example reaching a certain level in a skill. More information on the system will be given after leaving Tutorial Island.
+
+{{Clear}}
+===Gielinor Guide===
+[[File:Gielinor Guide chathead.png|left|frameless|80px]]
+Throughout the tutorial, the game will indicate the next action to take with a flashing arrow visible both in the game world and on the [[minimap]], starting with the [[Gielinor Guide]]. To move around, simply left click on the ground or on the [[minimap]]. To interact with objects and [[non-player character]]s in the game world, you may either left click on them to use their primary action, or right click to open the options menu which may contain several actions.
+
+Left click on the [[Gielinor Guide]] to talk to him and he will ask you to open the [[Settings]] interface, the spanner icon in the bottom right bar. You must open it to continue, but browsing it is optional. Talk to the [[Gielinor Guide]] again, who wants you to visit the first instructor.
+{{Clear|left}}
+===Survival Expert===
+[[File:Survival Expert chathead.png|left|frameless|70px]]
+:'''Note''': The compass just above the minimap indicates the cardinal direction based on your camera angle. The wiki will often use these directions to guide you.
+
+Exit through the door to the east by interacting with it. Talk to the [[Survival Expert]] to the south, who will give you a [[small fishing net]] and ask you to catch some [[shrimp]] in the nearby pond; but first, he wants you to view the net in your inventory. Open the [[Inventory]] interface by selecting the backpack icon from the bottom right bar. To fish, you can either ''use'' the fishing net on the [[fishing spot]] by left clicking the net and then the fishing spot, or simply left click the fishing spot to use it automatically.
+
+Once you catch a [[shrimp]], you will gain some [[Fishing]] experience, and the tutorial will prompt you to open the [[Skills]] interface. Once you've opened it, talk to the Survival Expert again, who will give you a [[bronze axe]] and [[tinderbox]] and ask you to make a fire to cook the shrimp on.
+
+Chop down any nearby [[tree]] to obtain some [[logs]], then ''use'' the tinderbox on the logs to light them and create a fire. Finally, ''use'' the shrimps on the fire to cook them.
+{{Clear|left}}
+===Master Chef===
+[[File:Master Chef chathead.png|left|frameless|60px]]
+Exit through the gate to the west and head to the nearby house, opening the door to enter. Talk to the [[Master Chef]], who will give you a [[pot of flour]] and a [[bucket of water]] and ask you to cook some [[bread]]. To make the [[bread]], ''use'' the pot of flour on the bucket of water to make some [[bread dough]], then either ''use'' the bread dough on the nearby [[range]] or simply left click on the range.
+{{Clear|left}}
+===Quest Guide===
+[[File:Quest Guide chathead.png|left|frameless|80px]]
+Exit through the north-western door and follow the path to enter the next house. Talk to the [[Quest Guide]], who wants you to open the [[Quest List]] interface. After opening it, talk to the Quest Guide again, who will explain more about questing in [[Gielinor]].
+{{Clear|left}}
+
+===Mining Instructor===
+[[File:Mining Instructor chathead.png|left|frameless|80px]]
+Climb down the ladder in the south-east corner of the room, and talk to the [[Mining Instructor]] to the north. He will give you a [[bronze pickaxe]] and ask you to mine some [[tin]] and [[copper]]. Mine the [[tin rocks]] to the west until you receive [[tin ore]], then mine the [[copper rocks]] to the east until you receive [[copper ore]]. ''Use'' one of the ores on the [[furnace]] to the south, or simply left click on the [[furnance]] to smelt the ore into a [[bronze bar]]. Speak to the mining instructor again, who will give you a [[hammer]] and ask you to make a [[bronze dagger]] using the nearby [[anvil]]. ''Use'' the [[bronze bar]] on it or simply left click on the anvil, then select the [[bronze dagger|dagger]] to create one.
+{{Clear|left}}
+===Combat Instructor===
+[[File:Combat Instructor chathead.png|left|frameless|80px]]
+Exit through the gate to the east and talk to the [[Combat Instructor]], who wants you to wield your dagger. Select the icon of a man in the bottom right bar to view your [[worn items]], then click the bottom left icon to view your [[equipment stats]]. Click your [[bronze dagger]] in the inventory to equip it in the [[weapon slot]].
+
+Talk to the Combat Instructor again, who will give you a [[bronze sword]] and [[wooden shield]]. Left click on the [[bronze sword]] in your inventory to equip it, unequipping the dagger in the process, and left click on your [[bronze shield]] to equip it in the [[shield slot]].
+
+Open the [[Combat Options]] interface by clicking the crossed swords icon on the bottom right interface, which will display the different [[attack styles]] you can use with your weapon. Enter the rat pit through the gate, and left click a rat to kill it. Return to the Combat Instructor, who will give you a [[shortbow]] and 50 [[bronze arrows]]. Equip both, and kill another rat from outside the pen.
+{{Clear|left}}
+===Account Guide===
+[[File:Account Guide chathead.png|left|frameless|80px]]
+Climb up the ladder to the east, and enter the nearby building to use the [[bank booth]], which will display your bank containing 25 [[coins]]. Use the [[poll booth]] on the western wall to learn about the [[poll]] system for adding future content to the game. Enter the eastern door and talk to the [[Account Guide]], who will ask you to open the [[Account Management]] interface. Click the icon of a man's face with a cog to view it, then talk to the Account Guide again, who will teach you about [[Membership]], [[Worlds]], [[Bonds]], and other aspects of having an account.
+{{Clear|left}}
+===Brother Brace===
+[[File:Brother Brace chathead.png|left|frameless|80px]]
+Exit through the door to the east, and follow the path to the next house to talk to [[Brother Brace]], who wants you to open the [[Prayer]] interface. Select the star icon in the bottom right bar to view it, then talk to Brother Brace again, who will teach you about activating Prayers and burying [[bones]] for Prayer experience.
+{{Clear|left}}
+===Magic Instructor===
+[[File:Magic Instructor chathead.png|left|frameless|70px]]
+Exit through the door to the south and enter the building to the south-east. Talk to the [[Magic Instructor]], who wants you to open the [[Magic]] interface. Select the spellbook icon in the bottom right bar to view your spells. Talk to the instructor again, who will give you some [[air runes]] and [[mind runes]] to cast [[Wind Strike]] on the chickens in the northern pen. Select Wind Strike in the Magic interface and then click on the chicken to cast the spell.
+
+'''Congratulations, quest complete!'''
+
+After completing the quest, talk to the [[Magic Instructor]] and he will tell you to cast the [[Lumbridge Home Teleport]] spell to teleport to [[Lumbridge]]. He will ask whether you want to talk to the [[Ironman tutor (Tutorial Island)|Ironman tutor]] first before leaving, who would teach you about the [[Ironman mode]]. If you wish to participate in this mode's account restrictions, you '''must''' talk to the tutor before leaving.
+{{Clear|left}}
+
+==Rewards==
+{{Quest rewards
+|name = Learning the Ropes
+|image = [[File:Learning the Ropes reward scroll.png|centre|488px]]
+|qp = 1
+|rewards =
+*Access to the Mainland!
+*Access to the [[Lumbridge Home Teleport]] spell
+*A [[bronze axe]], [[bronze pickaxe]], [[tinderbox]], [[small fishing net]], one couple of [[shrimps]], [[bronze dagger]], [[bronze sword]], [[wooden shield]], [[shortbow]], 25 [[bronze arrow]]s, 25 [[air rune]]s, 15 [[mind rune]]s, [[bucket]], [[pot]], one loaf of [[bread]], 6 [[water rune]]s, 4 [[earth rune]]s and 2 [[body rune]]s
+*25 coins in the player's bank account
+}}
+
+==Transcript==
+{{Hastranscript|quest}}
+==Music==
+{| class="wikitable sortable"
+!Name
+! class="unsortable" |Details
+! class="unsortable" |Music track
+|-
+|[[Newbie Melody]]
+|Unlocked upon starting on tutorial island
+|[[File:Newbie Melody.ogg]]
+|-
+|[[Scape Cave]]
+|Unlocked upon entering tutorial island dungeon
+|[[File:Scape Cave.ogg]]
+|}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 11 February 2026
+|update = Music System Improvements & Deadman Tweaks
+|change = The name of the quest was changed from Tutorial Island to Learning the Ropes.
+}}
+{{Subject changes
+|date = 22 October 2025
+|update = Grid Master Rewards, Poll & New Player Improvements
+|change = The Tutorial Island became a trackable quest.
+}}
+{{Subject changes
+|date = 7 September 2017
+|update = Fossil Island
+|change = An error in the dialogue during Tutorial Island has been fixed.
+}}
+{{Subject changes
+|date = 28 April 2016
+|update = Calling Pets & Deadman Death
+|change = Run energy is now restored at the end of the tutorial.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*{{RSL|Learning the Ropes}} is also the name of the tutorial quest that briefly replaced Tutorial Island in ''RuneScape 2'' between 14 July and 15 September 2008, as well as Tutorial Island itself between 14 September 2008 and 17 September 2009. Any players who created their accounts prior to the former update would also have the Learning the Ropes quest journal detail Tutorial Island.
+
+{{Tutorial Island}}
+[[Category:Learning the Ropes]]

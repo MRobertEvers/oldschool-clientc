@@ -1,0 +1,53 @@
+{{External|rs=Mining instructor|rsc=Mining instructor}}
+{{Infobox NPC
+|version1 = Normal
+|version2 = 2020 Tutorial
+|name = Mining Instructor
+|image = [[File:Mining Instructor.png|120px]]
+|release1 = [[29 March]] [[2004]]
+|release2 = [[14 May]] [[2020]]
+|update1 = RS2 Launched!
+|update2 = Bounty Hunter Feedback Changes
+|members = No
+|race = [[Human]]
+|location = [[Tutorial Island]]
+|gender = Male
+|options = Talk-to
+|examine = An expert on Mining-related skills.
+|map1 = {{Map|name=Mining Instructor|x=3081|y=9504|mapID=-1|mtype=pin}}
+|map2 = {{Map|name=Mining Instructor|x=1673|y=12512|mapID=-1|mtype=pin}}
+|id1 = 3311
+|id2 = 9481
+|leagueRegion = Misthalin
+}}
+[[File:Mining Instructor chathead.png|left]]
+'''Dezzick''', the '''Mining instructor''', is the fifth [[NPC]] that a beginning player meets in ''[[Old School RuneScape]]''. He informs players about [[Mining]] and [[Smithing]] skills by teaching them how to make [[bronze items]].
+
+==Dialogue==
+{{Hastranscript|speaksin}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|daterange = 1 – 21 June 2004
+|change = The NPC now always appears above players standing in the same tile.
+}}
+{{Subject changes
+|date = 29 March 2004
+|update = RS2 Launched!
+|change = The NPC was permanently added with the launch of ''RuneScape 2''.
+}}
+{{Subject changes
+|date = 25 March 2004
+|update = RS2 - Duelling and Extras
+|change = The NPC was released ingame to the ''RuneScape 2'' Beta.
+}}
+{{Subject changes
+|date = 1 December 2003
+|update = RuneScape 2 Beta is Here!
+|change = The NPC was added to the ''RuneScape 2'' Beta cache.
+}}
+{{Subject changes footer}}
+
+{{Tutorial Island}}
+{{Tutors}}

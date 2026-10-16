@@ -1,0 +1,80 @@
+{{Transcript|npc}}
+
+==Standard dialogue==
+===Dialogue with Iron[man/woman] status===
+* '''Player:''' Hey there Adam.
+* '''Ironman tutor:''' Hail, Iron[man/woman]! What can I do for you?
+* {{topt|Tell me about Iron[men/women].}}
+** '''Player:''' Tell me about Iron[men/women].
+** '''Ironman tutor:''' When you play as an {{Colour|#7f0000|Iron[man/woman]}}, you do everything for yourself. You don't trade with other players, or take their items, or accept their help.
+** '''Ironman tutor:''' As an {{Colour|#7f0000|Iron[man/woman]}}, you choose to have these restrictions imposed on you, so everyone knows you're doing it properly.
+** '''Ironman tutor:''' If you think you have what it takes, you can choose to become a {{Colour|#b10000|Hardcore Iron[man/woman]}}.
+** '''Ironman tutor:''' In addition to the standard restrictions, {{Colour|#b10000|Hardcore Iron[man/woman]}} only have {{Colour|#b10000|one life}}. In the event of a dangerous death, your {{Colour|#b10000|Hardcore Iron[man/woman]}} status will be downgraded to that of a {{Colour|#7f0000|standard Iron[man/woman]}}, and your
+** '''Ironman tutor:''' stats will be frozen on the {{Colour|#b10000|Hardcore Iron[man/woman]}} hiscores.
+** '''Ironman tutor:''' For the ultimate challenge, you can choose to become an {{Colour|#00007f|Ultimate Iron[man/woman]}}, a game mode inspired by the player {{Colour|#00007f|IronNoBank}}.
+** '''Ironman tutor:''' In addition to the standard restrictions, {{Colour|#00007f|Ultimate Iron[man/woman]}} are blocked from using the bank, and they drop all their items when they die.
+** '''Ironman tutor:''' You're a {{Colour|#7f0000|standard Iron[man/woman]}}. You can downgrade yourself to a normal player if you like.
+** {{topt|I'd like to change my Iron[man/woman] mode.}}
+*** {{tact|below}}
+** {{topt|Have you any armour for me, please?}}
+*** {{tact|below}}
+** {{topt|I'm fine, thanks.}}
+*** {{tact|below}}
+* {{topt|I'd like to review my Iron[man/woman] mode.}}
+** '''Player:''' I'd like to review my Iron[man/woman] mode.
+** {{tact|opens=Ironman}}
+** {{tact|end}}
+* {{topt|Have you any armour for me, please?}}
+** '''Player:''' Have you any armour for me, please?
+** '''Ironman tutor:''' There you go. Wear it with pride.
+** {{tact|end}}
+* {{topt|I'm fine, thanks.}}
+** '''Player:''' I'm fine, thanks.
+** {{tact|end}}
+
+===Dialogue without Iron[man/woman] status===
+* '''Ironman tutor:''' Hello, [player name]. I'm the Iron[man/woman] tutor. What can I do for you?
+* {{topt|Tell me about Iron[men/women].}}
+** '''Player:''' Tell me about Iron[men/women].
+** '''Ironman tutor:''' When you play as an {{Colour|#7f0000|Iron[man/woman]}}, you do everything for yourself. You don't trade with other players, or take their items, or accept their help.
+** '''Ironman tutor:''' As an {{Colour|#7f0000|Iron[man/woman]}}, you choose to have these restrictions imposed on you, so everyone knows you're doing it properly.
+** '''Ironman tutor:''' If you think you have what it takes, you can choose to become a {{Colour|#b10000|Hardcore Iron[man/woman]}}.
+** '''Ironman tutor:''' In addition to the standard restrictions, {{Colour|#b10000|Hardcore Iron[men/women]}} only have {{Colour|#b10000|one life}}. In the event of a dangerous death, your {{Colour|#b10000|Hardcore Iron[men/women]}} status will be downgraded to that of a {{Colour|#7f0000|standard Iron[man/woman]}}, and your
+** '''Ironman tutor:''' stats will be frozen on the {{Colour|#b10000|Hardcore Iron[man/woman]}} hiscores.
+** '''Ironman tutor:''' If you have some friends, you could stand alone... Together, as {{colour|#7f0000|Group Ironmen}}. Group Ironmen have the same restrictions as regular Iron[men/women] except you can trade your items with each other!
+** '''Ironman tutor:''' If you are a daring bunch, you could even try {{colour|#b10000|Hardcore Group Ironmen}}. With Hardcore Group Ironmen you have a set number of lives, when they reach zero, you will become regular {{colour|#7f0000|Group Ironmen}}.
+** '''Ironman tutor:''' If you ever decided to invite experienced players to your group, you would become {{colour|#7f0000|Unranked Group Ironmen}}, which are no longer shown on the Group Ironman hiscores.
+** '''Ironman tutor:''' For the ultimate challenge, you can choose to become an {{Colour|#00007f|Ultimate Iron[man/woman]}}, a game mode inspired by the player {{Colour|#00007f|IronNoBank}}.
+** '''Ironman tutor:''' In addition to the standard restrictions, {{Colour|#00007f|Ultimate Iron[men/women]}} are blocked from using the bank, and they drop all their items when they die.
+** '''Ironman tutor:''' You can choose to become an {{Colour|#7f0000|Iron[man/woman]}} while you're on Tutorial Island. Although you can't do that on this account, you might like to bear it in mind for the future.
+** {{topt|I'd like to change my Iron[man/woman] mode.}}
+*** {{tact|below}}
+** {{topt|Have you any armour for me, please?}}
+*** {{tact|below}}
+** {{topt|I'm fine, thanks.}}
+*** {{tact|below}}
+* {{topt|I'd like to review my Iron[man/woman] mode.}}
+** '''Player:''' I'd like to review my Iron[man/woman] mode.
+** {{tact|end}}
+* {{topt|Have you any armour for me, please?}}
+** '''Player:''' Have you any armour for me, please?
+** '''Ironman tutor:''' You're not an Iron[man/woman]. This armour is only for them.
+** {{tact|end}}
+* {{topt|I'm fine, thanks.}}
+** '''Player:''' I'm fine, thanks.
+** {{tact|end}}
+
+==Treasure Trails== 
+* '''Ironman tutor:''' Ah! Here you go!
+* '''Player:''' What?
+* '''Ironman tutor:''' I need you to help me with this.
+* {{tbox|pic=Clue scroll (medium) detail.png|Iron Man tutor has given you a challenge scroll!}}
+* {{tact|end}}
+* '''Ironman tutor:''' Please give me your answer!
+* {{tcond|If answered correctly:}}
+** '''Ironman tutor:''' Correct - I despise snakes!
+** {{tbox|pic=Clue scroll (medium) detail.png|Iron Man tutor has given you another clue scroll!}}
+** {{tact|end}}
+* {{tcond|If answered incorrectly:}}
+** '''Ironman tutor:''' Nope, not correct!
+** {{tact|end}}

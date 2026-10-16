@@ -150,6 +150,9 @@ struct ScriptBot
      * the spell's target packet. Dropped by any other press, as armed_slot
      * is; arming one drops the other. -1: none. */
     int armed_spell;
+    /* That spell's target mask (bits 11..16 of its effective events, shifted
+     * down): which world things its "Cast" row may land on. */
+    int armed_spell_mask;
 };
 
 struct ScriptRun
@@ -1591,6 +1594,172 @@ disarm(struct ScriptBot* bot)
     bot->armed_spell = -1;
 }
 
+/* -------------------------------------------- what a component offers
+ *
+ * The client decides whether a click on a component produces a packet from
+ * the component's EFFECTIVE events (app_minimenu_events_for_component ->
+ * UIIfEventTable_Effective): the server's IF_SETEVENTS entry when there is one
+ * -- a declared zero included -- and the cache-authored click mask only when
+ * there is none. A slot of a container (a store row, a dynamic child) is the
+ * container's entry for that sub-id and nothing else: the child has no cache
+ * record of its own.
+ *
+ * The cache half is the client's own cache, decoded here the way the client
+ * decodes it (rscache's dat2 component reader; IF1 folds its button-2 target
+ * mask in at bit 11), one interface at a time on first use and kept for the
+ * process. */
+struct IfCacheEntry
+{
+    int iface;
+    struct RSCache_Dat2ComponentPack* pack; /* NULL: the cache has no such interface */
+};
+static struct IfCacheEntry* g_if_cache;
+static int g_if_cache_count;
+static int g_if_cache_cap;
+
+static struct RSCache_Dat2Component const*
+cache_component(
+    struct ScriptBot const* bot,
+    int component)
+{
+    struct RSCache_Dat2Disk* disk = bot->run->cache_disk;
+    int iface = (component >> 16) & 0xffff;
+    struct RSCache_Dat2ComponentPack* pack = NULL;
+    int i;
+
+    if( !disk )
+        return NULL;
+    for( i = 0; i < g_if_cache_count; i++ )
+        if( g_if_cache[i].iface == iface )
+            break;
+    if( i == g_if_cache_count )
+    {
+        int table = RSCache_Dat2DiskTableId(disk, RSCACHE_DAT2_TABLE_INTERFACES);
+        struct RSCache_Dat2DiskArchive* archive = RSCache_Dat2DiskArchiveNewLoad(disk, table, iface);
+        if( archive && RSCache_Dat2DiskArchiveInitMetadata(disk, archive) )
+            pack = RSCache_Dat2ComponentPackNewFromArchive(
+                archive, iface,
+                RSCache_Dat2ComponentDecodeRevFromProfile(
+                    RSCache_Dat2DiskProfile(disk), RSCACHE_DAT2_COMPONENT_INDEX_REVISION_UNKNOWN));
+        if( archive )
+            RSCache_Dat2DiskArchiveFree(archive);
+        if( g_if_cache_count == g_if_cache_cap )
+        {
+            g_if_cache_cap = g_if_cache_cap ? g_if_cache_cap * 2 : 64;
+            g_if_cache = realloc(g_if_cache, (size_t)g_if_cache_cap * sizeof(*g_if_cache));
+            assert(g_if_cache);
+        }
+        g_if_cache[g_if_cache_count].iface = iface;
+        g_if_cache[g_if_cache_count].pack = pack;
+        i = g_if_cache_count++;
+    }
+    pack = g_if_cache[i].pack;
+    if( !pack )
+        return NULL;
+    for( int c = 0; c < pack->component_count; c++ )
+        if( pack->components[c] && pack->components[c]->id == component )
+            return pack->components[c];
+    return NULL;
+}
+
+/* The events the client acts on for (`component`, `sub`): sub >= 0 is a slot
+ * of a container, answered by the server's entry alone. */
+static unsigned
+effective_events(
+    struct ScriptBot const* bot,
+    int component,
+    int sub)
+{
+    unsigned events = 0;
+    struct RSCache_Dat2Component const* comp;
+
+    if( ScriptrunCore_IfEvents(bot->core, component, sub, &events) )
+        return events;
+    if( sub >= 0 )
+        return 0;
+    comp = cache_component(bot, component);
+    return comp ? (unsigned)comp->clickMask : 0;
+}
+
+/* The six target bits of a component's effective events, shifted down
+ * (TORIRS_TARGET_MASK_*: obj 1, npc 2, loc 4, player 8, held 0x20). */
+enum
+{
+    TARGET_SHIFT = 11,
+    TARGET_BITS = 0x3F,
+    TARGET_NPC = 0x02,
+    IF1_BUTTON_OK = 1,
+    IF1_BUTTON_TARGET = 2,
+    IF1_BUTTON_CLOSE = 3,
+    IF1_BUTTON_TOGGLE = 4,
+    IF1_BUTTON_SELECT = 5,
+    IF1_BUTTON_CONTINUE = 6,
+};
+
+/* NULL when the client would send IF_BUTTON op `op` for this press, else why
+ * not. rs_minimenu_build.c add_component_rows: a numbered op row needs its bit
+ * in the effective events (a local on_op hook still runs without one, but
+ * method3476 sends nothing); an IF1 widget with no server entry offers instead
+ * the one row its cache button type names, and only OK (with no client code),
+ * Toggle and Select send IF_BUTTON. The op's TEXT is not tested: the client
+ * reads it off the live node, where a clientscript may have set it. */
+static char const*
+if_click_refusal(
+    struct ScriptBot const* bot,
+    int component,
+    int sub,
+    int op)
+{
+    unsigned events = 0;
+    struct RSCache_Dat2Component const* comp;
+
+    if( sub >= 0 || ScriptrunCore_IfEvents(bot->core, component, -1, &events) )
+    {
+        events = effective_events(bot, component, sub);
+        return (events & (1u << op)) ? NULL
+                                     : "the server has not armed that op (IF_SETEVENTS) on it";
+    }
+    comp = cache_component(bot, component);
+    if( !comp )
+        return "no such component in the client's cache";
+    if( comp->if3 )
+        return ((unsigned)comp->clickMask & (1u << op)) ? NULL
+                                                        : "the cache arms no such op and the "
+                                                          "server has armed none (IF_SETEVENTS)";
+    if( op != 1 )
+        return "an IF1 widget offers no numbered op but its button type's one row";
+    switch( comp->buttonType )
+    {
+    case IF1_BUTTON_OK:
+        if( comp->clientCode == 0 || (comp->option && comp->option[0]) )
+            return NULL;
+        return "an IF1 OK button with client code and no option text offers no row";
+    case IF1_BUTTON_TOGGLE:
+    case IF1_BUTTON_SELECT:
+        return (comp->option && comp->option[0]) ? NULL : "an IF1 button with no option text offers no row";
+    case IF1_BUTTON_TARGET:
+        return "an IF1 target button arms a spell (spell_arm), it sends no IF_BUTTON";
+    case IF1_BUTTON_CLOSE:
+        return "an IF1 close button closes the modal (key escape), it sends no IF_BUTTON";
+    case IF1_BUTTON_CONTINUE:
+        return "an IF1 continue button resumes the pause, it sends no IF_BUTTON";
+    }
+    return "an IF1 widget with no button type and no server events offers no row";
+}
+
+/* A spell button's target mask, as the client arms it (app_minimenu.c, the
+ * TGT_BUTTON row: app_component_target_mask) -- the effective events' target
+ * bits for IF3, and for an IF1 TARGET button the same bits its cache record
+ * carries. 0: the button offers no "Cast" row at all. */
+static int
+spell_target_mask(
+    struct ScriptBot const* bot,
+    int component)
+{
+    return (int)((effective_events(bot, component, -1) >> TARGET_SHIFT) & TARGET_BITS);
+}
+
+
 /* The nearest perceived npc of a content type (base or live rung), or the
  * pinned element: the copy a player would click. NULL: none in view. */
 static struct WorldEntity_NPC const*
@@ -1696,6 +1865,9 @@ d_cast_npc(lua_State* L)
 
     if( !panel_showing(bot, component) )
         return push_result(L, "refused", "the spell's panel is display-hidden");
+    if( (spell_target_mask(bot, component) & TARGET_NPC) == 0 )
+        return push_result(L, "refused", "the spell offers no Cast row on an npc: its effective "
+                                         "events carry no npc target bit");
     if( !ScriptrunCore_LocalTile(c, &px, &pz, &plevel) )
         return push_result(L, "not_found", "not placed yet");
     for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
@@ -1843,6 +2015,9 @@ d_world_use(lua_State* L)
         int spell = bot->armed_spell;
         if( strcmp(kind, "npc") != 0 )
             return push_result(L, "unsupported", "scriptrun: a spell on a loc or obj is not modelled");
+        if( (bot->armed_spell_mask & TARGET_NPC) == 0 )
+            return push_result(L, "refused", "the armed spell's target mask has no npc bit: an "
+                                             "npc offers no Cast row for it");
         best = pick_npc(c, type_id, want_element, px, pz, plevel);
         if( !best )
             return push_result(L, "not_found", "no such npc in view");
@@ -1967,12 +2142,19 @@ d_spell_arm(lua_State* L)
     struct ScriptBot* bot = bot_of(L);
     int component = (int)luaL_checkinteger(L, 1);
 
+    int mask;
+
     if( !panel_showing(bot, component) )
         return push_result(L, "refused", "the spell's panel is display-hidden");
+    mask = spell_target_mask(bot, component);
+    if( mask == 0 )
+        return push_result(L, "refused", "the button offers no Cast row: its effective events "
+                                         "carry no target bits");
     if( bot->armed_spell == component )
         return push_result(L, "ok", "already armed, nothing sent");
     disarm(bot);
     bot->armed_spell = component;
+    bot->armed_spell_mask = mask;
     return push_result(L, "ok", "armed");
 }
 
@@ -2085,6 +2267,116 @@ stone_button_press(
     return 0;
 }
 
+/* The make-menu (interface 270, `~skill_multi`). Its eighteen item buttons
+ * send no IF_BUTTON: the server arms each with if_addresumebutton (the click
+ * bit only) and the button's onop, skillmulti_itembutton_triggered (2052),
+ * resumes the pausebutton on the button's hidden child whose sub-id is the
+ * chosen quantity -- or on sub 0 when the menu's mode carries no quantity
+ * (enum_5178). The quantity is the client-only %varc200, which
+ * skillmulti_setup (2046) seeds from its default-quantity argument, clamped
+ * per mode (enum_1810) and then by skillmulti_quantitybuttons_set (2055).
+ * That seeding is modelled here; the 1/5/10/X/All buttons that change it are
+ * client-only and are not -- their presses are refused like any unarmed op. */
+static int
+enum_int(
+    char const* symbol,
+    int key)
+{
+    struct ToriRSServerEnumDef const* def = ToriRSServer_ContentEnum(symbol);
+    assert(def);
+    for( int i = 0; i < def->count; i++ )
+        if( def->values[i].key == key )
+            return def->values[i].value;
+    return def->default_int;
+}
+
+static int
+skillmulti_quantity(struct ScriptrunCore const* c)
+{
+    int max = c->skillmulti_max;
+    int q = c->skillmulti_default;
+
+    /* skillmulti_setup's clamp. */
+    if( enum_int("enum_1810", c->skillmulti_mode) )
+    {
+        max = max < 1 ? 1 : (max > 28 ? 28 : max);
+        q = q < 1 ? 1 : (q > max ? max : q);
+    }
+    else if( max > 5 )
+    {
+        max = 10;
+        q = q > 5 ? 10 : (q > 1 ? 5 : 1);
+    }
+    else if( max > 1 )
+    {
+        max = 5;
+        q = q > 1 ? 5 : 1;
+    }
+    else
+        max = q = 1;
+    /* skillmulti_quantitybuttons_set's, on the same numbers. */
+    if( enum_int("enum_1810", c->skillmulti_mode) )
+        q = q < 1 ? 1 : (q > max ? max : q);
+    else
+    {
+        q = q > 5 ? 10 : (q > 1 ? 5 : 1);
+        q = q > max ? max : q;
+    }
+    return q;
+}
+
+/* 1 when `component` is a make-menu item button and its press was answered
+ * (ok or refused, pushed); 0 when it is not one. */
+static int
+skillmulti_press(
+    lua_State* L,
+    struct ScriptBot* bot,
+    int component,
+    int* pushed)
+{
+    static char const* const CELLS = "abcdefghijklmnopqr";
+    struct ScriptrunCore* c = bot->core;
+    char symbol[32];
+    int sub = 0;
+    uint8_t payload[6];
+
+    for( int i = 0; CELLS[i]; i++ )
+    {
+        snprintf(symbol, sizeof(symbol), "skillmulti:%c", CELLS[i]);
+        if( ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, symbol) == component )
+            break;
+        if( !CELLS[i + 1] )
+            return 0;
+    }
+    if( !c->skillmulti_valid )
+    {
+        *pushed = push_result(L, "refused", "no skillmulti_setup has run for this menu");
+        return 1;
+    }
+    if( enum_int("enum_5178", c->skillmulti_mode) )
+    {
+        sub = skillmulti_quantity(c);
+        if( sub < 1 || sub > 28 )
+        {
+            *pushed = push_result(L, "refused", "the quantity is out of 1..28: the button plays "
+                                                "pillory_wrong and resumes nothing");
+            return 1;
+        }
+    }
+    /* The hidden child the script resumes on is one the server armed. */
+    if( (effective_events(bot, component, sub) & 1u) == 0 )
+    {
+        *pushed = push_result(L, "refused", "the server has not armed the button's resume "
+                                            "(if_addresumebutton)");
+        return 1;
+    }
+    put4(payload, component);
+    put2(payload + 4, sub);
+    handle(bot, PKTOUT_NAME_RESUME_PAUSEBUTTON, payload, 6);
+    *pushed = push_result(L, "ok", "skillmulti item button: resume_pausebutton sent");
+    return 1;
+}
+
 static int
 d_if_click(lua_State* L)
 {
@@ -2101,6 +2393,17 @@ d_if_click(lua_State* L)
     disarm(bot);
     if( op == 1 && sub < 0 && stone_button_press(bot, component) )
         return push_result(L, "ok", "stone button: resume_pausebutton sent");
+    if( op == 1 && sub < 0 )
+    {
+        int pushed = 0;
+        if( skillmulti_press(L, bot, component, &pushed) )
+            return pushed;
+    }
+    {
+        char const* why = if_click_refusal(bot, component, sub, op);
+        if( why )
+            return push_result(L, "refused", why);
+    }
     send_if_buttonx(bot, component, sub >= 0 ? sub : 0xffff, 0xffff, op);
     return push_result(L, "ok", "button sent");
 }
@@ -2130,6 +2433,24 @@ d_resume(lua_State* L)
         if( component < 0 )
             return push_result(L, "not_found", "chatmenu:options");
     }
+    /* objectbox (193) has no continue component: objbox_setbuttons (2868)
+     * cc_creates the row under 193:0, and its listener (objbox_listener,
+     * 2869) resumes through the secondary pointer `.cc_find(button, 0)` --
+     * child 0 of 193:0. So the continue the client sends is (193:0, sub 0),
+     * never 193:0 bare, which it offers no row for. */
+    else if( component == ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "objectbox:universe") )
+        sub = 0;
+    /* The client builds a resume row only on what the server armed with the
+     * click bit (if_addresumebutton's IF_SETEVENTS; a chatmenu row is
+     * chatmenu:options at its sub) or on an IF1 Continue button
+     * (rs_minimenu_build.c add_component_rows). */
+    if( (effective_events(bot, component, sub) & 1u) == 0 )
+    {
+        struct RSCache_Dat2Component const* comp = sub < 0 ? cache_component(bot, component) : NULL;
+        if( !comp || comp->if3 || comp->buttonType != IF1_BUTTON_CONTINUE )
+            return push_result(L, "refused", "the component offers no resume row: the server has "
+                                             "not armed it (if_addresumebutton)");
+    }
     put4(payload, component);
     put2(payload + 4, sub);
     /* Pending BEFORE the send: the server handles the input inline and its
@@ -2150,11 +2471,13 @@ host_component(void)
     return ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "chatbox:chatmodal");
 }
 
-/* The side tabs. Selecting one is the client's own business in rev 239 (a
- * stone's clientscript flips a varc; no packet leaves), and every panel is
- * mounted from login, so a scriptrun bot's tab press changes nothing the
- * server or this model can see: `tab` answers ok, `tab_by_name` the standard
- * stone order the client's [tabs] map carries. */
+/* The side tabs. A stone press is the stone's own clientscript switching the
+ * panel (a varc; the client keeps that), AND -- like any component op -- an
+ * IF_BUTTON1 on the live frame's stone when op 1 is in the stone's effective
+ * events. The cache arms it on every stone (`clickmask=2`), so a stock client
+ * reports every tab it opens; the server only ever sees `<live top>:stoneN`.
+ * `tab_by_name` answers the standard stone order the client's [tabs] map
+ * carries. */
 static char const* const TAB_NAMES[] = {
     "combat", "skills", "quest", "inventory", "equipment", "prayer", "magic",
     "clan", "account", "friends", "logout", "settings", "emote", "music",
@@ -2168,7 +2491,22 @@ d_tab(lua_State* L)
     if( tab < 0 || tab >= (int)(sizeof(TAB_NAMES) / sizeof(TAB_NAMES[0])) )
         return push_result(L, "no_row", "no such tab");
     bot->tab = tab;
-    return push_result(L, "ok", NULL);
+    {
+        char const* top = ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_INTERFACE, bot->core->toplevel);
+        char symbol[96];
+        int stone;
+        if( top )
+        {
+            snprintf(symbol, sizeof(symbol), "%s:stone%d", top, tab);
+            stone = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, symbol);
+            if( stone > 0 && (effective_events(bot, stone, -1) & (1u << 1)) )
+            {
+                send_if_buttonx(bot, stone, 0xffff, 0xffff, 1);
+                return push_result(L, "ok", "tab switched; the stone's op 1 sent");
+            }
+        }
+    }
+    return push_result(L, "ok", "tab switched (the stone's op 1 is not armed: nothing sent)");
 }
 
 /* Is the panel holding `component` showing?  The backpack, the worn tab, the
@@ -4012,6 +4350,8 @@ ToriRSServer_ScriptRun(
         disarm(bot);
         bot->core = ScriptrunCore_New(run.rev);
         bot->core->cache_disk = run.cache_disk;
+        bot->core->skillmulti_script =
+            ToriRSServer_ContentConstantInt("clientscript_skillmulti_init", -1);
         run.count = i + 1;
         player = ToriRSServer_WorldAddPlayer(srv, NULL);
         assert(player);

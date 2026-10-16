@@ -7,6 +7,7 @@
  * handler, the native rev-216 client where it does not. The comment on each
  * names which.
  *
+ *   210   cc_find_param         the first dynamic child matching two params
  *   216   if_query_refine       filters the children iterator by param
  *   1506  cc_getparentlayer     the layer, or the component an interface is
  *                               mounted into
@@ -239,6 +240,119 @@ test_query_refine(void)
     struct Step const by_long[] = { INT(50), INT(1), OP(CS2_OP_IF_QUERY_REFINE) };
     CHECK(run(&fx, by_long, 3) == CS2VM_EXECNO_ERROR, "a long base type aborts");
     g_iterator_seed = NULL;
+
+    fixture_free(&fx);
+}
+
+/*
+ * 210. Statics.java opcode 210 + method2627: the first dynamic child, in sub-id
+ * order, whose param1 equals value1 and param2 equals value2 (a param below 0
+ * is not compared) becomes the target and 1 is pushed; a miss pushes 0 and
+ * leaves the target alone. This is how every ui_highlight script finds its own
+ * box by (kind, id), so a tab flash that could not be found could not be
+ * cleared either.
+ */
+static void
+test_find_param(void)
+{
+    struct Fixture fx;
+    int const layer_id = (900 << 16) | 3;
+    printf("210 cc_find_param\n");
+
+    fixture_init(&fx);
+    int32_t const root = push_layer(&fx, -1, (900 << 16) | 0);
+    int32_t const layer = push_layer(&fx, root, layer_id);
+    /* Created out of sub-id order: the walk must still answer the lowest. */
+    int const subs[3] = { 2, 0, 1 };
+    for( int i = 0; i < 3; i++ )
+        CHECK(UITree_CcCreate(fx.tree, layer, layer_id, 0, subs[i]) >= 0, "child %d created", subs[i]);
+
+    struct ToriRS_ParamType* kind_param = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*kind_param));
+    assert(kind_param);
+    kind_param->id = 60;
+    kind_param->default_int = -1;
+    CacheProvider_ParamAdd(fx.provider, 60, kind_param);
+    struct ToriRS_ParamType* id_param = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*id_param));
+    assert(id_param);
+    id_param->id = 61;
+    id_param->default_int = 5;
+    CacheProvider_ParamAdd(fx.provider, 61, id_param);
+    struct ToriRS_ParamType* name_param = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*name_param));
+    assert(name_param);
+    name_param->id = 62;
+    name_param->is_string = 1;
+    CacheProvider_ParamAdd(fx.provider, 62, name_param);
+
+    int child[3];
+    for( int sub = 0; sub < 3; sub++ )
+        child[sub] = fx.tree->components[UITree_FindChildBySubid(fx.tree, layer, layer_id, sub)].component_id;
+    /* Two tab highlights (kind 2) for tabs 1 and 2, and one of kind 1. */
+    UITree_ApplyComponentParam(fx.tree, child[0], 60, 1, NULL);
+    UITree_ApplyComponentParam(fx.tree, child[0], 61, 1, NULL);
+    UITree_ApplyComponentParam(fx.tree, child[1], 60, 2, NULL);
+    UITree_ApplyComponentParam(fx.tree, child[1], 61, 1, NULL);
+    UITree_ApplyComponentParam(fx.tree, child[2], 60, 2, NULL);
+    UITree_ApplyComponentParam(fx.tree, child[2], 61, 2, NULL);
+    UITree_ApplyComponentParam(fx.tree, child[2], 62, 0, "b");
+
+    /* (kind 2, id 2) is child 2, and only child 2: the id is compared too. */
+    CS2VM2_SetActiveAndDotComponentId(fx.thread, layer_id);
+    struct Step const both[] = {
+        INT(layer_id), INT(60), INT(2), INT(61), INT(2), INT(0), INT(0), OP(CS2_OP_CC_FIND_PARAM)
+    };
+    CHECK(run(&fx, both, 8) == CS2VM_EXECNO_DONE, "a two-param find runs");
+    CHECK(pop_int(&fx) == 1, "(kind 2, id 2) is found");
+    CHECK(fx.thread->active_component_id == child[2], "and child 2 is the target");
+
+    /* (kind 2, id 1) is child 1, not child 2 -- a stale tab's box is its own. */
+    struct Step const other[] = {
+        INT(layer_id), INT(60), INT(2), INT(61), INT(1), INT(0), INT(0), OP(CS2_OP_CC_FIND_PARAM)
+    };
+    CHECK(run(&fx, other, 8) == CS2VM_EXECNO_DONE, "a second find runs");
+    CHECK(pop_int(&fx) == 1, "(kind 2, id 1) is found");
+    CHECK(fx.thread->active_component_id == child[1], "and child 1 is the target");
+
+    /* One param (param2 = -1, its selector -1): the LOWEST sub-id of kind 2. */
+    struct Step const one[] = {
+        INT(layer_id), INT(60), INT(2), INT(-1), INT(0), INT(-1), OP(CS2_OP_CC_FIND_PARAM)
+    };
+    CHECK(run(&fx, one, 7) == CS2VM_EXECNO_DONE, "a one-param find runs");
+    CHECK(pop_int(&fx) == 1, "kind 2 is found");
+    CHECK(fx.thread->active_component_id == child[1], "child 1, the lowest sub-id of kind 2");
+
+    /* The ParamType default answers for a child with no entry: none has an
+     * id of 5 of its own, and every child has one, so nothing matches 5. */
+    struct Step const by_default[] = {
+        INT(layer_id), INT(61), INT(5), INT(-1), INT(0), INT(-1), OP(CS2_OP_CC_FIND_PARAM)
+    };
+    CHECK(run(&fx, by_default, 7) == CS2VM_EXECNO_DONE, "a default find runs");
+    CHECK(pop_int(&fx) == 0, "no child holds 5");
+    CHECK(fx.thread->active_component_id == child[1], "a miss leaves the target alone");
+
+    /* A string value, and the dot form targets the dot component. */
+    struct Step const by_string[] = {
+        INT(layer_id), INT(62), STR("b"), INT(-1), INT(2), INT(-1), { CS2_OP_CC_FIND_PARAM, 1, NULL }
+    };
+    CHECK(run(&fx, by_string, 7) == CS2VM_EXECNO_DONE, "a string find runs");
+    CHECK(pop_int(&fx) == 1, "\"b\" is found");
+    CHECK(fx.thread->dot_component_id == child[2], "and the dot form targets child 2");
+
+    /* 211 if_query fills the iterator and pushes the count; it does not move
+     * the target (Statics 211 only calls method7242). The highlight scripts
+     * query the layer between creating a box and building its outline under
+     * it, so a query that retargeted put the outline on the layer. */
+    CS2VM2_SetActiveAndDotComponentId(fx.thread, child[2]);
+    struct Step const query[] = { INT(0), INT(layer_id), INT(-1), OP(CS2_OP_IF_QUERY) };
+    CHECK(run(&fx, query, 4) == CS2VM_EXECNO_DONE, "if_query runs");
+    CHECK(pop_int(&fx) == 3, "if_query counts three children");
+    CHECK(fx.thread->active_component_id == child[2], "if_query leaves the active component alone");
+
+        /* An absent layer is a miss, not an abort. */
+    struct Step const no_layer[] = {
+        INT((901 << 16) | 3), INT(60), INT(2), INT(-1), INT(0), INT(-1), OP(CS2_OP_CC_FIND_PARAM)
+    };
+    CHECK(run(&fx, no_layer, 7) == CS2VM_EXECNO_DONE, "a find under no layer runs");
+    CHECK(pop_int(&fx) == 0, "and finds nothing");
 
     fixture_free(&fx);
 }
@@ -612,6 +726,7 @@ test_clan_reads(void)
 int
 main(void)
 {
+    test_find_param();
     test_query_refine();
     test_parent_layer();
     test_safe_parse_int();

@@ -617,6 +617,7 @@ CS2VM2_IsTargetingOpcode(int opcode)
     {
     case CS2_OP_IF_FIND:
     case CS2_OP_CC_FIND:
+    case CS2_OP_CC_FIND_PARAM:
     case CS2_OP_IF_FIND_ENTITYOVERLAY:
     case CS2_OP_CC_FIND_ENTITYOVERLAY:
     case CS2_OP_CC_QUERY:
@@ -8698,6 +8699,12 @@ CS2VM2_Op_IF_QueryRefine(
     int operand);
 
 int
+CS2VM2_Op_CC_FindParam(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand);
+
+int
 CS2VM2_Op_SafeParseInt(
     struct CS2VM2_Thread* vm,
     struct CS2VM2_Frame* frame,
@@ -12134,6 +12141,8 @@ CS2VM2_RunOp(
         return CS2VM2_Op_ChildrenArray(vm, frame, operand);
     case CS2_OP_IF_QUERY_REFINE:
         return CS2VM2_Op_IF_QueryRefine(vm, frame, operand);
+    case CS2_OP_CC_FIND_PARAM:
+        return CS2VM2_Op_CC_FindParam(vm, frame, operand);
     case CS2_OP_IF_FIND:
         return CS2VM2_Op_IF_Find(vm, frame, operand);
 
@@ -15168,6 +15177,91 @@ CS2VM2_Op_IF_QueryRefine(
         return CS2VM_EXECNO_ERROR;
     }
     if( CS2VM2_PopInt(vm, &request.u.IF_QUERY_REFINE.param_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    return vm->vm->host_exec(vm, &request);
+}
+
+/* One CC_FIND_PARAM value, popped by its base-var-type selector the way the
+ * client's method6560 does: -1 pops nothing (null), 0 an int, 2 a string. 1 is
+ * a long, which this VM has no stack for, and the client throws on the rest. */
+static int
+cs2vm2_pop_find_param_value(
+    struct CS2VM2_Thread* vm,
+    int type,
+    int* out_value,
+    char** out_str)
+{
+    assert(vm);
+    assert(out_value);
+    assert(out_str);
+    switch( type )
+    {
+    case -1:
+        return CS2VM_EXECNO_OK;
+    case 0:
+        return CS2VM2_PopInt(vm, out_value);
+    case 2:
+        return CS2VM2_PopStr(vm, out_str);
+    default:
+        TORIRS_LOG("CS2VM2: CC_FIND_PARAM: unsupported base var type %d\n", type);
+        return CS2VM_EXECNO_ERROR;
+    }
+}
+
+/*
+ * Opcode 210 -- CC_FIND_PARAM(layer, param1, [value1], param2, [value2],
+ * type1, type2) -> bool. rev-239 Statics.java opcode 210 then method2627: the
+ * first dynamic child of `layer` whose param1 equals value1 (skipped when
+ * param1 < 0) and whose param2 equals value2 (skipped when param2 < 0) becomes
+ * the active (or dot) component and 1 is pushed; a miss pushes 0 and leaves
+ * the target alone.
+ *
+ * The two selectors on top say how each value was pushed, so the command is
+ * five, six or seven values deep. From the top: type2, type1, value2 (by
+ * type2), param2, value1 (by type1), param1, layer.
+ *
+ * Before this the opcode was a balanced stub that always answered 0, and every
+ * ui_highlight script that finds its own box by (kind, id) through it could
+ * create a box but never find one again -- so a flashing tab's highlight was
+ * never cleared, and stayed on the Stats stone after Tutorial Island moved the
+ * flash on to the quest journal.
+ */
+int
+CS2VM2_Op_CC_FindParam(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)frame;
+
+    struct CS2VM_HostRequest request;
+    request.kind = CS2VM_HOST_REQUEST_CC_FIND_PARAM;
+    memset(&request.u.CC_FIND_PARAM, 0, sizeof(request.u.CC_FIND_PARAM));
+    request.u.CC_FIND_PARAM.dot_operand = operand;
+
+    if( CS2VM2_PopInt(vm, &request.u.CC_FIND_PARAM.type2) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &request.u.CC_FIND_PARAM.type1) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( cs2vm2_pop_find_param_value(
+            vm,
+            request.u.CC_FIND_PARAM.type2,
+            &request.u.CC_FIND_PARAM.value2,
+            &request.u.CC_FIND_PARAM.str_value2) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &request.u.CC_FIND_PARAM.param2) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( cs2vm2_pop_find_param_value(
+            vm,
+            request.u.CC_FIND_PARAM.type1,
+            &request.u.CC_FIND_PARAM.value1,
+            &request.u.CC_FIND_PARAM.str_value1) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &request.u.CC_FIND_PARAM.param1) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &request.u.CC_FIND_PARAM.layer_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     return vm->vm->host_exec(vm, &request);
 }

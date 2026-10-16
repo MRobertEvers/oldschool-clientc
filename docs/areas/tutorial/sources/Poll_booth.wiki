@@ -1,0 +1,961 @@
+{{external|rs}}
+{{otheruses|the in-game booth|the polls themselves|Polls}}
+{{Infobox Scenery
+|version1 = Blue
+|version2 = Brown
+|version3 = Red
+|version4 = Forest green
+|version5 = Green
+|version6 = Green (green booth)
+|version7 = Light green
+|version8 = Light green (grey booth)
+|version9 = TzHaar
+|version10 = Vampyre
+|version11 = Mount Karuulm
+|name = Poll booth
+|image1 = [[File:Poll booth (blue, closed).png|225x225px]][[File:Poll booth (blue, open).png|225x225px]]
+|image2 = [[File:Poll booth (brown, closed).png|225x225px]][[File:Poll booth (brown, open).png|225x225px]]
+|image3 = [[File:Poll booth (red, closed).png|225x225px]][[File:Poll booth (red, open).png|225x225px]]
+|image4 = [[File:Poll booth (forest green, closed).png|225x225px]][[File:Poll booth (forest green, open).png|225x225px]]
+|image5 = [[File:Poll booth (green, closed).png|225x225px]][[File:Poll booth (green, open).png|225x225px]]
+|image6 = [[File:Poll booth (green, green booth, closed).png|225x225px]][[File:Poll booth (green, green booth, open).png|225x225px]]
+|image7 = [[File:Poll booth (light green, closed).png|225x225px]][[File:Poll booth (light green, open).png|225x225px]]
+|image8 = [[File:Poll booth (light green, grey booth, closed).png|225x225px]][[File:Poll booth (light green, grey booth, open).png|225x225px]]
+|image9 = [[File:Poll booth (TzHaar, closed).png|225x225px]][[File:Poll booth (TzHaar, open).png|225x225px]]
+|image10 = [[File:Poll booth (vampyre, closed).png|225x225px]][[File:Poll booth (vampyre, open).png|225x225px]]
+|image11 = [[File:Poll booth (Mount Karuulm, closed).png|225x225px]][[File:Poll booth (Mount Karuulm, open).png|225x225px]]
+|release1 = [[14 August]] [[2014]]
+|release2 = [[14 August]] [[2014]]
+|release3 = [[14 August]] [[2014]]
+|release4 = [[14 August]] [[2014]]
+|release5 = [[14 August]] [[2014]]
+|release6 = [[14 August]] [[2014]]
+|release7 = [[14 August]] [[2014]]
+|release8 = [[14 August]] [[2014]]
+|release9 = [[14 August]] [[2014]]
+|release10 = [[24 May]] [[2018]]
+|release11 = [[10 January]] [[2019]]
+|update1 = The Penance Pet & Super Combat Potions
+|update2 = The Penance Pet & Super Combat Potions
+|update3 = The Penance Pet & Super Combat Potions
+|update4 = The Penance Pet & Super Combat Potions
+|update5 = The Penance Pet & Super Combat Potions
+|update6 = The Penance Pet & Super Combat Potions
+|update7 = The Penance Pet & Super Combat Potions
+|update8 = The Penance Pet & Super Combat Potions
+|update9 = The Penance Pet & Super Combat Potions
+|update10 = A Taste of Hope
+|update11 = The Kebos Lowlands
+|members1 = No
+|members2 = No
+|members3 = No
+|members4 = No
+|members5 = Yes
+|members6 = Yes
+|members7 = No
+|members8 = Yes
+|members9 = Yes
+|members10 = Yes
+|members11 = Yes
+|quest = No
+|location1 = Various
+|location2 = Various
+|location3 = Various
+|location4 = Various
+|location5 = Various
+|location6 = Various
+|location7 = Various
+|location8 = Various
+|location9 = [[Mor Ul Rek]]
+|location10 = [[Ver Sinhaza]],<br/>[[Darkmeyer]]
+|location11 = [[Mount Karuulm]]
+|options = Use
+|examine = Cast your votes here.
+|map = No
+|id1 = 26492,26796
+|id2 = 26797,26798
+|id3 = 26799,26800
+|id4 = 26801,26802
+|id5 = 26803,26804
+|id6 = 26805,26806
+|id7 = 26807,26808
+|id8 = 26809,26810
+|id9 = 26811,26812
+|id10 = 32546,32547
+|id11 = 33481,33482
+|leagueRegion = Misthalin,Asgarnia,Kandarin,Kourend,Fremennik,Morytania,Karamja,Wilderness,Tirannwn,Varlamore
+}}
+
+[[File:Poll booth icon.png|left]]
+A '''poll booth''' is a piece of interactive scenery found in various locations around [[Gielinor]], usually near [[bank]]s. By interacting with it, you gain access to an interface allowing you to vote in [[polls]].
+
+Each poll will usually run for a duration of one week. To participate, you'll need to be a member with a total skill level of at least 300 and a minimum total play-time of 25 hours in ''[[Old School RuneScape]]''. Each poll can contain multiple questions which detail potential changes or content in-game. A question requires a 70% {{wp|supermajority}} of ''Yes'' votes to pass, excluding ''Skip question ''votes.
+
+While a poll is running the flag on every poll booth will be raised, except for the poll booth on [[Mount Karuulm]] where the eyes of the skull light up instead.
+
+[[File:Poll booth.gif|thumb|left|200px|The Poll booth animation.]]
+{{Clear|left}}
+==Locations==
+{{ObjectTableHead}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Zanaris]]
+|members = Yes
+|mapID = 28
+|plane = 0
+|x:2383,y:4454
+|mtype = pin
+|leagueRegion = Misthalin
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Mort'ton]]
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:3490,y:3296
+|mtype = pin
+|leagueRegion = Morytania
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Canifis]]
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:3514,y:3476
+|mtype = pin
+|leagueRegion = Morytania
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Burgh de Rott]]
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:3500,y:3211
+|mtype = pin
+|leagueRegion = Morytania
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Port Phasmatys]]
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:3693,y:3461
+|mtype = pin
+|leagueRegion = Morytania
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Mage Arena]]
+|members = Yes
+|mapID = -1
+|plane = 0
+|x:2529,y:4715
+|mtype = pin
+|leagueRegion = Wilderness
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Etceteria]]
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:2619,y:3893
+|mtype = pin
+|leagueRegion = Fremennik
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Void Knights' Outpost]]
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:2667,y:2655
+|mtype = pin
+|leagueRegion = Asgarnia
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Dorgesh-Kaan]]
+|members = Yes
+|mapID = 5
+|plane = 0
+|x:2705,y:5354
+|mtype = pin
+|leagueRegion = Misthalin
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Keldagrim]]
+|members = Yes
+|mapID = 10
+|plane = 0
+|x:2834,y:10210
+|mtype = pin
+|leagueRegion = Fremennik
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Shantay Pass]]
+|members = No
+|mapID = 0
+|plane = 0
+|x:3309,y:3123
+|mtype = pin
+|leagueRegion = Desert
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Al Kharid]]
+|members = No
+|mapID = 0
+|plane = 0
+|x:3272,y:3169
+|mtype = pin
+|leagueRegion = Desert
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Emir's Arena]]
+|members = No
+|mapID = 0
+|plane = 0
+|x:3381,y:3272
+|mtype = pin
+|leagueRegion = Desert
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Arceuus]]
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:1633,y:3737
+|mtype = pin
+|leagueRegion = Kourend
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Jatizso]]
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:2415,y:3803
+|mtype = pin
+|leagueRegion = Fremennik
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Mor Ul Rek]], Outer area
+|members = Yes
+|mapID = 23
+|plane = 0
+|x:2448,y:5176
+|mtype = pin
+|leagueRegion = Karamja
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Mor Ul Rek]], Inner area
+|members = Yes
+|mapID = 23
+|plane = 0
+|x:2545,y:5138
+|mtype = pin
+|leagueRegion = Karamja
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Ver Sinhaza]]
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:3646,y:3212
+|mtype = pin
+|leagueRegion = Morytania
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Mount Karuulm]]
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:1326,y:3824
+|mtype = pin
+|leagueRegion = Kourend
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Myths' Guild]]
+|members = Yes
+|mapID = 0
+|plane = 1
+|x:2463,y:2849
+|mtype = pin
+|leagueRegion = Kandarin
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Port Khazard]]
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:2640,y:3171
+|mtype = pin
+|leagueRegion = Kandarin
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Legends' Guild]]
+|members = Yes
+|mapID = 0
+|plane = 1
+|x:2730,y:3374
+|mtype = pin
+|leagueRegion = Kandarin
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Taverley]]
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:2915,y:3448
+|mtype = pin
+|leagueRegion = Asgarnia
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Falador]] West bank
+|members = No
+|mapID = 0
+|plane = 0
+|x:2944,y:3373
+|mtype = pin
+|leagueRegion = Asgarnia
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Falador]] East bank
+|members = No
+|mapID = 0
+|plane = 0
+|x:3019,y:3356
+|mtype = pin
+|leagueRegion = Asgarnia
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Edgeville]]
+|members = No
+|mapID = 0
+|plane = 0
+|x:3092,y:3488
+|mtype = pin
+|leagueRegion = Misthalin
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Lumbridge Castle]]
+|members = No
+|mapID = 0
+|plane = 2
+|x:3209,y:3215
+|mtype = pin
+|leagueRegion = Misthalin
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Fossil Island]]
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:3742,y:3803
+|mtype = pin
+|leagueRegion = Misthalin
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Darkmeyer]]
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:3608,y:3366
+|mtype = pin
+|leagueRegion = Morytania
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Mount Quidamortem]]
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:1260,y:3569
+|mtype = pin
+|leagueRegion = Kourend
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Hosidius]]
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:1749,y:3596
+|mtype = pin
+|leagueRegion = Kourend
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Clan Hall]]
+|members = No
+|mapID = -1
+|plane = 0
+|x:1745,y:5472
+|mtype = pin
+|leagueRegion = Misthalin
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[The Warrens]]
+|members = Yes
+|mapID = -1
+|plane = 0
+|x:1776,y:10149
+|mtype = pin
+|leagueRegion = Kourend
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Port Piscarilius]]
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:1808,y:3785
+|mtype = pin
+|leagueRegion = Kourend
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Lunar Isle]]
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:2104,y:3918
+|mtype = pin
+|leagueRegion = Fremennik
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Isle of Souls]]
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:2216,y:2858
+|mtype = pin
+|leagueRegion = Misthalin
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Lletya]]
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:2354,y:3162
+|mtype = pin
+|leagueRegion = Tirannwn
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Piscatoris Fishing Colony]]
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:2329,y:3693
+|mtype = pin
+|leagueRegion = Kandarin
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Barbarian Outpost]]
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:2538,y:3561
+|mtype = pin
+|leagueRegion = Kandarin
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Miscellania]]
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:2508,y:3856
+|mtype = pin
+|leagueRegion = Fremennik
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Corsair Cove]]
+|members = No
+|mapID = 0
+|plane = 0
+|x:2571,y:2863
+|mtype = pin
+|leagueRegion = Kandarin
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Rellekka]]
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:2655,y:3676
+|mtype = pin
+|leagueRegion = Fremennik
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Seers' Village]]
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:2721,y:3492
+|mtype = pin
+|leagueRegion = Kandarin
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Sophanem]] bank
+|members = Yes
+|mapID = 10142
+|plane = 0
+|x:2804,y:5172
+|mtype = pin
+|leagueRegion = Desert
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Shilo Village (location)|Shilo Village]]
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:2845,y:2952
+|mtype = pin
+|leagueRegion = Karamja
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Musa Point]]
+|members = No
+|mapID = 0
+|plane = 0
+|x:2901,y:3151
+|mtype = pin
+|leagueRegion = Karamja
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Mining Guild]]
+|members = Yes
+|mapID = 6
+|plane = 0
+|x:3014,y:9716
+|mtype = pin
+|leagueRegion = Asgarnia
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Draynor Village]]
+|members = No
+|mapID = 0
+|plane = 0
+|x:3096,y:3244
+|mtype = pin
+|leagueRegion = Misthalin
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Ferox Enclave]]
+|members = No
+|mapID = 0
+|plane = 0
+|x:3131,y:3626
+|mtype = pin
+|leagueRegion = Wilderness
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Ruins of Unkah]]
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:3159,y:2836
+|mtype = pin
+|leagueRegion = Desert
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Bandit Camp (Kharidian Desert)]]
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:3174,y:2988
+|mtype = pin
+|leagueRegion = Desert
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Varrock]] West bank
+|members = No
+|mapID = 0
+|plane = 0
+|x:3180,y:3438
+|mtype = pin
+|leagueRegion = Misthalin
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Nardah]]
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:3429,y:2889
+|mtype = pin
+|leagueRegion = Desert
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Mos Le'Harmless]]
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:3677,y:2987
+|mtype = pin
+|leagueRegion = Morytania
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Shayzien]]
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:1484,y:3645|x:1487,y:3595
+|mtype = pin
+|leagueRegion = Kourend
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Lovakengj]]
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:1519,y:3737
+|mtype = pin
+|leagueRegion = Kourend
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Castle Wars]]
+|members = No
+|mapID = 0
+|plane = 0
+|x:2441,y:3082
+|mtype = pin
+|leagueRegion = Kandarin
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Ardougne]] North bank
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:2613,y:3335
+|mtype = pin
+|leagueRegion = Kandarin
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Brimhaven]]
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:2812,y:3166
+|mtype = pin
+|leagueRegion = Karamja
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Port Sarim]]
+|members = No
+|mapID = 0
+|plane = 0
+|x:3016,y:3236
+|mtype = pin
+|leagueRegion = Asgarnia
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Rogues' Den]]
+|members = Yes
+|mapID = 10137
+|plane = 0
+|x:3039,y:4967
+|mtype = pin
+|leagueRegion = Asgarnia
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Pollnivneach]]
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:3368,y:2973
+|mtype = pin
+|leagueRegion = Desert
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Farming Guild]]
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:1252,y:3739
+|mtype = pin
+|leagueRegion = Kourend
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Land's End]]
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:1508,y:3423
+|mtype = pin
+|leagueRegion = Kourend
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Woodcutting Guild]]
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:1593,y:3479
+|mtype = pin
+|leagueRegion = Kourend
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Neitiznot]]
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:2338,y:3805
+|mtype = pin
+|leagueRegion = Fremennik
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Tree Gnome Stronghold]] South bank
+|members = Yes
+|mapID = 0
+|plane = 1
+|x:2444,y:3432
+|mtype = pin
+|leagueRegion = Kandarin
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Tree Gnome Stronghold]] [[Grand Tree]] bank
+|members = Yes
+|mapID = 0
+|plane = 1
+|x:2448,y:3488
+|mtype = pin
+|leagueRegion = Kandarin
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Tree Gnome Village (location)|Tree Gnome Village]]
+|members = Yes
+|mapID = 0
+|plane = 1
+|x:2528,y:3162
+|mtype = pin
+|leagueRegion = Kandarin
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Yanille]]
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:2609,y:3096
+|mtype = pin
+|leagueRegion = Kandarin
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Fishing Guild]]
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:2590,y:3409
+|mtype = pin
+|leagueRegion = Kandarin
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Ardougne]] South bank
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:2647,y:3279
+|mtype = pin
+|leagueRegion = Kandarin
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Catherby]]
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:2812,y:3439
+|mtype = pin
+|leagueRegion = Kandarin
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Entrana]]
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:2820,y:3351
+|mtype = pin
+|leagueRegion = Asgarnia
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Crafting Guild]]
+|members = No
+|mapID = 0
+|plane = 0
+|x:2929,y:3275
+|mtype = pin
+|leagueRegion = Asgarnia
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Rimmington]]
+|members = No
+|mapID = 0
+|plane = 0
+|x:2950,y:3215
+|mtype = pin
+|leagueRegion = Asgarnia
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Tutorial Island]]
+|members = No
+|mapID = 0
+|plane = 0
+|x:3119,y:3121
+|mtype = pin
+|leagueRegion = Misthalin
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Grand Exchange]]
+|members = No
+|mapID = 0
+|plane = 0
+|x:3161,y:3499
+|mtype = pin
+|leagueRegion = Misthalin
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Varrock]] East bank
+|members = No
+|mapID = 0
+|plane = 0
+|x:3251,y:3423
+|mtype = pin
+|leagueRegion = Misthalin
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Prifddinas]]
+|members = Yes
+|mapID = 29
+|plane = 0
+|x:3294,y:6058
+|mtype = pin
+|leagueRegion = Tirannwn
+}}
+{{ObjectLocLine
+|name = Poll booth
+|location = [[Daimon's Crater]]
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:3417,y:4062
+|mtype = pin
+|leagueRegion = Wilderness
+}}
+{{ObjectTableBottom}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 30 April 2020
+|update = Poll 70 and Bounty Hunter Changes
+|change = The poll booth inside the [[Warriors' Guild|Warrior's Guild]]{{sic}} has been removed.
+}}
+{{Subject changes
+|date = 23 April 2020
+|update = Bounty Hunter Returns
+|change = The poll booth in Prifddinas bank has been removed because it was causing an obstruction.
+}}
+{{Subject changes
+|date = 26 March 2020
+|update = Game Improvements (26 March 2020)
+|poll =
+|change = The poll booth within the [[Motherlode Mine]] has been removed.
+}}
+{{Subject changes
+|date = 30 May 2019
+|update = Poll 67 Updates and Hosidius Improvements
+|change = The poll booth has been moved slightly further from the deposit box in the Motherlode Mine bank area.
+}}
+{{Subject changes
+|date = 9 August 2018
+|update = Looting Bag Improvements, PID Changes and Bounty Hunter Targets
+|change = The poll booth located outside the front of the volcanic mine has been removed as players would be hit with volcanic debris while trying to vote in polls. There are already other poll booths available on the Island.
+}}
+{{Subject changes
+|date = 16 July 2015
+|update = Duel Arena Rework
+|change = The poll booth history display has been rewritten to accommodate more polls without crashing. This feature will be made accessible once further testing has taken place on the live game worlds.
+}}
+{{Subject changes
+|date = 10 December 2014
+|update = The Trading Post
+|change = The poll booths in Seers Village and in Ardougne south bank have been returned.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*In 2014, an inaccessible poll booth could be seen near the pen north of the [[Tree Gnome Stronghold]]. If players were somehow able to access it, a message appeared saying ''"It's just here for testing. Please leave it alone."''
+*While the majority of poll booths will let the player open the voting interface without any prerequisites, there are some that will not:
+**The poll booth in the Bandit Camp forbids the player from voting if they are wearing any items affiliated with [[Zamorak]] or [[Saradomin]], giving the message ''"The bandits don't like your attire, and will not take kindly to you using their poll booth."''
+**The poll booth in Darkmeyer forbids the player from voting if they are not wearing [[vyre noble clothing]]; the nearby banker will shout ''"Human! Get back to the slave pens before I call the guards!"''
+***This poll booth is usable regardless of attire after completion of [[The Blood Moon Rises]].
+**The poll booth in [[Rellekka]] forbids the player from voting is they have not completed [[The Fremennik Trials]] and became a [[Fremennik]].
+* The poll booth in Kourend Castle is the only poll booth that does not raise its flag when there is an active poll running.
+
+[[Category:Polls]]

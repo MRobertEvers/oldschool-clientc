@@ -1,0 +1,58 @@
+{{External|rs|rsc=Community_instructor}}
+{{redirect|Brace|the wearable [[jewellery]]|Bracelet}}
+{{Infobox NPC
+|version1 = Normal
+|version2 = 2020 Tutorial
+|name = Brother Brace
+|image = [[File:Brother Brace.png|250x250px]]
+|release1 = [[29 March]] [[2004]]
+|release2 = [[14 May]] [[2020]]
+|update1 = RS2 Launched!
+|update2 = Bounty Hunter Feedback Changes
+|members = No
+|race = [[Human]]
+|location = [[Tutorial Island]]
+|gender = Male
+|options = Talk-to
+|examine = A holy man.
+|map1 = {{Map|name=Brother Brace|x=3125|y=3106|plane=0|r=4|mtype=square}}
+|map2 = {{Map|name=Brother Brace|x=1717|y=6114|plane=0|r=4|mapID=-1|mtype=square}}
+|id1 = 3319
+|id2 = 9485
+|leagueRegion = Misthalin
+}}
+[[File:Brother Brace chathead.png|left]]
+'''Brother Brace''' is a [[Saradomin]]ist [[monk]] on [[Tutorial Island]] who teaches players how to use [[Prayer]]. Players can find him in the chapel on Tutorial Island.
+
+==Dialogue==
+{{Hastranscript|speaksin}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|daterange = 1 – 21 June 2004
+|change = The NPC now always appears above players standing in the same tile.
+}}
+{{Subject changes
+|date = 29 March 2004
+|update = RS2 Launched!
+|change = The NPC was permanently added with the launch of ''RuneScape 2''.
+}}
+{{Subject changes
+|date = 25 March 2004
+|update = RS2 - Duelling and Extras
+|change = The NPC was added to the ''RuneScape 2'' Beta.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*He seems to wear a golden [[holy symbol]].
+*Brother Brace is named after Simon Brace, a former [[Jagex Moderator]] also known to players as "modsimon".{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1448349242154799105|date=13 October 2021|archiveurl=https://reldo.runescape.wiki/i/96683|archivedate=27 June 2023|quote=(...) For what it's worth, Brother Brace was named after a former member of staff, if you're collecting trivia about those NPCs' names.}}
+
+==References==
+{{Reflist}}
+
+{{Tutorial Island}}
+{{Tutors}}
+[[Category:Saradominists]]
+[[Category:Jagex staff references]]

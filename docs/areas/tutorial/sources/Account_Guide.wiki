@@ -1,0 +1,38 @@
+{{Infobox NPC
+|name = Account Guide
+|image = [[File:Account Guide.png|120px]]
+|release = [[18 October]] [[2018]]
+|update = Mobile Changes, Various Bugfixes and new Merch!
+|members = No
+|race = [[Human]]
+|location = [[Tutorial Island]]
+|gender = Male
+|options = Talk-to
+|examine = A professional when it comes to accounts.
+|map = {{Map|name=Account Guide|x=3128|y=3125|plane=0|squareX=7|squareY=5|mtype=square}}
+|id = 3310
+|leagueRegion = Misthalin
+}}
+[[File:Account Guide chathead.png|left]]
+The '''Account Guide''' is a man found in the [[Tutorial Island]]'s [[bank]] who teaches players about their [[account]].
+
+He will provide information about [[world]]s, [[members]]hip, [[bond]]s and the various options within the [[Account Management]] [[interface]].
+
+==Dialogue==
+{{Hastranscript|speaksin}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 27 March 2024
+|update = Easter & Varlamore Updates
+|poll = 
+|change = The Account Guide will no longer advise players with a [[Jagex Account]] to link emails to it, as it is no longer necessary.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*The Account Guide replaced the [[Financial Advisor]] on release, as his predecessor was deemed not as useful. They share the same appearance.
+
+{{Tutorial Island}}
+{{Tutors}}

@@ -5899,15 +5899,25 @@ exec_cc_find_relative(
     return CS2VM2_PushInt(vm, 1);
 }
 
+/*
+ * IF_QUERY / CC_QUERY (211 / 212): fill the children iterator. Neither moves
+ * the active or dot component -- rev-239 Statics 211 and 212 only call
+ * method7242 and push the count; 213 is the one that targets (method2627).
+ *
+ * This used to make IF_QUERY's parent the active component. The cache's
+ * ui_highlight scripts call `torirs_if_unused_ids(layer)` (an if_query on the
+ * highlight layer) between creating a box and creating its outline with
+ * cc_create_child, so the outline was built under the LAYER instead of under
+ * the box: deleting the box left its outline drawn, and Tutorial Island's
+ * flashing-tab outline stayed on every tab it had ever pointed at.
+ */
 static int
 exec_children_find(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* vm,
     struct CS2VM_HostRequest const* exact_request,
     int parent_id,
-    int start_index,
-    int set_target_dot,
-    int dot_operand)
+    int start_index)
 {
     struct UITree* tree = rs_cs2_tree(host);
     int yield_res;
@@ -5922,9 +5932,6 @@ exec_children_find(
     {
         vm->children_iter_count = UITree_CollectDynamicChildIndices(
             tree, parent_id, start_index, vm->children_iter_indices, CS2VM2_CHILDREN_ITER_MAX);
-
-        if( set_target_dot && UITree_FindByComponentId(tree, parent_id) >= 0 )
-            rs_cs2_set_cc_target(vm, dot_operand, parent_id);
     }
     return CS2VM_EXECNO_OK;
 }
@@ -6006,6 +6013,113 @@ exec_if_query_refine(
     }
     vm->children_iter_count = kept;
     return CS2VM2_PushInt(vm, kept);
+}
+
+/*
+ * Does `component_id`'s `param_id` equal the script's value? The component's
+ * value is its own entry, else the ParamType default -- the same reading
+ * IF_QUERY_REFINE makes (class332.method7945) -- and the comparison is the
+ * client's `.equals`: an int never equals a string, and a null value (type -1)
+ * equals nothing, because the client calls equals ON the component's value.
+ */
+static bool
+rs_cs2_component_param_equals(
+    struct UITree const* tree,
+    struct ToriRS_ParamType const* param,
+    int component_id,
+    int param_id,
+    int value_type,
+    int value,
+    char const* str_value)
+{
+    assert(tree);
+    char const* component_str = UITree_ComponentParamGetStr(tree, component_id, param_id);
+    int component_int = 0;
+    bool component_is_int = false;
+    if( !component_str )
+    {
+        if( UITree_ComponentParamGet(tree, component_id, param_id, &component_int) )
+            component_is_int = true;
+        else if( param && param->is_string )
+            component_str = param->default_string;
+        else if( param )
+        {
+            component_int = param->default_int;
+            component_is_int = true;
+        }
+    }
+    if( value_type == 0 )
+        return component_is_int && component_int == value;
+    if( value_type == 2 )
+        return component_str && str_value && strcmp(component_str, str_value) == 0;
+    return false;
+}
+
+/*
+ * CC_FIND_PARAM (210): rev-239 Statics.java opcode 210. Walk the layer's
+ * dynamic children in sub-id order (the client's `field4180` array) and target
+ * the first whose param1 equals value1 and param2 equals value2; a param id
+ * below 0 is not compared. A miss pushes 0 and leaves the target alone
+ * (method2627). An absent layer is a miss, as method7196 returning null is.
+ *
+ * Both ParamTypes are loaded BEFORE the walk, in one yield: the default is
+ * part of the answer for a child with no entry of its own.
+ */
+static int
+exec_cc_find_param(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* vm,
+    struct CS2VM_HostRequest const* exact_request)
+{
+    int const layer_id = exact_request->u.CC_FIND_PARAM.layer_id;
+    int const param1 = exact_request->u.CC_FIND_PARAM.param1;
+    int const param2 = exact_request->u.CC_FIND_PARAM.param2;
+    struct CacheProvider* provider = rs_cs2_provider(host);
+    struct ToriRS_ParamType* type1 =
+        provider && param1 >= 0 ? CacheProvider_ParamGet(provider, param1) : NULL;
+    struct ToriRS_ParamType* type2 =
+        provider && param2 >= 0 ? CacheProvider_ParamGet(provider, param2) : NULL;
+    if( ((param1 >= 0 && !type1) || (param2 >= 0 && !type2)) &&
+        !rs_cs2_await_spent(vm, exact_request->kind, param1, param2) )
+        return rs_cs2_yield_load(host, vm, exact_request, param1, param2);
+    /* Still missing after the load: that param's default is null. */
+
+    struct UITree* tree = rs_cs2_tree(host);
+    int32_t const layer_idx = tree && layer_id >= 0 ? UITree_FindByComponentId(tree, layer_id) : -1;
+    if( layer_idx < 0 )
+        return CS2VM2_PushInt(vm, 0);
+
+    int best_sub = -1;
+    int found_id = -1;
+    for( int32_t child = tree->components[layer_idx].first_child; child >= 0;
+         child = tree->components[child].next_sibling )
+    {
+        struct UITreeComponent const* c = &tree->components[child];
+        if( !c->dynamic )
+            continue;
+        if( best_sub >= 0 && c->dynamic_child_index >= best_sub )
+            continue;
+        if( param1 >= 0 &&
+            !rs_cs2_component_param_equals(
+                tree, type1, c->component_id, param1,
+                exact_request->u.CC_FIND_PARAM.type1,
+                exact_request->u.CC_FIND_PARAM.value1,
+                exact_request->u.CC_FIND_PARAM.str_value1) )
+            continue;
+        if( param2 >= 0 &&
+            !rs_cs2_component_param_equals(
+                tree, type2, c->component_id, param2,
+                exact_request->u.CC_FIND_PARAM.type2,
+                exact_request->u.CC_FIND_PARAM.value2,
+                exact_request->u.CC_FIND_PARAM.str_value2) )
+            continue;
+        best_sub = c->dynamic_child_index;
+        found_id = c->component_id;
+    }
+    if( found_id < 0 )
+        return CS2VM2_PushInt(vm, 0);
+    rs_cs2_set_cc_target(vm, exact_request->u.CC_FIND_PARAM.dot_operand, found_id);
+    return CS2VM2_PushInt(vm, 1);
 }
 
 static int
@@ -10259,7 +10373,7 @@ rs_cs2_host_exec_dispatch(
         return exec_subject_find(host, vm, request->u.opname.opcode, request->u.opname.coord, request->u.opname.loc_type)
 #define RS_CS2_IF_CHILDREN_CASE(opname) \
     case CS2VM_HOST_REQUEST_##opname: \
-        return exec_children_find(host, vm, request, request->u.opname.uid, request->u.opname.start_index, 1, request->u.opname.dot_operand)
+        return exec_children_find(host, vm, request, request->u.opname.uid, request->u.opname.start_index)
 #define RS_CS2_SET_COMPONENT_PARAM_CASE(opname) \
     case CS2VM_HOST_REQUEST_##opname: \
         return exec_widget_set_component_param(host, request->u.opname.component_id, request->u.opname.param_id, request->u.opname.value, request->u.opname.str_value)
@@ -10580,9 +10694,7 @@ rs_cs2_host_exec_dispatch(
             vm,
             request,
             request->u.CC_QUERY.parent_id,
-            request->u.CC_QUERY.start_index,
-            0,
-            0);
+            request->u.CC_QUERY.start_index);
 
         RS_CS2_CC_FIND_CASE(IF_QUERY_NEXT);
     /* The friends-chat and clan commands (rs_cs2_social_ops.c). */
@@ -10777,6 +10889,9 @@ rs_cs2_host_exec_dispatch(
 
     case CS2VM_HOST_REQUEST_IF_QUERY_REFINE:
         return exec_if_query_refine(host, vm, request);
+
+    case CS2VM_HOST_REQUEST_CC_FIND_PARAM:
+        return exec_cc_find_param(host, vm, request);
 
         RS_CS2_SET_POSITION_CASE(CC_SETPOSITION);
 

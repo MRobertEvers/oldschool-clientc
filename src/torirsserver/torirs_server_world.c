@@ -12665,6 +12665,9 @@ handle_if_button_op(
     sub = (int16_t)rsab_g2(&button);
     if( !rsab_ok(&button) )
         return;
+    /* A click on the live gameframe's own component (a side stone on the Fixed
+     * frame) reaches triggers on content's one spelling of it. */
+    uid = ToriRSServer_CanonicalGameframeUid(srv->active_player, uid);
     if( srv->verbose )
         fprintf(stderr, "torirsserver: <- IF_BUTTON%d %d:%d sub=%d\n", op_num, uid >> 16,
                 uid & 0xffff, sub);

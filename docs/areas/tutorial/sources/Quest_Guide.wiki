@@ -1,0 +1,54 @@
+{{External|rs=Quest guide|rsc=Quest advisor}}
+{{otheruses|the Tutorial Island NPC Quest Guide|the quest guide recommending the most efficient questing order|optimal quest guide}}
+{{Infobox NPC
+|version1 = Normal
+|version2 = 2020 Tutorial
+|name = Quest Guide
+|image = [[File:Quest Guide.png|250x250px]]
+|release1 = [[29 March]] [[2004]]
+|release2 = [[14 May]] [[2020]]
+|update1 = RS2 Launched!
+|update2 = Bounty Hunter Feedback Changes
+|members = No
+|race = [[Human]]
+|location = [[Tutorial Island]]
+|gender = Male
+|options = Talk-to
+|examine = Your introduction to the world of Gielinor.
+|map1 = {{Map|name=Quest Guide|x=3086|y=3122|r=2|mtype=square}}
+|map2 = {{Map|name=Quest Guide|x=1677|y=6130|r=2|mapID=-1|mtype=square}}
+|id1 = 3312
+|id2 = 9480
+|leagueRegion = Misthalin
+}}
+[[File:Quest Guide chathead.png|left]]
+The '''Quest Guide''' is the fourth [[non-player character]] whom players meet in ''[[Old School RuneScape]]''. He gives players information about [[quests]] and the [[Quest list|quest journal]]. He also explains the differences between [[free]] quests and [[members]] quests. He is only found on [[Tutorial Island]], and can never be encountered again. During his lecture, he makes references to the quests [[Imp Catcher]] and [[Dragon Slayer I]].
+
+==Dialogue==
+{{Hastranscript|speaksin}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 11 October 2018
+|update = Spellbook Rework, Wise Old Man and, Increased Zoom
+|change = The examine was changed to refer to the game's world, [[Gielinor]], rather than RuneScape.
+}}
+{{Subject changes
+|daterange = 1 – 21 June 2004
+|change = The NPC now always appears above players standing in the same tile.
+}}
+{{Subject changes
+|date = 29 March 2004
+|update = RS2 Launched!
+|change = The NPC was permanently added with the launch of ''RuneScape 2''.
+}}
+{{Subject changes
+|date = 25 March 2004
+|update = RS2 - Duelling and Extras
+|change = The NPC was added to the ''RuneScape 2'' Beta.
+}}
+{{Subject changes footer}}
+
+{{Tutorial Island}}
+{{Tutors}}

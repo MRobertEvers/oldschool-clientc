@@ -1,22 +1,22 @@
--- Tutorial Island, played end to end by a character on its first login.
--- Content: server/scripts/tutorial/ (tutorial.rs2 is the spine and the step
--- table; guides/*.rs2 the nine instructors; tutorial_doors.rs2 every door,
--- gate and ladder; tutorial_hooks.rs2 the seams the ordinary skills call).
+-- Tutorial Island -- the quest Learning the Ropes, as the October 2025
+-- tutorial plays it -- end to end by a character on its first login.
 --
--- Start: fresh_tutorial.ini, a save with no varps standing on the tutorial
--- home tile (3094,3106, the RuneScape Guide's house). The login runs
--- ~newplayer_setup, which sees the island and starts %varp281_tutorial at 0,
--- then opens the design panel; closing it asks "How familiar are you with Old
--- School RuneScape?" (interface 929). The account answers "brand new" and
--- plays every step of varp 281's ladder, 0 -> 670, then casts Home Teleport,
--- which is the graduation (~tutorial_home_teleport): Lumbridge, varp 281 =
--- 1000, and the eighteen-obj graduation kit and nothing else.
+-- Graded against the OSRS Wiki, not the content: every npc line, choice and
+-- box text checked below is a fragment of Transcript:Learning_the_Ropes
+-- (pinned in docs/areas/tutorial/sources/), and the step order is the wiki's.
+-- The step NUMBERS are this port's (no table of the real varp 281 values is
+-- published), held to the three the rev-239 cache fixes: the run orb flashes
+-- at 200, the equipment-stats button at 400, and the quest's endstate is 671.
+-- Content: server/scripts/tutorial/.
 --
--- Nothing is cheated: every item comes from the instructor or skill that
--- hands it over, every door is clicked, every ladder climbed. Sidebar tabs
--- are handed over and flashed, never waited on (tutorial.rs2 section 2: rev
--- 239 cannot report a tab click), so a tab step is graded on the panel being
--- mounted and %varb3756_flashside naming it.
+-- Start: fresh_tutorial.ini, a save with no varps standing in the Gielinor
+-- Guide's house. The design panel, then "How familiar are you with Old School
+-- RuneScape?" -- answered "I'm brand new!" -- then every instructor in turn.
+-- Every side tab is opened by clicking its flashing stone (the client sends
+-- IF_BUTTON1 on it); every item comes from the instructor or skill that
+-- hands it over; every door is clicked and every ladder climbed. Wind Strike
+-- on a chicken completes the quest; Home Teleport leaves the island with the
+-- wiki's reward kit.
 --
 -- Spawns: areas/world/configs/m48_48.spawn, m48_148.spawn, m49_48.spawn.
 return {
@@ -28,23 +28,23 @@ return {
         local VARP = "varp281_tutorial"
         local FLASH = "varb3756_flashside"
         local S = {
-            start = 0, designed_character = 1, interact_with_scenery = 4, interacted_with_door = 10,
-            cut_tree = 30, build_fire = 40, opened_skill_menu = 60, fish_shrimps = 70,
-            cook_shrimps = 80, burnt_shrimps = 90, survival_complete = 120,
-            opened_gate_to_chef = 130, cook_start = 140, make_dough = 150, mixed_dough = 160,
-            opened_music_tab = 180, cook_completed = 190, toggled_on_run = 200,
-            quest_start = 220, quest_opened_menu = 240, quest_finished = 250,
-            mining_start = 260, begin_prospecting = 270, prospected_tin_first = 275,
-            prospected_copper_second = 280, mining_mining_start = 290, mined_tin_first = 295,
-            before_smelt = 320, after_smelt = 330, smith_a_dagger = 340, mining_finished = 350,
-            combat_start = 360, worn_inventory = 380, dagger_equipped = 390,
-            unequipping_items = 400, opened_combat_interface = 420, before_attacking_melee = 430,
-            after_rat_kill_melee = 450, before_attacking_ranged = 460, after_attacking_ranged = 470,
-            open_banking = 500, opened_bank = 510, account_door = 520, account_talked_to = 530,
-            exit_account_room = 540, opened_prayer_tab = 560, after_prayer_tab = 570,
-            after_friends_tab = 590, brace_finish = 600, exit_chapel = 610,
-            opened_magic_tab = 630, cast_wind_strike = 640, unsuccessful_wind_strike = 650,
-            successful_wind_strike = 660, magic_finished = 670, complete = 1000,
+            designed_character = 1, talk_to_guide = 2, open_settings = 3, opened_settings = 7,
+            guide_door = 10,
+            talk_to_survival = 20, open_inventory = 30, fish_shrimp = 40, open_skills = 50,
+            opened_skills = 60, cut_tree = 70, light_fire = 80, cook_shrimp = 90, survival_gate = 120,
+            chef_door = 130, talk_to_chef = 140, make_dough = 150, bake_bread = 160, chef_exit = 170,
+            run_hint = 200, run_toggled = 210,
+            talk_to_quest_guide = 220, open_quest_list = 230, opened_quest_list = 240, quest_ladder = 250,
+            talk_to_miner = 260, mine_first = 270, mine_second = 280, smelt = 290, bar_made = 300,
+            smith_dagger = 310, mining_gate = 350,
+            talk_to_vannaka = 360, open_worn = 370, open_equipment_stats = 400, equip_dagger = 405,
+            dagger_equipped = 410, equip_sword_shield = 420, open_combat = 430, enter_pen = 440,
+            attack_rat = 450, melee_rat_killed = 460, range_rat = 470, ranged_rat_killed = 480,
+            open_bank = 500, use_poll_booth = 510, account_door = 520, talk_to_account_guide = 525,
+            open_account = 530, opened_account = 535, account_exit = 540,
+            talk_to_brace = 550, open_prayer = 560, opened_prayer = 570, chapel_exit = 600,
+            talk_to_terrova = 610, open_magic = 620, opened_magic = 630, cast_wind_strike = 640,
+            quest_complete = 671, complete = 1000,
         }
 
         local function stage(name, ticks)
@@ -68,10 +68,14 @@ return {
                 and tl.level == level, "at " .. tile_str() .. ", want " .. x .. "," .. z .. "," .. level
                 .. (slack > 0 and (" +-" .. slack) or ""))
         end
-        -- A tab handed over: its panel mounted, and the stone flashing it.
-        local function tab_given(name, panel, tab_number)
-            t.exec(name .. ".panel", t.ui.await_open, panel, 5)
+        -- A tab the instructor points at: its stone is flashing
+        -- (%varb3756_flashside is the tab number plus one), and the player
+        -- clicks it -- the stone's IF_BUTTON1 is what moves the step on.
+        local function open_tab(name, tab, tab_number, next_stage)
             t.exec(name .. ".flash", t.var.await, FLASH, tab_number + 1, 5)
+            t.check(name, t.ui.tab(tab), "ui.tab(" .. tab .. ")")
+            stage(next_stage, 5)
+            t.exec(name .. ".unflash", t.var.await, FLASH, 0, 5)
         end
         local function talk(name, npc, lines, opts)
             t.exec(name, t.player.talk_to, npc, 1, opts)
@@ -90,7 +94,11 @@ return {
         end
         -- A fire is lit some ticks after "You attempt to light the logs.":
         -- ~light_logs_inv re-tries every 4 ticks (p_opobj(4)) at about one in
-        -- four for a level-1 player, so a long run of misses is ordinary.
+        -- four for a level-1 player (stat_random 64..512 -> 65/256). Seed tutA
+        -- misses 31 times in a row (127 ticks); the stream was checked and is
+        -- sound (25.4% over 2e8 draws, long runs at the geometric rate, no
+        -- stride bias), so that is a real 1-in-several-thousand streak, and the
+        -- wait is 400.
         local function fire_lit(name)
             local where = "none"
             t.exec(name, t.await, {
@@ -102,7 +110,7 @@ return {
                     return r == "ok"
                 end,
                 note = "a fire beside the player",
-            }, 100)
+            }, 400)
             t.note("fire at " .. where)
         end
         -- Kill one giant rat (3 hitpoints: about 25 ticks). A press can be
@@ -116,8 +124,15 @@ return {
         -- (~tut_rat_credit_kill).
         local function kill_rat(name, stage_name, home)
             local refused = {}
-            for attempt = 1, 4 do
-                if home and attempt > 1 then
+            local last_pick = nil
+            for attempt = 1, 6 do
+                if type(home) == "function" and attempt > 1 then
+                    -- `home` answers true when it had to bring the player
+                    -- back: a stall from out there says nothing about the rat.
+                    if home(attempt) and last_pick ~= nil then
+                        refused[last_pick] = nil
+                    end
+                elseif home and attempt > 1 then
                     t.player.walk_to(home[1], home[2], 10)
                 end
                 local n = name .. (attempt > 1 and attempt or "")
@@ -129,20 +144,21 @@ return {
                         pick = row.slot
                     end
                 end
+                last_pick = pick
                 local ar, ad = t.player.attack("newbiegiantrat", 2, nil, { slot = pick })
-                if ar == "refused" and attempt < 4 then
+                if ar == "refused" and attempt < 6 then
                     -- A rat behind the pen's fence: a player clicks another.
-                    t.note(n .. " refused, next rat: " .. tostring(ad))
+                    t.note(n .. " refused from " .. tile_str() .. ", next rat: " .. tostring(ad))
                 else
                     t.check(n, ar, tostring(ad))
                 end
                 if ar == "ok" then
                     local kr, kd = t.npc.await_dead_engaged(100)
-                    if kr == "ok" or attempt == 4 then
+                    if kr == "ok" or attempt == 6 then
                         t.check(n .. ".kill", kr, tostring(kd))
                         break
                     end
-                    t.note(n .. " stalled, next rat: " .. tostring(kd))
+                    t.note(n .. " stalled at " .. tile_str() .. ", next rat: " .. tostring(kd))
                     if pick ~= nil then
                         refused[pick] = true
                     end
@@ -153,10 +169,9 @@ return {
             end
             stage(stage_name, 5)
         end
-        -- One Wind Strike on a chicken. The pen's fence hides some copies
-        -- ("I can't reach that!"), so a refused cast moves on to the next
-        -- copy. The first cast is forced to splash and the second to land
-        -- (~tutorial_chicken_spell_lands): each one is its own step.
+        -- One Wind Strike on a chicken, hit or splash: either completes the
+        -- quest. The pen's fence hides some copies ("I can't reach that!"),
+        -- so a refused cast moves on to the next copy.
         local function cast_chicken(name, stage_name)
             -- From the bay south of the railing (blockrange=0): the pen's
             -- diagonal corners hide it from the instructor's own tile, and a
@@ -206,7 +221,7 @@ return {
         end
 
         ---------------------------------------------------------------
-        -- The RuneScape Guide's house
+        -- The Gielinor Guide's house
         ---------------------------------------------------------------
         on_tile("login.tile", 3094, 3106, 0)
         stage("designed_character")
@@ -214,28 +229,28 @@ return {
         local cr, confirm = t.ui.widget("player_design:confirm")
         t.check("design.confirm", t.ui.invoke(confirm, 1), "player_design:confirm " .. tostring(cr))
         closed_check("design.closed", "player_design")
-        stage("start")
         t.exec("experience.open", t.ui.await_open, "tutorial_player_experience", 5)
         local er, brand_new = t.ui.widget("tutorial_player_experience:button_new")
         t.check("experience.new", t.ui.invoke(brand_new, 1), "button_new " .. tostring(er))
         closed_check("experience.closed", "tutorial_player_experience")
-        -- %varp7137_tutorial_experience is transmit=no, so no client (and no
-        -- scriptrun bot) can read the answer back; what it visibly does is
-        -- the grade: "brand new" keeps the tutorial at step 0 with its hint
-        -- box up, where "experienced" would have been the skip.
-        t.ticks(2)
-        stage("start")
+        stage("talk_to_guide")
         t.exec("overlay", t.ui.await_open, "tutorial_overlay", 5)
 
         talk("talkToGuide", "newbie_basics_instructor", {
-            "npc:I see you are a new arrival to this land",
-            "npc:Talking to other people!",
-            "npc:By clicking on them with your mouse",
-            "npc:go through that door over there",
+            "npc:I see you are a new arrival to the world of Gielinor",
+            "npc:talking to other people!",
+            "npc:By clicking on them you can talk to them",
+            "npc:let's start by looking at your settings menu",
         })
-        stage("interact_with_scenery")
+        stage("open_settings")
+        open_tab("settingsTab", "settings", 11, "opened_settings")
+        talk("talkToGuide2", "newbie_basics_instructor", {
+            "npc:Looks like you're making good progress!",
+            "npc:time for you to go and meet your first instructor!",
+        })
+        stage("guide_door")
         door("openGuideDoor", "newbie_door1", { 3098, 3107 }, { 3097, 3107 }, { 3098, 3107 })
-        stage("interacted_with_door")
+        stage("talk_to_survival")
 
         ---------------------------------------------------------------
         -- The Survival Expert
@@ -243,129 +258,107 @@ return {
         t.exec("walk-survival", t.player.walk_to, 3102, 3096, 40)
         talk("talkToSurvival", "newbie_survival_instructor", {
             "npc:My name is Brynna",
-            "npc:making a fire",
+            "npc:The first skill we're going to look at is Fishing",
             "*",
         })
-        tab_given("inventoryTab", "inventory", 3)
+        stage("open_inventory")
+        t.exec("talkToSurvival.net", t.inv.await, "net", 1, 5)
+        open_tab("inventoryTab", "inventory", 3, "fish_shrimp")
+        snapshot()
+        t.exec("catchShrimp", t.player.talk_to, "0_48_48_newbiefishing", 1)
+        t.exec("catchShrimp.shrimp", t.inv.await, "raw_shrimp", 1, 20)
+        t.exec("catchShrimp.box", t.chat.play, { "*" })
+        gain("catchShrimp.xp", "fishing", 10)
+        stage("open_skills")
+        open_tab("skillsTab", "skills", 1, "opened_skills")
+        talk("talkToSurvival2", "newbie_survival_instructor", {
+            "player:I've managed to catch some shrimp.",
+            "npc:This brings us on to the Woodcutting and Firemaking skills",
+            "*",
+        })
         stage("cut_tree")
-        t.exec("talkToSurvival.items", t.inv.await_all, { bronze_axe = 1, tinderbox = 1 }, 5)
+        t.exec("talkToSurvival2.items", t.inv.await_all, { bronze_axe = 1, tinderbox = 1 }, 5)
 
         snapshot()
         t.exec("chopTree", t.player.click_loc, "newbietree", 1)
         t.exec("chopTree.logs", t.inv.await, "logs", 1, 15)
         t.exec("chopTree.box", t.chat.play, { "*" })
-        stage("build_fire")
+        stage("light_fire")
         gain("chopTree.xp", "woodcutting", 25)
         t.exec("lightFire", t.player.use_item_on_item, "tinderbox", "logs")
         fire_lit("lightFire.fire")
         gain("lightFire.xp", "firemaking", 40)
-        tab_given("statsTab", "stats", 1)
-        stage("opened_skill_menu")
+        stage("cook_shrimp")
 
-        talk("talkToSurvival2", "newbie_survival_instructor", {
-            "npc:There's nothing like a good fire",
-            "npc:shrimp in the pond there",
-            "*",
-        })
-        stage("fish_shrimps")
-        t.exec("talkToSurvival2.net", t.inv.await, "net", 1, 5)
+        -- Cooked or burnt, the first shrimp moves the player on (the
+        -- transcript has a "Moving on" box for each).
         snapshot()
-        t.exec("catchShrimp", t.player.talk_to, "0_48_48_newbiefishing", 1)
-        t.exec("catchShrimp.shrimp", t.inv.await, "raw_shrimp", 1, 20)
-        gain("catchShrimp.xp", "fishing", 10)
-        stage("cook_shrimps")
-
-        -- Cook on the fire (it may be gone by now: light another). A burn is
-        -- step 90 and the ladder goes on to 120 on the next good one.
-        local cooked = false
-        for attempt = 1, 6 do
-            if cooked then
-                break
-            end
-            local n = "cookShrimp" .. (attempt > 1 and attempt or "")
-            if select(2, t.inv.count("raw_shrimp")) < 1 then
-                t.exec(n .. ".fish", t.player.talk_to, "0_48_48_newbiefishing", 1)
-                t.exec(n .. ".fished", t.inv.await, "raw_shrimp", 1, 20)
-            end
-            local fr, fire = t.world.loc_near("fire", 6)
-            if fr ~= "ok" then
-                if select(2, t.inv.count("logs")) < 1 then
-                    t.exec(n .. ".chop", t.player.click_loc, "newbietree", 1)
-                    t.exec(n .. ".logs", t.inv.await, "logs", 1, 15)
-                    t.exec(n .. ".box", t.chat.play, { "*" })
-                end
-                t.exec(n .. ".light", t.player.use_item_on_item, "tinderbox", "logs")
-                fire_lit(n .. ".fire")
-            end
-            snapshot()
-            t.exec(n, t.player.use_on, "raw_shrimp", loc("fire"))
-            t.exec(n .. ".done", t.inv.expect_absent, "raw_shrimp")
-            local _, have = t.inv.count("shrimp")
-            local _, burnt = t.inv.count("burntfish1")
-            cooked = (have or 0) > 0
-            t.check(n .. ".result", cooked or (burnt or 0) > 0,
-                "shrimp " .. tostring(have) .. ", burnt shrimp (burntfish1) " .. tostring(burnt))
-            if cooked then
-                gain(n .. ".xp", "cooking", 30)
-            else
-                stage("burnt_shrimps")
-            end
+        t.exec("cookShrimp", t.player.use_on, "raw_shrimp", loc("fire"))
+        t.exec("cookShrimp.done", t.inv.expect_absent, "raw_shrimp")
+        local _, have = t.inv.count("shrimp")
+        local _, burnt = t.inv.count("burntfish1")
+        t.check("cookShrimp.result", (have or 0) + (burnt or 0) == 1,
+            "shrimp " .. tostring(have) .. ", burnt shrimp (burntfish1) " .. tostring(burnt))
+        if (have or 0) > 0 then
+            gain("cookShrimp.xp", "cooking", 30)
         end
-        stage("survival_complete")
+        stage("survival_gate")
 
         ---------------------------------------------------------------
         -- The Master Chef
         ---------------------------------------------------------------
         door("openChefGate", "newbiegateclosedl2", { 3089, 3092 }, { 3090, 3092 }, { 3089, 3092 })
-        stage("opened_gate_to_chef")
+        stage("chef_door")
         door("openChefDoor", "newbie_door2", { 3079, 3084 }, { 3080, 3084 }, { 3078, 3084 })
-        stage("cook_start")
+        stage("talk_to_chef")
         talk("talkToChef", "newbie_cook_instructor", {
-            "npc:I am Lev, the chef",
-            "player:I already know how to cook",
-            "npc:HA HA HA",
-            "npc:no fine meal is complete without good music",
+            "npc:I am the Master Chef, Lev",
+            "player:I already know how to cook. Brynna taught me just now.",
+            "npc:You call THAT cooking?",
             "*",
         })
         stage("make_dough")
         t.exec("talkToChef.items", t.inv.await_all, { newbie_pot_flour = 1, bucket_water = 1 }, 5)
         t.exec("makeDough", t.player.use_item_on_item, "bucket_water", "newbie_pot_flour")
         t.exec("makeDough.dough", t.inv.await, "bread_dough", 1, 5)
-        stage("mixed_dough")
+        t.exec("makeDough.box", t.chat.play, { "*" })
+        stage("bake_bread")
         snapshot()
-        t.exec("bakeBread", t.player.use_on, "bread_dough", loc("newbierange"))
+        -- "To do so, just click on the indicated range."
+        t.exec("bakeBread", t.player.click_loc, "newbierange", 1)
         t.exec("bakeBread.bread", t.inv.await, "bread", 1, 10)
+        t.exec("bakeBread.box", t.chat.play, { "*" })
         gain("bakeBread.xp", "cooking", 40)
-        tab_given("musicTab", "music", 13)
-        stage("opened_music_tab")
+        stage("chef_exit")
         door("leaveChef", "newbie_door3", { 3072, 3090 }, { 3073, 3090 }, { 3072, 3090 })
-        stage("cook_completed")
+        stage("run_hint")
 
         local rr, run = t.ui.widget("orbs:runbutton")
         t.check("toggleRun", t.ui.invoke(run, 1), "orbs:runbutton " .. tostring(rr))
         t.exec("toggleRun.on", t.var.await, "varp173_option_run", 1, 5)
-        stage("toggled_on_run")
+        stage("run_toggled")
 
         ---------------------------------------------------------------
         -- The Quest Guide
         ---------------------------------------------------------------
         door("openQuestDoor", "newbie_door4", { 3086, 3126 }, { 3086, 3127 }, { 3086, 3125 })
-        stage("quest_start")
+        stage("talk_to_quest_guide")
         talk("talkToQuestGuide", "newbie_quest_instructor", {
             "npc:I'm here to tell you all about quests",
         })
-        tab_given("journalTab", "side_journal", 2)
-        stage("quest_opened_menu")
+        stage("open_quest_list")
+        open_tab("questTab", "quest", 2, "opened_quest_list")
         talk("talkToQuestGuide2", "newbie_quest_instructor", {
-            "npc:all the quests are shown in red",
-            "npc:change colour to yellow",
-            "npc:star icons on the minimap",
+            "npc:Now that you have the quest list open",
+            "npc:If you haven't started the quest",
+            "npc:Just look out for the quest icon on your minimap",
+            "mesbox:Look for the icon to the left to find quest start points",
             "npc:collecting beads to hunting down dragons",
-            "npc:caves under my house",
+            "npc:You have to experience the thrill of it yourself",
         })
-        stage("quest_finished")
+        stage("quest_ladder")
         t.player.climb({ loc = "newbieladdertop1", at = { 3088, 3119, 0 }, dest = { 3088, 9519, 0 }, slack = 2 })
-        stage("mining_start")
+        stage("talk_to_miner")
 
         ---------------------------------------------------------------
         -- The Mining Instructor
@@ -374,46 +367,38 @@ return {
         talk("talkToMining", "newbie_mining_instructor", {
             "npc:So what do I call you?",
             "player:You can call me",
-            "npc:My name is Dezzick",
-        })
-        stage("begin_prospecting")
-        t.exec("prospectTin", t.player.click_loc, "newbietinrock", 2)
-        t.exec("prospectTin.box", t.chat.play, { "mesbox:This rock contains tin." })
-        stage("prospected_tin_first")
-        t.exec("prospectCopper", t.player.click_loc, "newbiecopperrock", 2)
-        t.exec("prospectCopper.box", t.chat.play, { "mesbox:This rock contains copper." })
-        stage("prospected_copper_second")
-        talk("talkToMining2", "newbie_mining_instructor", {
-            "player:I prospected both types of rock!",
-            "npc:smelted together to make bronze",
-            "npc:you'll need this to start with",
+            "npc:My name is Dezzick and I'm a miner by trade",
+            "npc:all you need is a pickaxe",
             "*",
         })
-        stage("mining_mining_start")
-        t.exec("talkToMining2.pickaxe", t.inv.await, "bronze_pickaxe", 1, 5)
+        stage("mine_first")
+        t.exec("talkToMining.pickaxe", t.inv.await, "bronze_pickaxe", 1, 5)
         snapshot()
         t.exec("mineTin", t.player.click_loc, "newbietinrock", 1)
         t.exec("mineTin.ore", t.inv.await, "tin_ore", 1, 15)
         t.exec("mineTin.box", t.chat.play, { "mesbox:You manage to mine some tin." })
-        stage("mined_tin_first")
+        stage("mine_second")
         t.exec("mineCopper", t.player.click_loc, "newbiecopperrock", 1)
         t.exec("mineCopper.ore", t.inv.await, "copper_ore", 1, 15)
         t.exec("mineCopper.box", t.chat.play, { "mesbox:You manage to mine some copper." })
-        stage("before_smelt")
+        stage("smelt")
         gain("mineOres.xp", "mining", 35)
         snapshot()
-        t.exec("smeltBronze", t.player.use_on, "tin_ore", loc("newbiefurnace"))
+        -- "To do so, just click on the indicated furnace."
+        t.exec("smeltBronze", t.player.click_loc, "newbiefurnace", 1)
+        t.exec("smeltBronze.box", t.chat.play, { "mesbox:You smelt the copper and tin together in the furnace." })
         t.exec("smeltBronze.bar", t.inv.await, "bronze_bar", 1, 10)
+        t.exec("smeltBronze.box2", t.chat.play, { "mesbox:You retrieve a bar of bronze." })
         -- 6.2 xp; the client's stat reading is whole xp, so it reads +6.
         gain("smeltBronze.xp", "smithing", 6)
-        stage("after_smelt")
-        talk("talkToMining3", "newbie_mining_instructor", {
-            "player:How do I make a weapon out of this?",
-            "npc:You'll be needing this",
+        stage("bar_made")
+        talk("talkToMining2", "newbie_mining_instructor", {
+            "player:I have a bronze bar. What now?",
+            "npc:To smith something, you need a hammer and an anvil",
             "*",
         })
-        stage("smith_a_dagger")
-        t.exec("talkToMining3.hammer", t.inv.await, "hammer", 1, 5)
+        stage("smith_dagger")
+        t.exec("talkToMining2.hammer", t.inv.await, "hammer", 1, 5)
         -- The anvil's answer is the make-menu (~skill_multi4), which the
         -- press's settle does not count as a page; the menu row grades it.
         snapshot()
@@ -429,10 +414,10 @@ return {
         t.exec("smithDagger.made", t.inv.await, "bronze_dagger", 1, 10)
         -- 12.5 xp: 6.2 -> 18.7, which the whole-xp reading shows as 6 -> 18.
         gain("smithDagger.xp", "smithing", 12)
-        stage("mining_finished")
+        stage("mining_gate")
         t.exec("walk-combatGate", t.player.walk_to, 3092, 9503, 30)
         door("openCombatGate", "newbiedoor4l", { 3094, 9503 }, { 3093, 9503 }, { 3095, 9503 })
-        stage("combat_start")
+        stage("talk_to_vannaka")
 
         ---------------------------------------------------------------
         -- The Combat Instructor
@@ -441,114 +426,135 @@ return {
         talk("talkToCombat", "newbie_combat_instructor", {
             "player:Hi! My name's",
             "npc:Do I look like I care?",
-            "npc:I am Vannaka",
-            "npc:teaching you to wield a weapon",
+            "npc:I am Vannaka, the greatest swordsman alive",
+            "npc:Let's get started by teaching you to wield a weapon.",
         })
-        tab_given("wornTab", "wornitems", 4)
-        stage("worn_inventory")
+        stage("open_worn")
+        open_tab("wornTab", "equipment", 4, "open_equipment_stats")
+        -- The cache's own flash on the stats button (equipment_icon_flash at
+        -- exactly 400), then the click that opens the stats window.
+        local sr, stats = t.ui.widget("wornitems:equipment")
+        t.check("equipmentStats", t.ui.invoke(stats, 1), "wornitems:equipment " .. tostring(sr))
+        t.exec("equipmentStats.open", t.ui.await_open, "equipment", 5)
+        stage("equip_dagger")
         t.exec("equipDagger", t.player.equip, "bronze_dagger")
         stage("dagger_equipped")
         talk("talkToCombat2", "newbie_combat_instructor", {
-            "npc:little butter knife",
+            "npc:that little butter knife isn't going to protect you much",
             "*",
         })
-        stage("unequipping_items")
+        stage("equip_sword_shield")
         t.exec("talkToCombat2.items", t.inv.await_all, { bronze_sword = 1, wooden_shield = 1 }, 5)
         t.exec("equipSword", t.player.equip, "bronze_sword")
         t.exec("equipShield", t.player.equip, "wooden_shield")
-        talk("talkToCombat3", "newbie_combat_instructor", {
-            "npc:Now let's have a look at how you fight",
-        })
-        tab_given("combatTab", "combat_interface", 0)
-        stage("opened_combat_interface")
+        stage("open_combat")
+        open_tab("combatTab", "combat", 0, "enter_pen")
         door("enterRatPen", "newbiedoor5_l", { 3111, 9518 }, { 3112, 9518 }, { 3110, 9518 })
-        stage("before_attacking_melee")
-        kill_rat("attackRat", "after_rat_kill_melee")
+        stage("attack_rat")
+        -- A rat that walks onto the player's tile makes the player step out
+        -- from under it (as OSRS does), and while the gate stands open (three
+        -- ticks, ^tut_door_open_ticks) east is the doorway: the gate shuts with
+        -- the player outside. A player clicks the gate again, which at this
+        -- step lets them back in; so does this, before the next press.
+        kill_rat("attackRat", "melee_rat_killed", function(attempt)
+            local tl = here()
+            if tl and tl.x >= 3111 then
+                door("reenterRatPen" .. attempt, "newbiedoor5_l", { 3111, 9518 }, { 3112, 9518 }, { 3110, 9518 })
+                return true
+            end
+            return false
+        end)
         door("leaveRatPen", "newbiedoor5_l", { 3111, 9518 }, { 3110, 9518 }, { 3111, 9518 })
         t.exec("walk-combat2", t.player.walk_to, 3105, 9508, 30)
-        talk("talkToCombat4", "newbie_combat_instructor", {
-            "player:I did it! I killed a Giant Rat!",
-            "npc:basic swordplay",
-            "npc:ranged attacking",
+        talk("talkToCombat3", "newbie_combat_instructor", {
+            "player:I did it! I killed a giant rat!",
+            "npc:Now that you have grasped basic swordplay",
+            "npc:Next up we have ranged combat",
             "*",
         })
-        stage("before_attacking_ranged")
-        t.exec("talkToCombat4.items", t.inv.await_all, { shortbow = 1, bronze_arrow = 50 }, 5)
+        stage("range_rat")
+        t.exec("talkToCombat3.items", t.inv.await_all, { shortbow = 1, bronze_arrow = 50 }, 5)
         t.exec("equipBow", t.player.equip, "shortbow")
         t.exec("equipArrows", t.player.equip, "bronze_arrow")
         -- From beside the pen gate, outside: the whole pen is in view there.
         t.exec("walk-penSide", t.player.walk_to, 3112, 9516, 30)
         local _, ranged_before = t.skill.read("ranged")
-        kill_rat("rangeRat", "after_attacking_ranged", { 3112, 9516 })
+        kill_rat("rangeRat", "ranged_rat_killed", { 3112, 9516 })
         local _, ranged_after = t.skill.read("ranged")
         local _, arrows_left = t.ui._worn_count("bronze_arrow")
         t.check("rangeRat.ranged", ranged_after.experience > ranged_before.experience and arrows_left < 50,
             "ranged xp " .. ranged_before.experience .. " -> " .. ranged_after.experience
             .. ", arrows worn 50 -> " .. tostring(arrows_left) .. " (from outside the pen)")
         t.player.climb({ loc = "newbieladder2", at = { 3111, 9526, 0 }, dest = { 3111, 3125, 0 }, slack = 2 })
-        stage("open_banking")
+        stage("open_bank")
 
         ---------------------------------------------------------------
-        -- The bank and the Financial Advisor
+        -- The bank, the poll booth and the Account Guide
         ---------------------------------------------------------------
-        talk("talkToBanker", "noobbanker", {
-            "npc:would you like to access your bank account?",
-            "choose:Yes.",
-        })
-        stage("opened_bank")
+        -- "To open your bank, just click on the indicated booth."
+        t.exec("openBank", t.player.click_loc, "newbiebankbooth", 1)
+        stage("use_poll_booth")
         t.exec("bank.coins", t.bank.count, "coins")
         t.check("bank.close", t.bank.close(), "closed the bank")
-        door("openAdvisorDoor", "newbie_door6", { 3125, 3124 }, { 3124, 3124 }, { 3125, 3124 })
-        stage("account_door")
-        talk("talkToAdvisor", "newbie_account_instructor", {
-            "player:Who are you?",
-            "npc:I'm a financial advisor",
-            "player:How can I make money then?",
-            "npc:how can you make money. Quite.",
-            "npc:Combat, Quests and Trading",
-            "npc:drop items when they die",
-            "npc:the next way to earn money quickly is by quests",
-            "npc:sell them for pure profit",
-            "npc:Come back if you'd like to go over this again",
+        t.exec("pollBooth", t.player.click_loc, "pollbooth_green", 1)
+        t.exec("pollBooth.boxes", t.chat.play, {
+            "mesbox:Poll booths are found in towns across the world",
+            "mesbox:Voting is open to",
+            "mesbox:A flag appears on the booth",
         })
-        stage("account_talked_to")
-        door("leaveAdvisor", "newbie_door7", { 3130, 3124 }, { 3129, 3124 }, { 3130, 3124 })
-        stage("exit_account_room")
+        stage("account_door")
+        door("openAccountDoor", "newbie_door6", { 3125, 3124 }, { 3124, 3124 }, { 3125, 3124 })
+        stage("talk_to_account_guide")
+        talk("talkToAccountGuide", "newbie_account_instructor", {
+            "player:Hello. Who are you?",
+            "npc:I'm the Account Guide",
+            "player:What's an account?",
+            "npc:Your character IS your account!",
+            "npc:Let's take a look at it now.",
+        })
+        stage("open_account")
+        open_tab("accountTab", "account", 8, "opened_account")
+        talk("talkToAccountGuide2", "newbie_account_instructor", {
+            "npc:there's a few things you can do with your account",
+            "npc:First, you have membership",
+            "player:What's a world?",
+            "npc:A world is what you play the game on",
+            "npc:You are currently on a",
+            "npc:Bonds are another thing",
+            "player:But why would I use a Bond",
+            "npc:Unlike membership, Bonds can be traded",
+            "player:without spending any real money?",
+            "npc:Exactly!",
+            "npc:you have your inbox and name changer",
+            "npc:The name changer allows you",
+            "player:Is there anything else I should know about accounts?",
+            "npc:Bank PINs and two-factor authentication",
+            "npc:Customer Support webpage",
+            "npc:that's everything I have to tell you about accounts",
+        })
+        stage("account_exit")
+        door("leaveAccountGuide", "newbie_door7", { 3130, 3124 }, { 3129, 3124 }, { 3130, 3124 })
+        stage("talk_to_brace")
 
         ---------------------------------------------------------------
         -- Brother Brace
         ---------------------------------------------------------------
         t.exec("walk-chapel", t.player.walk_to, 3124, 3107, 40)
         talk("talkToBrace", "brother_noob", {
-            "player:Good day brother",
-            "npc:I'm Brother Brace",
+            "player:Good day, brother.",
+            "npc:I'm here to tell you all about Prayer",
         })
-        tab_given("prayerTab", "prayerbook", 5)
-        stage("opened_prayer_tab")
+        stage("open_prayer")
+        open_tab("prayerTab", "prayer", 5, "opened_prayer")
         talk("talkToBrace2", "brother_noob", {
-            "npc:This is your prayer list",
+            "npc:This is your Prayer list",
             "npc:recharge by finding an altar",
             "npc:Burying bones",
-            "npc:community officer",
+            "npc:That's all I have to teach you for now",
         })
-        stage("after_prayer_tab")
-        talk("talkToBrace3", "brother_noob", {
-            "npc:Let's have a look at your friends list",
-        })
-        tab_given("friendsTab", "friends", 9)
-        stage("after_friends_tab")
-        talk("talkToBrace4", "brother_noob", {
-            "npc:clicking the add button",
-            "npc:ignore list",
-            "npc:online status of your friends",
-            "player:Are there rules on ingame behavior?",
-            "npc:rules of conduct",
-            "npc:real people somewhere",
-            "player:I'll bear that in mind",
-        })
-        stage("brace_finish")
+        stage("chapel_exit")
         door("leaveChapel", "newbie_door8", { 3122, 3102 }, { 3122, 3103 }, { 3122, 3102 })
-        stage("exit_chapel")
+        stage("talk_to_terrova")
 
         ---------------------------------------------------------------
         -- The Magic Instructor
@@ -558,22 +564,29 @@ return {
             "player:Hello.",
             "npc:My name is Terrova",
         })
-        tab_given("magicTab", "magic_spellbook", 6)
-        stage("opened_magic_tab")
+        stage("open_magic")
+        open_tab("magicTab", "magic", 6, "opened_magic")
         talk("talkToMagic2", "newbie_magic_instructor", {
             "npc:you can only cast one offensive spell called Wind Strike",
             "*",
         })
         stage("cast_wind_strike")
         t.exec("talkToMagic2.runes", t.inv.await_all, { airrune = 5, mindrune = 5 }, 5)
-        cast_chicken("castWindStrike", "unsuccessful_wind_strike")
-        cast_chicken("castWindStrikeAgain", "successful_wind_strike")
+        cast_chicken("castWindStrike", "quest_complete")
+        t.exec("questComplete", t.ui.await_open, "questscroll", 10)
+        t.exec("questComplete.title", t.ui.expect_text, "questscroll:quest_title", "Learning the Ropes")
+        local qr, qclose = t.ui.widget("questscroll:close_button")
+        t.check("questComplete.close", t.ui.invoke(qclose, 1), "questscroll:close_button " .. tostring(qr))
+        closed_check("questComplete.closed", "questscroll")
         talk("talkToMagic3", "newbie_magic_instructor", {
-            "npc:you're all finished here now",
-            "npc:Home Teleport",
-            "npc:Cast it whenever you're ready to leave",
+            "npc:I'll give you a reasonable number of runes when you leave",
+            "choose:Yes.",
+            "npc:talk to my friend the Lumbridge Guide",
+            "npc:a question mark on the end",
+            "*",
+            "npc:use your home teleport spell to teleport to Lumbridge!",
         })
-        stage("magic_finished")
+        stage("quest_complete")
 
         ---------------------------------------------------------------
         -- Graduation
@@ -598,7 +611,7 @@ return {
                 .. tostring(worn) .. " worn (want 0)")
         end
         closed_check("graduation.overlay", "tutorial_overlay")
-        t.exec("graduation.welcome", t.msg.expect, "Welcome to Lumbridge!")
+        t.exec("graduation.welcome", t.chat.play, { "*" })
         t.finish(0)
     end,
 }

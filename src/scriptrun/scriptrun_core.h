@@ -253,6 +253,15 @@ struct ScriptrunCore
     struct UIIfEventTable if_events;
     struct ScriptrunScriptCall last_script;
     int script_serial;
+    /* The last RUNCLIENTSCRIPT of `skillmulti_script` (the make-menu's
+     * skillmulti_setup, 2046), kept whatever runs after it: a cell press is
+     * answered from its mode, max and default quantity (args 0, 1, 20), as the
+     * client's own script answers it. skillmulti_script -1: not tracked. */
+    int skillmulti_script;
+    int skillmulti_mode;
+    int skillmulti_max;
+    int skillmulti_default;
+    int skillmulti_valid;
 
     int run_energy;
     int logged_out;

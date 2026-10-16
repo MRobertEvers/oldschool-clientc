@@ -33,6 +33,7 @@ CS2VM_HOST_REQUEST_KIND(CC_FIND_ENTITYOVERLAY, 203, (int opcode; int args[CS2VM_
 CS2VM_HOST_REQUEST_KIND(CC_FIND_PARENT, 204, (int component_id; int dot_operand;))
 CS2VM_HOST_REQUEST_KIND(CC_FIND_LAYER, 205, (int component_id; int dot_operand;))
 CS2VM_HOST_REQUEST_KIND(CC_FIND_NEXT_SIBLING, 206, (int component_id; int dot_operand;))
+CS2VM_HOST_REQUEST_KIND(CC_FIND_PARAM, 210, (int layer_id; int param1; int type1; int value1; char* str_value1; int param2; int type2; int value2; char* str_value2; int dot_operand;))
 CS2VM_HOST_REQUEST_KIND(IF_QUERY, 211, (int uid; int start_index; int dot_operand;))
 CS2VM_HOST_REQUEST_KIND(CC_QUERY, 212, (int parent_id; int start_index;))
 CS2VM_HOST_REQUEST_KIND(IF_QUERY_NEXT, 213, (int parent_id; int sub_id; int dot_operand;))

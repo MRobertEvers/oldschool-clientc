@@ -8315,6 +8315,22 @@ ToriRSServer_SendIfClosesub(
     int uid);
 
 /**
+ * The content spelling of a component the client clicked on its live gameframe.
+ *
+ * The inverse of the outgoing role rewrite: content names gameframe components
+ * on `toplevel_osrs_stretch` and the engine moves them onto whichever frame is
+ * live (Fixed `toplevel`, Modern `toplevel_pre_eoc`, ...). A click comes back
+ * on the live frame's own component, so a trigger written on the content
+ * spelling would answer on one layout only. When `uid` is on the live frame
+ * and `toplevel_osrs_stretch` has a component of the same role name, that is
+ * returned; anything else comes back unchanged.
+ */
+int
+ToriRSServer_CanonicalGameframeUid(
+    struct ToriRSServerPlayer const* player,
+    int uid);
+
+/**
  * Keep the enemy health overlay (interface `hpbar_hud`) in step with what this
  * player is fighting: open it, feed it, close it. Once per tick, after the
  * combat tick has settled the target. See torirs_server_hpbar.c.

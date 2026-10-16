@@ -58,6 +58,7 @@ ScriptrunCore_New(struct GameProtoRevTable const* rev)
     core = ToriMem_Calloc(ToriMem_ServerPlayers(), 1, sizeof(*core));
     assert(core);
     core->rev = rev;
+    core->skillmulti_script = -1;
     core->world = World_New();
     assert(core->world);
     core->esync = ToriMem_Calloc(ToriMem_ServerPlayers(), 1, sizeof(*core->esync));
@@ -1736,6 +1737,13 @@ core_packet(
                 }
             }
             core->last_script.serial = ++core->script_serial;
+            if( rcs->script_id == core->skillmulti_script && rcs->argc > 20 )
+            {
+                core->skillmulti_mode = rcs->intv[0];
+                core->skillmulti_max = rcs->intv[1];
+                core->skillmulti_default = rcs->intv[20];
+                core->skillmulti_valid = 1;
+            }
         }
         break;
     case PKT_NAME_LOGOUT:

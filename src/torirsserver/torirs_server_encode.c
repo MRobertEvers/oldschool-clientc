@@ -1609,6 +1609,36 @@ gameframe_slot_host(int uid)
  * Only rewrite when the named component lives on a *different* interface than
  * the session's live top; same-top spellings are already correct.
  */
+int
+ToriRSServer_CanonicalGameframeUid(
+    struct ToriRSServerPlayer const* player,
+    int uid)
+{
+    int canonical = ToriRSServer_Ids()->iface_gameframe;
+    int live_iface;
+    const char* name;
+    const char* colon;
+    const char* canonical_name;
+    char probe[128];
+    int found;
+
+    assert(player);
+    live_iface = ToriRSServer_PlayerGameframeIface(player);
+    if( uid <= 0 || live_iface <= 0 || live_iface == canonical ||
+        TORIRSSERVER_COM_GROUP(uid) != live_iface )
+        return uid;
+    name = ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_COMPONENT, uid);
+    canonical_name = ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_INTERFACE, canonical);
+    if( !name || !canonical_name )
+        return uid;
+    colon = strrchr(name, ':');
+    if( !colon || colon[1] == '\0' )
+        return uid;
+    snprintf(probe, sizeof(probe), "%s:%s", canonical_name, colon + 1);
+    found = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, probe);
+    return found > 0 ? found : uid;
+}
+
 static int
 ToriRSServer_RemapGameframeSlotUid(
     struct ToriRSServerPlayer* player,
@@ -1927,7 +1957,11 @@ ToriRSServer_SendIfOpensub(
         }
     }
     flush(player, &buf, OP_IF_OPENSUB, 0);
-    ToriRSServer_NoteModalMount(srv, uid, group);
+    /* Only a modal sub (type 0) makes the slot modal. An overlay (type 1) in
+     * the chatbox slot is OSRS's sticky chat -- Tutorial Island's instruction
+     * box -- and the reference's containsModalInterface does not count it:
+     * the player keeps acting, and walking does not close it. */
+    ToriRSServer_NoteModalMount(srv, uid, type == 1 ? 0 : group);
     /* OpenRune's onIfOpen: nested fills (e.g. side_journal → tab body) run
      * here so their IF_OPENSUB is encoded immediately after the parent's on
      * the wire. Subject is the interface id, same shape as IF_CLOSE. */

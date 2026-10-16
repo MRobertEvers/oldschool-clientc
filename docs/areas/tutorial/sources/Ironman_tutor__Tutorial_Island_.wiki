@@ -1,0 +1,64 @@
+{{redirect|Paul|the creator of RuneScape|Paul Gower}}
+{{Infobox NPC
+|name = Ironman tutor
+|image = [[File:Ironman tutor (Tutorial Island).png|130px|class=pageimage]]
+|release = [[13 October]] [[2014]]
+|update = Ironman Mode
+|members = No
+|race = [[Human]]
+|location = [[Tutorial Island]]
+|gender = Male
+|options = Talk-to
+|examine = He can tell you about being an Ironman.
+|map = {{Map|name=Ironman tutor|x=3129|y=3083|plane=0|r=3|mtype=square}}
+|id = 7941,9486
+|leagueRegion = No
+}}
+[[File:Ironman tutor (Tutorial Island) chathead.png|left]]
+'''Paul''' the '''Ironman tutor''' is found on [[Tutorial Island]], and teaches new players about [[Ironman Mode]]. He can change the player's Ironman status freely before they leave Tutorial Island. Another Ironman tutor, [[Ironman tutor|Adam]], is found in [[Lumbridge]] and can help players downgrade or lock their Ironman status once off Tutorial Island.
+
+The player may also choose to create a [[Group Ironman Mode|Group Ironman]] with other players when selecting their Ironman status. Paul will then instruct the player to continue to the tutorial and visit [[The Node]]. 
+[[File:Ironman Setup interface.png|right|thumb|The menu for selecting the mode the player wishes to play.]]
+
+==Dialogue==
+{{Hastranscript|speaksin}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 15 May 2024
+|update = Further Project Rebalance (Skilling) & Varlamore Changes
+|change = 
+* The NPC was renamed from "Iron Man tutor" to "Ironman tutor".
+* The phrase "Iron Man" in his examine text has been changed to "Ironman".
+}}
+{{Subject changes
+|date = 15 March 2023
+|update = The Last of Poll 78
+|change = The Ironman Tutor will now give more information about permanent [[Ironman]] status and unranked [[Group Ironman Mode|Group Ironmen]].
+}}
+{{Subject changes
+|date = 15 May 2020
+|type = hotfix
+|change = Paul's name was corrected from "Name".
+}}
+{{Subject changes
+|date = 14 May 2020
+|update = Bounty Hunter Feedback Changes
+|change = Paul and Adam were renamed to "Iron Man tutor", although their original names were retained within the dialogue. Due to a bug, Paul referred to himself as "Name".
+}}
+{{Subject changes
+|date = 16 October 2014
+|update = Corporeal Beast
+|change = Fixed a typo in the Iron man tutor dialogue.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*Paul is a reference to the ''Old School RuneScape'' content creator ''Faux'', who is known for his Ironman video content.{{CiteForum|author=Mod Ronan|url=https://secure.runescape.com/m=forum/sl=0/forums?380,381,98,65479193|title=Dev Blog: Content Poll #25|forum=Old School Announcements|postdate=15 September 2014|archiveurl=https://reldo.runescape.wiki/i/107220|archivedate=15 September 2020}}
+
+==References==
+{{Reflist}}
+
+{{Tutorial Island}}
+{{Tutors}}

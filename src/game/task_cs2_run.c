@@ -81,6 +81,8 @@ enum TaskCS2YieldPlan
     TASK_CS2_YIELD_INVTYPE,
     TASK_CS2_YIELD_ENUM,
     TASK_CS2_YIELD_STRUCT,
+    /* await_id and await_id2 are both ParamType ids (CC_FIND_PARAM). */
+    TASK_CS2_YIELD_PARAMS,
     TASK_CS2_YIELD_OBJ,
     TASK_CS2_YIELD_COMPONENT,
     TASK_CS2_YIELD_MODEL,
@@ -1066,6 +1068,15 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
         self->yield_plan =
             self->await_id2 >= 0 ? TASK_CS2_YIELD_STRUCT : TASK_CS2_YIELD_NONE;
         break;
+    /* CC_FIND_PARAM compares two params, each against its ParamType default
+     * where a child has no entry: both ParamTypes in one yield. */
+    case CS2VM_HOST_REQUEST_CC_FIND_PARAM:
+        self->await_id = self->pending->u.CC_FIND_PARAM.param1;
+        self->await_id2 = self->pending->u.CC_FIND_PARAM.param2;
+        self->yield_plan = self->await_id >= 0 || self->await_id2 >= 0
+                               ? TASK_CS2_YIELD_PARAMS
+                               : TASK_CS2_YIELD_NONE;
+        break;
 
     case CS2VM_HOST_REQUEST_IF_SETGRAPHIC:
         task_cs2_plan_setgraphic(self);
@@ -1541,6 +1552,13 @@ Task_CS2Run_Run(
         {
             if( self->await_id >= 0 )
                 PT_TASK_AWAITSELF_IF(CreateTask_StructLoad(self->provider, self->await_id));
+            if( self->await_id2 >= 0 )
+                PT_TASK_AWAITSELF_IF(CreateTask_ParamLoad(self->provider, self->await_id2));
+        }
+        else if( self->yield_plan == TASK_CS2_YIELD_PARAMS )
+        {
+            if( self->await_id >= 0 )
+                PT_TASK_AWAITSELF_IF(CreateTask_ParamLoad(self->provider, self->await_id));
             if( self->await_id2 >= 0 )
                 PT_TASK_AWAITSELF_IF(CreateTask_ParamLoad(self->provider, self->await_id2));
         }
