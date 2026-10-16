@@ -531,6 +531,22 @@ app_overlay_build_player_headicons(
  * A subject that is out of view is not an error and not a clear: an npc can
  * walk behind the camera and come back. It simply does not project this frame,
  * which is the same distinction the scripted-overlay reaper had to learn.
+ *
+ * ## Where and when the deob draws it
+ *
+ * - COORD (`class71`, after the scene draw): `method4513(view, x, z,
+ *   height * 2, 0)` -- the tile's ground height minus twice the wire height --
+ *   then frame 0 at (sx - 12, sy - 28).
+ * - NPC (`Statics` entity overhead pass): `method6186(view, npc,
+ *   npc.method2908() + 15)`, the same anchor as its health bar and headicon
+ *   (type height override, else the model's, plus the seq's vertical offset;
+ *   projected over the npc's footprint), then frame 0 at (sx - 12, sy - 28).
+ * - PLAYER: the same `method2908() + 15` anchor, but FRAME 1, stacked above
+ *   whatever headicons the player shows (`var27`, 25 per icon), and it does
+ *   NOT blink.
+ *
+ * NPC and COORD arrows blink: drawn only while `getGameCycle() % 20 < 10`
+ * (`logic_cycle` here, as the minimap hint does).
  */
 void
 app_overlay_build_hint_arrow(struct App* app)
@@ -543,12 +559,18 @@ app_overlay_build_hint_arrow(struct App* app)
      * the same actor projection as their health bar. NULL = a root point. */
     struct WorldEntityFacet_ViewPlacement const* placement = NULL;
     int actor_level = -1;
+    int footprint = 0;
+    int frame = 0;
+    int y_lift = 28;
 
     if( type <= 0 || !app->world )
         return;
 
     hint_scene = UITreeSceneBridge_StaticSpriteSceneId(&app->bridge, STATIC_SPRITE_HEADICONS_HINT);
     if( hint_scene <= 0 )
+        return;
+
+    if( type != APP_HINT_ARROW_PLAYER && app->logic_cycle % 20 >= 10 )
         return;
 
     switch( type )
@@ -558,20 +580,8 @@ app_overlay_build_hint_arrow(struct App* app)
         /*
          * A tile, in ABSOLUTE world coordinates, converted to the scene's own
          * frame through the same origin `SET_MAP_FLAG`'s absolute form uses.
-         *
-         * Absolute rather than scene-local because the arrow's whole purpose is
-         * to point somewhere the player is not, and a scene-local coord cannot
-         * name a tile outside the loaded window. `ToriRSServer_SendHintArrowCoord`
-         * sends it that way; a third-party server that sends scene-local coords
-         * would put the arrow near the map corner, which is the symptom to look
-         * for.
-         *
-         * The packet's `height` is in the projector's units above the tile, not
-         * a pixel offset -- the reference floats a coord arrow clear of the
-         * ground so it stays readable over scenery. The offsets are where in
-         * the tile it floats: types 3..6 anchor it to an edge instead of the
-         * centre, which `rs_gameproto_exec.c` has already folded into a fine
-         * offset pair.
+         * `rs_gameproto_exec.c` has already folded the edge forms (3..6) into
+         * the fine offset pair, as `class268.method6676` does.
          */
         int const base_x = (app->rebuild_zone_x - 6) * 8;
         int const base_z = (app->rebuild_zone_z - 6) * 8;
@@ -584,19 +594,24 @@ app_overlay_build_hint_arrow(struct App* app)
     case APP_HINT_ARROW_NPC:
     {
         struct WorldEntity_NPC* npc = World_NpcGetByServerSlot(app->world, app->hint_arrow.target);
+        struct ToriRS_Npctype* npctype;
 
-        if( !npc || npc->element_id < 0 )
+        if( !npc || npc->multinpc_hidden || npc->element_id < 0 )
             return;
+        npctype = CacheProvider_NpctypeGet(app->provider, npc->npc_id);
         world_x = (int)npc->draw_position.x;
         world_z = (int)npc->draw_position.z;
         placement = &npc->view_placement;
-        height = app_entity_model_height(app, npc->element_id) + 15;
+        footprint = npctype ? npctype->footprint_size : 0;
+        height = app_entity_overlay_height(app, npc->element_id, npctype ? npctype->height : -1) +
+                 app_actor_seq_vertical_offset(app, &npc->animation) + 15;
         break;
     }
     case APP_HINT_ARROW_PLAYER:
     {
         struct WorldEntity_Player* player =
             World_PlayerGetByServerPid(app->world, app->hint_arrow.target);
+        int icons = 0;
 
         if( !player || player->element_id < 0 )
             return;
@@ -604,7 +619,14 @@ app_overlay_build_hint_arrow(struct App* app)
         world_z = (int)player->draw_position.z;
         placement = &player->view_placement;
         actor_level = player->grid_position.level;
-        height = app_entity_model_height(app, player->element_id) + 15;
+        height = app_entity_overlay_height(app, player->element_id, -1) +
+                 app_actor_seq_vertical_offset(app, &player->animation) + 15;
+        for( int icon = 0; icon < 31; icon++ )
+            if( player->headicon & (0x1 << icon) )
+                icons++;
+        /* field1034[1].height + var27: the frame is 25 tall, each icon 25. */
+        frame = 1;
+        y_lift = 25 + icons * 25;
         break;
     }
     default:
@@ -614,27 +636,16 @@ app_overlay_build_hint_arrow(struct App* app)
         return;
     }
 
-    if( !app_world_project_actor(
-            app, placement, actor_level, world_x, world_z, height, &screen_x, &screen_y) )
+    if( !app_world_project_actor_footprint(
+            app, placement, actor_level, world_x, world_z, footprint, height, &screen_x, &screen_y) )
         return;
 
     {
         /*
-         * Frame 0: the solid downward arrow that sits over the subject.
-         *
-         * There is no screen-EDGE form to draw, and that is a fact about this
-         * cache rather than a gap here. `headicons_hint` (sprite archive 441)
-         * declares six 25x25 frames and **only two have any pixels**: frame 0 is
-         * the solid arrow and frame 1 is the same arrow in outline. Frames 2..5
-         * are entirely transparent.
-         *
-         * The reference has no screen-edge form either: its other two hint
-         * packs are the MINIMAP's, not this pass's --
-         * `GraphicsDefaults::GetSpriteHintMapMarkersID` is `mapmarker` frame 1
-         * (the yellow arrow) and `...HintMapEdgeID` is `mapedge` (the rim
-         * arrow for a subject off the map), and `App_MinimapBuildDots` draws
-         * both. A subject behind the camera simply does not project here,
-         * which is what the minimap is for.
+         * `headicons_hint` (sprite archive 441) declares six 25x25 frames and
+         * only two have pixels: frame 0 (npc / coord) and frame 1 (player).
+         * There is no screen-edge form; a subject that does not project is
+         * the minimap's job (`App_MinimapBuildDots`).
          *
          * Re-derive with:
          *   3rd/rscache/tools/spritebake/spritebake --rev osrs239 cache.osrs239 \
@@ -643,11 +654,11 @@ app_overlay_build_hint_arrow(struct App* app)
         struct UITreeEntityOverlay spr = {
             .kind = UITREE_ENTITY_OVERLAY_SPRITE,
             .x = screen_x - 12,
-            .y = screen_y - 48,
+            .y = screen_y - y_lift,
             .w = 0,
             .h = 0,
             .scene_id = hint_scene,
-            .atlas_index = 0,
+            .atlas_index = frame,
         };
         app_overlay_push(app, &spr);
     }
