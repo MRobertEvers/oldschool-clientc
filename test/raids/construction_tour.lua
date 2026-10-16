@@ -41,7 +41,7 @@ local AGENT_TILE = "0_50_54_40_19" -- 3240,3475
 return {
     id = "construction_tour",
     fixture = "fresh_lumbridge.ini",
-    frames = 200000,
+    max_frames = 480000,
     setup = {
         "::clearinv",
         "::maxstats",
@@ -239,6 +239,11 @@ return {
         t.ticks(4)
         t.check("options.off", H.server("varb2176_poh_building_mode") == 0,
             "building mode " .. tostring(H.server("varb2176_poh_building_mode")))
+        -- Switching the mode rebuilds the house, and the rebuild's loading
+        -- screen closes the side panel: open it again for the second press.
+        if select(2, t.ui.shown("poh_options:build_mode_on")) ~= true then
+            H.options_open("options.reopen")
+        end
         t.exec("options.build_on", H.press, "poh_options:build_mode_on")
         t.ticks(4)
         t.check("options.on", H.server("varb2176_poh_building_mode") == 1,

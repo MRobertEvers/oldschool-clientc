@@ -305,6 +305,22 @@ function QD.inv.count(name)
     return api_drive.inv_count(container_id, obj_id)
 end
 
+-- inv.count_in(inv_name, name) -> result, total
+-- The count of an obj in any container the client holds, named by its inv
+-- symbol (a shop, a reward chest, telenexus_cost): what the server last
+-- transmitted, so it reads the same on both lanes.
+function QD.inv.count_in(inv_name, name)
+    local inv_result, container_id = api_drive.symbol("inv", inv_name)
+    if inv_result ~= "ok" then
+        return inv_result, inv_name
+    end
+    local obj_result, obj_id = api_drive.symbol("obj", name)
+    if obj_result ~= "ok" then
+        return obj_result, name
+    end
+    return api_drive.inv_count(container_id, obj_id)
+end
+
 function QD.inv.has(name)
     local result, total = QD.inv.count(name)
     if result ~= "ok" then

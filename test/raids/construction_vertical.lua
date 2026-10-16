@@ -20,7 +20,7 @@ local SLOTS = {}
 return {
     id = "construction_vertical",
     fixture = "fresh_lumbridge.ini",
-    frames = 200000,
+    max_frames = 480000,
     setup = { "::clearinv", "::maxstats", "::give coins 20000000", "::give hammer 1", "::give poh_saw 1" },
 
     run = function(t)

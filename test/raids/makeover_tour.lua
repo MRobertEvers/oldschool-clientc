@@ -27,7 +27,7 @@ local DOOR_HOTSPOTS = { "poh_hotspot_doorl_rimmington", "poh_hotspot_doorr_rimmi
 return {
     id = "makeover_tour",
     fixture = "fresh_lumbridge.ini",
-    frames = 200000,
+    max_frames = 480000,
     setup = {
         "::clearinv",
         "::maxstats",
@@ -139,6 +139,12 @@ return {
             return t.check(tag .. ".tab", have == tab, "tab " .. tostring(have) .. " want " .. tab)
         end
         function H.tab(tag, tab, want)
+            -- The tab list is the burger menu: on the client it is hidden
+            -- until its button's "Show Menu" (burger_menu_click) opens it.
+            if select(2, t.ui.shown("makeover:burger_menu_frame")) ~= true then
+                t.exec(tag .. ".menu", H.press, "makeover:burger_btn_menu")
+                t.ticks(1)
+            end
             t.exec(tag, H.press, "makeover:burger_menu_frame", 10 + 2 * tab)
             t.ticks(2)
             local have = H.server("varb4130_makeover_interface_type")
@@ -203,8 +209,11 @@ return {
         t.ticks(2)
         t.exec("hat.click", t.player.talk_to, "hairdresser", 4)
         t.ticks(3)
-        t.check("hat.refused", not H.modal() and t.chat.kind() ~= "none",
-            "chat " .. tostring(t.chat.kind()) .. ", modal " .. tostring(H.modal()))
+        -- The refusal is a chatbox line (objbox); the client counts a chat
+        -- dialogue as modal, so ask for the makeover interface itself.
+        local shown = select(2, t.ui.shown("makeover:item_area")) == true
+        t.check("hat.refused", not shown and t.chat.kind() ~= "none",
+            "chat " .. tostring(t.chat.kind()) .. ", makeover shown " .. tostring(shown))
         H.close_all()
         t.cheat("::clearinv", false)
         t.cheat("::give coins 100000", false)

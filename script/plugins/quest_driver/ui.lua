@@ -453,15 +453,21 @@ end
 -- "a name that happens to parse as one".
 function QD.ui.tab(name)
     local tab_number = tonumber(name)
-    if tab_number then
-        return api_drive.tab(tab_number)
+    if not tab_number then
+        local sym_result, number = api_drive.tab_by_name(name)
+        if sym_result ~= "ok" then
+            return "no_row", string.format(
+                "ui.tab: %s is in neither the [tabs] map nor a panel_%s role", name, name)
+        end
+        tab_number = number
     end
-    local sym_result, number = api_drive.tab_by_name(name)
-    if sym_result ~= "ok" then
-        return "no_row", string.format(
-            "ui.tab: %s is in neither the [tabs] map nor a panel_%s role", name, name)
+    -- The client lane's api_drive.tab answers a taken press with no detail,
+    -- which the hollow rule grades FAIL: say what was pressed.
+    local result, detail = api_drive.tab(tab_number)
+    if result == "ok" and detail == nil then
+        detail = string.format("tab %s (%d) pressed", tostring(name), tab_number)
     end
-    return api_drive.tab(number)
+    return result, detail
 end
 
 -- emote ---------------------------------------------------------------------

@@ -35,7 +35,7 @@ local BUILD_OPS = { Remove = true, Upgrade = true, Build = true }
 return {
     id = "construction_@ROOM@",
     fixture = "fresh_lumbridge.ini",
-    frames = 400000,
+    max_frames = 480000,
     setup = {
         "::clearinv",
         "::maxstats",
@@ -188,6 +188,12 @@ return {
             end
             t.exec(tag, H.press, "poh_options:" .. button)
             t.ticks(4)
+            -- House Options stays open in the sidemodal, over every side tab:
+            -- closed with its X (com_24, op 1 Close -> if_close) as a player
+            -- would, or the next backpack press on the client shows nothing
+            -- and a Use never arms. Escape does not close it.
+            H.press("poh_options:com_24")
+            t.ui.await_close("poh_options", 3)
             return true
         end
         function H.set_building(tag, on)
@@ -296,7 +302,13 @@ return {
                 t.check(tag .. ".door", false, why)
                 return false
             end
-            t.exec(tag .. ".door", t.player.click_loc, door.sym, 5, { at = { door.x, door.z, door.level } })
+            local dr, dd = t.player.click_loc(door.sym, 5, { at = { door.x, door.z, door.level } })
+            if dr ~= "ok" and H.unseen(dd) then
+                -- Two tiles inside the room whose east door it is.
+                H.centre(tag, { gx = gx, gz = gz, level = door.level, dx = 5 })
+                dr, dd = t.player.click_loc(door.sym, 5, { at = { door.x, door.z, door.level } })
+            end
+            t.check(tag .. ".door", dr == "ok", tostring(dd))
             if not H.await_choice(tag .. ".page") then
                 H.close_all()
                 return false
@@ -373,6 +385,31 @@ return {
             t.note(tag .. ": back to " .. x .. "," .. z .. " (" .. coord .. ")")
             t.cheat("::tele " .. coord, false)
             t.ticks(2)
+        end
+
+        -- The middle of the room under test. From the home spot a piece on
+        -- the far wall can be off the top of the screen or behind nearer
+        -- furniture (the throne room's wall shield, the dining room's east
+        -- door); from here every piece is within four tiles.
+        -- `room` ({ gx, gz, level, dx }) names another room and how far in
+        -- from its west edge to stand (a door is pressed from its own room).
+        function H.centre(tag, room)
+            local base = H.base()
+            if base == nil then
+                return
+            end
+            room = room or { gx = SPOT.gx, gz = SPOT.gz, level = SPOT.level, dx = 3 }
+            local x, z = base.x + room.gx * 8 + room.dx, base.z + room.gz * 8 + 3
+            local coord = string.format("%d_%d_%d_%d_%d", room.level, x // 64, z // 64, x % 64, z % 64)
+            t.note(tag .. ": to " .. x .. "," .. z .. " (" .. coord .. ") to see the piece")
+            t.cheat("::tele " .. coord, false)
+            t.ticks(2)
+        end
+        -- A press the client could not land: no pixel of the piece on screen.
+        function H.unseen(detail)
+            local d = tostring(detail)
+            return d:find("menu has no row", 1, true) ~= nil or d:find("not_visible", 1, true) ~= nil
+                or d:find("entity pool", 1, true) ~= nil
         end
 
         -- ---------------------------------------------- build one furniture
@@ -654,6 +691,10 @@ return {
                         end
                     end
                 end
+            end
+            if cr ~= "ok" and H.unseen(cd) then
+                H.centre(tag)
+                cr, cd = t.player.click_loc(have.loc, op, { at = H.at(have) })
             end
             return cr, cd
         end

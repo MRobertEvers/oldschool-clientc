@@ -310,12 +310,20 @@ local function nexus_configure(t, H, have, tag)
     -- window is still up.
     -- A saved destination leaves the available list: drag only while
     -- Varrock is not already in slot 1.
-    if H.server("varb6654_poh_nexus_tele_1") ~= 1 then
+    local staged = H.server("varb6654_poh_nexus_tele_1") ~= 1
+    if staged then
         t.exec(tag .. ".drag", t.ui.drag_rows, "telenexus:non_slotted_list", 1, "telenexus:scrolling2", -1)
         t.ticks(1)
     end
     t.exec(tag .. ".done", H.press, "telenexus:telenexus_donebutton")
     t.ticks(1)
+    -- The confirm panel draws its bill from telenexus_cost (inv 619): Varrock
+    -- costs law runes, so a staged Varrock must put some there.
+    if staged then
+        local _, law = t.inv.count_in("telenexus_cost", "lawrune")
+        t.check(tag .. ".bill", (law or 0) > 0,
+            "telenexus_cost holds " .. tostring(law) .. " law runes, want > 0 (the confirm panel's bill)")
+    end
     if H.modal() then
         t.exec(tag .. ".confirm", H.press, "telenexus:telenexus_confirm")
         t.ticks(2)
@@ -688,6 +696,12 @@ local WARDROBE = {
 local function makeover_try(t, H, tag, what)
     local _, top = H.messages_since(-1)
     if H.server("varb4130_makeover_interface_type") ~= what.tab then
+        -- The tab list is the burger menu: on the client it is hidden until
+        -- its button's "Show Menu" (burger_menu_click) opens it.
+        if select(2, t.ui.shown("makeover:burger_menu_frame")) ~= true then
+            t.exec(tag .. ".menu", H.press, "makeover:burger_btn_menu")
+            t.ticks(1)
+        end
         t.exec(tag .. ".to_tab", H.press, "makeover:burger_menu_frame", 10 + 2 * what.tab)
         t.ticks(2)
     end

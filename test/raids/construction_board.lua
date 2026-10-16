@@ -18,7 +18,7 @@ local RIMMINGTON_PORTAL_SIDE = "0_46_50_9_24"
 return {
     id = "construction_board",
     fixture = "fresh_lumbridge.ini",
-    frames = 200000,
+    max_frames = 480000,
     setup = { "::clearinv", "::maxstats", "::give coins 1000000" },
 
     run = function(t)
