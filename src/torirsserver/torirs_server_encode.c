@@ -1124,12 +1124,18 @@ ToriRSServer_SendRebuildRegion(struct ToriRSServerPlayer* player)
 void
 ToriRSServer_SendRebuild(struct ToriRSServerPlayer* player)
 {
-    /* A rider stands in an instance, but their SCENE is not the instance:
-     * their window (and zone_x) is anchored under the hull, on the normal
-     * map, and that is the rebuild their client is owed
-     * (player_scene_anchor). */
-    if( ToriRSServer_MapInstanceFind(player->x, player->z) != 0 &&
-        !ToriRSServer_VesselAtTile(player->world, player->x, player->z) )
+    /* The SCENE decides, and a scene is anchored where the player is seen
+     * (ToriRSServer_PlayerSceneAnchor): their feet, or for a rider the hull's
+     * root position -- a rider's own feet are in the deck's instance, which is
+     * never their scene. Where the hull floats is the question: on the open
+     * map that is a normal rebuild, but in an instance (the Shipyard's copy of
+     * its island) it is that instance's region, or the client loads the pool's
+     * own coordinates as map squares and draws a void. */
+    int anchor_x = player->x;
+    int anchor_z = player->z;
+
+    ToriRSServer_PlayerSceneAnchor(player->world, player, &anchor_x, &anchor_z);
+    if( ToriRSServer_MapInstanceFind(anchor_x, anchor_z) != 0 )
         ToriRSServer_SendRebuildRegion(player);
     else
         ToriRSServer_SendRebuildNormal(player);
