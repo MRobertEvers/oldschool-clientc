@@ -16147,8 +16147,12 @@ ToriRSServer_WorldSelftest(void)
                                                "kit: %s is in the backpack",
                                                not_dealt[i]);
                             }
-                            SELFTEST_CHECK(ToriRSServer_BankCount(srv, 995) == 0,
-                                           "nor in the bank, got %d coins",
+                            /* The reference's label ends inv_clear(bank);
+                             * inv_add(bank, coins, 25): the island's 25, not
+                             * the development kit's coins. */
+                            SELFTEST_CHECK(ToriRSServer_BankCount(srv, 995) == 25,
+                                           "and the bank holds the island's 25 coins and "
+                                           "no kit, got %d coins",
                                            ToriRSServer_BankCount(srv, 995));
                         }
                     }

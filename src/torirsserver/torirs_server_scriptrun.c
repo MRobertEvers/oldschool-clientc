@@ -145,6 +145,11 @@ struct ScriptBot
     int armed_com;
     int armed_slot;
     int armed_obj;
+    /* The spellbook component whose "Cast" row is armed (the client's spell
+     * selection, drive_pointer_spell_arm): a select press on a target sends
+     * the spell's target packet. Dropped by any other press, as armed_slot
+     * is; arming one drops the other. -1: none. */
+    int armed_spell;
 };
 
 struct ScriptRun
@@ -1577,6 +1582,15 @@ push_press(
     return 2;
 }
 
+/* A press that is not a use-on drops whatever selection was armed, as a click
+ * elsewhere does on the client. */
+static void
+disarm(struct ScriptBot* bot)
+{
+    bot->armed_slot = -1;
+    bot->armed_spell = -1;
+}
+
 /* The nearest perceived npc of a content type (base or live rung), or the
  * pinned element: the copy a player would click. NULL: none in view. */
 static struct WorldEntity_NPC const*
@@ -1736,7 +1750,7 @@ d_world_op(lua_State* L)
     {
         struct WorldEntity_NPC const* best = pick_npc(c, type_id, want_element, px, pz, plevel);
         const struct ToriRSServerNpcInfo* info;
-        bot->armed_slot = -1;
+        disarm(bot);
         if( !best )
             return push_result(L, "not_found", want_element >= 0 ? "that npc copy is not in view"
                                                                   : "no such npc in view");
@@ -1754,7 +1768,7 @@ d_world_op(lua_State* L)
     {
         struct ScriptrunLoc const* best = pick_loc(c, type_id, want_element, px, pz, plevel);
         char const* row;
-        bot->armed_slot = -1;
+        disarm(bot);
         if( !best )
             return push_result(L, "not_found", "no such loc in view");
         row = ScriptrunCore_LocOpName(c, best->loc_id, op);
@@ -1803,7 +1817,11 @@ d_world_op(lua_State* L)
  * row, which collapses the target's menu to one "Use <item> -> <target>" row
  * (add_world_select_row) and leaves as OPLOCU / OPNPCU with the selected
  * cell in the tail (mock239_inbound.c put_useon_tail). The selection is
- * spent by the press, as the client's is. */
+ * spent by the press, as the client's is.
+ *
+ * With a SPELL armed (d_spell_arm) the one row is "Cast <spell> -> <npc>"
+ * and it leaves as OPNPCT, the body d_cast_npc sends. A spell on a loc or a
+ * ground obj is not modelled here and answers unsupported. */
 static int
 d_world_use(lua_State* L)
 {
@@ -1815,10 +1833,28 @@ d_world_use(lua_State* L)
     int px = 0, pz = 0, plevel = 0;
     uint8_t payload[12];
 
-    if( bot->armed_slot < 0 )
-        return push_result(L, "refused", "no item is armed");
+    if( bot->armed_slot < 0 && bot->armed_spell < 0 )
+        return push_result(L, "refused", "no item or spell is armed");
     if( !ScriptrunCore_LocalTile(c, &px, &pz, &plevel) )
         return push_result(L, "not_found", "not placed yet");
+    if( bot->armed_spell >= 0 )
+    {
+        struct WorldEntity_NPC const* best;
+        int spell = bot->armed_spell;
+        if( strcmp(kind, "npc") != 0 )
+            return push_result(L, "unsupported", "scriptrun: a spell on a loc or obj is not modelled");
+        best = pick_npc(c, type_id, want_element, px, pz, plevel);
+        if( !best )
+            return push_result(L, "not_found", "no such npc in view");
+        put2(payload, best->server_slot);
+        put4(payload + 2, spell);
+        disarm(bot);
+        handle(bot, PKTOUT_NAME_OPNPCT, payload, 6);
+        push_press(L, "Cast", best->element_id);
+        lua_pushstring(L, "cast");
+        lua_setfield(L, -2, "row_action");
+        return 2;
+    }
     if( strcmp(kind, "loc") == 0 )
     {
         struct ScriptrunLoc const* best = pick_loc(c, type_id, want_element, px, pz, plevel);
@@ -1830,7 +1866,7 @@ d_world_use(lua_State* L)
         put2(payload + 6, bot->armed_obj);
         put2(payload + 8, bot->armed_slot);
         put2(payload + 10, bot->armed_com & 0xffff);
-        bot->armed_slot = -1;
+        disarm(bot);
         handle(bot, PKTOUT_NAME_OPLOCU, payload, 12);
     }
     else if( strcmp(kind, "npc") == 0 )
@@ -1842,7 +1878,7 @@ d_world_use(lua_State* L)
         put2(payload + 2, bot->armed_obj);
         put2(payload + 4, bot->armed_slot);
         put2(payload + 6, bot->armed_com & 0xffff);
-        bot->armed_slot = -1;
+        disarm(bot);
         handle(bot, PKTOUT_NAME_OPNPCU, payload, 8);
     }
     else
@@ -1889,6 +1925,26 @@ arm_cell(
     bot->armed_com = component;
     bot->armed_slot = slot;
     bot->armed_obj = obj;
+    bot->armed_spell = -1;
+    return push_result(L, "ok", "armed");
+}
+
+/* api_drive.spell_arm(component): the spell's "Cast" row, which sends
+ * nothing -- the client only remembers the selection, and the next press on
+ * a target carries it (d_world_use). A spell on a display-hidden spellbook is
+ * refused, as d_cast_npc refuses it. */
+static int
+d_spell_arm(lua_State* L)
+{
+    struct ScriptBot* bot = bot_of(L);
+    int component = (int)luaL_checkinteger(L, 1);
+
+    if( !panel_showing(bot, component) )
+        return push_result(L, "refused", "the spell's panel is display-hidden");
+    if( bot->armed_spell == component )
+        return push_result(L, "ok", "already armed, nothing sent");
+    disarm(bot);
+    bot->armed_spell = component;
     return push_result(L, "ok", "armed");
 }
 
@@ -1910,7 +1966,7 @@ d_inv_op(lua_State* L)
         return push_result(L, "refused", "held op out of range");
     if( !panel_showing(bot, component) )
         return push_result(L, "refused", "the node or an ancestor of it is display-hidden");
-    bot->armed_slot = -1;
+    disarm(bot);
     send_if_buttonx(bot, component, slot, obj, IF_OP[option]);
     return push_result(L, "ok", "held op sent");
 }
@@ -1947,9 +2003,52 @@ d_inv_use_on(lua_State* L)
     put2(payload + 8, bot->armed_obj);
     put2(payload + 10, bot->armed_slot);
     put4(payload + 12, bot->armed_com);
-    bot->armed_slot = -1;
+    disarm(bot);
     handle(bot, PKTOUT_NAME_OPHELDU, payload, 16);
     return push_result(L, "ok", "use-on sent");
+}
+
+/* Buttons whose click is a clientscript's cc_resume_pausebutton, not an
+ * IF_BUTTON. The cache's torirs_stone_btn_bind gives each one an onop of
+ * torirs_stone_btn_click, which resumes the pausebutton on a hidden cc child
+ * of `resume` whose sub is the answer -- so the client sends
+ * RESUME_PAUSEBUTTON(resume, sub) and nothing else. This runner has no
+ * clientscripts, so the press sends that packet itself, as d_option_row's
+ * rows do for chatbox_multi_init's. Each row is one torirs_stone_btn_bind
+ * call in the clientscript named. */
+static struct
+{
+    char const* button;
+    char const* resume;
+    int sub;
+} const STONE_BUTTONS[] = {
+    /* torirs_tutorial_experience_prompt (Tutorial Island, ~tutorial_ask_experience) */
+    { "tutorial_player_experience:button_new", "tutorial_player_experience:content", 1 },
+    { "tutorial_player_experience:button_returning", "tutorial_player_experience:content", 2 },
+    { "tutorial_player_experience:button_experienced", "tutorial_player_experience:content", 3 },
+};
+
+/* 1 when `component` is a stone button and its press was sent. */
+static int
+stone_button_press(
+    struct ScriptBot* bot,
+    int component)
+{
+    uint8_t payload[6];
+
+    for( size_t i = 0; i < sizeof(STONE_BUTTONS) / sizeof(STONE_BUTTONS[0]); i++ )
+    {
+        if( ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, STONE_BUTTONS[i].button) !=
+            component )
+            continue;
+        int resume = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, STONE_BUTTONS[i].resume);
+        assert(resume >= 0);
+        put4(payload, resume);
+        put2(payload + 4, STONE_BUTTONS[i].sub);
+        handle(bot, PKTOUT_NAME_RESUME_PAUSEBUTTON, payload, 6);
+        return 1;
+    }
+    return 0;
 }
 
 static int
@@ -1965,7 +2064,9 @@ d_if_click(lua_State* L)
         return push_result(L, "refused", "op out of range");
     if( !panel_showing(bot, component) )
         return push_result(L, "refused", "the node or an ancestor of it is display-hidden");
-    bot->armed_slot = -1;
+    disarm(bot);
+    if( op == 1 && sub < 0 && stone_button_press(bot, component) )
+        return push_result(L, "ok", "stone button: resume_pausebutton sent");
     send_if_buttonx(bot, component, sub >= 0 ? sub : 0xffff, 0xffff, op);
     return push_result(L, "ok", "button sent");
 }
@@ -2843,7 +2944,7 @@ static char const* const CLIENT_VERBS[] = {
     "move_near", "npc_pose", "npc_record", "op_available", "option_row", "options",
     "party_host", "pause_pending", "pick_holds", "pick_point", "play", "player_delayed",
     "plan", "pump", "quit", "render_frame", "render_skip", "route", "say", "screen_position", "server_los",
-    "server_npc_pack", "shot", "sote_guard", "spell_arm", "start", "stop", "tab", "tab_by_name", "tests",
+    "server_npc_pack", "shot", "sote_guard", "start", "stop", "tab", "tab_by_name", "tests",
     "text", "tiles_nearest", "var_content", "varbit_base", "varbit_content", "vessel", "view_attach",
     "view_detach", "view_interact", "view_status", "view_watcher", "widget_at",
     "widget_bounds", "widget_model", "widget_own_hidden", "world_gate", "yellow_chains", "yellow_match",
@@ -2912,6 +3013,7 @@ push_drive_table(
     bind(L, bot, "move_to", d_move_to);
     bind(L, bot, "world_op", d_world_op);
     bind(L, bot, "world_use", d_world_use);
+    bind(L, bot, "spell_arm", d_spell_arm);
     bind(L, bot, "inv_arm", d_inv_arm);
     bind(L, bot, "inv_use_on", d_inv_use_on);
     bind(L, bot, "cast_npc", d_cast_npc);
@@ -3873,7 +3975,7 @@ ToriRSServer_ScriptRun(
         bot->run = &run;
         bot->index = i;
         bot->tab = SCRIPTRUN_TAB_INVENTORY;
-        bot->armed_slot = -1;
+        disarm(bot);
         bot->core = ScriptrunCore_New(run.rev);
         bot->core->cache_disk = run.cache_disk;
         run.count = i + 1;
