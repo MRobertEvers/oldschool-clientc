@@ -234,6 +234,16 @@ return {
         t.exec("options.enter", t.player.click_loc, home.portal, 3)
         t.ticks(4)
         t.check("options.inside", H.inside(), "at " .. H.tile_str(H.tile()))
+        -- The parlour's windows are the style's window wall (Basic Wood:
+        -- village_wall_window), never the templates' translucent placeholder
+        -- (poh_construct.rs2 ~poh_style_windows).
+        local win_r, win_d = t.world.loc_near("village_wall_window", 16)
+        t.check("options.windows_styled", win_r == "ok",
+            win_r == "ok" and ("village_wall_window at " .. win_d.tile_x .. "," .. win_d.tile_z) or tostring(win_d))
+        local ghost_r, ghost_d = t.world.loc_near("poh_dynamic_window", 16)
+        t.check("options.no_placeholder_window", ghost_r ~= "ok",
+            ghost_r == "ok" and ("a poh_dynamic_window still stands at " .. ghost_d.tile_x .. "," .. ghost_d.tile_z)
+                or "no poh_dynamic_window within 16")
         H.options_open("options")
         t.exec("options.build_off", H.press, "poh_options:build_mode_off")
         t.ticks(4)

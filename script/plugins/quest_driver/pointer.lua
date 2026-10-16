@@ -1329,14 +1329,27 @@ function QD.drive.click_minimenu(target, option, deadline, before_retry, single)
     -- the nearest perceived instance of the target's type -- the one a player
     -- would click. A held-item use is the armed cell used on that copy
     -- (api_drive.world_use); Examine needs the client's menu.
-    if api_drive.scriptrun == true then
+    --
+    -- THE CLIENT DOES THE SAME (owner, 2026-10-16: "the clicks should not be
+    -- done by scanning the scene, it should just know how to click on
+    -- something"; scripts must not take the player's camera either).  The
+    -- client's world_op / world_use build the ONE menu row a right-click on
+    -- that copy would carry and run it through the real dispatcher
+    -- (app_plugin_world_op, drive_pointer_world_use): the same walk, latch and
+    -- packet as the click, with no projection, no pointer, no camera pose and
+    -- no menu read.  The pointer path below is left only for what those verbs
+    -- cannot name (a player).
+    if api_drive.scriptrun == true or target.kind ~= "player" then
         if option == "examine" then
-            return "unsupported", "click_minimenu: examine needs a client"
+            if api_drive.scriptrun == true then
+                return "unsupported", "click_minimenu: examine needs a client"
+            end
+            return api_drive.world_op(target.kind, target.id, 0, target.reach_element)
         end
         if option == "select" then
-            -- A scriptrun binary built before world_use answers as it did then.
+            -- A binary built before world_use answers as it did then.
             if api_drive.world_use == nil then
-                return "unsupported", "click_minimenu: select needs a client (this binary predates world_use)"
+                return "unsupported", "click_minimenu: select: this binary predates world_use"
             end
             return api_drive.world_use(target.kind, target.id, target.reach_element)
         end

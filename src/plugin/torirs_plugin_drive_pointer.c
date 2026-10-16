@@ -58,6 +58,7 @@
 
 #include "cmd/cmdbus.h"
 #include "game/rs_entity_sync.h"
+#include "game/rs_minimenu_build.h"
 #include "game/rs_minimenu_world.h"
 #include "input/torirs_input.h"
 #include "render/torirs_world_projection.h"
@@ -102,6 +103,11 @@ extern int app_plugin_inv_op(
  * drive_pointer_inv_use_on to make sure a FAILED item-on-item leaves no armed
  * selection behind for the next verb's click to spend. */
 extern int app_selection_clear(struct App* app);
+
+/* The armed use/target selection, exactly as the real menu builder snapshots
+ * it (app_minimenu.c; layer-private header, so declared here as the ones
+ * above are).  drive_pointer_world_use builds its one row from it. */
+extern struct RS_MinimenuSelection app_minimenu_selection(struct App const* app);
 
 /* The three app_minimenu.c / app_if_events.c entry points the spell arming
  * below needs (drive_pointer_spell_arm).  Non-static there, declared in the
@@ -2086,6 +2092,127 @@ drive_pointer_cast_npc(
     return DRIVE_OK;
 }
 
+/*
+ * USE THE ARMED SELECTION ON A WORLD COPY -- api_drive.world_use, the live
+ * twin of scriptrun's d_world_use (2026-10-16).  With an item held ("Use") or
+ * a spell armed ("Cast"), the real menu on any npc/loc/obj collapses to the
+ * ONE row add_world_select_row builds (USEHELD_ON* / TGT_*); this runs that
+ * row through app_minimenu_run_option, as app_plugin_world_op runs an op row,
+ * so the driver presses the copy it named instead of projecting it, moving the
+ * pointer over it and reading a menu.  It refuses where the real menu offers no
+ * such row: nothing armed, or a spell whose target mask has no bit for `kind`.
+ */
+static enum DriveResult
+drive_pointer_world_use(
+    struct App* app,
+    enum DrivePickKind kind,
+    int id,
+    int want_element,
+    char const** out_reason)
+{
+    struct UIMinimenu scratch;
+    struct UIMinimenu saved;
+    struct UIMinimenuPick pick;
+    struct RS_MinimenuSelection sel;
+    enum DriveResult result;
+    int element_id = -1;
+    int use_action;
+    int tgt_action;
+    int mask_bit;
+
+    assert(app);
+    assert(out_reason);
+    *out_reason = NULL;
+    if( !app->world )
+    {
+        *out_reason = "no world yet";
+        return DRIVE_NOT_FOUND;
+    }
+    if( kind == DRIVE_PICK_LOC && want_element == 0 )
+        want_element = -1;
+    result = drive_pointer_world_element(app, kind, id, want_element, &element_id);
+    if( result != DRIVE_OK )
+    {
+        *out_reason = want_element >= 0 ? "that copy is not in view" : "no such copy in view";
+        return result;
+    }
+    memset(&pick, 0, sizeof(pick));
+    pick.id = element_id;
+    if( kind == DRIVE_PICK_NPC )
+    {
+        struct WorldEntity_NPC* npc = World_NpcGetByElementId(app->world, element_id, NULL);
+        if( !npc || npc->server_slot < 0 )
+        {
+            *out_reason = "the npc holds no server slot";
+            return DRIVE_NOT_FOUND;
+        }
+        pick.kind = UI_MINIMENU_PICK_NPC;
+        pick.secondary_id = npc->npc_id;
+        pick.tertiary_id = npc->grid_position.x;
+        pick.quaternary_id = npc->grid_position.z;
+        use_action = REVCONFIG_MINIMENU_USEHELD_ONNPC;
+        tgt_action = REVCONFIG_MINIMENU_TGT_NPC;
+        mask_bit = 0x2;
+    }
+    else if( kind == DRIVE_PICK_LOC )
+    {
+        struct WorldEntity_Scenery* loc = World_SceneryGetByElementId(app->world, element_id);
+        if( !loc )
+            return DRIVE_NOT_FOUND;
+        pick.kind = UI_MINIMENU_PICK_SCENERY;
+        pick.secondary_id = loc->loc_id;
+        pick.tertiary_id = loc->grid_position.x;
+        pick.quaternary_id = loc->grid_position.z;
+        use_action = REVCONFIG_MINIMENU_USEHELD_ONLOC;
+        tgt_action = REVCONFIG_MINIMENU_TGT_LOC;
+        mask_bit = 0x4;
+    }
+    else if( kind == DRIVE_PICK_OBJ )
+    {
+        struct WorldEntity_ObjStack* stack = World_ObjStackGetByElementId(app->world, element_id);
+        if( !stack )
+            return DRIVE_NOT_FOUND;
+        pick.kind = UI_MINIMENU_PICK_OBJ;
+        pick.secondary_id = stack->obj_id;
+        pick.tertiary_id = stack->grid_position.x;
+        pick.quaternary_id = stack->grid_position.z;
+        use_action = REVCONFIG_MINIMENU_USEHELD_ONOBJ;
+        tgt_action = REVCONFIG_MINIMENU_TGT_OBJ;
+        mask_bit = 0x1;
+    }
+    else
+        return DRIVE_UNSUPPORTED;
+
+    sel = app_minimenu_selection(app);
+    UIMinimenu_Reset(&scratch);
+    scratch.font_id = app->frame_view->minimenu->font_id;
+    if( sel.mode == RS_MINIMENU_SELECT_USE_ITEM )
+    {
+        if( !UIMinimenu_AddOption(&scratch, "", use_action, 0, pick) )
+            return DRIVE_REFUSED;
+    }
+    else if( sel.mode == RS_MINIMENU_SELECT_TARGET )
+    {
+        if( (sel.target_mask & mask_bit) == 0 )
+        {
+            *out_reason = "the armed spell's target mask has no bit for this kind: no cast row";
+            return DRIVE_NO_ROW;
+        }
+        if( !UIMinimenu_AddOption(&scratch, "", tgt_action, 0, pick) )
+            return DRIVE_REFUSED;
+    }
+    else
+    {
+        *out_reason = "nothing is armed: arm an item (inv_arm) or a spell (spell_arm) first";
+        return DRIVE_REFUSED;
+    }
+    saved = *app->frame_view->minimenu;
+    *app->frame_view->minimenu = scratch;
+    app_minimenu_run_option(app, 0, 0, 0);
+    *app->frame_view->minimenu = saved;
+    return DRIVE_OK;
+}
+
 enum DriveResult
 DrivePointer_MoveTo(struct App* app, int tile_x, int tile_z)
 {
@@ -2740,6 +2867,26 @@ lua_drive_world_op(struct lua_State* L)
     return PluginDrive_PushResult(L, result, NULL);
 }
 
+/* api_drive.world_use(kind, id, [element_id]) -> (result, detail): the armed
+ * item/spell on that copy, as one menu row.  See drive_pointer_world_use. */
+static int
+lua_drive_world_use(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+    char const* kind_name = PluginDrive_ArgString(L, 1);
+    int id = PluginDrive_ArgInt(L, 2);
+    int kind = drive_pointer_kind_from_name(kind_name);
+    int want_element = PluginDrive_ArgOptInt(L, 3, -1);
+    char const* reason = NULL;
+    enum DriveResult result;
+
+    assert(app);
+    if( kind < 0 )
+        return luaL_error(L, "drive.world_use: unknown kind '%s'", kind_name);
+    result = drive_pointer_world_use(app, (enum DrivePickKind)kind, id, want_element, &reason);
+    return PluginDrive_PushResult(L, result, reason);
+}
+
 static int
 lua_drive_inv_op(struct lua_State* L)
 {
@@ -3233,6 +3380,7 @@ static struct LuaFn const LUA_DRIVE_POINTER_FNS[] = {
     {"menu_row_find", lua_drive_menu_row_find},
     {"action_for_slot", lua_drive_action_for_slot},
     {"world_op", lua_drive_world_op},
+    {"world_use", lua_drive_world_use},
     {"op_available", lua_drive_op_available},
     {"inv_op", lua_drive_inv_op},
     {"inv_arm", lua_drive_inv_arm},
