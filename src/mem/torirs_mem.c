@@ -19,7 +19,20 @@
  * RSCACHE_MALLOC-style macros call the hook directly), stored in `file` with
  * this line. The report symbolizes it. */
 #define LIB_SITE_LINE 0xFFFFFFFFu
-#define LIB_SITE() ((const char*)__builtin_return_address(0))
+/* Only the memory-profiling lanes pay for a library hook's site: MEMTRACE=1,
+ * MEMPROF=1, or TORIRS_MEM_SITES=1 at run time. Not a debug build by itself.
+ * The read is not free everywhere -- wasm has no readable return address, so
+ * emscripten answers __builtin_return_address by leaving wasm, stringifying a
+ * new Error().stack and parsing one line of it. Paid on every library
+ * allocation, that was 97% of a world rebuild on the web lane (2.0 of 2.1 s
+ * climbing the Tutorial Island quest-guide ladder). A NULL site reports as
+ * "(library hook; run with TORIRS_MEM_SITES=1)". */
+#if defined(TORIRS_MEMTRACE) || defined(TORIRS_MEMPROF)
+#define TORIMEM_LIB_SITES_BUILD 1
+#else
+#define TORIMEM_LIB_SITES_BUILD 0
+#endif
+#define LIB_SITE() (s_lib_sites ? (const char*)__builtin_return_address(0) : (const char*)0)
 
 /*
  * The allocator's own memory (chunks, the dump's scratch) comes straight from
@@ -101,6 +114,7 @@ static int s_arenas_on = TORIMEM_ARENAS;
 static int s_strict;
 static int s_stats;
 static int s_sites = TORIMEM_DEBUG;
+static int s_lib_sites = TORIMEM_LIB_SITES_BUILD;
 static int s_at_exit;
 
 static struct ToriMem_Group s_process;
@@ -341,6 +355,7 @@ start_process(void)
     s_strict = env_on("TORIRS_MEM_STRICT");
     s_stats = env_on("TORIRS_MEM_STATS");
     s_sites = TORIMEM_DEBUG || env_on("TORIRS_MEM_SITES");
+    s_lib_sites = TORIMEM_LIB_SITES_BUILD || env_on("TORIRS_MEM_SITES");
 
     memset(&s_process, 0, sizeof(s_process));
     s_process.name = "process";
@@ -676,6 +691,11 @@ site_name(
     char* out,
     size_t cap)
 {
+    if( !file && line == LIB_SITE_LINE && !s_lib_sites )
+    {
+        snprintf(out, cap, "%s", "(library hook; run with TORIRS_MEM_SITES=1)");
+        return;
+    }
     if( !file )
     {
         snprintf(out, cap, "%s", s_sites ? "(no site)" : "(run with TORIRS_MEM_SITES=1)");

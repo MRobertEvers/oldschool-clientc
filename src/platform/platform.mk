@@ -585,6 +585,13 @@ else ifeq ($(PLATFORM),web)
     # the binaryen optimizations — a release build that is both larger and
     # slower than asked for.
     PLATFORM_LDFLAGS += -O3 -g0
+    # PROFILE=1 keeps the wasm name section, and nothing else: a DevTools
+    # performance profile of the -O3 module reads as wasm-function[4711]
+    # without it. --profiling-funcs leaves the binaryen pass set untouched
+    # (unlike -g), so the profile measures the module that ships.
+    ifeq ($(PROFILE),1)
+      PLATFORM_LDFLAGS += --profiling-funcs
+    endif
   else
     # -Og at link too: emcc decides the binaryen pass set from the *link*
     # -O level, and defaults to -O0 there no matter what the objects were
