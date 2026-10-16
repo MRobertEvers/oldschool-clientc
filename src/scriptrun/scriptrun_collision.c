@@ -21,6 +21,7 @@
 #include "engine/torirs_location_from_rscache.h"
 #include "engine/torirs_map_from_rscache.h"
 #include "engine/torirs_types.h"
+#include "net/rev/revpacket.h"
 #include "torirsserver/torirs_server.h"
 #include "torirsserver/torirs_server_scene.h"
 #include "world/world.h"
@@ -137,6 +138,11 @@ loc_append(
     l->angle = angle;
     l->loc_id = loc_id;
     l->map_loc_id = from_map ? loc_id : -1;
+    /* Map builds run under the root cursor and a deck's REBUILD_WORLDENTITY
+     * (and its zone changes) under its own, so the cursor names the view. */
+    l->view = core->active_world;
+    l->op_flags = 0x1f;
+    memset(l->ops, 0, sizeof(l->ops));
 }
 
 /* The record a placed loc stamps collision with: its rung, its base footprint
@@ -183,10 +189,30 @@ ScriptrunCore_FreeCollision(struct ScriptrunCore* core)
         ToriMem_Free(ToriMem_ServerPlayers(), builder);
         core->builder = NULL;
     }
-    ToriMem_Free(ToriMem_ServerPlayers(), core->locs);
-    core->locs = NULL;
-    core->loc_count = 0;
-    core->loc_capacity = 0;
+    /* The root scene's rows go with its collision; a deck's stay, as the
+     * client's views keep their own worlds across a root re-centre. */
+    {
+        int kept = 0;
+        for( int i = 0; i < core->loc_count; i++ )
+            if( core->locs[i].view > 0 )
+                core->locs[kept++] = core->locs[i];
+        core->loc_count = kept;
+    }
+}
+
+void
+ScriptrunCore_DropViewLocs(
+    struct ScriptrunCore* core,
+    int view)
+{
+    int kept = 0;
+
+    assert(core);
+    assert(view > 0);
+    for( int i = 0; i < core->loc_count; i++ )
+        if( core->locs[i].view != view )
+            core->locs[kept++] = core->locs[i];
+    core->loc_count = kept;
 }
 
 void
@@ -499,6 +525,93 @@ ScriptrunCore_BuildInstanceCollision(
     core->collision_locs = placed;
 }
 
+void
+ScriptrunCore_LoadViewLocs(
+    struct ScriptrunCore* core,
+    int view,
+    const int32_t* zones,
+    int zones_x,
+    int zones_z)
+{
+    enum
+    {
+        ZONES = WORLD_INSTANCE_ZONES,
+        SQUARES_CAP = 64,
+    };
+    struct InstanceSquare squares[SQUARES_CAP];
+    int square_count = 0;
+    struct ScriptrunView const* v;
+
+    assert(core);
+    assert(zones);
+    assert(view > 0 && view < SCRIPTRUN_VIEWS);
+    assert(zones_x >= 0 && zones_x <= ZONES);
+    assert(zones_z >= 0 && zones_z <= ZONES);
+    if( !core->cache_disk )
+        return;
+    v = &core->views[view];
+    /* WorldBuilder_RebuildInstanceZoneScenery's loc pass, on the view's own
+     * grid: each source zone's locs placed where the turned zone puts them. */
+    for( int level = 0; level < WORLD_MAP_TERRAIN_LEVELS; level++ )
+    {
+        for( int zx = 0; zx < zones_x; zx++ )
+        {
+            for( int zz = 0; zz < zones_z; zz++ )
+            {
+                int32_t d = zones[level * ZONES * ZONES + zx * ZONES + zz];
+                int rotation, src_zone_x, src_zone_z, src_level, src_tile_x, src_tile_z;
+                struct InstanceSquare* sq;
+
+                if( d == 0 )
+                    continue;
+                rotation = (d >> 1) & 0x3;
+                src_zone_z = (d >> 3) & 0x7ff;
+                src_zone_x = (d >> 14) & 0x3ff;
+                src_level = (d >> 24) & 0x3;
+                src_tile_x = (src_zone_x & 7) * 8;
+                src_tile_z = (src_zone_z & 7) * 8;
+                sq = instance_square(core, squares, &square_count, SQUARES_CAP, src_zone_x >> 3,
+                                     src_zone_z >> 3);
+                if( !sq->locs )
+                    continue;
+                for( int i = 0; i < sq->locs->locs_count; i++ )
+                {
+                    struct ToriRS_MapLoc loc = sq->locs->locs[i];
+                    struct ToriRS_Location* base;
+                    int sx = loc.chunk_pos_x - src_tile_x;
+                    int sz = loc.chunk_pos_z - src_tile_z;
+                    int size_x, size_z, dx, dz;
+
+                    if( loc.chunk_pos_level != src_level || sx < 0 || sx > 7 || sz < 0 || sz > 7 )
+                        continue;
+                    base = loc_config(loc.loc_id);
+                    if( !base )
+                        continue;
+                    size_x = base->size_x > 0 ? base->size_x : 1;
+                    size_z = base->size_z > 0 ? base->size_z : 1;
+                    if( (loc.orientation & 1) != 0 )
+                    {
+                        int tmp = size_x;
+                        size_x = size_z;
+                        size_z = tmp;
+                    }
+                    world_instance_rotate_to_dst(rotation, sx, sz, size_x, size_z, &dx, &dz);
+                    loc_append(core, v->base_x + zx * 8 + dx, v->base_z + zz * 8 + dz, level,
+                               loc.shape_select, (loc.orientation + rotation) & 3, loc.loc_id, 1);
+                    core->locs[core->loc_count - 1].view = view;
+                }
+            }
+        }
+    }
+    for( int i = 0; i < square_count; i++ )
+    {
+        if( squares[i].terrain )
+            ToriRS_MapTerrainFree(squares[i].terrain);
+        if( squares[i].locs )
+            ToriRS_MapLocsFree(squares[i].locs);
+    }
+}
+
 int
 ScriptrunCore_CollisionFlags(
     struct ScriptrunCore const* core,
@@ -621,18 +734,25 @@ ScriptrunCore_LocChange(
     int zone_level,
     int shape,
     int angle,
-    int loc_id)
+    int loc_id,
+    struct PktLocAddChange const* menu)
 {
     struct WorldBuilder* builder = core->builder;
     int sx, sz, level;
     int layer = World_LocShapeToLayer(shape);
     struct ToriRS_Location storage;
     struct ToriRS_Location* config;
+    int stamps;
 
     assert(core);
     sx = abs_x - core->world->_base_tile_x;
     sz = abs_z - core->world->_base_tile_z;
     level = loc_cache_level(core, sx, sz, zone_level);
+    /* Only a root-scene tile has a cell in the root collision map: a deck's
+     * change (under a SET_ACTIVE_WORLD cursor) is a staging tile far outside
+     * it, and the deck world's own collision is not modelled here. */
+    stamps = builder && core->active_world == 0 && sx >= 0 && sz >= 0 &&
+             sx < SCRIPTRUN_SCENE_SIZE && sz < SCRIPTRUN_SCENE_SIZE;
 
     /* 1. Whatever stood in this layer goes, collision undone through the same
      *    rung it was stamped with. */
@@ -642,7 +762,7 @@ ScriptrunCore_LocChange(
         if( l->loc_id < 0 || l->x != abs_x || l->z != abs_z || l->level != level ||
             World_LocShapeToLayer(l->shape) != layer )
             continue;
-        if( builder && (config = placed_config(core, l->loc_id, &storage)) != NULL )
+        if( stamps && (config = placed_config(core, l->loc_id, &storage)) != NULL )
         {
             struct ToriRS_MapLoc old_ml = {
                 .loc_id = l->loc_id,
@@ -660,8 +780,14 @@ ScriptrunCore_LocChange(
     if( loc_id < 0 )
         return;
     loc_append(core, abs_x, abs_z, level, shape, angle, loc_id, 0);
-    if( builder && sx >= 0 && sz >= 0 && sx < SCRIPTRUN_SCENE_SIZE && sz < SCRIPTRUN_SCENE_SIZE &&
-        (config = placed_config(core, loc_id, &storage)) != NULL )
+    if( menu )
+    {
+        struct ScriptrunLoc* row = &core->locs[core->loc_count - 1];
+        row->op_flags = menu->op_flags & 0x1f;
+        for( int i = 0; i < 5; i++ )
+            snprintf(row->ops[i], sizeof(row->ops[i]), "%s", menu->ops[i]);
+    }
+    if( stamps && (config = placed_config(core, loc_id, &storage)) != NULL )
     {
         struct ToriRS_MapLoc ml = {
             .loc_id = loc_id,
@@ -689,6 +815,41 @@ ScriptrunCore_LocResolvedId(
         return loc_id;
     resolved = resolve_loc(core, base);
     return resolved ? resolved->id : -1;
+}
+
+char const*
+ScriptrunCore_LocName(
+    struct ScriptrunCore const* core,
+    int loc_id)
+{
+    struct ToriRS_Location* base;
+    struct ToriRS_Location* resolved;
+
+    assert(core);
+    base = loc_config(loc_id);
+    if( !base )
+        return NULL;
+    resolved = resolve_loc(core, base);
+    if( !resolved || !resolved->name[0] )
+        return NULL;
+    return resolved->name;
+}
+
+char const*
+ScriptrunCore_LocRowOpName(
+    struct ScriptrunCore const* core,
+    struct ScriptrunLoc const* row,
+    int op)
+{
+    assert(core);
+    assert(row);
+    assert(op >= 1);
+    assert(op <= 5);
+    if( (row->op_flags & (1 << (op - 1))) == 0 )
+        return NULL;
+    if( row->ops[op - 1][0] )
+        return row->ops[op - 1];
+    return ScriptrunCore_LocOpName(core, row->loc_id, op);
 }
 
 char const*

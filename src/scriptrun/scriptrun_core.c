@@ -91,6 +91,7 @@ ScriptrunCore_Free(struct ScriptrunCore* core)
     if( !core )
         return;
     ScriptrunCore_FreeCollision(core);
+    ToriMem_Free(ToriMem_ServerPlayers(), core->locs);
     UIIfEventTable_Free(&core->if_events);
     RS_EntitySync_Free(core->esync);
     ToriMem_Free(ToriMem_ServerPlayers(), core->esync);
@@ -200,6 +201,49 @@ core_base_z(struct ScriptrunCore const* core)
     return (core->rebuild_zone_z - 6) * 8;
 }
 
+/* WorldviewRegistry_HomeViewForAbsTile: the live view whose staging
+ * rectangle holds an absolute tile (a rider on a deck), or 0. A view not yet
+ * rebuilt has base 0,0 and claims nothing. */
+static int
+core_home_view(
+    struct ScriptrunCore const* core,
+    int abs_x,
+    int abs_z)
+{
+    for( int id = 1; id < SCRIPTRUN_VIEWS; id++ )
+    {
+        struct ScriptrunView const* v = &core->views[id];
+
+        if( !v->live || (v->base_x == 0 && v->base_z == 0) )
+            continue;
+        if( abs_x < v->base_x || abs_x >= v->base_x + v->size_x )
+            continue;
+        if( abs_z < v->base_z || abs_z >= v->base_z + v->size_z )
+            continue;
+        return id;
+    }
+    return 0;
+}
+
+/* The origin the SET_ACTIVE_WORLD cursor's zone headers are relative to: the
+ * root scene's south-west corner, or the addressed deck's staging base
+ * (torirs_server_encode.c ToriRSServer_SendZoneHeaderAt). */
+static int
+core_cursor_base_x(struct ScriptrunCore const* core)
+{
+    if( core->active_world > 0 )
+        return core->views[core->active_world].base_x;
+    return core_base_x(core);
+}
+
+static int
+core_cursor_base_z(struct ScriptrunCore const* core)
+{
+    if( core->active_world > 0 )
+        return core->views[core->active_world].base_z;
+    return core_base_z(core);
+}
+
 static int
 core_local_pid(struct ScriptrunCore const* core)
 {
@@ -291,6 +335,13 @@ ScriptrunCore_LocalTile(
     core_player_local_tile((struct ScriptrunCore*)core, &sx, &sz, &slevel);
     *x = core_base_x(core) + sx;
     *z = core_base_z(core) + sz;
+    /* Aboard, the route is deck-local (player_apply_op's ABS_XZLEVEL): the
+     * absolute tile is the deck's staging tile, as the server keeps it. */
+    if( core->local_view > 0 && core->views[core->local_view].live )
+    {
+        *x = core->views[core->local_view].base_x + sx;
+        *z = core->views[core->local_view].base_z + sz;
+    }
     *level = slevel;
     return 1;
 }
@@ -464,6 +515,21 @@ player_apply_op(
         int next_x = op->_local_xz_level.x - core_base_x(core);
         int next_z = op->_local_xz_level.z - core_base_z(core);
         int step_type = WORLD_PATHSTEP_WALK;
+        /* task_exec_entity_info.c: a coordinate inside a live view's staging
+         * rectangle is a rider on a deck, rebased into the view's own space
+         * (root-relative it overflows the uint8_t route queue). */
+        int home_view =
+            core_home_view(core, op->_local_xz_level.x, op->_local_xz_level.z);
+
+        if( home_view > 0 )
+        {
+            next_x = op->_local_xz_level.x - core->views[home_view].base_x;
+            next_z = op->_local_xz_level.z - core->views[home_view].base_z;
+        }
+        if( player )
+            player->view_placement.home_view = home_view;
+        if( self->cur_pid == core_local_pid(core) )
+            core->local_view = home_view;
 
         /* class174: 2 run, 0 crawl, anything else the walk default. */
         if( op->_local_xz_level.has_move_speed &&
@@ -1170,8 +1236,8 @@ core_zone_tile(
     int* abs_z,
     int* level)
 {
-    *abs_x = core_base_x(core) + core->zone_base_x + ((pos >> 4) & 7);
-    *abs_z = core_base_z(core) + core->zone_base_z + (pos & 7);
+    *abs_x = core_cursor_base_x(core) + core->zone_base_x + ((pos >> 4) & 7);
+    *abs_z = core_cursor_base_z(core) + core->zone_base_z + (pos & 7);
     *level = core->zone_level;
 }
 
@@ -1204,14 +1270,14 @@ core_zone_sub(
     {
         struct PktLocAddChange const* pkt = payload;
         core_zone_tile(core, pkt->pos, &x, &z, &level);
-        ScriptrunCore_LocChange(core, x, z, level, pkt->info >> 2, pkt->info & 3, pkt->loc_id);
+        ScriptrunCore_LocChange(core, x, z, level, pkt->info >> 2, pkt->info & 3, pkt->loc_id, pkt);
         break;
     }
     case PKT_NAME_LOC_DEL:
     {
         struct PktLocDel const* pkt = payload;
         core_zone_tile(core, pkt->pos, &x, &z, &level);
-        ScriptrunCore_LocChange(core, x, z, level, pkt->info >> 2, pkt->info & 3, -1);
+        ScriptrunCore_LocChange(core, x, z, level, pkt->info >> 2, pkt->info & 3, -1, NULL);
         break;
     }
     case PKT_NAME_OBJ_ADD:
@@ -1356,6 +1422,148 @@ core_message(
     snprintf(m->text, sizeof(m->text), "%s", text ? text : "");
 }
 
+/* ------------------------------------------------------- world entities */
+
+/* SET_ACTIVE_WORLD: wire data, so a dead or out-of-range view is refused
+ * (the client logs and keeps its cursor), never asserted. */
+static void
+core_set_active_world(
+    struct ScriptrunCore* core,
+    struct PktSetActiveWorld const* pkt)
+{
+    if( pkt->world_id < 0 || pkt->world_id >= SCRIPTRUN_VIEWS ||
+        (pkt->world_id > 0 && !core->views[pkt->world_id].live) )
+    {
+        core->wev_refused++;
+        return;
+    }
+    core->active_world = pkt->world_id;
+    core->active_world_level = pkt->level < 0 ? 0 : (pkt->level > 3 ? 3 : pkt->level);
+    if( pkt->world_id > 0 )
+        core->views[pkt->world_id].level = core->active_world_level;
+}
+
+static void
+core_view_despawn(
+    struct ScriptrunCore* core,
+    int id)
+{
+    int kept = 0;
+
+    assert(id > 0 && id < SCRIPTRUN_VIEWS);
+    ScriptrunCore_DropViewLocs(core, id);
+    memset(&core->views[id], 0, sizeof(core->views[id]));
+    for( int i = 0; i < core->view_list_count; i++ )
+        if( core->view_list[i] != id )
+            core->view_list[kept++] = core->view_list[i];
+    core->view_list_count = kept;
+    if( core->local_view == id )
+        core->local_view = 0;
+}
+
+/* WORLDENTITY_INFO, as exec_worldentity_info applies it: records address the
+ * view list positionally, a short count despawns the tail, despawns are
+ * collected before they are swept, then the spawn trailer. The transform kept
+ * is the newest target (a move is a delta off the last one). */
+static void
+core_worldentity_info(
+    struct ScriptrunCore* core,
+    struct PktWorldEntityInfo const* pkt)
+{
+    int despawn[SCRIPTRUN_VIEWS];
+    int despawn_count = 0;
+
+    /* Only the root carries an entity list in this engine (no boat inside a
+     * boat); one aimed at a deck, or longer than the list, is the server and
+     * this client disagreeing -- refused like the client's count check. */
+    if( core->active_world != 0 || pkt->count > core->view_list_count )
+    {
+        core->wev_refused++;
+        return;
+    }
+    for( int i = pkt->count; i < core->view_list_count; i++ )
+        despawn[despawn_count++] = core->view_list[i];
+    for( int i = 0; i < pkt->count; i++ )
+    {
+        struct PktWevUpdate const* up = &pkt->updates[i];
+        struct ScriptrunView* v = &core->views[core->view_list[i]];
+
+        if( up->op == PKT_WEV_OP_DESPAWN )
+        {
+            despawn[despawn_count++] = core->view_list[i];
+            continue;
+        }
+        if( up->op == PKT_WEV_OP_ENQUEUE || up->op == PKT_WEV_OP_SNAP )
+        {
+            v->fine_x += up->dx;
+            v->fine_z += up->dz;
+            v->angle = (v->angle + up->dangle) & 0x7ff;
+        }
+        if( up->has_op_mask )
+            v->op_mask = up->op_mask;
+    }
+    for( int i = 0; i < despawn_count; i++ )
+        core_view_despawn(core, despawn[i]);
+    for( int i = 0; i < pkt->spawn_count; i++ )
+    {
+        struct PktWevSpawn const* sp = &pkt->spawns[i];
+        struct ScriptrunView* v;
+
+        if( sp->id <= 0 || sp->id >= SCRIPTRUN_VIEWS || sp->size_x_tiles <= 0 ||
+            sp->size_z_tiles <= 0 || core->view_list_count >= SCRIPTRUN_VIEWS - 1 )
+        {
+            core->wev_refused++;
+            continue;
+        }
+        if( core->views[sp->id].live )
+            core_view_despawn(core, sp->id);
+        v = &core->views[sp->id];
+        v->live = 1;
+        v->config_id = sp->config_id;
+        v->size_x = sp->size_x_tiles;
+        v->size_z = sp->size_z_tiles;
+        v->priority_group = sp->priority_group;
+        v->fine_x = sp->x;
+        v->fine_z = sp->z;
+        v->angle = sp->angle & 0x7ff;
+        v->op_mask = sp->has_op_mask ? sp->op_mask : PKT_WEV_OP_MASK_ALL;
+        core->view_list[core->view_list_count++] = sp->id;
+    }
+}
+
+/* REBUILD_WORLDENTITY: the cursor's deck map. Its base is the staging square
+ * every deck tile, rider and deck zone header is relative to; its grid's
+ * extent is the view's spawn-time size (PktRebuildWev_DecodeZones). */
+static void
+core_rebuild_worldentity(
+    struct ScriptrunCore* core,
+    struct PktRebuildWev const* pkt)
+{
+    int32_t* zones;
+    struct ScriptrunView* v;
+    int id = core->active_world;
+
+    if( id <= 0 || !core->views[id].live )
+    {
+        core->wev_refused++;
+        return;
+    }
+    v = &core->views[id];
+    zones = ToriMem_Calloc(ToriMem_ServerPlayers(), PKT_MAP_REBUILD_ZONES, sizeof(*zones));
+    assert(zones);
+    if( !PktRebuildWev_DecodeZones(pkt, v->size_x / 8, v->size_z / 8, zones) )
+    {
+        core->wev_refused++;
+        ToriMem_Free(ToriMem_ServerPlayers(), zones);
+        return;
+    }
+    ScriptrunCore_DropViewLocs(core, id);
+    v->base_x = pkt->base_x;
+    v->base_z = pkt->base_z;
+    ScriptrunCore_LoadViewLocs(core, id, zones, v->size_x / 8, v->size_z / 8);
+    ToriMem_Free(ToriMem_ServerPlayers(), zones);
+}
+
 static void
 core_rebuild(
     struct ScriptrunCore* core,
@@ -1497,8 +1705,8 @@ core_packet(
         core->zone_base_z = packet._update_zone_full_follows.base_z;
         core->zone_level = core_zone_header_level(core, packet._update_zone_full_follows.level);
         /* A full zone resend restates every obj in it: forget the old ones. */
-        x0 = core_base_x(core) + core->zone_base_x;
-        z0 = core_base_z(core) + core->zone_base_z;
+        x0 = core_cursor_base_x(core) + core->zone_base_x;
+        z0 = core_cursor_base_z(core) + core->zone_base_z;
         level = core->zone_level;
         /* ...and resets its locs to the map's, as the client's
          * zone_full_reset_locs does: the state behind this header names only
@@ -1564,7 +1772,19 @@ core_packet(
             core_npcs_reresolve(core);
         }
         break;
+    case PKT_NAME_SET_ACTIVE_WORLD:
+        core_set_active_world(core, &packet._set_active_world);
+        break;
+    case PKT_NAME_WORLDENTITY_INFO:
+        core_worldentity_info(core, &packet._worldentity_info);
+        break;
+    case PKT_NAME_REBUILD_WORLDENTITY:
+        core_rebuild_worldentity(core, &packet._rebuild_wev);
+        break;
     case PKT_NAME_SERVER_TICK_END:
+        /* SET_ACTIVE_WORLD lasts until the fence (rs_gameproto_exec.c). */
+        core->active_world = 0;
+        core->active_world_level = 0;
         /* DRIVE_STAMP server_tick: a=world cycle. Every packet of the tick is
          * applied by now. */
         ScriptrunCore_Event(core, SCRIPTRUN_EV_SERVER_TICK, (int)core->world->cycle, 0, 0, 0);

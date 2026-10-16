@@ -34,6 +34,7 @@
 #include "torirs_server_wire.h"
 #include "torirs_server_scene.h"
 #include "torirs_server_save.h"
+#include "torirs_server_vessel.h"
 #include "engine/world_builder/collision_map.h"
 #include "features/features.h"
 #include <rscache.h>
@@ -747,6 +748,100 @@ d_player_idle(lua_State* L)
     return 2;
 }
 
+/*
+ * api_drive.vessel() -> ("ok", reading): the quest driver's one vessel read
+ * (sail.lua), with the client's two halves (torirs_plugin_drive_state.c
+ * lua_drive_vessel), field for field:
+ *
+ *   - SERVER: the hull under the bot's own feet. The client reads it from its
+ *     embedded server, the one place a drive verb is allowed the server's
+ *     word; this runner IS that server, so the same read is the same answer.
+ *   - CLIENT: whether the bot's perceived world (scriptrun_core.c, from
+ *     WORLDENTITY_INFO) has that hull live under the same view id, and the
+ *     transform it was last sent. A server hull the bot never heard of is a
+ *     wire failure, and a sail verb must be able to say so.
+ */
+static char const*
+vessel_state_name(enum ToriRSServerVesselState state)
+{
+    switch( state )
+    {
+    case TORIRSSERVER_VESSEL_IDLE:
+        return "idle";
+    case TORIRSSERVER_VESSEL_HEADING:
+        return "heading";
+    case TORIRSSERVER_VESSEL_TARGET:
+        return "target";
+    }
+    return "?";
+}
+
+static void
+set_int(lua_State* L, char const* key, int value)
+{
+    lua_pushinteger(L, value);
+    lua_setfield(L, -2, key);
+}
+
+static int
+d_vessel(lua_State* L)
+{
+    struct ScriptBot* bot = bot_of(L);
+    struct ToriRSServerPlayer* player = bot->player;
+    struct ToriRSServerVessel* vessel;
+    struct ScriptrunView const* view;
+
+    assert(player);
+    vessel = ToriRSServer_VesselAtTile(bot->run->srv, player->x, player->z);
+    lua_pushstring(L, "ok");
+    lua_createtable(L, 0, 24);
+    lua_pushboolean(L, vessel != NULL);
+    lua_setfield(L, -2, "aboard");
+    set_int(L, "player_x", player->x);
+    set_int(L, "player_z", player->z);
+    set_int(L, "player_level", player->level);
+    if( !vessel )
+        return 2;
+
+    set_int(L, "handle", vessel->index);
+    set_int(L, "serial", vessel->serial);
+    set_int(L, "view_id", vessel->view_id);
+    set_int(L, "config_id", vessel->config_id);
+    set_int(L, "level", vessel->level);
+    set_int(L, "hull_x", vessel->fine_x >> 7);
+    set_int(L, "hull_z", vessel->fine_z >> 7);
+    set_int(L, "fine_x", vessel->fine_x);
+    set_int(L, "fine_z", vessel->fine_z);
+    set_int(L, "angle", vessel->angle);
+    set_int(L, "heading", vessel->heading);
+    set_int(L, "speed_tier", vessel->speed_tier);
+    lua_pushstring(L, vessel_state_name(vessel->state));
+    lua_setfield(L, -2, "state");
+    lua_pushboolean(L, vessel->sails_set != 0);
+    lua_setfield(L, -2, "sails_set");
+    lua_pushboolean(L, vessel->anchored != 0);
+    lua_setfield(L, -2, "anchored");
+    lua_pushboolean(L, player->navigating_vessel == vessel->index &&
+                           player->navigating_vessel_serial == vessel->serial);
+    lua_setfield(L, -2, "at_helm");
+    set_int(L, "arrivals", vessel->arrivals);
+    lua_pushstring(L, vessel->arrival_last);
+    lua_setfield(L, -2, "arrival_last");
+
+    view = vessel->view_id > 0 && vessel->view_id < SCRIPTRUN_VIEWS
+               ? &bot->core->views[vessel->view_id]
+               : NULL;
+    lua_pushboolean(L, view && view->live);
+    lua_setfield(L, -2, "client_live");
+    if( view && view->live )
+    {
+        set_int(L, "client_hull_x", view->fine_x >> 7);
+        set_int(L, "client_hull_z", view->fine_z >> 7);
+        set_int(L, "client_angle", view->angle);
+    }
+    return 2;
+}
+
 /* The XP table: the level a client derives from the experience it was sent. */
 static int
 level_for_xp(int xp_tenths_or_xp)
@@ -1348,6 +1443,17 @@ d_objs(lua_State* L)
     return 2;
 }
 
+static void
+loc_pick_origin(
+    struct ScriptrunCore const* c,
+    struct ScriptrunLoc const* l,
+    int px,
+    int pz,
+    int plevel,
+    int* ox,
+    int* oz,
+    int* olevel);
+
 static int
 d_locs(lua_State* L)
 {
@@ -1368,10 +1474,13 @@ d_locs(lua_State* L)
     for( int i = 0; i < c->loc_count; i++ )
     {
         struct ScriptrunLoc const* l = &c->locs[i];
-        if( l->loc_id < 0 || (have && radius > 0 && cheb(px, pz, l->x, l->z) > radius) )
+        int ox = px, oz = pz, olevel = plevel;
+        if( have )
+            loc_pick_origin(c, l, px, pz, plevel, &ox, &oz, &olevel);
+        if( l->loc_id < 0 || (have && radius > 0 && cheb(ox, oz, l->x, l->z) > radius) )
             continue;
         order[kept].idx = i;
-        order[kept].dist = have ? dist2(l->x, l->z, px, pz) : 0;
+        order[kept].dist = have ? dist2(l->x, l->z, ox, oz) : 0;
         kept++;
     }
     qsort(order, (size_t)kept, sizeof(order[0]), pool_order_cmp);
@@ -1437,10 +1546,13 @@ d_locs_of(lua_State* L)
     for( int i = 0; i < c->loc_count; i++ )
     {
         struct ScriptrunLoc const* l = &c->locs[i];
-        if( l->loc_id < 0 || (have && radius > 0 && cheb(px, pz, l->x, l->z) > radius) )
+        int ox = px, oz = pz, olevel = plevel;
+        if( have )
+            loc_pick_origin(c, l, px, pz, plevel, &ox, &oz, &olevel);
+        if( l->loc_id < 0 || (have && radius > 0 && cheb(ox, oz, l->x, l->z) > radius) )
             continue;
         order[kept].idx = i;
-        order[kept].dist = have ? dist2(l->x, l->z, px, pz) : 0;
+        order[kept].dist = have ? dist2(l->x, l->z, ox, oz) : 0;
         kept++;
     }
     /* the same sort as d_locs over the same rows, THEN the filter: the kept
@@ -1799,6 +1911,34 @@ pick_npc(
     return best;
 }
 
+/* Where a pick of loc row `l` is measured from: the player's tile -- unless
+ * the player rides a deck and `l` is a ROOT loc (a dock's plank, a chartable
+ * rock), which is reached from where the hull floats on the sea, as the
+ * client's projected pick and the server's deck approach measure it. The
+ * hull floats on the root plane the loc stands on; the deck's own plane is
+ * not a root level. */
+static void
+loc_pick_origin(
+    struct ScriptrunCore const* c,
+    struct ScriptrunLoc const* l,
+    int px,
+    int pz,
+    int plevel,
+    int* ox,
+    int* oz,
+    int* olevel)
+{
+    *ox = px;
+    *oz = pz;
+    *olevel = plevel;
+    if( l->view == 0 && c->local_view > 0 && c->views[c->local_view].live )
+    {
+        *ox = c->views[c->local_view].fine_x >> 7;
+        *oz = c->views[c->local_view].fine_z >> 7;
+        *olevel = l->level;
+    }
+}
+
 /* The nearest perceived loc of a type, or the pinned copy (d_locs'
  * element_id: the list slot + 1). Another floor's copy only when this floor
  * has none (a loc's level is its cache level: a bridge's differs). */
@@ -1820,9 +1960,11 @@ pick_loc(
         int d;
         if( l->loc_id != type_id )
             continue;
+        int ox, oz, olevel;
         if( want_element > 0 && i + 1 != want_element )
             continue;
-        d = DrivePick_Distance(l->x, l->z, l->level, px, pz, plevel);
+        loc_pick_origin(c, l, px, pz, plevel, &ox, &oz, &olevel);
+        d = DrivePick_Distance(l->x, l->z, l->level, ox, oz, olevel);
         if( DrivePick_Better(best != NULL, d, l->x, l->z, 0, best_d, best ? best->x : 0, best ? best->z : 0, 0) )
         {
             best_d = d;
@@ -1943,7 +2085,7 @@ d_world_op(lua_State* L)
         disarm(bot);
         if( !best )
             return push_result(L, "not_found", "no such loc in view");
-        row = ScriptrunCore_LocOpName(c, best->loc_id, op);
+        row = ScriptrunCore_LocRowOpName(c, best, op);
         if( !row )
             return push_result(L, "no_row", "the loc offers no such op");
         put2(payload, best->x);
@@ -1982,6 +2124,116 @@ d_world_op(lua_State* L)
         return push_press(L, op == 3 ? "Take" : "", -1);
     }
     return luaL_error(L, "drive.world_op: unknown kind '%s'", kind);
+}
+
+/*
+ * loc_row(option, name [, radius]) -> ("ok", {row_text, element_id}) |
+ * not_found
+ *
+ * The minimenu row "<option> <name>" on the nearest loc within `radius`
+ * (default 16) whose resolved name holds `name` and one of whose ops holds
+ * `option` (a string, or a table of alternatives) -- the row sail.lua's
+ * deck hunt right-clicks for on a client, where a deck loc (the helm, a
+ * cargo hold) is picked through its view's world and the OPLOC leaves at
+ * its staging tile (app_minimenu.c UI_MINIMENU_PICK_SCENERY with the view
+ * id). Here the deck's locs are rows at those same staging tiles
+ * (scriptrun_core.c core_rebuild_worldentity and the deck's zone changes),
+ * so the press is an OPLOC there, as world_op sends one.
+ */
+static int
+loc_row_option_hit(
+    lua_State* L,
+    char const* op_name)
+{
+    if( lua_type(L, 1) == LUA_TTABLE )
+    {
+        int n = (int)lua_rawlen(L, 1);
+        for( int k = 1; k <= n; k++ )
+        {
+            int hit;
+            lua_rawgeti(L, 1, k);
+            hit = lua_isstring(L, -1) && strstr(op_name, lua_tostring(L, -1)) != NULL;
+            lua_pop(L, 1);
+            if( hit )
+                return 1;
+        }
+        return 0;
+    }
+    return strstr(op_name, luaL_checkstring(L, 1)) != NULL;
+}
+
+static int
+d_loc_row(lua_State* L)
+{
+    struct ScriptBot* bot = bot_of(L);
+    struct ScriptrunCore* c = bot->core;
+    char const* name = luaL_checkstring(L, 2);
+    int radius = (int)luaL_optinteger(L, 3, 16);
+    int px = 0, pz = 0, plevel = 0;
+    struct ScriptrunLoc const* best = NULL;
+    int best_op = 0;
+    int best_d = 1 << 30;
+    char row[160];
+    uint8_t payload[8];
+
+    if( lua_type(L, 1) != LUA_TTABLE )
+        luaL_checkstring(L, 1);
+    if( !ScriptrunCore_LocalTile(c, &px, &pz, &plevel) )
+        return push_result(L, "not_found", "not placed yet");
+    for( int i = 0; i < c->loc_count; i++ )
+    {
+        struct ScriptrunLoc const* l = &c->locs[i];
+        char const* loc_name;
+        int d;
+        int ox, oz, olevel;
+
+        loc_pick_origin(c, l, px, pz, plevel, &ox, &oz, &olevel);
+        if( l->loc_id < 0 || cheb(ox, oz, l->x, l->z) > radius )
+            continue;
+        loc_name = ScriptrunCore_LocName(c, l->loc_id);
+        /* An empty `name` asks for the row alone: a loc whose config names
+         * nothing (a placed mast's "Work") still offers its op row. */
+        if( name[0] && (!loc_name || !strstr(loc_name, name)) )
+            continue;
+        d = DrivePick_Distance(l->x, l->z, l->level, ox, oz, olevel);
+        if( best && d >= best_d )
+            continue;
+        for( int op = 1; op <= 5; op++ )
+        {
+            char const* op_name = ScriptrunCore_LocRowOpName(c, l, op);
+            if( op_name && loc_row_option_hit(L, op_name) )
+            {
+                best = l;
+                best_op = op;
+                best_d = d;
+                break;
+            }
+        }
+    }
+    if( !best )
+    {
+        int deck_rows = 0;
+        for( int i = 0; i < c->loc_count; i++ )
+            if( c->locs[i].view > 0 && c->locs[i].loc_id >= 0 )
+                deck_rows++;
+        snprintf(row, sizeof(row),
+                 "no loc within %d of %d,%d level %d offers that row (homed view %d, %d deck "
+                 "loc rows)",
+                 radius, px, pz, plevel, c->local_view, deck_rows);
+        return push_result(L, "not_found", row);
+    }
+    disarm(bot);
+    {
+        char const* best_name = ScriptrunCore_LocName(c, best->loc_id);
+        snprintf(row, sizeof(row), "%s%s%s", ScriptrunCore_LocRowOpName(c, best, best_op),
+                 best_name ? " " : "", best_name ? best_name : "");
+    }
+    put2(payload, best->x);
+    put2(payload + 2, best->z);
+    put2(payload + 4, best->loc_id);
+    payload[6] = 0;
+    handle(bot, PKTOUT_NAME_OPLOC1 + (best_op - 1), payload, 7);
+    return push_press(L, row, (int)(best - c->locs) + 1);
 }
 
 /* world_use(kind, type_id [, element_id]): the armed backpack item used on
@@ -2267,6 +2519,123 @@ stone_button_press(
     return 0;
 }
 
+/* Lists whose rows are clientscript children whose onop resumes the server's
+ * pause on the LIST at the row's own sub, not an IF_BUTTON: the sailing boat
+ * selector (sailing_boat_selection_button_press, 8632: `cc_find(anchor,
+ * boat_slot)` then cc_resume_pausebutton on that primary -- 934's
+ * boats_click_layer at the boat's slot 1..5, which `~sailing_select_owned`
+ * reads back as last_slot). A press of (list, sub) sends
+ * RESUME_PAUSEBUTTON(list, sub) when the server armed the resume
+ * (if_addresumebutton arms 0..TORIRSSERVER_RESUME_SUB_MAX with the click
+ * bit), and nothing else. */
+static char const* const RESUME_ROW_LISTS[] = {
+    "sailing_boat_selection:boats_click_layer",
+};
+
+/* Buttons whose onop is a clientscript answering the server's
+ * p_countdialog with a fixed number (resume_countdialog), not an IF_BUTTON:
+ * the client sends RESUME_P_COUNTDIALOG(value) and nothing else. The port
+ * task info (942) sets them per draw (torirs_sailing_port_task_info.cs2):
+ * its confirm button (942:10, torirs_sailing_port_task_confirm_op, 8903)
+ * answers 1 -- Accept task / Cancel task -- and its back button (942:8,
+ * torirs_sailing_port_task_back_op) answers 0. Pressed only while that
+ * interface is open, as the onop exists only while it is drawn. */
+static struct
+{
+    char const* button;
+    char const* iface;
+    int value;
+} const COUNT_BUTTONS[] = {
+    { "port_task_info:select", "port_task_info", 1 },
+    { "port_task_info:cancel", "port_task_info", 0 },
+};
+
+/* 1 when `component` is a count button and its press was answered (pushed). */
+static int
+count_button_press(
+    lua_State* L,
+    struct ScriptBot* bot,
+    int component,
+    int* pushed)
+{
+    uint8_t payload[4];
+
+    for( size_t i = 0; i < sizeof(COUNT_BUTTONS) / sizeof(COUNT_BUTTONS[0]); i++ )
+    {
+        if( ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, COUNT_BUTTONS[i].button) != component )
+            continue;
+        if( !ScriptrunCore_InterfaceOpen(
+                bot->core, ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_INTERFACE, COUNT_BUTTONS[i].iface)) )
+        {
+            *pushed = push_result(L, "refused", "the button's interface is not open");
+            return 1;
+        }
+        put4(payload, COUNT_BUTTONS[i].value);
+        handle(bot, PKTOUT_NAME_RESUME_P_COUNTDIALOG, payload, 4);
+        *pushed = push_result(L, "ok", "count button: resume_p_countdialog sent");
+        return 1;
+    }
+    return 0;
+}
+
+/* api_drive.set_heading(heading) -> ok | refused
+ *
+ * The client's "Set heading" row (app_wev.c app_sailing_heading_at, the
+ * launch model's heading selector) as it leaves: SET_HEADING with the 16-point
+ * compass heading. The screen ring that picks the heading is the client's; the
+ * packet is the same either way. */
+static int
+d_set_heading(lua_State* L)
+{
+    struct ScriptBot* bot = bot_of(L);
+    int heading = (int)luaL_checkinteger(L, 1);
+    uint8_t payload[1];
+
+    if( heading < 0 || heading > 15 )
+        return push_result(L, "refused", "heading out of 0..15");
+    disarm(bot);
+    payload[0] = (uint8_t)heading;
+    handle(bot, PKTOUT_NAME_SET_HEADING, payload, 1);
+    return push_result(L, "ok", "set_heading sent");
+}
+
+/* 1 when (`component`, `sub`) is a resume row and its press was answered
+ * (ok or refused, pushed); 0 when it is not one. */
+static int
+resume_row_press(
+    lua_State* L,
+    struct ScriptBot* bot,
+    int component,
+    int sub,
+    int* pushed)
+{
+    uint8_t payload[6];
+
+    for( size_t i = 0; i < sizeof(RESUME_ROW_LISTS) / sizeof(RESUME_ROW_LISTS[0]); i++ )
+    {
+        if( ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, RESUME_ROW_LISTS[i]) != component )
+            continue;
+        if( sub < 0 )
+        {
+            *pushed = push_result(L, "refused", "a resume list is pressed on a row: name its sub");
+            return 1;
+        }
+        if( (effective_events(bot, component, sub) & 1u) == 0 )
+        {
+            *pushed = push_result(L, "refused", "the server has not armed the row's resume "
+                                                "(if_addresumebutton)");
+            return 1;
+        }
+        put4(payload, component);
+        put2(payload + 4, sub);
+        bot->core->resume_pending = component;
+        handle(bot, PKTOUT_NAME_RESUME_PAUSEBUTTON, payload, 6);
+        *pushed = push_result(L, "ok", "resume row: resume_pausebutton sent");
+        return 1;
+    }
+    return 0;
+}
+
 /* The make-menu (interface 270, `~skill_multi`). Its eighteen item buttons
  * send no IF_BUTTON: the server arms each with if_addresumebutton (the click
  * bit only) and the button's onop, skillmulti_itembutton_triggered (2052),
@@ -2399,6 +2768,14 @@ d_if_click(lua_State* L)
         if( skillmulti_press(L, bot, component, &pushed) )
             return pushed;
     }
+    if( op == 1 )
+    {
+        int pushed = 0;
+        if( resume_row_press(L, bot, component, sub, &pushed) )
+            return pushed;
+        if( sub < 0 && count_button_press(L, bot, component, &pushed) )
+            return pushed;
+    }
     {
         char const* why = if_click_refusal(bot, component, sub, op);
         if( why )
@@ -2406,6 +2783,77 @@ d_if_click(lua_State* L)
     }
     send_if_buttonx(bot, component, sub >= 0 ? sub : 0xffff, 0xffff, op);
     return push_result(L, "ok", "button sent");
+}
+
+/*
+ * api_drive.sail_build(part) -> ok | refused | not_found  (part: a dbrow symbol)
+ *
+ * The shipyard catalogue's "Build" row. Its rows are clientscript children of
+ * sailing_customisation:facility_click_layer (torirs_sailing_custom_build_op,
+ * 8832), each an overlay whose onop is torirs_sailing_custom_confirm (8834):
+ * `if_script_trigger(-852562543, facility_click_layer, <row sub>, <facility
+ * dbrow>, 0, "ii")`. The server reads only the dbrow (last_item) and the
+ * IF_BUTTON1 the trigger becomes (torirs_server_world.c, the sailing
+ * customisation route); the row's sub is the overlay's draw index, which this
+ * runner has no clientscript to compute, so the press names row 0 -- armed
+ * with the rest (`if_setevents(facility_click_layer, 0, 511, op1)`). The
+ * catalogue must be open and the row armed, or there is nothing to press.
+ */
+enum
+{
+    SAIL_BUILD_TRIGGER_CRC = -852562543,
+};
+
+static int
+put_zigzag(uint8_t* out, int value)
+{
+    uint32_t v = ((uint32_t)value << 1) ^ (uint32_t)-(value < 0);
+    int n = 0;
+
+    while( v >= 128 )
+    {
+        out[n++] = (uint8_t)((v & 127) | 128);
+        v >>= 7;
+    }
+    out[n++] = (uint8_t)v;
+    return n;
+}
+
+static int
+d_sail_build(lua_State* L)
+{
+    struct ScriptBot* bot = bot_of(L);
+    char const* part = luaL_checkstring(L, 1);
+    int dbrow = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_DBROW, part);
+    int iface = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_INTERFACE, "sailing_customisation");
+    int layer = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT,
+                                           "sailing_customisation:facility_click_layer");
+    uint8_t payload[32];
+    int n = 0;
+
+    if( dbrow < 0 )
+        return push_result(L, "not_found", "no such dbrow");
+    if( iface < 0 || layer < 0 )
+        return push_result(L, "not_found", "sailing_customisation:facility_click_layer");
+    if( !ScriptrunCore_InterfaceOpen(bot->core, iface) )
+        return push_result(L, "refused", "the shipyard catalogue (sailing_customisation) is not open");
+    if( (effective_events(bot, layer, 0) & (1u << 1)) == 0 )
+        return push_result(L, "refused", "the server has not armed the catalogue's rows (IF_SETEVENTS op 1)");
+    disarm(bot);
+    /* G2 LE add128 child, G2 object, G4 LE component, G4 LE crc, then the
+     * zigzag ints (mock239_if_script_trigger_decode). */
+    payload[n++] = (uint8_t)((0 + 128) & 0xff);
+    payload[n++] = 0;
+    payload[n++] = 0xff;
+    payload[n++] = 0xff;
+    for( int i = 0; i < 4; i++ )
+        payload[n++] = (uint8_t)(((uint32_t)layer >> (8 * i)) & 0xff);
+    for( int i = 0; i < 4; i++ )
+        payload[n++] = (uint8_t)(((uint32_t)SAIL_BUILD_TRIGGER_CRC >> (8 * i)) & 0xff);
+    n += put_zigzag(payload + n, dbrow);
+    n += put_zigzag(payload + n, 0);
+    handle(bot, PKTOUT_NAME_IF_SCRIPT_TRIGGER, payload, n);
+    return push_result(L, "ok", "build row: if_script_trigger sent");
 }
 
 /* A chatmenu row's id, as option_row hands it out: the rows are clientscript
@@ -3317,7 +3765,7 @@ static char const* const CLIENT_VERBS[] = {
     "party_host", "pause_pending", "pick_holds", "pick_point", "play", "player_delayed",
     "plan", "pump", "quit", "render_frame", "render_skip", "route", "say", "screen_position", "server_los",
     "server_npc_pack", "shot", "sote_guard", "start", "stop", "tab", "tab_by_name", "tests",
-    "text", "tiles_nearest", "var_content", "varbit_base", "varbit_content", "vessel", "view_attach",
+    "text", "tiles_nearest", "var_content", "varbit_base", "varbit_content", "view_attach",
     "view_detach", "view_interact", "view_status", "view_watcher", "widget_at",
     "widget_bounds", "widget_model", "widget_own_hidden", "world_gate", "yellow_chains", "yellow_match",
 };
@@ -3363,6 +3811,7 @@ push_drive_table(
     bind(L, bot, "key", d_key);
     bind(L, bot, "player_tile", d_player_tile);
     bind(L, bot, "player_idle", d_player_idle);
+    bind(L, bot, "vessel", d_vessel);
     bind(L, bot, "skill", d_skill);
     bind(L, bot, "run_energy", d_run_energy);
     bind(L, bot, "varp", d_varp);
@@ -3391,6 +3840,9 @@ push_drive_table(
     bind(L, bot, "cast_npc", d_cast_npc);
     bind(L, bot, "inv_op", d_inv_op);
     bind(L, bot, "if_click", d_if_click);
+    bind(L, bot, "sail_build", d_sail_build);
+    bind(L, bot, "loc_row", d_loc_row);
+    bind(L, bot, "set_heading", d_set_heading);
     bind(L, bot, "resume", d_resume);
     bind(L, bot, "close_modal", d_close_modal);
     bind(L, bot, "widget_presented", d_widget_presented);

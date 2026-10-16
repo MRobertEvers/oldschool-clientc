@@ -364,6 +364,18 @@ end
 -- and pressed at its projected pixels first, because no one pose reaches it
 -- wherever the hull stopped (currentaffairs collectDuck).
 function QD.sail._press_deck_row(option, name, step, rings)
+    -- SCRIPTRUN: no screen to hunt on. The runner presses the row the hunt
+    -- looks for -- "<option> <name>" on the nearest loc that offers it, a
+    -- deck loc at its staging tile (api_drive.loc_row) -- as click_minimenu's
+    -- scriptrun branch sends the op a menu row would have sent.
+    if api_drive.scriptrun == true then
+        local result, press = api_drive.loc_row(option, name, 16)
+        if result ~= "ok" then
+            local wanted = type(option) == "table" and table.concat(option, "/") or option
+            return result, "loc_row '" .. wanted .. "' + '" .. name .. "': " .. tostring(press)
+        end
+        return "ok", tostring(press.row_text) .. " (scriptrun loc_row)"
+    end
     local npc_row = QD.sail._npc_named(name)
     local aim
     local points
@@ -512,6 +524,16 @@ function QD.sail._heading_yaw(heading)
 end
 
 function QD.sail._press_heading(heading)
+    -- SCRIPTRUN: no screen ring to aim. The row it finds sends SET_HEADING
+    -- with the compass heading (torirs_server_world.c handle_set_heading),
+    -- and so does this (api_drive.set_heading).
+    if api_drive.scriptrun == true then
+        local set_result, set_detail = api_drive.set_heading(heading)
+        if set_result ~= "ok" then
+            return set_result, "sail._press_heading: " .. tostring(set_detail)
+        end
+        return "ok", "Set heading " .. heading .. " (scriptrun set_heading)"
+    end
     local aim = QD.sail._take_pose("heading", QD.sail._heading_yaw(heading))
     local pick_result, point = api_drive.pick_point()
     if pick_result ~= "ok" or type(point) ~= "table" or (point.view_w or 0) <= 0 then
@@ -843,11 +865,80 @@ function QD.sail.sail_to(x, z, radius, ticks)
                 end
             end
         end
+        -- One try per gust window: a window stays open several ticks, and a
+        -- press that did not trim is not repeated into the same window.
+        local gust_open = QD.sail.auto_trim and QD.sail._gust_open()
+        if gust_open and not QD.sail._trim_window_tried then
+            QD.sail._trim_window_tried = true
+            local trim_result, trim_detail = QD.sail.trim(4)
+            QD.sail.trims[#QD.sail.trims + 1] = { result = trim_result, detail = trim_detail,
+                tick = api_drive.tick() }
+        elseif not gust_open then
+            QD.sail._trim_window_tried = false
+        end
         QD.ticks(1)
     end
     return "timeout", string.format(
         "sail.sail_to %d,%d r%d from %s: %d heading press(es), %d furled turn(s), %d made under way; now %s",
         x, z, radius, from, presses, turns, under_way, QD.sail._describe(reading))
+end
+
+-- ------------------------------------------------------------ gust trimming
+--
+--   t.sail.trim(ticks)           -> ok once the sails are trimmed into an open
+--                                   gust ("You trim the sails and catch the
+--                                   gust.", boat_wind.rs2 ~sailing_try_trim)
+--   QD.sail.auto_trim = true     -> sail_to trims every gust it sails through,
+--                                   appending each answer to QD.sail.trims
+--
+-- A gust opens a trim window (%varb19111_sailing_boat_time_trim_window > 0,
+-- "A gust fills the sails. Trim them for a burst of speed!"). The mast's one
+-- row, "Work" (boat_customisation.rs2 ~sailing_part_place's loc_add_op),
+-- trims while the window is open and FURLS the sails when it is not
+-- (boat_facilities.rs2 ~sailing_op_sails) -- so it is pressed only while the
+-- window reads open, never on a guess.
+QD.sail.auto_trim = false
+QD.sail.trims = {}
+
+function QD.sail._gust_open()
+    local r, window = QD.var.varbit("varb19111_sailing_boat_time_trim_window")
+    return r == "ok" and type(window) == "number" and window > 0
+end
+
+function QD.sail.trim(ticks)
+    local waited = QD.await({
+        event = "server_tick",
+        match = function() return QD.sail._gust_open() end,
+        note = "sail.trim window",
+    }, ticks or 60)
+    if waited ~= "ok" then
+        return waited, "sail.trim: no gust window opened"
+    end
+    local serial_result, before = api_drive.message_serial()
+    local press_result, press_detail = QD.sail._press_deck_row("Work", "")
+    if press_result ~= "ok" then
+        return press_result, "sail.trim: " .. tostring(press_detail)
+    end
+    local line = nil
+    local result = QD.await({
+        event = "server_tick",
+        match = function()
+            local r, now = api_drive.message_serial()
+            if serial_result == "ok" and r == "ok" and now ~= before then
+                line = QD.player._last_line()
+                return true
+            end
+            return false
+        end,
+        note = "sail.trim",
+    }, 4)
+    if result ~= "ok" then
+        return result, "sail.trim: pressed " .. tostring(press_detail) .. ", no answer"
+    end
+    if line ~= "You trim the sails and catch the gust." then
+        return "refused", "sail.trim: " .. tostring(line)
+    end
+    return "ok", "sail.trim: " .. tostring(line) .. " (" .. tostring(press_detail) .. ")"
 end
 
 -- Wait for the hull to have queued a BOUND arrival trigger whose subject is
@@ -902,11 +993,32 @@ function QD.sail.disembark(gangplank, ticks)
     -- (~sailing_op_helm: "You step away from the helm").
     if before.at_helm then
         QD.sail._take_pose("deck")
-        local off_result, off_detail = QD.sail._press_deck_row("Navigate", "Helm")
+        -- The helm is a multiloc on varb19105_sailing_boat_facility_lockedin:
+        -- held, its row is "Stop-navigating" (configs/all.loc
+        -- sailing_boat_steering_*_in_use); a view that has not re-resolved it
+        -- still says "Navigate". Op 1 either way.
+        local off_result, off_detail = QD.sail._press_deck_row({ "Stop-navigating", "Navigate" }, "Helm")
         if off_result ~= "ok" then
             return off_result, "sail.disembark: stepping off the helm: " .. tostring(off_detail)
         end
         QD.sail._await(function(r) return not r.at_helm end, 5, "sail.disembark off helm")
+    end
+    -- SCRIPTRUN: the plank's "Disembark" row, measured from the hull the
+    -- rider stands on (api_drive.loc_row: a root loc is reached from where
+    -- the hull floats, as the client's projected pick reaches it).
+    if api_drive.scriptrun == true then
+        local row_result, press = api_drive.loc_row("Disembark", "Gangplank", 24)
+        if row_result ~= "ok" then
+            return row_result, "sail.disembark: " .. tostring(press)
+        end
+        local result, reading = QD.sail._await(function(r) return not r.aboard end, ticks or 20,
+            "sail.disembark")
+        if result ~= "ok" then
+            return result, "sail.disembark: pressed " .. tostring(press.row_text) .. " but "
+                .. QD.sail._describe(reading) .. " -- last line: " .. tostring(QD.player._last_line())
+        end
+        return "ok", "sail.disembark: pressed " .. tostring(press.row_text) .. " (scriptrun); "
+            .. QD.sail._describe(reading)
     end
     -- The pose is taken AFTER the off-helm press (a deck row, pressed from
     -- the deck pose): the plank framed beside the hull from the reach pose,
@@ -956,6 +1068,122 @@ function QD.sail.disembark(gangplank, ticks)
     }, 10)
     return "ok", "sail.disembark: pressed " .. press_detail .. " (" .. aim .. "); "
         .. QD.sail._describe(reading) .. (landed == "ok" and "" or " (client not settled ashore in 10 ticks)")
+end
+
+-- ------------------------------------------------------ boats and shipyard
+--
+--   t.sail.select_boat(slot)     -> ok once the selector's row for owned boat
+--                                   `slot` (1..5) is pressed and the server
+--                                   has you aboard (boat selector 934, opened
+--                                   by a gangplank's Board or a shipwright)
+--   t.sail.build(part)           -> ok once the shipyard catalogue's Build
+--                                   row for dbrow `part` is pressed and the
+--                                   server answers (sailing_customisation)
+
+-- The selector's rows are clientscript children whose press resumes the
+-- server's pause on boats_click_layer at the boat's slot
+-- (sailing_boat_selection_button_press, 8632; boat_selection.rs2
+-- ~sailing_select_owned reads last_slot).
+function QD.sail.select_boat(slot, ticks)
+    assert(type(slot) == "number", "sail.select_boat slot is not a number: " .. tostring(slot))
+    local open_result = QD.ui.await_open("sailing_boat_selection", 5)
+    if open_result ~= "ok" then
+        return open_result, "sail.select_boat: the boat selector is not open -- last line: "
+            .. tostring(QD.player._last_line())
+    end
+    local row_result, row = QD.ui.widget("sailing_boat_selection:boats_click_layer", slot)
+    if row_result ~= "ok" then
+        return row_result, "sail.select_boat: no row for slot " .. slot
+    end
+    local press_result, press_detail = QD.ui.invoke(row, 1)
+    if press_result ~= "ok" then
+        return press_result, "sail.select_boat: " .. tostring(press_detail)
+    end
+    local result, reading = QD.sail._await(function(r) return r.aboard end, ticks or 10,
+        "sail.select_boat")
+    if result ~= "ok" then
+        return result, "sail.select_boat: pressed slot " .. slot .. " but "
+            .. QD.sail._describe(reading) .. " -- last line: " .. tostring(QD.player._last_line())
+    end
+    return "ok", "sail.select_boat: slot " .. slot .. "; " .. QD.sail._describe(reading)
+end
+
+-- The catalogue's Build row for `part` (a sailing_boat_facility or hull-part
+-- dbrow symbol). Its row is a clientscript overlay whose onop sends
+-- IF_SCRIPT_TRIGGER with the part's dbrow (torirs_sailing_custom_confirm,
+-- 8834). A client draws the rows from cache data this driver does not
+-- re-derive, so only the scriptrun lane (api_drive.sail_build) presses it.
+-- The answer is the server's next game message ("You finish building the
+-- boat part." or its refusal).
+function QD.sail.build(part, ticks)
+    if api_drive.sail_build == nil then
+        return "unsupported", "sail.build: the catalogue's Build rows are clientscript children; "
+            .. "only the scriptrun lane presses them (api_drive.sail_build)"
+    end
+    local serial_result, before = api_drive.message_serial()
+    local press_result, press_detail = api_drive.sail_build(part)
+    if press_result ~= "ok" then
+        return press_result, "sail.build " .. tostring(part) .. ": " .. tostring(press_detail)
+    end
+    local line = nil
+    local result = QD.await({
+        event = "server_tick",
+        match = function()
+            local r, now = api_drive.message_serial()
+            if serial_result == "ok" and r == "ok" and now ~= before then
+                line = QD.player._last_line()
+                return true
+            end
+            return false
+        end,
+        note = "sail.build",
+    }, ticks or 5)
+    if result ~= "ok" then
+        return result, "sail.build " .. tostring(part) .. ": pressed, no answer"
+    end
+    if line ~= "You finish building the boat part." then
+        return "refused", "sail.build " .. tostring(part) .. ": " .. tostring(line)
+    end
+    return "ok", "sail.build " .. tostring(part) .. ": " .. tostring(line)
+end
+
+-- --------------------------------------------------------------- charting
+--
+--   t.sail.chart(name, ticks)    -> ok once the Captain's log took the chart
+--                                   of the scenery named `name` (its "Chart"
+--                                   row: sailing/scripts/sailing_charting.rs2)
+--
+-- A chartable at sea is a ROOT loc reached from the deck at approach
+-- distance, so it is pressed through the deck-row hunt (as Prying Times'
+-- sea crate is), never click_loc, whose walk from the rider's deck tile can
+-- not arrive. Answers the game's line: "You chart ..." is ok, anything else
+-- (already charted, a level refusal) is refused with the line.
+function QD.sail.chart(name, ticks)
+    local serial_result, before = api_drive.message_serial()
+    local press_result, press_detail = QD.sail._press_deck_row("Chart", name)
+    if press_result ~= "ok" then
+        return press_result, "sail.chart: " .. tostring(press_detail)
+    end
+    local line = nil
+    local result = QD.await({
+        event = "server_tick",
+        match = function()
+            local r, now = api_drive.message_serial()
+            if serial_result == "ok" and r == "ok" and now ~= before then
+                line = QD.player._last_line()
+                return true
+            end
+            return false
+        end,
+        note = "sail.chart",
+    }, ticks or 20)
+    if result ~= "ok" then
+        return result, "sail.chart: pressed " .. tostring(press_detail) .. ", no answer"
+    end
+    if string.find(tostring(line), "You chart ", 1, true) ~= 1 then
+        return "refused", "sail.chart: " .. tostring(line)
+    end
+    return "ok", "sail.chart: " .. tostring(line) .. " (" .. tostring(press_detail) .. ")"
 end
 
 -- ---------------------------------------------------------------- port tasks
@@ -1114,6 +1342,123 @@ function QD.sail.cargo_load(name, ticks)
             .. tostring(QD.player._last_line())
     end
     return "ok", "sail.cargo_load: pressed " .. press_detail .. " -- " .. tostring(QD.player._last_line())
+end
+
+-- Take a crate back out of the boat's hold into your hands: the hold's
+-- "Open" row (its _no_cargo child while your hands are empty) opens the
+-- cargo hold (sailing_boat_cargohold, boat_cargo.rs2 ~sailing_cargo_open),
+-- and Withdraw-1 -- op 2 on the hold's items at the crate's `slot` (0-based,
+-- default 0) -- puts one crate in your hands
+-- (port_tasks.rs2 ~port_task_hold_withdraw_crate).
+function QD.sail.cargo_withdraw(name, slot, ticks)
+    if QD.sail._carrying() then
+        return "refused", "sail.cargo_withdraw: your hands already hold a crate"
+    end
+    local press_result, press_detail = QD.sail._press_deck_row("Open", name or "cargo hold")
+    if press_result ~= "ok" then
+        return press_result, "sail.cargo_withdraw: " .. tostring(press_detail)
+    end
+    local open_result = QD.ui.await_open("sailing_boat_cargohold", 10)
+    if open_result ~= "ok" then
+        return open_result, "sail.cargo_withdraw: pressed " .. tostring(press_detail)
+            .. " but the hold never opened -- last line: " .. tostring(QD.player._last_line())
+    end
+    local item_result, item = QD.ui.widget("sailing_boat_cargohold:items", slot or 0)
+    if item_result ~= "ok" then
+        return item_result, "sail.cargo_withdraw: no hold slot " .. tostring(slot or 0)
+    end
+    local invoke_result, invoke_detail = QD.ui.invoke(item, 2)
+    if invoke_result ~= "ok" then
+        return invoke_result, "sail.cargo_withdraw: Withdraw-1 -> " .. tostring(invoke_detail)
+    end
+    local result = QD.await({
+        event = "server_tick",
+        match = function() return QD.sail._carrying() end,
+        note = "sail.cargo_withdraw",
+    }, ticks or 10)
+    if result ~= "ok" then
+        return result, "sail.cargo_withdraw: not carrying -- last line: " .. tostring(QD.player._last_line())
+    end
+    return "ok", "sail.cargo_withdraw: carrying -- " .. tostring(QD.player._last_line())
+end
+
+-- Take every `item` out of the boat's hold into the backpack: open the hold
+-- ("Open", hands empty), find the item among the hold's slots -- the hold is
+-- the inventory %varp5204_sailing_boat_cargohold_inv names, sent with the
+-- panel (boat_cargo.rs2 ~sailing_cargo_open's invother_transmit) -- and press
+-- Withdraw-All, op 6 on that slot (~sailing_cargo_quantity: max). Answers
+-- once the backpack holds it.
+function QD.sail.hold_withdraw(item, name, ticks)
+    local obj_result, obj_id = api_drive.symbol("obj", item)
+    if obj_result ~= "ok" then
+        return obj_result, "sail.hold_withdraw: no obj " .. tostring(item)
+    end
+    local _, before = QD.inv.count(item)
+    local press_result, press_detail = QD.sail._press_deck_row("Open", name or "cargo hold")
+    if press_result ~= "ok" then
+        return press_result, "sail.hold_withdraw: " .. tostring(press_detail)
+    end
+    local open_result = QD.ui.await_open("sailing_boat_cargohold", 10)
+    if open_result ~= "ok" then
+        return open_result, "sail.hold_withdraw: the hold never opened -- last line: "
+            .. tostring(QD.player._last_line())
+    end
+    local hold_result, hold = api_drive.varp(5204)
+    if hold_result ~= "ok" or type(hold) ~= "number" or hold < 0 then
+        return "not_found", "sail.hold_withdraw: sailing_boat_cargohold_inv unread (" .. tostring(hold_result) .. ")"
+    end
+    -- invother_transmit sends the hold as ANOTHER's inventory, which the
+    -- client files at id + 32768 (torirs_server_scripts.c, the same offset
+    -- its listener bookkeeping uses); a plain transmit would file it at id.
+    local slot = nil
+    local seen = {}
+    for _, container in ipairs({ hold + 32768, hold }) do
+        for i = 0, 239 do
+            local r, cell = api_drive.inv_slot(container, i)
+            if r ~= "ok" then
+                break
+            end
+            if cell.obj_id == obj_id then
+                slot = i
+                break
+            end
+            if cell.obj_id >= 0 and #seen < 8 then
+                local _, cell_name = api_drive.symbol_name("obj", cell.obj_id)
+                seen[#seen + 1] = i .. ":" .. tostring(cell_name) .. "x" .. tostring(cell.count)
+            end
+        end
+        if slot ~= nil then
+            break
+        end
+    end
+    if slot == nil then
+        return "not_found", "sail.hold_withdraw: no " .. tostring(item) .. " in hold inventory " .. tostring(hold)
+            .. " (holds: " .. (#seen > 0 and table.concat(seen, ", ") or "nothing") .. ")"
+    end
+    local item_result, widget = QD.ui.widget("sailing_boat_cargohold:items", slot)
+    if item_result ~= "ok" then
+        return item_result, "sail.hold_withdraw: no hold slot " .. slot
+    end
+    local invoke_result, invoke_detail = QD.ui.invoke(widget, 6)
+    if invoke_result ~= "ok" then
+        return invoke_result, "sail.hold_withdraw: Withdraw-All -> " .. tostring(invoke_detail)
+    end
+    local now = before
+    local result = QD.await({
+        event = "server_tick",
+        match = function()
+            local _, n = QD.inv.count(item)
+            now = n
+            return (n or 0) > (before or 0)
+        end,
+        note = "sail.hold_withdraw",
+    }, ticks or 10)
+    if result ~= "ok" then
+        return result, "sail.hold_withdraw: " .. tostring(item) .. " still " .. tostring(now)
+            .. " in the backpack -- last line: " .. tostring(QD.player._last_line())
+    end
+    return "ok", "sail.hold_withdraw: " .. tostring(item) .. " " .. tostring(before) .. " -> " .. tostring(now)
+        .. " (hold slot " .. slot .. ")"
 end
 
 -- Deliver at the destination ledger: "Deposit-cargo", op 1 of the ledger's

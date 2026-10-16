@@ -34,6 +34,7 @@
 
 struct World;
 struct GameProtoRevTable;
+struct PktLocAddChange;
 struct RSCache_Dat2Disk;
 
 enum
@@ -155,6 +156,42 @@ struct ScriptrunLoc
      * zone change appended. A map row a change deleted keeps it, so a zone's
      * full reset (ScriptrunCore_ZoneResetLocs) can put the map's loc back. */
     int map_loc_id;
+    /* The world view the row belongs to: 0 the root scene, 1..15 a boat's
+     * deck (its staging-rectangle tiles). A root rebuild keeps deck rows, as
+     * the client keeps a view's world across a root re-centre. */
+    int view;
+    /* This placement's own menu (LOC_ADD_CHANGE_V2, a content loc_add_op):
+     * `op_flags` the five shown slots (bit 0 = op1), `ops` a label that
+     * replaces the loctype's for a slot when non-empty. A map loc and a plain
+     * loc_add show the loctype's menu: all five bits, no labels. */
+    int op_flags;
+    char ops[5][32];
+};
+
+/*
+ * A world entity (a boat) as WORLDENTITY_INFO and REBUILD_WORLDENTITY told
+ * it: the client's Wev and its Worldview, less everything a renderer needs.
+ * The hull's transform is the last target the server sent (the client lerps
+ * toward it over one tick; a tick-granular reader needs only the target).
+ * base_x/base_z stay 0 until the view's REBUILD_WORLDENTITY names its staging
+ * square, as WorldviewRegistry's base does.
+ */
+enum
+{
+    SCRIPTRUN_VIEWS = 16, /* WORLDVIEW_MAX: id 0 is the root */
+};
+
+struct ScriptrunView
+{
+    int live;
+    int config_id;
+    int size_x, size_z; /* deck extent, tiles */
+    int priority_group;
+    int fine_x, fine_z; /* hull centre, 128 per tile */
+    int angle;          /* 0..2047 */
+    int op_mask;
+    int base_x, base_z; /* staging rectangle SW corner, absolute tiles */
+    int level;          /* the plane SET_ACTIVE_WORLD named for it */
 };
 
 struct ScriptrunObj
@@ -208,6 +245,19 @@ struct ScriptrunCore
     int zone_base_x, zone_base_z, zone_level;
     /* SET_NPC_UPDATE_ORIGIN (scene-local). */
     int npc_origin_valid, npc_origin_x, npc_origin_z;
+
+    /* World entities. `active_world` is SET_ACTIVE_WORLD's cursor (0 the
+     * root; SERVER_TICK_END resets it); `view_list` is the root view's
+     * entity list in the server's order, which WORLDENTITY_INFO's records
+     * address positionally (rs_gameproto_exec.c exec_worldentity_info).
+     * `local_view` is the view the local player is homed in (0 ashore). */
+    struct ScriptrunView views[SCRIPTRUN_VIEWS];
+    int view_list[SCRIPTRUN_VIEWS];
+    int view_list_count;
+    int active_world;
+    int active_world_level;
+    int local_view;
+    int wev_refused;
 
     int next_element_id;
     int tick;
@@ -372,6 +422,26 @@ ScriptrunCore_BuildInstanceCollision(
     const int32_t* zones);
 
 /**
+ * A boat deck's template locs from its REBUILD_WORLDENTITY grid (same
+ * descriptor stride as REBUILD_REGION, `zones_x` x `zones_z` used), placed at
+ * the view's staging tiles and tagged with `view`. Locs only: a deck's
+ * collision is the deck world's, which the root collision map cannot hold.
+ */
+void
+ScriptrunCore_LoadViewLocs(
+    struct ScriptrunCore* core,
+    int view,
+    const int32_t* zones,
+    int zones_x,
+    int zones_z);
+
+/** Drop every loc row of `view` (a despawned or rebuilt deck). */
+void
+ScriptrunCore_DropViewLocs(
+    struct ScriptrunCore* core,
+    int view);
+
+/**
  * A zone LOC_ADD_CHANGE (loc_id >= 0) or LOC_DEL (loc_id -1) at an absolute
  * tile on the zone's walked level: the loc in that shape's layer is replaced,
  * collision undone and restamped (WorldBuilder_ApplyLocChange).
@@ -384,7 +454,8 @@ ScriptrunCore_LocChange(
     int zone_level,
     int shape,
     int angle,
-    int loc_id);
+    int loc_id,
+    struct PktLocAddChange const* menu);
 
 /**
  * UPDATE_ZONE_FULL_FOLLOWS for the zone whose south-west tile is (abs_x0,
@@ -430,10 +501,25 @@ ScriptrunCore_LocResolvedId(
  * The menu text of a loc's op (1-based) on the rung this bot's varps select,
  * or NULL when that rung offers no such op (scriptrun_collision.c).
  */
+/* The display name of the rung a loc resolves to for this bot, or NULL. */
+char const*
+ScriptrunCore_LocName(
+    struct ScriptrunCore const* core,
+    int loc_id);
+
 char const*
 ScriptrunCore_LocOpName(
     struct ScriptrunCore const* core,
     int loc_id,
+    int op);
+
+/* The label a placed loc's menu shows on slot `op` (1..5), or NULL when the
+ * slot is empty or hidden: the placement's mask and labels over the
+ * resolved loctype's, in the reference's order (mask, loctype, override). */
+char const*
+ScriptrunCore_LocRowOpName(
+    struct ScriptrunCore const* core,
+    struct ScriptrunLoc const* row,
     int op);
 
 /**
