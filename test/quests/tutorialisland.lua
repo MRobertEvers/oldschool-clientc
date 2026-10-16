@@ -230,6 +230,15 @@ return {
         t.check("design.confirm", t.ui.invoke(confirm, 1), "player_design:confirm " .. tostring(cr))
         closed_check("design.closed", "player_design")
         t.exec("experience.open", t.ui.await_open, "tutorial_player_experience", 5)
+        -- Walked away from instead of answered: the question is closed with
+        -- no answer and the step still 0. The Gielinor Guide -- the only way
+        -- out of the house -- asks it again rather than saying nothing.
+        t.exec("experience.walkAway", t.player.walk_to, 3095, 3106, 5)
+        closed_check("experience.dismissed", "tutorial_player_experience")
+        t.exec("experience.unanswered", t.var.await, VARP, 0, 3)
+        local gr, gd = t.player.talk_to("newbie_basics_instructor", 1)
+        t.note("talk to the guide with no answer: " .. tostring(gr) .. " " .. tostring(gd))
+        t.exec("experience.reopened", t.ui.await_open, "tutorial_player_experience", 5)
         local er, brand_new = t.ui.widget("tutorial_player_experience:button_new")
         t.check("experience.new", t.ui.invoke(brand_new, 1), "button_new " .. tostring(er))
         closed_check("experience.closed", "tutorial_player_experience")
