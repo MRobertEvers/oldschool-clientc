@@ -2571,21 +2571,26 @@ world_builder_minimap_add_loc(
     if( scene_x < 0 || scene_z < 0 || scene_x >= scene_size || scene_z >= scene_size )
         return;
 
-    /* Reference drawDetail (Client.ts): a loc carrying a mapscene index plots
-     * that Pix8 into the minimap image instead of drawing wall lines. Two
-     * sources — wallType (wall shapes 0-3) and sceneType (diagonal-wall 9,
-     * centrepiece 10/11, roofs 12-21). Wall-decor (4-8) and floor-decoration
-     * (22) never feed a mapscene. The sprite is blitted per baked level in
-     * app_rebuild_world_map, which owns the loaded mapscene atlas. width/length
-     * are the raw config footprint (drawDetail centers the sprite over
-     * loc.width x loc.length without the orientation swap). */
+    /* Reference drawDetail: a loc carrying a mapscene index plots that sprite
+     * into the minimap image instead of drawing wall lines. Three sources in
+     * revision 239 (deob client.java's minimap tile pass: the boundary, the
+     * scene object and the GROUND DECORATION getters, each plotting its loc's
+     * mapscene) -- wall shapes 0-3, diagonal-wall 9 / centrepieces / roofs
+     * 10-21, and floor decoration 22. Port Sarim's pier deck is the last kind:
+     * serim_pier, shape 22, mapscene 46, is the brown pier on the map (Client-TS,
+     * the 2004 client, has no third source, and the piers baked as water).
+     * Wall-decor (4-8) never feeds one. The sprite is blitted per baked level
+     * in app_rebuild_world_map, which owns the loaded mapscene atlas.
+     * width/length are the raw config footprint (drawDetail centers the sprite
+     * over loc.width x loc.length without the orientation swap). */
     if( config_loc->map_scene_id != -1 )
     {
         int const shape = map_loc->shape_select;
         if( (shape >= RSCACHE_LOC_SHAPE_WALL_SINGLE_SIDE &&
              shape <= RSCACHE_LOC_SHAPE_WALL_RECT_CORNER) ||
             (shape >= RSCACHE_LOC_SHAPE_WALL_DIAGONAL &&
-             shape <= RSCACHE_LOC_SHAPE_ROOF_SLOPED_OVERHANG_HARD_OUTER_CORNER) )
+             shape <= RSCACHE_LOC_SHAPE_ROOF_SLOPED_OVERHANG_HARD_OUTER_CORNER) ||
+            shape == RSCACHE_LOC_SHAPE_FLOOR_DECORATION )
         {
             World_AddMapSceneIcon(
                 world,
