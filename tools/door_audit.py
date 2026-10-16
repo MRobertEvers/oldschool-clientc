@@ -187,7 +187,7 @@ def build_rows(tree):
                     nxt = s.split(",", 1)[1]
         lid = name2id.get(name, -1)
         rows.append(dict(
-            name=name, id=lid, disp=disp, ops=ops,
+            name=name, id=lid, disp=disp, ops=ops, models=loc_models(fields),
             interactive=bool(opvals & INTERACTIVE_OPS),
             cat=cat, nxt=nxt,
             placed=placed.get(lid, 0), shapes=dict(shapes.get(lid, {})),
@@ -821,6 +821,16 @@ def claimed_by(claimed, name):
 
 
 SELFSTAGE_CATEGORY = "door_selfstage"
+# A long fence gate self-stages too, but folds its leaves out into a line
+# (general_use/scripts/gates.rs2) instead of swinging them apart like a door.
+SELFSTAGE_GATE_CATEGORY = "gate_selfstage"
+
+
+def selfstage_category(row):
+    models = row.get("models", [])
+    if any(tuple(models[:len(head)]) == head for head in LONG_GATE_MODEL_HEADS):
+        return SELFSTAGE_GATE_CATEGORY
+    return SELFSTAGE_CATEGORY
 
 
 def cmd_write_selfstage(rows, buckets, tree, path):
@@ -832,7 +842,7 @@ def cmd_write_selfstage(rows, buckets, tree, path):
         # "already categorised" would make the second regeneration emit nothing.
         # Every other category does disqualify: a loc has one, and the last
         # `.loc` read wins.
-        if row["cat"] and row["cat"] != SELFSTAGE_CATEGORY:
+        if row["cat"] and row["cat"] not in (SELFSTAGE_CATEGORY, SELFSTAGE_GATE_CATEGORY):
             continue
         if claimed_by(claimed, row["name"]):
             continue  # another content file already owns it
@@ -849,7 +859,7 @@ def cmd_write_selfstage(rows, buckets, tree, path):
     lines = [SELFSTAGE_HEADER]
     for row in eligible:
         lines.append(f"[{row['name']}]")
-        lines.append(f"category={SELFSTAGE_CATEGORY}")
+        lines.append(f"category={selfstage_category(row)}")
         lines.append("")
     with open(path, "w", encoding="utf8") as f:
         f.write("\n".join(lines))

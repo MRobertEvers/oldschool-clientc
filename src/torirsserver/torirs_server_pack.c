@@ -1058,6 +1058,9 @@ validate_doors(
     int door_closed = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_CATEGORY, "door_closed");
     int door_opened = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_CATEGORY, "door_opened");
     int door_selfstage = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_CATEGORY, "door_selfstage");
+    /* A long fence gate's leaves self-stage on the same facts; only the swing
+     * geometry differs (`general_use/scripts/gates.rs2`). */
+    int gate_selfstage = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_CATEGORY, "gate_selfstage");
     int selfstage = 0;
     int selfstage_bad = 0;
 
@@ -1132,7 +1135,8 @@ validate_doors(
          * validator, and the thing that goes red if the generator is ever run
          * against a different revision than the server boots.
          */
-        if( door_selfstage > 0 && def->category == door_selfstage )
+        if( (door_selfstage > 0 && def->category == door_selfstage) ||
+            (gate_selfstage > 0 && def->category == gate_selfstage) )
         {
             selfstage++;
             if( !configs[loc_id] )
