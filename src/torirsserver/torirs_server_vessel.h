@@ -48,6 +48,9 @@ struct ToriRSServerVessel;
  * that bound is rejected before acquiring any private map or collision window.
  */
 #define TORIRSSERVER_WEV_VIEW_MAX 15
+/** One deck's npc list (a world entity's NPC_INFO): its captain's crew and a
+ *  few passengers. */
+#define TORIRSSERVER_DECK_NPC_MAX 64
 
 /** All five WORLDENTITY_INFO right-click ops enabled — the client's own
  *  default (PKT_WEV_OP_MASK_ALL / WEV_OP_MASK_ALL), restated here because the

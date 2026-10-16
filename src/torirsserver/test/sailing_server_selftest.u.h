@@ -1425,17 +1425,17 @@ selftest_sailing(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
                                            "projected gap, not the pool one",
                                            shore_dx, shore_dz);
                             /*
-                             * And the half a range fix cannot supply: the
-                             * candidate set. The zonemap walk is asked first
-                             * and must come back empty — the pool is in nobody
-                             * else's subscription — so if the cross-frame
-                             * query does not offer this npc, nothing does and
-                             * the deck renders empty however close the boat is.
+                             * And the candidate set. The zonemap walk must
+                             * come back empty — the pool is in nobody else's
+                             * subscription, and a deck npc is not the root
+                             * world's — so the hull's own world is what offers
+                             * it: its deck's NPC_INFO (npc_info_encode_decks),
+                             * the reference's per-World npc list.
                              */
                             {
                                 int candidates[TORIRSSERVER_TRACKED_NPC_MAX];
                                 int zonemap_has = 0;
-                                int crossframe_has = 0;
+                                int deck_has = 0;
                                 int count;
 
                                 count = ToriRSServer_PlayerzonemapNpcs(
@@ -1443,18 +1443,17 @@ selftest_sailing(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
                                     TORIRSSERVER_TRACKED_NPC_MAX);
                                 for( int i = 0; i < count; i++ )
                                     zonemap_has = zonemap_has || candidates[i] == npc_slot;
-                                count = ToriRSServer_PlayerCrossFrameNpcs(
-                                    player, TORIRSSERVER_NPC_VIEW_TILES, candidates,
-                                    TORIRSSERVER_TRACKED_NPC_MAX);
+                                count = ToriRSServer_VesselDeckNpcs(srv, boat, candidates,
+                                                                    TORIRSSERVER_TRACKED_NPC_MAX);
                                 for( int i = 0; i < count; i++ )
-                                    crossframe_has = crossframe_has || candidates[i] == npc_slot;
+                                    deck_has = deck_has || candidates[i] == npc_slot;
 
                                 SELFTEST_CHECK(!zonemap_has,
                                                "the shore player's zonemap cannot offer a "
                                                "deck npc — it subscribes to no pool zone");
-                                SELFTEST_CHECK(crossframe_has,
-                                               "so the cross-frame query is what puts it in "
-                                               "their candidate set, and it does");
+                                SELFTEST_CHECK(deck_has,
+                                               "the hull's own world offers it, to its deck's "
+                                               "NPC_INFO");
                             }
                             SELFTEST_CHECK(abs(rider->obs_x - player->x) <=
                                                    TORIRSSERVER_NPC_VIEW_TILES &&

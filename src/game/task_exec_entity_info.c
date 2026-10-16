@@ -1017,6 +1017,15 @@ struct Task_ExecNpcInfo
     int old_list[RS_ENTITY_SYNC_MAX_NPCS];
     int old_count;
 
+    /* The world this packet describes: SET_ACTIVE_WORLD's view when it was
+     * queued (deob: NPC_INFO applies to `activeWorld`, each World holding its
+     * own npcs). 0 is the root. A deck's npcs arrive in deck-local tiles and
+     * are homed to that view; `list` is that world's positional npc list. */
+    int view;
+    int* list;
+    int* count;
+    int cap;
+
     int cur_slot;
 
     /* The wire type remains the per-player multiNpc wrapper; pending_npc_type
@@ -1074,6 +1083,29 @@ RS_EntityInfo_NpcOrigin(
         *out_level = Wevs_Get(&app->wevs, app->aboard_view)->parent_level;
 }
 
+/* The origin NPC_INFO's deltas are measured from, in the frame of the world
+ * the packet describes. The root's is RS_EntityInfo_NpcOrigin's. A deck's is
+ * SET_NPC_UPDATE_ORIGIN as sent -- deck-local tiles, the deck's own build area
+ * -- on the deck's own plane. */
+static void
+npc_info_origin(
+    struct Task_ExecNpcInfo const* self,
+    int* out_x,
+    int* out_z,
+    int* out_level)
+{
+    struct App* app = self->app;
+
+    if( self->view == WORLDVIEW_ROOT )
+    {
+        RS_EntityInfo_NpcOrigin(app, out_x, out_z, out_level);
+        return;
+    }
+    *out_x = app->npc_update_origin_x;
+    *out_z = app->npc_update_origin_z;
+    *out_level = App_WevDeckLevel(app, self->view);
+}
+
 static void
 npc_spawn_now(struct Task_ExecNpcInfo* self)
 {
@@ -1081,7 +1113,7 @@ npc_spawn_now(struct Task_ExecNpcInfo* self)
     int tile_x, tile_z, level;
     int idx;
 
-    RS_EntityInfo_NpcOrigin(app, &tile_x, &tile_z, &level);
+    npc_info_origin(self, &tile_x, &tile_z, &level);
     idx = App_WorldSpawnSyncedNpc(
         app, self->pending_npc_type, self->pending_npc_base_type, tile_x, tile_z, level);
     if( idx < 0 )
@@ -1100,6 +1132,9 @@ npc_spawn_now(struct Task_ExecNpcInfo* self)
         {
             npc->base_npc_id = self->pending_npc_base_type;
             npc->multinpc_hidden = self->pending_npc_hidden != 0;
+            /* A deck stream's npc stands in that view's own tiles, as a
+             * rider does (PLAYER_INFO's staging homing). */
+            npc->view_placement.home_view = self->view;
             npc->server_slot = self->cur_slot;
             element_id = npc->element_id;
             RS_EntitySync_RegisterNpc(&app->esync, self->cur_slot, element_id, idx);
@@ -1164,8 +1199,8 @@ npc_target_op(
      */
     case PKT_NPC_INFO_OP_ADD_NPC_OLD_OPBITS_IDX:
         self->cur_slot = (int)op->_bitvalue < self->old_count ? self->old_list[op->_bitvalue] : -1;
-        if( esync->active_npc_count < RS_ENTITY_SYNC_MAX_NPCS )
-            esync->active_npcs[esync->active_npc_count++] = self->cur_slot;
+        if( *self->count < self->cap )
+            self->list[(*self->count)++] = self->cur_slot;
         break;
     /*
      * ENTERING VIEW: the server is telling us this slot is a NEW npc.
@@ -1209,13 +1244,13 @@ npc_target_op(
                 stale_world_idx, stale_element_id, "STALE_SLOT_REUSED", 1);
             RS_EntitySync_RemoveNpc(esync, self->app->world, self->cur_slot);
         }
-        if( esync->active_npc_count < RS_ENTITY_SYNC_MAX_NPCS )
-            esync->active_npcs[esync->active_npc_count++] = self->cur_slot;
+        if( *self->count < self->cap )
+            self->list[(*self->count)++] = self->cur_slot;
         break;
     }
     case PKT_NPC_INFO_OP_SET_NPC_OPBITS_IDX:
-        self->cur_slot = (int)op->_bitvalue < esync->active_npc_count
-                             ? esync->active_npcs[op->_bitvalue]
+        self->cur_slot = (int)op->_bitvalue < *self->count
+                             ? self->list[op->_bitvalue]
                              : -1;
         break;
     case PKT_NPC_INFO_OP_CLEAR_NPC_OPBITS_IDX:
@@ -1250,7 +1285,7 @@ npc_target_op(
                 "REMOVE_COUNT_SHRINK", keep);
             RS_EntitySync_RemoveNpc(esync, self->app->world, self->old_list[i]);
         }
-        esync->active_npc_count = 0;
+        *self->count = 0;
         return 1;
     }
     case PKT_NPC_INFO_OPBITS_INFO:
@@ -1320,7 +1355,7 @@ npc_apply_op(
         if( idx >= 0 )
         {
             int lx, lz, llevel;
-            RS_EntityInfo_NpcOrigin(app, &lx, &lz, &llevel);
+            npc_info_origin(self, &lx, &lz, &llevel);
             /*
              * The op that teleports an npc, and the one that moves the Queen
              * when a familiar is called: `idx` is whatever `cur_slot` resolved
@@ -1591,12 +1626,17 @@ Task_ExecNpcInfo_Run(
         BD_ADD(g_bd_decode, t0);
     }
 
-    self->old_count = app->esync.active_npc_count;
+    /* A deck view that despawned while this packet waited (a hull freed
+     * between SET_ACTIVE_WORLD and here) has no npcs left to describe. */
+    if( self->view != WORLDVIEW_ROOT && !WorldviewRegistry_IsLive(&app->worldviews, self->view) )
+        PT_EXIT(&self->pt);
+    RS_EntitySync_NpcList(&app->esync, self->view, &self->list, &self->count, &self->cap);
+    self->old_count = *self->count;
     memcpy(
         self->old_list,
-        app->esync.active_npcs,
+        self->list,
         (size_t)self->old_count * sizeof(self->old_list[0]));
-    app->esync.active_npc_count = 0;
+    *self->count = 0;
     self->cur_slot = -1;
 
     for( self->op_i = 0; self->op_i < self->op_count; self->op_i++ )
@@ -1790,6 +1830,7 @@ CreateTask_ExecNpcInfo(
     task->app = app;
     task->data = data;
     task->length = length;
+    task->view = app->active_world;
     PT_INIT(&task->pt);
     return &task->task;
 }

@@ -246,6 +246,12 @@ return {
         t.exec("yard.menu", t.chat.play, { "choose:Customise a boat" })
         t.exec("yard.select", t.sail.select_boat, 1)
         t.expect("yard.catalogue", t.ui.await_open("sailing_customisation", 5))
+        -- Customising is done at the Shipyard island, a private copy of its
+        -- square (wiki "Shipyard"; boat_customisation.rs2 ~sailing_shipyard_go):
+        -- the hull is berthed there, far from the Pandemonium's dock.
+        local at_yard = H.state()
+        t.check("yard.at_shipyard", at_yard.aboard and math.abs((at_yard.hull_x or 0) - DOCKS.pandemonium.berth[1]) > 200,
+            select(2, H.state()))
 
         local function build(tag, p)
             H.give(p.mats)
@@ -314,7 +320,19 @@ return {
         build_facility("yard.hold_upgrade", HOLD_UPGRADE)
         t.key("escape")
         t.ticks(1)
-        t.exec("yard.leave", t.sail.disembark, DOCKS.pandemonium.plank)
+        -- The berth's plank is the way home: the captain back beside Junior
+        -- Jim, the hull back at the Pandemonium's dock.
+        t.exec("yard.leave", t.sail.disembark, "sailing_gangplank_shipyard_disembark")
+        H.said("yard.left", "You leave the Shipyard.")
+        t.check("yard.boat_home", H.port() == DOCKS.pandemonium.id, "port " .. H.port())
+        -- Nothing is built anywhere else: aboard at the dock the catalogue
+        -- refuses (the ::sailcustom debugproc is the catalogue's own open).
+        t.exec("yard.dock_board", t.sail.board, DOCKS.pandemonium.plank, 2)
+        t.cheat("::sailcustom", false)
+        t.ticks(1)
+        H.said("yard.dock_refused", "Boats can only be customised at the Shipyard.")
+        t.check("yard.dock_no_catalogue", t.ui.await_open("sailing_customisation", 1) ~= "ok", "the catalogue stayed shut")
+        t.exec("yard.dock_off", t.sail.disembark, DOCKS.pandemonium.plank)
 
         -- ------------------------------------------------------------- 4. crew
         -- On the open dock beside the Pandemonium's plank: a spawn behind
@@ -371,8 +389,16 @@ return {
         t.key("escape")
         t.ticks(1)
         t.exec("task.take", t.sail.cargo_take, COURIER.take_ledger, 3)
+        -- A crate is carried in both arms: the cache's crate-carry walk set
+        -- (sailing/configs/cargo_crates_bas.obj), back to the bare-handed set
+        -- once it is stowed.
+        t.ticks(1)
+        t.exec("task.carry_walk", t.sail.walk_set, { ready = "dttd_carrying_crate_ready",
+            walk = "dttd_carrying_crate_walk", run = "dttd_carrying_crate_walk_fast" })
         t.exec("task.board_boat", t.sail.board, DOCKS.pandemonium.plank, 2)
         t.exec("task.load", t.sail.cargo_load, "cargo hold")
+        t.ticks(1)
+        t.exec("task.empty_walk", t.sail.walk_set, { ready = "human_ready", walk = "human_walk_f", run = "human_running" })
         t.exec("task.ashore", t.sail.disembark, DOCKS.pandemonium.plank)
 
         -- ------------------------------------------------------- 6. salvage

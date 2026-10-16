@@ -10,11 +10,14 @@
  */
 
 #include "world/entity_registry.h"
+#include "world/worldview.h"
 
 struct World;
 
 #define RS_ENTITY_SYNC_MAX_PLAYERS 2048
 #define RS_ENTITY_SYNC_MAX_NPCS 2048
+/** A deck's npc list: a hull carries a captain, crew and a few passengers. */
+#define RS_ENTITY_SYNC_VIEW_NPCS 64
 
 struct RS_EntitySync
 {
@@ -63,7 +66,36 @@ struct RS_EntitySync
 
     /** WORLD_ENTITY_ID(kind, server slot) -> element_id + world pool index. */
     struct World_EntityRegistry registry;
+
+    /**
+     * The npc list of each world-entity view (deob `World.npcs`, one per
+     * World): NPC_INFO applies to the world SET_ACTIVE_WORLD selected, so a
+     * deck's npcs arrive in their own stream, in the deck's own coordinates,
+     * and the hull's motion carries them. Index 0 is unused -- the root's
+     * list is active_npcs. The positional index a high-resolution record
+     * addresses is a position in THIS list.
+     */
+    int view_npcs[WORLDVIEW_MAX][RS_ENTITY_SYNC_VIEW_NPCS];
+    int view_npc_count[WORLDVIEW_MAX];
 };
+
+/** The npc list NPC_INFO for `view` addresses: the root's active_npcs for
+ *  view 0, else that deck's (view_npcs), with its capacity. */
+void
+RS_EntitySync_NpcList(
+    struct RS_EntitySync* sync,
+    int view,
+    int** out_list,
+    int** out_count,
+    int* out_cap);
+
+/** Drop every npc of `view`'s list (its hull despawned: the deob discards the
+ *  World with its npcs). */
+void
+RS_EntitySync_ClearViewNpcs(
+    struct RS_EntitySync* sync,
+    struct World* world,
+    int view);
 
 void
 RS_EntitySync_Init(struct RS_EntitySync* sync);

@@ -6109,6 +6109,231 @@ npc_view_radius_update(
  * re-stated after it -- the v5 branch returns from the middle, so a call at the
  * tail of this function would only cover half the revisions.
  */
+/*
+ * One world entity's NPC_INFO: the npcs standing on `vessel`'s deck, in the
+ * deck's own tiles (deob: NPC_INFO applies to the `activeWorld` the preceding
+ * SET_ACTIVE_WORLD selected, and every World keeps its own npc list). The
+ * client places them in that view, so the hull's motion carries them and a
+ * step on the deck is a step in the deck's frame -- nothing about a sailing
+ * hull has to be said here at all.
+ *
+ * The record shapes are the root stream's (npc_info_encode); only the list,
+ * the origin and the coordinates are the deck's. The origin is a deck-local
+ * tile: the observer's own when they ride this hull, the deck's middle when
+ * they watch it from elsewhere.
+ */
+static void
+npc_info_encode_deck(
+    struct ToriRSServerPlayer* player,
+    struct ToriRSServerVessel* vessel,
+    int view,
+    int base_x,
+    int base_z,
+    int origin_x,
+    int origin_z,
+    int* candidates,
+    int candidate_count)
+{
+    struct ToriRSServer* srv = player->world;
+    struct RSAreaBuf buf;
+    struct ToriRSServerNpcExtendedQueue queued[TORIRSSERVER_DECK_NPC_MAX * 2] = { { 0, 0, 0 } };
+    int queued_count = 0;
+    int kept[TORIRSSERVER_DECK_NPC_MAX];
+    int kept_generation[TORIRSSERVER_DECK_NPC_MAX];
+    int kept_count = 0;
+    int adds[TORIRSSERVER_DECK_NPC_MAX];
+    int add_count = 0;
+    uint8_t extended_data[2048];
+    struct RSAreaBuf extended_buf;
+    int* tracked = player->deck_tracked[view];
+    int* tracked_generation = player->deck_tracked_generation[view];
+    int const tracked_count = player->deck_tracked_count[view];
+
+    ToriRSServer_SendSetActiveWorldId(player, view, vessel->level);
+    open_packet(&buf, 4);
+    rsab_p1(&buf, origin_x);
+    rsab_p1(&buf, origin_z);
+    flush(player, &buf, OP_SET_NPC_UPDATE_ORIGIN, 0);
+
+    open_packet(&buf, 2048);
+    rsab_bits(&buf);
+    rsab_pbit(&buf, 8, tracked_count);
+    for( int i = 0; i < tracked_count; i++ )
+    {
+        int slot = tracked[i];
+        struct ToriRSServerNpc* npc = &srv->npcs[slot];
+        int on_deck = npc->active && ToriRSServer_VesselAtTile(srv, npc->x, npc->z) == vessel;
+        int keep = on_deck && ToriRSServer_WorldNpcVisibleTo(srv, npc, player) &&
+                   npc->generation == tracked_generation[i] && !npc->tele;
+
+        if( !keep )
+        {
+            rsab_pbit(&buf, 1, 1);
+            rsab_pbit(&buf, 2, 3); /* remove */
+            player->npc_tracked[slot] = 0;
+            ToriRSServer_SlotMapReleaseWhy(player, slot, !on_deck ? "left the deck" : "deck npc changed");
+            continue;
+        }
+        kept_generation[kept_count] = npc->generation;
+        kept[kept_count++] = slot;
+        {
+            int const extended = npc_extended_pending_v5(player, npc, 0);
+
+            if( npc->run_dir >= 0 )
+            {
+                rsab_pbit(&buf, 1, 1);
+                rsab_pbit(&buf, 2, 2);
+                rsab_pbit(&buf, 1, 1);
+                rsab_pbit(&buf, 3, npc->step_dir);
+                rsab_pbit(&buf, 3, npc->run_dir);
+                rsab_pbit(&buf, 1, extended);
+            }
+            else if( npc->step_dir >= 0 )
+            {
+                rsab_pbit(&buf, 1, 1);
+                rsab_pbit(&buf, 2, 1);
+                rsab_pbit(&buf, 3, npc->step_dir);
+                rsab_pbit(&buf, 1, extended);
+            }
+            else if( extended )
+            {
+                rsab_pbit(&buf, 1, 1);
+                rsab_pbit(&buf, 2, 0);
+            }
+            else
+            {
+                rsab_pbit(&buf, 1, 0);
+            }
+            if( extended )
+                npc_queue_push(queued, &queued_count, slot, 0, 0);
+        }
+    }
+    for( int i = 0; i < candidate_count && kept_count < TORIRSSERVER_DECK_NPC_MAX; i++ )
+    {
+        int slot = candidates[i];
+        struct ToriRSServerNpc* npc = &srv->npcs[slot];
+        int dx = (npc->x - base_x) - origin_x;
+        int dz = (npc->z - base_z) - origin_z;
+
+        if( player->npc_tracked[slot] || !ToriRSServer_WorldNpcVisibleTo(srv, npc, player) )
+            continue;
+        if( dx < -32 || dx > 31 || dz < -32 || dz > 31 )
+            continue;
+        adds[add_count++] = slot;
+        player->npc_tracked[slot] = 1;
+        kept_generation[kept_count] = npc->generation;
+        kept[kept_count++] = slot;
+    }
+    for( int i = 0; i < add_count; i++ )
+    {
+        int slot = adds[i];
+        int client_slot = ToriRSServer_SlotMapAcquire(player, slot);
+        struct ToriRSServerNpc* npc = &srv->npcs[slot];
+        int dx = (npc->x - base_x) - origin_x;
+        int dz = (npc->z - base_z) - origin_z;
+        int const force_type = npc_add_requires_transformation(npc);
+        int const extended = npc_extended_pending_v5(player, npc, 1) || force_type;
+
+        rsab_pbit(&buf, 16, client_slot);
+        rsab_pbit(&buf, 1, 0);
+        rsab_pbit(&buf, 1, extended);
+        rsab_pbit(&buf, 6, dx & 0x3f);
+        rsab_pbit(&buf, 3, npc->face_dir & 7);
+        rsab_pbit(&buf, 6, dz & 0x3f);
+        rsab_pbit(&buf, 1, 1);
+        rsab_pbit(&buf, TORIRSSERVER_NPC_TYPE_BITS, npc_initial_wire_type(npc));
+        if( extended )
+            npc_queue_push(queued, &queued_count, slot, 1, force_type);
+    }
+    memset(extended_data, 0, sizeof(extended_data));
+    rsab_wrap(&extended_buf, extended_data, sizeof(extended_data));
+    for( int i = 0; i < queued_count; i++ )
+        put_npc_extended_v5(&extended_buf, player, &srv->npcs[queued[i].slot],
+                            queued[i].force_face, queued[i].force_type);
+    /* The root stream's terminator rule, for the same reason (see there). */
+    if( mock239_npcinfo_tail_needs_sentinel(buf.bit_pos, rsab_len(&extended_buf)) )
+        rsab_pbit(&buf, 16, 0xffff);
+    rsab_bytes(&buf);
+    rsab_pdata(&buf, extended_data, rsab_len(&extended_buf));
+    flush(player, &buf, OP_NPC_INFO, 2);
+
+    memcpy(tracked, kept, sizeof(int) * (size_t)kept_count);
+    memcpy(tracked_generation, kept_generation, sizeof(int) * (size_t)kept_count);
+    player->deck_tracked_count[view] = kept_count;
+}
+
+/*
+ * Every world entity's NPC_INFO after the root's, each in its own
+ * SET_ACTIVE_WORLD, then the root re-selected for what follows.
+ *
+ * A hull is told only while this client tracks it (WORLDENTITY_INFO ran first
+ * this tick, so its view is live there) and stands within npc view. A list
+ * whose hull is gone, or replaced under the same view id, is released here
+ * without a packet: the client discards a despawned view's npcs itself.
+ */
+static void
+npc_info_encode_decks(struct ToriRSServerPlayer* player)
+{
+    struct ToriRSServer* srv = player->world;
+    int const view_tiles = npc_view_radius(player);
+    int selected = 0;
+
+    for( int view = 1; view <= TORIRSSERVER_WEV_VIEW_MAX; view++ )
+    {
+        struct ToriRSServerVessel* vessel = ToriRSServer_VesselByView(srv, view);
+        int at = wev_tracked_index(player, view);
+        int base_x = 0;
+        int base_z = 0;
+        int candidates[TORIRSSERVER_DECK_NPC_MAX];
+        int candidate_count = 0;
+        int origin_x;
+        int origin_z;
+        int zones_x = 0;
+        int zones_z = 0;
+        int dx;
+        int dz;
+
+        if( !vessel || at < 0 || player->wev_serials[at] != vessel->serial ||
+            player->deck_serial[view] != vessel->serial )
+        {
+            for( int i = 0; i < player->deck_tracked_count[view]; i++ )
+            {
+                player->npc_tracked[player->deck_tracked[view][i]] = 0;
+                ToriRSServer_SlotMapReleaseWhy(player, player->deck_tracked[view][i], "its hull is gone");
+            }
+            player->deck_tracked_count[view] = 0;
+            player->deck_serial[view] = vessel ? vessel->serial : 0;
+        }
+        if( !vessel || at < 0 || player->wev_serials[at] != vessel->serial )
+            continue;
+        if( !ToriRSServer_MapInstanceBase(vessel->instance, &base_x, &base_z) )
+            continue;
+        dx = abs((vessel->fine_x >> 7) - player->obs_x);
+        dz = abs((vessel->fine_z >> 7) - player->obs_z);
+        if( vessel->level == player->obs_level && dx <= view_tiles + vessel->size_x_tiles &&
+            dz <= view_tiles + vessel->size_z_tiles )
+            candidate_count = ToriRSServer_VesselDeckNpcs(srv, vessel, candidates, TORIRSSERVER_DECK_NPC_MAX);
+        if( candidate_count == 0 && player->deck_tracked_count[view] == 0 )
+            continue;
+        ToriRSServer_VesselDeckZones(vessel, &zones_x, &zones_z);
+        if( ToriRSServer_VesselAtTile(srv, player->x, player->z) == vessel )
+        {
+            origin_x = player->x - base_x;
+            origin_z = player->z - base_z;
+        }
+        else
+        {
+            origin_x = zones_x * 4;
+            origin_z = zones_z * 4;
+        }
+        npc_info_encode_deck(player, vessel, view, base_x, base_z, origin_x, origin_z, candidates,
+                             candidate_count);
+        selected = 1;
+    }
+    if( selected )
+        ToriRSServer_SendSetActiveWorld(player);
+}
+
 static void
 npc_info_encode(struct ToriRSServerPlayer* player)
 {
@@ -6119,16 +6344,11 @@ npc_info_encode(struct ToriRSServerPlayer* player)
      * whoever the packet was addressed to.
      */
     /*
-     * Deliberately on the player's OWN coordinates, not `obs_*`
-     * (docs/SAILING_PLAN.md S2.4).
-     *
-     * No npc carries a vessel transform in S2, so an npc's projection is the
-     * identity and its coordinate is its tile. Projecting only the observer
-     * would therefore move the observer out of the frame the npcs are in — and
-     * the npcs physically nearest a deck player are the ones standing on the
-     * deck instance with them, which would be exactly the set that vanished.
-     * Deck npcs get a transform in a later phase; until they do, feet are the
-     * one frame in which both ends of this stream agree.
+     * This is the ROOT world's npc stream. A deck's npcs are not in it: each
+     * world entity's are told in its own NPC_INFO, in the deck's own tiles
+     * (npc_info_encode_decks, after this one), as the reference keeps an npc
+     * list per World -- so a sailing hull carries its crew and nothing here
+     * has to describe that motion.
      */
     struct ToriRSServer* srv = player->world;
     struct RSAreaBuf buf;
@@ -6290,7 +6510,9 @@ npc_info_encode(struct ToriRSServerPlayer* player)
             in_range = npc->active && ToriRSServer_WorldNpcVisibleTo(srv, npc, player) &&
                        npc->obs_level == player->obs_level &&
                        npc->generation == player->tracked_generation[i] &&
-                       view_dx <= view_tiles && view_dz <= view_tiles;
+                       view_dx <= view_tiles && view_dz <= view_tiles &&
+                       /* A deck's npcs are its own world's (npc_info_encode_decks). */
+                       !ToriRSServer_VesselAtTile(srv, npc->x, npc->z);
 
             /*
              * `obs_jumped` joins `tele` here, and for the identical reason
@@ -6382,24 +6604,10 @@ npc_info_encode(struct ToriRSServerPlayer* player)
          * coordinate that does not exist for it. */
         nearby_count = ToriRSServer_PlayerzonemapNpcs(player, view_tiles, nearby,
                                          TORIRSSERVER_TRACKED_NPC_MAX);
-        /*
-         * Plus the npcs no zonemap walk could have offered
-         * (docs/sailing_coverage.csv SAIL-50).
-         *
-         * A vessel deck is a map instance in the pool and it is in nobody's
-         * subscription but its riders', so the query above cannot return a
-         * deckhand to a player on the shore however close the boat is. Before
-         * this line every boat in the world sailed past with an empty deck,
-         * and nothing in the packet was malformed while it did.
-         *
-         * Appended rather than merged: the two sets are disjoint (an npc is
-         * filed in exactly one zone, and the observer's own hull is skipped),
-         * and in a world with no live vessel this returns 0 without touching a
-         * zone, so the ordinary case is the ordinary case.
-         */
-        nearby_count += ToriRSServer_PlayerCrossFrameNpcs(
-            player, view_tiles, nearby + nearby_count,
-            TORIRSSERVER_TRACKED_NPC_MAX - nearby_count);
+        /* No deckhands here: a deck is a world of its own, told in its own
+         * NPC_INFO (npc_info_encode_decks), as the reference keeps an npc list
+         * per World. Projecting them into this stream left a hull's motion with
+         * no way to be said but remove-and-re-add, every tick it sailed. */
         for( int i = 0; i < nearby_count; i++ )
         {
             int slot = nearby[i];
@@ -6410,7 +6618,7 @@ npc_info_encode(struct ToriRSServerPlayer* player)
             int view_dz;
 
             if( !npc->active || !ToriRSServer_WorldNpcVisibleTo(srv, npc, player) ||
-                player->npc_tracked[slot] )
+                player->npc_tracked[slot] || ToriRSServer_VesselAtTile(srv, npc->x, npc->z) )
                 continue;
             /* Observed against observed. For everything off a deck these are
              * x/z and this is the arithmetic that was always here; for a
@@ -6580,6 +6788,7 @@ npc_info_encode(struct ToriRSServerPlayer* player)
             sizeof(int) * (size_t)kept_count);
         player->tracked_count = kept_count;
         npc_view_radius_update(player, kept_count);
+        npc_info_encode_decks(player);
         return;
     }
     open_packet(&buf, 8192);

@@ -4097,6 +4097,14 @@ lua_drive_players(struct lua_State* L)
          * starts this process has seen (a reader keys a new swing on it). */
         lua_pushinteger(L, drive_player_anim(player));
         lua_setfield(L, -2, "anim");
+        /* The walk set the server's appearance chose (a held crate's carry,
+         * a weapon's stance). */
+        lua_pushinteger(L, player->idle_animations.readyanim);
+        lua_setfield(L, -2, "readyanim");
+        lua_pushinteger(L, player->idle_animations.walkanim);
+        lua_setfield(L, -2, "walkanim");
+        lua_pushinteger(L, player->idle_animations.runanim);
+        lua_setfield(L, -2, "runanim");
         if( i == local_idx )
             drive_push_own_animation(L);
         lua_rawseti(L, -2, ++n);

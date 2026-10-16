@@ -11885,6 +11885,16 @@ script_command(
         return 1;
     }
 
+    case SS_OP_VESSEL_BERTH:
+    {
+        int32_t handle, coord, angle;
+        if( !SSVM_PopInt(state, &angle) || !SSVM_PopInt(state, &coord) || !SSVM_PopInt(state, &handle) )
+            return 1;
+        SSVM_PushInt(state, ToriRSServer_VesselBerth(srv, handle, coord_level(coord), coord_x(coord),
+                                                     coord_z(coord), angle));
+        return 1;
+    }
+
     case SS_OP_VESSEL_FURNISH:
     {
         int32_t handle;

@@ -555,10 +555,11 @@
 #define SS_OP_POH_VISIT_LAST_SET 11126
 #define SS_OP_POH_VISIT_LAST_GET 11127
 #define SS_OP_P_NAMEDIALOG_WAIT 11128
+#define SS_OP_VESSEL_BERTH 11129
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11129
+#define SS_OPCODE_MAX 11130
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 533
+#define SS_OPCODE_COUNT 534
 
 #endif

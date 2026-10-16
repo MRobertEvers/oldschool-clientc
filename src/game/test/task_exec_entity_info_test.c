@@ -573,7 +573,8 @@ test_multinpc_interface_head_loads_selected_child(void)
         VarPManager_SetVarpTypes(&app.varps, &varp_type, 1),
         "chathead fixture varps initialized");
     app.provider = &provider;
-    app.exec_runner.queue = ToriRS_TaskQueue_New();
+    /* The asset runner: app_if_head_enqueue streams the head load there. */
+    app.runner.queue = ToriRS_TaskQueue_New();
     io = ToriRS_IOBatch_New();
     app.scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
     TEST_ASSERT(app.scene != NULL, "chathead fixture scene initialized");
@@ -595,7 +596,7 @@ test_multinpc_interface_head_loads_selected_child(void)
 
     App_SetInterfaceNpcHead(&app, 0x12340056, 100);
     TEST_ASSERT(
-        ToriRS_TaskQueue_Run(app.exec_runner.queue, io) == TORIRS_ASYNCIO_STAT_DONE,
+        ToriRS_TaskQueue_Run(app.runner.queue, io) == TORIRS_ASYNCIO_STAT_DONE,
         "multiNpc chathead load task completes");
     TEST_ASSERT(
         trace_has_id(
@@ -610,7 +611,7 @@ test_multinpc_interface_head_loads_selected_child(void)
     UITreeSceneBridge_Free(&app.bridge);
     ToriDraw_SceneFree(app.scene);
     ToriRS_IOBatch_Free(io);
-    ToriRS_TaskQueue_Free(app.exec_runner.queue);
+    ToriRS_TaskQueue_Free(app.runner.queue);
     VarPManager_Free(&app.varps);
     CacheProvider_FreeEngineCaches(&provider);
 }

@@ -668,6 +668,19 @@ DriveUi_Npcs(struct App* app, int radius, struct DriveNpcRow* out, int cap, int*
                                                          : npc->grid_position.x);
         tile_z = base_z + (npc->pathing.route_length > 0 ? npc->pathing.route_z[0]
                                                          : npc->grid_position.z);
+        /* A deck's npc (homed by its world's own NPC_INFO) stands in the
+         * view's tiles: pushed out through the hull, as the search origin of
+         * a rider is (drive_ui_search_origin). */
+        if( npc->view_placement.home_view != 0 )
+        {
+            int fine_x = (int)npc->draw_position.x;
+            int fine_z = (int)npc->draw_position.z;
+            if( app_wev_actor_root_fine(app, &npc->view_placement, &fine_x, &fine_z) )
+            {
+                tile_x = base_x + (fine_x >> 7);
+                tile_z = base_z + (fine_z >> 7);
+            }
+        }
         if( have_player && !drive_ui_within_radius(tile_x, tile_z, px, pz, radius) )
         {
             if( getenv("TORIRS_DRIVE_DEBUG") )
@@ -715,6 +728,14 @@ DriveUi_Npcs(struct App* app, int radius, struct DriveNpcRow* out, int cap, int*
         out[j].level = npc->grid_position.level;
         out[j].element_id = npc->element_id;
         drive_ui_fill_npc_combat(app, npc, &out[j]);
+        out[j].yaw = npc->orientation.yaw;
+        out[j].dst_yaw = npc->orientation.dst_yaw;
+        out[j].anim_primary = npc->animation.primary.anim_id;
+        out[j].anim_secondary = npc->animation.secondary.anim_id;
+        out[j].facing_entity = npc->facing.entity_id;
+        out[j].view_id = npc->view_placement.view_id;
+        out[j].draw_x = (int)npc->draw_position.x;
+        out[j].draw_z = (int)npc->draw_position.z;
         drive_ui_strip_tags(npc->name, out[j].name, sizeof(out[j].name));
         /* Overhead SAY (DriveNpcRow.overhead's banner for why a test needs
          * it).  The facet clears `message` itself the cycle the timer hits 0
@@ -2510,6 +2531,22 @@ drive_ui_push_npc_row(struct lua_State* L, struct DriveNpcRow const* row)
     lua_setfield(L, -2, "hit_damage");
     lua_pushinteger(L, row->hit_cycle);
     lua_setfield(L, -2, "hit_cycle");
+    lua_pushinteger(L, row->yaw);
+    lua_setfield(L, -2, "yaw");
+    lua_pushinteger(L, row->dst_yaw);
+    lua_setfield(L, -2, "dst_yaw");
+    lua_pushinteger(L, row->anim_primary);
+    lua_setfield(L, -2, "anim_primary");
+    lua_pushinteger(L, row->anim_secondary);
+    lua_setfield(L, -2, "anim_secondary");
+    lua_pushinteger(L, row->facing_entity);
+    lua_setfield(L, -2, "facing_entity");
+    lua_pushinteger(L, row->view_id);
+    lua_setfield(L, -2, "view_id");
+    lua_pushinteger(L, row->draw_x);
+    lua_setfield(L, -2, "draw_x");
+    lua_pushinteger(L, row->draw_z);
+    lua_setfield(L, -2, "draw_z");
     lua_pushstring(L, row->name);
     lua_setfield(L, -2, "name");
     /* The overhead half: `npc_say`'s SAY mask, which never reaches the

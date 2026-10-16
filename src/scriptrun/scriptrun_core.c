@@ -573,6 +573,11 @@ player_apply_op(
             {
                 strncpy(player->name, decoded.name, sizeof(player->name) - 1);
                 player->name[sizeof(player->name) - 1] = '\0';
+                /* The walk set the server chose (a held crate's carry, a
+                 * weapon's stance): what the drive's players() reports. */
+                player->idle_animations.readyanim = decoded.readyanim;
+                player->idle_animations.walkanim = decoded.walkanim;
+                player->idle_animations.runanim = decoded.runanim;
             }
         }
         break;
@@ -759,7 +764,37 @@ struct NpcApply
     int cur_slot;
     int old_count;
     int pending_base_type;
+    /* The world this NPC_INFO describes (the SET_ACTIVE_WORLD cursor), and
+     * that world's positional npc list -- the client's per-World lists. */
+    int view;
+    int* list;
+    int* count;
+    int cap;
 };
+
+/* The origin of this NPC_INFO's deltas: the root's (core_npc_origin), or for a
+ * deck's own stream SET_NPC_UPDATE_ORIGIN as sent -- deck-local tiles -- on the
+ * deck's plane (the rider's own when they ride it; decks are authored at 1). */
+static void
+npc_apply_origin(
+    struct NpcApply* self,
+    int* out_x,
+    int* out_z,
+    int* out_level)
+{
+    struct ScriptrunCore* core = self->core;
+    int px, pz, plevel;
+
+    if( self->view == 0 )
+    {
+        core_npc_origin(core, out_x, out_z, out_level);
+        return;
+    }
+    core_player_local_tile(core, &px, &pz, &plevel);
+    *out_x = core->npc_origin_x;
+    *out_z = core->npc_origin_z;
+    *out_level = core->local_view == self->view ? plevel : 1;
+}
 
 static int
 npc_target(
@@ -854,7 +889,7 @@ npc_spawn_now(struct NpcApply* self)
     int live;
 
     npc_type_config(core, self->pending_base_type, &live, name, (int)sizeof(name), &size, &combat_level);
-    core_npc_origin(core, &tile_x, &tile_z, &level);
+    npc_apply_origin(self, &tile_x, &tile_z, &level);
     memset(&idle, 0, sizeof(idle));
     element_id = core->next_element_id++;
     /* The client spawns the RUNG (app_world_spawn.c) and keeps the wire's id
@@ -868,6 +903,7 @@ npc_spawn_now(struct NpcApply* self)
         {
             npc->base_npc_id = self->pending_base_type;
             npc->server_slot = self->cur_slot;
+            npc->view_placement.home_view = self->view;
             npc->combat_level = combat_level;
             snprintf(npc->name, sizeof(npc->name), "%s", name);
             RS_EntitySync_RegisterNpc(core->esync, self->cur_slot, element_id, idx);
@@ -941,8 +977,8 @@ npc_target_op(
     case PKT_NPC_INFO_OP_ADD_NPC_OLD_OPBITS_IDX:
         self->cur_slot =
             (int)op->_bitvalue < self->old_count ? core->npc_old_list[op->_bitvalue] : -1;
-        if( esync->active_npc_count < RS_ENTITY_SYNC_MAX_NPCS )
-            esync->active_npcs[esync->active_npc_count++] = self->cur_slot;
+        if( *self->count < self->cap )
+            self->list[(*self->count)++] = self->cur_slot;
         break;
     case PKT_NPC_INFO_OP_ADD_NPC_NEW_OPBITS_PID:
     {
@@ -952,13 +988,13 @@ npc_target_op(
         if( self->cur_slot >= 0 &&
             RS_EntitySync_FindNpc(esync, self->cur_slot, &stale_world_idx, &stale_element_id) )
             RS_EntitySync_RemoveNpc(esync, core->world, self->cur_slot);
-        if( esync->active_npc_count < RS_ENTITY_SYNC_MAX_NPCS )
-            esync->active_npcs[esync->active_npc_count++] = self->cur_slot;
+        if( *self->count < self->cap )
+            self->list[(*self->count)++] = self->cur_slot;
         break;
     }
     case PKT_NPC_INFO_OP_SET_NPC_OPBITS_IDX:
-        self->cur_slot = (int)op->_bitvalue < esync->active_npc_count
-                             ? esync->active_npcs[op->_bitvalue]
+        self->cur_slot = (int)op->_bitvalue < *self->count
+                             ? self->list[op->_bitvalue]
                              : -1;
         break;
     case PKT_NPC_INFO_OP_CLEAR_NPC_OPBITS_IDX:
@@ -974,7 +1010,7 @@ npc_target_op(
         int keep = (int)op->_bitvalue;
         for( int i = keep; i < self->old_count; i++ )
             RS_EntitySync_RemoveNpc(esync, core->world, core->npc_old_list[i]);
-        esync->active_npc_count = 0;
+        *self->count = 0;
         return 1;
     }
     case PKT_NPC_INFO_OPBITS_INFO:
@@ -1020,7 +1056,7 @@ npc_apply_op(
         if( idx >= 0 )
         {
             int lx, lz, llevel;
-            core_npc_origin(core, &lx, &lz, &llevel);
+            npc_apply_origin(self, &lx, &lz, &llevel);
             World_NpcPathJump(
                 world, idx, op->_delta_xz.jump, lx + op->_delta_xz.dx, lz + op->_delta_xz.dz);
         }
@@ -1211,10 +1247,16 @@ core_npc_info(
 
     memset(&self, 0, sizeof(self));
     self.core = core;
-    self.old_count = core->esync->active_npc_count;
-    memcpy(core->npc_old_list, core->esync->active_npcs,
-           (size_t)self.old_count * sizeof(core->npc_old_list[0]));
-    core->esync->active_npc_count = 0;
+    self.view = core->active_world;
+    if( self.view > 0 && !core->views[self.view].live )
+    {
+        pkt_npc_info_ops_free(ops, op_count);
+        return;
+    }
+    RS_EntitySync_NpcList(core->esync, self.view, &self.list, &self.count, &self.cap);
+    self.old_count = *self.count;
+    memcpy(core->npc_old_list, self.list, (size_t)self.old_count * sizeof(core->npc_old_list[0]));
+    *self.count = 0;
     self.cur_slot = -1;
     self.pending_base_type = -1;
 
@@ -1452,6 +1494,7 @@ core_view_despawn(
 
     assert(id > 0 && id < SCRIPTRUN_VIEWS);
     ScriptrunCore_DropViewLocs(core, id);
+    RS_EntitySync_ClearViewNpcs(core->esync, core->world, id);
     memset(&core->views[id], 0, sizeof(core->views[id]));
     for( int i = 0; i < core->view_list_count; i++ )
         if( core->view_list[i] != id )

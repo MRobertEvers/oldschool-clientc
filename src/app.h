@@ -4069,6 +4069,13 @@ App_WevDespawn(
     struct App* app,
     int id);
 
+/** The plane a world entity's deck is authored at inside its own world
+ *  (WevConfig.plane): where a deck's npcs and riders stand. */
+int
+App_WevDeckLevel(
+    struct App* app,
+    int view_id);
+
 /**
  * The live view whose STAGING rectangle contains the absolute tile, or 0.
  *

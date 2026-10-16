@@ -106,6 +106,19 @@ selftest_sailing_stale_queues(struct ToriRSServer* srv,
     }
     /* An arrival to the exact same handle/hotspot used to open the new hull's
      * customization panel. It must retain the old hull serial while walking. */
+    /* The catalogue opens only for a hull berthed at the captain's Shipyard
+     * (boat_customisation.rs2 ~sailing_at_shipyard): stand this one there --
+     * a Shipyard copy that records the hull, named by the captain's varp. */
+    int shipyard_varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp7480_sailing_shipyard_instance");
+    int shipyard = ToriRSServer_MapInstanceAlloc(ToriRSServer_WorldCacheDir(), 1, 1);
+    int saved_shipyard = 0;
+    SELFTEST_CHECK(shipyard_varp >= 0 && shipyard > 0, "a Shipyard copy can be stood up for the arrival");
+    if( shipyard_varp >= 0 && shipyard > 0 )
+    {
+        ToriRSServer_MapInstanceVarSet(shipyard, 0, boat->index);
+        saved_shipyard = player->varps[shipyard_varp];
+        player->varps[shipyard_varp] = shipyard;
+    }
     int modal=player->mainmodal_group;
     int32_t arrive[5]={boat->index,old_serial,0,1,20};
     SELFTEST_CHECK(ToriRSServer_ScriptsRunProc(srv,"[queue,sailing_facility_arrive]",arrive,5) &&
@@ -116,6 +129,11 @@ selftest_sailing_stale_queues(struct ToriRSServer* srv,
                    player->mainmodal_group==939,
                    "current arrival reaches the actual native customization interface");
     ToriRSServer_WorldCloseModal(srv);
+    if( shipyard_varp >= 0 && shipyard > 0 )
+    {
+        player->varps[shipyard_varp] = saved_shipyard;
+        ToriRSServer_MapInstanceFree(shipyard);
+    }
     for( int i=0; i<7; ++i ) ToriRSServer_MapInstanceVarSet(boat->instance,8+i,saved_regs[i]);
     ToriRSServer_MapInstanceVarSet(boat->instance,110,building);
     memcpy(player->queue,queue,sizeof(queue));

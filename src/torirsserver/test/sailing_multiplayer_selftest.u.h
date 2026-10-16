@@ -134,28 +134,62 @@ sailing_view_zone_count(const struct ToriRSServerCapture* capture, int pid, int 
     return selftest_rev239_zone_scan(&selected, name, id, NULL, NULL, NULL);
 }
 
+/* A deckhand's step, as each observer's client decodes it: in the DECK's own
+ * NPC_INFO (inside the SET_ACTIVE_WORLD for its view, after that world's
+ * SET_NPC_UPDATE_ORIGIN), in deck-local tiles -- the reference's per-World npc
+ * list. The hull's motion is not in it at all: the client draws the deck
+ * through the hull. The root stream never names a deck npc. */
 static void
 sailing_decode_moving_npc(struct ToriRSServer* srv, struct ToriRSServerPlayer* viewer,
-                          int npc_slot, int old_x, int old_z)
+                          struct ToriRSServerVessel* boat, int npc_slot, int old_feet_x,
+                          int old_feet_z)
 {
     static struct ToriRSServerCapture capture;
-    int old[TORIRSSERVER_TRACKED_NPC_MAX];
-    int old_count = viewer->tracked_count;
-    memcpy(old, viewer->tracked, sizeof(old));
+    int view = boat->view_id;
+    int old[TORIRSSERVER_DECK_NPC_MAX];
+    int old_count = viewer->deck_tracked_count[view];
+    int base_x = 0, base_z = 0;
+    int active = 0;
+    int origin_x = -1, origin_z = -1;
+    int root_names_it = 0;
+    int deck_at = -1;
+
+    memcpy(old, viewer->deck_tracked[view], sizeof(old));
+    SELFTEST_CHECK(ToriRSServer_MapInstanceBase(boat->instance, &base_x, &base_z),
+                   "the deck has an instance base");
     ToriRSServer_CaptureBegin(srv, &capture);
     ToriRSServer_SendNpcInfo(viewer);
     ToriRSServer_CaptureEnd(srv);
-    int at = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_NPC_INFO, 0);
-    SELFTEST_CHECK(at >= 0 && !capture.overflow, "moving deck NPC produces an actual NPC_INFO for observer %d", viewer->pid);
-    if( at < 0 ) return;
+    SELFTEST_CHECK(!capture.overflow, "the NPC_INFO capture did not overflow (observer %d)", viewer->pid);
+    for( int i = 0; i < capture.count; ++i )
+    {
+        const struct ToriRSServerCapturedPacket* packet = &capture.packets[i];
+        if( packet->recipient_pid != viewer->pid ) continue;
+        if( packet->name == PKT_NAME_SET_ACTIVE_WORLD && packet->len == 3 )
+            active = (packet->data[0] << 8) | packet->data[1];
+        else if( packet->name == PKT_NAME_SET_NPC_UPDATE_ORIGIN && active == view && packet->len >= 2 )
+        {
+            origin_x = packet->data[0];
+            origin_z = packet->data[1];
+        }
+        else if( packet->name == PKT_NAME_NPC_INFO && active == view )
+            deck_at = i;
+    }
+    for( int i = 0; i < viewer->tracked_count; ++i )
+        root_names_it = root_names_it || viewer->tracked[i] == npc_slot;
+    SELFTEST_CHECK(!root_names_it, "the root NPC_INFO never names the deckhand (observer %d)", viewer->pid);
+    SELFTEST_CHECK(deck_at >= 0 && origin_x >= 0,
+                   "the deck's own world carries an origin and an NPC_INFO (observer %d)", viewer->pid);
+    if( deck_at < 0 ) return;
     struct PktNpcInfoOp ops[2048];
-    const struct ToriRSServerCapturedPacket* packet = &capture.packets[at];
+    const struct ToriRSServerCapturedPacket* packet = &capture.packets[deck_at];
     int count = osrs239_npc_info_read(packet->data, packet->len, ops, 2048);
-    int target = -1, present = 0, x = old_x, z = old_z;
+    int target = -1, present = 0;
+    int x = old_feet_x - base_x, z = old_feet_z - base_z;
     static const int dx[8] = {-1,0,1,-1,1,-1,0,1};
     static const int dz[8] = {-1,-1,-1,0,0,1,1,1};
     SELFTEST_CHECK(!packet->truncated && count > 0 && count < 2048,
-                   "actual client decodes the complete NPC movement packet");
+                   "actual client decodes the complete deck NPC_INFO");
     for( int i = 0; i < count; ++i )
     {
         struct PktNpcInfoOp* op = &ops[i];
@@ -168,7 +202,7 @@ sailing_decode_moving_npc(struct ToriRSServer* srv, struct ToriRSServerPlayer* v
         {
             present = 1;
             if( op->kind == PKT_NPC_INFO_OP_DELTA_XZ )
-            { x = viewer->obs_x + op->_delta_xz.dx; z = viewer->obs_z + op->_delta_xz.dz; }
+            { x = origin_x + op->_delta_xz.dx; z = origin_z + op->_delta_xz.dz; }
             else if( op->kind == PKT_NPC_INFO_OPBITS_WALKDIR || op->kind == PKT_NPC_INFO_OPBITS_RUNDIR ||
                      op->kind == PKT_NPC_INFO_OPBITS_CRAWLDIR )
             { x += dx[op->_bitvalue & 7]; z += dz[op->_bitvalue & 7]; }
@@ -177,9 +211,9 @@ sailing_decode_moving_npc(struct ToriRSServer* srv, struct ToriRSServerPlayer* v
         else if( op->kind == PKT_NPC_INFO_OP_NAME_CHANGE ) ToriMem_Free(ToriMem_Net(), op->_name_change.name);
     }
     SELFTEST_CHECK(present && viewer->npc_tracked[npc_slot] &&
-                   x == srv->npcs[npc_slot].obs_x && z == srv->npcs[npc_slot].obs_z,
-                   "observer %d decodes the NPC's step plus hull motion at %d,%d (expected %d,%d)",
-                   viewer->pid, x, z, srv->npcs[npc_slot].obs_x, srv->npcs[npc_slot].obs_z);
+                   x == srv->npcs[npc_slot].x - base_x && z == srv->npcs[npc_slot].z - base_z,
+                   "observer %d decodes the deckhand's one step in deck tiles at %d,%d (expected %d,%d)",
+                   viewer->pid, x, z, srv->npcs[npc_slot].x - base_x, srv->npcs[npc_slot].z - base_z);
 }
 
 /*
@@ -418,7 +452,7 @@ selftest_sailing_multiplayer(struct ToriRSServer* srv, struct ToriRSServerPlayer
             struct ToriRSServerNpc* hand = &srv->npcs[hand_slot];
             hand->mode = TORIRSSERVER_NPCMODE_NONE;
             selftest_tick(srv);
-            int old_x = hand->obs_x, old_z = hand->obs_z;
+            int old_x = hand->x, old_z = hand->z;
             int hull_z = boat->fine_z;
             ToriRSServer_WorldSetActive(srv, rider);
             SELFTEST_CHECK(ToriRSServer_WorldNpcWalkTo(hand, rx + 3, rz),
@@ -432,8 +466,8 @@ selftest_sailing_multiplayer(struct ToriRSServer* srv, struct ToriRSServerPlayer
                            "NPC walks one deck tile while its hull translates: %d,%d -> %d,%d; hullZ %d -> %d",
                            rx, rz, hand->x, hand->z, hull_z, boat->fine_z);
             ToriRSServer_WorldSetActive(srv, player);
-            sailing_decode_moving_npc(srv, player, hand_slot, old_x, old_z);
-            sailing_decode_moving_npc(srv, guest, hand_slot, old_x, old_z);
+            sailing_decode_moving_npc(srv, player, boat, hand_slot, old_x, old_z);
+            sailing_decode_moving_npc(srv, guest, boat, hand_slot, old_x, old_z);
             ToriRSServer_VesselStop(boat);
             ToriRSServer_WorldNpcFree(srv, hand_slot);
             selftest_tick(srv);

@@ -15,6 +15,46 @@ RS_EntitySync_Init(struct RS_EntitySync* sync)
 }
 
 void
+RS_EntitySync_NpcList(
+    struct RS_EntitySync* sync,
+    int view,
+    int** out_list,
+    int** out_count,
+    int* out_cap)
+{
+    assert(sync);
+    assert(out_list);
+    assert(out_count);
+    assert(out_cap);
+    assert(view >= 0);
+    assert(view < WORLDVIEW_MAX);
+    if( view == WORLDVIEW_ROOT )
+    {
+        *out_list = sync->active_npcs;
+        *out_count = &sync->active_npc_count;
+        *out_cap = RS_ENTITY_SYNC_MAX_NPCS;
+        return;
+    }
+    *out_list = sync->view_npcs[view];
+    *out_count = &sync->view_npc_count[view];
+    *out_cap = RS_ENTITY_SYNC_VIEW_NPCS;
+}
+
+void
+RS_EntitySync_ClearViewNpcs(
+    struct RS_EntitySync* sync,
+    struct World* world,
+    int view)
+{
+    assert(sync);
+    assert(view > WORLDVIEW_ROOT);
+    assert(view < WORLDVIEW_MAX);
+    for( int i = 0; i < sync->view_npc_count[view]; i++ )
+        RS_EntitySync_RemoveNpc(sync, world, sync->view_npcs[view][i]);
+    sync->view_npc_count[view] = 0;
+}
+
+void
 RS_EntitySync_Free(struct RS_EntitySync* sync)
 {
     if( !sync )
@@ -147,6 +187,8 @@ RS_EntitySync_Clear(
         RS_EntitySync_RemovePlayer(sync, world, sync->active_players[i]);
     for( int i = 0; i < sync->active_npc_count; i++ )
         RS_EntitySync_RemoveNpc(sync, world, sync->active_npcs[i]);
+    for( int v = 1; v < WORLDVIEW_MAX; v++ )
+        RS_EntitySync_ClearViewNpcs(sync, world, v);
     if( sync->local_pid >= 0 )
         RS_EntitySync_RemovePlayer(sync, world, sync->local_pid);
     sync->active_player_count = 0;

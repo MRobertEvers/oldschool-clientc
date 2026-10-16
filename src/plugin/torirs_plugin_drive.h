@@ -1213,6 +1213,19 @@ struct DriveNpcRow
      */
     int hit_damage;
     int hit_cycle;
+    /** The drawn pose: yaw and the yaw it turns toward (0..2047; on a deck,
+     *  deck-frame), the primary and secondary (base) seq ids, the facing
+     *  entity (WORLD_FACING_ENTITY_NONE when none), the view the npc is
+     *  placed in (0 root) and its draw position in fine units. What a
+     *  "the crew member spins" report is read against. */
+    int yaw;
+    int dst_yaw;
+    int anim_primary;
+    int anim_secondary;
+    int facing_entity;
+    int view_id;
+    int draw_x;
+    int draw_z;
     /** Normalised: WorldEntity_NPC.name is sized 64 because it stores the
      *  <col=...> tagged form, so the tags come off here. */
     char name[64];

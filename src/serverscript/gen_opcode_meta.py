@@ -956,6 +956,12 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     "VESSEL_SLOT": (11112, 2, 0, 1, 0),
     # Project a verified vessel deck tile into its current root-world position.
     "VESSEL_PROJECT": (11113, 2, 0, 1, 0),
+    # vessel_berth(handle, coord, angle)(boolean)
+    # Stand an unoccupied owned hull in a DRY berth: centred on that tile at
+    # that angle, with no ocean test -- the Shipyard holds a visiting boat in a
+    # walled basin whose water is scenery, which vessel_recover's clear-ocean
+    # search would never pick. False for a dead/foreign handle or a rider aboard.
+    "VESSEL_BERTH": (11129, 3, 0, 1, 0),
 
     # vessel_hp(handle)(int)
     # The hull's integrity, and its maximum as the second return — the pair

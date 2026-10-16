@@ -1223,6 +1223,12 @@ d_players(lua_State* L)
         lua_setfield(L, -2, "me");
         lua_pushinteger(L, anim);
         lua_setfield(L, -2, "anim");
+        lua_pushinteger(L, p->idle_animations.readyanim);
+        lua_setfield(L, -2, "readyanim");
+        lua_pushinteger(L, p->idle_animations.walkanim);
+        lua_setfield(L, -2, "walkanim");
+        lua_pushinteger(L, p->idle_animations.runanim);
+        lua_setfield(L, -2, "runanim");
         if( p == me )
         {
             struct ScriptrunCore const* c = bot->core;

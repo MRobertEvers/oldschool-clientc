@@ -3895,6 +3895,18 @@ struct ToriRSServerPlayer
      *  spliced onto whatever this client still thinks the slot is. */
     int tracked_generation[TORIRSSERVER_TRACKED_NPC_MAX];
     int tracked_count;
+    /**
+     * The npc list of each world entity's own world, by view id (deob
+     * `World.npcs`): a deck's npcs are told to this client in the deck's
+     * NPC_INFO, inside a SET_ACTIVE_WORLD for its view, in the deck's own
+     * tiles -- so the hull's motion carries them and no step is needed to say
+     * it. The root list above holds no deck npc. `deck_serial` is the hull the
+     * list describes; a different hull under the same view id is a new world.
+     */
+    int deck_tracked[TORIRSSERVER_WEV_VIEW_MAX + 1][TORIRSSERVER_DECK_NPC_MAX];
+    int deck_tracked_generation[TORIRSSERVER_WEV_VIEW_MAX + 1][TORIRSSERVER_DECK_NPC_MAX];
+    int deck_tracked_count[TORIRSSERVER_WEV_VIEW_MAX + 1];
+    int deck_serial[TORIRSSERVER_WEV_VIEW_MAX + 1];
     /* This observer's current npc view radius — see TORIRSSERVER_NPC_VIEW_TILES_MAX.
      * Zero means "not yet initialised"; `npc_view_radius` resolves that to the
      * resting 15 so a player struct that predates this field still works. */
@@ -5545,6 +5557,11 @@ int ToriRSServer_VesselPlayerControlAllowed(struct ToriRSServer* srv,
     struct ToriRSServerPlayer* player, struct ToriRSServerVessel* vessel, int sails);
 int ToriRSServer_VesselRecover(struct ToriRSServer* srv, int handle,
                              int level, int near_x, int near_z);
+/** Stand an unoccupied owned hull in a dry berth: exactly on that tile's
+ *  centre at `angle`, no ocean test (the Shipyard). 0 on a dead or foreign
+ *  handle, or with a rider aboard. */
+int ToriRSServer_VesselBerth(struct ToriRSServer* srv, int handle,
+                             int level, int tile_x, int tile_z, int angle);
 
 /*
  * Chambers of Xeric tick harness (torirs_server_cox_sim.c). Enters the raid under

@@ -71,6 +71,7 @@ struct ToriRSServer;
 struct ToriRSServerPlayer;
 struct ToriRSServerPlayerZone;
 struct ToriRSServerNpc;
+struct ToriRSServerVessel;
 
 /** What a zone's membership lists hold. One enum rather than the `is_npc`
  *  boolean `refile` took, because there are three kinds now and a boolean that
@@ -385,38 +386,12 @@ ToriRSServer_PlayerzonemapPlayers(
     int* out,
     int max);
 
-/**
- * The npcs in view that a zonemap walk structurally CANNOT return, because the
- * observer and the npc are filed in different coordinate frames
- * (docs/sailing_coverage.csv SAIL-50).
- *
- * A vessel deck is a map instance: its tiles live in the pool, hundreds of
- * squares off the real map, and they are in nobody's subscription but the
- * riders'. So `_PlayerzonemapNpcs` cannot return a deckhand to a shore player
- * no matter how close the boat is — a range test is not the missing piece,
- * the candidate set is.
- *
- * This is that second candidate set: the npcs on the decks of hulls the
- * observer is NOT standing on. It is strictly ADDITIVE and disjoint from the
- * zonemap walk by construction — an npc is filed in exactly one zone, and the
- * observer's own hull is skipped precisely because its deck IS their zonemap —
- * so a caller appends the result and changes nothing else.
- *
- * The mirror direction (a rider seeing the shore) is deliberately NOT here;
- * the implementation carries why, and it is a wire-encoding limit rather than
- * a candidate-set one.
- *
- * `radius` and the footprint measure are the caller's, matching
- * `_PlayerzonemapNpcs` exactly — keeping and adding must agree or an npc is
- * added and removed on alternate ticks.
- *
- * Returns 0 immediately in a world with no live vessel, which is what keeps
- * the ordinary case free.
- */
+/** Every active npc on `vessel`'s deck (its map-instance zones): the npcs of
+ *  that world entity's own NPC_INFO stream. */
 int
-ToriRSServer_PlayerCrossFrameNpcs(
-    struct ToriRSServerPlayer* player,
-    int radius,
+ToriRSServer_VesselDeckNpcs(
+    struct ToriRSServer* srv,
+    const struct ToriRSServerVessel* vessel,
     int* out,
     int max);
 

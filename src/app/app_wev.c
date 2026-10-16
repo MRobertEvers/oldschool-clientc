@@ -540,6 +540,8 @@ App_WevDespawn(
      * is one of them while the root world still holds its id (SAILING_PLAN
      * C5.1). */
     app_wev_evict_view_actors(app, id);
+    /* Its npcs go with it: the deob discards the World with its npc list. */
+    RS_EntitySync_ClearViewNpcs(&app->esync, app->world, id);
 
     Wevs_Despawn(&app->wevs, id);
 
@@ -1168,6 +1170,15 @@ app_wev_deck_level(
 }
 
 int
+App_WevDeckLevel(
+    struct App* app,
+    int view_id)
+{
+    assert(app);
+    return app_wev_deck_level(app, view_id);
+}
+
+int
 App_WevHomeViewForAbsTile(
     struct App* app,
     int abs_tile_x,
@@ -1321,6 +1332,15 @@ app_wev_route_actors(struct App* app)
         int view_id = WORLDVIEW_ROOT;
         int x = (int)npc->draw_position.x;
         int z = (int)npc->draw_position.z;
+        /* Homed by its world's own NPC_INFO (a deck stream): its coordinates
+         * are already the view's, as a rider's are -- no inverse transform. */
+        if( npc->view_placement.home_view != 0 &&
+            WorldviewRegistry_IsLive(&app->worldviews, npc->view_placement.home_view) )
+        {
+            app_wev_apply_placement(
+                app, &npc->view_placement, npc->element_id, npc->view_placement.home_view, x, z);
+            continue;
+        }
         struct ToriRS_Npctype* type = NULL;
         if( app->sailing_crew_category > 0 && Wevs_ViewListCount(&app->wevs, WORLDVIEW_ROOT) > 0 )
         {

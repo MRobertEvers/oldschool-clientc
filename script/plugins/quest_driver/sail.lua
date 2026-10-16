@@ -1606,6 +1606,74 @@ end
 
 
 
+-- The local player's walk set as the client holds it, by seq name where the
+-- named seq matches: "ready=<name|id> walk=<...> run=<...>". `expect` is a
+-- table {ready=, walk=, run=} of seq names; ok when every one named matches.
+function QD.sail.walk_set(expect)
+    local r, rows = api_drive.players()
+    if r ~= "ok" or type(rows) ~= "table" then
+        return "not_found", "no players rows (" .. tostring(r) .. ")"
+    end
+    local me = nil
+    for i = 1, #rows do
+        if rows[i].me then me = rows[i] end
+    end
+    if not me then
+        return "not_found", "no local player row"
+    end
+    local got = { ready = me.readyanim, walk = me.walkanim, run = me.runanim }
+    local parts, ok = {}, true
+    for _, key in ipairs({ "ready", "walk", "run" }) do
+        local want = expect and expect[key]
+        local text = tostring(got[key])
+        if want ~= nil then
+            local s_r, id = api_drive.symbol("seq", want)
+            if s_r ~= "ok" or id ~= got[key] then
+                ok = false
+                text = text .. " (want " .. want .. " = " .. tostring(id) .. ")"
+            else
+                text = want
+            end
+        end
+        parts[#parts + 1] = key .. "=" .. text
+    end
+    return ok and "ok" or "refused", table.concat(parts, " ")
+end
+
+-- Diagnostic: the drawn pose of the npc named `name`, sampled every frame
+-- for `frames` frames -- "yaw>dst prim/sec face view @draw_x,draw_z" -- with
+-- runs of identical samples collapsed ("xN"). What a "the crew member spins"
+-- report is read against.
+function QD.sail.pose_trace(name, frames)
+    local out, last, run = {}, nil, 0
+    for _ = 1, frames do
+        local r, rows = api_drive.npcs(24)
+        local sample = "absent"
+        if r == "ok" and type(rows) == "table" then
+            for i = 1, #rows do
+                local n = rows[i]
+                if n.name == name then
+                    sample = string.format("%d>%d a%d/%d f%d v%d @%d,%d", n.yaw or -1, n.dst_yaw or -1,
+                        n.anim_primary or -1, n.anim_secondary or -1, n.facing_entity or -9, n.view_id or -1,
+                        n.draw_x or 0, n.draw_z or 0)
+                    break
+                end
+            end
+        end
+        if sample == last then
+            run = run + 1
+        else
+            if last ~= nil then
+                out[#out + 1] = last .. (run > 1 and (" x" .. run) or "")
+            end
+            last, run = sample, 1
+        end
+        QD.sail._frame()
+    end
+    out[#out + 1] = tostring(last) .. (run > 1 and (" x" .. run) or "")
+    return "ok", table.concat(out, " | ")
+end
+
 -- ---------------------------------------------------------------- port tasks
 --
 -- The courier loop (OSRS wiki "Courier tasks"; content in

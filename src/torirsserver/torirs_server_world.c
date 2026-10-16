@@ -7259,6 +7259,7 @@ ToriRSServer_WorldPlayerLevelChanged(struct ToriRSServerPlayer* player)
     player->place_dirty = 1;
     memset(player->npc_tracked, 0, sizeof(player->npc_tracked));
     player->tracked_count = 0;
+    memset(player->deck_tracked_count, 0, sizeof(player->deck_tracked_count));
     /* The zones on the new level are different zones — a zone key carries the
      * level — so this is not only "forget what you were told", it is what makes
      * the next flush compute a new active window. */
@@ -8771,6 +8772,38 @@ ToriRSServer_VesselRecover(struct ToriRSServer* srv, int handle,
                 return 1;
             }
     return 0;
+}
+
+/* The Shipyard's dry berth: an unoccupied owned hull stood exactly there, at
+ * that angle, stopped. No ocean test (see vessel_berth in gen_opcode_meta.py);
+ * the same ownership and no-rider rules as a recover. */
+int
+ToriRSServer_VesselBerth(struct ToriRSServer* srv, int handle,
+                         int level, int tile_x, int tile_z, int angle)
+{
+    struct ToriRSServerVessel* vessel;
+
+    assert(srv);
+    vessel = ToriRSServer_VesselGet(srv, handle);
+    if( !vessel || !srv->active_player || level != 0 ||
+        vessel->owner_uid != srv->active_player->pid + 1 )
+        return 0;
+    for( int i = 0; i < srv->player_count; ++i )
+    {
+        struct ToriRSServerPlayer* rider = &srv->players[i];
+        if( rider->active && ToriRSServer_VesselAtTile(srv, rider->x, rider->z) == vessel )
+            return 0;
+    }
+    ToriRSServer_VesselStop(vessel);
+    vessel->teleport_stamp++;
+    vessel->fine_x = tile_x * 128 + 64;
+    vessel->fine_z = tile_z * 128 + 64;
+    vessel->level = level;
+    vessel->angle = angle & 0x7ff;
+    vessel->heading = (vessel->angle / 128) & 15;
+    vessel->residual_x = vessel->residual_z = 0;
+    vessel->sails_set = vessel->reversing = 0;
+    return 1;
 }
 
 /*
