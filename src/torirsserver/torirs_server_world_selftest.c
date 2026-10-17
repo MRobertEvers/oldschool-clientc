@@ -23233,6 +23233,31 @@ ToriRSServer_WorldSelftest(void)
                            "[login] should keep auto retaliate off as saved, got %d",
                            option_nodef >= 0 ? player->varps[option_nodef] : -1);
 
+            /* Side-stone keys: a character with none gets OldSchool's stock
+             * layout (~settings_keybinding_defaults); varp 1224 holds combat,
+             * stats, journal, inventory, worn and prayer in 5-bit slots, values
+             * 1..12 F1..F12 and 13 Esc. One the player has set is left alone. */
+            {
+                int keys1 = ToriRSServer_ContentSymbol(
+                    TORIRSSERVER_PACK_VARP, "varp1224_sidestone_keybindings_1");
+                int const stock = 1 | (2 << 5) | (3 << 10) | (13 << 15) | (4 << 20) | (5 << 25);
+
+                SELFTEST_CHECK(keys1 >= 0 && player->varps[keys1] == stock,
+                               "[login] should give a fresh character the stock F-keys "
+                               "(varp 1224 = %d), got %d",
+                               stock,
+                               keys1 >= 0 ? player->varps[keys1] : -1);
+                if( keys1 >= 0 )
+                {
+                    player->varps[keys1] = 7;
+                    player->login_pending = 1;
+                    selftest_tick(srv);
+                    SELFTEST_CHECK(player->varps[keys1] == 7,
+                                   "[login] should keep a player's own keybindings, got %d",
+                                   player->varps[keys1]);
+                }
+            }
+
             /* The spec bar above was full because that was the character's
              * first login. A returning one keeps what it logged out with. */
             if( sa_energy >= 0 )

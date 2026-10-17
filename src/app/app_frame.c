@@ -1121,6 +1121,7 @@ App_RunOnce(
 
     /* Per-frame interaction: returns intents; the app applies event context
      * and dispatches each hook through the game layer. */
+    app_chat_lock_keys(app, input);
     /* Publish this frame's key state before any hook runs, so KEYHELD and
      * KEYPRESSED answer about the frame the script is reacting to. */
     RS_CS2_SyncKeyState(&app->host, input);
@@ -1827,7 +1828,9 @@ App_RunOnce(
      * the typed line, the gameframe's takes the F-keys and switches tabs, and
      * a panel with a search box takes the keyboard by disarming the chatbox's
      * hook rather than by anything the client does. There is no client-side
-     * chat focus at a cache revision to route them by. Unlike the intent loop above
+     * chat focus at a cache revision to route them by, except the web's
+     * closed chat line, which app_chat_lock_keys has already folded into the
+     * queue. Unlike the intent loop above
      * this re-resolves each component id immediately before dispatching it
      * rather than snapshotting hooks up front -- a broadcast runs many scripts
      * in one frame, and an earlier one can CC_CREATE (realloc components[]) or
@@ -2416,6 +2419,7 @@ App_RunOnce(
         app_if_head_poll(app);
         app_if_player_model_poll(app);
         app_chat_build_view(app);
+        app_chat_lock_paint(app);
         /* TORIRS_FORCE_SHOW_SLOT=<component_id> (debug): clear the hide flag on one
          * mounted node each frame so a panel the gameframe keeps hidden can still be
          * rendered for inspection — the sidebar tab-reveal CS2 is still a follow-on,

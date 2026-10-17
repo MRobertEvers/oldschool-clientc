@@ -298,6 +298,183 @@ app_chat_focus_tick(
 }
 
 /*
+ * Press Enter to chat, for a cache chatbox on the web.
+ *
+ * A browser keeps the F-keys for itself (F5 reloads the page, F11 goes full
+ * screen), so the web client takes the side-stone keys from the digit row:
+ * 1..9, 0, -, = are F1..F12, which is the order the keybinding varbits count
+ * in. The digit row is also what the cache chatbox types -- script 73 takes
+ * every printable key into the line -- so here the line stays closed until the
+ * player opens it, the way RuneLite's Key Remapping does it. Enter or a click
+ * on the line opens it; sending the line or Escape closes it again.
+ *
+ * TORIRS_CHAT_LOCK=1 turns it on in a desktop build, for testing.
+ */
+static int
+app_chat_lock_wanted(void)
+{
+#if defined(TORIRS_PLATFORM_WEB)
+    return 1;
+#else
+    return getenv("TORIRS_CHAT_LOCK") != NULL;
+#endif
+}
+
+/* The typed line while it is on screen, else -1. A dialogue in the chatbox
+ * hides it (and script 73 ignores typing then), so a dialogue's digit options
+ * and Space are left alone. -1 too where the client paints its own chatbox:
+ * app_chat_focus_tick owns focus there. */
+static int32_t
+app_chat_lock_line(struct App* app)
+{
+    int32_t idx;
+
+    assert(app);
+    if( !app_chat_lock_wanted() || !app->tree || app_chat_node_index(app) >= 0 )
+        return -1;
+    idx = UITree_RoleNodeByName(app->tree, &app->ui_roles, "chat_input");
+    if( idx < 0 || UITree_NodeOrAncestorDisplayHidden(app->tree, idx) )
+        return -1;
+    return idx;
+}
+
+static char const*
+app_chat_lock_text(
+    struct App const* app,
+    int32_t line)
+{
+    struct UITreeComponent const* node = &app->tree->components[line];
+    char const* text = node->type == UIELEM_RS_TEXT ? node->u.rs_text.text : node->data_text;
+    return text ? text : "";
+}
+
+/* The F-key a digit-row character stands for, or -1. */
+static int
+app_chat_lock_fkey(int ch)
+{
+    static char const k_row[] = "1234567890-=";
+    char const* at;
+    char name[4];
+
+    if( ch <= 0 || ch > 127 )
+        return -1;
+    at = strchr(k_row, ch);
+    if( !at )
+        return -1;
+    snprintf(name, sizeof(name), "f%d", (int)(at - k_row) + 1);
+    return LibToriRS_OsrsKeyFromName(name);
+}
+
+static void
+app_chat_lock_set_open(
+    struct App* app,
+    int32_t line,
+    int open)
+{
+    if( open && app->chat_line_saved[0] &&
+        strcmp(app_chat_lock_text(app, line), app->chat_line_prompt) == 0 )
+        UITree_SetTextAt(app->tree, line, app->chat_line_saved);
+    app->chat_line_saved[0] = '\0';
+    app->chat_line_prompt[0] = '\0';
+    app->chat_line_open = open;
+    app->need_redraw = 1;
+}
+
+/* Before anything reads the frame's keys: the onKey broadcast, op-key
+ * matching and KEYPRESSED all see the rewritten queue. */
+void
+app_chat_lock_keys(
+    struct App* app,
+    struct LibToriRS_Input* input)
+{
+    int32_t const line = app_chat_lock_line(app);
+    int kept = 0;
+
+    assert(input);
+    if( line < 0 || app_text_input_focused(app) )
+        return;
+
+    if( !app->chat_line_open && LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) &&
+        !app->frame_view->minimenu->visible )
+    {
+        int bx = 0, by = 0, bw = 0, bh = 0;
+        int const mx = input->curr.mouse_x;
+        int const my = input->curr.mouse_y;
+        UITree_LayoutGetBounds(&app->tree->components[line].position, &bx, &by, &bw, &bh);
+        if( mx >= bx && mx < bx + bw && my >= by && my < by + bh )
+            app_chat_lock_set_open(app, line, 1);
+    }
+
+    for( int e = 0; e < input->key_event_count; e++ )
+    {
+        struct LibToriRS_KeyEvent ev = input->key_events[e];
+
+        if( app->chat_line_open )
+        {
+            /* Still delivered: the Enter is the line's send. */
+            if( ev.key_typed == TORIRS_OSRSKEY_ENTER || ev.key_typed == TORIRS_OSRSKEY_ESCAPE )
+                app_chat_lock_set_open(app, line, 0);
+            input->key_events[kept++] = ev;
+            continue;
+        }
+        if( ev.key_typed == TORIRS_OSRSKEY_ENTER )
+        {
+            input->osrs_key_pressed[TORIRS_OSRSKEY_ENTER] = 0;
+            app_chat_lock_set_open(app, line, 1);
+            continue;
+        }
+        /* The line is still holding whatever was typed before it closed. */
+        if( ev.key_typed == TORIRS_OSRSKEY_BACKSPACE )
+            continue;
+        if( ev.key_typed == -1 )
+        {
+            int const fkey = app_chat_lock_fkey(ev.key_pressed);
+            /* A held digit must not flip the same tab open and shut. */
+            if( fkey < 0 || ev.is_repeat )
+                continue;
+            ev.key_typed = fkey;
+            ev.key_pressed = 0;
+            input->osrs_key_pressed[fkey] = 1;
+        }
+        input->key_events[kept++] = ev;
+    }
+    input->key_event_count = kept;
+}
+
+/* Before the emit, after the frame's scripts: script 223 rewrites the line on
+ * every redraw, so the prompt is put back over whatever it last wrote. */
+void
+app_chat_lock_paint(struct App* app)
+{
+    int32_t const line = app_chat_lock_line(app);
+    char const* text;
+    char const* colon;
+    char const* colour_end;
+
+    if( line < 0 || app->chat_line_open )
+        return;
+    text = app_chat_lock_text(app, line);
+    if( strcmp(text, app->chat_line_prompt) == 0 )
+        return;
+    /* `<icon><name>: <col=…><typed></col>*`. The "set a name" line has no
+     * name to keep and nothing typed to cover. */
+    colon = strstr(text, ": <");
+    if( !colon )
+        return;
+    colour_end = strchr(colon + 2, '>');
+    if( !colour_end )
+        return;
+    snprintf(app->chat_line_saved, sizeof(app->chat_line_saved), "%s", text);
+    snprintf(
+        app->chat_line_prompt,
+        sizeof(app->chat_line_prompt),
+        "%.*sClick here or press Enter to chat...</col>",
+        (int)(colour_end + 1 - text),
+        text);
+    UITree_SetTextAt(app->tree, line, app->chat_line_prompt);
+}
+
+/*
  * Rebuild the chat presentation (called before every emit).
  *
  * One shape, and it belongs to the eras whose chatbox is a *surface* the client

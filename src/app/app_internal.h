@@ -693,6 +693,14 @@ app_chat_focus_tick(
     int* out_submit);
 
 void
+app_chat_lock_keys(
+    struct App* app,
+    struct LibToriRS_Input* input);
+
+void
+app_chat_lock_paint(struct App* app);
+
+void
 app_chat_build_view(struct App* app);
 
 int

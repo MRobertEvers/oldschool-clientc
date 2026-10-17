@@ -1968,6 +1968,16 @@ struct App
      *  while composing a message. Clicking the chat region focuses; clicking
      *  elsewhere or pressing Escape unfocuses. */
     int chat_input_active;
+    /** Web, cache chatbox: the player opened the typed line (Enter, or a click
+     *  on it). While it is closed the digit row is the F-key row and the line
+     *  shows a prompt instead of what was typed. @see app_chat_lock_keys. */
+    int chat_line_open;
+    /** What the cache last wrote into the typed line, kept while the prompt
+     *  covers it so opening the line puts it back; and the prompt as last
+     *  written, which is how a fresh write from the line's script is told
+     *  apart from our own. */
+    char chat_line_saved[1024];
+    char chat_line_prompt[1024];
     /** The mobile scripts asked for the soft keyboard (MOBILE_KEYBOARDSHOW*)
      *  and have not asked to put it away. Its own flag rather than the chat
      *  line's focus: focusing the chat line means "typed keys go to the chat
