@@ -149,6 +149,18 @@
   body.fullcanvas header:focus-within { opacity: 1; }
   body.fullcanvas header h1,
   body.fullcanvas header #status { display: none; }
+  /* The strip is a drawer: closed, only its tab is left in the corner, so the
+     client's minimap under it stays visible and clickable. */
+  #btn-drawer { display: none; }
+  body.fullcanvas header { gap: 0.4rem; align-items: center; }
+  body.fullcanvas #btn-drawer { display: inline-block; padding: 0.15rem 0.3rem; }
+  body.fullcanvas header.drawer-closed {
+    padding: 0;
+    border-right: 0;
+    opacity: 0.5;
+  }
+  body.fullcanvas header.drawer-closed #memtrace,
+  body.fullcanvas header.drawer-closed #viewctl { display: none; }
   /* Exclusive plugin chrome still belongs to the fullscreened application.
      Keep its application controls in flow instead of floating them over the
      only visible page. */
@@ -160,6 +172,10 @@
     border-left: 0;
     border-right: 0;
   }
+  body.fullcanvas #torirs-app.torirs-chrome-exclusive > header #btn-drawer { display: none; }
+  body.fullcanvas #torirs-app.torirs-chrome-exclusive > header.drawer-closed { padding: 0.25rem 0.4rem; }
+  body.fullcanvas #torirs-app.torirs-chrome-exclusive > header.drawer-closed #viewctl { display: flex; }
+  body.fullcanvas #torirs-app.torirs-chrome-exclusive > header.drawer-closed #memtrace:not([hidden]) { display: flex; }
   .panel {
     display: flex;
     flex-direction: column;
@@ -212,6 +228,8 @@
 <body>
 <div id="torirs-app">
 <header>
+  <button type="button" id="btn-drawer" aria-expanded="false" aria-controls="viewctl"
+          title="Show or hide the view controls.">‹</button>
   <h1>torirs — wasm</h1>
   <span id="status">loading…</span>
   <!-- MEMTRACE=1 builds only; torirs_host.js unhides this once it sees the
@@ -284,7 +302,10 @@
   const stage = document.getElementById('stage');
   const btnCanvas = document.getElementById('btn-fullcanvas');
   const btnFull = document.getElementById('btn-fullscreen');
+  const btnDrawer = document.getElementById('btn-drawer');
+  const header = btnDrawer.parentElement;
   const STORE_KEY = 'torirs.fullcanvas';
+  const DRAWER_KEY = 'torirs.viewdrawer';
 
   function fullscreenElement() {
     return document.fullscreenElement || document.webkitFullscreenElement || null;
@@ -353,6 +374,17 @@
     setFullCanvas(!body.classList.contains('fullcanvas'));
   };
 
+  function setDrawerOpen(open) {
+    header.classList.toggle('drawer-closed', !open);
+    btnDrawer.setAttribute('aria-expanded', open ? 'true' : 'false');
+    btnDrawer.textContent = open ? '\u203a' : '\u2039';
+    try { window.localStorage.setItem(DRAWER_KEY, open ? '1' : '0'); } catch (e) { /* private mode */ }
+  }
+
+  btnDrawer.onclick = () => {
+    setDrawerOpen(header.classList.contains('drawer-closed'));
+  };
+
   btnFull.onclick = () => {
     // The application root, not the canvas: rail, active plugin pane and the
     // way back out must stay in the same fullscreen presentation.
@@ -396,6 +428,10 @@
   try { stored = window.localStorage.getItem(STORE_KEY); } catch (e) { /* private mode */ }
   const forced = new URLSearchParams(window.location.search).get('fullcanvas');
   setFullCanvas(forced !== null ? forced !== '0' : stored === '1');
+
+  let drawerStored = null;
+  try { drawerStored = window.localStorage.getItem(DRAWER_KEY); } catch (e) { /* private mode */ }
+  setDrawerOpen(drawerStored === '1');
 })();
 </script>
 
