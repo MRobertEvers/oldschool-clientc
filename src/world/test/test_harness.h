@@ -149,6 +149,7 @@ void test_rev239_snap_keeps_the_readyanim(void);
 void test_rev239_mode1_keeps_its_facing_on_a_walk(void);
 void test_rev239_turn_seq_follows_the_direction(void);
 void test_rev239_run_and_crawl_directions(void);
+void test_movement_seq_change_keeps_frame(void);
 void test_rev239_opcode_109_catchup(void);
 void test_rev239_step_arrival_rules(void);
 void test_rev239_frame_mover_drops_the_z_carry(void);

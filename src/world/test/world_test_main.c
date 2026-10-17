@@ -35,6 +35,7 @@ main(void)
     test_rev239_mode1_keeps_its_facing_on_a_walk();
     test_rev239_turn_seq_follows_the_direction();
     test_rev239_run_and_crawl_directions();
+    test_movement_seq_change_keeps_frame();
     test_rev239_opcode_109_catchup();
     test_rev239_step_arrival_rules();
     test_rev239_frame_mover_drops_the_z_carry();

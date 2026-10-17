@@ -2819,6 +2819,61 @@ test_rev239_run_and_crawl_directions(void)
     }
 }
 
+static int test_resume_frames(void* u, int seq) { (void)u; return (seq == 100 || seq == 200) ? 16 : 0; }
+static int test_resume_duration(void* u, int seq, int frame) { (void)u; (void)seq; (void)frame; return 4; }
+static int test_resume_step(void* u, int seq) { (void)u; (void)seq; return 16; }
+static int test_resume_loops(void* u, int seq) { (void)u; (void)seq; return 99; }
+
+/*
+ * rev-239 Statics.method10289: a movement seq change keeps the frame. A
+ * no-rotation npc running two steps a tick empties its route a few cycles
+ * before the next tick's steps arrive, cuts to its readyanim, and walks on --
+ * mid-stride, not from the walk's first frame every tick.
+ */
+void
+test_movement_seq_change_keeps_frame(void)
+{
+    printf("TEST: a movement seq change keeps its frame\n");
+    struct World_SeqSource seq = {
+        .userdata = NULL,
+        .frame_count = test_resume_frames,
+        .frame_duration = test_resume_duration,
+        .frame_step = test_resume_step,
+        .max_loops = test_resume_loops,
+    };
+    struct World* world = World_TestMakeReadyEra(104, ToriRS_Features_OSRS());
+    World_SetSeqSource(world, &seq);
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+    idle.turnanim = idle.turnanim_r = idle.runanim = -1;
+    idle.walkanim_b = idle.walkanim_r = idle.walkanim_l = -1;
+    int ni = World_NpcSpawn(world, 2, 1, 0, 30, 30, 5, idle);
+    struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, ni);
+    npc->facing.no_rotation_flag = 1;
+    World_NpcPathJump(world, ni, true, 30, 30);
+
+    int last_seq = -2, resumes = 0, at_start = 0;
+    for( int t = 0; t < 20; t++ )
+    {
+        World_NpcPathPushStep(world, ni, WORLD_PATHSTEP_RUN, 4);
+        World_NpcPathPushStep(world, ni, WORLD_PATHSTEP_RUN, 4);
+        for( int c = 0; c < 30; c++ )
+        {
+            World_TestCycle(world, 1);
+            int now = (int)npc->animation.secondary.anim_id;
+            if( t >= 2 && now == idle.walkanim && last_seq == idle.readyanim )
+            {
+                resumes++;
+                if( npc->animation.secondary.frame <= 1 )
+                    at_start++;
+            }
+            last_seq = now;
+        }
+    }
+    TEST_ASSERT(resumes >= 10, "a no-rotation run cuts to the readyanim between ticks");
+    TEST_ASSERT(at_start * 4 < resumes, "and the walk resumes mid-stride, not from its first frame");
+    World_Free(world);
+}
+
 static int
 test_abortanim_postanim(void* userdata, int seq_id)
 {

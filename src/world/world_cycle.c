@@ -1287,11 +1287,15 @@ World_ApplySecondaryAnim(
         return;
     }
 
+    /* rev-239 Statics.method10289: a new movement seq zeroes the loop count
+     * and keeps the frame and the time into it (a frame past the new seq's
+     * end is reset by World_StepAnimationTrack's guard). A route that empties
+     * for a few cycles between ticks -- a no-rotation npc running -- cuts to
+     * the readyanim and back, and must not restart the walk each time. */
     if( animation->secondary.anim_id != (uint16_t)seqId )
     {
         animation->secondary.anim_id = (uint16_t)seqId;
-        animation->secondary.frame = 0;
-        animation->secondary.cycle = 0;
+        animation->secondary.loop = 0;
     }
 }
 
