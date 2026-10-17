@@ -153,8 +153,9 @@ Message strings (api_drive.messages): `<col=bf0000>A large ball of energy is sho
   when every raider of that world is back on row <=2 (S.rs2:1717-1733). Walks the PATH, not at a raider.
   Its body may need 2 lateral steps when the col offset changes between rows -> may lag a tick there.
 - END (S.rs2:1282-1330, 1351-1435): checks only on ticks with map_clock % 4 == 0 (S.rs2:1390-1391;
-  "off on 3"), not before the landing; in the NPC phase (end-of-previous-tick tiles). If nobody stands
-  on the ARENA grid AND a runner has ENTERED the portal (or the realm is empty: every runner out or
+  "off on 3"), not before the landing; in the NPC phase (end-of-previous-tick tiles). If every uncaged
+  arena raider has CROSSED the grid (row >= 15, north of the top row; south of row 0 is NOT done,
+  `~tob_sote_arena_unfinished`) AND a runner has ENTERED the portal (or the realm is empty: every runner out or
   dead) -> maze ends: boss back to 8388, defence restored, first attack end+1, mirror and arena
   tornado cleared (2026-10-13, ~tob_sote_realm_open; it used to end on "nobody on either grid", so a
   runner stepping off the top row ended it). THE PORTAL (op1 on 33037, 8x2 at realm local (29,42)):
@@ -188,7 +189,7 @@ lagged mirror); `tob_sote_under`/chip varps; whether a projectile has already be
 Party channel: `api_drive.party()` gives only role/size/names (SR.c:1954-1975); `barrier_mark/present`
 (SR.c:1978-2014) is a test-sync flag (any string, honoured next tick). Encoding the path in barrier
 names would be a side channel the client does not have -- do NOT use it. No in-game party message
-verb exists. The team needs no communication if the waiters stay off the grid (below).
+verb exists. The team needs no communication: the waiters read the runner's glow (below).
 
 ## 5. WHAT REAL TRIOS DO
 
@@ -248,10 +249,9 @@ CONTEXTS:
    the path) and forbid that path tile and its two neighbours on the path for that tick, LETHAL.
    Goal: the top row's path tile; ON it, the op on the portal (the server walks z37 -> z39 -> z41,
    off the grid only); the maze ends only once a runner has entered it. No move before P+5 (stunned). steps_per_tick 2 (run on).
-4. MAZE-WAITER (my level 0, maze active). Stay OFF the grid: forbid z22..36 x9..22 LETHAL. Hold at
-   (15,20)/(15,21). v2 option: follow the mirror trail (only tiles that have shown 33035), one tick
-   behind, never past row 2 until the runner is >=4 path tiles ahead (or the realm tornado spawns
-   under the runner), to be beside him when he wakes; costs a tornado chase in the arena.
+4. MAZE-WAITER (my level 0, maze active). Follow the mirror trail (only tiles that have shown 33035)
+   a couple of rows behind the glow, and leave north off the last rows. Waiting south of the grid
+   is not an option: the maze does not end until every arena raider is past its north edge.
 5. POST-MAZE: walk back across the plain grid to formation (17 tiles, ~9 ticks). First attack E+1.
 
 NON-MOVEMENT CHANNELS (EMIT order: prayer, food, gear, interaction):
@@ -281,8 +281,9 @@ PASS CRITERIA (tick log, 16 seeds by `--name`):
 ## 8. OPEN QUESTIONS / RISKS
 
 1. CLOSED 2026-10-13 (owner: "the completer [must] go through the gate"): the maze ends only once a
-   runner has entered the portal, so stepping off the realm grid (south or north) ends nothing. The
-   arena team still never has to enter the grid.
+   runner has entered the portal, so stepping off the realm grid (south or north) ends nothing. And
+   (2026-10-17) the arena team must cross too: the maze ends only once every arena raider is north
+   of the grid's last row ("they must all run one tile past the grid", yt_EntowMeBPNg 0:33).
 2. Run skipping: content checks only end-of-tick tiles; wiki says no skipping. The planner charges
    middles, so we obey the wiki. If the owner wants the wiki rule, it is a content fix (check the
    path the step took).

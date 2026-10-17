@@ -156,8 +156,11 @@ IS a runner keeps its own realm tiles (x 3354..3367 = local 26..39), so the walk
 | proc -> re-activation | 14 / 25 / 29 / 33 / 51 (min, quartiles, max), mean 29.7, n 300 | 26 / 34 / 39 / 43 / 55, mean 38.4, n 120 |
 
 CONTENT (tob_sotetseg.rs2, tob.constant):
-- `~tob_sote_maze_tick`: the 4-tick check ends the maze only when the ARENA grid is empty
-  (`~tob_sote_arena_occupied`, was `~tob_sote_grid_occupied`) AND `~tob_sote_realm_open` is false:
+- `~tob_sote_maze_tick`: the 4-tick check ends the maze only when every uncaged arena raider has
+  CROSSED the grid - row >= 15, north of its last row (`~tob_sote_arena_unfinished`, was
+  `~tob_sote_arena_occupied`, which asked only "nobody standing on it" and so let a raider who
+  waited south of row 0 hold no maze at all; yt_EntowMeBPNg 0:33 "they must all run one tile past
+  the grid to complete the maze") AND `~tob_sote_realm_open` is false:
   the realm gone, or nobody inside, or a runner through its portal (`^tob_var_maze_exited`, realm
   register 118, reset at `~tob_sote_start_maze`). The realm's grid is no longer asked.
 - `[oploc1,tob_sotetseg_darkrealm_exit]`: this engine runs the op the tick AFTER arrival (measured),

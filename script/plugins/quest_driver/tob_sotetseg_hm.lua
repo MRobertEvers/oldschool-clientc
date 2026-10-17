@@ -16,8 +16,8 @@
 --                followed, then it takes the lead on its own ("Each player
 --                will run a portion of the maze ... transition between
 --                players quickly", yt_9coCVByPHCw 5:00). The one left up top
---                waits off the arena grid until the maze ends: the arena's
---                tornado rises only for a step past its third row.
+--                follows the glow across the arena grid and off its north
+--                end, which the maze's end waits for.
 --   death balls  two at once, at two targets: "the players targeted by the
 --                balls should stand next to the death-dot tile, while all
 --                other players not targeted by them should stand on the
@@ -87,21 +87,12 @@ function QD.raid._sote_hm_death_zones(S, F, add)
     return true
 end
 
--- UP TOP: off the arena grid, south of it, until the maze ends.
+-- UP TOP: the Normal waiter - follow the runners' glow and leave north off the
+-- last rows. The maze does not end while anyone up top is short of the grid's
+-- north edge (~tob_sote_arena_unfinished), so waiting south of it holds the
+-- maze open for good. A runner back through the portal is _sote_back there.
 function QD.raid._sote_hm_waiter(S, F, add)
-    local V = S.V
-    local B = S.base
-    local G = V.GRID
-    -- a runner back through the portal while the others finish (the maze
-    -- ends on the first runner's portal, Blert Hard; the content's 4-tick
-    -- check): beside him, off the grid (tob_sotetseg.lua _sote_back)
-    if S.ran_maze == S.mazes then return QD.raid._sote_back(S, F, add) end
-    for x = G.x0, G.x1 do
-        for z = G.z0, G.z1 do
-            add.forbid("grid", { x = B.x + x, z = B.z + z, t0 = F.tick, t1 = F.tick + V.H, tier = "lethal", cost = 50 })
-        end
-    end
-    return { x = B.x + V.WAIT.x, z = B.z + V.WAIT.z }
+    return QD.raid._sote_waiter(S, F, add)
 end
 
 -- IN THE REALM: my band's lit tiles and every tile a runner has stood on are
