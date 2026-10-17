@@ -475,6 +475,8 @@ struct Task_AppSpawn
      * other kind; released exactly once, on apply or on free. */
     unsigned loc_ticket;
     int loc_ticket_released;
+    /* APP_SPAWN_LOC_CHANGE: App.server_tick_serial at enqueue. */
+    unsigned loc_tick;
     enum AppSpawnKind kind;
     int tile_x;
     int tile_z;
@@ -542,6 +544,14 @@ struct Task_AppSpawn
     int loc_carry_any_seq;
     int loc_carry_any_set;
     int loc_defers_anim;
+    /*
+     * A LOC_ANIM read a server tick or more after this change: the rev-239
+     * client had built the loc by then and animated it outright, whatever its
+     * loctype, so the newest such sequence wins over both carry slots
+     * (app_spawn_loc_take).
+     */
+    int loc_take_seq;
+    int loc_take_set;
     /** APP_SPAWN_LOC_CHANGE: the loc's models and sequence, fanned out and not yet ended. */
     int pending;
     /* APP_SPAWN_PLUGIN_OBJECT: the plugin object handle whose assets this task
@@ -2316,7 +2326,10 @@ app_spawn_loc_lane_queue(
 
 /* The newest LOC_CHANGE on the loc lane for this view, tile, level and layer
  * that has not been applied to the scene yet -- the deob's pending spawn for
- * the tile (Statics.method5652) -- or NULL. */
+ * the tile (Statics.method5652) -- or NULL. `landed_only` keeps to changes
+ * queued in an earlier server tick than the current one: the ones the deob has
+ * already built, so its scene holds the newest of them where this client's
+ * still holds the loc before it. */
 struct Task_AppSpawn*
 app_spawn_loc_lane_pending(
     struct App* app,
@@ -2324,7 +2337,8 @@ app_spawn_loc_lane_pending(
     int scene_x,
     int scene_z,
     int level,
-    int layer);
+    int layer,
+    int landed_only);
 
 /* A LOC_ANIM read while `pending` waits: hand it the sequence the way the deob
  * stores it on a pending spawn. `stood` is whether a loc stood on the layer
@@ -2335,8 +2349,17 @@ app_spawn_loc_carry(
     int seq_id,
     int stood);
 
+/* A LOC_ANIM aimed at the loc `landed` places, which the deob has already
+ * built (app_spawn_loc_lane_pending, landed_only): it starts on the sequence
+ * whatever its loctype says. */
+void
+app_spawn_loc_take(
+    struct Task_AppSpawn* landed,
+    int seq_id);
+
 /* The sequence a LOC_CHANGE places its loc on instead of the loctype's
- * `anim=`, chosen by the loctype's deferanimchange; 0 when it carries none. */
+ * `anim=`: a taken one, else the carry the loctype's deferanimchange selects;
+ * 0 when it has none. */
 int
 app_spawn_loc_carried(
     struct Task_AppSpawn const* task,

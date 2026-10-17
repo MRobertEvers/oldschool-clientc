@@ -70,6 +70,7 @@ TORIRS_ENV_KNOB(torirs_env_world_view_debug, "TORIRS_WORLD_VIEW_DEBUG")
 TORIRS_ENV_KNOB(torirs_env_wedge_zoom, "TORIRS_WEDGE_ZOOM")
 TORIRS_ENV_KNOB(torirs_env_wedge_fov_debug, "TORIRS_WEDGE_FOV_DEBUG")
 TORIRS_ENV_KNOB(torirs_env_orbit_debug, "TORIRS_ORBIT_DEBUG")
+TORIRS_ENV_KNOB(torirs_env_loc_lane_trace, "TORIRS_LOC_LANE_TRACE")
 
 /* The painter's knobs: these change what is drawn, not just what is logged. */
 TORIRS_ENV_KNOB(torirs_env_draw_distance, "TORIRS_DRAW_DISTANCE")

@@ -1753,11 +1753,10 @@ Task_AppSpawn_Run(
              * argument wins over the loctype's own when it is >= 0). Which
              * of the two slots counts is the new loctype's deferanimchange.
              */
-            if( self->loc_id >= 0 )
             {
                 int carried = -1;
 
-                if( app_spawn_loc_carried(self, &carried) )
+                if( self->loc_id >= 0 && app_spawn_loc_carried(self, &carried) )
                     (void)app_world_scenery_anim_apply(
                         app,
                         world,
@@ -1766,6 +1765,30 @@ Task_AppSpawn_Run(
                         self->level,
                         self->loc_shape,
                         carried);
+                /* The lane's latency against the deob's. The asset runner
+                 * applies after the packet FIFO has executed the tick's fence,
+                 * so 1 fence is a change applied in the cycle that read it; 2
+                 * or more stood unbuilt here through a whole server tick in
+                 * which the official client showed it. */
+                if( torirs_env_loc_lane_trace() )
+                {
+                    unsigned const fences = app->server_tick_serial - self->loc_tick;
+
+                    TORIRS_REPORT(
+                        "loc_lane: apply ticket=%u loc=%d shape=%d at %d,%d,l%d "
+                        "fences=%u cycles=%d seq=%d%s%s\n",
+                        self->loc_ticket,
+                        self->loc_id,
+                        self->loc_shape,
+                        self->tile_x,
+                        self->tile_z,
+                        self->level,
+                        fences,
+                        world->cycle - self->enqueue_cycle,
+                        carried,
+                        self->loc_take_set ? " (taken)" : "",
+                        fences >= 2 ? " LATE" : "");
+                }
             }
             /*
              * The cache's own "a loc was placed" script, for a loc that arrived
@@ -1825,7 +1848,8 @@ app_spawn_loc_lane_pending(
     int scene_x,
     int scene_z,
     int level,
-    int layer)
+    int layer,
+    int landed_only)
 {
     struct Task_AppSpawn* newest = NULL;
 
@@ -1851,6 +1875,8 @@ app_spawn_loc_lane_pending(
             continue;
         if( task->view != view || task->tile_x != scene_x || task->tile_z != scene_z ||
             task->level != level || World_LocShapeToLayer(task->loc_shape) != layer )
+            continue;
+        if( landed_only && task->loc_tick == app->server_tick_serial )
             continue;
         if( !newest || (int)(task->loc_ticket - newest->loc_ticket) > 0 )
             newest = task;
@@ -1878,6 +1904,18 @@ app_spawn_loc_carry(
     }
 }
 
+void
+app_spawn_loc_take(
+    struct Task_AppSpawn* landed,
+    int seq_id)
+{
+    assert(landed);
+    assert(landed->kind == APP_SPAWN_LOC_CHANGE);
+    assert(landed->loc_id >= 0);
+    landed->loc_take_seq = seq_id;
+    landed->loc_take_set = 1;
+}
+
 int
 app_spawn_loc_carried(
     struct Task_AppSpawn const* task,
@@ -1885,6 +1923,11 @@ app_spawn_loc_carried(
 {
     assert(task);
     assert(out_seq_id);
+    if( task->loc_take_set )
+    {
+        *out_seq_id = task->loc_take_seq;
+        return 1;
+    }
     if( task->loc_defers_anim ? !task->loc_carry_any_set : !task->loc_carry_unfound_set )
         return 0;
     *out_seq_id = task->loc_defers_anim ? task->loc_carry_any_seq : task->loc_carry_unfound_seq;

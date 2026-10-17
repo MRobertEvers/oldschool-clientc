@@ -35,8 +35,11 @@ app_world_reconcile_player_transmog(
  *   - A zone LOC_ADD_CHANGE / LOC_DEL does not touch the scene when it is read.
  *     It files a PENDING SPAWN (deob Statics.method5669, a class69 keyed on
  *     level, x, z and layer), and the pending pass (Statics.method6346) builds
- *     it on a later client cycle, once the new loctype's models are loaded
- *     (Statics.method8953). Until then the old loc stands.
+ *     it once the new loctype's models are loaded (Statics.method8953). That
+ *     pass runs in the same client cycle, right after the packet loop
+ *     (client.method2036: method1844, then method172), so with the models
+ *     resident the new loc is drawn on the frame that read the change. Until
+ *     then the old loc stands -- for the rest of the packets read with it.
  *   - A LOC_ANIM looks that pending spawn up (Statics.method5652). If the
  *     pending spawn's NEW loctype has `deferanimchange` (class393.field4940,
  *     loc opcode 90) the sequence goes to the standing loc AND is stored on the
@@ -64,6 +67,13 @@ app_world_reconcile_player_transmog(
  * starts on it (the LOC_CHANGE apply, app_world_spawn.c). The deferanimchange
  * half is judged there, once the new loctype has loaded.
  *
+ * Where the two differ is a lane that holds a change past the tick that read it,
+ * which the deob does only for its own model loads: by the next tick the
+ * official client shows the new loc and animates it. So a change from an
+ * earlier server tick (App.server_tick_serial) counts as built, and takes the
+ * sequence itself (app_spawn_loc_take); TORIRS_LOC_LANE_TRACE=1 logs every
+ * anim's target and every change's wait.
+ *
  * Revision 239 only. The dat1 lanes reproduce the 2004-era client, whose loc
  * changes carry no sequence: there a LOC_ANIM only ever reaches the standing
  * loc, and one aimed at an empty tile is dropped.
@@ -78,7 +88,9 @@ App_WorldSceneryAnim(
     int seq_id)
 {
     struct World* world = NULL;
-    struct Task_AppSpawn* pending;
+    struct Task_AppSpawn* pending = NULL;
+    struct Task_AppSpawn* landed = NULL;
+    int const layer = World_LocShapeToLayer(loc_shape);
     int stood = 0;
 
     assert(app);
@@ -90,15 +102,46 @@ App_WorldSceneryAnim(
         if( wv->world && wv->world->load_complete )
             world = wv->world;
     }
-    if( world )
+    if( app->cfg.cache_kind != APP_CACHE_DAT1 )
+    {
+        pending = app_spawn_loc_lane_pending(
+            app, app->active_world, scene_x, scene_z, level, layer, 0);
+        landed = app_spawn_loc_lane_pending(
+            app, app->active_world, scene_x, scene_z, level, layer, 1);
+    }
+    /*
+     * A change read in an earlier server tick that this client's lane still
+     * holds (its models are loading, or a change ahead of it is) stands in
+     * the deob's scene already: its pending pass builds a spawn in the client
+     * cycle that read it. That loc is what this sequence animates, so the
+     * change takes it outright -- and the stale loc this scene still shows
+     * gets nothing, because in the official client it is gone, and a sequence
+     * meant for the new model posed on the old one is a glitch of its own.
+     * A landed LOC_DEL left the layer empty.
+     */
+    if( landed )
+    {
+        stood = landed->loc_id >= 0;
+        if( stood )
+            app_spawn_loc_take(landed, seq_id);
+    }
+    else if( world )
         stood = app_world_scenery_anim_apply(
             app, world, scene_x, scene_z, level, loc_shape, seq_id);
-    if( app->cfg.cache_kind == APP_CACHE_DAT1 )
-        return;
-    pending = app_spawn_loc_lane_pending(
-        app, app->active_world, scene_x, scene_z, level, World_LocShapeToLayer(loc_shape));
-    if( pending )
+    if( pending && pending != landed )
         app_spawn_loc_carry(pending, seq_id, stood);
+    if( torirs_env_loc_lane_trace() )
+        TORIRS_REPORT(
+            "loc_lane: anim seq=%d shape=%d at %d,%d,l%d tick=%u -> %s%s\n",
+            seq_id,
+            loc_shape,
+            scene_x,
+            scene_z,
+            level,
+            app->server_tick_serial,
+            landed ? (stood ? "landed change (taken)" : "landed delete (nothing)")
+                   : (stood ? "standing loc" : "nothing standing"),
+            pending && pending != landed ? ", carried by this tick's change" : "");
 }
 
 int

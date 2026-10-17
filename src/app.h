@@ -1870,6 +1870,15 @@ struct App
      */
     unsigned loc_lane_enqueued;
     unsigned loc_lane_applied;
+    /*
+     * Server ticks executed, counted in wire order on the packet FIFO: at
+     * SERVER_TICK_END, or at PLAYER_INFO on a revision that sends no fence.
+     * A loc change stamped with an earlier tick than the packet reading it is
+     * one the rev-239 client has already built (it builds a pending spawn in
+     * the client cycle that read it, right after the packet loop), however
+     * long this client's lane has held it.
+     */
+    unsigned server_tick_serial;
     int proj_src_tile_x; /* -1 = unarmed */
     int proj_src_tile_z;
     int proj_src_tile_level;

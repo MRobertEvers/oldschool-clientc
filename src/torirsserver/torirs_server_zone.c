@@ -322,8 +322,9 @@ zone_loc_kind_is_change(int kind)
  * Deob rev 239, zone packet decode:
  *   - LOC_ADD_CHANGE and LOC_DEL only file a PENDING SPAWN (Statics.method5669,
  *     a class69 keyed on level, x, z and layer). The pending pass
- *     (Statics.method6346) builds it on a later client cycle, once its models
- *     are loaded (Statics.method8953). Until then the old loc stands.
+ *     (Statics.method6346) builds it once its models are loaded
+ *     (Statics.method8953) -- in the same client cycle, right after the packet
+ *     loop. Until then the old loc stands, for every packet read beside it.
  *   - LOC_ANIM looks the pending spawn up (Statics.method5652). If its NEW
  *     loctype has `deferanimchange` (class393.field4940, loc opcode 90) the seq
  *     is stored on the pending spawn (class69.field666) and the placed loc

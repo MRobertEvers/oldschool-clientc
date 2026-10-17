@@ -90,6 +90,7 @@ app_spawn_loc_lane_queue(
     task->world_load_seq = world ? world->load_seq : 0;
     task->enqueue_cycle = world ? world->cycle : 0;
     task->loc_ticket = ++app->loc_lane_enqueued;
+    task->loc_tick = app->server_tick_serial;
     ToriRS_TaskQueue_Add(app->runner.queue, &task->task);
 }
 

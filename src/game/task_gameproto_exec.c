@@ -468,6 +468,7 @@ Task_GameProtoExec_Run(
              * is present in every build; only the plugin-host dispatch below
              * stays gated on app->plugins, the same shape as the spawn/despawn/
              * retype stamps in app_world_spawn.c. */
+            app->server_tick_serial++;
             app->drive_events.batch_open = 0;
             App_DriveEvent(
                 app, DRIVE_EVENT_SERVER_TICK, app->world ? app->world->cycle : 0, 0, 0, 0);

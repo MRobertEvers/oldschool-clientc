@@ -2455,6 +2455,7 @@ RS_GameProto_Exec(
         {
             ctx->app->server_tick_fence_seen = 1;
             ctx->app->server_tick_open = 0;
+            ctx->app->server_tick_serial++;
             /* SET_ACTIVE_WORLD only lasts until the fence: the deob resets
              * the cursor to the root view at end-of-tick, so a tick that
              * never re-arms it cannot leak zone updates into a boat. */

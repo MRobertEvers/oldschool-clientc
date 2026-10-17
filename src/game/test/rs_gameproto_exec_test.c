@@ -588,8 +588,9 @@ main(void)
      * what the rev-239 client does with it, which is NOT "animate the new loc".
      *
      * Deob Statics, the LOC_ANIM decode: the change is only a PENDING SPAWN
-     * (method5669) until a later client cycle builds it, so the sequence goes
-     * at once to whatever stands on the tile's layer (method1508). The pending
+     * (method5669) until the pending pass after the packet loop builds it, so
+     * the sequence goes at once to whatever stands on the tile's layer
+     * (method1508). The pending
      * spawn keeps it (class69.field666) for the loc it will place only when
      * nothing stood there, or when the NEW loctype has deferanimchange
      * (class393.field4940). This client used to queue the animation behind the
@@ -646,11 +647,45 @@ main(void)
         newer = (struct Task_AppSpawn*)app->runner.queue->head->next;
         TEST_EXEC_ASSERT(newer != NULL, "the second change is queued");
         TEST_EXEC_ASSERT(
-            app_spawn_loc_lane_pending(app, app->active_world, 12, 34, 0, 3) == newer,
+            app_spawn_loc_lane_pending(app, app->active_world, 12, 34, 0, 3, 0) == newer,
             "the newest pending change stands for the tile");
         App_WorldSceneryAnim(app, 12, 34, 0, 22, 8065);
         TEST_EXEC_ASSERT(newer->loc_carry_unfound_seq == 8065, "the newer change keeps it");
         TEST_EXEC_ASSERT(change->loc_carry_unfound_seq == 8068, "the older one is untouched");
+        TEST_EXEC_ASSERT(
+            app_spawn_loc_lane_pending(app, app->active_world, 12, 34, 0, 3, 1) == NULL,
+            "read this tick: neither change has landed");
+        TEST_EXEC_ASSERT(!newer->loc_take_set, "and neither is taken");
+
+        /* A tick later both changes are still on the lane (their models are
+         * loading), but the deob built them in the cycle that read them: the
+         * newest stands on the tile and the anim is its own, whatever its
+         * loctype -- not the stale loc's, and not judged by deferanimchange. */
+        app->server_tick_serial++;
+        TEST_EXEC_ASSERT(
+            app_spawn_loc_lane_pending(app, app->active_world, 12, 34, 0, 3, 1) == newer,
+            "a tick later the newest change has landed");
+        newer->loc_defers_anim = 0;
+        App_WorldSceneryAnim(app, 12, 34, 0, 22, 8070);
+        TEST_EXEC_ASSERT(newer->loc_take_set == 1, "the landed change takes it");
+        TEST_EXEC_ASSERT(newer->loc_carry_unfound_seq == 8065, "not as a carry");
+        carried = app_spawn_loc_carried(newer, &seq);
+        TEST_EXEC_ASSERT(carried == 1, "a plain loctype starts on it");
+        TEST_EXEC_ASSERT(seq == 8070, "the later sequence over the carried one");
+
+        /* A change read in THIS tick on top of the landed one: the anim found
+         * the landed loc standing, so a plain loctype does not carry it. */
+        App_WorldLocChange(app, 12, 34, 0, 32742, 22, 0);
+        {
+            struct Task_AppSpawn* newest =
+                app_spawn_loc_lane_pending(app, app->active_world, 12, 34, 0, 3, 0);
+
+            TEST_EXEC_ASSERT(newest != newer, "the third change is the pending spawn");
+            App_WorldSceneryAnim(app, 12, 34, 0, 22, 8071);
+            TEST_EXEC_ASSERT(newer->loc_take_seq == 8071, "the landed loc took it");
+            TEST_EXEC_ASSERT(!newest->loc_carry_unfound_set, "a loc stood: no unfound carry");
+            TEST_EXEC_ASSERT(newest->loc_carry_any_seq == 8071, "only the deferring slot");
+        }
 
         /* The two conditions, on a bare change. A loc that STOOD took the
          * sequence itself: a loctype without deferanimchange keeps whatever it
@@ -693,13 +728,13 @@ main(void)
         App_WorldSpotanimSpawn(app, 12, 34, 0, 1234 /* spotanim */, 92, 0);
         App_WorldProjectileSpawn(app, 10, 30, 0, 12, 34, 0, 1235, 43, 31, 41, 60, 16, 15, 0, 0);
         TEST_EXEC_ASSERT(app->exec_runner.queue->head == NULL, "effects stay off the FIFO");
-        TEST_EXEC_ASSERT(app->loc_lane_enqueued == 2, "and take no lane ticket");
+        TEST_EXEC_ASSERT(app->loc_lane_enqueued == 3, "and take no lane ticket");
 
         /* Freeing the queue with the lane tasks unrun releases their tickets:
          * a ticket that never released would hold every later loc change. */
         ToriRS_TaskQueue_Free(app->exec_runner.queue);
         ToriRS_TaskQueue_Free(app->runner.queue);
-        TEST_EXEC_ASSERT(app->loc_lane_applied == 2, "freed unrun, every ticket released");
+        TEST_EXEC_ASSERT(app->loc_lane_applied == 3, "freed unrun, every ticket released");
         free(app);
         printf("ok - a LOC_ANIM goes to the standing loc; a pending LOC_ADD_CHANGE keeps it only as rev 239 does\n");
     }
