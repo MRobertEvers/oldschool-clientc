@@ -2906,10 +2906,11 @@ Checked in scratch runs vz10_room3, vz10_room4 and vz10_room5.
 - A run where the counter was already at 10 when the maze opened also measures 11 (the
   post-maze hold): that is `sotetseg.death_ball_after_maze`.
 
-## The Sotetseg tornado rises and sinks (npc_anim 9004 / 9005 on its slot)
+## The Sotetseg tornado appears and sinks (npc_anim 9005 on its slot)
 
-- On its npc_spawn tick the tornado plays 9004; its first npc_tile step comes on a later
-  tick.
+- On its npc_spawn tick the tornado plays nothing (no 9004 since 2026-10-17: that seq froze
+  it on the client); it spins on its ready/walk 8100 and its first npc_tile step comes on a
+  later tick.
 - When it leaves (you step back to row 3, it runs out of path, or the maze ends) it plays
   9005 on tick D, takes no more steps, deals no more hits, and its npc_free row is on D+1
   (`sotetseg.tornado_despawn_ticks` = 1).
