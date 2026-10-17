@@ -434,7 +434,13 @@ function QD.raid._nylo_target(S, F, own)
         -- HELP IS MELEE ONLY (the owner, 2026-10-09: "the seats only switch to
         -- melee to help"): my own style, or another's nylocas in melee
         local allowed = st == own or st == "melee"
-        if allowed and not spent and not taken[L.key] and attackable(S, F, L, st) and (st == own or first_of[st] ~= L.key) then
+        -- A HELP TARGET I AM ON STAYS MINE: the style's "first" is re-ranked
+        -- every tick, and it becomes the one I am walking to exactly as I
+        -- arrive - its seat kills the one before it, or it reaches its pillar
+        -- and its value jumps - so the helper turned away a tile short and
+        -- never landed a swing
+        local leave = st ~= own and first_of[st] == L.key and L.key ~= S.target_key
+        if allowed and not spent and not taken[L.key] and attackable(S, F, L, st) and not leave then
             local score = kill_value(S, F, L) / kill_ticks(S, F, L, st, wearing, idle)
             if L.key == S.target_key then kept, kscore = L, score end
             if bscore == nil or score > bscore or (score == bscore and L.slot < best.slot) then
@@ -476,8 +482,11 @@ function QD.raid._nylo_spec(S, F, target, range, station)
     -- (not while Protect from Melee is lit: then its swing is 0, and a zone
     -- kept the melee seat off the aggro it was there to kill - 40% of the
     -- seats' walks were dodges with the target in reach)
+    -- (nor round the one I am meleeing: beside it is the only tile my swing
+    -- lands from, and a seat helping in melee prays the aggros at range)
     for _, L in ipairs(F.nylos) do
-        if L.aggro and L.style == "melee" and not L.dying and not F.lit.protectfrommelee then
+        local meleeing = target and range <= 1 and target.slot == L.slot
+        if L.aggro and L.style == "melee" and not L.dying and not F.lit.protectfrommelee and not meleeing then
             local mine = gap(F.me.x, F.me.z, L.x, L.z, L.size)
             local nearest = true
             for _, rd in ipairs(F.raiders) do

@@ -51,6 +51,7 @@ QD.NYLO_HM = {
     SPREAD = { { x = -4, z = 1 }, { x = -3, z = -3 }, { x = 2, z = -4 }, { x = 6, z = -3 }, { x = 7, z = 2 } },
     DOT = { x = 1, z = -3 },
     MUST_COST = 6,
+    PREMOVE = 2,                                -- ticks before her change: her form's swings are done (Blert)
     -- THE PILLARS ARE 150 at five (tob_nylocas.rs2 ^tob_nylo_pillar_hp_hard,
     -- Normal's trio has 230) and the cap holds 15 early: a chewer always
     -- counts triple, six times under 80% (n5a: every support fell by room
@@ -241,15 +242,47 @@ function QD.raid._nylo_hm_decide_prince(S, F, phase, P)
 end
 
 -- DECIDE, VASILIAS: the Normal decision, then my tile for her form.
+--
+-- THE PRE-MOVE ([HMR], HMT_STRATEGIES.md: "Pre-move after its second attack
+-- of a form: in ranged -> to the dot; in magic -> spread"). Her first swing in
+-- a new form comes +2 or +3 after the change and a spread tile is up to 6 from
+-- the dot, so a seat that waits to see the colour is still stacked when the
+-- ranged splash lands. In ranged I go to the dot (the next is magic or a
+-- prayed melee), in magic to my spread tile (ranged or melee), in melee to my
+-- spread tile too - a stack caught by the ranged splash takes it whole, a
+-- spread team caught by the magic bounce takes it halved on the way in.
+--
+-- WHEN, from Blert (tools/blert_vasilias_hard.py, 60 Hard fives, 448 forms):
+-- her last swing in a form is 4 ticks before the change in 292, 3 in 132, 2
+-- in 18 and 1 in 5, and the teams break the stack (or close it) on the tick
+-- before the change (pairs within 2 of ten: 9.6 at -2, 7.3 at -1, 3.6 at the
+-- change, 0.8 at +2 into ranged). A press decided PREMOVE = 2 before the
+-- change moves me on the tick before it, after every swing that reads it but
+-- the 1% at -1, and 6 tiles at a run are done before her first swing at +2.
+-- The same data has the teams spreading out of melee too (pairs within 2 fall
+-- from 4.5 at -2 to 0.8 at +2 into ranged).
 function QD.raid._nylo_hm_decide_boss(S, F)
     local V = S.V
     local D = QD.raid._nylo_decide_boss(S, F)
     local b = F.boss
-    if D.style == "ranged" and S.boss_colour == "ranged" then
+    local colour = S.boss_colour
+    if colour == nil or D.style ~= colour then return D end
+    local since = F.tick - S.boss_m - V.SWITCH_FIRST
+    local left = (since < 0) and -since or (V.SWITCH_EVERY - since % V.SWITCH_EVERY)
+    local tile = nil
+    if left <= V.PREMOVE then
+        tile = (colour == "ranged") and "dot" or "spread"
+        D.kind = D.kind .. ":premove"
+    elseif colour == "ranged" then
+        tile = "spread"
+    elseif colour == "magic" then
+        tile = "dot"
+    end
+    if tile == "spread" then
         local s = V.SPREAD[S.role] or V.SPREAD[1]
         D.must = { x = b.x + s.x, z = b.z + s.z }
         D.kind = D.kind .. ":spread"
-    elseif D.style == "magic" and S.boss_colour == "magic" then
+    elseif tile == "dot" then
         D.must = { x = b.x + V.DOT.x, z = b.z + V.DOT.z }
         D.kind = D.kind .. ":dot"
     end

@@ -88,7 +88,8 @@ nylocas.vasilias_switch_entry	colour switch interval, Entry (one recorded raid: 
 nylocas.vasilias_attacks_entry	attacks inside one colour window, Entry (one raid, 4 windows, gap 4)	3-4	count	[blert]	D	blert_api/spec_pass_nylocas/blert_analysis_output.txt:23	-	range
 nylocas.entry_recoil_cap	Entry reflect cap on the boss (Jagex: reduced, no figure)	?	hp	[jagex][M97]	E	newsposts/wiki_Update_Theatre_of_Blood_New_Modes.wikitext:38	M97	approx
 nylocas.hm_split_cap	Hard Mode magic split damage cap	75	hp	[jagex]	A	newsposts/wiki_Update_Theatre_of_Blood_New_Modes.wikitext:30	-	exact
-nylocas.hm_ranged_splash	Hard Mode ranged splash reach (Vasilias page 2, Hard Mode page 3)	2	tiles	[wiki]	D	wiki_Nylocas_Vasilias.wikitext:85	-	exact
+nylocas.hm_ranged_splash	Hard Mode ranged splash reach, the target's own tile included (Vasilias page 2, Hard Mode page 3; Blert 199 fives: 48/48 bystanders within 2 hit, 16 on the target's tile; distance 3+ background only)	2	tiles	[wiki][blert]	B	wiki_Nylocas_Vasilias.wikitext:85; blert_api/vasilias_hard/blert_vasilias_hard_output.txt	-	exact
+nylocas.hm_ranged_splash_damage	Hard Mode ranged splash per bystander: no accuracy roll, ignores Protect from Missiles (47 of the 48 prayed), not shared by the number caught	15-26	hp	[blert]	B	blert_api/vasilias_hard/blert_vasilias_hard_output.txt	-	range
 nylocas.hm_bounce_near	Hard Mode magic bounce within 2 tiles of the target	50	percent	[wiki]	D	wiki_Nylocas_Vasilias.wikitext:87	-	exact
 nylocas.hm_bounce_far	Hard Mode magic bounce beyond 2 tiles (wiki: 'increased', unquantified)	?	percent	[wiki][M98]	E	wiki_Theatre_of_Blood_Hard_Mode.wikitext:333; OSRS-Content/osrs239-content/server/scripts/minigames/minigame_tob/configs/tob.constant:1260	M98	approx
 nylocas.prince_hp	Prinkipas hitpoints for 3-or-fewer, 4, 5 players	300,350,400	hp	[plugin][wiki]	C	blert_plugin/TobNpc.java:106; wiki_Theatre_of_Blood_Hard_Mode.wikitext:322; wiki_Nylocas_Prinkipas.wikitext:24	-	exact

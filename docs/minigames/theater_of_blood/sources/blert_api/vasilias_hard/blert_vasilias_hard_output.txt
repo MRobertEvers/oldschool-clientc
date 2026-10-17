@@ -1,0 +1,176 @@
+rooms with a recorder and her attacks: 199
+
+== the recorder's loss as a BYSTANDER, by distance from the target (0 = on its tile)
+  vasilias rng
+    dist   0  n  16  hit 100%  mean  20.5  max  26
+    dist   1  n   2  hit 100%  mean  16.5  max  17
+    dist   2  n  30  hit 100%  mean  19.7  max  27
+    dist   3  n 275  hit  14%  mean   1.0  max  10
+    dist   4  n 118  hit  16%  mean   1.2  max  10
+    dist   5  n 163  hit  14%  mean   1.0  max  14
+    dist >=6  n 192  hit   9%  mean   0.6  max  10
+  vasilias mag
+    dist   0  n 443  hit   3%  mean   0.3  max  15
+    dist   1  n  91  hit  25%  mean   0.8  max   7
+    dist   2  n  38  hit  29%  mean   2.5  max  42
+    dist   3  n  78  hit  53%  mean   3.1  max  18
+    dist   4  n  30  hit  33%  mean   2.5  max  18
+    dist   5  n  26  hit  69%  mean   6.3  max  24
+    dist >=6  n  40  hit  45%  mean   6.6  max  59
+  vasilias mel
+    dist   0  n 289  hit   1%  mean   0.1  max  10
+    dist   1  n  53  hit   0%  mean   0.0  max   0
+    dist   2  n  90  hit   1%  mean   0.7  max  59
+    dist   3  n 344  hit   1%  mean   0.2  max  56
+    dist   4  n  84  hit   1%  mean   0.1  max  10
+    dist   5  n  97  hit   0%  mean   0.0  max   0
+    dist >=6  n  17  hit   0%  mean   0.0  max   0
+  prince rng
+    dist   0  n  12  hit   0%  mean   0.0  max   0
+    dist   1  n  64  hit   3%  mean   0.2  max   7
+    dist   2  n  81  hit   2%  mean   0.3  max  19
+    dist   3  n 112  hit   5%  mean   0.6  max  38
+    dist   4  n 110  hit   2%  mean   0.1  max  11
+    dist   5  n  87  hit   5%  mean   0.4  max  11
+    dist >=6  n  99  hit   4%  mean   0.3  max  11
+  prince mag
+    dist   0  n  10  hit  10%  mean   2.5  max  25
+    dist   1  n  42  hit   7%  mean   0.8  max  20
+    dist   2  n  93  hit   3%  mean   0.2  max  11
+    dist   3  n 137  hit   4%  mean   0.1  max  10
+    dist   4  n  91  hit   4%  mean   0.4  max  16
+    dist   5  n  73  hit   7%  mean   0.9  max  27
+    dist >=6  n 130  hit   5%  mean   0.5  max  17
+  prince mel
+    dist   0  n  56  hit   5%  mean   0.7  max  27
+    dist   1  n 161  hit   4%  mean   0.4  max  19
+    dist   2  n 236  hit   5%  mean   0.3  max  15
+    dist   3  n 218  hit   4%  mean   0.3  max  11
+    dist   4  n 241  hit   5%  mean   0.6  max  38
+    dist   5  n  74  hit   4%  mean   0.5  max  14
+    dist >=6  n  92  hit   7%  mean   0.8  max  18
+
+== every Vasilias ranged bystander within 3 of the target: (dist, praying Missiles, loss)
+    dist 0  prayed    loss  11  caught 3   f1e6f1e2 t414
+    dist 0  prayed    loss  17  caught 1   44dd4be7 t364
+    dist 0  prayed    loss  17  caught 1   6f15db6b t427
+    dist 0  prayed    loss  17  caught 3   7e8f3b3e t409
+    dist 0  prayed    loss  18  caught 2   140b6849 t345
+    dist 0  prayed    loss  19  caught 1   8a435bc3 t349
+    dist 0  prayed    loss  19  caught 1   9d5751c8 t361
+    dist 0  prayed    loss  19  caught 1   f487ae7b t383
+    dist 0  prayed    loss  19  caught 2   eb072e0b t392
+    dist 0  prayed    loss  19  caught 3   f1e6f1e2 t384
+    dist 0  prayed    loss  25  caught 1   2f03aeac t406
+    dist 0  prayed    loss  25  caught 2   f074f7d5 t346
+    dist 0  prayed    loss  25  caught 4   aa1bb4e2 t409
+    dist 0  prayed    loss  26  caught 2   423d5685 t353
+    dist 0  prayed    loss  26  caught 2   b808042f t342
+    dist 0  prayed    loss  26  caught 3   44dd4be7 t394
+    dist 1  prayed    loss  16  caught 1   a97ada95 t382
+    dist 1  prayed    loss  17  caught 3   712ed921 t405
+    dist 2  unprayed  loss  27  caught 2   f5275ec5 t384
+    dist 2  prayed    loss  15  caught 1   044cb9f4 t380
+    dist 2  prayed    loss  15  caught 2   a4764c43 t388
+    dist 2  prayed    loss  15  caught 2   eba26bab t318
+    dist 2  prayed    loss  16  caught 1   56d6d4bc t335
+    dist 2  prayed    loss  16  caught 1   6c5b9869 t405
+    dist 2  prayed    loss  16  caught 3   ee85ec08 t359
+    dist 2  prayed    loss  17  caught 2   aa1bb4e2 t350
+    dist 2  prayed    loss  17  caught 3   ad86327b t347
+    dist 2  prayed    loss  17  caught 3   b95ff065 t393
+    dist 2  prayed    loss  18  caught 1   1225697e t341
+    dist 2  prayed    loss  18  caught 2   472821b8 t367
+    dist 2  prayed    loss  18  caught 2   cfc4c50d t397
+    dist 2  prayed    loss  19  caught 1   044cb9f4 t400
+    dist 2  prayed    loss  19  caught 1   dec433d0 t395
+    dist 2  prayed    loss  19  caught 1   e1176171 t395
+    dist 2  prayed    loss  19  caught 2   75b66a20 t401
+    dist 2  prayed    loss  19  caught 2   aa1bb4e2 t393
+    dist 2  prayed    loss  19  caught 3   e1176171 t391
+    dist 2  prayed    loss  19  caught 4   0e6a31c3 t342
+    dist 2  prayed    loss  21  caught 1   cfc4c50d t417
+    dist 2  prayed    loss  22  caught 1   044cb9f4 t384
+    dist 2  prayed    loss  22  caught 3   7a69d366 t375
+    dist 2  prayed    loss  23  caught 1   81095162 t363
+    dist 2  prayed    loss  23  caught 1   af704283 t364
+    dist 2  prayed    loss  23  caught 1   e1faf97b t395
+    dist 2  prayed    loss  24  caught 1   3d81f9e0 t413
+    dist 2  prayed    loss  25  caught 1   7e8f3b3e t349
+    dist 2  prayed    loss  25  caught 2   69efe2bb t375
+    dist 2  prayed    loss  26  caught 3   ae63ef5f t374
+    dist 3  prayed    loss   4  caught 0   8401b133 t367
+    dist 3  prayed    loss   5  caught 0   6f15db6b t381
+    dist 3  prayed    loss   5  caught 0   ad86327b t351
+    dist 3  prayed    loss   5  caught 0   b95ff065 t357
+    dist 3  prayed    loss   5  caught 0   c36c3b82 t425
+    dist 3  prayed    loss   5  caught 0   cf757bd1 t352
+    dist 3  prayed    loss   5  caught 0   eb072e0b t347
+    dist 3  prayed    loss   6  caught 0   329c1367 t357
+    dist 3  prayed    loss   6  caught 0   423d5685 t357
+    dist 3  prayed    loss   6  caught 0   7e45c8e9 t334
+    dist 3  prayed    loss   6  caught 0   b540bffd t339
+    dist 3  prayed    loss   6  caught 0   f1e6f1e2 t369
+    dist 3  prayed    loss   6  caught 1   c1229133 t342
+    dist 3  prayed    loss   6  caught 2   2c11e48f t346
+    dist 3  prayed    loss   7  caught 0   6fb84e3a t376
+    dist 3  prayed    loss   7  caught 0   84add83e t399
+    dist 3  prayed    loss   7  caught 0   87fe35f9 t346
+    dist 3  prayed    loss   7  caught 0   dea099ba t377
+    dist 3  prayed    loss   7  caught 0   e1faf97b t346
+    dist 3  prayed    loss   8  caught 0   04d3edba t344
+    dist 3  prayed    loss   8  caught 0   2514571e t396
+    dist 3  prayed    loss   8  caught 0   2df08d8b t335
+    dist 3  prayed    loss   8  caught 0   32169e1e t346
+    dist 3  prayed    loss   8  caught 0   35e9b51d t366
+    dist 3  prayed    loss   8  caught 0   a3d518f7 t346
+    dist 3  prayed    loss   8  caught 0   ad3b13a4 t333
+    dist 3  prayed    loss   8  caught 0   de5dd4db t365
+    dist 3  prayed    loss   8  caught 0   df93ab06 t372
+    dist 3  prayed    loss   8  caught 0   e84947d4 t354
+    dist 3  prayed    loss   9  caught 0   0f6246e5 t343
+    dist 3  prayed    loss   9  caught 0   1e6cc64e t334
+    dist 3  prayed    loss   9  caught 0   7cb2789b t393
+    dist 3  prayed    loss   9  caught 0   a7e153b2 t357
+    dist 3  prayed    loss   9  caught 0   e1176171 t355
+    dist 3  prayed    loss   9  caught 0   e5cdb638 t392
+    dist 3  prayed    loss   9  caught 1   08fd441c t372
+    dist 3  prayed    loss  10  caught 0   a6cb3f93 t376
+    dist 3  prayed    loss  10  caught 1   a9a84b12 t407
+
+== the recorder's loss as her RANGED target, by raiders within 2 / within 3 of it
+  within2 0 within3 0  n  21  mean   3.2  max  18
+  within2 0 within3 1  n  87  mean   3.7  max  20
+  within2 0 within3 2  n  27  mean   2.1  max  15
+  within2 0 within3 3  n  10  mean   1.3  max   7
+  within2 0 within3 4  n  15  mean   3.4  max  16
+  within2 1 within3 1  n   7  mean   5.4  max  15
+  within2 1 within3 2  n   7  mean   4.9  max  14
+  within2 1 within3 3  n  10  mean   3.4  max  17
+  within2 1 within3 4  n   7  mean   3.0  max  16
+  within2 2 within3 2  n   1  mean   0.0  max   0
+  within2 2 within3 3  n   5  mean   2.4  max   7
+
+== her first attack after a colour change (ticks)
+  +2: 862  +3: 502  +4: 59  +5: 10  +6: 2  (n 1435)
+
+== her last attack in a form, ticks before the change
+  -1: 21  -2: 58  -3: 457  -4: 950  -5: 2  (n 1488)
+
+== pairs of raiders within 2 tiles (mean of 10 at five), tick relative to the change
+  mag->mel  n 229  -6:9.6 -5:9.8 -4:9.8 -3:9.9 -2:9.6 -1:7.7 +0:3.9 +1:1.7 +2:2.0 +3:3.1 +4:3.7
+  mag->rng  n 218  -6:9.7 -5:9.8 -4:9.8 -3:9.9 -2:9.6 -1:7.6 +0:4.0 +1:1.7 +2:0.7 +3:0.5 +4:0.5
+  mel->mag  n 269  -6:5.2 -5:5.0 -4:5.0 -3:4.9 -2:4.7 -1:3.8 +0:2.5 +1:1.9 +2:6.2 +3:9.1 +4:9.5
+  mel->rng  n 309  -6:5.5 -5:5.3 -4:5.3 -3:5.2 -2:4.9 -1:4.0 +0:2.5 +1:1.5 +2:0.8 +3:0.6 +4:0.6
+  rng->mag  n 221  -6:0.3 -5:0.3 -4:0.3 -3:0.3 -2:0.7 -1:2.4 +0:5.5 +1:7.2 +2:9.1 +3:9.6 +4:9.8
+  rng->mel  n 242  -6:0.4 -5:0.3 -4:0.3 -3:0.3 -2:0.8 -1:2.6 +0:5.5 +1:7.3 +2:7.6 +3:7.6 +4:7.5
+
+== the first attack of a form (ticks after the form began)
+  vasilias opening melee  +1 188  +4 12
+  vasilias into mel     +2 209  +3 139  +4 27  +5 5  +6 1  (n 381)
+  vasilias into mag     +2 290  +3 124  +4 29  +5 4  +6 1  (n 448)
+  vasilias into rng     +2 275  +3 191  (n 466)
+  prince   opening melee  +1 145  +2 43  +3 21  +4 87  +5 38  +6 9  +7 7  +8 4
+  prince   into mel     +2 10  +3 85  +4 42  +5 26  +6 11  +7 8  +8 7  +9 6  (n 195)
+  prince   into mag     +2 71  +3 208  +4 23  +5 5  +6 2  (n 309)
+  prince   into rng     +2 75  +3 199  +4 13  +5 2  +6 1  (n 290)

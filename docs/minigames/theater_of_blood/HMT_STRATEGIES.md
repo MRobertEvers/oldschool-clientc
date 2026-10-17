@@ -30,7 +30,7 @@ leans on a scythe, a twisted bow or chinchompas is marked as such.
 |---|---|---|---|
 | Prinkipas hp | 300/350/400 by scale 3/4/5 | wiki infobox 400, scaledhp; Jagex trio scaling 75% | agrees (by scale, not by wave) |
 | HM pillar hp at five | 150 (cache anchor) | Normal 130 at five (2018 newspost); Plank2g "in hard mode the pillars have less hp" | open: possibly too high |
-| Vasilias ranged splash | radius 2 | wiki Vasilias "within 2 squares ... 3-tile gap"; HM page "within 3" | agrees; bots keep 4 apart where they can |
+| Vasilias ranged splash | radius 2 | wiki Vasilias "within 2 squares ... 3-tile gap"; HM page "within 3"; Blert 199 fives: 48/48 within 2 hit (16 stacked on the target), 15-26 through Protect from Missiles | radius agrees; content fixed 2026-10-17 (it skipped the target's tile and rolled the splash against prayer) |
 | Yellow strikes | 3 per player, 3 apart, 14/17/20 | [S] "3 ticks apart", [MINA-Y] ~13 ticks to the first | agrees |
 | Green ball | kills un-bounced with 2+ alive | [WHM], wiki Verzik | agrees; bounce damage disputed (89/74/49 vs 74/54/24) |
 | Realm tornado | last runner in orb order past row 3 | [WHM] :342 | content fixed 2026-10-12 (it was any runner) |

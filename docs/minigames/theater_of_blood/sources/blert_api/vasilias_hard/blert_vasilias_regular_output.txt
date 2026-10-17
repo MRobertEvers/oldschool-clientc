@@ -1,0 +1,322 @@
+rooms with a recorder and her attacks: 150
+
+== the recorder's loss as a BYSTANDER, by distance from the target (0 = on its tile)
+  vasilias rng
+    dist   0  n  36  hit  11%  mean   0.7  max   9
+    dist   1  n  85  hit  20%  mean   1.4  max  10
+    dist   2  n 122  hit  14%  mean   0.8  max  10
+    dist   3  n 182  hit  13%  mean   0.9  max  10
+    dist   4  n  38  hit  11%  mean   0.6  max   7
+    dist   5  n 102  hit  13%  mean   0.9  max  10
+    dist >=6  n   4  hit   0%  mean   0.0  max   0
+  vasilias mag
+    dist   0  n  33  hit   3%  mean   0.3  max  10
+    dist   1  n  71  hit   0%  mean   0.0  max   0
+    dist   2  n 120  hit   1%  mean   0.1  max   7
+    dist   3  n 220  hit   0%  mean   0.0  max   0
+    dist   4  n  43  hit   0%  mean   0.0  max   0
+    dist   5  n  97  hit   0%  mean   0.0  max   0
+    dist >=6  n   4  hit   0%  mean   0.0  max   0
+  vasilias mel
+    dist   0  n  54  hit   4%  mean   0.4  max  10
+    dist   1  n 100  hit   0%  mean   0.0  max   0
+    dist   2  n 133  hit   0%  mean   0.0  max   0
+    dist   3  n 242  hit   1%  mean   0.1  max  10
+    dist   4  n  50  hit   0%  mean   0.0  max   0
+    dist   5  n 120  hit   2%  mean   0.4  max  27
+
+== every Vasilias ranged bystander within 3 of the target: (dist, praying Missiles, loss)
+    dist 0  prayed    loss   0  caught 1   10cc137d t366
+    dist 0  prayed    loss   0  caught 1   448427d8 t367
+    dist 0  prayed    loss   0  caught 1   448427d8 t371
+    dist 0  prayed    loss   0  caught 1   52baff7b t306
+    dist 0  prayed    loss   0  caught 1   52baff7b t325
+    dist 0  prayed    loss   0  caught 1   c2fb8d93 t352
+    dist 0  prayed    loss   0  caught 1   c2fb8d93 t372
+    dist 0  prayed    loss   0  caught 2   10cc137d t371
+    dist 0  prayed    loss   0  caught 2   4135493f t453
+    dist 0  prayed    loss   0  caught 2   4135493f t457
+    dist 0  prayed    loss   0  caught 2   46d0b1eb t473
+    dist 0  prayed    loss   0  caught 2   48e43338 t373
+    dist 0  prayed    loss   0  caught 2   48e43338 t392
+    dist 0  prayed    loss   0  caught 2   adb9d291 t347
+    dist 0  prayed    loss   0  caught 2   adb9d291 t386
+    dist 0  prayed    loss   0  caught 2   adb9d291 t411
+    dist 0  prayed    loss   0  caught 2   b24a0063 t397
+    dist 0  prayed    loss   0  caught 2   c6440b40 t401
+    dist 0  prayed    loss   0  caught 2   c9c2a73b t362
+    dist 0  prayed    loss   0  caught 2   c9c2a73b t392
+    dist 0  prayed    loss   0  caught 2   c9c2a73b t396
+    dist 0  prayed    loss   0  caught 2   c9c2a73b t427
+    dist 0  prayed    loss   0  caught 2   cf89f509 t347
+    dist 0  prayed    loss   0  caught 2   cf89f509 t367
+    dist 0  prayed    loss   0  caught 2   cf89f509 t371
+    dist 0  prayed    loss   0  caught 2   cf89f509 t442
+    dist 0  prayed    loss   0  caught 2   d60e0d43 t344
+    dist 0  prayed    loss   0  caught 2   d60e0d43 t363
+    dist 0  prayed    loss   0  caught 2   d60e0d43 t389
+    dist 0  prayed    loss   0  caught 2   d60e0d43 t393
+    dist 0  prayed    loss   0  caught 2   d60e0d43 t409
+    dist 0  prayed    loss   0  caught 2   d60e0d43 t413
+    dist 0  prayed    loss   4  caught 1   10cc137d t340
+    dist 0  prayed    loss   5  caught 2   46d0b1eb t392
+    dist 0  prayed    loss   7  caught 1   52baff7b t310
+    dist 0  prayed    loss   9  caught 2   4135493f t438
+    dist 1  unprayed  loss   0  caught 1   45373e2e t325
+    dist 1  unprayed  loss   0  caught 1   45373e2e t329
+    dist 1  unprayed  loss   0  caught 1   627ea47e t310
+    dist 1  unprayed  loss   0  caught 1   6f94b71c t330
+    dist 1  unprayed  loss   0  caught 2   7d96427d t353
+    dist 1  unprayed  loss   0  caught 2   b6b4381a t336
+    dist 1  unprayed  loss   0  caught 2   d5b3ab9f t382
+    dist 1  unprayed  loss   0  caught 2   d5b3ab9f t386
+    dist 1  unprayed  loss   0  caught 2   d5b3ab9f t401
+    dist 1  unprayed  loss   0  caught 2   d5b3ab9f t405
+    dist 1  unprayed  loss   0  caught 2   f518ea3d t417
+    dist 1  unprayed  loss   0  caught 2   fd1fd943 t350
+    dist 1  unprayed  loss   0  caught 2   ff3753c5 t338
+    dist 1  unprayed  loss   0  caught 2   ff3753c5 t367
+    dist 1  unprayed  loss   7  caught 2   ff3753c5 t342
+    dist 1  unprayed  loss   8  caught 1   627ea47e t314
+    dist 1  unprayed  loss   8  caught 2   b6b4381a t340
+    dist 1  unprayed  loss   9  caught 2   fd1fd943 t310
+    dist 1  unprayed  loss  10  caught 2   d5b3ab9f t425
+    dist 1  prayed    loss   0  caught 1   15c65dd8 t394
+    dist 1  prayed    loss   0  caught 1   23d08630 t385
+    dist 1  prayed    loss   0  caught 1   27a3cc98 t375
+    dist 1  prayed    loss   0  caught 1   3e90e62d t359
+    dist 1  prayed    loss   0  caught 1   49cc8093 t386
+    dist 1  prayed    loss   0  caught 1   49cc8093 t390
+    dist 1  prayed    loss   0  caught 1   57af7780 t314
+    dist 1  prayed    loss   0  caught 1   57af7780 t354
+    dist 1  prayed    loss   0  caught 1   627ea47e t359
+    dist 1  prayed    loss   0  caught 1   8eda278c t391
+    dist 1  prayed    loss   0  caught 1   9a1fc25a t331
+    dist 1  prayed    loss   0  caught 1   9ff047b4 t402
+    dist 1  prayed    loss   0  caught 1   9ff047b4 t406
+    dist 1  prayed    loss   0  caught 1   9ff047b4 t431
+    dist 1  prayed    loss   0  caught 1   9ff047b4 t435
+    dist 1  prayed    loss   0  caught 1   9ff047b4 t451
+    dist 1  prayed    loss   0  caught 1   9ff047b4 t455
+    dist 1  prayed    loss   0  caught 1   b65c5774 t387
+    dist 1  prayed    loss   0  caught 1   c2ad19de t357
+    dist 1  prayed    loss   0  caught 1   c2ad19de t392
+    dist 1  prayed    loss   0  caught 1   daa19e4c t459
+    dist 1  prayed    loss   0  caught 1   f2932b36 t349
+    dist 1  prayed    loss   0  caught 2   12bbb9c4 t372
+    dist 1  prayed    loss   0  caught 2   12bbb9c4 t393
+    dist 1  prayed    loss   0  caught 2   12bbb9c4 t397
+    dist 1  prayed    loss   0  caught 2   1ad5c2ff t361
+    dist 1  prayed    loss   0  caught 2   2fd09682 t372
+    dist 1  prayed    loss   0  caught 2   2fd09682 t392
+    dist 1  prayed    loss   0  caught 2   456de3e7 t374
+    dist 1  prayed    loss   0  caught 2   456de3e7 t393
+    dist 1  prayed    loss   0  caught 2   456de3e7 t397
+    dist 1  prayed    loss   0  caught 2   46d0b1eb t412
+    dist 1  prayed    loss   0  caught 2   46d0b1eb t416
+    dist 1  prayed    loss   0  caught 2   46d0b1eb t436
+    dist 1  prayed    loss   0  caught 2   46d0b1eb t456
+    dist 1  prayed    loss   0  caught 2   60fc2979 t340
+    dist 1  prayed    loss   0  caught 2   60fc2979 t359
+    dist 1  prayed    loss   0  caught 2   60fc2979 t363
+    dist 1  prayed    loss   0  caught 2   60fc2979 t379
+    dist 1  prayed    loss   0  caught 2   75a99f47 t330
+    dist 1  prayed    loss   0  caught 2   75a99f47 t350
+    dist 1  prayed    loss   0  caught 2   75a99f47 t354
+    dist 1  prayed    loss   0  caught 2   79531f76 t373
+    dist 1  prayed    loss   0  caught 2   79531f76 t399
+    dist 1  prayed    loss   0  caught 2   9cf48991 t356
+    dist 1  prayed    loss   0  caught 2   9cf48991 t400
+    dist 1  prayed    loss   0  caught 2   b24a0063 t351
+    dist 1  prayed    loss   0  caught 2   b24a0063 t401
+    dist 1  prayed    loss   0  caught 2   c6440b40 t431
+    dist 1  prayed    loss   0  caught 2   c667e116 t321
+    dist 1  prayed    loss   0  caught 2   c9c2a73b t366
+    dist 1  prayed    loss   0  caught 2   c9c2a73b t423
+    dist 1  prayed    loss   0  caught 2   d5b3ab9f t421
+    dist 1  prayed    loss   0  caught 2   f518ea3d t337
+    dist 1  prayed    loss   3  caught 2   c6440b40 t381
+    dist 1  prayed    loss   4  caught 1   9a1fc25a t335
+    dist 1  prayed    loss   4  caught 2   9cf48991 t360
+    dist 1  prayed    loss   5  caught 1   8eda278c t357
+    dist 1  prayed    loss   6  caught 1   3e90e62d t334
+    dist 1  prayed    loss   6  caught 2   12bbb9c4 t376
+    dist 1  prayed    loss   7  caught 1   295ba363 t366
+    dist 1  prayed    loss   7  caught 2   f518ea3d t341
+    dist 1  prayed    loss   8  caught 1   57af7780 t318
+    dist 1  prayed    loss   8  caught 2   456de3e7 t348
+    dist 1  prayed    loss   9  caught 1   232ea692 t317
+    dist 1  prayed    loss   9  caught 2   75a99f47 t334
+    dist 2  unprayed  loss   0  caught 1   27a3cc98 t394
+    dist 2  unprayed  loss   0  caught 1   3e90e62d t363
+    dist 2  unprayed  loss   0  caught 1   3e90e62d t379
+    dist 2  unprayed  loss   0  caught 1   3e90e62d t383
+    dist 2  unprayed  loss   0  caught 1   45373e2e t356
+    dist 2  unprayed  loss   0  caught 1   e179392e t335
+    dist 2  unprayed  loss   0  caught 1   f970e364 t413
+    dist 2  unprayed  loss   0  caught 2   431c58ee t435
+    dist 2  unprayed  loss   0  caught 2   431c58ee t439
+    dist 2  unprayed  loss   0  caught 2   45b0cf8b t369
+    dist 2  unprayed  loss   0  caught 2   a81fa381 t373
+    dist 2  unprayed  loss   0  caught 2   eb1a4b1c t399
+    dist 2  unprayed  loss   0  caught 2   eb1a4b1c t420
+    dist 2  unprayed  loss   0  caught 2   fd1fd943 t306
+    dist 2  unprayed  loss   0  caught 2   ff3753c5 t417
+    dist 2  unprayed  loss   8  caught 1   6f94b71c t334
+    dist 2  unprayed  loss   8  caught 1   af7fcc48 t322
+    dist 2  prayed    loss   0  caught 1   05ae0b95 t371
+    dist 2  prayed    loss   0  caught 1   12bbb9c4 t422
+    dist 2  prayed    loss   0  caught 1   12bbb9c4 t426
+    dist 2  prayed    loss   0  caught 1   12bbb9c4 t447
+    dist 2  prayed    loss   0  caught 1   15f0884b t316
+    dist 2  prayed    loss   0  caught 1   15f0884b t356
+    dist 2  prayed    loss   0  caught 1   2201c3e7 t393
+    dist 2  prayed    loss   0  caught 1   232ea692 t337
+    dist 2  prayed    loss   0  caught 1   232ea692 t363
+    dist 2  prayed    loss   0  caught 1   23d08630 t326
+    dist 2  prayed    loss   0  caught 1   27a3cc98 t379
+    dist 2  prayed    loss   0  caught 1   27a3cc98 t415
+    dist 2  prayed    loss   0  caught 1   27a3cc98 t419
+    dist 2  prayed    loss   0  caught 1   305021b2 t377
+    dist 2  prayed    loss   0  caught 1   3e90e62d t330
+    dist 2  prayed    loss   0  caught 1   4055ef10 t338
+    dist 2  prayed    loss   0  caught 1   4055ef10 t342
+    dist 2  prayed    loss   0  caught 1   45373e2e t360
+    dist 2  prayed    loss   0  caught 1   456de3e7 t417
+    dist 2  prayed    loss   0  caught 1   468d791d t326
+    dist 2  prayed    loss   0  caught 1   468d791d t346
+    dist 2  prayed    loss   0  caught 1   468d791d t350
+    dist 2  prayed    loss   0  caught 1   555ba45e t337
+    dist 2  prayed    loss   0  caught 1   555ba45e t368
+    dist 2  prayed    loss   0  caught 1   574f87d5 t356
+    dist 2  prayed    loss   0  caught 1   58c08e19 t351
+    dist 2  prayed    loss   0  caught 1   58c08e19 t389
+    dist 2  prayed    loss   0  caught 1   627ea47e t329
+    dist 2  prayed    loss   0  caught 1   627ea47e t333
+    dist 2  prayed    loss   0  caught 1   627ea47e t363
+    dist 2  prayed    loss   0  caught 1   6f410098 t411
+    dist 2  prayed    loss   0  caught 1   6f94b71c t354
+    dist 2  prayed    loss   0  caught 1   6f94b71c t373
+    dist 2  prayed    loss   0  caught 1   81ac6b35 t394
+    dist 2  prayed    loss   0  caught 1   8bfa65f1 t323
+    dist 2  prayed    loss   0  caught 1   8bfa65f1 t327
+    dist 2  prayed    loss   0  caught 1   8bfa65f1 t343
+    dist 2  prayed    loss   0  caught 1   8bfa65f1 t363
+    dist 2  prayed    loss   0  caught 1   8eda278c t387
+    dist 2  prayed    loss   0  caught 1   8eda278c t426
+    dist 2  prayed    loss   0  caught 1   944f1ba4 t448
+    dist 2  prayed    loss   0  caught 1   9da2e85f t441
+    dist 2  prayed    loss   0  caught 1   9da2e85f t445
+    dist 2  prayed    loss   0  caught 1   a3b9b2d6 t362
+    dist 2  prayed    loss   0  caught 1   a3b9b2d6 t402
+    dist 2  prayed    loss   0  caught 1   b2af66d6 t439
+    dist 2  prayed    loss   0  caught 1   b78aeaec t330
+    dist 2  prayed    loss   0  caught 1   c2ad19de t423
+    dist 2  prayed    loss   0  caught 1   c2ad19de t427
+    dist 2  prayed    loss   0  caught 1   c9d26c04 t428
+    dist 2  prayed    loss   0  caught 1   c9d26c04 t443
+    dist 2  prayed    loss   0  caught 1   d9682444 t372
+    dist 2  prayed    loss   0  caught 1   dc8477d0 t355
+    dist 2  prayed    loss   0  caught 1   dc8477d0 t359
+    dist 2  prayed    loss   0  caught 1   dc8477d0 t376
+    dist 2  prayed    loss   0  caught 1   dc8477d0 t380
+    dist 2  prayed    loss   0  caught 1   de57ee3f t334
+    dist 2  prayed    loss   0  caught 1   e004bf56 t356
+    dist 2  prayed    loss   0  caught 1   e004bf56 t379
+    dist 2  prayed    loss   0  caught 1   e179392e t331
+    dist 2  prayed    loss   0  caught 1   ef8b9438 t376
+    dist 2  prayed    loss   0  caught 1   ef8b9438 t380
+    dist 2  prayed    loss   0  caught 1   ef8b9438 t396
+    dist 2  prayed    loss   0  caught 1   ef8b9438 t400
+    dist 2  prayed    loss   0  caught 2   0f1a448a t361
+    dist 2  prayed    loss   0  caught 2   0f1a448a t381
+    dist 2  prayed    loss   0  caught 2   14a93a4e t364
+    dist 2  prayed    loss   0  caught 2   431c58ee t409
+    dist 2  prayed    loss   0  caught 2   48e43338 t413
+    dist 2  prayed    loss   0  caught 2   48e43338 t437
+    dist 2  prayed    loss   0  caught 2   4d0b7b9e t379
+    dist 2  prayed    loss   0  caught 2   4d0b7b9e t415
+    dist 2  prayed    loss   0  caught 2   79531f76 t420
+    dist 2  prayed    loss   0  caught 2   9cf48991 t396
+    dist 2  prayed    loss   0  caught 2   a81fa381 t319
+    dist 2  prayed    loss   0  caught 2   a81fa381 t323
+    dist 2  prayed    loss   0  caught 2   afa1e27e t391
+    dist 2  prayed    loss   0  caught 2   b0c9a136 t356
+    dist 2  prayed    loss   0  caught 2   c2fb8d93 t376
+    dist 2  prayed    loss   0  caught 2   c6440b40 t405
+    dist 2  prayed    loss   0  caught 2   c667e116 t325
+    dist 2  prayed    loss   0  caught 2   c667e116 t361
+    dist 2  prayed    loss   0  caught 2   c667e116 t365
+    dist 2  prayed    loss   0  caught 2   eb1a4b1c t363
+    dist 2  prayed    loss   0  caught 2   eb1a4b1c t424
+    dist 2  prayed    loss   0  caught 2   f518ea3d t377
+    dist 2  prayed    loss   0  caught 2   f518ea3d t381
+    dist 2  prayed    loss   0  caught 2   ff3753c5 t399
+    dist 2  prayed    loss   0  caught 2   ff3753c5 t403
+    dist 2  prayed    loss   0  caught 2   ff3753c5 t421
+    dist 2  prayed    loss   1  caught 1   23d08630 t330
+    dist 2  prayed    loss   2  caught 1   e179392e t366
+    dist 2  prayed    loss   2  caught 2   60fc2979 t404
+    dist 2  prayed    loss   4  caught 1   05ae0b95 t352
+    dist 2  prayed    loss   5  caught 1   f2932b36 t353
+    dist 2  prayed    loss   5  caught 2   431c58ee t360
+    dist 2  prayed    loss   5  caught 2   8bfa65f1 t347
+    dist 2  prayed    loss   6  caught 1   15c65dd8 t354
+    dist 2  prayed    loss   6  caught 1   c9d26c04 t367
+    dist 2  prayed    loss   6  caught 2   0f1a448a t365
+    dist 2  prayed    loss   6  caught 2   4d0b7b9e t349
+    dist 2  prayed    loss   7  caught 1   2201c3e7 t369
+    dist 2  prayed    loss   7  caught 1   9da2e85f t395
+    dist 2  prayed    loss   8  caught 1   468d791d t330
+    dist 2  prayed    loss  10  caught 1   f157b42f t415
+    dist 3  unprayed  loss   7  caught 1   2c1fe8b6 t366
+    dist 3  unprayed  loss   8  caught 0   0ae39777 t352
+    dist 3  unprayed  loss   8  caught 0   5a52efe8 t327
+    dist 3  unprayed  loss   8  caught 1   1eab6a9e t319
+    dist 3  unprayed  loss   9  caught 1   b5e2c5cb t310
+    dist 3  prayed    loss   3  caught 1   4218f744 t350
+    dist 3  prayed    loss   4  caught 0   753500b4 t334
+    dist 3  prayed    loss   4  caught 0   8d0cd9d0 t377
+    dist 3  prayed    loss   5  caught 0   a45df8ed t421
+    dist 3  prayed    loss   6  caught 0   015355da t343
+    dist 3  prayed    loss   6  caught 0   9f9ad752 t318
+    dist 3  prayed    loss   6  caught 0   af6afb16 t310
+    dist 3  prayed    loss   6  caught 1   7d96427d t337
+    dist 3  prayed    loss   6  caught 1   a509c955 t364
+    dist 3  prayed    loss   6  caught 1   afa1e27e t345
+    dist 3  prayed    loss   7  caught 0   1ad5c2ff t336
+    dist 3  prayed    loss   7  caught 0   c56529ac t331
+    dist 3  prayed    loss   7  caught 1   4e541111 t386
+    dist 3  prayed    loss   7  caught 1   c3a81779 t389
+    dist 3  prayed    loss   8  caught 0   7df61cc5 t347
+    dist 3  prayed    loss   8  caught 1   e636fc77 t366
+    dist 3  prayed    loss  10  caught 0   337e6d38 t390
+    dist 3  prayed    loss  10  caught 0   4055ef10 t411
+
+== the recorder's loss as her RANGED target, by raiders within 2 / within 3 of it
+  within2 0 within3 0  n  16  mean   4.6  max  29
+  within2 0 within3 1  n  57  mean   4.7  max  56
+  within2 0 within3 2  n  60  mean   3.7  max  18
+  within2 1 within3 1  n  59  mean   4.1  max  46
+  within2 1 within3 2  n  45  mean   6.3  max  55
+  within2 2 within3 2  n  62  mean   4.3  max  59
+
+== her first attack after a colour change (ticks)
+  +2: 687  +3: 581  +4: 9  +5: 1  (n 1278)
+
+== her last attack in a form, ticks before the change
+  -1: 26  -2: 17  -3: 526  -4: 734  (n 1303)
+
+== pairs of raiders within 2 tiles (mean of 10 at five), tick relative to the change
+  mag->mel  n 199  -6:1.2 -5:1.2 -4:1.2 -3:1.2 -2:1.2 -1:1.2 +0:1.2 +1:1.2 +2:1.2 +3:1.2 +4:1.2
+  mag->rng  n 214  -6:1.2 -5:1.2 -4:1.2 -3:1.2 -2:1.2 -1:1.2 +0:1.2 +1:1.2 +2:1.2 +3:1.2 +4:1.2
+  mel->mag  n 251  -6:1.2 -5:1.2 -4:1.2 -3:1.2 -2:1.3 -1:1.3 +0:1.3 +1:1.2 +2:1.2 +3:1.2 +4:1.2
+  mel->rng  n 240  -6:1.2 -5:1.2 -4:1.2 -3:1.2 -2:1.2 -1:1.2 +0:1.2 +1:1.2 +2:1.2 +3:1.2 +4:1.2
+  rng->mag  n 196  -6:1.2 -5:1.2 -4:1.2 -3:1.2 -2:1.2 -1:1.2 +0:1.2 +1:1.2 +2:1.2 +3:1.2 +4:1.2
+  rng->mel  n 203  -6:1.2 -5:1.2 -4:1.2 -3:1.2 -2:1.2 -1:1.2 +0:1.2 +1:1.2 +2:1.2 +3:1.2 +4:1.3
+
+== the first attack of a form (ticks after the form began)
+  vasilias opening melee  +1 126  +4 24
+  vasilias into mel     +2 207  +3 130  +4 3  +5 1  (n 341)
+  vasilias into mag     +2 229  +3 181  +4 3  (n 413)
+  vasilias into rng     +2 180  +3 218  +4 1  (n 399)

@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
-"""Fetch Blert ToB Normal trio, death-free, completed rooms' event streams.
+"""Fetch Blert ToB death-free, completed rooms' event streams (Normal trios
+unless told otherwise).
 
-  tools/blert_fetch_tob_rooms.py <stage> <outdir> <n>     (stage 10 Maiden, 12 Nylocas)
+  tools/blert_fetch_tob_rooms.py <stage> <outdir> <n> [mode] [scale]
+      stage 10 Maiden, 12 Nylocas; mode 11 Regular (default), 12 Hard;
+      scale the party size (default 3)
 
 Pages the listing back with startTime=lt<ms>. One request every 3 s; a
 neutral User-Agent (no personal data). Streams already on disk are kept."""
@@ -9,6 +12,8 @@ import datetime, json, os, sys, time, urllib.request, urllib.error
 BASE = "https://blert.io/api/v1"
 UA = "3draster-tob-calibration/1.0"
 stage, out, n = int(sys.argv[1]), sys.argv[2], int(sys.argv[3])
+mode = int(sys.argv[4]) if len(sys.argv) > 4 else 11
+scale = int(sys.argv[5]) if len(sys.argv) > 5 else 3
 os.makedirs(out, exist_ok=True)
 
 def get(url):
@@ -36,10 +41,10 @@ def ms(iso):
 lst = os.path.join(out, "list_paged.json")
 rooms = json.load(open(lst)) if os.path.exists(lst) else []
 def good(c):
-    return c.get("mode") == 11 and c.get("scale") == 3 and c.get("totalDeaths", 1) == 0 and c.get("status") == 1
+    return c.get("mode") == mode and c.get("scale") == scale and c.get("totalDeaths", 1) == 0 and c.get("status") == 1
 pages = 0
 while sum(1 for c in rooms if good(c)) < n and pages < 40:
-    url = f"{BASE}/challenges?limit=100&type=1&mode=11&scale=eq3&status=eq1"
+    url = f"{BASE}/challenges?limit=100&type=1&mode={mode}&scale=eq{scale}&status=eq1"
     if rooms:
         url += "&startTime=lt%d" % min(ms(c["startTime"]) for c in rooms)
     d = get(url)
