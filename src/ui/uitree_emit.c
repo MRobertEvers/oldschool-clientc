@@ -948,6 +948,7 @@ UITree_EmitFill(
         struct UITreeHostRequest req = {
             .kind = UITREE_HOST_GET_TITLE_TOGGLE,
             .u.get_title_toggle.toggle = component->u.login_toggle.toggle,
+            .u.get_title_toggle.song = component->u.login_toggle.song,
         };
         int on = host ? UITree_Host(host, &req) : 0;
         int scene_id = component->u.login_toggle.scene_id;

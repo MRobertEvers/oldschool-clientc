@@ -425,20 +425,14 @@ app_world_build_spotanim_model(
     if( !model )
         return NULL;
 
-    /* Recolour: reference guards the whole 6-pair loop on recol_s[0] != 0. */
-    if( spot->recol_s[0] != 0 )
+    /* Every stated pair, in order (SpotAnimationDefinition.getModel loops the
+     * whole list). A source of 0 is a real colour or texture id, not "unset". */
+    for( int i = 0; i < spot->recol_count; i++ )
+        ToriDraw_ModelRecolor(model, spot->recol_s[i], spot->recol_d[i]);
+    for( int i = 0; i < spot->retex_count; i++ )
     {
-        for( int i = 0; i < 6; i++ )
-            ToriDraw_ModelRecolor(model, spot->recol_s[i], spot->recol_d[i]);
-    }
-    /* Retexture (dat2 only; dat1 leaves these zero). */
-    for( int i = 0; i < 6; i++ )
-    {
-        if( spot->retex_s[i] != 0 )
-        {
-            ToriDraw_ModelRetexture(model, spot->retex_s[i], spot->retex_d[i]);
-            retextured = 1;
-        }
+        ToriDraw_ModelRetexture(model, spot->retex_s[i], spot->retex_d[i]);
+        retextured = 1;
     }
     if( retextured )
         ToriDraw_ModelNoteTextureWants(model);

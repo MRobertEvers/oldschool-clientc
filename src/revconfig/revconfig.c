@@ -836,6 +836,8 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_UICOMPONENT_TITLE_MESSAGE_INDEX";
     case RCFIELD_UICOMPONENT_TITLE_PX_PER_PERCENT:
         return "RCFIELD_UICOMPONENT_TITLE_PX_PER_PERCENT";
+    case RCFIELD_UICOMPONENT_TITLE_SONG:
+        return "RCFIELD_UICOMPONENT_TITLE_SONG";
     case RCFIELD_UICOMPONENT_FLAME_BIAS:
         return "RCFIELD_UICOMPONENT_FLAME_BIAS";
     case RCFIELD_UICOMPONENT_FLAME_SWAY:
@@ -1209,6 +1211,7 @@ revconfig_item_begin(
         item->u.uicomponent.ink_style = -1;
         item->u.uicomponent.ink_walk_color = -1;
         item->u.uicomponent.ink_interact_color = -1;
+        item->u.uicomponent.title_song = -1;
     }
     else if( strcmp(type_value, "layout") == 0 )
         item->kind = RCITEM_UILAYOUT;
@@ -1686,6 +1689,9 @@ revconfig_item_apply_uicomponent_field(
         break;
     case RCFIELD_UICOMPONENT_TITLE_PX_PER_PERCENT:
         comp->title_px_per_percent = revconfig_parse_int(value);
+        break;
+    case RCFIELD_UICOMPONENT_TITLE_SONG:
+        comp->title_song = revconfig_parse_int(value);
         break;
     case RCFIELD_UICOMPONENT_FLAME_BIAS:
         comp->flame_bias = revconfig_parse_int(value);

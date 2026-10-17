@@ -417,6 +417,28 @@ main(void)
         RS_Chat_Free(&chat);
     }
 
+    /* The crowns a speaker's name is printed with. The server sends the
+     * account-mode helms at these indices (torirs_server_world.c
+     * `player_chat_crown`), so the pairs are pinned from both ends. */
+    {
+        char name[RS_CHAT_SENDER_LEN];
+        int ignorable = 0;
+
+        RS_Chat_CrownedName(0, "Zezima", name, sizeof(name));
+        CHECK(strcmp(name, "Zezima") == 0, "crown 0 prints the bare name, got \"%s\"", name);
+        RS_Chat_CrownedName(3, "Zezima", name, sizeof(name));
+        CHECK(strcmp(name, "<img=2>Zezima") == 0, "crown 3 is the Ironman helm, got \"%s\"", name);
+        CHECK(RS_Chat_CrownImage(4, NULL) == 3, "crown 4 is the Ultimate helm");
+        CHECK(RS_Chat_CrownImage(5, NULL) == 10, "crown 5 is the Hardcore helm");
+        CHECK(RS_Chat_CrownImage(7, NULL) == 41, "crown 7 is the Group helm");
+        CHECK(RS_Chat_CrownImage(8, NULL) == 42, "crown 8 is the Hardcore Group helm");
+        CHECK(RS_Chat_CrownImage(9, NULL) == 43, "crown 9 is the Unranked Group helm");
+        CHECK(RS_Chat_CrownImage(2, &ignorable) == 1 && !ignorable,
+              "crown 2 is the Jagex crown, which the ignore list cannot silence");
+        CHECK(RS_Chat_CrownImage(200, &ignorable) == -1 && ignorable,
+              "an index past the table is no crown");
+    }
+
     if( g_failures )
     {
         fprintf(stderr, "chat store: %d failure(s)\n", g_failures);

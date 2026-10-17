@@ -819,18 +819,12 @@ app_plugin_object_build_model(
          * graphic. */
         if( spot )
         {
-            if( spot->recol_s[0] != 0 )
+            for( int i = 0; i < spot->recol_count; i++ )
+                ToriDraw_ModelRecolor(model, spot->recol_s[i], spot->recol_d[i]);
+            for( int i = 0; i < spot->retex_count; i++ )
             {
-                for( int i = 0; i < 6; i++ )
-                    ToriDraw_ModelRecolor(model, spot->recol_s[i], spot->recol_d[i]);
-            }
-            for( int i = 0; i < 6; i++ )
-            {
-                if( spot->retex_s[i] != 0 )
-                {
-                    ToriDraw_ModelRetexture(model, spot->retex_s[i], spot->retex_d[i]);
-                    retextured = 1;
-                }
+                ToriDraw_ModelRetexture(model, spot->retex_s[i], spot->retex_d[i]);
+                retextured = 1;
             }
         }
     }

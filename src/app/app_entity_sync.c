@@ -282,14 +282,32 @@ app_entity_spotanim_find(
 
 /* End the combine: restore the entity's own model (ownership of the pristine
  * body snapshot moves back to the element) and free the spot base. `restore`
- * is false when the body element is already gone (despawn/scene teardown). */
+ * is false when the body element is already gone (despawn/scene teardown).
+ *
+ * Restore only while the element is still wearing `combined`. The body
+ * reconcile runs first in the frame and SetModels a fresh body when a seq's
+ * replaceheldright/left ends (home teleport's book) or the appearance
+ * changes. That frees `combined`. Putting the snapshot back on top would
+ * resurrect the hand item, and the reconcile would keep it: body.slots
+ * already match the appearance it just wrote, so the next frame is a no-op. */
 static void
 app_entity_spotanim_detach(
     struct App* app,
     struct AppEntitySpotanim* entry,
     bool restore)
 {
-    if( restore && entry->body && ToriDraw_SceneElementIsLive(app->scene, entry->body_element_id) )
+    struct ToriDraw_SceneElement* el = NULL;
+    int wearing_combined = 0;
+
+    if( ToriDraw_SceneElementIsLive(app->scene, entry->body_element_id) )
+    {
+        el = ToriDraw_SceneElementGet(app->scene, entry->body_element_id);
+        assert(el);
+        /* `combined` is an identity only. A rebuild this frame freed it. */
+        wearing_combined = ToriDraw_ModelKindIsFull(el->model.kind) &&
+                           el->model.u.model.model == entry->combined;
+    }
+    if( restore && entry->body && wearing_combined )
     {
         struct ToriDraw_ModelHandle hnd;
         memset(&hnd, 0, sizeof(hnd));

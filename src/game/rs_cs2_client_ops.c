@@ -357,10 +357,15 @@ RS_CS2Host_ExecClientOp(
         return push_bool(vm, state->remember_username);
     /* Device option 4 is "title music disabled", the inverse of the argument. */
     case CS2_OP_SETTITLESCREENSOUND:
-        RS_CS2Host_SetOption(host, RS_CS2_OPTION_DEVICE, 4, ints[0] == 1 ? 0 : 1);
+        RS_CS2Host_SetOption(
+            host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_TITLE_MUSIC_DISABLED,
+            ints[0] == 1 ? 0 : 1);
         return CS2VM_EXECNO_OK;
     case CS2_OP_GETTITLESCREENSOUND:
-        return push_bool(vm, RS_CS2Host_GetOption(host, RS_CS2_OPTION_DEVICE, 4) == 0);
+        return push_bool(
+            vm,
+            RS_CS2Host_GetOption(
+                host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_TITLE_MUSIC_DISABLED) == 0);
 
     /* Store / purchase / notification queries the desktop client answers with
      * constants: nothing is available and nothing is enabled. */

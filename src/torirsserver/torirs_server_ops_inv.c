@@ -90,12 +90,34 @@ spill_to_floor(
     if( !ToriRSServer_ObjInfo(obj_id)->stackable && count > 1 )
     {
         for( int i = 0; i < count; i++ )
-            last = ToriRSServer_WorldObjAdd(srv, obj_id, 1, player->x, player->z, player->level,
-                                         duration);
+            last = ToriRSServer_WorldObjAddOwned(srv, TORIRSSERVER_GROUND_OWNER_PLAYER,
+                                                 player->name37, obj_id, 1, player->x, player->z,
+                                                 player->level, duration);
         return last;
     }
-    return ToriRSServer_WorldObjAdd(srv, obj_id, count, player->x, player->z, player->level,
-                                 duration);
+    return ToriRSServer_WorldObjAddOwned(srv, TORIRSSERVER_GROUND_OWNER_PLAYER, player->name37,
+                                         obj_id, count, player->x, player->z, player->level,
+                                         duration);
+}
+
+/*
+ * One floor add out of a container, owned by the player the container belongs
+ * to (`row->owner`), so an ironman cannot take what somebody else dropped. A
+ * world row has no owner and drops for nobody.
+ */
+static int
+floor_add_from(
+    struct ToriRSServer* srv,
+    const struct ToriRSServerContainer* row,
+    int obj_id,
+    int count,
+    int32_t coord,
+    int duration)
+{
+    return ToriRSServer_WorldObjAddOwned(
+        srv, row->owner ? TORIRSSERVER_GROUND_OWNER_PLAYER : TORIRSSERVER_GROUND_OWNER_NONE,
+        row->owner ? row->owner->name37 : 0, obj_id, count, ToriRSServer_CoordX(coord),
+        ToriRSServer_CoordZ(coord), ToriRSServer_CoordLevel(coord), duration);
 }
 
 /** The container `inv_id` names, aborting the script having said so. */
@@ -288,9 +310,7 @@ ToriRSServer_OpsInv(
         {
             for( int i = 0; i < count; i++ )
             {
-                last = ToriRSServer_WorldObjAdd(srv, obj_id, 1, ToriRSServer_CoordX(coord),
-                                             ToriRSServer_CoordZ(coord), ToriRSServer_CoordLevel(coord),
-                                             (int)duration);
+                last = floor_add_from(srv, row, obj_id, 1, coord, (int)duration);
                 if( last < 0 )
                 {
                     ToriRSServer_ContainerSet(row, (int)slot, obj_id, count - i);
@@ -305,9 +325,7 @@ ToriRSServer_OpsInv(
         }
         else
         {
-            last = ToriRSServer_WorldObjAdd(srv, obj_id, count, ToriRSServer_CoordX(coord),
-                                         ToriRSServer_CoordZ(coord), ToriRSServer_CoordLevel(coord),
-                                         (int)duration);
+            last = floor_add_from(srv, row, obj_id, count, coord, (int)duration);
             if( last < 0 )
             {
                 ToriRSServer_ContainerSet(row, (int)slot, obj_id, count);
@@ -375,8 +393,8 @@ ToriRSServer_OpsInv(
         removed = container_del(row, (int)values[2], (int)values[3]);
         if( removed <= 0 )
             return 1;
-        ToriRSServer_WorldObjDelayedQueue(srv, (int)values[5], (int)values[4], (int)values[2],
-                                        removed, ToriRSServer_CoordX(values[1]),
+        ToriRSServer_WorldObjDelayedQueue(srv, row->owner, (int)values[5], (int)values[4],
+                                        (int)values[2], removed, ToriRSServer_CoordX(values[1]),
                                         ToriRSServer_CoordZ(values[1]),
                                         ToriRSServer_CoordLevel(values[1]));
         return 1;
@@ -412,15 +430,11 @@ ToriRSServer_OpsInv(
             if( !ToriRSServer_ObjInfo(obj_id)->stackable && count > 1 )
             {
                 for( int i = 0; i < count; i++ )
-                    last = ToriRSServer_WorldObjAdd(srv, obj_id, 1, ToriRSServer_CoordX(coord),
-                                                 ToriRSServer_CoordZ(coord),
-                                                 ToriRSServer_CoordLevel(coord), (int)duration);
+                    last = floor_add_from(srv, row, obj_id, 1, coord, (int)duration);
             }
             else
             {
-                last = ToriRSServer_WorldObjAdd(srv, obj_id, count, ToriRSServer_CoordX(coord),
-                                             ToriRSServer_CoordZ(coord), ToriRSServer_CoordLevel(coord),
-                                             (int)duration);
+                last = floor_add_from(srv, row, obj_id, count, coord, (int)duration);
             }
         }
         if( last >= 0 )

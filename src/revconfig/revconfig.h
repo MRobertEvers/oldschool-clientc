@@ -199,6 +199,7 @@ enum RevConfigFieldKind
     RCFIELD_UICOMPONENT_TITLE_ACTION,
     RCFIELD_UICOMPONENT_TITLE_MESSAGE_INDEX,
     RCFIELD_UICOMPONENT_TITLE_PX_PER_PERCENT,
+    RCFIELD_UICOMPONENT_TITLE_SONG,
     RCFIELD_UICOMPONENT_FLAME_BIAS,
     RCFIELD_UICOMPONENT_FLAME_SWAY,
     RCFIELD_UICOMPONENT_FLAME_RUN,
@@ -1042,6 +1043,11 @@ struct RevConfigUIComponentItem
     /* INI: index= — which of the three login message lines a login_message
      * draws (0-2). */
     int title_message_index;
+
+    /* INI: song= — the music track a toggle_music login_toggle plays while
+     * the title screen is up (the deob's "scape main"). -1 when unstated:
+     * track 0 is a real track. */
+    int title_song;
 
     /*
      * INI: px_per_percent=  (default 0 = fill the declared width at 100)

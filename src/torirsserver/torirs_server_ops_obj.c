@@ -222,10 +222,35 @@ ToriRSServer_OpsObj(
             SSVM_Abort(state, "obj_takeitem into unknown container %d", (int)inv_id);
             return 1;
         }
+        slot = (int)(obj - srv->ground);
+        /* The ironman rule is enforced here, not only where content explains
+         * it: every take goes through this opcode, so a script that forgot
+         * `obj_ironman_blocked` cannot hand an ironman someone else's drop. */
+        if( ToriRSServer_WorldGroundIronmanBlocked(srv, slot, srv->active_player) )
+        {
+            SSVM_Abort(state, "obj_takeitem: obj %d is another player's and the taker is an ironman",
+                       obj->obj_id);
+            return 1;
+        }
         if( ToriRSServer_ContainerAdd(row, obj->obj_id, obj->count, 1) <= 0 )
             return 1;
-        slot = (int)(obj - srv->ground);
         ToriRSServer_WorldGroundTake(srv, slot);
+        return 1;
+    }
+
+    /*
+     * `obj_ironman_blocked()(boolean)` — this tree's, no reference twin. Would
+     * `obj_takeitem` refuse the active player the active obj under the
+     * ironman rule. See `ToriRSServer_WorldGroundIronmanBlocked`.
+     */
+    case SS_OP_OBJ_IRONMAN_BLOCKED:
+    {
+        struct ToriRSServerGroundObj* obj = active_obj(state, opcode);
+
+        if( !obj )
+            return 1;
+        SSVM_PushInt(state, ToriRSServer_WorldGroundIronmanBlocked(srv, (int)(obj - srv->ground),
+                                                                   srv->active_player));
         return 1;
     }
 

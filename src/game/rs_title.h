@@ -66,15 +66,20 @@ enum RS_TitleAction
      *  nothing sends either to a server. */
     RS_TITLE_ACTION_TOGGLE_REMEMBER,
     RS_TITLE_ACTION_TOGGLE_HIDE,
+    /** The title music button (deob: the `title_mute` corner icon). Not model
+     *  state: it flips device option 4, which the App owns and persists. */
+    RS_TITLE_ACTION_TOGGLE_MUSIC,
 };
 
-/** Which of the form's checkboxes a login_toggle is. Parallel to
- *  RS_TitleAction's two toggle members, and the index into RS_Title::toggles. */
+/** Which of the title's toggles a login_toggle is. Parallel to RS_TitleAction's
+ *  toggle members. REMEMBER and HIDE index RS_Title::toggles; MUSIC is answered
+ *  by the App from the option store. */
 enum RS_TitleToggle
 {
     RS_TITLE_TOGGLE_REMEMBER = 0,
     RS_TITLE_TOGGLE_HIDE,
-    RS_TITLE_TOGGLE_COUNT
+    RS_TITLE_TOGGLE_COUNT,
+    RS_TITLE_TOGGLE_MUSIC = RS_TITLE_TOGGLE_COUNT,
 };
 
 /** Per-field limits, read off the baked login_input node. */

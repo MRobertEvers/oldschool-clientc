@@ -15,11 +15,11 @@
  *     10  host commands (inv)
  *      8  host commands (loc)
  *      8  host commands (npc)
- *     13  host commands (obj)
+ *     14  host commands (obj)
  *      2  host commands (param)
  *      7  host commands (player)
  *     18  host commands (poh)
- *    482  total, of 534 declared opcodes
+ *    483  total, of 535 declared opcodes
  */
 
 #ifndef SRC_TORIRSSERVER_TORIRS_SERVER_OPCODE_COVERAGE_GEN_H
@@ -27,8 +27,8 @@
 
 #include <stdint.h>
 
-#define TORIRSSERVER_OPCODE_COVERAGE_COUNT 482
-#define TORIRSSERVER_OPCODE_DECLARED_COUNT 534
+#define TORIRSSERVER_OPCODE_COVERAGE_COUNT 483
+#define TORIRSSERVER_OPCODE_DECLARED_COUNT 535
 
 /*
  * One past the highest opcode *value*, which is nothing like the number of
@@ -37,7 +37,7 @@
  * array by opcode wants this, not the count — using the count silently
  * treats every real opcode as out of range.
  */
-#define TORIRSSERVER_OPCODE_VALUE_LIMIT 11130
+#define TORIRSSERVER_OPCODE_VALUE_LIMIT 11131
 
 /* Ascending, so a lookup can binary-search. */
 static const uint16_t TORIRSSERVER_OPCODE_COVERAGE[TORIRSSERVER_OPCODE_COVERAGE_COUNT] = {
@@ -523,6 +523,7 @@ static const uint16_t TORIRSSERVER_OPCODE_COVERAGE[TORIRSSERVER_OPCODE_COVERAGE_
     11127, /* SS_OP_POH_VISIT_LAST_GET (host commands (poh)) */
     11128, /* SS_OP_P_NAMEDIALOG_WAIT (host commands) */
     11129, /* SS_OP_VESSEL_BERTH (host commands) */
+    11130, /* SS_OP_OBJ_IRONMAN_BLOCKED (host commands (obj)) */
 };
 
 #endif

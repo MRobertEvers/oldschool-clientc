@@ -515,6 +515,9 @@ struct UITreeHostRequest
         {
             /** enum RS_TitleToggle. */
             int toggle;
+            /** The toggle's INI song= (-1 when it declares none). The music
+             *  toggle is how the host learns which track the title plays. */
+            int song;
         } get_title_toggle;
         struct
         {

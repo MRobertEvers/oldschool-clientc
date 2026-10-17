@@ -397,14 +397,12 @@ ev_build_spotanim_model(
         return NULL;
     }
 
-    /* app_world_build_spotanim_model, in its order. The recolour loop's guard
-     * on recol_s[0] is the reference's, not a shortcut. */
-    if( spot->recol_s[0] != 0 )
-        for( int i = 0; i < RSCACHE_SPOTANIM_COLOUR_SLOTS; i++ )
-            ToriDraw_ModelRecolor(model, spot->recol_s[i], spot->recol_d[i]);
-    for( int i = 0; i < RSCACHE_SPOTANIM_COLOUR_SLOTS; i++ )
-        if( spot->retex_s[i] != 0 )
-            ToriDraw_ModelRetexture(model, spot->retex_s[i], spot->retex_d[i]);
+    /* app_world_build_spotanim_model, in its order: every stated pair, a
+     * source of 0 included. */
+    for( int i = 0; i < spot->recol_count; i++ )
+        ToriDraw_ModelRecolor(model, spot->recol_s[i], spot->recol_d[i]);
+    for( int i = 0; i < spot->retex_count; i++ )
+        ToriDraw_ModelRetexture(model, spot->retex_s[i], spot->retex_d[i]);
 
     if( spot->resizeh != 128 || spot->resizev != 128 )
         ToriDraw_ModelScale(model, spot->resizeh, spot->resizeh, spot->resizev);

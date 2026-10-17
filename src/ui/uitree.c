@@ -3191,6 +3191,7 @@ UITree_Push(
         component->u.login_toggle.atlas_index_on = spec->u.login_toggle.atlas_index_on;
         component->u.login_toggle.action = spec->u.login_toggle.action;
         component->u.login_toggle.toggle = spec->u.login_toggle.toggle;
+        component->u.login_toggle.song = spec->u.login_toggle.song;
         break;
 
     case UIELEM_BUILTIN_LOGIN_MESSAGE:

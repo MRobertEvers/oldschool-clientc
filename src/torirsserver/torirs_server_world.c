@@ -5956,15 +5956,21 @@ world_obj_add(
     int level,
     int duration,
     int receiver_pid,
-    int private_ticks)
+    int private_ticks,
+    enum ToriRSServerGroundOwner owner_kind,
+    int64_t owner_name37)
 {
     if( obj_id < 0 || count <= 0 )
         return -1;
+    if( owner_kind != TORIRSSERVER_GROUND_OWNER_PLAYER )
+        owner_name37 = 0;
 
     /* Stack onto an existing pile of the same obj. A stackable obj has to
      * merge — three separate coin piles on one tile is not a thing the client
      * can draw — and merging a non-stackable one is wrong, so the count is
-     * only combined when the cache says it stacks. */
+     * only combined when the cache says it stacks. Never across owners: a
+     * stranger's coins merged into an ironman's own pile would be theirs to
+     * take. */
     if( receiver_pid < 0 && ToriRSServer_ObjInfo(obj_id)->stackable )
     {
         for( int i = 0; i < TORIRSSERVER_GROUND_MAX; i++ )
@@ -5973,6 +5979,8 @@ world_obj_add(
 
             if( !obj->active || obj->obj_id != obj_id || obj->x != x || obj->z != z ||
                 obj->level != level )
+                continue;
+            if( obj->owner_kind != owner_kind || obj->owner_name37 != owner_name37 )
                 continue;
             {
                 int old_count = obj->count;
@@ -6016,6 +6024,8 @@ world_obj_add(
         obj->receiver_pid = receiver_pid;
         obj->public_tick = receiver_pid >= 0 && private_ticks > 0
                          ? srv->tick + private_ticks : -1;
+        obj->owner_kind = owner_kind;
+        obj->owner_name37 = owner_name37;
         ToriRSServer_ZoneObjRefile(srv, i);
         ToriRSServer_ZoneObjAdded(srv, i);
         return i;
@@ -6033,7 +6043,24 @@ ToriRSServer_WorldObjAdd(
     int level,
     int duration)
 {
-    int slot = world_obj_add(srv, obj_id, count, x, z, level, duration, -1, 0);
+    return ToriRSServer_WorldObjAddOwned(srv, TORIRSSERVER_GROUND_OWNER_NONE, 0, obj_id, count,
+                                         x, z, level, duration);
+}
+
+int
+ToriRSServer_WorldObjAddOwned(
+    struct ToriRSServer* srv,
+    enum ToriRSServerGroundOwner owner_kind,
+    int64_t owner_name37,
+    int obj_id,
+    int count,
+    int x,
+    int z,
+    int level,
+    int duration)
+{
+    int slot = world_obj_add(srv, obj_id, count, x, z, level, duration, -1, 0, owner_kind,
+                             owner_name37);
 
     if( slot >= 0 )
         ToriRSServer_TicklogObjAdd(srv, ToriRSServer_CoordPack(level, x, z), obj_id, count, -1);
@@ -6054,9 +6081,12 @@ ToriRSServer_WorldObjAddPrivate(
 {
     int slot;
 
-    if( private_ticks <= 0 || !owner )
-        return ToriRSServer_WorldObjAdd(srv, obj_id, count, x, z, level, duration);
-    slot = world_obj_add(srv, obj_id, count, x, z, level, duration, owner->pid, private_ticks);
+    assert(owner);
+    if( private_ticks <= 0 )
+        return ToriRSServer_WorldObjAddOwned(srv, TORIRSSERVER_GROUND_OWNER_PLAYER, owner->name37,
+                                             obj_id, count, x, z, level, duration);
+    slot = world_obj_add(srv, obj_id, count, x, z, level, duration, owner->pid, private_ticks,
+                         TORIRSSERVER_GROUND_OWNER_PLAYER, owner->name37);
     if( slot >= 0 )
         ToriRSServer_TicklogObjAdd(srv, ToriRSServer_CoordPack(level, x, z), obj_id, count,
                                    owner->pid);
@@ -6083,6 +6113,28 @@ ToriRSServer_WorldGroundVisibleTo(
     assert(slot < TORIRSSERVER_GROUND_MAX);
     obj = &srv->ground[slot];
     return obj->active && (obj->receiver_pid < 0 || obj->receiver_pid == pid);
+}
+
+int
+ToriRSServer_WorldGroundIronmanBlocked(
+    const struct ToriRSServer* srv,
+    int slot,
+    const struct ToriRSServerPlayer* player)
+{
+    const struct ToriRSServerIds* ids = ToriRSServer_Ids();
+    const struct ToriRSServerGroundObj* obj;
+
+    assert(srv);
+    assert(slot >= 0);
+    assert(slot < TORIRSSERVER_GROUND_MAX);
+    assert(player);
+    obj = &srv->ground[slot];
+    if( ids->varbit_ironman < 0 || ToriRSServer_VarbitGet(player, ids->varbit_ironman) == 0 )
+        return 0;
+    if( obj->owner_kind == TORIRSSERVER_GROUND_OWNER_CONTESTED )
+        return 1;
+    return obj->owner_kind == TORIRSSERVER_GROUND_OWNER_PLAYER &&
+           obj->owner_name37 != player->name37;
 }
 
 /*
@@ -12935,6 +12987,13 @@ static const struct IfScriptTriggerRoute IF_SCRIPT_TRIGGER_ROUTES[] = {
      * Scrambled!'s Humphrey Dumphrey is the cache's one puzzle (dbrow
      * jigsaw_scrambled). */
     { "jigsaw:pieces", MOCK239_JIGSAW_TRIGGER_CRC, "iiii" },
+    /* The Audio tab's four sliders (interface 116). Released, or crossing
+     * zero, the drag scripts 9232/9238/9244/9250 report the new volume --
+     * this is how the account learns it, and why it survives a relog. */
+    { "settings_side:master_slider_bobble", INT32_C(-1213750982), "i" },
+    { "settings_side:music_slider_bobble", INT32_C(406545006), "i" },
+    { "settings_side:sound_slider_bobble", INT32_C(-1069744872), "i" },
+    { "settings_side:areasounds_slider_bobble", INT32_C(-1801605717), "i" },
 };
 
 /* Returns 1 when the trigger was one of IF_SCRIPT_TRIGGER_ROUTES (consumed,
@@ -14076,6 +14135,32 @@ handle_message_private(
  * gets back, not from what it typed. Nothing here is sent to the sender
  * specially.
  */
+/*
+ * The crown a public line carries: an index into the client's crown table
+ * (src/game/rs_chat.c `k_chat_crowns`), which is the reference's class292.
+ * 0 is no crown; 1 and 2 are the staff crowns, which nothing here grants.
+ * The rest of what this server can say is the account-mode helm, by the
+ * value of `varb1777_ironman`.
+ */
+static int
+player_chat_crown(const struct ToriRSServerPlayer* player)
+{
+    /* Indexed by `varb1777_ironman`: none, Ironman, Ultimate, Hardcore,
+     * Group, Hardcore Group, Unranked Group. */
+    static int const k_mode_crowns[] = { 0, 3, 4, 5, 7, 8, 9 };
+    const struct ToriRSServerIds* ids = ToriRSServer_Ids();
+    int mode;
+
+    assert(player);
+    if( ids->varbit_ironman < 0 )
+        return 0;
+    mode = ToriRSServer_VarbitGet(player, ids->varbit_ironman);
+    assert(mode >= 0);
+    if( mode >= (int)(sizeof(k_mode_crowns) / sizeof(k_mode_crowns[0])) )
+        return 0;
+    return k_mode_crowns[mode];
+}
+
 static void
 handle_message_public(
     struct ToriRSServer* srv,
@@ -14099,7 +14184,7 @@ handle_message_public(
         return;
 
     player->chat_colour_effect = (payload[0] << 8) | payload[1];
-    player->chat_type = 0; /* 0 = ordinary public chat; 1 = the staff variant */
+    player->chat_type = player_chat_crown(player);
     memcpy(player->chat_data, payload + 2, (size_t)packed_len);
     player->chat_len = packed_len;
     player->masks |= TORIRSSERVER_PMASK_CHAT;
@@ -17757,14 +17842,18 @@ ToriRSServer_WorldObjDelayed(struct ToriRSServer* srv)
         if( --entry->delay > 0 )
             continue;
         entry->active = 0;
-        ToriRSServer_WorldObjAdd(srv, entry->obj_id, entry->count, entry->x, entry->z,
-                              entry->level, entry->duration);
+        ToriRSServer_WorldObjAddOwned(srv,
+                                      entry->owner_name37 ? TORIRSSERVER_GROUND_OWNER_PLAYER
+                                                          : TORIRSSERVER_GROUND_OWNER_NONE,
+                                      entry->owner_name37, entry->obj_id, entry->count, entry->x,
+                                      entry->z, entry->level, entry->duration);
     }
 }
 
 int
 ToriRSServer_WorldObjDelayedQueue(
     struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* owner,
     int delay,
     int duration,
     int obj_id,
@@ -17777,7 +17866,9 @@ ToriRSServer_WorldObjDelayedQueue(
 
     if( delay <= 0 )
     {
-        ToriRSServer_WorldObjAdd(srv, obj_id, count, x, z, level, duration);
+        ToriRSServer_WorldObjAddOwned(
+            srv, owner ? TORIRSSERVER_GROUND_OWNER_PLAYER : TORIRSSERVER_GROUND_OWNER_NONE,
+            owner ? owner->name37 : 0, obj_id, count, x, z, level, duration);
         return 1;
     }
     for( int i = 0; i < TORIRSSERVER_OBJ_DELAYED_MAX; i++ )
@@ -17796,6 +17887,7 @@ ToriRSServer_WorldObjDelayedQueue(
         entry->x = x;
         entry->z = z;
         entry->level = level;
+        entry->owner_name37 = owner ? owner->name37 : 0;
         return 1;
     }
     fprintf(stderr, "torirsserver: the delayed-drop table is full; %d x%d never lands\n",

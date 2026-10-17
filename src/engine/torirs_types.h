@@ -635,6 +635,8 @@ ToriRS_NpctypeEntityFacts(
     struct ToriRS_Npctype const* shell,
     struct ToriRS_NpcEntityFacts* out);
 
+#define TORIRS_SPOTANIM_COLOUR_SLOTS 16
+
 /* Spotanim (graphical effect) config — reference SpotType (config/SpotType.ts).
  * A single model animated by a seq, with recolour/retexture, resize and a
  * 90-degree angle, lit with custom ambient/contrast. Fed to the world as both
@@ -649,10 +651,14 @@ struct ToriRS_Spotanimtype
     int angle; /* 0 / 90 / 180 / 270 */
     int ambient;
     int contrast;
-    int recol_s[6];
-    int recol_d[6];
-    int retex_s[6]; /* dat2 only; dat1 leaves 0 */
-    int retex_d[6];
+    /* Pairs [0, recol_count) / [0, retex_count) apply, in order. osrs239
+     * records carry up to 9 recolour pairs; the source colour may be 0. */
+    int recol_count;
+    int retex_count; /* dat2 only; dat1 leaves 0 */
+    int recol_s[TORIRS_SPOTANIM_COLOUR_SLOTS];
+    int recol_d[TORIRS_SPOTANIM_COLOUR_SLOTS];
+    int retex_s[TORIRS_SPOTANIM_COLOUR_SLOTS];
+    int retex_d[TORIRS_SPOTANIM_COLOUR_SLOTS];
 };
 
 struct ToriRS_Idk

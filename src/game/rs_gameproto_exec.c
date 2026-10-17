@@ -1174,18 +1174,6 @@ exec_clan(
         TORIRS_ERR("gameproto_exec: %s did not decode (%d bytes)\n", name, payload->length);
 }
 
-/* The chat crowns (the reference's class292): the image a sender's crown draws
- * as, -1 for none, and whether the ignore list can silence its wearer. */
-static struct
-{
-    int image;
-    bool ignorable;
-} const k_chat_crowns[] = {
-    { -1, true }, { 0, true },  { 1, false }, { 2, true },  { 3, true },  { 10, true },
-    { 22, true }, { 41, true }, { 42, true }, { 43, true }, { 44, true }, { 45, true },
-    { 46, true }, { 47, true }, { 48, true }, { 49, true }, { 52, true },
-};
-
 /* The reference escapes a player's clan message for display (class2.method12):
  * a tag in what they typed draws as the characters, not as markup. */
 static void
@@ -1235,16 +1223,10 @@ exec_message_clanchannel(
         if( app->pm_message_ids[i] == key )
             return;
 
-    int crown_image = -1;
     if( !system )
     {
-        bool ignorable = true;
-        if( message->crown >= 0 &&
-            message->crown < (int)(sizeof(k_chat_crowns) / sizeof(k_chat_crowns[0])) )
-        {
-            crown_image = k_chat_crowns[message->crown].image;
-            ignorable = k_chat_crowns[message->crown].ignorable;
-        }
+        int ignorable;
+        RS_Chat_CrownImage(message->crown, &ignorable);
         if( ignorable && RS_Social_IsIgnored(&app->social, message->sender) )
             return;
     }
@@ -1262,10 +1244,7 @@ exec_message_clanchannel(
     char escaped[RS_CHAT_TEXT_LEN];
     char name[RS_CHAT_SENDER_LEN];
     exec_escape_tags(text, escaped, sizeof(escaped));
-    if( crown_image >= 0 )
-        snprintf(name, sizeof(name), "<img=%d>%s", crown_image, message->sender);
-    else
-        snprintf(name, sizeof(name), "%s", message->sender);
+    RS_Chat_CrownedName(message->crown, message->sender, name, sizeof(name));
     exec_chat_add(ctx, message->clan_type >= 0 ? RS_CHAT_TYPE_CLAN_CHAT : RS_CHAT_TYPE_CLAN_GUEST_CHAT, name, channel->name, escaped);
 }
 

@@ -34,6 +34,9 @@ _Static_assert(
 _Static_assert(
     (int)RS_TITLE_ACTION_TOGGLE_HIDE == (int)UITREE_TITLE_ACTION_TOGGLE_HIDE,
     "title action toggle_hide");
+_Static_assert(
+    (int)RS_TITLE_ACTION_TOGGLE_MUSIC == (int)UITREE_TITLE_ACTION_TOGGLE_MUSIC,
+    "title action toggle_music");
 
 void
 RS_Title_Init(struct RS_Title* title)
@@ -313,6 +316,8 @@ RS_Title_HandleAction(
         title->toggles[RS_TITLE_TOGGLE_HIDE] = !title->toggles[RS_TITLE_TOGGLE_HIDE];
         return 1;
 
+    /* The App's: the setting lives in the option store, not in this model. */
+    case RS_TITLE_ACTION_TOGGLE_MUSIC:
     case RS_TITLE_ACTION_NONE:
         return 0;
     }
@@ -341,5 +346,7 @@ RS_Title_ActionFromName(char const* name)
         return RS_TITLE_ACTION_TOGGLE_REMEMBER;
     if( strcmp(name, "toggle_hide") == 0 )
         return RS_TITLE_ACTION_TOGGLE_HIDE;
+    if( strcmp(name, "toggle_music") == 0 )
+        return RS_TITLE_ACTION_TOGGLE_MUSIC;
     return RS_TITLE_ACTION_NONE;
 }

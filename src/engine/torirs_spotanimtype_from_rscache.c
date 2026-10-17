@@ -5,6 +5,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+_Static_assert(
+    TORIRS_SPOTANIM_COLOUR_SLOTS == RSCACHE_SPOTANIM_COLOUR_SLOTS,
+    "client spotanim colour slots must match the decoder's");
+
 struct ToriRS_Spotanimtype*
 ToriRS_SpotanimtypeFromRSCacheDat1(
     int spotanim_id,
@@ -26,7 +30,10 @@ ToriRS_SpotanimtypeFromRSCacheDat1(
     dst->contrast = src->contrast;
     memcpy(dst->recol_s, src->recol_s, sizeof(dst->recol_s));
     memcpy(dst->recol_d, src->recol_d, sizeof(dst->recol_d));
-    /* dat1 spotanim has no retexture opcodes. */
+    /* The 2004 SpotType has six slots and recolours all six only when the
+     * first source is set; dat1 has no retexture opcodes. */
+    dst->recol_count = src->recol_s[0] != 0 ? 6 : 0;
+    dst->retex_count = 0;
 
     return dst;
 }
@@ -54,6 +61,12 @@ ToriRS_SpotanimtypeFromRSCacheDat2(
     memcpy(dst->recol_d, src->recol_d, sizeof(dst->recol_d));
     memcpy(dst->retex_s, src->retex_s, sizeof(dst->retex_s));
     memcpy(dst->retex_d, src->retex_d, sizeof(dst->retex_d));
+    assert(src->recol_count >= 0);
+    assert(src->recol_count <= TORIRS_SPOTANIM_COLOUR_SLOTS);
+    assert(src->retex_count >= 0);
+    assert(src->retex_count <= TORIRS_SPOTANIM_COLOUR_SLOTS);
+    dst->recol_count = src->recol_count;
+    dst->retex_count = src->retex_count;
 
     return dst;
 }

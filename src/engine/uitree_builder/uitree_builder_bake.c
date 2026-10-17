@@ -857,12 +857,22 @@ push_builtin_op(
          * that sits there eating clicks and doing nothing. */
         assert(
             (spec.u.login_toggle.action == RS_TITLE_ACTION_TOGGLE_REMEMBER ||
-             spec.u.login_toggle.action == RS_TITLE_ACTION_TOGGLE_HIDE) &&
-            "login_toggle action= must be toggle_remember or toggle_hide");
-        spec.u.login_toggle.toggle =
-            spec.u.login_toggle.action == RS_TITLE_ACTION_TOGGLE_HIDE
-                ? RS_TITLE_TOGGLE_HIDE
-                : RS_TITLE_TOGGLE_REMEMBER;
+             spec.u.login_toggle.action == RS_TITLE_ACTION_TOGGLE_HIDE ||
+             spec.u.login_toggle.action == RS_TITLE_ACTION_TOGGLE_MUSIC) &&
+            "login_toggle action= must be toggle_remember, toggle_hide or toggle_music");
+        if( spec.u.login_toggle.action == RS_TITLE_ACTION_TOGGLE_MUSIC )
+            spec.u.login_toggle.toggle = RS_TITLE_TOGGLE_MUSIC;
+        else if( spec.u.login_toggle.action == RS_TITLE_ACTION_TOGGLE_HIDE )
+            spec.u.login_toggle.toggle = RS_TITLE_TOGGLE_HIDE;
+        else
+            spec.u.login_toggle.toggle = RS_TITLE_TOGGLE_REMEMBER;
+        /* A music button with no track would toggle a setting that plays
+         * nothing; the INI has to say which track the title is. */
+        assert(
+            (spec.u.login_toggle.action != RS_TITLE_ACTION_TOGGLE_MUSIC ||
+             op->title_song >= 0) &&
+            "login_toggle action=toggle_music needs song=");
+        spec.u.login_toggle.song = op->title_song;
         break;
     case UIELEM_BUILTIN_LOGIN_MESSAGE:
         spec.always_dirty = 1;

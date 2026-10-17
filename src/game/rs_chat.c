@@ -163,6 +163,50 @@ RS_Chat_AddMessage(
         App_DriveEvent(chat->drive_app, DRIVE_EVENT_CHAT_MESSAGE, type, serial, 0, 0);
 }
 
+static struct
+{
+    int image;
+    int ignorable;
+} const k_chat_crowns[] = {
+    { -1, 1 }, { 0, 1 },  { 1, 0 },  { 2, 1 },  { 3, 1 },  { 10, 1 },
+    { 22, 1 }, { 41, 1 }, { 42, 1 }, { 43, 1 }, { 44, 1 }, { 45, 1 },
+    { 46, 1 }, { 47, 1 }, { 48, 1 }, { 49, 1 }, { 52, 1 },
+};
+
+int
+RS_Chat_CrownImage(
+    int crown,
+    int* out_ignorable)
+{
+    int const count = (int)(sizeof(k_chat_crowns) / sizeof(k_chat_crowns[0]));
+
+    if( out_ignorable )
+        *out_ignorable = 1;
+    if( crown < 0 || crown >= count )
+        return -1;
+    if( out_ignorable )
+        *out_ignorable = k_chat_crowns[crown].ignorable;
+    return k_chat_crowns[crown].image;
+}
+
+void
+RS_Chat_CrownedName(
+    int crown,
+    char const* name,
+    char* out,
+    size_t cap)
+{
+    int const image = RS_Chat_CrownImage(crown, NULL);
+
+    assert(name);
+    assert(out);
+    assert(cap > 0);
+    if( image >= 0 )
+        snprintf(out, cap, "<img=%d>%s", image, name);
+    else
+        snprintf(out, cap, "%s", name);
+}
+
 void
 RS_Chat_Free(struct RS_Chat* chat)
 {

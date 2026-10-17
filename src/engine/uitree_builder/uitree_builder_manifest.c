@@ -347,6 +347,7 @@ fill_tree_op_from_component(
     strncpy(op->title_charset, comp->title_charset, sizeof(op->title_charset) - 1);
     strncpy(op->title_action, comp->title_action, sizeof(op->title_action) - 1);
     op->title_message_index = comp->title_message_index;
+    op->title_song = comp->title_song;
     op->title_px_per_percent = comp->title_px_per_percent;
     op->flame_bias = comp->flame_bias;
     op->flame_sway = comp->flame_sway;

@@ -189,6 +189,13 @@ app_host_request(
     case UITREE_HOST_GET_TITLE_TOGGLE:
     {
         int toggle = req->u.get_title_toggle.toggle;
+        if( toggle == RS_TITLE_TOGGLE_MUSIC )
+        {
+            assert(req->u.get_title_toggle.song >= 0);
+            app->title_song = req->u.get_title_toggle.song;
+            app->title_song_known = true;
+            return app_title_music_on(app);
+        }
         if( toggle < 0 || toggle >= RS_TITLE_TOGGLE_COUNT )
             return 0;
         return app->title.toggles[toggle];
@@ -240,6 +247,12 @@ app_host_request(
          */
         if( action == RS_TITLE_ACTION_FOCUS_USERNAME || action == RS_TITLE_ACTION_FOCUS_PASSWORD )
             app->text_input_effective = -1;
+        if( action == RS_TITLE_ACTION_TOGGLE_MUSIC )
+        {
+            app_title_music_toggle(app);
+            app_title_state_changed(app);
+            return 0;
+        }
         if( RS_Title_HandleAction(&app->title, action) )
         {
             /* The form is greeted with a prompt rather than an empty box, and

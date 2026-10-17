@@ -1794,6 +1794,14 @@ app_title_sync_groups(struct App* app);
 void
 app_title_state_changed(struct App* app);
 
+/** True when the title music button reads "on": enabled and audible. */
+bool
+app_title_music_on(struct App const* app);
+
+/** The title music button was clicked. */
+void
+app_title_music_toggle(struct App* app);
+
 struct RS_PreloadStep const*
 app_preload_announce(
     struct App* app,

@@ -535,6 +535,7 @@ enum UITreeTitleAction
     UITREE_TITLE_ACTION_FOCUS_PASSWORD = 6,
     UITREE_TITLE_ACTION_TOGGLE_REMEMBER = 7,
     UITREE_TITLE_ACTION_TOGGLE_HIDE = 8,
+    UITREE_TITLE_ACTION_TOGGLE_MUSIC = 9,
 };
 
 struct UITreeLoginInputConfig
@@ -1179,6 +1180,8 @@ struct UITreeComponent
             int action;
             /** Resolved RS_TitleToggle: which checkbox to ask the host about. */
             int toggle;
+            /** The track a music toggle stands for (INI song=); -1 otherwise. */
+            int song;
         } login_toggle;
         struct
         {
@@ -1992,6 +1995,7 @@ struct UITreeNodeSpec
             int atlas_index_on;
             int action;
             int toggle;
+            int song;
         } login_toggle;
         struct
         {

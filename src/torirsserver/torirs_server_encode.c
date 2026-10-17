@@ -3211,8 +3211,9 @@ ToriRSServer_SendUnsetMapFlag(struct ToriRSServerPlayer* player)
  *
  *   1  npc     id = npc slot; z and height are padding
  *   2  coord   id = absolute tile x, z = absolute tile z, height above it
- *   3..6       the same coord, anchored to one edge of the tile instead of
- *              its centre; no script opcode reaches them
+ *   3..6       the same coord, anchored to the midpoint of the tile's west,
+ *              east, south or north edge instead of its centre; `hint_coord`'s
+ *              offset argument picks the form
  *   10 player  id = player pid; z and height are padding
  *   255 clear
  *
@@ -3264,6 +3265,10 @@ ToriRSServer_SetHintArrow(
         hint->pid = id;
         break;
     case TORIRSSERVER_HINT_ARROW_COORD:
+    case TORIRSSERVER_HINT_ARROW_COORD_WEST:
+    case TORIRSSERVER_HINT_ARROW_COORD_EAST:
+    case TORIRSSERVER_HINT_ARROW_COORD_SOUTH:
+    case TORIRSSERVER_HINT_ARROW_COORD_NORTH:
         hint->type = type;
         hint->x = id;
         hint->z = z;
@@ -3346,6 +3351,10 @@ hint_arrow_flush(struct ToriRSServerPlayer* player)
         id = wire_is_v5(player) ? ToriRSServer_WirePlayerIndex(hint->pid) : hint->pid;
         break;
     case TORIRSSERVER_HINT_ARROW_COORD:
+    case TORIRSSERVER_HINT_ARROW_COORD_WEST:
+    case TORIRSSERVER_HINT_ARROW_COORD_EAST:
+    case TORIRSSERVER_HINT_ARROW_COORD_SOUTH:
+    case TORIRSSERVER_HINT_ARROW_COORD_NORTH:
         id = hint->x;
         z = hint->z;
         height = hint->height;

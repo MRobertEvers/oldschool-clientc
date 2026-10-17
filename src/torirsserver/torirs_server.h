@@ -2053,6 +2053,17 @@ struct ToriRSServerContainer
  * a drop does not, and expires instead. That is LostCity's distinction between
  * a static obj and a dynamic one, and it is the whole reason both fields exist.
  */
+enum ToriRSServerGroundOwner
+{
+    /** A map spawn, or anything content put down for nobody in particular. */
+    TORIRSSERVER_GROUND_OWNER_NONE = 0,
+    /** Dropped by, or looted for, one account (`owner_name37`). */
+    TORIRSSERVER_GROUND_OWNER_PLAYER,
+    /** Loot from an npc more than one player was credited with killing: no
+     *  ironman may have it, the killer included. */
+    TORIRSSERVER_GROUND_OWNER_CONTESTED
+};
+
 struct ToriRSServerGroundObj
 {
     int active;
@@ -2081,6 +2092,16 @@ struct ToriRSServerGroundObj
     int receiver_pid;
     /** Tick the private window ends and the drop becomes public, or -1. */
     int public_tick;
+    /*
+     * Who the obj belongs to, which outlives the private window above: a drop
+     * that has gone public to SEE is still somebody's to an ironman, who may
+     * take only what is unowned or their own. Keyed on the account name rather
+     * than the pid, because a pid is reused by the next login and a relog
+     * must not make a player's own drop a stranger's.
+     */
+    enum ToriRSServerGroundOwner owner_kind;
+    /** The owning account when `owner_kind` is TORIRSSERVER_GROUND_OWNER_PLAYER. */
+    int64_t owner_name37;
     /* `sent` was here, for the same reason `ToriRSServerNpc.tracked` was: whether a
      * client has been told is a fact about the client. The per-client answer is
      * `ToriRSServerPlayer.loaded_zones` now — see torirs_server_zone.h on why "does this
@@ -3286,7 +3307,8 @@ struct ToriRSServerPlayerSlotMap
  */
 struct ToriRSServerPlayerHintArrow
 {
-    /** TORIRSSERVER_HINT_ARROW_NPC / _COORD / _PLAYER, or 0 for no arrow. */
+    /** TORIRSSERVER_HINT_ARROW_NPC / _COORD.._COORD_NORTH / _PLAYER, or 0 for
+     *  no arrow. The coord forms are kept as sent: the type is the position. */
     int type;
     /** _NPC: the WORLD pool slot. Translated per client at send. */
     int world_slot;
@@ -4964,6 +4986,8 @@ struct ToriRSServer
         int obj_id;
         int count;
         int x, z, level;
+        /** The account the obj lands owned by, or 0 for nobody. */
+        int64_t owner_name37;
     } obj_delayed[TORIRSSERVER_OBJ_DELAYED_MAX];
 
     /** Scripts parked by world_delay, drained by phase 1. */
@@ -6764,8 +6788,25 @@ ToriRSServer_WorldObjAdd(
     int level,
     int duration);
 
+/** `ToriRSServer_WorldObjAdd`, visible to everyone at once but OWNED for the
+ *  ironman rule (`ToriRSServerGroundObj.owner_kind`). `owner_name37` is read
+ *  only for TORIRSSERVER_GROUND_OWNER_PLAYER. A stackable obj merges only into
+ *  a pile with the same owner. */
+int
+ToriRSServer_WorldObjAddOwned(
+    struct ToriRSServer* srv,
+    enum ToriRSServerGroundOwner owner_kind,
+    int64_t owner_name37,
+    int obj_id,
+    int count,
+    int x,
+    int z,
+    int level,
+    int duration);
+
 /** Drop an obj visible only to `owner` for `private_ticks`, then to
- * everyone. A non-positive private window is the same as obj_add. */
+ * everyone; owned by `owner` throughout. A non-positive private window is
+ * the same as `ToriRSServer_WorldObjAddOwned`. */
 int
 ToriRSServer_WorldObjAddPrivate(
     struct ToriRSServer* srv,
@@ -6784,6 +6825,21 @@ ToriRSServer_WorldGroundVisibleTo(
     const struct ToriRSServer* srv,
     int slot,
     int pid);
+
+/**
+ * Whether the ironman rule refuses `player` this ground obj: they are on an
+ * iron account (`varb1777_ironman` non-zero) and the obj is somebody else's
+ * drop or contested loot. Always false for a non-ironman and for an unowned
+ * obj. Seeing the obj is a separate question (`ToriRSServer_WorldGroundVisibleTo`).
+ *
+ * Group ironmen are held to the plain rule: there are no groups on this server
+ * for the group exception to name.
+ */
+int
+ToriRSServer_WorldGroundIronmanBlocked(
+    const struct ToriRSServer* srv,
+    int slot,
+    const struct ToriRSServerPlayer* player);
 
 /** The first active ground obj of `obj_id` on that tile VISIBLE TO `viewer`,
  *  or -1. The viewer is the script's own player (an op's `player`: the state's
@@ -8556,13 +8612,19 @@ ToriRSServer_SendMessage(
  * the client had the same pair reversed, so the two agreed with each other and
  * with no real server on either lane.
  *
- * The four off-centre coord forms (3..6: west, east, south, north edge of the
- * tile) have no script opcode and so no name here; the client reads them.
+ * The coord forms are 2..6: the tile's centre, then the midpoint of its west,
+ * east, south or north edge (`class268.method6676`). `hint_coord`'s first
+ * argument is that number, so a script can centre the arrow on a loc wider
+ * than one tile: its centre is a tile centre or a tile edge on each axis.
  */
 enum
 {
     TORIRSSERVER_HINT_ARROW_NPC = 1,
     TORIRSSERVER_HINT_ARROW_COORD = 2,
+    TORIRSSERVER_HINT_ARROW_COORD_WEST = 3,
+    TORIRSSERVER_HINT_ARROW_COORD_EAST = 4,
+    TORIRSSERVER_HINT_ARROW_COORD_SOUTH = 5,
+    TORIRSSERVER_HINT_ARROW_COORD_NORTH = 6,
     TORIRSSERVER_HINT_ARROW_PLAYER = 10,
     TORIRSSERVER_HINT_ARROW_CLEAR = 255
 };
@@ -8825,10 +8887,13 @@ ToriRSServer_WorldObjDelayed(struct ToriRSServer* srv);
  * nothing scheduled when the table is full — the obj is *lost* in that case,
  * which is the honest failure: the caller has already taken it out of the
  * inventory, and there is no way back into a container from here.
+ *
+ * `owner` is the player the obj lands owned by, or NULL for nobody.
  */
 int
 ToriRSServer_WorldObjDelayedQueue(
     struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* owner,
     int delay,
     int duration,
     int obj_id,

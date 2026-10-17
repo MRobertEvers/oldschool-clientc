@@ -5046,6 +5046,41 @@ ToriRSServer_LootTrackerAddGroundObj(
     srv->loot_credit_drop_count++;
 }
 
+/*
+ * Who a public kill drop belongs to, for the ironman rule. Outside a credited
+ * death it is nobody's (a quest prop, a skilling byproduct). Inside one it is
+ * the killer's when one player was credited, and contested when several were:
+ * the same split `ToriRSServer_NpcLootRestrictedFor` warns an ironman about.
+ */
+static enum ToriRSServerGroundOwner
+loot_credit_owner(
+    const struct ToriRSServer* srv,
+    int64_t* out_name37)
+{
+    int credited = 0;
+
+    assert(srv);
+    assert(out_name37);
+    *out_name37 = 0;
+    if( !srv->loot_credit_armed )
+        return TORIRSSERVER_GROUND_OWNER_NONE;
+    for( int i = 0; i < TORIRSSERVER_PLAYER_MAX; i++ )
+    {
+        if( !srv->loot_credit_players[i] || !srv->players[i].active )
+            continue;
+        credited++;
+        *out_name37 = srv->players[i].name37;
+    }
+    if( credited == 0 )
+        return TORIRSSERVER_GROUND_OWNER_NONE;
+    if( credited > 1 )
+    {
+        *out_name37 = 0;
+        return TORIRSSERVER_GROUND_OWNER_CONTESTED;
+    }
+    return TORIRSSERVER_GROUND_OWNER_PLAYER;
+}
+
 void
 ToriRSServer_ScriptsFlushLootCredit(struct ToriRSServer* srv)
 {
@@ -10282,12 +10317,22 @@ script_command(
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
         }
-        /* (coord, height, unused). The coord is a packed server coord; the wire
-         * wants absolute x and z, which is what the client converts back. */
+        /* (offset, coord, height), the command's own signature. The offset IS
+         * the wire's coord form: 2 the tile's centre, 3..6 the midpoint of its
+         * west, east, south or north edge. It was read as (coord, height,
+         * unused) until 2026-10-17, which put every Chompy Bird arrow
+         * (`hint_coord(2, coord, 0)`) on the tile the number 2 names. The coord
+         * is a packed server coord; the wire wants absolute x and z, which is
+         * what the client converts back. */
+        if( values[0] < TORIRSSERVER_HINT_ARROW_COORD || values[0] > TORIRSSERVER_HINT_ARROW_COORD_NORTH )
+        {
+            SSVM_Abort(state, "hint_coord: offset %d is not a coord form (2..6)", (int)values[0]);
+            return 1;
+        }
         if( srv->active_player )
-            ToriRSServer_SetHintArrow(srv->active_player, TORIRSSERVER_HINT_ARROW_COORD,
-                                  ToriRSServer_CoordX(values[0]),
-                                  ToriRSServer_CoordZ(values[0]), values[1]);
+            ToriRSServer_SetHintArrow(srv->active_player, values[0],
+                                  ToriRSServer_CoordX(values[1]),
+                                  ToriRSServer_CoordZ(values[1]), values[2]);
         return 1;
     }
 
@@ -12646,9 +12691,15 @@ script_command(
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
         }
-        ToriRSServer_WorldObjAdd(srv, values[1], values[2], coord_x(values[0]),
-                              coord_z(values[0]), coord_level(values[0]),
-                              values[3] > 0 ? values[3] : -1);
+        {
+            int64_t owner_name37 = 0;
+            enum ToriRSServerGroundOwner owner_kind =
+                loot_credit_owner(srv, &owner_name37);
+
+            ToriRSServer_WorldObjAddOwned(srv, owner_kind, owner_name37, values[1], values[2],
+                                          coord_x(values[0]), coord_z(values[0]),
+                                          coord_level(values[0]), values[3] > 0 ? values[3] : -1);
+        }
         /*
          * Official client loot tracker: RUNCLIENTSCRIPT script_7192
          * (LOOTTRACKER_ADD_LOOT) with (npcId, eventId, itemId, qty). Only while

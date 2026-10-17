@@ -191,6 +191,9 @@ struct RS_CS2TradingPost
 #define RS_CS2_GAMEOPTION_SOUND_VOLUME 8
 #define RS_CS2_GAMEOPTION_AREA_VOLUME 9
 #define RS_CS2_DEVICEOPTION_MASTER_VOLUME 19
+/* "Title music disabled": the title screen's music button, persisted with the
+ * rest of the device options (SET/GETTITLESCREENSOUND read it inverted). */
+#define RS_CS2_DEVICEOPTION_TITLE_MUSIC_DISABLED 4
 /* All Settings > Display: "Interface scaling mode". The cache's enum_4033
  * stores these values directly in device option 15. */
 #define RS_CS2_DEVICEOPTION_UI_SCALE_MODE 15

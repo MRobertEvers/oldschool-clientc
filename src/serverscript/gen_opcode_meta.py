@@ -1092,6 +1092,16 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # keeps the ownership check on every packet and take path.
     "OBJ_ADD_PRIVATE": (11032, 5, 0, 0, 0),
 
+    # obj_ironman_blocked()(boolean)
+    #
+    # Would the ironman rule refuse the active player the active obj: they are
+    # on an iron account and it is another player's drop, or loot from a kill
+    # several players were credited with. Ownership is engine state on the
+    # ground obj (who dropped it, whose kill it came from) that outlives the
+    # private window, and content has no other way to read it. `obj_takeitem`
+    # aborts on the same answer, so content asks first to say why.
+    "OBJ_IRONMAN_BLOCKED": (11130, 0, 0, 1, 0),
+
     # npc_poison(int $severity)
     #
     # Apply an owner-attributed poison timer to the active NPC. The reference
@@ -1349,6 +1359,11 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "NPC_SETHEADBARRESERVE": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_HUDBAR_CHECK": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_DIE": (1 << POINTER_BITS["active_npc"], 0),
+    # Asks about the active obj on behalf of the active player: OBJ_TAKEITEM's mask.
+    "OBJ_IRONMAN_BLOCKED": (
+        (1 << POINTER_BITS["active_player"]) | (1 << POINTER_BITS["active_obj"]),
+        0,
+    ),
     "NPC_MAXHIT_ROLLED": (
         (1 << POINTER_BITS["active_player"]) | (1 << POINTER_BITS["active_npc"]),
         0,

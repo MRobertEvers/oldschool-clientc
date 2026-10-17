@@ -317,6 +317,82 @@ app_title_state_changed(struct App* app)
 }
 
 /*
+ * The title music button.
+ *
+ * The reference's corner icon (`title_mute`, deob method1013) flips device
+ * option 4 and restarts or stops "scape main"; class97 saves the flag with the
+ * rest of preferences<N>.dat. Here the option store is the same flag and
+ * RS_Prefs is the same file, written through the IO queue on every lane.
+ *
+ * "On" also asks that it be AUDIBLE, which the reference never had to: this
+ * client boots with the master gain at zero (RS_CS2Host_OptionDefault), so an
+ * enabled track on a fresh install is silent. A button that reads "on" over
+ * silence is a lie, and one whose first click does nothing is broken, so
+ * turning it on raises a zero master or music volume to full.
+ */
+bool
+app_title_music_on(struct App const* app)
+{
+    assert(app);
+    return RS_CS2Host_GetOption(
+               &app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_TITLE_MUSIC_DISABLED) == 0 &&
+           RS_CS2Host_GetOption(
+               &app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_MASTER_VOLUME) > 0 &&
+           RS_CS2Host_GetOption(&app->host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_MUSIC_VOLUME) >
+               0;
+}
+
+void
+app_title_music_toggle(struct App* app)
+{
+    assert(app);
+    if( app_title_music_on(app) )
+    {
+        RS_CS2Host_SetOption(
+            &app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_TITLE_MUSIC_DISABLED, 1);
+        return;
+    }
+    RS_CS2Host_SetOption(
+        &app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_TITLE_MUSIC_DISABLED, 0);
+    if( RS_CS2Host_GetOption(&app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_MASTER_VOLUME) <=
+        0 )
+        RS_CS2Host_SetOption(
+            &app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_MASTER_VOLUME, 100);
+    if( RS_CS2Host_GetOption(&app->host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_MUSIC_VOLUME) <= 0 )
+        RS_CS2Host_SetOption(&app->host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_MUSIC_VOLUME, 100);
+}
+
+/*
+ * Play the title's track while the title is up and the button allows it.
+ *
+ * The track is the profile's (the music button's song=), so nothing plays
+ * until that button has been drawn once. Leaving the title does not stop it:
+ * the reference lets "scape main" run into the world until the server's first
+ * song replaces it, and a logout's StopAll silences it on the way back.
+ */
+static void
+app_title_music_tick(struct App* app)
+{
+    bool want;
+
+    if( app->screen != APP_SCREEN_TITLE && app->screen != APP_SCREEN_CONNECTING )
+    {
+        app->title_music_playing = false;
+        return;
+    }
+    want = app->title_song_known &&
+           RS_CS2Host_GetOption(
+               &app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_TITLE_MUSIC_DISABLED) == 0;
+    if( want == app->title_music_playing )
+        return;
+    if( want )
+        App_PlaySong(app, app->title_song, true, 0, 0);
+    else
+        App_StopSong(app, 0);
+    app->title_music_playing = want;
+}
+
+/*
  * Publish a boot step to the title screen's loading bar.
  *
  * The percentage is the client's; the words are the profile's, looked up by
@@ -645,6 +721,7 @@ app_title_tick(struct App* app)
     int redraw = 0;
 
     assert(app);
+    app_title_music_tick(app);
 
     /*
      * A networked profile that declares no title screen still has to log in.

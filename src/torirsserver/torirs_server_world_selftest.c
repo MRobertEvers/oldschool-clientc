@@ -25062,6 +25062,65 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_WorldGroundTake(srv, slot);
         }
 
+        /* The ironman rule is ownership, not visibility: every pile below is
+         * public, and an iron account may still take only its own and the
+         * unowned ones. */
+        {
+            const struct ToriRSServerIds* iron_ids = ToriRSServer_Ids();
+            int64_t const saved_name37 = player->name37;
+            int const dur = iron_ids->lootdrop_duration;
+
+            SELFTEST_CHECK(iron_ids->varbit_ironman >= 0, "the pack names `varb1777_ironman`");
+            if( iron_ids->varbit_ironman >= 0 )
+            {
+                int mine, theirs, contested, unowned, beside_mine;
+
+                player->name37 = 1001;
+                ToriRSServer_VarbitSetOn(srv, player, iron_ids->varbit_ironman, 1);
+                mine = ToriRSServer_WorldObjAddOwned(srv, TORIRSSERVER_GROUND_OWNER_PLAYER, 1001,
+                                                     995 /* coins */, 10, 3224, 3218, 0, dur);
+                theirs = ToriRSServer_WorldObjAddOwned(srv, TORIRSSERVER_GROUND_OWNER_PLAYER, 2002,
+                                                       995, 10, 3225, 3218, 0, dur);
+                contested = ToriRSServer_WorldObjAddOwned(
+                    srv, TORIRSSERVER_GROUND_OWNER_CONTESTED, 0, 995, 10, 3226, 3218, 0, dur);
+                unowned = ToriRSServer_WorldObjAdd(srv, 995, 10, 3227, 3218, 0, dur);
+                beside_mine = ToriRSServer_WorldObjAddOwned(srv, TORIRSSERVER_GROUND_OWNER_PLAYER,
+                                                            2002, 995, 5, 3224, 3218, 0, dur);
+                SELFTEST_CHECK(mine >= 0 && theirs >= 0 && contested >= 0 && unowned >= 0 &&
+                                   beside_mine >= 0,
+                               "the ownership fixtures get ground slots");
+                if( mine >= 0 && theirs >= 0 && contested >= 0 && unowned >= 0 &&
+                    beside_mine >= 0 )
+                {
+                    SELFTEST_CHECK(!ToriRSServer_WorldGroundIronmanBlocked(srv, mine, player),
+                                   "an ironman may take their own drop");
+                    SELFTEST_CHECK(ToriRSServer_WorldGroundIronmanBlocked(srv, theirs, player),
+                                   "an ironman may not take another player's drop");
+                    SELFTEST_CHECK(ToriRSServer_WorldGroundIronmanBlocked(srv, contested, player),
+                                   "an ironman may not take loot from a shared kill");
+                    SELFTEST_CHECK(!ToriRSServer_WorldGroundIronmanBlocked(srv, unowned, player),
+                                   "an ironman may take an obj nobody owns");
+                    SELFTEST_CHECK(beside_mine != mine && srv->ground[mine].count == 10,
+                                   "a stranger's coins do not merge into an ironman's own pile");
+                    SELFTEST_CHECK(ToriRSServer_WorldGroundIronmanBlocked(srv, beside_mine, player),
+                                   "...and stay the stranger's");
+
+                    ToriRSServer_VarbitSetOn(srv, player, iron_ids->varbit_ironman, 0);
+                    SELFTEST_CHECK(!ToriRSServer_WorldGroundIronmanBlocked(srv, theirs, player) &&
+                                       !ToriRSServer_WorldGroundIronmanBlocked(srv, contested,
+                                                                               player),
+                                   "a main account is never refused a ground obj");
+                }
+                if( mine >= 0 ) ToriRSServer_WorldGroundTake(srv, mine);
+                if( theirs >= 0 ) ToriRSServer_WorldGroundTake(srv, theirs);
+                if( contested >= 0 ) ToriRSServer_WorldGroundTake(srv, contested);
+                if( unowned >= 0 ) ToriRSServer_WorldGroundTake(srv, unowned);
+                if( beside_mine >= 0 ) ToriRSServer_WorldGroundTake(srv, beside_mine);
+                ToriRSServer_VarbitSetOn(srv, player, iron_ids->varbit_ironman, 0);
+            }
+            player->name37 = saved_name37;
+        }
+
         /*
          * And the other half: a client that has *not* been told about the zone
          * is caught up from the ZoneMap's own state — UPDATE_ZONE_FULL_FOLLOWS

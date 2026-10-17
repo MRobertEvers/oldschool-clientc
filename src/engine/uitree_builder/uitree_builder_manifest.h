@@ -150,6 +150,7 @@ struct UIBuilderTreeOp
     char title_charset[160];
     char title_action[32];
     int title_message_index;
+    int title_song;
     int title_px_per_percent;
     /** @see RevConfigUIComponentItem::flame_bias. */
     int flame_bias;

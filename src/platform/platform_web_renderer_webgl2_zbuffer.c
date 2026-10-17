@@ -1517,9 +1517,11 @@ es3z_draw_model(
             return;
 
         /* The depth path classifies per face during emission and needs no
-         * order up front. */
+         * order up front. NULL says so: the emit reads a non-NULL order as
+         * already sorted (sorted_face_count of it, zero here), which dropped
+         * every blended face -- spotanims on actors, translucent projectiles. */
         face_count = trspk_toridraw_face_count(command->model);
-        face_order = ToriDraw_FaceOrder(renderer->scene);
+        face_order = NULL;
         projected_depth = renderer->scene->projected_vertex.z;
         projected_in_scene = true;
     }

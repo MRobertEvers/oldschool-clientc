@@ -3,6 +3,7 @@
 
 #include "ui/uitree_chatview.h"
 
+#include <stddef.h>
 #include <stdint.h>
 
 struct RS_Social;
@@ -236,6 +237,26 @@ RS_Chat_AddMessage(
     char const* sender,
     char const* text,
     int clock);
+
+/**
+ * The chat crowns (the reference's class292): the mod-icon image a sender's
+ * crown index draws as, or -1 for none (0, or an index past the table). Sets
+ * `*out_ignorable` to whether the ignore list may silence its wearer; NULL
+ * when the caller does not ask. Shared by every line that names a speaker:
+ * public chat (PLAYER_INFO) and clan chat.
+ */
+int
+RS_Chat_CrownImage(
+    int crown,
+    int* out_ignorable);
+
+/** `<img=N>name` for a crowned speaker, plain `name` otherwise, into `out`. */
+void
+RS_Chat_CrownedName(
+    int crown,
+    char const* name,
+    char* out,
+    size_t cap);
 
 /** Release the per-type store. The 254-era ring is inline and needs nothing. */
 void

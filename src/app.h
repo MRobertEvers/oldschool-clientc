@@ -1923,6 +1923,17 @@ struct App
      *  the per-field scratch the host requests hand out. @see
      *  game/rs_title_session.h for why each of those is a rule. */
     struct RS_TitleSession title_session;
+    /**
+     * The title screen's music: which track the profile's music button names
+     * (learned from that button's song= when it is drawn; meaningful only
+     * while `title_song_known`), and whether this client started it.
+     * `title_music_playing` is only ever the title's own track: leaving the
+     * title forgets it without stopping anything, so the server's first song
+     * replaces it the way the reference's does.
+     */
+    int title_song;
+    bool title_song_known;
+    bool title_music_playing;
 
     /** What each login rejection means, in this revision's words. Loaded from
      *  the profile beside RevConfigRefs and alive for the whole session. */
