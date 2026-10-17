@@ -964,10 +964,11 @@ end
 -- avoid ALL WEBS. Implement a 5 man web run"; "Web running should be
 -- implemented as a sub-state machine"). The wiki's Sticky webs: the team on
 -- ONE tile beside her, attacking on the same tick, a step CLOCKWISE from the
--- south after each tile's attacks. Her webs land on the tiles the raiders
--- stood on (`~tob_verzik_web_throw`), four ticks after the throw, so the
--- stack's tile is safe until the first web thrown at it is a tick from
--- landing. Every seat reads the same throws, so every seat makes the same
+-- south after each tile's attacks. Her webs land on the tile a raider stood
+-- on and two more 1-3 tiles round it (`~tob_verzik_web_throw`), four ticks
+-- after the throw, so the stack's tile is safe until the first web thrown at
+-- it is a tick from landing, and a step reads the scattered ones from their
+-- projectiles (`webbed`). Every seat reads the same throws, so every seat makes the same
 -- transitions on the same tick and the stack stays one tile.
 --
 --   gather  her walk to the centre (invulnerable): to the start tile, the
