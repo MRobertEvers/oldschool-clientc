@@ -93,10 +93,11 @@ QD.session.WORLD_POLLS = 900
 -- of everything the LOGIN FORM draws at the same pixels -- the form's
 -- hide-username toggle (392,281 + label at 414,294) and its Cancel button
 -- (389,301) sit under the lower half of this button, so a press that landed
--- a frame late on the form must not toggle or cancel anything.  The title
--- root is xalign=center in a 765-wide layout and run.py opens every client
--- at --window 765x503, so these are window pixels as-is.
-QD.session.EXISTING_USER_AT = { x = 520, y = 275 }
+-- a frame late on the form must not toggle or cancel anything.  The offset is
+-- from the button's own top-left: the title root is xalign=center, so in any
+-- canvas wider than 765 (a watched client's resized window) the button is
+-- elsewhere, and a fixed (520,275) presses beside it.
+QD.session.EXISTING_USER_OFFSET = { x = 131, y = 4 }
 
 function QD.session.screen()
     local number = api_core.screen()
@@ -261,7 +262,12 @@ function QD.session.login(user, password)
         return "timeout", string.format(
             "session.login: the title screen never settled in %d frame(s)", ready_polls)
     end
-    local at = QD.session.EXISTING_USER_AT
+    local button_result, button = api_drive.title_button("existing_user")
+    if button_result ~= "ok" then
+        return "not_found", "session.login: the title screen has no Existing User button ("
+            .. tostring(button_result) .. ")"
+    end
+    local at = { x = button.x + QD.session.EXISTING_USER_OFFSET.x, y = button.y + QD.session.EXISTING_USER_OFFSET.y }
     api_drive.mouse_move(at.x, at.y)
     api_drive.mouse_button("left", 1, at.x, at.y)
     api_drive.mouse_button("left", 0, at.x, at.y)

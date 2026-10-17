@@ -1013,6 +1013,7 @@ except the plain readers marked as returning a value.
 ---@field widget_presented fun(component_id: integer): string, boolean Visible right now: not display-hidden and natively visible.
 ---@field widget_bounds fun(component_id: integer): string, table|nil Where the component is drawn now: { x, y, width, height } in canvas pixels (the space mouse_move / mouse_button take), scroll and an in-flight drag included; not_found for no live node.
 ---@field widget_at fun(x: integer, y: integer): string, integer The component a press at canvas pixel x,y lands on (top-most of the client's hit stack), or -1.
+---@field title_button fun(action: string): string, table|nil Where the title screen's button for `action` ("existing_user", "login", "cancel", ...) is drawn: { x, y, width, height } in canvas pixels; the title panel is centred in the canvas, so this moves with the window. not_found off the title screen.
 ---@field widget_own_hidden fun(component_id: integer): string, boolean What the cache or a script said, independent of native hiding. not_found reads as hidden.
 --- verbs-pointer
 ---@field screen_position fun(kind: string, id: integer): string, table { x, y, element_id }.

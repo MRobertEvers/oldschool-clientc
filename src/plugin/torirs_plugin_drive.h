@@ -864,6 +864,18 @@ enum DriveResult DriveRead_WidgetBounds(
 enum DriveResult DriveRead_WidgetAt(
     struct App* app, int x, int y, int* out_component_id);
 
+/*
+ * Where the title screen's button for `action` (an RS_Title_ActionFromName
+ * name: "existing_user", "login", "cancel", ...) is drawn, in canvas pixels.
+ * The title panel is centred in whatever canvas the client has
+ * (osrs239_ui.ini [layout:title] xalign=center), so a press placed from the
+ * 765-wide layout misses in any wider window. DRIVE_NOT_FOUND when no live
+ * login_button node carries that action (not on the title screen).
+ */
+enum DriveResult DriveRead_TitleButton(
+    struct App* app, char const* action, int* out_x, int* out_y, int* out_width,
+    int* out_height);
+
 /* ------------------------------------------------------------ verbs-pointer */
 
 /* verbs-pointer, src/plugin/torirs_plugin_drive_pointer.c */

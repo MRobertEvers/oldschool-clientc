@@ -42,7 +42,9 @@
 #if defined(TORIRS_EMBED_SERVER) && TORIRS_EMBED_SERVER
 
 #include "app.h"
+#include "game/rs_title.h"
 #include "plugin/torirs_plugin_lua.h"
+#include "ui/uitree.h"
 #include "ui/uitree_component_options.h"
 #include "ui/uitree_input.h"
 #include "ui/uitree_layout.h"
@@ -228,6 +230,75 @@ DriveRead_WidgetAt(struct App* app, int x, int y, int* out_component_id)
     if( count > 0 )
         *out_component_id = app->tree->components[hits[0]].component_id;
     return DRIVE_OK;
+}
+
+enum DriveResult
+DriveRead_TitleButton(
+    struct App* app,
+    char const* action,
+    int* out_x,
+    int* out_y,
+    int* out_width,
+    int* out_height)
+{
+    struct UITree* tree;
+    int wanted;
+
+    assert(app);
+    assert(action);
+    assert(out_x);
+    assert(out_y);
+    assert(out_width);
+    assert(out_height);
+
+    wanted = RS_Title_ActionFromName(action);
+    assert(wanted != RS_TITLE_ACTION_NONE && "title_button: unknown action name");
+    tree = app->tree;
+    assert(tree);
+    /* Called once per log-in press, on the title screen only. */
+    UITREE_SCAN_METER(tree);
+    for( uint32_t i = 0; i < tree->component_count; i++ )
+    {
+        struct UITreeComponent const* comp = &tree->components[i];
+        if( comp->freed || comp->type != UIELEM_BUILTIN_LOGIN_BUTTON ||
+            comp->u.login_button.action != wanted )
+            continue;
+        UITree_EnsureLayoutFor(tree, (int32_t)i);
+        if( !UITree_NodeDrawnBounds(tree, (int32_t)i, out_x, out_y, out_width, out_height) )
+            return DRIVE_NOT_FOUND;
+        return DRIVE_OK;
+    }
+    return DRIVE_NOT_FOUND;
+}
+
+/* api_drive.title_button(action) -> ("ok", {x, y, width, height}) |
+ * "not_found" */
+static int
+lua_drive_title_button(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+    char const* action = PluginDrive_ArgString(L, 1);
+    int x = 0;
+    int y = 0;
+    int width = 0;
+    int height = 0;
+    enum DriveResult result;
+
+    assert(app);
+    result = DriveRead_TitleButton(app, action, &x, &y, &width, &height);
+    if( result != DRIVE_OK )
+        return PluginDrive_PushResult(L, result, NULL);
+    lua_pushstring(L, DriveResultName(result));
+    lua_createtable(L, 0, 4);
+    lua_pushinteger(L, x);
+    lua_setfield(L, -2, "x");
+    lua_pushinteger(L, y);
+    lua_setfield(L, -2, "y");
+    lua_pushinteger(L, width);
+    lua_setfield(L, -2, "width");
+    lua_pushinteger(L, height);
+    lua_setfield(L, -2, "height");
+    return 2;
 }
 
 static int
@@ -600,6 +671,7 @@ static struct LuaFn const LUA_DRIVE_READ_FNS[] = {
     {"widget_node", lua_drive_widget_node},
     {"widget_bounds", lua_drive_widget_bounds},
     {"widget_at", lua_drive_widget_at},
+    {"title_button", lua_drive_title_button},
     {"widget_model", lua_drive_widget_model},
     {"widget_text", lua_drive_widget_text},
     {"widget_presented", lua_drive_widget_presented},
