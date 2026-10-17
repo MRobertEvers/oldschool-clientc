@@ -6674,9 +6674,38 @@ App_PluginDriveIfClickNode(struct App* app, int32_t node, int op)
     return app_plugin_click_node(app, node, op);
 }
 
+/*
+ * A click on a cache stone also reports itself: IF_BUTTON1 on the stone, when
+ * the stone's events arm op 1 (the cache's `clickmask=2` arms every one), which
+ * scriptrun's tab verb sends too. app_plugin_tab_select runs only the switch
+ * script, so the packet goes here -- not the stone's own op, whose script
+ * would run the switch a second time on a later frame. The stone is the
+ * profile's `sidestone_<n>`; `sidetab_<n>` is the icon, which arms no op.
+ */
 int
 App_PluginDriveTabSelect(struct App* app, int tabno)
 {
+    char role[UITREE_ROLE_NAME_MAX];
+    int32_t stone;
+    int target;
+    int sub;
+
     assert(app);
-    return app_plugin_tab_select(app, tabno);
+    if( !app_plugin_tab_select(app, tabno) )
+        return 0;
+    if( App_UiLogic(app) != APP_UI_LOGIC_CS2 )
+        return 1;
+    assert(app->tree);
+    snprintf(role, sizeof(role), "sidestone_%d", tabno);
+    stone = UITree_RoleNodeByName(app->tree, &app->ui_roles, role);
+    if( stone < 0 )
+        return 1;
+    if( !(App_IfEventsGetEffective(app, app->tree->components[stone].component_id) & (1u << 1)) )
+        return 1;
+    UIIfEventTable_ButtonTarget(app->tree, app->tree->components[stone].component_id, &target, &sub);
+    APP_NET_SEND(
+        app,
+        net_out_if_button_op(
+            app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), 1, target, sub));
+    return 1;
 }
