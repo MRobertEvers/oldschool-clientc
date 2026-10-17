@@ -1,6 +1,6 @@
 -- quest-driver / tob_relay: the whole Theatre of Blood, a trio, lobby to lobby,
--- in ONE mode. test/raids/tob_relay.lua (Normal) and tob_relay_hard.lua
--- (Hard) are this, by mode: QD_ROOT.raid.tob_relay_test(mode) -> the test.
+-- in ONE mode. test/raids/tob_relay.lua (Normal) and tob_relay_hard_v2.lua
+-- (Hard) are this, by mode: QD_ROOT.raid.tob_relay_test(mode, opts) -> the test.
 --
 -- tob_relay: the whole Theatre of Blood, Normal, a trio, lobby to lobby, every
 -- room played by its solver (script/plugins/quest_driver/tob_*.lua and
@@ -21,8 +21,8 @@
 --
 -- GREEN: every room cleared with no raider dead, the party back in the lobby.
 --
---   ./src/build_rooms_opt/torirsserver --scriptrun test/raids/tob_relay.lua --bots 3 \
---       --name sa --session /tmp/relay --fixture tests/raids/fixtures/fresh_lumbridge.ini
+--   ./src/build_tob2_opt/torirsserver --scriptrun test/raids/tob_relay_hard_v2.lua --bots 5 \
+--       --name f1 --ticks 12000 --session /tmp/relay --fixture tests/raids/fixtures/tob_normal_done.ini
 
 -- -> { id, fixture, party, max_frames, setup, run } for `mode` ("normal" or
 -- "hard"); called while the test file loads, so QD_PARTY is already set.
