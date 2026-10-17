@@ -155,6 +155,9 @@ function QD.raid.tob_relay_test(mode, opts)
     -- ranging potion besides.
     if freezer_kit then kit[#kit + 1] = "::give br_4doserangerspotion 1" end
     if role == 3 then kit[#kit + 1] = "::give serpentine_helm_charged 1" end
+    -- a stretch that starts at Verzik has no Xarpus for seat 1 to take the
+    -- Dawnbringer from
+    if opts.from == "verzik" and role == 1 then kit[#kit + 1] = "::give verzik_special_weapon 1" end
 
     local ORDER = {}
     do
