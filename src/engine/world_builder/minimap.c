@@ -705,9 +705,17 @@ minimap_draw_wall(
         clip_height);
 }
 
-/** One tile of one source level onto the shared pixel grid. */
+/* Ground and detail are two independent passes in the reference
+ * (minimapBuildBuffer runs render2DGround over every square, then drawDetail
+ * over every square, Client.ts:5530/5551), and a tile can take part in the
+ * second without the first: World.setWall creates the Square itself, so a
+ * wall on a tile with no floor still draws its line. Bailing out of the whole
+ * tile when it has no colour dropped every such wall — the Inferno's outer
+ * arena wall stands on floorless tiles and vanished entirely. */
+
+/** Ground colour of one tile of one source level onto the shared pixel grid. */
 static void
-minimap_bake_tile(
+minimap_bake_tile_ground(
     struct Minimap* minimap,
     uint32_t* pixels,
     int pw,
@@ -718,33 +726,35 @@ minimap_bake_tile(
 {
     int rgb_background = minimap_tile_rgb(minimap, sx, sz, level, MINIMAP_BACKGROUND);
     int rgb_foreground = minimap_tile_rgb(minimap, sx, sz, level, MINIMAP_FOREGROUND);
-    int tile_x = sx * 4;
-    int tile_y = (minimap->height - sz) * 4;
-    int wall;
 
-    /* Ground and detail are two independent passes in the reference
-     * (minimapBuildBuffer runs render2DGround over the square, then drawDetail
-     * over it again, Client.ts:5530/5551), and a tile can take part in the
-     * second without the first: World.setWall creates the Square itself, so a
-     * wall on a tile with no floor still draws its line. Bailing out of the
-     * whole tile when it has no colour dropped every such wall — the Inferno's
-     * outer arena wall stands on floorless tiles and vanished entirely. */
     if( rgb_foreground != 0 || rgb_background != 0 )
         minimap_fill_tile(
             pixels,
             pw,
-            tile_x,
-            tile_y,
+            sx * 4,
+            (minimap->height - sz) * 4,
             rgb_background,
             rgb_foreground,
             minimap_tile_rotation(minimap, sx, sz, level),
             minimap_tile_shape(minimap, sx, sz, level),
             pw,
             ph);
+}
 
-    wall = minimap_tile_wall(minimap, sx, sz, level);
+/** Wall/door lines of one tile of one source level onto the shared pixel grid. */
+static void
+minimap_bake_tile_detail(
+    struct Minimap* minimap,
+    uint32_t* pixels,
+    int pw,
+    int ph,
+    int sx,
+    int sz,
+    int level)
+{
+    int wall = minimap_tile_wall(minimap, sx, sz, level);
     if( wall != 0 )
-        minimap_draw_wall(pixels, pw, tile_x, tile_y, wall, pw, ph);
+        minimap_draw_wall(pixels, pw, sx * 4, (minimap->height - sz) * 4, wall, pw, ph);
 }
 
 /* TORIRS_MINIMAP_DUMP=1: per-level tile counts, then the grid as one char per
@@ -856,20 +866,41 @@ minimap_bake_argb(
      * reference shifts World tiles before baking. So this composite reads the
      * already-shifted tiles against raw mapl (tile_flags), which is why the deck
      * ends up drawn at level 0.
-     * tile_flags is World.tile_flags (may be NULL: then draw the plain level). */
-    for( int sx = 0; sx < minimap->width; sx++ )
+     * tile_flags is World.tile_flags (may be NULL: then draw the plain level).
+     *
+     * Every tile's ground goes down before any tile's walls, as in the
+     * reference: a VisBelow tile of the level above is a full 4x4 fill, and
+     * painting it per tile right after this level's walls erased the wall
+     * lines under it — ToB Maiden's L-wall corners at the corridor junctions. */
+    for( int pass = 0; pass < 2; pass++ )
     {
-        for( int sz = 0; sz < minimap->height; sz++ )
+        for( int sx = 0; sx < minimap->width; sx++ )
         {
-            int const idx = sx + sz * minimap->width;
-            int const own = tile_flags ? tile_flags[idx + level * plane] : 0;
+            for( int sz = 0; sz < minimap->height; sz++ )
+            {
+                int const idx = sx + sz * minimap->width;
+                int const own = tile_flags ? tile_flags[idx + level * plane] : 0;
+                bool const draw_own =
+                    (own & (MINIMAP_FLAG_VIS_BELOW | MINIMAP_FLAG_FORCE_HIGH_DETAIL)) == 0;
+                bool const draw_above =
+                    level + 1 < minimap->levels && tile_flags &&
+                    (tile_flags[idx + (level + 1) * plane] & MINIMAP_FLAG_VIS_BELOW) != 0;
 
-            if( (own & (MINIMAP_FLAG_VIS_BELOW | MINIMAP_FLAG_FORCE_HIGH_DETAIL)) == 0 )
-                minimap_bake_tile(minimap, pixels, pw, ph, sx, sz, level);
-
-            if( level + 1 < minimap->levels && tile_flags &&
-                (tile_flags[idx + (level + 1) * plane] & MINIMAP_FLAG_VIS_BELOW) != 0 )
-                minimap_bake_tile(minimap, pixels, pw, ph, sx, sz, level + 1);
+                if( pass == 0 )
+                {
+                    if( draw_own )
+                        minimap_bake_tile_ground(minimap, pixels, pw, ph, sx, sz, level);
+                    if( draw_above )
+                        minimap_bake_tile_ground(minimap, pixels, pw, ph, sx, sz, level + 1);
+                }
+                else
+                {
+                    if( draw_own )
+                        minimap_bake_tile_detail(minimap, pixels, pw, ph, sx, sz, level);
+                    if( draw_above )
+                        minimap_bake_tile_detail(minimap, pixels, pw, ph, sx, sz, level + 1);
+                }
+            }
         }
     }
 

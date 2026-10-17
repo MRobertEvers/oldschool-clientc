@@ -168,6 +168,7 @@ ToriRS_Music_Request(
     player->fade_ticks = fade_out_ms > 0 ? (fade_out_ms + 19) / 20 : 0;
     player->state = player->fade_ticks > 0 && player->current_song >= 0 ? TORIRS_MUSIC_FADING
                                                                        : player->state;
+    player->stop_pending = song_id < 0 && player->fade_ticks == 0 && player->current_song >= 0;
     MUSIC_TRACE(
         "music: request song=%d source=%d loop=%d fade %d/%dms\n",
         song_id,
@@ -595,6 +596,17 @@ ToriRS_Music_Tick(
             if( !player->has_request || player->request_song < 0 )
                 player->state = TORIRS_MUSIC_IDLE;
         }
+    }
+
+    /* Stopped with no fade-out: retire it now. On the tick, like the release
+     * below, because closing the stream queues ASSET_UNLOAD. */
+    if( player->stop_pending )
+    {
+        MUSIC_TRACE("music: stopping song %d (no fade-out)\n", player->current_song);
+        player->stop_pending = false;
+        release_current(player);
+        close_stream(player, out);
+        player->state = TORIRS_MUSIC_IDLE;
     }
 
     /* A non-looping song that has run out: hand back to whatever it interrupted.

@@ -227,6 +227,35 @@ test_minimap_wall_corner_pixel(void)
     minimap_free(mm);
 }
 
+/* The level above shows through wherever its floor is VisBelow, and its 4x4
+ * ground fill must go down before this level's walls (reference
+ * minimapBuildBuffer: every render2DGround, then every drawDetail). Baked tile
+ * by tile, the overhang's fill erased the wall under it — ToB Maiden's L-wall
+ * corners at the corridor junctions. */
+void
+test_minimap_vis_below_keeps_walls(void)
+{
+    struct Minimap* mm = minimap_new(4, 4);
+    const int sx = 1, sz = 2;
+    const uint32_t grey = 0xFF333333u;
+    uint8_t flags[4 * 4 * MINIMAP_LEVELS] = { 0 };
+
+    minimap_add_tile_wall(mm, sx, sz, 0, MINIMAP_WALL_WEST | MINIMAP_WALL_NORTH);
+    minimap_set_tile_color(mm, sx, sz, 1, grey, MINIMAP_BACKGROUND);
+    flags[sx + sz * 4 + 1 * 16] = MINIMAP_FLAG_VIS_BELOW;
+
+    int pw = 0, ph = 0;
+    uint32_t* px = minimap_bake_argb(mm, 0, flags, &pw, &ph);
+    int x = sx * 4;
+    int y = (4 - sz) * 4;
+    TEST_ASSERT(px[y * pw + x + 2] == 0xFFFFFFFFu, "vis below: north line survives the overhang");
+    TEST_ASSERT(px[(y + 2) * pw + x] == 0xFFFFFFFFu, "vis below: west line survives the overhang");
+    TEST_ASSERT(px[(y + 2) * pw + x + 2] == grey, "vis below: overhang ground drawn");
+    free(px);
+
+    minimap_free(mm);
+}
+
 void
 test_builder_lifecycle(void)
 {

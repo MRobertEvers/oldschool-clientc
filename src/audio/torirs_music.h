@@ -114,6 +114,10 @@ struct ToriRS_MusicPlayer
     int request_fade_in_ms;
     /** Set while a load task owns the request, so it is not started twice. */
     bool request_loading;
+    /** A stop with no fade-out, waiting for the tick to retire the song. A
+     *  stop request carries no song, so neither the fade path nor the
+     *  retire-before-load path would ever act on it. */
+    bool stop_pending;
 
     /** Song to return to when a jingle ends. -1 for none. */
     int resume_song;

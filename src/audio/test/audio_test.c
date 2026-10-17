@@ -34,6 +34,7 @@
 
 #include <rscache.h>
 
+#include <assert.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -1338,6 +1339,60 @@ test_music_jingle_retires_outgoing_before_load(void)
     ToriRS_Music_Free(&player);
 }
 
+/*
+ * A stop with no fade-out stops.
+ *
+ * It carries no song, so it is neither a fade (fade_ticks is 0) nor a song
+ * waiting to load (request_song is -1) -- the two paths that ever retired the
+ * current track. The title's music button and MIDI_SONG_STOP with no fade both
+ * stop this way, and the song played on. Asking for the same track again then
+ * matched "already playing it" and did nothing either.
+ */
+static void
+test_music_stop_without_fade(void)
+{
+    struct ToriRS_MusicPlayer player;
+    struct ToriRS_AudioQueue queue;
+    uint8_t smf[256];
+    int smf_size = build_test_smf(smf);
+    struct RSCache_MusicSong* song = calloc(1, sizeof(*song));
+    int song_id = -1;
+    enum ToriRS_MusicSource source = TORIRS_MUSIC_SOURCE_TRACK;
+
+    assert(song);
+    song->midi = malloc((size_t)smf_size);
+    assert(song->midi);
+    memcpy(song->midi, smf, (size_t)smf_size);
+    song->midi_size = smf_size;
+    song->track_count = 1;
+    song->division = 96;
+
+    ToriRS_Music_Init(&player);
+    memset(&queue, 0, sizeof(queue));
+    ToriRS_Music_Request(&player, 0, TORIRS_MUSIC_SOURCE_TRACK, true, 0, 0);
+    ToriRS_Music_Installed(&player, 0, TORIRS_MUSIC_SOURCE_TRACK, song, NULL, 0, &queue);
+    ToriRS_Music_Tick(&player, NULL, &queue);
+    CHECK_EQ(player.state, TORIRS_MUSIC_PLAYING);
+    CHECK(player.stream_open);
+
+    memset(&queue, 0, sizeof(queue));
+    ToriRS_Music_Stop(&player, 0);
+    ToriRS_Music_Tick(&player, NULL, &queue);
+    CHECK_EQ(player.current_song, -1);
+    CHECK_EQ(player.state, TORIRS_MUSIC_IDLE);
+    CHECK(!player.stream_open);
+    CHECK_EQ(queue.count, 1);
+    CHECK_EQ(queue.commands[0].kind, TORIRS_AUDIO_CMD_ASSET_UNLOAD);
+    CHECK(!ToriRS_Music_TakeLoadRequest(&player, &song_id, &source));
+
+    /* And the same track asked for again is a fresh request, not a no-op. */
+    ToriRS_Music_Request(&player, 0, TORIRS_MUSIC_SOURCE_TRACK, true, 0, 0);
+    CHECK(ToriRS_Music_TakeLoadRequest(&player, &song_id, &source));
+    CHECK_EQ(song_id, 0);
+
+    ToriRS_Music_Free(&player);
+}
+
 static void
 test_music_swap_state(void)
 {
@@ -1437,6 +1492,7 @@ main(
     test_music_fade_voice();
     test_music_swap_state();
     test_music_jingle_retires_outgoing_before_load();
+    test_music_stop_without_fade();
 
     GROUP("render a real song");
     snprintf(path, sizeof(path), "%s/cache.osrs239", cache_root);

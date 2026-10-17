@@ -21,6 +21,7 @@ main(void)
     test_minimap_push_down();
     test_minimap_push_down_colourless_deck();
     test_minimap_wall_corner_pixel();
+    test_minimap_vis_below_keeps_walls();
     test_builder_lifecycle();
     test_rebuild_keeps_tagged_entity_elements();
     test_prerotate_placement();
