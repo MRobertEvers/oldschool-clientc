@@ -129,6 +129,24 @@ add_world_select_row(
     return false;
 }
 
+/* An Attack row is what makes a vislevel reorder the menu. A talkable NPC can
+ * still carry one (the tutorial combat instructor, "Vannaka", is vislevel 146
+ * and has only Talk-to). The deob still prints "(level-N)" whenever vislevel
+ * is set (Client-TS addNpcOptions); it only sinks the Attack row. */
+static bool
+npc_has_attack_option(struct WorldEntity_NPC const* npc)
+{
+    assert(npc);
+    for( int i = 0; i < 5; i++ )
+    {
+        if( (npc->visible_ops & (1u << i)) == 0 )
+            continue;
+        if( strcasecmp(npc->actions[i].name, "attack") == 0 )
+            return true;
+    }
+    return false;
+}
+
 /*
  * "Depends on combat levels", the half of the NPC Attack option that is not
  * about the Attack row at all.
@@ -139,6 +157,9 @@ add_world_select_row(
  * deprioritized, not just Attack — left-clicking a level-21 guard at level 10
  * walks rather than pickpockets. Only the "Always right-click" arm is
  * attack-pass-only.
+ *
+ * That spread is about who you would Attack. A talkable NPC with a vislevel
+ * and no Attack row keeps Talk-to where a talkable NPC has it.
  *
  * The 2004 client computes the same comparison inside its attack pass and
  * nowhere else (Client-TS addNpcOptions), so under the classic model this
@@ -153,7 +174,7 @@ npc_option_deprioritizes(
 {
     return attack_option_model == TORIRS_ATTACK_OPTION_MODEL_SETTINGS &&
            npc_attack_option == RS_ATTACK_OPTION_DEPENDS && viewer_combat_level >= 0 &&
-           npc->combat_level > viewer_combat_level;
+           npc->combat_level > viewer_combat_level && npc_has_attack_option(npc);
 }
 
 /* The attack pass's own bump, which both eras compute: the target out-levels

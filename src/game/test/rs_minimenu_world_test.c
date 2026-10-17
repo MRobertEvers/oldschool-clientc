@@ -1236,6 +1236,24 @@ test_npc_attack_option(void)
             UIMinimenu_ActionDeprioritize(REVCONFIG_MINIMENU_OPNPC1),
         "and every other op with it");
 
+    /* A talkable NPC with a vislevel and no Attack row (tutorial Vannaka,
+     * vislevel 146, Talk-to only) stays ordered like any other talkable NPC. */
+    {
+        struct World_EntityPool* pool = &fx.world->entities.npc;
+        int ni = World_EntityPoolHead(pool);
+        struct WorldEntity_NPC* talkable = World_EntityPoolGet(pool, ni);
+
+        talkable->actions[1].name[0] = '\0';
+        attack_fixture_build(&fx, RS_ATTACK_OPTION_DEPENDS, RS_ATTACK_OPTION_DEPENDS, &menu);
+        TEST_ASSERT(
+            menu_action_for_verb(&menu, "Talk-to") == REVCONFIG_MINIMENU_OPNPC1,
+            "Depends leaves Talk-to alone on a higher-level NPC with no Attack");
+        TEST_ASSERT(
+            menu_has_substr(&menu, "level-"),
+            "and still shows the vislevel, which the deob prints for any npc");
+        snprintf(talkable->actions[1].name, sizeof(talkable->actions[1].name), "Attack");
+    }
+
     /* Left-click where available ignores the level difference entirely. */
     attack_fixture_build(&fx, RS_ATTACK_OPTION_DEPENDS, RS_ATTACK_OPTION_LEFTCLICK, &menu);
     TEST_ASSERT(
