@@ -5258,8 +5258,18 @@ frame_loop_step(void)
     if( !replay && !uncapped && !ContentTest_Enabled() && !App_AsyncPending(&app) )
     {
         uint64_t pace_begin_us = PlatformWindow_TicksUs();
+        /*
+         * A frame-locked client pays one logic cycle a frame whatever the
+         * pacer asks for (app_frame.c), so GameShell's catch-up -- a 1 ms wait
+         * while it believes extra cycles are making up the time -- only runs
+         * the frame clock ahead of the wall. In a party that lands the leader
+         * on every boundary as a stall waiting for READY, and the stall itself
+         * reads as the next overrun.
+         */
         uint64_t wait_until_ms =
-            ToriRS_Pacer_WaitDeadline(&frame_pacer, frame_start_ms, PlatformWindow_Ticks64());
+            App_FrameLocked()
+                ? ToriRS_Pacer_LockedDeadline(&frame_pacer, PlatformWindow_Ticks64())
+                : ToriRS_Pacer_WaitDeadline(&frame_pacer, frame_start_ms, PlatformWindow_Ticks64());
 
         if( pace_spin )
         {

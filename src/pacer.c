@@ -399,3 +399,22 @@ ToriRS_Pacer_WaitDeadline(
         return now_ms;
     return now_ms + (uint64_t)pacer->del_ms;
 }
+
+uint64_t
+ToriRS_Pacer_LockedDeadline(struct ToriRS_Pacer* pacer, uint64_t now_ms)
+{
+    uint64_t period;
+    uint64_t due;
+
+    assert(pacer);
+    assert(pacer->period_ms > 0);
+    period = (uint64_t)pacer->period_ms;
+
+    /* period_ms, not the draw budget: one frame is one 20 ms logic cycle
+     * here, so a slower screen would be a slower world. */
+    due = pacer->locked_due_ms + period;
+    if( pacer->locked_due_ms == 0 || now_ms > due + period )
+        due = now_ms;
+    pacer->locked_due_ms = due;
+    return due;
+}

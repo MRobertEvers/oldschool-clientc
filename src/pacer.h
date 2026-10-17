@@ -102,6 +102,10 @@ struct ToriRS_Pacer
 
     int last_logic_ticks;
 
+    /* ToriRS_Pacer_LockedDeadline's schedule: when the last frame was due to
+     * end. 0 before the first locked frame. */
+    uint64_t locked_due_ms;
+
     /*
      * TORIRS_PACER_TRACE=1. Answers the one question fps cannot: WHICH REGIME
      * the pacer is in. A frame that fits its budget and a frame that is behind
@@ -157,6 +161,21 @@ uint64_t ToriRS_Pacer_BeginFrame(struct ToriRS_Pacer* pacer, uint64_t now_ms);
  */
 uint64_t ToriRS_Pacer_WaitDeadline(
     struct ToriRS_Pacer const* pacer, uint64_t frame_start_ms, uint64_t now_ms);
+
+/*
+ * End of an iteration of a FRAME-LOCKED client (App_FrameLocked: every frame
+ * pays one logic cycle, whatever either pacer above asks for). Returns the
+ * absolute millisecond to wait until.
+ *
+ * Frames are due on a fixed schedule, period_ms apart, so a frame's world time
+ * keeps step with the wall: a sleep that overshoots or a frame a little over
+ * budget is made up by the next frames not waiting, and no frame ever runs
+ * ahead of its slot. A frame more than a whole period past its slot -- a
+ * party boundary blocked on a member, a load -- re-anchors the schedule at
+ * now instead of racing to make the time up, so two lock-stepped clients
+ * settle on one phase rather than one stalling on the other every tick.
+ */
+uint64_t ToriRS_Pacer_LockedDeadline(struct ToriRS_Pacer* pacer, uint64_t now_ms);
 
 /* Logic ticks the last ToriRS_Pacer_BeginFrame asked for. */
 int ToriRS_Pacer_LastLogicTicks(struct ToriRS_Pacer const* pacer);

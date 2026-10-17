@@ -104,6 +104,51 @@ test_deadline_pacer(void)
         "a deadline already past stays past, so an overrun costs no extra wait");
 }
 
+static void
+test_locked_deadline(void)
+{
+    struct ToriRS_Pacer pacer;
+    uint64_t due;
+
+    ToriRS_Pacer_Init(&pacer, TORIRS_PACER_GAMESHELL, 20, 1);
+
+    TEST_ASSERT(
+        ToriRS_Pacer_LockedDeadline(&pacer, 1000) == 1000,
+        "the first locked frame anchors the schedule at now");
+    TEST_ASSERT(
+        ToriRS_Pacer_LockedDeadline(&pacer, 1005) == 1020,
+        "a locked frame on time waits to its slot");
+    TEST_ASSERT(
+        ToriRS_Pacer_LockedDeadline(&pacer, 1023) == 1040,
+        "a sleep that overshot its slot does not move the next one");
+    TEST_ASSERT(
+        ToriRS_Pacer_LockedDeadline(&pacer, 1075) == 1060,
+        "a frame less than a period late is made up by not waiting");
+    TEST_ASSERT(
+        ToriRS_Pacer_LockedDeadline(&pacer, 1079) == 1080,
+        "and the frame after it is back on the schedule");
+
+    due = ToriRS_Pacer_LockedDeadline(&pacer, 1250);
+    TEST_ASSERT(due == 1250, "a frame stalled past a whole period re-anchors at now");
+    TEST_ASSERT(
+        ToriRS_Pacer_LockedDeadline(&pacer, 1252) == 1270,
+        "the re-anchored schedule does not race to make the stall up");
+
+    uint64_t now = 2000;
+    ToriRS_Pacer_Init(&pacer, TORIRS_PACER_GAMESHELL, 20, 1);
+    ToriRS_Pacer_LockedDeadline(&pacer, now);
+    for( int i = 0; i < 300; i++ )
+    {
+        /* 4 ms of work, and every sleep overshoots by 3 ms */
+        now += 4;
+        due = ToriRS_Pacer_LockedDeadline(&pacer, now);
+        now = (due > now ? due : now) + 3;
+    }
+    TEST_ASSERT(
+        due == 2000 + 300 * 20,
+        "300 locked frames with 3 ms overshoot each still take 300 periods");
+}
+
 /* On budget the reference runs exactly one logic tick per draw. */
 static void
 test_gameshell_on_budget(void)
@@ -203,6 +248,7 @@ main(void)
 {
     test_names();
     test_deadline_pacer();
+    test_locked_deadline();
     test_gameshell_on_budget();
     test_gameshell_catches_up();
     test_gameshell_holds_logic_rate();
