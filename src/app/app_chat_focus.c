@@ -449,6 +449,7 @@ app_chat_lock_paint(struct App* app)
     int32_t const line = app_chat_lock_line(app);
     char const* text;
     char const* colon;
+    char const* colour;
     char const* colour_end;
 
     if( line < 0 || app->chat_line_open )
@@ -456,12 +457,16 @@ app_chat_lock_paint(struct App* app)
     text = app_chat_lock_text(app, line);
     if( strcmp(text, app->chat_line_prompt) == 0 )
         return;
-    /* `<icon><name>: <col=…><typed></col>*`. The "set a name" line has no
-     * name to keep and nothing typed to cover. */
-    colon = strstr(text, ": <");
+    /* `<icon><name>:<nbsp><col=…><typed></col>*` -- the space after the colon
+     * is cp1252 0xA0, not 0x20. The "set a name" line has no name to keep and
+     * nothing typed to cover. */
+    colon = strchr(text, ':');
     if( !colon )
         return;
-    colour_end = strchr(colon + 2, '>');
+    colour = strstr(colon, "<col=");
+    if( !colour )
+        return;
+    colour_end = strchr(colour, '>');
     if( !colour_end )
         return;
     snprintf(app->chat_line_saved, sizeof(app->chat_line_saved), "%s", text);
