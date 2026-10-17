@@ -11,16 +11,17 @@
 # below are eight different things rather than one thing seen from eight
 # angles.
 #
-#   tools/scythe_animation.sh fixed 96 0 darkred
-#   tools/scythe_animation.sh nr    96 0 red        # NR's own colour
+#   tools/scythe_animation.sh fixed 96 20 red
+#   tools/scythe_animation.sh sang  96 20 darkred   # the sanguine scythe
 #
 # Arguments, all positional and all required:
 #   <name>     subdirectory under docs/scythe_animation/
 #   <height>   spotanim_map's third argument
 #   <delay>    spotanim_map's fourth argument, in client cycles
-#   <family>   `darkred` (1891-1894, what ships) or `red` (478/506/1172/1231,
-#              NR's). Same four models either way; the spotanim record's own
-#              recolour is the whole difference
+#   <family>   `red` (478/506/1172/1231, the plain scythe's), `darkred`
+#              (1891-1894, the sanguine scythe's) or `blue` (1895-1898, the
+#              holy scythe's). Same four models every time; the spotanim
+#              record's own recolour is the whole difference
 #
 # To measure the OLD player-attached arrangement for comparison, call ev_swing
 # directly without --tile; see docs/scythe_animation/README.md.
@@ -51,7 +52,8 @@ swing=tools/entity_viewer/ev_swing
 case $family in
     darkred) id_south=1891; id_north=1892; id_east=1893; id_west=1894 ;;
     red)     id_south=478;  id_north=506;  id_east=1172; id_west=1231 ;;
-    *) echo "family must be darkred or red" >&2; exit 2 ;;
+    blue)    id_south=1895; id_north=1896; id_east=1897; id_west=1898 ;;
+    *) echo "family must be red, darkred or blue" >&2; exit 2 ;;
 esac
 
 out=docs/scythe_animation/$name

@@ -1,6 +1,6 @@
 # The scythe of vitur's red sweep
 
-The dark red arc that trails the blade — what it is, what was wrong with it, and
+The red arc that trails the blade — what it is, what was wrong with it, and
 the harness that says so in numbers rather than in screenshots.
 
 The reference is **Near-Reality**'s `ScytheOfViturCombat.java`
@@ -26,15 +26,15 @@ leaves it front-to-back through the player at every facing.
 | | before | after |
 |---|---|---|
 | mechanism | `spotanim_pl` — merged into the player's model | `spotanim_map` — a tile graphic, NR's |
-| copies used | one, `_west_red` | four, `_darkred`, picked by direction |
+| copies used | one, `_west_red` | four, picked by direction, coloured by ornament |
 | graphic's axis | **RADIAL** — through the player | **TANGENT** — across the swing |
 | where it sits | straddling the player's own tile | centred 133 units ahead, on the next tile |
-| colour | red (luminance 64) | dark red (luminance 28) |
-| height / delay | 100 / 16 | 96 / **30** — NR's height, and NR's one-tick lag |
+| colour | red (luminance 64) | red; sanguine dark red, holy blue |
+| height / delay | 100 / 16 | 96 / **20** — NR's height; the delay measured from footage |
 
 `before/south_top.png` and `fixed/south_top.png` are the same swing, one cell
 per client cycle, straight down. The before sheet has a bright red crescent
-standing on end through the player; the after sheet has a dark red one lying
+standing on end through the player; the after sheet has a red one lying
 across the ground in front of them.
 
 ## What Near-Reality does
@@ -81,18 +81,57 @@ watch — the target is twice as far north as east and NR still draws the **east
 arc. `::gearrun` asserts that case, and disabling the bias in the implementation
 makes it fail (checked, see below).
 
-## Dark red rather than red
+### Checked against footage (2026-10-17)
 
-NR plays the **red** family. The cache also ships
-`dragon_halberd_special_*_darkred` — spotanims **1891–1894**, the *same four
-models* (4003–4006), differing only by the record's own `recol1s=960
-recol1d=924`. Both are hue 0, saturation 7; luminance goes **64 → 28**. Literally
-the same red, much darker.
+Twenty-odd real swings in [YouTube DwfCPT6aiAM](https://www.youtube.com/watch?v=DwfCPT6aiAM)
+and [IcQRgbVybW8](https://www.youtube.com/watch?v=IcQRgbVybW8), read with
+the in-game compass for the world heading, compared with this harness's sheets
+at the same screen-relative facing:
 
-This is the one deliberate departure from NR, and it was asked for. Swapping the
-four names in `[proc,scythe_of_vitur_sweep_direction]` to `_red` is the whole of
-going back; `tools/scythe_animation.sh <name> 96 0 red` draws NR's colour for
-comparison.
+- **Copy, side, curve and growth match** in every swing where the player was
+  already fighting the target: the arc stands on the target's side with its
+  hollow toward the player, and grows from the same end the harness's does
+  (screen-right targets: bottom first, upward; screen-left: top first,
+  downward; away from the camera: right to left over the head). World
+  headings covered: north (Kalphite Queen, compass N to the right; Giant
+  Mole, N down), east (General Graardor, N up), south (Dagannoth Supreme,
+  N down). No clip with a readable compass shows a clean west swing.
+- **The real game follows the player's facing, not the target.** The two
+  swings where the arc stood on the side *away* from the boss — the first
+  swing on a respawned King Black Dragon (140 s) and the first swing after
+  arriving at Dagannoth Supreme (544 s) — are both the opening swing of an
+  engagement, before the player had turned. Every later swing points at the
+  target. This rule, like NR's, aims at the target every time, so it differs
+  on that opening swing only. Matching it needs the engine to expose the
+  player's server-side facing; content has setters (`facesquare`) and no
+  getter.
+- **Not testable from footage:** which cardinal a diagonal snaps to and the
+  even-size `+128` bias. They need the player's exact tile against the
+  target's footprint, which no clip shows reliably — an RSProx capture would.
+
+## Colour: red, and the ornaments' recolours
+
+The plain scythe plays the **red** family, as NR does. The cache ships two more
+recolours of the *same four models* (4003–4006), differing only by the record's
+own `recol1s=960 recol1d=…`:
+
+| family | spotanims | `recol1d` | scythe |
+|---|---|---|---|
+| red | 478 / 506 / 1172 / 1231 | (model's own) | Scythe of Vitur |
+| dark red | 1891–1894 | 924 | Sanguine (`scythe_of_vitur_bl`) |
+| blue | 1895–1898 | 39896 | Holy (`scythe_of_vitur_or`) |
+
+No source names the owners — the cache and RuneLite call all of them
+`dragon_halberd_special_*`, NR predates the ornaments, Blert records no
+graphics. The ids are the evidence: dark red and blue were added together,
+directly before the holy sanguinesti staff's `sanguinesti_staff_*_justiciar`
+(1899–1902), in the Theatre of Blood: New Modes update of 3 June 2021 that also
+released both ornament kits. Dark red for blood, blue for Saradomin.
+
+Until 2026-10-17 every scythe played dark red, a stated choice rather than a
+decode. `[proc,scythe_of_vitur_sweep_direction]` now answers in red and
+`[proc,scythe_of_vitur_sweep_recolour]` swaps the copy for an ornamented scythe;
+`::gearrun` asserts both.
 
 ## The asset edit that was removed
 
@@ -117,11 +156,11 @@ inherits the revert. Its arc has the same quarter-turn defect the scythe's had �
 ## The harness
 
 ```sh
-tools/scythe_animation.sh fixed 96 30 darkred     # what ships
+tools/scythe_animation.sh fixed 96 20 red         # the plain scythe
 ```
 
-The fourth argument takes `red` instead of `darkred` to draw NR's own colour
-through the same mechanism, if a side-by-side is ever wanted.
+The fourth argument picks the family: `darkred` draws the sanguine scythe's,
+`blue` the holy scythe's.
 
 One run per player facing — the four cardinals **and the four diagonals**,
 because a player fighting anything bigger than one tile faces its centre and the
@@ -185,35 +224,55 @@ runs through toridraw's 16.16 integer sin/cos and truncates per vertex, costing
 about 1.6 units at 45° and nothing at 0° and 90°. The snap check's tolerance is 3
 units out of the 128 in a tile for that reason, and for no other.
 
-## Timing: the sweep is one tick behind the swing
+## Timing: 20 cycles after the swing, measured from the real game
 
 `spotanim_map(gfx, tile, 96, ^scythe_of_vitur_sweep_delay)`, and that constant is
-**30 client cycles — one server tick**, not zero.
+**20 client cycles**. In the real game the arc lights as the blade crosses the
+front — about 2 cycles after the strike (seq 8056's largest pose change, cycle
+31) and one frame before the hit's splat — and grows while the blade sweeps.
+The arc's first lit face is glow frame 4, cycle 10 of seq 1204, so the delay is
+the strike's 31, plus ~2, minus 10 ≈ 20.
 
-NR's literal is `new Graphics(506, 0, 96)`, i.e. delay 0, and shipping that fired
-the sweep a tick early. The delay argument is not where NR's timing lives. In
-`ScytheOfViturCombat.processAfterMovement`, `animate()` is called **inline**
-while the graphic is wrapped in `WorldTasksManager.schedule(...)` — and
-`WorldThread`'s tick runs `WorldTasksManager.processTasks()` (line 111) **before**
-`player.processEntity()` (line 147). A task queued during player processing sits
-in `pending` until the *next* tick's drain. NR's graphic is one tick behind its
-animation by construction.
-
-NR's own code corroborates it rather than leaving it to a reading of the tick
-order: the hits scheduled inside that same task go out as
-`delayHit(t, -1, hit)`, and that `-1` exists purely to cancel the task's tick and
-put them back where `delayHit(0, hit)` would have landed. The graphic gets no
-such compensation. Our hits already land on the swing tick — matching NR's
-compensated `-1` — so only the graphic moved.
-
-Measured, from `report_south.txt`, over the 77-cycle swing:
-
-| | arc lit over | closest approach to the blade |
+| source | anchor | delay |
 |---|---|---|
-| delay 0 (NR's literal) | cycles 10–58 | 20 units |
-| **delay 30 (one tick)** | cycles **40–76** | **4 units** |
+| wiki [`Scythe_of_Vitur_attack.gif`](https://oldschool.runescape.wiki/images/Scythe_of_Vitur_attack.gif), plain scythe | arc's rise (20 / 40 / 70 / 100 % of peak area) against the swing's start, GIF clock scaled by its 2.83 s swing period | 20–22 |
+| [YouTube IcQRgbVybW8](https://www.youtube.com/watch?v=IcQRgbVybW8) at 30 fps, holy swing at 63 s | first arc sliver 1–2 frames after the strike | 23–24 |
+| same video, sanguine swing at 25 s | first arc sliver one frame before the hitsplat, which lands a tick into the swing | ~18 |
+| [YouTube DwfCPT6aiAM](https://www.youtube.com/watch?v=DwfCPT6aiAM) (60 fps, captured at ~50 fps), Kalphite Queen swings at 585.4 s and 591.0 s | first arc frame against the swing's first pose change, static camera | 20.0, 19.2 |
+| same video, KQ swing at 593.0 s | arc's jump to its 3→9-face stage against the swing's start | ~20.5 |
 
-The strike — the largest pose change in the swing — is at cycle 31.
+The harness's own blade-tracking sweep (`report_<facing>.txt`, "delay sweep")
+independently puts its best fit at 16–20.
+
+Anchoring on a hitsplat is weaker than anchoring on the swing: the hitsplat
+mask carries its own delay field, so a splat need not land exactly a tick in.
+One Dagannoth Supreme swing in the same video, read that way, gives ~28; read
+against the pose it is consistent with the rest.
+
+What footage cannot settle is the exact integer — every measurement here is
+±2 cycles — nor the height (96 is NR's; no clip has a camera angle that pins
+it). Both are values the server sends in the MAP_ANIM packet, so an
+[RSProx](https://github.com/blurite/rsprox) recording of one real swing would
+read them off directly. The beta-world dump on Rune-Server
+([thread 697435](https://rune-server.org/threads/osrs-weapon-anims-gfx-from-osrs-beta-world.697435/))
+confirms the mechanism — "gfx on entity tile: one of these (it varies): 506,
+1231, 478, 1172" — but records no delay or height.
+
+Before 2026-10-17 this was 30, one server tick, from reading Near-Reality:
+`ScytheOfViturCombat` wraps its graphic in `WorldTasksManager.schedule(...)`,
+which drains before player processing, so NR's graphic lands a tick after its
+animation. That is NR's behaviour, not the game's: it lights the arc ~9 cycles
+after the strike, with the blade already past. NR's literal delay 0 lights it
+during the wind-up.
+
+### Colour, measured
+
+The GIF's arc, with the grass behind it solved out at the glow's alpha, is
+≈ (247, 129, 117); ours at the client's default brightness 0.8 is (248, 97, 89),
+which at brightness 0.6 (the brightest setting) is (250, 124, 116). The GIF was
+recorded at maximum brightness; the red family is the exact colour. The same
+video's holy arc measures (203, 223, 253) — the saturated `_blue` family, not
+the saturation-0 `_white` one — and its sanguine arc (134, 24, 8), `_darkred`.
 
 ## Checks
 
