@@ -47,9 +47,13 @@ QD.NYLO_HM = {
     BARRAGE_SEATS = { [3] = true, [4] = true },
     -- Vasilias' Hard forms, relative to her south-west tile (her 4x4 body
     -- x0..3): five tiles pairwise 3+ apart and in the blowpipe's 5 of her
-    -- (ranged), and one tile in the trident's 7 for everyone (magic)
-    SPREAD = { { x = -4, z = 1 }, { x = -3, z = -3 }, { x = 2, z = -4 }, { x = 6, z = -3 }, { x = 7, z = 2 } },
+    -- (ranged), and one tile in the trident's 7 for everyone (magic). Seats 2
+    -- and 4 stood at (-3,-3) and (6,-3): inside the SW and SE supports, so
+    -- they could never reach them and held their melee tiles, 2 apart, through
+    -- every ranged form. Now north-west and north-east of her.
+    SPREAD = { { x = -4, z = 1 }, { x = -2, z = 5 }, { x = 2, z = -4 }, { x = 5, z = 5 }, { x = 7, z = 2 } },
     DOT = { x = 1, z = -3 },
+    SPLASH = 2,                                 -- ^tob_vasilias_hard_splash_range
     MUST_COST = 6,
     PREMOVE = 2,                                -- ticks before her change: her form's swings are done (Blert)
     -- THE PILLARS ARE 150 at five (tob_nylocas.rs2 ^tob_nylo_pillar_hp_hard,
@@ -82,6 +86,27 @@ QD.NYLO_HM = {
     LANE_READY = 3,                             -- a settled lane nylocas is in LANE_SHOT of the box from +3
 }
 for k, v in pairs(QD.NYLO) do if QD.NYLO_HM[k] == nil then QD.NYLO_HM[k] = v end end
+
+-- Every spread tile is outside the ranged splash of every other, on the box
+-- floor, and off the supports' 3x3s.
+do
+    local V = QD.NYLO_HM
+    local land = V.BOSS_LAND
+    for i, a in ipairs(V.SPREAD) do
+        local ax, az = land.x + a.x, land.z + a.z
+        assert(ax >= V.BOX.x0 and ax <= V.BOX.x1 and az >= V.BOX.z0 and az <= V.BOX.z1,
+            "NYLO_HM.SPREAD[" .. i .. "] is outside the box")
+        for _, sp in ipairs(V.SUPPORTS) do
+            assert(not (ax >= sp.x and ax <= sp.x + 2 and az >= sp.z and az <= sp.z + 2),
+                "NYLO_HM.SPREAD[" .. i .. "] is on a support")
+        end
+        for j = i + 1, #V.SPREAD do
+            local b = V.SPREAD[j]
+            assert(math.max(math.abs(a.x - b.x), math.abs(a.z - b.z)) > V.SPLASH,
+                "NYLO_HM.SPREAD[" .. i .. "] and [" .. j .. "] share a splash")
+        end
+    end
+end
 
 function QD.raid._nylo_hm_ids(S)
     local ids = S.ids

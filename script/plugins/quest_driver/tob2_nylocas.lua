@@ -84,6 +84,10 @@ QD.NYLO_V2 = {
     LIFE = { [1] = 51, [2] = 52 }, SETTLE_AGE = 7, FLICKER_WAVE = 16,
     STATION_PULL = 0.2, EDGE_WEIGHT = 1.0, BOSS_NEAR_COST = 2,
     BOSS_MUST_COST = 20,                -- a tick off her form's tile: above every swing on her (3)
+    -- a tile of gap to it, every tick of the same window: the must cost is
+    -- flat off the tile, so a walk longer than ~3 ticks (seat 5's west melee
+    -- tile to its east spread tile) lost the beam to standing and swinging
+    BOSS_TILE_PULL = 1.0,
     -- her melee form: beside her south edge (her SW + these), the dot 2 steps on
     BOSS_MELEE = { [1] = { x = 0, z = -1 }, [2] = { x = 1, z = -1 }, [3] = { x = 2, z = -1 },
                    [4] = { x = 3, z = -1 }, [5] = { x = -1, z = 0 } },
@@ -923,7 +927,10 @@ function NV.boss_mode(S, F, B, I)
     -- dot-stacker take the full bounce (v2s8 ny4: seat 4 held its north melee
     -- tile through four magic forms at a cost of 6 a tick; 245-380 magic damage
     -- a run against v1's 14-120). The melee tiles are her south edge, two
-    -- steps from the dot.
+    -- steps from the dot but all within the ranged splash of each other, so
+    -- out of melee the pre-move is to the spread tile (v1's rule): her next
+    -- form is ranged or magic, a stack eats 15..26 unprayed per bystander from
+    -- the splash, and a spread team only the prayed target's bounce.
     local VH = QD.NYLO_HM
     local function tile_of(form)
         local o
@@ -935,17 +942,20 @@ function NV.boss_mode(S, F, B, I)
     local change = S.boss_m and NV.next_change(S.boss_m, F.tick + 1) or (F.tick + B.h + 10)
     local colour = (D.target ~= nil) and D.style or "melee"
     local cur = tile_of(colour)
-    local pre = cur
-    if colour == "magic" then pre = tile_of("ranged") end
+    local pre = tile_of("ranged")
     if colour == "ranged" then pre = tile_of("magic") end
     local hz = F.tick + B.h
     if S.nm.hard and change - 3 >= F.tick + 1 then
+        local t1 = math.min(change - 3, hz)
         B.zone{ name = "must", x = cur.x, z = cur.z, size = 1, lo = 0, hi = 0, require = true,
-            t0 = F.tick + 1, t1 = math.min(change - 3, hz), tier = "damage", cost = V.BOSS_MUST_COST }
+            t0 = F.tick + 1, t1 = t1, tier = "damage", cost = V.BOSS_MUST_COST }
+        B.pull{ name = "must", x = cur.x, z = cur.z, size = 1, weight = V.BOSS_TILE_PULL, t0 = F.tick + 1, t1 = t1 }
     end
     if S.nm.hard and change - 2 <= hz then
+        local t0 = math.max(F.tick + 1, change - 2)
         B.zone{ name = "premove", x = pre.x, z = pre.z, size = 1, lo = 0, hi = 0, require = true,
-            t0 = math.max(F.tick + 1, change - 2), t1 = hz, tier = "damage", cost = V.BOSS_MUST_COST }
+            t0 = t0, t1 = hz, tier = "damage", cost = V.BOSS_MUST_COST }
+        B.pull{ name = "premove", x = pre.x, z = pre.z, size = 1, weight = V.BOSS_TILE_PULL, t0 = t0, t1 = hz }
     end
     if D.target == nil or S.boss_m == nil then return "landing" end
     local t_ok0 = (NV.worn_style(S) ~= D.style) and (F.tick + 2) or nil
