@@ -209,7 +209,8 @@ app_world_scenery_anim_apply(
                 element->model.u.model.model &&
                 element->model.u.model.model->post_orient == 0 &&
                 (loc_shape == RSCACHE_LOC_SHAPE_SCENERY ||
-                 loc_shape == RSCACHE_LOC_SHAPE_SCENERY_DIAGONAL) )
+                 loc_shape == RSCACHE_LOC_SHAPE_SCENERY_DIAGONAL ||
+                 loc_shape == RSCACHE_LOC_SHAPE_FLOOR_DECORATION) )
             {
                 int const angle = scenery->angle & 3;
                 int const base_yaw = loc_shape == RSCACHE_LOC_SHAPE_SCENERY_DIAGONAL ? 256 : 0;

@@ -73,9 +73,10 @@ struct AsyncPendingSeqBind
     int start_cycle;
 };
 
-/** 64 deferred binds. A scene rebuild requests far fewer at once; past this a
- *  bind is dropped and the element simply does not animate. */
-#define ASYNC_PENDING_SEQ_BIND_MAX 64
+/** Deferred binds. One server tick can animate a hundred locs on a sequence
+ *  that is not resident yet (Xarpus' Hard ring: 98 pools on seq 8068), and
+ *  every one of them waits here for the same load. */
+#define ASYNC_PENDING_SEQ_BIND_MAX 1024
 
 struct AsyncPendingSeqBinds
 {

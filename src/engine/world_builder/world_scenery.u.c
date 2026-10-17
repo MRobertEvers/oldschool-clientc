@@ -2306,13 +2306,16 @@ scenery_add_floor_decoration(
     int scene_z)
 {
     struct World* world = builder->world;
-    int rotation = map_loc->orientation;
+    int rotation = config_loc->seq_id != -1 ? 0 : map_loc->orientation;
+    int yaw = config_loc->seq_id != -1 ? 512 * map_loc->orientation : 0;
+
+    builder->scenery_deferred_angle = config_loc->seq_id != -1 ? map_loc->orientation : 0;
     int element_id = scenery_load_model(
         builder, map_loc, config_loc, RSCACHE_LOC_SHAPE_FLOOR_DECORATION, rotation, scene_x, scene_z, 1, 1);
     if( element_id < 0 )
         return;
     scenery_element_position_init(
-        builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, 0);
+        builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, yaw);
     scenery_load_animation(builder, element_id, config_loc->seq_id);
 
     painter_add_ground_decor(

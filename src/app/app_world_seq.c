@@ -231,7 +231,10 @@ app_world_apply_seq(
 
     if( app_world_try_bind_seq(app, element_id, seq_id, start_cycle) )
         return;
-    (void)AsyncPendingSeqBinds_Add(&app->seq_bind_pending, element_id, seq_id, start_cycle);
+    bool const queued =
+        AsyncPendingSeqBinds_Add(&app->seq_bind_pending, element_id, seq_id, start_cycle);
+    assert(queued && "seq bind list full: the element would never animate");
+    (void)queued;
 }
 
 /*
