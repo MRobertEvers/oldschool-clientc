@@ -598,6 +598,7 @@ UITreeSceneBridge_EnsureChromeSkin(struct UITreeSceneBridge* bridge)
         spr->height = baked->h;
         spr->crop_width = baked->w;
         spr->crop_height = baked->h;
+        spr->trim_width = baked->w;
         /* Baked chrome art carries real coverage (rounded corners, soft
          * shadows). @see ToriDraw_Sprite::alpha_channel. */
         spr->alpha_channel = 1;
@@ -651,6 +652,7 @@ UITreeSceneBridge_EnsureInkwell(struct UITreeSceneBridge* bridge)
                 spr->height = size;
                 spr->crop_width = size;
                 spr->crop_height = size;
+                spr->trim_width = size;
                 /* The frames carry real coverage -- soft edges, and coloured
                  * pixels under alpha 0 where the baker padded -- so a consumer
                  * must read the alpha byte, never derive one from the colour.
@@ -704,6 +706,7 @@ bridge_publish_argb(
     sprite->height = height;
     sprite->crop_width = width;
     sprite->crop_height = height;
+    sprite->trim_width = width;
     /* A plugin image is a decoded PNG: alpha is a channel, and a plugin that
      * drew a transparent coloured pixel meant it. @see
      * ToriDraw_Sprite::alpha_channel. */

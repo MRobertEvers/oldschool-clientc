@@ -885,6 +885,10 @@ struct ToriRS_SpriteFrame
     int crop_y;
     int crop_width;
     int crop_height;
+    /* The cache's pixel box within the frame. trim_width 0 when the producer
+     * stated none. @see ToriDraw_Sprite::trim_x. */
+    int trim_x;
+    int trim_width;
     /* Whether the alpha byte is a real channel; carried to the ToriDraw
      * sprite this frame becomes. @see ToriDraw_Sprite::alpha_channel. */
     unsigned char alpha_channel;

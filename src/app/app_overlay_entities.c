@@ -411,11 +411,16 @@ app_overlay_build_entity(
              * The overlay text is drawn centred (x - width/2), so the left edge
              * is reached by handing it left + text_w/2 — the same measure the
              * renderers centre with, so the two halves cancel exactly.
+             *
+             * `body_w` is the art's width, not the canvas's: the reference
+             * keeps the sprite unpadded and reads `field6921`. Ours is padded
+             * at load, and 1359's canvas is one px wider than its art, which
+             * put every number of odd pixel width one px right.
              */
             if( app->hitsplats.count > 0 && !from_archive )
             {
                 int body_w = 0;
-                int body_crop_x = 0;
+                int body_trim_x = 0;
                 int const text_w = font_id >= 0 ? app_measure_text_cb(app, font_id, text) : 0;
                 int total;
                 int left;
@@ -428,8 +433,9 @@ app_overlay_build_entity(
                         ToriDraw_SceneSpriteGet(app->scene, splat_scene, &count);
                     if( frames && count > 0 && frames[0] )
                     {
-                        body_w = frames[0]->width;
-                        body_crop_x = frames[0]->crop_x;
+                        assert(frames[0]->trim_width > 0);
+                        body_w = frames[0]->trim_width;
+                        body_trim_x = frames[0]->crop_x + frames[0]->trim_x;
                     }
                 }
                 total = 2 + (body_w > 0 ? body_w : text_w);
@@ -437,8 +443,9 @@ app_overlay_build_entity(
                 text_left = left + 2;
                 if( body_w > 0 )
                     text_left += (body_w - text_w) / 2;
-                /* The blit adds crop_x back; the reference cancels it. */
-                splat_x = left + 2 - body_crop_x;
+                /* The art lands at left + 2: the blit adds crop_x, and the art
+                 * sits trim_x into the buffer. */
+                splat_x = left + 2 - body_trim_x;
                 text_cx = text_left + text_w / 2;
             }
 

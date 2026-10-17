@@ -88,6 +88,8 @@ RSCache_Dat2SpritePackNewDecode(
         sprites[i].crop_width = g2(&buffer);
     for( i = 0; i < sprite_count; i++ )
         sprites[i].crop_height = g2(&buffer);
+    for( i = 0; i < sprite_count; i++ )
+        sprites[i].trim_width = sprites[i].crop_width;
 
     buffer.position =
         (uint32_t)(length - 7 - sprite_count * 8 - (palette_length - 1) * 3);
@@ -219,6 +221,7 @@ RSCache_Dat2SpritePackNewDecode(
                 RSCACHE_FREE(sprite->pixel_alphas);
                 sprite->palette_pixels = pixel_idx;
                 sprite->pixel_alphas = pixel_alphas;
+                sprite->trim_x = sprite->offset_x;
                 sprite->crop_width = sprite->width;
                 sprite->crop_height = sprite->height;
                 sprite->offset_x = 0;

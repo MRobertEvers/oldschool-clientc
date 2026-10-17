@@ -46,6 +46,13 @@ struct RSCache_Dat2Sprite
     int crop_height;
     int offset_x;
     int offset_y;
+    /* Where the on-disk art sits within `palette_pixels`: x 0 and the whole
+     * buffer until RSCACHE_SPRITELOAD_FLAG_NORMALIZE pads it out to `width`,
+     * which rewrites `offset_x`/`crop_width` and leaves these saying where the
+     * art went. The reference lays some sprites out by the art rather than the
+     * canvas — a hitsplat body is `field6921` wide, not `field6918`. */
+    int trim_x;
+    int trim_width;
 
     uint8_t* palette_pixels;
     uint8_t* pixel_alphas;

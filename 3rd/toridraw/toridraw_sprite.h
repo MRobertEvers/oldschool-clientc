@@ -56,6 +56,17 @@ struct ToriDraw_Sprite
     int crop_y;
     int crop_width;
     int crop_height;
+    /*
+     * The pixel box the source stated, as an x and a width within `width`.
+     *
+     * A dat2 sprite is padded out to its canvas at load, so `width` is the
+     * canvas and no longer says how wide the art is. The reference keeps the
+     * unpadded sprite and some layouts read its width -- a hitsplat body is
+     * `field6921` wide (deob Statics.method10685), and 1359 is 24 px of art on
+     * a 25 px canvas. The whole buffer when the source stated no box.
+     */
+    int trim_x;
+    int trim_width;
     /* Cached "is every pixel a==255", and the buffer it was computed for.
      * @see ToriDraw_SpriteAlphaClass. */
     unsigned char alpha_class;

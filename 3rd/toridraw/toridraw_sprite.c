@@ -64,6 +64,7 @@ ToriDraw_SpriteNewFromPix8(
     }
     sprite->width = pix8->width;
     sprite->height = pix8->height;
+    sprite->trim_width = pix8->width;
     return sprite;
 }
 
@@ -116,6 +117,7 @@ ToriDraw_SpriteNewFromPix32(struct ToriDraw_Pix32* pix32)
     sprite->pixels_argb = pixels;
     sprite->width = pix32->draw_width;
     sprite->height = pix32->draw_height;
+    sprite->trim_width = pix32->draw_width;
     return sprite;
 }
 
@@ -136,6 +138,7 @@ ToriDraw_SpriteNewFromArgbOwned(
     sprite->height = height;
     sprite->crop_width = width;
     sprite->crop_height = height;
+    sprite->trim_width = width;
     return sprite;
 }
 

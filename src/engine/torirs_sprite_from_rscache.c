@@ -41,6 +41,8 @@ sprite_frame_from_dat2_sprite(
     frame.crop_y = def->offset_y;
     frame.crop_width = frame.width;
     frame.crop_height = frame.height;
+    frame.trim_x = def->trim_x;
+    frame.trim_width = def->trim_width;
     return frame;
 }
 
@@ -362,6 +364,8 @@ ToriRS_SpriteApplyCrop(
         frame->crop_y = 0;
         frame->crop_width = w;
         frame->crop_height = h;
+        frame->trim_x = 0;
+        frame->trim_width = 0;
     }
 }
 
