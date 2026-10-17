@@ -15,9 +15,8 @@ Paths are abbreviated:
 Tick mapping (solver_lessons.md rules 2, 19): an npc decision on tick T reads player tiles at the END of T-1. A
 click decided after seeing tick d moves the player during d+1, so a plan's step k is my tile at the end of d+k.
 Everything here runs in the npc phase: the exhumed orb checks, the ground sweep, the spit scan, the landings
-(npc queues 4/5, XR:1131, :1306) and the turn. The one thing that runs in the PLAYER phase is the P3 retaliation
-(the attack funnel, DMG:442; called from skill_combat/.../player_hit_npc_prepare.rs2:195-199 when the swing is
-rolled, player_ranged.rs2:141).
+(npc queues 4/5, XR:1131, :1306), the turn and the P3 retaliation, which is judged as the player's hit LANDS in his
+`[ai_queue2]` (`~tob_xarpus_retaliate`), after that tick's `[ai_timer]` turn.
 
 Throughout: `R` = the tick the leader's barrier answer starts the room (`^tob_var_room_start`, PARTY:683).
 `U` = the stand-up tick (P2 start). `S_k` = spit slots. `Q` = the screech tick. `D` = his death tick.
@@ -154,11 +153,13 @@ and his heal hitmarks are enough.
   one (the first after Q: any of 4) (XR:1476-1492); `npc_facesquare(centre +/-5, +/-5)` (XR:1494-1506).
 - Quadrant of a tile (XR:1521-1538): dx = x-34, dz = z-35 (local, from his centre): dz>0 & dx>0 NE; dz>0 &
   dx<=0 NW; dz<=0 & dx>0 SE; dz<=0 & dx<=0 SW. (The centre column is WEST, the centre row SOUTH.)
-- Retaliation (DMG:442-481): on a swing rolled on tick W (player phase; once PER HITSPLAT, also on a MISS: the
-  funnel has no damage>0 test, and ranged calls it on every shot, player_ranged.rs2:135-141): if a turn has
-  happened (`turned >= 0`) and W > turned and the SWINGER'S tile at the swing is in the faced quadrant ->
-  unblockable 50-75 x uplift (<= 105). So: free from Q to Q+8 inclusive; for a turn at Tn the risky swing
-  ticks are Tn+1 .. Tn+7 (a swing on Tn+8 is on the next turn's own tick, again free).
+- Retaliation (tob_xarpus.rs2 `~tob_xarpus_retaliate`): on a hit LANDING on tick L (npc phase, `[ai_queue2]`;
+  melee lands L = W+1 for a swing on W; once PER HITSPLAT, also on a MISS's block splat): if a turn has happened
+  (`turned >= 0`, the timer's turn on L already made) and the hitter's tile is in the quadrant he faces on L ->
+  unblockable 50-75 x uplift (<= 105). So: free for hits landing before Q+8; for a turn at Tn a swing on
+  Tn+1 .. Tn+6 is judged against Tn's quadrant, and swings on Tn-1 and Tn are BLIND (they land on Tn and Tn+1,
+  against a facing not yet on screen). Blert agrees (blert_api/xarpus_p3_retaliation: turn+0 and turn+7 swings
+  are retaliated at 7x the rate of the six between, and every hp drop shows one tick after the swing).
 - Weapon: twisted bow = 1 hitsplat a shot (attackrate 6, rapid 5); a scythe is 3 hitsplats = 3 retaliations.
 
 ### 3.4 Constants block for the solver

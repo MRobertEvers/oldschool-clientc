@@ -15,7 +15,7 @@ tob_xarpus_hm.lua. Kit: void + tentacle (melee, speed 4), no thralls.
 | spit slot ahead S_k = U+7+4k (aims at my end-of-S-1 tile; the stack makes it mine) | `B.mark` t_mark S-1, r 1 | S+2..S+3 (outer ring lands S+4) | 7/11 | none |
 | its chains (aim at my end-of-S+2 tile, land S+5) | `B.mark` t_mark S+2, r 1 | S+4 | 7/11 | none |
 | a landed spit's chains (aim at end of L-1) | `B.mark` t_mark L-1, r 1 | L+1..L+2 | 7/11 | none |
-| P3 retaliation (HM: faced = the quadrant of the LAST landed hit, turned = its landing tick; a swing at W > turned from a tile in the faced quadrant, boundary inclusive: 50-75 x uplift) | NOT a tile hazard: the boss target is offered only when my step-1 swing is safe | d+1 | 62/105 | unblockable |
+| P3 retaliation (HM: faced = the quadrant of the LAST landed hit, turned = its landing tick; a hit LANDING at L from a tile in the faced quadrant, boundary inclusive, unless another hit turned him on L: 50-75 x uplift) | NOT a tile hazard: the boss target is offered only when my step-1 swing is safe | d+1 | 62/105 | unblockable |
 
 Exhumed heal orbs are not damage to me: they are a soft cost (`B.zone` require
 on the tile, E+2..E+7, 3 hp a tick off it).

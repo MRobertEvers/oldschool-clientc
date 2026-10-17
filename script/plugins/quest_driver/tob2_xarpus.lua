@@ -376,11 +376,12 @@ end
 -- ======================================================== P3: THE STARE
 -- HM (tob_xarpus.rs2 ~tob_xarpus_gaze_hit): no timed turn; every landed hit
 -- (damage > 0) turns him to the hitter's quadrant and stamps `turned` with
--- the landing tick; a swing rolled at clock W from a tile IN the faced
--- quadrant (inclusive of his centre row/column, ~tob_xarpus_in_quadrant) is
--- retaliated when W > turned (tob_damage.rs2 ~tob_xarpus_prepare_player_hit).
--- So a swing at d+1 is safe if my tile is not in the quadrant he faces at the
--- end of d (a hit landing at d+1 would stamp turned = d+1 and free it too).
+-- the landing tick; a hit LANDING (melee: the tick after the swing) from a
+-- tile IN the faced quadrant (inclusive of his centre row/column,
+-- ~tob_xarpus_in_quadrant) is retaliated unless another hit turned him on
+-- that same landing tick (~tob_xarpus_retaliate). Every seat swings on the
+-- shared rhythm tick, so the hits land together: a swing at d+1 is safe if my
+-- tile is not in the quadrant he faces at the end of d.
 
 -- The faced quadrant at the end of this tick: his face square is centre +-5
 -- on both axes only for a P3 turn (~tob_xarpus_quad_coord); nil before any.

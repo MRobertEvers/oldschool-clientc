@@ -832,8 +832,9 @@ at a random raider (never the last) reading the end of S-1, landing S+3 (S+4
 from the outer ring) with a 3x3 splash reading the end of L-1, a permanent
 pool (loc 32744), and 1 then 2 chains at the other two raiders' end-of-L-1
 tiles landing L+2; screech at hp <= 937, turns every 8 from it to a quadrant
-not the last; a swing from the faced quadrant on T+1..T+7 is retaliated per
-hitsplat (50..75+).
+not the last; a hit is judged as it LANDS (melee: the tick after the swing)
+against the quadrant he faces then, so a swing on T-1 or T lands on a facing
+not yet seen; from the faced quadrant it is retaliated per hitsplat (50..75+).
 
 - **STATE**: origin (feeding SW - (33,34), combat SW - (32,33)); exhumeds {tile,
   E, owner}; landings {tile, read = L-1} keyed (tile, L); pools; the stack's

@@ -30,11 +30,13 @@
 -- lands on B_k+1, already a pool. One pool a spit, all off the tiles beside
 -- him (the wiki's "marked tiles"), no splash taken.
 --
--- P3, THE STARE: turns T_n = Q+8n, never the quadrant before. A swing on T_n
--- is free (the swing must FOLLOW the turn); swings are kept on ticks = Q mod 4
--- so the other one is T_n+4, and on seeing a turn at my quadrant the stack
--- steps across the nearest boundary beside him (wiki: "never look in the same
--- corner twice, so players should be moving to where he last looked").
+-- P3, THE STARE: turns T_n = Q+8n, never the quadrant before. A swing on W is
+-- judged as it LANDS, on W+1, against the quadrant he faces then
+-- (tob_xarpus.rs2 ~tob_xarpus_retaliate), so swings on T_n and T_n-1 are blind:
+-- they land on a facing not yet seen. Swings are kept on ticks = Q+1 mod 4
+-- (T_n+1, T_n+5), and on seeing a turn at my quadrant the stack steps across
+-- the nearest boundary beside him (wiki: "never look in the same corner twice,
+-- so players should be moving to where he last looked").
 -- ==========================================================================
 
 QD.XARP = {
@@ -525,12 +527,12 @@ local function exhumed_goal(S, F)
 end
 
 -- P3, THE STARE (Normal): beside him; on a turn at my quadrant, across the
--- nearest boundary; swings only on ticks = Q mod 4. -> the order
+-- nearest boundary; swings only on ticks = Q+1 mod 4. -> the order
 function QD.raid._xarp_stare(S, F, B, armed)
     local V = QD.XARP
     local order = nil
     -- THE STARE: beside him; on a turn at my quadrant, across the nearest
-    -- boundary; swings only on ticks = Q mod 4
+    -- boundary; swings only on ticks = Q+1 mod 4
     if S.stare_tile == nil or not beside5(B, S.stare_tile.x, S.stare_tile.z) then
         local best, bd = nil, nil
         for x = B.x + 31, B.x + 37 do
@@ -570,9 +572,15 @@ function QD.raid._xarp_stare(S, F, B, armed)
         end
     end
     local goal = S.stare_tile or F.me
-    local swing_tick = ((F.tick + 1 - S.Q) % 4 == 0)
-    local safe = (S.faced == nil) or (S.turned ~= nil and F.tick + 1 == S.turned + V.TURN_EVERY)
-        or not in_quadrant(B, F.me.x, F.me.z, S.faced)
+    -- the swing is on d+1 and lands on d+2: before the first turn it must land
+    -- before it, after it on a facing already on screen
+    local swing_tick = ((F.tick + 1 - S.Q) % 4 == 1)
+    local safe
+    if S.faced == nil then
+        safe = F.tick + 2 < S.Q + V.TURN_EVERY
+    else
+        safe = F.tick + 2 < S.turned + V.TURN_EVERY and not in_quadrant(B, F.me.x, F.me.z, S.faced)
+    end
     if F.me.x ~= goal.x or F.me.z ~= goal.z then
         order = { mode = "walk", x = goal.x, z = goal.z }
     elseif swing_tick and safe and armed and F.boss and F.form == "combat" then
