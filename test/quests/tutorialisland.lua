@@ -73,7 +73,8 @@ return {
         -- clicks it -- the stone's IF_BUTTON1 is what moves the step on.
         local function open_tab(name, tab, tab_number, next_stage)
             t.exec(name .. ".flash", t.var.await, FLASH, tab_number + 1, 5)
-            t.check(name, t.ui.tab(tab), "ui.tab(" .. tab .. ")")
+            local tab_result, tab_detail = t.ui.tab(tab)
+            t.check(name, tab_result, "ui.tab(" .. tab .. "): " .. tostring(tab_result) .. " " .. tostring(tab_detail))
             stage(next_stage, 5)
             t.exec(name .. ".unflash", t.var.await, FLASH, 0, 5)
         end
@@ -252,7 +253,7 @@ return {
             "npc:let's start by looking at your settings menu",
         })
         stage("open_settings")
-        open_tab("settingsTab", "settings", 11, "opened_settings")
+        open_tab("settingsTab", "options", 11, "opened_settings")
         talk("talkToGuide2", "newbie_basics_instructor", {
             "npc:Looks like you're making good progress!",
             "npc:time for you to go and meet your first instructor!",
@@ -276,10 +277,19 @@ return {
         snapshot()
         t.exec("catchShrimp", t.player.talk_to, "0_48_48_newbiefishing", 1)
         t.exec("catchShrimp.shrimp", t.inv.await, "raw_shrimp", 1, 20)
-        t.exec("catchShrimp.box", t.chat.play, { "*" })
+        -- Walked off, not continued: the catch moves the step on, not the box.
+        -- With the step written after the pausing box, a player who walked
+        -- away held the shrimp and Brynna still said "Let's try and catch
+        -- some."
+        local _, shrimp_box = t.chat.text()
+        t.check("catchShrimp.box", t.chat.kind() == "objbox"
+            and string.find(tostring(shrimp_box), "You manage to catch some shrimp", 1, true) ~= nil,
+            "chat " .. tostring(t.chat.kind()) .. " '" .. tostring(shrimp_box) .. "'")
+        t.exec("catchShrimp.walkOff", t.player.walk_to, 3102, 3096, 10)
+        t.check("catchShrimp.boxClosed", t.chat.kind() ~= "objbox", "chat " .. tostring(t.chat.kind()))
         gain("catchShrimp.xp", "fishing", 10)
         stage("open_skills")
-        open_tab("skillsTab", "skills", 1, "opened_skills")
+        open_tab("skillsTab", "stats", 1, "opened_skills")
         talk("talkToSurvival2", "newbie_survival_instructor", {
             "player:I've managed to catch some shrimp.",
             "npc:This brings us on to the Woodcutting and Firemaking skills",
@@ -356,7 +366,7 @@ return {
             "npc:I'm here to tell you all about quests",
         })
         stage("open_quest_list")
-        open_tab("questTab", "quest", 2, "opened_quest_list")
+        open_tab("questTab", "quests", 2, "opened_quest_list")
         talk("talkToQuestGuide2", "newbie_quest_instructor", {
             "npc:Now that you have the quest list open",
             "npc:If you haven't started the quest",
