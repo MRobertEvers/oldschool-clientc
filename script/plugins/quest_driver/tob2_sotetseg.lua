@@ -813,6 +813,13 @@ function SV.maze(S, F, B, add)
     local X, V, M = QD.SOTE_V2, S.V, S.t2s
     if F.phase == "maze_waiter" then
         local st = QD.raid._sote_hm_waiter(S, F, add)
+        -- OFF THE GRID NORTH (crossed, or back through the portal): the hold
+        -- tile, not the station beside him. He attacks the tick after he
+        -- turns back (S.rs2 ~tob_sote_end_maze, ^tob_sote_post_maze_ticks),
+        -- read at the tick he turns, so the plan first sees that slot too
+        -- late to step off; a station there took his melee licence on every
+        -- maze's first swing.
+        if st.z > S.base.z + V.GRID.z1 then st = SV.hold_tile(S, st) end
         B.pull{ name = "wait", x = st.x, z = st.z, size = 1, weight = X.MAZE_PULL, t0 = F.tick + 1, t1 = F.tick + B.h }
         return "maze-wait"
     end

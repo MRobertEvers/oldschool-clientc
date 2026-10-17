@@ -1259,10 +1259,19 @@ function VZ.predict(S, F, B)
         api_drive.ticklog_mark("vz p" .. tostring(F.pid) .. " t" .. now .. " @" .. F.me.x .. "," .. F.me.z .. " tn " .. table.concat(parts, " "))
     end
     local half = F.hp / 2
+    -- THE BALL OUTRANKS THEM: the ball's holder and its next, the ball in
+    -- the air, take a touch over a broken bounce. Both were rules and the
+    -- plan broke the bounce: vqab t988, my tornado onto the meeting tile, the
+    -- holder stepped off it 3 from the next, the un-bounced 74 at 65 hp (a
+    -- touch is half). Priced there, the touch is what it costs.
+    local role = (S.ball ~= nil) and VZ.ball_chain(S, F) or nil
+    local Bl = S.ball
+    local ball_rule = (role == "target" or role == "next") and Bl.land ~= nil
+        and math.max(Bl.land, Bl.land_hi or Bl.land) + 1 >= now + 1
     for i, tn in ipairs(mine) do
         if i > QD.T2.V.CHASERS_MAX then break end
         -- (ZERO AVOIDABLE, owner 2026-10-12: a touch is a RULE, not priced)
-        B.chaser{ name = "tornado " .. tn.slot, x = tn.x, z = tn.z, forbid = true,
+        B.chaser{ name = "tornado " .. tn.slot, x = tn.x, z = tn.z, forbid = not ball_rule,
             dmg_exp = half * (1 + X.TORNADO_HEAL * X.HP_PER_BOSS_HP), dmg_max = half }
     end
 end

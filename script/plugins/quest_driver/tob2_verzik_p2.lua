@@ -183,14 +183,16 @@ function QD.VZ2P2F.my_red(S, F)
     for _, r in ipairs(F.reds) do
         if r.slot == M.my_red then return r, false end
     end
-    -- NORMAL: mine is dead, the other lives - it is mine now. Two reds a
-    -- summon and three seats leave one seat on the east red, ~140 hp at a
-    -- tentacle's ~2.5 a tick: 56 ticks against her 44-tick summon, so it
-    -- lived and healed her every summon while the two west seats went back to
-    -- her (n_relay rbt: 30 reds, P2 timed out at 900; reds healed her 83 a P2
-    -- to v1's 35). The plan's 12-tick horizon covers the run round her that
-    -- v1's 7 did not.
-    if not S.p2m.hard and #F.reds > 0 then
+    -- MINE IS DEAD, ANOTHER LIVES - it is mine now. Two reds a summon and
+    -- three seats leave one seat on the east red, ~140 hp at a tentacle's
+    -- ~2.5 a tick: 56 ticks against her 44-tick summon, so it lived and
+    -- healed her every summon while the two west seats went back to her
+    -- (n_relay rbt: 30 reds, P2 timed out at 900; reds healed her 83 a P2 to
+    -- v1's 35). Hard's west pair did the same beside a red that bursts at
+    -- her summon (relay_hard_128: a seat on her for 3,225 of 9,875 red
+    -- ticks). The plan's 12-tick horizon covers the run round her that v1's
+    -- 7 did not.
+    if #F.reds > 0 then
         local pick = nil
         for _, r in ipairs(F.reds) do
             local d = QD.raid._tob_cheb(r.x, r.z, F.me.x, F.me.z)
@@ -201,6 +203,45 @@ function QD.VZ2P2F.my_red(S, F)
     end
     return nil, false
 end
+
+-- THE STATS THROUGH P2 (P3's VZ.boosts, Sotetseg's SV.boosts). The shared
+-- supplies restored only at QD.TOBS.DRAIN_RESTORE under base and re-dosed
+-- only from base up, so the brews drained the team and it fought there: Attack
+-- and Strength 5+ under base on 47 seat-ticks a Normal relay, -45 at worst
+-- (n_relay, 25 runs). Every tick the drink timer allows, hp first:
+--   either RESTORE_AT under base                 -> a super restore
+--   either under base + REDOSE_UNDER             -> a super combat, keeping
+--                                                   END_COMBATS for her end
+--   her bar at END_FRAC or under, either under base + END_REDOSE, the kept
+--   dose not yet drunk                           -> it: P3 starts boosted
+-- Each through the budget's spendable (the later rooms' reserve holds).
+function QD.VZ2P2F.boosts(S, F, I, frac)
+    local X, M = QD.VZ2P2, S.t2p
+    local a, st = F.levels.attack, F.levels.strength
+    if a == nil or st == nil or a.base <= 0 then return end
+    if S.last_drink == F.tick or I.drink ~= nil then return end
+    if F.tick < S.x2.held.drink_until then return end
+    if F.hp < (I.eat_below or X.HP_EAT) then return end
+    local Bu = QD.T2.budget
+    local combats = Bu.spendable(S, "combat")
+    local low = math.min(a.level - a.base, st.level - st.base)
+    local ending = frac ~= nil and frac <= X.END_FRAC
+    local drink, why = nil, nil
+    if low <= -X.RESTORE_AT then
+        if Bu.spendable(S, "restore") > 0 then drink, why = QD.raid._tob_first(S, S.ids.stat_restores), "restore" end
+    elseif ending and not M.end_dosed and low < X.END_REDOSE and combats > 0 then
+        drink, why = QD.raid._tob_first(S, S.ids.combats), "end-combat"
+        if drink then M.end_dosed = true end
+    elseif low < X.REDOSE_UNDER and combats > X.END_COMBATS then
+        drink, why = QD.raid._tob_first(S, S.ids.combats), "combat"
+    end
+    if drink == nil then return end
+    I.drink = drink
+    S.last_drink = F.tick
+    M.boost_n[why] = (M.boost_n[why] or 0) + 1
+end
+QD.VZ2P2.RESTORE_AT, QD.VZ2P2.REDOSE_UNDER = 8, 5
+QD.VZ2P2.END_FRAC, QD.VZ2P2.END_REDOSE, QD.VZ2P2.END_COMBATS = 0.10, 12, 1
 
 -- Is the Athanatos mine? (main-tree v1: a killer a side, seats 3 east and 5
 -- west; over her own columns both go)
@@ -312,7 +353,7 @@ QD.T2.rooms.verzik_p2 = {
         S.t2.plan_opts.beam = S.t2.plan_opts.beam or QD.VZ2P2.BEAM
         S.t2p = { opts = opts, modes = {}, mode = nil, acid = {}, acid_keys = {}, pools = 0, tg_last = {}, tg_step = {},
                   marked = {}, frac_hist = {}, frac = nil, red_summon = nil, my_red = nil, pops = 0, formations = 0,
-                  taken = 0, last_hp = nil, form_t = nil }
+                  taken = 0, last_hp = nil, form_t = nil, boost_n = {}, end_dosed = false }
     end,
 
     enter = function(S)
@@ -400,7 +441,9 @@ QD.T2.rooms.verzik_p2 = {
             local remaining = math.max(0, QD.VZ_PRAYER.P2_TICKS - (S.entered and (F.tick - S.entered) or 0)) + QD.VZ_PRAYER.P3_TICKS
             local _, piety_ok = QD.raid.vz_prayer_spare(ids.inv, F.prayer, remaining)
             S.t2.want.boost = piety_ok and "piety" or nil
-            S.t2.want.boost_stat = "attack"
+            -- (the potions are QD.VZ2P2F.boosts': the shared supplies'
+            -- re-dose would drink the dose kept for her end)
+            S.t2.want.boost_stat = nil
             -- FLOORS (v1): above her biggest single hit; a crab closing in, room for both
             local eat_at = X.HP_EAT
             for _, c in ipairs(F.crabs) do
@@ -440,6 +483,11 @@ QD.T2.rooms.verzik_p2 = {
                     her(hv)
                     mode = "ath"
                 elseif red then
+                    -- (her too, at half: a seat whose red is out of reach this
+                    -- tick swings at her while it walks in. Red alone left
+                    -- those ticks idle on the walk out to it: P2 433 -> 483
+                    -- ticks, 64 Normal seeds; a lower price for her moved none
+                    -- of the 2,600 swings, out of reach is out of reach)
                     B.target{ name = "red", npc = red, size = red.size or 2, path = QD.VZ2P2F.walk_path(S, F, red, B.h),
                         range = 1, speed = X.TENTACLE.speed, value = hv * X.RED_WORTH }
                     her(hv * 0.5)
@@ -449,6 +497,7 @@ QD.T2.rooms.verzik_p2 = {
                     mode = leave and "her-last" or "her"
                 end
                 if QD.VZ2P2F.pop(S, F, B) then mode = mode .. "+pop" end
+                QD.VZ2P2F.boosts(S, F, I, M.frac)
             end
             if QD.VZ2P2F.formation(S, F, B) then
                 mode = mode .. "+zap"
@@ -478,9 +527,10 @@ QD.T2.rooms.verzik_p2 = {
         local modes = {}
         for k, n in pairs(M.modes) do modes[#modes + 1] = k .. "=" .. n end
         table.sort(modes)
-        return string.format("verzik_p2 v2: modes %s; taken %d; attacks %d (slams %d), summons %d; pools %d; pops %d; zap formations %d; her frac %s",
+        return string.format("verzik_p2 v2: modes %s; taken %d; attacks %d (slams %d), summons %d; pools %d; pops %d; zap formations %d; her frac %s; restore %d combat %d end-combat %d",
             table.concat(modes, " "), M.taken, S.attacks, S.slams, S.summons, M.pools, M.pops, M.formations,
-            M.frac and string.format("%.3f", M.frac) or "-")
+            M.frac and string.format("%.3f", M.frac) or "-", M.boost_n.restore or 0, M.boost_n.combat or 0,
+            M.boost_n["end-combat"] or 0)
     end,
 }
 
