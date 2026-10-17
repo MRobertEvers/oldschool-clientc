@@ -74,7 +74,7 @@ local function run(t)
     t.check("olm.barrier", hr == "ok" or hr == "timeout", tostring(hr) .. " " .. tostring(hd))
     local cr, cd = t.chat.play({ "options", "choose:Step through the mystical barrier." })
     t.check("olm.confirm", cr == "ok", tostring(cd))
-    local result, detail = t.raid.cox_olm_v2_solve({ max_ticks = 2400 })
+    local result, detail = t.raid.cox_olm_solve({ max_ticks = 2400 })
     t.check("olm.solve", result == "ok", tostring(detail))
     if result ~= "ok" then
         t.finish(1)

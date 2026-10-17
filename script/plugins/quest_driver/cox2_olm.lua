@@ -2207,7 +2207,7 @@ QD.T2.register("cox_olm", {
 
     init = function(S, opts)
         opts = opts or {}
-        S.who = "cox_olm_v2_solve"
+        S.who = "cox_olm_solve"
         S.t2.plan_opts = { h = opts.h or CO.V.H, beam = opts.beam or CO.V.BEAM }
         S.o = {
             seen = {}, seen_n = 0, events = {}, signs = {}, phase_n = 0, glowing = false,
