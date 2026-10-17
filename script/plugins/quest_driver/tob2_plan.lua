@@ -22,7 +22,7 @@
 -- A ROOM (tob2_run.lua): QD.T2.register(name, room) with room = {
 --   ids(opts)?, init(S, opts), enter(S), predict(S, F, B),
 --   strategy(S, F, B) -> intents, done(S, F) -> "ok"|nil, summary(S)? }
---   and QD.raid.<name>_v2_solve(opts) -> result, detail, S comes with it.
+--   and QD.raid.<name>_solve(opts) -> result, detail, S comes with it.
 --   opts read by the loop: h, beam, eat_below, brew_below, boost, boost_stat,
 --   swing_seqs = {seq...} (my swing animations; default: any start but
 --   human_eat).

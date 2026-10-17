@@ -63,30 +63,6 @@ function QD.raid._sote_hm_ids(S)
     for k = 1, 4 do ids.parent[k] = sym("loc", "tob_sotetseg_hard_lighttile_parent_" .. k) end
 end
 
--- THE TWO DEATH BALLS: the dot south of him, everyone on it, over each ball's
--- read window. -> true while one is incoming
-function QD.raid._sote_hm_death_zones(S, F, add)
-    local V = S.V
-    local B = S.base
-    local balls = {}
-    for _, P in ipairs(S.incoming) do
-        if P.kind == "death" and P.land >= F.tick then balls[#balls + 1] = P end
-    end
-    if #balls == 0 then return false end
-    table.sort(balls, function(a, b) return a.pid < b.pid end)
-    local dot = { x = B.x + V.DOT.x, z = B.z + V.DOT.z }
-    local t0, t1 = nil, nil
-    for _, P in ipairs(balls) do
-        t0 = math.min(t0 or P.land, math.max(F.tick + 1, P.land - 2))
-        t1 = math.max(t1 or P.land, P.land)
-    end
-    local tile = dot
-    add.zone("death-hold", { x = tile.x, z = tile.z, size = 1, lo = 0, hi = 0, require = true,
-        t0 = t0, t1 = t1, tier = "lethal", cost = 60 })
-    add.pull({ x = tile.x, z = tile.z, size = 1, weight = 1.0, t0 = F.tick, t1 = t1 })
-    return true
-end
-
 -- UP TOP: the Normal waiter - follow the runners' glow and leave north off the
 -- last rows. The maze does not end while anyone up top is short of the grid's
 -- north edge (~tob_sote_arena_unfinished), so waiting south of it holds the
@@ -236,34 +212,4 @@ function QD.raid._sote_hm_runner(S, F, add)
         end
     end
     return goal
-end
-
-function QD.raid._sote_hm_step(S, F)
-    local V = S.V
-    QD.raid._sote_hm_ids(S)
-    QD.raid._sote_measure(S, F)
-    if F.boss then S.seen_boss = true end
-    local phase = QD.raid._sote_phase(S, F)
-    if phase == "done" then
-        QD.raid._tob_trace(S, F.tick, "his death")
-        return "ok"
-    end
-    if phase ~= "maze_runner" then S.rtrail, S.rlast = nil, nil end
-    if S.base == nil then
-        QD.raid._tob_emit(S, F, nil, {})
-        return nil
-    end
-    local intent = {}
-    local spec, names, add = QD.raid._tob_spec(S, F, { h = V.H, beam = V.BEAM })
-    local target, station = QD.raid._sote_fight_zones(S, F, add, phase)
-    if phase == "death_ball" and QD.raid._sote_hm_death_zones(S, F, add) then station = nil end
-    if phase == "maze_waiter" then station = QD.raid._sote_hm_waiter(S, F, add) end
-    if phase == "maze_runner" then station = QD.raid._sote_hm_runner(S, F, add) end
-    if phase == "maze_runner" and QD.raid._sote_portal(S, F) then phase, station = "maze_portal", nil end
-    return QD.raid._sote_act(S, F, spec, names, add, phase, target, 1, station, intent)
-end
-
-function QD.raid.sotetseg_hm_solve(opts)
-    assert(QD.raid.tob_mode == "hard", "sotetseg_hm_solve: the party is in " .. tostring(QD.raid.tob_mode) .. " mode")
-    return QD.raid._sote_run("sotetseg_hm_solve", QD.SOTE_HM, QD.raid._sote_hm_step, opts)
 end

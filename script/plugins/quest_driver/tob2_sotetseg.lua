@@ -2,7 +2,7 @@
 -- layers (docs/minigames/theater_of_blood/TOB2_DESIGN.md). The plan:
 -- docs/minigames/theater_of_blood/tob2_rooms/sotetseg.md.
 --
---   QD.raid.sotetseg_v2_solve(opts) -> result, detail, S
+--   QD.raid.sotetseg_solve(opts) -> result, detail, S
 --
 -- This file is the room's PREDICT and STRATEGY. The perception and the maze
 -- are v1's, CALLED (tob_sotetseg.lua, tob_sotetseg_hm.lua): _sote_measure (his
@@ -45,6 +45,15 @@ QD.T2.rooms = QD.T2.rooms or {}
 
 QD.SOTE_V2 = {
     H = 10, BEAM = 32,                      -- v1's Sotetseg horizon and beam
+    -- THE MODE'S DEATH BALLS AND CURRENCY (S.sm): Hard throws two at two
+    -- targets, up to ^tob_sote_ball_max_5 188 each; Normal one, up to
+    -- ^tob_sote_ball_max_<scale> (121 at three). PAIR_EXP is the team's
+    -- expected roll for the volley, TICK_COST a fight tick's team damage
+    -- (Normal: the v1 relay's 423 over 499 ticks, death balls included).
+    MODE = {
+        hard = { BALLS = 2, DB_MAX = { 188, 188, 188, 188, 188 }, PAIR_EXP = 189, TICK_COST = 3.2, HP_PER_BOSS_HP = 0.22 },
+        normal = { BALLS = 1, DB_MAX = { 121, 121, 121, 155, 188 }, PAIR_EXP = 61, TICK_COST = 0.85, HP_PER_BOSS_HP = 0.14 },
+    },
     -- THE ONE CURRENCY. HP_PER_BOSS_HP = team hp taken / boss hp dealt: the
     -- oracle's 174 a seat-run x 5 = 870 over his 4000 (tob.constant
     -- ^tob_sote_hp_5) = 0.22. PROBE: refine from budget.py.
@@ -475,7 +484,7 @@ function SV.predict(S, F, B)
         for _, P in ipairs(S.incoming) do
             if P.kind == "death" and P.land - 1 >= now + 1 and P.land - 1 <= hz then
                 B.hit{ name = "pair-share", x0 = D.x - 1, z0 = D.z - 1, x1 = D.x + 1, z1 = D.z + 1,
-                    t0 = P.land - 1, t1 = P.land - 1, land = 2, dmg_exp = X.DB_AVG / n, dmg_max = X.DB_MAX / n }
+                    t0 = P.land - 1, t1 = P.land - 1, land = 2, dmg_exp = (S.sm.db_max + 1) / 2 / n, dmg_max = S.sm.db_max / n }
             end
         end
     end
@@ -500,7 +509,7 @@ function SV.fight_mode(S, F)
         -- the air is nulled by his death before it lands.
         if pair == nil and th > 0 then
             local wait = math.max(0, X.MAGIC_PER_BALL - M.casts) * X.ATTACK_GAP + X.ATTACK_GAP
-            if wait * X.TICK_COST <= X.P_NULL * X.PAIR_EXP then return "hold", nil end
+            if wait * S.sm.TICK_COST <= X.P_NULL * S.sm.PAIR_EXP then return "hold", nil end
         end
     end
     if pair then return "stack", pair end
@@ -768,7 +777,7 @@ end
 function SV.pair_need(S, F)
     local X = QD.SOTE_V2
     local n = math.max(#F.raiders, 1)
-    local need = (2 * X.DB_MAX) // n + 5
+    local need = (S.sm.BALLS * S.sm.db_max) // n + 5
     local land = nil
     for _, P in ipairs(S.incoming) do
         if P.kind == "death" and P.land >= F.tick then land = math.max(land or 0, P.land) end
@@ -808,9 +817,22 @@ function SV.maze(S, F, B, add)
         return "maze-wait"
     end
     M.unknown = {}
-    QD.raid._sote_hm_runner(S, F, add)
     local R = V.REALM
     local bx, bz = F.me.x - F.me.x % 64, F.me.z - F.me.z % 64
+    if S.sm.BALLS == 1 then
+        -- NORMAL: one runner sees the whole lit path (F.path); every other
+        -- realm tile is unknown. v1's runner forbids them and holds row 2.
+        QD.raid._sote_runner(S, F, add)
+        local path = F.path or {}
+        for x = R.x0, R.x1 do
+            for z = R.z0, R.z1 do
+                local k = (bx + x) .. "," .. (bz + z)
+                if not path[k] then M.unknown[k] = true end
+            end
+        end
+    else
+        QD.raid._sote_hm_runner(S, F, add)
+    end
     local known, dist, queue = {}, {}, {}
     for x = R.x0, R.x1 do
         for z = R.z0, R.z1 do
@@ -852,7 +874,8 @@ function SV.maze(S, F, B, add)
         end
     end
     if Z.state == "land" and row >= 0 then to("run") end
-    if Z.state == "run" and far and far.z - bz - R.z0 >= last_row and Z.best >= fd - V.CARROT then to("exit") end
+    local carrot = V.CARROT or QD.SOTE_HM.CARROT
+    if Z.state == "run" and far and far.z - bz - R.z0 >= last_row and Z.best >= fd - carrot then to("exit") end
     if Z.state ~= "portal" and QD.raid._sote_at_exit(S, F) then to("portal") end
     local goal = nil
     M.portal_op = nil
@@ -883,7 +906,7 @@ function SV.maze(S, F, B, add)
             if d == 0 and (goal == nil or td < gd or (td == gd and t.x < goal.x)) then goal = t end
         end
     elseif far then
-        local want = math.min(fd, Z.best + V.CARROT)
+        local want = math.min(fd, Z.best + carrot)
         for k, d in pairs(dist) do
             local t = known[k]
             if d == want and (goal == nil or t.x < goal.x or (t.x == goal.x and t.z < goal.z)) then goal = t end
@@ -963,7 +986,7 @@ function SV.strategy(S, F, B)
             else
                 if target then
                     B.target{ name = "him", npc = target, size = V.SIZE, path = { { x = target.x, z = target.z } },
-                        range = 1, speed = sw.speed, value = sw.exp * X.HP_PER_BOSS_HP, spec_ok = true }
+                        range = 1, speed = sw.speed, value = sw.exp * S.sm.HP_PER_BOSS_HP, spec_ok = true }
                 else
                     I.spec = nil
                 end
@@ -1039,16 +1062,25 @@ QD.T2.rooms.sotetseg = {
 
     init = function(S, opts)
         opts = opts or {}
-        S.who = S.who or "sotetseg_v2_solve"
+        S.who = S.who or "sotetseg_solve"
         S.role = S.role or (QD_PARTY and QD_PARTY.role) or 1
-        QD.raid._sote_hm_ids(S)
+        local hard = QD.raid.tob_mode == "hard"
+        if hard then QD.raid._sote_hm_ids(S) end
         -- v1's perception state (_sote_run's extra)
         S.incoming, S.proj_live, S.trail, S.trail_seen = {}, {}, {}, {}
         S.deaths, S.mazes, S.phase_log, S.path_log = 0, 0, {}, {}
-        S.V = QD.SOTE_HM
+        -- the mode's v1 table (Normal: QD.SOTE, three stations; Hard:
+        -- QD.SOTE_HM, five) and death balls
+        S.V = hard and QD.SOTE_HM or QD.SOTE
+        do
+            local MD = QD.SOTE_V2.MODE[hard and "hard" or "normal"]
+            local scale = math.max(1, math.min(5, QD.party.size()))
+            S.sm = { BALLS = MD.BALLS, db_max = MD.DB_MAX[scale], PAIR_EXP = MD.PAIR_EXP, TICK_COST = MD.TICK_COST,
+                     HP_PER_BOSS_HP = MD.HP_PER_BOSS_HP }
+        end
         do
             local r, id = api_drive.symbol("obj", QD.SOTE_V2.CLAWS.name)
-            assert(r == "ok", "sotetseg_v2_solve: no obj " .. QD.SOTE_V2.CLAWS.name)
+            assert(r == "ok", "sotetseg_solve: no obj " .. QD.SOTE_V2.CLAWS.name)
             S.t2s_claws = id
         end
         S.room = "sotetseg"
@@ -1093,7 +1125,8 @@ QD.T2.rooms.sotetseg = {
     end,
 }
 
-function QD.raid.sotetseg_v2_solve(opts)
-    assert(QD.raid.tob_mode == "hard", "sotetseg_v2_solve: the party is in " .. tostring(QD.raid.tob_mode) .. " mode")
+function QD.raid.sotetseg_solve(opts)
+    assert(QD.raid.tob_mode == "hard" or QD.raid.tob_mode == "normal",
+        "sotetseg_solve: the party is in " .. tostring(QD.raid.tob_mode) .. " mode")
     return QD.T2.solve("sotetseg", opts or {})
 end

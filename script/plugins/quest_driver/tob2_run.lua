@@ -15,7 +15,7 @@
 --
 -- A room is QD.T2.rooms[name] = { ids(opts)?, init(S, opts), enter(S),
 -- predict(S, F, B), strategy(S, F, B) -> intents, done(S, F), summary(S)? };
--- QD.T2.register(name, room) also gives the relay QD.raid.<name>_v2_solve.
+-- QD.T2.register(name, room) also gives the relay QD.raid.<name>_solve.
 -- ==========================================================================
 
 QD.T2 = QD.T2 or {}
@@ -25,7 +25,7 @@ function QD.T2.register(name, room)
     assert(name)
     assert(room)
     QD.T2.rooms[name] = room
-    QD.raid[name .. "_v2_solve"] = function(opts) return QD.T2.solve(name, opts) end
+    QD.raid[name .. "_solve"] = function(opts) return QD.T2.solve(name, opts) end
 end
 
 -- ================================================================ RESOURCES

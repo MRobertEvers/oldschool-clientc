@@ -2,7 +2,7 @@
 -- v2 layers (docs/minigames/theater_of_blood/TOB2_DESIGN.md). The plan is
 -- docs/minigames/theater_of_blood/tob2_rooms/nylocas.md.
 --
---   QD.raid.nylocas_v2_solve(opts) -> result, detail, S
+--   QD.raid.nylocas_solve(opts) -> result, detail, S
 --
 -- This file is the room's PREDICT and STRATEGY only. The perception is v1's,
 -- CALLED (tob_nylocas.lua, tob_nylocas_hm.lua): the lives and the waves
@@ -99,6 +99,18 @@ QD.NYLO_V2 = {
     DUE_SIDE = { [1] = { x = 30, z = 22 }, [2] = { x = 31, z = 22 }, [3] = { x = 32, z = 22 },
                  [4] = { x = 33, z = 22 }, [5] = { x = 29, z = 23 } },
     F_KEYS = { "supports", "nylos", "boss", "pct_low", "princes", "prince", "phase", "inflight", "shots", "split" },
+    -- THE MODE'S ROLES AND PILLARS (S.nm). Hard, five: the guards, the focus
+    -- and the barrage seats above, pillars of ^tob_nylo_pillar_hp_hard 150.
+    -- Normal, a trio (QD.NYLO's ranger, melee, mage): no guard and no focus
+    -- (three seats, no Prinkipas), the mage's barrage, pillars of
+    -- ^tob_nylo_pillar_hp + 2 x ^tob_nylo_pillar_hp_step = 230, a collapse
+    -- worth three seats' 25.5 and its chewers.
+    MODE = {
+        hard = { GUARD_SEATS = { [1] = true, [3] = true }, FOCUS_SEATS = { [2] = true, [4] = true, [5] = true },
+                 BARRAGE_SEATS = { [3] = true, [4] = true }, PILLAR_HP = 150, COLLAPSE_TEAM_HP = 200 },
+        normal = { GUARD_SEATS = {}, FOCUS_SEATS = {}, BARRAGE_SEATS = { [3] = true }, PILLAR_HP = 230,
+                   COLLAPSE_TEAM_HP = 120 },
+    },
 }
 
 local NV = {}
@@ -239,11 +251,11 @@ end
 
 -- A pillar hp in team hp: COLLAPSE_TEAM_HP over its hp left, floored at a
 -- quarter (the plan's derivation).
-function NV.worth(sp)
+function NV.worth(S, sp)
     if sp == nil then return 0 end
-    local V = QD.NYLO_V2
-    local h = sp.pct * V.PILLAR_HP / 100
-    return V.COLLAPSE_TEAM_HP / math.max(h, V.PILLAR_HP / 4)
+    local nm = S.nm
+    local h = sp.pct * nm.PILLAR_HP / 100
+    return nm.COLLAPSE_TEAM_HP / math.max(h, nm.PILLAR_HP / 4)
 end
 
 -- THE TEAM HP A KILL SAVES. A walker: its bites from its arrival to its
@@ -263,7 +275,7 @@ function NV.value(S, F, L)
         arrive = F.tick + math.max(0, gap(sp.x + 1, sp.z + 1, L.x, L.z, L.size) - 2) + math.max(0, L.birth + 1 - F.tick)
     end
     local bites = math.max(0, L.det - arrive) / V.BITE_TICKS
-    return bites * V.BITE_MEAN * NV.worth(sp)
+    return bites * V.BITE_MEAN * NV.worth(S, sp)
 end
 
 -- Hits a kill needs: a small one, a big two (one under half its bar).
@@ -540,7 +552,7 @@ end
 -- wave 30: the focus seat is on it and the guard seat guards or joins it),
 -- so no split then: the seat left on the nylocas owns them all.
 function NV.pair(S, F, style)
-    local V, VH = QD.NYLO_V2, QD.NYLO_HM
+    local V, VH = QD.NYLO_V2, S.V
     if not V.AFFINITY or #F.raiders ~= 5 then return nil end
     for _, P in ipairs(F.princes) do
         if P.colour and P.m and (P.state == "now" or P.state == "focus") then return nil end
@@ -582,7 +594,7 @@ function NV.split(S, F, pair, nylos)
             held[L.key] = true
         elseif ga ~= gb then o = (ga < gb) and pair[1] or pair[2]
         else
-            local sa, sb = QD.NYLO_HM.STATION[pair[1]], QD.NYLO_HM.STATION[pair[2]]
+            local sa, sb = S.V.STATION[pair[1]], S.V.STATION[pair[2]]
             local bx, bz = S.base.x, S.base.z
             local ha = gap(bx + sa.x, bz + sa.z, L.x, L.z, L.size)
             local hb = gap(bx + sb.x, bz + sb.z, L.x, L.z, L.size)
@@ -647,7 +659,7 @@ end
 -- each lower seat of my style takes its best; a helper leaves every owner
 -- seat its best).
 function NV.candidates(S, F, style, own, free)
-    local V = QD.NYLO_HM
+    local V = S.V
     local M = S.t2n
     local list = {}
     for _, L in ipairs(F.nylos) do
@@ -717,7 +729,7 @@ function NV.lane_targets(S, F, style, have)
         end
     end
     -- (in a pair: only the lane nylocas the split gives me)
-    local pair = (style == (QD.NYLO_HM.STYLE_OF_SEAT[S.role] or "melee")) and NV.pair(S, F, style) or nil
+    local pair = (style == (S.V.STYLE_OF_SEAT[S.role] or "melee")) and NV.pair(S, F, style) or nil
     if pair and #out > 0 then
         local owner = NV.split_of(S, F, pair, style)
         local mine = {}
@@ -787,15 +799,16 @@ end
 
 -- The nylocas modes: guard, barrage, nylo, switch, intercept.
 function NV.nylo_mode(S, F, B, I, phase)
-    local V, VH = QD.NYLO_V2, QD.NYLO_HM
+    local V, VH = QD.NYLO_V2, S.V
     local own = VH.STYLE_OF_SEAT[S.role] or "melee"
     local worn = NV.worn_style(S)
-    -- THE GUARD (seats 1, 3): v1's odds name a pillar to save
+    -- THE GUARD (Hard: seats 1, 3): v1's odds name a pillar to save
     local guard = nil
-    if V.GUARD_SEATS[S.role] then guard = QD.raid._nylo_hm_guard(S, F, phase) end
-    -- THE BARRAGE (seats 3, 4): the mage set on, the cast clock done, a clump
-    -- of 2+ magic nylocas with nothing else in its 3x3 now or after the step
-    if guard == nil and V.BARRAGE_SEATS[S.role] and worn == "magic" and #NV.gear(S, "magic") == 0
+    if S.nm.GUARD_SEATS[S.role] then guard = QD.raid._nylo_hm_guard(S, F, phase) end
+    -- THE BARRAGE (Hard: seats 3, 4; Normal: 3): the mage set on, the cast
+    -- clock done, a clump of 2+ magic nylocas with nothing else in its 3x3 now
+    -- or after the step
+    if guard == nil and S.nm.BARRAGE_SEATS[S.role] and worn == "magic" and #NV.gear(S, "magic") == 0
         and F.tick - S.x2.interact.cast_sent >= V.BARRAGE_SPEED then
         local C, n = QD.raid._nylo_clump(S, F)
         if C and n >= VH.BARRAGE_MIN and NV.barrage_safe(S, F, C) then
@@ -893,7 +906,9 @@ end
 
 function NV.boss_mode(S, F, B, I)
     local V = QD.NYLO_V2
-    local D = QD.raid._nylo_hm_decide_boss(S, F)
+    -- (Normal: v1's decision; her ranged form splashes nobody and her magic
+    -- form bounces nowhere, so there are no form tiles)
+    local D = S.nm.hard and QD.raid._nylo_hm_decide_boss(S, F) or QD.raid._nylo_decide_boss(S, F)
     I.overhead = D.overhead
     I.style = D.style
     I.gear = NV.gear(S, D.style)
@@ -924,11 +939,11 @@ function NV.boss_mode(S, F, B, I)
     if colour == "magic" then pre = tile_of("ranged") end
     if colour == "ranged" then pre = tile_of("magic") end
     local hz = F.tick + B.h
-    if change - 3 >= F.tick + 1 then
+    if S.nm.hard and change - 3 >= F.tick + 1 then
         B.zone{ name = "must", x = cur.x, z = cur.z, size = 1, lo = 0, hi = 0, require = true,
             t0 = F.tick + 1, t1 = math.min(change - 3, hz), tier = "damage", cost = V.BOSS_MUST_COST }
     end
-    if change - 2 <= hz then
+    if S.nm.hard and change - 2 <= hz then
         B.zone{ name = "premove", x = pre.x, z = pre.z, size = 1, lo = 0, hi = 0, require = true,
             t0 = math.max(F.tick + 1, change - 2), t1 = hz, tier = "damage", cost = V.BOSS_MUST_COST }
     end
@@ -955,21 +970,38 @@ QD.T2.rooms.nylocas = {
 
     init = function(S, opts)
         opts = opts or {}
-        S.who = "nylocas_v2_solve"
-        S.V = QD.NYLO_HM
+        S.who = "nylocas_solve"
+        -- the mode's v1 table: Hard's QD.NYLO_HM; Normal's QD.NYLO with the
+        -- Hard-only keys the shared helpers read (none of them a Normal rule:
+        -- the Prinkipas' states, the value model's switches) copied in
+        local hard = QD.raid.tob_mode == "hard"
+        if hard then
+            S.V = QD.NYLO_HM
+        else
+            if QD.NYLO_NV2 == nil then
+                QD.NYLO_NV2 = {}
+                for k, v in pairs(QD.NYLO) do QD.NYLO_NV2[k] = v end
+                for k, v in pairs(QD.NYLO_HM) do if QD.NYLO_NV2[k] == nil then QD.NYLO_NV2[k] = v end end
+                QD.NYLO_NV2.PILLAR_HP = QD.NYLO_V2.MODE.normal.PILLAR_HP
+            end
+            S.V = QD.NYLO_NV2
+        end
+        local MD = QD.NYLO_V2.MODE[hard and "hard" or "normal"]
+        S.nm = { hard = hard, GUARD_SEATS = MD.GUARD_SEATS, FOCUS_SEATS = MD.FOCUS_SEATS,
+                 BARRAGE_SEATS = MD.BARRAGE_SEATS, PILLAR_HP = MD.PILLAR_HP, COLLAPSE_TEAM_HP = MD.COLLAPSE_TEAM_HP }
         S.lives, S.wave_at, S.waves, S.splits, S.wave_log = {}, {}, 0, 0, {}
         S.nulled, S.nulls, S.attacks, S.switch_log, S.phase_log, S.walks = {}, 0, 0, {}, {}, {}
         QD.raid._nylo_hm_ids(S)
         do
             local r, id = api_drive.symbol("obj", QD.NYLO_V2.CLAWS.name)
-            assert(r == "ok", "nylocas_v2_solve: no obj named " .. QD.NYLO_V2.CLAWS.name)
+            assert(r == "ok", "nylocas_solve: no obj named " .. QD.NYLO_V2.CLAWS.name)
             S.ids.claws = id
         end
         S.ids.attack_seq_style = {}
         for name, st in pairs({ top_spider_melee_attack = "melee", top_spider_ranged_attack = "ranged",
                                 top_spider_magic_attack = "magic" }) do
             local r, id = api_drive.symbol("seq", name)
-            assert(r == "ok", "nylocas_v2_solve: no seq named " .. name)
+            assert(r == "ok", "nylocas_solve: no seq named " .. name)
             S.ids.attack_seq_style[id] = st
         end
         S.t2.plan_opts = { h = opts.h or QD.NYLO_V2.H, beam = opts.beam or QD.NYLO_V2.BEAM }
@@ -1044,7 +1076,7 @@ QD.T2.rooms.nylocas = {
         -- by the chance its bites reach its hp by then (the normal of the
         -- guard's odds) -- room-wide, so it moves no one: it is the rescue's
         for _, sp in ipairs(F.supports) do
-            local hp = sp.pct * V.PILLAR_HP / 100
+            local hp = sp.pct * S.nm.PILLAR_HP / 100
             local n = 0
             for _, L in ipairs(F.nylos) do
                 if not L.aggro and not L.dying and gap(sp.x + 1, sp.z + 1, L.x, L.z, L.size) <= 2 then n = n + 1 end
@@ -1089,8 +1121,8 @@ QD.T2.rooms.nylocas = {
             for _, p in ipairs(F.princes) do
                 if p.colour and p.m and P == nil then
                     if p.state == "now" then P = p
-                    elseif p.state == "focus" and (V.FOCUS_SEATS[S.role]
-                        or (V.GUARD_SEATS[S.role] and QD.raid._nylo_hm_guard(S, F, phase) == nil)) then P = p
+                    elseif p.state == "focus" and (S.nm.FOCUS_SEATS[S.role]
+                        or (S.nm.GUARD_SEATS[S.role] and QD.raid._nylo_hm_guard(S, F, phase) == nil)) then P = p
                     end
                 end
             end
@@ -1203,7 +1235,8 @@ QD.T2.rooms.nylocas = {
     end,
 }
 
-function QD.raid.nylocas_v2_solve(opts)
-    assert(QD.raid.tob_mode == "hard", "nylocas_v2_solve: the party is in " .. tostring(QD.raid.tob_mode) .. " mode")
+function QD.raid.nylocas_solve(opts)
+    assert(QD.raid.tob_mode == "hard" or QD.raid.tob_mode == "normal",
+        "nylocas_solve: the party is in " .. tostring(QD.raid.tob_mode) .. " mode")
     return QD.T2.solve("nylocas", opts or {})
 end

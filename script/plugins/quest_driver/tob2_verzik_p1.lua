@@ -2,7 +2,7 @@
 -- on the v2 layers (docs/minigames/theater_of_blood/TOB2_DESIGN.md; the plan:
 -- docs/minigames/theater_of_blood/tob2_rooms/verzik_p1.md).
 --
---   QD.raid.verzik_p1_v2_solve(opts) -> result, detail, S
+--   QD.raid.verzik_p1_solve(opts) -> result, detail, S
 --   opts as v1's: { max_ticks, prep, weapon } (the relay ran verzik_p1_prepare)
 --
 -- PREDICT and STRATEGY only. The perception is v1's, CALLED
@@ -120,7 +120,9 @@ function QD.VZ2P1F.cover(S, F, pillars)
                     .. (S.prev_read + V.HIT_TO_FALL_READ))
             end
         end
-        S.t2v.switch = true
+        -- (Hard alternates the front pillars read by read; Normal keeps its
+        -- pillar while it stands, as v1's cover does)
+        S.t2v.switch = QD.raid.tob_mode == "hard"
         S.t2v.reads = S.t2v.reads + 1
     end
     S.prev_read = S.read
@@ -214,7 +216,12 @@ function QD.VZ2P1F.state(S, F)
     local holding = F.dawn_pack or F.dawn_worn
     if holding and F.energy >= QD.VZ2P1.SPEC_COST then return "SPEC" end
     if holding then return "PASS" end
-    if #F.ground_dawn > 0 and QD.raid._vzp1_dawn_turn(S) == S.role then return "FETCH" end
+    -- (fetched only with a special's energy: taken without it, it was passed
+    -- straight back - 33 drops and 11 takes in one P1, the swings lost on the
+    -- walks, sac 2026-10-17)
+    if #F.ground_dawn > 0 and QD.raid._vzp1_dawn_turn(S) == S.role and F.energy >= QD.VZ2P1.SPEC_COST then
+        return "FETCH"
+    end
     return "STRIKE"
 end
 
@@ -379,7 +386,9 @@ QD.T2.rooms.verzik_p1 = {
     end,
 }
 
-function QD.raid.verzik_p1_v2_solve(opts)
-    assert(QD.raid.tob_mode == "hard", "verzik_p1_v2_solve: the party is in " .. tostring(QD.raid.tob_mode) .. " mode")
+function QD.raid.verzik_p1_solve(opts)
+    -- (Normal has no rubble: the reader sees no debris shadow and adds none)
+    assert(QD.raid.tob_mode == "hard" or QD.raid.tob_mode == "normal",
+        "verzik_p1_solve: the party is in " .. tostring(QD.raid.tob_mode) .. " mode")
     return QD.T2.solve("verzik_p1", opts or {})
 end

@@ -1,5 +1,5 @@
 -- tob_verzik: Verzik Vitur, Normal trio, all three phases, played by
--- raid_solve_verzik_p1/p2/p3.lua in the relay's Learner/Void kit: the relay
+-- tob2_verzik_p1/p2/p3.lua in the relay's Learner/Void kit: the relay
 -- (script/plugins/quest_driver/tob_relay.lua) run for her room alone -- the
 -- healing shared at her door, P1 to P3, the trapdoor, the reward chest and the
 -- teleport out. Seat 1 is given the Dawnbringer (no Xarpus to take it from).

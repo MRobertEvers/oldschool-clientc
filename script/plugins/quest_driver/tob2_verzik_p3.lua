@@ -2,7 +2,7 @@
 -- on the v2 layers (docs/minigames/theater_of_blood/TOB2_DESIGN.md; the plan:
 -- docs/minigames/theater_of_blood/tob2_rooms/verzik_p3.md).
 --
---   QD.raid.verzik_p3_v2_solve(opts) -> result, detail, S
+--   QD.raid.verzik_p3_solve(opts) -> result, detail, S
 --   opts = the relay's v1 opts: { max_ticks, base (the room origin), weapon,
 --   spec_weapon (dragon_claws | dragon_dagger | crystal_halberd; none = no
 --   special; owner 2026-10-12: never the warhammer in P3) }
@@ -56,7 +56,7 @@ QD.VZP3_V2 = {
     SWING_EXP = 16,             -- v1 measured: 15-17 a tentacle swing on her (hit_npc / swings)
     -- HER AUTOS: on every raider, halved by the matching overhead at landing
     -- (oracle P4); v1 measured 6.9 a hit; HM max 61 (QD.VZHM)
-    AUTO_EXP = 7, AUTO_MAX = 61, AUTO_LAND = 3, AUTO_SOON = 3,
+    AUTO_EXP = 7, AUTO_LAND = 3, AUTO_SOON = 3,
     PRAYED = 0.5,
     -- the tornado's touch: half my hp, and she heals three times that
     TORNADO_HEAL = 3,
@@ -116,7 +116,21 @@ QD.VZP3_V2 = {
     -- combat pacing (VZ.combat_paced): a dose keeps the boost ~COMBAT_SPAN
     -- ticks under the brews' drain (v2 measured: 5.7 doses in 321 ticks);
     -- her pool and heal, the team's dps before it is measured
-    COMBAT_SPAN = 56, P3_TICKS_GUESS = 330, P3_HP = 3500, HM_HEAL = 1050, HEAL_AT = 0.05,
+    COMBAT_SPAN = 56, P3_TICKS_GUESS = 330, HEAL_AT = 0.05,
+    -- THE MODE'S POOL, HEAL AND AUTO (S.vm): Hard 3500 + the 1050 heal, autos
+    -- to 61; Normal ^tob_verzik_p23_hp_<scale> (2625 at three), no heal,
+    -- autos to ^tob_verzik_p3_auto_max 34
+    -- ...and its floors: Hard's (EAT_FLOOR, BREW_FLOOR, DRAIN_AT, RESTORE_FIRST
+    -- below) are over autos of 61; Normal's are v1's QD.VZP3 (eat 60, brew 45,
+    -- a stat restore at 24 under base): with Hard's a relay seat brewed at 65,
+    -- restored at 8 under base, ran out of restores by mid-P3 and fought the
+    -- rest at -50 (relay_v2f rae: 7 restore doses gone by t3196, 30 brews after)
+    MODE = {
+        hard = { P3_HP = { 3500, 3500, 3500, 3500, 3500 }, HEAL = 1050, AUTO_MAX = 61,
+                 EAT_FLOOR = 65, BREW_FLOOR = 65, DRAIN_AT = 20, RESTORE_FIRST = 8 },
+        normal = { P3_HP = { 2625, 2625, 2625, 3062, 3500 }, HEAL = 0, AUTO_MAX = 34,
+                   EAT_FLOOR = 60, BREW_FLOOR = 45, DRAIN_AT = 24, RESTORE_FIRST = 24 },
+    },
     DPS_GUESS = 14, DPS_WINDOW = 40,
     -- P3's special weapons (owner 2026-10-12; v1 main tree QD.VZP3.SPEC_WEAPONS):
     -- energy a special costs of 1000, both hands (the parrying dagger to the
@@ -229,6 +243,17 @@ function VZ.yellows(S, F)
     local Y0 = QD.VZHM
     if S.blast == nil or not F.charging then
         S.hm_y = nil
+        return
+    end
+    if not S.vm.hard then
+        -- NORMAL: one strike at the blast, read the tick before; one pool a
+        -- raider, v1's assignment (the smallest worst walk, _vzp3_pools)
+        if S.hm_y == nil then S.hm_y = { y0 = S.blast, strikes = { S.blast } } end
+        if S.hm_y.mine then return end
+        QD.raid._vzp3_pools(S, F)
+        if S.pool_mine then
+            S.hm_y.mine, S.hm_y.pools = { S.pool_mine }, S.pools
+        end
         return
     end
     if S.hm_y == nil then
@@ -797,8 +822,8 @@ end
 function VZ.hp_floor(S, F)
     local X = QD.VZP3_V2
     local now = F.tick
-    local auto = math.floor(X.AUTO_MAX * X.PRAYED)
-    local floor = math.max(X.EAT_FLOOR, VZ.auto_landings(S, F, now + 1, now + X.SAFE_WIN) * auto + 1)
+    local auto = math.floor(S.vm.AUTO_MAX * X.PRAYED)
+    local floor = math.max(S.vm.EAT_FLOOR, VZ.auto_landings(S, F, now + 1, now + X.SAFE_WIN) * auto + 1)
     local why = "autos"
     local Bl = S.ball
     if Bl and Bl.cur and Bl.land then
@@ -866,7 +891,14 @@ function VZ.boosts(S, F, I)
     local a, st = F.levels.attack, F.levels.strength
     if a == nil or st == nil or a.base <= 0 then return end
     if S.last_drink == F.tick then return end              -- the resource channel drank this tick
-    if F.hp < (VZ.hp_floor(S, F)) then return end           -- hp first (VZ.hp_safety)
+    -- hp first (VZ.hp_safety). NORMAL: a seat drained DRAIN_AT under base
+    -- restores down to the budget's HP_FLOOR - its autos are 17 prayed, and
+    -- under the 65 floor every restore waited while the brews kept draining:
+    -- relay_v2d rai, Attack -97 by P3's end, 700 ticks, three dead
+    local drained = math.min(a.level - a.base, st.level - st.base) <= -S.vm.DRAIN_AT
+    local floor = VZ.hp_floor(S, F)
+    if not S.vm.hard and drained then floor = math.min(floor, QD.T2.budget.HP_FLOOR) end
+    if F.hp < floor then return end
     -- (no boost and no stat restore while the ball is mine or I am its next:
     -- the potion timer is the holder's brew's - f15 p2's super combat at
     -- t3059, f78 p1's restore at t3148; a prayer restore under PRAYER_SIP is
@@ -878,11 +910,11 @@ function VZ.boosts(S, F, I)
     local da, ds = a.level - a.base, st.level - st.base
     local low = math.min(da, ds)
     local drink, why = nil, nil
-    if low <= -X.DRAIN_AT then
+    if low <= -S.vm.DRAIN_AT then
         drink, why = QD.raid._tob_first(S, S.ids.stat_restores), "restore"
-    elseif low < X.REDOSE_UNDER and low > -X.RESTORE_FIRST and VZ.combat_paced(S, F) then
+    elseif low < X.REDOSE_UNDER and low > -S.vm.RESTORE_FIRST and VZ.combat_paced(S, F) then
         drink, why = QD.raid._tob_first(S, S.ids.combats), "combat"
-    elseif low <= -X.RESTORE_FIRST then
+    elseif low <= -S.vm.RESTORE_FIRST then
         drink, why = QD.raid._tob_first(S, S.ids.stat_restores), "restore"
     end
     if drink == nil then return end
@@ -920,7 +952,7 @@ function VZ.her_clock(S, F)
     if b == nil or b.health_ratio == nil or (b.health_scale or 0) <= 0 then return end
     local frac = b.health_ratio / b.health_scale
     if frac <= X.HEAL_AT then P.healed = true end
-    local hp = frac * X.P3_HP + (P.healed and 0 or X.HM_HEAL)
+    local hp = frac * S.vm.P3_HP + (P.healed and 0 or S.vm.HEAL)
     P.hp_hist = P.hp_hist or {}
     P.hp_hist[#P.hp_hist + 1] = { t = F.tick, hp = hp }
     while #P.hp_hist > 1 and P.hp_hist[1].t < F.tick - X.DPS_WINDOW do table.remove(P.hp_hist, 1) end
@@ -1018,7 +1050,7 @@ function VZ.predict(S, F, B)
         local L = P.auto_at + X.AUTO_LAND
         local style = (S.prot == "magic") and "magic" or "ranged"
         B.hit{ name = "auto", x0 = ax0, z0 = az0, x1 = ax1, z1 = az1, t0 = L - 1, t1 = L - 1,
-            dmg_exp = X.AUTO_EXP / X.PRAYED, dmg_max = X.AUTO_MAX, style = style }
+            dmg_exp = X.AUTO_EXP / X.PRAYED, dmg_max = S.vm.AUTO_MAX, style = style }
     end
     if S.next_slot then
         local cad = F.enraged and V.CADENCE_ENRAGED or V.CADENCE
@@ -1031,7 +1063,7 @@ function VZ.predict(S, F, B)
             if L >= now + 1 and T > now then
                 local soon = L <= now + X.AUTO_SOON
                 B.hit{ name = "auto-slot", x0 = ax0, z0 = az0, x1 = ax1, z1 = az1, t0 = L - 1, t1 = L - 1,
-                    dmg_exp = X.AUTO_EXP, dmg_max = soon and math.floor(X.AUTO_MAX * X.PRAYED) or X.AUTO_EXP }
+                    dmg_exp = X.AUTO_EXP, dmg_max = soon and math.floor(S.vm.AUTO_MAX * X.PRAYED) or X.AUTO_EXP }
             end
             i = i + 1
         end
@@ -1045,8 +1077,23 @@ function VZ.predict(S, F, B)
         -- (NOT the known tank when enraged: sent 3+ off every 5 ticks she
         -- walked after it, and the kite chased her - vp_v2d 13 ticks a swing)
         local away = not VZ.tank_known(S)
+        -- THE BALL OUTRANKS HER SCAN for its target and its next, over its
+        -- landing: an un-bounced ball kills the target, her melee on the next
+        -- is half of 63 if she swings at all. With both lethal the next held
+        -- off her and left the target alone on the read (relay_hard hdq t2907,
+        -- risk "scan" from k2, the target dead at 86).
+        local bw0, bw1 = nil, nil
+        local Bl = S.ball
+        if Bl and Bl.land and Bl.land >= now then
+            local role = VZ.ball_chain(S, F)
+            if role == "target" or role == "next" then
+                bw0, bw1 = Bl.land - 2, math.max(Bl.land, Bl.land_hi or Bl.land)
+            end
+        end
         for _, sc in ipairs(F.scans) do
-            if away then
+            if bw0 and sc.t1 >= bw0 and sc.t0 <= bw1 then
+                -- (skipped: the ball's read wins)
+            elseif away then
                 B.zone{ name = "scan-away", x = b.x, z = b.z, size = V.SIZE, lo = 0, hi = 2, t0 = sc.t0, t1 = sc.t1,
                     tier = "lethal" }
             else
@@ -1182,7 +1229,7 @@ function VZ.predict(S, F, B)
     -- THE YELLOWS: every pool but mine[k] at strike k's read
     local Y = S.hm_y
     if Y and Y.mine then
-        for k = 1, 3 do
+        for k = 1, #Y.strikes do
             local read = Y.strikes[k] - 1
             local mine = Y.mine[k]
             if read >= now + 1 and read <= hz then
@@ -1540,7 +1587,11 @@ function VZ.ball(S, F, B)
     local role, ttile, next_pid, ntile, fb = VZ.ball_chain(S, F)
     if role == nil then return nil end
     local now, land = F.tick, S.ball.land
-    local land_hi = math.max(land, S.ball.land_hi or land)
+    -- (a tick past the latest predicted landing: a target that stepped off
+    -- its tile on the tick after its read stood beside a clear seat when the
+    -- ball came down a tick late, two fresh raiders beside it, and the
+    -- crowding explosion did its full hitpoints - relay_hard hdq t2907)
+    local land_hi = math.max(land, S.ball.land_hi or land) + 1
     local follow = X.BALL_DESIGN == "follow"
     if X.BALL_DESIGN == "meet" then
         -- like the yellows: rules ONLY at the read ticks, no hold, no pull
@@ -1625,7 +1676,7 @@ function VZ.pools(S, F, B)
     local Y = S.hm_y
     if Y == nil or Y.mine == nil then return false end
     local next_k = nil
-    for k = 1, 3 do
+    for k = 1, #Y.strikes do
         local read = Y.strikes[k] - 1
         local mine = Y.mine[k]
         if read >= F.tick + 1 then
@@ -1669,7 +1720,7 @@ function VZ.strategy(S, F, B)
     want.boost, want.boost_stat = (spare > 0) and "piety" or nil, nil
     -- (v1: Piety OFF once the spare no longer funds the overheads to the end)
     if spare <= 0 and F.lit.piety then I.pray_off = { "piety" } end
-    want.eat_below, want.brew_below = X.EAT_FLOOR, X.BREW_FLOOR
+    want.eat_below, want.brew_below = S.vm.EAT_FLOOR, S.vm.BREW_FLOOR
     VZ.boosts(S, F, I)
     VZ.hp_safety(S, F, I)
     local mode
@@ -1774,7 +1825,7 @@ end
 
 QD.T2.rooms.verzik_p3 = {
     init = function(S, opts)
-        assert(opts.base, "verzik_p3_v2_solve: opts.base (the room origin, verzik_p1_prepare's) is required")
+        assert(opts.base, "verzik_p3_solve: opts.base (the room origin, verzik_p1_prepare's) is required")
         S.base = opts.base
         S.who = "verzik_p3_v2"
         local v1 = QD.raid._vzp3_ids(opts.weapon)
@@ -1785,6 +1836,14 @@ QD.T2.rooms.verzik_p3 = {
         end
         S.weapon_ticks_opt = opts.weapon_ticks
         S.hm = { web_run = true, kite = true }
+        do
+            local hard = QD.raid.tob_mode == "hard"
+            local MD = QD.VZP3_V2.MODE[hard and "hard" or "normal"]
+            local scale = math.max(1, math.min(5, QD.party.size()))
+            S.vm = { hard = hard, P3_HP = MD.P3_HP[scale], HEAL = MD.HEAL, AUTO_MAX = MD.AUTO_MAX,
+                     EAT_FLOOR = MD.EAT_FLOOR, BREW_FLOOR = MD.BREW_FLOOR, DRAIN_AT = MD.DRAIN_AT,
+                     RESTORE_FIRST = MD.RESTORE_FIRST }
+        end
         S.seen, S.web_seen, S.web_hazards, S.torn, S.crab_seen, S.blasts = {}, {}, {}, {}, {}, {}
         S.autos, S.melees, S.prot = 0, 0, "magic"
         S.t2.plan_opts = { h = QD.VZP3_V2.H, beam = QD.VZP3_V2.BEAM }
@@ -1794,11 +1853,11 @@ QD.T2.rooms.verzik_p3 = {
         local name = opts.spec_weapon
         if name then
             local def = QD.VZP3_V2.SPEC_WEAPONS[name]
-            assert(def, "verzik_p3_v2_solve: no special weapon named " .. tostring(name))
+            assert(def, "verzik_p3_solve: no special weapon named " .. tostring(name))
             local r, id = api_drive.symbol("obj", name)
-            assert(r == "ok", "verzik_p3_v2_solve: no obj " .. name)
+            assert(r == "ok", "verzik_p3_solve: no obj " .. name)
             local ro, off = api_drive.symbol("obj", "dragon_parryingdagger")
-            assert(ro == "ok", "verzik_p3_v2_solve: no obj dragon_parryingdagger")
+            assert(ro == "ok", "verzik_p3_solve: no obj dragon_parryingdagger")
             S.vz.spec = { id = id, cost = def.cost, name = name, state = "idle", fired = 0, two_handed = def.two_handed,
                           ticks = def.ticks, exp = def.exp, offhand = off,
                           carried_at_start = QD.raid._tob_count(S, id) + (QD.raid._tob_worn(S, id) and 1 or 0) }
@@ -1832,7 +1891,8 @@ QD.T2.rooms.verzik_p3 = {
     end,
 }
 
-function QD.raid.verzik_p3_v2_solve(opts)
-    assert(QD.raid.tob_mode == "hard", "verzik_p3_v2_solve: the party is in " .. tostring(QD.raid.tob_mode) .. " mode")
+function QD.raid.verzik_p3_solve(opts)
+    assert(QD.raid.tob_mode == "hard" or QD.raid.tob_mode == "normal",
+        "verzik_p3_solve: the party is in " .. tostring(QD.raid.tob_mode) .. " mode")
     return QD.T2.solve("verzik_p3", opts or {})
 end

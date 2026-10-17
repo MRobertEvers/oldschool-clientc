@@ -742,10 +742,6 @@ function QD.raid._xarp_step(S, F)
     return nil
 end
 
-function QD.raid.xarpus_solve(opts)
-    return QD.raid._xarp_run("xarpus_solve", nil, opts)
-end
-
 -- The solve, with a mode's own stare (tob_xarpus_hm.lua's), else Normal's.
 function QD.raid._xarp_run(who, stare, opts)
     opts = opts or {}
@@ -760,15 +756,4 @@ function QD.raid._xarp_run(who, stare, opts)
         return QD.raid._tob_summary(s, string.format("phases %s; exhumeds %d; heal orbs seen %d; spits %d; turns %d",
             table.concat(s.phase_log, " "), s.exhumeds, s.orbs, s.spits, s.turns))
     end)
-end
-
--- The ids the test's tick-log measures read (a test file has no api_drive).
-function QD.raid.xarpus_symbols()
-    return QD.raid._tob_symbols("xarpus_symbols", {
-        { "static", "npc", "tob_xarpus_static" }, { "feeding", "npc", "tob_xarpus_feeding" },
-        { "boss", "npc", "tob_xarpus_combat" }, { "dead", "npc", "xarpus_death" },
-        { "exhumed", "loc", "tob_xarpus_exhumed" }, { "pool", "loc", "tob_xarpus_acidpool" },
-        { "spit", "spotanim", "tob_xarpus_acidspit" }, { "orb", "spotanim", "tob_xarpus_exhumed_energyorb" },
-        { "spit_seq", "seq", "tob_xarpus_attack_ranged" }, { "dawn", "obj", "verzik_special_weapon" },
-    })
 end

@@ -1,5 +1,5 @@
--- tob_bloat_hard: the Pestilent Bloat, HARD MODE, five seats, played by its v2 solver
--- (docs/minigames/theater_of_blood/TOB2_DESIGN.md) in the relay's kit: the
+-- tob_bloat_hard: the Pestilent Bloat, HARD MODE, five seats, played by its solver
+-- (script/plugins/quest_driver/tob2_<room>.lua) in the relay's kit: the
 -- relay (script/plugins/quest_driver/tob_relay.lua) run for this one room,
 -- the party landed at its door through t.raid.enter and stopped after it.
 --
@@ -15,6 +15,4 @@ return QD_ROOT.raid.tob_relay_test("hard", {
     party = 5,
     max_frames = 90000,
     detail = 3000,
-    v2 = { maiden = true, bloat = true, nylocas = true, sotetseg = true, xarpus = true,
-           verzik_p1 = true, verzik_p2 = true, verzik_p3 = true },
 })

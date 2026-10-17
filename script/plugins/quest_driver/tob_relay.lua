@@ -1,11 +1,11 @@
--- quest-driver / tob_relay: the whole Theatre of Blood, a trio, lobby to lobby,
--- in ONE mode. test/raids/tob_relay.lua (Normal) and tob_relay_hard_v2.lua
--- (Hard) are this, by mode: QD_ROOT.raid.tob_relay_test(mode, opts) -> the test.
+-- quest-driver / tob_relay: the whole Theatre of Blood, lobby to lobby, in ONE
+-- mode: Normal a trio, Hard five. test/raids/tob_relay.lua (Normal) and
+-- tob_relay_hard.lua (Hard) are this, by mode: QD_ROOT.raid.tob_relay_test(mode,
+-- opts) -> the test.
 --
--- tob_relay: the whole Theatre of Blood, Normal, a trio, lobby to lobby, every
--- room played by its solver (script/plugins/quest_driver/tob_*.lua and
--- raid_solve_verzik_p1/p2/p3.lua) in ONE Learner/Void kit
--- (docs/minigames/theater_of_blood/ROOM_SOLVERS.md 6, 6.1):
+-- Every room is played by its solver (script/plugins/quest_driver/tob2_<room>.lua,
+-- QD.raid.<room>_solve, one solver for both modes on per-mode tables) in ONE
+-- Learner/Void kit (docs/minigames/theater_of_blood/ROOM_SOLVERS.md 6, 6.1):
 --
 --   the party in at Maiden through t.raid.enter, on both lanes (the board's
 --     way in is test/raids/tob_lobby.lua, live only);
@@ -21,7 +21,7 @@
 --
 -- GREEN: every room cleared with no raider dead, the party back in the lobby.
 --
---   ./src/build_tob2_opt/torirsserver --scriptrun test/raids/tob_relay_hard_v2.lua --bots 5 \
+--   ./src/build_tob2_opt/torirsserver --scriptrun test/raids/tob_relay_hard.lua --bots 5 \
 --       --name f1 --ticks 12000 --session /tmp/relay --fixture tests/raids/fixtures/tob_normal_done.ini
 
 -- -> { id, fixture, party, max_frames, setup, run } for `mode` ("normal" or
@@ -36,9 +36,6 @@ function QD.raid.tob_relay_test(mode, opts)
     -- (Normal is a trio; Hard Mode a five-man, owner 2026-10-12: "Perhaps you
     -- can up HMT runner to use 5 players")
     local SEATS = (mode == "hard") and 5 or 3
-    -- Hard Mode plays every room with its own solver, tob_<room>_hm.lua
-    -- (owner 2026-10-12: "the HMT solvers should be separate files")
-    local SUFFIX = (mode == "hard") and "_hm" or ""
     local P = "p" .. role .. " "
     local LOBBY_X, LOBBY_Z = 3662, 3216
 
@@ -48,8 +45,10 @@ function QD.raid.tob_relay_test(mode, opts)
     -- barrage); Maiden's hammer and salve; seat 3 the serpentine helm for the
     -- Athanatos (ROOM_SOLVERS 4.6: until the blowpipe's venom replaces it).
     local WORN = {
-        "game_pest_melee_helm", "elite_void_knight_top", "elite_void_knight_robes", "pest_void_knight_gloves",
-        "abyssal_tentacle", "dragon_parryingdagger", "zenyte_amulet_enchanted", "tzhaar_cape_fire",
+        "game_pest_melee_helm", "elite_void_knight_top", "elite_void_knight_robes",
+        "pest_void_knight_gloves",
+        "abyssal_tentacle", "dragon_parryingdagger", "zenyte_amulet_enchanted",
+        "tzhaar_cape_fire",
         "dragon_boots", "nzone_berzerker_ring",
     }
     local kit = { "::clearinv" }
@@ -91,7 +90,7 @@ function QD.raid.tob_relay_test(mode, opts)
     end
     local swaps = {}
     for _, o in ipairs({ RANGED_EXTRA[1], RANGED_EXTRA[2], RANGED_EXTRA[3], MAGIC_EXTRA[1], "toxic_tots_charged",
-                         MAGIC_EXTRA[2], MAGIC_EXTRA[3] }) do
+        MAGIC_EXTRA[2], MAGIC_EXTRA[3] }) do
         if not left_home[o] then swaps[#swaps + 1] = "::give " .. o .. " 1" end
     end
     local extra_brews = 0
@@ -116,11 +115,13 @@ function QD.raid.tob_relay_test(mode, opts)
     -- option"): Hard Mode carries one, burning claws (`bone_claws`, this cache's
     -- name for them: configs/all.obj, special_attack.obj sa_kind 47, 350 energy,
     -- two-handed) unless opts.spec_weapon names another (false carries none); the
-    -- warhammer stays for Maiden's opener
     local SPEC_WEAPON = nil
-    if mode == "hard" and opts.spec_weapon ~= false then SPEC_WEAPON = opts.spec_weapon or "bone_claws" end
-    assert(SPEC_WEAPON == nil or SPEC_WEAPON == "bone_claws" or SPEC_WEAPON == "dragon_claws" or SPEC_WEAPON == "dragon_dagger"
-        or SPEC_WEAPON == "crystal_halberd", "tob_relay_test: spec_weapon " .. tostring(SPEC_WEAPON))
+    if opts.spec_weapon ~= false then SPEC_WEAPON = opts.spec_weapon or "bone_claws" end
+    assert(
+        SPEC_WEAPON == nil or SPEC_WEAPON == "bone_claws" or SPEC_WEAPON == "dragon_claws" or
+        SPEC_WEAPON == "dragon_dagger"
+        or SPEC_WEAPON == "crystal_halberd",
+        "tob_relay_test: spec_weapon " .. tostring(SPEC_WEAPON))
     if SPEC_WEAPON then kit[#kit + 1] = "::give " .. SPEC_WEAPON .. " 1" end
     -- SEAT 1 IS MAIDEN'S FREEZER: it needs room to take the defender and boots
     -- off for its cast set (tob_maiden.lua's kit: "two supply slots fewer").
@@ -142,8 +143,12 @@ function QD.raid.tob_relay_test(mode, opts)
     -- into Sotetseg on 6-8 restore doses, brew-drained, its hits halved (6.6
     -- a hit to the room test's 12.3) and 215 brew doses drunk there, all3 a3)
     local supplies = freezer_kit
-        and { "::give br_4dose2restore 5", "::give br_4dose2combat 2", "::give br_4dosepotionofsaradomin 4", "::give anglerfish 1" }
-        or { "::give br_4dose2restore 6", "::give br_4dose2combat 2", "::give br_4dosepotionofsaradomin 6", "::give anglerfish 2" }
+        and
+        { "::give br_4dose2restore 5", "::give br_4dose2combat 2",
+            "::give br_4dosepotionofsaradomin 4", "::give anglerfish 1" }
+        or
+        { "::give br_4dose2restore 6", "::give br_4dose2combat 2",
+            "::give br_4dosepotionofsaradomin 6", "::give anglerfish 2" }
     for _, line in ipairs(supplies) do
         kit[#kit + 1] = line
     end
@@ -168,13 +173,22 @@ function QD.raid.tob_relay_test(mode, opts)
             if on then ORDER[#ORDER + 1] = name end
             if name == (opts.to or "verzik") then on = false end
         end
-        assert(#ORDER > 0, "tob_relay_test: no rooms from " .. tostring(opts.from) .. " to " .. tostring(opts.to))
+        assert(#ORDER > 0,
+            "tob_relay_test: no rooms from " ..
+            tostring(opts.from) .. " to " .. tostring(opts.to))
     end
     -- the v2 supply budget's rooms (tob2_budget.lua: the reserve is what the
     -- rooms after the current one need)
     if QD.T2 and QD.T2.budget and QD.T2.budget.set_order then QD.T2.budget.set_order(ORDER) end
     if QD.T2 and QD.T2.budget and QD.T2.budget.set_spec then QD.T2.budget.set_spec(SPEC_WEAPON) end
-    local NEXT = { maiden = "bloat", bloat = "nylocas", nylocas = "sotetseg", sotetseg = "xarpus", xarpus = "verzik" }
+    local NEXT = {
+        maiden = "bloat",
+        bloat = "nylocas",
+        nylocas = "sotetseg",
+        sotetseg = "xarpus",
+        xarpus =
+        "verzik"
+    }
     local MAX = { maiden = 600, bloat = 600, nylocas = 700, sotetseg = 700, xarpus = 900 }
     if mode == "hard" then
         -- (Hard Mode's rooms are longer: Bloat 2400 at five, Xarpus 6000)
@@ -199,8 +213,10 @@ function QD.raid.tob_relay_test(mode, opts)
 
     -- Which side of each gate is OUT of the arena (local tiles).
     local OUT = {
-        maiden = function(x, z) return x > 49 end, bloat = function(x, z) return x < 23 end,
-        nylocas = function(x, z) return z > 31 end, sotetseg = function(x, z) return z < 19 end,
+        maiden = function(x, z) return x > 49 end,
+        bloat = function(x, z) return x < 23 end,
+        nylocas = function(x, z) return z > 31 end,
+        sotetseg = function(x, z) return z < 19 end,
         xarpus = function(x, z) return z > 43 end,
     }
     -- THE DOOR: the room's entry tile, on the corridor side of its barrier
@@ -232,13 +248,17 @@ function QD.raid.tob_relay_test(mode, opts)
         local r, crossed = "none", false
         for _ = 1, 12 do
             local _, me = t.world.tile()
-            if OUT[name](me.x - ox, me.z - oz) then crossed = true break end
+            if OUT[name](me.x - ox, me.z - oz) then
+                crossed = true
+                break
+            end
             t.key("escape")
             r = t.raid.tob_loc_op("tob_arena_barrier", 1, { x = ox + g[1], z = oz + g[2] })
             t.ticks(5)
         end
         local _, me = t.world.tile()
-        t.check(name .. ".gate", crossed, P .. "the gate at " .. g[1] .. "," .. g[2] .. ": " .. tostring(r) .. "; at "
+        t.check(name .. ".gate", crossed,
+            P .. "the gate at " .. g[1] .. "," .. g[2] .. ": " .. tostring(r) .. "; at "
             .. (me.x - ox) .. "," .. (me.z - oz))
         return crossed
     end
@@ -262,14 +282,18 @@ function QD.raid.tob_relay_test(mode, opts)
         for i = 1, 90 do
             local _tr
             _tr, me = t.world.tile()
-            if me.x == tx and me.z == tz then at = true break end
+            if me.x == tx and me.z == tz then
+                at = true
+                break
+            end
             if sent == nil or i - sent >= 30 then
                 t.raid.tob_move(tx, tz)
                 sent = i
             end
             t.ticks(1)
         end
-        t.check(name .. ".door", at, P .. "walked to the door at " .. d[1] .. "," .. d[2] .. "; at "
+        t.check(name .. ".door", at,
+            P .. "walked to the door at " .. d[1] .. "," .. d[2] .. "; at "
             .. (me.x - ox) .. "," .. (me.z - oz))
         return at
     end
@@ -297,7 +321,8 @@ function QD.raid.tob_relay_test(mode, opts)
         t.raid.tob_move(ox + e[1], oz + e[2])
         local ok, sq = await_square(t, from, 40)
         if not ok then
-            local exit_loc = (name == "xarpus") and "tob_dungeon_xarpus_arena_door_exit" or "tob_dungeon_walkway_exit_clickbox"
+            local exit_loc = (name == "xarpus") and "tob_dungeon_xarpus_arena_door_exit" or
+                "tob_dungeon_walkway_exit_clickbox"
             t.raid.tob_loc_op(exit_loc, 1)
             ok, sq = await_square(t, from, 40)
         end
@@ -313,10 +338,15 @@ function QD.raid.tob_relay_test(mode, opts)
         end
         local function doses(stem)
             local d = 0
-            for k = 1, 4 do d = d + k * (n("br_" .. k .. stem) + n(k .. stem) + ((stem == "dose2restore") and n(k .. "doseprayerrestore") or 0)) end
+            for k = 1, 4 do
+                d = d +
+                    k *
+                    (n("br_" .. k .. stem) + n(k .. stem) + ((stem == "dose2restore") and n(k .. "doseprayerrestore") or 0))
+            end
             return d
         end
-        return string.format("fish %d, brew doses %d, restore doses %d, combat doses %d", n("anglerfish") + n("shark"),
+        return string.format("fish %d, brew doses %d, restore doses %d, combat doses %d",
+            n("anglerfish") + n("shark"),
             doses("dosepotionofsaradomin"), doses("dose2restore"), doses("dose2combat"))
     end
 
@@ -342,8 +372,8 @@ function QD.raid.tob_relay_test(mode, opts)
     -- THE SUPPLY CHEST (tob_chest.rs2: Normal's points store): restores to two
     -- potions, then brews -- what every solver drinks (they eat anglerfish only).
     -- One slot kept after Sotetseg for the Dawnbringer (the leader).
-    local CHEST_SLOT = { prayer = 1, brew = 2, restore = 3, shark = 5 }   -- enum_1952
-    local CHEST_COST = { prayer = 2, brew = 3, restore = 3, shark = 1 }   -- enum_1953
+    local CHEST_SLOT = { prayer = 1, brew = 2, restore = 3, shark = 5 } -- enum_1952
+    local CHEST_COST = { prayer = 2, brew = 3, restore = 3, shark = 1 } -- enum_1953
     local function restock(t, name)
         drop_vials(t)
         local chr, chrow = t.world.loc_near("tob_midway_chest_closed", 40)
@@ -356,7 +386,10 @@ function QD.raid.tob_relay_test(mode, opts)
             or_ = t.ui.await_open("tob_midway_stores", 20)
         end
         t.check(name .. ".chest_open", or_ == "ok", P .. "store " .. tostring(or_))
-        if or_ ~= "ok" then t.key("escape") return end
+        if or_ ~= "ok" then
+            t.key("escape")
+            return
+        end
         local _, points = t.var.varbit("varb6460_tob_midwaychest_points")
         points = tonumber(points) or 0
         local p0, bought = points, {}
@@ -364,7 +397,7 @@ function QD.raid.tob_relay_test(mode, opts)
         -- swap -- relay rl9's seat 1 left the Bloat chest full and the party
         -- wiped in the Nylocas -- and seat 1 takes the Dawnbringer at Xarpus)
         local keep = (name == "bloat") and 3 or ((role == 3) and 2 or 1)
-        if name == "sotetseg" and role == 1 then keep = keep + 1 end   -- the Dawnbringer
+        if name == "sotetseg" and role == 1 then keep = keep + 1 end -- the Dawnbringer
         -- (a buy counts only when the chest's own points varbit fell: the server
         -- refuses one for a full pack, and counting down without reading left
         -- seat 1 of relay rb with 9 restore doses where it "bought" 24)
@@ -457,7 +490,8 @@ function QD.raid.tob_relay_test(mode, opts)
         local Bu = QD.T2 and QD.T2.budget
         if Bu and Bu.later_need then
             target_p = Bu.later_need(role, name, "restore")
-            local heal_need = 16 * Bu.later_need(role, name, "brew") + 20 * Bu.later_need(role, name, "food")
+            local heal_need = 16 * Bu.later_need(role, name, "brew") +
+                20 * Bu.later_need(role, name, "food")
             local function heal_to_need()
                 for _ = 1, 20 do
                     if heal_hp() >= heal_need then break end
@@ -478,8 +512,10 @@ function QD.raid.tob_relay_test(mode, opts)
             for _ = 1, 8 do if prayer_doses() >= target_p or not buy("restore") then break end end
             for _ = 1, 20 do if not heal(0) then break end end
         end
-        t.check(name .. ".chest_bought", true, P .. "points " .. p0 .. " -> " .. points .. "; bought "
-            .. (#bought > 0 and table.concat(bought, " ") or "nothing") .. "; free slots " .. free_slots(t))
+        t.check(name .. ".chest_bought", true,
+            P .. "points " .. p0 .. " -> " .. points .. "; bought "
+            .. (#bought > 0 and table.concat(bought, " ") or "nothing") ..
+            "; free slots " .. free_slots(t))
         t.key("escape")
         t.ticks(1)
     end
@@ -511,13 +547,11 @@ function QD.raid.tob_relay_test(mode, opts)
             t.check(name .. ".sync", sr == "ok", tostring(sd))
         end
         t.expect(name .. ".barrier.synced", t.party.barrier(name .. "_synced", 300))
-        -- v2 rooms (TOB2_DESIGN.md): `opts.v2 = { maiden = true, ... }` plays
-        -- those rooms with QD.raid.<room>_v2_solve; every other room stays v1
-        local suffix = (opts.v2 and opts.v2[name]) and "_v2" or SUFFIX
-        local solve = t.raid[name .. suffix .. "_solve"]
-        assert(solve, "tob_relay: no solver " .. name .. suffix .. "_solve")
+        local solve = t.raid[name .. "_solve"]
+        assert(solve, "tob_relay: no solver " .. name .. "_solve")
         local result, detail = solve({ max_ticks = MAX[name] })
-        t.check(name .. ".solve", result == "ok", P .. string.sub(tostring(detail), 1, opts.detail or 900))
+        t.check(name .. ".solve", result == "ok",
+            P .. string.sub(tostring(detail), 1, opts.detail or 900))
         return result == "ok"
     end
 
@@ -586,12 +620,16 @@ function QD.raid.tob_relay_test(mode, opts)
         drop_vials(t)
         local Bu = QD.T2.budget
         local t0 = api_drive.tick()
-        local function count(nm) local r, c = t.inv.count(nm) return (r == "ok" and tonumber(c)) or 0 end
+        local function count(nm)
+            local r, c = t.inv.count(nm)
+            return (r == "ok" and tonumber(c)) or 0
+        end
         local full, fish = 0, 0
         for _, nm in ipairs(BREW_FULL) do full = full + count(nm) end
         for _, nm in ipairs(FISH) do fish = fish + count(nm) end
         local after = BOARD_AFTER[room]
-        local need = 16 * Bu.later_need(role, after, "brew") + 20 * Bu.later_need(role, after, "food")
+        local need = 16 * Bu.later_need(role, after, "brew") +
+            20 * Bu.later_need(role, after, "food")
         local before = healing_hp(t)
         local mine = { before, full, fish, math.max(0, free_slots(t) - SHARE_KEEP_SLOTS), need }
         -- (the exchange number is the same on every seat: a count every seat
@@ -611,7 +649,8 @@ function QD.raid.tob_relay_test(mode, opts)
             local all = true
             for r = 1, SEATS do if got[r] == nil then all = false end end
             if all then break end
-            assert(api_drive.tick() <= deadline, "tob_relay: the supply board for " .. room .. " never filled")
+            assert(api_drive.tick() <= deadline,
+                "tob_relay: the supply board for " .. room .. " never filled")
             t.ticks(1)
         end
         local rows = {}
@@ -636,8 +675,14 @@ function QD.raid.tob_relay_test(mode, opts)
         t.expect(room .. ".barrier.given", t.party.barrier(room .. "_given", 300))
         -- take: each seat in role order, exactly its own, from its giver's tile
         local ids = {}
-        for _, nm in ipairs(BREW_FULL) do local r, id = api_drive.symbol("obj", nm) if r == "ok" then ids[id] = "brew" end end
-        for _, nm in ipairs(FISH) do local r, id = api_drive.symbol("obj", nm) if r == "ok" then ids[id] = "fish" end end
+        for _, nm in ipairs(BREW_FULL) do
+            local r, id = api_drive.symbol("obj", nm)
+            if r == "ok" then ids[id] = "brew" end
+        end
+        for _, nm in ipairs(FISH) do
+            local r, id = api_drive.symbol("obj", nm)
+            if r == "ok" then ids[id] = "fish" end
+        end
         for r = 1, SEATS do
             if role == r then
                 for _, m in ipairs(moves) do
@@ -647,7 +692,10 @@ function QD.raid.tob_relay_test(mode, opts)
                         local pr, players = api_drive.players()
                         if pr == "ok" then
                             for _, p in ipairs(players) do
-                                if QD.party._same(p.name, giver) then gx, gz = p.server_x or p.x, p.server_z or p.z end
+                                if QD.party._same(p.name, giver) then
+                                    gx, gz = p.server_x or p.x,
+                                        p.server_z or p.z
+                                end
                             end
                         end
                         local row, bd = nil, nil
@@ -666,7 +714,10 @@ function QD.raid.tob_relay_test(mode, opts)
                             if api_drive.world_op("obj", row.obj_id, 3, row.element_id) == "ok" then
                                 for _ = 1, 12 do
                                     t.ticks(1)
-                                    if healing_hp(t) > h0 then got = true break end
+                                    if healing_hp(t) > h0 then
+                                        got = true
+                                        break
+                                    end
                                 end
                             end
                         end
@@ -734,17 +785,21 @@ function QD.raid.tob_relay_test(mode, opts)
                         end
                     end
                 end
-                t.expect(room .. ".barrier.left_" .. pass .. "_" .. r, t.party.barrier(room .. "_left_" .. pass .. "_" .. r, 300))
+                t.expect(room .. ".barrier.left_" .. pass .. "_" .. r,
+                    t.party.barrier(room .. "_left_" .. pass .. "_" .. r, 300))
             end
         end
-        t.check(room .. ".share", true, P .. string.format("healing %d -> %d hp (gave %d, took %d)",
-            before, healing_hp(t), gave, took))
+        t.check(room .. ".share", true,
+            P .. string.format("healing %d -> %d hp (gave %d, took %d)",
+                before, healing_hp(t), gave, took))
     end
 
     local function verzik(t)
         share_healing(t, "verzik", SHARE_HP)
         local prep = t.raid.verzik_p1_prepare()
-        t.check("verzik.prepare", prep ~= nil, P .. (prep and (prep.pillars .. " pillars searched") or "the room never came into view"))
+        t.check("verzik.prepare", prep ~= nil,
+            P ..
+            (prep and (prep.pillars .. " pillars searched") or "the room never came into view"))
         t.expect("verzik.barrier.ready", t.party.barrier("verzik_ready", 600))
         t.cheat("::synctimers", false)
         t.exec("verzik.prayer", t.prayer.set, "protectfrommagic", true)
@@ -758,28 +813,49 @@ function QD.raid.tob_relay_test(mode, opts)
                 if t.chat.kind() ~= "none" then break end
                 t.ticks(1)
             end
-            local cr, cd = t.chat.play({ "npc:So, you wish to entertain me", "options", "choose:Yes, begin the fight." })
+            local cr, cd = t.chat.play({ "npc:So, you wish to entertain me", "options",
+                "choose:Yes, begin the fight." })
             t.check("verzik.begin", cr == "ok", tostring(cd))
         end
         t.expect("verzik.barrier.started", t.party.barrier("verzik_started", 900))
         t.check("verzik.supplies_in", true, P .. supplies_text(t))
-        local r1, d1 = t.raid["verzik_p1" .. ((opts.v2 and opts.v2.verzik_p1) and "_v2" or SUFFIX) .. "_solve"]({ max_ticks = 400, prep = prep, weapon = "abyssal_tentacle" })
+        local r1, d1 = t.raid
+            .verzik_p1_solve({
+                max_ticks = 400,
+                prep =
+                    prep,
+                weapon = "abyssal_tentacle"
+            })
         t.check("verzik.p1", r1 == "ok", P .. string.sub(tostring(d1), 1, opts.detail or 600))
         if r1 ~= "ok" then return false end
-        local r2, d2 = t.raid["verzik_p2" .. ((opts.v2 and opts.v2.verzik_p2) and "_v2" or SUFFIX) .. "_solve"]({ max_ticks = 900, base = prep.base, weapon = "abyssal_tentacle" })
+        local r2, d2 = t.raid
+            .verzik_p2_solve({
+                max_ticks = 900,
+                base =
+                    prep.base,
+                weapon = "abyssal_tentacle"
+            })
         t.check("verzik.p2", r2 == "ok", P .. string.sub(tostring(d2), 1, opts.detail or 600))
         if r2 ~= "ok" then return false end
         -- (the P2 solver released the reserve at her reds; again here for a P2
         -- that ended before her bar got there)
         t.raid.tob_reserve_combats(0)
         t.check("verzik.p3_supplies", true, P .. supplies_text(t))
-        local p3_suffix = (opts.v2 and opts.v2.verzik_p3) and "_v2" or SUFFIX
-        local r3, d3 = t.raid["verzik_p3" .. p3_suffix .. "_solve"]({ max_ticks = 900, base = prep.base, weapon = "abyssal_tentacle" , spec_weapon = SPEC_WEAPON })
+        local r3, d3 = t.raid.verzik_p3_solve({
+            max_ticks = 900,
+            base =
+                prep.base,
+            weapon = "abyssal_tentacle",
+            spec_weapon = SPEC_WEAPON
+        })
         t.check("verzik.supplies_left", true, P .. supplies_text(t))
         t.check("verzik.p3", r3 == "ok", P .. string.sub(tostring(d3), 1, opts.detail or 600))
         -- a P3 death respawns ~6 ticks later and stays in lock step, so no
         -- player.died row is ever written for it: name it from the solve's answer
-        if r3 == "died" then t.check("verzik.p3_died", false, P .. "died in P3 (the solve answered died)") end
+        if r3 == "died" then
+            t.check("verzik.p3_died", false,
+                P .. "died in P3 (the solve answered died)")
+        end
         return r3 == "ok"
     end
 
@@ -812,7 +888,10 @@ function QD.raid.tob_relay_test(mode, opts)
             if lr == "ok" then
                 for k, id in ipairs(chest_ids) do
                     for _, row in ipairs(rows) do
-                        if row.loc_id == id or row.resolved_loc_id == id then chest_sym = chest_syms[k] break end
+                        if row.loc_id == id or row.resolved_loc_id == id then
+                            chest_sym = chest_syms[k]
+                            break
+                        end
                     end
                     if chest_sym ~= nil then break end
                 end
@@ -820,7 +899,8 @@ function QD.raid.tob_relay_test(mode, opts)
             if chest_sym ~= nil then break end
             t.ticks(1)
         end
-        t.check("raid.reward_room", dr == "ok" and chest_sym ~= nil, P .. "trapdoor " .. tostring(dr)
+        t.check("raid.reward_room", dr == "ok" and chest_sym ~= nil,
+            P .. "trapdoor " .. tostring(dr)
             .. "; chest " .. tostring(chest_sym))
         if role == 1 and chest_sym ~= nil then
             local cr
@@ -844,7 +924,8 @@ function QD.raid.tob_relay_test(mode, opts)
             if home then break end
             t.ticks(1)
         end
-        t.check("raid.lobby", home, P .. "teleport out " .. tostring(xr) .. "; at " .. here.x .. "," .. here.z)
+        t.check("raid.lobby", home,
+            P .. "teleport out " .. tostring(xr) .. "; at " .. here.x .. "," .. here.z)
     end
 
     local function run(t)
@@ -874,7 +955,8 @@ function QD.raid.tob_relay_test(mode, opts)
             -- inside it)
             if alive then
                 local hp, pr = t.raid.tob_top_up(30)
-                t.check(name .. ".top_up", true, P .. "hitpoints " .. tostring(hp) .. ", prayer " .. tostring(pr)
+                t.check(name .. ".top_up", true,
+                    P .. "hitpoints " .. tostring(hp) .. ", prayer " .. tostring(pr)
                     .. "; " .. supplies_text(t) .. "; free slots " .. free_slots(t))
                 -- THE NYLOCAS' TWO-HANDED SWAP needs a free slot: every seat wears
                 -- the defender, and the blowpipe cannot go on with nowhere to put
@@ -885,9 +967,13 @@ function QD.raid.tob_relay_test(mode, opts)
                     local dropped = nil
                     for _, nm in ipairs({ "br_1dosepotionofsaradomin", "br_1dose2restore", "anglerfish", "br_2dosepotionofsaradomin" }) do
                         local r, c = t.inv.count(nm)
-                        if dropped == nil and r == "ok" and (tonumber(c) or 0) > 0 and t.player.drop(nm) == "ok" then dropped = nm end
+                        if dropped == nil and r == "ok" and (tonumber(c) or 0) > 0 and t.player.drop(nm) == "ok" then
+                            dropped =
+                                nm
+                        end
                     end
-                    t.check("nylocas.swap_slot", free_slots(t) >= 1, P .. "dropped " .. tostring(dropped)
+                    t.check("nylocas.swap_slot", free_slots(t) >= 1,
+                        P .. "dropped " .. tostring(dropped)
                         .. " for the blowpipe's swap; free slots " .. free_slots(t))
                 end
             end
@@ -932,18 +1018,21 @@ function QD.raid.tob_relay_test(mode, opts)
         t.expect("party.barrier.end", t.party.barrier("end", 3000))
         if role == 1 then
             local _, dawn = t.inv.count("verzik_special_weapon")
-            t.check("raid.complete", cleared == #ORDER, cleared .. " of " .. #ORDER .. " rooms cleared; Dawnbringer held " .. tostring(dawn))
+            t.check("raid.complete", cleared == #ORDER,
+                cleared ..
+                " of " .. #ORDER .. " rooms cleared; Dawnbringer held " .. tostring(dawn))
         end
         t.finish(0)
     end
     return {
         id = ((mode == "normal") and "tob_relay" or ("tob_relay_" .. mode))
-            .. ((opts.from or opts.to) and ("_" .. tostring(opts.from or "maiden") .. "_" .. tostring(opts.to or "verzik")) or ""),
+            ..
+            ((opts.from or opts.to) and ("_" .. tostring(opts.from or "maiden") .. "_" .. tostring(opts.to or "verzik")) or ""),
         -- Hard Mode's door wants one completion (raid seam19); the debug landing
         -- t.raid.enter uses skips it, the fixture keeps the account honest
         fixture = (mode == "hard") and "tob_normal_done.ini" or "fresh_lumbridge.ini",
         party = SEATS,
-        max_frames = 300000,   -- a relay is ~4100 ticks, 30 frames a tick; the gate ceiling is 480000
+        max_frames = 300000, -- a relay is ~4100 ticks, 30 frames a tick; the gate ceiling is 480000
         setup = kit,
         run = run,
     }

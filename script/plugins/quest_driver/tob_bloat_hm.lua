@@ -25,8 +25,3 @@ QD.BLOAT_HM.TURN_CD = 16
 -- seats 2 and 3 and cross onto their tiles)
 QD.BLOAT_HM.SEAT_X = { 41, 41, 41, 42, 42 }
 QD.BLOAT_HM.SEAT_Z = { 31, 30, 32, 30, 32 }
-
-function QD.raid.bloat_hm_solve(opts)
-    assert(QD.raid.tob_mode == "hard", "bloat_hm_solve: the party is in " .. tostring(QD.raid.tob_mode) .. " mode")
-    return QD.raid._bloat_run("bloat_hm_solve", QD.BLOAT_HM, opts)
-end

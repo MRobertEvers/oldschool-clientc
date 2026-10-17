@@ -2,7 +2,7 @@
 -- on the v2 layers (docs/minigames/theater_of_blood/TOB2_DESIGN.md; the plan:
 -- docs/minigames/theater_of_blood/tob2_rooms/verzik_p2.md).
 --
---   QD.raid.verzik_p2_v2_solve(opts) -> result, detail, S
+--   QD.raid.verzik_p2_solve(opts) -> result, detail, S
 --   opts as v1's: { max_ticks, base, weapon }
 --
 -- PREDICT and STRATEGY only. The perception is v1's, CALLED
@@ -105,7 +105,7 @@ function QD.VZ2P2F.observe(S, F)
     -- THE POOLS: every urn seen becomes its tile's pool (v1 HM acid_update,
     -- main-tree margins)
     for _, h in ipairs(F.hazards or {}) do
-        if h.kind == "urn" then
+        if h.kind == "urn" and S.p2m.hard then
             local k = h.x .. "," .. h.z .. "@" .. h.last
             if not M.acid_keys[k] then
                 M.acid_keys[k] = true
@@ -183,6 +183,22 @@ function QD.VZ2P2F.my_red(S, F)
     for _, r in ipairs(F.reds) do
         if r.slot == M.my_red then return r, false end
     end
+    -- NORMAL: mine is dead, the other lives - it is mine now. Two reds a
+    -- summon and three seats leave one seat on the east red, ~140 hp at a
+    -- tentacle's ~2.5 a tick: 56 ticks against her 44-tick summon, so it
+    -- lived and healed her every summon while the two west seats went back to
+    -- her (n_relay rbt: 30 reds, P2 timed out at 900; reds healed her 83 a P2
+    -- to v1's 35). The plan's 12-tick horizon covers the run round her that
+    -- v1's 7 did not.
+    if not S.p2m.hard and #F.reds > 0 then
+        local pick = nil
+        for _, r in ipairs(F.reds) do
+            local d = QD.raid._tob_cheb(r.x, r.z, F.me.x, F.me.z)
+            if pick == nil or d < pick.d or (d == pick.d and r.slot < pick.r.slot) then pick = { r = r, d = d } end
+        end
+        M.my_red = pick.r.slot
+        return pick.r, false
+    end
     return nil, false
 end
 
@@ -190,11 +206,16 @@ end
 -- west; over her own columns both go)
 function QD.VZ2P2F.ath_mine(S, F)
     local a, b = F.athanatos, F.boss
-    if a == nil or not QD.VZ2P2.KILLERS[S.role] then return false end
+    if a == nil or not S.p2m.killers[S.role] then return false end
     local middle = a.x >= b.x and a.x <= b.x + QD.VZP2.SIZE - 1
     return middle or (QD.raid._vzp2_east(S, S.role) == (a.x > b.x + 1))
 end
 QD.VZ2P2.KILLERS = { [3] = true, [5] = true }
+-- NORMAL'S KILLER: seat 3, the serpentine helm's (the relay's kit)
+QD.VZ2P2.KILLERS_NORMAL = { [3] = true }
+-- THE URN'S TILE: Hard's lands and leaves a 16-tick pool (URN_LAST); Normal's
+-- only lands, on the read tile, within URN_LAND_NORMAL
+QD.VZ2P2.URN_LAND_NORMAL = 5
 
 -- My crab (v1 HM pop_terms): walking, its fuse not lit, facing my tile (the
 -- nearest raider to the square it faces).
@@ -263,7 +284,7 @@ end
 QD.T2.rooms.verzik_p2 = {
     init = function(S, opts)
         opts = opts or {}
-        assert(opts.base, "verzik_p2_v2_solve: opts.base (verzik_p1_prepare's room origin) is required")
+        assert(opts.base, "verzik_p2_solve: opts.base (verzik_p1_prepare's room origin) is required")
         local v = QD.raid._vzp2_ids(opts.weapon)
         for _, k in ipairs({ "p2", "before", "after", "athanatos", "red", "crabs", "death_seqs", "seq_magic", "seq_melee",
                              "seq_heal", "urn", "lightning", "athanatos_proj", "helm", "weapon" }) do
@@ -277,8 +298,16 @@ QD.T2.rooms.verzik_p2 = {
         -- v1's perception state (verzik_p2_solve), Hard Mode's seats (v1 HM)
         S.hazards, S.seen_proj, S.crab_seen, S.blasts = {}, {}, {}, {}
         S.attacks, S.slams, S.since_zap, S.summons, S.reds_out, S.reds_attacks = 0, 0, 0, 0, false, 0
-        S.hm = { seats = 5, east = { [3] = true, [4] = true }, red_east = { [3] = true, [4] = true, [5] = true },
-                 crab_look = QD.VZ2P2.CRAB_LOOK, graded = true }
+        local hard = QD.raid.tob_mode == "hard"
+        if hard then
+            S.hm = { seats = 5, east = { [3] = true, [4] = true }, red_east = { [3] = true, [4] = true, [5] = true },
+                     crab_look = QD.VZ2P2.CRAB_LOOK, graded = true }
+        else
+            -- Normal's trio: v1's seats (two west, seat 3 east)
+            S.hm = { seats = 3, east = { [3] = true }, red_east = { [3] = true }, crab_look = QD.VZ2P2.CRAB_LOOK, graded = true }
+        end
+        S.p2m = { hard = hard, killers = hard and QD.VZ2P2.KILLERS or QD.VZ2P2.KILLERS_NORMAL,
+                  urn_last = hard and QD.VZ2P2.URN_LAST or QD.VZ2P2.URN_LAND_NORMAL }
         S.t2.plan_opts.h = S.t2.plan_opts.h or QD.VZ2P2.H
         S.t2.plan_opts.beam = S.t2.plan_opts.beam or QD.VZ2P2.BEAM
         S.t2p = { opts = opts, modes = {}, mode = nil, acid = {}, acid_keys = {}, pools = 0, tg_last = {}, tg_step = {},
@@ -309,7 +338,7 @@ QD.T2.rooms.verzik_p2 = {
                     -- THE URN ON MY TILE (a reactive mark): every raider's
                     -- end-of-(T-1) tile; a zap throws none
                     if F.zap_scan ~= e then
-                        B.mark{ name = "urn", t_mark = e, r = 0, t0 = e + 1, t1 = e + X.URN_LAST,
+                        B.mark{ name = "urn", t_mark = e, r = 0, t0 = e + 1, t1 = e + S.p2m.urn_last,
                             dmg_exp = S.reds_out and X.URN_REDS_EXP or 53, dmg_max = S.reds_out and 0 or 53,
                             forbid = not S.reds_out }
                     end
@@ -317,7 +346,7 @@ QD.T2.rooms.verzik_p2 = {
             end
             -- ...and the urns already decided on tiles I stood on (T-1 = now, now-1, now-2)
             for _, m in ipairs(M.marked) do
-                B.hit{ name = "urn-here", x = m.x, z = m.z, size = 1, t0 = m.e + 1, t1 = m.e + X.URN_LAST,
+                B.hit{ name = "urn-here", x = m.x, z = m.z, size = 1, t0 = m.e + 1, t1 = m.e + S.p2m.urn_last,
                     dmg_exp = m.reds and X.URN_REDS_EXP or 53, dmg_max = m.reds and 0 or 53, forbid = not m.reds }
             end
         end
@@ -341,7 +370,7 @@ QD.T2.rooms.verzik_p2 = {
         -- routes a raider it walks over into her (main tree)
         for _, r in ipairs(F.reds) do
             local sz = r.size or 2
-            if S.next_summon and S.next_summon >= now then
+            if S.p2m.hard and S.next_summon and S.next_summon >= now then
                 local d = X.RED_BURST
                 B.hit{ name = "red-burst", x0 = r.x - d, z0 = r.z - d, x1 = r.x + sz - 1 + d, z1 = r.z + sz - 1 + d,
                     t0 = S.next_summon - 1, t1 = S.next_summon + 1, dmg_exp = 30, dmg_max = 46, forbid = true }
@@ -455,7 +484,8 @@ QD.T2.rooms.verzik_p2 = {
     end,
 }
 
-function QD.raid.verzik_p2_v2_solve(opts)
-    assert(QD.raid.tob_mode == "hard", "verzik_p2_v2_solve: the party is in " .. tostring(QD.raid.tob_mode) .. " mode")
+function QD.raid.verzik_p2_solve(opts)
+    assert(QD.raid.tob_mode == "hard" or QD.raid.tob_mode == "normal",
+        "verzik_p2_solve: the party is in " .. tostring(QD.raid.tob_mode) .. " mode")
     return QD.T2.solve("verzik_p2", opts or {})
 end

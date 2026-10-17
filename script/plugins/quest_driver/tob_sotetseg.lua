@@ -75,8 +75,6 @@ function QD.raid._sote_proj_key(p, pid)
     local launch = api_drive.tick() - (p.duration - p.cycles_left) // 30
     return p.spotanim_id .. ":" .. pid .. ":" .. p.src_x .. "," .. p.src_z .. ":" .. launch
 end
-local function gap(x, z, fx, fz, n) return QD.raid._tob_gap(x, z, fx, fz, n) end
-
 function QD.raid._sote_ids()
     local ids = QD.raid._tob_common_ids("sotetseg_solve")
     local room = QD.raid._tob_symbols("sotetseg_solve", {
@@ -267,33 +265,7 @@ end
 
 -- ================================================================== PRAYER
 
--- THE OVERHEAD, per tick: Protect from MAGIC, MISSILES for the tick a grey
--- ricochet lands on me with no ball or red landing then. His melee is not
--- prayed against: every seat is out of its reach on his slots (the "slot"
--- zone). Every projectile is seen a tick or more before it lands, and a press
--- decided now is in force next tick.
-local function overhead(S, F)
-    local grey_next, red_next = false, false
-    for _, P in ipairs(S.incoming) do
-        if P.pid == F.pid then
-            local next_land = P.land <= F.tick + 1 and (P.land2 or P.land) >= F.tick + 1
-            if next_land and P.kind == "grey" then grey_next = true end
-            if next_land and (P.kind == "ball" or P.kind == "red") then red_next = true end
-        end
-    end
-    if grey_next and not red_next then return "protectfrommissiles" end
-    return "protectfrommagic"
-end
-
 -- ===================================================================== GEAR
-
-local function missing(S, set)
-    local out = {}
-    for _, obj in ipairs(set) do
-        if not QD.raid._tob_worn(S, obj) then out[#out + 1] = obj end
-    end
-    return out
-end
 
 -- =================================================================== PHASES
 
@@ -336,33 +308,6 @@ function QD.raid._sote_phase(S, F)
 end
 
 -- ===================================================================== STEP
-
-function QD.raid._sote_step(S, F)
-    local V = S.V
-    QD.raid._sote_measure(S, F)
-    if F.boss then S.seen_boss = true end
-    local phase = QD.raid._sote_phase(S, F)
-    if phase == "done" then
-        QD.raid._tob_trace(S, F.tick, "his death")
-        return "ok"
-    end
-    if S.base == nil then
-        QD.raid._tob_emit(S, F, nil, {})
-        return nil
-    end
-    local intent = {}
-    local range = 1
-    local spec, names, add = QD.raid._tob_spec(S, F, { h = V.H, beam = V.BEAM })
-    local target, station = QD.raid._sote_fight_zones(S, F, add, phase)
-    if phase == "death_ball" then
-        local hold = QD.raid._sote_death_zones(S, F, add)
-        if hold then station = nil end
-    end
-    if phase == "maze_waiter" then station = QD.raid._sote_waiter(S, F, add) end
-    if phase == "maze_runner" then station = QD.raid._sote_runner(S, F, add) end
-    if phase == "maze_runner" and QD.raid._sote_portal(S, F) then phase, station = "maze_portal", nil end
-    return QD.raid._sote_act(S, F, spec, names, add, phase, target, range, station, intent)
-end
 
 -- HIS FIGHT, every seat: my station beside him and the target; out of his
 -- melee on his slots; no ricochet onto my own landing. -> target, station
@@ -423,50 +368,6 @@ function QD.raid._sote_fight_zones(S, F, add, phase)
         end
     end
     return target, station
-end
-
--- THE DEATH BALL (Normal's one): hold on the target's tile, share beside it.
--- -> true when a hold or share zone went in (the station is dropped)
-function QD.raid._sote_death_zones(S, F, add)
-    local V = S.V
-    local B = S.base
-    local held = false
-    do
-        -- EVERYONE WITHIN 1 OF THE TARGET'S HOLD TILE over the read window,
-        -- the target on it (the ball follows the target). The hold tile is 2+
-        -- from his footprint - the target's own tile, or for one beside him
-        -- that tile pushed one out - so his slot during the window can only
-        -- throw the ball: holding a station beside him under the death ball
-        -- took his 45 melee on top of a 31 share (seed so16/sx, seat 3 dead at
-        -- t295; the hold outranked the step out of his reach). Every seat
-        -- computes the tile from the target's current tile, so all agree.
-        for _, P in ipairs(S.incoming) do
-            if P.kind == "death" and P.land >= F.tick then
-                local X = nil
-                for _, rd in ipairs(F.raiders) do if rd.pid == P.pid then X = rd end end
-                if X then
-                    local hx, hz = X.x, X.z
-                    local fx0, fz0 = B.x + V.SW.x, B.z + V.SW.z
-                    local fx1, fz1 = fx0 + V.SIZE - 1, fz0 + V.SIZE - 1
-                    if gap(hx, hz, fx0, fz0, V.SIZE) <= 1 then
-                        if hx < fx0 then hx = fx0 - 2 elseif hx > fx1 then hx = fx1 + 2 end
-                        if hz < fz0 then hz = fz0 - 2 elseif hz > fz1 then hz = fz1 + 2 end
-                        if hx >= fx0 and hx <= fx1 and hz >= fz0 and hz <= fz1 then hz = fz0 - 2 end
-                    end
-                    if X.me then
-                        add.zone("death-hold", { x = hx, z = hz, size = 1, lo = 0, hi = 0, require = true,
-                            t0 = math.max(F.tick + 1, P.land - 2), t1 = P.land, tier = "lethal", cost = 60 })
-                        add.pull({ x = hx, z = hz, size = 1, weight = 1.0, t0 = F.tick, t1 = P.land })
-                    else
-                        add.zone("death-share", { x = hx, z = hz, size = 1, lo = 0, hi = 1, require = true,
-                            t0 = math.max(F.tick + 1, P.land - 2), t1 = P.land, tier = "lethal", cost = 60 })
-                    end
-                    held = true
-                end
-            end
-        end
-    end
-    return held
 end
 
 -- THE MAZE, UP TOP: follow the trail the runner's glow lays. -> my station
@@ -579,38 +480,6 @@ function QD.raid._sote_at_exit(S, F)
     return F.level == 3 and F.me.z - bz >= R.z1
 end
 
--- INTO THE PORTAL (v1): from the last row, the op on the portal, the server
--- walks me (north of the grid only: no rag) and the op takes me out. Re-sent
--- after PORTAL_RETRY ticks unmoved, beside it too: a held op clears the
--- pending interaction and the walk goes on without it (a_nm n5: a restore
--- drunk on the op's tick, the runner stood beside the portal 530 ticks).
--- The op's own hold is one unmoved tick (content: arrival, the op, in). No
--- eat or drink on the tick it is sent (S.portal_sent = F.tick, _sote_act).
--- -> true while it is my turn (the caller sends no walk: it would cancel it)
-function QD.raid._sote_portal(S, F)
-    local V = S.V
-    if not QD.raid._sote_at_exit(S, F) then return false end
-    local bz = F.me.z - F.me.z % 64
-    local moved = S.portal_at == nil or S.portal_at.x ~= F.me.x or S.portal_at.z ~= F.me.z
-    if moved then S.portal_still = 0 else S.portal_still = (S.portal_still or 0) + 1 end
-    S.portal_at = { x = F.me.x, z = F.me.z }
-    local why = nil
-    if S.portal_maze ~= S.mazes then
-        why = "new"
-    elseif S.portal_still >= V.PORTAL_RETRY and F.tick - S.portal_sent >= V.PORTAL_RETRY then
-        why = "stalled"
-    end
-    if why then
-        local row = QD.raid._sote_portal_row(S, F)
-        local r = row and api_drive.world_op("loc", row.loc_id, 1, row.element_id) or "not_found"
-        QD.raid._tob_trace(S, F.tick, "portal op " .. why .. ": " .. tostring(r))
-        S.portal_sent, S.portal_maze = F.tick, S.mazes
-        S.order = nil
-        S.clicks = S.clicks + 1
-    end
-    return true
-end
-
 -- THE MAZE, IN THE REALM: the lit path, the hold on row 2. -> my station
 function QD.raid._sote_runner(S, F, add)
     local V = S.V
@@ -668,106 +537,4 @@ function QD.raid._sote_runner(S, F, add)
     return station
 end
 
--- ACT, every phase: the reach and the station, the plan, the gear, the
--- supplies and the prayer, one order.
-function QD.raid._sote_act(S, F, spec, names, add, phase, target, range, station, intent)
-    local V, ids = S.V, S.ids
-    if target then add.reach("reach", { x = target.x, z = target.z, size = V.SIZE }, 1) end
-    if station then
-        add.pull({ x = station.x, z = station.z, size = 1, weight = (phase == "fight") and 0.3 or 1.0,
-            t0 = F.tick, t1 = F.tick + V.H })
-    end
-    local plan = QD.raid._tob_plan(S, F, spec, names)
-    local d = QD.raid._tob_order(S, F, plan, { target = target, range = range })
-    -- the void melee set, Piety; Protect from Magic (the grey rule)
-    local want_set = missing(S, ids.melee_set)
-    -- THE HAMMER OPENER (V.HAMMER_OPENER, tob_sotetseg_hm.lua - owner,
-    -- 2026-10-12: "Sotetseg should be Dragon Warhammer specced at the
-    -- start"): the hammer in hand and the special armed on every swing while
-    -- a spec's 50% is left, until OPENER_TICKS into the fight; then the
-    -- tentacle again
-    if V.HAMMER_OPENER and phase == "fight" and S.opener ~= "done" and target then
-        if F.energy < 500 or F.tick - (S.fight_start or F.tick) > V.OPENER_TICKS then
-            S.opener = "done"
-            QD.raid._tob_trace(S, F.tick, "hammer opener done (energy " .. F.energy .. ")")
-        else
-            local worn = QD.raid._tob_worn(S, ids.hammer)
-            want_set = worn and {} or { ids.hammer }
-            intent.spec = worn
-        end
-    end
-    if #want_set > 0 and F.tick - (S.gear_sent or -10) >= 2 then intent.gear = want_set end
-    -- before a death ball lands, eat up (a 121 split three ways is 40 each,
-    -- one a seat short of that killed two at 46 and 57, seed so3/sc)
-    -- (the brews are the kit's food: two anglerfish, eight brews)
-    local eat_below = (phase == "death_ball") and (V.DEATH_EAT or 75) or 60
-    -- the walk to the portal: no walk order (it would cancel the op), and a
-    -- low floor (a held op clears the pending interaction)
-    if phase == "maze_portal" then
-        d.order = nil
-        eat_below = V.PORTAL_EAT
-    end
-    QD.raid._tob_supplies(S, F, { overhead = overhead(S, F), boost = "piety", boost_stat = "attack",
-        eat_below = eat_below, brew_below = eat_below }, intent)
-    -- the portal op's tick: no held op with it (a held op clears the pending
-    -- interaction; a_nm n5); the drink waits a tick
-    if phase == "maze_portal" and S.portal_sent == F.tick and (intent.eat or intent.drink) then
-        intent.eat, intent.drink = nil, nil
-        S.last_eat, S.last_drink = nil, nil
-    end
-    -- THE PRESS THAT BREAKS A BLOCK: an unprayed ball or ricochet at B takes
-    -- protection prayers away until B+5 (`varp6891 > map_clock`, prayer.rs2),
-    -- so a press lands only ON B+5 or later. The every-other-tick throttle
-    -- (a double press toggles the prayer off) put them on B+4 and B+6 and
-    -- the next ball re-blocked: five blocks in a row, a seat dead (so20/uj
-    -- t85-110, prayer points at 94 throughout). A press decided on d is read
-    -- in d's player turn, after d's impacts (it covers landings from d+1): so
-    -- the press is decided ON B+5, outside the throttle (decided on B+4 it
-    -- was read on B+4 and refused, so21/uj: the refusal sound on t89).
-    if S.block_until and F.tick == S.block_until then
-        intent.pray = overhead(S, F)
-        intent.pray_force = true
-        QD.raid._tob_trace(S, F.tick, "press " .. intent.pray .. " to land as the block lifts")
-    end
-    local opener_swing = intent.spec and QD.raid._tob_worn(S, ids.hammer)
-    if not QD.raid._tob_worn(S, ids.tentacle) and not opener_swing and d.order and d.order.mode == "attack" then
-        d.order = { mode = "walk", x = d.x, z = d.z }
-    end
-    if phase ~= S.kind then S.kind = phase end
-    QD.raid._tob_emit(S, F, d.order, intent)
-    QD.raid._tob_recent(S, F, d)
-    return nil
-end
-
 -- ===================================================================== LOOP
-
-function QD.raid.sotetseg_solve(opts)
-    return QD.raid._sote_run("sotetseg_solve", QD.SOTE, QD.raid._sote_step, opts)
-end
-
--- The solve on a mode's numbers `V` and step (tob_sotetseg_hm.lua's for Hard).
-function QD.raid._sote_run(who, V, step, opts)
-    opts = opts or {}
-    local S = QD.raid._tob_state(who, QD.raid._sote_ids(), opts, {
-        incoming = {}, proj_live = {}, trail = {}, trail_seen = {}, deaths = 0, mazes = 0, phase_log = {}, path_log = {},
-        V = V,
-    })
-    QD.raid._tob_trace(S, api_drive.tick(), "phase entry")
-    QD.raid._tob_start(S, nil, opts.start_ticks)
-    S.fight_start = api_drive.tick()
-    return QD.raid._tob_run(S, step, function(s)
-        return QD.raid._tob_summary(s, string.format("phases %s; death balls %d; mazes %d; paths %s",
-            table.concat(s.phase_log, " "), s.deaths, s.mazes, table.concat(s.path_log, " ")))
-    end)
-end
-
--- The ids the test's tick-log measures read (a test file has no api_drive).
-function QD.raid.sotetseg_symbols()
-    return QD.raid._tob_symbols("sotetseg_symbols", {
-        { "boss", "npc", "tob_sotetseg_combat" }, { "boss_maze", "npc", "tob_sotetseg_noncombat" },
-        { "tornado", "npc", "tob_sotetseg_creeper" },
-        { "ball", "spotanim", "tob_sotetseg_maging" }, { "grey", "spotanim", "tob_sotetseg_ranging" },
-        { "death", "spotanim", "tob_sotetseg_sharedattack" }, { "rag", "spotanim", "devious_explosion" },
-        { "death_seq", "seq", "tob_sotetseg_death" },
-    })
-end

@@ -2,7 +2,7 @@
 -- the v2 layers (docs/minigames/theater_of_blood/TOB2_DESIGN.md; the room's
 -- plan: docs/minigames/theater_of_blood/tob2_rooms/bloat.md).
 --
---   QD.raid.bloat_v2_solve(opts) -> result, detail, S
+--   QD.raid.bloat_solve(opts) -> result, detail, S
 --
 -- OWNER RULE: Bloat is 0 DAMAGE. Any hit on any seat fails the room.
 --
@@ -404,9 +404,9 @@ QD.T2.rooms.bloat = {
 
     init = function(S, opts)
         opts = opts or {}
-        assert(QD.raid.tob_mode == "hard", "bloat_v2_solve: the party is in " .. tostring(QD.raid.tob_mode) .. " mode")
-        -- v1's perception state (tob_bloat.lua _bloat_run's extra), Hard Mode's numbers
-        local V = QD.BLOAT_HM
+        -- v1's perception state (tob_bloat.lua _bloat_run's extra), the mode's
+        -- numbers (Normal: QD.BLOAT, a trio; Hard: QD.BLOAT_HM, five)
+        local V = (QD.raid.tob_mode == "hard") and QD.BLOAT_HM or QD.BLOAT
         S.V = V
         S.shadows, S.shadow_left, S.downs = {}, {}, {}
         S.turns, S.hands, S.off_lap = 0, 0, 0
@@ -604,7 +604,8 @@ QD.T2.rooms.bloat = {
     end,
 }
 
-function QD.raid.bloat_v2_solve(opts)
-    assert(QD.raid.tob_mode == "hard", "bloat_v2_solve: the party is in " .. tostring(QD.raid.tob_mode) .. " mode")
+function QD.raid.bloat_solve(opts)
+    assert(QD.raid.tob_mode == "hard" or QD.raid.tob_mode == "normal",
+        "bloat_solve: the party is in " .. tostring(QD.raid.tob_mode) .. " mode")
     return QD.T2.solve("bloat", opts or {})
 end

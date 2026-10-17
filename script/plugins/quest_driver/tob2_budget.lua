@@ -125,6 +125,73 @@ QD.T2.budget.CHEST = {
         { brew = 4, food = 6, restore = 8 } },
 }
 
+-- NORMAL'S TABLES, a trio (the Hard ones above are five seats of Hard Mode's
+-- spend: their P3 reserve of four super combat doses a seat held the Normal
+-- kit's last doses out of P2, which then ran 600-1000 ticks unboosted and sent
+-- the team into P3 on 0-4 restore doses - relay_v2a, 50 of 128 dead in P3).
+-- SOURCE: the Normal v1 relay, 128 seeds (2026-10-17), its 112 passing
+-- relays, measured exactly as the Hard tables (build script need.py): the
+-- median a seat per room, and the chests' buys. P3's combat is the measured
+-- one dose a seat.
+QD.T2.budget.NEED_NORMAL = {
+    -- team mean: brew 7.5, food 3.2, restore 10.1, combat 5.3, ranging 1.0
+    maiden = {
+        { brew = 0, food = 0, restore = 3, combat = 0, ranging = 1 },
+        { brew = 7, food = 2, restore = 4, combat = 4, ranging = 0 },
+        { brew = 0, food = 1, restore = 3, combat = 1, ranging = 0 } },
+    -- team mean: brew 0.0, food 0.0, restore 0.0, combat 1.9, ranging 0.0
+    bloat = {
+        { brew = 0, food = 0, restore = 0, combat = 1, ranging = 0 },
+        { brew = 0, food = 0, restore = 0, combat = 1, ranging = 0 },
+        { brew = 0, food = 0, restore = 0, combat = 0, ranging = 0 } },
+    -- team mean: brew 1.0, food 1.0, restore 15.3, combat 9.9, ranging 1.1
+    nylocas = {
+        { brew = 0, food = 1, restore = 5, combat = 4, ranging = 1 },
+        { brew = 0, food = 0, restore = 5, combat = 1, ranging = 0 },
+        { brew = 0, food = 0, restore = 5, combat = 5, ranging = 0 } },
+    -- team mean: brew 19.1, food 1.4, restore 19.5, combat 0.8, ranging 0.0
+    sotetseg = {
+        { brew = 6, food = 0, restore = 6, combat = 1, ranging = 0 },
+        { brew = 7, food = 0, restore = 7, combat = 0, ranging = 0 },
+        { brew = 6, food = 0, restore = 6, combat = 0, ranging = 0 } },
+    -- team mean: brew 0.0, food 0.0, restore 3.1, combat 0.0, ranging 0.0
+    xarpus = {
+        { brew = 0, food = 0, restore = 1, combat = 0, ranging = 0 },
+        { brew = 0, food = 0, restore = 1, combat = 0, ranging = 0 },
+        { brew = 0, food = 0, restore = 1, combat = 0, ranging = 0 } },
+    -- team mean: brew 2.3, food 2.9, restore 15.8, combat 3.3, ranging 0.0
+    -- P2's super combats are POLICY: its reds are a race - two a summon, ~280
+    -- hp of heal every 44 ticks against a whip team's ~7 a tick - and an
+    -- unboosted team lost it (n_relay rbt: her bar fell 1.9 a tick through
+    -- the reds, 900 ticks). v1 kept its last two doses for P2's reds and P3.
+    verzik_p12 = {
+        { brew = 0, food = 1, restore = 5, combat = 2, ranging = 0 },
+        { brew = 0, food = 1, restore = 5, combat = 2, ranging = 0 },
+        { brew = 0, food = 0, restore = 5, combat = 2, ranging = 0 } },
+    -- team mean: brew 38.8, food 3.5, restore 18.2, combat 2.7, ranging 0.0
+    -- P3's restores are POLICY, not the measured median (2026-10-17): the v2
+    -- relay's P3 losses entered on 3-4 restore doses a seat, were drained by
+    -- mid-P3 and fought on at -99 (relay_v2g raf, +625 ticks); the chests
+    -- buy toward ten, the brews they replace were 30-35 a seat at P3's door.
+    verzik_p3 = {
+        { brew = 14, food = 0, restore = 10, combat = 2, ranging = 0 },
+        { brew = 11, food = 3, restore = 10, combat = 2, ranging = 0 },
+        { brew = 14, food = 0, restore = 10, combat = 2, ranging = 0 } },
+}
+QD.T2.budget.CHEST_NORMAL = {
+    bloat = { { brew = 8, food = 0, restore = 0 }, { brew = 12, food = 0, restore = 0 }, { brew = 0, food = 0, restore = 0 } },
+    sotetseg = { { brew = 12, food = 1, restore = 8 }, { brew = 8, food = 4, restore = 4 }, { brew = 20, food = 0, restore = 4 } },
+}
+
+-- The mode's tables (QD.raid.tob_mode: the party's, set at the raid's entry).
+function QD.T2.budget.need()
+    return (QD.raid.tob_mode == "hard") and QD.T2.budget.NEED or QD.T2.budget.NEED_NORMAL
+end
+
+function QD.T2.budget.chest()
+    return (QD.raid.tob_mode == "hard") and QD.T2.budget.CHEST or QD.T2.budget.CHEST_NORMAL
+end
+
 -- Under this many hitpoints a brew or a food ignores the reserve (the
 -- rescue does too, but only on a death the plan can see coming).
 QD.T2.budget.HP_FLOOR = 40
@@ -163,9 +230,10 @@ end
 
 -- Raise (or set) a room's need for one seat and kind (a policy override).
 function QD.T2.budget.set_need(room, seat, kind, doses)
-    assert(QD.T2.budget.NEED[room], "tob2 budget: no room " .. tostring(room))
-    assert(QD.T2.budget.NEED[room][seat], "tob2 budget: no seat " .. tostring(seat))
-    QD.T2.budget.NEED[room][seat][kind] = doses
+    local need = QD.T2.budget.need()
+    assert(need[room], "tob2 budget: no room " .. tostring(room))
+    assert(need[room][seat], "tob2 budget: no seat " .. tostring(seat))
+    need[room][seat][kind] = doses
 end
 
 -- The budget's room for a solve name ("verzik_p2" -> "verzik_p12").
@@ -247,14 +315,14 @@ function QD.T2.budget.spendable(S, kind, stock)
     local run, low = have, have
     for _, r in ipairs(order) do
         if after then
-            local need = QD.T2.budget.NEED[r]
+            local need = QD.T2.budget.need()[r]
             if need then run = run - (need[seat][kind] or 0) end
             if run < low then low = run end
         end
         if r == room then after = true end
         if after then
             -- the chest after room r refills the rooms after it
-            local chest = QD.T2.budget.CHEST[r]
+            local chest = QD.T2.budget.chest()[r]
             if chest then run = run + (chest[seat][kind] or 0) end
         end
     end
@@ -332,7 +400,8 @@ function QD.T2.budget.summary(S)
     for _, r in ipairs(rooms) do
         local sp = st.spent[r]
         if sp then
-            local need = QD.T2.budget.NEED[r] and QD.T2.budget.NEED[r][seat] or {}
+            local N = QD.T2.budget.need()
+            local need = N[r] and N[r][seat] or {}
             local parts = {}
             for _, kind in ipairs(QD.T2.budget.KINDS) do
                 parts[#parts + 1] = kind .. " " .. (sp[kind] or 0) .. "/" .. (need[kind] or 0)
@@ -373,8 +442,12 @@ QD.T2.budget.SPEC_FULL = 1000
 -- median phase lengths (ticks) on the way to P3
 QD.T2.budget.SPEC_TICKS = { verzik_p1 = 130, verzik_p2 = 310 }
 -- the special weapons' costs (energy, 0-1000; the obj's sa_energy)
+-- (the Dawnbringer is `verzik_special_weapon` in this cache: under the name
+-- "dawnbringer" no symbol resolved, the gate charged its special the default
+-- 500 and refused it at 350-499 energy - P1 waited ~100 ticks a seat for a
+-- third special, 250 ticks to v1's 182 in Normal)
 QD.T2.budget.SPEC_COST = { bone_claws = 350, dragon_claws = 500, dragon_dagger = 250, crystal_halberd = 300,
-                           dragon_warhammer = 500, dawnbringer = 350, toxic_blowpipe = 500 }
+                           dragon_warhammer = 500, verzik_special_weapon = 350, toxic_blowpipe = 500 }
 -- the pre-P3 dump weapon (the kit's one-handed hammer), its cost and speed
 QD.T2.budget.DUMP_WEAPON = "dragon_warhammer"
 QD.T2.budget.DUMP_SPEED = 6
@@ -488,7 +561,8 @@ function QD.T2.budget.later_need(seat, room, kind)
     if seat > 5 then seat = 5 end
     local after, total = false, 0
     for _, r in ipairs(order) do
-        if after and B.NEED[r] then total = total + (B.NEED[r][seat][kind] or 0) end
+        local N = B.need()
+        if after and N[r] then total = total + (N[r][seat][kind] or 0) end
         if r == room then after = true end
     end
     return total

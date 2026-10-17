@@ -315,48 +315,6 @@ end
 
 -- ==================================================================== PLAN
 
--- api_drive.plan with the room's constraint names for the why-trace.
--- A table as text, keys sorted (the same table reads the same on every lane).
-local function tob_dump_text(v)
-    if type(v) ~= "table" then return tostring(v) end
-    local keys = {}
-    for k in pairs(v) do keys[#keys + 1] = k end
-    table.sort(keys, function(a, b) return tostring(a) < tostring(b) end)
-    local out = {}
-    for _, k in ipairs(keys) do out[#out + 1] = tostring(k) .. "=" .. tob_dump_text(v[k]) end
-    return "{" .. table.concat(out, " ") .. "}"
-end
-
--- THE PLAN DUMP, off unless a test sets QD.raid.tob_plan_dump = { from, to }
--- (drive ticks): every plan's spec and answer in that window, into the trace,
--- so two lanes that walked apart can be diffed on what each one asked.
--- (`quiet`: a trial plan whose failure is not news -- a walk tried before
--- the run -- writes no "no safe plan" line)
-function QD.raid._tob_plan(S, F, spec, names, quiet)
-    local r, plan = api_drive.plan(spec)
-    assert(r == "ok", S.who .. ": api_drive.plan answered " .. tostring(r))
-    local dump = QD.raid.tob_plan_dump
-    if dump and F.tick >= dump[1] and F.tick <= dump[2] then
-        -- (rows of their own, 800 characters each: a solve row is cut at ~950)
-        local text = "spec " .. tob_dump_text(spec) .. " plan " .. tob_dump_text(plan)
-        for i = 1, #text, 800 do
-            QD.step("tob.plandump", "PASS", "t" .. F.tick .. " " .. S.who .. " " .. ((i - 1) // 800)
-                .. " " .. string.sub(text, i, i + 799))
-        end
-    end
-    S.expanded = S.expanded + (plan.expanded or 0)
-    if not quiet and plan.lethal > 0 and (S.last_inf or -10) < F.tick - 5 then
-        S.last_inf = F.tick
-        local kind, idx, k = tostring(plan.why):match("(%a+)%[(%d+)%] k(%d+)")
-        local lists = { zone = "zones", forbid = "forbid", chaser = "chasers", watcher = "watchers" }
-        local list = kind and names and names[lists[kind]]
-        local nm = list and list[tonumber(idx)]
-        QD.raid._tob_trace(S, F.tick, "no safe plan at " .. F.me.x .. "," .. F.me.z .. " ("
-            .. tostring(nm or plan.why) .. " k" .. tostring(k) .. ")")
-    end
-    return plan
-end
-
 -- A spec with the common fields filled in; the room adds its constraints
 -- through the returned adders, which keep the names for the why-trace.
 function QD.raid._tob_spec(S, F, opts)
@@ -425,80 +383,6 @@ function QD.raid._tob_spec(S, F, opts)
 end
 
 -- =================================================================== ORDER
-
--- Is (x, z) in reach of `target` (an npc row with x, z, size) for a weapon of
--- `range` (1 = melee: beside, not diagonal)? Ranged reach is the client's
--- own pathfinder from that tile: a ranged route of no steps is "here".
-function QD.raid._tob_in_reach(S, F, x, z, target, range)
-    local n = target.size or 1
-    if range <= 1 then return QD.raid._tob_beside(x, z, target.x, target.z, n) end
-    local key = x .. "," .. z .. ">" .. target.x .. "," .. target.z .. ":" .. n .. ":" .. range
-    local hit = S.routes[key]
-    if hit ~= nil then return hit end
-    local r, rt = api_drive.route(target.x, target.z, { size = n, range = range, run = true, from = { x = x, z = z } })
-    hit = (r == "ok" and rt ~= nil and rt.ticks ~= nil and #rt.ticks == 0)
-    S.routes[key] = hit
-    return hit
-end
-
--- The plan's first step as one click. opts: target (npc row or nil), range,
--- holding (a tile that must not be left by an npc-following order), chased
--- (a chaser at my heels: never a press the server may refuse).
-function QD.raid._tob_order(S, F, plan, opts)
-    local p1 = plan.path[1]
-    local target, range = opts.target, opts.range or 1
-    local d = { x = p1.x, z = p1.z, mid = p1.mid, soft = plan.soft, lethal = plan.lethal }
-    local stays = p1.x == F.me.x and p1.z == F.me.z
-    -- an attack order FOLLOWS its npc (lesson 47): a walking target is judged
-    -- at its tile next tick, so the order is kept only while the server will
-    -- not have to walk me after it (seed m2: DPS walked onto trails chasing)
-    -- (ranged only: a melee order that follows its npc IS the chase)
-    local judged = target
-    if target ~= nil and target.nx ~= nil and range > 1 then
-        judged = { x = target.nx, z = target.nz, size = target.size }
-    end
-    -- melee: the press is right when the npc will be beside me after its
-    -- step (the swing goes out in my phase, after its npc phase); the plan
-    -- walks a safe tile beside where it will be instead of the server's
-    -- follow walk across a trail (seed m6s so/sc)
-    if target ~= nil and target.nx ~= nil and range <= 1 then
-        judged = { x = target.nx, z = target.nz, size = target.size }
-    end
-    local reach
-    if target ~= nil and range <= 1 then
-        reach = QD.raid._tob_in_reach(S, F, p1.x, p1.z, judged, range)
-    else
-        reach = target ~= nil and QD.raid._tob_in_reach(S, F, p1.x, p1.z, target, range)
-            and QD.raid._tob_in_reach(S, F, p1.x, p1.z, judged, range)
-    end
-    if stays then
-        if reach and not opts.holding then
-            d.order = { mode = "attack", npc = target }
-        elseif opts.holding or (S.order and S.order.mode == "attack") then
-            -- an attack order under way would walk me: hold here
-            d.order = { mode = "walk", x = F.me.x, z = F.me.z }
-        end
-        return d
-    end
-    -- an npc that steps this tick is re-pathed by the server AFTER its step:
-    -- the route below is to where it stands now, so its first step can match
-    -- the plan's and the server still not move me (seed v2d/sp t234: a DPS
-    -- dodging a pool pressed N1, which stepped into reach, and stood on the
-    -- pool). Only a target that stands still takes the attack for the step.
-    local moving = target ~= nil and target.nx ~= nil and (target.nx ~= target.x or target.nz ~= target.z)
-    if reach and not moving and not opts.chased and not opts.holding then
-        -- the attack's own route takes this very step: press the npc instead
-        -- of the tile and the swing goes out on arrival (lesson 8)
-        local rr, rt = api_drive.route(target.x, target.z, { run = true, size = target.size or 1,
-            range = (range > 1) and range or nil })
-        if rr == "ok" and rt.ticks and rt.ticks[1] and rt.ticks[1].x == p1.x and rt.ticks[1].z == p1.z then
-            d.order = { mode = "attack", npc = target }
-            return d
-        end
-    end
-    d.order = { mode = "walk", x = p1.x, z = p1.z }
-    return d
-end
 
 -- ==================================================================== EMIT
 
@@ -940,14 +824,6 @@ function QD.raid.tob_top_up(max_ticks)
         F = QD.raid._tob_measure(S)
     end
     return F.hp, F.prayer
-end
-
--- THE RELAY'S COMBAT POTIONS are Verzik's: the rooms before her drink no
--- boost (QD.raid._tob_supplies), the chests sell none, and a party that
--- reached P3 unboosted and brew-drained took it 470+ ticks against the room
--- test's 346, and ran dry (relay rl13, four seeds of four).
-function QD.raid.tob_hold_boosts(on)
-    QD.raid.tob_boosts_held = (on == true)
 end
 
 -- THE P3 RESERVE: super combat doses no room before Verzik's P3 may drink

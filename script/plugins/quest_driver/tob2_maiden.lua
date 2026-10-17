@@ -1,7 +1,7 @@
 -- quest-driver / tob2_maiden: THE MAIDEN OF SUGADINTI, HARD MODE, five raiders,
 -- on the v2 layers (docs/minigames/theater_of_blood/TOB2_DESIGN.md).
 --
---   QD.raid.maiden_v2_solve(opts) -> result, detail, S
+--   QD.raid.maiden_solve(opts) -> result, detail, S
 --
 -- This file is the room's PREDICT and STRATEGY only. The planner
 -- (api_drive.aplan), the spec builder B (tob2_plan.lua), the executive's
@@ -257,8 +257,62 @@ QD.MAIDEN_V2 = {
     F_KEYS = { "boss", "dying", "crabs", "slugs", "permille", "next_threshold" },
 }
 
+-- THE MODE'S ROLES, TILES AND RULES (S.mh, built once by MV.mode_table): the
+-- Hard side is QD.MAIDEN_HM's five seats (two freezers, one a side, three
+-- DPS, the fixed FREEZE slots) with this file's seat extras; the Normal side
+-- is v1's trio (tob_maiden.lua QD.MAIDEN): one freezer for both sides on the
+-- wave table's slots (S.wave.plan.freeze, tob_maiden_waves.lua), two DPS on
+-- QD.MAIDEN's wave tiles, the tank rotation every TANK_STORMS storms (no
+-- focus in Normal), crabs of ^tob_maiden_crab_hp_3 75, v1's 100-permille
+-- prewave, no rescue seat (no third DPS), and the hammer opener to under 500
+-- energy (the Normal kit carries no claws).
+function QD.MAIDEN_V2.mode_table(hard)
+    local X = QD.MAIDEN_V2
+    if hard then
+        if X._hard == nil then
+            local H, t = QD.MAIDEN_HM, {}
+            for k, v in pairs(H) do t[k] = v end
+            t.FREEZERS, t.FREEZER_LIST = { [1] = true, [2] = true }, { 1, 2 }
+            t.FZ_FACE, t.WAVE_FAR, t.RESCUE_ROLE = X.FZ_FACE, X.WAVE_FAR, X.RESCUE_ROLE
+            t.HAMMERS, t.CRAB_HP = X.HAMMERS, X.CRAB_HP
+            X._hard = t
+        end
+        return X._hard
+    end
+    if X._normal == nil then
+        local V = QD.MAIDEN
+        X._normal = {
+            FREEZE = nil,                                  -- the wave table's slots
+            FREEZERS = { [1] = true }, FREEZER_LIST = { 1 },
+            FREEZER_STATION = { [1] = V.FREEZER_STATION }, STATION = { [1] = V.STATION[1] },
+            DPS = { 2, 3 },
+            TANK_TILE = V.TANK_TILE, OFF_TILES = { V.OFF_TILE }, TANK_STORMS = V.TANK_STORMS,
+            TANK_BREW = QD.MAIDEN_HM.TANK_BREW,
+            WAVE_TILE = V.DPS_WAVE_TILE, WAVE_FAR = V.DPS_WAVE_TILE,
+            IMMUNE = QD.MAIDEN_HM.IMMUNE,                  -- the engine's freeze immunity, every mode
+            PRE_WAVE = V.PRE_WAVE, SLUG_PREWAVE = QD.MAIDEN_HM.SLUG_PREWAVE,
+            FZ_FACE = { [1] = X.FZ_FACE[1] }, RESCUE_ROLE = nil,
+            HAMMERS = X.HAMMERS_V1, CRAB_HP = 75,
+        }
+    end
+    return X._normal
+end
+
 local MV = {}
 local function cheb(ax, az, bx, bz) return math.max(math.abs(ax - bx), math.abs(az - bz)) end
+
+-- Every barrage slot of the wave under way, both sides: Hard's fixed table,
+-- Normal's wave handler.
+function MV.slots(S)
+    if S.mh.FREEZE then
+        local out = {}
+        for _, side in ipairs(S.mh.FREEZER_LIST) do
+            for _, sl in ipairs(S.mh.FREEZE[side]) do out[#out + 1] = sl end
+        end
+        return out
+    end
+    return (S.wave and S.wave.plan and S.wave.plan.freeze) or {}
+end
 local function abs_tile(S, t) return { x = S.base.x + t.x, z = S.base.z + t.z } end
 
 -- =================================================================== OBSERVE
@@ -298,12 +352,14 @@ function MV.observe(S, F)
     local snapped = MV.snap_crabs(S, F)
     QD.raid._maiden_crabs(S, F)
     QD.raid._maiden_hm_marks(S, F)
-    QD.raid._maiden_hm_wave(S, F)
+    -- the wave: Hard's every-point wave, Normal's wave-table handler
+    local wave_of = S.mh.FREEZE and QD.raid._maiden_hm_wave or QD.raid._maiden_wave
+    wave_of(S, F)
     -- a wave seen only after its first step (every crab snapped back a tick
     -- or more): v1's wave reads `born == F.tick`, so it is given the spawn
     -- tick as its tick (it reads only F.tick and F.crabs)
     if snapped ~= nil and not (S.wave and S.wave.t0 == snapped) then
-        QD.raid._maiden_hm_wave(S, { tick = snapped, crabs = F.crabs })
+        wave_of(S, { tick = snapped, crabs = F.crabs })
     end
     -- HER CADENCE: either attack; the gap measured, and it only shortens
     -- (HM ramps; a gap under 3 is a seq seen twice, not a cadence)
@@ -514,7 +570,7 @@ function MV.observe_slugs(S, F)
         local th = M.slug_thaw[sl.slot]
         if m.till ~= nil and (th == nil or m.till > th) then th = m.till end
         M.slug_thaw[sl.slot] = th
-        sl.immune = not sl.frozen and th ~= nil and F.tick < th + QD.MAIDEN_HM.IMMUNE
+        sl.immune = not sl.frozen and th ~= nil and F.tick < th + S.mh.IMMUNE
     end
 end
 
@@ -582,7 +638,7 @@ function MV.spec_open(S, F, swing)
     if not X.SPECIALS then return true end
     if #F.crabs > 0 then return false end
     if F.next_threshold == nil then return true end
-    if F.permille <= F.next_threshold + QD.MAIDEN_HM.PRE_WAVE then return false end
+    if F.permille <= F.next_threshold + S.mh.PRE_WAVE then return false end
     local ttw = MV.ticks_to_wave(S, F)
     if ttw ~= nil and ttw <= 1 + swing.speed + 1 + X.SPEC_MARGIN then return false end
     return true
@@ -592,7 +648,7 @@ end
 -- sequence AND the way back to the wave station fit before the prewave.
 -- (The caller adds F-her's own conditions: no slot, no spawn, no prewave.)
 function MV.fz_open(S, F)
-    local X, H = QD.MAIDEN_V2, QD.MAIDEN_HM
+    local X, H = QD.MAIDEN_V2, S.mh
     if not (X.SPECIALS and X.FZ_SPECS) then return false end
     if #F.crabs > 0 then return false end
     if F.next_threshold == nil then return true end
@@ -653,8 +709,8 @@ end
 -- freezer had stood ready (the cast set on, within 1 of its wave station)
 -- before the wave's tick, and the ticks since its claws last came off.
 function MV.fz_measure(S, F)
-    local M, H = S.t2m, QD.MAIDEN_HM
-    if S.role ~= 1 and S.role ~= 2 then return end
+    local M, H = S.t2m, S.mh
+    if not H.FREEZERS[S.role] then return end
     local sp = M.fsp
     local inhand = sp.id ~= nil and QD.raid._tob_worn(S, sp.id)
     if sp.inhand_last and not inhand then sp.off_t = F.tick end
@@ -814,23 +870,21 @@ function MV.claim_panels(S, F, I)
 end
 
 -- A crab's hitpoints left: its bar, full (CRAB_HP) before its first hit.
-function MV.crab_hp(c)
-    local X = QD.MAIDEN_V2
+function MV.crab_hp(S, c)
+    local full = S.mh.CRAB_HP
     if c.health_ratio ~= nil and c.health_ratio >= 0 and c.health_scale ~= nil and c.health_scale > 0 then
-        return X.CRAB_HP * c.health_ratio / c.health_scale
+        return full * c.health_ratio / c.health_scale
     end
-    return X.CRAB_HP
+    return full
 end
 
 -- The tick its slot's freeze lands (wave + at + 1 + cast_lag), or nil: a crab
 -- of the current wave whose point is in a freezer's slot table.
 function MV.slot_land(S, c)
     if S.wave == nil or c.born ~= S.wave.t0 then return nil end
-    for _, side in ipairs({ 1, 2 }) do
-        for _, sl in ipairs(QD.MAIDEN_HM.FREEZE[side]) do
-            for _, p in ipairs(sl.aim) do
-                if p == c.point then return S.wave.t0 + sl.at + 1 + S.cast_lag end
-            end
+    for _, sl in ipairs(MV.slots(S)) do
+        for _, p in ipairs(sl.aim) do
+            if p == c.point then return S.wave.t0 + sl.at + 1 + S.cast_lag end
         end
     end
     return nil
@@ -856,15 +910,15 @@ end
 
 -- A DPS role's wave tile (the tank's turn at 3 from her centre, the others' at 4).
 function MV.wave_tile(S, role)
-    local H, X = QD.MAIDEN_HM, QD.MAIDEN_V2
+    local H = S.mh
     if MV.tank_of(S) == role then return H.WAVE_TILE[role] end
-    return X.WAVE_FAR[role]
+    return H.WAVE_FAR[role]
 end
 
 -- THE KILL PLAN, the same on every seat (E14: the crab rows, the storm count
 -- and the fixed wave tiles only). -> my crab, the crabs in deadline order.
 function MV.dps_pick(S, F)
-    local H, X = QD.MAIDEN_HM, QD.MAIDEN_V2
+    local H, X = S.mh, QD.MAIDEN_V2
     if #F.crabs == 0 then return nil, {} end
     local dl, order = {}, {}
     for _, c in ipairs(F.crabs) do
@@ -875,7 +929,7 @@ function MV.dps_pick(S, F)
     -- left first: by slot alone one side's twin took every first seat, wave
     -- after wave)
     local hp = {}
-    for _, c in ipairs(F.crabs) do hp[c] = MV.crab_hp(c) end
+    for _, c in ipairs(F.crabs) do hp[c] = MV.crab_hp(S, c) end
     table.sort(order, function(a, b)
         if dl[a] ~= dl[b] then return dl[a] < dl[b] end
         if hp[a] ~= hp[b] then return hp[a] > hp[b] end
@@ -885,7 +939,7 @@ function MV.dps_pick(S, F)
     -- thaw takes a blowpipe's worth from them
     local credit = {}
     if S.wave == nil or F.tick > S.wave.t0 + 17 then
-        for _, r in ipairs({ 1, 2 }) do
+        for _, r in ipairs(H.FREEZER_LIST) do
             local c = QD.raid._maiden_hm_side_first(S, F, r)
             if c then credit[c] = (credit[c] or 0) + 1 end
         end
@@ -897,7 +951,7 @@ function MV.dps_pick(S, F)
     for _, c in ipairs(order) do
         if #free == 0 then break end
         local per = rate * math.max(dl[c] - 1, 1)
-        local need = math.ceil(MV.crab_hp(c) / per) - (credit[c] or 0)
+        local need = math.ceil(MV.crab_hp(S, c) / per) - (credit[c] or 0)
         for _ = 1, math.max(need, 1) do
             if #free == 0 then break end
             local bi, bd = nil, nil
@@ -923,7 +977,7 @@ end
 -- did not (a splash, or none aimed), it is walking, and near her.
 function MV.rescue_pick(S, F)
     local X = QD.MAIDEN_V2
-    if S.role ~= X.RESCUE_ROLE then return nil end
+    if S.mh.RESCUE_ROLE == nil or S.role ~= S.mh.RESCUE_ROLE then return nil end
     local best = nil
     for _, c in ipairs(F.crabs) do
         local land = MV.slot_land(S, c)
@@ -945,7 +999,7 @@ end
 -- ================================================================= FREEZER
 
 function MV.freezer(S, F, B, I, prewave)
-    local H, ids = QD.MAIDEN_HM, S.ids
+    local H, ids = S.mh, S.ids
     local X = QD.MAIDEN_V2
     -- the spawns are the freezers' (owner 2026-10-12): a crab about to reach
     -- her first, then a spawn not frozen and not immune, then the crab work -
@@ -1002,7 +1056,7 @@ function MV.freezer(S, F, B, I, prewave)
         -- on her south face (FZ_FACE), Piety; the gear and the orb are set
         I.boost, I.boost_stat = "piety", "attack"
         MV.her_target(S, F, B, claws, 1, "claws")
-        MV.station_pull(S, F, B, X.FZ_FACE[S.role], "face")
+        MV.station_pull(S, F, B, H.FZ_FACE[S.role], "face")
         return "F-claws"
     end
     MV.set_gear(S, I, ids.range_set, "rigour", "ranged")
@@ -1015,7 +1069,7 @@ end
 
 -- The tank's role: levelled (MV.retank), else the installed TANK_STORMS rotation.
 function MV.tank_of(S)
-    local H = QD.MAIDEN_HM
+    local H = S.mh
     if QD.MAIDEN_V2.LEVEL then return S.t2m.tank_role end
     return H.DPS[(S.storms // H.TANK_STORMS) % #H.DPS + 1]
 end
@@ -1032,7 +1086,7 @@ end
 
 -- THE TANK, after each storm seen (QD.MAIDEN_V2.LEVEL_GAP's note).
 function MV.retank(S, F)
-    local X, M, H = QD.MAIDEN_V2, S.t2m, QD.MAIDEN_HM
+    local X, M, H = QD.MAIDEN_V2, S.t2m, S.mh
     local cur = M.tank_role
     local function load(r)
         local pid = MV.role_pid(F, r)
@@ -1055,7 +1109,7 @@ end
 -- A DPS role's station between waves: the tank's tile, the other two the
 -- off tiles in role order (v1 _maiden_hm_station's layout).
 function MV.station(S, role)
-    local H = QD.MAIDEN_HM
+    local H = S.mh
     local tank = MV.tank_of(S)
     if role == tank then return H.TANK_TILE end
     local off = 0
@@ -1111,7 +1165,7 @@ function MV.special(S, F, I)
         if fired then
             sp.hammers, sp.e0 = sp.hammers + 1, nil
         end
-        if sp.hammers >= (X.SPECIALS and X.HAMMERS or X.HAMMERS_V1) or F.energy < X.HAMMER_COST
+        if sp.hammers >= (X.SPECIALS and S.mh.HAMMERS or X.HAMMERS_V1) or F.energy < X.HAMMER_COST
             or F.tick - (S.fight_start or F.tick) > QD.MAIDEN.OPENER_TICKS then
             enter("back", "hammers " .. sp.hammers .. ", energy " .. F.energy)
         elseif QD.raid._tob_worn(S, ids.hammer) then
@@ -1159,7 +1213,7 @@ function MV.special(S, F, I)
 end
 
 function MV.dps(S, F, B, I, prewave)
-    local H, ids, X, M = QD.MAIDEN_HM, S.ids, QD.MAIDEN_V2, S.t2m
+    local H, ids, X, M = S.mh, S.ids, QD.MAIDEN_V2, S.t2m
     local tank = MV.is_tank(S)
     if M.sp.state == "opener" then
         I.boost, I.boost_stat = "piety", "attack"
@@ -1218,7 +1272,7 @@ function MV.dps(S, F, B, I, prewave)
     MV.her_target(S, F, B, swing, 1, (swing == X.CLAWS) and "claws" or "her")
     local station
     if prewave then
-        station = tank and H.WAVE_TILE[S.role] or X.WAVE_FAR[S.role]
+        station = tank and H.WAVE_TILE[S.role] or H.WAVE_FAR[S.role]
     else
         station = MV.station(S, S.role)
     end
@@ -1238,14 +1292,17 @@ QD.T2.rooms.maiden = {
             { "shadow_proj", "spotanim", "maiden_shadow_proj" },
             { "pool_gfx", "spotanim", "maiden_lingering_blood" },
         })) do S.ids[k] = v end
-        S.who = S.who or "maiden_v2_solve"
+        S.who = S.who or "maiden_solve"
         S.role = S.role or (QD_PARTY and QD_PARTY.role) or 1
         S.trace = S.trace or {}
         -- v1's perception state (tob_maiden_hm.lua maiden_hm_solve's extra)
         S.pools, S.pool_seen, S.trails, S.slug_last = {}, {}, {}, {}
         S.crab_rec, S.slug_freeze = {}, {}
         S.pool_probe, S.crab_probe, S.cast_log = {}, {}, {}
-        S.throws, S.storms, S.hm = 0, 0, true
+        -- the mode's table; v1's S.hm means two freezers (its freeze reads)
+        local hard = QD.raid.tob_mode == "hard"
+        S.mh = QD.MAIDEN_V2.mode_table(hard)
+        S.throws, S.storms, S.hm = 0, 0, hard
         S.waves, S.wave_log, S.freeze_log = 0, {}, {}
         S.cast_lag = opts.cast_lag or QD.MAIDEN.CAST_LAG_GUESS
         S.room = "maiden"
@@ -1259,7 +1316,7 @@ QD.T2.rooms.maiden = {
             crab_last = {}, leaks = 0, kills = 0, leak_log = {},
             slug_thaw = {}, pm_hist = {}, rescues = 0, rescue_slot = nil, claims = 0, snapped = 0,
             opener = nil, taken = 0, last_hp = nil,
-            storm_w = {}, tank_role = QD.MAIDEN_HM.DPS[1], tank_changes = 0,
+            storm_w = {}, tank_role = S.mh.DPS[1], tank_changes = 0,
             spec_fires = 0, spec_closed = 0, energy_last = nil, gate_prev = nil,
             sp = { state = "opener", hammers = 0, fired = 0, id = nil },
             fsp = { state = "idle", fired = 0, id = nil, since = 0, wlog = {}, inhand_waves = 0 },
@@ -1381,7 +1438,7 @@ QD.T2.rooms.maiden = {
                     -- (DPS seats only: a freezer pricing it x3 walked off its
                     -- slot tile when the DPS chased crabs past it - mb6 lvl
                     -- slots dropped late 6 to 1)
-                    local dps = S.role ~= 1 and S.role ~= 2
+                    local dps = not S.mh.FREEZERS[S.role]
                     local mult = (X.LEVEL and dps and not MV.is_tank(S)) and X.NONTANK_MULT or 1
                     -- (charged at the tick end she reads, T-1; land: it lands
                     -- T+5, for the monitor's threat rule)
@@ -1447,11 +1504,11 @@ QD.T2.rooms.maiden = {
             -- (no overhead before her body is seen: v1 emitted nothing then)
             mode, I.pray = "wait", nil
         else
-            local freezer = (S.role == 1 or S.role == 2)
+            local freezer = S.mh.FREEZERS[S.role] == true
 
             local ttw = MV.ticks_to_wave(S, F)
             local prewave = #F.crabs == 0 and F.next_threshold ~= nil
-                and (F.permille <= F.next_threshold + QD.MAIDEN_HM.PRE_WAVE
+                and (F.permille <= F.next_threshold + S.mh.PRE_WAVE
                      or (freezer and ttw ~= nil and ttw <= QD.MAIDEN_V2.PREP_TICKS))
             if freezer then
                 mode = MV.freezer(S, F, B, I, prewave)
@@ -1509,7 +1566,8 @@ QD.T2.rooms.maiden = {
     end,
 }
 
-function QD.raid.maiden_v2_solve(opts)
-    assert(QD.raid.tob_mode == "hard", "maiden_v2_solve: the party is in " .. tostring(QD.raid.tob_mode) .. " mode")
+function QD.raid.maiden_solve(opts)
+    assert(QD.raid.tob_mode == "hard" or QD.raid.tob_mode == "normal",
+        "maiden_solve: the party is in " .. tostring(QD.raid.tob_mode) .. " mode")
     return QD.T2.solve("maiden", opts or {})
 end

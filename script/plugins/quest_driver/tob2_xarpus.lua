@@ -2,7 +2,7 @@
 -- layers (docs/minigames/theater_of_blood/TOB2_DESIGN.md; the room's plan:
 -- docs/minigames/theater_of_blood/tob2_rooms/xarpus.md).
 --
---   QD.raid.xarpus_v2_solve(opts) -> result, detail, S
+--   QD.raid.xarpus_solve(opts) -> result, detail, S
 --
 -- This file is the room's PREDICT and STRATEGY only. The perception is v1's,
 -- CALLED (tob_xarpus.lua QD.raid._xarp_measure: the boss form and base, U, Q,
@@ -46,10 +46,16 @@ QD.XARP_V2 = {
     -- above the click cost (0.05), below a tile of the stack's pull (1.5).
     HP_PER_BOSS_HP = 0.05,
     TENTACLE = { speed = 4, exp = 10 },
-    -- P1 (HM, five: tob.constant exhumed_hard_5 24, spawn_ticks_hard 4,
-    -- open_ticks_hard 9: orb checks E+3..E+8 read the ends E+2..E+7)
-    EXH_COUNT = 24, NEED_FROM = 2, NEED_TO = 7,
-    HOMES = { { x = 31, z = 32 }, { x = 37, z = 32 }, { x = 37, z = 38 }, { x = 31, z = 38 }, { x = 34, z = 31 } },
+    -- P1 BY MODE (S.xm). An exhumed's orb checks run E+3..E+(open-1) and read
+    -- the ends E+2..E+(open-2). Hard, five: tob.constant exhumed_hard_5 24,
+    -- open_ticks_hard 9. Normal: exhumed_<scale> 7/9/12/15/18, open_ticks 11;
+    -- v1's three homes (QD.XARP.HOMES).
+    MODE = {
+        hard = { EXH_COUNT = { 24, 24, 24, 24, 24 }, NEED_FROM = 2, NEED_TO = 7,
+                 HOMES = { { x = 31, z = 32 }, { x = 37, z = 32 }, { x = 37, z = 38 }, { x = 31, z = 38 }, { x = 34, z = 31 } } },
+        normal = { EXH_COUNT = { 7, 9, 12, 15, 18 }, NEED_FROM = 2, NEED_TO = 9,
+                   HOMES = { { x = 31, z = 32 }, { x = 37, z = 32 }, { x = 34, z = 39 } } },
+    },
     HOME_PULL = 0.3, EXH_PULL = 1.0,
     ORB_COST = 3,                  -- a tick off my exhumed: an orb (~8 hp to him, and the absorbed uplift)
     -- P2
@@ -58,6 +64,7 @@ QD.XARP_V2 = {
     STACK_PULL = 1.5,
     -- P3
     STARE_PULL = 1.0,
+    TURN_EVERY = 8,                -- Normal: tob.constant ^tob_xarpus_stare_ticks, the first at Q+8
     RETAL_MIN = 38,                -- an hp drop this big in P3 is a retaliation (50-75 x uplift; the summary's count)
     HITS_ROOM = 480, MARKS_MAX = 8,
     FOOT_SW = { x = 32, z = 33 }, FOOT_SIZE = 5, CENTRE = { x = 34, z = 35 }, QUAD_FACE = 5,
@@ -313,10 +320,10 @@ end
 -- tick; then the nearer, then the lower pid. (v1: the nearest FREE raider,
 -- three homes; 6-11 heal orbs a run on xa1-8.)
 function XV.exhumed_goal(S, F)
-    local X = S.t2x
+    local X, XM = S.t2x, S.xm
     for key, _ in pairs(X.assign) do
         local E = S.exh[key]
-        if E == nil or F.tick > E.E + XV.NEED_TO then X.assign[key] = nil end
+        if E == nil or F.tick > E.E + XM.NEED_TO then X.assign[key] = nil end
     end
     local busy = {}
     for key, pid in pairs(X.assign) do
@@ -326,7 +333,7 @@ function XV.exhumed_goal(S, F)
     end
     local list = {}
     for key, E in pairs(S.exh) do
-        if X.assign[key] == nil and F.tick <= E.E + XV.NEED_TO then list[#list + 1] = { key = key, E = E } end
+        if X.assign[key] == nil and F.tick <= E.E + XM.NEED_TO then list[#list + 1] = { key = key, E = E } end
     end
     table.sort(list, function(a, b) return a.E.E < b.E.E or (a.E.E == b.E.E and a.key < b.key) end)
     for _, it in ipairs(list) do
@@ -334,10 +341,10 @@ function XV.exhumed_goal(S, F)
         for _, rd in ipairs(F.raiders) do
             local fx, fz, free = rd.x, rd.z, F.tick
             local b = busy[rd.pid]
-            if b then fx, fz, free = b.x, b.z, math.max(F.tick, b.E + XV.NEED_TO) end
+            if b then fx, fz, free = b.x, b.z, math.max(F.tick, b.E + XM.NEED_TO) end
             local d = cheb(fx, fz, it.E.x, it.E.z)
             local arrive = free + (d + 1) // 2
-            local late = math.max(0, arrive - (it.E.E + XV.NEED_FROM))
+            local late = math.max(0, arrive - (it.E.E + XM.NEED_FROM))
             if best == nil or late < bl or (late == bl and (arrive < ba or (arrive == ba and (d < bd or (d == bd and rd.pid < best))))) then
                 best, bl, ba, bd = rd.pid, late, arrive, d
             end
@@ -360,7 +367,7 @@ function XV.exhumed_goal(S, F)
     if mine then return mine, "exhumed" end
     -- all risen and none left: every seat to the stack's first tile (v1: a walk
     -- at the stand-up crossed his new 5x5 and took the stomp, rl21)
-    if S.exhumeds >= XV.EXH_COUNT and next(S.exh) == nil then
+    if S.exhumeds >= XM.exh_count and next(S.exh) == nil then
         if S.stack_B == nil then
             S.stack_B = XV.tour_at(S, 1)
             S.tour_i, S.B_cycle = 1, -1
@@ -369,7 +376,7 @@ function XV.exhumed_goal(S, F)
         return S.stack_B, "gather"
     end
     local seat = QD.raid._tob_seat(F) or 1
-    local h = XV.HOMES[((seat - 1) % #XV.HOMES) + 1]
+    local h = XM.HOMES[((seat - 1) % #XM.HOMES) + 1]
     return { x = S.base.x + h.x, z = S.base.z + h.z }, "home"
 end
 
@@ -419,6 +426,57 @@ function XV.stare_tile(S, F)
     return S.stare_tile
 end
 
+-- NORMAL'S STARE (tob_xarpus.rs2 ~tob_xarpus_turn / ~tob_xarpus_retaliate):
+-- he turns at T1 = Q+8 and every 8 after, never to the quadrant he faced last;
+-- a hit LANDING from a tile in the faced quadrant (boundaries in both) is
+-- retaliated, none before T1. A swing pressed after d goes out on d+1 and
+-- lands on d+2 (v1 _xarp_stare). With T the next turn:
+--   lands before T            safe off the faced quadrant
+--   lands on T                blind (either facing): never
+--   lands after T, before T+8 safe only IN the faced quadrant, the one he
+--                             cannot look at next
+-- So a seat swings from outside his gaze while a swing still lands before T,
+-- then walks into the quadrant he faces now ("move to where he last looked").
+-- -> my goal tile, whether a swing pressed now is safe from where I stand.
+function XV.normal_stare(S, F)
+    local G = QD.raid._xarp_geo
+    local B0 = S.base
+    local q = XV.faced(S, F)
+    local T = (S.faced and S.turned) and (S.turned + XV.TURN_EVERY) or (S.Q + XV.TURN_EVERY)
+    local L = F.tick + 2
+    local function only_in(x, z, quad)
+        return quad ~= nil and G.in_quadrant(B0, x, z, quad) and not G.on_centre_line(B0, x, z)
+    end
+    local safe
+    if L < T then
+        safe = q == nil or not G.in_quadrant(B0, F.me.x, F.me.z, q)
+    elseif L > T and L < T + XV.TURN_EVERY then
+        safe = only_in(F.me.x, F.me.z, q)
+    else
+        safe = false
+    end
+    -- the next swing that still lands before T would go out on swing_next;
+    -- once none can, the seat's business is the next window's tile
+    local swing_next = S.x2 and S.x2.swing_next or F.tick + 1
+    local into = q ~= nil and math.max(swing_next, F.tick + 1) + 1 >= T
+    local best, bd = nil, nil
+    for x = B0.x + 31, B0.x + 37 do
+        for z = B0.z + 32, B0.z + 38 do
+            if G.beside5(B0, x, z) and not F.pools[x .. "," .. z] and not G.on_centre_line(B0, x, z) then
+                local ok
+                if into then ok = only_in(x, z, q) else ok = q == nil or not G.in_quadrant(B0, x, z, q) end
+                if ok then
+                    local d = cheb(F.me.x, F.me.z, x, z)
+                    if bd == nil or d < bd or (d == bd and (x < best.x or (x == best.x and z < best.z))) then
+                        best, bd = { x = x, z = z }, d
+                    end
+                end
+            end
+        end
+    end
+    return best, safe, into
+end
+
 -- ================================================================ OBSERVE
 
 function XV.observe(S, F)
@@ -451,6 +509,10 @@ QD.T2.rooms.xarpus = {
 
     init = function(S, opts)
         opts = opts or {}
+        local mode = (QD.raid.tob_mode == "hard") and "hard" or "normal"
+        local XM = XV.MODE[mode]
+        local scale = math.max(1, math.min(5, QD.party.size()))
+        S.xm = { NEED_FROM = XM.NEED_FROM, NEED_TO = XM.NEED_TO, HOMES = XM.HOMES, exh_count = XM.EXH_COUNT[scale] }
         -- v1's perception state (tob_xarpus.lua _xarp_run's extra)
         S.exh, S.landings, S.proj_live, S.phase_log, S.moves = {}, {}, {}, {}, {}
         S.exhumeds, S.orbs, S.spits, S.turns = 0, 0, 0, 0
@@ -491,7 +553,7 @@ QD.T2.rooms.xarpus = {
             end
         end
         -- HIS 5x5 from the gather on: the stomp (<= 9 a tick) and a spit skipped
-        if S.U or (S.exhumeds >= XV.EXH_COUNT and next(S.exh) == nil) then
+        if S.U or (S.exhumeds >= S.xm.exh_count and next(S.exh) == nil) then
             B.hit{ name = "foot", x = B0.x + XV.FOOT_SW.x, z = B0.z + XV.FOOT_SW.z, size = XV.FOOT_SIZE,
                 t0 = now + 1, t1 = hz, sample = "end", dmg_exp = 5, dmg_max = 9, forbid = true }
         end
@@ -565,9 +627,9 @@ QD.T2.rooms.xarpus = {
                 mode = why
                 if why == "exhumed" then
                     B.pull{ name = "exhumed", x = goal.x, z = goal.z, size = 1, weight = XV.EXH_PULL }
-                    local t0 = math.max(goal.E + XV.NEED_FROM, F.tick + 1)
+                    local t0 = math.max(goal.E + S.xm.NEED_FROM, F.tick + 1)
                     B.zone{ name = "on-exhumed", x = goal.x, z = goal.z, size = 1, lo = 0, hi = 0, require = true,
-                        t0 = t0, t1 = goal.E + XV.NEED_TO, tier = "soft", cost = XV.ORB_COST }
+                        t0 = t0, t1 = goal.E + S.xm.NEED_TO, tier = "soft", cost = XV.ORB_COST }
                 else
                     B.pull{ name = why, x = goal.x, z = goal.z, size = 1,
                         weight = (why == "gather") and XV.STACK_PULL or XV.HOME_PULL }
@@ -591,6 +653,17 @@ QD.T2.rooms.xarpus = {
                 end
                 flush(F.tick + B.h)
                 if F.boss and F.form == "combat" then XV.boss_target(S, F, B, "xarpus") end
+            elseif phase == "stare" and QD.raid.tob_mode ~= "hard" then
+                local tile, safe, into = XV.normal_stare(S, F)
+                if tile then B.pull{ name = "stare", x = tile.x, z = tile.z, size = 1, weight = XV.STARE_PULL } end
+                local beside = QD.raid._xarp_geo.beside5(S.base, F.me.x, F.me.z)
+                if F.boss and F.form == "combat" and beside and safe then
+                    XV.boss_target(S, F, B, "xarpus")
+                    mode = into and "stare-into" or "stare"
+                else
+                    mode = safe and "stare-walk" or "hold"
+                    if not safe then X.holds = X.holds + 1 end
+                end
             elseif phase == "stare" then
                 local tile = XV.stare_tile(S, F)
                 if tile then B.pull{ name = "stare", x = tile.x, z = tile.z, size = 1, weight = XV.STARE_PULL } end
@@ -683,7 +756,8 @@ QD.T2.rooms.xarpus = {
     end,
 }
 
-function QD.raid.xarpus_v2_solve(opts)
-    assert(QD.raid.tob_mode == "hard", "xarpus_v2_solve: the party is in " .. tostring(QD.raid.tob_mode) .. " mode")
+function QD.raid.xarpus_solve(opts)
+    assert(QD.raid.tob_mode == "hard" or QD.raid.tob_mode == "normal",
+        "xarpus_solve: the party is in " .. tostring(QD.raid.tob_mode) .. " mode")
     return QD.T2.solve("xarpus", opts or {})
 end

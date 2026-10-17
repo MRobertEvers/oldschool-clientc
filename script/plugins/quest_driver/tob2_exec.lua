@@ -303,7 +303,7 @@ function QD.T2.exec.spec_gate(S, F, intents)
     if cost == nil then
         local wr, wcell = api_drive.inv_slot(S.ids.worn, 3)
         local w = wr == "ok" and wcell and Bu._spec_ids[wcell.obj_id] or nil
-        if w and w.name == "dawnbringer" then return true end
+        if w and w.name == "verzik_special_weapon" then return true end
         cost = (w and w.cost) or 500
     end
     return Bu.spec_ok(S, cost)
