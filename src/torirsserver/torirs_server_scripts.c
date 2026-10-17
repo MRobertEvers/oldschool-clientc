@@ -293,6 +293,81 @@ scripts_newer_than_pack(const char* dir, char* out_path, size_t out_len, long* o
     }
 }
 
+/*
+ * Is this binary older than the compiler that built the pack?
+ *
+ * The other direction from `scripts_newer_than_pack`, and it cannot be told by
+ * mtimes: the pack is current, the server is not. The compiler emits only
+ * opcodes it has a signature for, so an opcode this binary has NO signature
+ * for was added to the engine after this binary was linked. The VM can only
+ * abort when it reaches one -- and it is reached by whichever player clicks
+ * first. A web world ran a server built the day before `obj_ironman_blocked`
+ * (opcode 11130) landed; every ground-obj Take aborted in
+ * `~ironman_may_take_obj` and nothing could be picked up (2026-10-17). The
+ * gap report below did not catch it: it is bounded by the binary's own opcode
+ * limit, and the newest opcode is by construction just past that limit.
+ *
+ * Returns the number of distinct unknown opcodes, each named once with the
+ * first script that uses it.
+ */
+static int
+scripts_pack_newer_than_server(const struct SSVM_Provider* provider)
+{
+    enum
+    {
+        k_report_max = 16
+    };
+    /* Indexed by the u16 the bytecode stores, so any opcode fits. */
+    static uint8_t seen[UINT16_MAX + 1];
+    int unknown[k_report_max];
+    const char* first_user[k_report_max];
+    int count = 0;
+
+    memset(seen, 0, sizeof(seen));
+    for( int i = 0; i < provider->count; i++ )
+    {
+        const struct SSVM_Script* script = &provider->scripts[i];
+
+        if( script->op_count <= 0 )
+            continue;
+        for( int op = 0; op < script->op_count; op++ )
+        {
+            int opcode = (int)script->opcodes[op];
+
+            if( seen[opcode] || SSVM_OpcodeMetaKnown(opcode) )
+                continue;
+            seen[opcode] = 1;
+            if( count < k_report_max )
+            {
+                unknown[count] = opcode;
+                first_user[count] = script->name ? script->name : "?";
+            }
+            count++;
+        }
+    }
+    if( count == 0 )
+        return 0;
+
+    fprintf(stderr,
+            "torirsserver: ============================================================\n"
+            "torirsserver: STALE SERVER BINARY — the script pack uses %d opcode(s) this\n"
+            "torirsserver: binary has no signature for. It was linked before they were\n"
+            "torirsserver: added; the first script to reach one aborts.\n",
+            count);
+    for( int k = 0; k < count && k < k_report_max; k++ )
+        fprintf(stderr, "torirsserver:   opcode %d, first used by %s\n", unknown[k],
+                first_user[k]);
+    if( count > k_report_max )
+        fprintf(stderr, "torirsserver:   ...and %d more\n", count - k_report_max);
+    fprintf(stderr,
+            "torirsserver: Rebuild this binary:  make -C src torirsserver\n"
+            "torirsserver:   (or the client, for an embedded server)\n"
+            "torirsserver: Deliberately running old C against a new pack?\n"
+            "torirsserver:   TORIRSSERVER_ALLOW_STALE_SCRIPTS=1\n"
+            "torirsserver: ============================================================\n");
+    return count;
+}
+
 int
 ToriRSServer_ScriptsLoad(
     struct ToriRSServer* srv,
@@ -545,6 +620,15 @@ ToriRSServer_ScriptsLoad(
         }
     }
 checked:
+    if( scripts_pack_newer_than_server(srv->scripts) > 0 )
+    {
+        if( !getenv("TORIRSSERVER_ALLOW_STALE_SCRIPTS") )
+        {
+            fprintf(stderr, "torirsserver: refusing to run a stale server on this pack.\n");
+            exit(1);
+        }
+        fprintf(stderr, "torirsserver: TORIRSSERVER_ALLOW_STALE_SCRIPTS=1 — continuing anyway.\n");
+    }
     /* Before anything runs: an opcode this tree needs and the engine lacks is a
      * fact about the tree, not about whichever player eventually triggers it. */
     ToriRSServer_ScriptsReportGaps(srv);

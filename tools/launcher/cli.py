@@ -451,14 +451,15 @@ def _prepare(plan, skip_checks, force):
     return ok
 
 
-def _ensure_services_built(plan):
+def _ensure_services_built(plan, no_build):
     for service in plan.services:
         if not service.build_target:
             continue
         binary = service.binary_candidates[0] if service.binary_candidates else None
         # services_mod.built_binary, not os.path.isfile: the candidate is a
         # makefile target path and the linker adds the platform's suffix.
-        if binary and services_mod.built_binary(REPO_ROOT, binary):
+        present = binary and services_mod.built_binary(REPO_ROOT, binary)
+        if present and (no_build or not service.incremental):
             continue
         say("building %s (%s)" % (service.name, service.build_target))
         if _run_make(service.build_target, []) != 0:
@@ -642,7 +643,7 @@ def _run_plan(plan, args):
             say("client build failed")
             return 1, False
 
-    if not _ensure_services_built(plan):
+    if not _ensure_services_built(plan, args.no_build):
         return 1, False
 
     supervisor.write_plan(REPO_ROOT, profile.name, plan.to_json())

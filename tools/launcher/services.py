@@ -48,13 +48,23 @@ class Service:
       ("tcp", port)     the port accepts a connection
       ("http", url)     the URL answers
       (None, None)      nothing to wait for
+
+    `incremental` says `build_target` is a file rule that relinks only when an
+    input changed, so it is safe -- and required -- to make it on every run.
+    Building only a MISSING binary ran an osrs239 web world on a server from
+    the day before its script pack: the first new opcode the pack used
+    (obj_ironman_blocked, in every ground-obj Take) aborted the script, and
+    nothing on the floor could be picked up (2026-10-17). A target whose
+    recipe relinks unconditionally stays build-if-missing.
     """
 
     def __init__(self, name, argv, build_target=None, binary_candidates=(),
-                 port=None, ready=(None, None), description=""):
+                 port=None, ready=(None, None), description="",
+                 incremental=False):
         self.name = name
         self.argv = argv
         self.build_target = build_target
+        self.incremental = incremental
         self.binary_candidates = binary_candidates
         self.port = port
         self.ready = ready
@@ -119,6 +129,7 @@ def _build_torirsserver(config, context):
         name="torirsserver",
         argv=argv,
         build_target="torirsserver",
+        incremental=True,
         binary_candidates=candidates,
         port=str(port),
         # NOT a port probe. This server binds early to fail fast on a port
@@ -164,6 +175,7 @@ def _build_io_server(config, context):
         name="io_server",
         argv=argv,
         build_target="io-server",
+        incremental=True,
         binary_candidates=candidates,
         port=str(port),
         ready=("http", "http://127.0.0.1:%s/" % port),
