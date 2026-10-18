@@ -31,7 +31,7 @@ NI.V = {
     -- boulders (RV-B1): every 3 ticks while he walks, the throw on T reads my
     -- tile at the end of T-1, lands a 3x3 on T+2 reading the end of T+1
     THROW = 3, BOULDER_EXP = 7, BOULDER_MAX = 18, PRAY_FACTOR = 0.33,
-    STOMP_EXP = 4, BESIDE_COST = 2, LANE_COST = 3, LINE_COST = 3, LINE_RADIUS = 3.5, STOMP_MAX = 8,
+    STOMP_EXP = 4, BESIDE_COST = 2, LANE_COST = 3, LANE_GROW = 1, LINE_COST = 3, LINE_RADIUS = 3.5, STOMP_MAX = 8,
     -- the weapons: the blowpipe on Rapid (2 ticks, reaches 5 -- planned at
     -- what it reaches: planned at 4, an attack press in reach was modelled as
     -- a step toward him, the client fired from where I stood instead, and the
@@ -377,10 +377,15 @@ function NI.predict(S, F, B)
     -- the crystal mode's face pull takes me in once he stands and siphons.
     local c = o.crystal
     if c and o.form == "walking" and not NI.in_special(o, d) then
-        local x0 = math.min(row.x, c.x) - 1
-        local z0 = math.min(row.z, c.z) - 1
-        local x1 = math.max(row.x + V.SIZE - 1, c.x + V.CSIZE - 1) + 1
-        local z1 = math.max(row.z + V.SIZE - 1, c.z + V.CSIZE - 1) + 1
+        -- (grown by 1. His legs can run past the crystal's own rows before the
+        -- last turn -- s40h vasa15 t261-274 came down to z=67, two below the
+        -- crystal at z=69, then along it, and stomped me waiting there -- but
+        -- grown by 2, s40i, that seed passed and three others failed: 37/40)
+        local g = V.LANE_GROW
+        local x0 = math.min(row.x, c.x) - g
+        local z0 = math.min(row.z, c.z) - g
+        local x1 = math.max(row.x + V.SIZE - 1, c.x + V.CSIZE - 1) + g
+        local z1 = math.max(row.z + V.SIZE - 1, c.z + V.CSIZE - 1) + g
         B.hit({ name = "lane", x0 = x0, z0 = z0, x1 = x1, z1 = z1, t0 = d + 1, t1 = d + h,
                 dmg_exp = V.LANE_COST, dmg_max = 0 })
         -- and dearer along the line from his middle to the crystal's: the box
@@ -543,16 +548,24 @@ function NI.strategy(S, F, B)
     elseif mode == "range" then
         o.fight_style = "ranged"
         intents.gear = NI.gear(S, "ranged")
-        -- (He steps before my click is handled, so a pipe at 5 from a Vasa
-        -- stepping away walks me in, at times under a rock: s40e vasa5 t349,
-        -- vasa11 t84. Open. His whole walk as the target's path made the chase
-        -- worse, s40c 20/40 green; his next step alone, s40d, 36 (noise);
-        -- range 4 when his next step leaves 5, s40f, 30: the planner then
-        -- plans "attack from a step closer", the press fires from where I
-        -- stand, and I stay on the rock -- the executor would have to walk
-        -- first.)
-        B.target({ name = "vasa", npc = o.row, size = V.SIZE, range = V.PIPE_RANGE, speed = V.PIPE_SPEED,
-                   value = V.VASA_VALUE })
+        -- HIS NEXT STEP, BOTH WAYS. He steps before my click is handled, and
+        -- the press's reach is read against where he stands then: a guess
+        -- either way put me on a rock (held: the press walked me in, s40e
+        -- vasa5 t349; stepped: he stopped, the shot fired where I stood,
+        -- s40d vasa4 t501). The target's path is his next two dead-reckoned
+        -- steps, and his other step (path_alt) is standing still: the planner
+        -- keeps the worse of the two, so an attack is only planned where it
+        -- is safe whichever he does. (His whole walk as the path, into the
+        -- walls, made the chase worse: s40c, 20 of 40 green.)
+        local tp, alt
+        local wp = NI.walk_path(S, F, 2)
+        if wp[1].x ~= o.row.x or wp[1].z ~= o.row.z then
+            tp = { wp[0], wp[1], wp[2] }
+            alt = { { x = o.row.x, z = o.row.z } }
+        end
+        local ti = B.target({ name = "vasa", npc = o.row, size = V.SIZE, range = V.PIPE_RANGE, speed = V.PIPE_SPEED,
+                              value = V.VASA_VALUE, path = tp })
+        if alt then B.spec.targets[ti].path_alt = alt end
         -- (No pull after a broken crystal. Synq 1:02:41 paths to where he just
         -- was -- he cannot go back to that crystal before the next special --
         -- and it killed him sooner, s40g mean death t433 against t505, but it

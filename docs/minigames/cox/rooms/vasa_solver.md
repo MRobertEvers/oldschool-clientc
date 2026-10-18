@@ -73,11 +73,18 @@ only way out is through him, so the planner must never wait there. As rules, the
 and it took the stomp instead (sweep s8a, 47 stomps). Behind him is always safe: he does not turn back until the
 crystal breaks or the siphon ends.
 
-**Open:** he steps before my click is handled, so a pipe press at the edge of range from a Vasa walking away walks me
-in, sometimes under a rock (the 2-4 hp hits left). Giving the target his dead-reckoned walk as its path made the chase
-worse (20/40 green), and his next step alone made no difference (36/40). Telling the planner range 4 when his
-next step leaves 5 made it worse again (30/40): it planned "attack from a step closer", the press fired from where I
-stood, and I stayed on the rock. The fix belongs in the executor (walk first when the plan's attack step moves me).
+**His next step, both ways.** He steps before my click is handled, and the press's reach is read against where he
+stands then. Guessing either way put me on a rock: assumed standing, the press walked me in; assumed stepping, he
+stopped and the shot fired where I stood. So the target's path is his next two dead-reckoned steps, and its
+alternative (`path_alt`) is him standing still. The planner keeps the worse of the two, so it plans an attack only
+where it is safe whichever he does. That took the 40-seed sweep from 36 to **39/40**, with no boulder damage on any
+seed and the kill sooner (mean death t453 against t505).
+
+What did not work: his whole dead-reckoned walk as the path, which runs into walls (20/40); range 4 when his next
+step leaves 5 (30/40).
+
+**Open:** seed 15. His leg after a special runs two rows past the crystal before the last turn, and one stomp catches
+me waiting there. Growing the lane box by 2 fixes it, but loses three other seeds (37/40).
 
 **Synq's solo guide** (`docs/minigames/cox/synq_transcript.md`, 0:55:16-1:07:56), against the solver:
 
