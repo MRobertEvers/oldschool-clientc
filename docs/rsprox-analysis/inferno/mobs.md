@@ -62,7 +62,14 @@ Projectile heights are in our wire units: v2 ÷ 4, or v1 as sent. "Flight" is en
 - The dying NPC is removed 2 ticks later.
 - There is **no chat line**.
 
-**Entering** (3 of 3), J = the Jump-in:
+**The run and jump** (3299, ticks 10690–10693):
+- The player clicks the entrance (`oploc1`, `inferno_entrance` at 2493,5124) from 2496,5116. There's no confirmation dialogue.
+- They walk to the take-off tile, 2496,5115.
+- On the tick after arriving they play `brut_player_jump_whirlpool` (6723) with an exact move north to 2496,5126: start cycle 15, end cycle 255, facing north. The server moves them there on that tick.
+- The fall's first mesbox comes 5 ticks later.
+- The player's appearance is re-sent at J+4 and J+11; the transcript doesn't show its contents.
+
+**Entering** (3 of 3), J = the first mesbox, 5 ticks after the jump:
 
 | Tick | What happens |
 |---|---|
@@ -91,6 +98,7 @@ Projectile heights are in our wire units: v2 ÷ 4, or v1 as sent. "Flight" is en
 - **Dig:** `jalimkot_digup` played on D+6 instead of with the D+3 telejump, and both dig sounds were missing.
 - **Resurrection:** the graphic, the sound and the chat line were missing.
 - **Pillars:** an invented "A rocky support collapses!" line and a `cave_collapse_1` synth replaced with the recorded area sound.
+- **The run and jump:** ours asked "Jump into the Inferno." / "Stay here." and started the fall from the click. Now there's no dialogue: the walk to 2496,5115, the jump and the exact move, then the fall 5 ticks later. The fire-cape check runs before the jump. The walk re-checks from a queue each tick, because a script waiting in `p_delay` holds the player still. Verified in the tick log: click +2 walk, +3 jump, +8 mesbox, +19 landing, +40 wave 1, as recorded.
 - **Entry:** we teleported straight in. Now the recorded fall plays, and wave 1 starts 21 ticks after landing (`^inferno_entry_delay` was 8).
 - The Zuk set (`inferno_ranger_finalwave`, `inferno_mager_finalwave`) shares the wave mobs' shot procs. No recording shows a set, so their shots at the glyph are the same shots aimed at the glyph's tile.
 
