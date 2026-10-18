@@ -16,9 +16,9 @@ Solver plan: [`tekton_solver.md`](tekton_solver.md).
 | **NR** | Near-Reality (Zenyte, Kris 2017-2018): `npc/Tekton.java`, `combat/tekton/Tekton{Engage,Combat,Retreat,Smith}Script.java`, `room/TektonRoom.java`, `plugins/object/TektonFire.java` | decoded tiles via `tools/cox_nr_locs.py` |
 | **C** | this cache (osrs239): records, seqs, spotanims, the template map | `configs/all.npc/.seq/.spotanim/.loc`, `maps/m51_82.jl2`, `m52_82.jl2` |
 
-No recorded tick data (a Blert equivalent) exists for CoX; the guides and the
-plugin's measured counters are the closest thing, and timing rulings below say
-where they had to stand in for it.
+**RECORDED DATA NOW OUTRANKS ALL OF THE ABOVE** (2026-10-18, §8): RSProx
+sessions 820, 3285, 843 and 3389 (`docs/rsprox-analysis/cox/tekton.md`). Where
+§3 and §8 disagree, §8 is what the content does.
 
 ## 1. Ids (all resolved in this cache)
 
@@ -142,3 +142,21 @@ read (P5 confirmed), mean 585 ticks. Strike = windup + 1 tick (P3/P4 via the
 monitor: no clock mismatch). The engine-order change (E1, npc combat after
 timers and queue) needed no change here: contact is keyed on map_clock and
 the strike's `npc_queue` delay 2 still lands on the windup's next tick.
+
+## 8. Round 3 (2026-10-18): the recordings
+
+Read in full in [`docs/rsprox-analysis/cox/tekton.md`](../../../rsprox-analysis/cox/tekton.md) (tool `tools/cox/rsprox_tekton.py`). What changed in §3, all now in `cox_tekton.rs2`:
+
+| row | was | recorded (now the content) |
+|---|---|---|
+| T2 | rise on the first tick a raider is seen within 4 | rise a tick after that (on the ring at the end of W, rise on W+2) |
+| T3/T4 | every swing strikes front + right with the NEW facing, a tick later | a swing strikes with the facing HELD into it (the face sent with a swing aims the next); stab/crush: the front row, on T+1; slash: the front row and his right column, on T+2 |
+| T6 | 30 / 45 ticks from the first swing (10 / 15 swings) | from contact: swings C+3..C+27 (9), after a repair C+2..C+47 (16); he swings on the last slot and turns to walk on that tick, the first step 2 ticks later |
+| T8 | red for 18 ticks | red to C+17 |
+| T9 | form change a tick after contact | stance seq (delay 30) and the fighting form on C; he stops on C (the route is cut) |
+| T9b | walking form at the rise | walking form, first step and the entrance fire at R+2 |
+| T10 | lean on arrival; 4/300 a volley; rise A+23 | lean the tick after (delay 15); heal base/100+1 every 3 ticks from A+3; rise on that cadence, A+21 at the latest (early rises unexplained) |
+| T11 | 5 volleys from A+3 | a volley every 4 ticks on the room clock while he is the hammering form (through R+1); start cycle 0..30, slope 20..25, heights 0, sounds 155/156; CCW lava tiles (7,11) (20,5) (26,20) (12,26) |
+| T18 | all on the death queue, crystal gone +2 | death seq on the killing tick; journal + drop at SW+(1,1) with the party message at D+3; fire out and the crystal's shatter on the room clock's next turn, the crystal gone 4 ticks later |
+
+Still open: Protect from Melee's factor (820 is scaled for 54, every hit was prayed), what ends a repair early, the THRU/CW lava tiles, the journal's rotation.

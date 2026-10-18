@@ -6,14 +6,27 @@
 -- PREDICT (the threat field) and STRATEGY (the mode machine) here; the plan
 -- (api_drive.aplan), the executive, the monitor and the supplies shared.
 --
--- WHAT IT PLAYS (Synq 1:09:31-1:25:34; RuneScythed; the wiki Strategies):
--- lure him off the anvil to a fight tile far from it, then the FLINCH: be on
--- one of his sixteen edge tiles at the end of the tick before each of his
--- swings (his scan, T5, keeps him fighting) and off every edge tile at the
--- end of the swing tick (his strike reads it, T4, a tick after the windup the
--- client draws). Corners never count for him and are never hit. At the anvil:
--- dodge each spark (3x3 on the tile it flies at, T11). The planner finds the
--- steps; the room only states the terms.
+-- WHAT IT PLAYS: SYNQ'S SOLO TECHNIQUE (Synq 1:09:31-1:25:34), his 4-tick
+-- method -- the kit's tentacle is a 4-tick weapon. Lure him off the anvil from
+-- his wake ring as far from it as the room allows, then stay on his edge tiles
+-- and keep attacking while going round him COUNTERCLOCKWISE, running round
+-- each corner ("Some methods require you to attack Tekton while running
+-- counterclockwise. For whatever reason, doing so ensures that you never get
+-- hit by Tekton. Going clockwise runs the risk of randomly getting hit"). On
+-- an edge tile -- never a corner -- at the end of every tick before his swing
+-- (his scan, T5: off them he leaves early). At the anvil: two tiles from every
+-- meteor ("click the next tile the moment the meteors land").
+--
+-- WHY IT WORKS, AS RECORDED (RSProx 820/3285, docs/rsprox-analysis/cox/
+-- tekton.md): a swing strikes the way he faced going INTO it -- the side I
+-- stood on at the scan before the previous swing (at contact, the side he
+-- reached me on) -- the row in front for a stab or a crush, read at the end
+-- of the swing tick; for a slash that row AND the column on his right, read
+-- a tick later. His right is the side CLOCKWISE of his facing, his left the
+-- counterclockwise one: leaving the side he faces counterclockwise before his
+-- strike is never hit, clockwise is hit by a slash. The strike due next always
+-- has its facing from a scan already past, so that hazard is exact; the plan
+-- is re-made every tick, and the counterclockwise step is what it finds.
 --
 -- PERCEPTION (only what a client is sent): his npc row (id = his form,
 -- server tile, seq + seq_tick: a swing / stance / leave / lean / rise, keyed
@@ -29,7 +42,7 @@ QD.COXTK.V = {
     -- THE CURRENCY (hp). A strike on prayer is 0..29 (59 red, halved) after his
     -- accuracy roll: forbidden outright; the scan miss costs the session's
     -- remaining swings (not damage, DPS), priced under a strike.
-    STRIKE_EXP = 12, STRIKE_MAX = 29, SCAN_COST = 10,
+    STRIKE_EXP = 12, STRIKE_MAX = 29, SCAN_COST = 10, CW_COST = 6, RING_COST = 3,
     SPARK_EXP = 15, SPARK_MAX = 20, VENT_EXP = 2, VENT_MAX = 3, TRAMPLE_EXP = 2, TRAMPLE_MAX = 3,
     SWING_VALUE = 2.5,
     EAT_BELOW = 55, BREW_BELOW = 65,
@@ -67,9 +80,10 @@ function QD.COXTK.ids(opts)
     end
     -- his seqs by what they tell (spec §1)
     ids.tek_seq = seqs({
-        { "swing", "tekton_attack_stab", "tekton_slash", "tekton_hammer_crush",
-                   "tekton_attack_stab_enraged", "tekton_slash_enraged", "tekton_hammer_crush_enraged" },
-        { "stance", "tekton_idle_transition_to_ready", "tekton_idle_transition_to_ready_enraged" },
+        { "swing", "tekton_attack_stab", "tekton_hammer_crush", "tekton_attack_stab_enraged", "tekton_hammer_crush_enraged" },
+        { "slash", "tekton_slash", "tekton_slash_enraged" },
+        { "stance", "tekton_idle_transition_to_ready" },
+        { "stance_red", "tekton_idle_transition_to_ready_enraged" },
         { "leave", "tekton_ready_transition_to_idle", "tekton_ready_transition_to_idle_enraged" },
         { "lean", "tekton_idle_transition_to_anvil" },
         { "rise", "tekton_avil_transition_to_idle", "tekton_avil_transition_to_idle_enraged" },
@@ -161,6 +175,12 @@ function QD.COXTK.observe(S, F)
         end
         if o.form ~= o.last_form then
             QD.raid._tob_trace(S, F.tick, "tekton form " .. tostring(o.last_form) .. " -> " .. o.form)
+            -- the session's last slot: he swings and turns to walk on one
+            -- tick, with no stance-leave animation (RSProx 820)
+            if o.last_form == "fight" and o.form == "walk" and not o.retreating then
+                o.retreating = true
+                o.session_log[#o.session_log + 1] = o.session_swings
+            end
             o.last_form = o.form
             if o.form ~= "fight" then o.next_swing = nil end
         end
@@ -171,7 +191,14 @@ function QD.COXTK.observe(S, F)
     if pr == "ok" then
         for _, p in ipairs(projs) do
             if p.spotanim_id == ids.meteor and (p.cycles_left or 0) > 0 then
-                local land = F.tick + (p.cycles_left + 15) // 30
+                -- the server lands it (cycles + 15) // 30 ticks after the
+                -- throw; a row read on the tick its packet arrives already
+                -- counts 30 cycles gone (DriveUi_Projectiles' rule), so the
+                -- throw is F.tick - (elapsed - 30) // 30 and the cycles
+                -- since it are cycles_left + 30 short (scriptrun tekton7:
+                -- + 15 here landed every spark a tick early, and a dodge
+                -- stepped back onto a second spark still in the air)
+                local land = F.tick + (p.cycles_left + 45) // 30
                 local key = p.dst_x .. ":" .. p.dst_z .. ":" .. land
                 if o.spark_seen[key] == nil then
                     o.spark_seen[key] = F.tick
@@ -210,6 +237,12 @@ function QD.COXTK.event(S, F, what)
     local o = S.o
     o.events[#o.events + 1] = what .. "@" .. F.tick
     if #o.events > 40 then table.remove(o.events, 1) end
+    if what == "slash" or what == "swing" then
+        -- the swing just seen and its style: a slash reads the end of d + 1
+        -- (front row and right column), a stab or a crush the end of d
+        o.last_swing, o.last_slash = F.tick, (what == "slash")
+        what = "swing"
+    end
     if what == "swing" then
         -- THE CLOCK: a swing seen on d struck (reads end of d) now, and the
         -- next one is d + 3. A swing off the predicted clock is a monitor fact.
@@ -225,16 +258,19 @@ function QD.COXTK.event(S, F, what)
         local now = { x = F.me.x, z = F.me.z }
         if was and o.t and QD.COXTK.side(o.t, was.x, was.z) == nil then o.scan_odd = o.scan_odd + 1 end
         if o.t and QD.COXTK.side(o.t, now.x, now.z) ~= nil then o.struck = o.struck + 1 end
-    elseif what == "stance" then
-        -- contact: the first swing is next tick (T9)
-        o.next_swing = F.tick + 1
+    elseif what == "stance" or what == "stance_red" then
+        -- contact C: the first swing on C+3, or C+2 after a repair (RSProx);
+        -- it strikes the way he turned at C, to the side I ended C-1 on
+        o.next_swing = F.tick + (what == "stance_red" and 2 or 3)
+        o.contact, o.first_swing = F.tick, o.next_swing
+        o.last_side = nil
         o.retreating = false
         o.session_swings = 0
         o.sessions = o.sessions + 1
     elseif what == "leave" then
         o.next_swing = nil
+        if not o.retreating then o.session_log[#o.session_log + 1] = o.session_swings end
         o.retreating = true
-        o.session_log[#o.session_log + 1] = o.session_swings
     elseif what == "rise" then
         o.retreating = false
     elseif what == "lean" then
@@ -274,49 +310,121 @@ function QD.COXTK.predict(S, F, B)
     end
     if o.t == nil then return end
     local t = o.t
+    -- solid in his stance (the walkblocker): a plan through him is a plan
+    -- the server cuts short on whatever edge it reached (tekton1 t84)
+    if o.form == "fight" then
+        B.hit({ name = "solid", x0 = t.x, z0 = t.z, x1 = t.x + n - 1, z1 = t.z + n - 1, t0 = now + 1, t1 = now + h,
+                dmg_exp = 0, dmg_max = 0, forbid = true })
+    end
     -- trample (T14): under him while he walks
     if o.form == "walk" then
         B.hit({ name = "trample", x0 = t.x, z0 = t.z, x1 = t.x + n - 1, z1 = t.z + n - 1, t0 = now + 1, t1 = now + 2,
                 dmg_exp = V.TRAMPLE_EXP, dmg_max = V.TRAMPLE_MAX, forbid = true })
     end
-    -- THE STRIKE (T4) and THE SCAN (T5) on his swing clock: at the end of a
-    -- swing tick S no edge tile (his front row and right column are edge
-    -- tiles; the facing follows the side I end S-1 on, so every edge is a
-    -- candidate); at the end of S-1 an edge tile, or he leaves (the cost).
+    -- THE STRIKE (T4) and THE SCAN (T5) on his swing clock. Swing Sw strikes
+    -- edge(held) at the end of Sw (stab, crush) and edge(held) + his right
+    -- column at the end of Sw+1 (slash), held = the side I ended his previous
+    -- scan on (Sw-4; the session's first: C-1). Unknown held (a read still
+    -- ahead, or I was off every edge) on the swing due next -> every edge.
+    -- At the end of Sw-1 an edge tile, or he leaves (the cost).
+    local RIGHT = { [0] = 2, [2] = 1, [1] = 3, [3] = 0 }   -- S->W, W->N, N->E, E->S
+    local function edge(side)
+        if side == 0 then return t.x, t.z - 1, t.x + n - 1, t.z - 1 end
+        if side == 1 then return t.x, t.z + n, t.x + n - 1, t.z + n end
+        if side == 2 then return t.x - 1, t.z, t.x - 1, t.z + n - 1 end
+        return t.x + n, t.z, t.x + n, t.z + n - 1
+    end
+    local function strike(name, side, at)
+        if at < now + 1 then return end
+        local x0, z0, x1, z1 = edge(side)
+        B.hit({ name = name, x0 = x0, z0 = z0, x1 = x1, z1 = z1, t0 = at, t1 = at,
+                dmg_exp = V.STRIKE_EXP, dmg_max = V.STRIKE_MAX, forbid = true, style = "melee", factor = 0.5 })
+    end
+    local function held_of(sw, contact_side)
+        local ht = (o.first_swing ~= nil and sw == o.first_swing and o.contact) and (o.contact - 1) or (sw - 4)
+        if contact_side ~= nil then return contact_side end
+        if ht > now then return nil end
+        local tile = QD.T2.tile_at(S, ht)
+        if tile == nil then return nil end
+        return QD.COXTK.side(t, tile.x, tile.z)
+    end
+    -- one swing's strike: `slash` true / false when seen, nil when ahead
+    local function strikes(sw, slash, next_due, contact_side)
+        local h = held_of(sw, contact_side)
+        if h == nil then
+            if not next_due then return end
+            for side = 0, 3 do
+                strike("strike-any", side, sw)
+                strike("strike-any", side, sw + 1)
+            end
+            return
+        end
+        if slash ~= true then strike("strike-front", h, sw) end
+        if slash ~= false then
+            strike("strike-slash", h, sw + 1)
+            strike("strike-slash-right", RIGHT[h], sw + 1)
+        end
+    end
+    -- SYNQ'S DIRECTION: round him counterclockwise only. The side clockwise of
+    -- the one I stand on is his right whenever he faces me -- a slash's --
+    -- so stepping onto it is priced even on a tick no strike reads it.
+    -- (From a corner tile: the side I came off it from.)
+    if o.form == "fight" then
+        local mine = QD.COXTK.side(t, F.me.x, F.me.z)
+        if mine ~= nil then
+            o.last_side = mine
+        elseif math.max(math.abs(F.me.x - (t.x + 1.5)), math.abs(F.me.z - (t.z + 1.5))) == 2.5 then
+            mine = o.last_side
+        end
+        if mine ~= nil then
+            local x0, z0, x1, z1 = edge(RIGHT[mine])
+            B.hit({ name = "clockwise", x0 = x0, z0 = z0, x1 = x1, z1 = z1, t0 = now + 1, t1 = now + 3,
+                    dmg_exp = V.CW_COST, dmg_max = 0 })
+        end
+    end
+    -- SYNQ'S 4-TICK METHOD stays ON his edge tiles all the way round
+    -- (walking each side, running each corner), never stepping out and back
+    -- (that is the 6-tick step-back, a slower weapon's method): every tick
+    -- ended off the ring -- a corner, or farther -- is priced while he stands.
+    local function off_ring(name, t0, t1, cost)
+        local R = 16
+        B.hit({ name = name, x0 = t.x - R, z0 = t.z - R, x1 = t.x + n - 1 + R, z1 = t.z - 2, t0 = t0, t1 = t1,
+                dmg_exp = cost, dmg_max = 0 })
+        B.hit({ name = name, x0 = t.x - R, z0 = t.z + n + 1, x1 = t.x + n - 1 + R, z1 = t.z + n - 1 + R,
+                t0 = t0, t1 = t1, dmg_exp = cost, dmg_max = 0 })
+        B.hit({ name = name, x0 = t.x - R, z0 = t.z - 1, x1 = t.x - 2, z1 = t.z + n, t0 = t0, t1 = t1,
+                dmg_exp = cost, dmg_max = 0 })
+        B.hit({ name = name, x0 = t.x + n + 1, z0 = t.z - 1, x1 = t.x + n - 1 + R, z1 = t.z + n, t0 = t0, t1 = t1,
+                dmg_exp = cost, dmg_max = 0 })
+        for _, c in ipairs({ { t.x - 1, t.z - 1 }, { t.x + n, t.z - 1 }, { t.x - 1, t.z + n }, { t.x + n, t.z + n } }) do
+            B.hit({ name = name, x = c[1], z = c[2], t0 = t0, t1 = t1, dmg_exp = cost, dmg_max = 0 })
+        end
+    end
+    if o.form == "fight" then off_ring("off-ring", now + 1, now + h, V.RING_COST) end
+    -- the swing just seen (a slash still reads the end of d + 1)
+    if o.last_swing and o.last_swing + 1 >= now + 1 then
+        strikes(o.last_swing, o.last_slash, false)
+    end
     -- CONTACT AHEAD: walking out at me and I end this tick on an edge -> the
-    -- engine's reach makes contact next tick and his first swing the tick
-    -- after (T9): keep the edge through the end of now+1, off it by now+2
+    -- engine's reach makes contact next tick (C) and his first swing on C+3,
+    -- C+2 when he walks red (RSProx), facing the side I am on now
     local S0 = o.next_swing
+    local contact_side = nil
     if S0 == nil and o.form == "walk" and not o.retreating and QD.COXTK.side(t, F.me.x, F.me.z) ~= nil then
-        S0 = now + 2
+        S0 = now + 1 + ((o.row and o.row.npc_id == S.ids.t_walk_red) and 2 or 3)
+        contact_side = QD.COXTK.side(t, F.me.x, F.me.z)
     end
     if S0 and (o.form == "fight" or o.form == "walk") then
         while S0 <= now do S0 = S0 + V.PERIOD end
+        local first = true
         while S0 <= now + h do
-            B.hit({ name = "strike-s", x0 = t.x, z0 = t.z - 1, x1 = t.x + n - 1, z1 = t.z - 1, t0 = S0, t1 = S0,
-                    dmg_exp = V.STRIKE_EXP, dmg_max = V.STRIKE_MAX, forbid = true, style = "melee", factor = 0.5 })
-            B.hit({ name = "strike-n", x0 = t.x, z0 = t.z + n, x1 = t.x + n - 1, z1 = t.z + n, t0 = S0, t1 = S0,
-                    dmg_exp = V.STRIKE_EXP, dmg_max = V.STRIKE_MAX, forbid = true, style = "melee", factor = 0.5 })
-            B.hit({ name = "strike-w", x0 = t.x - 1, z0 = t.z, x1 = t.x - 1, z1 = t.z + n - 1, t0 = S0, t1 = S0,
-                    dmg_exp = V.STRIKE_EXP, dmg_max = V.STRIKE_MAX, forbid = true, style = "melee", factor = 0.5 })
-            B.hit({ name = "strike-e", x0 = t.x + n, z0 = t.z, x1 = t.x + n, z1 = t.z + n - 1, t0 = S0, t1 = S0,
-                    dmg_exp = V.STRIKE_EXP, dmg_max = V.STRIKE_MAX, forbid = true, style = "melee", factor = 0.5 })
+            strikes(S0, nil, first, first and contact_side or nil)
+            first = false
             local sc = S0 - 1
             if sc >= now + 1 then
-                -- off the edge ring at the scan: the corners, and anything
-                -- farther (a box of 3 round him, less the ring itself)
-                local R = 16
-                B.hit({ name = "scan-far-s", x0 = t.x - R, z0 = t.z - R, x1 = t.x + n - 1 + R, z1 = t.z - 2, t0 = sc, t1 = sc,
-                        dmg_exp = V.SCAN_COST, dmg_max = 0 })
-                B.hit({ name = "scan-far-n", x0 = t.x - R, z0 = t.z + n + 1, x1 = t.x + n - 1 + R, z1 = t.z + n - 1 + R,
-                        t0 = sc, t1 = sc, dmg_exp = V.SCAN_COST, dmg_max = 0 })
-                B.hit({ name = "scan-far-w", x0 = t.x - R, z0 = t.z - 1, x1 = t.x - 2, z1 = t.z + n, t0 = sc, t1 = sc,
-                        dmg_exp = V.SCAN_COST, dmg_max = 0 })
-                B.hit({ name = "scan-far-e", x0 = t.x + n + 1, z0 = t.z - 1, x1 = t.x + n - 1 + R, z1 = t.z + n, t0 = sc, t1 = sc,
-                        dmg_exp = V.SCAN_COST, dmg_max = 0 })
-                for _, c in ipairs({ { t.x - 1, t.z - 1 }, { t.x + n, t.z - 1 }, { t.x - 1, t.z + n }, { t.x + n, t.z + n } }) do
-                    B.hit({ name = "scan-corner", x = c[1], z = c[2], t0 = sc, t1 = sc, dmg_exp = V.SCAN_COST, dmg_max = 0 })
-                end
+                -- off the edge ring at the scan (a corner, or farther): he
+                -- leaves early -- the session's remaining swings
+                off_ring("scan-off", sc, sc, V.SCAN_COST)
             end
             S0 = S0 + V.PERIOD
         end
@@ -328,7 +436,8 @@ end
 -- The mode machine (tekton_solver.md): his form says it.
 --   lure     dormant: walk onto the wake tile (his wake ring)
 --   wait     rising / walking out: on the fight tile, hit him as he comes
---   flinch   in his stance: hit him, the strike and scan terms do the rest
+--   circle   in his stance: hit him round his edges, counterclockwise (Synq's
+--            4-tick method); the strike and scan terms do the rest
 --   chase    walking back to the anvil: hit him, never under him
 --   dodge    at the anvil: the sparks, back to the fight tile
 --   done     dead
@@ -346,9 +455,9 @@ function QD.COXTK.strategy(S, F, B)
     elseif o.form == "anvil" then
         mode = "dodge"
     elseif o.form == "fight" then
-        mode = "flinch"
+        mode = "circle"
     elseif o.next_swing then
-        mode = "flinch"
+        mode = "circle"
     elseif o.retreating then
         mode = "chase"
     else
@@ -370,7 +479,7 @@ function QD.COXTK.strategy(S, F, B)
     end
     -- PRAYER: Protect from Melee while he can swing (stance, or walking at
     -- me); off at the anvil and while he sleeps
-    local prot = (mode == "flinch" or mode == "wait" or mode == "chase") and "protectfrommelee" or nil
+    local prot = (mode == "circle" or mode == "wait" or mode == "chase") and "protectfrommelee" or nil
     if prot and not F.lit[prot] then intents.pray = prot end
     local off = {}
     if prot == nil then

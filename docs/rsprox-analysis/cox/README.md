@@ -8,6 +8,8 @@ Each room's file states the recorded behaviour, the recording ticks it was read 
 |---|---|
 | [olm.md](olm.md) | The Great Olm |
 | [guardians.md](guardians.md) | Guardians |
+| [tekton.md](tekton.md) | Tekton |
+| [vasa.md](vasa.md) | Vasa Nistirio |
 
 ## Sources
 
@@ -15,10 +17,10 @@ All recordings are submissions to the public archive, [rsprox.net/database](http
 
 | Submission | Revision | World | Raid | Used for |
 |---|---|---|---|---|
-| 820 | 234 | Grid Master | a trio, then a four-man raid | Guardians (party), Olm (party), teleport swaps |
-| 3282 | 234 | Grid Master | solo, normal | Guardians (solo), Olm |
-| 843 | 234 | Grid Master | solo, normal | Olm |
-| 3285 | 234 | Grid Master | solo, normal | Olm (the fullest solo kill) |
+| 820 | 234 | Grid Master | a trio, then a four-man raid | Guardians (party), Olm (party), Tekton (the whole fight), Vasa (party), teleport swaps |
+| 3282 | 234 | Grid Master | solo, normal | Guardians (solo), Olm, Vasa |
+| 843 | 234 | Grid Master | solo, normal | Olm, Vasa |
+| 3285 | 234 | Grid Master | solo, normal | Olm (the fullest solo kill), Vasa |
 | 3389 | 235 | Grid Master | solo, **Challenge Mode** | excluded from damage numbers |
 
 **Caveats:**
@@ -34,7 +36,9 @@ All recordings are submissions to the public archive, [rsprox.net/database](http
 | `tools/cox/rsprox_fetch.py` | Search the archive by content and fetch recordings, cached (the NAS mirror first) |
 | `tools/rsprox_mirror.py` | A polite mirror of the whole archive to the NAS (`/Volumes/MatthewLLM_Shared/rsprox_archive/`) |
 | `tools/cox/rsprox_guardians.py` | Guardians: every hit on the raider, classed stomp or swing |
+| `tools/cox/rsprox_tekton.py` | Tekton: the session clock, the strike by style and held facing, the anvil, sparks, death (corrects a turned room's npc coordinates) |
 | `tools/cox/rsprox_hits.py` | Every hit on the raider, matched to the tells landing with it |
+| `tools/cox/rsprox_vasa.py` | Vasa: the special tick by tick, boulders against the raider's tile, the crystal cycle, the walk, the stomp, the death |
 | `tools/cox/rsprox_olm.py` | Olm's area hits (bombs, falling crystals) against distance |
 | `tools/cox/rsprox_olm_tells.py` | Inventory of the Olm fight's animations, projectiles, graphics, sounds and messages |
 | `tools/cox/rsprox_sound_pairs.py` | Which event each area sound belongs to (same tick, same tile) |

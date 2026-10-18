@@ -6,6 +6,22 @@ MONITOR and the resource layer shared), and `test/raids/cox_tekton.lua` entered
 with `::coxtest 0 <n>`. Mechanics, ids and every number: [`tekton_spec.md`](tekton_spec.md)
 (rows T1-T20 are cited below). Shape: `docs/minigames/cox/olm_solver.md`.
 
+**2026-10-18: the solver plays Synq's 4-tick method** (the kit's tentacle is
+a 4-tick weapon), not the 6-tick step-back below. It goes round him
+counterclockwise on his edge tiles, attacking as it goes, on an edge at every
+scan. The strike model is the recorded one (`docs/rsprox-analysis/cox/tekton.md`):
+his held facing, the front row for a stab or a crush, plus his right column for
+a slash a tick later. The terms in `cox2_tekton.lua` are:
+- the next strike's tiles, exact every tick;
+- a cost on ending a tick off the edge ring;
+- a cost on the side clockwise of the one the bot is on (or came off a corner from);
+- his footprint forbidden while he is solid.
+
+12 seeds: no hit from Tekton, 215 side changes, all counterclockwise.
+Spark landings are predicted from the server's `(end + 15) // 30`. The solver's
+old `+ 15` on `cycles_left` landed every spark a tick early, because a row read
+on its arrival tick already counts 30 cycles.
+
 ## The strategy a strong solo human plays
 
 From Synq (1:09:31-1:25:34), RuneScythed's flinch guide, Theoatrix, the

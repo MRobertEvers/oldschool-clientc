@@ -1,0 +1,427 @@
+== phases
+-- 820.txt@2608 party None
+  rise tekton_avil_transition_to_idle               @2625: first step +2, walking form +2, fire +2; me end T-1 (3281, 5289) box_dist 9, end T-2 box_dist 9; closest before 9
+  rise tekton_avil_transition_to_idle_enraged       @2701: first step +2, walking form +2, fire +0; me end T-1 (3281, 5290) box_dist 8, end T-2 box_dist 8; closest before None
+  rise tekton_avil_transition_to_idle_enraged       @2782: first step +2, walking form +2, fire +-1; me end T-1 (3279, 5290) box_dist 8, end T-2 box_dist 7; closest before None
+  rise tekton_avil_transition_to_idle_enraged       @2864: first step +2, walking form +2, fire +1; me end T-1 (3278, 5294) box_dist 4, end T-2 box_dist 5; closest before None
+  rise tekton_avil_transition_to_idle_enraged       @2936: first step +2, walking form +2, fire +1; me end T-1 (3281, 5289) box_dist 9, end T-2 box_dist 9; closest before None
+  rise tekton_avil_transition_to_idle_enraged       @3011: first step +2, walking form +2, fire +2; me end T-1 (3279, 5291) box_dist 7, end T-2 box_dist 7; closest before None
+  rise tekton_avil_transition_to_idle_enraged       @3094: first step +2, walking form +2, fire +-1; me end T-1 (3279, 5291) box_dist 7, end T-2 box_dist 8; closest before None
+  contact tekton_idle_transition_to_ready delay=30 @2639  first swing +3, swings 9, gaps {3: 8}, end 27 (walk) +0 after the last swing; retypes [(0, 'raids_tekton_fighting_standard'), (27, 'raids_tekton_walking_standard')]; walkblocker +[0, 3]
+  contact tekton_idle_transition_to_ready_enraged delay=30 @2707  first swing +2, swings 16, gaps {3: 15}, end 47 (walk) +0 after the last swing; retypes [(0, 'raids_tekton_fighting_enraged'), (17, 'raids_tekton_fighting_standard'), (47, 'raids_tekton_walking_standard')]; walkblocker +[0, 2]
+  contact tekton_idle_transition_to_ready_enraged delay=30 @2790  first swing +2, swings 16, gaps {3: 15}, end 47 (walk) +0 after the last swing; retypes [(0, 'raids_tekton_fighting_enraged'), (17, 'raids_tekton_fighting_standard'), (47, 'raids_tekton_walking_standard')]; walkblocker +[0, 2]
+  contact tekton_idle_transition_to_ready_enraged delay=30 @2870  first swing +2, swings 16, gaps {3: 15}, end 47 (walk) +0 after the last swing; retypes [(0, 'raids_tekton_fighting_enraged'), (17, 'raids_tekton_fighting_standard'), (47, 'raids_tekton_walking_standard')]; walkblocker +[0, 2]
+  contact tekton_idle_transition_to_ready_enraged delay=30 @2942  first swing +2, swings 16, gaps {3: 15}, end 47 (walk) +0 after the last swing; retypes [(0, 'raids_tekton_fighting_enraged'), (17, 'raids_tekton_fighting_standard'), (47, 'raids_tekton_walking_standard')]; walkblocker +[0, 2]
+  contact tekton_idle_transition_to_ready_enraged delay=30 @3021  first swing +2, swings 16, gaps {3: 15}, end 47 (walk) +0 after the last swing; retypes [(0, 'raids_tekton_fighting_enraged'), (17, 'raids_tekton_fighting_standard'), (47, 'raids_tekton_walking_standard')]; walkblocker +[0, 2]
+  contact tekton_idle_transition_to_ready_enraged delay=30 @3099  first swing +2, swings 7, gaps {3: 6}, end 23 (death) +3 after the last swing; retypes [(0, 'raids_tekton_fighting_enraged'), (17, 'raids_tekton_fighting_standard')]; walkblocker +[0, 2]
+  lean @2680  retype +[0], rise +21
+  lean @2761  retype +[0], rise +21
+  lean @2846  retype +[0], rise +18
+  lean @2924  retype +[0], rise +12
+  lean @2996  retype +[0], rise +15
+  lean @3079  retype +[0], rise +15
+-- 3285.txt@14902 party None
+  rise tekton_avil_transition_to_idle               @14913: first step +2, walking form +2, fire +2; me end T-1 (3279, 5296) box_dist 2, end T-2 box_dist 4; closest before 4
+  contact tekton_idle_transition_to_ready delay=30 @14916  first swing +3, swings 7, gaps {3: 6}, end 24 (death) +3 after the last swing; retypes [(-1, 'raids_tekton_walking_standard'), (0, 'raids_tekton_fighting_standard')]; walkblocker +[0, 3]
+-- 843.txt@934 party None
+  rise tekton_avil_transition_to_idle               @941: first step +2, walking form +2, fire +2; me end T-1 (3343, 5294) box_dist 4, end T-2 box_dist 4; closest before 4
+  contact tekton_idle_transition_to_ready delay=30 @945  first swing +3, swings 1, gaps {}, end 4 (death) +1 after the last swing; retypes [(0, 'raids_tekton_fighting_standard')]; walkblocker +[0, 3]
+-- 3389.txt@3069 party None
+  rise tekton_avil_transition_to_idle               @3079: first step +2, walking form +2, fire +2; me end T-1 (3304, 5288) box_dist None, end T-2 box_dist None; closest before None
+  contact tekton_idle_transition_to_ready delay=30 @3086  first swing +3, swings 9, gaps {3: 8}, end 27 (walk) +0 after the last swing; retypes [(0, 'raids_tekton_fighting_standard'), (27, 'raids_tekton_walking_standard')]; walkblocker +[0, 3]
+== swings
+  820.txt   2642 tekton_hammer_crush          face=E(1550) me T-1/T/T+1/T+2 ['corner', 'corner', 'N', 'N']  hits [] pfm=1
+  820.txt   2645 tekton_slash                 face=N(1038) me T-1/T/T+1/T+2 ['N', 'N', 'N', 'N']  hits [] pfm=1
+  820.txt   2648 tekton_attack_stab           face=N(1038) me T-1/T/T+1/T+2 ['N', 'N', 'N', 'N']  hits [(1, 16, 14)] pfm=1
+  820.txt   2651 tekton_hammer_crush          face=N(1038) me T-1/T/T+1/T+2 ['N', 'N', 'N', 'N']  hits [(1, 16, 34)] pfm=1
+  820.txt   2654 tekton_attack_stab           face=N(1038) me T-1/T/T+1/T+2 ['N', 'N', 'N', 'N']  hits [(1, 12, 0)] pfm=1
+  820.txt   2657 tekton_hammer_crush          face=N(1038) me T-1/T/T+1/T+2 ['N', 'N', 'N', 'N']  hits [(1, 12, 0)] pfm=1
+  820.txt   2660 tekton_slash                 face=N(1038) me T-1/T/T+1/T+2 ['N', 'N', 'N', 'N']  hits [(2, 16, 2)] pfm=1
+  820.txt   2663 tekton_attack_stab           face=N(1038) me T-1/T/T+1/T+2 ['N', 'N', 'N', 'N']  hits [(1, 16, 18)] pfm=1
+  820.txt   2666 tekton_slash                 face=N(1038) me T-1/T/T+1/T+2 ['N', 'N', 'N', None]  hits [(2, 16, 8)] pfm=1
+  820.txt   2709 tekton_hammer_crush_enraged  face=S(20) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(1, 12, 0)] pfm=1
+  820.txt   2712 tekton_attack_stab_enraged   face=S(20) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(1, 12, 0)] pfm=1
+  820.txt   2715 tekton_slash_enraged         face=S(20) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(2, 16, 40)] pfm=1
+  820.txt   2718 tekton_hammer_crush_enraged  face=S(20) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(1, 16, 45)] pfm=1
+  820.txt   2721 tekton_hammer_crush_enraged  face=S(20) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(1, 12, 0)] pfm=1
+  820.txt   2724 tekton_slash_enraged         face=S(20) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(2, 16, 42)] pfm=1
+  820.txt   2727 tekton_hammer_crush          face=S(20) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(1, 16, 28)] pfm=1
+  820.txt   2730 tekton_hammer_crush          face=S(20) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(1, 16, 44)] pfm=1
+  820.txt   2733 tekton_hammer_crush          face=S(20) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(1, 12, 0)] pfm=1
+  820.txt   2736 tekton_hammer_crush          face=N(1038) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(1, 16, 41)] pfm=1
+  820.txt   2739 tekton_attack_stab           face=N(1038) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [] pfm=1
+  820.txt   2742 tekton_slash                 face=N(1038) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [] pfm=1
+  820.txt   2745 tekton_hammer_crush          face=N(1038) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [] pfm=1
+  820.txt   2748 tekton_hammer_crush          face=N(1038) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [] pfm=1
+  820.txt   2751 tekton_slash                 face=N(1038) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [] pfm=1
+  820.txt   2754 tekton_hammer_crush          face=N(1038) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'under']  hits [] pfm=1
+  820.txt   2792 tekton_attack_stab_enraged   face=S(20) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(1, 16, 12)] pfm=1
+  820.txt   2795 tekton_hammer_crush_enraged  face=S(20) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(1, 16, 44)] pfm=1
+  820.txt   2798 tekton_hammer_crush_enraged  face=E(1550) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(1, 12, 0)] pfm=1
+  820.txt   2801 tekton_hammer_crush_enraged  face=E(1550) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [] pfm=1
+  820.txt   2804 tekton_slash_enraged         face=S(20) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(2, 16, 9)] pfm=1
+  820.txt   2807 tekton_attack_stab_enraged   face=S(20) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(1, 16, 25)] pfm=1
+  820.txt   2810 tekton_slash                 face=E(1550) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(2, 12, 0)] pfm=1
+  820.txt   2813 tekton_attack_stab           face=E(1550) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [] pfm=1
+  820.txt   2816 tekton_attack_stab           face=E(1550) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [] pfm=1
+  820.txt   2819 tekton_slash                 face=N(1038) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(2, 16, 18)] pfm=1
+  820.txt   2822 tekton_slash                 face=S(20) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [] pfm=1
+  820.txt   2825 tekton_hammer_crush          face=S(20) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(1, 16, 41)] pfm=1
+  820.txt   2828 tekton_hammer_crush          face=E(1550) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(1, 16, 16)] pfm=1
+  820.txt   2831 tekton_slash                 face=S(20) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(2, 12, 0)] pfm=1
+  820.txt   2834 tekton_slash                 face=N(1038) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(2, 12, 0)] pfm=1
+  820.txt   2837 tekton_slash                 face=N(1038) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'under']  hits [] pfm=1
+  820.txt   2872 tekton_slash_enraged         face=N(1038) me T-1/T/T+1/T+2 [None, None, 'S', 'S']  hits [(2, 16, 48)] pfm=1
+  820.txt   2875 tekton_attack_stab_enraged   face=S(20) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [] pfm=1
+  820.txt   2878 tekton_attack_stab_enraged   face=S(20) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(1, 16, 1)] pfm=1
+  820.txt   2881 tekton_slash_enraged         face=S(20) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(2, 16, 39)] pfm=1
+  820.txt   2884 tekton_hammer_crush_enraged  face=S(20) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(1, 12, 0)] pfm=1
+  820.txt   2887 tekton_hammer_crush_enraged  face=N(1038) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(1, 12, 0)] pfm=1
+  820.txt   2890 tekton_slash                 face=N(1038) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [] pfm=1
+  820.txt   2893 tekton_hammer_crush          face=N(1038) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [] pfm=1
+  820.txt   2896 tekton_attack_stab           face=N(1038) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [] pfm=1
+  820.txt   2899 tekton_attack_stab           face=N(1038) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [] pfm=1
+  820.txt   2902 tekton_slash                 face=N(1038) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [] pfm=1
+  820.txt   2905 tekton_slash                 face=N(1038) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [] pfm=1
+  820.txt   2908 tekton_slash                 face=N(1038) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [] pfm=1
+  820.txt   2911 tekton_attack_stab           face=N(1038) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [] pfm=1
+  820.txt   2914 tekton_hammer_crush          face=N(1038) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [] pfm=1
+  820.txt   2917 tekton_slash                 face=N(1038) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'under']  hits [] pfm=1
+  820.txt   2944 tekton_attack_stab_enraged   face=S(20) me T-1/T/T+1/T+2 [None, 'S', 'S', 'S']  hits [(1, 16, 3)] pfm=1
+  820.txt   2947 tekton_slash_enraged         face=S(20) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(2, 12, 0)] pfm=1
+  820.txt   2950 tekton_hammer_crush_enraged  face=S(20) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(1, 16, 21)] pfm=1
+  820.txt   2953 tekton_slash_enraged         face=S(20) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(2, 12, 0)] pfm=1
+  820.txt   2956 tekton_slash_enraged         face=E(1550) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(2, 16, 39)] pfm=1
+  820.txt   2959 tekton_slash_enraged         face=S(20) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(2, 12, 0)] pfm=1
+  820.txt   2962 tekton_attack_stab           face=S(20) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(1, 16, 41)] pfm=1
+  820.txt   2965 tekton_hammer_crush          face=E(1550) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(1, 16, 23)] pfm=1
+  820.txt   2968 tekton_attack_stab           face=N(1038) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [] pfm=1
+  820.txt   2971 tekton_slash                 face=S(20) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [] pfm=1
+  820.txt   2974 tekton_hammer_crush          face=S(20) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(1, 16, 30)] pfm=1
+  820.txt   2977 tekton_hammer_crush          face=N(1038) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(1, 16, 28)] pfm=1
+  820.txt   2980 tekton_attack_stab           face=E(1550) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [] pfm=1
+  820.txt   2983 tekton_hammer_crush          face=E(1550) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [] pfm=1
+  820.txt   2986 tekton_slash                 face=S(20) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(2, 12, 0)] pfm=1
+  820.txt   2989 tekton_slash                 face=S(20) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'under']  hits [(2, 16, 23)] pfm=1
+  820.txt   3023 tekton_hammer_crush_enraged  face=S(20) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(1, 16, 13)] pfm=1
+  820.txt   3026 tekton_hammer_crush_enraged  face=N(1038) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(1, 16, 31)] pfm=1
+  820.txt   3029 tekton_hammer_crush_enraged  face=N(1038) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [] pfm=1
+  820.txt   3032 tekton_hammer_crush_enraged  face=N(1038) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [] pfm=1
+  820.txt   3035 tekton_slash_enraged         face=E(1550) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [] pfm=1
+  820.txt   3038 tekton_slash_enraged         face=N(1038) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(2, 12, 0)] pfm=1
+  820.txt   3041 tekton_hammer_crush          face=N(1038) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [] pfm=1
+  820.txt   3044 tekton_attack_stab           face=E(1550) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [] pfm=1
+  820.txt   3047 tekton_slash                 face=N(1038) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(2, 12, 0)] pfm=1
+  820.txt   3050 tekton_attack_stab           face=N(1038) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [] pfm=1
+  820.txt   3053 tekton_slash                 face=N(1038) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [] pfm=1
+  820.txt   3056 tekton_hammer_crush          face=E(1550) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [] pfm=1
+  820.txt   3059 tekton_hammer_crush          face=N(1038) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [] pfm=1
+  820.txt   3062 tekton_attack_stab           face=N(1038) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [] pfm=1
+  820.txt   3065 tekton_hammer_crush          face=N(1038) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [] pfm=1
+  820.txt   3068 tekton_slash                 face=N(1038) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'under']  hits [] pfm=1
+  820.txt   3101 tekton_attack_stab_enraged   face=S(20) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(1, 12, 0)] pfm=1
+  820.txt   3104 tekton_attack_stab_enraged   face=S(20) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(1, 16, 38)] pfm=1
+  820.txt   3107 tekton_attack_stab_enraged   face=N(1038) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(1, 16, 15)] pfm=1
+  820.txt   3110 tekton_hammer_crush_enraged  face=N(1038) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [] pfm=1
+  820.txt   3113 tekton_hammer_crush_enraged  face=N(1038) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [] pfm=1
+  820.txt   3116 tekton_hammer_crush_enraged  face=N(1038) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [] pfm=1
+  820.txt   3119 tekton_slash                 face=N(1038) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [] pfm=1
+  3285.txt  14919 tekton_hammer_crush          face=S(20) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(1, 12, 0)] pfm=1
+  3285.txt  14922 tekton_slash                 face=S(20) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(2, 12, 0)] pfm=1
+  3285.txt  14925 tekton_attack_stab           face=S(20) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(1, 16, 3)] pfm=1
+  3285.txt  14928 tekton_hammer_crush          face=S(20) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(1, 12, 0)] pfm=1
+  3285.txt  14931 tekton_attack_stab           face=S(20) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(1, 16, 12)] pfm=1
+  3285.txt  14934 tekton_attack_stab           face=S(20) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(1, 12, 0)] pfm=1
+  3285.txt  14937 tekton_hammer_crush          face=S(20) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [(1, 12, 0)] pfm=1
+  843.txt    948 tekton_attack_stab           face=S(14) me T-1/T/T+1/T+2 ['S', 'S', 'S', 'S']  hits [] pfm=None
+  3389.txt   3089 tekton_slash                 face=N(1044) me T-1/T/T+1/T+2 [None, None, None, None]  hits [(2, 12, 0)] pfm=1
+  3389.txt   3092 tekton_attack_stab           face=N(1044) me T-1/T/T+1/T+2 [None, None, None, None]  hits [(1, 12, 0)] pfm=1
+  3389.txt   3095 tekton_slash                 face=N(1044) me T-1/T/T+1/T+2 [None, None, None, None]  hits [(2, 12, 0)] pfm=1
+  3389.txt   3098 tekton_slash                 face=N(1044) me T-1/T/T+1/T+2 [None, None, None, None]  hits [(2, 12, 0)] pfm=1
+  3389.txt   3101 tekton_attack_stab           face=N(1044) me T-1/T/T+1/T+2 [None, None, None, None]  hits [(1, 12, 0)] pfm=1
+  3389.txt   3104 tekton_slash                 face=N(1044) me T-1/T/T+1/T+2 [None, None, None, None]  hits [(2, 12, 0)] pfm=1
+  3389.txt   3107 tekton_slash                 face=N(1044) me T-1/T/T+1/T+2 [None, None, None, None]  hits [(2, 12, 0)] pfm=1
+  3389.txt   3110 tekton_hammer_crush          face=N(1044) me T-1/T/T+1/T+2 [None, None, None, None]  hits [(1, 12, 0)] pfm=1
+  3389.txt   3113 tekton_hammer_crush          face=N(1044) me T-1/T/T+1/T+2 [None, None, None, None]  hits [(1, 16, 14)] pfm=1
+  my hitsplats after a swing, (style, delay): {('crush', 1): 26, ('slash', 2): 25, ('stab', 1): 17}
+  the raider's edge vs his facing -> a hitsplat on the style's landing tick (stab/crush T+1, slash T+2):
+    crush   read end T   away    hit   2
+    crush   read end T   behind  hit   4
+    crush   read end T   behind  none  13
+    crush   read end T   corner  none  1
+    crush   read end T   front   hit   17
+    crush   read end T   right   hit   3
+    crush   read end T   right   none  3
+    crush   read end T+1 away    hit   2
+    crush   read end T+1 behind  hit   4
+    crush   read end T+1 behind  none  13
+    crush   read end T+1 front   hit   17
+    crush   read end T+1 left    none  1
+    crush   read end T+1 right   hit   3
+    crush   read end T+1 right   none  3
+    crush   read end T-1 away    hit   2
+    crush   read end T-1 behind  hit   4
+    crush   read end T-1 behind  none  13
+    crush   read end T-1 corner  none  1
+    crush   read end T-1 front   hit   17
+    crush   read end T-1 right   hit   3
+    crush   read end T-1 right   none  3
+    slash   read end T   away    hit   6
+    slash   read end T   behind  hit   4
+    slash   read end T   behind  none  11
+    slash   read end T   front   hit   13
+    slash   read end T   front   none  3
+    slash   read end T   right   hit   2
+    slash   read end T   right   none  1
+    slash   read end T+1 away    hit   5
+    slash   read end T+1 behind  hit   5
+    slash   read end T+1 behind  none  11
+    slash   read end T+1 front   hit   13
+    slash   read end T+1 front   none  3
+    slash   read end T+1 right   hit   2
+    slash   read end T+1 right   none  1
+    slash   read end T-1 away    hit   6
+    slash   read end T-1 behind  hit   4
+    slash   read end T-1 behind  none  11
+    slash   read end T-1 front   hit   13
+    slash   read end T-1 front   none  3
+    slash   read end T-1 right   hit   2
+    slash   read end T-1 right   none  1
+    stab    read end T   away    hit   2
+    stab    read end T   behind  hit   1
+    stab    read end T   behind  none  7
+    stab    read end T   front   hit   14
+    stab    read end T   front   none  2
+    stab    read end T   right   none  4
+    stab    read end T+1 away    hit   2
+    stab    read end T+1 behind  hit   1
+    stab    read end T+1 behind  none  7
+    stab    read end T+1 front   hit   14
+    stab    read end T+1 front   none  2
+    stab    read end T+1 right   none  4
+    stab    read end T-1 away    hit   3
+    stab    read end T-1 behind  hit   1
+    stab    read end T-1 behind  none  7
+    stab    read end T-1 front   hit   13
+    stab    read end T-1 front   none  2
+    stab    read end T-1 right   none  4
+  the raider's edge at the end of T vs the facing he HELD going into the swing (the face_angle before T):
+    crush   behind  none  13
+    crush   front   hit   24
+    crush   right   none  3
+    slash   behind  none  14
+    slash   front   hit   12
+    slash   left    none  1
+    slash   right   hit   7
+    stab    behind  none  9
+    stab    front   hit   15
+    stab    front   none  1
+    stab    right   none  3
+  damage ('3285.txt', 'orange', 'pfm'): n=2 max=12 values=[3, 12]
+  damage ('3389.txt', 'orange', 'pfm'): n=1 max=14 values=[14]
+  damage ('820.txt', 'orange', 'pfm'): n=16 max=44 values=[2, 8, 14, 16, 18, 18, 23, 23, 28, 28, 30, 34, 41, 41, 41, 44]
+  damage ('820.txt', 'red', 'pfm'): n=17 max=48 values=[1, 3, 9, 12, 13, 15, 21, 25, 31, 38, 39, 39, 40, 42, 44, 45, 48]
+== sparks
+  820.txt lean 2680: volleys at [1, 5, 9, 13, 17, 21]
+  820.txt lean 2761: volleys at [0, 4, 8, 12, 16, 20]
+  820.txt lean 2846: volleys at [3, 7, 11, 15, 19]
+  820.txt lean 2924: volleys at [1, 5, 9, 13]
+  820.txt lean 2996: volleys at [1, 5, 9, 13]
+  820.txt lean 3079: volleys at [2, 6, 10, 14]
+  volley offsets from the lean: {(1, 5, 9, 13, 17, 21): 1, (0, 4, 8, 12, 16, 20): 1, (3, 7, 11, 15, 19): 1, (1, 5, 9, 13): 2, (2, 6, 10, 14): 1}
+  sparks per volley: {4: 29}
+  flight (cheb distance source->target: [(starttime, endtime)]):
+    d= 3 n= 1 endtime 75..75  starttime 3..3  endtime-starttime [72]
+    d= 4 n= 3 endtime 80..80  starttime 0..24  endtime-starttime [56, 63, 80]
+    d= 5 n= 6 endtime 85..85  starttime 3..27  endtime-starttime [58, 70, 71, 76, 82]
+    d= 6 n= 7 endtime 90..90  starttime 4..25  endtime-starttime [65, 75, 81, 85, 86]
+    d= 7 n= 6 endtime 95..95  starttime 0..30  endtime-starttime [65, 68, 69, 73, 77, 95]
+    d= 8 n=17 endtime 100..100  starttime 1..29  endtime-starttime [71, 72, 76, 77, 78, 80, 84, 90, 92, 95, 96, 97, 98, 99]
+    d= 9 n=16 endtime 105..105  starttime 3..28  endtime-starttime [77, 78, 84, 85, 86, 88, 89, 90, 93, 96, 98, 99, 101, 102]
+    d=10 n= 8 endtime 110..110  starttime 3..30  endtime-starttime [80, 84, 85, 94, 96, 106, 107]
+    d=11 n=12 endtime 115..115  starttime 1..25  endtime-starttime [90, 92, 93, 94, 96, 101, 102, 103, 105, 110, 114]
+    d=12 n=13 endtime 120..120  starttime 1..27  endtime-starttime [93, 94, 95, 98, 99, 100, 110, 111, 113, 115, 117, 118, 119]
+    d=13 n= 4 endtime 125..125  starttime 8..28  endtime-starttime [97, 106, 115, 117]
+    d=14 n= 8 endtime 130..130  starttime 0..19  endtime-starttime [111, 122, 126, 128, 130]
+    d=15 n=12 endtime 135..135  starttime 4..23  endtime-starttime [112, 115, 116, 122, 123, 124, 126, 128, 129, 131]
+    d=16 n= 1 endtime 140..140  starttime 16..16  endtime-starttime [124]
+    d=17 n= 2 endtime 145..145  starttime 5..14  endtime-starttime [131, 140]
+  target: {'still: my tile': 18, 'moved on T: target = end of T-1': 16}
+  blast tick - throw tick by endtime//30: {(2, 2): 2, (2, 3): 8, (3, 1): 2, (3, 3): 36, (3, 4): 28, (4, 3): 3, (4, 4): 16, (4, 5): 21}
+  (endtime, blast delay): {(100, 0): 2, (100, 1): 4, (100, 2): 2, (100, 3): 6, (100, 4): 1, (100, 5): 2, (105, 0): 4, (105, 1): 1, (105, 2): 2, (105, 3): 2, (105, 4): 2, (105, 5): 5, (110, 0): 1, (110, 1): 1, (110, 2): 4, (110, 5): 2, (115, 0): 3, (115, 1): 1, (115, 2): 3, (115, 3): 3, (115, 4): 1, (115, 5): 1, (120, 0): 3, (120, 1): 2, (120, 2): 4, (120, 3): 1, (120, 4): 1, (120, 5): 2, (125, 1): 2, (125, 2): 1, (125, 5): 1, (130, 2): 2, (130, 3): 4, (130, 4): 1, (130, 5): 1, (135, 0): 2, (135, 2): 2, (135, 3): 3, (135, 4): 1, (135, 5): 4, (140, 4): 1, (145, 2): 1, (145, 5): 1, (75, 4): 1, (80, 2): 2, (80, 4): 1, (85, 0): 1, (85, 2): 2, (85, 3): 1, (85, 4): 1, (85, 5): 1, (90, 0): 4, (90, 3): 1, (90, 4): 1, (90, 5): 1, (95, 0): 1, (95, 2): 2, (95, 3): 1, (95, 4): 2}
+  landing vs me (cheb to the blast at end of land-1, end of land, hitsplat on land or land+1): {(0, 0, 'hit'): 1, (0, 1, 'hit'): 1, (1, 1, 'hit'): 2, (1, 2, 'hit'): 1, (2, 1, '-'): 1, (2, 2, '-'): 16, (2, 2, 'hit'): 2, (2, 3, '-'): 3, (3, 2, '-'): 2, (3, 3, '-'): 11, (3, 3, 'hit'): 2, (3, 5, '-'): 1, (4, 2, '-'): 1, (4, 3, '-'): 4, (4, 4, '-'): 13, (4, 5, '-'): 3, (4, 6, '-'): 4, (5, 3, '-'): 2, (5, 4, '-'): 2, (5, 5, '-'): 20, (5, 5, 'hit'): 2, (5, 6, '-'): 2, (5, 7, '-'): 1, (6, 4, '-'): 1, (6, 5, '-'): 2, (6, 6, '-'): 8, (6, 6, 'hit'): 2, (7, 6, '-'): 1, (7, 6, 'hit'): 1, (7, 7, '-'): 2, (8, 8, 'hit'): 1, (10, 10, '-'): 1}
+  spark damage on me (blast within 1 at end of land-1): [13, 14, 14, 15, 16]
+== heals
+  820.txt lean 2680 base 0: heals [(3, '6 85'), (6, '6 85'), (9, '6 85'), (12, '6 85'), (15, '6 85'), (18, '6 85')] (rise +21)
+  820.txt lean 2761 base 0: heals [(3, '6 85'), (6, '6 85'), (9, '6 85'), (12, '6 85'), (15, '6 85'), (18, '6 85')] (rise +21)
+  820.txt lean 2846 base 0: heals [(3, '6 85'), (6, '6 85'), (9, '6 85'), (12, '6 85'), (15, '6 85')] (rise +18)
+  820.txt lean 2924 base 0: heals [(3, '6 85'), (6, '6 85'), (9, '6 85')] (rise +12)
+  820.txt lean 2996 base 0: heals [(3, '6 85'), (6, '6 85'), (9, '6 85'), (12, '6 85')] (rise +15)
+  820.txt lean 3079 base 0: heals [(3, '6 85'), (6, '6 85'), (9, '6 85'), (12, '6 85')] (rise +15)
+== hits on the raider
+  820.txt   2635 id=16   2  me (3281, 5290) box 0  form raids_tekton_walking_standard
+  820.txt   2636 id=16   1  me (3281, 5290) box 0  form raids_tekton_walking_standard
+  820.txt   2662 id=16   2  me (3281, 5290) box 1  form raids_tekton_fighting_standard
+  820.txt   2668 id=16   8  me (3281, 5290) box 0  form raids_tekton_walking_standard
+  820.txt   2678 id=16   3  me (3281, 5297) box 0  form raids_tekton_walking_standard
+  820.txt   2717 id=16  40  me (3278, 5292) box 1  form raids_tekton_fighting_enraged
+  820.txt   2726 id=16  42  me (3278, 5292) box 1  form raids_tekton_fighting_standard
+  820.txt   2806 id=16   9  me (3279, 5290) box 1  form raids_tekton_fighting_enraged
+  820.txt   2812 id=12   0  me (3279, 5290) box 1  form raids_tekton_fighting_standard
+  820.txt   2821 id=16  18  me (3279, 5290) box 1  form raids_tekton_fighting_standard
+  820.txt   2833 id=12   0  me (3279, 5290) box 1  form raids_tekton_fighting_standard
+  820.txt   2836 id=12   0  me (3279, 5290) box 1  form raids_tekton_fighting_standard
+  820.txt   2874 id=16  48  me (3279, 5292) box 1  form raids_tekton_fighting_enraged
+  820.txt   2883 id=16  39  me (3279, 5292) box 1  form raids_tekton_fighting_enraged
+  820.txt   2949 id=12   0  me (3279, 5292) box 1  form raids_tekton_fighting_enraged
+  820.txt   2955 id=12   0  me (3279, 5292) box 1  form raids_tekton_fighting_enraged
+  820.txt   2958 id=16  39  me (3279, 5292) box 1  form raids_tekton_fighting_enraged
+  820.txt   2961 id=12   0  me (3279, 5292) box 1  form raids_tekton_fighting_standard
+  820.txt   2988 id=12   0  me (3279, 5292) box 1  form raids_tekton_fighting_standard
+  820.txt   2991 id=16  23  me (3279, 5292) box 2  form raids_tekton_walking_standard
+  820.txt   3040 id=12   0  me (3278, 5288) box 1  form raids_tekton_fighting_standard
+  820.txt   3049 id=12   0  me (3278, 5288) box 1  form raids_tekton_fighting_standard
+  3285.txt  14924 id=12   0  me (3279, 5296) box 1  form raids_tekton_fighting_standard
+  3285.txt  14959 id=16   9  me (3319, 5446) box 146  form raids_tekton_fighting_standard
+  3285.txt  14961 id=16   9  me (3318, 5443) box 143  form raids_tekton_fighting_standard
+  3285.txt  14963 id=16   9  me (3317, 5455) box 155  form raids_tekton_fighting_standard
+  3285.txt  14965 id=16   9  me (3317, 5451) box 151  form raids_tekton_fighting_standard
+  3285.txt  14967 id=16   9  me (3305, 5450) box 150  form raids_tekton_fighting_standard
+  3389.txt   3091 id=12   0  me (3314, 5288) box None  form raids_tekton_fighting_standard
+  3389.txt   3097 id=12   0  me (3314, 5288) box None  form raids_tekton_fighting_standard
+  3389.txt   3100 id=12   0  me (3314, 5288) box None  form raids_tekton_fighting_standard
+  3389.txt   3106 id=12   0  me (3314, 5288) box None  form raids_tekton_fighting_standard
+  3389.txt   3109 id=12   0  me (3314, 5288) box None  form raids_tekton_fighting_standard
+  unexplained: {(2, 'raids_tekton_walking_standard', 0): 1, (1, 'raids_tekton_walking_standard', 0): 1, (2, 'raids_tekton_fighting_standard', 1): 1, (8, 'raids_tekton_walking_standard', 0): 1, (3, 'raids_tekton_walking_standard', 0): 1, (40, 'raids_tekton_fighting_enraged', 1): 1, (42, 'raids_tekton_fighting_standard', 1): 1, (9, 'raids_tekton_fighting_enraged', 1): 1, (0, 'raids_tekton_fighting_standard', 1): 8, (18, 'raids_tekton_fighting_standard', 1): 1, (48, 'raids_tekton_fighting_enraged', 1): 1, (39, 'raids_tekton_fighting_enraged', 1): 2, (0, 'raids_tekton_fighting_enraged', 1): 2, (23, 'raids_tekton_walking_standard', 2): 1, (9, 'raids_tekton_fighting_standard', 146): 1, (9, 'raids_tekton_fighting_standard', 143): 1, (9, 'raids_tekton_fighting_standard', 155): 1, (9, 'raids_tekton_fighting_standard', 151): 1, (9, 'raids_tekton_fighting_standard', 150): 1, (0, 'raids_tekton_fighting_standard', None): 5}
+== death
+-- 820.txt death seq @3122 (raids_tekton_fighting_standard)
+    +-2 synth_sound id=2248
+    +-2 tekton seq tekton_ready_defend
+    +-1 synth_sound id=2526
+    +-1 tekton hit 17 20
+    +-1 tekton hit 13 0
+    +-1 tekton hit 13 0
+    +-1 tekton hit 17 13
+    +-1 tekton hit 17 5
+    +-1 tekton seq tekton_ready_defend
+    +0 message_game type=spam, message="As an Ironman, you don't get loot if other players helped you kill the monster."
+    +0 loc_add_change_v2 id=raids_tekton_walkblocker (30023), coord=(3281, 5297, 1), shape=10, rotation=0
+    +0 synth_sound id=263
+    +0 tekton hit 16 5
+    +0 tekton hit 17 4
+    +0 tekton seq tekton_death
+    +1 synth_sound id=2245
+    +1 synth_sound id=2247
+    +3 message_public type=0, message="oosp"
+    +3 message_game type=friendschatnotification, message="<col=ef20ff>As Tekton is slain by Ironman Z-Kris, his supplies are dropped for all.</col>"
+    +3 sound_area id=1021, loops=1, range=10, coord=(3272, 5295, 1)
+    +3 sound_area id=3821, loops=1, delay=5, range=10, coord=(3272, 5295, 1)
+    +3 loc_anim coord=(3272, 5295, 1), shape=10, rotation=0, anim=raids_crystal_smashing (7506)
+    +3 loc_add_change_v2 id=invisible_type8_nonblocking (29733), coord=(3280, 5282, 1), shape=10, rotation=0
+    +3 loc_add_change_v2 id=raids_tekton_book (30022), coord=(3280, 5296, 1), shape=10, rotation=1
+    +3 loc_del coord=(3281, 5297, 1), shape=10, rotation=0
+    +3 obj_add_specific id=raids_vial_overload_strong_4 (20996), count=1, despawn=2999, neverturnpublic=false, coord=(3280, 5296, 1)
+    +3 obj_add_specific id=raids_vial_overload_strong_4 (20996), count=1, despawn=2999, neverturnpublic=false, coord=(3280, 5296, 1)
+    +3 obj_add_specific id=raids_vial_revitalisation_strong_4 (20960), count=1, despawn=2999, neverturnpublic=false, coord=(3280, 5296, 1)
+    +3 obj_add_specific id=raids_vial_prayer_strong_4 (20972), count=1, despawn=2999, neverturnpublic=false, coord=(3280, 5296, 1)
+    +3 obj_add_specific id=raids_stinkhorn_mushroom (20910), count=5, despawn=2999, neverturnpublic=false, coord=(3280, 5296, 1)
+    +3 tekton del raids_tekton_fighting_standard (3281, 5297)->(3281, 5297) angle=0
+    +4 message_public type=0, message="lmao"
+    +7 loc_add_change_v2 id=invisible_type8_nonblocking (29733), coord=(3272, 5295, 1), shape=10, rotation=0
+    +7 obj_del id=raids_vial_overload_strong_4 (20996), count=1, coord=(3280, 5296, 1)
+    +7 synth_sound id=2582
+    +10 loc_add_change_v2 id=raids_corridor_rocks_cleared (29739), coord=(3279, 5217, 1), shape=10, rotation=3
+-- 3285.txt death seq @14940 (raids_tekton_fighting_standard)
+    +-2 synth_sound id=2813, delay=20
+    +-2 tekton hit 16 45
+    +-1 synth_sound id=10043
+    +-1 tekton seq tekton_ready_defend
+    +0 loc_add_change_v2 id=raids_tekton_walkblocker (30023), coord=(3281, 5300, 1), shape=10, rotation=0
+    +0 synth_sound id=263
+    +0 tekton hit 16 36
+    +0 tekton seq tekton_death
+    +1 loc_add_change_v2 id=raids_tekton_fire (30021), coord=(3280, 5282, 1), shape=10, rotation=0
+    +1 loc_add_change_v2 id=raids_blockage_orange (30017), coord=(3272, 5295, 1), shape=10, rotation=0
+    +3 message_game type=friendschatnotification, message="<col=ef20ff>As Tekton is slain by Ironman Z-Kris, his supplies are dropped for all.</col>"
+    +3 message_game type=gamemessage, message="CA_ID:310|Congratulations, you've completed a master combat task: <col=0cc919>Anvil No More</col> (5 points)."
+    +3 loc_add_change_v2 id=raids_tekton_book (30022), coord=(3280, 5299, 1), shape=10, rotation=0
+    +3 loc_del coord=(3281, 5300, 1), shape=10, rotation=0
+    +3 obj_add_specific id=raids_vial_overload_strong_4 (20996), count=1, despawn=2999, neverturnpublic=false, coord=(3280, 5299, 1)
+    +3 obj_add_specific id=raids_vial_overload_strong_4 (20996), count=1, despawn=2999, neverturnpublic=false, coord=(3280, 5299, 1)
+    +3 obj_add_specific id=raids_vial_revitalisation_strong_4 (20960), count=1, despawn=2999, neverturnpublic=false, coord=(3280, 5299, 1)
+    +3 obj_add_specific id=raids_vial_prayer_strong_4 (20972), count=1, despawn=2999, neverturnpublic=false, coord=(3280, 5299, 1)
+    +3 obj_add_specific id=raids_stinkhorn_mushroom (20910), count=5, despawn=2999, neverturnpublic=false, coord=(3280, 5299, 1)
+    +3 synth_sound id=2244
+    +3 tekton del raids_tekton_fighting_standard (3281, 5300)->(3281, 5300) angle=0
+    +4 midi_song_v2 id=147, fadeoutdelay=0, fadeoutspeed=0, fadeindelay=0, fadeinspeed=0
+    +4 midi_jingle id=76, length=4,974ms
+    +5 loc_add_change_v2 id=invisible_type8_nonblocking (29733), coord=(3280, 5282, 1), shape=10, rotation=0
+    +5 sound_area id=1021, loops=1, range=10, coord=(3272, 5295, 1)
+    +5 sound_area id=3821, loops=1, delay=5, range=10, coord=(3272, 5295, 1)
+    +5 loc_anim coord=(3272, 5295, 1), shape=10, rotation=0, anim=raids_crystal_smashing (7506)
+    +9 loc_add_change_v2 id=invisible_type8_nonblocking (29733), coord=(3272, 5295, 1), shape=10, rotation=0
+    +10 loc_add_change_v2 id=raids_meat_tree_full (30012), coord=(3344, 5314, 1), shape=10, rotation=0
+    +10 loc_add_change_v2 id=invisible_type8_nonblocking (29733), coord=(3351, 5318, 1), shape=10, rotation=0
+    +10 obj_add_specific id=raids_stinkhorn_mushroom (20910), count=1, despawn=2706, neverturnpublic=false, coord=(3347, 5313, 1)
+    +11 loc_add_change_v2 id=raids_storage_hotspot (29769), coord=(3314, 5463, 1), shape=10, rotation=1
+-- 843.txt death seq @949 (raids_tekton_fighting_standard)
+    +-2 synth_sound id=9918
+    +-2 synth_sound id=6182, delay=30
+    +-2 tekton hit 12 0
+    +-2 tekton seq tekton_ready_defend
+    +-2 tekton spotanim id=fx_khopesh_lightning_special (3033)
+    +-1 loc_add_change_v2 id=raids_tekton_walkblocker (30023), coord=(3343, 5295, 1), shape=10, rotation=0
+    +-1 tekton hit 16 170
+    +-1 tekton seq tekton_attack_stab
+    +0 loc_add_change_v2 id=raids_blockage_orange (30017), coord=(3350, 5296, 1), shape=10, rotation=0
+    +0 loc_add_change_v2 id=raids_tekton_fire (30021), coord=(3343, 5281, 1), shape=10, rotation=0
+    +0 synth_sound id=263
+    +0 tekton hit 16 32
+    +0 tekton seq tekton_death
+    +2 loc_del coord=(3343, 5295, 1), shape=10, rotation=0
+    +3 message_game type=friendschatnotification, message="<col=ef20ff>As Tekton is slain by Ironman Z-Kris, his supplies are dropped for all.</col>"
+    +3 loc_add_change_v2 id=raids_tekton_book (30022), coord=(3344, 5296, 1), shape=10, rotation=3
+    +3 obj_add_specific id=raids_vial_overload_strong_4 (20996), count=1, despawn=2999, neverturnpublic=false, coord=(3344, 5296, 1)
+    +3 obj_add_specific id=raids_vial_overload_strong_4 (20996), count=1, despawn=2999, neverturnpublic=false, coord=(3344, 5296, 1)
+    +3 obj_add_specific id=raids_vial_revitalisation_strong_4 (20960), count=1, despawn=2999, neverturnpublic=false, coord=(3344, 5296, 1)
+    +3 obj_add_specific id=raids_vial_prayer_strong_4 (20972), count=1, despawn=2999, neverturnpublic=false, coord=(3344, 5296, 1)
+    +3 obj_add_specific id=raids_stinkhorn_mushroom (20910), count=5, despawn=2999, neverturnpublic=false, coord=(3344, 5296, 1)
+    +3 tekton del raids_tekton_fighting_standard (3343, 5295)->(3343, 5295) angle=1024
+    +4 sound_area id=1021, loops=1, range=10, coord=(3350, 5296, 1)
+    +4 sound_area id=3821, loops=1, delay=5, range=10, coord=(3350, 5296, 1)
+    +4 loc_anim coord=(3350, 5296, 1), shape=10, rotation=0, anim=raids_crystal_smashing (7506)
+    +4 loc_add_change_v2 id=invisible_type8_nonblocking (29733), coord=(3343, 5281, 1), shape=10, rotation=0
+    +7 message_game type=engine, message="I can't reach that!"
+    +8 loc_add_change_v2 id=invisible_type8_nonblocking (29733), coord=(3350, 5296, 1), shape=10, rotation=0
+    +10 loc_add_change_v2 id=raids_icedemon_snow (29876), coord=(3345, 5365, 0), shape=10, rotation=0
+    +10 loc_add_change_v2 id=raids_storage_hotspot (29769), coord=(3343, 5365, 0), shape=10, rotation=2
+    +11 loc_add_change_v2 id=raids_storage_hotspot (29769), coord=(3343, 5365, 0), shape=10, rotation=2
+-- 3389.txt death seq @3122 (raids_tekton_walking_standard)
+    +0 synth_sound id=263
+    +0 tekton seq tekton_death
+    +1 message_game type=spam, message="You bite a chunk out of the corrupted shark, but it quickly regrows."
+    +1 message_game type=spam, message="You're temporarily immunised against poison."
+    +1 message_game type=spam, message="You've become immunised against disease."
+    +1 message_game type=spam, message="You drink some of your Sanfew Serum."
+    +1 message_game type=spam, message="Bottomless Brew prevents your potion from being consumed."
+    +1 loc_add_change_v2 id=raids_tekton_fire (30021), coord=(3304, 5285, 1), shape=10, rotation=0
+    +1 loc_add_change_v2 id=raids_blockage_orange (30017), coord=(3305, 5311, 1), shape=10, rotation=0
+    +1 synth_sound id=2393
+    +1 synth_sound id=2401
+    +3 message_game type=friendschatnotification, message="<col=ef20ff>As Tekton is slain by Ironman Z-Kris, his supplies are dropped for all.</col>"
+    +3 loc_add_change_v2 id=raids_tekton_book (30022), coord=(3305, 5303, 1), shape=10, rotation=2
+    +3 obj_add_specific id=raids_vial_overload_strong_4 (20996), count=1, despawn=2999, neverturnpublic=false, coord=(3305, 5303, 1)
+    +3 obj_add_specific id=raids_vial_overload_strong_4 (20996), count=1, despawn=2999, neverturnpublic=false, coord=(3305, 5303, 1)
+    +3 obj_add_specific id=raids_vial_revitalisation_strong_4 (20960), count=1, despawn=2999, neverturnpublic=false, coord=(3305, 5303, 1)
+    +3 obj_add_specific id=raids_vial_prayer_strong_4 (20972), count=1, despawn=2999, neverturnpublic=false, coord=(3305, 5303, 1)
+    +3 obj_add_specific id=raids_stinkhorn_mushroom (20910), count=5, despawn=2999, neverturnpublic=false, coord=(3305, 5303, 1)
+    +3 tekton del raids_tekton_walking_standard (3306, 5302)->(3306, 5302) angle=0
+    +5 loc_add_change_v2 id=invisible_type8_nonblocking (29733), coord=(3304, 5285, 1), shape=10, rotation=0
+    +5 sound_area id=1021, loops=1, range=10, coord=(3305, 5311, 1)
+    +5 sound_area id=3821, loops=1, delay=5, range=10, coord=(3305, 5311, 1)
+    +5 loc_anim coord=(3305, 5311, 1), shape=10, rotation=0, anim=raids_crystal_smashing (7506)
+    +6 message_game type=engine, message="I can't reach that!"
+    +7 message_game type=engine, message="I can't reach that!"
+    +8 message_game type=engine, message="I can't reach that!"
+    +9 loc_add_change_v2 id=invisible_type8_nonblocking (29733), coord=(3305, 5311, 1), shape=10, rotation=0
+    +9 loc_add_change_v2 id=raids_lasercrabs_bigcrystal_1 (29753), coord=(3346, 5360, 2), shape=10, rotation=0
