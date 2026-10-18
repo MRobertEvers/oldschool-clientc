@@ -58,6 +58,7 @@ end
 return {
     id = "cox_vespula_duo",
     fixture = "fresh_lumbridge.ini",
+    party = 2,
     max_frames = 400000,
     setup = {
         "::clearinv",
