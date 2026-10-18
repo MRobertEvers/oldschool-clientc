@@ -38,6 +38,8 @@ function QD.T2.exec.init(S)
         -- %varp5732_action_delay. A swing stamped at clock c sets it to c +
         -- the weapon's speed; the monitor stamps the swings it sees.
         swing_last = nil,       -- the server clock of my last measured swing
+        swing_last_npc = nil,   -- the npc type that swing was pressed at
+        attack_npc = nil,       -- the npc type of my last attack press
         swing_speed = nil,      -- the speed of what I attack / cast with now
         swing_next = nil,       -- W: the first clock my next swing may go out (nil: unknown)
         stunned_until = -1,     -- a room that measures a stun sets this (M5)
@@ -759,6 +761,9 @@ function QD.T2.exec.emit(S, F, result, intents)
         -- a new attack / cast press this tick, and the weapon clock it met:
         -- the monitor stamps the swing it brings (input phase or tick phase)
         pressed = pressed, w = X.swing_next, still = still,
+        -- the attack's npc type (the monitor's swing_last_npc: a room that
+        -- tells a swing at one npc from one at another)
+        npc_id = (want.mode == "attack" and want.npc) and want.npc.npc_id or nil,
         -- a loc op under way: the monitor expects movement toward it
         loc = (want.mode == "loc" and want.x ~= nil) and { x = want.x, z = want.z, near = want.near } or nil,
     }

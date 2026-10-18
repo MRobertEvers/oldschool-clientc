@@ -50,6 +50,8 @@ EXTRA_DECLARATIONS = [
     # impact went out as sound 381, `creeper_attack`.
     "[command,sound_area](synth $sound, int $delay, coord $coord, int $range)",
     "[command,npc_setdeathtype](npc $type)",
+    "[command,npc_exactmove](coord $start, coord $end, int $start_cycle, int $end_cycle, int $direction)",
+    "[command,npc_headbar_from](int $hp)",
 ]
 
 DECL = re.compile(r"^\[command,(\.?)([A-Za-z0-9_]+)\]\s*(\([^)]*\))?\s*(\([^)]*\))?")

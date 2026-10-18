@@ -1,4 +1,4 @@
--- quest-driver / cox2_vespula: VESPULA, SOLO, on the v2 layers.
+-- quest-driver / cox2_vespula: VESPULA, solo or a party, on the v2 layers.
 --
 -- docs/minigames/cox/rooms/vespula_solver.md is the plan, vespula_spec.md the
 -- mechanics (rows Vn); docs/CONTENT_SOLVER_MANUAL.md the method. A QD.T2 room
@@ -15,6 +15,20 @@
 -- before it lands (the drain comes at me, its target). A grub she tagged
 -- before the enrage hatches ~69 ticks on (V8, RSProx 820): when the
 -- portal will not die first, a root run in an enrage window feeds it full.
+--
+-- THE INTENDED SOLVE (opts.method = "intended", a party: test/raids/
+-- cox_vespula_duo.lua; Synq 1:36:20, "how players were initially intended to
+-- attack the portal without Vespula being enraged"): shoot HER, from out of
+-- her reach, to 20%, where each hit may land her (V5); grounded 33 ticks (V6)
+-- every seat shoots the portal. Enraged she tags no grub, so the ENRAGE seat
+-- (opts.role "enrage") opens on the portal and re-hits it inside each renewal
+-- window, shooting her between; she re-enrages as she takes off. (The kit's
+-- crossbow reaches the portal, 9 on Longrange, only from under her or her
+-- reach: the enrage seat pays a stomp or two a refresh, never her ring.) The FEED
+-- seat (opts.role "feed") feeds every grub she tagged back to full from the
+-- roots -- full stops its drain, and enraged or grounded she cannot tag it
+-- again -- and shoots her between. Protect from Missiles against her ranged
+-- (grounded, she shoots).
 --
 -- Perception: npc rows (types, tiles, health bars, splats), locs (tendrils,
 -- boils, roots), my stats and prayers -- what a client is sent.
@@ -67,6 +81,14 @@ CV.V = {
     -- and every lapse of the enrage tags grubs. opts.method = "ground".)
     METHOD = "redemption", HER_VALUE = 30, HER_LOW_VALUE = 45, GROUND_PCT = 20, GROUND_TICKS = 33,
     REFRESH = 10, REFRESH_VALUE = 120, HEAL_FLOOR = 20, PREPOT_OVL_HP = 85,
+    -- the intended solve: hp kept over a ranged hit and a stomp; a flying
+    -- soldier (it heals the portal, V11) shot before her
+    DUO_BREW = 45, SOLDIER_VALUE = 60,
+    -- the feeder: while she can sting, every tagged grub kept over KEEP_HP
+    -- (a blossom a grub every ~35 ticks); while she cannot (grounded with
+    -- CALM_LEFT ticks to go, or enraged), fed to full, which stops its drain;
+    -- TRIP_DRAIN ticks of drain counted on top for the walk
+    KEEP_HP = 45, CALM_LEFT = 8, TRIP_DRAIN = 6, FEED_RETRY = 20, NO_TILE_RETRY = 3,
     -- the weapon (both the kit's, both on Longrange: +2, 9 tiles): the dragon
     -- crossbow (6 ticks, Rigour) or the trident of the swamp (4 ticks, Augury;
     -- the portal's magic defence bonus is its lowest, wiki)
@@ -317,8 +339,10 @@ function CV.observe(S, F)
         v.was_enraged = false
     end
     -- my last attack on the portal: my swing on the server's clock (the
-    -- executive's), the tick the content stamps
-    v.attack_t = S.x2 and S.x2.swing_last or v.attack_t
+    -- executive's), the tick the content stamps -- a swing AT THE PORTAL
+    -- (the intended solve shoots her too: a shot at her renews nothing, duo
+    -- seed 10 t209)
+    if S.x2 and S.x2.swing_last and S.x2.swing_last_npc == ids.portal then v.attack_t = S.x2.swing_last end
     -- the portal's drains in the air (each lands 2 ticks after its throw on
     -- the tile it was thrown at; a row read on its arrival tick counts 30
     -- cycles gone)
@@ -428,8 +452,39 @@ function CV.predict(S, F, B)
     -- (grounded: no stomp until she takes off, GROUND_TICKS from the landing)
     local first = now + 1
     if ves and ves.npc_id == ids.walking and v.land_t then first = math.max(first, v.land_t + V.GROUND_TICKS + 1) end
+    -- (the intended solve's enrage seat: its own portal swing enrages her IN
+    -- PLACE the tick after (RSProx 843, 3389), and between two cycles she
+    -- flies one tick and is enraged again at once (820) -- her reach stands
+    -- where she hovers now, from the next tick: duo seed 0 t119 stepped on
+    -- her ring in that one flying tick)
+    if ves and ves.npc_id == ids.flying and v.method == "intended" and v.role == "enrage" then
+        hx, hz = ves.x, ves.z
+        last = now + h
+    end
     if last and first > last then last = nil end
-    if last then
+    local homing = last and v.method == "intended" and enraged and (ves.x ~= v.home.x or ves.z ~= v.home.z)
+    if homing then
+        -- (the intended solve: enraged away from home -- in place, where a
+        -- portal swing found her -- she flies home a tile a tick (RSProx
+        -- 820, 843), and her reach goes with her: each tick both the tile
+        -- she leaves and the one she takes. Duo seed 4 t89: a seat backing
+        -- off a tile a tick from a still hazard was stung)
+        local function her_at(k)
+            return ves.x + math.max(-k, math.min(k, v.home.x - ves.x)), ves.z + math.max(-k, math.min(k, v.home.z - ves.z))
+        end
+        for t = first, last do
+            local ax, az = her_at(t - now - 1)
+            local bx, bz = her_at(t - now)
+            local x0, z0, x1, z1 = math.min(ax, bx), math.min(az, bz), math.max(ax, bx) + 4, math.max(az, bz) + 4
+            B.hit({ name = "stomp", x0 = x0, z0 = z0, x1 = x1, z1 = z1, t0 = t, t1 = t,
+                    dmg_exp = V.STOMP_EXP, dmg_max = V.STOMP_MAX })
+            for _, r in ipairs({ { x0, z1 + 1, x1, z1 + 1 }, { x0, z0 - 1, x1, z0 - 1 },
+                                 { x0 - 1, z0, x0 - 1, z1 }, { x1 + 1, z0, x1 + 1, z1 } }) do
+                B.hit({ name = "sting", x0 = r[1], z0 = r[2], x1 = r[3], z1 = r[4], t0 = t, t1 = t,
+                        dmg_exp = V.STING_EXP, dmg_max = V.STING_MAX, forbid = true })
+            end
+        end
+    elseif last then
         -- THE STOMP (V13): her 25 tiles every enraged tick. With Redemption lit
         -- and prayer up, at REDEMPTION_HP or more a stomp cannot kill (it
         -- fires Redemption instead): its max is no lethal risk then
@@ -488,6 +543,8 @@ function CV.predict(S, F, B)
     -- the room less her footprint and its ring, as four bands)
     if ves and not enraged and CV.in_room(v, F.me.x, F.me.z) then
         local r = v.room
+        -- (Protect from Missiles halves it, read at the landing: NR 0.5)
+        local prot = F.lit.protectfrommissiles and 2 or 1
         local rects = { { r.ox, r.oz, r.ox + 31, r.oz + 31 } }
         if ves.npc_id == ids.walking then
             local x0, z0, x1, z1 = ves.x - 1, ves.z - 1, ves.x + 5, ves.z + 5
@@ -499,7 +556,7 @@ function CV.predict(S, F, B)
                 for _, q in ipairs(rects) do
                     if q[3] >= q[1] and q[4] >= q[2] then
                         B.hit({ name = "ranged", x0 = q[1], z0 = q[2], x1 = q[3], z1 = q[4], t0 = t, t1 = t,
-                                dmg_exp = V.RANGED_EXP, dmg_max = V.RANGED_MAX })
+                                dmg_exp = V.RANGED_EXP // prot, dmg_max = V.RANGED_MAX // prot })
                     end
                 end
             end
@@ -630,14 +687,51 @@ function CV.feed_tile(S, F, g)
         cands[#cands + 1] = { g.x + 3, g.z + k, g.x + 3, g.z + 1 }
     end
     local best, bd = nil, nil
+    -- (enraged she is in reach where she hovers now, which is not her home
+    -- while she flies there: enraged in place beside the grub she just
+    -- tagged, duo seed 0 t104 -- both are measured)
+    local cur = v.ves and v.ves.npc_id == S.ids.enraged and v.ves or nil
+    local function off(x, z)
+        local d = CV.gap(x, z, v.home.x, v.home.z, 5)
+        if cur then d = math.min(d, CV.gap(x, z, cur.x, cur.z, 5)) end
+        return d
+    end
     -- (last, a tile whose side's middle IS in her reach: a sting risked
     -- per blossom beats a soldier -- r7 seeds 0 and 2 hatched one, 381 and
     -- 278 taken, against 282 and 270 with the feed and one sting)
-    for _, tier in ipairs({ { 3, 2 }, { 2, 2 }, { 2, -1 } }) do
+    -- (grounded with CALM_LEFT ticks to go she reaches no one: any side
+    -- will do -- the thru room's grub beside her hover is fed only then,
+    -- duo seed 10; the takeoff's predicted reach walks me off before it)
+    -- (then "reach": the tile and its side's middle off her reach exactly --
+    -- under her or her edge ring, corners out -- where she hovers and at
+    -- home: the thru room's grub beside her hover has its corner tile, duo
+    -- seed 10)
+    -- (last, "under": off her ring, under her allowed -- a stomp or two,
+    -- never the sting: the thru room's grub beside her hover has every
+    -- other side in the void, duo seed 10)
+    local tiers = { { 3, 2 }, { 2, 2 }, "reach", { 2, -1 }, "under" }
+    if v.ves and v.ves.npc_id == S.ids.walking and v.land_t
+        and v.land_t + CV.V.GROUND_TICKS - F.tick >= CV.V.CALM_LEFT then
+        tiers = { { -9, -9 } }
+    end
+    local function in_reach(x, z, under_ok)
+        for _, h in ipairs({ v.home, cur }) do
+            if h and ((not under_ok and x >= h.x and x <= h.x + 4 and z >= h.z and z <= h.z + 4) or CV.ring(h.x, h.z, x, z)) then
+                return true
+            end
+        end
+        return false
+    end
+    for _, tier in ipairs(tiers) do
     if best == nil then
     for _, c in ipairs(cands) do
-        if CV.in_room(v, c[1], c[2]) and CV.gap(c[1], c[2], v.home.x, v.home.z, 5) >= tier[1]
-            and CV.gap(c[3], c[4], v.home.x, v.home.z, 5) >= tier[2]
+        local ok
+        if tier == "reach" or tier == "under" then
+            ok = not in_reach(c[1], c[2], tier == "under") and not in_reach(c[3], c[4], tier == "under")
+        else
+            ok = off(c[1], c[2]) >= tier[1] and off(c[3], c[4]) >= tier[2]
+        end
+        if CV.in_room(v, c[1], c[2]) and ok
             and not (v.void_set and v.void_set[c[1] .. ":" .. c[2]]) then
             local rr, route = api_drive.route(c[1], c[2])
             local exact = rr == "ok" and route and (route.nearest == nil or route.nearest == false or route.nearest == 0)
@@ -648,6 +742,96 @@ function CV.feed_tile(S, F, g)
     end
     end
     return best
+end
+
+-- THE FEEDER (the intended solve, opts.role "feed"): the blossoms its tagged
+-- grubs want now, picked from the roots and fed, lowest grub first. True when
+-- it took the tick (intents filled), false to let the seat shoot.
+function CV.feeder(S, F, B, intents, blossoms)
+    local v, V, ids = S.v, CV.V, S.ids
+    local now = F.tick
+    -- (a fed blossom: the count fell while feeding that grub -- counted on
+    -- it, the bar does not reach the client)
+    if v.feed_g and v.feed_bl and blossoms < v.feed_bl then
+        local g0 = v.feed_g
+        g0.hp_base = math.min(V.GRUB_HP, CV.grub_hp(S, F, g0) + (v.feed_bl - blossoms) * V.BLOSSOM)
+        g0.hp_t = now
+        v.feed_since = now
+    end
+    v.feed_bl = blossoms
+    local grounded = v.ves and v.ves.npc_id == ids.walking
+    local calm = (v.ves and v.ves.npc_id == ids.enraged)
+        or (grounded and v.land_t and v.land_t + V.GROUND_TICKS - now >= V.CALM_LEFT)
+    local want, best, bhp = 0, nil, nil
+    local held_g, held_hp = nil, nil
+    for _, g in pairs(v.grub) do
+        if g.stung and g.id == ids.grub_infected and (g.retry_t or -1) <= now then
+            local hp = CV.grub_hp(S, F, g) - V.TRIP_DRAIN
+            local n = 0
+            if calm then
+                n = math.max(0, math.ceil((V.GRUB_HP - hp) / V.BLOSSOM))
+            elseif hp < V.KEEP_HP then
+                n = math.ceil((V.KEEP_HP + V.BLOSSOM - hp) / V.BLOSSOM)
+            end
+            if n > 0 then
+                want = want + n
+                if bhp == nil or hp < bhp then best, bhp = g, hp end
+                if g == v.feed_g then held_g, held_hp = g, hp end
+            end
+        end
+    end
+    -- (calm, the grub in hand is fed to full before the next: full stops its
+    -- drain for good while she cannot tag it again -- a blossom a grub,
+    -- lowest first, kept three draining as fast as one seat feeds, duo seed
+    -- 10 -- unless the lowest is down to its walk)
+    if calm and held_g and best and held_g ~= best
+        and bhp > QD.raid._tob_cheb(F.me.x, F.me.z, best.x + 1, best.z + 1) + 2 + V.TRIP_DRAIN * 2 then
+        best, bhp = held_g, held_hp
+    end
+    if best == nil then
+        v.feed_g, v.feed_since = nil, nil
+        return false
+    end
+    -- the blossoms first, while a slot is free and some grub still wants more
+    -- than is held -- but a held blossom goes to the lowest grub once its hp
+    -- left is the walk there (a tile a tick) and a margin: duo seed 10 picked
+    -- for all four for 17 ticks across the room while one hatched
+    local walk = QD.raid._tob_cheb(F.me.x, F.me.z, best.x + 1, best.z + 1) + 2
+    local urgent = blossoms > 0 and bhp <= walk + V.TRIP_DRAIN * 2
+    if blossoms < want and CV.free_slots() > 0 and not urgent then
+        local root = CV.nearest_loc(S, F, ids.root)
+        if root then
+            intents.mode = "roots"
+            intents.world_op = { kind = "loc", id = ids.root, op = 1, x = root.x, z = root.z }
+            return true
+        end
+    end
+    if blossoms == 0 then
+        if v.feed_why ~= now // 10 then
+            v.feed_why = now // 10
+            QD.raid._tob_trace(S, now, string.format("feeder idle: want %d, free %d, no root in bloom", want, CV.free_slots()))
+        end
+        return false
+    end
+    local g = best
+    if v.feed_g ~= g then v.feed_g, v.feed_since = g, now end
+    intents.mode = "feed"
+    local ft = CV.feed_tile(S, F, g)
+    if ft == nil or now - v.feed_since > V.FEED_STALL * 3 then
+        -- (no tile out of her reach, or the route never reaches: another
+        -- grub for a while, or the seat shoots)
+        -- (no tile is mostly her, enraged beside it, on her way home)
+        QD.raid._tob_trace(S, now, (ft and "feed stalled at " or "no feed tile at ") .. g.x .. "," .. g.z)
+        g.retry_t = now + (ft and V.FEED_RETRY or V.NO_TILE_RETRY)
+        v.feed_g, v.feed_since = nil, nil
+        return false
+    end
+    if F.me.x == ft.x and F.me.z == ft.z then
+        intents.world_op = { kind = "npc", id = g.id, op = 1, x = g.row.x, z = g.row.z }
+    else
+        B.pull({ name = "feed", x = ft.x, z = ft.z, size = 1, weight = V.FEED_PULL, t0 = now + 1, t1 = now + B.h })
+    end
+    return true
 end
 
 -- Doses held of a potion family (4 for a full vial).
@@ -666,6 +850,8 @@ function CV.strategy(S, F, B)
     -- hit -- dropped further once no restore is held, the shared rule)
     if v.method == "ground" then
         intents.brew_below = QD.COX.brew_floor(S, V.HEAL_FLOOR)
+    elseif v.method == "intended" then
+        intents.brew_below = QD.COX.brew_floor(S, V.DUO_BREW)
     elseif not (v.ves and v.ves.npc_id == ids.enraged) then
         intents.brew_below = V.CALM_BREW
     end
@@ -693,8 +879,11 @@ function CV.strategy(S, F, B)
     -- 40 points, and a restore after a Redemption gives fewer)
     -- (Rigour lit over BOOST_ON points, let go under BOOST_OFF: what the
     -- enhance gives back keeps Redemption, not Rigour, alive)
-    if F.prayer > 0 and not F.lit.redemption then
-        intents.pray = "redemption"
+    -- (the intended solve: Protect from Missiles in Redemption's place --
+    -- no stomp is taken on purpose, and her ranged is the room's damage)
+    local first_pray = v.method == "intended" and "protectfrommissiles" or "redemption"
+    if F.prayer > 0 and not F.lit[first_pray] then
+        intents.pray = first_pray
     elseif F.prayer >= V.BOOST_ON and not F.lit[W.boost] then
         intents.pray = W.boost
     elseif F.prayer < V.BOOST_OFF and F.lit[W.boost] then
@@ -807,7 +996,9 @@ function CV.strategy(S, F, B)
     -- ticks before her 20-tick cycle ends)
     local deadline = CV.renew_deadline(S, F)
     local free = deadline and (deadline - V.RENEW + 1 - F.tick) or 0
-    if v.run == nil and nh and free >= V.RUN_MIN and F.hp >= V.RUN_HP and (eta == nil or (eta > V.ROOT_FINISH and F.tick + eta > nh.t - V.ROOT_EARLY)) then
+    if v.method == "intended" then
+        -- (the intended solve feeds through CV.feeder, below)
+    elseif v.run == nil and nh and free >= V.RUN_MIN and F.hp >= V.RUN_HP and (eta == nil or (eta > V.ROOT_FINISH and F.tick + eta > nh.t - V.ROOT_EARLY)) then
         local target = F.tick + (eta or V.HATCH) + V.ROOT_RUN + V.ROOT_MARGIN
         list = {}
         for _, g in pairs(v.grub) do
@@ -843,6 +1034,7 @@ function CV.strategy(S, F, B)
                 total, table.concat(parts, " "), tostring(eta and math.floor(eta))))
         end
     end
+    if v.method == "intended" and v.role == "feed" and CV.feeder(S, F, B, intents, blossoms) then return intents end
     -- a run in progress YIELDS to her renewal window: the portal first (the
     -- run, its blossoms and its grub kept), then on with the run
     -- (soon enough to walk back into range: two tiles a tick, and a swing)
@@ -855,7 +1047,7 @@ function CV.strategy(S, F, B)
         and (v.attack_t or -1) < deadline - V.RENEW + 1) or F.hp < V.RUN_HP / 2)
     if yield and v.yield_at ~= deadline then
         v.yield_at = deadline
-        QD.raid._tob_trace(S, F.tick, "root run yields to her renewal window " .. deadline)
+        QD.raid._tob_trace(S, F.tick, "root run yields (renewal window " .. tostring(deadline) .. ", hp " .. F.hp .. ")")
     end
     if v.run and not yield then
         local list = v.run.list
@@ -878,13 +1070,13 @@ function CV.strategy(S, F, B)
         local g = list[1]
         if g == nil or (v.picking == false and blossoms == 0) then
             v.run, v.picking, v.feed_g, v.feed_since = nil, nil, nil, nil
-        elseif v.picking ~= false and blossoms == 0 and CV.free_slots() == 0
+        elseif v.picking ~= false and blossoms < need and CV.free_slots() == 0
             and QD.raid._tob_first(S, { ids.vial_empty }) and not intents.drink then
             -- (a spent gourd vial makes the slot: never kit)
             intents.mode = "roots"
             intents.drop = ids.vial_empty
             return intents
-        elseif v.picking ~= false and blossoms == 0 and CV.free_slots() > 0 then
+        elseif v.picking ~= false and blossoms < need and CV.free_slots() > 0 then
             intents.mode = "roots"
             v.picking = true
             local root = CV.nearest_loc(S, F, ids.root)
@@ -893,8 +1085,8 @@ function CV.strategy(S, F, B)
                 return intents
             end
             v.picking = false
-        elseif v.picking ~= false and blossoms == 0 then
-            v.picking = false   -- (no slot to pick into)
+        elseif v.picking ~= false and blossoms < need then
+            v.picking = false   -- (no slot to pick into: feed what is held)
         end
         if v.run and blossoms > 0 then
             v.picking = false
@@ -936,11 +1128,41 @@ function CV.strategy(S, F, B)
     if QD.raid._tob_worn(S, ids[W.obj]) then
         local far = QD.raid._tob_cheb(F.me.x, F.me.z, v.safe.x, v.safe.z) > V.SAFE_NEAR
             and CV.gap(F.me.x, F.me.z, v.home.x, v.home.z, 5) > 0
-        if v.method ~= "ground" and far and v.ves and v.ves.npc_id == ids.enraged then
+        if v.method == "redemption" and far and v.ves and v.ves.npc_id == ids.enraged then
             -- (away from the safe tile -- a feed, a root -- the way back is
             -- walked first: an attack pressed from there is the server's
             -- route to range, which can end on her sting ring; r3 seed 2)
             intents.mode = "back"
+        elseif v.method == "intended" then
+            -- THE INTENDED SOLVE: grounded, the portal; flying, a soldier
+            -- (it heals the portal), the enrage seat's portal hit when her
+            -- renewal window is open (or she is not enraged), else her
+            local enraged = v.ves and v.ves.npc_id == ids.enraged
+            local deadline = CV.renew_deadline(S, F)
+            local refresh = v.role == "enrage" and (not enraged
+                or (deadline and F.tick >= deadline - V.RENEW + 1 and (v.attack_t or -1) < deadline - V.RENEW + 1))
+            local sol = nil
+            for _, s in ipairs(v.soldiers) do
+                if s.npc_id == ids.soldier and (sol == nil
+                    or QD.raid._tob_cheb(F.me.x, F.me.z, s.x, s.z) < QD.raid._tob_cheb(F.me.x, F.me.z, sol.x, sol.z)) then
+                    sol = s
+                end
+            end
+            if grounded then
+                intents.mode = "ground"
+                B.target({ name = "portal", npc = v.portal, size = 4, range = W.range, speed = W.speed, value = V.SWING_VALUE })
+            elseif sol then
+                intents.mode = "soldier"
+                B.target({ name = "soldier", npc = sol, size = 3, range = W.range, speed = W.speed, value = V.SOLDIER_VALUE })
+            elseif refresh then
+                intents.mode = "refresh"
+                B.target({ name = "portal", npc = v.portal, size = 4, range = W.range, speed = W.speed, value = V.REFRESH_VALUE })
+            elseif v.ves then
+                intents.mode = "her"
+                local low = v.ves_pct and v.ves_pct <= V.GROUND_PCT
+                B.target({ name = "vespula", npc = v.ves, size = 5, range = W.range, speed = W.speed,
+                           value = low and V.HER_LOW_VALUE or V.HER_VALUE })
+            end
         elseif v.method ~= "ground" then
             B.target({ name = "portal", npc = v.portal, size = 4, range = W.range, speed = W.speed, value = V.SWING_VALUE })
         else
@@ -967,7 +1189,11 @@ function CV.strategy(S, F, B)
         end
         if v.first_swing == nil then v.first_swing = F.tick end
     end
-    if not (grounded and v.method == "ground") then
+    if not (grounded and v.method == "ground") and v.method ~= "intended" then
+        B.pull({ name = "safe", x = v.safe.x, z = v.safe.z, size = 1, weight = V.SAFE_PULL, t0 = F.tick + 1, t1 = F.tick + B.h })
+    elseif v.method == "intended" and (intents.mode == "refresh" or intents.mode == "ground") then
+        -- (the portal from across the room is past the plan's horizon: the
+        -- way there is the safe tile's, beside her hover)
         B.pull({ name = "safe", x = v.safe.x, z = v.safe.z, size = 1, weight = V.SAFE_PULL, t0 = F.tick + 1, t1 = F.tick + B.h })
     end
     if S.debug and F.tick % 5 == 0 then
@@ -1016,7 +1242,7 @@ QD.T2.register("cox_vespula", {
         S.who = "cox_vespula_solve"
         S.debug = opts.debug
         S.t2.plan_opts = { h = opts.h or CV.V.H, beam = opts.beam or CV.V.BEAM }
-        S.v = { weapon = opts.weapon or CV.V.WEAPON, method = opts.method or CV.V.METHOD, grub = {}, soldier_seen = {}, soldier_down = {}, soldiers_n = 0, splat_seen = {}, tags = 0,
+        S.v = { weapon = opts.weapon or CV.V.WEAPON, method = opts.method or CV.V.METHOD, role = opts.role, grub = {}, soldier_seen = {}, soldier_down = {}, soldiers_n = 0, splat_seen = {}, tags = 0,
                 dealt = 0, sting_hits = 0, redemptions = 0 }
     end,
 
@@ -1049,8 +1275,8 @@ QD.T2.register("cox_vespula", {
 
     summary = function(S)
         local v = S.v
-        return string.format("vespula: exit %s, %s, portal dealt %d, tags %d, soldiers %d, sting hits %d, redemptions %d, landings %d, room %s",
-            tostring(v.exit_open == true), v.method, v.dealt, v.tags, v.soldiers_n, v.sting_hits, v.redemptions, v.landings or 0,
+        return string.format("vespula: exit %s, %s%s, portal dealt %d, tags %d, soldiers %d, sting hits %d, redemptions %d, landings %d, room %s",
+            tostring(v.exit_open == true), v.method, v.role and (" (" .. v.role .. ")") or "", v.dealt, v.tags, v.soldiers_n, v.sting_hits, v.redemptions, v.landings or 0,
             v.room and (v.room.variant .. "/" .. v.room.turn) or "?")
     end,
 })

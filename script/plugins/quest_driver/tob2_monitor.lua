@@ -127,6 +127,9 @@ function QD.T2.monitor.check(S, F)
     -- swing after a fresh press one tick late ("unpredicted" at d+1, then
     -- "predicted, none" at d+2).
     F.my_swing = QD.T2.monitor.my_swing(S, F)
+    -- the npc my attack presses aim at, held until the next press: a swing
+    -- is at the last one pressed (S.x2.swing_last_npc)
+    if E and E.tick == d and E.pressed and E.npc_id then X.attack_npc = E.npc_id end
     if F.my_swing then
         M.swings = M.swings + 1
         local stamp = d
@@ -137,6 +140,7 @@ function QD.T2.monitor.check(S, F)
             stamp = d - 1
         end
         X.swing_last = stamp
+        X.swing_last_npc = X.attack_npc
         if X.swing_speed ~= nil then X.swing_next = stamp + X.swing_speed end
         F.my_swing_stamp = stamp
     end

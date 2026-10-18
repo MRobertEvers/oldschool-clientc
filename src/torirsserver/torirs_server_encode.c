@@ -5423,6 +5423,7 @@ enum
     V5_NPC_SAY = 0x2,
     V5_NPC_FACING = 0x8,
     V5_NPC_SEQUENCE = 0x80,
+    V5_NPC_EXACT_MOVE = 0x200,
     V5_NPC_OPS = 0x1000,
     V5_NPC_LEVEL_CHANGE = 0x8000,
     V5_NPC_SPOTANIM = 0x40000,
@@ -5799,6 +5800,8 @@ put_npc_extended_v5(
         flag |= V5_NPC_FACING;
     if( npc_v5_sends_ops(npc, force_face_latch) )
         flag |= V5_NPC_OPS;
+    if( classic & TORIRSSERVER_NMASK_EXACT_MOVE )
+        flag |= V5_NPC_EXACT_MOVE;
     if( npc_v5_sends_level(npc, force_face_latch) )
         flag |= V5_NPC_LEVEL_CHANGE;
     if( npc_v5_sends_headicon(npc, force_face_latch) )
@@ -5944,6 +5947,19 @@ put_npc_extended_v5(
                 fprintf(stderr, "  SPLAT noloot icon %d for %s over npc type %d\n", icon_type,
                         recipient->display_name, npc->type);
         }
+    }
+    if( flag & V5_NPC_EXACT_MOVE )
+    {
+        /* NpcExactMoveEncoder (RSProt 239): p1Alt3 dx1, p1 dz1, p1Alt1 dx2,
+         * p1 dz2, p2Alt3 delay1, p2Alt2 delay2, p2Alt2 direction. Written
+         * after the hitmarks and before the body block, the writer's order. */
+        rsab_p1_alt3(buf, npc->exact_dx1);
+        rsab_p1(buf, npc->exact_dz1);
+        rsab_p1_alt1(buf, npc->exact_dx2);
+        rsab_p1(buf, npc->exact_dz2);
+        rsab_p2_alt3(buf, npc->exact_delay1);
+        rsab_p2_alt2(buf, npc->exact_delay2);
+        rsab_p2_alt2(buf, npc->exact_direction);
     }
     if( flag & V5_NPC_BODY_CUSTOMISATION )
     {

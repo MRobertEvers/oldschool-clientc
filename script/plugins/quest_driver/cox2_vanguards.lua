@@ -9,7 +9,7 @@
 -- hitpoints exactly from its hitsplats, always hit the one with the MOST
 -- (with the style it is weak to), and the gap that resets the room (72 of
 -- 180) never opens: a hit on the highest can only leave the gap at most my
--- max hit. Draw one at a time (aggression is 3 tiles); pray against whoever
+-- max hit. Draw one at a time (aggression is 5 tiles); pray against whoever
 -- is swinging at me; keep out of a walking shell's 3x3.
 --
 -- Perception: npc rows (type = style, server tile, splats, facing, seq),
@@ -22,7 +22,7 @@ QD.COXVG = QD.COXVG or {}
 QD.COXVG.V = {
     H = 10, BEAM = 32,
     BASE = 180, GAP = 72,          -- floor(0.4 * 180): spec V11
-    AGGRO = 3, AGGRO_COST = 15,     -- spec V4: a tile within 3 of a fresh vanguard
+    AGGRO = 5, AGGRO_COST = 15,     -- a tile within 5 of a vanguard's 3x3 (RSProx RV-A1)
     HEAL_SPLAT = 6,                -- all.hitsplat.compack: 6 = hitsplat_heal
     SIZE = 3,
     -- my weapon per vanguard style (the triangle, spec header)
@@ -34,32 +34,35 @@ QD.COXVG.V = {
     -- every vanguard form's attack animation -> its style (spec V5-V7)
     ATTACK_SEQ = { vanguard_attack_melee = "melee", vanguard_attack_ranged = "ranged", vanguard_attack_magic = "magic" },
     LOOT_TICKS = 20,
-    -- the three holes' template SOUTH-WEST tiles by variant (spec V1;
-    -- cox_vanguards.rs2 ~cox_vanguard_tile)
-    HOLES = { [0] = { { 20, 16 }, { 12, 21 }, { 11, 11 } }, [1] = { { 20, 17 }, { 12, 21 }, { 12, 11 } },
-              [2] = { { 18, 12 }, { 12, 21 }, { 8, 12 } } },
+    -- the three holes' template SOUTH-WEST tiles by variant (cox_vanguards.rs2
+    -- ~cox_vanguard_tile: thru and cw recorded, RSProx RV-R1; ccw Near-Reality's)
+    HOLES = { [0] = { { 20, 16 }, { 12, 21 }, { 11, 11 } }, [1] = { { 20, 17 }, { 13, 21 }, { 12, 12 } },
+              [2] = { { 19, 12 }, { 13, 19 }, { 9, 12 } } },
     WAKE = 6,
 }
 
--- The tile to wake them from (template): within 6 of a hole's tile (spec V2)
--- and 4+ from every hole's 3x3 (outside the aggression range), nearest the
--- room's centre.
+-- The tile to wake them from (template): within 6 of a hole's tile (spec V2),
+-- in the aggression range of as FEW holes as can be (5 of a 3x3, RSProx
+-- RV-A1: no waking tile is outside all three; the recorded raiders woke them
+-- 2-5 out and fought all three), then nearest the room's centre.
 function QD.COXVG.wake_tile(variant)
     local V = QD.COXVG.V
     local holes = V.HOLES[variant]
-    local best, bd = nil, nil
+    local best, bn, bd = nil, nil, nil
     for lx = 6, 26 do
         for lz = 6, 26 do
-            local ok, wakes = true, false
+            local near, wakes, under = 0, false, false
             for _, h in ipairs(holes) do
                 local dx = math.max(h[1] - lx, lx - (h[1] + V.SIZE - 1), 0)
                 local dz = math.max(h[2] - lz, lz - (h[2] + V.SIZE - 1), 0)
-                if math.max(dx, dz) <= V.AGGRO then ok = false end
+                local g = math.max(dx, dz)
+                if g == 0 then under = true end
+                if g <= V.AGGRO then near = near + 1 end
                 if math.max(math.abs(lx - h[1]), math.abs(lz - h[2])) <= V.WAKE - 1 then wakes = true end
             end
-            if ok and wakes then
+            if wakes and not under then
                 local d = math.abs(lx - 16) + math.abs(lz - 16)
-                if best == nil or d < bd then best, bd = { lx, lz }, d end
+                if best == nil or near < bn or (near == bn and d < bd) then best, bn, bd = { lx, lz }, near, d end
             end
         end
     end
@@ -181,6 +184,9 @@ function QD.COXVG.observe(S, F)
             if kind == "walking" and s.kind ~= nil and s.kind ~= "walking" and s.kind ~= "dormant" then
                 s.hp = math.min(V.BASE, s.hp + 1)
                 v.shuffles_seen = (v.shuffles_seen or 0) + 1
+                -- the shell's first tick, and where it closed (its walk is
+                -- told from it: RSProx RV-S1..S3)
+                s.shelled, s.shell_x, s.shell_z = F.tick, x, z
             end
             if kind ~= "dormant" and kind ~= "walking" then s.style = kind end
             if kind == "walking" then v.walking = v.walking + 1
@@ -336,16 +342,18 @@ function QD.COXVG.hole_at(S, x, z)
     return nil
 end
 
--- A walking shell's route from (x, z) to (tx, tz): a tile a tick, diagonal
--- while both axes differ, then straight (the npc walk). -> { {x, z}, ... }
--- (step k = the end of tick now + k)
-function QD.COXVG.route(x, z, tx, tz, n)
+-- A walking shell's route from (x, z) to (tx, tz): `speed` tiles a tick (1
+-- walks, 2 runs), diagonal while both axes differ, then straight (the npc
+-- walk). -> { {x, z}, ... } (step k = the end of tick now + k)
+function QD.COXVG.route(x, z, tx, tz, n, speed)
     local out = {}
     for _ = 1, n do
-        if x == tx and z == tz then break end
-        if x < tx then x = x + 1 elseif x > tx then x = x - 1 end
-        if z < tz then z = z + 1 elseif z > tz then z = z - 1 end
+        for _ = 1, (speed or 1) do
+            if x < tx then x = x + 1 elseif x > tx then x = x - 1 end
+            if z < tz then z = z + 1 elseif z > tz then z = z - 1 end
+        end
         out[#out + 1] = { x, z }
+        if x == tx and z == tz then break end
     end
     return out
 end
@@ -395,29 +403,44 @@ function QD.COXVG.predict(S, F, B)
         -- UNDER a combat form: its shell can close on any tick, and the
         -- first stomp reads where I stood the tick the closing shows -- too
         -- late to step out (seed 0, t224). Never end a tick under one.
-        if s.kind ~= "walking" then
+        -- (not the ranged one: it never moves, and under it has no shot --
+        -- Synq 1:41:35; its shell stands 3 ticks before it walks, RV-S3)
+        if s.kind ~= "walking" and s.style ~= "ranged" then
             B.hit({ name = "under", x0 = s.x, z0 = s.z, x1 = s.x + V.SIZE - 1, z1 = s.z + V.SIZE - 1,
                     t0 = F.tick + 1, t1 = F.tick + B.h, dmg_exp = 5, dmg_max = 6, forbid = true })
         end
-        local closing = s.closing and F.tick - s.closing <= 1 and s.kind ~= "walking"
-        if s.kind == "walking" or closing then
+        if s.kind == "walking" then
             -- where it stands now (and the tick after: it may not have moved)
             QD.COXVG.sweep(B, "trample", s.x, s.z, F.tick + 1, F.tick + 2)
-            -- its route to the next hole: both candidates until the way round
-            -- is seen; each step's 3x3 and a tile round it, the tick before,
-            -- of and after the step (closing: the walk starts a tick later)
-            -- (to all three holes: the hole a chaser last stood on is not
-            -- always the one it left from -- seed 11 t273; a route to the
-            -- hole it stands on is empty)
-            do
-                local lag = closing and 1 or 0
+            -- ITS WALK (RSProx RV-S1..S3): the shell closes and walks on the
+            -- same tick S. On the timer it stands to S+3 and RUNS, 2 tiles a
+            -- tick; after a reset it walks at once, a tile a tick. A shell
+            -- that has not moved yet may be either; one that stepped on its
+            -- first tick is a reset's. Each step's 3x3 and a tile round it,
+            -- the tick before, of and after the step, to all three holes (the
+            -- hole a chaser last stood on is not always the one it left from
+            -- -- seed 11 t273; a route to the hole it stands on is empty).
+            local since = F.tick - (s.shelled or F.tick)
+            local moved = s.shell_x ~= nil and (s.x ~= s.shell_x or s.z ~= s.shell_z)
+            local walks = { }
+            if moved and since <= 3 then
+                walks[1] = { speed = 1, lag = 0 }
+            elseif moved then
+                walks[1] = { speed = 2, lag = 0 }
+            else
+                walks[1] = { speed = 2, lag = math.max(0, 3 - since) }
+                if since <= 1 then walks[2] = { speed = 1, lag = 0 } end
+            end
+            -- (standing till it sets off: its own 3x3 for the wait)
+            if walks[1].lag > 0 then
+                QD.COXVG.sweep(B, "standing", s.x, s.z, F.tick + 1, F.tick + 1 + walks[1].lag)
+            end
+            for _, w in ipairs(walks) do
                 for hi = 1, 3 do
-                    do
-                        local tx, tz = QD.COXVG.hole_world(S, hi)
-                        for k, st in ipairs(QD.COXVG.route(s.x, s.z, tx, tz, B.h)) do
-                            local t = F.tick + k + lag
-                            QD.COXVG.sweep(B, "route", st[1], st[2], t - 1, t + 1)
-                        end
+                    local tx, tz = QD.COXVG.hole_world(S, hi)
+                    for k, st in ipairs(QD.COXVG.route(s.x, s.z, tx, tz, B.h, w.speed)) do
+                        local t = F.tick + k + w.lag
+                        QD.COXVG.sweep(B, "route", st[1], st[2], t - 1, t + 1)
                     end
                 end
             end
@@ -559,6 +582,17 @@ function QD.COXVG.strategy(S, F, B)
             B.hit({ name = "aggro_" .. tostring(s.style), x0 = s.x - V.AGGRO, z0 = s.z - V.AGGRO,
                     x1 = s.x + V.SIZE - 1 + V.AGGRO, z1 = s.z + V.SIZE - 1 + V.AGGRO,
                     t0 = F.tick + 1, t1 = F.tick + B.h, dmg_exp = V.AGGRO_COST, dmg_max = V.AGGRO_COST })
+        end
+    end
+    -- UNDER THE RANGED ONE (Synq 1:41:35-1:42:08): fighting the other two,
+    -- stand under the ranged vanguard -- it does not move and has no shot at
+    -- me there -- and hit them from it (the trident and the blowpipe reach).
+    if mode == "fight" and target and target.style ~= "ranged" then
+        for _, s in ipairs(living) do
+            if s.style == "ranged" and s.kind ~= "walking" then
+                B.pull({ name = "under_ranged", x = s.x, z = s.z, size = V.SIZE, weight = 0.4,
+                         t0 = F.tick + 1, t1 = F.tick + B.h })
+            end
         end
     end
     -- WAKE: to the wake tile (in reach of a hole, out of every aggression

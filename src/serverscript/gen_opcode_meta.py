@@ -1188,6 +1188,23 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # rather than at the engine's death step a tick later.
     "NPC_SETDEATHANIMNOW": (11144, 1, 0, 0, 0),
 
+    # npc_exactmove(coord $start, coord $end, int $start_cycle, int $end_cycle, int $direction)
+    #
+    # NPC_INFO's EXACT_MOVE block on the active npc (rev 239): drawn sliding
+    # from start to end over the two client cycles. It does not move the npc;
+    # Jagex rolls Zebak's jugs and Ba-Ba's boulders with an `npc_tele` and this
+    # in the same tick (docs/rsprox-analysis/toa/zebak.md).
+    "NPC_EXACTMOVE": (11145, 5, 0, 0, 0),
+
+    # npc_headbar_from(int $hp)
+    #
+    # A bar-only update on the active npc when its drawn fill differs from the
+    # fill $hp drew: the hitpoints a script just took away with npc_statheal
+    # (which sends no bar on a loss). Jagex's lux grub drain sends its bar
+    # each time the drawn step falls, ~4.2 ticks a step at 1 hp a tick, and
+    # its sting's drop to 56% (docs/rsprox-analysis/cox/vespula.md).
+    "NPC_HEADBAR_FROM": (11146, 1, 0, 0, 0),
+
     # obj_ironman_blocked()(boolean)
     #
     # Would the ironman rule refuse the active player the active obj: they are
@@ -1459,6 +1476,8 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "MIDI_SONG_ENVELOPE": (1 << POINTER_BITS["active_player"], 0),
     "NPC_SETDEATHTYPE": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_SETDEATHANIMNOW": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_EXACTMOVE": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_HEADBAR_FROM": (1 << POINTER_BITS["active_npc"], 0),
     "MIDI_HOLD": (1 << POINTER_BITS["active_player"], 0),
     "SPOTANIM_NPC_SLOT": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_HEADICON": (1 << POINTER_BITS["active_npc"], 0),

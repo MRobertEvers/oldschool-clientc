@@ -286,9 +286,9 @@ def section_special(fs):
                 if tt.me_seq or tt.me_spot:
                     bits.append("me seq=%s spot=%s" % (",".join(tt.me_seq), ",".join(tt.me_spot)))
                 if tt.me_tele:
-                    bits.append("me TELEPORT %s -> %s (local %s -> %s; template mid %s -> %s)" % (
+                    bits.append("me TELEPORT %s -> %s (local %s -> %s; template mid %s -> %s; %d from my tile)" % (
                         tt.me_from, tt.me, local(tt.me_from)[1:], local(tt.me)[1:],
-                        tpl_mid_dist(tt.me_from), tpl_mid_dist(tt.me)))
+                        tpl_mid_dist(tt.me_from), tpl_mid_dist(tt.me), cheb(tt.me_from, tt.me)))
                 if tt.me_hits:
                     bits.append("me hit %s (hp before %s)" % (tt.me_hits, f.hp(t - 1)))
                 pv = [b for b in tt.varbits if b[0].startswith("prayer_allactive")]

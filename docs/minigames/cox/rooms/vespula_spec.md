@@ -4,6 +4,11 @@ Unit `vespula` (COX_FINISH_PLAN.md R). Content: `OSRS-Content/osrs239-content/
 server/scripts/minigames/minigame_cox/scripts/cox_vespula.rs2`, Vespula blocks in
 `configs/cox.constant` / `cox.npc`. Solver plan: `vespula_solver.md`.
 
+**RECORDED DATA NOW OUTRANKS sections 3-7.** Three RSProx recordings of Jagex's
+server (820, 843, 3389; `docs/rsprox-analysis/cox/vespula.md`) were read after
+this spec was written. Where a row below disagrees with them, section 8 has the
+recorded value and the content follows section 8.
+
 ## 0. Sources (rank order, as the plan rules: Jagex > recorded > wiki > plugins > NR > ours)
 
 | tag | source | file |
@@ -221,3 +226,31 @@ Probe script: `/private/tmp/claude-501/-Users-matthewevers-Documents-git-repos-3
 | soldiers | hatch anim 7460 + grub 7466; heal projectile 1367 every 8 ticks; swung at the raider (12 hits from 7538, 2 from 7539) after A24; dropped to 7539 at ≤20%; exploded (seq 7462) 33 ticks after dropping; the dead grub came back 16 ticks after its soldier was gone |
 | clear | portal 0 → boils burst, pillar → 30073, tendrils gone, roots emptied, every grub/soldier removed, Vespula's death anim then gone, the 4-item drop on the floor |
 | client view | the grub meter, Vespula's takeoff heal and the soldier heals never reach the client's health bars (E1, `vespula_solver.md` §7): `npc_statheal` sends no bar |
+
+## 8. Round 4 (2026-10-18): the recordings
+
+From `docs/rsprox-analysis/cox/vespula.md` (RSProx 820, 843, 3389), read in
+template tiles with the turned-room fixes (`tools/cox/rsprox_room.py`). Each row
+replaces the spec row named.
+
+| row | was | recorded, and now the content |
+|---|---|---|
+| V1 | the room wakes at once; roots flowered at the start | first move S+2; every unstung grub sickly at S+10 with no hp lost; roots flower S+10..S+15 (two at +10, one each at +11, +13, +14, +15) |
+| V7 | the farthest grub; she centres over it; the drain armed the same tick | a random untagged grub; she stings from the nearest edge-adjacent 5x5 spot spanning its middle; the sting lands the next tick |
+| V8 | 1 hp a tick from full, 125 ticks to the hatch | the grub drops to 56% (70 of 125, bar 17/30), then 1 hp a tick: the hatch 69 ticks after the sting. Its bar falls a drawn step at a time (~4.2 ticks a step) -- `npc_headbar_from`, since `npc_statheal` sends no bar on a loss |
+| V10 | a soldier on a paired tile; the grub back 16 ticks after its soldier went | the death seq, then 2 ticks later the dead form and a soldier risen on the grub's own tile; the grub healthy again 37 ticks later, soldier or not |
+| V11 | 17 to the portal and Vespula every 8 ticks, a projectile | the portal only: 3% of its max every 5 ticks from 9 ticks after the rise, graphic 1367 on itself, sound 808 |
+| V12 | enraged on arrival home; held 24 ticks after the last hit | enraged the tick after an ATTACK on the portal (the swing, before any hit), in place; 20 ticks a cycle, renewed after one flying tick while the portal was attacked within 9 |
+| V14 | everyone within a tile of the target, every 2 ticks | one raider on her reach, landing the tick after (sound 819); her own 3-tick clock: ready 3 ticks after a sting |
+| V18 | every raider on the two hit tiles; lands 1 tick on, projectile end 30 | the portal's attack on its target (the first raider to hit it), every 2 ticks; projectile 1366 from the pillar, end 60, slope 2, heights 140/120 raw; lands 2 ticks on (sound 2885) |
+| V23/V24 | everything at D+3, one stack of 2 aids at her | D+2 grubs/portal gone, death seqs, pillar anim; D+4 the message, boils burst, her journal at hover SW + (2,5) with the drop (2 aids as separate items); D+6 closed pillars. Portal: no defend or death anim |
+
+Not in the recordings (unchanged): her ranged, her landing, a fed grub, a soldier's explosion.
+
+**Root regrowth** (NR MedivaemiaRootObject: a picked root flowers again 8 ticks
+later). A flowered root is a `loc_change` of the empty map loc, and a change's
+revert only ever restores the map loc (the first pending target stands, as
+LostCity's Loc lifecycle). The old pick's `loc_change(empty, 8)` therefore left
+every picked root empty for good. The regrow is now the portal's `[ai_queue5]`,
+8 ticks after the pick, carrying the root's index, so it ends with the room.
+

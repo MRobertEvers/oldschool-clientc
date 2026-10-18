@@ -33,8 +33,19 @@ local function run(t)
     t.check("vg.solve", result == "ok", tostring(detail))
     local resets = S and S.v and S.v.resets or -1
     t.check("vg.no_reset", resets == 0, "resets " .. tostring(resets))
-    local trample = S and S.v and S.v.trample or -1
-    t.check("vg.no_trample", trample == 0, "trample hits " .. tostring(trample))
+    -- the trample off the server's tick log: hits dealt by a walking shell
+    -- (7526), not the solver's own guess at them (it counted a volley that
+    -- landed while I stood in a shell's 3x3 -- s16d vanguards9 t233, 19)
+    local trample = -1
+    local tr, trows = t.ticklog.rows({ kind = "hit_player", type = 7526 })
+    if tr == "ok" then
+        trample = 0
+        for _, row in ipairs(trows) do
+            if (row.damage or 0) > 0 then trample = trample + 1 end
+        end
+    end
+    t.check("vg.no_trample", trample == 0, "trample hits " .. tostring(trample)
+        .. " (the solver counted " .. tostring(S and S.v and S.v.trample) .. ")")
     local exit_gone = S and S.v and S.v.crystal_seen and not S.v.crystal
     t.check("vg.exit_open", exit_gone == true, "crystal seen " .. tostring(S and S.v and S.v.crystal_seen))
     t.finish((result == "ok" and resets == 0 and trample == 0 and exit_gone) and 0 or 1)

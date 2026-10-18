@@ -139,41 +139,26 @@ Zebak</col>: You lost a prayer point."
 
 ## Ours vs recorded
 
-Compared 2026-10-18 against `toa_zebak.rs2`, `toa.constant` and the shared
-`toa_raid.rs2` / `toa_combat.rs2`. **match** = ours sends what was recorded;
-**differs** = ours sends something else; **missing** = ours sends nothing.
+Rebuilt 2026-10-18 (`toa_zebak.rs2`, `toa.constant`, `toa.npc`, the
+`npc_exactmove` engine command). Checked with `test/raids/toa_zebak_tells.lua`
+(scriptrun, `--fixture test/raids/fixtures/fresh_lumbridge.ini`, Not Just a
+Head + Blood Thinners + Upset Stomach) against the tables above.
 
-### What already matches
-
-| | |
+| | Status |
 |---|---|
-| Special thresholds | `^toa_zebak_special_1..4` = 85/70/55/40, alternating: matches. Recorded lobs come at 85, ~70, ~55, ~40% (78–85, 52–64, 38–48, 28–33 over the kills; a threshold crossed during a running special waits for it). The first special is either kind |
-| Enrage | `^toa_zebak_enrage_pct` 25: matches (fill 30–31 of 120) |
-| Split timing | the split 4 ticks after the shot (`^toa_zebak_up_cycles` 120): matches |
-| Up-projectile | start 60, end 120, slope 0, height 50 → 175: matches |
-| Down heights | 175 → 22, start 0, end 90: matches |
-
-### What differs or is missing
-
-| # | Recorded | Ours | |
-|---|---|---|---|
-| 1 | "Challenge started: Zebak." | "Challenge started: Jaws of Gluttony." | differs (every ToA boss room uses an invented title: "Sands of Time", "Ape-ex Predator", "A Mother's Curse", "Amascut's Promise") |
-| 2 | no enrage message; Zebak retypes to `toa_zebak_enraged` (11732) | "<col=a53fff>Zebak lets out an enraged roar!</col>", no retype | differs |
-| 3 | no special messages | two invented `mes` lines for the specials | differs |
-| 4 | basic gap 7 (Entry) / **6 (Expert)**; enraged 4 / **3** | 7 / 4 at every level | differs at Expert |
-| 5 | the tail `toa_zebak_tail` (11731) at (3909,5403) plays every sequence with Zebak (`npc_zebak02_*`) | no tail spawned | missing |
-| 6 | up-projectile angle **30** | `^toa_zebak_up_angle` 21 | differs |
-| 7 | enraged up-projectile: `_initial_enraged` (2177 / 2179), **start 30** | the normal ids, start 60 | differs |
-| 8 | down angle **127** | `^toa_zebak_down_angle` 1 | differs |
-| 9 | ranged fragments: one of `zebak_ranged_fragment01..04` (2187–2190) per raider | `zebak_range_projanim_split` (2182), never seen in a recording | differs |
-| 10 | the split carrier `spotanim_zebak_ranged01_npc` is **added at the split and removed 3 ticks later**, every shot, at (3930,5405), spotanim height 750 | one carrier parked for the whole fight | differs |
-| 11 | the raider's impact spotanim is sent **at the split**, delayed 90: `fireblast_impact` / `darkbow_smoke_arrow_impact`, **height 90** | sent on landing at `^toa_impact_height` | differs |
-| 12 | launch synths `toa_zebak_red_projectile_04` + `_redirected_jug_break_01` d120 (magic) or `_whoosh_projectile_02` + `_redirected_projectile_02` d120 (ranged); split synth `toa_zebak_projectile_impact_01` d90; area `toa_zebak_defend_01` range 14 when hit | none | missing |
-| 13 | poison lob: jugs, acid, vomit, pools (`toa_zebak_vomit01..07`), spread | none | missing |
-| 14 | jugs: push, roll, break, splash, pool clearing | none | missing |
-| 15 | tail attack → rock fall row, pillar shake, three waves with a gap, wave pushes jugs and clears pools | none | missing |
-| 16 | boulder lob, boulders, roar (two dust sweeps, delay formula), boulder break | none | missing |
-| 17 | blood barrage at Zebak's sides, blood clouds, Zebak healing | none | missing |
-| 18 | death: `npc_zebak01_death` + tail's, **retype 4 ticks later** to `toa_zebak_dead` / `toa_zebak_tail_dead` | death anim and retype on the same tick, no tail | differs |
-| 19 | water crocodiles `toa_zebak_watercroc` (11741) around the pool; pillars `toa_zebak_pillar04_default01` | not checked | open |
-| 20 | room song `song_736` | `^toa_music_zebak` 736 | match (the re-send every 3 ticks not checked) |
+| Room ticks | **fixed, raid-wide**: `~toa_arm_watchdog` re-armed with delay 1 from inside its own queue, so every ToA room ticked every SECOND tick (measured 49, 51, 53 …); now delay 0 with a `getqueue` guard, the Theatre's fix |
+| "Challenge started: Zebak." | fixed (was "Jaws of Gluttony"); the invented enrage and special messages are gone |
+| Tail | fixed: spawned at (3909,5403), plays every `npc_zebak02_*` with Zebak, retypes with him |
+| Attack gap | fixed: 7/4 less a tick per two Crondis path levels (6/3 at path 3) |
+| Split shot | match: up start 60 (30 enraged, `_initial_enraged` ids), end 120, angle 30; split S+4 with the carrier added for 3 ticks, burst 750; one fragment per raider (random 01..04 for ranged), angle 127; impact on the split delayed 90 at height 90; launch and split synths; hit S+8 |
+| Specials | match: alternate from a random first; poison lob L → launch L+1, landings L+6 (L+3/4 for short throws), hops pooled L+7, tail attack L+5, rock fall + pillars P+2, pillars back P+8, waves P+9/16/23 (gap 3 − path/2), next basic L+15; boulder lob → roar L+31, next basic L+10 and R+11 |
+| Waves | match: 21-tile row less the gap, north a tile a tick, removed at z 5421, clear pools, carry jugs off the end |
+| Roar | match: synths on R, sweeps R+3/R+5 with the delay formula, shelters (boulder + 3 east) skipped, jugs break R+5, water R+6, boulders crumble R+9 and go R+12 |
+| Jugs | match on break (removed, break npc 1 SW for 2 ticks, `watersplash`, 5x5 / 3x3 splash, `waterstrike_impact` and pools cleared a tick later). Push/Pull/Hit ops written; **not driven by the test** |
+| Blood | match on timing: cast every 24, barrage or clouds on +3, 1 or 3 clouds, a cloud lives 24 and goes 3 after its death. **Open:** the first cast's time (recorded 55–151 into the room) and the barrage/cloud split (1 in 4 here) are not in the data |
+| Enrage | fixed: retype to `toa_zebak_enraged` and an attack on the same tick |
+| Death | fixed: both deaths on D, both dead types on D+4 |
+| Wave hits a raider | 6–10 and a shove north [wiki]; no recording shows it |
+| Roar hits a raider | `^toa_zebak_rock_damage` scaled; no recording shows it |
+| **Open, every room** | `~toa_boss_complete` returns the party to the Nexus at once, which removes the corpses; Jagex leaves the party in the room. The "Challenge complete" line lacks "Duration … Total …" |
+| Open | water crocodiles `toa_zebak_watercroc` (scenery in the pool) not spawned |

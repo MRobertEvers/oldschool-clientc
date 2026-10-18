@@ -164,3 +164,52 @@ ticks (median 95) from the tendrils; 4-9 Redemptions; 1-3 grubs tagged before
 the first enrage. Earlier sweeps' failures, in order: no swing while enraged
 (value), instruction budget (loc scan), a root run 1 tick late that fed from
 her edge (margin), soldiers from slow kills (pre-pot + Rigour).
+
+## 10. Round 4 (2026-10-18): the recorded room; solo and duo
+
+The content now follows the RSProx recordings (`vespula_spec.md` section 8).
+Two tests, two methods (the owner, 2026-10-18: "Solo room should do synqs solo.
+Duo room should do the actual solve."):
+
+- **Solo, `test/raids/cox_vespula.lua`: Synq's Redemption method** (sections
+  1-9, `opts.method` "redemption"). **16 of 24** green on the recorded room. A
+  tagged grub now hatches 69 ticks after the sting, not 125. Every failure is
+  a grub tagged on entry that hatches before the one-slot kit can feed it (a
+  soldier), or a long fight lost to attrition after one.
+- **Duo, `test/raids/cox_vespula_duo.lua`: the intended solve** (Synq 1:36:20,
+  `opts.method` "intended", `--bots 2`). **24 of 24** green (exit open, both
+  alive, 0 enraged-sting hits, 0 soldiers), 139-241 ticks, 1-2 landings.
+  - Seat 1 (`role` "enrage") opens on the portal. It then shoots her, and
+    re-hits the portal inside each renewal window, the last 8 ticks of her
+    20-tick cycle. Enraged she tags no grub.
+  - Seat 2 (`role` "feed") feeds every grub she tagged before the first enrage
+    back to full (`CV.feeder`). Full stops the drain, and enraged or grounded
+    she cannot tag it again. Otherwise it shoots her.
+  - Under 20% each hit may land her. Grounded 33 ticks, both seats shoot the
+    portal; she re-enrages as she takes off.
+  - Kit: the solo test's less the magic set, five slots for blossoms.
+
+What the duo found:
+
+- **The crossbow reaches the portal (9 on Longrange) only from under her or
+  from her reach.** The safe tile is 10 from it. So the enrage seat pays a
+  stomp or two a refresh; her ring (the sting) stays forbidden.
+- **Her reach where she IS, not at home.** A portal swing enrages her in place
+  the next tick, and between two cycles she flies one tick and re-enrages at
+  once. Enraged away from home she flies back a tile a tick, and the predicted
+  reach follows her (both tiles each tick). The feed tile is measured from
+  both her tile and home.
+- **A renewal is a swing AT THE PORTAL.** `S.x2.swing_last_npc` (the
+  executive's new record of the attack's npc) separates it from a shot at her.
+  A shot at her had read as a renewal, and she lapsed and tagged a fourth
+  grub (seed 10).
+- **Feed tiles:** a tier on her exact reach (under her or her edge ring,
+  corners out). Then the old 2-off fallback. Then "under": off her ring but
+  under her, for the thru room's grub beside her hover, whose other sides are
+  all void. Grounded with 8+ ticks to go, any side.
+- **The feeder:** a held blossom goes to the lowest grub once its hp left is
+  down to the walk there. While she is calm, the grub in hand is fed to full
+  before the next one.
+- **Content:** the grub's bar now falls on the client as it drains
+  (`npc_headbar_from`; before, a fed grub read full forever). Picked roots
+  regrow (the portal's `[ai_queue5]`).

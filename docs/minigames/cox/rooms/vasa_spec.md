@@ -53,7 +53,7 @@ solo numbers.
 | V6 | entrance fire | T0 (wake) | -- | loc 30019 at (15,1), blocks | Cross: 22.5% of current hp, carried 2 tiles | -- | loc appears | W1, W4, N1 |
 | V7 | rise | T0 | -- | -- | invulnerable (no Attack op on 7565; NR zeroes stage 1-3) | -- | T0 `vasa_spawn`, T0+5 `vasa_stun_spawn`, T0+10 `vasa_attack`, T0+12 -> 7566 | N1 stage 0 |
 | V8 | GROUP | T0+13 (re-special: arrival at centre + 1) | end of T-1 | every raider in the room, or within 1 of the fire | one group, no halves (RV-S2); stunned to the explosion (eat/drink allowed) | -- | `teleport_rune_human` + `arceuus_teleport_spotanim` on each target | N1 `sendExplosionAttack`; W1; V3 |
-| V9 | TELEPORT | G+3 (T0+16) | hp at end of T-1 | each to a random tile 6-8 (Chebyshev) from his middle (RV-S2) | bank += max(0, hp - 5) per raider, **not capped at 99** | all prayers off; protection refused 8 ticks | `vasa_stun_spawn`; `stunned` on each | N1 `teleportTargets`; V1 0:56:23; V2 (86 reflected) |
+| V9 | TELEPORT | G+3 (T0+16) | hp at end of T-1 | each to a random tile 6-8 (Chebyshev) from his middle and 10+ from where they stood (RV-S2) | bank += max(0, hp - 5) per raider, **not capped at 99** | all prayers off; protection refused 8 ticks | `vasa_stun_spawn`; `stunned` on each | N1 `teleportTargets`; V1 0:56:23; V2 (86 reflected) |
 | V10 | projectiles | G+6 (T0+19) | -- | 8 tiles at (-1,2,5)^2 from his SW minus the middle | -- | -- | `vasa_attack`; 8x `raids_vasanistirio_magic_travel`, 150 cycles | N1 `sendProjectiles` |
 | V11 | EXPLOSION | G+11 (T0+24) | end of T-1 | shares = the grouped raiders | bank / shares to each (RV-S4) | -- | 8x `raids_vasanistirio_magic_impact`; splat | N1 `sendExplosions`; W1; V3 |
 | V12 | invulnerable in the special | G .. G+11 | -- | -- | hits land as 0 | -- | blue 0 | N1 `applyHit` |
@@ -101,7 +101,7 @@ solo numbers.
 | wake | `npc_findhero` (no range) | within 7 of centre | fixed (V5) |
 | rise | changetype and special on the wake tick | 13 ticks, 3 anims | fixed (V7) |
 | special timing | group -> 2 -> teleport -> 7 -> explosion -> 9 walk | 3 / 8 / 10 (NR) | fixed (V8-V11) |
-| teleport rings | 2-8 / 10-24 around a SW-based centre two tiles off | one ring, 6-8 around his middle (RV-S2; NR's 3-4 / 11-14 not recorded) | fixed (V9) |
+| teleport rings | 2-8 / 10-24 around a SW-based centre two tiles off | one ring, 6-8 around his middle and 10-15 from the raider's tile (RV-S2; NR's 3-4 / 11-14 not recorded) | fixed (V9) |
 | prayers in the special | off, not blocked | off and refused | protection refused 8 ticks (`~prayer_block_protection`); other prayers can still be clicked -- **gap**, needs a block-all in `prayer.rs2` |
 | HP bank | `min(99,hp)-5`, split, then `min(99,...)` | uncapped | fixed (V9) |
 | PfMagic joiner | halved | 0 | fixed (V11) |

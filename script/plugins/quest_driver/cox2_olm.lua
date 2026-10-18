@@ -42,7 +42,7 @@ CO.V = {
     BINS = {
         { 26, 30, 1, 0, 0 },     -- A  SOUTH only
         { 31, 35, 1, 1, 0 },     -- B  SOUTH + MIDDLE
-        { 36, 36, 0, 1, 0 },     -- C  all three views; the tie-break counts MIDDLE
+        { 36, 36, 1, 1, 1 },     -- C  all three views, counted in each (cox_olm_most_dir_steered, RSProx 820)
         { 37, 41, 0, 1, 1 },     -- D  MIDDLE + NORTH
         { 42, 44, 0, 0, 1 },     -- E  NORTH only
     },
@@ -92,7 +92,15 @@ CO.V = {
     -- this many ticks from the retreat (^cox_olm_transition_crystals), on
     -- past the rise
     START = { [0] = { 14, 40 }, [1] = { 19, 32 } },
-    RAIN_TICKS = 33,
+    -- (RECORDED: the rain's beats run 6-34 ticks after the head's death, 3
+    -- after the last claw's; the last crystal lands 4 after its throw)
+    RAIN_TICKS = 41,
+    -- THE HAND STEER: a claw hitsplat landed in the 6 ticks before a step
+    -- (^cox_olm_steer_ticks, RSProx 820)
+    STEER = 6,
+    -- the solo teleport: the move this many ticks after the tile's colour
+    -- is first seen (cast + 2 -> cast + 8, cox_olm_portal_tick)
+    PORTAL_MOVE = 6,
     -- a graphic's birth stamp matches across reads within this many cycles
     -- (CO.observe: a watched client's tick is 30 cycles give or take a frame)
     SPOT_JITTER = 10,
@@ -302,10 +310,27 @@ function CO.hit_open(list, t0, t1)
     return false
 end
 
--- Does a hand steer step A (damage launched at it since the last step)?
--- (open launches count: the plan assumes they land)
+-- The solo teleport's hit for a move of d tiles (cox_olm_portal_damage).
+function CO.portal_damage(d)
+    if d <= 0 then return 0 end
+    return 1 + (43 * d) // 10
+end
+
+-- Does a hand steer step A? A hit of mine on it LANDED in the STEER ticks
+-- before A (cox_olm_steers: by the landing, ~cox_olm_hand_landed). A launch
+-- still in the air counts when it went out in the STEER + 1 before A (the
+-- plan assumes it lands in time).
+function CO.landed_in(list, t0, t1)
+    assert(list, "cox_olm: landed_in without a launch list")
+    for _, h in ipairs(list) do
+        if h.dmg and h.dmg > 0 and h.land and h.land >= t0 and h.land <= t1 then return true end
+    end
+    return false
+end
+
 function CO.steers(list, A)
-    return CO.hit_in(list, A - 4, A - 1) > 0 or CO.hit_open(list, A - 4, A - 1)
+    local V = CO.V
+    return CO.landed_in(list, A - V.STEER, A - 1) or CO.hit_open(list, A - V.STEER - 1, A - 1)
 end
 
 -- Will the next even step clench (cox_olm_clench_check)? Only a special
@@ -603,6 +628,7 @@ function CO.observe(S, F)
                 o.orphans = (o.orphans or 0) + 1
             end
             open.dmg = dmg
+            open.land = F.tick
             open.kill = dmg > 0 and (row.health_scale or 0) > 0 and (row.health_ratio or 1) == 0
         end
         -- (a launch with no hitsplat in 8 ticks did nothing)
@@ -644,11 +670,12 @@ function CO.observe(S, F)
     if mr == "ok" then
         for _, m in ipairs(msgs) do
             if m.serial > (o.msg_serial or 0) then
-                -- (cox_olm_falling_tick: the first aim the tick after the
-                -- cry, then one a tick for eleven; each lands 2 ticks after
-                -- its aim: the last read is the end of cry + 12, one spare)
+                -- (cox_olm_falling_tick: the first aim 1 or 2 ticks after
+                -- the cry, then one every two ticks for eleven; each lands 2
+                -- ticks after its aim: the last aim is cry + 22 at most. The
+                -- marks below are every tick's, a superset of either start.)
                 if string.find(m.text or "", "chosen you as its target", 1, true) then
-                    o.target_until = F.tick + 13
+                    o.target_until = F.tick + 23
                 end
                 -- the phase's power ("rises with the power of acid/flame/
                 -- crystal"; the penultimate and the final stand have all three)
@@ -772,8 +799,9 @@ function CO.observe(S, F)
             local left = (dz > 0) and (V.BOLT_LO + V.BOLT_TILES - 1 - lz) or (lz - (V.BOLT_HI - V.BOLT_TILES + 1))
             o.bolts[#o.bolts + 1] = { x = sp.x, z = sp.z, dz = dz, left = math.max(0, left) }
         elseif sp.spotanim_id == ids.portal then
-            -- (sent 10/8/6/4 ticks before the swap: a send more than 4
-            -- ticks after the last is a new portal)
+            -- (the tile's colour at cast + 2, 4, 6, 8, the move at + 8
+            -- (RECORDED, cox_olm_portal_tick): a send more than 4 ticks
+            -- after the last is a new portal)
             if o.portal_last == nil or F.tick - o.portal_last > 4 then
                 o.portal_tile, o.portal_first = { x = sp.x, z = sp.z }, F.tick
             end
@@ -1000,7 +1028,7 @@ function CO.advance(S, F)
                       side = o.side or 0, got = (seen and seen.kind == "turn") and seen.dir or o.dir }
         if dying then
             -- (no check: the head is down)
-        elseif CO.hit_open(o.lhits, A - 4, A - 1) or CO.hit_open(o.rhits, A - 4, A - 1) then
+        elseif CO.hit_open(o.lhits, A - V.STEER - 1, A - 1) or CO.hit_open(o.rhits, A - V.STEER - 1, A - 1) then
             o.defer[#o.defer + 1] = { due = A + 6, run = function(F2) CO.judge_step(S, F2, rec) end }
         else
             CO.judge_step(S, F, rec)
@@ -1044,8 +1072,9 @@ end
 -- against the facing seen.
 function CO.judge_step(S, F, r)
     local o = S.o
-    local el = CO.hit_in(o.lhits, r.A - 4, r.A - 1) > 0
-    local er = CO.hit_in(o.rhits, r.A - 4, r.A - 1) > 0
+    local V = CO.V
+    local el = CO.landed_in(o.lhits, r.A - V.STEER, r.A - 1)
+    local er = CO.landed_in(o.rhits, r.A - V.STEER, r.A - 1)
     local dir = CO.step(r.dir, r.skipped, r.kind, r.bin, r.side, el, er, r.can)
     S.mon.rules.olm_step.checked = S.mon.rules.olm_step.checked + 1
     if dir ~= r.got then
@@ -1226,15 +1255,15 @@ function CO.check(S, F)
         CO.mech(S, F, "unclench", o.unclench_at == F.tick, string.format("clench at %d: unclench seen %s",
             o.clench_at, tostring(o.unclench_at)))
     end
-    -- the solo portal: the swap at first sight + 8 reads my tile at the end
-    -- of + 7; off it, min(50, 5 a tile) and a teleport onto it (I may run up
-    -- to 2 tiles in the same tick after it)
-    if o.portal_first and F.tick == o.portal_first + 8 and o.portal_tile then
-        local at = QD.T2.tile_at(S, o.portal_first + 7)
+    -- the solo portal: the move at first sight + 6 reads my tile at the end
+    -- of + 5; off it, a teleport onto it and 1 + 4.3 a tile the tick after
+    -- (cox_olm_portal_damage; I may run up to 2 tiles in the tick after it)
+    if o.portal_first and F.tick == o.portal_first + CO.V.PORTAL_MOVE + 1 and o.portal_tile then
+        local at = QD.T2.tile_at(S, o.portal_first + CO.V.PORTAL_MOVE - 1)
         if at then
             local px, pz = o.portal_tile.x, o.portal_tile.z
             local d = math.max(math.abs(at.x - px), math.abs(at.z - pz))
-            local want = math.min(50, 5 * d)
+            local want = CO.portal_damage(d)
             local lost = (o.prev_hp or F.hp) - F.hp
             local near = math.max(math.abs(F.me.x - px), math.abs(F.me.z - pz)) <= 2
             -- (a heal of mine landing this tick hides the damage: ol17 t759 sipped
@@ -1334,9 +1363,9 @@ function CO.predict(S, F, B)
                     forbid = true })
         end
     end
-    -- the portal: be on it at the end of first-sight + 7 (5 a tile otherwise)
+    -- the portal: be on it at the end of first-sight + 5 (1 + 4.3 a tile otherwise)
     if o.portal_tile and o.portal_first then
-        local t = o.portal_first + 7
+        local t = o.portal_first + CO.V.PORTAL_MOVE - 1
         if t >= now + 1 then
             local px, pz = o.portal_tile.x, o.portal_tile.z
             -- ON IT, as a rule: the rings below are priced only at the swap,
@@ -1347,10 +1376,10 @@ function CO.predict(S, F, B)
             -- A required zone is in the plan's late-hazard lookahead.
             B.zone({ name = "portal", x = px, z = pz, size = 1, lo = 0, hi = 0, t0 = t, t1 = t,
                      tier = "lethal", require = true })
-            -- (every ring to the chamber's far corner: off 10 or more is the
-            -- 50 cap, not free -- ol1f t224 sat 11 off and took it)
+            -- (every ring to the chamber's far corner: no cap -- RSProx 3282
+            -- dealt 56 for 13 tiles)
             for d = 1, 20 do
-                local c = math.min(50, 5 * d)
+                local c = CO.portal_damage(d)
                 B.hit({ name = "portal", x0 = px - d, z0 = pz - d, x1 = px + d, z1 = pz - d, t0 = t, t1 = t, dmg_exp = c, dmg_max = c })
                 B.hit({ name = "portal", x0 = px - d, z0 = pz + d, x1 = px + d, z1 = pz + d, t0 = t, t1 = t, dmg_exp = c, dmg_max = c })
                 B.hit({ name = "portal", x0 = px - d, z0 = pz - d + 1, x1 = px - d, z1 = pz + d - 1, t0 = t, t1 = t, dmg_exp = c, dmg_max = c })
@@ -1402,7 +1431,8 @@ function CO.predict(S, F, B)
     -- (the wall before its flames: cast at a step C, the leap judged on where
     -- I ENDED C -- the dodge is the step tick's own run, CO.wall_risk; the
     -- flames stand and block from C + 1, the terms above)
-    -- the falling crystals on me: one aimed each tick A at the tile I ended
+    -- the falling crystals on me: one aimed every other tick A (marked every
+    -- tick: the cadence's start is 1 or 2 after the cry) at the tile I ended
     -- A - 1 on, landing at A + 2 on whoever ended A + 1 there -- never end a
     -- tick on the tile I ended two ticks before (ol20 t1651-1653: the rule
     -- was "one tick before", and the crystals ran past its window)
@@ -1680,7 +1710,7 @@ function CO.headrun(S, F, B, target)
         -- since the last step and no damage is the turn to the middle
         local er = true
         if i == 1 then
-            local hit = CO.hit_in(o.rhits, st.A - 4, st.A - 1) > 0 or CO.hit_open(o.rhits, st.A - 4, st.A - 1)
+            local hit = CO.steers(o.rhits, st.A)
             local splash = (o.hit_right_splash or -1) >= st.A - 3
             if splash and not hit then er = false end
         end

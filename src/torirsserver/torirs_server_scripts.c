@@ -7456,6 +7456,99 @@ script_command(
         return 1;
     }
 
+    /*
+     * `npc_exactmove(coord $start, coord $end, int $start_cycle, int $end_cycle,
+     * int $direction)` on the active npc: NPC_INFO's EXACT_MOVE block, the
+     * npc drawn sliding from `$start` to `$end` over the two client cycles.
+     *
+     * It does NOT move the npc. Jagex rolls a jug or a boulder by teleporting
+     * it a tile and sending this block from the old tile to the new one in
+     * the same tick (`teleport` + `exact_move to1 = one tile behind, to2 = 0,
+     * d2 30`, docs/rsprox-analysis/toa/zebak.md), so content calls `npc_tele`
+     * first and this second; both ends are written relative to wherever the
+     * npc stands when the block goes out. The direction is a yaw (0..2047),
+     * the wire's own value: Jagex sends diagonals (767, 1791) that no
+     * four-way direction can say.
+     */
+    case SS_OP_NPC_EXACTMOVE:
+    {
+        int32_t start;
+        int32_t end;
+        int32_t start_cycle;
+        int32_t end_cycle;
+        int32_t direction;
+        struct ToriRSServerNpc* npc = active_npc(state);
+
+        if( !SSVM_PopInt(state, &direction) )
+            return 1;
+        if( !SSVM_PopInt(state, &end_cycle) )
+            return 1;
+        if( !SSVM_PopInt(state, &start_cycle) )
+            return 1;
+        if( !SSVM_PopInt(state, &end) )
+            return 1;
+        if( !SSVM_PopInt(state, &start) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_exactmove with no active npc");
+            return 1;
+        }
+        if( direction < 0 || direction > 2047 )
+        {
+            SSVM_Abort(state, "npc_exactmove direction %d is not a yaw (0..2047)", direction);
+            return 1;
+        }
+        npc->exact_dx1 = coord_x(start) - npc->x;
+        npc->exact_dz1 = coord_z(start) - npc->z;
+        npc->exact_dx2 = coord_x(end) - npc->x;
+        npc->exact_dz2 = coord_z(end) - npc->z;
+        npc->exact_delay1 = (int)start_cycle;
+        npc->exact_delay2 = (int)end_cycle;
+        npc->exact_direction = (int)direction;
+        npc->masks |= TORIRSSERVER_NMASK_EXACT_MOVE;
+        return 1;
+    }
+
+    /*
+     * `npc_headbar_from(int $hp)` on the active npc: a bar-only update when
+     * the bar's drawn fill now differs from the fill `$hp` drew. A loss
+     * through `npc_statheal` sends no bar (only a heal does); Jagex's lux grub
+     * drain sends one each time its drawn step falls, and its sting's drop
+     * (docs/rsprox-analysis/cox/vespula.md), so the drain passes the
+     * hitpoints it had before.
+     */
+    case SS_OP_NPC_HEADBAR_FROM:
+    {
+        int32_t hp;
+        struct ToriRSServerNpc* npc = active_npc(state);
+        int width = 0;
+        int now_fill;
+        int was_fill;
+        int saved;
+
+        if( !SSVM_PopInt(state, &hp) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_headbar_from with no active npc");
+            return 1;
+        }
+        now_fill = ToriRSServer_NpcHeadbarFill(npc, &width);
+        if( now_fill < 0 )
+        {
+            SSVM_Abort(state, "npc_headbar_from on npc type %d, which has no bar", npc->type);
+            return 1;
+        }
+        saved = npc->hitpoints;
+        npc->hitpoints = hp;
+        was_fill = ToriRSServer_NpcHeadbarFill(npc, &width);
+        npc->hitpoints = saved;
+        if( was_fill != now_fill )
+            npc->masks |= TORIRSSERVER_NMASK_HEADBAR;
+        return 1;
+    }
+
     case SS_OP_NPC_SETOPS:
     {
         int32_t shown;

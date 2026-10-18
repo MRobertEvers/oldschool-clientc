@@ -24,7 +24,7 @@ boulder's launch, **P** a crystal NPC's add. Heights are in this tree's units (r
 | RV-S1 | The rocks wake at **S-5**, and the fire is lit at S-1. At **S** he plays `vasa_stun_spawn` and turns into the walking form. Each raider plays `arceuus_necromancy_anim` with `arceuus_teleport_spotanim`. |
 | RV-S1 | At **S+3** the teleport lands: the raider plays `stunned_thieving`, and every prayer goes off. |
 | RV-S1 | At **S+8** he plays `vasa_attack`. At **S+12** the raider takes one hit. He walks off at **S+14**, and a crystal is added at **S+15**. |
-| RV-S2 | Every raider lands on a tile **6-8** from his middle (Chebyshev), in any quadrant; there is no nearby or distant group. Template-local landings: 820 (11,8), (12,22), (21,11), (20,23), (23,10); 3285 (23,20), all against the thru room's middle (15,15); 3282 (8,21), and 843 stayed on (23,11), against the ccw room's middle (16,15). |
+| RV-S2 | Every raider lands on a tile **6-8** from his middle (Chebyshev) **and 10-15 from the tile they stood on**: across the room from where they were, never beside it. There is no nearby or distant group. Template-local, from → to: 3285 (23,10) → (23,20); 3282 (ccw) (23,11) → (8,21); 820 (23,10) → (11,8), (17,10) → (12,22), (13,23) → (21,11), (10,13) → (20,23), (14,23) → (23,10). 843 stayed on (23,11). Middles: thru (15,15), ccw (16,15). |
 | RV-S3 | The S+8 volley is eight `raids_vasanistirio_magic_travel` projectiles, the k-th with start 8k and end 125 (raw heights 420 → 10). Their `raids_vasanistirio_magic_impact` graphics at S+12 play in the same order, the k-th delayed 3k cycles. |
 | RV-S4 | Every teleported raider is hit, wherever they landed (3282: 77). |
 | RV-S5 | While blocked, a prayer click answers "Vasa Nistirio has blocked your use of prayers." (820, S+5..S+7). |
@@ -70,7 +70,7 @@ In 3285 he walked through the raider standing in his way: hits 3, 3, 6, 5 on t15
 
 - The special's tick table: as RV-S1. Teleport, stun, bank and prayers off at S+3; projectiles at S+8 (RV-S3: stagger 8,
   flight 125, heights 105 → 2); the explosion at S+12, impacts staggered 3; walk at S+14.
-- The teleport sends every raider to one ring, 6-8 from his middle (RV-S2), and the explosion hits each (RV-S4). It also blocks prayers with the
+- The teleport sends every raider to one ring, 6-8 from his middle and at least 10 from where they stood (RV-S2), and the explosion hits each (RV-S4). It also blocks prayers with the
   recorded message (RV-S5).
 - Boulders (RV-B1..B3): no animation, flight 90, stagger 5, any raider in the room, the recorded sounds.
 - The siphon (RV-C1, C2): the heal transform at arrival + 2; a splat every 2 ticks. The crystal plays no defend

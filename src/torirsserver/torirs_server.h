@@ -1013,6 +1013,9 @@ enum
      * current override too. */
     TORIRSSERVER_NMASK_HEADICON = 0x800,
     TORIRSSERVER_NMASK_BODY = 0x1000,
+    /* Rev-239 only: `npc_exactmove` set a forced move this tick (NPC_INFO's
+     * EXACT_MOVE block). Not persistent: one move, one tick. */
+    TORIRSSERVER_NMASK_EXACT_MOVE = 0x2000,
 };
 
 /* Appearance/equipment slot numbering. The cache's wearpos fields, the worn
@@ -2732,6 +2735,21 @@ struct ToriRSServerNpc
      * them - animate a tick after. Kept for the life; cleared on respawn.
      */
     int death_anim_now;
+    /**
+     * `npc_exactmove`: the forced move sent with TORIRSSERVER_NMASK_EXACT_MOVE.
+     * Both ends are deltas from the npc's tile when it is written (its tile
+     * after any `npc_tele` the same tick); the cycles are client cycles from
+     * the start of the tick; the direction is a yaw (0..2047). Jagex rolls
+     * Zebak's jugs and Ba-Ba's boulders this way, a teleport plus a move from
+     * the old tile over 30 cycles (docs/rsprox-analysis/toa/zebak.md).
+     */
+    int exact_dx1;
+    int exact_dz1;
+    int exact_dx2;
+    int exact_dz2;
+    int exact_delay1;
+    int exact_delay2;
+    int exact_direction;
     int face_entity;
     char say[80];
     int anim_id;
