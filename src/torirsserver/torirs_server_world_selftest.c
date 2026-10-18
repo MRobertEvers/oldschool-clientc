@@ -36396,6 +36396,52 @@ ToriRSServer_WorldSelftest(void)
                                    "%s must walk through players, moverestrict is %d",
                                    k_bloats[i], def->moverestrict);
                 }
+
+                /*
+                 * No Chambers of Xeric boss is blocked by another npc or a
+                 * player when it moves (owner, 2026-10-18): every record that
+                 * steps is `moverestrict=passthru` (npc_travel_extra: OPEN).
+                 * Olm, the Guardians and the ranged Vanguard never step
+                 * (`nomove`).
+                 */
+                {
+                    static const char* const k_cox[] = {
+                        "raids_tekton_fighting_standard", "raids_tekton_walking_standard",
+                        "raids_tekton_hammering", "raids_tekton_fighting_enraged",
+                        "raids_tekton_walking_enraged", "raids_tekton_waiting",
+                        "raids_vasanistirio_dormant", "raids_vasanistirio_walking",
+                        "raids_vasanistirio_healing", "raids_vespula_flying",
+                        "raids_vespula_walking", "raids_vespula_enraged",
+                        "raids_dogodile_junior", "raids_dogodile", "raids_dogodile_submerged",
+                        "raids_vanguard_melee", "raids_vanguard_magic", "raids_vanguard_walking",
+                        "raids_vanguard_dormant", "raids_lizardshaman_a", "raids_lizardshaman_b",
+                        "raids_skeletonmystic_a", "raids_skeletonmystic_b", "raids_skeletonmystic_c",
+                        "raids_icedemon_noncombat", "raids_icedemon_combat",
+                    };
+
+                    for( size_t i = 0; i < sizeof(k_cox) / sizeof(k_cox[0]); i++ )
+                    {
+                        int id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, k_cox[i]);
+                        const struct ToriRSServerNpcDef* def =
+                            id >= 0 ? ToriRSServer_ContentNpc(id) : NULL;
+
+                        SELFTEST_CHECK(def != NULL, "%s should be in the npc pack", k_cox[i]);
+                        if( !def )
+                            continue;
+                        SELFTEST_CHECK(def->moverestrict == 6 /* passthru */,
+                                       "%s must walk through npcs and players, moverestrict is %d",
+                                       k_cox[i], def->moverestrict);
+                        {
+                            struct ToriRSServerNpc probe;
+
+                            memset(&probe, 0, sizeof(probe));
+                            probe.def = def;
+                            probe.blockwalk = def->blockwalk;
+                            SELFTEST_CHECK(npc_travel_extra(&probe) == COLL_FLAG_OPEN,
+                                           "%s's step must respect no entity occupancy", k_cox[i]);
+                        }
+                    }
+                }
             }
         }
 

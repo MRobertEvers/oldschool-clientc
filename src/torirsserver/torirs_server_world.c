@@ -747,9 +747,13 @@ player_travel_extra(void)
 }
 
 /*
- * `Npc.blockWalkFlag()`. The hard blocks always apply; the two opt-outs are
- * orthogonal, and `moverestrict=blocked` opts out of all of it — an npc that
- * lives where the map blocks (lava, water) respects no entity collision at all.
+ * `Npc.blockWalkFlag()`. `moverestrict=blocked` and `moverestrict=passthru`
+ * both answer OPEN there: the npc respects no entity collision at all -- an
+ * npc that lives where the map blocks (lava, water), and one that walks
+ * through everybody (a boss: Bloat's lap, Verzik's web walk, every CoX boss).
+ * passthru used to drop only PLAYER_OCC, so another npc still stopped a
+ * passthru boss; LostCity's PASSTHRU is OPEN. Otherwise the hard blocks
+ * always apply and blockwalk=none drops the npc half.
  *
  * `nomove` returns NULL there, meaning "clear the waypoints"; here the callers
  * answer that before stepping, so it falls through to the ordinary flags.
@@ -760,16 +764,13 @@ npc_travel_extra(struct ToriRSServerNpc const* npc)
     int flag;
 
     assert(npc);
-    if( npc->def && npc->def->moverestrict == 1 /* blocked */ )
+    if( npc->def && (npc->def->moverestrict == 1 /* blocked */ || npc->def->moverestrict == 6 /* passthru */) )
         return COLL_FLAG_OPEN;
 
-    flag = COLL_FLAG_BLOCK_NPC_AND_PLAYERS;
+    flag = COLL_FLAG_BLOCK_NPC_AND_PLAYERS | COLL_FLAG_PLAYER_OCC;
     /* blockwalk=none: do not respect npc-occupancy. */
     if( npc->blockwalk != 0 )
         flag |= COLL_FLAG_NPC_OCC;
-    /* passthru: do not respect player-occupancy. */
-    if( !npc->def || npc->def->moverestrict != 6 )
-        flag |= COLL_FLAG_PLAYER_OCC;
     return flag;
 }
 
