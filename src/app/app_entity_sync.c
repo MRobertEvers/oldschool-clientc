@@ -679,8 +679,14 @@ app_world_sync_one_entity_spotanim(
                 entry->body->post_resize_z,
                 entry->body->post_resize_height);
         /* Render scale for a frame the renderer does not pose, as
-         * app_world_build_model leaves a fresh body. */
+         * app_world_build_model leaves a fresh body - and its cylinder with
+         * it. ToriDraw_ModelMerge measured the pre-resize vertices, which for
+         * Verzik's pillar (resizeh=1) are the lightning pre-scaled x128: a
+         * 32,524 radius that culled the whole element, and the pillar has no
+         * animation, so the renderer never re-posed it and never re-measured.
+         * Every pillar hit's lightning was there and never drawn. */
         ToriDraw_ModelApplyPostTransforms(merged);
+        ToriDraw_ModelSetBoundsCylinder(merged);
         {
             struct ToriDraw_ModelHandle hnd;
             memset(&hnd, 0, sizeof(hnd));
