@@ -22,6 +22,9 @@
 #include "packets/friendlist_loaded.h"
 #include "packets/if_sethide.h"
 #include "packets/minimap_toggle.h"
+#include "packets/hidenpcops.h"
+#include "packets/hidelocops.h"
+#include "packets/hideobjops.h"
 #include "packets/if_setplayermodel_basecolour.h"
 #include "packets/if_setplayermodel_bodytype.h"
 #include "packets/if_setplayermodel_obj.h"
@@ -582,6 +585,30 @@ bridge_minimap_toggle(int revision, uint8_t const* data, int len, struct RevPack
 }
 
 static int
+bridge_hidenpcops(int revision, uint8_t const* data, int len, struct RevPacket* out)
+{
+    BRIDGE_RUN(rsprot_hidenpcops_out, MsgHideNpcOps)
+    out->_hide_ops.hidden = msg.hidden;
+    return 1;
+}
+
+static int
+bridge_hidelocops(int revision, uint8_t const* data, int len, struct RevPacket* out)
+{
+    BRIDGE_RUN(rsprot_hidelocops_out, MsgHideLocOps)
+    out->_hide_ops.hidden = msg.hidden;
+    return 1;
+}
+
+static int
+bridge_hideobjops(int revision, uint8_t const* data, int len, struct RevPacket* out)
+{
+    BRIDGE_RUN(rsprot_hideobjops_out, MsgHideObjOps)
+    out->_hide_ops.hidden = msg.hidden;
+    return 1;
+}
+
+static int
 bridge_if_sethide(int revision, uint8_t const* data, int len, struct RevPacket* out)
 {
     BRIDGE_RUN(rsprot_if_sethide_out, MsgIfSetHide)
@@ -1085,6 +1112,9 @@ static struct BridgeRow const k_rows[] = {
     { PKT_NAME_CHAT_FILTER_SETTINGS, bridge_chat_filter_settings },
     { PKT_NAME_IF_SETHIDE, bridge_if_sethide },
     { PKT_NAME_MINIMAP_TOGGLE, bridge_minimap_toggle },
+    { PKT_NAME_HIDENPCOPS, bridge_hidenpcops },
+    { PKT_NAME_HIDELOCOPS, bridge_hidelocops },
+    { PKT_NAME_HIDEOBJOPS, bridge_hideobjops },
     { PKT_NAME_IF_SETPLAYERMODEL_BASECOLOUR, bridge_if_setplayermodel_basecolour },
     { PKT_NAME_IF_SETPLAYERMODEL_BODYTYPE, bridge_if_setplayermodel_bodytype },
     { PKT_NAME_IF_SETPLAYERMODEL_OBJ, bridge_if_setplayermodel_obj },

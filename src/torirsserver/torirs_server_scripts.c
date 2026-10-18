@@ -5635,6 +5635,21 @@ script_command(
         return 1;
     }
 
+    case SS_OP_MES_SPAM:
+    {
+        const char* text;
+
+        if( !SSVM_PopStr(state, &text) )
+            return 1;
+        if( !player )
+        {
+            SSVM_Abort(state, "mes_spam with no active player");
+            return 1;
+        }
+        ToriRSServer_SendMessageTyped(player, 105, text);
+        return 1;
+    }
+
     /*
      * `[command,set_player_op](string $op, int $slot, boolean $primary)` —
      * `PlayerOps.ts` SET_PLAYER_OP, one `SetPlayerOp` write.
@@ -13406,6 +13421,32 @@ script_command(
             return 1;
         }
         player->music_hold_until = srv->tick + ticks;
+        return 1;
+    }
+
+    case SS_OP_HIDENPCOPS:
+    case SS_OP_HIDELOCOPS:
+    case SS_OP_HIDEOBJOPS:
+    {
+        /* hidenpcops / hidelocops / hideobjops(boolean): the active player's
+         * world menu offers only Examine for that kind until the next one says
+         * otherwise (a cutscene's frame; RSProx 96 sends all three at its start
+         * and its end). */
+        int32_t hidden;
+        int pkt_name = PKT_NAME_HIDENPCOPS;
+
+        if( !SSVM_PopInt(state, &hidden) )
+            return 1;
+        if( !player )
+        {
+            SSVM_Abort(state, "hide*ops with no active player");
+            return 1;
+        }
+        if( opcode == SS_OP_HIDELOCOPS )
+            pkt_name = PKT_NAME_HIDELOCOPS;
+        else if( opcode == SS_OP_HIDEOBJOPS )
+            pkt_name = PKT_NAME_HIDEOBJOPS;
+        ToriRSServer_SendHideOps(player, pkt_name, hidden);
         return 1;
     }
 

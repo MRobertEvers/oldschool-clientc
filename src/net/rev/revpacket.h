@@ -658,6 +658,12 @@ struct PktMinimapToggle
     int state;
 };
 
+/* HIDENPCOPS / HIDELOCOPS / HIDEOBJOPS: the kind is the packet type. */
+struct PktHideOps
+{
+    int hidden;
+};
+
 struct PktUpdateIgnoreList
 {
     int count;
@@ -1111,6 +1117,7 @@ struct RevPacket
         struct PktUpdateInvPartial _update_inv_partial;
         struct PktSetMultiway _set_multiway;
         struct PktMinimapToggle _minimap_toggle;
+        struct PktHideOps _hide_ops;
         struct PktUpdateIgnoreList _update_ignorelist;
         struct PktUpdateFriendList _update_friendlist;
         struct PktFriendListLoaded _friendlist_loaded;

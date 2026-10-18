@@ -367,6 +367,7 @@ RS_Chat_MessagePasses(
     switch( msg->type )
     {
     case RS_CHAT_TYPE_GAME:
+    case RS_CHAT_TYPE_SPAM:
         return 1;
     case RS_CHAT_TYPE_PUBLIC_MOD:
         return 1;

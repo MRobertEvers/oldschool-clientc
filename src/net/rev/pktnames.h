@@ -258,6 +258,13 @@ enum GameProtoPktName
     PKT_NAME_UPDATE_STOCKMARKET_SLOT,
     /* Raw: the trading-post offer list (RS_CS2Host_ApplyTradingPost). */
     PKT_NAME_UPDATE_TRADINGPOST,
+    /* One boolean each (RSProt HideNpcOps/HideLocOps/HideObjOpsEncoder): while
+     * set, that kind's world menu offers only Examine -- no ops, no "Use ...
+     * with", no spell target. A cutscene sets all three (RSProx recording 96,
+     * the Sleeping Giants foundry reveal). */
+    PKT_NAME_HIDENPCOPS,
+    PKT_NAME_HIDELOCOPS,
+    PKT_NAME_HIDEOBJOPS,
 
     PKT_NAME_COUNT
 };

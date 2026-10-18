@@ -2291,6 +2291,25 @@ ToriRSServer_SendMinimapToggle(struct ToriRSServerPlayer* player, int state)
     flush(player, &buf, PKT_NAME_MINIMAP_TOGGLE, 0);
 }
 
+/*
+ * HIDENPCOPS / HIDELOCOPS / HIDEOBJOPS -- one boolean byte (RSProt
+ * HideNpcOpsEncoder and its two twins, `RSPROT_BOOL`). `pkt_name` picks which;
+ * the wire adapter owns the opcode. While set, the client's world menu offers
+ * only Examine for that kind.
+ */
+void
+ToriRSServer_SendHideOps(struct ToriRSServerPlayer* player, int pkt_name, int hidden)
+{
+    struct RSAreaBuf buf;
+
+    assert(player);
+    assert(pkt_name == PKT_NAME_HIDENPCOPS || pkt_name == PKT_NAME_HIDELOCOPS ||
+           pkt_name == PKT_NAME_HIDEOBJOPS);
+    open_packet(&buf, 1);
+    rsab_p1(&buf, hidden ? 1 : 0);
+    flush(player, &buf, pkt_name, 0);
+}
+
 void
 ToriRSServer_SendIfSethide(
     struct ToriRSServerPlayer* player,
@@ -2990,6 +3009,21 @@ ToriRSServer_SendMessage(
     struct ToriRSServerPlayer* player,
     const char* text)
 {
+    ToriRSServer_SendMessageTyped(player, 0, text);
+}
+
+/*
+ * MESSAGE_GAME with its chat type: 0 a game message, 105 the filterable
+ * "spam" kind (the chatbox's Game: Filtered hides it) -- which is how Jagex
+ * sends a potion's "You drink some of...", or Vasilias' "Your attack is
+ * absorbed by the nylocas and bounced right off!" (RSProx, type=spam).
+ */
+void
+ToriRSServer_SendMessageTyped(
+    struct ToriRSServerPlayer* player,
+    int type,
+    const char* text)
+{
     struct RSAreaBuf buf;
     if( g_message_fn )
         g_message_fn(player, text ? text : "", g_message_ctx);
@@ -3002,10 +3036,10 @@ ToriRSServer_SendMessage(
     {
         const struct ToriRSServerWirePayload* pl = wire_payload(player);
         if( pl && pl->message_game )
-            pl->message_game(&buf, 0, text);
+            pl->message_game(&buf, type, text);
         else
         {
-            rsab_p1(&buf, 0); /* message type: plain game message */
+            rsab_p1(&buf, type);
             rsab_pjstr(&buf, text, RSAB_JSTR_NUL);
         }
     }

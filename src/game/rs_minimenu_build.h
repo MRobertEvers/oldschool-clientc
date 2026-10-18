@@ -70,6 +70,15 @@ struct RS_MinimenuSelection
      *  a ToriRS_Features slot (`target_mask_held`) and this file has no era.
      *  0 leaves the classic value, per the feature table's own rule. */
     int target_mask_held_bit;
+    /** The server's hide-ops (World.hidden_ops): that kind's world rows are
+     *  Examine alone -- none at all while a spell is armed (deob class108 /
+     *  Statics npc builder: the hidden flag skips the "Use" and target rows and
+     *  the op loop, and the target branch adds nothing else). Carried here
+     *  because every row builder already takes the selection, and a deck
+     *  world's builder must still read the root's flags. */
+    bool hide_npc_ops;
+    bool hide_loc_ops;
+    bool hide_obj_ops;
 };
 
 struct Wevs;

@@ -109,6 +109,12 @@ app_minimenu_selection(struct App const* app)
         sel.target_mask = app->targetsel.mask;
         sel.target_mask_held_bit = app->features ? app->features->target_mask_held : 0;
     }
+    if( app->world )
+    {
+        sel.hide_npc_ops = app->world->hidden_ops.npc;
+        sel.hide_loc_ops = app->world->hidden_ops.loc;
+        sel.hide_obj_ops = app->world->hidden_ops.obj;
+    }
     return sel;
 }
 

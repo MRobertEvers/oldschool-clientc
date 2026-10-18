@@ -380,6 +380,18 @@ struct World
      * stamps exact-move windows / spotanim delays / hitmark expiry. */
     int cycle;
 
+    /** The server's HIDENPCOPS / HIDELOCOPS / HIDEOBJOPS (a cutscene sets them):
+     * while set, that kind's world menu offers only Examine (deob client.java
+     * packet handlers -> Statics.field2218 / field3892 / field4203, read by the
+     * npc / loc / obj menu builders). Held on the root world, which lives for
+     * the session, as the reference holds them in statics until the next one. */
+    struct
+    {
+        bool npc;
+        bool loc;
+        bool obj;
+    } hidden_ops;
+
     struct World_SeqSource seq_source;
 
     struct World_AnimSoundSink anim_sound_sink;

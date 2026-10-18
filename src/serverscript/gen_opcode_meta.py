@@ -1116,6 +1116,16 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # under it. 0 releases a hold.
     "MIDI_HOLD": (11133, 1, 0, 0, 0),
 
+    # hidenpcops(boolean $hidden) / hidelocops / hideobjops
+    #
+    # The active player's world menu offers only Examine for that kind while
+    # set: HIDENPCOPS / HIDELOCOPS / HIDEOBJOPS, one boolean byte each (RSProt
+    # HideNpcOpsEncoder and twins). A cutscene's frame sends all three
+    # (RSProx recording 96, the Sleeping Giants foundry reveal).
+    "HIDENPCOPS": (11150, 1, 0, 0, 0),
+    "HIDELOCOPS": (11151, 1, 0, 0, 0),
+    "HIDEOBJOPS": (11152, 1, 0, 0, 0),
+
     # npc_setops(int $shown)
     #
     # Which of the active npc's five right-click options its menu offers, as a
@@ -1124,6 +1134,14 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # hides all five when a death starts and restores them on a transform, as
     # Jagex does; this is content's own say (docs/rsprox-analysis/tob/nylocas.md).
     "NPC_SETOPS": (11140, 1, 0, 0, 0),
+
+    # mes_spam(string $text)
+    #
+    # `mes` as the filterable kind (MESSAGE_GAME type 105, which the chatbox's
+    # "Game: Filtered" hides). Jagex sends routine lines this way: potion
+    # doses, eating, Vasilias' wrong-style "absorbed" line
+    # (docs/rsprox-analysis/tob/nylocas.md). `mes` is always type 0.
+    "MES_SPAM": (11141, 0, 1, 0, 0),
 
     # obj_ironman_blocked()(boolean)
     #
@@ -1392,7 +1410,11 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "NPC_SETHEADBARRESERVE": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_DEFEND": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_SETOPS": (1 << POINTER_BITS["active_npc"], 0),
+    "MES_SPAM": (1 << POINTER_BITS["active_player"], 0),
     "MIDI_HOLD": (1 << POINTER_BITS["active_player"], 0),
+    "HIDENPCOPS": (1 << POINTER_BITS["active_player"], 0),
+    "HIDELOCOPS": (1 << POINTER_BITS["active_player"], 0),
+    "HIDEOBJOPS": (1 << POINTER_BITS["active_player"], 0),
     "NPC_HUDBAR_CHECK": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_DIE": (1 << POINTER_BITS["active_npc"], 0),
     # Asks about the active obj on behalf of the active player: OBJ_TAKEITEM's mask.

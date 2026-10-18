@@ -172,9 +172,9 @@ def parse(path, spans, names):
     return fights
 
 
-def load(paths, names):
+def load(paths, names, anchor_text=ANCHOR):
     out = []
-    anchor = parse_anchor(ANCHOR)
+    anchor = parse_anchor(anchor_text)
     for path in paths:
         spans = windows(path, anchor, 50, names)
         out.extend(parse(path, spans, names))
@@ -504,10 +504,12 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--section", action="append",
                     choices=["deaths", "bites", "attacks", "waves", "boss", "collapse", "wrongstyle", "end"])
+    ap.add_argument("--anchor", default=ANCHOR,
+                    help="npc ids that define the room (default Normal; Hard 10791-10811, Entry 10774-10790)")
     ap.add_argument("transcripts", nargs="+")
     args = ap.parse_args()
     names = load_names()
-    fights = load(args.transcripts, names)
+    fights = load(args.transcripts, names, args.anchor)
     sections = args.section or ["waves", "deaths", "bites", "attacks", "boss", "collapse", "wrongstyle", "end"]
     for s in sections:
         if s == "deaths":

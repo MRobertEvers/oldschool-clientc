@@ -1430,6 +1430,12 @@ DrivePointer_OpAvailable(
     }
     if( slot < 0 || slot > 4 )
         return DRIVE_OK;
+    /* The server's hide-ops (World.hidden_ops) take every op off that kind's
+     * menu and leave Examine (rs_minimenu_world.c, the same three builders). */
+    if( (kind == DRIVE_PICK_NPC && app->world->hidden_ops.npc) ||
+        (kind == DRIVE_PICK_LOC && app->world->hidden_ops.loc) ||
+        (kind == DRIVE_PICK_OBJ && app->world->hidden_ops.obj) )
+        return DRIVE_OK;
     if( kind == DRIVE_PICK_NPC )
     {
         struct WorldEntity_NPC* npc = World_NpcGetByElementId(app->world, element_id, NULL);

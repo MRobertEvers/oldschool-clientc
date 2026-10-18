@@ -58,6 +58,10 @@ enum RS_ChatMessageType
     RS_CHAT_TYPE_CLAN_MESSAGE = 43,
     RS_CHAT_TYPE_CLAN_GUEST_CHAT = 44,
     RS_CHAT_TYPE_CLAN_GUEST_MESSAGE = 46,
+    /* A game message of the filterable kind ("You drink some of..."): the
+     * rev-239 chatbox hides it under Game: Filtered; this model has no such
+     * filter and shows it as a game line. */
+    RS_CHAT_TYPE_SPAM = 105,
 };
 
 /** Social-input kinds (reference socialInputType). */

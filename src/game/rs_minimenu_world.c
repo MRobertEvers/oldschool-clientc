@@ -228,6 +228,16 @@ add_npc_rows(
     else
         snprintf(tooltip, sizeof(tooltip), "%s", npc->name[0] ? npc->name : "NPC");
 
+    /* Hidden ops (sel->hide_npc_ops): Examine alone, and nothing at all while a
+     * spell is armed (deob Statics npc builder; RS_MinimenuSelection). */
+    if( sel->hide_npc_ops )
+    {
+        if( sel->mode == RS_MINIMENU_SELECT_TARGET )
+            return;
+        snprintf(text, sizeof(text), "Examine @yel@%s", tooltip);
+        UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_OPNPC6, 0, pick);
+        return;
+    }
     if( add_world_select_row(
             menu, sel, pick, "@yel@", tooltip, 0x2, REVCONFIG_MINIMENU_USEHELD_ONNPC,
             REVCONFIG_MINIMENU_TGT_NPC) )
@@ -593,7 +603,13 @@ add_scenery_rows(
         .view_id = picked->view_id,
     };
 
-    if( add_world_select_row(
+    /* Hidden ops (sel->hide_loc_ops): the deob's `!hidden &&` guards skip the
+     * Use row, the target row and every op; with a spell armed nothing is
+     * added, otherwise the menu falls through to Examine (class108). */
+    if( sel->hide_loc_ops && sel->mode == RS_MINIMENU_SELECT_TARGET )
+        return;
+    if( !sel->hide_loc_ops &&
+        add_world_select_row(
             menu, sel, pick, "@cya@", name, 0x4, REVCONFIG_MINIMENU_USEHELD_ONLOC,
             REVCONFIG_MINIMENU_TGT_LOC) )
         return;
@@ -601,7 +617,7 @@ add_scenery_rows(
     if( WorldEntity_SceneryDebugEnabled() )
         add_scenery_debug_row(menu, world, scenery);
 
-    for( int i = 4; i >= 0; i-- )
+    for( int i = 4; i >= 0 && !sel->hide_loc_ops; i-- )
     {
         if( scenery->info->actions[i].name[0] == '\0' )
             continue;
@@ -662,12 +678,17 @@ add_obj_rows(
         .view_id = picked->view_id,
     };
 
-    if( add_world_select_row(
+    /* Hidden ops (sel->hide_obj_ops): as for locs, Examine alone, or nothing
+     * while a spell is armed (class108's `!Statics.field4203` guards). */
+    if( sel->hide_obj_ops && sel->mode == RS_MINIMENU_SELECT_TARGET )
+        return;
+    if( !sel->hide_obj_ops &&
+        add_world_select_row(
             menu, sel, pick, "@lre@", name, 0x1, REVCONFIG_MINIMENU_USEHELD_ONOBJ,
             REVCONFIG_MINIMENU_TGT_OBJ) )
         return;
 
-    for( int i = 4; i >= 0; i-- )
+    for( int i = 4; i >= 0 && !sel->hide_obj_ops; i-- )
     {
         if( stack->actions[i].name[0] != '\0' )
         {

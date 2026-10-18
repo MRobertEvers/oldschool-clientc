@@ -8329,6 +8329,9 @@ ToriRSServer_SendIfSetcolour(
     int uid,
     int colour);
 void ToriRSServer_SendMinimapToggle(struct ToriRSServerPlayer* player, int state);
+/** HIDENPCOPS / HIDELOCOPS / HIDEOBJOPS (`pkt_name`): the client's world menu offers
+ *  only Examine for that kind while `hidden` is set (`hidenpcops` and its twins). */
+void ToriRSServer_SendHideOps(struct ToriRSServerPlayer* player, int pkt_name, int hidden);
 void
 ToriRSServer_SendIfSethide(
     struct ToriRSServerPlayer* player,
@@ -8645,6 +8648,11 @@ ToriRSServer_SendSynthSound(
 void
 ToriRSServer_SendMessage(
     struct ToriRSServerPlayer* player,
+    const char* text);
+void
+ToriRSServer_SendMessageTyped(
+    struct ToriRSServerPlayer* player,
+    int type,
     const char* text);
 /*
  * HINT_ARROW's `type` byte. The reference's own values -- LostCity's

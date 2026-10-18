@@ -1658,6 +1658,9 @@ static const int k_transcribed_osrs239[] = {
     PKT_NAME_IF_SETNPCHEAD,    PKT_NAME_IF_SETANIM,      PKT_NAME_IF_SETPLAYERHEAD,
     PKT_NAME_UNSET_MAP_FLAG,   PKT_NAME_CHAT_FILTER_SETTINGS,
     PKT_NAME_MINIMAP_TOGGLE, /* MinimapToggleEncoder: U1, verified for rev239. */
+    /* HideNpcOps/HideLocOps/HideObjOpsEncoder: one boolean byte each, 223-239
+     * (3rd/rsprot/packets/hidenpcops.c); opcodes 75 / 21 / 73 at 239. */
+    PKT_NAME_HIDENPCOPS,       PKT_NAME_HIDELOCOPS,      PKT_NAME_HIDEOBJOPS,
     /* HINT_ARROW's six bytes are the same at every OldSchool revision that has
      * it, so `ToriRSServer_SendHintArrow` writes them directly rather than
      * through a `payload` hook -- listed here so the send is allowed, the same
@@ -1824,6 +1827,9 @@ ToriRSServer_WirePktName(int pkt_name)
     case PKT_NAME_UNSET_MAP_FLAG: return "SET_MAP_FLAG";
     case PKT_NAME_CHAT_FILTER_SETTINGS: return "CHAT_FILTER_SETTINGS";
     case PKT_NAME_MINIMAP_TOGGLE: return "MINIMAP_TOGGLE";
+    case PKT_NAME_HIDENPCOPS: return "HIDENPCOPS";
+    case PKT_NAME_HIDELOCOPS: return "HIDELOCOPS";
+    case PKT_NAME_HIDEOBJOPS: return "HIDEOBJOPS";
     case PKT_NAME_FRIENDLIST_LOADED: return "FRIENDLIST_LOADED";
     case PKT_NAME_UPDATE_FRIENDLIST: return "UPDATE_FRIENDLIST";
     case PKT_NAME_UPDATE_IGNORELIST: return "UPDATE_IGNORELIST";

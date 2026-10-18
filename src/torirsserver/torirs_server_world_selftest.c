@@ -22464,9 +22464,12 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(npc->death_stage >= TORIRSSERVER_DEATH_CORPSE,
                            "a small that moved on the blow's tick dies without the "
                            "arrive wait, stage %d", npc->death_stage);
-            SELFTEST_CHECK(npc->death_seq_sent,
-                           "and its death animation (seq %d) is sent at blow + 1 "
-                           "(tick %d, blow %d)", npc->death_seq, srv->tick, blow);
+            /* A small has no death animation of its own: Jagex sends none, only
+             * its graphic on the tile it leaves (docs/rsprox-analysis/tob/
+             * nylocas.md), so the record says `death_anim,null`. */
+            SELFTEST_CHECK(npc->death_seq < 0,
+                           "and it has no death animation to send (seq %d, tick %d, "
+                           "blow %d)", npc->death_seq, srv->tick, blow);
             selftest_tick(srv);
             SELFTEST_CHECK(!npc->active,
                            "and it despawns at blow + 2 (tick %d, blow %d)", srv->tick,
@@ -35483,6 +35486,8 @@ ToriRSServer_WorldSelftest(void)
             int retargeted = 0;
             int latched_to_broken = 0;
             int boss_slot = -1;
+            int boss_land_x = 0;
+            int boss_land_z = 0;
             int boss_tick = -1;
             int clear_tick = -1;
             int forms_seen = 0;
@@ -35566,7 +35571,14 @@ ToriRSServer_WorldSelftest(void)
                         {
                             boss_slot = n;
                             boss_tick = srv->tick;
+                            boss_land_x = npc->x;
+                            boss_land_z = npc->z;
                         }
+                        /* She lands as the spawning npc and fights as a NEW one
+                         * two ticks later (Jagex deletes the one and adds the
+                         * other, nylocas.md): follow her to it. */
+                        else if( boss_slot != n && !srv->npcs[boss_slot].active )
+                            boss_slot = n;
                         continue;
                     }
                     if( strncmp(name, "tob_nylocas_", 12) != 0 )
@@ -36015,8 +36027,11 @@ ToriRSServer_WorldSelftest(void)
                            "Nylocas Vasilias must land once the waves are done");
             if( boss_slot >= 0 )
             {
-                int lx = srv->npcs[boss_slot].x - base_x;
-                int lz = srv->npcs[boss_slot].z - base_z;
+                /* Where she LANDED: her melee form walks to a raider it is not
+                 * beside (69 of 73 recorded swings adjacent), so where she ends
+                 * the fight says nothing about the drop. */
+                int lx = boss_land_x - base_x;
+                int lz = boss_land_z - base_z;
 
                 /* blert NPC_SPAWN 3294,4247 (her SW tile) in 18 of 18 rooms:
                  * ^tob_vasilias_boss_lx/lz 30,23 since seam2 (was 29,22). */

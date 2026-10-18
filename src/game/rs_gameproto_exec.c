@@ -2186,6 +2186,22 @@ RS_GameProto_Exec(
             ctx->app->need_redraw = 1;
         }
         break;
+    /* deob client.java: Statics.field2218 / field3892 / field4203 = the byte as a
+     * boolean; the world menu builders read them (rs_minimenu_world.c). */
+    case PKT_NAME_HIDENPCOPS:
+    case PKT_NAME_HIDELOCOPS:
+    case PKT_NAME_HIDEOBJOPS:
+        if( ctx->app && ctx->app->world )
+        {
+            bool const hidden = packet->_hide_ops.hidden != 0;
+            if( packet->packet_type == PKT_NAME_HIDENPCOPS )
+                ctx->app->world->hidden_ops.npc = hidden;
+            else if( packet->packet_type == PKT_NAME_HIDELOCOPS )
+                ctx->app->world->hidden_ops.loc = hidden;
+            else
+                ctx->app->world->hidden_ops.obj = hidden;
+        }
+        break;
     case PKT_NAME_HINT_ARROW:
         if( ctx->app )
         {
