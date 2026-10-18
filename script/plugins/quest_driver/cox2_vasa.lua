@@ -543,11 +543,20 @@ function NI.strategy(S, F, B)
     elseif mode == "range" then
         o.fight_style = "ranged"
         intents.gear = NI.gear(S, "ranged")
-        -- (no path for him: his whole dead-reckoned walk as the target's path
-        -- made the chase worse, s40c 20 of 40 green against s40b's 37; his
-        -- next step alone, s40d, 36 -- noise)
+        -- (He steps before my click is handled, so a pipe at 5 from a Vasa
+        -- stepping away walks me in, at times under a rock: s40e vasa5 t349,
+        -- vasa11 t84. Open. His whole walk as the target's path made the chase
+        -- worse, s40c 20/40 green; his next step alone, s40d, 36 (noise);
+        -- range 4 when his next step leaves 5, s40f, 30: the planner then
+        -- plans "attack from a step closer", the press fires from where I
+        -- stand, and I stay on the rock -- the executor would have to walk
+        -- first.)
         B.target({ name = "vasa", npc = o.row, size = V.SIZE, range = V.PIPE_RANGE, speed = V.PIPE_SPEED,
                    value = V.VASA_VALUE })
+        -- (No pull after a broken crystal. Synq 1:02:41 paths to where he just
+        -- was -- he cannot go back to that crystal before the next special --
+        -- and it killed him sooner, s40g mean death t433 against t505, but it
+        -- chased him into more boulders: 29 of 40 green against 36.)
         if o.crystal then
             -- drift toward the lit crystal's open face: be on it when he turns
             local f = NI.face(S, F, o.crystal, o.row, true)

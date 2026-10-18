@@ -12,8 +12,11 @@ crystal's add).
     python3 tools/cox/rsprox_vasa.py --section boulders FILES...
 
 Heights print in this tree's units (raw / 4 for the rev-234 v2 projectile
-packet). Coordinates are absolute; "rel" is relative to Vasa's south-west tile
-(he is 5x5, his middle is +2,+2), "mid" a Chebyshev distance to his middle.
+packet). Coordinates are the transcriber's TEMPLATE tiles. A player's is right;
+a large npc's is not in a turned room (another corner of its footprint, and a
+90-degree room jumps at chunk edges -- tools/cox/rsprox_tekton.py), so "rel"
+(to Vasa's printed south-west) is only a hint, and the teleport is measured
+against the template's middle instead ("template mid", Chebyshev).
 """
 
 import argparse
@@ -171,6 +174,26 @@ def parse(path):
     return ticks
 
 
+# The CoX templates: 32x32 rooms at x = 3264 + 32 * variant, z = 5280 (the
+# transcriber prints template tiles). His middle in each variant's template
+# (cox_vasa.rs2 ~cox_vasa_tile + (2, 2)). A player's printed tile is a
+# template tile; Vasa's is not in a turned room (the module docstring).
+TPL_X0, TPL_Z0 = 3264, 5280
+TPL_MID = {0: (16, 15), 1: (15, 15), 2: (15, 16)}
+
+
+def local(t):
+    """(variant, lx, lz) of a printed (template) tile in the Vasa template row."""
+    v = (t[0] - TPL_X0) // 32
+    return v, t[0] - TPL_X0 - 32 * v, t[1] - TPL_Z0
+
+
+def tpl_mid_dist(t):
+    v, lx, lz = local(t)
+    m = TPL_MID.get(v)
+    return None if m is None else max(abs(lx - m[0]), abs(lz - m[1]))
+
+
 def cheb(a, b):
     return max(abs(a[0] - b[0]), abs(a[1] - b[1]))
 
@@ -263,7 +286,9 @@ def section_special(fs):
                 if tt.me_seq or tt.me_spot:
                     bits.append("me seq=%s spot=%s" % (",".join(tt.me_seq), ",".join(tt.me_spot)))
                 if tt.me_tele:
-                    bits.append("me TELEPORT %s -> %s (mid %d -> %d)" % (tt.me_from, tt.me, cheb(tt.me_from, mid), cheb(tt.me, mid)))
+                    bits.append("me TELEPORT %s -> %s (local %s -> %s; template mid %s -> %s)" % (
+                        tt.me_from, tt.me, local(tt.me_from)[1:], local(tt.me)[1:],
+                        tpl_mid_dist(tt.me_from), tpl_mid_dist(tt.me)))
                 if tt.me_hits:
                     bits.append("me hit %s (hp before %s)" % (tt.me_hits, f.hp(t - 1)))
                 pv = [b for b in tt.varbits if b[0].startswith("prayer_allactive")]
@@ -282,7 +307,7 @@ def section_special(fs):
                     bits.append("sound %s d=%s r=%s" % so[:3])
                 if bits:
                     print("   S%+d  %s" % (t - s, " | ".join(bits)))
-            print("   hp at S-1: %s; me at S-1 %s (mid %s)" % (hp0, f.me(s - 1), f.me(s - 1) and cheb(f.me(s - 1), mid)))
+            print("   hp at S-1: %s; me at S-1 %s (template mid %s)" % (hp0, f.me(s - 1), f.me(s - 1) and tpl_mid_dist(f.me(s - 1))))
 
 
 def section_boulders(fs):

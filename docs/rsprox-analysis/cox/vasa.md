@@ -7,6 +7,13 @@ as `RV-*` (`cox_vasa.rs2`, `cox.constant`).
 
     python3 tools/cox/rsprox_vasa.py ~/.rsprox/binary/archive/{3285,843,3282,820}.txt
 
+**Coordinates.** The transcriber maps every instance tile back to the template tile it was copied from. The CoX
+templates are 32x32 rooms at x = 3264 + 32 × variant (0 ccw, 1 thru, 2 cw), z = 5280. A player's printed tile (1x1) is
+right. A large NPC's printed tile is not: in a turned room it is another corner of the footprint, and a 90-degree room
+breaks the mapping at every chunk edge (`tools/cox/rsprox_tekton.py`). So nothing here measures a player against Vasa's
+or a crystal's printed tile. The first reading of this data did that, and it produced the teleport's "nearby 3 /
+distant 11-15", since corrected (RV-S2).
+
 Ticks are relative to the event that defines each section. **S** is the special's `vasa_stun_spawn`, **B** a
 boulder's launch, **P** a crystal NPC's add. Heights are in this tree's units (raw / 4).
 
@@ -17,9 +24,9 @@ boulder's launch, **P** a crystal NPC's add. Heights are in this tree's units (r
 | RV-S1 | The rocks wake at **S-5**, and the fire is lit at S-1. At **S** he plays `vasa_stun_spawn` and turns into the walking form. Each raider plays `arceuus_necromancy_anim` with `arceuus_teleport_spotanim`. |
 | RV-S1 | At **S+3** the teleport lands: the raider plays `stunned_thieving`, and every prayer goes off. |
 | RV-S1 | At **S+8** he plays `vasa_attack`. At **S+12** the raider takes one hit. He walks off at **S+14**, and a crystal is added at **S+15**. |
-| RV-S2 | The teleport sends a solo raider either **nearby** (3 from his middle) or **distant** (11-15 from it), whichever side of him the raider stood on. 3285: 13 → 11. 3282: 1 → 15. 820: 1 → 13, 7 → 12, 12 → 3, 14 → 12. |
+| RV-S2 | Every raider lands on a tile **6-8** from his middle (Chebyshev), in any quadrant; there is no nearby or distant group. Template-local landings: 820 (11,8), (12,22), (21,11), (20,23), (23,10); 3285 (23,20), all against the thru room's middle (15,15); 3282 (8,21), and 843 stayed on (23,11), against the ccw room's middle (16,15). |
 | RV-S3 | The S+8 volley is eight `raids_vasanistirio_magic_travel` projectiles, the k-th with start 8k and end 125 (raw heights 420 → 10). Their `raids_vasanistirio_magic_impact` graphics at S+12 play in the same order, the k-th delayed 3k cycles. |
-| RV-S4 | The distant raider is hit as well (3282: 77 at 15 tiles out). |
+| RV-S4 | Every teleported raider is hit, wherever they landed (3282: 77). |
 | RV-S5 | While blocked, a prayer click answers "Vasa Nistirio has blocked your use of prayers." (820, S+5..S+7). |
 
 The explosion's damage, against the hp read at S-1: 118 → 97, 99 → 80, 95 → 77, 135 → 62 / 74 / 41 / 54.
@@ -55,7 +62,7 @@ In 3285 he walked through the raider standing in his way: hits 3, 3, 6, 5 on t15
 
 | Item | State |
 |---|---|
-| RV-G1: geometry | The recorded crystals stand 14 / 15 tiles from his middle; ours stand at 17 / 18. The explosion's projectiles fall on a grid at offsets {0, 3, 13} from a source 2 tiles in front of him. Our room keeps NR's route table. |
+| RV-G1: geometry | The recorded crystals' printed tiles stand 14 / 15 apart; our template's at 17 / 18. Printed NPC tiles are not template tiles in a turned room (above), so this is most likely the frame, not the room. The explosion's projectiles fall on a grid at offsets {0, 3, 13} from a source 2 tiles in front of him. Our room keeps NR's route table. |
 | Damage | Grid Master perks may change both the explosion (hp − ~19 here) and the stomp, so neither is used for a number. |
 | Heal amount | 3285 healed a different amount from what its stored hits give (1176 against 34 × 81). |
 
@@ -63,7 +70,7 @@ In 3285 he walked through the raider standing in his way: hits 3, 3, 6, 5 on t15
 
 - The special's tick table: as RV-S1. Teleport, stun, bank and prayers off at S+3; projectiles at S+8 (RV-S3: stagger 8,
   flight 125, heights 105 → 2); the explosion at S+12, impacts staggered 3; walk at S+14.
-- The teleport groups every raider nearby or distant (RV-S2) and hits both (RV-S4). It also blocks prayers with the
+- The teleport sends every raider to one ring, 6-8 from his middle (RV-S2), and the explosion hits each (RV-S4). It also blocks prayers with the
   recorded message (RV-S5).
 - Boulders (RV-B1..B3): no animation, flight 90, stagger 5, any raider in the room, the recorded sounds.
 - The siphon (RV-C1, C2): the heal transform at arrival + 2; a splat every 2 ticks. The crystal plays no defend

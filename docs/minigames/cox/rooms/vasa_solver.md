@@ -75,7 +75,21 @@ crystal breaks or the siphon ends.
 
 **Open:** he steps before my click is handled, so a pipe press at the edge of range from a Vasa walking away walks me
 in, sometimes under a rock (the 2-4 hp hits left). Giving the target his dead-reckoned walk as its path made the chase
-worse (20/40 green), and his next step alone made no difference (36/40).
+worse (20/40 green), and his next step alone made no difference (36/40). Telling the planner range 4 when his
+next step leaves 5 made it worse again (30/40): it planned "attack from a step closer", the press fired from where I
+stood, and I stayed on the rock. The fix belongs in the executor (walk first when the plan's attack step moves me).
+
+**Synq's solo guide** (`docs/minigames/cox/synq_transcript.md`, 0:55:16-1:07:56), against the solver:
+
+| Synq | The solver |
+|---|---|
+| Ranged gear on, walk to the centre to wake him | the `wake` pull |
+| The bank reads HP at the teleport; brew after it, never before | no healing S..S+3, the brew floor after |
+| Prayers stay off if clicked while stunned | none until S+12 |
+| Run two tiles after every pipe hit; protect from missiles | the boulder marks; PfMissiles |
+| Never under him; he tramples up to 8 a tick | the stomp, beside, lane and line terms |
+| Drift toward the lit crystal | the face pull |
+| After a crystal, path to where he just was | tried: kills sooner (mean death t433 against t505), but 29/40 green against 36/40; not used |
 
 The room's real floor can be read with `QD.COXNI.reach_row` (one row of `api_drive.route` answers).
 
