@@ -1,5 +1,10 @@
 # Inferno sound — the search, the sources, and what is still open
 
+> **Superseded for the Zuk fight and every Jad (2026-10-18).** Recorded Jagex packets now
+> give the exact sounds, delays and ranges: [docs/rsprox-analysis/inferno/zuk.md](rsprox-analysis/inferno/zuk.md).
+> Where this file derives a sound (the cutscene's cave family, Jad's cast at +20, the
+> healers' dagannoth sounds), the recording wins and the content now follows it.
+
 The Inferno was silent. Sixty-nine waves, thirteen monsters, a cutscene with a
 three-axis camera shake, and nothing in the player's ears but the generic
 weapon swing. This is the record of finding sounds for it: where each id came

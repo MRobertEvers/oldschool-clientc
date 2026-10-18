@@ -1092,6 +1092,22 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # keeps the ownership check on every packet and take path.
     "OBJ_ADD_PRIVATE": (11032, 5, 0, 0, 0),
 
+    # npc_defend
+    #
+    # The active npc's defend animation, sent on the attack tick and delayed to
+    # the landing of the projectile sent at it this tick (0 for none). Its swing
+    # queued this tick wins. docs/rsprox-analysis/combat/defend_timing.md.
+    "NPC_DEFEND": (11131, 0, 0, 0, 0),
+
+    # sound_area(synth $sound, int $delay, coord $coord, int $range)
+    #
+    # One SOUND_AREA zone packet at a tile, heard within `range` with the
+    # client's own distance falloff - what Jagex sends for a boss's area noise
+    # (docs/rsprox-analysis/tob/verzik.md). The content proc `~sound_area` used
+    # to stand in for it by sending SYNTH_SOUND to each player in range, which
+    # plays at full volume however far off the player stands.
+    "SOUND_AREA": (11132, 4, 0, 0, 0),
+
     # obj_ironman_blocked()(boolean)
     #
     # Would the ironman rule refuse the active player the active obj: they are
@@ -1357,6 +1373,7 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "NPC_SETMOVESPEED": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_SETMAXHP": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_SETHEADBARRESERVE": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_DEFEND": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_HUDBAR_CHECK": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_DIE": (1 << POINTER_BITS["active_npc"], 0),
     # Asks about the active obj on behalf of the active player: OBJ_TAKEITEM's mask.

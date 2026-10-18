@@ -134,6 +134,13 @@ enum ToriRSServerZoneEventKind
      * packet); nothing else on this event is meaningful.
      */
     TORIRSSERVER_ZONE_EV_MAPANIM,
+    /**
+     * One-shot sound at a tile, heard within a radius with the client's own
+     * distance falloff — `sound_area`. Wire SOUND_AREA. `id` is the synth,
+     * `start_delay` the delay (cycles), `count` the range, `old_count` the
+     * drop-off range, `shape` the loop count.
+     */
+    TORIRSSERVER_ZONE_EV_SOUNDAREA,
 };
 
 /**
@@ -509,6 +516,22 @@ ToriRSServer_ZoneMapanim(
     int spotanim,
     int height,
     int delay);
+
+/**
+ * Queue SOUND_AREA: a synth at (x,z,level) heard within `range` tiles, the way
+ * Jagex sends a boss's area noise — one zone packet, with distance falloff on
+ * the client, rather than a SYNTH_SOUND per player in range.
+ */
+void
+ToriRSServer_ZoneSoundArea(
+    struct ToriRSServer* srv,
+    int x,
+    int z,
+    int level,
+    int sound,
+    int loops,
+    int delay,
+    int range);
 
 /** The loc record at this key, or NULL. */
 struct ToriRSServerZoneLoc*

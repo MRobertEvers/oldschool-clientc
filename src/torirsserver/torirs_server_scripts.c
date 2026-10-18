@@ -7395,6 +7395,37 @@ script_command(
         return 1;
     }
 
+    case SS_OP_NPC_DEFEND:
+    {
+        /*
+         * The active npc's defend (block) animation, sent on the ATTACK tick as
+         * Jagex's server sends it: delayed to the landing of the projectile
+         * sent at it this tick (`projanim_npc`), or 0 for an attack with none
+         * (melee). Called once per player attack from
+         * `[proc,player_hit_npc_prepare]`, misses included, and again after a
+         * projectile drawn later in the same attack, which only updates the
+         * delay. The npc's own swing queued this tick wins: it is sent, not
+         * the defend. docs/rsprox-analysis/combat/defend_timing.md.
+         */
+        struct ToriRSServerNpc* npc = active_npc(state);
+        int delay = 0;
+
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_defend with no active npc");
+            return 1;
+        }
+        /* An npc whose record names no defend animation has nothing to play. */
+        if( npc->block_seq < 0 )
+            return 1;
+        if( (npc->masks & TORIRSSERVER_NMASK_ANIM) && npc->anim_id != npc->block_seq )
+            return 1;
+        if( npc->defend_proj_tick == srv->tick )
+            delay = npc->defend_proj_end;
+        ToriRSServer_AnimPlayNpc(npc, npc->block_seq, delay);
+        return 1;
+    }
+
     case SS_OP_NPC_SETMAXHP:
     {
         int32_t max;
@@ -10310,6 +10341,10 @@ script_command(
             dst_x = srv->npcs[slot].x;
             dst_z = srv->npcs[slot].z;
             target = slot + 1;
+            /* For `npc_defend`, later this tick: the defend is delayed to
+             * this landing. */
+            srv->npcs[slot].defend_proj_tick = srv->tick;
+            srv->npcs[slot].defend_proj_end = values[6];
         }
         else
         {

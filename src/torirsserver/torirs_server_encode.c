@@ -140,6 +140,7 @@ enum
     OP_OBJ_COUNT = PKT_NAME_OBJ_COUNT,
     OP_MAP_PROJANIM = PKT_NAME_MAP_PROJANIM,
     OP_MAP_ANIM = PKT_NAME_MAP_ANIM,
+    OP_SOUND_AREA = PKT_NAME_SOUND_AREA,
     OP_SET_PLAYER_OP = PKT_NAME_SET_PLAYER_OP,
     OP_CAM_RESET = PKT_NAME_CAM_RESET,
     OP_CAM_MOVETO = PKT_NAME_CAM_MOVETO,
@@ -4319,6 +4320,8 @@ zone_sub_opcode(int kind)
         return OP_MAP_PROJANIM;
     case TORIRSSERVER_ZONE_EV_MAPANIM:
         return OP_MAP_ANIM;
+    case TORIRSSERVER_ZONE_EV_SOUNDAREA:
+        return OP_SOUND_AREA;
     default:
         return -1;
     }
@@ -4462,6 +4465,23 @@ ToriRSServer_EncodeZoneSub(
     if( !zone_sub_payload(&buf, event, wire) || !rsab_ok(&buf) )
         return 0;
     return (int)rsab_len(&buf);
+}
+
+int
+ToriRSServer_ZoneSubSupported(
+    const struct ToriRSServerWire* wire,
+    int kind)
+{
+    int name = zone_sub_opcode(kind);
+
+    if( !wire )
+        wire = ToriRSServer_WireDefault();
+    if( name < 0 || !wire->zone_sub_code || wire->zone_sub_code(name) < 0 )
+        return 0;
+    /* The classic layout (no payload writer) has no SOUND_AREA. */
+    if( kind == TORIRSSERVER_ZONE_EV_SOUNDAREA )
+        return wire->payload && wire->payload->zone_payload;
+    return 1;
 }
 
 int

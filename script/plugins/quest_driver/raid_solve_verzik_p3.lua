@@ -99,8 +99,8 @@ QD.VZP3 = {
     AFTER_BALL = 12,            -- the throw to the next slot
     YELLOW_CHARGE = 14, AFTER_YELLOWS = 21,    -- Y to the blast, Y to the next slot
     WEB_RESUME = 42,            -- the webs slot to the next slot
-    WEB_LIFE = 12, WEB_FLIGHT = 4, WEB_KNOCK = 3,
-    BALL_FLIGHT = 7, BALL_HOP = 6,  -- C: 227 and 185 cycles over 30, the queue delays
+    WEB_LIFE = 12, WEB_FLIGHT = 4, WEB_KNOCK = 3,  -- WEB_FLIGHT: a web thrown 8-9 tiles; see web_flight
+    BALL_FLIGHT = 8, BALL_HOP = 6,  -- C: 242 (start 62 + 180, RSProx) and 185 cycles over 30, the queue delays
     ENRAGE_PULL = 5,
     CENTRE = { x = 32, z = 24 },  -- her middle for the webs, local to the room's origin (Blert: her SW at 29,21; with ^tob_verzik_centre_lz 24)
     -- the P3 floor, local to the room's origin (the pools' scatter round her
@@ -143,6 +143,15 @@ QD.VZP3 = {
     OWNER_MISSES = 2,          -- steps not heading for a raider before it is ruled out as a tornado's owner
     TRACE_CAP = 400, RECENT = 400,
 }
+
+-- A web's landing, in ticks from its first sight (the throw tick): the content
+-- sends it for 30 x floor(d / 2) cycles, d her centre to the web's tile
+-- (RSProx, 539 webs), so floor(d / 2) ticks, at least one.
+function QD.VZP3.web_flight(p)
+    if p.src_x == nil or p.dst_x == nil then return QD.VZP3.WEB_FLIGHT end
+    local d = math.max(math.abs(p.src_x - p.dst_x), math.abs(p.src_z - p.dst_z))
+    return math.max(1, d // 2)
+end
 
 local function cheb(ax, az, bx, bz) return QD.raid._vzp2_cheb(ax, az, bx, bz) end
 function QD.raid._vzp3_trace(S, d, text)
@@ -425,7 +434,10 @@ function QD.raid._vzp3_projectiles(S, F)
             -- fewer live), and a landing a tick late put the "clear" raider
             -- at gap 2 on the read: three 74s, two deaths (live, 2026-10-09).
             -- A web is 120 cycles: +4.
-            local land = F.tick + V.WEB_FLIGHT
+            -- The web's flight is the recorded 30 x floor(d / 2) cycles from her
+            -- centre (docs/rsprox-analysis/tob/verzik.md), so a near web lands
+            -- sooner than a far one: floor(d / 2) ticks, at least one.
+            local land = F.tick + QD.VZP3.web_flight(p)
             local key = p.dst_x .. "," .. p.dst_z .. "@" .. land
             if not S.web_seen[key] then
                 S.web_seen[key] = true

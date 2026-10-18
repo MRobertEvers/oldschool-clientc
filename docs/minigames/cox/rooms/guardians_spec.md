@@ -23,6 +23,7 @@ the guardian blocks of `configs/cox.npc` and `configs/cox.constant`.
 | V1 | Synq 0:30:39: best pickaxe on Smash; "stand three tiles away ... Attack any guardian and step three tiles away right after"; "Protecting melee does help"; one-click method once one is dead | `synq_transcript.md:258-265` |
 | V2 | Tubby 18:38: "melee attack which can hit through prayer, but ... protect from melee reduces it by a bit"; four-tile marked tile, ctrl-click walk | `sources/transcript_tubby_solo_cox.md` |
 | V3 | Academy (bg0mFA8jHIU), Theoatrix (e4tup60QPXM), Extile (0a61znGm0pc), Beleti (1aFJyKKdjn8) | `sources/transcripts/` |
+| D1 | RSProx recordings of Jagex's server (rsprox.net/database, NAS mirror `rsprox_archive/`): 820 (rev 234, a trio then a four-man raid), 3389 and 3282 (rev 235/234, solo). Hits read by `tools/cox/rsprox_guardians.py`. Grid Master worlds (perks may touch the raider, not the statues) | `~/.rsprox/binary/archive/<id>.txt` |
 | N1 | Near-Reality `RaidGuardianNPC.java`, `GuardiansRoom.java` (ids, structure, tiles, numbers no higher source has) | `~/Documents/git_repos/RSPS-NEAR-REALITY/.../chambersofxeric/` |
 | C1 | Cache: npc 7569/7570 (size 2, op2 Attack, readyanim human_staffready_statue), 7571/7572 dead (readyanim human_dead, no ops); seq 1203 dragon_halberd_special_attack, 4278 emote_stampfeet; spotanim 645 motherlode_rockfall, 71 catapultimpact; loc 41754 raids_stoneguardians_pickaxe (Take), 26209 invisible_type8_blocking | `configs/all.*.compack`, `maps/m51_82.jl2`, `maps/m52_82.jl2` |
 
@@ -54,7 +55,7 @@ Npcs run before players. "T" is the server tick of the statue's decision; it rea
 | 8 | Partner aggro | a hit on either statue: the idle partner takes the attacker, first swing no sooner than 2 ticks later | -- | as #4/#5 | -- | -- | N1 `autoRetaliate` / `_autoRetaliate` |
 | 9 | Aggression | each tick, an idle statue takes a raider who is beside it | footprint distance <= 1 | as #4/#5 | -- | -- | W1 (aggressive Yes), N1 `checkAggressivity` |
 | 10 | Exit blocked | from spawn until both are dead: invisible blocking locs on the two blocked tiles | blocked tiles | -- | -- | (none; locs are invisible) | N1 `loadRoom`/`finish` |
-| 11 | Knockback | every 3rd tick (statue tick counter), raiders on or orthogonally next to a blocked tile (read end of previous tick); resolves next tick if he has not moved: put on the push tile, 15-30 typeless, +40 points; the nearer statue swings (seq 1203) and targets him (full delay); the other STOMPS the other push tile (#5, lands a tick later, almost certainly on him) and targets him | blocked tiles, Euclidean <= 1 | 15-30 + a stomp 0-15 | none | statue seqs 1203 + 4278, rock projectile, graphic 71 | W2, wiki CoX points, N1 `process`/`pushBack` |
+| 11 | Knockback (see R5 for the recorded form) | every 3rd tick (statue tick counter), raiders on or orthogonally next to a blocked tile (read end of previous tick); resolves next tick if he has not moved: put on the push tile, 15-30 typeless, +40 points; the nearer statue swings (seq 1203) and targets him (full delay); the other STOMPS the other push tile (#5, lands a tick later, almost certainly on him) and targets him | blocked tiles, Euclidean <= 1 | 15-30 + a stomp 0-15 | none | statue seqs 1203 + 4278, rock projectile, graphic 71 | W2, wiki CoX points, N1 `process`/`pushBack` |
 | 12 | Player damage | every hit on a statue: x (50 + Mining + pick req)/150 applied to the rolled hit, req capped at 61 (crystal = dragon); no wielded pickaxe -> 0 | -- | dragon @ 99: x1.4 | -- | -- | J1, J2, W2 |
 | 13 | Defence | crush -10 vs slash +180: Smash | -- | -- | -- | -- | W1, W3, V1 |
 | 14 | HP | 250 each solo (151 x (1 + floor(1/2)) + 99 x 1) | -- | -- | -- | -- | W1, W2 |
@@ -66,11 +67,9 @@ Npcs run before players. "T" is the server tick of the statue's decision; it rea
 
 - R1 Pickaxe damage: J1/J2 (Jagex) over Theoatrix's "mining changes your accuracy" (V3) and NR's crystal +0.5 (N1).
 - R2 "Both must die together / regen if one is left": no source says so. Synq plays on with one dead ("once you've defeated one of the guardians, you can use this one click method") -- the statues are independent; only the 8-tick regen applies. Nothing implemented.
-- R3 Protect from Melee vs the cleave: J5 says it hits through, V1/V2 say the prayer helps; nobody gives a number. 50% damage is OURS (the raid's partial-prayer convention, NR Tekton/mystic 0.5). Probe row P2 below.
-- R4 Stomp max: W2 "moderate to heavy", W1 max hit 20, N1 `getMaxHit(15)`. 15 kept (the only number); flagged.
-- R5 Knockback period 3 ticks and 40 points: N1 only (wiki: points awarded, cap formula unknown).
-- R7 Regen includes hitpoints (2026-10-18 review): J4's list is Jagex's per-npc regen timer and includes "Vasa's crystal - 9" and "Vespula's grubs - 10000 (i.e. never)", which have no combat stats to drain. So the timer moves hitpoints too, as the RS2 engine's npc regen does for every stat. +1 hp per 8 ticks is right.
-- R8 Unsourced numbers, searched again 2026-10-18 (wiki Guardian, CoX/Strategies, Challenge Mode pages): no public figure for the stomp max (R4: N1's 15), the knockback damage (R5: N1's 15-30), or the Protect from Melee factor (R3: OURS 50%). They stay flagged until a recorded source exists.
+- R3 Protect from Melee vs the swing: RECORDED (D1, 820, prayer on): 19 against a four-man's melee max of 24 and 14 against a trio's 22, so at least 79% of the hit gets through. 80% kept (^cox_guardian_melee_prayer_pct; was OURS 50).
+- R4 Stomp max: RECORDED (D1): 47 stomps in the trio and four-man raids spread evenly over 1..35 with a 35 in both, so the max does not scale with the party; solo stomps hit 29, 14, 13. 35 (was NR's 15).
+- R5 Knockback: RECORDED (D1: 3282 t6457 solo, 820 t1690 and t4235). The raider plays eadgar_knockout (1258) and slides one tile; EACH statue still standing sweeps (human_scythe_sweep 440) and hits once, within its melee roll: 15 and 7 with both standing, 5 and 12 with one. No stomp follows (NR stomped the other push tile and dealt one 15-30 hit). Poll period 3 and 40 points remain NR's.
 - R6 Stomp on a DIAGONAL target (N1 attacks a target at a footprint corner, always as a stomp): the engine never swings at a diagonal; not modelled. Probe row P3.
 
 ## Audit (mechanic / ours before 2026-10-18 / OSRS / verdict)
@@ -112,3 +111,7 @@ After (`::coxtest 1 0`, scratchpad probes `after_g`, `g2`, `g5`): no aborts; sta
 - P2 cleave damage with PfM on/off over 100 swings (expect half; the factor is OURS).
 - P3 a raider standing at a footprint corner: N1 stomps him, ours never swings.
 - P4 knockback when standing in the gap: 15-30 + the other statue's stomp on the next tick.
+
+## Stomp tell (recorded, D1 820 t1452)
+
+The swing tick sends the rock (`motherlode_rockfall` 645, start 15, end 30) AND `castlewars_catapult_splash` (305) as a map anim on the target tile delayed 30 client cycles; the hit shows the next tick. Both statue sequences (1203, 4278) are seen with a rock, so the sequence does not tell the stomp from the swing; the rock does.

@@ -1822,8 +1822,13 @@ ToriRSServer_CombatHitNpc(
      * latch it just declined.
      */
     ToriRSServer_NpcFacePlayer(npc, npc->combat_target);
-    /* Flinch. Overwritten below if this was the killing blow. */
-    play_npc_seq(npc, npc->block_seq);
+    /*
+     * The hit sound, on the tick the hit lands. The defend ANIMATION is not
+     * played here: Jagex sends it on the attack tick, delayed to the landing
+     * (`npc_defend`, from `[proc,player_hit_npc_prepare]`), and an npc's hit
+     * on an npc brings none (the Ancestral Glyph under Jad's fire, RSProx
+     * 1754). docs/rsprox-analysis/combat/defend_timing.md.
+     */
     npc_sound_nearby(srv, npc, npc->block_sound, 0);
 
     if( npc->hitpoints == 0 )
@@ -2086,8 +2091,9 @@ ToriRSServer_CombatHitPlayerFrom(
     ToriRSServer_ScriptsRunProc(srv, "[proc,combat_player_hit_received]", NULL, 0);
 
     /*
-     * The block animation is content's — [ai_opplayer2,_] plays
-     * anim(%com_defendanim). The engine no longer drives it.
+     * The block animation is content's, played when the npc's attack is made:
+     * `~playerhit_n_melee_apply` (delay 0), `~playerhit_n_ranged` and the npc
+     * magic paths (delayed to the projectile's landing).
      */
 
     if( player->hitpoints == 0 && !player->dying )

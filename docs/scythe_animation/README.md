@@ -1,5 +1,12 @@
 # The scythe of vitur's red sweep
 
+> **Superseded in part (2026-10-18).** RSProx recordings of the real game
+> (`docs/rsprox-analysis/scythe/README.md`) replaced NR's direction rule and
+> its height of 96. The real server sends `delay=20, height=92`. It sweeps
+> north/south unless the player stands on the target's centre row (`size / 2`
+> from its south-west row, or the south-west row itself for a 2x2). The
+> mechanism, the copies and the harness below still stand.
+
 The red arc that trails the blade — what it is, what was wrong with it, and
 the harness that says so in numbers rather than in screenshots.
 

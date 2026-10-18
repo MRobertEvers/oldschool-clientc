@@ -557,10 +557,12 @@
 #define SS_OP_P_NAMEDIALOG_WAIT 11128
 #define SS_OP_VESSEL_BERTH 11129
 #define SS_OP_OBJ_IRONMAN_BLOCKED 11130
+#define SS_OP_NPC_DEFEND 11131
+#define SS_OP_SOUND_AREA 11132
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11131
+#define SS_OPCODE_MAX 11133
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 535
+#define SS_OPCODE_COUNT 537
 
 #endif

@@ -3060,6 +3060,14 @@ struct ToriRSServerNpc
     int block_seq;
     int death_seq;
     /**
+     * The end cycle of the last projectile sent at this npc (`projanim_npc`)
+     * and the tick it was sent on; -1 when none. `npc_defend` reads it: Jagex
+     * sends the defend animation on the attack tick, delayed to the
+     * projectile's landing (docs/rsprox-analysis/combat/defend_timing.md).
+     */
+    int defend_proj_tick;
+    int defend_proj_end;
+    /**
      * 1 once `death_seq` has been played on this life, by anyone.
      *
      * A death animation goes out ONCE per life. The client does not restart a

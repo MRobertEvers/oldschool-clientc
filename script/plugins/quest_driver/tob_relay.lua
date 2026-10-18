@@ -813,8 +813,15 @@ function QD.raid.tob_relay_test(mode, opts)
                 if t.chat.kind() ~= "none" then break end
                 t.ticks(1)
             end
-            local cr, cd = t.chat.play({ "npc:So, you wish to entertain me", "options",
-                "choose:Yes, begin the fight." })
+            -- The real dialogue (docs/rsprox-analysis/tob/verzik.md): two lines
+            -- on a raider's first talk-to, "Back again for more?..." on the
+            -- quick-start rung, then the menu, then her laugh as she rises.
+            local pages = { "npc:quite the show", "npc:final performance", "options",
+                "choose:Yes, let's begin.", "npc:enjoy this" }
+            if string.find(tostring(t.chat.text()), "Back again", 1, true) then
+                pages = { "npc:Back again", "options", "choose:Yes, let's begin.", "npc:enjoy this" }
+            end
+            local cr, cd = t.chat.play(pages)
             t.check("verzik.begin", cr == "ok", tostring(cd))
         end
         t.expect("verzik.barrier.started", t.party.barrier("verzik_started", 900))

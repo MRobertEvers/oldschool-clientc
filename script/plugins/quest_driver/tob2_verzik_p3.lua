@@ -707,7 +707,7 @@ function VZ.web_track(S, F)
                         break
                     end
                 end
-                land = land or (F.tick + V.WEB_FLIGHT)
+                land = land or (F.tick + V.web_flight(p))
                 cur[#cur + 1] = { x = p.dst_x, z = p.dst_z, cl = p.cycles_left or 0, land = land }
                 local key = p.dst_x .. "," .. p.dst_z .. "@" .. land
                 if not P.web_keys[key] then

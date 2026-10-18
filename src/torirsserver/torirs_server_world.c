@@ -4261,6 +4261,7 @@ npc_spawn(
         npc->attack_seq = def->attack_anim;
         npc->block_seq = def->defend_anim;
         npc->death_seq = def->death_anim;
+        npc->defend_proj_tick = -1;
         /* Beside the animation each one belongs to, from the same record and on
          * the same line, because they are one event. */
         npc->attack_sound = def->attack_sound;
@@ -16211,6 +16212,7 @@ ToriRSServer_WorldBuildEntities(struct ToriRSServer* srv)
         srv->npcs[i].respawn_tick = -1;
         srv->npcs[i].despawn_tick = -1;
         srv->npcs[i].anim_id = -1;
+        srv->npcs[i].defend_proj_tick = -1;
     }
     {
         int count = 0;

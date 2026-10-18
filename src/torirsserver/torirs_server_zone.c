@@ -935,6 +935,38 @@ ToriRSServer_ZoneProjanim(
 }
 
 void
+ToriRSServer_ZoneSoundArea(
+    struct ToriRSServer* srv,
+    int x,
+    int z,
+    int level,
+    int sound,
+    int loops,
+    int delay,
+    int range)
+{
+    struct ToriRSServerZone* zone;
+    struct ToriRSServerZoneEvent event;
+
+    assert(srv);
+    zone_root_point(srv, &x, &z, &level);
+    zone = zone_at(srv, x, z, level);
+    if( !zone )
+        return;
+    memset(&event, 0, sizeof(event));
+    event.kind = TORIRSSERVER_ZONE_EV_SOUNDAREA;
+    event.receiver_pid = -1;
+    event.pos = zone_pos(x, z);
+    event.id = sound;
+    event.shape = loops;
+    /* The packet's delay, range and drop-off are single bytes. */
+    event.start_delay = delay < 0 ? 0 : (delay > 255 ? 255 : delay);
+    event.count = range < 0 ? 0 : (range > 255 ? 255 : range);
+    event.old_count = 0;
+    queue_event(srv, zone, &event);
+}
+
+void
 ToriRSServer_ZoneMapanim(
     struct ToriRSServer* srv,
     int x,
@@ -2033,6 +2065,7 @@ zone_event_kind_name(int kind)
     case TORIRSSERVER_ZONE_EV_LOC_MERGE: return "loc_merge";
     case TORIRSSERVER_ZONE_EV_PROJANIM: return "projanim";
     case TORIRSSERVER_ZONE_EV_MAPANIM: return "mapanim";
+    case TORIRSSERVER_ZONE_EV_SOUNDAREA: return "soundarea";
     default: return "?";
     }
 }
@@ -2115,7 +2148,8 @@ zone_send_transients(
         const struct ToriRSServerZoneEvent* event = &zone->events[e];
         struct ToriRSServerZoneEvent local;
 
-        if( event->kind != TORIRSSERVER_ZONE_EV_PROJANIM && event->kind != TORIRSSERVER_ZONE_EV_MAPANIM )
+        if( event->kind != TORIRSSERVER_ZONE_EV_PROJANIM && event->kind != TORIRSSERVER_ZONE_EV_MAPANIM &&
+            event->kind != TORIRSSERVER_ZONE_EV_SOUNDAREA )
             continue;
         if( event->receiver_pid >= 0 && event->receiver_pid != player->pid )
             continue;
