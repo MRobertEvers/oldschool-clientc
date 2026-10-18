@@ -31,7 +31,9 @@ return {
         t.ticks(4)
         -- a real run, so wave 68 hands over to Zuk and the kill pays out
         t.cheat("::setvar varp6038_inferno_practice 0", false)
-        wait(t, 12)
+        -- The wave stands up after the jump-in (the Jads spawn ~21 ticks after `::inferno`);
+        -- a kill sent before that finds nothing and the Jads kill the player.
+        wait(t, 24)
         t.ticklog.mark("wave68.kill")
         t.cheat("::infernowavekill", false)
         wait(t, 70)
