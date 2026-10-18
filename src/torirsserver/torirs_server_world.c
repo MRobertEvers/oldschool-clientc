@@ -11262,7 +11262,8 @@ ToriRSServer_RunCheatLadder(
          * or carried is gone, stats restored), and so it also leaves any run
          * in progress. Levels are 99 across the board (Agility for the
          * crystal set's 50), with Rigour, Augury and Preserve unlocked and
-         * Roving Elves complete (the crystal shield's wear requirement).
+         * Roving Elves complete (the crystal shield's wear requirement), and
+         * Desert Treasure complete, which unlocks Ancient Magicks.
          */
         static const char* const kit[] = {
             "resetcharacter",
@@ -11273,6 +11274,8 @@ ToriRSServer_RunCheatLadder(
             "setvar varb5451_prayer_rigour_unlocked 1",
             "setvar varb5452_prayer_augury_unlocked 1",
             "setvar varb5453_prayer_preserve_unlocked 1",
+            /* Ancient Magicks unlocked (spellbook_switch.rs2), then the book. */
+            "setvar varb358_deserttreasure ^dt_complete",
             "setvar varb4070_spellbook ^spellbook_ancient",
             "setvar varb5646_inferno_sacrificed_firecape ^inferno_firecape_sacrificed",
             /* The crystal shield's wear gate (levelrequire.rs2). */
