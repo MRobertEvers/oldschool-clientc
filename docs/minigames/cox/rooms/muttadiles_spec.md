@@ -1,4 +1,4 @@
-# Muttadiles: tick spec, audit, fixes (2026-10-18)
+# Muttadiles: tick spec, audit, fixes (2026-10-18; RSProx pass the same day)
 
 Unit: muttadiles. Content: `OSRS-Content/.../minigame_cox/scripts/cox_muttadiles.rs2`,
 the Muttadile blocks of `configs/cox.constant` and `configs/cox.npc`.
@@ -26,26 +26,27 @@ Solver plan: `muttadiles_solver.md` (next to this file).
 | **Synq** | Synq solo guide, Muttadiles 0:42:50-0:54:44 (`synq_transcript.md:313-357`) | video |
 | **PG** | ThePerfectG, *FULL Solo Muttadile Guide* (`transcripts/yt_s1cQDeyBH2Y.md`) | video |
 | **Tub / Ed / Ext / Gno / Pl / Ac** | Tubby (`transcript_tubby_solo_cox.md:96-106`), TheEdB0ys (`transcript_edb0ys_cox.md:150-162`, 2022), Extile, Gnomonkey, Plank2g, The Academy | video |
+| **RX** | RSProx recordings of Jagex's server: 3285/3282/843 solo, 3389 CM, 820 a four-man (`docs/rsprox-analysis/cox/muttadiles.md`) | **recorded -- outranks every row below where it speaks** |
 | **NR** | Near-Reality `SmallMuttadile`, `LargeMuttadile`, `MuttadileRoom`, `MeatTree`, `NoxiousTendrils`, combat json 7561/7562 (copied to `nr/muttadile/`, new); spawn tiles `nr/room_coords.txt:328-357` | reference server |
 
 ## Rulings on conflicts (higher source wins)
 
 | question | sources | ruling |
 |---|---|---|
-| Heal per meal | WM "eating up to 50% of their health (100% total)"; WS "restoring up to 40%"; NR 2 bites x 10% (3 under 40%); Ac/Ext/Pl "heal up to 50%" / "heal up all of the way" | **50% a meal, 25% a bite, 2 bites** (WM, the specific page, plus WCM "each time consisting of two bites"). WS's 40% is the pre-2023 trigger figure. |
+| Heal per meal | **RX: 3 bites of 15%, consecutive ticks** -- ruling below superseded; WM "eating up to 50% of their health (100% total)"; WS "restoring up to 40%"; NR 2 bites x 10% (3 under 40%); Ac/Ext/Pl "heal up to 50%" / "heal up all of the way" | **50% a meal, 25% a bite, 2 bites** (WM, the specific page, plus WCM "each time consisting of two bites"). WS's 40% is the pre-2023 trigger figure. |
 | Feed trigger | J23 "at 50% HP or below (up from 40%)"; WCM "around 40-50%"; NR random 1/3 a tick under 50% | **at <= 50%, at once** (J23) |
 | Prayer vs ranged / magic | WS "only reducing"; Synq "partial protection"; NR `getRanged/MagicPrayerMultiplier = 0.33` (ceil) | **33% gets through** (NR is the only number; was 50 with no source) |
 | Prayer vs melee bite | WS "protection prayers block the melee attacks"; Synq "100% protection" | **fully blocked** (was 50% through) |
 | Stomp | AshP 1.5x melee max, "acts as melee - crush"; WS "in place of a melee attack", "raising its front legs"; Synq "can hit [through] the protect from melee"; PG "random which melee she does", "one tick to react" | **its own attack (seq 7424 slam), 50/50 against the bite, every player in melee reach, max 72 (CM 106), crush accuracy, NOT reduced by Protect from Melee, lands swing+1**. Was a headcount rule (72 only with two or more in reach) |
-| Small: melee vs ranged in reach | WM "if within melee distance ... it will prioritise Melee"; PG "in melee distance he has a lesser chance to switch to range"; NR melee 3/4 in reach | **3/4 melee in reach** (NR; agrees with PG's "lesser chance") |
-| Large: melee in reach | WM "Melee up close"; NR 1/2 | **1/2** (NR; only number) |
+| Small: melee vs ranged in reach | WM "if within melee distance ... it will prioritise Melee"; PG "in melee distance he has a lesser chance to switch to range"; NR melee 3/4 in reach | ~~3/4~~ **RX: 9/10** (40 bites, 3 spits in reach) |
+| Large: melee in reach | WM "Melee up close"; NR 1/2 | ~~1/2~~ **RX: 9/10** (11 of 11 melee) |
 | Style lock | J23 "only swap ... after using the same style 3 times in a row, not counting Melee"; WS "minimum of three ... not guaranteed to swap"; Synq "start off by praying range" | **runs of >= 3 thrown attacks; at the end a coin decides (odds unpublished); first run ranged** (was 4-attack runs, random first style) |
 | Prayer read point | Synq "damage is registered on the tick that the attack animation started"; PG tick-eat its projectiles; NR reads prayer on landing | **at the swing** (videos outrank NR on observed behaviour) |
 | Max hits | WM infobox post-J23: small 28 melee / 30 ranged; large 48 melee, 72 stomp, 45 ranged, 23 magic; CM 41/44, 71/106/67/34; NR 47/30/25 (pre-2023) | **WM** (unchanged; COX_MECHANICS.md S8's "large 41/44" was the CM *small* column, corrected here) |
-| Submerged cadence | infobox attack speed 4; NR every 6 ticks then a 1/4 gate and a target count | **every 4 ticks, each seen player 1/3** (AshS + infobox) |
+| Submerged cadence | infobox attack speed 4; NR every 6 ticks then a 1/4 gate and a target count | ~~every 4~~ **RX: every 6 ticks**, each seen player 1/3 (AshS; RX 9/31 solo, 56/160 party) |
 | Submerged reach | WM "covers the entire chamber", AshS "everyone in line-of-sight" | **the room, line of sight** (was 16 tiles) |
 | Give-up | WM "~15 or so seconds ... they will give up"; WS "will give up and no longer attempt to eat from it"; WS "will only eat one time and will not do so again" | **25 ticks without reaching the tree ends the meal and all later meals** |
-| Damage while feeding | J23 (before: "all your damage is nullified even though the muttadile is just standing there"; after: damageable "even if they are frozen while attempting to reach the tree"); Ed (2022) "invincible until they are done eating" | **nullified while on a meal unless frozen** -- written (`~cox_mutta_prepare_hit`) but NOT wired (the funnel is a shared file, see below) |
+| Damage while feeding | J23 (before: "all your damage is nullified even though the muttadile is just standing there"; after: damageable "even if they are frozen while attempting to reach the tree"); Ed (2022) "invincible until they are done eating" | ~~nullified~~ **RX: damage lands** walking to and eating at the tree (the post-2023 game); `~cox_mutta_prepare_hit` removed |
 | Attack range | NR class `setAttackDistance(6)` (json 8) | **6** (was 10, no source) |
 | Tree chop damage | J23 "(Woodcutting level / 2) - 2, plus or minus 5"; AshT/WT "/2, -7/+3" | same thing (99 -> 42..52); unchanged |
 
@@ -60,11 +61,11 @@ measured in the 2026-10-18 probes (ticklog `npc_anim` vs `hit_player`).
 
 | mechanic | decide | reads | geometry | damage (solo) | prayer | tell (client) | source |
 |---|---|---|---|---|---|---|---|
-| target | every tick (its timer) | raiders in its room | nearest in its own 32-tile room, no LoS needed | -- | -- | facing_entity on its npc row | WM aggressive; Vanguards' engage pattern |
+| target | after every attack, and when it has none | raiders in its room | **a random raider** in its room (RX), no LoS needed | -- | -- | facing_entity on its npc row | WM aggressive; Vanguards' engage pattern |
 | attack cadence | engine attack clock, 4 ticks | -- | attack range 6 | -- | -- | -- | WM infobox; NR |
-| bite | T | my tile end T-1 | edge-adjacent to the 3x3 (not diagonal, not under); 3/4 of swings in reach | crush roll (att 150, +71) vs my crush def; 0..28 (CM 41); **+0** | Protect from Melee: 0 | seq 7420 `dohgadyle_bite` on T | WM, NR, PG, Synq |
-| spit | T | my tile end T-1 | anywhere in range 6 / not bitten | ranged roll (150, +83) vs my range def; 0..30 (CM 44); **+round((43+5d)/30)**, d = Chebyshev from its middle: d<=4 +2, d 5-9 +2..3 | Protect from Missiles: ceil(33%), read at T | seq 7421 `dohgadyle_bark` + projectile 1291 `lizardman_spit` (23->25, delay 15) | WM, NR |
-| meal | the tick after its hp <= 125 (50% of 250) | own hp | walks to the tree (touching its 2x2) | heals 62 a bite, 2 bites, 4 ticks apart once there; <= 3 meals | -- | stops attacking; walks; seq 7420 at the tree; npc_heal rows / health bar rises | J23, WM, WCM, NR |
+| bite | T | my tile end T-1 | edge-adjacent to the 3x3 (not diagonal, not under); 9/10 of swings in reach (RX) | crush roll (att 150, +71) vs my crush def; 0..28 (CM 41); **+0** | Protect from Melee: 0 | seq 7420 `dohgadyle_bite` on T | WM, NR, PG, Synq |
+| spit | T | my tile end T-1 | anywhere in range 6 / not bitten | ranged roll (150, +83) vs my range def; 0..30 (CM 44); **+(61+5d)//30** (RX), d = Chebyshev from its middle | Protect from Missiles: ceil(33%), read at T | seq 7421 `dohgadyle_bark` + projectile 1291 `lizardman_spit` (25->36, delay 5, progress 115) + `creeper_spit` | WM, RX |
+| meal | the hit's tick, hp <= 125 (50% of 250) | own hp | walks to the tree (touching its 2x2) | heals 15% a bite (37 at 250), 3 bites on consecutive ticks once there; <= 3 meals; still damageable (RX) | -- | stops attacking; walks; seq 7420 at the tree; npc_heal rows / health bar rises | J23, WM, WCM, NR |
 | give up | 25 ticks unable to touch the tree | -- | -- | no more meals ever | -- | resumes attacking | WM, WS |
 | death | hp 0 | -- | -- | drops overload (+)(4), prayer enhance (+)(4), 1-3 stinkhorn, big bones | -- | seq 7426 `dohgadyle_death`; then the large one surfaces | WM drops |
 | stats | -- | -- | -- | hp 250 x party scale; att/str 150, def 138, mag 1, rng 150; att+71 str+48 rng+83 rstr+56; def stab -5 slash 72 crush 50 mag 60 rng 0; 40% earth weakness | -- | -- | WM infobox, SS25 |
@@ -73,7 +74,7 @@ measured in the 2026-10-18 probes (ticklog `npc_anim` vs `hit_player`).
 
 | mechanic | decide | reads | geometry | damage | prayer | tell | source |
 |---|---|---|---|---|---|---|---|
-| sweep | every 4th tick of its timer, from spawn, while the small one lives (and through the emergence) | every raider at end T-1 | its room, line of sight from the water (`huntall` checkvis) | each seen player independently 1/3; magic roll (250, +0) vs my magic def; 0..23 (CM 34; CM's 20-80% floor not done); **+round((18+5d)/30)**: d 8 -> +2, d 12+ -> +3 | Protect from Magic: ceil(33%) at T | projectile 393 `dragon_ranged_fire_attack` from the water (20->25, delay 10) and spotanim 157 `firewave_impact` (h 96) on me as it lands | AshS, WM, NR |
+| sweep | every 6th tick of its timer (RX), from spawn, while the small one lives (and through the emergence) | every raider at end T-1 | its room, line of sight from the water (`huntall` checkvis) | each seen player independently 1/3; magic roll (250, +0) vs my magic def; 0..23 (CM 34; CM's 20-80% floor not done); **+(56+5d)//30** | Protect from Magic: ceil(33%) at T | projectile 393 `dragon_ranged_fire_attack` from its middle (62->36, delay 61, progress 128) and `firewave_cast_and_fire` (delay 10, range 15); no graphic on me | AshS, WM, RX |
 | unattackable | -- | -- | -- | -- | -- | no Attack op (cache) | WM |
 
 Measured: 23 throws in about 83 sweeps with one raider in sight (seed 3) = 0.28.
@@ -82,15 +83,15 @@ Measured: 23 throws in about 83 sweeps with one raider in sight (seed 3) = 0.28.
 
 | mechanic | decide | reads | geometry | damage | prayer | tell | source |
 |---|---|---|---|---|---|---|---|
-| surfacing | the small one's death tick D | -- | walks 5 tiles out of the water (our tile choice) | -- | -- | seq 7423 `dohgadyle_emerge` at D; npc retypes 7561 -> 7563 at D+3 | NR (+4 there; ours +3, minor) |
+| surfacing | E = the small one's deletion (D+3) + 0..3 | -- | walks 5 tiles out of the water, a tile a tick from E (our tile choice) | -- | -- | seq 7423 `dohgadyle_emerge` at E; npc retypes 7561 -> 7563 at E+5; no message | RX |
 | target / cadence | as the small one | | attack range 6 | | | | |
-| melee choice | T, in reach | my tile end T-1 | edge-adjacent to the 5x5; 1/2 of swings in reach; then bite or stomp 1/2 each | | | | NR, PG |
+| melee choice | T, in reach | my tile end T-1 | edge-adjacent to the 5x5; 9/10 of swings in reach (RX); then bite or stomp 1/2 each | | | | NR, PG |
 | bite | T | | the target | crush (250, +88); 0..48 (CM 71); **+0** | Protect from Melee: 0 | seq 7420 | WM, Synq |
 | stomp | T | every raider's tile end T-1 | every raider edge-adjacent | crush roll each; 0..72 (CM 106); **+1** | **none** (goes through Protect from Melee) | seq 7424 `dohgadyle_slam` ("raising its front legs") | AshP, WS, Synq, PG |
-| ranged | T, not melee | | range 6 | ranged (250, +82); 0..45 (CM 67); **+round((43+5d)/30)** | Missiles: ceil(33%) at T | seq 7421 + projectile 1291 (25->25, delay 15) | WM, NR |
-| magic | T, not melee | | range 6 | magic (250, +0); 0..23 (CM 34); **+round((68+5d)/30)**: d 1-4 +3, 5-10 +3..4 | Magic: ceil(33%) at T | seq 7422 `dohgadyle_lazor` + projectile 393 (25->25, delay 40) | WM, NR |
+| ranged | T, not melee | | range 6 | ranged (250, +82); 0..45 (CM 67); **+(56+5d)//30** | Missiles: ceil(33%) at T | seq 7421 + projectile 1291 (46->36, delay 5, progress 250) + `creeper_spit` | WM, RX |
+| magic | T, not melee | | range 6 | magic (250, +0); 0..23 (CM 34); **+(56+5d)//30** | Magic: ceil(33%) at T | seq 7422 `dohgadyle_lazor` + projectile 393 (62->36, delay 61, progress 128) + `firewave_cast_and_fire` | WM, RX |
 | style lock | each thrown attack | | | first 3 ranged; after any run of 3, a coin for the next run | | the seq id (7421 vs 7422) | J23, WS, Synq |
-| meal / give up | as the small one, own counters (3 meals) | | | heals 62 a bite | | | J23, WM |
+| meal / give up | as the small one, own counters (3 meals) | | | heals 15% a bite | | | J23, WM |
 | death | | | | drops overload, prayer enhance, Xeric's aid, revitalisation (all (+)(4)), big bones; room cleared (`~cox_mutta_cleared`) | | seq 7426 | WM drops |
 | stats | | | | hp 250 x scale; att/str 250, def 220, mag 250, rng 250; att+88 str+55 rng+82 rstr+47 mag+0; def stab -5 slash 82 crush 60 mag 75 rng 0; 40% earth | | | WM infobox |
 
@@ -99,13 +100,13 @@ Measured: 23 throws in about 83 sweeps with one raider in sight (seed 3) = 0.28.
 | mechanic | value | source |
 |---|---|---|
 | hp | max(100, 5 x party's total Woodcutting): solo 99 -> 495 | AshT |
-| chop | op 1 Cut on the npc, any axe (type irrelevant); a roll every 4 ticks (probe: 56, 60, 72, 76, ...) | AshT, NR |
+| chop | op 1 Cut on the npc, any axe (type irrelevant); a roll every 5 ticks; "You hack away some of the meat." per landed chop, `tree_creak_1` | AshT, RX |
 | success | 20% at 1 .. 78% at 99 (stat_random 50/200) | AshT |
 | damage | (WC / 2) - 2 +/- 5: 42..52 at 99 | J23 |
 | xp | 45 a success | WT |
 | not interrupted by being hit | -- | Synq 0:45:01 |
 | solo at 99 | ~11 successes, ~13 rolls, ~52 ticks (probe: first hit t56, dead t108) | measured |
-| death | room register bit; loc 30012 -> 30013 three ticks later; any meal in progress ends next tick; no further meals | WT, de0, NR |
+| death | on the killing chop's tick: "You hack away the final pieces of meat.", room register bit, loc 30012 -> 30013, the npc gone (no splat, no animation); any meal in progress ends next tick; no further meals | WT, de0, RX |
 | tell | the tree npc's health bar and hitsplats; loc 30013 appearing | de0 |
 
 ### Noxious tendrils (loc 29767 `raids_dogodile_tendrils_entrance`)
@@ -152,12 +153,12 @@ approach): the room is entered through them either way.
 | exit crystal | none | NR loc 30018 per variant, shattered on clear (anim 7506, sounds 1021/3821, gone +2) | FIXED round 2 (`~cox_mutta_room_done`); the Houndmaster's book (loc 30031) at her death |
 | surfacing walk | `npc_walk` (collision on): she never left the water, 0 swings all fight; CW walked east | NR walks 5 tiles with collision off: WEST in CCW/THRU, SOUTH in CW | FIXED round 2 (a tile a tick, `npc_tele`; CW south) |
 | chopping | `p_delay` between rolls: an eat/drink while chopping was dropped | OSRS woodcutting: an inventory op ends the chopping | FIXED round 2 (the woodcut action-clock cadence, re-op each tick) |
-| damage while feeding | always damageable | nullified unless frozen | FIXED (root wired `~cox_mutta_prepare_hit` in cox_combat.rs2) |
+| damage while feeding | always damageable | RX: damageable | REVERTED 2026-10-18 (the nullifying was the pre-2023 game) |
 | tendrils | absent | spec above | FIXED round 2 (`[oploc1,raids_dogodile_tendrils_entrance]`) |
-| erratic movement | none (engine chase only) | "notorious for constantly walking towards and away"; NR: after a thrown attack 1/3 chance to close to 1-3 tiles, and a no-LoS re-path | OPEN (see below) |
+| erratic movement | FIXED 2026-10-18 (RX: 1 attack in 7 owes one random step at +3) -- was: none (engine chase only) | "notorious for constantly walking towards and away"; NR: after a thrown attack 1/3 chance to close to 1-3 tiles, and a no-LoS re-path | OPEN (see below) |
 | bronze axe spawn | absent | a bronze axe ground spawn in the room since 26 Jun 2024 (WM; Jagex patch notes "Added a handy Bronze Axe spawn to the muttadile room") | FIXED round 3: spawned beside the tendrils' landing tile (template (16, tendril row + 1); the tile is OURS, no source gives it) |
 | CM submerged 20-80% | absent | AKD | OPEN (CM only) |
-| surfacing timing | retype at D+3 | NR D+4 | minor, left |
+| surfacing timing | retype at D+3 | RX: emerge D+3..6, retype emerge+5 | FIXED 2026-10-18 |
 
 ## Probes (2026-10-18, private build `build_cox_mutta`, scriptrun seed 3: `::coxseed 3` + `::coxgoto 12 0`)
 
@@ -175,16 +176,14 @@ Every run: 0 `abort`, 0 `no primary player bound` in stdout.
 
 ## Still unsettled
 
-1. **Erratic movement.** The single most visible Muttadile behaviour is not
-   modelled. NR's model (1/3 after a thrown attack: re-path to within 1-3 tiles
-   of the target; every 3 ticks with no line of sight: walk off and drop the
-   target for 5 ticks) is a reference server's guess; no higher source gives a
-   rule. Needs recorded footage timelines before it is written.
-2. **Feeding immunity wiring** (one dispatch line in the shared funnel).
+1. (settled by RX 2026-10-18) **Erratic movement**: one step to a random
+   neighbour, 3 ticks after 1 attack in 7.
+2. (settled by RX) **Feeding immunity**: there is none.
 3. **Style-coin odds** after a run of three (we use 1/2; Tub: "usually after
    three mage attacks, he will switch back to ranged" suggests magic -> ranged
-   is likelier). Recorded data would settle it.
-4. **Prayer fraction** 33% is NR's; no Jagex/wiki number.
+   is likelier). RX runs R4 M4 R3 R3+ R2 / R7 R3 R2 do not settle it.
+4. **Prayer fraction** 33% is NR's; RX under-prayer maxima (7 of 23, 7 of 30)
+   fit it.
 5. (fixed round 2) **Selftests that pinned the old behaviour** (`cox_selftest.rs2`, not this
    unit's): #106 `cox_selftest_mutta_style_lock_melee_exempt` asserts the lock
    reads 3 after the reroll from 1 (the old 4-attack run); under the fix it reads

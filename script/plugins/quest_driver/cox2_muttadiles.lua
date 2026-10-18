@@ -269,13 +269,14 @@ function MU.observe(S, F)
         end
         if m.crystal_up then m.crystal_seen = true end
     end
-    -- meals: a health bar rising by a quarter (regen is 1 an 15 ticks)
+    -- meals: a health bar rising by a bite, 15% (RSProx; a 30-step bar reads
+    -- it as 0.13 or 0.17), where regen is 1 hitpoint in 15 ticks
     for _, who in ipairs({ "small", "large" }) do
         local row = m[who .. "_row"]
         if row and (row.health_scale or 0) > 0 then
             local f = row.health_ratio / row.health_scale
             local last = m[who .. "_frac"]
-            if last and f - last >= 0.15 then
+            if last and f - last >= 0.1 then
                 m.heals_seen = m.heals_seen + 1
                 QD.raid._tob_trace(S, F.tick, string.format("mutta %s healed %.2f -> %.2f", who, last, f))
             end

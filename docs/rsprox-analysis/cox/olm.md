@@ -2,7 +2,7 @@
 
 Read from the normal solo kills 3282, 843 and 3285, plus the trio and four-man raids in 820. 3389 is Challenge Mode and is excluded from damage. All are on Grid Master worlds; see [README.md](README.md).
 
-In the Olm chamber the claws sit at x 3220 (west wall) or 3238 (east wall). On the west wall the head is at z 5738, the left claw at 5743 and the right at 5733; on the east wall the claws swap. The status column is our content's state on 2026-10-18.
+In the Olm chamber the claws sit at x 3220 (west wall) or 3238 (east wall). On the west wall the head is at z 5738, the left claw at 5743 and the right at 5733; on the east wall the claws swap. The status column is our content's state on 2026-10-18. What changes with more than one raider is under [Parties](#parties).
 
 ## Damage
 
@@ -137,3 +137,55 @@ Times are ticks, measured over all three normal solo kills.
 The claws' cave loc 2 ticks after their death, the clench (stunned to unstunned in 45 ticks; Jagex's is 44) and the turn mapping already matched. The constants are `^cox_olm_rise_wait_first` (9), `^cox_olm_rise_wait_after_fall` (11), `^cox_olm_first_act_p1` (6), `^cox_olm_fall_after_claw` (3), `^cox_olm_head_cave_after` (2), `^cox_olm_grip_after` (3), `^cox_olm_grip_after_clench` (4) and `^cox_olm_claw_idle_after` (2), with the scheduler in `~cox_olm_lifecycle_tick`.
 
 The fight's init now clears only Olm's own register slots (0–79). It used to clear 96, which ran into the raid layout's registers 112–122.
+
+## Parties
+
+Read from 820's four-man fight (t4759–t9387), re-transcribed with every raider shown. The archive's transcripts print the recorder alone (`PLAYER_INFO_LOCAL_PLAYER_ONLY`); `tools/cox/rsprox_olm_party.py` says how to re-transcribe into a private RSProx home, and runs every check below. Rules are judged on the tile each raider **started** the tick on: Olm acts before the players move.
+
+**This fight scaled as a 54-player party.** Grid Master added 50 to the party's 4 (`raids_client_partysize_scaled` = 54). Hitpoints and phase count follow the scaled size: claws 10,202 each (17 × 600), head 13,602 (17 × 800), and 9 hand phases (3 + ⌊54 / 8⌋). Everything else below follows the real 4: 6 bolts, not 31. Ours has no scaled size. Olm's hitpoints and phase count still read the raid-wide `~cox_olm_party_size` (1); with only two sizes recorded (1 and 54), the hitpoint formula is not pinned (base × (1 + ⌊3n / 10⌋) fits both).
+
+### The head
+
+| Rule | Recorded (820) | Ours before | Now |
+|---|---|---|---|
+| Autos | at every raider in the faced view, nobody else: 409 of 410 | the same | unchanged |
+| Turn target | the view with the most raiders, counting each **view** (the boxes overlap: the separating row, z 36, is in all three); middle wins a tie, the wall decides north/south | counted south/north **of** the separating row, so a raider on it counted only for the middle | **by view**: 500 of 505 null/special steps (the old rule: 462); solo 98 of 103 (85) |
+| Hand steer | a claw whose hit landed in the **6 ticks** before the step adds one to its side; a heal splat (the penultimate protection) is not a hit | a hit launched since the last step (4 ticks) | **6 ticks, by the landing** (`~cox_olm_hand_landed` via `~cox_on_damage`) |
+| Empty faced view | the head turns and the step is lost (3 of 3) | the same | unchanged |
+
+The five turn decisions the rule misses: t4770 (one raider in the chamber, a claw hit on the step's own tick), t4842, and three tied S/N cases (t5026, t9050, t9154) that go against the wall's tie-break.
+
+### Specials
+
+| Special | Recorded | Ours before | Now |
+|---|---|---|---|
+| Crystal burst | a seedling under every raider (76 of 82 casts), **never under a raider on an acid pool** (8 of the 13 left out stood on one; 5 unexplained) | every raider | skips an acid-pool tile |
+| Lightning | **4 bolts solo, 6 in the four-man, one more in the penultimate phase** (5 / 7, every cast); each in its own column among **ten** (x 12–21), from either end. It follows the party, not who is in the chamber (t4794: one raider inside, 6 bolts) | 4 always (5 at 6+), nine columns | 4 + party / 2, +1 penultimate, ten columns |
+| Teleport, solo | colour on the raider at +0 +2 +4 +6 +8, on the tile at +2 … +8, the move at **+8**, the hit at +9 (8 casts) | +1 … +7, move +9 | as recorded |
+| Teleport, party | the raiders in the chamber in **random pairs** (a new pairing every cast), a colour a pair (`olm_playerswap_0`, `_1`; four exist); "You have been paired with `<col=ff0000>`name`</col>`! The magical power will enact soon..."; the colour on both at +0 … +8; the pair **swap tiles** at +10 (31 casts) or +9 (18; nothing seen separates them), `telescroll_teleport` on both; each hit the tick after by the solo formula on the distance between them (13 each for 3 tiles). On one tile: "The teleport attack has no effect!". An odd raider out is not picked (the one 3-raider cast; edb0ys's guide says so) | every raider got a solo random tile | as recorded, the swap at +10 |
+| Spheres | each colour goes out with a chance of ½ (at least one), each at a **different** raider in view: with 3 in view, 1/2/3 spheres 9/8/3 times (expected 8.6/8.6/2.9) | one at every raider in view | as recorded |
+
+### Phase attacks
+
+| Attack | Recorded | Ours before | Now |
+|---|---|---|---|
+| Acid drip, Burn With Me, fire wall, crystal power | one **random** raider in the faced view (the crystal power's target was in view on all 16 casts) | the first raider hunted | random in view |
+| Burn With Me spreading | on each burn hit, the burn passes to every raider **within one tile** (same tile included) who is not burning (`olm_burnwithme_travel_pl`, 0 → 30 cycles, slope 20, height 120 both ends); the new burn is **5 hits**, the first 8 ticks on, with no message. A burn that ends on that hit leaves its raider open to catch it again that tick (t6606). 23 spreads | never spread | as recorded |
+| Crystal power | 11 crystals **one every 2 ticks** (160 of 160 gaps, solo too), the first 1 or 2 ticks after the cast (8 / 8), each landing 2 ticks after its throw | one a tick | as recorded, the start 1 or 2 at random |
+| Acid spray | 7–10 pools solo (n=7), 7–15 in the four-man (n=25), not tied to the raiders in view | 7–12 | 7–12 + random(party) |
+| Crystal bombs | none thrown in 820 | 2 (3 at 8+) | unchanged |
+
+### The crystal showers (transition and final stand)
+
+A beat of 4 ticks: a **volley** at random tiles, one in each of the three views solo and two in each in the four-man, then 2 ticks later **one crystal on a random raider's tile**. A transition's beats run from 6 to 34 ticks after the head's death (8 volleys and 7 aimed: 31 crystals solo, 55 in the four-man). The final stand's run from its first tick until the head dies. Two kills of three started with the volley; 843 started with the aimed crystal. Ours threw up to 4 random tiles a tick. Now it follows the beat, (party + 1) / 2 a view (one solo, two for a four-man). Each crystal lands on the head's own npc queue (`ai_queue7` the burst, `ai_queue8` the hit), so a party's volleys are not capped by registers.
+
+### Proved on our server
+
+- `test/raids/cox_olm_party.lua` (`--bots 3`), 10 of 10 seeds:
+  - the head turns south for two raiders on the separating row and one at z 30, on both walls;
+  - every auto goes at exactly the raiders in the faced view;
+  - 5 bolts in distinct columns;
+  - a seedling under each raider;
+  - one pair of three swaps at +10 and takes 1 + ⌊4.3d⌋ at +11; on one tile, no swap and no hit;
+  - the burn spreads to the raider beside its target and never to the one four tiles off.
+- `test/raids/cox_olm_solo.lua`: 5 of 5 seeds green. Its own model checks (autos, specials, the clock) show the same misses on HEAD content as on this change. They come from the lifecycle retiming earlier on 2026-10-18 (`^cox_olm_first_act_p1` 6 against the solver's `FIRST_P1` 9), not from this pass.

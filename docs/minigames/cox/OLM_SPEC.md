@@ -41,9 +41,11 @@ rock (1357); its acid projectile is Vespula's (1364).
   (west angle 3, east angle 1). The left (melee) claw is NORTH on the west wall
   and SOUTH on the east. NPCs: head (6|23, 34), claws x 7|22 at the claw rows.
 - **Views** (NR): SOUTH z 26..36, MIDDLE z 31..41, NORTH z 36..44 (whole chamber
-  width). Turn target: count players in MIDDLE, in z < 36, in z > 36; a hand hit
-  for damage since the last step adds one to its side; MIDDLE wins every tie;
-  the west wall breaks N/S ties north, the east south.
+  width). Turn target: count the players in each VIEW (the separating row z 36
+  is in all three); a claw whose damaging hit LANDED in the 6 ticks before the
+  step adds one to its side; MIDDLE wins every tie; the west wall breaks N/S
+  ties north, the east south [RSProx 820: 500 of 505; NR's z < 36 / z > 36
+  count and a hit since the last step, 462].
 - The guides' west tiles in this frame: mid skip (12,35), thumb (12,39), ring
   finger (12,42); east column x = 21.
 
@@ -70,7 +72,7 @@ rock (1357); its acid projectile is Vespula's (1364).
 | attack | rule |
 |---|---|
 | auto | at everyone in view; projectile (65,15), 30 + 18 + 5/tile cycles; lands at floor(cycles/30) ticks; max 27 P1-P2, 28 P3, 29 final [W]; accuracy (250+9)(60+64) vs the player's defence roll; the matching protect prayer READ AT LANDING takes 80% [W 75-80%, NR 0.2]; 1/5 style switch after attacking [M] |
-| sphere | 1 in 20 autos, never twice running [NR]; any protect overhead on at launch is turned off and prayer halved [W]; lands +4 [NR]: half current hp unless its prayer is on then [W] |
+| sphere | 1 in 20 autos, never twice running [NR]; each colour with a chance of 1/2 (at least one), each at a different player in view [RSProx 820]; any protect overhead on at launch is turned off and prayer halved [W]; lands +4 [NR]: half current hp unless its prayer is on then [W] |
 | phase attack | replaces an auto 1/3 (1/2 final) [M], not twice in one 4-step cycle [NR], then two plain autos first [G]; picks among the attacks not used this phase [M]: the power's two in P1-P2, all six in P3 and the final stand |
 | acid spray | 7-12 pools in view, each where its spit lands; pool 16 ticks; 3-6 + poison each tick stood on [W] |
 | acid drip | one player in view; for 21 ticks a pool on every tile they walk over (a running tick pools the tile stepped through too) [TG, SQ]; standing on a pool hurts; pools poison from 2 [W] |
@@ -78,12 +80,13 @@ rock (1357); its acid projectile is Vespula's (1364).
 | fire wall | rows z±1 of one player in view, 10 tiles from the far wall; lands +1 (judged on the cast tick); a player on a wall row leaps (8-10) outward or into the gap at random [W]; the row between burns 50-65 8 ticks after the walls land ("in 5 seconds") [W]; fails without both rows open [W]; doused by water/ice spells, Humidify beside a flame, a watering can or a gourd vial [W, SQ] |
 | falling crystals | one player in view, 11 crystals, one a tick (from the tick after the cry) on the tile they ended the previous tick on, each landing 2 ticks after its aim (60-cycle projectile) on whoever ended the tick before there, 15-20 [W; cadence and flight: Zenyte FallingCrystal] |
 | crystal bombs | 2 (3 at 8+) at tiles ≥3 apart, placed +3, blow +9; 7x7: 60 on it, 45 at 1, 30 at 2, 15 at 3 [owner, SQ] |
-| crystal burst | a seedling under every player; the burst and its shatter graphic 3 ticks later (reads end of +2) [AY, P] shoves and hits 10-40 [NR] |
-| lightning | 4 bolts (5 at 6+), distinct columns x 12..20, each from either end at random ("they can spawn all in one side" [SQ]); the first shows on the cast tick [P], then one tile a tick, 17 tiles; on your tile: 15-25, protect prayers off and blocked 5 ticks, bound 8 [NR, W] |
-| teleport (solo) | a tile within 10 [W patch]; shown +1,+3,+5,+7; at +9 (reads end of +8): 0 on it, else 5 a tile (max 50) and moved there [W] |
+| crystal burst | a seedling under every player, none on an acid pool [RSProx 820]; the burst and its shatter graphic 3 ticks later (reads end of +2) [AY, P] shoves and hits 10-40 [NR] |
+| lightning | 4 + party/2 bolts, +1 in the penultimate phase [RSProx: 4/5 solo, 6/7 four-man], distinct columns x 12..21 [RSProx], each from either end at random ("they can spawn all in one side" [SQ]); the first shows on the cast tick [P], then one tile a tick, 17 tiles; on your tile: 15-25, protect prayers off and blocked 5 ticks, bound 8 [NR, W] |
+| teleport (solo) | any chamber tile [W, RSProx]; on the raider +0,+2,+4,+6,+8, on the tile +2..+8; moved at +8 (reads end of +7), hit +9 for 1 + floor(4.3 d) [RSProx 3282/3285] |
+| teleport (party) | random pairs of the raiders in the chamber, a colour a pair (olm_playerswap_0..3), an odd one unpicked; colour on both +0..+8; the pair swap at +10, each hit +11 for the distance between them; on one tile no effect [RSProx 820] |
 | protection (P3) | the left claw heals from damage for 16 ticks, "until the next special" [TG, NR; W "two of Olm's attacks" = the two autos] |
 | life siphon (final) | 1 in 16 autos, 10-attack cooldown [NR, W patch]; two tiles in view, shine +3, at +8 everyone off them takes 1-18 and Olm heals 5x [W] |
-| transition / final crystals | up to 4 in the air, one at a player every 4 ticks; shadow `gargboss_debris_shadow_120` [P], lands +4 (reads end of +3): 16-25 under, 10-16 beside [W] |
+| transition / final crystals | a 4-tick beat: a volley, (party+1)/2 a view in each view, then +2 one at a random raider; head death +6..+34, the final stand from its start [RSProx]; shadow `gargboss_debris_shadow_120` [P], lands +4 (reads end of +3): 16-25 under, 10-16 beside [W] |
 
 ## 5. Hands, phases
 
@@ -116,8 +119,11 @@ rock (1357); its acid projectile is Vespula's (1364).
 - Dousing: water/ice spells (`cox_olm_douse`), the watering can and the gourd
   vial (`cox_olm_douse.rs2`), Humidify beside a flame (one tile; the reach is not
   published). Tests: cox_olm_douse, cox_olm_douse_op, cox_olm_douse_water.
-- Teleport pairs for parties are not implemented: every player gets a tile.
-  GAP (solo is exact).
+- Parties: the head counts each view (the separating row in all three), a
+  claw hit landed in the last 6 ticks steers, the teleport pairs, the burn
+  spreads, spheres go at up to one raider a colour (docs/rsprox-analysis/cox/
+  olm.md "Parties"; test/raids/cox_olm_party.lua). Olm's hitpoints and phase
+  count do not scale with the party yet (`~cox_olm_party_size` is 1).
 - "Scuffed" Olm (G: some effects a tick late at random) is not modelled.
 - The penultimate's head-glow on the hands and the regen bar's hitbar are not
   sent. GAP (visual only).

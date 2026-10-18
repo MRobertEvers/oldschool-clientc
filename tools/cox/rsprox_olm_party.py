@@ -298,52 +298,85 @@ def section_autos(ticks, fs):
     print("  (raiders in the chamber, raiders shot): %s" % dict(sorted(sizes.items())))
 
 
+STEER_TICKS = 6
+
+
+def view_counts(starts):
+    """The raiders in each VIEW (they overlap: the separating row is in all three)."""
+    inside = [c for c in starts.values() if in_chamber(c)]
+    return tuple(sum(1 for c in inside if in_view(d, c)) for d in "SMN")
+
+
+def claw_hit(ticks, name, t0, t1):
+    """A damaging hitsplat on a claw over ticks [t0, t1] (not a block's 0, not a heal, id 6)."""
+    for u in range(t0, t1 + 1):
+        uk = ticks.get(u)
+        for kind, text in (uk.next.get(name, []) if uk else []):
+            if kind == "hit" and not text.endswith("value=0") and not text.startswith("id=6,"):
+                return True
+    return False
+
+
+def decision_steps(ticks, t0, t1):
+    """Every null/special step of every phase: (tick, wall, facing before, facing after,
+    claw cast). A phase runs from its rise's first action to the head's death_front (or
+    the final stand); steps are 4 ticks apart, autos on the first and every other one. A
+    step owing a skipped auto (it attacked) is the catch-up, not a decision."""
+    ev = head_events(ticks, t0, t1)
+    rises = [t for t in range(t0, t1 + 1) if ticks.get(t) and any(
+        k == "loc_add_change_v2" and "olm_head_spawning" in x for k, x, _ in ticks[t].packets)]
+    out = []
+    for i, r in enumerate(rises):
+        end = rises[i + 1] if i + 1 < len(rises) else t1
+        for u in range(r, end):
+            uk = ticks.get(u)
+            if uk and (any(k == "loc_anim" and "olm_head_death_front" in x for k, x, _ in uk.packets)
+                       or any("final stand" in m for m in uk.messages)):
+                end = u
+                break
+        steps = sorted(t for t, (h, c, sh) in ev.items() if r <= t < end and (h or c))
+        if not steps:
+            continue
+        wall = next((ev[u][0][0] for u in steps if ev[u][0]), None)
+        first, face, t = steps[0], "M", steps[0]
+        while t < end:
+            h, c, sh = ev.get(t, (None, None, []))
+            new = side_to_dir(h[2], h[0]) if h else face
+            if (t - first) // 4 % 2 == 1 and not (h and h[1] == "attack"):
+                out.append((t, wall, face, new if (h and h[1] == "turn") else face, c))
+            if h:
+                face = new
+            t += 4
+    return out
+
+
 def section_turns(ticks, fs):
-    """Rule (cox_olm.rs2 ~cox_olm_act): the head turns to the zone with the most raiders --
-    middle wins a tie, the wall decides north/south -- with a hand hit since the last step
-    adding one to that hand's side."""
+    """Rule (cox_olm.rs2 ~cox_olm_most_dir_steered): on a null or special step the head
+    turns to the VIEW with the most raiders -- middle wins a tie, the wall decides north /
+    south -- a claw whose hit landed in the STEER_TICKS before the step adding one to its
+    side (the left claw: north on the west wall, south on the east)."""
     agree = disagree = 0
-    steer_only = 0
-    rows = []
+    old = 0
     for t0, t1 in fs:
-        ev = head_events(ticks, t0, t1)
-        last_step = None
-        for t, (head, claw, shots) in sorted(ev.items()):
-            if not head or head[1] != "turn":
-                continue
-            wall = head[0]
-            d = side_to_dir(head[2], wall)
+        for t, wall, face, got, claw in decision_steps(ticks, t0, t1):
             tk = ticks[t]
-            s, m, n = zone_counts(tk.start)
-            plain = most_of(s, m, n, wall)
-            # hand hits in the 4 ticks before the turn
-            lh = rh = False
-            for u in range(t - 4, t):
-                uk = ticks.get(u)
-                if not uk:
-                    continue
-                for kind, text in uk.next.get("olm_hand_left", []):
-                    if kind == "hit" and not text.endswith("value=0"):
-                        lh = True
-                for kind, text in uk.next.get("olm_hand_right", []):
-                    if kind == "hit" and not text.endswith("value=0"):
-                        rh = True
-            steered = most_of(s, m, n, wall, lh, rh)
-            ok = d == steered
-            if ok:
+            v = view_counts(tk.start)
+            lh = claw_hit(ticks, "olm_hand_left", t - STEER_TICKS, t - 1)
+            rh = claw_hit(ticks, "olm_hand_right", t - STEER_TICKS, t - 1)
+            want = most_of(v[0], v[1], v[2], wall, lh, rh)
+            # (the rule before this pass: south / north of the separating row, a hit in 4)
+            z = zone_counts(tk.start)
+            was = most_of(z[0], z[1], z[2], wall, claw_hit(ticks, "olm_hand_left", t - 4, t - 1),
+                          claw_hit(ticks, "olm_hand_right", t - 4, t - 1))
+            old += was == got
+            if want == got:
                 agree += 1
             else:
                 disagree += 1
-            if d == steered and d != plain:
-                steer_only += 1
-            rows.append((t, wall, d, (s, m, n), plain, steered, lh, rh, ok, claw))
-    for r in rows:
-        if not r[8]:
-            print("  t%d %s turned %s: S/M/N %s, rule %s (steered %s; left hit %s right hit %s) claw %s" % (
-                r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[9]))
-    print("turns: %d follow the rule (%d of them only by the hand steer), %d do not" % (
-        agree, steer_only, disagree))
-    return rows
+                print("  t%d %s face %s -> %s: views S/M/N %s, left hit %s right hit %s, rule %s (claw %s)" % (
+                    t, wall, face, got, v, lh, rh, want, claw))
+    print("turn decisions: %d follow the rule, %d do not (the old partition + 4-tick steer: %d)" % (
+        agree, disagree, old))
 
 
 def section_actions(ticks, fs):

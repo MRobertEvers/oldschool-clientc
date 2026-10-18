@@ -12,6 +12,7 @@ Each room's file states the recorded behaviour, the recording ticks it was read 
 | [vespula.md](vespula.md) | Vespula |
 | [vasa.md](vasa.md) | Vasa Nistirio |
 | [vanguards.md](vanguards.md) | Vanguards |
+| [muttadiles.md](muttadiles.md) | Muttadiles |
 
 ## Sources
 
@@ -19,11 +20,11 @@ All recordings are submissions to the public archive, [rsprox.net/database](http
 
 | Submission | Revision | World | Raid | Used for |
 |---|---|---|---|---|
-| 820 | 234 | Grid Master | a trio, then a four-man raid | Guardians (party), Olm (party), Tekton and Vespula (the whole fights), Vasa (party), teleport swaps |
-| 3282 | 234 | Grid Master | solo, normal | Guardians (solo), Olm, Vasa |
-| 843 | 234 | Grid Master | solo, normal | Olm, Vasa, Vespula (the start, the clear) |
-| 3285 | 234 | Grid Master | solo, normal | Olm (the fullest solo kill), Vasa |
-| 3389 | 235 | Grid Master | solo, **Challenge Mode** | excluded from damage numbers; Vespula's CW room |
+| 820 | 234 | Grid Master | a trio, then a four-man raid (scaled as 54: `raids_client_partysize_scaled`) | Guardians (party), Olm (the party rules, re-transcribed with every raider shown), Tekton and Vespula (the whole fights), Vasa (party), Muttadiles (targets, odds, timing), teleport swaps |
+| 3282 | 234 | Grid Master | solo, normal | Guardians (solo), Olm, Vasa, Muttadiles (the tree) |
+| 843 | 234 | Grid Master | solo, normal | Olm, Vasa, Vespula (the start, the clear), Muttadiles |
+| 3285 | 234 | Grid Master | solo, normal | Olm (the fullest solo kill), Vasa, Muttadiles (the fullest solo room) |
+| 3389 | 235 | Grid Master | solo, **Challenge Mode** | excluded from damage numbers; Vespula's CW room; Muttadiles' CM hitpoints |
 
 **Caveats:**
 - **Grid Master** is a seasonal world type. Its perks can change what the raider deals and takes. Monster damage read here is consistent across the recordings and with the wiki's ordering, but treat a single outlier with suspicion.
@@ -43,10 +44,12 @@ All recordings are submissions to the public archive, [rsprox.net/database](http
 | `tools/cox/rsprox_tekton.py` | Tekton: the session clock, the strike by style and held facing, the anvil, sparks, death (corrects a turned room's npc coordinates) |
 | `tools/cox/rsprox_hits.py` | Every hit on the raider, matched to the tells landing with it |
 | `tools/cox/rsprox_vanguards.py` | Vanguards: the rise, every volley's projectiles against the raider, the shuffles (reset or timer, walk, heal, emergence), the clear |
+| `tools/cox/rsprox_muttadiles.py` | Muttadiles: the meals, every attack against reach and target, projectiles, the submerged sweeps, prayer, the surfacing, the erratic step, the sounds |
 | `tools/cox/rsprox_vasa.py` | Vasa: the special tick by tick, boulders against the raider's tile, the crystal cycle, the walk, the stomp, the death |
 | `tools/cox/rsprox_olm.py` | Olm's area hits (bombs, falling crystals) against distance |
 | `tools/cox/rsprox_olm_tells.py` | Inventory of the Olm fight's animations, projectiles, graphics, sounds and messages |
 | `tools/cox/rsprox_sound_pairs.py` | Which event each area sound belongs to (same tick, same tile) |
+| `tools/cox/rsprox_olm_party.py` | Olm with a party, from a transcript with every raider shown: autos and turns against the views, spheres, the burst, lightning, the paired teleport, the phase attacks' targets, the burn spreading, the crystal showers |
 
 Transcribing a recording needs an RSProx checkout built with JDK 21 (Gradle 8.7 does not run under 24):
 
