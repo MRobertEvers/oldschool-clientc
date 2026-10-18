@@ -18,6 +18,30 @@ of these, read from the server's tick log:
 
 The explosion is reported (how many, and the largest) but not judged.
 
+## A party
+
+The same test runs a party: `--bots 2..5`, the same command. The leader builds the raid with `::coxtest`. Each member
+then joins it on the leader's tile with `::coxtestjoin` (a test path: real raid parties, `raids_party_recruitment`,
+are not implemented). Every seat runs this solver, and the tick-log counts are every raider's, so a party is green
+only if no one takes a boulder or a stomp.
+
+The content counts the raid's raiders (`^cox_var_party_n`, `~cox_party_size_at`) and scales Vasa's pool to them
+when he wakes (`~cox_scale_hp`: 300 per raider at full combat). Every form change keeps that pool
+(`~cox_vasa_retype`), because `npc_changetype` resets it to the record's 300. The special groups every raider in
+the room, and splits the bank over them. Boulders go to every raider each volley.
+
+2026-10-18 sweeps:
+
+| Party | Green | Notes |
+|---|---|---|
+| Solo | 8/8 | seeds 1-8 |
+| Duo | 15/16 | seed 10: one 5 hp boulder; pool 600 through 9 form changes |
+| Trio | 7/8 | seed 3: one 1 hp stomp; pool 900 |
+| Five | 4/4 | pool 1500 |
+
+Not scaled for a party yet: the crystal's hitpoints, and Vasa's defence and other stats (`~cox_scale_defence`,
+`~cox_scale_stat`).
+
 ## The strategy
 
 A strong solo human (Synq 0:55:16-1:07:56, Tubby, edb0ys; the wiki), with the room as recorded:

@@ -18,6 +18,7 @@
 --   ./src/build_cox_vasa_opt/torirsserver --scriptrun test/raids/cox_vasa.lua --bots 1 \
 --       --name vasa0 --ticks 3000 --session /tmp/v/vasa0 --fixture test/raids/fixtures/fresh_lumbridge.ini
 -- The raid is the n-th holding the room, n = the run name's trailing number.
+-- A party: --bots 2..5, the same command (vasa_solver.md "A party").
 
 -- QD.COX.KIT (cox2_raid.lua), spelled out: the test is loaded before the
 -- quest driver's chunk hands it `t`.
@@ -60,9 +61,30 @@ local function run(t)
     -- may be either: the room number is the run name's own)
     local user = string.gsub(t.session._user() or "", "_p%d+$", "")
     local n = tonumber(string.match(user, "(%d+)$") or "0") or 0
-    local er, at = t.raid.cox_test_enter("vasa", n)
+    -- A PARTY (--bots N): the leader builds the raid, then each member joins
+    -- it on the leader's tile (::coxtestjoin), and all start together. The
+    -- counts below are every raider's: the party is green only if no one
+    -- takes a boulder or a stomp.
+    local role, size = t.party.role(), t.party.size()
+    local er, at = "ok", nil
+    if role == 1 then
+        er, at = t.raid.cox_test_enter("vasa", n)
+    end
     t.check("vasa.enter", er == "ok", tostring(er) .. " " .. tostring(at and at.seed))
     if er ~= "ok" then t.finish(1) return end
+    if size > 1 then
+        local br, bd = t.party.barrier("vasa_built", 600)
+        t.check("vasa.built", br == "ok", tostring(bd))
+        if br ~= "ok" then t.finish(1) return end
+        if role ~= 1 then
+            local jr, jd = t.raid.cox_test_join()
+            t.check("vasa.join", jr == "ok", tostring(jd))
+            if jr ~= "ok" then t.finish(1) return end
+        end
+        local ir, id = t.party.barrier("vasa_in", 300)
+        t.check("vasa.in", ir == "ok", tostring(id))
+        if ir ~= "ok" then t.finish(1) return end
+    end
     t.ticklog.mark("room start")
     local result, detail = t.raid.cox_vasa_solve({ max_ticks = 1500 })
     t.check("vasa.solve", result == "ok", tostring(detail))

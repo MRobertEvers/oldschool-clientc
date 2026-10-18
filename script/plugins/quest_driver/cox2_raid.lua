@@ -328,6 +328,32 @@ function QD.raid.cox_test_enter(room, n)
     return "timeout", "no ::coxtest answer"
 end
 
+-- A party room test's member: into the raid the leader's ::coxtest built, on
+-- the leader's tile (::coxtestjoin). -> result, detail (the party's count).
+function QD.raid.cox_test_join()
+    for _ = 1, 10 do
+        local _, since = api_drive.message_serial()
+        QD.cheat("::coxtestjoin", false)
+        for _ = 1, 5 do
+            QD.ticks(1)
+            local r, rows = api_drive.messages(20)
+            if r == "ok" then
+                for i = 1, #rows do
+                    if (rows[i].serial or 0) > (since or 0) then
+                        local text = rows[i].text or ""
+                        local party = string.match(text, "coxtestjoin party (%d+)")
+                        if party then return "ok", "party " .. party end
+                        if string.find(text, "coxtestjoin: you are already", 1, true) then
+                            return "refused", text
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return "timeout", "no ::coxtestjoin answer"
+end
+
 -- For tests: the room I stand in, and its Passage (t.raid.cox_here()).
 function QD.raid.cox_here()
     local room = QD.COX.here()
