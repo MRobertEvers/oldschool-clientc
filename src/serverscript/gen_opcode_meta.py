@@ -1172,6 +1172,15 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # track after it, 0/0/0/0 in every recording (docs/rsprox-analysis/tob/maiden.md).
     "MIDI_SONG_ENVELOPE": (11142, 5, 0, 0, 0),
 
+    # npc_setdeathtype(npc $type)
+    #
+    # The type the active npc becomes on the tick its death starts - the
+    # killing hit - a tick before `[ai_queue3]` can run; null clears it. The
+    # death keeps the identity it started with: `[ai_queue3]`, loot credit and
+    # the corpse wait are the old type's. Jagex's Maiden is in her first dying
+    # form on her killing hit's tick (docs/rsprox-analysis/tob/maiden.md).
+    "NPC_SETDEATHTYPE": (11143, 1, 0, 0, 0),
+
     # obj_ironman_blocked()(boolean)
     #
     # Would the ironman rule refuse the active player the active obj: they are
@@ -1441,6 +1450,7 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "NPC_SETOPS": (1 << POINTER_BITS["active_npc"], 0),
     "MES_SPAM": (1 << POINTER_BITS["active_player"], 0),
     "MIDI_SONG_ENVELOPE": (1 << POINTER_BITS["active_player"], 0),
+    "NPC_SETDEATHTYPE": (1 << POINTER_BITS["active_npc"], 0),
     "MIDI_HOLD": (1 << POINTER_BITS["active_player"], 0),
     "SPOTANIM_NPC_SLOT": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_HEADICON": (1 << POINTER_BITS["active_npc"], 0),

@@ -44,6 +44,12 @@ DEFAULT_REF = HERE.parent.parent.parent / "LostCity_Server"
 EXTRA_DECLARATIONS = [
     "[command,if_setangle](component $component, int $xan, int $yan, int $zoom)",
     "[command,if_setrotatespeed](component $component, int $xspeed, int $yspeed)",
+    "[command,spotanim_npc_slot](spotanim $spotanim, int $height, int $delay, int $slot)",
+    # A bare sound name collides with a spotanim of the same name (176
+    # `shadow_blitz_impact` is also spotanim 381): untyped, the Maiden's storm
+    # impact went out as sound 381, `creeper_attack`.
+    "[command,sound_area](synth $sound, int $delay, coord $coord, int $range)",
+    "[command,npc_setdeathtype](npc $type)",
 ]
 
 DECL = re.compile(r"^\[command,(\.?)([A-Za-z0-9_]+)\]\s*(\([^)]*\))?\s*(\([^)]*\))?")

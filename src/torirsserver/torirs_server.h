@@ -2708,6 +2708,22 @@ struct ToriRSServerNpc
      */
     int level_override;
     int level_override_set;
+    /**
+     * `npc_setdeathtype`: the type this npc becomes on the tick its death
+     * starts (the killing hit), + 1; 0 is "none", the spawn's memset. Jagex
+     * turns the Maiden into her first dying form on the killing hit's own tick
+     * (31 of 31 recorded, docs/rsprox-analysis/tob/maiden.md), a tick before
+     * any `[ai_queue3]` can run. Consumed by the death it applies to.
+     */
+    int death_type;
+    /**
+     * The type the npc was when its death started, + 1, set only when
+     * `death_type` changed it. The death keeps that identity: `[ai_queue3]` is
+     * dispatched on it, loot is credited to it, and the corpse wait is its
+     * record's `death_delay` - the transformation is what the client sees, not
+     * a different monster dying.
+     */
+    int died_as;
     int face_entity;
     char say[80];
     int anim_id;

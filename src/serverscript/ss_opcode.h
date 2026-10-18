@@ -566,6 +566,7 @@
 #define SS_OP_NPC_SETOPS 11140
 #define SS_OP_MES_SPAM 11141
 #define SS_OP_MIDI_SONG_ENVELOPE 11142
+#define SS_OP_NPC_SETDEATHTYPE 11143
 #define SS_OP_HIDENPCOPS 11150
 #define SS_OP_HIDELOCOPS 11151
 #define SS_OP_HIDEOBJOPS 11152
@@ -573,6 +574,6 @@
 /** One past the highest opcode id; the size of any opcode-indexed table. */
 #define SS_OPCODE_MAX 11153
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 547
+#define SS_OPCODE_COUNT 548
 
 #endif

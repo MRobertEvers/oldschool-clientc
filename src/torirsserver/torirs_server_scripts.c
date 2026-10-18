@@ -7408,6 +7408,27 @@ script_command(
         return 1;
     }
 
+    case SS_OP_NPC_SETDEATHTYPE:
+    {
+        int32_t type;
+        struct ToriRSServerNpc* npc = active_npc(state);
+
+        if( !SSVM_PopInt(state, &type) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_setdeathtype with no active npc");
+            return 1;
+        }
+        if( type >= 0 && !ToriRSServer_NpcInfoKnown(type) )
+        {
+            SSVM_Abort(state, "npc_setdeathtype(%d): no such npc type", type);
+            return 1;
+        }
+        npc->death_type = type < 0 ? 0 : type + 1;
+        return 1;
+    }
+
     case SS_OP_NPC_SETOPS:
     {
         int32_t shown;

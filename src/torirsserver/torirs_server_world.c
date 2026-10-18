@@ -14652,9 +14652,12 @@ ToriRSServer_WorldNpcDied(
     int slot)
 {
     struct ToriRSServerNpc* npc = &srv->npcs[slot];
+    /* The type it died AS: a death transformation (`npc_setdeathtype`) has
+     * already changed what the client sees, not which death this is. */
+    int const type = npc->died_as > 0 ? npc->died_as - 1 : npc->type;
 
-    ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_AI_QUEUE3, npc->type,
-                                ToriRSServer_NpcCategory(npc->type), slot);
+    ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_AI_QUEUE3, type,
+                                ToriRSServer_NpcCategory(type), slot);
     /*
      * Slayer kill credit — always, after the drop table.
      *

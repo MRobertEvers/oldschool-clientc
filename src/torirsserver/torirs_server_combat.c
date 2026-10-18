@@ -88,6 +88,19 @@ npc_def(const struct ToriRSServerNpc* npc)
     return npc->def ? npc->def : ToriRSServer_ContentNpcDefault();
 }
 
+/* The record a death is timed by: the type the npc died as when a death
+ * transformation (`npc_setdeathtype`) changed it, else its own. */
+static const struct ToriRSServerNpcDef*
+npc_death_def(const struct ToriRSServerNpc* npc)
+{
+    const struct ToriRSServerNpcDef* def;
+
+    if( npc->died_as <= 0 )
+        return npc_def(npc);
+    def = ToriRSServer_ContentNpc(npc->died_as - 1);
+    return def ? def : ToriRSServer_ContentNpcDefault();
+}
+
 /*
  * The gap between the npc's FOOTPRINT and the player's tile, per axis.
  *
@@ -1485,6 +1498,24 @@ npc_death_begin(
     npc->ops_hidden = 0x1f;
     npc->masks |= TORIRSSERVER_NMASK_OPS;
     /*
+     * The death transformation, on the killing hit's own tick (Jagex's Maiden:
+     * dying form at T, its animation at T+1, 31 of 31). After the menu is
+     * hidden, so the transformation's own restore wins, as recorded - she
+     * stays attackable through the fade. The death keeps the type it started
+     * as (`died_as`).
+     */
+    if( npc->death_type > 0 )
+    {
+        int const into = npc->death_type - 1;
+
+        npc->death_type = 0;
+        if( into != npc->type )
+        {
+            npc->died_as = npc->type + 1;
+            ToriRSServer_NpcChangeType(npc, into, 0);
+        }
+    }
+    /*
      * Drop whatever was already armed on the npc's own queue — a healer's
      * `npc_queue(4, heal, ...)` chief among them.
      *
@@ -1599,7 +1630,7 @@ npc_death_arrive(
                 "(a script played it first)\n",
                 npc->death_seq);
     npc->death_stage = TORIRSSERVER_DEATH_CORPSE;
-    npc->death_tick = srv->tick + npc_def(npc)->death_delay;
+    npc->death_tick = srv->tick + npc_death_def(npc)->death_delay;
 }
 
 void
@@ -3265,7 +3296,7 @@ npc_death_step(
          * record states less than two (npc_default.npc), so no other npc's
          * death moves.
          */
-        if( npc_def(npc)->death_delay >= 2 && npc->last_movement >= srv->tick - 1 )
+        if( npc_death_def(npc)->death_delay >= 2 && npc->last_movement >= srv->tick - 1 )
         {
             npc->death_stage = TORIRSSERVER_DEATH_ARRIVE;
             npc->death_tick =
@@ -3306,7 +3337,7 @@ npc_death_step(
          * in the tree stated 0 before this (npc_default.npc 2, the 18 small
          * Nylocas 1), so no other npc's death moves.
          */
-        if( npc_def(npc)->death_delay > 0 )
+        if( npc_death_def(npc)->death_delay > 0 )
             return;
         /* FALLTHROUGH */
 
@@ -3331,7 +3362,7 @@ npc_death_step(
          */
         npc->death_stage = TORIRSSERVER_DEATH_REAP;
         npc->death_tick = srv->tick;
-        npc->loot_credit_npc_type = npc->type;
+        npc->loot_credit_npc_type = npc->died_as > 0 ? npc->died_as - 1 : npc->type;
         npc->loot_credit_event_id = ++srv->loot_credit_seq;
         srv->loot_credit_armed = 1;
         srv->loot_credit_npc_type = npc->loot_credit_npc_type;
@@ -3418,6 +3449,7 @@ npc_death_step(
             npc->death_seq_sent = 0;
             npc->death_seq_tick = -1;
             memset(npc->death_handoff_queues, 0, sizeof(npc->death_handoff_queues));
+            npc->died_as = 0;
             /* And its menu, which the death hid (`npc_death_begin`). A revive
              * through `npc_changetype` has already restored it. */
             if( npc->ops_hidden != 0 )
@@ -3957,6 +3989,8 @@ ToriRSServer_CombatRespawnTick(struct ToriRSServer* srv)
         npc->ops_hidden = 0;
         npc->masks |= TORIRSSERVER_NMASK_OPS;
         npc->level_override_set = 0;
+        npc->death_type = 0;
+        npc->died_as = 0;
         /* And its customisations: the new life wears the type's icons and
          * models, and the add says so (the reference's respawn add carries
          * both blocks empty). */

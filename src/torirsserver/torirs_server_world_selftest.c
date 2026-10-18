@@ -34267,10 +34267,17 @@ ToriRSServer_WorldSelftest(void)
                      * `ToriRSServer_CombatHitNpc` arms it, because the subject is
                      * what the death SCRIPT does, not how the blow was struck.
                      */
-                    srv->npcs[boss].hitpoints = 0;
-                    srv->npcs[boss].death_stage = TORIRSSERVER_DEATH_QUEUED;
-                    srv->npcs[boss].death_tick = srv->tick + 1;
+                    /* Struck through the engine's own killing blow now, not
+                     * armed by hand: the death's START is where her dying form
+                     * goes on (`npc_setdeathtype`, Jagex's tick K), and only
+                     * `ToriRSServer_CombatHitNpc` runs it. K is counted. */
                     kill_tick = srv->tick;
+                    ToriRSServer_CombatHitNpc(srv, boss, 0, srv->npcs[boss].hitpoints);
+                    if( srv->npcs[boss].active && srv->npcs[boss].type == k_dying_a )
+                    {
+                        saw_a++;
+                        first_a = 0;
+                    }
                     for( int t = 0; t < 14; t++ )
                     {
                         selftest_tick(srv);
@@ -34301,13 +34308,12 @@ ToriRSServer_WorldSelftest(void)
                                    "and then to 8365 for the fade, saw it on %d ticks",
                                    saw_b);
                     /*
-                     * AND EACH FORM FOR AS LONG AS THE RECORDINGS HOLD IT (raid
-                     * loop seam9): dying_a four ticks from K+1 and the fade
-                     * four, 13 of 13 blert rooms (spec row
-                     * maiden.av.death.dying_a_form_ticks). dying_a on 2 was the
-                     * engine running her `[ai_queue3]` at its CORPSE stage
-                     * (K+3); her records state `death_delay=0` and
-                     * `npc_death_step` runs it on the animation's tick.
+                     * AND EACH FORM FOR AS LONG AS THE RECORDINGS HOLD IT:
+                     * dying_a four ticks from the killing blow K itself and the
+                     * fade four from K+4, deleted at K+8 - 31 of 31 RSProx kills
+                     * (docs/rsprox-analysis/tob/maiden.md), and blert's "dying_a
+                     * four ticks" (13 of 13) with it. Her `[ai_queue3]` still
+                     * runs at K+1 (`death_delay=0`), as the form she died in.
                      */
                     SELFTEST_CHECK(saw_a == 4,
                                    "her dying_a form (8364) holds four ticks, saw %d",
@@ -34315,13 +34321,13 @@ ToriRSServer_WorldSelftest(void)
                     SELFTEST_CHECK(saw_b == 4,
                                    "and the fade (8365) four, saw %d", saw_b);
                     /* Durations alone cannot see the whole sequence slide a
-                     * tick: the marks are blert's, K+1 and K+5 from the
-                     * killing blow K. */
-                    SELFTEST_CHECK(first_a == 1,
-                                   "she takes the dying_a form at K+1, the death "
-                                   "animation's tick, saw K+%d", first_a);
-                    SELFTEST_CHECK(first_b == 5,
-                                   "and the fade at K+5, saw K+%d", first_b);
+                     * tick: the marks are Jagex's, K and K+4 from the killing
+                     * blow K (her death animation a tick after the first). */
+                    SELFTEST_CHECK(first_a == 0,
+                                   "she takes the dying_a form on the killing blow's "
+                                   "own tick, saw K+%d", first_a);
+                    SELFTEST_CHECK(first_b == 4,
+                                   "and the fade at K+4, saw K+%d", first_b);
                 }
                 leaks = ToriRSServer_MapInstanceVarGet(handle, k_var_leaks);
                 /*
