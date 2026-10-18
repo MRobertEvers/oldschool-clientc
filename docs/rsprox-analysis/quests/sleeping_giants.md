@@ -70,7 +70,7 @@ XP by 16: the recorded per-action 72/51/52 are the wiki's 4.5/3.2/3.3.
 | Tick | What happens |
 |---|---|
 | T | fade_overlay + script 948 (0,255,0,0,50) |
-| T+2 | into the copy on local 38,27, stage 10. Lock: fov_clamp 3, cutscene_status 1, minimap 2, gravestone hide, side panels and xp drops closed. Hides npc/loc/obj ops (no command for that here). |
+| T+2 | into the copy on local 38,27, stage 10. Lock: fov_clamp 3, cutscene_status 1, minimap 2, gravestone hide, side panels and xp drops closed. Hides npc/loc/obj ops: `hidenpcops` / `hidelocops` / `hideobjops`, so the world menu is Examine alone. |
 | T+3 | cutscene loc set; cutscene Kovac on 40,27 facing south; The Foundry unlocked and played; camera to 39,31 h500, looking at 39,23 h300 (rate 232) |
 | T+4 | camera to 39,36 h500 r4 / look 39,28 h280 r3; fade in |
 | T+9 | camera to 41,21 h700 / look 36,37 h300, rate 4 |
@@ -146,4 +146,3 @@ All repairs use the same materials as the walkthrough.
   slow steps are the fast table scaled by 7/27.
 - **Sweet spot placement** in later swords. The quest uses the recorded
   420/840 for both swords.
-- **Hide-ops.** No engine command.

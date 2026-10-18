@@ -1321,6 +1321,17 @@ function QD.drive.left_click(x, y)
     return api_drive.mouse_button("left", 0, x, y)
 end
 
+-- Does `target` (a t.player.by_symbol row) offer op `option` (1..5; 0 = Examine) right
+-- now? The client's own answer (DrivePointer_OpAvailable: the row builders' rules,
+-- including the server's HIDENPCOPS / HIDELOCOPS / HIDEOBJOPS). -> result, available.
+function QD.drive.op_available(target, option)
+    if type(target) ~= "table" or target.kind == nil or target.id == nil then
+        return "bad_argument", false
+    end
+    local result, available = api_drive.op_available(target.kind, target.id, option)
+    return result, available and true or false
+end
+
 function QD.drive.click_minimenu(target, option, deadline, before_retry, single)
     deadline = deadline or 4
 

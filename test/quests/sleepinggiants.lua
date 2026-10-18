@@ -51,7 +51,15 @@ return {
             })
             -- The foundry cutscene (recorded): fade, the copy, four camera keyframes; the first line comes 33 ticks
             -- after the fade, with no dialogue up in between.
-            t.ticks(36)
+            t.ticks(20)
+            -- Recorded: the cutscene hides npc/loc/obj ops (HIDENPCOPS / HIDELOCOPS / HIDEOBJOPS): the pile of
+            -- buckets in the copy (op1 Take-from) offers Examine alone until the introduction's fade lifts.
+            local buckets = t.player.by_symbol("loc", "my2arm_throne_room_buckets")
+            local hr, hidden_take = t.drive.op_available(buckets, 1)
+            local er, examine = t.drive.op_available(buckets, 0)
+            t.check("cutscene.opsHidden", hr == "ok" and hidden_take == false and examine == true,
+                "Pile of Buckets op1 " .. tostring(hr) .. "/" .. tostring(hidden_take) .. ", Examine " .. tostring(er) .. "/" .. tostring(examine))
+            t.ticks(16)
             t.expect("quest.stage.intro", t.quest.expect_stage("intro"))
             t.exec("foundryIntro-dialog", t.chat.play, {
                 "player:Woah", "player:Did you build", "npc:No", "npc:Kovac", "npc:accep", "player:Giants built",
@@ -65,6 +73,13 @@ return {
             -- The introduction's fade: two ticks out, the quest set, two ticks in.
             t.ticks(6)
             t.expect("quest.stage.repairs.1", t.quest.expect_stage("repairs"))
+            local buckets_after = t.player.by_symbol("loc", "my2arm_throne_room_buckets")
+            local quest_kovac = t.player.by_symbol("npc", "giants_foundry_kovac_quest")
+            local sr, shown_take = t.drive.op_available(buckets_after, 1)
+            local kr, shown_talk = t.drive.op_available(quest_kovac, 1)
+            t.check("cutscene.opsShownAgain", sr == "ok" and shown_take == true and kr == "ok" and shown_talk == true,
+                "after the introduction: Pile of Buckets op1 " .. tostring(sr) .. "/" .. tostring(shown_take)
+                .. ", Kovac op1 " .. tostring(kr) .. "/" .. tostring(shown_talk))
             t.check("strikeHillGiant.where", true, "tile after dialogue " .. tostring(select(2, t.world.tile())))
 
             -- Stage 5 (guide speakToKovac) is the same conversation: Kovac's own pages ("Kovac.", "follow in.")
