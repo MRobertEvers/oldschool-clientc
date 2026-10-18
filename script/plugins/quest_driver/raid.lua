@@ -1684,7 +1684,9 @@ function QD.player._death_record()
     local newest, line = nil, nil
     for i = 1, #rows do
         local text = rows[i].text
-        if type(text) == "string" and string.find(text, QD.raid.TOB_DEATH_PREFIX, 1, true)
+        -- (this run's lines only: QD.player._death_floor, state.lua)
+        if type(text) == "string" and rows[i].serial > QD.player._death_floor
+            and string.find(text, QD.raid.TOB_DEATH_PREFIX, 1, true)
             and (newest == nil or rows[i].serial > newest) then
             newest, line = rows[i].serial, QD.player._plain_line(text)
         end

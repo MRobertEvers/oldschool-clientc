@@ -1480,6 +1480,9 @@ function QD.core_run_test(loader, options)
         return
     end
     QD.step("watch.start", "PASS", tostring(start_detail))
+    -- The death check reads only what this run prints (state.lua): a watched
+    -- Play's client still holds the last run's chat.
+    QD.player._death_reset()
     -- A LAUNCHING LEADER (raid seam37): api.drive.play with party = {size =
     -- N, launch = true}. Its members are started now, after its own log-in
     -- (their world is this client's) and before the setup list, through the

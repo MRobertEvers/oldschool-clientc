@@ -705,13 +705,27 @@ end
 -- src/game/rs_game_events.c:482 already reads that same line for the same
 -- reason, which is where the exact spelling below comes from.
 --
--- Read WHOLE-RING and LATCHED, not scoped to a serial window the way
--- QD.msg.await is: a death is not an event one verb owns, it is a fact about
--- every row after it, and the ring rolls, so the first reading that sees it is
--- the one that has to remember it.  There is no cross-run pollution to guard
--- against -- run.py gives every quest its own client process and its own
--- fixture.
+-- Read the WHOLE RING SINCE THE RUN STARTED, and LATCHED, not scoped to a
+-- serial window the way QD.msg.await is: a death is not an event one verb
+-- owns, it is a fact about every row after it, and the ring rolls, so the
+-- first reading that sees it is the one that has to remember it.
+--
+-- "Since the run started" is `QD.player._death_floor`, the ring's serial when
+-- the run's start settled (core.lua, after watch.start). run.py gives every
+-- quest a fresh client and the floor is 0 there; a watched Play runs in the
+-- client the watcher already has open, whose ring still holds the last run's
+-- deaths - tobrelay15 stopped at the Maiden's barrier, 99/99, on two death
+-- lines from runs before it.
 QD.player.DEATH_LINE = "Oh dear, you are dead!"
+QD.player._death_floor = 0
+
+-- A run's start: forget any death latched before it and read only the lines
+-- that come after this.
+function QD.player._death_reset()
+    QD._death = nil
+    local r, serial = api_drive.message_serial()
+    QD.player._death_floor = (r == "ok" and type(serial) == "number") and serial or 0
+end
 
 -- The respawn sentence is not what is matched on -- it is what the detail
 -- QUOTES, so a row says where the character woke up as well as that he fell.
@@ -755,7 +769,7 @@ function QD.player._death_record()
     local newest = nil
     local wake = ""
     for i = 1, #rows do
-        local line = QD.player._plain_line(rows[i].text)
+        local line = (rows[i].serial > QD.player._death_floor) and QD.player._plain_line(rows[i].text) or ""
         if line == QD.player.DEATH_LINE then
             deaths = deaths + 1
             if newest == nil or rows[i].serial > newest then
