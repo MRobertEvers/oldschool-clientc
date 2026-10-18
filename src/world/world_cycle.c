@@ -1014,7 +1014,8 @@ static void
 World_StepEntityAnimation(
     struct World* world,
     struct WorldEntityFacet_Animation* anim,
-    struct WorldEntityFacet_EntitySpotanim* spot,
+    struct WorldEntityFacet_EntitySpotanim* spots,
+    int spot_count,
     struct WorldEntityFacet_Pathing const* pathing,
     struct WorldEntityFacet_DrawPosition const* draw_position,
     struct WorldEntityFacet_IdleAnimations const* idle)
@@ -1052,9 +1053,14 @@ World_StepEntityAnimation(
      * the start delay elapses, step the frame from the spot's own seq and clear
      * the id when the single loop completes. The app combines the spot into the
      * entity's rendering via a companion scene element pinned to the entity
-     * (app_world_sync_entity_spotanims), driven to spot->frame. */
-    if( spot && spot->id != -1 && world->cycle >= spot->last_cycle )
+     * (app_world_sync_entity_spotanims), driven to spot->frame. One per
+     * rev-239 slot, each on its own clock (class106.getSpotAnims). */
+    for( int si = 0; si < spot_count; si++ )
     {
+        struct WorldEntityFacet_EntitySpotanim* spot = &spots[si];
+
+        if( spot->id == -1 || world->cycle < spot->last_cycle )
+            continue;
         int seq = world->seq_source.spotanim_seq
                       ? world->seq_source.spotanim_seq(world->seq_source.userdata, spot->id)
                       : -1;
@@ -1328,7 +1334,8 @@ World_ActorLeftSceneReset(
     struct WorldEntityFacet_DrawPosition* draw_position,
     struct WorldEntityFacet_ExactMove* exact,
     struct WorldEntityFacet_Animation* animation,
-    struct WorldEntityFacet_EntitySpotanim* spotanim,
+    struct WorldEntityFacet_EntitySpotanim* spotanims,
+    int spot_count,
     int size)
 {
     if( view_placement->home_view != 0 )
@@ -1349,7 +1356,8 @@ World_ActorLeftSceneReset(
     animation->primary.delay = 0;
     animation->primary.loop = 0;
     animation->pending_set = 0;
-    spotanim->id = -1;
+    for( int i = 0; i < spot_count; i++ )
+        spotanims[i].id = -1;
     exact->move_end = 0;
     exact->move_start = 0;
     World_DrawPositionSet(
@@ -1375,7 +1383,8 @@ static void
 World_CycleActor(
     struct World_MoverInfo* info,
     struct WorldEntityFacet_ExactMove* exact,
-    struct WorldEntityFacet_EntitySpotanim* spotanim,
+    struct WorldEntityFacet_EntitySpotanim* spotanims,
+    int spot_count,
     bool is_local_player,
     int size)
 {
@@ -1401,7 +1410,8 @@ World_CycleActor(
         info->draw_position,
         exact,
         info->animation,
-        spotanim,
+        spotanims,
+        spot_count,
         size);
     if( !rev239 )
         World_EntityFaceTarget(info);
@@ -1409,7 +1419,8 @@ World_CycleActor(
     if( face_seq != -1 )
         World_ApplySecondaryAnim(info->animation, face_seq);
     World_StepEntityAnimation(
-        world, info->animation, spotanim, info->pathing, info->draw_position, info->idle);
+        world, info->animation, spotanims, spot_count, info->pathing, info->draw_position,
+        info->idle);
 }
 
 static void
@@ -1446,6 +1457,7 @@ World_CycleUpdatePlayers(
                     &info,
                     &player->exact_move,
                     &player->spotanim,
+                    1,
                     world->local_pid >= 0 && player->server_pid == world->local_pid,
                     player->transmog_size);
             }
@@ -1486,7 +1498,9 @@ World_CycleUpdateNpcs(
                     .size_x = size,
                     .size_z = size,
                 };
-                World_CycleActor(&info, &npc->exact_move, &npc->spotanim, false, size);
+                World_CycleActor(
+                    &info, &npc->exact_move, npc->spotanims, WORLD_NPC_SPOTANIM_SLOTS, false,
+                    size);
             }
             /* Overhead chat expiry (reference Client.ts:3174). */
             if( npc->chat.timer > 0 && --npc->chat.timer == 0 )

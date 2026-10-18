@@ -121,6 +121,8 @@ static char const* const k_kind_names[TORIRSSERVER_TICKLOG_KIND_COUNT] = {
     [TORIRSSERVER_TICKLOG_INPUT] = "input",
     [TORIRSSERVER_TICKLOG_CONSUME] = "consume",
     [TORIRSSERVER_TICKLOG_HUDBAR] = "hudbar",
+    [TORIRSSERVER_TICKLOG_NPC_HEADICON] = "npc_headicon",
+    [TORIRSSERVER_TICKLOG_NPC_BODY] = "npc_body",
 };
 
 /* A SOUND row's label: where the send came from (the npc source adds the
@@ -535,7 +537,8 @@ ToriRSServer_TicklogNpcSpotanim(
     const struct ToriRSServerNpc* npc,
     int spotanim,
     int height,
-    int delay)
+    int delay,
+    int spot_slot)
 {
     int slot;
 
@@ -544,8 +547,41 @@ ToriRSServer_TicklogNpcSpotanim(
     slot = ticklog_npc_slot(npc);
     if( slot < 0 )
         return;
-    ticklog_push(TORIRSSERVER_TICKLOG_NPC_SPOTANIM, slot, npc->type, spotanim, height, delay, 0,
+    ticklog_push(TORIRSSERVER_TICKLOG_NPC_SPOTANIM, slot, npc->type, spotanim, height, delay,
+                 spot_slot, NULL);
+}
+
+void
+ToriRSServer_TicklogNpcHeadicon(
+    const struct ToriRSServerNpc* npc,
+    int headicon_slot,
+    int group,
+    int index)
+{
+    int slot;
+
+    if( !g_ticklog.srv )
+        return;
+    slot = ticklog_npc_slot(npc);
+    if( slot < 0 )
+        return;
+    ticklog_push(TORIRSSERVER_TICKLOG_NPC_HEADICON, slot, npc->type, headicon_slot, group, index, 0,
                  NULL);
+}
+
+void
+ToriRSServer_TicklogNpcBody(
+    const struct ToriRSServerNpc* npc,
+    int model)
+{
+    int slot;
+
+    if( !g_ticklog.srv )
+        return;
+    slot = ticklog_npc_slot(npc);
+    if( slot < 0 )
+        return;
+    ticklog_push(TORIRSSERVER_TICKLOG_NPC_BODY, slot, npc->type, model, 0, 0, 0, NULL);
 }
 
 void

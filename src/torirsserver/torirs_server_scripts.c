@@ -4779,6 +4779,40 @@ active_npc(struct SSVM_State* state)
     return &srv->npcs[slot];
 }
 
+/* One graphic into this tick's slot list: a second send to the same slot this
+ * tick replaces the first, as the reference keeps one per slot. The scalar
+ * pair mirrors the last send for the classic writers. */
+static void
+npc_spotanim_put(
+    struct ToriRSServerNpc* npc,
+    int slot,
+    int id,
+    int height,
+    int delay)
+{
+    int i;
+    int height_delay = (height << 16) | (delay & 0xffff);
+
+    assert(npc);
+    if( !(npc->masks & TORIRSSERVER_NMASK_SPOTANIM) )
+        npc->spotanim_count = 0;
+    for( i = 0; i < npc->spotanim_count; i++ )
+        if( npc->spotanims[i].slot == slot )
+            break;
+    if( i == npc->spotanim_count )
+    {
+        assert(npc->spotanim_count < TORIRSSERVER_NPC_SPOTANIM_MAX);
+        npc->spotanim_count++;
+    }
+    npc->spotanims[i].slot = slot;
+    npc->spotanims[i].id = id;
+    npc->spotanims[i].height_delay = height_delay;
+    npc->spotanim_id = id;
+    npc->spotanim_height_delay = height_delay;
+    npc->masks |= TORIRSSERVER_NMASK_SPOTANIM;
+    ToriRSServer_TicklogNpcSpotanim(npc, id, height, delay, slot);
+}
+
 /*
  * The bound npc for a READ -- `npc_coord`, `npc_type`, `npc_name`,
  * `npc_stat`/`npc_basestat`, `npc_var_get` -- which, unlike `active_npc`,
@@ -9501,10 +9535,103 @@ script_command(
             SSVM_Abort(state, "spotanim_npc with no active npc");
             return 1;
         }
-        npc->spotanim_id = values[0];
-        npc->spotanim_height_delay = (values[1] << 16) | (values[2] & 0xffff);
-        npc->masks |= TORIRSSERVER_NMASK_SPOTANIM;
-        ToriRSServer_TicklogNpcSpotanim(npc, (int)values[0], (int)values[1], (int)values[2]);
+        npc_spotanim_put(npc, 0, (int)values[0], (int)values[1], (int)values[2]);
+        return 1;
+    }
+
+    /*
+     * spotanim_npc_slot(spotanim, height, delay, slot): `spotanim_npc` into one
+     * of the rev-239 npc's numbered graphic slots, where it replaces only that
+     * slot's graphic. A Tormented Demon's shield loop (slot 4) plays under its
+     * attack graphics (slot 2); docs/rsprox-analysis/tormented_demons.
+     */
+    case SS_OP_SPOTANIM_NPC_SLOT:
+    {
+        int32_t values[4];
+        struct ToriRSServerNpc* npc = active_npc(state);
+
+        for( int i = 3; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        if( !npc )
+        {
+            SSVM_Abort(state, "spotanim_npc_slot with no active npc");
+            return 1;
+        }
+        if( values[3] < 0 || values[3] > 255 )
+        {
+            SSVM_Abort(state, "spotanim_npc_slot: slot out of range");
+            return 1;
+        }
+        npc_spotanim_put(npc, (int)values[3], (int)values[0], (int)values[1], (int)values[2]);
+        return 1;
+    }
+
+    /*
+     * npc_headicon(int slot, int group, int index): the rev-239 headicon
+     * customisation. Overhead slot `slot` (0..7) draws frame `index` of sprite
+     * group `group` instead of the type's icon; group -1 clears the slot, and
+     * with every slot cleared the type's own icons are back. The Tormented
+     * Demon's prayer is this, on one type: group 440, 0 melee / 1 ranged /
+     * 2 magic.
+     */
+    case SS_OP_NPC_HEADICON:
+    {
+        int32_t values[3];
+        struct ToriRSServerNpc* npc = active_npc(state);
+
+        for( int i = 2; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_headicon with no active npc");
+            return 1;
+        }
+        if( values[0] < 0 || values[0] >= TORIRSSERVER_NPC_HEADICON_SLOTS )
+        {
+            SSVM_Abort(state, "npc_headicon: slot out of range");
+            return 1;
+        }
+        if( values[1] < 0 )
+            npc->headicon_mask &= ~(1 << values[0]);
+        else
+        {
+            npc->headicon_mask |= 1 << values[0];
+            npc->headicon_group[values[0]] = (int)values[1];
+            npc->headicon_index[values[0]] = (int)values[2];
+        }
+        npc->masks |= TORIRSSERVER_NMASK_HEADICON;
+        ToriRSServer_TicklogNpcHeadicon(npc, (int)values[0], values[1] < 0 ? -1 : (int)values[1],
+                                        (int)values[2]);
+        return 1;
+    }
+
+    /*
+     * npc_bodymodel(int model): the rev-239 body customisation with one model,
+     * drawn in place of the type's models until reset with -1. A defenceless
+     * Tormented Demon is its no-flames model (55474/55475).
+     */
+    case SS_OP_NPC_BODYMODEL:
+    {
+        int32_t model;
+        struct ToriRSServerNpc* npc = active_npc(state);
+
+        if( !SSVM_PopInt(state, &model) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_bodymodel with no active npc");
+            return 1;
+        }
+        npc->body_model_set = model >= 0;
+        npc->body_model = model >= 0 ? (int)model : -1;
+        npc->masks |= TORIRSSERVER_NMASK_BODY;
+        ToriRSServer_TicklogNpcBody(npc, npc->body_model);
         return 1;
     }
 
@@ -13489,6 +13616,31 @@ script_command(
             ToriRSServer_TicklogMusic(srv, player, id < 0 ? -1 : id,
                                       TORIRSSERVER_TICKLOG_MUSIC_SCRIPT);
         }
+        return 1;
+    }
+
+    case SS_OP_MIDI_SONG_ENVELOPE:
+    {
+        int32_t v[5];
+
+        for( int i = 4; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &v[i]) )
+                return 1;
+        }
+        if( !player )
+        {
+            SSVM_Abort(state, "midi_song_envelope with no active player");
+            return 1;
+        }
+        if( v[0] < 0 )
+        {
+            SSVM_Abort(state, "midi_song_envelope(%d): a song id; silence is midi_song(-1)", v[0]);
+            return 1;
+        }
+        player->music_track = v[0];
+        ToriRSServer_SendMidiSongEnvelope(player, v[0], v[1], v[2], v[3], v[4]);
+        ToriRSServer_TicklogMusic(srv, player, v[0], TORIRSSERVER_TICKLOG_MUSIC_SCRIPT);
         return 1;
     }
 

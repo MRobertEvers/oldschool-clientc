@@ -686,16 +686,35 @@ app_overlay_build_npc_headicon(
     int anchor_height,
     int footprint,
     struct ToriRS_Npctype const* npctype,
+    struct WorldEntity_NPC const* npc,
     struct WorldEntityFacet_DrawPosition const* draw_position,
     struct WorldEntityFacet_ViewPlacement const* placement,
     int prayer_scene,
     int prayer_group)
 {
     int screen_x, screen_y;
+    int group = npctype ? npctype->head_icon_group : -1;
+    int index = npctype ? npctype->head_icon_index : -1;
 
-    if( !npctype || npctype->head_icon_index < 0 || prayer_scene <= 0 )
+    assert(npc);
+    /* The server's headicon customisation replaces the type's slots (deob
+     * class112.getOverheadArchiveIds: the override when set, else the type's).
+     * Its first filled slot is the one drawn, as for the type. */
+    if( npc->headicon_custom )
+    {
+        group = -1;
+        index = -1;
+        for( int i = 0; i < WORLD_NPC_HEADICON_SLOTS; i++ )
+            if( npc->headicon_group[i] >= 0 )
+            {
+                group = npc->headicon_group[i];
+                index = npc->headicon_index[i];
+                break;
+            }
+    }
+    if( index < 0 || prayer_scene <= 0 )
         return;
-    if( npctype->head_icon_group >= 0 && npctype->head_icon_group != prayer_group )
+    if( group >= 0 && group != prayer_group )
         return;
     if( !app_world_project_actor_footprint(
             app,
@@ -717,7 +736,7 @@ app_overlay_build_npc_headicon(
             .w = 0,
             .h = 0,
             .scene_id = prayer_scene,
-            .atlas_index = npctype->head_icon_index,
+            .atlas_index = index,
         };
         app_overlay_push(app, &spr);
     }

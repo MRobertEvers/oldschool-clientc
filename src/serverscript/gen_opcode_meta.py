@@ -1116,6 +1116,27 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # under it. 0 releases a hold.
     "MIDI_HOLD": (11133, 1, 0, 0, 0),
 
+    # spotanim_npc_slot(spotanim $spot, int $height, int $delay, int $slot)
+    #
+    # `spotanim_npc` into one of the rev-239 npc's numbered graphic slots: the
+    # npc wears one graphic per slot, and a send replaces only its own. A
+    # Tormented Demon's shield loop (slot 4) under its attack graphics (slot 2)
+    # and its accuracy debuff (slot 5); docs/rsprox-analysis/tormented_demons.
+    "SPOTANIM_NPC_SLOT": (11134, 4, 0, 0, 0),
+
+    # npc_headicon(int $slot, int $group, int $index)
+    #
+    # Headicon customisation: overhead slot `slot` draws frame `index` of
+    # sprite group `group` instead of the type's icon; group -1 clears it. A
+    # Tormented Demon's protection prayer is this, on its one type.
+    "NPC_HEADICON": (11135, 3, 0, 0, 0),
+
+    # npc_bodymodel(int $model)
+    #
+    # Body customisation with one model, drawn in place of the type's models;
+    # -1 resets. A defenceless Tormented Demon loses its flames this way.
+    "NPC_BODYMODEL": (11136, 1, 0, 0, 0),
+
     # hidenpcops(boolean $hidden) / hidelocops / hideobjops
     #
     # The active player's world menu offers only Examine for that kind while
@@ -1142,6 +1163,14 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # doses, eating, Vasilias' wrong-style "absorbed" line
     # (docs/rsprox-analysis/tob/nylocas.md). `mes` is always type 0.
     "MES_SPAM": (11141, 0, 1, 0, 0),
+
+    # midi_song_envelope(int $id, int $out_delay, int $out_speed, int $in_delay, int $in_speed)
+    #
+    # `midi_song` with the MIDI_SONG_V2 envelope stated (client cycles), where
+    # `midi_song` always sends script9630's default 0/60/60/0. Jagex sends some
+    # songs with no ramp at all - a ToB room's completion song 147 and the room
+    # track after it, 0/0/0/0 in every recording (docs/rsprox-analysis/tob/maiden.md).
+    "MIDI_SONG_ENVELOPE": (11142, 5, 0, 0, 0),
 
     # obj_ironman_blocked()(boolean)
     #
@@ -1411,7 +1440,11 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "NPC_DEFEND": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_SETOPS": (1 << POINTER_BITS["active_npc"], 0),
     "MES_SPAM": (1 << POINTER_BITS["active_player"], 0),
+    "MIDI_SONG_ENVELOPE": (1 << POINTER_BITS["active_player"], 0),
     "MIDI_HOLD": (1 << POINTER_BITS["active_player"], 0),
+    "SPOTANIM_NPC_SLOT": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_HEADICON": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_BODYMODEL": (1 << POINTER_BITS["active_npc"], 0),
     "HIDENPCOPS": (1 << POINTER_BITS["active_player"], 0),
     "HIDELOCOPS": (1 << POINTER_BITS["active_player"], 0),
     "HIDEOBJOPS": (1 << POINTER_BITS["active_player"], 0),

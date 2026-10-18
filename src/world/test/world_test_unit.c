@@ -2097,21 +2097,21 @@ test_entity_spotanim_holds_until_resident(void)
     world->seq_source.frame_duration = spot_test_frame_duration;
 
     g_spot_test_resident = 0;
-    World_NpcSetSpotanim(world, ni, 369, 0, 5);
+    World_NpcSetSpotanim(world, ni, 0, 369, 0, 5);
     /* Far longer than the seq's 8 cycles, delay included. */
     for( int i = 0; i < 40; i++ )
         World_Cycle(world, 1);
-    TEST_ASSERT(npc->spotanim.id == 369, "a graphic still loading is not expired");
-    TEST_ASSERT(npc->spotanim.frame == 0, "and it waits on frame 0");
+    TEST_ASSERT(npc->spotanims[0].id == 369, "a graphic still loading is not expired");
+    TEST_ASSERT(npc->spotanims[0].frame == 0, "and it waits on frame 0");
 
     g_spot_test_resident = 1;
     World_Cycle(world, 1);
-    TEST_ASSERT(npc->spotanim.id == 369, "the cycle it lands it is still playing");
-    TEST_ASSERT(npc->spotanim.frame == 0, "from its first frame, not the stall's");
+    TEST_ASSERT(npc->spotanims[0].id == 369, "the cycle it lands it is still playing");
+    TEST_ASSERT(npc->spotanims[0].frame == 0, "from its first frame, not the stall's");
 
-    for( int i = 0; i < 8 && npc->spotanim.id != -1; i++ )
+    for( int i = 0; i < 8 && npc->spotanims[0].id != -1; i++ )
         World_Cycle(world, 1);
-    TEST_ASSERT(npc->spotanim.id == -1, "and it ends after playing its frames once");
+    TEST_ASSERT(npc->spotanims[0].id == -1, "and it ends after playing its frames once");
 
     World_Free(world);
 }
@@ -2139,14 +2139,14 @@ test_entity_spotanim_without_a_seq_retires(void)
     world->seq_source.frame_duration = spot_test_frame_duration;
 
     g_spot_test_resident = 0;
-    World_NpcSetSpotanim(world, ni, 85, 0, 2);
+    World_NpcSetSpotanim(world, ni, 0, 85, 0, 2);
     for( int i = 0; i < 10; i++ )
         World_Cycle(world, 1);
-    TEST_ASSERT(npc->spotanim.id == 85, "still loading: it waits");
+    TEST_ASSERT(npc->spotanims[0].id == 85, "still loading: it waits");
 
     g_spot_test_resident = 1;
     World_Cycle(world, 1);
-    TEST_ASSERT(npc->spotanim.id == -1, "resolved to nothing: retired on that cycle");
+    TEST_ASSERT(npc->spotanims[0].id == -1, "resolved to nothing: retired on that cycle");
 
     World_Free(world);
 }

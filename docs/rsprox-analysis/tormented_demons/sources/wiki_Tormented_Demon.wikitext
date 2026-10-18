@@ -1,0 +1,412 @@
+{{External|rs=Tormented demon}}
+{{HasStrategy}}
+{{HasTask|Greater demons}}
+{{Infobox Monster
+|version1 = 1
+|version2 = 2
+|version3 = 3
+|version4 = 4
+|name = Tormented Demon
+|image1 = [[File:Tormented Demon (1).png|200px]]
+|image2 = [[File:Tormented Demon (2).png|200px]]
+|image3 = [[File:Tormented Demon (3).png|200px]]
+|image4 = [[File:Tormented Demon (4).png|200px]]
+|release = [[10 July]] [[2024]]
+|update = While Guthix Sleeps
+|members = Yes
+|combat = 450
+|size = 3
+|examine = Lucien must be incredibly powerful if he can bind such demons to his will.
+|attributes = demon
+|xpbonus = 77.5
+|max hit = {{plainlist|
+*31 (auto)
+*45 (special)}}
+|aggressive = No
+|poisonous = No
+|attack style = All
+|attack speed = 6
+|respawn = 21
+|slayxp = 1065
+|cat = Greater Demons
+|assignedby = chaeldar,nieve,kuradal
+|hitpoints = 600
+|att = 255
+|str = 255
+|def = 150
+|mage = 255
+|range = 255
+|attbns = 400
+|strbns = 10
+|amagic = 300
+|mbns = 5
+|arange = 300
+|rngbns = 5
+|dstab = 75
+|dslash = 175
+|dcrush = 68
+|dmagic = 5
+|dlight = 140
+|dstandard = 150
+|dheavy = 90
+|elementalweaknesstype = Water
+|elementalweaknesspercent = 30
+|poisonresistance = 0
+|venomresistance = 0
+|immunecannon = Yes
+|immunethrall = No
+|id1 = 13599
+|id2 = 13600
+|id3 = 13601
+|id4 = 13602
+|leagueRegion = Misthalin
+}}
+'''Tormented Demons''' are extremely powerful [[demons]] bound into a state of perpetual agony, healing their bodies as they burn, summoned by the [[Mahjarrat]] [[Lucien]] after he teleports away the [[Stone of Jas]] during [[While Guthix Sleeps]]. They can be found throughout the [[Ancient Guthixian Temple]] after completion of the quest.
+
+Tormented demons count as [[greater demons]] for the progression of [[Slayer task]]s. As demons, they are susceptible to the effects of [[demonbane weapons]].
+
+They are primarily killed for their [[tormented synapse]]s, which are used to create high-tier demonbane weapons, as well as their [[burning claw]] drop, two of which are combined into the [[burning claws]], a [[special attack]] weapon that sits in between the [[dragon dagger]] and [[dragon claws]] in terms of power, but are more effective against demons (such as tormented demons).
+
+==Locations==
+{{LocTableHead}}
+{{LocLine
+|name = Tormented Demon
+|location = [[Ancient Guthixian Temple]]
+|levels = 450
+|members = Yes
+|mapID = -1
+|plane = 0
+|x:4136,y:4372
+|x:4117,y:4385
+|x:4149,y:4430
+|x:4088,y:4379
+|x:4038,y:4379
+|x:4039,y:4391
+|x:4134,y:4466
+|x:4147,y:4452
+|x:4112,y:4466
+|x:4135,y:4399
+|x:4040,y:4419
+|x:4148,y:4381
+|x:4083,y:4373
+|x:4123,y:4381
+|x:4104,y:4467
+|x:4146,y:4366
+|x:4088,y:4367
+|x:4131,y:4363
+|x:4140,y:4392
+|x:4139,y:4450
+|x:4038,y:4449
+|x:4151,y:4425
+|x:4041,y:4385
+|x:4141,y:4464
+|x:4071,y:4426
+|x:4079,y:4430
+|mtype = pin
+|leagueRegion = Misthalin
+}}
+{{LocTableBottom}}
+==Multi-combat mechanics==
+{{map:Multicombat_AGT}}
+
+Although the entire [[Ancient Guthixian Temple]] is considered a [[single-way combat]] zone by the game, the temple is a unique outlier in the fact that some areas are pseudo-[[multicombat area]]s. While in the temple, an icon that depicts a tormented demon's head (shown below) can be seen in the user interface, indicating the number of demons the player can engage at one time. Other players will be unable to attack a demon that is engaged in combat with another player until that player leaves by any means.
+
+<gallery widths="125" heights="125" mode="nolines">
+File:Tormented demons multicombat I.png|'''Single-Combat:''' 10 demons—The [[Plinth (Ancient Guthixian Temple)|plinth]] chamber in the south-east contains eight demons in a single-combat area. Two additional single-demon rooms can be found in the north-west of the temple (directly west of the temple entrance).  
+File:Tormented demons multicombat II.png|'''Double-Combat:''' 10 demons—The central chamber and the four eastern rooms each contain two demons.  
+File:Tormented demons multicombat III.png|'''Triple-Combat:''' 6 demons—Two rooms in the south-west contain three demons each.  
+</gallery>Tormented demons are unaggressive and will not attack unless attacked first.
+==Fight overview==
+{{main|Tormented Demon/Strategies}}
+
+Tormented demons can pray against and attack using every [[combat style]]. They possess the ability to routefind, allowing them to move around objects, and can also stack on top of each other. If they cannot reach the player when attempting to melee, they will instead randomly fire magic and ranged attacks.
+
+Every 150 health lost since their last prayer swap (roughly 25% of their max health), they will change their protection prayer to the last combat style they were damaged with, and will stop attacking for 6 [[tick]]s (3.6s).
+
+They will briefly bind the player in place roughly every 60 ticks (36s; 10 attacks) and disable run ({{Key press|Ctrl}} clicking still allows running), then release two fire bombs: one on the player's position as of the start of the attack, and a second on a random one of the 8 adjacent squares, assuming that it is a walkable tile. The bind will then be released and players have 2 ticks to move off of the target tiles before they explode. The demons always change their combat style after this attack. 
+
+Tormented demons usually have a fire shield that reduces damage done by non-[[demonbane weapons]]/[[demonbane spells|spells]] and non-[[abyssal weapons]] by 20%. They will drop this shield after the player's first attack and after each fire bomb attack; the shield remains down until they are attacked once. Slower weapons will deal significant bonus damage to unshielded tormented demons. They also become defenseless, indicated by the flames on their body disappearing, approximately 30 ticks (18s; 5 attacks) into the fight until after their fire bomb attack, after which the 30 tick timer begins again. Attacking them while defenseless will provide 100% accuracy meaning guaranteed hits.
+
+The [[clickbox]] of a tormented demon will shift whenever their shield animation plays (every few ticks). This can affect clicking away from the demon during a fire bomb. Changing their shift-click to walk through is a good preventative measure for this, as well as tagging tormented demons with their tag style set to hull in order to more accurately see their [[clickbox]].
+
+If the player chooses to attack multiple tormented demons simultaneously, their attack behaviour changes: one will use melee if possible, and the other magic or ranged, and their attacks start out staggered so they can be prayed against. If three or more demons are attacking the player, the third and any more demons will release single bombs at the player.
+
+If demons are forced out of combat due to teleportation or being unable to attack their target, they will restore their health to full.
+
+==Money making==
+{{Mmgsection|Killing Tormented Demons|mobname=Tormented Demons}}
+
+==Drops==
+{{DropLogProject|kills=110286}}
+
+The average Tormented Demon kill is worth {{Coins|{{Average drop value|raw=y|round=0}}}}.
+
+Excluding unique drops, the average Tormented Demon kill is worth {{Coins|{{#expr:{{Average drop value|raw=y}}-(1/500)*{{GEP|Burning claw}}-(1/500)*{{GEP|Tormented synapse}} round 0}}}}. 
+
+Upon death, a drop will be rolled until the roll results in a success, as described below:{{CiteNews|url=https://secure.runescape.com/m=news/deadman-armageddon--while-guthix-sleeps-tweaks?oldschool=1|title=Deadman: Armageddon & While Guthix Sleeps Tweaks|newsdate=24 July 2024}}
+*Roll 1/500 for the tormented synapse drop.
+**If unsuccessful, roll for a burning claw drop.
+**If unsuccessful, roll for a smouldering part ([[smouldering pile of flesh]], [[smouldering gland]], [[smouldering heart]]).
+*If all the above rolls are unsuccessful, the standard drop table is rolled.
+
+===100%===
+{{DropsTableHead}}
+{{DropsLine|name=Infernal ashes|quantity=1|rarity=Always}}
+{{DropsTableBottom}}
+
+===Unique===
+{{DropsTableHead}}
+{{DropsLine|name=Burning claw|quantity=1|rarity=499/250000}}
+{{DropsLine|name=Tormented synapse|quantity=1|rarity=1/500}}
+{{DropsTableBottom}}
+
+===Weapons and armour===
+{{DropsTableHead}}
+{{DropsLine|name=Dragon dagger|quantity=1|rarity=3/51|approx=Yes}}
+{{DropsLine|name=Rune kiteshield|quantity=1|rarity=2/51|approx=Yes}}
+{{DropsLine|name=Battlestaff|quantity=1 (noted)|rarity=3/51|approx=Yes}}
+{{DropsLine|name=Rune platebody|quantity=1|rarity=4/51|approx=Yes}}
+{{DropsTableBottom}}
+
+===Runes and ammunition===
+{{DropsTableHead}}
+{{DropsLine|name=Chaos rune|quantity=25-100|rarity=4/51|approx=Yes}}
+{{DropsLine|name=Soul rune|quantity=50-75|rarity=2/51|approx=Yes}}
+{{DropsLine|name=Rune arrow|quantity=65-125|rarity=4/51|approx=Yes}}
+{{DropsTableBottom}}
+
+===Herbs===
+{{CombatHerbDropTableInfo|4/51}}
+
+{{UsefulHerbDropTableInfo|2/51}}
+{{DropsTableHead}}
+{{CombatHerbDropLines|4/51|unnoted=Yes|approx=Yes}}
+{{UsefulHerbDropLines|2/51|unnoted=Yes|approx=Yes}}
+{{DropsTableBottom}}
+
+===Seeds===
+{{TreeHerbSeedDropTableInfo|1/51}}
+{{DropsTableHead}}
+{{TreeHerbSeedDropLines|1/51|approx=Yes}}
+{{DropsTableBottom}}
+
+===Consumables===
+{{DropsTableHead}}
+{{DropsLine|name=Smouldering gland|quantity=1|rarity=1/25|approx=Yes}}
+{{DropsLine|name=Smouldering pile of flesh|quantity=1|rarity=1/25|approx=Yes}}
+{{DropsLine|name=Smouldering heart|quantity=1|rarity=1/125|approx=Yes}}
+{{DropsLine|name=Manta ray|quantity=1-2|rarity=4/51|approx=Yes}}
+{{DropsLine|name=Prayer potion(4)|quantity=1|rarity=1/51|approx=Yes}}
+{{DropsLine|name=Prayer potion(2)|quantity=2|rarity=1/51|approx=Yes}}
+{{DropsTableBottom}}
+
+===Other===
+{{DropsTableHead}}
+{{DropsLine|name=Guthixian temple teleport|quantity=2|rarity=1/12}}
+{{DropsLine|name=Magic shortbow (u)|quantity=1 (noted)|rarity=29/255|approx=Yes}}
+{{DropsLine|name=Magic longbow (u)|quantity=1|rarity=1/255|approx=y}}
+{{DropsLine|name=Malicious ashes|quantity=2-3|rarity=2/51|approx=Yes}}
+{{DropsLine|name=Fire orb|quantity=5-7 (noted)|rarity=2/51|approx=Yes}}
+{{DropsLine|name=Dragon arrowtips|quantity=30-40|rarity=1/51|approx=Yes}}
+{{DropsTableBottom}}
+
+===Tertiary===
+{{DropsTableHead}}
+{{DropsLineClue|type=elite|rarity=1/128}}
+{{DropsTableBottom}}
+
+==Collection log==
+{{PAGENAME}}s have 3 [[collection log]] items.
+{{Sync}}
+{{Collection log list|category=Tormented Demons}}
+
+==Combat Achievements==
+{{Combat Achievements list|Tormented Demon|mobname=tormented demons}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = Tormented Demons now have a 30% [[elemental weakness]] to [[water spells]].
+}}
+{{Subject changes
+|date = 8 January 2025
+|update = Run Energy Changes
+|change = Tormented Demons now correctly appear in the Combat Achievements monster drop-down list. 
+}}
+{{Subject changes
+|date = 23 October 2024
+|update = Halloween Fixes & Miscellaneous Changes
+|change = The flames on the tormented demons are now visually extinguished to indicate that the player's attacks are 100% accurate.
+}}
+{{Subject changes
+|date = 21 August 2024
+|type = hotfix
+|change = * Fixed an issue with the demons' overhead prayers not appearing properly upon respawning.
+}}
+{{Subject changes
+|date = 7 August 2024
+|update = Poll 82 Changes
+|change = Tormented demons are now less likely to lose aggression with the player when they run out of range. If they do, they will attack the player correctly if the player re-engages them.
+}}
+{{Subject changes
+|date = 31 July 2024
+|update = QoL Improvements & Further Deadman: Armageddon Tweaks
+|change = The visuals on the tormented demon's fire shield effect has been adjusted to alleviate reports of eye strain and motion sickness by players:
+* Shifted the hue from yellow to orange.
+* Added more transparency.
+* Reduced the turning speed of the shield by 50%.
+* The shield animation now plays for two ticks instead of three.
+* Removed the floor symbol and fire circle elements during the shield formation animation.
+}}
+{{Subject changes
+|date = 24 July 2024
+|update = Deadman: Armageddon & While Guthix Sleeps Tweaks
+|change =
+* The [[Guthixian temple teleport]] has been added as a drop with a rate of 1/12.
+* A new multi-combat icon has been added within the temple, which indicates how many demons a player can simultaneously fight.
+}}
+{{Subject changes
+|date = 18 July 2024
+|type = hotfix
+|change =
+* Tormented demons are no longer permanently [[aggressive]].
+* [[Magic longbow (u)|Unstrung magic longbows]] were added to the drop table.
+* The malicious ashes drop is no longer noted.
+}}
+{{Subject changes
+|date = 17 July 2024
+|type = hotfix
+|change = * The following changes have been made to the Tormented Demon's drop table:
+** Removed low tier herbs
+** Removed some lower value seeds
+** Removed [[fire rune]]s
+** Removed [[vile ashes]]
+** [[Adamant]] alchables have become rune
+** [[Rune]] alchables have become dragon
+** Additional rune alchables have been added
+** [[Shortbows]], [[battlestaves]], and [[malicious ashes]] now drop as noted
+** Improved the drop rate of a [[burning claw]] by ~17%.
+}}
+{{Subject changes
+|date = 17 July 2024
+|update = Deadman: Armageddon & While Guthix Sleeps Updates
+|change = 
+* Tormented Demons will now no longer lose focus on their original target when a new player enters the area.
+* Tormented Demons will no longer switch to another player during their special attack if the player they’re already attacking has been in the area a long time.
+}}
+{{Subject changes footer}}
+
+==Development history==
+Tormented demons were released alongside While Guthix Sleeps on [[26 November]] [[2008]], during the period often referred to as ''RuneScape 2''. The version found in ''Old School'' is very similar, but has several differences both with the original ''RuneScape 2'' version and their modern ''RuneScape 3'' counterparts:
+
+*There are significantly more tormented demons throughout the entirety of the Ancient Guthixian Temple. In ''RuneScape 3'', there are only six demons, all of whom are near the plinth where the Stone of Jas once was, while in ''Old School RuneScape'', there are twenty-six; eight by the plinth, two by the door leading to the inner section of the temple, eight to the western section of the temple (one each to the north-western chambers, and two sets of three to the south-west) and another eight to the eastern dolmens, in four sets of two.
+*The tormented demons in ''Old School RuneScape'' are unaggressive, whereas those in ''RuneScape 3'' never become tolerant to the player.
+*In ''Old School RuneScape'', tormented demons are considered [[greater demon]]s for the purpose of a slayer assignment. In ''RuneScape 3'', tormented demons were not an assignable Slayer task for a considerable amount of time after release, and later became unlockable through Slayer points or killable as part of a {{RSL|demons (Slayer assignment)|demon cluster task}}.
+* Tormented demons in both games attack with all three combat styles, but have somewhat different mechanics:
+** When changing attack styles in ''RuneScape 3'', they use an AoE magic attack in their immediate area. This occurs every 16 seconds. In ''Old School RuneScape'', they instead bind the player in place before launching a fire bomb attack at them. This occurs every 36 seconds.
+** If using melee but attacked from a distance in ''RuneScape 3'', a tormented demon will immediately change combat styles. In ''Old School RuneScape'', they will only do so if they cannot reach their target, and will randomly switch between magic and ranged to discourage safespotting.
+** Tormented demons switch their overhead prayer more frequently in ''RuneScape 3'', doing so after taking 3100 damage (about 15% of their total life points). In ''Old School RuneScape'', they switch after taking 150 damage (25% of their total hitpoints).
+** Their fire shield is much stronger in ''RuneScape 3'', reducing all damage by 75% until destroyed by {{RSL|Darklight}} or {{RSL|holy water}}. In ''Old School RuneScape'', the shield reduces non-demonbane damage by 20% and is dropped after being attacked or after using a fire bomb attack for one attack.
+*** Additionally, when a tormented demon is attacked while their shield is down, a damage bonus is given based on weapon speed, with slower weapons receiving higher bonuses. This allows for significant bonus damage from non-demonbane weapons, if timed correctly.
+*On release in ''RuneScape 2'', tormented demons had four unique drops: {{RSL|dragon claws}} and three pieces of the {{RSL|dragon platebody}}. Later, {{RSL|dragon limbs}} were also added to their drop table. As all of these items were already present in ''Old School RuneScape'' when tormented demons were added, their droptable is significantly different, instead featuring the [[tormented synapse]] and [[burning claws]].
+*Tormented demons in ''RuneScape 2'' were originally released with 326 hitpoints and zero offensive or defensive stats. The demons in ''Old School RuneScape'' have 600 hitpoints and have offensive and defensive stats added to give them a distinct weakness:{{CiteTwitter|author=Mod Ash|url=https://x.com/JagexAsh/status/1749777281675907450|date=23 January 2024|archiveurl=https://reldo.runescape.wiki/i/27963401|archivedate=7 April 2026|quote=[I was wondering what stats they had before then. Is it possible to find out please?] Attack 255
+Strength 166
+Defence 300
+Magic 255
+Ranged 255
+Lifepoints 3260 (presumably that's 326 HP)
+No defensive bonuses.|name=Tormented demon 2008 stats}}
+:{|class=wikitable style="text-align:center;"
+! colspan="43" |Combat stats
+|-
+!
+! colspan="7" | {{plinkp|Hitpoints|pic=Hitpoints icon}}
+! colspan="7" | {{plinkp|Attack|pic=Attack icon}}
+! colspan="7" | {{plinkp|Strength|pic=Strength icon}}
+! colspan="7" | {{plinkp|Defence|pic=Defence icon}}
+! colspan="7" | {{plinkp|Magic|pic=Magic icon}}
+! colspan="7" | {{plinkp|Ranged|pic=Ranged icon}}
+|-
+!2008
+| colspan="7" | 326
+| colspan="7" | 255
+| colspan="7" | 166
+| colspan="7" | 300
+| colspan="7" | 255
+| colspan="7" | 255
+|-
+!2024
+| colspan="7" | 600
+| colspan="7" | 255
+| colspan="7" | 255
+| colspan="7" | 150
+| colspan="7" | 255
+| colspan="7" | 255
+|-
+! colspan="43" |Aggressive stats
+|-
+!
+! colspan="7" | {{plinkp|Attack|pic=Attack icon}}
+! colspan="7" | {{plinkp|Strength|pic=Strength icon}}
+! colspan="7" | {{plinkp|Magic|pic=Magic icon}}
+! colspan="7" | {{plinkp|Magic Damage|pic=Magic Damage icon}}
+! colspan="7" | {{plinkp|Ranged|pic=Ranged icon}}
+! colspan="7" | {{plinkp|Ranged Strength|pic=Ranged Strength icon}}
+|-
+!2008
+| colspan="7" | +0
+| colspan="7" | +0
+| colspan="7" | +0
+| colspan="7" | +0
+| colspan="7" | +0
+| colspan="7" | +0
+|-
+!2024
+| colspan="7" | +400
+| colspan="7" | +10
+| colspan="7" | +300
+| colspan="7" | +5
+| colspan="7" | +300
+| colspan="7" | +5
+|-
+! colspan="43" |Defensive stats
+|-
+!
+! colspan="6" | {{plinkp|Stab|pic=White dagger}}
+! colspan="6" | {{plinkp|Slash|pic=White scimitar}}
+! colspan="6" | {{plinkp|Crush|pic=White warhammer}}
+! colspan="6" | {{plinkp|Magic|pic=Magic icon}}
+! colspan="6" | {{plinkp|Ranged|pic=Steel dart}}
+! colspan="6" | {{plinkp|Ranged|pic=Steel arrow 5}}
+! colspan="6" | {{plinkp|Ranged|pic=Steel bolts 5}}
+|-
+!2008
+| colspan="6" | +0
+| colspan="6" | +0
+| colspan="6" | +0
+| colspan="6" | +0
+| colspan="6" | +0
+| colspan="6" | +0
+| colspan="6" | +0
+|-
+!2024
+| colspan="6" | +75
+| colspan="6" | +175
+| colspan="6" | +68
+| colspan="6" | +5
+| colspan="6" | +140
+| colspan="6" | +150
+| colspan="6" | +90
+|}
+
+==Trivia==
+*Tormented demons are the second non-boss monster to have a [[Combat Achievements/Master|Master Combat Achievement]] ([[Three Times the Thrashing]]) the other being the [[Deathly ranger]]s and [[Deathly mage]]s from the [[Chambers of Xeric]] ([[No Time for Death]]), though they are the first non-boss monster that requires the player to actually kill them in order to complete the task.
+
+==References==
+{{reflist}}
+
+{{Tormented Demons}}
+{{While Guthix Sleeps}}
+{{Demons}}

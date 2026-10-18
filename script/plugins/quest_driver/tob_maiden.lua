@@ -203,10 +203,13 @@ function QD.raid._maiden_pools(S, F)
                 local key = p.dst_x .. "," .. p.dst_z .. "@" .. B
                 if not S.pool_seen[key] then
                     S.pool_seen[key] = true
-                    local d = gap(p.dst_x, p.dst_z, bx, bz, V.SIZE)
-                    -- the plain pool's flight and the extra's: both windows
-                    local land = B + (50 + 15 * d) // 30
-                    local land_extra = B + (75 + 15 * d) // 30
+                    -- Jagex's flight (docs/rsprox-analysis/tob/maiden.md): the end
+                    -- cycle is 20 + 15 x the Chebyshev distance from her CENTRE
+                    -- tile (body + 3,3), the extras 25 later
+                    local cx, cz = bx + V.SIZE // 2, bz + V.SIZE // 2
+                    local d = math.max(math.abs(p.dst_x - cx), math.abs(p.dst_z - cz))
+                    local land = B + (20 + 15 * d) // 30
+                    local land_extra = B + (45 + 15 * d) // 30
                     -- to the pool's EXPIRY and a tick past it: an expiring
                     -- pool can become a blood spawn on its own tile, which lays
                     -- its trail on that tick (~tob_maiden_bloodspawn_chance_at);

@@ -1,0 +1,496 @@
+{{External|rs=Tormented demon/Strategies}}
+Tormented demons can be fought within the [[Ancient Guthixian Temple]] after completing the [[While Guthix Sleeps]] quest. As with their original version from ''[[RuneScape 2]]'', multiple combat styles and protection prayers are needed to successfully fight these demons. They count as [[greater demon]]s for the purposes of a [[Slayer task]].
+
+They drop the [[tormented synapse]], which is used to create powerful [[Demonbane weapons|demonbane weaponry]], and the [[burning claw]], which can be combined in a pair to make [[burning claws]].
+
+==Requirements==
+* Completion of {{SCP|Quest}} [[While Guthix Sleeps]] for access to the [[Ancient Guthixian Temple]].
+
+===Recommendations===
+* High [[combat]] stats in at least 2 combat styles.
+** Level {{SCP|Attack|75}} or higher
+** Level {{SCP|Strength|75}} or higher
+** Level {{SCP|Defence|70}} or higher
+** Level {{SCP|Ranged|70}} or higher
+** Level {{SCP|Hitpoints|75}} or higher
+** Level {{SCP|Prayer|70}} or higher (for [[Piety]], 74 for [[Rigour]], 77 for [[Augury]])
+** Level {{SCP|Magic|82}} or higher ([[Dark Demonbane]] and magic defence)
+* Completion of {{SCP|Quest}} [[Shadow of the Storm]] for access to [[Arclight]].
+* Completion of {{SCP|Quest}} [[A Kingdom Divided]] for access to [[Dark Demonbane]].
+
+==Transportation==
+The quickest way to reach the temple is by using a [[Guthixian temple teleport]] scroll, which are dropped by tormented demons at a rate of 1/12. Alternatively, players can use a [[games necklace]] to teleport to [[Tears of Guthix (minigame)|Tears of Guthix]] via either jewellery on the player or in a [[Achievement gallery#Jewellery box|Jewellery box]] in the player's [[POH]]. From here, a lit [[sapphire lantern]] must be used to attract a [[light creature]] in order to descend into the chasm. Follow the chasm and climb the walls next to the centre skull, and enter the skull above to enter the central chamber of the temple.
+
+==Fight overview==
+Tormented demons can use [[protection prayers]], attack using every [[combat style]] along with ground-targeted fire bombs, and possess routefinding capabilities, allowing them to move around objects and stack on top of each other. They are capable of attacking with melee if players stand underneath them, and will switch randomly to a magic or ranged attack if they cannot reach the player and were previously using melee, which makes them difficult to safe-spot.
+
+Their first attack upon initiating combat deals ~75% less damage if the demon is attacking with magic or ranged, the player is praying [[Protect from Magic]] or [[Protect from Missiles]], and its shield is down (i.e. the demon has not taken damage from the player's 5+ tick attack).
+
+Every 150 health lost since its last prayer swap (roughly 25% of its max health), the demon will change its protection prayer to the last combat style it was damaged with, as well as stop attacking for 6 ticks (3.6s). Summoning a [[thrall]] with a third attack style can be used to occasionally exploit this.
+
+===Multicombat===
+{|class="floatright"
+|{{map:Multicombat_AGT}}
+|}
+Tormented demons are spread out in groups throughout the temple, and players can fight up to three of them should they choose to do so, which results in varying attack behaviour.
+
+With two demons attacking, one will always use melee, and the other using magic or ranged; they will not attack simultaneously as to allow players to [[prayer flick]] their attacks. If the player moves, it may change the cadence of the attacks and make it harder to prayer flick. If a third demon attacks, it will only use fire bombs, requiring the player to move frequently.
+
+===Fire bombs===
+Roughly every 60 ticks (36s), the demon(s) will briefly [[bind]] the player in place, disable their [[run]], then release two fire bombs: one targeting the tile the player stood on, and one in a 3x3 area centered on the player's location in a valid tile. Players have 2 [[ticks]] (1.2s) to move to a safe tile before they land and explode, or they will take 40+ damage. Players can {{Key press|Ctrl}} click to run if this is enabled in the in-game settings.
+
+It is recommended to stand out in the open and not by a wall or obstacle, especially when fighting multiple demons at once, as the fireballs will only land on valid tiles. Some areas may only allow for up to three safe tiles, meaning that without use of control clicking, the player is guaranteed to be hit by one of them.
+
+Fire bombs will still cause damage even if the demon is killed while they are airborne.
+
+[[File:Tormented Demon - triple axes.mp4|thumb|400px|A player fighting three tormented demons at once, with one using melee, the second with magic, and the third with single-shot fire bombs. The binding fire bomb attack is performed simultaneously, and the player uses [[Dharok's greataxe]] to rapidly fire powerful attacks whilst their fire shields are down.]]
+
+The demon will always change its combat style after this attack, and the player's run will be re-enabled. Players can determine the next attack style through the following observations:
+* If it approaches the player, it will use melee.
+* If it does not approach the player, it will use magic or ranged - whichever wasn't used before.
+* If the demon previously used melee, you will have to guess and/or correct your protection prayer as it can be magic or ranged.
+
+===Shield===
+Tormented demons usually have a fire shield that reduces damage done by non-[[demonbane weapons]]/[[demonbane spells|spells]] and non-[[abyssal weapons]] by 20%. They will drop this shield after first being attacked and after each fire bomb attack; this is indicated by an animation as if flames descend from above and then blow away. The shield remains down until they are attacked once, allowing time to switch gear. This allows you to use weapons they are weak to as early as the second hit of combat, reliably increasing DPS.
+
+[[File:Tormented Demon - fight start shield down.mp4|thumb|400px|A player takes advantage of the second hit on a tormented demon being unshielded, allowing large damage to be dealt.]]
+
+For the player's one attack while their shield is down, all damage dealt by specific weapons is increased by <math>X^2 - 16</math>, where <math>X</math> is the weapon's attack speed. The attack speed for this one attack is also set to 4 ticks (2.4s); if multiple demons are attacking, the attack speed decreases by one tick per additional demon that is fighting the player, allowing back-to-back powerful hits if timed correctly. These benefits '''only''' apply to:
+* Melee weapons set to the [[crush weapons|crush attack style]] (this works even if the attack rolls against Slash or Stab defence, for example while using a godsword's special attack)
+* Heavy ranged weapons ([[crossbows]] and [[ballista]]e)
+* [[spell|Spells]] (not from a [[powered staff]]).
+
+As such, heavy ranged weapons with a Rapid style should be set to Accurate instead.
+
+It is also possible to benefit from a weapon's slow attack speed by manually casting a spell with it equipped. This is particularly effective with the [[Dark bow]] or the [[Ogre bow]] set to Accurate. 
+
+If the player mistakenly uses a weapon matching the protection prayer of the monster while the shield is down, the attack speed and damage bonus will still apply, but be divided by 3 and rounded down. For example, a 7 tick weapon (+33) will always hit 11 on prayer.
+
+{| class="wikitable"
+|+Weapon Damage and Speed Buff
+!Standard attack speed
+!Damage bonus
+!Speed vs 1 demon
+!Speed vs 2 demons
+!Speed vs 3 demons
+!Example Weapons
+|-
+|7 (4.2s)
+| +33
+|4 (2.4s)
+|3 (1.8s)
+|2 (1.2s)
+|{{Plink|Heavy ballista}} (Accurate), {{Plink|Dharok's greataxe}},{{efn|Set to crush.|name=crush}} {{Plink|Dragon 2h sword}},{{efn|name=crush}} {{Plink|Tzhaar-ket-om}}{{efn|Especially powerful when combined with the [[berserker necklace]]|name=Zerk Necklace}}
+|-
+|6 (3.6s)
+| +20
+|4 (2.4s)
+|3 (1.8s)
+|2 (1.2s)
+|{{Plink|Crossbows|pic=Zaryte crossbow}} (Accurate), {{Plink|Elder maul}}, {{Plink|Godsword|pic=Bandos godsword|txt=Godswords}},{{efn|name=crush}}{{efn|The [[Saradomin godsword]]'s special attack will neither heal nor restore your prayer for the bonus damage done, though it can still be useful because of the guaranteed hit|name=SGS}} {{Plink|Colossal blade}}{{efn|name=crush}} {{Plink|Hallowfell}}{{efn|name=crush}}
+|-
+|5 (3s)
+| +9
+|4 (2.4s)
+|3 (1.8s)
+|2 (1.2s)
+|{{Plink|Scythe of Vitur}},{{efn|name=crush}} {{Plink|Soulreaper axe}},{{efn|name=crush}} spells (including [[demonbane spells]])
+|-
+| 4 or faster
+| +0
+|4 (2.4s)
+|4 (2.4s)
+|4 (2.4s)
+|{{Plink|Inquisitor's mace}},{{efn|name=crush}} {{Plink|Abyssal bludgeon}}
+|}
+{{Notelist}}
+
+===Defencelessness===
+Roughly 30 ticks (18s) after the start of the fight, the demon will become defenceless, giving the player 100% accuracy when attacking it; this is indicated by the flames on the demon's back being extinguished. This increased accuracy will last until the player's first hit after the fire bomb attack. After the fire bomb attack, the player's accuracy will return to normal until 30 ticks pass again and the demon becomes defenceless once again. The 100% accuracy bonus makes it a good time to use a spec weapon as soon as the demon becomes defenceless.
+
+These frequent periods of defenselessness can also make it worthwhile to bring extra damage boosting gear to increase max hit. Alternatively a fast weapon can be used, such as a [[toxic blowpipe]], though it is still inferior to demonbane weaponry.
+
+==Equipment==
+Like [[demonic gorilla]]s, players will have to use multiple combat styles to be able to attack the demons off-prayer. Unlike demonic gorillas, tormented demons remain on one style for 150 hitpoints instead of 70, meaning players will have to switch less often and can bring more gear switches if they prefer. However, the player will continue attacking when the demon changes prayers. Switches can be reduced when not much damage is gained to save inventory space.
+
+The demons' unique accuracy mechanic encourages bringing different ranged weapons for the high and low accuracy phases, such as the [[toxic blowpipe]] and [[Bow of Faerdhinen|bow of Faerdhinen]] respectively. There is usually little benefit in switching into armour that only provides accuracy bonuses during the high accuracy phase, for example this can make the toxic blowpipe viable in full melee strength boosting gear reducing switches. The shield mechanic promotes bringing a strong, slow [[Crush weapons|Crush]] (melee) or [[Ranged#weapons|Heavy]] (ranged) weapon for when the shield is down. Ranged weapons brought for this purpose should be set to [[Combat Options#Accurate 2|Accurate]] to increase their maximum hit and damage scaling, as the decrease in weapon speed is ignored. 
+
+Note: All weapons that are not classified as [[Abyssal weapons|abyssal]] or [[Demonbane weapons|demonbane]] deal 20% reduced damage against tormented demons.
+
+With no additional gear switches, the [[heavy ballista]] (on accurate) and [[Dharok's greataxe]] (on crush) are the strongest weapons for hits when the shield is down. Dharok's greataxe becomes even more powerful when used with the full Dharok's armour set, which multiplies damage after it is rolled (and after the 33 bonus damage is added) based on the number of hitpoints the player is missing. Similarly, using a [[tzhaar-ket-om]] with a [[berserker necklace]] multiplies damage by 1.2 after the bonus damage has been added, making it more effective than a Dharok's greataxe on its own. 
+
+The [[Saradomin godsword]] and the [[eldritch Nightmare staff]] are solid options to extend trips with their special attacks if no other weapon is being used. These are best used during the shieldless state, where the accuracy is guaranteed. The godsword's special should not be used as a melee punish, as the flat damage '''does not''' restore the player's health or prayer.
+
+These weapons pair well with [[Death Charge]] at the cost of not being able to [[High Alchemy|alch]] drops unless an [[explorer's ring 4]] is brought. If using thralls, use the thrall on the combat style the player is not using, as this allows the thrall to have full uptime on attacking for its duration unless it causes a prayer swap. A [[Lightbearer]] can be brought in addition should the player still struggle with supplies, though this is not recommended if the player is using [[Arclight]] or [[Emberlight]] as they benefit greatly from [[Strength#Strength bonus|strength bonus]].<tabber>
+Melee=
+Melee is the strongest style against the demons, especially considering the accessibility of [[Arclight]] for most accounts. Due to non-reduced damage and 100% accuracy for a large portion of the fight, [[Abyssal weapon|abyssal weaponry]] outperforms weapons like the [[Inquisitor's mace]] and [[Osmumten's fang]]. 
+
+{{Recommended equipment
+|style = Melee switch
+|head1 = {{plink|Slayer helmet (i)}}{{efn|When on a [[greater demon]] Slayer task.|name=task}} /<br> {{plink|Torva full helm}}
+|head2 = {{plink|Oathplate helm}}{{efn|name=slash}} /<br>{{plink|Neitiznot faceguard}} /<br>{{plink|Serpentine helm}} /<br>{{plink|Inquisitor's great helm}}{{efn|With a crush weapon.|name=inq}}
+|head3 = {{plink|Blood Moon helm}}
+|head4 = {{plink|Helm of Neitiznot}} /<br>{{plink|Eclipse Moon helm}}{{efn|Can also be used for ranged, saving inventory space.|name=eclipse}}
+|head5 = {{plink|Blue Moon helm}}{{efn|Can also be used for magic, saving inventory space.|name=blue}}
+|neck1 = {{plink|Amulet of rancour}}
+|neck2 = {{plink|Amulet of torture}}
+|neck3 = {{plink|Amulet of blood fury}}
+|neck4 = {{plink|Amulet of fury}}
+|neck5 = {{plink|Amulet of glory|pic=Amulet of glory(4)}}
+|cape1 = {{plink|Infernal cape}}
+|cape2 = {{plink|Fire cape}}
+|body1 = {{plink|Torva platebody}}
+|body2 = {{plink|Oathplate chest}}{{efn|With a slash weapon.|name=slash}} /<br>{{plink|Bandos chestplate}} /<br>{{plink|Inquisitor's hauberk}}{{efn|name=inq}}
+|body3 = {{plink|Blood Moon chestplate}} /<br>{{plink|Fighter torso}}
+|body4 = {{plink|Eclipse Moon chestplate}}{{efn|Can also be used for ranged, saving inventory space.|name=eclipse}} /<br>{{plink|Obsidian platebody}}
+|body5 = {{plink|Blue Moon chestplate}}{{efn|Can also be used for magic, saving inventory space.|name=blue}} /<br> {{plink|Mixed hide top}}
+|legs1 = {{plink|Torva platelegs}}
+|legs2 = {{plink|Oathplate legs}}{{efn|name=slash}} /<br>{{plink|Bandos tassets}} /<br>{{plink|Inquisitor's plateskirt}}{{efn|name=inq}}
+|legs3 = {{plink|Blood Moon tassets}}
+|legs4 = {{plink|Eclipse Moon tassets}}{{efn|Can also be used for ranged, saving inventory space.|name=eclipse}} /<br>{{plink|Obsidian platelegs}}
+|legs5 = {{plink|Blue Moon tassets}}{{efn|Can also be used for magic, saving inventory space.|name=blue}} ><br>{{plink|Mixed hide legs}}
+|weapon1 = {{plink|Emberlight}}{{efn|Set to stab.|name=stab}} ><br>{{plink|Arclight}}{{efn|name=stab}}
+|weapon2 = {{plink|Abyssal bludgeon}} > {{plink|Abyssal dagger (p++)}}
+|weapon3 = {{plink|Osmumten's fang}}{{efn|Only during the non-defenceless phase.|name=fang}}
+|weapon4 = {{plink|Abyssal tentacle}} > {{plink|Abyssal whip}}
+|weapon5 = {{plink|Darklight}}{{efn|name=stab}}
+|shield1 = {{plink|Avernic defender}}
+|shield2 = {{plink|Dragon defender}}
+|ammo1 = {{plink|Rada's blessing 4}}
+|ammo2 = {{plink|God blessing|pic=Holy blessing}} / <br> {{plink|Rada's blessing 3|txt=Rada's Blessing 2/3}}
+|hands1 = {{plink|Ferocious gloves}}
+|hands2 = {{plink|Barrows gloves}}
+|feet1 = {{plink|Avernic treads (max)}}
+|feet2 = {{plink|Primordial boots}}
+|feet3 = {{plink|Aranea boots}} /<br /> {{plink|Dragon boots}}
+|feet4 = {{plink|Echo boots}}
+|feet5 = {{plink|Mixed hide boots}}
+|ring1 = {{plink|Ultor ring}}
+|ring2 = {{plink|Berserker ring (i)}}
+|ring3 = {{plink|Lightbearer}}
+|special1 = {{plink|Abyssal dagger (p++)}}{{efn|Only during the defenceless phase (when attacks are 100% accurate).|name=accuracy}} > {{plink|Dragon dagger(p++)}}{{efn|name=accuracy}}
+|special2 = {{plink|Burning claws}}{{efn|name=stab}}
+|special3 = {{plink|Arkan blade}}{{efn|name=accuracy}}
+|special4 = {{plink|Saradomin godsword}}
+|special5 = {{plink|Emberlight}}/{{plink|Arclight}}
+}}
+{{Notelist}}
+{{Recommended equipment
+|style= Shield down (Crush)
+|weapon1 = {{plink|Dharok's greataxe}}{{efn|Best with full [[Dharok the wretched's equipment|Dharok's]]}} / {{plink|Tzhaar-ket-om}}{{efn|Better than just a Dharok's greataxe when paired with a [[Berserker necklace]]}}
+|weapon2 = {{plink|Dragon 2h sword}} > {{plink|Tzhaar-ket-om}}{{efn|Worse than a Dragon 2h sword without a [[Berserker necklace]]}}
+|weapon3 = {{plink|Granite maul}} > {{plink|Rune 2h sword}}
+|weapon4 = {{plink|Saradomin godsword}} (Special attack)
+}}
+{{notelist}}
+|-|
+Ranged=
+The [[scorching bow]] and the [[twisted bow]] are the best ranged options. Ranged typically performs worse than melee or magic setups, but requires less switches and is cheaper to use than magic. Twisted bow and [[toxic blowpipe]] do considerable damage during the 100% accuracy phase. [[Void_Knight_equipment#Set_effects|Elite Void ranged]] will outperform [[Masori armour]] when off-task in most setups. Notably, the toxic blowpipe benefits more from the accuracy and damage from Masori compared to Void, and the twisted bow performs marginally worse in Void.
+{{Recommended equipment
+|style = Ranged switch
+|head1 = {{plink|Slayer helmet (i)}}{{efn|When on a [[greater demon]] Slayer task.|name=task}}/{{plink|Void ranger helm}}{{efn|With full [[Elite Void]]. Performs better off-task than Masori with the exception of the [[toxic blowpipe]] and [[twisted bow]]|name=void}}
+|head2 = {{plink|Masori mask (f)}}/{{plink|Masori mask}}
+|head3 = {{plink|Crystal helm}}{{efn|Only if bringing full [[crystal armour]] and the [[bow of Faerdhinen]].|name=crys}} / {{plink|Eclipse Moon helm}}
+|neck1 = {{plink|Necklace of rupture}}
+|neck2 = {{plink|Necklace of anguish}}
+|neck3 = {{plink|Amulet of fury}}
+|neck4 = {{plink|Amulet of glory|pic=Amulet of glory(4)}}
+|cape1 = {{plink|Dizana's quiver}}
+|cape2 = {{plink|Ava's assembler}}
+|cape3 = {{plink|Ava's accumulator}}
+|body1 = {{plink|Masori body (f)}} / {{plink|Elite void top}}{{efn|name=void}}
+|body2 = {{plink|Masori body}}
+|body3 = {{plink|Crystal body}}{{efn|name=crys}}/<br />{{plink|Eclipse Moon chestplate}}
+|body4 = {{plink|Blessed body|pic=Ancient d'hide body}}
+|body5 = {{plink|Black d'hide body}} / {{plink|Mixed hide top}}
+|legs1 = {{plink|Masori chaps (f)}} / {{plink|Elite void robe}}{{efn|name=void}}
+|legs2 = {{plink|Masori chaps}}
+|legs3 = {{plink|Crystal legs}}{{efn|name=crys}} /<br />{{plink|Eclipse Moon tassets}}
+|legs4 = {{plink|Blessed chaps|pic=Ancient chaps}}
+|legs5 = {{plink|Black d'hide chaps}} / {{plink|Mixed hide legs}}
+|weapon1 = {{plink|Scorching bow}} > {{plink|Twisted bow}}
+|weapon2 = {{plink|Toxic blowpipe}}
+|weapon3 = {{plink|Bow of Faerdhinen}}{{efn|name=crys}} / {{plink|Eclipse atlatl}}
+|weapon4 = {{plink|Hunters' sunlight crossbow}}
+|weapon5 = {{plink|Dragon crossbow}}>{{plink|Rune crossbow}}
+|shield1 = {{plink|Twisted buckler}}{{efn|Only if bringing a crossbow.|name=xbow}}
+|shield2 = {{plink|Dragonfire ward}}{{efn|name=xbow}}
+|shield3 = {{plink|Odium ward}}{{efn|name=xbow}}
+|shield4 = {{plink|Antler guard}}{{efn|name=xbow}}
+|ammo1 = {{plink|Seeking dragon arrow}}{{efn|If bringing a [[twisted bow]] or [[scorching bow]].|name=darrows}} /</br>{{plink|Ruby dragon bolts (e)}}{{efn|name=xbow}} /</br>{{plink|Moonlight antler bolts}} /</br>{{plink|Rada's blessing 4}}{{efn|Only if using a [[bow of Faerdhinen]] or [[toxic blowpipe]].|name=radabless}}
+|ammo2 = {{plink|Seeking amethyst arrow}}{{efn|name=darrows}}{{efn|Depending on accuracy, lower tier seeking arrows can be better than regular higher tier arrows|name=seeking}} / {{plink|Dragon arrow}}{{efn|name=darrows}}{{efn|name=seeking}} /</br>{{plink|Sunlight antler bolts}}{{efn|If using the [[hunters' sunlight crossbow]]|name=hunter}} /</br>{{plink|Ruby bolts (e)}}{{efn|name=xbow}}
+|ammo3 = {{plink|Amethyst arrow}}{{efn|name=darrows}} /</br>{{plink|Atlatl dart}}{{efn|Only if using an [[eclipse atlatl]].|name=atlatl}}
+|ammo4 = 
+|ammo5 = 
+|hands1 = {{plink|Zaryte vambraces}} / {{plink|Void knight gloves}}{{efn|name=void}}
+|hands2 = {{plink|Barrows gloves}}
+|feet1 = {{plink|Avernic treads (max)}}
+|feet2 = {{plink|Pegasian boots}}
+|feet4 = {{plink|Aranea boots}} / Melee boots
+|ring1 = {{plink|Venator ring}} / Melee ring
+|special1 = {{plink|Zaryte crossbow}}{{efn|On accurate when hitting the shield|name=shield2}}(Ruby Spec)
+|special2 = {{plink|Toxic blowpipe}}(When attacks are 100% accurate)
+|special3 = {{plink|Heavy ballista}}{{efn||name=shield2}} > {{plink|Light ballista}}{{efn||name=shield2}}
+}}
+{{Recommended equipment
+|style= Shield down (Heavy ranged + Accurate)
+|weapon1 = {{plink|Heavy ballista}} > {{plink|Light ballista}}
+|weapon2 = {{plink|Zaryte crossbow}} / {{plink|Armadyl crossbow}} / {{plink|Dragon crossbow}}
+|weapon3 = {{plink|Rune crossbow}}
+}}
+{{Notelist}}
+|-|
+
+Magic=
+[[Demonbane spells]] with a [[purging staff]] are the 2nd most powerful setup behind the [[Emberlight]]. Without a [[Scorching bow|scorching]] or [[twisted bow]], demonbane spells can outperform similar range setups but have additional rune cost and require occasionally applying [[Mark of Darkness]].
+{{Recommended equipment
+|style = Magic switch
+|head1 = {{plink|Slayer helmet (i)}}{{efn|When on a [[greater demon]] Slayer task.|name=task}}/{{plink|Ancestral hat}}
+|head2 = {{plink|Virtus mask}}
+|head3 = {{plink|Ahrim's hood}} /<br /> {{plink|Blue Moon helm}}
+|head4 = {{plink|Bloodbark helm}}<br> or {{plinkp|Dagon'hai hat}}{{plinkp|Infinity hat}}
+|neck1 = {{plink|Occult necklace}}
+|neck2 = {{plink|Amulet of fury}}
+|neck3 = {{plink|Amulet of glory|pic=Amulet of glory(4)}}
+|cape1 = {{plink|God capes#Imbuing|txt=Imbued god cape|pic=Imbued Saradomin cape}}
+|body1 = {{plink|Ancestral robe top}}
+|body2 = {{plink|Virtus robe top}}
+|body3 = {{plink|Ahrim's robetop}} /<br /> {{plink|Blue Moon chestplate}}
+|body4 = {{plink|Bloodbark body}}<br> or {{plinkp|Dagon'hai robe top}}{{plinkp|Infinity top}}
+|legs1 = {{plink|Ancestral robe bottom}}
+|legs2 = {{plink|Virtus robe bottom}}
+|legs3 = {{plink|Ahrim's robeskirt}} /<br /> {{plink|Blue Moon tassets}}
+|legs4 = {{plink|Bloodbark legs}}<br> or {{plinkp|Dagon'hai robe bottom}}{{plinkp|Infinity bottoms}}
+|weapon1 = {{plink|Purging staff}}{{efn|Using [[demonbane spells]] and [[Mark of Darkness]]|name=demonbane}}
+|weapon2 = {{plink|Toxic Staff of the Dead}}{{efn|name=demonbane}} > {{plink|Staff of the Dead}}{{efn|name=demonbane}}
+|weapon3 = {{plink|Master wand}}{{efn|name=demonbane}}
+|weapon4 = {{plink|Ahrim's staff}}{{efn|name=demonbane}} > {{plink|Blue Moon spear}}{{efn|name=demonbane}}
+|shield1 = {{plink|Elidinis' ward (f)}}
+|shield2 = {{plink|Arcane spirit shield}} / {{plink|Elidinis' ward}}
+|shield3 = {{plink|Malediction ward}} / {{plink|Ancient wyvern shield}} / {{plink|Mage's book}}
+|shield4 = {{plink|Book of Darkness}} / {{plink|Book of the Dead}}
+|ammo1 = {{plink|Rada's blessing 4}}
+|ammo2 = {{plink|God blessing|pic=Holy blessing}} / <br> {{plink|Rada's blessing 3|txt=Rada's Blessing 2/3}}
+|hands1 = {{plink|Confliction gauntlets}}
+|hands2 = {{plink|Tormented bracelet}}
+|hands3 = {{plink|Barrows gloves}}
+|feet1 = {{plink|Avernic treads (max)}}
+|feet2 = {{plink|Eternal boots}}
+|feet3 = {{plink|Aranea boots}} / Melee boots
+|ring1 = {{plink|Magus ring}}
+|ring2 = Melee ring
+|special1 = {{plink|Purging staff}}
+|special2 = {{plink|Eldritch Nightmare staff}}
+|special3 = {{plink|Volatile Nightmare staff}}
+}}
+{{Notelist}}
+</tabber>
+
+==Inventory Setups==
+<tabber>
+Max Melee/Mage=
+
+===Max Melee/Mage===
+{{Equipment|align = right
+|buttons = No
+|head = Torva full helm
+|cape = Infernal cape
+|neck = Amulet of rancour
+|ammo = Rada's blessing 4
+|weapon = Emberlight
+|torso = Torva platebody
+|legs = Torva platelegs
+|shield = Avernic defender
+|gloves = Ferocious gloves
+|boots = Avernic treads (max)
+|ring = Ultor ring
+}}
+
+{{Inventory|align=right
+|Purging staff |Ancestral robe top |Imbued Saradomin cape |Confliction gauntlets 
+|Ancestral hat |Ancestral robe bottom |Occult necklace |Elidinis' ward (f) 
+|Divine super combat potion(4) |Divine super combat potion(4) |Dharok's greataxe |Abyssal dagger (p++) 
+|{{Cheap prayer}} |{{Cheap prayer}} |{{Cheap food}} |{{Cheap food}}
+|{{Cheap prayer}} |{{Cheap prayer}} |{{Cheap food}} |{{Cheap food}} 
+|{{Cheap prayer}} |{{Cheap prayer}} |Guthixian temple teleport |Book of the Dead
+|{{Cheap prayer}} |Death rune\1000 |Teleport to house (tablet) |Divine rune pouch
+}}
+
+{{Rune pouch|align=right
+|1= Fire rune
+|2= Blood rune
+|3= Aether rune
+|4= Wrath rune
+}}
+
+====Equipment====
+*Equipment with high strength bonus for Melee, and magic damage for Mage
+*Melee and mage weapons, such as [[Emberlight]] and [[Purging staff]]
+*Punish weapons, such as [[Dharok's greataxe]] and/or [[Heavy ballista]] (with [[dragon javelin]]s)
+====Inventory====
+*1-2 [[Divine super combat potion]]s
+*6-8 [[Super restore]]s
+*4-6 [[{{Cheap food}}]]s or other high healing food
+*[[Abyssal dagger (p++)]] or other special attack weapon
+*[[Guthixian temple teleport]]s and a teleport for banking such as [[Teleport to house tablet]]s
+*[[Divine rune pouch]] and [[Book of the Dead]] with runes for [[Mark of Darkness]], [[Dark Demonbane]], [[Demonic Offering]], [[Death Charge]], and [[Thrall]]s
+
+{{Clear}}
+
+|-|
+
+Max Melee/Range=
+
+===Max Melee/Range===
+{{Equipment|align = right
+|buttons = No
+|head = Torva full helm
+|cape = Infernal cape
+|neck = Amulet of rancour
+|ammo = Dragon javelin
+|ammo2 = Seeking dragon arrow
+|weapon = Emberlight
+|torso = Torva platebody
+|legs = Torva platelegs
+|shield = Avernic defender
+|gloves = Ferocious gloves
+|boots = Avernic treads (max)
+|ring = Ultor ring
+}}
+
+{{Inventory|align=right
+|Scorching bow |Elite void top |Void ranger helm |Necklace of rupture
+|Dizana's quiver |Elite void robe |Void knight gloves |Dharok's greataxe 
+|Divine super combat potion(4) |Divine ranging potion(4) |Abyssal dagger (p++) |Heavy ballista
+|{{Cheap prayer}} |{{Cheap prayer}} |{{Cheap food}} |{{Cheap food}}
+|{{Cheap prayer}} |{{Cheap prayer}} |{{Cheap food}} |{{Cheap food}} 
+|{{Cheap prayer}} |{{Cheap prayer}} |Guthixian temple teleport |Book of the Dead
+|{{Cheap prayer}} |Death rune\1000 |Teleport to house (tablet) |Divine rune pouch
+}}
+
+{{Rune pouch|align=right
+|1= Fire rune
+|2= Blood rune
+|3= Aether rune
+|4= Wrath rune
+}}
+
+====Equipment====
+*Melee and ranged equipment
+*Melee and ranged weapon, such as [[Emberlight]] and [[Scorching bow]]
+*Punish weapons, such as [[Dharok's greataxe]] and/or [[Heavy ballista]] (with [[dragon javelin]]s)
+
+====Inventory====
+*1-2 [[Divine super combat potion]]s
+*6-8 [[Super restore]]s
+*4-6 [[{{Cheap food}}]]s or other high healing food
+*[[Abyssal dagger (p++)]] or other special attack weapon
+*[[Guthixian temple teleport]]s and a teleport for banking such as [[Teleport to house tablet]]s
+*[[Divine rune pouch]], [[Book of the Dead]] and runes for [[Death Charge]], [[Demonic Offering]], and [[Thrall]]s
+
+{{Clear}}
+
+|-|
+
+Budget Melee/Mage=
+
+===Budget Melee/Mage===
+{{Equipment|align = right
+|buttons = No
+|head = Blue Moon helm
+|cape = Fire cape
+|neck = Amulet of fury
+|ammo = Rada's blessing 4
+|weapon = Arclight
+|torso = Blue Moon chestplate
+|legs = Blue Moon tassets
+|shield = Dragon defender
+|gloves = Barrows gloves
+|boots = Dragon boots
+|ring = Berserker ring (i)
+}}
+
+{{Inventory|align=right
+|Ahrim's staff |Imbued Saradomin cape |Dragon dagger(p++) |Dragon 2h sword 
+|Occult necklace |Shark|Shark| Shark
+|Super combat potion|{{Cheap prayer}}|Shark  |Shark 
+|{{Cheap prayer}}|{{Cheap prayer}}|Shark  |Shark  
+|{{Cheap prayer}}|{{Cheap prayer}}|Shark  |Shark 
+|Death rune\1000|{{Cheap prayer}}|Guthixian temple teleport|Book of the Dead
+|Rune pouch |Wrath rune |Teleport to house (tablet) |Soul rune
+}}
+
+{{Rune pouch|align=right
+|1= Fire rune
+|2= Blood rune
+|3= Cosmic rune
+}}
+ 
+====Equipment====
+*Melee and magic equipment, optionally with [[blue Moon armour]] as a hybrid armour set
+*[[Arclight]] and [[Ahrim's staff]], or other melee weapon and staff able to autocast [[Arceuus spell]]s
+*Punish weapon such as [[Dragon 2h sword]]
+
+====Inventory====
+*1-2 [[Super combat potion]]s
+*4-6 [[Prayer potion]]s or [[Super restore]]s
+*10-12 [[Sharks]] or other high healing food
+*[[Dragon dagger(p++)]] or other special attack weapon
+*[[Guthixian temple teleport]]s and a teleport for banking such as [[Teleport to house tablet]]s
+*[[Rune pouch]], [[Book of the Dead]], and runes for [[Mark of Darkness]], [[Dark Demonbane]], [[Demonic Offering]], [[Death Charge]], and [[Thrall]]s
+
+{{Clear}}
+
+|-|
+
+Budget Melee/Range=
+
+===Budget Melee/Range===
+{{Equipment|align = right
+|buttons = No
+|head = Eclipse Moon helm
+|cape = Fire cape
+|neck = Amulet of fury
+|ammo = Atlatl dart
+|weapon = Arclight
+|torso = Eclipse Moon chestplate
+|legs = Eclipse Moon tassets
+|shield = Dragon defender
+|gloves = Barrows gloves
+|boots = Dragon boots
+|ring = Berserker ring (i)
+}}
+
+{{Inventory|align=right
+|Eclipse atlatl |Dragon 2h sword |Dragon dagger(p++) |Shark
+|Super combat potion |Ranging potion|Shark|Shark
+|{{Cheap prayer}}|{{Cheap prayer}}|Shark|Shark
+|{{Cheap prayer}}|{{Cheap prayer}}|Shark |Shark 
+|{{Cheap prayer}}|{{Cheap prayer}}|Shark |Shark 
+|Wrath rune\500 |Death rune\1000|Guthixian temple teleport |Shark  
+|Rune pouch | Book of the Dead | Teleport to house (tablet)|Soul rune
+}}
+
+{{Rune pouch|align=right
+|1= Fire rune
+|2= Blood rune
+|3= Cosmic rune
+}}
+
+====Equipment====
+Ranged and melee armour, optionally with [[Eclipse armour]] as a hybrid set
+*[[Arclight]] with [[Dragon defender]] and [[Eclipse atlatl]], or other melee and ranged weapon
+*Punish weapon such as [[Dragon 2h sword]]
+
+====Inventory====
+*1-2 [[Super combat potion]]s and [[Ranging potion]]s
+*4-6 [[Prayer potion]]s or [[Super restore]]s
+*10-12 [[Shark]]s or other high healing food
+*[[Dragon dagger(p++)]] or other special attack weapon
+*[[Guthixian temple teleport]]s and a teleport for banking such as [[Teleport to house tablet]]s
+*[[Rune pouch]], [[Book of the Dead]], and runes for [[Demonic Offering]], [[Death Charge]], and [[Thrall]]s
+
+{{Clear}}
+</tabber>
+{{Tormented Demons}}
+[[Category:Strategies]]

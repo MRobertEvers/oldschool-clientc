@@ -1485,6 +1485,7 @@ npc_apply_op(
             World_NpcSetSpotanim(
                 world,
                 idx,
+                op->_spotanim.slot,
                 op->_spotanim.spotanim_id,
                 op->_spotanim.height_delay >> 16,
                 op->_spotanim.height_delay & 0xffff);
@@ -1567,6 +1568,25 @@ npc_apply_op(
                 World_EntityPoolAt(&world->entities.npc, idx);
             npc->combat_level = (int)(uint32_t)op->_bitvalue;
         }
+        break;
+    case PKT_NPC_INFO_OP_HEADICON_CUSTOM:
+        if( idx >= 0 )
+        {
+            int group[WORLD_NPC_HEADICON_SLOTS];
+            int index[WORLD_NPC_HEADICON_SLOTS];
+
+            for( int i = 0; i < WORLD_NPC_HEADICON_SLOTS; i++ )
+            {
+                group[i] = op->_headicon.group[i];
+                index[i] = op->_headicon.index[i];
+            }
+            World_NpcSetHeadiconCustom(world, idx, op->_headicon.mask != 0, group, index);
+        }
+        break;
+    case PKT_NPC_INFO_OP_BODY_CUSTOM:
+        if( idx >= 0 )
+            World_NpcSetBodyModels(
+                world, idx, op->_body.models, op->_body.reset ? 0 : op->_body.model_count);
         break;
     case PKT_NPC_INFO_OP_BAS_CHANGE:
         if( idx >= 0 )

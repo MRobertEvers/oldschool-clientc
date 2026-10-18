@@ -5427,7 +5427,9 @@ enum
     V5_NPC_LEVEL_CHANGE = 0x8000,
     V5_NPC_SPOTANIM = 0x40000,
     V5_NPC_HITMARKS = 0x80000,
+    V5_NPC_HEADICON_CUSTOMISATION = 0x400000,
     V5_NPC_HEADBARS = 0x1000000,
+    V5_NPC_BODY_CUSTOMISATION = 0x2000000,
 };
 
 /*
@@ -5714,6 +5716,20 @@ npc_v5_sends_ops(const struct ToriRSServerNpc* npc, int added)
     return (npc->masks & TORIRSSERVER_NMASK_OPS) != 0 || (added && npc->ops_hidden != 0);
 }
 
+/* The two customisations persist like OPS: sent when they change, and to an
+ * observer the npc enters view of while one is on. */
+static int
+npc_v5_sends_headicon(const struct ToriRSServerNpc* npc, int added)
+{
+    return (npc->masks & TORIRSSERVER_NMASK_HEADICON) != 0 || (added && npc->headicon_mask != 0);
+}
+
+static int
+npc_v5_sends_body(const struct ToriRSServerNpc* npc, int added)
+{
+    return (npc->masks & TORIRSSERVER_NMASK_BODY) != 0 || (added && npc->body_model_set);
+}
+
 static int
 npc_v5_sends_level(const struct ToriRSServerNpc* npc, int added)
 {
@@ -5785,6 +5801,10 @@ put_npc_extended_v5(
         flag |= V5_NPC_OPS;
     if( npc_v5_sends_level(npc, force_face_latch) )
         flag |= V5_NPC_LEVEL_CHANGE;
+    if( npc_v5_sends_headicon(npc, force_face_latch) )
+        flag |= V5_NPC_HEADICON_CUSTOMISATION;
+    if( npc_v5_sends_body(npc, force_face_latch) )
+        flag |= V5_NPC_BODY_CUSTOMISATION;
     /* TORIRS_FACE_TRACE=1: every face an observer is sent for an npc, with
      * the server's own latch, for a boss whose turns a client does not
      * show (Verzik's web throws). */
@@ -5804,13 +5824,33 @@ put_npc_extended_v5(
 
     /*
      * Blocks in the writer's order, which is neither the flag order nor the
-     * classic order: LEVEL_CHANGE, OPS, HITMARKS, SEQUENCE, SAY, SPOTANIM,
-     * TRANSFORMATION (RSProt 239 NpcAvatarExtendedInfoDesktopWriter). The
-     * client reads them in this sequence and nothing on the wire separates
-     * them, so a block out of place is read as the next one.
+     * classic order: LEVEL_CHANGE, HEADICON_CUSTOMISATION, OPS, HITMARKS,
+     * BODY_CUSTOMISATION, HEADBARS, SEQUENCE, SAY, SPOTANIM, TRANSFORMATION
+     * (RSProt 239 NpcAvatarExtendedInfoDesktopWriter). The client reads them
+     * in this sequence and nothing on the wire separates them, so a block out
+     * of place is read as the next one.
      */
     if( flag & V5_NPC_LEVEL_CHANGE )
         rsab_p4_alt1(buf, npc->level_override); /* NpcCombatLevelChangeEncoder */
+    if( flag & V5_NPC_HEADICON_CUSTOMISATION )
+    {
+        /* p1Alt3 slot mask, then per slot pSmart2or4null group and
+         * pSmart1or2null index. Mask 0 is the reset: the type's icons. */
+        rsab_p1_alt3(buf, npc->headicon_mask);
+        for( int slot = 0; slot < TORIRSSERVER_NPC_HEADICON_SLOTS; slot++ )
+        {
+            int group;
+
+            if( !(npc->headicon_mask & (1 << slot)) )
+                continue;
+            group = npc->headicon_group[slot];
+            if( group < 0x8000 - 1 )
+                rsab_p2(buf, group);
+            else
+                rsab_p4(buf, group | (int32_t)0x80000000);
+            v5_psmart1or2(buf, npc->headicon_index[slot] + 1);
+        }
+    }
     if( flag & V5_NPC_OPS )
         rsab_p1_alt2(buf, 0x1f & ~npc->ops_hidden); /* NpcVisibleOpsEncoder: the SHOWN ops */
     if( splat )
@@ -5905,6 +5945,19 @@ put_npc_extended_v5(
                         recipient->display_name, npc->type);
         }
     }
+    if( flag & V5_NPC_BODY_CUSTOMISATION )
+    {
+        /* p1Alt2 flags: 1 resets to the type's models, 2 a model list
+         * (p1Alt1 count, p4 each). */
+        if( npc->body_model_set )
+        {
+            rsab_p1_alt2(buf, 2);
+            rsab_p1_alt1(buf, 1);
+            rsab_p4(buf, npc->body_model);
+        }
+        else
+            rsab_p1_alt2(buf, 1);
+    }
     if( flag & V5_NPC_HEADBARS )
     {
         /* The CHOSEN bar's width, not the standard one's: the client scales
@@ -5985,10 +6038,16 @@ put_npc_extended_v5(
          * in numbered slots -- where the classic packet carried exactly one and
          * had no slot. Slot 0 is the one the classic mask means.
          */
-        rsab_p1_alt2(buf, 1);
-        rsab_p1(buf, 0);
-        rsab_p2(buf, npc->spotanim_id < 0 ? 65535 : npc->spotanim_id);
-        rsab_p4_alt2(buf, npc->spotanim_height_delay);
+        assert(npc->spotanim_count > 0);
+        rsab_p1_alt2(buf, npc->spotanim_count);
+        for( int i = 0; i < npc->spotanim_count; i++ )
+        {
+            struct ToriRSServerNpcSpotanim const* spot = &npc->spotanims[i];
+
+            rsab_p1(buf, spot->slot);
+            rsab_p2(buf, spot->id < 0 ? 65535 : spot->id);
+            rsab_p4_alt2(buf, spot->height_delay);
+        }
     }
     if( flag & V5_NPC_TRANSFORMATION )
     {
@@ -6036,6 +6095,8 @@ npc_extended_pending_v5(
 
     return (npc->masks & supported) != 0 || npc_v5_sends_ops(npc, force_face_latch) ||
            npc_v5_sends_level(npc, force_face_latch) ||
+           npc_v5_sends_headicon(npc, force_face_latch) ||
+           npc_v5_sends_body(npc, force_face_latch) ||
            v5_face_from_classic(&face, recipient, npc->masks, TORIRSSERVER_NMASK_FACE_ENTITY,
                                 TORIRSSERVER_NMASK_FACE_COORD, npc->face_entity,
                                 npc->face_x, npc->face_z, force_face_latch);

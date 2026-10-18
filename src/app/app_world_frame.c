@@ -278,6 +278,7 @@ app_world_frame(
             }
         }
     }
+    app_world_sync_npc_bodies(app);
     app_world_sync_entity_spotanims(app);
 
     /* Expire P_LOCMERGE markers once the ride window ends. */

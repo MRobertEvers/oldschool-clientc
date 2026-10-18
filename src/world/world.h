@@ -1412,13 +1412,34 @@ World_PlayerSetSpotanim(
     int height,
     int cycle_delay);
 
+/* `slot`: the rev-239 graphic slot; a graphic replaces only its own slot's
+ * (slots past WORLD_NPC_SPOTANIM_SLOTS - 1 share the last). */
 void
 World_NpcSetSpotanim(
     struct World* world,
     int idx,
+    int slot,
     int spotanim_id,
     int height,
     int cycle_delay);
+
+/* Headicon customisation: `custom` false is the type's own icons again. */
+void
+World_NpcSetHeadiconCustom(
+    struct World* world,
+    int idx,
+    bool custom,
+    int const group[WORLD_NPC_HEADICON_SLOTS],
+    int const index[WORLD_NPC_HEADICON_SLOTS]);
+
+/* Body customisation: draw `models` instead of the type's; 0 models is the
+ * type's again. Bumps the npc's body_serial for the app's remount. */
+void
+World_NpcSetBodyModels(
+    struct World* world,
+    int idx,
+    int const* models,
+    int model_count);
 
 /* CHANGE_TYPE (transmog): caller passes the new size + anim set (the dat1
  * left/right crossing is done in the type conversion, not here). */

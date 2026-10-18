@@ -844,6 +844,7 @@ app_build_entity_overlays(
             anchor,
             footprint,
             npctype,
+            npc,
             &npc->draw_position,
             &npc->view_placement,
             headicons_scene,

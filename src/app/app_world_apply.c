@@ -409,6 +409,11 @@ App_WorldApplyNpcType(
             for( int i = 0; i < 5; i++ )
                 snprintf(
                     npc->actions[i].name, sizeof(npc->actions[i].name), "%s", npctype->actions[i]);
+            /* A body customisation outlives the transformation (deob: the
+             * override is kept on the npc, not the type): mount it over the
+             * type's body just mounted. */
+            if( npc->body_model_count > 0 )
+                npc->body_serial++;
             /* The drawn type changed; base_npc_id -- the multinpc shell --
              * did not. A plugin keyed on the shell, which is how anything
              * tagging an npc has to be keyed, keeps its tag across this. */

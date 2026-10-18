@@ -886,6 +886,31 @@ enum
     TORIRSSERVER_HITMARK_MAX = 4
 };
 
+/*
+ * Rev-239 npc graphics, overhead icons and body overrides.
+ *
+ * SPOTANIM is a LIST of (slot, graphic) at this revision: an npc wears several
+ * graphics at once and a new one replaces only its own slot. A Tormented
+ * Demon's shield loop sits in slot 4 under its attack graphics in slot 2 and
+ * its accuracy debuff in slot 5 (docs/rsprox-analysis/tormented_demons).
+ * HEADICON customisation replaces the type's eight overhead slots with the
+ * server's (sprite group, index) pairs; BODY customisation replaces its
+ * models. Both persist until reset, as the reference's NpcAvatar keeps them.
+ */
+enum
+{
+    TORIRSSERVER_NPC_SPOTANIM_MAX = 8,
+    TORIRSSERVER_NPC_HEADICON_SLOTS = 8,
+};
+
+struct ToriRSServerNpcSpotanim
+{
+    int slot;
+    int id;
+    /** height << 16 | delay, as the wire carries it. */
+    int height_delay;
+};
+
 struct ToriRSServerHitmark
 {
     int damage;
@@ -983,6 +1008,11 @@ enum
      * the current value too when it is not the type's own. */
     TORIRSSERVER_NMASK_OPS = 0x200,
     TORIRSSERVER_NMASK_LEVEL = 0x400,
+    /* Rev-239 only: `npc_headicon` / `npc_bodymodel` changed the override.
+     * Persistent like OPS, so an observer the npc enters view of is sent the
+     * current override too. */
+    TORIRSSERVER_NMASK_HEADICON = 0x800,
+    TORIRSSERVER_NMASK_BODY = 0x1000,
 };
 
 /* Appearance/equipment slot numbering. The cache's wearpos fields, the worn
@@ -2682,8 +2712,21 @@ struct ToriRSServerNpc
     char say[80];
     int anim_id;
     int anim_delay;
+    /** The last graphic sent this tick, for the classic writers' one slot. */
     int spotanim_id;
     int spotanim_height_delay;
+    /** This tick's graphics, one per slot (see TORIRSSERVER_NPC_SPOTANIM_MAX).
+     *  Cleared with the mask. */
+    struct ToriRSServerNpcSpotanim spotanims[TORIRSSERVER_NPC_SPOTANIM_MAX];
+    int spotanim_count;
+    /** Overhead-icon override: bit n set = slot n is the server's
+     *  (headicon_group[n], headicon_index[n]); 0 = the type's own icons. */
+    int headicon_mask;
+    int headicon_group[TORIRSSERVER_NPC_HEADICON_SLOTS];
+    int headicon_index[TORIRSSERVER_NPC_HEADICON_SLOTS];
+    /** Body-model override (`npc_bodymodel`), -1 when body_model_set is 0. */
+    int body_model_set;
+    int body_model;
     int change_type;
     int face_x;
     int face_z;
@@ -5685,7 +5728,8 @@ enum ToriRSServerTicklogKind
     TORIRSSERVER_TICKLOG_START = 0,     /* a=tick enabled on */
     TORIRSSERVER_TICKLOG_MARK,          /* label=the test's text */
     TORIRSSERVER_TICKLOG_NPC_ANIM,      /* a=slot b=npc type c=seq d=delay */
-    TORIRSSERVER_TICKLOG_NPC_SPOTANIM,  /* a=slot b=npc type c=spotanim d=height e=delay */
+    TORIRSSERVER_TICKLOG_NPC_SPOTANIM,  /* a=slot b=npc type c=spotanim d=height e=delay
+                                         * f=spotanim slot (0 for `spotanim_npc`) */
     TORIRSSERVER_TICKLOG_PROJECTILE,    /* a=src coord b=dst coord c=target (wire form)
                                          * d=spotanim e=start cycle f=end cycle */
     TORIRSSERVER_TICKLOG_MAP_SPOTANIM,  /* a=coord b=spotanim c=height d=delay */
@@ -5779,6 +5823,11 @@ enum ToriRSServerTicklogKind
     /* a=pid b=field (0 waypoint_index 1 face_x 2 face_z 3 combat_target
      * 4 attack_clock 5 run_energy) c=new value. */
     TORIRSSERVER_TICKLOG_PLAYER_STATE,
+    /* a=slot b=npc type c=headicon slot d=sprite group (-1 cleared) e=index;
+     * `npc_headicon` */
+    TORIRSSERVER_TICKLOG_NPC_HEADICON,
+    /* a=slot b=npc type c=model (-1 = the type's own); `npc_bodymodel` */
+    TORIRSSERVER_TICKLOG_NPC_BODY,
     TORIRSSERVER_TICKLOG_KIND_COUNT
 };
 
@@ -5947,7 +5996,10 @@ ToriRSServer_TicklogMark(char const* label);
  * being logged. */
 void ToriRSServer_TicklogNpcAnim(const struct ToriRSServerNpc* npc, int seq_id, int delay);
 void ToriRSServer_TicklogNpcSpotanim(const struct ToriRSServerNpc* npc, int spotanim, int height,
-                                     int delay);
+                                     int delay, int slot);
+void ToriRSServer_TicklogNpcHeadicon(const struct ToriRSServerNpc* npc, int slot, int group,
+                                     int index);
+void ToriRSServer_TicklogNpcBody(const struct ToriRSServerNpc* npc, int model);
 void ToriRSServer_TicklogProjectile(const struct ToriRSServer* srv, int src_coord, int dst_coord,
                                     int target, int spotanim, int start_cycle, int end_cycle);
 void ToriRSServer_TicklogMapSpotanim(const struct ToriRSServer* srv, int coord, int spotanim,

@@ -496,6 +496,8 @@ botrun_row_npc(const struct ToriRSServerTicklogRow* r)
     case TORIRSSERVER_TICKLOG_NPC_SAY:
     case TORIRSSERVER_TICKLOG_NPC_HEAL:
     case TORIRSSERVER_TICKLOG_HUDBAR:
+    case TORIRSSERVER_TICKLOG_NPC_HEADICON:
+    case TORIRSSERVER_TICKLOG_NPC_BODY:
         return r->a;
     default:
         return -1;

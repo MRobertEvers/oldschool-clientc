@@ -123,7 +123,7 @@ QD.MAIDEN_V2 = {
     STORM_BASE = 365, STORM_PER_LEAK = 35, -- max floor((365 + 35c)/10) (M:37-39, oracle P3)
     FOCUS = 1.25,                          -- HM: the 3rd consecutive storm on one raider (oracle P3)
     POOL_BASE = 10, POOL_PER_LEAK = 2,     -- 10 + 2c a tick (K:329-330); HM GUESS: same
-    LAND_MAX = 6,                          -- floor((50 + 15 x 10)/30): a pool's flight to 10 tiles
+    LAND_MAX = 7,                          -- floor((20 + 15 x 13)/30): a pool's flight to 13 tiles from her centre
     POOL_EXTRA_P = 2 / 25,                 -- two extras in the furthest raider's 5x5
     TRAIL_EXP = 9, TRAIL_MAX = 13,         -- 5..13 (KM:42-45); HM GUESS: same
     SPAWN_EXP = 9,                         -- an expiring pool's possible spawn in its 3x3 (v1 SLUG_COST, kept)
@@ -484,7 +484,13 @@ function MV.observe_storms(S, F)
                     if pid == F.pid then
                         M.on_me = M.on_me + 1
                         -- the prayer read at the launch (R3): the bit as measured on it
-                        M.inflight[#M.inflight + 1] = { land = launch + X.STORM_FLIGHT,
+                        -- Jagex's storm lands floor((109 + 10 x d) / 30) ticks
+                        -- out, d my distance from her centre (maiden.md)
+                        local V = QD.MAIDEN
+                        local cx = S.base.x + V.BODY.x + V.SIZE // 2
+                        local cz = S.base.z + V.BODY.z + V.SIZE // 2
+                        local fl = (109 + 10 * cheb(F.me.x, F.me.z, cx, cz)) // 30
+                        M.inflight[#M.inflight + 1] = { land = launch + fl,
                             prayed = F.lit.protectfrommagic == true, focus = M.storm_consec >= 3 }
                     end
                     if #M.storm_log < 40 then

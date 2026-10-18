@@ -2645,11 +2645,18 @@ struct App
          * The liveness sweep cannot see it either: a recycled id IS live.
          */
         int owner_entity_id;
-        int spotanim_id;
-        int load_enqueued; /* asset-load task fired for spotanim_id */
-        int applied_frame; /* spot seq frame baked into `combined`; -1 none */
+        /* One per rev-239 graphic slot (WORLD_NPC_SPOTANIM_SLOTS; a player
+         * uses slot 0): every slot drawing is merged onto the one body. */
+        struct AppEntitySpotanimSlot
+        {
+            int spotanim_id;   /* -1 = slot empty */
+            int load_enqueued; /* asset-load task fired for spotanim_id */
+            int applied_frame; /* spot seq frame baked into `combined`; -1 none */
+            struct ToriDraw_Model* spot;
+        } slots[8];
+        /* Bit i: slot i is in `combined`. */
+        int merged_mask;
         struct ToriDraw_Model* body;
-        struct ToriDraw_Model* spot;
         struct ToriDraw_Model* combined;
     } entity_spotanims[64];
 

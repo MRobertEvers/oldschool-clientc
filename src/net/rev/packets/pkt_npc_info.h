@@ -72,7 +72,9 @@ enum PktNpcInfoOpKind
     PKT_NPC_INFO_OP_VISIBLE_OPS,
     PKT_NPC_INFO_OP_NAME_CHANGE,
     PKT_NPC_INFO_OP_LEVEL_CHANGE,
-    PKT_NPC_INFO_OP_BAS_CHANGE
+    PKT_NPC_INFO_OP_BAS_CHANGE,
+    PKT_NPC_INFO_OP_HEADICON_CUSTOM,
+    PKT_NPC_INFO_OP_BODY_CUSTOM
 };
 
 struct PktNpcInfo_DeltaXZ
@@ -142,6 +144,31 @@ struct PktNpcInfo_SpotAnim
     uint8_t slot;
     int32_t spotanim_id; /* 65535 -> -1 */
     int32_t height_delay;
+};
+
+/* rev-239 headicon customisation (0x400000): the eight overhead slots the
+ * npc draws instead of its type's. mask 0 = back to the type's icons; an
+ * unset slot of a non-zero mask draws nothing (group -1). */
+struct PktNpcInfo_HeadiconCustom
+{
+    uint8_t mask;
+    int32_t group[8];
+    int16_t index[8];
+};
+
+/* rev-239 body customisation (0x2000000): the models the npc draws instead of
+ * its type's. `reset` = back to the type's. Colours and textures are parsed
+ * and not carried: the type's recolours apply to the override models. */
+enum
+{
+    PKT_NPC_BODY_CUSTOM_MODELS_MAX = 8
+};
+
+struct PktNpcInfo_BodyCustom
+{
+    bool reset;
+    uint8_t model_count;
+    int32_t models[PKT_NPC_BODY_CUSTOM_MODELS_MAX];
 };
 
 struct PktNpcInfo_ExactMove
@@ -215,6 +242,8 @@ struct PktNpcInfoOp
         struct PktNpcInfo_FaceAngle _face_angle;
         struct PktNpcInfo_NameChange _name_change;
         struct PktNpcInfo_BasChange _bas_change;
+        struct PktNpcInfo_HeadiconCustom _headicon;
+        struct PktNpcInfo_BodyCustom _body;
     };
 };
 

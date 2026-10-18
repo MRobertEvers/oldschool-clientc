@@ -442,6 +442,9 @@ enum AppSpawnKind
     APP_SPAWN_OBJ,
     APP_SPAWN_SPOTANIM,
     APP_SPAWN_ENTITY_SPOTANIM,
+    /* An npc's body-customisation model (`model_id`): a plain fetch, mounted
+     * by app_world_sync_npc_bodies the frame it is resident. */
+    APP_SPAWN_ENTITY_MODEL,
     APP_SPAWN_LOC_CHANGE,
     APP_SPAWN_PLUGIN_OBJECT,
 };
@@ -984,6 +987,12 @@ app_entity_spotanim_drop(
 void
 app_world_sync_entity_spotanims(struct App* app);
 
+/* Mount every npc's body whose customisation changed (WorldEntity_NPC
+ * body_serial), once its models are resident. Before the spotanim sync, which
+ * re-snapshots a body swapped under its merge. */
+void
+app_world_sync_npc_bodies(struct App* app);
+
 
 /* ---- app_host_request.c ---- */
 int
@@ -1390,6 +1399,7 @@ app_overlay_build_npc_headicon(
     int anchor_height,
     int footprint,
     struct ToriRS_Npctype const* npctype,
+    struct WorldEntity_NPC const* npc,
     struct WorldEntityFacet_DrawPosition const* draw_position,
     struct WorldEntityFacet_ViewPlacement const* placement,
     int prayer_scene,

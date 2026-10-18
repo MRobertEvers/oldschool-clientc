@@ -5,6 +5,19 @@
 
 #include "entity_facets.h"
 
+/*
+ * Rev-239 numbered graphic slots: an npc wears one attached graphic per slot,
+ * and a SPOTANIM entry replaces only its own slot (a Tormented Demon's shield
+ * loop in slot 4 plays under its claw arc in slot 2). The wire's slot is a
+ * byte; slots past the last share it.
+ */
+enum
+{
+    WORLD_NPC_SPOTANIM_SLOTS = 8,
+    WORLD_NPC_HEADICON_SLOTS = 8,
+    WORLD_NPC_BODY_MODELS_MAX = 8,
+};
+
 struct WorldEntity_NPC
 {
     int element_id;
@@ -50,7 +63,28 @@ struct WorldEntity_NPC
     struct WorldEntityFacet_Facing facing;
     struct WorldEntityFacet_Combat combat;
     struct WorldEntityFacet_Chat chat;
-    struct WorldEntityFacet_EntitySpotanim spotanim;
+    struct WorldEntityFacet_EntitySpotanim spotanims[WORLD_NPC_SPOTANIM_SLOTS];
+    /**
+     * Headicon customisation (rev-239 0x400000): while `headicon_custom`, the
+     * overhead draws these eight (sprite group, frame) slots instead of the
+     * type's headicon -- one type whose prayer the server sets (a Tormented
+     * Demon). Group -1 is an empty slot. deob class112.field1578.
+     */
+    bool headicon_custom;
+    int headicon_group[WORLD_NPC_HEADICON_SLOTS];
+    int headicon_index[WORLD_NPC_HEADICON_SLOTS];
+    /**
+     * Body customisation (rev-239 0x2000000): while `body_model_count` > 0
+     * the body is built from these models instead of the type's. Bumping
+     * `body_serial` asks the app to remount the body (app_world_reconcile_
+     * npc_body); `body_mounted_serial` is the one it last mounted.
+     */
+    int body_model_count;
+    int body_models[WORLD_NPC_BODY_MODELS_MAX];
+    int body_serial;
+    int body_mounted_serial;
+    /** The body_serial whose missing models were last asked for. */
+    int body_load_serial;
     /**
      * The newest SEQUENCE and SPOTANIM the server SENT this npc, and the world
      * cycle each arrived on -- stamped by World_NpcSetPrimaryAnimation and

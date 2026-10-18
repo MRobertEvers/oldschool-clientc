@@ -3957,6 +3957,20 @@ ToriRSServer_CombatRespawnTick(struct ToriRSServer* srv)
         npc->ops_hidden = 0;
         npc->masks |= TORIRSSERVER_NMASK_OPS;
         npc->level_override_set = 0;
+        /* And its customisations: the new life wears the type's icons and
+         * models, and the add says so (the reference's respawn add carries
+         * both blocks empty). */
+        if( npc->headicon_mask != 0 )
+        {
+            npc->headicon_mask = 0;
+            npc->masks |= TORIRSSERVER_NMASK_HEADICON;
+        }
+        if( npc->body_model_set )
+        {
+            npc->body_model_set = 0;
+            npc->body_model = -1;
+            npc->masks |= TORIRSSERVER_NMASK_BODY;
+        }
         npc->death_seq_sent = 0;
         npc->death_seq_tick = -1;
         npc->scripted_death_pending = 0;

@@ -1363,14 +1363,29 @@ npc_extended(
         }
         if( (flag & V5_NPC_HEADICON_CUSTOMISATION) != 0 )
         {
+            /* Statics.java 53540: a slot mask, then (group, index) for each
+             * set slot; mask 0 drops the override. */
+            struct PktNpcInfoOp* op = npc_op(r, PKT_NPC_INFO_OP_HEADICON_CUSTOM);
             int slots = tail_g1_alt3(data, len, &pos);
 
+            if( op )
+                op->_headicon.mask = (uint8_t)slots;
             for( int slot = 0; slot < 8; slot++ )
+            {
+                int group = -1;
+                int index = -1;
+
                 if( (slots & (1 << slot)) != 0 )
                 {
-                    (void)tail_smart2or4null(data, len, &pos);
-                    (void)tail_smart1or2null(data, len, &pos);
+                    group = tail_smart2or4null(data, len, &pos);
+                    index = tail_smart1or2null(data, len, &pos);
                 }
+                if( op )
+                {
+                    op->_headicon.group[slot] = group;
+                    op->_headicon.index[slot] = (int16_t)index;
+                }
+            }
         }
         if( (flag & V5_NPC_OPS) != 0 )
         {
@@ -1433,15 +1448,25 @@ npc_extended(
         }
         if( (flag & V5_NPC_BODY_CUSTOMISATION) != 0 )
         {
+            /* Statics.java 53580: bit 1 resets to the type's models, bit 2 a
+             * model list, 4 / 8 colour and texture replacements. */
+            struct PktNpcInfoOp* op = npc_op(r, PKT_NPC_INFO_OP_BODY_CUSTOM);
             int body = tail_g1_alt2(data, len, &pos);
 
+            if( op )
+                op->_body.reset = (body & 1) != 0 || (body & 2) == 0;
             if( (body & 1) == 0 )
             {
                 if( (body & 2) != 0 )
                 {
                     int models = tail_g1_alt1(data, len, &pos);
                     for( int m = 0; m < models; m++ )
-                        (void)tail_g4(data, len, &pos);
+                    {
+                        int model = (int)tail_g4(data, len, &pos);
+
+                        if( op && op->_body.model_count < PKT_NPC_BODY_CUSTOM_MODELS_MAX )
+                            op->_body.models[op->_body.model_count++] = model;
+                    }
                 }
                 if( (body & 4) != 0 )
                 {

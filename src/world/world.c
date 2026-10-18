@@ -1111,12 +1111,18 @@ World_NpcSpawn(
         /* 0 is a real healthbar id (the standard bar), so "no bar" has to be
          * spelled rather than left to the pool's zeroing. */
         .combat = { .healthbar_type = -1 },
-        /* Reference ClientEntity default: no attached graphic (spotanimId -1). */
-        .spotanim = { .id = -1, .frame = -1 },
         .seq_sent_id = -1,
         .spotanim_sent_id = -1,
         .spotanim_packet_id = -1,
     };
+    {
+        struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
+
+        /* Reference ClientEntity default: no attached graphic in any slot
+         * (spotanimId -1). */
+        for( int i = 0; i < WORLD_NPC_SPOTANIM_SLOTS; i++ )
+            npc->spotanims[i] = (struct WorldEntityFacet_EntitySpotanim){ .id = -1, .frame = -1 };
+    }
     return idx;
 }
 
@@ -3001,21 +3007,66 @@ void
 World_NpcSetSpotanim(
     struct World* world,
     int idx,
+    int slot,
     int spotanim_id,
     int height,
     int cycle_delay)
 {
     assert(world);
+    assert(slot >= 0);
     struct World_EntityPool* pool = &world->entities.npc;
     assert(World_EntityPoolIsActive(pool, idx));
     struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
+    if( slot >= WORLD_NPC_SPOTANIM_SLOTS )
+        slot = WORLD_NPC_SPOTANIM_SLOTS - 1;
     if( spotanim_id >= 0 )
     {
         npc->spotanim_sent_id = spotanim_id;
         npc->spotanim_sent_cycle = world->cycle;
     }
     npc->spotanim_packet_id = (spotanim_id >= 0 && spotanim_id != 65535) ? spotanim_id : -1;
-    world_set_entity_spotanim(world, &npc->spotanim, spotanim_id, height, cycle_delay);
+    world_set_entity_spotanim(world, &npc->spotanims[slot], spotanim_id, height, cycle_delay);
+}
+
+void
+World_NpcSetHeadiconCustom(
+    struct World* world,
+    int idx,
+    bool custom,
+    int const group[WORLD_NPC_HEADICON_SLOTS],
+    int const index[WORLD_NPC_HEADICON_SLOTS])
+{
+    assert(world);
+    struct World_EntityPool* pool = &world->entities.npc;
+    assert(World_EntityPoolIsActive(pool, idx));
+    struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
+    npc->headicon_custom = custom;
+    for( int i = 0; i < WORLD_NPC_HEADICON_SLOTS; i++ )
+    {
+        npc->headicon_group[i] = custom ? group[i] : -1;
+        npc->headicon_index[i] = custom ? index[i] : -1;
+    }
+}
+
+void
+World_NpcSetBodyModels(
+    struct World* world,
+    int idx,
+    int const* models,
+    int model_count)
+{
+    assert(world);
+    assert(model_count >= 0);
+    assert(model_count <= WORLD_NPC_BODY_MODELS_MAX);
+    struct World_EntityPool* pool = &world->entities.npc;
+    assert(World_EntityPoolIsActive(pool, idx));
+    struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
+    if( model_count > 0 )
+        assert(models);
+    npc->body_model_count = model_count;
+    for( int i = 0; i < model_count; i++ )
+        npc->body_models[i] = models[i];
+    npc->body_serial++;
 }
 
 void
