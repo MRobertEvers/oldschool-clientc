@@ -26,11 +26,17 @@
 --
 -- Threats (every phase): pools (HM ring + spit/chain pools) forbidden at tick
 -- ends (M3: a run's middle tile is free); his 5x5 forbidden from the gather
--- on (the stomp, and a spit skipped); every spit/chain in flight: a 3x3
--- splash read at L-1, its pool from L; every spit slot ahead: a mark on my
--- end-of-S-1 tile (r 1, read S+2..S+3) and the chain's mark on my end-of-S+2
--- tile (r 1, read S+4); every landed-but-unchained spit: the chain mark on my
--- end-of-L-1 tile (read L+1).
+-- on (the stomp); every spit/chain in flight: a 3x3 splash read at L-1, its
+-- pool from L, and a spit's splashes back onto its own tile read at L; every
+-- spit slot ahead: a mark on my end-of-S-2 tile (r 1, read S+1..S+5).
+--
+-- THE CONTENT IS THE RECORDED ONE (docs/rsprox-analysis/tob/xarpus.md): the
+-- spit and its splashes are LOCKED on the end-of-S-2 tiles (the tick before
+-- the spit, before anyone moves); the spit lands L = S + 1 + max(1, its tile's
+-- distance from his footprint) - S+3 from a gap-2 B, up to S+5 from gap 4 -
+-- and its splashes go to the OTHER raiders' locked tiles. A stack locks one
+-- tile, so every splash comes back onto the spit's own pool, 30 cycles later:
+-- it lands L+1 and reads the end of L. The first spit is U+9.
 -- ==========================================================================
 
 QD.T2 = QD.T2 or {}
@@ -59,7 +65,14 @@ QD.XARP_V2 = {
     HOME_PULL = 0.3, EXH_PULL = 1.0,
     ORB_COST = 3,                  -- a tick off my exhumed: an orb (~8 hp to him, and the absorbed uplift)
     -- P2
-    FIRST_SPIT = 7, SPIT_EVERY = 4,
+    -- the first spit 9 ticks after the stand-up (recorded 28 of 28; the
+    -- content's ^tob_xarpus_first_spit_ticks). It was 7, which put the whole
+    -- A/B cycle two ticks out of phase with the lock: the stack stood on A,
+    -- beside him, at every lock, so every pool landed beside him and the
+    -- tiles to attack from ran out (tob_xarpus sa, 2026-10-18: stuck at 49%).
+    FIRST_SPIT = 9, SPIT_EVERY = 4,
+    -- the latest a spit's last read can come: L - 1 and L with L up to S+5
+    LAND_LAST = 5,
     SPLASH_EXP = 7, SPLASH_MAX = 11,   -- 4-8 x (1 + absorbed%), cap 11 (tob_xarpus.constant)
     STACK_PULL = 1.5,
     -- P3
@@ -95,10 +108,12 @@ function XV.cw(B0, a, b)
     return d
 end
 
--- Is a tile within 1 of a landing whose splash reads the end of tick t?
+-- Is a tile within 1 of a landing whose splash reads the end of tick t? A
+-- spit's own reads at L - 1 and, for the splashes it throws back onto its tile
+-- (a stack: every raider locked the same tile), at L.
 function XV.splashed(S, x, z, t)
     for _, Ld in ipairs(S.landings) do
-        if Ld.L - 1 == t and cheb(x, z, Ld.x, Ld.z) <= 1 then return true end
+        if cheb(x, z, Ld.x, Ld.z) <= 1 and (Ld.L - 1 == t or (Ld.spit and Ld.L == t)) then return true end
     end
     return false
 end
@@ -572,33 +587,29 @@ QD.T2.rooms.xarpus = {
                 B.hit{ name = "pool-coming", x = Ld.x, z = Ld.z, size = 1, t0 = math.max(Ld.L, now + 1), t1 = hz,
                     sample = "end", dmg_exp = XV.SPLASH_EXP, dmg_max = XV.SPLASH_MAX, forbid = true }
             end
-            -- a landed spit's chains aim at my end-of-L-1 tile and land L+2
-            -- (d' <= 5), reading the end of L+1
-            if Ld.spit and Ld.L - 1 >= now and Ld.L + 1 <= hz and marks < XV.MARKS_MAX then
-                B.mark{ name = "chain-mark", t_mark = Ld.L - 1, r = 1, t0 = Ld.L + 1, t1 = Ld.L + 2, sample = "end",
-                    dmg_exp = XV.SPLASH_EXP, dmg_max = XV.SPLASH_MAX }
-                marks = marks + 1
+            -- its splashes, thrown at the landing to the other raiders' locked
+            -- tiles: for the stack that is this tile, 30 cycles away, so they
+            -- land L+1 and read the end of L
+            if Ld.spit and Ld.L >= now + 1 and Ld.L <= hz then
+                B.hit{ name = "own-splash", x0 = Ld.x - 1, z0 = Ld.z - 1, x1 = Ld.x + 1, z1 = Ld.z + 1,
+                    t0 = Ld.L, t1 = Ld.L, sample = "end", dmg_exp = XV.SPLASH_EXP, dmg_max = XV.SPLASH_MAX }
             end
         end
-        -- SPIT SLOTS AHEAD (P2 until the screech): the spit aims at the end-of-S-1
-        -- tile of a random raider (the stack: mine), lands S+3 (S+4 from the
-        -- outer ring), splash r 1 reading S+2..S+3; its chains aim at my
-        -- end-of-S+2 tile and read S+4
+        -- SPIT SLOTS AHEAD (P2 until the screech): the spit and its splashes
+        -- are locked on the end-of-S-2 tiles (the stack: mine). Until the spit
+        -- is in the air its landing is not known, so the mark covers every
+        -- landing distance: L - 1 .. L for L = S+2 .. S+5, i.e. the ends of
+        -- S+1 .. S+5. Once it flies, the exact landing above takes over.
         if S.U and S.Q == nil then
             local S0 = S.U + XV.FIRST_SPIT
             local k = 0
-            if now + 1 > S0 then k = (now + 1 - S0 + XV.SPIT_EVERY - 1) // XV.SPIT_EVERY end
+            if now + 2 > S0 then k = (now + 2 - S0 + XV.SPIT_EVERY - 1) // XV.SPIT_EVERY end
             while true do
                 local Sk = S0 + XV.SPIT_EVERY * k
-                if Sk + 2 > hz then break end
-                if Sk - 1 >= now and marks < XV.MARKS_MAX then
-                    B.mark{ name = "spit-mark", t_mark = Sk - 1, r = 1, t0 = Sk + 2, t1 = Sk + 3, sample = "end",
-                        dmg_exp = XV.SPLASH_EXP, dmg_max = XV.SPLASH_MAX }
-                    marks = marks + 1
-                end
-                if Sk + 4 <= hz and Sk + 2 >= now and marks < XV.MARKS_MAX then
-                    B.mark{ name = "chain-mark-ahead", t_mark = Sk + 2, r = 1, t0 = Sk + 4, t1 = Sk + 4, sample = "end",
-                        dmg_exp = XV.SPLASH_EXP, dmg_max = XV.SPLASH_MAX }
+                if Sk + 1 > hz then break end
+                if Sk - 2 >= now and marks < XV.MARKS_MAX then
+                    B.mark{ name = "spit-mark", t_mark = Sk - 2, r = 1, t0 = Sk + 1, t1 = Sk + XV.LAND_LAST,
+                        sample = "end", dmg_exp = XV.SPLASH_EXP, dmg_max = XV.SPLASH_MAX }
                     marks = marks + 1
                 end
                 k = k + 1

@@ -188,7 +188,7 @@ function QD.raid._xarp_measure(S, F)
     if F.form == "dead" or (F.boss and F.boss.seq_id ~= nil and S.death_seqs and S.death_seqs[F.boss.seq_id]) then
         S.dead = S.dead or F.tick
     end
-    if F.boss and F.boss.overhead and tostring(F.boss.overhead):find("Screeeech") and S.Q == nil then
+    if F.boss and F.boss.overhead and tostring(F.boss.overhead):find("^Scree") and S.Q == nil then
         S.Q = F.tick
         QD.raid._tob_trace(S, F.tick, "the screech")
     end
@@ -449,9 +449,11 @@ function QD.raid._xarp_phase(S, F)
         phase = "done"
     elseif S.U == nil then
         phase = "exhumeds"
-    elseif S.Q == nil or (S.last_spit and F.tick <= S.last_spit + 5) then
-        -- the stack keeps its rhythm until the last spit's chains are aimed
-        -- and read (they aim at the end of S+2, read the end of S+4)
+    elseif S.Q == nil or (S.last_spit and F.tick <= S.last_spit + 6) then
+        -- the stack keeps its rhythm until the last spit and its splashes are
+        -- read: the recorded content lands a spit at S+2..S+5 and its splashes
+        -- back on it a tick later, so the last read is the end of S+5
+        -- (docs/rsprox-analysis/tob/xarpus.md)
         phase = "stack"
     else
         phase = "stare"

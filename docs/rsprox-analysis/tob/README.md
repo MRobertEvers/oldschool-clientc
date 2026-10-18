@@ -11,6 +11,7 @@ Each room's file states the recorded behaviour, the ticks it was read from, and 
 | [nylocas.md](nylocas.md) | The Nylocas, Normal Mode (30 kills; [nylocas.out](nylocas.out) is the full tool output) |
 | [sotetseg.md](sotetseg.md) | Sotetseg, Normal Mode (28 kills, 56 mazes; [sotetseg.out](sotetseg.out) is the full tool output) |
 | [verzik.md](verzik.md) | Verzik Vitur, Normal Mode |
+| [xarpus.md](xarpus.md) | Xarpus, Normal Mode (28 kills; [xarpus.out](xarpus.out) is the full tool output), including the tick a spit's target is locked |
 | [doors.md](doors.md) | Every door's landing tile, the HUD transitions and the entrance, barrier and exit dialogue |
 
 ## Sources
