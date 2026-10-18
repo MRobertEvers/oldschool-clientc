@@ -1,0 +1,117 @@
+{{Infobox Item
+|name = Kindling
+|image = [[File:Kindling (Chambers of Xeric).png]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = Yes
+|noteable = No
+|options = Drop
+|examine = It feels weak, but it might be okay for burning.
+|value = 2
+|weight = 0.000
+|id = 20799
+}}
+[[File:Kindling (Chambers of Xeric) detail.png|left|150px]]
+'''Kindlings''' are obtained from chopping [[Sapling (Chambers of Xeric)|saplings]] found within the [[Chambers of Xeric]]. They can be lit with a [[tinderbox]] to make [[fire]]s and used as fuel for the [[brazier (Chambers of Xeric)|braziers]] in the [[ice demon]]'s lair.
+
+Kindling works on a timer system, which is affected by the icefiends which spawn inside of the room, as well as a weighting system. Each kindling gives 36 points, while lighting the brazier gives 32 points.
+
+The yield per successful chop from a sapling is scaled to the player's [[Woodcutting]] level, up to a maximum of eight. The experience gained also varies, scaling based on the amount of kindling received. Kindling is stackable, but having 28 or more in your inventory will prevent you from chopping more [[Sapling (Chambers of Xeric)|saplings]]. This can be circumvented by dropping kindling to chop more and picking up the dropped kindling.
+
+==Woodcutting info==
+{{Woodcutting info
+|name = Sapling
+|level = 1
+|xp = 30-81.5
+|tree = [[Sapling (Chambers of Xeric)]]
+|tool = [[Axe]]
+|time = N/A
+}}
+
+{|class="wikitable"
+! rowspan="2" |{{SCP|Woodcutting}}<br/>Level
+! colspan="2" |{{SCP|Woodcutting}} Experience{{CiteTwitter|author=Mod Bruno|url=https://twitter.com/JagexBruno/status/1101073823355621376|date=28 February 2019|quote=Breakdown of how your Woodcutting level affects the amount of kindling and XP recieved:}}
+! colspan="2" |{{plink|Kindling (Chambers of Xeric)|txt=Kindling}}{{CiteTwitter|author=Mod Ash|url=https://x.com/JagexAsh/status/1405439588861153287|date=17 June 2021|quote=In the ice demon room, the max is your visible Woodcutting level divided by 12. (Boosts are respected.) At level 96 that'd be 8.The game picks a random number 0-max inclusive, with equal chance of each integer. If it rolls 0, it treats it as 1.}}
+|-
+!Max
+!Avg
+!Max
+!Avg
+|-
+|1||30||30.0000
+|1||1.0000
+|-
+|24||45||35.0000
+|2||1.3333
+|-
+|36||55||40.0000
+|3||1.7500
+|-
+|48||62.5||44.5000
+|4||2.2000
+|-
+|60||68.5||48.5000
+|5||2.2667
+|-
+|72||73.5||52.0714
+|6||3.1429
+|-
+|84||77.7||55.2750
+|7||3.6250
+|-
+|96||81.5||58.1889
+|8||4.1111
+|}
+
+==Firemaking info==
+{{Firemaking info
+|name = Kindling
+|level = 1
+|xp = 48
+|type = other
+}}
+
+==Item sources==
+{{Drop sources|Kindling (Chambers of Xeric)}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 12 December 2023
+|update = Christmas 2023
+|change = Players may no longer place kindling in storage units.
+}}
+{{Subject changes
+|date = 29 November 2023
+|update = Chambers of Xeric Changes
+|poll = Chambers of Xeric Room Improvements
+|change = 
+* Kindling is now stackable, up to a cap of 28.
+* Lighting braziers and burning kindling now provide more points.
+* The item's weight was reduced from 0.76 kg to 0 kg.
+}}
+{{Subject changes
+|date = 22 March 2018
+|update = Upcoming Changes and Fake XP Drop Improvements
+|change = The item's value was increased from 1 to 2.
+}}
+{{Subject changes
+|date = 5 January 2017
+|update = Chambers of Xeric
+|change = The item was made available with the release of the Chambers of Xeric in the live game.
+}}
+{{Subject changes
+|date = 8 December 2016
+|update = Upcoming Changes and Fake XP Drop Improvements
+|change = The item was released as part of the [[Unrestricted_world#Chambers_of_Xeric_Load_Test|Raids Load Test]] beta.
+}}
+{{Subject changes footer}}
+
+==References==
+{{Reflist}}
+
+{{Chambers of Xeric}}

@@ -1,0 +1,44 @@
+{{Infobox Item
+|name = Mallignum root plank
+|image = [[File:Mallignum root plank.png]]
+|release = [[12 January]] [[2017]]
+|update = Raids Improvements
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = Yes
+|noteable = No
+|options = Drop
+|examine = Tekton's old building materials.
+|value = 2
+|weight = 0.000
+|id = 21036
+}}
+[[File:Mallignum root plank detail.png|left|120px]]
+'''Mallignum root planks''' are obtained from killing scavengers found within the [[Chambers of Xeric]]. They are used for building storage units within the Chambers.
+
+==Products==
+{{Uses material list|Mallignum root plank}}
+
+==Item sources==
+{{Drop sources|Mallignum root plank}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 29 November 2023
+|update = Chambers of Xeric Changes
+|poll = Chambers of Xeric Room Improvements
+|change = 
+* Mallignum root planks are now stackable.
+* The item's weight was reduced from 0.8 kg to 0 kg.
+}}
+{{Subject changes
+|date = 22 March 2018
+|update = Upcoming Changes and Fake XP Drop Improvements
+|change = The item's value was increased from 1 to 2.
+}}
+{{Subject changes footer}}
+
+{{Chambers of Xeric}}

@@ -1,0 +1,64 @@
+{{Infobox Construction
+|name = Massive storage unit
+|image = [[File:Massive storage unit built.png|250px]]
+|icon = [[File:Massive storage unit icon.png]]
+|furniturename = Massive storage unit
+|release = [[28 May]] [[2020]]
+|update = Chambers of Xeric Improvements
+|level = 99
+|experience = 150
+|room = [[Chambers of Xeric]] resource room
+|hotspot = [[Storage unit]]
+|flatpack = No
+|examine = Who needs all this space?
+|id = 37978
+|itemid = 24660, 24661, 24662, 24663
+}}
+'''Massive storage units''' can be built in resource rooms within the [[Chambers of Xeric]]. It allows players to store, for the duration of the raid, 1,500 items that are found only within the Chambers and 120 of the player's personal items. It requires a [[Construction]] level of 99 in order to build.
+
+'''Note:''' Players who leave the Chambers with their personal items still stored in the storage units can retrieve them from the private storage unit next to the bank chest on the Mountain. The private storage unit '''must be emptied''' before players re-enter the Chambers of Xeric.
+
+==Creation==
+===Upgrade===
+{{Recipe
+|skill1 = Construction
+|skill1lvl = 99
+|skill1boostable = Yes
+|skill1exp = 150
+|members = Yes
+|ticks = 5
+|tools = Hammer
+|mat1 = Large storage unit
+|mat1pic = Large storage unit icon
+|mat1cost = 0
+|mat2 = Mallignum root plank
+|mat2quantity = 2
+|mat2cost = 0
+|output1 = Massive storage unit
+|output1pic = Massive storage unit icon
+|output1cost = 0
+|output1subtxt = Upgrade
+}}
+
+===Total===
+''The experience shown is the total amount accumulated from the base furniture to this built furniture.''
+{{Recipe
+|skill1 = Construction
+|skill1lvl = 99
+|skill1boostable = Yes
+|skill1exp = 600
+|members = Yes
+|ticks = 5
+|tools = Hammer
+|mat1 = Mallignum root plank
+|mat1quantity = 8
+|mat1cost = 0
+|output1 = Massive storage unit
+|output1pic = Massive storage unit icon
+|output1cost = 0
+|output1subtxt = Total
+}}
+
+{{Chambers of Xeric}}
+
+[[Category:Bank PIN protection]]

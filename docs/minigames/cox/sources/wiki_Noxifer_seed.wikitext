@@ -1,0 +1,75 @@
+{{Infobox Item
+|name = Noxifer seed
+|image = [[File:Noxifer seed 1.png]] [[File:Noxifer seed 2.png]] [[File:Noxifer seed 3.png]] [[File:Noxifer seed 4.png]] [[File:Noxifer seed 5.png]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = Yes
+|noteable = No
+|options = Drop
+|examine = Noxifer in seed form. Hopefully there's somewhere to plant this.
+|value = 2
+|weight = 0.000
+|id = 20903
+}}
+[[File:Noxifer seed detail.png|left|140px]]
+'''Noxifer seeds''' are dropped by certain monsters found in the [[Chambers of Xeric]]. It can also be found at the end of a floor by raking the [[weeds (Chambers of Xeric)|weeds]] near the [[hole (Chambers of Xeric)|entrance]] to the next level.
+
+It can be planted in a resource room in the Chambers to grow [[noxifer]].
+
+==Farming info==
+{{Farming page|Noxifer (plant)}}
+
+==Item sources==
+{{Drop sources|Noxifer seed}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 22 March 2018
+|update = Upcoming Changes and Fake XP Drop Improvements
+|change = The item's value was increased from 1 to 2.
+}}
+{{Subject changes 
+|date = 19 January 2017
+|update = Raids Tweaks & QoL
+|change = The item was recoloured.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="15"
+|[[File:Noxifer seed 1 (v1) detail.png|center|150x150px]]
+|[[File:Buchu seed 2 (v1) detail.png|center|150x150px]]
+|[[File:Buchu seed 3 (v1) detail.png|center|150x150px]]
+|[[File:Buchu seed 4 (v1) detail.png|center|150x150px]]
+|[[File:Buchu seed (v1) detail.png|center|150x150px]]
+|-
+|[[File:Noxifer seed 1 v1.png|center]]
+|[[File:Buchu seed 2 v1.png|center]]
+|[[File:Buchu seed 3 v1.png|center]]
+|[[File:Buchu seed 4 v1.png|center]]
+|[[File:Buchu seed v1.png|center]]
+|-
+|colspan = 5 |5 January 2017 – 19 January 2017
+|-
+|[[File:Noxifer seed 1 detail.png|center|150x150px]]
+|[[File:Noxifer seed 2 detail.png|center|150x150px]]
+|[[File:Noxifer seed 3 detail.png|center|150x150px]]
+|[[File:Noxifer seed 4 detail.png|center|150x150px]]
+|[[File:Noxifer seed detail.png|center|150x150px]]
+|-
+|[[File:Noxifer seed 1.png|center]]
+|[[File:Noxifer seed 2.png|center]]
+|[[File:Noxifer seed 3.png|center]]
+|[[File:Noxifer seed 4.png|center]]
+|[[File:Noxifer seed.png|center]]
+|-
+|colspan = 5 |19 January 2017 – present
+|}
+
+{{Seeds}}
+{{Chambers of Xeric}}

@@ -1,0 +1,33 @@
+== Feedback (Fri, 28 Mar 2025 04:54:20 UTC) ==
+
+<!-- This was added automatically using a bot. Please do not remove or manually change the following template. -->
+{{Feedback
+|id=245382df-a08d-4b97-bb7b-690dce787c6a
+|date=1743137660763
+|resolved=yes
+|rating=
+|feedback=Actually this is wrong because it stops dropping after you read it once so yeah this is completely false.
+}}
+
+== Feedback (Fri, 21 Aug 2026 05:45:06 UTC) ==
+
+<!-- This was added automatically using a bot. Please do not remove or manually change the following template. -->
+{{Feedback
+|id=2c67b477-2c36-4ff2-a7e6-7031c3a642e2
+|date=1787291106080
+|resolved=yes
+|category=
+|feedback=She doesn't always seem to enter ground mode immediately when under 20% health. Rather, it seems like she has a probability to enter ground mode starting at under 20% health whenever she get attacked, with her being guaranteed to land if she hasn't landed by the time she is 1hp. Also there is no mention in the article of her hp healing when she goes back from ground mode back to fly mode.
+}}
+
+== Feedback (Wed, 07 Oct 2026 18:24:35 UTC) ==
+
+<!-- This was added automatically using the article feedback modal. Do not remove or manually change the following template. -->
+{{Feedback
+|id=ac797c49-ed1d-4266-81d5-08db1713c7df
+|date=1791397475395
+|resolved=yes
+|category=
+|user=[[Special:Contributions/&#126;2026-NexlingChampionshipCure20611|&#126;2026-NexlingChampionshipCure20611]] ([[User talk:&#126;2026-NexlingChampionshipCure20611|talk]])
+|feedback=Reuben Katz is a Vespula
+}}

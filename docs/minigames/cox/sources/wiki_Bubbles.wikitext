@@ -1,0 +1,43 @@
+{{Infobox Scenery
+|name = Bubbles
+|image = [[File:Bubbles.png|300px]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|location = [[Chambers of Xeric]]
+|options = Fish
+|examine = Something is stirring beneath the water.
+|map = {{Map|3274,5457|3281,5454|3280,5451|3302,5459|3308,5449|3343,5461|3337,5453|3345,5445|3306,5461|plane=0|mapID=-1|mtype=pin}}
+|id = 29889
+|leagueRegion = kourend
+}}
+
+'''Bubbles''' found in the [[Chambers of Xeric]] indicate a [[fishing spot]] where players can fish for different kinds of [[Chambers of Xeric/Food#Fish|fish]].
+
+To catch fish, a [[fishing rod]] is required, with [[cave worms]] as bait. [[Scavenger]]s drop both of these items. In resource rooms with fishing spots, there are three fishing spots. One of these three spots contains a [[cave snake]], which will damage the player (or take their fish). If a snake appears in the fishing spot, stop fishing and click elsewhere to avoid taking damage. While the spots are static, the spots containing plain fish and the cave snake change occasionally.
+
+==Skill info==
+{{Fishing info
+|name = Bubbles
+|level = 1
+|xp = Varies
+|tool = {{plink|Fishing rod}}<br />OR<br />{{plink|Pearl fishing rod}}
+|bait = {{plink|Cave worms}}
+|bucket = No
+}}
+
+{{DropsTableHead}}
+{{DropsLineSkill|name=Raw pysk fish (0)|quantity=1|rarity=Common|skill=Fishing|level=1|gemw=no}}
+{{DropsLineSkill|name=Raw suphi fish (1)|quantity=1|rarity=Common|skill=Fishing|level=15|gemw=no}}
+{{DropsLineSkill|name=Raw leckish fish (2)|quantity=1|rarity=Common|skill=Fishing|level=30|gemw=no}}
+{{DropsLineSkill|name=Raw brawk fish (3)|quantity=1|rarity=Common|skill=Fishing|level=45|gemw=no}}
+{{DropsLineSkill|name=Raw mycil fish (4)|quantity=1|rarity=Common|skill=Fishing|level=60|gemw=no}}
+{{DropsLineSkill|name=Raw roqed fish (5)|quantity=1|rarity=Common|skill=Fishing|level=75|gemw=no}}
+{{DropsLineSkill|name=Raw kyren fish (6)|quantity=1|rarity=Common|skill=Fishing|level=90|gemw=no}}
+{{DropsTableBottom}}
+
+== Trivia ==
+* Attempting to fish while a [[cave snake]] is present will give the chat message {{Mes|This seems like a very bad moment to fish here.}}
+
+{{Chambers of Xeric}}

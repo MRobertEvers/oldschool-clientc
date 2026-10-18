@@ -241,6 +241,13 @@ struct ScriptrunCore
     /* The scene: the rebuild's centre zone; absolute = scene + base. */
     int have_scene;
     int rebuild_zone_x, rebuild_zone_z;
+    /* The last REBUILD_REGION's template grid, KEPT as the client keeps it
+     * (App rebuild_instance_zones): the only thing a client is told about an
+     * instance's layout. [level*169 + zone_x*13 + zone_z], packed as struct
+     * PktMapRebuild documents, centred on rebuild_zone_x/z. A REBUILD_NORMAL
+     * clears it. */
+    int32_t instance_zones[4 * 13 * 13];
+    int instance_active;
     /* The zone header cursor for zone sub-packets (scene-local). */
     int zone_base_x, zone_base_z, zone_level;
     /* SET_NPC_UPDATE_ORIGIN (scene-local). */
@@ -388,6 +395,21 @@ ScriptrunCore_Packet(
     int pkt_name,
     const uint8_t* payload,
     int len);
+
+/** The instance template zone holding absolute tile (x, z) on `level`, from
+ *  the kept REBUILD_REGION grid: the template's tile x/z (a zone's south-west
+ *  corner) and level, and the zone's clockwise turn. 0 when the scene is not
+ *  an instance, the tile is outside it, or the zone is empty. */
+int
+ScriptrunCore_InstanceZone(
+    struct ScriptrunCore const* core,
+    int x,
+    int z,
+    int level,
+    int* template_x,
+    int* template_z,
+    int* template_level,
+    int* rotation);
 
 /** The local player's absolute tile; 0 when not yet placed. */
 int

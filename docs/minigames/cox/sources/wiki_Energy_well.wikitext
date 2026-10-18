@@ -1,0 +1,16 @@
+{{Infobox Scenery
+|name = Energy well
+|image = [[File:Energy well.png|250x250px]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|location = [[Chambers of Xeric]]
+|options = Touch
+|examine = A strange focus of energy.
+|map = {{Map|x:3319,y:5170|x:3280,y:5173|x:3280,y:5141|plane=0|mapID=-1|mtype=pin}}
+|id = 30066
+}}
+'''Energy wells''' are found at the end of the first and second floors of the [[Chambers of Xeric]]. When interacted with, they fully replenish the player's run energy.
+
+{{Chambers of Xeric}}

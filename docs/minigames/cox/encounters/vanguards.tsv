@@ -5,4 +5,10 @@ vanguards.cadence	attack speed	4	ticks	[wiki]	D	COX_MECHANICS.md:527	-	exact
 vanguards.max_hit	max hit	22	hp	[wiki]	D	COX_MECHANICS.md:528	-	exact
 vanguards.attacks_per_action	projectiles per ranged/magic action	3	count	[wiki]	D	COX_MECHANICS.md:529	-	exact
 vanguards.heal_threshold_small	hp divergence that force-heals, party <=4	40	percent	[wiki][plugin]	C	COX_MECHANICS.md:530; sources/de0/CoxVanguardsPlugin.java	-	exact
-vanguards.shuffle	independent shuffle period	20-36	ticks	[wiki]	D	COX_MECHANICS.md:531	-	range
+vanguards.shuffle	room shuffle period (all three together), from each emergence	20-36	ticks	[jagex][wiki]	B	rooms/vanguards_spec.md V10 (Mod Ash 14 Sep 2021)	-	range
+vanguards.reset_gap_solo	hp gap that resets (floor(0.4*base))	72	hp	[plugin][wiki]	B	rooms/vanguards_spec.md V11	-	exact
+vanguards.aggro_range	aggression range	3	tiles	[nr][jagex]	C	rooms/vanguards_spec.md V4	-	exact
+vanguards.wake_range	wake distance from a hole	6	tiles	[nr]	C	rooms/vanguards_spec.md V2	-	exact
+vanguards.melee_leash	melee vanguard leash from its dig tile	9	tiles	[plugin]	C	rooms/vanguards_spec.md V9	-	exact
+vanguards.prayer_remaining	damage left under the right protection prayer	33	percent	[nr]	C	rooms/vanguards_spec.md V8	-	exact
+vanguards.shell_heal	hp gained each time a vanguard shells	1	hp	[plugin]	C	rooms/vanguards_spec.md V14	-	exact

@@ -1,0 +1,27 @@
+{{otheruses|the wearable armour|the discontinued armour that could be crated and handed in for favour|Shayzien supply armour}}
+
+[[File:Shayzien armour (5) (male) equipped.png|right|thumb|120px]]
+'''Shayzien armour''' is [[armour]] requiring 20 [[Defence]] to wear. Each tier grants slightly higher protection against the green acidic attack of [[Lizardman shaman|Lizardman shamans]]. In order to obtain Shayzien armour, players must compete in the [[Combat Ring (Shayzien)|Shayzien Combat Ring]] (20 defence required) within [[Shayzien]], or create it by [[Smithing]] [[lovakite bar]]s (11 bars for a full set). The [[collection log]] slots are filled regardless of how the armour is obtained. There are 5 different tiers of Shayzien armour:
+
+*[[Shayzien armour (tier 1)]]
+*[[Shayzien armour (tier 2)]]
+*[[Shayzien armour (tier 3)]]
+*[[Shayzien armour (tier 4)]]
+*[[Shayzien armour (tier 5)]]
+Shayzien armour can be stored in the [[armour case]] of a [[costume room]]. [[Ironman Mode|Ultimate Ironmen]] will be unable to retrieve individual pieces until the full set is stored.
+
+==Components and bonuses==
+{{Seealso|Combat Ring (Shayzien)#Collection log}}
+===Tier 1===
+{{Infotable Bonuses|Shayzien helm (1)|Shayzien platebody (1)|Shayzien greaves (1)|Shayzien gloves (1)|Shayzien boots (1)}}
+===Tier 2===
+{{Infotable Bonuses|Shayzien helm (2)|Shayzien platebody (2)|Shayzien greaves (2)|Shayzien gloves (2)|Shayzien boots (2)}}
+===Tier 3===
+{{Infotable Bonuses|Shayzien helm (3)|Shayzien platebody (3)|Shayzien greaves (3)|Shayzien gloves (3)|Shayzien boots (3)}}
+===Tier 4===
+{{Infotable Bonuses|Shayzien helm (4)|Shayzien platebody (4)|Shayzien greaves (4)|Shayzien gloves (4)|Shayzien boots (4)}}
+===Tier 5===
+{{Infotable Bonuses|Shayzien helm (5)|Shayzien body (5)|Shayzien greaves (5)|Shayzien gloves (5)|Shayzien boots (5)}}
+
+{{Shayzien armour}}
+{{Slayer equipment}}

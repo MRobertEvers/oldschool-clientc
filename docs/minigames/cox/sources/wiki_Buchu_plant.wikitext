@@ -1,0 +1,77 @@
+{{Infobox Scenery
+|defver = 5
+|version1 = Stage 1
+|version2 = Stage 2
+|version3 = Stage 3
+|version4 = Stage 4
+|version5 = Grown
+|name = Herb patch
+|image1 = [[File:Herb patch (Buchu, stage 1).png|250px]]
+|image2 = [[File:Herb patch (Buchu, stage 2).png|250px]]
+|image3 = [[File:Herb patch (Buchu, stage 3).png|250px]]
+|image4 = [[File:Herb patch (Buchu, stage 4).png|250px]]
+|image5 = [[File:Herb patch (Buchu, grown).png|250px]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|location = [[Chambers of Xeric]] [[herb patch]]
+|options1 = Inspect
+|options2 = Inspect
+|options3 = Inspect
+|options4 = Inspect
+|options5 = Pick, Inspect, Clear
+|examine1 = A buchu leaf is growing here.
+|examine2 = A buchu leaf is growing here.
+|examine3 = A buchu leaf is growing here.
+|examine4 = A buchu leaf is growing here.
+|examine5 = A buchu leaf has grown here.
+|map = No
+|id1 = 29999
+|id2 = 30002
+|id3 = 30005
+|id4 = 30008
+|id5 = 30011
+|leagueRegion = kourend
+}}
+'''Buchu''' is a [[Farming]] plant grown in the [[Chambers of Xeric]] at level 39 Farming. Buchu is grown by planting a [[buchu seed]] in a [[Chambers of Xeric]] [[herb patch]]. A [[seed dibber]] is needed to plant the seed.
+After 30 seconds, the planted seed will become [[Buchu]]. 
+
+Planting the Buchu seeds gives 6 farming experience.
+
+Each Buchu, when picked, gives 15 farming experience. The Buchu do not grow back after they are picked. The Buchu may be picked after the plant is completely grown.
+==Farming info==
+{{Farming info
+|name = Buchu
+|level = 39
+|patch = [[Chambers of Xeric]] [[herb patch]]
+|seed = {{plink|Buchu seed}}
+|seedsper = 1
+|payment = No
+|time = 30 seconds
+|plant = [[Buchu (plant)|Buchu]]
+|crop = {{plink|Grimy buchu leaf}}
+|yield = 
+|regrow = No
+|plantxp = 6
+|checkxp = No
+|harvestxp = 15
+}}
+
+{{DropsTableHead}}
+{{DropsLineSkill|name=Grimy buchu leaf |quantity=1|rarity=Always|skill=Farming}}
+{{DropsTableBottom}}
+{{reflist|group=d}}
+
+==Growth stages==
+{{Growth stages
+|stage1 = [[File:Herb patch (Buchu, stage 1).png|33px]]
+|stage2 = [[File:Herb patch (Buchu, stage 2).png|57px]]
+|stage3 = [[File:Herb patch (Buchu, stage 3).png|132px]]
+|stage4 = [[File:Herb patch (Buchu, stage 4).png|156px]]
+|stage5 = [[File:Herb patch (Buchu, grown).png|164px]]
+}}
+
+{{Farming plants}}
+
+[[Category:Needs skilling success chart]]

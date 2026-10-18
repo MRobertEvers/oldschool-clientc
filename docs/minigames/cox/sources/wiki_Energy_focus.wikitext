@@ -1,0 +1,35 @@
+{{Infobox NPC
+|version1 = White
+|version2 = Red
+|version3 = Green
+|version4 = Blue
+|name1 = Energy focus (white)
+|name2 = Energy focus (red)
+|name3 = Energy focus (green)
+|name4 = Energy focus (blue)
+|image1 = [[File:Energy focus (white).png|250x250px]]
+|image2 = [[File:Energy focus (red).png|250x250px]]
+|image3 = [[File:Energy focus (green).png|250x250px]]
+|image4 = [[File:Energy focus (blue).png|250x250px]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|race = None
+|location = [[Chambers of Xeric]]
+|examine1 = A white focus of energy.
+|examine2 = A red focus of energy.
+|examine3 = A green focus of energy.
+|examine4 = A blue focus of energy.
+|map = No
+|id1 = 7580
+|id2 = 7581
+|id3 = 7582
+|id4 = 7583
+|leagueRegion = Kourend
+}}
+
+An '''Energy focus''' is part of the [[Chambers of Xeric/Strategies#Crab puzzle|crab puzzle]] within the [[Chambers of Xeric]]. These energy focuses have to be bounced off of [[Jewelled crab]]s to hit a crystal with the right colour. 
+
+When an energy focus hits a jewelled crab of a certain colour, it will change into that colour.
+
+{{Chambers of Xeric}}

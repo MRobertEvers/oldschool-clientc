@@ -1,0 +1,41 @@
+{{Infobox Item
+|name = Cicely
+|image = [[File:Cicely.png]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = Yes
+|noteable = No
+|options = Drop
+|examine = This flower feels very cold to the touch.
+|value = 2
+|weight = 0.000
+|id = 20912
+}}
+[[File:Cicely detail.png|left|150px]]
+'''Cicelies''' are a type of flower unique to the [[Chambers of Xeric]], and are obtained as a drop from [[scavenger beast]]s.
+
+They are used as secondary ingredients for various potions within the raid.
+
+==Products==
+{{Uses material list|Cicely}}
+==Item sources==
+{{Drop sources|Cicely}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 22 March 2018
+|update = Upcoming Changes and Fake XP Drop Improvements
+|change = The item's value was increased from 1 to 2.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*Cicely is made from the same graphical model as the [[star flower]].
+
+{{Chambers of Xeric}}
+{{Flowers}}

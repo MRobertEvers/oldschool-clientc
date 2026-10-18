@@ -1,0 +1,63 @@
+{{Infobox Scenery
+|version1 = Unlit
+|version2 = Lit
+|name = Brazier
+|image1 = [[File:Brazier (Chambers of Xeric, unlit).png|250x250px]]
+|image2 = [[File:Brazier (Chambers of Xeric, lit).png|250x250px]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|location = [[Chambers of Xeric]]
+|options1 = Light
+|options2 = Fuel
+|examine1 = It's dead.
+|examine2 = It's lit.
+|map = No
+|id1 = 29747
+|id2 = 29748
+|leagueRegion = Kourend
+}}
+'''Braziers''' can be found within the [[ice demon]] room during the [[Chambers of Xeric]]. Players must fill and light the braziers with [[kindling (Chambers of Xeric)|kindling]], obtained from nearby [[sapling (Chambers of Xeric)|trees]], to defrost the ice demon in order to fight it. The rate that the ice demon will defrost is determined by the amount of kindling burning in the room. Once the ice demon is defeated, players may progress to the next room.
+
+The braziers will burn on a timer, dependent on the amount of kindling fuelling it, and weighted by the players in the raid. Each kindling lit in the brazier gives 36 points for the raid, and lighting the brazier gives 32 points.
+
+A player's [[Firemaking]] level affects their chance of successfully lighting a brazier. This uses the standard Firemaking skill roll, with an 8% success chance at level 1, scaling linearly to 78% at level 99. Failed attempts do not light the brazier, requiring the player to try again.{{CiteDiscord|author=Mod Ash|url=https://discord.com/channels/324132423636090880/434286997360738305/1527317975521300510|date=16 July 2026|quote=Yes - it's a normal skill-roll, using 8% success at level 1 and scaling up linearly to 78% at level 99.|ctxquote=Hello Ash, 2 more question regarding Ice Demon braziers: Does Firemaking level affect a successful lighting chance? What is the failure rate on lighting a brazier?
+}}
+
+==Locations==
+{{ObjectTableHead}}
+{{ObjectLocLine
+|name = Brazier
+|location = [[Chambers of Xeric]] - [[ice demon]] room
+|members = Yes
+|mapID = -1
+|plane = 0
+|3272,5362|3272,5369|3275,5364|3275,5367|3307,5368|3309,5365|3312,5365|3314,5368|3346,5361|3346,5364|3349,5359|3349,5366
+|mtype = pin
+|leagueRegion = Kourend
+}}
+{{ObjectTableBottom}}
+
+==Transcript==
+{{hastranscript|scenery}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 29 November 2023
+|update = Chambers of Xeric Changes
+|poll = Chambers of Xeric Room Improvements
+|change = Lighting braziers and burning kindling now provide more points.
+}}
+{{Subject changes
+|date = 31 January 2019
+|update = Chambers of Xeric, Kebos, and Collection Log Changes
+|change = Adding wood to a lit brazier is now as effective as adding wood to an unlit brazier.
+}}
+{{Subject changes
+|change = The braziers are now extinguished more slowly and they defrost the ice demon more effectively.
+}}
+{{Subject changes footer}}
+
+{{Chambers of Xeric}}

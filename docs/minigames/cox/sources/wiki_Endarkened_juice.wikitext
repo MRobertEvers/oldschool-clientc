@@ -1,0 +1,36 @@
+{{Infobox Item
+|name = Endarkened juice
+|image = [[File:Endarkened juice.png]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = Yes
+|noteable = No
+|options = Drop
+|examine = A dark magic has imbued this juice.
+|value = 2
+|weight = 0.000
+|id = 20911
+}}
+[[File:Endarkened juice detail.png|left|100px]]
+'''Endarkened juice''' is a type of liquid that is obtained as a drop from [[scavenger beast]]s.
+
+They are used as secondary ingredients for various potions within the raid.
+==Products==
+{{Uses material list|Endarkened juice}}
+==Item sources==
+{{Drop sources|Endarkened juice}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 22 March 2018
+|update = Upcoming Changes and Fake XP Drop Improvements
+|change = The item's value was increased from 1 to 2.
+}}
+{{Subject changes footer}}
+
+{{Chambers of Xeric}}

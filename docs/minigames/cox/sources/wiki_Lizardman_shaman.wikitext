@@ -1,0 +1,299 @@
+{{otheruses|the shamans encountered on the surface|the Chambers of Xeric variant|Lizardman shaman (Chambers of Xeric)}}
+{{HasStrategy}}
+{{HasTask|Lizardmen}}
+{{Infobox Monster
+|version1 = Standard
+|version2 = Lizardman Temple
+|name = Lizardman shaman
+|image1 = [[File:Lizardman shaman (1).png|200px]]
+|image2 = [[File:Lizardman shaman (Lizardman Temple).png|200px]]
+|release1 = [[21 January]] [[2016]]
+|release2 = [[10 January]] [[2019]]
+|update1 = The Dragon Warhammer
+|update2 = The Kebos Lowlands
+|members = Yes
+|combat = 150
+|size1 = 3
+|size2 = 2
+|examine1 = A mystic from a race created during the darker days of Kourend.
+|examine2 = A Lizardman shaman wearing a pernicious olmic headdress.
+|xpbonus = 5
+|max hit = 31 ([[Melee]]), 21 ([[Ranged]])
+|aggressive = Yes
+|poisonous = Yes (10)
+|attack style = [[Crush]], [[Ranged]]
+|attack speed = 4
+|respawn = 27
+|slayxp = 157.5
+|cat = Lizardmen
+|assignedby = chaeldar,konar,nieve,duradel
+|hitpoints = 150
+|att = 120
+|str = 120
+|def = 140
+|mage = 130
+|range = 120
+|attbns = 45
+|strbns = 38
+|amagic = 0
+|mbns = 0
+|arange = 45
+|rngbns = 38
+|dstab = -20
+|dslash = 40
+|dcrush = 30
+|dmagic = 50
+|dlight = -10
+|dstandard = 0
+|dheavy = 0
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = No
+|immunethrall = No
+|id1 = 6766,6767,7744,7745
+|id2 = 8565
+}}
+[[File:Lizardmen icon.png|left]]
+'''Lizardman shamans''' are giant reptilian humanoids that are stronger than their normal [[lizardmen]] and [[lizardmen brute]] counterparts. They are often sought after for their [[dragon warhammer]] drops. They never become [[tolerant]] to the player.
+
+==Locations==
+{{LocTableHead}}
+{{LocLine
+|name = Lizardman shaman
+|location = [[Lizardman Canyon]], west side
+|levels = 150
+|members = yes
+|mapID = 0
+|plane = 0
+|x:1424,y:3718|x:1424,y:3700|x:1434,y:3711
+|mtype = pin
+|leagueRegion = kourend
+}}
+{{LocLine
+|name = Lizardman shaman
+|location = [[Lizardman Caves]], underneath [[Lizardman Settlement]] ([[Slayer task]] only)
+|levels = 150
+|members = yes
+|mapID = 33
+|plane = 0
+|x:1286,y:9942|x:1290,y:9936|x:1303,y:9929|x:1307,y:9935|x:1319,y:9933|x:1324,y:9938|x:1327,y:9954|x:1330,y:9948
+|mtype = pin
+|leagueRegion = kourend
+}}
+{{LocLine
+|name = Lizardman shaman
+|location = [[Lizardman Temple]], beneath [[Molch]]
+|levels = 150
+|members = yes
+|mapID = 10102
+|plane = 0
+|x:1290,y:10098|x:1294,y:10094|x:1312,y:10094|x:1312,y:10098|x:1327,y:10094|x:1331,y:10098
+|mtype = pin
+|leagueRegion = kourend
+}}
+{{LocTableBottom}}
+
+===Lizardman Canyon===
+Three shamans reside in the western area of [[Lizardman Canyon]] via the [[Handholds (Lizardman Canyon)|handholds]]. These three shamans are present in a [[multi-combat area]]. Shayzien soldiers will not attack the shamans (nor will the shamans attack them), since they are busy dealing with a small group of normal [[lizardmen]]. Below are a couple ways to get there.
+
+Players can check how many players are currently in the western area of the canyon by speaking to the wounded soldier outside the canyon, just south of the broken crossbow.
+
+'''{{Colour|red|Warning}}:''' Be wary of more than one shaman attacking at a time as they can quickly stack up damage from their abilities and attacks, which can quickly end a trip. To avoid being attacked constantly by the nearby lizardmen and their [[lizardman brute|brute]] forms, killing the ones in the north and south-west corners is recommended.
+
+====Xeric's talisman====
+#Use [[Xeric's talisman]] to teleport to Xeric's Inferno.
+#Run south through [[Lovakengj]].
+#Once you've reached the south end near some [[giant bat]]s and a house with a [[water source]], head a bit west to reach some patrolling [[Kourend guard]]s.
+#Go south into the [[Lizardman Canyon|canyon]] and down the handholds to the west.
+
+====Fairy rings====
+Partial completion of [[Fairytale II - Cure a Queen]] is required to use the [[fairy rings]]. A fairy ring (code {{Fairycode|DJR}}) is nearby, just south of [[Lizardman Canyon]].
+
+===Lizardman Caves===
+[[File:Lizardman Shaman location 2.png|thumb|From Xeric's Look-Out, follow the blue arrow to reach the shamans (Slayer task only).]]
+Eight shamans reside inside a cave at the northern end of the [[Lizardman Settlement]] before [[Xeric's Shrine]]. This is a [[single-way combat]] area. This location requires players to be on a lizardman Slayer task. A [[dwarf multicannon]] cannot be used here.
+
+====Xeric's talisman====
+#Use [[Xeric's talisman]] to teleport to [[Mount Quidamortem|Xeric's Honour]].
+#Run south-east to the [[Mountain Guide]] and travel to Shayziens' Outpost.
+#Once there, head west past some [[lizardman brute]]s.
+#The shamans are inside the [[Lizardman Caves]], and [[Xeric's Shrine]] is due north past the bridge.
+
+====Fairy rings====
+#Use the [[fairy ring]] code: {{Fairycode|CIR}} — requires partial completion of [[Fairytale II - Cure a Queen]].
+#Run south past the farming guild.
+#Run over the bridge past the Shayzien soldiers guarding the exit of the bridge.
+#The shamans are inside the [[Lizardman Caves]], and [[Xeric's Shrine]] is due north past the bridge.
+
+'''Fairy rings Lizardman Settlement - (Slayer Only Cave)'''
+#Use the [[fairy ring]] code: {{Fairycode|BLS}} — requires partial completion of [[Fairytale II - Cure a Queen]].
+#Run north over bridge through to Lizardman settlement.
+#Run north through lizardmen brutes.
+#The shamans are inside the slayer only cave with [[Captain Cleive]], there are 4 combat areas with 2 lizardman shamans each.
+
+==Attacks==
+Lizardman shamans have standard [[ranged]] and [[melee]] attacks, so one should use [[protect from missiles|Protect from Missiles]] and stand at a distance. Unlike most monsters, lizardman shamans are able to attack with melee diagonally if the player is in range.
+
+Lizardman shamans have several special attacks that they can utilise during the fight. Excluding the spawns, these attacks do not have a cooldown so it is possible for a lizardman shaman to repeatedly use the same ability over and over again.
+
+*A green acidic attack that will deal 25-30 damage. Wearing tiers 1-4 [[Shayzien armour]] will reduce the damage of this attack greatly; wearing a full set of [[Shayzien armour (tier 5)|tier 5 Shayzien armour]] will completely negate this damage. This attack can also inflict [[poison]] that ignores prayers starting at 10 damage.
+**Players who have completed the hard [[Kourend & Kebos Diary]] can talk to [[Captain Cleive]] to be able to wear their [[Slayer helmet]] or [[Slayer helmet (i)]] instead of a [[Shayzien helm (5)]].
+*A jump attack that targets a small area where the player was previously standing on. If the player is in that landing area when the shaman crashes down, they will be dealt with 20-25 [[typeless]] damage. This jump has a 3x3 AoE (2x2 in the temple, with the player's position as the north-east tile) and is not used if the jump location is obstructed.
+*Lizardman shamans can summon 3 small purple [[Spawn (lizardman shaman)|spawns]] that appear next to the player (indicated by the ground shaking). After a few seconds, the spawns will explode. The damage dealt is anywhere from 5-10 depending on the player's proximity next to them; their explosion covers a 5x5 area (3x3 area in the Lizardmen Temple), or a 2 tile radius from them (1 tile in the temple).
+
+==Money making==
+{{Mmgsection|Killing Lizardman Shamans (Settlement or Temple)|Killing Lizardman Shamans (Canyon)}}
+
+==Drops==
+{{DropLogProject|kills=292640}}
+
+{{Average drop value|Lizardman shaman|round=y}} Excluding the [[dragon warhammer]], the average kill is worth {{Coins|{{Average drop value|Lizardman shaman|raw=y}}-{{GEP|Dragon warhammer|1/3000}} round 0}}.
+
+{{Average drop value|Lizardman shaman|round=y|alch=true}} Excluding the [[dragon warhammer]], the average kill has a high alchemy value of {{Coins|{{Average drop value|Lizardman shaman|alch=yes|raw=y}}-{{Alch|Dragon warhammer}}/3000 round 0}}.
+
+===100%===
+{{DropsTableHead}}
+{{DropsLine|name=Big bones|quantity=1|rarity=Always}}
+{{DropsTableBottom}}
+
+{{Uniques/Lizardman shaman}}
+
+===Weapons and armour===
+{{DropsTableHead}}
+{{DropsLine|name=Rune med helm|quantity=1|rarity=18/500}}
+{{DropsLine|name=Earth battlestaff|quantity=1|rarity=17/500}}
+{{DropsLine|name=Mystic earth staff|quantity=1|rarity=17/500}}
+{{DropsLine|name=Rune warhammer|quantity=1|rarity=16/500}}
+{{DropsLine|name=Rune chainbody|quantity=1|rarity=12/500}}
+{{DropsLine|name=Red d'hide vambraces|quantity=1|rarity=10/500}}
+{{DropsTableBottom}}
+
+===Runes===
+{{DropsTableHead}}
+{{DropsLine|name=Air rune|quantity=60-80|rarity=25/500}}
+{{DropsLine|name=Chaos rune|quantity=40-60|rarity=25/500}}
+{{DropsLine|name=Death rune|quantity=20-30|rarity=25/500}}
+{{DropsLine|name=Fire rune|quantity=60-80|rarity=25/500}}
+{{DropsTableBottom}}
+
+===Materials===
+{{DropsTableHead}}
+{{DropsLine|name=Xerician fabric|quantity=2|rarity=40/500}}
+{{DropsLine|name=Coal|quantity=20-25 (noted)|rarity=20/500}}
+{{DropsLine|name=Iron ore|quantity=30-35 (noted)|rarity=20/500}}
+{{DropsLine|name=Runite ore|quantity=3-5 (noted)|rarity=8/500}}
+{{DropsTableBottom}}
+
+===Herbs===
+''There is a 45/500 chance to hit the herb drop table.''
+{{#vardefine:uht|{{#expr:(45/500)/16}}}}
+{{DropsTableHead}}
+{{DropsLine|name=Grimy kwuarm|quantity=2-3|rarity=1/{{#expr:1/(5*{{#var:uht}}) round 2}}}}
+{{DropsLine|name=Grimy cadantine|quantity=2-3|rarity=1/{{#expr:1/(4*{{#var:uht}}) round 2}}}}
+{{DropsLine|name=Grimy dwarf weed|quantity=2-3|rarity=1/{{#expr:1/(4*{{#var:uht}}) round 2}}}}
+{{DropsLine|name=Grimy lantadyme|quantity=2-3|rarity=1/{{#expr:1/(3*{{#var:uht}}) round 2}}}}
+{{DropsTableBottom}}
+
+===Seeds===
+{{TreeHerbSeedDropTableInfo|10/500}}{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1101082656178126849|date=28 February 2019|archiveurl=https://reldo.runescape.wiki/i/27964076|archivedate=30 May 2026|quote=You have a 1/50 chance of getting to the seed table}}
+{{DropsTableHead}}
+{{TreeHerbSeedDropLines|10/500}}
+{{DropsTableBottom}}
+
+===Other===
+{{DropsTableHead}}
+{{DropsLine|name=Coins|quantity=100-6000|rarity=70/500|gemw=No}}
+{{DropsLine|name=Lizardman fang|quantity=10-14|rarity=40/500|raritynotes={{Efn|Lizardman fang drop rate is decreased to 38/500 with the completion of [[Easy Kourend & Kebos Diary]].|group=d}}|altrarity=38/500}}
+{{DropsLine|name=Chilli potato|quantity=2|rarity=30/500}}
+{{DropsLine|name=Xeric's talisman (inert)|quantity=1|rarity=2/500|raritynotes={{Efn|Xeric's talisman drop rate increased to 1/125 with the completion of [[Easy Kourend & Kebos Diary]].|group=d}}|altrarity=4/500|gemw=No}}
+{{DropsTableBottom}}
+{{Notelist|group=d}}
+
+===Rare drop table===
+{{RareDropTable|20/500|naturetalisman=yes}}
+
+===Tertiary===
+{{DropsTableHead}}
+{{DropsLine|name=Brimstone key|quantity=1|rarity={{Brimstone rarity|150}}|raritynotes={{Refn|Brimstone keys are only dropped if killed on a [[Slayer task]] given by [[Konar quo Maten]].|group=d}}|gemw=No}}
+{{DropsLineClue|type=hard|rarity=1/200}}
+{{DropsLine|name=Long bone|quantity=1|rarity=1/400|gemw=No}}
+{{DropsLineClue|type=elite|rarity=1/1200}}
+{{DropsLine|name=Curved bone|quantity=1|rarity=1/5012.5|gemw=No}}
+{{DropsTableBottom}}
+{{Reflist|group=d}}
+
+==Treasure Trails==
+*{{SherlockChallenge|Killing a lizardman shaman|master}}
+
+==Collection log==
+{{PAGENAME}}s have 2 [[collection log]] items.
+{{Sync}}
+{{Collection log list|cname1=Dragon warhammer|cname2=Xeric's talisman (inert)}}
+
+==Combat Achievements==
+{{Sync}}
+{{Combat Achievements list|Lizardman Shaman}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 27 August 2025
+|update = Summer Sweep Up Slayer & More
+|change = Lizardman shamans now drop herbs unnoted instead of noted.
+}}
+{{Subject changes
+|date = 29 May 2024
+|update = Project Rebalance: Combat Changes
+|change = The drop rate of the dragon warhammer has been increased from 1/5,000 to 1/3,000.
+}}
+{{Subject changes
+|date = 10 January 2024
+|update = Children of the Sun
+|poll = Varlamore Activities & Kourend Changes
+|change = As [[Kourend Favour]] has been removed, fighting lizardman shamans no longer requires it.
+}}
+{{Subject changes
+|date = 14 January 2019
+|update = Konar Loot Table Balancing
+|type = hotfix
+|change = Lizardman Shaman spawns in the Lizardmen Temple now have a 3x3 explosion radius down from 5x5.{{CiteTwitter|author=Old School RuneScape|url=https://twitter.com/OldSchoolRS/status/1084834960543043585|date=14 January 2019|archiveurl=https://reldo.runescape.wiki/i/103571|archivedate=25 May 2020}}
+}}
+{{Subject changes
+|date = 8 February 2018
+|update = PvM QoL updates & Wilderness Rejuvenation improvements
+|change = The Lizardman shaman's special attack Spawns will no longer occur in quick succession. 
+}}
+{{Subject changes
+|date = 13 July 2017
+|update = Lizardman Shaman Improvements
+|poll = Old School Content Poll 54: Binding spells, F2P Castle Wars, etc.
+|change = The two lizardman shaman spawns in the Lizardman Settlement were removed and replaced with the [[Lizardman Caves]], which contains eight shamans. These shamans require a lizardman Slayer task and 100% Shayzien favour to kill.
+}}
+{{Subject changes
+|date = 5 January 2017
+|update = Chambers of Xeric
+|change = Two lizardman shaman spawns were added in the [[Lizardman Settlement]]. Notably, these shamans did not require 100% Shayzien favour to kill.
+}}
+{{Subject changes footer}}
+
+==Gallery==
+<gallery widths=150 heights=130>
+Lizardman shaman (1).png|A lighter variant.
+Lizardman shaman (2).png|A darker variant.
+Lizardman shaman (Lizardman Temple).png|The variant found in the [[Lizardman Temple]].
+The Dragon Warhammer (1).png|A lizardman shaman dwarfs a nearby player.
+</gallery>
+
+==Trivia==
+*When the [[Chambers of Xeric]] was {{UD|Chambers of Xeric|released}}, two shamans were added into the [[Lizardman Settlement]]. Unlike the shamans at the [[Lizardman Canyon|canyon]], these did not require 100% [[favour]]. This led to backlash, as it removed the primary incentive to gain [[Shayzien]] favour. These shamans were eventually removed in favour of a [[Slayer task|task-only]] area on [[13 July]] [[2017]]. In the same update, safespots in the canyon were removed.
+*On release, shamans could summon spawns in quick succession. This was changed in {{UD|PvM QoL updates & Wilderness Rejuvenation improvements|an update}} on [[8 February]] [[2018]].
+*It's possible to click on the shaman's hitbox during its jump attack. However, it cannot be attacked until it has landed.
+*[[Poison dynamite]] cannot be used on lizardman shamans.
+*Lizardman shamans enjoy eating [[chilli potatoes]].{{CiteNPC|npc=Kaht B'alam|quote=If you come thisss way again, could you bring more of thossse chilli potatoesss? Our ssstocksss have dwindled lately...|loc=Postbag from the Swamp}}
+
+==References==
+{{Reflist}}
+
+{{Lizardman Settlement}}
+{{Molch}}
+[[Category:Monsters that do not become tolerant]]

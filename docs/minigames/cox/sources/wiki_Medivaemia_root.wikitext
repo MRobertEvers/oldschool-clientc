@@ -1,0 +1,37 @@
+{{Infobox Scenery
+|version1 = Flowered
+|version2 = No flowers
+|name = Medivaemia root
+|image1 = [[File:Medivaemia root (flowered).png|250x250px]]
+|image2 = [[File:Medivaemia root (no flowers).png|250x250px]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|location = [[Chambers of Xeric]]
+|options1 = Pick
+|options2 = None
+|examine1 = The medivaemia has flowered.
+|examine2 = This medivaemia has no flowers.
+|map = No
+|id1 = 30068
+|id2 = 30069
+|leagueRegion = Kourend
+}}
+'''Medivaemia roots''' can be found on one of the sides of [[Vespula]]'s lair during the [[Chambers of Xeric]]. Players can pick a flowered root to obtain a [[medivaemia blossom]], used to feed the [[lux grub]]s so that their health does not reach zero.
+
+==Locations==
+{{ObjectTableHead}}
+{{ObjectLocLine
+|name = Medivaemia root
+|location = [[Chambers of Xeric]] - [[Vespula]] room
+|members = Yes
+|mapID = -1
+|plane = 2
+|3266,5284|3266,5287|3266,5301|3267,5303|3268,5282|3269,5303|3298,5306|3300,5308|3303,5307|3308,5306|3314,5304|3315,5306|3352,5295|3352,5297|3353,5283|3353,5299|3355,5289|3356,5286
+|mtype = pin
+|leagueRegion = Kourend
+}}
+{{ObjectTableBottom}}
+
+{{Chambers of Xeric}}

@@ -1,0 +1,7 @@
+== Connection to Vespula ==
+
+Forgive me if this is formatted wrong, I don't often edit wikis.
+
+It has been bugging me (heh) for a while now, but the wiki lists the Lux Grubs as the offspring of Vespula. However, their examine text refers to them as indigenous inhabitants of the caves, and the lore book that Vespula drops states that Vespula came from the Abyss. This link is also strengthened with her examine text, and the name of the portal being "Abyssal". I think this presents a pretty solid case for the grubs being unrelated to Vespula. What is most likely happening here is Vespula is injecting her eggs into the grubs, and they are eating the grubs from the inside out, before maturing and exploding out. This kind of behaviour can be observed in the insect world, notably amongst some species of wasps. 
+
+I have gone ahead and changed the reference to the Lux grubs as offspring of Vespula. Please feel free to revert this if I am incorrect. I also added a link to the Vespula Strategy page, outlining the Redemption method, as most players will be using that instead of the intended mechanic. -[[User:NEFARIOUS CUM MASTERMIND|NEFARIOUS CUM MASTERMIND]] ([[User talk:NEFARIOUS CUM MASTERMIND|talk]]) 07:24, 29 June 2024 (UTC)

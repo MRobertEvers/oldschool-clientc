@@ -1,0 +1,461 @@
+'''Hit delay''' is measured in [[RuneScape clock|game ticks]] and is the amount of time an attack will be queued to an entity ([[Player character|player]] or [[NPCs|NPC]]) without doing damage. Specifically, hit delay measures the amount of ticks an attack is processed on an entity without damaging it. Melee attacks damage an entity the very first tick that they are processed, and as such, are defined to have a hit delay of 0.
+
+The hit delay of distance attacks is typically variable based on the {{wp|Chebyshev distance}} between the entity dealing the attack and the entity receiving the attack. The distance is typically measured edge-to-edge in [[game square]]s, using the same edge for both entities. I.e. distance will be calculated using an NPC's closest edge to the player, and the player's furthest edge from the [[NPC]]. However, [[barrage spells]] and [[thralls]] are notable exceptions in that they calculate distance from the attacker to the defender's south-west tile, which causes abnormally long hit delay when attacking a large NPC from the north or east. 
+
+==Processing order delay==
+Attacks will hit on different ticks depending on whether the attacking or defending entity is processed first in a tick. If the entity receiving the hit is processed earlier than the entity dealing the hit, then the hit will be delayed by an additional one tick.
+
+[[NPCs]] are processed earlier than players each tick, so this effect will make all hits on [[NPCs]] delayed by an additional one tick compared to the numbers listed in this article.
+
+In the case of [[PvP]], [[PID]] will be the determining factor whether or not processing order delay will delay attacks by one tick.
+
+==Melee==
+When attacking using a melee weapon, with few exceptions such as the [[Dragon_claws#Special_attack|dragon claws special attack]], the hit delay is 0 game ticks.<br>This also applies to [[salamander]]s, even when using their Flare (Ranged) and Blaze (Magic) attack styles.
+
+==Ranged==
+=== Bows and crossbows ===
+Bow and crossbow projectiles as well as the [[Eclipse atlatl|Eclipse Atlatl]], with the exception of the [[dark bow]]'s second projectile, all follow this table:
+{| class="wikitable"
+!Distance<br/>(squares)
+!Hit delay<br/>(game ticks)
+|-
+|1
+|1
+|-
+|2
+|1
+|-
+|3
+|2
+|-
+|4
+|2
+|-
+|5
+|2
+|-
+|6
+|2
+|-
+|7
+|2
+|-
+|8
+|2
+|-
+|9
+|3
+|-
+|10
+|3
+|}
+This delay follows this formula:
+
+:<math>\mathit{BowDelay} = 1+\left\lfloor \frac{3 + \mathit{Distance}}{6} \right\rfloor</math>
+
+The special attacks of the [[Armadyl crossbow]] and Zaryte Crossbow always have a hit delay of 2.
+
+The first hit of special attack of the [[webweaver bow]] always has a hit delay of 1; the subsequent 3 hits land one tick later.
+
+=== Dark bow ===
+The [[dark bow]] has a unique hit delay defined for its second projectile, and its two projectiles follow this table:
+{| class="wikitable"
+!Distance<br />
+!Hit delay<br />(1st projectile)
+!Hit delay
+(2nd projectile)
+|-
+|1
+|1
+|2
+|-
+|2
+|1
+|2
+|-
+|3
+|2
+|2
+|-
+|4
+|2
+|3
+|-
+|5
+|2
+|3
+|-
+|6
+|2
+|3
+|-
+|7
+|2
+|4
+|-
+|8
+|2
+|4
+|-
+|9
+|3
+|4
+|-
+|10
+|3
+|5
+|}
+The first projectile follows the standard bow projectile delay formula:
+
+:<math>\mathit{Bow Delay} = 1+ \left\lfloor \frac{3 + \mathit{Distance}}{6} \right\rfloor</math>
+
+The second projectile follows a formula very similar to the magic formula:
+
+:<math>\mathit{DarkBowDelay} = 1+ \left\lfloor \frac{2 + \mathit{Distance}}{3} \right\rfloor</math>
+
+=== Chinchompas and thrown category weapons ===
+[[Weapons/Types#Chinchompas|Chinchompas]] and [[Weapons/Types#Thrown weapons|thrown weapons]] ([[knives]], [[dart]]s, [[thrownaxe]]s, and the [[toxic blowpipe]]) have the following hit delay:
+{| class="wikitable"
+!Distance<br />(squares)
+!Hit delay<br />(game ticks)
+|-
+|1
+|1
+|-
+|2
+|1
+|-
+|3
+|1
+|-
+|4
+|1<ref name=blowp>The [[Toxic blowpipe#Special attack|toxic blowpipe special attack]] has a hit delay of 2 ticks when distance is 4 or 5.</ref>
+|-
+|5
+|1<ref name=blowp />
+|-
+|6
+|2
+|-
+|7
+|2
+|-
+|8
+|2
+|-
+|9
+|2
+|-
+|10
+|2
+|}
+{{Reflist}}
+
+This delay follows the formula:
+
+:<math>\mathit{ThrownDelay} = 1+ \left\lfloor \frac{\mathit{Distance}}{6} \right\rfloor</math>
+:
+
+=== Ballistae ===
+[[Ballista]]e have the following hit delay:
+{| class="wikitable"
+!Distance<br />(squares)
+!Hit delay<br />(game ticks)
+|-
+|1
+|2
+|-
+|2
+|2
+|-
+|3
+|2
+|-
+|4
+|2
+|-
+|5
+|3
+|-
+|6
+|3
+|-
+|7
+|3
+|-
+|8
+|3
+|-
+|9
+|3
+|-
+|10
+|3
+|}
+
+=== Skeletal Thralls ===
+Thralls calculate hit delay using its distance from an NPC's south-west tile, and their damage processes 1 tick later regardless of the defending monster's NPC index.
+{| class="wikitable"
+!Distance
+(squares)
+!Hit delay
+(game ticks)
+|-
+|1
+|1
+|-
+|2
+|1
+|-
+|3
+|1
+|-
+|4
+|1
+|-
+|5
+|2
+|-
+|6
+|2
+|-
+|7
+|2
+|-
+|8
+|2
+|-
+|9
+|2
+|-
+|10
+|2
+|-
+|11
+|3
+|}
+
+===Tonalztics of Ralos===
+The [[tonalztics of Ralos]] has a fixed hit delay of 2 ticks regardless of distance.
+
+=== Dwarf multicannon ===
+The [[dwarf multicannon]], despite being able to attack targets at distances as far away as 19 tiles, does not have any hit delay.
+
+== Magic ==
+Most magic projectiles, including [[spells]] and projectiles from [[powered staves]] (except [[Tumeken's shadow]] and the [[eye of Ayak]], see below), follow this table.
+{| class="wikitable"
+!Distance<br />(squares)
+!Hit delay<br />(game ticks)
+|-
+|1
+|1
+|-
+|2
+|2
+|-
+|3
+|2
+|-
+|4
+|2
+|-
+|5
+|3
+|-
+|6
+|3
+|-
+|7
+|3
+|-
+|8
+|4
+|-
+|9
+|4
+|-
+|10
+|4
+|-
+|11<ref name=barrage>[[Barrage spells]] calculate hit delay using the distance from an NPC's south-west tile, therefore hit delay can be observed for distances greater than 10 tiles on large [[NPCs]] such as [[Scorpia]].</ref>
+|5
+|-
+|12<ref name=barrage />
+|5
+|-
+|13<ref name=barrage />
+|5
+|-
+|14<ref name=barrage />
+|6
+|-
+|15<ref name=barrage />
+|6
+|}
+{{Reflist}}
+This gives this likely formula:
+
+:<math>\mathit{MagicDelay} = 1+ \left\lfloor \frac{1 + \mathit{Distance}}{3} \right\rfloor</math>
+
+However, [[demonbane spells]] from the [[Arceuus spellbook]], as well as the special attacks of the [[Volatile Nightmare staff|volatile]] and [[eldritch Nightmare staff|eldritch Nightmare staves]], have a hit delay of 2 ticks regardless of the distance between the caster and target. [[Grasp spells]] have a hit delay of 1 tick in the same fashion. 
+
+=== Tumeken's shadow ===
+
+Attacks with [[Tumeken's shadow]] are always 1 tick slower than the magic attacks listed above, thus following this table.
+
+{| class="wikitable"
+!Distance<br />(squares)
+!Hit delay<br />(game ticks)
+|-
+|1
+|2
+|-
+|2
+|3
+|-
+|3
+|3
+|-
+|4
+|3
+|-
+|5
+|4
+|-
+|6
+|4
+|-
+|7
+|4
+|-
+|8
+|5
+|-
+|9
+|5
+|-
+|10
+|5
+|}
+
+This gives the likely formula:
+:<math>\mathit{MagicDelay} = 2+ \left\lfloor \frac{1 + \mathit{Distance}}{3} \right\rfloor</math>
+
+=== Eye of Ayak ===
+
+Attacks with the [[Eye of Ayak]] follow this table.
+
+{| class="wikitable"
+!Distance<br />(squares)
+!Hit delay<br />(game ticks)
+|-
+|1
+|1
+|-
+|2
+|1
+|-
+|3
+|2
+|-
+|4
+|2
+|-
+|5
+|2
+|-
+|6
+|2
+|-
+|7
+|2
+|-
+|8
+|2
+|}
+
+=== Shield specials ===
+
+Shield special attacks such as the [[dragonfire shield]], [[dragonfire ward]], and [[ancient wyvern shield]] follow this table.
+
+{| class="wikitable"
+!Distance<br />(squares)
+!Hit delay<br />(game ticks)
+|-
+|1
+|2
+|-
+|2
+|3
+|-
+|3
+|3
+|-
+|4
+|3
+|-
+|5
+|3
+|-
+|6
+|3
+|-
+|7
+|3
+|-
+|8
+|4
+|-
+|9
+|4
+|-
+|10
+|4
+|}
+
+This gives the likely formula:
+:<math>2 + \left\lfloor \frac{4+\mathit{Distance}}{6} \right\rfloor</math>
+
+=== Ghostly Thralls ===
+Thralls calculate hit delay using its distance from an NPC's south-west tile, and their damage processes 1 tick later regardless of the defending monster's NPC index.
+{| class="wikitable"
+!Distance
+(squares)
+!Hit delay
+(game ticks)
+|-
+|1
+|0
+|-
+|2
+|0
+|-
+|3
+|0
+|-
+|4
+|0
+|-
+|5
+|0
+|-
+|6
+|0
+|-
+|7
+|1
+|-
+|8
+|1
+|-
+|9
+|1
+|-
+|10
+|1
+|-
+|11
+|1
+|}
+[[Category:Mechanics]]
+{{Combat Mechanics}}

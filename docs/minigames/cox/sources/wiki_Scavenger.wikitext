@@ -1,0 +1,15 @@
+{{otheruses|the race|the monster|Scavenger beast|the scavenger that needs to be fed cavern grubs|Corrupted scavenger}}
+
+[[File:Corrupted scavenger.png|thumb|277x277px|A corrupted scavenger]]
+'''Scavengers''' are a race of feral creatures found exclusively in the [[Chambers of Xeric]]. They closely resemble [[skavids]], but are bigger and have slightly different faces, possibly being a related branch of the species.{{CiteText|text=Creature keeper's journal|author=Creature keeper|quote=These scavengers are fascinating. I have read of similar things in the tales of the seafaring folk, who described voyages to distant lands where scuttling creatures called 'skavids' lurked in dark caves, stealing food and shiny objects from nearby settlements. Our scavengers may be a related branch of the species, though there is no sign of any intelligence here. |page=|loc=|notes=|name=}} Scavengers are also much less intelligent than skavids, and are capable of being trained.{{CiteText|text=Creature keeper's journal|author=Creature keeper|quote=First I must teach my scavengers to obey me. I will begin by making them dependent upon me for food, so that I can use food to reward obedience.|page=|loc=|notes=|name=}}
+
+Currently, the only scavengers in the game are the [[Scavenger beast|scavenger beasts]] and the [[corrupted scavenger]] found in the Chambers of Xeric. A third type, being the [[scavenger runt]], was removed from the game.
+
+==Trivia==
+* The scavengers appear to use the same models as [[Skavid|Skavids]] did prior to their [[Graphical updates (historical)|graphical update]] on 5 December 2006.
+
+==References==
+{{Reflist}}
+
+{{Chambers of Xeric}}
+[[Category:Races]]

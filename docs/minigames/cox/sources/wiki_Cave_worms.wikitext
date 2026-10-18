@@ -1,0 +1,33 @@
+{{Infobox Item
+|name = Cave worms
+|image = [[File:Cave worms.png]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = Yes
+|noteable = No
+|options = Drop
+|examine = For use with a fishing rod.
+|value = 1
+|weight = 0.000
+|id = 20853
+}}
+[[File:Cave worms detail.png|left|150px]]
+'''Cave worms''' are obtained from killing scavengers found within the [[Chambers of Xeric]]. They are used as bait for fishing within resource rooms.
+
+==Item sources==
+{{Drop sources|Cave worms}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 15 August 2019
+|update = Small Game Updates and Betas
+|change = The item's value was decreased from 1 to 0.
+}}
+{{Subject changes footer}}
+
+{{Chambers of Xeric}}

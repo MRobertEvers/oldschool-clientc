@@ -1,0 +1,51 @@
+{{Otheruses|the cleaned herb|the grimy herb|Grimy noxifer|the melee weapon from [[Araxxor]]|Noxious halberd}}
+{{Infobox Item
+|name = Noxifer
+|image = [[File:Noxifer.png]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Drop
+|examine = Lovely, it's been cleaned.
+|value = 2
+|weight = 0.007
+|id = 20902
+}}
+[[File:Noxifer detail.png|left|150px]]
+'''Noxifer''' is a [[herb]] found within the [[Chambers of Xeric]] by cleaning a [[grimy noxifer]]. It can be grown with a [[Farming]] level of 55, by planting [[noxifer seed]]s in [[Herb_patch_(Chambers_of_Xeric)|herb patches]] found within resource rooms. 60 [[Herblore]] is required to clean the grimy herb.
+
+Unlike other potions, a secondary ingredient must be present in the player's inventory before it can be used on a [[water-filled gourd vial]] to create the potions listed below.
+
+==Creation==
+{{Recipe
+|skill1 = Herblore
+|skill1lvl = 60
+|skill1boostable = Yes
+|skill1exp = 3
+|members = Yes
+|ticks = 0
+|mat1 = Grimy noxifer
+|mat1cost = no
+|output1 = Noxifer
+|output1cost = no
+}}
+
+==Products==
+{{Uses material list|Noxifer}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 22 March 2018
+|update = Upcoming Changes and Fake XP Drop Improvements
+|change = The item's value was increased from 1 to 2.
+}}
+{{Subject changes footer}}
+
+{{Chambers of Xeric}}
+{{Herb}}

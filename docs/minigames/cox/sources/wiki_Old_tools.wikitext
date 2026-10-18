@@ -1,0 +1,73 @@
+{{Infobox Scenery
+|name = Old tools
+|image = [[File:Old tools.png|250x250px]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|location = [[Chambers of Xeric]]
+|options = Take, Take Rake, Take Spade, Take Seed Dibber
+|examine = I wonder how long they've been down here.
+|map = No
+|id = 29771
+}}
+
+'''Old tools''' are found in the [[Chambers of Xeric]] in resource rooms. A set can also be found outside a shack, north of the beehives in [[Kastori]]. Players can take a [[Rake|rake]], [[Spade|spade]], or [[Seed dibber|seed dibber]] from the rack. Unlike [[Tools (gardening)|gardening tools]], a seed dibber can also be looted.
+
+==Locations==
+{{ObjectTableHead}}
+{{ObjectLocLine
+|name = Old tools
+|location = [[Chambers of Xeric]]
+|members = Yes
+|mapID = -1
+|plane = 0
+|x:3319,y:5452
+|x:3338,y:5446
+|x:3281,y:5464
+|mtype=pin
+|leagueRegion = Kourend
+}}
+{{ObjectLocLine
+|name = Old tools
+|location = [[Chambers of Xeric]]
+|members = Yes
+|mapID = -1
+|plane = 1
+|x:3348,y:5448
+|x:3319,y:5452
+|x:3273,y:5463
+|mtype=pin
+|leagueRegion = Kourend
+}}
+{{ObjectLocLine
+|name = Old tools
+|location = [[Kastori]]
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:1355,y:3038
+|mtype=pin
+|leagueRegion = Varlamore
+}}
+{{ObjectTableBottom}}
+
+==Loot==
+{{DropsTableHead|leagueRegion=Kourend, Varlamore}}
+{{DropsLineReward|name=Rake|quantity=1|rarity=Always|gemw=yes|alch=no|Raritynotes=<ref name=condition>Only if the player does not currently have one in their inventory.</ref>}}
+{{DropsLineReward|name=Spade|quantity=1|rarity=Always|gemw=yes|alch=no|Raritynotes=<ref name=condition/>}}
+{{DropsLineReward|name=Seed dibber|quantity=1|rarity=Always|gemw=yes|alch=no|Raritynotes=<ref name=condition/>}}
+{{DropsTableBottom}}
+{{Reflist}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 12 September 2024
+|update = Poll 71 and Darkmeyer Updates
+|change = The "Take Rake", "Take Spade", and "Take Seed Dibber" options have been added. They can be used to take tools without a chatbox prompt.
+}}
+{{Subject changes footer}}
+
+{{Tools}}
+{{Chambers of Xeric}}

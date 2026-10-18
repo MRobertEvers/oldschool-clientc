@@ -8429,8 +8429,12 @@ script_command(
              */
             assert(state->script);
             if( healed > current )
+            {
                 ToriRSServer_TicklogNpcHeal(npc, healed - current, healed, base,
                                             state->script->name);
+                /* the client's bar follows the heal (a bar-only update) */
+                npc->masks |= TORIRSSERVER_NMASK_HEADBAR;
+            }
         }
         else
             npc->stat_drain[values[0]] = base - healed;
@@ -10544,8 +10548,13 @@ script_command(
          * which is also right: an overload's self-hit is damage you dealt.
          */
         /* The tick log's HIT_PLAYER row names the npc whose script swung,
-         * which only this frame knows (-1 from a player's own script). */
-        ToriRSServer_TicklogSetDealerNpc(active_npc_slot(state));
+         * which only this frame knows (-1 from a player's own script). A hit
+         * a player's script deals to that same player (a ruby bolt's Blood
+         * Forfeit, a CoX tendril) has no npc dealer even with an npc bound
+         * -- the shot's target was. (Only a PLAYER's script: an npc's queue armed
+         * by its target binds that same player and is the npc's own hit.) */
+        ToriRSServer_TicklogSetDealerNpc(
+            (target_player == saved_player && !trigger_is_ai_npc(state->trigger)) ? -1 : active_npc_slot(state));
         ToriRSServer_CombatHitPlayerFrom(
             srv, values[1], values[2],
             saved_player ? (int)(saved_player - &srv->players[0]) : -1);
@@ -13066,6 +13075,13 @@ script_command(
 
         if( !SSVM_PopInt(state, &coord) )
             return 1;
+        /* The same answer combat gives (ToriRSServer_CombatMultiway): a map
+         * instance is multi-combat, whatever the zone set says of its tiles. */
+        if( ToriRSServer_MapInstanceFind(ToriRSServer_CoordX(coord), ToriRSServer_CoordZ(coord)) )
+        {
+            SSVM_PushInt(state, 1);
+            return 1;
+        }
         SSVM_PushInt(state, ToriRSServer_ContentMultiway(ToriRSServer_CoordX(coord),
                                                      ToriRSServer_CoordZ(coord),
                                                      ToriRSServer_CoordLevel(coord)));

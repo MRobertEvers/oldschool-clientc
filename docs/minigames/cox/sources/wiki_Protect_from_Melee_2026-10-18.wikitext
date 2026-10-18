@@ -1,0 +1,39 @@
+{{External|rs|rsc=Paralyze Monster}}
+{{Infobox Prayer
+|name = Protect from Melee
+|image = [[File:Protect from Melee.png]]
+|release = [[29 March]] [[2004]]
+|update = RS2 Launched!
+|members = No
+|level = 43
+|drain = 20
+|effect = Protection from close attacks. (Drain: 1pt per 3s)
+|sound = [[File:Protect from Melee.ogg]]
+}}
+[[File:Protect from Melee overhead.png|left]]
+'''Protect from Melee''' is an [[overhead]] [[Melee]] [[protection prayer]] accessible to players with a [[Prayer]] level of at least 43. The prayer allows the player to resist 100% of the incoming melee damage dealt by monsters and 40% of melee damage by other players. It depletes prayer at a rate of 1 point per 3 seconds (or 5 [[game tick]]s).
+
+Tougher monsters, mainly [[PvM]] or certain quest [[bosses]], are able to hit through this prayer or deal reduced damage (for example, [[Kruk]] from [[Monkey Madness II]]).
+
+Protect from Melee is very useful when fighting monsters that have melee-based attacks, as it negates all melee damage. This makes it commonly sought after by players attempting to do [[quests]].
+
+Protection prayers only reduce damage in Player versus Player combat without affecting the accuracy of the attack.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/555810477662797825|date=15 January 2015|archiveurl=https://reldo.runescape.wiki/i/100992|archivedate=30 May 2020|quote=They just reduce damage.}}
+
+==Flicking==
+A strategy to use as few [[prayer points]] as possible without losing the respective effect is known as prayer flicking. Players may turn on their chosen prayer just before being hit by an enemy, and then turn off the prayer just after being hit. If a player does this accurately, no prayer points will be lost (as the prayer will be activated whilst damage is calculated on a game tick, but not for multiple consecutive ticks that would cause prayer drain). For more detail see [[Prayer Flicking]].
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 26 March 2025
+|update = Poll 83 QoL Changes
+|change = The prayer's tooltip now includes the base drain rate of the prayer.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*In ''[[RuneScape Classic]]'', this prayer is known as "Paralyze Monster". It requires a [[Prayer]] level of 37 to use and is 100% effective on all [[NPCs]] (since NPCs do not use [[Magic]] or [[Ranged]] on RSC). This prayer does not work on players in the [[Wilderness]] or in duels.
+
+==References==
+{{Reflist}}
+{{Prayers}}

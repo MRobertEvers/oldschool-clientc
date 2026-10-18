@@ -1,0 +1,35 @@
+{{Infobox Scenery
+|version1 = Rocks
+|version2 = Rubble
+|name1 = Rocks
+|name2 = Rubble
+|image1 = [[File:Rocks (Chambers of Xeric).png|250x250px]]
+|image2 = [[File:Rubble (Chambers of Xeric).png|250x250px]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|location = [[Chambers of Xeric]]
+|options1 = Mine
+|options2 = Cross
+|examine1 = How inconvenient.
+|examine2 = How convenient.
+|map1 = {{Map|name=Rocks (Chambers of Xeric)|3272,5222|3314,5238|3353,5224|plane=1|mapID=-1|mtype=pin}}
+|map2 = {{Map|name=Rubble (Chambers of Xeric)|3272,5222|3314,5238|3353,5224|plane=1|mapID=-1|mtype=pin}}
+|id1 = 29738
+|id2 = 29739
+|leagueRegion = Kourend
+}}
+'''Rocks''' can be found within [[scavenger beast|scavenger]] rooms during the [[Chambers of Xeric]]. Players can mine the rocks, with the use of a [[pickaxe]], to create a shortcut through the room by creating climbable rubble. Players who mine the rocks will receive points for the raid. The [[Mining]] level required to mine the rocks will vary based on the Mining levels of the players participating in the raid.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 29 November 2023
+|update = Chambers of Xeric Changes
+|poll = Chambers of Xeric Room Improvements
+|change = * The points gained and the speed at which the rocks are mined have been increased.
+}}
+{{Subject changes footer}}
+
+{{Chambers of Xeric}}

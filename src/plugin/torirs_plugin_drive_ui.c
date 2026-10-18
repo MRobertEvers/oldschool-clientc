@@ -41,6 +41,7 @@
 #include "lua.h"
 #include "engine/world_builder/world_builder.h"
 #include "plugin/torirs_drive_plan_lua.h"
+#include "plugin/torirs_drive_cox_lua.h"
 #include "torirsserver/torirs_server.h"
 
 #include <assert.h>
@@ -443,6 +444,17 @@ drive_ui_fill_npc_combat(
 
     out->hit_damage = -1;
     out->hit_cycle = 0;
+    out->splat_count = 0;
+    for( i = 0; i < WORLD_ENTITY_DAMAGE_SLOTS; i++ )
+    {
+        if( combat->damage_start_cycles[i] <= cycle && combat->damage_cycles[i] > cycle )
+        {
+            out->splat_damage[out->splat_count] = (int)combat->damage_values[i];
+            out->splat_type[out->splat_count] = (int)combat->damage_types[i];
+            out->splat_start[out->splat_count] = combat->damage_start_cycles[i];
+            out->splat_count++;
+        }
+    }
     for( i = 0; i < WORLD_ENTITY_DAMAGE_SLOTS; i++ )
     {
         if( combat->damage_start_cycles[i] > cycle || combat->damage_cycles[i] <= cycle )
@@ -2529,6 +2541,19 @@ drive_ui_push_npc_row(struct lua_State* L, struct DriveNpcRow const* row)
     lua_setfield(L, -2, "health_active");
     lua_pushinteger(L, row->hit_damage);
     lua_setfield(L, -2, "hit_damage");
+    lua_newtable(L);
+    for( int k = 0; k < row->splat_count; k++ )
+    {
+        lua_newtable(L);
+        lua_pushinteger(L, row->splat_damage[k]);
+        lua_setfield(L, -2, "damage");
+        lua_pushinteger(L, row->splat_type[k]);
+        lua_setfield(L, -2, "type");
+        lua_pushinteger(L, row->splat_start[k]);
+        lua_setfield(L, -2, "start");
+        lua_rawseti(L, -2, k + 1);
+    }
+    lua_setfield(L, -2, "splats");
     lua_pushinteger(L, row->hit_cycle);
     lua_setfield(L, -2, "hit_cycle");
     lua_pushinteger(L, row->yaw);
@@ -2861,6 +2886,54 @@ lua_drive_player_tile(struct lua_State* L)
     return 2;
 }
 
+/* api_drive.instance_zone(x, z, level) -> result, { template_x, template_z,
+ * template_level, rotation }: the instance template zone this client was
+ * sent for that tile -- the REBUILD_REGION grid the app keeps
+ * (rebuild_instance_zones, the CoX helper's source), decoded as
+ * app_plugin_instance_zone does. Scriptrun answers the same
+ * (ScriptrunCore_InstanceZone). */
+static int
+lua_drive_instance_zone(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+    int x = (int)luaL_checkinteger(L, 1);
+    int z = (int)luaL_checkinteger(L, 2);
+    int level = (int)luaL_checkinteger(L, 3);
+    int dx;
+    int dz;
+    int32_t packed;
+
+    assert(app);
+    if( !app->rebuild_instance_active || level < 0 || level > 3 )
+    {
+        lua_pushstring(L, "not_found");
+        lua_pushnil(L);
+        return 2;
+    }
+    dx = (x >> 3) - (app->rebuild_instance_zone_x - 6);
+    dz = (z >> 3) - (app->rebuild_instance_zone_z - 6);
+    packed = 0;
+    if( dx >= 0 && dx < 13 && dz >= 0 && dz < 13 )
+        packed = app->rebuild_instance_zones[level * 169 + dx * 13 + dz];
+    if( packed == 0 )
+    {
+        lua_pushstring(L, "not_found");
+        lua_pushnil(L);
+        return 2;
+    }
+    lua_pushstring(L, "ok");
+    lua_newtable(L);
+    lua_pushinteger(L, ((packed >> 14) & 0x3ff) * 8);
+    lua_setfield(L, -2, "template_x");
+    lua_pushinteger(L, ((packed >> 3) & 0x7ff) * 8);
+    lua_setfield(L, -2, "template_z");
+    lua_pushinteger(L, (packed >> 24) & 3);
+    lua_setfield(L, -2, "template_level");
+    lua_pushinteger(L, (packed >> 1) & 3);
+    lua_setfield(L, -2, "rotation");
+    return 2;
+}
+
 /* api_drive.route(x, z [, opts]) -> result, { tiles = { {x, z}, ... },
  * ticks = { {x, z}, ... }, arrive = {x, z}, nearest, run, from = {x, z} }
  * (DriveUi_Route). `tiles` is every tile of the walk in walk order (the
@@ -3041,6 +3114,84 @@ lua_drive_bloat_first_bad(struct lua_State* L)
         return 1;
     }
     return DriveBloatFirstBadLua(L, 1, cm, app->world->_base_tile_x, app->world->_base_tile_z);
+}
+
+/* api_drive.npc_stall(x, z, size, tx, tz, steps): a naive npc walk over the
+ * client's collision map at the player's level (plugin/torirs_drive_cox_lua.h
+ * DriveNpcStallLua, shared with scriptrun's d_npc_stall). */
+static int
+lua_drive_npc_stall(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+    struct WorldEntity_Player* player;
+    struct CollisionMap* cm;
+    int level;
+
+    if( !app->world || !app->world->load_complete )
+    {
+        lua_pushstring(L, "not_visible");
+        lua_pushnil(L);
+        return 2;
+    }
+    player = drive_ui_local_player(app);
+    if( !player )
+    {
+        lua_pushstring(L, "not_visible");
+        lua_pushnil(L);
+        return 2;
+    }
+    level = player->grid_position.level;
+    if( level < 0 )
+        level = 0;
+    if( level >= COLLISION_LEVELS )
+        level = COLLISION_LEVELS - 1;
+    cm = drive_ui_collision_maps(app)[level];
+    if( !cm )
+    {
+        lua_pushstring(L, "no_row");
+        lua_pushnil(L);
+        return 2;
+    }
+    return DriveNpcStallLua(L, 1, cm, app->world->_base_tile_x, app->world->_base_tile_z);
+}
+
+/* api_drive.npc_sees(x, z, size, tx, tz): the watcher sight test over the
+ * client's collision map at the player's level (plugin/torirs_drive_cox_lua.h
+ * DriveNpcSeesLua, shared with scriptrun's d_npc_sees). */
+static int
+lua_drive_npc_sees(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+    struct WorldEntity_Player* player;
+    struct CollisionMap* cm;
+    int level;
+
+    if( !app->world || !app->world->load_complete )
+    {
+        lua_pushstring(L, "not_visible");
+        lua_pushnil(L);
+        return 2;
+    }
+    player = drive_ui_local_player(app);
+    if( !player )
+    {
+        lua_pushstring(L, "not_visible");
+        lua_pushnil(L);
+        return 2;
+    }
+    level = player->grid_position.level;
+    if( level < 0 )
+        level = 0;
+    if( level >= COLLISION_LEVELS )
+        level = COLLISION_LEVELS - 1;
+    cm = drive_ui_collision_maps(app)[level];
+    if( !cm )
+    {
+        lua_pushstring(L, "no_row");
+        lua_pushnil(L);
+        return 2;
+    }
+    return DriveNpcSeesLua(L, 1, cm, app->world->_base_tile_x, app->world->_base_tile_z);
 }
 
 /* api_drive.locs_of(radius, ids) -> api_drive.locs(radius)'s rows, in its
@@ -3452,6 +3603,7 @@ static struct LuaFn const LUA_DRIVE_UI_FNS[] = {
     {"loc_anims", lua_drive_loc_anims},
     {"projectiles", lua_drive_projectiles},
     {"player_tile", lua_drive_player_tile},
+    {"instance_zone", lua_drive_instance_zone},
     {"route", lua_drive_route},
     {"plan", lua_drive_plan},
     {"aplan", lua_drive_aplan},
@@ -3461,6 +3613,8 @@ static struct LuaFn const LUA_DRIVE_UI_FNS[] = {
     {"tiles_nearest", lua_drive_tiles_nearest},
     {"sote_guard", lua_drive_sote_guard},
     {"bloat_first_bad", lua_drive_bloat_first_bad},
+    {"npc_stall", lua_drive_npc_stall},
+    {"npc_sees", lua_drive_npc_sees},
     {"locs_of", lua_drive_locs_of},
     {"key", lua_drive_key},
     {"text", lua_drive_text},

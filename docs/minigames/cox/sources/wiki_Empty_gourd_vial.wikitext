@@ -1,0 +1,43 @@
+{{Infobox Item
+|name = Empty gourd vial
+|image = [[File:Empty gourd vial.png]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Drop
+|examine = An empty hollowed out fruit. It could be used as a makeshift vial.
+|value = 2
+|weight = 0.010
+|id = 20800
+}}
+[[File:Empty gourd vial detail.png|left|120px]]
+'''Empty gourd vial''' are obtained from picking [[gourd tree]]s found in resource rooms within the [[Chambers of Xeric]]. They must then be filled with water, by using them on [[Geyser|geysers]], to create a [[water-filled gourd vial]], which is used to make potions within the Chambers.
+
+==Products==
+{{Uses material list|Empty gourd vial}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 22 March 2018
+|update = Upcoming Changes and Fake XP Drop Improvements
+|change = The item's value was increased from 1 to 2.
+}}
+{{Subject changes
+|date = 5 January 2017
+|update = Chambers of Xeric
+|change = The item was made available with the release of the Chambers of Xeric in the live game.
+}}
+{{Subject changes
+|date = 8 December 2016
+|update = Upcoming Changes and Fake XP Drop Improvements
+|change = The item was released as part of the [[Unrestricted_world#Chambers_of_Xeric_Load_Test|Raids Load Test]] beta.
+}}
+{{Subject changes footer}}
+
+{{Chambers of Xeric}}

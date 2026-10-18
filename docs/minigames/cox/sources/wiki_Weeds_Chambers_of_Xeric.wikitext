@@ -1,0 +1,48 @@
+{{Infobox Scenery
+|name = Weeds
+|image = [[File:Weeds (Chambers of Xeric).png|250x250px]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|location = [[Chambers of Xeric]]
+|options = Rake
+|examine = Weeds really do grow everywhere.
+|map = No
+|id = 29773
+|leagueRegion = Kourend
+}}
+'''Weeds''' can be found at the start and the ends of [[Chambers of Xeric]] floors. Players can rake the weeds to obtain [[buchu seed|buchu]], [[golpar seed|golpar]], or [[noxifer seed]]s. Once the player has started raking, they will continue to rake and obtain seeds until the action is cancelled. A [[rake]] is obtainable from the [[old tools]] found within the raid.
+
+==Locations==
+{{ObjectTableHead}}
+{{ObjectLocLine
+|name = Weeds
+|location = Start of [[Chambers of Xeric]] floors
+|members = Yes
+|mapID = -1
+|plane = 0
+|3277,5710|3277,5742|3311,5707|3311,5739|3351,5718|3351,5750
+|mtype = pin
+|leagueRegion = Kourend
+}}
+{{ObjectLocLine
+|name = Weeds
+|location = End of [[Chambers of Xeric]] floors
+|members = Yes
+|mapID = -1
+|plane = 0
+|3281,5138|3281,5170|3315,5171
+|mtype = pin
+|leagueRegion = Kourend
+}}
+{{ObjectTableBottom}}
+
+==Loot==
+{{DropsTableHead}}
+{{DropsLineReward|name=Buchu seed|quantity=1-3|rarity=1/3|gemw=no|alch=no}}
+{{DropsLineReward|name=Golpar seed|quantity=1-3|rarity=1/3|gemw=no|alch=no}}
+{{DropsLineReward|name=Noxifer seed|quantity=1-3|rarity=1/3|gemw=no|alch=no}}
+{{DropsTableBottom}}
+
+{{Chambers of Xeric}}

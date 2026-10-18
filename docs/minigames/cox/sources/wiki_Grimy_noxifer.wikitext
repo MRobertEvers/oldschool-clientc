@@ -1,0 +1,38 @@
+{{Otheruses|the grimy herb|the cleaned herb|Noxifer}}
+{{Infobox Item
+|name = Grimy noxifer
+|image = [[File:Grimy noxifer.png]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Clean, Drop
+|examine = Eww, it's grimy.
+|value = 2
+|weight = 0.007
+|id = 20901
+}}
+[[File:Grimy noxifer detail.png|left|150px]]
+'''Grimy noxifer''' is a [[herb]] found within the [[Chambers of Xeric]]. It can be grown with a [[Farming]] level of 55, by planting [[noxifer seed]]s in [[Herb_patch_(Chambers_of_Xeric)|herb patches]] found within resource rooms. It must be cleaned into [[noxifer]] before it can be used to brew potions, and requires 60 [[Herblore]] to be cleaned.
+
+==Products==
+{{Uses material list|Grimy noxifer}}
+
+==Item sources==
+{{Drop sources|Grimy noxifer}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 22 March 2018
+|update = Upcoming Changes and Fake XP Drop Improvements
+|change = The item's value was increased from 1 to 2.
+}}
+{{Subject changes footer}}
+
+{{Chambers of Xeric}}
+{{Herb}}

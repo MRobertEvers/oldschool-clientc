@@ -1,0 +1,17 @@
+{{Infobox Scenery
+|name = Gourd tree
+|image = [[File:Gourd tree.png|250px]]
+|release = [[8 December]] [[2016]]
+|update = Load Test, Tournament World & QOL
+|members = Yes
+|quest = No
+|location = [[Chambers of Xeric]]
+|options = Pick, Pick-lots
+|examine = A tree bearing a vessel shaped fruit.
+|map = {{Map|3282,5462|3300,5461|3304,5450|3278,5465|3299,5458|3350,5461|3344,5454||plane=0|mapID=-1|mtype=pin}}
+|id = 29772
+}}
+'''Gourd trees''' are [[tree]]s found in the [[Chambers of Xeric]]. When picked, they yield [[empty gourd vial]]s, which are used on the nearby geyser to [[Water-filled gourd vial|fill them with water]], which are then used to brew [[Chambers of Xeric/Potions|potions]].
+
+{{Chambers of Xeric}}
+{{Trees}}

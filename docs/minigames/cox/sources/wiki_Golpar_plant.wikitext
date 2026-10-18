@@ -1,0 +1,77 @@
+{{Infobox Scenery
+|defver = 5
+|version1 = Stage 1
+|version2 = Stage 2
+|version3 = Stage 3
+|version4 = Stage 4
+|version5 = Grown
+|name = Herb patch
+|image1 = [[File:Herb patch (Golpar, stage 1).png|250px]]
+|image2 = [[File:Herb patch (Golpar, stage 2).png|250px]]
+|image3 = [[File:Herb patch (Golpar, stage 3).png|250px]]
+|image4 = [[File:Herb patch (Golpar, stage 4).png|250px]]
+|image5 = [[File:Herb patch (Golpar, grown).png|250px]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|location = [[Chambers of Xeric]] [[herb patch]]
+|options1 = Inspect
+|options2 = Inspect
+|options3 = Inspect
+|options4 = Inspect
+|options5 = Pick, Inspect, Clear
+|examine1 = A golpar herb is growing here.
+|examine2 = A golpar herb is growing here.
+|examine3 = A golpar herb is growing here.
+|examine4 = A golpar herb is growing here.
+|examine5 = A golpar herb has grown here.
+|map = No
+|id1 = 29998
+|id2 = 30001
+|id3 = 30004
+|id4 = 30007
+|id5 = 30010
+|leagueRegion = kourend
+}}
+'''Golpar''' is a [[Farming]] plant used in the [[Chambers of Xeric]] and grown at level 27 Farming. Golpar is grown by planting a [[golpar seed]] in a [[Chambers of Xeric]] [[herb patch]]. A [[seed dibber]] is needed to plant the seed.
+After 30 seconds, the planted seed will become [[Golpar]]. 
+
+Planting the Golpar seeds gives 4 farming experience.
+
+Each Golpar, when picked, gives 10 farming experience. The Golpar do not grow back after they are picked. The Golpar may be picked after the plant is completely grown.
+==Farming info==
+{{Farming info
+|name = Golpar
+|level = 27
+|patch = [[Chambers of Xeric]] [[herb patch]]
+|seed = {{plink|Golpar seed}}
+|seedsper = 1
+|payment = No
+|time = 30 seconds
+|plant = [[Golpar (plant)|Golpar]]
+|crop = {{plink|Grimy golpar}}
+|yield = 
+|regrow = No
+|plantxp = 4
+|checkxp = No
+|harvestxp = 10
+}}
+
+{{DropsTableHead}}
+{{DropsLineSkill|name=Grimy golpar|quantity=1|rarity=Always|skill=Farming}}
+{{DropsTableBottom}}
+{{reflist|group=d}}
+
+==Growth stages==
+{{Growth stages
+|stage1 = [[File:Herb patch (Golpar, stage 1).png|33px]]
+|stage2 = [[File:Herb patch (Golpar, stage 2).png|57px]]
+|stage3 = [[File:Herb patch (Golpar, stage 3).png|132px]]
+|stage4 = [[File:Herb patch (Golpar, stage 4).png|156px]]
+|stage5 = [[File:Herb patch (Golpar, grown).png|164px]]
+}}
+
+{{Farming plants}}
+
+[[Category:Needs skilling success chart]]

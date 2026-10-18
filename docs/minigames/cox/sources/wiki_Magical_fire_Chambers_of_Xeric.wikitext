@@ -1,0 +1,20 @@
+{{Infobox Scenery
+|name = Magical fire
+|image = [[File:Magical fire.png|250x250px]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|location = [[Chambers of Xeric]]
+|options = Cross
+|examine = There's something weird about this fire, but it's definitely hot.
+|map = No
+|id = 30019
+}}
+'''Magical fire''' is the damaging barrier that appears after the player wakes up [[Vasa Nistirio]] during the [[Chambers of Xeric]]. It discourages players from leaving the fight to restock on food or other items.
+
+The game categorises the magical fire as a type of [[Fire#Permanent fires|permanent fires]] for [[Cooking]], and so raw fish can be used on it like any other fire.
+
+A green variant of the Magical fire is also encountered during the quest [[Sins of the Father]] during the fight with [[Damien Leucurte]] as a barrier to the exit, as well as being created by Lecurte during the fight as a boss mechanic.
+
+{{Chambers of Xeric}}

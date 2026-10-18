@@ -5580,6 +5580,12 @@ advance_npcs(struct ToriRSServer* srv)
         ToriRSServer_CombatNpcPoisonTick(srv, slot);
         if( !npc->active || npc->death_tick >= 0 )
             continue;
+        /* Removed (`npc_del`, a free) and only held so its last animation
+         * ships: it takes no more turns. Its timer used to run once more,
+         * after its instance was gone (a CoX scratch Muttadile read a room
+         * register from nowhere). */
+        if( npc->free_wanted )
+            continue;
 
         /*
          * A timed `npc_changetype` expiring: back to `spawn_type`.
@@ -5612,11 +5618,11 @@ advance_npcs(struct ToriRSServer* srv)
          * attack delay, eventually filling the glyph and player queues.
          *
          * The delay asked about is the one the turn BEGAN with (phase_npcs
-         * takes it before the combat swing), not the live deadline. The
-         * reference drains the queue before `processMovementInteraction`
-         * swings, so a swing ending in `npc_delay(4)` still lets this turn's
-         * hits land; here the swing runs first, and reading the deadline it
-         * had just moved skipped the queue on every swing tick. With an
+         * takes it), not the live deadline. The reference drains the queue
+         * before `processMovementInteraction` swings, so a swing ending in
+         * `npc_delay(4)` still lets this turn's hits land; when the swing ran
+         * first (before 2026-10-18), reading the deadline it had just moved
+         * skipped the queue on every swing tick. With an
          * attackrate of 4 that was every tick the npc was not delayed, and the
          * adult dragons took no damage at all (b71, dragon.rs2). */
         {
@@ -5731,6 +5737,17 @@ advance_npcs(struct ToriRSServer* srv)
                     npc->queue[i].arg);
             }
         }
+        /*
+         * The combat swing, AFTER the timers and the queue: `Npc.processNpc`
+         * runs processTimers(), processQueue(), then the movement and
+         * interaction that swing. The swing used to run in phase_npcs ahead of
+         * every npc's timers and queue, so a hit landing this tick landed after
+         * the npc had already swung -- a flinch came a tick late -- and an
+         * `npc_queue(N)` armed by the swing was decremented in the same turn
+         * and fired on T+N-1 (CoX Guardians/Shamans, 2026-10-18).
+         */
+        if( npc->active && npc->death_tick < 0 )
+            ToriRSServer_CombatNpcTick(srv, slot);
         if( !npc->active )
             continue;
 
@@ -12138,6 +12155,24 @@ ToriRSServer_RunCheatLadder(
      * defaults to 0 rather than to the player's current plane so that the two
      * spellings mean the same thing: a tile pair with no plane is the ground
      * floor, wherever the typist happens to be standing. */
+    /* `::seedrandom <n>`: this player's own random stream (the one its
+     * scripts draw from) set from n. A test that builds a raid by cheat sends
+     * it in the same tick, so the build draws the same numbers on both lanes
+     * whatever per-tick draws the player made before (a cheat lands a tick
+     * apart on the live and scriptrun lanes; CoX ::coxtest, 2026-10-18). */
+    {
+        unsigned long long seed_value;
+
+        if( sscanf(text, "seedrandom %llu", &seed_value) == 1 )
+        {
+            struct ToriRSServerRandomStream* stream = ToriRSServer_WorldPlayerRandom(player);
+
+            stream->script = ((uint64_t)seed_value ^ 0x5DEECE66DULL) & ((1ULL << 48) - 1);
+            stream->engine = (uint32_t)(seed_value * 2654435761u) | 1u;
+            say(srv, "Random seeded %llu.", seed_value);
+            return TORIRSSERVER_TRIGGER_RAN;
+        }
+    }
     tile_level = 0;
     if( sscanf(text, "tele %d %d %d", &tile_x, &tile_z, &tile_level) >= 2 )
     {
@@ -16942,7 +16977,11 @@ phase_npcs(struct ToriRSServer* srv)
          * to the turn the swing was made in. */
         srv->npcs[slot].turn_began_tick = srv->tick;
         srv->npcs[slot].turn_began_delayed = srv->tick < srv->npcs[slot].delayed_until;
-        ToriRSServer_CombatNpcTick(srv, slot);
+        /* A dying npc's death step is not a turn: it runs here, first. Its
+         * combat swing is in its turn, after its timers and queue
+         * (advance_npcs). */
+        if( srv->npcs[slot].death_tick >= 0 )
+            ToriRSServer_CombatNpcTick(srv, slot);
     }
     advance_npcs(srv);
     /* After combat and modes have claimed facing: clear idle latches

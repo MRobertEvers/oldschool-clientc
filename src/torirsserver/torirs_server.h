@@ -970,6 +970,11 @@ enum
     TORIRSSERVER_NMASK_CHANGE_TYPE = 0x20,
     TORIRSSERVER_NMASK_SPOTANIM = 0x40,
     TORIRSSERVER_NMASK_FACE_COORD = 0x80,
+    /* Not a legacy wire bit (the legacy encoders read `masks & 0xff`): the
+     * npc's hitpoints changed with no hit -- a heal -- and the rev-239
+     * encoder sends the headbar alone, as the reference sends a bar update
+     * on `npc_statheal` (a Vespula grub's meter, a soldier's heal). */
+    TORIRSSERVER_NMASK_HEADBAR = 0x100,
 };
 
 /* Appearance/equipment slot numbering. The cache's wearpos fields, the worn

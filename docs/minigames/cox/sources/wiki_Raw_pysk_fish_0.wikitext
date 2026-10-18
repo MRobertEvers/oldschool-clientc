@@ -1,0 +1,42 @@
+{{Infobox Item
+|name = Raw pysk fish (0)
+|image = [[File:Raw pysk fish (0).png]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Drop
+|examine = I should try cooking this.
+|value = 1
+|weight = 0.450
+|id = 20855
+}}
+[[File:Raw pysk fish (0) detail.png|left|150px]]
+'''Raw pysk fish (0)''' is a type of fish obtained by from fishing spots within the [[Chambers of Xeric]]. Raw pysk fish require level 1 in Fishing to catch and grants the player 20 [[experience]] when caught.
+
+They are cooked with a [[Cooking]] level of 1 to produce [[pysk fish (0)]], granting 10 experience in Cooking.
+
+==Fishing info==
+{{Fishing info
+|name = Raw pysk fish (0)
+|level = 1
+|xp = 20
+|spot = [[Bubbles]]
+|tool = {{plink|Fishing rod}}
+|bait = {{plink|Cave worms}}
+}}
+
+==Products==
+{{Uses material list|Raw pysk fish (0)}}
+
+==Item sources==
+{{Drop sources|Raw pysk fish (0)}}
+
+{{Chambers of Xeric}}
+{{Fish}}
+
+[[Category:Needs skilling success chart]]

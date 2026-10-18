@@ -1,0 +1,63 @@
+{{Infobox Scenery
+|version1 = Closed
+|version2 = Open (poison)
+|version3 = Open (after completion)
+|version4 = Open (cavern grubs)
+|name = Chest
+|image1 = [[File:Chest (Chambers of Xeric, closed).png|250x250px]]
+|image2 = [[File:Chest (Chambers of Xeric, open, poison).png|250x250px]]
+|image3 = [[File:Chest (Chambers of Xeric, open, after completion).png|250x250px]]
+|image4 = [[File:Chest (Chambers of Xeric, open, cavern grubs).png|250x250px]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|location = [[Chambers of Xeric]] Thieving puzzle room
+|options1 = Open
+|options2 = None
+|options3 = None
+|options4 = None
+|examine1 = Looks locked.
+|examine2 = It's open.
+|examine3 = The cocoons have not hatched.
+|examine4 = Some cocoons have hatched.
+|map = {{Map|x:3291,y:5393|x:3334,y:5383|x:3343,y:5390|x:3336,y:5385|x:3312,y:5382|x:3316,y:5393|x:3292,y:5391|x:3281,y:5395|x:3346,y:5388|x:3321,y:5386|x:3287,y:5387|x:3279,y:5393|x:3276,y:5399|x:3281,y:5401|x:3288,y:5396|x:3305,y:5383|x:3307,y:5383|x:3283,y:5403|x:3280,y:5385|x:3300,y:5390|x:3332,y:5392|x:3316,y:5389|x:3288,y:5390|x:3336,y:5402|x:3333,y:5386|x:3288,y:5387|x:3334,y:5393|x:3333,y:5389|x:3288,y:5384|x:3322,y:5392|x:3320,y:5385|x:3349,y:5390|x:3304,y:5383|x:3337,y:5390|x:3275,y:5394|x:3305,y:5393|x:3334,y:5400|x:3338,y:5405|x:3290,y:5386|x:3345,y:5399|x:3331,y:5397|x:3345,y:5394|x:3322,y:5388|x:3340,y:5395|x:3315,y:5383|x:3283,y:5379|x:3344,y:5389|x:3345,y:5400|x:3313,y:5389|x:3309,y:5394|x:3301,y:5388|x:3343,y:5399|x:3277,y:5398|x:3285,y:5390|x:3345,y:5403|x:3313,y:5384|x:3347,y:5401|x:3336,y:5389|x:3337,y:5400|x:3342,y:5404|x:3284,y:5393|x:3289,y:5391|x:3285,y:5380|x:3335,y:5393|x:3284,y:5398|x:3335,y:5396|x:3340,y:5404|x:3337,y:5398|x:3317,y:5382|x:3288,y:5400|x:3276,y:5395|x:3342,y:5402|x:3319,y:5382|x:3274,y:5396|x:3279,y:5392|x:3280,y:5389|x:3307,y:5382|x:3312,y:5390|x:3288,y:5394|x:3342,y:5392|x:3286,y:5401|x:3303,y:5390|x:3346,y:5396|x:3334,y:5397|x:3304,y:5390|x:3283,y:5396|x:3284,y:5383|x:3339,y:5402|x:3340,y:5379|x:3307,y:5391|x:3303,y:5392|x:3311,y:5384|x:3320,y:5389|x:3275,y:5387|x:3334,y:5395|x:3338,y:5380|x:3302,y:5382|x:3312,y:5394|x:3341,y:5397|x:3333,y:5391|x:3283,y:5390|x:3322,y:5394|x:3320,y:5383|x:3341,y:5400|x:3278,y:5399|x:3304,y:5381|x:3280,y:5403|x:3338,y:5402|x:3306,y:5385|x:3277,y:5385|x:3285,y:5393|x:3343,y:5402|x:3337,y:5384|x:3283,y:5384|x:3279,y:5381|x:3309,y:5384|x:3314,y:5392|x:3318,y:5391|x:3330,y:5401|x:3285,y:5396|x:3302,y:5385|x:3340,y:5391|x:3318,y:5384|x:3285,y:5399|x:3302,y:5386|x:3277,y:5394|x:3285,y:5386|x:3310,y:5391|x:3338,y:5398|x:3272,y:5397|x:3284,y:5400|x:3335,y:5390|x:3285,y:5389|x:3289,y:5395|x:3277,y:5400|x:3310,y:5381|x:3333,y:5396|x:3317,y:5391|x:3279,y:5402|x:3339,y:5391|x:3281,y:5398|x:3308,y:5387|x:3335,y:5399|x:3310,y:5379|x:3287,y:5382|x:3305,y:5386|x:3336,y:5381|x:3346,y:5391|x:3300,y:5387|x:3338,y:5385|x:3276,y:5393|x:3339,y:5396|x:3337,y:5395|x:3316,y:5386|x:3346,y:5392|x:3300,y:5384|x:3350,y:5391|x:3332,y:5394|x:3312,y:5388|x:3305,y:5379|x:3301,y:5392|x:3342,y:5394|x:3307,y:5379|x:3283,y:5399|x:3280,y:5397|x:3320,y:5390|x:3291,y:5388|x:3341,y:5393|x:3323,y:5391|x:3285,y:5402|x:3334,y:5405|x:3314,y:5387|x:3340,y:5382|x:3282,y:5391|x:3311,y:5389|x:3340,y:5387|x:3345,y:5397|x:3334,y:5403|x:3331,y:5399|x:3281,y:5382|x:3285,y:5395|x:3286,y:5384|x:3337,y:5386|x:3338,y:5393|x:3287,y:5395|x:3330,y:5403|x:3306,y:5388|x:3340,y:5389|x:3290,y:5390|x:3307,y:5393|x:3309,y:5389|x:3281,y:5388|x:3309,y:5392|x:3317,y:5384|x:3343,y:5393|x:3310,y:5385|x:3340,y:5399|x:3308,y:5378|x:3317,y:5387|x:3343,y:5396|x:3336,y:5391|x:3313,y:5385|x:3289,y:5389|x:3310,y:5383|plane=0|mapID=-1|mtype=pin}}
+|id1 = 29742
+|id2 = 29743
+|id3 = 29744
+|id4 = 29745
+}}
+
+The '''chests''' located inside the [[creature keeper]]'s room need to be opened during the [[Chambers of Xeric/Strategies#Thieving|Thieving puzzle]] of the [[Chambers of Xeric]]. They contain [[cavern grubs]], which are then put into the nearby [[trough (Chambers of Xeric)|feeding trough]] in order to put the [[corrupted scavenger]] to sleep.
+
+Upon successfully opening a chest, a random amount of grubs will be granted to the player that scales based on their Thieving level.{{CiteTwitter|author=JagexAsh|url=https://twitter.com/JagexAsh/status/1337827124917448704|date=12 December 2020|archiveurl=https://archive.is/4xfKJ|archivedate=17 December 2020|quote=It's randomised, but levels 50, 75 and 100 would increase the max by +1.}} A minimum of one cavern grub is awarded, with a chance to add an additional one to the chest for every 25 levels of Thieving. At levels 95 and above, the minimum yield is increased to 2.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1358138080918667265|date=6 February 2021|archiveurl=https://archive.ph/dcgU5|archivedate=17 January 2023|quote=Quantity is at least 1, or at least 2 if your level is 95+. It may be increased up to (Thieving / 25) randomly. (...)}} 
+
+One of these chests always contains a one-time loot of [[psykk bat (6)|psykk bat]]s; one bat per person in the raid when the chest is opened, with a minimum of 5 and a maximum of 25.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1494305447360221184|date=7 February 2022|archiveurl=https://reldo.runescape.wiki/i/108594|archivedate=9 April 2022}}
+Three chests contain poison which is released when opened, dealing 1-3 damage to anyone next to the chest. This does not inflict poison on the player (nor will poison immunity prevent it). The poison chests will automatically lock themselves so take note of which ones have poison to avoid opening them.
+
+Picklocking the chest has no level requirement and can be done at any [[Thieving]] level. For this reason, lockpicking at the Chambers of Xeric is one of the fastest Thieving training methods at early levels. ''(For more information, refer to the [[Thieving training#Levels 1–25: Chambers of Xeric|Thieving training guide]])''. Players carrying a [[lockpick]] or [[hairclip]] in their inventory have an improved chance of opening the chest, as laid out in the chart below. Upon clicking the chest, an attempt to open it will be made every game tick until the player succeeds.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1102328531483348993|date=3 March 2019|archiveurl=https://archive.ph/SrK1K|archivedate=17 January 2023|quote=[Does this 'chance of opening' roll every tick or every 3 ticks or something like that? (...)] Every tick, I think.}}
+
+===Success chance===
+The chance of successfully opening the chest without a lockpick is around 39% at level 1, scaling to about 61% at level 99.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1744337092082028806|date=8 Jan 2024|quote=[What about the base chance of thieving after the recent changes? (...)] Now 39% and 61% respectively.|archiveurl=https://archive.ph/NXJKk|archivedate=12 November 2025}} With a lockpick, these odds increase by a constant 21 percentage points.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1743681277276930549|date=6 Jan 2024|quote=[(...) How exactly is lockpick increasing odds of picking a chest in CoX thieving? (...)] +21 percentage points.|archiveurl=https://archive.is/62m1a|archivedate=12 November 2025}}
+
+{{Skilling success chart|label=Cavern grub chest thieving chance
+|label1=Normal|low1=99|high1=155|req1=1|color1=gray|image1=Cavern grubs.png
+|label2=Lockpick|low2=153|high2=209|req2=1|color2=dimgray|image2=Lockpick.png
+}}
+<!--
+===Quantity chance===
+Notably, this calculation picks a random integer between 0 and the maximum amount awardable inclusive, then raises the outcome up to the minimum.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1341736090844213248|date=23 December 2020|archiveurl=https://archive.ph/3cuos|archivedate=17 January 2023|quote=Ah, sorry, looks like I misread it. It's picking a random integer 0-max inclusive, then raising the result up to the minimum. So if the min were 2 and the max were 4, it'd roll 0, 1, 2, 3, 4 with equal chance, then apply a minimum of 2 by changing those outcomes to 2, 2, 2, 3, 4.}} As a result, lower outcomes are comparatively likelier: at level 100 or above, players have a 3/5 chance to receive 2 grubs; a 1/5 chance to receive 3 grubs; and a 1/5 chance to receive 4 grubs.-->
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 31 January 2019
+|update = Chambers of Xeric, Kebos, and Collection Log Changes
+|change = The Thieving level restriction was removed.
+}}
+{{Subject changes footer}}
+
+==References==
+{{Reflist}}
+
+{{Chambers of Xeric}}

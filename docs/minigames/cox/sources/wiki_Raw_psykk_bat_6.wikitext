@@ -1,0 +1,38 @@
+{{Infobox Item
+|name = Raw psykk bat (6)
+|image = [[File:Raw psykk bat (6).png]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Drop
+|examine = Looks like it might taste like chicken, if the chicken were dead for a week.
+|value = 1
+|weight = 0.350
+|id = 20882
+}}
+[[File:Raw psykk bat (6) detail.png|left|150px]]
+'''Raw psykk bat (6)''' is obtained by from catching [[psykk bat]]s within the [[Chambers of Xeric]]. Raw psykk bats require level 90 in Hunter to catch and grant the player 29 [[experience]] when caught.
+
+They are cooked with a [[Cooking]] level of 90 to produce [[psykk bat (6)]], granting 28 experience in Cooking.
+
+==Hunter info==
+{{Hunter info
+|name = Raw psykk bat (6)
+|level = 90
+|xp = 29
+|trap = {{plink|Butterfly net}}
+|retaliation = No
+}}
+
+==Products==
+{{Uses material list|Raw psykk bat (6)}}
+
+==Item sources==
+{{Drop sources|Raw psykk bat (6)}}
+
+{{Chambers of Xeric}}

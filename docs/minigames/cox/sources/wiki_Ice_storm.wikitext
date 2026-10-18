@@ -1,0 +1,16 @@
+{{Infobox Scenery
+|name = Ice storm
+|image = [[File:Ice storm.png|x250px]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|location = Chambers of Xeric
+|options = None
+|examine = The power of the icefiends has created a storm of ice.
+|map = No
+|id = 29876
+}}
+'''Ice storm''' is an object created by the icefiends in the Chambers of Xeric. It protects [[Ice demon]] until you light the braziers for long enough so you can really fight [[Ice demon]].
+
+{{Chambers of Xeric}}

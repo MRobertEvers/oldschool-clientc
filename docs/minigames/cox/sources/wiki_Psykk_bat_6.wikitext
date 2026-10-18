@@ -1,0 +1,46 @@
+{{Infobox Item
+|name = Psykk bat (6)
+|image = [[File:Psykk bat (6).png]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = No
+|noteable = No
+|edible = Yes
+|options = Eat, Drop
+|examine = Probably won't kill you.
+|value = 1
+|weight = 0.300
+|id = 20883
+}}
+[[File:Psykk bat (6) detail.png|left|150px]]
+'''Psykk bat (6)''' is a [[food]] item made by using [[raw psykk bat (6)]] on a [[fire]] within the [[Chambers of Xeric]]. Eating a psykk bat heals the player for 23 [[hitpoints]].
+
+Cooking psykk bat yields 28 [[Cooking]] [[experience]], and requires a Cooking level of 90.
+
+A variable number of psykk bats can also be obtained in the [[Thieving]] puzzle room. One of the [[chest (Chambers of Xeric)|chests]] in the room always contains a one-time loot of psykk bats; one bat per person in the raid when the chest is opened, with a minimum of 5 and a maximum of 25.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1494305447360221184|date=7 February 2022|archiveurl=https://reldo.runescape.wiki/i/108594|archivedate=9 April 2022}}
+
+==Creation==
+{{Recipe
+|skill1 = Cooking
+|skill1lvl = 90
+|skill1boostable = Yes
+|skill1exp = 28
+|members = Yes
+|ticks = 4
+|mat1 = Raw psykk bat (6)
+|mat1cost = No
+|output1 = Psykk bat (6)
+|output1cost = No
+|output1itemnote = This recipe has a chance to give a [[burnt bat]] instead.
+}}
+
+==References==
+{{Reflist}}
+
+{{Chambers of Xeric}}
+
+[[Category:Needs skilling success chart]]

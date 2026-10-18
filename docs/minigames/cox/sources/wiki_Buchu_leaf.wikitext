@@ -1,0 +1,72 @@
+{{Otheruses|the cleaned herb|the grimy herb|Grimy buchu leaf}}
+{{Infobox Item
+|name = Buchu leaf
+|image = [[File:Buchu leaf.png]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Drop
+|examine = Lovely, it's been cleaned.
+|value = 2
+|weight = 0.007
+|id = 20908
+}}
+[[File:Buchu leaf detail.png|left|150px]]
+'''Buchu leaf''' is a [[herb]] found within the [[Chambers of Xeric]] by cleaning a [[grimy buchu leaf]]. It can be grown with a [[Farming]] level of 39, by planting [[buchu seed]]s in [[Herb_patch_(Chambers_of_Xeric)|herb patches]] found within resource rooms. 52 [[Herblore]] is required to clean the grimy herb.
+
+Unlike other potions, a secondary ingredient must be present in the player's inventory before it can be used on a [[water-filled gourd vial]] to create the potions listed below.
+
+==Creation==
+{{Recipe
+|skill1 = Herblore
+|skill1lvl = 52
+|skill1boostable = Yes
+|skill1exp = 2
+|members = Yes
+|ticks = 0
+|mat1 = Grimy buchu leaf
+|mat1cost = no
+|output1 = Buchu leaf
+|output1cost = no
+}}
+
+==Products==
+{{Uses material list|Buchu leaf}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 22 March 2018
+|update = Upcoming Changes and Fake XP Drop Improvements
+|change = The item's value was increased from 1 to 2.
+}}
+{{Subject changes 
+|date = 5 October 2017
+|update = Soundbank, HP bar, and QoL changes
+|change = The item was recoloured.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="15"
+|[[File:Buchu leaf (v1) detail.png|center|300x150px]]
+|[[File:Buchu leaf detail.png|center|300x150px]]
+|-
+|[[File:Buchu leaf v1.png|center]]
+|[[File:Buchu leaf.png|center]]
+|-
+|5 January 2017 –<br/>5 October 2017
+|5 October 2017 –<br/>present
+|}
+
+==Trivia==
+*In Korean, "buchu" (<big>부추</big>) is a word meaning chives or leeks. The word "golpa" (<big>골파</big>), which the [[golpar]] herb is based on, shares a similar meaning.
+*[https://en.wikipedia.org/wiki/Agathosma Buchu] is also a genus of medicinal plant native to Southern Africa. 
+
+{{Chambers of Xeric}}
+{{Herb}}

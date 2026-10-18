@@ -1,0 +1,21 @@
+{{Infobox Scenery
+|name = Boulder
+|image = [[File:Boulder (Chambers of Xeric).png|250px]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|location = [[Chambers of Xeric]]
+|options = Push
+|examine = Take courage - get a little boulder.
+|map = {{Map|x=3311|y=5233|3269,5222|3272,5222|3281,5222|3312,5238|3314,5238|3316,5238|3353,5227|3353,5224|3353,5221|plane=1|mapID=-1|zoom=1|mtype=pin}}
+|id = 29740
+}}
+A '''boulder''' can be encountered in the [[Scavenger beast|scavenger]] room within the [[Chambers of Xeric]]. It can be pushed aside in order to be granted access to a shortcut, yielding a small amount of reward points.
+
+When attempting to push away the boulder, a check is made every couple of ticks in order to determine if enough force has been applied to dislodge it.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1379746279685812229|date=7 April 2021|archiveurl=https://reldo.runescape.wiki/i/107837|archivedate=1 August 2023|quote=It's checking every couple of ticks to see whether there's enough pushing being done on either side, from all those engaged in pushing. It may therefore take a little time, especially if a group is needed.}} The chance to successfully push aside the boulder is based on the sum of the Strength levels of all players taking part in the endeavour.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1402295047408783363|date=8 June 2021|archiveurl=https://reldo.runescape.wiki/i/97725|archivedate=1 August 2023|quote=I don't think we're sharing full details of that, but it periodically checks whether the players standing adjacent to it on each side (who appear to be actually pushing) have a combined Strength level sufficient to overcome its resistance.}}
+
+==References==
+{{Reflist}}
+
+{{Chambers of Xeric}}

@@ -903,6 +903,7 @@ apply_loc_collision(
     const struct RSCache_Dat2ConfigLoc* config = loc_config(loc->loc_id);
     struct CollisionMap* map;
     enum CollisionLocAngle angle;
+    int blockwalk;
     int blockrange;
     int scene_x, scene_z;
 
@@ -919,7 +920,18 @@ apply_loc_collision(
         return;
 
     angle = (enum CollisionLocAngle)(loc->angle & 3);
-    blockrange = config->blocks_projectiles ? 1 : 0;
+    /*
+     * The SERVER's collision reads what the loc DECLARED. `breakroutefinding`
+     * (opcode 74) zeroes blockwalk/blockrange for the client's route finder
+     * only -- a loc so marked is a wall the server enforces and the client
+     * walks through (inviswall_serverside; the Chambers' abyss floors, which
+     * keep a raider 7 tiles off Vespula's portal: wiki "The portal is seven
+     * tiles away from the accessible area"). Reading the collapsed pair let a
+     * raider walk the abyss to the portal (docs/minigames/cox/rooms/
+     * vespula_spec.md A28).
+     */
+    blockwalk = config->declared_blocks_walk;
+    blockrange = config->declared_blocks_projectiles ? 1 : 0;
 
     /* Loc mutations stamp both domains; entity occupancy never reaches boats. */
     for( int domain = 0; domain < 2; domain++ )
@@ -931,7 +943,7 @@ apply_loc_collision(
         case RSCACHE_LOC_SHAPE_FLOOR_DECORATION:
             /* Inactive ground decor never blocks — the reference gates on
              * blockwalk == 1 *and* interactive. */
-            if( config->blocks_walk == 1 && config->is_interactive )
+            if( blockwalk == 1 && config->is_interactive )
             {
                 if( add )
                     collision_map_add_floor(map, scene_x, scene_z);
@@ -943,7 +955,7 @@ apply_loc_collision(
         case RSCACHE_LOC_SHAPE_WALL_TRI_CORNER:
         case RSCACHE_LOC_SHAPE_WALL_TWO_SIDES:
         case RSCACHE_LOC_SHAPE_WALL_RECT_CORNER:
-            if( config->blocks_walk != 0 )
+            if( blockwalk != 0 )
             {
                 if( add )
                     collision_map_add_wall(map, scene_x, scene_z, loc->shape, angle, blockrange);
@@ -964,7 +976,7 @@ apply_loc_collision(
         case RSCACHE_LOC_SHAPE_ROOF_SLOPED_OVERHANG_OUTER_CORNER:
         case RSCACHE_LOC_SHAPE_ROOF_SLOPED_OVERHANG_INNER_CORNER:
         case RSCACHE_LOC_SHAPE_ROOF_SLOPED_OVERHANG_HARD_OUTER_CORNER:
-            if( config->blocks_walk != 0 )
+            if( blockwalk != 0 )
             {
                 /*
                  * The UN-rotated extents, deliberately.

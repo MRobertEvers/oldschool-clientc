@@ -1,0 +1,43 @@
+{{Infobox Item
+|name = Nistirio's manifesto
+|image = [[File:Nistirio's manifesto.png]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|aka = Manifesto of Vasa Nistirio
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Read, Drop
+|examine = The ancient writings of a crazed mage.
+|value = 1
+|weight = 0.280
+|id = 20888
+}}
+[[File:Nistirio's manifesto detail.png|left|130px]]
+'''Nistirio's manifesto''' is a book that appears on the ground after defeating [[Vasa Nistirio]] in the [[Chambers of Xeric]].
+
+The manifesto details the origin of Vasa Nistirio, [[Xeric]]'s former High Priest, and how he managed to harness the power of the crystals within the Chambers.
+
+If lost, it can be reclaimed by defeating Vasa Nistirio, or from a [[bookcase]] within a [[player-owned house]]. The name for the book within the bookcase is "Manifesto of Vasa Nistirio".
+
+==Transcript==
+{{Hastranscript|Nistirio's manifesto|transclude=Yes}}
+
+==Item sources==
+{{Drop sources|Nistirio's manifesto}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 10 January 2019
+|update = The Kebos Lowlands
+|change = The text was slightly altered, removing references to the [[Dark Altar]] and changing references to Kourend as a city to a kingdom.
+}}
+{{Subject changes footer}}
+
+{{Chambers of Xeric}}
+[[Category:Texts and tomes]]
+[[Category:Storable in bookcases]]

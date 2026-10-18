@@ -1,0 +1,33 @@
+{{Infobox Scenery
+|version1 = Empty
+|version2 = Filled
+|name = Trough
+|image1 = [[File:Trough (Chambers of Xeric, empty).png|250x250px]]
+|image2 = [[File:Trough (Chambers of Xeric, filled).png|250x250px]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|location = [[Chambers of Xeric]]
+|options = Deposit
+|examine1 = An empty trough for feeding animals.
+|examine2 = Grub's up.
+|map = {{Map|name=Trough (Chambers of Xeric)|3271,5389|3317,5397|3350,5399|plane=0|mapID=-1|mtype=pin}}
+|id1 = 29746
+|id2 = 29874
+|leagueRegion = Kourend
+}}
+'''Troughs''' can be found within the [[Chambers of Xeric#Thieving|Thieving room]] during the [[Chambers of Xeric]]. Players must fill the trough with [[cavern grub]]s obtained from the [[chest (Chambers of Xeric)|chests]] located in the room in order to feed the [[corrupted scavenger]]. Once a player places some grubs in the trough, the scavenger will begin to feed on them until they are full. When full, the scavenger will fall asleep on the hay, clearing the path to the next room.
+
+The number of grubs required to fill the scavenger scales linearly based on the total [[Thieving]] level of players participating in the raid. However, the minimum number of grubs required to complete the room is equal to 16 times the number of players in the raid, or 30 in a solo raid.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 31 January 2019
+|update = Chambers of Xeric, Kebos, and Collection Log Changes
+|change = Depositing grubs into the trough now gives five times more points.
+}}
+{{Subject changes footer}}
+
+{{Chambers of Xeric}}

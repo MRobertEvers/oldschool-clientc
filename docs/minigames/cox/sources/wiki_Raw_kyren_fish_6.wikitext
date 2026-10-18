@@ -1,0 +1,45 @@
+{{Infobox Item
+|name = Raw kyren fish (6)
+|image = [[File:Raw kyren fish (6).png]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Drop
+|examine = I should try cooking this.
+|value = 1
+|weight = 0.450
+|id = 20867
+}}
+[[File:Raw kyren fish (6) detail.png|left|150px]]
+'''Raw kyren fish (6)''' is a type of fish obtained from fishing spots within the [[Chambers of Xeric]]. Raw kyren fish require level 90 in Fishing to catch and grants the player 38 [[experience]] when caught.
+
+They are cooked with a [[Cooking]] level of 90 to produce [[kyren fish (6)]], granting 28 experience in Cooking.
+
+==Fishing info==
+{{Fishing info
+|name = Raw kyren fish (6)
+|level = 90
+|xp = 38
+|spot = [[Bubbles]]
+|tool = {{plink|Fishing rod}}
+|bait = {{plink|Cave worms}}
+}}
+
+==Products==
+{{Uses material list|Raw kyren fish (6)}}
+
+==Item sources==
+{{Drop sources|Raw kyren fish (6)}}
+
+==Trivia==
+* The name of this fish is a reference to [[Mod Kieren]].
+
+{{Chambers of Xeric}}
+{{Fish}}
+[[Category:Jagex staff references]]
+[[Category:Needs skilling success chart]]

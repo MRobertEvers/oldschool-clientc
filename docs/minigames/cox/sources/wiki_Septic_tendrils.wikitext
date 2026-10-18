@@ -1,0 +1,17 @@
+{{Infobox Scenery
+|name = Septic tendrils
+|image = [[File:Septic tendrils.png|250x250px]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|location = [[Chambers of Xeric]]
+|options = Pass
+|examine = Not something you really want to touch.
+|map = No
+|id = 30024
+}}
+
+'''Septic tendrils''' block players from entering the room containing [[Vespula]] in the [[Chambers of Xeric]]. The tendrils can be passed through to start the encounter.
+
+{{Chambers of Xeric}}

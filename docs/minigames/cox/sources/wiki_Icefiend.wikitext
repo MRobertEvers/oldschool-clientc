@@ -1,0 +1,205 @@
+{{External|rs}}
+{{HasTask|Icefiends}}
+{{Infobox Monster
+|version1 = Level 13
+|version2 = Level 18
+|name = Icefiend
+|image = [[File:Icefiend.png|120px]]
+|release1 = [[15 March]] [[2006]]
+|release2 = [[17 October]] [[2013]]
+|update1 = Hundredth Quest - Recipe for Disaster!
+|update2 = The God Wars Dungeon has been uncovered!
+|members = Yes
+|combat1 = 13
+|combat2 = 18
+|size = 1
+|examine = A small ice demon.<br>'''In the Chambers of Xeric:''' Servant of the Ice Demon.
+|attributes = demon
+|xpbonus = 0
+|max hit1 = 2
+|max hit2 = 3
+|aggressive1 = No
+|aggressive2 = Yes, unless wearing a Zamorak-affiliated item
+|poisonous = No
+|attack style = [[Magical melee]]
+|attack speed = 4
+|respawn1 = 15
+|respawn2 = 25
+|slayxp1 = 15
+|slayxp2 = 20
+|cat = Icefiends
+|assignedby = turael,spria
+|hitpoints1 = 15
+|hitpoints2 = 20
+|att1 = 10
+|att2 = 12
+|str1 = 10
+|str2 = 16
+|def1 = 12
+|def2 = 19
+|mage = 1
+|range = 1
+|attbns = 0
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|dlight = 0
+|dstandard = 0
+|dheavy = 0
+|elementalweaknesstype = Fire
+|elementalweaknesspercent = 100
+|poisonresistance = 0
+|venomresistance = 0
+|immunecannon = No
+|immunethrall = No
+|dropversion1 = Level 13
+|dropversion2 = Level 18
+|id1 = 4813
+|id2 = 3140
+}}
+'''Icefiends''' are [[demons]] made of ice and freezing rock{{CiteNPC|npc=Slayer Master|quote=Icefiends are beings of ice and freezing rock, they're quick and agile but weak to fire spells.|loc=|notes=|name=}} found on top of the [[Ice Mountain]], in various locations around [[Varlamore]], the southern part of the [[God Wars Dungeon]], and summoned during fights with the [[Ice demon]] in the [[Chambers of Xeric]]. Killing an icefiend is one of the three options to cool down the [[Dwarven rock cake]] in [[Recipe for Disaster]].
+
+==Locations==
+{{LocTableHead}}
+{{LocLine
+|name = Icefiend
+|location = [[Ice Mountain]]
+|levels = 13
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:2995,y:3468|x:2998,y:3465|x:3001,y:3470|x:3003,y:3483|x:3004,y:3496|x:3005,y:3473|x:3005,y:3480|x:3005,y:3485|x:3006,y:3468|x:3005,y:3501
+|mtype = pin
+|dropversion = Level 13
+|leagueRegion = Asgarnia
+}}
+{{LocLine
+|name = Icefiend
+|location = [[God Wars Dungeon]]
+|levels = 18
+|members = Yes
+|mapID = 7
+|plane = 0
+|x:2875,y:5296|x:2854,y:5304|x:2925,y:5242|x:2887,y:5312|x:2898,y:5315
+|mtype = pin
+|dropversion = Level 18
+|leagueRegion = Asgarnia
+}}
+{{LocLine
+|name = Icefiend
+|location = [[Wilderness God Wars Dungeon]]
+|levels = 18
+|members = Yes
+|mapID = 26
+|plane = 0
+|x:2958,y:10090|x:2962,y:10088
+|mtype = pin
+|dropversion = Level 18
+|leagueRegion = Wilderness
+}}
+{{LocLine
+|name=Icefiend
+|location=[[Ralos' Rise]]
+|levels=13
+|members=Yes
+|mapID=0
+|plane=0
+|x:1436,y:3208|x:1439,y:3207|x:1448,y:3214|x:1449,y:3209|x:1453,y:3208
+|mtype=pin
+|dropversion = Level 13
+|leagueRegion = Varlamore
+}}
+{{LocLine
+|name=Icefiend
+|location=[[Mons Gratia]]
+|levels=13
+|members=Yes
+|mapID=0
+|plane=0
+|x:1438,y:3258|x:1435,y:3266|x:1441,y:3264|x:1429,y:3256|x:1437,y:3260
+|mtype=pin
+|dropversion = Level 13
+|leagueRegion = Varlamore
+}}
+{{LocLine
+|name = Icefiend
+|location = [[Ruins of Tapoyauik]] {{FloorNumber|uk=0}}
+|levels = 13
+|members = Yes
+|mapID = -1
+|plane = 0
+|x:1684,y:9640|x:1684,y:9642|x:1682,y:9640|x:1685,y:9644|x:1690,y:9644|x:1688,y:9646|x:1682,y:9644|x:1687,y:9643|x:1693,y:9646|x:1701,y:9639|x:1702,y:9640|x:1702,y:9637|x:1704,y:9640|x:1706,y:9634|x:1705,y:9638
+|mtype = pin
+|dropversion = Level 13
+|leagueRegion = Varlamore
+}}
+{{LocTableBottom}}
+
+==Drops==
+{{DropLogProject|kills=2038432}}
+
+===Runes===
+{{DropsTableHead}}
+{{DropsLine|name=Air rune|quantity=1-5|rarity=1/128}}
+{{DropsLine|name=Water rune|quantity=1-5|rarity=4/128}}
+{{DropsTableBottom}}
+
+===Other===
+{{DropsTableHead}}
+{{DropsLine|name=Nothing|rarity=112/128|gemw=No}}
+{{DropsLine|name=Coins|quantity=1-30|rarity=4/128|gemw=No}}
+{{DropsLine|name=Coins|quantity=1-20|rarity=4/128|gemw=No}}
+{{DropsTableBottom}}
+
+===Gem drop table===
+{{GemDropTable|3/128|chaostalisman=yes|naturetalisman=yes}}
+
+===Tertiary===
+{{DropsTableHead}}
+{{DropsLine|name=Looting bag|quantity=1|rarity=1/8|raritynotes=<ref group=d>Looting bags are only dropped by those found in the [[Wilderness]].</ref>|gemw=No|leagueRegion=Wilderness}}
+{{DropsLineEcumenical}}
+{{DropsLineClue|type=easy|rarity=1/128|altrarity=1/64|raritynotes=<ref group=d>The easy clue scroll drop rate inceases to 1/64 if a [[Ring of wealth (i)]] is worn and fought in the [[Wilderness]].</ref>{{CiteTwitter|author=Mod Tide|url=https://twitter.com/JagexTide/status/1131933683714330624|date=24 May 2019|archiveurl=https://reldo.runescape.wiki/i/106558|archivedate=24 May 2019|quote=I know its been a while since the clue expansion but here is the information on clue scroll drop rates and loot chances! If anything changes I will keep you posted.|name=Clue rates tweet}}}}
+{{DropsLine|name=Tooth half of key (moon key)|quantity=1|rarity=1/1373|raritynotes=<ref name=row group=d/>|leagueRegion=Varlamore|dropversion=Level 13}}
+{{DropsLine|name=Frozen tear|quantity=5|rarity=1/150|raritynotes=<ref name=row group=d>Only dropped in Ruins of Tapoyauik</ref>|leagueRegion=Varlamore|dropversion=Level 13}}
+{{DropsTableBottom}}
+{{Reflist|group=d}}
+
+==Sound effects==
+{{SFXTableHead}}
+{{SFXLine|file=Icefiend attack.wav|desc=Attacking}}
+{{SFXLine|file=Icefiend death.wav|desc=Dying}}
+{{SFXLine|file=Icefiend hit.wav|desc=Being attacked}}
+{{SFXTableBottom}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|change = The drop rate of Tooth half of key (moon key) was reportedly changed to 1/1373.
+|date = 27 August 2025
+|update = Summer Sweep Up Slayer & More
+}}
+{{Subject changes
+|date = 17 March 2021
+|update = Shooting Stars
+|change = Several monsters, including Icefiend, were tagged as demonic, allowing demonbane weapons to work on them.
+}}
+{{Subject changes
+|date = 8 August 2019
+|update = Smithing and Silver Crafting Interfaces
+|change = The drop rate for [[ecumenical key]]s have been changed to be 1/60 regardless of keys owned.
+}}
+{{Subject changes footer}}
+
+==References==
+{{Reflist}}
+
+{{Freeing the Mountain Dwarf}}
+{{Demons}}
+{{God Wars Dungeon}}
+{{Ruins of Tapoyauik}}

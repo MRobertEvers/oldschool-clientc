@@ -1,0 +1,77 @@
+{{Infobox Location
+|name = Mount Quidamortem
+|image = [[File:Mount Quidamortem.png|300px]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|location = [[Kebos Lowlands]]
+|race = [[Human]]
+|map = {{Map|name=Mount Quidamortem|zoom=1|x=1246|y=3550}}
+|leagueRegion = Kourend
+}}
+{{Relative location
+|location = Mount Quidamortem
+|north = Kebos Swamp
+|east = Lizardman Settlement
+|south = The Stranglewood
+}}'''Mount Quidamortem''' ({{IPAc-en|ˈ|k|w|ɪ|d|ər|m|ɒr|t|ə|m}} {{respell|KWID|ər|mort|əm}}{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1318995542270246914|date=21 October 2020|archiveurl=https://reldo.runescape.wiki/i/100330|archivedate=28 July 2022|quote=KWID-er-mort-em.}}) is a mountain in the [[Kebos Lowlands]]. Underneath Mount Quidamortem are the [[Chambers of Xeric]], which serves as the staging ground for raids, as well as the [[Quidamortem Cave]], which is visited during the [[Tale of the Righteous]] [[quest]].
+
+==Transportation==
+[[File:Path to Raids.png|thumb|250px|Paths to Mount Quidamortem.]]
+Players who haven't unlocked fairy rings will have to travel to the mountain on foot. Players can walk south-west past [[Shayziens' Wall]] and run westward until they reach the mountain. A form of [[poison]] protection should be taken as there are aggressive [[Lizardmen]] of all types patrolling the east side of the mountain. Just before the mountain base, there should be some [[big frog]]s and [[goblin]]s wandering the area. At the base of the mountain will be some [[mountain troll]] settlements and a large group of [[rock crab]]s.
+
+When players reach the summit, find the [[Mountain Guide]] and speak with him to unlock a travel point between the mountain, the Wall, and south of Mount Quidamortem. This will save a considerable amount of time should players enter from Shayzien. Players who have unlocked fairy rings can also use {{fairycode|BLS}} south of Quidamortem, and then utilise the Mountain Guide to travel to the mountain.
+
+It can also be quickly accessed via the [[Lovakengj Minecart Network]], and then running north.
+
+Once players receive an [[ancient tablet]] as a reward from the [[Chambers of Xeric]], they are able to use it on [[Xeric's talisman]] to unlock the ability to instantly teleport to the mountain with the "Xeric's Honour" option.
+
+==History==
+{{LoreSources|Mount karuulm diary|Tekton's journal|The Great Expedition|Ektheme|Gnosi|Phileas Rimor|Imerominia|the1=yes|dialogue6=yes|dialogue7=yes|dialogue4=yes|dialogue5=yes}}
+
+Mount Quidamortem was likely first discovered by the [[dragonkin]] [[Karuulm]] prior to the founding of [[Great Kourend]]. He was drawn to it by [[Lizard (Quidamortem)|a species of lizard]] that showed potential for experimentation. These experiments led to the creation of the [[Great Olm]].
+
+On 1,740 - 36 (''the 1,740th day of the 36th decade''), [[King Shayzien VII]] ordered an expedition west to the [[Kebos Lowlands]], seeking to explore and expand the territory of [[Great Kourend]]. The expedition team never returned, and it was assumed that all members perished in the field, leading the King to declare that the expedition was a failure.
+
+However, an old journal written by Shayzien VII in the following decade suggests that the expedition deemed the native lizards of the region were suitable for a certain experiment: the creation of the [[lizardmen]]. For this purpose, a cave was created in the side of the mountain, with an altar resembling the [[Dark Altar]] constructed inside, allowing the actual Dark Altar's power to reach the Kebos Lowlands.
+
+Shortly after the death of Shayzien VII in the [[Battle of the Concourse]], [[Xeric]] made his appearance and took over [[Great Kourend]]. However, in 332 - 47, he was forced into exile, and travelled to Mount Quidamortem with his most loyal followers. Here, he explored the caverns beneath the mountain, and created the [[Chambers of Xeric]] in order to harness the power of the crystals to empower himself and those loyal to him. It was not until over 1,000 years later that the [[Kebos Lowlands]] was opened back up, after [[Shayzien]] soldiers repelled most of the [[lizardmen]] to the caverns below their [[Lizardman Settlement|settlement]].
+
+==Locations==
+
+=== Structures ===
+The main feature is Tekton's temple, a large stone dome at the peak of the mountain which hosts a [[Xerician Statue|Xerician statue]] in the centre. Just to the north of this temple is the entrance to the [[Chambers of Xeric]].
+
+To the east of the temple are three cloth-covered buildings; the two nearest the mountain hold the [[Mount Quidamortem bank]] chest and its associated [[poll booth]], and the far building contains sleeping bag for the Varrock Museum expedition crew.
+
+=== Skill training spots ===
+Apart from the personalities and local fauna, the lake south of Historian Duffy has [[barbarian fishing]] spots. These spots are significantly closer to a [[Mount Quidamortem bank|bank]] than the spots at [[Baxtorian Falls]], which is particularly useful when using the [[fish barrel]]. There is also a [[Fire|permanent fire]] in the troll camp, as well as [[Dead tree|dead trees]] scattered throughout the mountain.
+
+=== Troll camp ===
+South of the mountain peak is a troll camp, featuring multiple spots with mountain trolls in a [[multicombat area]]. This makes the [[dwarf multicannon]] effective on troll [[Slayer task]]s. The best cannon spot can be found across the bridge.
+
+==Inhabitants==
+
+=== Personalities ===
+*{{Chatl|Captain Rimor}}
+*{{Chatl|Gnosi}}
+*{{Chatl|Historian Duffy}}
+*{{Chatl|Mountain Guide}}
+*{{Chatl|Natural Historian (Mount Quidamortem)|text=Natural Historian}}
+*{{Chatl|Stuliette}}
+
+=== Monsters ===
+*[[Mountain troll]] (x14)
+*[[Rock crab]] (x28)
+
+==Trivia==
+*The name of the mountain, Quidamortem, is a combination of the Latin words ''[[wiktionary:quidam|quidam]]'', meaning "someone, a certain one/thing; something", and ''[[wiktionary:mortem|mortem]]'', meaning "death".
+
+==References==
+{{Reflist}}
+
+{{Chambers of Xeric}}
+{{Kebos Lowlands}}
+{{Terrain}}
+[[Category:Terrain]]
+[[Category:Mountains and hills]]

@@ -1,0 +1,36 @@
+{{Infobox Scenery
+|version1 = Sapling
+|version2 = Stump
+|name1 = Rotten sapling
+|name2 = Rotten stump
+|image1 = [[File:Rotten sapling.png|250x250px]]
+|image2 = [[File:Rotten stump.png|250x250px]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|location = [[Scavenger]] rooms in [[Chambers of Xeric]].
+|options1 = Chop
+|options2 = Cross
+|examine1 = How inconvenient.
+|examine2 = How convenient.
+|map = {{Map|mtype=pin|3272,5222|3314,5238|3353,5224|plane=1|mapID=-1}}
+|id1 = 29736
+|id2 = 29737
+}}
+
+'''Rotten saplings''' can be found in the [[scavenger]] rooms of the [[Chambers of Xeric]]. When these are chopped down, a rotten stump that can be crossed is left behind. This makes navigating these rooms a bit faster, and the player who chops the sapling receives points for the raid.
+
+Chopping them down requires a sufficient [[woodcutting]] level, that is based on the players participating in the raid.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 29 November 2023
+|update = Chambers of Xeric Changes
+|poll = Chambers of Xeric Room Improvements
+|change = * The points gained and the speed at which the rotten sapling is cut down have been increased.
+}}
+{{Subject changes footer}}
+
+{{Chambers of Xeric}}

@@ -1,0 +1,21 @@
+{{Infobox Scenery
+|name = Creature keeper
+|image = [[File:Creature keeper.png|200px]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|location = [[Chambers of Xeric]]
+|options = Search
+|examine = He's dead.
+|map = No
+|id = 29875
+}}
+The '''creature keeper''' is a caretaker who is found dead in the [[Chambers of Xeric]], having accompanied [[Xeric]] and his group to [[Mount Quidamortem]]. Originally tasked with raising and tending to animals, the creature keeper [[Corrupted scavenger|domesticated]] a [[scavenger beast]] to make a trained attack beast.{{CiteText|text=Creature keeper's journal|author=Creature keeper|quote=Nevertheless, the larger scavengers have a degree of brute strength, and I envisage they could be useful as warriors if they can be suitably trained. First I must teach my scavengers to obey me. I will begin by making them dependent upon me for food, so that I can use food to reward obedience. [...] Soon I will begin to send it into battle against the other creatures that roam these caves, and teach it that it must fight if it wants to be fed.}} While sending it out to fight some [[Lizardman shaman]]s, he was spotted and [[poison]]ed by them, leading to his death.{{CiteText|text=Creature keeper's journal|author=Creature keeper|quote=Meanwhile I have found some lizardmen in this cave that look like a suitable combat challenge for my scavenger - unfortunately the creatures saw me, and they attacked immediately. I had no trouble retreating, though I have begun to feel unwell since the incident; I do hope their spit has not infected me.}} As a result, Xeric's associates were forced to hire [[Houndmaster's diary|a houndmaster]] to help raise animals for Xeric's experiments.{{CiteText|text=Houndmaster's diary|quote=I had received a letter, a request for my skills in hound mastery, to replace a creature keeper who had 'retired'.}}
+
+His body can be searched for his [[Creature keeper's journal|journal]].
+
+==References==
+{{Reflist}}
+
+{{Chambers of Xeric}}

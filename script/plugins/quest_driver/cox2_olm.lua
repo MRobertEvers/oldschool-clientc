@@ -165,11 +165,11 @@ function CO.ids(opts)
         end
         return out
     end
-    ids.brews = vials("raids_vial_xericaid_strong_")
-    ids.restores = vials("raids_vial_revitalisation_strong_")
+    ids.brews = QD.COX.supply_ids("heal")
+    ids.restores = QD.COX.supply_ids("restore")
     ids.stat_restores = ids.restores
-    ids.overloads = vials("raids_vial_overload_strong_")
-    ids.enhances = vials("raids_vial_prayer_strong_")
+    ids.overloads = QD.COX.supply_ids("overload")
+    ids.enhances = QD.COX.supply_ids("prayer")
     ids.staminas = {}
     for n = 1, 4 do
         local r, id = api_drive.symbol("obj", n .. "dosestamina")
@@ -1895,7 +1895,7 @@ end
 -- A drink is known by its dose count falling (my own inventory).
 function CO.doses(S, list)
     local n = 0
-    for i, obj in ipairs(list) do n = n + i * QD.raid._tob_count(S, obj) end
+    for i, obj in ipairs(list) do n = n + ((i - 1) % 4 + 1) * QD.raid._tob_count(S, obj) end
     return n
 end
 
@@ -1965,6 +1965,12 @@ end
 -- every brew sip emptied the kit by the head phase (sweep4 ol20, ol37).
 function CO.restore_due(S, F)
     local o = S.o
+    -- no overload running to lift a drain back (Tekton, a room before the
+    -- kit's overloads): the shared rule, 20 under (QD.COX.restore_due) -- a
+    -- restore whenever a stat was under base drank one per sip
+    if o.ovl_until == nil or o.ovl_until < F.tick then
+        return (QD.COX.restore_due(F, CO.fight_stats(o.fight_style)))
+    end
     local deep = false
     for _, st in ipairs(CO.fight_stats(o.fight_style)) do
         local lv = F.levels and F.levels[st]

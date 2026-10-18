@@ -54,6 +54,7 @@
 #include "3rd/lua/lua.h"
 #include "3rd/lua/lualib.h"
 #include "plugin/torirs_drive_plan_lua.h"
+#include "plugin/torirs_drive_cox_lua.h"
 #include "net/wordpack.h"
 
 #include <assert.h>
@@ -728,6 +729,33 @@ d_player_tile(lua_State* L)
     return 2;
 }
 
+/* api_drive.instance_zone(x, z, level) -> result, { template_x, template_z,
+ * template_level, rotation }: the instance template zone the client was sent
+ * for that tile (REBUILD_REGION; ScriptrunCore_InstanceZone). The live
+ * client answers the same from its kept grid (lua_drive_instance_zone). */
+static int
+d_instance_zone(lua_State* L)
+{
+    struct ScriptBot* bot = bot_of(L);
+    int template_x, template_z, template_level, rotation;
+
+    if( !ScriptrunCore_InstanceZone(
+            bot->core, (int)luaL_checkinteger(L, 1), (int)luaL_checkinteger(L, 2), (int)luaL_checkinteger(L, 3),
+            &template_x, &template_z, &template_level, &rotation) )
+        return push_result(L, "not_found", "no instance zone there");
+    lua_pushstring(L, "ok");
+    lua_newtable(L);
+    lua_pushinteger(L, template_x);
+    lua_setfield(L, -2, "template_x");
+    lua_pushinteger(L, template_z);
+    lua_setfield(L, -2, "template_z");
+    lua_pushinteger(L, template_level);
+    lua_setfield(L, -2, "template_level");
+    lua_pushinteger(L, rotation);
+    lua_setfield(L, -2, "rotation");
+    return 2;
+}
+
 static struct WorldEntity_Player*
 local_player(struct ScriptBot* bot)
 {
@@ -1057,6 +1085,26 @@ push_npc_row(
         lua_setfield(L, -2, "hit_damage");
         lua_pushinteger(L, hit_cycle);
         lua_setfield(L, -2, "hit_cycle");
+    }
+    {
+        /* every hitsplat showing now, in slot order (the live client's
+         * DriveNpcRow.splat_*: damage, wire type, start cycle) */
+        int k = 0;
+        lua_newtable(L);
+        for( int i = 0; i < WORLD_ENTITY_DAMAGE_SLOTS; i++ )
+        {
+            if( npc->combat.damage_start_cycles[i] > cycle || npc->combat.damage_cycles[i] <= cycle )
+                continue;
+            lua_newtable(L);
+            lua_pushinteger(L, (int)npc->combat.damage_values[i]);
+            lua_setfield(L, -2, "damage");
+            lua_pushinteger(L, (int)npc->combat.damage_types[i]);
+            lua_setfield(L, -2, "type");
+            lua_pushinteger(L, npc->combat.damage_start_cycles[i]);
+            lua_setfield(L, -2, "start");
+            lua_rawseti(L, -2, ++k);
+        }
+        lua_setfield(L, -2, "splats");
     }
     lua_pushstring(L, npc->name);
     lua_setfield(L, -2, "name");
@@ -3173,6 +3221,69 @@ d_bloat_first_bad(lua_State* L)
     return DriveBloatFirstBadLua(L, 1, cm, world->_base_tile_x, world->_base_tile_z);
 }
 
+/* api_drive.npc_stall(x, z, size, tx, tz, steps): a naive npc walk over this
+ * bot's collision map (plugin/torirs_drive_cox_lua.h DriveNpcStallLua; the
+ * client's lua_drive_npc_stall is the same code over the client's map). */
+static int
+d_npc_stall(lua_State* L)
+{
+    struct ScriptBot* bot = bot_of(L);
+    struct ScriptrunCore* c = bot->core;
+    struct World* world = c->world;
+    struct CollisionMap* cm;
+    int px = 0, pz = 0, level = 0;
+
+    if( !c->have_collision || !ScriptrunCore_LocalTile(c, &px, &pz, &level) )
+    {
+        lua_pushstring(L, "not_visible");
+        lua_pushnil(L);
+        return 2;
+    }
+    if( level < 0 )
+        level = 0;
+    if( level >= COLLISION_LEVELS )
+        level = COLLISION_LEVELS - 1;
+    cm = world->collision_maps[level];
+    if( !cm )
+    {
+        lua_pushstring(L, "no_row");
+        lua_pushnil(L);
+        return 2;
+    }
+    return DriveNpcStallLua(L, 1, cm, world->_base_tile_x, world->_base_tile_z);
+}
+
+/* api_drive.npc_sees(x, z, size, tx, tz): the watcher sight test over this
+ * bot's collision map (plugin/torirs_drive_cox_lua.h DriveNpcSeesLua). */
+static int
+d_npc_sees(lua_State* L)
+{
+    struct ScriptBot* bot = bot_of(L);
+    struct ScriptrunCore* c = bot->core;
+    struct World* world = c->world;
+    struct CollisionMap* cm;
+    int px = 0, pz = 0, level = 0;
+
+    if( !c->have_collision || !ScriptrunCore_LocalTile(c, &px, &pz, &level) )
+    {
+        lua_pushstring(L, "not_visible");
+        lua_pushnil(L);
+        return 2;
+    }
+    if( level < 0 )
+        level = 0;
+    if( level >= COLLISION_LEVELS )
+        level = COLLISION_LEVELS - 1;
+    cm = world->collision_maps[level];
+    if( !cm )
+    {
+        lua_pushstring(L, "no_row");
+        lua_pushnil(L);
+        return 2;
+    }
+    return DriveNpcSeesLua(L, 1, cm, world->_base_tile_x, world->_base_tile_z);
+}
+
 /* api_drive.meet_rank(spec): Verzik P3's ball meeting-tile rank, the same
  * pure-geometry C as the client's lua_drive_meet_rank
  * (plugin/torirs_drive_plan_lua.h DriveMeetRankLua). */
@@ -4011,6 +4122,7 @@ push_drive_table(
     bind(L, bot, "if_drag", d_if_drag);
     bind(L, bot, "resume_script", d_resume_script);
     bind(L, bot, "player_tile", d_player_tile);
+    bind(L, bot, "instance_zone", d_instance_zone);
     bind(L, bot, "player_idle", d_player_idle);
     bind(L, bot, "vessel", d_vessel);
     bind(L, bot, "skill", d_skill);
@@ -4061,6 +4173,8 @@ push_drive_table(
     bind(L, bot, "tiles_nearest", d_tiles_nearest);
     bind(L, bot, "sote_guard", d_sote_guard);
     bind(L, bot, "bloat_first_bad", d_bloat_first_bad);
+    bind(L, bot, "npc_stall", d_npc_stall);
+    bind(L, bot, "npc_sees", d_npc_sees);
     bind(L, bot, "locs_of", d_locs_of);
     bind(L, bot, "say", d_say);
     bind(L, bot, "tab_by_name", d_tab_by_name);

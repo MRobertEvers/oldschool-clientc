@@ -1,0 +1,39 @@
+{{Infobox NPC
+|name = Psykk bat
+|image = [[File:Psykk bat.png|250x250px]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|race = [[Bat]]
+|location = [[Chambers of Xeric]]
+|options = Catch
+|examine = Maybe it's tasty.
+|map = No
+|id = 7593
+|leagueRegion = Kourend
+}}
+'''Psykk bats''' can be found inside the [[Chambers of Xeric]] where they can be caught using a [[butterfly net]] in order to obtain a [[raw psykk bat (6)]]. They require a [[Hunter]] level of 90 to catch and grant 29 Hunter experience. Once caught, raw psykk bats can be cooked into a [[psykk bat (6)]], requiring a [[Cooking]] level of 90 and granting 28 Cooking experience.
+
+==Hunter info==
+{{Hunter info
+|name = Raw psykk bat (6)
+|level = 90
+|xp = 29
+|trap = {{plink|Butterfly net}}
+|retaliation = No
+}}
+
+{{DropsTableHead}}
+{{DropsLineSkill|name=Raw psykk bat (6)|quantity=1|rarity=Always|skill=Hunter}}
+{{DropsTableBottom}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 2 February 2017
+|update = Silver Jewellery, Tournament World & QoL!
+|change = Can now catch bats bare-handed in raids at level 99 Hunter.
+}}
+{{Subject changes footer}}
+
+{{Chambers of Xeric}}

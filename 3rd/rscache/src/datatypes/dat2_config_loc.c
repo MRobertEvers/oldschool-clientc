@@ -212,6 +212,8 @@ RSCache_Dat2ConfigLocInit(struct RSCache_Dat2ConfigLoc* loc)
     loc->force_approach = 0;
     loc->obstructs_ground = 0;
     loc->break_routefinding = 0;
+    loc->declared_blocks_walk = loc->blocks_walk;
+    loc->declared_blocks_projectiles = loc->blocks_projectiles;
     loc->support_items = -1;
     loc->transform_varbit = -1;
     loc->transform_varp = -1;
@@ -1720,6 +1722,8 @@ RSCache_Dat2ConfigLocFinish(struct RSCache_Dat2ConfigLoc* loc, unsigned flags)
     (void)flags;
     assert(loc);
 
+    loc->declared_blocks_walk = loc->blocks_walk;
+    loc->declared_blocks_projectiles = loc->blocks_projectiles;
     if( loc->break_routefinding )
     {
         loc->blocks_walk = 0;

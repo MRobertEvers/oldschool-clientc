@@ -1225,6 +1225,14 @@ struct DriveNpcRow
      */
     int hit_damage;
     int hit_cycle;
+    /* Every hitsplat showing now (all four slots: a client draws up to four
+     * at once), in slot order: damage, the wire hitsplat type (block, damage,
+     * heal, poison ... -- RS_Hitsplats' type id) and the client cycle it
+     * started. `hit_damage` above is only the newest one. */
+    int splat_count;
+    int splat_damage[4];
+    int splat_type[4];
+    int splat_start[4];
     /** The drawn pose: yaw and the yaw it turns toward (0..2047; on a deck,
      *  deck-frame), the primary and secondary (base) seq ids, the facing
      *  entity (WORLD_FACING_ENTITY_NONE when none), the view the npc is

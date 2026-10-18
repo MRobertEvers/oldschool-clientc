@@ -1,0 +1,144 @@
+{{Parentitle override}}
+{{Infobox Item
+|defver = 4
+|version1 = 1 dose
+|version2 = 2 dose
+|version3 = 3 dose
+|version4 = 4 dose
+|bucketname1 = (1)
+|bucketname2 = (2)
+|bucketname3 = (3)
+|bucketname4 = (4)
+|name1 = Xeric's aid (-)(1)
+|name2 = Xeric's aid (-)(2)
+|name3 = Xeric's aid (-)(3)
+|name4 = Xeric's aid (-)(4)
+|image1 = [[File:Xeric's aid (-)(1).png]]
+|image2 = [[File:Xeric's aid (-)(2).png]]
+|image3 = [[File:Xeric's aid (-)(3).png]]
+|image4 = [[File:Xeric's aid (-)(4).png]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Drink, Drop
+|examine = The power of Xeric is stored within this potion. It was mixed particularly badly.
+|value = 40
+|weight = 0.020
+|id1 = 20973
+|id2 = 20974
+|id3 = 20975
+|id4 = 20976
+}}
+{{Synced switch
+|version1 = [[File:Xeric's aid (-)(1) detail.png|left|150x150px]]
+|version2 = [[File:Xeric's aid (-)(2) detail.png|left|150x150px]]
+|version3 = [[File:Xeric's aid (-)(3) detail.png|left|150x150px]]
+|version4 = [[File:Xeric's aid (-)(4) detail.png|left|150x150px|class=pageimage]]
+}}
+A '''Xeric's aid (-)''' is a potion that restores the player's [[Hitpoints]] and [[Defence]], while draining the player's [[Strength]], [[Attack]], [[Magic]], and [[Ranged]]. It can be made with 52 [[Herblore]] by using a [[buchu leaf]] with a [[water-filled gourd vial]] while having [[endarkened juice]] in the inventory.
+
+This potion is the weak variant of Xeric's aid, and cannot be taken out of the [[Chambers of Xeric]].
+
+A Xeric's aid (-) restores Hitpoints by 7% + 1 and Defence by 14% + 1, both rounded down.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1478324637880750083|date=4 January 2021|archiveurl=https://reldo.runescape.wiki/i/106509|archivedate=6 January 2021|quote=HP: TIER plus ((5 x TIER) + 2) percent. Defence: TIER plus ((4 x TIER) + 10) percent.}} It can heal above the player's maximum Hitpoints level. It temporarily lowers Strength, Attack, Magic and Ranged by 7% + 1. 
+
+==Effects==
+===Hitpoints per dose===
+The amount of Hitpoints healed is based on a player's base Hitpoints level. The formula is <math display="inline">\left\lfloor \text{Hitpoints} \cdot \frac{7}{100}\right\rfloor + 1</math>.
+{| class="wikitable" style="text-align:center;"
+!{{SCP|Hitpoints}} Level
+!Boost
+!{{SCP|Hitpoints}} Level
+!Boost
+|-
+|'''1-14'''||+1||'''58-71'''||+5
+|-
+|'''15-28'''||+2||'''72-85'''||+6
+|-
+|'''29-42'''||+3||'''86-99'''||+7
+|-
+|'''43-57'''||+4
+|}
+
+===Defence boost by level===
+Defence boost is calculated with: <math display="inline">\left\lfloor\text{(Defence Level)} \cdot \frac{14}{100}\right\rfloor + 1</math>.
+{| class="wikitable" style="text-align:center;"
+!{{SCP|Defence}} Level
+!Boost
+!{{SCP|Defence}} Level
+!Boost
+!{{SCP|Defence}} Level
+!Boost
+|-
+|'''1-7'''||+1||'''36-42'''||+6||'''72-78'''||+11
+|-
+|'''8-14'''||+2||'''43-49'''||+7||'''79-85'''||+12
+|-
+|'''15-21'''||+3||'''50-57'''||+8||'''86-92'''||+13
+|-
+|'''22-28'''||+4||'''58-64'''||+9||'''93-99'''||+14
+|-
+|'''29-35'''||+5||'''65-71'''||+10
+|}
+
+===Stat drain by level===
+Attack/Strength/Ranged/Magic drain is calculated with: <math display="inline">\left\lfloor\text{(Current Stat Level)} \cdot \frac{7}{100}\right\rfloor + 1</math>.
+{| class="wikitable" style="text-align:center;"
+!{{SCP}} Level
+!Boost
+!{{SCP}} Level
+!Boost
+|-
+|'''1-14'''||-1||'''72-85'''||-6
+|-
+|'''15-28'''||-2||'''86-99'''||-7
+|-
+|'''29-42'''||-3||'''100-114'''||-8
+|-
+|'''43-57'''||-4||'''115-125'''||-9
+|-
+|'''58-71'''||-5
+|}
+
+==Creation==
+{{Recipe
+|skill1 = Herblore
+|skill1lvl = 52
+|skill1boostable = Yes
+|skill1exp = 13.5
+|members = Yes
+|ticks = 2
+|mat1 = Water-filled gourd vial
+|mat1cost = No
+|mat2 = Buchu leaf
+|mat2cost = No
+|mat3 = Endarkened juice
+|mat3cost = No
+|output1 = Xeric's aid (-)(4)
+|output1cost = No
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 28 May 2020
+|update = Chambers of Xeric Improvements
+|poll = Old School Content Poll 71: Gauntlet, Grotesques, CoX and more
+|change = The [[value]] was changed from 2 to 40 so that they are more likely to appear on top of the loot pile alongside raid supplies and bones.
+}}
+{{Subject changes
+|date = 22 March 2018
+|update = Upcoming Changes and Fake XP Drop Improvements
+|change = The item's value was increased from 1 to 2.
+}}
+{{Subject changes footer}}
+
+==References==
+{{Reflist}}
+
+{{Chambers of Xeric}}
+{{Potions}}

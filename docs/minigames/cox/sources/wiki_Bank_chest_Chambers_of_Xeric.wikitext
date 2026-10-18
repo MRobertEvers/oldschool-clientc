@@ -1,0 +1,22 @@
+{{Infobox Scenery
+|version1 = Open
+|version2 = Closed
+|name = Bank chest
+|image1 = [[File:Bank chest (Chambers of Xeric, open).png|250px]]
+|image2 = [[File:Bank chest (Chambers of Xeric, closed).png|250px]]
+|release = [[3 May]] [[2023]]
+|update = Points-Based Combat Achievements
+|members = Yes
+|quest = No
+|location = [[Chambers of Xeric]]
+|options1 = Use, Collect
+|options2 = None
+|examine1 = I can access my bank from here!
+|examine2 = I used to be able to access my bank from here. It's no longer working.
+|map = {{Map|name=Bank chest (Chambers of Xeric)|x:3278,y:5201|x:3303,y:5199|x:3333,y:5195|mapID=-1|mtype=pin}}
+|id1 = 47420
+|id2 = 47419
+}}
+'''Bank chest''' can be found in the [[Chambers of Xeric]] raid lobby. It can be used to access the [[bank]] or collect [[Grand Exchange]] completed offers before a raid starts.
+
+{{Chambers of Xeric}}

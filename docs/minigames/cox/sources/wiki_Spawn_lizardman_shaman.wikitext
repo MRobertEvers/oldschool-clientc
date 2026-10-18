@@ -1,0 +1,26 @@
+{{otheruses|the NPC summoned by [[lizardman shaman]]s|other uses|Spawn (disambiguation)}}
+{{Infobox NPC
+|name = Spawn
+|image = [[File:Spawn (lizardman shaman).png|150px]]
+|release = [[21 January]] [[2016]]
+|update = The Dragon Warhammer
+|members = Yes
+|race = [[Lizardman]]
+|location = {{*}} West of [[Lizardman Canyon]]<br/>{{*}} [[Lizardman Caves]]<br/>{{*}} [[Lizardman Temple]]
+|options = None
+|examine = Aww, cute.
+|map = No
+|id = 6768,7575
+|leagueRegion = Kourend
+}}
+'''Spawns''' are [[NPC]]s summoned by [[lizardman shaman]]s, signalled by the player's screen shaking briefly and the shaman raising its hands. Three spawns appear each time.
+
+The spawns will approach a player, and will self-destruct seconds later. Players should run away from them before they self-destruct, or they will be dealt 5-10 damage per spawn within a 5x5 area (3x3 if in the [[Lizardman Temple]]), damaging anyone within two squares distance. If the player stays behind an obstacle when spawns are summoned, the spawns will wander around randomly before self-destructing.
+
+Other players in the vicinity will also be hurt by the spawns.
+
+==Trivia==
+* The spawns make a sound similar to [[otherworldly being]]s before they explode.
+
+{{Lizardman Settlement}}
+{{Molch}}

@@ -1,0 +1,41 @@
+{{Infobox Item
+|name = Pysk fish (0)
+|image = [[File:Pysk fish (0).png]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = No
+|noteable = No
+|edible = Yes
+|options = Eat, Drop
+|examine = I should try eating this.
+|value = 1
+|weight = 0.400
+|id = 20856
+}}
+[[File:Pysk fish (0) detail.png|left|150px]]
+'''Pysk fish (0)''' is a [[food]] item made by using [[raw pysk fish (0)]] on a [[fire]] within the [[Chambers of Xeric]]. Eating a pysk fish heals the player for 5 [[Hitpoints]].
+
+Cooking pysk fish requires a [[Cooking]] level of 1, and yields 10 Cooking [[experience]] for each successfully cooked fish.
+
+==Creation==
+{{Recipe
+|skill1 = Cooking
+|skill1lvl = 1
+|skill1boostable = 
+|skill1exp = 10
+|members = Yes
+|ticks = 4
+|mat1 = Raw pysk fish (0)
+|mat1cost = no
+|output1 = Pysk fish (0)
+|output1cost = no
+}}
+
+{{Chambers of Xeric}}
+{{Fish}}
+
+[[Category:Needs skilling success chart]]

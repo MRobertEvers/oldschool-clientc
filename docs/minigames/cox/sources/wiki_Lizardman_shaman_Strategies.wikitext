@@ -1,0 +1,393 @@
+[[Lizardman shaman]]s are popular monsters hunted by players for their renowned [[dragon warhammer]] drop, which has a useful [[special attack]] for high level [[PvM]] encounters. This guide will give a few tips and some setups to help out with your kills.
+
+==Location==
+[[File:Lizardman Shaman Location 1.png|thumb|From Xeric's Inferno, follow the red arrow to reach the shamans, or use the fairy ring with the code {{Fairycode|DJR}} and follow the green arrow to the shamans.]]
+Lizardman shamans can be found in three locations:
+*Western side of the [[Lizardman Canyon]] - contains three shamans in a large, [[multi-combat area]]. They won't attempt their stomp attack if you stand in the south-west corner.
+*[[Lizardman Caves]] on the northern end of the [[Lizardman Settlement]] - contains eight shamans in a small, [[single-way area]], with two shamans in each room. These can only be killed while on a [[lizardman]] [[Slayer task]].
+*[[Lizardman Temple]] beneath [[Molch]] - contains six shamans in a small, [[single-way area]], with two shamans in each room.
+
+[[File:Lizardman Shaman location 2.png|thumb|Additional route from Xeric's Lookout ([[Xeric's Talisman]])]]
+
+==Attacks==
+[[Lizardman shaman]]s use the following attacks:
+*[[Melee]] attack - a standard melee attack sharing the same animation as the other lizardmen.
+*[[Ranged]] attack - a standard ranged attack sharing the same animation as the other lizardmen. This attack can poison.
+*Special attacks - Lizardman shamans have three special attacks that can be used without cooldown:
+**Acid spit - The shaman spits a large ball of acid at the player's current location. This will deal unblockable [[poison]] damage for up to 30 damage. This attack can poison. The damage reduces if you wear a full set of [[Shayzien armour]], obtained from fighting the soldiers in the [[Combat Ring (Shayzien)|Combat Ring]]. Wearing the full tier 5 Shayzien set negates all damage done by this attack, though you can still be poisoned.
+**Jump - The shaman jumps into the air before crashing down at the player's location when they jumped. This can be avoided by moving out of the way. If the shaman stomps you, you will take heavy damage which cannot be blocked. They will not attempt this attack if they cannot land on the players location. This can be taken advantage of by ensuring you have a wall blocking the tile to the south or west of you.
+**Spawns - The shaman summons three [[Spawn (lizardman shaman)|spawns]] - two next to the player and one under the player, who will follow the player upon spawning, unless the spawns are summoned in a position where they cannot see the player. After several seconds, the spawn will explode, dealing 8-10 damage to players that are two spaces or less from it when it explodes. The minion who spawns under the player will always explode first.
+
+[[Lizardman shaman|Lizardman shamans]] have an attack range of 8, which means that weapons like [[longbows]], [[Composite bow|composite bows]], the [[crystal bow]], and the [[Bow of Faerdhinen]] can outrange it on rapid, and weapons like [[shortbows]], [[crossbows]], and [[Karil's crossbow]] can outrange it on longrange.
+
+==Suggested skills==
+*{{SCP|Attack|80+}}
+*{{SCP|Strength|80+}}
+*{{SCP|Defence|20+}} (60+ Recommended)
+*{{SCP|Ranged|60+}}
+*{{SCP|Prayer|40+}} (43+ Recommended)
+
+==Equipment==
+[[File:Shaman cannon set-up spot.png|thumb|Optimal spot to set-up cannon in north-west corner, a few spaces west of the obstruction.]]
+Using [[Ranged]] is recommended as this allows better manoeuvring, although [[Melee]] is also viable. Lizardman shamans are weak to both combat styles; specifically, they have negative [[stab]] defence and no ranged [[defence bonuses]]. [[Slash]], [[crush]], and [[magical]] attacks are not recommended as they have high defensive bonuses against those styles.
+
+If killing lizardman shamans on task, it is strongly recommended to have completed the [[hard Kourend & Kebos Diary]] to add the [[Shayzien armour]] effect to your [[Slayer helmet]] via [[Captain Cleive]]. {{Colour|red|Warning: This will not happen automatically!}} You need to actively speak with [[Captain Cleive]] to trigger the change. If you do not have the diary completed, you will take some damage from the acid spit attack if wearing the Slayer helmet, and it can deal a lot of damage over time. 
+
+If you have not completed the diary, it's best to wear the [[Shayzien helm (5)]] regardless of [[combat class]].
+
+<tabber>
+Ranged =
+Activate [[Protect from Missiles]] and your best offensive prayer, and if using, set up your [[dwarf multicannon]] in the north-west corner near the obstruction in [[Lizardman Canyon]] as indicated in the image above. Focus primarily on killing the north-west and south-west spawns.
+
+Always pay attention to all [[special attack]]s, namely leaping and summoning [[Spawn (lizardman shaman)|minions]]. Move out of the way as soon as you see them jump, and dodge the minions by manoeuvring around an obstacle or moving a few spaces away. The jump hits a 3x3 area in the [[Lizardman Canyon]] and 2x2 in the [[Lizardman Temple]] with the north-east tile targeting the player's tile. As a ranger, always keep distance, and work the obstacles. Note that hugging the obstacle or wall in the canyon prevents the shamans from jumping. As for the shaman temple, only the western and southern walls will prevent them from jumping. 
+
+{{Recommended equipment
+|style = Ranged
+|head1 = {{plink|Slayer helmet (i)}} (with [[hard Kourend & Kebos Diary|hard diary]] completed, having spoken to [[Captain Cleive]] )
+|head2 = {{plink|Shayzien helm (5)}}{{efn|Full tier-5 [[Shayzien armour]] will nullify the shamans' acid.|name=shay}}
+|neck1 = {{plink|Necklace of rupture}}
+|neck2 = {{plink|Necklace of anguish}}
+|neck3 = {{plink|Bonecrusher necklace}}
+|neck4 = {{plink|Dragonbone necklace}}{{efn|Use with [[Bonecrusher]] for longer trips.}}
+|neck5 = {{plink|Necklace of Fangs}} / {{plink|Amulet of fury}}
+|body1 = {{plink|Shayzien body (5)}}{{efn|Full tier-5 [[Shayzien armour]] will nullify the shamans' acid.|name=shay}}
+|legs1 = {{plink|Shayzien greaves (5)}}{{efn|Full tier-5 [[Shayzien armour]] will nullify the shamans' acid.|name=shay}}
+|cape1 = {{plink|Dizana's quiver}}
+|cape2 = {{plink|Ava's assembler}}
+|cape3 = {{plink|Soul cape|pic=Soul cape (red)}} / {{plink|Ardougne cloak 4}} (if using [[Bow of Faerdhinen]])
+|cape4 = [[File:Ranging cape(t).png]] [[Ranging cape|Ranging cape (trimmed)]]
+|cape5 = {{plink|Ava's accumulator}}
+|weapon1 = {{plink|Toxic blowpipe}} (with [[adamant darts]] or better, ideally [[amethyst darts]])
+|weapon2 = {{plink|Rosewood blowpipe}} (with [[rune darts]]) / {{plink|Bow of Faerdhinen}}
+|weapon3 = {{plink|Twisted bow}}
+|weapon4 = {{plink|Karil's crossbow}} / {{plink|Hunters' sunlight crossbow}} / {{plink|Scorching bow}}
+|weapon5 = {{plink|Rune crossbow}} / {{plink|Magic shortbow (i)}} / {{plink|Crystal bow}}
+|shield1 = None if using [[two-handed weapons]].
+|shield2 = {{plink|Antler guard}}
+|shield3 = {{plink|Book of Law}}
+|shield4 = {{plink|Unholy book}}
+|shield5 = {{plink|Book of Balance}} / {{plink|Black d'hide shield}}
+|hands1 = {{plink|Shayzien gloves (5)}}{{efn|Full tier-5 [[Shayzien armour]] will nullify the shamans' acid.|name=shay}}
+|feet1 = {{plink|Shayzien boots (5)}}{{efn|Full tier-5 [[Shayzien armour]] will nullify the shamans' acid.|name=shay}}
+|ring1 = {{plink|Venator ring}}
+|ring2 = {{plink|Ring of the gods (i)}}
+|ring3 = {{plink|Ring of suffering (i)}} / {{plink|Lightbearer}}
+|ring4 = {{plink|Archers ring (i)}} / {{plink|Ring of shadows}}
+|ring5 = {{plink|Brimstone ring}} / {{plink|Explorer's ring 4|txt=Explorer's ring 4/3}}
+|ammo1 = {{plink|Rada's blessing 4}} (if using [[toxic blowpipe]] or [[bow of Faerdhinen]])
+|ammo2 = {{plink|God blessing|pic=Peaceful blessing}} / {{plink|Rada's blessing 3|txt=Rada's blessing 3/2}} (if using [[toxic blowpipe]] or [[bow of Faerdhinen]])
+|ammo3 = {{plink|Bolt rack}} (if using [[Karil's crossbow]])
+|ammo4 = {{plink|Rune arrow}} or better (if using [[twisted bow]] or [[magic shortbow (i)]]) / {{plink|Sunlight antler bolts}} or better (if using [[Hunters' sunlight crossbow]])
+|ammo5 = {{plink|Broad bolts}} or better (if using a rune crossbow)
+}}
+{{Notelist}}
+
+{{#tag:tabber|
+Lizardman Canyon =
+{{Inventory|align=right
+|1= Steel cannonball
+|2= Divine rune pouch
+|3= Divine ranging potion(4)
+|4= Divine ranging potion(4)
+|5= {{Cheap food}}
+|6= Stamina potion(4)
+|7= Stamina potion(4)
+|8= Antidote++(4)
+|9= {{Cheap food}}
+|10= {{Cheap food}}
+|11= {{Cheap food}}
+|12= Cannon base
+|13= {{Cheap food}}
+|14= {{Cheap food}}
+|15= {{Cheap food}}
+|16= Cannon stand
+|17= Prayer potion(4)
+|18= Prayer potion(4)
+|19= Prayer potion(4)
+|20= Cannon furnace
+|21= Prayer potion(4)
+|22= Prayer potion(4)
+|23= Prayer potion(4)
+|24= Cannon barrels
+|25= Herb sack
+|26= Holy wrench
+|27= Xeric's talisman
+|28= Teleport to house (tablet)
+}}
+{{Rune pouch|align=right
+|1=Nature rune
+|2=Fire rune
+|3=Water rune
+|4=Earth rune
+}}
+==Inventory==
+*2 [[Divine ranging potion]]s
+*1 [[Antidote++]] or 2 [[Superantipoison]]s or [[araxyte venom sac]]s
+*1-2 [[Stamina potion]]s (optional, can be substituted for extra [[prayer potion]]s or food if the player doesn't move a lot)
+*6-8 [[Prayer potion]]s
+*[[Dwarf multicannon]] and [[steel cannonball]]s
+*[[Divine rune pouch]] with [[Nature rune|nature]], [[Fire rune|fire]], [[Earth rune|earth]], and [[water rune]]s to cast [[High Level Alchemy]] and [[Bones to Peaches]] (optional but strongly recommended)
+*[[Bones to peaches (tablet)]] (optional but not needed if [[Bones to Peaches|spell]] is unlocked and bringing the necessary [[runes]])
+*[[Xeric's talisman]]
+*An emergency [[teleport]]
+*[[Holy wrench]] to increase the effectiveness of your prayer restoring items
+* [[Herb sack]] for unnoted grimy herbs
+*Rest [[monkfish]] or better
+
+{{!}}-{{!}}
+Lizardman Settlement =
+{{Inventory|align=right
+|1= Divine ranging potion(4)
+|2= Divine ranging potion(4)
+|3= Antidote++(4)
+|4= Divine rune pouch
+|5= Prayer potion(4)
+|6= Prayer potion(4)
+|7= Prayer potion(4)
+|8= Prayer potion(4)
+|9= Prayer potion(4)
+|10= Prayer potion(4)
+|11= Prayer potion(4)
+|12= Stamina potion(4)
+|13= {{Cheap food}}
+|14= {{Cheap food}}
+|15= {{Cheap food}}
+|16= {{Cheap food}}
+|17= {{Cheap food}}
+|18= {{Cheap food}}
+|19= {{Cheap food}}
+|20= {{Cheap food}}
+|21= {{Cheap food}}
+|22= {{Cheap food}}
+|23= {{Cheap food}}
+|24= {{Cheap food}}
+|25= Teleport to house (tablet)
+|26= Herb sack
+|27= Holy wrench
+|28= Xeric's talisman
+}}
+{{Rune pouch|align=right
+|1=Nature rune
+|2=Fire rune
+|3=Water rune
+|4=Earth rune
+}}
+==Inventory==
+*2 [[Divine ranging potion]]s
+*1 [[Antidote++]] or 2 [[Superantipoison]]s or [[araxyte venom sac]]s
+*1 [[Stamina potion]] (optional)
+*6-8 [[Prayer potion]]s
+*[[Divine rune pouch]] with [[Nature rune|nature]], [[Fire rune|fire]], [[Earth rune|earth]], and [[water rune]]s to cast [[High Level Alchemy]] and [[Bones to Peaches]] (optional but strongly recommended)
+*[[Bones to peaches (tablet)]] (optional but not needed if [[Bones to Peaches|spell]] is unlocked and bringing the necessary [[runes]])
+*[[Xeric's talisman]]
+*An emergency [[teleport]]
+*[[Holy wrench]] to increase the effectiveness of your prayer restoring items
+* [[Herb sack]] for unnoted grimy herbs
+*Rest [[monkfish]] or better
+
+{{!}}-{{!}}
+Lizardman Temple =
+{{Inventory|align=right
+|1= Divine ranging potion(4)
+|2= Divine ranging potion(4)
+|3= Antidote++(4)
+|4= Antidote++(4)
+|5= Divine ranging potion(4)
+|6= Divine ranging potion(4)
+|7= Prayer potion(4)
+|8= Prayer potion(4)
+|9= Prayer potion(4)
+|10= Prayer potion(4)
+|11= Prayer potion(4)
+|12= Prayer potion(4)
+|13= Prayer potion(4)
+|14= Prayer potion(4)
+|15= Prayer potion(4)
+|16= Prayer potion(4)
+|17= Prayer potion(4)
+|18= Prayer potion(4)
+|19= Prayer potion(4)
+|20= Prayer potion(4)
+|21= Prayer potion(4)
+|22= Prayer potion(4)
+|23= Prayer potion(4)
+|24= Prayer potion(4)
+|25= Herb sack
+|26= Teleport to house (tablet)
+|27= Holy wrench
+|28= Divine rune pouch
+}}
+{{Rune pouch|align=right
+|1=Nature rune
+|2=Fire rune
+|3=Water rune
+|4=Earth rune
+}}
+==Inventory==
+*3-4 [[Divine ranging potion]]s
+*2 [[Antidote++]] or 3-4 [[Superantipoison]]s or [[araxyte venom sac]]s
+*[[Divine rune pouch]] with [[Nature rune|nature]], [[Fire rune|fire]], [[Earth rune|earth]], and [[water rune]]s to cast [[High Level Alchemy]] and [[Bones to Peaches]] (optional but strongly recommended)
+*[[Bones to peaches (tablet)]] (optional but not needed if [[Bones to Peaches|spell]] is unlocked and bringing the necessary [[runes]])
+*An emergency [[teleport]]
+*1-2 emergency food (optional)
+*[[Holy wrench]] to increase the effectiveness of your prayer restoring items
+* [[Herb sack]] for unnoted grimy herbs
+*Rest [[prayer potion]]s
+}}
+
+{{Clear}}
+|-|
+Melee =
+Activate [[Protect from Melee]], and if using, set up your [[dwarf multicannon]] north-west by the obstruction in [[Lizardman Canyon]], or set up your cannon in the open area south-west.
+
+Always pay attention to all [[special attack]]s, namely leaping and summoning [[Spawn (lizardman shaman)|minions]] regardless. Move out of the way as soon as you see them jump, and dodge the minions by manoeuvring around an obstacle or moving a few spaces away.
+
+If using the [[noxious halberd]], stand one tile away, allowing you to avoid the melee attacks and pray [[Protect from Ranged]].
+
+{{Recommended equipment
+|style = Melee
+|head1 = {{plink|Slayer helmet (i)}} (with [[hard Kourend & Kebos Diary|hard diary]] completed, having spoken to [[Captain Cleive]])
+|head2 = {{plink|Shayzien helm (5)}}{{efn|Full tier-5 [[Shayzien armour]] will nullify the shamans' acid.|name=shay}}
+|neck1 = {{plink|Amulet of rancour}}/</br>{{plink|Amulet of blood fury}}
+|neck2 = {{plink|Amulet of torture}}
+|neck3 = {{plink|Amulet of fury}}
+|neck4 = {{plink|Amulet of glory}}
+|neck5 = {{plink|Amulet of power}}
+|neck6 = {{plink|Amulet of strength}}
+|body1 = {{plink|Shayzien body (5)}}{{efn|Full tier-5 [[Shayzien armour]] will nullify the shamans' acid.|name=shay}}
+|legs1 = {{plink|Shayzien greaves (5)}}{{efn|Full tier-5 [[Shayzien armour]] will nullify the shamans' acid.|name=shay}}
+|cape1 = {{plink|Infernal cape}}
+|cape2 = {{plink|Fire cape}}
+|cape3 = {{plink|Ardougne cloak 4}}
+|cape4 = {{plink|Cape of Accomplishment|pic=Strength cape(t)}}
+|cape5 = {{plink|Ardougne cloak 3}}
+|ammo1 = {{plink|Rada's blessing 4}}
+|ammo2 = {{plink|God blessing|pic=Peaceful blessing}} / {{plink|Rada's blessing 3|txt=Rada's blessing 3/2}}
+|weapon1 = {{plink|Ghrazi rapier}} / {{plink|Noxious halberd}} </br>(On stab)
+|weapon2 = {{plink|Osmumten's fang}}
+|weapon3 = {{plink|Scythe of Vitur}}
+|weapon4 = {{plink|Voidwaker}} </br>(on stab)
+|weapon5 = {{plink|Zamorakian hasta}} / {{plink|Abyssal dagger (p++)}} > {{plink|Belle's folly}}
+|shield1 = {{plink|Avernic defender}}
+|shield2 = {{plink|Dragon defender}} / {{plink|Dragonfire shield}} 
+|shield3 = {{plink|Rune defender}} / {{plink|Toktz-ket-xil}} 
+|hands1 = {{plink|Shayzien gloves (5)}}{{efn|Full tier-5 [[Shayzien armour]] will nullify the shamans' acid.|name=shay}}
+|feet1 = {{plink|Shayzien boots (5)}}{{efn|Full tier-5 [[Shayzien armour]] will nullify the shamans' acid.|name=shay}}
+|ring1 = {{plink|Ultor ring}} / {{plink|Bellator ring}}{{efn|Use with scythe of vitur}} 
+|ring2 = {{plink|Berserker ring (i)}}
+|ring3 = {{plink|Ring of suffering (i)}} / {{plink|Lightbearer}}
+|ring4 = {{plink|Brimstone ring}}
+|ring5 = {{plink|Ring of the gods (i)}}
+|special1 = {{plink|Saradomin godsword}} </br>(For healing) / {{plink|Crystal halberd}}
+|special2 = {{plink|Burning claws}} </br>(On stab)
+|special3 = {{plink|Dragon dagger}}
+|special4 = {{plink|Osmumten's fang}}
+|special5 = {{plink|Voidwaker}}
+}}
+{{Notelist}}
+
+{{#tag:tabber|
+Lizardman Canyon =
+{{Inventory|align=right
+|1= Saradomin godsword
+|2= Divine super combat potion(4)
+|3= Antidote++(4)
+|4= Divine rune pouch
+|5= Prayer potion(4)
+|6= Prayer potion(4)
+|7= Prayer potion(4)
+|8= Prayer potion(4)
+|9= Cannon base
+|10= {{Cheap food}}
+|11= {{Cheap food}}
+|12= {{Cheap food}}
+|13= Cannon stand
+|14= {{Cheap food}}
+|15= {{Cheap food}}
+|16= {{Cheap food}}
+|17= Cannon furnace
+|18= {{Cheap food}}
+|19= {{Cheap food}}
+|20= {{Cheap food}}
+|21= Cannon barrels
+|22= {{Cheap food}}
+|23= {{Cheap food}}
+|24= Steel cannonball
+|25= Teleport to house (tablet)
+|26= {{Cheap food}}
+|27= Herb sack
+|28= Xeric's talisman
+}}
+{{Rune pouch|align=right
+|1=Nature rune
+|2=Fire rune
+|3=Water rune
+|4=Earth rune
+}}
+==Inventory==
+*[[Special attack]] weapon
+*1-2 [[Divine super combat potion]]s
+*1-2 [[Superantipoison]]s or [[Antidote++]] or [[araxyte venom sac]]s 
+*3-4 [[Prayer potion]]s (6-8 if using [[Piety]])
+*[[Divine rune pouch]] with [[Nature rune|nature]], [[Fire rune|fire]], [[Earth rune|earth]], and [[water rune]]s to cast [[High Level Alchemy]] and [[Bones to Peaches]] (optional but strongly recommended)
+*[[Dwarf multicannon]] and [[steel cannonball]]s (optional)
+*[[Xeric's talisman]]
+* [[Herb sack]] for unnoted grimy herbs
+*An emergency [[teleport]]
+*Rest [[monkfish]] or higher
+
+{{!}}-{{!}}
+Lizardman Settlement/Temple =
+{{Inventory|align=right
+|1= Saradomin godsword
+|2= Divine super combat potion(4)
+|3= Antidote++(4)
+|4= Divine rune pouch
+|5= Prayer potion(4)
+|6= Prayer potion(4)
+|7= Prayer potion(4)
+|8= Prayer potion(4)
+|9= Prayer potion(4)
+|10= Prayer potion(4)
+|11= Prayer potion(4)
+|12= Prayer potion(4)
+|13= {{Cheap food}}
+|14= {{Cheap food}}
+|15= {{Cheap food}}
+|16= {{Cheap food}}
+|17= {{Cheap food}}
+|18= {{Cheap food}}
+|19= {{Cheap food}}
+|20= {{Cheap food}}
+|21= {{Cheap food}}
+|22= {{Cheap food}}
+|23= {{Cheap food}}
+|24= {{Cheap food}}
+|25= Teleport to house (tablet)
+|26= Herb sack
+|27= Holy wrench
+|28= Xeric's talisman
+}}
+{{Rune pouch|align=right
+|1=Nature rune
+|2=Fire rune
+|3=Water rune
+|4=Earth rune
+}}
+==Inventory==
+*[[Special attack]] weapon
+*1-2 [[Divine super combat potion]]s
+*1-2 [[Superantipoison]]s or [[Antidote++]] or [[araxyte venom sac]]s
+*3-4 [[Prayer potion]]s (6-8 if using [[Piety]])
+*[[Divine rune pouch]] with [[Nature rune|nature]], [[Fire rune|fire]], [[Earth rune|earth]], and [[water rune]]s to cast [[High Level Alchemy]] and [[Bones to Peaches]] (optional but strongly recommended)
+*[[Bones to peaches (tablet)]] (optional but not needed if [[Bones to Peaches|spell]] is unlocked and bringing the necessary [[runes]])
+*[[Xeric's talisman]]
+*An emergency [[teleport]]
+*[[Holy wrench]] to increase the effectiveness of your prayer restoring items (unnecessary if wearing a [[Ring of the gods (i)]])
+* [[Herb sack]] for unnoted grimy herbs
+*Rest [[monkfish]] or higher
+}}
+{{Clear}}
+</tabber>
+
+[[Category:Strategies]]

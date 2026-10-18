@@ -1,0 +1,46 @@
+{{Infobox Item
+|name = Creature keeper's journal
+|image = [[File:Creature keeper's journal.png]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Read, Drop
+|examine = Journal of a deceased creature keeper.
+|value = 1
+|weight = 0.280
+|id = 20886
+}}
+[[File:Creature keeper's journal detail.png|left|130px]]
+The '''creature keeper's journal''' is a book that is found by searching the corpse of the [[creature keeper]] in the [[Chambers of Xeric]].
+
+The book details the creature keeper's experiences with the scavengers, comparing them to [[skavid]]s found in [[Gu'Tanoth]].
+
+If lost, it can be reclaimed by searching the creature keeper, or from a [[bookcase]] within a [[player-owned house]].
+
+==Transcript==
+{{Hastranscript|Creature keeper's journal|transclude=Yes}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 10 January 2019
+|update = The Kebos Lowlands
+|change = The text was slightly altered, changing references to Kourend as a city to a kingdom.
+}}
+{{Subject changes footer}}
+
+==Gallery==
+<gallery mode="packed" heights="150" style="text-align:center">
+File:Creature keeper's journal (interface, 1).png|Pages 1-2
+File:Creature keeper's journal (interface, 2).png|Pages 3-4
+File:Creature keeper's journal (interface, 3).png|Pages 5-6
+</gallery>
+
+{{Chambers of Xeric}}
+[[Category:Texts and tomes]]
+[[Category:Storable in bookcases]]

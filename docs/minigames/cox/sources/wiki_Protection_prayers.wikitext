@@ -1,0 +1,153 @@
+{{External|rs}}
+'''Protection Prayers''' are often used to refer to the three [[Prayer#Prayers|''"Protect from x"'' Prayers]] that could nullify or mitigate damage from incoming attacks of the respective [[combat style]] or discipline from monsters or players. These are available in both [[free-to-play]] and [[pay-to-play]].
+
+{|class="wikitable align-center-1 align-center-2"
+!{{SCP|Prayer}} Level
+!colspan="2"|Prayer
+!Effect
+!Drain Rate
+![[Prayer drain mechanics|Drain Effect]]
+|-
+|37
+|{{plinkt|Protect from Magic}}
+|Protects against [[magic]] attacks
+| rowspan="3" |1 point per 3 seconds
+| rowspan="3" |12
+|-
+|40
+|{{plinkt|Protect from Missiles}}
+|Protects against [[ranged]] attacks
+|-
+|43
+|{{plinkt|Protect from Melee}}
+|Protects against [[melee]] attacks
+|}
+{{Reflist}}
+
+Only one protection prayer can be activated at a time; activating a different protection Prayer will deactivate the current one. '''Protection Prayers only provide a 40% damage reduction in [[PVP]].'''  Protection prayers block all damage in most circumstances against [[Non-player character|NPCs]], though some [[boss]]es (typically high-levelled) have attacks that can deal partial or full damage through them. 
+
+When an attack fully ignores protection prayers, it's known as being "[[typeless]]". Most typeless attacks are used by NPCs, though there are some that can be used by the player. 
+
+Several monsters are able to make use of protection prayers as well.
+{| class="wikitable sortable align-center-2"
+!Monster
+!Prayers
+!Notes
+|-
+|[[Kalphite Queen]]
+|[[File:Protect_from_Magic_and_Missiles_overhead.png|link=]] {{plinkp|Protect from melee|pic=Protect from Melee overhead}}
+|Her first form will use Protect from Magic and Missiles simultaneously, while her second form will use Protect from Melee. '''Her prayers are purely visual''', and only indicate a higher defence bonus against a particular attack style.
+|-
+|[[Sigmund]]
+|{{plinkp|Protect from magic|pic=Protect from Magic overhead}} {{plinkp|Protect from missiles|pic=Protect from Missiles overhead}} {{plinkp|Protect from melee|pic=Protect from Melee overhead}}
+|When fought during [[Death to the Dorgeshuun]] he will protect against whichever attack style the player is using until Zanik attacks him, forcing him to protect against missiles. During [[Another Slice of H.A.M.]] he will first protect against whatever style the player attacks him with, until the player uses the [[ancient mace]] special attack against him, thus his Prayer will be drained and he can no longer use any protection prayers.
+|-
+|[[Demonic gorilla]]
+|{{plinkp|Protect from magic|pic=Protect from Magic overhead}} {{plinkp|Protect from missiles|pic=Protect from Missiles overhead}} {{plinkp|Protect from melee|pic=Protect from Melee overhead}}
+|The gorilla will spawn protecting from a random style. After 70 or more damage has been taken, the gorilla will switch its protection prayer according to the style of the last damage it took.
+|-
+|[[Mother]]
+|{{plinkp|Protect from magic|pic=Protect from Magic overhead}} {{plinkp|Protect from missiles|pic=Protect from Missiles overhead}} {{plinkp|Protect from melee|pic=Protect from Melee overhead}}
+|Mother protects against the last attack style that was used against him until the player extinguishes the Fire of Domination, at which point Mother only protects against Magic.
+|-
+|[[Crystalline Hunllef]] / [[Corrupted Hunllef]]
+|{{plinkp|Protect from magic|pic=Protect from Magic overhead}} {{plinkp|Protect from missiles|pic=Protect from Missiles overhead}} {{plinkp|Protect from melee|pic=Protect from Melee overhead}}
+|The Hunllef will spawn in protecting from a random style and change its protection prayer to protect against the sixth attack it receives that it is not protecting from.
+|-
+|[[Judge of Yama (A Kingdom Divided)]]
+|[[File:Protect_from_Magic_and_Missiles_overhead.png|link=]]
+|Fought during the [[A Kingdom Divided]] quest.
+|-
+|[[Xamphur]]
+|{{plinkp|Protect from magic|pic=Protect from Magic overhead}}
+|Fought during the [[A Kingdom Divided]] quest.
+|-
+|[[Nex]]
+|[[File:Dampen_Melee_overhead.png|link=|frameless]] 
+|[[Nex]] uses [[Dampen Melee]] which is a Zarosian prayer, during her final phase.
+|-
+|[[Akkha]]
+|{{plinkp|Protect from magic|pic=Protect from Magic overhead}} {{plinkp|Protect from missiles|pic=Protect from Missiles overhead}} {{plinkp|Protect from melee|pic=Protect from Melee overhead}} [[File:Protect_from_Magic_and_Missiles_overhead.png|link=]]
+|Denotes complete immunity to the attack styles prayed against. The prayers change in correlation to number of attacks of a particular style are used during the fight, unless the Stay Vigilant invocation is active, in which they change when he uses a special attack. Uses Protect from Magic and Missiles only during the enrage phase.
+|-
+|[[Tumeken's Warden]] / [[Elidinis' Warden]]
+|[[File:Protect_from_Missiles_and_Melee_overhead.png|link=]] [[File:Protect_from_Magic_and_Melee_overhead.png|link=]] [[File:Protect_from_all.png|link=]]
+|Denotes complete immunity to the attack styles prayed against. The Wardens will activate "Protect from All" briefly when [[Energy Siphon|Energy Siphons]] are active.
+|-
+|[[Lesser demon (The Scar)|Lesser demon]] (Chanting puzzle)
+|[[File:Protect_from_all.png|link=]]
+|The Lesser demons will pray "Protect from All" until their linked [[scarred imp]] has been killed.
+|-
+|[[Mysterious Figure]]
+|{{plinkp|Protect from magic|pic=Protect from Magic overhead}} {{plinkp|Protect from missiles|pic=Protect from Missiles overhead}} {{plinkp|Protect from melee|pic=Protect from Melee overhead}}
+|Fought during [[Desert Treasure II - The Fallen Empire|Desert Treasure II]]. The mysterious figure will swap prayers based on the last few attacks made by the player.
+|-
+|[[Knight of Varlamore (Twilight's Promise)]]
+|{{plinkp|Protect from magic|pic=Protect from Magic overhead}} {{plinkp|Protect from missiles|pic=Protect from Missiles overhead}} {{plinkp|Protect from melee|pic=Protect from Melee overhead}}
+|Fought in a friendly sparring match during [[Twilight's Promise]]. Will swap prayers based on the last few attacks made by the player.
+|-
+|[[Elite Dark Warrior]] / [[Elite Dark Ranger]] / [[Elite Dark Mage]] / [[Elite Black Knight]]
+|{{plinkp|Protect from magic|pic=Protect from Magic overhead}} {{plinkp|Protect from missiles|pic=Protect from Missiles overhead}} {{plinkp|Protect from melee|pic=Protect from Melee overhead}}
+|Will switch their protection prayer according to the style used against them. After a while, they will run out of prayer points and unable to use prayers for the remainder of the fight.
+|-
+|[[Surok Magis]]
+|[[File:Protect_from_Missiles_and_Melee_overhead.png|link=]]
+|Fought during [[While Guthix Sleeps]] quest.
+|-
+|[[Balance Elemental]]
+|{{plinkp|Protect from magic|pic=Protect from Magic overhead}} {{plinkp|Protect from missiles|pic=Protect from Missiles overhead}} {{plinkp|Protect from melee|pic=Protect from Melee overhead}}[[File:Protect_from_Magic_and_Missiles_overhead.png|link=]] [[File:Protect_from_Missiles_and_Melee_overhead.png|link=]] [[File:Protect_from_Magic_and_Melee_overhead.png|link=]]
+|Final boss of While Guthix Sleeps. Begins praying against one style below 550 HP, then prays against two styles below 200 HP.
+|-
+|[[Tormented demon]]
+|{{plinkp|Protect from magic|pic=Protect from Magic overhead}} {{plinkp|Protect from missiles|pic=Protect from Missiles overhead}} {{plinkp|Protect from melee|pic=Protect from Melee overhead}}
+|The demon will spawn protecting from a random style. After 150 or more damage has been taken, the demon will switch its protection prayer according to the style of the last damage it took.
+|-
+|[[Judge of Yama]]
+|[[File:Protect_from_Missiles_and_Melee_overhead.png|link=]] [[File:Protect from Magic and Missiles overhead.png|link=]]
+|Encountered during the fight against [[Yama]].
+|-
+|[[Ennius Tullus]]
+|[[File:Protect from Magic and Missiles overhead.png|link=]]
+|Fought during the quest [[The Final Dawn]].
+|-
+|[[Doom of Mokhaiotl]]
+|[[File:Protect_from_Magic_and_Missiles_overhead.png|link=]]
+|Prays Protect from Magic and Missiles during a melee charge.
+|-
+|[[Demonic larva]]
+|{{plinkp|Protect from Magic|pic=Protect from Magic overhead}} {{plinkp|Protect from Missiles|pic=Protect from Missiles overhead}} {{plinkp|Protect from Melee|pic=Protect from Melee overhead}}
+[[File:Protect_from_Magic_and_Missiles_overhead.png|link=]] [[File:Protect_from_Missiles_and_Melee_overhead.png|link=]] [[File:Protect_from_Magic_and_Melee_overhead.png|link=]]
+|Encountered during the fight against the [[Doom of Mokhaiotl]]. Larvae begin praying against two styles at delve level 4.
+|-
+|[[Echo Kalphite Queen]]
+|[[File:Protect from Magic and Missiles overhead.png|link=]] {{plinkp|Protect from Melee|pic=Protect from Melee overhead}}
+|Her first form will use Protect from Magic and Missiles simultaneously, while her second form will use Protect from Melee. '''Her prayers are purely visual''', and only indicate a higher defence bonus against a particular attack style. [[Demonic Pacts League]] only.
+|-
+|[[Echo Dagannoth Kings]]
+|[[File:Protect from all.png|link=]]
+|Two of the three kings pray Protect from All, starting with Prime and Rex. Every 250 damage taken, the Kings swap prayers; Rex stops praying next, followed by Prime, before looping back to Supreme. All of the Kings stop praying during the enrage phase. [[Demonic Pacts League]] only.
+|-
+|[[Echo Thermonuclear smoke devil]]
+|{{plinkp|Protect from Magic|pic=Protect from Magic overhead}} {{plinkp|Protect from Missiles|pic=Protect from Missiles overhead}} {{plinkp|Protect from Melee|pic=Protect from Melee overhead}}
+|After using its special attack, the Echo Thermonuclear smoke devil prays against the last style the player used. [[Demonic Pacts League]] only.
+|-
+|[[Echo Corrupted Hunllef]]
+|[[File:Protect from all.png|link=]]
+
+{{plinkp|Protect from Magic|pic=Protect from Magic overhead}} {{plinkp|Protect from Missiles|pic=Protect from Missiles overhead}} {{plinkp|Protect from Melee|pic=Protect from Melee overhead}}
+|Prays Protect from All at the beginning of the fight and at 75%, 50%, and 25% HP, assuming it had been disabled with the [[Crystal dagger (perfected)|crystal dagger]]'s special attack. After disabling Protect from All, the Echo Hunllef will immediately pray against the last style the player used. It will then change its protection prayer to protect against the sixth attack it receives that it is not protecting from. [[Demonic Pacts League]] only.
+|-
+|[[Echo Hespori]] flowers
+|{{plinkp|Protect from Melee|pic=Protect from Melee overhead}} [[File:Protect from Magic and Missiles overhead.png|link=]]
+|Spawns randomly praying either Protect from Melee or Protect from Magic and Missiles. [[Demonic Pacts League]] only.
+|}
+
+==Trivia==
+* The [[Kalphite Queen]], in [[2004]], was the first monster to use simultaneous protection prayers, with her first form using Protect from Magic and Missiles simultaneously. [[File:Protect from Magic and Missiles overhead.png]] However, this did not grant her true immunity, instead only representing her increased defence against those styles.
+** The [[Judge of Yama (A Kingdom Divided)|Judge of Yama]], encountered during [[A Kingdom Divided]] in [[2021]], was the first monster to use true full-immunity simultaneous prayers. This reflected a shift in Jagex' design philosophy, as similar prayers became a key mechanic in future high-level combat encounters.
+
+==See also==
+*[[Protect Item]]
+*[[Overheads]]
+
+{{Prayers}}

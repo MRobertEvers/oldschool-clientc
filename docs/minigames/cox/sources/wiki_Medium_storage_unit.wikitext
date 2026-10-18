@@ -1,0 +1,78 @@
+{{Infobox Construction
+|name = Medium storage unit
+|image = [[File:Medium storage unit built.png|250px]]
+|icon = [[File:Medium storage unit icon.png]]
+|furniturename = Medium storage unit
+|release = [[12 January]] [[2017]]
+|update = Raids Improvements
+|level = 60
+|experience = 150
+|room = [[Chambers of Xeric]] resource room
+|hotspot = [[Storage unit]]
+|flatpack = No
+|examine = For holding items.
+|id = 29779
+|itemid = 21038, 21040
+}}
+
+'''Medium storage units''' can be built in resource rooms within the [[Chambers of Xeric]]. It allows players to store, for the duration of the raid, 500 items that are found only within the Chambers, and 60 of the player's personal items. It requires a [[Construction]] level of 60 in order to build.
+
+'''Note:''' Players who leave the Chambers with their personal items still stored in the storage units can retrieve them from the private storage unit next to the bank chest on the Mountain. The private storage unit '''must be emptied''' before players re-enter the Chambers of Xeric.
+
+==Creation==
+===Upgrade===
+{{Recipe
+|skill1 = Construction
+|skill1lvl = 60
+|skill1boostable = Yes
+|skill1exp = 150
+|members = Yes
+|ticks = 5
+|tools = Hammer
+|mat1 = Small storage unit
+|mat1pic = Small storage unit icon
+|mat1cost = 0
+|mat2 = Mallignum root plank
+|mat2quantity = 2
+|mat2cost = 0
+|output1 = Medium storage unit
+|output1pic = Medium storage unit icon
+|output1cost = 0
+|output1subtxt = Upgrade
+}}
+
+===Total===
+''The experience shown is the total amount accumulated from the base furniture to this built furniture.''
+{{Recipe
+|skill1 = Construction
+|skill1lvl = 60
+|skill1boostable = Yes
+|skill1exp = 300
+|members = Yes
+|ticks = 5
+|tools = Hammer
+|mat1 = Mallignum root plank
+|mat1quantity = 4
+|mat1cost = 0
+|output1 = Medium storage unit
+|output1pic = Medium storage unit icon
+|output1cost = 0
+|output1subtxt = Total
+}}
+
+==Products==
+{{Uses material list|Medium storage unit}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 8 February 2018
+|update = PvM QoL updates & Wilderness Rejuvenation improvements
+|poll = Quality of Life - PvM Suggestions 2018
+|change = The amount of mallignum root planks required to build a medium storage unit has been decreased from eight to four.
+}}
+{{Subject changes footer}}
+
+{{Chambers of Xeric}}
+
+[[Category:Bank PIN protection]]

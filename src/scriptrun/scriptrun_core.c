@@ -316,6 +316,44 @@ core_headbar(
 }
 
 int
+ScriptrunCore_InstanceZone(
+    struct ScriptrunCore const* core,
+    int x,
+    int z,
+    int level,
+    int* template_x,
+    int* template_z,
+    int* template_level,
+    int* rotation)
+{
+    int dx;
+    int dz;
+    int32_t packed;
+
+    assert(core);
+    assert(template_x);
+    assert(template_z);
+    assert(template_level);
+    assert(rotation);
+    if( !core->have_scene || !core->instance_active || level < 0 || level > 3 )
+        return 0;
+    /* The grid is 13 zones a side with the rebuild's zone at index 6 (the
+     * client's own indexing, app_plugin_instance_zone). */
+    dx = (x >> 3) - (core->rebuild_zone_x - 6);
+    dz = (z >> 3) - (core->rebuild_zone_z - 6);
+    if( dx < 0 || dx >= 13 || dz < 0 || dz >= 13 )
+        return 0;
+    packed = core->instance_zones[level * 169 + dx * 13 + dz];
+    if( packed == 0 )
+        return 0;
+    *rotation = (packed >> 1) & 3;
+    *template_z = ((packed >> 3) & 0x7ff) * 8;
+    *template_x = ((packed >> 14) & 0x3ff) * 8;
+    *template_level = (packed >> 24) & 3;
+    return 1;
+}
+
+int
 ScriptrunCore_LocalTile(
     struct ScriptrunCore const* core,
     int* x,
@@ -1718,6 +1756,7 @@ core_packet(
     {
     case PKT_NAME_REBUILD_NORMAL:
         core_rebuild(core, packet._map_rebuild.zonex, packet._map_rebuild.zonez);
+        core->instance_active = 0;
         ScriptrunCore_BuildCollision(core);
         break;
     case PKT_NAME_REBUILD_REGION:
@@ -1725,6 +1764,8 @@ core_packet(
          * (WorldBuilder_RebuildInstance), collision with it. */
         core_rebuild(core, packet._map_rebuild.zonex, packet._map_rebuild.zonez);
         assert(packet._map_rebuild.zones);
+        memcpy(core->instance_zones, packet._map_rebuild.zones, sizeof(core->instance_zones));
+        core->instance_active = 1;
         ScriptrunCore_BuildInstanceCollision(core, packet._map_rebuild.zones);
         break;
     case PKT_NAME_SET_NPC_UPDATE_ORIGIN:

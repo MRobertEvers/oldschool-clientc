@@ -1,0 +1,22 @@
+{{Confuse|text=[[Sea snake]]s, the snakes found in the [[Miscellania and Etceteria dungeon]]}}
+{{Infobox NPC
+|name = Cave snake
+|image = [[File:Cave snake.png|300px]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|race = [[Sea snake]]
+|location = [[Chambers of Xeric]]
+|examine = Its bulbous eyes and pasty colour are typical of these underground creatures.
+|map = No
+|id = 7594
+|leagueRegion = Kourend
+}}
+'''Cave snakes''' are found in resource rooms within the [[Chambers of Xeric]]. They can appear in [[Bubbles|fishing spots]] and attack the player and anyone adjacent to it.
+If players have cooked fish in their inventory, it will steal one when attacking. When this occurs, a message will appear in the chatbox stating: {{Mes|The snake stole some food off you!}}. The snake can deal 3-6 damage, even if not stealing food. Cave snakes will not steal raw fish.
+[[File:Cave snake attacking.png|thumb|left|250px|A player is attacked by a cave snake.]]
+
+== Trivia ==
+* Attempting to fish while a cave snake is present will give the chat message {{Mes|This seems like a very bad moment to fish here.}}.
+
+{{Chambers of Xeric}}

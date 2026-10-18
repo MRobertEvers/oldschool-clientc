@@ -1,0 +1,123 @@
+{{External|rs=Bronze hatchet|rsc=Bronze Axe|dw=Bronze Logging Axe}}
+{{Infobox Item
+|name = Bronze axe
+|image = [[File:Bronze axe.png]]
+|release = [[4 January]] [[2001]]
+|update = Runescape beta is now online!
+|members = No
+|quest = No
+|tradeable = Yes
+|equipable = Yes
+|stackable = No
+|noteable = Yes
+|options = Wield, Drop
+|examine = A woodcutter's axe.
+|value = 16
+|weight = 1.360
+|respawn = 100
+|exchange = Yes
+|id = 1351
+}}
+[[File:Bronze axe detail.png|left|130px]]
+The '''bronze axe''' is the weakest [[axe]] in ''[[Old School RuneScape]]''. It can be wielded for combat, or used to cut trees in [[Woodcutting]]. It requires an [[Attack]] level of 1 to be equipped, and a Woodcutting level of 1 to be used.
+
+Players can make a bronze axe with the [[Smithing]] skill at level 1 using one [[bronze bar]], giving the player 12.5 Smithing [[experience]]. Players can take one for free from [[logs (bronze axe)|logs]] found at various locations, such as at the chicken farm by the [[Lumbridge cow field]], or [[Fred the Farmer]]'s house. One can also be obtained by talking to the [[Woodsman tutor]].
+
+Various activities require the use of an any axe, such as chopping Kraken tentacles on the [[Fishing Trawler]], defeating the [[Growthling|growthlings]] during the [[Bryophyta]] boss fight, or cutting [[bruma roots]] to fight [[Wintertodt]]. A bronze axe is available to the player from the nearby environment in these activities: on the Fishing Trawler from a crate marked [[Axes (Fishing Trawler)|axes]], at Bryophyta from a pile of [[Logs (bronze axe)|logs]], and at Wintertodt from a [[Crate (Wintertodt)#Axes|crate]].
+
+==Combat stats==
+{{Infobox Bonuses
+|astab = -2
+|aslash = +4
+|acrush = +2
+|amagic = 0
+|arange = 0
+|dstab = 0
+|dslash = +1
+|dcrush = 0
+|dmagic = 0
+|drange = 0
+|str = +5
+|rstr = 0
+|mdmg = 0
+|prayer = 0
+|slot = weapon
+|speed = 5
+|attackrange = 1
+|combatstyle = Axe
+|image = [[File:Bronze axe equipped.png|150px]]
+|altimage = [[File:Bronze axe equipped female.png|150px]]
+}}
+
+{{CombatStyles|Axe|speed=5|attackrange=1}}
+
+==Creation==
+{{Recipe
+|skill1 = Smithing
+|skill1lvl = 1
+|skill1exp = 12.5
+|members = No
+|ticks = 5
+|tools = Hammer
+|facilities = Anvil
+|mat1 = Bronze bar
+|output1 = Bronze axe
+}}
+
+==Products==
+{{Uses material list|Bronze axe}}
+
+==Treasure Trails==
+{{EmoteClue}}
+
+==Item sources==
+{{Drop sources|Bronze axe}}
+
+===Spawns===
+{{ItemSpawnTableHead}}
+{{ItemSpawnLine|name=Bronze axe|location=[[Brimhaven]] - [[Dead Man's Chest]] pub|members=Yes|2795,3161|leagueRegion = Karamja}}
+{{ItemSpawnLine|name=Bronze axe|location=[[Emir's Arena]]|members=No|3368,3238|leagueRegion = Desert}}
+{{ItemSpawnLine|name=Bronze axe|location=[[Falador]] - upstairs of the furnace building|members=No|plane=1|2970,3376|leagueRegion = Asgarnia}}
+{{ItemSpawnLine|name=Bronze axe|location=[[Rellekka]] - near the [[rock crab]]s|members=Yes|2678,3731|leagueRegion = Fremennik}}
+{{ItemSpawnLine|name=Bronze axe|location=[[Tai Bwo Wannai]] - [[Hardwood Grove]]|members=Yes|2825,3088|2826,3083|leagueRegion = Karamja}}
+{{ItemSpawnLine|name=Bronze axe|location=[[Kendal's Lair]]|members=Yes|mapID = 10152|2778,10079|leagueRegion = Fremennik}}
+{{ItemSpawnLine|name=Bronze axe|location=[[The Proudspire]]|members=Yes|1582,3273|leagueRegion = Varlamore}}
+{{ItemSpawnLine|name=Bronze axe|location=[[Tlati Rainforest]]|members=Yes|1297,3133|leagueRegion = Varlamore}}
+{{ItemSpawnTableBottom}}
+
+===Scenery object spawns===
+Bronze axes on [[Logs (bronze axe)|logs]] respawn in 30 seconds.
+{{ItemSpawnTableHead}}
+{{ItemSpawnLine|name=Bronze axe|location=[[Avium Savannah]] - near [[Marcellus]]'s house|members=Yes|1683,2975|leagueRegion = Varlamore}}
+{{ItemSpawnLine|name=Bronze axe|location=[[Seers' Village]] - near Friendly Forester|members=Yes|2729,3479|leagueRegion = Kandarin}}
+{{ItemSpawnLine|name=Bronze axe|location=[[Draynor Village]] - near Friendly Forester|members=No|3097,3239|leagueRegion = Misthalin}}
+{{ItemSpawnLine|name=Bronze axe|location=[[Lumbridge]] - outside [[Fred the Farmer]]'s house |members=No|3185,3277|leagueRegion = Misthalin}}
+{{ItemSpawnLine|name=Bronze axe|location=[[Lumbridge]] - outside [[Seth Groats]]'s house |members=No|3232,3296|leagueRegion = Misthalin}}
+{{ItemSpawnLine|name=Bronze axe|location=[[Feldip Hills]] - by the [[Hunting expert]]'s hut|members=Yes|2521,2916|leagueRegion = Kandarin}}
+{{ItemSpawnLine|name=Bronze axe|location=[[Prifddinas]]|members=Yes|3305,6123|leagueRegion = Tirannwn}}
+{{ItemSpawnLine|name=Bronze axe|location=[[Neitiznot]]|members=Yes|2341,3811|leagueRegion = Fremennik}}
+{{ItemSpawnLine|name=Bronze axe|location=[[Bryophyta]]'s lair|members=Yes|mapID = 10027|3228,9932|leagueRegion = Misthalin}}
+{{ItemSpawnLine|name=Bronze axe|location=[[Auburnvale]]|members=Yes|1366,3362|leagueRegion = Varlamore}}
+{{ItemSpawnLine|name=Bronze axe|location=[[The Great Conch]]|members=Yes|3127,2414|leagueRegion = N/A}}
+{{ItemSpawnTableBottom}}
+
+===Shop locations===
+{{Store locations list|Bronze axe}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 11 September 2014
+|update = Optional Randoms & Goblins
+|poll = Old School feature poll - Content Poll 24
+|change = Random event ents no longer spawn and axes can no longer be broken.
+}}
+{{Subject changes
+|date = 22 June 2005
+|update = Rogues Den + Tweaks
+|change = The item's examine was changed from "''A woodcutters{{sic}} axe.''" to "''A woodcutter's axe.''"
+}}
+{{Subject changes footer}} 
+
+{{Axe}}
+{{Bronze equipment}}

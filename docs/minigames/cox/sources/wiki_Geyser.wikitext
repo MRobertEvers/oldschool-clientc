@@ -1,0 +1,26 @@
+{{Infobox Scenery
+|name = Geyser
+|image = [[File:Geyser.png|250x250px]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|location = [[Chambers of Xeric]]
+|options = Use
+|examine = Fresh warm water. This should be good for mixing potions with.
+|map = {{Map|3269,5462|3304,5463|3350,5454|plane=0|mapID=-1|mtype=pin}}
+|id = 29878
+}}
+The '''geysers''' are located in the [[Chambers of Xeric]]. They are used to fill [[Empty gourd vial|gourd vials]], which are used in the creation of potions.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 19 October 2022
+|update = Fresh Start Worlds
+|poll = 
+|change = A left-click "Use" option has been added to allow slightly more convenient gourd vial filling.
+}}
+{{Subject changes footer}}
+
+{{Chambers of Xeric}}

@@ -1,0 +1,44 @@
+{{Infobox Item
+|name = Guanic bat (0)
+|image = [[File:Guanic bat (0).png]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = No
+|noteable = No
+|edible = Yes
+|options = Eat, Drop
+|examine = Probably won't kill you.
+|value = 1
+|weight = 0.300
+|id = 20871
+}}
+[[File:Guanic bat (0) detail.png|left|150px]]
+'''Guanic bat (0)''' is a [[food]] item made by using [[raw guanic bat (0)]] on a [[fire]] within the [[Chambers of Xeric]]. Eating a guanic bat heals the player for 5 [[hitpoints]].
+
+Cooking guanic bat yields 10 [[Cooking]] [[experience]], and requires a Cooking level of 1.
+
+==Creation==
+{{Recipe
+|skill1 = Cooking
+|skill1lvl = 1
+|skill1boostable = 
+|skill1exp = 10
+|members = Yes
+|ticks = 4
+|mat1 = Raw guanic bat (0)
+|mat1cost = No
+|output1 = Guanic bat (0)
+|output1cost = No
+|output1itemnote = This recipe has a chance to give a [[burnt bat]] instead.
+}}
+
+==Trivia==
+*The Guanic bat's name is likely derived from {{wp|Guano}}.
+
+{{Chambers of Xeric}}
+
+[[Category:Needs skilling success chart]]

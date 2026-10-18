@@ -1,0 +1,38 @@
+{{otheruses|def=no|the mushrooms found on Fossil Island|Blood Stinkhorn}}
+{{Infobox Item
+|name = Stinkhorn mushroom
+|image = [[File:Stinkhorn mushroom.png]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = Yes
+|noteable = No
+|options = Drop
+|examine = Whatever potion I make out of this, let's hope it tastes better than this smells.
+|value = 2
+|weight = 0.000
+|id = 20910
+}}
+[[File:Stinkhorn mushroom detail.png|left|150px]]
+'''Stinkhorn mushrooms''' are a type of smelly mushroom unique to the [[Chambers of Xeric]], and are obtained as a drop from [[scavenger beast]]s.
+
+They are used as secondary ingredients for various potions within the raid.
+
+==Products==
+{{Uses material list|Stinkhorn mushroom}}
+==Item sources==
+{{Drop sources|Stinkhorn mushroom}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 22 March 2018
+|update = Upcoming Changes and Fake XP Drop Improvements
+|change = The item's value was increased from 1 to 2.
+}}
+{{Subject changes footer}}
+
+{{Chambers of Xeric}}

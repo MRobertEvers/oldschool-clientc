@@ -1,0 +1,61 @@
+{{external|rs}}
+{{Infobox Item
+|name = Rake
+|image = [[File:Rake.png]]
+|release = [[6 June]] [[2005]]
+|update = Seeds, Bankspace And Advisors
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = No
+|noteable = Yes
+|options = Drop
+|examine = Use this to clear weeds.
+|value = 6
+|weight = 1.360
+|respawn = 100
+|exchange = Yes
+|id = 5341
+}}
+[[File:Rake detail.png|left|120px]]
+'''Rakes''' are used in the [[Farming]] skill to remove [[weeds]] from [[Farming#Patches|farming patches]]. It can be bought from [[Farming shop]]s. In addition, it can also be purchased from most of the [[Group of Advanced Gardeners|gardeners]] who look after your farming patches. A [[tool leprechaun]] can store one for you.
+
+==Creation==
+{{Recipe
+|ticks = 5
+|notes = {{SCP|Quest}} Only during [[My Arm's Big Adventure]], partially completed.
+|members = Yes
+|mat1 = Rake head
+|mat1quantity = 1
+|mat1cost = No
+|mat2 = Rake handle
+|mat2quantity = 1
+|mat2cost = No
+|output1 = Rake
+|output1quantity = 1
+}}
+
+==Item sources==
+{{Drop sources|Rake}}
+
+===Spawns===
+{{ItemSpawnTableHead}}
+{{ItemSpawnLine|name=Rake|location=[[Keldagrim]] - south of farming patch|members=Yes|mapID=10
+|2852,10191|leagueRegion=Fremennik}}
+{{ItemSpawnTableBottom}}
+
+===Shop locations===
+{{Store locations list|Rake}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 11 July 2005
+|update = Farming
+|change = The item's examine was changed from "''Farming skill coming in July!''" to "''Use this to clear weeds.''"
+}}
+{{Subject changes footer}}
+
+{{Farming tools}}
+[[Category:Items exempt from Grand Exchange tax]][[Category:Tools]]

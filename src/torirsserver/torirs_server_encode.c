@@ -5685,7 +5685,7 @@ put_npc_extended_v5(
      * anyway. `healthbar=null` on the record is that choice, spelled.
      */
     int const headbar = npc_headbar_id(npc);
-    if( hit && headbar >= 0 && npc->max_hitpoints > 0 )
+    if( (hit || (classic & TORIRSSERVER_NMASK_HEADBAR)) && headbar >= 0 && npc->max_hitpoints > 0 )
         flag |= V5_NPC_HEADBARS;
     if( classic & TORIRSSERVER_NMASK_ANIM )
         flag |= V5_NPC_SEQUENCE;
@@ -5911,7 +5911,8 @@ put_npc_extended_v5(
 static int
 npc_extended_pending(const struct ToriRSServerNpc* npc)
 {
-    return npc->masks != 0;
+    /* the legacy byte only: TORIRSSERVER_NMASK_HEADBAR is rev 239's */
+    return (npc->masks & 0xff) != 0;
 }
 
 /*
@@ -5936,7 +5937,8 @@ npc_extended_pending_v5(
 {
     uint32_t const supported = TORIRSSERVER_NMASK_DAMAGE | TORIRSSERVER_NMASK_DAMAGE2 |
                                TORIRSSERVER_NMASK_ANIM | TORIRSSERVER_NMASK_SAY |
-                               TORIRSSERVER_NMASK_SPOTANIM | TORIRSSERVER_NMASK_CHANGE_TYPE;
+                               TORIRSSERVER_NMASK_SPOTANIM | TORIRSSERVER_NMASK_CHANGE_TYPE |
+                               TORIRSSERVER_NMASK_HEADBAR;
     struct Mock239Face face;
 
     return (npc->masks & supported) != 0 ||

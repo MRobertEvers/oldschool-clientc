@@ -1,0 +1,48 @@
+{{Infobox Item
+|name = Kyren fish (6)
+|image = [[File:Kyren fish (6).png]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = No
+|noteable = No
+|edible = Yes
+|options = Eat, Drop
+|examine = I should try eating this.
+|value = 1
+|weight = 0.400
+|id = 20868
+}}
+[[File:Kyren fish (6) detail.png|left|150px]]
+'''Kyren fish (6)''' is a [[food]] item made by using [[raw kyren fish (6)]] on a [[fire]] within the [[Chambers of Xeric]]. Eating a kyren fish heals the player for 23 [[hitpoints]].
+
+Cooking kyren fish requires a [[Cooking]] level of 90, and yields 28 Cooking [[experience]] for each successfully cooked fish. Kyren fish stop burning on a fire at a cooking level of 99.
+
+==Creation==
+{{Recipe
+|skill1 = Cooking
+|skill1lvl = 90
+|skill1boostable = Yes
+|skill1exp = 28
+|members = Yes
+|ticks = 4
+|mat1 = Raw kyren fish (6)
+|mat1cost = no
+|output1 = Kyren fish (6)
+|output1cost = no
+}}
+
+===Cooking chance===
+{{Skilling success chart|label=Cooked Kyren fish (6) cooking chance
+|label1=Fire|low1=163|high1=255|req1=90|color1=orange|image1=Firemaking icon.png
+}}
+
+==Trivia==
+* The name of this fish is a reference to [[Mod Kieren]].
+
+{{Chambers of Xeric}}
+{{Fish}}
+[[Category:Jagex staff references]]

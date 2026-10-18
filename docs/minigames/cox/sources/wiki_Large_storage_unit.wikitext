@@ -1,0 +1,78 @@
+{{Infobox Construction
+|name = Large storage unit
+|image = [[File:Large storage unit built.png|250px]]
+|icon = [[File:Large storage unit icon.png]]
+|furniturename = Large storage unit
+|release = [[12 January]] [[2017]]
+|update = Raids Improvements
+|level = 90
+|experience = 150
+|room = [[Chambers of Xeric]] resource room
+|hotspot = [[Storage unit]]
+|flatpack = No
+|examine = For holding items.
+|id = 29780
+|itemid = 21039, 21041, 21042
+}}
+
+'''Large storage units''' can be built in resource rooms within the [[Chambers of Xeric]]. It allows players to store, for the duration of the raid, 1,000 items that are found only within the Chambers, and 90 of the player's personal items. It requires a [[Construction]] level of 90 in order to build.
+
+'''Note:''' Players who leave the Chambers with their personal items still stored in the storage units can retrieve them from the private storage unit next to the bank chest on the Mountain. The private storage unit '''must be emptied''' before players re-enter the Chambers of Xeric.
+
+==Creation==
+===Upgrade===
+{{Recipe
+|skill1 = Construction
+|skill1lvl = 90
+|skill1boostable = Yes
+|skill1exp = 150
+|members = Yes
+|ticks = 5
+|tools = Hammer
+|mat1 = Medium storage unit
+|mat1pic = Medium storage unit icon
+|mat1cost = 0
+|mat2 = Mallignum root plank
+|mat2quantity = 2
+|mat2cost = 0
+|output1 = Large storage unit
+|output1pic = Large storage unit icon
+|output1cost = 0
+|output1subtxt = Upgrade
+}}
+
+===Total===
+''The experience shown is the total amount accumulated from the base furniture to this built furniture.''
+{{Recipe
+|skill1 = Construction
+|skill1lvl = 90
+|skill1boostable = Yes
+|skill1exp = 450
+|members = Yes
+|ticks = 5
+|tools = Hammer
+|mat1 = Mallignum root plank
+|mat1quantity = 6
+|mat1cost = 0
+|output1 = Large storage unit
+|output1pic = Large storage unit icon
+|output1cost = 0
+|output1subtxt = Total
+}}
+
+==Products==
+{{Uses material list|Large storage unit}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 8 February 2018
+|update = PvM QoL updates & Wilderness Rejuvenation improvements
+|poll = Quality of Life - PvM Suggestions 2018
+|change = The amount of mallignum root planks required to build a large storage unit has been decreased from fifteen to six.
+}}
+{{Subject changes footer}}
+
+{{Chambers of Xeric}}
+
+[[Category:Bank PIN protection]]

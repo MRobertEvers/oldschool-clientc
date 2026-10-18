@@ -1,0 +1,55 @@
+{{Infobox Construction
+|name = Small storage unit
+|image = [[File:Small storage unit built.png|250px]]
+|icon = [[File:Small storage unit icon.png]]
+|furniturename = Small storage unit
+|release = [[12 January]] [[2017]]
+|update = Raids Improvements
+|level = 30
+|experience = 150
+|room = [[Chambers of Xeric]] resource room
+|hotspot = [[Storage unit]]
+|flatpack = No
+|examine = For holding items.
+|id = 29770
+|itemid = 21037
+}}
+'''Small storage units''' can be built in resource rooms within the [[Chambers of Xeric]]. It allows players to store 250 items that are found only within the Chambers, and 30 of the player's personal items. It requires owning a [[Player-owned house]] and having a [[Construction]] level of 30 in order to build.
+
+It is built by using two [[Mallignum root plank]]s and a [[hammer]] or [[dragon warhammer]]. It can be upgraded for the duration of the raid into a [[Medium storage unit]] by adding two extra planks, a [[Large storage unit]] with four, and a [[Massive storage unit]] with six, requiring 60, 90 and 99 [[Construction]] respectively.
+
+'''Note:''' Players who leave the Chambers with their personal items still stored in the storage units can retrieve them from the private storage unit next to the bank chest on the Mountain. The private storage unit '''must be emptied''' before players re-enter the Chambers of Xeric.
+
+==Creation==
+{{Recipe
+|skill1 = Construction
+|skill1lvl = 30
+|skill1boostable = Yes
+|skill1exp = 150
+|members = Yes
+|ticks = 5
+|tools = Hammer
+|mat1 = Mallignum root plank
+|mat1quantity = 2
+|mat1cost = 0
+|output1 = Small storage unit
+|output1pic = Small storage unit icon
+|output1cost = 0
+}}
+
+==Products==
+{{Uses material list|Small storage unit}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 8 February 2018
+|update = PvM QoL updates & Wilderness Rejuvenation improvements
+|poll = Quality of Life - PvM Suggestions 2018
+|change = The amount of mallignum root planks required to build a small storage unit has been decreased from four to two.
+}}
+{{Subject changes footer}}
+
+{{Chambers of Xeric}}
+
+[[Category:Bank PIN protection]]

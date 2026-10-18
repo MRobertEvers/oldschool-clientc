@@ -1,0 +1,58 @@
+https://twitter.com/jagexash/status/929477176105295872
+
+Tekton defence in twitter thread. For maxed solo raid. Has defence bonus stats of Tekton in red and orange form.
+
+== Feedback (Sat, 23 Nov 2024 04:59:20 GMT) ==
+
+<!-- This was added automatically using a bot. Please do not remove or manually change the following template. -->
+{{Feedback
+|id=7af0db09-53c2-4bb6-b120-705f61457237
+|date=1732337960847
+|resolved=no
+|category=game
+|feedback=Is his melee crush, stab or slash?
+}}
+
+== Feedback (Mon, 03 Mar 2025 01:10:09 GMT) ==
+
+<!-- This was added automatically using a bot. Please do not remove or manually change the following template. -->
+{{Feedback
+|id=ba1296ef-02f7-4bb1-b208-62ccc22e49a7
+|date=1740964209029
+|resolved=yes
+|rating=
+|feedback=Soo is it more common in a solo or more rare
+}}
+
+== Feedback (Thu, 20 Mar 2025 21:17:19 UTC) ==
+
+<!-- This was added automatically using a bot. Please do not remove or manually change the following template. -->
+{{Feedback
+|id=dd705248-43af-4c67-a1fe-415f7581d51a
+|date=1742505439721
+|resolved=yes
+|rating=
+|feedback=Onyx rate's scaling is unclear
+}}
+
+== Feedback (Sat, 11 Oct 2025 02:59:53 UTC) ==
+
+<!-- This was added automatically using a bot. Please do not remove or manually change the following template. -->
+{{Feedback
+|id=98d4093e-0a37-4906-86af-15c3f5b003bd
+|date=1760151593742
+|resolved=no
+|feedback=>  He will proceed to attack with melee, attacking both the area in front of him and to his right simultaneously.
+
+How does this work
+}}
+
+== Feedback (Sat, 11 Oct 2025 03:09:30 UTC) ==
+
+<!-- This was added automatically using a bot. Please do not remove or manually change the following template. -->
+{{Feedback
+|id=197576bb-06f3-4759-ae7d-b1968de9cbf3
+|date=1760152170334
+|resolved=no
+|feedback=I think he does stepunder damage?
+}}

@@ -1,0 +1,76 @@
+{{Infobox Scenery
+|name = Tiny storage unit
+|image = [[File:Tiny storage unit.png|250x250px]]
+|release = [[16 June]] [[2021]]
+|update = A Kingdom Divided
+|members = Yes
+|quest = No
+|location = [[Chambers of Xeric]]
+|options = Private, Build
+|examine = For holding items.
+|map = No
+|id = 29769
+}}
+'''Tiny storage units''' are found in resource rooms within the [[Chambers of Xeric]]. It allows players to store 25 of their personal items.
+
+It can be upgraded for the duration of the raid with [[Mallignum root plank]]s and a [[hammer]] or [[dragon warhammer]], into a [[Small storage unit]] with two planks, a [[Medium storage unit]] with four planks, a [[Large storage unit]] with six, and a [[Massive storage unit]] with eight, requiring 30, 60, 90, and 99 [[Construction]] respectively. Upgrades are shared between all storage units and players in the current raid.
+
+'''Note:''' Players who leave the Chambers with their personal items still stored in the storage units can retrieve them from the private storage unit next to the bank chest on the Mountain. The private storage unit '''must be emptied''' before players re-enter the Chambers of Xeric. Items left in the storage unit will '''not''' be lost if the player dies outside of the Chambers of Xeric.
+
+==Uses==
+{| class="wikitable align-center-1"
+|-
+!colspan=2|Item
+!Use
+|-
+|{{plinkt|Small storage unit|pic=Small storage unit icon}}
+|Store 30 personal items and 250 items found within the Chambers of Xeric.
+|-
+|{{plinkt|Medium storage unit|pic=Medium storage unit icon}}
+|Store 60 personal items and 500 items found within the Chambers of Xeric.
+|-
+|{{plinkt|Large storage unit|pic=Large storage unit icon}}
+|Store 90 personal items and 1,000 items found within the Chambers of Xeric.
+|-
+|{{plinkt|Massive storage unit|pic=Massive storage unit icon}}
+|Store 120 personal items and 1,500 items found within the Chambers of Xeric.
+|}
+
+==Creation Menu==
+''This is an upgrade style object where the player must build the starting furniture before building the next.''
+{|class="wikitable align-left-4" style="text-align:center;"
+!Key<ref>Press this key on your keyboard while in the Creation Menu to build this item.</ref>
+!{{SCP|Construction}} Level
+!colspan=2|Storage unit
+!Materials
+!Experience
+|-
+|1
+|30
+|{{plinkt|Small storage unit|pic=Small storage unit icon}}
+|{{plink|Mallignum root plank}} x2
+|150
+|-
+|2
+|60
+|{{plinkt|Medium storage unit|pic=Medium storage unit icon}}
+|{{plink|Small storage unit|pic=Small storage unit icon}}<br/>{{plink|Mallignum root plank}} x2
+|150
+|-
+|3
+|90
+|{{plinkt|Large storage unit|pic=Large storage unit icon}}
+|{{plink|Medium storage unit|pic=Medium storage unit icon}}<br/>{{plink|Mallignum root plank}} x2
+|150
+|-
+|4
+|99
+|{{plinkt|Massive storage unit|pic=Massive storage unit icon}}
+|{{plink|Large storage unit|pic=Large storage unit icon}}<br/>{{plink|Mallignum root plank}} x2
+|150
+|}
+{{Reflist}}
+
+{{Chambers of Xeric}}
+
+[[Category:Bank PIN protection]]

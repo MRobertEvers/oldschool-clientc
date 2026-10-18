@@ -1,0 +1,40 @@
+[[File:Chaos elemental flinching.gif|thumb|225px|A player utilising the flinching method on [[Chaos Elemental]].]]
+'''Flinching''' (also '''hit-and-run''' or '''hit-and-hide''') is a combat tactic that entails attacking an opponent while it is out of combat and going to a [[safespot]] before the monster can [[retaliate]]. The player then waits while making sure the opponent does not attack until it is "out of combat" again. Usually, this is when its health bar disappears from the screen. After this, the cycle can be repeated until the opponent is dead.
+
+==Technical details==
+The total flinch duration partially depends on the opponent's [[attack speed]]. When an opponent gets a hitsplat on itself, it starts a retaliation delay which equals half of its attack speed (rounded down). During this duration, the player can stay in the opponent's attack range without the opponent being able to attack the player. After the retaliation delay, if the player is successfully out of the opponent's attack range, an 8-tick "in-combat" timer runs.
+
+Thus the total flinch duration is <math display="inline">\left\lfloor\frac{attack speed}{2}\right\rfloor + 8</math>.
+
+Any hitsplats the opponent takes during this time (through [[poison]], for example) will not affect flinching. If the opponent is attacked with a magical attack which splashes, the retaliation delay starts one tick after the attack instead of when the projectile lands on them.
+
+If the opponent does manage to attack, the 8-tick "in-combat" timer resets. This timer starts running again at the moment the opponent is able to attack again, causing the total timer to be <math display="inline">attack speed + 8</math>.
+
+To avoid the "in-combat" timer entirely, melee monsters can also be flinched by hitting the monster and then exiting their [[wander radius]], making them immediately disinterested in the player. The player may then run back to immediately hit them again, and repeat. This method allows for faster flinching kills in locations where it is possible. It also allows the player to kill monsters that do not have typical flinching spots.
+
+== Considerations ==
+Ranging and maging with flinching is typically not viable (due to the hitsplat taking longer to reach the opponent than with melee attacks, thus initiating the retaliation delay), though it can be done on opponents from a distance or using the wander radius technique. [[Salamander|Salamanders]] are an exception to this, as they attack instantly in any combat style.
+
+Not just NPCs can be flinched: it is possible to flinch another player if they have [[Auto Retaliate]] on. This can most easily be seen if the other player is out of combat, has a slow weapon such as [[dark bow]] equipped and gets attacked.
+
+When flinching, it is important to retreat to a location where the opponent will not automatically [[Pathfinding|pathfind]] to attack the player. Due to the order in which the pathfinding algorithm looks for adjacent tiles to move, the opponent must be located west or east (not south or north) of the wall or object that the player is using to hide. For example, if given a 1x1 pillar, it would be possible to flinch an opponent who is standing west or east of the pillar while the player stands south or north of the pillar, but it would not be possible to flinch an opponent who is standing south or north of the pillar while the player stands east or west as they would path around it and attack the player.
+
+==Examples==
+[[File:Scarab_mage_flinching.gif|thumb|A player utilising the flinching method on a [[Scarab mage]].]]
+
+=== Monsters ===
+As an example situation for killing [[Kalphite Queen]] (whose attack speed is four ticks):
+#The Kalphite Queen is unable to move due to [[Kalphite Worker|kalphite workers]] surrounding her, and the player is under her. The Queen is "out of combat" due to not having attacked in a short time.
+#The player attacks the Queen, starting her retaliation delay of <math display="inline">\left\lfloor\frac{attack speed}{2}\right\rfloor</math>, or two ticks.
+#When the retaliation delay is over, the player should be out of her attack range (or under her where she cannot attack), and the 8-tick timer runs. After eight ticks, the player may attack again and repeat the cycle.
+
+When killing [[Cerberus]] with melee, it is common to stand under her when she respawns and attack her when it becomes an option to deal more damage before she attacks for the first time; this is based on the flinching mechanic. It is technically possible at some other bosses, though eliminating or hindering factors include the boss being out of reach, stomp damage (at [[Corporeal Beast]], for example), or ranging or maging being more effective.
+
+It is possible to do multiple hits on a [[scarab mage]] during a flinch due to its unusual attack speed of 15, which causes the flinch duration to be seven ticks. On the contrary, if only doing one hit, then hiding, and then attacking as soon as its health bar disappears, it would ''not'' cause a flinch; this can be explained with the information in the section above. The health bar disappearing is a good indication for when the player can attack again for most NPCs due to their typical attack speed being 3 to 6 ticks, but it is not inherently why flinching works.
+
+Using a ranged weapon (such as a [[twisted bow]]) at [[K'ril Tsutsaroth]] allows the player to run past him without taking a hit. While he does not manage to hit the player, this method of avoiding damage from K'ril is only possible due to his relatively slow attack speed of 6, which causes the flinch duration to be three [[ticks]]. The player is in melee distance of K'ril at the third, or last, tick of the flinch.
+
+=== Skilling ===
+Flinching is also used for skilling through [[tick manipulation]]. For example, in 2-tick [[Woodcutting]], the player can use birds to get attacked every two ticks, while having Auto Retaliate on and having a 2-tick or 3-tick weapon equipped (often a [[shortbow]] on rapid without ammo equipped, to prevent accidentally killing the birds). This gives the player 1-tick retaliation delay whenever a bird attacks and the player retaliates. If the player clicks on a tree afterwards, the timer's purpose changes to a Woodcutting timer which gives a chance at a log when it reaches 0. This allows for the player to get a chance at a log every two ticks, utilising flinching.
+
+{{Combat Mechanics}}

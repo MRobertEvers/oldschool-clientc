@@ -1,0 +1,78 @@
+{{Infobox Item
+|name = Golpar seed
+|image = [[File:Golpar seed 1.png]] [[File:Golpar seed 2.png]] [[File:Golpar seed 3.png]] [[File:Golpar seed 4.png]] [[File:Golpar seed 5.png]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = Yes
+|noteable = No
+|options = Drop
+|examine = Golpar in seed form. Hopefully there's somewhere to plant this.
+|value = 2
+|weight = 0.000
+|id = 20906
+}}
+[[File:Golpar seed detail.png|left|140px]]
+'''Golpar seeds''' are dropped by certain monsters found in the [[Chambers of Xeric]]. It can also be found at the end of a floor by raking the [[weeds (Chambers of Xeric)|weeds]] near the [[hole (Chambers of Xeric)|entrance]] to the next level.
+
+It can be planted in a resource room in the Chambers to grow [[golpar]].
+
+==Farming info==
+{{Farming page|Golpar (plant)}}
+
+==Item sources==
+{{Drop sources|Golpar seed}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 22 March 2018
+|update = Upcoming Changes and Fake XP Drop Improvements
+|change = The item's value was increased from 1 to 2.
+}}
+{{Subject changes 
+|date = 19 January 2017
+|update = Raids Tweaks & QoL
+|change = The item was recoloured.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="15"
+|[[File:Golpar seed 1 (v1) detail.png|center|150x150px]]
+|[[File:Buchu seed 2 (v1) detail.png|center|150x150px]]
+|[[File:Buchu seed 3 (v1) detail.png|center|150x150px]]
+|[[File:Buchu seed 4 (v1) detail.png|center|150x150px]]
+|[[File:Buchu seed (v1) detail.png|center|150x150px]]
+|-
+|[[File:Golpar seed 1 v1.png|center]]
+|[[File:Buchu seed 2 v1.png|center]]
+|[[File:Buchu seed 3 v1.png|center]]
+|[[File:Buchu seed 4 v1.png|center]]
+|[[File:Buchu seed v1.png|center]]
+|-
+|colspan = 5 |5 January 2017 – 19 January 2017
+|-
+|[[File:Golpar seed 1 detail.png|center|150x150px]]
+|[[File:Golpar seed 2 detail.png|center|150x150px]]
+|[[File:Golpar seed 3 detail.png|center|150x150px]]
+|[[File:Golpar seed 4 detail.png|center|150x150px]]
+|[[File:Golpar seed detail.png|center|150x150px]]
+|-
+|[[File:Golpar seed 1.png|center]]
+|[[File:Golpar seed 2.png|center]]
+|[[File:Golpar seed 3.png|center]]
+|[[File:Golpar seed 4.png|center]]
+|[[File:Golpar seed.png|center]]
+|-
+|colspan = 5 |19 January 2017 – present
+|}
+
+==Trivia==
+*In Korean, "golpa" (<big>골파</big>) is a word meaning chives or leeks. The word "buchu" (<big>부추</big>), which the [[buchu leaf]] is based on, shares a similar meaning.
+
+{{Seeds}}
+{{Chambers of Xeric}}

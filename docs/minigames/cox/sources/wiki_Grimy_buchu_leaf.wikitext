@@ -1,0 +1,57 @@
+{{Otheruses|the grimy herb|the cleaned herb|Buchu leaf}}
+{{Infobox Item
+|name = Grimy buchu leaf
+|image = [[File:Grimy buchu leaf.png]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Clean, Drop
+|examine = Eww, it's grimy.
+|value = 2
+|weight = 0.007
+|id = 20907
+}}
+[[File:Grimy buchu leaf detail.png|left|150px]]
+'''Grimy buchu leaf''' is a [[herb]] found within the [[Chambers of Xeric]]. It can be grown with a [[Farming]] level of 39, by planting [[buchu seed]]s in [[Herb_patch_(Chambers_of_Xeric)|herb patches]] found within resource rooms. It must be cleaned into a [[buchu leaf]] before it can be used to brew potions, and requires 52 [[Herblore]] to be cleaned.
+
+==Products==
+{{Uses material list|Grimy buchu leaf}}
+
+==Item sources==
+{{Drop sources|Grimy buchu leaf}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 22 March 2018
+|update = Upcoming Changes and Fake XP Drop Improvements
+|change = The item's value was increased from 1 to 2.
+}}
+{{Subject changes 
+|date = 5 October 2017
+|update = Soundbank, HP bar, and QoL changes
+|change = The item was recoloured.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="15"
+|[[File:Grimy buchu leaf (v1) detail.png|center|300x150px]]
+|[[File:Grimy buchu leaf detail.png|center|300x150px]]
+|-
+|[[File:Grimy buchu leaf v1.png|center]]
+|[[File:Grimy buchu leaf.png|center]]
+|-
+|5 January 2017 –<br/>5 October 2017
+|5 October 2017 –<br/>present
+|}
+
+==Trivia==
+*In Korean, "buchu" (<big>부추</big>) is a word meaning chives or leeks. The word "golpa" (<big>골파</big>), which the [[golpar]] herb is based on, shares a similar meaning.
+
+{{Chambers of Xeric}}

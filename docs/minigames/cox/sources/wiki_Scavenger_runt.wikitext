@@ -1,0 +1,86 @@
+{{Gone|update=Chambers of Xeric, Kebos, and Collection Log Changes}}
+{{Infobox Monster
+|name = Scavenger runt
+|image = [[File:Corrupted scavenger.png|150px]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|removal = [[31 January]] [[2019]]
+|removalupdate = Chambers of Xeric, Kebos, and Collection Log Changes
+|members = Yes
+|combat = N/A
+|size = 
+|examine = A feral denizen of the caves.
+|attributes = xerician
+|xpbonus = 
+|max hit = Varies
+|aggressive = Yes
+|poisonous = No
+|attack style = Melee
+|attack speed = 4
+|hitpoints = Varies
+|att = 
+|str = 
+|def = 
+|mage = 
+|range = 
+|attbns = 
+|strbns = 
+|amagic = 
+|mbns = 
+|arange = 
+|rngbns = 
+|dstab = 
+|dslash = 
+|dcrush = 
+|dmagic = 
+|dlight = 
+|dstandard = 
+|dheavy = 
+|poisonresistance = 0
+|venomresistance = 
+|id = hist7546, hist7547
+}}
+'''Scavenger runts''' were a type of [[scavenger]] found in the [[Chambers of Xeric]]. They could be found in ruins and drop various items needed for puzzles and materials for skilling. Compared to [[scavenger beasts]], they dealt less damage and had fewer hitpoints, but they dropped two items when killed as opposed to three.
+
+==Drops==
+Scavenger runts dropped two items at a time.
+===100%===
+{{DropsTableHead}}
+{{DropsLine|name=Bones|quantity=1|rarity=Always|bucket=No}}
+{{DropsTableBottom}}
+
+===Tools===
+{{DropsTableHead}}
+{{DropsLine|name=Fishing rod|quantity=1|rarity=Common|bucket=No}}
+{{DropsLine|name=Bronze pickaxe|quantity=1|rarity=Common|bucket=No}}
+{{DropsLine|name=Bronze axe|quantity=1|rarity=Common|bucket=No}}
+{{DropsLine|name=Butterfly net|quantity=1|rarity=Common|bucket=No}}
+{{DropsLine|name=Hammer|quantity=1|rarity=Common|bucket=No}}
+{{DropsLine|name=Tinderbox|quantity=1|rarity=Common|bucket=No}}
+{{DropsTableBottom}}
+
+===Materials===
+{{DropsTableHead}}
+{{DropsLine|name=Cave worms|quantity=10-50|rarity=Common|gemw=no|bucket=No}}
+{{DropsLine|name=Endarkened juice|quantity=1-25|rarity=Common|gemw=no|bucket=No}}
+{{DropsLine|name=Stinkhorn mushroom|quantity=1-25|rarity=Common|gemw=no|bucket=No}}
+{{DropsLine|name=Cicely|quantity=1-25|rarity=Common|gemw=no|bucket=No}}
+{{DropsLine|name=Mallignum root plank|quantity=1|rarity=Common|gemw=no|bucket=No}}
+{{DropsTableBottom}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 31 January 2019
+|update = Chambers of Xeric, Kebos, and Collection Log Changes
+|change = Following a balance update, scavenger runts were removed and replaced with their [[Scavenger beast|bigger versions]] in all scavenger rooms.
+}}
+{{Subject changes
+|date = 19 January 2017
+|update = Raids Tweaks & QoL
+|change = Scavenger runts are now a little bit beefier, but have two drops per kill instead of one.
+}}
+{{Subject changes footer}}
+
+{{Chambers of Xeric}}
+[[Category:Monsters with no combat level]]

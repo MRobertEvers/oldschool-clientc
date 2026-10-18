@@ -1,0 +1,217 @@
+{{External|rs=Pickaxes|rsc=Pickaxes|dw=Pickaxes}}
+{{Redirect|Pick}}
+{{Infobox Weapon Group
+|name = Pickaxe
+|images = {{plinkp|Bronze pickaxe}}{{plinkp|Iron pickaxe}}{{plinkp|Steel pickaxe}}{{plinkp|Black pickaxe}}{{plinkp|Mithril pickaxe}}<br/>{{plinkp|Adamant pickaxe}}{{plinkp|Rune pickaxe}}{{plinkp|Dragon pickaxe}}{{plinkp|3rd Age pickaxe}}{{plinkp|Infernal pickaxe}}
+{{plinkp|Crystal pickaxe}}
+|primary = [[Stab]]
+|secondary = [[Crush]]
+|speed = 5
+}}
+'''Pickaxes''', often abbreviated to '''picks''', are [[melee]] [[weapons]] and [[Mining]] tools used to mine any type of [[Mining#Mineable items|ore or otherwise mineable item]], in addition to some types of blockages in [[Gielinor]]. Pickaxes can either be held in the [[inventory]] or wielded as a weapon with the requisite [[Attack]] level. While they are typically less effective in combat than most other weapons of the same level, this is useful when mining for profit, as one extra ore can be held.
+
+Higher-level pickaxes grant more frequent opportunities to obtain an ore from a [[rock]], but have no effect upon the chance of successfully doing so.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1188758467399618560|date=28 October 2019|archiveurl=https://reldo.runescape.wiki/i/99025|archivedate=16 May 2020|quote=Your level affects the chance of getting ore each time the game rolls; your pickaxe affects how often that happens.}} Pickaxes cannot be made by players. They can be bought from shops such as [[Nurmof's Pickaxe Shop]], [[Yarsul's Prodigious Pickaxes]], [[Pickaxe-Is-Mine]], [[Toothy's Pickaxes]], and [[Gwyn's Mining Emporium]].
+
+==Combat styles==
+{{CombatStyles|Pickaxe|speed=5|attackrange=1}}
+
+==Uses==
+===Achievement Diary===
+*[[Varrock Diary#Easy|Varrock Diary (Easy)]]: Mine some [[Iron ore|iron]] in the [[south-east Varrock mine]].
+*[[Wilderness Diary#Easy|Wilderness Diary (Easy)]]: Mine some [[Iron ore]] in the [[Wilderness]].
+
+===Quests===
+*[[Elemental Workshop I]]: 1 × any pickaxe to mine [[elemental rock]]
+*[[Below Ice Mountain]]: 1 × any pickaxe to mine [[structural pillar]]s
+
+==Standard pickaxes==
+{| class="wikitable align-center-1 align-center-3 align-center-4 align-right-5 align-right-6"
+!colspan=2|Item
+!{{SCP|Mining}}
+!{{SCP|Attack}}
+!Shop price
+![[Grand Exchange|GE]] price
+!Weight
+!Ticks between rolls
+|-
+|{{plinkt|Bronze pickaxe}}
+|1
+|1
+|{{coins|1}}{{efn|Sold by [[Nurmof]] and [[Bob]].}}
+|{{coins|{{GEP|Bronze pickaxe}}}}
+|2.267&nbsp;kg
+|8
+|-
+|{{plinkt|Iron pickaxe}}
+|1
+|1
+|{{coins|140}}{{efn|Sold by [[Nurmof]].|name="Nurmof"}}
+|{{coins|{{GEP|Iron pickaxe}}}}
+|2.267&nbsp;kg
+|7
+|-
+|{{plinkt|Steel pickaxe}}
+|6
+|5
+|{{coins|500}}{{efn|name="Nurmof"}}
+|{{coins|{{GEP|Steel pickaxe}}}}
+|2.267&nbsp;kg
+|6
+|-
+|{{plinkt|Black pickaxe}}
+
+|11
+|10
+|{{NA|Not sold}}
+|{{coins|{{GEP|Black pickaxe}}}}
+|0.01&nbsp;kg
+|5
+|-
+|{{plinkt|Mithril pickaxe}}
+|21
+|20
+|{{coins|1,300}}{{efn|name="Nurmof"}}
+|{{coins|{{GEP|Mithril pickaxe}}}}
+|1.814&nbsp;kg
+|5
+|-
+|{{plinkt|Adamant pickaxe}}
+|31
+|30
+|{{coins|3,200}}{{efn|name="Nurmof"}}
+|{{coins|{{GEP|Adamant pickaxe}}}}
+|2.721&nbsp;kg
+|4
+|-
+|{{plinkt|Rune pickaxe}}
+|41
+|40
+|{{coins|32,000}}{{efn|name="Nurmof"}}
+|{{coins|{{GEP|Rune pickaxe}}}}
+|2.267&nbsp;kg
+|3
+|-
+|{{plinkt|Dragon pickaxe}}
+|61
+|60
+|{{NA|Not sold}}
+|{{coins|{{GEP|Dragon pickaxe}}}}
+|2.4&nbsp;kg
+|2.83{{efn|3 ticks by default, 1/6 chance to be 2 ticks.}}
+|-
+|{{plinkt|Crystal pickaxe}}
+|71{{efn|Also requires completion of [[Song of the Elves]] to use.}}
+|70{{efn|Also requires {{SCP|Agility|50|link=yes}} to wield.}}
+|{{NA|Not sold}}
+|{{NA|Untradeable}}
+|1.36&nbsp;kg
+|2.75{{efn|3 ticks by default, 1/4 chance to be 2 ticks.}}
+|}
+{{Notelist}}
+
+===Bonuses===
+{{Infotable Bonuses|Bronze pickaxe|Iron pickaxe|Steel pickaxe|Black pickaxe|Mithril pickaxe|Adamant pickaxe|Rune pickaxe|Dragon pickaxe|Crystal pickaxe#Active|sort=astab|nototals=yes}}
+
+==Other pickaxes==
+{| class="wikitable align-center-1 align-center-3 align-center-4 align-right-5 align-right-6"
+!colspan=2|Item
+!{{SCP|Mining}}
+!{{SCP|Attack}}
+!Shop price
+![[Grand Exchange|GE]] price
+!Weight
+!Ticks between rolls
+|-
+|{{plinkt|Gilded pickaxe}}
+|41
+|40
+|{{NA|Not sold}}
+|{{coins|{{GEP|Gilded pickaxe}}}}
+|2.267&nbsp;kg
+|3
+|-
+|{{plinkt|3rd Age pickaxe}}
+|61
+|65
+|{{NA|Not sold}}
+|{{coins|{{GEP|3rd Age pickaxe}}}}
+|2.4&nbsp;kg
+|2.83{{efn|3 ticks by default, 1/6 chance to be 2 ticks.|name="dpick"}}
+|-
+|{{plinkt|Dragon pickaxe (upgraded)}}
+|61
+|60
+|{{NA|Not sold}}
+|{{NA|Untradeable}}
+|2.4&nbsp;kg
+|2.83{{efn|name="dpick"}}
+|-
+|{{plinkt|Dragon pickaxe (or)}}
+|61
+|60
+|{{NA|Not sold}}
+|{{NA|Untradeable}}
+|2.4&nbsp;kg
+|2.83{{efn|name="dpick"}}
+|-
+|{{plinkt|Dragon pickaxe (or) (Trailblazer)}}
+|61
+|60
+|{{NA|Not sold}}
+|{{NA|Untradeable}}
+|2.4&nbsp;kg
+|2.83{{efn|name="dpick"}}
+|-
+|{{plinkt|Dragon pickaxe (or) (Trailblazer Reloaded)|pic=Dragon pickaxe (or) (Trailblazer Reloaded)}}
+|61
+|60
+|{{NA|Not sold}}
+|{{NA|Untradeable}}
+|2.4&nbsp;kg
+|2.83{{efn|name="dpick"}}
+|-
+|{{plinkt|Infernal pickaxe}}
+|61{{efn|Also requires {{SCP|Smithing|85|link=yes}} to use.|name="ipick"}}
+|60
+|{{NA|Not sold}}
+|{{NA|Untradeable}}
+|2.4&nbsp;kg
+|2.83{{efn|name="dpick"}}
+|-
+|{{plinkt|Infernal pickaxe (or)}}
+|61{{efn|name="ipick"}}
+|60
+|{{NA|Not sold}}
+|{{NA|Untradeable}}
+|2.4&nbsp;kg
+|2.83{{efn|name="dpick"}}
+|}
+{{Notelist}}
+
+===Bonuses===
+{{Infotable Bonuses|Gilded pickaxe|Dragon pickaxe (or)|Dragon pickaxe (or) (Trailblazer)#Trailblazer|Dragon pickaxe (or) (Trailblazer)#Trailblazer Reloaded|Infernal pickaxe (or)#Charged|3rd Age pickaxe|Dragon pickaxe (upgraded)|Infernal pickaxe#Charged|sort=astab|nototals=yes}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 4 May 2022
+|update = Guardians of the Rift & Beneath Cursed Sands Changes
+|change = Pickaxes no longer randomly accelerate Mining by one tick on free-to-play worlds.
+}}
+{{Subject changes
+|date = 13 March 2014
+|update = Rejuvenating the Wilderness: More risk, more reward
+|change = The dragon pickaxe was added to the game.<br>The 1/6 random chance for the dragon pickaxe to mine one tick faster was accidentally also applied to all other pickaxes on free-to-play worlds.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*In the early days of ''[[RuneScape Classic]]'', there was only one type of pickaxe available, named simply ''Pickaxe''. It resembled a steel pickaxe and could not be equipped. When different types of pickaxes were released in May 2003, all pickaxes in the bank became the bronze pickaxes that are commonly found today.
+*[[Broken pickaxe]]s, before being removed after an update, were able to be wielded. But once unequipped, they could no longer be equipped by the player. They possessed the same bonuses as their unbroken counterparts.
+
+==References==
+{{Reflist}}
+
+{{Pickaxe}}
+{{Weapon}}
+{{Tools}}

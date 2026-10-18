@@ -1,0 +1,51 @@
+{{external|rs}}
+{{Redirect|Dibber|the peninsula east of [[Hosidius]]|The Dibber}}
+{{Infobox Item
+|name = Seed dibber
+|image = [[File:Seed dibber.png]]
+|release = [[6 June]] [[2005]]
+|update = Seeds, Bankspace And Advisors
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = No
+|noteable = Yes
+|options = Drop
+|examine = Use this to plant seeds with.
+|value = 6
+|weight = 0.002
+|exchange = Yes
+|id = 5343
+}}
+[[File:Seed dibber detail.png|left|120px]]
+A '''seed dibber''' is used to plant [[seed]]s in [[Farming]] [[Farming/Patch locations|patches]]. Up to 100 can be stored with [[tool leprechaun]]s near Farming patches. They can be purchased from [[farming shop]]s or any [[Group of Advanced Gardeners|farmer]] that protects patches. An unlimited amount can be taken from a [[tool store 5]].
+
+Completion of the Farming portion of the [[Barbarian Training]] [[miniquest]] allows players to plant seeds without requiring a seed dibber.
+
+A seed dibber is required for the quests: [[Grim Tales]], [[Forgettable Tale...]], [[My Arm's Big Adventure]], [[Garden of Tranquillity]], [[A Tail of Two Cats]], and [[While Guthix Sleeps]].
+
+==Item sources==
+{{Drop sources|Seed dibber}}
+
+===Shop locations===
+{{Store locations list|Seed dibber}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 14 February 2024
+|update = Barbarian Training, Forestry Changes & More
+|change = Completion of the Farming portion of the [[Barbarian Training]] [[miniquest]] allows players to plant [[seed]]s without requiring a seed dibber.
+}}
+{{Subject changes
+|date = 11 July 2005
+|update = Farming
+|change = The item's examine was changed from "''Farming skill coming in July!''" to "''Use this to plant seeds with.''"
+}}
+{{Subject changes footer}}
+
+{{Farming tools}}
+{{Seeds}}
+[[Category:Items exempt from Grand Exchange tax]]
+[[Category:Tools]]

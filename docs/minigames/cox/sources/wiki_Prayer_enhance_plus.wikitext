@@ -1,0 +1,172 @@
+{{Parentitle override}}
+{{Infobox Item
+|defver = 4
+|version1 = 1 dose
+|version2 = 2 dose
+|version3 = 3 dose
+|version4 = 4 dose
+|bucketname1 = (1)
+|bucketname2 = (2)
+|bucketname3 = (3)
+|bucketname4 = (4)
+|name1 = Prayer enhance (+)(1)
+|name2 = Prayer enhance (+)(2)
+|name3 = Prayer enhance (+)(3)
+|name4 = Prayer enhance (+)(4)
+|image1 = [[File:Prayer enhance (+)(1).png]]
+|image2 = [[File:Prayer enhance (+)(2).png]]
+|image3 = [[File:Prayer enhance (+)(3).png]]
+|image4 = [[File:Prayer enhance (+)(4).png]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Drink, Drop
+|examine = This potion imbues one with a prayer restore effect temporarily. It was mixed perfectly!
+|value = 40
+|weight = 0.020
+|id1 = 20969
+|id2 = 20970
+|id3 = 20971
+|id4 = 20972
+}}
+{{Synced switch
+|version1 = [[File:Prayer enhance (+)(1) detail.png|left|150x150px]]
+|version2 = [[File:Prayer enhance (+)(2) detail.png|left|150x150px]]
+|version3 = [[File:Prayer enhance (+)(3) detail.png|left|150x150px]]
+|version4 = [[File:Prayer enhance (+)(4) detail.png|left|150x150px|class=pageimage]]
+}}
+A '''prayer enhance (+)''' is a potion made and used within the [[Chambers of Xeric]]. Each dose gradually restores the player's [[Prayer points]] for 290 seconds (4 minutes and 50 seconds). At level 82 or higher [[Prayer]], it restores one Prayer point every 6 [[game tick]]s.
+
+The potion is made at level 78 [[Herblore]] by using a [[buchu leaf]] on a [[water-filled gourd vial]] while carrying a [[cicely]] in the inventory. This produces a four-dose potion and grants 26.5 Herblore experience.
+
+It is the strongest variant of the prayer enhance potions, alongside the standard [[prayer enhance]] and the weaker [[prayer enhance (-)]]. Like the other variants, it cannot be taken outside the Chambers of Xeric.
+
+==Creation==
+{{Recipe
+|skill1 = Herblore
+|skill1lvl = 78
+|skill1boostable = Yes
+|skill1exp = 26.5
+|members = Yes
+|ticks = 2
+|mat1 = Water-filled gourd vial
+|mat1cost = No
+|mat2 = Buchu leaf
+|mat2cost = No
+|mat3 = Cicely
+|mat3cost = No
+|output1 = Prayer enhance (+)(4)
+|output1cost = No
+}}
+
+==Effects==
+Both the total amount of times the restoration effect will trigger, as well as the duration of the interval between activations, scale with the player's Prayer level.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1622125423218888704|date=5 February 2023|archiveurl=https://reldo.runescape.wiki/i/107222|archivedate=5 February 2023|quote=[Hey @JagexAsh how are the prayer enhance formulas calculated? So far I've found for the ticks to regen 1 prayer point it's been anywhere from 13t (11 prayer) to 6t (99 prayer). Amount of times it regens seems to be floor((level/2) + 31), but I could be wrong on that. Thanks!] I think you're right for the number of times it'll regen, for a strong one. The number of ticks between them is 500 divided by that number, or 63, whichever is lower.}} First, the total number of activations is determined by the formula:
+
+<math>\mathit{activation}_\mathrm{amount} = \lfloor \frac{\text{Prayer level}}{2}+31 \rfloor</math>
+
+Then, the amount of ticks between each point of restoration is determined by the formula:
+
+<math>\mathit{activation}_\mathrm{interval} = \lfloor \frac{500}{\mathit{activation}_\mathrm{amount}} \rfloor</math>
+
+{| class="wikitable" style="text-align:center"
+|+Total restoration per level
+|-
+!{{SCP|Prayer}} Level!!Restoration!!{{SCP|Prayer}} Level!!Restoration!!{{SCP|Prayer}} Level!!Restoration!!{{SCP|Prayer}} Level!!Restoration
+|-
+| '''1''' || 31 || '''26–27''' || 44 || '''52–53''' || 57 || '''78–79''' || 70
+|-
+| '''2–3''' || 32 || '''28–29''' || 45 || '''54–55''' || 58 || '''80–81''' || 71
+|-
+| '''4–5''' || 33 || '''30–31''' || 46 || '''56–57''' || 59 || '''82–83''' || 72
+|-
+| '''6–7''' || 34 || '''32–33''' || 47 || '''58–59''' || 60 || '''84–85''' || 73
+|-
+| '''8–9''' || 35 || '''34–35''' || 48 || '''60–61''' || 61 || '''86–87''' || 74
+|-
+| '''10–11''' || 36 || '''36–37''' || 49 || '''62–63''' || 62 || '''88–89''' || 75
+|-
+| '''12–13''' || 37 || '''38–39''' || 50 || '''64–65''' || 63 || '''90–91''' || 76
+|-
+| '''14–15''' || 38 || '''40–41''' || 51 || '''66–67''' || 64 || '''92–93''' || 77
+|-
+| '''16–17''' || 39 || '''42–43''' || 52 || '''68–69''' || 65 || '''94–95''' || 78
+|-
+| '''18–19''' || 40 || '''44–45''' || 53 || '''70–71''' || 66 || '''96–97''' || 79
+|-
+| '''20–21''' || 41 || '''46–47''' || 54 || '''72–73''' || 67 || '''98–99''' || 80
+|-
+| '''22–23''' || 42 || '''48–49''' || 55 || '''74–75''' || 68
+|-
+| '''24–25''' || 43 || '''50–51''' || 56 || '''76–77''' || 69
+|}
+
+
+{| class="wikitable" style="text-align:center"
+|+Restoration rate per level
+!{{SCP|Prayer}} Level
+!Restoration Interval{{efn|Restore 1 prayer point every X game ticks}}
+|-
+|'''1'''
+|16
+|-
+|'''2-5'''
+|15
+|-
+|'''6-9'''
+|14
+|-
+|'''10-15'''
+|13
+|-
+|'''16-21'''
+|12
+|-
+|'''22-29'''
+|11
+|-
+|'''30-39'''
+|10
+|-
+|'''40-49'''
+|9
+|-
+|'''50-63'''
+|8
+|-
+|'''64-81'''
+|7
+|-
+|'''82-99'''
+|6
+|}
+{{notelist}}
+
+
+==Item sources==
+{{Drop sources|Prayer enhance (+)(4)}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 28 May 2020
+|update = Chambers of Xeric Improvements
+|poll = Old School Content Poll 71: Gauntlet, Grotesques, CoX and more
+|change = The [[value]] was changed from 2 to 40 so that they are more likely to appear on top of the loot pile alongside raid supplies and bones.
+}}
+{{Subject changes
+|date = 22 March 2018
+|update = Upcoming Changes and Fake XP Drop Improvements
+|change = The item's value was increased from 1 to 2.
+}}
+{{Subject changes footer}}
+
+==References==
+{{Reflist}}
+
+{{Chambers of Xeric}}
+{{Potions}}

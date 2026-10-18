@@ -252,6 +252,16 @@ struct RSCache_Dat2ConfigLoc
 
     int obstructs_ground;
     int break_routefinding;
+    /*
+     * The blockwalk / blockrange the record DECLARED, before
+     * `break_routefinding` collapses `blocks_walk`/`blocks_projectiles` to 0.
+     * The collapse is the CLIENT's rule (its route finder walks through such a
+     * loc); the SERVER still blocks on what was declared -- the "serverside"
+     * walls and the CoX abyss floors are exactly these. Set by
+     * RSCache_Dat2ConfigLocFinish; equal to the collapsed pair otherwise.
+     */
+    int declared_blocks_walk;
+    int declared_blocks_projectiles;
 
     // If true, items on the same tile as are raised from the
     // ground height. For example, to appear as if they're sitting

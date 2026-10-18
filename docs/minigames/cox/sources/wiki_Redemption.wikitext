@@ -1,0 +1,102 @@
+{{External|rs}}
+{{Infobox Prayer
+|name = Redemption
+|image = [[File:Redemption.png]]
+|release = [[6 September]] [[2005]]
+|update = New shortcuts and prayers
+|members = Yes
+|level = 49
+|drain = Uses all prayer points when the effect takes place, otherwise 10
+|effect = Heals you when damaged and health falls below 10%. (Drain: 1pt per 6s)
+|sound = No
+}}
+[[File:Redemption overhead.png|left]]
+'''Redemption''' is a prayer unlocked at level 49 [[Prayer]]. When Redemption is active, upon being hit to less than 10% of [[Hitpoints]] remaining (e.g. 9 or below at level 99 Hitpoints), or upon taking any hits (including 0 damage) when at less than 10% health, Redemption will drain the player's [[prayer points]] to zero and heal the player for 25% of their Prayer level rounded down, regardless of remaining prayer points. Note that Redemption will '''not''' prevent lethal damage.
+
+As Redemption is an [[Overheads|overhead prayer]] depicting a heart, players often use it in community events such as maxing and drop parties to show support.
+
+== Healing ==
+The amount of Hitpoints healed is based on a player's base prayer level. The formula is  <math display="inline">\lfloor PrayerLevel \times \frac{1}{4} \rfloor</math>.
+{| class="wikitable" style="text-align:center"
+!{{SCP|Prayer}} Level
+!Health<br/>restored
+!{{SCP|Prayer}} Level
+!Health<br/>restored
+|-
+|'''49&ndash;51'''||12||'''76&ndash;79'''||19
+|-
+|'''52&ndash;55'''||13||'''80&ndash;83'''||20
+|-
+|'''56&ndash;59'''||14||'''84&ndash;87'''||21
+|-
+|'''60&ndash;63'''||15||'''88&ndash;91'''||22
+|-
+|'''64&ndash;67'''||16||'''92&ndash;95'''||23
+|-
+|'''68&ndash;71'''||17||'''96&ndash;99'''||24
+|-
+|'''72&ndash;75'''||18
+|-
+|}
+
+==Usage==
+Redemption is often used when [[prayer potion|prayer]] or [[super restore]] potions are plentiful and the damage taken can be predicted, as the Hitpoints healed are greater than using food at high levels: at 99 Prayer, Redemption can heal by 24 (up to four times per inventory slot for a total of 96), while food is generally limited to 22{{efn|Excluding [[marlin]], which has a very high cost, and [[cooked dashing kebbit]] and [[cooked moonlight antelope]], which have partially delayed healing.}} (or up to 64 using [[Saradomin brew]]s with 94 or higher Hitpoints). However, miscalculating the damage taken or being unlucky can lead to death, and the prayer points being depleted means a potion dose must be drunk to reactivate protection prayers, so utilising Redemption is a situational and potentially risky strategy.
+
+[[Prayer regeneration potion]]s can be used for further aid, and theoretically they can be used to proc Redemption up to 66 times per dose, but their slow cycle-based restoration makes them more difficult and impractical to rely upon alone; even if a prayer point is restored at a convenient time, it is quickly drained unless [[prayer flicking]] is utilised. [[Bluefin]] may also be used to heal and give some prayer points to re-enable protection prayers immediately, but prayer potions are still almost essential.
+
+Redemption is particularly useful, although more costly compared to regular food, in situations where the player takes frequent but low damage, such as [[Pyramid Plunder]] or fighting the [[thermonuclear smoke devil]]. It is also useful in [[Chambers of Xeric]], where [[prayer enhance]] potions allow the player to rapidly use Redemption, such as during [[Vespula]] encounters. When fighting the [[Fragment of Seren]], it is extremely useful for players with a high Hitpoints level, as being at max health before the final special attack will also activate Redemption's healing.
+
+[[File:Redemption with protection.gif|thumb|right|Using [[Protect from Magic]] to mitigate damage, switching to Redemption to heal, and drinking a prayer potion to reactivate Protect from Magic]]
+For more advanced usage, a common technique to use Redemption is against monsters that use ranged or magic attacks, as protection prayers can be used to nullify or minimise damage before Redemption needs to be enabled. [[Tick eating]] complements this strategy, as it can be used for safety if the monster launches the opposite style, or using low-healing food (such as [[purple sweets]]) at low health to prevent the risk of death while also making sure that Redemption activates. However, this strategy does not work for attacks that calculate and deal damage on the same tick; most melee attacks fall into this category, as well as [[Monsters with abnormal projectiles|some exceptions with ranged or magic attacks]]. Care should also be taken, as depending on the monster's attack speed and projectile speed, there is a high likelihood that another attack is launched before protection prayers can be reactivated.
+
+===Notes===
+When Redemption is activated, the prayer points are immediately depleted, although any other prayers that were activated (such as offensive prayers) may take a short while to deactivate. When rapidly using Redemption, such as when fighting Vespula, players should take care to make sure Redemption and other prayers are properly reactivated (by only clicking the prayers once for example).
+
+Successfully activating Redemption completely depletes a player's prayer points. Without quickly restoring prayer points and reactivating the [[Protect Item]] prayer before dying, an extra item is '''not''' kept on death. '''Warning:''' Players not yet competent in Redemption-related techniques should generally avoid using the prayer in high risk [[PvP]] scenarios, particularly when [[Protect Item]] is a necessity.
+
+==Sound effects==
+{{SFXTableHead}}
+{{SFXLine|file=Redemption.ogg|desc=Activating}}
+{{SFXLine|file=Redemption heal.ogg|desc=Healing}}
+{{SFXTableBottom}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 26 March 2025
+|update = Poll 83 QoL Changes
+|change = The prayer's tooltip now includes the base drain rate of the prayer.
+}}
+{{Subject changes
+|date = 18 April 2023
+|update = Makeover Improvements
+|change = The prayer's overhead icon was reverted.
+}}
+{{Subject changes
+|date = 12 April 2023
+|update = Desert Treasure II Rewards Beta
+|poll = 
+|change = The prayer's overhead icon was unintentionally updated.
+}}
+{{Subject changes
+|date = 10 August 2022
+|update = LMS Game Modes: Pures & Zerks
+|change = Redemption no longer drains prayer points after it turns itself off.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="10"
+|[[File:Redemption overhead v1.png|center]]
+|[[File:Redemption overhead v2.png|center]]
+|[[File:Redemption overhead.png|center]]
+|-
+|6 September 2005–<br/>12 April 2023
+|12 April 2023–<br/>18 April 2023
+|18 April 2023 ⁠–<br/>present
+|}
+
+==Notes==
+{{notelist}}
+
+{{Prayers}}

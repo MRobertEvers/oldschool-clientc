@@ -1,0 +1,41 @@
+{{Infobox Item
+|name = Raw guanic bat (0)
+|image = [[File:Raw guanic bat (0).png]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Drop
+|examine = Looks like it might taste like chicken, if the chicken were dead for a week.
+|value = 1
+|weight = 0.350
+|id = 20870
+}}
+[[File:Raw guanic bat (0) detail.png|left|150px]]
+'''Raw guanic bat (0)''' is obtained by from catching [[guanic bat]]s within the [[Chambers of Xeric]]. Raw guanic bats require level 1 in Hunter to catch and grants the player 5 [[experience]] when caught.
+
+They are cooked with a [[Cooking]] level of 1 to produce [[guanic bat (0)]], granting 10 experience in Cooking.
+
+==Hunter info==
+{{Hunter info
+|name = Raw guanic bat (0)
+|level = 1
+|xp = 5
+|trap = {{plink|Butterfly net}}
+|retaliation = No
+}}
+
+==Products==
+{{Uses material list|Raw guanic bat (0)}}
+
+==Item sources==
+{{Drop sources|Raw guanic bat (0)}}
+
+==Trivia==
+*The Guanic bat's name is likely derived from {{wp|Guano}}.
+
+{{Chambers of Xeric}}

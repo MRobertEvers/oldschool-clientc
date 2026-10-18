@@ -1,0 +1,17 @@
+{{otheruses|herb patches found in the [[Chambers of Xeric]]|herb patches outside of raids|herb patches}}
+{{Infobox Scenery
+|name = Herb patch
+|image = [[File:Herb patch (Chambers of Xeric).png|250x250px]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|location = [[Chambers of Xeric]]
+|options = Inspect
+|examine = What sort of herbs could grow down here?
+|map = No
+|id = 29765
+}}
+'''Herb patches''' are a type of [[Farming]] patch found in the [[Chambers of Xeric]] resource rooms.
+
+[[Golpar (plant)|Golpar]], [[Buchu (plant)|Buchu]] and [[Noxifer (plant)|Noxifer]] plants can be grown in them.
