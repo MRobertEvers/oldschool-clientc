@@ -25,6 +25,8 @@ return {
     },
     legs = {
         { name = "foundry_repairs", run = function(t)
+            -- The server tick log (animations, sounds, loc changes, varps) for the RSProx 96 comparison.
+            t.note(select(2, t.ticklog.start()))
             t.ticks(3)
             t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
@@ -152,6 +154,8 @@ return {
             -- LEG 1 END
         end },
         { name = "foundry_commission", run = function(t)
+            -- The server tick log (animations, sounds, loc changes, varps) for the RSProx 96 comparison.
+            t.note(select(2, t.ticklog.start()))
             t.ticks(3)
             -- LEG 2 BEGIN: enterFoundryToMakeWeapon
             t.exec("enterFoundryToMakeWeapon", t.player.click_loc, "giants_foundry_entrance", 1)
@@ -271,7 +275,10 @@ return {
             t.inv.await("bucket_empty", 1, 10)
             t.check("takeBucket.have", select(2, t.inv.count("bucket_empty")) == 1, "empty buckets " .. tostring(select(2, t.inv.count("bucket_empty"))))
 
-            t.exec("fillBucketWaterfall", t.player.use_on, "bucket_empty", t.player.by_symbol("loc", "giants_foundry_waterfall"))
+            -- The walk round the pool outlasts the press's own settle window (the fill lands a tick after it), so
+            -- the press is noted and the bucket is what is checked.
+            local fr, fd = t.player.use_on("bucket_empty", t.player.by_symbol("loc", "giants_foundry_waterfall"))
+            t.note("fillBucketWaterfall press: " .. tostring(fr) .. " " .. tostring(fd))
             t.inv.await("bucket_water", 1, 10)
             t.check("fillBucketWaterfall.have", select(2, t.inv.count("bucket_water")) == 1, "buckets of water " .. tostring(select(2, t.inv.count("bucket_water"))))
 
@@ -294,6 +301,8 @@ return {
             -- LEG 2 END
         end },
         { name = "foundry_refine", run = function(t)
+            -- The server tick log (animations, sounds, loc changes, varps) for the RSProx 96 comparison.
+            t.note(select(2, t.ticklog.start()))
             -- LEG 3 BEGIN: getPreform
             local function sv(name) local _, v = t.var.server(name); return tonumber(v) or -1 end
             local function temp() return sv("varb13948_giants_foundry_preform_temperature") end
@@ -346,12 +355,27 @@ return {
             -- Work a machine until the completion reaches target, re-heating or cooling when the heat nears the band edge.
             -- The polishing wheel cannot be pressed from the lava or the waterfall (covered), so its press is a settled click_loc
             -- that holds ~20 ticks while the wheel cools the sword: heat it high first (slow dunk, no overshoot), switch early.
+            local sweet_bonus = 0
             local function work(name, tool, bandn, target, wheel)
                 press(tool, 1)
                 t.check(name, true, "pressed " .. tool .. " op 1; " .. state("at press"))
                 local mode = "tool"
                 local last_quality = quality()
+                local last_done = done()
+                local caught = false
                 for iteration = 1, 300 do
+                    -- A sweet spot (sg_refine.rs2: varp7484 = count * 4 + state, 1 open): click the machine once.
+                    local sweet = sv("varp7484_sg_sweet")
+                    if mode == "tool" and sweet >= 0 and sweet % 4 == 1 and not caught then
+                        press(tool, 1)
+                        caught = true
+                        t.note("sweet spot open at done " .. done() .. ": clicked " .. tool)
+                    end
+                    if done() - last_done >= 50 then
+                        sweet_bonus = sweet_bonus + 1
+                        t.note("sweet spot bonus: done " .. last_done .. " -> " .. done())
+                    end
+                    last_done = done()
                     if quality() ~= last_quality then
                         t.note("quality " .. last_quality .. " -> " .. quality() .. " at iteration " .. iteration .. " mode " .. mode .. " temp " .. temp() .. " done " .. done())
                         last_quality = quality()
@@ -405,6 +429,8 @@ return {
             t.exec("swordFinished-dialog", t.chat.play, { "player:Looks like the sword is finished" })
             t.ticks(2)
             t.check("polishPreform.quality", quality() > 0, state("sword kept some quality"))
+            -- Recorded: two sweet spots on the first sword (at 420 and 840); a caught one gives +60 instead of +10.
+            t.check("sweetSpots.caught", sweet_bonus >= 1, "sweet spot bonuses seen: " .. sweet_bonus .. ", varp7484 " .. sv("varp7484_sg_sweet"))
 
             t.check("handInPreform.quality", quality() > 0, "the sword kept quality " .. quality() .. " (the dialogue below is the 'Great!' branch, sg_refine.rs2:577)")
             local _, xp_before = t.skill.snapshot()
