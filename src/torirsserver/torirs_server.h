@@ -2724,6 +2724,14 @@ struct ToriRSServerNpc
      * a different monster dying.
      */
     int died_as;
+    /**
+     * `npc_setdeathanimnow`: play the death animation on the killing hit's own
+     * tick rather than at the death step a tick later. Jagex's Pestilent Bloat
+     * is sent `tob_bloat_death` with the hit that kills her (29 of 30 recorded,
+     * docs/rsprox-analysis/tob/bloat.md) where most npcs - the Maiden among
+     * them - animate a tick after. Kept for the life; cleared on respawn.
+     */
+    int death_anim_now;
     int face_entity;
     char say[80];
     int anim_id;

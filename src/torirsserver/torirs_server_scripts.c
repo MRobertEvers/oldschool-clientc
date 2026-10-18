@@ -7440,6 +7440,22 @@ script_command(
         return 1;
     }
 
+    case SS_OP_NPC_SETDEATHANIMNOW:
+    {
+        int32_t now;
+        struct ToriRSServerNpc* npc = active_npc(state);
+
+        if( !SSVM_PopInt(state, &now) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_setdeathanimnow with no active npc");
+            return 1;
+        }
+        npc->death_anim_now = now ? 1 : 0;
+        return 1;
+    }
+
     case SS_OP_NPC_SETOPS:
     {
         int32_t shown;

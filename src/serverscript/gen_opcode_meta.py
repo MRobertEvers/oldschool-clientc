@@ -1181,6 +1181,13 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # form on her killing hit's tick (docs/rsprox-analysis/tob/maiden.md).
     "NPC_SETDEATHTYPE": (11143, 1, 0, 0, 0),
 
+    # npc_setdeathanimnow(boolean $now)
+    #
+    # The active npc's death animation plays on the killing hit's own tick, as
+    # Jagex sends the Pestilent Bloat's (docs/rsprox-analysis/tob/bloat.md),
+    # rather than at the engine's death step a tick later.
+    "NPC_SETDEATHANIMNOW": (11144, 1, 0, 0, 0),
+
     # obj_ironman_blocked()(boolean)
     #
     # Would the ironman rule refuse the active player the active obj: they are
@@ -1451,6 +1458,7 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "MES_SPAM": (1 << POINTER_BITS["active_player"], 0),
     "MIDI_SONG_ENVELOPE": (1 << POINTER_BITS["active_player"], 0),
     "NPC_SETDEATHTYPE": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_SETDEATHANIMNOW": (1 << POINTER_BITS["active_npc"], 0),
     "MIDI_HOLD": (1 << POINTER_BITS["active_player"], 0),
     "SPOTANIM_NPC_SLOT": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_HEADICON": (1 << POINTER_BITS["active_npc"], 0),

@@ -1515,6 +1515,14 @@ npc_death_begin(
             ToriRSServer_NpcChangeType(npc, into, 0);
         }
     }
+    /* `npc_setdeathanimnow`: the death animation (and its sound) with the
+     * killing hit. Marks itself sent, so the death step does not play it a
+     * second time. */
+    if( npc->death_anim_now && !npc->death_seq_sent )
+    {
+        npc_sound_nearby(srv, npc, npc->death_sound, 0);
+        play_npc_seq(npc, npc->death_seq);
+    }
     /*
      * Drop whatever was already armed on the npc's own queue — a healer's
      * `npc_queue(4, heal, ...)` chief among them.
@@ -3996,6 +4004,7 @@ ToriRSServer_CombatRespawnTick(struct ToriRSServer* srv)
         npc->level_override_set = 0;
         npc->death_type = 0;
         npc->died_as = 0;
+        npc->death_anim_now = 0;
         /* And its customisations: the new life wears the type's icons and
          * models, and the add says so (the reference's respawn add carries
          * both blocks empty). */
