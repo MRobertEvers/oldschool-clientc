@@ -169,7 +169,7 @@ return {
             -- ^tob_var_scale = ~tob_party_size, then ~tob_rescale_boss).
             t.exec("maiden.barrier", t.player.click_loc, "tob_arena_barrier", 1)
             t.await({ level = function() return t.chat.kind() == "options" end, note = "the barrier's question" }, 5)
-            t.exec("maiden.begin", t.chat.choose, "Yes, begin the fight.")
+            t.exec("maiden.begin", t.chat.choose, "Yes, let's begin.")
             t.ticks(1)
             t.cheat("::tobwhy")
             t.ticks(1)
@@ -268,7 +268,7 @@ return {
             -- the scale is the party that walked in.
             t.exec("bloat.barrier", t.player.click_loc, "tob_arena_barrier", 1)
             t.await({ level = function() return t.chat.kind() == "options" end, note = "the barrier's question" }, 5)
-            t.exec("bloat.begin", t.chat.choose, "Yes, begin the fight.")
+            t.exec("bloat.begin", t.chat.choose, "Yes, let's begin.")
             t.ticks(1)
             local sr, state = t.raid.state()
             local line = type(state) == "table" and state.line or tostring(state)

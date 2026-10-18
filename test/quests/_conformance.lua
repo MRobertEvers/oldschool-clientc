@@ -15513,7 +15513,7 @@ return {
             if tile_result ~= "ok" or not is_table(fight) then teardown(false) return tile_result, describe(fight) end
             walk_to(fight.x + 1, fight.z, 20)
             local clicked, click_detail = click_loc("tob_arena_barrier", 1)
-            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            local played, play_detail = play({ "options", "choose:Yes, let's begin." })
             if clicked ~= "ok" or played ~= "ok" then
                 teardown(false)
                 return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
@@ -15595,7 +15595,7 @@ return {
             if tile_result ~= "ok" or not is_table(fight) then setup_cheat("::tobout") return tile_result, describe(fight) end
             walk_to(fight.x + 1, fight.z, 20)
             local clicked, click_detail = click_loc("tob_arena_barrier", 1)
-            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            local played, play_detail = play({ "options", "choose:Yes, let's begin." })
             if clicked ~= "ok" or played ~= "ok" then
                 setup_cheat("::tobout")
                 return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
@@ -15680,7 +15680,7 @@ return {
             if tile_result ~= "ok" or not is_table(fight) then teardown() return tile_result, describe(fight) end
             walk_to(fight.x + 1, fight.z, 20)
             local clicked, click_detail = click_loc("tob_arena_barrier", 1)
-            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            local played, play_detail = play({ "options", "choose:Yes, let's begin." })
             if clicked ~= "ok" or played ~= "ok" then
                 teardown()
                 return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
@@ -15830,7 +15830,7 @@ return {
             local entered, entered_detail = enter("tob", "maiden", { mode = "entry" })
             if entered ~= "ok" then return entered, "tob maiden entry -> " .. describe(entered_detail) end
             local clicked, click_detail = click_loc("tob_arena_barrier", 1)
-            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            local played, play_detail = play({ "options", "choose:Yes, let's begin." })
             if clicked ~= "ok" or played ~= "ok" then
                 setup_cheat("::tobout")
                 return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
@@ -15928,7 +15928,7 @@ return {
             local prayed, pray_detail = pray("protectfrommagic", true)
             if prayed ~= "ok" then teardown() return "refused", "protectfrommagic " .. tostring(prayed) .. " " .. describe(pray_detail) end
             local clicked, click_detail = click_loc("tob_arena_barrier", 1)
-            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            local played, play_detail = play({ "options", "choose:Yes, let's begin." })
             if clicked ~= "ok" or played ~= "ok" then
                 teardown()
                 return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
@@ -16024,7 +16024,7 @@ return {
             if entered ~= "ok" then teardown() return entered, "tob bloat hard -> " .. describe(entered_detail) end
             log_start()
             local clicked, click_detail = click_loc("tob_arena_barrier", 1)
-            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            local played, play_detail = play({ "options", "choose:Yes, let's begin." })
             if clicked ~= "ok" or played ~= "ok" then
                 teardown()
                 return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
@@ -16120,7 +16120,7 @@ return {
             local _, base_marks = log_rows({ kind = "mark" })
             local base = (is_table(base_marks) and #base_marks > 0) and base_marks[#base_marks].serial or 0
             local clicked, click_detail = click_loc("tob_arena_barrier", 1)
-            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            local played, play_detail = play({ "options", "choose:Yes, let's begin." })
             if clicked ~= "ok" or played ~= "ok" then
                 teardown()
                 return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
@@ -16219,7 +16219,7 @@ return {
             local _, base_marks = log_rows({ kind = "mark" })
             local base = (is_table(base_marks) and #base_marks > 0) and base_marks[#base_marks].serial or 0
             local clicked, click_detail = click_loc("tob_arena_barrier", 1)
-            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            local played, play_detail = play({ "options", "choose:Yes, let's begin." })
             if clicked ~= "ok" or played ~= "ok" then
                 teardown()
                 return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
@@ -16317,7 +16317,7 @@ return {
             local sr, slot = log_slot(brow)
             if br ~= "ok" or sr ~= "ok" then teardown() return "not_found", "bloat " .. tostring(br) .. " slot " .. tostring(sr) end
             local clicked, click_detail = click_loc("tob_arena_barrier", 1)
-            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            local played, play_detail = play({ "options", "choose:Yes, let's begin." })
             if clicked ~= "ok" or played ~= "ok" then
                 teardown()
                 return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
@@ -16477,7 +16477,7 @@ return {
             if tile_result ~= "ok" or not is_table(fight) then teardown() return tile_result, describe(fight) end
             walk_to(fight.x + 1, fight.z, 20)
             local clicked, click_detail = click_loc("tob_arena_barrier", 1)
-            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            local played, play_detail = play({ "options", "choose:Yes, let's begin." })
             if clicked ~= "ok" or played ~= "ok" then
                 teardown()
                 return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
@@ -16624,7 +16624,7 @@ return {
             if tile_result ~= "ok" or not is_table(fight) then teardown() return tile_result, describe(fight) end
             walk_to(fight.x + 1, fight.z, 20)
             local clicked, click_detail = click_loc("tob_arena_barrier", 1)
-            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            local played, play_detail = play({ "options", "choose:Yes, let's begin." })
             if clicked ~= "ok" or played ~= "ok" then
                 teardown()
                 return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
@@ -16763,7 +16763,7 @@ return {
             local _, base_marks = log_rows({ kind = "mark" })
             local base = base_marks[#base_marks].serial
             local clicked, click_detail = click_loc("tob_arena_barrier", 1)
-            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            local played, play_detail = play({ "options", "choose:Yes, let's begin." })
             if clicked ~= "ok" or played ~= "ok" then
                 teardown()
                 return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
@@ -16852,7 +16852,7 @@ return {
             if entered ~= "ok" then return entered, "tob maiden entry -> " .. describe(entered_detail) end
             local _, bandages0 = count("tob_bandages")
             local clicked, click_detail = click_loc("tob_arena_barrier", 1)
-            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            local played, play_detail = play({ "options", "choose:Yes, let's begin." })
             if clicked ~= "ok" or played ~= "ok" then
                 setup_cheat("::tobout")
                 return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
@@ -16964,7 +16964,7 @@ return {
             local _, base_marks = tl_rows({ kind = "mark" })
             local base = (is_table(base_marks) and #base_marks > 0) and base_marks[#base_marks].serial or 0
             local clicked, click_detail = click_loc("tob_arena_barrier", 1)
-            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            local played, play_detail = play({ "options", "choose:Yes, let's begin." })
             if clicked ~= "ok" or played ~= "ok" then
                 setup_cheat("::tobout")
                 return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
@@ -17075,7 +17075,7 @@ return {
             local _, base_marks = t.ticklog.rows({ kind = "mark" })
             local base = base_marks[#base_marks].serial
             local clicked, click_detail = click_loc("tob_arena_barrier", 1)
-            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            local played, play_detail = play({ "options", "choose:Yes, let's begin." })
             if clicked ~= "ok" or played ~= "ok" then
                 setup_cheat("::tobout")
                 return "refused", "barrier " .. describe(clicked) .. " " .. describe(click_detail)
@@ -17168,7 +17168,7 @@ return {
             local _, marks = t.ticklog.rows({ kind = "mark" })
             local base = marks[#marks].serial
             local clicked, click_detail = click_loc("tob_arena_barrier", 1)
-            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            local played, play_detail = play({ "options", "choose:Yes, let's begin." })
             if clicked ~= "ok" or played ~= "ok" then
                 teardown()
                 return "refused", "barrier " .. describe(clicked) .. " " .. describe(click_detail)
@@ -17275,7 +17275,7 @@ return {
             if tile_result ~= "ok" or not is_table(fight) then teardown() return tile_result, describe(fight) end
             walk_to(fight.x + 1, fight.z, 20)
             local clicked, click_detail = click_loc("tob_arena_barrier", 1)
-            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            local played, play_detail = play({ "options", "choose:Yes, let's begin." })
             if clicked ~= "ok" or played ~= "ok" then
                 teardown()
                 return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
@@ -17378,7 +17378,7 @@ return {
             local _, fight = start_tile()
             walk_to(fight.x + 1, fight.z, 20)
             local clicked = click_loc("tob_arena_barrier", 1)
-            local played = play({ "options", "choose:Yes, begin the fight." })
+            local played = play({ "options", "choose:Yes, let's begin." })
             if clicked ~= "ok" or played ~= "ok" then
                 setup_cheat("::tobout")
                 return "refused", "barrier " .. describe(clicked) .. ", confirm " .. describe(played)
@@ -17519,7 +17519,7 @@ return {
             if found ~= "ok" or not is_table(boss) then setup_cheat("::tobout") return "not_found", "tob_sotetseg_combat_story -> " .. describe(boss) end
             local _, world_slot = log_slot(boss)
             local clicked, click_detail = click_loc("tob_arena_barrier", 1)
-            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            local played, play_detail = play({ "options", "choose:Yes, let's begin." })
             if clicked ~= "ok" or played ~= "ok" then
                 setup_cheat("::tobout")
                 return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
@@ -17611,7 +17611,7 @@ return {
             if found ~= "ok" or not is_table(boss) then setup_cheat("::tobout") return "not_found", "tob_sotetseg_combat_story -> " .. describe(boss) end
             local _, world_slot = log_slot(boss)
             local clicked, click_detail = click_loc("tob_arena_barrier", 1)
-            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            local played, play_detail = play({ "options", "choose:Yes, let's begin." })
             if clicked ~= "ok" or played ~= "ok" then
                 setup_cheat("::tobout")
                 return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
@@ -17710,7 +17710,7 @@ return {
             local _, world_slot = log_slot(boss)
             pset("protectfrommagic", false)
             local clicked, click_detail = click_loc("tob_arena_barrier", 1)
-            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            local played, play_detail = play({ "options", "choose:Yes, let's begin." })
             if clicked ~= "ok" or played ~= "ok" then
                 setup_cheat("::tobout")
                 return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
@@ -18020,7 +18020,7 @@ return {
             ticks(2)
             local before = hud()
             local clicked, click_detail = click_loc("tob_arena_barrier", 1)
-            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            local played, play_detail = play({ "options", "choose:Yes, let's begin." })
             if clicked ~= "ok" or played ~= "ok" then
                 teardown()
                 return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
@@ -18075,7 +18075,7 @@ return {
             local entered, entered_detail = enter("tob", "maiden", { mode = "entry" })
             if entered ~= "ok" then return entered, "tob maiden entry -> " .. describe(entered_detail) end
             local clicked, click_detail = click_loc("tob_arena_barrier", 1)
-            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            local played, play_detail = play({ "options", "choose:Yes, let's begin." })
             if clicked ~= "ok" or played ~= "ok" then
                 setup_cheat("::tobout")
                 return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
@@ -18462,7 +18462,7 @@ return {
             ticks(2)
             local seated = nearest("verzik_initial_story", 30)
             local talked, talk_detail = talk("verzik_initial_story", 1)
-            local played, play_detail = play({ "npc:So, you wish to entertain me", "options", "choose:Yes, begin the fight." })
+            local played, play_detail = play({ "npc:So, you wish to entertain me", "options", "choose:Yes, let's begin." })
             if talked ~= "ok" or played ~= "ok" then
                 setup_cheat("::tobout")
                 return "refused", "seated verzik_initial_story " .. tostring(seated) .. ", talk " .. tostring(talked) .. " "
@@ -18616,7 +18616,7 @@ return {
             local base = (is_table(marks) and #marks > 0) and marks[#marks].serial or 0
             setup_cheat("::god 1")
             local talked = talk("verzik_initial_story", 1)
-            local played, play_detail = play({ "npc:So, you wish to entertain me", "options", "choose:Yes, begin the fight." })
+            local played, play_detail = play({ "npc:So, you wish to entertain me", "options", "choose:Yes, let's begin." })
             if talked ~= "ok" or played ~= "ok" then
                 teardown()
                 return "refused", "begin: talk " .. tostring(talked) .. ", play " .. tostring(played) .. " " .. describe(play_detail)
@@ -18694,7 +18694,7 @@ return {
             log_start()
             setup_cheat("::god 1")
             local talked = talk("verzik_initial_story", 1)
-            local played, play_detail = play({ "npc:So, you wish to entertain me", "options", "choose:Yes, begin the fight." })
+            local played, play_detail = play({ "npc:So, you wish to entertain me", "options", "choose:Yes, let's begin." })
             if talked ~= "ok" or played ~= "ok" then
                 teardown()
                 return "refused", "begin: talk " .. tostring(talked) .. ", play " .. tostring(played) .. " " .. describe(play_detail)
@@ -18846,7 +18846,7 @@ return {
             local base = (is_table(marks) and #marks > 0) and marks[#marks].serial or 0
             setup_cheat("::god 1")
             local talked = talk("verzik_initial_story", 1)
-            local played, play_detail = play({ "npc:So, you wish to entertain me", "options", "choose:Yes, begin the fight." })
+            local played, play_detail = play({ "npc:So, you wish to entertain me", "options", "choose:Yes, let's begin." })
             if talked ~= "ok" or played ~= "ok" then
                 teardown()
                 return "refused", "begin: talk " .. tostring(talked) .. ", play " .. tostring(played) .. " " .. describe(play_detail)
@@ -18968,7 +18968,7 @@ return {
             local base = (is_table(marks) and #marks > 0) and marks[#marks].serial or 0
             setup_cheat("::god 1")
             local talked = talk("verzik_initial_story", 1)
-            local played, play_detail = play({ "npc:So, you wish to entertain me", "options", "choose:Yes, begin the fight." })
+            local played, play_detail = play({ "npc:So, you wish to entertain me", "options", "choose:Yes, let's begin." })
             if talked ~= "ok" or played ~= "ok" then
                 teardown()
                 return "refused", "begin: talk " .. tostring(talked) .. ", play " .. tostring(played) .. " " .. describe(play_detail)
@@ -19103,7 +19103,7 @@ return {
             local _, from_tick = tick()
             from_tick = tonumber(from_tick) or 0
             local tr, td = talk("verzik_initial_story", 1)
-            local cr, cd = play({ "npc:So, you wish to entertain me", "options", "choose:Yes, begin the fight." })
+            local cr, cd = play({ "npc:So, you wish to entertain me", "options", "choose:Yes, let's begin." })
             if tr ~= "ok" or cr ~= "ok" then teardown() return "refused", "talk " .. tostring(tr) .. " " .. describe(td) .. ", begin " .. tostring(cr) .. " " .. describe(cd) end
             local function retyped_to(types)
                 local _, rt = log_rows({ kind = "npc_retype" })
@@ -19207,7 +19207,7 @@ return {
             local since = (is_table(marks) and #marks > 0) and marks[#marks].serial or 0
             setup_cheat("::god 1")
             local talked = talk("verzik_initial_story", 1)
-            local played, play_detail = play({ "npc:So, you wish to entertain me", "options", "choose:Yes, begin the fight." })
+            local played, play_detail = play({ "npc:So, you wish to entertain me", "options", "choose:Yes, let's begin." })
             if talked ~= "ok" or played ~= "ok" then
                 teardown()
                 return "refused", "begin: talk " .. tostring(talked) .. ", play " .. tostring(played) .. " " .. describe(play_detail)
@@ -19394,7 +19394,7 @@ return {
             -- so the death is the cage and not the wipe
             setup_cheat("::tobmate")
             local clicked, click_detail = click_loc("tob_arena_barrier", 1)
-            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            local played, play_detail = play({ "options", "choose:Yes, let's begin." })
             if clicked ~= "ok" or played ~= "ok" then
                 setup_cheat("::tobout")
                 return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
@@ -19480,7 +19480,7 @@ return {
             local _, base_marks = log_rows({ kind = "mark" })
             local base = base_marks[#base_marks].serial
             local clicked, click_detail = click_loc("tob_arena_barrier", 1)
-            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            local played, play_detail = play({ "options", "choose:Yes, let's begin." })
             if clicked ~= "ok" or played ~= "ok" then
                 setup_cheat("::tobout")
                 return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
@@ -19632,7 +19632,7 @@ return {
             end
             walk_to(fight.x, fight.z - 3, 20)
             local clicked, click_detail = click_loc("tob_arena_barrier", 1)
-            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            local played, play_detail = play({ "options", "choose:Yes, let's begin." })
             if clicked ~= "ok" or played ~= "ok" then
                 setup_cheat("::tobout")
                 return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
@@ -19756,7 +19756,7 @@ return {
                 end
             end
             local clicked, click_detail = click_loc("tob_arena_barrier", 1)
-            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            local played, play_detail = play({ "options", "choose:Yes, let's begin." })
             if clicked ~= "ok" or played ~= "ok" then
                 teardown()
                 return "no_subject", table.concat(text, "; ") .. "; barrier " .. tostring(clicked) .. " "
@@ -19854,7 +19854,7 @@ return {
             if tile_result ~= "ok" or not is_table(fight) then teardown() return tile_result, describe(fight) end
             walk_to(fight.x + 1, fight.z, 20)
             local clicked, click_detail = click_loc("tob_arena_barrier", 1)
-            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            local played, play_detail = play({ "options", "choose:Yes, let's begin." })
             if clicked ~= "ok" or played ~= "ok" then
                 teardown()
                 return "no_subject", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm "

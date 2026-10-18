@@ -537,12 +537,13 @@ end
 
 -- =================================================================== START
 --
--- A room starts at its `tob_arena_barrier` (tob_party.rs2 [oploc1]): only the
--- party leader (orb slot 0, seat 1) is asked "Yes, begin the fight." and its
--- answer runs ~tob_start_room and steps it across; a member's click on a
--- STARTED barrier steps it across, on an unstarted one it is told to wait.
--- So the leader starts when the room's own rule says go, and a member crosses
--- once it SEES the leader on the far side -- perception, no side channel.
+-- A room starts at its `tob_arena_barrier` (tob_party.rs2 [oploc1]): any raider
+-- clicking an unstarted barrier is asked "Is your party ready to fight?"
+-- ("Yes, let's begin."), and the answer runs ~tob_start_room and steps it across
+-- (recorded: docs/rsprox-analysis/tob/doors.md); a click on a STARTED barrier
+-- steps it across. The driver still has ONE starter: the leader starts when the
+-- room's own rule says go, and a member clicks only once it SEES the leader on
+-- the far side -- perception, no side channel -- so it never meets the question.
 
 -- The barrier as I see it from the entry: its tiles, the axis it runs on and
 -- the sign of the entry side. Asserted: a room solver is called at its entry.
@@ -616,7 +617,7 @@ function QD.raid._tob_leader_start(S, answer_go)
                 note = S.who .. ": holding the start question" }, 3)
         end
     end
-    local pr, pd = QD.chat.play({ "choose:Yes, begin the fight." })
+    local pr, pd = QD.chat.play({ "choose:Yes, let's begin." })
     assert(pr == "ok", S.who .. ": the start answer answered " .. tostring(pr) .. " " .. tostring(pd))
     QD.raid._tob_trace(S, api_drive.tick(), "started the room")
 end

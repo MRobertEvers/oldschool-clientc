@@ -923,6 +923,17 @@ function QD.raid.tob_relay_test(mode, opts)
         end
         t.expect("party.barrier.looted", t.party.barrier("looted", 600))
         local xr = t.raid.tob_loc_op("tob_treasureroom_teleportout", 1)
+        -- "Make sure you've collected all your stuff!" (recorded, 3299;
+        -- docs/rsprox-analysis/tob/doors.md): the way out asks first
+        -- once the server has walked me there
+        if xr == "ok" then
+            for _ = 1, 30 do
+                if t.chat.kind() == "options" then break end
+                t.ticks(1)
+            end
+            local cr, cd = t.chat.choose("Leave the Theatre.")
+            if cr ~= "ok" then xr = "choose " .. tostring(cr) .. " " .. tostring(cd) end
+        end
         local here, home = nil, false
         for _ = 1, 40 do
             local _tr

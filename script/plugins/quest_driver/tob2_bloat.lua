@@ -383,7 +383,7 @@ function MB.enter(S)
             end
         elseif state == "hold" then
             if F.boss and S.pos and QD.raid._bloat_start_safe(S, F) then
-                local pr, pd = QD.chat.play({ "choose:Yes, begin the fight." })
+                local pr, pd = QD.chat.play({ "choose:Yes, let's begin." })
                 assert(pr == "ok", "bloat_v2: the start answer answered " .. tostring(pr) .. " " .. tostring(pd))
                 QD.raid._bloat_fight_on(S, api_drive.tick())
                 QD.raid._tob_trace(S, api_drive.tick(), "started the room")

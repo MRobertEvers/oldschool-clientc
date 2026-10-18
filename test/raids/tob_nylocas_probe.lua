@@ -69,7 +69,7 @@ local function run(t)
     t.cheat("::synctimers", false)
     if role == 1 then
         t.check("nylo.start", t.player.click_loc("tob_arena_barrier", 1) == "ok", "")
-        t.chat.play({ "options", "choose:Yes, begin the fight." })
+        t.chat.play({ "options", "choose:Yes, let's begin." })
     end
     t.expect("party.barrier.started", t.party.barrier("started", 300))
     if role ~= 1 then t.player.click_loc("tob_arena_barrier", 1) end

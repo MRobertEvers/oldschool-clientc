@@ -10,6 +10,7 @@ Each room's file states the recorded behaviour, the ticks it was read from, and 
 | [maiden.md](maiden.md) | The Maiden of Sugadinti, Normal Mode (31 kills; [maiden.out](maiden.out) is the full tool output) |
 | [nylocas.md](nylocas.md) | The Nylocas, Normal Mode (30 kills; [nylocas.out](nylocas.out) is the full tool output) |
 | [verzik.md](verzik.md) | Verzik Vitur, Normal Mode |
+| [doors.md](doors.md) | Every door's landing tile, the HUD transitions and the entrance, barrier and exit dialogue |
 
 ## Sources
 

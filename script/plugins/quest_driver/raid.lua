@@ -23,7 +23,7 @@
 -- `::toa`, `::coxseed` + `::coxgoto`) and nothing else: it never starts a room
 -- (`::tobgo` / `::toago` are not used here and a test must not use them --
 -- section 6 rule 1).  The fight is begun by the test, by the player's own click
--- on the barrier: ToB `tob_arena_barrier` op 1 then "Yes, begin the fight."
+-- on the barrier: ToB `tob_arena_barrier` op 1 then "Yes, let's begin."
 -- (tob_party.rs2 [oploc1,tob_arena_barrier]); ToA `toa_path_barrier` op 1 Pass
 -- or `toa_wardens_barrier` op 1 (toa_barrier.rs2); CoX encounters wake on
 -- approach, and Olm's chamber is entered by `raids_bossentrance` op 1 then
@@ -1229,11 +1229,15 @@ end
 --   members           tob_partydetails:current, row k's cells subs 11k..11k+10;
 --   applicants        tob_partydetails:applicants, applicant k's row is sub
 --                     20k (op 1 Accept, op 10 Reject) and its name sub 20k+1;
---   the door          tob_surface_raid_entrance op 1: the death warning, then
---                     for the leader "Is your party ready? Members: N. Mode: X."
---                     and "Yes, let's go!"; a member walks in once the leader
---                     is inside (else "Your party leader has not entered the
---                     Theatre yet.").
+--   the door          tob_surface_raid_entrance op 1: the first time, the
+--                     warning (two mesboxes and "Accept the warning and
+--                     proceed?") and the Mysterious Stranger's crystal offer;
+--                     after that the crystal question until "don't ask this
+--                     again"; then for the leader "Is your party ready?
+--                     Members: N. Mode: X." and "Yes, let's go!"; a member
+--                     walks in once the leader is inside (else the mesbox
+--                     "Your leader, <name>, must go first.").
+--                     Recorded: docs/rsprox-analysis/tob/doors.md.
 -- The panel's first push draws only its last row (a client defect, DRIVER_NOTES):
 -- every read presses Refresh first.
 
@@ -1488,7 +1492,7 @@ function QD.party.accept(name, ticks)
         .. (#presses > 0 and table.concat(presses, ", ") or "nothing: already a member") .. "): " .. text
 end
 
--- The door: click, then the death-warning mesbox.
+-- The door: click, then whatever the door asks first.
 function QD.party._door()
     local mr, since = api_drive.message_serial()
     local r, d = QD.player.click_loc("tob_surface_raid_entrance", 1)
@@ -1497,6 +1501,37 @@ function QD.party._door()
     end
     QD.ticks(2)
     return "ok", nil, (mr == "ok") and since or 0
+end
+
+-- The entrance's questions before the ready check (tob_party.rs2
+-- ~tob_entrance_questions): accept the warning, enter without crystals, and on
+-- the repeating crystal question pick "don't ask this again" so the next run's
+-- door goes straight to the ready check. Stops at the first page it does not
+-- know - the ready check for a leader, nothing for a member.
+QD.party._ANSWERS = {
+    ["Accept the warning and proceed?"] = "Yes - proceed.",
+    ["Select an option"] = "Enter the Theatre without any teleport crystals.",
+    ["Only Verzik's crystals can teleport out of the Theatre."] = "Enter the Theatre, and don't ask this again.",
+}
+
+function QD.party._entrance_questions()
+    for _ = 1, 4 do
+        QD.chat.drain({ stop_at = "options", max_pages = 6 })
+        if QD.chat.kind() ~= "options" then
+            return "ok"
+        end
+        local tr, title = QD.chat.options_title()
+        local answer = (tr == "ok") and QD.party._ANSWERS[title] or nil
+        if not answer then
+            return "ok"
+        end
+        local cr, cd = QD.chat.choose(answer)
+        if cr ~= "ok" then
+            return cr, "the entrance's '" .. tostring(title) .. "': " .. tostring(cd)
+        end
+        QD.ticks(1)
+    end
+    return "ok"
 end
 
 function QD.party._line_since(since, prefix)
@@ -1533,7 +1568,10 @@ function QD.party.ready()
     if r ~= "ok" then
         return r, "party.ready: " .. d
     end
-    QD.chat.drain({ stop_at = "options", max_pages = 3 })
+    local qr, qd = QD.party._entrance_questions()
+    if qr ~= "ok" then
+        return qr, "party.ready: " .. qd
+    end
     local tr, title = QD.chat.options_title()
     if tr ~= "ok" then
         local said = QD.party._line_since(since, "")
@@ -1560,10 +1598,16 @@ function QD.party.follow_in()
     if r ~= "ok" then
         return r, "party.follow_in: " .. d
     end
-    local early = QD.party._line_since(since, "has not entered the Theatre yet")
-    if early then
-        QD.chat.drain({ max_pages = 3 })
-        return "refused", "party.follow_in: '" .. early .. "'"
+    if QD.chat.kind() == "mesbox" then
+        local xr, text = QD.chat.text()
+        if xr == "ok" and string.find(tostring(text), "must go first", 1, true) then
+            QD.chat.drain({ max_pages = 3 })
+            return "refused", "party.follow_in: '" .. tostring(text) .. "'"
+        end
+    end
+    local qr, qd = QD.party._entrance_questions()
+    if qr ~= "ok" then
+        return qr, "party.follow_in: " .. qd
     end
     QD.chat.drain({ max_pages = 3 })
     local line = QD.party._await_line(since, "You enter the Theatre of Blood", 10)
