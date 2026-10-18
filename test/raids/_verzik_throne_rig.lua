@@ -47,7 +47,7 @@ return {
         t.check("throne.enter", r == "ok", tostring(d))
         local tr, td = t.player.talk_to("verzik_initial", 1)
         t.check("throne.talk", tr == "ok", tostring(td))
-        local cr, cd = t.chat.play({ "npc:So, you wish to entertain me", "options", "choose:Yes, begin the fight." })
+        local cr, cd = t.chat.play(t.raid.tob_verzik_pages())
         t.check("throne.begin", cr == "ok", tostring(cd))
         local function her()
             for _, s in ipairs(FORMS) do

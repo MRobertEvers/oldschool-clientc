@@ -808,20 +808,9 @@ function QD.raid.tob_relay_test(mode, opts)
             -- live four ticks scriptrun did not spend (tob.lua tob_npc_op)
             local tr = t.raid.tob_npc_op("verzik_initial", 1)
             t.check("verzik.talk", tr == "ok", P .. tostring(tr))
-            -- the server walks me to her first: her line opens on arrival
-            for _ = 1, 30 do
-                if t.chat.kind() ~= "none" then break end
-                t.ticks(1)
-            end
-            -- The real dialogue (docs/rsprox-analysis/tob/verzik.md): two lines
-            -- on a raider's first talk-to, "Back again for more?..." on the
-            -- quick-start rung, then the menu, then her laugh as she rises.
-            local pages = { "npc:quite the show", "npc:final performance", "options",
-                "choose:Yes, let's begin.", "npc:enjoy this" }
-            if string.find(tostring(t.chat.text()), "Back again", 1, true) then
-                pages = { "npc:Back again", "options", "choose:Yes, let's begin.", "npc:enjoy this" }
-            end
-            local cr, cd = t.chat.play(pages)
+            -- the server walks me to her first; her real dialogue, first talk-to
+            -- or "Back again" on the quick-start rung (tob.lua)
+            local cr, cd = t.chat.play(t.raid.tob_verzik_pages())
             t.check("verzik.begin", cr == "ok", tostring(cd))
         end
         t.expect("verzik.barrier.started", t.party.barrier("verzik_started", 900))

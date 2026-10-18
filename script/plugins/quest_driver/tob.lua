@@ -723,6 +723,22 @@ function QD.raid.tob_headless()
     return api_drive.scriptrun == true
 end
 
+-- Verzik's start, as chat.play pages, once her first line is up (the server
+-- walks the talker to her first). Her real dialogue (tob_verzik.rs2
+-- ~tob_verzik_talk; docs/rsprox-analysis/tob/verzik.md): two lines on a
+-- raider's first talk-to, "Back again..." after that, then "Is your party ready
+-- to fight?" -> "Yes, let's begin." and her laugh. -> the page list
+function QD.raid.tob_verzik_pages()
+    for _ = 1, 30 do
+        if QD.chat.kind() ~= "none" then break end
+        QD.ticks(1)
+    end
+    if string.find(tostring(QD.chat.text()), "Back again", 1, true) then
+        return { "npc:Back again", "options", "choose:Yes, let's begin.", "npc:enjoy this" }
+    end
+    return { "npc:quite the show", "npc:final performance", "options", "choose:Yes, let's begin.", "npc:enjoy this" }
+end
+
 -- A loc op as ONE packet on one copy, the same on both lanes: the copy at
 -- `at` ({x, z} absolute) or else the nearest copy to me; the server walks me
 -- to it. (The pointer library's walk-then-click timed out on scriptrun at

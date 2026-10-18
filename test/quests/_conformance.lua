@@ -18462,7 +18462,7 @@ return {
             ticks(2)
             local seated = nearest("verzik_initial_story", 30)
             local talked, talk_detail = talk("verzik_initial_story", 1)
-            local played, play_detail = play({ "npc:So, you wish to entertain me", "options", "choose:Yes, let's begin." })
+            local played, play_detail = play(t.raid.tob_verzik_pages())
             if talked ~= "ok" or played ~= "ok" then
                 setup_cheat("::tobout")
                 return "refused", "seated verzik_initial_story " .. tostring(seated) .. ", talk " .. tostring(talked) .. " "
@@ -18616,7 +18616,7 @@ return {
             local base = (is_table(marks) and #marks > 0) and marks[#marks].serial or 0
             setup_cheat("::god 1")
             local talked = talk("verzik_initial_story", 1)
-            local played, play_detail = play({ "npc:So, you wish to entertain me", "options", "choose:Yes, let's begin." })
+            local played, play_detail = play(t.raid.tob_verzik_pages())
             if talked ~= "ok" or played ~= "ok" then
                 teardown()
                 return "refused", "begin: talk " .. tostring(talked) .. ", play " .. tostring(played) .. " " .. describe(play_detail)
@@ -18694,7 +18694,7 @@ return {
             log_start()
             setup_cheat("::god 1")
             local talked = talk("verzik_initial_story", 1)
-            local played, play_detail = play({ "npc:So, you wish to entertain me", "options", "choose:Yes, let's begin." })
+            local played, play_detail = play(t.raid.tob_verzik_pages())
             if talked ~= "ok" or played ~= "ok" then
                 teardown()
                 return "refused", "begin: talk " .. tostring(talked) .. ", play " .. tostring(played) .. " " .. describe(play_detail)
@@ -18846,7 +18846,7 @@ return {
             local base = (is_table(marks) and #marks > 0) and marks[#marks].serial or 0
             setup_cheat("::god 1")
             local talked = talk("verzik_initial_story", 1)
-            local played, play_detail = play({ "npc:So, you wish to entertain me", "options", "choose:Yes, let's begin." })
+            local played, play_detail = play(t.raid.tob_verzik_pages())
             if talked ~= "ok" or played ~= "ok" then
                 teardown()
                 return "refused", "begin: talk " .. tostring(talked) .. ", play " .. tostring(played) .. " " .. describe(play_detail)
@@ -18968,7 +18968,7 @@ return {
             local base = (is_table(marks) and #marks > 0) and marks[#marks].serial or 0
             setup_cheat("::god 1")
             local talked = talk("verzik_initial_story", 1)
-            local played, play_detail = play({ "npc:So, you wish to entertain me", "options", "choose:Yes, let's begin." })
+            local played, play_detail = play(t.raid.tob_verzik_pages())
             if talked ~= "ok" or played ~= "ok" then
                 teardown()
                 return "refused", "begin: talk " .. tostring(talked) .. ", play " .. tostring(played) .. " " .. describe(play_detail)
@@ -19103,7 +19103,7 @@ return {
             local _, from_tick = tick()
             from_tick = tonumber(from_tick) or 0
             local tr, td = talk("verzik_initial_story", 1)
-            local cr, cd = play({ "npc:So, you wish to entertain me", "options", "choose:Yes, let's begin." })
+            local cr, cd = play(t.raid.tob_verzik_pages())
             if tr ~= "ok" or cr ~= "ok" then teardown() return "refused", "talk " .. tostring(tr) .. " " .. describe(td) .. ", begin " .. tostring(cr) .. " " .. describe(cd) end
             local function retyped_to(types)
                 local _, rt = log_rows({ kind = "npc_retype" })
@@ -19207,7 +19207,7 @@ return {
             local since = (is_table(marks) and #marks > 0) and marks[#marks].serial or 0
             setup_cheat("::god 1")
             local talked = talk("verzik_initial_story", 1)
-            local played, play_detail = play({ "npc:So, you wish to entertain me", "options", "choose:Yes, let's begin." })
+            local played, play_detail = play(t.raid.tob_verzik_pages())
             if talked ~= "ok" or played ~= "ok" then
                 teardown()
                 return "refused", "begin: talk " .. tostring(talked) .. ", play " .. tostring(played) .. " " .. describe(play_detail)

@@ -24,7 +24,7 @@ local function run(t)
     t.cheat("::synctimers", false)
     if role == 1 then
         t.check("p1.talk", t.player.talk_to("verzik_initial", 1) == "ok", "")
-        local cr, cd = t.chat.play({ "npc:So, you wish to entertain me", "options", "choose:Yes, begin the fight." })
+        local cr, cd = t.chat.play(t.raid.tob_verzik_pages())
         t.check("p1.begin", cr == "ok", tostring(cd))
     end
     t.expect("party.barrier.started", t.party.barrier("started", 900))
