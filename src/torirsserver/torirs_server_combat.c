@@ -1475,6 +1475,16 @@ npc_death_begin(
 
     ToriRSServer_TicklogNpcDeath(srv, slot);
     /*
+     * The menu goes with the life: Jagex sends `enabled_ops 0b00000` on the
+     * tick a death starts -- with the death animation, or the tick before it
+     * when the animation waits a tick -- for 1,042 of 1,072 recorded deaths
+     * across the Inferno, the Colosseum, the Gauntlet and ToB. A Nylocas small,
+     * which has no death animation, shows it as the only sign it is dying
+     * before it is gone. [RSProx 3285, 3299; docs/rsprox-analysis/tob/nylocas.md]
+     */
+    npc->ops_hidden = 0x1f;
+    npc->masks |= TORIRSSERVER_NMASK_OPS;
+    /*
      * Drop whatever was already armed on the npc's own queue — a healer's
      * `npc_queue(4, heal, ...)` chief among them.
      *
@@ -3408,6 +3418,13 @@ npc_death_step(
             npc->death_seq_sent = 0;
             npc->death_seq_tick = -1;
             memset(npc->death_handoff_queues, 0, sizeof(npc->death_handoff_queues));
+            /* And its menu, which the death hid (`npc_death_begin`). A revive
+             * through `npc_changetype` has already restored it. */
+            if( npc->ops_hidden != 0 )
+            {
+                npc->ops_hidden = 0;
+                npc->masks |= TORIRSSERVER_NMASK_OPS;
+            }
             return;
         }
         /*
@@ -3935,7 +3952,11 @@ ToriRSServer_CombatRespawnTick(struct ToriRSServer* srv)
          * Left running it would fire on whatever form the new life is standing
          * in and change it out from under a fresh `[ai_spawn]`. */
         npc->changetype_delay = 0;
-        /* A new life: its death has not been shown yet. */
+        /* A new life: its death has not been shown yet, and its menu is the
+         * type's own again (the death hid it). */
+        npc->ops_hidden = 0;
+        npc->masks |= TORIRSSERVER_NMASK_OPS;
+        npc->level_override_set = 0;
         npc->death_seq_sent = 0;
         npc->death_seq_tick = -1;
         npc->scripted_death_pending = 0;

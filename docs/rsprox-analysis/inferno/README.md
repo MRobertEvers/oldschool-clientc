@@ -5,6 +5,7 @@ Findings read from **RSProx recordings** of real OSRS sessions. The method and c
 | File | Fight |
 |---|---|
 | [zuk.md](zuk.md) | TzKal-Zuk (wave 69): the cutscene, Zuk, the Ancestral Glyph, the Zuk-phase JalTok-Jad and Yt-HurKot, Jal-MejJak, the kill and the exit. It also covers the wave-end message and jingle shared by every wave. |
+| [mobs.md](mobs.md) | Waves 1–68: every mob's attack (projectile, sounds, graphics), hit/death/defend, the meleer's dig, the mager's resurrection, falling supports, and the jump-in |
 
 ## Sources
 
@@ -28,7 +29,9 @@ The public archive ([rsprox.net/database](https://rsprox.net/database)) holds fo
 | Tool | Purpose |
 |---|---|
 | `tools/rsprox/rsprox_tells.py` | Any RSProx transcript, as an inventory or an ordered `--timeline` of NPC sequences, spotanims, hits, projectiles (all parameters), map graphics, sounds, loc changes and animations, and messages |
+| `tools/rsprox/rsprox_attack_tells.py` | Everything sent on one mob's attack tick and the ticks after, attributed per mob type, with projectile source offsets and distances |
 | `tools/rsprox/ticklog_tells.py` | The same tells, read from our scriptrun tick log (`<session>/ticklog.tsv`), for side-by-side comparison |
+| `test/waves/inferno_mob_tells.lua` | The jump-in (`::infernojump`), waves 1/9/35/62, a forced resurrection (`::infernorevive`) and a dig, for the tick log; `::infernodig` forces a dig |
 | `test/waves/inferno_zuk_tells.lua` | A scriptrun that plays wave 68 → Zuk for the tick log: it kills the wave with `::infernowavekill`, plays the cutscene, walks Zuk over the thresholds with `::zukhp`, then kills him and runs the exit |
 
 ```sh

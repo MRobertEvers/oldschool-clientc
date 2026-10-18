@@ -17,7 +17,8 @@ return {
     },
     bind = {
         varp = "varb13902_sleeping_giants",
-        constants = { not_started = 0, kovac = 5, repairs = 10, repairs_done = 15, after_repairs = 20, commission = 25, complete = 30 },
+        -- Recorded stages (RSProx 96, sleepinggiants.constant): 10 is the cutscene + introduction, 15 the repairs.
+        constants = { not_started = 0, kovac = 5, intro = 10, repairs = 15, after_repairs = 20, commission = 25, complete = 30 },
         row = "quest_sleepinggiants",
         display = "Sleeping Giants",
         points = 1,
@@ -45,6 +46,12 @@ return {
                 "npc:Please", "choose:Yes.",
                 "player:Okay giant", "npc:Kovac", "player:Kovac... alright", "npc:Please", "npc:follow in",
                 "player:Hang on", "npc:No", "npc:follow",
+            })
+            -- The foundry cutscene (recorded): fade, the copy, four camera keyframes; the first line comes 33 ticks
+            -- after the fade, with no dialogue up in between.
+            t.ticks(36)
+            t.expect("quest.stage.intro", t.quest.expect_stage("intro"))
+            t.exec("foundryIntro-dialog", t.chat.play, {
                 "player:Woah", "player:Did you build", "npc:No", "npc:Kovac", "npc:accep", "player:Giants built",
                 "npc:Yes", "npc:long ago", "player:How?", "npc:Before", "npc:giants differing", "npc:Now", "npc:not",
                 "player:Huh?", "npc:Look", "mesbox:Kovac looks", "npc:Help fix", "player:You want me",
@@ -53,15 +60,16 @@ return {
                 "npc:Giants", "npc:not just", "npc:killers", "npc:Kovac want", "npc:help giants remember",
                 "player:I see", "player:Alright, Kovac", "npc:We fix tools",
             })
-            t.ticks(2)
+            -- The introduction's fade: two ticks out, the quest set, two ticks in.
+            t.ticks(6)
             t.expect("quest.stage.repairs.1", t.quest.expect_stage("repairs"))
             t.check("strikeHillGiant.where", true, "tile after dialogue " .. tostring(select(2, t.world.tile())))
 
             -- Stage 5 (guide speakToKovac) is the same conversation: Kovac's own pages ("Kovac.", "follow in.")
-            -- were played above and stage 10 is read here (sleepinggiants.rs2:201-243).
+            -- were played above, stage 10 is the cutscene and 15 is read here (sleepinggiants.rs2).
             t.check("speakToKovac", true, "Kovac pages played in strikeHillGiant-dialog; stage now " .. tostring(select(2, t.quest.stage())))
-            -- The conversation walks the player into the copy (spec-pending cutscene). The guide's
-            -- enterFoundry is the cave click: leave by the exit loc, then enter by the guide's loc.
+            -- The conversation took the player into the copy through the cutscene. The guide's enterFoundry is the
+            -- cave click: leave by the exit loc, then enter by the guide's loc (back into a copy with the quest set).
             t.exec("foundry-exit-loc", t.player.click_loc, "giants_foundry_exit", 1)
             t.ticks(3)
             t.exec("enterFoundry", t.player.click_loc, "giants_foundry_entrance", 1)
@@ -73,6 +81,11 @@ return {
                 "player:Okay, what is this", "npc:Hmm", "mesbox:Kovac ponders", "mesbox:...", "npc:Kovac think he know",
                 "player:And?", "npc:This polishing wheel", "npc:make thing shiny", "player:Looks like it's lost",
                 "choose:Yes.",
+            })
+            -- Recorded: the menu closes and the repair plays out (leather crafting, the plough fix) before the next
+            -- line, six ticks after the Yes.
+            t.ticks(8)
+            t.exec("fixPolishingStone-done", t.chat.play, {
                 "player:Not my finest", "npc:Hmm", "npc:Kovac agree", "player:So when", "npc:Polishing sword",
                 "npc:Create perfect", "npc:very good", "player:That makes sense",
             })
@@ -82,6 +95,10 @@ return {
             t.exec("fixGrindstone-dialog", t.chat.play, {
                 "player:What was this", "npc:Hmm", "npc:Kovac think it was", "player:I see. It looks", "npc:Kovac conquer",
                 "player:Conquer", "npc:Hmm", "npc:Kovac agree", "player:Right... now", "choose:Yes.",
+            })
+            -- Recorded: three ticks to the pick-up, four to the grindstone repair, five to the repair, two to the line.
+            t.ticks(16)
+            t.exec("fixGrindstone-done", t.chat.play, {
                 "player:Well that required", "npc:Thank you small", "player:Didn't want", "npc:Kovac did not know",
                 "npc:Kovac beggin", "player:Can you tell", "mesbox:Kovac takes", "mesbox:...", "npc:Grindstone important",
                 "npc:We grind", "npc:make sword sharp", "player:So we use", "npc:Yes",
@@ -92,23 +109,36 @@ return {
             t.exec("fixHammer-dialog", t.chat.play, {
                 "player:I think this has seen", "npc:Hmm", "npc:big hammer", "player:Right... and", "npc:Hit things",
                 "player:Very perceptive", "player:Let me take", "choose:Yes.",
+            })
+            -- Recorded: the plough fix the next tick, the repair four after it.
+            t.ticks(7)
+            t.exec("fixHammer-done", t.chat.play, {
                 "player:That looks like", "npc:Hmm", "npc:that look right", "player:What's it supposed",
                 "mesbox:Kovac takes", "mesbox:...", "npc:Kovac think Kovac figure", "player:Go on",
                 "npc:Trip hammer power", "npc:Water spin", "npc:Hammer fall", "player:That makes sense", "npc:Mhm",
             })
             t.ticks(2)
-            t.expect("quest.stage.repairs_done", t.quest.expect_stage("repairs_done"))
+            -- All three repaired: the stage stays 15 (recorded); the three repair bits read 2.
+            t.expect("quest.stage.repairs.2", t.quest.expect_stage("repairs"))
+            for _, bit in ipairs({ "varb13904_sleeping_giants_repair_hammer", "varb13905_sleeping_giants_repair_grind", "varb13906_sleeping_giants_repair_polish" }) do
+                local _, v = t.var.server(bit)
+                t.check("repaired." .. bit, tonumber(v) == 2, bit .. " = " .. tostring(v) .. " (2 = repaired)")
+            end
 
-            t.exec("speakToKovacAfterRepairs", t.player.talk_to, "giants_foundry_kovac_multi", 1)
+            t.exec("speakToKovacAfterRepairs", t.player.talk_to, "giants_foundry_kovac_quest", 1)
             t.exec("speakToKovacAfterRepairs-dialog", t.chat.play, {
                 "player:That's all the tools", "npc:Yes", "npc:Kovac begin", "player:I've noticed", "npc:Kovac know what",
                 "npc:but sometime", "player:That's alright", "npc:Kovac agree", "player:Yes! I'm itching",
                 "npc:Kovac get few", "npc:then we can start",
             })
-            t.ticks(2)
-            t.expect("quest.stage.after_repairs", t.quest.expect_stage("after_repairs"))
+            -- Recorded: the fade, and the player is out of the copy on the public foundry's 3366,11495.
+            t.ticks(6)
+            t.expect("quest.stage.commission.0", t.quest.expect_stage("commission"))
+            local _, pub = t.world.tile()
+            t.check("intoPublicFoundry.tile", pub ~= nil and pub.x == 3366 and pub.z == 11495,
+                "tile after Kovac's 'few things ready' " .. tostring(pub and (pub.x .. "," .. pub.z)) .. " (recorded 3366,11495)")
 
-            -- Quiet boundary: leave the copy (a checkpoint cannot carry an instance).
+            -- Quiet boundary: leave the foundry.
             t.exec("leg.1.leave", t.player.click_loc, "giants_foundry_exit", 1)
             t.ticks(4)
             local _, tile = t.world.tile()
@@ -146,20 +176,52 @@ return {
             t.check("searchCrate.kind", true, "dialogue now " .. tostring(t.chat.kind()))
             t.chat.continue_()
             t.ticks(2)
-            t.check("searchCrate.have", select(2, t.inv.count("bronze_bar")) == 8 and select(2, t.inv.count("iron_bar")) == 4,
+            -- Recorded: 8 bronze bars, 6 iron bars, 2 bronze battleaxes, 2 iron longswords, a bronze and an iron platebody.
+            t.check("searchCrate.have", select(2, t.inv.count("bronze_bar")) == 8 and select(2, t.inv.count("iron_bar")) == 6
+                and select(2, t.inv.count("bronze_battleaxe")) == 2 and select(2, t.inv.count("iron_longsword")) == 2,
                 "bronze bars " .. tostring(select(2, t.inv.count("bronze_bar"))) .. ", iron bars " .. tostring(select(2, t.inv.count("iron_bar"))))
 
-            t.exec("fillCrucible", t.player.click_loc, "giants_foundry_crucible_multi", 1)
-            t.ticks(2)
+            -- Recorded: the crucible's make-X ("What metal would you like to add?", the quantity starting at the most
+            -- of one bar carried), the lever and furnace, the one-object box; weapons by use, "How many would you like
+            -- to add?" when there is more than one, the two-object box.
+            -- Beside the crucible already, a click answers with the panel at once (no walk to settle), so the click's
+            -- own verdict is noted and the panel / menu that follows is what is checked.
+            local function add_bars(cell, name)
+                local cr0, cd0 = t.player.click_loc("giants_foundry_crucible_multi", 1)
+                t.note("fillCrucible." .. name .. " click: " .. tostring(cr0) .. " " .. tostring(cd0))
+                t.check("fillCrucible." .. name .. ".menu", t.ui.await_open("skillmulti", 10))
+                local cr, c = t.ui.widget("skillmulti:" .. cell)
+                t.check("fillCrucible." .. name .. ".cell", cr == "ok", "cell " .. cell .. " -> " .. tostring(cr))
+                t.check("fillCrucible." .. name .. ".press", t.ui.invoke(c, 1), "pressed " .. name)
+                t.ticks(4)
+                t.exec("fillCrucible." .. name .. ".box", t.chat.play, { "*" })
+                t.ticks(1)
+            end
+            local function add_item(item, many)
+                local ur, ud = t.player.use_on(item, t.player.by_symbol("loc", "giants_foundry_crucible_multi"))
+                t.note("fillCrucible." .. item .. " use: " .. tostring(ur) .. " " .. tostring(ud))
+                t.ticks(2)
+                if many then t.exec("fillCrucible." .. item .. ".all", t.chat.play, { "choose:All" }) end
+                t.ticks(4)
+                t.exec("fillCrucible." .. item .. ".box", t.chat.play, { "*" })
+                t.ticks(1)
+            end
+            add_bars("a", "bronze")
+            add_bars("b", "iron")
+            add_item("bronze_battleaxe", true)
+            add_item("iron_longsword", true)
+            add_item("bronze_platebody", false)
+            add_item("iron_platebody", false)
+            t.chat.drain()
             t.check("fillCrucible.full", select(2, t.var.varbit("varb13937_giants_foundry_crucible_state")) == 2,
                 "crucible state " .. tostring(select(2, t.var.varbit("varb13937_giants_foundry_crucible_state"))) .. " (2 = full); bronze_bar left " .. tostring(select(2, t.inv.count("bronze_bar"))))
 
             t.exec("speakToKovacAboutMould", t.player.talk_to, "giants_foundry_kovac_multi", 1)
             t.exec("speakToKovacAboutMould-dialog", t.chat.play, {
-                "player:Right, that's the crucible full", "npc:Kovac think we need to set up a mould", "player:What's a mould used for",
+                "player:Right, that's the crucible full", "npc:No, not yet", "npc:Kovac think we need to set up a mould", "player:What's a mould used for",
                 "npc:Hmm", "npc:Kovac think mould will determine", "npc:Remember", "player:Okay, so how do I go about",
                 "npc:Kovac remember being told", "npc:a forte", "npc:Use mould jig", "npc:You can select", "npc:Each mould part",
-                "npc:They will suit", "npc:Look for parts", "player:Right... I think", "npc:If you are still", "npc:come back to me",
+                "npc:They will suit", "npc:Look for parts", "player:Right... I think", "npc:Look at mould jig", "npc:If you are still", "npc:come back to me",
             })
             t.ticks(2)
 
@@ -200,7 +262,8 @@ return {
             t.check("talkToKovakAfterMould.read", varb("varb13903_sleeping_giants_tutorial") >= 40, "tutorial " .. tostring(varb("varb13903_sleeping_giants_tutorial")))
 
             t.exec("pourMetal", t.player.click_loc, "giants_foundry_crucible_multi", 1)
-            t.ticks(2)
+            -- Recorded: six ticks from the push to the poured mould.
+            t.ticks(8)
             t.check("pourMetal.read", varb("varb13914_giants_foundry_mould_state") == 2 and varb("varb13937_giants_foundry_crucible_state") == 0,
                 "mould state " .. tostring(varb("varb13914_giants_foundry_mould_state")) .. " (2 poured), crucible state " .. tostring(varb("varb13937_giants_foundry_crucible_state")) .. ", quality " .. tostring(varb("varb13939_giants_foundry_preform_quality")))
 
@@ -338,6 +401,9 @@ return {
             t.check("heatPreformToPolish.target", drive_until("heatPreformToPolish", "giants_foundry_lava_pool", 1, function() return temp() >= hi2 - 40 end),
                 state("after heat"))
             t.check("polishPreform.done", work("polishPreform", "giants_foundry_polishing_wheel", 2, 1000, true), state("after polish"))
+            -- Recorded at 1000: the player's line, then the finishing animation.
+            t.exec("swordFinished-dialog", t.chat.play, { "player:Looks like the sword is finished" })
+            t.ticks(2)
             t.check("polishPreform.quality", quality() > 0, state("sword kept some quality"))
 
             t.check("handInPreform.quality", quality() > 0, "the sword kept quality " .. quality() .. " (the dialogue below is the 'Great!' branch, sg_refine.rs2:577)")
@@ -347,7 +413,7 @@ return {
                 "player:Okay Kovac, I think I've finally finished", "npc:Hmm", "npc:let Kovac look", "mesbox:You pass the sword", "mesbox:He analyses",
                 "npc:Hmm", "npc:Yes", "npc:Hmm", "npc:This is", "npc:Well done little one",
                 "player:Great! So what do we do", "npc:Kovac take care", "player:Out of curiosity", "npc:Kovac friend", "npc:Obor",
-                "player:Obor?", "npc:Kovac think Obor", "player:That's a pretty", "npc:Kovac know what",
+                "player:Obor? Can't say", "npc:Kovac think Obor", "player:That's a pretty", "npc:Kovac know what", "npc:Thank you for help",
             })
             t.ticks(3)
             t.quest.expect_complete()

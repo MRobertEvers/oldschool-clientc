@@ -1108,6 +1108,23 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # plays at full volume however far off the player stands.
     "SOUND_AREA": (11132, 4, 0, 0, 0),
 
+    # midi_hold(int $ticks)
+    #
+    # Region music starts no track for the next $ticks ticks: a scripted
+    # sequence that owns the music (the Inferno's jump-in, silent from the
+    # landing until its own midi_song) keeps the region's track from starting
+    # under it. 0 releases a hold.
+    "MIDI_HOLD": (11133, 1, 0, 0, 0),
+
+    # npc_setops(int $shown)
+    #
+    # Which of the active npc's five right-click options its menu offers, as a
+    # mask (bit 0 = op1; 31 = the type's own menu, 0 = none). NPC_INFO's
+    # visible-ops block, persistent like a transformation. The engine already
+    # hides all five when a death starts and restores them on a transform, as
+    # Jagex does; this is content's own say (docs/rsprox-analysis/tob/nylocas.md).
+    "NPC_SETOPS": (11140, 1, 0, 0, 0),
+
     # obj_ironman_blocked()(boolean)
     #
     # Would the ironman rule refuse the active player the active obj: they are
@@ -1374,6 +1391,8 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "NPC_SETMAXHP": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_SETHEADBARRESERVE": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_DEFEND": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_SETOPS": (1 << POINTER_BITS["active_npc"], 0),
+    "MIDI_HOLD": (1 << POINTER_BITS["active_player"], 0),
     "NPC_HUDBAR_CHECK": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_DIE": (1 << POINTER_BITS["active_npc"], 0),
     # Asks about the active obj on behalf of the active player: OBJ_TAKEITEM's mask.

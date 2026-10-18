@@ -1,7 +1,8 @@
 # Inferno sound — the search, the sources, and what is still open
 
-> **Superseded for the Zuk fight and every Jad (2026-10-18).** Recorded Jagex packets now
-> give the exact sounds, delays and ranges: [docs/rsprox-analysis/inferno/zuk.md](rsprox-analysis/inferno/zuk.md).
+> **Superseded (2026-10-18) for the Zuk fight, every Jad and every wave mob.** Recorded Jagex
+> packets now give the exact sounds, delays and ranges: [zuk.md](rsprox-analysis/inferno/zuk.md)
+> and [mobs.md](rsprox-analysis/inferno/mobs.md) under docs/rsprox-analysis/inferno/.
 > Where this file derives a sound (the cutscene's cave family, Jad's cast at +20, the
 > healers' dagannoth sounds), the recording wins and the content now follows it.
 

@@ -15851,6 +15851,7 @@ ToriRSServer_WorldPlayerInit(struct ToriRSServerPlayer* player)
     player->last_zone_z = -1;
     player->last_map_x = -1;
     player->music_track = -1;
+    player->music_hold_until = -1;
     player->ambient_scape = -1;
     player->ambient_script_map_x = -1;
     player->ambient_script_map_z = -1;
@@ -18564,6 +18565,11 @@ ToriRSServer_MusicEnterRegion(
         }
     }
 
+    /* Held by a script that owns the music for now (`midi_hold`): the track is
+     * not started and not latched, so the script's own `midi_song` -- or the
+     * next square crossed after the hold -- decides what plays. */
+    if( player->world && player->world->tick < player->music_hold_until )
+        return;
     if( player->music_track != track->song )
     {
         player->music_track = track->song;

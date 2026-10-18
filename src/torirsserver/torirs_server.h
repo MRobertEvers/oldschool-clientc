@@ -975,6 +975,14 @@ enum
      * encoder sends the headbar alone, as the reference sends a bar update
      * on `npc_statheal` (a Vespula grub's meter, a soldier's heal). */
     TORIRSSERVER_NMASK_HEADBAR = 0x100,
+    /* Rev-239 blocks with no legacy bit either. OPS: `ops_hidden` changed --
+     * a death hid the menu, `npc_setops` set it, a transform restored it.
+     * LEVEL: `level_override` changed, which only a transform does. Both are
+     * persistent on the wire (RSProt NpcAvatarExtendedInfo.setVisibleOps,
+     * setCombatLevelChange), so an observer the npc enters view of is sent
+     * the current value too when it is not the type's own. */
+    TORIRSSERVER_NMASK_OPS = 0x200,
+    TORIRSSERVER_NMASK_LEVEL = 0x400,
 };
 
 /* Appearance/equipment slot numbering. The cache's wearpos fields, the worn
@@ -2653,6 +2661,23 @@ struct ToriRSServerNpc
 
     /** Which extended-info fields this npc has to send. Cleared in phase 11. */
     uint32_t masks;
+    /**
+     * The right-click options this npc's menu leaves OUT, bit n = op n+1. 0 --
+     * the spawn's memset -- is the type's own menu.
+     *
+     * Jagex hides all five when an npc dies, on the tick its death starts
+     * (1,042 of 1,072 recorded deaths, docs/rsprox-analysis/tob/nylocas.md),
+     * so a corpse in its last ticks offers no Attack; and restores all five on
+     * every transformation. Content sets it with `npc_setops`.
+     */
+    int ops_hidden;
+    /**
+     * The combat level this npc is drawn with, as sent, when
+     * `level_override_set`. Jagex sends the new type's own level with every
+     * transformation (353 of 370 recorded), so this follows `change_type`.
+     */
+    int level_override;
+    int level_override_set;
     int face_entity;
     char say[80];
     int anim_id;
@@ -3994,6 +4019,11 @@ struct ToriRSServerPlayer
      *  a second map square that maps to the same track does not restart it --
      *  a track restarting every 64 tiles is the tell that this is missing. */
     int music_track;
+    /** Region music does not start a track before this tick (`midi_hold`): a
+     *  scripted sequence that owns the music -- the Inferno's jump-in is silent
+     *  from the landing until its own `midi_song` -- keeps the region's track
+     *  from starting under it. -1 when nothing holds it. */
+    int music_hold_until;
 
     /** The ambient soundscape this client is currently running, or -1 for
      *  none. Same latch discipline as `music_track`: the bed is re-sent only

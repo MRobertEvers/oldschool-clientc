@@ -5328,6 +5328,27 @@ ToriRSServer_NpcChangeType(
     npc->change_type = type;
     npc->masks |= TORIRSSERVER_NMASK_CHANGE_TYPE;
     /*
+     * A transformation restores the menu and states the new form's level,
+     * both on the wire: every one of 826 recorded transformations carries
+     * `enabled_ops 0b11111` beside it, and every one onto a type with a level
+     * carries `level_change` with that type's own (162 for an aggro nylocas,
+     * 800 for Vasilias). A nylocas hidden by `npc_setops` comes back
+     * clickable as the form it turns into. [RSProx 3285, 788;
+     * docs/rsprox-analysis/tob/nylocas.md]
+     */
+    npc->ops_hidden = 0;
+    npc->masks |= TORIRSSERVER_NMASK_OPS;
+    {
+        const struct ToriRSServerNpcInfo* info = ToriRSServer_NpcInfoRecord(type);
+
+        if( info && info->combat_level >= 0 )
+        {
+            npc->level_override = info->combat_level;
+            npc->level_override_set = 1;
+            npc->masks |= TORIRSSERVER_NMASK_LEVEL;
+        }
+    }
+    /*
      * Arming the revert is the whole of the duration, and the *cancel* half
      * matters as much as the arm half.
      *
@@ -7335,6 +7356,28 @@ script_command(
             return 1;
         }
         npc->move_speed = speed > 0 ? 1 : 0;
+        return 1;
+    }
+
+    case SS_OP_NPC_SETOPS:
+    {
+        int32_t shown;
+        struct ToriRSServerNpc* npc = active_npc(state);
+
+        if( !SSVM_PopInt(state, &shown) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_setops with no active npc");
+            return 1;
+        }
+        if( shown < 0 || shown > 0x1f )
+        {
+            SSVM_Abort(state, "npc_setops %d is not a mask of the five ops (0..31)", shown);
+            return 1;
+        }
+        npc->ops_hidden = 0x1f & ~shown;
+        npc->masks |= TORIRSSERVER_NMASK_OPS;
         return 1;
     }
 
@@ -13341,6 +13384,28 @@ script_command(
             if( ToriRSServer_TicklogEnabled(srv) )
                 sound_synth_ticklog(state, srv, player, values[0], values[1], values[2]);
         }
+        return 1;
+    }
+
+    case SS_OP_MIDI_HOLD:
+    {
+        /* Region music starts nothing for the next `ticks` ticks (see
+         * `music_hold_until`); 0 releases a hold. */
+        int32_t ticks;
+
+        if( !SSVM_PopInt(state, &ticks) )
+            return 1;
+        if( !player )
+        {
+            SSVM_Abort(state, "midi_hold with no active player");
+            return 1;
+        }
+        if( ticks < 0 )
+        {
+            SSVM_Abort(state, "midi_hold %d is not a tick count", ticks);
+            return 1;
+        }
+        player->music_hold_until = srv->tick + ticks;
         return 1;
     }
 
