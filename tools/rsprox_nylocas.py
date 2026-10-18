@@ -84,7 +84,6 @@ class Fight:
         self.span = span
         self.npcs = {}
         self.top = defaultdict(list)       # tick -> [(kind, text, [sub lines])]
-        self.players = set()
         self.names = names
 
 
@@ -167,9 +166,6 @@ def parse(path, spans, names):
                         current_npc.events.append((tick, sub, text))
                     continue
             if block and block.startswith("player_info"):
-                m = PLAYER.search(line)
-                if m and SUB8.match(line):
-                    fight.players.add(m.group(2))
                 continue
             if current_top is not None and line.startswith("        "):
                 current_top[2].append(line.strip())
@@ -416,8 +412,9 @@ def attacks(fights, names):
 # ----------------------------------------------------------------------
 def waves(fights, names):
     """Wave spawns: the ticks on which nylocas were added in the tunnels (a
-    split is added on its big's tiles and is not a wave), the gaps between
-    them, and the party size."""
+    split is added on its big's tiles and is not a wave) and the gaps between
+    them. A wave held back by the cap can arrive over two ticks, so the count
+    of add ticks runs a little over the 31 waves."""
     for f in fights:
         adds = defaultdict(list)
         bigs_dead = {}
@@ -440,8 +437,8 @@ def waves(fights, names):
         boss = [n.added for n in f.npcs.values() if n.types[0][1].startswith("nylocas_boss") and n.added]
         sup = [n.added for n in f.npcs.values() if "support" in n.types[0][1] and n.added]
         t0 = min(sup) if sup else f.span[0]
-        print("%s %d-%d party=%d waves=%d first=+%d last=+%d boss=+%s gaps=%s" % (
-            f.path, f.span[0], f.span[1], len(f.players), len(ticks), ticks[0] - t0, ticks[-1] - t0,
+        print("%s %d-%d add-ticks=%d first=+%d last=+%d boss=+%s gaps=%s" % (
+            f.path, f.span[0], f.span[1], len(ticks), ticks[0] - t0, ticks[-1] - t0,
             ",".join("%d" % (b - t0) for b in sorted(boss)[:2]), ",".join(map(str, gaps))))
 
 

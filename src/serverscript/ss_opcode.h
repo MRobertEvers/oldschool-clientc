@@ -560,10 +560,11 @@
 #define SS_OP_NPC_DEFEND 11131
 #define SS_OP_SOUND_AREA 11132
 #define SS_OP_MIDI_HOLD 11133
+#define SS_OP_NPC_SETOPS 11140
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11134
+#define SS_OPCODE_MAX 11141
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 538
+#define SS_OPCODE_COUNT 539
 
 #endif

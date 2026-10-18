@@ -5389,6 +5389,8 @@ enum
     V5_NPC_SAY = 0x2,
     V5_NPC_FACING = 0x8,
     V5_NPC_SEQUENCE = 0x80,
+    V5_NPC_OPS = 0x1000,
+    V5_NPC_LEVEL_CHANGE = 0x8000,
     V5_NPC_SPOTANIM = 0x40000,
     V5_NPC_HITMARKS = 0x80000,
     V5_NPC_HEADBARS = 0x1000000,
@@ -5665,6 +5667,34 @@ npc_shows_hitsplat(const struct ToriRSServerNpc* npc)
     return def ? def->hitsplat : 1;
 }
 
+/*
+ * The two persistent menu blocks, per observer. Sent when they changed this
+ * tick, and to an observer the npc is being ADDED for (`added`, which is the
+ * v5 streams' `force_face_latch`: 1 on an add and only there) whenever the
+ * state is not what the client assumes of a fresh npc -- every op shown, the
+ * type's own level. A corpse walked into view must not offer Attack.
+ */
+static int
+npc_v5_sends_ops(const struct ToriRSServerNpc* npc, int added)
+{
+    return (npc->masks & TORIRSSERVER_NMASK_OPS) != 0 || (added && npc->ops_hidden != 0);
+}
+
+static int
+npc_v5_sends_level(const struct ToriRSServerNpc* npc, int added)
+{
+    const struct ToriRSServerNpcInfo* info;
+
+    if( !npc->level_override_set )
+        return 0;
+    if( npc->masks & TORIRSSERVER_NMASK_LEVEL )
+        return 1;
+    if( !added )
+        return 0;
+    info = ToriRSServer_NpcInfoRecord(npc->type);
+    return !info || info->combat_level != npc->level_override;
+}
+
 static void
 put_npc_extended_v5(
     struct RSAreaBuf* buf,
@@ -5717,6 +5747,10 @@ put_npc_extended_v5(
         flag |= V5_NPC_TRANSFORMATION;
     if( has_face )
         flag |= V5_NPC_FACING;
+    if( npc_v5_sends_ops(npc, force_face_latch) )
+        flag |= V5_NPC_OPS;
+    if( npc_v5_sends_level(npc, force_face_latch) )
+        flag |= V5_NPC_LEVEL_CHANGE;
     /* TORIRS_FACE_TRACE=1: every face an observer is sent for an npc, with
      * the server's own latch, for a boss whose turns a client does not
      * show (Verzik's web throws). */
@@ -5736,10 +5770,15 @@ put_npc_extended_v5(
 
     /*
      * Blocks in the writer's order, which is neither the flag order nor the
-     * classic order: HITMARKS before SEQUENCE before SAY before SPOTANIM before
-     * TRANSFORMATION. The client reads them in this sequence and nothing on the
-     * wire separates them, so a block out of place is read as the next one.
+     * classic order: LEVEL_CHANGE, OPS, HITMARKS, SEQUENCE, SAY, SPOTANIM,
+     * TRANSFORMATION (RSProt 239 NpcAvatarExtendedInfoDesktopWriter). The
+     * client reads them in this sequence and nothing on the wire separates
+     * them, so a block out of place is read as the next one.
      */
+    if( flag & V5_NPC_LEVEL_CHANGE )
+        rsab_p4_alt1(buf, npc->level_override); /* NpcCombatLevelChangeEncoder */
+    if( flag & V5_NPC_OPS )
+        rsab_p1_alt2(buf, 0x1f & ~npc->ops_hidden); /* NpcVisibleOpsEncoder: the SHOWN ops */
     if( splat )
     {
         /*
@@ -5961,7 +6000,8 @@ npc_extended_pending_v5(
                                TORIRSSERVER_NMASK_HEADBAR;
     struct Mock239Face face;
 
-    return (npc->masks & supported) != 0 ||
+    return (npc->masks & supported) != 0 || npc_v5_sends_ops(npc, force_face_latch) ||
+           npc_v5_sends_level(npc, force_face_latch) ||
            v5_face_from_classic(&face, recipient, npc->masks, TORIRSSERVER_NMASK_FACE_ENTITY,
                                 TORIRSSERVER_NMASK_FACE_COORD, npc->face_entity,
                                 npc->face_x, npc->face_z, force_face_latch);

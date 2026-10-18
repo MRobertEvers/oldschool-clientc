@@ -21474,6 +21474,66 @@ ToriRSServer_WorldSelftest(void)
                 "(the client answers one by cancelling its animation); %ld written",
                 ToriRSServer_EncodeNpcTransformationWrites() - transformations_before);
 
+            /*
+             * A dying npc offers no menu: Jagex sends `enabled_ops 0b00000` on
+             * the tick its death starts (1,042 of 1,072 recorded deaths,
+             * docs/rsprox-analysis/tob/nylocas.md). Read back through the
+             * client's own rev-239 reader. The killing hitmark rides the same
+             * extended block, written after the OPS byte, so a mis-sized OPS
+             * block shows as a hitmark the client cannot find. (The death
+             * animation follows a tick later, after this capture ends: the
+             * death is queued so the flinch is not overwritten, which is
+             * Jagex's "options gone a tick before the animation" in 284 of
+             * the recorded deaths.)
+             */
+            SELFTEST_CHECK(npc->ops_hidden == 0x1f,
+                           "a death hides all five of the npc's options, got 0x%x",
+                           npc->ops_hidden);
+            if( strcmp(srv->wire->name, "osrs239") == 0 )
+            {
+                static struct PktNpcInfoOp ops[2048];
+                int hidden_blocks = 0;
+                int hidden_with_hitmark = 0;
+
+                for( int p = 0; p < capture.count; p++ )
+                {
+                    const struct ToriRSServerCapturedPacket* packet = &capture.packets[p];
+                    int count;
+                    int in_hidden_block = 0;
+
+                    if( packet->recipient_pid != player->pid || packet->name != PKT_NAME_NPC_INFO ||
+                        packet->truncated )
+                        continue;
+                    count = osrs239_npc_info_read(packet->data, packet->len, ops, 2048);
+                    for( int i = 0; i < count; i++ )
+                    {
+                        if( ops[i].kind == PKT_NPC_INFO_OP_SET_NPC_OPBITS_IDX )
+                            in_hidden_block = 0;
+                        else if( ops[i].kind == PKT_NPC_INFO_OP_VISIBLE_OPS && ops[i]._bitvalue == 0 )
+                        {
+                            hidden_blocks++;
+                            in_hidden_block = 1;
+                        }
+                        else if( ops[i].kind == PKT_NPC_INFO_OP_DAMAGE && in_hidden_block )
+                        {
+                            hidden_with_hitmark++;
+                            in_hidden_block = 0;
+                        }
+                        else if( ops[i].kind == PKT_NPC_INFO_OP_SAY && ops[i]._say.text )
+                            ToriMem_Free(ToriMem_Net(), ops[i]._say.text);
+                        else if( ops[i].kind == PKT_NPC_INFO_OP_NAME_CHANGE && ops[i]._name_change.name )
+                            ToriMem_Free(ToriMem_Net(), ops[i]._name_change.name);
+                    }
+                }
+                SELFTEST_CHECK(hidden_blocks == 1,
+                               "the death sends one visible-ops block hiding every option, got %d",
+                               hidden_blocks);
+                SELFTEST_CHECK(hidden_with_hitmark == 1,
+                               "the client reads the killing hitmark after the hidden options "
+                               "in the same block, got %d",
+                               hidden_with_hitmark);
+            }
+
             SELFTEST_CHECK(ticks < 200, "the fight should end, took %d ticks", ticks);
             SELFTEST_CHECK(npc->hitpoints == 0, "the goblin should die, hp %d",
                            npc->hitpoints);

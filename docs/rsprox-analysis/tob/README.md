@@ -6,6 +6,7 @@ Each room's file states the recorded behaviour, the ticks it was read from, and 
 
 | File | Room |
 |---|---|
+| [nylocas.md](nylocas.md) | The Nylocas, Normal Mode (30 kills; [nylocas.out](nylocas.out) is the full tool output) |
 | [verzik.md](verzik.md) | Verzik Vitur, Normal Mode |
 
 ## Sources
@@ -35,6 +36,7 @@ All recordings are submissions to the public archive, [rsprox.net/database](http
 | Tool | Purpose |
 |---|---|
 | `tools/rsprox_tells.py` | Everything sent during a fight window (npc and player animations, graphics, projectiles, sounds, locs, messages, varbits), as counted signatures or a `--timeline`. With `--ours <ticklog.tsv>...` it lines our server's scriptrun tick log up against the recordings, kind by kind. |
+| `tools/rsprox_nylocas.py` | Follows each npc through its life in the Nylocas room: deaths and self-destructs, support bites, projectile flight against the thrower's footprint, Vasilias' spawn and form changes, collapses, wrong-style hits, the room's end |
 | `tools/cox/rsprox_fetch.py` | Search the archive and fetch recordings, cached (the NAS mirror first) |
 
 ```sh
