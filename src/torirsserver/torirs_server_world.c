@@ -9639,6 +9639,59 @@ cheat_dispatch(
     struct ToriRSServerPlayer* player,
     const char* text);
 
+/*
+ * A practice kit: cheat lines run in order, each dispatched exactly as the
+ * packet would dispatch it (content first, then this ladder), so a kit is a
+ * list of `::give` / `::wield` / `::setlevel` ... lines and never a second
+ * implementation of them. Stops at the first line that did not land: a
+ * refusal, an unknown command, or a `::wield` content declined (the cheat
+ * answers "sent", so the worn container is read back). `name` is the command
+ * the player typed, for the message.
+ */
+static enum ToriRSServerTriggerResult
+cheat_run_kit(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
+    const char* name,
+    const char* const* kit,
+    size_t count)
+{
+    assert(srv);
+    assert(player);
+    assert(name);
+    assert(kit);
+    for( size_t i = 0; i < count; i++ )
+    {
+        enum ToriRSServerTriggerResult line = cheat_dispatch(srv, player, kit[i]);
+
+        if( line != TORIRSSERVER_TRIGGER_RAN )
+        {
+            say(srv, "::%s: '%s' %s; the kit stopped there.", name, kit[i],
+                line == TORIRSSERVER_TRIGGER_NONE ? "is not a command" : "was refused");
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+        if( strncmp(kit[i], "wield ", 6) == 0 )
+        {
+            char suggest[256] = { 0 };
+            int wield_obj = cheat_obj_from_name(kit[i] + 6, suggest, sizeof(suggest));
+            int worn = 0;
+
+            /* `::wield` answered RAN, so it resolved this same name. */
+            assert(wield_obj >= 0);
+            for( int slot = 0; slot < TORIRSSERVER_WORN_SLOTS; slot++ )
+                if( player->worn[slot].obj_id == wield_obj )
+                    worn = 1;
+            if( !worn )
+            {
+                say(srv, "::%s: '%s' was sent and is not worn; the kit stopped there.", name,
+                    kit[i]);
+                return TORIRSSERVER_TRIGGER_FAILED;
+            }
+        }
+    }
+    return TORIRSSERVER_TRIGGER_RAN;
+}
+
 enum ToriRSServerTriggerResult
 ToriRSServer_RunCheatLadder(
     struct ToriRSServer* srv,
@@ -11091,10 +11144,11 @@ ToriRSServer_RunCheatLadder(
         return TORIRSSERVER_TRIGGER_RAN;
     }
 
-    if( strcmp(text, "coxolmsolo") == 0 )
+    if( strcmp(text, "coxolmsolo") == 0 || strcmp(text, "olmpractice") == 0 )
     {
         /*
-         * `::coxolmsolo` -- the start of the Olm solo solver, by hand: the
+         * `::coxolmsolo` / `::olmpractice` (the same kit under the name a
+         * player practising the Olm asks for) -- the start of the Olm solo solver, by hand: the
          * stats, prayer unlocks, varps, worn kit and backpack of
          * test/raids/cox_olm_solo.lua's setup, then `::coxolmrush` to the
          * tile outside the barrier. Step through it (or `::coxolm`) to wake
@@ -11162,45 +11216,110 @@ ToriRSServer_RunCheatLadder(
 
         if( cox_active < 0 )
         {
-            say(srv, "::coxolmsolo: this content has no varp5912_cox_active.");
+            say(srv, "::%s: this content has no varp5912_cox_active.", text);
             return TORIRSSERVER_TRIGGER_FAILED;
         }
         assert(cox_active < TORIRSSERVER_VARP_COUNT);
-        for( size_t i = 0; i < sizeof(kit) / sizeof(kit[0]); i++ )
-        {
-            enum ToriRSServerTriggerResult line = cheat_dispatch(srv, player, kit[i]);
-
-            if( line != TORIRSSERVER_TRIGGER_RAN )
-            {
-                say(srv, "::coxolmsolo: '%s' %s; the kit stopped there.", kit[i],
-                    line == TORIRSSERVER_TRIGGER_NONE ? "is not a command" : "was refused");
-                return TORIRSSERVER_TRIGGER_FAILED;
-            }
-            if( strncmp(kit[i], "wield ", 6) == 0 )
-            {
-                char suggest[256] = { 0 };
-                int wield_obj = cheat_obj_from_name(kit[i] + 6, suggest, sizeof(suggest));
-                int worn = 0;
-
-                /* `::wield` answered RAN, so it resolved this same name. */
-                assert(wield_obj >= 0);
-                for( int slot = 0; slot < TORIRSSERVER_WORN_SLOTS; slot++ )
-                    if( player->worn[slot].obj_id == wield_obj )
-                        worn = 1;
-                if( !worn )
-                {
-                    say(srv, "::coxolmsolo: '%s' was sent and is not worn; the kit stopped there.",
-                        kit[i]);
-                    return TORIRSSERVER_TRIGGER_FAILED;
-                }
-            }
-        }
+        if( cheat_run_kit(srv, player, text, kit, sizeof(kit) / sizeof(kit[0])) !=
+            TORIRSSERVER_TRIGGER_RAN )
+            return TORIRSSERVER_TRIGGER_FAILED;
         if( player->varps[cox_active] == 0 )
         {
-            say(srv, "::coxolmsolo: kit on, but no raid started; still where you were.");
+            say(srv, "::%s: kit on, but no raid started; still where you were.", text);
             return TORIRSSERVER_TRIGGER_FAILED;
         }
-        say(srv, "::coxolmsolo: Olm solo kit on, outside the barrier.");
+        say(srv, "::%s: Olm solo kit on, outside the barrier.", text);
+        return TORIRSSERVER_TRIGGER_RAN;
+    }
+
+    if( strcmp(text, "infernopractice") == 0 )
+    {
+        /*
+         * `::infernopractice` -- the OSRS Wiki's Bow of Faerdhinen Inferno
+         * setup (Inferno/Strategies, "Inventory Setups" > "Bowfa"; saved at
+         * docs/minigames/inferno/sources/wiki/wiki_Inferno_Strategies.wikitext
+         * :195-257), worn and carried slot for slot, then the player stood at
+         * the Inferno entrance with the fire cape already sacrificed, so
+         * Jump-in is on the menu.
+         *
+         * Worn: full crystal (helm, body, legs, shield) with the Ice ancient
+         * sceptre (the table's own pick beside the blood one), Occult, Ava's
+         * assembler, Rada's blessing 4 and Barrows gloves, with Echo boots and
+         * a Ring of suffering (i) in place of the tab's Devout boots and (ri).
+         * The tab's robes start in the backpack instead: Ahrim's robetop in
+         * the crystal body's slot, and the robeskirt dropped (the tab's own
+         * "can be dropped for additional supplies") for a ninth super restore
+         * in the crystal legs' slot.
+         * Carried, in the tab's order: Ahrim's robetop,
+         * toxic blowpipe (dragon darts, the table's ammo), Bow of Faerdhinen,
+         * divine rune pouch, a super restore, necklace of anguish, then 8
+         * Saradomin brews, 8 super restores, 2 bastions, 3 prayer
+         * regenerations and a stamina. The pouch holds the tab's runes for
+         * Blood and Ice Barrage (soul 2000, blood/death/water 8000;
+         * enum982_rune_pouch_rune 13, 8, 7, 2), and the book is Ancient.
+         *
+         * Prefixed by `::resetcharacter` like `::coxolmsolo` (anything worn
+         * or carried is gone, stats restored), and so it also leaves any run
+         * in progress. Levels are 99 across the board (Agility for the
+         * crystal set's 50), with Rigour, Augury and Preserve unlocked and
+         * Roving Elves complete (the crystal shield's wear requirement).
+         */
+        static const char* const kit[] = {
+            "resetcharacter",
+            "clearinv",
+            "setlevel attack 99", "setlevel strength 99", "setlevel defence 99",
+            "setlevel hitpoints 99", "setlevel prayer 99", "setlevel magic 99",
+            "setlevel ranged 99", "setlevel agility 99",
+            "setvar varb5451_prayer_rigour_unlocked 1",
+            "setvar varb5452_prayer_augury_unlocked 1",
+            "setvar varb5453_prayer_preserve_unlocked 1",
+            "setvar varb4070_spellbook ^spellbook_ancient",
+            "setvar varb5646_inferno_sacrificed_firecape ^inferno_firecape_sacrificed",
+            /* The crystal shield's wear gate (levelrequire.rs2). */
+            "setvar varp6262_rovingelves_quest ^rovingelves_complete",
+            "give crystal_helmet 1", "wield crystal_helmet",
+            "give avas_assembler 1", "wield avas_assembler",
+            "give occult_necklace 1", "wield occult_necklace",
+            "give zeah_blessing_elite 1", "wield zeah_blessing_elite",
+            "give ancient_sceptre_ice 1", "wield ancient_sceptre_ice",
+            "give crystal_chestplate 1", "wield crystal_chestplate",
+            "give crystal_platelegs 1", "wield crystal_platelegs",
+            "give crystal_shield 1", "wield crystal_shield",
+            "give hundred_gauntlets_level_10 1", "wield hundred_gauntlets_level_10",
+            "give echo_boots 1", "wield echo_boots",
+            "give nzone_zenyte_ring_enchanted 1", "wield nzone_zenyte_ring_enchanted",
+            "clearinv",
+            "give barrows_ahrim_body 1",
+            "blowpipe dragon_dart 2000 2000",
+            "give bow_of_faerdhinen_infinite 1",
+            "give divine_rune_pouch 1",
+            "give 4dose2restore 1",
+            "give zenyte_necklace_enchanted 1",
+            "give 4dosepotionofsaradomin 1", "give 4dose2restore 1",
+            "give 4dosepotionofsaradomin 1", "give 4dosepotionofsaradomin 1",
+            "give 4dose2restore 1", "give 4dose2restore 1",
+            "give 4dosepotionofsaradomin 1", "give 4dosepotionofsaradomin 1",
+            "give 4dose2restore 1", "give 4dose2restore 1",
+            "give 4dosepotionofsaradomin 1", "give 4dosepotionofsaradomin 1",
+            "give 4dose2restore 1", "give 4dose2restore 1",
+            "give 4dosepotionofsaradomin 1",
+            "give 4dosebastion 1", "give 4dose2restore 1",
+            "give 4dose1prayer_regeneration 1", "give 4dosebastion 1",
+            "give 4dosestamina 1",
+            "give 4dose1prayer_regeneration 1", "give 4dose1prayer_regeneration 1",
+            "setvar varb29_rune_pouch_type_1 13", "setvar varb1624_rune_pouch_quantity_1 2000",
+            "setvar varb1622_rune_pouch_type_2 8", "setvar varb1625_rune_pouch_quantity_2 8000",
+            "setvar varb1623_rune_pouch_type_3 7", "setvar varb1626_rune_pouch_quantity_3 8000",
+            "setvar varb14285_rune_pouch_type_4 2", "setvar varb14286_rune_pouch_quantity_4 8000",
+            /* One north of the take-off tile, where the recorded Jump-in was
+             * clicked from (inferno.rs2 ::infernojump, RSProx 3299). */
+            "tele 0_39_79_0_60",
+        };
+
+        if( cheat_run_kit(srv, player, text, kit, sizeof(kit) / sizeof(kit[0])) !=
+            TORIRSSERVER_TRIGGER_RAN )
+            return TORIRSSERVER_TRIGGER_FAILED;
+        say(srv, "::infernopractice: Bow of Faerdhinen kit on, at the Inferno entrance.");
         return TORIRSSERVER_TRIGGER_RAN;
     }
 
