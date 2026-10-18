@@ -36679,8 +36679,10 @@ ToriRSServer_WorldSelftest(void)
                         break;
                 }
             }
-            SELFTEST_CHECK(stomp == 29,
-                           "Bloat flinch: the stomp must land 29 ticks after the down, got %d",
+            /* 30: the stomp's sound and shake come 30 ticks after her sleep
+             * seq in 37 of 37 RSProx downs (docs/rsprox-analysis/tob/bloat.md). */
+            SELFTEST_CHECK(stomp == 30,
+                           "Bloat flinch: the stomp must land 30 ticks after the down, got %d",
                            stomp);
             SELFTEST_CHECK(up == 33,
                            "Bloat flinch: Bloat must rise 33 ticks after the down, got %d",

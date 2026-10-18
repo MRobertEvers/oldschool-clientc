@@ -18,7 +18,7 @@
 --                 reads it from his footprint before or after that tick's
 --                 step: both are watchers on step k.
 --   hands         a shadow on D, the impact on D+3 reading the end of D+2.
---   the down      the sleep seq on T; the stomp on T+29 reads the end of T+28
+--   the down      the sleep seq on T; the stomp on T+30 reads the end of T+29
 --                 (gap <= 3 of his footprint); the rise on T+33 is a walking
 --                 tick (a step and the flies).
 --
@@ -28,7 +28,7 @@
 
 QD.BLOAT = {
     SIZE = 5,
-    STOMP = 29, RISE = 33,
+    STOMP = 30, RISE = 33,                 -- the stomp 30 ticks after the sleep seq (RSProx 37 of 37, docs/rsprox-analysis/tob/bloat.md)
     TURN_CD = 32,
     FIRST_DOWN = 39, NEXT_DOWN = 35,
     -- H 8: at 2 tiles a tick he covers 16 of the 44 in the horizon; at 6 a

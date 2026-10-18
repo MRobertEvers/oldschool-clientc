@@ -184,6 +184,8 @@ def death(fights, names):
                     out.append("%+d %s %s" % (t - z, kind, re.sub(r", fade.*|, length.*", "", text)))
                 if kind.startswith("obj_add"):
                     out.append("%+d %s" % (t - z, text[:46]))
+                if kind in ("sound_area", "synth_sound") and t <= z + 4:
+                    out.append("%+d %s %s" % (t - z, kind, N.named(text, "sound", names) or text[:30]))
         print("  %s %d: %s" % (f.path, z, " | ".join(out)))
 
 
