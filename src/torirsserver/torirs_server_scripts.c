@@ -9373,6 +9373,61 @@ script_command(
         return 1;
     }
 
+    /*
+     * sound_area(synth $sound, int $delay, coord $coord, int $range): one
+     * SOUND_AREA zone packet, the way Jagex sends an area noise (RSProx:
+     * docs/rsprox-analysis/tob/verzik.md) - heard within `range` with the
+     * client's distance falloff. A revision that cannot carry the packet gets
+     * the old stand-in, a SYNTH_SOUND to each player within range. Either way
+     * the tick log gets one SOUND row per player in range, source "area".
+     */
+    case SS_OP_SOUND_AREA:
+    {
+        int32_t values[4];
+        int x;
+        int z;
+        int level;
+        int zone_packet;
+
+        for( int i = 3; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        if( values[0] < 0 )
+            return 1;
+        x = ToriRSServer_CoordX(values[2]);
+        z = ToriRSServer_CoordZ(values[2]);
+        level = ToriRSServer_CoordLevel(values[2]);
+        zone_packet = ToriRSServer_ZoneSubSupported(srv->wire, TORIRSSERVER_ZONE_EV_SOUNDAREA);
+        if( zone_packet )
+            ToriRSServer_ZoneSoundArea(srv, x, z, level, (int)values[0], 1, (int)values[1],
+                                       (int)values[3]);
+        for( int i = 0; i < srv->player_count; i++ )
+        {
+            struct ToriRSServerPlayer* p = &srv->players[i];
+            int dx;
+            int dz;
+
+            if( !p->active || p->level != level )
+                continue;
+            dx = p->x - x;
+            dz = p->z - z;
+            if( dx < 0 )
+                dx = -dx;
+            if( dz < 0 )
+                dz = -dz;
+            if( (dx > dz ? dx : dz) > values[3] )
+                continue;
+            if( !zone_packet )
+                ToriRSServer_SendSynthSound(p, (int)values[0], 1, (int)values[1]);
+            ToriRSServer_TicklogSound(srv, p, (int)values[0], 1, (int)values[1],
+                                      TORIRSSERVER_TICKLOG_SOUND_AREA, (int)values[2],
+                                      (int)values[3], -1);
+        }
+        return 1;
+    }
+
     case SS_OP_SPOTANIM_NPC:
     {
         int32_t values[3];

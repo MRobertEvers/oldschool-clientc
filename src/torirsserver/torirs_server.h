@@ -8843,6 +8843,13 @@ ToriRSServer_ZoneSubStandalone(
     const struct ToriRSServerWire* wire,
     int kind);
 
+/** Can this revision put the zone event `kind` on the wire at all? SOUND_AREA
+ *  exists only where the revision has a zone payload writer for it. */
+int
+ToriRSServer_ZoneSubSupported(
+    const struct ToriRSServerWire* wire,
+    int kind);
+
 /** The same sub-packet, encoded into a caller-owned buffer instead of sent —
  *  this is what makes a zone's shared blob shared. Returns the bytes written. */
 int

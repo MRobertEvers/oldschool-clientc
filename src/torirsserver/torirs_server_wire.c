@@ -98,6 +98,7 @@ osrs239_zone_sub(int pkt_name)
     case PKT_NAME_LOC_MERGE: return OSRS239_ZONE_LOC_MERGE;
     case PKT_NAME_OBJ_COUNT: return OSRS239_ZONE_OBJ_COUNT;
     case PKT_NAME_MAP_ANIM: return OSRS239_ZONE_MAP_ANIM;
+    case PKT_NAME_SOUND_AREA: return OSRS239_ZONE_SOUND_AREA;
     case PKT_NAME_LOC_ADD_CHANGE: return OSRS239_ZONE_LOC_ADD_CHANGE_V2;
     case PKT_NAME_OBJ_ADD: return OSRS239_ZONE_OBJ_ADD;
     case PKT_NAME_LOC_ANIM: return OSRS239_ZONE_LOC_ANIM;
@@ -1385,6 +1386,19 @@ w239_zone_payload(
         rsab_p1(buf, pos);
         return 1;
 
+    /* SoundAreaEncoder v19 (3rd/rsprot/packets/sound_area.c, the client's own
+     * reader): p1Alt3 coordInZone, p1Alt2 dropOffRange, p1 range, p1Alt2
+     * delay, p1Alt1 loops, p2 id. `count` carries the range, `old_count` the
+     * drop-off and `shape` the loops (torirs_server_zone.h). */
+    case PKT_NAME_SOUND_AREA:
+        rsab_p1_alt3(buf, pos);
+        rsab_p1_alt2(buf, event->old_count);
+        rsab_p1(buf, event->count);
+        rsab_p1_alt2(buf, event->start_delay);
+        rsab_p1_alt1(buf, event->shape);
+        rsab_p2(buf, id);
+        return 1;
+
     /*
      * LocMergeEncoder: p1 minX, p2Alt1 index, p1 locProperties, p1 minZ,
      * p2Alt1 id, p2 end, p2Alt3 start, p1Alt1 maxX, p1Alt3 coordInZone,
@@ -1639,6 +1653,7 @@ static const int k_transcribed_osrs239[] = {
     PKT_NAME_LOC_ADD_CHANGE,   PKT_NAME_LOC_DEL,         PKT_NAME_LOC_ANIM,
     PKT_NAME_MAP_ANIM,         PKT_NAME_OBJ_ADD,         PKT_NAME_OBJ_DEL,
     PKT_NAME_OBJ_COUNT,        PKT_NAME_LOC_MERGE,       PKT_NAME_MAP_PROJANIM,
+    PKT_NAME_SOUND_AREA,
     PKT_NAME_OBJ_REVEAL,       PKT_NAME_MESSAGE_GAME,    PKT_NAME_IF_SETTEXT,
     PKT_NAME_IF_SETNPCHEAD,    PKT_NAME_IF_SETANIM,      PKT_NAME_IF_SETPLAYERHEAD,
     PKT_NAME_UNSET_MAP_FLAG,   PKT_NAME_CHAT_FILTER_SETTINGS,
