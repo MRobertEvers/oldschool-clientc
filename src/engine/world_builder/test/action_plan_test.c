@@ -1226,33 +1226,48 @@ case_k_near(void)
     report("(k-near) tiles_nearest", before);
 }
 
-/* (k-sote) the landing guard's scan, in the Lua's order */
+/* (k-sote) the landing guard's scan, in the Lua's order, on the recorded
+ * flights: his ball 6 ticks at any distance, a red ricochet max(d, 3) after its
+ * victim's landing (+1 for a recipient whose turn runs first). The expected
+ * list is the Lua's scan worked by hand: every tile is forbidden for the ball
+ * (it lands on the grey at 1013 wherever I stand), the ricochet off (25,24)
+ * lands on 1012 from the row z 28, the one off (29,27) on 1012 or the grey
+ * 1013 from x 25..26, the maybe-ricochet off (27,27) on 1013 everywhere, and
+ * (26,28) puts both ricochets on 1012 - the pair. */
 static void
 case_k_sote(void)
 {
     static struct SoteGuardSpec s;
     int ox[64], oz[64], ot[64], ok[64], n, i, good = 1, before = g_failures;
-    int want[7][4] = { { 23, 28, 1010, 0 }, { 23, 29, 1010, 0 }, { 24, 28, 1010, 0 }, { 24, 29, 1010, 0 },
-                       { 25, 28, 1010, 0 }, { 25, 29, 1010, 0 }, { 26, 28, 1010, 0 } };
+    int want[29][4] = { { 24, 26, 1006, 0 }, { 24, 26, 1003, 1 }, { 24, 27, 1006, 0 }, { 24, 27, 1003, 1 },
+                        { 24, 28, 1006, 0 }, { 24, 28, 1003, 1 }, { 24, 28, 1004, 2 }, { 25, 26, 1006, 0 },
+                        { 25, 26, 1003, 1 }, { 25, 26, 1005, 2 }, { 25, 27, 1006, 0 }, { 25, 27, 1003, 1 },
+                        { 25, 27, 1005, 2 }, { 25, 28, 1006, 0 }, { 25, 28, 1003, 1 }, { 25, 28, 1004, 2 },
+                        { 25, 28, 1005, 2 }, { 26, 26, 1006, 0 }, { 26, 26, 1003, 1 }, { 26, 26, 1005, 2 },
+                        { 26, 27, 1006, 0 }, { 26, 27, 1003, 1 }, { 26, 27, 1005, 2 }, { 26, 28, 1006, 0 },
+                        { 26, 28, 1003, 1 }, { 26, 28, 1004, 2 }, { 26, 28, 1004, 3 }, { 26, 28, 1005, 3 },
+                        { 26, 28, 1005, 2 } };
     memset(&s, 0, sizeof(s));
     s.mx = 25;
     s.mz = 27;
-    s.r = 2;
-    s.max = 7;
-    s.n_fixed = 2;
+    s.r = 1;
+    s.max = 29;
+    s.n_fixed = 3;
     s.fixed_t[0] = 1001;
     s.fixed_grey[0] = 1;
-    s.fixed_t[1] = 1003;
+    s.fixed_t[1] = 1012;
+    s.fixed_t[2] = 1013;
+    s.fixed_grey[2] = 1;
     s.n_mov = 3;
-    s.mov_tk[0] = 1003, s.mov_red[0] = 1, s.mov_a[0] = 1008, s.mov_o[0] = 0, s.mov_x[0] = 23, s.mov_z[0] = 18;
-    s.mov_tk[1] = 1002, s.mov_red[1] = 1, s.mov_a[1] = 1007, s.mov_o[1] = 1, s.mov_x[1] = 18, s.mov_z[1] = 26;
-    s.mov_tk[2] = 1004, s.mov_red[2] = 1, s.mov_a[2] = 1007, s.mov_o[2] = 1, s.mov_x[2] = 30, s.mov_z[2] = 29;
+    s.mov_tk[0] = 1003, s.mov_red[0] = 1, s.mov_a[0] = 1007, s.mov_o[0] = 0, s.mov_x[0] = 23, s.mov_z[0] = 18;
+    s.mov_tk[1] = 1004, s.mov_red[1] = 0, s.mov_a[1] = 1008, s.mov_o[1] = 0, s.mov_x[1] = 25, s.mov_z[1] = 24;
+    s.mov_tk[2] = 1005, s.mov_red[2] = 0, s.mov_a[2] = 1008, s.mov_o[2] = 1, s.mov_x[2] = 29, s.mov_z[2] = 27;
     s.n_hyp = 2;
-    s.hyp_tk[0] = 1006, s.hyp_lv[0] = 1007, s.hyp_o[0] = 1, s.hyp_x[0] = 29, s.hyp_z[0] = 16;
+    s.hyp_tk[0] = 1006, s.hyp_lv[0] = 1009, s.hyp_o[0] = 1, s.hyp_x[0] = 27, s.hyp_z[0] = 27;
     s.hyp_tk[1] = 1010, s.hyp_lv[1] = 1001, s.hyp_o[1] = 0, s.hyp_x[1] = 21, s.hyp_z[1] = 34;
     n = sote_guard(&s, ox, oz, ot, ok);
-    TEST_ASSERT(n == 7, "k-sote: capped at max 7");
-    for( i = 0; i < 7 && i < n; i++ )
+    TEST_ASSERT(n == 29, "k-sote: 29 forbids");
+    for( i = 0; i < 29 && i < n; i++ )
         good = good && ox[i] == want[i][0] && oz[i] == want[i][1] && ot[i] == want[i][2] && ok[i] == want[i][3];
     TEST_ASSERT(good, "k-sote: the Lua's forbids, in its order");
     report("(k-sote) sote_guard", before);

@@ -1963,13 +1963,29 @@ bloat_first_bad(struct CollisionMap* cm, const struct BloatHoldSpec* s, int x, i
 
 /* ======================================================== SOTE GUARD */
 
+/* The flights as Jagex sends them (RSProx; docs/rsprox-analysis/tob/sotetseg.md):
+ * his ball ends at 203 cycles at ANY distance, so it lands 6 ticks after the
+ * throw wherever the target stands; a red ricochet ends at 36 + 30 x max(d, 3)
+ * and its impact queue runs a tick short of that from the victim's queue, so it
+ * lands max(d, 3) after the victim's landing, +1 when the recipient's turn runs
+ * first (`o`). The grey ends at 216 wherever it goes - a tile cannot move it -
+ * so the red's is the landing a tile decides. */
+#define SG_BALL_TICKS 6
+#define SG_RED_MIN_TILES 3
+
+static int
+sg_red_ticks(int d)
+{
+    return d < SG_RED_MIN_TILES ? SG_RED_MIN_TILES : d;
+}
+
 static int
 sg_land_mov(const struct SoteGuardSpec* s, int i, int x, int z)
 {
     int d = yl_cheb(x, z, s->mov_x[i], s->mov_z[i]);
     if( s->mov_red[i] )
-        return s->mov_a[i] + (56 + 8 * d) / 30;
-    return s->mov_a[i] + (41 + 8 * d) / 30 + s->mov_o[i];
+        return s->mov_a[i] + SG_BALL_TICKS;
+    return s->mov_a[i] + sg_red_ticks(d) + s->mov_o[i];
 }
 
 static int
@@ -2017,7 +2033,7 @@ sote_guard(const struct SoteGuardSpec* s, int* out_x, int* out_z, int* out_t, in
                 l[i] = sg_land_mov(s, i, x, z);
             for( i = 0; i < s->n_hyp; i++ )
             {
-                int lh = s->hyp_lv[i] + (41 + 8 * yl_cheb(x, z, s->hyp_x[i], s->hyp_z[i])) / 30 + s->hyp_o[i];
+                int lh = s->hyp_lv[i] + sg_red_ticks(yl_cheb(x, z, s->hyp_x[i], s->hyp_z[i])) + s->hyp_o[i];
                 if( sg_clash(s, lh, 0) )
                     SG_FORBID(x, z, s->hyp_tk[i], SOTE_MAYBE);
             }

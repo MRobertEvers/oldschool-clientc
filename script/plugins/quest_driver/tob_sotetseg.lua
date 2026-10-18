@@ -13,10 +13,10 @@
 --   his clock    an attack every 5 from start + 6: a ball (always magic, the
 --                prayer read at LANDING), a melee on a target within 1 (50%),
 --                or after 10 balls the death ball.
---   the ball     lands floor((56 + 8d) / 30) after its launch (d from his
---                (15,40)); on landing a grey (Missiles) and a red (Magic)
---                ricochet to the other two, floor((41 + 8d) / 30) on, a tick
---                more for a recipient with a lower pid than the victim.
+--   the ball     lands 6 after its launch at any distance (RSProx: end 203);
+--                on landing a grey (Missiles) and a red (Magic) ricochet to
+--                two others within 9, the red max(d, 3) on, the grey 6 on, a
+--                tick more for a recipient with a lower pid than the victim.
 --   death ball   lands 15 after its launch on whoever stands within 1 of the
 --                target's tile, 1..121 split between them.
 --   the maze     at 2/3 and 1/3 hp: everyone stunned 5, teleported on P+3;
@@ -150,12 +150,14 @@ function QD.raid._sote_measure(S, F)
                     P.land = F.tick + flight
                 else
                     -- a ricochet, off the ball that landed on its victim this
-                    -- tick: its impact is queued on the recipient, so one the
-                    -- server processed before the victim this tick (a lower
-                    -- pid) runs it a tick later (6,031 ricochets on sweep so7:
-                    -- every lower-pid recipient +1, every higher +0)
+                    -- tick: its impact is queued on the recipient a tick short
+                    -- of its flight (content [proc,tob_sote_ricochet]), so one
+                    -- the server processed before the victim this tick (a
+                    -- lower pid) runs it a tick later: lower-pid recipients
+                    -- land on the flight, higher a tick before it (the
+                    -- recording's splats: on the landing tick or the next)
                     P.kind = (p.spotanim_id == ids.grey) and "grey" or "red"
-                    P.land = F.tick + flight
+                    P.land = F.tick + flight - 1
                     local victim = nil
                     for _, Q in ipairs(S.incoming) do
                         if Q.kind == "ball" and Q.land == F.tick then victim = Q.pid end
@@ -335,8 +337,8 @@ function QD.raid._sote_fight_zones(S, F, add, phase)
     end
     if phase == "fight" or phase == "death_ball" then
         -- NO RICOCHET ONTO MY OWN LANDING: a ball landing on a teammate V at
-        -- L' throws a ricochet of a random style at me, landing L' + (41 +
-        -- 8d) // 30 (+1 when my pid is below V's: the impact queue is mine,
+        -- L' throws a ricochet of a random style at me, a red landing L' +
+        -- max(d, 3) (+1 when my pid is below V's: the impact queue is mine,
         -- run before V's turn - so7's 6,031 ricochets), d my distance from V
         -- when V's queue runs. If that is the tick something of mine already
         -- lands, one of the two may be the other style, and an unprayable hit
@@ -353,8 +355,10 @@ function QD.raid._sote_fight_zones(S, F, add, phase)
                         local ft = Pm.land - Pv.land - order
                         local tm = (F.pid < Pv.pid) and Pv.land or (Pv.land - 1)
                         if ft >= 1 and tm >= F.tick + 1 then
-                            local dmin = math.max(0, -((41 - 30 * ft) // 8))
-                            local dmax = (30 * (ft + 1) - 1 - 41) // 8
+                            -- a red lands max(d, 3) on: ft 3 is d 0..3, more is d = ft
+                            -- (fewer than 3 is no tile at all)
+                            local dmin = (ft == 3) and 0 or ft
+                            local dmax = (ft >= 3) and ft or -1
                             local V_ = nil
                             for _, rd in ipairs(F.raiders) do if rd.pid == Pv.pid then V_ = rd end end
                             if V_ and dmax >= dmin then

@@ -376,13 +376,13 @@ function QD.raid.tob_relay_test(mode, opts)
     local CHEST_COST = { prayer = 2, brew = 3, restore = 3, shark = 1 } -- enum_1953
     local function restock(t, name)
         drop_vials(t)
-        local chr, chrow = t.world.loc_near("tob_midway_chest_closed", 40)
+        local chr, chrow = t.world.loc_near("tob_midway_chest_open", 40)
         t.check(name .. ".chest_found", chr == "ok" and chrow ~= nil, P .. tostring(chr))
         if chr ~= "ok" or chrow == nil then return end
         local or_ = "timeout"
         for _ = 1, 3 do
             if or_ == "ok" then break end
-            t.raid.tob_loc_op("tob_midway_chest_closed", 1)
+            t.raid.tob_loc_op("tob_midway_chest_open", 2)
             or_ = t.ui.await_open("tob_midway_stores", 20)
         end
         t.check(name .. ".chest_open", or_ == "ok", P .. "store " .. tostring(or_))

@@ -91,6 +91,7 @@ T is her killing hit (the first hitsplat after which her headbar reads empty).
 | Seq + 3 | `tob_book_bloat` (22506) per raider at her centre (south-west + 2, + 2), theirs alone, 200 ticks | one book at her south-west tile, public | **fixed** |
 | Seq + 3 | "The Vampyres are impressed by your prowess. <col=ff0000>Check the chest</col> to see how many points they've granted you." with the chest-points varbits (30 of 30) | points awarded at the chest's first Open | **fixed** (`~tob_chest_award_on_clear`, also for Sotetseg's chest) |
 | Seq + 3 | song 147 and jingle 250, envelope 0/0/0/0 | same (the Maiden's room-end fix) | match |
+| Seq + 3 | the supply chest open (`tob_midway_chest_open`, op "Search"); never seen before the clear, it is out of view | a closed chest added at the clear, opened with "Open" | **fixed** with Sotetseg's ([sotetseg.md](sotetseg.md#the-supply-chest)): closed from the build, open at the clear |
 | Seq + 3..5 | song 578, the room track again | + 4 | match |
 
 Rev 234 prints the book's despawn as 20, and rev 227 prints it as 200 with `ownership=self`. We use 200 ticks.

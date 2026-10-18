@@ -9,6 +9,7 @@ Each room's file states the recorded behaviour, the ticks it was read from, and 
 | [bloat.md](bloat.md) | The Pestilent Bloat, Normal Mode (30 kills; [bloat.out](bloat.out) is the full tool output) |
 | [maiden.md](maiden.md) | The Maiden of Sugadinti, Normal Mode (31 kills; [maiden.out](maiden.out) is the full tool output) |
 | [nylocas.md](nylocas.md) | The Nylocas, Normal Mode (30 kills; [nylocas.out](nylocas.out) is the full tool output) |
+| [sotetseg.md](sotetseg.md) | Sotetseg, Normal Mode (28 kills, 56 mazes; [sotetseg.out](sotetseg.out) is the full tool output) |
 | [verzik.md](verzik.md) | Verzik Vitur, Normal Mode |
 | [doors.md](doors.md) | Every door's landing tile, the HUD transitions and the entrance, barrier and exit dialogue |
 
@@ -42,6 +43,7 @@ All recordings are submissions to the public archive, [rsprox.net/database](http
 | `tools/rsprox_nylocas.py` | Follows each npc through its life in the Nylocas room: deaths and self-destructs, support bites, projectile flight against the thrower's footprint, Vasilias' spawn and form changes, collapses, wrong-style hits, the room's end |
 | `tools/rsprox_bloat.py` | The Bloat room: her sleep cycle and the stomp (shakes, sound, reset), the falling flesh against the players and its splats, the flies, the stun, her death |
 | `tools/rsprox_maiden.py` | The Maiden room: her attack clock and both projectiles' flight against distance, the blood throw's shape and timing, the trail, the crabs and blood spawns through their lives, her death |
+| `tools/rsprox_sotetseg.py` | The Sotetseg room: his attacks, the ball and its bounces against distance, the death ball, the maze's start and end, the realm's drain, wrong tiles, the tornado, his death |
 | `tools/cox/rsprox_fetch.py` | Search the archive and fetch recordings, cached (the NAS mirror first) |
 
 ```sh

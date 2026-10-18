@@ -1,0 +1,331 @@
+== attacks
+  kinds: {'ball': 449, 'melee': 61, 'death ball': 27}
+  (previous attack, ticks to the next): {('ball', 1): 5, ('ball', 16): 1, ('ball', 17): 1, ('ball', 18): 1, ('ball', 2): 10, ('ball', 20): 3, ('ball', 22): 2, ('ball', 25): 1, ('ball', 3): 10, ('ball', 30): 1, ('ball', 32): 2, ('ball', 33): 2, ('ball', 35): 1, ('ball', 37): 4, ('ball', 39): 2, ('ball', 4): 7, ('ball', 5): 339, ('death ball', 10): 20, ('death ball', 2): 1, ('death ball', 4): 2, ('death ball', 6): 1, ('death ball', 9): 1, ('melee', 2): 2, ('melee', 3): 2, ('melee', 4): 2, ('melee', 5): 51}
+  first attack after he turns to combat: {1: 55, 6: 21, 7: 7, 8: 1}
+  melee: nearest raider's distance from his footprint: {3: 9, None: 22, 1: 14, 10: 4, 2: 7, 4: 4, 5: 1}
+== primary (the ball at one raider)
+  (gfx, start, angle, offset, height): {('tob_sotetseg_maging', 23, 16, 64, 26.5, 31.0): 143, ('tob_sotetseg_maging', 23, 16, 64, 26, 31): 250}
+  source: {'his centre': 393}
+  distance  3 from his centre: end {203: 50, 233: 1}
+  distance  4 from his centre: end {203: 98, 233: 3, 263: 1}
+  distance  5 from his centre: end {203: 87}
+  distance  6 from his centre: end {203: 51, 233: 2}
+  distance  7 from his centre: end {203: 11}
+  distance  8 from his centre: end {203: 8}
+  distance  9 from his centre: end {203: 1}
+  distance 10 from his centre: end {203: 13}
+  distance 12 from his centre: end {203: 63, 233: 3, 263: 1}
+  sounds on the throw tick (name, where, delay, range): {('tob_sotetseg_attack_ranged', 'sw', 10, 10): 393, ('tob_sotetseg_large_attack_ranged', 'sw', 10, 10): 27, ('firework', 'other', 0, 1): 2, ('burst', 'other', 25, 1): 2, ('leagues_5_npc_guardian_attack_magic_impact_01', 'centre', 45, 10): 1, ('leagues_5_npc_guardian_attack_magic_02', 'other', 0, 31): 1}
+  landing: {('landing tick = throw + end//30', 'sound none at the target'): 168, ('landing tick = throw + end//30', 'sound tob_sotetseg_fireball_player_hit r6 d0'): 214, ('landing tick = throw + end//30', 'sound tob_sotetseg_large_fireball_player_hit r6 d0'): 9, ('landing tick = throw + end//30', 'sound tob_sotetseg_ricochet_player_hit r4 d246'): 1, ('landing tick = throw + end//30', 'sound tob_sotetseg_fireball_player_hit r4 d255'): 1}
+== bounce (start 15, from the ball's landing tile)
+  (raiders on the landing tick, bounces): {(0, 0): 35, (0, 1): 5, (0, 2): 5, (1, 0): 144, (1, 1): 90, (1, 2): 23, (2, 0): 47, (2, 1): 31, (2, 2): 13}
+  bounce gfx per landing: {(): 226, ('tob_sotetseg_ranging',): 58, ('tob_sotetseg_maging',): 68, ('tob_sotetseg_maging', 'tob_sotetseg_ranging'): 41}
+  ticks after the landing: {0: 208}
+  (gfx, start, angle, offset, height): {('tob_sotetseg_ranging', 15, 8, 0, 31.0, 24.0): 99, ('tob_sotetseg_maging', 15, 8, 0, 31.0, 24.0): 109}
+  distance  1: end {126: 4, 216: 3, 246: 2}
+  distance  2: end {126: 9, 216: 6, 246: 1}
+  distance  3: end {126: 5, 216: 4, 246: 2}
+  distance  4: end {156: 10, 216: 13, 246: 3}
+  distance  5: end {186: 7, 216: 8, 246: 2}
+  distance  6: end {216: 28, 246: 7}
+  distance  7: end {216: 8, 246: 17}
+  distance  8: end {216: 19, 246: 5, 276: 25}
+  distance  9: end {216: 10, 246: 2, 276: 1, 306: 7}
+  target: {'nearest other raider': 90, 'not the nearest (1 vs 9)': 1, 'not the nearest (3 vs 9)': 1, 'not the nearest (7 vs 6)': 1, 'not the nearest (5 vs 6)': 2, 'not the nearest (2 vs 8)': 3, 'not the nearest (7 vs 2)': 4, 'not the nearest (7 vs 4)': 1, 'not the nearest (4 vs 2)': 1, 'not the nearest (8 vs 2)': 2, 'not the nearest (8 vs 4)': 1, 'not the nearest (4 vs 8)': 2, 'not the nearest (9 vs 8)': 1, 'not the nearest (8 vs 9)': 1, 'not the nearest (9 vs 3)': 1, 'not the nearest (3 vs 8)': 1, 'not the nearest (4 vs 5)': 1, 'not the nearest (6 vs 9)': 1, 'not the nearest (6 vs 8)': 1, 'not the nearest (9 vs 10)': 1, 'not the nearest (5 vs 7)': 1, 'not the nearest (4 vs 7)': 1, 'not the nearest (7 vs 8)': 1, 'not the nearest (9 vs 7)': 1}
+  sounds at its target, sent with it (name, delay - end, range): {('tob_sotetseg_ranging', (('tob_sotetseg_ricochet_player_hit', 0, 4),)): 97, ('tob_sotetseg_maging', (('tob_sotetseg_fireball_player_hit', 0, 4),)): 77, ('tob_sotetseg_maging', (('tob_sotetseg_fireball_player_hit', -21, 4),)): 25, ('tob_sotetseg_maging', (('tob_sotetseg_fireball_player_hit', -51, 4),)): 7, ('tob_sotetseg_ranging', (('tob_sotetseg_large_fireball_player_hit', -216, 6), ('tob_sotetseg_ricochet_player_hit', 0, 4))): 1, ('tob_sotetseg_ranging', (('tob_sotetseg_ricochet_player_hit', -21, 4),)): 1}
+== death ball (T = the throw)
+  (27 occurrences)
+  +0  27  sound_area tob_sotetseg_large_attack_ranged d10 r10
+  +0  27  boss seq tob_sotetseg_attack_ranged
+  +0  27  proj tob_sotetseg_sharedattack start=23 end=480
+  +0  14  message type=gamemessage, message="<col=bf0000>A large ball of energy is shot your way...</col>"
+  +1  26  sound_area tob_sotetseg_fireball_player_hit d0 r6
+  +1  12  sound_area tob_sotetseg_ricochet_player_hit d216 r4
+  +1  12  proj tob_sotetseg_ranging start=15 end=216
+  +1   4  sound_area tob_sotetseg_fireball_player_hit d246 r4
+  +1   4  proj tob_sotetseg_maging start=15 end=246
+  +1   3  sound_area tob_sotetseg_fireball_player_hit d216 r4
+  +1   3  proj tob_sotetseg_maging start=15 end=216
+  +1   3  proj tob_sotetseg_maging start=15 end=126
+  +1   3  sound_area tob_sotetseg_fireball_player_hit d126 r4
+  +2   3  loc_add_change_v1 32758
+  +10  19  boss seq tob_sotetseg_attack_ranged
+  +10  19  sound_area tob_sotetseg_attack_ranged d10 r10
+  +10  19  proj tob_sotetseg_maging start=23 end=203
+  +10   6  player spotanim id=131, delay=203, height=124
+  +10   5  player spotanim id=fireblast_impact , delay=203, height=124
+  +15  15  sound_area tob_sotetseg_attack_ranged d10 r10
+  +15  15  proj tob_sotetseg_maging start=23 end=203
+  +15  15  boss seq tob_sotetseg_attack_ranged
+  +15   4  player spotanim id=fireblast_impact , delay=203, height=124
+  +15   3  player spotanim id=131, delay=203, height=124
+  +16  18  sound_area tob_sotetseg_large_fireball_player_hit d0 r6
+  +16  16  sound_area tob_sotetseg_fireball_player_hit d0 r6
+  +16   6  sound_area tob_sotetseg_ricochet_player_hit d216 r4
+  +16   6  proj tob_sotetseg_ranging start=15 end=216
+  +16   6  player spotanim id=1605
+  +16   5  player spotanim id=tob_sotetseg_sharedattack_impact 
+  +16   4  sound_area tob_sotetseg_fireball_player_hit d126 r4
+  +16   4  proj tob_sotetseg_maging start=15 end=126
+== fight start (T = his first turn to combat)
+  (28 occurrences)
+  -3   4  if_opensub com=162:565, id=219, type=modal
+  -3   4  if_setevents_v1 com=219:1, start=1, end=2, events=[PAUSEBUTTON]
+  -2   9  if_opensub com=162:565, id=219, type=modal
+  -2   9  if_setevents_v1 com=219:1, start=1, end=2, events=[PAUSEBUTTON]
+  -2   8  varbit id=12393, new=1
+  -2   6  if_setevents_v2 com=chatmenu:options (219:1), start=1, end=2, events=[PAUSEBUTTON]
+  -2   6  if_opensub com=chatbox:chatmodal (162:566), id=chatmenu (219), type=modal
+  -2   4  if_closesub com=162:565, id=219
+  -2   3  oploc1 id=32755, coord=(3280, 4307, 0)
+  -1   9  if_opensub com=162:565, id=219, type=modal
+  -1   9  if_setevents_v1 com=219:1, start=1, end=2, events=[PAUSEBUTTON]
+  -1   7  resume_pausebutton com=219:1, sub=1
+  -1   5  varbit id=12393, new=1
+  +0  28  boss retype tob_sotetseg_combat
+  +0  28  boss enabled_ops opflags=0b11111
+  +0  28  boss level_change level=995
+  +0  19  if_closesub com=162:565, id=219
+  +0  12  resume_pausebutton com=219:1, sub=1
+  +0   7  if_closesub com=chatbox:chatmodal (162:566), id=chatmenu (219)
+  +0   7  midi_song_v2 id=581, fadeoutdelay=0, fadeoutspeed=60, fadeindelay=60, fadeinspeed=0
+  +0   6  resume_pausebutton com=chatmenu:options (219:1), sub=1
+  +0   5  varbit id=6449, new=1000
+  +0   5  varbit id=6447, new=1
+  +0   5  if_settext com=239:9, text="Power of the Shadow Realm"
+  +0   5  varbit id=12393, new=1
+  +1  19  varbit id=4605, new=1
+  +1  19  varbit id=12393, new=0
+  +1  14  varbit id=6449, new=1000
+  +1  14  varbit id=6447, new=1
+  +1   8  midi_song_v2 id=581, fadeoutdelay=0, fadeoutspeed=60, fadeindelay=60, fadeinspeed=0
+  +1   7  varbit id=multiway_indicator (4605), new=1
+  +1   6  if_settext com=239:9, text="Power of the Shadow Realm"
+  +1   5  varbit id=tob_client_waveprogress_val (6448), new=1000
+  +1   5  varbit id=tob_client_waveprogress_type (6447), new=1
+  +1   5  varbit id=tob_client_waveprogress_max (6449), new=1000
+  +2  13  midi_song_v2 id=581, fadeoutdelay=0, fadeoutspeed=60, fadeindelay=60, fadeinspeed=0
+  +2  10  if_settext com=239:9, text="Power of the Shadow Realm"
+  +2   3  if_settext com=music:now_playing_text (239:9), text="Power of the Shadow Realm"
+  +3   3  if_settext com=combat_interface:category (593:3), text="Category: Slash Sword"
+  +3   3  set_player_op id=5, op=null
+  +3   3  varbit id=combat_weapon_category (357), new=9
+  +6  21  boss seq tob_sotetseg_attack_ranged
+  +6  21  sound_area tob_sotetseg_attack_ranged d10 r10
+  +6  21  proj tob_sotetseg_maging start=23 end=203
+  +6  11  player spotanim id=131, delay=203, height=124
+  +6   6  player spotanim id=fireblast_impact , delay=203, height=124
+  +7   6  boss seq tob_sotetseg_attack_ranged
+  +7   6  sound_area tob_sotetseg_attack_ranged d10 r10
+  +7   6  proj tob_sotetseg_maging start=23 end=203
+  +7   3  player spotanim id=131, delay=203, height=124
+== maze start (T = he turns non-combat)
+  (56 occurrences)
+  -1  13  sound_area tob_sotetseg_fireball_player_hit d0 r6
+  -1   9  sound_area tob_sotetseg_ricochet_player_hit d216 r4
+  -1   9  proj tob_sotetseg_ranging start=15 end=216
+  -1   5  sound_area tob_sotetseg_attack_ranged d10 r10
+  -1   5  boss seq tob_sotetseg_attack_ranged
+  -1   4  proj tob_sotetseg_maging start=23 end=203
+  -1   3  proj tob_sotetseg_maging start=15 end=246
+  -1   3  sound_area tob_sotetseg_fireball_player_hit d246 r4
+  -1   3  message type=gamemessage, message="You've been injured and can't use protection prayers!"
+  +0  56  boss enabled_ops opflags=0b11111
+  +0  56  boss level_change level=995
+  +0  56  boss seq tob_sotetseg_attack_ranged
+  +0  56  boss retype tob_sotetseg_noncombat
+  +0  55  synth_sound tob_sotetseg_teleport_shadowrealm
+  +0  42  varbit id=12393, new=1
+  +0  42  player sequence id=1816
+  +0  14  boss face_angle angle=1769
+  +0  13  player sequence id=human_teleport_other_impact 
+  +0   3  varbit id=tob_client_waveprogress_val (6448), new=333
+  +0   3  varbit id=tob_client_waveprogress_val (6448), new=666
+  +2   3  varbit id=tob_client_waveprogress_val (6448), new=666
+  +2   3  varbit id=tob_client_waveprogress_val (6448), new=333
+  +3  55  player sequence id=-1
+  +3  42  loc_add_change_v1 33034
+  +3  28  boss del 
+  +3  19  loc_add_change_v1 33035
+  +3  13  varbit id=6447, new=2
+  +3  13  varbit id=6449, new=3
+  +3  12  loc_add_change_v1 32758
+  +3   5  varbit id=tob_client_waveprogress_max (6449), new=3
+  +3   5  varbit id=tob_client_waveprogress_type (6447), new=2
+  +3   4  loc_add_change_v2 tob_midway_chest_closed
+  +3   3  varbit id=tob_client_waveprogress_val (6448), new=2
+  +4  42  varbit id=12393, new=0
+  +4  29  varbit id=6447, new=2
+  +4  29  varbit id=6449, new=3
+  +4  19  if_opensub com=28:1, id=98, type=overlay
+  +4  19  varbit id=4605, new=0
+  +4   9  varbit id=multiway_indicator (4605), new=0
+  +4   9  varbit id=tob_client_waveprogress_max (6449), new=3
+  +4   9  if_opensub com=tob_hud:atmospheric (28:1), id=darkness_medium (98), type=overlay
+  +4   9  varbit id=tob_client_waveprogress_type (6447), new=2
+  +4   5  varbit id=tob_client_waveprogress_val (6448), new=1
+  +4   5  boss face_angle angle=0
+  +4   4  varbit id=tob_client_waveprogress_val (6448), new=2
+  +4   4  player spotanim id=1608
+  +5   4  player spotanim id=1608
+== maze end (T = he turns combat again, after a maze)
+  (55 occurrences)
+  -2  12  sound_area tob_sotetseg_player_tile_explosion_impact_2 d0 r8
+  -2  11  loc_add_change_v1 33034
+  -2   9  loc_add_change_v2 tob_sotetseg_triggeredtile
+  -2   9  loc_add_change_v1 32758
+  -2   8  sound_area tob_sotetseg_red_spiral_hum d3 r6
+  -2   7  sound_area tob_sotetseg_red_spiral_hum d5 r6
+  -2   6  sound_area tob_sotetseg_red_spiral_hum d1 r6
+  -2   6  sound_area tob_sotetseg_red_spiral_hum d2 r6
+  -2   5  sound_area tob_sotetseg_red_spiral_hum d4 r6
+  -2   4  proj tob_sotetseg_zap start=0 end=15
+  -2   4  sound_area tob_sotetseg_red_spiral_hum d0 r6
+  -2   4  loc_add_change_v1 32757
+  -2   3  map_anim id=devious_explosion (505), height=10, coord=(3274, 4323, 0)
+  -2   3  loc_add_change_v1 33036
+  -2   3  boss add 
+  -2   3  loc_add_change_v1 32740
+  -1  10  sound_area tob_sotetseg_player_tile_explosion_impact_2 d0 r8
+  -1   8  loc_add_change_v2 tob_sotetseg_triggeredtile
+  -1   8  proj tob_sotetseg_zap start=0 end=15
+  -1   5  sound_area tob_sotetseg_red_spiral_hum d5 r6
+  -1   4  sound_area tob_sotetseg_red_spiral_hum d3 r6
+  -1   4  loc_add_change_v1 33034
+  -1   4  loc_add_change_v1 32758
+  -1   4  loc_add_change_v1 33036
+  -1   3  map_anim id=devious_explosion (505), height=10, coord=(3274, 4324, 0)
+  -1   3  synth_sound tob_sotetseg_teleport_shadowrealm
+  -1   3  sound_area tob_sotetseg_red_spiral_hum d0 r6
+  -1   3  varbit id=4605, new=1
+  -1   3  varbit id=12393, new=0
+  -1   3  if_closesub com=28:1, id=98
+  +0  55  boss retype tob_sotetseg_combat
+  +0  55  boss enabled_ops opflags=0b11111
+  +0  55  boss level_change level=995
+  +0  41  loc_add_change_v1 33033
+  +0  12  varbit id=6449, new=1000
+  +0  12  varbit id=6447, new=1
+  +0   8  loc_add_change_v1 32758
+  +0   5  varbit id=tob_client_waveprogress_type (6447), new=1
+  +0   5  varbit id=tob_client_waveprogress_max (6449), new=1000
+  +0   4  loc_add_change_v1 32757
+  +0   3  varbit id=tob_client_waveprogress_val (6448), new=666
+  +0   3  boss add 
+  +1  42  sound_area tob_sotetseg_attack_ranged d10 r10
+  +1  42  proj tob_sotetseg_maging start=23 end=203
+  +1  42  boss seq tob_sotetseg_attack_ranged
+  +1  17  player spotanim id=131, delay=203, height=124
+  +1  13  boss seq tob_sotetseg_attack_melee
+  +1  13  varbit id=6449, new=1000
+  +1  13  varbit id=6447, new=1
+  +1   6  player spotanim id=fireblast_impact , delay=203, height=124
+  +1   5  varbit id=tob_client_waveprogress_type (6447), new=1
+  +1   5  varbit id=tob_client_waveprogress_max (6449), new=1000
+  +1   5  player sequence id=424, delay=30
+  +1   3  varbit id=tob_client_waveprogress_val (6448), new=333
+  +2  16  varbit id=6449, new=1000
+  +2  16  varbit id=6447, new=1
+  +2   4  varbit id=tob_client_waveprogress_type (6447), new=1
+  +2   4  varbit id=tob_client_waveprogress_max (6449), new=1000
+  +2   3  varbit id=tob_client_waveprogress_val (6448), new=333
+  +2   3  loc_add_change_v1 32758
+  +6  46  boss seq tob_sotetseg_attack_ranged
+  +6  38  sound_area tob_sotetseg_attack_ranged d10 r10
+  +6  38  proj tob_sotetseg_maging start=23 end=203
+  +6  19  player spotanim id=131, delay=203, height=124
+  +6   9  boss seq tob_sotetseg_attack_melee
+  +6   8  sound_area tob_sotetseg_large_attack_ranged d10 r10
+  +6   8  proj tob_sotetseg_sharedattack start=23 end=480
+  +6   4  loc_add_change_v1 32757
+  +6   4  loc_add_change_v1 32758
+  +6   3  message type=gamemessage, message="<col=bf0000>A large ball of energy is shot your way...</col>"
+  +6   3  player spotanim id=fireblast_impact , delay=203, height=124
+  +7  42  sound_area tob_sotetseg_fireball_player_hit d0 r6
+  +7  23  sound_area tob_sotetseg_ricochet_player_hit d216 r4
+  +7  23  proj tob_sotetseg_ranging start=15 end=216
+  +7   7  sound_area tob_sotetseg_fireball_player_hit d246 r4
+  +7   7  proj tob_sotetseg_maging start=15 end=246
+  +7   6  sound_area tob_sotetseg_fireball_player_hit d216 r4
+  +7   6  proj tob_sotetseg_maging start=15 end=216
+  +7   5  sound_area tob_sotetseg_fireball_player_hit d126 r4
+  +7   5  proj tob_sotetseg_maging start=15 end=126
+  +7   3  proj tob_sotetseg_ranging start=15 end=246
+  +7   3  sound_area tob_sotetseg_ricochet_player_hit d246 r4
+  +7   3  player spotanim id=131, delay=126, height=96
+  +7   3  sound_area tob_sotetseg_fireball_player_hit d156 r4
+  +7   3  proj tob_sotetseg_maging start=15 end=156
+  +7   3  sound_area tob_sotetseg_fireball_player_hit d255 r4
+  +7   3  proj tob_sotetseg_maging start=15 end=306
+  +8   3  loc_add_change_v1 32758
+== realm (the runner)
+  first drain graphic after the maze starts: {3: 1, 4: 5, 5: 6, 6: 3, 7: 2, 8: 6, 9: 5}
+  ticks between drains: {7: 83}
+  (drain number, (ticks to its hit, value)): {(1, ()): 1, (1, ((2, 1),)): 11, (1, ((2, 2),)): 6, (1, ((2, 3),)): 10, (2, ()): 3, (2, ((2, 1),)): 12, (2, ((2, 2),)): 9, (2, ((2, 3),)): 4, (3, ((2, 1),)): 10, (3, ((2, 2),)): 2, (3, ((2, 3),)): 8, (4, ()): 2, (4, ((2, 1),)): 4, (4, ((2, 2),)): 6, (4, ((2, 3),)): 7, (5, ()): 3, (5, ((2, 1),)): 4, (5, ((2, 2),)): 4, (5, ((2, 3),)): 2, (6, ()): 2, (6, ((2, 3),)): 1}
+== wrong tile (T = the explosion)
+    65  loc_add_change_v2 tob_sotetseg_triggeredtile | map_anim h10 | sound_area tob_sotetseg_player_tile_explosion_impact_2 d0 r8
+    49  loc_add_change_v1 33036 | map_anim h10 | sound_area tob_sotetseg_player_tile_explosion_impact_2 d0 r8 | zap start=0 end=15 angle=64 offset=64 height 0->16
+    21  loc_add_change_v1 33036 | map_anim h10 | sound_area tob_sotetseg_player_tile_explosion_impact_2 d0 r8
+    20  loc_add_change_v2 tob_sotetseg_triggeredtile | map_anim h10 | sound_area tob_sotetseg_player_tile_explosion_impact_2 d0 r8 | zap start=0 end=15 angle=64 offset=64 height 0.0->16.0
+     8  loc_add_change_v1 33036 | map_anim h10 | sound_area tob_sotetseg_player_tile_explosion_impact_2 d0 r8 | zap start=15 end=25 angle=16 offset=0 height 2->16
+     3  loc_add_change_v2 tob_sotetseg_triggeredtile | map_anim h10 | sound_area tob_sotetseg_player_tile_explosion_impact_2 d0 r8 | zap start=15 end=25 angle=16 offset=0 height 2.5->16.0
+     2  loc_add_change_v1 33036 | map_anim h10 | sound_area tob_sotetseg_player_tile_explosion_impact_2 d0 r8 | zap start=0 end=15 angle=64 offset=64 height 0->16 | zap start=15 end=25 angle=16 offset=0 height 2->16 | zap start=15 end=26 angle=16 offset=0 height 2->16
+     1  loc_add_change_v2 tob_sotetseg_triggeredtile | map_anim h10 | sound_area grim_reaper_appear d0 r10 | sound_area tob_sotetseg_player_tile_explosion_impact_2 d0 r8
+  zap -> its target's hitsplat, ticks: {None: 49, 0: 17, 1: 24}
+  the tile's next loc change, ticks: {1: 170}
+== death (T = his death seq)
+  (28 occurrences)
+  -1   3  sound_area tob_sotetseg_attack_ranged d10 r10
+  -1   3  proj tob_sotetseg_maging start=23 end=203
+  -1   3  boss seq tob_sotetseg_attack_ranged
+  +0  28  boss enabled_ops opflags=0b00000
+  +0  28  boss seq tob_sotetseg_death
+  +0   8  synth_sound tob_sotetseg_death
+  +0   3  sound_area tob_sotetseg_fireball_player_hit d0 r6
+  +1   4  varbit id=tob_client_waveprogress_val (6448), new=0
+  +1   4  sound_area tob_sotetseg_fireball_player_hit d0 r6
+  +1   3  sound_area tob_sotetseg_ricochet_player_hit d216 r4
+  +1   3  proj tob_sotetseg_ranging start=15 end=216
+  +2   6  sound_area tob_sotetseg_fireball_player_hit d0 r6
+  +3  28  midi_song_v2 id=147, fadeoutdelay=0, fadeoutspeed=0, fadeindelay=0, fadeinspeed=0
+  +3  28  midi_jingle id=250
+  +3  28  message type=gamemessage, message="Wave 'Sotetseg' (Normal Mode) complete!<br>
+  +3  28  message type=gamemessage, message="The Vampyres are impressed by your prowess. <col=ff0000>Check t
+  +3  28  boss del 
+  +3  21  loc_add_change_v1 32759
+  +3  21  loc_add_change_v1 29733
+  +3  21  obj_add id=22510, count=1, despawn=200, ownership=self, neverturnpublic=true, 
+  +3  12  varbit id=6449, new=0
+  +3  12  varbit id=6447, new=0
+  +3   8  midi_song_v2 id=584, fadeoutdelay=0, fadeoutspeed=0, fadeindelay=0, fadeinspeed=0
+  +3   7  message type=gamemessage, message="<col=ef1020>Untradeable drop: The shadow realm</col>"
+  +3   7  loc_add_change_v2 invisible_type8_nonblocking
+  +3   7  obj_add_specific id=tob_book_sotetseg (22510), count=1, despawn=200, ownership=self, ne
+  +3   6  if_settext com=239:9, text="The Dark Beast Sotetseg"
+  +3   5  varbit id=tob_client_waveprogress_max (6449), new=0
+  +3   5  varbit id=tob_client_waveprogress_type (6447), new=0
+  +3   5  varbit id=6443, new=27
+  +3   5  varbit id=6460, new=24
+  +3   4  loc_add_change_v2 tob_midway_chest_open
+  +3   4  varbit id=6442, new=27
+  +3   3  varbit id=tob_midwaychest_points (6460), new=21
+  +3   3  varbit id=6460, new=23
+  +3   3  varbit id=6460, new=21
+  +4  10  midi_song_v2 id=584, fadeoutdelay=0, fadeoutspeed=0, fadeindelay=0, fadeinspeed=0
+  +4   9  if_settext com=239:9, text="The Dark Beast Sotetseg"
+  +4   8  varbit id=6443, new=27
+  +4   7  varbit id=6449, new=0
+  +4   7  varbit id=6447, new=0
+  +4   5  varbit id=6442, new=27
+  +4   4  varbit id=6444, new=27
+  +4   3  varbit id=prayer_rigour (5464), new=0
+  +4   3  loc_add_change_v1 32759
+  +5  10  midi_song_v2 id=584, fadeoutdelay=0, fadeoutspeed=0, fadeindelay=0, fadeinspeed=0
+  +5   6  if_settext com=239:9, text="The Dark Beast Sotetseg"
+  +5   5  loc_add_change_v1 32759
+  +5   5  varbit id=6442, new=27
+  +5   4  if_settext com=music:now_playing_text (239:9), text="The Dark Beast Sotetseg"
+  +5   3  varbit id=tob_client_p1 (6443), new=27
+  +5   3  varbit id=6443, new=27
+  +5   3  varbit id=6444, new=27
+  +6   3  oploc1 id=tob_arena_barrier (32755), coord=(3279, 4307, 0)

@@ -18298,9 +18298,9 @@ return {
             -- the client lists the chest once the player is near it
             goto_tile(6406, 97, 0)
             settle(2)
-            local lr, row = loc_near("tob_midway_chest_closed", 16)
+            local lr, row = loc_near("tob_midway_chest_open", 16)
             if lr ~= "ok" then teardown() return lr, "no supply chest near 6406,97: " .. describe(row) end
-            local cr, cd = click_loc("tob_midway_chest_closed", 1)
+            local cr, cd = click_loc("tob_midway_chest_open", 2)
             local ur, ud = await_open("tob_midway_stores", 10)
             if cr ~= "ok" or ur ~= "ok" then teardown() return "refused", "chest " .. tostring(cr) .. " " .. describe(cd) .. "; store " .. tostring(ur) .. " " .. describe(ud) end
             settle(2)
@@ -18377,11 +18377,11 @@ return {
             settle(2)
             goto_tile(6406, 97, 0)
             settle(2)
-            local lr, row = loc_near("tob_midway_chest_closed", 16)
+            local lr, row = loc_near("tob_midway_chest_open", 16)
             if lr ~= "ok" then teardown() return lr, "no supply chest near 6406,97: " .. describe(row) end
             local seen = {}
             local function open()
-                click_loc("tob_midway_chest_closed", 1)
+                click_loc("tob_midway_chest_open", 2)
                 settle(3)
                 seen[#seen + 1] = bandages()
             end

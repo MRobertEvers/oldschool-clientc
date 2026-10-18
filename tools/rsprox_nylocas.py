@@ -83,6 +83,7 @@ class Fight:
         self.path = os.path.basename(path)
         self.span = span
         self.npcs = {}
+        self.retired = []                  # earlier lives of an index that was added again
         self.top = defaultdict(list)       # tick -> [(kind, text, [sub lines])]
         self.names = names
 
@@ -127,6 +128,8 @@ def parse(path, spans, names):
                     x, z = int(m.group(7)), int(m.group(8))
                     npc = fight.npcs.get(index)
                     if npc is None or (kind == "add" and npc.deleted is not None):
+                        if npc is not None:
+                            fight.retired.append(npc)
                         npc = Npc(index)
                         fight.npcs[index] = npc
                     if not npc.types:

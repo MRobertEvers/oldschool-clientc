@@ -292,7 +292,9 @@ function SV.resolve_victims(S, F, prev_live)
                         -- balls landing on one tick v1 named the same victim for
                         -- both fans - brew2/q4 seat 2 t192: a red off seat 1 read
                         -- as off seat 4, "196" for a 195 landing)
-                        local base = F.tick + p.duration // 30
+                        -- (the impact queue is a tick short of the flight:
+                        -- content [proc,tob_sote_ricochet])
+                        local base = F.tick + p.duration // 30 - 1
                         if QD.SOTE_V2.DEBUG_MARKS then
                             local rs = {}
                             for _, rd in ipairs(F.raiders) do rs[#rs + 1] = rd.pid .. "@" .. rd.x .. "," .. rd.z end
@@ -536,14 +538,15 @@ end
 -- style a tick; a second style landing with it goes through and blocks
 -- protection for 5 ticks (the cascade). Every landing on me that is still
 -- MINE TO MOVE is a flight fixed by my tile at one tick:
---   a ricochet off a ball landing on a teammate V at Lv: Lv + (41 + 8d) // 30,
---     +1 when my pid is below V's (my impact queue runs first), d my distance
---     from V when V's queue runs - the end of Lv when my pid is lower, of
---     Lv - 1 otherwise (content [proc,tob_sote_ricochet]; 6,031 ricochets on
---     v1's sweep so7). Style random: it clashes with anything.
---   his next ball at me (1 in 5): T + (56 + 8d) // 30, d from his SRC at the
---     end of T - 1 (his NPC turn reads it). Always magic: it clashes only
---     with a grey.
+--   a ricochet off a ball landing on a teammate V at Lv: a red Lv + max(d, 3),
+--     a grey Lv + 6, +1 when my pid is below V's (my impact queue runs first),
+--     d my distance from V when V's queue runs - the end of Lv when my pid is
+--     lower, of Lv - 1 otherwise (content [proc,tob_sote_ricochet], the
+--     recorded flights: red 36 + 30 max(d, 3), grey 216, the queue a tick
+--     short). Style random: it clashes with anything; the grey's tick no tile
+--     moves, so the red's is the one judged.
+--   his next ball at me (1 in 5): T + 6 at any distance (recorded end 203).
+--     Always magic: it clashes only with a grey.
 -- So on each such tick every tile that would put one of those on a tick
 -- where something else of mine lands - a projectile already in the air at
 -- me (its landing window [land, land2]), or another of these off the same
@@ -600,16 +603,16 @@ function SV.landing_guard(S, F, B)
     local mov = {}
     for _, r in ipairs(rics) do
         mov[#mov + 1] = { tk = r.tm, red = false, land = function(x, z)
-            return r.lv + (41 + 8 * cheb(x, z, r.v.x, r.v.z)) // 30 + r.o end,
+            return r.lv + math.max(cheb(x, z, r.v.x, r.v.z), 3) + r.o end,
             c = { tk = r.tm, red = false, a = r.lv, o = r.o, x = r.v.x, z = r.v.z } }
     end
     for _, T in ipairs(slots) do
         mov[#mov + 1] = { tk = T - 1, red = true, land = function(x, z)
-            return T + (56 + 8 * cheb(x, z, src.x, src.z)) // 30 end,
+            return T + 6 end,
             c = { tk = T - 1, red = true, a = T, o = 0, x = src.x, z = src.z } }
     end
     -- THE RICOCHETS THAT MAY COME: his ball at slot T may go to any teammate
-    -- V (1 in 5); it lands T + (56 + 8 d(V, SRC)) // 30 and its ricochet at
+    -- V (1 in 5); it lands T + 6 and its ricochet at
     -- me is fixed by my tile a tick or so later - one tick of notice from the
     -- throw, too few to step out of a band (g8 q13 t342: a ricochet off the
     -- teammate beside me onto the tick of a grey known since t339). Judged
@@ -619,12 +622,12 @@ function SV.landing_guard(S, F, B)
     for _, T in ipairs(slots) do
         for _, rd in ipairs(F.raiders) do
             if rd.pid ~= me then
-                local lv = T + (56 + 8 * cheb(rd.x, rd.z, src.x, src.z)) // 30
+                local lv = T + 6
                 local o = (me < rd.pid) and 1 or 0
                 local tm = (me < rd.pid) and lv or (lv - 1)
                 if tm >= now + 1 and tm <= hz then
                     hyp[#hyp + 1] = { tk = tm, land = function(x, z)
-                        return lv + (41 + 8 * cheb(x, z, rd.x, rd.z)) // 30 + o end,
+                        return lv + math.max(cheb(x, z, rd.x, rd.z), 3) + o end,
                         c = { tk = tm, lv = lv, o = o, x = rd.x, z = rd.z } }
                 end
             end
