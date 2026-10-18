@@ -163,6 +163,19 @@ app_world_sync_positions(struct App* app)
         struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, ni);
         if( !npc || npc->element_id < 0 )
             continue;
+        /* How the npc picks, by its CURRENT type's size (a retype can change
+         * it): the deob's NPC.getModel (class86) sets Model.field2167, the
+         * box mouse check, only when the type's size is 1; anything larger
+         * picks per face in Model.draw (class144). The Inferno's rocky
+         * support (7709, size 3, model squashed to resizeh=1) is therefore
+         * never in the official menu, and TzKal-Zuk's box never swallows the
+         * arena. */
+        {
+            struct ToriDraw_SceneElement* el =
+                ToriDraw_SceneElementGet(app->scene, npc->element_id);
+            if( el )
+                el->pick_aabb = npc->size == 1;
+        }
         if( npc->grid_position.x < 0 || npc->grid_position.z < 0 ||
             npc->grid_position.x >= world->_scene_size ||
             npc->grid_position.z >= world->_scene_size )

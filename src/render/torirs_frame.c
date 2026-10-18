@@ -28,8 +28,10 @@ frame_entity_draws_no_face(
     struct ToriDraw_ModelHandle model)
 {
     enum ToriDraw_ElementKind const kind = ElementId_Kind(ElementId_FromRaw(element_id));
-    if( kind != TORIDRAW_ELEMENT_KIND_NPC && kind != TORIDRAW_ELEMENT_KIND_PLAYER &&
-        kind != TORIDRAW_ELEMENT_KIND_OBJSTACK )
+    /* Not npcs: their pick_aabb is the deob's size rule (app_world_sync.c),
+     * which already boxes a size-1 npc that draws nothing (Chancy) and must
+     * NOT box a larger one (the Inferno's invisible rocky support). */
+    if( kind != TORIDRAW_ELEMENT_KIND_PLAYER && kind != TORIDRAW_ELEMENT_KIND_OBJSTACK )
         return false;
     return !ToriDraw_ModelHasVisibleFace(model);
 }
@@ -2635,7 +2637,9 @@ try_emit_world_draw_model(
          * artist2 1104) are drawn with model 25362 alone: a 128x128 quad at
          * head height whose two faces carry alpha 255, which ModelData.light
          * hides.  Only that case changes: a model with one visible face keeps
-         * the per-face rule, and locs never take this arm. */
+         * the per-face rule, and locs never take this arm.  Npcs no longer
+         * take it either: el->pick_aabb carries the deob's own npc rule
+         * (size 1 = box, app_world_sync.c), which covers Chancy. */
         out->u.model.pick_aabb = el->pick_aabb ||
             (!flat && frame_entity_draws_no_face(element_id, el->model));
         /* Which view this draw belongs to, off the descent stack: a deck

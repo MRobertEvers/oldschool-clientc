@@ -79,6 +79,10 @@ app_world_scene_element_create(
              * ToriDraw_ProjectedModelMouseHitTest still uses the AABB as its
              * cheap reject before walking faces, so this costs a triangle scan
              * only on models the cursor is actually over.
+             *
+             * Npcs are overwritten every frame by the rev-239 deob's rule
+             * (app_world_sync_positions: box only for a size-1 type), which
+             * picks Zuk per face too.
              */
             el->pick_aabb = false;
         }
