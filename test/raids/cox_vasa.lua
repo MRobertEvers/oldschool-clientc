@@ -8,11 +8,12 @@
 -- switch. Supplies: the raid's (+) potions only (overload, Xeric's aid,
 -- revitalisation, prayer enhance).
 --
--- GREEN (decided before the sweep): Vasa dead, the exit crystals gone and the
--- exit Passage taken into the next room, the player alive, NO special taken
--- (every one dodged out past the fire), NO boulder damage
+-- GREEN (the owner, 2026-10-18): Vasa dead, the exit crystals gone and the
+-- exit Passage taken into the next room, the player alive, NO boulder damage
 -- (fully dodgeable: two tiles, Synq 0:58:03) and NO stomp damage (never under
--- him), counted off the server's tick log.
+-- him), counted off the server's tick log. The special is TAKEN, as every
+-- recorded solo raider takes it (RSProx 843/3282/3285), and eaten up after:
+-- reported, not judged.
 --
 --   ./src/build_cox_vasa_opt/torirsserver --scriptrun test/raids/cox_vasa.lua --bots 1 \
 --       --name vasa0 --ticks 3000 --session /tmp/v/vasa0 --fixture test/raids/fixtures/fresh_lumbridge.ini
@@ -100,14 +101,12 @@ local function run(t)
     end
     t.check("vasa.no_boulder", boulders == 0, string.format("boulder hits %d (%d dmg)", boulders, boulder_dmg))
     t.check("vasa.no_stomp", stomps == 0, string.format("stomp hits %d (%d dmg)", stomps, stomp_dmg))
-    -- THE SPECIAL, CHEAP: dodged out past the fire while I am high (the
-    -- "Vasa skip"), else taken low -- no explosion over 35 (hp - 5 at the
-    -- solver's DODGE_HP of 40). And what the room cost, in drinks.
-    local dodged, tried = string.match(tostring(detail), "specials dodged (%d+)/(%d+)")
+    -- THE SPECIAL: taken, as every recorded solo raider takes it (the owner,
+    -- 2026-10-18; vasa_solver.md). Reported, not judged. And what the room
+    -- cost, in drinks.
     local drinks = string.match(tostring(detail), "drinks (%d+)")
-    t.check("vasa.special_cheap", special_max <= 35 and dodged ~= nil and dodged == tried,
-        string.format("explosions taken %d (largest %d); specials dodged %s/%s; drinks %s", specials, special_max,
-            tostring(dodged), tostring(tried), tostring(drinks)))
+    t.check("vasa.special_taken", true,
+        string.format("explosions taken %d (largest %d); drinks %s", specials, special_max, tostring(drinks)))
     -- (a fresh tick: the two passes above can spend most of one resume's
     -- Lua budget on a long fight -- d8l vasa7)
     t.ticks(1)
@@ -124,7 +123,7 @@ local function run(t)
     -- the Passage's far tile with the next room's edge closed -- reported)
     local wr, wd = t.raid.cox_walk_on(60)
     t.ticklog.mark("vasa walk_on " .. tostring(wr) .. " " .. tostring(wd and wd.name or wd))
-    t.finish((gone and boulders == 0 and stomps == 0 and special_max <= 35) and 0 or 1)
+    t.finish((gone and boulders == 0 and stomps == 0) and 0 or 1)
 end
 
 return {
