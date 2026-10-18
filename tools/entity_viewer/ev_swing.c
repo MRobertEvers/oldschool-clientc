@@ -558,6 +558,7 @@ main(int argc, char** argv)
     int tile_mode = 0;
     int extra_worn[EV_PLAYER_MAX_WORN];
     int extra_worn_count = 0;
+    int print_bounds = 0;
 
     for( int i = 1; i < argc; i++ )
     {
@@ -585,6 +586,8 @@ main(int argc, char** argv)
             pitch = atoi(argv[++i]);
         else if( strcmp(argv[i], "--rows") == 0 && i + 1 < argc )
             row_cap = atoi(argv[++i]);
+        else if( strcmp(argv[i], "--bounds") == 0 )
+            print_bounds = 1;
         else if( strcmp(argv[i], "--no-markers") == 0 )
             markers = 0;
         else if( strcmp(argv[i], "--shift-x") == 0 && i + 1 < argc )
@@ -770,6 +773,31 @@ main(int argc, char** argv)
     {
         fprintf(stderr, "spotanim %d did not build\n", spotanim_id);
         return 1;
+    }
+    /*
+     * --bounds: the built graphic's vertex extents, in render scale (its own
+     * resize applied). What a client merging it into a RESIZED npc has to
+     * re-scale by 128*128/resize before the npc's resize takes it back - and
+     * vertices are int16, so this is the number that says whether it fits.
+     */
+    if( print_bounds )
+    {
+        int lo[3] = { 1 << 30, 1 << 30, 1 << 30 };
+        int hi[3] = { -(1 << 30), -(1 << 30), -(1 << 30) };
+        for( int v = 0; v < spot->vertex_count; v++ )
+        {
+            int xyz[3] = { spot->vertices_x[v], spot->vertices_y[v], spot->vertices_z[v] };
+            for( int k = 0; k < 3; k++ )
+            {
+                if( xyz[k] < lo[k] )
+                    lo[k] = xyz[k];
+                if( xyz[k] > hi[k] )
+                    hi[k] = xyz[k];
+            }
+        }
+        printf("spotanim %d bounds: x %d..%d  y %d..%d  z %d..%d  (%d vertices)\n", spotanim_id,
+               lo[0], hi[0], lo[1], hi[1], lo[2], hi[2], spot->vertex_count);
+        return 0;
     }
     /*
      * A trial translation, applied after the record's own transforms and before

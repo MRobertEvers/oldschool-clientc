@@ -349,6 +349,38 @@ app_entity_spotanim_unscale(int resize)
     return (128 * 128 + resize / 2) / resize;
 }
 
+/*
+ * Can the graphic be pre-scaled by 128*128/resize for `body`'s resize and
+ * still fit int16 vertices? Not for an extreme resize: Verzik's pillar npc is
+ * `resizeh=1` (a sliver, the loc beside it is the column you see) and its
+ * impact graphic 1582 is ~920 units across at its own resize 520, so the
+ * pre-scale is x128 and every vertex past 255 wrapped - the lightning on a hit
+ * pillar drew as garbage (2026-10-18, `ev_swing --bounds`).
+ */
+static int
+app_entity_spotanim_unscale_fits(
+    struct ToriDraw_Model const* spot,
+    struct ToriDraw_Model const* body)
+{
+    int scale[3] = { app_entity_spotanim_unscale(body->post_resize_x),
+                     app_entity_spotanim_unscale(body->post_resize_height),
+                     app_entity_spotanim_unscale(body->post_resize_z) };
+
+    for( int i = 0; i < spot->vertex_count; i++ )
+    {
+        int v[3] = { spot->vertices_x[i], spot->vertices_y[i], spot->vertices_z[i] };
+
+        for( int k = 0; k < 3; k++ )
+        {
+            long scaled = (long)v[k] * scale[k] / 128;
+
+            if( scaled > 32767 || scaled < -32768 )
+                return 0;
+        }
+    }
+    return 1;
+}
+
 static void
 app_world_sync_one_entity_spotanim(
     struct App* app,
@@ -491,21 +523,43 @@ app_world_sync_one_entity_spotanim(
         assert(entry->body->post_offset_x == 0);
         assert(entry->body->post_offset_y == 0);
         assert(entry->body->post_offset_z == 0);
-        if( entry->body->post_resize )
+        /* When the undo cannot fit int16 (`app_entity_spotanim_unscale_fits`),
+         * the body takes its resize into its own vertices instead and the
+         * merge carries no post-resize: the graphic then stands at its own
+         * scale, as the reference combines it. Exact for a body that does not
+         * animate (the pillar); a resized body that does is posed after its
+         * resize rather than before - the only case this path is taken. */
+        struct ToriDraw_Model* baked = NULL;
+        int carry_resize = entry->body->post_resize;
+        if( carry_resize && !app_entity_spotanim_unscale_fits(posed, entry->body) )
+        {
+            baked = ToriDraw_ModelCopy(entry->body);
+            assert(baked);
+            ToriDraw_ModelScale(
+                baked,
+                entry->body->post_resize_x,
+                entry->body->post_resize_z,
+                entry->body->post_resize_height);
+            ToriDraw_ModelSetPostResize(baked, 128, 128, 128);
+            carry_resize = 0;
+        }
+        else if( carry_resize )
             ToriDraw_ModelScale(
                 posed,
                 app_entity_spotanim_unscale(entry->body->post_resize_x),
                 app_entity_spotanim_unscale(entry->body->post_resize_z),
                 app_entity_spotanim_unscale(entry->body->post_resize_height));
 
-        parts[0] = entry->body;
+        parts[0] = baked ? baked : entry->body;
         parts[1] = posed;
         merged = ToriDraw_ModelMerge(parts, 2);
         ToriDraw_ModelFree(posed);
+        if( baked )
+            ToriDraw_ModelFree(baked);
         if( !merged )
             return;
         ToriDraw_ModelCaptureOriginalVertices(merged);
-        if( entry->body->post_resize )
+        if( carry_resize )
             ToriDraw_ModelSetPostResize(
                 merged,
                 entry->body->post_resize_x,

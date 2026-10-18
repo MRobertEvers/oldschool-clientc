@@ -31977,13 +31977,32 @@ ToriRSServer_WorldSelftest(void)
                  * cache's 3500 (`verzik_phase2` / `verzik_phase3` stat4) at
                  * 75 %, `^tob_verzik_p23_hp_3` since seam2; it was blert's 2437.
                  */
+                int transit_type =
+                    ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "verzik_phase1_to2_transition");
+
                 srv->npcs[boss].hitpoints = 2 * 2625;
-                /* Three ticks of hop, one to launch, thirteen of flight, and
+                /* Four ticks of hop, one to launch, thirteen of flight, and
                  * then her P2 clock: first attack at +5, one every 4 after. */
                 for( int t = 0; t < 60; t++ )
                 {
                     selftest_tick(srv);
                     ToriRSServer_ScriptsRunDebugproc(srv, "tobstand");
+                    /* P1 -> P2 is a NEW npc, as on Jagex's server (RSProx:
+                     * docs/rsprox-analysis/tob/verzik.md): the transition form
+                     * is added and P1 removed, so she is followed by type. */
+                    if( !srv->npcs[boss].active ||
+                        (srv->npcs[boss].type != p2_type && srv->npcs[boss].type != transit_type) )
+                    {
+                        for( int i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
+                        {
+                            if( srv->npcs[i].active &&
+                                (srv->npcs[i].type == p2_type || srv->npcs[i].type == transit_type) )
+                            {
+                                boss = i;
+                                break;
+                            }
+                        }
+                    }
                     if( srv->npcs[boss].type == p2_type )
                     {
                         became_p2 = 1;
