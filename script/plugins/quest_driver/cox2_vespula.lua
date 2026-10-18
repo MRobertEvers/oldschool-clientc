@@ -11,8 +11,9 @@
 -- SAFE tile two off her footprint on her rows/columns, step under her to swing
 -- at the portal (the stomp, 2-8 a tick, V13) and back; Redemption (lit, with
 -- prayer) turns the stomps into heals; a restore after every Redemption. Never
--- on her edge ring (the sting, 5-20, V14) or the portal's two hit tiles. A grub
--- she tagged before the enrage drains to a hatch 125 ticks on (V8): when the
+-- on her edge ring (the sting, 5-20, V14), and steps off a portal drain's tile
+-- before it lands (the drain comes at me, its target). A grub she tagged
+-- before the enrage hatches ~69 ticks on (V8, RSProx 820): when the
 -- portal will not die first, a root run in an enrage window feeds it full.
 --
 -- Perception: npc rows (types, tiles, health bars, splats), locs (tendrils,
@@ -38,8 +39,16 @@ CV.V = {
     },
     TENDRIL_LZ = 0,
     -- the mechanics (spec V12-V18)
-    ENRAGE = 24, DRAIN_WINDOW = 9, STOMP_EXP = 5, STOMP_MAX = 8, STING_EXP = 7, STING_MAX = 20,
-    HATCH = 125, BLOSSOM = 35, GRUB_HP = 125, PORTAL_HP = 250,
+    -- RECORDED (RSProx 820, 843, 3389; docs/rsprox-analysis/cox/vespula.md):
+    -- enraged the tick after an attack on the portal, held 20 ticks a cycle and
+    -- renewed (after one flying tick) while the portal was attacked within 9;
+    -- a sting takes a grub to 56% (70 hp) and it drains 1 a tick to a hatch;
+    -- a portal drain lands 2 ticks after its throw on the tile thrown at.
+    ENRAGE = 20, DRAIN_WINDOW = 9, STOMP_EXP = 5, STOMP_MAX = 8, STING_EXP = 7, STING_MAX = 20,
+    HATCH = 69, STUNG_HP = 70, BLOSSOM = 35, GRUB_HP = 125, PORTAL_HP = 250, FLIGHT = 3,
+    -- her renewal window: an attack in the RENEW ticks up to her cycle's end
+    -- (the 9-tick "under attack" read on the tick after it) keeps her enraged
+    RENEW = 8, RUN_MIN = 8, RUN_HP = 40,
     -- her ranged (V3): every 3 ticks while she flies unenraged or stands grounded
     RANGED_EXP = 4, RANGED_MAX = 14, CALM_BREW = 40, FEED_STALL = 8,
     -- the pre-pot: hp brought to this before the overload (it takes 50)
@@ -77,7 +86,9 @@ CV.V = {
     -- a root run: when a tagged grub's hatch comes before the portal's death
     -- (a portal dying within ROOT_MARGIN of the hatch is finished instead: one
     -- soldier's heal costs less than the run, and the feed tile may be her edge)
-    ROOT_LEAD = 30, ROOT_MARGIN = 20, ROOT_EARLY = 10, ROOT_RUN = 25, ROOT_MAX = 6,
+    -- (a tagged grub hatches ~69 ticks after the sting: the run may start at
+    -- once, a blossom fed as soon as it is held -- each one is 35 ticks)
+    ROOT_LEAD = 70, ROOT_MARGIN = 20, ROOT_EARLY = 40, ROOT_RUN = 25, ROOT_MAX = 6,
     FAR = 9,
 }
 
@@ -98,6 +109,7 @@ function CV.ids(opts)
         { "grub_dead", "npc", "raids_vespula_caterpillar_dead" },
         { "soldier", "npc", "raids_vespula_vespine_flying" }, { "soldier_down", "npc", "raids_vespula_vespine_walking" },
         { "tendril", "loc", "raids_vespula_tendrils_entrance" },
+        { "drain", "spotanim", "raids_vespula_portal_attack" },
         { "boil", "loc", "raids_vespula_boil_blocking" }, { "boil_burst", "loc", "raids_vespula_boil_burst" },
         { "root", "loc", "raids_vespula_herb" }, { "root_empty", "loc", "raids_vespula_herb_empty" },
         { "blossom", "obj", "raids_vespula_herb" }, { "vial_empty", "obj", "raids_vial_empty" },
@@ -274,14 +286,17 @@ function CV.observe(S, F)
             end
         end
     end
-    -- the grubs she tagged: a grub's first sickly row is the sting's tick
+    -- the grubs she tagged: a grub's first INFECTED row is the sting's landing
+    -- (every unstung grub turns sickly 10 ticks into the room: not a tag)
     for _, g in ipairs(v.grubs) do
         local key = g.x .. ":" .. g.z
         local st = v.grub[key]
         if st == nil then st = { x = g.x, z = g.z }; v.grub[key] = st end
-        if g.npc_id == ids.grub_healthy then
+        if g.npc_id == ids.grub_healthy or g.npc_id == ids.grub_dead or g.npc_id == ids.grub_sickly then
+            -- (a stung grub fed back to full is sickly again: not draining)
             st.stung = nil
-        elseif (g.npc_id == ids.grub_sickly or g.npc_id == ids.grub_infected) and st.stung == nil then
+        elseif g.npc_id == ids.grub_infected and st.stung == nil then
+            st.hp_base, st.hp_t = CV.V.STUNG_HP, now
             st.stung = now
             v.tags = v.tags + 1
         end
@@ -291,6 +306,29 @@ function CV.observe(S, F)
         if st.stung and g.health_scale and g.health_scale > 0 and g.health_ratio and g.health_ratio >= 0 then
             st.hp = math.floor(CV.V.GRUB_HP * g.health_ratio / g.health_scale)
             st.hp_tick = now
+        end
+    end
+    -- her enrage cycle: the tick she took the enraged form (held 20 ticks)
+    v.enraged_prev = v.was_enraged
+    if v.ves and v.ves.npc_id == ids.enraged then
+        if not v.was_enraged then v.enr_start = now end
+        v.was_enraged = true
+    else
+        v.was_enraged = false
+    end
+    -- my last attack on the portal: my swing on the server's clock (the
+    -- executive's), the tick the content stamps
+    v.attack_t = S.x2 and S.x2.swing_last or v.attack_t
+    -- the portal's drains in the air (each lands 2 ticks after its throw on
+    -- the tile it was thrown at; a row read on its arrival tick counts 30
+    -- cycles gone)
+    v.drains = {}
+    local pr, projs = api_drive.projectiles(0)
+    if pr == "ok" then
+        for _, p in ipairs(projs) do
+            if p.spotanim_id == ids.drain and (p.cycles_left or 0) > 0 then
+                v.drains[#v.drains + 1] = { x = p.dst_x, z = p.dst_z, land = now + (p.cycles_left + 45) // 30 }
+            end
         end
     end
     -- the portal hit: a splat on it I had not seen (spec V20)
@@ -315,7 +353,7 @@ function CV.observe(S, F)
     if v.last_hp and F.hp < v.last_hp then
         local lost = v.last_hp - F.hp
         local prev = QD.T2.tile_at(S, now - 1)
-        if lost > CV.V.STOMP_MAX and v.ves and v.ves.npc_id == ids.enraged and prev
+        if lost > CV.V.STOMP_MAX and v.ves and v.ves.npc_id == ids.enraged and v.enraged_prev and prev
             and CV.ring(v.ves.x, v.ves.z, prev.x, prev.z) then
             v.sting_hits = v.sting_hits + 1
             QD.raid._tob_trace(S, now, string.format("STUNG %d at %d,%d", lost, prev.x, prev.z))
@@ -349,11 +387,27 @@ function CV.ring(sx, sz, x, z)
     return dx + dz > 0
 end
 
--- The tick the enrage holds to (the last portal hit + 24), or nil.
+-- The tick the enrage holds to, or nil. My attack is the splat less the
+-- flight; her cycle ends ENRAGE ticks after it began, and is renewed (one
+-- flying tick later) when the attack falls within DRAIN_WINDOW of that.
 function CV.enrage_until(S)
-    local v = S.v
-    if v.portal_hit == nil then return nil end
-    return v.portal_hit + CV.V.ENRAGE
+    local v, V = S.v, CV.V
+    local attack = v.attack_t
+    if attack == nil and v.portal_hit then attack = v.portal_hit - V.FLIGHT end
+    if attack == nil then return nil end
+    if v.enr_start == nil then return attack + 1 + V.ENRAGE end
+    local finish = v.enr_start + V.ENRAGE
+    while attack >= finish - V.RENEW + 1 do finish = finish + 1 + V.ENRAGE end
+    return finish
+end
+
+-- The tick by which my next attack must go out to keep her enraged, and
+-- whether its window [deadline - RENEW + 1, deadline] is open now. nil when
+-- she is not enraged.
+function CV.renew_deadline(S, F)
+    local v, V = S.v, CV.V
+    if not v.was_enraged or v.enr_start == nil then return nil end
+    return CV.enrage_until(S)
 end
 
 -- ===================================================================== PREDICT
@@ -411,11 +465,12 @@ function CV.predict(S, F, B)
                     dmg_exp = V.STING_EXP, dmg_max = V.STING_MAX, forbid = true })
         end
     end
-    -- THE DRAIN (V18): the two hit tiles while the portal is under attack
-    if v.portal_hit and v.portal_hit + V.DRAIN_WINDOW >= now + 1 then
-        for _, t in ipairs(v.hit) do
-            B.hit({ name = "drain", x = t.x, z = t.z, t0 = now + 1, t1 = math.min(now + h, v.portal_hit + V.DRAIN_WINDOW),
-                    dmg_exp = 2, dmg_max = 0 })
+    -- THE DRAIN (V18, recorded): each one in the air takes 3 prayer if I am
+    -- still on its tile at the end of the tick before it lands
+    for _, d in ipairs(v.drains or {}) do
+        local t = d.land - 1
+        if t >= now + 1 then
+            B.hit({ name = "drain", x = d.x, z = d.z, t0 = t, t1 = t, dmg_exp = 2, dmg_max = 0 })
         end
     end
     if CV.in_room(v, F.me.x, F.me.z) then CV.void(S, F, B) end
@@ -519,14 +574,19 @@ function CV.portal_eta(S, F)
     local spent = F.tick - v.first_swing
     if spent < 20 or v.dealt <= 0 then return nil end
     local rate = v.dealt / spent
-    return math.max(0, CV.V.PORTAL_HP - v.dealt) / rate
+    -- (what is left from its bar when shown -- a soldier's heal and the
+    -- portal's regen are not in my dealt -- and the rate taken 20% slower:
+    -- the estimate swings, and a grub fed for too short a time hatches)
+    local left = CV.V.PORTAL_HP - v.dealt
+    if v.portal_frac then left = math.max(left, CV.V.PORTAL_HP * v.portal_frac) end
+    return math.max(0, left) / (rate * 0.8)
 end
 
--- A tagged grub's hatch tick: from the tag (125 ticks of drain), or from
+-- A tagged grub's hatch tick: from the tag (~69 ticks of drain), or from
 -- its bar's hp when the client shows one (a feed moves it).
 function CV.hatch_t(g)
-    local t = g.stung + CV.V.HATCH
-    if g.hp_tick and g.hp_tick > g.stung then t = g.hp_tick + g.hp end
+    local t = (g.hp_t or g.stung) + (g.hp_base or CV.V.STUNG_HP)
+    if g.hp_tick and g.hp_tick > (g.hp_t or g.stung) then t = g.hp_tick + g.hp end
     return t
 end
 
@@ -536,16 +596,17 @@ function CV.grub_hp(S, F, g)
     if row and row.health_scale and row.health_scale > 0 and row.health_ratio and row.health_ratio >= 0 then
         return math.floor(CV.V.GRUB_HP * row.health_ratio / row.health_scale)
     end
-    return CV.V.GRUB_HP - (F.tick - g.stung)
+    -- (counted: STUNG_HP at the sting, -1 a tick, +BLOSSOM a feed -- the
+    -- grub's bar does not reach the client)
+    return (g.hp_base or CV.V.STUNG_HP) - (F.tick - (g.hp_t or g.stung))
 end
 
 -- The tagged grub hatching first, and its hatch tick.
 function CV.next_hatch(S)
     local best = nil
     for _, g in pairs(S.v.grub) do
-        if g.stung and not g.unfeedable and (g.id == S.ids.grub_sickly or g.id == S.ids.grub_infected) then
-            local t = g.stung + CV.V.HATCH
-            if g.hp_tick and g.hp_tick > g.stung then t = g.hp_tick + g.hp end
+        if g.stung and not g.unfeedable and g.id == S.ids.grub_infected then
+            local t = CV.hatch_t(g)
             if best == nil or t < best.t then best = { t = t, g = g } end
         end
     end
@@ -741,12 +802,20 @@ function CV.strategy(S, F, B)
     -- out 2 ticks before the portal fell)
     -- (and a portal within ROOT_FINISH ticks of dying is finished: raid1
     -- prep3 left for the roots at eta 6)
-    if v.run == nil and nh and (eta == nil or (eta > V.ROOT_FINISH and F.tick + eta > nh.t - V.ROOT_EARLY)) then
+    -- (only with her enrage renewed for a run's length: a lapse lets her fly
+    -- and tag more grubs -- RSProx: she renews only on an attack in the RENEW
+    -- ticks before her 20-tick cycle ends)
+    local deadline = CV.renew_deadline(S, F)
+    local free = deadline and (deadline - V.RENEW + 1 - F.tick) or 0
+    if v.run == nil and nh and free >= V.RUN_MIN and F.hp >= V.RUN_HP and (eta == nil or (eta > V.ROOT_FINISH and F.tick + eta > nh.t - V.ROOT_EARLY)) then
         local target = F.tick + (eta or V.HATCH) + V.ROOT_RUN + V.ROOT_MARGIN
         list = {}
         for _, g in pairs(v.grub) do
             if g.stung and not g.unfeedable and (g.id == ids.grub_sickly or g.id == ids.grub_infected) then
                 local ht = CV.hatch_t(g)
+                -- (a grub fed only to outlast the portal: a one-slot kit nets
+                -- ~10 hp a trip against the drain, so feeding to full never
+                -- ends -- r4 seed 0 ran laps until it died)
                 if ht < target then
                     local hp = CV.grub_hp(S, F, g)
                     g.need = math.min(math.ceil((target - ht) / V.BLOSSOM), math.max(1, math.ceil((V.GRUB_HP - hp) / V.BLOSSOM)))
@@ -762,7 +831,7 @@ function CV.strategy(S, F, B)
             if total + g.need <= V.ROOT_MAX then keep[#keep + 1] = g; total = total + g.need end
         end
         list = keep
-        if nh.t - F.tick > V.ROOT_LEAD then list = nil end
+        if nh.t - F.tick > V.ROOT_LEAD + V.BLOSSOM * 2 then list = nil end
     end
     if list then
         if #list > 0 then
@@ -774,10 +843,30 @@ function CV.strategy(S, F, B)
                 total, table.concat(parts, " "), tostring(eta and math.floor(eta))))
         end
     end
-    if v.run then
+    -- a run in progress YIELDS to her renewal window: the portal first (the
+    -- run, its blossoms and its grub kept), then on with the run
+    -- (soon enough to walk back into range: two tiles a tick, and a swing)
+    local travel = 2
+    if v.portal_sw then
+        local far = CV.gap(F.me.x, F.me.z, v.portal_sw.x, v.portal_sw.z, 4)
+        travel = math.max(0, far - V.WEAPONS[v.weapon or V.WEAPON].range) // 2 + 3
+    end
+    local yield = v.run and ((deadline and F.tick + travel >= deadline - V.RENEW + 1
+        and (v.attack_t or -1) < deadline - V.RENEW + 1) or F.hp < V.RUN_HP / 2)
+    if yield and v.yield_at ~= deadline then
+        v.yield_at = deadline
+        QD.raid._tob_trace(S, F.tick, "root run yields to her renewal window " .. deadline)
+    end
+    if v.run and not yield then
         local list = v.run.list
         -- (a fed blossom: the count fell while feeding that grub)
-        if v.feed_g and v.feed_bl and blossoms < v.feed_bl then v.feed_g.need = v.feed_g.need - (v.feed_bl - blossoms) end
+        if v.feed_g and v.feed_bl and blossoms < v.feed_bl then
+            local fed = v.feed_bl - blossoms
+            local g0 = v.feed_g
+            g0.hp_base = math.min(V.GRUB_HP, CV.grub_hp(S, F, g0) + fed * V.BLOSSOM)
+            g0.hp_t = F.tick
+            g0.need = g0.need - fed
+        end
         v.feed_bl = blossoms
         while #list > 0 and (list[1].need <= 0 or (list[1].id ~= ids.grub_sickly and list[1].id ~= ids.grub_infected)
                 or list[1].unfeedable) do
@@ -789,13 +878,13 @@ function CV.strategy(S, F, B)
         local g = list[1]
         if g == nil or (v.picking == false and blossoms == 0) then
             v.run, v.picking, v.feed_g, v.feed_since = nil, nil, nil, nil
-        elseif v.picking ~= false and blossoms < need and CV.free_slots() == 0
+        elseif v.picking ~= false and blossoms == 0 and CV.free_slots() == 0
             and QD.raid._tob_first(S, { ids.vial_empty }) and not intents.drink then
             -- (a spent gourd vial makes the slot: never kit)
             intents.mode = "roots"
             intents.drop = ids.vial_empty
             return intents
-        elseif v.picking ~= false and blossoms < need and CV.free_slots() > 0 then
+        elseif v.picking ~= false and blossoms == 0 and CV.free_slots() > 0 then
             intents.mode = "roots"
             v.picking = true
             local root = CV.nearest_loc(S, F, ids.root)
@@ -804,8 +893,8 @@ function CV.strategy(S, F, B)
                 return intents
             end
             v.picking = false
-        elseif v.picking ~= false and blossoms < need then
-            v.picking = false   -- (no slot to pick into: feed what is held)
+        elseif v.picking ~= false and blossoms == 0 then
+            v.picking = false   -- (no slot to pick into)
         end
         if v.run and blossoms > 0 then
             v.picking = false
