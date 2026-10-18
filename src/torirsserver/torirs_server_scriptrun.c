@@ -1124,6 +1124,15 @@ push_npc_row(
     lua_setfield(L, -2, "seq_tick");
     lua_pushinteger(L, npc->spotanim_sent_id);
     lua_setfield(L, -2, "spotanim_sent_id");
+    /* The rev-239 customisations as the client decoded them: the first
+     * overhead slot the server set (sprite group, frame), -1 for the type's
+     * own; the first body-override model, -1 for the type's own. */
+    lua_pushinteger(L, npc->headicon_custom ? npc->headicon_group[0] : -1);
+    lua_setfield(L, -2, "headicon_group");
+    lua_pushinteger(L, npc->headicon_custom ? npc->headicon_index[0] : -1);
+    lua_setfield(L, -2, "headicon_index");
+    lua_pushinteger(L, npc->body_model_count > 0 ? npc->body_models[0] : -1);
+    lua_setfield(L, -2, "body_model");
     lua_pushinteger(L, npc->spotanim_sent_id >= 0
                            ? npc->spotanim_sent_cycle / SCRIPTRUN_CYCLES_PER_TICK
                            : -1);

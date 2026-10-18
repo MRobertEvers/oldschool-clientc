@@ -67,6 +67,331 @@ App_EntitySpotanimPrefetch(
     app_entity_spotanim_load(app, spotanim_id, -1);
 }
 
+static void
+app_world_sync_one_entity_spotanim(
+    struct App* app,
+    struct WorldEntityFacet_EntitySpotanim const* spots,
+    int spot_count,
+    int element_id,
+    int owner_entity_id);
+
+/* Request a sequence load once (deduped through the entity seq tracker).
+ *
+ * The tracker is what stops this from re-queueing a load every world tick for
+ * the whole of a sequence's load window: `ToriDraw_SceneAnimationHas` above only
+ * goes true once the load LANDS, so between the request and the registration
+ * that test says "missing" every tick.
+ *
+ * It is a fixed 64-entry table and it used to only *record* under the capacity
+ * check while queueing unconditionally — so once 64 distinct entity sequences
+ * had been seen in a session (an afternoon of walking and fighting passes that
+ * easily; it is never pruned), the dedupe silently stopped working and every
+ * tick queued another Dat2SequenceLoad for the same seq. Each one that landed
+ * called ToriDraw_SceneAnimationAdd, which used to free the animation live
+ * elements were already pointing at. Overwrite the oldest entry instead: the
+ * table stays bounded, dedupe keeps working, and an evicted-but-still-loading
+ * seq costs at worst one redundant task, which the registry now absorbs safely. */
+void
+app_request_entity_seq(
+    struct App* app,
+    int seq_id)
+{
+    int const capacity =
+        (int)(sizeof(app->entity_seq_loads.seq_ids) / sizeof(app->entity_seq_loads.seq_ids[0]));
+    struct ToriRS_Task* task;
+
+    if( seq_id < 0 || ToriDraw_SceneAnimationHas(app->scene, seq_id) )
+        return;
+    for( int i = 0; i < app->entity_seq_loads.count; i++ )
+        if( app->entity_seq_loads.seq_ids[i] == seq_id )
+            return;
+    if( app->entity_seq_loads.count < capacity )
+    {
+        app->entity_seq_loads.seq_ids[app->entity_seq_loads.count++] = seq_id;
+    }
+    else
+    {
+        memmove(
+            &app->entity_seq_loads.seq_ids[0],
+            &app->entity_seq_loads.seq_ids[1],
+            (size_t)(capacity - 1) * sizeof(app->entity_seq_loads.seq_ids[0]));
+        app->entity_seq_loads.seq_ids[capacity - 1] = seq_id;
+    }
+    task = CreateTask_SequenceLoad(app->provider, app->scene, seq_id);
+    if( task )
+        ToriRS_TaskQueue_Add(app->runner.queue, task);
+}
+
+/* Bind one entity's World animation state onto its scene element (reference
+ * getTempModel2 selection: primary when playing and undelayed — with the
+ * secondary bound alongside for the walkmerge blend when it is a real walk —
+ * else the secondary alone). */
+void
+app_world_apply_entity_anim_tracks(
+    struct App* app,
+    int element_id,
+    struct WorldEntityFacet_Animation const* anim,
+    struct WorldEntityFacet_IdleAnimations const* idle)
+{
+    struct ToriDraw_SceneElement* el;
+    int primary_active = anim->primary.anim_id != (uint16_t)-1 && anim->primary.anim_id != 0;
+    int secondary_active = anim->secondary.anim_id != (uint16_t)-1 && anim->secondary.anim_id != 0;
+
+    if( element_id < 0 || !ToriDraw_SceneElementIsLive(app->scene, element_id) )
+        return;
+    el = ToriDraw_SceneElementGet(app->scene, element_id);
+    if( !el )
+        return;
+
+    /* Frame sounds are NOT emitted from here. Entities are world-sim driven
+     * (anim_external), and this runs once per rendered frame on whichever
+     * single track ends up bound — so a sound was heard only when a render
+     * happened to land on the frame carrying it, and the readyanim's sounds
+     * went missing entirely for as long as an action animation covered it.
+     * World_StepEntityAnimation announces every frame it crosses on both
+     * tracks instead (app_world_anim_frame_sound is the listener), which is
+     * where the reference emits them too. */
+
+    if( primary_active )
+        app_request_entity_seq(app, anim->primary.anim_id);
+    /* A parked ANIM (WorldEntityFacet_Animation.pending_anim_id) is judged the
+     * cycle its seq registers; keep asking for it until then. */
+    if( anim->pending_set )
+        app_request_entity_seq(app, anim->pending_anim_id);
+    if( secondary_active )
+        app_request_entity_seq(app, anim->secondary.anim_id);
+
+    if( primary_active && anim->primary.delay == 0 )
+    {
+        struct ToriDraw_Animation* pa =
+            ToriDraw_SceneAnimationGet(app->scene, anim->primary.anim_id);
+        /* Not registered yet: `app_request_entity_seq` above only queues the
+         * load, so the first ticks after a spawn legitimately have no
+         * animation. That is the caller's condition — the predicate asserts. */
+        if( pa && ToriDraw_ElementAnimPlayable(pa) )
+        {
+            ToriDraw_ElementSetAnim(el, pa);
+            el->anim_seq_id = anim->primary.anim_id;
+            el->anim_frame = anim->primary.frame < pa->frame_count ? anim->primary.frame : 0;
+            /* The walkmerge blend is a frame-animator operation (it masks
+             * transform groups), so a skeletal primary never takes a secondary. */
+            if( !pa->skeletal && secondary_active && idle &&
+                anim->secondary.anim_id != (uint16_t)idle->readyanim )
+            {
+                struct ToriDraw_Animation* sa =
+                    ToriDraw_SceneAnimationGet(app->scene, anim->secondary.anim_id);
+                if( sa && sa->frame_count > 0 && sa->frames )
+                {
+                    el->secondary_animation = sa;
+                    el->anim2_seq_id = anim->secondary.anim_id;
+                    el->anim2_frame =
+                        anim->secondary.frame < sa->frame_count ? anim->secondary.frame : 0;
+                    return;
+                }
+            }
+            el->secondary_animation = NULL;
+            el->anim2_seq_id = -1;
+            return;
+        }
+    }
+
+    el->secondary_animation = NULL;
+    el->anim2_seq_id = -1;
+    if( secondary_active )
+    {
+        struct ToriDraw_Animation* sa =
+            ToriDraw_SceneAnimationGet(app->scene, anim->secondary.anim_id);
+        if( sa && ToriDraw_ElementAnimPlayable(sa) )
+        {
+            ToriDraw_ElementSetAnim(el, sa);
+            el->anim_seq_id = anim->secondary.anim_id;
+            el->anim_frame = anim->secondary.frame < sa->frame_count ? anim->secondary.frame : 0;
+            return;
+        }
+    }
+
+    ToriDraw_ElementSetAnim(el, NULL);
+    el->anim_seq_id = -1;
+    el->anim_frame = 0;
+}
+
+/* Push World animation state to the entity scene elements each frame (the
+ * per-element modulo tick skips anim_external elements). */
+void
+app_world_sync_entity_animations(struct App* app)
+{
+    struct World_EntityPool* pool;
+
+    pool = &app->world->entities.player;
+    for( int pi = World_EntityPoolHead(pool); pi != WORLD_ENTITY_NIL;
+         pi = World_EntityPoolNext(pool, pi) )
+    {
+        struct WorldEntity_Player* player = World_EntityPoolGet(pool, pi);
+        if( player )
+        {
+            app_world_apply_entity_anim_tracks(
+                app, player->element_id, &player->animation, &player->idle_animations);
+            app_world_reconcile_player_body(app, player);
+        }
+    }
+
+    pool = &app->world->entities.npc;
+    for( int ni = World_EntityPoolHead(pool); ni != WORLD_ENTITY_NIL;
+         ni = World_EntityPoolNext(pool, ni) )
+    {
+        struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, ni);
+        if( npc )
+            app_world_apply_entity_anim_tracks(
+                app, npc->element_id, &npc->animation, &npc->idle_animations);
+    }
+}
+
+/* ---- Entity attached-graphic (SPOTANIM mask): reference-accurate per-frame
+ * Model.combine (ClientNpc/ClientPlayer.getTempModel). While an entity's
+ * graphic is active its scene element's model is merge(body, spot): the body
+ * part keeps its bones so the element's bound seq keeps animating it live in
+ * the renderer, the spot part is pre-posed to the world-stepped spot frame
+ * with its bones cleared (reference temp.labelFaces/labelVertices = null, so
+ * the body seq cannot drive spot vertices) and raised by the wire height.
+ * Assets load once through the async task pipeline; with both models resident
+ * the combine itself is synchronous. Re-merged only when the spot frame
+ * changes — between merges the visual is identical because the renderer poses
+ * the body part live and the spot pose only advances with spot->frame. State
+ * lives in app->entity_spotanims keyed by the body element id. ---- */
+
+/* Find the entry for (element, owner). `owner_entity_id` 0 means "any owner",
+ * used only when scanning for a free slot.
+ *
+ * An entry matching the element but NOT the owner is a recycled element id: the
+ * previous owner despawned and this id was handed to somebody else. Drop it
+ * WITHOUT restoring -- restoring would move the dead entity's body model onto
+ * the new occupant. See the note on AppEntitySpotanim::owner_entity_id. */
+struct AppEntitySpotanim*
+app_entity_spotanim_find(
+    struct App* app,
+    int body_element_id,
+    int owner_entity_id)
+{
+    int count = (int)(sizeof(app->entity_spotanims) / sizeof(app->entity_spotanims[0]));
+    for( int i = 0; i < count; i++ )
+    {
+        struct AppEntitySpotanim* entry = &app->entity_spotanims[i];
+        if( entry->body_element_id != body_element_id )
+            continue;
+        if( owner_entity_id != 0 && entry->body_element_id >= 0 &&
+            entry->owner_entity_id != owner_entity_id )
+        {
+            app_entity_spotanim_detach(app, entry, false);
+            return NULL;
+        }
+        return entry;
+    }
+    return NULL;
+}
+
+/* End the combine: restore the entity's own model (ownership of the pristine
+ * body snapshot moves back to the element) and free the spot base. `restore`
+ * is false when the body element is already gone (despawn/scene teardown).
+ *
+ * Restore only while the element is still wearing `combined`. The body
+ * reconcile runs first in the frame and SetModels a fresh body when a seq's
+ * replaceheldright/left ends (home teleport's book) or the appearance
+ * changes. That frees `combined`. Putting the snapshot back on top would
+ * resurrect the hand item, and the reconcile would keep it: body.slots
+ * already match the appearance it just wrote, so the next frame is a no-op. */
+static void
+app_entity_spotanim_detach(
+    struct App* app,
+    struct AppEntitySpotanim* entry,
+    bool restore)
+{
+    struct ToriDraw_SceneElement* el = NULL;
+    int wearing_combined = 0;
+
+    if( ToriDraw_SceneElementIsLive(app->scene, entry->body_element_id) )
+    {
+        el = ToriDraw_SceneElementGet(app->scene, entry->body_element_id);
+        assert(el);
+        /* `combined` is an identity only. A rebuild this frame freed it. */
+        wearing_combined = ToriDraw_ModelKindIsFull(el->model.kind) &&
+                           el->model.u.model.model == entry->combined;
+    }
+    if( restore && entry->body && wearing_combined )
+    {
+        struct ToriDraw_ModelHandle hnd;
+        memset(&hnd, 0, sizeof(hnd));
+        hnd.kind = TORIDRAWMK_MODEL;
+        hnd.u.model.model = entry->body;
+        /* The renderer's per-frame AnimateReset needs captured originals. */
+        ToriDraw_ModelCaptureOriginalVertices(entry->body);
+        ToriDraw_SceneElementSetModel(app->scene, entry->body_element_id, hnd);
+        /* The snapshot was taken at the bind pose; the overlays measure it
+         * before the renderer runs. */
+        app_element_pose_after_model_swap(app, entry->body_element_id);
+        entry->body = NULL; /* ownership moved to the element */
+        app->need_redraw = 1;
+    }
+    if( entry->body )
+        ToriDraw_ModelFree(entry->body);
+    for( int i = 0; i < APP_ENTITY_SPOT_SLOTS; i++ )
+        if( entry->slots[i].spot )
+            ToriDraw_ModelFree(entry->slots[i].spot);
+    *entry = (struct AppEntitySpotanim){ .body_element_id = -1, .owner_entity_id = 0 };
+}
+
+/* EntityRemoved drain hook: the entity element (and with it the combined
+ * model) is going away — free the snapshots without touching the element. */
+void
+app_entity_spotanim_drop(
+    struct App* app,
+    int body_element_id)
+{
+    struct AppEntitySpotanim* entry = app_entity_spotanim_find(app, body_element_id, 0);
+    if( entry )
+        app_entity_spotanim_detach(app, entry, false);
+}
+
+/* The scale (128 == 1.0) that a later resize by `resize` takes back to 128. */
+static int
+app_entity_spotanim_unscale(int resize)
+{
+    assert(resize > 0);
+    return (128 * 128 + resize / 2) / resize;
+}
+
+/*
+ * Can the graphic be pre-scaled by 128*128/resize for `body`'s resize and
+ * still fit int16 vertices? Not for an extreme resize: Verzik's pillar npc is
+ * `resizeh=1` (a sliver, the loc beside it is the column you see) and its
+ * impact graphic 1582 is ~920 units across at its own resize 520, so the
+ * pre-scale is x128 and every vertex past 255 wrapped - the lightning on a hit
+ * pillar drew as garbage (2026-10-18, `ev_swing --bounds`).
+ */
+static int
+app_entity_spotanim_unscale_fits(
+    struct ToriDraw_Model const* spot,
+    struct ToriDraw_Model const* body)
+{
+    int scale[3] = { app_entity_spotanim_unscale(body->post_resize_x),
+                     app_entity_spotanim_unscale(body->post_resize_height),
+                     app_entity_spotanim_unscale(body->post_resize_z) };
+
+    for( int i = 0; i < spot->vertex_count; i++ )
+    {
+        int v[3] = { spot->vertices_x[i], spot->vertices_y[i], spot->vertices_z[i] };
+
+        for( int k = 0; k < 3; k++ )
+        {
+            long scaled = (long)v[k] * scale[k] / 128;
+
+            if( scaled > 32767 || scaled < -32768 )
+                return 0;
+        }
+    }
+    return 1;
+}
+
+
 /* The posed, height-raised, label-free copy of one slot's graphic at `frame`
  * (reference SpotType.getTempModel2 + temp.translate). Owned by the caller. */
 static struct ToriDraw_Model*

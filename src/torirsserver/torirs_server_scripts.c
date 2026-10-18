@@ -5405,6 +5405,17 @@ ToriRSServer_NpcChangeType(
         npc->changetype_delay = 0;
 }
 
+void
+ToriRSServer_NpcRespawnType(struct ToriRSServerNpc* npc)
+{
+    assert(npc);
+    if( npc->type == npc->spawn_type )
+        return;
+    npc_changetype_rehydrate(npc, npc->spawn_type);
+    npc->change_type = npc->spawn_type;
+    npc->changetype_delay = 0;
+}
+
 /*
  * The container the *active* player means by `inv_id`.
  *

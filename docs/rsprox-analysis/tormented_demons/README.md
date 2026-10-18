@@ -8,70 +8,148 @@ Old School's Tormented Demon (2024, While Guthix Sleeps), read from RSProx recor
 |---|---|---|---|
 | 3312 | 234 | Grid Master, with names | 236 kills with a bow at the Ancient Guthix Temple |
 | 1756 | 227 | Leagues V | about 300 kills with a bow; 300 lives reach the defenceless switch |
-| 552 | 227 | Leagues V | 45 engagements; fire bombs thrown at other players |
+| 552 | 227 | Leagues V | 45 engagements; fire bombs thrown at other players, and a third demon's single bombs |
 | 1696 | 226 | normal | While Guthix Sleeps' quest demons (13601/13602): three fire bombs at the recorder |
 | 3308 | 234 | Grid Master | 14 engagements |
 
-The wiki's text for the mechanics is archived in `sources/` (fetched 2026-10-18). All recorded players used a bow, so rules about melee and magic attackers (e.g. the shield-bonus by weapon speed) are the wiki's alone.
+The wiki's text for the mechanics is archived in `sources/` (fetched 2026-10-18). All recorded players used a bow or a powered staff, so rules about melee attackers (e.g. the shield bonus by weapon speed) are the wiki's alone.
 
 Tools:
 - `tools/rsprox/rsprox_td.py` splits every demon into lives and measures each rule below.
-- `tools/rsprox/rsprox_tells.py --npc tormented` gives the inventory.
+- `tools/rsprox/rsprox_attack_tells.py --npc tormented_demon --attack luc2_undead_demon_firey_balls luc2_undead_demon_spare_ribs luc2_undead_demon_melee` gives the tells of each attack.
+- `tools/rsprox/rsprox_tells.py --timeline` gives the ordered stream.
 
 ## How the server shows state
 
-| State | Recorded | Ours |
-|---|---|---|
-| Overhead prayer | The `headicon_customisation` extended info: slot 0, sprite group 440, index 0 melee / 1 ranged / 2 magic. One npc type (13599/13600) throughout. | A type swap to `tormented_demon_protect_*`. The headicon looks the same, but this is a different mechanism (see "Engine" below). |
-| Defenceless (no flames) | `body_customisation` with model 55474 or 55475 (one per variant), exactly **30 ticks after the shield first drops** (300 of 300 in 1756). Reset on respawn and on the fire bomb. | not shown |
-| Shield visual | `luc2_undead_demon_shield_spot` in spotanim **slot 4** every 2 ticks (7,105 of 7,105 gaps), from the tick before the first engagement for as long as the fight lasts. The drop/restore graphics take the same slot on their ticks. | one `shield_spot` on engagement; our engine has one spotanim slot |
+The demon is **one npc type for its whole life**. Everything that changes is per-npc extended info:
+
+| State | Recorded |
+|---|---|
+| Overhead prayer | `headicon_customisation`: slot 0, sprite group 440, index 0 melee / 1 ranged / 2 magic |
+| Defenceless (no flames) | `body_customisation` with one model: 55475 on 13599/13601, 55474 on 13600/13602. It comes with `luc2_undead_accuracy_debuff` in spotanim **slot 5** (254 of 300). |
+| Graphics | Numbered spotanim slots: attack graphics and `entangle_casting` in slot 2; the shield loop, drop, restore and summon in slot 4; the debuff in slot 5; the death graphic in slot 0 |
+| Overhead bar | `healthbar_standard_60` (2,556 of 2,556 headbars) |
 
 ## Combat
 
-| Event | Recorded | Ours before |
-|---|---|---|
-| Engage (the player's first attack) | `luc2_undead_demon_explosion_fire` + `luc2_undead_demon_explosion_fire_spot` (slot 4) on the attack tick. Synths 9224 `wgs_td_explosion_fire_power_up_scream_03`, 9210 `…explosion_fire_start_01` delay 3, 9215 `…explosion_explode_01` delay 36 and 9259 `…explosion_high_fire_01` delay 39. **This is the shield dropping**, not a bomb. | `shield_spot` |
-| Shield back up | `luc2_undead_demon_shield_restore_spot` (slot 4) on the player's **next attack tick** (533 of 534; E+5 with a 5-tick bow) | restore on the next hit, prepared |
-| Prayer on engage | Switches to the attacker's style 1–3 ticks after the drop, before any hit | a random starting prayer, kept |
-| Prayer switch | Each time about 150 damage has accumulated, the head icon is rewritten to the last style it was hit by (the same style is re-sent too) | after 150, switch to the last style |
-| Attack cadence | 6 ticks (1,172 of 1,784 gaps); 8 and 10 after a prayer swap's 6-tick pause | 6 |
-| Melee | `luc2_undead_demon_melee` + `luc2_undead_demon_melee_spot`; synth 9219 `wgs_td_melee_attack_impact_01` | anim + spot |
-| Magic | `luc2_undead_demon_firey_balls`; `luc2_undead_demon_fireball_proj` start **30**, end **118** (fixed, not by distance), peak 0, arc 160, height 86 → 30; `luc2_undead_demon_fireball_impact` on the player delayed 118 (height 124); synth 9229 `wgs_td_mage_attack_impact_02` delayed 118 | 30 + 32 + 5d, height 40, peak 16, impact at once, no sound |
-| Ranged | `luc2_undead_demon_spare_ribs` + `luc2_rib_bone_shard_spotanim` on the demon; `luc2_rib_bone_shard_projectile` start **60**, end **118**, peak 10, arc 200, height 100 → 30; synth 9253 `wgs_td_demon_ranged_spare_ribs_inital_movement_01` delayed 118 | **missing**: ranged threw the fireball |
-| Style choice | Melee when it can reach (1,179); otherwise magic (573) or ranged (540) at random | melee/magic by engagement order |
-| Hits on the player | Both projectiles land on cycle 118, so 3 ticks after the attack | flight-based |
+E is the player's first attack on a fresh demon.
 
-## Bind and fire bomb (1696; 552 for the projectile)
+| Event | Recorded |
+|---|---|
+| Engage (E) | On the player's attack tick, the shield drops: `luc2_undead_demon_explosion_fire` + `luc2_undead_demon_explosion_fire_spot` (slot 4), with synths 9224 `wgs_td_explosion_fire_power_up_scream_03`, 9210 `…explosion_fire_start_01` (delay 3), 9215 `…explosion_explode_01` (delay 36) and 9259 `…explosion_high_fire_01` (delay 39). |
+| Shield loop | `luc2_undead_demon_shield_spot` in slot 4 every 2 ticks (7,105 of 7,105 gaps), from E − 1 (sometimes earlier, when the player starts approaching) for the whole fight, including while the shield is down. |
+| Shield back up | `luc2_undead_demon_shield_restore_spot` (slot 4) on the player's **next attack tick** (533 of 534) |
+| The two-tick clock | Every icon write lands on an odd offset from E (E + 1, E + 3, …), the shield loop's ticks. |
+| Prayer on engage | The first write after E is always the attacker's style. When the spawn prayer was different it comes early: E + 1 (120), E + 3 (85) or E + 5 (24) in 3312, and E + 3 to E + 15 in 1756. When the demon already prayed that style, nothing is written until the damage rule. |
+| Prayer switch | About 150 damage after the last write, the icon is rewritten to the last style that damaged it (the same icon is re-sent too) |
+| Stall after a switch | A write at W holds the next attack to W + 5 at the earliest: gaps 6 / 8 / 10 for a write at +1 / +3 / +5 into a cycle (232 / 146 / 36 in 3312). |
+| Attack cadence | First attack at E + 6, then every 6 ticks (1,172 of 1,784 gaps) unless stalled |
+| Style choice | Melee when it can reach (1,179); otherwise magic (573) or ranged (540) at random |
+| Melee | `luc2_undead_demon_melee` + `luc2_undead_demon_melee_spot` (slot 2); synth 9219 `wgs_td_melee_attack_impact_01`; the hit lands on the swing |
+| Magic | `luc2_undead_demon_firey_balls`; `luc2_undead_demon_fireball_proj` start **30**, end **118** (fixed, not by distance), peak 0, arc 160, height 86 → 30; `luc2_undead_demon_fireball_impact` on the player, delayed 118, height 124; synth 9229 `wgs_td_mage_attack_impact_02` delayed 118; the player's block delayed **98** (131 of 135) |
+| Ranged | `luc2_undead_demon_spare_ribs` + `luc2_rib_bone_shard_spotanim` (slot 2); `luc2_rib_bone_shard_projectile` start **60**, end **118**, peak 10, arc 200, height 100 → 30; synth 9253 `wgs_td_demon_ranged_spare_ribs_inital_movement_01` delayed 118; the player's block delayed **108** (111 of 112) |
+| Projectile hits | The player's splat is on **T + 4** (135 of 135 fireballs, 112 of 112 rib shards) |
+| Defenceless | Exactly 30 ticks after the last explosion: E + 30 (300 of 300 in 1756), then B + 30 after each bomb (1943, 2004, 2064 in 1696) |
+| Defenceless ends | On the player's first attack after a fire bomb (1696: a cast on 1933, 1982, 2041), with `body_customisation` reset |
 
-The bomb comes every 60–61 ticks: 1913, 1974 and 2034 in 1696. On the bomb tick B:
+## Bind and fire bomb (1696, 552)
 
-- **The demon:** `luc2_undead_demon_explosion_fire` + `_explosion_fire_spot` (slot 4), the same as the shield drop. The demon that binds also gets `entangle_casting` (177) at height 240 (slot 2).
+The bomb belongs to the **player**. Every demon fighting them throws on the same tick B, whether or not its own swing is due: 1913, 1974, 2034 in 1696 (60–61 apart), and three demons at once on 14748 in 552. Each demon's next swing is B + 6 (14748 → 14754).
+
+- **Every demon:** `luc2_undead_demon_explosion_fire` + `_explosion_fire_spot` (slot 4).
+- **One demon binds:** `entangle_casting` (177, slot 2, height 240) on it.
+  - Its two bombs are the player's tile and one beside it.
+  - Every other demon throws two bombs at tiles beside the player.
+  - All tiles are distinct (1913, 1974, 2034, 14671, 14748).
 - **The player:**
   - the message "The demon's spell binds you!";
   - `entangle_impact` (179) at height 124;
-  - the projectile `entangle_travel` (178) from the demon: 46 → 76, peak 16, arc 64, height 45 → 0.
-  - They walk again from B+3.
+  - the projectile `entangle_travel` (178) from the binder's middle: 46 → 76, peak 16, arc 64, height 45 → 0.
+  - They eat on B + 2 (1915) and walk again from B + 3.
 - **Each bomb tile:**
-  - map graphic `gargboss_debris_shadow_90` (1446) delayed 30;
-  - `luc2_undead_demon_fireball_large_proj` (2855) from the demon: 45 → 115, peak 30, arc 128, height 86 → 0;
-  - map graphic `luc2_undead_demon_fireball_large_impact` (2856) delayed 115.
-  - Two tiles per demon: the player's, and one adjacent.
-- **Sounds:** synths 9224 (delayed 30), 9210 delay 3, 9215 delay 36, 9259 delay 39, 7099 `dt2_vardorvis_entangled_01` and 154 `paralyze`.
+  - `luc2_undead_demon_fireball_large_proj` (2855) from the demon's middle: 45 → 115, peak 30, arc 128, height 86 → 0;
+  - map graphics `gargboss_debris_shadow_90` (1446) delayed 30 and `luc2_undead_demon_fireball_large_impact` (2856) delayed 115.
+- **Sounds, once:**
+  - synths 9224 (delayed 30), 9210 (delay 3), 9215 (delay 36), 9259 (delay 39), 7099 `dt2_vardorvis_entangled_01` and 154 `paralyze`;
+  - 154 again on B + 1 (1914, 1975, 2035);
+  - 9240 `wgs_td_explosion_ground_attack_player_impact_01` on B + 4, whether or not the player was caught (2038).
+- **Damage:** a player standing on a bomb tile is hit on B + 4 (36 on 1917, 23 on 1978).
+
+**The third demon** (552, 22779): in place of each swing (every 6 ticks), it plays `explosion_fire` and throws one bomb at the player's tile, with no bind and no slot-4 graphic. Synths 9221 `…power_up_shorter_quieter_scream_02` (delay 33), 9335 `…explosion_charge_no_flames_01` (delay 3) and 9215 (delay 36); 9240 on +4.
 
 ## Death and respawn
 
 | Event | Recorded (536 of 536) |
 |---|---|
-| D | `luc2_undead_demon_death` + `luc2_undead_demon_death_spot` |
-| D+6 | npc removed |
-| D+9 | `invisible_tormented_demon_*` added at the spawn |
-| D+10 | `luc2_undead_demon_summon` + `wgs_undead_demon_summon_spotanim`, transformed to the visible demon. Area sounds (range 7): 9333 `wgs_td_fire_shield_restore_floor_burn_longer_02` delay 4, 9332 `…fire_shield_restore_03` delay 128, 9336 `…explosion_charge_no_flames_02` delay 136 |
+| D (the killing splat's tick, 231 of 236) | `luc2_undead_demon_death` + `luc2_undead_demon_death_spot` (slot 0), an empty `headicon_customisation`, ops hidden |
+| D + 6 | npc removed |
+| D + 9 | `invisible_tormented_demon_*` (13603–13606) added at the spawn, ops 0b11111, both customisations empty |
+| D + 10 | `luc2_undead_demon_summon` + `wgs_undead_demon_summon_spotanim` (slot 4), transformed into the demon with a headicon, ops 0b00000, level 450. Area sounds (range 7) on its tile: 9333 `wgs_td_fire_shield_restore_floor_burn_longer_02` delay 4, 9332 `…fire_shield_restore_03` delay 128, 9336 `…explosion_charge_no_flames_02` delay 136. |
+| D + 18 | ops 0b00010 (Attack) — 8 ticks after the summon (235 of 236) |
 
-The recordings respawn 10 ticks after death, while the wiki's infobox says 21. Both recording worlds (Grid Master, Leagues V) are boosted, so we keep the wiki's 21 and the recorded order within it.
+The recordings respawn 9 ticks after death, while the wiki's infobox says 21. Both recording worlds (Grid Master, Leagues V) are boosted, so we keep the wiki's 21 and the recorded order within it.
 
-## Engine work this needs for an exact match
+Recorded spawn variants: variant 2 at 4071,4426, 4079,4430, 4123,4381, 4083,4373 and 4088,4367; variant 1 at 4117,4385 and 4088,4379.
 
-The 239 client parses `headicon_customisation` and `body_customisation` but discards them (`src/net/rev/osrs239/osrs239_entity_info.c`). Our server sends neither, and sends one npc spotanim per tick with no slots. Until those exist:
-- the prayer stays a type swap;
-- defenceless is a type swap to a record with the no-flames model;
-- the shield loop shares the one spotanim slot, and an attack graphic wins its tick.
+## Implemented (2026-10-18)
+
+**Engine (server and client)**, rev-239 NPC extended info that our server never sent and our client discarded:
+- `spotanim_npc_slot(spotanim, height, delay, slot)` — the NPC spotanim block is a list of (slot, graphic).
+  - The client keeps one graphic per slot (`WorldEntity_NPC.spotanims[8]`), steps each on its own clock, and merges every playing slot onto the body.
+  - `spotanim_npc` is slot 0.
+- `npc_headicon(slot, group, index)` — headicon customisation. The client's overhead reads the override before the type's icon.
+- `npc_bodymodel(model)` — body customisation with one model (−1 resets). The client remounts the body when it changes and loads missing models first.
+- Respawn returns an npc to its spawn type (LostCity `Npc.resetEntity(respawn)`: `this.type = this.baseType`). Before this, an npc respawned as whatever type it died as.
+- Tick-log rows `npc_headicon` and `npc_body`; `npc_spotanim` carries the slot in column f.
+
+**Content:**
+- **One type:**
+  - The prayer is `npc_headicon`.
+  - The three `tormented_demon_protect_*` records are retired; they stay in the config only because the baked client cache lists them.
+- **Spawns and respawn:**
+  - World spawns are the invisible twins.
+  - The spawn trigger queues the summon a tick after the add, with its sounds and the hidden menu, and the menu returns 8 ticks later.
+  - `death_delay=5`, so the demon is removed at D + 6.
+  - `healthbar_standard_60`.
+- **Engage:**
+  - The demon takes the attacker (`npc_attackplayer`) so the retaliation flinch doesn't re-seed its clock.
+  - The first swing is at E + 6.
+- **The demon's timer:**
+  - It runs every tick: the shared fire bomb, and defenceless at 30 ticks.
+  - Every other tick it re-sends the shield loop and runs the prayer check: the engage switch to the attacker's style, then 150 accumulated damage.
+- **Attacks:**
+  - Each swing is the engine's attack clock (`[ai_opplayer2]`), and a prayer swap holds it with `npc_attackdelay`.
+  - Melee, magic and the new ranged rib attack all use the recorded parameters, sounds, player blocks and hit ticks.
+- **The bomb** follows the recorded rules: shared by every demon, one binder, distinct tiles, a 3-tick freeze rather than `player_lock`, and the B + 4 detonation. Third and later demons throw single bombs.
+- **Defenceless:** at the last explosion + 30, shown with the no-flames body and the slot-5 debuff, and ended by the first attack after a bomb.
+- **Death:** the death graphic and the cleared icon on the killing splat's tick.
+
+## Verified (2026-10-18)
+
+`test/bosses/tormented_demon_tells.lua` fights the world demon at 4123,4381 with a bow, kills it with `::tdhp 0`, and runs `::tdtest`. Read from its tick log:
+
+- **Engage:**
+  - E: the drop and all four synths.
+  - E + 1: the shield loop and the switch to ranged, which the headless client decoded as headicon 440/1.
+  - The restore on the player's next attack; the loop every two ticks.
+- **Attacks:**
+  - First swing at E + 6, then every 6.
+  - Ribs and fireballs with the recorded projectiles, synths and player blocks (108 / 98).
+  - The player's splat on T + 4.
+- **Defenceless:**
+  - E + 30: body 55474 (the headless client decoded it) and the slot-5 debuff.
+  - It ends on the first attack after the bomb, and comes again at B + 30.
+- **The bomb:**
+  - B = E + 60, with the bind, entangle, both tiles with shadow and impact, and the sounds.
+  - 154 on B + 1; 9240 and the hit on B + 4; the next swing at B + 6.
+- **Death and respawn:**
+  - Death sequence, graphic and cleared icon on the killing splat's tick; removed at D + 6.
+  - The respawn is added invisible (13604) and summoned a tick later, with all three area sounds.
+- `::tdtest` passes.
+
+## Open
+
+- **The shield loop's first graphic:** ours starts at E + 1; Jagex's at E − 1, when the player starts the attack.
+- **The engage switch:** ours always lands on E + 1. Jagex's spread (E + 1 to E + 15) depends on something the recordings don't show.
+- **Player spotanim slots:** the fireball impact is in the player's slot 2 on Jagex's wire. Our server sends players one slot (0), so the player's own graphics share it.
+- **Body customisation colours and textures** are parsed and not applied. The demon's override is a model alone.

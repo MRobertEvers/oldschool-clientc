@@ -6879,6 +6879,15 @@ ToriRSServer_NpcChangeType(
     int type,
     int duration);
 
+/**
+ * A respawning npc back to `spawn_type`: LostCity `Npc.resetEntity(respawn)`,
+ * `this.type = this.baseType`. The record is resolved into the npc as a
+ * transformation would, with nothing sent -- the respawn's add carries the
+ * type. A form a script turned it into belonged to the life that ended.
+ */
+void
+ToriRSServer_NpcRespawnType(struct ToriRSServerNpc* npc);
+
 /** When a just-appeared npc may first consider roaming, staggered so a room
  *  spawned on one tick does not step in unison. Spawn and respawn both use it. */
 void

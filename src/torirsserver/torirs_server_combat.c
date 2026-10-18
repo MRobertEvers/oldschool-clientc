@@ -3897,6 +3897,11 @@ ToriRSServer_CombatRespawnTick(struct ToriRSServer* srv)
         npc->x = npc->spawn_x;
         npc->z = npc->spawn_z;
         npc->level = npc->spawn_level;
+        /* The form it was stood up as (LostCity `resetEntity(respawn)`:
+         * `this.type = this.baseType`). A Tormented Demon is spawned as its
+         * invisible twin and summoned into the demon each life; without this
+         * every life after the first came back as the demon it died as. */
+        ToriRSServer_NpcRespawnType(npc);
         npc->hitpoints = npc->base_hitpoints;
         npc->combat_target = -1;
         /* A respawn is a fresh npc down to who is allowed to fight it: a
