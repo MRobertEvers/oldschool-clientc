@@ -214,7 +214,8 @@ def scan(path, anchor, gap, names, sink, timeline):
                     what = "npc" if "npc=" in line else ("player" if "player=" in line else "tile")
                     if "npc=" in line:
                         nm = re.search(r"npc=\(index=\d+, " + REF, line)
-                        what = ref(nm, "npc", names)[0]
+                        # an npc the recorder cannot see prints its index only
+                        what = ref(nm, "npc", names)[0] if nm else "npc"
                     elif "player=" in line:
                         what = "player"
                     pending_proj["source" if "[source]" in line else "target"] = (what, (int(c.group(1)), int(c.group(2))))
