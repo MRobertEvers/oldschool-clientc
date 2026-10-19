@@ -16,6 +16,7 @@ Each room's file states the recorded behaviour, the recording ticks it was read 
 | [muttadiles.md](muttadiles.md) | Muttadiles |
 | [mystics.md](mystics.md) | Skeletal Mystics |
 | [tightrope.md](tightrope.md) | Tightrope: the guards, the crossing, the keystone and the barrier |
+| [scavengers.md](scavengers.md) | Scavenger beasts: the hunt, the chase, the swing, the drop, the respawn |
 | [points.md](points.md) | Points: combat, potions, the keystone, the meat tree, braziers |
 | [shamans.md](shamans.md) | Lizardman shamans |
 
@@ -54,6 +55,7 @@ All recordings are submissions to the public archive, [rsprox.net/database](http
 | `tools/cox/rsprox_points.py` | Points: every score change against its tick's events; the combat channel matched to each attack; potions (with their timers), keystones, braziers, chops |
 | `tools/cox/rsprox_mystics.py` | Skeletal Mystics, in INSTANCE tiles: every cast (projectile against the gap, the graphics and sounds sent on the cast, the landing), blocks, the wake and the hunt fitted (`--probe`), movement, death and the clear, the room in template tiles |
 | `tools/cox/rsprox_tightrope.py` | Tightrope, in INSTANCE tiles: each room, every guard attack (projectile against the gap, what is sent on C, the landing), cadence, the openings and the wake, the crossings tick by tick with the hits waiting for the end, blocks and sounds, movement, deaths, the dispel |
+| `tools/cox/rsprox_scavengers.py` | Scavenger beasts, in INSTANCE tiles: each room visit, every swing (target, gap, sounds, the hit), the openings against the nearest raider, the chase and its give-up, deaths with their drops and the next beast |
 | `tools/cox/los_probe.c` | The server's own collision answers (line of sight, line of walk, flags) for a built template scene, over a pipe; `rsprox_mystics.py --probe` asks it whether a mystic saw the raider |
 | `tools/cox/rsprox_icedemon.py` | Ice Demon, in INSTANCE tiles: his attacks (projectiles, the burst's nine, sounds), the pop, the fiends, the braziers, blocks, death |
 | `tools/cox/rsprox_vasa_teleport.py` | Vasa's teleport special in INSTANCE tiles (an untranslated transcript, below): every raider's distance from his middle, the stun, the explosion |
