@@ -5,7 +5,8 @@
 -- layout (-1), the Ancient one (4675, RSProx), a pick the layout did not draw,
 -- and a weapon change that can no longer cast the pick. com_mode follows RSProx:
 -- 4 while a spell is autocast (no style button lit), the prior style after; and
--- com_stance follows the style (staff Bash 1, Pound 2, autocast 1).
+-- com_stance follows the melee style (staff Bash 1, Pound 2, autocast 1) and a
+-- bow leaves it as it was.
 --   ./src/build_<you>_opt/torirsserver --scriptrun test/magic/autocast.lua --name s1 \
 --       --ticks 300 --session $S/run --fixture test/quests/fixtures/fresh_lumbridge.ini
 local function varp(t, name)
@@ -30,7 +31,8 @@ return {
     id = "autocast",
     fixture = "fresh_lumbridge.ini",
     max_frames = 30000,
-    setup = { "::setlevel magic 99", "::setlevel attack 50", "::give staff_of_air", "::give staff_of_zaros" },
+    setup = { "::setlevel magic 99", "::setlevel attack 50", "::give staff_of_air", "::give staff_of_zaros",
+        "::give shortbow" },
     run = function(t)
         t.exec("equip.air", t.player.equip, "staff_of_air")
         t.ui.tab("combat")
@@ -104,5 +106,13 @@ return {
             "autocast_spell " .. tostring(varbit(t, "varb276_autocast_spell")) .. " com_mode "
             .. tostring(varp(t, "varp43_com_mode")) .. " com_stance " .. tostring(varp(t, "varp46_com_stance"))
             .. " (want 0, 0, 1: Bash)")
+
+        -- A ranged weapon leaves com_stance where it was (RSProx: 1 write in
+        -- 2955 ranged equips): Pound's 2 survives the bow's accurate style.
+        press(t, "combat_interface:style_slot_1")
+        t.exec("equip.bow", t.player.equip, "shortbow")
+        t.ticks(2)
+        t.check("stance.ranged_keeps", varp(t, "varp46_com_stance") == 2,
+            "com_stance " .. tostring(varp(t, "varp46_com_stance")) .. " (want 2, Pound's, kept)")
     end,
 }
