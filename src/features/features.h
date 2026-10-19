@@ -463,10 +463,10 @@ struct ToriRS_FeatureTable
     /* --- model lighting -------------------------------------------------- */
 
     /**
-     * 0 = Client-TS: NPC body lighting ignores NpcType ambient/contrast
-     * (opcodes 100/101) and always uses the actor profile alone. 1 = xrsps:
-     * ambient += npctype.ambient, contrast += npctype.contrast (decoder already
-     * pre-scales contrast by 5).
+     * 0: NPC body lighting ignores NpcType ambient/contrast (opcodes
+     * 100/101) and always uses the actor profile alone (the 2004 lane). 1, as
+     * rev 239 does (deob class405's model build): ambient += npctype.ambient,
+     * contrast += npctype.contrast (decoder already pre-scales contrast by 5).
      */
     int npc_light_uses_type_ambient_contrast;
     /**

@@ -4005,18 +4005,64 @@ ToriRSServer_WorldNpcTeleport(
     int z,
     int level)
 {
+    int dx;
+    int dz;
+    int glide;
+
     assert(npc);
 
+    dx = x - npc->x;
+    dz = z - npc->z;
+    /*
+     * Two tiles or less on one floor GLIDES: Jagex sends it with the jump bit
+     * down, and the rev-239 client queues the tile as a walk step on the same
+     * npc (class86.method2949 -> method3501 with MoveSpeed 1), keeping its
+     * animation and facing. RSProx: 53,998 of 54,043 jump-clear npc teleports
+     * move one or two tiles (ToA's waves, Ba-Ba's boulders, the jugs, the
+     * orbs, Nylocas, Bloat), and 883 of 900 jumps move more than eight. A
+     * remove and re-add is a new npc to this client, so each tick a wave or
+     * boulder snapped onto its tile and restarted its animation.
+     *
+     * Written as the steps the tracked section can carry, the rule the player
+     * encoder uses for a short `p_teleport` (`tele_glide`), and only when the
+     * npc has not stepped already this tick. Further, or across floors, it
+     * stays a jump: removed and re-added on the tile.
+     */
+    glide = level == npc->level && (dx != 0 || dz != 0) && abs(dx) <= 2 && abs(dz) <= 2 &&
+            npc->step_dir < 0 && !npc->tele;
     npc_set_occupancy(npc, 0);
+    if( glide )
+    {
+        int first_x = dx < 0 ? -1 : (dx > 0 ? 1 : 0);
+        int first_z = dz < 0 ? -1 : (dz > 0 ? 1 : 0);
+        int first = ToriRSServer_StepDirection(first_x, first_z);
+
+        npc->step_dir = first;
+        npc->face_dir = first;
+        npc->last_step_x = npc->x;
+        npc->last_step_z = npc->z;
+        if( dx != first_x || dz != first_z )
+        {
+            int second = ToriRSServer_StepDirection(dx - first_x, dz - first_z);
+
+            npc->run_dir = second;
+            npc->face_dir = second;
+            npc->last_step_x = npc->x + first_x;
+            npc->last_step_z = npc->z + first_z;
+        }
+        npc->step_crawl = 0;
+    }
     npc->x = x;
     npc->z = z;
     npc->level = level;
     npc_set_occupancy(npc, 1);
+    npc_clear_waypoints(npc);
+    if( glide )
+        return;
     /* The reference seeds the same pair, so the npc faces away from the tile it
      * would have stepped from rather than holding the heading it arrived with. */
     npc->last_step_x = npc->x - 1;
     npc->last_step_z = npc->z;
-    npc_clear_waypoints(npc);
     npc->step_dir = -1;
     npc->run_dir = -1;
     npc->tele = 1;

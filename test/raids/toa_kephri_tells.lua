@@ -51,10 +51,18 @@ return {
         t.cheat("::toa 5", false)
         wait(t, 4)
         t.ticklog.mark("kephri.crystal")
+        local _, before = t.world.tile()
         t.expect("kephri.crystal", t.player.click_loc("kephri_teleport", 2))
-        wait(t, 3)
-        -- the crystal puts the raider on (25,32); her middle is (31,32)
+        -- the crystal puts the raider on (25,32); her middle is (31,32). The
+        -- door lands a raider anywhere on x 14-15, z 31-33, so the walk to the
+        -- crystal (18,32) takes a varying tick or two: wait for the jump east.
         local _, at = t.world.tile()
+        for _ = 1, 12 do
+            wait(t, 1)
+            local _, now_at = t.world.tile()
+            at = now_at
+            if at.x - before.x >= 8 then break end
+        end
         local ox, oz = at.x - 25, at.z - 32
         t.player.walk_to(ox + 35, oz + 35, 20)
         -- a few arrows at her shield: shield splats, and she turns to the raider

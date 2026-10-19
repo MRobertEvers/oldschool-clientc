@@ -102,7 +102,13 @@ static struct ToriRS_FeatureTable const k_features_osrs = {
     /* Project default for OSRS; the official preference's valid range is
      * 25..90 and a manifest may select any value in it. */
     .painter_draw_distance = 32,
-    .npc_light_uses_type_ambient_contrast = 0,
+    /* Rev 239 lights an npc's model with its type's own values: class405
+     * (NPCComposition) calls method4670(ambient + 64, contrast + 850, -30, -50,
+     * -30), ambient being opcode 100's field5124 (read through -1976973599)
+     * and contrast opcode 101's field5165 (x5 at decode). Off, the Scabaras
+     * obelisk's lit type (ambient 100, contrast 250) drew exactly like the
+     * unlit one, so a hit on it showed nothing. */
+    .npc_light_uses_type_ambient_contrast = 1,
     .player_head_light_ambient = 0,
     /* The modern client mixes effects; only the 2004 one is monophonic. */
     .effects_monophonic = 0,

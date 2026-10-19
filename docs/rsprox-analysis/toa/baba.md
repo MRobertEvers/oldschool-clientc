@@ -189,6 +189,9 @@ sides; the only row ours alone sends is the every-room lobby song).
 | | Status |
 |---|---|
 | Pursuit | **fixed**: from S + 6, running, held target, routed round rubble (she cannot walk over it) and npcs, swings from a side. She used to walk at the nearest raider with her south-west corner aimed at them, and stand behind rubble |
+| Pursuit, 2026-10-19 later | the chase runs in her `[ai_timer]` (npc phase), from the raider's tile at the end of last tick, walked the same phase. Run from the room tick (a raider's queue, before that raider walks) she chased where the raider had been a tick earlier and the raider chased where she had been: with run on the two swapped two tiles every tick for good. Now she closes and stands |
+| Boulders, 2026-10-19 later | a boulder's baboon check reads its three front tiles with `npc_find`; its own `npc_findallany` reset the boulder loop's search, so every boulder after one that struck stood still that tick and the line broke up. A baboon summoned into a lane during a dig now dies to it, goer or not (the goer is not replaced) |
+| Knockbacks, 2026-10-19 later | the scream and a boulder drop the raider's attack and hold them (`p_stun`): the first recorded step after a scream is +6 (every recorded scream), after a boulder +2 with its hit on +1 (3 of 3). Unheld, a raider who was hitting her ran straight back at her |
 | Attack cycle | **fixed** to the recorded order: rocks, shockwave, swing, throw, swing |
 | Shockwave | **new**: both sizes by Shaking Things Up, the stomp, shadows on open floor, the slam's tiles, delays and sounds |
 | Rocks and rubble | **fixed**: rocks on every raider's tile, speed by path level, rubble hitpoints by party with `rubble_2`, bars and transformations re-sent every tick, "Ouch!" knockback, cleared on the crossing. They used to fall on random tiles with an Osmumten summon animation on the rubble |

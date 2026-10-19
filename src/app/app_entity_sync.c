@@ -42,7 +42,11 @@ app_entity_spotanim_resident(
     if( !type || !CacheProvider_ModelGet(app->provider, type->model) )
         return 0;
     anim = type->seq >= 0 ? ToriDraw_SceneAnimationGet(app->scene, type->seq) : NULL;
-    return anim && anim->frame_count > 0 && anim->frames && anim->base;
+    /* Classic (frames + framemap) or skeletal (animaya): Kephri's dung mark
+     * (`kephri_indicate_player_for_dung`, the scarab swarm on the raider) plays
+     * a skeletal seq, and requiring `frames` here kept it from ever counting as
+     * loaded, so it was never drawn. */
+    return anim && anim->frame_count > 0 && ((anim->frames && anim->base) || anim->skeletal);
 }
 
 static void
@@ -412,7 +416,21 @@ app_entity_spotanim_pose(
      * (tzhaar_heal, 200) at 200*200/128. Hole frames (missing archive)
      * hold the rest pose, like the renderer. */
     ToriDraw_ModelAnimateReset(posed);
-    if( anim->frames[frame].length > 0 )
+    if( anim->skeletal )
+    {
+        struct ToriDraw_SkeletalAnim const* skeletal = anim->skeletal;
+        /* As the scene's own skeletal pose (toridraw_scene.c): a model with no
+         * animaya skin holds its rest pose rather than fault on the arrays. */
+        if( skeletal->frame_count > 0 && posed->animaya_vertex_count > 0 &&
+            posed->animaya_group_counts && posed->animaya_groups && posed->animaya_scales )
+        {
+            if( !posed->original_vertices_x )
+                ToriDraw_ModelCaptureOriginalVertices(posed);
+            ToriDraw_ModelAnimateSkeletal(
+                posed, skeletal, frame < skeletal->frame_count ? frame : skeletal->frame_count - 1);
+        }
+    }
+    else if( anim->frames[frame].length > 0 )
         ToriDraw_ModelAnimateFrame(posed, anim->base, &anim->frames[frame]);
     else
         ToriDraw_ModelApplyPostTransforms(posed);

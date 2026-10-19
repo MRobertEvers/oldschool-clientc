@@ -34174,10 +34174,14 @@ ToriRSServer_WorldSelftest(void)
                              * with `~toa_return_to_nexus`. `toa_room` staying -1
                              * (the debugproc reported the Nexus) is the pass.
                              */
-                            SELFTEST_CHECK(toa_room != 5,
-                                           "killing Kephri should bank the room and "
-                                           "return the party (`~toa_boss_complete`), "
-                                           "but they are still in room %d", toa_room);
+                            /* Banked, and the party STAYS: Osmumten comes and
+                             * "Proceed" on him takes them out (every recorded
+                             * kill; docs/rsprox-analysis/toa/README.md). */
+                            SELFTEST_CHECK(toa_room == 5 && toa_done == 1,
+                                           "killing Kephri should bank the room "
+                                           "(`~toa_boss_complete`) with the party still "
+                                           "in it for Osmumten, saw room %d done %d",
+                                           toa_room, toa_done);
                         }
                     }
                 }
@@ -40237,10 +40241,11 @@ ToriRSServer_WorldSelftest(void)
             int slot = player->tracked[0];
             struct ToriRSServerNpc* npc = &srv->npcs[slot];
 
-            ToriRSServer_WorldNpcTeleport(npc, player->x + 2, player->z + 2, player->level);
+            /* Three tiles: a jump. Two or less glides (below). */
+            ToriRSServer_WorldNpcTeleport(npc, player->x + 3, player->z + 3, player->level);
             SELFTEST_CHECK(npc->tele == 1, "the chokepoint raises the flag the encoder reads");
             SELFTEST_CHECK(npc->step_dir == -1,
-                           "and a teleport is not a step, or the client glides him there");
+                           "and a jump is not a step, or the client glides him there");
 
             selftest_tick(srv);
             SELFTEST_CHECK(player->npc_tracked[slot],
@@ -40249,6 +40254,25 @@ ToriRSServer_WorldSelftest(void)
                            "and he leaves the place he held in the client's list");
             SELFTEST_CHECK(npc->tele == 0,
                            "phase 11 clears it, once every observer has been told");
+
+            /* Two tiles or less glides: steps on the same npc, as Jagex sends
+             * it with the jump bit down (RSProx: 53,998 of 54,043). */
+            {
+                int was_x = npc->x;
+                int was_z = npc->z;
+
+                ToriRSServer_WorldNpcTeleport(npc, was_x + 2, was_z + 1, npc->level);
+                SELFTEST_CHECK(npc->tele == 0, "a two-tile teleport is not a jump");
+                SELFTEST_CHECK(npc->step_dir >= 0 && npc->run_dir >= 0,
+                               "it is two steps, got %d / %d", npc->step_dir, npc->run_dir);
+                selftest_tick(srv);
+                SELFTEST_CHECK(player->npc_tracked[slot],
+                               "and the client keeps the same npc rather than a re-add");
+                ToriRSServer_WorldNpcTeleport(npc, npc->x, npc->z + 1, npc->level);
+                SELFTEST_CHECK(npc->tele == 0 && npc->step_dir >= 0 && npc->run_dir < 0,
+                               "one tile is one walk step");
+                selftest_tick(srv);
+            }
         }
     }
 
