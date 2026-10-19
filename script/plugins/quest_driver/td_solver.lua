@@ -45,8 +45,10 @@ TD.V = {
     -- the engage goes out from at least this gap, so a melee segment walks
     HOLD_OFF = 2,
     -- the bind holds my feet B .. B + 2; the bombs land on B + 4 and read my
-    -- tile at the end of B + 3; a bomb segment tells on B + 4
-    BIND_LAST = 2, BOMB_READ = 3, BOMB_LAND = 4, BOMB_TELL = 4,
+    -- tile at the end of B + 3. After a bomb the demon walks off B + 1..B + 3
+    -- and takes the fight back on B + 4 (docs/rsprox-analysis/tormented_demons,
+    -- "The walk off"), so a bomb segment tells on B + 5
+    BIND_LAST = 2, BOMB_READ = 3, BOMB_LAND = 4, BOMB_WALK = 4, BOMB_TELL = 5, BOMB_SWING = 6,
     -- sprite group 440's frames: the demon's protection prayer
     ICON_GROUP = 440, ICON = { [0] = "melee", [1] = "ranged", [2] = "magic" },
     EAT_BELOW = 60,
@@ -98,6 +100,22 @@ function TD.in_reach(x, z, nx, nz)
     if dx >= 0 and dx < s and (dz == -1 or dz == s) then return true end
     if dz >= 0 and dz < s and (dx == -1 or dx == s) then return true end
     return false
+end
+
+-- The fewest steps the demon at nx, nz needs to have me in its melee reach
+-- (a diagonal step moves both axes; a corner is not reach).
+function TD.reach_moves(x, z, nx, nz)
+    local s = TD.V.SIZE
+    local best = nil
+    for ax = x - s, x + 1 do
+        for az = z - s, z + 1 do
+            if TD.in_reach(x, z, ax, az) then
+                local moves = math.max(math.abs(ax - nx), math.abs(az - nz))
+                if best == nil or moves < best then best = moves end
+            end
+        end
+    end
+    return best
 end
 
 -- ================================================================ OBSERVE
@@ -200,9 +218,22 @@ function TD.observe(S, F)
             end
         end
     end
-    -- the tell: a step after the explosion is a melee segment
+    -- the walk off after a bomb is no tell: the segment's tile follows it
     local seg = m.seg
-    if seg and seg.style == nil and F.tick > seg.start and (row.x ~= seg.tile.x or row.z ~= seg.tile.z) then
+    if seg and seg.kind == "bomb" and F.tick <= seg.start + V.BOMB_WALK then
+        seg.tile = { x = row.x, z = row.z }
+    end
+    -- the tell: a step after the explosion (after the walk off) is a melee
+    -- segment -- after a bomb only if it can still be edge-on to me by its
+    -- swing on B + 6: from further off a melee segment throws instead
+    -- (td_combat.rs2 ~td_swing_style), and a thrower that walked off out of
+    -- sight steps back in to throw too
+    local reachable = true
+    if seg and seg.kind == "bomb" then
+        reachable = TD.reach_moves(F.me.x, F.me.z, row.x, row.z) <= seg.start + V.BOMB_SWING - F.tick
+    end
+    if seg and seg.style == nil and reachable and F.tick > seg.start
+        and (row.x ~= seg.tile.x or row.z ~= seg.tile.z) then
         seg.style, seg.by = "melee", "walk"
         QD.raid._tob_trace(S, F.tick, string.format("td walks: melee (%s + %d)", seg.kind, F.tick - seg.start))
     end

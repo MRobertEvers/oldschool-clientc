@@ -192,6 +192,19 @@ Not ours to match: thralls, the recorders' weapons and specials, potion and ques
 
 **Projectile sources (engine).** Jagex names the demon as the fireball's, rib shard's and bombs' source (MAP_PROJANIM `sourceIndex`; the client starts the shot from where the demon stands when it launches); the entangle leaves from a tile. Our wire always sent 0. The server now carries a source through the zone event, per client in that client's npc numbering, and content names one with `npc_projanim_pl` / `npc_projanim_npc` / `npc_projanim_map` (opcodes 11155-11157: the `projanim_*` arguments, the active npc as source). `rsprox_tells.py` compares it as `proj_source`. Across the 76 archived sessions a source is the launching script's choice, not the projectile's: the same ids fly both ways. Other npcs recorded with sources and still sending from a tile here include Yama, the Infernal Mages, the elite dark rangers and mages, Karil, Ahrim and the Varlamore quest npcs.
 
+## The walk off after a bomb (2026-10-19)
+
+After every bound bomb ONE demon walks off: a scripted walk, not a combat movement (1696, 552; the 7 recorded bombs, 6 with a demon in the fight).
+
+- **Which:** the demon nearest the player (14671: 4 tiles against its partner's 7; the rest ties or a lone demon). Not the binder by rule: 3 of 6 walkers bound, 3 did not.
+- **B + 1:** its interaction is dropped (`face_pathingentity entity=null`) and it walks.
+- **B + 1..B + 3:** one step a tick to a tile 3 off: (-2,-3) twice, (-3,0), (+3,-1); (0,-2) and (+1,0) where something stopped it. The direction is not the player's (14748 walked east with the player due north) and six walks do not show a rule, so the tile is a random one on the ring 3 out here.
+- **B + 4:** it faces the player again (`face_pathingentity player=`); its next swing is still B + 6. A demon that ended out of sight of the player walks back in (1696 1974 / 2034 from 8 tiles; ours from behind a pillar).
+
+Content: `td_fire_bomb` marks the walker (`~td_partner_nearer`), `~td_tick` runs `~td_bomb_walk` on B + 1 (`npc_setmode(none)`, `npc_walk`) and `~td_bomb_walk_end` on B + 4 (the rest of the path dropped, `npc_attackplayer`, the swing clock kept). The solver (`td_solver.lua`) no longer reads the walk as the melee tell: a bomb segment tells on B + 5, and only when the demon could still be edge-on by its B + 6 swing (from further a melee segment throws).
+
+Scriptrun 48 of 48 GREEN (146-272 ticks); live td0 GREEN, walks on 2 of its 3 bombs (the third's tile unreachable).
+
 ## Open
 
 - **The engage switch:** ours lands on the attack after the engaging one. Jagex's first write comes 0–7 attacks after the first damaging hit (1756), and the recordings don't show what decides it.
