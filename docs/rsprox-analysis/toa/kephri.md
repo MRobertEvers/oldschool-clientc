@@ -60,9 +60,9 @@ cast+4 every egg lands: npc `kephri_egg_hatch` (11729) or `kephri_egg_explode`
 |---|---|
 | Shield | `kephri_shield_dead` (2142) on Kephri every 3 ticks from D+3 |
 | Guardians (D+0..2) | `toa_kephri_guardian_ranged` (11725) at (3556,5413), `toa_kephri_guardian_melee` (11724) at (3556,5407), and on the second stun `toa_kephri_guardian_mage` (11726) at (3556,5401). Ranged and melee spawn with `npc_scarab_spawn` (9589) |
-| Ranged guardian | `npc_scarab_ranged_attack` (9588) every **3 ticks**; `toa_scarab_ranged_projectile01` (2152) to a raider: start 60, end 65–80 (5 more a tile of distance: 70 at 4, 75 at 5, 80 at 6, counted from its south-west tile), angle 16, slope 64, height 10 → 31 |
-| Melee guardian | heals Kephri: `toa_kephri_melee_heal` (2150), start 0, end 30, angle 2, slope 30, height 25 → 62; area `toa_kephri_melee_scarab_projectile_heal_01` (6427) loops 1 range 9 |
-| Mage guardian | teleports about: `npc_scarab_flying_spawn` (9596) with a retype to itself and area `toa_mage_scarab_teleport_01` (6482) every 5–11 ticks; its charge `toa_kephri_mage_charge` (2149) start 0 end 115 angle 20 height 0 → 0, area `toa_mage_scarab_charge_07` (6486), synth `toa_mage_scarab_projecile_hit_01` (6473) delay 115 |
+| Ranged guardian | `npc_scarab_ranged_attack` (9588) every **3 ticks**; `toa_scarab_ranged_projectile01` (2152) to a raider from its middle tile: start 36, end 45 + 5 a tile of distance (never below 55), angle 16, slope 64, height 24 → 31 (324 shots on its attack tick with no kite attacking). *Until 2026-10-19 this row and the kites' had the two projectiles the other way round.* |
+| Melee guardian | faces a raider 2 ticks after it rises (15 of 15) and walks at them; heals Kephri wherever it is: `toa_kephri_melee_heal` (2150) from its middle tile, start 0, end 30, angle 2, slope 30, height 25 → 62; area `toa_kephri_melee_scarab_projectile_heal_01` (6427) loops 1 range 9 on its middle |
+| Mage guardian | faces her middle (3551,5408) on every post, never a raider (69 of 69 `face_coord`); moves only when hit hard (below); its charge `toa_kephri_mage_charge` (2149) start 0 end 115 angle 20 height 0 → 0, area `toa_mage_scarab_charge_07` (6486), synth `toa_mage_scarab_projecile_hit_01` (6473) delay 115 |
 | Swarms | `toa_kephri_shield_scarab` (11723) from D+5..7, then every 4 ticks, more as the stun goes on, at the room edges (e.g. (3559,5404), (3559,5413), (3543,5404), (3543,5412), (3552,5400), (3552,5416)); `npc_swarm01_scarab01_spawn01` (9605). One that reaches Kephri plays `npc_swarm01_scarab01_integrate01` (9607) (from D+15) with area `toa_kephri_absorb_swarm_01` (6462) range 8/9; killed, `npc_swarm01_scarab01_death01` (9608) |
 | Kamikaze scarabs | D+4..9, then every **12 ticks** (D+16.., +28.., +40..): `kephri_kamikaze_scarab` (2147) to a tile, start 0, end 120, angle 115, slope 0, height 112 → 9; **4 ticks later** map_anim `kephri_kamikaze_scarab_explode` (2148) height 38 on it |
 
@@ -70,13 +70,58 @@ cast+4 every egg lands: npc `kephri_egg_hatch` (11729) or `kephri_egg_explode`
 
 `toa_kephri_scarab_rangekite` (11727), from a hatched egg (and sometimes at
 the phase change): `npc_scarab_flying_attack` (9594) every 4 ticks (1,100 of
-1,286); its projectile is `toa_scarab_ranged_projectile01` (2152) start 36,
-end 85/90, height 24 → 31. Death `npc_scarab_flying_death03` (9599).
+1,286); its projectile is `toa_scarab_ranged_projectile01` (2152) from its
+own tile, start 60, end 50 + 5 a tile (75 at 5, 80 at 6), height 10 → 31
+(1,308 shots on a kite's attack tick with no guardian attacking). Death
+`npc_scarab_flying_death03` (9599). It faces the room's middle as it hatches,
+then the raider it is after every tick, and **runs** (two tiles a tick) to keep
+5 or 6 from them, judged on their tile before they move (14, six kites): 4 or
+nearer, a run straight away (105 of 129) and a second (90 of 105); at 7 or 8 a
+run back in (101 of 164); 5 or 6 it holds (2,069 of 2,075).
 
 ## Sounds
 
-`toa_kephri_defend_01` (6592) area range 9 on Kephri when hit;
-`toa_kephri_scarab_defend_01` (6596) on the scarabs.
+`toa_kephri_defend_01` (6592) area range 9 on her middle for every raider's
+hit, blocks too (1,074 of 1,074 in 1852; the stunned form's heals never);
+`toa_kephri_scarab_defend_01` (6596) range 9 on a guardian's middle for every
+hit on it (389 of 389 ticks); swarms, kites and eggs have none.
+
+## Facing, headbars, splats (2026-10-19)
+
+- **Kephri** faces the raider who last attacked her: `face_pathingentity` on
+  them 0-1 ticks after each attack's click (raider by raider in a party), and
+  `face_coord` on their tile every tick. A dung strike clears it on its tick
+  (`face_coord (-1, …)`, then `entity=null`), a break into a stun clears it;
+  eggs do not. The next attack takes her again.
+- **Headbars:** shielded and stunned forms healthbar 13 (1,843 of 1,843),
+  enraged 21 (296 of 296), guardians 17 (555), swarms, kites, eggs 0.
+- **Splats:** hits on the shielded form are `hitsplat_shield_me` / `_other`
+  (18/19, 1,314 of 1,314; max hits 44); enraged, the red 16/17.
+- **Swarms** face her middle as they rise, stand 3 ticks, walk a tile a tick
+  (+3..+7), integrate at +10 and are removed 3 later (143 of 143; killed, 2
+  after the death anim, 311 of 311).
+- **Arcane scarab** moves only on a heavy hit: 20 of its 21 moves in 1852 came
+  on a hit of 42-104 that tick or the one before (`npc_scarab_flying_death02`,
+  the teleport 2 later); no hit of 38 or less moved it. 14's one move after
+  firing is the bug Jagex fixed ("teleporting immediately after firing").
+- **Graphics:** a fireball lands as one `vfx_scarab_explosion` at height 38 (66
+  of 66 in 14; 102 single-tile volleys in 1852); with Aerial Assault every 3x3
+  tile explodes at height 0 (55 of 58). A kamikaze scarab's cast puts
+  `gargboss_debris_shadow_120` on its tile; its landing adds a
+  `vfx_scarab_explosion` (delay 1, height 38) and `toa_kephri_fire_proj_
+  impact_01` range 6 (10 of 10). An exploding egg at +15: a ground
+  `vfx_scarab_explosion` on its tile (28 of 28); a hatching egg pops
+  (`spotanim_dungball_explosion01`, no sound); a killed egg pops with
+  `toa_kephri_eggs_explode_death_01` range 5 and is gone the tick after the
+  killing hit (18 of 18). No anim of its own. At her death + 3 every dung tile
+  is swapped for `invisible_type0_nonblocking` at its rotation (54 of 54).
+- **Before the dung strike** the only graphic is `kephri_indicate_player_for_dung`
+  (2146) on the marked raider, 5 ticks ahead; Kephri herself plays no spotanim
+  before it (none in the 6 ticks before any of 36 specials in 1852, nor in 14).
+  Her dung animation is the strike's own `npc_kephri_attack_special_eggs`
+  (fly up, fly down, the dung impact at frame 66). `npc_kephri_attack_ranged`
+  (9575) carries dung-roll sounds but is played in no recording, including
+  the Grid Master kills 844 (rev 234) and 3431 (rev 235).
 
 ## Measured from the packets (2026-10-18)
 
@@ -157,10 +202,11 @@ first shot D+5 (14 of 15), every 3 (87 of 96). Kites first shot 4 after they
 appear (27 of 46), every 4 (1,100 of 1,286). Kamikaze scarabs D+4..9 then
 every 12, at a raider's tile (67 of 81), exploding 4 ticks later. The mage
 moves between 6 posts in a fixed order (22 moves), rings its charge every 3
-ticks from 5 after arriving and fires after the 8th; a hit of 39+ moves it
-(5 of 5 moves were hits of 51-89, 8 hits of 26-38 did not).
+ticks from 5 after arriving and fires after the 8th; it moves only on a hit
+of 39+ (see Facing, headbars, splats).
 
-**Removal.** Swarms 2 ticks after their death anim (311 of 311), guardians 4
+**Removal.** Swarms 2 ticks after their death anim (311 of 311), 3 after
+absorbing (143 of 143), guardians 4
 (36 of 36), kites 3 (12 of 12). On her death every add goes 3 ticks later (35
 of 35), and "Challenge complete" is 3 ticks after the death.
 
@@ -193,6 +239,11 @@ with a replay checker: 843 of 843.
 | Breaks | **fixed**: three breaks, two stuns 54 / 51 solo, two wakes, the third enrages with a dung strike on the same tick (1 of 1) |
 | Stun adds | **fixed**: solo guardian sets (2 of 2), shield_dead every 3 from D+3, the swarm ladder (2 of 2), absorb +10 (32 of 32), heal (24 of 24), kamikaze (9 of 9), ranged/kite cadence (179 of 179) and flights (72 / 110 of 110) |
 | Death | **fixed**: dead body that tick, adds removed +3, complete +3 |
+| 2026-10-19 | **fixed**: the shield headbar (13) and splat (`hitsplat_shield`) until enraged, the enraged bar 21, guardians' bar 17; she faces her last attacker (dropped by a strike or a break); swarms walk (they crawled) from +3 through raiders and adds (`moverestrict=passthru`), absorbed +10, removed +13, and can be attacked (scriptrun: hits land); the spitting and agile scarabs' projectiles un-swapped, shots from a guardian's middle; agile scarabs run to hold 5-6; the soldier scarab chases the raider it is after (`passthru`) and swings when side on, healing from its middle; the arcane scarab faces her middle and moves only on a heavy hit (it also moved after every shot); the defend sounds; fireball, kamikaze and egg graphics; a killed egg pops and goes the next tick (it had human anims and a corpse wait); arcane and agile death `npc_scarab_flying_death03`; dung cleared at the end. `toa_kephri_tells.lua` checks the splat, the facing, a swarm hit and an egg kill: 8 of 8 |
+| 2026-10-19, second pass | the spitting scarab stands still and spits at every raider in the room each attack (102 of 102 recorded attacks: one shot per raider, out to 12 tiles), and Protect from Missiles only cuts it (prayed 0-3 over 36 hits, unprayed up to 13: a fifth lands, approximate); the agile, soldier and spitting scarabs face their raider as an entity (`npc_setmode(playerface)`, `maxrange=20`), so a kite running backwards keeps looking at them; swarms her wake kills are removed 2 ticks later (they stood frozen at 0 hitpoints until the room cleared, which read as swarms stuck and not healing) |
+| Soldier's swing (wiki) | no recording has the soldier scarab beside a raider, so its swing is the wiki's infobox: slash, max 17, every 7 ticks, attack 75 / +100 slash through the OldSchool accuracy roll against the raider's slash defence (raised 2% per 5 raid levels) |
+| Open: agile / soldier moves a tick late | both are steered from the room tick (player phase), so a step lands the tick after it is chosen; Jagex's react to the raider's tile in the npc phase of the same tick. Swarms are ordered a tick early instead (their path does not depend on a raider) |
+| Open: Osmumten | the recording adds `toa_osmumten_kephri` beside her at death + 3; ours moves the party on (the every-room completion row below) |
 | Open: party numbers | party guardian sets, Blowing Mud's second line, the 2-raider stun lengths and hatch counts are exercised only by the recordings, not by a party test; hatch counts for 4-5 raiders are not recorded |
 | Open: damages | ranged guardian (15) and kite (10) shots, egg bursts and kamikaze hits keep the old constants: no recording shows a hit we could fit them to |
 | Open: heal at low hp | swarm heals of 1050 and 150 pools sit below 11%; the post-wake count draw (5/4/2) is a weighted guess from 12 wakes |
