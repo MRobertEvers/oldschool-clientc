@@ -21,6 +21,7 @@ Each room's file states the recorded behaviour, the recording ticks it was read 
 | [thieving.md](thieving.md) | Thieving: the chests, the trough, the scavenger's meals, its sleep and the reward |
 | [points.md](points.md) | Points: combat, potions, the keystone, the meat tree, braziers |
 | [shamans.md](shamans.md) | Lizardman shamans |
+| [skilling.md](skilling.md) | Skilling in the resource rooms: raking, planting, picking, cleaning, mixing, fires and cooking (from Jagex's ordinary skilling: no recording preps inside the raid) |
 
 ## Sources
 
@@ -63,6 +64,7 @@ All recordings are submissions to the public archive, [rsprox.net/database](http
 | `tools/cox/los_probe.c` | The server's own collision answers (line of sight, line of walk, flags) for a built template scene, over a pipe; `rsprox_mystics.py --probe` asks it whether a mystic saw the raider |
 | `tools/cox/rsprox_icedemon.py` | Ice Demon, in INSTANCE tiles: his attacks (projectiles, the burst's nine, sounds), the pop, the fiends, the braziers, blocks, death |
 | `tools/cox/rsprox_vasa_teleport.py` | Vasa's teleport special in INSTANCE tiles (an untranslated transcript, below): every raider's distance from his middle, the stun, the explosion |
+| `tools/cox/rsprox_skilling.py` | Skilling as the server answers it: every rake, plant, herb pick, clean, mix, fire and cook click with the seqs, sounds, messages, pack changes and xp after it |
 | `tools/cox/rsprox_shamans.py` | Lizardman shamans (raid and surface): each swing's projectile against the gap, the acid's landing and reach, the choice against reach, the cadence, the jump, the summon's spawns and bursts, the sounds; follows every player |
 | `tools/cox/rsprox_muttadiles.py` | Muttadiles: the meals, every attack against reach and target, projectiles, the submerged sweeps, prayer, the surfacing, the erratic step, the sounds |
 | `tools/cox/rsprox_olm.py` | Olm's area hits (bombs, falling crystals) against distance |

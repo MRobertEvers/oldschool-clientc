@@ -77,11 +77,11 @@ the two a raid deals.
 
 | quantity | value | source |
 |---|---|---|
-| plant | seed **used on** the patch; needs a seed dibber | W:Golpar_(plant) etc. "A seed dibber is needed to plant the seed"; cache patch has only op2 Inspect |
+| plant | seed **used on** the patch; needs a seed dibber; the dibber's seq and `farming_dibbing` on the click, the message, xp and seeded patch 3 ticks later (RSProx RK-S1) | W:Golpar_(plant) etc. "A seed dibber is needed to plant the seed"; cache patch has only op2 Inspect |
 | levels / plant xp / pick xp | golpar 27/4/10, buchu 39/6/15, noxifer 55/12/30 (per herb) | W:Pots; W:<herb>_(plant) |
 | grow | 30 s = 50 ticks, four stage locs | W:CoX; J:2023-11-29 sped up; cache ids 29997-30011 |
 | pick | a **spade** is needed | Tubby 0:35:12; EdB0ys 1:01:11 (NR: none -- outranked) |
-| yield | one herb every 2 ticks; 3 lives; a life kept with p = min(0.95, 0.65 + (Farming - plant level)/250) | NR HerbHarvestAction. Wiki: "scales with Farming level" (no formula). Recorded: Beleti brews 21 buchu potions from his patches ("you just need the one, but sometimes it breaks"); our probe: 12 buchu from one patch at 99 |
+| yield | one herb every **3** ticks, the first the tick after the start, `pick` with each and `picking_low` the tick before (RSProx RK-P1, Jagex's herb patch; NR's 2 outranked); 3 lives; a life kept with p = min(0.95, 0.65 + (Farming - plant level)/250) | NR HerbHarvestAction. Wiki: "scales with Farming level" (no formula). Recorded: Beleti brews 21 buchu potions from his patches ("you just need the one, but sometimes it breaks"); our probe: 12 buchu from one patch at 99 |
 | party scaling | more herbs in bigger raids (optimal at 14+) | J:2017-01-06, Revisited blog -- solo is the floor, not modelled beyond NR's rule |
 | full pack | the herb goes to the floor | J:2017-01-06 |
 | clear | op3 on a grown patch, spade | cache op3 Clear; NR HerbClearAction |
@@ -92,7 +92,7 @@ the two a raid deals.
 | quantity | value | source |
 |---|---|---|
 | tool | rake | W:Weeds |
-| loop | continues until cancelled; one rake per 3 ticks | W:Weeds; NR RaidRakingAction (NR stops at 5 -- outranked) |
+| loop | continues until cancelled; one rake per **4** ticks, each with `farming_raking` | W:Weeds; RSProx RK-R1 (Jagex's raking; NR's 3 and its stop at 5 outranked) |
 | per rake | 1-3 of one seed, never the seed given last | W:Weeds loot; J:2019-01-31 "rotate between the different seeds" |
 
 ### 2.3 Fishing (Resources A)
@@ -117,6 +117,9 @@ the two a raid deals.
 
 ### 2.5 Food
 
+Kindling lights with a tinderbox (one piece of the stack; Firemaking 1, 48 xp, wiki
+Kindling) on Jagex's log cadence (RSProx RK-F1); the 14 raw foods cook on it through the
+cooking table (`cox_cooking.dbrow`; burn rates unpublished, `docs/rsprox-analysis/cox/skilling.md`).
 Cooked fish/bat heals 5 + 3 x tier; cooked on a **fire** from kindling; the cook gets
 4 + 8 x tier points per piece eaten (+50% if eaten by someone else; soft cap 20 x
 party, hard 40 x party). W:Food, W:CoX "Cooking Food". Xeric's aid heals more per
@@ -147,6 +150,10 @@ overload (W:CoX "downgrade accordingly for overloads").
 | antipoison | 13.5 | 20 | 26.5 | W:Antipoison_minus/_potion/_plus |
 | overload | 33.5 | 50 | 66.5 | W:Overload pages |
 | cleaning golpar/buchu/noxifer | 1 / 2 / 3 (levels 47/52/60) | | | W:Pots; W:Golpar |
+
+Cleaning prints "You clean the Grimy golpar." with a `herblore_clean_herb` sound on the click
+(RSProx RK-C1); a potion comes with `human_herbing_vial` and `grind` on the click, then one
+every 2 ticks (RK-M1; until 2026-10-19 a `p_delay(2)` made it every 3).
 
 ### 3.2 Effects
 
@@ -239,16 +246,16 @@ kill dropping bones, weeds raking, overload (+) brewed and drunk. **0 aborts, 0
    `loc_near` is level-blind and picked the copy on floor 2 straight above (same x,z,
    level 1). The level-0 hotspot (template (11,25) angle 3, `forceapproach=23` -> open
    side south after the turn) opens Private storage from its south tile.
-3. **Cooking** (kindling from the room's Sapling `raids_woodsource_roots`, a fire,
-   raw->cooked) and the cook's points need firemaking/cooking table rows in files this
-   unit does not own; Ice demon's kindling has the same need.
+3. ~~Cooking~~ done 2026-10-19 (`cox_cooking.rs2`, `cox_cooking.dbrow`; hooks in
+   `firemaking.rs2` and `cooking.rs2`): kindling fires, raw->cooked, the cook's points
+   on eating (per cook: a party's shared count is still ours).
 4. Unpublished, ours and flagged: shortcut resistance/time; prayer enhance (-)/std
    counts; revitalisation (-) (NR); herb yield party scaling beyond solo; bat count 2
    (NR) vs wiki "two to three".
 5. Snake bites only the fisher who woke it (others adjacent are not hit).
 6. ~~invented fishing-spot npc~~ deleted (round 2: record, `pack/npc.server` line,
    generated block).
-8. **Cooking** needs, outside this unit: 14 rows (7 fish, 7 bats: raw/cooked/burnt,
+8. ~~Cooking needs~~ (done, see 3; kept for the record), outside this unit: 14 rows (7 fish, 7 bats: raw/cooked/burnt,
    levels 1..90, xp 10..28, burn chances) in `skill_cooking/configs/cooking_generic.dbrow`
    (`[oplocu,_cooking_fire]` in `skill_cooking/scripts/cooking.rs2` reads it); kindling
    (`raids_wood`) as a lightable log in `skill_firemaking` (the tinderbox handler and its

@@ -878,7 +878,9 @@ function QD.SUP.resource(opts)
                         local me = QD.SUP.me()
                         api_drive.move_to(me.x + (me.x - spot.x), me.z + (me.z - spot.z))
                         QD.ticks(2)
-                    else
+                    elseif QD.SUP.count_any({ "raids_fish0_raw", "raids_fish1_raw", "raids_fish2_raw", "raids_fish3_raw",
+                            "raids_fish4_raw", "raids_fish5_raw", "raids_fish6_raw" }) > raw0 then
+                        -- (a try whose wait ran out caught nothing: it is a try, not food)
                         food_got = food_got + 1
                         foods = foods + 1
                     end
