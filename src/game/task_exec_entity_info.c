@@ -1614,6 +1614,18 @@ npc_apply_op(
             World_NpcSetBodyModels(
                 world, idx, op->_body.models, op->_body.reset ? 0 : op->_body.model_count);
         break;
+    case PKT_NPC_INFO_OP_TINT:
+        if( idx >= 0 )
+            World_NpcSetTint(
+                world,
+                idx,
+                op->_tint.start_cycle_delta,
+                op->_tint.end_cycle_delta,
+                op->_tint.hue,
+                op->_tint.saturation,
+                op->_tint.lightness,
+                op->_tint.weight);
+        break;
     case PKT_NPC_INFO_OP_BAS_CHANGE:
         if( idx >= 0 )
         {

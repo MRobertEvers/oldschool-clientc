@@ -206,6 +206,9 @@ def scan(path, anchor, gap, names, sink, timeline):
                     emit(actor[0] + "_" + kind, (who, body))
                 elif kind == "hit":
                     emit("hitsplat", (actor[0] if actor[0] == "npc" else who, re.sub(r", value=\d+", "", body)))
+                elif kind == "tinting":
+                    # our npc_tint / p_tint rows say the same six fields
+                    emit(actor[0] + "_tinting", (who, body.strip()))
                 continue
             m = TOP.match(line)
             if not m:
@@ -368,12 +371,16 @@ def scan_ticklog(path, anchor, gap, names, sink, timeline):
             # e = the one player it was sent to; RSProx's is always the recorder
             emit("map_anim_specific", (spot(b), fields([("delay", d), ("height", c)])))
         elif kind == "player_tint":
-            # RSProx [tinting] on the recorder's own player is compared by hand
-            # (docs/rsprox-analysis/toa/apmeken.md); the row is here for --kind
+            # RSProx [tinting] on the recorder's own player (`player_tinting`)
             # columns: a=pid b=start c=end d=hue e=saturation f=lightness, g (r[10]) = weight
             weight = int(r[10]) if len(r) > 10 and r[10].lstrip("-").isdigit() else 0
             emit("player_tinting", ("ME", "start=%d, end=%d, hue=%d, saturation=%d, lightness=%d, weight=%d"
                                     % (b, c, d, e, f, weight)))
+        elif kind == "npc_tint":
+            # columns: a=slot b=type c=start << 16 | end d=hue e=saturation f=lightness, g (r[10]) = weight
+            weight = int(r[10]) if len(r) > 10 and r[10].lstrip("-").isdigit() else 0
+            emit("npc_tinting", (npc(b), "start=%d, end=%d, hue=%d, saturation=%d, lightness=%d, weight=%d"
+                                 % (c >> 16, c & 0xffff, d, e, f, weight)))
         elif kind == "player_anim" and b >= 0:
             emit("player_seq", ("ME", seq(b), fields([("delay", c)])))
         elif kind == "player_spotanim" and b >= 0:

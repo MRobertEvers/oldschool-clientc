@@ -10,7 +10,7 @@
  *
  * Coverage by layer:
  *     63  VM core
- *    372  host commands
+ *    373  host commands
  *      9  host commands (db)
  *     10  host commands (inv)
  *      8  host commands (loc)
@@ -19,7 +19,7 @@
  *      2  host commands (param)
  *      7  host commands (player)
  *     18  host commands (poh)
- *    511  total, of 563 declared opcodes
+ *    512  total, of 564 declared opcodes
  */
 
 #ifndef SRC_TORIRSSERVER_TORIRS_SERVER_OPCODE_COVERAGE_GEN_H
@@ -27,8 +27,8 @@
 
 #include <stdint.h>
 
-#define TORIRSSERVER_OPCODE_COVERAGE_COUNT 511
-#define TORIRSSERVER_OPCODE_DECLARED_COUNT 563
+#define TORIRSSERVER_OPCODE_COVERAGE_COUNT 512
+#define TORIRSSERVER_OPCODE_DECLARED_COUNT 564
 
 /*
  * One past the highest opcode *value*, which is nothing like the number of
@@ -550,6 +550,7 @@ static const uint16_t TORIRSSERVER_OPCODE_COVERAGE[TORIRSSERVER_OPCODE_COVERAGE_
     11159, /* SS_OP_P_TINT (host commands) */
     11160, /* SS_OP_LOC_ADD_REVERT (host commands) */
     11161, /* SS_OP_NPC_ROUTEAPPROACH (host commands) */
+    11162, /* SS_OP_NPC_TINT (host commands) */
     11200, /* SS_OP_NPC_VENOM (host commands) */
     11210, /* SS_OP_SPOTANIM_PL_SLOT (host commands) */
 };

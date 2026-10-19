@@ -996,6 +996,9 @@ app_world_revert_player_tints(struct App* app);
 void
 app_world_sync_player_tints(struct App* app);
 
+void
+app_world_sync_npc_tints(struct App* app);
+
 /* Mount every npc's body whose customisation changed (WorldEntity_NPC
  * body_serial), once its models are resident. Before the spotanim sync, which
  * re-snapshots a body swapped under its merge. */

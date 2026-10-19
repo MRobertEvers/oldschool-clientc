@@ -1602,12 +1602,26 @@ npc_extended(
         }
         if( (flag & V5_NPC_TINTING) != 0 )
         {
-            (void)tail_g2_alt1(data, len, &pos);
-            (void)tail_g2_alt2(data, len, &pos);
-            (void)tail_g1(data, len, &pos);
-            (void)tail_g1_alt1(data, len, &pos);
-            (void)tail_g1_alt1(data, len, &pos);
-            (void)tail_g1_alt1(data, len, &pos);
+            /* NpcTintingEncoder: p2Alt1 start, p2Alt2 end, p1 hue,
+             * p1Alt1 saturation, p1Alt1 lightness, p1Alt1 weight -- not the
+             * player block's transforms past the first. */
+            int start = tail_g2_alt1(data, len, &pos);
+            int end = tail_g2_alt2(data, len, &pos);
+            int hue = tail_g1(data, len, &pos);
+            int saturation = tail_g1_alt1(data, len, &pos);
+            int lightness = tail_g1_alt1(data, len, &pos);
+            int weight = tail_g1_alt1(data, len, &pos);
+            struct PktNpcInfoOp* op = npc_op(r, PKT_NPC_INFO_OP_TINT);
+
+            if( op )
+            {
+                op->_tint.start_cycle_delta = (uint16_t)start;
+                op->_tint.end_cycle_delta = (uint16_t)end;
+                op->_tint.hue = (int8_t)hue;
+                op->_tint.saturation = (int8_t)saturation;
+                op->_tint.lightness = (int8_t)lightness;
+                op->_tint.weight = (int8_t)weight;
+            }
         }
         if( (flag & V5_NPC_TRANSPARENCY) != 0 )
         {

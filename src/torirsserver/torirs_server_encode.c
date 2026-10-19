@@ -5489,6 +5489,7 @@ enum
     V5_NPC_SAY = 0x2,
     V5_NPC_FACING = 0x8,
     V5_NPC_SEQUENCE = 0x80,
+    V5_NPC_TINTING = 0x100,
     V5_NPC_EXACT_MOVE = 0x200,
     V5_NPC_OPS = 0x1000,
     V5_NPC_LEVEL_CHANGE = 0x8000,
@@ -5868,6 +5869,8 @@ put_npc_extended_v5(
         flag |= V5_NPC_OPS;
     if( classic & TORIRSSERVER_NMASK_EXACT_MOVE )
         flag |= V5_NPC_EXACT_MOVE;
+    if( classic & TORIRSSERVER_NMASK_TINT )
+        flag |= V5_NPC_TINTING;
     if( npc_v5_sends_level(npc, force_face_latch) )
         flag |= V5_NPC_LEVEL_CHANGE;
     if( npc_v5_sends_headicon(npc, force_face_latch) )
@@ -6112,6 +6115,19 @@ put_npc_extended_v5(
     }
     if( classic & TORIRSSERVER_NMASK_SAY )
         rsab_pjstr(buf, npc->say, RSAB_JSTR_NUL);
+    if( flag & V5_NPC_TINTING )
+    {
+        /* NpcTintingEncoder (RSProt 239): p2Alt1 start, p2Alt2 end, p1 hue,
+         * p1Alt1 saturation, p1Alt1 lightness, p1Alt1 weight -- after SAY
+         * and before SPOTANIM in the writer's order. Not the player's
+         * transforms (PlayerTintingEncoder differs in all but the first). */
+        rsab_p2_alt1(buf, npc->tint_start_cycle & 0xffff);
+        rsab_p2_alt2(buf, npc->tint_end_cycle & 0xffff);
+        rsab_p1(buf, npc->tint_hue & 0xff);
+        rsab_p1_alt1(buf, npc->tint_saturation & 0xff);
+        rsab_p1_alt1(buf, npc->tint_lightness & 0xff);
+        rsab_p1_alt1(buf, npc->tint_weight & 0xff);
+    }
     if( classic & TORIRSSERVER_NMASK_SPOTANIM )
     {
         /*
@@ -6174,7 +6190,7 @@ npc_extended_pending_v5(
     uint32_t const supported = TORIRSSERVER_NMASK_DAMAGE | TORIRSSERVER_NMASK_DAMAGE2 |
                                TORIRSSERVER_NMASK_ANIM | TORIRSSERVER_NMASK_SAY |
                                TORIRSSERVER_NMASK_SPOTANIM | TORIRSSERVER_NMASK_CHANGE_TYPE |
-                               TORIRSSERVER_NMASK_HEADBAR;
+                               TORIRSSERVER_NMASK_HEADBAR | TORIRSSERVER_NMASK_TINT;
     struct Mock239Face face;
 
     return (npc->masks & supported) != 0 || npc_v5_sends_ops(npc, force_face_latch) ||

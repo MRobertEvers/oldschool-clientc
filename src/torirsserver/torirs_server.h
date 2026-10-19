@@ -1026,6 +1026,10 @@ enum
     /* Rev-239 only: `npc_exactmove` set a forced move this tick (NPC_INFO's
      * EXACT_MOVE block). Not persistent: one move, one tick. */
     TORIRSSERVER_NMASK_EXACT_MOVE = 0x2000,
+    /* Rev-239 only: `npc_tint` set the tinting block this tick (NPC_INFO's
+     * TINTING, flag 0x100). Not persistent: Jagex re-sends a held tint every
+     * tick (Akkha's immunity, docs/rsprox-analysis/toa/akkha.md). */
+    TORIRSSERVER_NMASK_TINT = 0x4000,
 };
 
 /* Appearance/equipment slot numbering. The cache's wearpos fields, the worn
@@ -2817,6 +2821,18 @@ struct ToriRSServerNpc
     int exact_delay1;
     int exact_delay2;
     int exact_direction;
+    /**
+     * `npc_tint` -- the NPC_INFO tinting block's six fields, read only while
+     * TORIRSSERVER_NMASK_TINT is set. The same block as the player's
+     * (`tint_*` on ToriRSServerPlayer): client cycles relative to arrival,
+     * the HSL bytes (255 = leave that channel), weight out of 128.
+     */
+    int tint_start_cycle;
+    int tint_end_cycle;
+    int tint_hue;
+    int tint_saturation;
+    int tint_lightness;
+    int tint_weight;
     int face_entity;
     char say[80];
     int anim_id;
@@ -5990,6 +6006,9 @@ enum ToriRSServerTicklogKind
      * g=weight, as the wire carries them (255 = leave the channel; weight 0
      * clears): `p_tint`, the PLAYER_INFO tinting block. */
     TORIRSSERVER_TICKLOG_PLAYER_TINT,
+    /* a=slot b=type c=start cycle << 16 | end cycle d=hue e=saturation
+     * f=lightness g=weight: `npc_tint`, the NPC_INFO tinting block. */
+    TORIRSSERVER_TICKLOG_NPC_TINT,
     TORIRSSERVER_TICKLOG_KIND_COUNT
 };
 
@@ -6175,6 +6194,9 @@ void ToriRSServer_TicklogPlayerTint(const struct ToriRSServer* srv,
                                     const struct ToriRSServerPlayer* player, int start_cycle,
                                     int end_cycle, int hue, int saturation, int lightness,
                                     int weight);
+void ToriRSServer_TicklogNpcTint(const struct ToriRSServer* srv, const struct ToriRSServerNpc* npc,
+                                 int start_cycle, int end_cycle, int hue, int saturation,
+                                 int lightness, int weight);
 /* `damage` is the splat as shown, `raw` the amount the caller asked to deal
  * (RAW DAMAGE in the banner above the kinds). */
 void ToriRSServer_TicklogHitPlayer(const struct ToriRSServer* srv,

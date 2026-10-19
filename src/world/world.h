@@ -1437,6 +1437,19 @@ World_PlayerSetTint(
     int lightness,
     int weight);
 
+/* Rev-239 NPC_INFO tinting block (flag 0x100): World_PlayerSetTint's rules on
+ * an npc -- the cycles are deltas from the client cycle the block lands on. */
+void
+World_NpcSetTint(
+    struct World* world,
+    int idx,
+    int start_cycle_delta,
+    int end_cycle_delta,
+    int hue,
+    int saturation,
+    int lightness,
+    int weight);
+
 /* `slot`: the rev-239 graphic slot; a graphic replaces only its own slot's
  * (slots past WORLD_NPC_SPOTANIM_SLOTS - 1 share the last). */
 void

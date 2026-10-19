@@ -9913,6 +9913,62 @@ script_command(
     }
 
     /*
+     * npc_tint(start_cycle, end_cycle, hue, saturation, lightness, weight) --
+     * the active npc's NPC_INFO tinting block (RSProt NpcTintingEncoder, flag
+     * 0x100), sent this tick: the npc counterpart of `p_tint`, the same six
+     * fields and the same rules. Jagex holds Akkha's immunity tint by sending
+     * (0, 600, 0, 0, 106, 40) every tick, and clears with (0, 0, 255, 255,
+     * 255, 0) every tick after (RSProx 14, docs/rsprox-analysis/toa/akkha.md).
+     */
+    case SS_OP_NPC_TINT:
+    {
+        int32_t values[6];
+        struct ToriRSServerNpc* npc = active_npc(state);
+
+        for( int i = 5; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_tint with no active npc");
+            return 1;
+        }
+        if( values[0] < 0 || values[0] > 0xffff || values[1] < 0 || values[1] > 0xffff )
+        {
+            SSVM_Abort(state, "npc_tint cycles %d..%d: each must be 0..65535", (int)values[0],
+                       (int)values[1]);
+            return 1;
+        }
+        for( int i = 2; i < 5; i++ )
+        {
+            if( values[i] < -1 || values[i] > 255 )
+            {
+                SSVM_Abort(state, "npc_tint colour field %d is %d: 0..255, or -1/255 to leave it",
+                           i - 1, (int)values[i]);
+                return 1;
+            }
+        }
+        if( values[5] < 0 || values[5] > 255 )
+        {
+            SSVM_Abort(state, "npc_tint weight %d: 0..255 (0 clears)", (int)values[5]);
+            return 1;
+        }
+        npc->tint_start_cycle = (int)values[0];
+        npc->tint_end_cycle = (int)values[1];
+        npc->tint_hue = (int)values[2] & 0xff;
+        npc->tint_saturation = (int)values[3] & 0xff;
+        npc->tint_lightness = (int)values[4] & 0xff;
+        npc->tint_weight = (int)values[5];
+        npc->masks |= TORIRSSERVER_NMASK_TINT;
+        ToriRSServer_TicklogNpcTint(srv, npc, npc->tint_start_cycle, npc->tint_end_cycle,
+                                    npc->tint_hue, npc->tint_saturation, npc->tint_lightness,
+                                    npc->tint_weight);
+        return 1;
+    }
+
+    /*
      * sound_area(synth $sound, int $delay, coord $coord, int $range): one
      * SOUND_AREA zone packet, the way Jagex sends an area noise (RSProx:
      * docs/rsprox-analysis/tob/verzik.md) - heard within `range` with the

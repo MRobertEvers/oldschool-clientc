@@ -1147,6 +1147,14 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # (0, 600, 0, 6, 24, 112), cleared with (0, 0, 255, 255, 255, 0).
     "P_TINT": (11159, 6, 0, 0, 0),
 
+    # npc_tint(int $start_cycle, int $end_cycle, int $hue, int $saturation,
+    #          int $lightness, int $weight)
+    #
+    # The active npc's NPC_INFO tinting block (NpcTintingEncoder, flag 0x100):
+    # p_tint's six fields on an npc. Recorded (ToA Akkha's immunity, held by a
+    # send every tick): (0, 600, 0, 0, 106, 40), cleared (0, 0, 255, 255, 255, 0).
+    "NPC_TINT": (11162, 6, 0, 0, 0),
+
     # loc_add_revert(coord $coord, loc $loc, int $angle, locshape $shape,
     #                int $duration, loc $revert, int $revert_angle)
     #
@@ -1586,6 +1594,7 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "NPC_PROJANIM_PL": (1 << POINTER_BITS["active_npc"], 0),
     "SPOTANIM_MAP_SPECIFIC": (1 << POINTER_BITS["active_player"], 0),
     "P_TINT": (1 << POINTER_BITS["active_player"], 0),
+    "NPC_TINT": (1 << POINTER_BITS["active_npc"], 0),
     "LOC_ADD_REVERT": (0, 0),
     "NPC_ROUTEAPPROACH": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_PROJANIM_NPC": (1 << POINTER_BITS["active_npc"], 0),

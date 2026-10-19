@@ -126,6 +126,7 @@ static char const* const k_kind_names[TORIRSSERVER_TICKLOG_KIND_COUNT] = {
     [TORIRSSERVER_TICKLOG_NPC_HEADBAR] = "npc_headbar",
     [TORIRSSERVER_TICKLOG_MAP_SPOTANIM_SPECIFIC] = "map_spotanim_specific",
     [TORIRSSERVER_TICKLOG_PLAYER_TINT] = "player_tint",
+    [TORIRSSERVER_TICKLOG_NPC_TINT] = "npc_tint",
 };
 
 /* A SOUND row's label: where the send came from (the npc source adds the
@@ -460,6 +461,7 @@ ticklog_row_npc_slot(const struct ToriRSServerTicklogRow* row)
     case TORIRSSERVER_TICKLOG_NPC_FACE:
     case TORIRSSERVER_TICKLOG_NPC_SAY:
     case TORIRSSERVER_TICKLOG_NPC_HEAL:
+    case TORIRSSERVER_TICKLOG_NPC_TINT:
         return row->a;
     case TORIRSSERVER_TICKLOG_HIT_PLAYER:
         return row->b;
@@ -660,6 +662,25 @@ ToriRSServer_TicklogPlayerTint(
     assert(player);
     ticklog_push_row(TORIRSSERVER_TICKLOG_PLAYER_TINT, player->pid, start_cycle, end_cycle, hue,
                      saturation, lightness, weight, NULL);
+}
+
+void
+ToriRSServer_TicklogNpcTint(
+    const struct ToriRSServer* srv,
+    const struct ToriRSServerNpc* npc,
+    int start_cycle,
+    int end_cycle,
+    int hue,
+    int saturation,
+    int lightness,
+    int weight)
+{
+    if( !ticklog_on_for(srv) )
+        return;
+    assert(npc);
+    ticklog_push_row(TORIRSSERVER_TICKLOG_NPC_TINT, ticklog_npc_slot(npc), npc->type,
+                     (start_cycle << 16) | (end_cycle & 0xffff), hue, saturation, lightness,
+                     weight, NULL);
 }
 
 void

@@ -4,6 +4,7 @@
 #include <stdbool.h>
 
 #include "entity_facets.h"
+#include "entity_tint.h"
 
 /*
  * Rev-239 numbered graphic slots: an npc wears one attached graphic per slot,
@@ -64,6 +65,10 @@ struct WorldEntity_NPC
     struct WorldEntityFacet_Combat combat;
     struct WorldEntityFacet_Chat chat;
     struct WorldEntityFacet_EntitySpotanim spotanims[WORLD_NPC_SPOTANIM_SLOTS];
+    /** Rev-239 NPC_INFO tinting (`npc_tint`, flag 0x100): the body drawn
+     *  recoloured while active -- Akkha and his shadows while immune.
+     *  Applied per frame by app_world_sync_npc_tints. */
+    struct WorldEntityTint tint;
     /**
      * Headicon customisation (rev-239 0x400000): while `headicon_custom`, the
      * overhead draws these eight (sprite group, frame) slots instead of the

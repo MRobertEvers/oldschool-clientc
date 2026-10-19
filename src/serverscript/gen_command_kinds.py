@@ -63,6 +63,7 @@ EXTRA_DECLARATIONS = [
     "[command,p_tint](int $start_cycle, int $end_cycle, int $hue, int $saturation, int $lightness, int $weight)",
     "[command,loc_add_revert](coord $coord, loc $loc, int $angle, locshape $shape, int $duration, loc $revert, int $revert_angle)",
     "[command,npc_routeapproach](coord $coord)",
+    "[command,npc_tint](int $start_cycle, int $end_cycle, int $hue, int $saturation, int $lightness, int $weight)",
 ]
 
 DECL = re.compile(r"^\[command,(\.?)([A-Za-z0-9_]+)\]\s*(\([^)]*\))?\s*(\([^)]*\))?")

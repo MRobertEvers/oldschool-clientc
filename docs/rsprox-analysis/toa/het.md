@@ -4,7 +4,8 @@ Read from 8 visits: 14 (solo, Entry) and 1852 (7 Expert raids). Ticks are
 relative to entry (E). Full inventory: [het.out](het.out). Common
 entry/leaving: [README](README.md).
 
-**Ours:** `minigame_toa/scripts/toa_het.rs2` (not yet compared).
+**Ours:** `minigame_toa/scripts/toa_het.rs2`, rebuilt to these recordings
+2026-10-19; see [Ours vs recorded](#ours-vs-recorded) at the end.
 
 ## Layout
 
@@ -67,3 +68,27 @@ was hit by a light beam."
 | Spawn | every **7 ticks** from R+11, on an edge tile (west x 3670–3671, east 3689–3690, south z 5271–5272, north 5287–5289); map_anim `shadow_burst_impact` (382) and area `toa_path_of_het_orb_spawn_01` (6545) loops 1 range 4 there |
 | Move | one tile a tick in one straight direction (324 of 344), by `teleport` |
 | End | after 1–12 ticks, at a wall or a raider: map_anim `shadow_rush_impact` (379) and area `shadow_rush_impact` (179) loops 1 range 4; removed |
+
+## Ours vs recorded
+
+Rebuilt 2026-10-19: `toa_het.rs2` (the maze from three templates and their
+break sets in `toa.enum`, the beam, the strike, the fall, the reseal, the
+mirrors, the walls, the orbs, the seal), the Het blocks of `toa.constant` and
+`toa.npc`, and the seal's hitpoints (130 + 95 a raider) in `toa_raid.rs2`.
+Checked with `test/raids/toa_het_tells.lua` (scriptrun, solo: the statue's
+pickaxe, the crossing, a mirror picked up, placed, turned both ways and
+pushed, a wall broken, `::toahetstrike` and the seal mined to the end) and
+`tools/rsprox_tells.py` against 14 and 1852. The beam's path rule was
+replayed over every recorded shot: 405 exact, 111 stopped earlier by a corner
+of the map (`map_blocked` in ours), 3 apart where a mirror changed on the
+shot's own tick.
+
+| | Status |
+|---|---|
+| Maze | **fixed**: the walls rise, go solid 2 ticks later, fall the tick after the strike, rise again 24 later; the template order and the breakable walls by set; a raider on a rising wall is moved off it |
+| Beam | **fixed**: from (27,32) every 9 ticks from 10 after the rise; the turns by mirror rotation, the per-tile delays and graphics, the reflect and impact sounds; a raider in it is hit |
+| Strike and seal | **fixed**: the messages, the shake, held mirrors broken, the vulnerable seal mined with the pickaxe's own animations; reseal and the single-phase failure |
+| Mirrors and walls | **fixed**: pick up, place by facing, turn, push, clean; walls broken with a pick |
+| Orbs | **fixed**: every 7 ticks from two of 64 edge tiles, warned 4 ticks ahead; one tile a tick until a wall, a mirror (dirtied in a party), the edge or a raider |
+| Not compared | messages, songs and camera are not in our tick log |
+

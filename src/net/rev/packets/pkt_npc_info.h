@@ -74,7 +74,9 @@ enum PktNpcInfoOpKind
     PKT_NPC_INFO_OP_LEVEL_CHANGE,
     PKT_NPC_INFO_OP_BAS_CHANGE,
     PKT_NPC_INFO_OP_HEADICON_CUSTOM,
-    PKT_NPC_INFO_OP_BODY_CUSTOM
+    PKT_NPC_INFO_OP_BODY_CUSTOM,
+    /* Revision 239's TINTING block (npc flag 0x100). */
+    PKT_NPC_INFO_OP_TINT
 };
 
 struct PktNpcInfo_DeltaXZ
@@ -222,6 +224,22 @@ struct PktNpcInfo_BasChange
     int crawlanim_r;
 };
 
+/*
+ * NpcTintingEncoder's six fields (RSProt 239: p2Alt1 start, p2Alt2 end, p1 hue,
+ * p1Alt1 saturation, p1Alt1 lightness, p1Alt1 weight): the cycles relative to
+ * the client cycle the block lands on, the four colour bytes signed as the
+ * player's are (-1 leaves a channel; a weight not > 0 draws no tint).
+ */
+struct PktNpcInfo_Tint
+{
+    uint16_t start_cycle_delta;
+    uint16_t end_cycle_delta;
+    int8_t hue;
+    int8_t saturation;
+    int8_t lightness;
+    int8_t weight;
+};
+
 struct PktNpcInfoOp
 {
     enum PktNpcInfoOpKind kind;
@@ -244,6 +262,7 @@ struct PktNpcInfoOp
         struct PktNpcInfo_BasChange _bas_change;
         struct PktNpcInfo_HeadiconCustom _headicon;
         struct PktNpcInfo_BodyCustom _body;
+        struct PktNpcInfo_Tint _tint;
     };
 };
 

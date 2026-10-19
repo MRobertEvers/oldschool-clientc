@@ -1,7 +1,8 @@
 -- toa_crystals: the teleport crystals into Zebak's, Kephri's, Akkha's, Ba-Ba's and the Wardens'
 -- rooms. For each, a solo raider enters the room (::toa), checks it has not started, uses the
 -- crystal (Quick-Use; the Wardens' has only Use) and must land on the room's crystal tile with the
--- room started. Tiles from RSProx (docs/rsprox-analysis/toa/README.md): the fight tile, except
+-- room started -- except the Wardens', which the crystal only crosses: Osmumten's Begin starts it
+-- (RSProx 14, 553, 1779, 1845, 1852: 11 of 11), so that row lands with the room still waiting. Tiles from RSProx (docs/rsprox-analysis/toa/README.md): the fight tile, except
 -- Kephri's crystal puts the raider a tile east of it.
 local function now(t) local _, k = t.tick() return k or -1 end
 local function keep_alive(t) t.cheat("::boost hitpoints 255 0", false) end
@@ -25,7 +26,7 @@ local ROOMS = {
     { id = 5, name = "kephri", loc = "kephri_teleport", op = 2, dx = 1 },
     { id = 7, name = "akkha", loc = "akkha_teleport", op = 2, dx = 0 },
     { id = 9, name = "baba", loc = "baba_teleport", op = 2, dx = 0 },
-    { id = 10, name = "wardens", loc = "wardens_teleport", op = 1, dx = 0 },
+    { id = 10, name = "wardens", loc = "wardens_teleport", op = 1, dx = 0, waits = true },
 }
 
 return {
@@ -50,7 +51,8 @@ return {
             local _, tile = t.world.tile()
             local want_x, want_z = fx + r.dx, fz
             local landed = tile and tile.x == want_x and tile.z == want_z
-            t.expect("crystal." .. r.name .. ".teleport", (landed and after == 1) and "ok" or "fail",
+            local want_started = r.waits and 0 or 1
+            t.expect("crystal." .. r.name .. ".teleport", (landed and after == want_started) and "ok" or "fail",
                 string.format("%s %s; on %s,%s want %d,%d; started=%s; tick %d", tostring(res),
                     tostring(detail), tostring(tile and tile.x), tostring(tile and tile.z), want_x, want_z,
                     tostring(after), now(t)))

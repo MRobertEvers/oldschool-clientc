@@ -3069,6 +3069,30 @@ World_PlayerSetTint(
 }
 
 void
+World_NpcSetTint(
+    struct World* world,
+    int idx,
+    int start_cycle_delta,
+    int end_cycle_delta,
+    int hue,
+    int saturation,
+    int lightness,
+    int weight)
+{
+    assert(world);
+    struct World_EntityPool* pool = &world->entities.npc;
+    assert(World_EntityPoolIsActive(pool, idx));
+    struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
+
+    npc->tint.start_cycle = world->cycle + start_cycle_delta;
+    npc->tint.end_cycle = world->cycle + end_cycle_delta;
+    npc->tint.hue = (int8_t)hue;
+    npc->tint.saturation = (int8_t)saturation;
+    npc->tint.lightness = (int8_t)lightness;
+    npc->tint.weight = (int8_t)weight;
+}
+
+void
 World_NpcSetSpotanim(
     struct World* world,
     int idx,
