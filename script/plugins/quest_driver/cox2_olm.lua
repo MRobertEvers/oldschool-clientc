@@ -48,7 +48,9 @@ CO.V = {
     },
     -- the clock (OLM_SPEC 3); the rise's second beat (cox_olm_rise_done,
     -- the ghost clench's 2-tick poll grid) is the rise animation + 5 (its full length)
-    FIRST_P1 = 9, FIRST_LATER = 8, ACT = 4, RISE_DONE = 5,
+    -- (P1's first action: rise + 6, RECORDED -- ^cox_olm_first_act_p1 since
+    -- OSRS-Content ff130e6540; it was 9)
+    FIRST_P1 = 6, FIRST_LATER = 8, ACT = 4, RISE_DONE = 5,
     -- THE CLENCH (cox_olm_clench_check): one hit on the melee hand of 1/20
     -- of the solo hand's 600, in the window a null opens and the special
     -- after it judges (wiki Strategies: "the eight ticks between null and
@@ -110,6 +112,39 @@ CO.V = {
     SPEED = { melee = 4, magic = 4, ranged = 5 },
 }
 
+-- THE DUO (docs/minigames/cox/olm_duo_solver.md; Synq's "The EASIEST Mage
+-- Skipping Guide 2026 (Duo Olm)", sources/transcripts/yt_8Ta9VkVaJ7M.md).
+-- West wall tiles, chamber-local; the east mirrors x -> 33 - x, z -> 72 - z.
+CO.DUO = {
+    -- PLAYER 2: "the far safe spot … never go past this tile. Going past this
+    -- tile will cause the head to face the center": the melee claw's end, the
+    -- last row of its own view (N, z 36..44) the trident's Long range (9)
+    -- still reaches the mage claw (z 29..33) from -- z 42; beside the melee
+    -- claw (x 12), so its special and its melee go out from there too
+    P2 = { 12, 42 },
+    -- THE SKIPPER: the mage hand's side ("left") for the basics' reads, the
+    -- melee hand's ("right", out of the mage side's view) for the special's;
+    -- each in the trident's reach of the mage claw
+    LEFT = { 13, 35 }, RIGHT = { 13, 37 },
+    -- the thumb: the skipper's melee-hand tile, and where the pair meet for
+    -- the teleport ("the mage skipper usually sits at the thumb, so you guys
+    -- can meet up for the portal swap")
+    THUMB = { 12, 39 },
+    -- Long range (both: "you absolutely need to make sure you are on the
+    -- long-range attack style"): reach 9 for the trident and the crossbow,
+    -- the crossbow at its own 6 ticks
+    RANGE = { melee = 1, magic = 9, ranged = 9, spec = 1 },
+    SPEED = { melee = 4, magic = 4, ranged = 6, spec = 6 },
+    -- the hands' "low" in P3: "around 10 to 15%" of 900
+    LOW_HP = 120,
+    SPEC_COST = 500,
+    -- a read off player 2's view: what it costs (the head would face the centre)
+    HOME_COST = 40,
+    -- the swap reads where the pair stand at the end of the cast + 9 (the
+    -- pair swap at +10, OLM_SPEC 4 "teleport (party)")
+    SWAP_READ = 9,
+}
+
 -- ======================================================================== IDS
 
 function CO.ids(opts)
@@ -139,7 +174,8 @@ function CO.ids(opts)
         { "fury", "obj", "enchanted_onyx_amulet" }, { "fire_cape", "obj", "tzhaar_cape_fire" },
         { "xbow", "obj", "xbows_crossbow_dragon" }, { "dhide_body", "obj", "black_dragonhide_body" },
         { "torso", "obj", "barbassault_penance_fighter_torso" }, { "vial_empty", "obj", "raids_vial_empty" },
-        { "chaps", "obj", "black_dragonhide_chaps" },
+        { "chaps", "obj", "black_dragonhide_chaps" }, { "bgs", "obj", "bgs" },
+        { "style_slot_3", "component", "combat_interface:style_slot_3" },
         { "mystic_top", "obj", "mystic_robe_top" }, { "mystic_bottom", "obj", "mystic_robe_bottom" },
         { "style_slot_1", "component", "combat_interface:style_slot_1" },
         { "com_mode", "varp", "varp43_com_mode" },
@@ -157,6 +193,8 @@ function CO.ids(opts)
         ranged = { ids.xbow, ids.fury, ids.assembler, ids.dhide_body, ids.chaps, ids.defender },
         melee = { ids.tentacle, ids.fury, ids.fire_cape, ids.defender, ids.torso, ids.chaps },
         magic = { ids.trident, ids.occult, ids.imbued_cape, ids.defender, ids.mystic_top, ids.mystic_bottom },
+        -- (a duo: the BGS's special on the melee hand, two-handed, in the melee set)
+        spec = { ids.bgs, ids.fury, ids.fire_cape, ids.torso, ids.chaps },
     }
     ids.boost = { ranged = "rigour", melee = "piety", magic = "augury" }
     -- THE RAID'S POTIONS, (+) tier, one dose to four (the supplies drink the
@@ -340,35 +378,45 @@ function CO.clench_due(o, t_now)
     if o.glowing or not o.right_alive or not o.left_alive then return false end
     if t_now < (o.clench_until or -1) then return false end
     if o.window_from == nil or CO.even_kind(o.list % CO.list_len(o)) < 2 then return false end
-    return CO.hit_in(o.lhits, o.window_from, t_now, true) >= CO.V.CLENCH_HIT
+    return CO.hit_in(o.lhits, o.window_from, t_now, true) >= (o.clench_hit or CO.V.CLENCH_HIT)
 end
 
 -- One step: state { dir, skipped }, the step's kind, my bin (an index into
 -- CO.V.BINS; nil = I am not in the chamber), the hand flags, whether the
--- left claw can special. -> new dir, new skipped, autos at me, special fired
--- (cox_olm_act, step for step: an empty view is ALWAYS a skip -- an auto
--- owed, a special lost, the head to the most players; a seen null or special
--- with nothing owed re-targets, and a special it turns away from still goes
--- off; otherwise the owed auto first, then the step's own.)
-function CO.step(dir, skipped, kind, bin, side, extra_left, extra_right, can_special)
+-- left claw can special, and the partner's bin (a duo; nil solo or not in
+-- the chamber). -> new dir, new skipped, autos at me, special fired, autos
+-- at the partner (cox_olm_act, step for step: an empty view -- neither of
+-- us in it -- is ALWAYS a skip: an auto owed, a special lost, the head to
+-- the most players; a seen null or special with nothing owed re-targets,
+-- and a special it turns away from still goes off; otherwise the owed auto
+-- first, then the step's own, at everyone in view.)
+function CO.step(dir, skipped, kind, bin, side, extra_left, extra_right, can_special, mate)
     local b = bin and CO.V.BINS[bin]
+    local mb = mate and CO.V.BINS[mate]
     -- (a bin is wholly in or out of every view by construction)
-    local inview = b ~= nil and CO.in_view(dir, b[1])
+    local mine = b ~= nil and CO.in_view(dir, b[1])
+    local theirs = mb ~= nil and CO.in_view(dir, mb[1])
+    local inview = mine or theirs
     local function most()
-        return CO.most_of(b and b[3] or 0, b and b[4] or 0, b and b[5] or 0, side, extra_left, extra_right)
+        local s = (b and b[3] or 0) + (mb and mb[3] or 0)
+        local m = (b and b[4] or 0) + (mb and mb[4] or 0)
+        local n = (b and b[5] or 0) + (mb and mb[5] or 0)
+        return CO.most_of(s, m, n, side, extra_left, extra_right)
     end
     if not inview then
         if kind == 0 then skipped = true end
-        return most(), skipped, 0, false
+        return most(), skipped, 0, false, 0
     end
     if kind > 0 and not skipped then
         local m = most()
-        if m ~= dir then return m, skipped, 0, kind >= 2 and can_special end
-        if kind == 1 then return dir, skipped, 0, false end
+        if m ~= dir then return m, skipped, 0, kind >= 2 and can_special, 0 end
+        if kind == 1 then return dir, skipped, 0, false, 0 end
     end
     local debt = skipped
-    if kind == 0 then return dir, false, 1, false end
-    return dir, false, debt and 1 or 0, kind >= 2 and can_special
+    local at = (kind == 0) and 1 or (debt and 1 or 0)
+    local fired = kind >= 2 and can_special
+    if kind == 0 then fired = false end
+    return dir, false, mine and at or 0, fired, theirs and at or 0
 end
 
 -- The kind of the next step the count has not played yet.
@@ -423,7 +471,7 @@ function CO.steps_ahead(S, F, n, tmax)
             -- has landed since the last step)
             local lx, lz = CO.local_of(S, F.me.x, F.me.z)
             local bin = (lx >= CO.V.CH.x0 and lx <= CO.V.CH.x1) and CO.bin_of(lz) or nil
-            dir, skipped = CO.step(dir, skipped, kind, bin, o.side or 0, CO.steers(o.lhits, A), CO.steers(o.rhits, A), can)
+            dir, skipped = CO.step(dir, skipped, kind, bin, o.side or 0, CO.steers(o.lhits, A), CO.steers(o.rhits, A), can, CO.mate_at(o, A - 1))
         end
         k = k + 1
     end
@@ -626,6 +674,8 @@ function CO.observe(S, F)
                 open = { t = F.tick - 1 }
                 list[#list + 1] = open
                 o.orphans = (o.orphans or 0) + 1
+                -- (a duo: the partner's -- the hand it is casting at steers too)
+                if dmg > 0 then o.mate_hit[h[3]] = F.tick end
             end
             open.dmg = dmg
             open.land = F.tick
@@ -638,6 +688,24 @@ function CO.observe(S, F)
         while #list > 0 and list[1].t < F.tick - 30 do table.remove(list, 1) end
     end
     if o.ox == nil then return end
+    -- THE PARTNER (a duo): the other raider in the chamber, its tile at the
+    -- end of this tick -- the head counts it as it counts me
+    if o.role then
+        local pr, players = api_drive.players()
+        o.mate_bin = nil
+        if pr == "ok" then
+            for _, p in ipairs(players) do
+                if not p.me then
+                    local lx, lz = p.x - o.ox, p.z - o.oz
+                    if lx >= V.CH.x0 and lx <= V.CH.x1 and lz >= V.CH.z0 and lz <= V.CH.z1 then
+                        o.mate_x, o.mate_z, o.mate_bin = p.x, p.z, CO.bin_of(lz)
+                    end
+                end
+            end
+        end
+        o.mate_hist[F.tick] = o.mate_bin or false
+        o.mate_hist[F.tick - 40] = nil
+    end
     -- the loc animations: the head's tells and the left claw's signs
     local ar, anims = api_drive.loc_anims(0)
     if ar ~= "ok" then return end
@@ -688,6 +756,12 @@ function CO.observe(S, F)
                 -- ended the previous tick on (cox_olm_acid_tick), 16 ticks a pool
                 if string.find(m.text or "", "smothered you in acid", 1, true) then
                     o.drip_until = F.tick + 23
+                end
+                -- THE PAIR (a duo's teleport: "You have been paired with <name>!
+                -- The magical power will enact soon..."; the swap at +10)
+                if string.find(m.text or "", "You have been paired with", 1, true) then
+                    o.pair_first = F.tick
+                    o.pairs = (o.pairs or 0) + 1
                 end
                 -- the retreat: between phases (cox_olm_switch_side)
                 if string.find(m.text or "", "retreats into the depths", 1, true) then
@@ -935,6 +1009,14 @@ function CO.claw_event(S, F, what)
 end
 
 -- The bin a chamber-local z is in.
+-- The partner's bin at the end of tick t (nil: solo, or not in the chamber).
+function CO.mate_at(o, t)
+    if not o.role then return nil end
+    local b = o.mate_hist[t]
+    if b == nil then return o.mate_bin end
+    return b or nil
+end
+
 function CO.bin_of(lz)
     for i, b in ipairs(CO.V.BINS) do
         if lz >= b[1] and lz <= b[2] then return i end
@@ -971,7 +1053,7 @@ function CO.advance(S, F)
                 -- its damage)
                 local function judge(F2)
                     local hit = CO.hit_in(o.lhits, t0, A - 1, true)
-                    CO.mech(S, F2, "clench", (able and hit >= V.CLENCH_HIT) == seen_clench, string.format(
+                    CO.mech(S, F2, "clench", (able and hit >= (o.clench_hit or V.CLENCH_HIT)) == seen_clench, string.format(
                         "special step %d: heaviest hit %d since the null at %d, clench %s", A, hit, t0,
                         tostring(seen_clench)))
                 end
@@ -999,7 +1081,8 @@ function CO.advance(S, F)
         local el, er = CO.steers(o.lhits, A), CO.steers(o.rhits, A)
         -- (the final stand's head down: the step after its death acts on nothing)
         local dying = o.final and (o.head_row == nil or ((o.head_row.health_scale or 0) > 0 and (o.head_row.health_ratio or 1) == 0))
-        local dir, skipped, autos, fired = CO.step(o.dir, o.skipped, kind, bin, o.side or 0, el, er, can)
+        local mate = CO.mate_at(o, A - 1)
+        local dir, skipped, autos, fired, mate_autos = CO.step(o.dir, o.skipped, kind, bin, o.side or 0, el, er, can, mate)
         -- what was seen at A: a turn names the new facing
         local seen, attacked = nil, false
         for _, e in ipairs(o.events) do
@@ -1025,7 +1108,7 @@ function CO.advance(S, F)
         -- damage (a trident cast 1-3 ticks before the step is still in the
         -- air). The live state takes the seen facing.
         local rec = { A = A, k = o.next_k, kind = kind, bin = bin, dir = o.dir, skipped = o.skipped, can = can,
-                      side = o.side or 0, got = (seen and seen.kind == "turn") and seen.dir or o.dir }
+                      side = o.side or 0, got = (seen and seen.kind == "turn") and seen.dir or o.dir, mate = mate }
         if dying then
             -- (no check: the head is down)
         elseif CO.hit_open(o.lhits, A - V.STEER - 1, A - 1) or CO.hit_open(o.rhits, A - V.STEER - 1, A - 1) then
@@ -1035,9 +1118,10 @@ function CO.advance(S, F)
         end
         dir = rec.got
         -- THE CONTENT CHECK: the head attacks exactly when the model's step
-        -- owes me an auto (the caught-up one included)
-        CO.mech(S, F, "auto", dying or ((autos > 0) == attacked), string.format("k%d at %d kind %d bin %s dir %d owed %s: model %d autos, attack anim %s",
-            o.next_k, A, kind, tostring(bin), o.dir, tostring(o.skipped), autos, tostring(attacked)))
+        -- owes me (or the partner) an auto (the caught-up one included)
+        CO.mech(S, F, "auto", dying or ((autos + mate_autos > 0) == attacked), string.format("k%d at %d kind %d bin %s mate %s dir %d owed %s: model %d+%d autos, attack anim %s",
+            o.next_k, A, kind, tostring(bin), tostring(mate), o.dir, tostring(o.skipped), autos, mate_autos, tostring(attacked)))
+        o.mate_autos = (o.mate_autos or 0) + mate_autos
         -- THE TELLS, per state: autos owed and fired at me, specials due and
         -- signed, clenched nulls, and HEAD RUNS (a step the head turned on
         -- without attacking: nothing fired)
@@ -1075,11 +1159,11 @@ function CO.judge_step(S, F, r)
     local V = CO.V
     local el = CO.landed_in(o.lhits, r.A - V.STEER, r.A - 1)
     local er = CO.landed_in(o.rhits, r.A - V.STEER, r.A - 1)
-    local dir = CO.step(r.dir, r.skipped, r.kind, r.bin, r.side, el, er, r.can)
+    local dir = CO.step(r.dir, r.skipped, r.kind, r.bin, r.side, el, er, r.can, r.mate)
     S.mon.rules.olm_step.checked = S.mon.rules.olm_step.checked + 1
     if dir ~= r.got then
-        QD.T2.monitor.note(S, "olm_step", r.A, string.format("k%d kind %d bin %s dir %d%s steer %s/%s: model %d, seen %d",
-            r.k, r.kind, tostring(r.bin), r.dir, r.skipped and " owed" or "", tostring(el), tostring(er), dir, r.got))
+        QD.T2.monitor.note(S, "olm_step", r.A, string.format("k%d kind %d bin %s mate %s dir %d%s steer %s/%s: model %d, seen %d",
+            r.k, r.kind, tostring(r.bin), tostring(r.mate), r.dir, r.skipped and " owed" or "", tostring(el), tostring(er), dir, r.got))
     end
 end
 
@@ -1107,6 +1191,12 @@ function CO.search(S, F, target, B, canon)
     local my_lx, my_lz = CO.local_of(S, F.me.x, F.me.z)
     local bins = V.BINS
     local nb = #bins
+    -- (a duo: the claw the partner has hit in the last 8 ticks)
+    local mate_steer = nil
+    if o.role then
+        if o.mate_hit.right and F.tick - o.mate_hit.right <= 8 then mate_steer = "right"
+        elseif o.mate_hit.left and F.tick - o.mate_hit.left <= 8 then mate_steer = "left" end
+    end
     local function zgap(z0, z1)
         return math.max(0, reach0 - z1, z0 - reach1)
     end
@@ -1129,7 +1219,9 @@ function CO.search(S, F, target, B, canon)
             -- (recovery: a plan that ends in the 4:1 loop's own state is
             -- worth the autos and specials the loop saves after it)
             if canon then
-                local d, sk = CO.canon(o.side, steps[#steps].slot)
+                local d, sk
+                if type(canon) == "function" then d, sk = canon(steps[#steps].slot)
+                else d, sk = CO.canon(o.side, steps[#steps].slot) end
                 if dir == d and skipped == sk then return -V.CANON_VALUE, {} end
             end
             return 0, {}
@@ -1168,14 +1260,18 @@ function CO.search(S, F, target, B, canon)
                 local p_any = (swings > 0) and (1 - (1 - p) ^ swings) or 0
                 local base_l = (i == 1) and CO.steers(o.lhits, st.A) or false
                 local base_r = (i == 1) and CO.steers(o.rhits, st.A) or false
+                -- (a duo: the hand the partner is casting at steers every step)
+                if mate_steer == "left" then base_l = true elseif mate_steer == "right" then base_r = true end
                 local e, path, likely = 0, nil, nil
                 for _, out in ipairs({ { true, p_any }, { false, 1 - p_any } }) do
                     local w = out[2]
                     if w > 0 then
                         local el = base_l or (out[1] and steer == "left")
                         local er = base_r or (out[1] and steer == "right")
-                        local d2, s2, autos, fired = CO.step(dir, skipped, st.kind, b, o.side, el, er, st.can)
-                        local sc = autos * V.AUTO_COST + (fired and (V.SPECIAL_COST[st.kind] or 10) or 0)
+                        local d2, s2, autos, fired, mautos = CO.step(dir, skipped, st.kind, b, o.side, el, er, st.can, o.mate_bin)
+                        -- (a duo prices the partner's autos as mine: the
+                        -- team's hitpoints)
+                        local sc = (autos + mautos) * V.AUTO_COST + (fired and (V.SPECIAL_COST[st.kind] or 10) or 0)
                         local sub, sub_path = walk(i + 1, d2, s2, b, r, wnext)
                         e = e + w * (sc + sub)
                         if likely == nil or w > likely then likely, path = w, sub_path end
@@ -1194,7 +1290,7 @@ function CO.search(S, F, target, B, canon)
         if best == nil then
             -- (no bin reachable: stay where I am; the planner answers)
             local b = (i == 1) and (CO.bin_of(my_lz) or prev) or prev
-            local d2, s2 = CO.step(dir, skipped, st.kind, b, o.side, false, false, st.can)
+            local d2, s2 = CO.step(dir, skipped, st.kind, b, o.side, false, false, st.can, o.mate_bin)
             local sub, sub_path = walk(i + 1, d2, s2, b, r, wready)
             best, best_path = sub, { b }
             for j = 1, #sub_path do best_path[j + 1] = sub_path[j] end
@@ -1283,7 +1379,8 @@ function CO.check(S, F)
     if pr == "ok" then
         o.points = pts
         if o.points0 == nil then o.points0 = pts - 5 * o.dealt end
-        if o.dealt > 0 and F.tick - o.dealt_last >= 2 and o.points_judged ~= o.dealt then
+        -- (solo: every hitsplat on Olm is mine; a duo's are not)
+        if not o.role and o.dealt > 0 and F.tick - o.dealt_last >= 2 and o.points_judged ~= o.dealt then
             o.points_judged = o.dealt
             local want = o.points0 + 5 * o.dealt
             CO.mech(S, F, "points", pts == want, string.format("points %d, want %d (dealt %d)", pts, want, o.dealt))
@@ -1363,8 +1460,22 @@ function CO.predict(S, F, B)
                     forbid = true })
         end
     end
+    -- THE PAIR (a duo): the swap reads where the two of us stand at the end
+    -- of the pairing + 9 and hits each for the distance between: on one tile,
+    -- nothing. Both meet on the thumb ("the mage skipper usually sits at the
+    -- thumb, so you guys can meet up for the portal swap"); player 2 leaves
+    -- its tile late ("wait for one basic attack before grouping up").
+    if o.role and o.pair_first and o.side ~= nil then
+        local t = o.pair_first + CO.DUO.SWAP_READ
+        if t >= now + 1 then
+            local th = CO.DUO.THUMB
+            local mx, mz = CO.abs_of(S, CO.duo_lx(o.side, th[1]), CO.duo_lz(o.side, th[2]))
+            B.zone({ name = "pair", x = mx, z = mz, size = 1, lo = 0, hi = 0, t0 = t, t1 = t,
+                     tier = "lethal", require = true })
+        end
+    end
     -- the portal: be on it at the end of first-sight + 5 (1 + 4.3 a tile otherwise)
-    if o.portal_tile and o.portal_first then
+    if o.portal_tile and o.portal_first and not o.role then
         local t = o.portal_first + CO.V.PORTAL_MOVE - 1
         if t >= now + 1 then
             local px, pz = o.portal_tile.x, o.portal_tile.z
@@ -1490,6 +1601,7 @@ end
 --                 (the p3 melee states 4:1, the p3 mage states head-run)
 --   head          the final stand: the crossbow on the head (the search)
 function CO.machine(S, F)
+    if S.o.role then return CO.machine_duo(S, F) end
     local o, V = S.o, CO.V
     local m = o.m
     local state, tgt = "wait", nil
@@ -1527,11 +1639,11 @@ function CO.machine(S, F)
         -- (a hand never hit shows no health bar: unknown is FULL -- ol1i
         -- killed the melee hand with the mage hand's health unread and at 585,
         -- and the regen undid it)
-        local lh, rh = CO.hp_of(L) or 600, CO.hp_of(R) or 600
+        local lh, rh = CO.hp_of(L) or o.hand_hp, CO.hp_of(R) or o.hand_hp
         local healing = (o.protect_until or -1) >= F.tick
         if L and R then
-            if lh and lh > V.LOW_HP and not healing then state, tgt = "p3-low-melee", melee_t
-            elseif rh and rh > V.LOW_HP then state, tgt = "p3-low-mage", mage_t
+            if lh and lh > o.low_hp and not healing then state, tgt = "p3-low-melee", melee_t
+            elseif rh and rh > o.low_hp then state, tgt = "p3-low-mage", mage_t
             elseif healing then state, tgt = "p3-low-mage", mage_t
             else state, tgt = "p3-kill-melee", melee_t end
         elseif R then
@@ -1550,6 +1662,175 @@ function CO.machine(S, F)
         m.state, m.since = state, F.tick
     end
     return state, tgt
+end
+
+-- ================================================================ THE DUO
+--
+-- Synq's duo (CO.DUO): both raiders on the MAGE hand first -- the skipper
+-- skipping every special, player 2 at the far end -- the melee hand after it,
+-- the penultimate phase's hands in the solo order, the head last. Each seat
+-- runs this with its role; the head counts both (CO.step's partner).
+
+-- A west-wall tile on this wall.
+function CO.duo_lx(side, x) return (side == 0) and x or (33 - x) end
+function CO.duo_lz(side, z) return (side == 0) and z or (72 - z) end
+
+-- May the BGS's special go out (in the pack or in hand, the energy for it)?
+function CO.duo_spec_ok(S, F)
+    local id = S.ids.bgs
+    if id == nil or (F.energy or 0) < CO.DUO.SPEC_COST then return false end
+    return QD.raid._tob_count(S, id) > 0 or QD.raid._tob_worn(S, id)
+end
+
+function CO.machine_duo(S, F)
+    local o = S.o
+    local m = o.m
+    local state, tgt = "wait", nil
+    local L = o.left_alive and o.left_row or nil
+    local R = o.right_alive and o.right_row or nil
+    local melee_t = L and { row = L, style = "melee", hand = "left" } or nil
+    local mage_t = R and { row = R, style = "magic", hand = "right" } or nil
+    local spec_t = L and { row = L, style = "spec", hand = "left" } or nil
+    local spec_ok = L ~= nil and CO.duo_spec_ok(S, F)
+    -- (the special: once a phase as it opens -- "the first thing you'll be
+    -- doing when you enter the room is specking the hand" -- until it fires
+    -- or SPEC_GIVE ticks go by)
+    if o.spec_phase ~= o.phase_n and m.state == "spec" and F.tick - m.since > 20 then o.spec_phase = o.phase_n end
+    if o.ox == nil then
+        state = "wait"
+    elseif o.between then
+        state = "between"
+    elseif o.final then
+        state, tgt = "head", o.head_row and { row = o.head_row, style = "ranged" } or nil
+    elseif not o.glowing then
+        if spec_ok and o.spec_phase ~= o.phase_n then state, tgt = "spec", spec_t
+        elseif o.first_act == nil then state = "wait"
+        elseif mage_t then state, tgt = "mage", mage_t
+        elseif melee_t then state, tgt = "melee", melee_t
+        else state = "wait" end
+    else
+        -- THE PENULTIMATE (Synq): "spec as many times as you can and stay on
+        -- the melee hand. Your goal is to get the hand down to around 10 to
+        -- 15%" -- then the mage hand low -- "once both hands are low enough
+        -- HP, I recommend killing the melee hand first. This is because if
+        -- you kill the mage hand first, you run the risk of the melee hand
+        -- healing"
+        local lh, rh = CO.hp_of(L) or o.hand_hp, CO.hp_of(R) or o.hand_hp
+        local healing = (o.protect_until or -1) >= F.tick
+        if L and R then
+            if lh > o.low_hp and not healing then
+                if spec_ok then state, tgt = "p3-spec", spec_t else state, tgt = "p3-low-melee", melee_t end
+            elseif rh > o.low_hp or healing then state, tgt = "p3-low-mage", mage_t
+            else state, tgt = "p3-kill-melee", melee_t end
+        elseif R then
+            state, tgt = "p3-kill-mage", mage_t
+        elseif L then
+            state, tgt = "p3-kill-melee", (not healing) and melee_t or nil
+        end
+    end
+    if m.state ~= state then
+        QD.raid._tob_trace(S, F.tick, string.format("olm %s state %s -> %s (t+%d; hp %d, hands L %s R %s, partner bin %s)",
+            o.role, m.state, state, F.tick - m.since, F.hp or -1,
+            tostring(L and math.floor(CO.hp_of(L) or -1)), tostring(R and math.floor(CO.hp_of(R) or -1)), tostring(o.mate_bin)))
+        m.state, m.since = state, F.tick
+    end
+    return state, tgt
+end
+
+-- SYNQ'S CYCLE, the model's state after each step of it (dir, an auto owed),
+-- by the step's slot (0 the auto before a null, 1 the null, 2 the auto
+-- before a special, 3 the special). G the mage hand's view (S on the west
+-- wall), H the melee hand's, where player 2 stands:
+--   special   nobody in G -> skipped; the head turns to H (both of us there)
+--   basic 1   at player 2 in H                 ("each person tanks a basic")
+--   empty     the mage side (me + the steer) outnumbers player 2 -> G
+--   basic 2   at me in G                       ("always tank basic two")
+function CO.skip_canon(side, slot)
+    local G = (side == 0) and 0 or 2
+    local H = 2 - G
+    if slot == 3 or slot == 0 then return H, false end
+    return G, false
+end
+
+-- The skipper on the mage hand: CYCLE on Synq's tiles while every step lands
+-- in the cycle's state; RECOVER (the step search with both raiders, scored for
+-- ending in it) the moment one does not -- an early run, a missed steer, a
+-- teleport -- as the guide does it: "pay attention to the next special that
+-- happens. After that, count the basic attacks. Your goal is to tank basic
+-- two and run the head to set it right back up."
+function CO.mageskip(S, F, B, target)
+    local o, D = S.o, CO.DUO
+    local c = o.mskip
+    if c == nil or c.phase ~= o.phase_n or c.entry ~= o.m.since then
+        c = { state = "recover", cause = "enter", since = F.tick, k = o.next_k - 1, phase = o.phase_n,
+              n = (c and c.n) or 0, entry = o.m.since }
+        o.mskip = c
+    end
+    local last_k = o.next_k - 1
+    if last_k ~= c.k and last_k >= 0 then
+        c.k = last_k
+        local d, sk = CO.skip_canon(o.side, o.last_slot or 0)
+        local ok = (o.dir == d and o.skipped == sk)
+        local was = c.state
+        if c.state == "cycle" and not ok then
+            c.state, c.cause, c.since = "recover", "turn", F.tick
+        elseif c.state == "recover" and ok then
+            c.state, c.since = "cycle", F.tick
+            c.n = c.n + 1
+        end
+        if c.state ~= was then
+            QD.raid._tob_trace(S, F.tick, string.format("olm mage skip %s -> %s (%s) at k%d slot %d: dir %d owed %s, partner bin %s",
+                was, c.state, c.cause, last_k, o.last_slot or 0, o.dir, tostring(o.skipped), tostring(o.mate_bin)))
+        end
+    end
+    if c.state == "recover" then
+        return CO.search(S, F, target, B, function(slot) return CO.skip_canon(o.side, slot) end), "recover-" .. c.cause
+    end
+    local reads = {}
+    for _, st in ipairs(CO.steps_ahead(S, F, 8, F.tick + B.h)) do
+        local at = (st.slot == 3) and D.RIGHT or D.LEFT
+        local lx, lz = CO.duo_lx(o.side, at[1]), CO.duo_lz(o.side, at[2])
+        reads[#reads + 1] = { t = st.A - 1, bin = CO.bin_of(lz), kind = st.kind, slot = st.slot, lz = lz }
+        local x, z = CO.abs_of(S, lx, lz)
+        B.pull({ name = "skip", x = x, z = z, size = 1, weight = CO.V.CYCLE_PULL, t0 = st.A - 1, t1 = st.A - 1 })
+    end
+    return { reads = reads, score = 0 }, "cycle"
+end
+
+-- One tile to stand on and every read in its bin (player 2's home; the
+-- skipper's thumb on the melee hand): a pull to the tile, the reads required.
+function CO.duo_hold(S, F, B, at, cost, name)
+    local o = S.o
+    local lx, lz = CO.duo_lx(o.side, at[1]), CO.duo_lz(o.side, at[2])
+    local x, z = CO.abs_of(S, lx, lz)
+    B.pull({ name = name, x = x, z = z, size = 1, weight = CO.V.CYCLE_PULL, t0 = F.tick + 1, t1 = F.tick + B.h })
+    if cost == nil then return nil end
+    local reads = {}
+    for _, st in ipairs(CO.steps_ahead(S, F, 8, F.tick + B.h)) do
+        reads[#reads + 1] = { t = st.A - 1, bin = CO.bin_of(lz), kind = st.kind, cost = cost }
+    end
+    return { reads = reads, score = 0 }
+end
+
+-- THE DUO'S READS by role and state.
+function CO.duo_reads(S, F, B, mode, target)
+    local o, D = S.o, CO.DUO
+    if mode == "between" or o.side == nil then return nil, "between" end
+    if o.role == "p2" then
+        -- "attack the mage hand and make sure you never go past this tile";
+        -- "for the head phase … attack the head and make sure you stay in
+        -- your area no matter what"
+        return CO.duo_hold(S, F, B, D.P2, D.HOME_COST, "home"), "home"
+    end
+    if mode == "spec" or mode == "p3-spec" or mode == "melee" or mode == "p3-low-melee" or mode == "p3-kill-melee" then
+        return CO.duo_hold(S, F, B, D.THUMB, nil, "thumb"), "thumb"
+    end
+    if (mode == "mage" or mode == "p3-low-mage" or mode == "p3-kill-mage") and target then
+        return CO.mageskip(S, F, B, target)
+    end
+    -- the head: "turn the head so each player tanks one basic attack" -- the
+    -- step search with both of us in the count
+    return CO.search(S, F, target, B), "search"
 end
 
 -- THE 4:1 (the melee hand), the guides' loop (sources/olm_4to1_research.md
@@ -1751,7 +2032,7 @@ function CO.headrun(S, F, B, target)
             w0, w1 = t_from + need + 1, t_read
         end
         if w0 <= w1 then windows[#windows + 1] = { t0 = w0, t1 = w1 } end
-        dir, skipped = CO.step(dir, skipped, st.kind, bin, o.side, false, er, st.can)
+        dir, skipped = CO.step(dir, skipped, st.kind, bin, o.side, false, er, st.can, o.mate_bin)
         from_z, t_from = lz, t_read
     end
     return { reads = reads, score = 0, windows = windows }
@@ -1790,7 +2071,7 @@ function CO.wall_risk(S, F, B, res)
         local lx, lz = CO.local_of(S, F.me.x, F.me.z)
         local bin = (lx >= V.CH.x0 and lx <= V.CH.x1) and CO.bin_of(lz) or nil
         if bin then
-            local _, _, autos = CO.step(o.dir, o.skipped, CO.next_kind(S, F), bin, o.side, false, false, false)
+            local _, _, autos = CO.step(o.dir, o.skipped, CO.next_kind(S, F), bin, o.side, false, false, false, o.mate_bin)
             if autos > 0 and fits(o.dir, lz) then mark(A) end
         end
     end
@@ -1799,7 +2080,7 @@ function CO.wall_risk(S, F, B, res)
     for i, st in ipairs(steps) do
         local r = res.reads[i]
         if r == nil or r.t ~= st.A - 1 or r.bin == nil then break end
-        local d2, s2, autos = CO.step(d, sk, st.kind, r.bin, o.side, false, false, st.can)
+        local d2, s2, autos = CO.step(d, sk, st.kind, r.bin, o.side, false, false, st.can, o.mate_bin)
         if autos > 0 and bin_fits(d, r.bin, r.lz) then mark(st.A) end
         d, sk = d2, s2
     end
@@ -1809,7 +2090,7 @@ function CO.gear(S, style)
     local out = {}
     for _, obj in ipairs(S.ids.sets[style]) do
         if not QD.raid._tob_worn(S, obj) and QD.raid._tob_count(S, obj) > 0 then
-            out[#out + 1] = { obj = obj, two_hand = false }
+            out[#out + 1] = { obj = obj, two_hand = (obj == S.ids.bgs) }
         end
     end
     return out
@@ -1877,7 +2158,7 @@ function CO.prayers(S, F, intents, res)
             local el = CO.steers(o.lhits, A)
             local er = CO.steers(o.rhits, A)
             for _, b in pairs(bins) do
-                local _, _, autos = CO.step(o.dir, o.skipped, kind, b, o.side or 0, el, er, false)
+                local _, _, autos = CO.step(o.dir, o.skipped, kind, b, o.side or 0, el, er, false, o.mate_bin)
                 if autos > 0 then want = true end
             end
         end
@@ -2107,14 +2388,34 @@ function CO.strategy(S, F, B)
     local target = nil
     if tgt and tgt.row then
         intents.gear = CO.gear(S, tgt.style)
-        local weapon = (tgt.style == "melee") and ids.tentacle or ((tgt.style == "magic") and ids.trident or ids.xbow)
+        local weapon = (tgt.style == "melee") and ids.tentacle or ((tgt.style == "magic") and ids.trident
+            or ((tgt.style == "spec") and ids.bgs or ids.xbow))
         local lx, lz = CO.local_of(S, tgt.row.x, tgt.row.z)
         -- (melee: the column beside the 5-wide claw, toward the chamber)
         local col = (o.side == 0) and (lx + 5) or (lx - 1)
         local acc = o.acc[tgt.hand or "head"]
-        target = { lz = lz, col = col, range = V.RANGE[tgt.style], speed = V.SPEED[tgt.style], hand = tgt.hand,
+        local RG, SP = V.RANGE, V.SPEED
+        if o.role then RG, SP = CO.DUO.RANGE, CO.DUO.SPEED end
+        target = { lz = lz, col = col, range = RG[tgt.style], speed = SP[tgt.style], hand = tgt.hand,
                    p_hit = (acc.h + 2) / (acc.n + 5) }
-        if QD.raid._tob_worn(S, weapon) and tgt.style == "melee" and o.first_act then
+        if tgt.style == "spec" then
+            -- THE SPECIAL (a duo, Synq): the BGS on the melee hand; fired when
+            -- the energy drops by its cost
+            o.spec_e0 = o.spec_e0 or F.energy
+            if (F.energy or 0) <= (o.spec_e0 or 0) - CO.DUO.SPEC_COST + 10 then
+                o.spec_phase, o.spec_e0 = o.phase_n, nil
+                o.specs = (o.specs or 0) + 1
+                QD.raid._tob_trace(S, F.tick, "olm special fired on the melee hand, energy " .. tostring(F.energy))
+            elseif QD.raid._tob_worn(S, weapon) then
+                intents.spec, intents.spec_cost = true, CO.DUO.SPEC_COST
+                B.target({ name = mode, npc = tgt.row, size = 5, range = 1, speed = target.speed, value = V.SWING_VALUE })
+            end
+        else
+            o.spec_e0 = nil
+        end
+        if tgt.style == "spec" then
+            -- (above)
+        elseif QD.raid._tob_worn(S, weapon) and tgt.style == "melee" and o.first_act and not o.role then
             -- THE MELEE PHASE: "attack one tick after Olm's attack" (the
             -- guides; OLM_SPEC 3): a swing goes out only on a step + 1, one
             -- window per step in the horizon (ol1g: a swing on the step
@@ -2134,7 +2435,7 @@ function CO.strategy(S, F, B)
                 end
                 k = k + 1
             end
-        elseif QD.raid._tob_worn(S, weapon) and tgt.style == "magic" and o.first_act then
+        elseif QD.raid._tob_worn(S, weapon) and tgt.style == "magic" and o.first_act and not o.role then
             -- (head running: the casts only in the windows the reads leave,
             -- CO.headrun)
             o.run_res = CO.headrun(S, F, B, target)
@@ -2149,7 +2450,7 @@ function CO.strategy(S, F, B)
                        value = V.SWING_VALUE })
         end
         if F.prayer >= 30 then
-            intents.pray_boost = ids.boost[tgt.style]
+            intents.pray_boost = ids.boost[(tgt.style == "spec") and "melee" or tgt.style]
         end
     else
         intents.gear = CO.gear(S, "melee")
@@ -2168,7 +2469,11 @@ function CO.strategy(S, F, B)
     -- THE READS: the 4:1 machine on the melee hand, head running on the
     -- mage hand, the step search for the head -> the read ticks' bins
     local res
-    if target and tgt.style == "melee" and QD.raid._tob_worn(S, ids.tentacle) then
+    if o.role then
+        local sub
+        res, sub = CO.duo_reads(S, F, B, mode, target)
+        intents.mode = mode .. ":" .. tostring(sub)
+    elseif target and tgt.style == "melee" and QD.raid._tob_worn(S, ids.tentacle) then
         local sub
         res, sub = CO.cycle(S, F, B, target)
         intents.mode = mode .. ":" .. sub
@@ -2252,6 +2557,13 @@ QD.T2.register("cox_olm", {
             m = { state = "init", since = 0 }, mech = {}, spec_tally = {},
             dealt = 0, dealt_seen = {}, dealt_last = -10,
             parity = 0, list = 0, lhits = {}, rhits = {}, defer = {},
+            role = opts.role, mate_hist = {}, mate_hit = {},
+            -- the hands' hitpoints and the clench's hit scale with the party
+            -- (cox_olm_hand_hp: 600 + 300 a raider past the first; 1/20 clenches)
+            hand_hp = 600 + 300 * ((opts.party or 1) - 1),
+            clench_hit = (600 + 300 * ((opts.party or 1) - 1)) // 20,
+            -- (P3's "low": Synq's "around 10 to 15%" in a duo; solo the 4:1's 40)
+            low_hp = opts.role and CO.DUO.LOW_HP or CO.V.LOW_HP,
             autos_at_me = 0, specials_at_me = 0,
             seed_first = {}, bomb_first = {}, bolt_col = {}, shadow_seen = {}, spot_born = {},
             acc = { left = { n = 0, h = 0 }, right = { n = 0, h = 0 }, head = { n = 0, h = 0 } },
@@ -2270,10 +2582,11 @@ QD.T2.register("cox_olm", {
         for press = 1, 4 do
             local mr, mode = api_drive.varp(ids.com_mode)
             assert(mr == "ok", S.who .. ": varp43_com_mode answered " .. tostring(mr))
-            if mode == 1 then break end
+            -- (a duo: Long range, mode 3 -- 2 once a swing clamps it)
+            if (S.o.role == nil and mode == 1) or (S.o.role ~= nil and mode >= 2) then break end
             assert(press <= 3, S.who .. ": three style presses and varp43_com_mode reads " .. tostring(mode))
             QD.raid._tob_tab(S, ids.combat_tab)
-            local pr, pd = api_drive.if_click(ids.style_slot_1, 1)
+            local pr, pd = api_drive.if_click((S.o.role ~= nil) and ids.style_slot_3 or ids.style_slot_1, 1)
             assert(pr == "ok", S.who .. ": the style press answered " .. tostring(pr) .. " " .. tostring(pd))
             for _ = 1, 2 do
                 await({ event = "server_tick", match = function() return true end, note = S.who .. ": style" }, 3)
@@ -2317,5 +2630,7 @@ QD.T2.register("cox_olm", {
             tostring(o.points), o.dealt, o.phase_n, o.m.state, o.autos_at_me, o.specials_at_me, S.mon.rules.olm_step.n,
             S.mon.rules.olm_step.checked, table.concat(mech, ", "), c and c.n or 0,
             o.stat_bad or 0, S.mon.rules.olm_stats.checked, o.launches or 0, o.orphans or 0, table.concat(tally, "; "))
+            .. (o.role and string.format("; duo %s: skip cycles %d, specs %d, autos at the partner %d, pairings %d",
+                o.role, (o.mskip and o.mskip.n) or 0, o.specs or 0, o.mate_autos or 0, o.pairs or 0) or "")
     end,
 })

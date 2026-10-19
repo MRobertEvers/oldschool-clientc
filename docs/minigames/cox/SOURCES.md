@@ -319,6 +319,12 @@ Search: `yt-dlp --flat-playlist "ytsearch8:<room> guide ..."`, 16 queries, 2026-
 notes is in `sources/README.md`. Without captions (listed as unavailable): `iQd1ku7CP80`, `BbryLzdknkA`, `h4d4ge6tIa0`,
 `IVvIwrqAsH8`, `_CUPrtw-nyU`, `SuqdDYqHjAo`, `XjhYjGLXPms`, `ox1leZ5Z44E`.
 
+2026-10-18: Synq, *The EASIEST Mage Skipping Guide 2026 (Duo Olm)* (`8Ta9VkVaJ7M`, 15:08, uploaded 2026-04-28), found with
+`ytsearch15:Synq duo chambers of xeric guide`, captions to `sources/transcripts/yt_8Ta9VkVaJ7M.md` (the duo Olm solver's
+method, `olm_duo_solver.md`). The 720p video was fetched to the session scratchpad (not committed) and frames read at
+0:03:06, 0:03:16, 0:03:34, 0:11:34, 0:11:42 and 0:11:52 for the roles' tiles: player 2 beside the melee claw casting at the
+mage claw, the skipper on the mage claw's side.
+
 ## 8. Reference servers (read where already in the tree; nothing new fetched)
 
 - **Near Reality** (`~/Documents/git_repos/RSPS-NEAR-REALITY`, Zenyte-derived): `sources/nr/room_coords.txt`; its CoX scripts are
