@@ -48,7 +48,7 @@ MU.V = {
     RUN = 3,
     -- the tendrils' template row by variant (cox_muttadiles.rs2
     -- ~cox_mutta_tendril_tile) and the crystal (~cox_mutta_crystal_tile)
-    TENDRIL = { [0] = { 15, 2 }, [1] = { 15, 2 }, [2] = { 15, 1 } },
+    TENDRIL = { [0] = { 15, 2 }, [1] = { 15, 1 }, [2] = { 15, 1 } },
     CRYSTAL = { [0] = { 6, 16 }, [1] = { 12, 23 }, [2] = { 24, 15 } },
     PRAY_HOLD = 2,
 }

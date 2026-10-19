@@ -159,10 +159,15 @@ hpbar_is_boss(struct ToriRSServerNpc const* npc)
         s_param = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_PARAM, "hpbar_hud_boss");
     if( s_param < 0 )
         return 0;
+    /* An authored band field first, then the record's own param table (a
+     * `param=hpbar_hud_boss,1` line in a .npc file lands in the latter). */
     def = npc->def ? npc->def : ToriRSServer_ContentNpcDefault();
-    if( !def || !ToriRSServer_ContentNpcParam(def, s_param, &value) )
-        return 0;
-    return value != 0;
+    if( def && ToriRSServer_ContentNpcParam(def, s_param, &value) )
+        return value != 0;
+    {
+        const struct ToriRSServerNpcParam* row = ToriRSServer_NpcParam(npc->type, s_param);
+        return row && !row->sval && row->ival != 0;
+    }
 }
 
 /* The boss this player's overlay sticks to: its slot, HPBAR_PIN_HELD while a
