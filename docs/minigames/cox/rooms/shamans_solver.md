@@ -167,3 +167,24 @@ poisoned. The test carries exactly `cox_raid_solo.lua`'s kit (no
 anti-poison): with the corrected 12-damage poison, 48/48 still pass; the room
 costs 58-109 hp (poison included), paid from Xeric's aid. **Kit request:** a
 sanfew serum for a raid holding shamans (wiki Strategies).
+
+## Round 4: the recorded room (2026-10-18)
+
+The content moved to Jagex's recorded behaviour (`docs/rsprox-analysis/cox/shamans.md`): acid more often (2 in 7)
+and later (T + 2 + gap / 2), the summon a swing (about 1 in 7), the jump landing T + 6, spawns bursting T + 10 / 12 /
+14 in the 3x3. The solver's model followed:
+
+- acid L = 2 + gap / 2; the pre-move mark only in reach (gap <= 1, the only +2), CLOSE 2 (was 4: within 4 the old
+  acid came in 2 ticks, and the bot walked half the room);
+- the acid keyed on its tiles (the `launched` flag flips 61 cycles in and made every spit two), its landing from the
+  caster's swing when seen;
+- jump read T + 5, SWING_JUMP 9; the summon counted as a swing;
+- spawns: SPAWN_R 1, fuse 8 from first sight, a warned spawn's 3x3 forbidden; a spawn key seen again after a gap or
+  past its burst is a new spawn (slots are reused every summon);
+- the flick: on from two ticks before a due swing until the swing is SEEN (a shaman stepping into range swings
+  late).
+
+Seeds 0, 3, 5, 9, 17, 30 (the drained arrival, 23 prayer, no restore): 4 of 6 green, no aborts. Open:
+**seed 5** runs out of prayer (0 at t545; the room is ~330 ticks of ranging at 79 Ranged) and the next spit lands;
+**seed 17** stepped into an acid's 5x5 on its read tick though the solver had the acid (seen on the swing tick,
+landing computed right, `acid at ... lands t367` in the trace) -- a planner question, not the model's.

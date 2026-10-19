@@ -8,9 +8,9 @@
 -- THE IDEA (Synq 0:34:38-0:41:59; wiki CoX/Strategies): Protect from
 -- Missiles all room, range one shaman at a time, and BE MOVING on every tick a
 -- shaman's swing is due -- its acid is aimed at where I stood at the end of
--- the tick before and lands 1 + floor((1 + d) / 3) ticks later, a 5x5. A
--- jump (anim 7152) slams a 3x3 round where I stood four ticks on; spawns
--- burst 5x5 round themselves. The spirit tendrils at the door and the exit
+-- the tick before and lands 2 + floor(d / 2) ticks later, a 5x5. A jump
+-- (anim 7152) slams a 3x3 round where I stood, six ticks on; spawns burst
+-- 3x3 round themselves (all RECORDED, docs/rsprox-analysis/cox/shamans.md). The spirit tendrils at the door and the exit
 -- spawns are the room's own: Pass the tendrils, wait for the blockers to burst.
 --
 -- Perception: npc rows (tiles, animations and when each was FIRST seen),
@@ -25,30 +25,34 @@ local CS = QD.COXSH
 
 CS.V = {
     H = 10, BEAM = 32,
-    -- the shamans' clock (wiki: 4; NR: 8 after a jump)
-    SWING = 4, SWING_JUMP = 8,
+    -- the shamans' clock (4; 9 after a jump, RECORDED)
+    SWING = 4, SWING_JUMP = 9,
     -- a shaman is "on me" this many ticks after its last swing
     ENGAGED = 12,
     -- the acid (S-ACID): 5x5, 20-39, read at the end of T+L-1
     ACID_R = 2, ACID_EXP = 30, ACID_MAX = 39,
-    -- a due swing, before it is seen: 1/6 of the acid's 30 plus its poison,
+    -- a due swing, before it is seen: 2/7 of the acid's 30 plus its poison,
     -- priced on my tile at the end of the tick before (Synq: "move on the
     -- tick it attacks"); weighted up because the method is to always move
     PRE_ACID = 20, ACID_EDGE = 6,
-    -- keep an engaged shaman this far off (d <= CLOSE costs CLOSE_COST a tick)
-    CLOSE = 4, CLOSE_COST = 10,
+    -- keep an engaged shaman this far off (d <= CLOSE costs CLOSE_COST a tick):
+    -- from gap 2 its acid takes 3+ ticks, dodged once its swing shows
+    CLOSE = 2, CLOSE_COST = 10,
+    -- within this gap the acid lands next tick but one (+2): be moving on its
+    -- due swing, before the swing shows
+    PRE_MOVE = 1,
     -- ticks after the gate with no target
     ENTRY = 6,
     -- ticks with no shot in the plan before walking closer for sight
     BLIND = 8,
     -- an idle shaman's hunt range (NR aggressionDistance 8) + 1, and its price
     HUNT = 9, AGGRO_COST = 2,
-    -- the jump (S-JUMP-L): 3x3 round my tile at the end of T-1, read at the
-    -- end of T+3
-    JUMP_READ = 3, JUMP_EXP = 22, JUMP_MAX = 25,
-    -- the spawns (S-SPAWN-X): fuse 10-20 from their first sight, 5x5,
-    -- 5-10; the hands-to-head 3 ticks before the burst
-    SPAWN_R = 2, SPAWN_FUSE_MIN = 10, SPAWN_WARN = 3, SPAWN_EXP = 12, SPAWN_MAX = 10,
+    -- the jump (S-JUMP-L): 3x3 round my tile at the end of T-1, landing T+6,
+    -- read at the end of T+5
+    JUMP_READ = 5, JUMP_EXP = 22, JUMP_MAX = 25,
+    -- the spawns (S-SPAWN-X): fuses 8, 10, 12 from their first sight, the
+    -- 3x3, 5-10; the hands-to-head 3 ticks before the burst
+    SPAWN_R = 1, SPAWN_FUSE_MIN = 8, SPAWN_WARN = 3, SPAWN_EXP = 8, SPAWN_MAX = 10,
     -- my crossbow on rapid (the kit's): range 7, 5 ticks
     RANGE = 7, SPEED = 5, SWING_VALUE = 4,
     -- supplies (Xeric's aid is the healing)
@@ -67,7 +71,7 @@ function CS.ids(opts)
         { "tendril", "loc", "raids_shaman_tendrils_entrance" },
         { "acid", "spotanim", "lizardshaman_spit_acid" },
         { "seq_ranged", "seq", "shay_lizard_warrior_attack_ranged" },
-        { "seq_melee", "seq", "shay_lizard_warrior_attack_melee" },
+        { "seq_melee", "seq", "shayzien_lizard_boss_tail_swipe" },
         { "seq_jump", "seq", "shayzien_lizard_boss_jump" },
         { "seq_land", "seq", "shayzien_lizard_boss_land" },
         { "seq_summon", "seq", "shayzien_lizard_boss_minion_summon" },
@@ -133,7 +137,7 @@ end
 
 -- The acid's flight (S-ACID-T): lands L ticks after the swing.
 function CS.acid_l(d)
-    return 1 + (1 + d) // 3
+    return 2 + d // 2
 end
 
 -- One tick's look: the shamans, their swings first seen, the acid in the
@@ -157,16 +161,17 @@ function CS.observe(S, F)
             if row.seq_id ~= nil and row.seq_id >= 0 and sig ~= m.sig then
                 m.sig = sig
                 local q = row.seq_id
-                if q == ids.seq_ranged or q == ids.seq_melee or q == ids.seq_jump then
+                -- (the summon is a swing too: the clock runs through it)
+                if q == ids.seq_ranged or q == ids.seq_melee or q == ids.seq_jump or q == ids.seq_summon then
                     m.swing, m.swing_kind = F.tick, q
                     s.swings = s.swings + 1
                     if q == ids.seq_jump then
                         local at = QD.T2.tile_at(S, F.tick - 1) or F.me
                         m.jump = { t = F.tick, x = at.x, z = at.z }
                         s.jumps = s.jumps + 1
+                    elseif q == ids.seq_summon then
+                        s.summons = s.summons + 1
                     end
-                elseif q == ids.seq_summon then
-                    s.summons = s.summons + 1
                 end
             end
             if (row.seq_id == ids.seq_death or row.health_ratio == 0) and not m.dead then
@@ -178,10 +183,16 @@ function CS.observe(S, F)
         elseif id == ids.spawn then
             local key = QD.T2.npc_key(row)
             local sp = s.spawn_mem[key]
+            -- a key back after a gap, or past its own burst, is a new spawn:
+            -- a summon every ~30 ticks reuses the dead ones' slots
+            if sp ~= nil and (F.tick - (sp.seen or F.tick) > 2 or (sp.warn ~= nil and F.tick > sp.warn + V.SPAWN_WARN)) then
+                sp = nil
+            end
             if sp == nil then
                 sp = { first = F.tick }
                 s.spawn_mem[key] = sp
             end
+            sp.seen = F.tick
             if row.seq_id == ids.seq_warn and sp.warn == nil then sp.warn = F.tick end
             sp.x, sp.z = row.x, row.z
             s.spawns[#s.spawns + 1] = sp
@@ -196,7 +207,8 @@ function CS.observe(S, F)
     if pr == "ok" then
         for _, p in ipairs(projs) do
             if p.spotanim_id == ids.acid and (p.target or -1) <= 0 and (p.cycles_left or 0) > 0 then
-                local key = p.dst_x .. ":" .. p.dst_z .. ":" .. tostring(p.launched or p.src_x)
+                -- (not `launched`: it flips 61 cycles in, which made every spit two)
+                local key = p.dst_x .. ":" .. p.dst_z .. ":" .. tostring(p.src_x) .. ":" .. tostring(p.src_z)
                 if s.acid_seen[key] == nil then
                     -- L from the CASTER's body to the target tile (S-ACID-T):
                     -- the shaman whose middle the spit left from (the
@@ -214,8 +226,15 @@ function CS.observe(S, F)
                     -- ~cox_shaman_attack_poison); the caster's distance when
                     -- a row carries none
                     if (p.duration or 0) >= 30 then L = p.duration // 30 end
-                    s.acid_seen[key] = { x = p.dst_x, z = p.dst_z, land = F.tick + L }
+                    -- from the caster's swing when it was seen (the spit
+                    -- leaves 61 cycles in, so it can be seen a tick or two
+                    -- after the swing it belongs to)
+                    local t0 = F.tick
+                    if caster and caster.swing and F.tick - caster.swing <= 3 then t0 = caster.swing end
+                    s.acid_seen[key] = { x = p.dst_x, z = p.dst_z, land = t0 + L }
                     s.acids = s.acids + 1
+                    QD.raid._tob_trace(S, F.tick, string.format("acid at %d,%d seen, duration %s left %s, caster swing %s, lands t%d",
+                        p.dst_x, p.dst_z, tostring(p.duration), tostring(p.cycles_left), tostring(caster and caster.swing), t0 + L))
                 end
             end
         end
@@ -263,10 +282,10 @@ function CS.predict(S, F, B)
             B.hit({ name = "jump", x0 = m.jump.x - 1, z0 = m.jump.z - 1, x1 = m.jump.x + 1, z1 = m.jump.z + 1,
                     t0 = t, t1 = t, dmg_exp = V.JUMP_EXP, dmg_max = V.JUMP_MAX, forbid = true })
         end
-        -- TOO CLOSE: an acid aimed from d <= 4 lands in 2 ticks (S-ACID-T),
-        -- too soon to step 3 tiles once seen; from d >= 5 it takes 3 and is
-        -- dodged after its swing shows. So a shaman on me is kept 5 off --
-        -- priced (a sixth of its swings are acid), and its melee reach
+        -- TOO CLOSE: an acid aimed from d <= 1 lands in 2 ticks, 2-3 in 3
+        -- (S-ACID-T): in reach, too soon to step 3 tiles once seen; further
+        -- out it is dodged after its swing shows. So a shaman on me is kept
+        -- 3 off -- priced (2 in 7 of its swings are acid), and its melee reach
         -- forbidden on a due swing. An idle one is kept out of its hunt
         -- range (8, S-AGGRO): one at a time.
         local sz = row.size or 3
@@ -283,9 +302,9 @@ function CS.predict(S, F, B)
                 B.hit({ name = "reach?", x0 = row.x - 1, z0 = row.z - 1, x1 = row.x + sz, z1 = row.z + sz,
                         t0 = now + 1, t1 = now + h, dmg_exp = 12, dmg_max = 25, forbid = true })
             end
-            -- within 4 the acid comes in 2 ticks: be moving on its swing
+            -- in reach the acid comes in 2 ticks: be moving on its swing
             -- (Synq's method), the mark on my tile at the end of D-1
-            local near = CS.range(row, F.me.x, F.me.z) <= V.CLOSE
+            local near = CS.range(row, F.me.x, F.me.z) <= V.PRE_MOVE
             while D <= now + h do
                 if near and D - 1 >= now and #B.spec.marks < 6 then
                     B.mark({ name = "pre-acid", t_mark = D - 1, r = V.ACID_R, t0 = D + 1, t1 = D + 1,
@@ -319,8 +338,11 @@ function CS.predict(S, F, B)
             t1 = now + h
         end
         if t1 >= now + 1 and t0 <= t1 then
+            -- (a warned spawn stands still for its last 3 ticks: its 3x3 at
+            -- the read is certain, and two run steps clear it -- forbidden)
             B.hit({ name = "spawn", x0 = sp.x - V.SPAWN_R, z0 = sp.z - V.SPAWN_R, x1 = sp.x + V.SPAWN_R, z1 = sp.z + V.SPAWN_R,
-                    t0 = math.max(t0, now + 1), t1 = t1, dmg_exp = V.SPAWN_EXP, dmg_max = V.SPAWN_MAX })
+                    t0 = math.max(t0, now + 1), t1 = t1, dmg_exp = V.SPAWN_EXP, dmg_max = V.SPAWN_MAX,
+                    forbid = sp.warn ~= nil })
         end
     end
 end
@@ -544,9 +566,12 @@ function CS.swing_soon(S, F)
             if d <= CS.V.HUNT then return true end
         elseif F.tick - m.swing <= CS.V.ENGAGED then
             local gap = (m.swing_kind == S.ids.seq_jump) and CS.V.SWING_JUMP or CS.V.SWING
-            local D = m.swing + gap
-            while D < F.tick do D = D + CS.V.SWING end
-            if D - F.tick <= 2 then return true end
+            -- on from two ticks before it is due (a press now is in force
+            -- next tick, and the swing reads the tick before its own) until
+            -- it is SEEN: a shaman that steps into range swings late (seed 3:
+            -- due 290, swung 292), and rolling the due tick on dropped the
+            -- prayer under it
+            if m.swing + gap - F.tick <= 2 then return true end
         elseif d <= CS.V.HUNT then
             return true
         end

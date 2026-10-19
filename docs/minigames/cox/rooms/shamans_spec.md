@@ -32,6 +32,25 @@ npc phase and reads tiles at the end of T+N-1. A player queue `queue*(x, k)`
 runs on T+k+1. `d` = Chebyshev distance from the shaman's 3x3 body
 (`npc_range`, 0 under it).
 
+## Round 4: RSProx (2026-10-18) -- supersedes the rows it names
+
+Jagex's server, recorded (`docs/rsprox-analysis/cox/shamans.md`; 3282, 3389 in the
+raid, 3276 the surface shamans that share the attack set). Where a row below
+disagrees, this wins.
+
+| row | recorded | was |
+|---|---|---|
+| S-ROLL | ranged 3, acid 2, jump 1, summon 1 (+ melee 3 in reach); a blocked jump or a refused summon rolls again | NR 4:1:1(+1) |
+| S-RNG | lizardman_spit 420 -> 146 raw (105 -> 36), leaves 61 cycles in, ends 66 + 5 x gap, angle 5, progress 128; lands end / 30 | 40 -> 36, delay 32 |
+| S-MEL | the tail swipe (7158), 4 of 5; stabsword_slash range 6 | 7192 |
+| S-ACID-T | lands T + 2 + gap / 2 (30 of 30), and after its shaman has died; 1293 420 -> 5 raw, angle 30, progress 128 | 1 + (1 + d) / 3 on the shaman's queue |
+| S-JUMP-L | lands T + 6 (land anim, teleport, moon_fall_land); next swing T + 9 | T + 4, T + 8 |
+| S-SPAWN | a swing choice, refused while its last spawns live (summon to summon 17+); the spawns appear T + 2 in a chain from the target's tile; the target's camera shakes then (0, 4, 2, 0), reset + 3 | per-tick 1 in 61, 34 ticks, at once |
+| S-SPAWN-X | bursts T + 10, + 12, + 14 in chain order; the tell 3 before, standing still; the 3x3; 5 / 7 / 10 (fitted) | fuses 10-20, the 5x5 |
+| S-CLEAR | from the last deletion X: tendrils at X (3282; X + 3 in 3389), blockers' tell X + 3 (X + 2), burst 3 after | + 2 / + 6 / + 2 |
+| S-DROP | the slain message on the deletion tick; seeds despawn 3000 | no message; 200 |
+| sounds | spits creeper_spit range 10, acid splash dagganoth_splash 8, jump jump_no_land 8, landing moon_fall_land 8, spawns slug2_rumbling 8 / screech2 (delay 20) 5 / 100_cauldron_explodes 8, hit crocodile_hit, death crocodile_death | NR ids, synth to the room |
+
 ## The spec
 
 | id | mechanic | decide tick / read | geometry | damage (solo) | prayer | tell (client) | source / ruling |

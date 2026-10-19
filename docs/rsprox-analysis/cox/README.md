@@ -13,6 +13,7 @@ Each room's file states the recorded behaviour, the recording ticks it was read 
 | [vasa.md](vasa.md) | Vasa Nistirio |
 | [vanguards.md](vanguards.md) | Vanguards |
 | [muttadiles.md](muttadiles.md) | Muttadiles |
+| [shamans.md](shamans.md) | Lizardman shamans |
 
 ## Sources
 
@@ -21,10 +22,11 @@ All recordings are submissions to the public archive, [rsprox.net/database](http
 | Submission | Revision | World | Raid | Used for |
 |---|---|---|---|---|
 | 820 | 234 | Grid Master | a trio, then a four-man raid (scaled as 54: `raids_client_partysize_scaled`) | Guardians (party), Olm (the party rules, re-transcribed with every raider shown), Tekton and Vespula (the whole fights), Vasa (party), Muttadiles (targets, odds, timing), teleport swaps |
-| 3282 | 234 | Grid Master | solo, normal | Guardians (solo), Olm, Vasa, Muttadiles (the tree) |
+| 3282 | 234 | Grid Master | solo, normal | Guardians (solo), Olm, Vasa, Muttadiles (the tree), shamans (the room, the clear) |
 | 843 | 234 | Grid Master | solo, normal | Olm, Vasa, Vespula (the start, the clear), Muttadiles |
 | 3285 | 234 | Grid Master | solo, normal | Olm (the fullest solo kill), Vasa, Muttadiles (the fullest solo room) |
-| 3389 | 235 | Grid Master | solo, **Challenge Mode** | excluded from damage numbers; Vespula's CW room; Muttadiles' CM hitpoints |
+| 3389 | 235 | Grid Master | solo, **Challenge Mode** | excluded from damage numbers; Vespula's CW room; Muttadiles' CM hitpoints; shamans (the acid in the raid, the clear) |
+| 3276 | 234 | Grid Master | not a raid: the Molch temple's surface shamans (8565, 2x2), a public area, transcribed with every player shown | shamans: the attack set's timing, odds, jump, spawns |
 
 **Caveats:**
 - **Grid Master** is a seasonal world type. Its perks can change what the raider deals and takes. Monster damage read here is consistent across the recordings and with the wiki's ordering, but treat a single outlier with suspicion.
@@ -46,6 +48,7 @@ All recordings are submissions to the public archive, [rsprox.net/database](http
 | `tools/cox/rsprox_vanguards.py` | Vanguards: the rise, every volley's projectiles against the raider, the shuffles (reset or timer, walk, heal, emergence), the clear |
 | `tools/cox/rsprox_vasa.py` | Vasa: the special tick by tick, boulders against the raider's tile, the crystal cycle, the walk, the stomp, the death |
 | `tools/cox/rsprox_vasa_teleport.py` | Vasa's teleport special in INSTANCE tiles (an untranslated transcript, below): every raider's distance from his middle, the stun, the explosion |
+| `tools/cox/rsprox_shamans.py` | Lizardman shamans (raid and surface): each swing's projectile against the gap, the acid's landing and reach, the choice against reach, the cadence, the jump, the summon's spawns and bursts, the sounds; follows every player |
 | `tools/cox/rsprox_muttadiles.py` | Muttadiles: the meals, every attack against reach and target, projectiles, the submerged sweeps, prayer, the surfacing, the erratic step, the sounds |
 | `tools/cox/rsprox_olm.py` | Olm's area hits (bombs, falling crystals) against distance |
 | `tools/cox/rsprox_olm_tells.py` | Inventory of the Olm fight's animations, projectiles, graphics, sounds and messages |
