@@ -3799,6 +3799,197 @@ selftest_run_energy_worn(struct ToriRSServer* srv)
     ToriRSServer_ScriptsFree(srv);
 }
 
+/* Wield `obj` from an otherwise empty pack with a real Wield click. */
+static void
+selftest_style_memory_wield(
+    struct ToriRSServer* srv,
+    int obj)
+{
+    struct ToriRSServerPlayer* p = srv->active_player;
+
+    for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
+    {
+        p->inv[i].obj_id = -1;
+        p->inv[i].count = 0;
+        p->inv_dirty |= 1u << i;
+    }
+    selftest_give(p, obj, 1);
+    selftest_opheld(srv, 2, 0);
+    selftest_tick(srv);
+}
+
+/* Press combat tab style button `slot` (combat_interface:style_slot_N). */
+static void
+selftest_style_memory_press(
+    struct ToriRSServer* srv,
+    int slot)
+{
+    char name[48];
+    int uid;
+    uint8_t button[6];
+
+    snprintf(name, sizeof(name), "combat_interface:style_slot_%d", slot);
+    uid = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, name);
+    SELFTEST_CHECK(uid >= 0, "%s should resolve", name);
+    button[0] = (uint8_t)(uid >> 24);
+    button[1] = (uint8_t)(uid >> 16);
+    button[2] = (uint8_t)(uid >> 8);
+    button[3] = (uint8_t)uid;
+    button[4] = 0xff;
+    button[5] = 0xff;
+    selftest_handle(srv->active_player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
+    selftest_tick(srv);
+}
+
+/*
+ * The attack style is remembered per weapon category (wiki Combat_Options,
+ * 21 February 2019: "Weapons that share a category (daggers, swords, bows
+ * etc.) will now remember the combat style that was used"). The category is
+ * the combat tab's weapon type, varbit 357; a type never used starts on its
+ * first style. Real Wield clicks and real tab buttons, so the path under test
+ * is ~equip/~unequip -> ~combat_weapon_category_sync.
+ * TORIRSSERVER_SELFTEST_STYLEMEM_ONLY runs it alone.
+ */
+static void
+selftest_style_memory(struct ToriRSServer* srv)
+{
+    static const char* const k_memory[4] = {
+        "varp7536_combat_style_memory_0", "varp7537_combat_style_memory_1",
+        "varp7538_combat_style_memory_2", "varp7539_combat_style_memory_3",
+    };
+    static struct ToriRSServerItem saved_inv[TORIRSSERVER_INV_SLOTS];
+    static struct ToriRSServerItem saved_worn[TORIRSSERVER_WORN_SLOTS];
+    static int32_t saved_varps[TORIRSSERVER_VARP_COUNT];
+    struct ToriRSServerPlayer* p = srv->active_player;
+    int loaded;
+    int com_mode;
+    int category;
+    int scimitar;
+    int scimitar2;
+    int shortbow;
+
+    fprintf(stderr, "ToriRSServer selftest: attack style remembered per weapon category\n");
+    loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir());
+    if( !loaded )
+        loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir_from_src());
+    if( !loaded )
+    {
+        fprintf(stderr, "  SKIP  no compiled script pack\n");
+        return;
+    }
+    assert(p);
+
+    com_mode = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp43_com_mode");
+    category = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb357_combat_weapon_category");
+    scimitar = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "bronze_scimitar");
+    scimitar2 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "iron_scimitar");
+    shortbow = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "shortbow");
+    SELFTEST_CHECK(com_mode >= 0 && category >= 0, "com_mode and varbit 357 should resolve");
+    SELFTEST_CHECK(scimitar > 0 && scimitar2 > 0 && shortbow > 0,
+                   "bronze/iron scimitar and shortbow should resolve");
+    if( com_mode < 0 || category < 0 || scimitar <= 0 || scimitar2 <= 0 || shortbow <= 0 )
+    {
+        ToriRSServer_ScriptsFree(srv);
+        return;
+    }
+
+    memcpy(saved_inv, p->inv, sizeof(saved_inv));
+    memcpy(saved_worn, p->worn, sizeof(saved_worn));
+    memcpy(saved_varps, p->varps, sizeof(saved_varps));
+
+    /* A character that has never chosen a style for anything, unarmed. */
+    selftest_park_player(srv, 3222, 3218);
+    for( int i = 0; i < TORIRSSERVER_WORN_SLOTS; i++ )
+    {
+        p->worn[i].obj_id = -1;
+        p->worn[i].count = 0;
+        for( int vi = 0; vi < TORIRSSERVER_ITEM_VAR_MAX; vi++ )
+        {
+            p->worn[i].var_key[vi] = -1;
+            p->worn[i].var_val[vi] = 0;
+        }
+        p->worn_dirty |= 1u << i;
+    }
+    for( int k = 0; k < 4; k++ )
+    {
+        int varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, k_memory[k]);
+
+        SELFTEST_CHECK(varp >= 0, "%s should resolve", k_memory[k]);
+        if( varp >= 0 )
+            p->varps[varp] = 0;
+    }
+    ToriRSServer_VarbitSet(srv, category, 0);
+    p->varps[com_mode] = 0;
+
+    /* Unarmed: Kick. */
+    selftest_style_memory_press(srv, 1);
+    SELFTEST_CHECK(p->varps[com_mode] == 1, "unarmed Kick is slot 1, got %d", p->varps[com_mode]);
+
+    /* A scimitar has never been used: its first style, not Kick's slot. */
+    selftest_style_memory_wield(srv, scimitar);
+    SELFTEST_CHECK(p->worn[TORIRSSERVER_WEAR_WEAPON].obj_id == scimitar, "the scimitar is wielded");
+    SELFTEST_CHECK(ToriRSServer_VarbitGet(p, category) == 9,
+                   "a scimitar is weapon type 9 (slash sword), got %d",
+                   ToriRSServer_VarbitGet(p, category));
+    SELFTEST_CHECK(p->varps[com_mode] == 0,
+                   "a category with no saved style starts on its first, got %d",
+                   p->varps[com_mode]);
+    selftest_style_memory_press(srv, 3);
+    SELFTEST_CHECK(p->varps[com_mode] == 3, "scimitar Block is slot 3, got %d", p->varps[com_mode]);
+
+    /* Another scimitar is the same category: the style stays. */
+    selftest_style_memory_wield(srv, scimitar2);
+    SELFTEST_CHECK(p->worn[TORIRSSERVER_WEAR_WEAPON].obj_id == scimitar2, "the iron scimitar is wielded");
+    SELFTEST_CHECK(p->varps[com_mode] == 3,
+                   "a second weapon of the same category keeps its style, got %d",
+                   p->varps[com_mode]);
+
+    /* A bow is a new category: first style again, then Longrange. */
+    selftest_style_memory_wield(srv, shortbow);
+    SELFTEST_CHECK(p->worn[TORIRSSERVER_WEAR_WEAPON].obj_id == shortbow, "the shortbow is wielded");
+    SELFTEST_CHECK(p->varps[com_mode] == 0,
+                   "the bow has no saved style and starts on Accurate, got %d",
+                   p->varps[com_mode]);
+    selftest_style_memory_press(srv, 2);
+
+    /* Back to a scimitar: Block, as the slash-sword category left it. */
+    selftest_style_memory_wield(srv, scimitar);
+    SELFTEST_CHECK(p->varps[com_mode] == 3,
+                   "switching back to a scimitar restores its Block, got %d",
+                   p->varps[com_mode]);
+
+    /* Unwield: unarmed remembers Kick. */
+    {
+        int32_t arg = TORIRSSERVER_WEAR_WEAPON;
+
+        for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
+        {
+            p->inv[i].obj_id = -1;
+            p->inv[i].count = 0;
+        }
+        SELFTEST_CHECK(ToriRSServer_ScriptsRunProc(srv, "[proc,unequip]", &arg, 1),
+                       "[proc,unequip] should run");
+        selftest_tick(srv);
+    }
+    SELFTEST_CHECK(p->worn[TORIRSSERVER_WEAR_WEAPON].obj_id < 0, "the weapon is removed");
+    SELFTEST_CHECK(p->varps[com_mode] == 1, "unarmed restores Kick, got %d", p->varps[com_mode]);
+
+    /* And the bow its Longrange. */
+    selftest_style_memory_wield(srv, shortbow);
+    SELFTEST_CHECK(p->varps[com_mode] == 2, "the bow restores Longrange, got %d",
+                   p->varps[com_mode]);
+
+    memcpy(p->inv, saved_inv, sizeof(saved_inv));
+    memcpy(p->worn, saved_worn, sizeof(saved_worn));
+    memcpy(p->varps, saved_varps, sizeof(saved_varps));
+    for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
+        p->inv_dirty |= 1u << i;
+    for( int i = 0; i < TORIRSSERVER_WORN_SLOTS; i++ )
+        p->worn_dirty |= 1u << i;
+    steps_clear(p);
+    ToriRSServer_ScriptsFree(srv);
+}
+
 /*
  * Every backpack op interrupts the interaction; the equipment tab and the
  * bank grids do not. A function, not an inline stanza, so
@@ -4295,6 +4486,15 @@ ToriRSServer_WorldSelftest(void)
         fprintf(stderr, "ToriRSServer run energy selftest: %lu checks, %d failures\n",
                 g_selftest_checks, g_selftest_failures);
         selftest_evidence_end("runenergy");
+        return g_selftest_failures;
+    }
+
+    if( getenv("TORIRSSERVER_SELFTEST_STYLEMEM_ONLY") )
+    {
+        selftest_style_memory(srv);
+        fprintf(stderr, "ToriRSServer style memory selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("stylemem");
         return g_selftest_failures;
     }
 
@@ -30694,6 +30894,7 @@ ToriRSServer_WorldSelftest(void)
         player->run_toggle = 0;
     }
     selftest_run_energy_worn(srv);
+    selftest_style_memory(srv);
 
     fprintf(stderr, "ToriRSServer selftest: p_temprun and p_animprotect\n");
     {
