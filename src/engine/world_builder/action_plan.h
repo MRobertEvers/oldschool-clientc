@@ -37,24 +37,22 @@
  *                  the npc's tile while my click is handled between ticks,
  *                  F1 = path[k], its tile after phase_npcs):
  *                  PRESS (inter was not i):
- *                   1. handle_opnpc (:7019) latches the interaction, routes
- *                      toward F0 (ToriRSServer_WorldWalkToApproach, :1189)
- *                      and tries it at once (WorldProcessInteraction :2721 ->
- *                      interaction_try :2084): in reach of F0 from my tile
- *                      -> the op fires now (a swing if the timer allows), the
- *                      route is dropped, and content's p_opnpc(2) re-arm
- *                      (torirs_server_scripts.c :9858) sets combat_target.
+ *                   1. handle_opnpc latches the interaction and routes
+ *                      toward F0 (ToriRSServer_WorldWalkToApproach). It
+ *                      resolves nothing: the packet is handled between
+ *                      ticks, on the finished tick's clock (2026-10-19; it
+ *                      used to try at once, against F0, and the swing armed
+ *                      its timer a tick short).
  *                   2. the tick (:18664 clients_in, npc_events, npcs,
- *                      players): phase_player (:16603) tries again BEFORE
+ *                      players): phase_player (:16603) tries it BEFORE
  *                      moving (:16713), against F1: reached -> fires, I
  *                      stand.
  *                   3. else interaction_path_to_pathing_target (:2531)
  *                      re-routes toward F1 only at the LAST waypoint
  *                      (:2544 waypoint_index > 0 returns): a route toward F0 that turns is
  *                      walked stale, a straight one is replaced by the route
- *                      toward F1. If step 1 fired, combat_target is set and
- *                      ToriRSServer_CombatPlayerApproach (:16722;
- *                      torirs_server_combat.c :2584) re-routes toward F1.
+ *                      toward F1 (no swing has gone out, so combat_target
+ *                      is not set and CombatPlayerApproach does not route).
  *                   4. advance_player (:16728) walks run ? 2 : 1 tiles of
  *                      it; the post-move try (:16742) against F1 from the
  *                      end tile.

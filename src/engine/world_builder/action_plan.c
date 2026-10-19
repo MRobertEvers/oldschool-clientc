@@ -756,16 +756,12 @@ ap_attack(
     int t = spec->now + k;
     int sx = n->x, sz = n->z;
     int fired = 0, fire_x = sx, fire_z = sz;
-    int fired_f0 = 0;
     int moved = 0;
 
     n->mid_x = n->mid_z = -1;
-    /* the press's own try, in the packet handler between ticks, against the
-     * npc's tile then (handle_opnpc -> ToriRSServer_WorldProcessInteraction ->
-     * interaction_try): reached = the op fires now and the route is dropped */
-    if( press && ap_in_reach(cm, tg, f0x, f0z, sx, sz) )
-        fired = fired_f0 = 1;
-    /* phase_player's pre-move try, against F1 from my tile */
+    /* the press only latches and routes toward F0 (handle_opnpc resolves
+     * nothing between ticks); phase_player's pre-move try is the first, against
+     * F1 from my tile */
     if( ap_in_reach(cm, tg, f1x, f1z, sx, sz) )
         fired = 1;
     else
@@ -774,13 +770,13 @@ ap_attack(
          * re-arm): ToriRSServer_CombatPlayerApproach then stops a weapon IN
          * RANGE -- Chebyshev gap <= range, no sight test, 0 included -- and
          * re-routes toward F1 otherwise */
-        int combat = !press || fired_f0;
+        int combat = !press;
         int gap = ap_gap_rect(sx, sz, f1x, f1z, f1x + tg->size - 1, f1z + tg->size - 1);
         if( !(combat && tg->range > 1 && gap <= tg->range) )
         {
             const struct ApRoute* r;
             int take = spec->run ? 2 : 1;
-            if( press && !fired_f0 )
+            if( press )
             {
                 /* the handler routed toward F0; interaction_path_to_pathing_
                  * target re-routes toward F1 only at the last waypoint, i.e.
@@ -805,9 +801,8 @@ ap_attack(
                 n->steps += take;
                 moved = 1;
             }
-            /* the post-move try; a swing that already went out in the
-             * handler keeps its tile */
-            if( !fired && ap_in_reach(cm, tg, f1x, f1z, n->x, n->z) )
+            /* the post-move try */
+            if( ap_in_reach(cm, tg, f1x, f1z, n->x, n->z) )
             {
                 fired = 1;
                 fire_x = n->x;

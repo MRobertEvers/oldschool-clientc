@@ -474,6 +474,41 @@ selftest_tick(struct ToriRSServer* srv)
 }
 
 /*
+ * The first animation the tick log recorded for player `pid` after serial
+ * `from` (a ToriRSServer_TicklogMark), and the tick it went out on; -1 when
+ * none did. For an animation a click starts: the click is resolved inside the
+ * next tick's phase_player (handle_opnpc), and `anim_id` is cleared at the end
+ * of the tick that encodes it, so a loop reading the mask between ticks never
+ * sees it.
+ */
+static int
+selftest_first_player_anim(
+    uint32_t from,
+    int pid,
+    int* out_tick)
+{
+    static struct ToriRSServerTicklogRow rows[256];
+    uint32_t scanned = from;
+    int n;
+
+    *out_tick = -1;
+    do
+    {
+        n = ToriRSServer_TicklogReadFiltered(scanned, TORIRSSERVER_TICKLOG_PLAYER_ANIM, -1, rows,
+                                             256, &scanned);
+        for( int i = 0; i < n; i++ )
+        {
+            if( rows[i].a == pid && rows[i].b > 0 )
+            {
+                *out_tick = rows[i].tick;
+                return rows[i].b;
+            }
+        }
+    } while( n == 256 );
+    return -1;
+}
+
+/*
  * Run a hand-built opcode list through the host VM: the `[selftest,...]`
  * script literal the stanzas below otherwise spell out field by field.
  */
@@ -3470,6 +3505,7 @@ selftest_sailing_deck_drop(struct ToriRSServer* srv, struct ToriRSServerPlayer* 
 #include "test/quest_eaglepeak_selftest.u.h"
 #include "test/quest_ghostsahoy_selftest.u.h"
 #include "test/combat_reach_flag_selftest.u.h"
+#include "test/click_swing_clock_selftest.u.h"
 
 enum
 {
@@ -21704,6 +21740,8 @@ ToriRSServer_WorldSelftest(void)
                     player->level = srv->npcs[guard].level;
                     ToriRSServer_CaptureBegin(srv, &capture);
                     selftest_handle(player, PKTOUT_NAME_OPNPC3, npc_payload, 2);
+                    /* The click's tick: phase_player resolves it (handle_opnpc). */
+                    selftest_tick(srv);
                     ToriRSServer_CaptureEnd(srv);
                     SELFTEST_CHECK(player->active_script != NULL,
                                    "pickpocketing under the level requirement should "
@@ -23269,6 +23307,7 @@ ToriRSServer_WorldSelftest(void)
                     selftest_npc_payload(player, second, opnpc);
                     ToriRSServer_CaptureBegin(srv, &capture);
                     selftest_handle(player, PKTOUT_NAME_OPNPC2, opnpc, sizeof(opnpc));
+                    selftest_tick(srv);
                     ToriRSServer_CaptureEnd(srv);
                     for( int i = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_MESSAGE_GAME, 0);
                          i >= 0;
@@ -26633,6 +26672,7 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_WorldObjAdd(srv, 995, 7, obj_x, obj_z, 0,
                                       ToriRSServer_Ids()->lootdrop_duration);
                 selftest_handle(player, PKTOUT_NAME_OPOBJ3, payload, 6);
+                selftest_tick(srv);
                 for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
                     if( player->inv[i].obj_id == 995 )
                         coins_slots_after++;
@@ -26747,6 +26787,7 @@ ToriRSServer_WorldSelftest(void)
                 /* OPOBJ1: no `[opobj1,*]` anywhere in the tree, and `_` does
                  * not cross op numbers. */
                 selftest_handle(player, PKTOUT_NAME_OPOBJ1, payload, 6);
+                selftest_tick(srv);
                 ToriRSServer_CaptureEnd(srv);
 
                 SELFTEST_CHECK(srv->ground[stray].active,
@@ -27756,6 +27797,8 @@ ToriRSServer_WorldSelftest(void)
         int climb_anim = -1;
         int anim_tick = -1;
         int move_tick = -1;
+        int ladder_log_was_on = 1;
+        uint32_t ladder_log_from = 0;
 
         SELFTEST_CHECK(ladder > 0 && climb_up > 0,
                        "pack should name `ladder` and the `climb_up_ladder` category: %d/%d",
@@ -27798,11 +27841,17 @@ ToriRSServer_WorldSelftest(void)
             player->rebuild_pending = 0;
             player->tracked_count = 1;
             player->tracked_player_count = 1;
+            ladder_log_was_on = ToriRSServer_TicklogEnabled(srv);
+            if( !ladder_log_was_on )
+                ToriRSServer_TicklogEnable(srv, NULL);
+            ladder_log_from = ToriRSServer_TicklogMark("ladder up");
             selftest_handle(player, PKTOUT_NAME_OPLOC1, payload, 6);
             /* Ticked by hand rather than through `selftest_settle`, because the
-             * animation is a per-tick mask: `anim_id` is set by `~climb_ladder`
-             * and cleared at the end of the tick that encodes it, so a settle
-             * loop that only reports how long it took can never see it.
+             * move is read per tick. The animation is read off the tick log:
+             * `anim_id` is a per-tick mask, set by `~climb_ladder` inside the
+             * tick (the click is resolved by phase_player, handle_opnpc) and
+             * cleared at the end of the tick that encodes it, so no loop between
+             * ticks can see it.
              *
              * `anim_tick` / `move_tick` are the point of the loop. They are the
              * claim the user of a ladder actually makes — "it animates, THEN it
@@ -27817,22 +27866,13 @@ ToriRSServer_WorldSelftest(void)
              */
             for( int tick = 0; tick < 40; tick++ )
             {
-                if( climb_anim < 0 && player->anim_id > 0 )
-                {
-                    climb_anim = player->anim_id;
-                    anim_tick = srv->tick;
-                }
                 if( player->interaction.kind == TORIRSSERVER_INTERACT_NONE && player->level != 0 )
                     break;
                 selftest_tick(srv);
                 if( move_tick < 0 && player->level != 0 )
                     move_tick = srv->tick;
-                if( climb_anim < 0 && player->anim_id > 0 )
-                {
-                    climb_anim = player->anim_id;
-                    anim_tick = srv->tick;
-                }
             }
+            climb_anim = selftest_first_player_anim(ladder_log_from, player->pid, &anim_tick);
             SELFTEST_CHECK(player->level == 1, "climbing it goes up a plane, got %d",
                            player->level);
             /* And it looks like a climb while it does. Reaching UP, because this
@@ -27917,18 +27957,18 @@ ToriRSServer_WorldSelftest(void)
                 {
                     payload[4] = (uint8_t)(top >> 8);
                     payload[5] = (uint8_t)top;
+                    int down_tick = -1;
+
+                    ladder_log_from = ToriRSServer_TicklogMark("ladder down");
                     selftest_handle(player, PKTOUT_NAME_OPLOC1, payload, 6);
                     for( int tick = 0; tick < 20; tick++ )
                     {
-                        if( down_anim < 0 && player->anim_id > 0 )
-                            down_anim = player->anim_id;
                         if( player->interaction.kind == TORIRSSERVER_INTERACT_NONE &&
                             player->level != 1 )
                             break;
                         selftest_tick(srv);
-                        if( down_anim < 0 && player->anim_id > 0 )
-                            down_anim = player->anim_id;
                     }
+                    down_anim = selftest_first_player_anim(ladder_log_from, player->pid, &down_tick);
                     SELFTEST_CHECK(player->level == 0,
                                    "and climbing down comes back, got %d", player->level);
                     /* The other anim, and the reason the direction is read
@@ -27939,6 +27979,8 @@ ToriRSServer_WorldSelftest(void)
                                    crouch, down_anim);
                 }
             }
+            if( !ladder_log_was_on )
+                ToriRSServer_TicklogDisable();
             /* Put the world back, so a section that fails here fails only here.
              * A ladder leaves the player on another plane with a rebuild queued
              * and both tracked sets emptied, and the next section reads the
@@ -28676,6 +28718,8 @@ ToriRSServer_WorldSelftest(void)
                 uint32_t saved_rng = srv->world_random.engine;
                 uint8_t payload[2];
                 int refused = 0;
+                int spoke_x = -1;
+                int spoke_z = -1;
                 /* Resolved out of the table rather than written down: Catherby
                  * is dbrow 4149, third in the master order, so pin sub-id 5 —
                  * but that is a fact about the cache, not about this test. */
@@ -28738,6 +28782,13 @@ ToriRSServer_WorldSelftest(void)
                 SELFTEST_CHECK(selftest_settle(srv, 40) >= 0,
                                "the walk to the trader should complete");
                 ToriRSServer_CaptureEnd(srv);
+                /* Where the walk ended, not the jetty tile it started from: the
+                 * click is resolved by the next tick's phase_player, after the
+                 * trader has had its own step, so the player may follow him a
+                 * tile before the op runs. What a refusal must not do is move
+                 * the player from HERE. */
+                spoke_x = player->x;
+                spoke_z = player->z;
                 /* Charter opens the cache's own picker and returns — there is no
                  * p_pausebutton in it, so the script SHOULD finish. What proves
                  * it ran is the interface going out, which is why this looks for
@@ -28768,8 +28819,9 @@ ToriRSServer_WorldSelftest(void)
                 SELFTEST_CHECK(selftest_count_obj(player, coins) == 5000,
                                "a refused charter must not take the fare, got %d coins",
                                selftest_count_obj(player, coins));
-                SELFTEST_CHECK(player->x == jetty_x && player->z == jetty_z,
-                               "and must not move the player, got %d,%d", player->x, player->z);
+                SELFTEST_CHECK(player->x == spoke_x && player->z == spoke_z,
+                               "and must not move the player from %d,%d, got %d,%d", spoke_x,
+                               spoke_z, player->x, player->z);
 
                 /* ---- Sailed: Port Sarim to Catherby, 1,000 coins.
                  * Kandarin is row 2 of the region menu, Catherby row 1 of it,
@@ -41121,6 +41173,7 @@ ToriRSServer_WorldSelftest(void)
     selftest_quest_cook(srv, player);
     selftest_quest_druid(srv, player);
     selftest_combat_reach_flag(srv, player);
+    selftest_click_swing_clock(srv, player);
     selftest_quest_gobdip(srv, player);
     selftest_quest_blackknight(srv, player);
     selftest_quest_haunted(srv, player);
@@ -45350,8 +45403,11 @@ ToriRSServer_WorldSelftest(void)
             rsab_p2(&out, SLOT_BUCKET);
             rsab_p2(&out, 0);
             selftest_handle(player, PKTOUT_NAME_OPLOCU, payload, (int)rsab_len(&out));
+            /* The click latches; the next tick's phase_player tries it before
+             * the first step (handle_opnpc). */
+            selftest_tick(srv);
             SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 20,
-                           "[aplocu,fire_remains] fires on the click, from range, got %d",
+                           "[aplocu,fire_remains] fires on the click's tick, from range, got %d",
                            player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
             SELFTEST_CHECK(player->x == 3222 && player->z == 3218,
                            "without the player having moved a tile, at %d,%d", player->x,
@@ -45485,6 +45541,7 @@ ToriRSServer_WorldSelftest(void)
                     rsab_p2(&out, remains);
                     rsab_p4(&out, spell);
                     selftest_handle(player, PKTOUT_NAME_OPLOCT, payload, (int)rsab_len(&out));
+                    selftest_tick(srv);
                     SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 60,
                                    "[aploct,<spell>] runs keyed by the spell, not by the loc and "
                                    "not as a use-on, got %d",
@@ -45584,24 +45641,22 @@ ToriRSServer_WorldSelftest(void)
                             selftest_handle(player, PKTOUT_NAME_OPNPCT, payload,
                                                  (int)rsab_len(&out));
                             /*
-                             * Beside Hans the cast fires inside the packet
-                             * handler and clears the interaction, so no turn's
-                             * derivation ever saw him: the caster cast at an
-                             * npc without turning toward it. The latch has to
-                             * be set by the click, survive the derivation of
-                             * the turn that ships it, and let go on the next.
+                             * Beside Hans the cast fires on the click's tick and
+                             * clears the interaction. The turn derives the latch
+                             * at its top, before the try (LostCity setFaceEntity
+                             * ahead of processInteraction), so the turn that
+                             * casts also ships the facing, and the next lets go.
+                             * (It once fired inside the packet handler, which no
+                             * derivation ever saw: a cast at an npc without
+                             * turning toward it.)
                              */
+                            selftest_tick(srv);
                             SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 50,
-                                           "a cast beside the npc fires from the click, got %d",
+                                           "a cast beside the npc fires on the click's tick, got %d",
                                            player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
                             SELFTEST_CHECK(player->face_entity == hans,
                                            "and turns the caster toward it, face_entity %d "
                                            "want %d",
-                                           player->face_entity, hans);
-                            selftest_tick(srv);
-                            SELFTEST_CHECK(player->face_entity == hans,
-                                           "the turn that ships the latch must not release "
-                                           "it, face_entity %d want %d",
                                            player->face_entity, hans);
                             selftest_tick(srv);
                             SELFTEST_CHECK(player->face_entity == -1,
@@ -47662,6 +47717,7 @@ ToriRSServer_WorldSelftest(void)
                  * in-progress branch. It must not restart the quest, and it
                  * must not complete it either. */
                 selftest_handle(player, PKTOUT_NAME_OPNPC1, payload, 2);
+                selftest_settle(srv, 20);
                 pages = selftest_click_through(srv, 24);
                 SELFTEST_CHECK(player->varps[cookquest] == 1,
                                "talking again empty-handed should leave it in progress, got %d",
@@ -47693,6 +47749,7 @@ ToriRSServer_WorldSelftest(void)
                 cooking_xp_before = player->stat_xp_tenths[cooking];
 
                 selftest_handle(player, PKTOUT_NAME_OPNPC1, payload, 2);
+                selftest_settle(srv, 20);
                 pages = selftest_click_through(srv, 32);
 
                 SELFTEST_CHECK(selftest_find(player, milk) < 0 &&
@@ -47778,6 +47835,7 @@ ToriRSServer_WorldSelftest(void)
 
                 /* The post-quest branch exists and does not undo anything. */
                 selftest_handle(player, PKTOUT_NAME_OPNPC1, payload, 2);
+                selftest_settle(srv, 20);
                 pages = selftest_click_through(srv, 24);
                 SELFTEST_CHECK(player->varps[cookquest] == 2,
                                "talking after completion should leave it complete, got %d",

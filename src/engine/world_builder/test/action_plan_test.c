@@ -725,8 +725,9 @@ case_v(struct CollisionMap* cm)
     struct ActionPlanTarget* tg;
 
     /* v1: PRESS in reach of F0 (the npc's tile while the click is handled):
-     * the op fires in the handler, from my tile, before the npc steps; then
-     * combat re-routes toward F1 and I follow */
+     * the handler only latches (handle_opnpc resolves nothing between ticks),
+     * the npc steps to F1, phase_player's pre-move try misses, and I step
+     * after it and swing from F1's reach in the same tick */
     collision_map_reset(cm);
     spec_reset(10, 10, 5); /* h 5: pressing at k1 swings at k1 and k5 */
     tg = add_mover(11, 10, 12, 10, 1, 4, 5.0);
@@ -740,9 +741,8 @@ case_v(struct CollisionMap* cm)
     tg->swing_costs[0].dmg_exp = tg->swing_costs[0].dmg_max = 0.01;
     before = run_case(cm, "v1 press, F0 in reach");
     TEST_ASSERT(g_res.act[0] == ACTION_PLAN_ATTACK && g_res.swing[0], "v1: swings at k1");
-    TEST_ASSERT(g_res.loss == 0.01 || g_res.loss == 0.0, "v1: no swing cost charged off (10,10)");
-    TEST_ASSERT(g_res.loss > 0.0, "v1: the k1 swing went out from my start tile (10,10), F0's side");
-    TEST_ASSERT(g_res.path_x[0] == 11 && g_res.path_z[0] == 10, "v1: then follows to F1's reach (11,10)");
+    TEST_ASSERT(g_res.loss == 0.0, "v1: the k1 swing did not go out from my start tile (10,10)");
+    TEST_ASSERT(g_res.path_x[0] == 11 && g_res.path_z[0] == 10, "v1: it went out from F1's reach (11,10)");
 
     /* v2: PRESS out of reach of F0, the route toward F0 TURNS: walked stale
      * (path_to_pathing_target re-routes only at the last waypoint) */

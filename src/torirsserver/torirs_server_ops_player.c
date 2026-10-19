@@ -187,7 +187,7 @@ p_oploc_bound(
      * already is, so a player already beside the loc gets a zero-length one.
      * The observable difference is nil and the alternative would be a second,
      * separate answer to "is this close enough" beside the one
-     * `ToriRSServer_WorldProcessInteraction` already applies a tick later.
+     * `phase_player`'s `interaction_try` already applies a tick later.
      */
     {
         struct CollisionApproach approach;
@@ -199,12 +199,11 @@ p_oploc_bound(
     /*
      * Deliberately NOT `ToriRSServer_WorldProcessInteraction` here.
      *
-     * `handle_oploc` calls it because a packet arrives between ticks and the
-     * player may already be standing in range. A script is *inside* a tick,
-     * and resolving the interaction now would run the `[oploc<n>]` script
-     * from within itself — the infinite recursion `[oploc1,_] p_oploc(1)`
-     * would otherwise be. The reference has the same shape and the same
-     * comment in `woodcut.rs2`: "gets delayed by a tick >:(".
+     * No packet handler calls it either any more (handle_opnpc says why). A
+     * script is *inside* a tick, and resolving the interaction now would run
+     * the `[oploc<n>]` script from within itself — the infinite recursion
+     * `[oploc1,_] p_oploc(1)` would otherwise be. The reference has the same
+     * shape and the same comment in `woodcut.rs2`: "gets delayed by a tick >:(".
      */
 }
 

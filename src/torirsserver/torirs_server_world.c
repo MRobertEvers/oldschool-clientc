@@ -2761,9 +2761,11 @@ interaction_continue_or_give_up(struct ToriRSServer* srv)
  * Resolve the pending interaction if it is already in range, else leave the
  * walk alone (recover a stalled route if needed).
  *
- * Packet handlers call this so a click on something you are standing next to
- * acts immediately. Per-tick chase is phase_player: try → pathToPathingTarget →
- * move → try (LostCity processInteraction).
+ * The selftests call this to drive one click to its result without a tick.
+ * Packet handlers do NOT: a packet is handled between ticks, with `srv->tick`
+ * still the finished tick, and resolving there ran the op a tick early on every
+ * clock (handle_opnpc). Per-tick chase is phase_player: try →
+ * pathToPathingTarget → move → try (LostCity processInteraction).
  */
 void
 ToriRSServer_WorldProcessInteraction(struct ToriRSServer* srv)
@@ -7339,9 +7341,9 @@ interaction_engine_npc(
 /*
  * OPNPC<n>: p2 npc slot.
  *
- * Latches the interaction and starts the walk; the acting happens in
- * ToriRSServer_WorldProcessInteraction, either on this tick (already in range) or
- * on whichever tick the player arrives.
+ * Latches the interaction and starts the walk; the acting happens in the next
+ * tick's `phase_player` (already in range) or on whichever tick the player
+ * arrives -- never in this handler (see the end of it).
  */
 static void
 handle_opnpc(
@@ -7426,7 +7428,22 @@ handle_opnpc(
     /* Idle roaming resumes only after the response has had time to show. */
     npc->next_roam_tick = srv->tick + 8;
 
-    ToriRSServer_WorldProcessInteraction(srv);
+    /*
+     * LATCH ONLY: the click is resolved by the next tick's `phase_player`, never
+     * here. This packet is handled BETWEEN ticks, while `srv->tick` is still the
+     * tick that has just finished, and it belongs to the next one: its answers
+     * are held and released with that tick (torirs_server_session.h `holding`),
+     * and the reference decodes it in processClientsIn and resolves it in
+     * processPlayers of the same tick. Resolving it here ran the op one tick
+     * early on every clock: a swing armed `%action_delay = map_clock + rate`
+     * from the finished tick, so the swing after it came `rate - 1` ticks later,
+     * and its `npc_queue` hit landed a tick early. That is the blowpipe's short
+     * cooldown on the first shot at the next npc after a kill (2026-10-19): the
+     * only time the swing loop is not already running when the click arrives.
+     * `phase_player` tries the interaction before it moves, so a target already
+     * in reach is acted on at the first chance the reference would give it.
+     * handle_opobj, handle_oploc and handle_opheldu latch the same way.
+     */
 }
 
 /*
@@ -7537,7 +7554,7 @@ handle_opobj(
         }
     }
 
-    ToriRSServer_WorldProcessInteraction(srv);
+    /* Latch only; the next tick's phase_player resolves it (see handle_opnpc). */
 }
 
 /*
@@ -7669,7 +7686,7 @@ handle_oploc(
         ToriRSServer_WorldWalkToApproach(srv, tile_x, tile_z, &approach);
     }
 
-    ToriRSServer_WorldProcessInteraction(srv);
+    /* Latch only; the next tick's phase_player resolves it (see handle_opnpc). */
 }
 
 /* ------------------------------------------------------------------ */
@@ -7858,7 +7875,7 @@ useon_interact(
         ToriRSServer_WorldWalkToApproach(srv, tile_x, tile_z, &approach);
     }
 
-    ToriRSServer_WorldProcessInteraction(srv);
+    /* Latch only; the next tick's phase_player resolves it (see handle_opnpc). */
 }
 
 /*
@@ -7930,7 +7947,7 @@ spell_interact(
         ToriRSServer_WorldWalkToApproach(srv, tile_x, tile_z, &approach);
     }
 
-    ToriRSServer_WorldProcessInteraction(srv);
+    /* Latch only; the next tick's phase_player resolves it (see handle_opnpc). */
 }
 
 /* The `p4 spellComponent` tail every targeted-cast body ends with. Four bytes,
@@ -17368,9 +17385,10 @@ phase_player(struct ToriRSServerPlayer* player)
      * that would keep staring at whatever it was fighting. LostCity calls it
      * for every player each turn with no `delayed` gate for the same reason.
      *
-     * The one release it defers is a latch a packet handler set when it
-     * resolved the click on the spot (`face_entity_held`): that interaction is
-     * already gone, and releasing here would ship only the release.
+     * The one release it defers is a latch set when a click was resolved on
+     * the spot by `ToriRSServer_WorldProcessInteraction` (`face_entity_held`; a
+     * selftest's drive -- packet handlers no longer resolve): that interaction
+     * is already gone, and releasing here would ship only the release.
      */
     if( !player->face_entity_held || ToriRSServer_PlayerFaceEntityWanted(player) >= 0 )
         ToriRSServer_PlayerSetFaceEntity(player);

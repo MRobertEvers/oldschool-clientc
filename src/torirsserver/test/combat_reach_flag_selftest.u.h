@@ -139,11 +139,14 @@ selftest_combat_reach_flag(
      * 1a. A cast from range takes its flag down.
      *
      * OPNPCT on a goblin five tiles east: spell_interact queues the walk to
-     * melee adjacency and sends SET_MAP_FLAG for it, then the immediate try
+     * melee adjacency and sends SET_MAP_FLAG for it, then the click's tick
      * resolves `[apnpct,magic_spellbook:league_home_teleport]` (selftest_cast.rs2,
-     * writes 50) at range before a tile is walked. The route is dropped; the
-     * flag used to stay (dest kept, no clear_map_flag), because advance_player
-     * only takes it down after a step or on the flag's own tile.
+     * writes 50) at range, in phase_player's pre-move try, before a tile is
+     * walked. The route is dropped; the flag used to stay (dest kept, no
+     * clear_map_flag), because advance_player only takes it down after a step
+     * or on the flag's own tile. `clear_map_flag` is spent by the tick that
+     * sends it, so the take-down is read off the tick's packets: with the
+     * destination gone, a map-flag packet on that tick can only be the clear.
      */
     {
         int spell = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT,
@@ -156,6 +159,7 @@ selftest_combat_reach_flag(
         SELFTEST_CHECK(slot >= 0, "combat_reach_flag: a goblin spawns five tiles east");
         if( spell > 0 && slot >= 0 )
         {
+            static struct ToriRSServerCapture flag_capture;
             uint8_t payload[16];
             struct RSAreaBuf out;
 
@@ -165,6 +169,13 @@ selftest_combat_reach_flag(
             rsab_p2(&out, ToriRSServer_SlotMapAcquire(player, slot));
             rsab_p4(&out, spell);
             selftest_handle(player, PKTOUT_NAME_OPNPCT, payload, (int)rsab_len(&out));
+            SELFTEST_CHECK(player->waypoint_index >= 0 && player->dest_x >= 0,
+                           "combat_reach_flag: the click queues the walk and its flag, "
+                           "dest %d,%d",
+                           player->dest_x, player->dest_z);
+            ToriRSServer_CaptureBegin(srv, &flag_capture);
+            selftest_tick(srv);
+            ToriRSServer_CaptureEnd(srv);
             SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 50,
                            "combat_reach_flag: the cast resolved at range, progress %d",
                            player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
@@ -173,14 +184,13 @@ selftest_combat_reach_flag(
                            player->z);
             SELFTEST_CHECK(player->waypoint_index < 0,
                            "combat_reach_flag: the walk the cast queued is dropped");
-            SELFTEST_CHECK(player->clear_map_flag == 1,
-                           "combat_reach_flag: the cast's map flag is taken down with the "
-                           "walk (clear_map_flag %d, dest %d,%d)",
-                           player->clear_map_flag, player->dest_x, player->dest_z);
             SELFTEST_CHECK(player->dest_x < 0 && player->dest_z < 0,
                            "combat_reach_flag: and no destination is left behind, dest %d,%d",
                            player->dest_x, player->dest_z);
-            selftest_tick(srv);
+            SELFTEST_CHECK(ToriRSServer_CaptureFindNamed(&flag_capture, PKT_NAME_UNSET_MAP_FLAG,
+                                                         0) >= 0,
+                           "combat_reach_flag: the cast's map flag is taken down with the "
+                           "walk on that tick");
             ToriRSServer_WorldNpcFree(srv, slot);
         }
         combat_reach_flag_pass("cast_from_range_unsets_the_map_flag");

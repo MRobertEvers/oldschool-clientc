@@ -3968,9 +3968,10 @@ struct ToriRSServerPlayer
     int temp_run;
     int face_entity;
     /**
-     * The latch was derived by a packet handler's immediate interaction
-     * (`ToriRSServer_WorldProcessInteraction`), not by the turn's own
-     * derivation, and the next `phase_player` must not release it.
+     * The latch was derived by an immediate interaction
+     * (`ToriRSServer_WorldProcessInteraction`, which only the selftests call
+     * now -- packet handlers latch and leave it to `phase_player`), not by the
+     * turn's own derivation, and the next `phase_player` must not release it.
      *
      * LostCity derives `faceEntity` in processPlayers *before*
      * processInteraction, so a cast already in range faces its target on the
