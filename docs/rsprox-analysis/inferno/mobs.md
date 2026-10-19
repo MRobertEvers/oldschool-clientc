@@ -82,6 +82,19 @@ Projectile heights are in our wire units: v2 ÷ 4, or v1 as sent. "Flight" is en
 | J+21 | Track 500 |
 | J+32 | "Wave: 1" |
 
+**Failing** (deaths: 193, 210, 2111, Leagues V; the same timing on a normal ToB death, 3299 tick 5475). K = the killing hit, T = the teleport out:
+
+| Tick | What happens |
+|---|---|
+| K+3 | Death sequence |
+| T = K+8 | "You have been defeated!"; teleport to a tile beside TzHaar-Ket-Keh (2495–2497, 5109–5115); song 147, jingle 90 `you_are_dead`, then 502 (Mor Ul Rek), all with no ramp |
+| T+2 (T+1 in 210) | Chat `chatneu2` "Well done in Inferno, you can take this TokKul as reward.", with the TokKul already in the pack |
+| on continue | Objectbox, `tzhaar_token_25` at zoom 400: "TzHaar-Ket-Keh hands you N TokKul." |
+
+- **Nothing earned** (left on wave 1, 7 of 7): chat `chatsad1` "Not a very good attempt JalYt. Better luck next time.", and nothing after it.
+- **Leaving by the exit** gets the same two dialogues, on the teleport tick.
+- **TokKul:** 12, 24, 40, 60 and 2664 for 1, 2, 3, 4 and 35 waves done (19 payouts in 13 sessions). That is 2(c+1)(c+2): our `~inferno_tokkul_for_wave` doubled by the elite Karamja Diary, which these accounts carried.
+
 ## What was wrong in ours, and the fix (2026-10-18)
 
 - **Every projectile:** start, flight formula, heights, peak and arc were Kronos-style guesses (bat 41 + 5 + 5d, blob 41 + 5 + 5d at height 50, mager 28 + 36 + 8d at height 96 with arc 192, ranger 50 + 40 + 8d from fixed tiles). All of them now follow the table.
@@ -113,8 +126,17 @@ Projectile heights are in our wire units: v2 ÷ 4, or v1 as sent. "Flight" is en
 - **Resurrection:** the sequence, the graphic on the revived mob's middle tile, the sound and the spawn all on one tick.
 - **Dig:** `digdown` and 1641 on D; telejump, `digup` and 1644 on D+3; first swing on D+12.
 
+## Fixed 2026-10-19
+
+- **The jump flickered into the pit (client).** Jagex sends the jump as a teleport onto the landing tile *and* the exact move in the same update (3299 tick 10693). The rev-239 client cancels that update's move when an exact move arrives (`class109.method3804`, flag 0x4000, clears `field1582`), so the player stays on the take-off tile and the exact move carries them. Ours applied the teleport first, which put the player in the pit, and the exact move then glided them back over 15 cycles. The osrs239 decoder now marks the staged move `route_only`; the executor sets route[0] and leaves the draw position alone (`Statics.method1301`). A per-frame trace of the local player now goes take-off → pit with no jump back. Pinned by `test-mock239-playerinfo`.
+- **Every Inferno area sound was a gated synth.** `~inferno_sound_near` sent `sound_synth` when `distance(coord, $at)` was in range. `coord` needs an active player, so a nibbler chewing a pillar (no active player) was silent, and only one player could hear any of them. It now sends the real `sound_area`. The nibbler's bite now sends area 595 at range 7, as recorded. The pillar's 1021 is a real area sound at range 10 instead of a huntall of synths, and the dig-up's 1644 no longer depends on a player being in scan range.
+
+- **Failing had no dialogue, and every death was two ticks fast.** A death gave "Oh dear, you are dead!" and TokKul with no word from TzHaar-Ket-Keh, and leaving by the exit gave a chat line. Both now play the recorded dialogue, and a death plays the recorded message and music. The player death body (`player/death.rs2`, every death, not only the Inferno's) played the death sequence on K+2 and teleported on K+6. It is now K+3 and K+8, as in all four recorded deaths. Verified in a scriptrun killed on waves 1 and 2: K 59/76, sequence 62/79, teleport and music 67/84, dialogue 69/86.
+
 ## Open
 
+- **Barrage splash targets' defend has no delay** (engine, all multi-target attacks). Recorded (3299 tick 10736): every barrage target, primary and splash, gets the defend sequence delayed to the primary's landing (86), like the impact graphic. Ours delays the primary's and sends the splash targets' with delay 0. `npc_defend` takes its delay only from a projectile sent at that npc this tick, and a splash target has none. The fix needs `npc_defend` to accept a delay, which is a new opcode.
+- **Player spells play no sounds** (engine, every spell). Recorded per barrage: synth 171 `ice_cast` on the cast, and area 168 `ice_barrage_impact` (range 10, delayed to the landing) on each target. `player_magic.rs2` dropped `sound_synth` ("Era: drop sound_synth"), so no spell has a cast or impact sound.
 - **Region music on landing (fixed):** the engine's region music started track 500 on the landing tick (J+11). The recording is silent until J+21. `midi_hold(10)`, a new engine command, holds region music off for those ticks; the tick log now shows only the scripted start on J+21.
 - **Dig, first step (not a bug):** one tick log showed the first step on D+8 against Blert's D+6 (97 of 135). The meleer takes its target on D+6. One that surfaces over the player steps off by a random cardinal, and a blocked direction costs a tick. Blert's other 38 digs show the same spread.
 

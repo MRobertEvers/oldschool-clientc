@@ -22913,9 +22913,10 @@ ToriRSServer_WorldSelftest(void)
                            "a dying player still faces what killed it, got %d",
                            player->face_entity);
 
-            /* The reference leaves one quiet tick between the fatal splat and
-             * cancelling the action / starting human_death. `p_delay(1)` at
-             * tick T parks until T+2. Without this check a port that plays the
+            /* Jagex sends the death sequence on K+3, K the fatal splat (RSProx
+             * 3299 tick 5475 -> 5478; the Inferno deaths in 193, 210, 2111),
+             * so the death body's first wait is `p_delay(2)`: at tick T it
+             * parks until T+3. Without this check a port that plays the
              * animation immediately and only waits for ^death_delay still
              * reaches every eventual-respawn assertion below. */
             selftest_tick(srv);
@@ -22924,10 +22925,10 @@ ToriRSServer_WorldSelftest(void)
                            "and releases it on the next turn, got %d", player->face_entity);
             SELFTEST_CHECK(player->dying && player->active_script != NULL,
                            "the first death turn should still be a parked corpse");
-            SELFTEST_CHECK(player->delayed_until == srv->tick + 2,
-                           "LostCity's initial p_delay(1) should wait through one quiet "
-                           "turn, due %d got %d",
-                           srv->tick + 2, player->delayed_until);
+            SELFTEST_CHECK(player->delayed_until == srv->tick + 3,
+                           "the death body's initial p_delay(2) should put the death "
+                           "sequence on K+3, due %d got %d",
+                           srv->tick + 3, player->delayed_until);
 
             /* Generous but finite: the script's delay plus the ticks its own
              * commands cost. Never reviving is the failure being tested for. */

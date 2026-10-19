@@ -1197,6 +1197,17 @@ player_extended(
                 op->_exactmove.facing_is_yaw = true;
                 op->_exactmove.relative = true;
             }
+            /* class109.method3804: `field1582[idx] = false` after method3132,
+             * so this cycle's staged move is never applied. Jagex sends the
+             * Inferno jump as a teleport onto the landing tile plus this block
+             * (RSProx 3299 tick 10693); applying the teleport put the player in
+             * the pit for the 15 cycles the exact move took to glide back. */
+            {
+                int op_index = r->movement_op[idx];
+
+                if( op_index >= 0 && op_index < r->count )
+                    r->ops[op_index]._local_xz_level.route_only = true;
+            }
         }
         if( (flag & V5_PLAYER_FREEZE) != 0 )
         {

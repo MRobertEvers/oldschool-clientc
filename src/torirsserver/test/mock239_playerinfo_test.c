@@ -958,6 +958,47 @@ main(void)
             ToriMem_Free(ToriMem_Net(), chat->_chat.data);
     }
 
+    /* The Inferno jump as Jagex sends it (RSProx 3299 tick 10693): a teleport
+     * onto the landing tile and an exact move from the take-off tile in the
+     * same update. The exact move cancels the move (class109.method3804,
+     * field1582); a teleport on its own does not. The second tick teleports
+     * back so the decoder's coordinate is where the later ticks expect it. */
+    fprintf(stderr, "mock239-playerinfo: an exact move cancels the same update's teleport\n");
+    {
+        struct Mock239PlayerExt ext;
+        struct PktPlayerInfoOp ops[32];
+        struct PktPlayerInfoOp const* move = NULL;
+        int op_count;
+
+        memset(&ext, 0, sizeof(ext));
+        ext.has_exact_move = 1;
+        ext.exact_start_x = 0;
+        ext.exact_start_z = -11;
+        ext.exact_end_x = 0;
+        ext.exact_end_z = 0;
+        ext.exact_start_cycle = 15;
+        ext.exact_end_cycle = 255;
+        ext.exact_facing = 1024;
+        rsab_wrap(&buf, storage, sizeof(storage));
+        mock239_playerinfo_write(&buf, LOCAL_INDEX, MOCK239_PLAYER_TELEPORT, 11, 1, NULL, 0, &ext);
+        op_count = osrs239_player_info_read(storage, (int)rsab_len(&buf), ops, 32);
+        for( int i = 0; i < op_count; i++ )
+            if( ops[i].kind == PKT_PLAYER_INFO_OP_ABS_XZLEVEL )
+                move = &ops[i];
+        CHECK(move && move->_local_xz_level.route_only,
+              "a teleport with an exact move only sets route[0]");
+
+        move = NULL;
+        rsab_wrap(&buf, storage, sizeof(storage));
+        mock239_playerinfo_write(
+            &buf, LOCAL_INDEX, MOCK239_PLAYER_TELEPORT, (-11) & 0x3fff, 1, NULL, 0, NULL);
+        op_count = osrs239_player_info_read(storage, (int)rsab_len(&buf), ops, 32);
+        for( int i = 0; i < op_count; i++ )
+            if( ops[i].kind == PKT_PLAYER_INFO_OP_ABS_XZLEVEL )
+                move = &ops[i];
+        CHECK(move && !move->_local_xz_level.route_only, "a teleport on its own still moves");
+    }
+
     fprintf(stderr, "mock239-playerinfo: a later tick (crowd moves to section 3)\n");
     memset(&got, 0, sizeof(got));
     got.local_index = LOCAL_INDEX;

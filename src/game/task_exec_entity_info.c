@@ -581,6 +581,15 @@ player_apply_op(
         }
         if( player )
             player->view_placement.home_view = home_view;
+        /* Cancelled by an exact move in the same update: the coordinate is
+         * the base its tiles are relative to, and nothing more. A player
+         * never placed still needs its first snap. */
+        if( op->_local_xz_level.route_only && player && !player->pathing.unplaced )
+        {
+            World_PlayerPathSetHead(world, idx, next_x, next_z);
+            player->grid_position.level = op->_local_xz_level.level;
+            break;
+        }
         int step_type = WORLD_PATHSTEP_WALK;
 
         /* class174: 2 run, 0 crawl, anything else the walk default. */

@@ -2154,6 +2154,23 @@ World_PlayerPathJump(
             z);
 }
 
+void
+World_PlayerPathSetHead(
+    struct World* world,
+    int idx,
+    int x,
+    int z)
+{
+    assert(world);
+    struct World_EntityPool* pool = &world->entities.player;
+    assert(World_EntityPoolIsActive(pool, idx));
+    struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
+
+    player->pathing.route_x[0] = (uint8_t)x;
+    player->pathing.route_z[0] = (uint8_t)z;
+    player->pathing.route_length = 0;
+}
+
 /*
  * rev-239 class95.method3189 -> Statics.method1338, the GPI move. A teleport
  * (traversal 127, or opcode 3 with no traversal of its own) goes straight to
@@ -2823,8 +2840,9 @@ World_PlayerSetExactMoveDetailed(
     player->exact_move.facing = (uint16_t)facing;
     player->exact_move.facing_is_yaw = facing_is_yaw;
 
-    /* Reference abortRoute(). */
-    player->pathing.route_length = 0;
+    /* rev-239 class95.method3132 -> Statics.method1301: route[0] is the end
+     * tile, route length 0. */
+    World_PlayerPathSetHead(world, idx, end_x, end_z);
 }
 
 void

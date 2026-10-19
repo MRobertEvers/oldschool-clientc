@@ -106,6 +106,11 @@ struct PktPlayerInfo_LocalXZLevel
      * the player's persistent speed and any one-cycle override. */
     bool has_move_speed;
     int8_t move_speed;
+    /* Revision 239: an exact move in the same update cancels the move
+     * (class109.method3804 flag 0x4000 clears field1582, so method3189 never
+     * runs). The coordinate still becomes route[0] -- the exact move's tiles
+     * are relative to it -- but the actor neither snaps nor queues a step. */
+    bool route_only;
 };
 
 enum PktPlayerTraversal
