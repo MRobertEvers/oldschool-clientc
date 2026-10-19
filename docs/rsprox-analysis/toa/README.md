@@ -92,3 +92,47 @@ vs recorded"). The other rooms name our script but have not been diffed yet.
 - F+9..11: `hpbar_hud`:5 hidden, `fade_overlay` reopened in 164:1.
 - F+11/12: "<name> has proceeded to the next challenge. Join her..." when
   another raider leaves first; `minimap_toggle` state 2.
+
+## Teleport crystals (the boss rooms' way in)
+
+Zebak's, Kephri's, Akkha's, Ba-Ba's and the Wardens' rooms have no barrier:
+every recorded barrier click is in one of the four challenge squares. Each is
+entered by a `Teleport crystal` placed by the map square, Use (op1) and
+Quick-Use (op2) except the Wardens' (Use only). Read from 74 uses in 14 and
+1852 (`oploc` on 45505, 45506, 45579, 45754, 45866):
+
+| Room | Crystal (loc, tile, square-local) | Puts the raider on | Uses |
+|---|---|---|---|
+| Zebak | `zebak_teleport` 45506, (3954,5408) = (50,32) | (3941,5408) = (37,32) | 19 of 19 |
+| Kephri | `kephri_teleport` 45505, (3538,5408) = (18,32) | (3545,5408) = (25,32) | 14 of 14 |
+| Akkha | `akkha_teleport` 45866 (2x2), (3694,5407,1) = (46,31) | (3689,5408,1) = (41,32) | 12 of 12 |
+| Ba-Ba | `baba_teleport` 45754, (3794,5408) = (18,32) | (3800,5408) = (24,32) | 19 of 19 |
+| Wardens | `wardens_teleport` 45579 (2 wide), (3808,5172,1) = (32,52) | (3808,5166,1) = (32,46) | 8 of 8 |
+
+- **The teleport**: spotanim `abyssal_demon_teleport` (409, no height or
+  delay) on the raider and synth `quick_teleport` (198), on the tick of the
+  move. The first raider through starts the room: "Challenge started: <boss>."
+  and the boss overlay on that tick in the solo raid.
+- **When**: a raider standing beside the crystal who has not moved for a tick
+  goes on the click's tick (6 uses); one who stopped the tick before goes the
+  tick after (face the crystal, then go); one who walks to it goes 2 ticks
+  after arriving, facing it in between (7). That is LostCity's
+  `p_arrivedelay` (wait while the player stepped this tick or the last) on an
+  op that fires the tick after arrival.
+- **A raider missing**: Quick-Use does nothing but the mesbox (interface 229)
+  "Some of your party don't seem to have arrived yet.<br>If you proceed, they
+  will be abandoned.", on every click until they arrive (34 uses had at least
+  one). Use was never clicked with a raider missing.
+
+**Ours** (2026-10-18, `toa_barrier.rs2`): the five crystals' ops, the tiles
+above, the spotanim and synth, the room started on the first teleport, the
+Quick-Use refusal with the recorded text. The rooms no longer spawn a barrier,
+and Kephri's, Akkha's, Ba-Ba's and the Wardens' proximity start (12 from the
+fight tile, which reached the lobby side) stops short of the crystal (4-5).
+The engine's `p_arrivedelay` waited only for a step on the same tick; it now
+waits as LostCity's does, which puts a walked-to crystal's teleport on
+arrival + 2 (`test/raids/toa_crystals.lua`: steps on 9 and 10, the op on 11,
+the teleport on 12). **Open:** Use with a raider missing is not recorded;
+ours shows the same warning and teleports when it is clicked through, which
+is what "If you proceed" offers. The Wardens P2/P3 room still spawns its
+barrier; nothing was recorded there.

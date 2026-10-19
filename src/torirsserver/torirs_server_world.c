@@ -3299,6 +3299,11 @@ advance_player(struct ToriRSServer* srv)
         }
     }
 
+    /* Player.ts processMovement: `if (this.stepsTaken > 0) this.lastMovement
+     * = World.currentTick + 1`. */
+    if( player->steps_taken > 0 )
+        player->last_movement = srv->tick + 1;
+
     if( !player_has_waypoints(player) && player->dest_x >= 0 )
     {
         /* Arrived (or never had a route that reached). Clear the map flag when

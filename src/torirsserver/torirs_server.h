@@ -4242,6 +4242,10 @@ struct ToriRSServerPlayer
      *  PLAYER_INFO encoder: 0 tiles idle, 1 walking, 2 running. */
     int move_dirs[2];
     int move_count;
+    /** LostCity `PathingEntity.lastMovement`: the tick after the last one on
+     *  which this player took a step (Player.ts processMovement), read by
+     *  `p_arrivedelay`. */
+    int last_movement;
 
     /** Player variables. No dirty list beside them: `ToriRSServer_WorldMarkVarp`
      *  encodes the packet at the point of the write, the way the reference's

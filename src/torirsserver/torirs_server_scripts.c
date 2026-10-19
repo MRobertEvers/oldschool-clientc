@@ -11399,9 +11399,15 @@ script_command(
     }
 
     case SS_OP_P_ARRIVEDELAY:
-        /* Only waits when the player actually moved this tick; a stationary
-         * player runs straight through. */
-        if( player->move_count > 0 )
+        /* PlayerOps.ts P_ARRIVEDELAY: waits while `lastMovement >=
+         * currentTick`, i.e. the player stepped this tick or the one before. An
+         * op on a loc walked to fires the tick after arriving (the post-move
+         * try holds ops for a player who moved), so its arrivedelay waits one
+         * more: Jagex's ToA teleport crystals teleport 2 ticks after arrival
+         * (docs/rsprox-analysis/toa/README.md). This used to wait only for a
+         * step this tick, one tick short whenever the player had just stopped. */
+        assert(player);
+        if( player->last_movement >= srv->tick )
         {
             player->delayed_until = srv->tick + 1;
             SSVM_Suspend(state, SSVM_SUSPENDED);
