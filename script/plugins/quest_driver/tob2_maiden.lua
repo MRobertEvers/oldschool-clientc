@@ -122,7 +122,7 @@ QD.MAIDEN_V2 = {
     STORM_FLIGHT = 5,                      -- decided T, lands T+5 (TL: 51 -> 56)
     STORM_BASE = 365, STORM_PER_LEAK = 35, -- max floor((365 + 35c)/10) (M:37-39, oracle P3)
     FOCUS = 1.25,                          -- HM: the 3rd consecutive storm on one raider (oracle P3)
-    POOL_BASE = 10, POOL_PER_LEAK = 2,     -- 10 + 2c a tick (K:329-330); HM GUESS: same
+    POOL_BASE = 10, POOL_PER_LEAK = 2,     -- the top of a pool tick's roll, 5 .. 10 + 2c (RSProx, maiden.md); HM GUESS: same
     LAND_MAX = 7,                          -- floor((20 + 15 x 13)/30): a pool's flight to 13 tiles from her centre
     POOL_EXTRA_P = 2 / 25,                 -- two extras in the furthest raider's 5x5
     TRAIL_EXP = 9, TRAIL_MAX = 13,         -- 5..13 (KM:42-45); HM GUESS: same

@@ -90,6 +90,70 @@ The plugin's "1 tile away takes 65 cycles" is the same law seen from the other s
 | Killed | `tob_blood_spawn_death`, deleted 3 ticks later | | match (not re-measured) |
 | At her death | removed with no seq | removed by `~tob_maiden_clear_room` | match |
 
+## Damage, heals and her adds (2026-10-19)
+
+The rows above came from the recorder's own view. These are read from **16
+sessions re-transcribed with every raider shown**: 3299, 1833, 1837, 1764,
+3285, 788, 582, 1779, 553, 554, 845, 1758 and 1163 for Normal; 1764, 1852 and
+1837 for Hard; 101 and 554 for Entry. Every one is from a Leagues V, Leagues VI
+or Grid Master world.
+
+Two things make the numbers readable:
+- **The recorder's prayers** are `prayer_allactive` (varbit 4101), in the
+  cache's order: Protect from Magic is bit 12 and Missiles bit 13. Rev 227
+  sends no varp 83.
+- **Her heal shows the server's own number.** Off a pool she heals the raider's
+  splat + 1 (9 → 10, 11 → 12, 7 → 8). So Leagues V takes about a tenth off what
+  a raider is dealt, and the raider's splat is not the server's roll.
+
+`test/raids/_maiden_tells.lua` stands one raider with a bow through her attacks.
+It uses `::tobbosswound` so a heal has room and `::tobmaidenpct 69` for a crab
+wave. Every "now" below is from its tick log.
+
+### The storm
+
+| | Recorded | Ours before | Status |
+|---|---|---|---|
+| Target | the raider **nearest her centre tile**, 750 of 750 throws | the same rule | match |
+| Damage, Normal | under Protect from Magic 0–18, every one of 120 within (36.5 + 3.5c) / 2 for c crabs leaked | roll 0..36.5 + 3.5c, halved by the prayer | match |
+| Damage, Hard | prayed hits up to 50; 21 of 113 above the Normal bound, some by 11 (48 at 11 leaks) | Normal's, + 25% on a third straight hit | **open**: the leak count read from the recordings may run short in Hard |
+| Drain: when | on the **throw** tick, with spam "Your stats are drained." (79 of 79); nothing drops at the landing | at the landing, no line | **fixed** |
+| Drain: how often | 79 of 265 storms at the recorder (30%); Normal 41 / 129, Hard 38 / 136 | 50% [wiki] | **fixed** (30) |
+| Drain: how much | **⌊hit / 5⌋ + 1** of the hit that lands, 69 of 75 (6 → 2, 10 → 3, 14 → 3, 1 → 1); Ranged for a bow, Attack and Strength for melee | (hit + 1) / 5 [wiki] | **fixed** |
+
+### The blood
+
+| | Recorded | Ours before | Status |
+|---|---|---|---|
+| Who a pool hits | the raider on its tile (231 of 233 on the landing tick); none of those beside it | the same | match |
+| How long | every tick they stay (70 of 71 a tick later, still 4–8 ticks on) | the same | match |
+| Damage | a **roll from 5 to 10 + 2c**: her heal runs 5–10 at no leaks, 5–12 at one, 6–13 at two, 6–15 at three | 10 + 2c, the top every tick | **fixed** (`^tob_maiden_pool_damage_min` 5) |
+| Her heal | the server's roll for that tick | the same | match |
+| Trail | hurts a raider on it every tick while it lasts, 5–12, with the same heal | 5–13 [wiki] | match |
+| Hard pools | heals beyond 10 + 2c for the leaks counted (33 at 8) | the Normal rule | **open**, as the storm |
+
+### Blood spawns
+
+| | Recorded | Ours before | Status |
+|---|---|---|---|
+| First step | the tick **after** it is added (129 of 130), one tile a tick after that | on the tick it is added, trail and all | **fixed** (its add tick in `npc_var` 2) |
+| From a pool | Normal: 22 of 238 pools nobody stood on (9%), 9 of 77 stood on (12%), never more than 2 a throw. Hard: 11% and 36% | 10% (5% when nobody stood in any), 20% stood on [wiki] | **open**: 77 stood-on pools do not settle 20% |
+
+### Nylocas Matomenos
+
+| | Recorded | Ours | Status |
+|---|---|---|---|
+| Walk | first step the tick after the add (807 of 807), one tile a tick | the same | match |
+| Reaching her | her heal is 5 × the crab's headbar fill (out of 30): **2 × its hitpoints**, a full 75-hp crab heals 150 | 2 × hitpoints; 150 in the forced run | match |
+| After | deleted 2 ticks after its death seq (216 of 216) | the same | match |
+
+Ours now, from `_maiden_tells` (solo, Normal):
+- 17 drains, each on a storm's throw tick with its line.
+- 308 blood hits, 5–14.
+- Every blood tick healed her by its own damage, or topped her off.
+- Blood spawns step a tick after their add.
+- Crabs step on add + 1 and heal 150.
+
 ## Her death (`--section death`)
 
 T is her killing hit (headbar fill 0). 31 of 31 the same.

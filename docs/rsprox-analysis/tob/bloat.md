@@ -86,8 +86,9 @@ sessions re-transcribed with every raider shown**: the 9 above plus 845, 554,
 1758 and 1163 (Normal), with Hard in 1852 and 1837. Every one is from a
 Leagues V, Leagues VI or Grid Master world. Their perks change the numbers:
 Leagues V's Last Stand relic holds a raider on 1 hitpoint, so every 1 splat
-is dropped below, and the same flies hit 6–13 on Grid Master against 9–18 on
-Leagues V. **No damage range here is an unmodified one.**
+is dropped below, and Leagues V cuts the damage a raider takes by about a
+tenth (maiden.md: the server's heal off a hit is the hit + 1). **No damage
+range here is an unmodified one.**
 
 `test/raids/_bloat_tells.lua` stands one raider in her south corridor
 through her cycles, with `::tobbosswound` so the flesh falls. That puts every
@@ -100,7 +101,7 @@ row below in our tick log.
 | Rate | a raider she sees takes a splat **every tick**, landing the tick after she looked; standing under her counts as seen | same | match |
 | Source | a tile on her **near edge** facing the raider (north row for a raider to the north, ...), not her middle; the exact tile also moves with her step that tick | her middle (`~npc_projectile_source`) | **fixed**: the footprint tile nearest the raider, within a tile of the recorded one 74% of the time (her middle: 31%). No rule fitted exactly |
 | Projectile to a raider under her | sent more often than not (17 against 8 when under her both before and after her step); the attack sound always | sent | match in kind; no clean rule |
-| Damage | Normal 6–18 (Grid Master 6–17, mean 10.2; Leagues V 7–18, mean 13.3); Hard 8–20 | 10–20 | **open**: seasonal. Protect from Missiles never seen (the recorder never prayed it) |
+| Damage | Normal, Leagues V: **9–18 unprayed (77), 7–13 under Protect from Missiles (10)**; Grid Master 4–13 prayed (70). Prayer is the recorder's `prayer_allactive` (varbit 4101, Missiles = bit 13). Ours, 10–20 and 75% of it prayed (7–15), is exactly that once Leagues' ~0.9 damage reduction (seen in the Maiden's heals, maiden.md) is applied | 10–20, prayed 75% | match |
 | The spread | a swarm thrown **from the tile of a raider she flew the tick before** (250 of 282) at a raider near them, seen or not (about half were also flown by her that tick). Its hit lands 1 or 2 ticks later (12 / 20 of 33). A spread does not spread (7 of 282 sources were spread-only) | on her own tick, thrown from her middle | **fixed**: a tick behind, from the burning raider's tile |
 | Spread reach | 1–9 tiles, about a third of the raiders at each distance up to 6 | everyone within 3 | **open**: no rule for which third |
 
