@@ -21,7 +21,7 @@ file you created after the client started.
 THE MANIFEST, one section per test, in TEST_SUITES order then by id:
 
     [test:<id>]
-    suite=quest|raid
+    suite=quest|raid|boss
     title=<a human title>
     source=tests/quests/<id>.lua        ; resolved under the script directory
     fixture=tests/quests/fixtures/<fixture>.ini
@@ -35,9 +35,9 @@ HOW A SOURCE IS READABLE AS A SCRIPT ITEM. The IO layer resolves a script path
 under ONE root (script/, or TORIRS_SCRIPT_DIR), and io_server refuses a path
 containing `..` (src/ioserver/io_server_main.c), so `../test/quests/x.lua` would
 work natively and fail when the script directory is served. The tests
-directories are therefore reached through two committed directory links,
-script/tests/quests -> ../../test/quests and script/tests/raids ->
-../../test/raids: a read through the link IS a read of the file in the tree
+directories are therefore reached through committed directory links,
+script/tests/quests -> ../../test/quests, script/tests/raids ->
+../../test/raids and script/tests/bosses -> ../../test/bosses: a read through the link IS a read of the file in the tree
 (no copy, nothing to go stale), and io_server's fopen follows it the same way.
 A suite given with --suite and a directory outside script/ (a scratch tests
 root for a proof) is named by its path relative to the script directory, which
@@ -83,6 +83,7 @@ DEFAULT_OUT = os.path.join(SCRIPT_ROOT, "tests", "tests.ini")
 TEST_SUITES = [
     ("quest", "test/quests", "tests/quests"),
     ("raid", "test/raids", "tests/raids"),
+    ("boss", "test/bosses", "tests/bosses"),
 ]
 
 RAID_NAMES = {
@@ -183,7 +184,12 @@ def describe(suite, directory, directory_script_path):
         max_frames = quest_run.read_max_frames(test_file)
         _, layout = quest_run.legs_source(test_file)
         legs = len(layout["legs"]) if layout else 0
-        title = raid_title(test_id, source, party) if suite == "raid" else quest_title(test_id, source)
+        if suite == "raid":
+            title = raid_title(test_id, source, party)
+        elif suite == "boss":
+            title = words(test_id)
+        else:
+            title = quest_title(test_id, source)
         reason = ""
         # A party's per-seat LOADOUT names "{seat}" (run.py
         # write_session_fixture): every seat's file must be there.

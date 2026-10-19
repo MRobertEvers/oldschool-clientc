@@ -85,8 +85,10 @@ local SUITES = {
     { value = "all", label = "All" },
     { value = "quest", label = "Quests" },
     { value = "raid", label = "Raids" },
+    { value = "boss", label = "Bosses" },
 }
-local SUITE_ORDER = { quest = 1, raid = 2 }
+local SUITE_ORDER = { quest = 1, raid = 2, boss = 3 }
+local SUITE_WORDS = { all = "scripts", quest = "quests", raid = "raids", boss = "bosses" }
 
 -- Raid seam25: where a Play starts from (the owner, 2026-10-05: "The script
 -- runner should also specify a starting character state, such as 'reset
@@ -223,7 +225,7 @@ local function manifest_counts()
         end
     end
     local parts = {}
-    for _, suite in ipairs({ "quest", "raid" }) do
+    for _, suite in ipairs({ "quest", "raid", "boss" }) do
         local entry = by_suite[suite]
         if entry then
             parts[#parts + 1] = string.format("%s %d (%d playable)", suite, entry.listed, entry.available)
@@ -313,7 +315,7 @@ local function matched_text(api)
     if manifest_state ~= "ready" then
         return clip(manifest_detail)
     end
-    local suite_word = suite_filter == "all" and "scripts" or (suite_filter == "quest" and "quests" or "raids")
+    local suite_word = SUITE_WORDS[suite_filter]
     local in_suite = 0
     for _, script in ipairs(scripts) do
         if suite_filter == "all" or script.suite == suite_filter then
