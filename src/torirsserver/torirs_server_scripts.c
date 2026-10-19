@@ -7415,7 +7415,13 @@ script_command(
             SSVM_Abort(state, "npc_setmovespeed with no active npc");
             return 1;
         }
-        npc->move_speed = speed > 0 ? 1 : 0;
+        if( speed < TORIRSSERVER_NPC_SPEED_WALK || speed > TORIRSSERVER_NPC_SPEED_CRAWL )
+        {
+            SSVM_Abort(state, "npc_setmovespeed %d is not 0 (walk), 1 (run) or 2 (crawl)", speed);
+            return 1;
+        }
+        npc->move_speed = speed;
+        npc->crawl_wait = 0;
         return 1;
     }
 
@@ -13689,6 +13695,30 @@ script_command(
             return 1;
         }
         player->music_hold_until = srv->tick + ticks;
+        return 1;
+    }
+
+    case SS_OP_HPBAR_HUD_NPC:
+    {
+        /* hpbar_hud_npc(npc_uid): the active player's health overlay follows
+         * this npc ahead of their combat target (torirs_server_hpbar.c); -1
+         * hands it back to combat. */
+        int32_t uid;
+
+        if( !SSVM_PopInt(state, &uid) )
+            return 1;
+        if( !player )
+        {
+            SSVM_Abort(state, "hpbar_hud_npc with no active player");
+            return 1;
+        }
+        if( uid != -1 && (uid <= 0 || (int)((uint32_t)uid & 0xffffu) >= TORIRSSERVER_NPC_MAX ||
+                          (uint16_t)((uint32_t)uid >> 16) == 0) )
+        {
+            SSVM_Abort(state, "hpbar_hud_npc %d is not an npc uid or -1", uid);
+            return 1;
+        }
+        player->hpbar_npc_uid = uid == -1 ? 0 : uid;
         return 1;
     }
 

@@ -5798,7 +5798,21 @@ advance_npcs(struct ToriRSServer* srv)
              * TzKal-Zuk never became ready, because "ready" is the glyph
              * reaching the end of its row.
              */
-            if( npc->waypoint_index >= 0 )
+            if( npc->waypoint_index >= 0 && npc->move_speed == TORIRSSERVER_NPC_SPEED_CRAWL )
+            {
+                /* A tile every second tick, the rest tick first spent. */
+                if( npc->crawl_wait > 0 )
+                    npc->crawl_wait--;
+                else if( npc_take_step(npc) )
+                {
+                    npc->stuck_counter = 0;
+                    npc->step_crawl = 1;
+                    npc->crawl_wait = 1;
+                }
+                else
+                    npc->stuck_counter++;
+            }
+            else if( npc->waypoint_index >= 0 )
             {
                 if( npc_take_step(npc) )
                 {
@@ -5821,7 +5835,7 @@ advance_npcs(struct ToriRSServer* srv)
                      * waypoint on the first tile stops there instead of
                      * overshooting it.
                      */
-                    if( npc->move_speed > 0 && npc->waypoint_index >= 0 )
+                    if( npc->move_speed == TORIRSSERVER_NPC_SPEED_RUN && npc->waypoint_index >= 0 )
                         npc_take_step(npc);
                 }
                 else
@@ -19137,6 +19151,7 @@ phase_cleanup(struct ToriRSServer* srv)
         if( srv->npcs[i].step_dir >= 0 )
             srv->npcs[i].last_movement = srv->tick + 1;
         srv->npcs[i].step_dir = -1;
+        srv->npcs[i].step_crawl = 0;
         srv->npcs[i].run_dir = -1;
         /* With the masks, and for the same reason: a teleport describes one
          * tick, and every recipient's NPC_INFO has to have been written before

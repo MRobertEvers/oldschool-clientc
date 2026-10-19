@@ -199,7 +199,7 @@ struct App_DriveLocChange
  * retires a floor graphic 40 ticks after it lands), the cycles counted in
  * whole server ticks (App_DriveMapAnimElapsed), never off the client's own
  * cycle. Absolute tiles. */
-#define APP_DRIVE_MAP_ANIM_CAP 1024
+#define APP_DRIVE_MAP_ANIM_CAP 2048 /* = SCRIPTRUN_MAP_ANIMS */
 #define APP_DRIVE_MAP_ANIM_LIFE (40 * 30)
 struct App_DriveMapAnim
 {
@@ -213,7 +213,7 @@ struct App_DriveMapAnim
  * as scriptrun does (scriptrun_core.c, SCRIPTRUN_LOC_ANIMS). Rows are listed
  * for APP_DRIVE_LOC_ANIM_TICKS server ticks after the tick that sent them.
  * Absolute tiles. */
-#define APP_DRIVE_LOC_ANIM_CAP 256
+#define APP_DRIVE_LOC_ANIM_CAP 4096 /* = SCRIPTRUN_LOC_ANIMS */
 #define APP_DRIVE_LOC_ANIM_TICKS 40
 struct App_DriveLocAnim
 {

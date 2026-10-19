@@ -50,8 +50,12 @@ enum
      * 40-tick window (16 shadows + 16 splats every 4 ticks); a full ring
      * is an assert, never a dropped graphic (the dropped one is the newest,
      * the one a bot must dodge). */
-    SCRIPTRUN_MAP_ANIMS = 1024,
-    SCRIPTRUN_LOC_ANIMS = 256,
+    /* The Path of Crondis sets the sizes: its beams draw up to 120 map
+     * graphics every 5 ticks, and Jagex re-sends its 80 trap locs' idles
+     * every tick before the room starts (~30 a tick after), all kept for 40
+     * ticks (docs/rsprox-analysis/toa/crondis.md). The live ring matches. */
+    SCRIPTRUN_MAP_ANIMS = 2048,
+    SCRIPTRUN_LOC_ANIMS = 4096,
     SCRIPTRUN_LOCS = 1024,
     SCRIPTRUN_OBJS = 512,
     SCRIPTRUN_MOUNTS = 64,

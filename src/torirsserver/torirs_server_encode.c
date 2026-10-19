@@ -6759,6 +6759,16 @@ npc_info_encode(struct ToriRSServerPlayer* player)
                     rsab_pbit(&buf, 3, npc->run_dir);
                     rsab_pbit(&buf, 1, extended);
                 }
+                else if( npc->step_dir >= 0 && npc->step_crawl )
+                {
+                    /* One crawl step: update type 2, traversal bit 0, one
+                     * direction (deob Statics ~47110, rsprot pCrawl). */
+                    rsab_pbit(&buf, 1, 1);
+                    rsab_pbit(&buf, 2, 2);
+                    rsab_pbit(&buf, 1, 0); /* crawl */
+                    rsab_pbit(&buf, 3, npc->step_dir);
+                    rsab_pbit(&buf, 1, extended);
+                }
                 else if( npc->step_dir >= 0 )
                 {
                     rsab_pbit(&buf, 1, 1);

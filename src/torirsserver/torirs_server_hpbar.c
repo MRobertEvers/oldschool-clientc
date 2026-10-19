@@ -117,6 +117,37 @@ hpbar_target_slot(struct ToriRSServerPlayer* player)
     return player->combat_target;
 }
 
+/*
+ * The npc content pinned to the overlay with `hpbar_hud_npc`, or -1.
+ *
+ * It wins over the combat target: the Path of Crondis shows the palm's water
+ * to every raider for the whole room, crocodile fights included (RSProx: the
+ * overlay's npc is a palm stage on every write, never the crocodile). A pin
+ * whose npc is gone is dropped here, so the overlay falls back to combat.
+ */
+static int
+hpbar_pinned_slot(struct ToriRSServerPlayer* player)
+{
+    struct ToriRSServer* srv;
+    struct ToriRSServerNpc* npc;
+    int slot;
+
+    assert(player);
+
+    srv = player->world;
+    if( !srv || player->hpbar_npc_uid == 0 )
+        return -1;
+    slot = (int)((uint32_t)player->hpbar_npc_uid & 0xffffu);
+    npc = &srv->npcs[slot];
+    if( !npc->active || npc->death_tick >= 0 ||
+        npc->generation != (uint16_t)((uint32_t)player->hpbar_npc_uid >> 16) )
+    {
+        player->hpbar_npc_uid = 0;
+        return -1;
+    }
+    return slot;
+}
+
 void
 ToriRSServer_HpBarTick(
     struct ToriRSServer* srv,
@@ -134,7 +165,9 @@ ToriRSServer_HpBarTick(
     if( ids->iface_hpbar_hud <= 0 || ids->com_gameframe_hpbar_hud <= 0 )
         return;
 
-    slot = hpbar_target_slot(player);
+    slot = hpbar_pinned_slot(player);
+    if( slot < 0 )
+        slot = hpbar_target_slot(player);
     if( slot >= 0 )
     {
         struct ToriRSServerNpc const* npc = &srv->npcs[slot];

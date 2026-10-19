@@ -2636,8 +2636,20 @@ struct ToriRSServerNpc
      * `npc_walk` feeds. The wander and combat movers ignore it deliberately:
      * a roaming npc has no reason to sprint, and outrunning a monster in
      * pursuit is the mechanic (see `run_dir` above).
+     *
+     * 2 CRAWLS: one tile every second tick, sent as NPC_INFO's crawl step
+     * (update type 2, traversal bit 0, one direction) so the client draws it
+     * at half pace. Jagex's Crondis crocodiles crawl to the palm a tile every
+     * 2 ticks (docs/rsprox-analysis/toa/crondis.md).
      */
     int move_speed;
+#define TORIRSSERVER_NPC_SPEED_WALK 0
+#define TORIRSSERVER_NPC_SPEED_RUN 1
+#define TORIRSSERVER_NPC_SPEED_CRAWL 2
+    /** Crawling: ticks to rest before the next tile (0 steps on this tick). */
+    int crawl_wait;
+    /** This tick's `step_dir` was a crawl step; cleared with `step_dir`. */
+    int step_crawl;
     /**
      * Which way the npc is FACING, in the same 0..7 space as `step_dir`
      * (0 NW, 1 N, 2 NE, 3 W, 4 E, 5 SW, 6 S, 7 SE).
@@ -4441,6 +4453,9 @@ struct ToriRSServerPlayer
     int hpbar_last_type;
     int hpbar_last_hp;
     int hpbar_last_max;
+    /* `hpbar_hud_npc`: the npc uid the overlay shows ahead of the combat
+     * target, 0 for none (a live uid always carries a non-zero generation). */
+    int hpbar_npc_uid;
 
     /*
      * The helper panel -- see torirs_server_helper.c.

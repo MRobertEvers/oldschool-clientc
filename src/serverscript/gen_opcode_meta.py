@@ -1205,6 +1205,15 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # its sting's drop to 56% (docs/rsprox-analysis/cox/vespula.md).
     "NPC_HEADBAR_FROM": (11146, 1, 0, 0, 0),
 
+    # hpbar_hud_npc(npc_uid $npc)
+    #
+    # The active player's health overlay (`hpbar_hud`) shows this npc for as
+    # long as it lives, ahead of their combat target; -1 hands the overlay back
+    # to combat. Jagex's Path of Crondis keeps the palm's water on every
+    # raider's overlay from the start of the room, through their fights with
+    # the crocodiles (docs/rsprox-analysis/toa/crondis.md).
+    "HPBAR_HUD_NPC": (11147, 1, 0, 0, 0),
+
     # obj_ironman_blocked()(boolean)
     #
     # Would the ironman rule refuse the active player the active obj: they are
@@ -1478,6 +1487,7 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "NPC_SETDEATHANIMNOW": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_EXACTMOVE": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_HEADBAR_FROM": (1 << POINTER_BITS["active_npc"], 0),
+    "HPBAR_HUD_NPC": (1 << POINTER_BITS["active_player"], 0),
     "MIDI_HOLD": (1 << POINTER_BITS["active_player"], 0),
     "SPOTANIM_NPC_SLOT": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_HEADICON": (1 << POINTER_BITS["active_npc"], 0),

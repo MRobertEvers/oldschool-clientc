@@ -52,6 +52,7 @@ EXTRA_DECLARATIONS = [
     "[command,npc_setdeathtype](npc $type)",
     "[command,npc_exactmove](coord $start, coord $end, int $start_cycle, int $end_cycle, int $direction)",
     "[command,npc_headbar_from](int $hp)",
+    "[command,hpbar_hud_npc](npc_uid $npc)",
 ]
 
 DECL = re.compile(r"^\[command,(\.?)([A-Za-z0-9_]+)\]\s*(\([^)]*\))?\s*(\([^)]*\))?")

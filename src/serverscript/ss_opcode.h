@@ -570,6 +570,7 @@
 #define SS_OP_NPC_SETDEATHANIMNOW 11144
 #define SS_OP_NPC_EXACTMOVE 11145
 #define SS_OP_NPC_HEADBAR_FROM 11146
+#define SS_OP_HPBAR_HUD_NPC 11147
 #define SS_OP_HIDENPCOPS 11150
 #define SS_OP_HIDELOCOPS 11151
 #define SS_OP_HIDEOBJOPS 11152
@@ -577,6 +578,6 @@
 /** One past the highest opcode id; the size of any opcode-indexed table. */
 #define SS_OPCODE_MAX 11153
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 551
+#define SS_OPCODE_COUNT 552
 
 #endif
