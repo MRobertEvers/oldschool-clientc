@@ -1,40 +1,41 @@
--- _verzik_pillar_collapse: a raider beside a falling Verzik P1 pillar is thrown
--- ONE tile directly away from it with the flyback, then hit.  anim audit
--- 2026-10-07.
+-- _verzik_pillar_collapse: a raider within 2 of a falling Verzik P1 pillar's
+-- centre is thrown ONE tile away from it, then hit; one 3 out is untouched.
 --
--- Owner ruling 2026-10-07: "The collapsing pillar DOES knock 1 tile away from
--- the pillar and has the animation."  blert agrees tick for tick (coordinator's
--- harvest, T = the pillar 8379's NPC_DEATH, centre = SW + 1,1): 280f7cef T108
--- 3 east -> 1 east at T+2; 45e4e8b6 T108 2 west -> 1 west at T+2; 45e4e8b6
--- T117 2 east -> 1 east at T+2; 6f735fbc T66 2 south -> 1 south at T+2; damage
--- on T+3 in three of four.  The content before this (a8e1d1e517) had no shove
--- at all; before that (8b927584d8's parent) it threw two tiles, always
--- south-west.
+-- RSProx, 34 throws over 9 recordings with every raider shown
+-- (docs/rsprox-analysis/tob/verzik.md, "Getting thrown"; T = the collapse,
+-- 8377 + seq 8052): on T+2 the raider plays agilityarena_player_spikedback 1114
+-- (NOT 1157, no 848, no spotanim 245, no stun) and moves one tile in an
+-- exactmove; the hit lands on T+3. The heading is straight out along the longer
+-- axis, and a corner raider goes to the side counterclockwise of the diagonal:
+-- NE east, NW north, SW west, SE south. Nobody 3 out was thrown or hit.
+-- (Before: 1157 + the 848/245 stun, a diagonal for a corner, range 3 - from
+-- the owner ruling 2026-10-07 and four blert rows.)
 --
 -- FORCED: the fight is never begun.  ::tobwarp stands the raider beside a
 -- pillar and ::tobvzpillar <i> runs the fight's own ~tob_verzik_collapse_pillar
--- on it.  Two cases, each checked from the tick log:
---   west: pillar 0 (3x3 at local 25..27,18..20, centre 26,19), raider at 24,19
---         (2 west)  -> must end on 23,19
---   diag: pillar 1 (centre 26,25), raider at 28,27 (2 east, 2 north) -> 29,28
---   east: pillar 3 (3x3 at 37..39,18..20, centre 38,19), raider at 40,19
---         (2 east) -> 41,19.  West and east together catch a heading taken
---         from ~coord_direction2, which answers south-west for due west.
+-- on it. Cases (pillar centres: 0 26,19  1 26,25  3 38,19  4 38,25  5 38,31):
+--   west: 2 west of pillar 0           -> one tile west
+--   ne:   2 east, 2 north of pillar 1  -> one tile EAST (the corner rule)
+--   east: 2 east of pillar 3           -> one tile east
+--   se:   2 east, 2 south of pillar 4  -> one tile SOUTH (the corner rule)
+--   far:  3 east of pillar 5           -> nothing: no anim, no move, no hit
 -- Rows per case, T = the tick the pillar retyped 8379 -> 8377:
 --   .collapsed  the retype
---   .flyback    player_anim 1157 on T+2
---   .stun       player_anim 848 and player_spotanim 245
---   .shove      exactly one tile change, on T+2, onto the expected tile, which
---               is one tile from where it stood and farther from the centre
---   .damage     a hit_player > 0 on T+3
+--   .anim       player_anim 1114 once, on T+2 (none for far); never 1157 or 848
+--   .nostun     no player_spotanim 245
+--   .shove      exactly one tile change, on T+2, onto the expected tile (none
+--               for far)
+--   .damage     one hit_player > 0 on T+3 (none for far)
 --   .alive      hitpoints above 0, t.player.alive, no human_death 836
 -- Shots: one a tick from the collapse, camera over the pillar.
 local BASE_X, BASE_Z = 6400, 64   -- local (0,0) of the instance in this run (24,19 -> 6424,83)
 
 local CASES = {
     { name = "west", pillar = 0, centre = { 26, 19 }, stand = { 24, 19 }, want = { 23, 19 } },
-    { name = "diag", pillar = 1, centre = { 26, 25 }, stand = { 28, 27 }, want = { 29, 28 } },
+    { name = "ne",   pillar = 1, centre = { 26, 25 }, stand = { 28, 27 }, want = { 29, 27 } },
     { name = "east", pillar = 3, centre = { 38, 19 }, stand = { 40, 19 }, want = { 41, 19 } },
+    { name = "se",   pillar = 4, centre = { 38, 25 }, stand = { 40, 23 }, want = { 40, 22 } },
+    { name = "far",  pillar = 5, centre = { 38, 31 }, stand = { 41, 31 }, want = nil },
 }
 
 local function serial_of(detail)
@@ -45,10 +46,6 @@ local function rows_since(t, kind, since)
     local ok, list = t.ticklog.rows({ kind = kind, since = since })
     if ok ~= "ok" or type(list) ~= "table" then return {} end
     return list
-end
-
-local function cheb(ax, az, bx, bz)
-    return math.max(math.abs(ax - bx), math.abs(az - bz))
 end
 
 return {
@@ -109,16 +106,22 @@ return {
             local p = "pillar." .. c.name
             t.check(p .. ".collapsed", T ~= nil, "pillar " .. c.pillar .. " retyped 8379 -> 8377 at T=" .. tostring(T))
             T = T or -100
-            local fly, s848, s245, died = {}, 0, 0, 0
+            local spiked, wrong, s245, died = {}, 0, 0, 0
             for _, a in ipairs(res.seqs) do
-                if a.seq == 1157 then fly[#fly + 1] = "T+" .. (a.tick - T) end
-                if a.seq == 848 then s848 = s848 + 1 end
+                if a.seq == 1114 then spiked[#spiked + 1] = "T+" .. (a.tick - T) end
+                if a.seq == 1157 or a.seq == 848 then wrong = wrong + 1 end
                 if a.seq == 836 then died = died + 1 end
             end
             for _, a in ipairs(res.spots) do if a.spot == 245 then s245 = s245 + 1 end end
-            t.check(p .. ".flyback", #fly == 1 and fly[1] == "T+2",
-                "human_troll_flyback 1157 at " .. (#fly > 0 and table.concat(fly, ",") or "never") .. " (want once, T+2)")
-            t.check(p .. ".stun", s848 > 0 and s245 > 0, "848 x" .. s848 .. ", spotanim 245 x" .. s245)
+            if c.want then
+                t.check(p .. ".anim", #spiked == 1 and spiked[1] == "T+2" and wrong == 0,
+                    "agilityarena_player_spikedback 1114 at " .. (#spiked > 0 and table.concat(spiked, ",") or "never")
+                        .. ", 1157/848 x" .. wrong .. " (want 1114 once on T+2, no 1157/848)")
+            else
+                t.check(p .. ".anim", #spiked == 0 and wrong == 0,
+                    "1114 at " .. (#spiked > 0 and table.concat(spiked, ",") or "never") .. ", 1157/848 x" .. wrong .. " (want none: 3 out)")
+            end
+            t.check(p .. ".nostun", s245 == 0, "spotanim 245 x" .. s245 .. " (want none)")
             -- every distinct tile after the collapse, and the tick it was first seen
             local changes, last = {}, { x = c.stand[1], z = c.stand[2] }
             for _, tl in ipairs(res.tiles) do
@@ -127,19 +130,26 @@ return {
                     last = tl
                 end
             end
-            local onto = #changes == 1 and last.x == c.want[1] and last.z == c.want[2]
-            local one = cheb(last.x, last.z, c.stand[1], c.stand[2]) == 1
-            local farther = cheb(last.x, last.z, c.centre[1], c.centre[2]) > cheb(c.stand[1], c.stand[2], c.centre[1], c.centre[2])
-            local when = changes[1] and string.match(changes[1], "^T%+(%-?%d+)")
-            t.check(p .. ".shove", onto and one and farther and when == "2",
-                string.format("stood %d,%d (centre %d,%d); moves: %s; want one move on T+2 onto %d,%d",
-                    c.stand[1], c.stand[2], c.centre[1], c.centre[2],
-                    #changes > 0 and table.concat(changes, "; ") or "none", c.want[1], c.want[2]))
+            local moves = #changes > 0 and table.concat(changes, "; ") or "none"
+            if c.want then
+                local onto = #changes == 1 and last.x == c.want[1] and last.z == c.want[2]
+                local when = changes[1] and string.match(changes[1], "^T%+(%-?%d+)")
+                t.check(p .. ".shove", onto and when == "2",
+                    string.format("stood %d,%d (centre %d,%d); moves: %s; want one move on T+2 onto %d,%d",
+                        c.stand[1], c.stand[2], c.centre[1], c.centre[2], moves, c.want[1], c.want[2]))
+            else
+                t.check(p .. ".shove", #changes == 0,
+                    string.format("stood %d,%d (centre %d,%d); moves: %s; want none", c.stand[1], c.stand[2], c.centre[1], c.centre[2], moves))
+            end
             local hit = {}
             local dmg = 0
             for _, h in ipairs(res.hits) do hit[#hit + 1] = h.dmg .. "@T+" .. (h.tick - T); dmg = dmg + h.dmg end
-            t.check(p .. ".damage", #res.hits == 1 and dmg > 0 and (res.hits[1].tick - T) == 3,
-                "hits " .. (#hit > 0 and table.concat(hit, ", ") or "none") .. " (want one, > 0, on T+3; NR roll 32-65)")
+            if c.want then
+                t.check(p .. ".damage", #res.hits == 1 and dmg > 0 and (res.hits[1].tick - T) == 3,
+                    "hits " .. (#hit > 0 and table.concat(hit, ", ") or "none") .. " (want one, > 0, on T+3; NR roll 32-65)")
+            else
+                t.check(p .. ".damage", #res.hits == 0, "hits " .. (#hit > 0 and table.concat(hit, ", ") or "none") .. " (want none: 3 out)")
+            end
             t.check(p .. ".alive", res.alive == "ok" and (res.hp or 0) > 0 and died == 0,
                 "hitpoints " .. tostring(res.hp) .. ", alive " .. tostring(res.alive) .. ", human_death x" .. died)
         end

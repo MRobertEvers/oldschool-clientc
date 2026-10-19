@@ -108,6 +108,28 @@ Every P2 cast (urn bombs, blood, lightning, the Athanatos) is `verzik_phase2_att
 | creeper despawn | no animation | `tob_shadow_projectile_despawn` | fixed |
 | "fires a powerful projectile..." | ends `</col>` | no closing tag | fixed |
 
+## Getting thrown
+
+The room has three throws. The shared transcripts print only the recorder, who was never under a pillar or under her in P2. So these were read from the nine recordings re-transcribed with every player shown (`PLAYER_INFO_LOCAL_PLAYER_ONLY=false`, recipe in `tools/cox/rsprox_olm_party.py`), with `tools/rsprox_verzik_throws.py`. T is the tick the raider moves.
+
+| Throw | Recorded | Ours before | Status |
+|---|---|---|---|
+| **P2 slam** (beside her) | her swing 8116 (delay 10) on **T−1**; on T: `human_troll_flyback` 1157, spotanim 245 (height 124), the hit, area sound 3201 (range 10, delay 0) on the tile left, and **one** exactmove (delay1 5, delay2 30) **3 tiles** (3,3 on a diagonal). 57 of 57 | everything on the swing tick (hit included), the 848 stun seq under the 1157, three 1-tile exactmoves (delay1 0), 3201 at her middle with delay 30, the heading from her south-west tile | fixed |
+| P2 slam: heading | the eighth of the circle the raider stands in, seen from her middle, counted counterclockwise from east, each eighth holding its first edge. From her middle: (−2,−1) → W, (−1,−2) → SW, (2,−1) → SE, (2,1) → E, (1,2) → NE, (−1,2) → N, (−2,1) → NW. 59 of 59 bounces over 14 tiles | `~coord_direction2` from her SW tile | fixed (`~tob_verzik_bounce_dir`) |
+| P2 slam: facing | the heading's cardinal: SW faces south, SE east, NE north, NW west | the heading | matches: the engine sends `direction & 3`, which is exactly that |
+| P2 slam: stun | first own step on **T+6** (42 of 55; 7–11 for the rest, none sooner) | 5 ticks from the swing tick: first step T+4 | fixed (6 from T) |
+| **P2 stomp** (under her) | the same as the slam, but **5 tiles in 60 cycles** (5,5 diagonally), same heading rule; "There's nothing under there for you!" on T−1. 2 of 2 (one Normal, one Hard) | 2 tiles ([NR]) | fixed |
+| P2 stomp: stun | first own step on T+7 (1 sample) | 7 from the swing tick: T+6 | fixed (7 from T) |
+| P2 slam damage | 0 (block splat) on most; up to 35 over 18 non-zero | rolled to 45 | open: 18 hits from Leagues/Grid Master worlds do not pin a max |
+| **Pillar collapse** | on **T+2** after the collapse (8377 + 8052), whoever is within **2** of the centre (under the 5×5) plays `agilityarena_player_spikedback` **1114**. They are moved **one tile** (exactmove delay1 0, delay2 30) straight out along the longer axis; a corner raider goes to the side counterclockwise of the diagonal (NE → E, NW → N, SW → W, SE → S). The hit lands on T+3. **No graphic, no stun** (every thrown raider could move on T+3), no message. 34 of 34 thrown; 36 within 2 who stepped out by T+2 were not thrown; 6 standing 3 out were not touched | 1157 over 848, spotanim 245, a 5-tick stun, "The pillar collapses on top of you!", a diagonal for a corner, range 3, victims fixed on T | fixed |
+| Pillar: facing | the raider's own (511, 2047, 1535: whatever they faced) | the heading | open: the engine cannot read a player's facing back |
+| Pillar damage | 26–57 over 30 hits | 32–65 ([NR]) | open: seasonal worlds; two 26s sit under the floor |
+| **P3 webs: walk to the middle** | she steps onto raiders on her way (20 steps): **nothing** happens to them, no seq, hit, push or stun. Across all of P3, 53 steps onto a raider did nothing | nothing | matches |
+| **P3 webs: arrival** | on the tick the spin 8127 starts (the tick after she reaches the middle), every raider inside her 7×7 plays **1114** and is moved in one exactmove (delay1 0, 30 cycles) onto the **middle tile outside her nearest side**, 4 from her middle: (−1,−3) → (0,−4), (−3,2) → (−4,0), (3,2) → (4,0). No hit, graphic or stun. 3 of 3 inside, none of those 4 out | 1157, four 1-tile exactmoves directly away from her middle by `~coord_direction2` | fixed; a corner raider uses the pillar's rule (unrecorded) |
+| P3 webs: facing | the raider's own (512, 1791) | the heading | open, as the pillar |
+
+`test/raids/_verzik_p2_bounce.lua` (17 rows) forces a slam and a stomp: swing on T−1; graphic, hit and one move on T; first step on T+6 / T+7. `test/raids/_verzik_pillar_collapse.lua` (32 rows; 14 fail on the old content) asserts the pillar throw, including a NE and a SE corner and a raider 3 out who is left alone.
+
 ## Engine and tooling changes this needed
 
 - **Area sounds are one `SOUND_AREA` packet now.** Jagex sends one `sound_area` with a range, heard with the client's distance falloff. Our server sent a `SYNTH_SOUND` to each player in range, at full volume. There is a new command, `sound_area(synth, delay, coord, range)` (opcode 11132), which queues a `SOUND_AREA` zone event. It is encoded with the rev-239 layout (`SoundAreaEncoder` v19, the same field list the client reads), and `[proc,sound_area]` calls it. A revision that cannot carry the packet still gets the per-player synths. The tick log still writes one `area` SOUND row per player in range. A scriptrun of the room sent 864 of them.
