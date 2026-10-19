@@ -32,6 +32,8 @@ function QD.COXTH.ids(opts)
         { "scav", "npc", "raids_thievingchest_beast_active" }, { "scav_asleep", "npc", "raids_thievingchest_beast_sleeping" },
         { "grubs", "obj", "raids_thievingchest_grubs" }, { "bat", "obj", "raids_bat6_cooked" },
         { "stamina", "obj", "4dosestamina" },
+        { "stinkhorn", "obj", "raids_stinkhorn_mushroom" }, { "juice", "obj", "raids_endarkened_juice" },
+        { "cicely", "obj", "raids_cicely" },
     })
     for k, v in pairs(room) do ids[k] = v end
     QD.COX.raid_restores(ids)
@@ -100,6 +102,38 @@ function QD.COX.retake_lent(S, F, intents, room, lent)
     if (F.tick - lent.t0) % 8 == 7 then return true end
     intents.world_op = { kind = "obj", id = row.obj_id, op = 3, x = row.x, z = row.z }
     return true
+end
+
+-- The room's reward, on the floor under the scavenger as it gets up (RSProx
+-- 3389, docs/rsprox-analysis/cox/thieving.md RH-S3; it lies 200 ticks): each
+-- of the three secondaries taken while the pack has a stack of it or a free
+-- slot; given up after 30 ticks. -> true while taking
+function QD.COXTH.take_reward(S, F, intents)
+    local th, ids = S.th, S.ids
+    if th.reward_done then return false end
+    th.reward_t0 = th.reward_t0 or F.tick
+    if F.tick - th.reward_t0 > 30 then
+        th.reward_done = true
+        return false
+    end
+    local r, rows = api_drive.objs(24)
+    local room = th.room
+    if r == "ok" and room ~= nil then
+        for _, o in ipairs(rows) do
+            if (o.obj_id == ids.stinkhorn or o.obj_id == ids.juice or o.obj_id == ids.cicely)
+                and o.x >= room.ox and o.x < room.ox + 32 and o.z >= room.oz and o.z < room.oz + 32 then
+                local cr, held = api_drive.inv_count(ids.inv, o.obj_id)
+                if (cr == "ok" and held > 0) or QD.T2.exec.free_slots(S) > 0 then
+                    if (F.tick - th.reward_t0) % 8 ~= 7 then
+                        intents.world_op = { kind = "obj", id = o.obj_id, op = 3, x = o.x, z = o.z }
+                    end
+                    return true
+                end
+            end
+        end
+    end
+    th.reward_done = true
+    return false
 end
 
 -- This tick's room: chests (closed, by tile), the trough, the scavenger.
@@ -209,7 +243,11 @@ function QD.COXTH.strategy(S, F, B)
                 end
             end
         end
-        intents.mode = QD.COX.retake_lent(S, F, intents, th.room, th.lent) and "retake" or "done"
+        if QD.COX.retake_lent(S, F, intents, th.room, th.lent) then
+            intents.mode = "retake"
+            return intents
+        end
+        intents.mode = QD.COXTH.take_reward(S, F, intents) and "reward" or "done"
         return intents
     end
     local need = V.NEED_SOLO + th.extra - th.deposited
@@ -284,7 +322,7 @@ QD.T2.register("cox_thieving", {
 
     done = function(S, F)
         if S.th.no_room ~= nil then return "no_room" end
-        if S.th.asleep and (S.th.lent == nil or S.th.lent.done) then return "ok" end
+        if S.th.asleep and (S.th.lent == nil or S.th.lent.done) and S.th.reward_done then return "ok" end
         return nil
     end,
 

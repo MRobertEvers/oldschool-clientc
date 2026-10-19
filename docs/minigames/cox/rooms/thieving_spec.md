@@ -116,3 +116,6 @@ before the scavenger is fed (`th.blocked_before`, server truth) and can after.
 Found on the way, foundation/engine (reported): a script `loc_add` made before
 the client loaded the zone was missing from the CLIENT's loc list and
 collision on some layouts (seed 8, level 0) though present on the server.
+
+Recorded tick data (RSProx 3389, Challenge Mode): `docs/rsprox-analysis/cox/thieving.md`, rows RH-*, which
+outrank the rows above where they differ (2026-10-19).
