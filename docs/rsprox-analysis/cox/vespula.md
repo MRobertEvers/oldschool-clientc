@@ -44,6 +44,8 @@ S is the tick the room's npcs appear.
 | First move | S+2 (3 of 3). She flies a tile a tick (the transcript calls each step a teleport). | match |
 | Unstung grubs | Every unstung grub turns **sickly at S+10** (3 of 3), with no hp lost (no bar sent). 820's regrown grub did the same, 10 ticks after it came back. | sickly only below full hp: **fixed** |
 | Roots | Flower from S+10 to S+15: two at +10, one each at +11, +13, +14 and +15 (820). | all at the start: **fixed** |
+| Grub facing | Each grub is added facing her hover along the axis between them, and keeps that angle through every form: above her south (0), below her north (1024), beside her toward her. cw unturned (3389): (8,13) 0, (15,13) 0, (8,5) 1024, (5,9) 1536. ccw (820, 843, a quarter turn; instance angles 512, 0, 1536, 1536): (12,5) north, (22,8) west, (20,13) south, (13,13) south. | all faced 0 in the instance whatever the turn: **fixed** (`~cox_vespula_grub_face_tile`, through the room transform; a live client reads these exact instance angles in a turned and an unturned room) |
+| Grub bars | No bar on a healthy grub. From the sting, `headbar id=0` (healthbar_standard_30, shown 300 cycles) on every fill step, so it stays drawn through the drain. | **match** (`npc_headbar_from`; a live client draws it from the sting to the hatch) |
 
 ## Her stings on the grubs
 
@@ -64,6 +66,7 @@ S is the tick the room's npcs appear.
 | Trigger | The tick **after a raider attacks the portal**, before any hit lands (843: attack 884, enraged 885; 3389: 4339 → 4340). | after the hit landed, then flew home first: **fixed** |
 | Where | **In place**. She then flies home enraged, a tile a tick. | changed form only on arrival home: **fixed** |
 | Length | 20 ticks a cycle. Then one tick flying, and enraged again at once while the portal is under attack (820: five cycles, gaps of 21). | 24 ticks after the last hit: **fixed** (renewal reads the 9-tick "under attack" window) |
+| Movement while enraged | None once home: 820 holds (15,8) for over 120 ticks, 843 likewise. The "flying back and forth, jabbing" is her enraged form's own ready animation, `vespula_attack_melee_flying` (the cache: 20 frames x 3 cycles, a 2-tick loop). A sting adds `face_angle` toward its target and the same seq. | **match** (a live client poses her enraged form with that loop) |
 | Stomp | 2–8 every tick to anyone under her (3 of 3 rooms). | match |
 | Sting | **One** raider on her reach, landing the tick after (sound 819 at their tile). A raider beside the target is not hit. On her own 3-tick clock: ready 3 ticks after a sting, the first tick someone is in reach; the beat runs on across the flying and re-enrage ticks (24 → 28, 46 → 49). | everyone within a tile of the target, every 2 ticks: **fixed** |
 

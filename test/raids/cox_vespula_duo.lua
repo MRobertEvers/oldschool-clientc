@@ -15,13 +15,18 @@
 --   (the run name's number picks the n-th raid holding Vespula: variant and turn)
 
 local function run(t)
-    t.check("vespula.ticklog", t.ticklog.start() == "ok", "")
+    local role, size = t.party.role(), t.party.size()
+    -- (the tick log is the host's: a live party's member clients have no
+    -- embedded server, and its start answers "unsupported" there --
+    -- cox_olm_party.lua does the same)
+    if role == 1 then
+        t.check("vespula.ticklog", t.ticklog.start() == "ok", "")
+    end
     -- (the live lane's user is the run name with "_p1" on it)
     local user = string.gsub(t.session._user() or "", "_p%d+$", "")
     local n = tonumber(string.match(user, "(%d+)$") or "0") or 0
     -- the leader builds the raid, the others join it on the leader's tile
     -- (::coxtestjoin), and all start together
-    local role, size = t.party.role(), t.party.size()
     local er, at = "ok", nil
     if role == 1 then
         er, at = t.raid.cox_test_enter("vespula", n)
