@@ -643,6 +643,12 @@ ToriRSServer_PlayerDelayed(
  * running it when `this.delayed` (Player.ts:2174-2178). A resume button is
  * forced through and is not asked here -- nothing can be waiting on one while
  * the only parked script is the delayed one. Returns 1 when refused.
+ *
+ * The click's own clientscript has already run on the client, and a toggle
+ * flips its varp there before the packet is sent (the Run orb's
+ * option_run_handle_event_7557 writes option_run). Refusing the click alone
+ * left that prediction standing: a lit Run orb on a walking player until the
+ * next accepted click. VARP_SYNC takes every such prediction back.
  */
 static int
 if_button_refused_while_delayed(
@@ -650,11 +656,14 @@ if_button_refused_while_delayed(
     int uid,
     const char* what)
 {
+    assert(srv);
+    assert(srv->active_player);
     if( !player_delayed(srv, srv->active_player) )
         return 0;
     if( srv->verbose )
         fprintf(stderr, "torirsserver: <- %s %d:%d refused: player is delayed (p_delay)\n", what,
                 uid >> 16, uid & 0xffff);
+    ToriRSServer_SendVarpSync(srv->active_player);
     return 1;
 }
 

@@ -8685,6 +8685,9 @@ ToriRSServer_SendIfSetplayermodelSelf(
     int copy_objs);
 void
 ToriRSServer_SendCamReset(struct ToriRSServerPlayer* player);
+/** Restore the client's varps to the values the server last sent (VARP_SYNC). */
+void
+ToriRSServer_SendVarpSync(struct ToriRSServerPlayer* player);
 /**
  * Move / point the camera at a WORLD coordinate.
  *

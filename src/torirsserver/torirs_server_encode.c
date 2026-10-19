@@ -144,6 +144,7 @@ enum
     OP_SOUND_AREA = PKT_NAME_SOUND_AREA,
     OP_SET_PLAYER_OP = PKT_NAME_SET_PLAYER_OP,
     OP_CAM_RESET = PKT_NAME_CAM_RESET,
+    OP_VARP_SYNC = PKT_NAME_VARP_SYNC,
     OP_CAM_MOVETO = PKT_NAME_CAM_MOVETO,
     OP_CAM_LOOKAT = PKT_NAME_CAM_LOOKAT,
     OP_CAM_SHAKE = PKT_NAME_CAM_SHAKE,
@@ -2732,6 +2733,20 @@ ToriRSServer_SendRunEnergy(
             rsab_p2(&buf, percent * 100);
     }
     flush(player, &buf, OP_UPDATE_RUNENERGY, 0);
+}
+
+/*
+ * VARP_SYNC: the client copies every varp of its server set over its own copy
+ * where the two differ, running the change hooks (rev-239 deob client.java,
+ * the empty class243.field3010 packet: `field3998[i] = field4228[i]`). It is
+ * how a server takes back what a clientscript predicted when the click that
+ * predicted it was refused.
+ */
+void
+ToriRSServer_SendVarpSync(struct ToriRSServerPlayer* player)
+{
+    assert(player);
+    ToriRSServer_Send(player, OP_VARP_SYNC, NULL, 0, 0);
 }
 
 void
