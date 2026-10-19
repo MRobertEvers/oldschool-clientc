@@ -37732,10 +37732,11 @@ ToriRSServer_WorldSelftest(void)
                 }
 
                 /*
-                 * No Chambers of Xeric boss is blocked by another npc or a
-                 * player when it moves (owner, 2026-10-18): every record that
-                 * steps is `moverestrict=passthru` (npc_travel_extra: OPEN).
-                 * Olm, the Guardians and the ranged Vanguard never step
+                 * Most Chambers of Xeric bosses that step walk through npcs and
+                 * players, not all (owner, 2026-10-19, replacing the 2026-10-18
+                 * rule that every one did): these are `moverestrict=passthru`
+                 * (npc_travel_extra: OPEN). The Skeletal Mystics are pinned
+                 * below. Olm, the Guardians and the ranged Vanguard never step
                  * (`nomove`).
                  */
                 {
@@ -37749,7 +37750,6 @@ ToriRSServer_WorldSelftest(void)
                         "raids_dogodile_junior", "raids_dogodile", "raids_dogodile_submerged",
                         "raids_vanguard_melee", "raids_vanguard_magic", "raids_vanguard_walking",
                         "raids_vanguard_dormant", "raids_lizardshaman_a", "raids_lizardshaman_b",
-                        "raids_skeletonmystic_a", "raids_skeletonmystic_b", "raids_skeletonmystic_c",
                         "raids_icedemon_noncombat", "raids_icedemon_combat",
                     };
 
@@ -37773,6 +37773,41 @@ ToriRSServer_WorldSelftest(void)
                             probe.blockwalk = def->blockwalk;
                             SELFTEST_CHECK(npc_travel_extra(&probe) == COLL_FLAG_OPEN,
                                            "%s's step must respect no entity occupancy", k_cox[i]);
+                        }
+                    }
+                }
+
+                /*
+                 * The Skeletal Mystics block each other: in RSProx 3285, 3282
+                 * and 3389 no two footprints ever overlap, and two walk single
+                 * file. `moverestrict=normal` with the generated
+                 * `blockwalk=npc`, so each one's step respects npc occupancy.
+                 */
+                {
+                    static const char* const k_mystics[] = {
+                        "raids_skeletonmystic_a", "raids_skeletonmystic_b", "raids_skeletonmystic_c",
+                    };
+
+                    for( size_t i = 0; i < sizeof(k_mystics) / sizeof(k_mystics[0]); i++ )
+                    {
+                        int id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, k_mystics[i]);
+                        const struct ToriRSServerNpcDef* def =
+                            id >= 0 ? ToriRSServer_ContentNpc(id) : NULL;
+
+                        SELFTEST_CHECK(def != NULL, "%s should be in the npc pack", k_mystics[i]);
+                        if( !def )
+                            continue;
+                        SELFTEST_CHECK(def->moverestrict == 0 /* normal */,
+                                       "%s must not walk through other npcs, moverestrict is %d",
+                                       k_mystics[i], def->moverestrict);
+                        {
+                            struct ToriRSServerNpc probe;
+
+                            memset(&probe, 0, sizeof(probe));
+                            probe.def = def;
+                            probe.blockwalk = def->blockwalk;
+                            SELFTEST_CHECK((npc_travel_extra(&probe) & COLL_FLAG_NPC_OCC) != 0,
+                                           "%s's step must respect npc occupancy", k_mystics[i]);
                         }
                     }
                 }
