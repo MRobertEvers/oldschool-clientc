@@ -81,8 +81,9 @@ These are the same in every room and are not repeated in the room files.
 **The room's song is re-sent every 3 ticks** (`midi_song` with the same fades,
 and `music` (239):9 re-set to its title) for as long as the room runs.
 
-**Compared with ours:** Zebak and the Path of Crondis (each room file's "Ours
-vs recorded"). The other rooms name our script but have not been diffed yet.
+**Compared with ours:** Zebak, the Path of Crondis, the Path of Scabaras and
+Kephri (each room file's "Ours vs recorded"). The other rooms name our script
+but have not been diffed yet.
 
 **Leaving** (F = the "Challenge complete" tick):
 - F: "Challenge complete: <room>. Duration: <col=ef1020>M:SS.T</col>. Total:

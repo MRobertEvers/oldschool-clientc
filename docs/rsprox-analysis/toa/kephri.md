@@ -4,7 +4,7 @@ Read from 8 kills: 14 (solo, Entry) and 1852 (2, 2, 2, 3, 6, 6, 6 raiders,
 Expert). Ticks are relative to entry (E) or to the event named. Full
 inventory: [kephri.out](kephri.out). Common entry/leaving: [README](README.md).
 
-**Ours:** `minigame_toa/scripts/toa_kephri.rs2` (not yet compared).
+**Ours:** `minigame_toa/scripts/toa_kephri.rs2`, rebuilt to these recordings 2026-10-18; see [Ours vs recorded](#ours-vs-recorded) at the end.
 
 Kephri's projectiles all start at **(3551,5408)**.
 
@@ -77,3 +77,100 @@ end 85/90, height 24 → 31. Death `npc_scarab_flying_death03` (9599).
 
 `toa_kephri_defend_01` (6592) area range 9 on Kephri when hit;
 `toa_kephri_scarab_defend_01` (6596) on the scarabs.
+
+## Measured from the packets (2026-10-18)
+
+Read with a scanner over the raw transcripts that keeps the recording
+player's tile before and after every tick (8 kills). Other raiders' tiles are
+not in 1852's player info; where a rule needed them it says so.
+
+**Hitpoints.** Shield pool and body are the base 150 / 80 (guardians 40)
+scaled by the raid's hp factor and rounded to the nearest 10: 1050/560 at
+path tier 3, 1090/580, 1610/860, 2610/1390 (8 of 8 against our
+`~toa_boss_hp`). The overlay is the pool while shielded and the body once
+enraged.
+
+**The clock.** S = the room's start. Radials on S+6 and every 6 after; the
+first special is on S+29 and is a dung strike (8 of 8). Five radials between
+shielded specials. A dung strike's next cast is 8 ticks after it lands; eggs
+take the special's slot and the next cast is 6 later. Eggs give way to a dung
+strike while more than four kites are up (15 of 15). After a wake the first
+cast is W+7 (14 of 16) and the number of radials before the next special is
+5, 4 or 2 (7, 3 and 2 of 12: drawn here with those weights).
+
+**Fireballs.** One per living raider, aimed at the tile the raider stood on
+before that tick's move (148 of 156), flight 120 / 90 / 60 by path tier (8 of
+8), 3x3 shadow with Aerial Assault (v1-v4). The hit is on landing, on a
+raider inside the blast (10 of 10). Expert hits of 34-52.
+
+**Dung.** The mark (`kephri_dung_mark` 2146) goes on one raider (two with
+Blowing Mud) 5 ticks before the strike. The struck raider is thrown away from
+her in one of 8 directions to the arena edge or the first dung ("Kephri
+throws you back!", spotanim 245 at height 124, `npc_kephri_flyback` 9799,
+synth 3201, 3 ticks stunned). The 6-tile line starts on the ring 3 tiles out
+from her middle on the throw's direction and follows the throw by floor
+interpolation (55 of 67; the misses start diagonally and are open). Its locs
+land D+4 (the first three) and D+5 (the rest). A raider who steps on dung
+takes 8 at Entry (1 of 1: "Ouch!"). The third break throws every raider on
+the same tick.
+
+**Eggs.** Two 12-tile layouts (16 of 16). Hatching eggs (`dungball01`):
+2 solo, 4 for two or three raiders, 5-10 for six (open). Every egg is gone 15
+ticks after landing (129 of 133); a hatching one leaves a kite on its tile
+that tick (46 of 46).
+
+**Stuns.** 51 ticks for the first and 48 for the second in a party, 54 and 51
+solo (14 of 14). The wake re-forms the shield at the pool's hp healed by the
+swarms, capped at 115% (11 of 16 at the cap). Guardians: solo the ranged on
+the first stun and the melee and mage on the second; parties (and More
+Overlords) ranged + melee, then mage + ranged + melee (16 of 16).
+
+**Swarms.** The spawn ladder (gaps of 4 for 12 swarms, then 3, 2, 1, from
+23 - stun/3 after the break, 16 of 16); three at once every 6th swarm at path
+tier 2, every 8th at tier 1. A swarm that reaches her is absorbed 10 ticks
+after it rose and heals about 11% of the pool (285-289 of 2610, 175-179 of
+1610, 117-121 of 1090; 103-107 of 1050 and 11-15 of 150 are lower, open).
+
+**Guardians and kites.** Melee heals hp/15 every 4 ticks (6 solo). Ranged
+first shot D+5 (14 of 15), every 3 (87 of 96). Kites first shot 4 after they
+appear (27 of 46), every 4 (1,100 of 1,286). Kamikaze scarabs D+4..9 then
+every 12, at a raider's tile (67 of 81), exploding 4 ticks later. The mage
+moves between 6 posts in a fixed order (22 moves), rings its charge every 3
+ticks from 5 after arriving and fires after the 8th; a hit of 39+ moves it
+(5 of 5 moves were hits of 51-89, 8 hits of 26-38 did not).
+
+**Removal.** Swarms 2 ticks after their death anim (311 of 311), guardians 4
+(36 of 36), kites 3 (12 of 12). On her death every add goes 3 ticks later (35
+of 35), and "Challenge complete" is 3 ticks after the death.
+
+## Ours vs recorded
+
+Rebuilt 2026-10-18: `toa_kephri.rs2` (the room is a ticking room, built on
+entry and started by `~toa_kephri_spawn`), the Kephri blocks of
+`toa.constant`, `toa.npc`, `toa.varp` (`varp7524`-`7527`: the fireball,
+kamikaze and dung tiles carried from the room tick), and the swarm ladder in
+`toa_timing.rs2`. The crystal in `toa_barrier.rs2` is unchanged. Checked with
+`test/raids/toa_kephri_tells.lua` (scriptrun, `--fixture
+test/raids/fixtures/fresh_lumbridge.ini`, solo, raid level 0: the radials and
+two specials, then `::toakephri` breaks each shield; two whole stuns, the
+enrage with its dung strike, the kill) against the rules above with a replay
+checker: 810 of 810.
+
+| | Status |
+|---|---|
+| Room | **rebuilt** (was a timer of invented attacks with no radial volley, no stun phases and a scaled-down copy of the add waves) |
+| Hitpoints | **fixed**: shield pool and body by `~toa_boss_hp`, the pool kept across retypes |
+| Clock | **fixed**: S+6, every 6, first special S+29 a dung strike (1 of 1), 5 radials between specials, W+7 after a wake (2 of 2), the enraged count (2 of 2) |
+| Radial | **fixed**: the 1481 up from her middle (24 of 24), one fireball a raider on R+3 at the pre-move tile (23 of 23), shadow, flight by tier, impact sound, explosion +4, the hit on landing (22 of 22) |
+| Dung | **fixed**: mark 5 before (2 of 2), the throw (3 of 3), the line from beside her (3 of 3), delays and sounds (3 of 3), locs D+4/D+5 (3 of 3) |
+| Eggs | **fixed**: two layouts, 2 hatch solo, land +4, gone +15 (12 of 12), explode range 5 (10 of 10), kite on hatch (2 of 2) |
+| Breaks | **fixed**: three breaks, two stuns 54 / 51 solo, two wakes, the third enrages with a dung strike on the same tick (1 of 1) |
+| Stun adds | **fixed**: solo guardian sets (2 of 2), shield_dead every 3 from D+3, the swarm ladder (2 of 2), absorb +10 (32 of 32), heal (24 of 24), kamikaze (9 of 9), ranged/kite cadence (179 of 179) and flights (72 / 110 of 110) |
+| Death | **fixed**: dead body that tick, adds removed +3, complete +3 |
+| Open: party numbers | party guardian sets, Blowing Mud's second line, the 2-raider stun lengths and hatch counts are exercised only by the recordings, not by a party test; hatch counts for 4-5 raiders are not recorded |
+| Open: damages | ranged guardian (15) and kite (10) shots, egg bursts and kamikaze hits keep the old constants: no recording shows a hit we could fit them to |
+| Open: heal at low hp | swarm heals of 1050 and 150 pools sit below 11%; the post-wake count draw (5/4/2) is a weighted guess from 12 wakes |
+| Open: dung line | 12 of 67 recorded lines start diagonally where our floor interpolation does not |
+| Open: overlay overcharge | the 115% overcharge is held in hp; the overlay cannot show it above full |
+| **Open, every room** | `~toa_boss_complete` moves the party on at once; the "Challenge complete" line lacks "Duration … Total …"; the room song is not re-sent every 3 ticks |
+
