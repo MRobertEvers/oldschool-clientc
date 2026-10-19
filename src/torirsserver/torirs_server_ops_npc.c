@@ -562,7 +562,8 @@ ToriRSServer_OpsNpc(
  *     sitting a hundred lines from a paragraph saying they could not be written.
  *     `npc_statadd` (NpcOps.ts:507) landed 2026-08-08 alongside them, and its
  *     clamp is what distinguishes the three: heal stops at the authored base,
- *     add stops at `TORIRSSERVER_NPC_STAT_MAX`, sub cannot restore past the base.
+ *     add stops at `TORIRSSERVER_NPC_STAT_MAX` (hitpoints at
+ *     `TORIRSSERVER_NPC_HITPOINTS_MAX`), sub cannot restore past the base.
  *     A stat boost is a negative drain, which `ToriRSServerNpc.stat_drain` states.
  *
  * ~~`npc_changetype_keepall` (36/17)~~ — implemented as the fallthrough above

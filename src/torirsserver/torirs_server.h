@@ -1074,6 +1074,15 @@ enum
 #define TORIRSSERVER_NPC_STAT_MAX 255
 
 /*
+ * The most hitpoints `npc_statadd` can raise an npc to. Hitpoints are not a
+ * level: a raid boss's pool is in the thousands and a boost takes it above its
+ * base (Kephri's shield, overcharged to 115%, is 3001 over a 2610 pool in
+ * RSProx 1852). They travel in the boss overlay's `hpbar_hud_hp`, bits 0-15 of
+ * `hpbar_hud_info`, so that field's width is the bound, not a level's byte.
+ */
+#define TORIRSSERVER_NPC_HITPOINTS_MAX 65535
+
+/*
  * How long a player keeps fighting with no input of their own.
  *
  * OldSchool's anti-AFK rule, stated on the wiki's Auto Retaliate page: the

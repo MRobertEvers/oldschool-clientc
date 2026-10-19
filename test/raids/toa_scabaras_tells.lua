@@ -3,7 +3,10 @@
 -- room laid them (west north, the crawl hole, west south, east south, the stepping stone, east
 -- north), then matches the memory game's pairs. One wrong simon-says plate, one wrong obelisk and
 -- one memory mismatch are made on purpose, so the room's faults are in the log too. Scarabs and
--- rock falls run throughout. `::toascab` reads the room's hidden state (the layout, the tablet's
+-- rock falls run throughout. Before any of it, the raider steps onto a plate of
+-- an east pad, which does not work until the barrier into its section opens:
+-- "This device won't function yet." and nothing changes on the pad (the solo
+-- recording's one). `::toascab` reads the room's hidden state (the layout, the tablet's
 -- number, the lights-out board, the simon-says sequence, the obelisk order, the memory boards).
 -- The tick log is what docs/rsprox-analysis/toa/scabaras.md compares against RSProx.
 local function now(t) local _, k = t.tick() return k or -1 end
@@ -213,6 +216,29 @@ return {
             elseif kind == 2 then solve_simon(pad)
             else solve_obelisks(pad) end
             st = scab(t)
+        end
+
+        -- an east pad before its section is open: both are shut until Puzzle 1 / 2
+        t.ticklog.mark("scab.dead_device")
+        do
+            local plate = nil
+            for _, pad in ipairs({ 3, 4 }) do
+                local kind = st.layout[pad]
+                local px, pz = PADS[pad][1], PADS[pad][2]
+                if kind == 0 or kind == 1 then plate = { px, pz }
+                elseif kind == 2 then plate = { px, pz + 2 } end
+                if plate then break end
+            end
+            local lights = st.lights
+            tele(plate[1] - 1, plate[2])
+            step(plate[1], plate[2])
+            wait(t, 2)
+            st = scab(t)
+            if said(t, "This device won't function yet.") and st.lights == lights then
+                t.expect("scab.dead_device", "ok", "told, and nothing changed")
+            else
+                t.expect("scab.dead_device", "fail", string.format("lights %s -> %s", tostring(lights), tostring(st.lights)))
+            end
         end
 
         solve(2)   -- west north

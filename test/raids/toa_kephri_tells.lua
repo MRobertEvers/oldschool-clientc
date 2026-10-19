@@ -3,8 +3,11 @@
 -- crystal, stands east of her through the radial attacks and two specials, then `::toakephri`
 -- breaks each shield in turn: two stuns run their whole length (guardians, swarms, kamikaze
 -- scarabs, the wake), the third break enrages her with its dung strike, and the last `::toakephri`
--- kills her. Every tell of the room is sent at least once. The tick log is what
--- docs/rsprox-analysis/toa/kephri.md compares against RSProx.
+-- kills her. Every tell of the room is sent at least once. The raider stands
+-- where recorded throws went diagonally: (4,3) from her middle for the first
+-- dung strike (thrown north-east, a line the floor rule draws wrong) and (6,-3)
+-- for the enraging one (the half-way tie, thrown south-east). The tick log is
+-- what docs/rsprox-analysis/toa/kephri.md compares against RSProx.
 local function now(t) local _, k = t.tick() return k or -1 end
 local function keep_alive(t) t.cheat("::boost hitpoints 255 0", false) end
 local function wait(t, n)
@@ -40,7 +43,7 @@ return {
         -- the crystal puts the raider on (25,32); her middle is (31,32)
         local _, at = t.world.tile()
         local ox, oz = at.x - 25, at.z - 32
-        t.player.walk_to(ox + 36, oz + 33, 20)
+        t.player.walk_to(ox + 35, oz + 35, 20)
         -- the radials, the first dung strike (S+29) and the first eggs (S+67)
         t.ticklog.mark("kephri.shielded")
         wait(t, 80)
@@ -51,6 +54,8 @@ return {
             t.ticklog.mark("kephri.woke" .. n)
             wait(t, 25)
         end
+        t.player.walk_to(ox + 37, oz + 29, 20)
+        wait(t, 2)
         t.ticklog.mark("kephri.enrage")
         t.cheat("::toakephri", false)
         wait(t, 50)

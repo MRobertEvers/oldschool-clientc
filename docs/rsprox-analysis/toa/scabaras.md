@@ -124,6 +124,17 @@ stepping stone (45396 at (40,32), Jump-to from three tiles away,
 apart). The memory game opened in the solo visit with two pads done, so it is
 not gated on all four.
 
+**A pad that does not work yet.** The solo raider solved the west north pad
+(Puzzle 1, the south lane's way east), crawled south, solved the south-east
+addition (Puzzle 4) and jumped the stone into the north-east section, whose
+own way in, (29,38), was still shut. Running from the stone (40,35) to (42,37)
+crossed the north-east pad's lights-out plate (41,36); on the next tick "This
+device won't function yet." and no plate flipped (1 of 1). So an east pad
+works once the barrier into its section is open (the south-east behind
+Puzzle 1, the north-east behind Puzzle 2); "yet" is that barrier. A party
+reaches the east pads through those barriers and never sees it. The one
+recorded case was a run's middle tile.
+
 **The party statue.** With a party the server replaces the map's statue at
 (49,31) by `invisible_type8_nonblocking` and adds `toa_scabaras_statue01_3x3`
 one tile west, closing the way between the memory boards (7 of 7 party visits;
@@ -209,8 +220,8 @@ the barrier." message is gone). Checked with `test/raids/toa_scabaras_tells.lua`
 level 0: the raider crosses by Quick-Pass, solves all four pads with one wrong
 simon-says plate and one wrong obelisk, uses the crawl hole and the stepping
 stone, then the memory game with one mismatch; `::toascab` prints the room's
-hidden state for the test) against the rules above with a replay checker:
-381 of 382.
+hidden state for the test; first, before either east pad works, it steps onto
+one's plate) against the rules above with a replay checker: 392 of 393.
 
 | | Status |
 |---|---|
@@ -230,7 +241,7 @@ hidden state for the test) against the rules above with a replay checker:
 | Open: damages | scarab shots (`^toa_scab_scarab_max` 8) and rock falls (answered as a puzzle hit) are not recorded; a raider under a rock and the addition going over are not recorded (both answered as a puzzle hit) |
 | Open: Flip | lights-out's op5 is not recorded (here: one plate and a puzzle hit) |
 | Open: tablet range | the number is 20-45 here; recorded 22-39 |
-| Open: "This device won't function yet." | seen once (solo, walking past x 3564); what triggers it is not in the packets |
+| A pad that does not work yet | **fixed**: an east pad before the barrier into its section opens answers a plate (a run's middle included) with "This device won't function yet." and does nothing (1 of 1 in the test). Its tablet, button and Flip say the same and its obelisks take no hits: those are not recorded |
 | Open: solo crossings in a party | the hole and stone were only used solo; here they refuse a party |
 | **Open, every room** | `~toa_challenge_complete` moves the party on at once; the "Challenge complete" line lacks "Duration … Total …"; the room song is not re-sent every 3 ticks |
 

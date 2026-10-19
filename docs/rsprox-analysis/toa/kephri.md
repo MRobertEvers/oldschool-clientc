@@ -107,10 +107,24 @@ raider inside the blast (10 of 10). Expert hits of 34-52.
 Blowing Mud) 5 ticks before the strike. The struck raider is thrown away from
 her in one of 8 directions to the arena edge or the first dung ("Kephri
 throws you back!", spotanim 245 at height 124, `npc_kephri_flyback` 9799,
-synth 3201, 3 ticks stunned). The 6-tile line starts on the ring 3 tiles out
-from her middle on the throw's direction and follows the throw by floor
-interpolation (55 of 67; the misses start diagonally and are open). Its locs
-land D+4 (the first three) and D+5 (the rest). A raider who steps on dung
+synth 3201, 3 ticks stunned). The direction, from the raider's tile relative
+to her middle: the diagonal while the shorter offset is more than half the
+longer, the longer axis alone below that; at exactly half, north of her is
+straight ((6,3) east) and south of her diagonal ((6,-3) south-east, 3 of 3).
+16 of 16 recorded throws. The exactmove faces back at her on a cardinal:
+thrown east 512, north 0, south 1024, west 1536, north-east 0, south-east 512
+(every throw).
+
+The 6-tile line runs from the ring 3 tiles out from her middle on the throw's
+side (the diagonal tile (3,3) for a diagonal throw; on the axis, the raider's
+own row clamped to ±2) to where the raider landed. It is a function of that
+step alone (65 lines, 21 different steps, none drawn two ways), but no single
+rounding, Bresenham variant or fixed origin draws all of them: floor
+interpolation gets 55 of 67 and the eight steps it misses are drawn their own
+way (by shorter-axis offset per tile: (5,4) and (-5,-4) `0 1 2 3 3 4`, (-5,4)
+`0 1 2 3 4 4`, (3,5) `0 1 2 2 3 3`, (3,-5) `0 1 1 2 2 3`, (1,2) `0 1 1`, (5,-2)
+`0 0 1 1 2 2`, (5,-1) `0 0 0 0 1 1`). Its locs land D+4 (the first three) and
+D+5 (the rest). A raider who steps on dung
 takes 8 at Entry (1 of 1: "Ouch!"). The third break throws every raider on
 the same tick.
 
@@ -121,7 +135,14 @@ that tick (46 of 46).
 
 **Stuns.** 51 ticks for the first and 48 for the second in a party, 54 and 51
 solo (14 of 14). The wake re-forms the shield at the pool's hp healed by the
-swarms, capped at 115% (11 of 16 at the cap). Guardians: solo the ranged on
+swarms, capped at 115% (11 of 16 at the cap).
+
+**The overlay** (`hpbar_hud_hp` / `hpbar_hud_basehp`) reads the shield against
+the pool all the way: through the stun it climbs from 1 past the pool (solo
+161, 172 over 150) and the wake keeps it (172 over 150). The top is 115% in
+every kill (1207/1050, 1253/1090, 1851/1610, 3001/2610). On her death it
+drops to 0 over the body (80 solo) and holds until the overlay closes 9 ticks
+later. Guardians: solo the ranged on
 the first stun and the melee and mage on the second; parties (and More
 Overlords) ranged + melee, then mage + ranged + melee (16 of 16).
 
@@ -149,12 +170,16 @@ Rebuilt 2026-10-18: `toa_kephri.rs2` (the room is a ticking room, built on
 entry and started by `~toa_kephri_spawn`), the Kephri blocks of
 `toa.constant`, `toa.npc`, `toa.varp` (`varp7524`-`7527`: the fireball,
 kamikaze and dung tiles carried from the room tick), and the swarm ladder in
-`toa_timing.rs2`. The crystal in `toa_barrier.rs2` is unchanged. Checked with
+`toa_timing.rs2`. The crystal in `toa_barrier.rs2` is unchanged. The engine's
+`npc_statadd` stopped hitpoints at 255 (a level's byte, from LostCity);
+hitpoints now stop at 65535, the overlay field's width, so the overcharge can
+be carried. Checked with
 `test/raids/toa_kephri_tells.lua` (scriptrun, `--fixture
 test/raids/fixtures/fresh_lumbridge.ini`, solo, raid level 0: the radials and
 two specials, then `::toakephri` breaks each shield; two whole stuns, the
-enrage with its dung strike, the kill) against the rules above with a replay
-checker: 810 of 810.
+enrage with its dung strike, the kill; the raider stands at (4,3) for the
+first strike and at (6,-3), the tie, for the enrage) against the rules above
+with a replay checker: 843 of 843.
 
 | | Status |
 |---|---|
@@ -162,7 +187,8 @@ checker: 810 of 810.
 | Hitpoints | **fixed**: shield pool and body by `~toa_boss_hp`, the pool kept across retypes |
 | Clock | **fixed**: S+6, every 6, first special S+29 a dung strike (1 of 1), 5 radials between specials, W+7 after a wake (2 of 2), the enraged count (2 of 2) |
 | Radial | **fixed**: the 1481 up from her middle (24 of 24), one fireball a raider on R+3 at the pre-move tile (23 of 23), shadow, flight by tier, impact sound, explosion +4, the hit on landing (22 of 22) |
-| Dung | **fixed**: mark 5 before (2 of 2), the throw (3 of 3), the line from beside her (3 of 3), delays and sounds (3 of 3), locs D+4/D+5 (3 of 3) |
+| Dung | **fixed**: mark 5 before (2 of 2), the throw and its direction (3 of 3: north-east, the south tie to south-east, east), the line drawn to the landing (3 of 3, two from the table), delays and sounds (3 of 3), locs D+4/D+5 (3 of 3). The throw's facing is checked by the selftest (the tick log does not carry it); it used to face away from her |
+| Overlay | **fixed**: the shield against the pool's base (29 of 29), the overcharge above it (172 over 150, 1 of 1), the dead body at 0 over 80 (1 of 1). It used to stop at the base during the stun, raise the base to 172 at the wake, and show the dead body as 1 of 10 |
 | Eggs | **fixed**: two layouts, 2 hatch solo, land +4, gone +15 (12 of 12), explode range 5 (10 of 10), kite on hatch (2 of 2) |
 | Breaks | **fixed**: three breaks, two stuns 54 / 51 solo, two wakes, the third enrages with a dung strike on the same tick (1 of 1) |
 | Stun adds | **fixed**: solo guardian sets (2 of 2), shield_dead every 3 from D+3, the swarm ladder (2 of 2), absorb +10 (32 of 32), heal (24 of 24), kamikaze (9 of 9), ranged/kite cadence (179 of 179) and flights (72 / 110 of 110) |
@@ -170,7 +196,7 @@ checker: 810 of 810.
 | Open: party numbers | party guardian sets, Blowing Mud's second line, the 2-raider stun lengths and hatch counts are exercised only by the recordings, not by a party test; hatch counts for 4-5 raiders are not recorded |
 | Open: damages | ranged guardian (15) and kite (10) shots, egg bursts and kamikaze hits keep the old constants: no recording shows a hit we could fit them to |
 | Open: heal at low hp | swarm heals of 1050 and 150 pools sit below 11%; the post-wake count draw (5/4/2) is a weighted guess from 12 wakes |
-| Open: dung line | 12 of 67 recorded lines start diagonally where our floor interpolation does not |
-| Open: overlay overcharge | the 115% overcharge is held in hp; the overlay cannot show it above full |
+| Open: dung line, unrecorded steps | the 21 recorded steps are drawn as recorded; a step no recording has is drawn by floor |
+| Open: throws south-west and north-west | no recorded throw went either way; their facing follows the north-east / south-east pattern |
 | **Open, every room** | `~toa_boss_complete` moves the party on at once; the "Challenge complete" line lacks "Duration … Total …"; the room song is not re-sent every 3 ticks |
 

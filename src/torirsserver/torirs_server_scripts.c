@@ -8620,8 +8620,8 @@ script_command(
 
             step = values[1] + (npc->base_hitpoints * values[2]) / 100;
             npc->hitpoints += step;
-            if( npc->hitpoints > TORIRSSERVER_NPC_STAT_MAX )
-                npc->hitpoints = TORIRSSERVER_NPC_STAT_MAX;
+            if( npc->hitpoints > TORIRSSERVER_NPC_HITPOINTS_MAX )
+                npc->hitpoints = TORIRSSERVER_NPC_HITPOINTS_MAX;
             if( npc->hitpoints < 0 )
                 npc->hitpoints = 0;
             /* The tick log's npc_heal row (raid loop seam9): only a real gain. */
