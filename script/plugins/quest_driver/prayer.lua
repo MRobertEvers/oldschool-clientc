@@ -289,11 +289,12 @@ end
 -- not losing the press: the server is saying no, in these words.  Reported as
 -- "the press path loses the prayer on consecutive ticks" because the reason
 -- was cut off at 160 characters right where it sat ("the server said 'You ").
-QD.prayer.BLOCKED_MESSAGE = "You can't use protection prayers at the moment."
+-- The words are Jagex's (RSProx, Sotetseg and the Olm alike).
+QD.prayer.BLOCKED_MESSAGE = "You've been injured and can't use that prayer!"
 
 -- Does this verb's detail (or a chat line) carry that refusal?
 function QD.prayer.blocked(text)
-    return string.find(tostring(text), "protection prayers at the moment", 1, true) ~= nil
+    return string.find(tostring(text), "been injured and can't use that prayer", 1, true) ~= nil
 end
 
 function QD.prayer.set(name, on)
