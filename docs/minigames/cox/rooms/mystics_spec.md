@@ -87,3 +87,16 @@ After (`::coxtest 9 0`, `scratchpad/probe/after_m`): no aborts; casts from ~10 t
 - P2 a diagonal stand: the mystic stays melee and silent (Extile) -- check it does not flip to magic.
 - P3 PfM halves both styles over 100 casts.
 - P4 portals appear on the last death; Travel moves the player.
+
+## RSProx (2026-10-18)
+
+Recorded behaviour, read from RSProx 3282, 3285 and 3389 (9 mystics, 20 casts), is in
+`docs/rsprox-analysis/cox/mystics.md` (rows RM-*). It **overrules** these rows of the tick model above:
+
+- #2 aggression: within **7** of the south-west tile in sight (RM-W1), not 15. Unhunted, a mystic answers an attack 2 ticks after it lands (RM-W2).
+- #5, #6 the casts' tells: the seq 5528, cast graphics at height 164, `curse_travel` (109) for Vulnerability, start 30, end 46 + 10 x gap, from the south-west tile, impacts 131 / 110 / 85 at height 124, the synths (RM-A1..A6). A splash sends no hitsplat.
+- #6 the drain: none on a boosted Defence (RM-A7).
+- #12 drops: on D+5, the line, seeds for 3000 ticks (RM-D2). The death seq comes with the killing hit (RM-D1).
+- #9, #10: the mark at rotation 0 and replaced by `invisible_type8_nonblocking`; the portals at rotation 0, ccw middle (20, 18) and end (7, 18) (RM-D4).
+- The ids go with the spawn slot (a, b, c); the wander range is at least 7 (RM-S1). In a fight a mystic never stepped (RM-S2).
+- #4, #8 the melee walk and the corner trap are unrecorded (RM-M1). The walk is now the engine's pursuit (`npc_approach`), the line a rock stops.

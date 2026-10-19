@@ -6,7 +6,8 @@ turned-room fixes).
     python3 tools/cox/rsprox_muttadiles.py ~/.rsprox/binary/archive/{3285,3282,843,3389}.txt
     python3 tools/cox/rsprox_muttadiles.py --section meals FILES...
 
-Sections: meals, attacks, styles, submerged, surfacing, moves, tree, timeline.
+Sections: meals, attacks, projectiles, submerged, prayer, surfacing, moves,
+sounds, steps (the erratic step: its tick, the cleared face, its direction).
 
 Ticks are the transcript's. "gap" is the Chebyshev distance from the local
 raider's tile to the npc's footprint (0 under it, 1 beside it), both read at
@@ -504,10 +505,73 @@ def section_projectiles(R):
             sorted(set(xs), key=lambda x: (x[0] is None, x[0] or 0, x[1], x[2] is None, x[2] or 0))[:12]))
 
 
+def section_steps(R):
+    """The erratic step: when it steps against its last attack (A+k), the
+    ticks its face is cleared (the target let go) and whether it stepped on
+    them, every single step (alone, not part of a walk) with its direction,
+    the opening against the end of its first walk, and how likely the singles
+    are under three draws: a dumb step toward a random tile within r of its
+    first tile ("spawn") or of where it stands ("here"), or a random
+    neighbour."""
+    import math
+
+    def axis_p(cur, centre, r, sign):
+        xs = range(centre - r, centre + r + 1)
+        return sum(1 for x in xs if (x > cur) - (x < cur) == sign) / len(xs)
+
+    for n in lives(R, {JUNIOR, SUBMERGED}):
+        meal = meal_ticks(R, n)
+        atk = sorted(t for t, seq, m in attacks(R, n) if not m)
+        steps = [t for t in sorted(n.ev) if kind_at(n, t) != SUBMERGED and any(k in ("walk", "run") for k, d in n.ev[t])]
+        ts = set(steps)
+        nulls = [t for t in sorted(n.ev) for k, d in n.ev[t] if k == "face_pathingentity" and "entity=null" in d]
+        first = {}
+        for t in sorted(n.tiles):
+            k = kind_at(n, t)
+            if k != SUBMERGED and k not in first:
+                first[k] = R.sw_of(n.tile_at(t), SIZE[k])
+        faces = [t for t in sorted(n.ev) for k, d in n.ev[t] if k == "face_pathingentity" and "player=" in d]
+        if faces:
+            walk = [t for t in steps if t < faces[0]]
+            print("  %s: first faces a raider on %d; its last step before that %s" % (
+                SHORT[n.types[-1][1]], faces[0], walk[-1] if walk else None))
+        since_null, since_step, ticks_at = Counter(), Counter(), Counter()
+        for t in nulls:
+            prev = [u for u in atk if u < t]
+            if prev and t not in meal:
+                since_null[(t - prev[-1], t in ts)] += 1
+        if atk:
+            for t in range(atk[0] + 1, max(n.tiles) + 1):
+                if t in meal or kind_at(n, t) == SUBMERGED:
+                    continue
+                k = min(t - [u for u in atk if u < t][-1], 9)
+                ticks_at[k] += 1
+                if t in ts:
+                    since_step[k] += 1
+        print("    face cleared, by A+k (stepped that tick?): %s" % dict(sorted(since_null.items())))
+        print("    steps by A+k (9 = 9+): %s" % " ".join("%d:%d/%d" % (k, since_step[k], ticks_at[k]) for k in sorted(ticks_at)))
+        lik = Counter()
+        for t in steps:
+            if not atk or t < atk[0] or t in meal or t - 1 in ts or t + 1 in ts:
+                continue
+            k = kind_at(n, t)
+            b, a = R.sw_of(n.tile_at(t - 1), SIZE[k]), R.sw_of(n.tile_at(t), SIZE[k])
+            d = (a[0] - b[0], a[1] - b[1])
+            prev = [u for u in atk if u < t]
+            print("    single t%d A+%s %s%s%s" % (t, t - prev[-1] if prev else None, d, " diagonal" if d[0] and d[1] else "",
+                                             " face cleared" if t in nulls else ""))
+            for r in (4, 8, 12):
+                for name, c in (("spawn", first[k]), ("here", b)):
+                    lik[(name, r)] += math.log(max(axis_p(b[0], c[0], r, d[0]) * axis_p(b[1], c[1], r, d[1]), 1e-6))
+            lik[("neighbour", 1)] += math.log(1 / 8.0)
+        if lik:
+            print("    log-likelihood of the singles: %s" % ", ".join("%s r%d %.1f" % (k[0], k[1], v) for k, v in sorted(lik.items(), key=lambda kv: -kv[1])))
+
+
 SECTIONS = {"meals": section_meals, "attacks": section_attacks, "projectiles": section_projectiles,
             "submerged": section_submerged, "prayer": section_prayer,
             "surfacing": section_surfacing, "moves": section_moves,
-            "sounds": section_sounds}
+            "sounds": section_sounds, "steps": section_steps}
 
 
 def main():

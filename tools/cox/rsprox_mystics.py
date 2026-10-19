@@ -23,12 +23,19 @@ Sections (--section, default all):
   blocks   skeleton_update_defend delays against the attacker's projectile,
            and the sound of a hit on a mystic
   wake     each mystic: first seen, first attacked, first cast, first step
+  hunt     the opening rule fitted: for a hunt range R, the first tick the
+           raider ended the tick before within R of the mystic's south-west
+           tile (Chebyshev) and in its sight, else the raider's first landing
+           on it + 2 (the flinch); against the recorded first face and cast.
+           Sight needs --probe (tools/cox/los_probe.c, the server's own line
+           of sight), without it every tile counts as seen
   movement every mystic step, against the distance to the raider
   death    the death and what follows, in ticks from the death seq (D)
   room     the mark, the portals and each mystic's first-seen tile, in
            template room-local tiles
 
     python3 tools/cox/rsprox_mystics.py <raw>/archive/{3285,3389,3282}.txt
+    python3 tools/cox/rsprox_mystics.py --section hunt --probe /tmp/los_probe <raw>/archive/*.txt
 """
 import argparse
 import os
@@ -621,16 +628,84 @@ def section_room(recs):
                 num([tx for t, k, tx in rec.npc[idx] if k == "add"][0], "creationcycle")))
 
 
+class Probe:
+    """tools/cox/los_probe.c over a pipe, the template room's scene built
+    (template tiles: a turned room's sight is read in the template's
+    orientation)."""
+
+    def __init__(self, binary):
+        import subprocess
+        root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
+        self.p = subprocess.Popen([binary, "cache.osrs239", "3280", "5264", "OSRS-Content/osrs239-content/server/pack"],
+                                  cwd=root, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                  stderr=subprocess.DEVNULL, text=True)
+
+    def ask(self, *a):
+        self.p.stdin.write(" ".join(str(x) for x in a) + "\n")
+        self.p.stdin.flush()
+        while True:
+            line = self.p.stdout.readline()
+            assert line, "los_probe exited"
+            if re.match(r"^-?\d+\s*$", line):
+                return int(line)
+
+
+TEMPLATE_X, TEMPLATE_Z, TEMPLATE_LEVEL = 3264, 5248, 1
+PROBE = None
+
+
+def section_hunt(recs):
+    print("== hunt: the opening, fitted (%s)" % ("sight from --probe" if PROBE else "NO sight test: every tile seen"))
+    per = []
+    for rec in recs:
+        frame = room_frame(rec)
+        local = first_raider(rec)
+        for idx in mystics(rec):
+            cs = casts_of(rec, idx)
+            if not cs or frame is None:
+                continue
+            face = [t for t, tx in npc_events(rec, idx, "face_pathingentity")]
+            pj = sorted((t, p["end"]) for t in rec.top for p in projectiles(rec, t) if p["tgt_npc"] == idx)
+            land = pj[0][0] - (-pj[0][1] // 30) if pj else None
+            seen = []
+            for t in range(rec.npc_add[idx][0] + 1, cs[0][0] + 1):
+                sw = rec.tile_at(rec.npc_tile[idx], t - 1)
+                pt = rec.tile_at(rec.pl_tile[local], t - 1)
+                ok = True
+                if PROBE:
+                    a, b = to_template(frame, sw, SIZE), to_template(frame, pt, 1)
+                    ok = PROBE.ask("S", TEMPLATE_LEVEL, TEMPLATE_X + b[0], TEMPLATE_Z + b[1],
+                                   TEMPLATE_X + a[0], TEMPLATE_Z + a[1], 1, 1, 1, 1) == 1
+                seen.append((t, cheb(sw, pt), ok))
+            per.append((rec.path, mname(rec, idx), face[0] if face else None, cs[0][0], land, seen))
+    for R in range(4, 11):
+        faces = casts = 0
+        for path, who, face, cast, land, seen in per:
+            hunt = next((t for t, d, ok in seen if d <= R and ok), None)
+            pick = min(x for x in ((hunt, "hunt", hunt), (land, "landing", land + 2 if land else None)) if x[0] is not None)
+            faces += pick[0] == face
+            casts += pick[2] == cast
+        print("  range %2d: first face %d of %d, first cast %d of %d" % (R, faces, len(per), casts, len(per)))
+    print("  per mystic at range 7 (first face, first cast; the hunt's tick, the raider's first landing):")
+    for path, who, face, cast, land, seen in per:
+        hunt = next((t for t, d, ok in seen if d <= 7 and ok), None)
+        print("    %s %s: face %s, cast %s; hunt %s, landing %s" % (path, who, face, cast, hunt, land))
+
+
 SECTIONS = {"attacks": section_attacks, "melee": section_melee, "blocks": section_blocks, "wake": section_wake,
-            "movement": section_movement, "death": section_death, "room": section_room}
-ORDER = ["attacks", "melee", "blocks", "wake", "movement", "death", "room"]
+            "movement": section_movement, "death": section_death, "room": section_room, "hunt": section_hunt}
+ORDER = ["attacks", "melee", "blocks", "wake", "hunt", "movement", "death", "room"]
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("transcripts", nargs="+")
     ap.add_argument("--section", choices=sorted(SECTIONS))
+    ap.add_argument("--probe", help="a built tools/cox/los_probe.c, for the hunt's sight test")
     args = ap.parse_args()
+    global PROBE
+    if args.probe:
+        PROBE = Probe(args.probe)
     recs = []
     for path in args.transcripts:
         rec = Rec(path)

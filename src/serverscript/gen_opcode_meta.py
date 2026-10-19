@@ -1147,6 +1147,16 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     "HIDELOCOPS": (11151, 1, 0, 0, 0),
     "HIDEOBJOPS": (11152, 1, 0, 0, 0),
 
+    # npc_approach(coord $coord)
+    #
+    # The active npc walks to stand beside $coord (its whole footprint edge-on,
+    # never a corner) the way the engine's own pursuit does: the reference's
+    # naive path (findNaivePath, then a step: diagonal, else X, else Z). An
+    # npc that closes to melee from a script needs this rather than npc_walk
+    # at the tile, whose line differs for a big npc -- and the line is what
+    # corner-traps a Skeletal Mystic on a rock (docs/rsprox-analysis/cox/mystics.md).
+    "NPC_APPROACH": (11153, 1, 0, 0, 0),
+
     # npc_setops(int $shown)
     #
     # Which of the active npc's five right-click options its menu offers, as a
@@ -1495,6 +1505,7 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "HIDENPCOPS": (1 << POINTER_BITS["active_player"], 0),
     "HIDELOCOPS": (1 << POINTER_BITS["active_player"], 0),
     "HIDEOBJOPS": (1 << POINTER_BITS["active_player"], 0),
+    "NPC_APPROACH": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_HUDBAR_CHECK": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_DIE": (1 << POINTER_BITS["active_npc"], 0),
     # Asks about the active obj on behalf of the active player: OBJ_TAKEITEM's mask.

@@ -3,7 +3,7 @@
 Read from submissions 3285, 3282 and 843 (solo, normal), 3389 (solo, Challenge Mode) and 820 (a four-man raid,
 re-transcribed with every raider shown), all on Grid Master worlds; see [README.md](README.md). Tool:
 `tools/cox/rsprox_muttadiles.py` (sections `meals`, `attacks`, `projectiles`, `submerged`, `prayer`, `surfacing`,
-`moves`, `sounds`). The room's spec is `docs/minigames/cox/rooms/muttadiles_spec.md`. The content cites these
+`moves`, `sounds`, `steps`). The room's spec is `docs/minigames/cox/rooms/muttadiles_spec.md`. The content cites these
 findings as RECORDED (`cox_muttadiles.rs2`, `cox.constant`, `cox.npc`).
 
     python3 tools/cox/rsprox_muttadiles.py --section attacks ~/.rsprox/binary/archive/{3285,3282,843}.txt <820>.txt
@@ -38,7 +38,22 @@ the footprint's middle to the target.
 | large, in reach | 11 of 11 melee: 8 `dohgadyle_bite`, 3 `dohgadyle_slam` (bite vs slam inconclusive) |
 | large, thrown runs | party R4 M4 R3 R3+ R2; solo R7 R3 R2: runs of three or more, the first ranged; the coin's odds are not settled |
 | targets (820) | a random raider in the room each attack: the small one went back to its last target 8 times in 32 (1 in 4, a random pick among four); never "the nearest" by rule; a melee when the picked target is in reach |
-| erratic step | about 1 attack in 7 (17 of ~115) is followed by ONE step, mostly at A+3, to no particular side (8 nearer the target, 7 further, 3 neither) |
+| erratic step | about 1 attack in 7 (17 of ~115) is followed by ONE step, mostly at A+3: see "Movement" |
+
+## Movement
+
+From `--section steps` (every recording) and `--section moves`. **A** is an attack's tick; "single" is a step with
+none the tick before or after it.
+
+| Row | Recorded |
+|---|---|
+| spawn | the small one at template (15, 6) in the cw room (3285, 3282, 843; 3389's thru room (15, 5)) |
+| wander | before its first fight it wanders, walks of 8-10 tiles one a tick (3282 to (+6, +8) from its spawn, 820 (-8, +7), 3389): a wander range of at least 8 |
+| opening | it takes no target while it walks: it faced a raider on the tick each walk ended (3282, 820, 3389: at 8, 13 and 7 tiles), not while a raider 6 off watched it walk |
+| the free tick | in a fight it never steps the tick after an attack (0 of 102) and rarely two after (4 of 101). Its steps come 3 ticks after (10 of 100) or on a late attack's chase (A+5 on) |
+| the drop | 3 ticks after an attack its face is cleared (`face_pathingentity entity=null`) and set on a raider again the next tick: 3282 18 of 28 attacks, 3285 26 of 39 (the large one 5 of 7). In a party the face goes to the next raider instead |
+| the step | 13 of 15 solo single steps fall on such a tick. Mostly diagonal: 23 of 28 singles, where a random neighbour gives half. While it stands away from its spawn the singles keep pointing back: 3282 (19, 7) -> (15, 3), one per cycle for four cycles, and (21, 14) -> (18, 11) for three |
+| the draw | the singles are likeliest as one dumb step (diagonal, else X, else Z) toward a random tile within 8 of the small one's spawn (log-likelihood -31.7 over 19, against -37.0 round where it stands and -39.5 for a random neighbour); for the large one, within 8 of where it stands (-15.6 over 9, against -19.4 round where it surfaced) |
 
 ## Projectiles
 
@@ -120,6 +135,7 @@ in these recordings.
 | small melees 3/4 in reach, large 1/2 | both 9 in 10 (`^cox_mutta_*_melee_odds = 10`) |
 | the nearest raider, re-asserted every tick; a hit pulled it to the hitter | a random raider after every attack (`~cox_mutta_retarget`); a hit only targets when it has none |
 | no erratic movement | 1 in 7 attacks owe one step to a random neighbour 3 ticks later (`~cox_mutta_step_tick`) |
+| the erratic step to a random neighbour; the target held through it; the default wander 5; a target at once | 3 ticks after every attack the target is let go for a tick (the face clears) and taken again the next; on 1 in 7 that tick is ONE dumb step toward a random tile within 8 of its spawn (the large one: of itself); wander 8; before its first fight no target while it walks (2026-10-18). Ours over 6 scriptrun rooms: a single per 5.8 attacks (recorded 5.6), 26 of 26 diagonal, never one tick after an attack |
 | meals of 2 bites, 25% each, 4 ticks apart; checked on its next timer | 3 bites, 15% each, on consecutive ticks; checked on the hit's tick too (`[ai_queue1]`) |
 | immune while on a meal unless frozen | damageable (`~cox_mutta_prepare_hit` removed with its dispatch) |
 | emerge on D+3, retype 3 ticks later; "The larger Muttadile surges out of the water." | emerge 0–3 ticks after the deletion, a step a tick, retype at E+5; no message |
@@ -132,3 +148,6 @@ in these recordings.
 - Bite vs slam for the large one in reach: 8 to 3 in eleven; the content keeps 1/2.
 - The melee odds' exact value: 1 in 10 and 1 in 16 both fit 3 spits in 43.
 - Whether the slam goes through Protect from Melee: not in these recordings (kept from the guides).
+- The drop: recorded on about 2 attacks in 3, ours on every one; which cycles skip it is not settled.
+- The erratic step's draw for the large one: 9 singles; "round itself" beats "round where it surfaced" but not by much.
+  Its real spawn is in the water, which the recordings cannot place.

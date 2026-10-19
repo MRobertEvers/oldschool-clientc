@@ -87,3 +87,17 @@ As built (it differs from the plan above where the probes said so):
   first probe landed 15 of 90 swings without it).
 - No corner trap and no new drive verb: E2 (line of sight on scriptrun) was not
   needed -- the watchers are the C planner's own sight test.
+
+## Round 3 (2026-10-18): the room to RSProx
+
+The content now follows the recordings (`docs/rsprox-analysis/cox/mystics.md`). The solver changes that this needed:
+
+- The cast seq is 5528. A step no longer marks a mystic awake, because idle ones wander (up to 7) and the trap held a wanderer for 1150 ticks (myst1). A sleeping one's waking is priced over its hunt box (7 round its south-west tile), not everywhere it sees.
+- The target holds while it is awake. In the cw room's cluster the pick flipped on the 3/4 line every step (myst2: 300 ticks swapping two tiles).
+- A fight tile not reached after 10 ticks without a swing hands over to the click (myst7: 523 ticks at gap 6).
+- Danger is the four punch tiles, not a diagonal: a mystic trapped on my corner is shot (myst3).
+- After the clear, a mark still listed is a zone outside my 7x7 window. I walk at it (myst3: 1800 ticks 27 tiles off it).
+- `api_drive.npc_stall` walks the pursuit's line (the naive path beside the tile), the one `npc_approach` walks. Traps now happen: 6 of 8 seeds, where none did before.
+
+`cox_mystics.lua` plays a party too (`--bots N`): seat 1 builds the raid and the others join. 8 of 8 solo (myst1-8)
+and 4 of 4 party (2 duo, 2 trio), 0 punches.

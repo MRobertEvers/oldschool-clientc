@@ -8336,6 +8336,45 @@ script_command(
     }
 
     /*
+     * `npc_approach(coord $coord)` -- the active npc walks to stand beside the
+     * tile (its footprint edge-on to it, never a corner), the way the engine's
+     * own pursuit walks it (the combat tick's not-in-reach branch,
+     * torirs_server_combat.c): the reference's naive path to a tile beside the
+     * target, then this tick's step (diagonal, else X, else Z).
+     *
+     * `npc_walk` at the tile is a different line for anything bigger than 1x1:
+     * it steers the south-west anchor at the tile, so a 2x2 to the target's
+     * east aims to stand on it rather than beside it. The line is the whole of
+     * the Skeletal Mystics' corner trap -- a rock east or west of one stops its
+     * step (docs/rsprox-analysis/cox/mystics.md) -- so a melee approach from a
+     * script has to be the pursuit's.
+     */
+    case SS_OP_NPC_APPROACH:
+    {
+        int32_t coord;
+        struct ToriRSServerNpc* npc = active_npc(state);
+
+        if( !SSVM_PopInt(state, &coord) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_approach with no active npc");
+            return 1;
+        }
+        {
+            struct CollisionApproach approach = {
+                .kind = COLL_APPROACH_RECT_ADJACENT,
+                .loc_width = 1,
+                .loc_length = 1,
+                .mover_size = npc->size > 0 ? npc->size : 1,
+            };
+
+            ToriRSServer_WorldNpcWalkToApproach(npc, coord_x(coord), coord_z(coord), &approach);
+        }
+        return 1;
+    }
+
+    /*
      * `npc_range` — the gap between the active npc's FOOTPRINT and a coord.
      *
      * The reference is `CoordGrid.distanceTo(npc, {coord, width: 1, length: 1})`

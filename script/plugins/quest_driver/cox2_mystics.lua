@@ -144,7 +144,10 @@ function QD.COXM.observe(S, F)
     m.mark_seen, m.portal_seen = false, false
     if lr == "ok" then
         for _, l in ipairs(locs) do
-            if l.loc_id == ids.mark or l.resolved_loc_id == ids.mark then m.mark_seen = true end
+            if l.loc_id == ids.mark or l.resolved_loc_id == ids.mark then
+                m.mark_seen = true
+                m.mark_at = { x = l.x, z = l.z }
+            end
             if l.loc_id == ids.portal_end or l.resolved_loc_id == ids.portal_end then m.portal_seen = true end
         end
     end
@@ -205,6 +208,11 @@ function QD.COXM.pick(S, F)
         -- (one within three tiles first: it is the one about to reach me, and
         -- going past it for another walked me beside it, my13/my22)
         local close = QD.COXM.gap(row, F.me.x, F.me.z) <= 3 and 0 or 10000
+        -- (the one I am fighting, while it is awake, stays the target: three
+        -- mystics a few tiles apart -- the cw room's first three tiles -- put
+        -- me on the 3/4 line of one, and the pick flipped with every step, the
+        -- fight tile with it, for 300 ticks of swapping two tiles, myst2)
+        if QD.T2.npc_key(row) == m.target and row.st.awake then close = 0 end
         local k = close + (row.st.awake and 0 or 1000) + hp * 10 + QD.COXM.cheb(row.x, row.z, F.me.x, F.me.z)
         if bkey == nil or k < bkey then best, bkey = row, k end
     end
@@ -259,6 +267,13 @@ function QD.COXM.strategy(S, F, B)
         if m.centre and not m.portal_seen then
             B.pull({ name = "centre", x = m.centre.x - 1, z = m.centre.z - 1, size = 3, weight = 1, t0 = d + 1, t1 = d + B.h })
             intents.mode = "search"
+        elseif m.portal_seen and m.mark_seen and m.mark_at then
+            -- (the portals are up, so the mark is gone; a mark still listed is
+            -- a zone outside my 7x7 window, whose change I was never sent --
+            -- myst3 stood 1800 ticks 27 tiles off it. Walking at it brings the
+            -- zone back into view.)
+            B.pull({ name = "mark", x = m.mark_at.x - 1, z = m.mark_at.z - 1, size = 3, weight = 1, t0 = d + 1, t1 = d + B.h })
+            intents.mode = "exit"
         else
             intents.mode = "clear"
         end
@@ -279,7 +294,10 @@ function QD.COXM.strategy(S, F, B)
         for _, other in ipairs(m.rows) do
             local gap = QD.COXM.gap(other, F.me.x, F.me.z)
             local walking = other.st.moved_at ~= nil and other.st.moved_at >= d - 1
-            if gap <= 1 or (walking and gap <= 3) then danger = true end
+            -- (its punch reaches the four sides, never a corner: one trapped
+            -- on my diagonal -- the corner trap, a rock stopping its step --
+            -- is shot, not fled; read as danger, myst3 stood 1800 ticks)
+            if QD.COXM.beside2(other, F.me.x, F.me.z) or (walking and gap <= 3) then danger = true end
             -- (the click runs two tiles a tick on a route I do not see: from
             -- three tiles of a mystic its next step can end beside it, my22
             -- t63-65 and my13 t63-65, going for a different one)
@@ -302,6 +320,14 @@ function QD.COXM.strategy(S, F, B)
         -- click (below) walked the server's route through every mystic's
         -- sight: prep raid2 room 10, 141 casts at me in 330 ticks.
         if m.trap == nil then QD.COXM.fight_tile(S, F, row) end
+        -- (a fight tile the plan never walks to is no fight: out of reach
+        -- with no swing for 10 ticks, the click takes over -- myst7 held one
+        -- for 523 ticks at gap 6 from the last mystic, cast at the whole time)
+        if F.my_swing then m.last_swing = d end
+        if m.ftile ~= nil and gap_t > V.RANGE and d - (m.last_swing or m.first_tick or d) > 10 and not danger and not near then
+            m.ftile = nil
+        end
+        m.first_tick = m.first_tick or d
         if m.trap == nil and m.ftile ~= nil then
             m.click = nil
             B.pull({ name = "fight", x = m.ftile.x, z = m.ftile.z, size = 1, weight = 3, t0 = d + 1, t1 = d + B.h })

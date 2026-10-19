@@ -43,14 +43,35 @@ for _, line in ipairs({
 }) do kit[#kit + 1] = line end
 
 local function run(t)
-    t.check("mystics.ticklog", t.ticklog.start() == "ok", "")
+    -- A party (--bots N): seat 1 builds the raid, the others join it, and each
+    -- plays the room with the same solver (cox_vespula_duo.lua's flow).
+    local role, size = t.party.role(), t.party.size()
+    if role == 1 then
+        t.check("mystics.ticklog", t.ticklog.start() == "ok", "")
+    end
     local user = t.session._user() or ""
     -- (the run name's number: "gd7" on scriptrun's session dir, "gd7_p1" on
     -- the live gate's)
     local n = tonumber(string.match(user, "^%a+(%d+)") or "0") or 0
-    local er, at = t.raid.cox_test_enter("mystics", n)
+    local er, at = "ok", nil
+    if role == 1 then
+        er, at = t.raid.cox_test_enter("mystics", n)
+    end
     t.check("mystics.enter", er == "ok", tostring(er) .. " " .. tostring(at and at.seed))
     if er ~= "ok" then t.finish(1) return end
+    if size > 1 then
+        local br, bd = t.party.barrier("mystics_built", 600)
+        t.check("mystics.built", br == "ok", tostring(bd))
+        if br ~= "ok" then t.finish(1) return end
+        if role ~= 1 then
+            local jr, jd = t.raid.cox_test_join()
+            t.check("mystics.join", jr == "ok", tostring(jd))
+            if jr ~= "ok" then t.finish(1) return end
+        end
+        local ir, id = t.party.barrier("mystics_in", 300)
+        t.check("mystics.in", ir == "ok", tostring(id))
+        if ir ~= "ok" then t.finish(1) return end
+    end
     t.ticklog.mark("room start")
     local result, detail = t.raid.cox_mystics_solve({ max_ticks = 2000 })
     t.check("mystics.solve", result == "ok", tostring(detail))

@@ -7,14 +7,19 @@
  *   api_drive.npc_stall(x, z, size, tx, tz, steps)
  *     -> "ok", { x, z, stalled, steps }
  *
- * A size-`size` npc whose south-west tile is (x, z) walking NAIVELY toward
- * (tx, tz) -- the server's npc_take_step: the diagonal, else the X leg, else
- * the Z leg, each as collision_map_can_travel_typed allows (NORMAL; other
- * npcs are not on the client's map) -- for at most `steps` steps: where it
- * ends, whether it stopped because no leg was open (`stalled`), and the
- * steps taken. Arriving on (tx, tz) is not a stall. Absolute tiles in and
- * out. The Skeletal Mystics' corner trap (cox2_mystics.lua) asks it where a
- * melee mystic walking at a tile is stopped by an obstacle.
+ * A size-`size` npc whose south-west tile is (x, z) closing on (tx, tz) the
+ * way the server's pursuit does (ToriRSServer_WorldNpcWalkToApproach, and
+ * content's `npc_approach`): each step, the reference's naive path to a tile
+ * beside the target (collision_map_naive_path), then npc_take_step toward it
+ * -- the diagonal, else the X leg, else the Z leg, each as
+ * collision_map_can_travel_typed allows (NORMAL; other npcs are not on the
+ * client's map) -- for at most `steps` steps: where it ends, whether it
+ * stopped because no leg was open (`stalled`), and the steps taken. Standing
+ * beside the target, edge-on (the melee approach), is arriving, not a stall.
+ * Absolute tiles in and out. The Skeletal Mystics' corner trap
+ * (cox2_mystics.lua) asks it where a melee mystic closing on a tile is stopped
+ * by an obstacle. (It used to steer the south-west tile onto (tx, tz), the
+ * line content's old `npc_walk` took, which is not the pursuit's.)
  *
  * "not_visible" when (x, z) is not on the map. A malformed call is a Lua
  * argument error.
@@ -36,6 +41,8 @@ static int
 DriveNpcStallLua(lua_State* L, int idx, struct CollisionMap* cm, int base_x, int base_z)
 {
     int x, z, size, tx, tz, steps, taken = 0, stalled = 0;
+    unsigned rng = 0x5eed1234u;
+    struct CollisionApproach approach = { 0 };
 
     assert(cm);
     x = (int)luaL_checkinteger(L, idx) - base_x;
@@ -52,14 +59,31 @@ DriveNpcStallLua(lua_State* L, int idx, struct CollisionMap* cm, int base_x, int
         lua_pushnil(L);
         return 2;
     }
+    approach.kind = COLL_APPROACH_RECT_ADJACENT;
+    approach.loc_width = 1;
+    approach.loc_length = 1;
+    approach.mover_size = size;
     while( taken < steps )
     {
-        int dx = drive_cox_sign(tx - x);
-        int dz = drive_cox_sign(tz - z);
+        int wx, wz, dx, dz;
         int sx = 0, sz = 0;
 
-        if( dx == 0 && dz == 0 )
+        if( collision_map_reached(cm, x, z, tx, tz, &approach) )
             break;
+        if( !collision_map_naive_path(cm, x, z, tx, tz, size, size, 1, 1, 0, &rng, &wx, &wz) )
+        {
+            stalled = 1;
+            break;
+        }
+        dx = drive_cox_sign(wx - x);
+        dz = drive_cox_sign(wz - z);
+        /* the naive path handing back the npc's own tile is the reference's
+         * "nowhere to go" (ToriRSServer_WorldNpcWalkTo): it stands */
+        if( dx == 0 && dz == 0 )
+        {
+            stalled = 1;
+            break;
+        }
         /* the next tile must stay on the map with the footprint's margin */
         if( x + dx < 1 || z + dz < 1 || x + dx + size + 1 >= cm->size_x || z + dz + size + 1 >= cm->size_z )
         {
