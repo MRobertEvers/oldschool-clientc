@@ -213,3 +213,135 @@ What the duo found:
 - **Content:** the grub's bar now falls on the client as it drains
   (`npc_headbar_from`; before, a fed grub read full forever). Picked roots
   regrow (the portal's `[ai_queue5]`).
+
+## 11. Synq's tiles (2026-10-18)
+
+The owner: "Synq should have a solo method for each vespula room variant so use
+that video for how to solve." His guide's description links his tile markers
+(pastebin thbMmDKk -> Vespula: JugTh0FG). There are three RuneLite region
+tiles, one per layout, in template room-local tiles:
+
+| layout | marker | room-local | her hover | the lane under her |
+|---|---|---|---|---|
+| ccw | 13138 (13,44) | (13,12) | x15-19 z8-12 | her top row z12, east from x15 |
+| thru | 13138 (46,40) | (14,8) | x10-14 z10-14 | her east column x14, north from z10 |
+| cw | 13394 (17,44) | (17,12) | x11-15 z8-12 | her top row z12, west from x15 |
+
+Each marker is two tiles off her hover, on the edge row (column) that faces
+the portal.
+
+**Probe** (`::god`, teleport onto a tile, one Attack on the portal):
+- From the corner of her hover the server walks on.
+- From her edge-row tiles in line with the cove (ccw x17/18, cw x12/13, thru
+  z12/13) it fires in place.
+- From Synq's tile it runs that lane, four tiles in two ticks, her ring never
+  stood on.
+
+So Synq's loop is: run in along the lane, swing, run back, wait for the
+weapon. That is 2-3 stomps a swing ("Vespula will only damage you up to
+eight"; W Strategies "6-24 damage for every attack").
+
+**The solver** (`opts.method` "redemption", `CV.V.SYNQ`) takes his tile as the
+safe tile. Hovering at home, the rest of her footprint is forbidden, so the
+plan keeps to the lane. Before, a heuristic tile two off her on a row or
+column, nearest the portal out of its range, let the plan wander under her.
+
+**Sweep:** 19 of 24 green, up from 16. Every failure is a grub tagged before
+the first enrage that hatched before the crossbow kit killed the portal, as in
+section 10.
+
+## 12. The solo plan: Synq's way (2026-10-18)
+
+The owner: "Do it synqs way for solo". Synq (1:25:34-1:33:53) is his tile,
+the loop on Redemption, and the portal dead before a tagged grub hatches. His
+words: "If you have decent gear and average luck, you should always be able
+to defeat the abyssal portal before the Vespine soldier spawn." Roots are his
+bad-luck fallback, not the method. The round-5 plan made them the centrepiece
+because the test's dragon crossbow cannot beat a hatch: the quickest untagged
+kills took 65-83 ticks from the first hit, and a tag hatches about 64 ticks
+after it. That plan is withdrawn.
+
+### 12.1 Facts (sources in sections 8-11)
+
+- **F1 Synq's tile** per layout (template): ccw (13,12), thru (14,8), cw
+  (17,12), from his markers.
+- **F2 The lane.** From his tile, Attack runs you along her edge row, 4
+  tiles in 2 ticks, never on her ring, to the cove-aligned tile 8 from the
+  portal. The swing fires there.
+- **F3 Her enrage** starts the tick after a portal swing, in place. It lasts
+  20 ticks and renews while the portal was attacked within 9 ticks.
+- **F4 A tag** hatches 69 ticks after the sting. One tag before the first
+  enrage is common ("she will almost always tag at least one grub").
+- **F5 Tumeken's shadow,** Synq's "best weapon to use on the portal": in our
+  data attack rate 5, range 8 ("can reach the portal at any setting", W
+  Abyssal portal). The portal's magic defence is its lowest (W). It is
+  supported by `powered_staff.rs2` / `tumekens_shadow.rs2`, and
+  `::maxmage` wears it charged with the max magic set.
+- **F6 Prayer.** A restore only once Redemption has fired (sip under 6)
+  made the doses last (sweep 14).
+- **F7 The monitor.** A root pick is not a portal swing (monitor fix).
+
+### 12.2 The method
+
+1. **Kit (Synq's room line).** Tumeken's shadow and the max magic set
+   (`::maxmage`), quick prayers Redemption + Augury. "At least a few
+   restores": 3 super restores. "Some form of anti-poison": a sanfew serum.
+   Brews only for a misclick (7 Saradomin brews).
+2. **Open.** Through the tendrils, Attack the portal at once, then to his
+   tile.
+3. **Loop.** From his tile, Attack (F2), and back to his tile the tick after
+   the swing. Over 9 hp before every click. A restore after each Redemption
+   (F6).
+4. **Grubs.** None of his steps. The fallback root run stays only for the
+   case Synq calls terrible luck: a hatch projected before the portal's
+   death.
+5. **Soldier.** Synq: leave the raid. The test counts it a fail.
+
+### 12.3 Proof
+
+1. **First, the kill time.** One probe seed per layout (cw 0, thru 4, ccw
+   5). The portal must die within about 64 ticks of the first hit, the
+   hatch's budget, without a root run.
+2. If it does, seeds 0-47 once. Green = exit open, alive, 0 enraged-sting
+   hits, 0 soldiers.
+3. Any failure is traced to its first wrong decision and written here
+   before the code changes.
+
+The duo (`opts.method` "intended", the crossbow kit) is not touched.
+
+### 12.4 Proof results (2026-10-18)
+
+**Step 1, the kill time.** With the shadow, the portal first died 65-121 ticks
+after the first hit, and 44% of swings were 0.
+
+The combat log (`varp7430_combat_debug`) showed the magic attack roll at
+24,860 (about 30,300 with Augury) against the portal's 22,940 (magic 176,
+bonus +60).
+
+OSRS's shadow also triples the worn magic attack bonus ("the player's magic
+attack bonus and magic damage are multiplied by three", W Tumeken's shadow:76).
+Our content had only the damage half (`powered_staff.rs2`). Fixed:
+`combat_stats.rs2` triples `$magicattack` for the shadow before
+`%varp6285_com_magicattack`. The kill then took 35-71 ticks, median 50.
+
+**Sweeps, seeds 0-47:**
+
+| run | rule | green |
+|---|---|---|
+| vsh4 | Synq's loop, no roots | 41/48 |
+| vsh5 | + his fallback: at each re-enrage, run for roots when a tagged grub would hatch before the portal's predicted death (its bar at 4.4 a tick) + 5 | 44/48 |
+| vsh8 | + enter with run, Redemption and Augury already on | 44/48 (no change) |
+
+**What is left:**
+
+- **The opening.** 35 of 48 seeds have one grub tagged before the first
+  enrage. Her first sting is S+4 (RSProx 820). The recorded solo raider (843,
+  Twisted Bow, range 10) swung at S+3; ours swings at S+5 to S+7. In seed 10
+  (thru) the bot moves one tile a tick for two ticks after the tendrils on
+  the attack route. The planner predicts that step from the server's own
+  route; the cause is not yet found.
+- **The thru room's root run.** Seeds 10, 31 and 36 (thru, turns 1 and 3)
+  still hatch. Seed 10's last safe decision point (t71) had about 50 portal
+  hp left and the grub 26 ticks from hatching; five swings then rolled 33.
+  The run at the next window was 4 ticks too late.
+- **Seed 29:** one enraged sting, not yet diagnosed.

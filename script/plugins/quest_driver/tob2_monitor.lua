@@ -130,6 +130,9 @@ function QD.T2.monitor.check(S, F)
     -- the npc my attack presses aim at, held until the next press: a swing
     -- is at the last one pressed (S.x2.swing_last_npc)
     if E and E.tick == d and E.pressed and E.npc_id then X.attack_npc = E.npc_id end
+    -- (a world op -- a pick, a feed -- ends the attack: its animation is no
+    -- swing at the npc last attacked; Vespula's roots read as portal swings)
+    if E and E.tick == d and E.mode == "loc" then X.attack_npc = nil end
     if F.my_swing then
         M.swings = M.swings + 1
         local stamp = d

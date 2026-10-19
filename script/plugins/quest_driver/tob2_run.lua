@@ -45,7 +45,8 @@ function QD.T2.resources(S, F)
         S.ids = QD.T2.budget.filtered_ids(S, F)
     end
     QD.raid._tob_supplies(S, F, { eat_below = want.eat_below, brew_below = want.brew_below,
-                                  boost = want.boost, boost_stat = want.boost_stat }, res)
+                                  boost = want.boost, boost_stat = want.boost_stat,
+                                  prayer_sip = want.prayer_sip }, res)
     S.ids = saved
     return res
 end
@@ -58,6 +59,7 @@ function QD.T2.merge(S, intents, res)
     -- the room's floors, for the next tick's resource decision
     if intents.eat_below then S.t2.want.eat_below = intents.eat_below end
     if intents.brew_below then S.t2.want.brew_below = intents.brew_below end
+    S.t2.want.prayer_sip = intents.prayer_sip
     return intents
 end
 

@@ -270,7 +270,9 @@ end
 function QD.raid._tob_supplies(S, F, want, intent)
     local V = QD.TOBS
     local eat_below = want.eat_below or V.HP_EAT
-    local restore_due = F.prayer < V.PRAYER_SIP and F.tick - (S.last_drink or -10) >= 3
+    -- (want.prayer_sip: a room's own sip point -- Vespula's Redemption loop
+    -- restores only once Redemption has fired)
+    local restore_due = F.prayer < (want.prayer_sip or V.PRAYER_SIP) and F.tick - (S.last_drink or -10) >= 3
     local eat_due = F.hp < eat_below and F.tick - (S.last_eat or -10) >= 3
     if restore_due then
         intent.drink = QD.raid._tob_first(S, S.ids.restores)

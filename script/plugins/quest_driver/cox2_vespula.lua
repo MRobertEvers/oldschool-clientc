@@ -46,6 +46,17 @@ CV.V = {
     HOME = { [0] = { 15, 8 }, [1] = { 10, 10 }, [2] = { 11, 8 } },
     PORTAL = { [0] = { 17, 20 }, [1] = { 22, 11 }, [2] = { 11, 20 } },
     HIT = { [0] = { { 17, 13 }, { 18, 13 } }, [1] = { { 15, 13 }, { 15, 12 } }, [2] = { { 12, 13 }, { 13, 13 } } },
+    -- SYNQ'S TILES (his tile markers, pastebin JugTh0FG linked from the
+    -- guide's description: RuneLite region tiles 13138 (13,44) ccw, (46,40)
+    -- thru, 13394 (17,44) cw, template room-local here): two tiles off her
+    -- hover on her edge row (column) nearest the portal. The run in goes
+    -- along that row under her -- her ring skipped, two tiles a tick -- to
+    -- the tiles in line with the cove, the only ones under her that reach the
+    -- portal (probe 2026-10-18: from the corner the server walks on, from the
+    -- cove column it fires in place), and back: a stomp or three a swing,
+    -- never her sting ("Vespula will only damage you up to eight", SQ
+    -- 1:29:35; W Strategies "6-24 damage for every attack").
+    SYNQ = { [0] = { 13, 12 }, [1] = { 14, 8 }, [2] = { 17, 12 } },
     GRUBS = {
         [0] = { { 22, 8 }, { 20, 13 }, { 12, 5 }, { 13, 13 } },
         [1] = { { 15, 8 }, { 7, 10 }, { 15, 16 }, { 7, 16 } },
@@ -96,6 +107,14 @@ CV.V = {
     WEAPONS = {
         xbow = { set = "ranged_set", obj = "xbow", range = 9, speed = 6, boost = "rigour", slot = "style_slot_2" },
         trident = { set = "magic_set", obj = "trident", range = 9, speed = 4, boost = "augury", slot = "style_slot_3" },
+        -- Tumeken's shadow, Synq's "best weapon to use on the portal": attack
+        -- rate 5, range 8 in our data, which reaches the portal from the lane
+        -- "at any setting" (W Abyssal portal) -- no style to set; the solo
+        -- test wears it with the max magic set (::maxmage)
+        -- (rate: its expected damage a tick on the portal -- 82% to hit at
+        -- Augury, 27 an average hit (max ~54), a swing every 5 ticks;
+        -- measured median kill 50 ticks for 250, sweep vsh4)
+        shadow = { set = "shadow_set", obj = "shadow", range = 8, speed = 5, boost = "augury", rate = 4.4 },
     },
     -- Redemption ("over 10 HP before we click the portal", The Academy): a
     -- stomp's max is 8, so at 9 or more a stomp cannot kill and Redemption
@@ -111,6 +130,10 @@ CV.V = {
     -- (a tagged grub hatches ~69 ticks after the sting: the run may start at
     -- once, a blossom fed as soon as it is held -- each one is 35 ticks)
     ROOT_LEAD = 70, ROOT_MARGIN = 20, ROOT_EARLY = 40, ROOT_RUN = 25, ROOT_MAX = 6,
+    -- the fallback root run under the Redemption method: the way back
+    -- (his tile, the lane, the swing), a pick, the margin a held blossom
+    -- keeps over its grub's hp, and the brew floor once no prayer is left
+    LANE_TICKS = 3, PICK_TICKS = 3, HATCH_MARGIN = 5, FEED_MARGIN = 6, YIELD_MARGIN = 1, DRY_BREW = 30,
     FAR = 9,
 }
 
@@ -142,7 +165,7 @@ function CV.ids(opts)
         { "style_slot_2", "component", "combat_interface:style_slot_2" },
         { "style_slot_3", "component", "combat_interface:style_slot_3" },
         { "poison", "varp", "varp102_poison" },
-        { "trident", "obj", "toxic_tots_charged" }, { "occult", "obj", "occult_necklace" },
+        { "trident", "obj", "toxic_tots_charged" }, { "shadow", "obj", "tumekens_shadow" }, { "occult", "obj", "occult_necklace" },
         { "imbued_cape", "obj", "ma2_saradomin_cape" }, { "mystic_top", "obj", "mystic_robe_top" },
         { "mystic_bottom", "obj", "mystic_robe_bottom" },
     })
@@ -152,6 +175,7 @@ function CV.ids(opts)
     ids.combat_tab = combat_tab
     ids.ranged_set = { ids.xbow, ids.fury, ids.assembler, ids.dhide_body, ids.chaps, ids.defender }
     ids.magic_set = { ids.trident, ids.occult, ids.imbued_cape, ids.defender, ids.mystic_top, ids.mystic_bottom }
+    ids.shadow_set = { ids.shadow }
     local function vials(stem)
         local out = {}
         for n = 1, 4 do
@@ -217,6 +241,23 @@ end
 function CV.safe_tile(S)
     local v = S.v
     local room = v.room
+    if v.method == "redemption" then
+        -- Synq's tile, and the corner of her hover one run in from it: the
+        -- loop's lane under her is her edge row from that corner on
+        local t = CV.V.SYNQ[room.variant]
+        local x, z = QD.COX.world(room, t[1], t[2])
+        local ax = math.max(v.home.x, math.min(v.home.x + 4, x))
+        local az = math.max(v.home.z, math.min(v.home.z + 4, z))
+        assert(math.abs(ax - x) + math.abs(az - z) == 2 and (ax == x or az == z),
+            S.who .. ": Synq's tile " .. x .. "," .. z .. " is not two off her hover on a row or column")
+        v.safe = { x = x, z = z }
+        v.attack_tile = { x = ax, z = az }
+        -- (the lane's direction: from the safe tile toward the corner)
+        v.lane = { dx = (ax > x and 1) or (ax < x and -1) or 0, dz = (az > z and 1) or (az < z and -1) or 0 }
+        QD.raid._tob_trace(S, api_drive.tick(), string.format("vespula Synq tile %d,%d, attack corner %d,%d",
+            x, z, ax, az))
+        return
+    end
     -- THE SAFE TILE: two tiles off her hover on one of her rows or columns
     -- (wiki Strategies, The Academy), the one nearest the portal that the
     -- client's route reaches exactly
@@ -510,6 +551,22 @@ function CV.predict(S, F, B)
             B.hit({ name = "stomp", x0 = hx, z0 = hz, x1 = hx + 4, z1 = hz + 4, t0 = first, t1 = last,
                     dmg_exp = V.STOMP_EXP, dmg_max = redeem and 0 or V.STOMP_MAX })
         end
+        -- (Synq's loop: hovering at home, the tiles under her it uses are
+        -- her edge row (column) from the corner his tile faces -- the rest
+        -- of her footprint is forbidden, so the run in and out stays on
+        -- that lane)
+        local A, ln = v.attack_tile, v.lane
+        if A and v.method == "redemption" and hx == v.home.x and hz == v.home.z then
+            for x = hx, hx + 4 do
+                for z = hz, hz + 4 do
+                    local on_lane = (ln.dx ~= 0 and z == A.z) or (ln.dz ~= 0 and x == A.x)
+                    if not on_lane then
+                        B.hit({ name = "under", x = x, z = z, t0 = first, t1 = last, dmg_exp = V.STOMP_EXP,
+                                dmg_max = V.STOMP_MAX, forbid = true })
+                    end
+                end
+            end
+        end
         -- THE STING (V14): her edge ring, corners out, every other tick: forbid
         local ring = {
             { hx, hz + 5, hx + 4, hz + 5 }, { hx, hz - 1, hx + 4, hz - 1 },
@@ -522,10 +579,14 @@ function CV.predict(S, F, B)
     end
     -- THE DRAIN (V18, recorded): each one in the air takes 3 prayer if I am
     -- still on its tile at the end of the tick before it lands
+    -- (3 prayer points -- Redemption's fuel -- or, at none, 3 hitpoints:
+    -- priced at 3, so a wait on Synq's tile steps off the drained tile;
+    -- duo/solo seeds 10 and 23 died to drains standing still at 0 prayer)
+    local dry = F.prayer < 3
     for _, d in ipairs(v.drains or {}) do
         local t = d.land - 1
         if t >= now + 1 then
-            B.hit({ name = "drain", x = d.x, z = d.z, t0 = t, t1 = t, dmg_exp = 2, dmg_max = 0 })
+            B.hit({ name = "drain", x = d.x, z = d.z, t0 = t, t1 = t, dmg_exp = 3, dmg_max = dry and 3 or 0 })
         end
     end
     if CV.in_room(v, F.me.x, F.me.z) then CV.void(S, F, B) end
@@ -848,7 +909,13 @@ function CV.strategy(S, F, B)
     -- under her; out of it she shoots, so hp is kept up. The ground method
     -- keeps one low floor -- the plan's rescue sips for a predicted lethal
     -- hit -- dropped further once no restore is held, the shared rule)
-    if v.method == "ground" then
+    if v.method == "redemption" and F.prayer < V.REDEEM_PRAYER
+        and not QD.raid._tob_first(S, ids.restores) and not QD.raid._tob_first(S, ids.enhances) then
+        -- (no prayer left to light Redemption, none in the pack: the loop's
+        -- stomps and the portal's drain come out of hp -- seed 23 went
+        -- under her at 8 and died; three stomps and a drain held instead)
+        intents.brew_below = V.DRY_BREW
+    elseif v.method == "ground" then
         intents.brew_below = QD.COX.brew_floor(S, V.HEAL_FLOOR)
     elseif v.method == "intended" then
         intents.brew_below = QD.COX.brew_floor(S, V.DUO_BREW)
@@ -882,6 +949,10 @@ function CV.strategy(S, F, B)
     -- (the intended solve: Protect from Missiles in Redemption's place --
     -- no stomp is taken on purpose, and her ranged is the room's damage)
     local first_pray = v.method == "intended" and "protectfrommissiles" or "redemption"
+    -- (Synq, 1:30:08: a restore -- or the enhance -- "once your prayer gets
+    -- depleted", i.e. after Redemption fired; the shared sip at 25 drank the
+    -- restores dry by tick ~205 of a long room, seed 23)
+    if v.method == "redemption" then intents.prayer_sip = V.REDEEM_PRAYER end
     if F.prayer > 0 and not F.lit[first_pray] then
         intents.pray = first_pray
     elseif F.prayer >= V.BOOST_ON and not F.lit[W.boost] then
@@ -953,6 +1024,17 @@ function CV.strategy(S, F, B)
     -- ENTER: through the tendrils (the Pass hop, V22)
     if not CV.in_room(v, F.me.x, F.me.z) then
         intents.mode = "enter"
+        -- (Synq's solo enters with run and the quick prayers on -- "with our
+        -- run energy and Redemption prayer turned on" (The Academy): the
+        -- encounter starts on entry, and her first sting is S+4 (RSProx 820);
+        -- the run orb clicked with the pass took effect a step late and the
+        -- first swing missed the race by a tick, seed 10)
+        -- (both quick prayers, Redemption + the boost (SQ 1:29:03): a prayer
+        -- press inside the room takes the panel tick the first attack needs,
+        -- seed 10 t22-23)
+        if v.method == "redemption" and (not F.run_on or not F.lit.redemption or not F.lit[W.boost]) then
+            return intents
+        end
         local t = nil
         for _, td in ipairs(v.tendrils or {}) do
             if t == nil or QD.raid._tob_cheb(F.me.x, F.me.z, td.x, td.z) < QD.raid._tob_cheb(F.me.x, F.me.z, t.x, t.z) then t = td end
@@ -998,6 +1080,33 @@ function CV.strategy(S, F, B)
     local free = deadline and (deadline - V.RENEW + 1 - F.tick) or 0
     if v.method == "intended" then
         -- (the intended solve feeds through CV.feeder, below)
+    elseif v.method == "redemption" then
+        -- SYNQ'S FALLBACK (1:27:47-1:28:21): with decent gear the portal dies
+        -- before a tagged grub hatches; with "terrible luck" -- a string of
+        -- misses, seed 15 -- roots, "around three to four per grub that was
+        -- tagged ... to full HP", run in "the exact window": her re-enrage.
+        -- Decided there from what the client shows: the portal's bar at the
+        -- weapon's rate against the grub's hatch.
+        if v.run == nil and nh and v.enr_start == F.tick and v.was_enraged then
+            local left = V.PORTAL_HP * (v.portal_frac or 1)
+            local death = F.tick + left / V.WEAPONS[v.weapon].rate
+            list = {}
+            local room = CV.free_slots() + blossoms
+            for _, g in pairs(v.grub) do
+                if g.stung and not g.unfeedable and g.id == ids.grub_infected
+                    and CV.hatch_t(g) < death + V.HATCH_MARGIN then
+                    g.need = math.max(1, math.ceil((V.GRUB_HP - CV.grub_hp(S, F, g)) / V.BLOSSOM))
+                    g.ht = CV.hatch_t(g)
+                    list[#list + 1] = g
+                end
+            end
+            table.sort(list, function(x, y) return x.ht < y.ht end)
+            local keep = {}
+            for _, g in ipairs(list) do
+                if total + g.need <= room then keep[#keep + 1] = g; total = total + g.need end
+            end
+            list = keep
+        end
     elseif v.run == nil and nh and free >= V.RUN_MIN and F.hp >= V.RUN_HP and (eta == nil or (eta > V.ROOT_FINISH and F.tick + eta > nh.t - V.ROOT_EARLY)) then
         local target = F.tick + (eta or V.HATCH) + V.ROOT_RUN + V.ROOT_MARGIN
         list = {}
@@ -1044,7 +1153,16 @@ function CV.strategy(S, F, B)
         travel = math.max(0, far - V.WEAPONS[v.weapon or V.WEAPON].range) // 2 + 3
     end
     local yield = v.run and ((deadline and F.tick + travel >= deadline - V.RENEW + 1
-        and (v.attack_t or -1) < deadline - V.RENEW + 1) or F.hp < V.RUN_HP / 2)
+        and (v.attack_t or -1) < deadline - V.RENEW + 1) or (F.hp < V.RUN_HP / 2 and v.method ~= "redemption"))
+    if v.run and v.method == "redemption" then
+        -- (Synq's run turns back for the window's END, not its start: the
+        -- swing renews her anywhere in it -- back to his tile, the lane in,
+        -- the swing; the start threw away 7 ticks a run, the thru room's
+        -- roots are 8 ticks out, seed 10)
+        local back = (QD.raid._tob_cheb(F.me.x, F.me.z, v.safe.x, v.safe.z) + 1) // 2 + V.LANE_TICKS
+        yield = deadline ~= nil and F.tick + back >= deadline - V.YIELD_MARGIN
+            and (v.attack_t or -1) < deadline - V.RENEW + 1
+    end
     if yield and v.yield_at ~= deadline then
         v.yield_at = deadline
         QD.raid._tob_trace(S, F.tick, "root run yields (renewal window " .. tostring(deadline) .. ", hp " .. F.hp .. ")")
@@ -1060,6 +1178,18 @@ function CV.strategy(S, F, B)
             g0.need = g0.need - fed
         end
         v.feed_bl = blossoms
+        -- (Synq's run feeds a grub to FULL: its need is what its hp lacks now,
+        -- not what the run's start guessed -- seed 4's three blossoms, fed 60
+        -- ticks after the guess, left it at 108 and draining)
+        if v.method == "redemption" then
+            for _, g in ipairs(list) do
+                if g.id == ids.grub_infected and not g.unfeedable then
+                    g.need = math.max(1, math.ceil((V.GRUB_HP - CV.grub_hp(S, F, g)) / V.BLOSSOM))
+                else
+                    g.need = 0
+                end
+            end
+        end
         while #list > 0 and (list[1].need <= 0 or (list[1].id ~= ids.grub_sickly and list[1].id ~= ids.grub_infected)
                 or list[1].unfeedable) do
             table.remove(list, 1)
@@ -1080,11 +1210,25 @@ function CV.strategy(S, F, B)
             intents.mode = "roots"
             v.picking = true
             local root = CV.nearest_loc(S, F, ids.root)
+            -- (blossoms in hand go to the grub once another root would cost
+            -- its life: its hp left against the walk to the root, the pick,
+            -- and the walk on to it -- seed 4 went back for a fourth with
+            -- three held and the grub at 10)
+            if root and blossoms > 0 and v.method == "redemption" then
+                local trip = (QD.raid._tob_cheb(F.me.x, F.me.z, root.x, root.z)
+                    + QD.raid._tob_cheb(root.x, root.z, g.x + 1, g.z + 1)) // 2 + V.PICK_TICKS + V.FEED_MARGIN
+                if CV.grub_hp(S, F, g) <= trip then
+                    root = nil
+                    v.picking = false
+                end
+            end
             if root then
                 intents.world_op = { kind = "loc", id = ids.root, op = 1, x = root.x, z = root.z }
                 return intents
             end
-            v.picking = false
+            -- (Synq's run with nothing yet in flower -- they open 10-15
+            -- ticks in, a picked one regrows in 8 -- waits on: the loop)
+            if v.method ~= "redemption" or blossoms > 0 then v.picking = false end
         elseif v.picking ~= false and blossoms < need then
             v.picking = false   -- (no slot to pick into: feed what is held)
         end
@@ -1114,6 +1258,7 @@ function CV.strategy(S, F, B)
     intents.mode = (v.ves and v.ves.npc_id == ids.enraged) and "loop" or "open"
     -- Longrange, once the weapon is worn (varp43_com_mode 2; a powered staff's
     -- button writes 3, clamped to 2 at its first swing)
+    if W.slot == nil then v.style_ok = true end
     if QD.raid._tob_worn(S, ids[W.obj]) and not v.style_ok then
         local mr, mode = api_drive.varp(ids.com_mode)
         if mr == "ok" and mode >= 2 then
