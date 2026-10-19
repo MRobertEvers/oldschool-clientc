@@ -40,7 +40,7 @@ obj row's duration, and an `npc_headbar` row.
 
 ## Open
 
-- **Vasa thru spawn tile:** recorded (13,14) (820, 3389); ours (13,13). Moving it made 4 of 8 thru seeds take a stomp; the baseline is not yet measured.
+- **Vasa thru spawn tile:** recorded (13,14) (820, 3389); ours (13,13). With (13,14), 4 of 8 thru seeds took a stomp; with (13,13), all 8 pass (seeds 0, 1, 2, 10, 14, 15, 16, 21). The move needs his walking legs rebuilt from the recordings first, so (13,13) stays.
 - **Crabs:** the crabs pinch adjacent raiders (`rock_crab_attack`, a 0 splat, `human_block_1`). A stun comes with `kalthite_egg_crack` and `stunned` (area, delays 20 and 30) and `stunned_thieving`. The orb has its own sounds (`anma_axe_bounce`, `place_crystal`, `tl_place_fractured`, `whiteout`, `windbolt_hit`). None is modelled; it is a mechanics audit of its own.
 - **Player block sound:** a 0 splat on the player carries an armour-dependent synth (`leather_hit_*`, `human_block_1`, …). This is engine-wide and not yet done.
 - **Vespula's turns:** her turns on stomp ticks (843 t+7, 3389 t+10/11) fit no target rule found. The per-sting turn is done.
