@@ -71,14 +71,20 @@ return {
         end
         t.expect("kephri.shield_splat", (splats > 0 and red == 0) and "ok" or "fail",
             string.format("%d shield splats, %d other damage splats on her shield", splats, red))
-        local faced = 0
-        for _, row in ipairs(rows_since(t, "npc_face", shot_from)) do
-            if row.type == 11719 and math.abs(row.x - (ox + 35)) <= 1 and math.abs(row.z - (oz + 35)) <= 1 then
-                faced = faced + 1
-            end
+        -- her entity facing on the raider who shot her: the tick log's npc_state
+        -- face_entity field (3) set to 32768 + pid (playerface)
+        local faced = nil
+        local _, states = t.ticklog.rows({ kind = "npc_state" })
+        local boss_slot = nil
+        for _, row in ipairs(rows_since(t, "npc_spawn", 0)) do
+            if row.type == 11719 and not boss_slot then boss_slot = row.slot end
         end
-        t.expect("kephri.faces_raider", faced > 0 and "ok" or "fail",
-            string.format("%d npc_face rows at the raider's tile", faced))
+        for _, row in ipairs(states or {}) do
+            if row.tick >= shot_from and row.slot == boss_slot and row.field == 3 and row.value >= 32768 then faced = row end
+        end
+        t.expect("kephri.faces_raider", faced and "ok" or "fail",
+            string.format("face_entity %s on tick %s", faced and tostring(faced.value) or "never",
+                faced and tostring(faced.tick) or "-"))
         -- the radials, the first dung strike (S+29) and the first eggs (S+67)
         t.ticklog.mark("kephri.shielded")
         wait(t, 55)

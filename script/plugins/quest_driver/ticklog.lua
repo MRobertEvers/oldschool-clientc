@@ -84,6 +84,11 @@ QD.ticklog.FIELDS = {
     -- An `npc_facesquare` (SS_OP_NPC_FACESQUARE, the only writer of an npc's
     -- face-coord): the TILE it turned the npc to, not a packed coord.
     npc_face = { "slot", "type", "x", "z" },
+    -- A raid npc's hidden field that changed (torirs_server.h NPC_STATE):
+    -- `field` 0 mode, 1 waypoint_index, 2 stuck_counter, 3 face_entity (32768 +
+    -- pid for a player), 4 face_x, 5 face_z, 6 combat_target, 7 attack_clock,
+    -- 8 timer_clock, 9 frozen; `value` the new value.
+    npc_state = { "slot", "field", "value" },
     -- A SYNTH_SOUND sent to `pid`; coord/radius are -1 for a plain synth.
     -- `source` (from the row's label) and, for an npc's own noise,
     -- `npc_slot`/`npc_type` are added by _name.
