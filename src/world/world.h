@@ -1404,10 +1404,12 @@ World_NpcSetExactMoveDetailed(
     int facing,
     bool facing_is_yaw);
 
+/* `slot`: the rev-239 graphic slot, as World_NpcSetSpotanim's. */
 void
 World_PlayerSetSpotanim(
     struct World* world,
     int idx,
+    int slot,
     int spotanim_id,
     int height,
     int cycle_delay);

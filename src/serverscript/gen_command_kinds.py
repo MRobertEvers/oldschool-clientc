@@ -45,6 +45,7 @@ EXTRA_DECLARATIONS = [
     "[command,if_setangle](component $component, int $xan, int $yan, int $zoom)",
     "[command,if_setrotatespeed](component $component, int $xspeed, int $yspeed)",
     "[command,spotanim_npc_slot](spotanim $spotanim, int $height, int $delay, int $slot)",
+    "[command,spotanim_pl_slot](spotanim $spotanim, int $height, int $delay, int $slot)",
     # A bare sound name collides with a spotanim of the same name (176
     # `shadow_blitz_impact` is also spotanim 381): untyped, the Maiden's storm
     # impact went out as sound 381, `creeper_attack`.

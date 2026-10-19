@@ -244,10 +244,17 @@ write_player_extended(struct RSAreaBuf* buf, const uint8_t* appearance,
         }
         if( has_spotanim )
         {
-            rsab_p1(buf, 1);
-            rsab_p1_alt2(buf, ext->spotanim_slot);
-            rsab_p2_alt2(buf, ext->spotanim_id < 0 ? 65535 : ext->spotanim_id);
-            rsab_p4(buf, ext->spotanim_height_delay);
+            assert(ext->spotanim_count > 0);
+            assert(ext->spotanim_count <= MOCK239_PLAYER_SPOTANIM_MAX);
+            rsab_p1(buf, ext->spotanim_count);
+            for( int i = 0; i < ext->spotanim_count; i++ )
+            {
+                struct Mock239PlayerSpotanim const* spot = &ext->spotanims[i];
+
+                rsab_p1_alt2(buf, spot->slot);
+                rsab_p2_alt2(buf, spot->id < 0 ? 65535 : spot->id);
+                rsab_p4(buf, spot->height_delay);
+            }
         }
         if( has_chat )
         {

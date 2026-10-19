@@ -3948,8 +3948,16 @@ struct ToriRSServerPlayer
     int face_target_x;
     int face_target_z;
     char say[80];
+    /** The last graphic sent this tick, for the classic writers (one graphic,
+     *  no slot) and the selftests. */
     int spotanim_id;
     int spotanim_height_delay;
+    /** This tick's graphics, one per rev-239 slot: `spotanim_pl` is slot 0,
+     *  `spotanim_pl_slot` any. The ToA Kephri dung marker (slot 0) and a
+     *  ranged launch graphic (slot 1) land on one tick and both draw;
+     *  docs/rsprox-analysis/toa/kephri.md. Read while PMASK_SPOTANIM is set. */
+    struct ToriRSServerNpcSpotanim spotanims[TORIRSSERVER_NPC_SPOTANIM_MAX];
+    int spotanim_count;
     /**
      * `p_exactmove` — the pair `p_locmerge` belongs to. The two tiles the
      * client glides between, in **absolute world** coordinates, plus the cycle
@@ -6139,7 +6147,7 @@ void ToriRSServer_TicklogPlayerAnim(const struct ToriRSServer* srv,
                                     int delay);
 void ToriRSServer_TicklogPlayerSpotanim(const struct ToriRSServer* srv,
                                         const struct ToriRSServerPlayer* player, int spotanim,
-                                        int height, int delay);
+                                        int height, int delay, int spot_slot);
 void ToriRSServer_TicklogLocAnim(const struct ToriRSServer* srv, int coord, int loc_id, int shape,
                                  int angle, int seq_id);
 void ToriRSServer_TicklogNpcSay(const struct ToriRSServerNpc* npc, char const* text);

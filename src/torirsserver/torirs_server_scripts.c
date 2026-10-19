@@ -4779,6 +4779,43 @@ active_npc(struct SSVM_State* state)
     return &srv->npcs[slot];
 }
 
+/* `npc_spotanim_put` for a player: the rev-239 player wears one graphic per
+ * slot as an npc does (PlayerSpotAnimEncoder carries a list), so a dung marker
+ * in slot 0 and a launch graphic in slot 1 on one tick both draw. */
+static void
+player_spotanim_put(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
+    int slot,
+    int id,
+    int height,
+    int delay)
+{
+    int i;
+    /* Height and delay share one int on the wire: height in the high half,
+     * delay in the low. */
+    int height_delay = (height << 16) | (delay & 0xffff);
+
+    assert(player);
+    if( !(player->masks & TORIRSSERVER_PMASK_SPOTANIM) )
+        player->spotanim_count = 0;
+    for( i = 0; i < player->spotanim_count; i++ )
+        if( player->spotanims[i].slot == slot )
+            break;
+    if( i == player->spotanim_count )
+    {
+        assert(player->spotanim_count < TORIRSSERVER_NPC_SPOTANIM_MAX);
+        player->spotanim_count++;
+    }
+    player->spotanims[i].slot = slot;
+    player->spotanims[i].id = id;
+    player->spotanims[i].height_delay = height_delay;
+    player->spotanim_id = id;
+    player->spotanim_height_delay = height_delay;
+    player->masks |= TORIRSSERVER_PMASK_SPOTANIM;
+    ToriRSServer_TicklogPlayerSpotanim(srv, player, id, height, delay, slot);
+}
+
 /* One graphic into this tick's slot list: a second send to the same slot this
  * tick replaces the first, as the reference keeps one per slot. The scalar
  * pair mirrors the last send for the classic writers. */
@@ -9627,13 +9664,32 @@ script_command(
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
         }
-        player->spotanim_id = values[0];
-        /* Height and delay share one int on the wire: height in the high half,
-         * delay in the low. */
-        player->spotanim_height_delay = (values[1] << 16) | (values[2] & 0xffff);
-        player->masks |= TORIRSSERVER_PMASK_SPOTANIM;
-        ToriRSServer_TicklogPlayerSpotanim(srv, player, (int)values[0], (int)values[1],
-                                           (int)values[2]);
+        player_spotanim_put(srv, player, 0, (int)values[0], (int)values[1], (int)values[2]);
+        return 1;
+    }
+
+    /*
+     * spotanim_pl_slot(spotanim, height, delay, slot): `spotanim_pl` into one
+     * of the rev-239 player's numbered graphic slots, where it replaces only
+     * that slot's graphic. A ranged launch graphic goes in slot 1, under the
+     * ToA Kephri dung marker in slot 0 (RSProx: both on one tick).
+     */
+    case SS_OP_SPOTANIM_PL_SLOT:
+    {
+        int32_t values[4];
+
+        for( int i = 3; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        if( values[3] < 0 || values[3] > 255 )
+        {
+            SSVM_Abort(state, "spotanim_pl_slot: slot out of range");
+            return 1;
+        }
+        player_spotanim_put(srv, player, (int)values[3], (int)values[0], (int)values[1],
+                            (int)values[2]);
         return 1;
     }
 

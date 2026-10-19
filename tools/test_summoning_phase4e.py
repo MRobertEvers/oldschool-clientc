@@ -52,9 +52,9 @@ def main() -> int:
     )
     bridge = (REPO / "src/torirsserver/torirs_server_encode.c").read_text(encoding="utf-8")
     expect(
-        "player->masks & TORIRSSERVER_PMASK_SPOTANIM" in bridge
+        "subject->masks & TORIRSSERVER_PMASK_SPOTANIM" in bridge
         and "ext.has_spotanim = 1" in bridge
-        and "ext.spotanim_slot = 0" in bridge,
+        and "ext.spotanims[i].id = subject->spotanims[i].id" in bridge,
         "rev239 player-info bridge does not forward SPOTANIM_PL",
     )
     script = (

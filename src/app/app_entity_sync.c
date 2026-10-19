@@ -9,13 +9,15 @@
 
 #include "app/app_internal.h"
 
-/* An entry's graphic slots: the rev-239 npc's, of which a player uses one. */
+/* An entry's graphic slots: the rev-239 actor's, a player's as an npc's. */
 #define APP_ENTITY_SPOT_SLOTS ((int)(sizeof(((struct AppEntitySpotanim*)0)->slots) / \
                                      sizeof(((struct AppEntitySpotanim*)0)->slots[0])))
 _Static_assert(sizeof(((struct AppEntitySpotanim*)0)->slots) /
                        sizeof(((struct AppEntitySpotanim*)0)->slots[0]) ==
                    WORLD_NPC_SPOTANIM_SLOTS,
                "one combine slot per world graphic slot");
+_Static_assert(WORLD_PLAYER_SPOTANIM_SLOTS == WORLD_NPC_SPOTANIM_SLOTS,
+               "a player's graphic slots combine as an npc's");
 
 /* Private to this unit, declared up front so definition order is free. */
 static void
@@ -737,8 +739,8 @@ app_world_sync_entity_spotanims(struct App* app)
         if( player && player->element_id >= 0 )
             app_world_sync_one_entity_spotanim(
                 app,
-                &player->spotanim,
-                1,
+                player->spotanims,
+                WORLD_PLAYER_SPOTANIM_SLOTS,
                 player->element_id,
                 WORLD_ENTITY_ID(WORLD_ENTITY_KIND_PLAYER, player->server_pid));
     }

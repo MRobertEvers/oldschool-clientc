@@ -9,6 +9,14 @@
 #define WORLD_PLAYER_BODY_FROM_SLOTS (-1)
 #define WORLD_PLAYER_BODY_HIDDEN (-2)
 
+/* Attached-graphic slots: the rev-239 player wears one graphic per numbered
+ * slot, as an npc does, and a SPOTANIM entry replaces only its own. The ToA
+ * Kephri dung marker (slot 0) stays up under a ranged launch (slot 1). */
+enum
+{
+    WORLD_PLAYER_SPOTANIM_SLOTS = 8,
+};
+
 struct WorldEntity_Player
 {
     int element_id;
@@ -24,7 +32,7 @@ struct WorldEntity_Player
     struct WorldEntityFacet_Chat chat;
     struct WorldEntityFacet_Appearance appearance;
     struct WorldEntityFacet_ExactMove exact_move;
-    struct WorldEntityFacet_EntitySpotanim spotanim;
+    struct WorldEntityFacet_EntitySpotanim spotanims[WORLD_PLAYER_SPOTANIM_SLOTS];
     char name[32];
     int combat_level;
     int gender;

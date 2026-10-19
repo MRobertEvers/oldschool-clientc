@@ -2163,6 +2163,42 @@ test_entity_spotanim_holds_until_resident(void)
 }
 
 /*
+ * A player's graphic replaces only its own slot.
+ *
+ * Jagex sends the ToA Kephri dung marker in slot 0 and the raider's arrow
+ * launch in slot 1 (RSProx 1852, one block). With one graphic per player the
+ * launch replaced the marker, and the raider never saw the flies.
+ */
+void
+test_player_spotanim_slots(void)
+{
+    printf("TEST: a player graphic in slot 1 leaves slot 0's playing\n");
+
+    struct World* world = World_TestMakeReady(104);
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+    int pi = World_PlayerSpawn(world, 1, 0, 20, 20, idle);
+    struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, pi);
+
+    world->seq_source.spotanim_seq = spot_test_spotanim_seq;
+    world->seq_source.frame_count = spot_test_frame_count;
+    world->seq_source.frame_duration = spot_test_frame_duration;
+    g_spot_test_resident = 1;
+
+    World_PlayerSetSpotanim(world, pi, 0, 2146, 0, 0);
+    World_Cycle(world, 1);
+    World_PlayerSetSpotanim(world, pi, 1, 24, 96, 0);
+    World_Cycle(world, 1);
+    TEST_ASSERT(player->spotanims[0].id == 2146, "the slot-0 marker is still up");
+    TEST_ASSERT(player->spotanims[1].id == 24, "the slot-1 launch plays beside it");
+
+    World_PlayerSetSpotanim(world, pi, 0, 245, 124, 0);
+    TEST_ASSERT(player->spotanims[0].id == 245, "a second slot-0 graphic replaces the first");
+    TEST_ASSERT(player->spotanims[1].id == 24, "and leaves slot 1 alone");
+
+    World_Free(world);
+}
+
+/*
  * A graphic that resolves to nothing to play retires the cycle it comes due.
  *
  * The reference unlinks a spot whose seq is not valid on its first due cycle.

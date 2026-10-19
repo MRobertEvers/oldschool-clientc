@@ -877,6 +877,7 @@ main(void)
         struct PktPlayerInfoOp const* face = NULL;
         struct PktPlayerInfoOp const* chat = NULL;
         struct PktPlayerInfoOp const* spot = NULL;
+        struct PktPlayerInfoOp const* spot2 = NULL;
         struct PktPlayerInfoOp const* exact = NULL;
         int op_count;
 
@@ -893,9 +894,13 @@ main(void)
         ext.face.instant = 1;
         ext.face.walk_mode = 1;
         ext.has_spotanim = 1;
-        ext.spotanim_slot = 2;
-        ext.spotanim_id = 777;
-        ext.spotanim_height_delay = (24 << 16) | 9;
+        ext.spotanim_count = 2;
+        ext.spotanims[0].slot = 2;
+        ext.spotanims[0].id = 777;
+        ext.spotanims[0].height_delay = (24 << 16) | 9;
+        ext.spotanims[1].slot = 0;
+        ext.spotanims[1].id = 2146;
+        ext.spotanims[1].height_delay = 0;
         ext.has_chat = 1;
         ext.chat_colour_effect = (4 << 8) | 2;
         ext.chat_type = 1;
@@ -921,7 +926,11 @@ main(void)
             if( ops[i].kind == PKT_PLAYER_INFO_OP_DAMAGE ) hit = &ops[i];
             if( ops[i].kind == PKT_PLAYER_INFO_OP_FACE_ANGLE ) face = &ops[i];
             if( ops[i].kind == PKT_PLAYER_INFO_OP_CHAT ) chat = &ops[i];
-            if( ops[i].kind == PKT_PLAYER_INFO_OP_SPOTANIM ) spot = &ops[i];
+            if( ops[i].kind == PKT_PLAYER_INFO_OP_SPOTANIM )
+            {
+                if( spot ) spot2 = &ops[i];
+                else spot = &ops[i];
+            }
             if( ops[i].kind == PKT_PLAYER_INFO_OP_EXACT_MOVE ) exact = &ops[i];
         }
         CHECK(hit && hit->_damage.delay == 6 && hit->_damage.slots == 3,
@@ -937,6 +946,8 @@ main(void)
         CHECK(spot && spot->_spotanim.slot == 2 && spot->_spotanim.spotanim_id == 777 &&
                   spot->_spotanim.height_delay == ((24 << 16) | 9),
               "spotanim slot/id/height/delay survive");
+        CHECK(spot2 && spot2->_spotanim.slot == 0 && spot2->_spotanim.spotanim_id == 2146,
+              "a second graphic in another slot rides the same block");
         CHECK(exact && exact->_exactmove.relative && exact->_exactmove.start_x == -2 &&
                   exact->_exactmove.start_z == 3 && exact->_exactmove.end_x == 4 &&
                   exact->_exactmove.end_z == -5 && exact->_exactmove.end_cycle_delta == 7 &&

@@ -6,7 +6,7 @@
 /* Included by exactly one translation unit: ss_meta.c. */
 
 /* Opcode names, for traces and the loud stub's report. */
-static const char* const g_ss_opcode_names[11158] = {
+static const char* const g_ss_opcode_names[11211] = {
     [0] = "PUSH_CONSTANT_INT",
     [1] = "PUSH_VARP",
     [2] = "POP_VARP",
@@ -564,6 +564,7 @@ static const char* const g_ss_opcode_names[11158] = {
     [11155] = "NPC_PROJANIM_PL",
     [11156] = "NPC_PROJANIM_NPC",
     [11157] = "NPC_PROJANIM_MAP",
+    [11210] = "SPOTANIM_PL_SLOT",
 };
 
 /* Per-opcode stack signature and runtime-safety metadata.
@@ -573,7 +574,7 @@ static const char* const g_ss_opcode_names[11158] = {
  *
  * known == 0 means neither engine.rs2 nor MANUAL_META declared this
  * opcode, so its arity is unknown and it must not be executed. */
-static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11158] = {
+static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11211] = {
     [0] = { 0, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* PUSH_CONSTANT_INT */
     [1] = { 0, 0, 1, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* PUSH_VARP */
     [2] = { 1, 0, 0, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* POP_VARP */
@@ -1131,6 +1132,7 @@ static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11158] = {
     [11155] = { 9, 0, 0, 0, 1, 0, 0, 0, 0x010, 0x000 }, /* NPC_PROJANIM_PL */
     [11156] = { 9, 0, 0, 0, 1, 0, 0, 0, 0x010, 0x000 }, /* NPC_PROJANIM_NPC */
     [11157] = { 9, 0, 0, 0, 1, 0, 0, 0, 0x010, 0x000 }, /* NPC_PROJANIM_MAP */
+    [11210] = { 4, 0, 0, 0, 1, 0, 0, 0, 0x001, 0x000 }, /* SPOTANIM_PL_SLOT */
 };
 
 /* Trigger names, for script-name parsing and diagnostics. */

@@ -719,6 +719,7 @@ player_apply_op(
         World_PlayerSetSpotanim(
             world,
             idx,
+            op->_spotanim.slot,
             op->_spotanim.spotanim_id,
             op->_spotanim.height_delay >> 16,
             op->_spotanim.height_delay & 0xffff);

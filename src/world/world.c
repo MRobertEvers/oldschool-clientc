@@ -1040,10 +1040,12 @@ World_PlayerSpawn(
         /* 0 is a real healthbar id (the standard bar), so "no bar" has to be
          * spelled rather than left to the pool's zeroing. */
         .combat = { .healthbar_type = -1 },
-        /* Reference ClientEntity default: no attached graphic (spotanimId -1). */
-        .spotanim = { .id = -1, .frame = -1 },
         .seq_sent_id = -1,
     };
+    /* Reference ClientEntity default: no attached graphic in any slot
+     * (spotanimId -1). */
+    for( int i = 0; i < WORLD_PLAYER_SPOTANIM_SLOTS; i++ )
+        player->spotanims[i] = (struct WorldEntityFacet_EntitySpotanim){ .id = -1, .frame = -1 };
     return idx;
 }
 
@@ -2992,15 +2994,19 @@ void
 World_PlayerSetSpotanim(
     struct World* world,
     int idx,
+    int slot,
     int spotanim_id,
     int height,
     int cycle_delay)
 {
     assert(world);
+    assert(slot >= 0);
     struct World_EntityPool* pool = &world->entities.player;
     assert(World_EntityPoolIsActive(pool, idx));
     struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
-    world_set_entity_spotanim(world, &player->spotanim, spotanim_id, height, cycle_delay);
+    if( slot >= WORLD_PLAYER_SPOTANIM_SLOTS )
+        slot = WORLD_PLAYER_SPOTANIM_SLOTS - 1;
+    world_set_entity_spotanim(world, &player->spotanims[slot], spotanim_id, height, cycle_delay);
 }
 
 void

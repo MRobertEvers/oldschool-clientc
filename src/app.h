@@ -2645,8 +2645,8 @@ struct App
          * The liveness sweep cannot see it either: a recycled id IS live.
          */
         int owner_entity_id;
-        /* One per rev-239 graphic slot (WORLD_NPC_SPOTANIM_SLOTS; a player
-         * uses slot 0): every slot drawing is merged onto the one body. */
+        /* One per rev-239 graphic slot (WORLD_NPC_SPOTANIM_SLOTS, a player's
+         * as an npc's): every slot drawing is merged onto the one body. */
         struct AppEntitySpotanimSlot
         {
             int spotanim_id;   /* -1 = slot empty */

@@ -485,7 +485,7 @@ app_world_entity_spotanim_test(
     pool = &app->world->entities.player;
     for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
          i = World_EntityPoolNext(pool, i) )
-        World_PlayerSetSpotanim(app->world, i, spotanim_id, height, delay);
+        World_PlayerSetSpotanim(app->world, i, 0, spotanim_id, height, delay);
     pool = &app->world->entities.npc;
     for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
          i = World_EntityPoolNext(pool, i) )

@@ -4799,16 +4799,22 @@ player_extended_v5(struct ToriRSServer* srv, struct ToriRSServerPlayer* viewer,
             }
             if( subject->masks & TORIRSSERVER_PMASK_SPOTANIM )
             {
-                /* The classic script/runtime surface has one attached-graphic
-                 * field. Revision 239 carries the same graphic in its indexed
-                 * spotanim block; slot zero is the direct equivalent. Keeping
-                 * this bridge here matters when ANIM and SPOTANIM_PL are set in
-                 * the same tick: both masks must survive into one extended-info
-                 * packet. */
+                /* Revision 239 carries this tick's graphics as an indexed list,
+                 * one per slot (`spotanim_pl` is slot 0); the classic writer
+                 * has the last one alone. Keeping this bridge here matters
+                 * when ANIM and SPOTANIM_PL are set in the same tick: both
+                 * masks must survive into one extended-info packet. */
+                _Static_assert(MOCK239_PLAYER_SPOTANIM_MAX == TORIRSSERVER_NPC_SPOTANIM_MAX,
+                               "one wire entry per server slot");
+                assert(subject->spotanim_count > 0);
                 ext.has_spotanim = 1;
-                ext.spotanim_slot = 0;
-                ext.spotanim_id = subject->spotanim_id;
-                ext.spotanim_height_delay = subject->spotanim_height_delay;
+                ext.spotanim_count = subject->spotanim_count;
+                for( int i = 0; i < subject->spotanim_count; i++ )
+                {
+                    ext.spotanims[i].slot = subject->spotanims[i].slot;
+                    ext.spotanims[i].id = subject->spotanims[i].id;
+                    ext.spotanims[i].height_delay = subject->spotanims[i].height_delay;
+                }
             }
             ext.has_face = v5_face_from_classic(
                 &ext.face, viewer, subject->masks, TORIRSSERVER_PMASK_FACE_ENTITY,
@@ -4870,8 +4876,8 @@ player_extended_v5(struct ToriRSServer* srv, struct ToriRSServerPlayer* viewer,
                         subject->masks, movement, movement_value,
                         ext.has_temp_move_speed ? ext.temp_move_speed : -1, ext.hit_type,
                         ext.hit_value, ext.seq_id, ext.seq_delay,
-                        ext.has_spotanim ? ext.spotanim_id : -1,
-                        ext.has_spotanim ? ext.spotanim_slot : -1, ext.has_face,
+                        ext.has_spotanim ? ext.spotanims[0].id : -1,
+                        ext.has_spotanim ? ext.spotanims[0].slot : -1, ext.has_face,
                         appearance_len, ext.has_exact_move, ext.exact_start_x,
                         ext.exact_start_z, ext.exact_end_x, ext.exact_end_z,
                         ext.exact_start_cycle, ext.exact_end_cycle, ext.exact_facing);

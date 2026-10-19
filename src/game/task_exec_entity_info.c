@@ -777,14 +777,16 @@ player_apply_op(
         break;
     case PKT_PLAYER_INFO_OP_SPOTANIM:
         if( torirs_env_net_debug() )
-            TORIRS_LOG("player_info: spotanim idx=%d id=%d height=%d delay=%d\n",
+            TORIRS_LOG("player_info: spotanim idx=%d slot=%d id=%d height=%d delay=%d\n",
                 idx,
+                op->_spotanim.slot,
                 op->_spotanim.spotanim_id,
                 op->_spotanim.height_delay >> 16,
                 op->_spotanim.height_delay & 0xffff);
         World_PlayerSetSpotanim(
             world,
             idx,
+            op->_spotanim.slot,
             op->_spotanim.spotanim_id,
             op->_spotanim.height_delay >> 16,
             op->_spotanim.height_delay & 0xffff);

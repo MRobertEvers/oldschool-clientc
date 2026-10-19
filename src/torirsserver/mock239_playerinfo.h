@@ -65,6 +65,10 @@ struct RSAreaBuf;
  *  2047 low-resolution entries when the local player is one of them. */
 #define MOCK239_PLAYER_SLOTS 2048
 
+/** Graphics one PLAYER_INFO spotanim block carries (the server's per-tick
+ *  slot list, TORIRSSERVER_NPC_SPOTANIM_MAX). */
+#define MOCK239_PLAYER_SPOTANIM_MAX 8
+
 /**
  * The init block that rides inside REBUILD_LOGIN.
  *
@@ -157,10 +161,17 @@ struct Mock239PlayerExt
     int chat_type;
     uint8_t const* chat_data;
     int chat_len;
+    /** PlayerSpotAnimEncoder's list: one graphic per numbered slot, each
+     *  replacing only its own slot's on the client. */
     int has_spotanim;
-    int spotanim_slot;
-    int spotanim_id;
-    int spotanim_height_delay;
+    int spotanim_count;
+    struct Mock239PlayerSpotanim
+    {
+        int slot;
+        int id;
+        /** height << 16 | delay, as the wire carries it. */
+        int height_delay;
+    } spotanims[MOCK239_PLAYER_SPOTANIM_MAX];
     /** A sequence to play: `seq_id` < 0 cancels whatever is running. */
     int has_seq;
     int seq_id;

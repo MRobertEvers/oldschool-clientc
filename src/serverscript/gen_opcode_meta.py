@@ -1144,6 +1144,15 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # and its accuracy debuff (slot 5); docs/rsprox-analysis/tormented_demons.
     "SPOTANIM_NPC_SLOT": (11134, 4, 0, 0, 0),
 
+    # spotanim_pl_slot(spotanim $spot, int $height, int $delay, int $slot)
+    #
+    # `spotanim_pl` into one of the rev-239 player's numbered graphic slots,
+    # replacing only that slot's. Jagex sends a ranged launch graphic in slot 1
+    # and the ToA Kephri dung marker in slot 0 on one tick; both draw
+    # (docs/rsprox-analysis/toa/kephri.md). Numbered clear of the running
+    # 111xx block so two sessions adding commands do not collide.
+    "SPOTANIM_PL_SLOT": (11210, 4, 0, 0, 0),
+
     # npc_headicon(int $slot, int $group, int $index)
     #
     # Headicon customisation: overhead slot `slot` draws frame `index` of
@@ -1520,6 +1529,7 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "HPBAR_HUD_NPC": (1 << POINTER_BITS["active_player"], 0),
     "MIDI_HOLD": (1 << POINTER_BITS["active_player"], 0),
     "SPOTANIM_NPC_SLOT": (1 << POINTER_BITS["active_npc"], 0),
+    "SPOTANIM_PL_SLOT": (1 << POINTER_BITS["active_player"], 0),
     "NPC_HEADICON": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_BODYMODEL": (1 << POINTER_BITS["active_npc"], 0),
     "HIDENPCOPS": (1 << POINTER_BITS["active_player"], 0),

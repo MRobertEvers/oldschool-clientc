@@ -1456,8 +1456,8 @@ World_CycleUpdatePlayers(
                 World_CycleActor(
                     &info,
                     &player->exact_move,
-                    &player->spotanim,
-                    1,
+                    player->spotanims,
+                    WORLD_PLAYER_SPOTANIM_SLOTS,
                     world->local_pid >= 0 && player->server_pid == world->local_pid,
                     player->transmog_size);
             }

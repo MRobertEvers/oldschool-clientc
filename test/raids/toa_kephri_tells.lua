@@ -87,7 +87,35 @@ return {
                 faced and tostring(faced.tick) or "-"))
         -- the radials, the first dung strike (S+29) and the first eggs (S+67)
         t.ticklog.mark("kephri.shielded")
-        wait(t, 55)
+        -- keep shooting through the first dung pick: the marker (2146) is
+        -- graphic slot 0 and an arrow launch slot 1, so a launch on the
+        -- marker's tick leaves it up (RSProx 1852: both in one block)
+        local mark_from = now(t)
+        t.player.attack("toa_kephri_boss_shielded", 2, 2, { quick = true })
+        wait(t, 10)
+        t.player.walk_to(ox + 35, oz + 34, 4)
+        t.player.walk_to(ox + 35, oz + 35, 4)
+        local markers, launches, wrong, shared = 0, 0, 0, 0
+        local launch_ticks = {}
+        local spots = rows_since(t, "player_spotanim", mark_from)
+        for _, row in ipairs(spots) do
+            if row.height == 96 then
+                launches = launches + 1
+                launch_ticks[row.tick] = true
+                if row.spot_slot ~= 1 then wrong = wrong + 1 end
+            end
+        end
+        for _, row in ipairs(spots) do
+            if row.spotanim == 2146 then
+                markers = markers + 1
+                if row.spot_slot ~= 0 then wrong = wrong + 1 end
+                if launch_ticks[row.tick] then shared = shared + 1 end
+            end
+        end
+        t.expect("kephri.marker_slot", (markers > 0 and launches > 0 and wrong == 0 and shared > 0) and "ok" or "fail",
+            string.format("%d markers, %d launches, %d in the wrong slot, %d markers on a launch tick",
+                markers, launches, wrong, shared))
+        wait(t, 41)
         -- the first eggs are down (S+71): shoot a hatching one. A killed egg pops
         -- (spotanim_dungball_explosion01 2166, sound 6479) and is gone that tick,
         -- with no animation of its own.

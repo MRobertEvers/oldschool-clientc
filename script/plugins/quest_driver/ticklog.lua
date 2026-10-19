@@ -97,7 +97,7 @@ QD.ticklog.FIELDS = {
     jingle = { "pid", "jingle", "length_ms" },
     -- `anim` / `spotanim_pl` / `loc_anim` / `npc_say` (torirs_server_scripts.c).
     player_anim = { "pid", "seq", "delay" },
-    player_spotanim = { "pid", "spotanim", "height", "delay" },
+    player_spotanim = { "pid", "spotanim", "height", "delay", "spot_slot" },
     loc_anim = { "coord", "loc", "shape", "angle", "seq" },
     -- `text` (the row's label) is added by _name.
     npc_say = { "slot", "type", "coord" },

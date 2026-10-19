@@ -917,13 +917,14 @@ ToriRSServer_TicklogPlayerSpotanim(
     const struct ToriRSServerPlayer* player,
     int spotanim,
     int height,
-    int delay)
+    int delay,
+    int spot_slot)
 {
     if( !ticklog_on_for(srv) )
         return;
     assert(player);
-    ticklog_push(TORIRSSERVER_TICKLOG_PLAYER_SPOTANIM, player->pid, spotanim, height, delay, 0, 0,
-                 NULL);
+    ticklog_push(TORIRSSERVER_TICKLOG_PLAYER_SPOTANIM, player->pid, spotanim, height, delay,
+                 spot_slot, 0, NULL);
 }
 
 void
