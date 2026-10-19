@@ -164,6 +164,29 @@ nothing is locked and that spit does not come.
 | Retaliation | the line; an acidsplash on the raider (height 80); his spit seq with delay s; `leech_suck` at his centre (delay s, range 8); **one** acidspit following the raider, height 87 → 20, angle 16, progress 32 | an instant damage splat, nothing else | **fixed** |
 | Its timing | at footprint distance 1, s = 0 and end 25. At 2, s = 1 and end 30. At 3, 4 and 5, s = 2 and end 60, 90, 120. The poison splat lands floor(end ÷ 30) ticks after the line | | **fixed** |
 
+## Damage (2026-10-19)
+
+These are read from **14 sessions re-transcribed with every raider shown**:
+3299, 1833, 1837, 1764, 3285, 788, 582, 1779, 553, 554, 1758 and 1163 for
+Normal; 1852 and 1837 for Hard; 101 and 554 for Entry. Every one is from a
+seasonal world. Leagues V takes about a tenth off what a raider is dealt
+(maiden.md, "Damage, heals and her adds"), so each Normal figure below sits
+about 0.9 of ours.
+
+| | Recorded | Ours | Status |
+|---|---|---|---|
+| Standing on a pool | a poison splat **every tick** they stay (67 of 70 raider-ticks), 2–7 | the same: the ground sweep, every tick | match |
+| Stepping onto a pool | no splat that tick (15 of 18); it starts the next | the crossing's delayed hit, a tick later | match |
+| An exhumed underfoot (phase 1) | nothing (482 of 482) | nothing | match |
+| Pool and spit poison | 2–7 (Normal), 1–10 (Hard) | 4–8, raised by the share absorbed in phase 1 | match after the ~0.9 |
+| Guano (a raider under him) | two **damage** splats the next tick (29 of 45), 3–7 each | two, 2–8 | match |
+| Stare: the retaliation | **one poison splat** with the line, 41–72 in Normal where the raider's hitpoints did not cap it; Hard 50–74 | 50–75, raised by the absorbed share, as a poison splat | match after the ~0.9 |
+| Stare: how many | one line and one splat a tick. The only tick on which the recorder landed two splats of their own drew one | one per hitsplat landed [wiki "per hit"] | **open**: one sample |
+
+The pools are reset at each of his spawns. Instance tiles translate to the same
+coordinates every raid, so a reading that keeps them across raids counts
+earlier fights' pools as live, and finds "standing on a pool" nearly harmless.
+
 ## His death
 
 All 28 kills give the same sequence. T is the killing hit.
