@@ -109,4 +109,5 @@ Mutation checks, both in worktrees:
 | Shouts | The rate is fitted to 5 shouts, all in 820. NR's third line, "Intruder!", was never heard. |
 | The ranger's heights | 163 -> 146 is sent as 164 -> 148, the nearest values our height byte can carry. |
 | The wake out of sight | Never recorded: every recorded crossing was in the guards' sight. |
+| The attack range (2026-10-19) | No target ever stood 10 or more from an engaged guard, so `attackrange=10` is neither confirmed nor refuted. Every due attack came at the gaps recorded: a mage's target stood 9 off for 278 engaged ticks in 820 and was cast at on schedule (69 casts), a ranger's at most 8 off. No source (wiki infobox, dps-calc, NR) states the range. `maxrange=8` (dropped past 9 off its post) fits: 9 is the farthest any target stood. |
 | The Agility requirement and xp | Not read here (Mod Ash's 80-100% and NR's 7.5 stand). |
