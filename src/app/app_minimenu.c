@@ -1859,7 +1859,13 @@ app_inv_drag_tick(
         !app->frame_view->minimenu->visible && LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) )
     {
         struct UITreeObjCell cell;
-        if( app_obj_cell_at(app, mx, my, &cell) )
+        /* Arm where the button went DOWN, not where the pointer is by the
+         * time this frame runs: the deob arms at MouseHandler's last-pressed
+         * point (class415 -> method12091 with field5273's pressed x/y), and a
+         * frame that ran late has already seen the hand move on. */
+        int const press_x = input->press_origin_x[TORIRSM_LEFT];
+        int const press_y = input->press_origin_y[TORIRSM_LEFT];
+        if( app_obj_cell_at(app, press_x, press_y, &cell) )
         {
             struct UITreeComponent const* node =
                 (cell.node_index >= 0 && (uint32_t)cell.node_index < app->tree->component_count)
@@ -1875,7 +1881,7 @@ app_inv_drag_tick(
             press.obj_id = cell.obj_id;
             press.dead_zone = node ? node->drag_dead_zone : 0;
             press.dead_time = node ? node->drag_dead_time : 0;
-            UIInvDrag_Arm(&app->inv_drag, &press, mx, my);
+            UIInvDrag_Arm(&app->inv_drag, &press, press_x, press_y);
             /* Both logics fade the armed cell on the down edge, so the frame
              * that arms is a frame that changed. */
             app->need_redraw = 1;
@@ -1910,9 +1916,18 @@ app_inv_drag_tick(
     /* Released. */
     if( app_inv_drag_promoted(app) )
         app_inv_drag_drop(app, mx, my);
+    else if( App_UiLogic(app) == APP_UI_LOGIC_CS1 )
+        app_run_default_ui_row(app, mx, my);
     else
     {
-        app_run_default_ui_row(app, mx, my);
+        /* A short click is the PRESSED cell's, wherever the button came up:
+         * the deob's release branch runs method3760 at the grab offset plus
+         * the component's position (class415.method9529), not at the mouse.
+         * Taking the release point dropped fast gear switches -- the hand is
+         * already travelling to the next item when the button comes up, so
+         * the row was built over the gap between cells (nothing) or over the
+         * neighbour (the wrong item). */
+        app_run_default_ui_row(app, app->inv_drag.grab_x, app->inv_drag.grab_y);
     }
     app_inv_drag_cancel(app);
 }

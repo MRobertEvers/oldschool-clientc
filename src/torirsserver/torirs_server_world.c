@@ -7164,13 +7164,13 @@ ToriRSServer_TeleNexusStageClick(
 /* INV_BUTTOND / IfButtonD: rev-230 dual-endpoint frame (16 bytes):
  *   srcCom p4 LE, srcObj p2 LE, srcSlot p2 LE+128,
  *   dstCom p4 BE, dstObj p2 BE+128, dstSlot p2 BE+128.
- * The endpoint object fields are the item ids painted on the two widgets.
- * Rev239's inventory script paints a client-only null object on empty cells,
- * so an empty destination does not necessarily send -1. The server's own
- * container is authoritative about whether the slot is empty. The CS2 drag
- * hook optimistically repaints the two dynamic widgets but does not mutate the
- * logical inventory; this packet is what actually moves the items, and the
- * following transmit reconciles that paint with server state.
+ * The endpoint object fields are the item ids painted on the two widgets
+ * AFTER the CS2 drag hook has optimistically repainted them (swapped), and
+ * rev239 paints a client-only null object (6512) on empty cells. They say
+ * nothing reliable about the container, so the backpack path ignores them.
+ * The hook does not mutate the logical inventory; this packet is what
+ * actually moves the items, and the following transmit reconciles that paint
+ * with server state.
  *
  * Same-component moves inside the backpack and bankmain items are accepted.
  * Bank item → bankmain:tabs assigns the stack to that tab (updates tab_size).
@@ -7238,17 +7238,14 @@ handle_inv_buttond(
         if( src_slot < 0 || src_slot >= TORIRSSERVER_INV_SLOTS || dst_slot < 0 ||
             dst_slot >= TORIRSSERVER_INV_SLOTS )
             return;
-        /* Stale source: a drag can only begin on the item the server still has
-         * in that slot. The destination item is likewise checked when filled.
-         * When the authoritative destination is empty, ignore its cosmetic
-         * widget item: rev239 deliberately paints a non-empty null object in
-         * empty inventory cells and method3759 transmits that field verbatim. */
-        if( player->inv[src_slot].obj_id != src_obj )
-            return;
-        if( player->inv[dst_slot].obj_id >= 0 &&
-            player->inv[dst_slot].obj_id != dst_obj )
-            return;
-
+        /* The slots are the move; the two obj fields are not checked. The
+         * rev-239 client runs the cell's onDragComplete script (class415
+         * method3748) before class108.method3759 writes this packet, and the
+         * inventory's script repaints the two cells first: the source field
+         * carries the destination's old item, or the null placeholder 6512
+         * when the destination was empty. Comparing them to player->inv
+         * refused every vanilla-client drag. RSMod's HeldOpScript.dragHeld
+         * moves by slot alone for the same reason. */
         swap = player->inv[src_slot];
         inv_set(player, src_slot, player->inv[dst_slot].obj_id, player->inv[dst_slot].count);
         inv_set(player, dst_slot, swap.obj_id, swap.count);

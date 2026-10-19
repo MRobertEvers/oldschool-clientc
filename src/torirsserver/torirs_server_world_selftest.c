@@ -38983,6 +38983,29 @@ ToriRSServer_WorldSelftest(void)
         SELFTEST_CHECK((player->inv_dirty & (1u << from_slot)) != 0, "from slot marked dirty");
         SELFTEST_CHECK((player->inv_dirty & (1u << to_slot)) != 0, "to slot marked dirty");
 
+        /* class415 runs the cell's onDragComplete before class108.method3759
+         * writes the frame, and the inventory script has already repainted
+         * the two cells: a vanilla client names each endpoint with the OTHER
+         * cell's old item. The swap goes by slot regardless. */
+        {
+            int painted_src = player->inv[to_slot].obj_id;
+            int painted_dst = player->inv[from_slot].obj_id;
+
+            rsab_wrap(&buf, payload, sizeof(payload));
+            rsab_p4_alt1(&buf, com);
+            rsab_p2_alt1(&buf, painted_src);
+            rsab_p2_alt3(&buf, from_slot);
+            rsab_p4(&buf, com);
+            rsab_p2_alt2(&buf, painted_dst);
+            rsab_p2_alt2(&buf, to_slot);
+            selftest_handle(player, PKTOUT_NAME_INV_BUTTOND, payload, (int)rsab_len(&buf));
+
+            SELFTEST_CHECK(player->inv[from_slot].obj_id == from_obj,
+                           "a repainted (deob-order) frame still swaps (from)");
+            SELFTEST_CHECK(player->inv[to_slot].obj_id == to_obj,
+                           "a repainted (deob-order) frame still swaps (to)");
+        }
+
         /* class108.method3759 sends the target widget's item field verbatim.
          * Rev239's inventory paint gives empty cells a cosmetic null object,
          * so prove a non-negative target field is accepted when the server's

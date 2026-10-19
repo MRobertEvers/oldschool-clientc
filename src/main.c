@@ -3406,20 +3406,24 @@ frame_loop_step(void)
                 }
             }
 
-            /* TORIRS_SIM_DRAG="frame,x0,y0,x1,y1[,repeats[,button]]": press at
-             * (x0,y0), move to (x1,y1) over 20 frames, release, and repeat
+            /* TORIRS_SIM_DRAG="frame,x0,y0,x1,y1[,repeats[,button[,steps]]]":
+             * press at (x0,y0), move to (x1,y1) over `steps` frames (default
+             * 20), release, and repeat
              * `repeats` times (default 1). The only way to exercise a drag
              * headlessly — SIM_CLICK_AT presses and releases in the same
              * place, which no drag handler reacts to — and the repeat is
              * what keeps a pan going long enough to show what a client does
              * when the view never settles. `button` is the LibToriRS_MouseButton
              * code (1 left, 2 middle, 3 right) and defaults to left; middle is
-             * what drives the viewport's camera rotate. */
+             * what drives the viewport's camera rotate. A small `steps` is a
+             * click whose hand is already moving on when the button comes up
+             * -- inside an inventory cell's dead time, so a click, not a drag. */
             {
                 static long drag_frame = -2;
                 static long drag_x0, drag_y0, drag_x1, drag_y1;
                 static long drag_repeats = 1;
                 static long drag_button = 1;
+                static long drag_steps = 20;
                 if( drag_frame == -2 )
                 {
                     char const* spec = getenv("TORIRS_SIM_DRAG");
@@ -3427,10 +3431,10 @@ frame_loop_step(void)
                     if( spec && *spec )
                     {
                         char* end = NULL;
-                        long values[7];
+                        long values[8];
                         int count = 0;
                         values[count++] = strtol(spec, &end, 0);
-                        while( count < 7 && end && *end == ',' )
+                        while( count < 8 && end && *end == ',' )
                             values[count++] = strtol(end + 1, &end, 0);
                         if( count >= 5 )
                         {
@@ -3441,13 +3445,14 @@ frame_loop_step(void)
                             drag_y1 = values[4];
                             drag_repeats = count > 5 && values[5] > 0 ? values[5] : 1;
                             drag_button = count > 6 && values[6] > 0 ? values[6] : 1;
+                            drag_steps = count > 7 && values[7] > 0 ? values[7] : 20;
                         }
                     }
                 }
                 if( drag_frame >= 0 && frame_count >= drag_frame )
                 {
                     long step = frame_count - drag_frame;
-                    long const steps = 20;
+                    long const steps = drag_steps;
                     if( step == 0 )
                         CmdBus_PushMouseMove(&bus, (int)drag_x0, (int)drag_y0);
                     else if( step == 2 )
