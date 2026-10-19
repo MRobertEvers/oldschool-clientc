@@ -139,6 +139,7 @@ db_kind_for_type(const char* name)
         { "npc", TORIRSSERVER_PACK_NPC },           { "namedobj", TORIRSSERVER_PACK_OBJ },
         { "obj", TORIRSSERVER_PACK_OBJ },           { "loc", TORIRSSERVER_PACK_LOC },
         { "seq", TORIRSSERVER_PACK_SEQ },           { "spotanim", TORIRSSERVER_PACK_SPOTANIM },
+        { "synth", TORIRSSERVER_PACK_SYNTH },
         { "inv", TORIRSSERVER_PACK_INV },           { "varp", TORIRSSERVER_PACK_VARP },
         { "interface", TORIRSSERVER_PACK_INTERFACE },
         { "component", TORIRSSERVER_PACK_COMPONENT },

@@ -37700,6 +37700,39 @@ ToriRSServer_WorldSelftest(void)
         }
 
         /*
+         * 3c. RSProx appearance blocks (2026-10-19): the ancient sceptre and the
+         * kodai wand stand on the staff set (skill_combat/configs/bas/
+         * sceptres_wands.obj), and a god staff does not -- guthix_staff is
+         * recorded on human_ready, so "a staff-category weapon gets the staff
+         * stance" is not the rule.
+         */
+        {
+            static const struct
+            {
+                const char* obj;
+                const char* ready;
+            } k_stances[] = {
+                { "ancient_sceptre", "human_staffready" },
+                { "kodai_wand", "human_staffready" },
+                { "guthix_staff", "human_ready" },
+            };
+            int ready_param = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_PARAM, "ready_baseanim");
+
+            for( size_t i = 0; i < sizeof(k_stances) / sizeof(k_stances[0]); i++ )
+            {
+                int obj = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, k_stances[i].obj);
+                int want = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_SEQ, k_stances[i].ready);
+                const struct ToriRSServerObjParam* bas = ToriRSServer_ObjParam(obj, ready_param);
+
+                SELFTEST_CHECK(obj > 0 && want > 0, "%s / %s resolve", k_stances[i].obj,
+                               k_stances[i].ready);
+                SELFTEST_CHECK(bas != NULL && bas->ival == want,
+                               "%s carries ready_baseanim=%s (got %d want %d)", k_stances[i].obj,
+                               k_stances[i].ready, bas ? bas->ival : -1, want);
+            }
+        }
+
+        /*
          * 4. `inv_movefromslot`, which is the one opcode here with no visible
          * effect until two items want the same cell.
          *

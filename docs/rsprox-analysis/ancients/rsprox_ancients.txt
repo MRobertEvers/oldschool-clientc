@@ -1,0 +1,225 @@
+====================================================================================================
+?: 4 casts, 0 splashed, sessions {'1108(r237)': 2, '1703(r226)': 2}
+  named by opnpct: {}
+  caster seq: {'zaros_vertical_casting (1979) r237': 2, 'zaros_vertical_casting (1979) r226': 2}
+  caster gfx: {('zaros_teleport (392) h0 d0',): 4}
+  projectile: {'(no projectile)': 4}
+  flight (tiles, end-start): {}
+  impact on target: {}
+  impact delay vs projectile end: {}
+  aoe extra victims: {0: 4}
+  synth (spell sounds only): {(): 4}
+  sound_area (spell sounds only; L = the landing cycle):
+        4  []
+  first hitsplat on target after cast (ticks): {}
+====================================================================================================
+blood_barrage: 685 casts, 9 splashed, sessions {'101(r227)': 46, '1702(r226)': 501, '1779(r227)': 1, '183(r227)': 5, '193(r227)': 1, '2102(r227)': 3, '552(r227)': 128}
+  named by opnpct: {}
+  caster seq: {'zaros_vertical_casting (1979) r227': 184, 'zaros_vertical_casting (1979) r226': 501}
+  caster gfx: {(): 684, ('tzhaar_fire_launch_impact (446) h0 d108',): 1}
+  projectile: {'(no projectile)': 685}
+  flight (tiles, end-start): {}
+  impact on target: {'spell_blood_barrage_impact (377) h0': 676, 'failedspell_impact (85) h124': 9}
+  impact delay vs projectile end: {'delay=116': 14, 'delay=106': 10, 'delay=66': 71, 'delay=96': 32, 'delay=86': 33, 'delay=56': 472, 'delay=76': 17, 'delay=136': 10, 'delay=156': 9, 'delay=126': 10, 'delay=166': 4, 'delay=146': 1, 'delay=176': 2}
+  aoe extra victims: {0: 196, 1: 141, 4: 56, 6: 5, 2: 166, 5: 8, 3: 113}
+  synth (spell sounds only): {('blood_cast (106) d0',): 685}
+  sound_area (spell sounds only; L = the landing cycle):
+      194  ['blood_barrage_impact (102) L r10 @target']
+      130  ['blood_barrage_impact (102) L r10 @target', 'blood_barrage_impact (102) L r10 @target']
+       83  ['blood_barrage_impact (102) L r10 @target', 'blood_barrage_impact (102) L r10 @target', 'blood_barrage_impact (102) L r10 @target']
+       68  ['blood_barrage_impact (102) L r10 @d2', 'blood_barrage_impact (102) L r10 @target', 'blood_barrage_impact (102) L r10 @target']
+       42  ['blood_barrage_impact (102) L r10 @target', 'blood_barrage_impact (102) L r10 @target', 'blood_barrage_impact (102) L r10 @target', 'blood_barrage_impact (102) L r10 @target']
+       38  ['blood_barrage_impact (102) L r10 @d2', 'blood_barrage_impact (102) L r10 @target', 'blood_barrage_impact (102) L r10 @target', 'blood_barrage_impact (102) L r10 @target']
+       26  ['blood_barrage_impact (102) L r10 @d2', 'blood_barrage_impact (102) L r10 @d2', 'blood_barrage_impact (102) L r10 @target', 'blood_barrage_impact (102) L r10 @target']
+       19  ['blood_barrage_impact (102) L r10 @d2', 'blood_barrage_impact (102) L r10 @d2', 'blood_barrage_impact (102) L r10 @target', 'blood_barrage_impact (102) L r10 @target', 'blood_barrage_impact (102) L r10 @target']
+  first hitsplat on target after cast (ticks): {'+1': 18, '+2': 454, '+3': 120, '+4': 54, '+5': 19, '+6': 9, '+7': 7}
+====================================================================================================
+blood_blitz: 3 casts, 0 splashed, sessions {'1224(r238)': 1, '1433(r224)': 1, '552(r227)': 1}
+  named by opnpct: {}
+  caster seq: {'zaros_casting_walkmerge (10091) r238': 1, 'zaros_casting (1978) r224': 1, 'zaros_casting (1978) r227': 1}
+  caster gfx: {(): 3}
+  projectile: {'blood_blitz_travel (374) start=51 angle=16 progress=64 heights=43/0': 3}
+  flight (tiles, end-start): {(1, 5): 2, (5, 45): 1}
+  impact on target: {'blood_blitz_impact (375) h0': 3}
+  impact delay vs projectile end: {'delay-end=0': 3}
+  aoe extra victims: {0: 3}
+  synth (spell sounds only): {('blood_cast (106) d0',): 3}
+  sound_area (spell sounds only; L = the landing cycle):
+        3  ['blood_blitz_impact (104) L r10 @target']
+  first hitsplat on target after cast (ticks): {'+2 (end 56)': 2, '+4 (end 96)': 1}
+====================================================================================================
+blood_burst: 1 casts, 0 splashed, sessions {'1703(r226)': 1}
+  named by opnpct: {}
+  caster seq: {'zaros_vertical_casting (1979) r226': 1}
+  caster gfx: {(): 1}
+  projectile: {'(no projectile)': 1}
+  flight (tiles, end-start): {}
+  impact on target: {'spell_blood_burst_impact (376) h0': 1}
+  impact delay vs projectile end: {'delay=66': 1}
+  aoe extra victims: {0: 1}
+  synth (spell sounds only): {('blood_cast (106) d0', 'blood_burst_impact (105) dL'): 1}
+  sound_area (spell sounds only; L = the landing cycle):
+        1  []
+  first hitsplat on target after cast (ticks): {}
+====================================================================================================
+blood_burst/barrage?: 15 casts, 15 splashed, sessions {'101(r227)': 1, '1702(r226)': 2, '552(r227)': 12}
+  named by opnpct: {}
+  caster seq: {'zaros_vertical_casting (1979) r227': 13, 'zaros_vertical_casting (1979) r226': 2}
+  caster gfx: {(): 15}
+  projectile: {'(no projectile)': 15}
+  flight (tiles, end-start): {}
+  impact on target: {'failedspell_impact (85) h124': 15}
+  impact delay vs projectile end: {'delay=56': 2, 'delay=76': 2, 'delay=156': 1, 'delay=136': 1, 'delay=96': 4, 'delay=66': 1, 'delay=86': 2, 'delay=106': 1, 'delay=146': 1}
+  aoe extra victims: {0: 15}
+  synth (spell sounds only): {('blood_cast (106) d0',): 15}
+  sound_area (spell sounds only; L = the landing cycle):
+       15  ['spellfail (227) L r10 @target']
+  first hitsplat on target after cast (ticks): {'+1': 1, '+3': 1, '+7': 2, '+8': 4}
+====================================================================================================
+ice_barrage: 1338 casts, 87 splashed, sessions {'1225(r238)': 1, '1226(r238)': 1, '1433(r224)': 24, '1703(r226)': 99, '1764(r227)': 243, '1779(r227)': 67, '183(r227)': 23, '1833(r227)': 76, '1837(r227)': 59, '1852(r227)': 33, '1857(r227)': 3, '188(r227)': 3, '192(r227)': 1, '198(r227)': 71, '204(r227)': 3, '206(r227)': 2, '209(r227)': 4, '2100(r227)': 3, '2101(r227)': 7, '2102(r227)': 8, '2106(r227)': 3, '2107(r227)': 1, '2109(r227)': 3, '2110(r227)': 2, '2111(r227)': 6, '2112(r227)': 2, '2114(r227)': 9, '2115(r227)': 1, '2116(r227)': 2, '2117(r227)': 19, '2118(r227)': 3, '2119(r227)': 11, '213(r227)': 1, '214(r227)': 7, '215(r227)': 6, '3280(r234)': 14, '3285(r234)': 182, '3299(r234)': 229, '3389(r235)': 1, '3402(r235)': 13, '552(r227)': 2, '553(r227)': 58, '582(r227)': 19, '788(r234)': 10, '820(r234)': 2, '96(r227)': 1}
+  named by opnpct: {'ice_barrage': 11}
+  caster seq: {'zaros_vertical_casting_walkmerge (10092) r238': 2, 'zaros_vertical_casting (1979) r224': 24, 'zaros_vertical_casting (1979) r226': 99, 'zaros_vertical_casting (1979) r227': 762, 'zaros_vertical_casting_walkmerge (10092) r234': 437, 'zaros_vertical_casting_walkmerge (10092) r235': 14}
+  caster gfx: {(): 1279, ('leagues_6_regenerating_runes (3611) h0 d0',): 1, ('special_spear_spotanim (2793) h0 d0',): 8, ('wyvern_shield_equip (1395) h92 d0',): 2, ('fireblast_impact (131) h124 d124',): 5, ('fireblast_impact (131) h124 d132',): 2, ('fireblast_impact (131) h124 d68',): 2, ('fireblast_impact (131) h124 d156',): 1, ('fireblast_impact (131) h124 d116',): 1, ('fireblast_impact (131) h124 d108',): 4, ('fireblast_impact (131) h124 d84',): 3, ('fireblast_impact (131) h124 d140',): 5, ('fireblast_impact (131) h124 d76',): 3, ('fireblast_impact (131) h124 d30',): 5, ('watersurge_impact (1460) h124 d83',): 4, ('akkha_magic_impact (2254) h64 d108',): 1, ('levelup_anim (199) h124 d0',): 1, ('vfx_manticore_01_projectile_impact_magic_01 (2682) h100 d0',): 1, ('failedspell_impact (85) h320 d66',): 1, ('failedspell_impact (85) h320 d56',): 1, ('olm_playerswap_0 (1359) h0 d0',): 4, ('fireblast_impact (131) h124 d100',): 1, ('fireblast_impact (131) h124 d92',): 1, ('whisperer_entangle_impact (2466) h100 d0',): 1, ('verzik_phase1_impact (1581) h0 d113',): 1}
+  projectile: {'ice_barrage_travel (368) start=51 angle=16 progress=64 heights=43/0': 1336, 'ice_barrage_travel (368) start=51 angle=16 progress=64 heights=43/31': 2}
+  flight (tiles, end-start): {(0, 5): 113, (0, 15): 132, (0, 25): 161, (0, 35): 179, (0, 45): 144, (0, 55): 132, (0, 65): 80, (0, 75): 57, (0, 85): 43, (0, 95): 29, (0, 105): 6, (0, 115): 1, (1, 5): 2, (1, 15): 8, (1, 25): 9, (1, 35): 17, (1, 45): 17, (1, 55): 10, (1, 65): 12, (1, 75): 9, (1, 85): 6, (1, 95): 2, (1, 105): 3, (1, 115): 2, (2, 5): 2, (2, 15): 13, (2, 25): 21, (2, 35): 23, (2, 45): 13, (2, 55): 38, (2, 65): 14, (2, 75): 12, (2, 85): 5, (2, 95): 1, (2, 115): 1, (3, 5): 5, (3, 15): 5, (3, 25): 3, (3, 35): 2, (3, 45): 1, (3, 55): 1, (3, 65): 1, (14, 55): 2, (14, 85): 1}
+  impact on target: {'failedspell_impact (85) h124': 87, 'ice_barrage_impact (369) h0': 1236}
+  impact delay vs projectile end: {'delay-end=0': 1323}
+  aoe extra victims: {0: 835, 1: 231, 2: 201, 3: 36, 4: 18, 5: 17}
+  synth (spell sounds only): {('ice_cast (171) d0',): 1336, ('ice_cast (171) d0', 'ice_barrage_impact (168) dL'): 2}
+  sound_area (spell sounds only; L = the landing cycle):
+      696  ['ice_barrage_impact (168) L r10 @target']
+      185  ['ice_barrage_impact (168) L r10 @target', 'ice_barrage_impact (168) L r10 @target']
+      115  ['ice_barrage_impact (168) L r10 @target', 'ice_barrage_impact (168) L r10 @target', 'ice_barrage_impact (168) L r10 @target']
+       61  ['spellfail (227) L r10 @target']
+       44  ['ice_barrage_impact (168) L r10 @d2', 'ice_barrage_impact (168) L r10 @target', 'ice_barrage_impact (168) L r10 @target']
+       29  ['ice_barrage_impact (168) L r10 @target', 'ice_barrage_impact (168) L r10 @target', 'ice_barrage_impact (168) L r10 @target', 'ice_barrage_impact (168) L r10 @target']
+       25  ['ice_barrage_impact (168) L r10 @d2', 'ice_barrage_impact (168) L r10 @d2', 'ice_barrage_impact (168) L r10 @target']
+       23  ['ice_barrage_impact (168) L r10 @d2', 'ice_barrage_impact (168) L r10 @target']
+  first hitsplat on target after cast (ticks): {'+1 (end 106)': 13, '+1 (end 116)': 13, '+1 (end 126)': 10, '+1 (end 136)': 8, '+1 (end 146)': 1, '+1 (end 156)': 3, '+1 (end 166)': 2, '+1 (end 56)': 16, '+1 (end 66)': 27, '+1 (end 76)': 30, '+1 (end 86)': 31, '+1 (end 96)': 10, '+2 (end 106)': 42, '+2 (end 116)': 15, '+2 (end 126)': 7, '+2 (end 136)': 2, '+2 (end 146)': 2, '+2 (end 156)': 2, '+2 (end 56)': 86, '+2 (end 66)': 7, '+2 (end 76)': 9, '+2 (end 86)': 9, '+2 (end 96)': 16, '+3 (end 106)': 3, '+3 (end 116)': 6, '+3 (end 126)': 4, '+3 (end 136)': 3, '+3 (end 146)': 4, '+3 (end 56)': 3, '+3 (end 66)': 119, '+3 (end 76)': 141, '+3 (end 86)': 164, '+3 (end 96)': 8, '+4 (end 106)': 114, '+4 (end 116)': 67, '+4 (end 126)': 3, '+4 (end 136)': 2, '+4 (end 156)': 1, '+4 (end 166)': 1, '+4 (end 56)': 7, '+4 (end 86)': 1, '+4 (end 96)': 122, '+5 (end 126)': 52, '+5 (end 136)': 39, '+5 (end 146)': 24, '+5 (end 56)': 1, '+5 (end 76)': 3, '+5 (end 86)': 2, '+6 (end 106)': 1, '+6 (end 116)': 1, '+6 (end 156)': 3, '+6 (end 166)': 1, '+6 (end 66)': 1, '+6 (end 86)': 1, '+6 (end 96)': 2, '+7 (end 56)': 3, '+7 (end 76)': 1, '+7 (end 96)': 2, '+8 (end 66)': 1, '+8 (end 76)': 2, '+8 (end 86)': 2, '+8 (end 96)': 2}
+====================================================================================================
+ice_blitz: 450 casts, 4 splashed, sessions {'1224(r238)': 1, '1779(r227)': 195, '1833(r227)': 230, '2100(r227)': 1, '2111(r227)': 1, '214(r227)': 2, '215(r227)': 2, '3285(r234)': 2, '3402(r235)': 1, '552(r227)': 14, '96(r227)': 1}
+  named by opnpct: {'ice_blitz': 2}
+  caster seq: {'zaros_casting_walkmerge (10091) r238': 1, 'zaros_casting (1978) r227': 446, 'zaros_casting (1978) r234': 1, 'zaros_casting_walkmerge (10091) r234': 1, 'zaros_casting_walkmerge (10091) r235': 1}
+  caster gfx: {('ice_burst_travel (366) h124 d0', 'fireblast_impact (131) h124 d30'): 1, ('ice_burst_travel (366) h124 d0',): 447, ('ice_burst_travel (366) h92 d0',): 2}
+  projectile: {'(no projectile)': 450}
+  flight (tiles, end-start): {}
+  impact on target: {'failedspell_impact (85) h124': 4, 'ice_burst_impact (367) h0': 430}
+  impact delay vs projectile end: {'delay=56': 73, 'delay=106': 58, 'delay=86': 113, 'delay=66': 31, 'delay=96': 86, 'delay=146': 4, 'delay=116': 16, 'delay=76': 44, 'delay=126': 6, 'delay=136': 3}
+  aoe extra victims: {0: 450}
+  synth (spell sounds only): {('ice_cast (171) d0',): 450}
+  sound_area (spell sounds only; L = the landing cycle):
+      429  ['ice_blitz_impact (169) L r10 @target']
+       16  ['ice_blitz_impact (169) L r10 @?']
+        4  ['ice_blitz_impact (169) L r10 @target', 'spellfail (227) L r10 @target']
+        1  ['spellfail (227) L r10 @target']
+  first hitsplat on target after cast (ticks): {'+1': 39, '+2': 68, '+3': 169, '+4': 133, '+5': 13}
+====================================================================================================
+ice_burst: 106 casts, 19 splashed, sessions {'1225(r238)': 1, '1703(r226)': 1, '2346(r229)': 1, '3273(r234)': 102, '96(r227)': 1}
+  named by opnpct: {}
+  caster seq: {'zaros_vertical_casting_walkmerge (10092) r238': 1, 'zaros_vertical_casting (1979) r226': 1, 'zaros_vertical_casting (1979) r229': 1, 'zaros_vertical_casting_walkmerge (10092) r234': 102, 'zaros_vertical_casting (1979) r227': 1}
+  caster gfx: {(): 106}
+  projectile: {'ice_burst_travel (366) start=51 angle=16 progress=64 heights=43/0': 106}
+  flight (tiles, end-start): {(0, 5): 11, (0, 15): 7, (0, 25): 10, (0, 35): 9, (0, 45): 8, (0, 55): 7, (0, 65): 7, (0, 75): 5, (0, 85): 8, (0, 95): 5, (1, 15): 4, (1, 45): 3, (1, 55): 2, (2, 5): 2, (2, 25): 3, (2, 35): 5, (2, 45): 2, (2, 55): 4, (2, 75): 2, (2, 85): 1, (3, 25): 1}
+  impact on target: {'failedspell_impact (85) h124': 19, 'ice_blitz_impact (363) h0': 87}
+  impact delay vs projectile end: {'delay-end=0': 106}
+  aoe extra victims: {0: 63, 1: 15, 5: 4, 2: 24}
+  synth (spell sounds only): {('ice_cast (171) d0',): 105, ('ice_cast (171) d0', 'ice_burst_impact (170) dL'): 1}
+  sound_area (spell sounds only; L = the landing cycle):
+       41  ['ice_burst_impact (170) L r10 @target']
+       18  ['spellfail (227) L r10 @target']
+       13  ['ice_burst_impact (170) L r10 @target', 'ice_burst_impact (170) L r10 @target', 'ice_burst_impact (170) L r10 @target']
+       12  ['ice_burst_impact (170) L r10 @target', 'ice_burst_impact (170) L r10 @target']
+        6  ['ice_burst_impact (170) L r10 @d2', 'ice_burst_impact (170) L r10 @target', 'ice_burst_impact (170) L r10 @target']
+        5  ['ice_burst_impact (170) L r10 @d2', 'ice_burst_impact (170) L r10 @d2', 'ice_burst_impact (170) L r10 @target']
+        3  ['ice_burst_impact (170) L r10 @d2', 'ice_burst_impact (170) L r10 @target']
+        3  ['ice_burst_impact (170) L r10 @d2', 'ice_burst_impact (170) L r10 @d2', 'ice_burst_impact (170) L r10 @target', 'ice_burst_impact (170) L r10 @target', 'ice_burst_impact (170) L r10 @target', 'ice_burst_impact (170) L r10 @target']
+  first hitsplat on target after cast (ticks): {'+1 (end 76)': 1, '+2 (end 56)': 10, '+3 (end 66)': 7, '+3 (end 76)': 12, '+3 (end 86)': 11, '+3 (end 96)': 1, '+4 (end 106)': 11, '+4 (end 116)': 7, '+4 (end 96)': 8, '+5 (end 126)': 6, '+5 (end 136)': 8, '+5 (end 146)': 5, '+6 (end 56)': 2, '+6 (end 66)': 1, '+8 (end 66)': 1, '+8 (end 86)': 2, '+9 (end 106)': 1, '+9 (end 86)': 1}
+====================================================================================================
+ice_rush: 6 casts, 1 splashed, sessions {'1225(r238)': 1, '1226(r238)': 2, '2316(r228)': 1, '3389(r235)': 1, '96(r227)': 1}
+  named by opnpct: {'ice_rush': 1}
+  caster seq: {'zaros_casting_walkmerge (10091) r238': 3, 'zaros_casting (1978) r228': 1, 'zaros_casting_walkmerge (10091) r235': 1, 'zaros_casting (1978) r227': 1}
+  caster gfx: {('leagues_6_regenerating_runes (3611) h0 d0',): 1, (): 4, ('? (-1) h92 d0',): 1}
+  projectile: {'ice_rush_travel (360) start=51 angle=16 progress=64 heights=43/0': 6}
+  flight (tiles, end-start): {(1, 5): 1, (1, 9): 1, (2, 15): 1, (4, 35): 1, (6, 55): 1, (8, 75): 1}
+  impact on target: {'failedspell_impact (85) h124': 1, 'ice_rush_impact (361) h0': 4}
+  impact delay vs projectile end: {'delay-end=0': 5}
+  aoe extra victims: {0: 6}
+  synth (spell sounds only): {('ice_cast (171) d0',): 6}
+  sound_area (spell sounds only; L = the landing cycle):
+        4  ['ice_rush_impact (173) L r10 @target']
+        1  ['spellfail (227) L r10 @target']
+        1  ['ice_rush_impact (173) L r10 @?']
+  first hitsplat on target after cast (ticks): {'+3 (end 66)': 1, '+3 (end 86)': 1, '+4 (end 106)': 1, '+5 (end 126)': 1}
+====================================================================================================
+ice_rush/blitz?: 13 casts, 13 splashed, sessions {'1224(r238)': 5, '1225(r238)': 1, '1779(r227)': 2, '1833(r227)': 5}
+  named by opnpct: {}
+  caster seq: {'zaros_casting_walkmerge (10091) r238': 6, 'zaros_casting (1978) r227': 7}
+  caster gfx: {('ice_burst_travel (366) h124 d0', 'leagues_6_regenerating_runes (3611) h0 d0'): 4, ('ice_burst_travel (366) h124 d0',): 9}
+  projectile: {'(no projectile)': 13}
+  flight (tiles, end-start): {}
+  impact on target: {'failedspell_impact (85) h124': 13}
+  impact delay vs projectile end: {'delay=56': 9, 'delay=66': 1, 'delay=96': 1, 'delay=106': 1, 'delay=86': 1}
+  aoe extra victims: {0: 13}
+  synth (spell sounds only): {('ice_cast (171) d0',): 13}
+  sound_area (spell sounds only; L = the landing cycle):
+       13  ['spellfail (227) L r10 @target']
+  first hitsplat on target after cast (ticks): {'+1': 1, '+2': 2, '+3': 1, '+7': 1}
+====================================================================================================
+shadow_barrage: 13 casts, 0 splashed, sessions {'100(r227)': 4, '1153(r237)': 2, '1703(r226)': 7}
+  named by opnpct: {'shadow_barrage': 1}
+  caster seq: {'zaros_vertical_casting (1979) r227': 4, 'zaros_vertical_casting_walkmerge (10092) r237': 2, 'zaros_vertical_casting (1979) r226': 7}
+  caster gfx: {(): 12, ('leagues_6_regenerating_runes (3611) h0 d0',): 1}
+  projectile: {'(no projectile)': 13}
+  flight (tiles, end-start): {}
+  impact on target: {'shadow_barrage_impact (383) h124': 8, 'shadow_barrage_impact (383) h0': 5}
+  impact delay vs projectile end: {'delay=60': 6, 'delay=136': 1, 'delay=126': 1, 'delay=66': 3, 'delay=76': 1, 'delay=56': 1}
+  aoe extra victims: {0: 9, 2: 3, 1: 1}
+  synth (spell sounds only): {('shadow_cast (178) d0', 'shadow_barrage_impact (175) dL'): 6, ('shadow_cast (178) d0', 'shadow_cast (178) d0', 'shadow_barrage_impact (175) dL'): 2, ('shadow_cast (178) d0',): 5}
+  sound_area (spell sounds only; L = the landing cycle):
+        8  []
+        3  ['shadow_barrage_impact (175) L r10 @d2', 'shadow_barrage_impact (175) L r10 @target', 'shadow_barrage_impact (175) L r10 @target']
+        1  ['shadow_barrage_impact (175) L r10 @target', 'shadow_barrage_impact (175) L r10 @target']
+        1  ['shadow_barrage_impact (175) L r10 @target']
+  first hitsplat on target after cast (ticks): {'+1': 1, '+2': 1, '+3': 4, '+4': 1, '+5': 1, '+7': 1}
+====================================================================================================
+shadow_burst: 1 casts, 0 splashed, sessions {'1703(r226)': 1}
+  named by opnpct: {}
+  caster seq: {'zaros_vertical_casting (1979) r226': 1}
+  caster gfx: {(): 1}
+  projectile: {'(no projectile)': 1}
+  flight (tiles, end-start): {}
+  impact on target: {'shadow_burst_impact (382) h0': 1}
+  impact delay vs projectile end: {'delay=76': 1}
+  aoe extra victims: {0: 1}
+  synth (spell sounds only): {('shadow_cast (178) d0', 'shadow_burst_impact (177) dL'): 1}
+  sound_area (spell sounds only; L = the landing cycle):
+        1  []
+  first hitsplat on target after cast (ticks): {}
+====================================================================================================
+shadow_burst/barrage?: 1 casts, 1 splashed, sessions {'1703(r226)': 1}
+  named by opnpct: {}
+  caster seq: {'zaros_vertical_casting (1979) r226': 1}
+  caster gfx: {(): 1}
+  projectile: {'(no projectile)': 1}
+  flight (tiles, end-start): {}
+  impact on target: {'failedspell_impact (85) h124': 1}
+  impact delay vs projectile end: {'delay=66': 1}
+  aoe extra victims: {0: 1}
+  synth (spell sounds only): {('shadow_cast (178) d0',): 1}
+  sound_area (spell sounds only; L = the landing cycle):
+        1  ['spellfail (227) L r10 @target']
+  first hitsplat on target after cast (ticks): {'+7': 1}
+====================================================================================================
+smoke_burst: 1 casts, 0 splashed, sessions {'1703(r226)': 1}
+  named by opnpct: {}
+  caster seq: {'zaros_vertical_casting (1979) r226': 1}
+  caster gfx: {(): 1}
+  projectile: {'smoke_burst_travel (388) start=51 angle=16 progress=64 heights=43/31': 1}
+  flight (tiles, end-start): {(4, 35): 1}
+  impact on target: {'smoke_burst_impact (389) h124': 1}
+  impact delay vs projectile end: {'delay-end=0': 1}
+  aoe extra victims: {0: 1}
+  synth (spell sounds only): {('smoke_cast (183) d0', 'smoke_burst_impact (182) dL'): 1}
+  sound_area (spell sounds only; L = the landing cycle):
+        1  []
+  first hitsplat on target after cast (ticks): {}
