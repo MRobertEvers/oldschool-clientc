@@ -33,7 +33,8 @@ return {
             local _, ml = t.msg.last(20)
             for _, msg in ipairs(ml or {}) do
                 local text = tostring(msg.text)
-                if text:find("Verzik Vitur has fallen", 1, true) then verdict = "fallen" end
+                -- her clear (RSProx: no "has fallen" line; the wave line is the room's end)
+                if text:find("Wave 'The Final Challenge'", 1, true) then verdict = "fallen" end
                 if text:find("Your party has failed", 1, true) then verdict = "failed" end
                 if text:find("You have died", 1, true) then seen = text end
             end

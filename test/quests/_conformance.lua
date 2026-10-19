@@ -16862,7 +16862,7 @@ return {
             local guard = 0
             while died == nil and guard < 15 do
                 ticks(1)
-                died = newest("You have died. Death count: 1.")
+                died = newest("You have died. Death count: <col=ff0000>1</col>.")
                 guard = guard + 1
             end
             local caged = readout("::tobjail", "tobjail ")
@@ -16983,7 +16983,7 @@ return {
             local died, guard = nil, 0
             while died == nil and guard < 15 do
                 ticks(1)
-                died = newest("You have died. Death count: 1.")
+                died = newest("You have died. Death count: <col=ff0000>1</col>.")
                 guard = guard + 1
             end
             local death_tick = nil
@@ -17537,7 +17537,7 @@ return {
             local died, guard = nil, 0
             while died == nil and guard < 15 do
                 ticks(1)
-                died = newest("You have died. Death count: 1.")
+                died = newest("You have died. Death count: <col=ff0000>1</col>.")
                 guard = guard + 1
             end
             local caged = readout("::tobjail", "tobjail ")

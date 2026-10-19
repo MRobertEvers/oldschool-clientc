@@ -151,6 +151,36 @@ The room has three throws. The shared transcripts print only the recorder, who w
 
 `test/raids/_verzik_p2_bounce.lua` (17 rows) forces a slam and a stomp: swing on T−1; graphic, hit and one move on T; first step on T+6 / T+7. `test/raids/_verzik_pillar_collapse.lua` (32 rows; 14 fail on the old content) asserts the pillar throw, including a NE and a SE corner and a raider 3 out who is left alone.
 
+## Full inventory pass (2026-10-19)
+
+Every packet kind in the room, over **38 fights in 14 sessions with every raider
+shown**: npc and player seqs and graphics, map graphics, projectiles, area
+sounds and synths, messages, npc speech, interfaces and their text, client
+scripts, vars, locs, music, the camera and drops. Each recorded tell seen in 3
+or more fights was checked against our tick logs (`tob_verzik` seeds 1-2,
+`tob_verzik_hard` seed 1). The kinds a tick log does not carry (messages,
+interfaces, client scripts) were checked against the content. The raiders'
+own kit (weapons, spells, potions, relics) is left out.
+
+| | Recorded | Ours before | Status |
+|---|---|---|---|
+| Entering: the camera | client script 143 `cam_forceangle(280, 1024)` right behind her card (37 of 38) | none | **fixed** (`~tob_title`) |
+| An Athanatos bursting | with its poison globule, at the crab's tile: map `shilomist` at height 10, `sound_area smokepuff` (range 6) and `tol_homonculus_boo` (delay 20, range 8); 28 of 38 fights | the globule alone | **fixed** |
+| P2 blood spell | rolls to hit. A miss sends `failedspell_impact` at height 96 in place of the blood impact, with the throw (16 of 52 throws even under Protect from Magic) | always the blood impact; no accuracy roll | **fixed** (`~npc_player_hit_roll(magic)` per raider in the splash; a miss deals and heals nothing) |
+| A web on Aranea boots | the web lands and the raider is told, spam: "Your Aranea boots let you avoid the spider-based attack." | immune, silently | **fixed** |
+| Hard P1 debris | `gg_falling_projectile` 200 → 0 over 120 cycles, angle 0, progress 0; with it `gargboss_exploding_projectile` and `sound_area 100_cauldron_explodes` (range 6), both delayed 90 | start height 250, no burst graphic, no sound | **fixed** |
+| Hard P1 debris: the stun | `tob_bloat_stunned` at 124, synth `stunned`, spam "You've been stunned!"; no stun seq on the raider (their block plays) | `human_stunned` + `stunned_thieving` | **fixed** |
+| Her death line | none: "Verzik Vitur has fallen." is in none of 32 kills | sent to the room | **fixed** (removed) |
+| The completion lines | the wave line's challenge time with " (new personal best)" when it is one; the total time; then **"Your completed Theatre of Blood count is: <col=ff0000>N</col>."**, or "…: Hard Mode count is …" / "…: Entry Mode count is …", each mode its own count | wave and total, then "<col=ffd700>A new personal best!" (never recorded), no count | **fixed**: per-mode counts (`varp7543_tob_completions_hard`, `varp7542_tob_completions_entry`; Normal is the old combined count less Hard) |
+| A death | "You have died. Death count: <col=ff0000>N</col>." to the raider, "<col=ff0000>Name</col> has died. Death count: <col=ff0000>N</col>." to the rest of the party. N is the **team's** deaths this raid | the raider's own count, uncoloured, nobody else told | **fixed** (every ToB room) |
+| The total time's best | ". Personal best: m:ss" or " (new personal best)" on the total line | neither | **open**: needs a best overall time kept per mode; ours keeps the challenge best only |
+| Untradeable drop | "<col=ef1020>Untradeable drop: Verzik vitur - patient record</col>" when her book falls | none | **open**: the loot-notification setting is not implemented anywhere in the tree |
+| Pillar blockers | `invisible_type8_blocking` on each pillar's 3x3 while it stands, `_nonblocking` once it collapses (38 of 38) | the pillar npc blocks | open: invisible; matters only to client-side pathing |
+| Combat achievement lines | "You have failed Perfect Verzik / Pop It: …" | | not copied here (the achievement system) |
+
+`test/quests/_conformance.lua` reads the new death line; `test/raids/_vzbot.lua`
+takes the wave line as her clear.
+
 ## Engine and tooling changes this needed
 
 - **Area sounds are one `SOUND_AREA` packet now.** Jagex sends one `sound_area` with a range, heard with the client's distance falloff. Our server sent a `SYNTH_SOUND` to each player in range, at full volume. There is a new command, `sound_area(synth, delay, coord, range)` (opcode 11132), which queues a `SOUND_AREA` zone event. It is encoded with the rev-239 layout (`SoundAreaEncoder` v19, the same field list the client reads), and `[proc,sound_area]` calls it. A revision that cannot carry the packet still gets the per-player synths. The tick log still writes one `area` SOUND row per player in range. A scriptrun of the room sent 864 of them.
