@@ -314,6 +314,12 @@ def build_plan(profile, client_override=None, flavor_override=None,
         ] + credential_argv + list(profile.client_args) + list(extra_args)
         if embed:
             env.setdefault("TORIRS_TRANSPORT", "embed")
+        # No HighDPI drawable unless asked for (owner, 2026-10-19): the frame
+        # is window points on every launch. A profile's [env] or the shell's
+        # own TORIRS_HIDPI=1 still turns it on (platform_sdl2.c,
+        # sdl_want_highdpi).
+        if "TORIRS_HIDPI" not in os.environ:
+            env.setdefault("TORIRS_HIDPI", "0")
         if client == "headless":
             # A headless run must terminate on its own, or it is a hung job
             # rather than a capture. Give it a frame cap unless one is stated.

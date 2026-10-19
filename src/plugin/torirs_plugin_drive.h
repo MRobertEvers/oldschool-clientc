@@ -159,7 +159,13 @@ struct App_DriveEvent
  * in the packet's tick (2026-10-09: the two tick logs parted on an urn one
  * lane carried and the other did not). The drive's projectile rows come
  * from these records, with scriptrun's arithmetic. Absolute tiles. */
-#define APP_DRIVE_PROJECTILE_CAP 64
+#define APP_DRIVE_PROJECTILE_CAP 256 /* = SCRIPTRUN_PROJECTILES */
+/* It was 64. Zebak's lobs (a projectile per acid tile and per jug, flying 3-5
+ * ticks) put more than that in flight at once; the assert is gone in an OPT
+ * build, so the 65th wrote past the ring, off the end of the global `app`,
+ * into the audio synth (ASan: global-buffer-overflow in
+ * App_DriveProjectileNote; the client died in ToriRS_MidiSynth_Finished). The
+ * ring mirrors scriptrun's list, so it holds what scriptrun holds. */
 struct App_DriveProjectile
 {
     int32_t src_x, src_z, dst_x, dst_z, level;
