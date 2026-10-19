@@ -82,9 +82,40 @@ same.
 | | Recorded | Ours | Status |
 |---|---|---|---|
 | Count | **1 or 2 a landing**, about evenly, at every party size and on the first spit too (duo 156 / 132, trio 27 / 33, solo 29 / 18) | first spit 1, later 2 (wiki); solo 1–2 (Near-Reality) | **fixed** |
-| Targets | the **other** raiders' tiles at the lock, one each, never the spit's own target. Extra splashes, and every splash solo, go to random tiles. In a trio with two splashes, one was the local raider's tile in 21 of 25 | the next raiders in orb order, at **landing** time | **fixed** |
+| Targets | the **other** raiders' tiles at the lock, one a tile, and **never the spit's own tile** (0 of 603 party splashes). A raider sharing the target's tile is not splashed. Splashes beyond the other tiles, every splash solo, and every splash of a party stacked on the target go to a **random arena tile, pooled or not** (below) | the other raiders at the lock, a stacked raider included, so a stack's splashes went back onto the spit's own pool and vanished; random tiles uncovered only | **fixed** (2026-10-18) |
 | Projectile | from the new pool, start 15, angle 45, progress 32, height 0 → 0, end **30 × (distance + 1)** | 10 → 0, angle 43, the spit's flight | **fixed** |
 | Chains | a splash never splashes again | same | match |
+
+### Where the splashes go, with every raider shown
+
+The rows above were first read from the archive's transcripts, which show the
+recorder alone. Re-transcribed with every raider shown
+(`PLAYER_INFO_LOCAL_PLAYER_ONLY=false`), `tools/rsprox_xarpus_splash.py` takes
+every raider's tile at the lock:
+
+| Landings | Splashes went to |
+|---|---|
+| duo, the other raider on another tile (337) | 1 splash: that raider 182, random 3; 2 splashes: that raider + random 152 |
+| trio, three tiles (95) | 1: another raider 46; 2: both others 46, another + random 3 |
+| four, four tiles (42) | the others' tiles, 59 of 59 |
+| four, **two raiders on the spit's tile** (2) | 0 splashes once; once 1, to a raider elsewhere. The target's tile-mate got none |
+| solo (34) | random tiles, 45 of 45 |
+
+**The whole party on one tile** never happened in these kills (every party
+landing had at least two tiles). With no other raider off the spit's tile there
+is no raider to splash, so every splash goes to a random tile, as solo, and as
+the wiki says ("in the event that all players are on the same tile ... the
+poison will splatter a random uncovered tile").
+
+**The random tiles are uniform over the 15x15 arena, pooled tiles included:**
+all 203 random splashes fell inside it, 42 of them (21%) on a pool while 23% of
+the arena was pooled; some fell under him. The wiki's "uncovered" is not what
+the server does.
+
+**Open:** in a duo whose other raider stood under him, the single splash went
+to a random tile 3 times of 20 instead of to them (outside his footprint: 317
+of 317 to them). Distance does not separate the three. Ours always splashes
+them.
 
 ## Phase 2: a raider under him (the guano)
 
@@ -158,15 +189,17 @@ The v2 solver's forecast was moved to these mechanics:
   pool landed beside him, and the tiles to attack from ran out.
 - **The spit mark:** on the end-of-S − 2 tile, reading S + 1 .. S + 5, which
   covers every landing distance.
-- **The splashes:** forecast back onto the spit's own pool at L, because a stack
-  locks one tile. This replaces the old landing-time chain marks.
+- **The splashes:** a stack locks one tile and has no other raider off it, so
+  its splashes go to random tiles; each is dodged once its projectile is seen
+  (a chain in flight). The old forecast "back onto the spit's own pool at L"
+  matched our content's bug, not the server, and is gone.
 - **The stack phase:** holds until the last spit + 6 (`_xarp_phase`).
 - **The screech:** matched on the prefix `Scree`. The old match was the
   four-e spelling, which never saw the recorded five-e one.
 
-The stack strategy itself was kept. It still works under the recorded rules:
-the stack locks one tile, so the splashes come back onto the spit's own pool,
-two tiles from where the stack has moved.
+The stack strategy itself was kept: the stack locks one tile, so the spit
+lands two tiles from where the stack has moved, and its splashes scatter to
+random tiles across the arena.
 
 ## Open
 - **`apple_splat` loops 2** needs a loops argument on the engine's

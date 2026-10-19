@@ -26,8 +26,8 @@ NI.V = {
     H = 10, BEAM = 48,
     SIZE = 5, CSIZE = 4,
     -- the special, from S (vasa_stun_spawn first seen): teleport and bank at
-    -- S+3, stunned to S+11, explosion S+12 (RV-S1)
-    TELEPORT = 3, EXPLODE = 12,
+    -- S+3, stunned to S+11, explosion S+12, he walks off at S+14 (RV-S1)
+    TELEPORT = 3, EXPLODE = 12, WALK = 14,
     -- boulders (RV-B1): every 3 ticks while he walks, the throw on T reads my
     -- tile at the end of T-1, lands a 3x3 on T+2 reading the end of T+1
     THROW = 3, BOULDER_EXP = 7, BOULDER_MAX = 18, PRAY_FACTOR = 0.33,
@@ -353,6 +353,24 @@ function NI.predict(S, F, B)
     -- planner in and it took the stomp instead. Healing he stands still; in
     -- the special he stands until S+13 (walking from S+14).
     local path = NI.walk_path(S, F, h)
+    -- SETTING OFF after the special: the teleport put me 1 or 2 off his 5x5
+    -- (RV-S2), and he walks off at S+14 a way the client is not told until
+    -- his first step, so the path above stands still till then. Until that
+    -- step, the tiles touching his footprint are forbidden from S+14 (his
+    -- first step, any of eight ways, can take each), and the ring outside
+    -- them is a cost from S+15. The stun is over at S+12: two ticks to step
+    -- out (duo vasa7 t303: beside his corner on S+13, stomped on S+16).
+    local s0 = o.S and o.at[o.S]
+    local go = o.S and o.S + V.WALK
+    if s0 and o.form == "walking" and row.x == s0.x and row.z == s0.z and d <= go + 1 and d + h >= go then
+        local fx0, fz0, fx1, fz1 = row.x, row.z, row.x + V.SIZE - 1, row.z + V.SIZE - 1
+        B.hit({ name = "setoff", x0 = fx0 - 1, z0 = fz0 - 1, x1 = fx1 + 1, z1 = fz1 + 1,
+                t0 = math.max(d + 1, go), t1 = d + h, dmg_exp = V.STOMP_EXP, dmg_max = V.STOMP_MAX, forbid = true })
+        if d + h >= go + 1 then
+            B.hit({ name = "setoff2", x0 = fx0 - 2, z0 = fz0 - 2, x1 = fx1 + 2, z1 = fz1 + 2,
+                    t0 = math.max(d + 1, go + 1), t1 = d + h, dmg_exp = V.STOMP_EXP, dmg_max = 0 })
+        end
+    end
     for k = 1, h do
         local a, b = path[k - 1], path[k]
         local x0, z0 = math.min(a.x, b.x), math.min(a.z, b.z)

@@ -54,6 +54,56 @@ for _, line in ipairs({
 }) do kit[#kit + 1] = line end
 
 local VASA = { [7565] = true, [7566] = true, [7567] = true }
+local SEQ_SPECIAL = 7409   -- vasa_stun_spawn: S
+
+-- THE TELEPORT, off the server's log: on S+3 every raider stands 3-4 from his
+-- middle (next to him) or 8-11 (by the walls), and half of them, rounded up,
+-- next to him -- RSProx 3285/3282/843 solo and 820's five trio specials, read
+-- in untranslated instance tiles (vasa.md RV-S2). His tile on S is his last
+-- npc_tile row, or his spawn's while he has not moved.
+local function landings(t)
+    local ar, anims = t.ticklog.rows({ kind = "npc_anim" })
+    local specials = {}
+    for _, row in ipairs(ar == "ok" and anims or {}) do
+        if row.seq == SEQ_SPECIAL and VASA[row.type or -1] then
+            specials[#specials + 1] = { tick = row.tick, slot = row.slot }
+        end
+    end
+    t.ticks(1)
+    local pr, ptiles = t.ticklog.rows({ kind = "player_tile" })
+    local out, ok = {}, #specials > 0
+    for _, sp in ipairs(specials) do
+        local sr, spawn = t.ticklog.rows({ kind = "npc_spawn", slot = sp.slot })
+        local nr, ntiles = t.ticklog.rows({ kind = "npc_tile", slot = sp.slot })
+        local sw = nil
+        for _, row in ipairs(sr == "ok" and spawn or {}) do
+            if row.tick <= sp.tick then
+                sw = { x = (row.coord >> 14) & 0x3fff, z = row.coord & 0x3fff }
+            end
+        end
+        for _, row in ipairs(nr == "ok" and ntiles or {}) do
+            if row.tick <= sp.tick then sw = { x = row.x, z = row.z } end
+        end
+        local at = {}
+        for _, row in ipairs(pr == "ok" and ptiles or {}) do
+            if row.tick <= sp.tick + 3 then at[row.pid] = row end
+        end
+        local near, far, bad, seen = 0, 0, 0, {}
+        for pid, row in pairs(at) do
+            local m = sw and math.max(math.abs(row.x - sw.x - 2), math.abs(row.z - sw.z - 2)) or -1
+            if m >= 3 and m <= 4 then near = near + 1
+            elseif m >= 8 and m <= 11 then far = far + 1
+            else bad = bad + 1 end
+            seen[#seen + 1] = "p" .. pid .. " m" .. m
+        end
+        local n = near + far + bad
+        if bad > 0 or near ~= (n + 1) // 2 then ok = false end
+        out[#out + 1] = string.format("S=%d near %d far %d off %d (%s)", sp.tick, near, far, bad, table.concat(seen, " "))
+        t.ticks(1)
+    end
+    t.check("vasa.teleport_ring", ok, #specials > 0 and table.concat(out, "; ") or "no special in the log")
+    return ok
+end
 
 local function run(t)
     t.check("vasa.ticklog", t.ticklog.start() == "ok", "")
@@ -132,6 +182,8 @@ local function run(t)
     -- (a fresh tick: the two passes above can spend most of one resume's
     -- Lua budget on a long fight -- d8l vasa7)
     t.ticks(1)
+    local ring_ok = landings(t)
+    t.ticks(1)
     -- the exit: both crystals shattered, and the way on taken
     local gone = false
     for _ = 1, 6 do
@@ -145,7 +197,7 @@ local function run(t)
     -- the Passage's far tile with the next room's edge closed -- reported)
     local wr, wd = t.raid.cox_walk_on(60)
     t.ticklog.mark("vasa walk_on " .. tostring(wr) .. " " .. tostring(wd and wd.name or wd))
-    t.finish((gone and boulders == 0 and stomps == 0) and 0 or 1)
+    t.finish((gone and boulders == 0 and stomps == 0 and ring_ok) and 0 or 1)
 end
 
 return {

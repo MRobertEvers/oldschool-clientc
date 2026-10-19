@@ -27,8 +27,10 @@ only if no one takes a boulder or a stomp.
 
 The content counts the raid's raiders (`^cox_var_party_n`, `~cox_party_size_at`) and scales Vasa's pool to them
 when he wakes (`~cox_scale_hp`: 300 per raider at full combat). Every form change keeps that pool
-(`~cox_vasa_retype`), because `npc_changetype` resets it to the record's 300. The special groups every raider in
-the room, and splits the bank over them. Boulders go to every raider each volley.
+(`~cox_vasa_retype`), because `npc_changetype` resets it to the record's 300. The special splits the raiders in
+the room: half, rounded up, are put next to him (3-4 from his middle) and stunned, and their HP is the bank; the
+rest land 8-11 out, free (vasa.md RV-S2). The explosion splits the bank over everyone within 4 of his middle at
+S+12 (RV-S4). The solver does not run a free raider back in to share it. Boulders go to every raider 1-8 from his 5x5 each volley, never to one under him (RV-B3).
 
 2026-10-18 sweeps:
 
@@ -39,6 +41,20 @@ the room, and splits the bank over them. Boulders go to every raider each volley
 | Trio | 7/8 | seed 3: one 1 hp stomp; pool 900 |
 | Five | 4/4 | pool 1500 |
 
+After the teleport was corrected to the recorded two rings (2026-10-18, `vasa.teleport_ring` on every run):
+
+| Party | Green | Notes |
+|---|---|---|
+| Solo | 8/8 | seeds 1-8; every landing 3-4 from his middle |
+| Duo | 7/8 | seeds 7, 9-15; seed 10: one 8 hp stomp on the far raider at S+27 (his corner turn east along z=99, walking into it) |
+| Trio | 3/4 | seeds 5, 6, 16, 17; seed 16: one 4 hp boulder on the far raider at S+26 |
+| Five | 2/2 | seeds 8, 18; 3 near, 2 far |
+
+The near ring puts me 1-2 off his 5x5 when he sets off at S+14, which way unknown until his first step: the first
+duo run took a stomp on S+16 (seed 7). Until that step, the tiles touching his footprint are forbidden from S+14,
+and the ring outside them is a cost from S+15 (`setoff` in `NI.predict`). The far raider lands near the walls,
+where his crystals are, and both misses above are that raider in his lane later in the walk.
+
 Not scaled for a party yet: the crystal's hitpoints, and Vasa's defence and other stats (`~cox_scale_defence`,
 `~cox_scale_stat`).
 
@@ -48,9 +64,10 @@ A strong solo human (Synq 0:55:16-1:07:56, Tubby, edb0ys; the wiki), with the ro
 
 1. **Wake** him: walk to within 7 tiles of his middle. The fire goes up at T0+4 and the special starts at
    T0+5 (S).
-2. **The special.** Nothing that heals is used from S to S+3: the bank reads HP at the teleport. From S+3 to S+11
-   I am stunned and my clicks do nothing. At S+12 the explosion takes HP - 5. After that I brew back up to the
-   floor.
+2. **The special.** Nothing that heals is used from S to S+3: the bank reads HP at the teleport. At S+3 I land
+   next to him (3-4 from his middle) and am stunned to S+11; my clicks do nothing. At S+12 the explosion takes
+   HP - 5. After that I brew back up to the floor, and step off the ring beside his 5x5 before he sets off (S+14).
+   (In a party, a raider sent to the walls is free from S+3.)
 3. **Ranging** (he walks, about 13 ticks to the lit crystal, and walks back after it breaks): blowpipe him.
    - **Boulders:** one comes at my tile every 3 ticks. The throw on T reads my tile at the end of T-1 and lands
      a 3x3 on T+2, reading the end of T+1. Two tiles of running clear it.

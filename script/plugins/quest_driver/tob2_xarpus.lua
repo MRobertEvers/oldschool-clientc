@@ -26,17 +26,18 @@
 --
 -- Threats (every phase): pools (HM ring + spit/chain pools) forbidden at tick
 -- ends (M3: a run's middle tile is free); his 5x5 forbidden from the gather
--- on (the stomp); every spit/chain in flight: a 3x3 splash read at L-1, its
--- pool from L, and a spit's splashes back onto its own tile read at L; every
+-- on (the stomp); every spit/chain in flight: a 3x3 splash read at L-1, and
+-- its pool from L; every
 -- spit slot ahead: a mark on my end-of-S-2 tile (r 1, read S+1..S+5).
 --
 -- THE CONTENT IS THE RECORDED ONE (docs/rsprox-analysis/tob/xarpus.md): the
 -- spit and its splashes are LOCKED on the end-of-S-2 tiles (the tick before
 -- the spit, before anyone moves); the spit lands L = S + 1 + max(1, its tile's
 -- distance from his footprint) - S+3 from a gap-2 B, up to S+5 from gap 4 -
--- and its splashes go to the OTHER raiders' locked tiles. A stack locks one
--- tile, so every splash comes back onto the spit's own pool, 30 cycles later:
--- it lands L+1 and reads the end of L. The first spit is U+9.
+-- and its splashes go to the OTHER raiders' locked tiles OFF the spit's tile.
+-- A stack locks one tile, so it has none: every splash goes to a random arena
+-- tile, known only once it is thrown at L (a chain in flight, above). The
+-- first spit is U+9.
 -- ==========================================================================
 
 QD.T2 = QD.T2 or {}
@@ -108,12 +109,10 @@ function XV.cw(B0, a, b)
     return d
 end
 
--- Is a tile within 1 of a landing whose splash reads the end of tick t? A
--- spit's own reads at L - 1 and, for the splashes it throws back onto its tile
--- (a stack: every raider locked the same tile), at L.
+-- Is a tile within 1 of a landing whose splash reads the end of tick t (L - 1)?
 function XV.splashed(S, x, z, t)
     for _, Ld in ipairs(S.landings) do
-        if cheb(x, z, Ld.x, Ld.z) <= 1 and (Ld.L - 1 == t or (Ld.spit and Ld.L == t)) then return true end
+        if cheb(x, z, Ld.x, Ld.z) <= 1 and Ld.L - 1 == t then return true end
     end
     return false
 end
@@ -586,13 +585,6 @@ QD.T2.rooms.xarpus = {
             if Ld.L <= hz then
                 B.hit{ name = "pool-coming", x = Ld.x, z = Ld.z, size = 1, t0 = math.max(Ld.L, now + 1), t1 = hz,
                     sample = "end", dmg_exp = XV.SPLASH_EXP, dmg_max = XV.SPLASH_MAX, forbid = true }
-            end
-            -- its splashes, thrown at the landing to the other raiders' locked
-            -- tiles: for the stack that is this tile, 30 cycles away, so they
-            -- land L+1 and read the end of L
-            if Ld.spit and Ld.L >= now + 1 and Ld.L <= hz then
-                B.hit{ name = "own-splash", x0 = Ld.x - 1, z0 = Ld.z - 1, x1 = Ld.x + 1, z1 = Ld.z + 1,
-                    t0 = Ld.L, t1 = Ld.L, sample = "end", dmg_exp = XV.SPLASH_EXP, dmg_max = XV.SPLASH_MAX }
             end
         end
         -- SPIT SLOTS AHEAD (P2 until the screech): the spit and its splashes

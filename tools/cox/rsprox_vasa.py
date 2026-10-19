@@ -12,11 +12,15 @@ crystal's add).
     python3 tools/cox/rsprox_vasa.py --section boulders FILES...
 
 Heights print in this tree's units (raw / 4 for the rev-234 v2 projectile
-packet). Coordinates are the transcriber's TEMPLATE tiles. A player's is right;
+packet). Coordinates are the transcriber's TEMPLATE tiles. A player's is NOT right
+in these rooms (all quarter-turned: the offset inside each chunk is mirrored);
 a large npc's is not in a turned room (another corner of its footprint, and a
 90-degree room jumps at chunk edges -- tools/cox/rsprox_tekton.py), so "rel"
-(to Vasa's printed south-west) is only a hint, and the teleport is measured
-against the template's middle instead ("template mid", Chebyshev).
+(to Vasa's printed south-west) is only a hint. The "template mid" distances
+printed for the teleport are WRONG too (the template middle is not his middle,
+and a raider's template tile is mirrored across chunk edges in a turned room):
+read the teleport with tools/cox/rsprox_vasa_teleport.py on an untranslated
+transcript (vasa.md RV-S2).
 """
 
 import argparse
@@ -176,8 +180,8 @@ def parse(path):
 
 # The CoX templates: 32x32 rooms at x = 3264 + 32 * variant, z = 5280 (the
 # transcriber prints template tiles). His middle in each variant's template
-# (cox_vasa.rs2 ~cox_vasa_tile + (2, 2)). A player's printed tile is a
-# template tile; Vasa's is not in a turned room (the module docstring).
+# (cox_vasa.rs2 ~cox_vasa_tile + (2, 2)). Neither a player's printed tile nor
+# Vasa's is a true template tile in these quarter-turned rooms (the module docstring).
 TPL_X0, TPL_Z0 = 3264, 5280
 TPL_MID = {0: (16, 15), 1: (15, 15), 2: (15, 16)}
 
@@ -286,7 +290,7 @@ def section_special(fs):
                 if tt.me_seq or tt.me_spot:
                     bits.append("me seq=%s spot=%s" % (",".join(tt.me_seq), ",".join(tt.me_spot)))
                 if tt.me_tele:
-                    bits.append("me TELEPORT %s -> %s (local %s -> %s; template mid %s -> %s; %d from my tile)" % (
+                    bits.append("me TELEPORT %s -> %s (local %s -> %s; template mid %s -> %s [not his middle: rsprox_vasa_teleport.py]; %d from my tile)" % (
                         tt.me_from, tt.me, local(tt.me_from)[1:], local(tt.me)[1:],
                         tpl_mid_dist(tt.me_from), tpl_mid_dist(tt.me), cheb(tt.me_from, tt.me)))
                 if tt.me_hits:

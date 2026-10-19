@@ -12,7 +12,8 @@ them after tick T's movement (the end of T). Tekton's footprint is his 4x4
 from the npc_info coordinate (the end of the tick, after any step).
 
 COORDINATES: the transcriber maps every instance tile back to the TEMPLATE
-tile it was copied from. A player (1x1) comes out right. A 4x4 npc's printed
+tile it was copied from. A player (1x1) comes out right in an unturned or
+180-degree room (not in a quarter-turned one: tools/rsprox_frame_check.py). A 4x4 npc's printed
 tile is its instance south-west tile mapped back, which in a turned room is
 another corner of the template footprint, and its step labels and face
 angles stay in the turned (instance) frame. The room's turn is read off the
