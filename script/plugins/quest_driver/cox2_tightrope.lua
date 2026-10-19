@@ -21,10 +21,12 @@
 --          any damage at all"). The weapon: the trident of the swamp on
 --          Longrange (9 tiles, 4 ticks; Synq 0:26:22 "the shadow on the
 --          rangers": their magic defence is their Defence, bonus 0, wiki
---          infobox) in the mage switch. I stand where a guard drops its
---          target (LEASH tiles past its post: the engine's leash, maxrange
---          7 + 1, spec T11) and still reach it; one that does swing at me is
---          prayed against and walked out of reach (the wiki's run).
+--          infobox) in the mage switch. A guard keeps me as its target
+--          only while I end a tick within LEASH of its post (cox.npc
+--          maxrange 8 + 1: RSProx shows a raider 9 off a post shot for 40
+--          ticks), so I step in for each cast and out before its flinch
+--          (the wiki's run, in miniature); one that does swing at me is
+--          prayed against.
 --   CROSS  with every guard dead nothing wakes (T3); take the keystone on the
 --          far side, cross back, Dispel the barrier in front of the exit.
 -- The rope skip (crossing under fire) is not played: it dies 1 in 20 (Nang).
@@ -42,8 +44,10 @@ CT.V = {
     RANGE = 9, SPEED = 4,
     SWING_VALUE = 3,
     -- a guard drops a target more than LEASH tiles from its post (the
-    -- engine's leash, maxrange 7 + 1, measured from the spawn tile)
-    LEASH = 8,
+    -- engine's leash, cox.npc maxrange 8 + 1, measured from the spawn tile)
+    LEASH = 9,
+    -- no closer to the guard than this + 1: a cast from 8 or 9 lands in 4
+    CLOSE = 7,
     FREE = 1,                   -- pack slots the keystone needs
     NEAR_KEY = 6,               -- on the keystone's side of the rope
     SEE_LOC = 10,               -- a loc this near that is not listed is gone
@@ -183,6 +187,7 @@ function CT.pick(S, F)
     end
     local m = nearest(o.mages)
     if m then return m, "magic" end
+    if #o.rangers <= o.cross_with then return nil, nil end
     local r = nearest(o.rangers)
     if r then return r, "ranged" end
     return nil, nil
@@ -307,18 +312,50 @@ function CT.strategy(S, F, B)
                 o.style_pressed = F.tick
             end
         end
-        -- THE SAFESPOT: no tick ends inside the leash of this kind's posts
+        -- THE LEASH DANCE (the wiki's "running away until ... they lose
+        -- aggression"): a guard keeps its target only while he ends a tick
+        -- within LEASH of its post (RSProx: a raider 9 off a mage's post was
+        -- shot for 40 ticks, cox.npc maxrange 8), and it shoots 2 ticks after
+        -- my hit lands (its flinch). So I end a tick inside only on the tick
+        -- before a cast and the cast's own; a cast from 8 or 9 lands 4 ticks
+        -- later, and the flinch 2 after that reads a tick I ended outside, so
+        -- it drops me instead of shooting. Closer than 8 the hit lands a tick
+        -- sooner and the flinch reads the next cast's inside tick: never.
         local x0, z0, x1, z1 = CT.leash_box(S, kind)
-        B.hit({ name = "leash-" .. kind, x0 = x0, z0 = z0, x1 = x1, z1 = z1, t0 = F.tick + 1, t1 = F.tick + B.h,
-                forbid = true })
-        local inside = F.me.x >= x0 and F.me.x <= x1 and F.me.z >= z0 and F.me.z <= z1
+        -- (the windows sit on a fixed phase -- the swing clock's once it
+        -- runs: anchored on "the next tick" they slid away as fast as I
+        -- walked to them and I never stepped in)
+        local W = math.max(F.tick + 1, S.x2.swing_next or (F.tick + 1))
+        if S.x2.swing_next ~= nil and S.x2.swing_next > F.tick then o.phase = S.x2.swing_next % V.SPEED end
+        o.phase = o.phase or (F.tick % V.SPEED)
+        local function inside_ok(tk)
+            if tk < W - 1 then return false end
+            local r = (tk - o.phase) % V.SPEED
+            return r == 0 or r == V.SPEED - 1
+        end
+        local t = F.tick + 1
+        while t <= F.tick + B.h and not o.tank do
+            if inside_ok(t) then
+                t = t + 1
+            else
+                local t1 = t
+                while t1 + 1 <= F.tick + B.h and not inside_ok(t1 + 1) do t1 = t1 + 1 end
+                B.hit({ name = "leash-" .. kind, x0 = x0, z0 = z0, x1 = x1, z1 = z1, t0 = t, t1 = t1, forbid = true })
+                t = t1 + 1
+            end
+        end
+        B.hit({ name = "close-" .. kind, x0 = row.x - V.CLOSE, z0 = row.z - V.CLOSE, x1 = row.x + V.CLOSE,
+                z1 = row.z + V.CLOSE, t0 = F.tick + 1, t1 = F.tick + B.h, forbid = true })
+        local inside = o.tank or (F.me.x >= x0 and F.me.x <= x1 and F.me.z >= z0 and F.me.z <= z1)
         -- the protection only where it can reach me, or after it has
         if inside or (o.hit_at and F.tick - o.hit_at <= V.HIT_PRAY) then
             intents.pray = want_pray(QD.T2.PROTECT[style])
             o.prayed_ticks = (o.prayed_ticks or 0) + 1
         end
         if worn and o.style_ok then
-            B.target({ name = kind, npc = row, size = 1, range = V.RANGE, speed = V.SPEED, value = V.SWING_VALUE })
+            -- (tank: from 8, inside the leash even on its corner)
+            B.target({ name = kind, npc = row, size = 1, range = o.tank and V.CLOSE + 1 or V.RANGE, speed = V.SPEED,
+                       value = V.SWING_VALUE })
         end
         -- far off (the client's view of the far platform): towards it
         if CT.cheb(F.me.x, F.me.z, row.x, row.z) > V.RANGE + V.LEASH then
@@ -352,6 +389,8 @@ function CT.strategy(S, F, B)
             end
         end
     end
+    -- (tells: a ranger left for the crossing, prayed against)
+    if #o.rangers > 0 then intents.pray = want_pray(QD.T2.PROTECT.ranged) end
     local near_key = o.key_loc ~= nil and CT.cheb(F.me.x, F.me.z, o.key_loc.x, o.key_loc.z) <= V.NEAR_KEY
     if not o.held and near_key then
         intents.mode = "take"
@@ -424,6 +463,12 @@ QD.T2.register("cox_tightrope", {
         S.room = room
         S.centre = { x = room.ox + 16, z = room.oz + 16 }
         S.o = { mages = {}, rangers = {}, ropes = {}, dropped = {} }
+        -- TELLS ONLY (test/raids/_tightrope_tells.lua): `tank` stands in the
+        -- guards' fire under the protection instead of the leash dance, and
+        -- `cross_with` rangers are left alive for the crossing (they wake on
+        -- the rope, their hits wait for the far end, the keystone kills them)
+        S.o.tank = opts.tank == true
+        S.o.cross_with = opts.cross_with or 0
     end,
 
     -- (the style: Longrange, pressed once the trident is worn, CT.strategy)

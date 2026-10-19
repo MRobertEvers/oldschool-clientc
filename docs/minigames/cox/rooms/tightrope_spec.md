@@ -19,7 +19,9 @@ Ruling order: Jagex > recorded data > wiki > plugin constants > Near-Reality > o
 | **NR** | Near-Reality `DeathlyRoom`, `DeathlyNPC`, `Tightrope`, `KeystoneCrystal`, `ShimmeringBarrier`, `ScalingMechanics` | NR tree |
 
 No plugin carries a tightrope constant beyond room ids (cox_assistant's points
-model, de0's barrier 29749 as the room's obstacle). No recorded tick data exists.
+model, de0's barrier 29749 as the room's obstacle). Recorded tick data: RSProx
+820, 843, 3282, 3285, 3389, seven rooms (`docs/rsprox-analysis/cox/tightrope.md`,
+rows RT-*), which outranks every row below where they differ.
 
 ## 1. Geometry (template room-local, unturned, plane 1 of the template)
 

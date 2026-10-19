@@ -3695,6 +3695,34 @@ npc_single_way_swing_refused(
     return claimed >= 0 && claimed != slot;
 }
 
+/*
+ * A ranged npc's line to the player it is fighting, asked from the player's
+ * tile (see the call site) -- unless the player stands inside a loc's
+ * footprint, where that ray cannot start (rsmod's LineValidator refuses a
+ * line out of a LOC tile), and the npc's side is asked instead.
+ *
+ * A player is only ever inside a loc by forced movement: the Chambers of
+ * Xeric tightrope walks him over the rope's own tiles. Jagex's rangers shoot
+ * him there -- RSProx 820, four of them on the crosser from his first step on
+ * the rope (docs/rsprox-analysis/cox/tightrope.md RT-X3) -- where the
+ * player-side ray left every guard "out of reach": it stepped once and gave
+ * him up.
+ */
+static int
+npc_ranged_approached(
+    const struct ToriRSServerNpc* npc,
+    int px,
+    int pz,
+    int npc_size)
+{
+    assert(npc);
+    if( ToriRSServer_SceneApproached(npc->level, px, pz, npc->x, npc->z, 1, 1, npc_size, npc_size) )
+        return 1;
+    if( !(ToriRSServer_SceneTileFlags(npc->level, px, pz) & COLL_FLAG_LOC) )
+        return 0;
+    return ToriRSServer_SceneApproached(npc->level, npc->x, npc->z, px, pz, npc_size, npc_size, 1, 1);
+}
+
 void
 ToriRSServer_CombatNpcTick(
     struct ToriRSServer* srv,
@@ -3804,8 +3832,7 @@ ToriRSServer_CombatNpcTick(
 
         ToriRSServer_PlayerReachTile(srv, player, npc->x, npc->z, &px, &pz);
         if( in_reach && npc_def(npc)->attackrange > 1 &&
-            !ToriRSServer_SceneApproached(
-                npc->level, px, pz, npc->x, npc->z, 1, 1, npc_size, npc_size) )
+            !npc_ranged_approached(npc, px, pz, npc_size) )
             in_reach = 0;
     }
 

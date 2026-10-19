@@ -144,9 +144,15 @@ How the solver plays it:
 - Kill mages first, then rangers, one at a time.
 - Wear the mage switch (trident of the swamp, occult, imbued cape, mystic;
   the defender stays) and use Longrange: 9 tiles, 4 ticks.
-- The planner may not end a tick within LEASH = 8 of that kind's posts.
-  That is where the engine's leash (maxrange 7 + 1, from the spawn tile)
-  drops the guard's target, so the guard never swings.
+- The leash dance (2026-10-19). RSProx shows a raider 9 off a mage's post
+  shot for 40 ticks, so `maxrange` is 8 and LEASH = 9 (from the spawn tile):
+  the old safespot just outside a leash of 7 + 1 no longer exists for a
+  range-9 weapon (`docs/rsprox-analysis/cox/tightrope.md` RT-W2). The
+  planner ends a tick within LEASH of that kind's posts only on the tick
+  before a cast and the cast's own, from 8-9 off the guard. The cast lands 4
+  ticks later, the guard's flinch comes 2 after that, and it reads a tick I
+  ended outside, so it drops me instead of swinging. The windows sit on a
+  fixed phase, the swing clock's once it runs.
 - The protection prayer goes up only inside that box, or for 8 ticks after
   a hit lands.
 - Restores come from QD.COX.restore_intent on Magic (gap 20). Heals happen
@@ -157,12 +163,16 @@ How the solver plays it:
 - The armour the switch replaced, and the tentacle, are worn again at the
   end.
 
-Room test results:
+Room test results (2026-10-19, the dance): fresh kit tr1-12 12/12, 0 hp
+lost, 234-389 ticks; drained arrival trd1-3 3/3, 5-7 hp (the overheal decay),
+405-727 ticks.
+
+Before (the leash of 7 + 1):
 - Fresh kit (tr0-7): 8/8. 0 hp lost, 0 sips, 0 prayed ticks, 228-384 ticks.
 - Drained arrival (trd0-7: restores dropped, 9 heal doses, 3 Saradomin sips
   drunk): 8/8. 0 sips, 0 prayed ticks, 378-635 ticks. The 3-6 hp in the
   tally is the brew's overheal decaying 1 per 100 ticks.
 
-Caveat: the leash is A15's open question. If OSRS's leash is the render
-distance, the wiki's run-away step is what keeps the cost at 0, and the
-solver would need it.
+Caveat: the leash is A15's open question, now bounded below by RSProx (8).
+If OSRS's leash is the render distance, the dance does not shake a guard
+and the wiki's full run-away is what keeps the cost at 0.
