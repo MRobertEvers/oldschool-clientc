@@ -193,13 +193,53 @@ endif
 #
 # What that costs is cross-TU inlining on the wasm module. What it buys is a
 # web lane that links -- it did not, before this.
+#
+# THE LINK IS LTO CODEGEN, NOT THE LINKER. Measured 2026-10-19 on the
+# torirs OPT=1 EMBED_SERVER=1 link: ld itself is 0.18 s on macOS (ld-prime,
+# OPT=0 objects) and 0.14 s of a 13.2 s win64 link (ld.bfd --stats); the rest
+# is the compiler generating code for the whole program. A faster linker
+# (mold, lld) has nothing left to win, so the two knobs below go after codegen:
+#
+#   macOS/clang  -flto=thin. clang takes `-flto=auto` as FULL LTO, which
+#                codegens the whole program on one thread: 24.9 s real, 23.5 s
+#                user. ThinLTO codegens per module in parallel (4.8-7.7 s) and
+#                ld64 caches each module's result in $(LTO_CACHE_DIR), so a
+#                relink after a one-file edit redoes that file's module only
+#                (0.37 s with nothing changed).
+#   GCC >= 15    -flto-incremental. GCC's LTRANS is already parallel under
+#                =auto; the incremental cache skips partitions whose input did
+#                not change (13.2 s -> 3.4 s, win64, unchanged relink).
+#
+# LTO_CACHE_LDFLAGS goes on the $(TARGET) link only: lto-wrapper fails on a
+# cache directory that does not exist, and that recipe is the one that makes
+# it. Other clang lanes (android, a clang Linux) keep full LTO -- their linker
+# is lld or bfd, whose ThinLTO cache flags differ, and nobody timed them.
+ifeq ($(OPT),1)
+ifneq ($(PLATFORM),web)
+# "1 4" from clang (it defines __GNUC__ 4), "__clang__ <major>" from GCC.
+LTO_CC_PROBE := $(shell echo __clang__ __GNUC__ | $(CC) -E -P -x c - 2>/dev/null)
+endif
+endif
+LTO_CC_IS_CLANG := $(filter-out __clang__,$(firstword $(LTO_CC_PROBE)))
+LTO_GCC_MAJOR   := $(if $(LTO_CC_IS_CLANG),,$(word 2,$(LTO_CC_PROBE)))
+LTO_CACHE_DIR    = $(OBJ_DIR)/lto_cache
+LTO_CACHE_LDFLAGS =
 ifeq ($(OPT),1)
 ifeq ($(PLATFORM),web)
 OPT_RELEASE_CFLAGS  = -DNDEBUG
 OPT_RELEASE_LDFLAGS =
+else ifneq ($(and $(filter macos,$(PLATFORM)),$(LTO_CC_IS_CLANG)),)
+OPT_RELEASE_CFLAGS  = -DNDEBUG -flto=thin
+OPT_RELEASE_LDFLAGS = -flto=thin
+LTO_CACHE_LDFLAGS   = -Wl,-cache_path_lto,$(LTO_CACHE_DIR)
 else
 OPT_RELEASE_CFLAGS  = -DNDEBUG -flto=auto
 OPT_RELEASE_LDFLAGS = -flto=auto
+ifneq ($(LTO_GCC_MAJOR),)
+ifeq ($(filter 1 2 3 4 5 6 7 8 9 10 11 12 13 14,$(LTO_GCC_MAJOR)),)
+LTO_CACHE_LDFLAGS   = -flto-incremental=$(LTO_CACHE_DIR)
+endif
+endif
 endif
 else
 OPT_RELEASE_CFLAGS  =
@@ -1270,6 +1310,24 @@ $(WINDOWS_FLAGS_STAMP): FORCE_WINDOWS_FLAGS | $(OBJ_DIR)
 $(OBJS): $(WINDOWS_FLAGS_STAMP)
 endif
 
+# The other lanes have no such stamp, so give the LTO mode one of its own: an
+# objdir built under full LTO and relinked with -flto=thin links, but every
+# old full-LTO module still goes through the single-threaded merge, and the
+# link stays as slow as before until each object happens to be rebuilt.
+ifeq ($(filter $(PLATFORM),win32 win64),)
+ifeq ($(OPT),1)
+LTO_MODE_STAMP := $(OBJ_DIR)/.lto_mode
+.PHONY: FORCE_LTO_MODE
+FORCE_LTO_MODE:
+
+$(LTO_MODE_STAMP): FORCE_LTO_MODE | $(OBJ_DIR)
+	@printf '%s\n' '$(OPT_RELEASE_CFLAGS)' > '$@.tmp'
+	@if ! cmp -s '$@.tmp' '$@'; then mv '$@.tmp' '$@'; else rm -f '$@.tmp'; fi
+
+$(OBJS): $(LTO_MODE_STAMP)
+endif
+endif
+
 .PHONY: test-toridraw-mini test-toridraw-mini-16bpp test-toridraw-rscache test-toridraw-small toridraw-tables-gen test-toridraw-tables-precomputed toridraw-model-to-ppm
 .PHONY: test-hmap test-projection-kernel test-projected-bound test-font-markup test-seal-rig torirsserver-cache-check torirsserver-bank test-torirsserver-bank torirsserver-alt test-torirsserver-alt torirsserver-dev test-torirsserver-dev test-cache-trim all release web web-debug winxp winxp-debug win64 win64-debug clean-lane io-server servers test-io-wire test-ondemand-wire test-js5 test-js5-server js5-server mock-js5 clean run ToriRSServer test-sound test-ToriRSServer test-torirsserver-poh test-poh-servants check-crystal-set-contract check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-quest-contract-sweeps check-npc-script-player-suspend check-chatnpc-without-npc check-quest-journal-banner check-charter-contract check-selftest-registration check-tob-pillar-contract test-construction-catalog test-poh-quest-status bench-uitree test-blit-scaled test-blit-opaque test-rsareabuf test-varp test-npctype-multi test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-scene-profiles test-mdns test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-drive-event-ring test-walkmerge test-entity-decode check-no-drain check-pt-switch check-rscache-isolation check-revconfig-roles test-quests test-quest-conformance check-quest-verbs test-task-order test-task-join test-cs2-frame-settle test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-highlight test-cs2-options test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile torirsserver-scripts torirsserver-scripts-summoning torirsserver-scripts-curses torirsserver-servpack torirsserver-cache torirsserver-pack test-social test-ground-items test-cs2-transmit-pump test-minimenu-world test-design-panel test-mouseover-entry test-logout-wait test-native-layout test-entity-info-shrink test-minimap-dots test-painters-occluders test-pick-level test-painters-ground-decor test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity torirsserver-cache-summoning torirsserver-cache-curses torirsserver-cache-all torirsserver-scripts-summoning-curses test-curses-cs2 test-curses-isolation test-summoning-phase1 test-summoning-phase3 test-summoning-phase4 test-summoning-phase4c torirsserver-cache-rs2012-summoning
 .PHONY: test-server-clean test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock239-varp test-torirsserver-interface-state rsprot test-rsprot test-pktexec test-pktpackets test-rsprot-bridge test-net-out-resume test-midi-packets test-cs2-target-verb test-cs2-world-click-responsiveness test-summoning-phase4d test-summoning-phase4e test-summoning-phase4f test-summoning-phase5a test-summoning-phase5b test-summoning-phase5c-corpus test-summoning-scroll-assets test-summoning-pet-guide-assets test-summoning-phase5b-runtime test-summoning-phase6 test-summoning-phase6-cache test-summoning-phase7d test-summoning-phase7f summoning-texture-review test-preview-state
@@ -1340,9 +1398,9 @@ endif
 # lane. (2026-09-17: a deploy carried a stale platform_web_io.js because this
 # rule only knew about the objects.)
 $(TARGET): $(OBJS) $(ASAN_DYLD_SHIM) $(PLATFORM_JS_LIBRARY)
-	@mkdir -p $(dir $@)
+	@mkdir -p $(dir $@) $(if $(LTO_CACHE_LDFLAGS),$(LTO_CACHE_DIR))
 	$(file >$(OBJ_DIR)/link_objs.rsp,$(OBJS))
-	$(CC) $(CFLAGS) -o $@ $(LINK_OBJS_ARG) $(LDFLAGS) $(ASAN_DYLD_SHIM)
+	$(CC) $(CFLAGS) -o $@ $(LINK_OBJS_ARG) $(LDFLAGS) $(LTO_CACHE_LDFLAGS) $(ASAN_DYLD_SHIM)
 	@echo $(OBJ_DIR) > .last_flavor
 
 # --- Web target ----------------------------------------------------------
