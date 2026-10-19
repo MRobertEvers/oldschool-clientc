@@ -142,6 +142,19 @@ in these recordings.
 | no slain message | the recorded friends-chat line at each death |
 | tree: no chop messages; stripped by its death queue, 3 ticks after the last chop; human block/death anims | the three messages; strip and `npc_del` on the killing chop; `tree_creak_1`, no animations; rolls 5 apart |
 
+## Fixed in our content (2026-10-19)
+
+| Was | Now |
+|---|---|
+| a landed chop at the roll's top showed the plain splat | the max-hit splat (3285: 32 = WC/2 + 3 at hitsplat 43, its other chops 16); every landed chop splats the tree with its headbar (3285, 3282, 820), a missed roll shows nothing |
+| the engine's retaliation latch (`retaliate=yes`) re-took the hitter on the free tick a hit landed on, the same tick: the drop was undone and its step thrown away, and the next swing slipped to A+5. Scriptrun: a drop on 133 of 216 attacks, 2 in 5 gaps of 5, a single per 9.8 attacks; under a steady blowpipe 0 singles in 20 attacks | both forms `retaliate=no`; `[ai_queue1]` is the retaliation and holds off on the free tick (`step_at` -1/-2 until the next tick's retarget). Six scriptrun rooms: a drop on 353 of 354 attacks, gaps 4 (5 three times), a single per 7.7 attacks, all on A+3 |
+| the same latch on a meal's walk: the meal clears the target, so the walk's first hit made it chase the raider | it walks to the tree under fire and eats: `test/raids/_mutta_meal_probe.lua` (layouts 0 and 2: steps t123..129, bites t130..132 at +37, touching the tree) |
+
+The recorded meals, in template tiles (`rsprox_room.py`, tree south-west (22, 5), 2x2): the small one bites from
+(19, 5) (3285, 820) and (19, 4) (843), the large one from (21, 7) (820, three meals), each touching the tree, the first
+bite the tick after its last step. In 3285 and 843 the large one turned to the tree and did not reach it (it stood, or
+stopped after two steps, under hits: held).
+
 ## Still open
 
 - The large one's ranged/magic coin after a run of three: R4 M4 R3 R3+ R2 and R7 R3 R2 do not fix the odds.
@@ -149,5 +162,7 @@ in these recordings.
 - The melee odds' exact value: 1 in 10 and 1 in 16 both fit 3 spits in 43.
 - Whether the slam goes through Protect from Melee: not in these recordings (kept from the guides).
 - The drop: recorded on about 2 attacks in 3, ours on every one; which cycles skip it is not settled.
+- The meal's turn to the tree comes one tick after the hit that takes it to half (probe: hit t122, face t123); the
+  recordings have both on the same tick.
 - The erratic step's draw for the large one: 9 singles; "round itself" beats "round where it surfaced" but not by much.
   Its real spawn is in the water, which the recordings cannot place.

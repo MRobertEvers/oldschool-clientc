@@ -23,6 +23,12 @@ tiles"). Tool: `tools/cox/rsprox_icedemon.py` (sections `attacks`, `pop`, `fiend
 | RI-A5 | **Snow boulder:** `raids_icedemon_iceball_travel` (1324), start 51, angle 8, progress 64, heights 350 -> 10, end **30 x (2 + g / 3)**: 60 at g 1-2, 90 at g 3-4. `castlewars_catapult_fire` (1440, range 10) at his tile on C. It lands on L as one `raids_icedemon_iceball_hit` (1325) at height 10 on the target and `100_cauldron_explodes` (1021, range 6) there. |
 | RI-A6 | His block is `demon_block` (65), sent on the attacker's attack tick delayed to its projectile's end (70 of 70); each hit on him plays `demon_hit` (404) to its attacker. |
 
+## His spawn facing
+
+| Row | Recorded |
+|---|---|
+| RI-S1 | The frozen demon is added at the room's turn of one template facing per variant: **CCW east** (template 1536; 3285 twice, 820), **THRU south** (0; 3389), **CW west** (512; 843, 3282), away from his exit passage. Instance angles 0, 1536, 1024, 1024, 512, 0. No face update reaches him while frozen, and in all six rooms the add's angle is the direction of his first step out after the pop (`face_of` in `tools/cox/rsprox_room.py` over each room's turn read from that walk). |
+
 ## The braziers and the fiends
 
 | Row | Recorded |
@@ -67,6 +73,9 @@ tiles"). Tool: `tools/cox/rsprox_icedemon.py` (sections `attacks`, `pop`, `fiend
   `npc_defend` kept any swing queued that tick; it now takes the ordinary priority gate (equal or higher wins), and
   the two are of equal priority. Found by the full `rsprox_tells.py` inventory against our tick logs (ours cast on
   every attack, 133 of 133).
+- RI-S1 (2026-10-19): the spawn turns him to a square 28 tiles out along his template facing, through the room's
+  turn (`~cox_icedemon_face_coord`, Tekton's form). He used to keep the engine's south in every turn, right only where
+  instance south was his facing. `test/raids/_icedemon_facing.lua` checks the face against his first step out.
 - `test/raids/_icedemon_tells.lua` checks every attack's tells off the server's tick log (both styles: it prays
   nothing, where the room solver's Protect from Missiles only ever draws boulders).
 
