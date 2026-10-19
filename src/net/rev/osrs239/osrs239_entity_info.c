@@ -1062,12 +1062,27 @@ player_extended(
         }
         if( (flag & V5_PLAYER_TINTING) != 0 )
         {
-            (void)tail_g2_alt1(data, len, &pos); /* start cycle */
-            (void)tail_g2(data, len, &pos);      /* end cycle */
-            (void)tail_g1_alt2(data, len, &pos); /* hue */
-            (void)tail_g1(data, len, &pos);      /* saturation */
-            (void)tail_g1_alt3(data, len, &pos); /* lightness */
-            (void)tail_g1_alt3(data, len, &pos); /* weight */
+            /* PlayerTintingEncoder: p2Alt1 start, p2 end, p1Alt2 hue,
+             * p1 saturation, p1Alt3 lightness, p1Alt3 weight. The deob reads
+             * the same order (class109.method3804, flag 0x200) and keeps the
+             * four colour bytes signed. */
+            int start = tail_g2_alt1(data, len, &pos);
+            int end = tail_g2(data, len, &pos);
+            int hue = tail_g1_alt2(data, len, &pos);
+            int saturation = tail_g1(data, len, &pos);
+            int lightness = tail_g1_alt3(data, len, &pos);
+            int weight = tail_g1_alt3(data, len, &pos);
+            struct PktPlayerInfoOp* op = player_op(r, PKT_PLAYER_INFO_OP_TINT);
+
+            if( op )
+            {
+                op->_tint.start_cycle_delta = (uint16_t)start;
+                op->_tint.end_cycle_delta = (uint16_t)end;
+                op->_tint.hue = (int8_t)hue;
+                op->_tint.saturation = (int8_t)saturation;
+                op->_tint.lightness = (int8_t)lightness;
+                op->_tint.weight = (int8_t)weight;
+            }
         }
         if( (flag & V5_PLAYER_HEADBARS) != 0 )
         {

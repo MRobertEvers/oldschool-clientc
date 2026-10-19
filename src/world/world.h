@@ -1423,6 +1423,20 @@ World_PlayerSetSpotanim(
     int height,
     int cycle_delay);
 
+/* Rev-239 tinting block (Actor.method3182): the cycles are deltas from the
+ * client cycle the block lands on; the four colour bytes are signed (-1 leaves
+ * a channel, a weight not > 0 is no tint). */
+void
+World_PlayerSetTint(
+    struct World* world,
+    int idx,
+    int start_cycle_delta,
+    int end_cycle_delta,
+    int hue,
+    int saturation,
+    int lightness,
+    int weight);
+
 /* `slot`: the rev-239 graphic slot; a graphic replaces only its own slot's
  * (slots past WORLD_NPC_SPOTANIM_SLOTS - 1 share the last). */
 void

@@ -396,14 +396,16 @@ exec_zone_sub_packet_at(
  * completes.
  */
 static void
-zone_pending_push(
+zone_pending_push_at(
     struct App* app,
     enum GameProtoPktName name,
-    void const* payload)
+    void const* payload,
+    struct ZoneAt const* at)
 {
     struct AppPendingZonePkt* entry;
     int cap = (int)(sizeof(app->pending_zone) / sizeof(app->pending_zone[0]));
 
+    assert(at);
     if( app->pending_zone_count >= cap )
     {
         TORIRS_LOG("gameproto_exec: pending-zone queue full, dropping pkt %d\n", (int)name);
@@ -412,11 +414,22 @@ zone_pending_push(
     entry = &app->pending_zone[app->pending_zone_count];
     if( !zone_sub_packet_copy(&entry->pkt, name, payload) )
         return;
-    entry->base_x = app->zone_base_x;
-    entry->base_z = app->zone_base_z;
-    entry->level = app->zone_level;
-    entry->view = app->active_world;
+    entry->base_x = at->base_x;
+    entry->base_z = at->base_z;
+    entry->level = at->level;
+    entry->view = at->view;
     app->pending_zone_count++;
+}
+
+static void
+zone_pending_push(
+    struct App* app,
+    enum GameProtoPktName name,
+    void const* payload)
+{
+    struct ZoneAt at = { app->zone_base_x, app->zone_base_z, app->zone_level, app->active_world };
+
+    zone_pending_push_at(app, name, payload, &at);
 }
 
 void
@@ -623,6 +636,47 @@ exec_zone_sub_packet(
     exec_zone_sub_packet_at(ctx, name, payload, &at);
 }
 
+/*
+ * MAP_ANIM_SPECIFIC: a MAP_ANIM for this player only, addressed by a
+ * build-area tile with no zone header, on the player's own plane (deob
+ * client.java prot 90: `new class52(worldview, id, worldview.field1400, ...)`
+ * -- the same constructor MAP_ANIM reaches). Played through the MAP_ANIM arm
+ * with the zone the tile is in as its base, so the scene-bounds rule, the
+ * spawn and the drive note are MAP_ANIM's own; queued like any zone packet
+ * while the world is still loading.
+ */
+static void
+exec_map_anim_specific(
+    struct RS_GameProtoCtx const* ctx,
+    struct PktMapAnimSpecific const* pkt)
+{
+    struct App* app = ctx->app;
+    struct PktMapAnim sub;
+    struct ZoneAt at;
+
+    assert(pkt);
+    /* Same root-registered sentinel as exec_zone_sub_packet. */
+    if( !app || !app->world )
+        return;
+    memset(&sub, 0, sizeof(sub));
+    sub.pos = ((pkt->x & 7) << 4) | (pkt->z & 7);
+    sub.id = pkt->id;
+    sub.height = pkt->height;
+    sub.delay = pkt->delay;
+    at.base_x = pkt->x & ~7;
+    at.base_z = pkt->z & ~7;
+    at.level = zone_player_level(app);
+    at.view = app->active_world;
+    if( !App_ActiveWorldview(app)->world->load_complete )
+    {
+        zone_pending_push_at(app, PKT_NAME_MAP_ANIM, &sub, &at);
+        return;
+    }
+    if( app->pending_zone_count > 0 )
+        RS_GameProto_FlushPendingZone(ctx);
+    exec_zone_sub_packet_at(ctx, PKT_NAME_MAP_ANIM, &sub, &at);
+}
+
 static void
 exec_zone_sub_packet_at(
     struct RS_GameProtoCtx const* ctx,
@@ -782,6 +836,12 @@ exec_zone_sub_packet_at(
          * only, and a forge on the floor below is meant to be heard.
          */
         struct PktSoundArea const* pkt = payload;
+        /* 65535 is the wire's -1: Jagex's `sound_area id=-1` for an npc with
+         * no sound of its own. The reference queues it and then finds no
+         * synth 65535 to load; nothing is heard either way, so it stops here
+         * rather than asking the cache for a sound that does not exist. */
+        if( pkt->id == 65535 )
+            break;
         zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
         App_PlaySoundAt(
             app, pkt->id, pkt->loops, pkt->delay, tile_x, tile_z, pkt->radius, pkt->inner);
@@ -1829,6 +1889,9 @@ RS_GameProto_Exec(
         break;
     case PKT_NAME_MAP_ANIM:
         exec_zone_sub_packet(ctx, PKT_NAME_MAP_ANIM, &packet->_map_anim);
+        break;
+    case PKT_NAME_MAP_ANIM_SPECIFIC:
+        exec_map_anim_specific(ctx, &packet->_map_anim_specific);
         break;
     case PKT_NAME_SOUND_AREA:
         exec_zone_sub_packet(ctx, PKT_NAME_SOUND_AREA, &packet->_sound_area);

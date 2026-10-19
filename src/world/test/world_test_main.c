@@ -41,6 +41,7 @@ main(void)
     test_rev239_step_arrival_rules();
     test_rev239_frame_mover_drops_the_z_carry();
     test_rev239_exact_move_order();
+    test_rev239_exact_move_with_teleport();
     test_rev239_projectile_ends();
     test_stop_settles_promptly();
     test_entity_face();

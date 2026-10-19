@@ -1330,6 +1330,23 @@ ToriRSServer_ContentObjSpawns(int* count)
 /* npc definitions                                                     */
 /* ------------------------------------------------------------------ */
 
+/* An int param off npc `npc_id`'s cache record, by param name; 0 when the
+ * record does not carry it or the param pack does not declare it. */
+static int
+npc_record_int_param(
+    int npc_id,
+    const char* name)
+{
+    int const param_id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_PARAM, name);
+    const struct ToriRSServerNpcParam* row;
+
+    assert(name);
+    if( param_id < 0 )
+        return 0;
+    row = ToriRSServer_NpcParam(npc_id, param_id);
+    return row ? (int)row->ival : 0;
+}
+
 static void
 npc_def_seed_from_cache(
     struct ToriRSServerNpcDef* def,
@@ -1371,6 +1388,10 @@ npc_def_seed_from_cache(
             def->bonus[i] = info->bonus[i];
         def->attackrate = info->attackrate;
     }
+    /* Area-mode sounds: params on the record, never band fields (see the
+     * field). A pack that does not declare the param answers 0 for all. */
+    def->defend_sound_range = npc_record_int_param(npc_id, "defend_sound_range");
+    def->death_sound_range = npc_record_int_param(npc_id, "death_sound_range");
 }
 
 /*
@@ -2234,6 +2255,8 @@ npc_def_builtin(struct ToriRSServerNpcDef* out)
     out->attack_sound = -1;
     out->defend_sound = -1;
     out->death_sound = -1;
+    out->defend_sound_range = 0;
+    out->death_sound_range = 0;
     out->defaultmode = TORIRSSERVER_NPCMODE_NONE;
     /* Unstated, so an npc with no block keeps the radius-derived default. */
     out->defaultmode_stated = 0;

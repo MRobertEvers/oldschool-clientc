@@ -4140,6 +4140,12 @@ test-minimap: $(OBJ_DIR)
 		engine/minimap/minimap_test.c
 	./$(OBJ_DIR)/minimap_test
 
+# The player TINT colour rule (world/entity_tint.h, the rev-239 deob's
+# class158.method5310 / Statics.method3506) against hand-worked numbers.
+test-entity-tint: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/entity_tint_test world/test/entity_tint_test.c
+	./$(OBJ_DIR)/entity_tint_test
+
 # PLAYER_INFO / NPC_INFO bit decode + appearance blob.
 test-entity-decode: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/entity_decode_test $(TORIMEM_SRCS) \

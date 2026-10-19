@@ -240,9 +240,10 @@ def scan(path, anchor, gap, names, sink, timeline):
             if kind.startswith("map_projanim"):
                 name, value = field_ref(body, "spotanim", names)
                 pending_proj = {"name": name, "body": body}
-            elif kind == "map_anim":
+            elif kind in ("map_anim", "map_anim_specific"):
+                # map_anim_specific: one player's own (our `map_spotanim_specific`)
                 name, _ = field_ref(body, "spotanim", names)
-                emit("map_anim", (name, rest_after_id(body)))
+                emit(kind, (name, rest_after_id(body)))
             elif kind == "sound_area":
                 name, value = field_ref(body, "sound", names)
                 emit("sound_area", ("%s (%d)" % (name, value), rest_after_id(body)))
@@ -363,6 +364,16 @@ def scan_ticklog(path, anchor, gap, names, sink, timeline):
             sink["proj_flight"][(spot(d), max(abs(sx - tx), abs(sz - tz)), f - e)] += 1
         elif kind == "map_spotanim":
             emit("map_anim", (spot(b), fields([("delay", d), ("height", c)])))
+        elif kind == "map_spotanim_specific":
+            # e = the one player it was sent to; RSProx's is always the recorder
+            emit("map_anim_specific", (spot(b), fields([("delay", d), ("height", c)])))
+        elif kind == "player_tint":
+            # RSProx [tinting] on the recorder's own player is compared by hand
+            # (docs/rsprox-analysis/toa/apmeken.md); the row is here for --kind
+            # columns: a=pid b=start c=end d=hue e=saturation f=lightness, g (r[10]) = weight
+            weight = int(r[10]) if len(r) > 10 and r[10].lstrip("-").isdigit() else 0
+            emit("player_tinting", ("ME", "start=%d, end=%d, hue=%d, saturation=%d, lightness=%d, weight=%d"
+                                    % (b, c, d, e, f, weight)))
         elif kind == "player_anim" and b >= 0:
             emit("player_seq", ("ME", seq(b), fields([("delay", c)])))
         elif kind == "player_spotanim" and b >= 0:
@@ -383,7 +394,8 @@ def scan_ticklog(path, anchor, gap, names, sink, timeline):
             size = re.search(r"\bsize=(\d+)", text)
             emit("sound", ("%s (%d)" % (names["sound"].get(b, "sound_%d" % b), b),
                            fields([("loops", c), ("delay", d), ("size", int(size.group(1)) if size else 0)]),
-                           text.split(" ")[0]))
+                           # an npc's defend/death synth goes out as SYNTH_SOUND, as RSProx names it
+                           "synth" if text.split(" ")[0] == "npc" else text.split(" ")[0]))
         elif kind == "music":
             emit("midi_song_v2", "id=%d" % b)
         elif kind == "jingle":

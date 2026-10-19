@@ -190,6 +190,13 @@ enum GameProtoPktName
      * same effect queue.
      */
     PKT_NAME_SOUND_AREA,
+    /**
+     * MAP_ANIM addressed to ONE player, as a top-level packet: the tile is a
+     * build-area coordinate (zone corner + offset, no zone header) and the
+     * plane is the receiving player's own. Played exactly like MAP_ANIM (deob
+     * client.java, prot 90 -> new class52 on worldview.field1400).
+     */
+    PKT_NAME_MAP_ANIM_SPECIFIC,
 
     /*
      * The origin NPC_INFO's low-resolution deltas are relative to, as a

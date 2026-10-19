@@ -566,6 +566,29 @@ npc_sound_nearby(
 }
 
 
+/*
+ * The death's noise, on the tick the death animation starts. Area mode
+ * (`death_sound_range` > 0 on the record) is ONE SOUND_AREA at the npc's
+ * south-west tile, loops 1, delay 0, sent even for -1: Jagex's ToA deaths are
+ * `sound_area id=-1, loops=1, range=8` at the npc tile (RSProx). Otherwise the
+ * synths to everyone within TORIRSSERVER_NPC_SOUND_TILES.
+ */
+static void
+npc_death_sound(
+    struct ToriRSServer* srv,
+    struct ToriRSServerNpc const* npc)
+{
+    int const range = npc_def(npc)->death_sound_range;
+
+    if( range > 0 )
+    {
+        ToriRSServer_WorldSoundArea(srv, npc->death_sound, 0, npc->x, npc->z, npc->level, range,
+                                    0);
+        return;
+    }
+    npc_sound_nearby(srv, npc, npc->death_sound, 0);
+}
+
 static int
 hitsplat_block(void)
 {
@@ -1533,7 +1556,7 @@ npc_death_begin(
      * second time. */
     if( npc->death_anim_now && !npc->death_seq_sent )
     {
-        npc_sound_nearby(srv, npc, npc->death_sound, 0);
+        npc_death_sound(srv, npc);
         play_npc_seq(npc, npc->death_seq);
     }
     /*
@@ -1642,7 +1665,7 @@ npc_death_arrive(
      */
     if( !npc->death_seq_sent )
     {
-        npc_sound_nearby(srv, npc, npc->death_sound, 0);
+        npc_death_sound(srv, npc);
         play_npc_seq(npc, npc->death_seq);
     }
     else if( getenv("TORIRS_ANIM_DEBUG") )
@@ -1896,7 +1919,18 @@ ToriRSServer_CombatHitNpc(
      * (the Ancestral Glyph under Jad's fire, RSProx 1754).
      * docs/rsprox-analysis/combat/defend_timing.md.
      */
-    if( npc->block_sound >= 0 && srv->active_player )
+    /*
+     * Area mode (`defend_sound_range` > 0 on the npc's record): ONE SOUND_AREA
+     * at the npc's centre tile instead, heard by everyone in range, and sent
+     * for a silent npc too -- Jagex's ToA defends are `sound_area id=-1,
+     * range=10`, Ba-Ba's `id=6017, range=9` at her centre (RSProx,
+     * docs/rsprox-analysis/toa/baba.md). Still only for a hit a player dealt.
+     */
+    if( npc_def(npc)->defend_sound_range > 0 && srv->active_player )
+        ToriRSServer_WorldSoundArea(srv, npc->block_sound, 0, npc->x + npc->size / 2,
+                                    npc->z + npc->size / 2, npc->level,
+                                    npc_def(npc)->defend_sound_range, 0);
+    else if( npc->block_sound >= 0 && srv->active_player )
     {
         ToriRSServer_SendSynthSound(srv->active_player, npc->block_sound, 1, 0);
         ToriRSServer_TicklogSound(srv, srv->active_player, npc->block_sound, 1, 0,

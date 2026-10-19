@@ -902,6 +902,7 @@ npc_queue_waypoint(struct ToriRSServerNpc* npc, int x, int z)
     npc->waypoints[0].z = (int16_t)z;
     npc->waypoint_index = 0;
     npc->waypoint_scripted = 0;
+    npc->waypoint_routed = 0;
 }
 
 void
@@ -5096,6 +5097,100 @@ ToriRSServer_WorldNpcWalkToApproach(
     return ToriRSServer_WorldNpcWalkTo(npc, target_x, target_z);
 }
 
+int
+ToriRSServer_WorldNpcRouteApproach(
+    struct ToriRSServer* srv,
+    struct ToriRSServerNpc* npc,
+    int target_x,
+    int target_z)
+{
+    const struct ToriRSServerNpcDef* def;
+    int path_x[TORIRSSERVER_STEP_MAX];
+    int path_z[TORIRSSERVER_STEP_MAX];
+    int turn_x[TORIRSSERVER_WAYPOINT_MAX];
+    int turn_z[TORIRSSERVER_WAYPOINT_MAX];
+    int turns = 0;
+    int steps;
+    struct CollisionApproach approach;
+
+    assert(srv);
+    assert(npc);
+    /* A script steering the npc holds its wander roll off for the next npc
+     * phase: asked every tick, the roll never fires, so an npc that arrived
+     * and is asked again stands where the route left it instead of being sent
+     * to a random tile round its spawn. Stop asking and the roam resumes. */
+    if( npc->next_roam_tick < srv->tick + 2 )
+        npc->next_roam_tick = srv->tick + 2;
+    memset(&approach, 0, sizeof(approach));
+    approach.kind = COLL_APPROACH_RECT_ADJACENT;
+    approach.loc_width = 1;
+    approach.loc_length = 1;
+    approach.mover_size = npc->size > 0 ? npc->size : 1;
+    def = npc->def ? npc->def : ToriRSServer_ContentNpcDefault();
+    if( def->nomove || def->moverestrict == 5 )
+        return 0;
+    /*
+     * Routed against what the npc's own steps test (npc_take_step:
+     * npc_travel_extra + npc_collision_type), so the route is one its steps
+     * can walk: other npcs' occupancy included -- an npc whose blockwalk is
+     * none stamps none, and this npc's own blockwalk=none ignores npcs, both
+     * exactly as the step does -- and its OWN footprint lifted for the flood,
+     * or the 5x5 square it stands on walls in every route that crosses back
+     * over it. Without the occupancy a 5x5 was routed straight through the
+     * baboons beside Ba-Ba's throne and stood at the first one for good
+     * (stuck_counter climbing, ToA 2026-10-19).
+     */
+    npc_set_occupancy(npc, 0);
+    steps = ToriRSServer_SceneRouteSized(npc->level, npc->x, npc->z, target_x, target_z,
+                                         &approach, npc_travel_extra(npc), npc_collision_type(npc),
+                                         path_x, path_z, TORIRSSERVER_STEP_MAX, NULL, NULL);
+    /*
+     * Occupancy can close every way out -- an npc parked against the only
+     * side a big npc can leave by. The map's own route is then the one to
+     * hold: the step test refuses it at the occupant, and the npc goes the
+     * moment the occupant does, rather than not being told where to go.
+     */
+    if( steps < 0 )
+        steps = ToriRSServer_SceneRouteSized(npc->level, npc->x, npc->z, target_x, target_z,
+                                             &approach, 0, npc_collision_type(npc), path_x,
+                                             path_z, TORIRSSERVER_STEP_MAX, NULL, NULL);
+    npc_set_occupancy(npc, 1);
+    if( steps <= 0 )
+    {
+        /* Arrived (0) or unreachable (-1): either way nothing to walk. */
+        npc_clear_waypoints(npc);
+        return 0;
+    }
+    /* The route's corners, as queue_path_as_waypoints keeps a player's: a run
+     * of one direction is one waypoint, which npc_take_step's diagonal-then-X-
+     * then-Z step walks tile for tile. A route longer than the queue keeps
+     * its source end, and the script asks again. */
+    for( int i = 0; i < steps; i++ )
+    {
+        int const from_x = i == 0 ? npc->x : path_x[i - 1];
+        int const from_z = i == 0 ? npc->z : path_z[i - 1];
+        int const dx = path_x[i] - from_x;
+        int const dz = path_z[i] - from_z;
+
+        if( i < steps - 1 && path_x[i + 1] - path_x[i] == dx && path_z[i + 1] - path_z[i] == dz )
+            continue;
+        if( turns >= TORIRSSERVER_WAYPOINT_MAX )
+            break;
+        turn_x[turns] = path_x[i];
+        turn_z[turns] = path_z[i];
+        turns++;
+    }
+    for( int i = 0; i < turns; i++ )
+    {
+        npc->waypoints[i].x = (int16_t)turn_x[turns - 1 - i];
+        npc->waypoints[i].z = (int16_t)turn_z[turns - 1 - i];
+    }
+    npc->waypoint_index = turns - 1;
+    npc->waypoint_scripted = 1;
+    npc->waypoint_routed = 1;
+    return 1;
+}
+
 /*
  * The player a standing mode is being held against, or NULL.
  *
@@ -5796,7 +5891,18 @@ advance_npcs(struct ToriRSServer* srv)
             continue;
         if( npc_run_mode(srv, npc, slot) )
             continue;
-        if( npc->mode != TORIRSSERVER_NPCMODE_WANDER )
+        /*
+         * A route `npc_routeapproach` queued is walked here in EVERY mode,
+         * wander included, at the npc's own move speed. Under the wander
+         * branch below it was taken one tile a tick and re-aimed by the 1-in-8
+         * roll at a random tile round the spawn: Ba-Ba (defaultmode=wander,
+         * wanderrange=5 from the generated layer, run speed) crept a tile a
+         * tick toward the player and stepped back whenever the roll fired
+         * (ToA, 2026-10-19). The roll itself is held off while a script keeps
+         * re-asking (ToriRSServer_WorldNpcRouteApproach bumps next_roam_tick).
+         */
+        if( npc->mode != TORIRSSERVER_NPCMODE_WANDER ||
+            (npc->waypoint_routed && npc->waypoint_index >= 0) )
         {
             /*
              * Reference `Npc.noMode()` is `this.updateMovement()`, and
@@ -19448,4 +19554,45 @@ world_tick_body(struct ToriRSServer* srv)
     }
 
 #undef BD_MARK
+}
+
+void
+ToriRSServer_WorldSoundArea(
+    struct ToriRSServer* srv,
+    int sound,
+    int delay,
+    int x,
+    int z,
+    int level,
+    int range,
+    int drop_off)
+{
+    int const zone_packet =
+        ToriRSServer_ZoneSubSupported(srv->wire, TORIRSSERVER_ZONE_EV_SOUNDAREA);
+    int const coord = ToriRSServer_CoordPack(level, x, z);
+
+    assert(srv);
+    if( zone_packet )
+        ToriRSServer_ZoneSoundArea(srv, x, z, level, sound, 1, delay, range, drop_off);
+    for( int i = 0; i < srv->player_count; i++ )
+    {
+        struct ToriRSServerPlayer* p = &srv->players[i];
+        int dx;
+        int dz;
+
+        if( !p->active || p->level != level )
+            continue;
+        dx = p->x - x;
+        dz = p->z - z;
+        if( dx < 0 )
+            dx = -dx;
+        if( dz < 0 )
+            dz = -dz;
+        if( (dx > dz ? dx : dz) > range )
+            continue;
+        /* The stand-in is a real synth; -1 has nothing to play. */
+        if( !zone_packet && sound >= 0 )
+            ToriRSServer_SendSynthSound(p, sound, 1, delay);
+        ToriRSServer_TicklogSoundArea(srv, p, sound, 1, delay, coord, range, drop_off);
+    }
 }

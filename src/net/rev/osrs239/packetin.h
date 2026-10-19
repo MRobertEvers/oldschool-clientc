@@ -93,7 +93,7 @@ static const struct Osrs239PacketInDef g_packet_in_definitions_osrs239[] = {
     {   -1, 37,                    PKT_NAME_NONE,                       "SCRIPTEDPROJ_ADD" },
     {   -1, 18,                    PKT_NAME_NONE,                       "SCRIPTEDPROJ_CHANGE" },
     {   48, 27,                    PKT_NAME_NONE,                       "PROJANIM_SPECIFIC_V4" },
-    {   90, 8,                     PKT_NAME_NONE,                       "MAP_ANIM_SPECIFIC" },
+    {   90, 8,                     PKT_NAME_MAP_ANIM_SPECIFIC,          "MAP_ANIM_SPECIFIC" },
     {   30, 6,                     PKT_NAME_NONE,                       "LOC_ANIM_SPECIFIC" },
     {    4, 9,                     PKT_NAME_NONE,                       "NPC_HEADICON_SPECIFIC" },
     {  101, 9,                     PKT_NAME_NONE,                       "NPC_SPOTANIM_SPECIFIC" },

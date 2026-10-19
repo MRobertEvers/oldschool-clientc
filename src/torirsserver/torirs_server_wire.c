@@ -1654,6 +1654,9 @@ static const int k_transcribed_osrs239[] = {
     PKT_NAME_MAP_ANIM,         PKT_NAME_OBJ_ADD,         PKT_NAME_OBJ_DEL,
     PKT_NAME_OBJ_COUNT,        PKT_NAME_LOC_MERGE,       PKT_NAME_MAP_PROJANIM,
     PKT_NAME_SOUND_AREA,
+    /* MapAnimSpecificEncoder, written whole by ToriRSServer_SendMapAnimSpecific
+     * the way HINT_ARROW is (no `payload` hook): eight bytes. */
+    PKT_NAME_MAP_ANIM_SPECIFIC,
     PKT_NAME_OBJ_REVEAL,       PKT_NAME_MESSAGE_GAME,    PKT_NAME_IF_SETTEXT,
     PKT_NAME_IF_SETNPCHEAD,    PKT_NAME_IF_SETANIM,      PKT_NAME_IF_SETPLAYERHEAD,
     PKT_NAME_UNSET_MAP_FLAG,   PKT_NAME_CHAT_FILTER_SETTINGS,
@@ -1850,6 +1853,7 @@ ToriRSServer_WirePktName(int pkt_name)
     case PKT_NAME_OBJ_COUNT: return "OBJ_COUNT";
     case PKT_NAME_OBJ_REVEAL: return "OBJ_REVEAL";
     case PKT_NAME_MAP_ANIM: return "MAP_ANIM";
+    case PKT_NAME_MAP_ANIM_SPECIFIC: return "MAP_ANIM_SPECIFIC";
     case PKT_NAME_MAP_PROJANIM: return "MAP_PROJANIM";
     case PKT_NAME_SERVER_TICK_END: return "SERVER_TICK_END";
     case PKT_NAME_MIDI_SONG: return "MIDI_SONG";

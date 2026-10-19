@@ -20,6 +20,7 @@
 #include "packets/loc_del.h"
 #include "packets/loc_merge.h"
 #include "packets/map_anim.h"
+#include "packets/map_anim_specific.h"
 #include "packets/map_projanim_v2.h"
 #include "packets/obj_count.h"
 #include "packets/obj_del.h"
@@ -1624,6 +1625,30 @@ osrs239_parse(
         case PKT_NAME_SOUND_AREA:     out->_sound_area = sub._sound_area; break;
         default:                      out->_map_projanim = sub._map_projanim; break;
         }
+        return 1;
+    }
+
+    /*
+     * MapAnimSpecificEncoder (the generated codec, as the zone subs use it):
+     * p1Alt2 height, p2Alt2 id, p3Alt2 coordInBuildAreaPacked, p2Alt2 delay.
+     * The packed coord is zoneX << 16 | zoneZ << 8 | xInZone << 4 | zInZone,
+     * and the deob adds the halves exactly that way (client.java, prot 90:
+     * `(v >> 4 & 7) + (v >> 16)`, `(v & 7) + (v >> 8 & 0xff)`).
+     */
+    case PKT_NAME_MAP_ANIM_SPECIFIC:
+    {
+        MsgMapAnimSpecific m;
+        int packed;
+
+        memset(&m, 0, sizeof(m));
+        if( !zone_run(&c, rsprot_map_anim_specific_out, rsprot_map_anim_specific_out_count, &m) )
+            return 0;
+        packed = m.coord_in_build_area_packed;
+        out->_map_anim_specific.x = ((packed >> 4) & 0x7) + (packed >> 16);
+        out->_map_anim_specific.z = (packed & 0x7) + ((packed >> 8) & 0xff);
+        out->_map_anim_specific.id = m.id;
+        out->_map_anim_specific.height = m.height;
+        out->_map_anim_specific.delay = m.delay;
         return 1;
     }
 

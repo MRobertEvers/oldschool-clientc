@@ -929,3 +929,185 @@ App_NpctypeResolveMultiId(
     }
     return npc_id;
 }
+
+/* ---- Player TINT (rev-239 PLAYER_INFO tinting, `p_tint`) ----------------
+ *
+ * The official client recolours the body at RASTER time: Player.getModel
+ * hands the model the tint and the count of body faces (class60 ->
+ * Model.method4855), and every untextured face below that count is drawn
+ * through class158.method5310 (world/entity_tint.h has the port and the
+ * citations). This client's rasterisers -- software and every GPU bake --
+ * read a placed model's lit colours (face_colors_a/b/c) at draw time, so the
+ * same picture is made by writing the tinted colours into the element's model
+ * for the frames that draw it and putting the lit ones back before anything
+ * else in the next frame reads them.
+ *
+ * Applied LAST in the world frame (after the body reconcile and the attached-
+ * graphic combine, which snapshot and re-merge the body) and reverted FIRST in
+ * the next one (before either), so neither ever sees a tinted colour: a body
+ * snapshot taken while tinted would otherwise come back tinted for good. The
+ * edits go through ToriDraw_SceneElementModelForWrite, the one door for an
+ * in-place edit, which also bumps the element's model revision.
+ *
+ * The saved colours live here, keyed by scene and element, rather than on
+ * struct App: they exist only between one frame's apply and the next frame's
+ * revert. A revert finds its model by identity (pointer and face count) and
+ * drops the save untouched when the element no longer wears it -- a despawn,
+ * a new body, a graphic detached by the event drain between frames.
+ */
+#define APP_PLAYER_TINT_SAVES 16
+
+struct AppPlayerTintSave
+{
+    struct ToriDraw_Scene* scene;
+    int element_id;
+    struct ToriDraw_Model* model; /* NULL: free */
+    int face_count;
+    int faces; /* tinted faces: [0, faces) */
+    hsl16_t* saved; /* faces * 3: a, b, c */
+    int cap;
+};
+
+static struct AppPlayerTintSave g_player_tint_saves[APP_PLAYER_TINT_SAVES];
+
+/* The model an element wears right now, when it is a full model; NULL for a
+ * dead element or one carrying a shared / lent / ground model (none of which
+ * a player body is). */
+static struct ToriDraw_Model*
+app_player_tint_element_model(
+    struct ToriDraw_Scene* scene,
+    int element_id)
+{
+    struct ToriDraw_SceneElement* el;
+
+    if( !ToriDraw_SceneElementIsLive(scene, element_id) )
+        return NULL;
+    el = ToriDraw_SceneElementGet(scene, element_id);
+    if( !el || el->model.kind != TORIDRAWMK_MODEL )
+        return NULL;
+    return el->model.u.model.model;
+}
+
+/* The tinted value of one lit corner colour. A gouraud corner that lands on
+ * one of the channel-C sentinels would be read back as flat / hidden; nudge
+ * its lightness one step instead (lighting never produces either). */
+static hsl16_t
+app_player_tint_corner(
+    int hsl,
+    struct WorldEntityTint const* tint,
+    int is_c)
+{
+    int out = WorldEntityTint_Hsl16(hsl, tint->hue, tint->saturation, tint->lightness,
+                                    tint->weight);
+
+    if( is_c && (out == TORIDRAWHSL16_FLAT || out == TORIDRAWHSL16_HIDDEN) )
+        out -= 1;
+    return (hsl16_t)out;
+}
+
+void
+app_world_revert_player_tints(struct App* app)
+{
+    assert(app);
+    for( int i = 0; i < APP_PLAYER_TINT_SAVES; i++ )
+    {
+        struct AppPlayerTintSave* save = &g_player_tint_saves[i];
+        struct ToriDraw_Model* model;
+
+        if( !save->model || save->scene != app->scene )
+            continue;
+        model = app_player_tint_element_model(app->scene, save->element_id);
+        if( model == save->model && model->face_count == save->face_count )
+        {
+            model = ToriDraw_SceneElementModelForWrite(app->scene, save->element_id);
+            assert(model == save->model);
+            for( int f = 0; f < save->faces; f++ )
+            {
+                model->face_colors_a[f] = save->saved[f * 3];
+                model->face_colors_b[f] = save->saved[f * 3 + 1];
+                model->face_colors_c[f] = save->saved[f * 3 + 2];
+            }
+            app->need_redraw = 1;
+        }
+        save->model = NULL;
+    }
+}
+
+void
+app_world_sync_player_tints(struct App* app)
+{
+    struct World_EntityPool* pool;
+
+    assert(app);
+    if( !app->world )
+        return;
+    pool = &app->world->entities.player;
+    for( int pi = World_EntityPoolHead(pool); pi != WORLD_ENTITY_NIL;
+         pi = World_EntityPoolNext(pool, pi) )
+    {
+        struct WorldEntity_Player* player = World_EntityPoolGet(pool, pi);
+        struct AppPlayerTintSave* save = NULL;
+        struct AppEntitySpotanim* spot;
+        struct ToriDraw_Model* model;
+        int faces;
+
+        if( !player || player->element_id < 0 ||
+            !WorldEntityTint_Active(&player->tint, app->world->cycle) )
+            continue;
+        if( !app_player_tint_element_model(app->scene, player->element_id) )
+            continue;
+        for( int i = 0; i < APP_PLAYER_TINT_SAVES && !save; i++ )
+            if( !g_player_tint_saves[i].model )
+                save = &g_player_tint_saves[i];
+        /* More tinted players on screen than saves: the rest draw untinted
+         * this frame rather than lose their colours. */
+        if( !save )
+            break;
+        model = ToriDraw_SceneElementModelForWrite(app->scene, player->element_id);
+        assert(model);
+        /* The body's own faces only: while a graphic rides the player the
+         * element wears merge(body, spot) with the body first, and the
+         * reference counts the body before the merge (class60 var13). */
+        faces = model->face_count;
+        spot = app_entity_spotanim_find(
+            app, player->element_id, WORLD_ENTITY_ID(WORLD_ENTITY_KIND_PLAYER, player->server_pid));
+        if( spot && spot->combined == model && spot->body && spot->body->face_count < faces )
+            faces = spot->body->face_count;
+        if( faces <= 0 )
+            continue;
+        if( save->cap < faces * 3 )
+        {
+            save->saved = (hsl16_t*)ToriMem_Realloc(
+                ToriMem_Render(), save->saved, (size_t)faces * 3 * sizeof(*save->saved));
+            assert(save->saved);
+            save->cap = faces * 3;
+        }
+        save->scene = app->scene;
+        save->element_id = player->element_id;
+        save->model = model;
+        save->face_count = model->face_count;
+        save->faces = faces;
+        for( int f = 0; f < faces; f++ )
+        {
+            hsl16_t const c = model->face_colors_c[f];
+
+            save->saved[f * 3] = model->face_colors_a[f];
+            save->saved[f * 3 + 1] = model->face_colors_b[f];
+            save->saved[f * 3 + 2] = c;
+            /* class144.method4849: textured faces never take the tint. */
+            if( model->face_textures && model->face_textures[f] != -1 )
+                continue;
+            if( c == TORIDRAWHSL16_HIDDEN )
+                continue;
+            model->face_colors_a[f] =
+                app_player_tint_corner(model->face_colors_a[f], &player->tint, 0);
+            if( c == TORIDRAWHSL16_FLAT )
+                continue;
+            model->face_colors_b[f] =
+                app_player_tint_corner(model->face_colors_b[f], &player->tint, 0);
+            model->face_colors_c[f] = app_player_tint_corner(c, &player->tint, 1);
+        }
+        app->need_redraw = 1;
+    }
+}
+

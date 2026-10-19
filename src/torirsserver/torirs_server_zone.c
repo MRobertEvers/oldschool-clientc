@@ -969,9 +969,12 @@ ToriRSServer_ZoneSoundArea(
     queue_event(srv, zone, &event);
 }
 
-void
-ToriRSServer_ZoneMapanim(
+/* One MAP_ANIM zone event; `receiver_pid` -1 for everyone, else the one
+ * player it is for (spotanim_map_specific). */
+static void
+zone_mapanim(
     struct ToriRSServer* srv,
+    int receiver_pid,
     int x,
     int z,
     int level,
@@ -991,7 +994,7 @@ ToriRSServer_ZoneMapanim(
 
     memset(&event, 0, sizeof(event));
     event.kind = TORIRSSERVER_ZONE_EV_MAPANIM;
-    event.receiver_pid = -1;
+    event.receiver_pid = receiver_pid;
     event.pos = zone_pos(x, z);
     event.id = spotanim;
     event.src_height = height;
@@ -999,16 +1002,49 @@ ToriRSServer_ZoneMapanim(
     if( getenv("TORIRS_ANIM_DEBUG") )
         fprintf(
             stderr,
-            "srv: spotanim_map tick=%d id=%d x=%d z=%d level=%d delay=%d\n",
+            "srv: spotanim_map tick=%d id=%d x=%d z=%d level=%d delay=%d receiver=%d\n",
             srv->tick,
             spotanim,
             x,
             z,
             level,
-            delay);
+            delay,
+            receiver_pid);
     queue_event(srv, zone, &event);
-    ToriRSServer_TicklogMapSpotanim(srv, ToriRSServer_CoordPack(level, x, z), spotanim, height,
-                                    delay);
+    if( receiver_pid < 0 )
+        ToriRSServer_TicklogMapSpotanim(srv, ToriRSServer_CoordPack(level, x, z), spotanim, height,
+                                        delay);
+    else
+        ToriRSServer_TicklogMapSpotanimSpecific(srv, ToriRSServer_CoordPack(level, x, z),
+                                                spotanim, height, delay, receiver_pid);
+}
+
+void
+ToriRSServer_ZoneMapanim(
+    struct ToriRSServer* srv,
+    int x,
+    int z,
+    int level,
+    int spotanim,
+    int height,
+    int delay)
+{
+    zone_mapanim(srv, -1, x, z, level, spotanim, height, delay);
+}
+
+void
+ToriRSServer_ZoneMapanimSpecific(
+    struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* receiver,
+    int x,
+    int z,
+    int level,
+    int spotanim,
+    int height,
+    int delay)
+{
+    assert(receiver);
+    zone_mapanim(srv, receiver->pid, x, z, level, spotanim, height, delay);
 }
 
 void
@@ -2133,6 +2169,31 @@ zone_trace_event(
  * never saw it, prayed Magic, took 49 and a prayer block. The waiter walking
  * back from the far end lost the death of its own ball the same way (t344).
  */
+/*
+ * A one-player MAP_ANIM as its own top-level packet, where the revision has
+ * one: MAP_ANIM_SPECIFIC names a build-area tile with no zone header, which is
+ * what Jagex sends for `spotanim_map_specific` (RSProx map_anim_specific, the
+ * Path of Apmeken's sight warnings). Returns 1 when sent; 0 leaves the event
+ * to the zone path, which already addresses it to this player alone. Root
+ * world only: a deck view's sandwich keeps the zone form.
+ */
+static int
+zone_send_specific(
+    struct ToriRSServerPlayer* player,
+    int zone_x,
+    int zone_z,
+    const struct ToriRSServerZoneEvent* event)
+{
+    assert(player);
+    assert(event);
+    if( event->kind != TORIRSSERVER_ZONE_EV_MAPANIM || event->receiver_pid < 0 )
+        return 0;
+    if( !ToriRSServer_MapAnimSpecificSupported(player->world->wire) )
+        return 0;
+    ToriRSServer_SendMapAnimSpecific(player, zone_x, zone_z, event);
+    return 1;
+}
+
 static void
 zone_send_transients(
     struct ToriRSServerPlayer* player,
@@ -2165,6 +2226,8 @@ zone_send_transients(
             event = &local;
         }
         zone_trace_event(player, zone_x, zone_z, zone_level, event, "load");
+        if( zone_send_specific(player, zone_x, zone_z, event) )
+            continue;
         if( ToriRSServer_ZoneSubStandalone(srv->wire, event->kind) )
         {
             ToriRSServer_SendZoneHeader(player, zone_x, zone_z, zone_level, 0);
@@ -2328,6 +2391,8 @@ ToriRSServer_ZoneUpdatePlayer(struct ToriRSServerPlayer* player)
             }
 
             zone_trace_event(player, zone_x, zone_z, zone_level, event, "single");
+            if( zone_send_specific(player, zone_x, zone_z, event) )
+                continue;
             if( ToriRSServer_ZoneSubStandalone(srv->wire, event->kind) )
             {
                 ToriRSServer_SendZoneHeader(player, zone_x, zone_z, zone_level, 0);

@@ -2,6 +2,7 @@
 #define WORLD_ENTITY_PLAYER_H
 
 #include "entity_facets.h"
+#include "entity_tint.h"
 
 /* WorldEntity_Player.body.npc_id when the mounted model is not an npc's: built
  * from the appearance slots, or an empty model because the transmog's multinpc
@@ -77,6 +78,11 @@ struct WorldEntity_Player
      *  world->cycle is in [loc_start_cycle, loc_stop_cycle) the loc's model is
      *  meant to ride with this player. loc_merge_id is the base loc type; -1 =
      *  inactive. */
+    /** Rev-239 PLAYER_INFO tinting (`p_tint`): the body drawn recoloured
+     *  while world->cycle is in its window. Zeroed (weight 0) = none. Applied
+     *  per frame by app_world_sync_player_tints. */
+    struct WorldEntityTint tint;
+
     int loc_start_cycle;
     int loc_stop_cycle;
     int loc_merge_id;

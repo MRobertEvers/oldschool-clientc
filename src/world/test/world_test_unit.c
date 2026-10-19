@@ -3265,6 +3265,31 @@ test_rev239_exact_move_order(void)
     }
 }
 
+/* Ba-Ba's boulders: each tick a teleport one tile west and an exact move from
+ * the tile behind (delay1 0, delay2 30). Rev-239 reads the packet after the
+ * cycle bump, so the first update after it is phase 1 and puts the boulder back
+ * on the start tile; it used to stand on the new tile until a frame boundary
+ * and then snap back. */
+void
+test_rev239_exact_move_with_teleport(void)
+{
+    printf("TEST: rev-239 exact move sent with a teleport starts on the start tile\n");
+    struct World* world = World_TestMakeReady(104);
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+    int ni = World_NpcSpawn(world, 2, 1, 0, 60, 50, 1, idle);
+    struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, ni);
+
+    World_TestCycle(world, 4);
+    World_NpcPathJump(world, ni, true, 59, 50);
+    World_NpcSetExactMoveDetailed(world, ni, 60, 50, 59, 50, 30, 0, 512, true);
+    World_TestCycle(world, 1);
+    TEST_ASSERT(npc->draw_position.x == (uint32_t)(60 * 128 + 64),
+                "the first update after the packet draws the start tile, not the teleport's");
+    World_TestCycle(world, 29);
+    TEST_ASSERT(npc->draw_position.x < (uint32_t)(60 * 128 + 64), "then it glides west");
+    World_Free(world);
+}
+
 /* class50.method940 / Statics.method8271: the source actor is read on the first
  * live cycle, a vanished target sends the arc back to the packet destination,
  * and the yaw truncates before the quarter turn. */

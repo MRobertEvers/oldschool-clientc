@@ -2787,6 +2787,64 @@ ToriRSServer_SceneRouteOp(
     return steps;
 }
 
+int
+ToriRSServer_SceneRouteSized(
+    int level,
+    int from_x,
+    int from_z,
+    int to_x,
+    int to_z,
+    struct CollisionApproach const* approach,
+    int extra_flag,
+    int coll_type,
+    int* path_x,
+    int* path_z,
+    int max_steps,
+    int* out_arrive_x,
+    int* out_arrive_z)
+{
+    struct ToriRSServerSceneWindow* window = window_containing2(from_x, from_z, to_x, to_z);
+    struct CollisionMap* map = window ? window_collision(window, level) : NULL;
+    int arrive_x = to_x;
+    int arrive_z = to_z;
+    int steps;
+
+    assert(approach);
+    assert(approach->mover_size >= 1);
+    assert(path_x);
+    assert(path_z);
+    assert(max_steps > 0);
+    /* No window covering both ends is no route: never a straight line
+     * through walls nobody has built. */
+    if( !map )
+    {
+        route_trace(level, from_x, from_z, to_x, to_z, -1, 0, to_x, to_z);
+        return -1;
+    }
+    steps = collision_map_route_tiles_sized(
+        map, from_x - window->base_x, from_z - window->base_z, to_x - window->base_x,
+        to_z - window->base_z, approach, approach->mover_size, extra_flag, coll_type, path_x,
+        path_z, max_steps, &arrive_x, &arrive_z);
+    if( steps < 0 )
+    {
+        route_trace(level, from_x, from_z, to_x, to_z, -1, 0, to_x, to_z);
+        return -1;
+    }
+    for( int i = 0; i < steps; i++ )
+    {
+        path_x[i] += window->base_x;
+        path_z[i] += window->base_z;
+    }
+    arrive_x += window->base_x;
+    arrive_z += window->base_z;
+    if( out_arrive_x )
+        *out_arrive_x = arrive_x;
+    if( out_arrive_z )
+        *out_arrive_z = arrive_z;
+    route_trace(level, from_x, from_z, to_x, to_z, steps, 0, arrive_x, arrive_z);
+    return steps;
+}
+
 /*
  * Melee reach between a 1x1 attacker square and an entity's footprint: the
  * reference's reachRectangle for an entity target (shape -2, exclusive -- never

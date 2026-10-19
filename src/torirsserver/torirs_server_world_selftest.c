@@ -40,6 +40,7 @@
 
 #include "net/jbase37.h"
 #include "net/rev/pktnames.h"
+#include "net/rev/revpacket.h"
 #include "net/wordpack.h"
 
 #include <rsareabuf.h>
@@ -4300,6 +4301,798 @@ selftest_backpack_op_interrupts(struct ToriRSServer* srv)
     }
 }
 
+/* ------------------------------------------------------------------ */
+/* The ToA Apmeken / Ba-Ba engine commands                              */
+/* ------------------------------------------------------------------ */
+
+/* osrs239_parse.c: the CLIENT's own reader, so a packet is checked against
+ * the decoder written from RSProt rather than against this writer. */
+struct GameProtoRevTable;
+int
+osrs239_parse(
+    struct GameProtoRevTable const* rev,
+    int pkt_name,
+    uint8_t const* data,
+    int len,
+    struct RevPacket* out);
+
+/* Records of `pkt_name` inside the PARTIAL_ENCLOSED blobs sent to `pid`. */
+static int
+apmeng_enclosed_count_for(
+    struct ToriRSServer* srv,
+    const struct ToriRSServerCapture* capture,
+    int pkt_name,
+    int pid)
+{
+    const struct ToriRSServerWire* wire = srv->wire;
+    int const want = selftest_zone_sub_code(wire, pkt_name);
+    int const header = selftest_zone_header_length(wire);
+    int found = 0;
+
+    assert(want >= 0);
+    for( int i = ToriRSServer_CaptureFindNamed(capture, PKT_NAME_UPDATE_ZONE_PARTIAL_ENCLOSED, 0);
+         i >= 0;
+         i = ToriRSServer_CaptureFindNamed(capture, PKT_NAME_UPDATE_ZONE_PARTIAL_ENCLOSED, i + 1) )
+    {
+        const struct ToriRSServerCapturedPacket* packet = &capture->packets[i];
+        int at = header;
+
+        if( packet->recipient_pid != pid )
+            continue;
+        while( at < packet->len )
+        {
+            int const code = packet->data[at];
+            int name = -1;
+            int length;
+
+            if( code == want )
+                found++;
+            for( int n = 0; n < PKT_NAME_COUNT && name < 0; n++ )
+                if( selftest_zone_sub_code(wire, n) == code )
+                    name = n;
+            length = name >= 0 ? selftest_zone_sub_length(wire, name) : -1;
+            if( length < 0 )
+                break;
+            at += 1 + length;
+        }
+    }
+    return found;
+}
+
+/* Top-level packets named `pkt_name` sent to `pid`. */
+static int
+apmeng_count_for(
+    const struct ToriRSServerCapture* capture,
+    int pkt_name,
+    int pid,
+    int* out_first)
+{
+    int found = 0;
+
+    for( int i = ToriRSServer_CaptureFindNamed(capture, pkt_name, 0); i >= 0;
+         i = ToriRSServer_CaptureFindNamed(capture, pkt_name, i + 1) )
+    {
+        if( capture->packets[i].recipient_pid != pid )
+            continue;
+        if( found == 0 && out_first )
+            *out_first = i;
+        found++;
+    }
+    return found;
+}
+
+/* Every tile of the size x size square at (x, z) walkable and unoccupied,
+ * and inside the bound scene window with a zone to spare -- outside it
+ * SceneTileFlags answers 0, which reads as open ground nobody has built. */
+static int
+apmeng_square_open(
+    int level,
+    int x,
+    int z,
+    int size)
+{
+    int const base_x = ToriRSServer_SceneBaseX();
+    int const base_z = ToriRSServer_SceneBaseZ();
+
+    if( x < base_x + 8 || z < base_z + 8 || x + size > base_x + 104 - 8 ||
+        z + size > base_z + 104 - 8 )
+        return 0;
+    for( int dx = 0; dx < size; dx++ )
+        for( int dz = 0; dz < size; dz++ )
+        {
+            int const flags = ToriRSServer_SceneTileFlags(level, x + dx, z + dz);
+
+            if( flags & (COLL_FLAG_WALK_BLOCKED | 0xff | COLL_FLAG_NPC_OCC | COLL_FLAG_PLAYER_OCC) )
+                return 0;
+        }
+    return 1;
+}
+
+/* Footprint gap between an npc's square and a 1x1 tile, Chebyshev per axis. */
+static void
+apmeng_gap(
+    const struct ToriRSServerNpc* npc,
+    int x,
+    int z,
+    int* out_dx,
+    int* out_dz)
+{
+    int const size = npc->size > 0 ? npc->size : 1;
+
+    *out_dx = x < npc->x ? npc->x - x : (x > npc->x + size - 1 ? x - (npc->x + size - 1) : 0);
+    *out_dz = z < npc->z ? npc->z - z : (z > npc->z + size - 1 ? z - (npc->z + size - 1) : 0);
+}
+
+/*
+ * The engine half of the ToA Path of Apmeken and Ba-Ba ports, each through the
+ * compiled content call (selftest_apmeng.rs2) so the typed declarations are
+ * held too:
+ *
+ *   spotanim_map_specific  one MAP_ANIM_SPECIFIC, to the active player only,
+ *                          read back by the client's decoder; the shared
+ *                          spotanim_map beside it reaches both players.
+ *   p_tint                 the tinting mask and fields, set and cleared with
+ *                          RSProx's values, and the block's bytes in the
+ *                          PLAYER_INFO that goes out.
+ *   loc_add_revert         the loc stands, then the revert loc replaces it
+ *                          (shape kept, revert angle) when the timer ends.
+ *   sound_area -1          the zone packet goes out with 65535.
+ *   npc sound ranges       defend: one area sound at the centre, even -1;
+ *                          death: one at the south-west tile.
+ *   npc_routeapproach      a 5x5 walks AROUND a 3x3 blocking loc to stand
+ *                          beside a player, never overlapping it, where the
+ *                          naive approach stalls against it.
+ */
+static void
+selftest_apmeng_engine(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player)
+{
+    static struct ToriRSServerCapture cap;
+    struct ToriRSServerPlayer* other;
+    int loaded;
+    int ox = -1;
+    int oz = -1;
+    int const level = 0;
+    int const log_was_on = ToriRSServer_TicklogEnabled(srv);
+    uint32_t log_from;
+
+    fprintf(stderr, "ToriRSServer selftest: ToA Apmeken / Ba-Ba engine commands\n");
+    loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir());
+    if( !loaded )
+        loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir_from_src());
+    SELFTEST_CHECK(loaded, "apmeng: a compiled script pack loads");
+    if( !loaded )
+        return;
+    SELFTEST_CHECK(SSVM_ProviderGetByName(srv->scripts, "[proc,selftest_apmeng_tint]") != NULL,
+                   "apmeng: selftest_apmeng.rs2 is in the pack (make -C src torirsserver-packs)");
+    /*
+     * An open 18x18 field for the loc and the route: no wall, loc, blocked
+     * floor or occupant on any tile. Lumbridge has none (trees, fences, the
+     * river), so the world is rebuilt round open ground -- the first of these
+     * centres whose window holds one.
+     */
+    {
+        static const int k_centres[][2] = {
+            { 3300, 3100 }, /* the Kharidian desert north of the Shantay Pass */
+            { 3200, 3600 }, /* the Wilderness plain */
+            { 3222, 3218 }, /* Lumbridge, last */
+        };
+
+        for( int c = 0; c < (int)(sizeof(k_centres) / sizeof(k_centres[0])) && ox < 0; c++ )
+        {
+            int const cx = k_centres[c][0];
+            int const cz = k_centres[c][1];
+
+            selftest_reset_world(srv, player, cx >> 3, cz >> 3);
+            selftest_park_player(srv, cx, cz);
+            for( int i = 0; i < 3; i++ )
+                selftest_tick(srv);
+            for( int r = 0; r < 52 && ox < 0; r++ )
+                for( int dx = -r; dx <= r && ox < 0; dx++ )
+                    for( int dz = -r; dz <= r && ox < 0; dz++ )
+                    {
+                        if( dx != -r && dx != r && dz != -r && dz != r )
+                            continue;
+                        if( apmeng_square_open(level, cx + dx, cz + dz, 18) )
+                        {
+                            ox = cx + dx;
+                            oz = cz + dz;
+                        }
+                    }
+        }
+    }
+    SELFTEST_CHECK(ox >= 0, "apmeng: an open 18x18 field lies in one of the candidate windows");
+    if( ox < 0 )
+    {
+        ToriRSServer_ScriptsFree(srv);
+        return;
+    }
+    selftest_park_player(srv, ox + 13, oz + 8);
+    selftest_tick(srv);
+    if( !log_was_on )
+        ToriRSServer_TicklogEnable(srv, NULL);
+    log_from = ToriRSServer_TicklogMark("apmeng");
+
+    /* ---- spotanim_map_specific ---------------------------------------- */
+    other = ToriRSServer_WorldAddPlayer(srv, NULL);
+    SELFTEST_CHECK(other != NULL, "apmeng: a second player joins");
+    if( other )
+    {
+        int const sight = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_SPOTANIM,
+                                                     "toa_path_apmeken_sight_warning");
+        int const shared = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_SPOTANIM,
+                                                      "toa_path_apmeken_sight_warning02");
+        int const tile_x = ox + 12;
+        int const tile_z = oz + 5;
+        int32_t args[1] = { ToriRSServer_CoordPack(level, tile_x, tile_z) };
+        uint16_t ops[] = { SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                           SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                           SS_OP_SPOTANIM_MAP,      SS_OP_RETURN };
+        int32_t operands[] = { shared, args[0], 0, 0, 0, 0 };
+        char* strings[6] = { NULL };
+        struct ToriRSServerZoneEvent event;
+        int first = -1;
+
+        ToriRSServer_WorldPlayerInit(other);
+        other->x = ox + 15;
+        other->z = oz + 15;
+        other->level = level;
+        for( int i = 0; i < 3; i++ )
+        {
+            if( other->login_scene_pending || other->rebuild_scene_pending )
+                ToriRSServer_WorldHandle(other, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
+            ToriRSServer_WorldSetActive(srv, player);
+            selftest_tick(srv);
+        }
+        if( other->login_scene_pending || other->rebuild_scene_pending )
+            ToriRSServer_WorldHandle(other, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
+        ToriRSServer_WorldSetActive(srv, player);
+
+        SELFTEST_CHECK(sight >= 0 && shared >= 0, "apmeng: both sight-warning spotanims resolve");
+        SELFTEST_CHECK(ToriRSServer_ScriptsRunProc(srv, "[proc,selftest_apmeng_map_specific]",
+                                                   args, 1),
+                       "apmeng: spotanim_map_specific compiles and runs");
+        SELFTEST_CHECK(ToriRSServer_ZoneEventLast(srv, TORIRSSERVER_ZONE_EV_MAPANIM, sight,
+                                                  &event) &&
+                           event.receiver_pid == player->pid && event.start_delay == 30,
+                       "apmeng: it queues a MAP_ANIM addressed to the active player alone "
+                       "(receiver %d, want %d)",
+                       event.receiver_pid, player->pid);
+        SELFTEST_CHECK(selftest_run_ops(srv, "[selftest,apmeng_shared_mapanim]", ops, operands,
+                                        strings, 6),
+                       "apmeng: the shared spotanim_map beside it runs");
+        ToriRSServer_CaptureBegin(srv, &cap);
+        selftest_tick(srv);
+        ToriRSServer_CaptureEnd(srv);
+        SELFTEST_CHECK(!cap.overflow, "apmeng: the capture holds the tick");
+        SELFTEST_CHECK(apmeng_count_for(&cap, PKT_NAME_MAP_ANIM_SPECIFIC, player->pid, &first) == 1,
+                       "apmeng: the active player gets ONE MAP_ANIM_SPECIFIC");
+        SELFTEST_CHECK(apmeng_count_for(&cap, PKT_NAME_MAP_ANIM_SPECIFIC, other->pid, NULL) == 0,
+                       "apmeng: the other player gets none");
+        SELFTEST_CHECK(apmeng_enclosed_count_for(srv, &cap, PKT_NAME_MAP_ANIM, other->pid) == 1 &&
+                           apmeng_enclosed_count_for(srv, &cap, PKT_NAME_MAP_ANIM, player->pid) ==
+                               1,
+                       "apmeng: the shared map anim reaches both (other %d, player %d), and the "
+                       "specific one is not also sent in the zone form",
+                       apmeng_enclosed_count_for(srv, &cap, PKT_NAME_MAP_ANIM, other->pid),
+                       apmeng_enclosed_count_for(srv, &cap, PKT_NAME_MAP_ANIM, player->pid));
+        if( first >= 0 )
+        {
+            struct RevPacket out;
+            const struct ToriRSServerCapturedPacket* packet = &cap.packets[first];
+            int const want_x = tile_x - ToriRSServer_SceneOrigin(player->zone_x);
+            int const want_z = tile_z - ToriRSServer_SceneOrigin(player->zone_z);
+
+            memset(&out, 0, sizeof(out));
+            SELFTEST_CHECK(packet->len == 8, "apmeng: MAP_ANIM_SPECIFIC is 8 bytes, got %d",
+                           packet->len);
+            SELFTEST_CHECK(osrs239_parse(NULL, PKT_NAME_MAP_ANIM_SPECIFIC, packet->data,
+                                         packet->len, &out),
+                           "apmeng: the client's decoder reads it");
+            SELFTEST_CHECK(out._map_anim_specific.id == sight &&
+                               out._map_anim_specific.x == want_x &&
+                               out._map_anim_specific.z == want_z &&
+                               out._map_anim_specific.height == 0 &&
+                               out._map_anim_specific.delay == 30,
+                           "apmeng: id %d at build-area %d,%d height %d delay %d (want %d at "
+                           "%d,%d, 0, 30)",
+                           out._map_anim_specific.id, out._map_anim_specific.x,
+                           out._map_anim_specific.z, out._map_anim_specific.height,
+                           out._map_anim_specific.delay, sight, want_x, want_z);
+        }
+        selftest_drop_player(other);
+        srv->player_count = player->pid + 1;
+        ToriRSServer_WorldSetActive(srv, player);
+    }
+
+    /* ---- p_tint ---------------------------------------------------------- */
+    {
+        uint8_t want[8];
+        struct RSAreaBuf expect;
+        int pi = -1;
+        int seen = 0;
+
+        selftest_tick(srv);
+        SELFTEST_CHECK(ToriRSServer_ScriptsRunProc(srv, "[proc,selftest_apmeng_tint]", NULL, 0),
+                       "apmeng: p_tint compiles and runs");
+        SELFTEST_CHECK((player->masks & TORIRSSERVER_PMASK_TINT) &&
+                           player->tint_start_cycle == 0 && player->tint_end_cycle == 600 &&
+                           player->tint_hue == 0 && player->tint_saturation == 6 &&
+                           player->tint_lightness == 24 && player->tint_weight == 112,
+                       "apmeng: p_tint(0, 600, 0, 6, 24, 112) sets the mask and the six fields");
+        /* PlayerTintingEncoder's eight bytes, written independently here. */
+        rsab_wrap(&expect, want, sizeof(want));
+        rsab_p2_alt1(&expect, 0);
+        rsab_p2(&expect, 600);
+        rsab_p1_alt2(&expect, 0);
+        rsab_p1(&expect, 6);
+        rsab_p1_alt3(&expect, 24);
+        rsab_p1_alt3(&expect, 112);
+        ToriRSServer_CaptureBegin(srv, &cap);
+        selftest_tick(srv);
+        ToriRSServer_CaptureEnd(srv);
+        apmeng_count_for(&cap, PKT_NAME_PLAYER_INFO, player->pid, &pi);
+        if( pi >= 0 )
+        {
+            const struct ToriRSServerCapturedPacket* packet = &cap.packets[pi];
+
+            for( int at = 0; at + 8 <= packet->len && !seen; at++ )
+                seen = memcmp(packet->data + at, want, 8) == 0;
+        }
+        SELFTEST_CHECK(pi >= 0 && seen,
+                       "apmeng: the PLAYER_INFO that tick carries the tinting block's bytes");
+        SELFTEST_CHECK(!(player->masks & TORIRSSERVER_PMASK_TINT),
+                       "apmeng: and the mask is spent with the tick");
+        SELFTEST_CHECK(ToriRSServer_ScriptsRunProc(srv, "[proc,selftest_apmeng_tint_clear]", NULL,
+                                                   0) &&
+                           player->tint_hue == 255 && player->tint_saturation == 255 &&
+                           player->tint_lightness == 255 && player->tint_weight == 0,
+                       "apmeng: the clear (0, 0, 255, 255, 255, 0) is sent as Jagex sends it");
+        selftest_tick(srv);
+    }
+
+    /* ---- loc_add_revert ------------------------------------------------- */
+    {
+        int const pool = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC,
+                                                    "invisible_type8_blocking");
+        int const revert = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC,
+                                                      "invisible_type8_nonblocking");
+        int const lx = ox + 1;
+        int const lz = oz + 16;
+        int32_t args[1] = { ToriRSServer_CoordPack(level, lx, lz) };
+        struct ToriRSServerSceneLoc* loc;
+        int found_revert = -1;
+
+        SELFTEST_CHECK(pool >= 0 && revert >= 0, "apmeng: both invisible locs resolve");
+        SELFTEST_CHECK(ToriRSServer_ScriptsRunProc(srv, "[proc,selftest_apmeng_loc_add_revert]",
+                                                   args, 1),
+                       "apmeng: loc_add_revert compiles and runs");
+        loc = ToriRSServer_SceneLoc(ToriRSServer_SceneFindLocExact(lx, lz, level, 10));
+        SELFTEST_CHECK(loc && loc->active && loc->loc_id == pool,
+                       "apmeng: the added loc stands (got %d)", loc ? loc->loc_id : -1);
+        for( int t = 0; t < 6 && found_revert < 0; t++ )
+        {
+            selftest_tick(srv);
+            loc = ToriRSServer_SceneLoc(ToriRSServer_SceneFindLocExact(lx, lz, level, 10));
+            if( loc && loc->active && loc->loc_id == revert )
+                found_revert = t + 1;
+            else if( t < 2 )
+                SELFTEST_CHECK(loc && loc->active && loc->loc_id == pool,
+                               "apmeng: still the added loc on tick %d", t + 1);
+        }
+        /* Duration 3 from OUTSIDE a tick: loc_add's own clock, "the rest of
+         * this tick plus 3" (WorldLocRevertQueue's +1), so the fourth tick. */
+        SELFTEST_CHECK(found_revert == 4,
+                       "apmeng: the revert loc replaces it when the timer ends (tick %d, want 4)",
+                       found_revert);
+        SELFTEST_CHECK(loc && loc->active && loc->loc_id == revert && loc->shape == 10 &&
+                           loc->angle == 0,
+                       "apmeng: in the same shape at the revert angle");
+        ToriRSServer_WorldLocSet(srv, lx, lz, level, 10, -1, 0, TORIRSSERVER_LOC_SET_CHANGE);
+    }
+
+    /* ---- sound_area -1 ---------------------------------------------------- */
+    {
+        int32_t args[1] = { ToriRSServer_CoordPack(level, ox + 6, oz + 6) };
+        struct ToriRSServerZoneEvent event;
+
+        selftest_tick(srv);
+        SELFTEST_CHECK(ToriRSServer_ScriptsRunProc(srv, "[proc,selftest_apmeng_sound_area_silent]",
+                                                   args, 1),
+                       "apmeng: sound_area(null, ...) compiles and runs");
+        SELFTEST_CHECK(ToriRSServer_ZoneEventLast(srv, TORIRSSERVER_ZONE_EV_SOUNDAREA, -1, &event) &&
+                           event.id == -1 && event.count == 8 && event.shape == 1,
+                       "apmeng: a -1 sound_area is still sent: id %d range %d loops %d",
+                       event.id, event.count, event.shape);
+        {
+            uint8_t blob[32];
+            int const written = ToriRSServer_EncodeZoneSub(srv->wire, blob, (int)sizeof(blob),
+                                                           &event);
+
+            /* SoundAreaEncoder ends `p2 id`: the wire's -1 is 65535. */
+            SELFTEST_CHECK(written >= 3 && blob[written - 2] == 0xff && blob[written - 1] == 0xff,
+                           "apmeng: and its id goes out as 65535");
+        }
+        selftest_tick(srv);
+    }
+
+    /* ---- npc sound ranges, and npc_routeapproach -------------------------- */
+    {
+        int const man = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "man");
+        int const blocker = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC,
+                                                       "invisible_type8_blocking_size3");
+        int slot;
+
+        SELFTEST_CHECK(ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_PARAM, "defend_sound_range") >= 0 &&
+                           ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_PARAM,
+                                                      "death_sound_range") >= 0,
+                       "apmeng: defend_sound_range and death_sound_range are declared params");
+        SELFTEST_CHECK(man >= 0 && blocker >= 0, "apmeng: man and the 3x3 blocker resolve");
+        slot = man >= 0 ? ToriRSServer_WorldNpcSpawn(srv, man, ox + 1, oz + 6, level) : -1;
+        SELFTEST_CHECK(slot >= 0, "apmeng: the npc spawns");
+        if( slot >= 0 && blocker >= 0 )
+        {
+            struct ToriRSServerNpc* npc = &srv->npcs[slot];
+            static struct ToriRSServerNpcDef def_copy;
+            const struct ToriRSServerNpcDef* def_before;
+            int const start_x = ox + 1;
+            int const start_z = oz + 6;
+            int arrived_at = -1;
+            int overlapped = 0;
+            int naive_beside = 0;
+            int frozen[TORIRSSERVER_NPC_MAX];
+            int frozen_max;
+            static struct ToriRSServerTicklogRow rows[1024];
+            int n;
+            int area_rows = 0;
+
+            selftest_tick(srv); /* [ai_spawn] */
+            /* Hold every other npc still for the length of the stanza, so no
+             * wanderer walks into the field. */
+            frozen_max = srv->npc_slot_max;
+            for( int i = 0; i < frozen_max; i++ )
+            {
+                frozen[i] = srv->npcs[i].frozen_ticks;
+                if( i != slot && srv->npcs[i].active )
+                    srv->npcs[i].frozen_ticks = 1000;
+            }
+            npc->mode = TORIRSSERVER_NPCMODE_NONE;
+            npc->wander_radius = 0;
+            npc->combat_target = -1;
+            npc->base_hitpoints = npc->max_hitpoints = npc->hitpoints = 200;
+            ToriRSServer_WorldNpcOccupancy(npc, 0);
+            npc->size = 5;
+            ToriRSServer_WorldNpcOccupancy(npc, 1);
+            def_before = npc->def;
+            def_copy = *ToriRSServer_ContentNpcDefault();
+            if( def_before )
+                def_copy = *def_before;
+            def_copy.nomove = 0;
+            def_copy.moverestrict = 0;
+            def_copy.defend_sound_range = 10;
+            def_copy.death_sound_range = 8;
+            npc->def = &def_copy;
+
+            /* Defend: ONE area sound at the centre tile, even for -1. The
+             * player stands within 10 of the centre for the tick log's row. */
+            selftest_park_player(srv, ox + 10, oz + 8);
+            selftest_tick(srv);
+            npc->block_sound = -1;
+            log_from = ToriRSServer_TicklogMark("apmeng defend");
+            ToriRSServer_WorldSetActive(srv, player);
+            ToriRSServer_CombatHitNpc(srv, slot, 1, 1);
+            {
+                struct ToriRSServerZoneEvent event;
+
+                SELFTEST_CHECK(ToriRSServer_ZoneEventCount(srv, TORIRSSERVER_ZONE_EV_SOUNDAREA,
+                                                           -1) == 1 &&
+                                   ToriRSServer_ZoneEventLast(srv, TORIRSSERVER_ZONE_EV_SOUNDAREA,
+                                                              -1, &event) &&
+                                   event.id == -1 && event.count == 10 &&
+                                   event.pos == (((npc->x + 2) & 7) << 4 | ((npc->z + 2) & 7)),
+                               "apmeng: a silent npc's defend is still one sound_area, id -1 "
+                               "range 10, at the 5x5's centre");
+            }
+            n = ToriRSServer_TicklogRead(log_from, rows, 1024);
+            for( int i = 0; i < n; i++ )
+                if( rows[i].kind == TORIRSSERVER_TICKLOG_SOUND && rows[i].b == -1 &&
+                    strncmp(rows[i].label, "area", 4) == 0 &&
+                    rows[i].e == ToriRSServer_CoordPack(level, npc->x + 2, npc->z + 2) &&
+                    rows[i].f == 10 )
+                    area_rows++;
+            SELFTEST_CHECK(area_rows == 1,
+                           "apmeng: and the tick log's SOUND row says so: area, id -1, range "
+                           "10 (rows %d)",
+                           area_rows);
+            selftest_tick(srv);
+            npc->block_sound = 6017;
+            {
+                struct ToriRSServerZoneEvent event;
+
+                ToriRSServer_CombatHitNpc(srv, slot, 1, 1);
+                SELFTEST_CHECK(ToriRSServer_ZoneEventLast(srv, TORIRSSERVER_ZONE_EV_SOUNDAREA, 6017,
+                                                          &event) &&
+                                   event.count == 10 && event.shape == 1 &&
+                                   event.pos == (((npc->x + 2) & 7) << 4 | ((npc->z + 2) & 7)),
+                               "apmeng: Ba-Ba's 6017 goes out as the zone packet, range 10, "
+                               "loops 1, at the centre");
+            }
+            npc->hitpoints = npc->max_hitpoints;
+            selftest_park_player(srv, ox + 13, oz + 8);
+            selftest_tick(srv);
+
+            /* The naive approach first: it stalls against the 3x3. */
+            ToriRSServer_WorldLocSet(srv, ox + 7, oz + 7, level, 10, blocker, 0,
+                                     TORIRSSERVER_LOC_SET_ADD);
+            SELFTEST_CHECK((ToriRSServer_SceneTileFlags(level, ox + 7, oz + 7) & COLL_FLAG_LOC) != 0 &&
+                               (ToriRSServer_SceneTileFlags(level, ox + 9, oz + 9) &
+                                COLL_FLAG_LOC) != 0,
+                           "apmeng: the 3x3 blocker blocks its whole square");
+            npc->move_speed = TORIRSSERVER_NPC_SPEED_RUN;
+            for( int t = 0; t < 20 && !naive_beside; t++ )
+            {
+                struct CollisionApproach approach;
+                int gx;
+                int gz;
+
+                memset(&approach, 0, sizeof(approach));
+                approach.kind = COLL_APPROACH_RECT_ADJACENT;
+                approach.loc_width = 1;
+                approach.loc_length = 1;
+                approach.mover_size = npc->size;
+                ToriRSServer_WorldNpcWalkToApproach(npc, player->x, player->z, &approach);
+                selftest_tick(srv);
+                apmeng_gap(npc, player->x, player->z, &gx, &gz);
+                naive_beside = gx + gz == 1;
+            }
+            SELFTEST_CHECK(!naive_beside,
+                           "apmeng: the fixture is real -- npc_approach's naive line stalls "
+                           "against the 3x3 (npc at %d,%d)",
+                           npc->x, npc->z);
+
+            /* Then the route, from the same start. */
+            ToriRSServer_WorldNpcOccupancy(npc, 0);
+            npc->x = start_x;
+            npc->z = start_z;
+            ToriRSServer_WorldNpcOccupancy(npc, 1);
+            npc->waypoint_index = -1;
+            {
+                int32_t args[1] = { ToriRSServer_CoordPack(level, player->x, player->z) };
+
+                SELFTEST_CHECK(ToriRSServer_ScriptsRunProcArgsOnNpc(
+                                   srv, "[proc,selftest_apmeng_routeapproach]", slot, args, 1),
+                               "apmeng: npc_routeapproach compiles and runs");
+            }
+            SELFTEST_CHECK(npc->waypoint_index >= 0 && npc->waypoint_scripted,
+                           "apmeng: it queues the route as scripted waypoints");
+            for( int t = 0; t < 20 && arrived_at < 0; t++ )
+            {
+                int gx;
+                int gz;
+
+                selftest_tick(srv);
+                /* The footprint against the 3x3 at ox+7..ox+9, oz+7..oz+9. */
+                if( npc->x <= ox + 9 && npc->x + 4 >= ox + 7 && npc->z <= oz + 9 &&
+                    npc->z + 4 >= oz + 7 )
+                    overlapped++;
+                apmeng_gap(npc, player->x, player->z, &gx, &gz);
+                if( gx + gz == 1 )
+                    arrived_at = t + 1;
+            }
+            SELFTEST_CHECK(overlapped == 0, "apmeng: the 5x5 never overlaps the 3x3 (%d ticks did)",
+                           overlapped);
+            SELFTEST_CHECK(arrived_at > 0 && arrived_at <= 12,
+                           "apmeng: and stands beside the player, edge-on, within 12 ticks at "
+                           "run speed (tick %d, npc at %d,%d)",
+                           arrived_at, npc->x, npc->z);
+
+            /*
+             * Re-asked every tick, in WANDER mode, at run speed -- Ba-Ba as
+             * the ToA room drives her (defaultmode=wander, wanderrange=5,
+             * npc_setmovespeed(1), npc_routeapproach from a queue after the
+             * npc phase). Two tiles a tick, never a step away, then still
+             * beside the target however long it keeps being asked. Before the
+             * fix the wander mover took the route one tile a tick and its
+             * 1-in-8 roll sent her back toward her spawn.
+             */
+            ToriRSServer_WorldLocSet(srv, ox + 7, oz + 7, level, 10, -1, 0,
+                                     TORIRSSERVER_LOC_SET_CHANGE);
+            ToriRSServer_WorldNpcOccupancy(npc, 0);
+            npc->x = start_x;
+            npc->z = start_z;
+            ToriRSServer_WorldNpcOccupancy(npc, 1);
+            npc->waypoint_index = -1;
+            npc->mode = TORIRSSERVER_NPCMODE_WANDER;
+            npc->spawn_x = start_x;
+            npc->spawn_z = start_z;
+            npc->wander_radius = 5;
+            npc->next_roam_tick = 0;
+            npc->move_speed = TORIRSSERVER_NPC_SPEED_RUN;
+            {
+                int32_t args[1] = { ToriRSServer_CoordPack(level, player->x, player->z) };
+                int short_steps = 0;
+                int reversed = 0;
+                int moved_after = 0;
+                int beside_at = -1;
+                int gx;
+                int gz;
+                int last_gap;
+
+                apmeng_gap(npc, player->x, player->z, &gx, &gz);
+                last_gap = gx + gz;
+                for( int t = 0; t < 30; t++ )
+                {
+                    int const was_x = npc->x;
+                    int const was_z = npc->z;
+                    int moved;
+
+                    /* The room's queue runs after the npc phase: ask, then tick. */
+                    ToriRSServer_ScriptsRunProcArgsOnNpc(srv, "[proc,selftest_apmeng_routeapproach]",
+                                                         slot, args, 1);
+                    selftest_tick(srv);
+                    moved = abs(npc->x - was_x) > abs(npc->z - was_z) ? abs(npc->x - was_x)
+                                                                       : abs(npc->z - was_z);
+                    apmeng_gap(npc, player->x, player->z, &gx, &gz);
+                    if( gx + gz > last_gap )
+                        reversed++;
+                    last_gap = gx + gz;
+                    if( beside_at < 0 )
+                    {
+                        /* Short of the target, a run tick is two tiles unless
+                         * one tile was all that was left. */
+                        if( gx + gz != 1 && moved != 2 )
+                            short_steps++;
+                        if( gx + gz == 1 )
+                            beside_at = t + 1;
+                    }
+                    else if( moved )
+                        moved_after++;
+                }
+                SELFTEST_CHECK(beside_at > 0 && beside_at <= 5,
+                               "apmeng: a run-speed 5x5 re-asked every tick in wander mode "
+                               "stands beside the target by tick 5 (tick %d, npc at %d,%d)",
+                               beside_at, npc->x, npc->z);
+                SELFTEST_CHECK(short_steps == 0,
+                               "apmeng: two tiles every tick on the way (%d short ticks)",
+                               short_steps);
+                SELFTEST_CHECK(reversed == 0, "apmeng: never a step away from the target (%d)",
+                               reversed);
+                SELFTEST_CHECK(moved_after == 0,
+                               "apmeng: and once beside it stays put while still asked (%d moves)",
+                               moved_after);
+            }
+            npc->mode = TORIRSSERVER_NPCMODE_NONE;
+            npc->wander_radius = 0;
+
+            /*
+             * Another npc on the straight line: the route goes AROUND its
+             * occupancy, which the 5x5's own step test honours. Routed straight
+             * through it, the 5x5 stands at it for good (Ba-Ba at the baboons
+             * beside her throne, stuck_counter climbing).
+             */
+            {
+                int const in_way_x = ox + 7;
+                int const in_way_z = oz + 8;
+                int const other_slot = ToriRSServer_WorldNpcSpawn(srv, man, in_way_x, in_way_z, level);
+                int32_t args[1] = { ToriRSServer_CoordPack(level, player->x, player->z) };
+                int beside_at = -1;
+                int overlapped_npc = 0;
+
+                SELFTEST_CHECK(other_slot >= 0, "apmeng: a 1x1 npc spawns in the way");
+                if( other_slot >= 0 )
+                {
+                    struct ToriRSServerNpc* in_way = &srv->npcs[other_slot];
+
+                    ToriRSServer_WorldNpcOccupancy(npc, 0);
+                    npc->x = start_x;
+                    npc->z = start_z;
+                    ToriRSServer_WorldNpcOccupancy(npc, 1);
+                    npc->waypoint_index = -1;
+                    selftest_tick(srv); /* its [ai_spawn] */
+                    in_way->mode = TORIRSSERVER_NPCMODE_NONE;
+                    in_way->wander_radius = 0;
+                    in_way->frozen_ticks = 1000;
+                    in_way->waypoint_index = -1;
+                    SELFTEST_CHECK(in_way->x == in_way_x && in_way->z == in_way_z &&
+                                       (ToriRSServer_SceneTileFlags(level, in_way_x, in_way_z) &
+                                        COLL_FLAG_NPC_OCC) != 0,
+                                   "apmeng: and stamps its tile with npc occupancy");
+                    for( int t = 0; t < 20 && beside_at < 0; t++ )
+                    {
+                        int gx;
+                        int gz;
+
+                        ToriRSServer_ScriptsRunProcArgsOnNpc(
+                            srv, "[proc,selftest_apmeng_routeapproach]", slot, args, 1);
+                        selftest_tick(srv);
+                        if( in_way_x >= npc->x && in_way_x <= npc->x + 4 && in_way_z >= npc->z &&
+                            in_way_z <= npc->z + 4 )
+                            overlapped_npc++;
+                        apmeng_gap(npc, player->x, player->z, &gx, &gz);
+                        if( gx + gz == 1 )
+                            beside_at = t + 1;
+                    }
+                    SELFTEST_CHECK(beside_at > 0 && beside_at <= 8,
+                                   "apmeng: a run-speed 5x5 routes around a 1x1 npc on its line "
+                                   "and stands beside the player by tick 8 (tick %d, npc at "
+                                   "%d,%d, stuck %d)",
+                                   beside_at, npc->x, npc->z, npc->stuck_counter);
+                    SELFTEST_CHECK(overlapped_npc == 0,
+                                   "apmeng: never standing on the npc in its way (%d ticks did)",
+                                   overlapped_npc);
+                    in_way->frozen_ticks = 0;
+                    ToriRSServer_WorldNpcOccupancy(in_way, 0);
+                    in_way->active = 0;
+                }
+            }
+            ToriRSServer_WorldLocSet(srv, ox + 7, oz + 7, level, 10, blocker, 0,
+                                     TORIRSSERVER_LOC_SET_ADD);
+
+            /* Death: one area sound at the south-west tile, range 8. */
+            npc->death_sound = -1;
+            npc->death_anim_now = 0;
+            log_from = ToriRSServer_TicklogMark("apmeng death");
+            {
+                int const dead_x = npc->x;
+                int const dead_z = npc->z;
+
+                ToriRSServer_CombatHitNpc(srv, slot, 1, npc->hitpoints);
+                area_rows = 0;
+                for( int t = 0; t < 4; t++ )
+                    selftest_tick(srv);
+                n = ToriRSServer_TicklogRead(log_from, rows, 1024);
+                for( int i = 0; i < n; i++ )
+                    if( rows[i].kind == TORIRSSERVER_TICKLOG_SOUND && rows[i].b == -1 &&
+                        strncmp(rows[i].label, "area", 4) == 0 &&
+                        rows[i].e == ToriRSServer_CoordPack(level, dead_x, dead_z) &&
+                        rows[i].f == 8 )
+                        area_rows++;
+                SELFTEST_CHECK(area_rows == 1,
+                               "apmeng: a death with death_sound_range 8 is one sound_area id -1 "
+                               "range 8 at the south-west tile (rows %d)",
+                               area_rows);
+            }
+
+            ToriRSServer_WorldLocSet(srv, ox + 7, oz + 7, level, 10, -1, 0,
+                                     TORIRSSERVER_LOC_SET_CHANGE);
+            for( int i = 0; i < frozen_max; i++ )
+                srv->npcs[i].frozen_ticks = frozen[i];
+            if( npc->active )
+            {
+                npc->def = def_before;
+                npc->active = 0;
+            }
+            else
+                npc->def = def_before;
+        }
+    }
+
+    /* ---- the tick log's kinds ---------------------------------------------- */
+    {
+        static struct ToriRSServerTicklogRow rows[4096];
+        int const n = ToriRSServer_TicklogRead(0, rows, 4096);
+        int specific = 0;
+        int tints = 0;
+
+        for( int i = 0; i < n; i++ )
+        {
+            if( rows[i].kind == TORIRSSERVER_TICKLOG_MAP_SPOTANIM_SPECIFIC && rows[i].e == player->pid )
+                specific++;
+            if( rows[i].kind == TORIRSSERVER_TICKLOG_PLAYER_TINT && rows[i].a == player->pid )
+                tints++;
+        }
+        SELFTEST_CHECK(specific == 1, "apmeng: one map_spotanim_specific row naming the receiver (%d)",
+                       specific);
+        SELFTEST_CHECK(tints == 2, "apmeng: two player_tint rows, the set and the clear (%d)", tints);
+    }
+    if( !log_was_on )
+        ToriRSServer_TicklogDisable();
+    ToriRSServer_ScriptsFree(srv);
+    selftest_reset_world(srv, player, 402, 402);
+    selftest_park_player(srv, 3222, 3218);
+}
+
 int
 ToriRSServer_WorldSelftest(void)
 {
@@ -4504,6 +5297,16 @@ ToriRSServer_WorldSelftest(void)
         fprintf(stderr, "ToriRSServer heldop selftest: %lu checks, %d failures\n",
                 g_selftest_checks, g_selftest_failures);
         selftest_evidence_end("heldop");
+        return g_selftest_failures;
+    }
+
+    /* TORIRSSERVER_SELFTEST_APMENG_ONLY=1 ./src/build_apmeng_opt/torirsserver --selftest */
+    if( getenv("TORIRSSERVER_SELFTEST_APMENG_ONLY") )
+    {
+        selftest_apmeng_engine(srv, player);
+        fprintf(stderr, "ToriRSServer apmeng selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("apmeng");
         return g_selftest_failures;
     }
 
@@ -63080,6 +63883,7 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsFree(srv);
         }
     }
+    selftest_apmeng_engine(srv, player);
     selftest_reset_world(srv, player, 402, 402);
 
     /* Across the WHOLE suite — see the two counters' fields. Asserted here

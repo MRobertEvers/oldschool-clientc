@@ -523,6 +523,25 @@ ToriRSServer_ZoneMapanim(
     int delay);
 
 /**
+ * The same MAP_ANIM, for ONE player (`spotanim_map_specific`): the event's
+ * `receiver_pid` names them, so nobody else's stream carries it. A revision
+ * with MAP_ANIM_SPECIFIC (239, prot 90) sends that top-level packet from the
+ * zone flush (ToriRSServer_SendMapAnimSpecific); one without gets the zone
+ * MAP_ANIM addressed to that player alone. Tick log kind
+ * `map_spotanim_specific`, with the receiver.
+ */
+void
+ToriRSServer_ZoneMapanimSpecific(
+    struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* receiver,
+    int x,
+    int z,
+    int level,
+    int spotanim,
+    int height,
+    int delay);
+
+/**
  * Queue SOUND_AREA: a synth at (x,z,level) heard within `range` tiles, the way
  * Jagex sends a boss's area noise — one zone packet, with distance falloff on
  * the client, rather than a SYNTH_SOUND per player in range.

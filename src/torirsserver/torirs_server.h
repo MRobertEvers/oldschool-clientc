@@ -857,7 +857,17 @@ enum
     TORIRSSERVER_PMASK_SPOTANIM = 0x100,
     TORIRSSERVER_PMASK_EXACT_MOVE = 0x200,
     TORIRSSERVER_PMASK_DAMAGE2 = 0x400,
+    /*
+     * `p_tint`: the rev-239 TINTING block (player flag 0x200 on that wire).
+     * Revision 239's writer only. The classic stream has no tinting field, so
+     * TORIRSSERVER_PMASK_CLASSIC strips it before the classic mask word is
+     * written: a bit there with no body would eat the next block.
+     */
+    TORIRSSERVER_PMASK_TINT = 0x800,
 };
+
+/** The masks the classic (rev-230) PLAYER_INFO writer can express. */
+#define TORIRSSERVER_PMASK_CLASSIC 0x7ffu
 
 /*
  * Every hitsplat one entity takes in one tick.
@@ -2736,6 +2746,13 @@ struct ToriRSServerNpc
      * Cleared by every other writer of the queue (`npc_queue_waypoint`).
      */
     int waypoint_scripted;
+    /**
+     * The queued waypoints are a route `npc_routeapproach` laid
+     * (ToriRSServer_WorldNpcRouteApproach). The npc phase walks such a route at
+     * the npc's move speed in every mode, wander included, instead of letting
+     * the wander roll re-aim it. Cleared by every other writer of the queue.
+     */
+    int waypoint_routed;
     int stuck_counter;
     int size;      /* footprint; from npcinfo at spawn, default 1 */
     int turnspeed; /* NpcType.turnspeed; from npcinfo at spawn. 0 = never turns */
@@ -3987,6 +4004,18 @@ struct ToriRSServerPlayer
      *  docs/rsprox-analysis/toa/kephri.md. Read while PMASK_SPOTANIM is set. */
     struct ToriRSServerNpcSpotanim spotanims[TORIRSSERVER_NPC_SPOTANIM_MAX];
     int spotanim_count;
+    /**
+     * `p_tint` -- the PLAYER_INFO tinting block's six fields, read only while
+     * TORIRSSERVER_PMASK_TINT is set (the tick content sent it). Cycles are
+     * client cycles relative to arrival; hue/saturation/lightness are the
+     * wire's bytes (255 = leave that channel), weight out of 128.
+     */
+    int tint_start_cycle;
+    int tint_end_cycle;
+    int tint_hue;
+    int tint_saturation;
+    int tint_lightness;
+    int tint_weight;
     /**
      * `p_exactmove` — the pair `p_locmerge` belongs to. The two tiles the
      * client glides between, in **absolute world** coordinates, plus the cycle
@@ -5953,6 +5982,13 @@ enum ToriRSServerTicklogKind
      * an overhead bar the npc's NPC_INFO carried this tick, once per npc per
      * tick whoever it went to -- RSProx's `[headbar]` */
     TORIRSSERVER_TICKLOG_NPC_HEADBAR,
+    /* a=coord b=spotanim c=height d=delay e=receiver pid: a MAP_ANIM only one
+     * player is sent (`spotanim_map_specific`; RSProx `map_anim_specific`). */
+    TORIRSSERVER_TICKLOG_MAP_SPOTANIM_SPECIFIC,
+    /* a=pid b=start cycle c=end cycle d=hue e=saturation f=lightness
+     * g=weight, as the wire carries them (255 = leave the channel; weight 0
+     * clears): `p_tint`, the PLAYER_INFO tinting block. */
+    TORIRSSERVER_TICKLOG_PLAYER_TINT,
     TORIRSSERVER_TICKLOG_KIND_COUNT
 };
 
@@ -6131,6 +6167,13 @@ void ToriRSServer_TicklogProjectile(const struct ToriRSServer* srv, int src_coor
                                     int source);
 void ToriRSServer_TicklogMapSpotanim(const struct ToriRSServer* srv, int coord, int spotanim,
                                      int height, int delay);
+void ToriRSServer_TicklogMapSpotanimSpecific(const struct ToriRSServer* srv, int coord,
+                                             int spotanim, int height, int delay,
+                                             int receiver_pid);
+void ToriRSServer_TicklogPlayerTint(const struct ToriRSServer* srv,
+                                    const struct ToriRSServerPlayer* player, int start_cycle,
+                                    int end_cycle, int hue, int saturation, int lightness,
+                                    int weight);
 /* `damage` is the splat as shown, `raw` the amount the caller asked to deal
  * (RAW DAMAGE in the banner above the kinds). */
 void ToriRSServer_TicklogHitPlayer(const struct ToriRSServer* srv,
@@ -7216,6 +7259,24 @@ ToriRSServer_WorldWalkToApproach(
  */
 int
 ToriRSServer_WorldNpcWalkTo(
+    struct ToriRSServerNpc* npc,
+    int target_x,
+    int target_z);
+
+/**
+ * `npc_routeapproach`: route the npc's WHOLE footprint (ToriRSServer_SceneRouteSized)
+ * to stand beside (target_x, target_z) -- edge-on, never a corner, never on
+ * it (RECT_ADJACENT, mover_size = npc->size) -- and queue the route's corners
+ * as its waypoints, marked scripted, so the noMode drain walks it at the npc's
+ * own move speed -- in every mode, wander included (the wander roll is held
+ * off for the next npc phase on every call). Returns 1 when a route was
+ * queued; 0 when the npc already stands beside the tile, cannot move
+ * (nomove), or nothing reaches -- and then its waypoints are cleared: no
+ * route, no move.
+ */
+int
+ToriRSServer_WorldNpcRouteApproach(
+    struct ToriRSServer* srv,
     struct ToriRSServerNpc* npc,
     int target_x,
     int target_z);
@@ -9064,6 +9125,28 @@ ToriRSServer_SendZoneHeader(
     int level,
     int full);
 
+/**
+ * 1 when this revision carries MAP_ANIM_SPECIFIC as its own top-level packet
+ * (239: prot 90). The zone flush sends a one-player MAP_ANIM that way; a
+ * revision without it falls back to the zone MAP_ANIM addressed to that player.
+ */
+int
+ToriRSServer_MapAnimSpecificSupported(const struct ToriRSServerWire* wire);
+
+/**
+ * MAP_ANIM_SPECIFIC (MapAnimSpecificEncoder, 239: p1Alt2 height, p2Alt2 id,
+ * p3Alt2 coordInBuildAreaPacked, p2Alt2 delay) for a MAPANIM zone event in
+ * zone (zone_x, zone_z): the tile as the player's build area spells it, zone
+ * corner << 16 | << 8 plus the in-zone nibbles. No zone header; the client
+ * plays it on its own plane.
+ */
+void
+ToriRSServer_SendMapAnimSpecific(
+    struct ToriRSServerPlayer* player,
+    int zone_x,
+    int zone_z,
+    const struct ToriRSServerZoneEvent* event);
+
 /** One sub-packet, applied to whichever zone was last named. */
 void
 ToriRSServer_SendZoneSub(
@@ -9126,6 +9209,27 @@ ToriRSServer_SendZoneEnclosed(
 /** Phase 8: put expired loc mutations back. */
 void
 ToriRSServer_WorldLocReverts(struct ToriRSServer* srv);
+
+/**
+ * One area sound, the way Jagex sends it: a single SOUND_AREA zone packet at
+ * (x, z, level) heard within `range` tiles (full volume within `drop_off`),
+ * loops 1 -- what `sound_area` / `sound_area_size` send and what an npc with a
+ * `defend_sound_range` / `death_sound_range` param makes. `sound` -1 is sent
+ * too (65535 on the wire): Jagex's `sound_area id=-1` for an npc that has no
+ * sound. A revision with no SOUND_AREA packet gets a SYNTH_SOUND per player in
+ * range instead (none for -1). The tick log gets a SOUND row, source "area",
+ * for each player in range either way.
+ */
+void
+ToriRSServer_WorldSoundArea(
+    struct ToriRSServer* srv,
+    int sound,
+    int delay,
+    int x,
+    int z,
+    int level,
+    int range,
+    int drop_off);
 
 /** Schedule a revert `duration` ticks out. `duration <= 0` means never, and
  *  `loc_id < 0` means "remove it again", which is how a `loc_add` expires. */

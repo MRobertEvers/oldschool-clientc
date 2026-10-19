@@ -546,6 +546,23 @@ struct ToriRSServerNpcDef
     int death_sound;
 
     /*
+     * Area mode for the defend and death sounds: > 0 sends ONE SOUND_AREA zone
+     * packet with this range instead of the per-player synths -- the defend at
+     * the npc's centre tile on the tick the hit lands, the death at its
+     * south-west tile when the death animation starts, loops 1, delay 0 --
+     * and sends it even when the sound is -1, as Jagex does (`sound_area
+     * id=-1, range=8` at a ToA npc's death; Ba-Ba's defend `id=6017 range=9`
+     * at her centre). 0 keeps the synths.
+     *
+     * NOT band fields: the npc params `defend_sound_range` /
+     * `death_sound_range` (skill_combat/configs/npc_combat.param, default 0),
+     * read off the cache record when the def is seeded. A band field would
+     * make every npc record restate it; a param is opt-in per npc.
+     */
+    int defend_sound_range;
+    int death_sound_range;
+
+    /*
      * The same authored params again, filed under their param *id*.
      *
      * The fields above are what the engine reads; this is what `npc_param`

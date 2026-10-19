@@ -579,12 +579,16 @@
 #define SS_OP_NPC_PROJANIM_PL 11155
 #define SS_OP_NPC_PROJANIM_NPC 11156
 #define SS_OP_NPC_PROJANIM_MAP 11157
+#define SS_OP_SPOTANIM_MAP_SPECIFIC 11158
+#define SS_OP_P_TINT 11159
+#define SS_OP_LOC_ADD_REVERT 11160
+#define SS_OP_NPC_ROUTEAPPROACH 11161
 #define SS_OP_NPC_VENOM 11200
 #define SS_OP_SPOTANIM_PL_SLOT 11210
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
 #define SS_OPCODE_MAX 11211
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 559
+#define SS_OPCODE_COUNT 563
 
 #endif

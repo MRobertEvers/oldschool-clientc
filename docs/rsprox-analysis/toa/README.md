@@ -81,14 +81,48 @@ These are the same in every room and are not repeated in the room files.
 **The room's song is re-sent every 3 ticks** (`midi_song` with the same fades,
 and `music` (239):9 re-set to its title) for as long as the room runs.
 
-**Compared with ours:** Zebak, the Path of Crondis, the Path of Scabaras and
-Kephri (each room file's "Ours vs recorded"). The other rooms name our script
-but have not been diffed yet.
+**Compared with ours:** Zebak, the Path of Crondis, the Path of Scabaras,
+Kephri, the Path of Apmeken and Ba-Ba (each room file's "Ours vs recorded").
+The other rooms name our script but have not been diffed yet.
 
 **Leaving** (F = the "Challenge complete" tick):
-- F: "Challenge complete: <room>. Duration: <col=ef1020>M:SS.T</col>. Total:
-  <col=ef1020>M:SS.T</col>", `midi_song` 147 (0/0/0/0) and `midi_jingle` 295
-  `test_of_nobility_tombs_of_amascut`.
+- F: "Challenge complete: <room>. Duration: <col=ef1020>D</col>. Total:
+  <col=ef1020>T</col>", `midi_song` 147 (0/0/0/0) and `midi_jingle` 295
+  `test_of_nobility_tombs_of_amascut` (a boss: jingle 296
+  `tomb_cleared_tombs_of_amascut` and synth `rumbling` loops 20 delay 90).
+  The names have no article ("Path of Crondis", "The Wardens"). D is the ticks
+  from the room's "Challenge started" to F, exact in every precise record; T
+  the raid's running sum of D. Both read `m:ss.cc` with
+  `option_precise_timing` (varbit 11866) on and `m:ss` rounded to the second
+  without; a rounded T is the sum of ticks rounded, not the sum of rounded D's
+  (3280's Ba-Ba: 10:41, not 10:42). 270 of 270 recorded values reproduce.
+- The Wardens' F: "Challenge complete: The Wardens. Duration: D<br>Tombs of
+  Amascut[: Entry Mode | : Expert Mode] challenge completion time: T" plus
+  " (new personal best)" or ". Personal best: P", then "Tombs of Amascut[...]
+  total completion time: W" with its own best, W counted from the first path
+  chosen ("The timer has started", 5 of 5 that print it).
+- After a boss, F: its Osmumten is added (Zebak 11831 at (24,32), Kephri 11832
+  (38,32), Akkha 11833 (25,31,1), Ba-Ba 11830 (41,32); the Wardens: the
+  vault's 11829 at (32,23,1)), facing 5 tiles ahead, seq 9795
+  `ghost_summon2_priority`. He shows as Osmumten because `varb13836_itt`
+  (the first raid's story, done at 24) is 20 or more; below that the client
+  draws the story's spirit (101's first raid: 11821, Crondis). The party stays
+  in the room. "Proceed" (op3) on him: `fade_overlay` and 948 `(0,255,0,0,50)`
+  on the click, `minimap_toggle` 2 at +1, the teleport to the Nexus at +3,
+  948 `(0,0,0,255,50)` and minimap 0 at +4, 174 closed at +6 (every recorded
+  Proceed). After the Wardens the way on is `toa_teleport_crystal_continue_wardens`
+  (45138) at (32,34,1) rotation 0, added at F+13 (17 of 17), Use = the same
+  fade into the vault.
+- **Ours (2026-10-19):** all of the above, in `~toa_room_complete_announce`,
+  `~toa_boss_complete`, `~toa_osmumten_add` and `~toa_fade_travel`
+  (toa_raid.rs2); checked on the Ba-Ba, Zebak, Apmeken, Crondis and Scabaras
+  tests (Ba-Ba presses Proceed: minimap +1, Nexus +3, minimap back +4).
+  Differences: Proceed and the crystal take every raider still in the room
+  along (one room at a time; Jagex moves each raider on their own click); the
+  story is not modelled, so a raider enters with `varb13836_itt` 24; the
+  Wardens' lines and the crystal are untested (no Wardens test yet); the
+  recordings show npcs through NPC_INFO_LARGE in these rooms (Osmumten is 19
+  tiles from Ba-Ba's rubble side), ours has the 15-tile view.
 - F+1..: the lobby song 730 again.
 - F+9..11: `hpbar_hud`:5 hidden, `fade_overlay` reopened in 164:1.
 - F+11/12: "<name> has proceeded to the next challenge. Join her..." when

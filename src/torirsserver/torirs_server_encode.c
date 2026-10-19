@@ -140,6 +140,7 @@ enum
     OP_OBJ_COUNT = PKT_NAME_OBJ_COUNT,
     OP_MAP_PROJANIM = PKT_NAME_MAP_PROJANIM,
     OP_MAP_ANIM = PKT_NAME_MAP_ANIM,
+    OP_MAP_ANIM_SPECIFIC = PKT_NAME_MAP_ANIM_SPECIFIC,
     OP_SOUND_AREA = PKT_NAME_SOUND_AREA,
     OP_SET_PLAYER_OP = PKT_NAME_SET_PLAYER_OP,
     OP_CAM_RESET = PKT_NAME_CAM_RESET,
@@ -4001,7 +4002,7 @@ put_player_extended(
     struct ToriRSServerPlayer* player,
     int force_appearance)
 {
-    uint32_t mask = player->masks;
+    uint32_t mask = player->masks & TORIRSSERVER_PMASK_CLASSIC;
 
     /*
      * A player entering someone's view needs their appearance whether or not
@@ -4530,6 +4531,40 @@ ToriRSServer_ZoneSubStandalone(
     return ToriRSServer_WireOpcode(wire ? wire : ToriRSServer_WireDefault(), name) >= 0;
 }
 
+int
+ToriRSServer_MapAnimSpecificSupported(const struct ToriRSServerWire* wire)
+{
+    if( !wire )
+        wire = ToriRSServer_WireDefault();
+    return ToriRSServer_WireOpcode(wire, OP_MAP_ANIM_SPECIFIC) >= 0;
+}
+
+void
+ToriRSServer_SendMapAnimSpecific(
+    struct ToriRSServerPlayer* player,
+    int zone_x,
+    int zone_z,
+    const struct ToriRSServerZoneEvent* event)
+{
+    struct RSAreaBuf buf;
+    int base_z;
+    int base_x;
+
+    assert(player);
+    assert(event);
+    assert(event->kind == TORIRSSERVER_ZONE_EV_MAPANIM);
+    base_x = zone_base(player, zone_x, zone_z, &base_z);
+    open_packet(&buf, 16);
+    /* CoordInBuildArea.packedMedium: zoneX << 16 | zoneZ << 8 | xInZone << 4 |
+     * zInZone, where zoneX/zoneZ are the zone's corner TILE in the build area
+     * (a multiple of 8) -- and `pos` is already the two nibbles. */
+    rsab_p1_alt2(&buf, event->src_height & 0xff);
+    rsab_p2_alt2(&buf, event->id & 0xffff);
+    rsab_p3_alt2(&buf, ((base_x & 0xf8) << 16) | ((base_z & 0xf8) << 8) | (event->pos & 0x77));
+    rsab_p2_alt2(&buf, event->start_delay & 0xffff);
+    flush(player, &buf, OP_MAP_ANIM_SPECIFIC, 0);
+}
+
 void
 ToriRSServer_SendZoneSub(
     struct ToriRSServerPlayer* player,
@@ -4850,6 +4885,16 @@ player_extended_v5(struct ToriRSServer* srv, struct ToriRSServerPlayer* viewer,
                 ext.has_temp_move_speed = 1;
                 ext.temp_move_speed = 2;
             }
+            if( subject->masks & TORIRSSERVER_PMASK_TINT )
+            {
+                ext.has_tint = 1;
+                ext.tint_start_cycle = subject->tint_start_cycle;
+                ext.tint_end_cycle = subject->tint_end_cycle;
+                ext.tint_hue = subject->tint_hue;
+                ext.tint_saturation = subject->tint_saturation;
+                ext.tint_lightness = subject->tint_lightness;
+                ext.tint_weight = subject->tint_weight;
+            }
             if( subject->masks & TORIRSSERVER_PMASK_EXACT_MOVE )
             {
                 ext.has_exact_move = 1;
@@ -4991,7 +5036,7 @@ ToriRSServer_SendPlayerInfo(struct ToriRSServerPlayer* player)
     /* This player's own window origin — the scene their client holds. */
     int local_x = player->x - ToriRSServer_SceneOrigin(player->zone_x);
     int local_z = player->z - ToriRSServer_SceneOrigin(player->zone_z);
-    int extended = player->masks != 0;
+    int extended = (player->masks & TORIRSSERVER_PMASK_CLASSIC) != 0;
     /* Who gets an extended block, in bit-section order. `player` itself is
      * spelled as its own pointer rather than as a pid, because the local player
      * is 2047 to itself and 2047 is not a pool slot. */
@@ -5254,7 +5299,7 @@ ToriRSServer_SendPlayerInfo(struct ToriRSServerPlayer* player)
 
         kept_generation[kept_count] = other->login_generation;
         kept[kept_count++] = pid;
-        other_extended = other->masks != 0;
+        other_extended = (other->masks & TORIRSSERVER_PMASK_CLASSIC) != 0;
         if( step_count == 2 )
         {
             rsab_pbit(&buf, 1, 1);

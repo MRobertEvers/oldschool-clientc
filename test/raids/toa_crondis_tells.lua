@@ -66,7 +66,7 @@ return {
         go(39, 32)
         wait(t, 60)
         -- the raider has no gear to fight them: the crocodiles die by cheat, through the engine's death
-        while pours < 8 and not said(t, "Challenge complete: the Path of Crondis") do
+        while pours < 8 and not said(t, "Challenge complete: Path of Crondis") do
             t.ticklog.mark("crondis.kill")
             t.cheat("::toacrocs", false)
             wait(t, 2)
@@ -74,7 +74,7 @@ return {
         end
         t.ticklog.mark("crondis.done")
         wait(t, 6)
-        if said(t, "Challenge complete: the Path of Crondis") then
+        if said(t, "Challenge complete: Path of Crondis") then
             t.expect("crondis.run", "ok", string.format("palm full after %d pours, tick %d", pours, now(t)))
         else
             t.expect("crondis.run", "fail", string.format("palm not full after %d pours", pours))

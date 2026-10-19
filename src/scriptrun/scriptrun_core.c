@@ -1853,6 +1853,30 @@ core_packet(
     case PKT_NAME_MAP_ANIM:
         core_zone_sub(core, pkt_name, &packet._map_anim);
         break;
+    case PKT_NAME_MAP_ANIM_SPECIFIC:
+    {
+        /* MAP_ANIM for this player alone: a build-area tile, no zone header,
+         * on the player's own plane -- recorded as the map anim it plays as. */
+        struct PktMapAnimSpecific const* pkt = &packet._map_anim_specific;
+        int px, pz, plevel;
+
+        if( pkt->id == 65535 )
+            break;
+        if( !ScriptrunCore_LocalTile(core, &px, &pz, &plevel) )
+            plevel = 0;
+        assert(core->map_anim_count < SCRIPTRUN_MAP_ANIMS);
+        {
+            struct ScriptrunMapAnim* a = &core->map_anims[core->map_anim_count++];
+            a->spotanim = pkt->id;
+            a->x = core_cursor_base_x(core) + pkt->x;
+            a->z = core_cursor_base_z(core) + pkt->z;
+            a->level = plevel;
+            a->height = pkt->height;
+            a->delay = pkt->delay;
+            a->cycle = (int)core->world->cycle;
+        }
+        break;
+    }
     case PKT_NAME_LOC_ANIM:
         core_zone_sub(core, pkt_name, &packet._loc_anim);
         break;

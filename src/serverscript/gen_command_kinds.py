@@ -59,6 +59,10 @@ EXTRA_DECLARATIONS = [
     "[command,npc_headbar_from](int $hp)",
     "[command,hpbar_hud_npc](npc_uid $npc)",
     "[command,npc_approach](coord $coord)",
+    "[command,spotanim_map_specific](spotanim $spotanim, coord $coord, int $height, int $delay)",
+    "[command,p_tint](int $start_cycle, int $end_cycle, int $hue, int $saturation, int $lightness, int $weight)",
+    "[command,loc_add_revert](coord $coord, loc $loc, int $angle, locshape $shape, int $duration, loc $revert, int $revert_angle)",
+    "[command,npc_routeapproach](coord $coord)",
 ]
 
 DECL = re.compile(r"^\[command,(\.?)([A-Za-z0-9_]+)\]\s*(\([^)]*\))?\s*(\([^)]*\))?")

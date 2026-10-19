@@ -879,6 +879,7 @@ main(void)
         struct PktPlayerInfoOp const* spot = NULL;
         struct PktPlayerInfoOp const* spot2 = NULL;
         struct PktPlayerInfoOp const* exact = NULL;
+        struct PktPlayerInfoOp const* tint = NULL;
         int op_count;
 
         memset(&ext, 0, sizeof(ext));
@@ -917,6 +918,16 @@ main(void)
         ext.exact_start_cycle = 7;
         ext.exact_end_cycle = 11;
         ext.exact_facing = 1280;
+        /* The recorded corruption tint (RSProx, ToA Path of Apmeken). Its
+         * block sits between CHAT and the blocks after it, so a writer that
+         * put it anywhere else misaligns the sequence and exact move. */
+        ext.has_tint = 1;
+        ext.tint_start_cycle = 0;
+        ext.tint_end_cycle = 600;
+        ext.tint_hue = 0;
+        ext.tint_saturation = 6;
+        ext.tint_lightness = 24;
+        ext.tint_weight = 112;
         mock239_playerinfo_write(
             &buf, LOCAL_INDEX, MOCK239_PLAYER_NOMOVE, 0, 1, NULL, 0, &ext);
 
@@ -932,7 +943,15 @@ main(void)
                 else spot = &ops[i];
             }
             if( ops[i].kind == PKT_PLAYER_INFO_OP_EXACT_MOVE ) exact = &ops[i];
+            if( ops[i].kind == PKT_PLAYER_INFO_OP_TINT ) tint = &ops[i];
         }
+        CHECK(tint && tint->_tint.start_cycle_delta == 0 && tint->_tint.end_cycle_delta == 600 &&
+                  tint->_tint.hue == 0 && tint->_tint.saturation == 6 &&
+                  tint->_tint.lightness == 24 && tint->_tint.weight == 112,
+              "tinting start/end/hue/saturation/lightness/weight survive (%d %d %d %d %d %d)",
+              tint ? tint->_tint.start_cycle_delta : -1, tint ? tint->_tint.end_cycle_delta : -1,
+              tint ? tint->_tint.hue : -99, tint ? tint->_tint.saturation : -99,
+              tint ? tint->_tint.lightness : -99, tint ? tint->_tint.weight : -99);
         CHECK(hit && hit->_damage.delay == 6 && hit->_damage.slots == 3,
               "hitmark delay/slot limit survive (%d/%d)",
               hit ? hit->_damage.delay : -1,
@@ -956,6 +975,33 @@ main(void)
               "relative exact-move deltas/cycles/facing survive");
         if( chat )
             ToriMem_Free(ToriMem_Net(), chat->_chat.data);
+    }
+
+    fprintf(stderr, "mock239-playerinfo: tinting cleared the way Jagex clears it\n");
+    {
+        struct Mock239PlayerExt ext;
+        struct PktPlayerInfoOp ops[32];
+        struct PktPlayerInfoOp const* tint = NULL;
+        int op_count;
+
+        memset(&ext, 0, sizeof(ext));
+        ext.has_tint = 1;
+        ext.tint_hue = 255;
+        ext.tint_saturation = 255;
+        ext.tint_lightness = 255;
+        ext.tint_weight = 0;
+        rsab_wrap(&buf, storage, sizeof(storage));
+        mock239_playerinfo_write(&buf, LOCAL_INDEX, MOCK239_PLAYER_NOMOVE, 0, 1, NULL, 0, &ext);
+        op_count = osrs239_player_info_read(storage, (int)rsab_len(&buf), ops, 32);
+        for( int i = 0; i < op_count; i++ )
+            if( ops[i].kind == PKT_PLAYER_INFO_OP_TINT )
+                tint = &ops[i];
+        /* 255 reads back as the signed byte -1, "leave the channel", and the
+         * weight 0 that is "no tint" (class149.method5142). */
+        CHECK(tint && tint->_tint.end_cycle_delta == 0 && tint->_tint.hue == -1 &&
+                  tint->_tint.saturation == -1 && tint->_tint.lightness == -1 &&
+                  tint->_tint.weight == 0,
+              "the clear (0, 0, 255, 255, 255, 0) reads as -1 channels and weight 0");
     }
 
     /* The Inferno jump as Jagex sends it (RSProx 3299 tick 10693): a teleport

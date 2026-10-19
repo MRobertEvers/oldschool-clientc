@@ -1128,6 +1128,43 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     "NPC_PROJANIM_NPC": (11156, 9, 0, 0, 0),
     "NPC_PROJANIM_MAP": (11157, 9, 0, 0, 0),
 
+    # spotanim_map_specific(spotanim $spotanim, coord $coord, int $height, int $delay)
+    #
+    # spotanim_map seen by the ACTIVE PLAYER alone: Jagex's MAP_ANIM_SPECIFIC
+    # (rev 239 prot 90), a build-area tile with no zone header. The ToA Path of
+    # Apmeken's sight warnings arrive this way (docs/rsprox-analysis/toa/
+    # apmeken.md). A revision without the packet gets the zone MAP_ANIM
+    # addressed to that player only (the zone event's receiver_pid).
+    "SPOTANIM_MAP_SPECIFIC": (11158, 4, 0, 0, 0),
+
+    # p_tint(int $start_cycle, int $end_cycle, int $hue, int $saturation,
+    #        int $lightness, int $weight)
+    #
+    # The active player's PLAYER_INFO tinting block (PlayerTintingEncoder):
+    # client cycles relative to arrival, then the HSL target and its weight
+    # out of 128. A colour of -1 (255 on the wire) leaves that channel alone;
+    # weight 0 clears. Recorded (ToA Apmeken corruption): set
+    # (0, 600, 0, 6, 24, 112), cleared with (0, 0, 255, 255, 255, 0).
+    "P_TINT": (11159, 6, 0, 0, 0),
+
+    # loc_add_revert(coord $coord, loc $loc, int $angle, locshape $shape,
+    #                int $duration, loc $revert, int $revert_angle)
+    #
+    # loc_add whose timer ends on a REPLACEMENT loc instead of a removal: after
+    # $duration ticks $revert stands on the tile (same shape, $revert_angle).
+    # Jagex ends a timed ToA venom pool with loc_add_change of
+    # invisible_type8_nonblocking (shape 10, rotation 0), not a loc_del.
+    "LOC_ADD_REVERT": (11160, 7, 0, 0, 0),
+
+    # npc_routeapproach(coord $coord)
+    #
+    # npc_approach routed with the real route finder over the npc's WHOLE
+    # footprint (the BFS players walk, with a mover size): a 5x5 Ba-Ba walks
+    # AROUND a 3x3 blocking loc to stand beside the tile, where the naive
+    # line stops against it. The route becomes the npc's waypoints, drained
+    # at its own move speed. No route, no move.
+    "NPC_ROUTEAPPROACH": (11161, 1, 0, 0, 0),
+
     # midi_hold(int $ticks)
     #
     # Region music starts no track for the next $ticks ticks: a scripted
@@ -1547,6 +1584,10 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "HIDEOBJOPS": (1 << POINTER_BITS["active_player"], 0),
     "NPC_APPROACH": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_PROJANIM_PL": (1 << POINTER_BITS["active_npc"], 0),
+    "SPOTANIM_MAP_SPECIFIC": (1 << POINTER_BITS["active_player"], 0),
+    "P_TINT": (1 << POINTER_BITS["active_player"], 0),
+    "LOC_ADD_REVERT": (0, 0),
+    "NPC_ROUTEAPPROACH": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_PROJANIM_NPC": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_PROJANIM_MAP": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_HUDBAR_CHECK": (1 << POINTER_BITS["active_npc"], 0),

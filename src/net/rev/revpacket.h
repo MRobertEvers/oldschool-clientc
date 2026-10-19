@@ -463,6 +463,21 @@ struct PktMapAnim
 };
 
 /*
+ * MAP_ANIM_SPECIFIC (osrs239 prot 90, MapAnimSpecificEncoder): one player's
+ * map anim as a top-level packet. The tile is a BUILD-AREA (scene-local)
+ * coordinate with no zone header; the plane is the receiver's own (deob
+ * client.java: worldview.field1400).
+ */
+struct PktMapAnimSpecific
+{
+    int x;      /* scene-local tile: zone corner + xInZone */
+    int z;
+    int id;
+    int height;
+    int delay;
+};
+
+/*
  * SOUND_AREA (osrs239 zone sub-ordinal 14, standalone opcode 32).
  *
  * A sound effect at a place in the world. The rev-221+ layout splits the two
@@ -1098,6 +1113,7 @@ struct RevPacket
         struct PktLocMerge _loc_merge;
         struct PktMapProjAnim _map_projanim;
         struct PktMapAnim _map_anim;
+        struct PktMapAnimSpecific _map_anim_specific;
         struct PktSoundArea _sound_area;
         struct PktCamLookAt _cam_lookat;
         struct PktCamMoveTo _cam_moveto;

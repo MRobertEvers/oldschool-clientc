@@ -987,6 +987,15 @@ app_entity_spotanim_drop(
 void
 app_world_sync_entity_spotanims(struct App* app);
 
+/* Player TINT (rev-239 tinting block): the revert runs first in the world
+ * frame, before the body reconcile; the apply runs last, after the attached-
+ * graphic combine. See app_entity_sync.c. */
+void
+app_world_revert_player_tints(struct App* app);
+
+void
+app_world_sync_player_tints(struct App* app);
+
 /* Mount every npc's body whose customisation changed (WorldEntity_NPC
  * body_serial), once its models are resident. Before the spotanim sync, which
  * re-snapshots a body swapped under its merge. */

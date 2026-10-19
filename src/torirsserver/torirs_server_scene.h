@@ -499,6 +499,32 @@ ToriRSServer_SceneRouteOp(
     int* out_arrive_x,
     int* out_arrive_z);
 
+/**
+ * Route a mover `approach->mover_size` tiles square (its south-west tile at
+ * from) to wherever `approach` says it has reached (to_x, to_z): every step
+ * checks the whole footprint (rsmod StepValidator.canTravel) with the mover's
+ * own `extra_flag` / `coll_type` -- what its steps will test, occupancy
+ * included -- so a big npc goes AROUND a loc, or an npc, it does not fit past.
+ * Size 1 floods exactly as ToriRSServer_SceneRoute does. Writes walk-order
+ * south-west tiles; 0 when already there, -1 when nothing reaches (no nearest
+ * fallback, and no straight line where no window covers both ends).
+ */
+int
+ToriRSServer_SceneRouteSized(
+    int level,
+    int from_x,
+    int from_z,
+    int to_x,
+    int to_z,
+    struct CollisionApproach const* approach,
+    int extra_flag,
+    int coll_type,
+    int* path_x,
+    int* path_z,
+    int max_steps,
+    int* out_arrive_x,
+    int* out_arrive_z);
+
 /** Build the approach descriptor for a scene loc slot (mirrors app_scenery_approach). */
 void
 ToriRSServer_SceneLocApproach(

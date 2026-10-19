@@ -124,6 +124,8 @@ static char const* const k_kind_names[TORIRSSERVER_TICKLOG_KIND_COUNT] = {
     [TORIRSSERVER_TICKLOG_NPC_HEADICON] = "npc_headicon",
     [TORIRSSERVER_TICKLOG_NPC_BODY] = "npc_body",
     [TORIRSSERVER_TICKLOG_NPC_HEADBAR] = "npc_headbar",
+    [TORIRSSERVER_TICKLOG_MAP_SPOTANIM_SPECIFIC] = "map_spotanim_specific",
+    [TORIRSSERVER_TICKLOG_PLAYER_TINT] = "player_tint",
 };
 
 /* A SOUND row's label: where the send came from (the npc source adds the
@@ -195,7 +197,8 @@ ticklog_write_row(const struct ToriRSServerTicklogRow* row)
 }
 
 /* Every row goes through here; `g` is the seventh field, which only
- * HIT_PLAYER fills (ticklog_push below passes 0 for every other kind). */
+ * HIT_PLAYER and PLAYER_TINT fill (ticklog_push below passes 0 for every
+ * other kind). */
 static uint32_t
 ticklog_push_row(
     int kind,
@@ -624,6 +627,39 @@ ToriRSServer_TicklogMapSpotanim(
     if( !ticklog_on_for(srv) )
         return;
     ticklog_push(TORIRSSERVER_TICKLOG_MAP_SPOTANIM, coord, spotanim, height, delay, 0, 0, NULL);
+}
+
+void
+ToriRSServer_TicklogMapSpotanimSpecific(
+    const struct ToriRSServer* srv,
+    int coord,
+    int spotanim,
+    int height,
+    int delay,
+    int receiver_pid)
+{
+    if( !ticklog_on_for(srv) )
+        return;
+    ticklog_push(TORIRSSERVER_TICKLOG_MAP_SPOTANIM_SPECIFIC, coord, spotanim, height, delay,
+                 receiver_pid, 0, NULL);
+}
+
+void
+ToriRSServer_TicklogPlayerTint(
+    const struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player,
+    int start_cycle,
+    int end_cycle,
+    int hue,
+    int saturation,
+    int lightness,
+    int weight)
+{
+    if( !ticklog_on_for(srv) )
+        return;
+    assert(player);
+    ticklog_push_row(TORIRSSERVER_TICKLOG_PLAYER_TINT, player->pid, start_cycle, end_cycle, hue,
+                     saturation, lightness, weight, NULL);
 }
 
 void

@@ -533,6 +533,35 @@ collision_map_route_tiles(
     int* out_arrive_z);
 
 /*
+ * collision_map_route_tiles for a mover `mover_size` tiles square: the flood's
+ * steps are rsmod StepValidator.canTravel over the whole footprint
+ * (collision_map_can_travel_typed with the mover's own `extra_flag` and
+ * `coll_type` -- the same test its steps make, occupancy included), so the
+ * route goes AROUND what a big npc does not fit past, and every tile is the
+ * footprint's south-west corner. A mover of size 1 floods the 2004 client's
+ * per-direction test exactly as collision_map_route_tiles does; `extra_flag`
+ * and `coll_type` apply to sizes above 1. Arrival is `approach`, whose own
+ * mover_size must agree. No nearest fallback: -1 when nothing reaches. Walk
+ * order, 0 when already arrived.
+ */
+int
+collision_map_route_tiles_sized(
+    struct CollisionMap* cm,
+    int src_x,
+    int src_z,
+    int dst_x,
+    int dst_z,
+    struct CollisionApproach const* approach,
+    int mover_size,
+    int extra_flag,
+    int coll_type,
+    int* path_x,
+    int* path_z,
+    int max_path,
+    int* out_arrive_x,
+    int* out_arrive_z);
+
+/*
  * A ranged interaction's walk, cut where the server stops it. The route a
  * ranged attack walks is the ordinary route to the target's reach
  * (collision_map_route_tiles with its approach); the server tries the

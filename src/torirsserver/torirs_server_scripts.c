@@ -8415,6 +8415,41 @@ script_command(
     }
 
     /*
+     * `npc_routeapproach(coord $coord)` -- npc_approach, ROUTED: the real
+     * route finder (the flood players walk) over the npc's whole footprint,
+     * so a 5x5 Ba-Ba paths AROUND a 3x3 blocking loc to stand beside the tile
+     * where the naive line stops against it. The route is queued as the
+     * npc's (scripted) waypoints and drained at its own move speed
+     * (npc_setmovespeed 1 runs it two tiles a tick). No route, no move.
+     */
+    case SS_OP_NPC_ROUTEAPPROACH:
+    {
+        int32_t coord;
+        struct ToriRSServerNpc* npc = active_npc(state);
+
+        if( !SSVM_PopInt(state, &coord) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_routeapproach with no active npc");
+            return 1;
+        }
+        if( coord < 0 )
+        {
+            SSVM_Abort(state, "npc_routeapproach with a null coord");
+            return 1;
+        }
+        if( coord_level(coord) != npc->level )
+        {
+            SSVM_Abort(state, "npc_routeapproach to level %d from an npc on level %d",
+                       coord_level(coord), npc->level);
+            return 1;
+        }
+        ToriRSServer_WorldNpcRouteApproach(srv, npc, coord_x(coord), coord_z(coord));
+        return 1;
+    }
+
+    /*
      * `npc_range` — the gap between the active npc's FOOTPRINT and a coord.
      *
      * The reference is `CoordGrid.distanceTo(npc, {coord, width: 1, length: 1})`
@@ -9052,6 +9087,79 @@ script_command(
          * or `loc_del` in the same script addresses it without a `loc_find`.
          * Outside the scene window there is no slot — the loc lives only in
          * the ZoneMap — so the handle names the record instead. */
+        if( slot >= 0 )
+            script_set_active_loc(state, (void*)(intptr_t)(slot + 1));
+        else
+            script_set_active_loc(state,
+                           ToriRSServer_ScriptZoneLocHandle(coord_x(coord), coord_z(coord),
+                                                          coord_level(coord), shape));
+        return 1;
+    }
+
+    /*
+     * loc_add_revert(coord, loc, angle, shape, duration, revert, revert_angle)
+     *
+     * `loc_add` whose timer ends on a REPLACEMENT rather than a removal: when
+     * $duration runs out, $revert stands on the tile in the same shape at
+     * $revert_angle (ToriRSServer_WorldLocReverts puts back a loc id >= 0 with
+     * a change). Jagex ends a timed ToA venom pool with `loc_add_change` of
+     * `invisible_type8_nonblocking` (shape 10, rotation 0), never a `loc_del`.
+     *
+     * A duration of 0 is "forever", as for `loc_add`, and then nothing is
+     * queued. The same tile's later loc_add/loc_change/loc_del moves the clock
+     * but not the target (WorldLocRevertQueue's lifecycle rule), so a pool
+     * deleted early still turns into $revert when its time was up.
+     */
+    case SS_OP_LOC_ADD_REVERT:
+    {
+        int32_t coord;
+        int32_t loc_id;
+        int32_t shape;
+        int32_t angle;
+        int32_t duration;
+        int32_t revert_id;
+        int32_t revert_angle;
+        int slot;
+
+        if( !SSVM_PopInt(state, &revert_angle) )
+            return 1;
+        if( !SSVM_PopInt(state, &revert_id) )
+            return 1;
+        if( !SSVM_PopInt(state, &duration) )
+            return 1;
+        if( !SSVM_PopInt(state, &shape) )
+            return 1;
+        if( !SSVM_PopInt(state, &angle) )
+            return 1;
+        if( !SSVM_PopInt(state, &loc_id) )
+            return 1;
+        if( !SSVM_PopInt(state, &coord) )
+            return 1;
+        if( revert_id < 0 )
+        {
+            SSVM_Abort(state, "loc_add_revert at %d,%d with no revert loc -- use loc_add",
+                       coord_x(coord), coord_z(coord));
+            return 1;
+        }
+        if( revert_angle < 0 || revert_angle > 3 )
+        {
+            SSVM_Abort(state, "loc_add_revert revert angle %d: 0..3", (int)revert_angle);
+            return 1;
+        }
+
+        if( !ToriRSServer_WorldLocSet(srv, coord_x(coord), coord_z(coord), coord_level(coord),
+                                   shape, loc_id, angle, TORIRSSERVER_LOC_SET_ADD) )
+        {
+            SSVM_Abort(state,
+                       "loc_add_revert %d at %d,%d failed — unknown loc or outside the scene",
+                       loc_id, coord_x(coord), coord_z(coord));
+            return 1;
+        }
+        slot = ToriRSServer_SceneFindLocExact(coord_x(coord), coord_z(coord),
+                                            coord_level(coord), shape);
+        ToriRSServer_WorldLocRevertQueue(srv, duration, revert_id, shape, revert_angle,
+                                       coord_x(coord), coord_z(coord), coord_level(coord));
+        /* Active, as loc_add leaves it. */
         if( slot >= 0 )
             script_set_active_loc(state, (void*)(intptr_t)(slot + 1));
         else
@@ -9715,6 +9823,96 @@ script_command(
     }
 
     /*
+     * spotanim_map_specific(spotanim, coord, height, delay) -- spotanim_map
+     * seen by the active player alone. Jagex's MAP_ANIM_SPECIFIC (rev 239 prot
+     * 90; RSProx `map_anim_specific`, the Path of Apmeken's sight warnings).
+     * Queued as a zone event addressed to this player (receiver_pid), so it
+     * rides the zone window like any map anim and the flush sends it as the
+     * top-level packet where the revision has one. Tick log
+     * `map_spotanim_specific`.
+     */
+    case SS_OP_SPOTANIM_MAP_SPECIFIC:
+    {
+        int32_t values[4];
+
+        for( int i = 3; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        if( !player )
+        {
+            SSVM_Abort(state, "spotanim_map_specific with no active player");
+            return 1;
+        }
+        ToriRSServer_ZoneMapanimSpecific(srv, player, ToriRSServer_CoordX(values[1]),
+                                         ToriRSServer_CoordZ(values[1]),
+                                         ToriRSServer_CoordLevel(values[1]), (int)values[0],
+                                         (int)values[2], (int)values[3]);
+        return 1;
+    }
+
+    /*
+     * p_tint(start_cycle, end_cycle, hue, saturation, lightness, weight) --
+     * the active player's PLAYER_INFO tinting block (PlayerTintingEncoder),
+     * sent this tick. The client draws the player's body recoloured toward
+     * (hue, saturation, lightness) by weight/128 while its cycle is in
+     * [now + start, now + end) (deob Actor.method3182 -> Model tint).
+     *
+     * A channel of 255 -- or -1, the same byte -- is left alone. Weight 0 is
+     * "off": Jagex clears with (0, 0, 255, 255, 255, 0) (RSProx, ToA Path of
+     * Apmeken; set with (0, 600, 0, 6, 24, 112)). Only revision 239's writer
+     * carries the block; the classic stream has no field for it.
+     */
+    case SS_OP_P_TINT:
+    {
+        int32_t values[6];
+
+        for( int i = 5; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        if( !player )
+        {
+            SSVM_Abort(state, "p_tint with no active player");
+            return 1;
+        }
+        if( values[0] < 0 || values[0] > 0xffff || values[1] < 0 || values[1] > 0xffff )
+        {
+            SSVM_Abort(state, "p_tint cycles %d..%d: each must be 0..65535", (int)values[0],
+                       (int)values[1]);
+            return 1;
+        }
+        for( int i = 2; i < 5; i++ )
+        {
+            if( values[i] < -1 || values[i] > 255 )
+            {
+                SSVM_Abort(state, "p_tint colour field %d is %d: 0..255, or -1/255 to leave it",
+                           i - 1, (int)values[i]);
+                return 1;
+            }
+        }
+        if( values[5] < 0 || values[5] > 255 )
+        {
+            SSVM_Abort(state, "p_tint weight %d: 0..255 (0 clears)", (int)values[5]);
+            return 1;
+        }
+        player->tint_start_cycle = (int)values[0];
+        player->tint_end_cycle = (int)values[1];
+        player->tint_hue = (int)values[2] & 0xff;
+        player->tint_saturation = (int)values[3] & 0xff;
+        player->tint_lightness = (int)values[4] & 0xff;
+        player->tint_weight = (int)values[5];
+        player->masks |= TORIRSSERVER_PMASK_TINT;
+        ToriRSServer_TicklogPlayerTint(srv, player, player->tint_start_cycle,
+                                       player->tint_end_cycle, player->tint_hue,
+                                       player->tint_saturation, player->tint_lightness,
+                                       player->tint_weight);
+        return 1;
+    }
+
+    /*
      * sound_area(synth $sound, int $delay, coord $coord, int $range): one
      * SOUND_AREA zone packet, the way Jagex sends an area noise (RSProx:
      * docs/rsprox-analysis/tob/verzik.md) - heard within `range` with the
@@ -9730,46 +9928,18 @@ script_command(
     {
         int32_t values[5] = { 0 };
         int argc = opcode == SS_OP_SOUND_AREA_SIZE ? 5 : 4;
-        int x;
-        int z;
-        int level;
-        int zone_packet;
 
         for( int i = argc - 1; i >= 0; i-- )
         {
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
         }
-        if( values[0] < 0 )
-            return 1;
-        x = ToriRSServer_CoordX(values[2]);
-        z = ToriRSServer_CoordZ(values[2]);
-        level = ToriRSServer_CoordLevel(values[2]);
-        zone_packet = ToriRSServer_ZoneSubSupported(srv->wire, TORIRSSERVER_ZONE_EV_SOUNDAREA);
-        if( zone_packet )
-            ToriRSServer_ZoneSoundArea(srv, x, z, level, (int)values[0], 1, (int)values[1],
-                                       (int)values[3], (int)values[4]);
-        for( int i = 0; i < srv->player_count; i++ )
-        {
-            struct ToriRSServerPlayer* p = &srv->players[i];
-            int dx;
-            int dz;
-
-            if( !p->active || p->level != level )
-                continue;
-            dx = p->x - x;
-            dz = p->z - z;
-            if( dx < 0 )
-                dx = -dx;
-            if( dz < 0 )
-                dz = -dz;
-            if( (dx > dz ? dx : dz) > values[3] )
-                continue;
-            if( !zone_packet )
-                ToriRSServer_SendSynthSound(p, (int)values[0], 1, (int)values[1]);
-            ToriRSServer_TicklogSoundArea(srv, p, (int)values[0], 1, (int)values[1],
-                                          (int)values[2], (int)values[3], (int)values[4]);
-        }
+        /* -1 goes out too: Jagex sends `sound_area id=-1` for an npc with no
+         * sound of its own (RSProx, ToA), and content may say the same. */
+        ToriRSServer_WorldSoundArea(srv, (int)values[0], (int)values[1],
+                                    ToriRSServer_CoordX(values[2]), ToriRSServer_CoordZ(values[2]),
+                                    ToriRSServer_CoordLevel(values[2]), (int)values[3],
+                                    (int)values[4]);
         return 1;
     }
 

@@ -92,7 +92,9 @@ enum PktPlayerInfoOpKind
     PKT_PLAYER_INFO_OP_CHAT,
     PKT_PLAYER_INFO_OP_SPOTANIM,
     PKT_PLAYER_INFO_OP_EXACT_MOVE,
-    PKT_PLAYER_INFO_OP_FACE_ANGLE
+    PKT_PLAYER_INFO_OP_FACE_ANGLE,
+    /* Revision 239's TINTING block (player flag 0x200). */
+    PKT_PLAYER_INFO_OP_TINT
 };
 
 struct PktPlayerInfo_LocalXZLevel
@@ -222,6 +224,23 @@ struct PktPlayerInfo_FaceAngle
     bool modern;
 };
 
+/*
+ * PlayerTintingEncoder's six fields as the deob keeps them (class109.method3804
+ * flag 0x200 -> Actor.method3182): the two cycles relative to the client cycle
+ * the block lands on, then hue / saturation / lightness / weight as SIGNED
+ * bytes -- a colour of -1 (255 on the wire) leaves that channel alone, and a
+ * weight that is not > 0 as a byte draws no tint (class149.method5142).
+ */
+struct PktPlayerInfo_Tint
+{
+    uint16_t start_cycle_delta;
+    uint16_t end_cycle_delta;
+    int8_t hue;
+    int8_t saturation;
+    int8_t lightness;
+    int8_t weight;
+};
+
 struct PktPlayerInfoOp
 {
     enum PktPlayerInfoOpKind kind;
@@ -240,6 +259,7 @@ struct PktPlayerInfoOp
         struct PktPlayerInfo_SpotAnim _spotanim;
         struct PktPlayerInfo_ExactMove _exactmove;
         struct PktPlayerInfo_FaceAngle _face_angle;
+        struct PktPlayerInfo_Tint _tint;
         struct PktPlayerInfo_LocalXZLevel _local_xz_level;
         struct PktPlayerInfo_DeltaXZ _delta_xz;
     };

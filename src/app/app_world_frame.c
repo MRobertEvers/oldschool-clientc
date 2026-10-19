@@ -234,6 +234,9 @@ app_world_frame(
             }
         }
     }
+    /* Lit colours back on every tinted body before anything below reads or
+     * snapshots one (app_entity_sync.c, player TINT). */
+    app_world_revert_player_tints(app);
     app_world_sync_entity_animations(app);
     /*
      * TORIRS_ELEMENT_ALIAS_CHECK=1: assert that no two live world entities
@@ -280,6 +283,8 @@ app_world_frame(
     }
     app_world_sync_npc_bodies(app);
     app_world_sync_entity_spotanims(app);
+    /* Last: the tint goes onto whatever body (or body + graphic) is mounted. */
+    app_world_sync_player_tints(app);
 
     /* Expire P_LOCMERGE markers once the ride window ends. */
     {

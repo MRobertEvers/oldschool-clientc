@@ -294,7 +294,7 @@ return {
         end
         wait(t, 4)
         t.ticklog.mark("scab.done")
-        if said(t, "Challenge complete: the Path of Scabaras") then
+        if said(t, "Challenge complete: Path of Scabaras") then
             t.expect("scab.run", "ok", string.format("complete on tick %d", now(t)))
         else
             t.expect("scab.run", "fail", "the room did not complete")

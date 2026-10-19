@@ -840,6 +840,21 @@ player_apply_op(
             op->_exactmove.facing_is_yaw);
         break;
     }
+    case PKT_PLAYER_INFO_OP_TINT:
+        if( torirs_env_net_debug() )
+            TORIRS_LOG("player_info: tint idx=%d cycles +%d..+%d hsl=%d,%d,%d weight=%d\n",
+                idx, op->_tint.start_cycle_delta, op->_tint.end_cycle_delta, op->_tint.hue,
+                op->_tint.saturation, op->_tint.lightness, op->_tint.weight);
+        World_PlayerSetTint(
+            world,
+            idx,
+            op->_tint.start_cycle_delta,
+            op->_tint.end_cycle_delta,
+            op->_tint.hue,
+            op->_tint.saturation,
+            op->_tint.lightness,
+            op->_tint.weight);
+        break;
     case PKT_PLAYER_INFO_OP_FACE_ANGLE:
         if( op->_face_angle.modern )
             World_PlayerBeginModernFacing(world, idx, op->_face_angle.movement_mode);

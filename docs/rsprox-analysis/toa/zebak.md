@@ -160,5 +160,5 @@ Head + Blood Thinners + Upset Stomach) against the tables above.
 | Death | fixed: both deaths on D, both dead types on D+4 |
 | Wave hits a raider | 6–10 and a shove north [wiki]; no recording shows it |
 | Roar hits a raider | `^toa_zebak_rock_damage` scaled; no recording shows it |
-| **Open, every room** | `~toa_boss_complete` returns the party to the Nexus at once, which removes the corpses; Jagex leaves the party in the room. The "Challenge complete" line lacks "Duration … Total …" |
+| Every room | **fixed** 2026-10-19: Osmumten after the boss and "Proceed", the "Challenge complete" times and song (README, "Leaving") |
 | Open | water crocodiles `toa_zebak_watercroc` (scenery in the pool) not spawned |

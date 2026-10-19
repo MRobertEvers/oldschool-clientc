@@ -174,4 +174,4 @@ in a lane, fills, pours, lets the crocodiles bite, kills them with
 | Open: "refreshing water" | "While you're there, you take a drink of refreshing water!" on 2 of 23 fills; what decides it and what the drink does is not in the packets. Not modelled |
 | Open: container respawn | the recordings only show re-sends to a raider walking into view; ours puts a taken container back after 25 ticks |
 | Open: party | the tells test is solo; the party rules (base 200 x raiders, crocodiles per wave) are checked by `::toarun` only |
-| **Open, every room** | `~toa_challenge_complete` takes the party to Zebak on F and frees the room, so Jagex's F+1..F+3 crocodile deaths, the orb deletions and the leaving sequence never happen here; "Challenge complete" lacks "Duration ... Total ..." |
+| **Open, every room** | `~toa_challenge_complete` takes the party to Zebak on F and frees the room, so Jagex's F+1..F+3 crocodile deaths, the orb deletions and the leaving sequence never happen here; the "Challenge complete" times and song are **fixed** 2026-10-19 (README, "Leaving") |

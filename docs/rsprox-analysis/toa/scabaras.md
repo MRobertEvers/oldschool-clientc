@@ -243,5 +243,5 @@ one's plate) against the rules above with a replay checker: 392 of 393.
 | Open: tablet range | the number is 20-45 here; recorded 22-39 |
 | A pad that does not work yet | **fixed**: an east pad before the barrier into its section opens answers a plate (a run's middle included) with "This device won't function yet." and does nothing (1 of 1 in the test). Its tablet, button and Flip say the same and its obelisks take no hits: those are not recorded |
 | Open: solo crossings in a party | the hole and stone were only used solo; here they refuse a party |
-| **Open, every room** | `~toa_challenge_complete` moves the party on at once; the "Challenge complete" line lacks "Duration … Total …"; the room song is not re-sent every 3 ticks |
+| **Open, every room** | `~toa_challenge_complete` moves the party on at once; the room song is not re-sent every 3 ticks; the "Challenge complete" times and song are **fixed** 2026-10-19 (README, "Leaving") |
 

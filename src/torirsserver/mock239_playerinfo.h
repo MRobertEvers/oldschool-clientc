@@ -190,6 +190,16 @@ struct Mock239PlayerExt
     int exact_start_cycle;
     int exact_end_cycle;
     int exact_facing;
+    /** TINTING (player flag 0x200): cycles relative to the client's arrival
+     * cycle, then hue/saturation/lightness bytes (255 = leave the channel)
+     * and the weight out of 128. */
+    int has_tint;
+    int tint_start_cycle;
+    int tint_end_cycle;
+    int tint_hue;
+    int tint_saturation;
+    int tint_lightness;
+    int tint_weight;
 };
 
 /** The rev-239 high-resolution movement opcode.  `movement_value` below is a

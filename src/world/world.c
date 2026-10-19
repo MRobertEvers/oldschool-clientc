@@ -2813,6 +2813,23 @@ World_PlayerSetExactMove(
         end_cycle_delta, facing, false);
 }
 
+/*
+ * The cycle an exact move's delays count from. Rev-239 reads packets after
+ * `client.field742` is bumped (method1743), so a delay1 of 0 lands phase 1 on
+ * the packet's own update and puts the actor back on the start tile before it
+ * is drawn. Here a packet lands between World_Cycle calls and the next one
+ * advances the clock before it steps, so rev-239 counts from that next cycle.
+ * Counted from this one, the update was already past phase 1, and a teleport
+ * sent with the move (Ba-Ba's boulders, every tick) drew the new tile until
+ * the next frame boundary and then snapped back. Client-TS keeps its own
+ * order (test_rev239_exact_move_order).
+ */
+static int
+world_exact_move_base(struct World const* world)
+{
+    return world->cycle + (World_MoverModel(world) == TORIRS_MOVER_FRAME_DELTA ? 1 : 0);
+}
+
 void
 World_PlayerSetExactMoveDetailed(
     struct World* world,
@@ -2835,8 +2852,8 @@ World_PlayerSetExactMoveDetailed(
     player->exact_move.start_z = (uint8_t)start_z;
     player->exact_move.end_x = (uint8_t)end_x;
     player->exact_move.end_z = (uint8_t)end_z;
-    player->exact_move.move_start = world->cycle + start_cycle_delta;
-    player->exact_move.move_end = world->cycle + end_cycle_delta;
+    player->exact_move.move_start = world_exact_move_base(world) + start_cycle_delta;
+    player->exact_move.move_end = world_exact_move_base(world) + end_cycle_delta;
     player->exact_move.facing = (uint16_t)facing;
     player->exact_move.facing_is_yaw = facing_is_yaw;
 
@@ -2884,8 +2901,8 @@ World_NpcSetExactMoveDetailed(
     npc->exact_move.start_z = (uint8_t)start_z;
     npc->exact_move.end_x = (uint8_t)end_x;
     npc->exact_move.end_z = (uint8_t)end_z;
-    npc->exact_move.move_start = world->cycle + start_cycle_delta;
-    npc->exact_move.move_end = world->cycle + end_cycle_delta;
+    npc->exact_move.move_start = world_exact_move_base(world) + start_cycle_delta;
+    npc->exact_move.move_end = world_exact_move_base(world) + end_cycle_delta;
     npc->exact_move.facing = (uint16_t)facing;
     npc->exact_move.facing_is_yaw = facing_is_yaw;
     npc->pathing.route_length = 0;
@@ -3025,6 +3042,30 @@ World_PlayerSetSpotanim(
     if( slot >= WORLD_PLAYER_SPOTANIM_SLOTS )
         slot = WORLD_PLAYER_SPOTANIM_SLOTS - 1;
     world_set_entity_spotanim(world, &player->spotanims[slot], spotanim_id, height, cycle_delay);
+}
+
+void
+World_PlayerSetTint(
+    struct World* world,
+    int idx,
+    int start_cycle_delta,
+    int end_cycle_delta,
+    int hue,
+    int saturation,
+    int lightness,
+    int weight)
+{
+    assert(world);
+    struct World_EntityPool* pool = &world->entities.player;
+    assert(World_EntityPoolIsActive(pool, idx));
+    struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
+
+    player->tint.start_cycle = world->cycle + start_cycle_delta;
+    player->tint.end_cycle = world->cycle + end_cycle_delta;
+    player->tint.hue = (int8_t)hue;
+    player->tint.saturation = (int8_t)saturation;
+    player->tint.lightness = (int8_t)lightness;
+    player->tint.weight = (int8_t)weight;
 }
 
 void
