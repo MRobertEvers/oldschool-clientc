@@ -63,6 +63,10 @@ tiles"). Tool: `tools/cox/rsprox_icedemon.py` (sections `attacks`, `pop`, `fiend
   P+1, the fighting form at P+8; the unrecorded "The ice around the demon melts away." removed.
 - RI-D2: `death_delay=5` puts the drops, the storm's removal and his despawn on D+5.
 - RI-D4 (2026-10-19): the secondaries are one public stack under him, scaled by the party, for 200 ticks. They used to go into each raider's pack as a flat 7/7/5.
+- RI-A2 (2026-10-19): a raider's hit on his attack tick now sends `demon_block`, not `demon_casting`. The engine's
+  `npc_defend` kept any swing queued that tick; it now takes the ordinary priority gate (equal or higher wins), and
+  the two are of equal priority. Found by the full `rsprox_tells.py` inventory against our tick logs (ours cast on
+  every attack, 133 of 133).
 - `test/raids/_icedemon_tells.lua` checks every attack's tells off the server's tick log (both styles: it prays
   nothing, where the room solver's Protect from Missiles only ever draws boulders).
 

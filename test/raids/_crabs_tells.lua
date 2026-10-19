@@ -4,16 +4,19 @@
 --   the orbs (RC-O1..O5): one at a time, each added on the tick the last is
 --     removed; a tile a tick from the tick after it is added; its end on one
 --     tick E and its removal on E+1 -- on a small crystal the colour's bolt
---     impact at height 80, delay 10, on nothing no graphic at all, on a raider
---     the wave impact at height 80, delay 10;
+--     impact at height 80, delay 10, on nothing windbolt_impact on the orb
+--     itself at height 80, on a raider the wave impact at height 80, delay 10;
 --   a crab's swing (RC-A1): horror_crab_pincer_attack (2368) with
 --     rock_crab_attack (718) to the raider that tick;
 --   the smash (RC-S1): human_hammer_hit (1755); on the crab that tick
 --     stunned_thieving (245) at height 100, delay 30, with kalthite_egg_crack
 --     (556, delay 20) and stunned (2727, delay 30) round it;
 --   the solve (RC-C2, C3): the big crystal's last stage on E+1 of the fourth
---     crystal E, the crabs removed one a tick from E+4, the shatter (1326 x3)
---     on E+5, the 2x2 opened (invisible_type8_nonblocking x4) on E+7.
+--     crystal E with whiteout (2425); one crab a tick from E+2 hides
+--     (horror_crab_hide 1314) with rock_crab_death (719) and is removed 2
+--     ticks after; the shatter (1326 x3) with 100_cauldron_explodes (1021)
+--     and kr_smash_window (3821, delay 5) on E+5; the 2x2 opened
+--     (invisible_type8_nonblocking x4) on E+7.
 -- Played by the room solver (cox2_crabs.lua) in the room test's kit.
 local function kit()
     local lines = { "::clearinv" }
@@ -87,7 +90,7 @@ return {
         if result ~= "ok" then t.finish(1) return end
         t.ticks(10)
         local KINDS = { "npc_anim", "npc_spotanim", "map_spotanim", "player_anim", "sound", "npc_spawn", "npc_tile",
-                        "npc_free", "loc_set" }
+                        "npc_free", "loc_set", "player_tile" }
         -- (a kind a tick: the instruction budget is per tick, and the room is
         -- quiet once solved -- no orb, no crab)
         local rows = {}
@@ -99,6 +102,17 @@ return {
         end
         local snd, gfx, panim, nanim = by_tick(rows.sound), by_tick(rows.map_spotanim), by_tick(rows.player_anim),
             by_tick(rows.npc_anim)
+        local ngfx = by_tick(rows.npc_spotanim)
+        -- an area sound reaches the raider only within its range: the room
+        -- solver walks for the exit the moment the room is solved
+        local at = by_tick(rows.player_tile)
+        local function within(tick, x, z, range)
+            for k = tick, tick - 20, -1 do
+                local p = (at[k] or {})[1]
+                if p then return math.max(math.abs(p.x - x), math.abs(p.z - z)) <= range end
+            end
+            return false
+        end
         local bad = {}
         local function has(list, pred)
             for _, x in ipairs(list or {}) do if pred(x) then return true end end
@@ -154,6 +168,9 @@ return {
                     ends.raider = ends.raider + 1
                 else
                     ends.wall = ends.wall + 1
+                    if not has(ngfx[E], function(g) return g.slot == o.slot and g.spotanim == 119 and g.height == 80 and g.delay == 0 end) then
+                        bad[#bad + 1] = string.format("orb t%d: a wall end without windbolt_impact on it at height 80", o.t0)
+                    end
                 end
                 -- a wall end stands still on E (removed 2 after its last
                 -- step); a crystal or raider end steps onto it on E (1 after)
@@ -173,7 +190,7 @@ return {
         -- THE CRABS' SWINGS
         local swings = 0
         for _, a in ipairs(rows.npc_anim) do
-            if CRAB[a.type] and a.seq ~= 1313 then
+            if CRAB[a.type] and a.seq ~= 1313 and a.seq ~= 1314 then
                 swings = swings + 1
                 if a.seq ~= 2368 then bad[#bad + 1] = string.format("t%d: crab seq %d", a.tick, a.seq) end
                 if not has(snd[a.tick], function(s) return s.sound == 718 end) then bad[#bad + 1] = string.format("t%d: a swing without rock_crab_attack", a.tick) end
@@ -199,15 +216,44 @@ return {
             bad[#bad + 1] = string.format("%d small crystals lit, not 4", #lit)
         else
             if not has(rows.loc_set, function(l) return l.loc == 29757 and l.tick == E + 1 end) then bad[#bad + 1] = "the big crystal's last stage not on E+1" end
+            local big
+            for _, l in ipairs(rows.loc_set) do if l.loc == 29757 and l.tick == E + 1 then big = l end end
+            local function hears(tick) return big ~= nil and within(tick, big.x, big.z, 10) end
+            local heard = 0
+            if hears(E + 1) then
+                heard = heard + 1
+                if not has(snd[E + 1], function(s) return s.sound == 2425 end) then bad[#bad + 1] = "no whiteout on E+1" end
+            end
+            local hides = {}
+            for _, a in ipairs(rows.npc_anim) do
+                if CRAB[a.type] and a.seq == 1314 then
+                    hides[#hides + 1] = a.tick - E
+                    if not has(snd[a.tick], function(s) return s.sound == 719 end) then bad[#bad + 1] = string.format("a hide on E+%d without rock_crab_death", a.tick - E) end
+                    if has(nanim[a.tick + 1], function(b) return b.slot == a.slot end) or has(nanim[a.tick + 2], function(b) return b.slot == a.slot end) then
+                        bad[#bad + 1] = string.format("the crab hidden on E+%d animates again", a.tick - E)
+                    end
+                end
+            end
+            table.sort(hides)
+            for i, d in ipairs(hides) do
+                if d ~= 1 + i then bad[#bad + 1] = string.format("crab %d hides on E+%d", i, d) end
+            end
             local frees = {}
             for _, f in ipairs(rows.npc_free) do if CRAB[f.type] and f.tick >= E then frees[#frees + 1] = f.tick - E end end
             table.sort(frees)
             for i, d in ipairs(frees) do
                 if d ~= 3 + i then bad[#bad + 1] = string.format("crab %d removed on E+%d", i, d) end
             end
+            if #hides ~= #frees then bad[#bad + 1] = string.format("%d hides, %d crabs removed", #hides, #frees) end
             local shatter = 0
             for _, g in ipairs(gfx[E + 5] or {}) do if g.spotanim == 1326 then shatter = shatter + 1 end end
             if shatter ~= 3 then bad[#bad + 1] = string.format("%d shatter graphics on E+5", shatter) end
+            if hears(E + 5) then
+                heard = heard + 1
+                if not has(snd[E + 5], function(s) return s.sound == 1021 end) then bad[#bad + 1] = "no 100_cauldron_explodes on E+5" end
+                if not has(snd[E + 5], function(s) return s.sound == 3821 and s.delay == 5 end) then bad[#bad + 1] = "no kr_smash_window (delay 5) on E+5" end
+            end
+            t.check("tells.solve_sounds_in_range", true, string.format("in range of the crystal on %d of E+1, E+5", heard))
             local open = 0
             for _, l in ipairs(rows.loc_set) do if l.loc == 29733 and l.tick == E + 7 then open = open + 1 end end
             if open ~= 4 then bad[#bad + 1] = string.format("%d invisible locs on E+7", open) end

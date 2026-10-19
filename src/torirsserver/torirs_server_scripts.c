@@ -7643,8 +7643,13 @@ script_command(
          * (melee). Called once per player attack from
          * `[proc,player_hit_npc_prepare]`, misses included, and again after a
          * projectile drawn later in the same attack, which only updates the
-         * delay. The npc's own swing queued this tick wins: it is sent, not
-         * the defend. docs/rsprox-analysis/combat/defend_timing.md.
+         * delay. Against the npc's own swing queued this tick, the sequence
+         * priority decides (`ToriRSServer_AnimPlayNpc`, equal or higher wins):
+         * Bandos's and Jal-Xil's attacks (forcedpriority 6) and Jal-ImKot's
+         * (3, over a defend of 1) are sent, not the defend; the Ice Demon's
+         * demon_casting, of equal priority, is replaced by demon_block on
+         * 29 of 29 ticks a raider shot him as he cast (RSProx 820, 3389).
+         * docs/rsprox-analysis/combat/defend_timing.md.
          */
         struct ToriRSServerNpc* npc = active_npc(state);
         int delay = 0;
@@ -7656,8 +7661,6 @@ script_command(
         }
         /* An npc whose record names no defend animation has nothing to play. */
         if( npc->block_seq < 0 )
-            return 1;
-        if( (npc->masks & TORIRSSERVER_NMASK_ANIM) && npc->anim_id != npc->block_seq )
             return 1;
         if( npc->defend_proj_tick == srv->tick )
             delay = npc->defend_proj_end;

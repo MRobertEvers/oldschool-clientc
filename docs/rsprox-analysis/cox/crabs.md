@@ -23,7 +23,7 @@ It was read **untranslated** (instance tiles).
 |---|---|
 | RC-O1 | **One orb at a time.** Each is added on the tick the last one is removed (25 of 26; once a tick later), on the same tile and heading the same way every time. It does not move on the tick it is added. It then moves a tile a tick (27 of 27), each step sent as a teleport with its type re-sent. |
 | RC-O2 | **Bounce:** on a crab ahead, the orb takes the crab's colour, turns, and steps the new way on the same tick. `anma_axe_bounce` (3274) plays round the tile it turned on, range 6 (8 of 8). |
-| RC-O3 | **An end on nothing** (a wall ahead): the orb stays put on E, with `windbolt_hit` (219) **loops 6**, range 6, and **no graphic** (15 of 15). It is removed on E+1, and the next orb is added then. |
+| RC-O3 | **An end on nothing** (a wall ahead): the orb stays put on E, with `windbolt_impact` on itself at height 80 (no delay) and `windbolt_hit` (219) **loops 6**, range 6 (15 of 15, every one a white orb). No map graphic. It is removed on E+1, and the next orb is added then. |
 | RC-O4 | **An end on a small crystal:** the orb steps onto the crystal on E. Its colour's bolt impact plays at height 80, delay 10: `windbolt` (119) white, `firebolt` (128) red, `waterbolt` (122) blue, `earthbolt` (125) green. The sound is `place_crystal` (1476) when it lights the crystal (4 of 4) and `tl_place_fractured` (1294) when it does not (3), delay 10, range 6. On a light, the crystal becomes `raids_lasercrabs_smallcrystal_white` (29762) at its own rotation, on E. The orb is removed on E+1. |
 | RC-O5 | **An end on the raider:** the orb steps onto his tile on E. Its wave impact plays at height 80, delay 10 (`windwave` 160, `firewave` 157), with `windwave_hit` (223) or `firewave_hit` (163), delay 10, range 6, and **a hit of 22** that tick (4 of 4). The raider was at 96-99 hitpoints with no overhead on; NR's quarter of his hitpoints would be 24-25. The orb is removed on E+1. |
 
@@ -43,7 +43,7 @@ It was read **untranslated** (instance tiles).
 | Row | Recorded |
 |---|---|
 | RC-C2 | **The big crystal is re-sent every 3 ticks** (145 of 147 gaps). A crystal lit shows on it at the next re-send: 3, 2 and 3 ticks after. The fourth shows 1 tick after, with the removal of the orb that lit it. |
-| RC-C3 | **The solve.** The fourth crystal is lit on E. Then: <ul><li>E+1: the orb is removed and the big crystal reaches stage 5.</li><li>E+4 to E+7: the crabs are removed, one a tick, with no death.</li><li>E+5: the shatter, `raids_lasercrabs_shattercrystal` (1326) three times: on the crystal's tile at height 10, then on two more tiles of its 2x2 delayed 5 and 10.</li><li>E+7: the 2x2 becomes `invisible_type8_nonblocking`.</li></ul> |
+| RC-C3 | **The solve.** The fourth crystal is lit on E. Then: <ul><li>E+1: the orb is removed and the big crystal reaches stage 5, with `whiteout` (2425) round it, range 10.</li><li>E+2 to E+5: one crab a tick plays `horror_crab_hide` (1314), its menu hidden (`enabled_ops 0`) and its facing cleared, with `rock_crab_death` (719): to the raider for the first three, round the crab (range 10) for the one on E+5. No hitsplat, no death animation.</li><li>E+4 to E+7: each crab is removed 2 ticks after its hide.</li><li>E+5: the shatter, `raids_lasercrabs_shattercrystal` (1326) three times: on the crystal's tile at height 10, then on two more tiles of its 2x2 delayed 5 and 10; with `100_cauldron_explodes` (1021) and `kr_smash_window` (3821, delay 5), range 10, on the crystal.</li><li>E+7: the 2x2 becomes `invisible_type8_nonblocking`.</li></ul> |
 
 ## Fixed (2026-10-19)
 
@@ -57,6 +57,8 @@ It was read **untranslated** (instance tiles).
 | orb steps sent as walks; a bounce silent | teleport steps; `anma_axe_bounce` (RC-O1, O2) |
 | the big crystal stepped the moment a crystal lit | the stage shows at the next 3-tick re-send (RC-C2) |
 | the solve: crabs deleted 1 tick and the shatter 2 ticks after, one graphic | crabs one a tick from E+4, three shatter graphics on E+5, opened on E+7 (RC-C3) |
+| the solve silent; the crabs removed without a tell (found by the full `rsprox_tells.py` inventory, 2026-10-19) | `whiteout` on E+1; each crab hides with `rock_crab_death` from E+2 and goes 2 ticks later; the shatter's two sounds (RC-C3) |
+| a wall end with no graphic | `windbolt_impact` on the orb (RC-O3) |
 
 `test/raids/_crabs_tells.lua` checks every orb (the chain, its steps, its end and removal ticks, its impacts), every crab swing, every smash and the solve off the server's tick log. It plays the room solver on 8 of 8 layouts. Three worktree mutations are each caught: the old swing animation, the old stun graphic, and a wall-ended orb removed on its own tick. The room test (`cox_crabs.lua`) passes 8 of 8.
 

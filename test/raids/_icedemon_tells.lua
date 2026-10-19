@@ -8,6 +8,9 @@
 --   boulder: raids_icedemon_iceball_travel (1324) and castlewars_catapult_fire
 --     (1440) at the cast; at the landing raids_icedemon_iceball_hit (1325),
 --     height 10, and 100_cauldron_explodes (1021).
+--   one seq a tick (RI-A2): demon_casting (69) on his attack tick, but his
+--     demon_block (65) when the raider's swing lands a defend on him that tick
+--     (29 of 29 recorded; the two are of equal priority, and the later wins).
 -- Solo, 99 hitpoints, no prayers (so he picks either style), standing near him
 -- after ::cox_icedemon_fuel has thawed him. The solver's room test prays
 -- Protect from Missiles and never sees a burst.
@@ -56,6 +59,19 @@ return {
         local sr, spots = t.ticklog.rows({ kind = "map_spotanim" })
         t.ticks(1)
         local nr, sounds = t.ticklog.rows({ kind = "sound" })
+        t.ticks(1)
+        local ar2, nanims = t.ticklog.rows({ kind = "npc_anim" })
+        t.ticks(1)
+        local pr2, panims = t.ticklog.rows({ kind = "player_anim" })
+        -- the last seq the demon took each tick is the one sent
+        local last_seq, swung = {}, {}
+        for _, a in ipairs(ar2 == "ok" and nanims or {}) do
+            if a.type == 7585 then last_seq[a.tick] = a.seq end
+        end
+        for _, a in ipairs(pr2 == "ok" and panims or {}) do
+            if a.seq == 422 or a.seq == 423 then swung[a.tick] = true end
+        end
+        local clashes = 0
         local spots_at, sounds_at = {}, {}
         for _, s in ipairs(sr == "ok" and spots or {}) do
             spots_at[s.tick] = spots_at[s.tick] or {}
@@ -70,6 +86,14 @@ return {
         for _, p in ipairs(pr == "ok" and projs or {}) do
             if p.spotanim == BURST or p.spotanim == BOULDER then
                 seen[p.spotanim] = seen[p.spotanim] + 1
+                if swung[p.tick] then
+                    clashes = clashes + 1
+                    if last_seq[p.tick] ~= 65 then
+                        bad[#bad + 1] = string.format("t%d: punched as he cast, sent seq %s, not demon_block", p.tick, tostring(last_seq[p.tick]))
+                    end
+                elseif last_seq[p.tick] ~= 69 then
+                    bad[#bad + 1] = string.format("t%d: his cast sent seq %s, not demon_casting", p.tick, tostring(last_seq[p.tick]))
+                end
                 local L = p.tick + p.end_cycle // 30
                 local tx, tz = coord_of(p.dst)
                 if p.start_cycle ~= 51 or p.end_cycle % 30 ~= 0 then
@@ -105,7 +129,7 @@ return {
             end
         end
         t.check("tells.both_styles", seen[BURST] > 0 and seen[BOULDER] > 0,
-            string.format("bursts %d, boulders %d", seen[BURST], seen[BOULDER]))
+            string.format("bursts %d, boulders %d (punched as he cast: %d)", seen[BURST], seen[BOULDER], clashes))
         t.check("tells.recorded", #bad == 0 and seen[BURST] + seen[BOULDER] > 0,
             #bad == 0 and "every attack as recorded" or table.concat(bad, "; "))
         t.finish((#bad == 0 and seen[BURST] > 0 and seen[BOULDER] > 0) and 0 or 1)
