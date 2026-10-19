@@ -46,6 +46,7 @@ tiles"). Tool: `tools/cox/rsprox_icedemon.py` (sections `attacks`, `pop`, `fiend
 | RI-D1 | **D:** `demon_death` (67) with the killing hit, and `demon_death` (403) to the killer. |
 | RI-D2 | **D+5:** the drops on his south-west tile, and the storm's tile becomes `invisible_type8_nonblocking` (the way on). |
 | RI-D3 | The storm (`raids_icedemon_snow`) is added at **rotation 0** in every room, whatever its turn. |
+| RI-D4 | **The secondaries:** one public stack on his south-west tile on D+5, lying 200 ticks: 7 stinkhorn, 7 endarkened juice and 5 cicely solo (843); 13, 13 and 8 for 820's four. That is 2 x party + 5 of the first two and party + 4 cicely. The fiendish ashes are separate: the killer's, private for 100 ticks. |
 
 ## Fixed in our content (2026-10-18)
 
@@ -61,6 +62,7 @@ tiles"). Tool: `tools/cox/rsprox_icedemon.py` (sections `attacks`, `pop`, `fiend
 - RI-P1..P3: the smoke at height 40 staggered by brazier, its sound on brazier 1; the fiends' deaths and his walk at
   P+1, the fighting form at P+8; the unrecorded "The ice around the demon melts away." removed.
 - RI-D2: `death_delay=5` puts the drops, the storm's removal and his despawn on D+5.
+- RI-D4 (2026-10-19): the secondaries are one public stack under him, scaled by the party, for 200 ticks. They used to go into each raider's pack as a flat 7/7/5.
 - `test/raids/_icedemon_tells.lua` checks every attack's tells off the server's tick log (both styles: it prays
   nothing, where the room solver's Protect from Missiles only ever draws boulders).
 
@@ -69,6 +71,5 @@ tiles"). Tool: `tools/cox/rsprox_icedemon.py` (sections `attacks`, `pop`, `fiend
 | Item | State |
 |---|---|
 | `smokepuff` loops 4 | `sound_area` sends 1 loop; needs a loops argument on the engine command (Xarpus's `apple_splat` waits on the same). |
-| The secondaries | Recorded on the ground at his south-west tile (solo 7/7/5 public, the ashes private 100 ticks; 820's four-man 13/13/8 in one stack). Ours puts them in each raider's inventory. |
 | The freeze | Of ten raiders caught by a burst who stayed, most heard `paralyze` on L and on following ticks; three caught raiders moved within two ticks. Who is frozen, and for how long, is not settled here. |
 | Aggression | He answers an attack; whether he starts one with a raider who walks up after the transform is not recorded (every recorded raider attacked at once). |

@@ -113,6 +113,7 @@ The tendril locs are re-sent every 4 ticks while the room lasts (the same id): a
 | no message; every drop 200 ticks | the slain message; seeds 3000 ticks |
 | no hit or death sound | `crocodile_hit`, `crocodile_death` |
 | the clear: tendrils at + 2, blockers + 6, burst + 2 more | tendrils at once, blockers + 3, burst + 3 more |
+| the clear deleted the tendrils | each tendril's tile becomes `invisible_type8_nonblocking` (2026-10-19) |
 
 ## Still open
 
@@ -120,5 +121,4 @@ The tendril locs are re-sent every 4 ticks while the room lasts (the same id): a
 - The jump's slam (20–25, the wiki's): no recorded raider was in reach.
 - The spawn burst's damage is fitted (5, 7, 10 over the 3x3) to noisy samples.
 - The acid's damage in the raid (20–39, the wiki's): no raid raider was hit by one.
-- Our clear deletes the tendrils rather than swapping in `invisible_type8_nonblocking`, and does not re-send the
-  tendril locs every 4 ticks (neither is visible).
+- The tendril locs are not re-sent every 4 ticks (not visible).

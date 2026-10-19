@@ -58,6 +58,8 @@ function CI.ids(opts)
         { "lit", "loc", "raids_icedemon_brazier_lit" }, { "axe_loc", "loc", "raids_icedemon_axe" },
         { "tinder_loc", "loc", "raids_icedemon_tinderbox" }, { "storm", "loc", "raids_icedemon_snow" },
         { "kindling", "obj", "raids_wood" }, { "tinderbox", "obj", "tinderbox" }, { "bronze_axe", "obj", "bronze_axe" },
+        { "stinkhorn", "obj", "raids_stinkhorn_mushroom" }, { "juice", "obj", "raids_endarkened_juice" },
+        { "cicely", "obj", "raids_cicely" },
         { "pipe", "obj", "toxic_blowpipe_loaded" },
         { "boulder", "spotanim", "raids_icedemon_iceball_travel" },
         { "style_slot_1", "component", "combat_interface:style_slot_1" },
@@ -312,6 +314,42 @@ function CI.take(S, F, B, intents, mode, id, row)
     return intents
 end
 
+-- His secondaries, one stack on the floor under him (RSProx: they lie 200
+-- ticks; docs/rsprox-analysis/cox/icedemon.md RI-D4): each taken while the
+-- pack has a stack of it or a free slot; given up after 30 ticks.
+-- -> true while taking
+function CI.take_secondaries(S, F, intents)
+    local o, ids = S.o, S.ids
+    if o.secondaries_done then return false end
+    o.secondaries_t0 = o.secondaries_t0 or F.tick
+    if F.tick - o.secondaries_t0 > 30 then
+        o.secondaries_done = true
+        return false
+    end
+    local orr, rows = api_drive.objs(30)
+    if orr == "ok" then
+        for _, row in ipairs(rows) do
+            if (row.obj_id == ids.stinkhorn or row.obj_id == ids.juice or row.obj_id == ids.cicely)
+                and CI.in_room(S, row.x, row.z) then
+                if QD.raid._tob_count(S, row.obj_id) > 0 or QD.T2.exec.free_slots(S) > 0 then
+                    intents.mode = "secondaries"
+                    if (F.tick - o.secondaries_t0) % 8 ~= 7 then
+                        intents.world_op = { kind = "obj", id = row.obj_id, op = 3, x = row.x, z = row.z }
+                    end
+                    return true
+                end
+            end
+        end
+    end
+    -- (none on the floor yet on the despawn's own tick: wait a few ticks)
+    if F.tick - o.secondaries_t0 < 3 then
+        intents.mode = "secondaries"
+        return true
+    end
+    o.secondaries_done = true
+    return false
+end
+
 -- The room done: what I put on the floor back in the pack (the room's axe
 -- and tinderbox go down first to make the room), then "done".
 function CI.pickup(S, F, intents)
@@ -454,6 +492,7 @@ function CI.strategy(S, F, B)
         return intents
     end
     if o.frozen == nil and o.demon_seen ~= nil then
+        if CI.take_secondaries(S, F, intents) then return intents end
         return CI.pickup(S, F, intents)
     end
     if o.frozen == nil then
@@ -631,7 +670,8 @@ QD.T2.register("cox_icedemon", {
 
     done = function(S, F)
         local o = S.o
-        if o.demon_seen and o.demon == nil and o.frozen == nil and (o.picked or next(o.dropped) == nil) then return "ok" end
+        if o.demon_seen and o.demon == nil and o.frozen == nil and o.secondaries_done
+            and (o.picked or next(o.dropped) == nil) then return "ok" end
         return nil
     end,
 
