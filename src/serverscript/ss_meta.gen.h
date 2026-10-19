@@ -564,6 +564,7 @@ static const char* const g_ss_opcode_names[11211] = {
     [11155] = "NPC_PROJANIM_PL",
     [11156] = "NPC_PROJANIM_NPC",
     [11157] = "NPC_PROJANIM_MAP",
+    [11200] = "NPC_VENOM",
     [11210] = "SPOTANIM_PL_SLOT",
 };
 
@@ -1132,6 +1133,7 @@ static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11211] = {
     [11155] = { 9, 0, 0, 0, 1, 0, 0, 0, 0x010, 0x000 }, /* NPC_PROJANIM_PL */
     [11156] = { 9, 0, 0, 0, 1, 0, 0, 0, 0x010, 0x000 }, /* NPC_PROJANIM_NPC */
     [11157] = { 9, 0, 0, 0, 1, 0, 0, 0, 0x010, 0x000 }, /* NPC_PROJANIM_MAP */
+    [11200] = { 0, 0, 0, 0, 1, 0, 0, 0, 0x014, 0x000 }, /* NPC_VENOM */
     [11210] = { 4, 0, 0, 0, 1, 0, 0, 0, 0x001, 0x000 }, /* SPOTANIM_PL_SLOT */
 };
 

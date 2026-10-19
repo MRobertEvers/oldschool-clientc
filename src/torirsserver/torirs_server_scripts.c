@@ -8605,12 +8605,12 @@ script_command(
      * The mirror of `npc_statsub` above and the same formula against the same
      * base, in the other direction:
      *
-     *     level = min(current + (constant + base * percent / 100), 255)
+     *     level = min(current + (constant + base * percent / 100), TORIRSSERVER_NPC_STAT_MAX)
      *
      * Two things it is *not*, both of which read as the obvious implementation:
      *
      *  - It is not `npc_statheal`. That one clamps at the authored base, which
-     *    is what "heal" means; this one clamps at 255 and is allowed to leave
+     *    is what "heal" means; this one clamps at the u16 and is allowed to leave
      *    the npc above the level its content block states. `NpcOps.ts:241` vs
      *    `:507` differ in exactly that clamp, so collapsing the two would be
      *    invisible until something buffed a full-health npc.
@@ -8627,8 +8627,9 @@ script_command(
      * drain and `npc_basestat` keeps answering the authored level, which is what
      * the reference's untouched `baseLevels[]` does.
      *
-     * The 255 is the reference's own ceiling on a stat level (the wire holds one
-     * byte), not a content-shaped number. Nothing here marks the npc alive or
+     * The ceiling is `TORIRSSERVER_NPC_STAT_MAX`, Old School's u16 level (the
+     * reference's 255 is its one-byte wire; the note on the define says why
+     * this differs). Nothing here marks the npc alive or
      * dead: the reference does not either, for the reason `npc_statsub` gives.
      */
     case SS_OP_NPC_STATADD:
@@ -8673,8 +8674,8 @@ script_command(
         }
         step = values[1] + (npc_base_stat(npc, values[0]) * values[2]) / 100;
         npc->stat_drain[values[0]] -= step;
-        /* Clamp the *level* at 255, which over a drain is a floor: level is
-         * `base - drain`, so drain may not fall below `base - 255`. */
+        /* Clamp the *level* at the ceiling, which over a drain is a floor:
+         * level is `base - drain`, so drain may not fall below `base - max`. */
         if( npc_base_stat(npc, values[0]) - npc->stat_drain[values[0]] > TORIRSSERVER_NPC_STAT_MAX )
             npc->stat_drain[values[0]] = npc_base_stat(npc, values[0]) - TORIRSSERVER_NPC_STAT_MAX;
         return 1;
@@ -11053,6 +11054,19 @@ script_command(
             return 1;
         }
         ToriRSServer_CombatPoisonNpc(srv, slot, srv->command_turn_player, (int)severity);
+        return 1;
+    }
+
+    case SS_OP_NPC_VENOM:
+    {
+        int slot = (int)state->host_tag - 1;
+
+        if( slot < 0 )
+        {
+            SSVM_Abort(state, "npc_venom with no active npc");
+            return 1;
+        }
+        ToriRSServer_CombatVenomNpc(srv, slot, srv->command_turn_player);
         return 1;
     }
 

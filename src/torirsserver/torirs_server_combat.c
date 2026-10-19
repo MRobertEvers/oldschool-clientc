@@ -587,6 +587,18 @@ hitsplat_poison(void)
 }
 
 static int
+hitsplat_venom(void)
+{
+    int id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_HITSPLAT, "hitsplat_teal");
+
+    /* Hitsplat 5, the dark green "venom" splat ("a number appears with a dark
+     * green hitsplat", wiki Venom). The pack names it for its colour; the ToA
+     * Path of Apmeken's recorded venom splats land as the same id
+     * (docs/rsprox-analysis/toa/apmeken.md, toa_apmeken.rs2). */
+    return id >= 0 ? id : 5;
+}
+
+static int
 hitsplat_shield(void)
 {
     int id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_HITSPLAT, "hitsplat_shield");
@@ -1940,6 +1952,10 @@ ToriRSServer_CombatPoisonNpc(
     if( !npc->active || npc->death_tick >= 0 )
         return;
 
+    /* "Standard poison attacks will no longer downgrade an inflicted venom
+     * effect on an NPC to a poison effect" (wiki Venom, April 2024). */
+    if( npc->venom_damage > 0 )
+        return;
     /* ContentAPI.applyPoison retains a strictly stronger timer and replaces
      * an equal/weaker one, including the source credited for the hit. */
     if( npc->poison_severity > severity )
@@ -1957,25 +1973,41 @@ ToriRSServer_CombatNpcPoisonTick(struct ToriRSServer* srv, int slot)
     struct ToriRSServerPlayer* source = NULL;
     struct ToriRSServerPlayer* saved_active;
     int damage;
+    int splat = hitsplat_poison();
 
     if( slot < 0 || slot >= TORIRSSERVER_NPC_MAX )
         return;
     assert(srv);
     npc = &srv->npcs[slot];
-    if( !npc->active || npc->poison_severity <= 0 )
+    if( !npc->active || (npc->poison_severity <= 0 && npc->venom_damage <= 0) )
         return;
     if( npc->death_tick >= 0 )
     {
         npc->poison_severity = 0;
+        npc->venom_damage = 0;
         return;
     }
     if( srv->tick < npc->poison_clock )
         return;
 
-    damage = (npc->poison_severity + 4) / 5;
-    npc->poison_severity--;
-    if( npc->poison_severity > 0 )
-        npc->poison_clock = srv->tick + 30;
+    if( npc->venom_damage > 0 )
+    {
+        /* Venom never wears off: "Damage starts at one hit of 6 per 18
+         * seconds" and rises 2 a hit to 20 (wiki Venom). */
+        splat = hitsplat_venom();
+        damage = npc->venom_damage;
+        npc->venom_damage += TORIRSSERVER_NPC_VENOM_STEP;
+        if( npc->venom_damage > TORIRSSERVER_NPC_VENOM_MAX )
+            npc->venom_damage = TORIRSSERVER_NPC_VENOM_MAX;
+        npc->poison_clock = srv->tick + TORIRSSERVER_ENTITY_POISON_TICKS;
+    }
+    else
+    {
+        damage = (npc->poison_severity + 4) / 5;
+        npc->poison_severity--;
+        if( npc->poison_severity > 0 )
+            npc->poison_clock = srv->tick + TORIRSSERVER_ENTITY_POISON_TICKS;
+    }
 
     if( npc->poison_source_pid >= 0 && npc->poison_source_pid < TORIRSSERVER_PLAYER_MAX )
     {
@@ -1990,8 +2022,126 @@ ToriRSServer_CombatNpcPoisonTick(struct ToriRSServer* srv, int slot)
      * must not fall through to whichever player the NPC phase ran after. */
     saved_active = srv->active_player;
     ToriRSServer_WorldSetActive(srv, source);
-    ToriRSServer_CombatHitNpc(srv, slot, hitsplat_poison(), damage);
+    ToriRSServer_CombatHitNpc(srv, slot, splat, damage);
     ToriRSServer_WorldSetActive(srv, saved_active);
+}
+
+void
+ToriRSServer_CombatVenomNpc(
+    struct ToriRSServer* srv,
+    int slot,
+    const struct ToriRSServerPlayer* source)
+{
+    struct ToriRSServerNpc* npc;
+
+    assert(srv);
+    assert(slot >= 0);
+    assert(slot < TORIRSSERVER_NPC_MAX);
+    npc = &srv->npcs[slot];
+    if( !npc->active || npc->death_tick >= 0 )
+        return;
+    /* Already envenomed: the ramp it is on is the one it keeps. The wiki says
+     * nothing of a second application, and venom's own shape is a ramp that
+     * only climbs, so restarting it at 6 would be the one thing it never does. */
+    if( npc->venom_damage > 0 )
+        return;
+
+    npc->poison_severity = 0;
+    npc->venom_damage = TORIRSSERVER_NPC_VENOM_FIRST;
+    npc->poison_clock = srv->tick + TORIRSSERVER_ENTITY_POISON_TICKS;
+    npc->poison_source_pid = source && source->active ? source->pid : -1;
+    npc->poison_source_gen = source && source->active ? source->login_generation : 0;
+}
+
+/*
+ * Does this npc's type hold its combat levels where its script put them?
+ * `param=stat_regen_held,yes` (combat.param). "Some monsters are immune to stat
+ * drains. These include Verzik Vitur" (wiki Temporary skill drain): her phases
+ * set their Defence by script (P1's 20 over a record of 200, tob_verzik.rs2
+ * `~tob_verzik_set_stat`), and a regen walking that back toward the record is
+ * the drain she is immune to running the other way. Hitpoints still regenerate.
+ */
+static int
+npc_stat_regen_held(struct ToriRSServerNpc const* npc)
+{
+    static int s_param = -2;
+    int32_t value = 0;
+    const struct ToriRSServerNpcDef* def;
+
+    assert(npc);
+    if( s_param == -2 )
+        s_param = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_PARAM, "stat_regen_held");
+    if( s_param < 0 )
+        return 0;
+    def = npc->def ? npc->def : ToriRSServer_ContentNpcDefault();
+    if( def && ToriRSServer_ContentNpcParam(def, s_param, &value) )
+        return value != 0;
+    {
+        const struct ToriRSServerNpcParam* row = ToriRSServer_NpcParam(npc->type, s_param);
+        return row && !row->sval && row->ival != 0;
+    }
+}
+
+/* One level of a stat toward its base. `level` is what the stat reads now. */
+static int
+npc_regen_step(int level, int base)
+{
+    if( level < base )
+        return 1;
+    if( level > base )
+        return -1;
+    return 0;
+}
+
+void
+ToriRSServer_CombatNpcRegenTick(struct ToriRSServer* srv, int slot)
+{
+    struct ToriRSServerNpc* npc;
+
+    assert(srv);
+    assert(slot >= 0);
+    assert(slot < TORIRSSERVER_NPC_MAX);
+    npc = &srv->npcs[slot];
+
+    /* `if (++this.regenClock >= this.regenInterval)`, and the interval is
+     * reloaded only when a regen happens ("the regenrate doesn't update until a
+     * regen happens. See: Vorkath in OSRS", Npc.ts processRegen). This tree has
+     * no per-type regenrate, so the reload is LostCity's NpcType default. */
+    if( ++npc->regen_clock < npc->regen_interval )
+        return;
+    npc->regen_interval = TORIRSSERVER_NPC_REGEN_TICKS;
+    npc->regen_clock = 0;
+
+    /* Hitpoints, toward the pool. Never from 0: an npc at 0 is dying, and a
+     * point back would undo a kill the death step has not taken yet. Never TO
+     * 0 either: a pool stated below the current hitpoints (a record of 0 under
+     * a script-set life) would otherwise leave a living npc on none. */
+    if( npc->hitpoints > 0 )
+    {
+        int step = npc_regen_step(npc->hitpoints, npc->base_hitpoints);
+
+        if( step < 0 && npc->hitpoints <= 1 )
+            step = 0;
+
+        npc->hitpoints += step;
+        if( step > 0 )
+            ToriRSServer_TicklogNpcHeal(npc, step, npc->hitpoints, npc->base_hitpoints, "regen");
+    }
+
+    /* The other levels are `base - stat_drain`, so a step toward the base is a
+     * step of the drain toward 0, a boost (a negative drain) included. */
+    if( !npc_stat_regen_held(npc) )
+    {
+        for( int stat = 0; stat < TORIRSSERVER_STAT_COUNT; stat++ )
+        {
+            if( stat == TORIRSSERVER_STAT_HITPOINTS )
+                continue;
+            if( npc->stat_drain[stat] > 0 )
+                npc->stat_drain[stat]--;
+            else if( npc->stat_drain[stat] < 0 )
+                npc->stat_drain[stat]++;
+        }
+    }
 }
 
 void
@@ -4075,6 +4225,7 @@ ToriRSServer_CombatRespawnTick(struct ToriRSServer* srv)
         npc->death_seq_tick = -1;
         npc->scripted_death_pending = 0;
         npc->poison_severity = 0;
+        npc->venom_damage = 0;
         npc->poison_clock = 0;
         npc->poison_source_pid = -1;
         npc->poison_source_gen = 0;

@@ -1065,13 +1065,31 @@ enum
 /*
  * The ceiling a script may raise an npc stat to.
  *
- * The reference's own, and engine rather than content: `NpcOps.ts:507`
- * (`NPC_STATADD`) ends `levels[stat] = Math.min(added, 255)`, and 255 is there
- * because a stat level is one byte on the wire, not because any npc is meant to
- * have that much of anything. Named rather than spelled at the two clamps so it
- * cannot be mistaken for a balance number.
+ * LostCity's `NpcOps.ts:507` (`NPC_STATADD`) ends `levels[stat] =
+ * Math.min(added, 255)`, and 255 is there because a 2004 stat level is one
+ * byte on the wire. Old School's are not: its npc config writes each combat
+ * level as a u16 (cache opcodes 74-79), bosses stand above 255 in the cache
+ * itself (the Corporeal Beast's Defence is 310), and Xarpus's absorbed
+ * exhumed raise his 250 Defence by a percentage (owner 2026-10-19, raising it
+ * for exactly that). So the ceiling is the u16, the width `npc_basestat`
+ * already reads. Named rather than spelled at the two clamps so it cannot be
+ * mistaken for a balance number.
  */
-#define TORIRSSERVER_NPC_STAT_MAX 255
+#define TORIRSSERVER_NPC_STAT_MAX 65535
+
+/* Entity poison and venom hit "once every 30 game ticks (18 seconds)" (wiki
+ * Poison); venom "starts at one hit of 6 per 18 seconds", rising 2 a hit to a
+ * cap of 20 (wiki Venom). */
+#define TORIRSSERVER_ENTITY_POISON_TICKS 30
+#define TORIRSSERVER_NPC_VENOM_FIRST 6
+#define TORIRSSERVER_NPC_VENOM_STEP 2
+#define TORIRSSERVER_NPC_VENOM_MAX 20
+
+/* The reference's npc stat regeneration period: LostCity `NpcType.regenrate`,
+ * default 100, which no record in this tree overrides. "Stats are restored at a
+ * rate of 1 per 60 seconds ... Most monsters follow the same rules as players"
+ * (wiki Temporary skill drain). */
+#define TORIRSSERVER_NPC_REGEN_TICKS 100
 
 /*
  * The most hitpoints `npc_statadd` can raise an npc to. Hitpoints are not a
@@ -2589,6 +2607,17 @@ struct ToriRSServerNpc
     int poison_clock;
     int poison_source_pid;
     uint32_t poison_source_gen;
+    /** Entity venom: the damage of the NEXT venom hit, 0 when not envenomed.
+     * Shares `poison_clock` and the poison source: "Monsters cannot be
+     * envenomed and poisoned at the same time" (wiki Venom), so one clock and
+     * one attacker describe whichever of the two the npc carries. */
+    int venom_damage;
+    /** Stat regeneration, the reference's `Npc.processRegen`: every
+     * `regen_interval` turns each level steps one toward its base. The
+     * interval is 0 on a fresh npc, so its first turn regenerates and loads
+     * the type's rate -- LostCity's own order. */
+    int regen_clock;
+    int regen_interval;
     /** Index into the content roster (`ToriRSServer_ContentNpcSpawns`) when this
      *  npc is the world standing one of its spawns up, and -1 when content
      *  npc_added it. Only the first kind is retired when the window moves; an
@@ -6741,8 +6770,19 @@ ToriRSServer_CombatHitmarkNpc(
     int slot,
     int type,
     int amount);
+/** Envenom the NPC: 6 on the first hit, 2 more each hit to 20, every 30
+ * ticks (wiki Venom). It replaces a poison; an envenomed npc keeps its venom. */
+void
+ToriRSServer_CombatVenomNpc(
+    struct ToriRSServer* srv,
+    int slot,
+    const struct ToriRSServerPlayer* source);
 void
 ToriRSServer_CombatNpcPoisonTick(struct ToriRSServer* srv, int slot);
+/** One npc's turn of `Npc.processRegen`: every stat, hitpoints included,
+ * one toward its base each `TORIRSSERVER_NPC_REGEN_TICKS` turns. */
+void
+ToriRSServer_CombatNpcRegenTick(struct ToriRSServer* srv, int slot);
 
 /**
  * Re-path the player to its combat target, before phase 5 moves it.

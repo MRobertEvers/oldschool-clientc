@@ -5640,6 +5640,11 @@ advance_npcs(struct ToriRSServer* srv)
                 continue;
         }
 
+        /* `Npc.processRegen`, where the reference turn runs it: past the
+         * `isValid()` gate (alive, not delayed) and before the timers. */
+        if( npc->active )
+            ToriRSServer_CombatNpcRegenTick(srv, slot);
+
         /*
          * `npc_settimer` and `npc_queue`, in phase 4's own order: **timers
          * before queues**, matching `Npc.processNpc`, which calls

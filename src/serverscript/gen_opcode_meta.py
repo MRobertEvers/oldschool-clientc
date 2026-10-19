@@ -1271,6 +1271,16 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # varn/timer namespace for content to express that state.
     "NPC_POISON": (11033, 1, 0, 0, 0),
 
+    # npc_venom()
+    #
+    # Envenom the active NPC, credited to the active player: 6 on the first hit
+    # 30 ticks later, 2 more each hit to 20, and never wearing off (wiki Venom).
+    # It shares npc_poison's entity timer -- an npc carries one or the other --
+    # and leaves an npc that is already envenomed alone. Immunity is content's
+    # question (`param=venom_immune`), as poison's is. Numbered clear of the
+    # running 111xx block so two sessions adding commands do not collide.
+    "NPC_VENOM": (11200, 0, 0, 0, 0),
+
     # ---- npcs fighting things (11034..11036) -----------------------------
     #
     # npc_attacknpc(npc_uid $target)
@@ -1573,6 +1583,10 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "WALKSTEP_COORD": (1 << POINTER_BITS["p_active_player"], 0),
     "NPC_FINDOWNED2": (1 << POINTER_BITS["p_active_player"], 0),
     "NPC_POISON": (
+        (1 << POINTER_BITS["active_npc"]) | (1 << POINTER_BITS["p_active_player"]),
+        0,
+    ),
+    "NPC_VENOM": (
         (1 << POINTER_BITS["active_npc"]) | (1 << POINTER_BITS["p_active_player"]),
         0,
     ),
