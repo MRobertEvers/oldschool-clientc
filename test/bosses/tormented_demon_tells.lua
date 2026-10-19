@@ -1,6 +1,6 @@
 -- tormented_demon_tells: a Tormented Demon fight for the tick log
 -- (docs/rsprox-analysis/tormented_demons/README.md). The world demon at 4123,4381 (variant 2,
--- summoned at boot); a bow engages it (the shield drop, the two-tick shield loop and prayer check, the
+-- summoned at boot); a bow engages it (the shield struck, dropped, the unshielded attack and the restore; the prayer check, the
 -- defenceless body at E + 30, the fire bomb and bind at E + 60); then ::tdhp kills it for the
 -- death graphic, the respawn's invisible add and the summon. The player is kept alive and unprotected so every attack lands.
 -- Read with tools/rsprox/ticklog_tells.py.

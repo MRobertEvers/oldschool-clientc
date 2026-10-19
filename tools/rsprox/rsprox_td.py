@@ -9,7 +9,8 @@ measures, across all lives in the given transcripts:
               player's first attack on it
   prayer      each head-icon (sprite group 440) write: the sprite, the damage
               taken since the previous write
-  shield      `shield_restore_spot` vs the player's attacks; `shield_spot` cadence
+  shield      `shield_restore_spot` vs the player's attacks; `shield_spot` gaps (the
+              recorder's attack rate, not a loop: see rsprox_td_shield.py)
   body        `body_customisation` writes
   attacks     melee / firey_balls / spare_ribs: cadence, projectile parameters,
               distance, and the player-side sounds and graphics

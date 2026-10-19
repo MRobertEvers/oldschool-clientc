@@ -16,6 +16,7 @@ The wiki's text for the mechanics is archived in `sources/` (fetched 2026-10-18)
 
 Tools:
 - `tools/rsprox/rsprox_td.py` splits every demon into lives and measures each rule below.
+- `tools/rsprox/rsprox_td_shield.py` lines the shield graphics and prayer writes up with the recorder's own attack ticks.
 - `tools/rsprox/rsprox_attack_tells.py --npc tormented_demon --attack luc2_undead_demon_firey_balls luc2_undead_demon_spare_ribs luc2_undead_demon_melee` gives the tells of each attack.
 - `tools/rsprox/rsprox_tells.py --timeline` gives the ordered stream.
 
@@ -27,7 +28,7 @@ The demon is **one npc type for its whole life**. Everything that changes is per
 |---|---|
 | Overhead prayer | `headicon_customisation`: slot 0, sprite group 440, index 0 melee / 1 ranged / 2 magic |
 | Defenceless (no flames) | `body_customisation` with one model: 55475 on 13599/13601, 55474 on 13600/13602. It comes with `luc2_undead_accuracy_debuff` in spotanim **slot 5** (254 of 300). |
-| Graphics | Numbered spotanim slots: attack graphics and `entangle_casting` in slot 2; the shield loop, drop, restore and summon in slot 4; the debuff in slot 5; the death graphic in slot 0 |
+| Graphics | Numbered spotanim slots: attack graphics and `entangle_casting` in slot 2; the shield struck, drop, restore and summon in slot 4; the debuff in slot 5; the death graphic in slot 0 |
 | Overhead bar | `healthbar_standard_60` (2,556 of 2,556 headbars) |
 
 ## Combat
@@ -36,12 +37,11 @@ E is the player's first attack on a fresh demon.
 
 | Event | Recorded |
 |---|---|
-| Engage (E) | On the player's attack tick, the shield drops: `luc2_undead_demon_explosion_fire` + `luc2_undead_demon_explosion_fire_spot` (slot 4), with synths 9224 `wgs_td_explosion_fire_power_up_scream_03`, 9210 `…explosion_fire_start_01` (delay 3), 9215 `…explosion_explode_01` (delay 36) and 9259 `…explosion_high_fire_01` (delay 39). |
-| Shield loop | `luc2_undead_demon_shield_spot` in slot 4 every 2 ticks (7,105 of 7,105 gaps), from E − 1 (sometimes earlier, when the player starts approaching) for the whole fight, including while the shield is down. |
-| Shield back up | `luc2_undead_demon_shield_restore_spot` (slot 4) on the player's **next attack tick** (533 of 534) |
-| The two-tick clock | Every icon write lands on an odd offset from E (E + 1, E + 3, …), the shield loop's ticks. |
+| Engage (E) | The tick after the player's first attack, the shield drops: `luc2_undead_demon_explosion_fire` + `luc2_undead_demon_explosion_fire_spot` (slot 4), with synths 9224 `wgs_td_explosion_fire_power_up_scream_03`, 9210 `…explosion_fire_start_01` (delay 3), 9215 `…explosion_explode_01` (delay 36) and 9259 `…explosion_high_fire_01` (delay 39). |
+| The shield, per attack | Decided at each of the recorder's attacks on the demon, and only then; the demon sends no shield graphic of its own. Shield up: `luc2_undead_demon_shield_spot` (slot 4) on the attack. Shield down: no graphic, the one unshielded attack. The attack after it: `luc2_undead_demon_shield_restore_spot`, and the shield is up. 1756's engages: `−1:shield X +1:shield +3:NONE +5:restore` (242 of 280); the first attack from E + 2 is the unshielded one, an attack on E + 1 still meets the shield. After a bomb the next attack is the unshielded one (1696: 1933, then the restore on 1937). (`rsprox_td_shield.py`, "shield") |
+| Not a loop | `shield_spot` looked like a two-tick loop of the demon's (7,105 two-tick gaps) only because the Leagues and Grid Master recorders attack every 2 ticks. 1696's 4-tick bow and staff get it every 4 ticks, on their attacks. |
 | Prayer on engage | The first write after E is always the attacker's style. When the spawn prayer was different it comes early: E + 1 (120), E + 3 (85) or E + 5 (24) in 3312, and E + 3 to E + 15 in 1756. When the demon already prayed that style, nothing is written until the damage rule. |
-| Prayer switch | About 150 damage after the last write, the icon is rewritten to the last style that damaged it (the same icon is re-sent too) |
+| Prayer switch | On the player's attack: 940 of 941 icon writes in 1756 are on one of the recorder's attack ticks. The icon is rewritten to the last style that damaged it once 150 has been dealt since the last write, counted at the launch with that attack's own damage included (580 of 639 writes; the rest are the hit-to-attack matching). The same icon is re-sent too. |
 | Stall after a switch | A write at W holds the next attack to W + 5 at the earliest: gaps 6 / 8 / 10 for a write at +1 / +3 / +5 into a cycle (232 / 146 / 36 in 3312). |
 | Attack cadence | First attack at E + 6, then every 6 ticks (1,172 of 1,784 gaps) unless stalled |
 | Style choice | **Per segment, not per swing.** On each explosion (the engage, a bomb) the demon rolls a style and swings it until the next: 538 single-demon lives, one with two styles. After the engage: melee 271, fireball 140, rib shards 127 (½, ¼, ¼) at every gap from 1 to 9. A rib or fireball demon throws even at an edge-adjacent player (1756, life 4378 at 1245: eight rib swings at gap 1). (`rsprox_td.py`, "segment style") |
@@ -117,8 +117,8 @@ Recorded spawn variants: variant 2 at 4071,4426, 4079,4430, 4123,4381, 4083,4373
   - The demon takes the attacker (`npc_attackplayer`) so the retaliation flinch doesn't re-seed its clock.
   - The first swing is at E + 6.
 - **The demon's timer:**
-  - It runs every tick: the shared fire bomb, and defenceless at 30 ticks.
-  - Every other tick it re-sends the shield loop and runs the prayer check: the engage switch to the attacker's style, then 150 accumulated damage.
+  - It runs every tick: the engage's explosion, the shared fire bomb, a melee segment closing, and defenceless at 30 ticks.
+- **The shield and the prayer, on the player's attack (2026-10-19):** see "The shield" below.
 - **Attacks:**
   - Each swing is the engine's attack clock (`[ai_opplayer2]`), and a prayer swap holds it with `npc_attackdelay`.
   - Melee, magic and the new ranged rib attack all use the recorded parameters, sounds, player blocks and hit ticks.
@@ -132,8 +132,8 @@ Recorded spawn variants: variant 2 at 4071,4426, 4079,4430, 4123,4381, 4083,4373
 
 - **Engage:**
   - E: the drop and all four synths.
-  - E + 1: the shield loop and the switch to ranged, which the headless client decoded as headicon 440/1.
-  - The restore on the player's next attack; the loop every two ticks.
+  - E + 1: the switch to ranged, which the headless client decoded as headicon 440/1.
+  - (Superseded 2026-10-19, "The shield": the two-tick shield loop this run checked was not Jagex's.)
 - **Attacks:**
   - First swing at E + 6, then every 6.
   - Ribs and fireballs with the recorded projectiles, synths and player blocks (108 / 98).
@@ -161,12 +161,26 @@ Recorded spawn variants: variant 2 at 4071,4426, 4079,4430, 4123,4381, 4083,4373
 
 **Solver:** [solver.md](solver.md) is the plan; `test/bosses/tormented_demon.lua` plays it.
 
+## The shield (2026-10-19)
+
+The shield "never dropped" on our client: the demon's timer re-sent `shield_spot` every two ticks for the whole fight, which hid the drop a tick after it played. Now, from the recordings (`rsprox_td_shield.py`):
+
+- **Per attack, at the launch** (`~td_prepare_player_hit`): shield up, `shield_spot` and the 20% reduction; down, no graphic and the unshielded attack; spent, the restore graphic and the shield up again.
+- **The engage:** the player's first attack A meets the shield (struck); the explosion is E = A + 1, played by the demon's timer; the shield counts as down from E + 2. Every fight clock (first swing E + 6, defenceless E + 30, bomb E + 60) runs from E as before.
+- **A bomb** drops it on B.
+- **The prayer** is checked on the player's attack, after that attack's damage is counted: the engage switch on the attack after the engaging one, then every 150.
+
+From the wiki alone (no recording shows them):
+
+- **The unshielded attack** (wiki Strategies, "Shield"): X² − 16 bonus damage, ÷3 on prayer, for crush melee, crossbows and ballistae, and spells not from a powered staff; X is the weapon's speed for its style (Rapid a tick less), a spell's the cast's 5 or a slower worn weapon's. With X ≥ 5 the player's next attack comes 4 / 3 / 2 ticks later against 1 / 2 / 3 demons (a player queue that runs after the attack's own script). Demonbane spells pierce the shield (`%varp7061_magic_spell_demonbane`).
+- **The first swing through prayer:** the demon's first magic or ranged swing, thrown while the shield is not back up, goes through a matching protection prayer at 25%.
+- **Two demons:** one melees, the other throws. A demon engaging beside a melee partner throws; beside a thrower it melees; on a bomb the two trade.
+
+Probe (scriptrun, Dharok's greataxe on crush, a demon praying melee): struck on A, the explosion on A + 1, the unshielded attack on E + 6 hits 11 (33 ÷ 3), the next attack 4 ticks later with the restore. The solver's 48 seeds stay GREEN (138–285 ticks).
+
 ## Open
 
-- **Multi-demon styles.** "With two demons attacking, one will always use melee, and the other using magic or ranged" (wiki). Each demon rolls its own segment here.
-- **Hits through a held prayer.** Three magic hits went through a prayer held from T − 1 to T + 3 (1696's quest demons). This may be the wiki's "first attack deals ~75% less damage" rule.
-
-- **The shield loop's first graphic:** ours starts at E + 1; Jagex's at E − 1, when the player starts the attack.
-- **The engage switch:** ours always lands on E + 1. Jagex's spread (E + 1 to E + 15) depends on something the recordings don't show.
+- **The engage switch:** ours lands on the attack after the engaging one. Jagex's first write comes 0–7 attacks after the first damaging hit (1756), and the recordings don't show what decides it.
+- **Hits through a held prayer:** the three 1696 hits once read as going through a held prayer were other demons' hits (a rib shard, a bomb) on the same tick; nothing recorded shows the wiki's first-swing rule.
 - **Player spotanim slots:** the fireball impact is in the player's slot 2 on Jagex's wire. Our server sends players one slot (0), so the player's own graphics share it.
 - **Body customisation colours and textures** are parsed and not applied. The demon's override is a model alone.
