@@ -79,6 +79,55 @@ All 15 recorded stuns came on a splat's tick (15 of 15).
 | Sound | `synth stunned` | none | **fixed** |
 | Message | spam: "You've been stunned!" | none | **fixed** (`mes_spam`) |
 
+## Damage, timing and the spread (2026-10-19)
+
+The rows above came from the recorder's own view. These are read from **14
+sessions re-transcribed with every raider shown**: the 9 above plus 845, 554,
+1758 and 1163 (Normal), with Hard in 1852 and 1837. Every one is from a
+Leagues V, Leagues VI or Grid Master world. Their perks change the numbers:
+Leagues V's Last Stand relic holds a raider on 1 hitpoint, so every 1 splat
+is dropped below, and the same flies hit 6–13 on Grid Master against 9–18 on
+Leagues V. **No damage range here is an unmodified one.**
+
+`test/raids/_bloat_tells.lua` stands one raider in her south corridor
+through her cycles, with `::tobbosswound` so the flesh falls. That puts every
+row below in our tick log.
+
+### The flies
+
+| | Recorded | Ours before | Status |
+|---|---|---|---|
+| Rate | a raider she sees takes a splat **every tick**, landing the tick after she looked; standing under her counts as seen | same | match |
+| Source | a tile on her **near edge** facing the raider (north row for a raider to the north, ...), not her middle; the exact tile also moves with her step that tick | her middle (`~npc_projectile_source`) | **fixed**: the footprint tile nearest the raider, within a tile of the recorded one 74% of the time (her middle: 31%). No rule fitted exactly |
+| Projectile to a raider under her | sent more often than not (17 against 8 when under her both before and after her step); the attack sound always | sent | match in kind; no clean rule |
+| Damage | Normal 6–18 (Grid Master 6–17, mean 10.2; Leagues V 7–18, mean 13.3); Hard 8–20 | 10–20 | **open**: seasonal. Protect from Missiles never seen (the recorder never prayed it) |
+| The spread | a swarm thrown **from the tile of a raider she flew the tick before** (250 of 282) at a raider near them, seen or not (about half were also flown by her that tick). Its hit lands 1 or 2 ticks later (12 / 20 of 33). A spread does not spread (7 of 282 sources were spread-only) | on her own tick, thrown from her middle | **fixed**: a tick behind, from the burning raider's tile |
+| Spread reach | 1–9 tiles, about a third of the raiders at each distance up to 6 | everyone within 3 | **open**: no rule for which third |
+
+### The stomp
+
+| | Recorded | Ours before | Status |
+|---|---|---|---|
+| Hit | on **sleep seq + 31**, the tick after the stomp (60 of 60) | + 30 | **fixed** (`^tob_bloat_stomp_hit_delay`) |
+| Who | raiders up to 6+ tiles off her 5x5, as sight allows; **none of the 3 under her** was hit | whoever she sees, under her too | **open**: 3 samples |
+| Damage | Normal 35–69 (37), Hard 37–83 (23) | 40–80 | **open**: seasonal |
+| On the raider | nothing of the stomp's own | nothing | match |
+
+### The falling flesh
+
+| | Recorded | Ours before | Status |
+|---|---|---|---|
+| Hit | on the splat's tick, to a raider on its tile (44 of 44) | same | match |
+| Stun graphic | `tob_bloat_stunned` at height 124 (54 of 55) | same | match |
+| Stun | the raider's first own step on **splat + 4** (36 of 52; the rest stood still) | splat + 6 | **fixed** (`^tob_bloat_hand_stun_ticks` 5 → 3) |
+| Damage | Normal 23–42 (25), Hard 27–53 (19) | 30–50 | **open**: seasonal |
+
+Ours now, from `_bloat_tells` (solo, Normal):
+- 366 swarms and 384 hits, the hits on the tick after.
+- Every stomp hit on sleep + 31.
+- Stun steps on splat + 4. When the driver's step reached the server late,
+  it came later; never earlier.
+
 ## Her death (`--section death`)
 
 T is her killing hit (the first hitsplat after which her headbar reads empty).

@@ -108,6 +108,27 @@ Every P2 cast (urn bombs, blood, lightning, the Athanatos) is `verzik_phase2_att
 | creeper despawn | no animation | `tob_shadow_projectile_despawn` | fixed |
 | "fires a powerful projectile..." | ends `</col>` | no closing tag | fixed |
 
+## The tornadoes
+
+These were read from 83 tornado lives (`tob_verzik_creeper` 8386) in 10
+sessions re-transcribed with every raider shown: 1833, 3299, 1764, 1779, 1837,
+553, 582, 788, 3285 and 1852 (Hard). 1758 also has tornadoes but was not
+re-transcribed. T is the touch tick.
+
+| | Recorded | Ours before | Status |
+|---|---|---|---|
+| Spawn | one per raider with her "I'm not finished with you just yet!", 2-8 tiles from them | same | match |
+| Walk | one tile a tick, diagonals included; the enrage's tornadoes step on the tick after they appear | same | match |
+| Touch | it steps onto its raider's tile on T − 1. On T: a damage splat on the raider, spotanim 1602, `sound_area 860` (range 6) at the raider, "Verzik Vitur saps your health and powers up!" to the raider, a heal splat (6) on her, and the tornado is **deleted on T** | deleted on T + 1 | **fixed** |
+| Heal | **3 × ⌊hitpoints / 2⌋** of the raider's hitpoints before the touch: 13 of 13 recorder touches (73 → 108, 133 → 198, 31 → 45, 16 → 24) | 3 × the damage | match |
+| Damage splat | **⌈0.85 × ⌊hitpoints / 2⌋⌉**, 13 of 13 recorder touches (73 → 31, 133 → 57, 99 → 42) and every teammate's (from their heal) | ⌊hitpoints / 2⌋ | **open**: every session is Leagues V or Grid Master, so the 15% is most likely a seasonal damage reduction. The heal shows the server's own number is ⌊hp / 2⌋ |
+| Respawn | the raider's next tornado appears on **T + 16**, 24 of 24 (Normal and Hard) | T + 16 | match |
+| Respawn: first step | **one tick later** than the enrage's: its first step is on its add + 2, every respawn | add + 1 | **fixed** (`^tob_verzik_nvar_born`) |
+
+`test/raids/_verzik_tornado.lua` forces it: `::tobvztornado 600` raises the
+enrage's tornadoes in P3, and the raider stands still. Now: touch on 69,
+deleted on 69, heal 147 (49 × 3), back on 85, first step 87, touched again on 93.
+
 ## Getting thrown
 
 The room has three throws. The shared transcripts print only the recorder, who was never under a pillar or under her in P2. So these were read from the nine recordings re-transcribed with every player shown (`PLAYER_INFO_LOCAL_PLAYER_ONLY=false`, recipe in `tools/cox/rsprox_olm_party.py`), with `tools/rsprox_verzik_throws.py`. T is the tick the raider moves.

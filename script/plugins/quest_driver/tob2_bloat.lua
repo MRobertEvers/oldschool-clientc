@@ -50,8 +50,8 @@ QD.BLOAT_V2 = {
     -- a reversal or the other speed is priced WATCH_COST (an owner price,
     -- v1's WATCH_COST: all-lethal covered the whole ring, b22/b27)
     FLY_EXP = 15, FLY_MAX = 20, WATCH_COST = 50,
-    -- THE HANDS: 30-50 and a 5-tick stun, unprayable (spec 3.4)
-    HAND_EXP = 40, HAND_MAX = 50, HAND_STUN = 5,
+    -- THE HANDS: 30-50 and a 3-tick stun (first step on splat + 4, RSProx), unprayable
+    HAND_EXP = 40, HAND_MAX = 50, HAND_STUN = 3,
     -- THE STOMP: 40-80, unprayable (spec 3.5)
     STOMP_EXP = 60, STOMP_MAX = 80,
     GOAL_PULL = 3,                        -- v1 QD.BLOAT.GOAL_PULL: hp a tile a tick off the hide tile
@@ -474,7 +474,7 @@ QD.T2.rooms.bloat = {
             S.dir = dir
         end
         -- THE HANDS: the impact on seen+3 reads the end of seen+2 (v1 from
-        -- seen+1); a stun of 5 (M5); HM: the whole fight, the down included
+        -- seen+1); a stun of 3 (RSProx); HM: the whole fight, the down included
         for _, sh in ipairs(S.shadows) do
             B.hit{ name = "hand", x = sh.x, z = sh.z, size = 1, t0 = sh.seen + 1, t1 = sh.seen + 2, sample = "pass",
                 dmg_exp = X.HAND_EXP, dmg_max = 0, stun = X.HAND_STUN, forbid = true, land = 1 }

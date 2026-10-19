@@ -117,6 +117,27 @@ to a random tile 3 times of 20 instead of to them (outside his footprint: 317
 of 317 to them). Distance does not separate the three. Ours always splashes
 them.
 
+## Hard: the opening ring
+
+Only three Hard Xarpus rooms are recorded: 1852 (two) and 1837 (one), all
+Leagues V. The local index and rsprox.net agree on that (npc 10770-10773).
+All three are identical, packet for packet. F is the tick he turns into his
+feeding form (10770 → 10771).
+
+| | Recorded | Ours before | Status |
+|---|---|---|---|
+| The ring | **114 `tob_xarpus_acidspit` (1555)** from his centre on F, one per ring tile. Start 30, **end 90 at every distance**, angle 16, progress 32, height 100 → 0 | no projectile: 98 pools laid on F + 3 | **fixed** |
+| Order | south rows z 0 then 1 (the gap skipped), north rows z 14 then 13, then the west columns x 1 then 0 and the east columns x 14 then 13, the full height of each. So the four 2x2 corners take two spits each | | **fixed** (`~tob_xarpus_hard_ring_walk`) |
+| Shape | the outer two rings of the 15x15 arena, less the 3x2 gap at the entrance: 98 tiles | same | match |
+| Landing, F + 3 | 98 pools with `acid_floor_hit` (range 7); the 16 doubled spits land on a pool and send `player_acid_burn` instead; 114 acidsplashes; no splash is thrown | pools only | **fixed** (through `~tob_xarpus_acid_lands`, the spit's own landing) |
+| Hit | a raider beside a ring tile takes the poison splat ("You have been poisoned!", 5). Once, in 1852, it was a raider who walked in beside the gap | none on landing | **fixed** |
+| Boil | `acid_splat_loop` on the 98 pools on F + 4 (F + 5 once) | F + 4 | match |
+| Message | none | "The floor of the arena boils with acid." | **fixed** (removed) |
+
+A scriptrun of `tob_xarpus_hard` (seed f1) now sends the 114 spits on the
+retype tick, in the recorded order, with the recorded fields, and lands them
+on F + 3.
+
 ## Phase 2: a raider under him (the guano)
 
 | | Recorded | Ours | Status |

@@ -1602,6 +1602,24 @@ end
 -- (chatbox type 2) with serial > since, oldest first, each {sender, text,
 -- serial}; `newest` is the newest serial read (pass it back as `since`).
 -- Text arrives as the chat codec gives it back: lower case, sentence-cased.
+-- Every chat line newer than serial `since`, oldest first, of any type (a game
+-- message as well as public chat): { type, sender, text, serial }.
+function QD.chat.lines(since)
+    assert(math.type(since) == "integer")
+    local result, rows = api_drive.messages(100)
+    if result ~= "ok" then
+        return result, rows
+    end
+    local out = {}
+    for i = #rows, 1, -1 do
+        local m = rows[i]
+        if m.serial > since then
+            out[#out + 1] = { type = m.type, sender = m.sender, text = m.text, serial = m.serial }
+        end
+    end
+    return "ok", out
+end
+
 function QD.chat.public(since)
     assert(math.type(since) == "integer")
     local result, rows = api_drive.messages(100)
