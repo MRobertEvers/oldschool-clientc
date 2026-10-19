@@ -258,6 +258,59 @@ App_DriveLocAnimNote(struct App* app, int scene_x, int scene_z, int level, int s
     a->cycle = now;
 }
 
+/* Drop the loc changes the scenery now shows (the task landed: the new loc in
+ * that tile and layer, or none there for a delete) and those from another
+ * scene base (a rebuild dropped their task and the server re-sends the zone).
+ * Never one the loc lane has not released yet (lane_ticket): an add and the
+ * delete behind it on one tile and layer would otherwise retire on the empty
+ * layer the add has yet to fill. */
+void
+App_DriveLocChangesRetire(struct App* app)
+{
+    struct App_DriveRing* ring;
+    struct World_EntityPool* pool;
+    int base_x, base_z, kept;
+
+    assert(app);
+    assert(app->world);
+    ring = &app->drive_events;
+    pool = &app->world->entities.scenery;
+    base_x = app->world->_base_tile_x;
+    base_z = app->world->_base_tile_z;
+    kept = 0;
+
+    for( int k = 0; k < ring->loc_change_count; k++ )
+    {
+        struct App_DriveLocChange const* c = &ring->loc_changes[k];
+        int shown = 0;
+
+        if( c->base_x != base_x || c->base_z != base_z )
+            continue;
+        if( (int32_t)(app->loc_lane_applied - c->lane_ticket) < 0 )
+        {
+            ring->loc_changes[kept++] = *c;
+            continue;
+        }
+        for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
+        {
+            struct WorldEntity_Scenery const* sc = World_EntityPoolGet(pool, i);
+            if( !sc || base_x + sc->grid_position.x != c->x || base_z + sc->grid_position.z != c->z ||
+                sc->grid_position.level != c->level || World_LocShapeToLayer(sc->shape) != c->layer )
+                continue;
+            shown = sc->loc_id == c->loc_id ? 1 : -1;
+            if( shown > 0 )
+                break;
+        }
+        /* An add is shown by its loc; a delete by nothing in the layer. */
+        if( (c->loc_id >= 0 && shown > 0) || (c->loc_id < 0 && shown == 0) )
+            continue;
+        ring->loc_changes[kept++] = *c;
+    }
+    if( kept != ring->loc_change_count )
+        ring->loc_change_serial++;
+    ring->loc_change_count = kept;
+}
+
 void
 App_DriveLocChangeNote(
     struct App* app, int scene_x, int scene_z, int level, int loc_id, int shape, int angle)
@@ -285,9 +338,14 @@ App_DriveLocChangeNote(
     }
     if( !c )
     {
-        /* Only changes the scenery has not caught up with are held
-         * (DriveUi_Locs retires the rest); more than this many waiting on
-         * their models at once is a contract violation, not a drop. */
+        /* Only changes the scenery has not caught up with are held. The
+         * drive's reads retire the rest, but a client nobody drives never
+         * reads, and the ring grew without end: 6,436 in a Zebak fight, every
+         * one past the 256th written beyond it (UBSan, 2026-10-19). So a full
+         * ring retires here too; more than this many still waiting on their
+         * models at once is a contract violation, not a drop. */
+        if( ring->loc_change_count >= APP_DRIVE_LOC_CHANGE_CAP )
+            App_DriveLocChangesRetire(app);
         assert(ring->loc_change_count < APP_DRIVE_LOC_CHANGE_CAP);
         c = &ring->loc_changes[ring->loc_change_count++];
     }

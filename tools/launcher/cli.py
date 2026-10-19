@@ -87,7 +87,7 @@ def _no_asan_on_windows(profile, flavors):
 
 
 def asan_env():
-    return {
+    env = {
         "ASAN_OPTIONS": os.environ.get(
             "ASAN_OPTIONS",
             "detect_leaks=0:halt_on_error=0:abort_on_error=0"
@@ -95,6 +95,17 @@ def asan_env():
         "UBSAN_OPTIONS": os.environ.get(
             "UBSAN_OPTIONS", "print_stacktrace=1"),
     }
+    if sys.platform == "darwin":
+        # Homebrew's SDL2 is sdl2-compat: its initializer dlopens
+        # "libSDL3.dylib" by leaf name and finds it through ITS OWN rpath. ASan
+        # intercepts dlopen, so the call comes from the sanitizer runtime, which
+        # has no such rpath; SDL3 is never found and sdl2-compat puts up a modal
+        # "Failed to initialize sdl2-compat library" before main and waits on it
+        # forever. The fallback path is searched whoever the caller is.
+        fallback = [os.environ.get("DYLD_FALLBACK_LIBRARY_PATH", ""),
+                    "/opt/homebrew/lib", "/usr/local/lib", "/usr/lib"]
+        env["DYLD_FALLBACK_LIBRARY_PATH"] = ":".join(p for p in fallback if p)
+    return env
 
 
 def _expected_port(service_name, profile, manifest):

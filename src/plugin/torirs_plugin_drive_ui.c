@@ -988,52 +988,6 @@ drive_ui_loc_pending(
     return NULL;
 }
 
-/* Drop the loc changes the scenery now shows (the task landed: the new loc in
- * that tile and layer, or none there for a delete) and those from another
- * scene base (a rebuild dropped their task and the server re-sends the zone).
- * Never one the loc lane has not released yet (lane_ticket): an add and the
- * delete behind it on one tile and layer would otherwise retire on the empty
- * layer the add has yet to fill. */
-static void
-drive_ui_locs_retire(struct App* app)
-{
-    struct App_DriveRing* ring = &app->drive_events;
-    struct World_EntityPool* pool = &app->world->entities.scenery;
-    int base_x = app->world->_base_tile_x;
-    int base_z = app->world->_base_tile_z;
-    int kept = 0;
-
-    for( int k = 0; k < ring->loc_change_count; k++ )
-    {
-        struct App_DriveLocChange const* c = &ring->loc_changes[k];
-        int shown = 0;
-
-        if( c->base_x != base_x || c->base_z != base_z )
-            continue;
-        if( (int32_t)(app->loc_lane_applied - c->lane_ticket) < 0 )
-        {
-            ring->loc_changes[kept++] = *c;
-            continue;
-        }
-        for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
-        {
-            struct WorldEntity_Scenery const* sc = World_EntityPoolGet(pool, i);
-            if( !sc || base_x + sc->grid_position.x != c->x || base_z + sc->grid_position.z != c->z ||
-                sc->grid_position.level != c->level || World_LocShapeToLayer(sc->shape) != c->layer )
-                continue;
-            shown = sc->loc_id == c->loc_id ? 1 : -1;
-            if( shown > 0 )
-                break;
-        }
-        /* An add is shown by its loc; a delete by nothing in the layer. */
-        if( (c->loc_id >= 0 && shown > 0) || (c->loc_id < 0 && shown == 0) )
-            continue;
-        ring->loc_changes[kept++] = *c;
-    }
-    if( kept != ring->loc_change_count )
-        ring->loc_change_serial++;
-    ring->loc_change_count = kept;
-}
 
 /*
  * THE COLLISION route AND plan READ: the world's maps while no loc change is
@@ -1047,7 +1001,7 @@ drive_ui_locs_retire(struct App* app)
  * state a tick longer than the scriptrun one. The copies keep the world's own
  * maps untouched, so the lane's landing still makes the only add/del pair the
  * world sees and nothing can apply twice; a change leaves the copies with its
- * ring entry (drive_ui_locs_retire), when the world shows it itself.
+ * ring entry (App_DriveLocChangesRetire), when the world shows it itself.
  *
  * Cached on what can change it: the scene, the lane's landings, the ring.
  */
@@ -1077,7 +1031,7 @@ drive_ui_collision_maps(struct App* app)
     assert(app);
     world = app->world;
     assert(world);
-    drive_ui_locs_retire(app);
+    App_DriveLocChangesRetire(app);
     ring = &app->drive_events;
     if( ring->loc_change_count == 0 )
         return world->collision_maps;
@@ -1126,7 +1080,7 @@ drive_ui_collision_maps(struct App* app)
         int sx = c->x - base_x;
         int sz = c->z - base_z;
 
-        /* drive_ui_locs_retire dropped every other base's. */
+        /* App_DriveLocChangesRetire dropped every other base's. */
         assert(c->base_x == base_x);
         assert(c->base_z == base_z);
         if( sx < 0 || sz < 0 || sx >= world->_scene_size || sz >= world->_scene_size )
@@ -1187,7 +1141,7 @@ DriveUi_Locs(struct App* app, int radius, struct DriveLocRow* out, int cap, int*
      * models before the scenery shows it, so the tiles it touches answer
      * from the change itself (App_DriveLocChangeNote), as scriptrun's
      * packet-built loc list does, until the scenery catches up. */
-    drive_ui_locs_retire(app);
+    App_DriveLocChangesRetire(app);
     ring = &app->drive_events;
     if( getenv("TORIRS_DRIVE_DEBUG") )
         fprintf(stderr,
@@ -1334,7 +1288,7 @@ DriveUi_LocCopies(
      * from the change (App_DriveLocChangeNote), not from the scenery it will
      * replace -- scriptrun's loc list is the packets', so a copy the server
      * placed (or removed) this tick is counted on its tick on both lanes. */
-    drive_ui_locs_retire(app);
+    App_DriveLocChangesRetire(app);
     ring = &app->drive_events;
 
     /* Root worldview only, as DriveUi_Locs (its note says why). One pass over

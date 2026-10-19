@@ -322,6 +322,9 @@ void App_DriveLocAnimNote(struct App* app, int scene_x, int scene_z, int level, 
  * pending change for the same tile and layer, as the packet does. */
 void App_DriveLocChangeNote(
     struct App* app, int scene_x, int scene_z, int level, int loc_id, int shape, int angle);
+/* Drop the held loc changes the scenery now shows, and those from another
+ * scene base. The drive's loc reads call it; so does a full ring. */
+void App_DriveLocChangesRetire(struct App* app);
 
 enum DriveResult App_DriveEventsRead(
     struct App* app,
