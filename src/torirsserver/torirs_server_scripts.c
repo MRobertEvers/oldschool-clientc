@@ -9661,16 +9661,21 @@ script_command(
      * client's distance falloff. A revision that cannot carry the packet gets
      * the old stand-in, a SYNTH_SOUND to each player within range. Either way
      * the tick log gets one SOUND row per player in range, source "area".
+     *
+     * sound_area_size(..., int $size) adds the packet's drop-off byte: full
+     * volume within $size tiles (RSProx's `size`). sound_area sends 0.
      */
     case SS_OP_SOUND_AREA:
+    case SS_OP_SOUND_AREA_SIZE:
     {
-        int32_t values[4];
+        int32_t values[5] = { 0 };
+        int argc = opcode == SS_OP_SOUND_AREA_SIZE ? 5 : 4;
         int x;
         int z;
         int level;
         int zone_packet;
 
-        for( int i = 3; i >= 0; i-- )
+        for( int i = argc - 1; i >= 0; i-- )
         {
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
@@ -9683,7 +9688,7 @@ script_command(
         zone_packet = ToriRSServer_ZoneSubSupported(srv->wire, TORIRSSERVER_ZONE_EV_SOUNDAREA);
         if( zone_packet )
             ToriRSServer_ZoneSoundArea(srv, x, z, level, (int)values[0], 1, (int)values[1],
-                                       (int)values[3]);
+                                       (int)values[3], (int)values[4]);
         for( int i = 0; i < srv->player_count; i++ )
         {
             struct ToriRSServerPlayer* p = &srv->players[i];
@@ -9702,9 +9707,8 @@ script_command(
                 continue;
             if( !zone_packet )
                 ToriRSServer_SendSynthSound(p, (int)values[0], 1, (int)values[1]);
-            ToriRSServer_TicklogSound(srv, p, (int)values[0], 1, (int)values[1],
-                                      TORIRSSERVER_TICKLOG_SOUND_AREA, (int)values[2],
-                                      (int)values[3], -1);
+            ToriRSServer_TicklogSoundArea(srv, p, (int)values[0], 1, (int)values[1],
+                                          (int)values[2], (int)values[3], (int)values[4]);
         }
         return 1;
     }
@@ -10734,16 +10738,37 @@ script_command(
     case SS_OP_PROJANIM_MAP:
     case SS_OP_PROJANIM_PL:
     case SS_OP_PROJANIM_NPC:
+    case SS_OP_NPC_PROJANIM_MAP:
+    case SS_OP_NPC_PROJANIM_PL:
+    case SS_OP_NPC_PROJANIM_NPC:
     {
         int32_t values[9];
         int dst_x;
         int dst_z;
         int target;
+        /* The source actor, in the same encoding as `target`: 0 for a shot
+         * from a tile, `slot + 1` for the active npc of an npc_projanim_*. */
+        int source = 0;
 
         for( int i = 8; i >= 0; i-- )
         {
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
+        }
+        if( opcode == SS_OP_NPC_PROJANIM_MAP || opcode == SS_OP_NPC_PROJANIM_PL ||
+            opcode == SS_OP_NPC_PROJANIM_NPC )
+        {
+            struct ToriRSServerNpc* from = active_npc(state);
+
+            if( !from )
+            {
+                SSVM_Abort(state, "npc_projanim_* with no active npc");
+                return 1;
+            }
+            source = (int)(from - srv->npcs) + 1;
+            opcode = opcode == SS_OP_NPC_PROJANIM_MAP
+                         ? SS_OP_PROJANIM_MAP
+                         : (opcode == SS_OP_NPC_PROJANIM_PL ? SS_OP_PROJANIM_PL : SS_OP_PROJANIM_NPC);
         }
 
         if( opcode == SS_OP_PROJANIM_MAP )
@@ -10800,7 +10825,7 @@ script_command(
                     ToriRSServer_CoordX(values[0]), ToriRSServer_CoordZ(values[0]), dst_x, dst_z,
                     target, (int)values[2], (int)values[5], (int)values[6]);
         ToriRSServer_ZoneProjanim(srv, ToriRSServer_CoordX(values[0]), ToriRSServer_CoordZ(values[0]),
-                              ToriRSServer_CoordLevel(values[0]), dst_x, dst_z, target,
+                              ToriRSServer_CoordLevel(values[0]), dst_x, dst_z, target, source,
                               (int)values[2], (int)values[3], (int)values[4], (int)values[5],
                               (int)values[6], (int)values[7], (int)values[8]);
         /* For the queue this attack arms next: its splat waits for this shot

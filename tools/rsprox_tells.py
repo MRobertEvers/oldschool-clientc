@@ -225,6 +225,8 @@ def scan(path, anchor, gap, names, sink, timeline):
                         fields = dict(re.findall(r"(\w+)=(-?\d+)", p["body"]))
                         start, end = int(fields.get("starttime", 0)), int(fields.get("endtime", 0))
                         emit("proj_core", (p["name"], "start=%d" % start))
+                        # what the shot leaves from (MAP_PROJANIM sourceIndex) and homes on
+                        emit("proj_source", (p["name"], p["source"][0], p["target"][0]))
                         emit("proj", (p["name"], p["source"][0], p["target"][0],
                                       "start=%s angle=%s progress=%s height=%s->%s" % (
                                           start, fields.get("angle"), fields.get("progress"),
@@ -248,7 +250,11 @@ def scan(path, anchor, gap, names, sink, timeline):
             elif kind == "synth_sound":
                 name, value = field_ref(body, "sound", names)
                 emit("synth_sound", ("%s (%d)" % (name, value), rest_after_id(body)))
-                emit("sound", ("%s (%d)" % (name, value), rest_after_id(body) or "loops=1", "synth"))
+                # RSProx leaves out a synth's default loops=1; ours always states it
+                rest = rest_after_id(body)
+                if "loops=" not in rest:
+                    rest = "loops=1" + (", " + rest if rest else "")
+                emit("sound", ("%s (%d)" % (name, value), rest, "synth"))
             elif kind in ("loc_add_change_v2", "loc_add_change_v1", "loc_add_change"):
                 name, _ = field_ref(body, "loc", names)
                 emit("loc_add", (name, rest_after_id(body)))
@@ -342,6 +348,8 @@ def scan_ticklog(path, anchor, gap, names, sink, timeline):
             emit("npc_add", npc(b))
         elif kind == "npc_retype":
             emit("npc_transformation", (npc(b), npc(c)))
+        elif kind == "npc_headicon":
+            emit("npc_headicon_customisation", (npc(b), ""))
         elif kind == "npc_say":
             emit("npc_say", (npc(b), 'text="%s"' % text))
         elif kind == "projectile":
@@ -349,6 +357,9 @@ def scan_ticklog(path, anchor, gap, names, sink, timeline):
             tx, tz, _ = unpack(b)
             target = "tile" if c == 0 else "entity"
             emit("proj_core", (spot(d), "start=%d" % e))
+            source = re.search(r"\bsource npc (\d+)", text)
+            homes = "tile" if c == 0 else ("player" if c < 0 else npc(slot_type.get(c - 1, -1)))
+            emit("proj_source", (spot(d), npc(int(source.group(1))) if source else "tile", homes))
             sink["proj_flight"][(spot(d), max(abs(sx - tx), abs(sz - tz)), f - e)] += 1
         elif kind == "map_spotanim":
             emit("map_anim", (spot(b), fields([("delay", d), ("height", c)])))
@@ -368,7 +379,10 @@ def scan_ticklog(path, anchor, gap, names, sink, timeline):
             if key in sounds_seen:
                 continue
             sounds_seen.add(key)
-            emit("sound", ("%s (%d)" % (names["sound"].get(b, "sound_%d" % b), b), fields([("loops", c), ("delay", d)]),
+            # an area row's label carries the drop-off: "area size=5"
+            size = re.search(r"\bsize=(\d+)", text)
+            emit("sound", ("%s (%d)" % (names["sound"].get(b, "sound_%d" % b), b),
+                           fields([("loops", c), ("delay", d), ("size", int(size.group(1)) if size else 0)]),
                            text.split(" ")[0]))
         elif kind == "music":
             emit("midi_song_v2", "id=%d" % b)

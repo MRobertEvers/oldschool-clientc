@@ -131,7 +131,7 @@ sailing_view_zone_count(const struct ToriRSServerCapture* capture, int pid, int 
         else if( active == view && selected.count < TORIRSSERVER_CAPTURE_MAX )
             selected.packets[selected.count++] = *packet;
     }
-    return selftest_rev239_zone_scan(&selected, name, id, NULL, NULL, NULL);
+    return selftest_rev239_zone_scan(&selected, name, id, NULL, NULL, NULL, NULL);
 }
 
 /* A deckhand's step, as each observer's client decodes it: in the DECK's own

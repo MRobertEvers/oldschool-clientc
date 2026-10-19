@@ -593,10 +593,22 @@ ToriRSServer_TicklogProjectile(
     int target,
     int spotanim,
     int start_cycle,
-    int end_cycle)
+    int end_cycle,
+    int source)
 {
+    char label[TORIRSSERVER_TICKLOG_LABEL_MAX];
+
     if( !ticklog_on_for(srv) )
         return;
+    /* "source npc <type>" for a shot that leaves from an npc (sourceIndex). */
+    if( source > 0 )
+    {
+        assert(source - 1 < TORIRSSERVER_NPC_MAX);
+        snprintf(label, sizeof(label), "source npc %d", srv->npcs[source - 1].type);
+        ticklog_push(TORIRSSERVER_TICKLOG_PROJECTILE, src_coord, dst_coord, target, spotanim,
+                     start_cycle, end_cycle, label);
+        return;
+    }
     ticklog_push(TORIRSSERVER_TICKLOG_PROJECTILE, src_coord, dst_coord, target, spotanim,
                  start_cycle, end_cycle, NULL);
 }
@@ -820,6 +832,31 @@ ToriRSServer_TicklogSound(
     }
     else
         snprintf(label, sizeof(label), "%s", k_sound_source_names[source]);
+    ticklog_push(TORIRSSERVER_TICKLOG_SOUND, player->pid, sound, loops, delay, coord, radius,
+                 label);
+}
+
+void
+ToriRSServer_TicklogSoundArea(
+    const struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player,
+    int sound,
+    int loops,
+    int delay,
+    int coord,
+    int radius,
+    int drop_off)
+{
+    char label[TORIRSSERVER_TICKLOG_LABEL_MAX];
+
+    if( !ticklog_on_for(srv) )
+        return;
+    assert(player);
+    if( drop_off > 0 )
+        snprintf(label, sizeof(label), "%s size=%d", k_sound_source_names[TORIRSSERVER_TICKLOG_SOUND_AREA],
+                 drop_off);
+    else
+        snprintf(label, sizeof(label), "%s", k_sound_source_names[TORIRSSERVER_TICKLOG_SOUND_AREA]);
     ticklog_push(TORIRSSERVER_TICKLOG_SOUND, player->pid, sound, loops, delay, coord, radius,
                  label);
 }

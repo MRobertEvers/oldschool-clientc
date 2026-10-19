@@ -6088,8 +6088,10 @@ void ToriRSServer_TicklogNpcSpotanim(const struct ToriRSServerNpc* npc, int spot
 void ToriRSServer_TicklogNpcHeadicon(const struct ToriRSServerNpc* npc, int slot, int group,
                                      int index);
 void ToriRSServer_TicklogNpcBody(const struct ToriRSServerNpc* npc, int model);
+/* `source` is the shot's source actor (`slot + 1` for an npc, 0 for a tile). */
 void ToriRSServer_TicklogProjectile(const struct ToriRSServer* srv, int src_coord, int dst_coord,
-                                    int target, int spotanim, int start_cycle, int end_cycle);
+                                    int target, int spotanim, int start_cycle, int end_cycle,
+                                    int source);
 void ToriRSServer_TicklogMapSpotanim(const struct ToriRSServer* srv, int coord, int spotanim,
                                      int height, int delay);
 /* `damage` is the splat as shown, `raw` the amount the caller asked to deal
@@ -6116,6 +6118,11 @@ void ToriRSServer_TicklogObjAdd(const struct ToriRSServer* srv, int coord, int o
 void ToriRSServer_TicklogSound(const struct ToriRSServer* srv,
                                const struct ToriRSServerPlayer* player, int sound, int loops,
                                int delay, int source, int coord, int radius, int npc_slot);
+/* A SOUND_AREA heard by `player`: source "area", or "area size=<n>" when the
+ * packet carries a drop-off (sound_area_size). */
+void ToriRSServer_TicklogSoundArea(const struct ToriRSServer* srv,
+                                   const struct ToriRSServerPlayer* player, int sound, int loops,
+                                   int delay, int coord, int radius, int drop_off);
 /* A MIDI_SONG (or MIDI_SONG_STOP: track -1) sent to `player`. */
 void ToriRSServer_TicklogMusic(const struct ToriRSServer* srv,
                                const struct ToriRSServerPlayer* player, int track, int source);

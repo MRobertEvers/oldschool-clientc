@@ -1477,10 +1477,10 @@ w239_zone_payload(
          * the ground: it renders, it just does not look like a projectile.
          */
         rsab_p2_alt3(buf, event->dst_height * 4);
-        /* sourceIndex: 0 = not locked to a source entity. The content-facing
-         * `projanim` op names a source COORD, not an entity, so there is no
-         * index to give -- the shot already starts from the right tile. */
-        w239_p3_alt2(buf, 0);
+        /* sourceIndex: 0 = not locked to a source entity (`projanim_*`, a shot
+         * from a tile); an npc_projanim_* names the npc, in the same client
+         * numbering and player form as the target below. */
+        w239_p3_alt2(buf, event->source < 0 ? event->source - 1 : event->source);
         rsab_p1_alt2(buf, event->peak);
         rsab_p2(buf, event->src_height * 4);
         /*

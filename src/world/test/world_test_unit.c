@@ -462,6 +462,52 @@ test_projectile(void)
     World_Free(world);
 }
 
+/* rev-239 class50.method940: a projectile that names a SOURCE actor
+ * (MAP_PROJANIM sourceIndex, the server's npc_projanim_*) reads its start off
+ * that actor on the first cycle it is live, so a caster that moved during the
+ * start delay launches from where it stands, not from the packet's tile. The
+ * same wire id space as the target: npc slot + 1. */
+void
+test_projectile_source(void)
+{
+    printf("TEST: projectile source tracking\n");
+
+    struct World* world = World_TestMakeReady(104);
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+
+    int ni = World_NpcSpawn(world, 2, 1, 0, 50, 50, 1, idle);
+    struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, ni);
+    npc->server_slot = 5;
+
+    /* Launched from the npc's tile, starting 2 cycles on, at a fixed tile. */
+    int idx = World_ProjectileSpawn(
+        world, 41, 0, 0, 50 * 128 + 64, 50 * 128 + 64, 20 * 128 + 64, 20 * 128 + 64, 100, 0, 40, 2, 40, 10, 0,
+        WORLD_PROJECTILE_TARGET_NONE, /*source=*/5 + 1);
+    struct WorldEntity_Projectile* proj =
+        World_EntityPoolGet(&world->entities.projectile, idx);
+    TEST_ASSERT(proj->src_x == 50 * 128 + 64, "spawned at the packet's source tile");
+
+    /* The npc is somewhere else by the time the shot leaves. */
+    World_NpcPathJump(world, ni, true, 60, 50);
+    for( int t = 0; t < 4 && !proj->launched; t++ )
+        World_TestCycle(world, 1);
+    TEST_ASSERT(proj->launched, "the shot launched");
+    TEST_ASSERT(proj->src_x == (int)npc->draw_position.x, "start read off the source npc");
+    TEST_ASSERT(proj->src_z == (int)npc->draw_position.z, "start_z read off the source npc");
+
+    /* A shot with no source keeps its packet tile. */
+    int plain = World_ProjectileSpawn(
+        world, 42, 0, 0, 50 * 128 + 64, 50 * 128 + 64, 20 * 128 + 64, 20 * 128 + 64, 100, 0, 40, 2, 40, 10, 0,
+        WORLD_PROJECTILE_TARGET_NONE, WORLD_PROJECTILE_TARGET_NONE);
+    struct WorldEntity_Projectile* still =
+        World_EntityPoolGet(&world->entities.projectile, plain);
+    for( int t = 0; t < 4 && !still->launched; t++ )
+        World_TestCycle(world, 1);
+    TEST_ASSERT(still->src_x == 50 * 128 + 64, "a sourceless shot leaves from its tile");
+
+    World_Free(world);
+}
+
 /* Reference addProjectiles (Client.ts:4593): a projectile with a target entity
  * re-reads that entity's live position every cycle and re-aims, so the arc
  * bends to follow a target that moved after the cast. Wire ids: npc slot + 1,

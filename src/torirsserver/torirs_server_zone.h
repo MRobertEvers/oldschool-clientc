@@ -205,6 +205,10 @@ struct ToriRSServerZoneEvent
     /** Whom it homes on, in the wire's encoding: `slot + 1` for an npc,
      *  `-slot - 1` for a player, 0 for a shot that just lands on a tile. */
     int target;
+    /** The actor the shot leaves from, same encoding as `target`; 0 for a
+     *  shot from a tile. rev-239 MAP_PROJANIM `sourceIndex`: the client reads
+     *  the start off this actor on the cycle the shot launches. */
+    int source;
     int src_height, dst_height;
     int start_delay, end_delay;
     /** Client-TS `angle` and `startpos` — how high the arc goes and how far
@@ -495,6 +499,7 @@ ToriRSServer_ZoneProjanim(
     int dst_x,
     int dst_z,
     int target,
+    int source,
     int spotanim,
     int src_height,
     int dst_height,
@@ -531,7 +536,8 @@ ToriRSServer_ZoneSoundArea(
     int sound,
     int loops,
     int delay,
-    int range);
+    int range,
+    int drop_off);
 
 /** The loc record at this key, or NULL. */
 struct ToriRSServerZoneLoc*

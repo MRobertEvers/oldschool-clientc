@@ -857,6 +857,7 @@ ToriRSServer_ZoneProjanim(
     int dst_x,
     int dst_z,
     int target,
+    int source,
     int spotanim,
     int src_height,
     int dst_height,
@@ -922,6 +923,7 @@ ToriRSServer_ZoneProjanim(
     event.dst_z = dst_z;
     event.dst_level = dst_level;
     event.target = target;
+    event.source = source;
     event.src_height = src_height;
     event.dst_height = dst_height;
     event.start_delay = start_delay;
@@ -931,7 +933,7 @@ ToriRSServer_ZoneProjanim(
     queue_event(srv, zone, &event);
     ToriRSServer_TicklogProjectile(srv, ToriRSServer_CoordPack(level, x, z),
                                    ToriRSServer_CoordPack(dst_level, dst_x, dst_z), target,
-                                   spotanim, start_delay, end_delay);
+                                   spotanim, start_delay, end_delay, source);
 }
 
 void
@@ -943,7 +945,8 @@ ToriRSServer_ZoneSoundArea(
     int sound,
     int loops,
     int delay,
-    int range)
+    int range,
+    int drop_off)
 {
     struct ToriRSServerZone* zone;
     struct ToriRSServerZoneEvent event;
@@ -962,7 +965,7 @@ ToriRSServer_ZoneSoundArea(
     /* The packet's delay, range and drop-off are single bytes. */
     event.start_delay = delay < 0 ? 0 : (delay > 255 ? 255 : delay);
     event.count = range < 0 ? 0 : (range > 255 ? 255 : range);
-    event.old_count = 0;
+    event.old_count = drop_off < 0 ? 0 : (drop_off > 255 ? 255 : drop_off);
     queue_event(srv, zone, &event);
 }
 
@@ -1828,7 +1831,7 @@ write_state(
 static int
 zone_event_names_npc(const struct ToriRSServerZoneEvent* event)
 {
-    return event->kind == TORIRSSERVER_ZONE_EV_PROJANIM && event->target > 0;
+    return event->kind == TORIRSSERVER_ZONE_EV_PROJANIM && (event->target > 0 || event->source > 0);
 }
 
 /*
@@ -1993,6 +1996,7 @@ deck_zone_flush_one(struct ToriRSServerPlayer* player, struct ToriRSServerVessel
                     {
                         local = *event;
                         local.target = projanim_target_for_client(player, event->target);
+                        local.source = projanim_target_for_client(player, event->source);
                         event = &local;
                     }
                     else continue; /* Already in the shared blob. */
@@ -2157,6 +2161,7 @@ zone_send_transients(
         {
             local = *event;
             local.target = projanim_target_for_client(player, event->target);
+            local.source = projanim_target_for_client(player, event->source);
             event = &local;
         }
         zone_trace_event(player, zone_x, zone_z, zone_level, event, "load");
@@ -2314,6 +2319,7 @@ ToriRSServer_ZoneUpdatePlayer(struct ToriRSServerPlayer* player)
                  * differently on each stream. */
                 local = *event;
                 local.target = projanim_target_for_client(player, event->target);
+                local.source = projanim_target_for_client(player, event->source);
                 event = &local;
             }
             else

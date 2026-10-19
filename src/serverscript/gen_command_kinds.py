@@ -49,6 +49,10 @@ EXTRA_DECLARATIONS = [
     # `shadow_blitz_impact` is also spotanim 381): untyped, the Maiden's storm
     # impact went out as sound 381, `creeper_attack`.
     "[command,sound_area](synth $sound, int $delay, coord $coord, int $range)",
+    "[command,sound_area_size](synth $sound, int $delay, coord $coord, int $range, int $size)",
+    "[command,npc_projanim_pl](coord $from, player_uid $to, spotanim $spotanim, int $fromHeight, int $toHeight, int $delay, int $duration, int $peak, int $arc)",
+    "[command,npc_projanim_npc](coord $from, npc_uid $to, spotanim $spotanim, int $fromHeight, int $toHeight, int $delay, int $duration, int $peak, int $arc)",
+    "[command,npc_projanim_map](coord $from, coord $to, spotanim $spotanim, int $fromHeight, int $toHeight, int $delay, int $duration, int $peak, int $arc)",
     "[command,npc_setdeathtype](npc $type)",
     "[command,npc_exactmove](coord $start, coord $end, int $start_cycle, int $end_cycle, int $direction)",
     "[command,npc_headbar_from](int $hp)",

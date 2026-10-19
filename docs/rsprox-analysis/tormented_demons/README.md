@@ -178,6 +178,20 @@ From the wiki alone (no recording shows them):
 
 Probe (scriptrun, Dharok's greataxe on crush, a demon praying melee): struck on A, the explosion on A + 1, the unshielded attack on E + 6 hits 11 (33 ÷ 3), the next attack 4 ticks later with the restore. The solver's 48 seeds stay GREEN (138–285 ticks).
 
+## Every tell against the recordings (2026-10-19)
+
+`python3 tools/rsprox_tells.py --anchor 13599-13606 ~/.rsprox/binary/archive/{3312,3308,1756,552,1696}.txt --ours <48 solver tick logs> <tells tick log>`, every kind read. Fixed:
+
+- **No defend animation.** Jagex never plays `luc2_undead_demon_defend` (0 in all five sessions); ours played it on every hit. The seven records now state `defend_anim,null`.
+- **The engage's explosion synths** (9224, 9210, 9215, 9259) were lost when the explosion moved to the demon's timer, which runs with no player; the timer finds the player first.
+- **The summon's area sounds carry size 5** (`size=5`, 236 of 236 in 3312): the new `sound_area_size` command (opcode 11154) sends the SOUND_AREA drop-off byte, which `sound_area` always sent as 0.
+
+Matching, by kind and signature: the demon's sequences (melee, fireballs, rib shards, explosion, death, summon) and graphics (shield struck / drop / restore, melee arc, rib shard, debuff, death, summon, entangle), the four projectiles (fireball 30 → 118 at 86 → 30, arc 160; rib shard 60 → 118 at 100 → 30, peak 10, arc 200; bomb 45 → 115 at 86 → 0, peak 30, arc 128; entangle 46 → 76 at 45 → 0, peak 16, arc 64), the bomb tile graphics (shadow delay 30, impact delay 115), every synth and its delay (melee 9219, fireball 9229 / 118, rib 9253 / 118, bomb 9224 / 30, 9240, 154, 7099), the player's blocks (98 / 108) and the fireball impact (delay 118, height 124), the headicon writes and the transformation.
+
+Not ours to match: thralls, the recorders' weapons and specials, potion and quest messages, `luc2_jas_glow_player` (While Guthix Sleeps' Stone of Jas, 1696 only). Not exercised: the third demon's single-bomb sounds (9335, 9221), which no solver fight has.
+
+**Projectile sources (engine).** Jagex names the demon as the fireball's, rib shard's and bombs' source (MAP_PROJANIM `sourceIndex`; the client starts the shot from where the demon stands when it launches); the entangle leaves from a tile. Our wire always sent 0. The server now carries a source through the zone event, per client in that client's npc numbering, and content names one with `npc_projanim_pl` / `npc_projanim_npc` / `npc_projanim_map` (opcodes 11155-11157: the `projanim_*` arguments, the active npc as source). `rsprox_tells.py` compares it as `proj_source`. Across the 76 archived sessions a source is the launching script's choice, not the projectile's: the same ids fly both ways. Other npcs recorded with sources and still sending from a tile here include Yama, the Infernal Mages, the elite dark rangers and mages, Karil, Ahrim and the Varlamore quest npcs.
+
 ## Open
 
 - **The engage switch:** ours lands on the attack after the engaging one. Jagex's first write comes 0–7 attacks after the first damaging hit (1756), and the recordings don't show what decides it.

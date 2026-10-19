@@ -1108,6 +1108,26 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # plays at full volume however far off the player stands.
     "SOUND_AREA": (11132, 4, 0, 0, 0),
 
+    # sound_area_size(synth $sound, int $delay, coord $coord, int $range, int $size)
+    #
+    # sound_area with the packet's drop-off byte (`dropOffRange`, RSProx's
+    # `size`): full volume within $size tiles, falling off to $range. The
+    # Tormented Demon's summon sounds are range 7, size 5 (236 of 236 in 3312,
+    # docs/rsprox-analysis/tormented_demons).
+    "SOUND_AREA_SIZE": (11154, 5, 0, 0, 0),
+
+    # npc_projanim_pl / npc_projanim_npc / npc_projanim_map: projanim_pl /
+    # projanim_npc / projanim_map with the ACTIVE NPC named as the projectile's
+    # source (MAP_PROJANIM `sourceIndex`), same arguments. The client then
+    # starts the shot from where that npc stands on the cycle it launches,
+    # not from the tile the packet names (rev-239 class50.method940). Jagex
+    # names a source for some npcs' shots and not others -- the Tormented
+    # Demon's fireball, rib shard and bomb, Yama's, the Infernal Mage's
+    # (tools/rsprox_tells.py `proj_source`) -- so it is the script's choice.
+    "NPC_PROJANIM_PL": (11155, 9, 0, 0, 0),
+    "NPC_PROJANIM_NPC": (11156, 9, 0, 0, 0),
+    "NPC_PROJANIM_MAP": (11157, 9, 0, 0, 0),
+
     # midi_hold(int $ticks)
     #
     # Region music starts no track for the next $ticks ticks: a scripted
@@ -1506,6 +1526,9 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "HIDELOCOPS": (1 << POINTER_BITS["active_player"], 0),
     "HIDEOBJOPS": (1 << POINTER_BITS["active_player"], 0),
     "NPC_APPROACH": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_PROJANIM_PL": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_PROJANIM_NPC": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_PROJANIM_MAP": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_HUDBAR_CHECK": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_DIE": (1 << POINTER_BITS["active_npc"], 0),
     # Asks about the active obj on behalf of the active player: OBJ_TAKEITEM's mask.

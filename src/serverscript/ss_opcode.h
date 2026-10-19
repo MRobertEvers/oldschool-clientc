@@ -575,10 +575,14 @@
 #define SS_OP_HIDELOCOPS 11151
 #define SS_OP_HIDEOBJOPS 11152
 #define SS_OP_NPC_APPROACH 11153
+#define SS_OP_SOUND_AREA_SIZE 11154
+#define SS_OP_NPC_PROJANIM_PL 11155
+#define SS_OP_NPC_PROJANIM_NPC 11156
+#define SS_OP_NPC_PROJANIM_MAP 11157
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11154
+#define SS_OPCODE_MAX 11158
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 553
+#define SS_OPCODE_COUNT 557
 
 #endif

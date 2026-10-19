@@ -1474,7 +1474,8 @@ selftest_enclosed_has(
  *
  * `out_target` receives the last matching MAP_PROJANIM's target index — the
  * entity the arc homes on, in the recipient's own numbering — and is NULL for
- * every caller that only counts.
+ * every caller that only counts. `out_source` is its source index, the entity
+ * the shot leaves from (0 for a tile), in the same numbering.
  */
 static int
 selftest_rev239_zone_scan(
@@ -1483,7 +1484,8 @@ selftest_rev239_zone_scan(
     int id,
     int* out_target,
     int* out_duration,
-    int* out_angle_raw)
+    int* out_angle_raw,
+    int* out_source)
 {
     int count = 0;
 
@@ -1605,6 +1607,14 @@ selftest_rev239_zone_scan(
 
                     *out_target = target >= (1 << 23) ? target - (1 << 24) : target;
                 }
+                /* sourceIndex, p3Alt2 at +15: high byte, low byte, middle. */
+                if( out_source && ordinal == 13 && at + 17 < packet->len )
+                {
+                    int source = (packet->data[at + 15] << 16) |
+                                 (packet->data[at + 17] << 8) | packet->data[at + 16];
+
+                    *out_source = source >= (1 << 23) ? source - (1 << 24) : source;
+                }
                 /* `endTime` is the flight duration in client cycles, p2Alt1 =
                  * little-endian (bytes +7/+8); `angle` is the arc peak, p1Alt2
                  * = negate at +18, so a flat glide's 0 reads back as raw 0. */
@@ -1625,7 +1635,7 @@ selftest_rev239_zone_count(
     enum GameProtoPktName wanted,
     int id)
 {
-    return selftest_rev239_zone_scan(capture, wanted, id, NULL, NULL, NULL);
+    return selftest_rev239_zone_scan(capture, wanted, id, NULL, NULL, NULL, NULL);
 }
 
 /*
@@ -14626,14 +14636,14 @@ ToriRSServer_WorldSelftest(void)
                      */
                     ToriRSServer_ZoneProjanim(srv, player->x, player->z, player->level,
                                           srv->npcs[target_slot].x, srv->npcs[target_slot].z,
-                                          target_slot + 1, spotanim, 40, 0, 1, 5, 16, 64);
+                                          target_slot + 1, 0, spotanim, 40, 0, 1, 5, 16, 64);
                     selftest_tick(srv);
                     ToriRSServer_CaptureEnd(srv);
                     srv->wire = saved_wire;
 
                     SELFTEST_CHECK(selftest_rev239_zone_scan(&npc_proj_capture,
                                                              PKT_NAME_MAP_PROJANIM, spotanim,
-                                                             &encoded_target, NULL, NULL) == 1,
+                                                             &encoded_target, NULL, NULL, NULL) == 1,
                                    "an npc-targeted projectile reaches the client as one "
                                    "MAP_PROJANIM carrying spotanim %d",
                                    spotanim);
@@ -14645,6 +14655,43 @@ ToriRSServer_WorldSelftest(void)
                                        target_slot,
                                    "the index the client is given resolves back to the npc "
                                    "the projectile was aimed at");
+
+                    /*
+                     * The other index: a shot that LEAVES from the npc
+                     * (`npc_projanim_*`, MAP_PROJANIM sourceIndex). The client
+                     * reads the start off that entity when the shot launches,
+                     * so it is the recipient's name for it too, or the shot
+                     * leaves from whatever npc that client filed under the
+                     * world slot.
+                     */
+                    {
+                        int encoded_source = INT_MIN;
+                        int player_target = INT_MIN;
+
+                        srv->wire = wire239;
+                        ToriRSServer_CaptureBegin(srv, &npc_proj_capture);
+                        ToriRSServer_ZoneProjanim(srv, srv->npcs[target_slot].x,
+                                                  srv->npcs[target_slot].z, player->level,
+                                                  player->x, player->z, -player->pid - 1,
+                                                  target_slot + 1, spotanim, 40, 0, 1, 5, 16, 64);
+                        selftest_tick(srv);
+                        ToriRSServer_CaptureEnd(srv);
+                        srv->wire = saved_wire;
+
+                        SELFTEST_CHECK(selftest_rev239_zone_scan(&npc_proj_capture,
+                                                                 PKT_NAME_MAP_PROJANIM, spotanim,
+                                                                 &player_target, NULL, NULL,
+                                                                 &encoded_source) == 1,
+                                       "an npc-sourced projectile reaches the client as one "
+                                       "MAP_PROJANIM");
+                        SELFTEST_CHECK(encoded_source == client_slot + 1,
+                                       "MAP_PROJANIM names the SOURCE npc by the recipient's "
+                                       "index (%d, got %d), not the world slot (%d)",
+                                       client_slot + 1, encoded_source, target_slot + 1);
+                        SELFTEST_CHECK(player_target < 0,
+                                       "the npc-sourced shot still homes on the player (%d)",
+                                       player_target);
+                    }
 
                     srv->npcs[target_slot].active = 0;
                     player->npc_slots = saved_slots;
