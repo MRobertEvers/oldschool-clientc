@@ -138,3 +138,6 @@ smashed crab holds 50-60 ticks and goes dim 8 ticks after its last paint even
 while stunned; a free crab beside the orb's line steps into it and turns it.
 Still open: A9 (a re-smash does not renew the stun -- the solver plans around
 it), A15 (no attack delay / stop on colour change), A17, A18.
+
+Recorded tick data (RSProx 3389, Challenge Mode): `docs/rsprox-analysis/cox/crabs.md`, rows RC-*, which
+outrank the rows above where they differ (A7, A11, A12, A18 among them, 2026-10-19).

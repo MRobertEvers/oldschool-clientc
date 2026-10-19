@@ -17,6 +17,7 @@ Each room's file states the recorded behaviour, the recording ticks it was read 
 | [mystics.md](mystics.md) | Skeletal Mystics |
 | [tightrope.md](tightrope.md) | Tightrope: the guards, the crossing, the keystone and the barrier |
 | [scavengers.md](scavengers.md) | Scavenger beasts: the hunt, the chase, the swing, the drop, the respawn |
+| [crabs.md](crabs.md) | Crystal crabs: the orbs, the crabs' swings, paint and smash, the crystals and the solve |
 | [points.md](points.md) | Points: combat, potions, the keystone, the meat tree, braziers |
 | [shamans.md](shamans.md) | Lizardman shamans |
 
@@ -30,7 +31,7 @@ All recordings are submissions to the public archive, [rsprox.net/database](http
 | 3282 | 234 | Grid Master | solo, normal | Guardians (solo), Olm, Vasa, Muttadiles (the tree, the erratic step), shamans (the room, the clear), Skeletal Mystics (a quarter-turned room), Tightrope (two rooms) |
 | 843 | 234 | Grid Master | solo, normal | Olm, Vasa, Vespula (the start, the clear), Muttadiles, Tightrope (two rooms, the dump) |
 | 3285 | 234 | Grid Master | solo, normal | Olm (the fullest solo kill), Vasa, Muttadiles (the fullest solo room), Skeletal Mystics (the unturned room: the template tiles), Tightrope |
-| 3389 | 235 | Grid Master | solo, **Challenge Mode** | excluded from damage numbers; Vespula's CW room; Muttadiles' CM hitpoints; shamans (the acid in the raid, the clear); Skeletal Mystics (a room turned 180), Tightrope |
+| 3389 | 235 | Grid Master | solo, **Challenge Mode** | excluded from damage numbers; Vespula's CW room; Muttadiles' CM hitpoints; shamans (the acid in the raid, the clear); Skeletal Mystics (a room turned 180), Tightrope, Crystal crabs (the only recording of the room) |
 | 3276 | 234 | Grid Master | not a raid: the Molch temple's surface shamans (8565, 2x2), a public area, transcribed with every player shown | shamans: the attack set's timing, odds, jump, spawns |
 
 **Caveats:**
@@ -56,6 +57,7 @@ All recordings are submissions to the public archive, [rsprox.net/database](http
 | `tools/cox/rsprox_mystics.py` | Skeletal Mystics, in INSTANCE tiles: every cast (projectile against the gap, the graphics and sounds sent on the cast, the landing), blocks, the wake and the hunt fitted (`--probe`), movement, death and the clear, the room in template tiles |
 | `tools/cox/rsprox_tightrope.py` | Tightrope, in INSTANCE tiles: each room, every guard attack (projectile against the gap, what is sent on C, the landing), cadence, the openings and the wake, the crossings tick by tick with the hits waiting for the end, blocks and sounds, movement, deaths, the dispel |
 | `tools/cox/rsprox_scavengers.py` | Scavenger beasts, in INSTANCE tiles: each room visit, every swing (target, gap, sounds, the hit), the openings against the nearest raider, the chase and its give-up, deaths with their drops and the next beast |
+| `tools/cox/rsprox_crabs.py` | Crystal crabs, in INSTANCE tiles: the room, every orb (its path, bounces, end and tells), paint changes against the raider's attacks, smashes, crab swings and steps |
 | `tools/cox/los_probe.c` | The server's own collision answers (line of sight, line of walk, flags) for a built template scene, over a pipe; `rsprox_mystics.py --probe` asks it whether a mystic saw the raider |
 | `tools/cox/rsprox_icedemon.py` | Ice Demon, in INSTANCE tiles: his attacks (projectiles, the burst's nine, sounds), the pop, the fiends, the braziers, blocks, death |
 | `tools/cox/rsprox_vasa_teleport.py` | Vasa's teleport special in INSTANCE tiles (an untranslated transcript, below): every raider's distance from his middle, the stun, the explosion |
