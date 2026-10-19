@@ -299,6 +299,177 @@ def main():
         print("==", name)
         for k, v in sorted(C[name].items(), key=lambda kv: -kv[1])[:14]:
             print("   %5d  %s" % (v, k))
+    segments(a.paths)
+
+
+# ------------------------------------------------------------------ segments
+#
+# Two rules the solver rests on (docs/rsprox-analysis/tormented_demons/solver.md):
+#
+#   prayer read      for each fireball / rib shard at the recorder, the recorder's
+#                    protect prayer for that style at the end of T-1, T and T+3, and
+#                    whether the T+4 splat did damage: which tick's prayer counts
+#   segment style    each life split at its explosions (engage, bombs): the swing
+#                    styles in order with the recorder's gap to the 3x3 at T-1, the
+#                    first style after an engage by that gap, mixed segments, and the
+#                    demon's first step after the explosion by style
+#
+# Rev 227 transcripts carry numbers; both spellings are matched.
+
+SEG_SEQ = {"11387": "X", "11388": "F", "11389": "R", "11392": "M", "11394": "D", "11395": "S"}
+SEG_PRAY = re.compile(r"\[varbit\] id=(?:prayer_protectfrom(magic|missiles|melee) \(\d+\)|(411[678])), old=\d+, new=(\d)")
+SEG_PRAYN = {"4116": "magic", "4117": "missiles", "4118": "melee"}
+SEG_PL = re.compile(r"^\s+\[(?:add|del|idle|walk|run|teleport|crawl)\] player=\(index=(\d+), name=[^,]*, coord=\((\d+), (\d+), \d+\)\)(?:, newcoord=\((\d+), (\d+))?")
+SEG_NPC = re.compile(r"^\s+\[(add|del|idle|walk|run|teleport|crawl)\] npc=\(index=(\d+), (.*?)coord=\((\d+), (\d+), \d+\)[^)]*\)(?:, newcoord=\((\d+), (\d+))?")
+SEG_TD = re.compile(r"ormented|\b1359[9]\b|\b1360[0-6]\b")
+SEG_TGT = re.compile(r"\[target\].*player=\(index=(\d+)")
+
+
+def seg_gap(p, n):
+    dx = max(n[0] - p[0], p[0] - (n[0] + 2), 0)
+    dz = max(n[1] - p[1], p[1] - (n[1] + 2), 0)
+    g = max(dx, dz)
+    if g == 1 and dx and dz:
+        return "d"
+    return str(min(g, 9))
+
+
+def seg_scan(path):
+    me = None
+    tick = 0
+    section = None
+    actor = None
+    cur = None
+    lastproj = ""
+    pray = {"magic": 0, "missiles": 0, "melee": 0}
+    out = {"pray": {}, "mypos": {}, "ev": defaultdict(list), "proj": [], "melee_at_me": set(), "myhit": defaultdict(list)}
+    npos = {}
+    mine = False
+    for line in open(path, errors="replace"):
+        m = ME.search(line)
+        if m:
+            me = m.group(1)
+        s = line.strip()
+        m = TICK.match(s)
+        if m and line.startswith("["):
+            out["pray"][tick] = dict(pray)
+            out["mypos"][tick] = cur
+            tick = int(m.group(1))
+            continue
+        m = SEG_PRAY.search(line)
+        if m:
+            pray[m.group(1) or SEG_PRAYN[m.group(2)]] = int(m.group(3))
+            continue
+        if "[synth_sound] id=9219" in s:
+            out["melee_at_me"].add(tick)
+        if s.startswith("[player_info]"):
+            section = "p"
+            continue
+        if s.startswith("[npc_info"):
+            section = "n"
+            continue
+        if s.startswith("[map_projanim"):
+            section = "proj"
+            lastproj = s
+            continue
+        if section == "proj":
+            m = SEG_TGT.search(line)
+            if m and m.group(1) == me:
+                if "id=2853," in lastproj or "fireball_proj" in lastproj:
+                    out["proj"].append((tick, "magic"))
+                elif "id=2857," in lastproj or "rib_bone_shard_projectile" in lastproj:
+                    out["proj"].append((tick, "missiles"))
+            continue
+        m = SEG_PL.match(line)
+        if m and section == "p":
+            mine = m.group(1) == me
+            if mine:
+                cur = (int(m.group(4) or m.group(2)), int(m.group(5) or m.group(3)))
+            continue
+        if section == "p" and mine:
+            m = HIT.search(line)
+            if m:
+                out["myhit"][tick].append(int(m.group(2)))
+            continue
+        m = SEG_NPC.match(line)
+        if m and section == "n":
+            actor = m.group(2) if SEG_TD.search(m.group(3)) else None
+            if actor:
+                npos[actor] = (int(m.group(6) or m.group(4)), int(m.group(7) or m.group(5)))
+                if m.group(1) in ("walk", "run"):
+                    out["ev"][actor].append((tick, "W", npos[actor]))
+            continue
+        if actor:
+            m = SEQ.search(line)
+            if m:
+                k = SEG_SEQ.get(m.group(1) or m.group(2))
+                if k:
+                    out["ev"][actor].append((tick, k, npos[actor]))
+    out["pray"][tick] = dict(pray)
+    out["mypos"][tick] = cur
+    return out
+
+
+def segments(paths):
+    C = defaultdict(Counter)
+    for path in paths:
+        d = seg_scan(path)
+        pray = d["pray"]
+        for T, kind in d["proj"]:
+            p0, p1, p3 = (pray.get(t, {}).get(kind) for t in (T - 1, T, T + 3))
+            splat = d["myhit"].get(T + 4)
+            hit = "no splat" if not splat else ("damage" if sum(splat) > 0 else "0")
+            C["prayer read: %s prayer at end of T-1 / T / T+3, T+4 splat" % kind]["%s / %s / %s, %s" % (p0, p1, p3, hit)] += 1
+        multi = os.path.basename(path) in ("1696.txt", "552.txt")
+        for idx, lst in d["ev"].items():
+            X = None
+            first = None
+            walked = None
+            styles = []
+            xgap = None
+
+            def flush():
+                if X is None or not styles:
+                    return
+                if not multi:
+                    if len(set(styles)) > 1:
+                        C["segment style: single-demon segments"]["mixed"] += 1
+                    else:
+                        C["segment style: single-demon segments"]["one style"] += 1
+                    if X == "engage":
+                        C["segment style: first style after the engage, by gap at X"]["gap %s: %s" % (xgap, styles[0])] += 1
+                        C["segment style: first style after the engage"][styles[0]] += 1
+                    C["segment style: first step after X, " + styles[0]][
+                        "none" if walked is None else "X + %d" % min(walked, 9)] += 1
+
+            for t, k, n in lst:
+                if k in "XSD":
+                    flush()
+                    if k == "X":
+                        X = "engage" if first is None else "bomb"
+                        first = t
+                        p = d["mypos"].get(t - 1)
+                        xgap = seg_gap(p, n) if p else "?"
+                    else:
+                        X, first = None, None
+                    walked = None
+                    styles = []
+                    continue
+                if X is None:
+                    continue
+                if k == "W":
+                    if walked is None and not styles:
+                        walked = t - first
+                    continue
+                at_me = (k == "M" and t in d["melee_at_me"]) or (k in "FR" and any(
+                    pt == t for pt, _ in d["proj"]))
+                if at_me:
+                    styles.append(k)
+            flush()
+    for name in sorted(C):
+        print("==", name)
+        for k, v in sorted(C[name].items(), key=lambda kv: -kv[1])[:24]:
+            print("   %5d  %s" % (v, k))
 
 
 if __name__ == "__main__":

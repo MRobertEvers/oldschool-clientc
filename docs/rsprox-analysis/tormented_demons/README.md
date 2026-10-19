@@ -44,7 +44,9 @@ E is the player's first attack on a fresh demon.
 | Prayer switch | About 150 damage after the last write, the icon is rewritten to the last style that damaged it (the same icon is re-sent too) |
 | Stall after a switch | A write at W holds the next attack to W + 5 at the earliest: gaps 6 / 8 / 10 for a write at +1 / +3 / +5 into a cycle (232 / 146 / 36 in 3312). |
 | Attack cadence | First attack at E + 6, then every 6 ticks (1,172 of 1,784 gaps) unless stalled |
-| Style choice | Melee when it can reach (1,179); otherwise magic (573) or ranged (540) at random |
+| Style choice | **Per segment, not per swing.** On each explosion (the engage, a bomb) the demon rolls a style and swings it until the next: 538 single-demon lives, one with two styles. After the engage: melee 271, fireball 140, rib shards 127 (½, ¼, ¼) at every gap from 1 to 9. A rib or fireball demon throws even at an edge-adjacent player (1756, life 4378 at 1245: eight rib swings at gap 1). (`rsprox_td.py`, "segment style") |
+| Melee closes | A melee demon steps toward the player on **E + 1** (239 of 263; the other 24 were in reach); a fireball or rib demon never walks (264 of 267) |
+| Player's prayer read | **At the launch.** Prayer turned on during the swing tick T: 17 of 17 blocked. Turned on after T (on by T + 3): 21 of 27 hit, the rest misses. Turned off after T: still blocked (1696). (`rsprox_td.py`, "prayer read") |
 | Melee | `luc2_undead_demon_melee` + `luc2_undead_demon_melee_spot` (slot 2); synth 9219 `wgs_td_melee_attack_impact_01`; the hit lands on the swing |
 | Magic | `luc2_undead_demon_firey_balls`; `luc2_undead_demon_fireball_proj` start **30**, end **118** (fixed, not by distance), peak 0, arc 160, height 86 → 30; `luc2_undead_demon_fireball_impact` on the player, delayed 118, height 124; synth 9229 `wgs_td_mage_attack_impact_02` delayed 118; the player's block delayed **98** (131 of 135) |
 | Ranged | `luc2_undead_demon_spare_ribs` + `luc2_rib_bone_shard_spotanim` (slot 2); `luc2_rib_bone_shard_projectile` start **60**, end **118**, peak 10, arc 200, height 100 → 30; synth 9253 `wgs_td_demon_ranged_spare_ribs_inital_movement_01` delayed 118; the player's block delayed **108** (111 of 112) |
@@ -147,7 +149,22 @@ Recorded spawn variants: variant 2 at 4071,4426, 4079,4430, 4123,4381, 4083,4373
   - The respawn is added invisible (13604) and summoned a tick later, with all three area sounds.
 - `::tdtest` passes.
 
+## Segment styles and the approach (2026-10-19)
+
+**Content:**
+- `~td_roll_segment_style` rolls the segment on the engage (`random(4)`: two faces melee, one magic, one ranged), kept in `^td_var_style`.
+- Every demon that throws the bound bomb changes to either other style, even odds (wiki: "will always change its combat style after this attack"; the 6 recorded lives with bombs all change).
+- The timer walks a melee segment's demon beside the player (`npc_approach`) on each tick it is not edge-on, from the tick after the explosion.
+- The swing is the segment's style. A melee segment out of reach at its swing turns to magic or ranged and keeps it (wiki).
+
+**Lanes:** the live client's `api_drive.npcs` row gains `headicon_group`, `headicon_index` and `body_model`, which scriptrun already answered.
+
+**Solver:** [solver.md](solver.md) is the plan; `test/bosses/tormented_demon.lua` plays it.
+
 ## Open
+
+- **Multi-demon styles.** "With two demons attacking, one will always use melee, and the other using magic or ranged" (wiki). Each demon rolls its own segment here.
+- **Hits through a held prayer.** Three magic hits went through a prayer held from T − 1 to T + 3 (1696's quest demons). This may be the wiki's "first attack deals ~75% less damage" rule.
 
 - **The shield loop's first graphic:** ours starts at E + 1; Jagex's at E − 1, when the player starts the attack.
 - **The engage switch:** ours always lands on E + 1. Jagex's spread (E + 1 to E + 15) depends on something the recordings don't show.

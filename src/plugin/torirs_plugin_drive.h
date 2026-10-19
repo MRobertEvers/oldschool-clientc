@@ -1311,6 +1311,16 @@ struct DriveNpcRow
     int seq_tick;
     int spotanim_sent_id;
     int spotanim_tick;
+    /**
+     * The rev-239 overrides as the client holds them: headicon customisation
+     * slot 0 (group -1 = none: the type's own icon) and the body-model
+     * override's first model (-1 = the type's). A Tormented Demon's prayer is
+     * its headicon, its defencelessness the no-flames body. Scriptrun's
+     * `d_npcs` answers the same three fields.
+     */
+    int headicon_group;
+    int headicon_index;
+    int body_model;
     int facing;
     int face_x;
     int face_z;

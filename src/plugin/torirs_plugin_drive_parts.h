@@ -71,6 +71,7 @@ static char const* const DRIVE_SCRIPT_PARTS[] = {
     "plugins/quest_driver/cox2_thieving.lua",
     "plugins/quest_driver/cox2_supplies.lua",
     "plugins/quest_driver/cox2_olm.lua",
+    "plugins/quest_driver/td_solver.lua",
     "plugins/quest_driver/cutscene.lua",
 };
 

@@ -606,6 +606,9 @@ drive_ui_fill_npc_state(
     out->spotanim_tick = npc->spotanim_sent_id >= 0
         ? PluginDrive_ServerTickOfCycle((int)npc->spotanim_sent_cycle)
         : -1;
+    out->headicon_group = npc->headicon_custom ? npc->headicon_group[0] : -1;
+    out->headicon_index = npc->headicon_custom ? npc->headicon_index[0] : -1;
+    out->body_model = npc->body_model_count > 0 ? npc->body_models[0] : -1;
     out->facing = npc->facing.entity_id;
     /* The newest FACE_COORD op, in absolute tiles: the wire's half-tiles
      * ((tile << 1) + size) halved. 0,0 is the wire's "none". */
@@ -2601,6 +2604,12 @@ drive_ui_push_npc_row(struct lua_State* L, struct DriveNpcRow const* row)
     lua_setfield(L, -2, "spotanim_sent_id");
     lua_pushinteger(L, row->spotanim_tick);
     lua_setfield(L, -2, "spotanim_tick");
+    lua_pushinteger(L, row->headicon_group);
+    lua_setfield(L, -2, "headicon_group");
+    lua_pushinteger(L, row->headicon_index);
+    lua_setfield(L, -2, "headicon_index");
+    lua_pushinteger(L, row->body_model);
+    lua_setfield(L, -2, "body_model");
     lua_pushinteger(L, row->facing);
     lua_setfield(L, -2, "facing");
     /* The newest FACE_COORD op (npc_facesquare): tile and server tick, -1
