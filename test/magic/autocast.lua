@@ -114,5 +114,39 @@ return {
         t.ticks(2)
         t.check("stance.ranged_keeps", varp(t, "varp46_com_stance") == 2,
             "com_stance " .. tostring(varp(t, "varp46_com_stance")) .. " (want 2, Pound's, kept)")
+
+        -- Remembered across a swap (wiki Autocast; RSProx 101: the bow clears the
+        -- client's three, the staff sets them back with no click). A bow style
+        -- clicked meanwhile is the bow's, and the staff keeps its autocast.
+        local function state()
+            return "autocast_spell " .. tostring(varbit(t, "varb276_autocast_spell")) .. " set "
+                .. tostring(varbit(t, "varb275_autocast_set")) .. " defmode "
+                .. tostring(varbit(t, "varb2668_autocast_defmode")) .. " com_mode "
+                .. tostring(varp(t, "varp43_com_mode"))
+        end
+        t.exec("equip.air3", t.player.equip, "staff_of_air")
+        t.ticks(2)
+        press(t, "combat_interface:autocast_defensive")
+        press(t, "autocast:spells", 1)
+        t.exec("equip.bow2", t.player.equip, "shortbow")
+        t.ticks(2)
+        t.check("remember.suspended", varbit(t, "varb276_autocast_spell") == 0 and varbit(t, "varb275_autocast_set") == 0
+            and varbit(t, "varb2668_autocast_defmode") == 0 and varp(t, "varp43_com_mode") ~= 4,
+            state() .. " (want 0, 0, 0, the bow's style)")
+        press(t, "combat_interface:style_slot_1")
+        t.exec("equip.air4", t.player.equip, "staff_of_air")
+        t.ticks(2)
+        t.check("remember.restored", varbit(t, "varb276_autocast_spell") == 1 and varbit(t, "varb275_autocast_set") == 1
+            and varbit(t, "varb2668_autocast_defmode") == 1 and varp(t, "varp43_com_mode") == 4,
+            state() .. " (want 1, 1, 1, 4)")
+
+        -- Focus before a normal autocast comes back as Pound (RSProx 1703).
+        press(t, "combat_interface:style_slot_3")
+        press(t, "combat_interface:autocast_normal")
+        press(t, "autocast:spells", 1)
+        press(t, "combat_interface:autocast_normal")
+        press(t, "autocast:spells", 0)
+        t.check("reset.off_defensive", varbit(t, "varb276_autocast_spell") == 0 and varp(t, "varp43_com_mode") == 1,
+            state() .. " (want 0, com_mode 1: Pound, not Focus)")
     end,
 }
