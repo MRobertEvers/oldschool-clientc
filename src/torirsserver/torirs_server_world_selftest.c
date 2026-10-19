@@ -1068,35 +1068,6 @@ selftest_player_queue_match(
     return found;
 }
 
-/* RUNCLIENTSCRIPT keeps its script id as the final big-endian int after the
- * zero-terminated type string and reverse-ordered arguments. The Zuk timing
- * gate only needs to identify fade_overlay's 948, not decode its arguments. */
-static int
-selftest_capture_has_clientscript(
-    struct ToriRSServerCapture const* capture,
-    struct ToriRSServerWire const* wire,
-    int script_id)
-{
-    int opcode;
-
-    assert(capture);
-    assert(wire);
-    opcode = ToriRSServer_WireOpcode(wire, PKT_NAME_RUNCLIENTSCRIPT);
-    for( int i = 0; i < capture->count; i++ )
-    {
-        struct ToriRSServerCapturedPacket const* pkt = &capture->packets[i];
-        uint8_t const* id;
-
-        if( pkt->opcode != opcode || pkt->len < 4 )
-            continue;
-        id = &pkt->data[pkt->len - 4];
-        if( (int)(((uint32_t)id[0] << 24) | ((uint32_t)id[1] << 16) |
-                  ((uint32_t)id[2] << 8) | (uint32_t)id[3]) == script_id )
-            return 1;
-    }
-    return 0;
-}
-
 /*
  * Put the world and the player back to a known state at a chosen origin zone.
  *
@@ -2357,7 +2328,12 @@ selftest_charter_choose(
 
 /*
  * Did the capture carry a literal rev-239 script 600 —
- * `if_settextalign(centre, centre, 16, com_uid)` — for this component?
+ * `if_settextalign(centre, centre, lineheight, com_uid)` — for this component?
+ *
+ * The line height is by rows on the page, as RSProx recorded it on rev 239:
+ * chat_left/chat_right 16, 28, 20, 16 for one to four rows; messagebox 0, 31,
+ * 24, 17 (0 = the font's own height). See [proc,chat_lineheight] and
+ * [proc,mesbox_lineheight] in interface_chat/scripts/chat.rs2.
  *
  * The cache ships `chat_left:text` and `messagebox:text` with no `valign`, so
  * both draw their body copy hard against the top of a box that is 67 and 80
@@ -2375,6 +2351,7 @@ static int
 selftest_capture_has_textalign(
     struct ToriRSServer* srv,
     struct ToriRSServerCapture* capture,
+    int lineheight,
     int com_uid)
 {
     for( int p = 0; p < capture->count; p++ )
@@ -2395,10 +2372,78 @@ selftest_capture_has_textalign(
             continue;
 
         if( script_id == 600 && argv[0] == 1 && argv[1] == 1 &&
-            argv[2] == 16 && argv[3] == com_uid )
+            argv[2] == lineheight && argv[3] == com_uid )
             return 1;
     }
     return 0;
+}
+
+/*
+ * Did the capture carry script 948's fade IN — `(0, 0, 0, 255, cycles)`, clear
+ * to the overlay's full alpha reversed, as the Inferno sends it at M+4 — rather
+ * than its fade OUT `(0, 255, 0, 0, cycles)` at M? The id alone is both.
+ */
+static int
+selftest_capture_has_fade_in(
+    struct ToriRSServer* srv,
+    struct ToriRSServerCapture* capture)
+{
+    for( int p = 0; p < capture->count; p++ )
+    {
+        char types[8];
+        int argc = 0;
+        int argv[5] = { 0, 0, 0, 0, 0 };
+        int script_id;
+
+        if( capture->packets[p].name != PKT_NAME_RUNCLIENTSCRIPT )
+            continue;
+
+        ToriRSServer_WireReadRunClientscript(
+            srv->wire, capture->packets[p].data, capture->packets[p].len, types,
+            (int)sizeof(types), argv, (int)(sizeof(argv) / sizeof(argv[0])), &argc,
+            &script_id);
+        if( script_id == 948 && argc == 5 && argv[1] == 0 && argv[3] == 255 )
+            return 1;
+    }
+    return 0;
+}
+
+
+/* Active Tekton npcs, in any of his six forms (7540..7545). */
+static int
+selftest_count_tekton(const struct ToriRSServer* srv)
+{
+    int tekton = 0;
+
+    for( int i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
+        if( srv->npcs[i].active && srv->npcs[i].type >= 7540 && srv->npcs[i].type <= 7545 )
+            tekton++;
+    return tekton;
+}
+
+
+/*
+ * The part of `phase_cleanup` that finishes a death, for one npc, in a stanza
+ * that ticks that npc's combat alone (`srv->tick++` and
+ * `ToriRSServer_CombatNpcTick`) rather than the world. The reap asks for the
+ * removal and the engine holds it until the death animation has been on
+ * screen for its `death_delay` ("npc_free HELD for the death animation",
+ * torirs_server_world.c); the animation's tick is stamped, and the held
+ * removal retried, only here. Without it the corpse stays active forever.
+ */
+static void
+selftest_npc_cleanup(struct ToriRSServer* srv, int slot)
+{
+    struct ToriRSServerNpc* npc = &srv->npcs[slot];
+
+    npc->masks = 0;
+    npc->hitmark_count = 0;
+    npc->anim_id = -1;
+    npc->anim_delay = 0;
+    if( npc->death_seq_sent && npc->death_seq_tick < 0 )
+        npc->death_seq_tick = srv->tick;
+    if( (npc->free_deferred_for_anim || npc->free_wanted) && npc->active )
+        ToriRSServer_WorldNpcFree(srv, slot);
 }
 
 
@@ -3579,7 +3624,15 @@ selftest_run_energy_worn(struct ToriRSServer* srv)
         int spent;
         int all_resolved = ring > 0 && gloves > 0 && gloves_com >= 0;
 
+        /* The kit is put back on the way out: every later stanza that reads
+         * "the starting kit" (the equip walk's bronze full helm, shortbow,
+         * kiteshield) found an empty backpack after this section emptied it. */
+        static struct ToriRSServerItem saved_inv[TORIRSSERVER_INV_SLOTS];
+        static struct ToriRSServerItem saved_worn[TORIRSSERVER_WORN_SLOTS];
+
         assert(p);
+        memcpy(saved_inv, p->inv, sizeof(saved_inv));
+        memcpy(saved_worn, p->worn, sizeof(saved_worn));
         agility_before = p->stat_level[TORIRSSERVER_STAT_AGILITY];
         selftest_park_player(srv, 3222, 3218);
         for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
@@ -3722,23 +3775,12 @@ selftest_run_energy_worn(struct ToriRSServer* srv)
             ToriRSServer_VarbitSet(srv, ToriRSServer_Ids()->varbit_stamina_active, 0);
         }
 
+        memcpy(p->inv, saved_inv, sizeof(saved_inv));
+        memcpy(p->worn, saved_worn, sizeof(saved_worn));
         for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
-        {
-            p->inv[i].obj_id = -1;
-            p->inv[i].count = 0;
             p->inv_dirty |= 1u << i;
-        }
         for( int i = 0; i < TORIRSSERVER_WORN_SLOTS; i++ )
-        {
-            p->worn[i].obj_id = -1;
-            p->worn[i].count = 0;
-            for( int vi = 0; vi < TORIRSSERVER_ITEM_VAR_MAX; vi++ )
-            {
-                p->worn[i].var_key[vi] = -1;
-                p->worn[i].var_val[vi] = 0;
-            }
             p->worn_dirty |= 1u << i;
-        }
         steps_clear(p);
         p->stat_level[TORIRSSERVER_STAT_AGILITY] = agility_before;
         p->run_energy = TORIRSSERVER_RUN_ENERGY_MAX;
@@ -7516,21 +7558,30 @@ ToriRSServer_WorldSelftest(void)
                         srv, early, 0, srv->npcs[early].hitpoints);
                     player->x = 0;
                     player->z = 0;
+                    /* The rate counts from the reap, the tick the engine asks
+                     * for the removal and arms the respawn; the corpse itself
+                     * goes when its death animation has played out. */
+                    int early_reap = -1;
+
                     for( int tick = 0; tick < 32 && srv->npcs[early].active;
                          tick++ )
                     {
                         srv->tick++;
                         ToriRSServer_CombatNpcTick(srv, early);
+                        if( early_reap < 0 &&
+                            (srv->npcs[early].free_wanted || !srv->npcs[early].active) )
+                            early_reap = (int)srv->tick;
+                        selftest_npc_cleanup(srv, early);
                     }
                     SELFTEST_CHECK(
-                        !srv->npcs[early].active &&
+                        !srv->npcs[early].active && early_reap >= 0 &&
                             srv->npcs[early].respawn_tick ==
-                                srv->tick + srv->npcs[early].def->respawnrate,
+                                early_reap + srv->npcs[early].def->respawnrate,
                         "%s real death before its general keeps rate %d "
-                        "(clock %d at %d)",
+                        "(clock %d, reaped at %d)",
                         classic_quartet_cases[c].bodyguards[0],
                         srv->npcs[early].def->respawnrate,
-                        srv->npcs[early].respawn_tick, (int)srv->tick);
+                        srv->npcs[early].respawn_tick, early_reap);
                     srv->npcs[early].respawn_tick = -1;
 
                     /* The general's real death table runs and the corpse is
@@ -7548,6 +7599,7 @@ ToriRSServer_WorldSelftest(void)
                     {
                         srv->tick++;
                         ToriRSServer_CombatNpcTick(srv, boss);
+                        selftest_npc_cleanup(srv, boss);
                     }
                     if( !srv->npcs[boss].active )
                         boss_respawn = srv->npcs[boss].respawn_tick;
@@ -7567,6 +7619,7 @@ ToriRSServer_WorldSelftest(void)
                     {
                         srv->tick++;
                         ToriRSServer_CombatNpcTick(srv, late);
+                        selftest_npc_cleanup(srv, late);
                     }
                     SELFTEST_CHECK(
                         !srv->npcs[late].active &&
@@ -9034,14 +9087,37 @@ ToriRSServer_WorldSelftest(void)
                     first->varps[contribution_damage] = 88;
                     first->varps[encounter_start] = 10;
                     ToriRSServer_WorldSetActive(srv, first);
-                    SELFTEST_CHECK(
-                        ToriRSServer_ScriptsRunProcInt(
-                            srv, "[proc,gwd_private_on_death]", NULL, 0,
-                            &out) &&
-                            first->varps[contribution_uid] == 0 &&
-                            first->varps[contribution_damage] == 0 &&
-                            first->varps[encounter_start] == 0,
-                        "Nex death clears personal contribution");
+                    /*
+                     * The public chamber's death hook, `~gwd_nex_on_death`
+                     * (player/death.rs2 runs it before the private one). This
+                     * asked `~gwd_private_on_death`, which since its "stale
+                     * first" rewrite does nothing for a player with no private
+                     * room - and this fixture stands in the public chamber.
+                     * The hook also counts the death and holds the items in the
+                     * Ancient Prison chest; both are put back.
+                     */
+                    {
+                        int deaths_varp = ToriRSServer_ContentSymbol(
+                            TORIRSSERVER_PACK_VARP, "varp6609_nex_personal_deaths");
+                        int items_varp = ToriRSServer_ContentSymbol(
+                            TORIRSSERVER_PACK_VARP, "varp6604_gwd_nex_death_items");
+                        int deaths_before = deaths_varp >= 0 ? first->varps[deaths_varp] : 0;
+                        int items_before = items_varp >= 0 ? first->varps[items_varp] : 0;
+
+                        SELFTEST_CHECK(
+                            ToriRSServer_ScriptsRunProcInt(
+                                srv, "[proc,gwd_nex_on_death]", NULL, 0,
+                                &out) &&
+                                out == 1 &&
+                                first->varps[contribution_uid] == 0 &&
+                                first->varps[contribution_damage] == 0 &&
+                                first->varps[encounter_start] == 0,
+                            "Nex death clears personal contribution");
+                        if( deaths_varp >= 0 )
+                            first->varps[deaths_varp] = deaths_before;
+                        if( items_varp >= 0 )
+                            first->varps[items_varp] = items_before;
+                    }
                     ToriRSServer_WorldSetActive(srv, first);
                     ToriRSServer_WorldPlayerFree(srv, second->pid);
                     ToriRSServer_WorldPlayerReap(srv);
@@ -9495,9 +9571,12 @@ ToriRSServer_WorldSelftest(void)
                     { "nex_prison_warrior", "[proc,gwd_prison_warrior_smoke]",
                       "human_sword_slash", NULL,
                       "nex2021_smoke_magic_attack", 0 },
+                    /* 50, the drawn bow arm of model 27697 at `human_bow`
+                     * frame 5 (godwars_prison.rs2); 80 launched the arrow 48
+                     * units over the centaur's head. */
                     { "nex_prison_ranger", "[proc,gwd_prison_ranger_bind]",
                       "human_bow", "godwars_centaur_arrow_proj",
-                      "arrow_launch", 80 },
+                      "arrow_launch", 50 },
                     { "nex_prison_blood_reaver",
                       "[ai_opplayer2,nex_prison_blood_reaver]",
                       "blood_reaver_attack", "nex_blood_attack_proj",
@@ -16007,13 +16086,20 @@ ToriRSServer_WorldSelftest(void)
                                 SELFTEST_CHECK(tut->varps[bar] == 0,
                                                "step 0 should leave the bar empty, "
                                                "got %d", tut->varps[bar]);
-                                tut->varps[tutorial_varp] = 335; /* half of 670 */
+                                /*
+                                 * ^tutorial_progress_last_step is 671 (the
+                                 * October 2025 Learning the Ropes ends on
+                                 * ^tut_quest_complete), so step 335 is
+                                 * 335 * 16384 / 671, just short of half.
+                                 */
+                                tut->varps[tutorial_varp] = 335;
                                 ToriRSServer_ScriptsRunProc(
                                     srv, "[proc,set_tutorial_progress]", NULL, 0);
-                                SELFTEST_CHECK(tut->varps[bar] == 8192,
-                                               "half way should be half a bar "
-                                               "(16384/2), got %d", tut->varps[bar]);
-                                tut->varps[tutorial_varp] = 670;
+                                SELFTEST_CHECK(tut->varps[bar] == 335 * 16384 / 671,
+                                               "half way should be about half a bar "
+                                               "(335 * 16384 / 671), got %d",
+                                               tut->varps[bar]);
+                                tut->varps[tutorial_varp] = 671;
                                 ToriRSServer_ScriptsRunProc(
                                     srv, "[proc,set_tutorial_progress]", NULL, 0);
                                 SELFTEST_CHECK(tut->varps[bar] == 16384,
@@ -16651,7 +16737,7 @@ ToriRSServer_WorldSelftest(void)
              * the NPC-chat contract. Without it Hans's body copy renders
              * roughly one text line too high.
              */
-            SELFTEST_CHECK(selftest_capture_has_textalign(srv, &capture,
+            SELFTEST_CHECK(selftest_capture_has_textalign(srv, &capture, 16,
                                                           (231 << 16) | 6),
                            "NPC chat must send literal rev-239 script600 "
                            "if_settextalign(1,1,16,231:6)");
@@ -20579,10 +20665,10 @@ ToriRSServer_WorldSelftest(void)
                      * the only section that reliably opens a speaker-less
                      * message box: the level gate always refuses.
                      */
-                    SELFTEST_CHECK(selftest_capture_has_textalign(srv, &capture,
+                    SELFTEST_CHECK(selftest_capture_has_textalign(srv, &capture, 0,
                                                                   (229 << 16) | 3),
-                                   "mesbox must send literal rev-239 script600 "
-                                   "if_settextalign(1,1,16,229:3)");
+                                   "a one-row mesbox must send literal rev-239 "
+                                   "script600 if_settextalign(1,1,0,229:3)");
                     /*
                      * Unpark before leaving, and note that PASSING is what
                      * makes this necessary.
@@ -21188,10 +21274,12 @@ ToriRSServer_WorldSelftest(void)
                  *   own `[ai_timer]` reads with `npc_param(attack_sound)` —
                  *   so this asserts the id the fight actually plays.
                  *
-                 *   Jal-Nib is the one monster deliberately left silent, and it
-                 *   is the assertion that matters most: it is what stops a
-                 *   later "fill in the gaps" pass from quietly turning an
-                 *   open slot into a guess. The gap is the finding.
+                 *   Jal-Nib was once the one monster deliberately left silent,
+                 *   because nothing sourced it. RSProx recorded it since
+                 *   (docs/rsprox-analysis/inferno/mobs.md): lavabeast_attack
+                 *   595 on each bite, lavabeast_hit 597, lavabeast_death 596.
+                 *   It stays asserted so a recorded id is never lost to a
+                 *   later regeneration that reads it as a guess.
                  */
                 {
                     struct ToriRSServerNpcDef const* zuk = ToriRSServer_ContentNpc(
@@ -21214,9 +21302,9 @@ ToriRSServer_WorldSelftest(void)
                     }
                     SELFTEST_CHECK(nib != NULL, "the content tree should describe Jal-Nib");
                     if( nib )
-                        SELFTEST_CHECK(nib->attack_sound == -1 && nib->defend_sound == -1 &&
-                                           nib->death_sound == -1,
-                                       "Jal-Nib has no source and must stay silent, got %d/%d/%d",
+                        SELFTEST_CHECK(nib->attack_sound == 595 && nib->defend_sound == 597 &&
+                                           nib->death_sound == 596,
+                                       "Jal-Nib should play its recorded 595/597/596, got %d/%d/%d",
                                        nib->attack_sound, nib->defend_sound, nib->death_sound);
                 }
 
@@ -21432,8 +21520,13 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(player->combat_target == goblin, "engaging sets the target");
 
             /* Fight to the death. The cap is generous but finite: a combat loop
-             * that never resolves is the failure worth catching here. */
-            ToriRSServer_CaptureBegin(srv, &capture);
+             * that never resolves is the failure worth catching here.
+             *
+             * The capture is re-begun every tick, so what is left in it after
+             * the loop is the KILLING tick alone. One capture over the whole
+             * fight held 1,024 packets by tick 120 of a 130-tick fight, so the
+             * death's own NPC_INFO was dropped and the visible-ops checks below
+             * read a buffer that ended before the goblin died. */
             /* Goblin maxhit is 1; randominc(1) is 0 or 1, so a fixed RNG seed can
              * land only 0-damage hitsplats and leave HP unchanged. Retaliation is
              * still real — content's damage() wrote a splat. Track that. */
@@ -21441,10 +21534,14 @@ ToriRSServer_WorldSelftest(void)
             transformations_before = ToriRSServer_EncodeNpcTransformationWrites();
             while( npc->hitpoints > 0 && ticks < 200 )
             {
+                ToriRSServer_CaptureBegin(srv, &capture);
                 selftest_tick(srv);
+                ToriRSServer_CaptureEnd(srv);
                 ticks++;
             }
-            ToriRSServer_CaptureEnd(srv);
+            SELFTEST_CHECK(!capture.overflow,
+                           "the killing tick's capture must hold every packet, %d kept",
+                           capture.count);
 
             /*
              * Nothing in this fight transforms, so nothing may say it did.
@@ -21557,7 +21654,7 @@ ToriRSServer_WorldSelftest(void)
             /* Damage reached the client: NPC_INFO carries the hitsplat and the
              * health bar in one mask. */
             SELFTEST_CHECK(ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_NPC_INFO, 0) >= 0,
-                           "NPC_INFO should have been sent during the fight");
+                           "NPC_INFO should have been sent on the killing tick");
 
             /* It retaliated rather than standing there. HP may be unchanged when
              * every successful roll still drew randominc(maxhit=1)=0. */
@@ -21975,11 +22072,21 @@ ToriRSServer_WorldSelftest(void)
              * Restored by hand at the end of the section, the way the section
              * above restores it: `ToriRSServer_CombatSetLevel` would re-derive the
              * xp from the level and later sections read both.
+             *
+             * `hitpoints` before the sync, never after: the sync copies the
+             * current hitpoints INTO `stat_boosted` (an overheal holds through
+             * it), so a boost written first is overwritten by the one hitpoint
+             * the fixture arrived on, and the goblin's first swing kills.
+             *
+             * And the xp with them: the first fight pays hitpoints xp, the
+             * level is re-derived from the total, and a level-20 player on
+             * level-1 xp is a 1/1 player by the second click.
              */
+            player->stat_xp_tenths[TORIRSSERVER_STAT_HITPOINTS] =
+                ToriRSServer_CombatXpForLevel(20) * 10;
             player->stat_level[TORIRSSERVER_STAT_HITPOINTS] = 20;
-            player->stat_boosted[TORIRSSERVER_STAT_HITPOINTS] = 20;
+            player->hitpoints = 20;
             ToriRSServer_CombatSyncHitpoints(player);
-            player->hitpoints = player->max_hitpoints;
             /*
              * Auto-retaliate OFF for the section (1 is off; 0 is on).
              *
@@ -23999,6 +24106,14 @@ ToriRSServer_WorldSelftest(void)
 
             selftest_park_player(srv, npc->x - 6, npc->z);
             player->level = npc->level;
+            /*
+             * Ready to shoot on the click. Parking ends a fight but not its
+             * attack timer, and a swing left over from an earlier stanza's
+             * fight holds this shot a tick behind the click (the "re-delay"
+             * branch of `[label,player_ranged_attack]`): fired a tick late,
+             * the arrow lands one tick past the four-tick window below.
+             */
+            player->varps[ToriRSServer_WorldVarp("varp5732_action_delay")] = 0;
             /*
              * A goblin with a goblin's hitpoints does not survive a level-99
              * crystal bow, and a dead one answers nothing: the death path clears
@@ -29544,17 +29659,32 @@ ToriRSServer_WorldSelftest(void)
                            "landed at %d,%d level %d with handle %d",
                            player->x, player->z, player->level, handle);
 
-            /* Tekton exists, in one of his six forms. */
-            int tekton = 0;
-            for( int i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
+            /*
+             * Tekton, in one of his six forms, exactly when the layout deals
+             * his room. `::cox` draws a random layout and not every layout
+             * holds Tekton (the 2026-10 layout generator, cox_layout.rs2), so
+             * "he is there" alone fails on a layout without him and proves
+             * nothing on one with him. `~cox_layout_holds` is the content's
+             * own answer to "does this seed deal room type N".
+             */
+            int seed_varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP,
+                                                       "varp6897_cox_layout_seed");
+            int32_t holds = -1;
+
+            SELFTEST_CHECK(seed_varp >= 0, "varp `cox_layout_seed` should resolve");
+            if( seed_varp >= 0 )
             {
-                if( !srv->npcs[i].active )
-                    continue;
-                if( srv->npcs[i].type >= 7540 && srv->npcs[i].type <= 7545 )
-                    tekton++;
+                int32_t args[] = { player->varps[seed_varp], 0 /* ^cox_room_tekton */ };
+
+                SELFTEST_CHECK(ToriRSServer_ScriptsRunProcInt(srv, "[proc,cox_layout_holds]",
+                                                              args, 2, &holds),
+                               "~cox_layout_holds should answer");
             }
-            SELFTEST_CHECK(tekton > 0,
-                           "entering CoX should spawn Tekton, found %d", tekton);
+            SELFTEST_CHECK((selftest_count_tekton(srv) > 0) == (holds == 1),
+                           "::cox should spawn Tekton exactly when seed %d deals his room "
+                           "(holds %d), found %d",
+                           seed_varp >= 0 ? player->varps[seed_varp] : -1, holds,
+                           selftest_count_tekton(srv));
 
             /* And leaving tears the instance down rather than leaking it. */
             SELFTEST_CHECK(ToriRSServer_ScriptsRunDebugproc(srv, "cox_leave") ==
@@ -29562,6 +29692,45 @@ ToriRSServer_WorldSelftest(void)
                            "::cox_leave should reach content");
             SELFTEST_CHECK(ToriRSServer_MapInstanceFind(player->x, player->z) == 0,
                            "leaving CoX should free the instance");
+
+            /*
+             * The half that must see him: the first seed that deals Tekton's
+             * room, entered through `::coxseed`, which builds the raid through
+             * the same `~cox_enter_seeded` as `::cox`.
+             */
+            {
+                int32_t tekton_seed = -1;
+                char line[32];
+
+                for( int32_t seed = 0; seed < 256 && tekton_seed < 0; seed++ )
+                {
+                    int32_t args[] = { seed, 0 /* ^cox_room_tekton */ };
+                    int32_t seed_holds = 0;
+
+                    if( ToriRSServer_ScriptsRunProcInt(srv, "[proc,cox_layout_holds]", args,
+                                                       2, &seed_holds) &&
+                        seed_holds == 1 )
+                        tekton_seed = seed;
+                }
+                SELFTEST_CHECK(tekton_seed >= 0,
+                               "some seed below 256 should deal Tekton's room");
+                if( tekton_seed >= 0 )
+                {
+                    snprintf(line, sizeof(line), "coxseed %d", (int)tekton_seed);
+                    SELFTEST_CHECK(ToriRSServer_ScriptsRunDebugproc(srv, line) ==
+                                       TORIRSSERVER_TRIGGER_RAN,
+                                   "::%s should reach content", line);
+                    SELFTEST_CHECK(selftest_count_tekton(srv) > 0,
+                                   "entering CoX on seed %d (which deals his room) should "
+                                   "spawn Tekton, found %d",
+                                   (int)tekton_seed, selftest_count_tekton(srv));
+                    SELFTEST_CHECK(ToriRSServer_ScriptsRunDebugproc(srv, "cox_leave") ==
+                                       TORIRSSERVER_TRIGGER_RAN,
+                                   "::cox_leave should reach content");
+                    SELFTEST_CHECK(ToriRSServer_MapInstanceFind(player->x, player->z) == 0,
+                                   "leaving CoX should free the instance");
+                }
+            }
 
             player->x = saved_x;
             player->z = saved_z;
@@ -31540,34 +31709,58 @@ ToriRSServer_WorldSelftest(void)
             static struct ToriRSServerCapture tobexit_capture;
             int tobexit_rooms_ok = 0;
 
+            /*
+             * Asked twice per room. From the arrival tile, which is what judges
+             * the arrival (`~tob_arrive_check`); then from the exit itself
+             * (`::tobexitwarp` and a tick for the rebuild), which is what
+             * judges the passage. One ask from the arrival tile read Bloat's
+             * passage as missing once its recorded arrival moved to 58,32: the
+             * exit at 5,31 is past the west edge of the 104-tile scene built
+             * around a player standing there.
+             */
             for( int room = 1; room <= 5; room++ )
             {
                 char command[32];
                 int said_ok = 0;
+                int said_fail = 0;
 
                 snprintf(command, sizeof(command), "tob %d", room);
                 ToriRSServer_ScriptsRunDebugproc(srv, command);
                 selftest_tick(srv);
 
-                ToriRSServer_CaptureBegin(srv, &tobexit_capture);
-                ToriRSServer_ScriptsRunDebugproc(srv, "tobexit");
-                ToriRSServer_CaptureEnd(srv);
-                for( int i = ToriRSServer_CaptureFindNamed(&tobexit_capture, PKT_NAME_MESSAGE_GAME, 0); i >= 0;
-                     i = ToriRSServer_CaptureFindNamed(&tobexit_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
+                for( int ask = 0; ask < 2; ask++ )
                 {
-                    const struct ToriRSServerCapturedPacket* packet = &tobexit_capture.packets[i];
-                    const char* text;
+                    if( ask == 1 )
+                    {
+                        ToriRSServer_ScriptsRunDebugproc(srv, "tobexitwarp");
+                        selftest_tick(srv);
+                    }
+                    ToriRSServer_CaptureBegin(srv, &tobexit_capture);
+                    ToriRSServer_ScriptsRunDebugproc(srv, "tobexit");
+                    ToriRSServer_CaptureEnd(srv);
+                    for( int i = ToriRSServer_CaptureFindNamed(&tobexit_capture, PKT_NAME_MESSAGE_GAME, 0); i >= 0;
+                         i = ToriRSServer_CaptureFindNamed(&tobexit_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
+                    {
+                        const struct ToriRSServerCapturedPacket* packet = &tobexit_capture.packets[i];
+                        const char* text;
 
-                    text = selftest_message_text(srv, packet);
-                    if( !text )
-                        continue;
-                    if( strstr(text, "tobexit") == NULL )
-                        continue;
-                    fprintf(stderr, "  %s\n", text);
-                    if( strstr(text, "tobexit OK") != NULL )
-                        said_ok = 1;
+                        text = selftest_message_text(srv, packet);
+                        if( !text )
+                            continue;
+                        if( strstr(text, "tobexit") == NULL )
+                            continue;
+                        if( ask == 1 )
+                            fprintf(stderr, "  %s\n", text);
+                        /* Arrival is judged from the arrival tile only: from
+                         * the exit, the arrival tile is off the scene and
+                         * reads as blocked. */
+                        if( ask == 0 && strstr(text, "tobexit FAIL") != NULL )
+                            said_fail = 1;
+                        if( ask == 1 && strstr(text, "tobexit OK") != NULL )
+                            said_ok = 1;
+                    }
                 }
-                if( said_ok )
+                if( said_ok && !said_fail )
                     tobexit_rooms_ok++;
             }
             ToriRSServer_ScriptsRunDebugproc(srv, "tobout");
@@ -32612,12 +32805,16 @@ ToriRSServer_WorldSelftest(void)
              * under test is what the room does when she runs out, not how she
              * gets there.
              *
-             * What each break must produce, from NR's `increasePhase`:
-             *   break 1 and 2 -> phase 1 (intermission), a 52-tick shield clock
-             *                    running, and her health back off zero.
-             *   two ticks in  -> the dazed body, npc 11720.
-             *   the clock out -> the shielded body again, 11719, re-sized.
-             *   break 3       -> phase 2 (exposed), npc 11721, on her REAL
+             * What each break must produce, as RSProx recorded it (`::toazdbg`
+             * reports her own registers: state as the phase, breaks as the
+             * wave, the stun's ticks left as the shield clock):
+             *   break 1 and 2 -> stunned (phase 1), the stun clock running
+             *                    (51 then 48, three more solo), and her health
+             *                    back off zero.
+             *   two ticks in  -> the weak body, npc 11720.
+             *   the clock out -> the shielded body again, 11719, on the shield
+             *                    the stun gave back.
+             *   break 3       -> enraged (phase 2), npc 11721, on her REAL
              *                    health pool rather than her shield's.
              */
             {
@@ -32733,9 +32930,17 @@ ToriRSServer_WorldSelftest(void)
                                            "Kephri must re-form her shield (11719) "
                                            "after intermission %d, saw %d",
                                            shield, toa_type);
-                            SELFTEST_CHECK(toa_hp == shield_hp_at_start,
-                                           "a re-formed shield is a full one: wanted "
-                                           "%d, saw %d",
+                            /*
+                             * Not a full one: she wakes with the shield the
+                             * stun gave back (swarms that reach her, the melee
+                             * guardian), capped at 115% of her pool - 11 of 16
+                             * recorded wakes at the cap (RSProx 14 and 1852,
+                             * docs/rsprox-analysis/toa/kephri.md).
+                             */
+                            SELFTEST_CHECK(toa_hp > 0 &&
+                                               toa_hp <= shield_hp_at_start * 115 / 100,
+                                           "a re-formed shield is what the stun gave back, "
+                                           "at most 115%% of %d: saw %d",
                                            shield_hp_at_start, toa_hp);
                         }
                         else
@@ -33067,25 +33272,34 @@ ToriRSServer_WorldSelftest(void)
              */
             {
                 static struct ToriRSServerCapture gate;
+                static const char* const k_halves[2] = { "toagate", "toagatepass" };
                 int said_ok = 0;
 
-                ToriRSServer_CaptureBegin(srv, &gate);
-                ToriRSServer_ScriptsRunDebugproc(srv, "toagate");
-                ToriRSServer_CaptureEnd(srv);
-                for( int w = ToriRSServer_CaptureFindNamed(&gate, PKT_NAME_MESSAGE_GAME, 0); w >= 0;
-                     w = ToriRSServer_CaptureFindNamed(&gate, PKT_NAME_MESSAGE_GAME, w + 1) )
+                /* Built, a tick for the scene to rebuild around the player (the
+                 * barrier is a map loc, and `loc_find` reads that window), then
+                 * passed. */
+                for( int half = 0; half < 2; half++ )
                 {
-                    const struct ToriRSServerCapturedPacket* pk = &gate.packets[w];
-                    const char* text;
+                    if( half == 1 )
+                        selftest_tick(srv);
+                    ToriRSServer_CaptureBegin(srv, &gate);
+                    ToriRSServer_ScriptsRunDebugproc(srv, k_halves[half]);
+                    ToriRSServer_CaptureEnd(srv);
+                    for( int w = ToriRSServer_CaptureFindNamed(&gate, PKT_NAME_MESSAGE_GAME, 0); w >= 0;
+                         w = ToriRSServer_CaptureFindNamed(&gate, PKT_NAME_MESSAGE_GAME, w + 1) )
+                    {
+                        const struct ToriRSServerCapturedPacket* pk = &gate.packets[w];
+                        const char* text;
 
-                    text = selftest_message_text(srv, pk);
-                    if( !text )
-                        continue;
-                    if( strstr(text, "toagate") == NULL )
-                        continue;
-                    fprintf(stderr, "  %s\n", text);
-                    if( strstr(text, "toagate OK") != NULL )
-                        said_ok = 1;
+                        text = selftest_message_text(srv, pk);
+                        if( !text )
+                            continue;
+                        if( strstr(text, "toagate") == NULL )
+                            continue;
+                        fprintf(stderr, "  %s\n", text);
+                        if( strstr(text, "toagate OK") != NULL )
+                            said_ok = 1;
+                    }
                 }
                 SELFTEST_CHECK(said_ok,
                                "a chamber's barrier should exist and start the room "
@@ -34832,6 +35046,14 @@ ToriRSServer_WorldSelftest(void)
 
                 ToriRSServer_ScriptsRunDebugproc(srv, "tob 4");
                 ToriRSServer_ScriptsRunDebugproc(srv, "tobgo");
+                /*
+                 * A tick between `::tobgo` and `::tobstand`: Sotetseg's
+                 * arrival is two recorded teleports (30,27, then 15,5 a tick
+                 * later on [timer,tob_hud_step]), and the second one, landing
+                 * after the stand, left the fixture 33 tiles south of him for
+                 * the whole window - zero attacks, read as a dead clock.
+                 */
+                selftest_tick(srv);
                 ToriRSServer_ScriptsRunDebugproc(srv, "tobstand");
                 selftest_tick(srv);
                 boss = tob_harness_boss(srv, player);
@@ -35017,6 +35239,14 @@ ToriRSServer_WorldSelftest(void)
                 snprintf(line, sizeof(line), "tob %d", k_tech[t].room);
                 ToriRSServer_ScriptsRunDebugproc(srv, line);
                 ToriRSServer_ScriptsRunDebugproc(srv, "tobgo");
+                /*
+                 * A tick between `::tobgo` and `::tobstand`: Sotetseg's
+                 * arrival is two recorded teleports (30,27, then 15,5 a tick
+                 * later on [timer,tob_hud_step]), and the second one, landing
+                 * after the stand, left the fixture 33 tiles south of him for
+                 * the whole window - zero attacks, read as a dead clock.
+                 */
+                selftest_tick(srv);
                 ToriRSServer_ScriptsRunDebugproc(srv, "tobstand");
                 selftest_tick(srv);
                 ToriRSServer_ScriptsRunDebugproc(srv, "tobdbgreset");
@@ -36756,6 +36986,7 @@ ToriRSServer_WorldSelftest(void)
             int saved_boost[TORIRSSERVER_STAT_COUNT];
             int saved_worn[TORIRSSERVER_WORN_SLOTS];
             int saved_worn_count[TORIRSSERVER_WORN_SLOTS];
+            int saved_hitpoints;
             static int saved_inv[TORIRSSERVER_INV_SLOTS];
             static int saved_inv_count[TORIRSSERVER_INV_SLOTS];
             static int32_t saved_varps[TORIRSSERVER_VARP_COUNT];
@@ -36797,6 +37028,29 @@ ToriRSServer_WorldSelftest(void)
                 saved_inv_count[i] = player->inv[i].count;
             }
             memcpy(saved_varps, player->varps, sizeof(saved_varps));
+            /*
+             * At full health, on hitpoints xp that agrees with the level, for
+             * the run. The health is put back after it; the xp is not.
+             *
+             * The ladder pays hitpoints xp before its ruby check, and a level
+             * is re-derived from the xp total whenever xp lands
+             * (`ToriRSServer_CombatAddXp`): the fixture arrived at level 99 on
+             * 0 xp, so the first payment dropped it to level 1 and capped its
+             * hitpoints at 1, and `::~crystal_set` levelled it back to 99
+             * without healing. Blood Forfeit refuses a shooter on one
+             * hitpoint, so the ruby check failed on a player the stanzas
+             * before had left with a level and no experience behind it.
+             *
+             * The xp stays matched afterwards. Put back to 0 under level 99,
+             * the next stanza to pay hitpoints xp drops the level to 1 and
+             * its max hitpoints with it, and Ernest the Chicken's fountain
+             * bite killed the fixture it had just "topped up" to that max.
+             */
+            saved_hitpoints = player->hitpoints;
+            player->stat_xp_tenths[TORIRSSERVER_STAT_HITPOINTS] =
+                ToriRSServer_CombatXpForLevel(player->stat_level[TORIRSSERVER_STAT_HITPOINTS]) * 10;
+            player->hitpoints = player->stat_level[TORIRSSERVER_STAT_HITPOINTS];
+            ToriRSServer_CombatSyncHitpoints(player);
 
             /*
              * DEFAULT-ON since 2026-08-20. It was opt-in because `::gearrun` is
@@ -36859,6 +37113,12 @@ ToriRSServer_WorldSelftest(void)
                 player->stat_level[i] = saved_level[i];
                 player->stat_boosted[i] = saved_boost[i];
             }
+            player->hitpoints = saved_hitpoints;
+            /* And what the ladder queued: Blood Forfeit's self-hit lands the
+             * tick after the shot (`[queue,bolt_enchant_ruby_forfeit]`), and
+             * on the restored hitpoints it killed the fixture a tick later -
+             * Ernest the Chicken's walk then ran on a dead player. */
+            selftest_clear_pending(srv, player);
             for( int i = 0; i < TORIRSSERVER_WORN_SLOTS; i++ )
             {
                 player->worn[i].obj_id = saved_worn[i];
@@ -39397,6 +39657,11 @@ ToriRSServer_WorldSelftest(void)
                            "and says so on the wire — a release nobody sends is a "
                            "release that never happens");
 
+            /* Discarded, not killed: no tick ran, so its death animation
+             * never had a turn to ship, and freeing it at 0 hitpoints is what
+             * the suite-wide SILENT DEATH count reports. Ticking it out would
+             * move the RNG stream every later section shares. */
+            npc->hitpoints = npc->max_hitpoints;
             ToriRSServer_WorldNpcFree(srv, slot);
         }
     }
@@ -46850,11 +47115,22 @@ ToriRSServer_WorldSelftest(void)
                  * by hand rather than taught to follow `@label` jumps: a
                  * traversal change to a review-list detector is a bigger,
                  * riskier edit than confirming one entry by reading it.
+                 *
+                 * **Four since 2026-10-18.** Two CoX forms whose cache op1 is
+                 * "Attack" and whose fight refuses it on purpose, with the
+                 * reference's own line: `[opnpc1,raids_tekton_hammering]`
+                 * ("Tekton's anvil protects him from your attacks.", the wiki
+                 * and Mod Ash) and `[opnpc1,raids_vanguard_walking]` ("The
+                 * Vanguard is protected by its shell.", NR Vanguard.applyHit;
+                 * the wiki: "They cannot be targeted while shuffling"). Both
+                 * decline deliberately, the sanctioned second discharge.
                  */
-                SELFTEST_CHECK(ToriRSServer_ScriptsReportShadowedOps(srv) == 2,
-                               "only [opnpc1,doti_backupactor] and [opnpc5,chompybird] should "
-                               "shadow an engine verb — if this moved, read the new list and "
-                               "say why each entry is right");
+                SELFTEST_CHECK(ToriRSServer_ScriptsReportShadowedOps(srv) == 4,
+                               "only [opnpc1,doti_backupactor], [opnpc5,chompybird], "
+                               "[opnpc1,raids_tekton_hammering] and "
+                               "[opnpc1,raids_vanguard_walking] should shadow an engine verb — "
+                               "if this moved, read the new list and say why each entry is "
+                               "right");
             }
 
             SELFTEST_CHECK(sword > 0, "bronze_sword should be in obj.pack");
@@ -47083,12 +47359,13 @@ ToriRSServer_WorldSelftest(void)
             int total_right_seq = 0;
             int total_pillar_seq = 0;
             int barrier_seen = 0;
-            /* The cutscene's three noises — see docs/INFERNO_SOUNDS.md §7.
-             * Ticks, so the ORDER can be asserted: a rumble that arrives after
-             * the seal has already fallen is not a rumble. */
+            /* The cutscene's three noises, as RSProx recorded them
+             * (docs/rsprox-analysis/inferno/zuk.md §1). Ticks, so the ORDER
+             * can be asserted: a rumble that arrives after the seal has
+             * already fallen is not a rumble. */
             int rumble_tick = -1;
             int collapse_sound_tick = -1;
-            int settle_sound_tick = -1;
+            int roar_tick = -1;
             int total_collapse_sound = 0;
             /* And the room's music going out and coming back around it. */
             int music_stop_tick = -1;
@@ -47155,17 +47432,18 @@ ToriRSServer_WorldSelftest(void)
                  * "never sent".
                  */
                 {
-                    int tick_collapse = selftest_capture_synth_count(&capture, srv->wire, 2039);
+                    /* 1678 `rumbling`, 1487 `explosion`, 3686 `grim_giant_roar`. */
+                    int tick_collapse = selftest_capture_synth_count(&capture, srv->wire, 1487);
 
                     total_collapse_sound += tick_collapse;
                     if( rumble_tick < 0 &&
-                        selftest_capture_synth_count(&capture, srv->wire, 2045) )
+                        selftest_capture_synth_count(&capture, srv->wire, 1678) )
                         rumble_tick = tick;
                     if( collapse_sound_tick < 0 && tick_collapse )
                         collapse_sound_tick = tick;
-                    if( settle_sound_tick < 0 &&
-                        selftest_capture_synth_count(&capture, srv->wire, 2294) )
-                        settle_sound_tick = tick;
+                    if( roar_tick < 0 &&
+                        selftest_capture_synth_count(&capture, srv->wire, 3686) )
+                        roar_tick = tick;
                     if( music_stop_tick < 0 &&
                         ToriRSServer_CaptureFind(
                             &capture, ToriRSServer_WireOpcode(srv->wire, PKT_NAME_MIDI_SONG_STOP),
@@ -47195,8 +47473,7 @@ ToriRSServer_WorldSelftest(void)
                     change_tick = tick;
                 if( tick_left_seq && tick_right_seq && anim_tick < 0 )
                     anim_tick = tick;
-                if( fade_in_tick < 0 &&
-                    selftest_capture_has_clientscript(&capture, srv->wire, 948) )
+                if( fade_in_tick < 0 && selftest_capture_has_fade_in(srv, &capture) )
                     fade_in_tick = tick;
                 if( tick_cam_reset && anim_tick >= 0 && cam_reset_tick < 0 )
                     cam_reset_tick = tick;
@@ -47264,20 +47541,19 @@ ToriRSServer_WorldSelftest(void)
                            "got left=%d right=%d",
                            total_left_seq, total_right_seq);
             /*
-             * `^inferno_seal_bind_ticks` (6) of black between the state2 swap
-             * and the tick Zuk takes the seal, then one zero-delay yield to the
-             * flanks: seven ticks from the swap to the LOC_ANIM. The script
-             * spends `bind - 1` on `p_delay`, which resumes at tick + 1 + n.
+             * The recorded cutscene (RSProx 3299; docs/rsprox-analysis/inferno/
+             * zuk.md §1), M the mesbox tick: the six seal locs go to state2 on
+             * M+4 with Zuk, the glyph and the fade-in, and the flanks' loc_anims
+             * and `explosion` go out on M+5. One tick from the swap to the
+             * LOC_ANIM, which is also the cycle the client parks a
+             * LOC_ADD_CHANGE for, so the two never share a tick.
              *
-             * This said `+ 5` at one point, with the glyph pinned to Zuk's own
-             * tick. That was not a measurement of the cutscene — it was this
-             * fixture being re-fitted to a content regression that had moved
-             * the middle slab five ticks early. Pinned to the design here so
-             * the fixture fails if that happens again.
+             * This was `+ 7` -- a six-tick black hold of this port's design --
+             * until the cutscene was rebuilt to the recording on 2026-10-18.
              */
-            SELFTEST_CHECK(change_tick >= 0 && anim_tick == change_tick + 7,
-                           "the flank collapse should follow the black hold plus the handoff; "
-                           "got change=%d anim=%d",
+            SELFTEST_CHECK(change_tick >= 0 && anim_tick == change_tick + 1,
+                           "the flank collapse should follow the state2 swap by one tick "
+                           "(M+4 -> M+5); got change=%d anim=%d",
                            change_tick, anim_tick);
             /*
              * Three things share the handoff tick and this is one of them: the
@@ -47293,16 +47569,18 @@ ToriRSServer_WorldSelftest(void)
                            "got fade=%d zuk=%d",
                            fade_in_tick, zuk_tick);
             /* The glyph is not on the cutscene's thread: it is added with
-             * `npc_settimer(1)` and walks itself out of `[ai_timer]` once
-             * `%inferno_glyph_stopped` passes `^inferno_glyph_drop_delay` (3),
-             * which is the tick after the third counted one. */
-            SELFTEST_CHECK(glyph_add_tick >= 0 && glyph_move_tick == glyph_add_tick + 4,
-                           "the glyph must take its first step four ticks after it is added; "
+             * `npc_settimer(1)` and walks itself out of `[ai_timer]`. Recorded
+             * (3299, 199, 1754): it drops onto its row at A+2, A+3, A+4, one
+             * tile a tick (`^inferno_glyph_drop_delay` 1). */
+            SELFTEST_CHECK(glyph_add_tick >= 0 && glyph_move_tick == glyph_add_tick + 2,
+                           "the glyph must take its first step two ticks after it is added; "
                            "got glyph=%d added=%d",
                            glyph_move_tick, glyph_add_tick);
-            SELFTEST_CHECK(rocks_tick == anim_tick + 6,
-                           "the settled flank rocks must appear on the 180-cycle "
-                           "animation boundary; got anim=%d rocks=%d",
+            /* M+12: the lock released, both flanks changed in place to state3,
+             * `cam_reset`. Seven ticks after the M+5 loc_anims. */
+            SELFTEST_CHECK(rocks_tick == anim_tick + 7,
+                           "the settled flank rocks must appear with the lock's release "
+                           "(M+12); got anim=%d rocks=%d",
                            anim_tick, rocks_tick);
             /*
              * The cutscene's audio, pinned to the events it belongs to rather
@@ -47311,13 +47589,15 @@ ToriRSServer_WorldSelftest(void)
              * The whole sequence used to be silent — camera shaking on three
              * axes, a prison coming apart, nothing in the player's ears — and
              * "silent" is the one outcome every other assertion in this
-             * fixture is happy with. The ids are docs/INFERNO_SOUNDS.md §7's
-             * cave-ambience family: 2045 rumble, 2039 break, 2294 settle.
+             * fixture is happy with. The ids are the recording's: 1678
+             * `rumbling` under the lock (M+2), 1487 `explosion` with the
+             * loc_anims (M+5), 3686 `grim_giant_roar` a tick later (M+6).
+             * There is no settle noise: the state3 swap at M+12 is silent.
              *
              * Ticks and not booleans, because the ordering IS the content: a
-             * rumble after the seal has already fallen, or a settle that
-             * arrives with the break instead of six ticks later, would both
-             * satisfy a presence check and neither is the cutscene.
+             * rumble after the seal has already fallen, or a roar that
+             * arrives with the break, would both satisfy a presence check and
+             * neither is the cutscene.
              */
             SELFTEST_CHECK(rumble_tick >= 0 && rumble_tick < anim_tick,
                            "the cave rumble must play under the camera lock, before the "
@@ -47329,12 +47609,13 @@ ToriRSServer_WorldSelftest(void)
                            collapse_sound_tick, anim_tick);
             SELFTEST_CHECK(total_collapse_sound == 1,
                            "one seal, one collapse noise — got %d", total_collapse_sound);
-            SELFTEST_CHECK(settle_sound_tick == rocks_tick,
-                           "the settle must land with the state3 rubble; got sound=%d "
-                           "rocks=%d",
-                           settle_sound_tick, rocks_tick);
+            SELFTEST_CHECK(roar_tick == anim_tick + 1,
+                           "Zuk's roar must follow the collapse by one tick (M+6); got "
+                           "roar=%d anim=%d",
+                           roar_tick, anim_tick);
             /*
-             * The room's music, out with the picture and back with the camera.
+             * The room's music, out with the picture and back at M+8 (`midi_song`
+             * 500, recorded), four ticks before the camera.
              *
              * The failure this pins is one-sided and quiet: forgetting to stop
              * it leaves a four-minute loop over the whole collapse, and
@@ -47351,27 +47632,24 @@ ToriRSServer_WorldSelftest(void)
                            "the room music must stop with the fade, before the seal is "
                            "touched; got stop=%d change=%d",
                            music_stop_tick, change_tick);
-            SELFTEST_CHECK(music_resume_tick == cam_reset_tick,
-                           "the music must come back on the tick the camera does; got "
-                           "resume=%d cam_reset=%d",
-                           music_resume_tick, cam_reset_tick);
-            /* 7560/7559 are 90 frames at two client cycles each: 180 cycles,
-             * exactly six server ticks. The temporary state2 locs are removed
-             * on the same boundary that installs their state3 terminal pose. */
-            SELFTEST_CHECK(removal_tick == anim_tick + 6,
-                           "the temporary falling walls must clear when their 180-cycle "
-                           "sequences end; got anim=%d removal=%d",
+            SELFTEST_CHECK(music_resume_tick == anim_tick + 3,
+                           "the music must come back at M+8, three ticks after the "
+                           "collapse; got resume=%d anim=%d",
+                           music_resume_tick, anim_tick);
+            /* The temporary state2 locs are changed in place to state3 at M+12
+             * (recorded), seven ticks after the M+5 loc_anims. */
+            SELFTEST_CHECK(removal_tick == anim_tick + 7,
+                           "the temporary falling walls must clear at M+12; got anim=%d "
+                           "removal=%d",
                            anim_tick, removal_tick);
             SELFTEST_CHECK(removal_tick == rocks_tick,
                            "state2 removal and state3 replacement must be atomic; "
                            "got removal=%d rocks=%d",
                            removal_tick, rocks_tick);
-            /* The camera returns to the player on the instant the fall ends —
-             * the same tick the 180-cycle sequences run out, which is also the
-             * tick the state3 rubble replaces them and the tick `zuk_spawn`
-             * finishes. One frame, four things landing together. */
-            SELFTEST_CHECK(anim_tick >= 0 && cam_reset_tick == anim_tick + 6,
-                           "the Zuk camera must cut back as the 180-cycle fall ends; "
+            /* The camera returns to the player with the lock's release (M+12),
+             * the tick the state3 rubble replaces the falling walls. */
+            SELFTEST_CHECK(anim_tick >= 0 && cam_reset_tick == anim_tick + 7,
+                           "the Zuk camera must cut back with the lock's release (M+12); "
                            "got camera=%d anim=%d",
                            cam_reset_tick, anim_tick);
             SELFTEST_CHECK(cam_reset_tick == rocks_tick,
@@ -47533,8 +47811,8 @@ ToriRSServer_WorldSelftest(void)
                            "and 7561 must stay off the rigless middle wall; "
                            "got left=%d right=%d pillar=%d",
                            total_left_seq, total_right_seq, total_pillar_seq);
-            SELFTEST_CHECK(change_tick >= 0 && anim_tick == change_tick + 7,
-                           "the repeated seal should preserve the bind tick and held shot; "
+            SELFTEST_CHECK(change_tick >= 0 && anim_tick == change_tick + 1,
+                           "the repeated seal should keep the recorded M+4 -> M+5 handoff; "
                            "got change=%d anim=%d",
                            change_tick, anim_tick);
             SELFTEST_CHECK(!player->rebuild_scene_pending,

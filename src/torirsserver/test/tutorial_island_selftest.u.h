@@ -13,17 +13,27 @@
  * is exactly the failure mode this exists to name: the section walks the chain
  * in order and reports the FIRST step it cannot leave.
  *
+ * The chain is the October 2025 Learning the Ropes (tutorial.constant's
+ * `^tut_*` steps; test/quests/tutorialisland.lua plays the same island through
+ * a client, graded on the wiki transcript).
+ *
  * What is driven for real, and what is nudged
  * -------------------------------------------
  * Every door, gate, ladder and conversation is driven by its own trigger, and
- * so is every skill step that has one (the chop, the dough, the range, the
- * prospect, the mine, the furnace). Four steps are written directly, and each
- * is a mechanism that belongs to another system and is tested there:
+ * so is every flashing side-tab stone (`[if_button1,toplevel_osrs_stretch:
+ * stoneN]`), the run orb, the equipment-stats button, and every skill step
+ * that has one of the island's own (the net, the chop, the dough, the range,
+ * the mine, the furnace, the bank booth, the poll booth, each wield). Six
+ * steps are written directly, and each is a mechanism that belongs to another
+ * system and is tested there:
  *
- *   the fire          `skill_firemaking` (an animation and a loc_add)
+ *   the familiarity   interface 929's stone buttons (a pausebutton resume)
+ *   the fire          `skill_firemaking` (a roll, an animation and a loc_add)
  *   the shrimp        `skill_cooking`    (a roll)
+ *   the dagger        `skill_smithing`   (the make-menu; the dagger is handed
+ *                                          over, the island's next steps wield it)
  *   the two rat kills `skill_combat`     (a whole fight, plus npc_findhero)
- *   the Wind Strikes  `skill_combat`     (a spell, a projectile and a roll)
+ *   the Wind Strike   `skill_combat`     (a spell, a projectile and a roll)
  *
  * They are marked NUDGE in the output so a reader can tell a driven step from a
  * written one at a glance. Everything between them is real.
@@ -114,22 +124,6 @@ tut_drain(struct ToriRSServer* srv, struct ToriRSServerPlayer* player, int stop_
 }
 
 static void
-tut_choose(struct ToriRSServer* srv, struct ToriRSServerPlayer* player, int row)
-{
-    int chatmenu = tut_chatmenu();
-
-    assert(srv);
-    assert(player);
-    tut_drain(srv, player, 1);
-    if( !player->active_script )
-        return;
-    player->last_slot = row;
-    if( chatmenu > 0 )
-        ToriRSServer_ScriptsResumeButton(srv, chatmenu);
-    tut_drain(srv, player, 1);
-}
-
-static void
 tut_snap(struct ToriRSServer* srv, struct ToriRSServerPlayer* player, int x, int z, int level)
 {
     assert(srv);
@@ -205,26 +199,6 @@ tut_oploc(
     else
         ToriRSServer_ScriptsRunTrigger(srv, trigger, loc_id, -1, -1);
     tut_drain(srv, player, 0);
-}
-
-static void
-tut_use_on_loc(
-    struct ToriRSServer* srv,
-    struct ToriRSServerPlayer* player,
-    int loc_id,
-    int loc_slot,
-    int obj_id)
-{
-    assert(srv);
-    assert(player);
-    tut_release(srv, player);
-    player->last_useitem = obj_id;
-    if( loc_slot >= 0 )
-        ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_id, -1, loc_slot);
-    else
-        ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPLOCU, loc_id, -1, -1);
-    tut_drain(srv, player, 0);
-    player->last_useitem = -1;
 }
 
 static void
@@ -334,6 +308,31 @@ tut_reached(
 }
 
 /*
+ * Click a flashing side-tab stone: `[if_button1,toplevel_osrs_stretch:stoneN]`,
+ * which `~tutorial_tab_opened` answers when the step is waiting on that tab.
+ * The client sends IF_BUTTON1 on the stone; this runs the same trigger.
+ */
+static void
+tut_stone(struct ToriRSServer* srv, struct ToriRSServerPlayer* player, int stone)
+{
+    char name[48];
+    int uid;
+
+    assert(srv);
+    assert(player);
+    if( g_tutorial_stuck )
+        return;
+    snprintf(name, sizeof(name), "toplevel_osrs_stretch:stone%d", stone);
+    uid = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, name);
+    SELFTEST_CHECK(uid > 0, "%s should resolve", name);
+    if( uid <= 0 )
+        return;
+    tut_release(srv, player);
+    ToriRSServer_ScriptsRunIfButton(srv, uid, 1);
+    tut_drain(srv, player, 0);
+}
+
+/*
  * A door the tutorial gates, opened at the step that unlocks it.
  *
  * Two things are asserted and the second is the one this section was written
@@ -394,8 +393,7 @@ selftest_tutorial_island(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
     int npc_quest;
     int npc_mining;
     int npc_combat;
-    int npc_banker;
-    int npc_financial;
+    int npc_account;
     int npc_brace;
     int npc_magic;
     int npc_fishspot;
@@ -405,7 +403,6 @@ selftest_tutorial_island(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
     int loc_door3;
     int loc_door4;
     int loc_ladder_down;
-    int loc_ladder_up;
     int loc_mine_gate;
     int loc_pit_gate;
     int loc_ladder_out;
@@ -418,17 +415,26 @@ selftest_tutorial_island(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
     int loc_tin;
     int loc_furnace;
     int loc_booth;
+    int loc_poll;
     int obj_axe;
     int obj_tinderbox;
     int obj_logs;
     int obj_net;
+    int obj_raw_shrimp;
     int obj_flour;
     int obj_water;
     int obj_dough;
+    int obj_bread;
+    int obj_pickaxe;
+    int obj_bar;
+    int obj_hammer;
     int obj_dagger;
     int obj_sword;
     int obj_shield;
-    int obj_pickaxe;
+    int obj_bow;
+    int obj_arrows;
+    int obj_air;
+    int obj_mind;
     int slot;
     int spawned[12];
     int i;
@@ -460,9 +466,7 @@ selftest_tutorial_island(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
     npc_quest = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "newbie_quest_instructor");
     npc_mining = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "newbie_mining_instructor");
     npc_combat = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "newbie_combat_instructor");
-    npc_banker = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "noobbanker");
-    (void)npc_banker;
-    npc_financial = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "newbie_account_instructor");
+    npc_account = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "newbie_account_instructor");
     npc_brace = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "brother_noob");
     npc_magic = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "newbie_magic_instructor");
     npc_fishspot = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "0_48_48_newbiefishing");
@@ -472,8 +476,6 @@ selftest_tutorial_island(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
     loc_door3 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "newbie_door3");
     loc_door4 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "newbie_door4");
     loc_ladder_down = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "newbieladdertop1");
-    loc_ladder_up = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "newbieladder1");
-    (void)loc_ladder_up;
     loc_mine_gate = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "newbiedoor4l");
     loc_pit_gate = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "newbiedoor5_l");
     loc_ladder_out = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "newbieladder2");
@@ -486,17 +488,26 @@ selftest_tutorial_island(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
     loc_tin = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "newbietinrock");
     loc_furnace = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "newbiefurnace");
     loc_booth = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "newbiebankbooth");
+    loc_poll = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "pollbooth_green");
     obj_axe = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "bronze_axe");
     obj_tinderbox = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "tinderbox");
     obj_logs = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "logs");
     obj_net = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "net");
+    obj_raw_shrimp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "raw_shrimp");
     obj_flour = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "newbie_pot_flour");
     obj_water = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "bucket_water");
     obj_dough = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "bread_dough");
+    obj_bread = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "bread");
+    obj_pickaxe = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "bronze_pickaxe");
+    obj_bar = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "bronze_bar");
+    obj_hammer = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "hammer");
     obj_dagger = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "bronze_dagger");
     obj_sword = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "bronze_sword");
     obj_shield = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "wooden_shield");
-    obj_pickaxe = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "bronze_pickaxe");
+    obj_bow = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "shortbow");
+    obj_arrows = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "bronze_arrow");
+    obj_air = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "airrune");
+    obj_mind = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "mindrune");
 
     SELFTEST_CHECK(varp > 0 && npc_basics > 0 && loc_door1 > 0 && obj_axe > 0,
                    "Tutorial Island symbols should all resolve");
@@ -509,55 +520,43 @@ selftest_tutorial_island(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
 
     player->godmode = 1;
     selftest_clear_inv(player);
-    tut_set_step(player, varp, 0);
-    /* The design panel is the one thing on this island that is not a step:
-     * `~tutorial_login` queues it once per character and the close moves the
-     * step back to 0. Marked done so the walk starts at the RuneScape Guide
-     * rather than inside a modal nothing here can click. */
+    /* NUDGE: the design panel and the familiarity question ("How familiar are
+     * you with Old School RuneScape?", interface 929) are the two things in the
+     * house that are not instructors: one is closed, the other answered on a
+     * stone button. Answered, the step is ^tut_talk_to_guide. */
     tut_set_step(player, varp_design, 1);
+    tut_set_step(player, varp, 2);
+    fprintf(stderr, "NUDGE tutorial familiarity tutorial=0->2 (interface 929)\n");
 
-    /* ---- The RuneScape Guide's house ---- */
+    /* ---- The Gielinor Guide's house ---- */
     tut_snap(srv, player, 3095, 3107, 0);
     tut_talk(srv, player, npc_basics, 3093, 3107, 0, &spawned[0]);
-    if( !tut_reached(player, varp, 4, "OPNPC1 RuneScape Guide") )
+    if( !tut_reached(player, varp, 3, "OPNPC1 Gielinor Guide") )
         goto tut_done;
-    tut_pass("guide", "OPNPC1 newbie_basics_instructor", "tutorial=4");
+    tut_stone(srv, player, 11);
+    if( !tut_reached(player, varp, 7, "IF_BUTTON1 stone11 (settings)") )
+        goto tut_done;
+    tut_talk(srv, player, npc_basics, 3093, 3107, 0, &spawned[0]);
+    if( !tut_reached(player, varp, 10, "OPNPC1 Gielinor Guide (settings opened)") )
+        goto tut_done;
+    tut_pass("guide", "OPNPC1 newbie_basics_instructor + stone11", "tutorial=10");
 
     tut_door(srv, player, loc_door1, 3098, 3107, 0, 3097, 3107, "newbie_door1");
-    if( !tut_reached(player, varp, 10, "OPLOC1 newbie_door1") )
+    if( !tut_reached(player, varp, 20, "OPLOC1 newbie_door1") )
         goto tut_done;
-    tut_pass("guide-door", "OPLOC1 newbie_door1", "tutorial=10 walked-through");
+    tut_pass("guide-door", "OPLOC1 newbie_door1", "tutorial=20 walked-through");
 
     /* ---- The Survival Expert ---- */
     tut_snap(srv, player, 3102, 3095, 0);
     tut_talk(srv, player, npc_survival, 3102, 3096, 0, &spawned[1]);
     if( !tut_reached(player, varp, 30, "OPNPC1 Survival Expert") )
         goto tut_done;
-    SELFTEST_CHECK(selftest_count(player, obj_axe) == 1 &&
-                       selftest_count(player, obj_tinderbox) == 1,
-                   "the Survival Expert should hand over an axe and a tinderbox");
-    tut_pass("survival", "OPNPC1 newbie_survival_instructor", "tutorial=30 axe+tinderbox");
-
-    tut_snap(srv, player, 3097, 3096, 0);
-    slot = tut_find_loc(player->x, player->z, 0, loc_tree, 8);
-    SELFTEST_CHECK(slot >= 0, "a newbietree should be near the Survival Expert");
-    if( slot >= 0 )
-        tut_oploc(srv, player, SS_TRIGGER_OPLOC1, loc_tree, slot);
-    if( !tut_reached(player, varp, 40, "OPLOC1 newbietree") )
+    SELFTEST_CHECK(selftest_count(player, obj_net) == 1,
+                   "the Survival Expert should hand over a net");
+    tut_stone(srv, player, 3);
+    if( !tut_reached(player, varp, 40, "IF_BUTTON1 stone3 (inventory)") )
         goto tut_done;
-    SELFTEST_CHECK(selftest_count(player, obj_logs) >= 1, "the chop should yield logs");
-    tut_pass("chop", "OPLOC1 newbietree", "tutorial=40 logs");
-
-    /* NUDGE: the fire is skill_firemaking's, and lighting one needs a free
-     * tile, an animation and a loc_add this fixture does not drive. */
-    tut_set_step(player, varp, 60);
-    fprintf(stderr, "NUDGE tutorial fire tutorial=40->60 (skill_firemaking)\n");
-
-    tut_talk(srv, player, npc_survival, 3102, 3096, 0, &spawned[1]);
-    if( !tut_reached(player, varp, 70, "OPNPC1 Survival Expert (fishing)") )
-        goto tut_done;
-    SELFTEST_CHECK(selftest_count(player, obj_net) >= 1, "the Survival Expert should hand over a net");
-    tut_pass("fishing-brief", "OPNPC1 newbie_survival_instructor", "tutorial=70 net");
+    tut_pass("survival", "OPNPC1 newbie_survival_instructor + stone3", "tutorial=40 net");
 
     if( npc_fishspot > 0 )
     {
@@ -575,13 +574,39 @@ selftest_tutorial_island(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
             tut_drain(srv, player, 0);
         }
     }
-    if( !tut_reached(player, varp, 80, "OPNPC1 fishing spot") )
+    if( !tut_reached(player, varp, 50, "OPNPC1 fishing spot") )
         goto tut_done;
-    tut_pass("fish", "OPNPC1 0_48_48_newbiefishing", "tutorial=80 raw shrimp");
+    SELFTEST_CHECK(selftest_count(player, obj_raw_shrimp) == 1, "the net should catch a shrimp");
+    tut_stone(srv, player, 1);
+    if( !tut_reached(player, varp, 60, "IF_BUTTON1 stone1 (skills)") )
+        goto tut_done;
+    tut_pass("fish", "OPNPC1 0_48_48_newbiefishing + stone1", "tutorial=60 raw shrimp");
 
-    /* NUDGE: cooking the shrimp on the fire is skill_cooking's roll. */
+    tut_talk(srv, player, npc_survival, 3102, 3096, 0, &spawned[1]);
+    if( !tut_reached(player, varp, 70, "OPNPC1 Survival Expert (woodcutting)") )
+        goto tut_done;
+    SELFTEST_CHECK(selftest_count(player, obj_axe) == 1 &&
+                       selftest_count(player, obj_tinderbox) == 1,
+                   "the Survival Expert should hand over an axe and a tinderbox");
+    tut_pass("survival-tools", "OPNPC1 newbie_survival_instructor", "tutorial=70 axe+tinderbox");
+
+    tut_snap(srv, player, 3097, 3096, 0);
+    slot = tut_find_loc(player->x, player->z, 0, loc_tree, 8);
+    SELFTEST_CHECK(slot >= 0, "a newbietree should be near the Survival Expert");
+    if( slot >= 0 )
+        tut_oploc(srv, player, SS_TRIGGER_OPLOC1, loc_tree, slot);
+    if( !tut_reached(player, varp, 80, "OPLOC1 newbietree") )
+        goto tut_done;
+    SELFTEST_CHECK(selftest_count(player, obj_logs) >= 1, "the chop should yield logs");
+    tut_pass("chop", "OPLOC1 newbietree", "tutorial=80 logs");
+
+    /* NUDGE: the fire is skill_firemaking's (a roll every four ticks, a free
+     * tile, an animation and a loc_add); the shrimp on it is skill_cooking's
+     * roll. */
+    tut_set_step(player, varp, 90);
+    fprintf(stderr, "NUDGE tutorial fire tutorial=80->90 (skill_firemaking)\n");
     tut_set_step(player, varp, 120);
-    fprintf(stderr, "NUDGE tutorial shrimp tutorial=80->120 (skill_cooking)\n");
+    fprintf(stderr, "NUDGE tutorial shrimp tutorial=90->120 (skill_cooking)\n");
 
     /* ---- The gate, and the Master Chef ---- */
     tut_door(srv, player, loc_gate_l, 3089, 3092, 0, 3090, 3092, "newbiegateclosedl2");
@@ -589,7 +614,7 @@ selftest_tutorial_island(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
         goto tut_done;
     tut_pass("survival-gate", "OPLOC1 newbiegateclosedl2", "tutorial=130 walked-through");
 
-    tut_door(srv, player, loc_door2, 3079, 3084, 0, 3079, 3084, "newbie_door2");
+    tut_door(srv, player, loc_door2, 3079, 3084, 0, 3080, 3084, "newbie_door2");
     if( !tut_reached(player, varp, 140, "OPLOC1 newbie_door2") )
         goto tut_done;
     tut_pass("chef-door", "OPLOC1 newbie_door2", "tutorial=140 walked-through");
@@ -608,18 +633,20 @@ selftest_tutorial_island(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
     SELFTEST_CHECK(selftest_count(player, obj_dough) == 1, "flour on water should make dough");
     tut_pass("dough", "OPHELDU newbie_pot_flour", "tutorial=160 bread_dough");
 
+    /* "To do so, just click on the indicated range." */
     slot = tut_find_loc(3075, 3081, 0, loc_range, 4);
     SELFTEST_CHECK(slot >= 0, "the tutorial range should be placed at 3075,3081");
     if( slot >= 0 )
-        tut_use_on_loc(srv, player, loc_range, slot, obj_dough);
-    if( !tut_reached(player, varp, 180, "OPLOCU newbierange") )
+        tut_oploc(srv, player, SS_TRIGGER_OPLOC1, loc_range, slot);
+    if( !tut_reached(player, varp, 170, "OPLOC1 newbierange") )
         goto tut_done;
-    tut_pass("bread", "OPLOCU newbierange", "tutorial=180 bread + music tab");
+    SELFTEST_CHECK(selftest_count(player, obj_bread) == 1, "the range should bake the bread");
+    tut_pass("bread", "OPLOC1 newbierange", "tutorial=170 bread");
 
-    tut_door(srv, player, loc_door3, 3072, 3090, 0, 3072, 3090, "newbie_door3");
-    if( !tut_reached(player, varp, 190, "OPLOC1 newbie_door3") )
+    tut_door(srv, player, loc_door3, 3072, 3090, 0, 3073, 3090, "newbie_door3");
+    if( !tut_reached(player, varp, 200, "OPLOC1 newbie_door3") )
         goto tut_done;
-    tut_pass("chef-exit", "OPLOC1 newbie_door3", "tutorial=190 walked-through");
+    tut_pass("chef-exit", "OPLOC1 newbie_door3", "tutorial=200 walked-through");
 
     /* ---- Running ---- */
     {
@@ -631,31 +658,34 @@ selftest_tutorial_island(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
         /* Twice, because the step is "turn running ON" and the orb is a
          * toggle: a character who already has it on has to click it off first.
          * The second click is a no-op when the first already turned it on. */
-        for( i = 0; i < 2 && tut_step(player, varp) < 200; i++ )
+        for( i = 0; i < 2 && tut_step(player, varp) < 210; i++ )
         {
             tut_release(srv, player);
             ToriRSServer_ScriptsRunIfButton(srv, runbutton, 1);
             tut_drain(srv, player, 0);
         }
     }
-    if( !tut_reached(player, varp, 200, "IF_BUTTON orbs:runbutton") )
+    if( !tut_reached(player, varp, 210, "IF_BUTTON orbs:runbutton") )
         goto tut_done;
-    tut_pass("run", "IF_BUTTON orbs:runbutton", "tutorial=200 run on");
+    tut_pass("run", "IF_BUTTON orbs:runbutton", "tutorial=210 run on");
 
     /* ---- The Quest Guide ---- */
-    tut_door(srv, player, loc_door4, 3086, 3126, 0, 3086, 3126, "newbie_door4");
+    tut_door(srv, player, loc_door4, 3086, 3126, 0, 3086, 3127, "newbie_door4");
     if( !tut_reached(player, varp, 220, "OPLOC1 newbie_door4") )
         goto tut_done;
     tut_pass("quest-door", "OPLOC1 newbie_door4", "tutorial=220 walked-through");
 
     tut_snap(srv, player, 3085, 3122, 0);
     tut_talk(srv, player, npc_quest, 3085, 3122, 0, &spawned[4]);
-    if( !tut_reached(player, varp, 240, "OPNPC1 Quest Guide") )
+    if( !tut_reached(player, varp, 230, "OPNPC1 Quest Guide") )
+        goto tut_done;
+    tut_stone(srv, player, 2);
+    if( !tut_reached(player, varp, 240, "IF_BUTTON1 stone2 (quest list)") )
         goto tut_done;
     tut_talk(srv, player, npc_quest, 3085, 3122, 0, &spawned[4]);
-    if( !tut_reached(player, varp, 250, "OPNPC1 Quest Guide (journal)") )
+    if( !tut_reached(player, varp, 250, "OPNPC1 Quest Guide (quest list open)") )
         goto tut_done;
-    tut_pass("quest-guide", "OPNPC1 newbie_quest_instructor", "tutorial=250");
+    tut_pass("quest-guide", "OPNPC1 newbie_quest_instructor + stone2", "tutorial=250");
 
     /* ---- The mine ---- */
     tut_snap(srv, player, 3088, 3119, 0);
@@ -667,78 +697,63 @@ selftest_tutorial_island(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
         goto tut_done;
     tut_pass("mine-ladder", "OPLOC1 newbieladdertop1", "tutorial=260");
 
-    tut_snap(srv, player, 3081, 9500, 0);
-    tut_talk(srv, player, npc_mining, 3081, 9500, 0, &spawned[5]);
+    tut_snap(srv, player, 3080, 9505, 0);
+    tut_talk(srv, player, npc_mining, 3080, 9504, 0, &spawned[5]);
     if( !tut_reached(player, varp, 270, "OPNPC1 Mining Instructor") )
         goto tut_done;
-    tut_pass("dezzick", "OPNPC1 newbie_mining_instructor", "tutorial=270");
+    SELFTEST_CHECK(selftest_count(player, obj_pickaxe) >= 1, "Dezzick should hand over a pickaxe");
+    tut_pass("dezzick", "OPNPC1 newbie_mining_instructor", "tutorial=270 bronze_pickaxe");
 
-    slot = tut_find_loc(3083, 9501, 0, loc_copper, 4);
-    SELFTEST_CHECK(slot >= 0, "a newbiecopperrock should be in the mine");
-    if( slot >= 0 )
-    {
-        tut_snap(srv, player, 3083, 9502, 0);
-        tut_oploc(srv, player, SS_TRIGGER_OPLOC2, loc_copper, slot);
-    }
-    if( !tut_reached(player, varp, 274, "OPLOC2 newbiecopperrock (prospect)") )
-        goto tut_done;
     slot = tut_find_loc(3073, 9505, 0, loc_tin, 4);
     SELFTEST_CHECK(slot >= 0, "a newbietinrock should be in the mine");
     if( slot >= 0 )
     {
         tut_snap(srv, player, 3074, 9505, 0);
-        tut_oploc(srv, player, SS_TRIGGER_OPLOC2, loc_tin, slot);
+        tut_oploc(srv, player, SS_TRIGGER_OPLOC1, loc_tin, slot);
     }
-    if( !tut_reached(player, varp, 279, "OPLOC2 newbietinrock (prospect)") )
+    if( !tut_reached(player, varp, 280, "OPLOC1 newbietinrock") )
         goto tut_done;
-    tut_pass("prospect", "OPLOC2 newbie rocks", "tutorial=279");
-
-    tut_talk(srv, player, npc_mining, 3081, 9500, 0, &spawned[5]);
-    if( !tut_reached(player, varp, 290, "OPNPC1 Mining Instructor (mine)") )
-        goto tut_done;
-    SELFTEST_CHECK(selftest_count(player, obj_pickaxe) >= 1, "Dezzick should hand over a pickaxe");
-    tut_pass("pickaxe", "OPNPC1 newbie_mining_instructor", "tutorial=290 bronze_pickaxe");
-
     slot = tut_find_loc(3083, 9501, 0, loc_copper, 4);
+    SELFTEST_CHECK(slot >= 0, "a newbiecopperrock should be in the mine");
     if( slot >= 0 )
     {
         tut_snap(srv, player, 3083, 9502, 0);
         tut_oploc(srv, player, SS_TRIGGER_OPLOC1, loc_copper, slot);
     }
-    if( !tut_reached(player, varp, 294, "OPLOC1 newbiecopperrock (mine)") )
+    if( !tut_reached(player, varp, 290, "OPLOC1 newbiecopperrock") )
         goto tut_done;
-    slot = tut_find_loc(3073, 9505, 0, loc_tin, 4);
-    if( slot >= 0 )
-    {
-        tut_snap(srv, player, 3074, 9505, 0);
-        tut_oploc(srv, player, SS_TRIGGER_OPLOC1, loc_tin, slot);
-    }
-    if( !tut_reached(player, varp, 320, "OPLOC1 newbietinrock (mine)") )
-        goto tut_done;
-    tut_pass("mine", "OPLOC1 newbie rocks", "tutorial=320 both ores");
+    tut_pass("mine", "OPLOC1 newbie rocks", "tutorial=290 both ores");
 
+    /* "To do so, just click on the indicated furnace." */
     slot = tut_find_loc(3078, 9495, 0, loc_furnace, 4);
     SELFTEST_CHECK(slot >= 0, "newbiefurnace should be placed at 3078,9495");
     if( slot >= 0 )
     {
-        int obj_copper_ore = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "copper_ore");
-
         tut_snap(srv, player, 3078, 9496, 0);
-        tut_use_on_loc(srv, player, loc_furnace, slot, obj_copper_ore);
+        tut_oploc(srv, player, SS_TRIGGER_OPLOC1, loc_furnace, slot);
     }
-    if( !tut_reached(player, varp, 330, "OPLOCU newbiefurnace") )
+    if( !tut_reached(player, varp, 300, "OPLOC1 newbiefurnace") )
         goto tut_done;
-    tut_pass("smelt", "OPLOCU newbiefurnace", "tutorial=330 bronze bar");
+    SELFTEST_CHECK(selftest_count(player, obj_bar) == 1, "the furnace should make a bronze bar");
+    tut_pass("smelt", "OPLOC1 newbiefurnace", "tutorial=300 bronze bar");
 
-    tut_talk(srv, player, npc_mining, 3081, 9500, 0, &spawned[5]);
-    if( !tut_reached(player, varp, 340, "OPNPC1 Mining Instructor (smith)") )
+    tut_talk(srv, player, npc_mining, 3080, 9504, 0, &spawned[5]);
+    if( !tut_reached(player, varp, 310, "OPNPC1 Mining Instructor (smith)") )
         goto tut_done;
-    tut_pass("hammer", "OPNPC1 newbie_mining_instructor", "tutorial=340 hammer");
+    SELFTEST_CHECK(selftest_count(player, obj_hammer) >= 1, "Dezzick should hand over a hammer");
+    tut_pass("hammer", "OPNPC1 newbie_mining_instructor", "tutorial=310 hammer");
 
-    /* NUDGE: the anvil opens skill_smithing's product panel, which is a
-     * multi-page interface this fixture does not drive. */
+    /* NUDGE: the anvil opens skill_smithing's make-menu (two pages, a
+     * resume per page), which this fixture does not drive. The dagger it
+     * makes is handed over: the Combat Instructor's steps wield it. */
     tut_set_step(player, varp, 350);
-    fprintf(stderr, "NUDGE tutorial dagger tutorial=340->350 (skill_smithing)\n");
+    {
+        int free_slot = inv_first_free(player);
+
+        if( free_slot >= 0 )
+            inv_set(player, free_slot, obj_dagger, 1);
+    }
+    fprintf(stderr, "NUDGE tutorial dagger tutorial=310->350 (skill_smithing)\n");
 
     /* ---- The Combat Instructor ---- */
     tut_door(srv, player, loc_mine_gate, 3094, 9503, 0, 3093, 9503, "newbiedoor4l");
@@ -746,44 +761,64 @@ selftest_tutorial_island(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
         goto tut_done;
     tut_pass("mine-gate", "OPLOC1 newbiedoor4l", "tutorial=360 walked-through");
 
-    tut_snap(srv, player, 3106, 9509, 0);
+    tut_snap(srv, player, 3105, 9508, 0);
     tut_talk(srv, player, npc_combat, 3106, 9509, 0, &spawned[6]);
-    if( !tut_reached(player, varp, 380, "OPNPC1 Combat Instructor") )
+    if( !tut_reached(player, varp, 370, "OPNPC1 Combat Instructor") )
         goto tut_done;
-    SELFTEST_CHECK(selftest_count(player, obj_dagger) >= 1, "Vannaka should hand over a dagger");
-    tut_pass("vannaka", "OPNPC1 newbie_combat_instructor", "tutorial=380 bronze_dagger");
+    tut_stone(srv, player, 4);
+    if( !tut_reached(player, varp, 400, "IF_BUTTON1 stone4 (worn equipment)") )
+        goto tut_done;
+    {
+        int stats_button = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT,
+                                                      "wornitems:equipment");
 
+        SELFTEST_CHECK(stats_button > 0, "wornitems:equipment should resolve");
+        tut_release(srv, player);
+        if( stats_button > 0 )
+            ToriRSServer_ScriptsRunIfButton(srv, stats_button, 1);
+        tut_drain(srv, player, 0);
+        tut_release(srv, player);
+    }
+    if( !tut_reached(player, varp, 405, "IF_BUTTON wornitems:equipment") )
+        goto tut_done;
     tut_wield(srv, player, obj_dagger);
-    if( !tut_reached(player, varp, 390, "OPHELD2 bronze_dagger") )
+    if( !tut_reached(player, varp, 410, "OPHELD2 bronze_dagger") )
         goto tut_done;
-    tut_pass("wield", "OPHELD2 bronze_dagger", "tutorial=390");
+    tut_pass("vannaka", "OPNPC1 + stone4 + equipment stats + OPHELD2", "tutorial=410");
 
     tut_talk(srv, player, npc_combat, 3106, 9509, 0, &spawned[6]);
-    if( !tut_reached(player, varp, 400, "OPNPC1 Combat Instructor (sword)") )
+    if( !tut_reached(player, varp, 420, "OPNPC1 Combat Instructor (sword)") )
         goto tut_done;
+    SELFTEST_CHECK(selftest_count(player, obj_sword) == 1 && selftest_count(player, obj_shield) == 1,
+                   "Vannaka should hand over a sword and a shield");
     tut_wield(srv, player, obj_sword);
     tut_wield(srv, player, obj_shield);
-    tut_talk(srv, player, npc_combat, 3106, 9509, 0, &spawned[6]);
-    if( !tut_reached(player, varp, 420, "OPNPC1 Combat Instructor (combat tab)") )
+    if( !tut_reached(player, varp, 430, "OPHELD2 bronze_sword + wooden_shield") )
         goto tut_done;
-    tut_pass("sword-shield", "OPHELD2 + OPNPC1", "tutorial=420");
+    tut_stone(srv, player, 0);
+    if( !tut_reached(player, varp, 440, "IF_BUTTON1 stone0 (combat)") )
+        goto tut_done;
+    tut_pass("sword-shield", "OPHELD2 + stone0", "tutorial=440");
 
     tut_door(srv, player, loc_pit_gate, 3111, 9518, 0, 3112, 9518, "newbiedoor5_l");
-    if( !tut_reached(player, varp, 430, "OPLOC1 newbiedoor5_l") )
+    if( !tut_reached(player, varp, 450, "OPLOC1 newbiedoor5_l") )
         goto tut_done;
-    tut_pass("rat-pit", "OPLOC1 newbiedoor5_l", "tutorial=430 walked-through");
+    tut_pass("rat-pit", "OPLOC1 newbiedoor5_l", "tutorial=450 walked-through");
 
     /* NUDGE: two rat kills, which is skill_combat plus npc_findhero. */
-    tut_set_step(player, varp, 450);
-    fprintf(stderr, "NUDGE tutorial melee kill tutorial=430->450 (skill_combat)\n");
+    tut_set_step(player, varp, 460);
+    fprintf(stderr, "NUDGE tutorial melee kill tutorial=450->460 (skill_combat)\n");
+    tut_snap(srv, player, 3105, 9508, 0);
     tut_talk(srv, player, npc_combat, 3106, 9509, 0, &spawned[6]);
-    if( !tut_reached(player, varp, 460, "OPNPC1 Combat Instructor (ranged)") )
+    if( !tut_reached(player, varp, 470, "OPNPC1 Combat Instructor (ranged)") )
         goto tut_done;
-    tut_pass("ranged-brief", "OPNPC1 newbie_combat_instructor", "tutorial=460 bow+arrows");
-    tut_set_step(player, varp, 470);
-    fprintf(stderr, "NUDGE tutorial ranged kill tutorial=460->470 (skill_combat)\n");
+    SELFTEST_CHECK(selftest_count(player, obj_bow) == 1 && selftest_count(player, obj_arrows) == 50,
+                   "Vannaka should hand over a shortbow and 50 bronze arrows");
+    tut_pass("ranged-brief", "OPNPC1 newbie_combat_instructor", "tutorial=470 bow+arrows");
+    tut_set_step(player, varp, 480);
+    fprintf(stderr, "NUDGE tutorial ranged kill tutorial=470->480 (skill_combat)\n");
 
-    tut_snap(srv, player, 3111, 9526, 0);
+    tut_snap(srv, player, 3111, 9525, 0);
     slot = tut_find_loc(3111, 9526, 0, loc_ladder_out, 2);
     SELFTEST_CHECK(slot >= 0, "newbieladder2 should be placed at 3111,9526");
     if( slot >= 0 )
@@ -792,87 +827,93 @@ selftest_tutorial_island(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
         goto tut_done;
     tut_pass("leave-mine", "OPLOC1 newbieladder2", "tutorial=500");
 
-    /* ---- The bank, the Financial Advisor, the chapel ---- */
+    /* ---- The bank, the poll booth, the Account Guide ---- */
     tut_snap(srv, player, 3120, 3123, 0);
     slot = tut_find_loc(3120, 3124, 0, loc_booth, 3);
     SELFTEST_CHECK(slot >= 0, "newbiebankbooth should be placed near 3120,3124");
     if( slot >= 0 )
-    {
-        /* The booth routes through the teller when one is standing behind it,
-         * and his page is a two-row choice. "Yes." is row 1. */
-        tut_release(srv, player);
-        ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_booth, -1, slot);
-        tut_choose(srv, player, 1);
-        tut_drain(srv, player, 0);
-    }
+        tut_oploc(srv, player, SS_TRIGGER_OPLOC1, loc_booth, slot);
+    tut_release(srv, player);
     if( !tut_reached(player, varp, 510, "OPLOC1 newbiebankbooth") )
         goto tut_done;
     tut_pass("bank", "OPLOC1 newbiebankbooth", "tutorial=510");
 
-    tut_door(srv, player, loc_door6, 3125, 3124, 0, 3125, 3124, "newbie_door6");
-    if( !tut_reached(player, varp, 520, "OPLOC1 newbie_door6") )
+    slot = tut_find_loc(3120, 3124, 0, loc_poll, 10);
+    SELFTEST_CHECK(slot >= 0, "pollbooth_green should be placed outside the bank");
+    if( slot >= 0 )
+        tut_oploc(srv, player, SS_TRIGGER_OPLOC1, loc_poll, slot);
+    if( !tut_reached(player, varp, 520, "OPLOC1 pollbooth_green") )
         goto tut_done;
-    tut_pass("advisor-door", "OPLOC1 newbie_door6", "tutorial=520 walked-through");
+    tut_pass("poll-booth", "OPLOC1 pollbooth_green", "tutorial=520");
+
+    tut_door(srv, player, loc_door6, 3125, 3124, 0, 3124, 3124, "newbie_door6");
+    if( !tut_reached(player, varp, 525, "OPLOC1 newbie_door6") )
+        goto tut_done;
+    tut_pass("account-door", "OPLOC1 newbie_door6", "tutorial=525 walked-through");
 
     tut_snap(srv, player, 3127, 3124, 0);
-    tut_talk(srv, player, npc_financial, 3127, 3124, 0, &spawned[7]);
-    if( !tut_reached(player, varp, 530, "OPNPC1 Financial Advisor") )
+    tut_talk(srv, player, npc_account, 3127, 3124, 0, &spawned[7]);
+    if( !tut_reached(player, varp, 530, "OPNPC1 Account Guide") )
         goto tut_done;
-    tut_pass("advisor", "OPNPC1 newbie_account_instructor", "tutorial=530");
+    tut_stone(srv, player, 8);
+    if( !tut_reached(player, varp, 535, "IF_BUTTON1 stone8 (account)") )
+        goto tut_done;
+    tut_talk(srv, player, npc_account, 3127, 3124, 0, &spawned[7]);
+    if( !tut_reached(player, varp, 540, "OPNPC1 Account Guide (account open)") )
+        goto tut_done;
+    tut_pass("account", "OPNPC1 newbie_account_instructor + stone8", "tutorial=540");
 
     tut_door(srv, player, loc_door7, 3130, 3124, 0, 3129, 3124, "newbie_door7");
-    if( !tut_reached(player, varp, 540, "OPLOC1 newbie_door7") )
+    if( !tut_reached(player, varp, 550, "OPLOC1 newbie_door7") )
         goto tut_done;
-    tut_pass("advisor-exit", "OPLOC1 newbie_door7", "tutorial=540 walked-through");
+    tut_pass("account-exit", "OPLOC1 newbie_door7", "tutorial=550 walked-through");
 
-    tut_snap(srv, player, 3122, 3105, 0);
-    tut_talk(srv, player, npc_brace, 3122, 3105, 0, &spawned[8]);
+    /* ---- Brother Brace ---- */
+    tut_snap(srv, player, 3124, 3107, 0);
+    tut_talk(srv, player, npc_brace, 3124, 3106, 0, &spawned[8]);
     if( !tut_reached(player, varp, 560, "OPNPC1 Brother Brace") )
         goto tut_done;
-    tut_talk(srv, player, npc_brace, 3122, 3105, 0, &spawned[8]);
-    if( !tut_reached(player, varp, 570, "OPNPC1 Brother Brace (prayer)") )
+    tut_stone(srv, player, 5);
+    if( !tut_reached(player, varp, 570, "IF_BUTTON1 stone5 (prayer)") )
         goto tut_done;
-    tut_talk(srv, player, npc_brace, 3122, 3105, 0, &spawned[8]);
-    if( !tut_reached(player, varp, 590, "OPNPC1 Brother Brace (friends)") )
+    tut_talk(srv, player, npc_brace, 3124, 3106, 0, &spawned[8]);
+    if( !tut_reached(player, varp, 600, "OPNPC1 Brother Brace (prayer open)") )
         goto tut_done;
-    tut_talk(srv, player, npc_brace, 3122, 3105, 0, &spawned[8]);
-    if( !tut_reached(player, varp, 600, "OPNPC1 Brother Brace (conduct)") )
-        goto tut_done;
-    tut_pass("brace", "OPNPC1 brother_noob", "tutorial=600");
+    tut_pass("brace", "OPNPC1 brother_noob + stone5", "tutorial=600");
 
-    tut_door(srv, player, loc_door8, 3122, 3102, 0, 3122, 3102, "newbie_door8");
+    tut_door(srv, player, loc_door8, 3122, 3102, 0, 3122, 3103, "newbie_door8");
     if( !tut_reached(player, varp, 610, "OPLOC1 newbie_door8") )
         goto tut_done;
     tut_pass("chapel-exit", "OPLOC1 newbie_door8", "tutorial=610 walked-through");
 
     /* ---- The Magic Instructor ---- */
-    tut_snap(srv, player, 3140, 3090, 0);
+    tut_snap(srv, player, 3140, 3089, 0);
     tut_talk(srv, player, npc_magic, 3140, 3090, 0, &spawned[9]);
-    if( !tut_reached(player, varp, 630, "OPNPC1 Magic Instructor") )
+    if( !tut_reached(player, varp, 620, "OPNPC1 Magic Instructor") )
+        goto tut_done;
+    tut_stone(srv, player, 6);
+    if( !tut_reached(player, varp, 630, "IF_BUTTON1 stone6 (magic)") )
         goto tut_done;
     tut_talk(srv, player, npc_magic, 3140, 3090, 0, &spawned[9]);
     if( !tut_reached(player, varp, 640, "OPNPC1 Magic Instructor (runes)") )
         goto tut_done;
-    tut_pass("terrova", "OPNPC1 newbie_magic_instructor", "tutorial=640 runes");
+    SELFTEST_CHECK(selftest_count(player, obj_air) == 5 && selftest_count(player, obj_mind) == 5,
+                   "Terrova should hand over five air and five mind runes");
+    tut_pass("terrova", "OPNPC1 newbie_magic_instructor + stone6", "tutorial=640 runes");
 
-    /* NUDGE: two Wind Strikes at a caged chicken, which is skill_combat's
-     * spell path. */
-    tut_set_step(player, varp, 660);
-    fprintf(stderr, "NUDGE tutorial wind strike tutorial=640->660 (skill_combat)\n");
-
-    tut_talk(srv, player, npc_magic, 3140, 3090, 0, &spawned[9]);
-    if( !tut_reached(player, varp, 670, "OPNPC1 Magic Instructor (finished)") )
-        goto tut_done;
-    tut_pass("magic-done", "OPNPC1 newbie_magic_instructor", "tutorial=670");
+    /* NUDGE: the Wind Strike on a chicken, which is skill_combat's spell path;
+     * hit or splash, it completes the quest (^tut_quest_complete). */
+    tut_set_step(player, varp, 671);
+    fprintf(stderr, "NUDGE tutorial wind strike tutorial=640->671 (skill_combat)\n");
 
     /* ---- Off the island ---- */
-    /* The ordinary way off is the Home Teleport, and `~tutorial_home_teleport`
-     * is reached through skill_magic's spell. What this section owns is that
-     * step 670 is reachable at all. */
-    fprintf(stderr, "NUDGE tutorial home teleport tutorial=670->1000 (skill_magic)\n");
-    SELFTEST_CHECK(tut_step(player, varp) >= 670,
+    /* The way off is the Home Teleport, and `~tutorial_home_teleport` is
+     * reached through skill_magic's spell. What this section owns is that the
+     * quest's endstate is reachable at all. */
+    fprintf(stderr, "NUDGE tutorial home teleport tutorial=671->1000 (skill_magic)\n");
+    SELFTEST_CHECK(tut_step(player, varp) >= 671,
                    "Tutorial Island should be walkable to its last step");
-    tut_pass("island", "the whole chain", "tutorial=670 reachable from 0");
+    tut_pass("island", "the whole chain", "tutorial=671 reachable from 0");
 
 tut_done:
     for( i = 0; i < (int)(sizeof(spawned) / sizeof(spawned[0])); i++ )

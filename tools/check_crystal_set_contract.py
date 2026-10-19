@@ -140,8 +140,12 @@ def check(root: Path, content: Path) -> list[str]:
             errors.append(
                 f"{WORLD}: {entry.strip()} must strip ::~ before calling cheat_dispatch"
             )
+    # The definition, not a forward declaration: skip any `cheat_dispatch(`
+    # whose parameter list ends in `);` (cheat_run_kit needs a prototype).
     start = source.find("\ncheat_dispatch(")
-    body = source[start:source.find("\n}\n", start)]
+    while start >= 0 and source.find(");", start) < source.find("{", start):
+        start = source.find("\ncheat_dispatch(", start + 1)
+    body = source[start:source.find("\n}\n", start)] if start >= 0 else ""
     debugproc = body.find("ToriRSServer_ScriptsRunDebugproc(srv, text)")
     ladder = body.find("ToriRSServer_RunCheatLadder(")
     if start < 0 or debugproc < 0 or ladder < 0 or debugproc > ladder:
