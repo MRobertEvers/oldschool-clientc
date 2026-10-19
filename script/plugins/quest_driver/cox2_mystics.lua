@@ -13,8 +13,8 @@
 -- cheaply and every other dearly; and never orthogonally beside one (its punch
 -- is 25, through the magic prayer). The blowpipe's reach (5) is the target's.
 --
--- Perception: npc rows (7604-7606, their seqs: 5523 cast, 5485 punch), the
--- casts' projectiles (130 fire blast, 168 vulnerability), the Mark of Power
+-- Perception: npc rows (7604-7606, their seqs: 5528 cast, 5485 punch), the
+-- casts' projectiles (130 fire blast, 109 vulnerability), the Mark of Power
 -- (loc 29741) and the portals (49996-49998) in the loc rows.
 -- ==========================================================================
 
@@ -44,8 +44,11 @@ QD.COXM.V = {
     -- restore sips: gap 8 -> 64 sips, 12 -> 65, 20 -> 78; a shallower drain
     -- costs restores but misses fewer shots, and the fight is the dear part)
     RESTORE_GAP = 8,
-    -- a mystic not yet on me: seeing it wakes it (one more caster)
-    WAKE_EXP = 1.5, WAKE_MAX = 1.2,
+    -- a mystic not yet on me: coming within its hunt range wakes it (one more
+    -- caster). RSProx (docs/rsprox-analysis/cox/mystics.md RM-W1): 7 from its
+    -- south-west tile, and only if it sees me; the watcher has no range, so
+    -- the price is a box (the sight is not priced: the box is the worst case)
+    WAKE_EXP = 1.5, WAKE_MAX = 1.2, HUNT = 7,
     SIGHT = 15,
     EAT_BELOW = 60, BREW_BELOW = 60,
 }
@@ -53,7 +56,7 @@ QD.COXM.V = {
 function QD.COXM.ids(opts)
     local ids = QD.raid._tob_common_ids("cox_mystics", opts)
     local room = QD.raid._tob_symbols("cox_mystics", {
-        { "cast", "seq", "skeleton_update_mage_casting" }, { "punch", "seq", "skeleton_update_attack_weapon" },
+        { "cast", "seq", "skeleton_update_mage_casting_swansong" }, { "punch", "seq", "skeleton_update_attack_weapon" },
         { "mark", "loc", "raids_skeletalmystics_symbol" }, { "portal_end", "loc", "raids_mystics_portal_end" },
         { "pipe", "obj", "toxic_blowpipe_loaded" }, { "salve", "obj", "nzone_salve_amulet_e" },
         { "assembler", "obj", "avas_assembler" }, { "dhide_body", "obj", "black_dragonhide_body" },
@@ -125,11 +128,14 @@ function QD.COXM.observe(S, F)
                     m.punches = m.punches + 1
                 end
             end
-            -- a mystic that walked has a target: it is awake
+            -- (a step is NOT a target: an idle mystic wanders, up to 7 round
+            -- its spawn, RSProx RM-S1. Read as "awake and walking at me" the
+            -- trap held a tile for 1150 ticks against a wanderer, myst1. It is
+            -- awake once it casts or punches; a step after that is its melee
+            -- walk.)
             if row.x ~= st.x or row.z ~= st.z then
-                st.awake = true
                 st.x, st.z = row.x, row.z
-                st.moved_at = F.tick
+                if st.awake then st.moved_at = F.tick end
             end
         end
     end
@@ -160,11 +166,14 @@ function QD.COXM.predict(S, F, B)
             -- OTHER that sees me is a caster the shots do not pay for -- priced
             -- at the same 0.8, the plan stood where all three saw it for a
             -- hundred ticks, raid2 room 10)
-            local exp = V.WAKE_EXP
-            if awake then exp = (QD.T2.npc_key(row) == m.target) and V.SEEN_EXP or V.OTHER_EXP end
-            B.watcher({ name = (awake and "cast_" or "wake_") .. row.npc_id, x = row.x, z = row.z, size = V.SIZE,
-                        t0 = d + 1, t1 = d + B.h, dmg_exp = exp,
-                        dmg_max = awake and V.SEEN_MAX or V.WAKE_MAX })
+            if awake then
+                local exp = (QD.T2.npc_key(row) == m.target) and V.SEEN_EXP or V.OTHER_EXP
+                B.watcher({ name = "cast_" .. row.npc_id, x = row.x, z = row.z, size = V.SIZE,
+                            t0 = d + 1, t1 = d + B.h, dmg_exp = exp, dmg_max = V.SEEN_MAX })
+            else
+                B.hit({ name = "wake_" .. row.npc_id, x0 = row.x - V.HUNT, z0 = row.z - V.HUNT, x1 = row.x + V.HUNT,
+                        z1 = row.z + V.HUNT, t0 = d + 1, t1 = d + B.h, dmg_exp = V.WAKE_EXP, dmg_max = V.WAKE_MAX })
+            end
         end
         -- (a mystic that stepped last tick is walking at me -- melee style --
         -- and steps again before it can swing: a tile more of room, or it

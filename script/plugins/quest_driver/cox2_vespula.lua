@@ -62,7 +62,7 @@ CV.V = {
         [1] = { { 15, 8 }, { 7, 10 }, { 15, 16 }, { 7, 16 } },
         [2] = { { 15, 13 }, { 8, 5 }, { 8, 13 }, { 5, 9 } },
     },
-    TENDRIL_LZ = 0,
+    TENDRIL_LZ = 1,
     -- the mechanics (spec V12-V18)
     -- RECORDED (RSProx 820, 843, 3389; docs/rsprox-analysis/cox/vespula.md):
     -- enraged the tick after an attack on the portal, held 20 ticks a cycle and
@@ -288,6 +288,14 @@ end
 function CV.in_room(v, x, z)
     local r = v.room
     return x >= r.ox and x < r.ox + 32 and z >= r.oz and z < r.oz + 32
+end
+
+-- Inside: past the tendrils (their row, z 1, and the door before it are the
+-- room's cell too, and ccw's nook beside its one tendril is open).
+function CV.inside(v, x, z)
+    if not CV.in_room(v, x, z) then return false end
+    local _, lz = QD.COX.template(v.room, x, z)
+    return lz > CV.V.TENDRIL_LZ
 end
 
 -- Chebyshev gap from (x, z) to a size-square footprint at (sx, sz): 0 under it.
@@ -934,6 +942,12 @@ function CV.strategy(S, F, B)
             intents.brew_below = math.max(intents.brew_below, v.poison_dmg + V.STOMP_MAX + 1)
         end
     end
+    -- (the shared supplies brew only under eat_below -- the kit has no food --
+    -- and EAT_BELOW is 0 for Synq's loop, which lets hp fall to Redemption on
+    -- purpose. The intended solve keeps hp up, so its floor is both: without
+    -- it DUO_BREW never fired, and duo seed 18's enrage seat sat at 23 for 75
+    -- ticks, too low to pay the stomps of a renewal, until she tagged)
+    if v.method == "intended" then intents.eat_below = intents.brew_below end
     if v.room == nil then
         intents.mode = "find"
         return intents
@@ -978,7 +992,7 @@ function CV.strategy(S, F, B)
     -- (from the room before, hp is what it left: Xeric's aid up to PREPOT_HP
     -- first -- the overload's five 10s come out of it -- and the overload then
     -- also undoes the aid's drain of Ranged, a.k.a. the whole raid's -25)
-    if not v.overloaded and not CV.in_room(v, F.me.x, F.me.z) then
+    if not v.overloaded and not CV.inside(v, F.me.x, F.me.z) then
         local ovl = QD.raid._tob_first(S, ids.overloads)
         if ovl and F.tick - (S.last_drink or -10) < 3 then
             -- (the potion timer: wait for it outside, the pre-pot is not done)
@@ -1022,7 +1036,7 @@ function CV.strategy(S, F, B)
         v.overloaded = -1
     end
     -- ENTER: through the tendrils (the Pass hop, V22)
-    if not CV.in_room(v, F.me.x, F.me.z) then
+    if not CV.inside(v, F.me.x, F.me.z) then
         intents.mode = "enter"
         -- (Synq's solo enters with run and the quick prayers on -- "with our
         -- run energy and Redemption prayer turned on" (The Academy): the

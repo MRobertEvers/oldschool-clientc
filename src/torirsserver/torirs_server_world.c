@@ -6101,7 +6101,8 @@ ToriRSServer_WorldObjAddOwned(
                              owner_name37);
 
     if( slot >= 0 )
-        ToriRSServer_TicklogObjAdd(srv, ToriRSServer_CoordPack(level, x, z), obj_id, count, -1);
+        ToriRSServer_TicklogObjAdd(srv, ToriRSServer_CoordPack(level, x, z), obj_id, count, duration,
+                                   -1);
     return slot;
 }
 
@@ -6126,7 +6127,7 @@ ToriRSServer_WorldObjAddPrivate(
     slot = world_obj_add(srv, obj_id, count, x, z, level, duration, owner->pid, private_ticks,
                          TORIRSSERVER_GROUND_OWNER_PLAYER, owner->name37);
     if( slot >= 0 )
-        ToriRSServer_TicklogObjAdd(srv, ToriRSServer_CoordPack(level, x, z), obj_id, count,
+        ToriRSServer_TicklogObjAdd(srv, ToriRSServer_CoordPack(level, x, z), obj_id, count, duration,
                                    owner->pid);
     return slot;
 }

@@ -5982,6 +5982,8 @@ put_npc_extended_v5(
         int width = 0;
         int fill = ToriRSServer_NpcHeadbarFill(npc, &width);
 
+        ToriRSServer_TicklogNpcHeadbar(npc, headbar, fill, width);
+
         /* Which bar an npc got, and why. The three inputs (type, footprint,
          * chosen record) and the two outputs (width, fill) on one line, because
          * "the bar is the wrong size" has five candidate causes and reading the

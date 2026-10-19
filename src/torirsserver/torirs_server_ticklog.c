@@ -123,6 +123,7 @@ static char const* const k_kind_names[TORIRSSERVER_TICKLOG_KIND_COUNT] = {
     [TORIRSSERVER_TICKLOG_HUDBAR] = "hudbar",
     [TORIRSSERVER_TICKLOG_NPC_HEADICON] = "npc_headicon",
     [TORIRSSERVER_TICKLOG_NPC_BODY] = "npc_body",
+    [TORIRSSERVER_TICKLOG_NPC_HEADBAR] = "npc_headbar",
 };
 
 /* A SOUND row's label: where the send came from (the npc source adds the
@@ -680,7 +681,14 @@ ToriRSServer_TicklogNpcSpawn(
      * step, not the spawn. */
     g_ticklog.npc_tile_plus1[slot] = coord + 1;
     g_ticklog.npc_generation[slot] = npc->generation;
-    ticklog_push(TORIRSSERVER_TICKLOG_NPC_SPAWN, slot, npc->type, coord, 0, 0, 0, NULL);
+    /* The angle the client's add will carry: `face_dir` through the client's
+     * turn table (NPC_INFO's 3-bit direction), so it reads beside RSProx's
+     * `[add] ... angle=`. */
+    {
+        static int const k_dir_angle[8] = { 768, 1024, 1280, 512, 1536, 256, 0, 1792 };
+        ticklog_push(TORIRSSERVER_TICKLOG_NPC_SPAWN, slot, npc->type, coord,
+                     k_dir_angle[npc->face_dir & 7], 0, 0, NULL);
+    }
 }
 
 void
@@ -769,11 +777,13 @@ ToriRSServer_TicklogObjAdd(
     int coord,
     int obj_id,
     int count,
+    int duration,
     int receiver_pid)
 {
     if( !ticklog_on_for(srv) )
         return;
-    ticklog_push(TORIRSSERVER_TICKLOG_OBJ_ADD, coord, obj_id, count, receiver_pid, 0, 0, NULL);
+    ticklog_push(TORIRSSERVER_TICKLOG_OBJ_ADD, coord, obj_id, count, receiver_pid, duration, 0,
+                 NULL);
 }
 
 /*
@@ -1306,3 +1316,27 @@ ToriRSServer_TicklogHudbar(
                        npc->hitpoints, npc->max_hitpoints, label);
 }
 
+void
+ToriRSServer_TicklogNpcHeadbar(
+    const struct ToriRSServerNpc* npc,
+    int headbar,
+    int fill,
+    int width)
+{
+    /* One row per npc per tick: NPC_INFO is encoded per viewer, and the bar
+     * is the npc's, not the viewer's. */
+    static int s_last_tick_plus1[TORIRSSERVER_NPC_MAX];
+    int slot;
+
+    if( !g_ticklog.srv )
+        return;
+    assert(npc);
+    slot = ticklog_npc_slot(npc);
+    if( slot < 0 )
+        return;
+    if( s_last_tick_plus1[slot] == g_ticklog.srv->tick + 1 )
+        return;
+    s_last_tick_plus1[slot] = g_ticklog.srv->tick + 1;
+    ticklog_write_side(TORIRSSERVER_TICKLOG_NPC_HEADBAR, slot, npc->type, headbar, fill, width, 0, 0,
+                       "");
+}

@@ -12,6 +12,7 @@ Each room's file states the recorded behaviour, the recording ticks it was read 
 | [vespula.md](vespula.md) | Vespula |
 | [vasa.md](vasa.md) | Vasa Nistirio |
 | [vanguards.md](vanguards.md) | Vanguards |
+| [icedemon.md](icedemon.md) | Ice Demon |
 | [muttadiles.md](muttadiles.md) | Muttadiles |
 | [shamans.md](shamans.md) | Lizardman shamans |
 
@@ -47,6 +48,7 @@ All recordings are submissions to the public archive, [rsprox.net/database](http
 | `tools/cox/rsprox_hits.py` | Every hit on the raider, matched to the tells landing with it |
 | `tools/cox/rsprox_vanguards.py` | Vanguards: the rise, every volley's projectiles against the raider, the shuffles (reset or timer, walk, heal, emergence), the clear |
 | `tools/cox/rsprox_vasa.py` | Vasa: the special tick by tick, boulders against the raider's tile, the crystal cycle, the walk, the stomp, the death |
+| `tools/cox/rsprox_icedemon.py` | Ice Demon, in INSTANCE tiles: his attacks (projectiles, the burst's nine, sounds), the pop, the fiends, the braziers, blocks, death |
 | `tools/cox/rsprox_vasa_teleport.py` | Vasa's teleport special in INSTANCE tiles (an untranslated transcript, below): every raider's distance from his middle, the stun, the explosion |
 | `tools/cox/rsprox_shamans.py` | Lizardman shamans (raid and surface): each swing's projectile against the gap, the acid's landing and reach, the choice against reach, the cadence, the jump, the summon's spawns and bursts, the sounds; follows every player |
 | `tools/cox/rsprox_muttadiles.py` | Muttadiles: the meals, every attack against reach and target, projectiles, the submerged sweeps, prayer, the surfacing, the erratic step, the sounds |

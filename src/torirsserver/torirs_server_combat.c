@@ -520,8 +520,9 @@ play_npc_seq(struct ToriRSServerNpc* npc, int seq_id)
  * to be spelled as a loop. LostCity spells it as a per-player proc
  * (`~sound_within_distance`) which only ever runs for whoever triggered it —
  * fine there, because every one of its call sites is inside a player's own
- * script. This site is not: an npc flinches and dies inside the engine, and a
- * second player standing next to the fight should hear it too. Broadcasting is
+ * script. This site is not: an npc dies inside the engine, and a second
+ * player standing next to the fight should hear it too. (Its hit sound is
+ * the dealer's alone -- see `ToriRSServer_CombatHitNpc`.) Broadcasting is
  * the same rule stated from the emitter's side instead of the listener's.
  *
  * Silence is `-1`, and it is the common case. The guard is here as well as in
@@ -1872,13 +1873,25 @@ ToriRSServer_CombatHitNpc(
      */
     ToriRSServer_NpcFacePlayer(npc, npc->combat_target);
     /*
-     * The hit sound, on the tick the hit lands. The defend ANIMATION is not
-     * played here: Jagex sends it on the attack tick, delayed to the landing
-     * (`npc_defend`, from `[proc,player_hit_npc_prepare]`), and an npc's hit
-     * on an npc brings none (the Ancestral Glyph under Jad's fire, RSProx
-     * 1754). docs/rsprox-analysis/combat/defend_timing.md.
+     * The hit sound, on the tick the hit lands, to the player who dealt it and
+     * nobody else. RSProx 820: the recorder hears the stone guardian's 978
+     * once for each of their own hits, a 0 included, and never for another
+     * raider's splat on the same npc in the same tick (t-35, t-29, t-25, t-16,
+     * t-15); Vespula's 2745 likewise. A hit with no player behind it (an npc's
+     * on an npc) is silent. The defend ANIMATION is not played here: Jagex
+     * sends it on the attack tick, delayed to the landing (`npc_defend`, from
+     * `[proc,player_hit_npc_prepare]`), and an npc's hit on an npc brings none
+     * (the Ancestral Glyph under Jad's fire, RSProx 1754).
+     * docs/rsprox-analysis/combat/defend_timing.md.
      */
-    npc_sound_nearby(srv, npc, npc->block_sound, 0);
+    if( npc->block_sound >= 0 && srv->active_player )
+    {
+        ToriRSServer_SendSynthSound(srv->active_player, npc->block_sound, 1, 0);
+        ToriRSServer_TicklogSound(srv, srv->active_player, npc->block_sound, 1, 0,
+                                  TORIRSSERVER_TICKLOG_SOUND_NPC,
+                                  ToriRSServer_CoordPack(npc->level, npc->x, npc->z),
+                                  TORIRSSERVER_NPC_SOUND_TILES, slot);
+    }
 
     if( npc->hitpoints == 0 )
     {
@@ -2137,7 +2150,19 @@ ToriRSServer_CombatHitPlayerFrom(
      * script sees them all. A tree without the proc (a selftest pack) runs
      * nothing, which is the "no rule" it states.
      */
-    ToriRSServer_ScriptsRunProc(srv, "[proc,combat_player_hit_received]", NULL, 0);
+    {
+        /*
+         * Its one argument is the damage when the splat is the red one, else
+         * 0: content's hit sound keys on exactly that. RSProx 820, 843, 3389:
+         * every damage splat on the recorder with a value (727 of 727, 29 of
+         * 29, 129 of 129) came with one `human_hit_1..4` synth, and no 0,
+         * poison or other splat did.
+         */
+        int32_t const hit_args[1] = {
+            amount > 0 && hitsplat_family_of(type) == &HITSPLAT_FAMILIES[0] ? amount : 0
+        };
+        ToriRSServer_ScriptsRunProc(srv, "[proc,combat_player_hit_received]", hit_args, 1);
+    }
 
     /*
      * The block animation is content's, played when the npc's attack is made:

@@ -4460,6 +4460,16 @@ struct ToriRSServerPlayer
     /* `hpbar_hud_npc`: the npc uid the overlay shows ahead of the combat
      * target, 0 for none (a live uid always carries a non-zero generation). */
     int hpbar_npc_uid;
+    /* The BOSS the overlay sticks to (npc param `hpbar_hud_boss`): the last
+     * one this player attacked, by uid, 0 for none. `hpbar_boss_hold` counts
+     * down the ticks a removed boss is still shown; `hpbar_boss_raised` is
+     * whether this file, not content, raised `hpbar_hud_boss`. See
+     * torirs_server_hpbar.c. */
+    int hpbar_boss_uid;
+    int hpbar_boss_hold;
+    int hpbar_boss_raised;
+    /* The held reading's npc was a boss (`hpbar_last_*` above). */
+    int hpbar_last_boss;
 
     /*
      * The helper panel -- see torirs_server_helper.c.
@@ -5799,12 +5809,16 @@ enum ToriRSServerTicklogKind
                                          * g=raw (see RAW DAMAGE above) */
     TORIRSSERVER_TICKLOG_HIT_NPC,       /* a=slot b=npc type c=damage d=hitsplat
                                          * e=raw (see RAW DAMAGE above) */
-    TORIRSSERVER_TICKLOG_NPC_SPAWN,     /* a=slot b=npc type c=coord */
+    TORIRSSERVER_TICKLOG_NPC_SPAWN,     /* a=slot b=npc type c=coord d=the angle its
+                                         * client add carries (face_dir as 0..2047,
+                                         * 0 south, 512 west) */
     TORIRSSERVER_TICKLOG_NPC_DEATH,     /* a=slot b=npc type c=coord (the killing blow) */
     TORIRSSERVER_TICKLOG_NPC_FREE,      /* a=slot b=npc type c=coord */
     TORIRSSERVER_TICKLOG_NPC_RETYPE,    /* a=slot b=from type c=to type d=duration */
     TORIRSSERVER_TICKLOG_LOC_SET,       /* a=coord b=loc id (-1 removed) c=shape d=angle e=kind */
-    TORIRSSERVER_TICKLOG_OBJ_ADD,       /* a=coord b=obj id c=count d=receiver pid or -1 */
+    TORIRSSERVER_TICKLOG_OBJ_ADD,       /* a=coord b=obj id c=count d=receiver pid or -1
+                                         * e=duration in ticks (what RSProx prints
+                                         * as despawn + 1) */
     TORIRSSERVER_TICKLOG_PLAYER_TILE,   /* a=pid b=x c=z d=level (every tick, after players move) */
     TORIRSSERVER_TICKLOG_NPC_TILE,      /* a=slot b=x c=z d=level e=npc type f=size (on
                                          * change only, npcs within 32 tiles of a
@@ -5889,6 +5903,10 @@ enum ToriRSServerTicklogKind
     TORIRSSERVER_TICKLOG_NPC_HEADICON,
     /* a=slot b=npc type c=model (-1 = the type's own); `npc_bodymodel` */
     TORIRSSERVER_TICKLOG_NPC_BODY,
+    /* FILE-ONLY. a=slot b=npc type c=headbar (healthbar id) d=fill e=width:
+     * an overhead bar the npc's NPC_INFO carried this tick, once per npc per
+     * tick whoever it went to -- RSProx's `[headbar]` */
+    TORIRSSERVER_TICKLOG_NPC_HEADBAR,
     TORIRSSERVER_TICKLOG_KIND_COUNT
 };
 
@@ -6082,7 +6100,7 @@ void ToriRSServer_TicklogNpcRetype(const struct ToriRSServerNpc* npc, int from_t
                                    int duration);
 void ToriRSServer_TicklogLocSet(const struct ToriRSServer* srv, int coord, int loc_id, int shape,
                                 int angle, int kind);
-void ToriRSServer_TicklogObjAdd(const struct ToriRSServer* srv, int coord, int obj_id, int count,
+void ToriRSServer_TicklogObjAdd(const struct ToriRSServer* srv, int coord, int obj_id, int count, int duration,
                                 int receiver_pid);
 /* A SYNTH_SOUND sent to `player`. `coord`/`radius` are -1 for SYNTH; `npc_slot`
  * is the emitting npc for SOUND_NPC and -1 otherwise. */
@@ -6114,6 +6132,9 @@ void ToriRSServer_TicklogNpcHeal(const struct ToriRSServerNpc* npc, int gained, 
 /** File-only HUDBAR row: the HUD's fill against the overhead bar's, see the kind. */
 void ToriRSServer_TicklogHudbar(const struct ToriRSServerNpc* npc, int hud_fill, int head_fill,
                                 int width, int hud_cur, int hud_max);
+/** File-only NPC_HEADBAR row: the overhead bar an NPC_INFO carried, once per npc per tick. */
+void ToriRSServer_TicklogNpcHeadbar(const struct ToriRSServerNpc* npc, int headbar, int fill,
+                                    int width);
 /** Once per tick, after phase_players: a PLAYER_TILE row for every logged-in
  *  player and an NPC_TILE row for every npc within 32 tiles of a player whose
  *  tile changed since the last row it got. */

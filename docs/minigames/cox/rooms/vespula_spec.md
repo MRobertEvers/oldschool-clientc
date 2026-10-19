@@ -59,7 +59,7 @@ NR's tables name multi-tile npcs by their **centre** and spawn at `transform(-2,
 | grubs SW (3×3) | (22,8) (20,13) (12,5) (13,13) | (15,8) (7,10) (15,16) (7,16) | (15,13) (8,5) (8,13) (5,9) |
 | soldier walk-to SW | (19,8) (20,10) (12,8) (13,10) | (12,8) (10,10) (12,16) (10,16) | (15,10) (8,8) (8,10) (8,9) |
 | roots (2×2) | (2,4) (2,7) (2,21) (3,23) (4,2) (5,23) | (2,26) (4,28) (7,27) (12,26) (18,24) (19,26) | (24,15) (24,17) (25,3) (25,19) (27,9) (28,6) |
-| tendrils (door) | (15,0) (16,0) | same | same |
+| tendrils (door) | (16,1) only | (15,1) (16,1), unrecorded (cw's) | (15,1) (16,1) |
 | boils (exit) | (3,15) (3,16) west | (15,28) (16,28) north | (28,16) (28,15) east |
 
 Consistency check that fixed the old tables: the hit tiles are the row/column
@@ -126,7 +126,7 @@ armed by an npc run in the same tick's player phase.
 | V19 | Redemption | on any hit taken at ≤10% hp | – | – | heals ⌊prayer/4⌋ (24 at 99), prayer → 0 | – | spotanim | W Redemption (engine `~prayer_redemption_check`) |
 | V20 | "Portal attacked" | stamp = tick of the last hit (0 splats count) | – | – | – | – | hitsplat on the portal | NR isUnderAttack; this tree: `[ai_queue2,raids_vespula_portal]` |
 | V21 | Roots | Pick: one blossom; the root empties and flowers again 8 ticks later | – | 2×2 roots | – | – | loc 30068 ↔ 30069, anim 832 | W Medivaemia root, NR MedivaemiaRootObject |
-| V22 | Tendrils | room load; Pass = 2-tile hop; leaving while the portal lives costs 15% max hp | – | (15,0)(16,0) | 15 at 99 hp | – | loc 30024 | W Septic tendrils ("block players from entering ... passed through to start the encounter"), W Strategies ("damaging players if they attempt to leave"), NR SepticTendrils |
+| V22 | Tendrils | room load; Pass = 2-tile hop; leaving while the portal lives costs 15% max hp | – | z 1, per layout (RSProx: ccw one, cw two; rotations fixed, not turned) | 15 at 99 hp | – | loc 30024 | W Septic tendrils ("block players from entering ... passed through to start the encounter"), W Strategies ("damaging players if they attempt to leave"), NR SepticTendrils |
 | V23 | Clear | portal at 0 | – | – | – | – | pillar seq 7500 → loc 30073, boils burst, tendrils gone, roots empty, grubs/soldiers removed, Vespula death anim; message "As the link to the abyss disintegrates, the abyssal creatures perish." | NR clear(), J20 (no melee after) |
 | V24 | Drop | at clear, at Vespula | – | – | 2 Xeric's aid (+), 1 revitalisation (+), 1 prayer enhance (+), 1 overload (+) | – | ground items | W drops, J23 |
 | V25 | Regen | Vespula 1/10 ticks, soldier (flying) 1/16, grubs never | – | – | – | – | – | JA |

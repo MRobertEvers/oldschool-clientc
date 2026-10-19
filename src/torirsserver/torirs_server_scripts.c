@@ -8702,8 +8702,11 @@ script_command(
             {
                 ToriRSServer_TicklogNpcHeal(npc, healed - current, healed, base,
                                             state->script->name);
-                /* the client's bar follows the heal (a bar-only update) */
-                npc->masks |= TORIRSSERVER_NMASK_HEADBAR;
+                /* No bar for a heal: RSProx's archive shows a monster's heal
+                 * (Vasa's from her crystals, Tekton's at the anvil, the
+                 * Maiden's, Verzik's) only on its next splat. A bar that moves
+                 * without one is content's choice, `npc_headbar_from` (the
+                 * Nylocas pillars, Akkha's headbar npc). */
             }
         }
         else
@@ -13725,6 +13728,13 @@ script_command(
             return 1;
         }
         player->hpbar_npc_uid = uid == -1 ? 0 : uid;
+        /* Taking the pin back ends the encounter's overlay: the boss it showed
+         * is not to come back on the boss hold. */
+        if( uid == -1 )
+        {
+            player->hpbar_boss_uid = 0;
+            player->hpbar_boss_hold = 0;
+        }
         return 1;
     }
 

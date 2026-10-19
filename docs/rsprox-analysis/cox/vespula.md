@@ -99,9 +99,46 @@ D is the portal's killing blow (its ops hidden).
 | The drop | 2 Xeric's aid (+), each its own item, and one each of revitalisation (+), prayer enhance (+) and overload (+). | one stack of 2: **fixed** |
 | D+6 | The closed pillars. | **fixed** |
 
-3389 (Challenge Mode) did D+4's work at D+2. Ours follows normal mode.
+3389 (Challenge Mode) keeps the same schedule: its killing blow (bar 0) is
+four ticks before the clear and the portal goes two before it, as in 843 and
+820. (This line used to say 3389 cleared at D+2; the overlay's bar-0 tick
+shows it did not.)
 
 The portal plays no defend or death animation (3 of 3). Ours played the engine's human block and death: **fixed**.
+
+## The room's locs
+
+Rotations here are the INSTANCE rotations the client is sent. They are the
+same in the ccw room turned a quarter (843, 820) and the cw room unturned
+(3389): the room's locs carry a fixed rotation, not one turned with the room.
+Read as template-relative, every one of them would differ between the two
+rooms by exactly the turn.
+
+| | Recorded | Ours before |
+|---|---|---|
+| Tendrils | On template **z 1**. ccw: **one**, (16,1), rotation 1 (843, 820). cw: (15,1) rotation 0 and (16,1) rotation 1 (3389). ccw's (15,1) is an open nook beside its one tendril. | two on z 0, turned with the room: **fixed** (thru, unrecorded, takes cw's pair) |
+| The pass | (16,0) to (16,2) going in (843, 3389): the hop crosses the tendril row in the room's own terms. Inside the room is template z 2 on. | a hop away from the loc in world terms, "inside" = the room's cell: **fixed** (`~cox_vespula_inside`; the solver's `CV.inside`) |
+| Boils | One of each pair is a **diagonal** (shape 11, rotation 1): ccw (3,16), cw (28,15). The other is shape 10, rotation 0. The burst keeps each shape and rotation. | both shape 10, turned: **fixed** (thru, unrecorded: the diagonal on (15,28)) |
+| D+4, the tendrils | Each becomes `invisible_type8_nonblocking`, shape 10, rotation 0 (3 of 3). | deleted: **fixed** |
+| Her journal | Rotation 0 in both rooms. | turned with the room: **fixed** |
+| The drop | `despawn=2999`: 3000 ticks. Every raid room's vials and seeds in the archive are the same. | 400: **fixed** (`^cox_drop_duration`, all of CoX) |
+
+## The health overlay
+
+| | Recorded | Ours before |
+|---|---|---|
+| What it shows | The **portal** (`hpbar_hud_npc` 7533) on the wide boss bar (`hpbar_hud_boss` 1), on every write, whether the raider fights it, her, a grub or a soldier. | the combat target's small bar: **fixed** (`~cox_vespula_pin_overlay`, from the portal's timer) |
+| From | A few ticks after the raider is inside: 843 at (16,4), 3389 at (15,10), 820 at (17,5); 0 to 5 ticks after the pass. | ours pins the tick after the pass |
+| The kill | The bar goes to 0 at the killing blow (843, 3389) and stays up, at 0, after the portal is deleted (D+2). | the engine dropped a pin at the death and closed on its 6-tick linger, on the bar before the blow: **fixed** (the engine holds a content pin until content takes it back) |
+| To | **D+10**: `hpbar_hud_npc` -1 and the boss bit 0 together (3 of 3). | **fixed** (`[queue,cox_vespula_clear_overlay]`) |
+
+## Sounds on a hit
+
+| | Recorded | Ours before |
+|---|---|---|
+| The raider hit | One of `human_hit_1..4` (518-521), delay 20, for **every damage splat with a value** on the recorder: 727 of 727 (820), 29 of 29 (843), 129 of 129 (3389). Never a 0, poison or any other splat. | nothing, anywhere: **fixed** (`[proc,combat_player_hit_received]` takes the damage; the engine passes it for the red splat only) |
+| Vespula hit | `harpiebugswarm_hit` (2745) to the raider whose hit landed (820, three of three). Her defend seq `vespula_defend_flying`, delayed to the landing (51, 61). | no sound: **fixed** (`defend_sound`); the seq **matches** |
+| Who hears it | Only the raider who dealt the hit, a 0 included: in 820 the recorder hears a stone guardian's 978 once per own splat and never for another raider's splat in the same tick. | everyone within range: **fixed**, engine-wide (`ToriRSServer_CombatHitNpc`) |
 
 ## Not seen
 

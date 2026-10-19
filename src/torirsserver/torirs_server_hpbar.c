@@ -1,5 +1,6 @@
 #include "torirsserver/torirs_server.h"
 #include "torirsserver/torirs_server_ids.h"
+#include "torirsserver/torirs_server_content.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -32,11 +33,9 @@
  *   %hpbar_hud_boss     (varbit)  draw the wide boss bar rather than the
  *                                 small one
  *
- * `hpbar_hud_boss` is never RAISED here. Which npcs are "certain bosses"
- * (setting 10's wording) is a per-encounter decision the reference leaves to the
- * boss's own content, and this server has no such list -- inventing one would
- * light the wide bar for the wrong monsters, which is worse than not lighting
- * it. A boss script can raise the varbit itself and the panel follows.
+ * `hpbar_hud_boss` is raised here for an npc whose record says it is a boss
+ * (`param=hpbar_hud_boss,1`, from RSProx: see `hpbar_is_boss`); content can
+ * raise it itself for anything else, and the panel follows.
  *
  * It IS lowered here, and that is setting 10's whole implementation:
  *
@@ -122,9 +121,103 @@ hpbar_target_slot(struct ToriRSServerPlayer* player)
  *
  * It wins over the combat target: the Path of Crondis shows the palm's water
  * to every raider for the whole room, crocodile fights included (RSProx: the
- * overlay's npc is a palm stage on every write, never the crocodile). A pin
- * whose npc is gone is dropped here, so the overlay falls back to combat.
+ * overlay's npc is a palm stage on every write, never the crocodile).
+ *
+ * The pin is the content's until the content takes it back. A dying npc still
+ * reads (its hitpoints are 0), and one that is gone HOLDS the last reading
+ * (`HPBAR_PIN_HELD`): RSProx 843, 3389 and 820 delete the Vespula portal two
+ * ticks after its killing blow, and the overlay keeps it, at 0, until the room
+ * unpins it eight ticks later. Dropping the pin at the death left the bar on
+ * the hitpoints before the blow and closed it on the combat linger instead.
  */
+#define HPBAR_PIN_HELD (-2)
+
+/*
+ * A BOSS: an npc whose record carries `param=hpbar_hud_boss,1`.
+ *
+ * RSProx (all of 820, 843, 3282, 3285, 3389 and the rest of the archive) writes
+ * `hpbar_hud_npc` with `hpbar_hud_boss` 1 for a boss and, with the normal
+ * overlay off, never for anything else. A boss is shown from the raider's first
+ * attack on it (two or three ticks before the hit lands), through every form it
+ * changes into, and while the raider strikes other npcs -- Vasa while her
+ * crystals take the hits, Tekton at the anvil -- until it is REMOVED or turns
+ * into a form that is no boss, and then for eight ticks more at its last
+ * reading: Tekton 3 of 3 and Vasa 4 of 4 after the removal, the vanguards 8 of
+ * 9 after they turn to walk back and reset (843, 3285, 3389; the ninth 9).
+ */
+#define HPBAR_BOSS_HOLD_TICKS 8
+
+static int
+hpbar_is_boss(struct ToriRSServerNpc const* npc)
+{
+    static int s_param = -2;
+    int32_t value = 0;
+    const struct ToriRSServerNpcDef* def;
+
+    assert(npc);
+    if( s_param == -2 )
+        s_param = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_PARAM, "hpbar_hud_boss");
+    if( s_param < 0 )
+        return 0;
+    def = npc->def ? npc->def : ToriRSServer_ContentNpcDefault();
+    if( !def || !ToriRSServer_ContentNpcParam(def, s_param, &value) )
+        return 0;
+    return value != 0;
+}
+
+/* The boss this player's overlay sticks to: its slot, HPBAR_PIN_HELD while a
+ * removed one is still shown, or -1. Takes up the combat target when that is a
+ * boss. */
+static int
+hpbar_boss_slot(struct ToriRSServerPlayer* player)
+{
+    struct ToriRSServer* srv;
+    struct ToriRSServerNpc* npc;
+    int slot;
+
+    assert(player);
+
+    srv = player->world;
+    if( !srv )
+        return -1;
+    if( player->combat_target >= 0 && player->combat_target < TORIRSSERVER_NPC_MAX )
+    {
+        npc = &srv->npcs[player->combat_target];
+        if( npc->active && npc->death_tick < 0 && hpbar_is_boss(npc) )
+        {
+            player->hpbar_boss_uid = (int)(((uint32_t)npc->generation << 16) |
+                                           (uint32_t)player->combat_target);
+            player->hpbar_boss_hold = 0;
+        }
+    }
+    if( player->hpbar_boss_uid == 0 )
+        return -1;
+    slot = (int)((uint32_t)player->hpbar_boss_uid & 0xffffu);
+    npc = &srv->npcs[slot];
+    if( !npc->active || npc->generation != (uint16_t)((uint32_t)player->hpbar_boss_uid >> 16) ||
+        !hpbar_is_boss(npc) )
+    {
+        if( !player->hpbar_open || player->hpbar_last_type < 0 )
+        {
+            player->hpbar_boss_uid = 0;
+            return -1;
+        }
+        /* Shown on the tick it goes and the seven after; closed on the eighth. */
+        if( player->hpbar_boss_hold == 0 )
+            player->hpbar_boss_hold = HPBAR_BOSS_HOLD_TICKS + 1;
+        if( --player->hpbar_boss_hold <= 0 )
+        {
+            player->hpbar_boss_uid = 0;
+            player->hpbar_boss_hold = 0;
+            return -1;
+        }
+        return HPBAR_PIN_HELD;
+    }
+    /* Dying still reads (0). */
+    player->hpbar_boss_hold = 0;
+    return slot;
+}
+
 static int
 hpbar_pinned_slot(struct ToriRSServerPlayer* player)
 {
@@ -139,11 +232,15 @@ hpbar_pinned_slot(struct ToriRSServerPlayer* player)
         return -1;
     slot = (int)((uint32_t)player->hpbar_npc_uid & 0xffffu);
     npc = &srv->npcs[slot];
-    if( !npc->active || npc->death_tick >= 0 ||
-        npc->generation != (uint16_t)((uint32_t)player->hpbar_npc_uid >> 16) )
+    if( !npc->active || npc->generation != (uint16_t)((uint32_t)player->hpbar_npc_uid >> 16) )
     {
-        player->hpbar_npc_uid = 0;
-        return -1;
+        /* Nothing read yet to hold: a pin that never drew is no pin. */
+        if( !player->hpbar_open || player->hpbar_last_type < 0 )
+        {
+            player->hpbar_npc_uid = 0;
+            return -1;
+        }
+        return HPBAR_PIN_HELD;
     }
     return slot;
 }
@@ -158,6 +255,8 @@ ToriRSServer_HpBarTick(
     int want_type = -1;
     int want_hp = 0;
     int want_max = 0;
+    int pinned = 0;
+    int boss = 0;
 
     assert(srv);
     assert(player);
@@ -166,8 +265,24 @@ ToriRSServer_HpBarTick(
         return;
 
     slot = hpbar_pinned_slot(player);
-    if( slot < 0 )
+    pinned = slot != -1;
+    if( slot == -1 )
+    {
+        slot = hpbar_boss_slot(player);
+        boss = slot != -1;
+    }
+    if( slot == HPBAR_PIN_HELD )
+    {
+        want_type = player->hpbar_last_type;
+        want_hp = player->hpbar_last_hp;
+        want_max = player->hpbar_last_max;
+        boss = player->hpbar_last_boss;
+        player->hpbar_linger = 0;
+    }
+    else if( slot < 0 )
         slot = hpbar_target_slot(player);
+    if( slot >= 0 )
+        boss = hpbar_is_boss(&srv->npcs[slot]);
     if( slot >= 0 )
     {
         struct ToriRSServerNpc const* npc = &srv->npcs[slot];
@@ -184,6 +299,7 @@ ToriRSServer_HpBarTick(
         player->hpbar_last_type = want_type;
         player->hpbar_last_hp = want_hp;
         player->hpbar_last_max = want_max;
+        player->hpbar_last_boss = boss;
     }
     else if( player->hpbar_linger > 0 )
     {
@@ -201,8 +317,34 @@ ToriRSServer_HpBarTick(
      * Checked here rather than at the open, so switching it off mid-fight
      * closes the panel on the next tick instead of leaving the last one up.
      */
-    if( want_type >= 0 && ToriRSServer_VarbitGet(player, ids->varbit_hpbar_hud_standard_off) )
+    if( want_type >= 0 && !pinned && !boss &&
+        ToriRSServer_VarbitGet(player, ids->varbit_hpbar_hud_standard_off) )
         want_type = -1;
+
+    /*
+     * The boss bit follows the npc shown, when that is a boss: raised for it,
+     * lowered when the overlay moves off it -- but only a bit this file raised.
+     * Content that raises it itself (the Path of Crondis, Olm's barrier) keeps
+     * it until it lowers it.
+     */
+    if( ids->varbit_hpbar_hud_boss >= 0 )
+    {
+        int const off = ids->varbit_hpbar_hud_boss_off >= 0 &&
+                        ToriRSServer_VarbitGet(player, ids->varbit_hpbar_hud_boss_off);
+        if( boss && want_type >= 0 && !off )
+        {
+            if( !ToriRSServer_VarbitGet(player, ids->varbit_hpbar_hud_boss) )
+            {
+                ToriRSServer_VarbitSetOn(srv, player, ids->varbit_hpbar_hud_boss, 1);
+                player->hpbar_boss_raised = 1;
+            }
+        }
+        else if( player->hpbar_boss_raised )
+        {
+            ToriRSServer_VarbitSetOn(srv, player, ids->varbit_hpbar_hud_boss, 0);
+            player->hpbar_boss_raised = 0;
+        }
+    }
 
     /*
      * Setting 10, and it is a VETO rather than a switch.
@@ -213,7 +355,7 @@ ToriRSServer_HpBarTick(
      * set for as long as the player wants boss bars; the moment they do not, the
      * varbit goes to 0 and clientscript 2101 draws the small bar instead.
      *
-     * Nothing here ever sets it to 1 -- see the header.
+     * Raised here only for a boss (`hpbar_hud_boss`, below) -- see the header.
      */
     if( ids->varbit_hpbar_hud_boss >= 0 && ids->varbit_hpbar_hud_boss_off >= 0 &&
         ToriRSServer_VarbitGet(player, ids->varbit_hpbar_hud_boss_off) &&
