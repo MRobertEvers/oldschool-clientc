@@ -48,3 +48,39 @@ components 4, 7, 10 (2..8) and 6, 9, 12 (0..9); it closes 2 ticks later.
 - The leader leaving early: "Some of your party don't seem to have arrived
   yet.<br>If you proceed, they will be abandoned."
 - `pvp_icons` (90):45 shown on arrival.
+
+## The exits: abandoning the raid
+
+Source: local index **4288** [693..703] (rev 241, solo), on `toa_zebak_exit`. It is the only exit taken in any recording.
+
+The flow:
+
+| tick | what is sent |
+|---|---|
+| L+1 | face to the exit (`sizez=3`) |
+| L+2 | mesbox "You are about to <col=ad2800>abandon the raid</col>. If you do this, you <col=ad2800>will not</col> be able to return to your current run." |
+| on continue | chat menu "Abandon the raid?" with "Yes, abandon the raid." / "No, I want to stay." |
+| on Yes | "You abandon the raid and leave the Tombs of Amascut." and the fade |
+| +1 | minimap off |
+| +3 | the lobby (3359,9113), raid varbits cleared, `toa_mycontroller` -1 |
+| +4 | fade back |
+
+From the Yes on, this is the vault leave's own shape.
+
+Every exit is "Exit" / op1 Leave with loc category 1657:
+
+| loc | room(s) and local tile |
+|---|---|
+| `toa_door_exit` | the Nexus (29,43), Scabaras (1,30), Het (51,30), Apmeken (15,30) |
+| `toa_crondis_exit` | Crondis (51,30) |
+| `toa_zebak_exit` | Zebak (57,31, plane 1) |
+| `toa_door_exit_wardens` | the Wardens' first room (30,58, plane 1) |
+| `toa_door_exit_small` | placed in no shipped square |
+
+Kephri, Akkha, Ba-Ba and the Wardens' second room have none.
+
+**Ours:**
+- **Exits:** all five are bound to `~toa_abandon_exit` (`toa_nexus.rs2`). The unrecorded exits share the recorded answer: same category, name and op.
+- **Before this:** the Nexus door used the vault's "Are you ready to leave?", and the room exits did nothing.
+- **Shared leave:** the leave is `~toa_leave_tombs(line)`, shared with Osmumten's vault leave.
+- **Test:** `test/raids/toa_exits.lua` checks every exit's box and menu, "No" keeping the raid, and Zebak's "Yes" ending in the lobby (29/29).
