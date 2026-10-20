@@ -155,6 +155,10 @@ UITree_TestHostRequest(void* user, struct UITreeHostRequest* req)
         return st->compass_hidden;
     case UITREE_HOST_GET_MINIMAP_WALK:
         return !st->minimap_walk_denied;
+    /* No VIEWPORT_CLAMPFOV has run on a harness tree: the world keeps the
+     * whole box the emit walk seeded the outs with. */
+    case UITREE_HOST_GET_WORLD_LETTERBOX:
+        return 0;
     case UITREE_HOST_GET_MINIMAP_STATE:
         if( st->minimap_scene_id <= 0 )
             return -1;

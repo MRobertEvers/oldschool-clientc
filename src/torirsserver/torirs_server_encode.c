@@ -454,8 +454,6 @@ ToriRSServer_Send(
     }
     if( ToriRSServer_SessionSend(player->session, frame, (int)rsab_len(&buf)) < 0 )
         ToriRSServer_SessionKill(player->session);
-    else
-        player->session->last_output_packet_name = pkt_name;
 
     if( srv && srv->verbose )
         fprintf(

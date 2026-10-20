@@ -30,6 +30,7 @@
  */
 
 #include "torirs_env_values.h"
+#include "torirs_viewport_letterbox.h"
 
 /** The reference viewport height the zoom band is centred on. */
 #define TORIRS_VIEWPORT_REFERENCE_HEIGHT 334
@@ -67,6 +68,12 @@ struct ToriRS_ViewportProjection
  * `fov_override` is -1 when unset. `viewport_zoom_enabled` is the revision's
  * `[camera] viewport_zoom`. `viewport_valid` is false before the emit walk has
  * found a world rectangle, which is every frame before the first one.
+ *
+ * `viewport_width`/`viewport_height` are the viewport WIDGET's box, before any
+ * letterbox, and `clamp` its VIEWPORT_CLAMPFOV bounds: the derived scale is
+ * class159.method5357's field817 (torirs_viewport_letterbox.h), which lifts the
+ * zoom when a clamp asks for it -- a cutscene's `viewport_clampfov(512, 512,
+ * 512, 512)` roughly doubles it on a wide window.
  */
 struct ToriRS_ViewportProjection
 ToriRS_ProjectionForViewport(
@@ -74,8 +81,10 @@ ToriRS_ProjectionForViewport(
     int fov_override,
     int viewport_zoom_enabled,
     int viewport_valid,
+    int viewport_width,
     int viewport_height,
     int near_zoom,
-    int far_zoom);
+    int far_zoom,
+    struct ToriRS_ViewportClamp const* clamp);
 
 #endif /* SRC_RENDER_TORIRS_VIEWPORT_PROJECTION_H */

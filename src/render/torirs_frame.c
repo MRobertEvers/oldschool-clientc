@@ -335,6 +335,37 @@ emit_color_argb(
     return (int)(((uint32_t)alpha << 24) | ((uint32_t)color & 0xFFFFFFu));
 }
 
+/* Whether the world desc was narrowed inside its widget's box (the emit walk's
+ * UITREE_HOST_GET_WORLD_LETTERBOX). */
+static bool
+frame_world_letterboxed(struct UITreeEmitDesc const* desc)
+{
+    return desc->world_box_w > 0 && desc->world_box_h > 0 &&
+           (desc->x != desc->world_box_x || desc->y != desc->world_box_y ||
+            desc->w != desc->world_box_w || desc->h != desc->world_box_h);
+}
+
+/* The bands: the whole box in opaque black (class158.method5313(..., -16777216)),
+ * under the world the 3D pass draws into the narrower rectangle next. */
+static void
+frame_world_letterbox_fill(
+    struct UITreeEmitDesc const* desc,
+    struct ToriRS_RenderCommand* out)
+{
+    frame_command_reset(out);
+    out->kind = TORIRSRC_FILL_RECT;
+    out->u.fill_rect.x = desc->world_box_x;
+    out->u.fill_rect.y = desc->world_box_y;
+    out->u.fill_rect.w = desc->world_box_w;
+    out->u.fill_rect.h = desc->world_box_h;
+    out->u.fill_rect.argb = emit_color_argb(0x000000, 0);
+    out->u.fill_rect.scissor_x = desc->clip.x;
+    out->u.fill_rect.scissor_y = desc->clip.y;
+    out->u.fill_rect.scissor_w = desc->clip.w;
+    out->u.fill_rect.scissor_h = desc->clip.h;
+    out->u.fill_rect.filled = 1;
+}
+
 /* The emit desc's arc fields, as the shape render/torirs_arc.c wants. Shared by
  * the step count and the step itself so the two cannot disagree about how many
  * rows there are. */
@@ -3013,6 +3044,26 @@ again:
 
         if( desc->kind == UITREE_EMIT_WORLD )
         {
+            /* A letterboxed world (class159.method5357 with its paint flag): the
+             * widget's box goes black first -- an ordinary filled rect, so every
+             * backend draws the bands -- and the 3D pass then opens on the
+             * narrower rectangle the desc carries. Step 1 is the world. A
+             * world-only replay draws no interface, the bands included. */
+            if( frame->scrollbar_step == 0 && !frame->world_only && frame_world_letterboxed(desc) )
+            {
+                struct ToriRS_RenderCommand draw;
+
+                frame->scrollbar_step = 1;
+                frame_world_letterbox_fill(desc, &draw);
+                if( frame->pass != TORIRS_FRAME_PASS_2D )
+                {
+                    frame_queue(frame, &draw);
+                    frame_emit_begin_2d(frame, out);
+                    return true;
+                }
+                *out = draw;
+                return true;
+            }
             frame->emit_index++;
             frame->scrollbar_step = 0;
             build_begin_3d_from_world_emit(frame, desc, &frame->pending_begin_3d);

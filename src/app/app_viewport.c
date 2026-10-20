@@ -27,7 +27,10 @@ app_draw_viewport_message(
     int fill_black);
 
 /*
- * World projection scale — recomputed per layout, the reference behaviour
+ * World projection scale — recomputed per layout, the reference behaviour.
+ * It is computed from the viewport WIDGET's box (world_box_*), as
+ * class159.method5357 is; world_emit_desc's own rect is already the
+ * letterboxed one it settles on.
  * (docs/ORANGE_WEDGE.md §4/§11/§12, promoted to the default per §11.7).
  *
  * The reference client recomputes the world projection scale from the world
@@ -81,6 +84,12 @@ app_apply_wedge_scale(struct App* app)
 {
     int near_zoom = app->host.viewport_zoom_near;
     int far_zoom = app->host.viewport_zoom_far;
+    struct ToriRS_ViewportClamp const clamp = {
+        app->host.viewport_fov_min,
+        app->host.viewport_fov_max_clamp,
+        app->host.viewport_aspect_min,
+        app->host.viewport_aspect_max,
+    };
     struct ToriRS_ViewportProjection projection;
 
     /* TORIRS_WEDGE_ZOOM=<near>,<far> overrides the cache's SETFOV endpoints,
@@ -102,9 +111,11 @@ app_apply_wedge_scale(struct App* app)
         app_world_fov_override(),
         app->revconfig_profile.camera.viewport_zoom,
         app->world_view_valid,
-        app->world_emit_desc.h,
+        app->world_emit_desc.world_box_w,
+        app->world_emit_desc.world_box_h,
         near_zoom,
-        far_zoom);
+        far_zoom,
+        &clamp);
 
     switch( projection.action )
     {

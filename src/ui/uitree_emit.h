@@ -172,6 +172,13 @@ struct UITreeEmitDesc
     int arc_end;
     /* WORLD: scene levels the painter may draw (bit per level). */
     uint8_t world_level_mask;
+    /* WORLD: the viewport widget's own box. x/y/w/h is the part of it the
+     * world is drawn into (UITREE_HOST_GET_WORLD_LETTERBOX, class159.method5357);
+     * where they differ the rest of the box is painted black. */
+    int world_box_x;
+    int world_box_y;
+    int world_box_w;
+    int world_box_h;
 };
 
 /** Fill a single emit descriptor for a node. Returns false if nothing to draw.

@@ -1,6 +1,7 @@
 #include "game/rs_cs2_host.h"
 #include "mem/torirs_mem.h"
 #include "torirs_env.h"
+#include "torirs_viewport_letterbox.h"
 
 #include "game/rs_chat.h"
 #include "game/rs_cs2_dispatch.h"
@@ -992,10 +993,10 @@ RS_CS2Host_Init(
      * also what `viewport_clampfov(0, 0, 0, 0)` restores. Not zero: zero is
      * outside both ranges and would letterbox the viewport away before any
      * script had asked for a clamp. */
-    host->viewport_fov_min = 1;
-    host->viewport_fov_max_clamp = 32767;
-    host->viewport_aspect_min = 1;
-    host->viewport_aspect_max = 32767;
+    host->viewport_fov_min = TORIRS_VIEWPORT_CLAMP_FOV_MIN_UNSET;
+    host->viewport_fov_max_clamp = TORIRS_VIEWPORT_CLAMP_FOV_MAX_UNSET;
+    host->viewport_aspect_min = TORIRS_VIEWPORT_CLAMP_ASPECT_MIN_UNSET;
+    host->viewport_aspect_max = TORIRS_VIEWPORT_CLAMP_ASPECT_MAX_UNSET;
     /* The interface scale is device_options[27], already seeded to 100% by the
      * OptionDefault loop above; a boot value is not a player choice, so it must
      * not raise client_scale_dirty. */
@@ -3663,23 +3664,9 @@ rs_cs2_viewport_zoom_encode(int zoom)
 }
 
 /*
- * class159.method5357's sizing half — the reference's "effective viewport".
- *
- * Given the viewport widget's box it interpolates the FOV over the widget's
- * HEIGHT (the two SETFOV endpoints, over the 100px band above the fixed frame's
- * 334), forms `height * fov * 512 / (width * 334)`, and letterboxes whichever
- * axis is needed to pull that back inside the CLAMPFOV range: too small and the
- * sides are cut, too large and the top and bottom are. What remains is what
- * VIEWPORT_GETEFFECTIVESIZE answers.
- *
- * The reference also paints the cut bands black and stores the rect in
- * client.field811/897/813/837; opcode 6203 passes `false` for the drawing and
- * this client's renderer owns its own viewport rect, so only the size is
- * reproduced here.
- *
- * The integer division in the interpolation is the reference's, not a
- * simplification: field976/field801 are shorts and the expression truncates
- * before it is widened.
+ * class159.method5357's rectangle -- the reference's "effective viewport", the
+ * one rule the renderer letterboxes the world by (torirs_viewport_letterbox.h).
+ * Opcode 6203 passes the viewport widget's box and keeps only the size.
  */
 static void
 rs_cs2_viewport_effective_size(
@@ -3689,49 +3676,18 @@ rs_cs2_viewport_effective_size(
     int* out_width,
     int* out_height)
 {
-    if( width < 1 )
-        width = 1;
-    if( height < 1 )
-        height = 1;
+    struct ToriRS_ViewportClamp const clamp = {
+        host->viewport_fov_min,
+        host->viewport_fov_max_clamp,
+        host->viewport_aspect_min,
+        host->viewport_aspect_max,
+    };
+    struct ToriRS_ViewportLetterbox box;
 
-    int const band = height - 334;
-    double fov;
-    if( band < 0 )
-        fov = host->viewport_zoom_near;
-    else if( band >= 100 )
-        fov = host->viewport_zoom_far;
-    else
-        fov = ((host->viewport_zoom_far - host->viewport_zoom_near) * band) / 100 +
-              host->viewport_zoom_near;
-
-    double const aspect = height * fov * 512.0 / (width * 334);
-    if( aspect < host->viewport_aspect_min )
-    {
-        double const floor_aspect = host->viewport_aspect_min;
-        fov = width * floor_aspect * 334.0 / (height * 512);
-        if( fov > host->viewport_fov_max_clamp )
-        {
-            fov = host->viewport_fov_max_clamp;
-            double const visible = height * fov * 512.0 / (floor_aspect * 334.0);
-            int const cut = (int)((width - visible) / 2.0);
-            width -= cut * 2;
-        }
-    }
-    else if( aspect > host->viewport_aspect_max )
-    {
-        double const ceil_aspect = host->viewport_aspect_max;
-        fov = width * ceil_aspect * 334.0 / (height * 512);
-        if( fov < host->viewport_fov_min )
-        {
-            fov = host->viewport_fov_min;
-            double const visible = width * ceil_aspect * 334.0 / (fov * 512.0);
-            int const cut = (int)((height - visible) / 2.0);
-            height -= cut * 2;
-        }
-    }
-
-    *out_width = width;
-    *out_height = height;
+    ToriRS_ViewportLetterboxCompute(
+        0, 0, width, height, host->viewport_zoom_near, host->viewport_zoom_far, &clamp, &box);
+    *out_width = box.w;
+    *out_height = box.h;
 }
 
 static int
@@ -3785,12 +3741,12 @@ exec_viewport(
          * the four as value/min/max, clamped viewport_fov with them and dropped
          * the fourth, which made GETFOV answer the clamp instead of SETFOV and
          * left method5357 with no bounds to letterbox against at all. */
-        host->viewport_fov_min = args[0] > 0 ? args[0] : 1;
-        host->viewport_fov_max_clamp = args[1] > 0 ? args[1] : 32767;
+        host->viewport_fov_min = args[0] > 0 ? args[0] : TORIRS_VIEWPORT_CLAMP_FOV_MIN_UNSET;
+        host->viewport_fov_max_clamp = args[1] > 0 ? args[1] : TORIRS_VIEWPORT_CLAMP_FOV_MAX_UNSET;
         if( host->viewport_fov_max_clamp < host->viewport_fov_min )
             host->viewport_fov_max_clamp = host->viewport_fov_min;
-        host->viewport_aspect_min = args[2] > 0 ? args[2] : 1;
-        host->viewport_aspect_max = args[3] > 0 ? args[3] : 32767;
+        host->viewport_aspect_min = args[2] > 0 ? args[2] : TORIRS_VIEWPORT_CLAMP_ASPECT_MIN_UNSET;
+        host->viewport_aspect_max = args[3] > 0 ? args[3] : TORIRS_VIEWPORT_CLAMP_ASPECT_MAX_UNSET;
         if( host->viewport_aspect_max < host->viewport_aspect_min )
             host->viewport_aspect_max = host->viewport_aspect_min;
         return CS2VM_EXECNO_OK;

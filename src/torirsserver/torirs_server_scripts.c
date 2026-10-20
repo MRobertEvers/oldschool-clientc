@@ -11597,6 +11597,19 @@ script_command(
         ToriRSServer_SendCamReset(player);
         return 1;
 
+    /* `minimap_toggle(int $type)` -- the MINIMAP_TOGGLE packet. Jagex sends
+     * it beside the minimap_state varbit on both edges of a cutscene
+     * (RSProx 4286, the canoe ride: 2 on the lock, 0 on the arrival). */
+    case SS_OP_MINIMAP_TOGGLE:
+    {
+        int32_t type;
+
+        if( !SSVM_PopInt(state, &type) )
+            return 1;
+        ToriRSServer_SendMinimapToggle(player, (int)type);
+        return 1;
+    }
+
     case SS_OP_CAM_SHAKE:
     {
         int32_t values[4];

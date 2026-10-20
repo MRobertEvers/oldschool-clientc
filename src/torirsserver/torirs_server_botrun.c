@@ -15,7 +15,7 @@
  * handed what the tick did -- the server's own ticklog rows, the same rows the
  * quest driver reads from the embedded server -- plus each bot's inventory and
  * gear, and answers with commands. A command becomes the packet a client would
- * have sent and goes through ToriRSServer_WorldHandle, the one door every
+ * have sent and goes through ToriRSServer_WorldInput, the one door every
  * client packet takes, so content cannot tell a bot from a player: the scene
  * barrier, the action lock, the stun, the op triggers all apply.
  *
@@ -244,7 +244,7 @@ botrun_scene_ack(struct ToriRSServerPlayer* player)
     if( player->session )
         return;
     if( player->active && (player->login_scene_pending || player->rebuild_scene_pending) )
-        ToriRSServer_WorldHandle(player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
+        ToriRSServer_WorldInput(player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
 }
 
 static struct ToriRSServerPlayer*
@@ -310,7 +310,7 @@ botrun_command(
         payload[0] = (uint8_t)(n >= 5 ? atoi(fields[4]) : 0);
         put2(payload + 1, atoi(fields[2]));
         put2(payload + 3, atoi(fields[3]));
-        ToriRSServer_WorldHandle(player, PKTOUT_NAME_MOVE_GAMECLICK, payload, 5);
+        ToriRSServer_WorldInput(player, PKTOUT_NAME_MOVE_GAMECLICK, payload, 5);
     }
     else if( strcmp(verb, "opnpc") == 0 && n >= 4 )
     {
@@ -324,7 +324,7 @@ botrun_command(
         }
         put2(payload, client_slot);
         payload[2] = 0;
-        ToriRSServer_WorldHandle(player, PKTOUT_NAME_OPNPC1 + (op - 1), payload, 3);
+        ToriRSServer_WorldInput(player, PKTOUT_NAME_OPNPC1 + (op - 1), payload, 3);
     }
     else if( strcmp(verb, "opheld") == 0 && n >= 5 )
     {
@@ -338,7 +338,7 @@ botrun_command(
         put2(payload, atoi(fields[3]));
         put2(payload + 2, atoi(fields[4]));
         put4(payload + 4, (149 << 16) | 0);
-        ToriRSServer_WorldHandle(player, PKTOUT_NAME_OPHELD1 + (op - 1), payload, 8);
+        ToriRSServer_WorldInput(player, PKTOUT_NAME_OPHELD1 + (op - 1), payload, 8);
     }
     else if( strcmp(verb, "opobj") == 0 && n >= 6 )
     {
@@ -353,18 +353,18 @@ botrun_command(
         put2(payload + 2, atoi(fields[4]));
         put2(payload + 4, atoi(fields[5]));
         payload[6] = 0;
-        ToriRSServer_WorldHandle(player, PKTOUT_NAME_OPOBJ1 + (op - 1), payload, 7);
+        ToriRSServer_WorldInput(player, PKTOUT_NAME_OPOBJ1 + (op - 1), payload, 7);
     }
     else if( strcmp(verb, "button") == 0 && n >= 3 )
     {
         put4(payload, (int)strtol(fields[2], NULL, 0));
-        ToriRSServer_WorldHandle(player, PKTOUT_NAME_IF_BUTTON, payload, 4);
+        ToriRSServer_WorldInput(player, PKTOUT_NAME_IF_BUTTON, payload, 4);
     }
     else if( strcmp(verb, "resume") == 0 && n >= 3 )
     {
         put4(payload, (int)strtol(fields[2], NULL, 0));
         put2(payload + 4, -1);
-        ToriRSServer_WorldHandle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, payload, 6);
+        ToriRSServer_WorldInput(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, payload, 6);
     }
     else if( strcmp(verb, "collision") == 0 && n >= 6 )
     {
@@ -400,7 +400,7 @@ botrun_command(
     }
     else if( strcmp(verb, "close") == 0 )
     {
-        ToriRSServer_WorldHandle(player, PKTOUT_NAME_CLOSE_MODAL, NULL, 0);
+        ToriRSServer_WorldInput(player, PKTOUT_NAME_CLOSE_MODAL, NULL, 0);
     }
     else if( strcmp(verb, "cheat") == 0 && n >= 3 )
     {
@@ -411,7 +411,7 @@ botrun_command(
             run->refused++;
             return 0;
         }
-        ToriRSServer_WorldHandle(player, PKTOUT_NAME_CLIENT_CHEAT, payload, len);
+        ToriRSServer_WorldInput(player, PKTOUT_NAME_CLIENT_CHEAT, payload, len);
     }
     else
     {

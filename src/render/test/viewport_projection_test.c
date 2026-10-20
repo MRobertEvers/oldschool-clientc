@@ -41,6 +41,16 @@
 #define ZOOM_ON 1
 #define ZOOM_OFF 0
 #define NO_FOV (-1)
+/* The box's width only matters once a clamp is set; the reference's fixed
+ * viewport width, for the cases that predate the clamp. */
+#define WIDTH 512
+
+static struct ToriRS_ViewportClamp const UNSET = {
+    TORIRS_VIEWPORT_CLAMP_FOV_MIN_UNSET,
+    TORIRS_VIEWPORT_CLAMP_FOV_MAX_UNSET,
+    TORIRS_VIEWPORT_CLAMP_ASPECT_MIN_UNSET,
+    TORIRS_VIEWPORT_CLAMP_ASPECT_MAX_UNSET,
+};
 
 static int g_failures;
 
@@ -66,7 +76,7 @@ test_the_2004_camera_keeps_its_constant(void)
      * camera has moved twice as far out.
      */
     struct ToriRS_ViewportProjection fixed = ToriRS_ProjectionForViewport(
-        TORIRS_ENV_SCALE_AUTO, NO_FOV, ZOOM_OFF, VALID, 335, 256, 256);
+        TORIRS_ENV_SCALE_AUTO, NO_FOV, ZOOM_OFF, VALID, WIDTH, 335, 256, 256, &UNSET);
 
     CHECK(fixed.action == TORIRS_VIEWPORT_PROJECTION_SCALE, "the fixed camera declined to act");
     CHECK(
@@ -79,7 +89,7 @@ test_the_2004_camera_keeps_its_constant(void)
      * the difference really is the era and not the numbers. */
     {
         struct ToriRS_ViewportProjection zooming = ToriRS_ProjectionForViewport(
-            TORIRS_ENV_SCALE_AUTO, NO_FOV, ZOOM_ON, VALID, 335, 256, 256);
+            TORIRS_ENV_SCALE_AUTO, NO_FOV, ZOOM_ON, VALID, WIDTH, 335, 256, 256, &UNSET);
 
         CHECK(zooming.scale == 256, "the zooming camera got scale %d, want 256", zooming.scale);
         CHECK(
@@ -94,7 +104,7 @@ test_the_order_of_authority(void)
     /* A field of view beats everything, including OFF. */
     {
         struct ToriRS_ViewportProjection projection = ToriRS_ProjectionForViewport(
-            TORIRS_ENV_SCALE_OFF, 180, ZOOM_OFF, VALID, 400, 256, 256);
+            TORIRS_ENV_SCALE_OFF, 180, ZOOM_OFF, VALID, WIDTH, 400, 256, 256, &UNSET);
 
         CHECK(projection.action == TORIRS_VIEWPORT_PROJECTION_FOV, "the fov override lost");
         CHECK(projection.fov_rpi2048 == 180, "the fov value is %d", projection.fov_rpi2048);
@@ -104,7 +114,7 @@ test_the_order_of_authority(void)
      * would still be a change to whatever it was. */
     {
         struct ToriRS_ViewportProjection projection = ToriRS_ProjectionForViewport(
-            TORIRS_ENV_SCALE_OFF, NO_FOV, ZOOM_ON, VALID, 400, 256, 256);
+            TORIRS_ENV_SCALE_OFF, NO_FOV, ZOOM_ON, VALID, WIDTH, 400, 256, 256, &UNSET);
 
         CHECK(projection.action == TORIRS_VIEWPORT_PROJECTION_KEEP, "OFF touched the camera");
     }
@@ -116,7 +126,7 @@ test_the_order_of_authority(void)
      */
     {
         struct ToriRS_ViewportProjection projection = ToriRS_ProjectionForViewport(
-            777, NO_FOV, ZOOM_OFF, VALID, 335, 256, 256);
+            777, NO_FOV, ZOOM_OFF, VALID, WIDTH, 335, 256, 256, &UNSET);
 
         CHECK(projection.action == TORIRS_VIEWPORT_PROJECTION_SCALE, "the forced scale declined");
         CHECK(projection.scale == 777, "the forced scale is %d, want 777", projection.scale);
@@ -125,7 +135,7 @@ test_the_order_of_authority(void)
     /* No viewport yet: every frame before the first emit walk. */
     {
         struct ToriRS_ViewportProjection projection = ToriRS_ProjectionForViewport(
-            TORIRS_ENV_SCALE_AUTO, NO_FOV, ZOOM_ON, 0, 400, 256, 256);
+            TORIRS_ENV_SCALE_AUTO, NO_FOV, ZOOM_ON, 0, WIDTH, 400, 256, 256, &UNSET);
 
         CHECK(
             projection.action == TORIRS_VIEWPORT_PROJECTION_KEEP,
@@ -133,7 +143,7 @@ test_the_order_of_authority(void)
     }
     {
         struct ToriRS_ViewportProjection projection = ToriRS_ProjectionForViewport(
-            TORIRS_ENV_SCALE_AUTO, NO_FOV, ZOOM_ON, VALID, 0, 256, 256);
+            TORIRS_ENV_SCALE_AUTO, NO_FOV, ZOOM_ON, VALID, WIDTH, 0, 256, 256, &UNSET);
 
         CHECK(
             projection.action == TORIRS_VIEWPORT_PROJECTION_KEEP,
@@ -150,15 +160,16 @@ test_the_zoom_band(void)
     /* Below the reference height: the near endpoint, flat. */
     {
         struct ToriRS_ViewportProjection low = ToriRS_ProjectionForViewport(
-            TORIRS_ENV_SCALE_AUTO, NO_FOV, ZOOM_ON, VALID, 100, near_zoom, far_zoom);
+            TORIRS_ENV_SCALE_AUTO, NO_FOV, ZOOM_ON, VALID, WIDTH, 100, near_zoom, far_zoom, &UNSET);
         struct ToriRS_ViewportProjection just_below = ToriRS_ProjectionForViewport(
             TORIRS_ENV_SCALE_AUTO,
             NO_FOV,
             ZOOM_ON,
             VALID,
+            WIDTH,
             TORIRS_VIEWPORT_REFERENCE_HEIGHT - 1,
             near_zoom,
-            far_zoom);
+            far_zoom, &UNSET);
 
         CHECK(low.zoom == near_zoom, "a short viewport zoomed %d, want %d", low.zoom, near_zoom);
         CHECK(just_below.zoom == near_zoom, "one pixel below the reference is not the near zoom");
@@ -179,9 +190,10 @@ test_the_zoom_band(void)
             NO_FOV,
             ZOOM_ON,
             VALID,
+            WIDTH,
             TORIRS_VIEWPORT_REFERENCE_HEIGHT,
             near_zoom,
-            far_zoom);
+            far_zoom, &UNSET);
 
         CHECK(at.zoom == near_zoom, "at the reference the zoom is %d, want %d", at.zoom, near_zoom);
         CHECK(
@@ -197,11 +209,12 @@ test_the_zoom_band(void)
             NO_FOV,
             ZOOM_ON,
             VALID,
+            WIDTH,
             TORIRS_VIEWPORT_REFERENCE_HEIGHT + TORIRS_VIEWPORT_ZOOM_BAND,
             near_zoom,
-            far_zoom);
+            far_zoom, &UNSET);
         struct ToriRS_ViewportProjection past = ToriRS_ProjectionForViewport(
-            TORIRS_ENV_SCALE_AUTO, NO_FOV, ZOOM_ON, VALID, 2000, near_zoom, far_zoom);
+            TORIRS_ENV_SCALE_AUTO, NO_FOV, ZOOM_ON, VALID, WIDTH, 2000, near_zoom, far_zoom, &UNSET);
 
         CHECK(at_far.zoom == far_zoom, "at the band's end the zoom is %d", at_far.zoom);
         CHECK(past.zoom == far_zoom, "past the band the zoom is %d", past.zoom);
@@ -214,9 +227,10 @@ test_the_zoom_band(void)
             NO_FOV,
             ZOOM_ON,
             VALID,
+            WIDTH,
             TORIRS_VIEWPORT_REFERENCE_HEIGHT + TORIRS_VIEWPORT_ZOOM_BAND / 2,
             near_zoom,
-            far_zoom);
+            far_zoom, &UNSET);
 
         CHECK(
             middle.zoom == (near_zoom + far_zoom) / 2,
@@ -229,7 +243,7 @@ test_the_zoom_band(void)
      * every scale to the 1 the floor clamps it to. */
     {
         struct ToriRS_ViewportProjection unstated = ToriRS_ProjectionForViewport(
-            TORIRS_ENV_SCALE_AUTO, NO_FOV, ZOOM_ON, VALID, 334, 0, 0);
+            TORIRS_ENV_SCALE_AUTO, NO_FOV, ZOOM_ON, VALID, WIDTH, 334, 0, 0, &UNSET);
 
         CHECK(
             unstated.zoom == TORIRS_VIEWPORT_ZOOM_DEFAULT,
@@ -240,12 +254,59 @@ test_the_zoom_band(void)
     }
 }
 
+/*
+ * A cutscene's clamp (toplevel_resize_909 with fov_clamp 1:
+ * viewport_setfov(256, 256) then viewport_clampfov(512, 512, 512, 512)),
+ * worked through class159.method5357 by hand.
+ *
+ *   500 high, 700 wide: the aspect term 500*256*512/(700*334) = 280 is under
+ *   512, so the zoom rises to 700*512*334/(500*512) = 467.6 -- still under the
+ *   cap, so nothing is cut and the scale is 500*467.6/334 = 700, not the 383
+ *   an unclamped 256 gives. That doubling is the "camera too far out" report.
+ *
+ *   500 high, 1200 wide: the zoom would be 801.6, over the cap of 512, so it
+ *   stops at 512 and the box keeps 500*512*512/(512*334) = 766.5 of its width:
+ *   (int)((1200 - 766.5) / 2) = 216 off each side, 768 left, scale 766.
+ */
+static void
+test_the_cutscene_clamp(void)
+{
+    struct ToriRS_ViewportClamp const cutscene = { 512, 512, 512, 512 };
+    struct ToriRS_ViewportLetterbox box;
+
+    ToriRS_ViewportLetterboxCompute(0, 0, 700, 500, 256, 256, &cutscene, &box);
+    CHECK(box.x == 0 && box.w == 700 && box.y == 0 && box.h == 500,
+          "a box the zoom can fill is not cut, got %d,%d %dx%d", box.x, box.y, box.w, box.h);
+    CHECK(box.scale == 700, "the clamp lifts the scale to 700, got %d", box.scale);
+
+    ToriRS_ViewportLetterboxCompute(10, 20, 1200, 500, 256, 256, &cutscene, &box);
+    CHECK(box.x == 10 + 216 && box.w == 768, "the sides lose 216 each, got x=%d w=%d", box.x,
+          box.w);
+    CHECK(box.y == 20 && box.h == 500, "the height is kept, got y=%d h=%d", box.y, box.h);
+    CHECK(box.scale == 766, "the capped zoom projects at 766, got %d", box.scale);
+
+    {
+        struct ToriRS_ViewportProjection projection = ToriRS_ProjectionForViewport(
+            TORIRS_ENV_SCALE_AUTO, NO_FOV, ZOOM_ON, VALID, 1200, 500, 256, 256, &cutscene);
+        CHECK(projection.scale == 766,
+              "the projection takes the clamped scale from the widget box, got %d",
+              projection.scale);
+    }
+    {
+        struct ToriRS_ViewportProjection projection = ToriRS_ProjectionForViewport(
+            TORIRS_ENV_SCALE_AUTO, NO_FOV, ZOOM_ON, VALID, 1200, 500, 256, 256, &UNSET);
+        CHECK(projection.scale == 383, "with no clamp the same box projects at 383, got %d",
+              projection.scale);
+    }
+}
+
 int
 main(void)
 {
     test_the_2004_camera_keeps_its_constant();
     test_the_order_of_authority();
     test_the_zoom_band();
+    test_the_cutscene_clamp();
 
     if( g_failures )
     {

@@ -247,8 +247,7 @@ scene_ack(struct ToriRSServerPlayer* player)
 {
     if( player->login_scene_pending || player->rebuild_scene_pending )
     {
-        player->world->active_player = player;
-        ToriRSServer_WorldHandle(player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
+        ToriRSServer_WorldInput(player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
     }
 }
 
@@ -299,18 +298,17 @@ handle(
         memcpy(in->payload, payload, (size_t)len);
 }
 
-/* The boundary: every bot's queued inputs, in send order, into the server
- * just before its tick runs (where a client's packets land). The answers go
- * out through the sink now, but no bot steps again until the tick is over. */
+/* The boundary: every bot's inputs, in send order, into the server just
+ * before its tick runs -- queued exactly as a client's packets are
+ * (ToriRSServer_WorldInput), so the tick handles them and their answers leave
+ * with it. The boundary has already queued the scene ack ahead of them. */
 static void
 flush_inputs(struct ScriptBot* bot)
 {
     for( int i = 0; i < bot->input_count; i++ )
     {
         struct ScriptrunInput const* in = &bot->inputs[i];
-        scene_ack(bot->player);
-        bot->run->srv->active_player = bot->player;
-        ToriRSServer_WorldHandle(bot->player, in->name, in->len > 0 ? in->payload : NULL, in->len);
+        ToriRSServer_WorldInput(bot->player, in->name, in->len > 0 ? in->payload : NULL, in->len);
     }
     bot->input_count = 0;
 }

@@ -77,10 +77,6 @@ ToriRSServer_SessionFree(struct ToriRSServerSession* session)
     isaac_free(session->cipher_in);
     session->cipher_out = NULL;
     session->cipher_in = NULL;
-    ToriMem_Free(ToriMem_ServerNet(), session->held);
-    session->held = NULL;
-    session->held_len = 0;
-    session->held_cap = 0;
     if( session->transport.close )
         session->transport.close(session->transport.ctx);
     session->state = TORIRSSERVER_SESSION_DEAD;
@@ -134,42 +130,9 @@ ToriRSServer_SessionSend(
     const uint8_t* data,
     int len)
 {
-    int result;
-
     if( session->state == TORIRSSERVER_SESSION_DEAD || !session->transport.send )
         return -1;
-    if( session->holding )
-    {
-        if( session->held_len + len > session->held_cap )
-        {
-            int cap = session->held_cap ? session->held_cap : 4096;
-            while( cap < session->held_len + len )
-                cap *= 2;
-            session->held = ToriMem_Realloc(ToriMem_ServerNet(), session->held, (size_t)cap);
-            assert(session->held);
-            session->held_cap = cap;
-        }
-        memcpy(session->held + session->held_len, data, (size_t)len);
-        session->held_len += len;
-        session->output_generation++;
-        return len;
-    }
-    result = session->transport.send(session->transport.ctx, data, len);
-    if( result >= 0 )
-        session->output_generation++;
-    return result;
-}
-
-void
-ToriRSServer_SessionReleaseHeld(struct ToriRSServerSession* session)
-{
-    assert(session);
-    session->holding = 0;
-    if( session->held_len == 0 )
-        return;
-    if( session->state != TORIRSSERVER_SESSION_DEAD && session->transport.send )
-        (void)session->transport.send(session->transport.ctx, session->held, session->held_len);
-    session->held_len = 0;
+    return session->transport.send(session->transport.ctx, data, len);
 }
 
 int
@@ -990,13 +953,19 @@ step_online(
         int len_bytes;
         int payload_len;
         int name;
-        uint64_t response_generation;
         int bd_on = pkt_bd_on();
         uint64_t bd_t0;
 
         if( session->pending_opcode < 0 )
         {
             if( session->in_len < 1 )
+                break;
+            /* The player's packets wait for the tick (ToriRSServer_WorldInput).
+             * While a whole read would not fit behind them, leave the bytes
+             * unread -- before the opcode, whose keystream byte cannot be put
+             * back -- and pick them up after the tick has drained the queue. */
+            if( session->player &&
+                !ToriRSServer_WorldInputRoom(session->player, TORIRSSERVER_SESSION_IN_MAX) )
                 break;
             session->pending_opcode =
                 (session->in[0] - isaac_next(session->cipher_in)) & 0xff;
@@ -1025,7 +994,6 @@ step_online(
             break; /* body still in flight; nothing consumed */
 
         name = wire->packetout_name(session->pending_opcode);
-        response_generation = session->output_generation;
 
         /*
          * TORIRSSERVER_TRACE_IN=1 -- the client->server half, the mirror of
@@ -1080,8 +1048,7 @@ step_online(
             else
             {
                 (void)srv;
-                session->holding = 1;
-                ToriRSServer_WorldHandle(session->player, translated, xlat, xlat_len);
+                ToriRSServer_WorldInput(session->player, translated, xlat, xlat_len);
             }
         }
         else if( name == PKTOUT_NAME_NONE )
@@ -1096,28 +1063,14 @@ step_online(
              * player": with two sessions the second one's clicks used to move
              * the first one's character. */
             (void)srv;
-            session->holding = 1;
-            ToriRSServer_WorldHandle(session->player, name, session->in + len_bytes, payload_len);
+            ToriRSServer_WorldInput(session->player, name, session->in + len_bytes, payload_len);
         }
 
-        /* Client input is pumped between scheduled world ticks. If handling
-         * this packet produced an immediate response, terminate that response
-         * transaction now. Otherwise a visual IF_* or RUNCLIENTSCRIPT response
-         * makes the client retain its old frame until the unrelated next
-         * 600ms tick. Quiet packets (NO_TIMEOUT, input telemetry) add nothing. */
-        /*
-         * NO FENCE FOR A RESPONSE. A request answered here used to be closed
-         * with its own SERVER_TICK_END, so a client whose click drew any
-         * output saw TWO fences a tick: one before the world tick ran (the
-         * old world plus the answer) and the tick's own. A quest driver
-         * waking on the first decided on the previous tick's world and its
-         * input landed a tick late -- walks and prayer presses one tick
-         * behind scriptrun's, which has no sessions and only the tick's
-         * fence (2026-10-09, the Verzik P3 live seat). The answer rides the
-         * tick's flush, as it does on the real server, where client input is
-         * processed inside the tick and everything leaves at its end.
-         */
-        (void)response_generation;
+        /* No answer leaves from here: the packet is handled inside the next
+         * tick and what it draws rides that tick's flush, as on the real
+         * server. (A response closed with its own SERVER_TICK_END used to give
+         * a clicking client two fences a tick; 2026-10-09, the Verzik P3 live
+         * seat.) */
 
         if( bd_on )
         {

@@ -330,6 +330,15 @@ enum
     TORIRSSERVER_PLAYER_MAX = 8,
 
     /*
+     * One player's client input waiting for the next tick's client-input
+     * phase (`ToriRSServerPlayer.input_queue`). Two of the session's largest
+     * reads with their record headers: the session stops decoding while a
+     * whole read would not fit, so the bytes wait in the socket buffer, as
+     * they do on a server that only reads its clients inside the tick.
+     */
+    TORIRSSERVER_INPUT_QUEUE_BYTES = 2 * 16384 + 64,
+
+    /*
      * Credited ground drops one death may record for the collection log
      * (`ToriRSServer.loot_credit_drops`). A boss table with its tertiaries is
      * under twenty; overflowing this is a drop script gone wrong, and it is
@@ -3795,6 +3804,15 @@ struct ToriRSServerPlayer
      *  player_lock()/player_unlock(). */
     int action_locked;
     /**
+     * Client input waiting for the next tick (ToriRSServer_WorldInput): records
+     * of [int name][int len][len bytes] in arrival order, handled and emptied
+     * by the tick's client-input phase. Inline rather than on the heap so the
+     * slot's resets (world_seat_player, ToriRSServer_WorldPlayerInit) clear it
+     * with the rest of the player.
+     */
+    uint8_t input_queue[TORIRSSERVER_INPUT_QUEUE_BYTES];
+    int input_queue_len;
+    /**
      * The tick an inbound packet last carried a player INPUT, or
      * TORIRSSERVER_INPUT_TICK_NEVER when this slot has no client to hear from.
      *
@@ -6304,19 +6322,52 @@ void ToriRSServer_TicklogConsume(const struct ToriRSServer* srv,
 void ToriRSServer_TicklogSetDealerNpc(int slot);
 
 /**
- * Route one decoded client packet into the game state.
+ * Route one decoded client packet into the game state, now.
  *
  * `name` is a canonical PKTOUT_NAME_*; `payload`/`len` exclude the opcode and
  * any length prefix. Takes the *player* rather than the world because a packet
  * is something one client said: this is the second half of the encoder pass, on
  * the inbound side, and it is what makes `srv->active_player` correct for the
  * whole of the handler's work.
+ *
+ * A client's packets do not come here directly: they go through
+ * ToriRSServer_WorldInput and are handled inside the tick. This is the handler
+ * that phase runs, and the one a packet handler forwarding a packet calls.
  */
 void
 ToriRSServer_WorldHandle(
     struct ToriRSServerPlayer* player,
     int name,
     const uint8_t* payload,
+    int len);
+
+/**
+ * A packet a client sent, queued for the next world tick.
+ *
+ * The reference decodes client input inside the tick (LostCity World.cycle:
+ * processClientsIn), so whatever a packet starts runs in that tick, its output
+ * leaves at that tick's end, and a `p_delay(n)` it reaches resumes n + 1 ticks
+ * later. Handled as it arrived, between ticks, a click's script ran on the
+ * previous tick's clock while its packets left with the next one, so every
+ * delay it started came out one tick short on the wire (RSProx 4286: the canoe
+ * ride's fade on C and teleport on C+2 arrived a tick apart).
+ *
+ * The record is copied; the queue is drained in arrival order by the tick's
+ * client-input phase. Asserts there is room: the session asks
+ * ToriRSServer_WorldInputRoom before it decodes, and the harnesses queue far
+ * less than a tick's worth.
+ */
+void
+ToriRSServer_WorldInput(
+    struct ToriRSServerPlayer* player,
+    int name,
+    const uint8_t* payload,
+    int len);
+
+/** Whether `player`'s input queue can take a packet of `len` payload bytes. */
+int
+ToriRSServer_WorldInputRoom(
+    const struct ToriRSServerPlayer* player,
     int len);
 
 /** The on-login burst for one player: scene, gameframe, containers, stats,

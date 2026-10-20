@@ -288,6 +288,68 @@ main(void)
     }
     ToriRS_FrameEnd(&frame);
 
+    /*
+     * A letterboxed world (class159.method5357 with its paint flag): the emit
+     * walk narrowed the desc to 40..279 of a 320-wide widget box. The box goes
+     * black first, as an ordinary FILL_RECT every backend draws, and only then
+     * does the 3D pass open -- on the narrowed rectangle, not the box.
+     *
+     * MUTATION: drop the letterbox step from the WORLD desc. Red on the fill
+     * lines; make build_begin_3d read world_box_* and the viewport line goes
+     * red instead.
+     */
+    desc.world_box_x = 0;
+    desc.world_box_y = 0;
+    desc.world_box_w = 320;
+    desc.world_box_h = 200;
+    desc.x = 40;
+    desc.w = 240;
+    desc.h = 200;
+    for( int i = 0; i < 3; i++ )
+        marks[i].after_command = 1;
+    ToriRS_FrameBegin(&frame);
+    {
+        int fills_before_3d = 0;
+        int fill_box_ok = 0;
+        int begun = 0;
+        int viewport_ok = 0;
+
+        while( ToriRS_FrameNextCommand(&frame, &cmd) )
+        {
+            if( cmd.kind == TORIRSRC_FILL_RECT && !begun )
+            {
+                fills_before_3d++;
+                fill_box_ok = cmd.u.fill_rect.x == 0 && cmd.u.fill_rect.y == 0 &&
+                              cmd.u.fill_rect.w == 320 && cmd.u.fill_rect.h == 200 &&
+                              cmd.u.fill_rect.filled &&
+                              (uint32_t)cmd.u.fill_rect.argb == 0xFF000000u;
+            }
+            if( cmd.kind == TORIRSRC_BEGIN_3D && !begun )
+            {
+                begun = 1;
+                viewport_ok = cmd.u.begin_3d.view_port.clip_left == 40 &&
+                              cmd.u.begin_3d.view_port.clip_right == 280 &&
+                              cmd.u.begin_3d.view_port.width == 240;
+            }
+        }
+        CHECK(fills_before_3d == 1, "a letterboxed world paints its box once before the 3D pass");
+        CHECK(fill_box_ok, "the whole widget box, opaque black");
+        CHECK(begun && viewport_ok, "and the 3D pass opens on the narrowed rectangle");
+    }
+    {
+        struct ToriRS_Frame worker = frame;
+        int fills = 0;
+
+        ToriRS_FrameBegin(&frame);
+        worker = frame;
+        ToriRS_FrameBeginWorldOnly(&worker);
+        while( ToriRS_FrameNextCommand(&worker, &cmd) )
+            if( cmd.kind == TORIRSRC_FILL_RECT )
+                fills++;
+        CHECK(fills == 0, "the world-only stream carries no band");
+    }
+    ToriRS_FrameEnd(&frame);
+
     ToriDraw_SceneFree(scene);
     if( failures )
     {

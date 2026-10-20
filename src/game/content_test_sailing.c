@@ -241,7 +241,7 @@ int ContentTestSailing_PeerCommand(struct ToriRSServerEmbed* embed, const char* 
     else if( sscanf(command, "private %d", &x) == 1 && x >= 0 && x <= 2 )
     {
         uint8_t payload[3] = {0, x, 0};
-        ToriRSServer_WorldHandle(peer, PKTOUT_NAME_CHAT_SETMODE, payload, 3);
+        ToriRSServer_WorldInput(peer, PKTOUT_NAME_CHAT_SETMODE, payload, 3);
     }
     else if( !strncmp(command, "cheat ", 6) && strlen(command + 6) < 127 )
     {
@@ -249,7 +249,7 @@ int ContentTestSailing_PeerCommand(struct ToriRSServerEmbed* embed, const char* 
         size_t n = strlen(command + 6);
         memcpy(payload, command + 6, n);
         payload[n++] = '\n';
-        ToriRSServer_WorldHandle(peer, PKTOUT_NAME_CLIENT_CHEAT, payload, (int)n);
+        ToriRSServer_WorldInput(peer, PKTOUT_NAME_CLIENT_CHEAT, payload, (int)n);
     }
     else if( sscanf(command, "button %d %d %d %d", &group, &component, &slot, &op) == 4 &&
              group >= 0 && group < 65536 && component >= 0 && component < 65536 &&
@@ -258,7 +258,7 @@ int ContentTestSailing_PeerCommand(struct ToriRSServerEmbed* embed, const char* 
         uint32_t uid = ((uint32_t)group << 16) | component;
         uint8_t payload[9] = {uid >> 24, uid >> 16, uid >> 8, uid,
                              (unsigned)slot >> 8, slot, 255, 255, op};
-        ToriRSServer_WorldHandle(peer, PKTOUT_NAME_IF_BUTTONX, payload, 9);
+        ToriRSServer_WorldInput(peer, PKTOUT_NAME_IF_BUTTONX, payload, 9);
     }
     /* The same button by content symbol, so a test names the component the
      * script names ("sailing_boat_cargohold:items") instead of two numbers. */
@@ -271,7 +271,7 @@ int ContentTestSailing_PeerCommand(struct ToriRSServerEmbed* embed, const char* 
         {
             uint8_t payload[9] = {com >> 24, com >> 16, com >> 8, com,
                                  (unsigned)slot >> 8, slot, 255, 255, op};
-            ToriRSServer_WorldHandle(peer, PKTOUT_NAME_IF_BUTTONX, payload, 9);
+            ToriRSServer_WorldInput(peer, PKTOUT_NAME_IF_BUTTONX, payload, 9);
         }
     }
     /* The CAPTAIN's half of a player-targeted interface op: the OPPLAYERT an
@@ -290,7 +290,7 @@ int ContentTestSailing_PeerCommand(struct ToriRSServerEmbed* embed, const char* 
             int wire = ToriRSServer_WirePlayerIndex(peer->pid);
             uint8_t payload[6] = {wire >> 8, wire,
                                  com >> 24, com >> 16, com >> 8, com};
-            ToriRSServer_WorldHandle(captain, PKTOUT_NAME_OPPLAYERT, payload, 6);
+            ToriRSServer_WorldInput(captain, PKTOUT_NAME_OPPLAYERT, payload, 6);
         }
     }
     /* A p_namedialog wait belongs to a client that types a name. The peer has
@@ -309,7 +309,7 @@ int ContentTestSailing_PeerCommand(struct ToriRSServerEmbed* embed, const char* 
             uint8_t payload[64];
             memcpy(payload, text, length);
             payload[length] = 0;
-            ToriRSServer_WorldHandle(peer, PKTOUT_NAME_RESUME_P_NAMEDIALOG, payload, (int)length + 1);
+            ToriRSServer_WorldInput(peer, PKTOUT_NAME_RESUME_P_NAMEDIALOG, payload, (int)length + 1);
         }
     }
     /* The peer's own click on a world loc: OPLOC<n> is p2 x, p2 z, p2 locId,
@@ -323,7 +323,7 @@ int ContentTestSailing_PeerCommand(struct ToriRSServerEmbed* embed, const char* 
         else
         {
             uint8_t payload[6] = {x >> 8, x, z >> 8, z, loc_id >> 8, loc_id};
-            ToriRSServer_WorldHandle(peer, PKTOUT_NAME_OPLOC1 + (op - 1), payload, 6);
+            ToriRSServer_WorldInput(peer, PKTOUT_NAME_OPLOC1 + (op - 1), payload, 6);
         }
     }
     else if( sscanf(command, "proc %127s", symbol) == 1 )

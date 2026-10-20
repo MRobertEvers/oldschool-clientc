@@ -168,6 +168,20 @@ app_ui_host_publish_inputs(struct App* app)
         signature[UITREE_HOST_INPUT_CAMERA], app->frame_view->world_camera_pos.y);
     signature[UITREE_HOST_INPUT_CAMERA] = UITree_InputSignatureInt(
         signature[UITREE_HOST_INPUT_CAMERA], app->frame_view->world_camera_pos.z);
+    /* What the world letterbox is computed from (UITREE_HOST_GET_WORLD_LETTERBOX):
+     * the SETFOV endpoints and the four CLAMPFOV bounds. A cutscene's clamp
+     * changes nothing else the walk reads, so without these the gate would keep
+     * drawing the uncut world into a box the scripts have already narrowed. */
+    {
+        int const viewport_inputs[6] = {
+            app->host.viewport_zoom_near, app->host.viewport_zoom_far,
+            app->host.viewport_fov_min,   app->host.viewport_fov_max_clamp,
+            app->host.viewport_aspect_min, app->host.viewport_aspect_max,
+        };
+        for( int i = 0; i < 6; i++ )
+            signature[UITREE_HOST_INPUT_CAMERA] = UITree_InputSignatureInt(
+                signature[UITREE_HOST_INPUT_CAMERA], viewport_inputs[i]);
+    }
     local = app_local_player(app);
     signature[UITREE_HOST_INPUT_CAMERA] =
         UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_CAMERA], local != NULL);

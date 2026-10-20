@@ -17237,18 +17237,96 @@ phase_world(struct ToriRSServer* srv)
     world_mapinstance_linger(srv);
 }
 
+/*
+ * A queued packet: [int name][int len][len bytes]. The ints are copied, not
+ * cast, because a record starts wherever the previous one's bytes ended.
+ */
+enum
+{
+    WORLD_INPUT_HEADER = 2 * (int)sizeof(int)
+};
+
+int
+ToriRSServer_WorldInputRoom(
+    const struct ToriRSServerPlayer* player,
+    int len)
+{
+    assert(player);
+    assert(len >= 0);
+    return player->input_queue_len + WORLD_INPUT_HEADER + len <= TORIRSSERVER_INPUT_QUEUE_BYTES;
+}
+
+void
+ToriRSServer_WorldInput(
+    struct ToriRSServerPlayer* player,
+    int name,
+    const uint8_t* payload,
+    int len)
+{
+    uint8_t* at;
+
+    assert(player);
+    assert(len >= 0);
+    assert(len == 0 || payload);
+    assert(ToriRSServer_WorldInputRoom(player, len));
+    at = player->input_queue + player->input_queue_len;
+    memcpy(at, &name, sizeof(int));
+    memcpy(at + sizeof(int), &len, sizeof(int));
+    if( len > 0 )
+        memcpy(at + WORLD_INPUT_HEADER, payload, (size_t)len);
+    player->input_queue_len += WORLD_INPUT_HEADER + len;
+}
+
 /**
- * 2. Turn latched client input into world state.
+ * 2. The clients' packets, handled inside the tick (LostCity World.cycle:
+ * processClientsIn, after the world queue and before the npcs).
  *
- * The socket drain deliberately stays in torirs_server_main.c between ticks: moving
- * it in here would need a second buffering layer for no benefit. What belongs
- * in this phase is the *conversion* of what handlers latched into interactions
- * and directly-dispatched triggers, which arrives with the interaction model.
+ * The socket drain stays in the host loop between ticks; what it decodes waits
+ * in each player's input queue (ToriRSServer_WorldInput) and is handled here,
+ * player by player in pid order, each player's packets in the order they came.
+ * So a script a packet starts runs on this tick's clock and its output leaves
+ * with this tick's.
+ *
+ * The records here when the phase begins are this tick's. A handler forwards a
+ * packet with ToriRSServer_WorldHandle rather than queueing it, but anything
+ * queued while the drain runs is kept, in order, for the next tick.
  */
 static void
 phase_clients_in(struct ToriRSServer* srv)
 {
-    (void)srv;
+    for( int pid = 0; pid < srv->player_count; pid++ )
+    {
+        struct ToriRSServerPlayer* player = &srv->players[pid];
+        int len = player->input_queue_len;
+        int at = 0;
+
+        if( !player->active || len == 0 )
+            continue;
+        while( at < len && player->active )
+        {
+            int name;
+            int body;
+
+            assert(at + WORLD_INPUT_HEADER <= len);
+            memcpy(&name, player->input_queue + at, sizeof(int));
+            memcpy(&body, player->input_queue + at + sizeof(int), sizeof(int));
+            at += WORLD_INPUT_HEADER;
+            assert(body >= 0);
+            assert(at + body <= len);
+            ToriRSServer_WorldHandle(player, name, body > 0 ? player->input_queue + at : NULL, body);
+            at += body;
+        }
+        /* A player who left mid-drain has nothing more to say; otherwise keep
+         * only what arrived behind this tick's records. */
+        if( !player->active )
+            player->input_queue_len = 0;
+        else
+        {
+            memmove(player->input_queue, player->input_queue + len,
+                    (size_t)(player->input_queue_len - len));
+            player->input_queue_len -= len;
+        }
+    }
 }
 
 /**
@@ -19527,15 +19605,6 @@ world_tick_body(struct ToriRSServer* srv)
      * host that reads it without having set it is reading a leftover.
      */
     struct ToriRSServerPlayer* caller_active = srv->active_player;
-
-    /* The answers to input handled since the last tick leave first, ahead of
-     * this tick's output, as scriptrun's do (torirs_server_session.h
-     * `holding`). */
-    TORIRSSERVER_FOR_EACH_PLAYER(srv, player)
-    {
-        if( player->session )
-            ToriRSServer_SessionReleaseHeld(player->session);
-    }
 
     srv->tick++;
 

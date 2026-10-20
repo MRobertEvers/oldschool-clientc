@@ -102,6 +102,10 @@ UITree_HostRequestInputMask(enum UITreeHostRequestKind kind)
         return client | world;
     case UITREE_HOST_GET_MINIMAP_WALK:
         return client | world;
+    /* The SETFOV endpoints and CLAMPFOV bounds are camera state: the client
+     * hashes them into the camera signature (app_ui_host.c). */
+    case UITREE_HOST_GET_WORLD_LETTERBOX:
+        return camera;
     case UITREE_HOST_GET_COMPASS_HIDDEN:
         return world;
 
@@ -317,6 +321,10 @@ UITree_Host(struct UITreeHost const* host, struct UITreeHostRequest* req)
      * click would walk, and the hostless set stays consistent with itself. */
     case UITREE_HOST_GET_MINIMAP_WALK:
         return 1;
+    /* A tree with no session has run no VIEWPORT_CLAMPFOV, so nothing cuts the
+     * box: the outs keep the whole box the emit walk seeded them with. */
+    case UITREE_HOST_GET_WORLD_LETTERBOX:
+        return 0;
     /* -1 is "not on the title screen", which 0 could not say: 0 is a real
      * screen (the front menu). */
     case UITREE_HOST_GET_TITLE_SCREEN:

@@ -348,6 +348,16 @@ enum UITreeHostRequestKind
      * the server arms `chatmenu:options`.
      */
     UITREE_HOST_GET_IF_EVENTS,
+    /**
+     * The rectangle the world is drawn into inside a viewport widget of
+     * u.get_world_letterbox.box_w x box_h (rev-239 class159.method5357: the
+     * VIEWPORT_SETFOV zoom over the box, pulled back inside VIEWPORT_CLAMPFOV,
+     * cutting equal bands off two sides when it cannot be). Writes the
+     * rectangle, relative to the box, to the four out pointers and returns
+     * nonzero when it is smaller than the box. The emit walk narrows the world
+     * desc to it and keeps the box for the black bands.
+     */
+    UITREE_HOST_GET_WORLD_LETTERBOX,
     UITREE_HOST_REQUEST_COUNT,
 };
 
@@ -481,6 +491,15 @@ struct UITreeHostRequest
             int* out_src_anchor_x;
             int* out_src_anchor_y;
         } get_minimap_state;
+        struct
+        {
+            int box_w;
+            int box_h;
+            int* out_x;
+            int* out_y;
+            int* out_w;
+            int* out_h;
+        } get_world_letterbox;
         struct
         {
             char const** out_text;

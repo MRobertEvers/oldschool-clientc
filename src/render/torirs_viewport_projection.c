@@ -1,5 +1,7 @@
 #include "render/torirs_viewport_projection.h"
 
+#include <assert.h>
+
 #include "impl/projection/projection.scalar_reference.h"
 
 struct ToriRS_ViewportProjection
@@ -8,14 +10,16 @@ ToriRS_ProjectionForViewport(
     int fov_override,
     int viewport_zoom_enabled,
     int viewport_valid,
+    int viewport_width,
     int viewport_height,
     int near_zoom,
-    int far_zoom)
+    int far_zoom,
+    struct ToriRS_ViewportClamp const* clamp)
 {
     struct ToriRS_ViewportProjection result = { TORIRS_VIEWPORT_PROJECTION_KEEP, 0, 0, 0, 0, 0 };
-    int above_reference;
-    int zoom;
     int scale;
+
+    assert(clamp);
 
     /* 1. An explicit field of view changes the projection MODE, so it is
      *    answered before anything about scale. */
@@ -42,7 +46,7 @@ ToriRS_ProjectionForViewport(
 
     /* 4. From here the viewport is needed, and before the first emit walk
      *    there is not one. */
-    if( !viewport_valid || viewport_height < 1 )
+    if( !viewport_valid || viewport_width < 1 || viewport_height < 1 )
         return result;
 
     if( wedge_mode > 0 )
@@ -51,22 +55,16 @@ ToriRS_ProjectionForViewport(
     }
     else
     {
+        struct ToriRS_ViewportLetterbox box;
+
         if( near_zoom < 1 )
             near_zoom = TORIRS_VIEWPORT_ZOOM_DEFAULT;
         if( far_zoom < 1 )
             far_zoom = TORIRS_VIEWPORT_ZOOM_DEFAULT;
-
-        above_reference = viewport_height - TORIRS_VIEWPORT_REFERENCE_HEIGHT;
-        if( above_reference < 0 )
-            zoom = near_zoom;
-        else if( above_reference >= TORIRS_VIEWPORT_ZOOM_BAND )
-            zoom = far_zoom;
-        else
-            zoom = (far_zoom - near_zoom) * above_reference / TORIRS_VIEWPORT_ZOOM_BAND + near_zoom;
-
-        scale = (int)((double)viewport_height * (double)zoom /
-                      (double)TORIRS_VIEWPORT_REFERENCE_HEIGHT);
-        result.zoom = zoom;
+        ToriRS_ViewportLetterboxCompute(
+            0, 0, viewport_width, viewport_height, near_zoom, far_zoom, clamp, &box);
+        scale = box.scale;
+        result.zoom = (int)box.zoom;
         result.near_zoom = near_zoom;
         result.far_zoom = far_zoom;
     }

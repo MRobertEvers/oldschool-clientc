@@ -372,10 +372,16 @@ selftest_clear_pending(
 }
 
 /*
- * Every inbound packet the harness sends, with the barrier acknowledged first.
+ * Every inbound packet the harness sends, with the barrier acknowledged first,
+ * and the tick that handles it.
+ *
+ * A client's packet is queued (ToriRSServer_WorldInput) and handled inside the
+ * next world tick, so "send it, then the server ticks" is the smallest step in
+ * which a packet does anything: what a stanza captures around this call is the
+ * packet's answer and that tick's output, as a client would receive them.
  *
  * The suite posts packets through this rather than through
- * `ToriRSServer_WorldHandle` directly so that a stanza does not have to know
+ * `ToriRSServer_WorldInput` directly so that a stanza does not have to know
  * whether the revision it is running on has an asynchronous scene barrier. The
  * one section that is ABOUT the barrier keeps the raw entry point on purpose —
  * it has to be able to observe a drop.
@@ -387,10 +393,12 @@ selftest_handle(
     const uint8_t* payload,
     int len)
 {
-    if( player && name != PKTOUT_NAME_MAP_BUILD_COMPLETE &&
+    assert(player);
+    if( name != PKTOUT_NAME_MAP_BUILD_COMPLETE &&
         (player->login_scene_pending || player->rebuild_scene_pending) )
-        ToriRSServer_WorldHandle(player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
-    ToriRSServer_WorldHandle(player, name, payload, len);
+        ToriRSServer_WorldInput(player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
+    ToriRSServer_WorldInput(player, name, payload, len);
+    ToriRSServer_WorldTick(player->world);
 }
 
 static void
@@ -403,7 +411,7 @@ selftest_ack_scene(struct ToriRSServer* srv)
     if( !player )
         return;
     if( player->login_scene_pending || player->rebuild_scene_pending )
-        ToriRSServer_WorldHandle(player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
+        ToriRSServer_WorldInput(player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
 }
 
 /*
@@ -2617,7 +2625,7 @@ selftest_opheld(
     payload[6] = (uint8_t)(ids->com_inventory_items >> 8);
     payload[7] = (uint8_t)ids->com_inventory_items;
     selftest_ack_scene(srv);
-    ToriRSServer_WorldHandle(player, PKTOUT_NAME_OPHELD1 + (op_num - 1), payload, 8);
+    ToriRSServer_WorldInput(player, PKTOUT_NAME_OPHELD1 + (op_num - 1), payload, 8);
 }
 
 /*
@@ -3320,21 +3328,26 @@ selftest_canoes(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
                     SELFTEST_CHECK(player->x == 3199 && player->z == 3344,
                                    "and land them at the Champions' Guild, got %d,%d",
                                    player->x, player->z);
-                    SELFTEST_CHECK(ToriRSServer_VarbitGet(player, state_bit) == 0,
-                                   "departure should restore the station tree, got %d",
-                                   ToriRSServer_VarbitGet(player, state_bit));
+                    /* RSProx 4286 [144]-[148]: the landing tick, then on the
+                     * next the station's tree comes back and the log hull
+                     * goes in at 3197,3342, gone three ticks after that. */
                     int sink_loc = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "canoeing_log_sinking");
                     int born = -1, removed = -1;
-                    for( int tick = 0; tick < 16; tick++ )
+                    for( int tick = 0; tick < 10; tick++ )
                     {
                         selftest_tick(srv);
-                        int slot = ToriRSServer_SceneFindLocId(3197, 3341, 0, sink_loc);
+                        int slot = ToriRSServer_SceneFindLocId(3197, 3342, 0, sink_loc);
                         if( slot >= 0 && born < 0 ) born = tick;
                         if( slot < 0 && born >= 0 ) { removed = tick; break; }
                     }
-                    SELFTEST_CHECK(born >= 0, "arrival should create an actual sinking canoe in the river");
-                    SELFTEST_CHECK(removed >= 0 && removed - born >= 6,
-                        "sinking canoe must survive the fade and 128 animation cycles, then despawn (born=%d removed=%d)", born, removed);
+                    SELFTEST_CHECK(ToriRSServer_VarbitGet(player, state_bit) == 0,
+                                   "arrival should restore the station tree, got %d",
+                                   ToriRSServer_VarbitGet(player, state_bit));
+                    SELFTEST_CHECK(born == 0,
+                                   "the sinking canoe should go in on the tick after the landing (born=%d)",
+                                   born);
+                    SELFTEST_CHECK(removed >= 0 && removed - born == 3,
+                                   "and be gone three ticks later (born=%d removed=%d)", born, removed);
                 }
 
                 ToriRSServer_VarbitSet(srv, state_bit, 0);
@@ -4577,12 +4590,12 @@ selftest_apmeng_engine(
         for( int i = 0; i < 3; i++ )
         {
             if( other->login_scene_pending || other->rebuild_scene_pending )
-                ToriRSServer_WorldHandle(other, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
+                ToriRSServer_WorldInput(other, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
             ToriRSServer_WorldSetActive(srv, player);
             selftest_tick(srv);
         }
         if( other->login_scene_pending || other->rebuild_scene_pending )
-            ToriRSServer_WorldHandle(other, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
+            ToriRSServer_WorldInput(other, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
         ToriRSServer_WorldSetActive(srv, player);
 
         SELFTEST_CHECK(sight >= 0 && shared >= 0, "apmeng: both sight-warning spotanims resolve");

@@ -8,6 +8,7 @@
  */
 
 #include "app/app_internal.h"
+#include "torirs_viewport_letterbox.h"
 
 int
 app_host_request(
@@ -161,6 +162,36 @@ app_host_request(
         return !(RS_MinimapPermissions(app->minimap_state) & RS_MINIMAP_DRAW_COMPASS);
     case UITREE_HOST_GET_MINIMAP_WALK:
         return (RS_MinimapPermissions(app->minimap_state) & RS_MINIMAP_WALK) != 0;
+    case UITREE_HOST_GET_WORLD_LETTERBOX:
+    {
+        struct ToriRS_ViewportClamp const clamp = {
+            app->host.viewport_fov_min,
+            app->host.viewport_fov_max_clamp,
+            app->host.viewport_aspect_min,
+            app->host.viewport_aspect_max,
+        };
+        struct ToriRS_ViewportLetterbox box;
+
+        assert(req->u.get_world_letterbox.out_x);
+        assert(req->u.get_world_letterbox.out_y);
+        assert(req->u.get_world_letterbox.out_w);
+        assert(req->u.get_world_letterbox.out_h);
+        ToriRS_ViewportLetterboxCompute(
+            0,
+            0,
+            req->u.get_world_letterbox.box_w,
+            req->u.get_world_letterbox.box_h,
+            app->host.viewport_zoom_near,
+            app->host.viewport_zoom_far,
+            &clamp,
+            &box);
+        *req->u.get_world_letterbox.out_x = box.x;
+        *req->u.get_world_letterbox.out_y = box.y;
+        *req->u.get_world_letterbox.out_w = box.w;
+        *req->u.get_world_letterbox.out_h = box.h;
+        return box.w != req->u.get_world_letterbox.box_w ||
+               box.h != req->u.get_world_letterbox.box_h;
+    }
     case UITREE_HOST_GET_MULTIWAY:
         return app->multiway == 1;
     case UITREE_HOST_GET_REBOOT_TIMER:

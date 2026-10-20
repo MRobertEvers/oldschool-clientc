@@ -622,6 +622,39 @@ UITree_EmitFill(
     case UIELEM_BUILTIN_WORLD:
         out->kind = UITREE_EMIT_WORLD;
         out->world_level_mask = component->u.world.level_mask;
+        /* The reference draws the world into the part of the widget its
+         * VIEWPORT_CLAMPFOV allows (class159.method5357 from the widget's draw,
+         * class71.method2484) and paints the cut bands black. The box is kept
+         * for those bands; the desc itself becomes the drawn rectangle, which is
+         * what every reader of the world rect -- the 3D pass, picking, overlays
+         * -- has to see, as the reference's client.field811..837 is. */
+        out->world_box_x = x;
+        out->world_box_y = y;
+        out->world_box_w = w;
+        out->world_box_h = h;
+        if( host )
+        {
+            int cut_x = 0;
+            int cut_y = 0;
+            int cut_w = w;
+            int cut_h = h;
+            struct UITreeHostRequest req = {
+                .kind = UITREE_HOST_GET_WORLD_LETTERBOX,
+                .u.get_world_letterbox.box_w = w,
+                .u.get_world_letterbox.box_h = h,
+                .u.get_world_letterbox.out_x = &cut_x,
+                .u.get_world_letterbox.out_y = &cut_y,
+                .u.get_world_letterbox.out_w = &cut_w,
+                .u.get_world_letterbox.out_h = &cut_h,
+            };
+            if( w > 0 && h > 0 && UITree_Host(host, &req) )
+            {
+                out->x = x + cut_x;
+                out->y = y + cut_y;
+                out->w = cut_w;
+                out->h = cut_h;
+            }
+        }
         return true;
 
     case UIELEM_BUILTIN_MINIMAP:
