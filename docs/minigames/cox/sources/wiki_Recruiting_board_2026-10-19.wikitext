@@ -1,0 +1,21 @@
+{{Infobox Scenery
+|name = Recruiting board
+|image = [[File:Recruiting board.png|250x250px]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = No
+|quest = No
+|location = [[Mount Quidamortem]]
+|options = Read
+|examine = For party recruitment.
+|map = {{Map|x:1224,y:3562|x:1246,y:3562|x:1240,y:3549|plane=0|mapID=-1|mtype=pin}}
+|id = 29776
+}}
+
+The '''Recruiting board''' is a board that, when clicked, gives players the option to create a [[Chambers of Xeric]] raid party in their [[clan chat]]. Members with recruit rank and up can join the raid. Additionally, there is the option to publicly list the party on the recruiting board with preferred party size, combat level and skill total.
+
+==Gallery==
+<gallery>
+Recruiting board - Party List UI.png|The Raiding Parties UI that lists the current public groups on on the current world.
+Recruiting board - Party Details UI.png|The Raiding Party UI the displays the details of a specific group and certain options to adjust the pending raid instance.
+</gallery>

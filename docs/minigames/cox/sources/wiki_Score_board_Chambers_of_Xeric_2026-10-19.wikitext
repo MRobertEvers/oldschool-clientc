@@ -1,0 +1,51 @@
+{{Infobox Scenery
+|name = Score board
+|image = [[File:Score board (Chambers of Xeric).png|250x250px]]
+|release = [[17 May]] [[2018]]
+|update = Chambers of Xeric: Challenge Mode Is Here!
+|members = Yes
+|quest = No
+|location = [[Mount Quidamortem]]
+|options = Read
+|examine = See challenge mode scores here.
+|map = {{Map|x:1224,y:3565|x:1243,y:3563|mtype=pin}}
+|id = 32544
+}}
+The '''Score board''' for the [[Chambers of Xeric]] can be found on [[Mount Quidamortem]], near the entrance of the raid. It shows scores for the [[Chambers_of_Xeric/Challenge_Mode|challenge mode]], which does not have a randomised layout.
+
+As of [[1 October]] [[2026]], the following table displays the best times achieved for every party size.
+{| class="wikitable"
+|-
+! Team size !! Best Time
+|-
+| Solo || 22:37.80
+|-
+| 2 || 20:18.60
+|-
+| 3 || 16:40.20
+|-
+| 4 || 17:57.00
+|-
+| 5 || 15:33.60
+|-
+| 6 || 17:18.00
+|-
+| 7 || 15:35.40
+|-
+| 8 || 17:27.00
+|-
+| 9 || 17:28.20
+|-
+| 10 || 20:40.80
+|-
+| 11-15 || 18:30.00
+|-
+| 16-23 || 28:35.40
+|-
+| 24+ || 26:21.00
+|}
+
+[[File:Chambers of Xeric scoreboard.png|thumb|left|Reading the Scoreboard]]
+
+{{Chambers of Xeric}}
+{{Global scoreboard}}

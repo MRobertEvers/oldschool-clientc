@@ -1,0 +1,68 @@
+{{Infobox NPC
+|version1 = Mount Quidamortem
+|version2 = Shayziens' Wall
+|version3 = South of Quidamortem
+|name = Mountain Guide
+|image = [[File:Mountain Guide.png|120px]]
+|release1 = [[5 January]] [[2017]]
+|release2 = [[5 January]] [[2017]]
+|release3 = [[28 July]] [[2023]]
+|update1 = Chambers of Xeric
+|update2 = Chambers of Xeric
+|update3 = Desert Treasure II - The Fallen Empire
+|members = Yes
+|race = [[Human]]
+|location1 = [[Mount Quidamortem]]
+|location2 = [[Shayziens' Wall]]
+|location3 = South of [[Mount Quidamortem]]
+|gender = Male
+|options = Talk-to, Travel
+|examine = An experienced mountaineer.
+|map1 = {{Map|name=Mountain Guide|1278,3562|r=6|mtype=square|group=info}}
+|map2 = {{Map|name=Mountain Guide|1401,3538|r=4|mtype=square|group=info}}
+|map3 = {{Map|name=Mountain Guide|1273,3476|rectX=6|rectY=8|mtype=rectangle|group=info}}
+|id = 7599,7600
+|leagueRegion = Kourend
+}}
+[[File:Mountain Guide chathead.png|left]]
+
+{{Otheruses|def=no|the mountain guide in Varlamore|Mountain Guide (Auburn Valley)}}
+
+The '''Mountain Guide''' is found with the [[Varrock Museum]] expedition on [[Mount Quidamortem]], along with the [[Natural Historian (Mount Quidamortem)|Natural Historian]], [[Historian Duffy]], and [[Gnosi]]. He is able to take players back and forth between Mount Quidamortem, [[Shayziens' Wall]], and south of Mount Quidamortem.
+
+When players reach the summit, find the Mountain Guide and speak with him to unlock a travel point between the mountain, the Wall, and south of Quidamortem. This will save a considerable amount of time and avoids monsters on the way to the mountain. 
+
+To quickly reach the top, use a [[Games necklace]] to travel to the [[Wintertodt Camp|Wintertodt camp]], use the [[Lovakengj Minecart Network]] to travel to Mount Quidamortem, and run east. Once unlocked, you can quickly reach the Mountain Guide in numerous ways.
+
+* Use the [[Xeric's talisman]] to teleport to Xeric's Honour (if unlocked using the [[ancient tablet]]), and walk east
+* Use [[Fairy rings|fairy ring]] code {{fairycode|BLS}} and run south-west
+* Use [[Book of the Dead#Teleportation|Book of the Dead's]] teleport option, [[History and Hearsay]], then run south-west
+* Use [[Ring of shadows]]' teleport option, [[The Stranglewood]] (if unlocked using the [[strangled tablet]]), run to the rowboat on the north-east of the forest, take it, and run east
+
+==Destinations==
+{{Multimap
+|width=200px
+|align=center
+|title1=[[Shayziens' Wall|The Shayzien Outpost]]
+|map1={{Map|mtype=pin|1401,3536|zoom=1|width=200|height=250|group=dest}}
+|title2=[[Mount Quidamortem]]
+|map2={{Map|mtype=pin|1275,3559|zoom=1|width=200|height=250|group=dest}}
+|title3=South of Quidamortem
+|map3={{Map|mtype=pin|1272,3475|zoom=1|width=200|height=250|group=dest}}
+}}
+
+==Dialogue==
+{{hastranscript|npc}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 28 July 2023
+|update = Desert Treasure II - The Fallen Empire
+|change = An extra transport location for the Mountain Guide was added to the crossroads south of Mount Quidamortem.
+}}
+{{Subject changes footer}}
+
+{{Chambers of Xeric}}
+
+[[Category:Transportation]]

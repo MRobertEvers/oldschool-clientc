@@ -1,0 +1,26 @@
+{{Infobox Location
+|name = Mount Quidamortem bank
+|image = [[File:Mount Quidamortem bank.png]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|location = [[Mount Quidamortem]]
+|tellers = 0
+|pollbooth = Yes
+|depositbox = Yes
+|music = [[The Desolate Mage]]
+|map = {{Map|name=Mount Quidamortem chest|1252,3570|1257,3570|1257,3574|1252,3574|mtype=polygon}}
+|leagueRegion = Kourend
+}}
+The '''Mount Quidamortem bank''', more commonly known as the '''Cox bank''' or '''raids bank''', is a [[bank]] located on [[Mount Quidamortem]]. It is typically used for players preparing for the [[Chambers of Xeric]], as well as for those preparing to fight [[Vardorvis]].
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 21 June 2018
+|update = Theatre of Blood Changes & Deadman Summer Finals
+|change = Since so many of you kept misclicking, we've made it so you can't move to the tile behind the bank of the Mount Quidamortem. 
+}}
+{{Subject changes footer}}
+
+{{Banks}}

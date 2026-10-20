@@ -1,0 +1,19 @@
+{{Otheruses|the unit outside the [[Chambers of Xeric]] used to retrieve items left inside}}
+{{Infobox Scenery
+|name = Storage unit
+|image = [[File:Storage unit.png|250x250px]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|location = [[Chambers of Xeric]]
+|options = Private
+|examine = In case you left something in storage in the Chambers of Xeric.
+|map = {{Map|mtype=pin|1256,3572}}
+|id = 30107
+}}
+A '''storage unit''' can be found in the tent outside the [[Chambers of Xeric]], near the [[bank chest]]. It will contain any items the player left inside a [[Storage unit (disambiguation)|storage unit]] in the Chambers of Xeric, as well as any rewards the player did not retrieve from the [[ancient chest]] at the end of the raid.
+
+{{Chambers of Xeric}}
+
+[[Category:Bank PIN protection]]

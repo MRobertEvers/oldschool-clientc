@@ -1,0 +1,71 @@
+{{Confuse|Keldagrim minecart system}}
+[[File:Lovakengj Minecart Network interface.png|thumb|250px|Minecart destination interface]]
+The '''Lovakengj Minecart Network''' is a rapid transit system serving [[Great Kourend]] and some parts of the [[Kebos Lowlands]], offering transportation to ten destinations across Great Kourend and two to the Kebos Lowlands ([[Farming Guild]] and [[Mount Quidamortem]])
+
+The travel services offered by the [[minecart (Lovakengj Minecart Network)|minecarts]] cost 20 [[coins]] per ride. Upon completion of [[The Forsaken Tower]], the fee is waived and players can ride the carts for free permanently.
+
+==Locations==
+{| class="wikitable" style="text-align:center;"
+|{{Map|name=Loinur|x=1669|y=3833|mtype=pin|icon=redPin|caption=1. [[Loinur]], the [[Arceuus]] station conductor.|group=1|width=200|height=200}}
+|{{Map|name=Traxi|x=1218|y=3738|mtype=pin|icon=redPin|caption=2. [[Ferain]], the [[Farming Guild]] station conductor.|group=1|width=200|height=200}}
+|{{Map|name=Raeli|x=1808|y=3480|mtype=pin|icon=redPin|caption=3. [[Elnes]], the Hosidius South ([[Tithe Farm]]) station conductor.|group=1|width=200|height=200}}
+|{{Map|name=Traxi|x=1657|y=3542|mtype=pin|icon=redPin|caption=4. [[Traxi]], the [[Hosidius]] West station conductor.|group=1|width=200|height=200}}
+|-
+|{{Map|name=Stuliette|x=1698|y=3660|mtype=pin|icon=redPin|caption=5. [[Hordal]], the [[Kingstown]] station conductor.|group=1|width=200|height=200}}
+|{{Map|name=Traxi|x=1571|y=3466|mtype=pin|icon=redPin|caption=6. [[Buneir]], the [[Kourend Woodland]] station conductor.|group=1|width=200|height=200}}
+|{{Map|name=Miriam|x=1518|y=3732|mtype=pin|icon=redPin|caption=7. [[Miriam]], the [[Lovakengj]] station conductor.|group=1|width=200|height=200}}
+|{{Map|name=Stuliette|x=1255|y=3548|mtype=pin|icon=redPin|caption=8. [[Stuliette]], the [[Mount Quidamortem]] station conductor.|group=1|width=200|height=200}}
+|-
+|{{Map|name=Raeli|x=1648|y=3930|mtype=pin|icon=redPin|caption=9. [[Lassin]], the [[Northern Tundras]] ([[Wintertodt]]) station conductor.|group=1|width=200|height=200}}
+|{{Map|name=Raeli|x=1761|y=3709|mtype=pin|icon=redPin|caption=A. [[Raeli]], the [[Port Piscarilius]] station conductor.|group=1|width=200|height=200}}
+|{{Map|name=Mogrim|x=1591|y=3620|mtype=pin|icon=redPin|caption=B. [[Mogrim]], the [[Shayzien]] East station conductor.|group=1|width=200|height=200}}
+|{{Map|name=Stuliette|x=1414|y=3577|mtype=pin|icon=redPin|caption=C. [[Hatna]], the Shayzien West ([[Shayziens' Wall]]) station conductor.|group=1|width=200|height=200}}
+|}
+
+==Transportation==
+There are many ways to access the minecart network. The shortest distances are:
+* [[Rada's Blessing]] to Kourend Woodlands then run north-east to '''Kourend Woodland station''' (19 tiles)
+* Tithe Farm [[Minigame Teleport]] and then run south-east to '''Hosidius South station''' (21 tiles) - Requires having entered Tithe Farm once before.
+* [[Games necklace]] teleport to [[Wintertodt Camp]] then run south and then east to '''Northern Tundras station''' (~30 tiles)
+* [[Xeric's talisman#Teleportation options|Xeric's Honour]] teleport then run south to '''Mount Quidamortem station''' (33 tiles)
+* [[Jewellery of Jubilation]] teleport then run south to '''Lovakengj station''' (38 tiles)
+* [[Arceuus Library Teleport]] then run east to '''Arceuus station''' (38 tiles)
+* [[Spirit tree]] to [[Hosidius]] (requires 83 Farming) then run west to '''Hosidius West station''' (40 tiles)
+* [[Skills necklace]] teleport to [[Farming Guild]] then run west to '''Farming Guild station''' (46 tiles)
+* [[Fairy ring]] {{fairycode|BLS}}, then run south-west to the [[Mountain Guide]] to [[Mount Quidamortem]], then run south to '''Mount Quidamortem station''' (48 tiles)
+* [[Skills necklace]] teleport to [[Woodcutting Guild]] then run north to '''Hosidius West station''' (48 tiles)
+* [[Fairy rings|Fairy ring]] {{fairycode|CIS}} then run south and then east to '''Arceuus station''' (55 tiles)
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 10 January 2024
+|update = Children of the Sun
+|poll = Varlamore Activities & Kourend Changes
+|change = 
+* Unlocking the ability to use the minecarts for free is now locked behind completion of [[The Forsaken Tower]]; players who previously paid 100,000 coins to do so may reclaim their fee from any minecart operator. 
+** The cost to use the minecarts prior to the quest's completion has been reduced from 50 to 20 coins.
+* New minecart stations have been added to following locations:
+** [[Farming Guild]]
+** Hosidius South ([[Tithe Farm]])
+** [[Kingstown]]
+** [[Kourend Woodland]]
+** [[Northern Tundras]] ([[Wintertodt]])
+** Shayzien West ([[Shayziens' Wall]])
+* The minecart riding animation no longer plays when using the minecart, slightly shortening travel time.
+}}
+{{Subject changes
+|date = 15 August 2019
+|update = Small Game Updates and Betas
+|change = The mine cart info regarding the Hosidius station now reflects the new layout of Hosidius.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* Prior to [[10 January]] [[2024]], players would ride the minecart when travelling to any of the stations they had unlocked. 
+** Furthermore, players would ride on the shorter track when arriving at Lovakengj station. 
+
+{{Lovakengj Minecart Network}}
+{{Lovakengj}}
+{{Great Kourend}}
+[[Category:Transportation]]

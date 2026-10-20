@@ -1,0 +1,73 @@
+{{Transcript|npc}}
+
+==Standard dialogue==
+===Before completing [[The Forsaken Tower]]===
+* '''Stuliette:''' Can I help you today?
+* {{tselect|Select an Option}}
+* {{topt|Can I go for a ride?}}
+** '''Player:''' Can I go for a ride?
+** {{tcond|If the player does not have 20 coins in their inventory:}}
+*** '''Stuliette:''' Minecart rides are 20 coins.
+*** {{tact|end}}
+** {{tcond|If the player has 20 coins in their inventory:}}
+*** '''Stuliette:''' Of course.
+*** {{tact|(Lovakengj Minecart Network interface opens.)}}
+* {{topt|I'm fine, thanks.}}
+** '''Player:''' I'm fine, thanks.
+** {{tact|end}}
+
+===After completing [[The Forsaken Tower]]===
+* '''Stuliette:''' Can I help you today?
+* {{tselect|Select an Option}}
+* {{topt|Can I go for a ride?}}
+** '''Player:''' Can I go for a ride?
+** '''Stuliette:''' Of course.
+** {{tact|(Lovakengj Minecart Network interface opens.)}}
+* {{topt|I'm fine, thanks.}}
+** '''Player:''' I'm fine, thanks.
+** {{tact|end}}
+
+===Unlimited ride fee refund===
+* '''Stuliette:''' As a loyal customer of the Lovakengj Minecart Network, you're entitled to this.
+* {{tbox|pic=Coins 250 detail.png|Stuliette gives you 100,000 coins.}}
+* '''Stuliette:''' Now, can I help you today?
+* {{tact|end}}
+
+===Attempting to travel to Mount Quidamortem while already there===
+* '''Stuliette:''' You're already here, human.
+* {{tact|end}}
+
+==Historical dialogue==
+===When spoken to before Miriam===
+* '''Stuliette:''' Sorry, human, you can't use the Lovakengj Minecart Network. Speak to Miriam, at the main station by the southern Lovakengj bank, if you've got any questions.
+* {{tact|end}}
+
+===Setting up the Lovakengj Minecart Network===
+* '''Stuliette:''' Sorry, human, the Lovakengj Minecart Network is for citizens of Lovakengj only.
+* {{tcond|If the player does not have a Minecart control scroll:}}
+** {{tact|end}}
+* {{tcond|If the player has a Minecart control scroll:}}
+** '''Player:''' I've got this control scroll for you.
+** {{tbox|pic=Minecart control scroll detail.png|You show the scroll to the dwarf.}}
+** '''Stuliette:''' Thanks, human. I guess it's okay for you to ride my carts after all. So, can I help you?
+** {{tselect|Select an Option}}
+** {{topt|Can I go for a ride?}}
+*** '''Player:''' Can I go for a ride?
+*** {{tact|Lovakengj Minecart Network interface opens}}
+** {{topt|I'm fine, thanks.}}
+*** '''Player:''' I'm fine, thanks.
+*** {{tact|end}}
+
+===After giving her the Minecart control scroll===
+* '''Stuliette:''' Thanks again for bringing me that control scroll. Can I help you today?
+* {{tselect|Select an Option}}
+* {{topt|Can I go for a ride?}}
+** '''Player:''' Can I go for a ride?
+** {{tact|Lovakengj Minecart Network interface opens}}
+* {{topt|I'm fine, thanks.}}
+** '''Player:''' I'm fine, thanks.
+** {{tact|end}}
+
+===Trying to use a second Minecart control scroll on her===
+* '''Stuliette:''' No thanks, you've already given me one of those.
+* {{tact|end}}

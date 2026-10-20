@@ -1,0 +1,54 @@
+{{Transcript|npc}}
+
+==Standard dialogue==
+* '''Player:''' Hello. What do you do here?
+* '''Gnosi:''' My name is Gnosi. I am here to assist the Varrock Museum in their research.
+* '''Player:''' I didn't know the Varrock Museum was familiar with this continent. What research are you conducting?
+* '''Gnosi:''' We're studying the history of the region, origins of the lizardmen and how it all connects to Xeric.
+* '''Gnosi:''' We've wanted to study this place for a while, but haven't been able to explore due to lizardmen blocking the way.
+* '''Gnosi:''' But now that the Shayzien Army have cleared the path and discovered the Chambers of Xeric in the process, there is much to explore!
+* {{tselect|Select an option}}
+* {{topt|Who is Xeric?}}
+** '''Player:''' Who is Xeric?
+** '''Gnosi:''' Xeric was an incredibly powerful dark mage. He ruled Great Kourend for ten decades.
+** '''Gnosi:''' If you'd like to find out more you should visit the Historical Archive at the Grand Library.
+** {{tact|other}}
+* {{topt|What are the Chambers of Xeric?}}
+** '''Player:''' What are the Chambers of Xeric?
+** '''Gnosi:''' At the summit of this mountain we've found an ancient temple and a vast network of caves that we believe were formed by Xeric and his followers.
+** '''Gnosi:''' The discovery of the Chambers tells us Xeric invested significant time and resources here, yet it was never documented.
+** '''Gnosi:''' While much of Kourend's history under Xeric remains unknown, it is very surprising to discover such a huge area that was previously undiscovered to us.
+** {{tselect|Select an option}}
+** {{topt|Can I explore the Chambers?}}
+*** '''Player:''' Can I explore the Chambers?
+*** '''Gnosi:''' Of course, though be careful. The dangers of the Chambers of Xeric are as yet unknown. You should take a strong group of companions with you.
+*** {{tact|other}}
+** {{topt|What do you think Xeric used this area for?}}
+*** '''Player:''' What do you think Xeric used this area for?
+*** '''Gnosi:''' When he ruled Kourend, we know Xeric performed experiments on the living, using power drawn from the Dark Altar. After he was overthrown, he would have needed a new source of power.
+*** {{tcond|If the player has not completed [[Tale of the Righteous]]:}}
+**** '''Gnosi:''' We believe he came here to seek it. Xeric would also have required a source of many creatures for these experiments, and the Chambers certainly contain many of those!
+**** '''Gnosi:''' He must have also had some form of teleportation in order to reach the temple unnoticed.
+**** '''Gnosi:''' With time and careful study we will uncover these secrets and be able to answer these questions.
+*** {{tcond|If the player has completed [[Tale of the Righteous]]:}}
+**** '''Gnosi:''' We believe this altar is that source. It seems to act as an amplifier for the Dark Altar.
+**** '''Gnosi:''' As for what he used the Chambers for, that we still don't know. There's a lot of creatures in the Chambers. Maybe he used them in his experiments.
+*** {{tact|other}}
+** {{topt|Who is Xeric?}}
+*** {{tact|above}}
+** {{topt|Goodbye}}
+*** {{tact|below}}
+* {{topt|Goodbye.}}
+** '''Player:''' Goodbye.
+** {{tact|other}}
+
+==After completion of [[Tale of the Righteous]]==
+* '''Player:''' Hello. How's it going?
+* '''Gnosi:''' The discovery of this cave could change everything. We might finally be able to discover the link between the lizardmen, the Chambers of Xeric and Xeric himself.
+* {{tselect|Select an option}}
+* {{topt|Who is Xeric?}}
+** {{tact|above}}
+* {{topt|What are the Chambers of Xeric?}}
+** {{tact|above}}
+* {{topt|Goodbye.}}
+** {{tact|above}}

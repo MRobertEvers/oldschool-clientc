@@ -74,7 +74,7 @@ local function run(t)
     t.ticks(2)
     -- in, and the raid begun
     local sr = t.player.click_loc("raids_entrance_steps", 1)
-    local cr, cd = t.chat.play({ "mesbox:*", "options", "choose:Enter the Chambers of Xeric." })
+    local cr, cd = t.chat.play({ "mesbox:*", "options", "choose:Accept warning and proceed." })
     t.check("raid.enter", cr == "ok", tostring(cd))
     t.ticks(3)
     t.ui.tab(2)

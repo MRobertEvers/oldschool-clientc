@@ -1,0 +1,47 @@
+{{Infobox Item
+|name = Xeric's guard
+|image = [[File:Xeric's guard.png]]
+|release = [[17 May]] [[2018]]
+|update = Chambers of Xeric: Challenge Mode Is Here!
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = Yes
+|stackable = No
+|noteable = No
+|options = Wear, Drop
+|examine = Awarded for completing 100 Chambers of Xeric in challenge mode.
+|value = 400
+|weight = 0.453
+|id = 22388
+|leagueRegion = Kourend
+}}
+[[File:Xeric's guard detail.png|left|150px]]
+'''Xeric's guard''' is a cosmetic cape that can be obtained from [[Captain Rimor]] by the entrance to the [[Chambers of Xeric]] after completing 100 Chambers of Xeric in [[Chambers of Xeric/Challenge Mode|Challenge Mode]].
+
+{{Costume storage|cape rack}} It can also be mounted on a [[cape hanger]] in an [[Achievement Gallery]].
+
+==Combat stats==
+{{Infobox Bonuses
+|astab = 0
+|aslash = 0
+|acrush = 0
+|amagic = 0
+|arange = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|drange = 0
+|str = 0
+|rstr = 0
+|mdmg = 0
+|prayer = 0
+|slot = cape
+|image = [[File:Xeric's guard equipped.png|140px]]
+|altimage = [[File:Xeric's guard equipped female.png|140px]]
+}}
+
+{{Chambers of Xeric}}
+{{Cape}}
+[[Category:Collection log items]]

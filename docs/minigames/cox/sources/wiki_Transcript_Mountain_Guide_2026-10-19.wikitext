@@ -1,0 +1,28 @@
+{{Transcript|npc}}
+
+==First talking to him==
+* '''Player:''' Hello. What you are doing here?
+* '''Mountain Guide:''' Hello, I am a mountain guide for this historical expedition. I led the team to this summit.
+* '''Player:''' Would you be able to guide me up and down the mountain?
+* '''Mountain Guide:''' I don't see why not. I've not much to do while the historians are exploring.
+* '''Mountain Guide:''' I make many trips each day so whenever you'd like to travel, just speak to me here, at the Shayzien outpost, or south of the mountain.
+* '''Player:''' Thanks!
+* {{tact|end}}
+
+==Standard dialogue==
+* '''Player:''' Can you take me somewhere?
+* '''Mountain Guide:''' Of course. Where would you like to go?
+* {{tselect|Select an option}} <!--doesn't show the option for the location you're already at -->
+* {{topt|The Shayzien Outpost.}}
+** '''Player:''' The Shayzien Outpost.
+** {{tact|end}}
+* {{topt|Mount Quidamortem.}}
+** '''Player:''' Mount Quidamortem.
+** {{tact|end}}
+* {{topt|South of Quidamortem.}}
+** '''Player:''' South of Quidamortem.
+** {{tact|end}}
+* {{topt|Nowhere.}}
+** '''Player:''' Nowhere.
+** '''Mountain Guide:''' Okay. Come back if you change your mind.
+** {{tact|end}}

@@ -1,0 +1,39 @@
+{{Infobox NPC
+|name = Stuliette
+|image = [[File:Stuliette.png|120px]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|race = [[Dwarf (race)|Dwarf]] ([[Imcando_dwarf#Status|Imcando-descendant]])
+|location = [[Mount Quidamortem]]
+|gender = Female
+|options = Talk-to, Travel
+|examine = She works on the railroad.
+|map = {{Map|name=Stuliette|x=1255|y=3548|plane=0|r=3|mtype=square}}
+|id = 7619,hist7615,hist7616
+|leagueRegion = Kourend
+}}
+[[File:Stuliette chathead.png|left]]
+'''Stuliette''' is one of the station conductors on the [[Lovakengj Minecart Network]] that runs beneath [[Great Kourend]]. She conducts the [[Mount Quidamortem]] station.
+
+==Dialogue==
+{{Hastranscript|npc}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 10 January 2024
+|update = Children of the Sun
+|change = Players no longer need to give Stuliette a [[minecart control scroll]] to unlock travelling with her.
+}}
+{{Subject changes
+|date = 5 January 2017
+|update = Chambers of Xeric
+|change = Stuliette is added alongside Mount Quidamortem and the Chambers of Xeric.
+}}
+{{Subject changes footer}}
+
+{{Lovakengj Minecart Network}}
+{{Chambers of Xeric}}
+
+[[Category:Dwarves]]

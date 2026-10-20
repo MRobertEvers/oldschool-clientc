@@ -1,0 +1,27 @@
+{{Otheruses|the NPC at Mount Quidamortem|the NPC in Varrock Museum|Natural historian}}
+{{Infobox NPC
+|name = Natural Historian
+|image = [[File:Natural Historian (Mount Quidamortem).png|120px]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|race = [[Human]]
+|quest = [[Tale of the Righteous]]
+|location = [[Mount Quidamortem]]
+|gender = Male
+|options = Talk-to
+|examine = An aged expert in natural history.
+|map = {{Map|name=Natural Historian (Mount Quidamortem)|x=1279|y=3565|r=4|mtype=square}}
+|id = 8021,8182
+|leagueRegion = Kourend
+}}
+[[File:Natural Historian (Mount Quidamortem) chathead.png|left]]
+The '''Natural Historian''' is found with the [[Varrock Museum]] expedition on [[Mount Quidamortem]], along with [[Historian Duffy]], [[Gnosi]], and the [[Mountain Guide]].
+
+During [[Tale of the Righteous]], he accompanies [[Gnosi]] and the [[Historian Duffy]] into the [[Quidamortem Cave|cave]] west of the Mountain. After the quest, he remains in the cave to further study the temple.
+
+==Dialogue==
+{{Hastranscript|npc}}
+
+{{Tale of the Righteous}}
+{{Chambers of Xeric}}

@@ -1,0 +1,39 @@
+{{Infobox NPC
+|name = Gnosi
+|image = [[File:Gnosi.png|120px]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|race = [[Citizen of Arceuus]]
+|quest = [[Tale of the Righteous]]
+|location = [[Mount Quidamortem]]
+|gender = Female
+|options = Talk-to
+|examine = An Arceuus Historian.
+|map = {{Map|name=Gnosi|x=1279|y=3565|r=3|mtype=square}}
+|id = 8006,8023
+|leagueRegion = Kourend
+}}
+[[File:Gnosi chathead.png|left]]
+'''Gnosi''' is found with the [[Varrock Museum]] expedition on [[Mount Quidamortem]], along with the [[Natural Historian (Mount Quidamortem)|Natural Historian]], [[Historian Duffy]], and the [[Mountain Guide]].
+
+During [[Tale of the Righteous]], she accompanies [[Historian Duffy]] and the [[Natural Historian (Mount Quidamortem)|Natural Historian]] into the [[Quidamortem Cave|cave]] west of the Mountain. Upon discovering the unstable altar, she will tell you the reason [[Xeric]] ruled Great Kourend unopposed was because of the power of the [[Dark Altar]], and that he came to Mount Quidamortem to construct the [[Chambers of Xeric]] after his exile.
+
+Gnosi believes the reason Xeric survived in Quidamortem is the unstable altar nearby, which appears to give off the same power as the Dark Altar. She further states that it was created to amplify the Dark Altar's power, allowing it to reach areas it previously could not. As it is still giving out power, Gnosi wonders if Xeric had used it to extend his lifespan.
+
+After the quest, she remains in the cave to further study the temple.
+
+==Dialogue==
+{{Hastranscript|npc}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 10 January 2019
+|update = The Kebos Lowlands
+|change = One part of the dialogue was changed to be dependent on whether players have completed [[Tale of the Righteous]].
+}}
+{{Subject changes footer}}
+
+{{Tale of the Righteous}}
+{{Chambers of Xeric}}

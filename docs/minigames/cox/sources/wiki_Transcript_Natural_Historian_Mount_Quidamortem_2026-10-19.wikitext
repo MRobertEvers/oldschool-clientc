@@ -1,0 +1,16 @@
+{{Transcript|npc}}
+
+==Standard dialogue==
+* '''Player:''' Hello.
+* {{trandom}}
+* {{topt|Dialogue 1}}
+** '''Natural Historian:''' I've lost my notes... Duffy, have you seen my notes?
+* {{topt|Dialogue 2}}
+** '''Natural Historian:''' My wife will kill me if I don't take her back a souvenir.
+* {{topt|Dialogue 3}}
+** '''Natural Historian:''' I've had such a terrible headache since we arrived on this mountain.
+* {{topt|Dialogue 4}}
+** '''Natural Historian:''' Thank Saradomin for that mountain guide. We couldn't have made it here without him!
+* {{topt|Dialogue 5}}
+** '''Natural Historian:''' I can't find my rock pick!
+* {{tact|end}}

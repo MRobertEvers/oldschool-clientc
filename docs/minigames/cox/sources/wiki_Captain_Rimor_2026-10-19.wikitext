@@ -1,0 +1,79 @@
+{{Infobox NPC
+|name = Captain Rimor
+|image = [[File:Captain Rimor.png|140px]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|race = [[Human]]
+|location = [[Mount Quidamortem]]
+|gender = Male
+|options = Talk-to, Claim-cape, Set-difficulty
+|examine = A high ranking officer of the Shayzien Army.
+|map = {{Map|name=Captain Rimor|x=1234|y=3572|r=4|mtype=square}}
+|id = 7595
+|leagueRegion = Kourend
+}}
+[[File:Captain Rimor chathead.png|left]]
+'''Captain Rimor''' is a high ranking officer of the [[Shayzien Army]], found at the entrance of the [[Chambers of Xeric]], warning the player about the dangers within.
+
+Players who complete certain amounts of the Chambers of Xeric in [[Chambers of Xeric/Challenge Mode|Challenge Mode]] may speak to Captain Rimor to receive a cape:
+
+{|class="wikitable align-center-1"
+! colspan="2" |Cape
+!Completion count required
+|-
+|{{plinkt|Xeric's guard}}
+|100
+|-
+|{{plinkt|Xeric's warrior}}
+|500
+|-
+|{{plinkt|Xeric's sentinel}}
+|1,000
+|-
+|{{plinkt|Xeric's general}}
+|1,500
+|-
+|{{plinkt|Xeric's champion}}
+|2,000
+|}
+
+==Dialogue==
+{{Hastranscript|npc}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 29 November 2023
+|update = Chambers of Xeric Changes
+|poll = Chambers of Xeric Room Improvements
+|change =
+* The "Scaling" option has been replaced with a "Set-difficulty" option.
+}}
+{{Subject changes
+|date = 16 June 2021
+|update = A Kingdom Divided
+|change =
+* Players can now talk to Captain Rimor to disable the level-scaling in the [[Chambers of Xeric]] if no party members are at or above level 115 combat by right-clicking a new "Scaling" option on him.
+* Captain Rimor has been [[graphically updated]], now wearing [[Shayzien armour (tier 4)|tier 4 Shayzien armour]] instead of [[Shayzien armour (tier 5)|tier 5]].
+* His examine text was slightly changed; previously, it was "''A high ranking officer of the Shayzien army.''"
+}}
+{{Subject changes
+|date = 17 May 2018
+|update = Chambers of Xeric: Challenge Mode Is Here!
+|change = Captain Rimor has been [[graphically updated]], now wearing [[Xeric's sentinel]] instead of a [[Cape of Legends]].
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="15"
+|[[File:Captain Rimor v1.png|center|300x150px]]
+|[[File:Captain Rimor v2.png|center|300x150px]]
+|[[File:Captain Rimor.png|300x150px]]
+|-
+|5 January 2017 –<br/>17 May 2018
+|17 May 2018 –<br/>16 June 2021
+|16 June 2021 –<br/>present
+|}
+
+{{Chambers of Xeric}}

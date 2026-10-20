@@ -1,6 +1,6 @@
 -- cox_lobby: into the Chambers of Xeric the way a raider goes in, and out of
--- the start room. From Mount Quidamortem: the steps (the warning, "Enter the
--- Chambers of Xeric."), the raid's start room with the raiding party
+-- the start room. From Mount Quidamortem: the steps (the warning, "Accept
+-- warning and proceed."), the raid's start room with the raiding party
 -- side-panel in the chat-channel tab, its "Start raid" (the cache's own
 -- raids_sidepanel_data shows it to the leader before the raid begins), the
 -- start room's Passage held until then, and walked through after.
@@ -23,7 +23,7 @@ return {
         t.ticks(2)
         local sr, sd = t.player.click_loc("raids_entrance_steps", 1)
         t.check("lobby.steps", sr == "ok" or sr == "timeout", tostring(sr) .. " " .. tostring(sd))
-        local cr, cd = t.chat.play({ "mesbox:*", "options", "choose:Enter the Chambers of Xeric." })
+        local cr, cd = t.chat.play({ "mesbox:*", "options", "choose:Accept warning and proceed." })
         t.check("lobby.enter", cr == "ok", tostring(cd))
         t.ticks(3)
         local hr, here = t.raid.cox_here()

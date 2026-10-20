@@ -154,6 +154,36 @@ function QD.ui.invoke(widget, op)
     return result, detail
 end
 
+-- ui.close_modal() -> result, detail
+-- Close whatever main modal is open, the way the client's own close does
+-- (CLOSE_MODAL), on both lanes.
+function QD.ui.close_modal()
+    return api_drive.close_modal()
+end
+
+-- ui.press_pause(parent, sub, button) -> result, detail
+--
+-- A button a clientscript builds as child `sub` of `parent` and answers with
+-- cc_resume_pausebutton (the raids party board: enum_1538 / enum_1539). The
+-- live client has the clientscripts, so there the static `button` component the
+-- player clicks is pressed (op 1) and the client sends the resume itself;
+-- scriptrun has no clientscript VM, so there the resume the child would send is
+-- sent: RESUME_PAUSEBUTTON on `parent` with `sub`.
+function QD.ui.press_pause(parent, sub, button)
+    if api_drive.scriptrun == true then
+        local cr, com = api_drive.component(parent, -1)
+        if cr ~= "ok" then
+            return cr, "ui.press_pause: no component " .. tostring(parent)
+        end
+        return api_drive.resume(com, sub)
+    end
+    local wr, widget = api_drive.component(button, -1)
+    if wr ~= "ok" then
+        return wr, "ui.press_pause: no component " .. tostring(button)
+    end
+    return QD.ui.invoke(widget, 1)
+end
+
 -- ui.drag(sym, sub, to) -> ok | no_row | not_visible | refused, detail
 --
 -- Drag ONE widget with the real mouse, the way a player does: press inside

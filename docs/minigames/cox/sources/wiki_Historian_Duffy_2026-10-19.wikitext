@@ -1,0 +1,34 @@
+{{Infobox NPC
+|name = Historian Duffy
+|image = [[File:Historian Duffy.png|120px]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|race = [[Human]]
+|quest = [[Tale of the Righteous]]
+|location = [[Mount Quidamortem]]
+|gender = Male
+|options = Talk-to
+|examine = An expert in natural history.
+|map = {{Map|name=Historian Duffy|x=1279|y=3565|r=4|mtype=square}}
+|id = 8007,8163
+|leagueRegion = Kourend
+}}
+[[File:Historian Duffy chathead.png|left]]
+'''Historian Duffy''' is found with the [[Varrock Museum]] expedition on [[Mount Quidamortem]], along with the [[Natural Historian (Mount Quidamortem)|Natural Historian]], [[Gnosi]], and the [[Mountain Guide]].
+
+During [[Tale of the Righteous]], he accompanies [[Gnosi]] and the [[Natural Historian (Mount Quidamortem)|Natural Historian]] into the [[Quidamortem Cave|cave]] west of the Mountain. He will come to the conclusion that the cave predates [[Xeric]] himself, and wonders if it was King Shayzien VII who created the lizardmen. He will add that some believe the two are one and the same.
+
+After the quest, he remains in the cave to further study the temple.
+
+==Dialogue==
+{{Hastranscript|npc}}
+
+==Trivia==
+*Historian Duffy is named after {{WP|Eamon Duffy}}, a professor emeritus at the University of Cambridge.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1300030701350391809|date=30 August 2020|archiveurl=https://web.archive.org/web/20200830112137/https://twitter.com/JagexAsh/status/1300030701350391809|archivedate=30 August 2020|quote=He's not a place, but Historian Duffy is named after the Cambridge professor emiritus Eamon Duffy ([https://www.divinity.cam.ac.uk/directory/eamon-duffy]). Mod John C asked me who my favourite historian was, and I named the one who most often bought me drinks.}}
+
+==References==
+{{Reflist}}
+
+{{Tale of the Righteous}}
+{{Chambers of Xeric}}

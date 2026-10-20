@@ -3017,6 +3017,12 @@ d_resume(lua_State* L)
      * never 193:0 bare, which it offers no row for. */
     else if( component == ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "objectbox:universe") )
         sub = 0;
+    /* api_drive.resume(component, sub): a button a clientscript built as a
+     * child of `component` and answers with cc_resume_pausebutton (the raids
+     * party board's buttons, enum_1538 / enum_1539). Scriptrun has no
+     * clientscript VM to press the child, so the caller names its sub. */
+    else if( lua_gettop(L) >= 2 && !lua_isnil(L, 2) )
+        sub = (int)luaL_checkinteger(L, 2);
     /* The client builds a resume row only on what the server armed with the
      * click bit (if_addresumebutton's IF_SETEVENTS; a chatmenu row is
      * chatmenu:options at its sub) or on an IF1 Continue button
