@@ -5165,6 +5165,9 @@ npc_base_stat(
 {
     assert(npc && npc->def);
 
+    if( stat >= 0 && stat < TORIRSSERVER_STAT_COUNT && npc->base_level[stat] > 0 )
+        return npc->base_level[stat];
+
     switch( stat )
     {
     case TORIRSSERVER_STAT_ATTACK:
@@ -5346,6 +5349,8 @@ npc_changetype_rehydrate(
     npc->hitpoints = base_hitpoints - damage;
     if( npc->hitpoints < 0 )
         npc->hitpoints = 0;
+    /* The levels too: the new type's, as for its hitpoint base above. */
+    memset(npc->base_level, 0, sizeof(npc->base_level));
 
     npc->attack_seq = def->attack_anim;
     npc->block_seq = def->defend_anim;
@@ -7753,6 +7758,43 @@ script_command(
         if( npc->defend_proj_tick == srv->tick )
             delay = npc->defend_proj_end;
         ToriRSServer_AnimPlayNpc(npc, npc->block_seq, delay);
+        return 1;
+    }
+
+    /*
+     * npc_setbasestat(stat, level) — this npc's base level in one of the five
+     * non-hitpoint stats from now until it dies or changes type
+     * (`ToriRSServerNpc.base_level`). Its drain is kept as a delta below the
+     * new base, so a drained npc stays drained by the same amount.
+     *
+     * Hitpoints are refused: their base is the pool, which is
+     * `npc_setmaxhp`'s, and two commands moving one number is how the
+     * HEADBAR and `npc_statheal` came to disagree before that one existed.
+     */
+    case SS_OP_NPC_SETBASESTAT:
+    {
+        int32_t stat;
+        int32_t level;
+        struct ToriRSServerNpc* npc = active_npc(state);
+
+        if( !SSVM_PopInt(state, &level) || !SSVM_PopInt(state, &stat) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_setbasestat with no active npc");
+            return 1;
+        }
+        if( stat < 0 || stat >= TORIRSSERVER_STAT_COUNT || stat == TORIRSSERVER_STAT_HITPOINTS )
+        {
+            SSVM_Abort(state, "npc_setbasestat %d is not a non-hitpoint skill (hitpoints: npc_setmaxhp)", stat);
+            return 1;
+        }
+        if( level < 1 || level > TORIRSSERVER_NPC_STAT_MAX )
+        {
+            SSVM_Abort(state, "npc_setbasestat level %d is out of range", level);
+            return 1;
+        }
+        npc->base_level[stat] = level;
         return 1;
     }
 

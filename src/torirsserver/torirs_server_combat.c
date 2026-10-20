@@ -4352,6 +4352,8 @@ ToriRSServer_CombatRespawnTick(struct ToriRSServer* srv)
          * BGS, a Darklight or an Arclight spec leaves behind, and none of it
          * belongs to the monster that replaces the one it was spent on. */
         memset(npc->stat_drain, 0, sizeof(npc->stat_drain));
+        /* So are levels a script set for that life (`npc_setbasestat`). */
+        memset(npc->base_level, 0, sizeof(npc->base_level));
         /* A parked script's deadline and a freeze both describe the life that
          * ended: a monster that died mid-`npc_delay` used to come back unable
          * to take its turn — which includes draining its queue, so its first

@@ -2917,6 +2917,25 @@ struct ToriRSServerNpc
     int stat_drain[TORIRSSERVER_STAT_COUNT];
 
     /**
+     * This instance's own base level for each non-hitpoint stat, or 0 for "the
+     * type's authored level" — `npc_setbasestat` writes it, `npc_base_stat`
+     * reads it, and so `npc_basestat`, `npc_stat` (base less `stat_drain`) and
+     * every heal, drain and boost clamp follow it.
+     *
+     * Raid scaling is what it is for. A Chambers of Xeric monster's levels are
+     * a function of the party (size, highest combat, highest hitpoints), set
+     * once when the raid starts; a boost would decay back to the authored level
+     * one point a tick (`ToriRSServer_CombatNpcRegen`), so the scaled level has
+     * to BE the base. Hitpoints have their own pool (`npc_setmaxhp`).
+     *
+     * Zeroed by the spawn memset, on respawn, and by `npc_changetype`, which
+     * re-reads every combat value off the new type the same way it re-reads
+     * `base_hitpoints`; content that keeps a scaled level across a transform
+     * sets it again.
+     */
+    int base_level[TORIRSSERVER_STAT_COUNT];
+
+    /**
      * Small, script-owned runtime state belonging to this NPC instance.
      *
      * Player varps cannot represent two demons protecting from different

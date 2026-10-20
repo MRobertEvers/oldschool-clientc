@@ -53,22 +53,42 @@ Live sources:
 
 ## 1. Global: scaling
 
-The single most important formula set, and it lives on the **talk** page 📖💬:
+**Jagex's formula, as the OSRS Wiki DPS calculator implements it** —
+[weirdgloop/osrs-dps-calc `src/lib/scaling/ChambersOfXeric.ts`](https://github.com/weirdgloop/osrs-dps-calc/blob/main/src/lib/scaling/ChambersOfXeric.ts),
+with its Jest vectors in `src/tests/lib/scaling/ChambersOfXeric.test.ts`.
+Implemented in `cox_scaling.rs2` (2026-10-20); it replaced the talk-page
+regression fits below the table, which were exact only at solo (a four-man
+Tekton was 1200 hp against Jagex's 900).
 
-| Quantity | Rule |
+Inputs, fixed when the leader starts the raid (Strategies: "Once the leader
+starts the raid, all the mechanics are calculated, and no one may join"; "The
+scaling does not lower if players leave"): **n** = raiders in at the start, or
+the board's Scaling if larger; **combat** = highest combat level, clamped
+60..126; **hp′** = clamp(55 + ⌊44·HP/99⌋, 55, 99) on the highest Hitpoints
+level; **CM**.
+
+| Kind | Rule |
 | --- | --- |
-| **HP per party member** | For each *maxed* member added (126 cb, 99 hp), a monster **adds its base HP to itself**. Tekton: 300 solo → 600 duo → 1200 in a team of four |
-| **Defence per member** | ≈ **+2** per additional party member |
-| **Other base stats per member** | ≈ **+8 %** |
-| **Combat level below 126** | ≈ **−2 HP** per missing combat level |
-| **Hitpoints level below 99** | ≈ **−1.3 defence** per missing HP level |
-| **Challenge Mode** | "just about everything is multiplied by 1.5" |
-| **Scaling target** | Scales to the **highest combat level** in the party; full scaling at **115+** |
+| **Groups** (everything below unless listed) | off = ⌊⌊base·hp′/99⌋ · (100 + 7·isqrt(n−1) + (n−1)) / 100⌋; def = ⌊⌊base·hp′/99⌋ · (100 + isqrt(n−1) + ⌊7(n−1)/10⌋) / 100⌋; hits = ⌊base·combat/126⌋, then hits += hits·⌊n/2⌋; clamp hits 50..30000, off 50..5000, def 50..20000 |
+| **Linked levels** | attack, strength, ranged (and magic unless the monster defends with it: Tekton, Vespula, her portal and soldiers, deathly rangers, Olm's claws) are one level; defence (+ defensive magic) another; a level authored at 1 stays 1 |
+| **Challenge Mode** | off, hits, def +50 %; Tekton's def +20 % below four raiders, +35 % from four; the Glowing crystal's hits and def unchanged |
+| **Singles** (scavenger beasts, vespine soldiers) | hits = max(5, ⌊base·combat/126⌋); others max(1, ⌊base·clamp(HP,55,99)/99⌋); CM +50 % on both scalers; **no party term** |
+| **Great Olm** | group levels; mage claw's magic halved; hits: head 800 + 400f, claws 600 + 300f, f = min(n−1, 50) − 3⌊min(n, 50)/8⌋; no combat-level or CM term |
+| **Guardians** | base hits = 151 + ⌊party Mining / n⌋, then the group rule |
 
-⚠️ Every one of these is prefixed "about" by its source. They are the
-community's regression fits, **not** Jagex's formula. Treat them as the
-acceptance target for a solo max-stat raid (where they reduce to the clean base
-values) and as approximate elsewhere.
+At n = 1, 126 combat, 99 Hitpoints every term is the identity: cox.npc's levels.
+Scripted max hits (constants) grow by the group offence term
+(`~cox_scale_offence_value`); Challenge Mode stays the caller's.
+
+Superseded — the talk page's fits 📖💬, kept for the record:
+
+| Quantity | Old rule |
+| --- | --- |
+| **HP per party member** | base × members (Tekton 300 → 600 → 1200 in a four) |
+| **Defence per member** | ≈ +2 per additional member |
+| **Other base stats per member** | ≈ +8 % |
+| **Combat level below 126** | ≈ −2 HP per missing level |
+| **Hitpoints level below 99** | ≈ −1.3 defence per missing level |
 
 ❓ **The exact point cap formula is unknown.** The wiki states it "is currently
 believed to scale non-linearly with the number of players… the exact formula is

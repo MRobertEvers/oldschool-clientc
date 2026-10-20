@@ -1182,6 +1182,15 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # mechanic: Verzik blocks raiders (2, all) while she throws her webs.
     "NPC_SETBLOCKWALK": (11172, 1, 0, 0, 0),
 
+    # npc_setbasestat(npc_stat $stat, int $level)
+    #
+    # The active npc's BASE level in one non-hitpoint stat until it dies or
+    # changes type (`ToriRSServerNpc.base_level`); npc_basestat, npc_stat and
+    # every heal/drain/boost clamp follow it. Chambers of Xeric scaling: a
+    # monster's levels are a function of the party, set when the raid starts,
+    # and a boost would decay back to the authored level. Hitpoints refuse --
+    # their base is the pool, npc_setmaxhp's.
+    "NPC_SETBASESTAT": (11180, 2, 0, 0, 0),
 
     # loc_add_revert(coord $coord, loc $loc, int $angle, locshape $shape,
     #                int $duration, loc $revert, int $revert_angle)
@@ -1626,6 +1635,7 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "HITMARK_BAR": (0, 0),
     "NPC_FACEDIR": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_SETBLOCKWALK": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_SETBASESTAT": (1 << POINTER_BITS["active_npc"], 0),
     "LOC_ADD_REVERT": (0, 0),
     "NPC_ROUTEAPPROACH": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_PROJANIM_NPC": (1 << POINTER_BITS["active_npc"], 0),

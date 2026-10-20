@@ -100,8 +100,13 @@
  * simply opens mid-fight.
  *
  * The cost is 8 instances x 64 ints = 2 KB.
+ *
+ * Raised from 128 to 160 for the Chambers of Xeric, whose rooms had filled
+ * 4..31 and whose Olm owns 32..111: four room registers had been allocated at
+ * 32..35 on top of Olm's state, side and phase (2026-10-20), and the raid's
+ * party scaling needed slots of its own.
  */
-#define TORIRSSERVER_MAPINSTANCE_VARS 128
+#define TORIRSSERVER_MAPINSTANCE_VARS 160
 
 /** Zones per axis in a map square — the granularity the cache's archives, and
  *  therefore the allocator's reservations, come in. */
