@@ -48,6 +48,9 @@ every raid:
 | Wardens P3 | 61,80 | [wardens_p3.md](wardens_p3.md) |
 | Loot room | 57,80 | [loot.md](loot.md) |
 
+Invocations that no single room reads (time limit, Deadly Prayers, Dehydration,
+Overly Draining, Lively Larvae, Medic!): [invocations.md](invocations.md).
+
 ## Tool
 
 ```sh
