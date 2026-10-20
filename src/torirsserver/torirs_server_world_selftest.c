@@ -26125,6 +26125,189 @@ ToriRSServer_WorldSelftest(void)
         }
 
         /*
+         * A player's click goes AROUND an npc that blocks players
+         * (`blockwalk=all`: Verzik while she spins her webs) and straight
+         * through one that does not.
+         *
+         * The route used to read no occupancy at all while the step refused
+         * COLL_FLAG_BLOCK_NPC_AND_PLAYERS, so a click past such an npc walked
+         * into its edge and stood there with the rest of the route refused.
+         * A 3x3 is stamped across the line of an open courtyard strip; the
+         * plain route is checked to cross it first, or the strip proves
+         * nothing.
+         */
+        {
+            struct CollisionMap* cm = ToriRSServer_SceneCollision(0);
+            int sx = -1;
+            int sz = -1;
+
+            for( int x = ToriRSServer_SceneBaseX() + 8; x <= ToriRSServer_SceneBaseX() + 84 && sx < 0;
+                 x++ )
+            {
+                for( int z = ToriRSServer_SceneBaseZ() + 11;
+                     z <= ToriRSServer_SceneBaseZ() + 92 && sx < 0; z++ )
+                {
+                    int open = 1;
+
+                    for( int ox = 0; ox <= 10 && open; ox++ )
+                    {
+                        for( int oz = -3; oz <= 3 && open; oz++ )
+                        {
+                            open = ToriRSServer_SceneContains(x + ox, z + oz) &&
+                                   collision_map_tile(cm, x + ox - ToriRSServer_SceneBaseX(),
+                                                      z + oz - ToriRSServer_SceneBaseZ()) ==
+                                       COLL_FLAG_OPEN;
+                        }
+                    }
+                    if( open )
+                    {
+                        sx = x;
+                        sz = z;
+                    }
+                }
+            }
+            SELFTEST_CHECK(sx >= 0, "the scene should expose an open 11x7 strip for the blocker");
+            if( sx >= 0 )
+            {
+                int const bx = sx + 4;
+                int const bz = sz - 1;
+                int const tx = sx + 10;
+                int const block_all = COLL_FLAG_NPC_OCC | COLL_FLAG_BLOCK_NPC_AND_PLAYERS;
+                int crossed;
+                int at_x;
+                int at_z;
+                int legal;
+
+#define BLOCKER_HAS(px, pz) ((px) >= bx && (px) < bx + 3 && (pz) >= bz && (pz) < bz + 3)
+                steps = ToriRSServer_SceneRoute(0, sx, sz, tx, sz, path_x, path_z,
+                                                TORIRSSERVER_STEP_MAX);
+                crossed = 0;
+                for( int i = 0; i < steps; i++ )
+                    crossed |= BLOCKER_HAS(path_x[i], path_z[i]);
+                SELFTEST_CHECK(steps > 0 && crossed,
+                               "the open strip's own route runs through the blocker's square "
+                               "(%d steps, crossed %d)",
+                               steps, crossed);
+
+                /* blockwalk=npc: a player walks through it, as before. */
+                ToriRSServer_SceneChangeOccupancy(0, bx, bz, 3, COLL_FLAG_NPC_OCC, 1);
+                steps = ToriRSServer_SceneRoute(0, sx, sz, tx, sz, path_x, path_z,
+                                                TORIRSSERVER_STEP_MAX);
+                SELFTEST_CHECK(steps == 10,
+                               "a blockwalk=npc npc is no obstacle to a player's route, got %d "
+                               "steps for 10 tiles",
+                               steps);
+                ToriRSServer_SceneChangeOccupancy(0, bx, bz, 3, COLL_FLAG_NPC_OCC, 0);
+
+                /* blockwalk=all: around it, every step one the player's own
+                 * step agrees to. */
+                ToriRSServer_SceneChangeOccupancy(0, bx, bz, 3, block_all, 1);
+                steps = ToriRSServer_SceneRoute(0, sx, sz, tx, sz, path_x, path_z,
+                                                TORIRSSERVER_STEP_MAX);
+                crossed = 0;
+                legal = 1;
+                at_x = sx;
+                at_z = sz;
+                for( int i = 0; i < steps; i++ )
+                {
+                    int dir = ToriRSServer_StepDirection(path_x[i] - at_x, path_z[i] - at_z);
+
+                    crossed |= BLOCKER_HAS(path_x[i], path_z[i]);
+                    if( dir < 0 || !ToriRSServer_SceneCanStepExtra(0, at_x, at_z, dir,
+                                                                    player_travel_extra()) )
+                        legal = 0;
+                    at_x = path_x[i];
+                    at_z = path_z[i];
+                }
+                SELFTEST_CHECK(steps >= 10 && !crossed && legal && at_x == tx && at_z == sz,
+                               "a click past a blockwalk=all npc routes around it: %d steps, "
+                               "crossed %d, legal %d, arrived %d,%d (want %d,%d)",
+                               steps, crossed, legal, at_x, at_z, tx, sz);
+
+                /* A player it walked onto still gets out, by route and by
+                 * step. */
+                steps = ToriRSServer_SceneRoute(0, bx + 1, bz + 1, tx, sz, path_x, path_z,
+                                                TORIRSSERVER_STEP_MAX);
+                SELFTEST_CHECK(steps > 0,
+                               "a player under a blockwalk=all npc has a route out, got %d",
+                               steps);
+                selftest_park_player(srv, bx + 1, bz + 1);
+                ToriRSServer_WorldWalkTo(srv, tx, sz);
+                for( int i = 0; i < 3; i++ )
+                    selftest_tick(srv);
+                SELFTEST_CHECK(!BLOCKER_HAS(player->x, player->z),
+                               "and walks out from under it, at %d,%d after 3 ticks",
+                               player->x, player->z);
+#undef BLOCKER_HAS
+
+                ToriRSServer_SceneChangeOccupancy(0, bx, bz, 3, block_all, 0);
+                steps_clear(player);
+                player->dest_x = -1;
+                player->dest_z = -1;
+
+                /*
+                 * `npc_setblockwalk` leaves nothing behind. Occupancy is bits
+                 * patched in place, never rebuilt per tick, so the block a
+                 * live npc carries has to move with it, come off when it is
+                 * switched back, and come off when the npc is freed: after
+                 * every stage the scene holds exactly its footprint's worth of
+                 * the bit, or none.
+                 */
+                {
+                    int const man = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "man");
+                    int const slot =
+                        man >= 0 ? ToriRSServer_WorldNpcSpawn(srv, man, sx + 1, sz + 2, 0) : -1;
+
+                    SELFTEST_CHECK(slot >= 0, "setblockwalk: a man spawns on the strip");
+                    if( slot >= 0 )
+                    {
+                        struct ToriRSServerNpc* npc = &srv->npcs[slot];
+                        int stages[4];
+                        int under = 0;
+
+#define BLOCK_TILES(out)                                                                           \
+    do                                                                                             \
+    {                                                                                              \
+        (out) = 0;                                                                                 \
+        for( int t = 0; t < cm->size_x * cm->size_z; t++ )                                         \
+            (out) += (cm->flags[t] & COLL_FLAG_BLOCK_NPC_AND_PLAYERS) != 0;                        \
+    } while( 0 )
+                        BLOCK_TILES(stages[0]);
+                        ToriRSServer_WorldNpcSetBlockwalk(npc, 2);
+                        ToriRSServer_WorldNpcWalkTo(npc, sx + 7, sz + 2);
+                        for( int i = 0; i < 8; i++ )
+                            selftest_tick(srv);
+                        BLOCK_TILES(stages[1]);
+                        under = (collision_map_tile(cm, npc->x - ToriRSServer_SceneBaseX(),
+                                                    npc->z - ToriRSServer_SceneBaseZ()) &
+                                 COLL_FLAG_BLOCK_NPC_AND_PLAYERS) != 0;
+                        SELFTEST_CHECK(npc->x != sx + 1 && stages[1] == stages[0] + 1 && under,
+                                       "setblockwalk 2: the block walks with the npc and stays "
+                                       "one tile (%d -> %d tiles, npc at %d,%d, under it %d)",
+                                       stages[0], stages[1], npc->x, npc->z, under);
+
+                        ToriRSServer_WorldNpcSetBlockwalk(npc, 1);
+                        BLOCK_TILES(stages[2]);
+                        SELFTEST_CHECK(stages[2] == stages[0],
+                                       "setblockwalk 1: the block comes off (%d tiles, want %d)",
+                                       stages[2], stages[0]);
+
+                        ToriRSServer_WorldNpcSetBlockwalk(npc, 2);
+                        ToriRSServer_WorldNpcFree(srv, slot);
+                        for( int i = 0; i < 4; i++ )
+                            selftest_tick(srv);
+                        BLOCK_TILES(stages[3]);
+                        SELFTEST_CHECK(!npc->active && stages[3] == stages[0],
+                                       "setblockwalk 2 then freed: nothing left behind (active %d, "
+                                       "%d tiles, want %d)",
+                                       npc->active, stages[3], stages[0]);
+#undef BLOCK_TILES
+                    }
+                }
+            }
+        }
+
+        /*
          * Terrain and locs actually blocked something.
          *
          * Counted rather than probed at a named tile: which tile is a wall is a

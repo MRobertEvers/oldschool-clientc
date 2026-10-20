@@ -756,6 +756,23 @@ player_travel_extra(void)
 }
 
 /*
+ * player_travel_extra for this player's next step. A player standing under an
+ * npc that blocks players (it walked onto them: Verzik's web walk) steps as
+ * if it were not there until they are out from under it -- every tile around
+ * them is its footprint, and refusing them all froze them in place. Their
+ * route does the same (scene_player_enter_block).
+ */
+static int
+player_step_extra(struct ToriRSServerPlayer const* player)
+{
+    assert(player);
+    if( ToriRSServer_SceneTileFlags(player->level, player->x, player->z) &
+        COLL_FLAG_BLOCK_NPC_AND_PLAYERS )
+        return COLL_FLAG_OPEN;
+    return player_travel_extra();
+}
+
+/*
  * `Npc.blockWalkFlag()`. `moverestrict=blocked` and `moverestrict=passthru`
  * both answer OPEN there: the npc respects no entity collision at all -- an
  * npc that lives where the map blocks (lava, water), and one that walks
@@ -826,6 +843,29 @@ ToriRSServer_WorldNpcOccupancy(
     int add)
 {
     npc_set_occupancy(npc, add);
+}
+
+/*
+ * Released at the old mask and retaken at the new one, in that order, as
+ * `npc_changetype_rehydrate` does for size: `npc_set_occupancy` derives the
+ * mask from `npc->blockwalk`. The map's occupancy is bits, not counts, and it
+ * is never rebuilt per tick -- only a scene build re-stamps it from the live
+ * entities -- so a field changed without the release would leave the old
+ * mask's bits on those tiles until the next rebuild.
+ */
+void
+ToriRSServer_WorldNpcSetBlockwalk(
+    struct ToriRSServerNpc* npc,
+    int blockwalk)
+{
+    assert(npc);
+    assert(blockwalk >= 0);
+    assert(blockwalk <= 3);
+    if( blockwalk == npc->blockwalk )
+        return;
+    npc_set_occupancy(npc, 0);
+    npc->blockwalk = blockwalk;
+    npc_set_occupancy(npc, 1);
 }
 
 void
@@ -936,7 +976,7 @@ player_waypoint_step_blocked(struct ToriRSServerPlayer const* player)
     int dz;
     int dir;
     int index;
-    int extra = player_travel_extra();
+    int extra = player_step_extra(player);
 
     if( player->waypoint_index < 0 )
         return 1;
@@ -3068,9 +3108,10 @@ player_plan_step(
     int dir;
     int try_dx;
     int try_dz;
-    int extra = player_travel_extra();
+    int extra;
 
     assert(player);
+    extra = player_step_extra(player);
     if( player->waypoint_index < 0 )
         return -1;
 

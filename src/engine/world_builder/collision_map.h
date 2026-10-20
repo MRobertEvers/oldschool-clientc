@@ -533,6 +533,29 @@ collision_map_route_tiles(
     int* out_arrive_z);
 
 /*
+ * collision_map_route_tiles that also refuses to enter, or cut a diagonal
+ * past, any tile carrying a bit of `enter_block` -- the occupancy the mover's
+ * own step refuses (a player's: COLL_FLAG_BLOCK_NPC_AND_PLAYERS). 0 is
+ * collision_map_route_tiles exactly.
+ */
+int
+collision_map_route_tiles_blocked(
+    struct CollisionMap* cm,
+    int src_x,
+    int src_z,
+    int dst_x,
+    int dst_z,
+    struct CollisionApproach const* approach,
+    struct CollisionNearestOpts const* nearest,
+    int enter_block,
+    int* path_x,
+    int* path_z,
+    int max_path,
+    int* out_used_nearest,
+    int* out_arrive_x,
+    int* out_arrive_z);
+
+/*
  * collision_map_route_tiles for a mover `mover_size` tiles square: the flood's
  * steps are rsmod StepValidator.canTravel over the whole footprint
  * (collision_map_can_travel_typed with the mover's own `extra_flag` and

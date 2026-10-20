@@ -1353,6 +1353,13 @@ collision_flood_window(
  * rsmod StepValidator.canTravel over the whole footprint (corners + edge), the
  * step test a size-N npc's own movement already makes -- so a route never
  * asks it to stand anywhere its footprint cannot.
+ *
+ * `enter_block` (size 1 only) is the occupancy a 1-tile mover's own step
+ * refuses on top of that test: the tile it enters and, on a diagonal, both
+ * tiles it cuts past -- rsmod's canTravel for size 1 with that extra flag.
+ * A player's route passes `COLL_FLAG_BLOCK_NPC_AND_PLAYERS`, the bit a
+ * `blockwalk=all` npc stamps and `player_travel_extra` already refuses, so
+ * the route goes around such an npc instead of into it.
  */
 static int
 collision_flood_step(
@@ -1363,10 +1370,20 @@ collision_flood_step(
     int dz,
     int size,
     int extra_flag,
-    int coll_type)
+    int coll_type,
+    int enter_block)
 {
     if( size > 1 )
         return collision_map_can_travel_typed(cm, x, z, dx, dz, size, extra_flag, coll_type);
+    if( enter_block != 0 )
+    {
+        if( collision_map_tile(cm, x + dx, z + dz) & enter_block )
+            return 0;
+        if( dx != 0 && dz != 0 &&
+            ((collision_map_tile(cm, x + dx, z) & enter_block) ||
+             (collision_map_tile(cm, x, z + dz) & enter_block)) )
+            return 0;
+    }
     if( dx == -1 && dz == 0 )
         return collision_map_can_step_west(cm, x, z);
     if( dx == 1 && dz == 0 )
@@ -1396,6 +1413,7 @@ collision_flood(
     int mover_size,
     int extra_flag,
     int coll_type,
+    int enter_block,
     int* dir_map,
     int* dist_map,
     int* queue_x,
@@ -1439,7 +1457,7 @@ collision_flood(
         int next_cost = dist_map[collision_map_index_at(cm, x, z)] + 1;
         int idx = 0;
 
-        if( x - 1 >= win.min_x && collision_flood_step(cm, x, z, -1, 0, mover_size, extra_flag, coll_type) )
+        if( x - 1 >= win.min_x && collision_flood_step(cm, x, z, -1, 0, mover_size, extra_flag, coll_type, enter_block) )
         {
             idx = collision_map_index_at(cm, x - 1, z);
             if( dir_map[idx] == 0 )
@@ -1452,7 +1470,7 @@ collision_flood(
             }
         }
 
-        if( x + 1 <= win.max_x && collision_flood_step(cm, x, z, 1, 0, mover_size, extra_flag, coll_type) )
+        if( x + 1 <= win.max_x && collision_flood_step(cm, x, z, 1, 0, mover_size, extra_flag, coll_type, enter_block) )
         {
             idx = collision_map_index_at(cm, x + 1, z);
             if( dir_map[idx] == 0 )
@@ -1465,7 +1483,7 @@ collision_flood(
             }
         }
 
-        if( z - 1 >= win.min_z && collision_flood_step(cm, x, z, 0, -1, mover_size, extra_flag, coll_type) )
+        if( z - 1 >= win.min_z && collision_flood_step(cm, x, z, 0, -1, mover_size, extra_flag, coll_type, enter_block) )
         {
             idx = collision_map_index_at(cm, x, z - 1);
             if( dir_map[idx] == 0 )
@@ -1478,7 +1496,7 @@ collision_flood(
             }
         }
 
-        if( z + 1 <= win.max_z && collision_flood_step(cm, x, z, 0, 1, mover_size, extra_flag, coll_type) )
+        if( z + 1 <= win.max_z && collision_flood_step(cm, x, z, 0, 1, mover_size, extra_flag, coll_type, enter_block) )
         {
             idx = collision_map_index_at(cm, x, z + 1);
             if( dir_map[idx] == 0 )
@@ -1492,7 +1510,7 @@ collision_flood(
         }
 
         if( x - 1 >= win.min_x && z - 1 >= win.min_z &&
-            collision_flood_step(cm, x, z, -1, -1, mover_size, extra_flag, coll_type) )
+            collision_flood_step(cm, x, z, -1, -1, mover_size, extra_flag, coll_type, enter_block) )
         {
             idx = collision_map_index_at(cm, x - 1, z - 1);
             if( dir_map[idx] == 0 )
@@ -1505,7 +1523,7 @@ collision_flood(
             }
         }
         if( x + 1 <= win.max_x && z - 1 >= win.min_z &&
-            collision_flood_step(cm, x, z, 1, -1, mover_size, extra_flag, coll_type) )
+            collision_flood_step(cm, x, z, 1, -1, mover_size, extra_flag, coll_type, enter_block) )
         {
             idx = collision_map_index_at(cm, x + 1, z - 1);
             if( dir_map[idx] == 0 )
@@ -1518,7 +1536,7 @@ collision_flood(
             }
         }
         if( x - 1 >= win.min_x && z + 1 <= win.max_z &&
-            collision_flood_step(cm, x, z, -1, 1, mover_size, extra_flag, coll_type) )
+            collision_flood_step(cm, x, z, -1, 1, mover_size, extra_flag, coll_type, enter_block) )
         {
             idx = collision_map_index_at(cm, x - 1, z + 1);
             if( dir_map[idx] == 0 )
@@ -1531,7 +1549,7 @@ collision_flood(
             }
         }
         if( x + 1 <= win.max_x && z + 1 <= win.max_z &&
-            collision_flood_step(cm, x, z, 1, 1, mover_size, extra_flag, coll_type) )
+            collision_flood_step(cm, x, z, 1, 1, mover_size, extra_flag, coll_type, enter_block) )
         {
             idx = collision_map_index_at(cm, x + 1, z + 1);
             if( dir_map[idx] == 0 )
@@ -1728,6 +1746,7 @@ route_tiles_impl(
     int mover_size,
     int extra_flag,
     int coll_type,
+    int enter_block,
     struct CollisionNearestOpts const* nearest,
     int* path_x,
     int* path_z,
@@ -1773,8 +1792,8 @@ route_tiles_impl(
     queue_z = ToriMem_Alloc(frame, (size_t)buf_size * sizeof(int));
 
     arrived = collision_flood(
-        cm, src_x, src_z, dst_x, dst_z, approach, mover_size, extra_flag, coll_type, dir_map,
-        dist_map, queue_x, queue_z, &end_x, &end_z);
+        cm, src_x, src_z, dst_x, dst_z, approach, mover_size, extra_flag, coll_type, enter_block,
+        dir_map, dist_map, queue_x, queue_z, &end_x, &end_z);
 
     if( !arrived &&
         collision_nearest_fallback(cm, dst_x, dst_z, approach, nearest, dist_map, &end_x, &end_z) )
@@ -1817,10 +1836,32 @@ collision_map_route_tiles(
     int* out_arrive_x,
     int* out_arrive_z)
 {
+    return collision_map_route_tiles_blocked(cm, src_x, src_z, dst_x, dst_z, approach, nearest, 0,
+                                             path_x, path_z, max_path, out_used_nearest,
+                                             out_arrive_x, out_arrive_z);
+}
+
+int
+collision_map_route_tiles_blocked(
+    struct CollisionMap* cm,
+    int src_x,
+    int src_z,
+    int dst_x,
+    int dst_z,
+    struct CollisionApproach const* approach,
+    struct CollisionNearestOpts const* nearest,
+    int enter_block,
+    int* path_x,
+    int* path_z,
+    int max_path,
+    int* out_used_nearest,
+    int* out_arrive_x,
+    int* out_arrive_z)
+{
     uint64_t t0 = route_now_us();
     int n = route_tiles_impl(cm, src_x, src_z, dst_x, dst_z, approach, 1, 0, COLL_TYPE_NORMAL,
-                             nearest, path_x, path_z, max_path, out_used_nearest, out_arrive_x,
-                             out_arrive_z);
+                             enter_block, nearest, path_x, path_z, max_path, out_used_nearest,
+                             out_arrive_x, out_arrive_z);
 
     g_collision_route_us += route_now_us() - t0;
     g_collision_route_calls++;
@@ -1857,7 +1898,7 @@ collision_map_route_tiles_sized(
     /* No nearest fallback: a mover that cannot reach the target's reach does
      * not walk somewhere else instead. */
     n = route_tiles_impl(cm, src_x, src_z, dst_x, dst_z, approach, mover_size, extra_flag,
-                         coll_type, NULL, path_x, path_z, max_path, NULL, out_arrive_x,
+                         coll_type, 0, NULL, path_x, path_z, max_path, NULL, out_arrive_x,
                          out_arrive_z);
     g_collision_route_us += route_now_us() - t0;
     g_collision_route_calls++;
@@ -1896,8 +1937,8 @@ collision_map_try_route(
     int* queue_z = ToriMem_Alloc(frame, (size_t)buf_size * sizeof(int));
 
     int arrived = collision_flood(
-        cm, src_x, src_z, dst_x, dst_z, NULL, 1, 0, COLL_TYPE_NORMAL, dir_map, dist_map, queue_x,
-        queue_z, NULL, NULL);
+        cm, src_x, src_z, dst_x, dst_z, NULL, 1, 0, COLL_TYPE_NORMAL, 0, dir_map, dist_map,
+        queue_x, queue_z, NULL, NULL);
 
     /* The ground/minimap unreachable fallback. Which model this is belongs to
      * the caller's era table (ground_click_nearest_model), not to the router —
@@ -1956,7 +1997,7 @@ collision_map_try_route_op(
     int end_x = dst_x;
     int end_z = dst_z;
     int arrived = collision_flood(
-        cm, src_x, src_z, dst_x, dst_z, approach, 1, 0, COLL_TYPE_NORMAL, dir_map, dist_map,
+        cm, src_x, src_z, dst_x, dst_z, approach, 1, 0, COLL_TYPE_NORMAL, 0, dir_map, dist_map,
         queue_x, queue_z, &end_x, &end_z);
 
     if( !arrived &&

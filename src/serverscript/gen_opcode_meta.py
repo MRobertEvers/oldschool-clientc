@@ -1173,6 +1173,16 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # facing the storm; a spawn row has no facing column.
     "NPC_FACEDIR": (11171, 1, 0, 0, 0),
 
+    # npc_setblockwalk(int $blockwalk)
+    #
+    # The active npc's `blockwalk` from now on -- 0 none, 1 npc, 2 all, 3
+    # player, the type's own field -- with its occupancy taken off the map at
+    # the old mask and put back at the new one. The type's value is stamped at
+    # spawn and kept through a change type; this is content changing it for a
+    # mechanic: Verzik blocks raiders (2, all) while she throws her webs.
+    "NPC_SETBLOCKWALK": (11172, 1, 0, 0, 0),
+
+
     # loc_add_revert(coord $coord, loc $loc, int $angle, locshape $shape,
     #                int $duration, loc $revert, int $revert_angle)
     #
@@ -1615,6 +1625,7 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "NPC_TINT": (1 << POINTER_BITS["active_npc"], 0),
     "HITMARK_BAR": (0, 0),
     "NPC_FACEDIR": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_SETBLOCKWALK": (1 << POINTER_BITS["active_npc"], 0),
     "LOC_ADD_REVERT": (0, 0),
     "NPC_ROUTEAPPROACH": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_PROJANIM_NPC": (1 << POINTER_BITS["active_npc"], 0),

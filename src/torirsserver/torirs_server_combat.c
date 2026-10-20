@@ -4296,6 +4296,10 @@ ToriRSServer_CombatRespawnTick(struct ToriRSServer* srv)
          */
         ToriRSServer_NpcResetDefaults(npc);
         npc->huntmode = npc_def(npc)->huntmode;
+        /* `npc_setblockwalk` is the same kind of override. The reap released
+         * the last life's footprint at whatever it set; the stamp below takes
+         * the type's own. */
+        npc->blockwalk = npc_def(npc)->blockwalk;
         /* Runtime vars describe one life, not one pool slot. A type change
          * keeps them; a respawn is the boundary that clears them. */
         memset(npc->script_vars, 0, sizeof(npc->script_vars));

@@ -66,6 +66,7 @@ EXTRA_DECLARATIONS = [
     "[command,npc_tint](int $start_cycle, int $end_cycle, int $hue, int $saturation, int $lightness, int $weight)",
     "[command,hitmark_bar](int $uid, int $self, int $other, int $amount, int $healthbar, int $fill)",
     "[command,npc_facedir](coord $coord)",
+    "[command,npc_setblockwalk](int $blockwalk)",
 ]
 
 DECL = re.compile(r"^\[command,(\.?)([A-Za-z0-9_]+)\]\s*(\([^)]*\))?\s*(\([^)]*\))?")

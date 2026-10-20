@@ -2647,6 +2647,29 @@ route_trace(
             level, from_x, from_z, to_x, to_z, steps, nearest, arrive_x, arrive_z);
 }
 
+/*
+ * What a player's route may not enter: the npcs that block players
+ * (`blockwalk=all`, COLL_FLAG_BLOCK_NPC_AND_PLAYERS), the same bit the
+ * player's own step refuses (`player_travel_extra`). Routing through them
+ * walked a click into the npc and left the player standing at its edge with
+ * the rest of the route refused, where the route should have gone around.
+ *
+ * A player who already stands under one (it walked onto them) routes as
+ * before: every tile around them is blocked, and refusing them all would
+ * leave them no way out.
+ */
+static int
+scene_player_enter_block(
+    struct CollisionMap* map,
+    int x,
+    int z)
+{
+    assert(map);
+    if( collision_map_tile(map, x, z) & COLL_FLAG_BLOCK_NPC_AND_PLAYERS )
+        return 0;
+    return COLL_FLAG_BLOCK_NPC_AND_PLAYERS;
+}
+
 int
 ToriRSServer_SceneRoute(
     int level,
@@ -2693,10 +2716,11 @@ ToriRSServer_SceneRoute(
         struct CollisionNearestOpts nearest_opts;
 
         ToriRSServer_SceneGroundNearestOpts(&nearest_opts);
-        steps = collision_map_route_tiles(map, from_x - window->base_x, from_z - window->base_z,
-                                          to_x - window->base_x, to_z - window->base_z, NULL,
-                                          &nearest_opts, path_x, path_z, max_steps, &nearest,
-                                          &arrive_x, &arrive_z);
+        steps = collision_map_route_tiles_blocked(
+            map, from_x - window->base_x, from_z - window->base_z, to_x - window->base_x,
+            to_z - window->base_z, NULL, &nearest_opts,
+            scene_player_enter_block(map, from_x - window->base_x, from_z - window->base_z),
+            path_x, path_z, max_steps, &nearest, &arrive_x, &arrive_z);
     }
     if( steps < 0 )
     {
@@ -2763,10 +2787,11 @@ ToriRSServer_SceneRouteOp(
     }
 
     ToriRSServer_SceneOpNearestOpts(&nearest_opts);
-    steps = collision_map_route_tiles(map, from_x - window->base_x, from_z - window->base_z,
-                                      to_x - window->base_x, to_z - window->base_z, approach,
-                                      &nearest_opts, path_x, path_z, max_steps, &nearest,
-                                      &arrive_x, &arrive_z);
+    steps = collision_map_route_tiles_blocked(
+        map, from_x - window->base_x, from_z - window->base_z, to_x - window->base_x,
+        to_z - window->base_z, approach, &nearest_opts,
+        scene_player_enter_block(map, from_x - window->base_x, from_z - window->base_z), path_x,
+        path_z, max_steps, &nearest, &arrive_x, &arrive_z);
     if( steps < 0 )
     {
         route_trace(level, from_x, from_z, to_x, to_z, -1, 0, to_x, to_z);

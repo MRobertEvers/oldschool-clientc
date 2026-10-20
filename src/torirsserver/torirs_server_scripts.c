@@ -7643,6 +7643,28 @@ script_command(
         return 1;
     }
 
+    case SS_OP_NPC_SETBLOCKWALK:
+    {
+        int32_t blockwalk;
+        struct ToriRSServerNpc* npc = active_npc(state);
+
+        if( !SSVM_PopInt(state, &blockwalk) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_setblockwalk with no active npc");
+            return 1;
+        }
+        if( blockwalk < 0 || blockwalk > 3 )
+        {
+            SSVM_Abort(state, "npc_setblockwalk %d is not a blockwalk (0 none, 1 npc, 2 all, 3 player)",
+                       blockwalk);
+            return 1;
+        }
+        ToriRSServer_WorldNpcSetBlockwalk(npc, blockwalk);
+        return 1;
+    }
+
     case SS_OP_NPC_SETHEADBARRESERVE:
     {
         int32_t reserve;

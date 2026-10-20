@@ -462,6 +462,8 @@ ToriRSServer_SceneBaseZ(void);
  * Route from one absolute tile to another, writing absolute tiles into
  * `path_x`/`path_z` in walk order (nearest step first).
  *
+ * A player's route: it goes around npcs that block players (blockwalk=all).
+ *
  * Returns the number of steps, 0 when already there, or -1 when no route
  * exists. With no collision loaded this degrades to the straight-line
  * interpolation the mock used before. An endpoint outside the built scene
@@ -481,6 +483,7 @@ ToriRSServer_SceneRoute(
 /**
  * Route toward a target under an approach predicate (loc/npc/obj click).
  *
+ * A player's route, around npcs that block players, as ToriRSServer_SceneRoute.
  * Uses the era's op-click nearest fallback. Writes walk-order tiles; on
  * success *out_arrive_x/z (when non-NULL) receive the arrival tile, which may
  * differ from (to_x,to_z) when the fallback fired.

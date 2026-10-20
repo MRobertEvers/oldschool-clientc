@@ -7063,6 +7063,17 @@ ToriRSServer_WorldNpcOccupancy(
     int add);
 
 /**
+ * `npc_setblockwalk`: the npc's blockwalk (0 none, 1 npc, 2 all, 3 player)
+ * from now on, its occupancy released at the old mask and retaken at the new.
+ * Every later release (a step, a death's reap, a despawn, `npc_del`) reads the
+ * field, so it clears what was stamped; a respawn takes the type's own back.
+ */
+void
+ToriRSServer_WorldNpcSetBlockwalk(
+    struct ToriRSServerNpc* npc,
+    int blockwalk);
+
+/**
  * Move an npc without walking it there — `PathingEntity.teleport()`.
  *
  * The one entry point for a discontinuous move, because four things have to
