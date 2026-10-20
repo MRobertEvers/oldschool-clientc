@@ -1155,6 +1155,24 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # send every tick): (0, 600, 0, 0, 106, 40), cleared (0, 0, 255, 255, 255, 0).
     "NPC_TINT": (11162, 6, 0, 0, 0),
 
+    # hitmark_bar(int $uid, hitsplat $self, hitsplat $other, int $amount,
+    #             int $healthbar, int $fill)
+    #
+    # `hitmark` for a resource that is not hitpoints. The victim sees `$self`,
+    # every other viewer `$other`, and the bar that rides with the splat is
+    # `$healthbar` at `$fill` (the bar's own units), not the hitpoints bar.
+    # Recorded (RSProx 3254/3262/732, Wintertodt's cold since the 23 April 2025
+    # update): hitsplat 75 / 76 and healthbar 79 at 1 + warmth * 29 / 1000.
+    "HITMARK_BAR": (11170, 6, 0, 0, 0),
+
+    # npc_facedir(coord $coord)
+    #
+    # The active npc's persistent 8-way direction -- the spawn angle an
+    # NPC_INFO add carries -- pointed at `$coord`, with no mask and no turn.
+    # Recorded: each wint_fire is added facing its path, each pyromancer
+    # facing the storm; a spawn row has no facing column.
+    "NPC_FACEDIR": (11171, 1, 0, 0, 0),
+
     # loc_add_revert(coord $coord, loc $loc, int $angle, locshape $shape,
     #                int $duration, loc $revert, int $revert_angle)
     #
@@ -1595,6 +1613,8 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "SPOTANIM_MAP_SPECIFIC": (1 << POINTER_BITS["active_player"], 0),
     "P_TINT": (1 << POINTER_BITS["active_player"], 0),
     "NPC_TINT": (1 << POINTER_BITS["active_npc"], 0),
+    "HITMARK_BAR": (0, 0),
+    "NPC_FACEDIR": (1 << POINTER_BITS["active_npc"], 0),
     "LOC_ADD_REVERT": (0, 0),
     "NPC_ROUTEAPPROACH": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_PROJANIM_NPC": (1 << POINTER_BITS["active_npc"], 0),

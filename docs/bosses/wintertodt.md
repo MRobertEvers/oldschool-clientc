@@ -674,6 +674,15 @@ Wintertodt); do not scatter Wintertodt conditionals through every food item.
 
 ## 12. Wiki-unspecified facts requiring capture
 
+**Captured 2026-10-19** from four RSProx recordings of the live game (rev 233,
+September 2025): every item below except the extra-crate numerators (10) and
+the reward-cart rows (6, 7) now has a recorded answer, row-cited in
+[docs/rsprox-analysis/wintertodt/README.md](../rsprox-analysis/wintertodt/README.md)
+and stated in `wintertodt.constant`. Two of the answers overturn this plan: the
+pyromancers' bolts are `wint_fire` npcs that take 5 energy each on arrival, not
+a 1% drain every 14 ticks; and a pyromancer hit is max(base, random(14)), not 7.
+Bruma roots give a root every 3 ticks, with no roll (Wiki).
+
 These are not permission to choose convenient numbers:
 
 1. Base attempt intervals, warning duration, and relative weighting for the

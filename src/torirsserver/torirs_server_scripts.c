@@ -10128,6 +10128,41 @@ script_command(
         return 1;
     }
 
+    /*
+     * npc_facedir(coord) -- the active npc's persistent 8-way direction, the
+     * one NPC_INFO's add carries as its spawn angle, pointed at `coord`. No
+     * mask and no turn: it is what an observer who has not seen this npc yet
+     * is told it faces. `npc_facesquare` turns a visible npc and leaves this
+     * alone.
+     *
+     * Recorded (RSProx, Wintertodt): every wint_fire is added already facing
+     * its path (spawnangle north-west from the south-east brazier), and each
+     * pyromancer is added facing the storm. A spawn row carries no facing and
+     * an npc type has one for every copy, so neither can say it.
+     */
+    case SS_OP_NPC_FACEDIR:
+    {
+        int32_t coord;
+        struct ToriRSServerNpc* npc = active_npc(state);
+        int step_x;
+        int step_z;
+
+        if( !SSVM_PopInt(state, &coord) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_facedir with no active npc");
+            return 1;
+        }
+        step_x = coord_x(coord) - npc->x;
+        step_z = coord_z(coord) - npc->z;
+        step_x = step_x < 0 ? -1 : (step_x > 0 ? 1 : 0);
+        step_z = step_z < 0 ? -1 : (step_z > 0 ? 1 : 0);
+        if( step_x != 0 || step_z != 0 )
+            npc->face_dir = ToriRSServer_StepDirection(step_x, step_z);
+        return 1;
+    }
+
     case SS_OP_NPC_FACESQUARE:
     {
         int32_t coord;
@@ -11437,6 +11472,45 @@ script_command(
         saved_player = srv->active_player;
         ToriRSServer_WorldSetActive(srv, target_player);
         ToriRSServer_CombatHitmarkPlayer(srv, values[1], values[2]);
+        ToriRSServer_WorldSetActive(srv, saved_player);
+        return 1;
+    }
+
+    /*
+     * hitmark_bar(uid, self_hitsplat, other_hitsplat, amount, healthbar, fill)
+     * -- `hitmark` for a resource that is not hitpoints: the victim sees one
+     * splat, everyone else another, and the bar riding with it is `healthbar`
+     * at `fill` (its own units) rather than the hitpoints bar. Wintertodt's
+     * cold, recorded: 75 to the victim, 76 to everyone else, healthbar 79.
+     */
+    case SS_OP_HITMARK_BAR:
+    {
+        int32_t values[6];
+        struct ToriRSServerPlayer* target_player;
+        struct ToriRSServerPlayer* saved_player;
+
+        for( int i = 5; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        target_player = player_by_uid(srv, values[0]);
+        if( !target_player )
+        {
+            SSVM_Abort(state, "hitmark_bar: player uid %d is not a live player",
+                       (int)values[0]);
+            return 1;
+        }
+        if( values[1] < 0 || values[2] <= 0 || values[4] < 0 )
+        {
+            SSVM_Abort(state, "hitmark_bar: hitsplats %d/%d and healthbar %d must be records",
+                       (int)values[1], (int)values[2], (int)values[4]);
+            return 1;
+        }
+        saved_player = srv->active_player;
+        ToriRSServer_WorldSetActive(srv, target_player);
+        ToriRSServer_CombatHitmarkPlayerBar(srv, values[1], values[2], values[3], values[4],
+                                            values[5]);
         ToriRSServer_WorldSetActive(srv, saved_player);
         return 1;
     }

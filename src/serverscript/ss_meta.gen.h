@@ -569,6 +569,8 @@ static const char* const g_ss_opcode_names[11211] = {
     [11160] = "LOC_ADD_REVERT",
     [11161] = "NPC_ROUTEAPPROACH",
     [11162] = "NPC_TINT",
+    [11170] = "HITMARK_BAR",
+    [11171] = "NPC_FACEDIR",
     [11200] = "NPC_VENOM",
     [11210] = "SPOTANIM_PL_SLOT",
 };
@@ -1143,6 +1145,8 @@ static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11211] = {
     [11160] = { 7, 0, 0, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* LOC_ADD_REVERT */
     [11161] = { 1, 0, 0, 0, 1, 0, 0, 0, 0x010, 0x000 }, /* NPC_ROUTEAPPROACH */
     [11162] = { 6, 0, 0, 0, 1, 0, 0, 0, 0x010, 0x000 }, /* NPC_TINT */
+    [11170] = { 6, 0, 0, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* HITMARK_BAR */
+    [11171] = { 1, 0, 0, 0, 1, 0, 0, 0, 0x010, 0x000 }, /* NPC_FACEDIR */
     [11200] = { 0, 0, 0, 0, 1, 0, 0, 0, 0x014, 0x000 }, /* NPC_VENOM */
     [11210] = { 4, 0, 0, 0, 1, 0, 0, 0, 0x001, 0x000 }, /* SPOTANIM_PL_SLOT */
 };

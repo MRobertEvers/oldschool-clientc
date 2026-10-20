@@ -2681,6 +2681,17 @@ interaction_continue_or_give_up(struct ToriRSServer* srv)
     reached = ToriRSServer_SceneReached(
         ToriRSServer_PlayerReachLevel(srv, player, target_x, target_z), reach_x, reach_z,
         target_x, target_z, &approach);
+    if( srv->verbose )
+        fprintf(stderr,
+                "torirsserver: reach kind=%d target=%d,%d lvl=%d from=%d,%d approach=%d %dx%d "
+                "shape=%d sides=%d from_flags=0x%x -> %d\n",
+                interaction->kind, target_x, target_z,
+                ToriRSServer_PlayerReachLevel(srv, player, target_x, target_z), reach_x, reach_z,
+                approach.kind, approach.loc_width, approach.loc_length, approach.loc_shape,
+                approach.blocked_sides,
+                (unsigned)ToriRSServer_SceneTileFlags(
+                    ToriRSServer_PlayerReachLevel(srv, player, target_x, target_z), reach_x, reach_z),
+                reached);
     if( !reached && interaction->kind == TORIRSSERVER_INTERACT_OBJ && !player_has_waypoints(player) &&
         player->steps_taken == 0 )
     {

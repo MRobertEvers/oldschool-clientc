@@ -4752,6 +4752,26 @@ ToriRSServer_PlayerObservable(
  * the end, because a player removed in section 2 must not be counted into the
  * order section 3 and the extended blocks index against.
  */
+/**
+ * The splat one viewer is sent for one of `subject`'s hitmarks: the
+ * `hitmark_bar` pair when the hit carries one (the victim its own type, every
+ * other viewer `other_type`), else the ordinary per-viewer promotion.
+ */
+static int
+player_hit_type_for_viewer(
+    struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* viewer,
+    const struct ToriRSServerPlayer* subject,
+    int index)
+{
+    const struct ToriRSServerHitmark* hit = &subject->hitmarks[index];
+
+    if( hit->other_type > 0 )
+        return viewer == subject ? hit->type : hit->other_type;
+    return ToriRSServer_HitsplatForViewer(srv, viewer, hit->type, hit->damage, hit->dealer_slot,
+                                          hit->max_hit);
+}
+
 static void
 player_extended_v5(struct ToriRSServer* srv, struct ToriRSServerPlayer* viewer,
                    struct ToriRSServerPlayer* subject, enum Mock239PlayerMovement movement,
@@ -4778,10 +4798,11 @@ player_extended_v5(struct ToriRSServer* srv, struct ToriRSServerPlayer* viewer,
                  * tints.
                  */
                 ext.has_hit = 1;
-                ext.hit_type = ToriRSServer_HitsplatForViewer(
-                    srv, viewer, subject->damage_type, subject->damage,
-                    subject->hitmark_count > 0 ? subject->hitmarks[0].dealer_slot : -1,
-                    subject->hitmark_count > 0 ? subject->hitmarks[0].max_hit : 0);
+                ext.hit_type =
+                    subject->hitmark_count > 0
+                        ? player_hit_type_for_viewer(srv, viewer, subject, 0)
+                        : ToriRSServer_HitsplatForViewer(srv, viewer, subject->damage_type,
+                                                         subject->damage, -1, 0);
                 ext.hit_value = subject->damage;
                 ext.hit_delay = subject->hitmark_count > 0 ? subject->hitmarks[0].delay : 0;
                 /* Splats two and onward of the same tick. The mirrors above are
@@ -4789,9 +4810,8 @@ player_extended_v5(struct ToriRSServer* srv, struct ToriRSServerPlayer* viewer,
                  * the list rather than being dropped (struct ToriRSServerHitmark). */
                 for( int i = 1; i < subject->hitmark_count && i <= 3; i++ )
                 {
-                    ext.hit_extra[ext.hit_extra_count].type = ToriRSServer_HitsplatForViewer(
-                        srv, viewer, subject->hitmarks[i].type, subject->hitmarks[i].damage,
-                        subject->hitmarks[i].dealer_slot, subject->hitmarks[i].max_hit);
+                    ext.hit_extra[ext.hit_extra_count].type =
+                        player_hit_type_for_viewer(srv, viewer, subject, i);
                     ext.hit_extra[ext.hit_extra_count].value = subject->hitmarks[i].damage;
                     ext.hit_extra[ext.hit_extra_count].delay = subject->hitmarks[i].delay;
                     ext.hit_extra_count++;
@@ -4805,7 +4825,23 @@ player_extended_v5(struct ToriRSServer* srv, struct ToriRSServerPlayer* viewer,
                  * (elapsed 0 < duration 1) -- one full-bar frame per hit,
                  * which on a target hit every tick is a bar flickering
                  * between its value and full. See put_npc_extended_v5. */
-                if( subject->max_hitpoints > 0 && ToriRSServer_Ids()->healthbar_standard >= 0 )
+                if( subject->bar_override_tick_plus1 == srv->tick + 1 )
+                {
+                    /* `hitmark_bar` named the bar and its fill outright: the
+                     * resource it draws is not hitpoints (Wintertodt Warmth). */
+                    ext.has_headbar = 1;
+                    ext.headbar_type = subject->bar_override_type;
+                    ext.headbar_duration = 0;
+                    ext.headbar_start_delay = 0;
+                    for( int i = 0; i < subject->hitmark_count; i++ )
+                    {
+                        if( subject->hitmarks[i].delay > ext.headbar_start_delay )
+                            ext.headbar_start_delay = subject->hitmarks[i].delay;
+                    }
+                    ext.headbar_start_fill = subject->bar_override_fill;
+                    ext.headbar_end_fill = ext.headbar_start_fill;
+                }
+                else if( subject->max_hitpoints > 0 && ToriRSServer_Ids()->healthbar_standard >= 0 )
                 {
                     /* Players are size 1, so the standard bar is the whole of
                      * the size ladder for them -- but the WIDTH still comes
@@ -4826,7 +4862,7 @@ player_extended_v5(struct ToriRSServer* srv, struct ToriRSServerPlayer* viewer,
                             ext.headbar_start_delay = subject->hitmarks[i].delay;
                     }
                     ext.headbar_start_fill =
-                        (subject->hitpoints * width) / subject->max_hitpoints;
+                        ToriRSServer_HealthbarFill(subject->hitpoints, subject->max_hitpoints, width);
                     ext.headbar_end_fill = ext.headbar_start_fill;
                 }
             }
@@ -5722,6 +5758,25 @@ npc_headbar_id(const struct ToriRSServerNpc* npc)
 }
 
 int
+ToriRSServer_HealthbarFill(int left, int span, int width)
+{
+    assert(span > 0);
+    assert(width > 0);
+    /*
+     * `1 + left * (width - 1) / span`, and 0 only for an empty pool -- what
+     * Jagex sends, read off RSProx (docs/rsprox-analysis/wintertodt): a
+     * pyromancer on 6, 4, 2, 1 of 14 shows 13, 9, 5, 3 of 30, and every one
+     * of 72 Warmth bars fits it, where the old `left * width / span` was one
+     * short on all four pyromancer rows. It also keeps a living npc's bar from
+     * ever reading empty (a crab on 1 of 75 is 1, not 0): Blert's plugin reads
+     * hitpoints off this ratio and took an empty bar for a corpse.
+     */
+    if( left <= 0 )
+        return 0;
+    return 1 + (left * (width - 1)) / span;
+}
+
+int
 ToriRSServer_NpcHeadbarFill(const struct ToriRSServerNpc* npc, int* width_out)
 {
     int headbar;
@@ -5744,15 +5799,7 @@ ToriRSServer_NpcHeadbarFill(const struct ToriRSServerNpc* npc, int* width_out)
     left = npc->hitpoints - npc->headbar_reserve;
     if( left < 0 )
         left = 0;
-    fill = (left * width) / span;
-    /* A living npc's bar is never empty: the game draws a sliver down to its
-     * last hitpoint, and a reader takes an empty bar for a corpse (Blert's
-     * plugin, which reads hitpoints off this ratio, has Maiden's Matomenos
-     * leaking at 1 of 75 -- an empty bar would have said 0). Floored to 0,
-     * a crab on 1 of 75 read as dead and the solver left it to thaw and leak
-     * (seed v2b/sa, two in one wave). */
-    if( fill == 0 && left > 0 )
-        fill = 1;
+    fill = ToriRSServer_HealthbarFill(left, span, width);
     return fill > width ? width : fill;
 }
 

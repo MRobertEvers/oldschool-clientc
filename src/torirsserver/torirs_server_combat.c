@@ -957,6 +957,19 @@ ToriRSServer_HitsplatForViewer(
      * a player sees while standing still. The reference leaves unowned damage on
      * its own family's `me` member, which is the untinted one, and so does this.
      */
+    /*
+     * Damage nobody owns, stated as a WRAPPER, keeps the wrapper it states.
+     *
+     * The leaf is the common case and is promoted below. But Jagex's own
+     * unowned npc-on-npc damage goes out as `hitsplat_damage_other` to
+     * everybody -- the Wintertodt hitting a pyromancer, 59 of 59 splats in
+     * RSProx 3254/3262/732 -- so a script that says `_other` for a hit no
+     * player dealt means it, and promoting it back to `_me` sent the splat
+     * untinted.
+     */
+    if( dealer == NULL && type != hitsplat_symbol(family->leaf) )
+        return type;
+
     viewer_is_dealer = (dealer == NULL) || (dealer == viewer);
 
     /* `dealer` is NULL for damage nobody owns, and nobody's roll has no max. */
@@ -1410,6 +1423,7 @@ ToriRSServer_HitmarkAdd(
     hitmarks[*count].dealer_slot = dealer_slot;
     hitmarks[*count].delay = delay;
     hitmarks[*count].max_hit = max_hit;
+    hitmarks[*count].other_type = -1;
     (*count)++;
 }
 
@@ -2246,6 +2260,35 @@ ToriRSServer_CombatHitmarkPlayer(
     player->masks |= TORIRSSERVER_PMASK_DAMAGE;
     if( player->hitmark_count >= 2 )
         player->masks |= TORIRSSERVER_PMASK_DAMAGE2;
+}
+
+void
+ToriRSServer_CombatHitmarkPlayerBar(
+    struct ToriRSServer* srv,
+    int self_type,
+    int other_type,
+    int amount,
+    int healthbar,
+    int fill)
+{
+    struct ToriRSServerPlayer* player = srv->active_player;
+    int const before = player ? player->hitmark_count : 0;
+
+    assert(player);
+    assert(self_type >= 0);
+    /* Positive, not just set: the encoder reads `other_type > 0` so that a
+     * hitmark list zeroed by a memset (the selftests build them that way) is
+     * never mistaken for one asking for hitsplat 0. */
+    assert(other_type > 0);
+    assert(healthbar >= 0);
+    ToriRSServer_CombatHitmarkPlayer(srv, self_type, amount);
+    /* Full list: the splat was dropped, and so is its other-viewer type. The
+     * bar still changes, since the resource it shows did. */
+    if( player->hitmark_count > before )
+        player->hitmarks[player->hitmark_count - 1].other_type = other_type;
+    player->bar_override_type = healthbar;
+    player->bar_override_fill = fill < 0 ? 0 : fill;
+    player->bar_override_tick_plus1 = srv->tick + 1;
 }
 
 void

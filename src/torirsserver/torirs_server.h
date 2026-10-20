@@ -963,6 +963,16 @@ struct ToriRSServerHitmark
      * max hit whose roll was not the plain weapon's.
      */
     int max_hit;
+    /**
+     * The splat every OTHER viewer sees, or <= 0 for the ordinary per-viewer
+     * promotion of `type` (`ToriRSServer_HitsplatForViewer`).
+     *
+     * Set only by `hitmark_bar`: Wintertodt's cold is a pair of unrelated
+     * records, not a family -- the victim sees hitsplat 75 (the bright
+     * snowflake) and everyone else 76, the darker one the 16 October 2024
+     * update added "to more easily identify when you have been hit".
+     */
+    int other_type;
 };
 
 /*
@@ -4064,6 +4074,19 @@ struct ToriRSServerPlayer
      *  Inferno a whole wave lands on them together. */
     struct ToriRSServerHitmark hitmarks[TORIRSSERVER_HITMARK_MAX];
     int hitmark_count;
+    /**
+     * A healthbar that replaces the hitpoints bar on this tick's splats, set by
+     * `hitmark_bar`. Valid only while `bar_override_tick_plus1` is the current
+     * tick + 1 (so a zeroed player never has one), and it needs no clearing:
+     * next tick's hits fall back to the hitpoints bar.
+     *
+     * Wintertodt draws Warmth here (healthbar 79), not hitpoints: since the
+     * 23 April 2025 update "the Hitpoints bar is no longer shown when being hit
+     * by the cold". `bar_override_fill` is already in the bar's own units.
+     */
+    int bar_override_type;
+    int bar_override_fill;
+    int bar_override_tick_plus1;
     /** This player's damage rolls that hit their own maximum and have not
      *  landed yet; oldest first. See struct ToriRSServerMaxRoll. */
     struct ToriRSServerMaxRoll maxrolls[TORIRSSERVER_MAXROLL_MAX];
@@ -6511,6 +6534,9 @@ ToriRSServer_HealthbarInfoCount(void);
  *  so it is always safe to divide by. */
 int
 ToriRSServer_HealthbarWidth(int id);
+/** A bar's fill for `left` of `span`, in the bar's `width` units (Jagex's rounding). */
+int
+ToriRSServer_HealthbarFill(int left, int span, int width);
 
 /**
  * The overhead bar's fill for this npc, in its bar's width units, and that
@@ -6823,6 +6849,20 @@ ToriRSServer_CombatHitmarkPlayer(
     struct ToriRSServer* srv,
     int type,
     int amount);
+/**
+ * `hitmark_bar`: a cosmetic splat on the active player whose victim sees
+ * `self_type` and every other viewer `other_type`, carrying `healthbar` at
+ * `fill` (the bar's own units) instead of the hitpoints bar this tick.
+ * Changes no Hitpoints. Wintertodt's cold is the one user (Warmth, not HP).
+ */
+void
+ToriRSServer_CombatHitmarkPlayerBar(
+    struct ToriRSServer* srv,
+    int self_type,
+    int other_type,
+    int amount,
+    int healthbar,
+    int fill);
 /**
  * Display an NPC hitsplat, and the overhead health bar that rides with it,
  * without mutating Hitpoints or provoking retaliation.
