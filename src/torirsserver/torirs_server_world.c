@@ -13307,7 +13307,12 @@ handle_if_buttonx_packet(
 
     if( !mock239_if_button_decode(payload, len, has_subop, &button) )
         return;
-    player->last_subop = button.subop;
+    /* `last_subop` is the entry as the obj record numbers it, 1-based
+     * (`subaction=<op>,<n>,<name>`), which is what every content reader
+     * compares it with (giantsoul_amulet.rs2, xeric_talisman.rs2, ...). The
+     * wire byte is 0-based: RSProx index 4286 [427], a ring of dueling's Rub
+     * `subop=1`, landed at Castle Wars, its `subaction=4,2`. */
+    player->last_subop = has_subop ? button.subop + 1 : -1;
     if( srv->verbose )
         fprintf(stderr,
                 "torirsserver: <- %s %d:%d sub=%d obj=%d op=%d subop=%d\n",

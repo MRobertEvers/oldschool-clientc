@@ -30,12 +30,14 @@
 -- lands at `from` through t.raid.enter and stops after `to`); the kept tests
 -- run the whole of it.
 function QD.raid.tob_relay_test(mode, opts)
-    assert(mode == "normal" or mode == "hard", "tob_relay_test: mode " .. tostring(mode))
+    assert(mode == "normal" or mode == "hard" or mode == "entry", "tob_relay_test: mode " .. tostring(mode))
     opts = opts or {}
     local role = (QD_PARTY and QD_PARTY.role) or 1
     -- (Normal is a trio; Hard Mode a five-man, owner 2026-10-12: "Perhaps you
-    -- can up HMT runner to use 5 players")
-    local SEATS = (mode == "hard") and 5 or 3
+    -- can up HMT runner to use 5 players"; Entry is SOLO, the quest leg of A
+    -- Night at the Theatre: docs/minigames/theater_of_blood/ENTRY_SOLO.md)
+    local SEATS = (mode == "hard") and 5 or ((mode == "entry") and 1 or 3)
+    local ENTRY = (mode == "entry")
     local P = "p" .. role .. " "
     local LOBBY_X, LOBBY_Z = 3662, 3216
 
@@ -193,6 +195,11 @@ function QD.raid.tob_relay_test(mode, opts)
     if mode == "hard" then
         -- (Hard Mode's rooms are longer: Bloat 2400 at five, Xarpus 6000)
         MAX = { maiden = 900, bloat = 1400, nylocas = 1000, sotetseg = 1000, xarpus = 1400 }
+    end
+    if ENTRY then
+        -- (one seat: every room is longer than the trio's; the recording's
+        -- solo Entry Nylocas alone ran 709 ticks, index 3 [25910-26618])
+        MAX = { maiden = 900, bloat = 900, nylocas = 1800, sotetseg = 1200, xarpus = 1200 }
     end
 
 
@@ -374,7 +381,45 @@ function QD.raid.tob_relay_test(mode, opts)
     -- One slot kept after Sotetseg for the Dawnbringer (the leader).
     local CHEST_SLOT = { prayer = 1, brew = 2, restore = 3, shark = 5 } -- enum_1952
     local CHEST_COST = { prayer = 2, brew = 3, restore = 3, shark = 1 } -- enum_1953
+    -- THE ENTRY CHEST (tob_chest.rs2 [oploc2,tob_midway_chest_open], Entry):
+    -- no points store, bandages (tob_bandages, the food the solvers eat
+    -- after the fish). Op 2 on it; the bandages land in the pack.
+    local function take_bandages(t, name)
+        drop_vials(t)
+        local function n()
+            local r, c = t.inv.count("tob_bandages")
+            return (r == "ok" and tonumber(c)) or 0
+        end
+        local before, r = n(), "none"
+        for _ = 1, 3 do
+            r = t.raid.tob_loc_op("tob_midway_chest_open", 2)
+            for _ = 1, 20 do
+                if n() > before then break end
+                t.ticks(1)
+            end
+            if n() > before then break end
+            t.key("escape")
+        end
+        -- (the chest gives as many as the pack holds: the slots the next
+        -- rooms need back -- the Nylocas' blowpipe swap, the Dawnbringer and
+        -- P3's two-handed claws -- by dropping the extra bandages)
+        local keep = 2
+        local dropped = 0
+        for _ = 1, 4 do
+            if free_slots(t) >= keep or n() == 0 then break end
+            if t.player.drop("tob_bandages") ~= "ok" then break end
+            dropped = dropped + 1
+            t.ticks(1)
+        end
+        t.check(name .. ".bandages", n() > before,
+            P .. "chest " .. tostring(r) .. "; bandages " .. before .. " -> " .. n() .. " (dropped " .. dropped
+            .. "); free slots " .. free_slots(t))
+        t.key("escape")
+        t.ticks(1)
+    end
+
     local function restock(t, name)
+        if ENTRY then return take_bandages(t, name) end
         drop_vials(t)
         local chr, chrow = t.world.loc_near("tob_midway_chest_open", 40)
         t.check(name .. ".chest_found", chr == "ok" and chrow ~= nil, P .. tostring(chr))
@@ -733,6 +778,7 @@ function QD.raid.tob_relay_test(mode, opts)
     end
 
     local function share_healing(t, room, level)
+        if SEATS == 1 then return end
         if QD.T2 and QD.T2.budget and QD.T2.budget.allocate and QD.T2.board and BOARD_AFTER[room] then
             return share_by_board(t, room)
         end
@@ -933,17 +979,22 @@ function QD.raid.tob_relay_test(mode, opts)
         end
         t.check("raid.lobby", home,
             P .. "teleport out " .. tostring(xr) .. "; at " .. here.x .. "," .. here.z)
+        return home, "teleport out " .. tostring(xr) .. "; at " .. here.x .. "," .. here.z
     end
 
-    local function run(t)
-        if role == 1 then t.check("relay.ticklog", t.ticklog.start() == "ok", "") end
-
-        -- THE WAY IN: t.raid.enter on both lanes, so the live and scriptrun tick
-        -- logs are the same log (the board's party and the door's ready check
-        -- spend the RNG differently, and scriptrun cannot run the board: it is
-        -- clientscripts). The board is test/raids/tob_lobby.lua, live only.
-        local r, d = t.raid.enter("tob", ORDER[1], { mode = mode })
-        t.check("party.enter", r == "ok", P .. tostring(d))
+    -- THE RAID ITSELF, from ORDER[1]'s arrival to the lobby (or to the end of
+    -- ORDER): -> rooms cleared, back home (bool), a one-line detail. `enter`:
+    -- true = t.raid.enter first (the relay tests), false = the caller already
+    -- stands in ORDER[1]'s square (QD.raid.tob_entry_solo).
+    local function play(t, enter)
+        if enter then
+            -- THE WAY IN: t.raid.enter on both lanes, so the live and scriptrun tick
+            -- logs are the same log (the board's party and the door's ready check
+            -- spend the RNG differently, and scriptrun cannot run the board: it is
+            -- clientscripts). The board is test/raids/tob_lobby.lua, live only.
+            local r, d = t.raid.enter("tob", ORDER[1], { mode = mode })
+            t.check("party.enter", r == "ok", P .. tostring(d))
+        end
         -- two doses a seat are Verzik's P2 second part and P3: no room before
         -- drinks below this (owner 2026-10-12); the P2 solver releases them when
         -- her bar reaches the reds (QD.VZP2.REDS_NEAR)
@@ -1021,7 +1072,15 @@ function QD.raid.tob_relay_test(mode, opts)
                 if name ~= ORDER[#ORDER] and not leave_room(t, name, ox, oz) then break end
             end
         end
-        if cleared == #ORDER and ORDER[#ORDER] == "verzik" then reward_room(t) end
+        local home, hd = false, "not at the reward room"
+        if cleared == #ORDER and ORDER[#ORDER] == "verzik" then home, hd = reward_room(t) end
+        return cleared, home, string.format("%d of %d rooms cleared (%s .. %s); %s", cleared, #ORDER,
+            ORDER[1], ORDER[#ORDER], hd)
+    end
+
+    local function run(t)
+        if role == 1 then t.check("relay.ticklog", t.ticklog.start() == "ok", "") end
+        local cleared = play(t, true)
         t.expect("party.barrier.end", t.party.barrier("end", 3000))
         if role == 1 then
             local _, dawn = t.inv.count("verzik_special_weapon")
@@ -1042,5 +1101,75 @@ function QD.raid.tob_relay_test(mode, opts)
         max_frames = 300000, -- a relay is ~4100 ticks, 30 frames a tick; the gate ceiling is 480000
         setup = kit,
         run = run,
+        play = play,
+        order = ORDER,
     }
+end
+
+-- ==========================================================================
+-- THE SOLO ENTRY RAID, FOR A QUEST (A Night at the Theatre's "carry the
+-- Stranger" leg; docs/minigames/theater_of_blood/ENTRY_SOLO.md):
+--
+--   ok, detail = QD.raid.tob_entry_solo(t, opts)        (t.raid.tob_entry_solo)
+--
+-- PLAYS: Maiden, Bloat, Nylocas, Sotetseg, Xarpus, Verzik P1-P3 with the v2
+-- solvers in mode "entry" (one seat), every gate, passage and Entry supply
+-- chest (bandages) on foot, then the trapdoor, the reward chest and the
+-- teleport out ("Leave the Theatre.").
+--
+-- PRECONDITION (asserted where it can be read):
+--   * a party of ONE (QD.party.size() == 1: no `party =` above 1 in the test);
+--   * the player wears and carries the solo Entry kit: the lines of
+--     QD.raid.tob_entry_kit() run as the test's setup (it starts with
+--     ::clearinv and sets the combat stats, prayers and spellbook it needs),
+--     or the same items by other means: void melee + abyssal tentacle +
+--     dragon defender worn; the blowpipe (dragon darts), the void ranged helm,
+--     zenyte necklace and Ava's assembler; the toxic trident, void mage helm,
+--     occult and imbued Saradomin cape; the rune pouch of barrage runes on
+--     Ancient Magicks; the warhammer and burning claws; brews, super
+--     restores, super combats and a ranging potion; >= 4 free slots;
+--   * and, by opts.enter:
+--       nil (default)  ALREADY INSIDE an Entry raid, in the Maiden's map
+--                      square, her room not started: where the lobby door
+--                      ("You enter the Theatre of Blood (Entry Mode)...") or
+--                      t.raid.enter lands a raider, any tile of her walkway;
+--       "door"         in the Ver Sinhaza lobby, the Entry party already
+--                      formed with this player its leader: the door, the
+--                      warning, the ready check ("Yes, let's go!") are played
+--                      here (t.party.ready);
+--       "cheat"        anywhere: t.raid.enter("tob", "maiden", {mode = "entry"}).
+--   opts.from / opts.to: a stretch of the raid (default maiden .. verzik); a
+--   stretch that starts after the Maiden needs the caller in that room's
+--   square (opts.enter nil) or opts.enter = "cheat".
+--
+-- POSTCONDITION, ok == true: every room of the stretch cleared with no death;
+-- for a stretch ending at Verzik, the reward chest opened and the player back
+-- in the lobby (within 20 tiles of 3662,3216). detail: one line, the rooms
+-- cleared and where the player stands. ok == false: the stretch stopped at
+-- the first room that failed (the t.check rows say which and why); the player
+-- is left where that happened.
+-- ==========================================================================
+function QD.raid.tob_entry_kit()
+    return QD.raid.tob_relay_test("entry", {}).setup
+end
+
+function QD.raid.tob_entry_solo(t, opts)
+    opts = opts or {}
+    assert(QD.party.size() == 1, "tob_entry_solo: a party of one, not " .. tostring(QD.party.size()))
+    assert(opts.enter == nil or opts.enter == "door" or opts.enter == "cheat",
+        "tob_entry_solo: opts.enter is nil, \"door\" or \"cheat\", not " .. tostring(opts.enter))
+    local spec = QD.raid.tob_relay_test("entry", { from = opts.from, to = opts.to, detail = opts.detail })
+    QD.raid.tob_mode = "entry"
+    if opts.enter == "door" then
+        local r, d = t.party.ready()
+        t.check("tob_entry_solo.door", r == "ok", tostring(d))
+        if r ~= "ok" then return false, "the door: " .. tostring(d) end
+        if not string.find(tostring(d), "(Entry Mode)", 1, true) then
+            return false, "the door entered another mode: " .. tostring(d)
+        end
+    end
+    local cleared, home, detail = spec.play(t, opts.enter == "cheat")
+    local all = cleared == #spec.order
+    local ok = all and (spec.order[#spec.order] ~= "verzik" or home)
+    return ok, detail
 end

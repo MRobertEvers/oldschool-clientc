@@ -53,7 +53,15 @@ QD.SOTE_V2 = {
     MODE = {
         hard = { BALLS = 2, DB_MAX = { 188, 188, 188, 188, 188 }, PAIR_EXP = 189, TICK_COST = 3.2, HP_PER_BOSS_HP = 0.22 },
         normal = { BALLS = 1, DB_MAX = { 121, 121, 121, 155, 188 }, PAIR_EXP = 61, TICK_COST = 0.85, HP_PER_BOSS_HP = 0.14 },
+        -- ENTRY (ENTRY_SOLO.md 2.4): the solo death ball is a flat
+        -- ^tob_sote_ball_entry_solo 15 (recorded 15 and 14, index 3 [26703]
+        -- [26751]); the Normal solo 121 floored the one seat at HEAL_CAP 115
+        -- before every ball and drank 6-11 brew doses a room for ~30 taken
+        entry = { BALLS = 1, DB_MAX = { 15, 80, 80, 80, 80 }, PAIR_EXP = 15, TICK_COST = 0.3, HP_PER_BOSS_HP = 0.05 },
     },
+    -- ENTRY'S ORDINARY HITS (content: ^tob_sote_melee_max_entry 20,
+    -- ^tob_sote_projectile_max_entry 22), swapped in at init
+    ENTRY = { MELEE_MAX = 20, MELEE_AVG = 10.5, BALL_MAX = 22, BALL_AVG = 11.5 },
     -- THE ONE CURRENCY. HP_PER_BOSS_HP = team hp taken / boss hp dealt: the
     -- oracle's 174 a seat-run x 5 = 870 over his 4000 (tob.constant
     -- ^tob_sote_hp_5) = 0.22. PROBE: refine from budget.py.
@@ -1083,7 +1091,14 @@ QD.T2.rooms.sotetseg = {
         -- QD.SOTE_HM, five) and death balls
         S.V = hard and QD.SOTE_HM or QD.SOTE
         do
-            local MD = QD.SOTE_V2.MODE[hard and "hard" or "normal"]
+            local entry = QD.raid.tob_mode == "entry"
+            local X = QD.SOTE_V2
+            if X._base == nil then
+                X._base = {}
+                for k in pairs(X.ENTRY) do X._base[k] = X[k] end
+            end
+            for k, v in pairs(entry and X.ENTRY or X._base) do X[k] = v end
+            local MD = QD.SOTE_V2.MODE[hard and "hard" or (entry and "entry" or "normal")]
             local scale = math.max(1, math.min(5, QD.party.size()))
             S.sm = { BALLS = MD.BALLS, db_max = MD.DB_MAX[scale], PAIR_EXP = MD.PAIR_EXP, TICK_COST = MD.TICK_COST,
                      HP_PER_BOSS_HP = MD.HP_PER_BOSS_HP }
@@ -1136,7 +1151,7 @@ QD.T2.rooms.sotetseg = {
 }
 
 function QD.raid.sotetseg_solve(opts)
-    assert(QD.raid.tob_mode == "hard" or QD.raid.tob_mode == "normal",
+    assert(QD.raid.tob_mode == "hard" or QD.raid.tob_mode == "normal" or QD.raid.tob_mode == "entry",
         "sotetseg_solve: the party is in " .. tostring(QD.raid.tob_mode) .. " mode")
     return QD.T2.solve("sotetseg", opts or {})
 end

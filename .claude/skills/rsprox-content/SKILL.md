@@ -37,6 +37,47 @@ the script command that emits it. Keep it open.
      packet with the tick. Count `SERVER_TICK_END` to line ticks up.
 
    Remember the tick log has no message/interface rows (see the `rsprox` skill's §5).
+7. **The wire audit is REQUIRED, and nothing is done without it** (step 6 made concrete; see
+   "The wire audit" below). Copying recorded numbers into a script and a green test are NOT
+   parity: a quest gate checks that the quest completes, never what it sounded or looked like.
+
+## The wire audit (required before calling any content done)
+
+A Night at the Theatre (2026-10-20) went green on its quest gate with every dialogue page matching
+the recording -- and every vyrewatch in the tree silent (attack/defend/death sounds `null` in the
+generated npc block), a coffin splat missing, and a defend animation the recording never plays.
+Nobody had asked our server what it sent. Do this for EVERY section of the content (each room,
+fight, cutscene, interaction), before reporting it finished:
+
+1. **Record ours.** The test calls `t.ticklog.start()` (quest tests: once, in the first leg run in
+   the process, with a `t.ticklog.mark("leg.<name>")` per leg) and keeps
+   `build/quest_gate/<run>/ticklog.tsv`.
+2. **Print both sides as the same timeline**, per section window:
+   `python3 tools/rsprox/rsprox_tells.py <txt> --from T0 --to T1 --timeline` (recording) and
+   `python3 tools/rsprox/ticklog_tells.py <ticklog.tsv> --from t0 --to t1` (ours; filter to the
+   content kinds: `sound npc_anim npc_spotanim player_anim player_spotanim map_spotanim projectile
+   loc_set loc_anim music jingle npc_spawn npc_death hit_*`). Align on an event both have (the
+   op, a spawn, the music change), never on the click.
+3. **Walk every row of the recording and give it a verdict**: matched, fixed, the recorder's own kit
+   (their weapon's swing seq and sound, their spec, their teleport out), or engine-generic (named,
+   then checked once in a second session). Then walk every row of OURS the recording lacks:
+   delete it, or explain it. Check, field by field:
+   - **Sounds:** every `synth_sound` (id, loops, delay) and every `sound_area` (id, loops, delay,
+     range, tile). Name each id in 239 (`OSRS-Content/osrs239-content/pack/4_soundeffects.pack`).
+     Npc attack/defend/death sounds come from the npc config's `attack_sound`/`defend_sound`/
+     `death_sound` params, and the generated block (`_explicit/configs/server_fields.generated.npc`)
+     sets them to `null`: a fight is silent until content sets them.
+   - **Animations:** every npc and player seq with its `delay`, and which ticks it is ABSENT on
+     (an npc that never plays its defend seq in the recording must not play one here).
+   - **Spotanims:** id, height, delay, and whose (npc/player/map tile).
+   - **Projectiles:** every field -- source tile, target, id, `starttime`, `endtime`, `angle`,
+     `progress`, start and end height -- against a fit across many shots (section 4).
+   - **Locs, music, jingles, varbits, npc spawns (tile, angle), npc deaths and despawn delay.**
+4. **Write it down**: one table per section in the analysis doc (`R`, ours, verdict), citing the
+   recording ticks, and the counts behind each rule ("6/6"). A section without a table is not
+   audited.
+5. **Report what is still open** -- a mismatch you could not fix is a named gap in the doc and in
+   your reply, not silence.
 
 ## The timing model (measure everything from here)
 
@@ -111,8 +152,14 @@ the script command that emits it. Keep it open.
 
 - Copy **every** field, per shooter: `starttime`, `endtime`, `angle`, `progress`, `startheight`,
   `endheight`, and the `[source]` tile.
-- Script: `projanim_pl/npc/map(src, target, spot, startheight/4, endheight/4, starttime, endtime, angle, progress)`.
-  Our wire multiplies the heights by 4. `npc_projanim_*` launches from the active npc.
+- Script: `projanim_pl/npc/map(src, target, spot, startheight, endheight, starttime, endtime, angle, progress)`.
+  **Heights depend on the recorded packet's version.** Our server sends the old packet: one byte
+  per height, which the client multiplies by 4 (`projanim_*` writes its argument as that byte,
+  torirs_server_encode.c). `map_projanim_v1` (recordings up to rev ~233) printed that same byte:
+  **use it as printed**. `map_projanim_v2` / `projanim_specific_v3` (rev 234+) carry the raw height
+  in 2 bytes: **divide by 4**. Read the packet name on the line before converting. (2026-10-20: the
+  Hespori's rev-226 v1 heights 85 -> 39 were divided by 4 by mistake and flew 4x too low.)
+  `npc_projanim_*` launches from the active npc.
 - `endtime` usually grows with distance. Fit `endtime = a + b*tiles`, with tiles = Chebyshev
   from the `[source]` tile to the `[target]` tile, across many shots
   (`tools/rsprox_tells.py --kind proj` prints the fit).

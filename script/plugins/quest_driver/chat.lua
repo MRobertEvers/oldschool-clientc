@@ -385,6 +385,20 @@ function QD.chat.drain(opts)
         -- change it has already seen.
         local identity = QD.chat._page_identity(settled_kind)
 
+        -- A box with nothing to click (a messagebox mounted with no resume
+        -- button: the empty chatbox a cutscene shows while its cast moves, or
+        -- a "working..." box the script replaces itself, A Night at the Theatre's
+        -- `~natt_blank_chatbox` / `~natt_mesbox_nocontinue`, RSProx index 1679
+        -- [9800], [9831]) is waited out, never clicked: clicking it leaves a
+        -- resume outstanding that nothing answers. Not counted as a page.
+        if QD.chat._continue_unarmed() then
+            pages = pages - 1
+            QD.chat._settle_change(settled_kind, identity, opts.wait_ticks or 120)
+            if QD.chat._continue_unarmed() and QD.chat._page_identity(QD.chat.kind()) == identity then
+                return "timeout", "chat.drain: a page with no continue stayed up "
+                    .. tostring(opts.wait_ticks or 120) .. " tick(s)"
+            end
+        else
         local r, d = QD.chat.continue_()
         if r == "closed" then
             return "ok", "closed"
@@ -398,7 +412,46 @@ function QD.chat.drain(opts)
         -- the mount really changing before the next iteration trusts `kind`
         -- again.
         QD.chat._settle_change(settled_kind, identity, 6)
+        end
     end
+end
+
+-- True when the mounted dialogue page has a continue seam whose component is
+-- NOT armed (the server opened the box without a resume button) and no
+-- resume is outstanding: a page to wait out, not to click.
+function QD.chat._continue_unarmed()
+    local group_res, group_id = api_drive.modal_group()
+    if group_res ~= "ok" then
+        return false
+    end
+    local sym_res, sym = api_drive.symbol_name("interface", group_id)
+    if sym_res ~= "ok" then
+        return false
+    end
+    -- Only the plain messagebox (229): an objectbox's continue row is
+    -- cc_create'd by a clientscript (objbox_setbuttons) and reads no text.
+    if sym ~= "messagebox" then
+        return false
+    end
+    local continue_symbol = QD.chat._continue_symbol_by_iface[sym]
+    if not continue_symbol then
+        return false
+    end
+    if QD.chat._resume_outstanding() then
+        return false
+    end
+    local com_res, com_id = api_drive.component(continue_symbol, -1)
+    if com_res ~= "ok" then
+        return false
+    end
+    -- An empty continue label is the server's own "nothing to click here"
+    -- (the armed bit can outlive the page that set it).
+    local text_res, text = api_drive.widget_text(com_id)
+    if text_res == "ok" and text == "" then
+        return true
+    end
+    local armed_res, armed = api_drive.click_armed(com_id)
+    return armed_res == "ok" and not armed
 end
 
 -- Idempotent (already-clear answers ok immediately): the level predicate

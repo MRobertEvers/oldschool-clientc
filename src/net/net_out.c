@@ -1022,6 +1022,47 @@ net_out_opheld(
         rev, random_out, buf, cap, PKTOUT_NAME_OPHELD1 + (op_num - 1), obj_id, slot, component_id);
 }
 
+/*
+ * IF_SUBOP: an ObjType op's submenu entry (`subaction=<op>,<n>,<name>` in the
+ * obj record, Drakan's medallion's Teleport > Ver Sinhaza). It is IF_BUTTONX
+ * with one more byte, the entry, 0-based on the wire: the deob's send
+ * (Statics method at class246.field3140, `new class246(40, 10)`) writes the
+ * same combinedId/sub/obj/op as IF_BUTTONX, then `var6 - 1`, where var6 == 0
+ * sends IF_BUTTONX instead. RSProx index 4286 [427] pins the base: a ring of
+ * dueling's Rub `subop=1` landed at Castle Wars, its `subaction=4,2`.
+ * `subop` here is that 0-based entry. Returns -1 when the revision has no
+ * IF_SUBOP (every revision before the collapsed IF_BUTTONX family).
+ */
+int
+net_out_opheld_subop(
+    struct GameProtoRevTable const* rev,
+    struct Isaac* random_out,
+    uint8_t* buf,
+    int cap,
+    int op_num,
+    int subop,
+    int obj_id,
+    int slot,
+    int component_id)
+{
+    struct RSCache_Buffer b;
+
+    assert(op_num >= 1);
+    assert(op_num <= 5);
+    assert(subop >= 0);
+    assert(subop <= 0xff);
+    if( !rev || rev->packetout_code(PKTOUT_NAME_IF_SUBOP) < 0 )
+        return -1;
+    if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_IF_SUBOP, 10, &b) < 0 )
+        return -1;
+    p4(&b, component_id);
+    p2(&b, slot & 0xffff);
+    p2(&b, obj_id & 0xffff);
+    p1(&b, OPHELD_IF_BUTTONX_OP[op_num - 1] & 0xff);
+    p1(&b, subop);
+    return 1 + (int)b.position;
+}
+
 int
 net_out_opheldt(
     struct GameProtoRevTable const* rev,

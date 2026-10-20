@@ -126,6 +126,7 @@ UIMinimenu_AddOption(
     snprintf(menu->options[idx].text, sizeof(menu->options[idx].text), "%s", text);
     menu->options[idx].action = action;
     menu->options[idx].action_index = action_index;
+    menu->options[idx].subop = 0;
     menu->options[idx].pick = pick;
     return true;
 }

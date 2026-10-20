@@ -188,8 +188,15 @@ end
 function QD.cutscene._default_since(name, now_serial)
     local rows = QD.cutscene._rows
     local latest = rows[1]
-    if latest ~= nil and string.find(latest.name, "cutscene", 1, true) then
+    -- Any case: guide steps name rows "...Cutscenes.<memory>" (A Night at the
+    -- Theatre), and a missed skip starts the read AFTER the trigger row's packets.
+    if latest ~= nil and string.find(string.lower(latest.name), "cutscene", 1, true) then
         latest = rows[2]
+    end
+    -- Back-to-back awaits (one talk playing two memories): the second starts
+    -- where the first stopped reading, its sequence's reset.
+    if latest ~= nil and string.find(string.lower(latest.name), "cutscene", 1, true) then
+        return QD.cutscene._claimed, "the previous await's reset"
     end
     if latest == nil then
         return now_serial, "the call"

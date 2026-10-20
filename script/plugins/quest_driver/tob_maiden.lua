@@ -348,6 +348,15 @@ function QD.raid._maiden_wave(S, F)
     end
     key = table.concat(key, " ")
     local plan = QD.MAIDEN_WAVES[key]
+    -- ENTRY MODE, SOLO: one crab a threshold (index 3, three of three; the
+    -- content's ~tob_maiden_crab_count), so no trio table names its pattern:
+    -- the freezer's one slot aims at every crab of the wave, nearest first by
+    -- the table's point order, and the "DPS" order is the same
+    if plan == nil and QD.raid.tob_mode == "entry" then
+        local pts = {}
+        for p in string.gmatch(key, "%S+") do pts[#pts + 1] = p end
+        plan = { freeze = { { at = 1, last = 12, aim = pts } }, dps = pts, blert = "entry (synthesised)" }
+    end
     assert(plan, "maiden_solve: no wave handler for [" .. key .. "]")
     S.waves = S.waves + 1
     S.wave = { t0 = F.tick, key = key, plan = plan, next = 1, n = S.waves }

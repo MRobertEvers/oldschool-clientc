@@ -275,6 +275,20 @@ net_out_opheld(
     int obj_id,
     int slot,
     int component_id);
+/* OPHELD op `op_num` (1..5) with its submenu entry `subop` (0-based, the
+ * obj record's `subaction=<op>,<subop + 1>,...`) as IF_SUBOP; -1 when the
+ * revision has none. See net_out.c. */
+int
+net_out_opheld_subop(
+    struct GameProtoRevTable const* rev,
+    struct Isaac* random_out,
+    uint8_t* buf,
+    int cap,
+    int op_num,
+    int subop,
+    int obj_id,
+    int slot,
+    int component_id);
 int
 net_out_opheldt(
     struct GameProtoRevTable const* rev,

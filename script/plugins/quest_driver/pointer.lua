@@ -4606,11 +4606,19 @@ end
 
 -- A numbered held op (OPHELD1..5).  `op` 0 is Examine, which is answered
 -- client-side; a negative op is the "Use" arming and is use_on's, not this
--- verb's.
+-- verb's.  `opts.subop` N picks entry N of the op's submenu, 1-based as the
+-- obj record's `subaction=<op>,<N>,<name>` lists it (Drakan's medallion:
+-- op 2 Teleport, subop 1 Ver Sinhaza); it leaves as IF_SUBOP.
 function QD.player.inv_op(item, op, opts)
     op = op or 1
     if op < 0 then
         return "unsupported", "inv_op: a negative op is use_on's arming half"
+    end
+    local subop = opts and opts.subop
+    if subop ~= nil then
+        assert(type(subop) == "number" and subop >= 1, "inv_op: opts.subop is a 1-based submenu entry")
+        assert(op >= 1 and op <= 5, "inv_op: opts.subop needs a held op 1..5")
+        assert(not opts.quick, "inv_op: opts.subop has no quick press")
     end
     -- SEAM-FIGHT-SPEED (raid seam14): `opts.quick = true` is one click and
     -- the next read, not this verb's settle (the banner at the end of file).
@@ -4628,7 +4636,7 @@ function QD.player.inv_op(item, op, opts)
     local worn_edge = QD.player._inv_worn_edge(item)
     -- The press itself, and the tab-not-painted-yet retry behind it, are
     -- QD.player._inv_press's (the SEAM banner at the end of this file).
-    local result, cell, where, refusal = QD.player._inv_press(item, op)
+    local result, cell, where, refusal = QD.player._inv_press(item, op, nil, subop)
     if cell == nil then
         return result, where
     end
@@ -5001,6 +5009,12 @@ end
 -- rule MenuRowFind itself keeps.  A USEHELD_ON* action is in none of them, so
 -- a genuine select press passes and every ordinary row is named and refused.
 function QD.player._select_row_is_held(target, click)
+    -- A use made through the client's world_use (QD.drive.click_minimenu:
+    -- every non-player target since 2026-10-16) IS the held-item row's
+    -- dispatch and has no menu to read back (`click` nil): nothing to refuse.
+    if click == nil then
+        return true, nil
+    end
     if type(click) ~= "table" or click.row_action == nil then
         return false, "the press answered no row to check"
     end
@@ -5796,7 +5810,7 @@ end
 -- could not be resolved at all, and `where` is then that failure's detail
 -- rather than a cell description -- inv_op's old shape, kept so its callers
 -- read the same.
-function QD.player._inv_press(item, op, ticks)
+function QD.player._inv_press(item, op, ticks, subop)
     local budget = ticks or 6
     local tab_result, tab_detail = QD.player._show_backpack()
     local attempts = 0
@@ -5809,8 +5823,9 @@ function QD.player._inv_press(item, op, ticks)
         end
         attempts = attempts + 1
         local result, why = api_drive.inv_op(
-            cell.component_id, cell.slot, cell.obj_id, cell.count, op)
+            cell.component_id, cell.slot, cell.obj_id, cell.count, op, subop or 0)
         local where = item .. " slot " .. tostring(cell.slot) .. " op " .. tostring(op)
+            .. (subop and (" subop " .. tostring(subop)) or "")
             .. " (tab " .. tostring(tab_result) .. " " .. tostring(tab_detail) .. ")"
         if attempts > 1 then
             where = where .. " [pressed on attempt " .. tostring(attempts)

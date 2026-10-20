@@ -172,6 +172,10 @@ struct UIMinimenuOption
     int action;
     /** Config op slot 0..4 this row came from, or -1. */
     int action_index;
+    /** The op's submenu entry this row picks, 1-based as the obj record's
+     *  `subaction=<op>,<n>,<name>` numbers it; 0 for the op itself. An OPHELD
+     *  row with one goes out as IF_SUBOP (net_out_opheld_subop). */
+    int subop;
     struct UIMinimenuPick pick;
 };
 

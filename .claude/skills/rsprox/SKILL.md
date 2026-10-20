@@ -90,7 +90,7 @@ and what is already settled.
 - **Seasonal recorders** (Leagues V, Grid Master) attack every 2 ticks, take about 10% less damage, and have perks (Last Stand). An "every 2 ticks" npc loop may be the player's attack cadence. Line it up with the recorder's attack ticks, and confirm on a normal-world session. Party size: varbit 5424 `raids_client_partysize`. rsprox.net 820 is scaled as 54 players.
 - **A shared projectile id** fired by two npc types: attribute it by the shooter's attack seq on that tick (ticks where only one type attacked) plus the `[source] coord=` tile.
 - **Click ticks jitter by one** (the proxy files a click when it saw it). Time a mechanic from the server's first answer, never from the click.
-- **Projectile timing:** `starttime`/`endtime` are client cycles (30 per tick). Raw heights are ×4 our script units. A landing read on the arrival row is a tick early (`F.tick + (cycles_left + 45) // 30`).
+- **Projectile timing:** `starttime`/`endtime` are client cycles (30 per tick). Projectile heights: a `map_projanim_v1` line (rev up to ~233) prints our script units already; a v2 / `projanim_specific_v3` line (rev 234+) prints raw heights, 4x ours (divide by 4). Spotanim heights are raw everywhere, ours too. A landing read on the arrival row is a tick early (`F.tick + (cycles_left + 45) // 30`).
 - Rev 227 sends no varp 83. Prayers are varbit 4101 `prayer_allactive` (cache bit order).
 
 ## 5. Auditing our content against it

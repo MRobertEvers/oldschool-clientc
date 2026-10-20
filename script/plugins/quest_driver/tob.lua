@@ -152,7 +152,9 @@ function QD.raid._tob_common_ids(who, opts)
     ids.combats = doses("dose2combat")
     ids.rangings = doses("doserangerspotion")
     ids.food = {}
-    for _, name in ipairs((opts and opts.food) or { "anglerfish", "mantaray", "seaturtle", "shark" }) do
+    -- (tob_bandages last: Entry Mode's chest food, tob_spectate.rs2
+    -- [opheld1,tob_bandages], 20 hitpoints)
+    for _, name in ipairs((opts and opts.food) or { "anglerfish", "mantaray", "seaturtle", "shark", "tob_bandages" }) do
         local r, id = api_drive.symbol("obj", name)
         assert(r == "ok", who .. ": no obj " .. name)
         ids.food[#ids.food + 1] = id

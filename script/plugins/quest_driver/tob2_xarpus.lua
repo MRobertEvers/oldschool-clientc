@@ -760,7 +760,7 @@ QD.T2.rooms.xarpus = {
 }
 
 function QD.raid.xarpus_solve(opts)
-    assert(QD.raid.tob_mode == "hard" or QD.raid.tob_mode == "normal",
+    assert(QD.raid.tob_mode == "hard" or QD.raid.tob_mode == "normal" or QD.raid.tob_mode == "entry",
         "xarpus_solve: the party is in " .. tostring(QD.raid.tob_mode) .. " mode")
     return QD.T2.solve("xarpus", opts or {})
 end

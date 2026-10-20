@@ -605,7 +605,7 @@ QD.T2.rooms.bloat = {
 }
 
 function QD.raid.bloat_solve(opts)
-    assert(QD.raid.tob_mode == "hard" or QD.raid.tob_mode == "normal",
+    assert(QD.raid.tob_mode == "hard" or QD.raid.tob_mode == "normal" or QD.raid.tob_mode == "entry",
         "bloat_solve: the party is in " .. tostring(QD.raid.tob_mode) .. " mode")
     return QD.T2.solve("bloat", opts or {})
 end

@@ -39,6 +39,12 @@ QD.T2 = QD.T2 or {}
 QD.T2.rooms = QD.T2.rooms or {}
 
 QD.NYLO_V2 = {
+    -- THE SOLO SEAT'S STYLES (Entry, one seat): nil = the Normal ranger's
+    -- own two, ranged and the melee help. Measured, 8 seeds each
+    -- (ENTRY_SOLO.md 3): ranged + melee 0-2 supports lost, ~460 bites a room;
+    -- all three 1-3 lost, ~700 bites; ranged + magic 0-3, ~800 (the
+    -- trident's swings cost more than the magic nylocas it saves)
+    SOLO_STYLES = nil,
     H = 8, BEAM = 32,
     BOX = { x0 = 26, z0 = 19, x1 = 37, z1 = 30 },
     RANGE = { melee = 1, ranged = 5, magic = 7 },
@@ -114,6 +120,12 @@ QD.NYLO_V2 = {
                  BARRAGE_SEATS = { [3] = true, [4] = true }, PILLAR_HP = 150, COLLAPSE_TEAM_HP = 200 },
         normal = { GUARD_SEATS = {}, FOCUS_SEATS = {}, BARRAGE_SEATS = { [3] = true }, PILLAR_HP = 230,
                    COLLAPSE_TEAM_HP = 120 },
+        -- ENTRY, SOLO (ENTRY_SOLO.md 2.3): one seat kills every colour (each
+        -- nylocas is still style-locked, tob_damage.rs2), barrages magic
+        -- clumps, pillars of ^tob_nylo_pillar_hp_entry 155, a collapse
+        -- 30-50 on the one seat
+        entry = { GUARD_SEATS = {}, FOCUS_SEATS = {}, BARRAGE_SEATS = { [1] = true }, PILLAR_HP = 155,
+                  COLLAPSE_TEAM_HP = 40, SOLO = true },
     },
 }
 
@@ -708,7 +720,9 @@ function NV.candidates(S, F, style, own, free)
     sorted(list)
     local taken = {}
     for r = 1, 5 do
-        if r ~= S.role and V.STYLE_OF_SEAT[r] == style and (style ~= own or r < S.role) then
+        -- (only seats the party HAS: a solo seat's melee and magic were
+        -- each short their best, left to seats 2 and 3 that are not there)
+        if r ~= S.role and r <= (S.size or 5) and V.STYLE_OF_SEAT[r] == style and (style ~= own or r < S.role) then
             for _, c in ipairs(list) do
                 if not taken[c.L.key] then
                     taken[c.L.key] = true
@@ -831,6 +845,8 @@ function NV.nylo_mode(S, F, B, I, phase)
     -- the worn one kept unless another is KEEP times better
     local cands, best_s, best_sc = {}, nil, nil
     local styles = (own == "melee") and { "melee" } or { own, "melee" }
+    -- (solo: every colour is mine)
+    if S.nm.SOLO and QD.NYLO_V2.SOLO_STYLES then styles = QD.NYLO_V2.SOLO_STYLES end
     if guard then styles = { guard.style } end
     local scored = {}
     for _, st in ipairs(styles) do
@@ -996,9 +1012,19 @@ QD.T2.rooms.nylocas = {
             end
             S.V = QD.NYLO_NV2
         end
-        local MD = QD.NYLO_V2.MODE[hard and "hard" or "normal"]
+        local entry = QD.raid.tob_mode == "entry"
+        if entry then
+            if QD.NYLO_EV2 == nil then
+                QD.NYLO_EV2 = {}
+                for k, v in pairs(S.V) do QD.NYLO_EV2[k] = v end
+                QD.NYLO_EV2.PILLAR_HP = QD.NYLO_V2.MODE.entry.PILLAR_HP
+            end
+            S.V = QD.NYLO_EV2
+        end
+        local MD = QD.NYLO_V2.MODE[hard and "hard" or (entry and "entry" or "normal")]
         S.nm = { hard = hard, GUARD_SEATS = MD.GUARD_SEATS, FOCUS_SEATS = MD.FOCUS_SEATS,
-                 BARRAGE_SEATS = MD.BARRAGE_SEATS, PILLAR_HP = MD.PILLAR_HP, COLLAPSE_TEAM_HP = MD.COLLAPSE_TEAM_HP }
+                 BARRAGE_SEATS = MD.BARRAGE_SEATS, PILLAR_HP = MD.PILLAR_HP, COLLAPSE_TEAM_HP = MD.COLLAPSE_TEAM_HP,
+                 SOLO = MD.SOLO }
         S.lives, S.wave_at, S.waves, S.splits, S.wave_log = {}, {}, 0, 0, {}
         S.nulled, S.nulls, S.attacks, S.switch_log, S.phase_log, S.walks = {}, 0, 0, {}, {}, {}
         QD.raid._nylo_hm_ids(S)
@@ -1246,7 +1272,7 @@ QD.T2.rooms.nylocas = {
 }
 
 function QD.raid.nylocas_solve(opts)
-    assert(QD.raid.tob_mode == "hard" or QD.raid.tob_mode == "normal",
+    assert(QD.raid.tob_mode == "hard" or QD.raid.tob_mode == "normal" or QD.raid.tob_mode == "entry",
         "nylocas_solve: the party is in " .. tostring(QD.raid.tob_mode) .. " mode")
     return QD.T2.solve("nylocas", opts or {})
 end

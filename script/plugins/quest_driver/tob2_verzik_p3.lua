@@ -840,6 +840,14 @@ function VZ.hp_floor(S, F)
                 local miss = X.BALL_MISS_BY_HOP[math.min(bounces, 3)]
                 local f = miss + VZ.auto_landings(S, F, Bl.land - 1, hi + X.SAFE_WIN) * auto + 1
                 if f > floor then floor, why = f, "ball-holder" end
+            elseif QD.raid.tob_mode == "entry" then
+                -- ENTRY, SOLO: nobody to bounce it to, so the un-bounced
+                -- ball always lands, for ^tob_verzik_p3_ball_pct 74% of the
+                -- hitpoints LEVEL (content ~tob_verzik_ball_damage, every mode
+                -- but Hard): entry v6/v8 sat at 71 under a 73 and died
+                local miss = ((F.hp_base or 99) * 74) // 100
+                local f = miss + VZ.auto_landings(S, F, Bl.land - 1, hi + X.SAFE_WIN) * auto + 1
+                if f > floor then floor, why = f, "ball-solo" end
             else
                 why = "ball-first (no floor survives a miss)"
             end
@@ -1901,7 +1909,7 @@ QD.T2.rooms.verzik_p3 = {
 }
 
 function QD.raid.verzik_p3_solve(opts)
-    assert(QD.raid.tob_mode == "hard" or QD.raid.tob_mode == "normal",
+    assert(QD.raid.tob_mode == "hard" or QD.raid.tob_mode == "normal" or QD.raid.tob_mode == "entry",
         "verzik_p3_solve: the party is in " .. tostring(QD.raid.tob_mode) .. " mode")
     return QD.T2.solve("verzik_p3", opts or {})
 end

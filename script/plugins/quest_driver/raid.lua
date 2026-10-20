@@ -137,16 +137,44 @@ function QD.raid.tob_npc_name(name)
     if QD.raid.tob_mode == "hard" and api_drive.symbol("npc", name .. "_hard") == "ok" then
         return name .. "_hard"
     end
+    if QD.raid.tob_mode == "entry" and QD.raid._TOB_STORY[name] then
+        return name .. "_story"
+    end
     return name
+end
+-- ENTRY MODE spawns the `_story` record only where the content asks for one
+-- (tob_raid.rs2 ~tob_mode_npc_story, tob_verzik.rs2's own, the Maiden's crab
+-- and spawn types, the Nylocas' types, support and boss, Sotetseg's tornado);
+-- the Verzik pillars, rubble and the P3 tornado-less room stay Normal records,
+-- as the solo Entry recording shows them (index 3: 8377-8379 at Verzik).
+QD.raid._TOB_STORY = {}
+for _, n in ipairs({
+    "tob_bloat", "tob_sotetseg_combat", "tob_sotetseg_noncombat", "tob_sotetseg_creeper",
+    "tob_xarpus_static", "tob_xarpus_feeding", "tob_xarpus_combat", "xarpus_death",
+    "tob_maiden_100", "tob_maiden_70", "tob_maiden_50", "tob_maiden_30", "tob_maiden_dying_a",
+    "tob_maiden_dying_b", "maiden_elemental", "maiden_blood_slug",
+    "verzik_initial", "verzik_phase1", "verzik_phase1_to2_transition", "verzik_phase2",
+    "verzik_phase2_to3_transition", "verzik_phase3", "verzik_nylocas_melee", "verzik_nylocas_ranged",
+    "verzik_nylocas_magic", "tob_verzik_phase2_armourednylocas", "tob_verzik_phase2_bloodnylocas",
+    "tob_verzik_creeper", "verzik_death_bat",
+    "tob_nylocas_support", "nylocas_boss_spawning", "nylocas_boss_melee", "nylocas_boss_magic",
+    "nylocas_boss_ranged",
+}) do QD.raid._TOB_STORY[n] = true end
+for _, size in ipairs({ "", "big_" }) do
+    for _, form in ipairs({ "incoming", "fighting" }) do
+        for _, style in ipairs({ "melee", "ranged", "magic" }) do
+            QD.raid._TOB_STORY["tob_nylocas_" .. size .. form .. "_" .. style] = true
+        end
+    end
 end
 QD.raid._TOB_MODE_NAMES = { [0] = "entry", [1] = "normal", [2] = "hard" }
 
 -- Per raid: the session varp that says it is active, its read-only state
 -- debugproc, and its leave cheat.
 QD.raid._RAIDS = {
-    tob = { active = "varp5893_tob_active", state = "::tobstate", leave = "::tobout" },
-    toa = { active = "varp6910_toa_active", state = "::toastate", leave = "::toaout" },
-    cox = { active = "varp5912_cox_active", state = "::coxstate", leave = "::cox_leave" },
+    tob = { active = "varp6568_tob_active", state = "::tobstate", leave = "::tobout" },
+    toa = { active = "varp7585_toa_active", state = "::toastate", leave = "::toaout" },
+    cox = { active = "varp6587_cox_active", state = "::coxstate", leave = "::cox_leave" },
 }
 QD.raid._ORDER = { "tob", "toa", "cox" }
 

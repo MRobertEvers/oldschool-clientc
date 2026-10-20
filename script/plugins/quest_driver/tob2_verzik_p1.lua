@@ -388,7 +388,7 @@ QD.T2.rooms.verzik_p1 = {
 
 function QD.raid.verzik_p1_solve(opts)
     -- (Normal has no rubble: the reader sees no debris shadow and adds none)
-    assert(QD.raid.tob_mode == "hard" or QD.raid.tob_mode == "normal",
+    assert(QD.raid.tob_mode == "hard" or QD.raid.tob_mode == "normal" or QD.raid.tob_mode == "entry",
         "verzik_p1_solve: the party is in " .. tostring(QD.raid.tob_mode) .. " mode")
     return QD.T2.solve("verzik_p1", opts or {})
 end

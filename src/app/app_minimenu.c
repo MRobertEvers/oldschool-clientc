@@ -1238,17 +1238,31 @@ app_minimenu_inv_action(
     case REVCONFIG_MINIMENU_OPHELD3:
     case REVCONFIG_MINIMENU_OPHELD4:
     case REVCONFIG_MINIMENU_OPHELD5:
-        APP_NET_SEND(
-            app,
-            net_out_opheld(
-                app->net->rev,
-                app->net->random_out,
-                _nsbuf,
-                sizeof(_nsbuf),
-                opt->action_index + 1,
-                obj_id,
-                slot,
-                com_id));
+        if( opt->subop > 0 )
+            APP_NET_SEND(
+                app,
+                net_out_opheld_subop(
+                    app->net->rev,
+                    app->net->random_out,
+                    _nsbuf,
+                    sizeof(_nsbuf),
+                    opt->action_index + 1,
+                    opt->subop - 1,
+                    obj_id,
+                    slot,
+                    com_id));
+        else
+            APP_NET_SEND(
+                app,
+                net_out_opheld(
+                    app->net->rev,
+                    app->net->random_out,
+                    _nsbuf,
+                    sizeof(_nsbuf),
+                    opt->action_index + 1,
+                    obj_id,
+                    slot,
+                    com_id));
         /*
          * selectedArea / cc_settrans_temporarily — not for Use (below).
          *

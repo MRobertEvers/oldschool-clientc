@@ -1031,6 +1031,11 @@ enum DriveResult DrivePointer_WorldOp(
  * NEGATIVE option arms the held-item selection (OPHELDT_START, the "Use"
  * row), which is use_on's phase 1 and has no op number of its own.
  *
+ * `subop` 0 is the op itself; N > 0 is the op's submenu entry N, 1-based as
+ * the obj record's `subaction=<op>,<N>,<name>` numbers it (Drakan's
+ * medallion's Teleport > Ver Sinhaza is option 2, subop 1), and leaves as
+ * IF_SUBOP instead of IF_BUTTONX (net_out_opheld_subop).
+ *
  * DRIVE_REFUSED when the dispatcher would drop the row, and `*out_reason` is
  * then the sentence naming why -- the ordinary case being a cell whose node or
  * an ancestor of it is display-hidden while the container's tab is not the
@@ -1049,6 +1054,7 @@ enum DriveResult DrivePointer_InvOp(
     int obj_id,
     int count,
     int option,
+    int subop,
     char const** out_reason);
 
 /*

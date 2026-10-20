@@ -753,7 +753,14 @@ function QD._combat_press_quick(target, label, op, element)
     end
     assert(type(click) ~= "table" or click.element_id == element,
         "attack press landed on another npc copy")
-    local row_text = type(click) == "table" and click.row_text or ""
+    -- A press made through the client's world op (pointer.lua
+    -- QD.drive.click_minimenu: every non-player target since 2026-10-16) has
+    -- no menu row to read back -- `click` is nil -- and IS the op the caller
+    -- named, so there is nothing to check; a real menu press is checked.
+    if type(click) ~= "table" then
+        return "ok", nil, "op" .. tostring(op) .. " (world op)", presses, account
+    end
+    local row_text = click.row_text or ""
     if string.find(row_text, "Attack", 1, true) ~= 1 then
         return "refused", "attack " .. label .. " op" .. tostring(op)
             .. ": pressed '" .. tostring(row_text) .. "', which is not an Attack row -- "
@@ -1756,8 +1763,12 @@ function QD._combat_press_attack(target, label, op, element, quick, eater)
     -- (QD.player._click_npc_copy's own check).
     assert(type(click) ~= "table" or click.element_id == element,
         "attack press landed on another npc copy")
-    -- The row that was pressed, checked rather than assumed.
-    local row_text = type(click) == "table" and click.row_text or ""
+    -- The row that was pressed, checked rather than assumed -- when there was
+    -- one: a world op (no menu, `click` nil) is the named op itself.
+    if type(click) ~= "table" then
+        return "ok", nil, "op" .. tostring(op) .. " (world op)", presses
+    end
+    local row_text = click.row_text or ""
     if string.find(row_text, "Attack", 1, true) ~= 1 then
         return "refused", "attack " .. label .. " op" .. tostring(op)
             .. ": pressed '" .. tostring(row_text) .. "', which is not an Attack row",

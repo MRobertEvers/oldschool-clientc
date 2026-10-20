@@ -93,6 +93,7 @@ extern int app_plugin_inv_op(
     int obj_id,
     int count,
     int option,
+    int subop,
     char const** out_reason);
 
 /* app_minimenu.c's "clicked off" convergence point (its own banner: every
@@ -1619,6 +1620,7 @@ DrivePointer_InvOp(
     int obj_id,
     int count,
     int option,
+    int subop,
     char const** out_reason)
 {
     assert(app);
@@ -1634,7 +1636,7 @@ DrivePointer_InvOp(
      * carries the reason: the caller's alternative is to watch for an effect
      * that was never going to arrive and report the silence as the server's.
      */
-    if( !app_plugin_inv_op(app, component_id, slot, obj_id, count, option, out_reason) )
+    if( !app_plugin_inv_op(app, component_id, slot, obj_id, count, option, subop, out_reason) )
     {
         assert(*out_reason);
         return DRIVE_REFUSED;
@@ -1712,7 +1714,7 @@ DrivePointer_InvArm(
     }
     if( app->objsel.active )
         app_selection_clear(app);
-    return DrivePointer_InvOp(app, component_id, slot, obj_id, count, -1, &out_reason);
+    return DrivePointer_InvOp(app, component_id, slot, obj_id, count, -1, 0, &out_reason);
 }
 
 /*
@@ -1765,7 +1767,7 @@ drive_pointer_inv_use_on(struct App* app, int component_id, int slot, int obj_id
         app_selection_clear(app);
         return DRIVE_NO_ROW;
     }
-    if( !app_plugin_inv_op(app, component_id, slot, obj_id, count, 0, &refusal) )
+    if( !app_plugin_inv_op(app, component_id, slot, obj_id, count, 0, 0, &refusal) )
     {
         app_selection_clear(app);
         return DRIVE_NOT_FOUND;
@@ -2902,11 +2904,14 @@ lua_drive_inv_op(struct lua_State* L)
     int obj_id = PluginDrive_ArgInt(L, 3);
     int count = PluginDrive_ArgInt(L, 4);
     int option = PluginDrive_ArgInt(L, 5);
+    int subop = PluginDrive_ArgOptInt(L, 6, 0);
     char const* refusal = NULL;
     enum DriveResult result;
 
     assert(app);
-    result = DrivePointer_InvOp(app, component_id, slot, obj_id, count, option, &refusal);
+    if( subop < 0 || subop > 0x100 )
+        return luaL_error(L, "drive.inv_op: subop %d is not 0 (none) or a 1-based submenu entry", subop);
+    result = DrivePointer_InvOp(app, component_id, slot, obj_id, count, option, subop, &refusal);
     return PluginDrive_PushResult(L, result, refusal);
 }
 

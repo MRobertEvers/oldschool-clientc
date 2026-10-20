@@ -248,6 +248,7 @@ QD.VZ2P2.END_FRAC, QD.VZ2P2.END_REDOSE, QD.VZ2P2.END_COMBATS = 0.10, 12, 1
 function QD.VZ2P2F.ath_mine(S, F)
     local a, b = F.athanatos, F.boss
     if a == nil or not S.p2m.killers[S.role] then return false end
+    if S.p2m.solo then return true end
     local middle = a.x >= b.x and a.x <= b.x + QD.VZP2.SIZE - 1
     return middle or (QD.raid._vzp2_east(S, S.role) == (a.x > b.x + 1))
 end
@@ -349,6 +350,14 @@ QD.T2.rooms.verzik_p2 = {
         end
         S.p2m = { hard = hard, killers = hard and QD.VZ2P2.KILLERS or QD.VZ2P2.KILLERS_NORMAL,
                   urn_last = hard and QD.VZ2P2.URN_LAST or QD.VZ2P2.URN_LAND_NORMAL }
+        -- ENTRY, SOLO (ENTRY_SOLO.md 2.6): the one seat is the Athanatos'
+        -- killer wherever it lands (it heals her 6-7 every 4 ticks until it
+        -- dies: the first solo run never touched it, her bar sat at 10% for
+        -- 700 ticks and P2 timed out) and every red is its red in turn
+        if QD.raid.tob_mode == "entry" then
+            S.hm.seats, S.hm.east, S.hm.red_east = 1, {}, {}
+            S.p2m.killers, S.p2m.solo = { [S.role] = true }, true
+        end
         S.t2.plan_opts.h = S.t2.plan_opts.h or QD.VZ2P2.H
         S.t2.plan_opts.beam = S.t2.plan_opts.beam or QD.VZ2P2.BEAM
         S.t2p = { opts = opts, modes = {}, mode = nil, acid = {}, acid_keys = {}, pools = 0, tg_last = {}, tg_step = {},
@@ -535,7 +544,7 @@ QD.T2.rooms.verzik_p2 = {
 }
 
 function QD.raid.verzik_p2_solve(opts)
-    assert(QD.raid.tob_mode == "hard" or QD.raid.tob_mode == "normal",
+    assert(QD.raid.tob_mode == "hard" or QD.raid.tob_mode == "normal" or QD.raid.tob_mode == "entry",
         "verzik_p2_solve: the party is in " .. tostring(QD.raid.tob_mode) .. " mode")
     return QD.T2.solve("verzik_p2", opts or {})
 end

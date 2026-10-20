@@ -2399,6 +2399,27 @@ send_if_buttonx(
     handle(bot, PKTOUT_NAME_IF_BUTTONX, payload, 9);
 }
 
+/* IF_SUBOP: IF_BUTTONX plus g1 subop, the op's submenu entry 0-based on the
+ * wire (the client's net_out_opheld_subop). */
+static void
+send_if_subop(
+    struct ScriptBot* bot,
+    int component,
+    int sub,
+    int obj,
+    int op,
+    int subop)
+{
+    uint8_t payload[10];
+
+    put4(payload, component);
+    put2(payload + 4, sub);
+    put2(payload + 6, obj);
+    payload[8] = (uint8_t)op;
+    payload[9] = (uint8_t)subop;
+    handle(bot, PKTOUT_NAME_IF_SUBOP, payload, 10);
+}
+
 /* What the client builds for a backpack cell (game/rs_minimenu_build.c
  * add_obj_cell_rows): the cell's rows come from the server's IF_SETEVENTS for
  * (component, slot) and NOTHING else -- no cache fallback on the cell path, so
@@ -2475,7 +2496,8 @@ d_spell_arm(lua_State* L)
 }
 
 /* A backpack cell's held op: OPHELD1..5 go out as the rev-239 backpack's
- * IF_BUTTONX ops 2, 3, 4, 6, 7 (mock239_if_button_backpack_op). */
+ * IF_BUTTONX ops 2, 3, 4, 6, 7 (mock239_if_button_backpack_op); with arg 6, a
+ * 1-based submenu entry of that op, as IF_SUBOP. */
 static int
 d_inv_op(lua_State* L)
 {
@@ -2484,6 +2506,7 @@ d_inv_op(lua_State* L)
     int slot = (int)luaL_checkinteger(L, 2);
     int obj = (int)luaL_checkinteger(L, 3);
     int option = (int)luaL_checkinteger(L, 5);
+    int subop = (int)luaL_optinteger(L, 6, 0);
     static int const IF_OP[6] = { 0, 2, 3, 4, 6, 7 };
 
     if( option == -1 )
@@ -2496,6 +2519,11 @@ d_inv_op(lua_State* L)
         return push_result(L, "refused", "the cell offers no such row: the server has not armed "
                                          "that op (IF_SETEVENTS)");
     disarm(bot);
+    if( subop > 0 )
+    {
+        send_if_subop(bot, component, slot, obj, IF_OP[option], subop - 1);
+        return push_result(L, "ok", "held op submenu entry sent");
+    }
     send_if_buttonx(bot, component, slot, obj, IF_OP[option]);
     return push_result(L, "ok", "held op sent");
 }

@@ -4497,7 +4497,8 @@ struct ToriRSServerPlayer
      *
      * `last_slot` is the grid cell, `last_targetslot` the cell a drag landed
      * on, `last_item` the obj that was in it, `last_verb` the 1-based op index,
-     * `last_subop` the rev-239 submenu index (or -1 for a normal op), and
+     * `last_subop` the rev-239 submenu entry, 1-based as the obj record's
+     * `subaction=<op>,<n>,<name>` numbers it (or -1 for a normal op), and
      * `last_int` the number a p_countdialog collected. All -1 / 0 when the
      * last trigger did not carry one, which is the same thing the reference
      * does — a script reading one it was not given gets a sentinel, not a

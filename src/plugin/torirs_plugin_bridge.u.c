@@ -4321,6 +4321,7 @@ app_plugin_inv_op(
     int obj_id,
     int count,
     int option,
+    int subop,
     char const** out_reason)
 {
     /* OPHELD1..5 in op order. app_minimenu_inv_action switches on these five
@@ -4341,10 +4342,18 @@ app_plugin_inv_op(
 
     assert(app);
     assert(out_reason);
+    assert(subop >= 0);
     *out_reason = NULL;
     if( option > 5 )
     {
         *out_reason = "option above 5 is not an OPHELD row";
+        return 0;
+    }
+    /* A submenu entry belongs to an ObjType op (OPHELD1..5), never to Use
+     * (option < 0) or Examine (0). */
+    if( subop > 0 && option < 1 )
+    {
+        *out_reason = "a submenu entry needs an OPHELD op 1..5";
         return 0;
     }
     if( UITree_FindByComponentId(app->tree, component_id) < 0 )
@@ -4374,12 +4383,13 @@ app_plugin_inv_op(
         action_index = option - 1;
     }
     TORIRS_REPORT(
-        "quest-driver: inv op bypass com=%d slot=%d obj=%d count=%d option=%d action=%d\n",
+        "quest-driver: inv op bypass com=%d slot=%d obj=%d count=%d option=%d subop=%d action=%d\n",
         component_id,
         slot,
         obj_id,
         count,
         option,
+        subop,
         action);
 
     /* Ask before pressing. app_minimenu_run_option's own call is the one that
@@ -4396,6 +4406,7 @@ app_plugin_inv_op(
         *out_reason = "the scratch minimenu would not take the row";
         return 0;
     }
+    scratch.options[scratch.option_count - 1].subop = subop;
     saved = *app->frame_view->minimenu;
     *app->frame_view->minimenu = scratch;
     app_minimenu_run_option(app, 0, 0, 0);

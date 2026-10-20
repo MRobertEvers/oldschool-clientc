@@ -266,8 +266,39 @@ QD.MAIDEN_V2 = {
 -- focus in Normal), crabs of ^tob_maiden_crab_hp_3 75, v1's 100-permille
 -- prewave, no rescue seat (no third DPS), and the hammer opener to under 500
 -- energy (the Normal kit carries no claws).
-function QD.MAIDEN_V2.mode_table(hard)
+-- ENTRY MODE, SOLO (docs/minigames/theater_of_blood/ENTRY_SOLO.md 2.1): the
+-- one seat is the Normal freezer (its barrage takes the one crab a threshold,
+-- its blowpipe takes her), but with nobody else to bring the next threshold,
+-- no PREWAVE (her bar never moves while it waits: entry m1 stood 378 ticks
+-- in F-prewave and died), and the threats at Entry's numbers (content:
+-- tob_maiden.rs2 ~tob_maiden_hit_damage /^tob_maiden_entry_divisor 2 on the
+-- storm; ~tob_maiden_blood_damage 2..5 for a pool and a trail). The constants
+-- are swapped in at init and restored for any other mode.
+QD.MAIDEN_V2.ENTRY = {
+    STORM_BASE = 182, STORM_PER_LEAK = 17,
+    POOL_BASE = 5, POOL_PER_LEAK = 0,
+    TRAIL_EXP = 3.5, TRAIL_MAX = 5, SPAWN_EXP = 3.5, SLUG_STEP2_EXP = 1,
+}
+function QD.MAIDEN_V2.apply_mode(entry)
     local X = QD.MAIDEN_V2
+    if X._base == nil then
+        X._base = {}
+        for k in pairs(X.ENTRY) do X._base[k] = X[k] end
+    end
+    for k, v in pairs(entry and X.ENTRY or X._base) do X[k] = v end
+end
+
+function QD.MAIDEN_V2.mode_table(hard, entry)
+    local X = QD.MAIDEN_V2
+    if entry then
+        if X._entry == nil then
+            local t = {}
+            for k, v in pairs(QD.MAIDEN_V2.mode_table(false)) do t[k] = v end
+            t.PRE_WAVE, t.SOLO, t.CRAB_HP = -100000, true, 16
+            X._entry = t
+        end
+        return X._entry
+    end
     if hard then
         if X._hard == nil then
             local H, t = QD.MAIDEN_HM, {}
@@ -1307,7 +1338,9 @@ QD.T2.rooms.maiden = {
         S.pool_probe, S.crab_probe, S.cast_log = {}, {}, {}
         -- the mode's table; v1's S.hm means two freezers (its freeze reads)
         local hard = QD.raid.tob_mode == "hard"
-        S.mh = QD.MAIDEN_V2.mode_table(hard)
+        local entry = QD.raid.tob_mode == "entry"
+        QD.MAIDEN_V2.apply_mode(entry)
+        S.mh = QD.MAIDEN_V2.mode_table(hard, entry)
         S.throws, S.storms, S.hm = 0, 0, hard
         S.waves, S.wave_log, S.freeze_log = 0, {}, {}
         S.cast_lag = opts.cast_lag or QD.MAIDEN.CAST_LAG_GUESS
@@ -1515,7 +1548,7 @@ QD.T2.rooms.maiden = {
             local ttw = MV.ticks_to_wave(S, F)
             local prewave = #F.crabs == 0 and F.next_threshold ~= nil
                 and (F.permille <= F.next_threshold + S.mh.PRE_WAVE
-                     or (freezer and ttw ~= nil and ttw <= QD.MAIDEN_V2.PREP_TICKS))
+                     or (freezer and not S.mh.SOLO and ttw ~= nil and ttw <= QD.MAIDEN_V2.PREP_TICKS))
             if freezer then
                 mode = MV.freezer(S, F, B, I, prewave)
             else
@@ -1573,7 +1606,7 @@ QD.T2.rooms.maiden = {
 }
 
 function QD.raid.maiden_solve(opts)
-    assert(QD.raid.tob_mode == "hard" or QD.raid.tob_mode == "normal",
+    assert(QD.raid.tob_mode == "hard" or QD.raid.tob_mode == "normal" or QD.raid.tob_mode == "entry",
         "maiden_solve: the party is in " .. tostring(QD.raid.tob_mode) .. " mode")
     return QD.T2.solve("maiden", opts or {})
 end
