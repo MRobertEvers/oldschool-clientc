@@ -75,7 +75,9 @@ hitpoints a raider between the two, the second at half when they differ (solo
 hits). One at half or less is `toa_baba_rubble_2`, its transformation re-sent
 every tick. A raider under landing rubble says "Ouch!", plays
 `agilityarena_player_spikedback` (1114) and is moved a tile out (exactmove
-delay2 29) with "You are knocked back from the rubble." (2 of 2). When her
+delay2 29) with "You are knocked back from the rubble." (spam; 101 and RSProx
+4292 [1004]: both stood on the rubble's east column, middle row, and went to
+(+1,-1), angle 1791, unhurt; 4292 also sends `busy` 1 that tick, 0 the next). When her
 pool crosses a dig's threshold the rubble takes a hit for what it has left
 that tick and is gone the next (84 of 98); its tile becomes
 `invisible_type8_nonblocking` (29733) shape 10 rotation 0.
@@ -157,7 +159,7 @@ the raider is missing (NR).
 |---|---|---|
 | Boulderdash | 6 kills | volleys every 6, up at L + 46; boulders knock back 5 (NR) |
 | Shaking Things Up | 36 kills (5 without) | the larger shockwave, slam 5 later |
-| Jungle Japes | 23 deaths with it: a peel on the dying baboon's tile on its death tick (0 of 14 without), rotation 0-3 | stepped on at T, the peel goes at T + 1 (29733, its rotation) and the slip shows at T + 2: `royal_human_slip_fall` (4030) delay 20, `tob_bloat_stunned` (1575) h124 and a hit; the message, `stunned` and a 5-tick stun are NR's |
+| Jungle Japes | 23 deaths with it: a peel on the dying baboon's tile on its death tick (0 of 14 without), rotation 0-3; RSProx 4292 (rev 241, raid 160): **two**, on its tile and the one north, one rotation (2 of 2 deaths) | stepped on at T, the peel goes at T + 1 (29733, its rotation) and the slip shows at T + 2; 4292 [1041..1042]: the raider stood where the baboon died, so the peel went the tick it came and the slip came the next: spam "You slip and fall on a banana skin!", `[facing]` kept, `tob_bloat_stunned` (1575) h124, `royal_human_slip_fall` (4030) delay 20, synth `stunned` (2727) and a hit of 16 (10 x 1.64, path 0). The 5-tick stun is NR's: the raider stood still the 3 ticks to the next boulder |
 | Mind the Gap | 2 kills, nobody fell | wiki + NR: a scream or boulder knockback past the wall on rows z 30-34 (the entrance corridor's rows) drops the raider in the pit, dead |
 | Gotta Have Faith | 38 kills | the skulls' extra damage (NR) |
 
@@ -203,5 +205,5 @@ sides; the only row ours alone sends is the every-room lobby song).
 | Open: special timing | the cycle's order is recorded; the throw's gap after the rocks varies 11-23 in the recordings and ours follows her attack turns |
 | Open: spawn tiles | the summons' tiles are fitted (one near her, the rest on two side tiles two times in three) |
 | Open: damages | the throw (the shields' fractions fitted to Expert), rocks, shockwave, boulders, skulls, peels and her swing keep scaled constants; NR's where named |
-| Open: second peel | Jungle Japes recorded 1 peel mostly and 2 sometimes (wiki: two); ours drops one |
+| Second peel, 2026-10-20 | **fixed** (RSProx 4292, 2 of 2 deaths): a peel on the dying baboon's tile and one on the tile north, one rotation; the slip's hit 10 scaled (16 at 160; was 8) and the line as spam |
 | Every room | **fixed** 2026-10-19: Osmumten after the boss and "Proceed", the "Challenge complete" times and song (README, "Leaving") |

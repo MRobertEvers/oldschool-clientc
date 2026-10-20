@@ -11,10 +11,11 @@ in the next square (X+15); C is a charge. Full inventory:
 `toa.constant`, enums `toa_wd_slam_*`, `toa_wd_siphons_*` and `toa_wd4_rip_mask` in `toa.enum`.
 Compared below (`test/raids/toa_wardens_p3_tells.lua`).
 
-Tumeken's Warden is the phase-3 Warden in every recorded kill: Elidinis'
-survives phase one and restores Tumeken's. Elidinis' as the phase-3 Warden is
-unrecorded (its phantoms would be Akkha's and Kephri's, per the wiki); ours
-fights it with no phantoms rather than invent them.
+Tumeken's Warden is the phase-3 Warden in the 18 kills above: Elidinis'
+survives phase one and restores Tumeken's. RSProx index 4292 (rev 241, solo,
+raid level 160, "Tombs Elidinis And Failures") is the other way round, with
+Akkha's and Kephri's phantoms: [Elidinis' Warden](#elidinis-warden-rsprox-4292)
+below. Ticks there are from the visit's start, [3362] = +0.
 
 ## Phase 2 to 3 (18 of 18 alike)
 
@@ -82,6 +83,64 @@ are exercised. `rsprox_tells.py --anchor 11762-11764,11772-11773 --gap 30
 Not in our tick log (so unchecked here): `cam_shake`, `cam_reset`, the fade
 and HUD interfaces.
 
+## Elidinis' Warden (RSProx 4292)
+
+One kill, solo, raid 160 (`toa_client_raid_level`), with Aerial Assault (her
+room's fireballs were 3x3: 216 shadows for 24). "As Elidinis' Warden falls,
+Tumeken's Warden powers up!" (`@mes_hl_ora@`) ends phase one; phase two is
+Tumeken's (ranged first, every 8, as the wiki said); "Tumeken's Warden uses
+the last of its power to restore Elidinis' Warden!" (`@mes_hl_blu@`, Elidinis'
+colour) ends it. Phases three and four are Tumeken's in every respect but the
+ids (`toa_warden_elidinis_phase3` 11761, `_charging` 11763, the death npcs
+`toa_warden_p3_death_elidinis` 11766) and the phantoms:
+
+| | Recorded |
+|---|---|
+| Charges | +75, +109, +156, +211; staggers +87, +123, +173, +229; E +280 (`enraging01`), D +398 |
+| Akkha's phantom | `toa_wardens_akkha` (11777) at (39,33), the Zebak place, C+2 of the second charge (+111) with `toa_wardens_red_thunder_11` d15, facing (32,41) |
+| Kephri's phantom | `toa_wardens_kephri` (11776) at (21,33), Ba-Ba's place, C+2 of the third (+158), the same |
+| Cadence | each from 8 after it comes, every 8 (Akkha 119, 127 ... 274), every 5 from its attack after E (282, 287, 292 ...); Kephri's 166 ... 274, 282, 287 ... (one gap of 11, 151 -> 162, over the third charge, unexplained) |
+| Akkha's cycle | `npc_akkha_attack_ranged_spear` (9772) x3, `npc_akkha_attack_magic_02_spear` (9777) with no throw, `npc_akkha_attack_magic_spear` (9774) x3, 9777, again; ranged first (44 of 44 attacks in that order) |
+| Akkha's throw | A+2: `akkha_ranged_travel` (2255) or `akkha_magic_travel` (2253) from his middle (41,35) at the raider, start 0, end 6 (ranged) / 10 (magic) x the distance (66 at 11, 100 at 10, 140 at 14), angle 12, slope 32, height 101 -> 34; synth `toa_akka_non_magic_knife_projectile_01` (5640) / `toa_akka_projectle_impact_01` (5774) at the end; magic `akkha_magic_impact` (2254) h124 at the end; the raider's block at the end. His room's throw exactly |
+| Akkha's hit | (end + 15) / 30 after the throw (+123 for 121's 66, +156 for 153's 100); 0 through the right prayer (12 of 12), 13 ranged unprotected |
+| Kephri's cast | `npc_kephri_attack_magic_radial` (9577), `vorkath_area_travel` (1481) from her middle (23,35) to (24,36) (38 of 38: start 39, end 90, angle 50, 175 -> 250), synth `toa_kephri_fire_projectile` (6435) |
+| Kephri's volley | A+3: `vorkath_area_travel_small` (2266) from (24,36) to the raider's tile (where they stood at the end of A+2), start 0, end 120, angle 115, 250 -> 9; `gargboss_debris_shadow_120` on the 3x3 round it; `toa_zebak_redirected_projectile_02` (5896) r12 at (23,35). Her room's, at her path's flight and with Aerial Assault's 3x3 |
+| Kephri's landing | A+7: one `vfx_scarab_explosion` variant on all nine tiles (2158 x9, then 2156 x9, ...), `toa_kephri_fire_proj_impact_01` (6475) r6 on the centre; the raider was never in one, so its hit is her room's [unrecorded] |
+| D | as Tumeken's (the five death npcs, the book on (32,37), 6143 / 6044 d330, `cam_reset`, the loot clientscript 7192 naming 11761) |
+| D+2 | both phantoms' ops off (`enabled_ops 0b00000`), Akkha's `npc_akkha_death_spear` (9792), an area -1 r10 on each (Kephri's has no death seq) |
+| D+4 | both phantoms gone (Tumeken's went at D+2 in the rev 223-227 kills) |
+
+### Pushed off (4292 +286, +340; 1852 [28848], [28900])
+
+A raider on a tile as it flies away (P4), or on a siphon's tile as it lands
+(P3, 1852), is pushed off, on that tick:
+
+- `message_game` spam "You are pushed off.";
+- `busy` 1 that tick, 0 the next;
+- a 1-tile `teleport` to the south-west, (40,65) -> (39,64) and (36,62) ->
+  (35,61) in 4292, (30,64) -> (29,63) and (35,64) -> (34,63) in 1852: 4 of 4
+  (-1,-1), so ours takes the first open tile from the south-west (the rubble's
+  rule, which went (+1,-1) off the east side of a rubble);
+- `agilityarena_player_spikedback` (1114), an `exactmove` to1 = the tile they
+  stood on, delay1 0, to2 the new tile, delay2 29; angle 1024 / 1023 (4292;
+  1852 255 / 1536);
+- in P4 a hit: 18 and 19 at raid 160 (fitted: 11 x the damage factor +
+  random(2), the pyramids' rule); a siphon's push hurts nothing.
+
+Both 4292 pushes were on a row's first tick (the middle tile always goes
+first): (40,65) was in the first tick's batch and (36,62) was the middle. Ours
+pushes the raider whose own tile goes, on its tick. A raider who walks back
+onto a row already gone is pushed the same way [nr].
+
+### Ours against it
+
+`test/raids/toa_wardens_elidinis_tells.lua`: solo, raid level 0, Elidinis'
+gap blocked in phase one, so Tumeken's Warden survives; Tumeken's phase two;
+Elidinis' restored; the siphons to the enrage; at the enrage the raider stands
+on (32,45) and is pushed off by the first row; then the Warden shot to death.
+`::toawardens 7` / `8` puts a raider straight into Elidinis' phase three / the
+enrage.
+
 ## Phase 4: the enrage (E) and the death (D)
 
 Every kill alike (18 of 18) unless said.
@@ -103,8 +162,7 @@ fitted to the counts (22 later starts on the old floor, one lost on a ripped
 row; one step in four of two tiles; a bolt off the floor or onto another's
 tile ends). Lightning damage is a third to all of 18 x the raid factor
 [fitted]. Rows lz 40..38 never broke in a recording: they take lz 41's tile
-pattern. No recorded raider stood on a ripped row; ours puts one onto the
-nearest whole row, unhurt [nr]. [wiki] Insanity speeds the phantoms in the
+pattern. A raider on a tile as it goes is pushed off it (4292, above). [wiki] Insanity speeds the phantoms in the
 enrage by an unstated amount: ours keeps 5. The clientscripts sent at D (7191,
 5931, 7192: the kill's loot notice) and the vault's Osmumten being added at D
 (he comes with the vault, on arrival) are not sent.
