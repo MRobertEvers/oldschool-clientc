@@ -4,9 +4,9 @@
 -- Graded against the OSRS Wiki, not the content: every npc line, choice and
 -- box text checked below is a fragment of Transcript:Learning_the_Ropes
 -- (pinned in docs/areas/tutorial/sources/), and the step order is the wiki's.
--- The step NUMBERS are this port's (no table of the real varp 281 values is
--- published), held to the three the rev-239 cache fixes: the run orb flashes
--- at 200, the equipment-stats button at 400, and the quest's endstate is 671.
+-- The step NUMBERS are Jagex's, read off RSProx (index 4289, a whole rev-241
+-- run, 2026-10-20; docs/rsprox-analysis/tutorial/README.md). Before that they
+-- were this port's own, held only to the three the cache fixes (200, 400, 671).
 -- Content: server/scripts/tutorial/.
 --
 -- Start: fresh_tutorial.ini, a save with no varps standing in the Gielinor
@@ -35,15 +35,15 @@ return {
             chef_door = 130, talk_to_chef = 140, make_dough = 150, bake_bread = 160, chef_exit = 170,
             run_hint = 200, run_toggled = 210,
             talk_to_quest_guide = 220, open_quest_list = 230, opened_quest_list = 240, quest_ladder = 250,
-            talk_to_miner = 260, mine_first = 270, mine_second = 280, smelt = 290, bar_made = 300,
-            smith_dagger = 310, mining_gate = 350,
-            talk_to_vannaka = 360, open_worn = 370, open_equipment_stats = 400, equip_dagger = 405,
+            talk_to_miner = 260, mine_first = 300, mine_second = 310, smelt = 320, bar_made = 330,
+            smith_dagger = 340, smithing_menu = 350, mining_gate = 360,
+            talk_to_vannaka = 370, open_worn = 390, open_equipment_stats = 400, equip_dagger = 405,
             dagger_equipped = 410, equip_sword_shield = 420, open_combat = 430, enter_pen = 440,
-            attack_rat = 450, melee_rat_killed = 460, range_rat = 470, ranged_rat_killed = 480,
-            open_bank = 500, use_poll_booth = 510, account_door = 520, talk_to_account_guide = 525,
-            open_account = 530, opened_account = 535, account_exit = 540,
-            talk_to_brace = 550, open_prayer = 560, opened_prayer = 570, chapel_exit = 600,
-            talk_to_terrova = 610, open_magic = 620, opened_magic = 630, cast_wind_strike = 640,
+            attack_rat = 450, melee_rat_killed = 470, range_rat = 480, ranged_rat_killed = 500,
+            open_bank = 510, use_poll_booth = 520, account_door = 525, talk_to_account_guide = 530,
+            open_account = 531, opened_account = 532, account_exit = 540,
+            talk_to_brace = 550, open_prayer = 560, opened_prayer = 570, chapel_exit = 610,
+            talk_to_terrova = 620, open_magic = 630, opened_magic = 640, cast_wind_strike = 650,
             quest_complete = 671, complete = 1000,
         }
 
@@ -395,19 +395,28 @@ return {
         snapshot()
         t.exec("mineTin", t.player.click_loc, "newbietinrock", 1)
         t.exec("mineTin.ore", t.inv.await, "tin_ore", 1, 15)
-        t.exec("mineTin.box", t.chat.play, { "mesbox:You manage to mine some tin." })
+        -- An objectbox with the ore, not a mesbox (RSProx index 4289 [595]).
+        local tin_kind = t.chat.kind()
+        t.check("mineTin.objbox", tin_kind == "objbox", "chat.kind() -> " .. tostring(tin_kind))
+        t.exec("mineTin.box", t.chat.play, { "*" })
         stage("mine_second")
         t.exec("mineCopper", t.player.click_loc, "newbiecopperrock", 1)
         t.exec("mineCopper.ore", t.inv.await, "copper_ore", 1, 15)
-        t.exec("mineCopper.box", t.chat.play, { "mesbox:You manage to mine some copper." })
+        local copper_kind = t.chat.kind()
+        t.check("mineCopper.objbox", copper_kind == "objbox", "chat.kind() -> " .. tostring(copper_kind))
+        t.exec("mineCopper.box", t.chat.play, { "*" })
         stage("smelt")
         gain("mineOres.xp", "mining", 35)
         snapshot()
         -- "To do so, just click on the indicated furnace."
-        t.exec("smeltBronze", t.player.click_loc, "newbiefurnace", 1)
-        t.exec("smeltBronze.box", t.chat.play, { "mesbox:You smelt the copper and tin together in the furnace." })
+        -- The furnace answers with no dialogue at all (RSProx index 4289
+        -- [613..622]): the swing, then "You smelt..." and "You retrieve a bar of
+        -- bronze." in the step box's overlay, which the click settle has no arm
+        -- for. Its silence is not a failure; the bar is the evidence.
+        local smelt_r, smelt_d = t.player.click_loc("newbiefurnace", 1)
+        t.check("smeltBronze", smelt_r == "ok" or smelt_r == "timeout",
+            "click_loc newbiefurnace: " .. tostring(smelt_r) .. " " .. tostring(smelt_d))
         t.exec("smeltBronze.bar", t.inv.await, "bronze_bar", 1, 10)
-        t.exec("smeltBronze.box2", t.chat.play, { "mesbox:You retrieve a bar of bronze." })
         -- 6.2 xp; the client's stat reading is whole xp, so it reads +6.
         gain("smeltBronze.xp", "smithing", 6)
         stage("bar_made")
