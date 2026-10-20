@@ -44,6 +44,9 @@ QD.chat._continue_symbol_by_iface = {
     messagebox_url = "messagebox_url:continue",
     objectbox = "objectbox:universe",
     objectbox_double = "objectbox_double:pausebutton",
+    -- 633 graphicbox (a sprite beside the text, Daddy's Home's world-map
+    -- box): like objectbox, its continue row is cc_created and armed on the root.
+    graphicbox = "graphicbox:universe",
 }
 
 -- chat.kind()'s bucketing (plan 5.4): several interfaces collapse into one
@@ -57,6 +60,7 @@ QD.chat._kind_by_iface = {
     messagebox_url = "mesbox",
     objectbox = "objbox",
     objectbox_double = "objbox",
+    graphicbox = "objbox",
     chatmenu = "options",
     levelup_display = "levelup",
     questscroll = "scroll",
@@ -873,6 +877,9 @@ QD.chat._play_kind_by_prefix = {
     npc = "npc",
     player = "player",
     mesbox = "mesbox",
+    -- objectbox / objectbox_double / graphicbox: a box with its text graded
+    -- like a mesbox's ("objbox:You find a variety").
+    objbox = "objbox",
     count = "count",
     name = "name",
 }
@@ -924,7 +931,7 @@ end
 -- detail shows what actually mounted, not the entry that expected something
 -- else.
 function QD.chat._play_describe(kind)
-    if kind == "npc" or kind == "player" or kind == "mesbox" then
+    if kind == "npc" or kind == "player" or kind == "mesbox" or kind == "objbox" then
         -- The raw presented read, NOT QD.chat.text(): this runs only on a
         -- path that is already failing, and the one thing it owes that row
         -- is the sentence on screen RIGHT NOW.  chat.text() would spend up

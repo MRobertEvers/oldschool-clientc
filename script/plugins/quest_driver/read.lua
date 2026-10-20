@@ -49,6 +49,7 @@ QD.read._text_symbols = {
     "messagebox_url:text",
     "objectbox:text",
     "objectbox_double:text",
+    "graphicbox:text",
 }
 
 QD.read._head_symbols = { "chat_left:head", "chat_right:head" }
