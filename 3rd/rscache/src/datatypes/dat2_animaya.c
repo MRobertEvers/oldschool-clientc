@@ -757,6 +757,15 @@ RSCache_Dat2AnimMayaCurveGetValue(
     return c->values[t - c->start_tick];
 }
 
+float
+RSCache_Dat2AnimMayaCurveEvaluate(
+    struct RSCache_Dat2Curve* c,
+    int t)
+{
+    assert(c);
+    return interpolate_curve(c, t);
+}
+
 /* ---- memory ---- */
 
 void
@@ -783,7 +792,26 @@ RSCache_Dat2AnimMayaFree(struct RSCache_Dat2AnimMaya* maya)
         }
         RSCACHE_FREE(maya->bone_curves);
     }
+    if( maya->group_curves )
+    {
+        for( int g = 0; g < maya->group_curve_count; g++ )
+        {
+            for( int s = 0; s < RSCACHE_ANIMAYA_GROUP_CURVES_MAX; s++ )
+                RSCache_Dat2CurveFree(maya->group_curves[g].curves[s]);
+        }
+        RSCACHE_FREE(maya->group_curves);
+    }
     RSCACHE_FREE(maya);
+}
+
+int
+RSCache_Dat2AnimMayaTransformCurveCount(int transform_type)
+{
+    /* class492: NONE 0, BONE 9, 2 -> 3, 3 -> 6, TRANSPARENCY 1, 5 -> 3. */
+    static const int COUNTS[RSCACHE_ANIMAYA_TRANSFORM_COUNT] = { 0, 9, 3, 6, 1, 3 };
+    assert(transform_type >= 0);
+    assert(transform_type < RSCACHE_ANIMAYA_TRANSFORM_COUNT);
+    return COUNTS[transform_type];
 }
 
 /* ---- decode ---- */
@@ -826,6 +854,11 @@ curve_decode(
             p->field4 = gf(buf);
             p->field5 = gf(buf);
         }
+        /* The range the point search and the before/after tests read; a curve
+         * that keeps its raw points (RSCache_Dat2GroupCurves) is evaluated
+         * without ever passing through CurveLoad, which sets the same two. */
+        c->start_tick = c->points[0].x;
+        c->end_tick = c->points[count - 1].x;
     }
     return c;
 }
@@ -872,6 +905,9 @@ RSCache_Dat2AnimMayaNewDecode(
         return NULL;
     }
     int max_bone = -1;
+    struct RSCache_Dat2GroupCurves* group_curves = NULL;
+    int group_capacity = 0;
+    int max_group = -1;
 
     for( int i = 0; i < curve_count; i++ )
     {
@@ -921,6 +957,43 @@ RSCache_Dat2AnimMayaNewDecode(
                 max_bone = bone_index;
         }
 
+        /* Every other transform type: by framemap group, the curves of one
+         * type a group (class488.method10805 -> field5860[group][slot]). */
+        if( curve && transform_type > RSCACHE_ANIMAYA_TRANSFORM_BONE &&
+            transform_type < RSCACHE_ANIMAYA_TRANSFORM_COUNT && bone_index >= 0 && slot >= 0 &&
+            slot < RSCache_Dat2AnimMayaTransformCurveCount(transform_type) )
+        {
+            if( bone_index >= group_capacity )
+            {
+                int new_cap = group_capacity > 0 ? group_capacity * 2 : 16;
+                while( new_cap <= bone_index )
+                    new_cap *= 2;
+                struct RSCache_Dat2GroupCurves* grown = RSCACHE_REALLOC(
+                    group_curves, (size_t)new_cap * sizeof(struct RSCache_Dat2GroupCurves));
+                assert(grown);
+                memset(
+                    grown + group_capacity,
+                    0,
+                    (size_t)(new_cap - group_capacity) * sizeof(struct RSCache_Dat2GroupCurves));
+                group_curves = grown;
+                group_capacity = new_cap;
+            }
+            struct RSCache_Dat2GroupCurves* group = &group_curves[bone_index];
+            if( group->transform_type == RSCACHE_ANIMAYA_TRANSFORM_NONE )
+                group->transform_type = transform_type;
+            /* One type a group: a second type for the same group would be a
+             * second array the client never makes (it sizes field5860[group]
+             * once, by the first). */
+            if( group->transform_type == transform_type )
+            {
+                RSCache_Dat2CurveFree(group->curves[slot]);
+                group->curves[slot] = curve;
+                curve = NULL;
+                if( bone_index > max_group )
+                    max_group = bone_index;
+            }
+        }
+
         if( curve )
             RSCache_Dat2CurveFree(curve);
     }
@@ -929,6 +1002,8 @@ RSCache_Dat2AnimMayaNewDecode(
 
     maya->bone_curve_count = max_bone + 1;
     maya->bone_curves = bone_curves;
+    maya->group_curve_count = max_group + 1;
+    maya->group_curves = group_curves;
 
     /* Sample all curves to dense per-tick float arrays */
     for( int b = 0; b < maya->bone_curve_count; b++ )

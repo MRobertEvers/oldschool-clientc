@@ -879,10 +879,12 @@ ev_build_seq_anim(
             if( out_framemap_id )
                 *out_framemap_id = maya->base_id;
 
+            /* The rig and its alpha groups ride in one framemap. */
+            struct RSCache_Dat2Framemap* fm = tool_dat2_framemap_load(c, maya->base_id);
             struct RSCache_Dat2SkeletalBase* base =
-                tool_dat2_skeletal_base_load(c, maya->base_id);
+                fm ? RSCache_Dat2SkeletalBaseNewFromFramemap(fm) : NULL;
             struct ToriDraw_SkeletalAnim* skeletal =
-                ToriDraw_SkeletalAnimFromRSCache(seq_id, maya, base);
+                base ? ToriDraw_SkeletalAnimFromRSCache(seq_id, maya, base, fm) : NULL;
 
             if( skeletal )
             {
@@ -901,6 +903,7 @@ ev_build_seq_anim(
                 anim->replaceheldright = -1;
             }
             RSCache_Dat2SkeletalBaseFree(base);
+            RSCache_Dat2FramemapFree(fm);
         }
 
         RSCache_Dat2AnimMayaFree(maya);

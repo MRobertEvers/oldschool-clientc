@@ -544,6 +544,22 @@ RSCache_Dat2SkeletalBaseBakePalette(
         }
     }
 
+    /* A fade is a channel too: the transparency curves' last point (they keep
+     * their raw points, see RSCache_Dat2GroupCurves; class144.method4834). */
+    for( int g = 0; g < maya->group_curve_count && maya->group_curves; g++ )
+    {
+        const struct RSCache_Dat2GroupCurves* gc = &maya->group_curves[g];
+        if( gc->transform_type != RSCACHE_ANIMAYA_TRANSFORM_TRANSPARENCY )
+            continue;
+        const struct RSCache_Dat2Curve* c = gc->curves[0];
+        if( !c || !c->points || c->point_count <= 0 )
+            continue;
+        int const end = c->points[c->point_count - 1].x;
+        if( !found || end > max_tick )
+            max_tick = end;
+        found = 1;
+    }
+
     frame_count = found ? (max_tick + 1) : 1;
     bone_count = base->bone_count;
 

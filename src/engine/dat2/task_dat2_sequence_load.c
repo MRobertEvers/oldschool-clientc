@@ -398,13 +398,16 @@ Task_Dat2SequenceLoad_Run(
                     if( fm )
                     {
                         self->skeletal_base = RSCache_Dat2SkeletalBaseNewFromFramemap(fm);
+                        /* Baked while the framemap is alive: its alpha groups'
+                         * types and face labels are the transparency half. */
+                        if( self->skeletal_base )
+                            self->skeletal = ToriDraw_SkeletalAnimFromRSCache(
+                                self->seq_id, self->maya, self->skeletal_base, fm);
                         RSCache_Dat2FramemapFree(fm);
                     }
                     RSCache_Dat2DiskArchiveFree(fm_archive);
                 }
             }
-            self->skeletal = ToriDraw_SkeletalAnimFromRSCache(
-                self->seq_id, self->maya, self->skeletal_base);
         }
         if( !self->skeletal && getenv("TORIRS_ANIM_DEBUG") )
             TORIRS_ERR("seq_load: seq=%d skeletal bake failed (maya_id=%d maya=%p base=%p)\n",

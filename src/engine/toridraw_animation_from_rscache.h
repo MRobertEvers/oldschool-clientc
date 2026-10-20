@@ -41,15 +41,20 @@ ToriDraw_AnimationFromRSCacheDat1(
 
 /*
  * Bake an Animaya (skeletal) sequence into a render-ready ToriDraw_SkeletalAnim:
- * one column-major 4x4 skinning matrix per (frame, bone). The maya curves supply
- * the animated channels, the skeletal base the bind pose everything else falls
- * back to. Owns its matrices; the RSCache inputs may be freed afterwards.
- * Returns NULL on bad input.
+ * one column-major 4x4 skinning matrix per (frame, bone), and per frame the
+ * value of each transparency curve that drives an alpha group. The maya curves
+ * supply the animated channels, the skeletal base the bind pose everything
+ * else falls back to, and the framemap the rig rides in its alpha groups' types
+ * and face labels (the rev-239 client reads both off one SeqBase, class129).
+ * Owns what it bakes; the RSCache inputs may be freed afterwards.
+ * Returns NULL when the animation bakes to nothing.
  */
+struct RSCache_Dat2Framemap;
 struct ToriDraw_SkeletalAnim*
 ToriDraw_SkeletalAnimFromRSCache(
     int seq_id,
     struct RSCache_Dat2AnimMaya const* maya,
-    struct RSCache_Dat2SkeletalBase* base);
+    struct RSCache_Dat2SkeletalBase* base,
+    struct RSCache_Dat2Framemap const* framemap);
 
 #endif

@@ -828,6 +828,12 @@ struct ToriRS_SkeletalAnim
     int bone_count;
     int frame_count;
     float* matrices; /* [frame_count * bone_count * 16] */
+    /* Transparency, as ToriDraw_SkeletalAnim's: per alpha group its face
+     * labels, per frame and group the curve value (x 255 onto face alpha). */
+    int alpha_group_count;
+    int* alpha_label_counts; /* [alpha_group_count] */
+    int** alpha_labels;      /* [alpha_group_count][alpha_label_counts[g]] */
+    float* alpha_values;     /* [frame_count * alpha_group_count] */
 };
 
 /** Per-vertex animaya skin data attached to a model. */

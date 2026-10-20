@@ -52,6 +52,41 @@ struct RSCache_Dat2BoneCurves
 };
 
 /**
+ * A curve's transform type, the u8 ahead of its group index on the wire. The
+ * rev-239 client's class492: each type carries a fixed number of curves, and
+ * it applies two of them -- BONE poses the skeleton (class488.method10814 /
+ * method10816 / method10826) and TRANSPARENCY adds to the faces of the
+ * framemap's alpha groups (class144.method4834). Types 2, 3 and 5 are decoded
+ * and stored by that client and never read.
+ */
+enum RSCache_Dat2AnimMayaTransform
+{
+    RSCACHE_ANIMAYA_TRANSFORM_NONE = 0,         /* 0 curves */
+    RSCACHE_ANIMAYA_TRANSFORM_BONE = 1,         /* 9: rotation, translation, scale xyz */
+    RSCACHE_ANIMAYA_TRANSFORM_TYPE2 = 2,        /* 3 */
+    RSCACHE_ANIMAYA_TRANSFORM_TYPE3 = 3,        /* 6 */
+    RSCACHE_ANIMAYA_TRANSFORM_TRANSPARENCY = 4, /* 1 */
+    RSCACHE_ANIMAYA_TRANSFORM_TYPE5 = 5,        /* 3 */
+    RSCACHE_ANIMAYA_TRANSFORM_COUNT = 6,
+};
+
+#define RSCACHE_ANIMAYA_GROUP_CURVES_MAX 6
+
+/**
+ * One framemap transform group's non-bone curves (class488.field5860[group]).
+ * A group holds the curves of one transform type, `curves[slot]` by the curve
+ * type's slot. These keep their raw points rather than a dense tick range:
+ * the client samples them outside their range too (holding or extrapolating
+ * by each end's interpolation mode, class488.method10820), which only the raw
+ * points can answer -- RSCache_Dat2AnimMayaCurveEvaluate.
+ */
+struct RSCache_Dat2GroupCurves
+{
+    int transform_type; /* RSCACHE_ANIMAYA_TRANSFORM_NONE: no curves here */
+    struct RSCache_Dat2Curve* curves[RSCACHE_ANIMAYA_GROUP_CURVES_MAX];
+};
+
+/**
  * A fully decoded idx22 (Table_Animayas) SkeletalSeq animation.
  * Maps to SkeletalSeq in docs/skeletal/SkeletalSeq.ts.
  *
@@ -69,7 +104,15 @@ struct RSCache_Dat2AnimMaya
 
     int bone_curve_count;
     struct RSCache_Dat2BoneCurves* bone_curves; /* [bone_curve_count] */
+    /* Every other transform type, by framemap group index (the wire's index
+     * field means a group, not a bone, for these). */
+    int group_curve_count;
+    struct RSCache_Dat2GroupCurves* group_curves; /* [group_curve_count] */
 };
+
+/** How many curves a transform type carries (class492's last argument). */
+int
+RSCache_Dat2AnimMayaTransformCurveCount(int transform_type);
 
 struct RSCache_Dat2Disk;
 struct RSCache_Dat2DiskArchive;
@@ -106,6 +149,18 @@ RSCache_Dat2AnimMayaCurveLoad(struct RSCache_Dat2Curve* curve);
 float
 RSCache_Dat2AnimMayaCurveGetValue(
     const struct RSCache_Dat2Curve* curve,
+    int t);
+
+/**
+ * A raw-point curve's value at tick t, anywhere: inside its range the curve
+ * itself, before or after it the first/last point when that end's
+ * interpolation mode is 0, else the client's extrapolation (class488.method10820
+ * / method10813). For curves that kept their points (group curves); a curve
+ * with no points is 0, as the client's.
+ */
+float
+RSCache_Dat2AnimMayaCurveEvaluate(
+    struct RSCache_Dat2Curve* curve,
     int t);
 
 void

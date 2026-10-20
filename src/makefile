@@ -2523,7 +2523,18 @@ rs2012-model-faces: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS)
 
-.PHONY: rs2012-model-view rs2012-face-priorities
+.PHONY: rs2012-model-view rs2012-face-priorities test-skeletal-alpha
+
+# Animaya transparency end to end on real data (Akkha's vanish, seq 9784):
+# rscache's decode, the engine bake and toridraw's pose. Reads the content
+# tree's dumped animaya/framemap files, so it needs no cache.
+test-skeletal-alpha: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(TORIDRAW_UNITY_LINK_OBJS) \
+		$(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/toridraw_skeletal_alpha_test $(TORIMEM_SRCS) \
+		engine/test/toridraw_skeletal_alpha_test.c engine/toridraw_animation_from_rscache.c \
+		$(OBJ_DIR)/rscache_unity.o $(TORIDRAW_UNITY_LINK_OBJS) \
+		$(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
+	./$(OBJ_DIR)/toridraw_skeletal_alpha_test $(REPO_ROOT)/OSRS-Content/osrs239-content
 
 # OB3 viewer: renders a model through the real project/sort/raster path and
 # writes a multi-angle contact sheet. The iteration loop for face-priority

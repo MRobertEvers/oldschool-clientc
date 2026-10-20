@@ -188,6 +188,14 @@ struct ToriDraw_SkeletalAnim
     int bone_count;
     int frame_count;
     float* matrices; /* [frame_count * bone_count * 16] */
+    /* Transparency (rev-239 class144.method4834): the framemap groups of type 5
+     * that the animation drives with a TRANSPARENCY curve. Each frame adds
+     * value * 255 to the alpha of every face carrying one of the group's
+     * labels (the model's face_bones), clamped to 0..255. 0 groups: none. */
+    int alpha_group_count;
+    int* alpha_label_counts; /* [alpha_group_count] */
+    int** alpha_labels;      /* [alpha_group_count][alpha_label_counts[g]] */
+    float* alpha_values;     /* [frame_count * alpha_group_count] */
 };
 
 void

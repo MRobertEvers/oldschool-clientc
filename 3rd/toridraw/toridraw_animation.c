@@ -195,5 +195,10 @@ ToriDraw_SkeletalAnimFree(struct ToriDraw_SkeletalAnim* skeletal)
     if( !skeletal )
         return;
     TORIDRAW_FREE(skeletal->matrices);
+    for( int g = 0; g < skeletal->alpha_group_count; g++ )
+        TORIDRAW_FREE(skeletal->alpha_labels[g]);
+    TORIDRAW_FREE(skeletal->alpha_labels);
+    TORIDRAW_FREE(skeletal->alpha_label_counts);
+    TORIDRAW_FREE(skeletal->alpha_values);
     TORIDRAW_FREE(skeletal);
 }

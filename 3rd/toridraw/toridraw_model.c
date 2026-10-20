@@ -951,6 +951,68 @@ tori_skeletal_matrix_is_finite(const float* M)
     return 1;
 }
 
+/*
+ * The transparency half of a skeletal pose (class144.method4872 ->
+ * method4834). Every pose starts from the model's own alphas -- the client
+ * poses a fresh copy each time -- so a fade never accumulates and a later
+ * sequence without one draws the model as authored. An animation that fades a
+ * model with no alphas at all gives it a zeroed (opaque) set first, as the
+ * client's copy does (class144.method4810 with shared = false).
+ */
+static void
+tori_skeletal_apply_alpha(
+    struct ToriDraw_Model* model,
+    const struct ToriDraw_SkeletalAnim* skeletal,
+    int frame_index)
+{
+    size_t const fc = (size_t)model->face_count;
+
+    if( model->face_alphas )
+    {
+        if( model->original_face_alphas )
+            memcpy(model->face_alphas, model->original_face_alphas, fc * sizeof(alphaint_t));
+        else
+            memset(model->face_alphas, 0, fc * sizeof(alphaint_t));
+    }
+    if( skeletal->alpha_group_count <= 0 )
+        return;
+    /* Faces are found by their alpha labels; a model without them has nothing
+     * this can fade (the client's field2175 == null). */
+    struct ToriDraw_Bones const* labels = model->face_bones;
+    if( !labels || !labels->bones || fc == 0 )
+        return;
+    if( !model->face_alphas )
+    {
+        model->face_alphas = TORIDRAW_CALLOC(fc, sizeof(alphaint_t));
+        assert(model->face_alphas);
+    }
+
+    float const* values =
+        &skeletal->alpha_values[(size_t)frame_index * (size_t)skeletal->alpha_group_count];
+    for( int g = 0; g < skeletal->alpha_group_count; g++ )
+    {
+        float const v = values[g];
+        for( int k = 0; k < skeletal->alpha_label_counts[g]; k++ )
+        {
+            int const label = skeletal->alpha_labels[g][k];
+            if( label < 0 || label >= labels->bones_count )
+                continue;
+            boneint_t const* faces = labels->bones[label];
+            int const n = labels->bones_sizes[label];
+            for( int j = 0; j < n; j++ )
+            {
+                int const f = faces[j];
+                int a = (int)((float)model->face_alphas[f] + v * 255.0f);
+                if( a < 0 )
+                    a = 0;
+                else if( a > 255 )
+                    a = 255;
+                model->face_alphas[f] = (alphaint_t)a;
+            }
+        }
+    }
+}
+
 void
 ToriDraw_ModelAnimateSkeletal(
     struct ToriDraw_Model* model,
@@ -1022,6 +1084,9 @@ ToriDraw_ModelAnimateSkeletal(
             model->vertices_z[vi] = model->original_vertices_z[vi];
         }
     }
+
+    /* After the bones, as the client's method4872. */
+    tori_skeletal_apply_alpha(model, skeletal, frame_index);
 
     /* Same order as the classic path above: the palette poses the authored
      * bind, the resize follows it. */

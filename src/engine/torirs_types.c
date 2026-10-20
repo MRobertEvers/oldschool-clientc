@@ -318,6 +318,13 @@ ToriRS_SkeletalAnimSizeOf(const struct ToriRS_SkeletalAnim* skeletal)
     size_t bytes = sizeof(*skeletal);
     if( skeletal->matrices )
         bytes += (size_t)skeletal->frame_count * (size_t)skeletal->bone_count * 16u * sizeof(float);
+    if( skeletal->alpha_group_count > 0 )
+    {
+        bytes += (size_t)skeletal->alpha_group_count * (sizeof(int) + sizeof(int*));
+        bytes += (size_t)skeletal->frame_count * (size_t)skeletal->alpha_group_count * sizeof(float);
+        for( int g = 0; g < skeletal->alpha_group_count; g++ )
+            bytes += (size_t)skeletal->alpha_label_counts[g] * sizeof(int);
+    }
     return bytes;
 }
 
@@ -327,6 +334,11 @@ ToriRS_SkeletalAnimFree(struct ToriRS_SkeletalAnim* skeletal)
     if( !skeletal )
         return;
     ToriMem_Free(ToriMem_Assets(), skeletal->matrices);
+    for( int g = 0; g < skeletal->alpha_group_count; g++ )
+        ToriMem_Free(ToriMem_Assets(), skeletal->alpha_labels[g]);
+    ToriMem_Free(ToriMem_Assets(), skeletal->alpha_labels);
+    ToriMem_Free(ToriMem_Assets(), skeletal->alpha_label_counts);
+    ToriMem_Free(ToriMem_Assets(), skeletal->alpha_values);
     ToriMem_Free(ToriMem_Assets(), skeletal);
 }
 

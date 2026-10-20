@@ -7,6 +7,7 @@
 #include "datatypes/dat1_anim_frame.h"
 #include "datatypes/dat2_frame.h"
 #include "datatypes/dat2_framemap.h"
+#include "datatypes/dat2_animaya.h"
 #include "datatypes/dat2_skeletalbase.h"
 #include "toridraw_animation.h"
 
@@ -264,11 +265,69 @@ ToriDraw_AnimationFromRSCacheDat1(
     return anim;
 }
 
+/*
+ * The alpha table (class488.field5864 and class144.method4834): every framemap
+ * group of type 5 that the animation drives with a TRANSPARENCY curve, its face
+ * labels, and the curve's value at each baked frame. Sampled from the raw
+ * points, so a frame past the curve's last point holds or extrapolates by its
+ * end mode as the client's sampler does (a finished fade stays faded).
+ */
+#define SKELETAL_FRAMEMAP_TYPE_ALPHA 5
+
+static void
+skeletal_alpha_from_rscache(
+    struct ToriDraw_SkeletalAnim* skeletal,
+    struct RSCache_Dat2AnimMaya const* maya,
+    struct RSCache_Dat2Framemap const* framemap)
+{
+    int count = 0;
+    for( int g = 0; g < maya->group_curve_count && g < framemap->length; g++ )
+    {
+        struct RSCache_Dat2GroupCurves const* gc = &maya->group_curves[g];
+        if( gc->transform_type == RSCACHE_ANIMAYA_TRANSFORM_TRANSPARENCY && gc->curves[0] &&
+            framemap->types[g] == SKELETAL_FRAMEMAP_TYPE_ALPHA )
+            count++;
+    }
+    if( count == 0 )
+        return;
+
+    skeletal->alpha_label_counts = TORIDRAW_CALLOC((size_t)count, sizeof(int));
+    skeletal->alpha_labels = TORIDRAW_CALLOC((size_t)count, sizeof(int*));
+    skeletal->alpha_values =
+        TORIDRAW_MALLOC((size_t)skeletal->frame_count * (size_t)count * sizeof(float));
+    assert(skeletal->alpha_label_counts);
+    assert(skeletal->alpha_labels);
+    assert(skeletal->alpha_values);
+    skeletal->alpha_group_count = count;
+
+    int k = 0;
+    for( int g = 0; g < maya->group_curve_count && g < framemap->length; g++ )
+    {
+        struct RSCache_Dat2GroupCurves const* gc = &maya->group_curves[g];
+        if( gc->transform_type != RSCACHE_ANIMAYA_TRANSFORM_TRANSPARENCY || !gc->curves[0] ||
+            framemap->types[g] != SKELETAL_FRAMEMAP_TYPE_ALPHA )
+            continue;
+        int const n = framemap->bone_groups_lengths[g];
+        skeletal->alpha_label_counts[k] = n;
+        if( n > 0 )
+        {
+            skeletal->alpha_labels[k] = TORIDRAW_MALLOC((size_t)n * sizeof(int));
+            assert(skeletal->alpha_labels[k]);
+            memcpy(skeletal->alpha_labels[k], framemap->bone_groups[g], (size_t)n * sizeof(int));
+        }
+        for( int f = 0; f < skeletal->frame_count; f++ )
+            skeletal->alpha_values[(size_t)f * (size_t)count + (size_t)k] =
+                RSCache_Dat2AnimMayaCurveEvaluate(gc->curves[0], f);
+        k++;
+    }
+}
+
 struct ToriDraw_SkeletalAnim*
 ToriDraw_SkeletalAnimFromRSCache(
     int seq_id,
     struct RSCache_Dat2AnimMaya const* maya,
-    struct RSCache_Dat2SkeletalBase* base)
+    struct RSCache_Dat2SkeletalBase* base,
+    struct RSCache_Dat2Framemap const* framemap)
 {
     struct ToriDraw_SkeletalAnim* skeletal;
     float* palette;
@@ -277,6 +336,7 @@ ToriDraw_SkeletalAnimFromRSCache(
 
     assert(maya);
     assert(base);
+    assert(framemap);
 
     palette = RSCache_Dat2SkeletalBaseBakePalette(maya, base, &frame_count, &bone_count);
     if( !palette )
@@ -300,5 +360,6 @@ ToriDraw_SkeletalAnimFromRSCache(
     if( ToriMem_ToriDrawInstalled() )
         palette = ToriMem_Adopt(palette, ToriMem_LibToriDraw());
     skeletal->matrices = palette;
+    skeletal_alpha_from_rscache(skeletal, maya, framemap);
     return skeletal;
 }
