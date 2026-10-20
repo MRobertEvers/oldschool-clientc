@@ -102,6 +102,35 @@ ToriRSServer_SendSynthSound(
  * spelling out in one place.
  */
 
+/*
+ * Varbit 10670 `chatmodal_unclamp` for the panel `group` about to open into
+ * `chatbox:chatmodal` -- 1 for the tall panels, 0 for the 479x96 boxes, and
+ * nothing for a panel no recording has shown (ToriRSServerIds says why and
+ * where it was measured). Written only when it flips, as Jagex sends it: 12
+ * writes across index 4289's 180 pages.
+ */
+static void
+chatmodal_set_unclamp(struct ToriRSServer* srv, int group)
+{
+    const struct ToriRSServerIds* ids = ToriRSServer_Ids();
+    int unclamp;
+
+    assert(srv);
+    assert(srv->active_player);
+    if( group == ids->iface_chat_left || group == ids->iface_chat_right ||
+        group == ids->iface_chatmenu || group == ids->iface_messagebox ||
+        group == ids->iface_skillmulti )
+        unclamp = 1;
+    else if( group == ids->iface_objectbox || group == ids->iface_objectbox_double ||
+             group == ids->iface_graphicbox )
+        unclamp = 0;
+    else
+        return;
+    if( ToriRSServer_VarbitGet(srv->active_player, ids->varbit_chatmodal_unclamp) == unclamp )
+        return;
+    ToriRSServer_VarbitSet(srv, ids->varbit_chatmodal_unclamp, unclamp);
+}
+
 static int32_t
 coord_pack(int level, int x, int z)
 {
@@ -10440,8 +10469,10 @@ script_command(
 
         if( !SSVM_PopInt(state, &group) )
             return 1;
+        chatmodal_set_unclamp(srv, group);
         /*
-         * One packet. `chatbox:chatmodal` ships hidden=1, but unhiding it is
+         * One packet (after the unclamp bit, in Jagex's order: index 4291
+         * [627]). `chatbox:chatmodal` ships hidden=1, but unhiding it is
          * the *client's* job, not the server's: mounting a sub-interface into
          * it fires the gameframe's on_sub_change hook, and script908 both
          * unhides the modal and hides `chatbox:chatdisplay` behind it. See

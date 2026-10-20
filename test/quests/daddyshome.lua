@@ -226,6 +226,9 @@ return {
         t.exec("sawmill.walk", t.player.goto_tile, 3302, 3490, 0)
         t.exec("sawmill.buy", t.player.talk_to, "poh_sawmill_opp", 3)
         t.check("sawmill.menu", t.ui.await_open("skillmulti", 10) == "ok", "skillmulti open")
+        -- The 519x142 panel needs chatbox:chatmodal unclamped (varbit 10670, set
+        -- with the open as Jagex does, 4291 [627]); clamped it loses its title.
+        t.expect("sawmill.unclamped", t.var.expect("varb10670_chatmodal_unclamp", 1))
         local mr, cell = t.ui.widget("skillmulti:h")
         t.check("sawmill.waxwood_row", mr == "ok", "skillmulti:h -> " .. tostring(mr))
         t.exec("sawmill.pick", t.ui.invoke, cell, 1)

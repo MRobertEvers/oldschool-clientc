@@ -189,6 +189,28 @@ struct ToriRSServerIds
      */
     int com_chatbox_modal;
 
+    /*
+     * `chatbox:chatmodal` is 479x96 unless varbit 10670 `chatmodal_unclamp` is
+     * set: the chatbox layout (script 113, re-run on its base varp 1021's
+     * transmit by chatbox_init's onvartransmit) then sizes it to the whole
+     * chatbox. Jagex sets the bit with the panel it opens, and by the panel's
+     * own size -- 1 for the tall ones, 0 for the 479x96 boxes. RSProx index
+     * 4289 (180 pages: chat_left 108, chat_right 24, chatmenu 10, messagebox
+     * 20 all at 1; objectbox 13, objectbox_double 5 at 0) and index 4291
+     * (skillmulti [627] at 1, graphicbox [506] at 0). Without it the 519x142
+     * skillmulti is cut to 96px: its title and the cells' bottoms are lost.
+     * SS_OP_IF_OPENCHAT writes it; a panel not listed leaves it as it is.
+     */
+    int varbit_chatmodal_unclamp;
+    int iface_chat_left;
+    int iface_chat_right;
+    int iface_chatmenu;
+    int iface_messagebox;
+    int iface_skillmulti;
+    int iface_objectbox;
+    int iface_objectbox_double;
+    int iface_graphicbox;
+
     /** Text under the music tab's `Playing:` label. Region music is selected
      *  by C, so C must also tell the tab which named track it selected. */
     int com_music_now_playing_text;
