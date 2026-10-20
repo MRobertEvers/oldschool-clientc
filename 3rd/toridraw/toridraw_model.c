@@ -514,19 +514,31 @@ ToriDraw_ModelFree_arrays(struct ToriDraw_Model* m)
     ToriDraw_BonesFree(m->vertex_bones);
     ToriDraw_BonesFree(m->face_bones);
 
-    if( m->animaya_groups )
+    ToriDraw_ModelAnimayaFree(m);
+}
+
+void
+ToriDraw_ModelAnimayaFree(struct ToriDraw_Model* model)
+{
+    if( !model )
+        return;
+    if( model->animaya_groups )
     {
-        for( int i = 0; i < m->animaya_vertex_count; i++ )
-            TORIDRAW_FREE(m->animaya_groups[i]);
-        TORIDRAW_FREE(m->animaya_groups);
+        for( int i = 0; i < model->animaya_vertex_count; i++ )
+            TORIDRAW_FREE(model->animaya_groups[i]);
+        TORIDRAW_FREE(model->animaya_groups);
     }
-    if( m->animaya_scales )
+    if( model->animaya_scales )
     {
-        for( int i = 0; i < m->animaya_vertex_count; i++ )
-            TORIDRAW_FREE(m->animaya_scales[i]);
-        TORIDRAW_FREE(m->animaya_scales);
+        for( int i = 0; i < model->animaya_vertex_count; i++ )
+            TORIDRAW_FREE(model->animaya_scales[i]);
+        TORIDRAW_FREE(model->animaya_scales);
     }
-    TORIDRAW_FREE(m->animaya_group_counts);
+    TORIDRAW_FREE(model->animaya_group_counts);
+    model->animaya_groups = NULL;
+    model->animaya_scales = NULL;
+    model->animaya_group_counts = NULL;
+    model->animaya_vertex_count = 0;
 }
 
 struct ToriDraw_ModelHD*

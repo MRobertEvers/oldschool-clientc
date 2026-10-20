@@ -132,6 +132,11 @@ ToriDraw_NormalsPoolDrain(void);
 void
 ToriDraw_BonesFree(struct ToriDraw_Bones* bones);
 
+/** Drop a model's animaya skin (its per-vertex bone groups and weights). A
+ *  deallocator: a model without one is left as it is. */
+void
+ToriDraw_ModelAnimayaFree(struct ToriDraw_Model* model);
+
 struct ToriDraw_Bones*
 ToriDraw_BonesCopy(const struct ToriDraw_Bones* src);
 

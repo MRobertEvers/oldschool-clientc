@@ -439,6 +439,15 @@ app_entity_spotanim_pose(
     posed->vertex_bones = NULL;
     ToriDraw_BonesFree(posed->face_bones);
     posed->face_bones = NULL;
+    /* And its animaya skin. The pre-z-buffer client poses the spot at its own
+     * frame and combines it into the npc's already-posed model, which is never
+     * animated again (rev-184 NPC.getModel: SpotAnimationDefinition.getModel(
+     * spotAnimationFrame), offsetBy, new Model({body, spot}, 2)). Here the
+     * renderer re-poses the merge with the BODY's seq, so a graphic skinned on
+     * its own rig was posed again by the body's bones: the Wardens' phase-three
+     * shards (45289, 14 groups) flew with Tumeken's Warden's arms in every
+     * phase. With no groups, the merge's spot vertices hold this pose. */
+    ToriDraw_ModelAnimayaFree(posed);
     /* Model y is negative-up: reference temp.translate(-spotanimHeight,0,0). */
     if( height != 0 )
         ToriDraw_ModelTranslate(posed, 0, -height, 0);
