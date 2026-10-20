@@ -3980,6 +3980,14 @@ struct ToriRSServerPlayer
 
     /** Which extended-info fields to send. Cleared in phase 11. */
     uint32_t masks;
+    /** `masks`, `inv_dirty` and `worn_dirty` as the last finished tick shipped
+     *  them: the masks copied in phase 11 before it clears them, the dirty bits
+     *  before the container flush cleans them. Read-only: client input is
+     *  handled inside the tick, so the tick that answers a click has also sent
+     *  and dropped what it marked; a test asks here what went out. */
+    uint32_t sent_masks;
+    uint32_t sent_inv_dirty;
+    uint32_t sent_worn_dirty;
     int anim_id;
     int anim_delay;
     /**

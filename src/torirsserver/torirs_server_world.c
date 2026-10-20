@@ -19366,7 +19366,10 @@ phase_client_out(struct ToriRSServerPlayer* player)
      * written but never reached the client. The loop picks partial or full from
      * the row's slot count, not from which container it is: 304 of the cache's
      * 1,026 invs are past the 32 slots UPDATE_INV_PARTIAL's mask can address.
+     * The flush cleans what it sends, so what it was handed is kept first.
      */
+    player->sent_inv_dirty = player->inv_dirty;
+    player->sent_worn_dirty = player->worn_dirty;
     ToriRSServer_ContainerFlush(player);
 
     /* Varps are NOT sent from here. `ToriRSServer_WorldMarkVarp` puts each one on
@@ -19421,6 +19424,7 @@ phase_clients_out(struct ToriRSServer* srv)
 static void
 phase_cleanup_player(struct ToriRSServerPlayer* player)
 {
+    player->sent_masks = player->masks;
     player->stat_dirty = 0;
     player->inv_dirty = 0;
     player->worn_dirty = 0;
@@ -19523,6 +19527,12 @@ phase_cleanup(struct ToriRSServer* srv)
          * client shows a frozen corpse. Caught for every npc in the world
          * rather than in one encounter's test, because the next encounter to
          * make this mistake will not be the Maiden.
+         *
+         * A removal the script already asked for is the third way to end it:
+         * `ToriRSServer_WorldNpcFree` holds it (`free_wanted`) only so the
+         * death animation plays in full, and it goes through without anything
+         * more from content. The Wardens' energy orbs do exactly this: the
+         * death on the end tile, `npc_del` on the next pass.
          */
         /* Stamp the tick the death seq was played on. `ToriRSServer_AnimPlayNpc`
          * has no server pointer to read the clock from, and cleanup runs at the
@@ -19536,7 +19546,8 @@ phase_cleanup(struct ToriRSServer* srv)
         if( srv->npcs[i].scripted_death_pending > 0 && srv->npcs[i].active )
         {
             if( --srv->npcs[i].scripted_death_pending == 0 &&
-                srv->npcs[i].hitpoints > 0 && srv->npcs[i].death_tick < 0 )
+                srv->npcs[i].hitpoints > 0 && srv->npcs[i].death_tick < 0 &&
+                !srv->npcs[i].free_wanted )
             {
                 srv->scripted_death_violations++;
                 fprintf(stderr,

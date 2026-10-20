@@ -168,13 +168,11 @@ selftest_combat_reach_flag(
             rsab_wrap(&out, payload, sizeof(payload));
             rsab_p2(&out, ToriRSServer_SlotMapAcquire(player, slot));
             rsab_p4(&out, spell);
-            selftest_handle(player, PKTOUT_NAME_OPNPCT, payload, (int)rsab_len(&out));
-            SELFTEST_CHECK(player->waypoint_index >= 0 && player->dest_x >= 0,
-                           "combat_reach_flag: the click queues the walk and its flag, "
-                           "dest %d,%d",
-                           player->dest_x, player->dest_z);
+            /* The click is handled inside the tick that resolves it, so the
+             * walk it queues and the cast that drops it are one tick's: the
+             * capture is that tick. */
             ToriRSServer_CaptureBegin(srv, &flag_capture);
-            selftest_tick(srv);
+            selftest_handle(player, PKTOUT_NAME_OPNPCT, payload, (int)rsab_len(&out));
             ToriRSServer_CaptureEnd(srv);
             SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 50,
                            "combat_reach_flag: the cast resolved at range, progress %d",
