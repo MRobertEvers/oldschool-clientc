@@ -4,6 +4,8 @@
 -- told "Your leader, <name>, must go first."; the leader takes it and the
 -- member reads "<name> has chosen to walk the Path of Het. Join him/her...";
 -- the member then takes the same door and lands in the leader's instance.
+-- Quick-Enter (op 2), as the parties in 1845 and 1852 cross: Enter (op 1)
+-- asks "Do you wish to walk the Path of Het?" first.
 -- Not a room test (the leading `_`).
 local function said(t, text)
     for _, line in ipairs(t.raid.cox_messages(60)) do
@@ -31,7 +33,7 @@ return {
         t.ticks(4)
         t.expect("party.barrier.inside", t.party.barrier("inside", 300))
         if role == 2 then
-            t.player.click_loc("toa_nexus_het_door", 1)
+            t.player.click_loc("toa_nexus_het_door", 2)
             t.ticks(3)
             local _, box = t.chat.text()
             box = tostring(box)
@@ -40,14 +42,14 @@ return {
         end
         t.expect("party.barrier.tried", t.party.barrier("tried", 300))
         if role == 1 then
-            t.player.click_loc("toa_nexus_het_door", 1)
+            t.player.click_loc("toa_nexus_het_door", 2)
             t.ticks(8)
         end
         t.expect("party.barrier.leader_in", t.party.barrier("leader_in", 300))
         if role == 2 then
             t.expect("door.chosen_line", said(t, "has chosen to walk the Path of Het") and "ok" or "fail",
                 "member told the leader's choice")
-            t.player.click_loc("toa_nexus_het_door", 1)
+            t.player.click_loc("toa_nexus_het_door", 2)
             t.ticks(8)
         end
         t.expect("party.barrier.both_in", t.party.barrier("both_in", 300))
