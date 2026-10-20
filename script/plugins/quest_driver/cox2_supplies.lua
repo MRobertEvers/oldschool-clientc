@@ -390,10 +390,17 @@ end
 
 -- Room for one more stack of `name`: a stackable already carried needs none;
 -- else a free slot, made by dropping a spent empty vial or gourd (never kit).
+-- THE ROOM RESERVE (RAID_SOLO_RELAY.md round 2): loot never takes the last
+-- free slot -- the next room's two-handed switch and its own pick-ups need
+-- it (r5: the scavengers filled the slot the relay had just made, and every
+-- room after started full).
+QD.SUP.RESERVE = 1
+
 function QD.SUP.make_room(name)
-    if QD.SUP.count(name) > 0 or QD.SUP.free() > 0 then return true end
+    if QD.SUP.count(name) > 0 or QD.SUP.free() > QD.SUP.RESERVE then return true end
     for _, spent in ipairs({ "raids_vial_empty", "vial_empty" }) do
         if QD.SUP.count(spent) > 0 then
+            assert(QD.COX.may_drop(spent), "cox2_supplies: dropping a real item: " .. tostring(spent))
             QD.player.drop(spent)
             QD.ticks(1)
             if QD.SUP.free() > 0 then return true end
@@ -439,8 +446,8 @@ function QD.SUP.scavengers(opts)
                 why = QD.SUP.scav_done(want) and "needs met" or "no room for the rest"
             elseif kills >= max_kills then
                 clearing, why = true, "kill cap"
-            elseif dry >= 12 then
-                clearing, why = true, "12 kills without a needed drop"
+            elseif dry >= (opts.dry_limit or 12) then
+                clearing, why = true, (opts.dry_limit or 12) .. " kills without a needed drop"
             end
         end
         if clearing then
@@ -460,7 +467,15 @@ function QD.SUP.scavengers(opts)
             if not full[tool] then short[tool] = true end
         end
         do
-            local drop, dname = QD.SUP.ground(room, short)
+            -- (most wanted first, when the pack has room for one stack:
+            -- endarkened juice -- Xeric's aid, Olm's only heal; r14's Olms
+            -- met him with 4-19 heal doses of the kit's 24 -- then stinkhorn,
+            -- cicely, the planks, a tool)
+            local drop, dname = nil, nil
+            for _, n in ipairs({ "raids_endarkened_juice", "raids_stinkhorn_mushroom", "raids_cicely", "raids_plank" }) do
+                if drop == nil and short[n] then drop, dname = QD.SUP.ground(room, { [n] = true }) end
+            end
+            if drop == nil then drop, dname = QD.SUP.ground(room, short) end
             if drop then
                 if QD.SUP.make_room(dname) then
                     QD.SUP.take(drop, dname)
@@ -555,7 +570,59 @@ function QD.SUP.secondaries_wanted(make)
     add("raids_stinkhorn_mushroom", todo.elder)
     add("raids_endarkened_juice", todo.kodai)
     add("raids_cicely", todo.twisted)
+    -- the planks the storage unit still needs (owner, 2026-10-19: "build the
+    -- storage and store it in there"): 2 a tier up to STORAGE_TIER
+    add("raids_plank", QD.SUP.planks_wanted())
     return want
+end
+
+-- THE STORAGE (RAID_SOLO_RELAY.md section 4 S). Medium is the wanted tier:
+-- 60 private slots hold every switch the prep parks and the outside potions
+-- (tiny holds 25, small 30). Each tier is 2 mallignum planks, a hammer and
+-- Construction 30/60/90/99 (cox_resource.rs2 ~cox_storage_build). The tier
+-- is the raid's (every unit shows it once touched), read off the unit's loc.
+QD.SUP.STORAGE_TIER = 2
+QD.SUP.PLANKS_PER_TIER = 2
+QD.SUP._tier = QD.SUP._tier or 0
+
+function QD.SUP.planks_wanted()
+    local need = QD.SUP.PLANKS_PER_TIER * math.max(0, QD.SUP.STORAGE_TIER - (QD.SUP._tier or 0))
+    return math.max(0, need - QD.SUP.count("raids_plank"))
+end
+
+function QD.SUP.has_hammer()
+    return QD.SUP.count("hammer") > 0 or QD.SUP.holds_any({ "dragon_warhammer", "elder_maul" })
+end
+
+-- The unit in `room` and its tier (0 the unbuilt hotspot). -> row, tier
+function QD.SUP.store_unit(room)
+    local L = QD.SUP.locs(room, QD.SUP.STORES)
+    for tier = #QD.SUP.STORES - 1, 0, -1 do
+        local row = L[QD.SUP.STORES[tier + 1]][1]
+        if row then return row, tier end
+    end
+    return nil, nil
+end
+
+-- Build or upgrade the raid's storage at `room`'s unit while the planks and
+-- the hammer allow (op5 Build / Upgrade). -> tier after
+function QD.SUP.build_storage(room)
+    local row, tier = QD.SUP.store_unit(room)
+    if row == nil then return QD.SUP._tier end
+    QD.SUP._tier = math.max(QD.SUP._tier or 0, tier)
+    for _ = 1, 4 do
+        if QD.SUP._tier >= #QD.SUP.STORES - 1 or not QD.SUP.has_hammer()
+            or QD.SUP.count("raids_plank") < QD.SUP.PLANKS_PER_TIER then break end
+        local before = QD.SUP.count("raids_plank")
+        QD.SUP.loc_op(row, 5)
+        if not QD.SUP.wait(function() return QD.SUP.count("raids_plank") < before end, 20) then break end
+        QD.ticks(2)
+        row, tier = QD.SUP.store_unit(room)
+        QD.SUP._tier = math.max(QD.SUP._tier, (tier or 0), QD.SUP._tier + 1)
+        QD.SUP.trace("storage built to tier %d", QD.SUP._tier)
+        if row == nil then break end
+    end
+    return QD.SUP._tier
 end
 
 -- Herbs a family still needs, by clean-herb name.
@@ -682,7 +749,7 @@ function QD.SUP.resource(opts)
         -- whatever this room can make
         local tool_left = nil
         for _, tool in ipairs(opts.take_tools or {}) do
-            if tool_left == nil and QD.SUP.count(tool) == 0 and QD.SUP.free() > 0 and L.raids_farming_tools[1] then tool_left = tool end
+            if tool_left == nil and QD.SUP.count(tool) == 0 and QD.SUP.free() > QD.SUP.RESERVE and L.raids_farming_tools[1] then tool_left = tool end
         end
         if tool_left then
             QD.SUP.loc_op(L.raids_farming_tools[1], QD.SUP.TOOL_OP[tool_left])
@@ -945,12 +1012,15 @@ end
 -- The families that can still be made here: a secondary carried, and a herb
 -- carried, growing, on the floor or as a seed (an overload: its components'
 -- secondaries, or the components themselves, and a noxifer or its seed).
-function QD.SUP.doable(todo, room)
+function QD.SUP.doable(todo, room, with_stored)
     local out = {}
+    -- (with_stored: what private storage holds counts too -- the prep's
+    -- first look, before it takes the stacks out)
+    local count = with_stored and QD.SUP.have or QD.SUP.count
     local function herb_ok(clean)
         for _, h in ipairs(QD.SUP.HERBS) do
             if h.clean == clean then
-                if QD.SUP.count(h.clean) + QD.SUP.count(h.grimy) + QD.SUP.count(h.seed) > 0
+                if count(h.clean) + count(h.grimy) + count(h.seed) > 0
                     or (QD.SUP._growing or {})[h.clean] then return true end
                 -- picked with a full pack: on the floor
                 return room ~= nil and QD.SUP.ground(room, { [h.grimy] = true }) ~= nil
@@ -961,7 +1031,7 @@ function QD.SUP.doable(todo, room)
     for fam, n in pairs(todo) do
         local F = QD.SUP.FAMILY[fam]
         if F then
-            if QD.SUP.count(F.sec) > 0 and herb_ok(F.herb) then out[fam] = n end
+            if count(F.sec) > 0 and herb_ok(F.herb) then out[fam] = n end
         elseif fam == "overload" then
             if herb_ok("raids_noxifer") then out[fam] = n end
         end
@@ -1071,11 +1141,29 @@ end
 -- hotspot or a built unit). -> true when open
 function QD.SUP.store_open(room)
     if QD.SUP.store_is_open() then return true end
+    if QD.SUP.has_hammer() and QD.SUP.count("raids_plank") >= QD.SUP.PLANKS_PER_TIER then
+        QD.SUP.build_storage(room)
+    end
     local L = QD.SUP.locs(room, QD.SUP.STORES)
     local row = nil
     for _, n in ipairs(QD.SUP.STORES) do row = row or L[n][1] end
     if row == nil then
-        QD.SUP.trace("store_open: no unit in %s (%d,%d)", room.name, room.ox, room.oz)
+        -- (the units the client lists anywhere near, by id: a name lookup
+        -- per loc row blew the instruction budget in the thieving room)
+        local seen, ids = {}, {}
+        for _, n in ipairs(QD.SUP.STORES) do
+            local id = QD.SUP.id("loc", n)
+            if id then ids[id] = true end
+        end
+        local lr, rows = api_drive.locs(48)
+        if lr == "ok" then
+            for _, row in ipairs(rows) do
+                if ids[row.loc_id] or ids[row.resolved_loc_id or -1] then seen[#seen + 1] = row.x .. "," .. row.z end
+            end
+        end
+        local _, me = api_drive.player_tile()
+        QD.SUP.trace("store_open: no unit in %s (%d,%d,%d) from %s; seen %s", room.name, room.ox, room.oz, room.level,
+            me and (me.x .. "," .. me.z .. "," .. me.level) or "?", table.concat(seen, " "))
         return false
     end
     QD.SUP.loc_op(row, 2)
@@ -1155,6 +1243,11 @@ end
 -- PRAYER; raid3 met Muttadiles with 27 heal doses, no restore, prayer 0)
 QD.SUP.KEEP_QUOTA = { { "revit", 3 }, { "enhance", 2 }, { "superrestore", 1 }, { "aid", 4 }, { "brew", 2 } }
 QD.SUP.KEEP_ORDER = { "revit", "aid", "enhance", "superrestore", "prayerpot", "brew", "overload", "elder", "kodai", "twisted" }
+-- What make_slots puts away last: the stat restores ahead of the heals they
+-- undo (r35s raid1 stored its one super restore to make a slot, kept seven
+-- Xeric's aids, and met the Ice demon with nothing to undo 21 aid doses'
+-- Ranged drain -- 1082 of 1120 blowpipe hits missed)
+QD.SUP.SLOT_ORDER = { "revit", "superrestore", "aid", "enhance", "prayerpot", "brew", "overload", "elder", "kodai", "twisted" }
 
 -- Bring the backpack to: every stored gear item back (but `skip`), then potions by
 -- `order` while more than `keep_free` slots are free. Potions that do not fit
@@ -1185,14 +1278,18 @@ function QD.SUP.rebalance(order, keep_free, skip, stash, quota)
             end
             if moved == 0 then
                 local victim = nil
+                -- (a RAID potion only: nothing brought in goes on the floor --
+                -- with none, the gear waits in storage for the next unit)
                 for i = #order, 1, -1 do
                     for _, row in ipairs(QD.SUP.rows()) do
-                        if victim == nil and QD.SUP.potion_family(row.name) == order[i] then victim = row.name end
+                        if victim == nil and QD.SUP.potion_family(row.name) == order[i]
+                            and QD.COX.is_raid_item(row.name) then victim = row.name end
                     end
                 end
                 if victim == nil then break end
                 local room = QD.COX.here()
                 QD.SUP.store_close()
+                assert(QD.COX.may_drop(victim), "cox2_supplies: dropping a real item: " .. tostring(victim))
                 QD.player.drop(victim)
                 dropped = dropped + 1
                 if room == nil or not QD.SUP.store_open(room) then break end
@@ -1205,8 +1302,35 @@ function QD.SUP.rebalance(order, keep_free, skip, stash, quota)
     -- first a share of each (heals with their restores: one restore to about
     -- three heal sips -- raid3 carried 11 heals and no restore into
     -- Vespula), then the rest by `order`
-    for _, q in ipairs(#order > 0 and (quota or QD.SUP.KEEP_QUOTA) or {}) do
+    local quotas = #order > 0 and (quota or QD.SUP.KEEP_QUOTA) or {}
+    local quota_of = {}
+    for _, q in ipairs(quotas) do quota_of[q[1]] = q[2] end
+    for _, q in ipairs(quotas) do
         local fam, want = q[1], q[2]
+        -- no slot for a family short of its share: a potion of a family past
+        -- its own share goes in for it, the least wanted first (r35s raid1:
+        -- seven aids held the pack, the one super restore stayed stored)
+        local short_now = want - QD.SUP.stock(fam)
+        local stored_fam = false
+        for name in pairs(QD.SUP.stored()) do
+            if QD.SUP.potion_family(name) == fam then stored_fam = true end
+        end
+        for _ = 1, short_now do
+            if not stored_fam or QD.SUP.free() > keep_free then break end
+            local moved = 0
+            for i = #order, 1, -1 do
+                local f = order[i]
+                if moved == 0 and f ~= fam and QD.SUP.stock(f) > (quota_of[f] or 0) then
+                    moved = QD.SUP.store_put(function(name) return QD.SUP.potion_family(name) == f end, 1, true)
+                end
+            end
+            if moved == 0 then break end
+            for name, n in pairs(QD.SUP.stored()) do
+                if QD.SUP.potion_family(name) == fam and QD.SUP.free() > keep_free and QD.SUP.stock(fam) < want then
+                    QD.SUP.store_take(name, 1)
+                end
+            end
+        end
         do
             for name, n in pairs(QD.SUP.stored()) do
                 local short = want - QD.SUP.stock(fam)
@@ -1235,7 +1359,7 @@ end
 function QD.SUP.make_slots(room, n, order)
     if QD.SUP.free() >= n then return QD.SUP.free() end
     if room == nil or not QD.SUP.store_open(room) then return QD.SUP.free() end
-    order = order or QD.SUP.KEEP_ORDER
+    order = order or QD.SUP.SLOT_ORDER
     for i = #order, 1, -1 do
         if QD.SUP.free() >= n then break end
         local fam = order[i]
@@ -1333,7 +1457,11 @@ function QD.SUP.loot(opts)
     -- (most wanted first, so a pack's last slots go to it: a buchu seed makes
     -- aid, revitalisation and prayer enhance; raid3 filled its one slot with
     -- noxifer and the floor's prep had no buchu to plant)
-    local PRIORITY = { "raids_seed_buchuleaf", "raids_stinkhorn_mushroom", "raids_cicely", "raids_endarkened_juice",
+    -- (round 2: the boss's POTIONS first -- r6's Tektons left both overloads
+    -- on the floor for a stinkhorn stack, and floor 1 is fought without one)
+    local PRIORITY = { "raids_vial_overload_strong_4", "raids_vial_overload_4", "raids_vial_prayer_strong_4",
+        "raids_vial_revitalisation_strong_4", "raids_vial_xericaid_strong_4",
+        "raids_seed_buchuleaf", "raids_endarkened_juice", "raids_stinkhorn_mushroom", "raids_cicely",
         "raids_seed_golpar", "raids_seed_noxifer" }
     while api_drive.tick() < deadline do
         local drop, dname = nil, nil
@@ -1344,8 +1472,13 @@ function QD.SUP.loot(opts)
         if drop == nil then break end
         local potion = QD.SUP.potion_family(dname) ~= nil
         local stack = QD.SUP.count(dname) > 0 and not potion
-        -- (a seed or secondary may take the slot kept free: it is the kit's)
-        if not stack and QD.SUP.free() <= (potion and keep_free or 0) then
+        -- (nothing new takes the slot kept free: the next room's -- a raid
+        -- potion makes its own room first, by decanting or consuming,
+        -- never by dropping: QD.raid.cox_make_free)
+        if not stack and potion and QD.SUP.free() <= keep_free then
+            QD.raid.cox_make_free(keep_free + 1)
+        end
+        if not stack and QD.SUP.free() <= keep_free then
             names[dname] = nil
         else
             if QD.SUP.take(drop, dname) == "ok" then took[#took + 1] = string.gsub(dname, "raids_", "") end
@@ -1353,6 +1486,62 @@ function QD.SUP.loot(opts)
     end
     return "ok", (#took > 0 and table.concat(took, ",") or "nothing") .. "; " .. QD.SUP.kit_text()
 end
+
+-- THE PACK PLAN (RAID_SOLO_RELAY.md round 2): what may wait in storage, with
+-- no scouting -- a combat room never comes twice in a raid (wiki Strategies:
+-- "boss rooms will never be duplicated"), so a switch only a done room used
+-- is parked for good; the bandos godsword is Olm's alone (the Olm pack takes
+-- it back); the boost potions are spare once a raid overload is carried.
+QD.SUP.ONLY_FOR = {
+    vasa = { "dragon_shortsword" },
+    mystics = { "nzone_salve_amulet_e" },
+}
+QD.SUP.OLM_ONLY = { "bgs", "4dosestamina", "3dosestamina", "2dosestamina", "1dosestamina" }
+QD.SUP._done = QD.SUP._done or {}
+QD.raid.cox_mark_done = function(name) QD.SUP._done[name] = true return "ok" end
+
+function QD.SUP.parkable()
+    local out = {}
+    for _, n in ipairs(QD.SUP.OLM_ONLY) do out[n] = true end
+    for room, names in pairs(QD.SUP.ONLY_FOR) do
+        if QD.SUP._done[room] then for _, n in ipairs(names) do out[n] = true end end
+    end
+    if QD.SUP.stock("overload") > 0 then
+        for d = 1, 4 do
+            out[d .. "dose2combat"] = true
+            out[d .. "doserangerspotion"] = true
+        end
+    end
+    return out
+end
+
+-- STASH (RAID_SOLO_RELAY.md round 2): at any storage unit passed, the raid's
+-- stacks (seeds, secondaries, planks past the build) go into private storage
+-- -- one raid-wide store, so the prep takes them back wherever it brews.
+-- No unit in `room` (or none seen): nothing. -> "ok", detail
+function QD.SUP.stash(room)
+    -- (a tick first: the loot before it can spend most of one resume's
+    -- instruction budget -- raid10 r6 ran out in here)
+    QD.ticks(1)
+    room = room or QD.COX.here()
+    if room == nil or QD.SUP.store_unit(room) == nil then return "ok", "no unit" end
+    local want = {}
+    for _, n in ipairs(QD.SUP.SEEDS) do want[n] = true end
+    for _, n in ipairs(QD.SUP.SECONDARIES) do want[n] = true end
+    want.raids_plank = true
+    for n in pairs(QD.SUP.parkable()) do want[n] = true end
+    local carried = 0
+    for n in pairs(want) do carried = carried + QD.SUP.count(n) end
+    if carried == 0 and not (QD.SUP.has_hammer() and QD.SUP.count("raids_plank") >= QD.SUP.PLANKS_PER_TIER) then
+        return "ok", "nothing to stash"
+    end
+    if not QD.SUP.store_open(room) then return "ok", "unit did not open" end
+    local n = QD.SUP.store_put(function(name) return want[name] == true end, 12)
+    QD.SUP._stored_cache = QD.SUP.stored()
+    QD.SUP.store_close()
+    return "ok", string.format("stashed %d stacks, tier %d; %s", n, QD.SUP._tier or 0, QD.SUP.kit_text())
+end
+QD.raid.cox_stash = function() return QD.SUP.stash() end
 
 -- A resource room's prep with the slots planned: park the gear switches in
 -- private storage, run the resource solver on opts.make (net of what storage
@@ -1371,54 +1560,40 @@ function QD.SUP.prep(opts)
     for _, tool in ipairs(opts.take_tools or {}) do
         if QD.SUP.count(tool) == 0 then tools_missing = tools_missing + 1 end
     end
-    if tools_missing > 0 then QD.SUP.make_slots(room, tools_missing) end
-    -- the seeds and secondaries an earlier prep stored, back for this one
+    -- (round 4: the Olm-only items -- the BGS, the stamina -- and the raid's
+    -- stacks into storage first: r20 raid44 took the rake into its one free
+    -- slot here and met Vespula with a full pack)
+    QD.SUP.stash(room)
+    if tools_missing > 0 then
+        -- (from the doorway the tool rack can lie past the scene the client
+        -- holds -- raid2 r8 took no rake and raked no weeds all raid -- so
+        -- step in until it shows)
+        if QD.SUP.first(room, "raids_farming_tools") == nil then
+            QD.raid.cox_walk_toward(room.ox + 16, room.oz + 16, 30)
+        end
+        -- (a slot past the reserve the next room's switch keeps)
+        QD.SUP.make_slots(room, tools_missing + QD.SUP.RESERVE)
+    end
+    -- the seeds and secondaries an earlier prep (or a stash) left in the
+    -- store: looked at first, and counted towards what this room can make
     local stacks = {}
     for _, n in ipairs(QD.SUP.SEEDS) do stacks[n] = true end
     for _, n in ipairs(QD.SUP.SECONDARIES) do stacks[n] = true end
-    local stored0 = QD.SUP._stored_cache or {}
-    local any = false
-    for n in pairs(stacks) do if (stored0[n] or 0) > 0 then any = true end end
-    if any and QD.SUP.store_open(room) then
-        for name, c in pairs(QD.SUP.stored()) do
-            if stacks[name] and QD.SUP.free() > 0 then QD.SUP.store_take(name, c) end
-        end
+    if QD.SUP.store_open(room) then
         QD.SUP._stored_cache = QD.SUP.stored()
         QD.SUP.store_close()
     end
     -- park only when this room can make something (a seed, a herb or a
-    -- patch growing, and its secondary): else the pack is left as it is
+    -- patch growing, and its secondary -- carried or stored): else the pack
+    -- is left as it is
     QD.SUP._growing = {}
-    local can = next(QD.SUP.doable(QD.SUP.todo(QD.SUP.todo_all(opts.make or QD.SUP.OLM_KIT)), room)) ~= nil
+    local todo0 = QD.SUP.todo(QD.SUP.todo_all(opts.make or QD.SUP.OLM_KIT))
+    local can = next(QD.SUP.doable(todo0, room, true)) ~= nil
     if can and QD.SUP.store_open(room) then
-        -- STORE ROOM FOR THE GEAR (25 items unbuilt): Saradomin brews an
-        -- earlier room left in it come out and go down on the floor, as many
-        -- as the gear lacks (heals are the raid's surplus, round 5)
-        local gear = 0
-        for _, r in ipairs(QD.SUP.rows()) do if QD.SUP.is_gear(r.name) then gear = gear + 1 end end
-        for _ = 1, 4 do
-            local short = gear - (25 - #QD.SUP.rows(QD.SUP.store_inv(), 120))
-            if short <= 0 then break end
-            local took = {}
-            for name, c in pairs(QD.SUP.stored()) do
-                if QD.SUP.potion_family(name) == "brew" and short > 0 and QD.SUP.free() > 0 then
-                    local g = QD.SUP.store_take(name, math.min(c, short, QD.SUP.free()))
-                    if g > 0 then
-                        short = short - g
-                        took[#took + 1] = name
-                    end
-                end
-            end
-            if #took == 0 then break end
-            QD.SUP.store_close()
-            for _, name in ipairs(took) do
-                for _ = 1, 28 do
-                    if QD.SUP.count(name) == 0 then break end
-                    QD.player.drop(name)
-                end
-            end
-            if not QD.SUP.store_open(room) then break end
-        end
+        -- STORE ROOM FOR THE GEAR: the unit was built up first (store_open:
+        -- the planks and the hammer), and nothing brought in is ever put on
+        -- the floor to make room (owner, 2026-10-19) -- what does not fit
+        -- stays in the pack
         QD.SUP._stored_cache = QD.SUP.stored()
         -- (the gear switches, and what was brought in that the raid is short
         -- of -- super restores and prayer potions; a brew stays in the pack,
@@ -1427,25 +1602,47 @@ function QD.SUP.prep(opts)
             local fam = QD.SUP.potion_family(name)
             return QD.SUP.is_gear(name) or fam == "superrestore" or fam == "prayerpot"
         end, 28)
+        -- THE STACKS BACK, after the gear went in (round 2: raid5 r7 took
+        -- them first into its 4 free slots -- three secondaries and the
+        -- noxifer -- left the buchu seeds stored and brewed nothing): the
+        -- seeds the todo's herbs need, buchu first, then their secondaries
+        local order = {}
+        local herbs = QD.SUP.herbs_needed(todo0)
+        for _, h in ipairs(QD.SUP.HERBS) do
+            if (herbs[h.clean] or 0) > 0 then order[#order + 1] = h.seed end
+        end
+        for fam, n in pairs(todo0) do
+            local F = QD.SUP.FAMILY[fam]
+            if F and n > 0 then order[#order + 1] = F.sec end
+        end
+        for _, n in ipairs(QD.SUP.SEEDS) do order[#order + 1] = n end
+        for _, n in ipairs(QD.SUP.SECONDARIES) do order[#order + 1] = n end
+        local stored = QD.SUP.stored()
+        for _, name in ipairs(order) do
+            if (stored[name] or 0) > 0 and QD.SUP.count(name) == 0 and QD.SUP.free() > 0 then
+                QD.SUP.store_take(name, stored[name])
+                stored = QD.SUP.stored()
+            end
+        end
         QD.SUP._stored_cache = QD.SUP.stored()
         QD.SUP.store_close()
     end
-    -- ROOM TO BREW: the store holds 25 items, and what earlier rooms left in
-    -- it can stop the parking short (raid3's floor-2 prep parked 6, stalled
-    -- with the pack full and brewed nothing; Olm then had 1 revitalisation).
-    -- Heals are what the raid has too many of (round 5: 0-16 heal doses a
-    -- room against restores and prayer run dry), so Saradomin brews go down
-    -- on the floor, the lowest dose first, until opts.min_free (12) are free.
-    if can then
-        for _ = 1, 12 do
-            if QD.SUP.free() >= (opts.min_free or 12) then break end
-            local victim = nil
-            for d = 1, 4 do
-                if victim == nil and QD.SUP.count(d .. "dosepotionofsaradomin") > 0 then victim = d .. "dosepotionofsaradomin" end
+    -- ROOM TO BREW: what earlier rooms left in the store can stop the
+    -- parking short (raid3's floor-2 prep parked 6, stalled with the pack
+    -- full and brewed nothing). Heals are what the raid has too many of
+    -- (round 5), so Saradomin brews go INTO the store, the lowest dose
+    -- first, until opts.min_free (12) are free or the store is full. Never
+    -- the floor (owner, 2026-10-19).
+    if can and QD.SUP.free() < (opts.min_free or 12) and QD.SUP.store_open(room) then
+        for d = 1, 4 do
+            local name = d .. "dosepotionofsaradomin"
+            local short = (opts.min_free or 12) - QD.SUP.free()
+            if short > 0 and QD.SUP.count(name) > 0 then
+                QD.SUP.store_put(function(n) return n == name end, short, true)
             end
-            if victim == nil then break end
-            QD.player.drop(victim)
         end
+        QD.SUP._stored_cache = QD.SUP.stored()
+        QD.SUP.store_close()
     end
     local sub = {}
     for k, v in pairs(opts) do sub[k] = v end
@@ -1466,6 +1663,7 @@ function QD.SUP.prep(opts)
     for _, j in ipairs(drop) do
         local guard = 0
         while QD.SUP.count(j) > 0 and guard < 28 do
+            assert(QD.COX.may_drop(j), "cox2_supplies: dropping a real item: " .. tostring(j))
             QD.player.drop(j)
             dropped = dropped + 1
             guard = guard + 1
@@ -1479,7 +1677,7 @@ function QD.SUP.prep(opts)
         + QD.SUP.count("raids_seed_noxifer") + QD.SUP.count("raids_endarkened_juice") + QD.SUP.count("raids_stinkhorn_mushroom")
         + QD.SUP.count("raids_cicely")) > 0
     if (parked > 0 or keep_stacks) and QD.SUP.store_open(room) then
-        back = QD.SUP.rebalance(opts.keep_order or QD.SUP.KEEP_ORDER, opts.keep_free or 1, nil,
+        back = QD.SUP.rebalance(opts.keep_order or QD.SUP.KEEP_ORDER, opts.keep_free or 1, QD.SUP.parkable(),
             keep_stacks and function(name) return stacks[name] == true end or nil)
         QD.SUP._stored_cache = QD.SUP.stored()
         QD.SUP.store_close()
@@ -1564,6 +1762,13 @@ function QD.SUP.weeds(opts)
     for name, n in pairs(want) do wl[#wl + 1] = name .. ">=" .. n end
     QD.SUP.trace("weeds in %s: want [%s], %d new stacks, %d free", room.name, table.concat(wl, " "), stacks, QD.SUP.free())
     if QD.SUP.free() < stacks then QD.SUP.make_slots(room, stacks) end
+    -- (a floor's start room has no storage unit: decant, eat, drink a spare)
+    if QD.SUP.free() < stacks then QD.raid.cox_make_free(stacks) end
+    -- still short: the rake would fill the pack and stop, and the room waits
+    -- out max_ticks for seeds that cannot come (r34s raid1/2/8, floor_start)
+    if QD.SUP.free() < stacks then
+        return "no_room", stacks .. " new stacks, " .. QD.SUP.free() .. " free in " .. room.name
+    end
     QD.SUP.loc_op(row, 1)
     local ok = QD.SUP.wait(done, opts.max_ticks or 150)
     -- stop raking: a walk order to where I stand

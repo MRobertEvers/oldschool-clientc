@@ -5797,8 +5797,13 @@ ToriRSServer_NpcHeadbarFill(const struct ToriRSServerNpc* npc, int* width_out)
     if( span <= 0 )
         span = 1;
     left = npc->hitpoints - npc->headbar_reserve;
+    /* `headbar_inverted`: the bar is what has been taken, not what is left. */
+    if( npc->def && npc->def->headbar_inverted )
+        left = npc->max_hitpoints - npc->hitpoints;
     if( left < 0 )
         left = 0;
+    if( left > span )
+        left = span;
     fill = ToriRSServer_HealthbarFill(left, span, width);
     return fill > width ? width : fill;
 }

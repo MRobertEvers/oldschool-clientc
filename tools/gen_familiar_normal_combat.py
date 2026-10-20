@@ -182,6 +182,49 @@ BONUS_SLOTS = [
     (14, "rangebonus"),
 ]
 
+# A familiar's sounds, from the named summoning set osrs239 already ships
+# (`lore_*`; see tools/match_familiar_lore_audio.py, which writes this ledger
+# and says what each basis means).  Only the bases that name the familiar, its
+# creature or its scroll are read; an `inferred` row is a reading of a name's
+# meaning and is left for review.
+LORE_AUDIO = os.path.join(DOCS, "familiar_lore_audio_239.csv")
+LORE_AUDIO_BASES = ("source", "recorded", "stem", "alias", "scroll")
+
+# The order a familiar's special sounds are picked in: the source's own, then
+# the one named for the scroll, then the creature's.  A familiar plays its
+# first two -- a scroll's effect and the creature's own special noise are two
+# different sounds (Bull rush's lore_bull_rush and lore_minotaur_special).
+SPECIAL_SOUND_ORDER = ("source", "recorded", "scroll", "stem", "alias")
+
+
+def read_lore_audio():
+    """entry -> slot -> [sound name], in ledger order, firm bases only."""
+    out = {}
+    with open(LORE_AUDIO, newline="") as f:
+        for r in csv.DictReader(f):
+            if r["basis"] not in LORE_AUDIO_BASES:
+                continue
+            out.setdefault(r["entry"], {}).setdefault(r["slot"], []).append(
+                (r["name"], r["basis"]))
+    return out
+
+
+def lore_sounds(slots):
+    """The four sound decisions one familiar's ledger rows make."""
+    def first(slot):
+        return slots[slot][0][0] if slot in slots else ""
+    special = sorted(slots.get("special", []),
+                     key=lambda s: SPECIAL_SOUND_ORDER.index(s[1]))
+    return {
+        "appear_sound": first("appear"),
+        "attack_sound": first("attack"),
+        "defend_sound": first("defend"),
+        "death_sound": first("death"),
+        "special_sound": special[0][0] if special else "",
+        "special_sound2": special[1][0] if len(special) > 1 else "",
+        "impact_sound": first("special_impact"),
+    }
+
 
 def pack_path(*parts):
     return os.path.join(CONTENT, "ported", "scape2009_summoning", *parts)
@@ -422,6 +465,7 @@ def build(source):
     roster = read_roster()
     pouches = read_pouches(source)
     classes = read_classes(source)
+    lore = read_lore_audio()
 
     rows = []
     for type_id in sorted(types):
@@ -551,6 +595,13 @@ def build(source):
             "lifepoints": num(cfg, "lifepoints", 0),
             "bonuses": " ".join(str(b) for b in bonuses),
         })
+        rows[-1].update(lore_sounds(lore.get(entry, {})))
+        # A familiar 2009scape gives its own `combat_audio` keeps it: its block
+        # in summoning_combat_audio.npc carries that answer, and the named set
+        # does not outrank the source for the slots the source fills.
+        if cfg.get("combat_audio"):
+            for key in ("attack_sound", "defend_sound", "death_sound"):
+                rows[-1][key] = ""
     return rows
 
 
@@ -558,7 +609,8 @@ CSV_FIELDS = [
     "type", "entry", "npc", "source_npc", "pouch", "combat_familiar", "peaceful",
     "burden_beast", "auto_assist", "armed", "style", "style_source", "reach",
     "attack_seq", "defend_seq", "death_seq", "attack_sound", "defend_sound",
-    "death_sound", "attack_speed", "attack_speed_source", "attack_speed_530",
+    "death_sound", "appear_sound", "special_sound", "special_sound2",
+    "impact_sound", "attack_speed", "attack_speed_source", "attack_speed_530",
     "attack_level", "strength_level",
     "defence_level", "magic_level", "range_level", "lifepoints", "bonuses",
 ]
@@ -621,6 +673,12 @@ def stat_lines(row):
     for param, key in (("defend_anim", "defend_seq"), ("death_anim", "death_seq")):
         if row[key]:
             out.append("param=%s,%s" % (param, row[key]))
+    # `defend_sound` and `death_sound` are engine fields like the two
+    # animations (torirs_server_combat.c plays them on the flinch and the death
+    # step); `attack_sound` is read by the shared swing beside its `npc_anim`.
+    for param in ("attack_sound", "defend_sound", "death_sound"):
+        if row[param]:
+            out.append("param=%s,%s" % (param, row[param]))
     return out
 
 
@@ -628,10 +686,25 @@ def needs_block(row):
     """Whether this familiar has anything to say in a `.npc` block.
 
     An armed familiar needs its stats to roll with; every familiar with a
-    defend or death animation needs it whether or not it ever swings, because
-    the engine plays those when it is hit and when it dies.
+    defend or death animation or sound needs it whether or not it ever swings,
+    because the engine plays those when it is hit and when it dies.
     """
-    return bool(row["armed"] or row["defend_seq"] or row["death_seq"])
+    return bool(row["armed"] or row["defend_seq"] or row["death_seq"]
+                or row["attack_sound"] or row["defend_sound"] or row["death_sound"])
+
+
+def write_overlay(path, text, encoding="utf-8"):
+    """Write a lane `.npc` overlay verbatim.
+
+    `config_text.write_config` completes every block whose name is not in
+    `configs/all.npc.compack` with `key=default` for each unstated key, on the
+    reading that such a block is a NEW record.  These blocks are overlays of the
+    lane's own familiar records (ported/scape2009_summoning/configs), which that
+    cache-name file does not list, so completion would pad each overlay with
+    `model=default`, `name=default`... for keys it has no business stating.
+    """
+    with open(path, "w", encoding=encoding) as handle:
+        handle.write(text)
 
 
 def write_npc(rows):
@@ -673,7 +746,7 @@ def write_npc(rows):
         out.append("")
         written += 1
     path = os.path.join(LANE, "configs", GENERATED_NPC)
-    config_text.write_config(path, "\n".join(out) + "\n")
+    write_overlay(path, "\n".join(out) + "\n")
     return path, written
 
 
@@ -784,7 +857,7 @@ def fold(rows):
                 npc, body, FOLD_MARK, "\n".join(additions))
             text = text[:block.start()] + replacement + text[block.end():]
             written += 1
-        config_text.write_config(path, text, encoding="latin-1")
+        write_overlay(path, text, encoding="latin-1")
     return written, len(pending)
 
 
@@ -862,6 +935,50 @@ def write_table(rows):
         lambda r: str(r["reach"]) if r["armed"] else None, "1")
 
     path = os.path.join(LANE, "scripts", "summoning_combat_table.rs2")
+    open(path, "w").write(header + "\n" + "\n".join(body))
+    return path
+
+
+def write_audio_table(rows):
+    """The registry procs for the sounds that are not npc fields."""
+    def switch(name, key):
+        lines = ["[proc,%s](int $type)(synth)" % name]
+        for r in rows:
+            if r[key]:
+                lines.append("if ($type = %d) return(%s);" % (r["type"], r[key]))
+        lines.append("return(null);")
+        lines.append("")
+        return lines
+
+    header = """// Familiar sound registry: the sounds a familiar makes that are not npc fields.
+//
+// GENERATED by tools/gen_familiar_normal_combat.py from
+// docs/summoning_port/familiar_lore_audio_239.csv — do not hand-edit.  Every
+// name is a record osrs239 already ships and names (the `lore_*` summoning
+// set); the ledger says which basis tied each one to its familiar.
+//
+// Attack, defend and death sounds are npc params on the familiar's own record
+// (summoning_normal_combat.npc, or the block another lane file owns), because
+// the engine plays the last two itself.
+//
+// `appear` is the familiar's own arrival sound, on the summon that brings it
+// out.  2009scape plays only the shared summon synth there, with
+// `// TODO: Each familiar has its own initial summon sound` (Familiar.java:
+// 713); RS3 session 4285 shows the answer, `lore_summon` and then on the
+// familiar's first tick one area sound named for the creature
+// (`lore_lobster`, `terrorbird_appear`).
+//
+// `special` and `special2` are the familiar's own special-move sounds, played
+// with the source's shared cast sound (`lore_spell`, Familiar.java:497) when a
+// special commits; `impact` is where the special lands, played by each
+// familiar's special proc at its hit.
+"""
+    body = []
+    body += switch("summoning_familiar_appear_sound", "appear_sound")
+    body += switch("summoning_familiar_special_sound", "special_sound")
+    body += switch("summoning_familiar_special_sound2", "special_sound2")
+    body += switch("summoning_familiar_special_impact_sound", "impact_sound")
+    path = os.path.join(LANE, "scripts", "summoning_audio_table.rs2")
     open(path, "w").write(header + "\n" + "\n".join(body))
     return path
 
@@ -972,6 +1089,7 @@ def main():
     csv_path = write_csv(rows)
     npc_path, npc_count = write_npc(rows)
     table_path = write_table(rows)
+    audio_path = write_audio_table(rows)
     boundary_path, n_seq, n_arch, n_map = write_boundary(rows)
 
     assists = sum(r["auto_assist"] for r in rows)
@@ -998,7 +1116,7 @@ def main():
             "" if not without else "; without: " + ", ".join(without)))
     print("admitted %d review-only records: %d sequences, %d frame archives, "
           "%d skeletons" % (n_seq + n_arch + n_map, n_seq, n_arch, n_map))
-    for p in (csv_path, npc_path, table_path, boundary_path):
+    for p in (csv_path, npc_path, table_path, audio_path, boundary_path):
         print("wrote", os.path.relpath(p, REPO))
     print("%d stat blocks written" % npc_count)
     return 0

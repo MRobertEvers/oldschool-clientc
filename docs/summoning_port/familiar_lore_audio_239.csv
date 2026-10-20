@@ -1,0 +1,371 @@
+entry,source_npc,slot,name,osrs239_id,id_530,basis,note
+spirit_terrorbird,6794,appear,terrorbird_appear,831,831,recorded,RS3 4285 tick 351; not lore_-prefixed
+spirit_terrorbird,6794,attack,terrorbird_attack,832,832,recorded,RS3 4285 ticks 367/375/383 with seq 1010
+spirit_terrorbird,6794,defend,terrorbird_hit,834,834,stem,2009scape Terrorbird npc 138 combat_audio
+spirit_terrorbird,6794,death,terrorbird_death,833,833,stem,2009scape Terrorbird npc 138 combat_audio
+spirit_terrorbird,6794,special,lore_tireless_run,4788,4386,scroll,Tireless run
+granite_crab,6796,appear,lore_rockcrab,4638,4377,alias,rock crab
+granite_crab,6796,special,lore_stony_shell,4646,4392,scroll,Stony shell
+praying_mantis,6798,appear,lore_preying_mantis,4527,4288,alias,spelled preying
+praying_mantis,6798,defend,lore_preying_mantis_hit,4718,4306,alias,spelled preying
+praying_mantis,6798,death,lore_preying_mantis_death,4537,4285,alias,spelled preying
+praying_mantis,6798,special,lore_mantis_strike,4641,4363,scroll,Mantis strike
+giant_ent,6800,appear,lore_ent,4471,4322,stem,
+giant_ent,6800,attack,lore_ent_attack,4647,4282,stem,
+giant_ent,6800,defend,lore_ent_defend,4738,4294,stem,
+giant_ent,6800,death,lore_ent_death,4755,4295,stem,
+spirit_cobra,6802,appear,lore_snake,4663,"4292,4327",alias,snake
+spirit_cobra,6802,attack,lore_snake_attack,4784,4325,alias,snake
+spirit_cobra,6802,defend,lore_snake_hit,4512,4283,alias,snake
+spirit_cobra,6802,death,lore_snake_death,4741,"4292,4327",alias,snake
+spirit_cobra,6802,special,lore_snake_incubation,4802,4319,scroll,Ophidian incubation
+spirit_dagannoth,6804,attack,lore_dagganoth_attack,4541,4299,alias,spelled dagganoth
+spirit_dagannoth,6804,defend,lore_dagganoth_hit,4610,4323,alias,spelled dagganoth
+spirit_dagannoth,6804,death,lore_dagganoth_death,4555,4291,alias,spelled dagganoth
+spirit_dagannoth,6804,special,lore_spike_shot,4469,4402,scroll,Spike shot
+spirit_dagannoth,6804,special_impact,lore_spike_shot_impact,4829,4405,scroll,Spike shot
+spirit_dagannoth,6804,special,lore_dagganoth_attack_special,4816,4300,alias,Spike shot
+thorny_snail,6806,appear,lore_snail,4677,4314,stem,
+thorny_snail,6806,attack,lore_snail_attack,4770,"788,4320",stem,
+thorny_snail,6806,defend,lore_snail_hit,4789,"789,4298",stem,
+thorny_snail,6806,death,lore_snail_death,4505,"787,4303",stem,
+thorny_snail,6806,special,lore_slime_trail,4639,4373,inferred,Slime spray
+thorny_snail,6806,special_impact,lore_slime_trail_impact,4655,4384,inferred,Slime spray
+beaver,6808,appear,lore_beaver,4662,4316,stem,
+beaver,6808,special,lore_multichop,4719,4387,scroll,Multichop
+karamthulhu,6809,appear,lore_karamthulhu_spawn,4491,4254,stem,
+karamthulhu,6809,attack,lore_karamthulhu_attack,4550,4179,stem,
+karamthulhu,6809,defend,lore_karamthulhu_defend,4490,4191,stem,
+karamthulhu,6809,death,lore_karamthulhu_death,4692,4169,stem,
+karamthulhu,6809,special,lore_karamthulhu_special_cast,4817,4193,stem,Doomsphere
+karamthulhu,6809,special_impact,lore_karamthulhu_special_impact,4602,4248,stem,Doomsphere
+hydra,6811,attack,lore_hydra_attack,4573,4251,stem,
+hydra,6811,defend,lore_hydra_hit,4645,4223,stem,
+hydra,6811,death,lore_hydra_death,4672,4257,stem,
+hydra,6811,ranged,lore_hydra_ranged,4757,4185,stem,
+bunyip,6813,appear,lore_bunyip,4650,4183,stem,
+bunyip,6813,attack,lore_bunyip_attack,4721,4139,stem,
+bunyip,6813,defend,lore_bunyip_hit,4654,4198,stem,
+bunyip,6813,death,lore_bunyip_death,4669,4147,stem,
+war_tortoise,6815,appear,lore_war_turtle,4656,4333,alias,turtle
+war_tortoise,6815,attack,lore_war_turtle_attack,4614,4296,alias,turtle
+war_tortoise,6815,defend,lore_war_turtle_hit,4693,4287,alias,turtle
+war_tortoise,6815,death,lore_war_turtle_death,4482,4281,alias,turtle
+war_tortoise,6815,special,lore_adamantite_shell,4499,4394,inferred,Testudo
+fruit_bat,6817,appear,lore_fruit_bat,4538,"4245,4369",stem,
+fruit_bat,6817,special,lore_fruitfall_splat,4589,4396,scroll,Fruitfall
+abyssal_parasite,6818,none,,,,none,no named sound for this creature
+abyssal_lukrer,6820,appear,lore_abyssal_lurker,4544,4247,stem,
+abyssal_lukrer,6820,attack,lore_abyssal_lurker_attack,4620,4215,stem,
+abyssal_lukrer,6820,defend,lore_abyssal_lurker_defend,4780,4221,stem,
+abyssal_lukrer,6820,death,lore_abyssal_lurker_death,4701,4267,stem,
+unicorn_stallion,6822,appear,lore_unicorn,4779,4366,stem,
+unicorn_stallion,6822,attack,lore_unicorn_attack,4707,4196,source,2009scape had attack/defend swapped
+unicorn_stallion,6822,defend,lore_unicorn_hit,4748,4135,source,2009scape had attack/defend swapped
+unicorn_stallion,6822,death,lore_unicorn_death,4625,"4195,5496",source,
+unicorn_stallion,6822,special,lore_healing_aura,4593,4372,source,Healing aura; UnicornStallionNPC.java:49
+magpie,6824,appear,lore_magpie,4548,4199,stem,
+magpie,6824,special,lore_thieving_fingers,4709,4390,scroll,Thieving fingers
+dreadfowl,6825,appear,lore_dreadfowl,4628,4197,stem,
+dreadfowl,6825,special,lore_dreadfowl_strike,4508,4222,scroll,Dreadfowl strike
+dreadfowl,6825,special,lore_dreadfowl_special,4704,4174,stem,
+dreadfowl,6825,extra,lore_dreadfowl_boost,4528,4214,source,farming boost; 2009scape 4214
+stranger_plant,6827,appear,lore_stranger_plant,4735,4143,stem,
+stranger_plant,6827,attack,lore_stranger_plant_attack,4761,4218,stem,
+stranger_plant,6827,defend,lore_stranger_plant_hit,4716,4234,stem,
+stranger_plant,6827,death,lore_stranger_plant_death,4681,4192,stem,
+stranger_plant,6827,special,lore_poisonous_blast,4561,4371,scroll,Poisonous blast
+stranger_plant,6827,special_impact,lore_poisonous_blast_impact,4515,4380,scroll,Poisonous blast
+spirit_wolf,6829,special,lore_wolf_howl2,4668,4265,source,Howl; SpiritWolfNPC.java:111
+spirit_wolf,6829,extra,lore_wolf_howl,4559,4145,stem,
+spirit_wolf,6829,extra,lore_wolf_bark,4805,4239,stem,
+spirit_wolf,6829,extra,lore_wolf_bark_question,4644,4159,stem,
+spirit_wolf,6829,extra,lore_wolf_growl,4797,4141,stem,
+spirit_wolf,6829,extra,lore_wolf_whine,4682,"4156,4249",stem,
+spirit_wolf,6829,extra,lore_wolf_whine2,4523,4203,stem,
+spirit_wolf,6829,extra,lore_wolf_woofwoof_growl,4598,4180,stem,
+desert_wyrm,6831,appear,lore_desert_worm_burrow_up,4554,"3624,4326,4410",alias,no bare stem; burrows up on arrival
+desert_wyrm,6831,attack,lore_desert_worm_attack,4565,4309,alias,worm
+desert_wyrm,6831,defend,lore_desert_worm_hit,4590,4308,alias,worm
+desert_wyrm,6831,death,lore_desert_worm_death,4592,4313,alias,worm
+desert_wyrm,6831,special,lore_electric_lash,4501,4137,scroll,Electric lash
+desert_wyrm,6831,special_impact,lore_electric_lash_impact,4595,4261,scroll,Electric lash
+desert_wyrm,6831,extra,lore_desert_worm_burrow_down,4583,"3623,4297",alias,
+evil_turnip,6833,appear,lore_evilturnip,4465,4312,stem,
+evil_turnip,6833,attack,lore_evilturnip_attack,4803,4331,stem,
+evil_turnip,6833,defend,lore_evilturnip_hit,4608,4324,stem,
+evil_turnip,6833,death,lore_evilturnip_death,4812,4307,stem,
+evil_turnip,6833,special,lore_evilflames,4822,4290,scroll,Evil flames
+vampire_bat,6835,appear,lore_vampire_bat,4695,"4245,4369",stem,
+vampire_bat,6835,special,lore_vampire_touch,4720,4136,scroll,Vampire touch
+spirit_scorpion,6837,appear,lore_scorpion,4525,4315,stem,
+spirit_scorpion,6837,attack,lore_scorpion_attack,4729,4280,stem,source combat_audio is scorpion_* 3611
+spirit_scorpion,6837,defend,lore_scorpion_hit,4799,4305,stem,source combat_audio is scorpion_* 3612
+spirit_scorpion,6837,death,lore_scorpion_death,4623,4317,stem,source combat_audio is scorpion_* 3610
+spirit_scorpion,6837,special,lore_envenom_weapon,4717,4304,inferred,Venom shot
+arctic_bear,6839,appear,lore_polar_bear,4756,4211,alias,polar bear
+arctic_bear,6839,attack,lore_polar_bear_attack,4564,4224,alias,source combat_audio is jungle_horror_attack2 498
+arctic_bear,6839,defend,lore_polar_bear_hit,4578,4232,alias,source combat_audio is jungle_horror_hit 500
+arctic_bear,6839,death,lore_polar_bear_death,4521,4206,alias,source combat_audio is jungle_horror_death 499
+arctic_bear,6839,special,lore_arctic_blast,4513,4399,scroll,Arctic blast
+spirit_spider,6841,appear,lore_spider,4503,4375,stem,
+spirit_spider,6841,special,lore_eggspawn,4587,4132,scroll,Egg spawn
+bloated_leech,6843,none,,,,none,no named sound for this creature
+honey_badger,6845,appear,lore_badger,4826,4165,stem,
+honey_badger,6845,attack,lore_badger_attack,4722,4160,stem,
+honey_badger,6845,defend,lore_badger_hit,4498,4184,stem,
+honey_badger,6845,death,lore_badger_death,4613,4210,stem,
+honey_badger,6845,special,lore_insane_ferocity,4733,4395,scroll,Insane ferocity
+albino_rat,6847,appear,lore_giant_rat,4588,4266,alias,giant rat
+albino_rat,6847,defend,lore_giant_rat_hit,4624,4188,alias,source combat_audio is anger_rat_hit 705
+albino_rat,6847,death,lore_giant_rat_death,4483,4230,alias,source combat_audio is anger_rat_death 704
+granite_lobster,6849,appear,lore_lobster,4684,4150,recorded,"RS3 4285 tick 174, after lore_summon"
+granite_lobster,6849,attack,lore_lobster_attack,4601,4235,stem,
+granite_lobster,6849,defend,lore_lobster_hit,4478,4216,stem,
+granite_lobster,6849,death,lore_lobster_death,4790,4201,stem,
+granite_lobster,6849,special,lore_crushing_claw,4804,4374,scroll,Crushing claw
+macaw,6851,appear,lore_macaw,4739,4241,stem,
+macaw,6851,special,lore_herbcall,4651,4404,scroll,Herbcall
+macaw,6851,extra,lore_macaw_breeze,4582,4268,stem,
+bronze_minotaur,6853,appear,lore_minotaur,4711,4339,stem,
+bronze_minotaur,6853,attack,lore_minotaur_attack,4616,4334,stem,
+bronze_minotaur,6853,defend,lore_minotaur_hit,4752,4338,stem,
+bronze_minotaur,6853,death,lore_minotaur_death,4596,4335,stem,
+bronze_minotaur,6853,special,lore_bull_rush,4579,4401,scroll,Bull rush
+bronze_minotaur,6853,special_impact,lore_bull_rush_impact,4659,4400,scroll,Bull rush
+bronze_minotaur,6853,special,lore_minotaur_special,4765,4337,stem,Bull rush
+iron_minotaur,6855,appear,lore_minotaur,4711,4339,stem,
+iron_minotaur,6855,attack,lore_minotaur_attack,4616,4334,stem,
+iron_minotaur,6855,defend,lore_minotaur_hit,4752,4338,stem,
+iron_minotaur,6855,death,lore_minotaur_death,4596,4335,stem,
+iron_minotaur,6855,special,lore_bull_rush,4579,4401,scroll,Bull rush
+iron_minotaur,6855,special_impact,lore_bull_rush_impact,4659,4400,scroll,Bull rush
+iron_minotaur,6855,special,lore_minotaur_special,4765,4337,stem,Bull rush
+steel_minotaur,6857,appear,lore_minotaur,4711,4339,stem,
+steel_minotaur,6857,attack,lore_minotaur_attack,4616,4334,stem,
+steel_minotaur,6857,defend,lore_minotaur_hit,4752,4338,stem,
+steel_minotaur,6857,death,lore_minotaur_death,4596,4335,stem,
+steel_minotaur,6857,special,lore_bull_rush,4579,4401,scroll,Bull rush
+steel_minotaur,6857,special_impact,lore_bull_rush_impact,4659,4400,scroll,Bull rush
+steel_minotaur,6857,special,lore_minotaur_special,4765,4337,stem,Bull rush
+mithril_minotaur,6859,appear,lore_minotaur,4711,4339,stem,
+mithril_minotaur,6859,attack,lore_minotaur_attack,4616,4334,stem,
+mithril_minotaur,6859,defend,lore_minotaur_hit,4752,4338,stem,
+mithril_minotaur,6859,death,lore_minotaur_death,4596,4335,stem,
+mithril_minotaur,6859,special,lore_bull_rush,4579,4401,scroll,Bull rush
+mithril_minotaur,6859,special_impact,lore_bull_rush_impact,4659,4400,scroll,Bull rush
+mithril_minotaur,6859,special,lore_minotaur_special,4765,4337,stem,Bull rush
+adamant_minotaur,6861,appear,lore_minotaur,4711,4339,stem,
+adamant_minotaur,6861,attack,lore_minotaur_attack,4616,4334,stem,
+adamant_minotaur,6861,defend,lore_minotaur_hit,4752,4338,stem,
+adamant_minotaur,6861,death,lore_minotaur_death,4596,4335,stem,
+adamant_minotaur,6861,special,lore_bull_rush,4579,4401,scroll,Bull rush
+adamant_minotaur,6861,special_impact,lore_bull_rush_impact,4659,4400,scroll,Bull rush
+adamant_minotaur,6861,special,lore_minotaur_special,4765,4337,stem,Bull rush
+rune_minotaur,6863,appear,lore_minotaur,4711,4339,stem,
+rune_minotaur,6863,attack,lore_minotaur_attack,4616,4334,stem,
+rune_minotaur,6863,defend,lore_minotaur_hit,4752,4338,stem,
+rune_minotaur,6863,death,lore_minotaur_death,4596,4335,stem,
+rune_minotaur,6863,special,lore_bull_rush,4579,4401,scroll,Bull rush
+rune_minotaur,6863,special_impact,lore_bull_rush_impact,4659,4400,scroll,Bull rush
+rune_minotaur,6863,special,lore_minotaur_special,4765,4337,stem,Bull rush
+smoke_devil,6865,appear,lore_dust_devil,4488,4293,alias,dust devil
+smoke_devil,6865,attack,lore_dust_devil_attack,4612,4330,alias,dust devil
+smoke_devil,6865,defend,lore_dust_devil_hit,4591,4318,alias,dust devil
+smoke_devil,6865,death,lore_dust_devil_death,4510,4284,alias,dust devil
+smoke_devil,6865,extra,lore_dust_devil_fire,4494,4311,alias,attack projectile?
+smoke_devil,6865,extra,lore_dust_devil_fire_impact,4737,4286,alias,
+smoke_devil,6865,special,lore_dust_butt,4688,4367,inferred,Dust cloud
+smoke_devil,6865,special_impact,lore_dust_butt_impact,4551,4382,inferred,Dust cloud
+bull_ant,6867,appear,lore_giant_ant,4807,4264,alias,giant ant
+bull_ant,6867,defend,lore_giant_ant_hit,4726,4212,alias,giant ant
+bull_ant,6867,death,lore_giant_ant_death,4549,4229,alias,giant ant
+bull_ant,6867,special,lore_unburden,4571,4388,scroll,Unburden
+wolpertinger,6869,appear,lore_wolpertinger,4785,4272,stem,
+wolpertinger,6869,defend,lore_wolpertinger_hit,4820,4163,stem,
+wolpertinger,6869,death,lore_wolpertinger_death,4649,4243,stem,
+wolpertinger,6869,special,lore_magic_might,4745,4217,inferred,Magic focus
+compost_mound,6871,appear,lore_compost,4635,4155,stem,
+compost_mound,6871,attack,lore_compost_attack,4504,4233,stem,
+compost_mound,6871,defend,lore_compost_hit,4480,4134,stem,
+compost_mound,6871,death,lore_compost_death,4489,4162,stem,
+compost_mound,6871,special,lore_generate_compost,4818,4403,scroll,Generate compost
+compost_mound,6871,special_impact,lore_generate_compost_impact,4768,4406,scroll,Generate compost
+pack_yak,6873,appear,lore_pack_yak,4813,4253,stem,
+pack_yak,6873,attack,lore_pack_yak_attack,4470,4200,stem,
+pack_yak,6873,defend,lore_pack_yak_hit,4609,4175,stem,
+pack_yak,6873,death,lore_pack_yak_death,4486,4207,stem,
+pack_yak,6873,special,lore_winter_storage,4828,4172,scroll,Winter storage
+spirit_cockatrice,6875,attack,lore_cockatrice_1_attack,4683,4189,stem,variant order unverified
+spirit_cockatrice,6875,defend,lore_cockatrice_1_hit,4774,4173,stem,variant order unverified
+spirit_cockatrice,6875,death,lore_cockatrice_1_death,4691,4204,stem,variant order unverified
+spirit_cockatrice,6875,special,lore_petrify,4629,4385,scroll,Petrifying gaze
+spirit_guthatrice,6877,attack,lore_cockatrice_2_attack,4678,4260,stem,variant order unverified
+spirit_guthatrice,6877,defend,lore_cockatrice_2_hit,4516,4167,stem,variant order unverified
+spirit_guthatrice,6877,death,lore_cockatrice_2_death,4775,4166,stem,variant order unverified
+spirit_guthatrice,6877,special,lore_petrify,4629,4385,scroll,Petrifying gaze
+spirit_saratrice,6879,attack,lore_cockatrice_3_attack,4791,4250,stem,variant order unverified
+spirit_saratrice,6879,defend,lore_cockatrice_3_hit,4760,4158,stem,variant order unverified
+spirit_saratrice,6879,death,lore_cockatrice_3_death,4511,4256,stem,variant order unverified
+spirit_saratrice,6879,special,lore_petrify,4629,4385,scroll,Petrifying gaze
+spirit_zamatrice,6881,attack,lore_cockatrice_4_attack,4771,4186,stem,variant order unverified
+spirit_zamatrice,6881,defend,lore_cockatrice_4_hit,4686,4238,stem,variant order unverified
+spirit_zamatrice,6881,death,lore_cockatrice_4_death,4539,4152,stem,variant order unverified
+spirit_zamatrice,6881,special,lore_petrify,4629,4385,scroll,Petrifying gaze
+spirit_pengatrice,6883,attack,lore_cockatrice_5_attack,4736,4227,stem,variant order unverified
+spirit_pengatrice,6883,defend,lore_cockatrice_5_hit,4584,4228,stem,variant order unverified
+spirit_pengatrice,6883,death,lore_cockatrice_5_death,4519,4202,stem,variant order unverified
+spirit_pengatrice,6883,special,lore_petrify,4629,4385,scroll,Petrifying gaze
+spirit_coraxatrice,6885,attack,lore_cockatrice_6_attack,4703,4259,stem,variant order unverified
+spirit_coraxatrice,6885,defend,lore_cockatrice_6_hit,4712,4194,stem,variant order unverified
+spirit_coraxatrice,6885,death,lore_cockatrice_6_death,4575,4138,stem,variant order unverified
+spirit_coraxatrice,6885,special,lore_petrify,4629,4385,scroll,Petrifying gaze
+spirit_vulatrice,6887,attack,lore_cockatrice_7_attack,4685,4171,stem,variant order unverified
+spirit_vulatrice,6887,defend,lore_cockatrice_7_hit,4792,4209,stem,variant order unverified
+spirit_vulatrice,6887,death,lore_cockatrice_7_death,4773,4213,stem,variant order unverified
+spirit_vulatrice,6887,special,lore_petrify,4629,4385,scroll,Petrifying gaze
+barker_toad,6889,appear,lore_barker_toad,4783,4329,stem,
+barker_toad,6889,attack,lore_barker_toad_attack,4787,4301,stem,
+barker_toad,6889,defend,lore_barker_toad_hit,4492,4328,stem,
+barker_toad,6889,death,lore_barker_toad_death,4479,4289,stem,
+barker_toad,6889,special,lore_toad_bark,4495,4368,scroll,Toad bark
+barker_toad,6889,special,lore_barker_toad_special_attack,4796,4310,stem,Toad bark
+barker_toad,6889,extra,lore_barker_toad_swallow_cannonball,4463,4321,stem,loading the cannonball
+ibis,6991,special,lore_fishrain_splat,4723,4397,scroll,Fish rain
+ibis,6991,appear,lore_stork,4806,4336,inferred,the only wading-bird name
+spirit_jelly,6992,attack,lore_jelly_attack,4518,4182,stem,
+spirit_jelly,6992,defend,lore_jelly_hit,4725,4242,stem,
+spirit_jelly,6992,death,lore_jelly_death,4740,4252,stem,
+spirit_jelly,6992,special,lore_dissolve_cast,4766,4154,scroll,Dissolve
+spirit_jelly,6992,special_impact,lore_dissolve_impact,4781,4133,scroll,Dissolve
+spirit_kalphite,6994,appear,lore_kalphite,4485,4178,stem,
+spirit_kalphite,6994,special,lore_sandstorm,4819,4389,scroll,Sandstorm
+swamp_titan,7329,appear,lore_swamp_titan_spawn,4531,4683,stem,
+swamp_titan,7329,attack,lore_swamp_titan_attack,4599,4624,stem,
+swamp_titan,7329,defend,lore_swamp_titan_hit,4778,4715,stem,
+swamp_titan,7329,death,lore_swamp_titan_death,4698,4673,stem,
+swamp_titan,7329,special,lore_swamp_plague,4533,4598,scroll,Swamp plague
+swamp_titan,7329,special_impact,lore_swamp_plague_impact,4615,4693,scroll,Swamp plague
+swamp_titan,7329,extra,lore_swamp_titan_timer,4747,4705,stem,
+spirit_mosquito,7331,attack,lore_mosquito_attack,4699,4610,stem,
+spirit_mosquito,7331,defend,lore_mosquito_hit,4496,4600,stem,
+spirit_mosquito,7331,death,lore_mosquito_death,4484,4615,stem,
+spirit_mosquito,7331,special,lore_harrass,4700,4721,inferred,Pester
+void_spinner,7333,attack,lore_spinner_attack,4823,"805,4691",stem,
+void_spinner,7333,defend,lore_spinner_hit,4665,"807,4672",stem,
+void_spinner,7333,death,lore_spinner_death,4673,"806,4690",stem,
+void_spinner,7333,extra,lore_spinner_heal,4522,4686,stem,passive heal
+void_spinner,7333,extra,lore_spinner_spin,4776,"808,4685",stem,
+forge_regent_beast,7335,special,lore_inferno,4524,4700,scroll,Inferno
+forge_regent_beast,7335,special_impact,lore_inferno_impact,4502,4712,scroll,Inferno
+forge_regent_beast,7335,attack,lore_flaming_prince_attack,4627,4643,inferred,no forge/regent stem
+forge_regent_beast,7335,defend,lore_flaming_prince_hit,4793,4667,inferred,no forge/regent stem
+forge_regent_beast,7335,death,lore_flaming_prince_death,4643,4628,inferred,no forge/regent stem
+spirit_larupia,7337,attack,lore_larupita_attack,4547,4631,alias,spelled larupita
+spirit_larupia,7337,defend,lore_larupita_hit,4800,4674,alias,spelled larupita
+spirit_larupia,7337,death,lore_larupita_death,4581,4696,alias,spelled larupita
+spirit_larupia,7337,special,lore_rending,4487,4661,scroll,Rending
+geyser_titan,7339,appear,lore_geyser_titan_spawn,4744,4659,stem,
+geyser_titan,7339,attack,lore_geyser_titan_attack,4586,4602,stem,
+geyser_titan,7339,defend,lore_geyser_titan_hit,4464,4697,stem,
+geyser_titan,7339,death,lore_geyser_titan_death,4824,4642,stem,
+geyser_titan,7339,ranged,lore_geyser_titan_range,4536,4713,stem,
+geyser_titan,7339,extra,lore_geyser_titan_impact,4534,4698,stem,
+lava_titan,7341,appear,lore_lava_titan_spawn,4652,4647,stem,
+lava_titan,7341,attack,lore_lava_titan_attack,4795,4654,stem,
+lava_titan,7341,defend,lore_lava_titan_hit,4687,4714,stem,
+lava_titan,7341,death,lore_lava_titan_death,4694,4710,stem,
+lava_titan,7341,special,lore_lava_titan_special,4642,4640,stem,Ebon thunder
+steel_titan,7343,appear,lore_steel_titan_spawn,4603,4638,stem,
+steel_titan,7343,attack,lore_steel_titan_attack,4743,4720,stem,
+steel_titan,7343,defend,lore_steel_titan_hit,4667,4704,stem,
+steel_titan,7343,death,lore_steel_titan_death,4562,4668,stem,
+steel_titan,7343,ranged,lore_steel_titan_range,4558,4616,stem,
+steel_titan,7343,extra,lore_steel_titan_range_impact,4714,4670,stem,
+steel_titan,7343,extra,lore_steel_titan_melee_impact,4801,4709,stem,
+steel_titan,7343,special,lore_steel_of_legends,4636,4680,scroll,Steel of legends
+steel_titan,7343,special,lore_steel_titan_special,4632,4611,stem,Steel of legends
+steel_titan,7343,special_impact,lore_steel_titan_special_impact,4715,4653,stem,Steel of legends
+obsidian_golem,7345,appear,lore_obsidian_golem_spawn,4697,4682,stem,
+obsidian_golem,7345,attack,lore_obsidian_golem_attack,4546,4718,stem,
+obsidian_golem,7345,defend,lore_obsidian_golem_hit,4472,4632,stem,
+obsidian_golem,7345,death,lore_obsidian_golem_death,4815,4692,stem,
+obsidian_golem,7345,special,lore_mountain_strength,4576,4619,inferred,Volcanic strength
+talon_beast,7347,appear,lore_nailbeast,4631,4613,alias,nail beast
+talon_beast,7347,attack,lore_nailbeast_attack,4570,4681,alias,nail beast
+talon_beast,7347,defend,lore_nailbeast_hit,4617,"3485,4636",alias,nail beast
+talon_beast,7347,death,lore_nailbeast_death,4749,"3484,4658",alias,nail beast
+talon_beast,7347,special,lore_deadlyclaw_cast,4553,4618,scroll,Deadly claw
+talon_beast,7347,special_impact,lore_deadlyclaw_impact,4461,4657,scroll,Deadly claw
+abyssal_titan,7349,appear,lore_abyssal_titan_spawn,4529,4656,stem,
+abyssal_titan,7349,attack,lore_abyssal_titan_attack,4605,4644,stem,
+abyssal_titan,7349,defend,lore_abyssal_titan_hit,4657,4660,stem,
+abyssal_titan,7349,death,lore_abyssal_titan_death,4475,4717,stem,
+abyssal_titan,7349,special,lore_abyssal_titan_bring_pouches,4466,4621,stem,Essence shipment
+void_torcher,7351,appear,lore_torcher_spawn,4630,4694,stem,
+void_torcher,7351,attack,lore_torcher_attack,4517,"845,4599",stem,
+void_torcher,7351,defend,lore_torcher_hit,4600,"848,4651",stem,
+void_torcher,7351,death,lore_torcher_death,4734,"846,4634",stem,
+void_torcher,7351,extra,lore_torcher_fire,4514,4637,stem,
+void_torcher,7351,extra,lore_torcher_firebreath,4500,4623,stem,
+giant_chinchompa,7353,appear,lore_chinchompa,4705,4601,stem,
+giant_chinchompa,7353,attack,lore_chinchompa_attack,4626,"359,4675",stem,
+giant_chinchompa,7353,defend,lore_chinchompa_hit,4520,"361,4716",stem,
+giant_chinchompa,7353,special,lore_chinchompa_explode,4607,4676,scroll,Explode
+fire_titan,7355,appear,lore_fire_titan_spawn,4552,4699,stem,
+fire_titan,7355,attack,lore_fire_titan_attack,4710,4614,stem,
+fire_titan,7355,defend,lore_fire_titan_hit,4827,4604,stem,
+fire_titan,7355,death,lore_fire_titan_death,4759,4688,stem,
+fire_titan,7355,special,lore_titans_constitution,4825,4678,scroll,Titan's constitution
+moss_titan,7357,appear,lore_moss_titan_spawn,4808,4626,stem,
+moss_titan,7357,attack,lore_moss_titan_attack,4777,4662,stem,
+moss_titan,7357,defend,lore_moss_titan_hit,4732,4607,stem,
+moss_titan,7357,death,lore_moss_titan_death,4585,4663,stem,
+moss_titan,7357,special,lore_titans_constitution,4825,4678,scroll,Titan's constitution
+ice_titan,7359,appear,lore_ice_titan_spawn,4542,4706,stem,
+ice_titan,7359,attack,lore_ice_titan_attack,4481,4695,stem,
+ice_titan,7359,defend,lore_ice_titan_hit,4467,4684,stem,
+ice_titan,7359,death,lore_ice_titan_death,4750,4635,stem,
+ice_titan,7359,special,lore_titans_constitution,4825,4678,scroll,Titan's constitution
+spirit_tz_kih,7361,appear,lore_tz_kih_spawn,4530,4677,stem,
+spirit_tz_kih,7361,attack,lore_tz_kih_attack,4713,4627,stem,
+spirit_tz_kih,7361,defend,lore_tz_kih_hit,4580,4669,stem,
+spirit_tz_kih,7361,death,lore_tz_kih_death,4811,4703,stem,
+spirit_tz_kih,7361,ranged,lore_tz_kih_range,4742,4630,stem,
+spirit_graahk,7363,appear,lore_graahk,4634,4671,stem,
+spirit_graahk,7363,attack,lore_graahk_attack,4753,"2867,4605",stem,
+spirit_graahk,7363,defend,lore_graahk_hit,4746,"2869,4702",stem,
+spirit_graahk,7363,death,lore_graahk_death,4637,"2868,4652",stem,
+spirit_graahk,7363,special,lore_graahk_special,4728,4622,stem,Goad
+spirit_graahk,7363,special,lore_goad,4794,4645,scroll,Goad
+spirit_graahk,7363,special,lore_goad_2,5348,absent,scroll,Goad; absent from the rev-530 cache
+spirit_graahk,7363,special,lore_goad_3,5346,absent,scroll,Goad; absent from the rev-530 cache
+spirit_graahk,7363,special,lore_goad_4,5347,absent,scroll,Goad; absent from the rev-530 cache
+spirit_kyatt,7365,attack,lore_kyatt_attack,4477,4650,stem,
+spirit_kyatt,7365,defend,lore_kyatt_hit,4622,4687,stem,
+spirit_kyatt,7365,death,lore_kyatt_death,4566,4664,stem,
+spirit_kyatt,7365,special,lore_kyatt_special,4680,4617,stem,Ambush
+void_shifter,7367,attack,lore_shifter_attack,4648,4689,stem,
+void_shifter,7367,defend,lore_shifter_hit,4670,"768,4606",stem,
+void_shifter,7367,death,lore_shifter_death,4762,"767,4649",stem,
+void_ravager,7370,attack,lore_ravager_attack,4782,4711,stem,
+void_ravager,7370,defend,lore_ravager_hit,4764,"716,4625",stem,
+void_ravager,7370,death,lore_ravager_death,4664,"715,4629",stem,
+void_ravager,7370,extra,lore_ravager_dig,4702,4655,stem,
+ravenous_locust,7372,appear,lore_locust,4597,4231,stem,
+ravenous_locust,7372,special,lore_famine,4689,4701,scroll,Famine
+ravenous_locust,7372,extra,lore_locust_jump,4727,4190,stem,
+ravenous_locust,7372,extra,lore_locust_land,4758,4271,stem,
+iron_titan,7375,appear,lore_iron_titan_spawn,4560,4646,stem,
+iron_titan,7375,attack,lore_iron_titan_attack,4767,4633,stem,
+iron_titan,7375,defend,lore_iron_titan_hit,4557,4612,stem,
+iron_titan,7375,death,lore_iron_titan_death,4690,4666,stem,
+iron_titan,7375,ranged,lore_iron_titan_range,4798,4679,stem,
+iron_titan,7375,extra,lore_iron_titan_impact,4462,4596,stem,
+iron_titan,7375,special,lore_iron_within,4675,4707,scroll,Iron within
+pyrelord,7377,appear,lore_pyrefiend_spawn,4831,4620,alias,pyrefiend
+pyrelord,7377,attack,lore_pyrefiend_attack,4540,4708,alias,pyrefiend
+pyrelord,7377,defend,lore_pyrefiend_hit,4653,4641,alias,pyrefiend
+pyrelord,7377,death,lore_pyrefiend_death,4618,4597,alias,pyrefiend
+pyrelord,7377,special,lore_immense_heat,4569,4603,scroll,Immense heat
+phoenix,8575,none,,,,none,no named sound for this creature

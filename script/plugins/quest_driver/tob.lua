@@ -309,7 +309,16 @@ function QD.raid._tob_supplies(S, F, want, intent)
         end
         if intent.drink then S.last_drink = F.tick end
     end
-    if not intent.pray and want.boost and F.prayer >= V.BOOST_PRAYER_FLOOR and not F.lit[want.boost]
+    -- (a raid's own gate on the boost: CoX's prayer pool, cox2_raid.lua --
+    -- closed, a lit boost is clicked off)
+    local gated = want.boost and QD.T2 and QD.T2.boost_gate and not QD.T2.boost_gate(S, F)
+    if gated and F.lit[want.boost] and intent.pray ~= want.boost then
+        intent.pray_off = intent.pray_off or {}
+        local listed = false
+        for _, n in ipairs(intent.pray_off) do if n == want.boost then listed = true end end
+        if not listed then intent.pray_off[#intent.pray_off + 1] = want.boost end
+    end
+    if not intent.pray and not gated and want.boost and F.prayer >= V.BOOST_PRAYER_FLOOR and not F.lit[want.boost]
         and (S.pray_clicked[want.boost] == nil or F.tick - S.pray_clicked[want.boost] > 6) then
         intent.pray = want.boost
     end

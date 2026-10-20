@@ -1,9 +1,9 @@
 -- cox_vanguards: the Vanguards, solo, played by the v2 solver
 -- (script/plugins/quest_driver/cox2_vanguards.lua; plan
 -- docs/minigames/cox/rooms/vanguards_solver.md, spec vanguards_spec.md) in the
--- We Do Raids minimum CoX kit (QD.COX.KIT: the Olm solver's), with the
--- blowpipe for the magic vanguard, the trident for the melee one and the
--- tentacle for the ranged one.
+-- relay's budget arrival kit (QD.COX.SOLO_KIT: the wiki Minimum, no raid
+-- potions), with the blowpipe for the magic vanguard, the trident for the
+-- melee one and the tentacle for the ranged one.
 --
 -- The raid: t.raid.cox_test_enter("vanguards", n), n the run name's number
 -- (--name vanguards12 -> n = 12), so a sweep sees every variant and turn.
@@ -13,7 +13,7 @@
 -- TRAMPLE hits (a walking shell is dodgeable: spec V15).
 --
 --   ./src/build_cox_vanguards_opt/torirsserver --scriptrun test/raids/cox_vanguards.lua --bots 1 \
---       --name vanguards0 --ticks 3000 --session /tmp/vg --fixture test/raids/fixtures/fresh_lumbridge.ini
+--       --name vanguards0 --ticks 6000 --session /tmp/vg --fixture test/raids/fixtures/fresh_lumbridge.ini
 
 local function run(t)
     t.check("vg.ticklog", t.ticklog.start() == "ok", "")
@@ -29,7 +29,11 @@ local function run(t)
     local hr, room = t.raid.cox_here()
     t.check("vg.room", hr == "ok", tostring(hr) .. " " .. tostring(room and room.name) .. " v" .. tostring(room and room.variant)
         .. " turn " .. tostring(room and room.turn) .. " seed " .. tostring(at.seed))
-    local result, detail, S = t.raid.cox_vanguards_solve({ max_ticks = 1500 })
+    -- (the relay's pre-pot for this room: melee + ranged, QD.raid.cox_prepot)
+    t.check("vg.prepot", true, tostring(t.raid.cox_prepot("vanguards")))
+    t.check("vg.arrive", true, t.raid.cox_supplies_text())
+    local result, detail, S = t.raid.cox_vanguards_solve({ max_ticks = 4000 })
+    t.check("vg.left", true, t.raid.cox_supplies_text())
     t.check("vg.solve", result == "ok", tostring(detail))
     local resets = S and S.v and S.v.resets or -1
     t.check("vg.no_reset", resets == 0, "resets " .. tostring(resets))
@@ -51,40 +55,54 @@ local function run(t)
     t.finish((result == "ok" and resets == 0 and trample == 0 and exit_gone) and 0 or 1)
 end
 
+-- The relay's ARRIVAL kit (QD.COX.SOLO_KIT, cox2_raid.lua, spelled out, as
+-- test/raids/cox_crabs.lua): the wiki Minimum, worn and carried, WITHOUT the
+-- anglerfish -- the relay eats it to make its one free slot before the first
+-- room -- so 27 in the pack. No raid potion: no overload, no Xeric's aid.
+local function kit()
+    local lines = { "::clearinv" }
+    for _, s in ipairs({ "attack", "strength", "defence", "hitpoints", "prayer", "magic", "ranged", "agility",
+                         "woodcutting", "firemaking", "mining", "thieving", "herblore", "farming", "fishing", "hunter",
+                         "construction", "cooking" }) do
+        lines[#lines + 1] = "::setlevel " .. s .. " 99"
+    end
+    for _, line in ipairs({
+        "::setvar varb3888_kr_quest ^kr_complete", "::setvar varb3909_kr_knightwaves_state 8",
+        "::setvar varb5451_prayer_rigour_unlocked 1", "::setvar varb5452_prayer_augury_unlocked 1",
+        "::setvar varb5453_prayer_preserve_unlocked 1", "::setvar varp7348_barbarian_vial_smash 1",
+    }) do lines[#lines + 1] = line end
+    for _, obj in ipairs({ "fris_kingly_helm", "barbassault_penance_fighter_torso", "black_dragonhide_chaps",
+            "hundred_gauntlets_level_10", "abyssal_tentacle", "dragon_parryingdagger", "enchanted_onyx_amulet",
+            "tzhaar_cape_fire", "dragon_boots", "lightbearer" }) do
+        lines[#lines + 1] = "::give " .. obj .. " 1"
+        lines[#lines + 1] = "::wield " .. obj
+    end
+    for _, line in ipairs({
+        "::~charge abyssal_tentacle 10000",
+        "::give dragon_bolts_enchanted_ruby 300", "::wield dragon_bolts_enchanted_ruby",
+        "::clearinv",
+        "::blowpipe dragon_dart 2000 2000",
+        -- (SOLO_KIT.carry, less the anglerfish)
+        "::give xbows_crossbow_dragon 1", "::give anma_50_reward 1", "::give toxic_tots_charged 1",
+        "::give occult_necklace 1", "::give black_dragonhide_body 1", "::give mystic_robe_top 1",
+        "::give mystic_robe_bottom 1", "::give bgs 1", "::give bh_rune_pouch 1", "::give ma2_saradomin_cape 1",
+        "::give rune_pickaxe 1", "::give nzone_salve_amulet_e 1", "::give dragon_shortsword 1",
+        "::give dragon_warhammer 1", "::give sanfew_salve_4_dose 1",
+        "::~charge toxic_tots_charged 2500",
+        -- (SOLO_KIT.supplies)
+        "::give 4dosepotionofsaradomin 7", "::give 4dose2restore 2", "::give 4dose2combat 1",
+        "::give 4doserangerspotion 1",
+        "::setvar varb29_rune_pouch_type_1 1", "::setvar varb1624_rune_pouch_quantity_1 500",
+        "::setvar varb1622_rune_pouch_type_2 2", "::setvar varb1625_rune_pouch_quantity_2 500",
+        "::setvar varb1623_rune_pouch_type_3 5", "::setvar varb1626_rune_pouch_quantity_3 500",
+    }) do lines[#lines + 1] = line end
+    return lines
+end
+
 return {
     id = "cox_vanguards",
     fixture = "fresh_lumbridge.ini",
     max_frames = 400000,
-    setup = {
-        "::clearinv",
-        "::setlevel attack 99", "::setlevel strength 99", "::setlevel defence 99", "::setlevel hitpoints 99",
-        "::setlevel prayer 99", "::setlevel magic 99", "::setlevel ranged 99", "::setlevel agility 99",
-        "::setvar varb3888_kr_quest ^kr_complete",
-        "::setvar varb3909_kr_knightwaves_state 8",
-        "::setvar varb5451_prayer_rigour_unlocked 1",
-        "::setvar varb5452_prayer_augury_unlocked 1",
-        "::setvar varb5453_prayer_preserve_unlocked 1",
-        "::setvar varp7348_barbarian_vial_smash 1",
-        "::give fris_kingly_helm 1", "::wield fris_kingly_helm",
-        "::give barbassault_penance_fighter_torso 1", "::wield barbassault_penance_fighter_torso",
-        "::give black_dragonhide_chaps 1", "::wield black_dragonhide_chaps",
-        "::give hundred_gauntlets_level_10 1", "::wield hundred_gauntlets_level_10",
-        "::give abyssal_tentacle 1", "::wield abyssal_tentacle",
-        "::give dragon_parryingdagger 1", "::wield dragon_parryingdagger",
-        "::give enchanted_onyx_amulet 1", "::wield enchanted_onyx_amulet",
-        "::give tzhaar_cape_fire 1", "::wield tzhaar_cape_fire",
-        "::give dragon_boots 1", "::wield dragon_boots",
-        "::give nzone_berzerker_ring 1", "::wield nzone_berzerker_ring",
-        "::~charge abyssal_tentacle 10000",
-        "::clearinv",
-        "::blowpipe dragon_dart 2000 2000",
-        "::give avas_assembler 1",
-        "::give toxic_tots_charged 1", "::~charge toxic_tots_charged 2500",
-        "::give occult_necklace 1", "::give ma2_saradomin_cape 1",
-        "::give black_dragonhide_body 1",
-        "::give mystic_robe_top 1", "::give mystic_robe_bottom 1",
-        "::give raids_vial_overload_strong_4 2", "::give raids_vial_xericaid_strong_4 6",
-        "::give raids_vial_revitalisation_strong_4 4", "::give raids_vial_prayer_strong_4 4",
-    },
+    setup = kit(),
     run = run,
 }

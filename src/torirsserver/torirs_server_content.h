@@ -563,6 +563,17 @@ struct ToriRSServerNpcDef
     int death_sound_range;
 
     /*
+     * Nonzero: the overhead bar and the boss HUD show what has been TAKEN out
+     * of the pool rather than what is left -- the Wardens' phase-two shield
+     * (healthbar 38), which fills from 0 to full as raiders hit it and kneels
+     * when it is full (RSProx 14: fill 10, 18, 27 ... 140 for hits of 10, 8,
+     * 9 ... on a 140 pool; HUD varbit 6099 counting up the same way). The npc
+     * param `headbar_inverted` (skill_combat/configs/npc_combat.param,
+     * default 0), opt-in per record like the sound ranges above.
+     */
+    int headbar_inverted;
+
+    /*
      * The same authored params again, filed under their param *id*.
      *
      * The fields above are what the engine reads; this is what `npc_param`

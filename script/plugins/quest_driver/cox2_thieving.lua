@@ -46,15 +46,12 @@ end
 -- revitalisation, a xeric's aid (lowest dose first). The kit's one free slot
 -- is the scavengers' juice by the time a puzzle room comes. -> { obj id }
 function QD.COX.spare_ids()
+    -- raid items only (QD.COX.raid_spare_names): nothing brought in from
+    -- outside goes on the floor (owner, 2026-10-19)
     local out = {}
-    for _, name in ipairs({ "1dosestamina", "2dosestamina", "3dosestamina", "4dosestamina", "raids_vial_empty" }) do
+    for _, name in ipairs(QD.COX.raid_spare_names()) do
         local r, id = api_drive.symbol("obj", name)
         if r == "ok" then out[#out + 1] = id end
-    end
-    -- then a restore, then a heal (the supply families: the raid's own, then
-    -- the outside super restores and Saradomin brews)
-    for _, fam in ipairs({ "restore", "heal" }) do
-        for _, id in ipairs(QD.COX.supply_ids(fam)) do out[#out + 1] = id end
     end
     return out
 end
@@ -65,8 +62,11 @@ function QD.COX.spare(S)
     for _, obj in ipairs(S.ids.spares) do
         local r, n = api_drive.inv_count(S.ids.inv, obj)
         if r == "ok" and n > 0 then
+            -- (a spent vial is left down; anything else is taken back)
             local vr, vial = api_drive.symbol("obj", "raids_vial_empty")
-            return obj, (not (vr == "ok" and vial == obj)) and { id = obj } or nil
+            local pr, plain = api_drive.symbol("obj", "vial_empty")
+            local spent = (vr == "ok" and vial == obj) or (pr == "ok" and plain == obj)
+            return obj, (not spent) and { id = obj } or nil
         end
     end
     return nil, nil

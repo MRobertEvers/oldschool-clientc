@@ -77,12 +77,13 @@ function CI.ids(opts)
         if r == "ok" then ids.axes[#ids.axes + 1] = id end
     end
     -- what may go on the floor while the room needs three slots (axe,
-    -- tinderbox, kindling) and the pack is full (the raid's kit is 28): the
-    -- switches this room never uses, first to last (Synq: "Drop potions if
-    -- you need to and you can get them back later")
+    -- tinderbox, kindling) and the pack is still full: RAID items only
+    -- (Synq: "Drop potions if you need to and you can get them back later";
+    -- the owner, 2026-10-19: never real gear). The switches this room never
+    -- uses go into the room's own storage unit first (CI.PARK, the relay's
+    -- entry below).
     ids.droppable = {}
-    for _, name in ipairs({ "mystic_robe_bottom", "mystic_robe_top", "ma2_saradomin_cape", "occult_necklace",
-                            "toxic_tots_charged", "bh_rune_pouch", "xbows_crossbow_dragon", "bgs" }) do
+    for _, name in ipairs(QD.COX.raid_spare_names()) do
         local r, id = api_drive.symbol("obj", name)
         if r == "ok" then ids.droppable[#ids.droppable + 1] = id end
     end
@@ -693,6 +694,61 @@ do
         local o2 = {}
         for k, v in pairs(opts) do o2[k] = v end
         o2.room = room
-        return solve(o2)
+        -- ROOM IN THE PACK, the owner's way (2026-10-19: "build the storage
+        -- and store it in there"): the room has a storage unit, and the
+        -- demon sleeps until the braziers thaw it -- the switches this room
+        -- never uses go in, before anything is lit, and come back after
+        local parked = CI.park(room)
+        local r, d, S = solve(o2)
+        local back = CI.unpark(room, parked)
+        return r, tostring(d) .. "; parked " .. #parked .. " back " .. back, S
     end
+end
+
+-- The switches the ice demon fight never uses, first to park.
+CI.PARK = { "mystic_robe_bottom", "mystic_robe_top", "ma2_saradomin_cape", "occult_necklace",
+            "toxic_tots_charged", "bh_rune_pouch", "xbows_crossbow_dragon", "bgs", "rune_pickaxe",
+            "dragon_pickaxe", "dragon_shortsword", "nzone_salve_amulet_e", "dragon_warhammer", "hammer" }
+CI.PARK_FREE = 3      -- the axe, the tinderbox, a kindling stack
+
+-- Park until CI.PARK_FREE slots are free. -> names parked
+function CI.park(room)
+    local parked = {}
+    if QD.SUP.free() >= CI.PARK_FREE then return parked end
+    -- (from the room before's side the unit can lie past the scene the
+    -- client holds -- raid7: the room at 6400,96 from 6432,112 listed none --
+    -- so step in first; the demon sleeps until the braziers burn)
+    if QD.SUP.store_unit(room) == nil then QD.raid.cox_walk_toward(room.ox + 16, room.oz + 16, 30) end
+    if not QD.SUP.store_open(room) then return parked end
+    for _, name in ipairs(CI.PARK) do
+        if QD.SUP.free() >= CI.PARK_FREE then break end
+        if QD.SUP.count(name) > 0 and QD.SUP.store_put(function(n) return n == name end, 1, true) > 0 then
+            parked[#parked + 1] = name
+        end
+    end
+    QD.SUP._stored_cache = QD.SUP.stored()
+    QD.SUP.store_close()
+    return parked
+end
+
+-- Take the parked switches back (the room's axe and tinderbox and the
+-- kindling left over go down first: room items). -> "n/m"
+function CI.unpark(room, parked)
+    if #parked == 0 then return "0/0" end
+    for _, name in ipairs({ "raids_wood", "bronze_axe", "tinderbox" }) do
+        for _ = 1, 28 do
+            if QD.SUP.count(name) == 0 or not QD.COX.may_drop(name) then break end
+            QD.player.drop(name)
+            QD.ticks(1)
+        end
+    end
+    local got = 0
+    if QD.SUP.store_open(room) then
+        for _, name in ipairs(parked) do
+            if QD.SUP.free() > 0 and QD.SUP.store_take(name, 1) > 0 then got = got + 1 end
+        end
+        QD.SUP._stored_cache = QD.SUP.stored()
+        QD.SUP.store_close()
+    end
+    return got .. "/" .. #parked
 end

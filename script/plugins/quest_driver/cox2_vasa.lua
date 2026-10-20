@@ -41,12 +41,43 @@ NI.V = {
     -- a hit's worth in hp: the crystal's above his (it saves the heal and the
     -- timer)
     VASA_VALUE = 3, CRYSTAL_VALUE = 5,
-    -- the brew floor (no food in the kit); nothing that heals S..S+3; up to
-    -- BREW_OVERLOAD while an overload is due (its five hits of 10)
-    BREW = 40, BREW_OVERLOAD = 60,
+    -- THE BREW FLOOR: LOW (Synq 1:02:08, "it's usually recommended to try
+    -- and stay low HP. What's the point of using supplies just for it to all
+    -- be deleted for 5 HP?"; the wiki: "drain health ... to about 10 HP").
+    -- Every special takes hp - 5, so the floor is what each special costs: at
+    -- 40 the room drank three doses a special (5 -> 21 -> 37 -> 53), and every
+    -- dose drained Ranged, Attack and Strength by 10% + 2 -- a restore a
+    -- special (budget1 base_h: 20.5 heal, 7.3 restore doses). At 20, one dose.
+    -- Nothing that heals before the first teleport (Synq 0:56:57: "if you were
+    -- already previously low HP from another room, it's actually advised not
+    -- to eat up before doing Vasa"), from S to S+3, nor while he walks back
+    -- for a special (the window spent).
+    -- (Round 2 of RAID_SOLO_RELAY.md tried floors 20 and 30 alone, with the
+    -- boost prayers still shut by the raid's pool gate: slower. Here the low
+    -- floor comes with the rest of his method: the boosts below.)
+    BREW = 20, BREW_DUE = 10,
+    -- the 67 siphon ticks between two specials (cox.constant
+    -- cox_vasa_crystal_window): spent past WINDOW_DUE, the special is next
+    WINDOW = 67, WINDOW_DUE = 60,
+    -- THE BOOST PRAYERS, the room's own (not the raid's pool gate, which shut
+    -- them after the first restore while the restores drunk for the brews'
+    -- drain held prayer at 94-98 unused: base_h vasa0 t600-t1200): Piety on
+    -- the crystal from PIETY_ON points, Rigour on him from RIGOUR_ON, either
+    -- kept down to BOOST_OFF. The crystal first: a broken crystal denies the
+    -- heal (1.5 hp a siphon tick) and gives back walking time to pipe him.
+    PIETY_ON = 30, RIGOUR_ON = 50, BOOST_OFF = 15,
+    -- an enhance: one at a time, under this many points
+    ENHANCE_BELOW = 40,
     -- a restore once Attack, Strength or Ranged is this far under base
     RESTORE_GAP = 20,
 }
+
+-- THE RELAY'S TOP-UP BEFORE THIS ROOM (QD.raid.cox_top_up, cox2_raid.lua):
+-- no heal (the first special takes hp - 5 whatever I walk in with; Synq
+-- 0:56:57; r31 raid37 topped 37 -> 94 with three Xeric's aid at the door and
+-- the special took 89 of it), prayer to 30 for Protect from Missiles.
+QD.COX.TOPUP_ROOM = QD.COX.TOPUP_ROOM or {}
+QD.COX.TOPUP_ROOM.vasa = { 1, 30 }
 
 -- ======================================================================== IDS
 
@@ -137,6 +168,10 @@ function NI.observe(S, F)
             QD.raid._tob_trace(S, d, "vasa form " .. tostring(o.form) .. " -> " .. form)
             o.form = form
         end
+        -- the window spent: his siphon ticks since the last special (Synq
+        -- 1:06:51 "a total time of 67 ticks"; "keeping track ... you can
+        -- always stay on top of when Vasa will do its special")
+        if form == "healing" then o.siph = o.siph + 1 end
         -- where he was at the end of each tick (his walk, for the stomp)
         o.at[d] = { x = row.x, z = row.z }
         o.at[d - 20] = nil
@@ -214,6 +249,7 @@ function NI.event(S, F, what)
         o.woke = d
     elseif what == "special" then
         o.S = d
+        o.siph = 0
         o.specials = o.specials + 1
         o.hp_at_special = F.hp
     elseif what == "siphon" then
@@ -488,8 +524,10 @@ function NI.melee_set(S)
     return "melee_slash"
 end
 
--- The room's own drinks: the overload before the wake (its 50 would go to the
--- special anyway), prayer enhance under 50 prayer, a stat restore at the gap.
+-- The room's own drinks: a prayer enhance (one at a time), a stat restore at
+-- the gap. NO OVERLOAD (the owner, 2026-10-19: an overload is saved for Olm;
+-- the budget kit wins the room without one). One drunk elsewhere is still
+-- tracked: its five hits of 10 are in the threat field.
 function NI.drinks(S, F, intents)
     local o, ids = S.o, S.ids
     local n = 0
@@ -502,21 +540,27 @@ function NI.drinks(S, F, intents)
     o.ovl_n = n
     if intents.drink or intents.eat or F.tick - (S.last_drink or -10) < 3 then return end
     if NI.in_special(o, F.tick) then return end
-    local pick = nil
-    -- (the overload whenever it has run out: it is the pipe's and the sword's
-    -- damage, and probe vasa4 fought 1,000 of its 1,500 ticks without it --
-    -- crystals timing out, 459 hp healed back; NI.strategy tops the brew floor
-    -- up to pay its 50)
-    if (o.ovl_until or -1) <= F.tick and F.hp >= 56 then
-        pick = QD.raid._tob_first(S, ids.overloads)
-    end
-    if pick == nil and (F.prayer or 0) < 50 then pick = QD.raid._tob_first(S, ids.enhances) end
-    if pick then
-        intents.drink = pick
-        S.last_drink = F.tick
-        return
+    -- (an enhance restores a point every 6 ticks for 483: one running is
+    -- enough -- r31 raid6 and raid37 drank four in a row at 95 and 10 hp)
+    -- (prayer_pool first: it lists the enhance ids enhance_running counts)
+    QD.COX.prayer_pool(F.prayer)
+    if (F.prayer or 0) < NI.V.ENHANCE_BELOW and QD.COX.enhance_running(F.tick) == 0 then
+        local pick = QD.raid._tob_first(S, ids.enhances)
+        if pick then
+            intents.drink = pick
+            S.last_drink = F.tick
+            return
+        end
     end
     QD.COX.restore_intent(S, F, intents, { "ranged", "attack", "strength" }, NI.V.RESTORE_GAP)
+end
+
+-- A boost prayer the room wants lit: `name` from `on_at` points, kept while
+-- lit down to BOOST_OFF. -> name | nil
+function NI.boost(F, name, on_at)
+    local p = F.prayer or 0
+    if p >= on_at or (F.lit[name] and p >= NI.V.BOOST_OFF) then return name end
+    return nil
 end
 
 -- The mode machine (vasa_solver.md):
@@ -542,14 +586,15 @@ function NI.strategy(S, F, B)
         mode = "range"
     end
     intents.mode = mode
-    -- an overload due (run out, doses left): brew up to pay its 50 first
-    if (o.ovl_until or -1) <= d and QD.raid._tob_first(S, ids.overloads) ~= nil and not NI.in_special(o, d) then
-        intents.eat_below, intents.brew_below = V.BREW_OVERLOAD, V.BREW_OVERLOAD
-    end
-    -- nothing that heals from S to the teleport (the bank reads my hp there)
-    if o.S and d >= o.S and d < o.S + V.TELEPORT then
+    -- nothing that heals before the first teleport, nor from S to the
+    -- teleport (the bank reads my hp there): it all goes to the explosion
+    if mode == "wake" or (o.S and d >= o.S and d < o.S + V.TELEPORT) then
         intents.eat_below, intents.brew_below = 0, 0
+    elseif mode == "range" and o.siph >= V.WINDOW_DUE then
+        -- (the window spent: he is walking back for a special)
+        intents.eat_below, intents.brew_below = V.BREW_DUE, V.BREW_DUE
     end
+    local want_boost = nil
     local off = {}
     if mode == "done" then
         for _, name in pairs(QD.T2.PROTECT) do if F.lit[name] then off[#off + 1] = name end end
@@ -596,7 +641,7 @@ function NI.strategy(S, F, B)
             end
         end
         if not F.lit.protectfrommissiles and (F.prayer or 0) > 0 then intents.pray = "protectfrommissiles" end
-        if (F.prayer or 0) >= 30 then intents.pray_boost = ids.boost.ranged end
+        want_boost = NI.boost(F, ids.boost.ranged, V.RIGOUR_ON)
     elseif mode == "crystal" then
         o.fight_style = "melee"
         intents.gear = NI.gear(S, NI.melee_set(S))
@@ -608,10 +653,15 @@ function NI.strategy(S, F, B)
         end
         -- he throws nothing while he siphons: protection off
         for _, name in pairs(QD.T2.PROTECT) do if F.lit[name] then off[#off + 1] = name end end
-        if (F.prayer or 0) >= 20 then intents.pray_boost = ids.boost.melee end
+        want_boost = NI.boost(F, ids.boost.melee, V.PIETY_ON)
     end
-    if intents.pray_boost == nil then
-        for _, name in ipairs({ "rigour", "piety" }) do if F.lit[name] then off[#off + 1] = name end end
+    if want_boost and not F.lit[want_boost] and intents.pray == nil then intents.pray = want_boost end
+    -- (the other boost goes out by itself as this one lights: pressed off in
+    -- the same tick, the server lit the new one, then the old one again --
+    -- s1_h vasa11 t948-986, Rigour held through every crystal and Piety never)
+    local swapping = want_boost ~= nil and intents.pray == want_boost
+    for _, name in ipairs({ ids.boost.ranged, ids.boost.melee }) do
+        if F.lit[name] and name ~= want_boost and not swapping then off[#off + 1] = name end
     end
     if #off > 0 then intents.pray_off = off end
     NI.drinks(S, F, intents)
@@ -629,7 +679,7 @@ QD.T2.register("cox_vasa", {
         S.max_ticks = opts.max_ticks or 1500
         S.t2.plan_opts = { h = opts.h or NI.V.H, beam = opts.beam or NI.V.BEAM }
         S.o = { events = {}, at = {}, rocks = {}, rock_seen = {}, throws = 0, specials = 0, siphons = 0,
-                crystals = 0, broken = 0 }
+                crystals = 0, broken = 0, siph = 0 }
         S.mon.rules.vasa_mech = { n = 0, checked = 0, traced = 0 }
     end,
 
@@ -638,9 +688,10 @@ QD.T2.register("cox_vasa", {
     predict = function(S, F, B) NI.predict(S, F, B) end,
 
     strategy = function(S, F, B)
+        -- (the boosts are pressed by the room itself, NI.boost: the raid's
+        -- pool gate on S.t2.want.boost is not asked)
         local intents = NI.strategy(S, F, B)
-        S.t2.want.boost = intents.pray_boost
-        intents.pray_boost = nil
+        S.t2.want.boost = nil
         return intents
     end,
 

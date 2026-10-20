@@ -73,25 +73,234 @@ QD.COX.TILES = 32
 QD.COX.SUPPLY = {
     heal = { "raids_vial_xericaid_strong_", "raids_vial_xericaid_", "raids_vial_xericaid_weak_", "#potionofsaradomin" },
     restore = { "raids_vial_revitalisation_strong_", "raids_vial_revitalisation_", "raids_vial_revitalisation_weak_",
-                "#2restore" },
-    prayer = { "raids_vial_prayer_strong_", "raids_vial_prayer_", "raids_vial_prayer_weak_", "#prayerrestore", "#2restore" },
+                "#2restore", "%sanfew_salve_%d_dose" },
+    prayer = { "raids_vial_prayer_strong_", "raids_vial_prayer_", "raids_vial_prayer_weak_", "#prayerrestore", "#2restore",
+               "%sanfew_salve_%d_dose" },
     overload = { "raids_vial_overload_strong_", "raids_vial_overload_", "raids_vial_overload_weak_" },
 }
 
 -- A family's obj ids as a solver's ids() lists them: best potion first, each
 -- potion's doses lowest first (a solver drinks the first listed it holds).
+-- A RESERVE for a room ahead (RAID_SOLO_RELAY.md round 5): r29's Vespula
+-- losses arrived with 1.7 restore doses on average -- the two spares packed
+-- for her (Synq: "an extra one to two restores") drunk by the rooms before.
+-- While the reserving room is ahead (not done), other rooms' lists leave a
+-- stem out once only the reserved doses of it are left.
+QD.COX.RESERVES = QD.COX.RESERVES or {}
+QD.raid.cox_reserve = function(room_name, stem, doses)
+    QD.COX.RESERVES[#QD.COX.RESERVES + 1] = { room = room_name, stem = stem, doses = doses }
+    return "ok"
+end
+
+function QD.COX.stem_held(stem)
+    local n = 0
+    for d = 1, 4 do
+        local name = stem .. d
+        if string.sub(stem, 1, 1) == "#" then name = d .. "dose" .. string.sub(stem, 2) end
+        n = n + d * QD.COX.held_count(name)
+    end
+    return n
+end
+
+function QD.COX.reserved(stem)
+    local here = QD.COX.here()
+    for _, r in ipairs(QD.COX.RESERVES) do
+        local done = QD.SUP and QD.SUP._done and QD.SUP._done[r.room]
+        if r.stem == stem and not done and (here == nil or here.name ~= r.room)
+            and QD.COX.stem_held(stem) <= r.doses then return true end
+    end
+    return false
+end
+
 function QD.COX.supply_ids(family)
     local stems = QD.COX.SUPPLY[family]
     assert(stems, "QD.COX.supply_ids: no supply family " .. tostring(family))
     local out = {}
     for _, stem in ipairs(stems) do
+        if QD.COX.reserved(stem) then goto next_stem end
         for n = 1, 4 do
             local name = stem .. n
             if string.sub(stem, 1, 1) == "#" then name = n .. "dose" .. string.sub(stem, 2) end
+            -- ("%": a dose in the middle -- the sanfew serum, a super restore
+            -- with an antipoison: the wiki Minimum's last restore)
+            if string.sub(stem, 1, 1) == "%" then name = string.format(string.sub(stem, 2), n) end
             local r, id = api_drive.symbol("obj", name)
             assert(r == "ok", "QD.COX.supply_ids: no obj " .. name)
             out[#out + 1] = id
         end
+        ::next_stem::
+    end
+    return out
+end
+
+-- ------------------------------------------- what may go on the floor
+--
+-- The owner (2026-10-19): "no runner should ever drop real gear. They should
+-- build the storage and store it in there." A RAID ITEM is one the raid made
+-- or handed out: a `raids_*` obj, the resource rooms' tools, the Muttadile
+-- room's bronze axe, an empty vial a drink left, bones. Everything else was
+-- brought in (gear, the hammer, Saradomin brews, super restores, the sanfew)
+-- and is stored, never dropped. Every CoX drop goes through this test.
+QD.COX.RAID_TOOLS = { rake = true, spade = true, dibber = true, bronze_axe = true, vial_empty = true, bones = true }
+
+function QD.COX.is_raid_item(name)
+    assert(name)
+    return string.sub(name, 1, 6) == "raids_" or QD.COX.RAID_TOOLS[name] == true
+end
+
+-- The executor's guard on every room solver's drop (tob2_exec.lua): inside a
+-- CoX room only a raid item goes down.
+-- A tool a room or a scavenger also hands out (the crabs' hammer, the ice
+-- demon's tinderbox, a scavenger's iron pickaxe): the copies over what was
+-- brought in are the raid's and may go back down; the brought ones never.
+QD.COX.ROOM_TOOLS = { "hammer", "tinderbox", "iron_pickaxe", "iron_axe", "lockpick", "butterfly_net",
+                      "fishing_rod", "knife", "chisel" }
+
+-- Carried + worn count of a named obj.
+function QD.COX.held_count(name)
+    local r, id = api_drive.symbol("obj", name)
+    if r ~= "ok" then return 0 end
+    local n = 0
+    for _, inv in ipairs({ 93, 94 }) do
+        local cr, c = api_drive.inv_count(inv, id)
+        if cr == "ok" then n = n + (c or 0) end
+    end
+    return n
+end
+
+-- What the raider brought in of each room tool: taken once, at the raid's
+-- (or a room test's) start. A later call keeps the first reading.
+function QD.COX.snapshot_brought()
+    if QD.COX._brought ~= nil then return end
+    QD.COX._brought = {}
+    for _, name in ipairs(QD.COX.ROOM_TOOLS) do QD.COX._brought[name] = QD.COX.held_count(name) end
+end
+QD.raid.cox_snapshot_brought = function() QD.COX.snapshot_brought() return "ok" end
+
+function QD.COX.brought(name)
+    return (QD.COX._brought or {})[name] or 0
+end
+
+-- An outside potion: the owner's ruling (2026-10-19, asked) lets one go down
+-- for a few ticks to make a slot, taken back in the same room (the lend /
+-- retake path: QD.COX.spare, QD.COX.retake_lent, the rooms' own pickups) --
+-- never equipment.
+QD.COX.OUTSIDE_POTIONS = { "^%ddosepotionofsaradomin$", "^%ddose2restore$", "^%ddose2combat$", "^%ddoserangerspotion$",
+                           "^sanfew_salve_%d_dose$", "^%ddosestamina$", "^%ddoseprayerrestore$" }
+
+function QD.COX.is_outside_potion(name)
+    for _, pat in ipairs(QD.COX.OUTSIDE_POTIONS) do
+        if string.match(name, pat) then return true end
+    end
+    return false
+end
+
+-- May `name` go on the floor? A raid item, a room tool held over what was
+-- brought in, or an outside potion lent for a slot.
+function QD.COX.may_drop(name)
+    assert(name)
+    if QD.COX.is_raid_item(name) or QD.COX.is_outside_potion(name) then return true end
+    for _, t in ipairs(QD.COX.ROOM_TOOLS) do
+        if t == name then return QD.COX.held_count(name) > QD.COX.brought(name) end
+    end
+    return false
+end
+
+QD.T2 = QD.T2 or {}
+QD.T2.drop_guard = function(obj_id)
+    if QD.COX.here() == nil then return end
+    local r, name = api_drive.symbol_name("obj", obj_id)
+    assert(r == "ok", "cox drop guard: no name for obj " .. tostring(obj_id))
+    assert(QD.COX.may_drop(name), "cox drop guard: a room solver dropped a real item: " .. name)
+end
+
+-- THE PRAYER POOL (RAID_SOLO_RELAY.md round 1): prayer points plus what the
+-- restore doses carried give back (a super restore 8 + 25% of 99, 32; a
+-- revitalisation or prayer potion about as much; an enhance's regeneration
+-- about 40 over its run). Measured in the relay (r3, 16 seeds): the boost
+-- prayers held through whole rooms were the floor's drain -- Piety 480
+-- ticks at Tekton, Rigour and Piety 330 each at Vasa, Rigour 200+ at the
+-- Mystics and Muttadiles -- on a floor whose budget is 99 points and the
+-- wiki Minimum's 8 restore doses. A boost prayer is lit only while the pool
+-- holds BOOST_POOL; the prep's revitalisations and enhances reopen it.
+QD.COX.BOOST_POOL = 330
+QD.COX.DOSE_PRAYER = 32
+QD.COX.ENHANCE_PRAYER = 40
+
+function QD.COX.prayer_pool(prayer)
+    QD.COX._pool_ids = QD.COX._pool_ids or {}
+    if QD.COX._pool_ids.list == nil then
+        local seen, list = {}, {}
+        for _, fam in ipairs({ "restore", "prayer" }) do
+            for i, id in ipairs(QD.COX.supply_ids(fam)) do
+                if not seen[id] then
+                    seen[id] = true
+                    local _, name = api_drive.symbol_name("obj", id)
+                    local enh = string.find(tostring(name), "raids_vial_prayer", 1, true) ~= nil
+                    list[#list + 1] = { id = id, dose = (i - 1) % 4 + 1, enhance = enh }
+                end
+            end
+        end
+        QD.COX._pool_ids.list = list
+    end
+    local pool = prayer or 0
+    for _, e in ipairs(QD.COX._pool_ids.list) do
+        local r, n = api_drive.inv_count(93, e.id)
+        if r == "ok" and (n or 0) > 0 then
+            pool = pool + n * e.dose * (e.enhance and QD.COX.ENHANCE_PRAYER or QD.COX.DOSE_PRAYER)
+        end
+    end
+    return pool
+end
+
+-- A RUNNING enhance counts too (the Muttadiles unit, round 5: the pool read
+-- only the doses carried, so Rigour stayed shut while one ran). The client is
+-- not sent the effect's timer (varp6366, transmit=no), so a raider sees it
+-- start as a dose leaves the pack: then 290 s (Synq 0:13:17, 4 min 50 s), a
+-- point every 6 ticks.
+QD.COX.ENHANCE_TICKS = 483
+
+function QD.COX.enhance_running(tick)
+    local n = 0
+    for _, e in ipairs(QD.COX._pool_ids and QD.COX._pool_ids.list or {}) do
+        if e.enhance then
+            local r, c = api_drive.inv_count(93, e.id)
+            if r == "ok" then n = n + (c or 0) * e.dose end
+        end
+    end
+    if QD.COX._enh_doses ~= nil and n < QD.COX._enh_doses then QD.COX._enh_until = tick + QD.COX.ENHANCE_TICKS end
+    QD.COX._enh_doses = n
+    return math.max(0, (QD.COX._enh_until or 0) - tick)
+end
+
+QD.T2.boost_gate = function(S, F)
+    if QD.COX.here() == nil then return true end
+    local pool = QD.COX.prayer_pool(F.prayer) + QD.COX.enhance_running(F.tick) // 6
+    return pool >= QD.COX.BOOST_POOL
+end
+
+-- Raid items a room may put down to make a slot and take back after, least
+-- wanted first: spent vials (left down), the raid's own heals and restores,
+-- the rake, then the prep's stacks (one slot frees a whole stack; the stack
+-- is taken back whole). -> names
+function QD.COX.raid_spare_names()
+    local out = { "raids_vial_empty", "vial_empty" }
+    for _, fam in ipairs({ "heal", "restore" }) do
+        for _, stem in ipairs(QD.COX.SUPPLY[fam]) do
+            if string.sub(stem, 1, 6) == "raids_" then
+                for n = 1, 4 do out[#out + 1] = stem .. n end
+            end
+        end
+    end
+    for _, name in ipairs({ "rake", "raids_plank", "raids_cicely", "raids_stinkhorn_mushroom", "raids_endarkened_juice",
+                            "raids_seed_noxifer", "raids_seed_golpar", "raids_seed_buchuleaf" }) do
+        out[#out + 1] = name
+    end
+    for _, name in ipairs(out) do assert(QD.COX.is_raid_item(name), "raid_spare_names: " .. name) end
+    -- then an outside potion, lent and taken back (owner, 2026-10-19): the
+    -- lowest dose of the most plentiful first
+    for _, stem in ipairs({ "%ddosepotionofsaradomin", "%ddose2restore", "%ddoserangerspotion", "%ddose2combat" }) do
+        for d = 1, 4 do out[#out + 1] = string.format(stem, d) end
     end
     return out
 end
@@ -259,6 +468,85 @@ QD.COX.KIT = {
     stats = { "attack", "strength", "defence", "hitpoints", "prayer", "magic", "ranged", "agility" },
 }
 
+-- THE SOLO RELAY'S KIT (RAID_SOLO_RELAY.md section 2): the wiki's Minimum
+-- setup (Chambers_of_Xeric/Strategies "Setups"), the budget column, slot for
+-- slot -- worn, then the 28 in the pack -- with one deviation: a dragon
+-- warhammer for the lockpick (owner, 2026-10-19: the raider builds the
+-- storage unit, and "Dragon warhammer can be used and that can be used as the
+-- hammer for crabs"; ~cox_has_hammer and the crabs' smash take it, the smash
+-- WIELDED).
+-- No max set (owner, 2026-10-19).
+QD.COX.SOLO_KIT = {
+    worn = { "fris_kingly_helm", "barbassault_penance_fighter_torso", "black_dragonhide_chaps",
+             "hundred_gauntlets_level_10", "abyssal_tentacle", "dragon_parryingdagger",
+             "enchanted_onyx_amulet", "tzhaar_cape_fire", "dragon_boots", "lightbearer" },
+    -- (the blowpipe is given loaded by ::blowpipe, the trident charged)
+    carry = { "xbows_crossbow_dragon", "anma_50_reward", "toxic_tots_charged", "occult_necklace",
+              "black_dragonhide_body", "mystic_robe_top", "mystic_robe_bottom", "bgs", "anglerfish",
+              "bh_rune_pouch", "ma2_saradomin_cape", "rune_pickaxe", "nzone_salve_amulet_e", "dragon_shortsword",
+              "dragon_warhammer", "sanfew_salve_4_dose" },
+    -- (a stamina for Olm in one brew's slot -- owner 2026-10-19: "you have to
+    -- bring a stamina and save it for Olm"; wiki Strategies: "If soloing, one
+    -- stamina potion is highly recommended for Olm". Parked at the first
+    -- storage unit, back in the Olm pack: QD.SUP.OLM_ONLY)
+    -- (no pre-pot potions: the owner, 2026-10-19, chose two free slots for
+    -- the scavengers' secondaries -- one kill drops three stacks, and r24's
+    -- scavenger rooms stopped for want of room 88 times in 48 raids)
+    supplies = { { "4dosepotionofsaradomin", 6 }, { "4dose2restore", 2 }, { "4dosestamina", 1 } },
+    -- the bring-along levels: combat, and what the raid's skilling asks
+    -- (Construction 30-99 builds the storage; Farming 55 / Herblore 90 for
+    -- noxifer and overload (+), wiki "Farming", "Herblore")
+    stats = { "attack", "strength", "defence", "hitpoints", "prayer", "magic", "ranged", "agility",
+              "woodcutting", "firemaking", "mining", "thieving", "herblore", "farming", "fishing", "hunter",
+              "construction", "cooking" },
+}
+
+-- Ava's device the raider holds (worn or carried): the wiki Minimum's
+-- accumulator (anma_50_reward) or the room tests' assembler. -> obj name
+function QD.COX.ava_name()
+    for _, name in ipairs({ "anma_50_reward", "avas_assembler" }) do
+        local r, id = api_drive.symbol("obj", name)
+        if r == "ok" then
+            for _, inv in ipairs({ 93, 94 }) do
+                local cr, n = api_drive.inv_count(inv, id)
+                if cr == "ok" and (n or 0) > 0 then return name end
+            end
+        end
+    end
+    return "avas_assembler"
+end
+
+-- The solo kit as setup cheat lines, ending on the mountain at the steps.
+function QD.COX.solo_kit_cheats()
+    local K = QD.COX.SOLO_KIT
+    local lines = { "::clearinv" }
+    for _, s in ipairs(K.stats) do lines[#lines + 1] = "::setlevel " .. s .. " 99" end
+    for _, line in ipairs({
+        "::setvar varb3888_kr_quest ^kr_complete", "::setvar varb3909_kr_knightwaves_state 8",
+        "::setvar varb5451_prayer_rigour_unlocked 1", "::setvar varb5452_prayer_augury_unlocked 1",
+        "::setvar varb5453_prayer_preserve_unlocked 1", "::setvar varp7348_barbarian_vial_smash 1",
+    }) do lines[#lines + 1] = line end
+    for _, obj in ipairs(K.worn) do
+        lines[#lines + 1] = "::give " .. obj .. " 1"
+        lines[#lines + 1] = "::wield " .. obj
+    end
+    for _, line in ipairs({
+        "::~charge abyssal_tentacle 10000",
+        "::give dragon_bolts_enchanted_ruby 300", "::wield dragon_bolts_enchanted_ruby",
+        "::clearinv",
+        "::blowpipe dragon_dart 2000 2000",
+    }) do lines[#lines + 1] = line end
+    for _, obj in ipairs(K.carry) do lines[#lines + 1] = "::give " .. obj .. " 1" end
+    lines[#lines + 1] = "::~charge toxic_tots_charged 2500"
+    for _, row in ipairs(K.supplies) do lines[#lines + 1] = "::give " .. row[1] .. " " .. tostring(row[2]) end
+    for _, line in ipairs({
+        "::setvar varb29_rune_pouch_type_1 1", "::setvar varb1624_rune_pouch_quantity_1 500",
+        "::setvar varb1622_rune_pouch_type_2 2", "::setvar varb1625_rune_pouch_quantity_2 500",
+        "::setvar varb1623_rune_pouch_type_3 5", "::setvar varb1626_rune_pouch_quantity_3 500",
+    }) do lines[#lines + 1] = line end
+    return lines
+end
+
 -- The kit as setup cheat lines. opts.carry: extra "::give" names (each 1)
 -- after the wiki switches; opts.supplies: { {name, n}, ... } of the raid's
 -- own potions; opts.levels: stat -> level overrides (default 99).
@@ -299,6 +587,7 @@ end
 -- before cleared, me past its Passage. -> result, { seed, cx, cz } (the
 -- target room's centre).
 function QD.raid.cox_test_enter(room, n)
+    QD.COX.snapshot_brought()
     local id = QD.COX.ROOM[room]
     assert(id, "cox_test_enter: no room named " .. tostring(room))
     local _, since = api_drive.message_serial()
@@ -415,8 +704,75 @@ function QD.COX.walk_to_exit_edge(room, ticks)
         QD.raid.cox_walk_toward(mx, mz, ticks)
         ex, ez = QD.COX.exit_edge_tile(room)
     end
+    if ex == nil then
+        -- THE CLEARED SHORTCUT (cox_scavengers.rs2): mined rocks turn to
+        -- Rubble and a chopped sapling to a Rotten stump, both crossed by op1
+        -- and still blocking a walk -- raid5's large room led on only through
+        -- it. Cross, then look again. (raid15 r7: the way out ran through
+        -- one the scavenger pass had not cleared -- unseen from its entry --
+        -- so clear it first: QD.SUP.shortcut, the kit's pickaxe, an axe if a
+        -- scavenger dropped one, or Strength for the boulder.)
+        if QD.SUP and QD.SUP.shortcut then
+            local sr, sd = QD.SUP.shortcut(room)
+            QD.COX.trace("exit edge unreached: shortcut %s %s", tostring(sr), tostring(sd))
+            -- (the boulder reads the CURRENT Strength -- Synq 0:10:34 "always
+            -- drink a strength boosting potion before pushing the boulder";
+            -- the kit has none, so a restore lifts a brew-drained Strength back
+            -- to its base: r26 raid17 was refused at 99)
+            if sr == "refused" and string.find(tostring(sd), "Strength", 1, true) then
+                for _, fam in ipairs({ "restore" }) do
+                    for _, id in ipairs(QD.COX.supply_ids(fam)) do
+                        local nr, name = api_drive.symbol_name("obj", id)
+                        if sr == "refused" and nr == "ok" and QD.COX.held_count(name) > 0 then
+                            QD.player.drink({ name })
+                            QD.ticks(3)
+                            sr, sd = QD.SUP.shortcut(room)
+                            QD.COX.trace("restored for the boulder: %s %s", tostring(sr), tostring(sd))
+                        end
+                    end
+                end
+            end
+            if sr == "no_tool" and sd == "raids_corridor_roots" then
+                -- (the Minimum carries no axe: the scavengers drop an iron
+                -- one, 1/18 a kill -- wiki Scavenger beast)
+                -- (the axe is wanted NOW: it may take the slot the loot
+                -- keeps free -- raid15 r14 killed for one and refused it)
+                local reserve = QD.SUP.RESERVE
+                QD.SUP.RESERVE = 0
+                QD.raid.cox_make_free(1)
+                -- (1/18 a kill: a 12-kill dry streak is a coin flip -- r26
+                -- raid33 gave up at 12; the hunt runs to max_kills)
+                local kr, kd = QD.SUP.scavengers({ want = { iron_axe = 1 }, max_kills = 60, max_ticks = 2000, dry_limit = 60 })
+                QD.SUP.RESERVE = reserve
+                QD.COX.trace("for an axe: %s %s", tostring(kr), tostring(kd))
+                sr, sd = QD.SUP.shortcut(room)
+            end
+            if sr == "ok" then ex, ez = QD.COX.exit_edge_tile(room) end
+        end
+        for _, name in ipairs({ "raids_corridor_rocks_cleared", "raids_corridor_roots_cleared" }) do
+            if ex == nil then
+                local r = QD.raid.tob_loc_op(name, 1, nil, 30)
+                if r == "ok" then
+                    QD.ticks(4)
+                    QD.COX.trace("crossed %s", name)
+                    ex, ez = QD.COX.exit_edge_tile(room)
+                    if ex == nil then
+                        local lx, lz = 16, 31
+                        if room.variant == 0 then lx, lz = 0, 16 elseif room.variant == 2 then lx, lz = 31, 16 end
+                        local mx, mz = QD.COX.world(room, lx, lz)
+                        QD.raid.cox_walk_toward(mx, mz, ticks)
+                        ex, ez = QD.COX.exit_edge_tile(room)
+                    end
+                end
+            end
+        end
+    end
     QD.COX.trace("exit edge %s,%s", tostring(ex), tostring(ez))
-    if ex == nil then return "stuck", "no open tile on the way-out edge" end
+    if ex == nil then
+        -- (what the client's route reaches in the room, for the trace)
+        for _, line in ipairs(QD.raid.cox_reach_map(room.ox, room.oz, 32, 32, 1) or {}) do QD.COX.trace("reach %s", line) end
+        return "stuck", "no open tile on the way-out edge"
+    end
     return QD.raid.cox_walk_toward(ex, ez, ticks)
 end
 
@@ -755,6 +1111,239 @@ function QD.raid.cox_cure()
     return QD.player.drink(held)
 end
 
+-- PRE-POT (RAID_SOLO_RELAY.md section 4 F): the wiki's prep list
+-- (Chambers_of_Xeric/Strategies) -- "Tekton first: prepot melee", "Vanguards
+-- first: prepot all styles", "Shamans ... prepot range", "Tightrope first:
+-- prepot range", "Muttadiles first: prepot melee/magic and ranged", "Vespula
+-- first ... prepot mage" -- with the kit's super combat and ranging potion,
+-- for the styles our room solvers fight with. Only while no raid overload is
+-- carried (the overload is the room's own boost) and only a stat at or under
+-- its base (a boost still running is not re-drunk).
+QD.COX.PREPOT = {
+    tekton = { "melee" }, vasa = { "melee", "ranged" }, vanguards = { "melee", "ranged" },
+    muttadiles = { "melee", "ranged" }, guardians = { "melee" }, shamans = { "ranged" }, mystics = { "ranged" },
+    tightrope = { "ranged" }, vespula = { "ranged" }, icedemon = { "ranged" },
+}
+QD.COX.PREPOT_DRINK = {
+    melee = { stat = "strength", stems = { "%ddose2combat", "%ddosecombat" } },
+    ranged = { stat = "ranged", stems = { "%ddoserangerspotion" } },
+}
+
+function QD.raid.cox_prepot(room_name)
+    assert(room_name)
+    local styles = QD.COX.PREPOT[room_name]
+    if styles == nil then return "none" end
+    local ir, inv = QD._inv_container()
+    if ir ~= "ok" then return "none" end
+    local function held(name)
+        local r, obj = api_drive.symbol("obj", name)
+        if r ~= "ok" then return false end
+        local cr, n = api_drive.inv_count(inv, obj)
+        return cr == "ok" and (n or 0) > 0
+    end
+    for _, stem in ipairs(QD.COX.SUPPLY.overload) do
+        for d = 1, 4 do if held(stem .. d) then return "overload" end end
+    end
+    local ids = QD.raid._tob_common_ids("cox_prepot", {})
+    local drank = {}
+    for _, style in ipairs(styles) do
+        local P = QD.COX.PREPOT_DRINK[style]
+        local r, sk = api_drive.skill(ids[P.stat])
+        if r == "ok" and sk.level <= sk.base_level then
+            local names = {}
+            for _, stem in ipairs(P.stems) do
+                for d = 1, 4 do
+                    local name = string.format(stem, d)
+                    if held(name) then names[#names + 1] = name end
+                end
+            end
+            if #names > 0 then
+                QD.player.drink(names)
+                QD.ticks(2)
+                drank[#drank + 1] = style
+            end
+        end
+    end
+    return #drank > 0 and table.concat(drank, "+") or "none"
+end
+
+-- THE TOP-UP BEFORE A FIGHT (RAID_SOLO_RELAY.md round 2): r9 walked into the
+-- Ice demon at 6 hp and 0 prayer and into the Mystics at 33 hp. Between
+-- rooms nothing hits: heal to TOPUP_HP and lift prayer over TOPUP_PRAYER from
+-- what is carried (the raid's own first, QD.COX.SUPPLY), a sip at a time.
+QD.COX.TOPUP_HP = 80
+QD.COX.TOPUP_PRAYER = 30
+-- A room whose method spends prayer as its resource is entered full (r21:
+-- Vespula's Redemption loop passed 11 of 24 in the relay, the passes at
+-- 99 prayer, the losses at 25-67 -- 23 of 24 from a full start).
+QD.COX.TOPUP_ROOM = { vespula = { 99, 90 } }
+
+function QD.raid.cox_top_up(hp_to, prayer_to, room_name)
+    local per = room_name and QD.COX.TOPUP_ROOM[room_name]
+    hp_to = hp_to or (per and per[1]) or QD.COX.TOPUP_HP
+    prayer_to = prayer_to or (per and per[2]) or QD.COX.TOPUP_PRAYER
+    local ids = QD.raid._tob_common_ids("cox_top_up", {})
+    local function lv(name)
+        local r, sk = api_drive.skill(ids[name])
+        if r ~= "ok" then return 99 end
+        return sk.level
+    end
+    local function first(fam)
+        for _, id in ipairs(QD.COX.supply_ids(fam)) do
+            local r, name = api_drive.symbol_name("obj", id)
+            if r == "ok" and QD.COX.held_count(name) > 0 then return name end
+        end
+        return nil
+    end
+    local sips = {}
+    for _ = 1, 12 do
+        local pick = nil
+        -- (prayer at once: a restore before an enhance's slow regeneration)
+        if lv("prayer") < prayer_to then pick = first("restore") or first("prayer") end
+        -- (a heal drains the fighting stats: with no restore left, only
+        -- under 50 hp -- the Muttadiles unit, round 5: two Xeric's aid at the
+        -- door took Ranged 99 -> 73 and the kill never came)
+        local heal_to = first("restore") and hp_to or math.min(hp_to, 50)
+        if pick == nil and lv("hitpoints") < heal_to then pick = first("heal") end
+        if pick == nil then break end
+        QD.player.drink({ pick })
+        sips[#sips + 1] = pick
+        QD.ticks(3)
+    end
+    return #sips == 0 and "none" or table.concat(sips, ",")
+end
+
+-- RUN ENERGY (RAID_SOLO_RELAY.md round 4): the scavenger rooms, the resource
+-- rooms and the floor ends hold an energy pool (op1, cox_resource.rs2; wiki
+-- "Energy wells"). The Olm test starts at full energy with a stamina; the
+-- relay met him on whatever the floor left, and took 520-620 there against
+-- the test's 308-427. Touched whenever one is in the room I stand in.
+function QD.raid.cox_energy()
+    local room = QD.COX.here()
+    if room == nil then return "no room" end
+    local sr, id = api_drive.symbol("loc", "raids_energy_pool")
+    if sr ~= "ok" then return "no pool loc" end
+    local lr, rows = api_drive.locs(40)
+    if lr ~= "ok" then return "no locs" end
+    local pool = nil
+    for _, row in ipairs(rows) do
+        if (row.loc_id == id or row.resolved_loc_id == id) and row.x >= room.ox and row.x < room.ox + 32
+            and row.z >= room.oz and row.z < room.oz + 32 then pool = row end
+    end
+    if pool == nil then return "none here" end
+    api_drive.world_op("loc", pool.loc_id, 1, pool.element_id)
+    for _ = 1, 20 do
+        QD.ticks(1)
+        local _, me = api_drive.player_tile()
+        if me and math.max(math.abs(me.x - pool.x), math.abs(me.z - pool.z)) <= 1 then break end
+    end
+    QD.ticks(3)
+    return "ok"
+end
+
+-- A FREE SLOT BY CONSUMING (RAID_SOLO_RELAY.md round 1): the wiki's Minimum
+-- setup is a full 28, and every room test was tuned with one slot free (the
+-- blowpipe is two-handed: with a full pack its switch is refused, and the
+-- thieving grubs, the Muttadile room's axe and the tightrope keystone each
+-- need one). Nothing brought in goes on the floor, so a slot is made by
+-- eating or drinking: the anglerfish first (it overheals: never wasted),
+-- then the lowest dose of a family whose effect is due now (a restore with a
+-- stat or prayer down, a heal with hp down). -> free slots after
+QD.COX.DECANT = { "%ddosepotionofsaradomin", "%ddose2restore", "%ddose2combat", "%ddoserangerspotion",
+                  "sanfew_salve_%d_dose" }
+
+function QD.raid.cox_make_free(n)
+    n = n or 1
+    local ids = QD.raid._tob_common_ids("cox_make_free", {})
+    local function skill(name)
+        local r, sk = api_drive.skill(ids[name])
+        if r ~= "ok" then return 99, 99 end
+        return sk.level, sk.base_level
+    end
+    local function free()
+        local c = 0
+        for slot = 0, 27 do
+            local r, cell = api_drive.inv_slot(93, slot)
+            if r == "ok" and cell.obj_id < 0 then c = c + 1 end
+        end
+        return c
+    end
+    -- DECANT first (wiki Decanting; decant_potion.rs2): a 1-dose on a 2- or
+    -- 3-dose of the same potion frees a slot and spends nothing
+    -- (by cell: two copies of one dose -- 2+2, 1+1 -- are two cells of the
+    -- same obj, which a by-name use cannot tell apart; r20: 73 of 434 room
+    -- entries found no slot to make)
+    local function decant()
+        local cells = {}
+        for slot = 0, 27 do
+            local r, cell = api_drive.inv_slot(93, slot)
+            if r == "ok" and cell.obj_id >= 0 then
+                local nr, name = api_drive.symbol_name("obj", cell.obj_id)
+                if nr == "ok" then
+                    for fi, stem in ipairs(QD.COX.DECANT) do
+                        for d = 1, 3 do
+                            if name == string.format(stem, d) then
+                                cells[#cells + 1] = { slot = slot, obj = cell.obj_id, count = cell.count, fam = fi, dose = d }
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        for i = 1, #cells do
+            for j = i + 1, #cells do
+                local a, b = cells[i], cells[j]
+                if a.fam == b.fam and a.dose + b.dose <= 4 then
+                    QD.player._show_backpack_painted()
+                    local ids = QD.raid._tob_common_ids("cox_decant", {})
+                    local com = ids.backpack
+                    local ar = api_drive.inv_op(com, a.slot, a.obj, a.count, -1)
+                    if ar ~= "ok" then return false end
+                    local ur = api_drive.inv_use_on(com, b.slot, b.obj, b.count)
+                    QD.COX.trace("decant slot %d (%d) on slot %d (%d): %s", a.slot, a.dose, b.slot, b.dose, tostring(ur))
+                    return ur == "ok"
+                end
+            end
+        end
+        return false
+    end
+    for _ = 1, 6 do
+        if free() >= n then break end
+        local before = free()
+        if decant() then
+            QD.ticks(1)
+        elseif QD.COX.held_count("anglerfish") > 0 then
+            QD.player.eat({ "anglerfish" })
+        else
+            local hp, hpb = skill("hitpoints")
+            local pr, prb = skill("prayer")
+            local down = false
+            for _, st in ipairs({ "attack", "strength", "ranged", "magic" }) do
+                local lv, b = skill(st)
+                if lv < b then down = true end
+            end
+            local fams = {}
+            if down or pr < prb - 8 then fams[#fams + 1] = "restore" end
+            if pr < prb - 8 then fams[#fams + 1] = "prayer" end
+            if hp < hpb - 10 then fams[#fams + 1] = "heal" end
+            local pick = nil
+            for _, fam in ipairs(fams) do
+                -- the lowest dose first: a one-dose sip frees its slot
+                for _, id in ipairs(QD.COX.supply_ids(fam)) do
+                    local r, name = api_drive.symbol_name("obj", id)
+                    local one = r == "ok" and (string.match(name, "_1$") ~= nil or string.match(name, "^1dose") ~= nil)
+                    if pick == nil and one and QD.COX.held_count(name) > 0 then pick = name end
+                end
+            end
+            if pick == nil then break end
+            QD.player.drink({ pick })
+        end
+        QD.ticks(3)
+        if free() <= before then break end
+    end
+    return free()
+end
+
 -- Past a floor's end room's own Passage (at its south: every room is entered
 -- from template z 0), which a Passage before it can leave me short of while
 -- already in its cell. -> "ok" | the Passage op's result
@@ -782,6 +1371,388 @@ end
 -- The room ahead of `room` as the client can read it (its tile nearest me,
 -- then its middle), without walking: a solver's room is entered by its solver.
 function QD.raid.cox_room_ahead(room) return QD.COX.room_ahead(room) end
+
+-- -------------------------------------------- scouting for a completable raid
+--
+-- The owner (2026-10-19): "Give up on the relay solver for all rooms. Scout
+-- for a completable raid and call that good." Synq's own method (0:05:50):
+-- reload from the start room's steps until the layout is one you can do. The
+-- client sees two or three rooms a floor from there, so the scout does what
+-- RuneLite's raids LayoutSolver does: it matches what it sees against the 26
+-- layout patterns (cox_layout.rs2's generated list) and the combat and puzzle
+-- rings (combat room k of the raid is ring[(start + k * way) mod 8]; the first
+-- two puzzles likewise on the puzzle ring), and accepts a raid only when EVERY
+-- completion consistent with the view uses rooms the relay clears reliably
+-- (QD.COX.RELIABLE, measured: RAID_SOLO_RELAY.md section 10).
+QD.COX.PATTERNS = {
+    { "#FSCCP*", "#PCSCF*" },
+    { "#FSCCS*", "#PCPSF*" },
+    { "#FSCPC*", "#CSCPF*" },
+    { "#SCCFC*", "#PSCSF*" },
+    { "#SCCFP*", "#CCSPF*" },
+    { "#SCFCP*", "#CCSPF*" },
+    { "#SCFCP*", "#CSCFS*" },
+    { "#SCFPC*", "#CSPCF*" },
+    { "#SCFPC*", "#PCCSF*" },
+    { "#SCFPC*", "#SCPCF*" },
+    { "#SCPFC*", "#CCPSF*" },
+    { "#SCPFC*", "#CSPCF*" },
+    { "#SCPFC*", "#CSPSF*" },
+    { "#SCSPF*", "#CCSPF*" },
+    { "#SFCCP*", "#CSCPF*" },
+    { "#SFCCS*", "#PCPSF*" },
+    { "#SPCFC*", "#CSPCF*" },
+    { "#SPCFC*", "#SCCPF*" },
+    { "#SPSFP*", "#CCCSF*" },
+    { "#SCFCP*", "#CSCPF*" },
+    { "#SCPFC*", "#PCSCF*" },
+    { "#FSPCC*", "#PSCCF*" },
+    { "#FSCCP*", "#PCSCF*" },
+    { "#SCPFC*", "#CCSSF*" },
+    { "#SFCCPC*", "#PCSCPF*" },
+    { "#SCFCPC*", "#CSPCSF*" },
+}
+QD.COX.RINGS = {
+    { "tekton", "vasa", "guardians", "mystics", "shamans", "muttadiles", "vanguards", "vespula" },
+    { "tekton", "muttadiles", "guardians", "vespula", "shamans", "vasa", "vanguards", "mystics" },
+}
+QD.COX.PUZZLE_RING = { "icedemon", "tightrope", "crabs", "thieving" }
+QD.COX.RELIABLE = { tekton = true, guardians = true, shamans = true, muttadiles = true,
+                    tightrope = true, thieving = true, crabs = true, icedemon = true }
+
+QD.COX.COMPLETABLE_SHARE = 0.9
+
+QD.COX.LETTER = { raid_start = "#", floor_start = "#", floor_end = "*", resource = "F", resource_b = "F",
+                  scavenger_small = "S", scavenger_large = "S", tightrope = "P", thieving = "P", crabs = "P",
+                  icedemon = "P" }
+function QD.COX.letter(name)
+    return QD.COX.LETTER[name] or "C"
+end
+
+-- What is seen of a floor: the letters (a "*" that cannot be the floor's end
+-- is a blank cell the grid reads as one, and ends the view) and the combat
+-- and puzzle names in order.
+function QD.COX.seen(names)
+    local s, combats, puzzles = "", {}, {}
+    for _, n in ipairs(names) do
+        local l = QD.COX.letter(n)
+        if l == "*" then break end
+        s = s .. l
+        if l == "C" then combats[#combats + 1] = n end
+        if l == "P" then puzzles[#puzzles + 1] = n end
+    end
+    return s, combats, puzzles
+end
+
+-- -> "ok" | "rescout", detail
+function QD.COX.completable(f1_names, f2_names)
+    local s1, c1, p1 = QD.COX.seen(f1_names)
+    local s2, c2, p2 = QD.COX.seen(f2_names or {})
+    local seen_c, seen_p = {}, {}
+    local consistent, good, bad = 0, 0, nil
+    for pi, pat in ipairs(QD.COX.PATTERNS) do
+        local a, b = pat[1], pat[2]
+        if string.sub(a, 1, #s1) == s1 and (#s2 == 0 or string.sub(b, 1, #s2) == s2) then
+            local n1 = select(2, string.gsub(a, "C", ""))
+            local n2 = select(2, string.gsub(b, "C", ""))
+            local np = select(2, string.gsub(a .. b, "P", ""))
+            local np1 = select(2, string.gsub(a, "P", ""))
+            -- the observed combats' indices in the raid's sequence
+            local obs = {}
+            for k, n in ipairs(c1) do obs[#obs + 1] = { k - 1, n } end
+            for k, n in ipairs(c2) do obs[#obs + 1] = { n1 + k - 1, n } end
+            local pobs = {}
+            for k, n in ipairs(p1) do pobs[#pobs + 1] = { k - 1, n } end
+            for k, n in ipairs(p2) do pobs[#pobs + 1] = { np1 + k - 1, n } end
+            for ri, ring in ipairs(QD.COX.RINGS) do
+                for _, way in ipairs({ 1, -1 }) do
+                    for at = 0, 7 do
+                        local ok = true
+                        for _, o in ipairs(obs) do
+                            if ring[(at + o[1] * way) % 8 + 1] ~= o[2] then ok = false end
+                        end
+                        if ok then
+                            for pw = 1, 2 do
+                                local pway = pw == 1 and 1 or -1
+                                for pat0 = 0, 3 do
+                                    local pok = true
+                                    for _, o in ipairs(pobs) do
+                                        if o[1] < 2 and QD.COX.PUZZLE_RING[(pat0 + o[1] * pway) % 4 + 1] ~= o[2] then pok = false end
+                                    end
+                                    if pok then
+                                        consistent = consistent + 1
+                                        local fine = true
+                                        for k = 0, n1 + n2 - 1 do
+                                            local r = ring[(at + k * way) % 8 + 1]
+                                            if not QD.COX.RELIABLE[r] then
+                                                fine = false
+                                                bad = bad or (r .. " (pattern " .. (pi - 1) .. ")")
+                                            end
+                                        end
+                                        for k = 0, math.min(np, 2) - 1 do
+                                            local r = QD.COX.PUZZLE_RING[(pat0 + k * pway) % 4 + 1]
+                                            if not QD.COX.RELIABLE[r] then fine = false bad = bad or r end
+                                        end
+                                        if fine then good = good + 1 end
+                                        -- (a third puzzle is any of the four)
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    if consistent == 0 then return "rescout", "no pattern fits " .. s1 .. "|" .. s2 end
+    -- (accepted on the odds: the share of the completions the view allows
+    -- that deal only reliable rooms, each completion counted once)
+    local share = good / consistent
+    local tag = string.format("%d/%d completions reliable (%s|%s)", good, consistent, s1, s2)
+    if share >= QD.COX.COMPLETABLE_SHARE then return "ok", tag end
+    return "rescout", tag .. (bad and (", e.g. " .. bad) or "")
+end
+
+-- ---------------------------------------------------------------- scouting
+--
+-- The owner (2026-10-19): "Vespula requires a prayer [enhance] potion (the
+-- chambers potion). If the relay sees that it can't get [one] before
+-- vespula, it should scout a different raid." Raiders scout from the start
+-- room (the RuneLite raids plugin reads the same template grid) and leave by
+-- its exit steps for a fresh layout before starting (~cox_enter draws a new
+-- seed each entry). The client's grid shows the first two or three columns
+-- of each floor from there, so the path is followed cell by cell -- each
+-- room's exit heading names the next -- as far as it is visible.
+-- -> names in walk order on floor 1, then floor 2's from its start room
+function QD.COX.scout_path(start)
+    local out = {}
+    local room, seen = start, {}
+    for _ = 1, 10 do
+        if room == nil then break end
+        local key = room.ox .. "," .. room.oz .. "," .. room.level
+        if seen[key] then break end
+        seen[key] = true
+        out[#out + 1] = room.name
+        if room.name == "floor_end" then break end
+        local _, _, cx, cz = QD.COX.next_origin(room)
+        room = QD.COX.room_at(cx, cz, room.level)
+    end
+    return out
+end
+
+-- Can a prayer enhance be had before Vespula on the visible path? A room
+-- that drops one (Tekton, the Vanguards, the small Muttadile; wiki
+-- Strategies), or a brew: a seed room, a scavenger room and a resource room,
+-- all before her. -> "ok" (no Vespula seen, or a source before her) | "rescout"
+QD.COX.ENHANCE_DROPS = { tekton = true, vanguards = true, muttadiles = true }
+QD.COX.SEED_ROOMS = { guardians = true, mystics = true, shamans = true }
+
+function QD.COX.enhance_before_vespula(path)
+    local seeds, scav, brewed = false, false, false
+    for _, name in ipairs(path) do
+        if name == "vespula" then
+            return (seeds and scav and brewed) and "ok" or "rescout"
+        end
+        if QD.COX.ENHANCE_DROPS[name] then return "ok" end
+        if QD.COX.SEED_ROOMS[name] then seeds = true end
+        if name == "scavenger_small" or name == "scavenger_large" then scav = true end
+        if (name == "resource" or name == "resource_b") and seeds and scav then brewed = true end
+    end
+    return "ok"
+end
+
+-- THE LIGHT SCOUT (RAID_SOLO_RELAY.md section 9, the owner's "scout
+-- lightly"): reload away from the relay's worst cases -- Vespula or the
+-- Vanguards on floor 1 (they meet the bare kit before any drop or prep), and
+-- Vespula before an enhance source anywhere. -> "ok" | "rescout", why
+QD.COX.FLOOR1_AVOID = { vespula = true, vanguards = true }
+
+function QD.COX.scout_verdict(path)
+    for _, name in ipairs(path) do
+        if name == "|" then break end
+        if QD.COX.FLOOR1_AVOID[name] then return "rescout", name .. " on floor 1" end
+    end
+    if QD.COX.enhance_before_vespula(path) == "rescout" then return "rescout", "vespula before an enhance" end
+    return "ok", ""
+end
+
+-- The path ahead of the room I stand in, as far as the client shows it (a
+-- floor's start room: the scene is centred there now -- Synq 0:06:23, the
+-- map "only loads part of the raid with you as the center"). -> names
+function QD.raid.cox_scout_here()
+    local room = QD.COX.here()
+    if room == nil then return "none", "" end
+    local path = QD.COX.scout_path(room)
+    return "ok", table.concat(path, ",")
+end
+
+-- The relay's scout from the start room. -> verdict, the path seen
+function QD.raid.cox_scout()
+    local start = QD.COX.here()
+    if start == nil then return "ok", "not in a room" end
+    -- (Synq 0:06:23: the map "only loads part of the raid with you as the
+    -- center ... going as far away from the start as possible" loads more:
+    -- to the start room's Passage side, which holds until Start raid)
+    local p = QD.COX.exit_passage(start)
+    if p ~= nil then
+        local _, me = api_drive.player_tile()
+        if me and math.max(math.abs(me.x - p.x), math.abs(me.z - p.z)) > 3 then
+            QD.raid.cox_walk_near(p.x, p.z, 30)
+        end
+    end
+    local path = QD.COX.scout_path(start)
+    -- floor 2's start room, on the plane above in the same scene: its path
+    -- follows floor 1's (a floor-1 source counts for a floor-2 Vespula)
+    local _, me = api_drive.player_tile()
+    local f2 = nil
+    for dx = -160, 160, 32 do
+        for dz = -96, 96, 32 do
+            local r = QD.COX.room_at(me.x + dx, me.z + dz, start.level + 1)
+            if f2 == nil and r ~= nil and r.name == "floor_start" then f2 = r end
+        end
+    end
+    if f2 ~= nil then
+        path[#path + 1] = "|"
+        for _, n in ipairs(QD.COX.scout_path(f2)) do path[#path + 1] = n end
+    end
+    -- (the completable-raid rule replaces the light scout: the owner,
+    -- "Scout for a completable raid and call that good")
+    local f1, f2 = {}, {}
+    local into = f1
+    for _, n in ipairs(path) do
+        if n == "|" then into = f2 else into[#into + 1] = n end
+    end
+    local verdict, why = QD.COX.completable(f1, f2)
+    return verdict, table.concat(path, ",") .. " -- " .. why
+end
+
+-- ------------------------------------------------ back to farm, and on again
+--
+-- The owner (2026-10-19): "Cox you can farm and grow and make potions. Do that
+-- when possible." A floor's resource room is usually passed before its seeds
+-- come (the demi-bosses' drops, the floor end's weeds), so the prep there had
+-- nothing to plant. A raider walks back: every join between rooms works both
+-- ways -- a Passage teleports to whichever side I am not on (cox.rs2
+-- [oploc1,raids_doorway]), a tendril wall hops either way (15% hp back), an
+-- open edge is walked. `path` is the floor's rooms in the order walked.
+QD.COX.TENDRIL_LOC = { shamans = "raids_shaman_tendrils_entrance", muttadiles = "raids_dogodile_tendrils_entrance",
+                       vespula = "raids_vespula_tendrils_entrance" }
+
+function QD.COX.same(a, b)
+    return a ~= nil and b ~= nil and a.ox == b.ox and a.oz == b.oz and a.level == b.level
+end
+
+-- Hop a tendril wall of `room` until I stand in `want` (the room on the far
+-- side; nil: any other cell). -> true when there
+function QD.COX.hop_tendrils(room, want)
+    local name = QD.COX.TENDRIL_LOC[room.name]
+    if name == nil then return false end
+    for _ = 1, 3 do
+        local here = QD.COX.here()
+        if want ~= nil and QD.COX.same(here, want) then return true end
+        if want == nil and not QD.COX.same(here, room) then return true end
+        local _, me = api_drive.player_tile()
+        local r = QD.raid.tob_loc_op(name, 1, nil, 40)
+        QD.COX.trace("hop %s: %s", name, tostring(r))
+        if r ~= "ok" then return false end
+        for _ = 1, 20 do
+            QD.ticks(1)
+            local _, now = api_drive.player_tile()
+            if now and me and math.max(math.abs(now.x - me.x), math.abs(now.z - me.z)) >= 2 then break end
+        end
+        QD.ticks(1)
+    end
+    local here = QD.COX.here()
+    return (want ~= nil and QD.COX.same(here, want)) or (want == nil and not QD.COX.same(here, room))
+end
+
+-- Through `room`'s Passage: the op, then the server's walk to it and the
+-- teleport (a jump of more than 2 tiles), up to `ticks`. -> "ok" | why
+function QD.COX.through_passage(room, ticks)
+    local r = QD.COX.enter_passage(room)
+    if r ~= "ok" then return "passage " .. tostring(r) end
+    local _, last = api_drive.player_tile()
+    for _ = 1, ticks or 40 do
+        QD.ticks(1)
+        local _, now = api_drive.player_tile()
+        if now and last and (math.abs(now.x - last.x) > 2 or math.abs(now.z - last.z) > 2) then
+            QD.ticks(1)
+            return "ok"
+        end
+        last = now
+    end
+    return "passage: no teleport"
+end
+
+-- From `cur` into `prev`, the room before it on the floor. -> "ok" | why
+function QD.COX.step_back(cur, prev)
+    if QD.COX.TENDRIL_LOC[cur.name] then
+        if QD.COX.hop_tendrils(cur, nil) then
+            QD.raid.cox_walk_toward(prev.ox + 16, prev.oz + 16, 40)
+            if QD.COX.same(QD.COX.here(), prev) then return "ok" end
+        end
+        -- (no tendril to hop: a done room's entrance can stand open -- r21
+        -- raid14's Muttadiles listed none -- so the edge is walked below)
+        QD.COX.trace("back through %s: no hop, walking", cur.name)
+    end
+    if cur.name == "floor_end" and QD.COX.exit_passage(cur) ~= nil then
+        local r = QD.COX.through_passage(cur, 40)
+        if r ~= "ok" then return "floor end " .. r end
+    end
+    -- (a Passage can already have put me there -- r12: the floor end's own
+    -- one lands in the room before, and its exit Passage then took me out)
+    if QD.COX.same(QD.COX.here(), prev) then return "ok" end
+    if QD.COX.exit_passage(prev) ~= nil then
+        local r = QD.COX.through_passage(prev, 40)
+        if r ~= "ok" then return r end
+        return QD.COX.same(QD.COX.here(), prev) and "ok" or "passage: not in the room before"
+    end
+    QD.raid.cox_walk_toward(prev.ox + 16, prev.oz + 16, 60, 6)
+    return QD.COX.same(QD.COX.here(), prev) and "ok" or "edge: not in the room before"
+end
+
+-- From `cur` on into `nxt`, the room after it (done already). -> "ok" | why
+function QD.COX.step_on(cur, nxt)
+    local lr = QD.raid.cox_leave_room(60)
+    if QD.COX.TENDRIL_LOC[nxt.name] then
+        QD.COX.enter_ahead(cur, 60)
+        if QD.COX.hop_tendrils(nxt, nxt) then return "ok" end
+        QD.raid.cox_walk_toward(nxt.ox + 16, nxt.oz + 16, 60, 6)
+        return QD.COX.same(QD.COX.here(), nxt) and "ok" or "tendril hop in failed"
+    end
+    if not QD.COX.same(QD.COX.here(), nxt) then QD.COX.enter_ahead(cur, 60) end
+    if not QD.COX.same(QD.COX.here(), nxt) then QD.raid.cox_walk_toward(nxt.ox + 16, nxt.oz + 16, 60, 6) end
+    return QD.COX.same(QD.COX.here(), nxt) and "ok" or ("on: not in " .. nxt.name .. " (" .. tostring(lr) .. ")")
+end
+
+-- Along `path` (rooms, first = where I am, last = where I go), back or on.
+-- -> "ok" | why, rooms crossed
+function QD.raid.cox_walk_path(path, back)
+    for i = 1, #path - 1 do
+        local r = back and QD.COX.step_back(path[i], path[i + 1]) or QD.COX.step_on(path[i], path[i + 1])
+        QD.COX.trace("%s %s -> %s: %s", back and "back" or "on", path[i].name, path[i + 1].name, tostring(r))
+        if r ~= "ok" then return r, i - 1 end
+    end
+    return "ok", #path - 1
+end
+
+-- Is a trip back to `room` (a resource room) worth it: something it can grow
+-- and brew, from what is carried or stored, for `make` (the plan)?
+function QD.raid.cox_farm_due(make, room)
+    if QD.SUP == nil or room == nil then return false end
+    QD.SUP._growing = {}
+    local todo = QD.SUP.todo(QD.SUP.todo_all(make))
+    local can = QD.SUP.doable(todo, nil, true)
+    local n = 0
+    for _, v in pairs(can) do n = n + (v or 0) end
+    return n > 0, n
+end
+
+-- (a probe's look at any cell: the room the client's template grid names there)
+function QD.raid.cox_room_at_probe(x, z, level)
+    local r = QD.COX.room_at(x, z, level)
+    return r and "ok" or "none", r
+end
 
 -- Debug: the loc rows within `radius` of me on my level, "name@x,z" each,
 -- for the probes that look at a room's joins.

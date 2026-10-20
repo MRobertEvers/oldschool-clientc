@@ -8,15 +8,19 @@
 --       --name cr0 --ticks 3000 --session /tmp/cr --fixture test/raids/fixtures/fresh_lumbridge.ini
 --
 -- The run name's number picks the layout (::coxtest 5 <n>): cr0..cr47 see the
--- room in every variant and turn.
+-- room in every variant and turn; cr100+n is layout n entered after 300 idle
+-- ticks (the crabs wandered off their spawns, as the relay meets them).
 
--- The whole raid's kit (test/raids/cox_raid_solo.lua: the Olm kit, We Do
--- Raids' minimum, the raid's potions) and nothing else: the room solver uses
--- only what the raid gives (the crabs' hammer comes from the room's spawn).
+-- The relay's ARRIVAL kit (QD.COX.SOLO_KIT, cox2_raid.lua, spelled out): the
+-- wiki Minimum, worn and carried, WITHOUT the anglerfish -- the relay eats it
+-- to make its one free slot before the first room -- so 27 in the pack. No
+-- hammer: the dragon warhammer in the pack is the smash weapon (wielded for
+-- a smash, the tentacle back after); nothing brought in goes on the floor.
 local function kit()
     local lines = { "::clearinv" }
     for _, s in ipairs({ "attack", "strength", "defence", "hitpoints", "prayer", "magic", "ranged", "agility",
-                         "woodcutting", "firemaking", "mining", "thieving", "herblore", "farming", "fishing", "hunter" }) do
+                         "woodcutting", "firemaking", "mining", "thieving", "herblore", "farming", "fishing", "hunter",
+                         "construction", "cooking" }) do
         lines[#lines + 1] = "::setlevel " .. s .. " 99"
     end
     for _, line in ipairs({
@@ -26,7 +30,7 @@ local function kit()
     }) do lines[#lines + 1] = line end
     for _, obj in ipairs({ "fris_kingly_helm", "barbassault_penance_fighter_torso", "black_dragonhide_chaps",
             "hundred_gauntlets_level_10", "abyssal_tentacle", "dragon_parryingdagger", "enchanted_onyx_amulet",
-            "tzhaar_cape_fire", "dragon_boots", "nzone_berzerker_ring" }) do
+            "tzhaar_cape_fire", "dragon_boots", "lightbearer" }) do
         lines[#lines + 1] = "::give " .. obj .. " 1"
         lines[#lines + 1] = "::wield " .. obj
     end
@@ -35,18 +39,16 @@ local function kit()
         "::give dragon_bolts_enchanted_ruby 300", "::wield dragon_bolts_enchanted_ruby",
         "::clearinv",
         "::blowpipe dragon_dart 2000 2000",
-        "::give avas_assembler 1", "::give toxic_tots_charged 1", "::~charge toxic_tots_charged 2500",
-        "::give occult_necklace 1", "::give ma2_saradomin_cape 1",
-        "::give xbows_crossbow_dragon 1", "::give black_dragonhide_body 1",
-        "::give mystic_robe_top 1", "::give mystic_robe_bottom 1",
-        -- (the raid's kit, cox_raid_solo: 27 in the pack, and its one free
-        -- slot the scavengers' juice by the time a puzzle room comes)
-        "::give dragon_shortsword 1", "::give dragon_pickaxe 1",
-        "::give raids_vial_overload_strong_4 2", "::give raids_vial_xericaid_strong_4 5",
-        "::give raids_vial_revitalisation_strong_4 3", "::give raids_vial_prayer_strong_4 3",
-        "::give antidote++4 1", "::give nzone_salve_amulet_e 1",
-        "::give bh_rune_pouch 1",
-        "::give raids_endarkened_juice 14",
+        -- (SOLO_KIT.carry, less the anglerfish)
+        "::give xbows_crossbow_dragon 1", "::give anma_50_reward 1", "::give toxic_tots_charged 1",
+        "::give occult_necklace 1", "::give black_dragonhide_body 1", "::give mystic_robe_top 1",
+        "::give mystic_robe_bottom 1", "::give bgs 1", "::give bh_rune_pouch 1", "::give ma2_saradomin_cape 1",
+        "::give rune_pickaxe 1", "::give nzone_salve_amulet_e 1", "::give dragon_shortsword 1",
+        "::give dragon_warhammer 1", "::give sanfew_salve_4_dose 1",
+        "::~charge toxic_tots_charged 2500",
+        -- (SOLO_KIT.supplies)
+        "::give 4dosepotionofsaradomin 7", "::give 4dose2restore 2", "::give 4dose2combat 1",
+        "::give 4doserangerspotion 1",
         "::setvar varb29_rune_pouch_type_1 1", "::setvar varb1624_rune_pouch_quantity_1 500",
         "::setvar varb1622_rune_pouch_type_2 2", "::setvar varb1625_rune_pouch_quantity_2 500",
         "::setvar varb1623_rune_pouch_type_3 5", "::setvar varb1626_rune_pouch_quantity_3 500",
@@ -57,10 +59,14 @@ end
 local function run(t)
     t.check("cr.ticklog", t.ticklog.start() == "ok", "")
     local n = t.raid.cox_run_n()
+    -- (cr100+n: layout n, the crabs left to wander 300 ticks first -- the
+    -- relay arrives after the rooms before, crabs off their spawns, r15)
+    local wander = 0
+    if n >= 100 then n, wander = n - 100, 300 end
     local er, ed = t.raid.cox_test_enter_long("crabs", n, 80)
     t.check("cr.enter", er == "ok", tostring(er) .. " " .. tostring(ed and ed.seed))
     if er ~= "ok" then t.finish(1) return end
-    t.ticks(2)
+    t.ticks(2 + wander)
     -- (the solver finds its room and walks in itself: the whole raid's contract)
     local result, detail, S = t.raid.cox_crabs_solve({ max_ticks = 1500 })
     local _, room0 = t.raid.cox_here()
@@ -70,6 +76,11 @@ local function run(t)
     local xr, xd = t.raid.cox_take_exit(room0, 40)
     t.check("cr.exit_open", xr == "ok", tostring(xr) .. " " .. tostring(xd))
     t.check("cr.no_orb_hit", S.cr.orb_hits == 0, tostring(S.cr.orb_hits))
+    -- (reported, not judged: the prayer points the room cost, the ticks a
+    -- prayer was lit, the ticks in the room and the path the solver took)
+    t.check("cr.report", true, string.format("CRABS_REPORT variant %s turn %s ticks %d prayer_spent %d prayer_lit %d path %s",
+        tostring(S.cr.room and S.cr.room.variant), tostring(S.cr.room and S.cr.room.turn),
+        (S.cr.solved_at or 0) - (S.cr.t0 or 0), S.cr.pray_spent or -1, S.cr.pray_lit or -1, tostring(S.cr.path)))
     t.finish(0)
 end
 

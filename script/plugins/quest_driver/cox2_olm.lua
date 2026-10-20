@@ -167,7 +167,7 @@ function CO.ids(opts)
         { "siphon_spit", "spotanim", "olm_healme_spit" },
         { "shadow", "spotanim", "gargboss_debris_shadow_120" },
         -- the kit: We Do Raids' minimum (test/raids/cox_olm_solo.lua)
-        { "pipe", "obj", "toxic_blowpipe_loaded" }, { "assembler", "obj", "avas_assembler" },
+        { "pipe", "obj", "toxic_blowpipe_loaded" }, { "assembler", "obj", QD.COX.ava_name() },
         { "trident", "obj", "toxic_tots_charged" },
         { "occult", "obj", "occult_necklace" }, { "imbued_cape", "obj", "ma2_saradomin_cape" },
         { "defender", "obj", "dragon_parryingdagger" }, { "tentacle", "obj", "abyssal_tentacle" },

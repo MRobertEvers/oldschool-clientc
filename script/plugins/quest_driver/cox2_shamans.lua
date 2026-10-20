@@ -78,7 +78,7 @@ function CS.ids(opts)
         { "seq_warn", "seq", "shayzien_lizard_boss_hands_to_head" },
         { "seq_death", "seq", "shay_lizard_warrior_death" },
         { "xbow", "obj", "xbows_crossbow_dragon" }, { "fury", "obj", "enchanted_onyx_amulet" },
-        { "assembler", "obj", "avas_assembler" }, { "dhide_body", "obj", "black_dragonhide_body" },
+        { "assembler", "obj", QD.COX.ava_name() }, { "dhide_body", "obj", "black_dragonhide_body" },
         { "chaps", "obj", "black_dragonhide_chaps" }, { "defender", "obj", "dragon_parryingdagger" },
         { "poison", "varp", "varp102_poison" },
         { "style_slot_1", "component", "combat_interface:style_slot_1" },

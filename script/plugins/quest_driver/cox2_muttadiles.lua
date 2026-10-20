@@ -51,6 +51,13 @@ MU.V = {
     TENDRIL = { [0] = { 15, 2 }, [1] = { 15, 1 }, [2] = { 15, 1 } },
     CRYSTAL = { [0] = { 6, 16 }, [1] = { 12, 23 }, [2] = { 24, 15 } },
     PRAY_HOLD = 2,
+    -- THE SMALL ONE'S SPIT (round 5, cox_mutta_small_attack): every 4 ticks;
+    -- from an edge-adjacent tile it bites 9 in 10 (Protect from Melee: 0),
+    -- anywhere else in range it spits (max 30, 33% through Missiles). The
+    -- field puts the spit off its edge so the plan stands me on it.
+    SMALL_SPEED = 4, SPIT_EXP = 8, SPIT_LEAK = 0.33, SPIT_IN_REACH = 0.1, SPIT_BOX = 8,
+    -- an overload's five 10s (cox_overload_first_hit) need this much hp
+    OVL_HP = 75,
 }
 
 -- ======================================================================== IDS
@@ -66,7 +73,7 @@ function MU.ids(opts)
         { "lazor", "seq", "dohgadyle_lazor" }, { "slam", "seq", "dohgadyle_slam" },
         { "emerge", "seq", "dohgadyle_emerge" }, { "death", "seq", "dohgadyle_death" },
         { "pipe", "obj", "toxic_blowpipe_loaded" }, { "xbow", "obj", "xbows_crossbow_dragon" },
-        { "assembler", "obj", "avas_assembler" }, { "fury", "obj", "enchanted_onyx_amulet" },
+        { "assembler", "obj", QD.COX.ava_name() }, { "fury", "obj", "enchanted_onyx_amulet" },
         { "dhide_body", "obj", "black_dragonhide_body" }, { "chaps", "obj", "black_dragonhide_chaps" },
         { "defender", "obj", "dragon_parryingdagger" }, { "vial_empty", "obj", "raids_vial_empty" },
         { "bronze_axe", "obj", "bronze_axe" },
@@ -225,7 +232,10 @@ function MU.observe(S, F)
     end
     -- seen once, gone later: dead (the death seq is the tell; absence is
     -- the fallback when the death tick fell between two reads)
-    if m.small_row then m.small_seen = true end
+    if m.small_row then
+        m.small_seen = true
+        m.small_last = { x = m.small_row.x, z = m.small_row.z }
+    end
     if m.large_row then m.large_seen = true end
     if m.small_seen and m.small_row == nil and m.small_dead == nil then m.small_dead = F.tick end
     if m.large_seen and m.large_row == nil and m.large_dead == nil then m.large_dead = F.tick end
@@ -250,6 +260,21 @@ function MU.observe(S, F)
                 if o.obj_id == ids.bronze_axe and (m.floor_axe == nil
                     or MU.gap(F.me.x, F.me.z, o.x, o.z, 1) < MU.gap(F.me.x, F.me.z, m.floor_axe.x, m.floor_axe.z, 1)) then
                     m.floor_axe = { x = o.x, z = o.z }
+                end
+            end
+        end
+    end
+    -- the small one's overload (+) on the floor where it died (its drop:
+    -- overload, prayer enhance, big bones), once it is dead
+    m.loot = nil
+    if m.small_dead and not m.large_dead and m.small_last and not m.loot_done then
+        local orr, objs = api_drive.objs(32)
+        if orr == "ok" then
+            for _, o in ipairs(objs) do
+                for _, id in ipairs(ids.overloads) do
+                    if o.obj_id == id and MU.gap(o.x, o.z, m.small_last.x, m.small_last.z, MU.V.SMALL) <= 1 then
+                        m.loot = { x = o.x, z = o.z, id = id }
+                    end
                 end
             end
         end
@@ -330,11 +355,52 @@ end
 function MU.predict(S, F, B)
     MU.observe(S, F)
     local m, V = S.m, MU.V
+    if m.small_row and m.tree_down and not m.small_dead then MU.predict_spit(S, F, B, m.small_row) end
     local row = m.large_row or ((m.small_dead and m.sub_row) or nil)
     if row == nil or m.large_dead then return end
     local g = V.LARGE_GAP
     B.hit({ name = "large_reach", x0 = row.x - g, z0 = row.z - g, x1 = row.x + V.LARGE - 1 + g,
             z1 = row.z + V.LARGE - 1 + g, t0 = F.tick + 1, t1 = F.tick + B.h, forbid = true })
+end
+
+-- THE SMALL ONE'S SPIT (round 5): a hit a swing over the horizon (its last
+-- swing first seen + 4k, my tile read at T-1, the prayer at T, landing T+2),
+-- the whole spit everywhere round it but its 12 edge tiles, a tenth of it on
+-- those (1 spit in 10 from melee reach). The bite is not priced: Protect from
+-- Melee is pressed on the edge (MU.prayer), and the field without it is
+-- what moves me there (r27: 0 bites in 18 rooms fought from range).
+-- dmg_max is the EXPECTED spit, not its 30: a field of 30s summed over the
+-- horizon read as a death, and the rescue sipped at 90+ hp (probe 1: 32
+-- rescues, each a Ranged drain).
+function MU.predict_spit(S, F, B, r)
+    local V = MU.V
+    local n, R = V.SMALL, V.SPIT_BOX
+    local nx, nz = r.x, r.z
+    local ex, ez = nx + n - 1, nz + n - 1
+    local X0, Z0, X1, Z1 = nx - R, nz - R, ex + R, ez + R
+    local full = {
+        { X0, Z0, X1, nz - 2 }, { X0, ez + 2, X1, Z1 },
+        { X0, nz - 1, nx - 2, ez + 1 }, { ex + 2, nz - 1, X1, ez + 1 },
+        { nx - 1, nz - 1, nx - 1, nz - 1 }, { ex + 1, nz - 1, ex + 1, nz - 1 },
+        { nx - 1, ez + 1, nx - 1, ez + 1 }, { ex + 1, ez + 1, ex + 1, ez + 1 },
+        { nx, nz, ex, ez },
+    }
+    local edge = { { nx, nz - 1, ex, nz - 1 }, { nx, ez + 1, ex, ez + 1 }, { nx - 1, nz, nx - 1, ez }, { ex + 1, nz, ex + 1, ez } }
+    local T = (S.m.small_swing or F.tick) + V.SMALL_SPEED
+    while T - 1 < F.tick + 1 do T = T + V.SMALL_SPEED end
+    while T - 1 <= F.tick + B.h do
+        local w = T - 1
+        for _, q in ipairs(full) do
+            B.hit({ name = "spit", x0 = q[1], z0 = q[2], x1 = q[3], z1 = q[4], t0 = w, t1 = w, dmg_exp = V.SPIT_EXP,
+                    dmg_max = V.SPIT_EXP, style = "ranged", factor = V.SPIT_LEAK, land = 3, read = 1 })
+        end
+        for _, q in ipairs(edge) do
+            B.hit({ name = "spit_reach", x0 = q[1], z0 = q[2], x1 = q[3], z1 = q[4], t0 = w, t1 = w,
+                    dmg_exp = V.SPIT_EXP * V.SPIT_IN_REACH, dmg_max = V.SPIT_EXP * V.SPIT_IN_REACH, style = "ranged",
+                    factor = V.SPIT_LEAK, land = 3, read = 1 })
+        end
+        T = T + V.SMALL_SPEED
+    end
 end
 
 -- =============================================================== STRATEGY
@@ -368,8 +434,26 @@ function MU.mode(S, F)
         if not m.tree_down and m.floor_axe then return "axe" end
         return "small"
     end
+    if MU.loot_ok(S, F) then return "loot" end
     if m.large_row then return "large" end
     return "surface"
+end
+
+-- THE SMALL ONE'S OVERLOAD off the floor (round 5): a slot free, inside the
+-- first 30 ticks after its death, its tile outside the surfacing one's 5x5 +
+-- LARGE_GAP + 1, at most 10 ticks of trying. The relay's supplies would take
+-- it after the room anyway; in the room it is the cure for a Ranged the
+-- heals drained with no restore left (MU.ovl_needed).
+function MU.loot_ok(S, F)
+    local m, V = S.m, MU.V
+    local l = m.loot
+    if l == nil or m.loot_done then return false end
+    if F.tick - (m.small_dead or F.tick) > 30 then return false end
+    if m.loot_t0 and F.tick - m.loot_t0 > 10 then return false end
+    if QD.T2.exec.free_slots(S) == 0 then return false end
+    local big = m.large_row or m.sub_row
+    if big and MU.gap(l.x, l.z, big.x, big.z, V.LARGE) <= V.LARGE_GAP + 1 then return false end
+    return true
 end
 
 -- The overhead (R5: a press now is in force from now+1; the content reads it
@@ -377,15 +461,24 @@ end
 function MU.prayer(S, F, mode)
     local m = S.m
     local want = nil
-    if mode == "large" or mode == "surface" then
+    if mode == "large" or mode == "surface" or mode == "loot" then
         want = "ranged"
         -- the second and third of a magic run (Synq 0:48:38); after three a
-        -- coin: back to Missiles, the heavier style
-        if m.run_style == "magic" and m.run_n < MU.V.RUN then want = "magic" end
+        -- coin (cox_mutta_style_tick: the attack that empties the lock
+        -- rerolls and starts a new run of three): Missiles, the heavier
+        -- style. A coin that comes up magic again is a new run, so the
+        -- count is taken mod 3 -- it was `run_n < 3`, and round 5 s1 raid3 sat
+        -- on Missiles through 60 ticks of magic runs (10-18 a cast).
+        if m.run_style == "magic" and m.run_n % MU.V.RUN ~= 0 then want = "magic" end
     elseif m.small_row then
+        -- Melee only on its edge (a diagonal is spat at: cox_mutta_in_melee);
+        -- no hold: the press decided now is in force for the swing that
+        -- reads this tile, and a bite is 28
         local r = m.small_row
         want = "ranged"
-        if MU.gap(F.me.x, F.me.z, r.x, r.z, MU.V.SMALL) <= 1 then want = "melee" end
+        if MU.in_melee(F.me.x, F.me.z, r.x, r.z, MU.V.SMALL) then want = "melee" end
+        m.pray_since, m.pray_want = F.tick, want
+        return QD.T2.PROTECT[want]
     end
     -- (hold a choice two ticks: a press a tick flips nothing in time)
     if want and want ~= m.pray_want then
@@ -399,18 +492,40 @@ function MU.prayer(S, F, mode)
     return want and QD.T2.PROTECT[want] or nil
 end
 
--- The room's own drinks: an overload whenever none runs (at 85+ hp, its five
--- 10s still to come), a revitalisation for a drained Ranged, a prayer enhance
--- under 60 prayer, a stamina under 30% run.
+-- An overload only when the room truly needs it (owner, 2026-10-19: the
+-- overload is Olm's): Ranged RESTORE_GAP under its base with no stat restore
+-- left, so every heal sip from here on drains it for good (Xeric's aid (+):
+-- 4 + 10%) -- the overload's 25-tick re-boost is then the only restore
+-- (r27 raid8/28/42: 0-2 restore doses in, Ranged to nothing, 300-600 ticks).
+function MU.ovl_needed(S, F)
+    local m, ids = S.m, S.ids
+    if (m.ovl_until or -1) > F.tick then return false end
+    if QD.raid._tob_first(S, ids.stat_restores) ~= nil then return false end
+    return QD.COX.restore_due(F, { "ranged" }, MU.V.RESTORE_GAP)
+end
+
+-- Rigour wanted but the raid's prayer-pool gate (QD.T2.boost_gate) shut:
+-- the gate counts the enhance doses carried, not one running, so with an
+-- enhance running the room presses Rigour itself (MU.boost_ok's own rule).
+function MU.gate_shut(S, F)
+    return QD.T2.boost_gate ~= nil and not QD.T2.boost_gate(S, F)
+end
+
+-- The room's own drinks: an overload when MU.ovl_needed, a revitalisation
+-- for a drained Ranged, a prayer enhance under 60 prayer -- or in the fight
+-- when the pool gate keeps Rigour off (the enhance opens it, MU.strategy).
+-- (No stamina: the kit's is Olm's, owner 2026-10-19.)
 function MU.drinks(S, F, intents)
     local m, ids = S.m, S.ids
     if intents.drink or intents.eat or F.tick - (S.last_drink or -10) < 3 then return end
     local pick = nil
-    if (m.ovl_until or -1) <= F.tick and F.hp >= 85 then pick = QD.raid._tob_first(S, ids.overloads) end
+    if MU.ovl_needed(S, F) and F.hp >= MU.V.OVL_HP then pick = QD.raid._tob_first(S, ids.overloads) end
     if pick == nil and QD.COX.restore_due(F, { "ranged" }, MU.V.RESTORE_GAP) then pick = QD.raid._tob_first(S, ids.stat_restores) end
-    if pick == nil and (m.penh_until or -1) < F.tick and F.prayer < 60 then pick = QD.raid._tob_first(S, ids.enhances) end
-    if pick == nil and (m.stam_until or -1) < F.tick and (F.run_energy or 0) < 3000 then
-        pick = QD.raid._tob_first(S, ids.staminas)
+    if pick == nil and (m.penh_until or -1) < F.tick then
+        local fight = m.mode == "small" or m.mode == "large"
+        if F.prayer < 60 or (fight and F.prayer >= 30 and MU.gate_shut(S, F)) then
+            pick = QD.raid._tob_first(S, ids.enhances)
+        end
     end
     if pick then
         intents.drink = pick
@@ -433,7 +548,15 @@ function MU.strategy(S, F, B)
     local floor = V.BREW_BELOW
     if QD.raid._tob_first(S, ids.stat_restores) == nil then floor = V.BREW_BELOW_DRY end
     -- (the shared rule: QD.COX.restore_due / QD.COX.brew_floor, cox2_raid.lua)
+    -- an overload needed and held but hp short of its five 10s: heal up to it
+    if MU.ovl_needed(S, F) and QD.raid._tob_first(S, ids.overloads) ~= nil then floor = math.max(floor, V.OVL_HP + 5) end
     local intents = { mode = mode, eat_below = floor, brew_below = floor }
+    if mode ~= m.mode and (mode == "loot" or m.mode == "loot") then
+        QD.raid._tob_trace(S, F.tick, string.format("mutta loot %s: overload doses %d, ranged %s, free %d",
+            mode == "loot" and "start" or "end", MU.doses(S, ids.overloads),
+            F.levels and F.levels.ranged and (F.levels.ranged.level .. "/" .. F.levels.ranged.base) or "?",
+            QD.T2.exec.free_slots(S)))
+    end
     m.mode = mode
     -- the dose put down for the axe, back off the floor once she is dead (the
     -- crossbow swap leaves a slot: the blowpipe and defender trade places)
@@ -473,6 +596,16 @@ function MU.strategy(S, F, B)
         -- the room's bronze axe: Take (a ground item's op 3)
         intents.world_op = { kind = "obj", id = ids.bronze_axe, op = 3, x = m.floor_axe.x, z = m.floor_axe.z }
         m.took_axe = true
+    elseif mode == "loot" then
+        -- the small one's overload: Take (a ground item's op 3); done when
+        -- the dose count rises
+        m.loot_t0 = m.loot_t0 or F.tick
+        m.loot_n0 = m.loot_n0 or MU.doses(S, ids.overloads)
+        if MU.doses(S, ids.overloads) > m.loot_n0 then
+            m.loot_done = true
+        else
+            intents.world_op = { kind = "obj", id = m.loot.id, op = 3, x = m.loot.x, z = m.loot.z }
+        end
     elseif mode == "chop" then
         -- chopped in the kit worn (the raid's pack is full once the room's
         -- axe is in it, and the two-handed blowpipe needs the defender's slot)
@@ -524,13 +657,27 @@ function MU.strategy(S, F, B)
     if intents.gear and #intents.gear == 0 then intents.gear = nil end
     local prot = MU.prayer(S, F, mode)
     if prot and not F.lit[prot] then intents.pray = prot end
+    -- Rigour with the pool gate shut but an enhance running (MU.gate_shut):
+    -- pressed here, and kept from the shared channel (whose gate would click
+    -- it off)
+    if intents.pray_boost == "rigour" and MU.gate_shut(S, F) then
+        intents.pray_boost = nil
+        if (m.penh_until or -1) > F.tick then
+            intents.self_boost = "rigour"
+            if not F.lit.rigour and intents.pray == nil and F.tick - (m.rigour_pressed or -10) > 6 then
+                intents.pray = "rigour"
+                m.rigour_pressed = F.tick
+            end
+        end
+    end
     -- A BOOST NOT WANTED GOES OFF: an earlier room's (Piety, Augury) or
     -- Rigour once its gate shuts (MU.boost_ok). The prep relay's raid2 came
     -- in on 28 prayer with a boost lit and drained dry by the large one.
     local off = {}
     for _, name in ipairs({ "piety", "rigour", "augury" }) do
-        if F.lit[name] and intents.pray_boost ~= name then off[#off + 1] = name end
+        if F.lit[name] and intents.pray_boost ~= name and intents.self_boost ~= name then off[#off + 1] = name end
     end
+    intents.self_boost = nil
     if #off > 0 then intents.pray_off = off end
     MU.drinks(S, F, intents)
     -- an empty vial goes only when the backpack is full

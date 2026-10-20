@@ -495,6 +495,8 @@ function QD.T2.exec.emit(S, F, result, intents)
                 held_sent = held_sent or { kind = "wield", heal = 0, w0 = X.swing_next, w = X.swing_next }
             end
             if intents.drop then
+                -- (a raid's own rule on what may go down: CoX, cox2_raid.lua)
+                if QD.T2.drop_guard then QD.T2.drop_guard(intents.drop) end
                 x2_send(S, F, "held", "drop " .. intents.drop, QD.raid._tob_held(S, intents.drop, QD.TOBS.OP_DROP))
                 held_sent = held_sent or { kind = "drop", heal = 0, w0 = X.swing_next, w = X.swing_next }
             end

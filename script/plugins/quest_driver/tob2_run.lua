@@ -56,6 +56,16 @@ function QD.T2.merge(S, intents, res)
     if intents.eat == nil then intents.eat = res.eat end
     if intents.drink == nil then intents.drink = res.drink end
     if intents.pray == nil then intents.pray = res.pray end
+    -- (a raid's boost gate turning a lit boost off: tob.lua _tob_supplies --
+    -- never a prayer the room itself presses this tick)
+    for _, name in ipairs(res.pray_off or {}) do
+        if name ~= intents.pray then
+            intents.pray_off = intents.pray_off or {}
+            local listed = false
+            for _, n in ipairs(intents.pray_off) do if n == name then listed = true end end
+            if not listed then intents.pray_off[#intents.pray_off + 1] = name end
+        end
+    end
     -- the room's floors, for the next tick's resource decision
     if intents.eat_below then S.t2.want.eat_below = intents.eat_below end
     if intents.brew_below then S.t2.want.brew_below = intents.brew_below end

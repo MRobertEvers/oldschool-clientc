@@ -83,11 +83,11 @@ function CT.ids(opts)
         local r, id = api_drive.symbol("obj", name)
         if r == "ok" then ids.home_set[#ids.home_set + 1] = id end
     end
-    -- the keystone needs a slot: what this room never uses goes on the floor
-    -- before the first crossing and comes back after the Dispel
+    -- the keystone needs a slot: a RAID item goes on the floor before the
+    -- first crossing and comes back after the Dispel -- never gear or a
+    -- potion brought in (owner, 2026-10-19; QD.COX.raid_spare_names)
     ids.droppable = {}
-    for _, name in ipairs({ "xbows_crossbow_dragon", "bh_rune_pouch", "bgs", "dragon_shortsword",
-                            "avas_assembler", "black_dragonhide_body" }) do
+    for _, name in ipairs(QD.COX.raid_spare_names()) do
         local r, id = api_drive.symbol("obj", name)
         if r == "ok" then ids.droppable[#ids.droppable + 1] = id end
     end

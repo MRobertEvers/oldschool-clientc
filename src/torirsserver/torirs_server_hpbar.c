@@ -300,6 +300,14 @@ ToriRSServer_HpBarTick(
                    npc->headbar_reserve;
         if( want_max < 1 )
             want_max = 1;
+        /* `headbar_inverted`: the HUD counts what has been taken, as the
+         * overhead bar does (RSProx 14: varbit 6099 10, 18, 27 ... 140). */
+        if( npc->def && npc->def->headbar_inverted )
+        {
+            want_hp = want_max - want_hp;
+            if( want_hp < 0 )
+                want_hp = 0;
+        }
         player->hpbar_linger = TORIRSSERVER_HPBAR_LINGER_TICKS;
         player->hpbar_last_type = want_type;
         player->hpbar_last_hp = want_hp;

@@ -27,7 +27,10 @@ QD.COXVG.V = {
     SIZE = 3,
     -- my weapon per vanguard style (the triangle, spec header)
     WEAK = { melee = "magic", ranged = "melee", magic = "ranged" },
-    RANGE = { melee = 1, magic = 7, ranged = 5 },
+    -- (the trident within 4: its splat lands ceil(end / 30) ticks on, end
+    -- 56 + 10 a tile -- 2 or 3 ticks within 4, seen before the next cast;
+    -- 4 beyond, unseen when the next is committed: r3 delay fit, 197 casts)
+    RANGE = { melee = 1, magic = 4, ranged = 5 },
     SPEED = { melee = 4, magic = 4, ranged = 2 },
     SWING_VALUE = 2.5,
     EAT_BELOW = 55, BREW_BELOW = 60,
@@ -39,6 +42,24 @@ QD.COXVG.V = {
     HOLES = { [0] = { { 20, 16 }, { 12, 21 }, { 11, 11 } }, [1] = { { 20, 17 }, { 13, 21 }, { 12, 12 } },
               [2] = { { 19, 12 }, { 13, 19 }, { 9, 12 } } },
     WAKE = 6,
+    -- THE GAP BUDGET (round 4, plan step 1): a swing is safe while, with every
+    -- pending swing of mine and this one at their max, most - least of the
+    -- living stays <= GAP - 1 - GAP_MARGIN (venom ticks, the splat's 1-tick
+    -- lag). LAND: ticks from my swing to its splat by my style (trident 1 +
+    -- distance/3, blowpipe 1-2, tentacle the same tick).
+    GAP_MARGIN = 8,
+    -- natural regeneration: every living vanguard under base +1 every 100
+    -- ticks, all three on the same tick (r3 vanguards5: the ticklog's
+    -- npc_heal 1 at t182, 282, ... on each; uncounted, the counts ran 9-12
+    -- low by t1300 and a kill at "63" was a kill at 73 -- the reset)
+    REGEN = 100,
+    -- the vanguards' volleys (spec C1): 1331 the magic orb, 1332-1334 the rocks
+    VOLLEY = { [1331] = "magic", [1332] = "ranged", [1333] = "ranged", [1334] = "ranged" },
+    LAND = { magic = 4, ranged = 3, melee = 1 },
+    -- my strength / ranged-strength bonuses in the kit's sets (tentacle +
+    -- fury, fire cape, torso, defender, barrows gloves, boots, helm; blowpipe
+    -- + dragon darts)
+    MELEE_STR = 127, RANGED_STR = 55,
 }
 
 -- The tile to wake them from (template): within 6 of a hole's tile (spec V2),
@@ -78,7 +99,7 @@ function QD.COXVG.ids(opts)
         { "vg_melee", "npc", "raids_vanguard_melee" }, { "vg_ranged", "npc", "raids_vanguard_ranged" },
         { "vg_magic", "npc", "raids_vanguard_magic" },
         { "crystal", "loc", "raids_blockage_orange" },
-        { "pipe", "obj", "toxic_blowpipe_loaded" }, { "assembler", "obj", "avas_assembler" },
+        { "pipe", "obj", "toxic_blowpipe_loaded" }, { "assembler", "obj", QD.COX.ava_name() },
         { "trident", "obj", "toxic_tots_charged" },
         { "occult", "obj", "occult_necklace" }, { "imbued_cape", "obj", "ma2_saradomin_cape" },
         { "defender", "obj", "dragon_parryingdagger" }, { "tentacle", "obj", "abyssal_tentacle" },
@@ -201,9 +222,12 @@ function QD.COXVG.observe(S, F)
                 if counts[key] > (s.splats[key] or 0) then
                     s.splats[key] = counts[key]
                     s.splat_t[key] = F.tick
+                    s.last_splat_t = F.tick
                     if sp.type == V.HEAL_SPLAT then
                         if not s.reset_t or s.reset_t ~= F.tick then
                             v.resets = v.resets + 1
+                            v.log = v.log or {}
+                            v.log[#v.log + 1] = "t" .. F.tick .. " RESET " .. tostring(s.style)
                             QD.raid._tob_trace(S, F.tick, string.format("vanguards: RESET (heal splat %d on %s)",
                                 sp.damage, tostring(s.style)))
                         end
@@ -224,6 +248,16 @@ function QD.COXVG.observe(S, F)
             end
             -- the bar: health_ratio of health_scale; a count off by more
             -- than a notch is re-synced (and counted)
+            if (row.health_ratio or -1) >= 0 and (row.health_scale or 0) > 0 and row.health_active
+                and s.ratio and row.health_ratio > s.ratio and s.kind_prev == kind and s.reset_t ~= F.tick then
+                if v.regen_phase ~= F.tick % V.REGEN then
+                    v.regen_learnt = (v.regen_learnt or 0) + 1
+                    v.regen_phase = F.tick % V.REGEN
+                    if s.regen_t ~= F.tick and s.hp < V.BASE then s.hp, s.regen_t = s.hp + 1, F.tick end
+                end
+            end
+            if (row.health_ratio or -1) >= 0 and row.health_active then s.ratio = row.health_ratio end
+            s.kind_prev = kind
             if (row.health_ratio or -1) >= 0 and (row.health_scale or 0) > 0 and row.health_active then
                 local notch = V.BASE / row.health_scale
                 local lo = (row.health_ratio - 1) * notch
@@ -256,6 +290,18 @@ function QD.COXVG.observe(S, F)
                 s.from = nil
             elseif kind == "walking" then
                 s.from = s.from or { x = x, z = z }
+            end
+        end
+    end
+    v.seen_now = seen
+    -- REGENERATION (V.REGEN): on the phase learnt from a bar that rose with
+    -- no heal splat and no shell (else guessed from the first sight)
+    v.regen_phase = v.regen_phase or (F.tick % V.REGEN)
+    if F.tick % V.REGEN == v.regen_phase then
+        for k, s in pairs(v.vg) do
+            if seen[k] and s.kind ~= "dormant" and not s.dead and s.hp < V.BASE and s.regen_t ~= F.tick then
+                s.hp = s.hp + 1
+                s.regen_t = F.tick
             end
         end
     end
@@ -302,6 +348,30 @@ function QD.COXVG.observe(S, F)
         end
     end
     if v.crystal then v.crystal_seen = true end
+    -- THE VOLLEYS AT ME (round 4 step 2): the locked projectile of each
+    -- ranged / magic swing (target < 0: on a player -- solo, me), its
+    -- landing read off its flight on first sight (r1 vanguards15 t192: a
+    -- 171-cycle orb launched on 192 landed on 197 = 192 + 171 // 30). The
+    -- extras' tiles were decided at the swing (spec V6) and are not mine.
+    v.volleys = v.volleys or {}
+    v.flight = v.flight or {}
+    local pr, projs = api_drive.projectiles(0)
+    if pr == "ok" then
+        for _, p in ipairs(projs) do
+            local st = V.VOLLEY[p.spotanim_id]
+            if st and (p.target or 0) < 0 then
+                local key = tostring(p.element_id) .. ":" .. tostring(p.launched) .. ":" .. tostring(p.duration)
+                if v.volleys[key] == nil then
+                    local fl = math.max(1, (p.duration or 90) // 30)
+                    v.volleys[key] = { style = st, land = F.tick + fl }
+                    v.flight[st] = fl
+                end
+            end
+        end
+    end
+    for k, e in pairs(v.volleys) do
+        if e.land < F.tick then v.volleys[k] = nil end
+    end
 end
 
 -- My room: here, the room ahead, or a neighbouring cell -- whichever is
@@ -460,35 +530,123 @@ function QD.COXVG.gear(S, style)
     return out
 end
 
--- THE TARGET: the active (combat-form) vanguard with the most counted hp;
--- ties to the one already chosen, then the nearest.
-function QD.COXVG.pick(S, F)
-    local best, bd = nil, nil
-    for _, s in ipairs(QD.COXVG.living(S)) do
-        if s.kind ~= "walking" and s.style then
-            local d = math.max(math.abs(s.x + 1 - F.me.x), math.abs(s.z + 1 - F.me.z))
-            local better = best == nil or s.hp > best.hp
-                or (s.hp == best.hp and (s == S.v.target or (best ~= S.v.target and d < bd)))
-            if better then best, bd = s, d end
-        end
+-- My max hit with `style` (my style) on the live levels, the boost prayer
+-- assumed lit (the room lights it as it attacks), +1: an overestimate is a
+-- smaller budget, an underestimate a reset.
+function QD.COXVG.max_hit(S, F, style)
+    local V = QD.COXVG.V
+    local L = F.levels or {}
+    local function lv(k) return (L[k] and L[k].level) or 99 end
+    if style == "magic" then
+        -- trident of the swamp floor(magic / 3) - 2; occult +10%, imbued cape +2%
+        return math.floor(math.max(0, math.floor(lv("magic") / 3) - 2) * 1.12) + 1
+    elseif style == "ranged" then
+        local eff = math.floor(lv("ranged") * 1.23) + 8
+        return math.floor(0.5 + eff * (V.RANGED_STR + 64) / 640) + 1
     end
-    return best
+    local eff = math.floor(lv("strength") * 1.23) + 9
+    return math.floor(0.5 + eff * (V.MELEE_STR + 64) / 640) + 1
 end
 
--- Prayer: against whoever swung at me last (within 6 ticks); else against
--- the target's style.
-function QD.COXVG.prayer(S, F, target)
-    local pick, pt = nil, -1
-    for _, s in ipairs(QD.COXVG.living(S)) do
-        if s.style and s.swing_t and F.tick - s.swing_t <= 6 and s.engaged then
-            -- (melee in reach outranks: three hits of 18)
-            local near = math.max(math.abs(s.x + 1 - F.me.x), math.abs(s.z + 1 - F.me.z)) <= 2
-            local score = s.swing_t + ((s.style == "melee" and near) and 100 or 0)
-            if score > pt then pick, pt = s.style, score end
+-- My last swing, at `s`, whose splat I have not seen yet (the trident's
+-- can land 4 ticks on, on the tick its next cast goes: r2 vanguards23 t495
+-- -> t499, unseen at the t499 decision, the reset)
+function QD.COXVG.pending(S, F, s)
+    local X = S.x2 or {}
+    return X.swing_last ~= nil and s.row ~= nil and X.swing_last_npc == s.row.npc_id and s.style ~= nil
+        and F.tick - X.swing_last <= 5 and (s.last_splat_t or -1) <= X.swing_last
+end
+
+-- Is my next swing at `target` (with my `style`) safe from the reset (round
+-- 4 step 1)? The worst case: each vanguard with a swing of mine unseen takes
+-- its max, the target this swing's max on top (skip_own: not its own
+-- unseen one), the others nothing more. The gap after, max - min of the
+-- living (a kill counts as 0: V17), must stay <= GAP - 1 - GAP_MARGIN. (The
+-- no-damage end is the gap as it stands, not this swing's doing: hitting
+-- the highest is safe whatever the others' spread.)
+function QD.COXVG.safe(S, F, target, style, skip_own)
+    local CV = QD.COXVG
+    local V = CV.V
+    local hi_o, lo_o, tv = nil, nil, nil
+    for _, s in ipairs(CV.living(S)) do
+        local pend = CV.pending(S, F, s) and CV.max_hit(S, F, V.WEAK[s.style]) or 0
+        if s == target then
+            if skip_own then pend = 0 end
+            tv = math.max(0, s.hp - pend - CV.max_hit(S, F, style))
+        else
+            if hi_o == nil or s.hp > hi_o then hi_o = s.hp end
+            local after = math.max(0, s.hp - pend)
+            if lo_o == nil or after < lo_o then lo_o = after end
         end
     end
-    if pick == nil and target then pick = target.style end
-    return pick
+    if hi_o == nil or tv == nil then return true end
+    return math.max(hi_o, tv) - math.min(lo_o, tv) <= V.GAP - 1 - V.GAP_MARGIN
+end
+
+-- THE TARGET (round 4 step 1): the one I am on, for as long as its next swing
+-- is safe; if only my own unseen swing at it makes it unsafe, the one I am on
+-- with no swing this tick (HOLD: its splat shows next tick); else the safe
+-- combat-form vanguard with the most counted hp, ties to the nearest. -> the
+-- vanguard (nil: no safe swing), hold
+function QD.COXVG.pick(S, F)
+    local CV = QD.COXVG
+    local V = CV.V
+    local cur = S.v.target_s
+    if cur and not cur.dead and cur.style and cur.kind ~= "walking" and cur.kind ~= "dormant"
+        and S.v.seen_now[QD.T2.npc_key(cur.row)] then
+        local st = V.WEAK[cur.style]
+        if CV.safe(S, F, cur, st) then return cur, false end
+        if CV.pending(S, F, cur) and CV.safe(S, F, cur, st, true) then
+            -- (only on the tick my next swing is committed: before it the
+            -- splat may still show -- r3 held every tick of the trident's
+            -- flight and ran 40% slower)
+            local W = (S.x2 or {}).swing_next
+            return cur, W == nil or F.tick + 1 >= W
+        end
+    end
+    local best, bd = nil, nil
+    for _, s in ipairs(CV.living(S)) do
+        if s.kind ~= "walking" and s.style and CV.safe(S, F, s, V.WEAK[s.style]) then
+            local d = math.max(math.abs(s.x + 1 - F.me.x), math.abs(s.z + 1 - F.me.z))
+            if best == nil or s.hp > best.hp or (s.hp == best.hp and d < bd) then best, bd = s, d end
+        end
+    end
+    return best, false
+end
+
+-- Prayer (round 4 step 2): against the hit read soonest, from the next tick
+-- on (a press is in force from now+1). The reads: every volley in the air at
+-- me (its landing, spec V8), each ranged / magic vanguard on me (its next
+-- swing, every 4, plus its flight), the melee one on me or beside me (its
+-- next swing, if it can stand in reach by then: a tile a tick). A tie goes
+-- melee (three hits), magic, ranged. No read: the target's style.
+QD.COXVG.PRAY_RANK = { melee = 1, magic = 2, ranged = 3 }
+function QD.COXVG.prayer(S, F, target)
+    local V = QD.COXVG.V
+    local v = S.v
+    local best, bt, br = nil, nil, nil
+    local function offer(style, t)
+        if t < F.tick + 1 then return end
+        local rk = QD.COXVG.PRAY_RANK[style]
+        if bt == nil or t < bt or (t == bt and rk < br) then best, bt, br = style, t, rk end
+    end
+    for _, e in pairs(v.volleys or {}) do offer(e.style, e.land) end
+    for _, s in ipairs(QD.COXVG.living(S)) do
+        if s.style and s.kind ~= "walking" and s.kind ~= "dormant" then
+            local nxt = s.swing_t and (s.swing_t + 4) or (F.tick + 1)
+            while nxt < F.tick + 1 do nxt = nxt + 4 end
+            if s.style == "melee" then
+                local dx = math.max(s.x - F.me.x, F.me.x - (s.x + V.SIZE - 1), 0)
+                local dz = math.max(s.z - F.me.z, F.me.z - (s.z + V.SIZE - 1), 0)
+                local dist = math.max(dx, dz)
+                if (s.engaged or dist <= 1) and dist - 1 <= nxt - F.tick then offer("melee", nxt) end
+            elseif s.engaged then
+                offer(s.style, nxt + ((v.flight or {})[s.style] or 3))
+            end
+        end
+    end
+    if best == nil and target then best = target.style end
+    return best
 end
 
 function QD.COXVG.doses(S, list)
@@ -538,8 +696,15 @@ function QD.COXVG.strategy(S, F, B)
     intents.mode = mode
     local target = nil
     if mode == "fight" then
-        target = CV.pick(S, F)
+        local hold
+        target, hold = CV.pick(S, F)
         v.target = target
+        v.hold = hold
+        if hold then v.holds = (v.holds or 0) + 1 end
+        if target then
+            if target ~= v.target_s then v.switches = (v.switches or 0) + 1 end
+            v.target_s = target
+        end
     else
         v.target = nil
     end
@@ -554,13 +719,15 @@ function QD.COXVG.strategy(S, F, B)
     v.target_key = tkey
     local style = target and V.WEAK[target.style] or nil
     -- the next style while shuffling: the one with the most hp keeps it
+    -- (round 4: the one I am committed to, if it lives)
     if mode == "shuffle" then
         local hi = nil
         for _, s in ipairs(living) do if s.style and (hi == nil or s.hp > hi.hp) then hi = s end end
+        if v.target_s and not v.target_s.dead and v.target_s.style then hi = v.target_s end
         style = hi and V.WEAK[hi.style] or nil
     end
     if style then intents.gear = CV.gear(S, style) end
-    if target and QD.raid._tob_worn(S, ids.weapon[style]) then
+    if target and not v.hold and QD.raid._tob_worn(S, ids.weapon[style]) then
         B.target({ name = "vg_" .. target.style, npc = target.row, size = V.SIZE, range = V.RANGE[style],
                    speed = V.SPEED[style], value = V.SWING_VALUE })
         if F.prayer >= 30 then intents.pray_boost = ids.boost[style] end
@@ -640,10 +807,24 @@ function QD.COXVG.strategy(S, F, B)
         for _, name in pairs(QD.T2.PROTECT) do if F.lit[name] then off[#off + 1] = name end end
         if #off > 0 then intents.pray_off = off end
     end
-    if mode ~= "wake" and mode ~= "loot" then CV.drinks(S, F, intents) end
+    if mode ~= "wake" and mode ~= "loot" then
+        CV.drinks(S, F, intents)
+        -- (round 4 step 3: the brews' drain restored by the raid's rule; the
+        -- heal floor dropped once no restore is left)
+        intents.brew_below = QD.COX.brew_floor(S, V.BREW_BELOW)
+        QD.COX.restore_intent(S, F, intents, { "attack", "strength", "ranged", "magic" })
+    end
     if not intents.drink and not intents.eat and QD.raid._tob_count(S, ids.vial_empty) > 0
         and QD.T2.exec.free_slots(S) == 0 then
         intents.drop = ids.vial_empty
+    end
+    if (F.tick % 5 == 0 or mode ~= v.mode_last) and #living > 0 then
+        local hs = {}
+        for _, s in ipairs(living) do hs[#hs + 1] = string.sub(tostring(s.style), 1, 2) .. s.hp end
+        v.log = v.log or {}
+        v.log[#v.log + 1] = string.format("t%d %s>%s %s", F.tick, string.sub(mode, 1, 2),
+            target and string.sub(target.style, 1, 2) or "-", table.concat(hs, ","))
+        if #v.log > 400 then table.remove(v.log, 1) end
     end
     if F.tick % 5 == 0 or mode ~= v.mode_last then
         local parts = {}
@@ -734,8 +915,9 @@ QD.T2.register("cox_vanguards", {
         local dealt = {}
         for k, n in pairs(v.dealt) do dealt[#dealt + 1] = k .. " " .. n end
         table.sort(dealt)
-        return string.format("vanguards: resets %d, trample %d, resyncs %d, risen %s, crystal seen %s gone %s, shells %d, {%s}, dealt {%s}",
+        return string.format("vanguards: resets %d, trample %d, resyncs %d, risen %s, crystal seen %s gone %s, shells %d, switches %d, holds %d, regen phase %s learnt %d, {%s}, dealt {%s}",
             v.resets, v.trample, v.resyncs, tostring(v.risen), tostring(v.crystal_seen), tostring(not v.crystal),
-            v.shuffles_seen or 0, table.concat(parts, "; "), table.concat(dealt, ", "))
+            v.shuffles_seen or 0, v.switches or 0, v.holds or 0, tostring(v.regen_phase), v.regen_learnt or 0, table.concat(parts, "; "), table.concat(dealt, ", "))
+            .. " log [" .. table.concat(v.log or {}, " ") .. "]"
     end,
 })

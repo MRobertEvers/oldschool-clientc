@@ -154,3 +154,95 @@ counted hp never drops under 1, and the vanguards are walked in a fixed order.
 The solver finds its own room (here / the room ahead / a neighbour) and is
 called with `{ max_ticks }` only (whole-raid contract). 48/48 scriptrun
 (`--name vanguards0..47`): 0 resets, 0 trample hits.
+
+## Round 4: the budget kit (2026-10-19)
+
+The relay arrives on `QD.COX.SOLO_KIT` (wiki Minimum, no overload, no raid
+potions: 7 brews, 2 super restores, a sanfew, a super combat and a ranging
+pre-pot). Harness `test/raids/_cox_room_budget.lua --name vanguards<n>`:
+**12/12 died** (1032 ticks, ~229 dealt in 128-191 hits, 28 brew doses).
+
+### Measured (b_vanguards sweep, ticklog `hit_npc` x the raider row's weapon)
+
+| finding | evidence (vanguards0) |
+|---|---|
+| target flip-flop: "most counted hp" re-picked every tick, so a 1-hp lead switched target, weapon and walk | t109 magic, t115 melee, t125 ranged, t180 magic, t199 melee, t210 magic, t215 ranged...: 20+ switches in 300 ticks, gear swapped every 5-10 ticks |
+| every switch engages one more vanguard (it keeps its target until the shuffle): 2-3 attackers most phases, one prayer | trace `*` on all three at t130, t160, t215; 575 taken (212 melee, 363 volleys) |
+| the prayer followed the LAST swinger, so a melee vanguard's first swing in reach landed on the missile prayer | t178 ranged swing -> protect missiles; t181 melee 15+14 unprotected |
+| no stat restore at all: 28 brew doses drained attack/strength/ranged/magic to 1 | `budget.left ... ranged=1/99 attack=1/99 magic=1/99`, restore doses used 4 (prayer sips only); damage per 50 ticks 31-61 before t250, 0-11 after t400 |
+| the boost prayers were on (Piety / Rigour / Augury, raider row bits 26/24/27) | 122-151 ticks each |
+
+The damage was low because the swings were few (a switch every few ticks:
+walk, re-wield, re-engage) and, after the first 5 brews, because the stats
+the swings roll on were drained.
+
+### The budget method
+
+1. **Commit to a target** (the plugin's "damage to reset" number, plan step 3
+   made exact): keep hitting the current target while its next swing is SAFE,
+   i.e. with every pending swing of mine at its max and this swing at its max,
+   the living's most hp minus least hp stays `<= GAP - 1 - 6` (72 of 180; 6
+   for venom and the 1-tick splat lag; a kill counts as 0, so once all are
+   under 66 every swing is safe). Max hits come from the live levels (trident
+   of the swamp `floor(magic/3)-2` x1.12, blowpipe dragon darts with Rigour,
+   tentacle with Piety). Only when the target's swing is unsafe pick the safe
+   vanguard with the most hp. One switch a phase instead of one every 5 ticks.
+2. **Pray the next landing**: for each vanguard attacking me, the tick its
+   next hit is read (melee: its next swing, if it can be in reach by then;
+   ranged/magic: swing + 2 / + 3) -- the earliest wins, melee on a tie.
+3. **Restore the fighting stats** with the raid's shared rule
+   (`QD.COX.restore_intent`, any of attack/strength/ranged/magic 20 under
+   base), the heal floor dropped when no restore is left (`QD.COX.brew_floor`).
+
+### Rounds (scriptrun, seeds vanguards0..23, both tests)
+
+| round | change | harness | room test | median ticks | heal doses (median) |
+|---|---|---|---|---|---|
+| base | most counted hp, every tick | 0/12 | - | died ~1030 | 28 |
+| r1 | commit + gap budget, volley-blind prayer, restores | 23/24 | 23/24 | 662 / 746 | 15 |
+| r2 | prayer on the next READ (volleys from `api_drive.projectiles`: locked orb/rock, land = first sight + duration // 30) | 22/24 | 23/24 | 697 / 694 | 8 |
+| r3 | an unseen splat of mine counted at its max; HOLD (no swing this tick) when only it makes the swing unsafe | 23/24 | 20/24 | 976 / 1065 | 15 |
+| r4 | the hold only on the tick the next swing is committed; trident within 4; regeneration counted | **24/24** | **24/24** | **622 / 656** | **7 / 10** |
+
+What each failure taught:
+
+- r2 seed 23 (reset): the trident's splat lands `ceil(end / 30)` ticks after
+  the cast (end = the projectile's end cycle, 56 + 10 a tile: 2-3 ticks within
+  4 tiles, 4 beyond -- fit over 197 casts). At 4 it is unseen when the next
+  cast is committed, and two unseen-sized hits (27 + 29) opened the gap. Fix:
+  count my unseen swing (`QD.COXVG.pending`: no new splat on that vanguard
+  since my swing) at its max, and stand within 4 with the trident.
+- r2 seed 13 (stuck 1900 ticks): the first safety test took the gap's max
+  from the target's CURRENT hp, so with the other two 67 apart nothing was
+  ever safe -- not even the highest. The gap is now taken at the target's
+  max-damage end only (`QD.COXVG.safe`): hitting the highest is always safe.
+- r3 (40% slower): the hold fired on every tick of the trident's flight. It
+  matters only on the tick before the weapon is ready (`S.x2.swing_next`).
+- r3 seed 5 / room 3 (resets in the end game): the counts ran 9-12 hp LOW by
+  t1300 -- every vanguard regenerates 1 hp each 100 ticks (ticklog `npc_heal
+  1` at t182, 282, ... on all three at once), which no splat shows; a kill on
+  the "1 hp" one with the other at "63" was a kill with it at 73 (V17: left at
+  1, reset). Now +1 to every living one under base on a 100-tick phase. The
+  phase is guessed from first sight (off by up to 100 ticks: at most 1 hp per
+  vanguard, inside GAP_MARGIN 8); the bar-rise learner never fired in 48 runs
+  (the bar is not active between hits).
+
+### r4 per seed (room ticks, heal doses, restore doses, prayer points spent)
+
+Harness (`_cox_room_budget.lua`): 24/24, 0 resets; ticks 421-1114 (median
+622); heal 0-11 doses (median 7); restore 3-7 (median 5); prayer 143-218
+(median 162). Room test (`cox_vanguards.lua`, budget arrival + the relay's
+pre-pot): 24/24 GREEN (0 resets, 0 trample, exit crystal gone); ticks 421-952
+(median 656); heal 0-15 (median 10); restore 3-8 (median 6); prayer 143-233
+(median 166). Restore doses include the prayer sips the shared supplies take.
+Target switches 9-13 a run (base: 35-106).
+
+Validation, no edits: harness seeds vanguards24..35, 12/12, 0 resets, median
+595 ticks, heal 2-9 doses, restore 4-6.
+
+Content note (not changed, out of scope): r1 harness seed 14, ticklog t1317,
+the ranged and magic vanguards shelled (`npc_retype` -> 7526) while the melee
+one, at 0-1 hp after a "left at 1" blow, did not; at t1327 it logged a retype
+7527 -> 7527, and the reset followed at t1328. A 0-hp survivor skipping a
+shuffle (and its +1) may be a `~cox_vanguard_shell_one` / death-queue
+ordering edge.

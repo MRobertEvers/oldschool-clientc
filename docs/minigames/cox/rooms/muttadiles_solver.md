@@ -196,3 +196,117 @@ Sweep, scriptrun, `--name mutta<N>` = `::coxtest 12 <N>`:
   starts a tick earlier (constant), and the raid's RNG already differs at the
   `::coxtest` build (loc 29738 vs 29736 at 6473,82 L1, another room), so every
   roll after differs (tree chop 42 vs 45 at the same tick).
+
+## Round 5 (2026-10-19): the relay's four losses (r27: 14/18)
+
+Read from r27's stdouts and tick logs (raid8, raid28, raid42, raid5 against
+the 14 passes), per phase (ticks / damage taken / heal sips):
+
+| seed | arrival | chop | small | large |
+|---|---|---|---|---|
+| passes (14) | restore 3-8 doses, or an overload carried | 34-44t, 9-122 | 64-172t, 38-135 | 70-163t, 113-197 |
+| raid8 | heal 32, **restore 2**, prayer 58, no overload | 39t/23 | **168t**/188/8 | **318t**/442/23 |
+| raid28 | heal 33, **restore 2**, hp 61 | 34t/15 | **153t**/113 | **261t**/485/25 |
+| raid42 | heal 35, **restore 0**, no overload | 39t/20 | **584t**/702/35 (never died) | -- |
+| raid5 | **heal 5** (brews in the storage unit), hp 56 | 39t/71 | 52t, dead | -- |
+
+**The spiral.** My damage on the small one is normal for 120-160 ticks
+(raid42: 7/9 hits, 90 dmg in t40-80) and then falls to nothing (raid42 0/13
+from t200 on; raid8 large: 18 damage in 105 hits). Every Xeric's aid (+) sip
+drains Ranged by 4 + 10% (`cox_potion.rs2` xerics_aid_t3); with 0-2 restore
+doses Ranged is gone after ~8 sips, the kill stops, the 1-a-tick leak keeps
+coming, and every sip after that drains more. The passes are the seeds that
+carried restores or an overload (raid9: 0 restores but an overload). The
+damage in is the same in passes and losses (~0.8 a tick on the small one,
+~1.3 on the large); the losses are the seeds that cannot keep killing.
+
+**First wrong decisions** (all four seeds share them; the harness, with 8
+restore doses, never pays for them):
+
+1. **The small one is fought from range on Protect from Missiles** (raid8:
+   me at 6423,103, its 3x3 at 6419,105: Chebyshev 2, every swing a spit, 51
+   spits and 0 bites; no seed of the 18 ever drew a bite). The content
+   (`cox_mutta_small_attack`) bites 9 in 10 from an edge-adjacent tile, and
+   Protect from Melee blocks the bite fully; a spit leaks 33% through
+   Missiles. Standing on its edge cuts the small one's damage ~3x (1 spit in
+   10, unprayed, against every swing at 33%). The plan (Synq 0:47:00) said
+   so; round 2 never built it, and the prayer rule (gap <= 1) prays Melee on
+   a diagonal, where it spits.
+2. **No Rigour with a prayer enhance running** (raid8: the enhance sipped at
+   t2369, prayer held 98-99 for 500 ticks, Rigour never lit). MU.boost_ok
+   allows it, but the raid's prayer-pool gate (`QD.T2.boost_gate`,
+   cox2_raid.lua) counts only the enhance doses carried, not one running,
+   and shut it (58 + 64 + 160 < 330). raid42 (pool 241) the same.
+3. **The small one's overload (+)(4) is left on the floor** (it drops one and
+   a prayer enhance, `obj_add` 20996/20972 at its death). An overload re-boosts
+   Ranged every 25 ticks (`cox_overload_interval`), the one cure for a heal
+   drain with no restore left. The plan's loot_small step was never built.
+4. (raid5) arrives with 5 heal doses and its two brews in a storage unit:
+   the relay's stash, not the room. Only point 1 helps it.
+
+And the reverse of 3: MU.drinks sipped any carried overload on arrival
+(raid10/25/3/40/46/9), against the owner's rule (2026-10-19: an overload is
+Olm's unless the room truly needs it).
+
+### Plan
+
+- **PREDICT** the small one's spit: from its last swing (first seen) + 4, a
+  hit per swing in the horizon, read at T-1, on every tile within 6 of its
+  footprint that is NOT edge-adjacent (style ranged, E 8 / max 30), and 1/10
+  of it on the 12 edge tiles. The bite is not priced (the prayer rule takes
+  it). The planner then walks me onto its edge and keeps me there as it
+  steps (the erratic step, 1 in N swings).
+- **Prayer**: Melee only on an edge-adjacent tile (`MU.in_melee`), else
+  Missiles; no hold on that switch (a bite is 28).
+- **Rigour while an enhance runs**: the room presses it itself (the shared
+  gate is not given `want.boost` then), and sips a carried enhance in the
+  small / large fight when the gate is shut and none runs.
+- **Overload only when the room needs it**: Ranged RESTORE_GAP under its
+  base with no stat restore left (the overload is then the restore); the
+  heal floor rises to 72 until it is drunk (the content's 50 hp of overload
+  damage).
+- **Loot the small one's overload** (Take, op 3) in the surfacing window
+  when a slot is free and its tile is outside the surfacing 5x5 + 2.
+
+Pass: the 18 Muttadiles seeds of the relay (r27 14/18), the room test, the
+harness muttadiles0..23 not worse.
+
+### Built, and the sweeps (round 5)
+
+All in `cox2_muttadiles.lua`: `MU.predict_spit` (the field above; probe 1
+gave it `dmg_max` 30 and the summed 30s read as a death -- 32 rescue sips at
+90+ hp -- so `dmg_max` is the expected spit), the edge-only Melee rule,
+`MU.gate_shut` + the room's own Rigour press, `MU.ovl_needed` (and the heal
+floor at OVL_HP + 5 while it waits), the `loot` mode (`MU.loot_ok`), and the
+stamina sip removed (the kit's is Olm's).
+
+Sweep s1 found a fifth wrong decision, older than round 5: **the large
+one's magic prayer counted `run_n < 3`**, so a coin that came up magic again
+(`cox_mutta_style_tick`: the attack that empties the lock rerolls and starts
+a new run of three) was prayed Missiles for good -- raid3 took 10-18 a cast
+for 60 ticks. Now `run_n % 3 ~= 0`.
+
+| | r27 | s1 | s2 (final) |
+|---|---|---|---|
+| relay Muttadiles rooms (18 seeds) | 14/18 | 15/18 | **16/18** |
+| small phase damage (passes) | 38-135 | 3-77 | 3-77 |
+| large phase damage (passes) | 113-197 | 87-299 | 78-252 (raid3 401) |
+| harness muttadiles0..23 | 12/12 (0..11) | | **24/24**, median 269 ticks, 10.6 heal sips |
+| room test mutta0..7 | | | **8/8** |
+
+Every small one now bites (r27: 0 bites in 18 rooms): raid8 195 swings,
+163 bites, all blocked. raid28 and raid42 (0-2 restores) pass: the small
+one dies in ~105 ticks at a Ranged still near its base, and its overload is
+sipped once the large one's heals drain it.
+
+**Still failing, both decided before the room starts** (the relay's
+`topup.N.muttadiles` sips two Xeric's aid (+) at the door, Ranged 99 -> 73):
+
+- raid8: 0 restore doses, Ranged 73 at the first tick. The small one takes
+  180 in its first 80 ticks, then six heal sips (the water's magic, 1 a
+  tick, unprayable on Melee) put Ranged under 40 and the last 70 hp never
+  come off; its overload is the only cure and it drops it only on death.
+- raid5: 3 heal doses (its two brews are in a storage unit: `brew=0+2s`),
+  83 hp; the room costs ~200.
+
+Both are the supply layer's (a restore or a heal carried in), not the room's.

@@ -1392,6 +1392,7 @@ npc_def_seed_from_cache(
      * field). A pack that does not declare the param answers 0 for all. */
     def->defend_sound_range = npc_record_int_param(npc_id, "defend_sound_range");
     def->death_sound_range = npc_record_int_param(npc_id, "death_sound_range");
+    def->headbar_inverted = npc_record_int_param(npc_id, "headbar_inverted");
 }
 
 /*
@@ -2257,6 +2258,7 @@ npc_def_builtin(struct ToriRSServerNpcDef* out)
     out->death_sound = -1;
     out->defend_sound_range = 0;
     out->death_sound_range = 0;
+    out->headbar_inverted = 0;
     out->defaultmode = TORIRSSERVER_NPCMODE_NONE;
     /* Unstated, so an npc with no block keeps the radius-derived default. */
     out->defaultmode_stated = 0;

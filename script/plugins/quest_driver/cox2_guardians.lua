@@ -254,6 +254,14 @@ function QD.COXG.strategy(S, F, B)
         end
     end
     if ti == nil then
+        -- (once, 30 ticks in with no statue row: what the client does list)
+        g.unseen = (g.unseen or 0) + 1
+        if g.unseen == 30 then
+            local seen = {}
+            for _, row in ipairs(F.npcs) do seen[#seen + 1] = row.npc_id .. "@" .. row.x .. "," .. row.z end
+            api_core.log("guardians: no statue row 30 ticks in; me " .. F.me.x .. "," .. F.me.z
+                .. " centre " .. tostring(g.centre and (g.centre.x .. "," .. g.centre.z)) .. " npcs " .. table.concat(seen, " ") .. " t" .. d)
+        end
         -- not in sight yet (rows come within the client's view): into the room
         if g.dead[1] == nil and g.dead[2] == nil and g.centre then
             B.pull({ name = "centre", x = g.centre.x - 1, z = g.centre.z - 1, size = 3, weight = 1, t0 = d + 1, t1 = d + B.h })
@@ -298,6 +306,13 @@ function QD.COXG.strategy(S, F, B)
         intents.mode = "flinch" .. ti
     else
         intents.mode = "wield"
+    end
+    g.seen_n = (g.seen_n or 0) + 1
+    if g.seen_n == 30 and g.strikes == 0 then
+        api_core.log("guardians: no strike 30 ticks after the statues showed; me " .. F.me.x .. "," .. F.me.z
+            .. " statue" .. ti .. " " .. row.x .. "," .. row.z .. " room " .. tostring(g.room and g.room.name) .. " v"
+            .. tostring(g.room and g.room.variant) .. " origin " .. tostring(g.room and (g.room.ox .. "," .. g.room.oz))
+            .. " mode " .. intents.mode .. " W " .. tostring(W) .. " t" .. d)
     end
     -- prayers: Protect from Melee (it halves the cleave) and Piety
     if not F.lit["protectfrommelee"] and (F.prayer or 0) > 0 then intents.pray = "protectfrommelee" end
@@ -364,6 +379,24 @@ QD.T2.register("cox_guardians", {
         if S.g.centre then
             local wr, wd = QD.raid.cox_walk_near(S.g.centre.x, S.g.centre.z, 40)
             QD.raid._tob_trace(S, api_drive.tick(), "guardians walk in: " .. tostring(wr) .. " " .. tostring(wd))
+        end
+        -- then to the statues by the client's route: in some turns the room's
+        -- middle is in a wall pocket and the route to it ends where I stand,
+        -- and the statues are a loop round the west wall away -- past the
+        -- plan's ten straight steps (r35s raid4: 4000 ticks on 6446,85, the
+        -- statues 8 tiles off). The route to a statue's own tile arrives
+        -- beside it, wherever the way in goes.
+        local nr, npcs = api_drive.npcs(0)
+        local statue = nil
+        for _, row in ipairs((nr == "ok" and npcs) or {}) do
+            if row.npc_id == QD.COXG.V.STATUE[1] or row.npc_id == QD.COXG.V.STATUE[2] then statue = statue or row end
+        end
+        if statue then
+            local _, me = api_drive.player_tile()
+            if math.max(math.abs(me.x - statue.x), math.abs(me.z - statue.z)) > 4 then
+                local wr, wd = QD.raid.cox_walk_near(statue.x, statue.z, 60)
+                QD.raid._tob_trace(S, api_drive.tick(), "guardians walk to the statues: " .. tostring(wr) .. " " .. tostring(wd))
+            end
         end
         -- THE PICKAXE: the best one I hold; with none, the room's own iron
         -- pickaxe (raids_stoneguardians_pickaxe, Take: guardians_spec.md #17

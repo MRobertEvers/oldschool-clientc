@@ -1,12 +1,11 @@
 -- cox_vasa: Vasa Nistirio, solo, played by the v2 solver
 -- (script/plugins/quest_driver/cox2_vasa.lua; plan
--- docs/minigames/cox/rooms/vasa_solver.md, mechanics vasa_spec.md) in the We
--- Do Raids minimum kit (QD.COX.KIT) plus what Vasa needs beyond the Olm's:
--- the dragon sword (stab, on the We Do Raids list: the crystal's stab defence
--- is -5 against +180 slash/crush), the toxic blowpipe for Vasa (light-ranged
--- defence +40), and the black d'hide body / Ava's assembler for the ranged
--- switch. Supplies: the raid's (+) potions only (overload, Xeric's aid,
--- revitalisation, prayer enhance).
+-- docs/minigames/cox/rooms/vasa_solver.md, mechanics vasa_spec.md) on the
+-- relay's ARRIVAL kit (QD.COX.SOLO_KIT, cox2_raid.lua, spelled out as
+-- test/raids/cox_vanguards.lua does): the wiki Minimum, worn and carried,
+-- WITHOUT the anglerfish (the relay eats it to make its one free slot), so 27
+-- in the pack. The dragon sword is the crystal's stab weapon, the toxic
+-- blowpipe Vasa's. No raid potion: no overload, no Xeric's aid, no enhance.
 --
 -- GREEN (the owner, 2026-10-18): Vasa dead, the exit crystals gone and the
 -- exit Passage taken into the next room, the player alive, NO boulder damage
@@ -20,37 +19,42 @@
 -- The raid is the n-th holding the room, n = the run name's trailing number.
 -- A party: --bots 2..5, the same command (vasa_solver.md "A party").
 
--- QD.COX.KIT (cox2_raid.lua), spelled out: the test is loaded before the
+-- QD.COX.SOLO_KIT (cox2_raid.lua), spelled out: the test is loaded before the
 -- quest driver's chunk hands it `t`.
-local WORN = {
-    "fris_kingly_helm", "barbassault_penance_fighter_torso", "black_dragonhide_chaps", "hundred_gauntlets_level_10",
-    "abyssal_tentacle", "dragon_parryingdagger", "enchanted_onyx_amulet", "tzhaar_cape_fire",
-    "dragon_boots", "nzone_berzerker_ring",
-}
 local kit = { "::clearinv" }
-for _, s in ipairs({ "attack", "strength", "defence", "hitpoints", "prayer", "magic", "ranged", "agility" }) do
+for _, s in ipairs({ "attack", "strength", "defence", "hitpoints", "prayer", "magic", "ranged", "agility",
+                     "woodcutting", "firemaking", "mining", "thieving", "herblore", "farming", "fishing", "hunter",
+                     "construction", "cooking" }) do
     kit[#kit + 1] = "::setlevel " .. s .. " 99"
 end
 for _, line in ipairs({
-    "::setvar varb3888_kr_quest ^kr_complete",
-    "::setvar varb3909_kr_knightwaves_state 8",
-    "::setvar varb5451_prayer_rigour_unlocked 1",
-    "::setvar varb5452_prayer_augury_unlocked 1",
-    "::setvar varb5453_prayer_preserve_unlocked 1",
-    "::setvar varp7348_barbarian_vial_smash 1",
+    "::setvar varb3888_kr_quest ^kr_complete", "::setvar varb3909_kr_knightwaves_state 8",
+    "::setvar varb5451_prayer_rigour_unlocked 1", "::setvar varb5452_prayer_augury_unlocked 1",
+    "::setvar varb5453_prayer_preserve_unlocked 1", "::setvar varp7348_barbarian_vial_smash 1",
 }) do kit[#kit + 1] = line end
-for _, obj in ipairs(WORN) do
+for _, obj in ipairs({ "fris_kingly_helm", "barbassault_penance_fighter_torso", "black_dragonhide_chaps",
+        "hundred_gauntlets_level_10", "abyssal_tentacle", "dragon_parryingdagger", "enchanted_onyx_amulet",
+        "tzhaar_cape_fire", "dragon_boots", "lightbearer" }) do
     kit[#kit + 1] = "::give " .. obj .. " 1"
     kit[#kit + 1] = "::wield " .. obj
 end
 for _, line in ipairs({
     "::~charge abyssal_tentacle 10000",
+    "::give dragon_bolts_enchanted_ruby 300", "::wield dragon_bolts_enchanted_ruby",
     "::clearinv",
     "::blowpipe dragon_dart 2000 2000",
-    "::give dragon_shortsword 1",
-    "::give avas_assembler 1", "::give black_dragonhide_body 1",
-    "::give raids_vial_overload_strong_4 2", "::give raids_vial_xericaid_strong_4 8",
-    "::give raids_vial_revitalisation_strong_4 3", "::give raids_vial_prayer_strong_4 3",
+    -- (SOLO_KIT.carry, less the anglerfish)
+    "::give xbows_crossbow_dragon 1", "::give anma_50_reward 1", "::give toxic_tots_charged 1",
+    "::give occult_necklace 1", "::give black_dragonhide_body 1", "::give mystic_robe_top 1",
+    "::give mystic_robe_bottom 1", "::give bgs 1", "::give bh_rune_pouch 1", "::give ma2_saradomin_cape 1",
+    "::give rune_pickaxe 1", "::give nzone_salve_amulet_e 1", "::give dragon_shortsword 1",
+    "::give dragon_warhammer 1", "::give sanfew_salve_4_dose 1",
+    "::~charge toxic_tots_charged 2500",
+    -- (SOLO_KIT.supplies: the stamina is Olm's, never drunk here)
+    "::give 4dosepotionofsaradomin 6", "::give 4dose2restore 2", "::give 4dosestamina 1",
+    "::setvar varb29_rune_pouch_type_1 1", "::setvar varb1624_rune_pouch_quantity_1 500",
+    "::setvar varb1622_rune_pouch_type_2 2", "::setvar varb1625_rune_pouch_quantity_2 500",
+    "::setvar varb1623_rune_pouch_type_3 5", "::setvar varb1626_rune_pouch_quantity_3 500",
 }) do kit[#kit + 1] = line end
 
 local VASA = { [7565] = true, [7566] = true, [7567] = true }

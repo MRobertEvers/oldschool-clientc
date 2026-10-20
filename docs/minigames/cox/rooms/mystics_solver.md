@@ -101,3 +101,156 @@ The content now follows the recordings (`docs/rsprox-analysis/cox/mystics.md`). 
 
 `cox_mystics.lua` plays a party too (`--bots N`): seat 1 builds the raid and the others join. 8 of 8 solo (myst1-8)
 and 4 of 4 party (2 duo, 2 trio), 0 punches.
+
+## Round 4 (2026-10-19): the budget kit -- measured, then the plan
+
+The relay plays this room on `QD.COX.SOLO_KIT` (no raid potion: 7 Saradomin brews, 2 super restores +
+a sanfew). Harness `test/raids/_cox_room_budget.lua`, `mystics0..11` before this round
+(`scratchpad/sweeps/b_mystics`): 10/12, mean 16.6 heal and 7.6 restore doses, 150-550 taken.
+
+Measured off the tick logs (casts are seq 5528 rows, punches 5485, hits `hit_player`):
+
+- **Casts are the whole cost**: 91-169 casts a seed, 3.4 damage a cast on average under Protect
+  from Magic. A mystic that sees me for its whole life (about 50-100 ticks) costs 45-85.
+- **The trap works when it holds**: mystics0's first mystic cast 3 times, then stood silent 82 ticks
+  (it walked 7 tiles at me and stuck) until it died.
+- **Why it did not hold**: (a) mystics2: I alternated between two corner tiles of one mystic and
+  passed its north side each time -- 7 punches, each punch a re-roll back to magic; (b) 9-tick
+  cycles (mystics2, mystics9): melee for 8 ticks with me out of its 2-tile box (from its SW tile,
+  `huntall(npc_coord, 2)`), back to magic, a cast, a re-roll; (c) the trap was searched only after
+  a step was seen, and dropped and re-found every tick.
+- **The other mystics**: in the cw cluster rooms all three wake together and two or three cast on
+  most 4-tick windows while I fight one.
+- **Drained Ranged**: 28 brew doses drained Ranged to 2 landed in 58 swings (mystics2's last) and
+  19 in 207 (mystics9's last): every brew makes the fight longer, so more casts, so more brews.
+- Prayer: Protect from Magic + Rigour the whole room drains a dose of restore every ~80 ticks.
+
+The plan (the guides' cheap method, V1/V3/W2):
+
+1. **A trap tile T for the target, chosen once and held**: T with the mystic's naive walk toward it
+   (`api_drive.npc_stall`, its current tile, up to 12 steps) stalled at P, T inside P's 2-tile box,
+   never on P's sides, P sees T (my shot). Scored by: other mystics that see T (awake: casters;
+   asleep within 7: a wake), my distance, and -- while the target is still MAGIC -- whether a
+   1x1 walk from T reaches the tile it will cast from (its 50% re-roll to melee needs a line of
+   walk). The route there must not end a tick on any mystic's side.
+2. **Prompt, then wait**: on T a magic mystic casts (halved), re-rolls melee within ~2 casts, walks
+   at me and stops at P; then it never swings while I stay in its box. I shoot it from T.
+3. **Blacklist, do not dither**: T is dropped only when the mystic leaves the predicted walk (my
+   model was wrong: never that T again), or casts 4 times while I stand on T without ever walking
+   (no line of walk), or I do not swing for 12 ticks on T (no line of sight for me).
+4. **Prayer only when it pays**: with the target stuck and silent and no other awake mystic seeing
+   me, Protect from Magic and Rigour go off; they come back the tick that changes.
+5. Without a trap tile: the fight tile / click of round 2-3, unchanged.
+
+### Round 4 as built and swept
+
+`cox2_mystics.lua`: `QD.COXM.trap` (the held trap, re-read from where the mystic stands while I walk
+to it -- it walks at where I AM, not at T -- and blacklisted only on evidence once I stand on it),
+`QD.COXM.lure` (a magic target with no trap tile it can re-roll on: a tile in reach, in its sight,
+with a line of walk; blacklisted after 4 casts with no step), `QD.COXM.walk_line` (the re-roll's
+line of walk, `collision_map_line_of_walk`'s ray stepped one axis at a time over `npc_stall`),
+`QD.COXM.quiet` (prayers off, brew floor 35), the trapped mystic held as the target over a close one,
+the trap's pull 10. `QD.raid.cox_mystics_map()` is a probe: the room's walk map as text.
+
+Sweeps (`scratchpad/mystics_agent/r5`, harness `mystics0..23`; `t5`, `cox_mystics.lua my0..23`):
+
+| | green | heal doses med / worst | restore med / worst | taken med / worst |
+|---|---|---|---|---|
+| before (harness 0..11) | 10/12 | ~16 / 28 | ~8 / 8 | ~300 / 547 |
+| harness 0..23 | 22/24 | 12 / 28 | 8 / 8 | 241 / 514 |
+| cox_mystics.lua 0..23 | 22/24 | 11.5 / 28 | 8 / 8 | 203 / 544 |
+
+Still not cheap. What is left:
+
+- **The cluster rooms**: three spawns within a few tiles wake together; with one trapped the other
+  two cast on most 4-tick windows (mystics2, mystics12, my3, my8: 460-544 taken). The next step is
+  a trap tile that two mystics' stalls share, or pulling one out of the others' sight before
+  waking the rest.
+- **No trap or lure tile reachable** for some spawns (mystics12: 0 traps): the fight-tile fallback.
+- **Punches** (0-18 a seed): a lure tile in the open lets a melee mystic reach me before a trap
+  tile is found; `npc_stall` and the server disagree on some steps (the "walk left the model" drops).
+- **The re-roll**: lure tiles my ray says have a line of walk sometimes never convert (r3 mystics1:
+  163 casts from a straight open row at gap 4). Either my emulation of the ray is wrong or
+  `~cox_mystic_can_walk_to_target` answers no there; not proven either way (no line-of-walk verb on
+  scriptrun: `server_los` is client-only).
+- mystics21: timeout -- a melee mystic walked 973 tiles after me out of my npc window while I
+  searched the centre.
+- Restores: all 8 doses go in most seeds (brews drain Ranged; the restore gap is 8).
+
+## Round 5 (2026-10-19): the relay's room -- one mystic at a time
+
+The whole-raid relay (`test/raids/cox_raid_solo.lua`, sweep r29) played this room 21 times on
+`QD.COX.SOLO_KIT` and passed 12. All nine losses are deaths with doses left on arrival (mean 24
+heal, 10.6 restore). Read off each seed's tick log (`scratchpad/mystics2_agent/an2.py`: casts
+5528, punches 5485, a mystic awake from its first cast to its death):
+
+| seed (room) | first wrong decision |
+|---|---|
+| raid13 (9) | Full pack: the blowpipe's wield refused ("two-handed, no free slot") for 260 ticks with Protect from Magic + Rigour lit on no mystic. Then the lure walked into a 2/4/2-tile cluster and woke two in two ticks, the third 22 later: 272 ticks with three casting. |
+| raid24 (8) | The same refusal for 546 ticks; four revitalisation doses spent on the idle prayer. Then a trap walk woke two in one tick (t2983). |
+| raid43 (9) | The same refusal for 536 ticks; then the trap woke the second and third while the first died. |
+| raid7 (4), raid29 (4), raid34 (5), raid35 (3), raid11 (11) | Trap search for the first mystic took me inside the others' 7-tile hunt (in their sight): two or three awake within 1-9 ticks of the first; 150-250 ticks with two or three casting. (raid11 arrived with 0 heal doses.) |
+| raid4 (11) | The last mystic's lure tile (6443,115) was never walked to: I stood at gap 6 (out of the blowpipe's 5) for 472 ticks, no swing, 122 casts at me. |
+
+The method (the owner, 2026-10-19: "pray mage and rigour and the blowpipe and should avoid tanking
+multiple mystics at a time. Try to kill them one at a time"):
+
+1. **The pack**: the blowpipe goes on at once. A full pack lends a spare raid item to the floor
+   (`QD.COX.spare`: an empty vial, else a raid dose) and takes it back once a slot frees.
+2. **Prayer**: Protect from Magic + Rigour while any mystic is awake or I stand within 3 of a
+   sleeper's hunt; off before that. Rigour is pressed by the room itself (the raid's pool gate
+   would click it off). No overload: it is saved for Olm.
+3. **Wake masks**: per sleeping mystic, the tiles within 8 of its south-west tile that it sees
+   (`npc_sees`; RM-W1's hunt, one tile of wander). The plan pays heavily for ending a tick in the
+   mask of any sleeper but the one I mean to open on.
+4. **One target**: an awake one first (held); with none awake, the sleeper whose best fight tile
+   wakes no one else. **The fight tile**: gap 2..5 of the target, in its sight, scored by sleepers
+   it wakes (1000 each), other awake mystics that see it (300), within 2 of another (400), a line
+   of walk from the target (25: no line of walk keeps it on magic and still, RM-S2), the distance.
+5. **No swing for 12 ticks** with the target awake: the click (the server walks me into reach).
+6. The trap, the lure and the prayer-off "quiet" go (the trap kept the first mystic cheap but its
+   walks woke the rest in 6 of 9 losses).
+
+### Round 5 as built and swept
+
+`cox2_mystics.lua`: `QD.COXM.mask` (wake masks, priced 25 a tick in the plan: at 6, under a swing's
+12, the plan stood and shot while a wanderer's mask came over me), `QD.COXM.tiles` / `best` /
+`fight_tile` (the scored fight tile, its route's ticks priced against the masks, the tile I stand on
+kept while it is clean, a tile search cached per mystic per tick -- two a tick ran out the 400000
+instruction budget), `QD.COXM.pick` (an awake one held, else the cheapest sleeper), the no-swing
+watchdog (ban the tile; the third ban in a row clicks), the door: the blowpipe wielded in `enter`
+(a spare raid item lent to the floor when the pack is full) **before** Rapid is pressed. Trap, lure,
+quiet and the overload are gone. The ticklog carries a `myst stat` mark every 20 ticks (Ranged,
+prayer, PfM/Rigour, awake count, com_mode, damagestyle).
+
+Two findings beyond the plan:
+
+- **Rapid was never on in the relay.** `enter` pressed style slot 1 on the tentacle; the blowpipe went
+  on later in the loop and the fight ran at com_mode 0 (Accurate): a swing every 3 ticks, not 2
+  (every relay seed and the room tests, `player_anim 5061` gaps). Wielding first fixes it (gap 2).
+- **The pick flipped between two awake mystics every tick**: `health_ratio` is -1 before a headbar
+  and outranked the held target's -1 (raid13 t1926-1939).
+
+Sweeps (`scratchpad/mystics2_agent/`): relay seeds `w6`, room test `rt` (my0..23), harness `hb`
+(mystics0..23). The relay's arrivals are identical to r29 per seed (deterministic), so the
+comparison is fair.
+
+| | before (round 4) | after (round 5) |
+|---|---|---|
+| relay, 21 seeds holding the room | 12/21 (r29) | 14/21 (w6) |
+| cox_mystics.lua 0..23 | 22/24, heal med 11.5 / worst 28 | 24/24, heal med 10 / worst 20, restore 8 / 8, taken med ~200 / worst 351 |
+| harness 0..23 | 22/24, heal med 12 / worst 28 | 24/24, heal med 9.5 / worst 19, restore 8 / 8, taken med ~205 / worst 382 |
+
+Relay: fixed raid4, 7, 13, 24, 29, 35, 43 (7 of the 9 losses); lost raid5, 17, 27, 39, 48 (all
+passes under round 4). Still failing:
+
+- **Cluster rooms** (raid5 spawns 1/2/2 apart, raid39 5/1/6, raid27, raid48): no tile in the
+  blowpipe's reach of one is out of the others' hunt, so two or three wake within 40 ticks and cast
+  together. Round 4's trap kept the first one silent in these rooms, which is why they passed then.
+  Next: in a cluster, wake one and walk out of the others' sight so it follows (its magic pursuit),
+  or trap the first as round 4 did, with its walk priced by the masks.
+- **Restores run out, then Ranged drains to 0** (raid34 arrived with 7, raid17 with 1): the shared
+  prayer sips and the Ranged restores share the doses, and after they are gone every brew takes 10%
+  of Ranged off (raid34: 81 of 85 swings missed). A kill takes 40-45 swings at ~35% accuracy.
+- **raid11**: arrived with 0 heal doses at 89 hp (supply-starved).
+- A wanderer still walks into range sometimes (raid34 t1823): the plan moves a tick late.

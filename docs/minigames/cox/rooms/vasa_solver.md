@@ -139,16 +139,58 @@ me waiting there. Growing the lane box by 2 fixes it, but loses three other seed
 | Drift toward the lit crystal | the face pull |
 | After a crystal, path to where he just was | tried: kills sooner (mean death t433 against t505), but 29/40 green against 36/40; not used |
 
+## Round 3 (2026-10-19): the budget kit, Synq's method line by line
+
+The relay's kit (`QD.COX.SOLO_KIT`: no boost potions, 6 brews, 2 super restores; the stamina and any
+overload are Olm's) made Vasa the floor's supply sink: from a full start 20.5 heal and 7.3 restore doses
+and a bimodal kill (harness `_cox_room_budget` vasa0-23: median 1,169 ticks, but 7 of 24 over 2,000 --
+up to 3,656 -- and vasa5 never), and in relay r31 4 of 20 Vasa rooms lost (two 4,000-tick timeouts after
+28-29 specials, a drained 151-zero crystal fight, a death). Read off the tick logs, every cycle ended the
+same way: the third crystal timed out and he healed 20-100 (1.5 hp a siphon tick), the pipe did 60-150,
+and he regenerated; net 15-75 a cycle.
+
+| Synq (0:55:16-1:07:56) | The solver before | Now |
+|---|---|---|
+| Ranged gear on, walk to the centre to wake him | the `wake` pull | the same |
+| "If you were already previously low HP ... not to eat up before doing Vasa" (0:56:57) | the brew floor (and the relay's top-up to 80) ran at the door: r31 raid37 37 -> 94 on three Xeric's aid, the special took 89 | no heal before the first teleport; `QD.COX.TOPUP_ROOM.vasa = {1, 30}` (prayer only) |
+| The bank reads HP at the teleport; brew after it | no heal S..S+3 | the same, and none while he walks back for a special (the 67 spent: `o.siph`) |
+| "Stay low HP ... what's the point of using supplies just for it to all be deleted for 5 HP" (1:02:08) | floor 40: 5 -> 21 -> 37 -> 53, three doses a special, a restore a special for their drain | floor 20: one dose a special |
+| Prayers off while stunned; on after | none until S+12 | the same |
+| Run two tiles after every pipe hit; Protect from Missiles | boulder marks; PfM | the same |
+| Never under him | stomp, beside, lane, line | the same |
+| Drift toward the lit crystal | the face pull | the same |
+| Crystals with the stab weapon (he is "fully potted", Piety) | Piety/Rigour through the raid's pool gate (330): shut after the first restore dose, while the restores drunk for the brews' drain held prayer at 94-98 unused (base_h vasa0 t600-1200) | the room's own boosts: Piety on the crystal from 30 points, Rigour on him from 50, both kept to 15 |
+| After a crystal, path to where he just was | tried (s40g): sooner, more boulders | not used (unchanged) |
+| Count the 67 siphon ticks | not counted | counted (`o.siph`), used for the brew hold |
+| Overload | drunk before the wake | not drunk (owner: Olm's) |
+
+Two bugs found on the way: four prayer enhances drunk in a row (r31 raid6 at 95 hp, raid37 at 10 hp:
+the enhance rule never asked whether one was running -- now one at a time, `QD.COX.enhance_running`);
+and the first cut of the room's own boosts pressed Piety on and Rigour off in one tick, which the
+server read as Piety lit then Rigour lit again (s1 vasa11 t948-986: Rigour through every crystal,
+Piety never) -- the old boost now goes out by itself as the new one lights.
+
+Results (same seeds, same binary and script pack):
+
+| Lane | Before | After |
+|---|---|---|
+| Harness vasa0-23 | 23/24; median 1,169, mean 1,619, max 3,656; heal 20.5, restore 7.3 | 24/24; median 736, mean 782, max 1,494; heal 5.5, restore 5.8; specials median 5 |
+| Room test vasa0-23 (now on the relay kit, 1,500-tick cap) | (old kit: 8/8 on the We Do Raids kit) | 23/24; median 942, max 1,476; heal 6.8, restore 6.8; vasa12: two 2-hp stomps at S+13 (t415, t680, beside his footprint as he sets off) |
+| Relay | r31: 16/20 Vasa rooms (raid31, raid38 4,000-tick timeouts; raid6 drained, no restores; raid37 died, poisoned, 10 heal doses) | not comparable: the relay's scout was changed at 19:55 (another unit) to re-make a raid until ring 1 is a Tekton-Muttadiles-Guardians pattern, so r31's seeds no longer hold Vasa; seeds 1-36 met him once (raid4 room 8, floor 2): killed in 494 ticks, 3 specials |
+
+Open: the relay has not been re-measured on Vasa (above); the two S+13 stomps (room test vasa12) as he sets off
+beside the near ring; a poisoned arrival is not cured by this room (r31 raid37).
+
 The room's real floor can be read with `QD.COXNI.reach_row` (one row of `api_drive.route` answers).
 
 ## The mode machine (strategy)
 
 | Mode | When | Do |
 |---|---|---|
-| `wake` | rocks, not woken | pull to his middle; ranged set on |
+| `wake` | rocks, not woken | pull to his middle; ranged set on; no healing |
 | `special` | S to S+12 | stand; no healing before S+3; brew after S+12 |
-| `range` | walking (to a crystal, back, or pausing) | pipe target; pull toward the lit crystal; PfMissiles + Rigour |
-| `crystal` | healing form, crystal row present | melee set; crystal target; Piety; protection off |
+| `range` | walking (to a crystal, back, or pausing) | pipe target; pull toward the lit crystal; PfMissiles, Rigour from 50 points; the 67 spent: brew only under 10 |
+| `crystal` | healing form, crystal row present | melee set; crystal target; Piety from 30 points; protection off |
 | `done` | dead | nothing |
 
 **Targets** (value in hp): Vasa: size 5, range 4 (the pipe reaches 5; he moves), speed 2, value 3. The crystal:
@@ -156,9 +198,10 @@ size 4, range 1, speed 4, value 5. A crystal hit is worth more than a Vasa hit, 
 the heal and the timer.
 
 **Supplies:**
-- the room's drinks (overload, prayer enhance, stamina): `QD.COXO.drinks`;
+- no overload, no stamina (Olm's); a prayer enhance under 40 points, only when none is running;
 - a stat restore when Attack, Strength or Ranged is 20 under its base;
-- the brew floor: 40, none from S to S+3.
+- the brew floor: 20 (Round 3: one dose a special), none before the first teleport, none from S to S+3,
+  10 while he walks back for a special.
 
 ## Probes (the first run prints)
 

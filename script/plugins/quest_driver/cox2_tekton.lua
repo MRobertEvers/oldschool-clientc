@@ -45,6 +45,11 @@ QD.COXTK.V = {
     STRIKE_EXP = 12, STRIKE_MAX = 29, SCAN_COST = 10, CW_COST = 6, RING_COST = 3,
     SPARK_EXP = 15, SPARK_MAX = 20, VENT_EXP = 2, VENT_MAX = 3, TRAMPLE_EXP = 2, TRAMPLE_MAX = 3,
     SWING_VALUE = 2.5,
+    -- the dragon warhammer: a special whenever the energy is there (his
+    -- drained Defence regenerates a level per 15 ticks, cox_tekton_common_tick,
+    -- so a long fight's opener has worn off by ~900 ticks; the kit's
+    -- lightbearer refills 500 in ~125)
+    DWH_SPECS = 1000, DWH_COST = 500,
     EAT_BELOW = 55, BREW_BELOW = 65,
     -- where the fight is (template room-local, spec §2): the wake tile (on
     -- his wake ring, between him and the entrance) and the fight tile (far
@@ -65,6 +70,7 @@ function QD.COXTK.ids(opts)
         { "meteor", "spotanim", "wild_falloff_meteor_flying" },
         { "vent", "loc", "raids_lava_smoke3" }, { "crystal", "loc", "raids_blockage_orange" },
         { "walkblocker", "loc", "raids_tekton_walkblocker" },
+        { "dwh", "obj", "dragon_warhammer" },
     })
     for k, v in pairs(room) do ids[k] = v end
     local function seqs(list)
@@ -109,6 +115,10 @@ function QD.COXTK.find_room(F)
         local _, _, cx, cz = QD.COX.next_origin(here)
         local ahead = QD.COX.room_at(cx, cz, here.level)
         if ahead ~= nil and ahead.name == "tekton" then return ahead end
+        -- (the relay's own look ahead: from a floor's start room the cell
+        -- beside can be past the scene the template grid shows -- raid2 r7)
+        local ahead2 = QD.COX.room_ahead(here)
+        if ahead2 ~= nil and ahead2.name == "tekton" then return ahead2 end
     end
     local _, me = api_drive.player_tile()
     for _, d in ipairs({ { 32, 0 }, { -32, 0 }, { 0, 32 }, { 0, -32 } }) do
@@ -465,7 +475,32 @@ function QD.COXTK.strategy(S, F, B)
     end
     intents.mode = mode
     local hittable = o.row ~= nil and (o.form == "walk" or o.form == "fight") and not o.dead
-    if hittable and QD.raid._tob_worn(S, ids.tentacle) then
+    -- THE OPENER (wiki Tekton: the first dragon warhammer special that makes
+    -- contact always lands, -30% of his Defence; a miss still drains 5%). The
+    -- tentacle alone misses four swings in five on him: relay r33s raid5 hit
+    -- 0 on 424 of 525, and his anvil heals (1431) matched the damage (1493)
+    -- over the room's 4000 ticks. So the kit's special energy goes into DWH
+    -- specials while he is out, then the tentacle.
+    local energy = F.energy or 0
+    if o.spec_e0 ~= nil and energy <= o.spec_e0 - V.DWH_COST + 10 then
+        o.dwh_specs = (o.dwh_specs or 0) + 1
+        o.spec_e0 = nil
+        QD.raid._tob_trace(S, F.tick, "tekton dwh special fired, energy " .. energy)
+    end
+    local have_dwh = QD.raid._tob_worn(S, ids.dwh) or QD.raid._tob_count(S, ids.dwh) > 0
+    local opener = hittable and have_dwh and energy >= V.DWH_COST and (o.dwh_specs or 0) < V.DWH_SPECS
+    if opener then
+        intents.gear = {}
+        if not QD.raid._tob_worn(S, ids.dwh) then intents.gear[1] = { obj = ids.dwh, two_hand = false } end
+    else
+        o.spec_e0 = nil
+    end
+    if hittable and opener and QD.raid._tob_worn(S, ids.dwh) then
+        o.spec_e0 = o.spec_e0 or energy
+        intents.spec, intents.spec_cost = true, V.DWH_COST
+        B.target({ name = mode, npc = o.row, size = V.SIZE, range = 1, speed = 6, value = V.SWING_VALUE })
+        if F.prayer >= 20 then intents.pray_boost = ids.boost.melee end
+    elseif hittable and not opener and QD.raid._tob_worn(S, ids.tentacle) then
         B.target({ name = mode, npc = o.row, size = V.SIZE, range = 1, speed = 4, value = V.SWING_VALUE })
         if F.prayer >= 20 then intents.pray_boost = ids.boost.melee end
     end
@@ -535,8 +570,9 @@ QD.T2.register("cox_tekton", {
     summary = function(S)
         local o = S.o
         return string.format("tekton: swings %d (struck on an edge %d, scan off-edge %d), sessions %d {%s}, anvils %d, "
-            .. "sparks %d, dead %s, crystal gone %s, events %s",
+            .. "sparks %d, dwh specs %d, dead %s, crystal gone %s, events %s",
             o.swings, o.struck, o.scan_odd, o.sessions, table.concat(o.session_log, ","), o.anvils, o.sparks_n,
+            o.dwh_specs or 0,
             tostring(o.dead), tostring(o.crystal_gone), table.concat(o.events, " "))
     end,
 })
