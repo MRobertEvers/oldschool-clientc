@@ -66,7 +66,7 @@ return {
         go(39, 32)
         wait(t, 60)
         -- the raider has no gear to fight them: the crocodiles die by cheat, through the engine's death
-        while pours < 8 and not said(t, "Challenge complete: Path of Crondis") do
+        while pours < 12 and not said(t, "Challenge complete: Path of Crondis") do
             t.ticklog.mark("crondis.kill")
             t.cheat("::toacrocs", false)
             wait(t, 2)

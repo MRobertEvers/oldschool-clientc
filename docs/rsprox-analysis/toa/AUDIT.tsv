@@ -1,0 +1,49 @@
+id	room	finding	evidence	status
+A01	baba	boulders one row south (lz 24-38): north row open, coffin row covered	RSProx boulder adds z 5401..5413 = lz 25-37 (516 of 516); test spawns now lz 25-37	fixed
+A02	baba	goer whacked from any side of the coffin, out of the boulders' rows	recorded goers die on the coffin's front tile (3808,5415) 3 of 3; goer now walks to the front tile	fixed
+A03	baba	boulder killed baboons only in its front column	whole 3x3 now	fixed
+A04	baba	the leap left raiders attacking her	p_stopaction on every raider at the leap; not exercised by the test (nobody attacks her)	fixed
+A05	baba	six spawn synths sent to an empty raider list	tick log: none before; now 6 on S at d9..109 as recorded	fixed
+A06	all rooms	raider list empty on a room's start tick (Het's first maze shove, any begin broadcast)	~toa_start_room fills it before every begin	fixed
+A07	nexus	arrival from a boss room kept the raider facing Osmumten	32 of 32 recorded returns face into the Nexus (Zebak/Kephri S, Akkha E, Ba-Ba W); now facesquare on landing	fixed
+A08	nexus	Proceed carried the whole party; every crossing is a raider's own with "Join her..." lines	per-raider: Nexus door leader-first ("must go first" mesbox, "chosen to walk"/"lower level"), continue ("proceeded to the next challenge"), Proceed ("returned to the Nexus"); room freed by its last raider; _toa_party_doors (2 seats) passes	fixed
+A09	nexus	toa_pottery_bankdeposit never placed	14: added with the Helpful Spirit on the 2nd path's return, (27,34) rot 2; op Deposit -> deposit box (wiki)	fixed
+A10	het	the two statues (caster, shielded statue) never added	loc_add_change on entry 8 of 8; now added on entry	fixed
+A11	scabaras	obelisk attack kept attacking with the weapon's cooldown; obelisk answered on landing	1852 11074-11078: retype on the bolt's launch tick, shots 2 ticks apart, no hits; now one swing, no delay, struck on the swing (melee+ranged; magic keeps casting)	fixed
+A12	scabaras	memory: opening a 2nd plate on a board drew its face over the 1st plate's tile	loc_add made the old plate active and loc_coord named it; clicked tile taken first; test scab.mem_swap 463: old back to button, new face on its tile	fixed
+A13	crondis	column traps (4), crocodile walls (8), palm blocker never added	loc_add_change E+0 8 of 8, tiles verified in 14 and 1852; now added at build	fixed
+A14	zebak	9x9 blockers under Zebak and his tail never added	61 recorded adds (3918,5404)/(3909,5403); now added with the npcs	fixed
+A15	apmeken	melee baboons moved 2 tiles a tick	3,189 recorded steps all 1 tile; npc_approach stepped in the script AND queued; now routeapproach, 1,375 of 1,375 one tile	fixed
+A16	apmeken	volatile walked onto the raider and blew on their tile	recorded: stops beside and idles through the fuse; ours dist 0 six of six -> now dist 1	fixed
+A17	apmeken	baboons not locked on their raider	recorded face_pathingentity +1 after add 261 of 261 (thrall +0), held to death; now locked, leash 32 (default 7 dropped it)	fixed
+A18	crondis	mummy_ash_death sent as a synth	crocodile death area range 8 on its tile 27 of 27 (death_sound_range); croc_death anim added; crocodile_hit is its defend synth (23 of 23)	fixed
+A19	crondis	container take: pick + human_pickupfloor and the container stays (ours: the generic pickup deleted it, pick2)	7 of 7 recorded takes; [opobj3,toa_crondis_water_container]	fixed
+A20	crondis	crocodile bite rate / palm stage order	the test lets crocodiles bite before killing them; recorded players kill them; stage order follows pours and bites	refuted
+A21	crondis	crocodile_hit synth	the crocodile's defend sound (23 of 23 on a hit tick); param added	fixed
+A22	zebak	toa_zebak_defend_01 never sent	area range 14 at his middle, 1,128 of 1,128; params on toa_zebak/_enraged	fixed
+A23	zebak	rock fall camera/sounds, third roar sweep + tremor_03, shield_break on boulder removal, jug end break, enrage roar	11 of 11 rock falls, 7 of 7 roars, 7 enrages; all in the zebak run	fixed
+A24	zebak	"You are pushed off."	Wardens P3 (3930,5164,1) bled into Zebak's window, not Zebak	refuted
+A25	kephri	guardian/kite defend sounds and deaths	guardians 6596 range 9, kite 6593 range 10; deaths npc_scarab_death / flying_death03 (mage _death02 is its move flinch); mage teleport sound was already there; shadows are path-level (60/90/120)	fixed
+A26	kephri	death seqs	see A25	fixed
+A27	kephri	test fails kephri.shield_splat, kephri.marker_slot	scriptrun	open
+A28	kephri	"You are damaged by a nearby egg explosion!"	added with the burst hit	fixed
+A29	het	lowering barrier 6542, statue strike 6536, seal destroyed 6539	added; windbolt_hit needs loops=6 (engine: sound_area has no loop count) and beam delay range is the test maze	fixed-partial
+A30	akkha	projectile/impact sounds	refuted: sent via ^toa_akkha_synth_* constants (5640/5774), the delay variants are distance	refuted
+A31	akkha	burn/darkness/lightning riders had no tells	recorded in 101/553/1779/1845: burn every 3 x5 with firebolt_impact+lore_fire_titan_hit d30, spread, "goes out" at 15; darkness tint+hiss 5 ticks; lightning line; added	fixed
+A32	apmeken	venom/failure synths, Sight loss, slot 4	apple_splat with venom line; gas_leak/corruption failure synths; "You no longer have Apmeken's Sight." + lose_sight; sight graphics in slot 4	fixed
+A33	all rooms	ToA deaths were ordinary deaths (no hook in [playerdeath,_])	safe death: total-deaths lines, party line, wait at entrance, back on completion, wipe check; probe toa_death_probe passes (solo wipe)	fixed
+A34	all rooms	combat-achievement failure lines: I'm in a rush, No skipping allowed, All out of medics, Chompington, Can't Drain This, All Praise Zebak, A Long Trip, You are not prepared, Helpful spirit who?, Dropped the ball, A Timely Snack, But... Damage, Perfect Zebak (vomit), Perfect Scabaras (too slow)	needs per-raid task state and hooks (styles, supplies, prayer drain); a feature of its own	open
+A35	all boss rooms	story-mode gods (captured/freed) not modelled	101 (first raid) only; 14/1852 none	accepted-known
+A36	scabaras	party statue 45205	party-only; solo test	refuted
+A37	apmeken	melee baboons double-stepped; npc_approach steps in the script AND queues	npc_approach in CoX minions and Tormented Demons may do the same	open
+A38	apmeken	baboon face lock dropped by the 7-tile maxrange leash	maxrange=32; every baboon locks once and releases on death	fixed
+A39	all rooms	raider list filled at start overwrote Wardens ready-up (94/95 inside raider0..)	restricted to baba/het/scabaras/kephri/apmeken; the Wardens' own raider0 still overlaps wardens_ready 94/95 (their uncommitted work)	open
+A40	kephri	kephri.marker_slot fails 4 of 4 seeds, shield_splat 3 of 4	likely the uncommitted engine encode work in the binary; not chased	open
+A41	vault	toa_osmumten vault.leave expects (3360,9114); the uncommitted rewards work lands on a random (3358..3360, 9113..9114)	stale test vs other session	open
+A42	all rooms	invented lines removed: "You enter <room>", "You follow the party into", "The way to the Wardens is open.", "You have died within the Tombs."; raid entry now "You enter the Tombs of Amascut (<Mode>)..."	recorded lines only	fixed
+A43	all rooms	sound_area cannot carry loops (Het windbolt_hit loops=6)	engine opcode needed	open
+A44	baba,scabaras	defend sounds: Ba-Ba baboon (mandrill), Scabaras scarab (6596) missing	added	fixed
+A45	scabaras,crondis	death anims missing: scarab npc_scarab_death, crocodile croc_death	added	fixed
+A46	zebak	split graphic at height 535 from (34,36)	the Wardens P3 phantom Zebak at (3938,5156,1); Zebak's own is 750 at (26,29), ours matches	refuted
+A47	apmeken	exit invisible locs rot 1 at (44,31..33)	ours places them on completion (tick 559), past the tool window	refuted
+A48	nexus	"The way to the Wardens is open.", door "already walked"/"sealed" lines	the first removed (never sent); the door lines are unreachable if closed doors carry no op - unchecked	open

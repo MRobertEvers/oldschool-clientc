@@ -274,6 +274,22 @@ return {
         local function slot_of(north, v)
             for s = 0, 8 do if st.mem[(north and 9 or 0) + s + 1] == v then return s end end
         end
+        -- one board, two plates: the second turns the first back and opens itself (it
+        -- used to draw its face over the first one's tile), then its north twin matches it
+        local a, b = nil, nil
+        for v = 1, 9 do
+            if not matched[v] then
+                if a == nil then a = v elseif b == nil then b = v end
+            end
+        end
+        if a and b then
+            t.ticklog.mark("scab.mem_swap")
+            open(false, slot_of(false, a))
+            open(false, slot_of(false, b))
+            open(true, slot_of(true, b))
+            wait(t, 2)
+            matched[b] = true
+        end
         local first = true
         for v = 1, 9 do
             if not matched[v] then
