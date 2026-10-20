@@ -3182,8 +3182,15 @@ advance_player(struct ToriRSServer* srv)
      * the energy says whether they can. Deciding it here rather than at the
      * move packet is what makes energy run out mid-walk. */
     /* `p_temprun` (torirs_server_ops_player.c) runs the route whatever the
-     * toggle says: Player.ts:684, `else if (this.tempRun) moveSpeed = RUN`. */
-    player->running = (player->run_toggle && player->run_energy > 0) || player->temp_run;
+     * toggle says: Player.ts:684, `else if (this.tempRun) moveSpeed = RUN`.
+     * Ahead of both, Player.ts:682: a stance with no run animation (`runanim`
+     * null) walks - toggle, energy and temporary run alike. Content gives a
+     * walk-only stance that way: the swim set in Zebak's water (RSProx 4288,
+     * `run=-1`), an agility walk. Without it a swimmer ran two tiles a tick. */
+    if( player->runanim == -1 )
+        player->running = 0;
+    else
+        player->running = (player->run_toggle && player->run_energy > 0) || player->temp_run;
     max_tiles = player->running ? 2 : 1;
     /* Player.ts:690: `if (!super.processMovement()) this.tempRun = 0` --
      * processMovement is false exactly when there is no route to step, so a

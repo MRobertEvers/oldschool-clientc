@@ -4934,6 +4934,18 @@ player_extended_v5(struct ToriRSServer* srv, struct ToriRSServerPlayer* viewer,
                 ext.has_temp_move_speed = 1;
                 ext.temp_move_speed = 2;
             }
+            else if( subject->tele_glide && movement == MOCK239_PLAYER_RUN )
+            {
+                /*
+                 * A short `p_teleport` the client should WALK (`tele_glide`):
+                 * two tiles of geometry on the RUN opcode, traversed at walk
+                 * speed. Jagex sends exactly that for a ToA barrier crossing
+                 * (RSProx 4288 t409: 3951 -> 3949 with temp_move_speed=walk),
+                 * and without it the client ran the raider through the gate.
+                 */
+                ext.has_temp_move_speed = 1;
+                ext.temp_move_speed = 1;
+            }
             if( subject->masks & TORIRSSERVER_PMASK_TINT )
             {
                 ext.has_tint = 1;
