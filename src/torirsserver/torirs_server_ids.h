@@ -325,6 +325,10 @@ struct ToriRSServerIds
     /** Setting 280's floor: max hits below it do not get the max-hit splat. */
     int varbit_hitsplat_threshold;
 
+    /** The multi-combat icon (varbit 4605): 1 while the player stands where
+     *  combat is multi-way. Synced by ToriRSServer_WorldUpdateMap. */
+    int varbit_multiway_indicator;
+
     /*
      * The ironman loot restriction warnings.
      *

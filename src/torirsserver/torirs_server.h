@@ -3322,6 +3322,10 @@ struct ToriRSServerNpc
     int attack_sound;
     int block_sound;
     int death_sound;
+    /** The last hit on this npc had no player behind it (an npc's, a
+     *  script's `_other` splat). Its hit sound went out as an area sound, and
+     *  so does the death it causes. See `hit_has_player_dealer`. */
+    int last_hit_unowned;
 };
 
 /*

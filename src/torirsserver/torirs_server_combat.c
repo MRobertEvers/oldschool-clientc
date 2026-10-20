@@ -512,6 +512,8 @@ play_npc_seq(struct ToriRSServerNpc* npc, int seq_id)
  * the same number answers for all three sounds rather than three invented ones.
  */
 #define TORIRSSERVER_NPC_SOUND_TILES 12
+/* The range of a hit or death sound no player dealt (RSProx 3299, 1754). */
+#define TORIRSSERVER_NPC_UNOWNED_SOUND_RANGE 10
 
 /*
  * An npc's own sound, to everyone near enough to hear it.
@@ -580,6 +582,16 @@ npc_death_sound(
 {
     int const range = npc_def(npc)->death_sound_range;
 
+    /* A death no player dealt is heard as an area sound at the npc's tile,
+     * range 10, like the hit before it (RSProx 3299, 1754: the minions dying
+     * with Zuk, `dragon_death` and `water_creature_death`; 1754: nibblers
+     * killed by a falling pillar, `lavabeast_death`). */
+    if( npc->last_hit_unowned && range <= 0 )
+    {
+        ToriRSServer_WorldSoundArea(srv, npc->death_sound, 0, npc->x, npc->z, npc->level,
+                                    TORIRSSERVER_NPC_UNOWNED_SOUND_RANGE, 0);
+        return;
+    }
     if( range > 0 )
     {
         ToriRSServer_WorldSoundArea(srv, npc->death_sound, 0, npc->x, npc->z, npc->level, range,
@@ -714,6 +726,32 @@ hitsplat_family_of(int type)
             return f;
     }
     return NULL;
+}
+
+/*
+ * Did a player deal this hit, as far as its sounds are concerned?
+ *
+ * No when no player is behind the script that dealt it, and no when the
+ * content names the `_other` wrapper itself: that is a script saying the
+ * splat is not the viewer's (the minions dying with Zuk, a pillar's fall).
+ * Jagex plays such a hit's sound, and the death it causes, as an area sound
+ * at the npc's tile, range 10, where a player's hit gets a synth to that
+ * player alone (RSProx 3299, 1754: `dragon_hit`, `water_creature_hit`,
+ * `lavabeast_hit`; the Ancestral Glyph under Zuk's fire sends id -1).
+ */
+static int
+hit_has_player_dealer(
+    struct ToriRSServer const* srv,
+    int type)
+{
+    const struct hitsplat_family* f;
+
+    if( !srv->active_player )
+        return 0;
+    f = hitsplat_family_of(type);
+    if( f && type == hitsplat_symbol(f->other) )
+        return 0;
+    return 1;
 }
 
 /**
@@ -1913,7 +1951,8 @@ ToriRSServer_CombatHitNpc(
      * once for each of their own hits, a 0 included, and never for another
      * raider's splat on the same npc in the same tick (t-35, t-29, t-25, t-16,
      * t-15); Vespula's 2745 likewise. A hit with no player behind it (an npc's
-     * on an npc) is silent. The defend ANIMATION is not played here: Jagex
+     * on an npc) is an area sound instead: see `hit_has_player_dealer`. The
+     * defend ANIMATION is not played here: Jagex
      * sends it on the attack tick, delayed to the landing (`npc_defend`, from
      * `[proc,player_hit_npc_prepare]`), and an npc's hit on an npc brings none
      * (the Ancestral Glyph under Jad's fire, RSProx 1754).
@@ -1926,11 +1965,15 @@ ToriRSServer_CombatHitNpc(
      * range=10`, Ba-Ba's `id=6017, range=9` at her centre (RSProx,
      * docs/rsprox-analysis/toa/baba.md). Still only for a hit a player dealt.
      */
-    if( npc_def(npc)->defend_sound_range > 0 && srv->active_player )
+    npc->last_hit_unowned = !hit_has_player_dealer(srv, type);
+    if( npc->last_hit_unowned )
+        ToriRSServer_WorldSoundArea(srv, npc->block_sound, 0, npc->x, npc->z, npc->level,
+                                    TORIRSSERVER_NPC_UNOWNED_SOUND_RANGE, 0);
+    else if( npc_def(npc)->defend_sound_range > 0 )
         ToriRSServer_WorldSoundArea(srv, npc->block_sound, 0, npc->x + npc->size / 2,
                                     npc->z + npc->size / 2, npc->level,
                                     npc_def(npc)->defend_sound_range, 0);
-    else if( npc->block_sound >= 0 && srv->active_player )
+    else if( npc->block_sound >= 0 )
     {
         ToriRSServer_SendSynthSound(srv->active_player, npc->block_sound, 1, 0);
         ToriRSServer_TicklogSound(srv, srv->active_player, npc->block_sound, 1, 0,
@@ -2340,10 +2383,15 @@ ToriRSServer_CombatHitPlayerFrom(
          * 0: content's hit sound keys on exactly that. RSProx 820, 843, 3389:
          * every damage splat on the recorder with a value (727 of 727, 29 of
          * 29, 129 of 129) came with one `human_hit_1..4` synth, and no 0,
-         * poison or other splat did.
+         * poison or other splat did. A block splat (a 0 that was not a fully
+         * absorbed hit) is -1: it has a sound of its own, the armour block
+         * synth (3,858 of 3,859 block splats on the recorders of RSProx 3299,
+         * 1754, 198, 199), which content picks by what the player wears.
          */
         int32_t const hit_args[1] = {
-            amount > 0 && hitsplat_family_of(type) == &HITSPLAT_FAMILIES[0] ? amount : 0
+            amount > 0 && hitsplat_family_of(type) == &HITSPLAT_FAMILIES[0]
+                ? amount
+                : (amount == 0 && !absorbed_fully ? -1 : 0)
         };
         ToriRSServer_ScriptsRunProc(srv, "[proc,combat_player_hit_received]", hit_args, 1);
     }

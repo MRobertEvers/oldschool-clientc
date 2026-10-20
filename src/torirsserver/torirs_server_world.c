@@ -18935,6 +18935,35 @@ ToriRSServer_MusicEnterRegion(
  * Nothing is *run* here. See `ToriRSServer_ScriptsQueueTriggerAt` for why phase 10
  * cannot be the execution site.
  */
+/*
+ * The multi-combat icon. Jagex sets varbit 4605 `multiway_indicator` as the
+ * player crosses into and out of multi-way ground (RSProx 3299: 1 on entering
+ * the Inferno and on every multi zone of Mor Ul Rek and the world after it;
+ * 183, 193, 199, 2111: 1 on landing in the arena). Nothing here sent it, so
+ * the icon never showed anywhere.
+ *
+ * The answer is the one combat already gives (ToriRSServer_CombatMultiway,
+ * SS_OP_MAP_MULTIWAY): a map instance is multi-way, otherwise the zone set.
+ * The icon says what the multi-combat rule will do to the player, so it must
+ * not disagree with the rule. Zones are 8x8, so the zone latch is the place.
+ */
+static void
+world_sync_multiway_indicator(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player)
+{
+    int const id = ToriRSServer_Ids()->varbit_multiway_indicator;
+    int multi;
+
+    if( id < 0 )
+        return;
+    multi = ToriRSServer_MapInstanceFind(player->x, player->z)
+                ? 1
+                : ToriRSServer_ContentMultiway(player->x, player->z, player->level);
+    if( ToriRSServer_VarbitGet(player, id) != multi )
+        ToriRSServer_VarbitSetOn(srv, player, id, multi);
+}
+
 static void
 ToriRSServer_WorldUpdateMap(struct ToriRSServerPlayer* player)
 {
@@ -18982,6 +19011,7 @@ ToriRSServer_WorldUpdateMap(struct ToriRSServerPlayer* player)
         player->last_zone_level = player->level;
         player->last_zone_x = zx;
         player->last_zone_z = zz;
+        world_sync_multiway_indicator(srv, player);
     }
 
     /*

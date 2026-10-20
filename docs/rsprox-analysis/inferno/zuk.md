@@ -8,14 +8,14 @@ W is the tick wave 68's last Jad leaves. M is the mesbox tick.
 
 | Tick | Recorded (3299, W = 13632) | Ours before | Now |
 |---|---|---|---|
-| W | `Wave completed!` (plain, no colour) and `midi_jingle` 76 `the_fight_continues_fight_cave`. This holds for **every** wave, 68 of 68. | `<col=ef1020>Wave completed!`, no jingle | matches |
-| W+10 = M | Mesbox "A great power is starting to shake the cavern..." with no continue. `fade_overlay` and clientscript 948 `(0,255,0,0,15)`: black, clear → opaque over 15 cycles. The music fades out. | "Wave: 69" printed here; a fade over 50 cycles with script 951; music stopped | matches (the mesbox, 948 out over 15, `midi_song(-1)`) |
+| W | `Wave completed!` (plain, no colour), `midi_song_v2` 147 (envelope 0/0/0/0) and `midi_jingle` 76 `the_fight_continues_fight_cave`; track 500 again on W+8, envelope 0. This holds for **every** wave (223 wave ends in 3299, 1754, 198). | `<col=ef1020>Wave completed!`, no jingle | matches (song 147 and the W+8 restart added 2026-10-19) |
+| W+10 = M | Mesbox "A great power is starting to shake the cavern..." with no continue. `fade_overlay` and clientscript 948 `(0,255,0,0,15)`: black, clear → opaque over 15 cycles. The music fades out. | "Wave: 69" printed here; a fade over 50 cycles with script 951; music stopped | matches (the mesbox, 948 out over 15). The music was `midi_song(-1)`, a stop at speed 30; recorded it is `midi_song_v2` 147 with fade-out speed 50 (3 of 3), fixed 2026-10-19 |
 | M+2 | Cutscene lock: `cutscene_status`, `fov_clamp`, `minimap_state` 2. Side tabs 0–6, 11 and 12 and xp_drops closed. The player is moved to (2271,5356). `cam_shake` on axis 0/1/2 with random 5/4/3, amplitude 0, rate 0. Synth 1678 `rumbling`. | Three shakes (6,10,2); `cave_rumbling_1`; "TzKal-Zuk stirs." and two "Oh no!..." game messages; no varbits or tabs | matches; the invented messages are removed |
 | M+3 | `cam_lookat` (2268,5368) height 140; `cam_moveto` (2275,5347) height 1000; rate 0, rate2 100 | moveto (2276,5349), lookat (2271,5365) at height 1000, rate 10 | matches |
 | M+4 | `inferno_prisonroof_hidden` = 1 (no loc packet for the roof). The six seal locs go to state2 together: both flanks, both floor corners, both corner joins. The centre slab (2270,5363) is deleted. Zuk added at (2268,5364) with `zuk_spawn`; the glyph added at (2270,5363). Tzhaar-Ket-Keh's chathead (`inferno_master`, `chatscared2`, no continue): "No! TzKal-Zuk's prison is breaking down. There's<br>nothing I can do for you now, JalYt!". 948 `(0,0,0,255,50)`: fade in over 50. | State2 flanks two ticks earlier; corners a tick later; slab removed a tick before Zuk; fade-in over 120; a roof `loc_del`; no chathead | matches |
 | M+5 | `loc_anim` on both flanks (7559/7560); synth 1487 `explosion` | `cave_collapse_1` and "The rocks holding TzKal-Zuk break loose!" | matches |
 | M+6 | Synth 3686 `grim_giant_roar` | none | matches |
-| M+8 | `midi_song` 500 (Inferno) | at M+12 | matches |
+| M+8 | `midi_song` 500 (Inferno), envelope 0/0/0/0 | at M+12 | matches (it was sent with `midi_song`'s 0/60/60/0 envelope until 2026-10-19) |
 | M+12 | Lock released. `<col=ef1020>Wave: 69</col>`. `inferno_zuk_hp`/`_base_hp` set to 1200. Both flanks changed in place to state3. `cam_reset`, tabs reopened, chathead and fade closed, `inferno_hp_hud` opened. | "The seal crumbles." and `cavein` from a Zuk queue; hp bar opened at M+4 | matches |
 | W→M | 10 ticks | 11 | matches (`^inferno_zuk_cutscene_delay` 3) |
 

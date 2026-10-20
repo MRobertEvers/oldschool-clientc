@@ -150,6 +150,8 @@ static const struct ToriRSServerSymbolRef k_refs[] = {
           &g_ids.varp_cluehelper_infobox_clue },
         { TORIRSSERVER_PACK_VARBIT, "varb14195_settings_hitsplat_threshold",
           &g_ids.varbit_hitsplat_threshold },
+        { TORIRSSERVER_PACK_VARBIT, "varb4605_multiway_indicator",
+          &g_ids.varbit_multiway_indicator },
         { TORIRSSERVER_PACK_VARBIT, "varb1777_ironman", &g_ids.varbit_ironman },
         { TORIRSSERVER_PACK_VARBIT, "varb13039_iron_noloot_icon_disabled",
           &g_ids.varbit_iron_noloot_icon_off },

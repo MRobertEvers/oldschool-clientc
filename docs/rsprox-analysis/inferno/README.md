@@ -9,7 +9,7 @@ Findings read from **RSProx recordings** of real OSRS sessions. The method and c
 
 ## Sources
 
-The public archive ([rsprox.net/database](https://rsprox.net/database)) holds four recordings with Zuk in them (NPC 7706). All four are boosted accounts, and none lasts long enough to see a JalZek/JalXil set spawn.
+The public archive ([rsprox.net/database](https://rsprox.net/database)) holds four recordings with Zuk in them (NPC 7706). All four are boosted accounts, and none lasts long enough to see a JalZek/JalXil set spawn. Another 39 sessions in the local archive hold Inferno waves without Zuk (Leagues V and Grid Master: entries, deaths, pauses, logouts, pillar falls); [mobs.md](mobs.md) lists them in its 2026-10-19 section.
 
 | Submission | Revision | World | What it holds |
 |---|---|---|---|
