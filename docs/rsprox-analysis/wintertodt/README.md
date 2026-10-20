@@ -138,7 +138,10 @@ measured, not published.
   (`human_spot_jump`) and the two-tile hop are unverified.
 
 - Lighting with a tinderbox rather than the bruma torch. The recorder always
-  used the torch; the same animation is used for both.
+  wore `wint_torch_offhand`, and 7174 states `righthand=wint_torch`, so it
+  draws a torch whatever the player holds. A tinderbox lighter plays
+  `human_createfire` (733), the tinderbox brazier light in RSProx 1694 (226.1,
+  "You light the brazier with your tinderbox."); not recorded at Wintertodt.
 - The Peek text between rounds.
 - The last-dose drink line.
 - The drop line for items other than the herb.
