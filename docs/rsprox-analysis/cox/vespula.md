@@ -8,6 +8,8 @@ Read from three submissions on Grid Master worlds (see [README.md](README.md)):
 | 843 | solo | CCW, the same turn | the start, the first enrage, two drains, the clear |
 | 3389 | solo, Challenge Mode | CW, unturned | the start, one drain, the clear (on a shorter schedule) |
 
+| 4284 | solo, normal world 575, rev 241 (uploaded to the local index 2026-10-19) | THRU, turned a quarter | ~980 ticks over two lives: all four first stings, 152 ranged shots, ten landings, eleven enrages, 50 drains, 22 feeds, a soldier's heals, drop and explosion, a grub's regrowth, a tendril pass. No clear (the raider died twice). |
+
 Tool: `tools/cox/rsprox_vespula.py` (sections layout, vespula, grubs, drain, clear, timeline), on top of `tools/cox/rsprox_room.py`. Its output over these three is [vespula.out](vespula.out). The content is `cox_vespula.rs2`; the spec is `docs/minigames/cox/rooms/vespula_spec.md`, whose §8 lists what this file changed.
 
 **Status key:** **fixed** = changed to match the recording; **match** = ours already did it; **open** = not settled by these recordings.
@@ -147,3 +149,39 @@ These are not in any of the three recordings, so ours is unchanged:
 - her ranged attack and her landing (she was enraged throughout);
 - a fed grub;
 - a soldier's explosion.
+
+## Submission 4284 (THRU room, solo, rev 241)
+
+Transcribed with an osrs-241 RSProx build. `rsprox_room.py` reads rev 241 now:
+the npc reference has no `angle=`, and a face is `[facing] coord=`. The thru
+room's tiles match our tables exactly: Vespula (10,10), portal (22,11), grubs
+(15,8) (7,10) (15,16) (7,16). D/S below are transcript ticks; S = 216.
+
+| | Recorded (4284) | Ours before |
+|---|---|---|
+| First stings | Each grub once, random order, flying a tile a tick: 223, 231, 235, 245. She holds only the tick the grub takes the sting. | a 4-tick lockout after each: **fixed** (1) |
+| Grub drain | Solo: 1 hp per 5 ticks (9 bar steps in 190 ticks, all four grubs). 820's 54-scaled raid drained 1 a tick. | 1 a tick at any size: **fixed** (by party; 2-3 unrecorded) |
+| Feed | Heal splat 35 on the grub, the raider's `human_pickupfloor` delay 5, `eat` (2393) range 3 at the raider. No blossom: "You don't have any suitable food for the creature." | no splat, delay 0, another line: **fixed** |
+| Her shot | Seq, then the shot from her middle out at 41 cycles, in at 41 + 5 per tile from her 5x5 to the raider; flying 300->146 slope 10 progress 160, grounded 110->146 slope 32 progress 210. A TWIN to a random tile within 2 of the raider, 30 cycles later (152 of 152), hits nobody (14 times stood on, 0 hits). The hit lands end/30 ticks on. | one shot, delay 20, 60->24: **fixed** |
+| Prayed damage | Protect from Missiles: 0-7 (24 hits, 105 zeros). | match (14 halved) |
+| Her movement | Beyond reach or sight she walks to the raider a tile a tick (743-751, 987-996; grounded 796-799). Grounded she shoots a raider beside her (12 of 36), flying not (4 of 56). | stood still; never beside: **fixed** |
+| Landing | On the hit that leaves her at 28% or under, every time: 8 of 8 hits to bar 7/30 or less landed her, 2 of 6 at 8/30, 0 at 9/30. Ten landings. | 20%, 1 in 2: **fixed** |
+| Grounded | 15 ticks, landing to takeoff, ten of ten; the takeoff then enrages her the next tick if the portal is under attack. | 33: **fixed** |
+| Health at takeoff | 89-100% of 200 at the first bar after takeoff, not always full. | full: **open** |
+| Ranged at grounded her | "The creature's wing casings make it impossible to shoot with ranged attacks." (5 times) | another line: **fixed** |
+| Enraged facing | At home, a random tile every tick she does not sting: her SW + -4..5 each way (165 turns). | half the ready ticks, her ring: **fixed** |
+| Portal drain | It turns to the target the tick its first hit lands; drains every 2 ticks; stops the tick the target runs (7 of 7 spells), then the facing resets. | 9 ticks on, no face: **fixed** (stops when they leave the tile they attacked from; the reset has no script op) |
+| Soldier heals | The portal only (0 heal splats on Vespula), every 5 ticks: 7 or 8 of 232 (13 heals). With 820's 211 of 7000: 3% rounded up, plus 0 or 1. | 3% floored (6): **fixed** |
+| Grub regrowth | #221's soldier was still alive when it regrew (976), as in 820 (+37). The hatch itself was unseen (the raider was dead). | match |
+| Soldier | Swing `vespula_attack_melee_flying` + `swarm_attack` to the raider, hit the same tick; defend `vespula_defend_flying` / grounded `vespula_defend`, `harpiebugswarm_hit`. It dropped on the hit to 3-6 hp (stayed up at 13-15). Grounded it never swings: it walks next to the raider. Ranged on it: 0 splats, no line. 21 ticks after the drop the explode seq, and the next tick it is gone with graphic 1368 (height 5) and `100_cauldron_explodes` (1021, range 10) at its middle; 15 to the raider 2 tiles off. | engine defaults; 20%; it swung grounded; refused ranged; all in one tick at 33: **fixed** |
+| Tendrils | NOT there at the start (the raider ran in past the tile); added the tick she first enrages, as in 843 (885) and 3389 (+3). Thru: ONE, (15,2), rotation 0. | at spawn; thru two at z 1: **fixed** |
+| The pass | 957: from (15,1) onto (15,2) then (14,2); 13 to the raider as a POISON splat (`hitsplat_poison_me`), going IN. | free going in, red splat: **fixed** (a teleport to (14,2), not two steps) |
+| Boils | Thru: (15,28) shape 10 rot 0, (16,28) shape 11 rot 1. | the diagonal on (15,28): **fixed** |
+| Her spotanim | Every shot sends `spotanim id=-1` on her (clears the raider's ruby-bolt graphic). | **open** (cosmetic) |
+
+| Her flights | Every step to a sting spot and home when enraged is a one-tile TELEPORT (her chase steps are walks). | npc_walk: her 5x5 stalled on terrain short of a spot and stung three grubs from there: **fixed** (`~cox_vespula_fly_step`) |
+| Regen | Mod Ash: grubs never; Vespula 10, portal 45, soldier 16 (our script timers). | the engine ALSO regenerated every npc +1 per 100 ticks (since 23bfa29dc): **fixed** (engine `param=regenrate`, 10000 on every Vespula-room type) |
+
+The earlier "pass (16,0) to (16,2) going in (843, 3389)" rows were other rooms'
+tendrils (dogodile, shaman): neither recording passes Vespula's.
+

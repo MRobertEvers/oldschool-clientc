@@ -696,6 +696,10 @@ static const struct hitsplat_family HITSPLAT_FAMILIES[] = {
     { "hitsplat_poison", "hitsplat_poison_me", "hitsplat_poison_other", NULL },
     { "hitsplat_shield", "hitsplat_shield_me", "hitsplat_shield_other",
       "hitsplat_shield_max_me" },
+    /* The Wardens' phase-two shield: 53 on the dealer's own hits, 55 on their
+     * max, 54 for everyone else's (RSProx 14, 1852: 1,646 / 26 / 1,704 on the
+     * shielded forms). The cache names none of the three. */
+    { "hitsplat_53", "hitsplat_53", "hitsplat_54", "hitsplat_55" },
 };
 
 /** A pack symbol, or -1. Wrapped so the family walk reads as a lookup. */
@@ -2173,6 +2177,35 @@ npc_stat_regen_held(struct ToriRSServerNpc const* npc)
     }
 }
 
+/*
+ * The npc's turns between regens: `param=regenrate,N` (combat.param), else
+ * LostCity's NpcType default. Jagex states some: "Vespula's grubs - 10000 (i.e.
+ * never)" (Mod Ash, 9 July 2026, the CoX table), and a type whose content runs
+ * its own regen timer states 10000 so the engine does not regen it twice.
+ */
+static int
+npc_regen_interval(struct ToriRSServerNpc const* npc)
+{
+    static int s_param = -2;
+    int32_t value = 0;
+    const struct ToriRSServerNpcDef* def;
+
+    assert(npc);
+    if( s_param == -2 )
+        s_param = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_PARAM, "regenrate");
+    if( s_param < 0 )
+        return TORIRSSERVER_NPC_REGEN_TICKS;
+    def = npc->def ? npc->def : ToriRSServer_ContentNpcDefault();
+    if( def && ToriRSServer_ContentNpcParam(def, s_param, &value) )
+        return value > 0 ? (int)value : TORIRSSERVER_NPC_REGEN_TICKS;
+    {
+        const struct ToriRSServerNpcParam* row = ToriRSServer_NpcParam(npc->type, s_param);
+        if( row && !row->sval && row->ival > 0 )
+            return (int)row->ival;
+    }
+    return TORIRSSERVER_NPC_REGEN_TICKS;
+}
+
 /* One level of a stat toward its base. `level` is what the stat reads now. */
 static int
 npc_regen_step(int level, int base)
@@ -2196,11 +2229,13 @@ ToriRSServer_CombatNpcRegenTick(struct ToriRSServer* srv, int slot)
 
     /* `if (++this.regenClock >= this.regenInterval)`, and the interval is
      * reloaded only when a regen happens ("the regenrate doesn't update until a
-     * regen happens. See: Vorkath in OSRS", Npc.ts processRegen). This tree has
-     * no per-type regenrate, so the reload is LostCity's NpcType default. */
+     * regen happens. See: Vorkath in OSRS", Npc.ts processRegen). The reload is
+     * the type's `regenrate` (npc_regen_interval). A never-type (10000) still
+     * takes the first regen: its interval starts at 0 like every npc's, so it
+     * is reloaded on the first tick and holds from there. */
     if( ++npc->regen_clock < npc->regen_interval )
         return;
-    npc->regen_interval = TORIRSSERVER_NPC_REGEN_TICKS;
+    npc->regen_interval = npc_regen_interval(npc);
     npc->regen_clock = 0;
 
     /* Hitpoints, toward the pool. Never from 0: an npc at 0 is dying, and a

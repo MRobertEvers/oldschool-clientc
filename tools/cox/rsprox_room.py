@@ -31,7 +31,9 @@ TICK = re.compile(r"^\[(\d+)\]$")
 TOP = re.compile(r"^ {4}\[(\w+)\] ?(.*)$")
 SUB8 = re.compile(r"^ {8}\[(\w+)\] ?(.*)$")
 SUB12 = re.compile(r"^ {12}\[(\w+)\] ?(.*)$")
-NPC = re.compile(r"npc=\(index=(\d+), id=([a-z0-9_]+) \((\d+)\), coord=\((\d+), (\d+), (\d+)\), angle=(-?\d+)\)")
+# rev 241 dropped the npc's angle from the reference (and writes `spawnangle=` on
+# the add, `[facing] coord=` for a face)
+NPC = re.compile(r"npc=\(index=(\d+), id=([a-z0-9_]+) \((\d+)\), coord=\((\d+), (\d+), (\d+)\)(?:, angle=(-?\d+))?\)")
 PLAYER = re.compile(r"player=\(index=(\d+), name=([^,]*), coord=\((\d+), (\d+), (\d+)\)\)")
 NEWCOORD = re.compile(r"newcoord=\((\d+), (\d+), (\d+)\)")
 COORD = re.compile(r"coord=\((\d+), (\d+), (\d+)\)")
@@ -267,6 +269,9 @@ def load_room(path, npc_ids, pad=40, gap=1500, anchor=None):
                         npc.ev[tick].append(("seq", name_of(text) + ("" if num(text, "delay") is None else " d%d" % num(text, "delay"))))
                     elif kind == "face_angle":
                         npc.ev[tick].append(("face", str(num(text, "angle"))))
+                    elif kind == "facing":
+                        c = coord_of(text)
+                        npc.ev[tick].append(("facing", str(c) if c else text))
                     elif kind == "hit":
                         npc.ev[tick].append(("hit", "%s %s" % (num(text, "id"), num(text, "value"))))
                     elif kind == "headbar":
