@@ -1190,6 +1190,7 @@ World_ProjectileSpawn(
         .wire_dst_x = dst_x,
         .wire_dst_z = dst_z,
         .spotanim_id = -1,
+        .unbound_seq = -1,
         .dst_x = dst_x,
         .dst_z = dst_z,
         .cycle = 0,

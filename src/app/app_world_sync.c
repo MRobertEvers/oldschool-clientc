@@ -219,6 +219,14 @@ app_world_sync_positions(struct App* app)
         struct WorldEntity_Projectile* proj = World_EntityPoolGet(pool, i);
         if( !proj || proj->element_id < 0 || !proj->launched )
             continue;
+        /* The spotanim's seq starts at launch (class50.method940 steps it
+         * only once cycle >= t1), aged by the cycles flown since. */
+        if( proj->unbound_seq >= 0 )
+        {
+            app_world_apply_seq_at(
+                app, proj->element_id, proj->unbound_seq, world->cycle - (proj->cycle - proj->t1));
+            proj->unbound_seq = -1;
+        }
         ToriDraw_SceneElementSetPositionPitchYaw(
             app->scene,
             proj->element_id,

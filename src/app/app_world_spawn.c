@@ -1104,6 +1104,7 @@ app_world_spawn_projectile_spot_now(
             World_EntityPoolGet(&world->entities.projectile, idx);
         assert(spawned);
         spawned->spotanim_id = spotanim_id;
+        spawned->unbound_seq = spot->seq;
     }
     /* The projectile's clock starts at enqueue, not at apply: aged by the
      * cycles its assets took, the next world cycle aims it from where it
@@ -1125,7 +1126,11 @@ app_world_spawn_projectile_spot_now(
      * frame, so what that actually looks like is extra parts of the model
      * appearing mid-air partway to the target. */
     ToriDraw_SceneElementSetAnimLoop(app->scene, element_id, true);
-    app_world_apply_seq(app, element_id, spot->seq);
+    /* Loaded now, bound at launch (app_world_sync_positions): the reference
+     * starts the animation at t1, and a seq bound here would spend the start
+     * delay playing -- the Archive Guardian's 82-frame shot, launched 48
+     * cycles after its packet, flew the last 34 frames and then stood still. */
+    app_world_load_seq(app, spot->seq);
 
     if( torirs_env_net_debug() )
         TORIRS_LOG(

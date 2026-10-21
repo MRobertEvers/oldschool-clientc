@@ -224,14 +224,37 @@ app_world_apply_seq(
     int element_id,
     int seq_id)
 {
+    app_world_apply_seq_at(app, element_id, seq_id, app->world ? app->world->cycle : 0);
+}
+
+/* Queue a sequence load (no-op when cached) without binding it to anything,
+ * for an element that binds it later (a projectile, at launch). */
+void
+app_world_load_seq(
+    struct App* app,
+    int seq_id)
+{
     struct ToriRS_Task* task;
-    int const start_cycle = app->world ? app->world->cycle : 0;
 
     if( seq_id < 0 )
         return;
     task = CreateTask_SequenceLoad(app->provider, app->scene, seq_id);
     if( task )
         ToriRS_TaskQueue_Add(app->runner.queue, task);
+}
+
+/* app_world_apply_seq for a sequence that started on world cycle
+ * `start_cycle`: the bind catches its frames up from there. */
+void
+app_world_apply_seq_at(
+    struct App* app,
+    int element_id,
+    int seq_id,
+    int start_cycle)
+{
+    if( seq_id < 0 )
+        return;
+    app_world_load_seq(app, seq_id);
 
     if( app_world_try_bind_seq(app, element_id, seq_id, start_cycle) )
         return;

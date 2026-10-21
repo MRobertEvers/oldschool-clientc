@@ -2347,6 +2347,18 @@ app_world_apply_seq(
     int seq_id);
 
 void
+app_world_apply_seq_at(
+    struct App* app,
+    int element_id,
+    int seq_id,
+    int start_cycle);
+
+void
+app_world_load_seq(
+    struct App* app,
+    int seq_id);
+
+void
 app_seq_bind_pending_drop(
     struct App* app,
     int element_id);

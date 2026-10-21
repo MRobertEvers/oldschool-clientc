@@ -54,6 +54,12 @@ struct WorldEntity_Projectile
      *  driver does (DriveUi_Projectiles). Set by the spawner after
      *  World_ProjectileSpawn. */
     int spotanim_id;
+    /** The spotanimtype's seq, still to be bound to the element; -1 once
+     *  bound or for none. rev-239 class50.method940 steps a projectile's
+     *  animation only on cycles >= t1, so frame 0 is the launch, not the
+     *  packet: the app binds it on the first launched frame. World never
+     *  reads it. */
+    int unbound_seq;
 
     /* Dynamic state. dst_x/dst_z are re-aimed every cycle at the target
      * entity's live draw position while it stays synced (reference
