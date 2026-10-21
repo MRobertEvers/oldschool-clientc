@@ -33,15 +33,19 @@ export const PARK_CLASS_BY_OPCODE = Object.freeze(new Map([
     [40, 'script'], /* GOSUB_WITH_PARAMS */
     [100, 'component'], /* CC_CREATE */
     [105, 'component'], /* CC_COPY */
-    [106, 'component'], /* CC_CREATECHILD */
-    [107, 'component'], /* CC_CREATESIBLING */
+    [106, 'component'], /* CC_CREATE_CHILD */
+    [107, 'component'], /* CC_CREATE_SIBLING */
     [200, 'component'], /* CC_FIND */
     [201, 'component'], /* IF_FIND */
-    [205, 'component'], /* IF_CHILDREN_FIND */
-    [211, 'component'], /* IF_CHILDREN_COLLECT */
-    [212, 'component'], /* CC_CHILDREN_FIND_COUNT */
-    [213, 'component'], /* CC_CHILDREN_FINDNEXT */
-    [1004, 'component'], /* CC_SETPINCH */
+    [204, 'component'], /* CC_FIND_PARENT */
+    [205, 'component'], /* CC_FIND_LAYER */
+    [206, 'component'], /* CC_FIND_NEXT_SIBLING */
+    [210, 'sprite'], /* CC_FIND_PARAM */
+    [211, 'component'], /* IF_QUERY */
+    [212, 'component'], /* CC_QUERY */
+    [213, 'component'], /* IF_QUERY_NEXT */
+    [216, 'sprite'], /* IF_QUERY_REFINE */
+    [1004, 'component'], /* _1004 */
     [1006, 'component'], /* CC_SETNOSCROLLTHROUGH */
     [1104, 'component'], /* CC_SETLINEWID */
     [1105, 'sprite'], /* CC_SETGRAPHIC */
@@ -52,37 +56,36 @@ export const PARK_CLASS_BY_OPCODE = Object.freeze(new Map([
     [1113, 'font'], /* CC_SETTEXTFONT */
     [1118, 'component'], /* CC_SETVFLIP */
     [1119, 'component'], /* CC_SETHFLIP */
-    [1123, 'component'], /* CC_SETFILLCOLOUR */
-    [1124, 'component'], /* CC_SETTRANSBOT */
-    [1125, 'component'], /* CC_SETFILLMODE */
+    [1123, 'component'], /* CC_SETBLENDCOLOUR */
+    [1124, 'component'], /* CC_SETBLENDTRANS */
+    [1125, 'component'], /* CC_SETBLENDMODE */
     [1126, 'component'], /* CC_SETLINEDIRECTION */
     [1127, 'component'], /* CC_SETMODELTRANSPARENT */
-    [1133, 'component'], /* CC_INPUT_SETSUBMITMODE */
-    [1134, 'component'], /* CC_INPUT_SETSELECTCOLOUR */
-    [1135, 'component'], /* CC_INPUT_SETACCEPTMODE */
-    [1136, 'component'], /* CC_INPUT_SETWRAPMODE */
+    [1133, 'component'], /* CC_INPUT_SETSELECTCOLOUR */
+    [1134, 'component'], /* CC_INPUT_SETSELECTBGCOLOUR */
+    [1135, 'component'], /* CC_INPUT_SETPLACEHOLDERTEXT */
+    [1136, 'component'], /* CC_INPUT_SETPLACEHOLDERTEXTCOLOUR */
     [1137, 'component'], /* CC_INPUT_SETLINEWRAPPINGWIDTH */
-    [1138, 'component'], /* CC_INPUT_SETSELECTBGCOLOUR */
-    [1139, 'component'], /* CC_INPUT_SETLINECOUNTLIMIT */
-    [1140, 'component'], /* CC_INPUT_SETCURSORCOLOUR */
-    [1141, 'component'], /* CC_INPUT_SETCURSORTRANS */
-    [1142, 'component'], /* CC_INPUT_SETCURSORWIDTH */
-    [1143, 'component'], /* CC_INPUT_SETCURSORHEIGHT */
-    [1144, 'component'], /* CC_INPUT_SETCURSOROFFSET */
-    [1145, 'component'], /* CC_INPUT_SETLINEWIDTHLIMIT */
-    [1146, 'component'], /* CC_INPUT_SETCHARFILTER */
+    [1138, 'component'], /* CC_INPUT_SETLINECOUNTLIMIT */
+    [1139, 'component'], /* CC_INPUT_SETLINEWIDTHLIMIT */
+    [1140, 'component'], /* CC_INPUT_SETFOCUS */
+    [1141, 'component'], /* CC_INPUT_SETFOCUSABLE */
+    [1142, 'component'], /* CC_INPUT_SETSELECTION */
+    [1143, 'component'], /* CC_INPUT_SETCARET */
+    [1144, 'component'], /* CC_INPUT_SETWRAPMODE */
+    [1145, 'component'], /* CC_INPUT_SETSUBMITMODE */
+    [1146, 'component'], /* CC_INPUT_SETACCEPTMODE */
     [1200, 'obj'], /* CC_SETOBJECT */
     [1201, 'model'], /* CC_SETNPCHEAD */
     [1202, 'model'], /* CC_SETPLAYERHEAD_SELF */
-    [1203, 'model'], /* CC_SETPLAYERMODEL_SELF */
-    [1204, 'model'], /* CC_SETMODEL_PLAYERCHATHEAD */
+    [1203, 'model'], /* _1203 */
+    [1204, 'model'], /* _1204 */
     [1205, 'obj'], /* CC_SETOBJECT_NONUM */
-    [1212, 'obj'], /* CC_SETOBJECT_ALWAYS_NUM */
+    [1212, 'obj'], /* CC_SETOBJECT_ALWAYSNUM */
     [1214, 'model'], /* CC_SETLOCMODEL */
-    [1308, 'component'], /* CC_SETOPFORCELEFTCLICK */
-    [1613, 'struct'], /* CC_GETPARAM */
-    [1703, 'sprite'], /* CC_GETCOMPONENTPARAM */
-    [2004, 'component'], /* IF_SETPINCH */
+    [1308, 'component'], /* CC_SETALWAYSLEFTCLICK */
+    [1703, 'sprite'], /* CC_PARAM */
+    [2004, 'component'], /* _2004 */
     [2005, 'component'], /* IF_SETNOCLICKTHROUGH */
     [2006, 'component'], /* IF_SETNOSCROLLTHROUGH */
     [2104, 'component'], /* IF_SETLINEWID */
@@ -94,39 +97,41 @@ export const PARK_CLASS_BY_OPCODE = Object.freeze(new Map([
     [2113, 'font'], /* IF_SETTEXTFONT */
     [2118, 'component'], /* IF_SETVFLIP */
     [2119, 'component'], /* IF_SETHFLIP */
-    [2123, 'component'], /* IF_SETFILLCOLOUR */
-    [2124, 'component'], /* IF_SETTRANSBOT */
-    [2125, 'component'], /* IF_SETFILLMODE */
+    [2123, 'component'], /* IF_SETBLENDCOLOUR */
+    [2124, 'component'], /* IF_SETBLENDTRANS */
+    [2125, 'component'], /* IF_SETBLENDMODE */
     [2126, 'component'], /* IF_SETLINEDIRECTION */
     [2127, 'component'], /* IF_SETMODELTRANSPARENT */
-    [2133, 'component'], /* IF_INPUT_SETSUBMITMODE */
-    [2134, 'component'], /* IF_INPUT_SETSELECTCOLOUR */
-    [2135, 'component'], /* IF_INPUT_SETACCEPTMODE */
-    [2136, 'component'], /* IF_INPUT_SETWRAPMODE */
+    [2133, 'component'], /* IF_INPUT_SETSELECTCOLOUR */
+    [2134, 'component'], /* IF_INPUT_SETSELECTBGCOLOUR */
+    [2135, 'component'], /* IF_INPUT_SETPLACEHOLDERTEXT */
+    [2136, 'component'], /* IF_INPUT_SETPLACEHOLDERTEXTCOLOUR */
     [2137, 'component'], /* IF_INPUT_SETLINEWRAPPINGWIDTH */
-    [2138, 'component'], /* IF_INPUT_SETSELECTBGCOLOUR */
-    [2139, 'component'], /* IF_INPUT_SETLINECOUNTLIMIT */
-    [2140, 'component'], /* IF_INPUT_SETCURSORCOLOUR */
-    [2141, 'component'], /* IF_INPUT_SETCURSORTRANS */
-    [2142, 'component'], /* IF_INPUT_SETCURSORWIDTH */
-    [2143, 'component'], /* IF_INPUT_SETCURSORHEIGHT */
-    [2144, 'component'], /* IF_INPUT_SETCURSOROFFSET */
-    [2145, 'component'], /* IF_INPUT_SETLINEWIDTHLIMIT */
-    [2146, 'component'], /* IF_INPUT_SETCHARFILTER */
+    [2138, 'component'], /* IF_INPUT_SETLINECOUNTLIMIT */
+    [2139, 'component'], /* IF_INPUT_SETLINEWIDTHLIMIT */
+    [2140, 'component'], /* IF_INPUT_SETFOCUS */
+    [2141, 'component'], /* IF_INPUT_SETFOCUSABLE */
+    [2142, 'component'], /* IF_INPUT_SETSELECTION */
+    [2143, 'component'], /* IF_INPUT_SETCARET */
+    [2144, 'component'], /* IF_INPUT_SETWRAPMODE */
+    [2145, 'component'], /* IF_INPUT_SETSUBMITMODE */
+    [2146, 'component'], /* IF_INPUT_SETACCEPTMODE */
     [2200, 'obj'], /* IF_SETOBJECT */
     [2201, 'model'], /* IF_SETNPCHEAD */
     [2202, 'model'], /* IF_SETPLAYERHEAD_SELF */
-    [2203, 'model'], /* IF_SETMODEL_PLAYERCHATHEAD */
+    [2203, 'model'], /* _2203 */
     [2205, 'obj'], /* IF_SETOBJECT_NONUM */
-    [2212, 'obj'], /* IF_SETOBJECT_ALWAYS_NUM */
+    [2212, 'obj'], /* IF_SETOBJECT_ALWAYSNUM */
     [2214, 'model'], /* IF_SETLOCMODEL */
     [2303, 'component'], /* IF_SETDRAGDEADZONE */
     [2304, 'component'], /* IF_SETDRAGDEADTIME */
-    [2308, 'component'], /* IF_SETCLICKMASK */
+    [2308, 'component'], /* IF_SETALWAYSLEFTCLICK */
     [3304, 'enum'], /* INV_SIZE */
     [3400, 'enum'], /* ENUM_STRING */
     [3408, 'enum'], /* ENUM */
     [3411, 'enum'], /* ENUM_GETOUTPUTCOUNT */
+    [3931, 'obj'], /* STOCKMARKET_SELLABLE */
+    [3939, 'obj'], /* STOCKMARKET_BUYABLE */
     [4108, 'font'], /* PARAHEIGHT */
     [4109, 'font'], /* PARAWIDTH */
     [4200, 'obj'], /* OC_NAME */
@@ -141,12 +146,13 @@ export const PARK_CLASS_BY_OPCODE = Object.freeze(new Map([
     [4209, 'obj'], /* OC_UNPLACEHOLDER */
     [4210, 'obj'], /* OC_FIND */
     [4213, 'obj'], /* OC_SHIFTCLICKIOP */
-    [4218, 'obj'], /* OC_EXAMINE */
+    [4218, 'obj'], /* OC_DESC */
+    [4224, 'obj'], /* OC_BYID */
     [6513, 'obj'], /* NC_PARAM */
     [6514, 'obj'], /* LC_PARAM */
     [6515, 'obj'], /* OC_PARAM */
     [6516, 'struct'], /* STRUCT_PARAM */
-    [6600, 'worldmap'], /* WORLDMAP_INIT */
+    [6600, 'worldmap'], /* WORLDMAP_JUMPTOPLAYER */
     [6601, 'worldmap'], /* WORLDMAP_GETMAPNAME */
     [6602, 'worldmap'], /* WORLDMAP_SETMAP */
     [6603, 'worldmap'], /* WORLDMAP_GETZOOM */
@@ -161,19 +167,19 @@ export const PARK_CLASS_BY_OPCODE = Object.freeze(new Map([
     [6612, 'worldmap'], /* WORLDMAP_GETCONFIGSIZE */
     [6613, 'worldmap'], /* WORLDMAP_GETCONFIGBOUNDS */
     [6614, 'worldmap'], /* WORLDMAP_GETCONFIGZOOM */
-    [6615, 'worldmap'], /* WORLDMAP_GETDISPLAYCOORD_CURRENT */
+    [6615, 'worldmap'], /* WORLDMAP_GETSOURCEPOSITION */
     [6616, 'worldmap'], /* WORLDMAP_GETCURRENTMAP */
     [6617, 'worldmap'], /* WORLDMAP_GETDISPLAYCOORD */
     [6618, 'worldmap'], /* WORLDMAP_GETSOURCECOORD */
-    [6619, 'worldmap'], /* WORLDMAP_JUMPTOMAP */
-    [6620, 'worldmap'], /* WORLDMAP_JUMPTOMAP_INSTANT */
+    [6619, 'worldmap'], /* WORLDMAP_SETMAP_COORD */
+    [6620, 'worldmap'], /* WORLDMAP_SETMAP_COORD_OVERRIDE */
     [6621, 'worldmap'], /* WORLDMAP_COORDINMAP */
     [6622, 'worldmap'], /* WORLDMAP_GETSIZE */
     [6623, 'worldmap'], /* WORLDMAP_GETMAP */
-    [6624, 'worldmap'], /* WORLDMAP_SETMAXFLASHCOUNT */
-    [6625, 'worldmap'], /* WORLDMAP_RESETMAXFLASHCOUNT */
-    [6626, 'worldmap'], /* WORLDMAP_SETCYCLESPERFLASH */
-    [6627, 'worldmap'], /* WORLDMAP_RESETCYCLESPERFLASH */
+    [6624, 'worldmap'], /* WORLDMAP_SETFLASHLOOPS */
+    [6625, 'worldmap'], /* WORLDMAP_SETFLASHLOOPS_DEFAULT */
+    [6626, 'worldmap'], /* WORLDMAP_SETFLASHTICS */
+    [6627, 'worldmap'], /* WORLDMAP_SETFLASHTICS_DEFAULT */
     [6628, 'worldmap'], /* WORLDMAP_PERPETUALFLASH */
     [6629, 'worldmap'], /* WORLDMAP_FLASHELEMENT */
     [6630, 'worldmap'], /* WORLDMAP_FLASHELEMENTCATEGORY */
@@ -184,28 +190,29 @@ export const PARK_CLASS_BY_OPCODE = Object.freeze(new Map([
     [6635, 'worldmap'], /* WORLDMAP_GETDISABLEELEMENTS */
     [6636, 'worldmap'], /* WORLDMAP_GETDISABLEELEMENT */
     [6637, 'worldmap'], /* WORLDMAP_GETDISABLEELEMENTCATEGORY */
-    [6638, 'worldmap'], /* WORLDMAP_GETNEARESTICON */
+    [6638, 'worldmap'], /* WORLDMAP_FINDNEARESTELEMENT */
     [6639, 'worldmap'], /* WORLDMAP_LISTELEMENT_START */
     [6640, 'worldmap'], /* WORLDMAP_LISTELEMENT_NEXT */
     [6693, 'mapelement'], /* MEC_TEXT */
     [6694, 'mapelement'], /* MEC_TEXTSIZE */
     [6695, 'mapelement'], /* MEC_CATEGORY */
     [6696, 'mapelement'], /* MEC_SPRITE */
-    [6697, 'worldmap'], /* WORLDMAP_ELEMENT */
-    [6698, 'worldmap'], /* WORLDMAP_ELEMENTCOORD1 */
-    [6699, 'worldmap'], /* WORLDMAP_ELEMENTCOORD */
+    [6697, 'worldmap'], /* MEL_TYPE */
+    [6698, 'worldmap'], /* MEL_SOURCECOORD */
+    [6699, 'worldmap'], /* MEL_DISPLAYCOORD */
     [6754, 'npc'], /* NC_NAME */
-    [7500, 'db'], /* DB_FIND_WITH_COUNT */
+    [7500, 'db'], /* DB_FIND */
     [7501, 'db'], /* DB_FINDNEXT */
     [7502, 'db'], /* DB_GETFIELD */
     [7503, 'db'], /* DB_GETFIELDCOUNT */
-    [7504, 'db'], /* DB_FINDALL_WITH_COUNT */
+    [7504, 'db'], /* DB_LISTALL */
     [7505, 'db'], /* DB_GETROWTABLE */
-    [7506, 'db'], /* DB_GETROW */
-    [7507, 'db'], /* DB_FIND_FILTER_WITH_COUNT */
-    [7508, 'db'], /* DB_FIND */
-    [7509, 'db'], /* DB_FINDALL */
-    [7510, 'db'], /* DB_FIND_FILTER */
+    [7506, 'db'], /* DB_FIND_GET */
+    [7507, 'db'], /* DB_FIND_REFINE */
+    [7508, 'db'], /* DB_FIND_PRE228 */
+    [7509, 'db'], /* DB_FIND_REFINE_PRE228 */
+    [7510, 'db'], /* DB_LISTALL_PRE228 */
+    [8020, 'enum'], /* ENUM_GETINPUTS */
 ]));
 
 /** True when this opcode must be called in a retry loop. */
