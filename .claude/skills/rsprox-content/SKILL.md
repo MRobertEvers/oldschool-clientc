@@ -22,22 +22,34 @@ the script command that emits it. Keep it open.
    step). Clock varps, other npcs' wandering and zone re-sends are filtered out. `--npc <word>`
    keeps an npc, `--all` keeps everything, and `--from T --to T` prints a plain window. Read
    **several** occurrences: one recording shows one roll.
-3. **Write the timeline down** in the analysis doc as `L+1 face; L+2 seq 827, busy=1; L+3
+3. **Unpack the npc info. Never skip it.** `rsprox_interact.py` and `rsprox_tells.py` filter
+   other npcs' movement and most ext-info out, so a timeline built only on them has never seen
+   how an npc moves, faces, transforms or leaves. For every npc type the content touches, run
+   `python3 tools/rsprox/rsprox_npcinfo.py <txt>... --match '<npc name regex>' --raw-dir
+   ~/.rsprox-index-cache/home-raw/.rsprox/binary/archive` and write its per-life record (§9):
+   spawn angle and add-tick ext-info, movement kind and tiles per tick, facing kinds, sequences
+   with delays (and which ones never appear, e.g. no defend seq), transformations, level_change,
+   enabled_ops, headicons, hit and headbar ids, and death seq to `[del]`. Then compare each line
+   with the npc's config and scripts (defaultmode, wanderrange, huntmode/huntrange, attackrange,
+   death_delay, defend_anim, the forms' headicons). The generated npc blocks default to
+   `hitpoints=10`, `attack=1`, null sounds and `huntmode=none`: assume they are wrong until a
+   config states otherwise.
+4. **Write the timeline down** in the analysis doc as `L+1 face; L+2 seq 827, busy=1; L+3
    teleport`, citing session and tick (`index 4286 [38]`).
-4. **Find our side.** Grep `OSRS-Content/osrs-content/server/scripts` for the trigger (by name,
+5. **Find our side.** Grep `OSRS-Content/osrs-content/server/scripts` for the trigger (by name,
    or by `_category` from the loc's `.loc` config). Check the shared procs first:
    - `~climb*` / `~maplink_try` in `ladders_stairs/scripts/`
    - door procs in `doors/scripts/`
    - `~chatnpc` / `~chatplayer` / `~mesbox` / `~objbox` / `~p_choice*` in `interface_chat/scripts/chat.rs2`
-5. **Implement**, mapping each recorded line to its command with PACKETS.md.
-6. **Verify on our wire, not in our heads.** Run a scriptrun test (`test/<area>/<name>.lua`,
+6. **Implement**, mapping each recorded line to its command with PACKETS.md.
+7. **Verify on our wire, not in our heads.** Run a scriptrun test (`test/<area>/<name>.lua`,
    `t.ticklog.start()`), then compare in two ways:
    - **Event timing:** `tools/rsprox/ticklog_tells.py` and `tools/rsprox_tells.py --anchor ... --ours`.
    - **Packet-exact checks:** `TORIRSSERVER_TRACE_OUT=1` (2 adds the bodies) prints our every
      packet with the tick. Count `SERVER_TICK_END` to line ticks up.
 
    Remember the tick log has no message/interface rows (see the `rsprox` skill's §5).
-7. **The wire audit is REQUIRED, and nothing is done without it** (step 6 made concrete; see
+8. **The wire audit is REQUIRED, and nothing is done without it** (step 7 made concrete; see
    "The wire audit" below). Copying recorded numbers into a script and a green test are NOT
    parity: a quest gate checks that the quest completes, never what it sounded or looked like.
 
@@ -73,6 +85,24 @@ fight, cutscene, interaction), before reporting it finished:
    - **Projectiles:** every field -- source tile, target, id, `starttime`, `endtime`, `angle`,
      `progress`, start and end height -- against a fit across many shots (section 4).
    - **Locs, music, jingles, varbits, npc spawns (tile, angle), npc deaths and despawn delay.**
+   - **NPC INFO, EVERY BLOCK, EVERY TICK -- never skipped.** Start from the per-type, per-life
+     summary (`tools/rsprox/rsprox_npcinfo.py --match <regex>`, step 3 of the loop: movement kind
+     and tiles per tick, wander vs standing, headicon frames per form, hitsplat and headbar ids,
+     death seq to `[del]`), then diff tick by tick. Everything an npc does is in the
+     npc info packet, and the inventory tools see only part of it: `rsprox_tells.py --ours` counts
+     seqs and spotanims per window and **never compares facing**, and ticklog_tells prints no
+     facing at all. For every npc the content drives (the boss above all), diff its whole
+     per-tick npc-info stream against ours: `[sequence]` (id AND delay, on the same tick),
+     `[spotanim]` (slot, id, height, delay), **`[facing]`** (`coord=`, `player=`/entity,
+     `type=reset`, `angle=`), `[say]`, `[transformation]`, `level_change`, `enabled_ops`,
+     `[headbar]`, `[transparency]`, `exact_move`, and the movement kind and steps. Align on the
+     section's own anchor (the form change, the spawn), not on the fight's start, and count
+     matched / recording-only / ours-only per block kind. Ocellus (2026-10-21) passed a tells
+     inventory with his facing never sent (0 of 28 faces in phase 1, 0 of 72 in phase 4) and
+     half his phase-1 seqs off by ticks; `docs/rsprox-analysis/guthixian_archive/tools/
+     oc_stream.py` is the template for this diff. Our tick log's `npc_face` rows: a coord row
+     from `npc_facesquare`, and `x = -1, z = target` for an entity face or its reset (`-1`),
+     written at the end of the tick the block goes out.
 4. **Write it down**: one table per section in the analysis doc (`R`, ours, verdict), citing the
    recording ticks, and the counts behind each rule ("6/6"). A section without a table is not
    audited.
@@ -212,9 +242,13 @@ fight, cutscene, interaction), before reporting it finished:
 - The `busy` varbit (12393) marks a held player.
 - The hp hud's `if_setcolour` spam is not content.
 
-## 9. Npc info (analyse in detail)
+## 9. Npc info (analyse in detail; REQUIRED, see the loop's step 3)
 
-For each npc type, build the **per-life record** (spawn to despawn, `tools/rsprox_nylocas.py`'s parser handles index reuse):
+Sessions have skipped the npc_info packet and shipped npcs with default stats, no hunting, a
+defend seq the recording never plays and the wrong death timing (the Gauntlet, 2026-10-21). For
+each npc type, build the **per-life record** (spawn to despawn) with
+`tools/rsprox/rsprox_npcinfo.py --match <regex>` (`tools/rsprox_nylocas.py`'s parser also handles
+index reuse):
 
 - **Spawn:** the `[add]` tick, `spawnangle` (our `npc_facedir`), `creationcycle`, and the first seq/spotanim (spawn anim on the add tick).
 - **Movement kind per tick:**
@@ -223,7 +257,11 @@ For each npc type, build the **per-life record** (spawn to despawn, `tools/rspro
   - `telejump` snaps.
   - Ours: `npc_walk` / modes give steps, `npc_tele` ≤2 tiles glides, and further moves remove and re-add.
   - Count tiles per tick to get the speed.
-- **Facing:**
+- **Facing (in npc info: diff it tick by tick, section "The wire audit" 3):**
+  - Record **every** `[facing]` line the npc gets: when it turns to a tile, when it faces a raider,
+    when it resets, and what it does across an attack (Ocellus: `type=reset` as each volley starts,
+    `coord=` the arena's middle 6 and 10 ticks later, `angle=` turns between his phase-1 corners).
+    A fight whose facing is never compared is not audited, however well its seqs line up.
   - **Entity** (`face_pathingentity` / `[facing] player=..., fallbackangle=`) is the npc's target; it comes from modes (`npc_setmode(opplayer2)`, `playerfaceclose`) and clears on `entity=null` / `type=reset`.
   - **Square** (`face_coord` / `[facing] coord=`) is `npc_facesquare`.
   - **Angle** is `npc_facedir`.

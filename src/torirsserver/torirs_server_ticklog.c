@@ -1348,6 +1348,17 @@ ToriRSServer_TicklogTickEnd(struct ToriRSServer* srv)
             continue;
         if( !ticklog_near_a_player(srv, npc->x, npc->z) )
             continue;
+        /* An entity face (or its reset, -1) as the tick sends it: x = -1,
+         * z = the face target. `npc_facesquare` logs its own coord row from
+         * the script; a mode's face onto its target and its clear land only
+         * here (Ocellus's `[facing] type=reset`, 4301 [917]). */
+        if( npc->masks & TORIRSSERVER_NMASK_FACE_ENTITY )
+            ticklog_push(TORIRSSERVER_TICKLOG_NPC_FACE, slot, npc->type, -1, npc->face_entity,
+                         0, 0, NULL);
+        /* An angle turn: x = -2, z = the angle (`npc_faceangle`). */
+        if( npc->masks & TORIRSSERVER_NMASK_FACE_ANGLE )
+            ticklog_push(TORIRSSERVER_TICKLOG_NPC_FACE, slot, npc->type, -2, npc->face_angle,
+                         npc->face_angle_instant, 0, NULL);
         now = ToriRSServer_CoordPack(npc->level, npc->x, npc->z) + 1;
         if( g_ticklog.npc_tile_plus1[slot] == now &&
             g_ticklog.npc_generation[slot] == npc->generation )

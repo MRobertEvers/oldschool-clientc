@@ -10094,6 +10094,137 @@ script_command(
      * (0, 600, 0, 0, 106, 40) every tick, and clears with (0, 0, 255, 255,
      * 255, 0) every tick after (RSProx 14, docs/rsprox-analysis/toa/akkha.md).
      */
+    /*
+     * `npc_faceangle(int $angle, boolean $instant)` -- the active npc turns to
+     * an angle (0 south, 512 west, 1024 north, 1536 east), the FACING block's
+     * angle kind: `[facing] angle=..[, instant=true]` (Ocellus's quarter turns
+     * at the middle, the vault's Rift snapping north, RSProx 4301 [994],
+     * 4308 [2421]). `npc_facedir` is the spawn direction and sends nothing.
+     */
+    case SS_OP_NPC_FACEANGLE:
+    {
+        int32_t angle;
+        int32_t instant;
+        struct ToriRSServerNpc* npc = active_npc(state);
+
+        if( !SSVM_PopInt(state, &instant) || !SSVM_PopInt(state, &angle) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_faceangle with no active npc");
+            return 1;
+        }
+        if( angle < 0 || angle > 2047 )
+        {
+            SSVM_Abort(state, "npc_faceangle %d: must be 0..2047", (int)angle);
+            return 1;
+        }
+        npc->face_angle = (int)angle;
+        npc->face_angle_instant = instant != 0;
+        npc->masks |= TORIRSSERVER_NMASK_FACE_ANGLE;
+        return 1;
+    }
+
+    /*
+     * `npc_facereset` -- the active npc's facing cleared on the wire,
+     * `[facing] type=reset`: it turns with its walk again. Sent whether or not
+     * it was facing anything (Ocellus as each phase-1 volley walk starts,
+     * RSProx 4301 [917], [949]).
+     */
+    case SS_OP_NPC_FACERESET:
+    {
+        struct ToriRSServerNpc* npc = active_npc(state);
+
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_facereset with no active npc");
+            return 1;
+        }
+        npc->face_entity = -1;
+        npc->masks |= TORIRSSERVER_NMASK_FACE_ENTITY;
+        return 1;
+    }
+
+    /*
+     * `npc_transparency(int $start_cycle, int $end_cycle, int $from, int $to)`
+     * -- the active npc fades from `$from` to `$to` (0 opaque .. 255 gone)
+     * between two client cycles after arrival: the rev-241 TRANSPARENCY block
+     * (RSProx NpcInfoClient, flag 0x8000). The Fractured Archive's npcs fade
+     * in with (0, 30, 255, 0) and Ezekiel out with (210, 270, 0, 255) (RSProx
+     * 4301 [42], [263]). Older revisions have no such block and send nothing.
+     */
+    case SS_OP_NPC_TRANSPARENCY:
+    {
+        int32_t values[4];
+        struct ToriRSServerNpc* npc = active_npc(state);
+
+        for( int i = 3; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_transparency with no active npc");
+            return 1;
+        }
+        if( values[0] < 0 || values[0] > 0x7fff || values[1] < 0 || values[1] > 0x7fff )
+        {
+            SSVM_Abort(state, "npc_transparency cycles %d..%d: each must be 0..32767", (int)values[0],
+                       (int)values[1]);
+            return 1;
+        }
+        if( values[2] < 0 || values[2] > 255 || values[3] < 0 || values[3] > 255 )
+        {
+            SSVM_Abort(state, "npc_transparency %d -> %d: each must be 0..255", (int)values[2],
+                       (int)values[3]);
+            return 1;
+        }
+        npc->transparency_start_cycle = (int)values[0];
+        npc->transparency_end_cycle = (int)values[1];
+        npc->transparency_from = (int)values[2];
+        npc->transparency_to = (int)values[3];
+        npc->masks |= TORIRSSERVER_NMASK_TRANSPARENCY;
+        return 1;
+    }
+
+    /*
+     * `npc_headbar_timed(healthbar $bar, int $startfill, int $endfill, int $endtime)`
+     * -- one headbar the client runs itself on the active npc: `$startfill`
+     * at arrival sliding to `$endfill` over `$endtime` client cycles, in the
+     * bar's own width units. Ezekiel's Animated Swords carry their 13-tick
+     * charge this way (healthbar 87, 60 -> 0 over 390, RSProx 4301 [81]).
+     */
+    case SS_OP_NPC_HEADBAR_TIMED:
+    {
+        int32_t values[4];
+        struct ToriRSServerNpc* npc = active_npc(state);
+
+        for( int i = 3; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_headbar_timed with no active npc");
+            return 1;
+        }
+        if( values[0] < 0 || values[1] < 0 || values[1] > 255 || values[2] < 0 || values[2] > 255 ||
+            values[3] < 0 || values[3] > 0x7ffe )
+        {
+            SSVM_Abort(state, "npc_headbar_timed(%d, %d, %d, %d): bar >= 0, fills 0..255, end 0..32766",
+                       (int)values[0], (int)values[1], (int)values[2], (int)values[3]);
+            return 1;
+        }
+        npc->timed_bar_type = (int)values[0];
+        npc->timed_bar_start_fill = (int)values[1];
+        npc->timed_bar_end_fill = (int)values[2];
+        npc->timed_bar_end_cycle = (int)values[3];
+        npc->masks |= TORIRSSERVER_NMASK_TIMED_BAR;
+        return 1;
+    }
+
     case SS_OP_NPC_TINT:
     {
         int32_t values[6];

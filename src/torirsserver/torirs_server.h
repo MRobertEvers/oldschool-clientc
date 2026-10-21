@@ -1059,6 +1059,17 @@ enum
      * TINTING, flag 0x100). Not persistent: Jagex re-sends a held tint every
      * tick (Akkha's immunity, docs/rsprox-analysis/toa/akkha.md). */
     TORIRSSERVER_NMASK_TINT = 0x4000,
+    /* Rev-241 only: `npc_transparency` set the fade this tick (NPC_INFO's
+     * TRANSPARENCY, flag 0x8000). Not persistent: the client runs the fade
+     * from the cycles it was given and keeps the end value. */
+    TORIRSSERVER_NMASK_TRANSPARENCY = 0x8000,
+    /* Rev-241 only: `npc_headbar_timed` queued a client-run bar this tick
+     * (one HEADBARS entry with an end time). Not persistent. */
+    TORIRSSERVER_NMASK_TIMED_BAR = 0x10000,
+    /* Rev-239+: `npc_faceangle` turned the npc to an angle this tick (the
+     * FACING block's angle kind, `[facing] angle=`). Not persistent: the
+     * client holds the angle until the next facing. */
+    TORIRSSERVER_NMASK_FACE_ANGLE = 0x20000,
 };
 
 /* Appearance/equipment slot numbering. The cache's wearpos fields, the worn
@@ -2862,6 +2873,31 @@ struct ToriRSServerNpc
     int tint_saturation;
     int tint_lightness;
     int tint_weight;
+    /**
+     * `npc_transparency` -- the rev-241 TRANSPARENCY block, read only while
+     * TORIRSSERVER_NMASK_TRANSPARENCY is set: client cycles after arrival and
+     * the fade's two ends (0 opaque .. 255 invisible).
+     */
+    int transparency_start_cycle;
+    int transparency_end_cycle;
+    int transparency_from;
+    int transparency_to;
+    /**
+     * `npc_headbar_timed` -- one client-run HEADBARS entry, read only while
+     * TORIRSSERVER_NMASK_TIMED_BAR is set: the healthbar type, its fill at
+     * arrival, its fill at `timed_bar_end_cycle`, in the bar's own units.
+     */
+    int timed_bar_type;
+    int timed_bar_start_fill;
+    int timed_bar_end_fill;
+    int timed_bar_end_cycle;
+    /**
+     * `npc_faceangle` -- read only while TORIRSSERVER_NMASK_FACE_ANGLE is set:
+     * the angle (0 south, 512 west, 1024 north, 1536 east; 0..2047) and
+     * whether the client snaps to it instead of turning.
+     */
+    int face_angle;
+    int face_angle_instant;
     int face_entity;
     char say[80];
     int anim_id;

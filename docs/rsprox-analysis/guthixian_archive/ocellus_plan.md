@@ -232,3 +232,64 @@ him and leaving each quadrant before it falls). Inventories with
 | head icons | the deflect / soul split prayers as `headicon_customisation` | not sent | **open (engine)** |
 | damage | mostly unreadable (hit attribution in these transcripts) | per the rows above | approximate |
 | censers | Interact at range in phase 3; U `ornament_censer_activate`, U+1 the god's `sp_attackglow_*` slot 1 on every raider, U+3 the inactive form (7/7) | same ([546], [547], [549]) | matched (the gifts are the wiki's; a melee/ranged blessing makes the raider's next hit of that style their max hit through `~player_hit_npc_prepare`) |
+
+## Audit: his npc info, block by block (2026-10-21)
+
+The audits above were tells inventories: they counted seqs and spots per
+window and never compared **facing**, which is in npc info like everything
+else he does. Ocellus shipped with no facing at all (0 of 28 recorded faces in
+phase 1, 0 of 72 in phase 4) and half his phase-1 seqs off by ticks.
+`tools/oc_stream.py <transcript> <ticklog>` now diffs his whole per-tick
+stream (seq + delay, spotanim, facing, say, form) against ours, each phase
+aligned on its own start and re-aligned on events both fights share (the
+teleport to the middle; Untether; "End..."). Our tick log carries every face:
+`npc_face` x = -1 for an entity face (z = target, -1 a reset), x = -2 for an
+angle; two engine commands send the blocks the content needs,
+`npc_faceangle(angle, instant)` (`[facing] angle=`) and `npc_facereset`
+(`[facing] type=reset`).
+
+**The rules** (both fights, the counts over 4301 and 4308):
+
+| when | facing | count |
+|---|---|---|
+| phase 1, a walk's first volley | `reset` | 8/8 |
+| phase 1, at a corner | the arena's middle the tick after his last step, and the tick before the charge | 8/8 |
+| phase 1, landing at the middle | the tile 10 out on the side of his first two cracks | 4/4 |
+| phase 1, each beat | `angle=` that side, a quarter clockwise each beat (with its cracks) | 16/16 |
+| phase 1, the strike | his target (`player=`) on the expend's tick | 4/4 |
+| the change to phase 2 | `reset` with the line; north (the tile 10 north) as he lands, `seq -1` | 2/2 |
+| phase 3, each segment's jump | the middle; his target the tick after | 6/6 |
+| phase 3, a slash | the tile 5 out from his middle toward his target; his target 2 ticks on | 24/24 |
+| phase 3, a spin | the same toward his target; his target 2 ticks after the spin ends | 10/10 |
+| phase 3, "Insolence..." | `reset`; each superior slash his target's own tile; his target 16 ticks after the line | 4/4 |
+| phase 3, Untether | `reset` and his target the tick after; `reset` at U+30 | 5/5 |
+| phase 4, each deflect | his target, `reset` as it ends | 3/3 |
+| death | `angle=` (4301 north, 4308 north-west; ours toward his target, unverified), The Blade at the same | 2/2 |
+
+The rest of the recorded faces are a party re-facing whichever raider he
+turns to (4301 phase 3: 64 entity faces a solo run has no second raider for).
+
+**The timings fixed with them** (seqs and spots, same tool):
+
+| | before | now (4301) |
+|---|---|---|
+| phase 1 seqs | 23/48 | 47/48 (the last: the test's health cheats change his course) |
+| the change to phase 2 | transformation a tick early, no `seq -1` | to the tick |
+| phase 3 seqs | 90/101 | 101/101 |
+| phase 3 spots | 31/33 | 33/33 |
+| phase 4 spots | 8/20 | 14/20 (the rest: the hybrid's magic or ranged, a roll) |
+
+Phase 3's timetable, from both fights: the first segment has no volley (two
+more triples after the spin, S+33 and S+43; the vine at S+36); the later
+ones run triples at S+4, S+14, S+39, S+49, S+79, S+89, S+114, S+124, spins
+at S+24 and S+99, "Insolence..." at S+59, Untether at S+134; a volley 3 ticks
+before a triple takes its first swing (4301's second segment at S+36 and
+S+111, 4308's at S+76: when he casts it is open). Debris falls on every
+raider 3 ticks into the first segment's spin and 6 into each later one, and
+leaves a void patch 5 ticks on (10/10). The vine's line comes 3 ticks before
+it, in the later segments only (3/4). Phase 4 lets slot 2's levitation go
+(`id=-1`) as each deflect and each second fragment ends.
+
+Open: the first walk's path (the recording steps east twice and then
+diagonally; ours diagonally first: the engine's route order); when the volley
+is cast; a party's re-faces; the death angle's rule.

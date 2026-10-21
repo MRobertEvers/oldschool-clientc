@@ -761,7 +761,7 @@ ToriRSServer_SlotMapReleaseWhy(
 
 /** The revision number this player's world speaks (230, 239, 241). */
 static int
-srv_wire_revision(struct ToriRSServerPlayer* player)
+srv_wire_revision(struct ToriRSServerPlayer const* player)
 {
     struct ToriRSServer* srv = player ? player->world : NULL;
     const struct ToriRSServerWire* wire =
@@ -5723,6 +5723,29 @@ v5_face_from_classic(
 }
 
 
+/* An npc's facing block this tick: an `npc_faceangle` turn if one was set
+ * (`[facing] angle=`, e.g. Ocellus's quarter turns at the arena's middle,
+ * RSProx 4301 [994..1018]), else the entity / coord / reset latch. */
+static int
+npc_face_block(
+    struct Mock239Face* face,
+    struct ToriRSServerPlayer const* recipient,
+    const struct ToriRSServerNpc* npc,
+    int force_latch)
+{
+    if( npc->masks & TORIRSSERVER_NMASK_FACE_ANGLE )
+    {
+        mock239_face_init(face);
+        face->kind = MOCK239_FACE_ANGLE;
+        face->angle = npc->face_angle;
+        face->instant = npc->face_angle_instant;
+        return 1;
+    }
+    return v5_face_from_classic(face, recipient, npc->masks, TORIRSSERVER_NMASK_FACE_ENTITY,
+                                TORIRSSERVER_NMASK_FACE_COORD, npc->face_entity, npc->face_x,
+                                npc->face_z, force_latch);
+}
+
 /** The flag itself, plus the continuation bits its own width implies. */
 static void
 v5_put_extended_flag(struct RSAreaBuf* buf, uint32_t flag)
@@ -5995,9 +6018,7 @@ put_npc_extended_v5(
     uint32_t flag = 0;
     int const hit = (classic & (TORIRSSERVER_NMASK_DAMAGE | TORIRSSERVER_NMASK_DAMAGE2)) != 0;
     struct Mock239Face face;
-    int const has_face = v5_face_from_classic(
-        &face, recipient, classic, TORIRSSERVER_NMASK_FACE_ENTITY, TORIRSSERVER_NMASK_FACE_COORD,
-        npc->face_entity, npc->face_x, npc->face_z, force_face_latch);
+    int const has_face = npc_face_block(&face, recipient, npc, force_face_latch);
 
     /*
      * The splat and the bar are two masks, and an npc may want the second
@@ -6363,6 +6384,7 @@ enum
     V241_NPC_EXACT_MOVE = 0x200,
     V241_NPC_LEVEL_CHANGE = 0x800,
     V241_NPC_TINTING = 0x4000,
+    V241_NPC_TRANSPARENCY = 0x8000,
     V241_NPC_HITMARKS = 0x10000,
     V241_NPC_HEADICON_CUSTOMISATION = 0x800000,
     V241_NPC_BODY_CUSTOMISATION = 0x1000000, /* RSProx BODY_CUSTOMISATION_V3 */
@@ -6402,21 +6424,24 @@ put_npc_extended_v241(
     uint32_t flag = 0;
     int const hit = (classic & (TORIRSSERVER_NMASK_DAMAGE | TORIRSSERVER_NMASK_DAMAGE2)) != 0;
     struct Mock239Face face;
-    int const has_face = v5_face_from_classic(
-        &face, recipient, classic, TORIRSSERVER_NMASK_FACE_ENTITY, TORIRSSERVER_NMASK_FACE_COORD,
-        npc->face_entity, npc->face_x, npc->face_z, force_face_latch);
+    int const has_face = npc_face_block(&face, recipient, npc, force_face_latch);
     int const splat = hit && npc_shows_hitsplat(npc);
     int const headbar = npc_headbar_id(npc);
 
     /* The same choices as put_npc_extended_v5 -- see there for each one. */
     if( splat )
         flag |= V241_NPC_HITMARKS;
-    if( (hit || (classic & TORIRSSERVER_NMASK_HEADBAR)) && headbar >= 0 && npc->max_hitpoints > 0 )
+    int const own_bar =
+        (hit || (classic & TORIRSSERVER_NMASK_HEADBAR)) && headbar >= 0 && npc->max_hitpoints > 0;
+    int const timed_bar = (classic & TORIRSSERVER_NMASK_TIMED_BAR) != 0;
+    if( own_bar || timed_bar )
         flag |= V241_NPC_HEADBARS;
     if( classic & TORIRSSERVER_NMASK_ANIM )
         flag |= V241_NPC_SEQUENCE;
     if( classic & TORIRSSERVER_NMASK_SAY )
         flag |= V241_NPC_SAY;
+    if( classic & TORIRSSERVER_NMASK_TRANSPARENCY )
+        flag |= V241_NPC_TRANSPARENCY;
     if( classic & TORIRSSERVER_NMASK_SPOTANIM )
         flag |= V241_NPC_SPOTANIM;
     if( (classic & TORIRSSERVER_NMASK_CHANGE_TYPE) || force_type_latch )
@@ -6484,25 +6509,39 @@ put_npc_extended_v241(
     /* decodeCombatLevelChange: g4. */
     if( flag & V241_NPC_LEVEL_CHANGE )
         rsab_p4(buf, npc->level_override);
-    /* decodeHeadbars: g1 count, smart type, smart duration (0: no target fill),
-     * smart start delay, g1Alt3 start fill. */
+    /* decodeHeadbars: g1 count, then per bar smart type, smart end time
+     * (0: no target fill), smart start time, g1Alt3 start fill, and g1 end
+     * fill when the end time is not 0 -- the client runs that slide itself
+     * (`npc_headbar_timed`: Ezekiel's swords, 60 -> 0 over 390). */
     if( flag & V241_NPC_HEADBARS )
     {
-        int width = 0;
-        int fill = ToriRSServer_NpcHeadbarFill(npc, &width);
-        int bar_delay = 0;
-
-        ToriRSServer_TicklogNpcHeadbar(npc, headbar, fill, width);
-        for( int i = 0; i < npc->hitmark_count; i++ )
+        rsab_p1(buf, own_bar + timed_bar);
+        if( own_bar )
         {
-            if( npc->hitmarks[i].delay > bar_delay )
-                bar_delay = npc->hitmarks[i].delay;
+            int width = 0;
+            int fill = ToriRSServer_NpcHeadbarFill(npc, &width);
+            int bar_delay = 0;
+
+            ToriRSServer_TicklogNpcHeadbar(npc, headbar, fill, width);
+            for( int i = 0; i < npc->hitmark_count; i++ )
+            {
+                if( npc->hitmarks[i].delay > bar_delay )
+                    bar_delay = npc->hitmarks[i].delay;
+            }
+            v5_psmart1or2(buf, headbar);
+            v5_psmart1or2(buf, 0);
+            v5_psmart1or2(buf, bar_delay);
+            rsab_p1_alt3(buf, fill);
         }
-        rsab_p1(buf, 1);
-        v5_psmart1or2(buf, headbar);
-        v5_psmart1or2(buf, 0);
-        v5_psmart1or2(buf, bar_delay);
-        rsab_p1_alt3(buf, fill);
+        if( timed_bar )
+        {
+            v5_psmart1or2(buf, npc->timed_bar_type);
+            v5_psmart1or2(buf, npc->timed_bar_end_cycle);
+            v5_psmart1or2(buf, 0);
+            rsab_p1_alt3(buf, npc->timed_bar_start_fill);
+            if( npc->timed_bar_end_cycle > 0 )
+                rsab_p1(buf, npc->timed_bar_end_fill);
+        }
     }
     /* decodeSequence: g2Alt1 id, g1Alt1 delay. */
     if( flag & V241_NPC_SEQUENCE )
@@ -6549,6 +6588,16 @@ put_npc_extended_v241(
     }
     if( flag & V241_NPC_SAY )
         rsab_pjstr(buf, npc->say, RSAB_JSTR_NUL);
+    /* decodeTransparency: g2sAlt1 start, g2s end, g1sAlt2 from, g1sAlt3 to,
+     * g1 use-start (always 1: the fade starts from `from`). */
+    if( flag & V241_NPC_TRANSPARENCY )
+    {
+        rsab_p2_alt1(buf, npc->transparency_start_cycle & 0xffff);
+        rsab_p2(buf, npc->transparency_end_cycle & 0xffff);
+        rsab_p1_alt2(buf, npc->transparency_from & 0xff);
+        rsab_p1_alt3(buf, npc->transparency_to & 0xff);
+        rsab_p1(buf, 1);
+    }
     /* decodeEnabledOps: g1Alt1 (239: g1Alt2) -- the SHOWN ops. */
     if( flag & V241_NPC_OPS )
         rsab_p1_alt1(buf, 0x1f & ~npc->ops_hidden);
@@ -6693,15 +6742,18 @@ npc_extended_pending_v5(
                                TORIRSSERVER_NMASK_ANIM | TORIRSSERVER_NMASK_SAY |
                                TORIRSSERVER_NMASK_SPOTANIM | TORIRSSERVER_NMASK_CHANGE_TYPE |
                                TORIRSSERVER_NMASK_HEADBAR | TORIRSSERVER_NMASK_TINT;
+    /* Blocks only the rev-241 writer has: an older recipient is sent none of
+     * them, so they must not claim a block it would write empty. */
+    uint32_t const supported_241 = TORIRSSERVER_NMASK_TRANSPARENCY | TORIRSSERVER_NMASK_TIMED_BAR;
     struct Mock239Face face;
 
+    if( srv_wire_revision(recipient) >= 241 && (npc->masks & supported_241) != 0 )
+        return 1;
     return (npc->masks & supported) != 0 || npc_v5_sends_ops(npc, force_face_latch) ||
            npc_v5_sends_level(npc, force_face_latch) ||
            npc_v5_sends_headicon(npc, force_face_latch) ||
            npc_v5_sends_body(npc, force_face_latch) ||
-           v5_face_from_classic(&face, recipient, npc->masks, TORIRSSERVER_NMASK_FACE_ENTITY,
-                                TORIRSSERVER_NMASK_FACE_COORD, npc->face_entity,
-                                npc->face_x, npc->face_z, force_face_latch);
+           npc_face_block(&face, recipient, npc, force_face_latch);
 }
 
 /*

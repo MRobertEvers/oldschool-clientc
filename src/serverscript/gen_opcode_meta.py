@@ -1218,6 +1218,37 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # RSProx 4297 [131]) and with 1 when the guardian dies (4294 [1431]).
     "LOC_ADD_OPFLAGS": (11224, 6, 0, 0, 0),
 
+    # npc_transparency(int $start_cycle, int $end_cycle, int $from, int $to)
+    #
+    # The active npc's rev-241 NPC_INFO transparency block (flag 0x8000): it
+    # fades from `$from` to `$to` (0 opaque .. 255 gone) between the two
+    # client cycles after arrival. The Fractured Archive fades almost every
+    # npc in or out with it: (0, 30, 255, 0) on an add, (210, 270, 0, 255)
+    # on Ezekiel's death (RSProx 4301 [42], [263]).
+    "NPC_TRANSPARENCY": (11225, 4, 0, 0, 0),
+
+    # npc_headbar_timed(healthbar $bar, int $startfill, int $endfill, int $endtime)
+    #
+    # One headbar on the active npc that the client runs itself: `$startfill`
+    # at arrival sliding to `$endfill` over `$endtime` client cycles, in the
+    # bar's own width units. Ezekiel's Animated Swords show their 13-tick
+    # charge this way: healthbar 87, 60 -> 0 over 390 (RSProx 4301 [81]).
+    "NPC_HEADBAR_TIMED": (11226, 4, 0, 0, 0),
+
+    # npc_faceangle(int $angle, boolean $instant)
+    #
+    # The active npc turned to an angle on the wire: the FACING block's angle
+    # kind, `[facing] angle=..[, instant=true]`. Ocellus turns a quarter each
+    # beat at the arena's middle (RSProx 4301 [994..1018]); `npc_facedir` is
+    # only the spawn direction and sends nothing.
+    "NPC_FACEANGLE": (11227, 2, 0, 0, 0),
+
+    # npc_facereset
+    #
+    # The active npc's facing cleared on the wire, `[facing] type=reset`
+    # (Ocellus as each phase-1 walk starts, RSProx 4301 [917], [949]).
+    "NPC_FACERESET": (11228, 0, 0, 0, 0),
+
     # npc_setbasestat(npc_stat $stat, int $level)
     #
     # The active npc's BASE level in one non-hitpoint stat until it dies or
@@ -1756,6 +1787,10 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     # than omitted so the assert in the writer stays a whitelist.
     "LOC_ADD_OP": (0, 0),
     "LOC_ADD_OPFLAGS": (0, 0),
+    "NPC_TRANSPARENCY": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_HEADBAR_TIMED": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_FACEANGLE": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_FACERESET": (1 << POINTER_BITS["active_npc"], 0),
     "REMOTE_VIEW_START": (1 << POINTER_BITS["p_active_player"], 0),
     "REMOTE_VIEW_END": (1 << POINTER_BITS["p_active_player"], 0),
     # The splat needs somebody to appear over. NPC_DAMAGE (2509) carries

@@ -595,10 +595,14 @@
 #define SS_OP_MES_TYPED 11222
 #define SS_OP_P_RUNBLOCK 11223
 #define SS_OP_LOC_ADD_OPFLAGS 11224
+#define SS_OP_NPC_TRANSPARENCY 11225
+#define SS_OP_NPC_HEADBAR_TIMED 11226
+#define SS_OP_NPC_FACEANGLE 11227
+#define SS_OP_NPC_FACERESET 11228
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11225
+#define SS_OPCODE_MAX 11229
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 573
+#define SS_OPCODE_COUNT 577
 
 #endif
