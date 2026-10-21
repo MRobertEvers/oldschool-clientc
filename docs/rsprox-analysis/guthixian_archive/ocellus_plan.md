@@ -51,25 +51,50 @@ immediate / later line) with the `_end` pieces at delay 0, 1, ... The pieces
 are named by the way the line grows: `vfx_ocellus_p1_floor_crack_01` straight
 north (`_90` east, `_180` south, `_270` west), `_02` diagonal north-east
 (`_90` south-east, `_180` south-west, `_270` north-west), each with `_start`
-and `_end` forms. At a corner, eight long: along one of his rows or columns
-from the inner side, or a diagonal to his inner corner or a tile beside it
-(4301 [928..940], [965..977]). At the middle, six long, from beside one of his
-corners.
+and `_end` forms. At a corner, eight long, each of the seven one of seven
+roots (every corner charge of 4301, 4308, 4309, 4312, 4315, 4316: 149 roots,
+in his corner's frame, "inner" = toward the middle):
+
+| root | recorded | ours before |
+|---|---|---|
+| straight along his middle row or column | 62 (row 34, column 28) | 1 in 3 of the straight ones |
+| straight along the row or column on the inner side | 22 (12, 10) | 1 in 3 |
+| straight along the row or column on the OUTER side | 0 | 1 in 3 |
+| diagonal to his inner corner, or the tile beside it either way | 65 (26, 20, 19) | 1 in 3 of all |
+
+They are not aimed: a raider stood on only 42 of 205 at their add. Ours now
+draws from the same seven at the recorded weights. At the middle, six long, from
+beside one of his corners: (3,2) or (2,3) of the corner's frame, 28 each, the
+beat's first at delay 0 and its second at 60 (56/56).
 
 **The meter (the yellow bar).** A line that closes with nobody on it adds 2
 (4308 [1520], [1522], [1585], [1640], [1668]; 4301 [970]); he heals 2
 (hitsplat 6) and a sound plays where the line meets him (12512 or 12513, r20
 size 5). A raider on a closing line blocks it and takes 3..5 (4308 [1557..1569]:
 every raider every 2 ticks). The strike empties it. The recorded meters were
-0..6 at the strikes, and every strike was "Death... awaits..." with one shot
-a raider for 17..19. The strike scales with the bar's height (the owner, and
-the wiki's "80+ ... Embrace... annihilation..." when it is high, about five
-such shots); ours: one shot more a raider for every 8 on the meter, "Embrace...
-annihilation..." when there is more than one (unverified past 6).
+0..10 of 96 at the strikes (`hpbar_hud_extra_current` read off the bar: 4309
+[1490] 10, 4312 [3700] 8; 13 strikes), and every strike was "Death... awaits..."
+with one shot a raider for 17..19. Ours had a second shot and "Embrace..." from
+8; now one shot more for every 24, five at a full bar (the wiki's "80+ ...
+Embrace... annihilation..." when it is full), "Embrace..." when there is more
+than one (unverified above 10: never recorded).
 
-**Damage** beyond the strike and the chip: unread (the transcripts' hits are
-not attributable here); ours a volley shot 0..25 under the matching prayer, the
-blast 20..40 within 2 of his 3x3 (the wiki's AoE; 4308 [1588]: 28, 30).
+**The smash** (the blast on the explosion's floor tick E+1): it hits who was
+within 2 of his 3x3 on the explosion's tick E, on E+1, for 28..30 recorded
+(4308 [1588] B0aty at 2 and Gnomonkey at 1, [1669] Woox at 1); raiders step out
+to 3 on E and back on E+1, and every one who did took nothing (21 corner and
+middle smashes, 4301 and 4308). Its floor: every open tile of the two rings
+(40 at the middle, 37 at a corner, whose 3 wall tiles stay bare), the inner at
+delay 0 and the outer at 2, each a random turn (6/6). Ours: the same, 25..35.
+
+**His facing at the start.** The Hooded Figure is added facing north
+(`spawnangle=north`, 4/4) and turned to the tile 2 north of the middle on the
+same tick (4301 [875]); ours was added facing south (the npc's own `facing`).
+Phase 1's faces otherwise match ours to the tick (`oc_stream.py --phase 1`:
+the middle at C-5 and C-1, the beats' quarter turns clockwise from a random
+side, his target at the strike). The many recorded `[facing] player=` rows in
+phases 3 and 4 are rev 241 re-sending the same target face with a new
+`fallbackangle` as the target moves (4301 [1710..1730] Visqo), not turns.
 
 ## 3. Phase 2
 
