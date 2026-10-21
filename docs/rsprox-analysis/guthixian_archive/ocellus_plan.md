@@ -313,3 +313,34 @@ the reset, the walk type).
 | deflect arena | phase 4 | a `tfa_invisible_npc` at the last quadrant's middle with the first deflect, kept to the end: range dome D+0 start, D+1 and every 3 to D+19 loop, D+21 end; melee dome D+31, D+32..D+47, D+50 (4301 `_270`, 4308 `_180`) | not built at all | fixed (SW plain and NW `_90` inferred) |
 | Blade (vault entry) | add | his death angle, `angle=` it | same | matched |
 | Ocellus | party re-faces | 72 entity re-sends in phase 4 (5 real changes) | not built | **open** (as before) |
+
+## Damage audit (2026-10-21)
+
+Every splat on every raider of the room, put down to its mechanic by
+`tools/tfa_mech.py --room ocellus1..4` over the `--all-players` transcripts of index
+4301..4308 (the party runs are spectated, so the raiders' prayers are not on the
+wire: a mechanic's zeros are its prayed hits, its nonzero tail mostly the unprayed
+ones). Each mechanic is matched by its own geometry: a projectile by its target and
+landing tick, a tile hazard by the map anim or loc on the raider's tile, a swing by
+the seq beside the raider.
+
+| mechanic | recorded | ours before | ours now | verdict |
+|---|---|---|---|---|
+| p1 line chip | 3..5 (232) | 3..5 | same | matched |
+| p1 strike | 17..19 (13/13) | 17..19 | same | matched |
+| p1 volley | under the matching prayer 0 (46/47; one 10) | 0..25, prayed 0 | same | matched |
+| p1 explode near him | 28, 28, 30 | 20..40 | 25..35 | fixed |
+| p1 routine | three volleys on the walk, the corner charge (7 lines), the explode; at 66% the middle's four beats and the strike | same (the stream's apparent extra corner was our bot's slower damage) | same | matched |
+| p2 fired line | 19..25 (10; one 29 unattributed) | 40..55 (from 42, 55 that were The Blade's) | 19..25 | fixed |
+| p2 pools | no raider hit | 3..5 a tick | same | unverified |
+| p3 melee triples | 1..7 under protect from melee (87/125 nonzero); 12, 19 | 0..30, prayed 0 | 0..28, 25% through | fixed |
+| p3 spin | on each loop seq and the out seq (not a tick before), every one blocked by protect from melee (57/78, 31/35 0); 15..27 | 13..23 at k = 4, 7, .., not prayable | 15..27 at k = 5, 8, .., prayable | fixed |
+| p3 slash | 25..28 on the spot's tick | 20..40 | 25..28 | fixed |
+| p3 superior slash | 39..41 | 20..40 | 39..41 | fixed |
+| p3 unleash out | 34..39 on the seq, 18..19 the tick after (3/3 raiders); two others 34 at +1 only | 40..50 once | 34..39 then 18..19 | fixed (the +1-only case open) |
+| p3 void bomb | 6..11 on its tile | none | 6..11 | fixed |
+| p3 void patch | 6, 7 every 2 ticks | 5 | 6..7 | fixed |
+| p3 unleash pools | 39 zeros, one 28 | 20..30 | same | unverified |
+| p4 wind | half the raider's health (both winds) | same | same | matched |
+| p4 hybrid | 5..10 under the matching prayer (37) | 5..7 | 5..10 | fixed |
+| p4 bursts | 14..16 in the range dome (18); 7..17 in the melee dome | 10..15 | 14..16 | fixed (the melee dome's lower ones open) |

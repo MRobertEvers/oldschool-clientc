@@ -36,10 +36,10 @@ local function fight(t, sym, ticks, stop)
         end
         -- The test's kit, not the fight: a raider who never moves stands in
         -- the fire and every slam, so its health is restored every 3 ticks.
-        t.cheat("::setlevel hitpoints 99", false)
+        t.cheat("::tfaheal", false)
         if stop and stop() then return true end
         if not present(t, sym) then return true end
-        t.player.attack(sym, 2, 6, EAT)
+        t.player.attack(sym, 2, 2, EAT)
         t.ticks(1)
     end
     return false

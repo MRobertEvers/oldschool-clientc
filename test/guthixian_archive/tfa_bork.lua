@@ -34,7 +34,7 @@ local function fight(t, sym, ticks, stop)
         end
         local hr, hv = t.skill.read("hitpoints")
         if hr == "ok" and type(hv) == "table" and (hv.level or 99) < 75 then
-            t.cheat("::setlevel hitpoints 99", false)
+            t.cheat("::tfaheal", false)
         end
         if stop and stop() then return true end
         if not present(t, sym) then return true end

@@ -126,3 +126,24 @@ the reset, the walk type).
 | corpse | death | reset, ops none, seq, spots; del +4 (13/13) | same | matched |
 | corpse | reaching him | del +2 after its last step (2/2, both at his death) | del +1 | **open** (confounded) |
 | rubble (destroyed) | add | south, seq, spot, `angle=0` (3/3) | ours no angle face | fixed |
+
+## Damage audit (2026-10-21)
+
+Every splat on every raider of the room, put down to its mechanic by
+`tools/tfa_mech.py --room xarth` over the `--all-players` transcripts of index
+4301..4308 (the party runs are spectated, so the raiders' prayers are not on the
+wire: a mechanic's zeros are its prayed hits, its nonzero tail mostly the unprayed
+ones). Each mechanic is matched by its own geometry: a projectile by its target and
+landing tick, a tile hazard by the map anim or loc on the raider's tile, a swing by
+the seq beside the raider.
+
+| mechanic | recorded | ours before | ours now | verdict |
+|---|---|---|---|---|
+| fireball | under protect from magic 1..8 (52/59 nonzero, 0 in 7), unprayed 25 | 0..30, prayed 0 | 0..27, 30% through prayer | fixed |
+| burn | stacks: +1 a fireball that hits, six beats 4 apart, then back to 1 (4301 [646..732], 3/3 raiders): 1..6 | 1..3, five beats, refreshed | stacking | fixed |
+| arrow | 120/125 0 under protect from missiles; 11..29 | 0..30 | same | matched |
+| melee | 9, 9, 10, 11 | 0..30, prayed 0 | same | approximate |
+| the AoE | 19 (one) | 20..40 | 15..40 | approximate |
+| phase 2's wave | 43, 48 on the raiders inside its ring (4304 [3049]) | none | 40..50 + a burn | fixed (the range unverified) |
+| fire tile (type 67) | 2 at odd ticks beside the corpses' path | none | none | **open** (the cause) |
+| the blast | no recorded raider caught (all hid) | 30..60 + burn | same | unverified |

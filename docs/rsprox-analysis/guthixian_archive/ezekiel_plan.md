@@ -223,3 +223,21 @@ the reset, the walk type).
 | Ezekiel | special | `reset`, the entity +5; weaken: the entity at recover+1 | same | fixed |
 | Ezekiel | finale | the tile face a tick before the jump, then the angle; the vfx `angle=1024, instant=true` | same, but the jump glides (the engine moves 2 tiles as a walk) | **open (engine)** |
 | swords | flight | `angle=` the flight's | same | fixed |
+
+## Damage audit (2026-10-21)
+
+Every splat on every raider of the room, put down to its mechanic by
+`tools/tfa_mech.py --room ezekiel` over the `--all-players` transcripts of index
+4301..4308 (the party runs are spectated, so the raiders' prayers are not on the
+wire: a mechanic's zeros are its prayed hits, its nonzero tail mostly the unprayed
+ones). Each mechanic is matched by its own geometry: a projectile by its target and
+landing tick, a tile hazard by the map anim or loc on the raider's tile, a swing by
+the seq beside the raider.
+
+| mechanic | recorded | ours before | ours now | verdict |
+|---|---|---|---|---|
+| melee wave | 1..9 under protect from melee (32/38 nonzero), 14..27 unprayed | 0..28, half prayed | 0..28, a third prayed | fixed |
+| special / star | 21..33 (9) and 24..34 on the star tiles (6) | 20..33 | 21..34 | fixed |
+| swords | 28, 51, 59, 63 | 28..52 | 28..63 | fixed |
+| sword burn | 2 every 5 ticks, three times (4304 [1411..1421]); more on its trail | none | the burn; no trail | fixed (the trail open) |
+| volley | 6, 19 (2) | 15..30 | same | unverified |

@@ -129,3 +129,24 @@ the reset, the walk type).
 | jelly | jumpers | north, exact move, `angle=1024`; no ops block until +2, the entity +3 (28/28) | ours sent ops none at add | fixed |
 | jelly | death | reset + ops none (+ the seq on D 159, D+1 31, D+2 58 of 250); del seq+3 (250/250) | ours: seq and del on one tick, so no death seq was ever seen | fixed |
 | navigator | add | its side's angle, `angle=1536, instant=true`, fade in; +1 `reset` (13/13 east; Ezekiel's west one no reset, 1/1) | ours: no angle face, no reset | fixed |
+
+## Damage audit (2026-10-21)
+
+Every splat on every raider of the room, put down to its mechanic by
+`tools/tfa_mech.py --room dreadnoth` over the `--all-players` transcripts of index
+4301..4308 (the party runs are spectated, so the raiders' prayers are not on the
+wire: a mechanic's zeros are its prayed hits, its nonzero tail mostly the unprayed
+ones). Each mechanic is matched by its own geometry: a projectile by its target and
+landing tick, a tile hazard by the map anim or loc on the raider's tile, a swing by
+the seq beside the raider.
+
+| mechanic | recorded | ours before | ours now | verdict |
+|---|---|---|---|---|
+| slam (J+1, every raider) | 133/141 0 under protect from melee; 22..44 (8, none below 22) | 0..40 | 20..44 | fixed |
+| slam shots (proj01) | 541/581 0 under protect from missiles; 1..33 | 0..30 | 0..33 | fixed |
+| jelly swing | 640/658 0 under protect from melee; 4..12 | 0..8 | 0..12 | fixed (the drain unverified) |
+| melee | 38/71 0; 2..30 | 0..30 | same | matched |
+| blood tile | 7, 8 (48 of 56) every 2 ticks | 7..8 | same | matched |
+| landing, not under him | 147/174 0 under protect from melee; 16..38 | 0..40 | 15..38 | fixed |
+| landing, under his 5x5 | 26..36 (4); his heal 28..44 a raider, 89 for two | 30..71 crush, heal 34..44 | 25..44, he heals what he deals | fixed (the plan's 30..71 was his heal splat) |
+| proj02 on its tile | 19, 20, 41 | 20..40 | 19..41 | fixed |

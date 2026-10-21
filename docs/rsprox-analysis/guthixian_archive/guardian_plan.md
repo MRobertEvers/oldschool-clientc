@@ -159,3 +159,20 @@ the reset, the walk type).
 | Guardian | swoosh | `angle=` the exact move's angle; the first after the wake faces the target from his middle +5 (4297 [208]) | same | fixed |
 | Guardian | landing | `reset` 3 ticks before he lands; the entity again on the lift tick | same | fixed |
 | Guardian | level | vislevel x party (1.06 / 1.12 / 1.19, +0.065 a raider), on add and every changetype | same | fixed |
+
+## Damage audit (2026-10-21)
+
+Every splat on every raider of the room, put down to its mechanic by
+`tools/tfa_mech.py --room guardian` over the `--all-players` transcripts of index
+4301..4308 (the party runs are spectated, so the raiders' prayers are not on the
+wire: a mechanic's zeros are its prayed hits, its nonzero tail mostly the unprayed
+ones). Each mechanic is matched by its own geometry: a projectile by its target and
+landing tick, a tile hazard by the map anim or loc on the raider's tile, a swing by
+the seq beside the raider.
+
+| mechanic | recorded | ours before | ours now | verdict |
+|---|---|---|---|---|
+| ranged shot | an even 1..10 under protect from missiles (the recorder's own prayers, 4296..4298), 17..34 unprayed | 0..41, 75% taken | same | matched |
+| mushroom poison | 10 decaying (10, 9, 8) | 50 | same | matched |
+| tentacle | 17..19, and 10s | 17..19 | same | matched (the 10s open) |
+| poison 2..4 | single splats on a few raiders (4304) | none | none | **open** (source) |

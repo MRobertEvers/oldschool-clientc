@@ -121,3 +121,23 @@ the reset, the walk type).
 | Smork | lines | the entity a tick before say slots 2 and 6, held 4; else his target's tile every 2 ticks from engage+10 | same | fixed |
 | Bork | stun | the stun spot unless stuns=2, and his target's tile | same | fixed (the tile choice unverified) |
 | Bork | stomp, death | the entity at l=13; `reset` at death | same | fixed |
+
+## Damage audit (2026-10-21)
+
+Every splat on every raider of the room, put down to its mechanic by
+`tools/tfa_mech.py --room bork` over the `--all-players` transcripts of index
+4301..4308 (the party runs are spectated, so the raiders' prayers are not on the
+wire: a mechanic's zeros are its prayed hits, its nonzero tail mostly the unprayed
+ones). Each mechanic is matched by its own geometry: a projectile by its target and
+landing tick, a tile hazard by the map anim or loc on the raider's tile, a swing by
+the seq beside the raider.
+
+| mechanic | recorded | ours before | ours now | verdict |
+|---|---|---|---|---|
+| drum beat | 3..9 through protect from melee and never 0 (360), 18..30 unprayed (11) | 0..28, a quarter prayed | 14..32, 27% through | fixed |
+| Smork shots | 0 or 1 under the matching prayer (157/288), up to 32 | 0..28 / 0..1 | 0..32 / 0..1 | fixed |
+| napalm landing | 23..28 on the fire's tile | none | 23..28 | fixed |
+| ragged tile | 2 a tick (type 67) | 2 | same | matched |
+| burn | 1..3 (type 74: 1 16, 2 25, 3 4) | 2..3 | 1..3 | fixed |
+| slams | 14..47 (9) | 20..39 | 14..47 | fixed |
+| big bomb on its tile | 4, 19 | none | none | **open** (two hits) |
