@@ -75,7 +75,7 @@ fight, cutscene, interaction), before reporting it finished:
    then checked once in a second session). Then walk every row of OURS the recording lacks:
    delete it, or explain it. Check, field by field:
    - **Sounds:** every `synth_sound` (id, loops, delay) and every `sound_area` (id, loops, delay,
-     range, tile). Name each id in 239 (`OSRS-Content/osrs-content/pack/4_soundeffects.pack`).
+     range, tile). Name each id in our cache, rev 241 (`OSRS-Content/osrs-content/pack/4_soundeffects.pack`).
      Npc attack/defend/death sounds come from the npc config's `attack_sound`/`defend_sound`/
      `death_sound` params, and the generated block (`_explicit/configs/server_fields.generated.npc`)
      sets them to `null`: a fight is silent until content sets them.
@@ -221,7 +221,7 @@ fight, cutscene, interaction), before reporting it finished:
 - Tile: `spotanim_map(spot, coord, height, delay)`.
 - Heights are raw (92 chest, 124 head) and delays are in cycles.
 - `id=-1` stops (`anim(null, 0)`).
-- **Check each seq id's 239 name** (a recorded chathead seq can be an axe special in 239).
+- **Check each seq id's name in our cache** (rev 241; an old recording's chathead seq can be an axe special in it).
 - An npc type with no anim block inherits `human_*`. Give it its own death/defend anims from the recording's npc record.
 - `npc_setdeathanimnow` puts the death seq on the killing tick.
 - Rev 234+ player cast seqs are the walkmerge forms.
@@ -412,7 +412,7 @@ only one band is not a match.
 ## Traps that have each cost a wrong fix
 
 - One recording = one roll. Count across sessions and quote counts ("37/37").
-- Recorded ids are from that session's revision. Name them in 239 first.
+- Recorded ids are from that session's revision. Name them in our cache (rev 241) first.
 - A seasonal recorder (Leagues, Grid Master) changes damage, attack rate and party scaling.
 - Instance tiles are template-translated. Measure player-to-npc distances on `--raw`.
 - Do not invent lines, messages or sounds the recording lacks. Do not drop ones it has.
