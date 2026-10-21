@@ -1195,6 +1195,13 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     "CAM_MOVETO_CYCLES": (11220, 5, 0, 0, 0),
     "CAM_ROTATETO_COORDINATE": (11221, 4, 0, 0, 0),
 
+    # mes_typed(int $type, string $text)
+    #
+    # MESSAGE_GAME of an explicit type. Every dialogue page is echoed into the
+    # chat history as type 114 ("Name|text"), every mesbox as 115 (RSProx 4293
+    # [214], [147]); `mes` is type 0 and `mes_spam` 105.
+    "MES_TYPED": (11222, 1, 1, 0, 0),
+
     # npc_setbasestat(npc_stat $stat, int $level)
     #
     # The active npc's BASE level in one non-hitpoint stat until it dies or
@@ -1626,6 +1633,7 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "NPC_DEFEND": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_SETOPS": (1 << POINTER_BITS["active_npc"], 0),
     "MES_SPAM": (1 << POINTER_BITS["active_player"], 0),
+    "MES_TYPED": (1 << POINTER_BITS["active_player"], 0),
     "MIDI_SONG_ENVELOPE": (1 << POINTER_BITS["active_player"], 0),
     "NPC_SETDEATHTYPE": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_SETDEATHANIMNOW": (1 << POINTER_BITS["active_npc"], 0),

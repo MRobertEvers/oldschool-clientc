@@ -49,6 +49,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 REGIONS = ROOT / "docs/audio/music_regions.tsv"
 TRACKS = ROOT / "docs/audio/music_tracks_osrs239.tsv"
+# The content tree's own music table (cache 241's DBTable `music`): tracks
+# newer than the 239 dump, matched only by names the dump lacks.
+DBROWS = ROOT / "OSRS-Content/osrs-content/configs/all.dbrow"
 MUSIC_VARP = (
     ROOT
     / "OSRS-Content/osrs-content/server/scripts/interface_music/configs/music.varp"
@@ -71,6 +74,31 @@ def load_musicmulti(path):
     if not variable_to_varp:
         sys.exit("gen_music_regions: no [varp<id>_musicmulti_<N>] declarations in %s" % path)
     return variable_to_varp
+
+
+def load_dbrow_music(path):
+    """`table=music` rows of all.dbrow, shaped like the TSV's rows."""
+    out = []
+    row = None
+    with open(path, encoding="utf-8", errors="replace") as f:
+        for line in f:
+            line = line.rstrip("\n")
+            if line.startswith("["):
+                row = {"display_name": "", "sort_name": "", "song_archive_id": "", "unlock_varp,bit": ""}
+                continue
+            if row is None:
+                continue
+            if line == "table=music":
+                out.append(row)
+            elif line.startswith("data=displayname,"):
+                row["display_name"] = line.split(",", 1)[1]
+            elif line.startswith("data=sortname,"):
+                row["sort_name"] = line.split(",", 1)[1]
+            elif line.startswith("data=midi,"):
+                row["song_archive_id"] = line.split(",", 1)[1]
+            elif line.startswith("data=variable,"):
+                row["unlock_varp,bit"] = line.split(",", 1)[1]
+    return out
 
 
 def load(path):
@@ -101,7 +129,7 @@ def main():
     first_musicmulti_varp = min(variable_to_varp.values())
 
     by_name = {}
-    for row in tracks:
+    for row in tracks + load_dbrow_music(DBROWS):
         for key in (row["display_name"], row["sort_name"]):
             if key:
                 by_name.setdefault(key.strip().lower(), row)

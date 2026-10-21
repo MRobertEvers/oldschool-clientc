@@ -1012,10 +1012,13 @@ static const struct ToriRSServerMusicRegion k_ToriRSServer_MusicRegions[] = {
     { 15513,  664, 2237,  14, "Everlasting Slumber, The" },
     { 15515,  663, 2237,  13, "Bane of Ashihama, The" },
     { 15700,  736, 3575,   6, "Jaws of Gluttony" },
+    { 16197,  792, 4066,  19, "Temple Desecrated" },
+    { 16199,  791, 4066,  23, "Sound of Guthix, The" },
     { 16457,  798, 4066,  17, "Black of Knight" },
     { 16458,  798, 4066,  17, "Black of Knight" },
     { 16459,  798, 4066,  17, "Black of Knight" },
     { 16461,  795, 4066,  18, "Dangerous Logic" },
+    { 16470,  891, 5238,  22, "Into the Archive" },
 };
 
 static const int k_ToriRSServer_MusicRegionCount =

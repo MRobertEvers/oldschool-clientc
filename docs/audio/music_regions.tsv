@@ -1079,3 +1079,14 @@ region_id	square_x	square_z	sw_tile_x	sw_tile_z	track_name	song_archive_name
 16458	64	74	4096	4736	Black of Knight	black_of_knight
 16459	64	75	4096	4800	Black of Knight	black_of_knight
 16461	64	77	4096	4928	Dangerous Logic	dangerous_logic
+# ---------------------------------------------------------------------------
+# From RSProx index 4293 (rev 241, 2026-10-20): the music_current_track varp
+# and the MIDI each square played when the recorder arrived.
+#   16199 (63,71) the Guthixian Temple's grounds, [38]: track 3605 The Sound of
+#         Guthix, sent as midi_song_withsecondary 791+796 (we play 791 only).
+#   16197 (63,69) inside the temple, [70]: track 3600 Temple Desecrated, 792.
+#   16470 (64,86) the Guthixian Archive lobby, [173] and [327]: track 17001
+#         Into the Archive, 891 (cache 241's music row, all.dbrow).
+16199	63	71	4032	4544	The Sound of Guthix	the_sound_of_guthix
+16197	63	69	4032	4416	Temple Desecrated	temple_desecrated
+16470	64	86	4096	5504	Into the Archive	into_the_archive

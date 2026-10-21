@@ -5766,6 +5766,24 @@ script_command(
         return 1;
     }
 
+    /* mes_typed(int $type, string $text): the dialogue echo (114) and the
+     * mesbox echo (115) the chat procs send beside each page (RSProx 4293). */
+    case SS_OP_MES_TYPED:
+    {
+        int32_t type;
+        const char* text;
+
+        if( !SSVM_PopStr(state, &text) || !SSVM_PopInt(state, &type) )
+            return 1;
+        if( !player )
+        {
+            SSVM_Abort(state, "mes_typed with no active player");
+            return 1;
+        }
+        ToriRSServer_SendMessageTyped(player, (int)type, text);
+        return 1;
+    }
+
     /*
      * `[command,set_player_op](string $op, int $slot, boolean $primary)` —
      * `PlayerOps.ts` SET_PLAYER_OP, one `SetPlayerOp` write.

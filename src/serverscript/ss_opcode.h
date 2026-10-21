@@ -592,10 +592,11 @@
 #define SS_OP_SPOTANIM_PL_SLOT 11210
 #define SS_OP_CAM_MOVETO_CYCLES 11220
 #define SS_OP_CAM_ROTATETO_COORDINATE 11221
+#define SS_OP_MES_TYPED 11222
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11222
+#define SS_OPCODE_MAX 11223
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 570
+#define SS_OPCODE_COUNT 571
 
 #endif

@@ -30,6 +30,9 @@ enum
     CORE_LOCAL_SENTINEL = 2047,
 };
 
+static FILE*
+core_wirelog_file(void);
+
 /* net/rev/osrs239/osrs239_entity_info.c: the v5 player table, one per process.
  * Declared where they are used, as net/net.c declares them. */
 void
@@ -648,6 +651,8 @@ player_apply_op(
     case PKT_PLAYER_INFO_OP_FACE_ENTITY:
     {
         int entity_id = op->_face_entity.entity_id == 65535 ? -1 : op->_face_entity.entity_id;
+        if( self->cur_pid == core_local_pid(core) && core_wirelog_file() )
+            fprintf(core_wirelog_file(), "%d\tface_entity\t%d\n", core->tick, entity_id);
         if( op->_face_entity.modern )
             World_PlayerBeginModernFacing(world, idx, op->_face_entity.movement_mode);
         World_PlayerFaceEntityDetailed(
@@ -659,6 +664,9 @@ player_apply_op(
         break;
     }
     case PKT_PLAYER_INFO_OP_FACE_COORD:
+        if( self->cur_pid == core_local_pid(core) && core_wirelog_file() )
+            fprintf(core_wirelog_file(), "%d\tface_coord\t%d\t%d\n", core->tick, op->_face_coord.x >> 1,
+                    op->_face_coord.z >> 1);
         if( op->_face_coord.modern )
             World_PlayerBeginModernFacing(world, idx, op->_face_coord.movement_mode);
         World_PlayerFaceCoord(world, idx, op->_face_coord.x, op->_face_coord.z);
@@ -747,6 +755,13 @@ player_apply_op(
             ex += player->pathing.route_x[0];
             ez += player->pathing.route_z[0];
         }
+        /* Absolute tiles, and the delays in wire order: the 241 decoder files
+         * the wire's delay1 as end_cycle_delta (osrs241_entity_info.c). */
+        if( self->cur_pid == core_local_pid(core) && core_wirelog_file() )
+            fprintf(core_wirelog_file(), "%d\texactmove\t%d,%d\t%d,%d\t%d\t%d\t%d\n", core->tick,
+                    sx + world->_base_tile_x, sz + world->_base_tile_z, ex + world->_base_tile_x,
+                    ez + world->_base_tile_z, op->_exactmove.end_cycle_delta, op->_exactmove.start_cycle_delta,
+                    op->_exactmove.facing);
         World_PlayerSetExactMoveDetailed(
             world,
             idx,
@@ -761,6 +776,8 @@ player_apply_op(
         break;
     }
     case PKT_PLAYER_INFO_OP_FACE_ANGLE:
+        if( self->cur_pid == core_local_pid(core) && core_wirelog_file() )
+            fprintf(core_wirelog_file(), "%d\tface_angle\t%d\n", core->tick, op->_face_angle.angle);
         if( op->_face_angle.modern )
             World_PlayerBeginModernFacing(world, idx, op->_face_angle.movement_mode);
         World_PlayerFaceAngle(world, idx, op->_face_angle.angle, op->_face_angle.instant);
@@ -1706,6 +1723,152 @@ core_packet(
     const uint8_t* payload,
     int len);
 
+/* TORIRS_SCRIPTRUN_WIRELOG=<file>: one line per decoded packet of the kinds a
+ * content audit diffs against an RSProx transcript and the tick log does not
+ * carry (interfaces, clientscripts, messages, vars, camera, minimap, synths,
+ * music), as `<tick>\t<kind>\t<fields>`. Component ids print as group:child,
+ * vars by number: tools/rsprox/wirelog_tells.py names them. */
+static FILE*
+core_wirelog_file(void)
+{
+    static int opened = 0;
+    static FILE* f = NULL;
+
+    if( !opened )
+    {
+        char const* path = getenv("TORIRS_SCRIPTRUN_WIRELOG");
+        opened = 1;
+        if( path && *path )
+        {
+            f = fopen(path, "w");
+            assert(f);
+        }
+    }
+    return f;
+}
+
+static void
+core_wirelog(
+    struct ScriptrunCore* core,
+    int pkt_name,
+    struct RevPacket const* p)
+{
+    FILE* f = core_wirelog_file();
+    int t = core->tick;
+
+    if( !f )
+        return;
+#define COMP(uid) ((unsigned)(uid) >> 16), ((unsigned)(uid)&0xffffu)
+    switch( pkt_name )
+    {
+    case PKT_NAME_IF_OPENSUB:
+        fprintf(f, "%d\tif_opensub\t%u:%u\t%d\t%d\n", t, COMP(p->_if_opensub.target_uid),
+                p->_if_opensub.interface_id, p->_if_opensub.type);
+        break;
+    case PKT_NAME_IF_CLOSESUB:
+        fprintf(f, "%d\tif_closesub\t%u:%u\n", t, COMP(p->_if_closesub.target_uid));
+        break;
+    case PKT_NAME_IF_SETTEXT:
+        fprintf(f, "%d\tif_settext\t%u:%u\t%s\n", t, COMP(p->_if_settext.component_id),
+                p->_if_settext.text ? p->_if_settext.text : "");
+        break;
+    case PKT_NAME_IF_SETEVENTS:
+        fprintf(f, "%d\tif_setevents\t%u:%u\t%d\t%d\t%d\n", t, COMP(p->_if_setevents.component_id),
+                p->_if_setevents.from, p->_if_setevents.to, p->_if_setevents.events);
+        break;
+    case PKT_NAME_IF_SETHIDE:
+        fprintf(f, "%d\tif_sethide\t%u:%u\t%d\n", t, COMP(p->_if_sethide.component_id), p->_if_sethide.hide);
+        break;
+    case PKT_NAME_IF_SETANIM:
+        fprintf(f, "%d\tif_setanim\t%u:%u\t%d\n", t, COMP(p->_if_setanim.component_id), p->_if_setanim.anim_id);
+        break;
+    case PKT_NAME_IF_SETNPCHEAD:
+        fprintf(f, "%d\tif_setnpchead\t%u:%u\t%d\n", t, COMP(p->_if_setnpchead.component_id),
+                p->_if_setnpchead.npc_id);
+        break;
+    case PKT_NAME_IF_SETPLAYERHEAD:
+        fprintf(f, "%d\tif_setplayerhead\t%u:%u\n", t, COMP(p->_if_setplayerhead.component_id));
+        break;
+    case PKT_NAME_RUNCLIENTSCRIPT:
+        if( p->_runclientscript )
+        {
+            struct PktRunClientScript const* rcs = p->_runclientscript;
+            fprintf(f, "%d\trunclientscript\t%d\t", t, rcs->script_id);
+            for( int a = 0; a < rcs->argc && a < PKT_RUNCLIENTSCRIPT_ARG_MAX; a++ )
+            {
+                if( (rcs->str_mask >> a) & 1u )
+                    fprintf(f, "%s\"%s\"", a ? "," : "", rcs->strv[a]);
+                else
+                    fprintf(f, "%s%d", a ? "," : "", rcs->intv[a]);
+            }
+            fputc('\n', f);
+        }
+        break;
+    case PKT_NAME_MESSAGE_GAME:
+        fprintf(f, "%d\tmessage_game\t%d\t%s\n", t, p->_message_game.type,
+                p->_message_game.text ? p->_message_game.text : "");
+        break;
+    case PKT_NAME_VARP_SMALL:
+        fprintf(f, "%d\tvarp\t%d\t%d\n", t, p->_varp_small.variable, p->_varp_small.value);
+        break;
+    case PKT_NAME_VARP_LARGE:
+        fprintf(f, "%d\tvarp\t%d\t%d\n", t, p->_varp_large.variable, p->_varp_large.value);
+        break;
+    case PKT_NAME_MINIMAP_TOGGLE:
+        fprintf(f, "%d\tminimap_toggle\t%d\n", t, p->_minimap_toggle.state);
+        break;
+    case PKT_NAME_HIDENPCOPS:
+    case PKT_NAME_HIDELOCOPS:
+    case PKT_NAME_HIDEOBJOPS:
+        fprintf(f, "%d\t%s\t%d\n", t,
+                pkt_name == PKT_NAME_HIDENPCOPS   ? "hidenpcops"
+                : pkt_name == PKT_NAME_HIDELOCOPS ? "hidelocops"
+                                                  : "hideobjops",
+                p->_hide_ops.hidden);
+        break;
+    case PKT_NAME_SYNTH_SOUND:
+        fprintf(f, "%d\tsynth_sound\t%d\t%d\t%d\n", t, p->_synth_sound.id, p->_synth_sound.loops,
+                p->_synth_sound.delay);
+        break;
+    case PKT_NAME_MIDI_SONG:
+        fprintf(f, "%d\tmidi_song\t%d\n", t, p->_midi_song.id);
+        break;
+    case PKT_NAME_MIDI_SONG_WITHSECONDARY:
+        fprintf(f, "%d\tmidi_song_withsecondary\t%d\t%d\n", t, p->_midi_song_with_secondary.primary_id,
+                p->_midi_song_with_secondary.secondary_id);
+        break;
+    case PKT_NAME_CAM_RESET:
+        fprintf(f, "%d\tcam_reset\n", t);
+        break;
+    case PKT_NAME_CAM_SHAKE:
+        fprintf(f, "%d\tcam_shake\t%d\t%d\t%d\t%d\n", t, p->_cam_shake.axis, p->_cam_shake.amplitude,
+                p->_cam_shake.frequency, p->_cam_shake.speed);
+        break;
+    case PKT_NAME_CAM_MOVETO:
+        fprintf(f, "%d\tcam_moveto\t%d\t%d\t%d\t%d\t%d\t%d\n", t, p->_cam_moveto.local_x, p->_cam_moveto.local_z,
+                p->_cam_moveto.height, p->_cam_moveto.rate, p->_cam_moveto.rate2, p->_cam_moveto.absolute);
+        break;
+    case PKT_NAME_CAM_LOOKAT:
+        fprintf(f, "%d\tcam_lookat\t%d\t%d\t%d\t%d\t%d\t%d\n", t, p->_cam_lookat.local_x, p->_cam_lookat.local_z,
+                p->_cam_lookat.height, p->_cam_lookat.rate, p->_cam_lookat.rate2, p->_cam_lookat.absolute);
+        break;
+    case PKT_NAME_CAM_MOVETO_CYCLES:
+        fprintf(f, "%d\tcam_moveto_cycles\t%d\t%d\t%d\t%d\t%d\t%d\n", t, p->_cam_moveto_cycles.x,
+                p->_cam_moveto_cycles.z, p->_cam_moveto_cycles.height, p->_cam_moveto_cycles.cycles,
+                p->_cam_moveto_cycles.ignore_terrain, p->_cam_moveto_cycles.easing);
+        break;
+    case PKT_NAME_CAM_ROTATETO_COORDINATE:
+        fprintf(f, "%d\tcam_rotateto_coordinate\t%d\t%d\t%d\t%d\t%d\n", t, p->_cam_rotateto_coordinate.x,
+                p->_cam_rotateto_coordinate.z, p->_cam_rotateto_coordinate.height,
+                p->_cam_rotateto_coordinate.cycles, p->_cam_rotateto_coordinate.easing);
+        break;
+    default:
+        break;
+    }
+#undef COMP
+    fflush(f);
+}
+
 void
 ScriptrunCore_Packet(
     struct ScriptrunCore* core,
@@ -1783,6 +1946,7 @@ core_packet(
         ToriMem_Free(ToriMem_ServerPlayers(), data);
         return;
     }
+    core_wirelog(core, pkt_name, &packet);
 
     switch( pkt_name )
     {

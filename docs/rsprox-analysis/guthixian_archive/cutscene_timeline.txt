@@ -1,0 +1,569 @@
+2:         [walk] npc=(index=45993, id=warden_pet_baba (11847), coord=(3357, 9122, 0)), newcoord=(3358, 9123, 0), step=north-east
+2:             [facing] player=(index=1129, name=Slow Bug, coord=(3357, 9124, 0)), fallbackangle=1024
+3:             [facing] player=(index=1234, name=Gift of hell, coord=(3361, 9117, 0)), fallbackangle=512
+3:         [walk] npc=(index=45993, id=warden_pet_baba (11847), coord=(3358, 9123, 0)), newcoord=(3357, 9123, 0), step=west
+18:     [varbit] id=busy (12393), old=0, new=1
+18:             [facing] player=(index=1030, name=3TabsAtOnce, coord=(3358, 9118, 0)), fallbackangle=1897
+19:         [walk] npc=(index=33113, id=snake_pet_blue (2132), coord=(3361, 9117, 0)), newcoord=(3362, 9117, 0), step=east
+20:     [ambientsound_stop] fade=true
+21:             [facing] player=(index=1234, name=Gift of hell, coord=(3361, 9117, 0)), fallbackangle=512
+23:         [walk] npc=(index=33113, id=snake_pet_blue (2132), coord=(3362, 9117, 0)), newcoord=(3361, 9117, 0), step=west
+23:             [facing] player=(index=1234, name=Gift of hell, coord=(3361, 9118, 0)), fallbackangle=1024
+25:         [walk] npc=(index=33113, id=snake_pet_blue (2132), coord=(3361, 9117, 0)), newcoord=(3362, 9117, 0), step=east
+25:     [ambientsound_stop] fade=true
+27:             [facing] player=(index=1234, name=Gift of hell, coord=(3361, 9117, 0)), fallbackangle=512
+29:         [walk] npc=(index=33113, id=snake_pet_blue (2132), coord=(3362, 9117, 0)), newcoord=(3361, 9117, 0), step=west
+29:             [facing] player=(index=1234, name=Gift of hell, coord=(3361, 9118, 0)), fallbackangle=1024
+30:     [ambientsound_stop] fade=true
+31:         [walk] npc=(index=33113, id=snake_pet_blue (2132), coord=(3361, 9117, 0)), newcoord=(3362, 9117, 0), step=east
+33:             [facing] player=(index=1234, name=Gift of hell, coord=(3361, 9117, 0)), fallbackangle=512
+173:     [varbit] id=fov_clamp (4606), old=0, new=3
+173:     [varbit] id=cutscene_status (542), old=0, new=1
+173:     [hidenpcops] hide=true
+173:     [hidelocops] hide=true
+173:     [hideobjops] hide=true
+173:     [varp_small] id=option_areasounds_override (5589), old=0, new=100
+173:     [varp_small] id=areasounds_override (5588), old=0, new=1
+173:         [teleport] player=(index=1201, name=Das Idle, coord=(4053, 4568, 0)), newcoord=(4131, 5540, 0)
+173:             [facing] type=reset
+173:             [sequence] id=-1
+173:         [add] npc=(index=59599, id=armacus_selles_cutscene (16727), coord=(4137, 5547, 0)), creationcycle=67074, spawnangle=north-west
+173:             [facing] coord=(4135, 5548, 0), instant=true
+173:         [add] npc=(index=59600, id=eva_cashien_cutscene (16728), coord=(4136, 5550, 0)), creationcycle=67074, spawnangle=south-west
+173:             [facing] coord=(4135, 5548, 0), instant=true
+173:         [add] npc=(index=59601, id=tfa_ivy_sophista_cutscene (16729), coord=(4137, 5549, 0)), creationcycle=67074, spawnangle=south-west
+173:             [facing] coord=(4135, 5548, 0), instant=true
+173:     [cam_shake] axis=0, random=0, amplitude=0, rate=0
+173:     [cam_shake] axis=1, random=0, amplitude=0, rate=0
+173:     [cam_shake] axis=2, random=0, amplitude=0, rate=0
+173:     [cam_shake] axis=3, random=0, amplitude=0, rate=0
+173:     [cam_shake] axis=4, random=0, amplitude=0, rate=0
+173:     [midi_song_v2] id=891, fadeoutdelay=0, fadeoutspeed=60, fadeindelay=60, fadeinspeed=0
+173:     [minimap_toggle] state=2
+174:     [cam_moveto_v3] coord=(4123, 5551, 0), height=1100, rate=232, rate2=100, heightrelative=false
+174:     [cam_rotateto_coordinate_v3] coord=(4123, 5562, 0), height=500, cycles=0, easing=linear, heightrelative=false, tracktarget=false
+175:     [cam_moveto_cycles_v3] coord=(4132, 5551, 0), height=1100, cycles=500, ignoreterrain=true, easing=ease_in_sine, heightrelative=false
+175:     [if_opensub] com=toplevel_osrs_stretch:overlay_atmosphere (161:1), id=fade_overlay (174), type=overlay
+175:     [runclientscript] id=fade_overlay (948), types=[int, int, int, int, int], values=[0, 0, 0, 255, 50]
+175:     [ambientsound_start] id=15, fade=true
+177:     [if_closesub] com=toplevel_osrs_stretch:overlay_atmosphere (161:1), id=fade_overlay (174)
+180:     [ambientsound_start] id=15, fade=true
+185:     [ambientsound_start] id=15, fade=true
+190:     [cam_moveto_v3] coord=(4127, 5542, 0), height=1100, rate=232, rate2=100, heightrelative=false
+190:     [cam_rotateto_coordinate_v3] coord=(4127, 5562, 0), height=900, cycles=0, easing=linear, heightrelative=false, tracktarget=false
+190:     [cam_moveto_cycles_v3] coord=(4127, 5532, 0), height=1000, cycles=555, ignoreterrain=true, easing=ease_out_sine, heightrelative=false
+190:     [ambientsound_start] id=15, fade=true
+195:     [ambientsound_start] id=15, fade=true
+200:     [cam_moveto_v3] coord=(4119, 5545, 0), height=500, rate=232, rate2=100, heightrelative=false
+200:     [cam_lookat_v3] coord=(4113, 5550, 0), height=200, rate=232, rate2=100, heightrelative=false
+200:     [ambientsound_start] id=15, fade=true
+205:         [walk] player=(index=1201, name=Das Idle, coord=(4131, 5540, 0)), newcoord=(4131, 5541, 0)
+205:     [cam_moveto_v3] coord=(4129, 5539, 0), height=800, rate=232, rate2=100, heightrelative=false
+205:     [cam_lookat_v3] coord=(4133, 5545, 0), height=500, rate=232, rate2=100, heightrelative=false
+205:     [ambientsound_start] id=15, fade=true
+206:         [walk] player=(index=1201, name=Das Idle, coord=(4131, 5541, 0)), newcoord=(4131, 5542, 0)
+207:         [walk] player=(index=1201, name=Das Idle, coord=(4131, 5542, 0)), newcoord=(4131, 5543, 0)
+208:         [walk] player=(index=1201, name=Das Idle, coord=(4131, 5543, 0)), newcoord=(4131, 5544, 0)
+209:         [walk] player=(index=1201, name=Das Idle, coord=(4131, 5544, 0)), newcoord=(4132, 5545, 0)
+210:         [walk] player=(index=1201, name=Das Idle, coord=(4132, 5545, 0)), newcoord=(4133, 5546, 0)
+210:     [ambientsound_start] id=15, fade=true
+211:         [walk] player=(index=1201, name=Das Idle, coord=(4133, 5546, 0)), newcoord=(4134, 5547, 0)
+212:         [walk] player=(index=1201, name=Das Idle, coord=(4134, 5547, 0)), newcoord=(4135, 5548, 0)
+214:     [message_game] type=dialogue, message="Ivy Sophista|Hello agai-"
+214:             [facing] coord=(4137, 5549, 0)
+214:     [if_opensub] com=chatbox:chatmodal (162:568), id=chat_left (231), type=modal
+214:     [if_setnpchead] com=chat_left:head (231:2), id=tfa_ivy_sophista_cutscene (16729)
+214:     [if_setanim] com=chat_left:head (231:2), id=chatneu1 (588)
+214:     [if_settext] com=chat_left:name (231:4), text="Ivy Sophista"
+214:     [if_settext] com=chat_left:text (231:6), text="Hello agai-"
+214:     [runclientscript] id=if_settextalign (600), types=[int, int, int, component], values=[1, 1, 16, chat_left:text (231:6)]
+214:     [if_setevents_v2] com=chat_left:continue (231:5), start=-1, end=-1, events=[]
+214:     [if_settext] com=chat_left:continue (231:5), text=""
+215:     [ambientsound_start] id=15, fade=true
+217:     [message_game] type=dialogue, message="Armacus Selles|Greetings, adventurer! Have you come to join the ranks of the Alliance?"
+217:             [facing] coord=(4137, 5547, 0)
+217:     [if_opensub] com=chatbox:chatmodal (162:568), id=chat_left (231), type=modal
+217:     [if_setnpchead] com=chat_left:head (231:2), id=armacus_selles_cutscene (16727)
+217:     [if_setanim] com=chat_left:head (231:2), id=chathap2 (568)
+217:     [if_settext] com=chat_left:name (231:4), text="Armacus Selles"
+217:     [if_settext] com=chat_left:text (231:6), text="Greetings, adventurer! Have you come to join the ranks<br>of the Alliance?"
+217:     [runclientscript] id=if_settextalign (600), types=[int, int, int, component], values=[1, 1, 28, chat_left:text (231:6)]
+217:     [if_setevents_v2] com=chat_left:continue (231:5), start=-1, end=-1, events=[PAUSEBUTTON]
+217:     [if_settext] com=chat_left:continue (231:5), text="Click here to continue"
+220:     [ambientsound_start] id=15, fade=true
+225:     [ambientsound_start] id=15, fade=true
+230:     [ambientsound_start] id=15, fade=true
+235:     [ambientsound_start] id=15, fade=true
+240:     [ambientsound_start] id=15, fade=true
+245:     [ambientsound_start] id=15, fade=true
+250:     [ambientsound_start] id=15, fade=true
+255:     [ambientsound_start] id=15, fade=true
+260:     [ambientsound_start] id=15, fade=true
+263:     [resume_pausebutton] com=chat_left:continue (231:5)
+264:     [message_game] type=dialogue, message="Ivy Sophista|Armacus, this is Das Idle, the adventurer I told you about."
+264:             [facing] coord=(4137, 5549, 0)
+264:             [facing] coord=(4137, 5549, 0)
+264:             [facing] coord=(4137, 5547, 0)
+264:     [if_opensub] com=chatbox:chatmodal (162:568), id=chat_left (231), type=modal
+264:     [if_setnpchead] com=chat_left:head (231:2), id=tfa_ivy_sophista_cutscene (16729)
+264:     [if_setanim] com=chat_left:head (231:2), id=chatneu2 (589)
+264:     [if_settext] com=chat_left:name (231:4), text="Ivy Sophista"
+264:     [if_settext] com=chat_left:text (231:6), text="Armacus, this is Das Idle, the adventurer I told you<br>about."
+264:     [runclientscript] id=if_settextalign (600), types=[int, int, int, component], values=[1, 1, 28, chat_left:text (231:6)]
+264:     [if_setevents_v2] com=chat_left:continue (231:5), start=-1, end=-1, events=[PAUSEBUTTON]
+264:     [if_settext] com=chat_left:continue (231:5), text="Click here to continue"
+265:     [ambientsound_start] id=15, fade=true
+266:     [resume_pausebutton] com=chat_left:continue (231:5)
+266:     [message_game] type=dialogue, message="Armacus Selles|Aha! Well met, young Das Idle."
+266:             [facing] coord=(4137, 5547, 0)
+266:             [facing] coord=(4135, 5548, 0)
+266:             [facing] coord=(4135, 5548, 0)
+266:     [if_opensub] com=chatbox:chatmodal (162:568), id=chat_left (231), type=modal
+266:     [if_setnpchead] com=chat_left:head (231:2), id=armacus_selles_cutscene (16727)
+266:     [if_setanim] com=chat_left:head (231:2), id=chathap1 (567)
+266:     [if_settext] com=chat_left:name (231:4), text="Armacus Selles"
+266:     [if_settext] com=chat_left:text (231:6), text="Aha! Well met, young Das Idle."
+266:     [runclientscript] id=if_settextalign (600), types=[int, int, int, component], values=[1, 1, 16, chat_left:text (231:6)]
+266:     [if_setevents_v2] com=chat_left:continue (231:5), start=-1, end=-1, events=[PAUSEBUTTON]
+266:     [if_settext] com=chat_left:continue (231:5), text="Click here to continue"
+267:     [resume_pausebutton] com=chat_left:continue (231:5)
+267:     [message_game] type=dialogue, message="Eva Cashien|I have heard good things from my uncle. It is good to meet you, Das Idle."
+267:             [facing] coord=(4136, 5550, 0)
+267:     [if_opensub] com=chatbox:chatmodal (162:568), id=chat_left (231), type=modal
+267:     [if_setnpchead] com=chat_left:head (231:2), id=eva_cashien_cutscene (16728)
+267:     [if_setanim] com=chat_left:head (231:2), id=chatneu2 (589)
+267:     [if_settext] com=chat_left:name (231:4), text="Eva Cashien"
+267:     [if_settext] com=chat_left:text (231:6), text="I have heard good things from my uncle. It is good to<br>meet you, Das Idle."
+267:     [runclientscript] id=if_settextalign (600), types=[int, int, int, component], values=[1, 1, 28, chat_left:text (231:6)]
+267:     [if_setevents_v2] com=chat_left:continue (231:5), start=-1, end=-1, events=[PAUSEBUTTON]
+267:     [if_settext] com=chat_left:continue (231:5), text="Click here to continue"
+269:     [resume_pausebutton] com=chat_left:continue (231:5)
+269:     [message_game] type=dialogue, message="Das Idle|Well met, and likewise. I received your message and came as soon as I could."
+269:             [facing] coord=(4137, 5549, 0)
+269:     [if_opensub] com=chatbox:chatmodal (162:568), id=chat_right (217), type=modal
+269:     [if_setplayerhead] com=chat_right:head (217:2)
+269:     [if_setanim] com=chat_right:head (217:2), id=chatneu2 (589)
+269:     [if_settext] com=chat_right:name (217:4), text="Das Idle"
+269:     [if_settext] com=chat_right:text (217:6), text="Well met, and likewise. I received your message and<br>came as soon as I could."
+269:     [runclientscript] id=if_settextalign (600), types=[int, int, int, component], values=[1, 1, 28, chat_right:text (217:6)]
+269:     [if_setevents_v2] com=chat_right:continue (217:5), start=-1, end=-1, events=[PAUSEBUTTON]
+269:     [if_settext] com=chat_right:continue (217:5), text="Click here to continue"
+270:     [resume_pausebutton] com=chat_right:continue (217:5)
+270:     [message_game] type=dialogue, message="Ivy Sophista|Thank you. This is Eva Cashien and Armacus Selles. They are leading the Temple Knights and the Guardians of Armadyl who have mobilised to defend the 
+270:             [facing] coord=(4137, 5549, 0)
+270:     [if_opensub] com=chatbox:chatmodal (162:568), id=chat_left (231), type=modal
+270:     [if_setnpchead] com=chat_left:head (231:2), id=tfa_ivy_sophista_cutscene (16729)
+270:     [if_setanim] com=chat_left:head (231:2), id=chatneu4 (591)
+270:     [if_settext] com=chat_left:name (231:4), text="Ivy Sophista"
+270:     [if_settext] com=chat_left:text (231:6), text="Thank you. This is Eva Cashien and Armacus Selles.<br>They are leading the Temple Knights and the<br>Guardians of Armadyl who have mobilised to defend the
+270:     [runclientscript] id=if_settextalign (600), types=[int, int, int, component], values=[1, 1, 16, chat_left:text (231:6)]
+270:     [if_setevents_v2] com=chat_left:continue (231:5), start=-1, end=-1, events=[PAUSEBUTTON]
+270:     [if_settext] com=chat_left:continue (231:5), text="Click here to continue"
+270:     [ambientsound_start] id=15, fade=true
+272:     [resume_pausebutton] com=chat_left:continue (231:5)
+273:     [message_game] type=dialogue, message="Das Idle|What's the current situation? Have your soldiers entered the Archive already?"
+273:     [if_opensub] com=chatbox:chatmodal (162:568), id=chat_right (217), type=modal
+273:     [if_setplayerhead] com=chat_right:head (217:2)
+273:     [if_setanim] com=chat_right:head (217:2), id=chatquiz2 (555)
+273:     [if_settext] com=chat_right:name (217:4), text="Das Idle"
+273:     [if_settext] com=chat_right:text (217:6), text="What's the current situation? Have your soldiers<br>entered the Archive already?"
+273:     [runclientscript] id=if_settextalign (600), types=[int, int, int, component], values=[1, 1, 28, chat_right:text (217:6)]
+273:     [if_setevents_v2] com=chat_right:continue (217:5), start=-1, end=-1, events=[PAUSEBUTTON]
+273:     [if_settext] com=chat_right:continue (217:5), text="Click here to continue"
+275:     [resume_pausebutton] com=chat_right:continue (217:5)
+275:     [message_game] type=dialogue, message="Eva Cashien|No, they are still on their way. We came ahead of time to scout out the situation."
+275:             [facing] coord=(4136, 5550, 0)
+275:     [if_opensub] com=chatbox:chatmodal (162:568), id=chat_left (231), type=modal
+275:     [if_setnpchead] com=chat_left:head (231:2), id=eva_cashien_cutscene (16728)
+275:     [if_setanim] com=chat_left:head (231:2), id=chatneu2 (589)
+275:     [if_settext] com=chat_left:name (231:4), text="Eva Cashien"
+275:     [if_settext] com=chat_left:text (231:6), text="No, they are still on their way. We came ahead of time<br>to scout out the situation."
+275:     [runclientscript] id=if_settextalign (600), types=[int, int, int, component], values=[1, 1, 28, chat_left:text (231:6)]
+275:     [if_setevents_v2] com=chat_left:continue (231:5), start=-1, end=-1, events=[PAUSEBUTTON]
+275:     [if_settext] com=chat_left:continue (231:5), text="Click here to continue"
+275:     [ambientsound_start] id=15, fade=true
+277:     [resume_pausebutton] com=chat_left:continue (231:5)
+277:     [message_game] type=dialogue, message="Das Idle|And what do you make of it?"
+277:     [if_opensub] com=chatbox:chatmodal (162:568), id=chat_right (217), type=modal
+277:     [if_setplayerhead] com=chat_right:head (217:2)
+277:     [if_setanim] com=chat_right:head (217:2), id=chatneu1 (588)
+277:     [if_settext] com=chat_right:name (217:4), text="Das Idle"
+277:     [if_settext] com=chat_right:text (217:6), text="And what do you make of it?"
+277:     [runclientscript] id=if_settextalign (600), types=[int, int, int, component], values=[1, 1, 16, chat_right:text (217:6)]
+277:     [if_setevents_v2] com=chat_right:continue (217:5), start=-1, end=-1, events=[PAUSEBUTTON]
+277:     [if_settext] com=chat_right:continue (217:5), text="Click here to continue"
+279:     [resume_pausebutton] com=chat_right:continue (217:5)
+279:     [message_game] type=dialogue, message="Armacus Selles|It's quite the pickle we're in, I'm afraid! Our enemies approach from all sides. We have identified six vulnerable chambers altogether."
+279:             [facing] coord=(4137, 5547, 0)
+279:     [if_opensub] com=chatbox:chatmodal (162:568), id=chat_left (231), type=modal
+279:     [if_setnpchead] com=chat_left:head (231:2), id=armacus_selles_cutscene (16727)
+279:     [if_setanim] com=chat_left:head (231:2), id=chathap3 (569)
+279:     [if_settext] com=chat_left:name (231:4), text="Armacus Selles"
+279:     [if_settext] com=chat_left:text (231:6), text="It's quite the pickle we're in, I'm afraid! Our enemies<br>approach from all sides. We have identified six<br>vulnerable chambers altogether."
+279:     [runclientscript] id=if_settextalign (600), types=[int, int, int, component], values=[1, 1, 20, chat_left:text (231:6)]
+279:     [if_setevents_v2] com=chat_left:continue (231:5), start=-1, end=-1, events=[PAUSEBUTTON]
+279:     [if_settext] com=chat_left:continue (231:5), text="Click here to continue"
+280:     [ambientsound_start] id=15, fade=true
+282:     [resume_pausebutton] com=chat_left:continue (231:5)
+282:     [message_game] type=dialogue, message="Eva Cashien|What's more, the central chamber we intended to use to establish fortifications appears to be guarded by some sort of hostile creature."
+282:             [facing] coord=(4136, 5550, 0)
+282:     [if_opensub] com=chatbox:chatmodal (162:568), id=chat_left (231), type=modal
+282:     [if_setnpchead] com=chat_left:head (231:2), id=eva_cashien_cutscene (16728)
+282:     [if_setanim] com=chat_left:head (231:2), id=chatneu3 (590)
+282:     [if_settext] com=chat_left:name (231:4), text="Eva Cashien"
+282:     [if_settext] com=chat_left:text (231:6), text="What's more, the central chamber we intended to use to<br>establish fortifications appears to be guarded by some<br>sort of hostile creature."
+282:     [runclientscript] id=if_settextalign (600), types=[int, int, int, component], values=[1, 1, 20, chat_left:text (231:6)]
+282:     [if_setevents_v2] com=chat_left:continue (231:5), start=-1, end=-1, events=[PAUSEBUTTON]
+282:     [if_settext] com=chat_left:continue (231:5), text="Click here to continue"
+283:     [resume_pausebutton] com=chat_left:continue (231:5)
+284:     [message_game] type=dialogue, message="Ivy Sophista|It is likely one of Guthix's creations, left behind to defend the Archive from intruders."
+284:             [facing] coord=(4137, 5549, 0)
+284:     [if_opensub] com=chatbox:chatmodal (162:568), id=chat_left (231), type=modal
+284:     [if_setnpchead] com=chat_left:head (231:2), id=tfa_ivy_sophista_cutscene (16729)
+284:     [if_setanim] com=chat_left:head (231:2), id=chatneu2 (589)
+284:     [if_settext] com=chat_left:name (231:4), text="Ivy Sophista"
+284:     [if_settext] com=chat_left:text (231:6), text="It is likely one of Guthix's creations, left behind to<br>defend the Archive from intruders."
+284:     [runclientscript] id=if_settextalign (600), types=[int, int, int, component], values=[1, 1, 28, chat_left:text (231:6)]
+284:     [if_setevents_v2] com=chat_left:continue (231:5), start=-1, end=-1, events=[PAUSEBUTTON]
+284:     [if_settext] com=chat_left:continue (231:5), text="Click here to continue"
+285:     [resume_pausebutton] com=chat_left:continue (231:5)
+285:     [message_game] type=dialogue, message="Das Idle|Could we leverage it to help us?"
+285:     [if_opensub] com=chatbox:chatmodal (162:568), id=chat_right (217), type=modal
+285:     [if_setplayerhead] com=chat_right:head (217:2)
+285:     [if_setanim] com=chat_right:head (217:2), id=chatquiz1 (554)
+285:     [if_settext] com=chat_right:name (217:4), text="Das Idle"
+285:     [if_settext] com=chat_right:text (217:6), text="Could we leverage it to help us?"
+285:     [runclientscript] id=if_settextalign (600), types=[int, int, int, component], values=[1, 1, 16, chat_right:text (217:6)]
+285:     [if_setevents_v2] com=chat_right:continue (217:5), start=-1, end=-1, events=[PAUSEBUTTON]
+285:     [if_settext] com=chat_right:continue (217:5), text="Click here to continue"
+285:     [ambientsound_start] id=15, fade=true
+286:     [resume_pausebutton] com=chat_right:continue (217:5)
+286:     [message_game] type=dialogue, message="Ivy Sophista|I'm afraid not... It might hold off some of the intruders, but it won't manage all of them. And without getting in there to establish defences of our
+286:             [facing] coord=(4137, 5549, 0)
+286:     [if_opensub] com=chatbox:chatmodal (162:568), id=chat_left (231), type=modal
+286:     [if_setnpchead] com=chat_left:head (231:2), id=tfa_ivy_sophista_cutscene (16729)
+286:     [if_setanim] com=chat_left:head (231:2), id=chatsad4 (613)
+286:     [if_settext] com=chat_left:name (231:4), text="Ivy Sophista"
+286:     [if_settext] com=chat_left:text (231:6), text="I'm afraid not... It might hold off some of the intruders,<br>but it won't manage all of them. And without getting in<br>there to establish defences of ou
+286:     [runclientscript] id=if_settextalign (600), types=[int, int, int, component], values=[1, 1, 16, chat_left:text (231:6)]
+286:     [if_setevents_v2] com=chat_left:continue (231:5), start=-1, end=-1, events=[PAUSEBUTTON]
+286:     [if_settext] com=chat_left:continue (231:5), text="Click here to continue"
+287:     [resume_pausebutton] com=chat_left:continue (231:5)
+287:     [message_game] type=dialogue, message="Das Idle|I see... That's unfortunate."
+287:     [if_opensub] com=chatbox:chatmodal (162:568), id=chat_right (217), type=modal
+287:     [if_setplayerhead] com=chat_right:head (217:2)
+287:     [if_setanim] com=chat_right:head (217:2), id=chat_distant (13958)
+287:     [if_settext] com=chat_right:name (217:4), text="Das Idle"
+287:     [if_settext] com=chat_right:text (217:6), text="I see... That's unfortunate."
+287:     [runclientscript] id=if_settextalign (600), types=[int, int, int, component], values=[1, 1, 16, chat_right:text (217:6)]
+287:     [if_setevents_v2] com=chat_right:continue (217:5), start=-1, end=-1, events=[PAUSEBUTTON]
+287:     [if_settext] com=chat_right:continue (217:5), text="Click here to continue"
+288:     [resume_pausebutton] com=chat_right:continue (217:5)
+289:     [message_game] type=dialogue, message="Armacus Selles|Indeed! But not all is bad news. Several of our enemies have clashed on their way to the Archive, and it's bought us some time."
+289:             [facing] coord=(4137, 5547, 0)
+289:     [if_opensub] com=chatbox:chatmodal (162:568), id=chat_left (231), type=modal
+289:     [if_setnpchead] com=chat_left:head (231:2), id=armacus_selles_cutscene (16727)
+289:     [if_setanim] com=chat_left:head (231:2), id=chathap3 (569)
+289:     [if_settext] com=chat_left:name (231:4), text="Armacus Selles"
+289:     [if_settext] com=chat_left:text (231:6), text="Indeed! But not all is bad news. Several of our enemies<br>have clashed on their way to the Archive, and it's bought<br>us some time."
+289:     [runclientscript] id=if_settextalign (600), types=[int, int, int, component], values=[1, 1, 20, chat_left:text (231:6)]
+289:     [if_setevents_v2] com=chat_left:continue (231:5), start=-1, end=-1, events=[PAUSEBUTTON]
+289:     [if_settext] com=chat_left:continue (231:5), text="Click here to continue"
+290:     [resume_pausebutton] com=chat_left:continue (231:5)
+290:     [message_game] type=dialogue, message="Armacus Selles|If a brave young adventurer were to appear and clear the way for us to set up our defences, whilst we gathered our troops..."
+290:             [facing] coord=(4137, 5547, 0)
+290:     [if_opensub] com=chatbox:chatmodal (162:568), id=chat_left (231), type=modal
+290:     [if_setnpchead] com=chat_left:head (231:2), id=armacus_selles_cutscene (16727)
+290:     [if_setanim] com=chat_left:head (231:2), id=chathap3 (569)
+290:     [if_settext] com=chat_left:name (231:4), text="Armacus Selles"
+290:     [if_settext] com=chat_left:text (231:6), text="If a brave young adventurer were to appear and clear<br>the way for us to set up our defences, whilst we<br>gathered our troops..."
+290:     [runclientscript] id=if_settextalign (600), types=[int, int, int, component], values=[1, 1, 20, chat_left:text (231:6)]
+290:     [if_setevents_v2] com=chat_left:continue (231:5), start=-1, end=-1, events=[PAUSEBUTTON]
+290:     [if_settext] com=chat_left:continue (231:5), text="Click here to continue"
+290:     [ambientsound_start] id=15, fade=true
+291:     [resume_pausebutton] com=chat_left:continue (231:5)
+291:     [message_game] type=dialogue, message="Armacus Selles|But wait! We have one right here!"
+291:             [facing] coord=(4137, 5547, 0)
+291:     [if_opensub] com=chatbox:chatmodal (162:568), id=chat_left (231), type=modal
+291:     [if_setnpchead] com=chat_left:head (231:2), id=armacus_selles_cutscene (16727)
+291:     [if_setanim] com=chat_left:head (231:2), id=chathap1 (567)
+291:     [if_settext] com=chat_left:name (231:4), text="Armacus Selles"
+291:     [if_settext] com=chat_left:text (231:6), text="But wait! We have one right here!"
+291:     [runclientscript] id=if_settextalign (600), types=[int, int, int, component], values=[1, 1, 16, chat_left:text (231:6)]
+291:     [if_setevents_v2] com=chat_left:continue (231:5), start=-1, end=-1, events=[PAUSEBUTTON]
+291:     [if_settext] com=chat_left:continue (231:5), text="Click here to continue"
+292:     [resume_pausebutton] com=chat_left:continue (231:5)
+292:     [message_game] type=dialogue, message="Eva Cashien|Armacus' jesting aside, we're hoping you might be able to help us establish a foothold."
+292:             [facing] coord=(4136, 5550, 0)
+292:             [sequence] id=emote_laugh (861)
+292:     [if_opensub] com=chatbox:chatmodal (162:568), id=chat_left (231), type=modal
+292:     [if_setnpchead] com=chat_left:head (231:2), id=eva_cashien_cutscene (16728)
+292:     [if_setanim] com=chat_left:head (231:2), id=chat_pleased (13968)
+292:     [if_settext] com=chat_left:name (231:4), text="Eva Cashien"
+292:     [if_settext] com=chat_left:text (231:6), text="Armacus' jesting aside, we're hoping you might be able<br>to help us establish a foothold."
+292:     [runclientscript] id=if_settextalign (600), types=[int, int, int, component], values=[1, 1, 28, chat_left:text (231:6)]
+292:     [if_setevents_v2] com=chat_left:continue (231:5), start=-1, end=-1, events=[PAUSEBUTTON]
+292:     [if_settext] com=chat_left:continue (231:5), text="Click here to continue"
+293:     [resume_pausebutton] com=chat_left:continue (231:5)
+293:     [message_game] type=dialogue, message="Das Idle|I see. And do we know anything specific about what artefacts are hidden here?"
+293:     [if_opensub] com=chatbox:chatmodal (162:568), id=chat_right (217), type=modal
+293:     [if_setplayerhead] com=chat_right:head (217:2)
+293:     [if_setanim] com=chat_right:head (217:2), id=chatquiz2 (555)
+293:     [if_settext] com=chat_right:name (217:4), text="Das Idle"
+293:     [if_settext] com=chat_right:text (217:6), text="I see. And do we know anything specific about what<br>artefacts are hidden here?"
+293:     [runclientscript] id=if_settextalign (600), types=[int, int, int, component], values=[1, 1, 28, chat_right:text (217:6)]
+293:     [if_setevents_v2] com=chat_right:continue (217:5), start=-1, end=-1, events=[PAUSEBUTTON]
+293:     [if_settext] com=chat_right:continue (217:5), text="Click here to continue"
+294:     [resume_pausebutton] com=chat_right:continue (217:5)
+295:     [message_game] type=dialogue, message="Ivy Sophista|It seems to be all manner of things. Most of them likely aren't too valuable to our foes, but the Archive has an inner vault."
+295:             [facing] coord=(4137, 5549, 0)
+295:     [if_opensub] com=chatbox:chatmodal (162:568), id=chat_left (231), type=modal
+295:     [if_setnpchead] com=chat_left:head (231:2), id=tfa_ivy_sophista_cutscene (16729)
+295:     [if_setanim] com=chat_left:head (231:2), id=chat_determined (13954)
+295:     [if_settext] com=chat_left:name (231:4), text="Ivy Sophista"
+295:     [if_settext] com=chat_left:text (231:6), text="It seems to be all manner of things. Most of them likely<br>aren't too valuable to our foes, but the Archive has an<br>inner vault."
+295:     [runclientscript] id=if_settextalign (600), types=[int, int, int, component], values=[1, 1, 20, chat_left:text (231:6)]
+295:     [if_setevents_v2] com=chat_left:continue (231:5), start=-1, end=-1, events=[PAUSEBUTTON]
+295:     [if_settext] com=chat_left:continue (231:5), text="Click here to continue"
+295:     [ambientsound_start] id=15, fade=true
+296:     [resume_pausebutton] com=chat_left:continue (231:5)
+296:     [message_game] type=dialogue, message="Ivy Sophista|We're not sure exactly what's inside, but we can't take any risks. We need to assume that the contents could have the potential to be on par with the
+296:             [facing] coord=(4137, 5549, 0)
+296:     [if_opensub] com=chatbox:chatmodal (162:568), id=chat_left (231), type=modal
+296:     [if_setnpchead] com=chat_left:head (231:2), id=tfa_ivy_sophista_cutscene (16729)
+296:     [if_setanim] com=chat_left:head (231:2), id=chat_determined (13954)
+296:     [if_settext] com=chat_left:name (231:4), text="Ivy Sophista"
+296:     [if_settext] com=chat_left:text (231:6), text="We're not sure exactly what's inside, but we can't take<br>any risks. We need to assume that the contents could<br>have the potential to be on par with th
+296:     [runclientscript] id=if_settextalign (600), types=[int, int, int, component], values=[1, 1, 16, chat_left:text (231:6)]
+296:     [if_setevents_v2] com=chat_left:continue (231:5), start=-1, end=-1, events=[PAUSEBUTTON]
+296:     [if_settext] com=chat_left:continue (231:5), text="Click here to continue"
+299:     [resume_pausebutton] com=chat_left:continue (231:5)
+299:     [message_game] type=dialogue, message="Das Idle|And our foes? What do we know about them?"
+299:     [if_opensub] com=chatbox:chatmodal (162:568), id=chat_right (217), type=modal
+299:     [if_setplayerhead] com=chat_right:head (217:2)
+299:     [if_setanim] com=chat_right:head (217:2), id=chatquiz1 (554)
+299:     [if_settext] com=chat_right:name (217:4), text="Das Idle"
+299:     [if_settext] com=chat_right:text (217:6), text="And our foes? What do we know about them?"
+299:     [runclientscript] id=if_settextalign (600), types=[int, int, int, component], values=[1, 1, 16, chat_right:text (217:6)]
+299:     [if_setevents_v2] com=chat_right:continue (217:5), start=-1, end=-1, events=[PAUSEBUTTON]
+299:     [if_settext] com=chat_right:continue (217:5), text="Click here to continue"
+300:     [resume_pausebutton] com=chat_right:continue (217:5)
+300:     [ambientsound_start] id=15, fade=true
+301:     [message_game] type=dialogue, message="Eva Cashien|Lucien's forces are being led by someone called Moia. Our records have little information on her, but if Lucien has trusted her with this task, we mus
+301:             [facing] coord=(4136, 5550, 0)
+301:     [if_opensub] com=chatbox:chatmodal (162:568), id=chat_left (231), type=modal
+301:     [if_setnpchead] com=chat_left:head (231:2), id=eva_cashien_cutscene (16728)
+301:     [if_setanim] com=chat_left:head (231:2), id=chat_determined (13954)
+301:     [if_settext] com=chat_left:name (231:4), text="Eva Cashien"
+301:     [if_settext] com=chat_left:text (231:6), text="Lucien's forces are being led by someone called Moia.<br>Our records have little information on her, but if<br>Lucien has trusted her with this task, we m
+301:     [runclientscript] id=if_settextalign (600), types=[int, int, int, component], values=[1, 1, 16, chat_left:text (231:6)]
+301:     [if_setevents_v2] com=chat_left:continue (231:5), start=-1, end=-1, events=[PAUSEBUTTON]
+301:     [if_settext] com=chat_left:continue (231:5), text="Click here to continue"
+303:     [resume_pausebutton] com=chat_left:continue (231:5)
+303:     [message_game] type=dialogue, message="Armacus Selles|However, luckily for us, there does seem to have been some splintering within Lucien's ranks. The Dagon'hai no longer appear to be working with him
+303:             [facing] coord=(4137, 5547, 0)
+303:     [if_opensub] com=chatbox:chatmodal (162:568), id=chat_left (231), type=modal
+303:     [if_setnpchead] com=chat_left:head (231:2), id=armacus_selles_cutscene (16727)
+303:     [if_setanim] com=chat_left:head (231:2), id=chathap4 (570)
+303:     [if_settext] com=chat_left:name (231:4), text="Armacus Selles"
+303:     [if_settext] com=chat_left:text (231:6), text="However, luckily for us, there does seem to have been<br>some splintering within Lucien's ranks. The Dagon'hai<br>no longer appear to be working with him.
+303:     [runclientscript] id=if_settextalign (600), types=[int, int, int, component], values=[1, 1, 16, chat_left:text (231:6)]
+303:     [if_setevents_v2] com=chat_left:continue (231:5), start=-1, end=-1, events=[PAUSEBUTTON]
+303:     [if_settext] com=chat_left:continue (231:5), text="Click here to continue"
+304:     [resume_pausebutton] com=chat_left:continue (231:5)
+305:     [message_game] type=dialogue, message="Ivy Sophista|There is also a goblin warband that has somehow found out about this place. I fear we may have other foes as well that have not yet revealed themselv
+305:             [facing] coord=(4137, 5549, 0)
+305:     [if_opensub] com=chatbox:chatmodal (162:568), id=chat_left (231), type=modal
+305:     [if_setnpchead] com=chat_left:head (231:2), id=tfa_ivy_sophista_cutscene (16729)
+305:     [if_setanim] com=chat_left:head (231:2), id=chatneu3 (590)
+305:     [if_settext] com=chat_left:name (231:4), text="Ivy Sophista"
+305:     [if_settext] com=chat_left:text (231:6), text="There is also a goblin warband that has somehow found<br>out about this place. I fear we may have other foes as<br>well that have not yet revealed themsel
+305:     [runclientscript] id=if_settextalign (600), types=[int, int, int, component], values=[1, 1, 20, chat_left:text (231:6)]
+305:     [if_setevents_v2] com=chat_left:continue (231:5), start=-1, end=-1, events=[PAUSEBUTTON]
+305:     [if_settext] com=chat_left:continue (231:5), text="Click here to continue"
+305:     [ambientsound_start] id=15, fade=true
+306:     [resume_pausebutton] com=chat_left:continue (231:5)
+307:     [message_game] type=dialogue, message="Das Idle|Sounds like we'd best not waste any time then."
+307:     [if_opensub] com=chatbox:chatmodal (162:568), id=chat_right (217), type=modal
+307:     [if_setplayerhead] com=chat_right:head (217:2)
+307:     [if_setanim] com=chat_right:head (217:2), id=chatneu1 (588)
+307:     [if_settext] com=chat_right:name (217:4), text="Das Idle"
+307:     [if_settext] com=chat_right:text (217:6), text="Sounds like we'd best not waste any time then."
+307:     [runclientscript] id=if_settextalign (600), types=[int, int, int, component], values=[1, 1, 16, chat_right:text (217:6)]
+307:     [if_setevents_v2] com=chat_right:continue (217:5), start=-1, end=-1, events=[PAUSEBUTTON]
+307:     [if_settext] com=chat_right:continue (217:5), text="Click here to continue"
+308:     [resume_pausebutton] com=chat_right:continue (217:5)
+308:     [message_game] type=dialogue, message="Eva Cashien|Thank you, Das Idle. Once you've cleared the central chamber, we'll split up and tackle our enemies one at a time."
+308:             [facing] coord=(4136, 5550, 0)
+308:     [if_opensub] com=chatbox:chatmodal (162:568), id=chat_left (231), type=modal
+308:     [if_setnpchead] com=chat_left:head (231:2), id=eva_cashien_cutscene (16728)
+308:     [if_setanim] com=chat_left:head (231:2), id=chatneu3 (590)
+308:     [if_settext] com=chat_left:name (231:4), text="Eva Cashien"
+308:     [if_settext] com=chat_left:text (231:6), text="Thank you, Das Idle. Once you've cleared the central<br>chamber, we'll split up and tackle our enemies one at a<br>time."
+308:     [runclientscript] id=if_settextalign (600), types=[int, int, int, component], values=[1, 1, 20, chat_left:text (231:6)]
+308:     [if_setevents_v2] com=chat_left:continue (231:5), start=-1, end=-1, events=[PAUSEBUTTON]
+308:     [if_settext] com=chat_left:continue (231:5), text="Click here to continue"
+309:     [resume_pausebutton] com=chat_left:continue (231:5)
+309:     [message_game] type=dialogue, message="Ivy Sophista|We'll be leaning heavily on you once again, Das Idle. Our forces will do what they can to lift your burden, but our enemies are powerful, and you hav
+309:             [facing] coord=(4137, 5549, 0)
+309:     [if_opensub] com=chatbox:chatmodal (162:568), id=chat_left (231), type=modal
+309:     [if_setnpchead] com=chat_left:head (231:2), id=tfa_ivy_sophista_cutscene (16729)
+309:     [if_setanim] com=chat_left:head (231:2), id=chatneu4 (591)
+309:     [if_settext] com=chat_left:name (231:4), text="Ivy Sophista"
+309:     [if_settext] com=chat_left:text (231:6), text="We'll be leaning heavily on you once again, Das Idle.<br>Our forces will do what they can to lift your burden,<br>but our enemies are powerful, and you ha
+309:     [runclientscript] id=if_settextalign (600), types=[int, int, int, component], values=[1, 1, 16, chat_left:text (231:6)]
+309:     [if_setevents_v2] com=chat_left:continue (231:5), start=-1, end=-1, events=[PAUSEBUTTON]
+309:     [if_settext] com=chat_left:continue (231:5), text="Click here to continue"
+310:     [resume_pausebutton] com=chat_left:continue (231:5)
+310:     [message_game] type=dialogue, message="Das Idle|Thank you, I'll-"
+310:     [if_opensub] com=chatbox:chatmodal (162:568), id=chat_right (217), type=modal
+310:     [if_setplayerhead] com=chat_right:head (217:2)
+310:     [if_setanim] com=chat_right:head (217:2), id=chatneu1 (588)
+310:     [if_settext] com=chat_right:name (217:4), text="Das Idle"
+310:     [if_settext] com=chat_right:text (217:6), text="Thank you, I'll-"
+310:     [runclientscript] id=if_settextalign (600), types=[int, int, int, component], values=[1, 1, 16, chat_right:text (217:6)]
+310:     [if_setevents_v2] com=chat_right:continue (217:5), start=-1, end=-1, events=[]
+310:     [if_settext] com=chat_right:continue (217:5), text=""
+310:     [ambientsound_start] id=15, fade=true
+313:     [message_game] type=dialogue, message="Armacus Selles|Indeed! They are powerful. But! You need not face them alone. I have no doubt that an enterprising young adventurer such as yourself has many capab
+313:             [facing] coord=(4137, 5547, 0)
+313:     [if_opensub] com=chatbox:chatmodal (162:568), id=chat_left (231), type=modal
+313:     [if_setnpchead] com=chat_left:head (231:2), id=armacus_selles_cutscene (16727)
+313:     [if_setanim] com=chat_left:head (231:2), id=chathap4 (570)
+313:     [if_settext] com=chat_left:name (231:4), text="Armacus Selles"
+313:     [if_settext] com=chat_left:text (231:6), text="Indeed! They are powerful. But! You need not face<br>them alone. I have no doubt that an enterprising young<br>adventurer such as yourself has many capabl
+313:     [runclientscript] id=if_settextalign (600), types=[int, int, int, component], values=[1, 1, 16, chat_left:text (231:6)]
+313:     [if_setevents_v2] com=chat_left:continue (231:5), start=-1, end=-1, events=[PAUSEBUTTON]
+313:     [if_settext] com=chat_left:continue (231:5), text="Click here to continue"
+314:     [resume_pausebutton] com=chat_left:continue (231:5)
+315:     [message_game] type=dialogue, message="Armacus Selles|Now is the time to unite, and leverage the strength of our co-operation against the weakness of our foes' greed."
+315:             [facing] coord=(4137, 5547, 0)
+315:     [if_opensub] com=chatbox:chatmodal (162:568), id=chat_left (231), type=modal
+315:     [if_setnpchead] com=chat_left:head (231:2), id=armacus_selles_cutscene (16727)
+315:     [if_setanim] com=chat_left:head (231:2), id=chat_determined (13954)
+315:     [if_settext] com=chat_left:name (231:4), text="Armacus Selles"
+315:     [if_settext] com=chat_left:text (231:6), text="Now is the time to unite, and leverage the strength of<br>our co-operation against the weakness of our foes'<br>greed."
+315:     [runclientscript] id=if_settextalign (600), types=[int, int, int, component], values=[1, 1, 20, chat_left:text (231:6)]
+315:     [if_setevents_v2] com=chat_left:continue (231:5), start=-1, end=-1, events=[PAUSEBUTTON]
+315:     [if_settext] com=chat_left:continue (231:5), text="Click here to continue"
+315:     [ambientsound_start] id=15, fade=true
+316:     [resume_pausebutton] com=chat_left:continue (231:5)
+316:     [message_game] type=dialogue, message="Das Idle|I'll see what I can do."
+316:     [if_opensub] com=chatbox:chatmodal (162:568), id=chat_right (217), type=modal
+316:     [if_setplayerhead] com=chat_right:head (217:2)
+316:     [if_setanim] com=chat_right:head (217:2), id=chat_pleased (13968)
+316:     [if_settext] com=chat_right:name (217:4), text="Das Idle"
+316:     [if_settext] com=chat_right:text (217:6), text="I'll see what I can do."
+316:     [runclientscript] id=if_settextalign (600), types=[int, int, int, component], values=[1, 1, 16, chat_right:text (217:6)]
+316:     [if_setevents_v2] com=chat_right:continue (217:5), start=-1, end=-1, events=[PAUSEBUTTON]
+316:     [if_settext] com=chat_right:continue (217:5), text="Click here to continue"
+317:     [resume_pausebutton] com=chat_right:continue (217:5)
+317:     [message_game] type=dialogue, message="Eva Cashien|We must go and ready our forces. We will see you inside."
+317:             [facing] coord=(4136, 5550, 0)
+317:     [if_opensub] com=chatbox:chatmodal (162:568), id=chat_left (231), type=modal
+317:     [if_setnpchead] com=chat_left:head (231:2), id=eva_cashien_cutscene (16728)
+317:     [if_setanim] com=chat_left:head (231:2), id=chatneu2 (589)
+317:     [if_settext] com=chat_left:name (231:4), text="Eva Cashien"
+317:     [if_settext] com=chat_left:text (231:6), text="We must go and ready our forces. We will see you<br>inside."
+317:     [runclientscript] id=if_settextalign (600), types=[int, int, int, component], values=[1, 1, 28, chat_left:text (231:6)]
+317:     [if_setevents_v2] com=chat_left:continue (231:5), start=-1, end=-1, events=[PAUSEBUTTON]
+317:     [if_settext] com=chat_left:continue (231:5), text="Click here to continue"
+318:     [resume_pausebutton] com=chat_left:continue (231:5)
+318:     [message_game] type=dialogue, message="Ivy Sophista|Good luck, Das Idle."
+318:             [facing] coord=(4137, 5549, 0)
+318:     [if_opensub] com=chatbox:chatmodal (162:568), id=chat_left (231), type=modal
+318:     [if_setnpchead] com=chat_left:head (231:2), id=tfa_ivy_sophista_cutscene (16729)
+318:     [if_setanim] com=chat_left:head (231:2), id=chatneu1 (588)
+318:     [if_settext] com=chat_left:name (231:4), text="Ivy Sophista"
+318:     [if_settext] com=chat_left:text (231:6), text="Good luck, Das Idle."
+318:     [runclientscript] id=if_settextalign (600), types=[int, int, int, component], values=[1, 1, 16, chat_left:text (231:6)]
+318:     [if_setevents_v2] com=chat_left:continue (231:5), start=-1, end=-1, events=[PAUSEBUTTON]
+318:     [if_settext] com=chat_left:continue (231:5), text="Click here to continue"
+319:     [resume_pausebutton] com=chat_left:continue (231:5)
+320:         [walk] npc=(index=59601, id=tfa_ivy_sophista_cutscene (16729), coord=(4137, 5549, 0)), newcoord=(4136, 5548, 0), step=south-west
+320:             [facing] type=reset
+320:     [if_closesub] com=chatbox:chatmodal (162:568), id=chat_left (231)
+320:     [ambientsound_start] id=15, fade=true
+321:             [facing] angle=1688
+321:             [sequence] id=emote_bow (858)
+321:         [walk] npc=(index=59601, id=tfa_ivy_sophista_cutscene (16729), coord=(4136, 5548, 0)), newcoord=(4136, 5547, 0), step=south
+322:         [walk] npc=(index=59600, id=eva_cashien_cutscene (16728), coord=(4136, 5550, 0)), newcoord=(4135, 5549, 0), step=south-west
+322:             [facing] type=reset
+322:         [walk] npc=(index=59601, id=tfa_ivy_sophista_cutscene (16729), coord=(4136, 5547, 0)), newcoord=(4135, 5546, 0), step=south-west
+322:     [if_opensub] com=toplevel_osrs_stretch:overlay_atmosphere (161:1), id=fade_overlay (174), type=overlay
+322:     [runclientscript] id=fade_overlay (948), types=[int, int, int, int, int], values=[0, 255, 0, 0, 50]
+323:         [walk] npc=(index=59599, id=armacus_selles_cutscene (16727), coord=(4137, 5547, 0)), newcoord=(4136, 5547, 0), step=west
+323:             [facing] type=reset
+323:         [walk] npc=(index=59600, id=eva_cashien_cutscene (16728), coord=(4135, 5549, 0)), newcoord=(4134, 5549, 0), step=west
+323:         [walk] npc=(index=59601, id=tfa_ivy_sophista_cutscene (16729), coord=(4135, 5546, 0)), newcoord=(4134, 5546, 0), step=west
+323:     [minimap_toggle] state=2
+324:     [hidenpcops] hide=false
+324:     [hidelocops] hide=false
+324:     [hideobjops] hide=false
+324:     [varbit] id=minimap_state (6719), old=2, new=0
+324:     [varbit] id=fov_clamp (4606), old=3, new=0
+324:     [varbit] id=cutscene_status (542), old=1, new=0
+324:     [varp_small] id=option_areasounds_override (5589), old=100, new=0
+324:     [varp_small] id=areasounds_override (5588), old=1, new=0
+324:     [varbit] id=tfa_miniquest (16426), old=0, new=2
+324:         [teleport] player=(index=1201, name=Das Idle, coord=(10343, 13164, 0)), newcoord=(4135, 5548, 0)
+324:         [del] npc=(index=59599, id=armacus_selles_cutscene (16727), coord=(10344, 13163, 0))
+324:         [del] npc=(index=59600, id=eva_cashien_cutscene (16728), coord=(10342, 13165, 0))
+324:         [del] npc=(index=59601, id=tfa_ivy_sophista_cutscene (16729), coord=(10342, 13162, 0))
+324:         [add] npc=(index=53616, id=cowboss_pet (15631), coord=(4134, 5551, 0)), creationcycle=63243, spawnangle=north
+324:             [facing] player=(index=1993, name=Bonk Town, coord=(4134, 5552, 0)), fallbackangle=1024
+324:         [add] npc=(index=46335, id=dawn_pet (7892), coord=(4134, 5551, 0)), creationcycle=66600, spawnangle=north
+324:             [facing] player=(index=1567, name=Xola, coord=(4134, 5552, 0)), fallbackangle=1024
+324:         [add] npc=(index=32728, id=alliance_builder_2 (16707), coord=(4128, 5550, 0)), spawnangle=east
+324:             [facing] type=reset
+324:         [add] npc=(index=32729, id=alliance_builder_4 (16709), coord=(4134, 5545, 0)), spawnangle=north
+324:             [facing] type=reset
+324:         [add] npc=(index=32735, id=tfa_lobby_banker (16704), coord=(4134, 5553, 0)), spawnangle=south-west
+324:             [facing] type=reset
+324:         [add] npc=(index=32726, id=alliance_builder_3 (16708), coord=(4124, 5546, 0)), spawnangle=north-west
+324:             [facing] type=reset
+324:         [add] npc=(index=32731, id=alliance_builder_1 (16706), coord=(4127, 5549, 0)), spawnangle=west
+324:             [facing] type=reset
+324:         [add] npc=(index=64702, id=saradomin_pet (6633), coord=(4134, 5541, 0)), creationcycle=66091, spawnangle=north
+324:             [facing] player=(index=807, name=KRATOS II, coord=(4134, 5542, 0)), fallbackangle=1024
+324:         [add] npc=(index=32737, id=tfa_record_keeper (16692), coord=(4136, 5543, 0)), spawnangle=north
+324:         [add] npc=(index=32732, id=alliance_temple_knight_guard_1 (16710), coord=(4130, 5534, 0)), spawnangle=south
+324:         [add] npc=(index=32738, id=lobby_alliance_druid_2 (16695), coord=(4138, 5535, 0)), spawnangle=west
+324:     [loc_add_change_v2] id=tfa_gathering_rock_inactive03 (63271), coord=(4114, 5539, 0), shape=10, rotation=1
+324:     [loc_add_change_v2] id=tfa_gathering_rock_inactive02 (63270), coord=(4116, 5537, 0), shape=10, rotation=2
+324:     [loc_add_change_v2] id=tfa_gathering_rock_inactive02 (63270), coord=(4113, 5538, 0), shape=10, rotation=2
+324:     [loc_add_change_v2] id=tfa_gathering_rock_inactive03 (63271), coord=(4117, 5534, 0), shape=10, rotation=3
+324:     [loc_add_change_v2] id=tfa_gathering_rock_inactive01 (63269), coord=(4113, 5533, 0), shape=10, rotation=3
+324:     [loc_add_change_v2] id=tfa_gathering_rock_active02 (63267), coord=(4115, 5532, 0), shape=10, rotation=1
+324:     [loc_add_change_v2] id=tfa_gathering_rock_active01 (63266), coord=(4116, 5535, 0), shape=10, rotation=0
+324:     [loc_add_change_v2] id=tfa_gathering_rock_inactive03 (63271), coord=(4110, 5536, 0), shape=10, rotation=1
+324:     [loc_add_change_v2] id=tfa_gathering_rock_active01 (63266), coord=(4111, 5538, 0), shape=10, rotation=0
+324:     [loc_add_change_v2] id=tfa_gathering_rock_inactive03 (63271), coord=(4111, 5535, 0), shape=10, rotation=0
+324:     [cam_unlock] unlock=false
+324:     [cam_reset] 
+324:     [if_closesub] com=side_journal:tab_container (629:43), id=questlist (399)
+324:     [if_opensub] com=side_journal:tab_container (629:43), id=questlist (399), type=overlay
+324:     [if_setevents_v2] com=settings_side:sound_slider_bobble (116:123), start=-1, end=-1, events=[IF_SCRIPT_TRIGGER]
+324:     [if_setevents_v2] com=settings_side:areasounds_slider_bobble (116:137), start=-1, end=-1, events=[IF_SCRIPT_TRIGGER]
+324:     [minimap_toggle] state=0
+325:         [walk] npc=(index=32729, id=alliance_builder_4 (16709), coord=(4134, 5545, 0)), newcoord=(4134, 5546, 0), step=north
+325:     [if_opensub] com=toplevel_osrs_stretch:overlay_atmosphere (161:1), id=fade_overlay (174), type=overlay
+325:     [runclientscript] id=fade_overlay (948), types=[int, int, int, int, int], values=[0, 0, 0, 255, 50]
+325:     [ambientsound_start] id=15, fade=true
+325:     [minimap_toggle] state=0
+326:         [walk] npc=(index=32729, id=alliance_builder_4 (16709), coord=(4134, 5546, 0)), newcoord=(4134, 5547, 0), step=north
+327:     [varbit] id=busy (12393), old=1, new=0
+327:         [walk] npc=(index=32729, id=alliance_builder_4 (16709), coord=(4134, 5547, 0)), newcoord=(4134, 5548, 0), step=north
+327:     [if_closesub] com=toplevel_osrs_stretch:overlay_atmosphere (161:1), id=fade_overlay (174)
+327:     [midi_song_v2] id=891, fadeoutdelay=0, fadeoutspeed=60, fadeindelay=60, fadeinspeed=0
+327:     [ambientsound_start] id=15, fade=true
+327:     [if_opensub] com=toplevel_osrs_stretch:overlay_hud (161:8), id=tfa_lobby (975), type=overlay
+328:         [walk] npc=(index=32729, id=alliance_builder_4 (16709), coord=(4134, 5548, 0)), newcoord=(4134, 5549, 0), step=north
+328:         [walk] npc=(index=32726, id=alliance_builder_3 (16708), coord=(4124, 5546, 0)), newcoord=(4123, 5547, 0), step=north-west
+329:         [walk] npc=(index=32729, id=alliance_builder_4 (16709), coord=(4134, 5549, 0)), newcoord=(4133, 5550, 0), step=north-west
+329:         [walk] npc=(index=32726, id=alliance_builder_3 (16708), coord=(4123, 5547, 0)), newcoord=(4122, 5548, 0), step=north-west
+330:         [walk] npc=(index=32729, id=alliance_builder_4 (16709), coord=(4133, 5550, 0)), newcoord=(4132, 5551, 0), step=north-west
+330:         [walk] npc=(index=32726, id=alliance_builder_3 (16708), coord=(4122, 5548, 0)), newcoord=(4122, 5549, 0), step=north
+331:         [walk] npc=(index=32729, id=alliance_builder_4 (16709), coord=(4132, 5551, 0)), newcoord=(4131, 5552, 0), step=north-west
+332:         [walk] npc=(index=32729, id=alliance_builder_4 (16709), coord=(4131, 5552, 0)), newcoord=(4130, 5553, 0), step=north-west
+332:     [ambientsound_start] id=15, fade=true

@@ -1,0 +1,2142 @@
+545	ZONE	message_game type=gamemessage, message="Spectating the room. Click a fighting player's health display to spectate them."
+545	tfa_guardian_battery_inactive#64747	add (4139,5605), creationcycle=68090, spawnangle=south
+545	tfa_guardian_start#64746	add (4125,5597), creationcycle=68090, spawnangle=south
+545	tfa_guardian_battery_inactive#64748	add (4139,5592), creationcycle=68090, spawnangle=south
+545	tfa_guardian_battery_inactive#64749	add (4114,5605), creationcycle=68090, spawnangle=south
+545	tfa_guardian_battery_inactive#64750	add (4114,5592), creationcycle=68090, spawnangle=south
+545	ZONE	loc_add_change_v2 id=tfa_nexus_section_door_closed (63094), coord=(4141, 5610, 0), shape=10, rotation=1
+545	ZONE	loc_add_change_v2 id=tfa_nexus_section_door_closed (63094), coord=(4141, 5597, 0), shape=10, rotation=1
+545	ZONE	loc_add_change_v2 id=tfa_nexus_ocellus_door_closed (63110), coord=(4124, 5621, 0), shape=10, rotation=0
+545	ZONE	loc_add_change_v2 id=tfa_nexus_section_door_closed (63094), coord=(4113, 5610, 0), shape=10, rotation=3
+545	ZONE	loc_add_change_v2 id=tfa_nexus_section_door_closed (63094), coord=(4113, 5597, 0), shape=10, rotation=3
+545	ZONE	loc_add_change_v2 id=tfa_nexus_section_door_closed (63094), coord=(4113, 5584, 0), shape=10, rotation=3
+545	ZONE	loc_add_change_v2 id=tfa_nexus_section_door_closed (63094), coord=(4141, 5584, 0), shape=10, rotation=1
+546	tfa_guardian_start	[spotanim] id=vfx_guardian_spawn_idle_spotanim01 (4207)
+549	tfa_guardian_start	[spotanim] id=vfx_guardian_spawn_idle_spotanim01 (4207)
+552	tfa_guardian_start	[spotanim] id=vfx_guardian_spawn_idle_spotanim01 (4207)
+553	tfa_guardian_start	[spotanim] id=vfx_guardian_spawn_spotanim01 (4206)
+553	tfa_guardian_start	[sequence] id=npc_archive_guardian_spawn01 (14755)
+558	tfa_guardian_battery_inactive	[level_change] level=0
+558	tfa_guardian_battery_inactive	[enabled_ops] opflags=0b11111
+558	tfa_guardian_battery_inactive	[transformation] id=tfa_guardian_battery_active (16662)
+558	tfa_guardian_start	[level_change] level=984
+558	tfa_guardian_start	[sequence] id=npc_archive_guardian_idle01 (14745)
+558	tfa_guardian_start	[facing] coord=(4127, 5572, 0)
+558	tfa_guardian_start	[enabled_ops] opflags=0b11111
+558	tfa_guardian_start	[transformation] id=tfa_guardian (16659)
+558	tfa_guardian_battery_inactive	[level_change] level=0
+558	tfa_guardian_battery_inactive	[enabled_ops] opflags=0b00000
+558	tfa_guardian_battery_inactive	[transformation] id=tfa_guardian_battery_active (16662)
+558	tfa_guardian_battery_inactive	[level_change] level=0
+558	tfa_guardian_battery_inactive	[enabled_ops] opflags=0b11111
+558	tfa_guardian_battery_inactive	[transformation] id=tfa_guardian_battery_active (16662)
+558	tfa_guardian_battery_inactive	[level_change] level=0
+558	tfa_guardian_battery_inactive	[enabled_ops] opflags=0b11111
+558	tfa_guardian_battery_inactive	[transformation] id=tfa_guardian_battery_active (16662)
+561	tfa_guardian	[headbar] id=10, fill=87
+561	tfa_guardian	[hit] id=17, value=72
+562	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+562	tfa_guardian	[headbar] id=10, fill=75
+562	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+562	tfa_guardian	[hit] id=17, value=64
+567	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+567	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+568	tfa_guardian	[headbar] id=10, fill=63
+568	tfa_guardian	[headbar] id=10, fill=55
+568	tfa_guardian	[hit] id=17, value=68
+568	tfa_guardian	[hit] id=17, value=41
+572	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+572	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+573	tfa_guardian	[headbar] id=10, fill=48
+573	tfa_guardian	[hit] id=17, value=43
+574	tfa_guardian	[headbar] id=10, fill=48
+574	tfa_guardian	[hit] id=13, value=0
+575	ZONE	message_game type=gamemessage, message="Spectating Fortunico. Click a fighting player's health display to spectate them."
+577	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+577	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+578	tfa_guardian	[headbar] id=10, fill=48
+578	tfa_guardian	[hit] id=13, value=0
+579	tfa_guardian	[headbar] id=10, fill=48
+579	tfa_guardian	[hit] id=13, value=0
+580	ZONE	message_game type=gamemessage, message="Spectating Rewz. Click a fighting player's health display to spectate them."
+582	tfa_guardian	[spotanim] id=vfx_guardian_special_attack_spotanim01 (4205)
+582	tfa_guardian	[sequence] id=npc_archive_guardian_special_attack01 (14753)
+582	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4128, 5604, 0), shape=10, rotation=0
+582	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4130, 5608, 0), shape=10, rotation=0
+582	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4133, 5594, 0), shape=10, rotation=0
+582	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4133, 5590, 0), shape=10, rotation=0
+583	tfa_guardian	[headbar] id=10, fill=37
+583	tfa_guardian	[hit] id=17, value=61
+584	tfa_guardian	[headbar] id=10, fill=37
+584	tfa_guardian	[hit] id=13, value=0
+585	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4128, 5604, 0), shape=10, rotation=0
+585	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4130, 5608, 0), shape=10, rotation=0
+585	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4133, 5594, 0), shape=10, rotation=0
+585	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4133, 5590, 0), shape=10, rotation=0
+587	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+587	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+587	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4133, 5594, 0), shape=10, rotation=0
+590	tfa_guardian	[headbar] id=10, fill=37
+590	tfa_guardian	[hit] id=13, value=0
+591	tfa_guardian	[headbar] id=10, fill=37
+591	tfa_guardian	[hit] id=17, value=1
+592	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+592	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+595	tfa_guardian	[headbar] id=10, fill=31
+595	tfa_guardian	[hit] id=17, value=29
+596	tfa_guardian	[headbar] id=10, fill=28
+596	tfa_guardian	[hit] id=17, value=18
+597	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+597	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+601	tfa_guardian	[headbar] id=10, fill=16
+601	tfa_guardian	[headbar] id=10, fill=16
+601	tfa_guardian	[hit] id=17, value=67
+601	tfa_guardian	[hit] id=13, value=0
+602	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+602	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+605	tfa_guardian	[headbar] id=10, fill=10
+605	tfa_guardian	[hit] id=17, value=36
+606	tfa_guardian	[headbar] id=10, fill=10
+606	tfa_guardian	[hit] id=13, value=0
+607	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+607	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+610	tfa_guardian	[headbar] id=10, fill=9
+610	tfa_guardian	[hit] id=17, value=1
+611	tfa_guardian	[headbar] id=10, fill=6
+611	tfa_guardian	[hit] id=17, value=18
+612	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+612	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+616	tfa_guardian	[headbar] id=10, fill=6
+616	tfa_guardian	[headbar] id=10, fill=2
+616	tfa_guardian	[hit] id=13, value=0
+616	tfa_guardian	[hit] id=17, value=25
+617	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+617	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+620	tfa_guardian	[headbar] id=10, fill=2
+620	tfa_guardian	[headbar] id=10, fill=0
+620	tfa_guardian	[facing] type=reset
+620	tfa_guardian	[hit] id=13, value=0
+620	tfa_guardian	[hit] id=17, value=6
+623	tfa_guardian	[spotanim] id=vfx_guardian_idletoground_spotanim01 (4202)
+623	tfa_guardian	[level_change] level=984
+623	tfa_guardian	[headbar] id=19, removed=true
+623	tfa_guardian	[headbar] id=19, fill=100
+623	tfa_guardian	[sequence] id=npc_archive_guardian_idle_to_ground01 (14747)
+623	tfa_guardian	[enabled_ops] opflags=0b11111
+623	tfa_guardian	[transformation] id=tfa_guardian_unshielded (16660)
+623	ZONE	map_anim id=tfa_arena_sword_drop_explosion_instant (4389), delay=20, coord=(4127, 5599, 0)
+624	tfa_guardian_unshielded	[bas] ready=npc_archive_guardian_ground_idle01 (14746)
+625	tfa_guardian_unshielded	[headbar] id=19, fill=100
+625	tfa_guardian_unshielded	[hit] id=13, value=0
+626	tfa_guardian_unshielded	[headbar] id=19, fill=97
+626	tfa_guardian_unshielded	[hit] id=17, value=28
+630	tfa_guardian_unshielded	[headbar] id=19, fill=96
+630	tfa_guardian_unshielded	[headbar] id=19, fill=94
+630	tfa_guardian_unshielded	[hit] id=17, value=7
+630	tfa_guardian_unshielded	[hit] id=17, value=30
+634	tfa_guardian_unshielded	[headbar] id=19, fill=94
+634	tfa_guardian_unshielded	[hit] id=13, value=0
+635	tfa_guardian_unshielded	[headbar] id=19, fill=93
+635	tfa_guardian_unshielded	[hit] id=17, value=4
+638	tfa_guardian_unshielded	[spotanim] id=sanguinesti_staff_heal (1542), height=92
+639	tfa_guardian_unshielded	[headbar] id=19, fill=90
+639	tfa_guardian_unshielded	[hit] id=17, value=32
+640	tfa_guardian_unshielded	[headbar] id=19, fill=90
+640	tfa_guardian_unshielded	[hit] id=13, value=0
+643	tfa_guardian_unshielded	[headbar] id=19, fill=90
+643	tfa_guardian_unshielded	[hit] id=13, value=0
+644	tfa_guardian_unshielded	[headbar] id=19, fill=90
+644	tfa_guardian_unshielded	[hit] id=17, value=6
+647	tfa_guardian_unshielded	[headbar] id=19, fill=89
+647	tfa_guardian_unshielded	[hit] id=17, value=5
+648	tfa_guardian_unshielded	[headbar] id=19, fill=89
+648	tfa_guardian_unshielded	[hit] id=13, value=0
+651	tfa_guardian_unshielded	[headbar] id=19, fill=89
+651	tfa_guardian_unshielded	[hit] id=13, value=0
+653	tfa_guardian_unshielded	[headbar] id=19, fill=89
+653	tfa_guardian_unshielded	[hit] id=13, value=0
+654	tfa_guardian_unshielded	[spotanim] id=sanguinesti_staff_heal (1542), height=92
+655	tfa_guardian_unshielded	[headbar] id=19, fill=88
+655	tfa_guardian_unshielded	[hit] id=17, value=12
+657	tfa_guardian_unshielded	[headbar] id=19, fill=88
+657	tfa_guardian_unshielded	[hit] id=13, value=0
+658	tfa_guardian_unshielded	[spotanim] id=vfx_guardian_groundtoidle_spotanim01 (4203)
+658	tfa_guardian_unshielded	[level_change] level=984
+658	tfa_guardian_unshielded	[headbar] id=10, removed=true
+658	tfa_guardian_unshielded	[sequence] id=npc_archive_guardian_ground_to_flying01 (14748)
+658	tfa_guardian_unshielded	[enabled_ops] opflags=0b11111
+658	tfa_guardian_unshielded	[transformation] id=tfa_guardian (16659)
+658	tfa_guardian_unshielded	[bas]
+662	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4128, 5604, 0), shape=10, rotation=0
+663	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+663	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+668	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+668	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+673	tfa_guardian	[spotanim] id=vfx_guardian_special_attack_spotanim01 (4205)
+673	tfa_guardian	[sequence] id=npc_archive_guardian_special_attack01 (14753)
+673	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4129, 5608, 0), shape=10, rotation=0
+673	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4125, 5607, 0), shape=10, rotation=0
+673	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4121, 5599, 0), shape=10, rotation=0
+673	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4117, 5599, 0), shape=10, rotation=0
+674	tfa_guardian	[headbar] id=10, fill=100
+674	tfa_guardian	[hit] id=13, value=0
+676	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4129, 5608, 0), shape=10, rotation=0
+676	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4125, 5607, 0), shape=10, rotation=0
+676	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4121, 5599, 0), shape=10, rotation=0
+676	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4117, 5599, 0), shape=10, rotation=0
+677	tfa_guardian	[headbar] id=10, fill=90
+677	tfa_guardian	[hit] id=17, value=53
+678	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+678	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+681	tfa_guardian	[headbar] id=10, fill=84
+681	tfa_guardian	[hit] id=17, value=33
+682	tfa_guardian	[headbar] id=10, fill=72
+682	tfa_guardian	[hit] id=17, value=67
+683	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+683	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+686	tfa_guardian	[headbar] id=10, fill=62
+686	tfa_guardian	[hit] id=17, value=58
+688	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+688	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+691	tfa_guardian	[headbar] id=10, fill=62
+691	tfa_guardian	[hit] id=13, value=0
+693	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+693	tfa_guardian	[headbar] id=10, fill=62
+693	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+693	tfa_guardian	[hit] id=13, value=0
+698	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+698	tfa_guardian	[headbar] id=10, fill=56
+698	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+698	tfa_guardian	[hit] id=17, value=32
+703	tfa_guardian	[spotanim] id=vfx_guardian_special_attack_spotanim01 (4205)
+703	tfa_guardian	[headbar] id=10, fill=44
+703	tfa_guardian	[sequence] id=npc_archive_guardian_special_attack01 (14753)
+703	tfa_guardian	[hit] id=17, value=63
+703	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4120, 5595, 0), shape=10, rotation=0
+703	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4123, 5592, 0), shape=10, rotation=0
+703	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4125, 5592, 0), shape=10, rotation=0
+703	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4122, 5590, 0), shape=10, rotation=0
+704	tfa_guardian	[headbar] id=10, fill=34
+704	tfa_guardian	[hit] id=17, value=56
+706	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4120, 5595, 0), shape=10, rotation=0
+706	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4123, 5592, 0), shape=10, rotation=0
+706	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4125, 5592, 0), shape=10, rotation=0
+706	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4122, 5590, 0), shape=10, rotation=0
+708	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+708	tfa_guardian	[headbar] id=10, fill=22
+708	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+708	tfa_guardian	[hit] id=17, value=68
+709	tfa_guardian	[headbar] id=10, fill=14
+709	tfa_guardian	[hit] id=17, value=45
+713	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+713	tfa_guardian	[headbar] id=10, fill=14
+713	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+713	tfa_guardian	[hit] id=13, value=0
+714	tfa_guardian	[headbar] id=10, fill=3
+714	tfa_guardian	[hit] id=17, value=59
+718	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+718	tfa_guardian	[headbar] id=10, fill=3
+718	tfa_guardian	[headbar] id=10, fill=3
+718	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+718	tfa_guardian	[hit] id=13, value=0
+718	tfa_guardian	[hit] id=13, value=0
+722	tfa_guardian	[headbar] id=10, fill=0
+722	tfa_guardian	[facing] type=reset
+722	tfa_guardian	[hit] id=17, value=16
+724	tfa_guardian	[headbar] id=10, fill=0
+724	tfa_guardian	[hit] id=13, value=0
+725	tfa_guardian	[spotanim] id=vfx_guardian_idletoground_spotanim01 (4202)
+725	tfa_guardian	[level_change] level=984
+725	tfa_guardian	[headbar] id=19, removed=true
+725	tfa_guardian	[headbar] id=19, fill=88
+725	tfa_guardian	[sequence] id=npc_archive_guardian_idle_to_ground01 (14747)
+725	tfa_guardian	[enabled_ops] opflags=0b11111
+725	tfa_guardian	[transformation] id=tfa_guardian_unshielded (16660)
+725	ZONE	map_anim id=tfa_arena_sword_drop_explosion_instant (4389), delay=20, coord=(4127, 5599, 0)
+726	tfa_guardian_unshielded	[bas] ready=npc_archive_guardian_ground_idle01 (14746)
+730	tfa_guardian_unshielded	[headbar] id=19, fill=88
+730	tfa_guardian_unshielded	[hit] id=17, value=8
+731	tfa_guardian_unshielded	[headbar] id=19, fill=85
+731	tfa_guardian_unshielded	[hit] id=17, value=32
+734	tfa_guardian_unshielded	[spotanim] id=sanguinesti_staff_heal (1542), height=92
+734	tfa_guardian_unshielded	[headbar] id=19, fill=85
+734	tfa_guardian_unshielded	[hit] id=13, value=0
+735	tfa_guardian_unshielded	[headbar] id=19, fill=84
+735	tfa_guardian_unshielded	[hit] id=17, value=10
+739	tfa_guardian_unshielded	[headbar] id=19, fill=81
+739	tfa_guardian_unshielded	[headbar] id=19, fill=81
+739	tfa_guardian_unshielded	[hit] id=17, value=33
+739	tfa_guardian_unshielded	[hit] id=17, value=1
+742	tfa_guardian_unshielded	[spotanim] id=sanguinesti_staff_heal (1542), height=92
+743	tfa_guardian_unshielded	[headbar] id=19, fill=78
+743	tfa_guardian_unshielded	[headbar] id=19, fill=77
+743	tfa_guardian_unshielded	[hit] id=17, value=31
+743	tfa_guardian_unshielded	[hit] id=17, value=14
+746	tfa_guardian_unshielded	[spotanim] id=sanguinesti_staff_heal (1542), height=92
+747	tfa_guardian_unshielded	[headbar] id=19, fill=75
+747	tfa_guardian_unshielded	[headbar] id=19, fill=73
+747	tfa_guardian_unshielded	[hit] id=17, value=22
+747	tfa_guardian_unshielded	[hit] id=17, value=16
+751	tfa_guardian_unshielded	[headbar] id=19, fill=72
+751	tfa_guardian_unshielded	[hit] id=17, value=17
+753	tfa_guardian_unshielded	[headbar] id=19, fill=71
+753	tfa_guardian_unshielded	[hit] id=17, value=7
+755	tfa_guardian_unshielded	[headbar] id=19, fill=71
+755	tfa_guardian_unshielded	[hit] id=13, value=0
+758	tfa_guardian_unshielded	[headbar] id=19, fill=69
+758	tfa_guardian_unshielded	[hit] id=17, value=24
+759	tfa_guardian_unshielded	[headbar] id=19, fill=68
+759	tfa_guardian_unshielded	[hit] id=17, value=9
+762	tfa_guardian_unshielded	[headbar] id=19, fill=65
+762	tfa_guardian_unshielded	[hit] id=17, value=31
+763	tfa_guardian_unshielded	[headbar] id=19, fill=64
+763	tfa_guardian_unshielded	[hit] id=17, value=13
+765	tfa_guardian_unshielded	[spotanim] id=sanguinesti_staff_heal (1542), height=92
+766	tfa_guardian_unshielded	[spotanim] id=vfx_guardian_groundtoidle_spotanim01 (4203)
+766	tfa_guardian_unshielded	[level_change] level=984
+766	tfa_guardian_unshielded	[headbar] id=10, removed=true
+766	tfa_guardian_unshielded	[sequence] id=npc_archive_guardian_ground_to_flying01 (14748)
+766	tfa_guardian_unshielded	[enabled_ops] opflags=0b11111
+766	tfa_guardian_unshielded	[transformation] id=tfa_guardian (16659)
+766	tfa_guardian_unshielded	[bas]
+771	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+771	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+775	tfa_guardian	[headbar] id=10, fill=100
+775	tfa_guardian	[hit] id=13, value=0
+776	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+776	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+780	tfa_guardian	[headbar] id=10, fill=86
+780	tfa_guardian	[hit] id=17, value=73
+781	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+781	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+783	tfa_guardian	[headbar] id=10, fill=77
+783	tfa_guardian	[hit] id=17, value=51
+785	tfa_guardian	[headbar] id=10, fill=74
+785	tfa_guardian	[hit] id=17, value=16
+786	tfa_guardian	[spotanim] id=vfx_guardian_special_attack_spotanim01 (4205)
+786	tfa_guardian	[sequence] id=npc_archive_guardian_special_attack01 (14753)
+786	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4122, 5606, 0), shape=10, rotation=0
+786	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4126, 5601, 0), shape=10, rotation=0
+786	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4122, 5602, 0), shape=10, rotation=0
+786	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4119, 5604, 0), shape=10, rotation=0
+789	tfa_guardian	[headbar] id=10, fill=74
+789	tfa_guardian	[hit] id=17, value=4
+789	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4122, 5606, 0), shape=10, rotation=0
+789	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4126, 5601, 0), shape=10, rotation=0
+789	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4122, 5602, 0), shape=10, rotation=0
+789	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4119, 5604, 0), shape=10, rotation=0
+790	tfa_guardian	[headbar] id=10, fill=65
+790	tfa_guardian	[hit] id=17, value=45
+791	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+791	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+791	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4122, 5602, 0), shape=10, rotation=0
+795	tfa_guardian	[headbar] id=10, fill=56
+795	tfa_guardian	[hit] id=17, value=53
+796	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+796	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+797	tfa_guardian	[headbar] id=10, fill=56
+797	tfa_guardian	[hit] id=13, value=0
+800	tfa_guardian	[headbar] id=10, fill=56
+800	tfa_guardian	[hit] id=13, value=0
+801	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+801	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+805	tfa_guardian	[headbar] id=10, fill=50
+805	tfa_guardian	[headbar] id=10, fill=39
+805	tfa_guardian	[hit] id=17, value=34
+805	tfa_guardian	[hit] id=17, value=60
+806	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+806	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+810	tfa_guardian	[headbar] id=10, fill=26
+810	tfa_guardian	[hit] id=17, value=75
+811	tfa_guardian	[spotanim] id=vfx_guardian_special_attack_spotanim01 (4205)
+811	tfa_guardian	[headbar] id=10, fill=19
+811	tfa_guardian	[sequence] id=npc_archive_guardian_special_attack01 (14753)
+811	tfa_guardian	[hit] id=17, value=39
+811	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4131, 5606, 0), shape=10, rotation=0
+811	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4121, 5600, 0), shape=10, rotation=0
+811	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4127, 5607, 0), shape=10, rotation=0
+811	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4118, 5598, 0), shape=10, rotation=0
+814	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4131, 5606, 0), shape=10, rotation=0
+814	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4121, 5600, 0), shape=10, rotation=0
+814	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4127, 5607, 0), shape=10, rotation=0
+814	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4118, 5598, 0), shape=10, rotation=0
+816	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+816	tfa_guardian	[headbar] id=10, fill=19
+816	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+816	tfa_guardian	[hit] id=13, value=0
+817	tfa_guardian	[headbar] id=10, fill=7
+817	tfa_guardian	[hit] id=17, value=62
+821	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+821	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+822	tfa_guardian	[headbar] id=10, fill=7
+822	tfa_guardian	[hit] id=13, value=0
+824	tfa_guardian	[headbar] id=10, fill=7
+824	tfa_guardian	[hit] id=17, value=1
+826	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+826	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+827	tfa_guardian	[headbar] id=10, fill=0
+827	tfa_guardian	[facing] type=reset
+827	tfa_guardian	[hit] id=17, value=37
+829	tfa_guardian	[headbar] id=10, fill=0
+829	tfa_guardian	[hit] id=13, value=0
+830	tfa_guardian	[spotanim] id=vfx_guardian_idletoground_spotanim01 (4202)
+830	tfa_guardian	[level_change] level=984
+830	tfa_guardian	[headbar] id=19, removed=true
+830	tfa_guardian	[headbar] id=19, fill=64
+830	tfa_guardian	[sequence] id=npc_archive_guardian_idle_to_ground01 (14747)
+830	tfa_guardian	[enabled_ops] opflags=0b11111
+830	tfa_guardian	[transformation] id=tfa_guardian_unshielded (16660)
+830	ZONE	map_anim id=tfa_arena_sword_drop_explosion_instant (4389), delay=20, coord=(4127, 5599, 0)
+831	tfa_guardian_unshielded	[bas] ready=npc_archive_guardian_ground_idle01 (14746)
+833	tfa_guardian_unshielded	[headbar] id=19, fill=64
+833	tfa_guardian_unshielded	[hit] id=13, value=0
+833	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4121, 5600, 0), shape=10, rotation=0
+837	tfa_guardian_unshielded	[headbar] id=19, fill=64
+837	tfa_guardian_unshielded	[hit] id=13, value=0
+838	tfa_guardian_unshielded	[headbar] id=19, fill=64
+838	tfa_guardian_unshielded	[hit] id=13, value=0
+842	tfa_guardian_unshielded	[headbar] id=19, fill=64
+842	tfa_guardian_unshielded	[hit] id=17, value=6
+843	tfa_guardian_unshielded	[headbar] id=19, fill=63
+843	tfa_guardian_unshielded	[hit] id=17, value=6
+845	tfa_guardian_unshielded	[spotanim] id=sanguinesti_staff_heal (1542), height=92
+846	tfa_guardian_unshielded	[headbar] id=19, fill=60
+846	tfa_guardian_unshielded	[hit] id=17, value=30
+847	tfa_guardian_unshielded	[headbar] id=19, fill=59
+847	tfa_guardian_unshielded	[hit] id=17, value=21
+851	tfa_guardian_unshielded	[headbar] id=19, fill=59
+851	tfa_guardian_unshielded	[hit] id=13, value=0
+852	tfa_guardian_unshielded	[headbar] id=19, fill=59
+852	tfa_guardian_unshielded	[hit] id=13, value=0
+856	tfa_guardian_unshielded	[headbar] id=19, fill=59
+856	tfa_guardian_unshielded	[headbar] id=19, fill=55
+856	tfa_guardian_unshielded	[hit] id=13, value=0
+856	tfa_guardian_unshielded	[hit] id=17, value=40
+860	tfa_guardian_unshielded	[headbar] id=19, fill=55
+860	tfa_guardian_unshielded	[headbar] id=19, fill=55
+860	tfa_guardian_unshielded	[hit] id=13, value=0
+860	tfa_guardian_unshielded	[hit] id=17, value=5
+864	tfa_guardian_unshielded	[headbar] id=19, fill=55
+864	tfa_guardian_unshielded	[headbar] id=19, fill=54
+864	tfa_guardian_unshielded	[hit] id=13, value=0
+864	tfa_guardian_unshielded	[hit] id=17, value=2
+868	tfa_guardian_unshielded	[headbar] id=19, fill=54
+868	tfa_guardian_unshielded	[headbar] id=19, fill=50
+868	tfa_guardian_unshielded	[hit] id=13, value=0
+868	tfa_guardian_unshielded	[hit] id=17, value=43
+872	tfa_guardian_unshielded	[headbar] id=19, fill=47
+872	tfa_guardian_unshielded	[hit] id=17, value=37
+873	tfa_guardian_unshielded	[headbar] id=19, fill=47
+873	tfa_guardian_unshielded	[hit] id=13, value=0
+876	tfa_guardian_unshielded	[headbar] id=19, fill=47
+876	tfa_guardian_unshielded	[hit] id=13, value=0
+877	tfa_guardian_unshielded	[spotanim] id=vfx_guardian_groundtoidle_spotanim01 (4203)
+877	tfa_guardian_unshielded	[level_change] level=984
+877	tfa_guardian_unshielded	[headbar] id=10, removed=true
+877	tfa_guardian_unshielded	[sequence] id=npc_archive_guardian_ground_to_flying01 (14748)
+877	tfa_guardian_unshielded	[enabled_ops] opflags=0b11111
+877	tfa_guardian_unshielded	[transformation] id=tfa_guardian (16659)
+877	tfa_guardian_unshielded	[bas]
+882	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+882	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+884	tfa_guardian	[headbar] id=10, fill=89
+884	tfa_guardian	[hit] id=17, value=56
+887	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+887	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+891	tfa_guardian	[headbar] id=10, fill=88
+891	tfa_guardian	[hit] id=17, value=7
+892	tfa_guardian	[spotanim] id=vfx_guardian_special_attack_spotanim01 (4205)
+892	tfa_guardian	[sequence] id=npc_archive_guardian_special_attack01 (14753)
+892	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4123, 5594, 0), shape=10, rotation=0
+892	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4126, 5597, 0), shape=10, rotation=0
+892	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4128, 5596, 0), shape=10, rotation=0
+892	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4119, 5592, 0), shape=10, rotation=0
+893	tfa_guardian	[headbar] id=10, fill=85
+893	tfa_guardian	[hit] id=17, value=18
+895	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4123, 5594, 0), shape=10, rotation=0
+895	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4126, 5597, 0), shape=10, rotation=0
+895	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4128, 5596, 0), shape=10, rotation=0
+895	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4119, 5592, 0), shape=10, rotation=0
+896	tfa_guardian	[headbar] id=10, fill=85
+896	tfa_guardian	[hit] id=13, value=0
+897	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+897	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+900	tfa_guardian	[headbar] id=10, fill=77
+900	tfa_guardian	[hit] id=17, value=43
+902	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+902	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+904	tfa_guardian	[headbar] id=10, fill=69
+904	tfa_guardian	[hit] id=17, value=44
+907	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+907	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+908	tfa_guardian	[headbar] id=10, fill=69
+908	tfa_guardian	[hit] id=13, value=0
+910	tfa_guardian	[headbar] id=10, fill=61
+910	tfa_guardian	[hit] id=17, value=45
+912	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+912	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+914	tfa_guardian	[headbar] id=10, fill=53
+914	tfa_guardian	[hit] id=17, value=48
+917	tfa_guardian	[spotanim] id=vfx_guardian_special_attack_spotanim01 (4205)
+917	tfa_guardian	[headbar] id=10, fill=51
+917	tfa_guardian	[sequence] id=npc_archive_guardian_special_attack01 (14753)
+917	tfa_guardian	[hit] id=17, value=7
+917	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4134, 5600, 0), shape=10, rotation=0
+917	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4135, 5598, 0), shape=10, rotation=0
+917	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4135, 5592, 0), shape=10, rotation=0
+917	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4131, 5595, 0), shape=10, rotation=0
+919	tfa_guardian	[headbar] id=10, fill=46
+919	tfa_guardian	[hit] id=17, value=31
+920	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4134, 5600, 0), shape=10, rotation=0
+920	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4135, 5598, 0), shape=10, rotation=0
+920	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4135, 5592, 0), shape=10, rotation=0
+920	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4131, 5595, 0), shape=10, rotation=0
+922	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+922	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+922	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4135, 5592, 0), shape=10, rotation=0
+924	tfa_guardian	[headbar] id=10, fill=44
+924	tfa_guardian	[headbar] id=10, fill=43
+924	tfa_guardian	[hit] id=17, value=8
+924	tfa_guardian	[hit] id=17, value=7
+927	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+927	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+929	tfa_guardian	[headbar] id=10, fill=43
+929	tfa_guardian	[headbar] id=10, fill=40
+929	tfa_guardian	[hit] id=13, value=0
+929	tfa_guardian	[hit] id=17, value=18
+932	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+932	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+933	tfa_guardian	[headbar] id=10, fill=30
+933	tfa_guardian	[hit] id=17, value=52
+934	tfa_guardian	[headbar] id=10, fill=30
+934	tfa_guardian	[hit] id=13, value=0
+934	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4131, 5595, 0), shape=10, rotation=0
+936	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4128, 5596, 0), shape=10, rotation=0
+937	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+937	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+939	tfa_guardian	[headbar] id=10, fill=24
+939	tfa_guardian	[hit] id=17, value=35
+942	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+942	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+944	tfa_guardian	[headbar] id=10, fill=13
+944	tfa_guardian	[headbar] id=10, fill=5
+944	tfa_guardian	[hit] id=17, value=62
+944	tfa_guardian	[hit] id=17, value=45
+947	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+947	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+949	tfa_guardian	[headbar] id=10, fill=0
+949	tfa_guardian	[headbar] id=10, fill=0
+949	tfa_guardian	[facing] type=reset
+949	tfa_guardian	[hit] id=17, value=24
+949	tfa_guardian	[hit] id=13, value=0
+952	tfa_guardian	[spotanim] id=vfx_guardian_idletoground_spotanim01 (4202)
+952	tfa_guardian	[level_change] level=984
+952	tfa_guardian	[headbar] id=19, removed=true
+952	tfa_guardian	[headbar] id=19, fill=47
+952	tfa_guardian	[sequence] id=npc_archive_guardian_idle_to_ground01 (14747)
+952	tfa_guardian	[enabled_ops] opflags=0b11111
+952	tfa_guardian	[transformation] id=tfa_guardian_unshielded (16660)
+952	ZONE	map_anim id=tfa_arena_sword_drop_explosion_instant (4389), delay=20, coord=(4127, 5599, 0)
+953	tfa_guardian_unshielded	[bas] ready=npc_archive_guardian_ground_idle01 (14746)
+955	tfa_guardian_unshielded	[headbar] id=19, fill=41
+955	tfa_guardian_unshielded	[hit] id=17, value=65
+956	tfa_guardian_unshielded	[headbar] id=19, fill=41
+956	tfa_guardian_unshielded	[hit] id=13, value=0
+960	tfa_guardian_unshielded	[spotanim] id=sanguinesti_staff_heal (1542), height=92
+960	tfa_guardian_unshielded	[headbar] id=19, fill=41
+960	tfa_guardian_unshielded	[hit] id=17, value=4
+961	tfa_guardian_unshielded	[headbar] id=19, fill=38
+961	tfa_guardian_unshielded	[hit] id=17, value=30
+966	tfa_guardian_unshielded	[headbar] id=19, fill=33
+966	tfa_guardian_unshielded	[hit] id=17, value=56
+967	tfa_guardian_unshielded	[headbar] id=19, fill=27
+967	tfa_guardian_unshielded	[hit] id=17, value=65
+969	tfa_guardian_unshielded	[spotanim] id=vfx_guardian_groundtoidle_spotanim01 (4203)
+969	tfa_guardian_unshielded	[level_change] level=984
+969	tfa_guardian_unshielded	[headbar] id=10, removed=true
+969	tfa_guardian_unshielded	[sequence] id=npc_archive_guardian_ground_to_flying01 (14748)
+969	tfa_guardian_unshielded	[enabled_ops] opflags=0b11111
+969	tfa_guardian_unshielded	[transformation] id=tfa_guardian (16659)
+969	tfa_guardian_unshielded	[bas]
+971	tfa_guardian	[headbar] id=10, fill=92
+971	tfa_guardian	[hit] id=17, value=40
+974	tfa_guardian	[spotanim] id=vfx_guardian_special_attack_spotanim01 (4205)
+974	tfa_guardian	[sequence] id=npc_archive_guardian_special_attack01 (14753)
+974	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4125, 5602, 0), shape=10, rotation=0
+974	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4124, 5598, 0), shape=10, rotation=0
+974	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4124, 5594, 0), shape=10, rotation=0
+974	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4125, 5599, 0), shape=10, rotation=0
+975	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4123, 5594, 0), shape=10, rotation=0
+977	tfa_guardian	[headbar] id=10, fill=87
+977	tfa_guardian	[hit] id=17, value=29
+977	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4125, 5602, 0), shape=10, rotation=0
+977	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4124, 5598, 0), shape=10, rotation=0
+977	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4124, 5594, 0), shape=10, rotation=0
+977	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4125, 5599, 0), shape=10, rotation=0
+979	tfa_guardian	[spotanim] slot=2, id=vfx_guardian_enraged_phase_spotanim01 (4204)
+979	tfa_guardian	[sequence] id=npc_archive_guardian_enraged_phase01 (14754)
+982	tfa_guardian	[headbar] id=10, fill=82
+982	tfa_guardian	[hit] id=17, value=28
+983	tfa_guardian	[headbar] id=10, fill=79
+983	tfa_guardian	[hit] id=17, value=18
+987	tfa_guardian	[headbar] id=10, fill=79
+987	tfa_guardian	[hit] id=13, value=0
+987	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4133, 5590, 0), shape=10, rotation=0
+989	tfa_guardian	[facing] coord=(4135, 5593, 0), instant=true
+989	tfa_guardian_battery_active	[headbar] id=0, fill=0
+989	tfa_guardian_battery_active	[headbar] id=0, fill=0
+989	tfa_guardian_battery_active	[hit] id=17, value=180
+990	tfa_guardian_battery_active	[sequence] id=guthixian_battery_despawn (15025)
+990	tfa_guardian_battery_active	[enabled_ops] opflags=0b00000
+992	tfa_guardian_battery_active	[level_change] level=0
+992	tfa_guardian_battery_active	[headbar] id=0, removed=true
+992	tfa_guardian_battery_active	[enabled_ops] opflags=0b11111
+992	tfa_guardian_battery_active	[transformation] id=tfa_guardian_battery_destroyed (16663)
+993	tfa_guardian	[headbar] id=10, fill=39
+993	tfa_guardian	[hit] id=17, value=220
+994	tfa_guardian	[spotanim] id=vfx_guardian_special_attack_spotanim01 (4205)
+994	tfa_guardian	[headbar] id=10, fill=39
+994	tfa_guardian	[sequence] id=npc_archive_guardian_special_attack01 (14753)
+994	tfa_guardian	[hit] id=13, value=0
+994	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4134, 5592, 0), shape=10, rotation=0
+994	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4131, 5596, 0), shape=10, rotation=0
+994	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4134, 5597, 0), shape=10, rotation=0
+994	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4135, 5598, 0), shape=10, rotation=0
+994	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4138, 5599, 0), shape=10, rotation=0
+995	tfa_guardian	[headbar] id=10, fill=39
+995	tfa_guardian	[hit] id=13, value=0
+997	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4134, 5592, 0), shape=10, rotation=0
+997	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4131, 5596, 0), shape=10, rotation=0
+997	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4134, 5597, 0), shape=10, rotation=0
+997	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4138, 5599, 0), shape=10, rotation=0
+999	tfa_guardian	[spotanim] slot=2, id=vfx_guardian_enraged_phase_spotanim01 (4204)
+999	tfa_guardian	[headbar] id=10, fill=31
+999	tfa_guardian	[sequence] id=npc_archive_guardian_enraged_phase01 (14754)
+999	tfa_guardian	[hit] id=17, value=45
+1000	tfa_guardian	[headbar] id=10, fill=21
+1000	tfa_guardian	[hit] id=17, value=57
+1001	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4134, 5597, 0), shape=10, rotation=0
+1005	tfa_guardian	[headbar] id=10, fill=21
+1005	tfa_guardian	[hit] id=13, value=0
+1005	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4134, 5600, 0), shape=10, rotation=0
+1007	tfa_guardian	[headbar] id=10, fill=9
+1007	tfa_guardian	[hit] id=17, value=66
+1009	tfa_guardian	[facing] coord=(4135, 5596, 0), instant=true
+1014	tfa_guardian	[spotanim] id=vfx_guardian_special_attack_spotanim01 (4205)
+1014	tfa_guardian	[sequence] id=npc_archive_guardian_special_attack01 (14753)
+1014	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4135, 5603, 0), shape=10, rotation=0
+1014	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4135, 5607, 0), shape=10, rotation=0
+1015	tfa_guardian	[headbar] id=10, fill=6
+1015	tfa_guardian	[hit] id=17, value=15
+1016	ZONE	message_game type=gamemessage, message="Spectating the room. Click a fighting player's health display to spectate them."
+1017	ZONE	message_game type=gamemessage, message="<col=7f007f>Your poison resistance is about to wear off.</col>"
+1017	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4135, 5603, 0), shape=10, rotation=0
+1017	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4135, 5607, 0), shape=10, rotation=0
+1019	tfa_guardian	[spotanim] slot=2, id=vfx_guardian_enraged_phase_spotanim01 (4204)
+1019	tfa_guardian	[sequence] id=npc_archive_guardian_enraged_phase01 (14754)
+1020	tfa_guardian	[level_change] level=984
+1020	tfa_guardian	[headbar] id=19, removed=true
+1020	tfa_guardian	[headbar] id=19, fill=27
+1020	tfa_guardian	[headbar] id=19, fill=24
+1020	tfa_guardian	[enabled_ops] opflags=0b11111
+1020	tfa_guardian	[transformation] id=tfa_guardian_unshielded (16660)
+1020	tfa_guardian	[hit] id=17, value=32
+1023	tfa_guardian_battery_active	[facing] type=reset
+1024	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4135, 5603, 0), shape=10, rotation=0
+1025	tfa_guardian_unshielded	[headbar] id=19, fill=19
+1025	tfa_guardian_unshielded	[hit] id=17, value=65
+1025	tfa_guardian_battery_active	[facing] type=reset
+1029	tfa_guardian_battery_active	[headbar] id=0, fill=0
+1029	tfa_guardian_battery_active	[headbar] id=0, fill=0
+1029	tfa_guardian_battery_active	[hit] id=17, value=180
+1029	tfa_guardian_unshielded	[facing] coord=(4131, 5603, 0), instant=true
+1030	tfa_guardian_battery_active	[sequence] id=guthixian_battery_despawn (15025)
+1030	tfa_guardian_battery_active	[enabled_ops] opflags=0b00000
+1030	tfa_guardian_unshielded	[headbar] id=19, fill=19
+1030	tfa_guardian_unshielded	[hit] id=17, value=1
+1032	tfa_guardian_battery_active	[level_change] level=0
+1032	tfa_guardian_battery_active	[headbar] id=0, removed=true
+1032	tfa_guardian_battery_active	[enabled_ops] opflags=0b11111
+1032	tfa_guardian_battery_active	[transformation] id=tfa_guardian_battery_destroyed (16663)
+1034	tfa_guardian_unshielded	[spotanim] id=vfx_guardian_special_attack_spotanim01 (4205)
+1034	tfa_guardian_unshielded	[sequence] id=npc_archive_guardian_special_attack01 (14753)
+1039	tfa_guardian_unshielded	[spotanim] slot=2, id=vfx_guardian_enraged_phase_spotanim01 (4204)
+1039	tfa_guardian_unshielded	[sequence] id=npc_archive_guardian_enraged_phase01 (14754)
+1042	tfa_guardian_unshielded	[facing] type=reset
+1043	tfa_guardian_battery_destroyed#64747	del (11691,10277)
+1043	tfa_guardian_unshielded#64746	del (11677,10269)
+1043	tfa_guardian_battery_destroyed#64748	del (11691,10264)
+1043	tfa_guardian_battery_active#64750	del (11666,10264)
+1043	tfa_guardian_battery_active#64749	del (11666,10277)
+1047	ZONE	message_game type=gamemessage, message="<col=7f007f>Your poison resistance has worn off.</col>"
+1099	ZONE	message_game type=gamemessage, message="Spectating the room. Click a fighting player's health display to spectate them."
+1099	tfa_guardian_battery_active#37662	add (4139,5605), creationcycle=68368, spawnangle=south
+1099	tfa_guardian#37661	add (4125,5597), creationcycle=68368, spawnangle=north-east
+1099	tfa_guardian	[level_change] level=1,170
+1099	tfa_guardian_battery_active#37663	add (4139,5592), creationcycle=68368, spawnangle=south
+1099	tfa_guardian_battery_active	[enabled_ops] opflags=0b00000
+1099	tfa_guardian_battery_active#37664	add (4114,5605), creationcycle=68368, spawnangle=south
+1099	tfa_guardian_battery_active#37665	add (4114,5592), creationcycle=68368, spawnangle=south
+1099	ZONE	loc_add_change_v2 id=tfa_nexus_section_door_closed (63094), coord=(4141, 5610, 0), shape=10, rotation=1
+1099	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4120, 5604, 0), shape=10, rotation=0
+1099	ZONE	loc_add_change_v2 id=tfa_nexus_section_door_closed (63094), coord=(4141, 5597, 0), shape=10, rotation=1
+1099	ZONE	loc_add_change_v2 id=tfa_nexus_ocellus_door_closed (63110), coord=(4124, 5621, 0), shape=10, rotation=0
+1099	ZONE	loc_add_change_v2 id=tfa_nexus_section_door_closed (63094), coord=(4113, 5610, 0), shape=10, rotation=3
+1099	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4117, 5601, 0), shape=10, rotation=0
+1099	ZONE	loc_add_change_v2 id=tfa_nexus_section_door_closed (63094), coord=(4113, 5597, 0), shape=10, rotation=3
+1099	ZONE	loc_add_change_v2 id=tfa_nexus_section_door_closed (63094), coord=(4113, 5584, 0), shape=10, rotation=3
+1099	ZONE	loc_add_change_v2 id=tfa_nexus_section_door_closed (63094), coord=(4141, 5584, 0), shape=10, rotation=1
+1100	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+1100	tfa_guardian	[headbar] id=10, fill=100
+1100	tfa_guardian	[headbar] id=10, fill=98
+1100	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+1100	tfa_guardian	[hit] id=13, value=0
+1100	tfa_guardian	[hit] id=17, value=18
+1103	tfa_guardian	[headbar] id=10, fill=97
+1103	tfa_guardian	[hit] id=17, value=14
+1104	tfa_guardian	[headbar] id=10, fill=97
+1104	tfa_guardian	[hit] id=17, value=1
+1105	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+1105	tfa_guardian	[headbar] id=10, fill=97
+1105	tfa_guardian	[headbar] id=10, fill=97
+1105	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+1105	tfa_guardian	[hit] id=17, value=3
+1105	tfa_guardian	[hit] id=17, value=1
+1108	tfa_guardian	[headbar] id=10, fill=95
+1108	tfa_guardian	[headbar] id=10, fill=93
+1108	tfa_guardian	[hit] id=17, value=19
+1108	tfa_guardian	[hit] id=17, value=21
+1109	tfa_guardian	[headbar] id=10, fill=93
+1109	tfa_guardian	[hit] id=13, value=0
+1110	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+1110	tfa_guardian	[headbar] id=10, fill=93
+1110	tfa_guardian	[headbar] id=10, fill=93
+1110	tfa_guardian	[headbar] id=10, fill=93
+1110	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+1110	tfa_guardian	[hit] id=13, value=0
+1110	tfa_guardian	[hit] id=17, value=2
+1110	tfa_guardian	[hit] id=17, value=1
+1113	tfa_guardian	[headbar] id=10, fill=93
+1113	tfa_guardian	[headbar] id=10, fill=90
+1113	tfa_guardian	[hit] id=17, value=3
+1113	tfa_guardian	[hit] id=17, value=36
+1114	tfa_guardian	[headbar] id=10, fill=90
+1114	tfa_guardian	[headbar] id=10, fill=90
+1114	tfa_guardian	[hit] id=13, value=0
+1114	tfa_guardian	[hit] id=13, value=0
+1115	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+1115	tfa_guardian	[headbar] id=10, fill=87
+1115	tfa_guardian	[headbar] id=10, fill=87
+1115	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+1115	tfa_guardian	[hit] id=17, value=36
+1115	tfa_guardian	[hit] id=17, value=1
+1116	tfa_guardian	[spotanim] id=xbows_blood_sacrifice_spot_anim (754), delay=2
+1118	tfa_guardian	[headbar] id=10, fill=87
+1118	tfa_guardian	[hit] id=17, value=3
+1119	tfa_guardian	[headbar] id=10, fill=87
+1119	tfa_guardian	[headbar] id=10, fill=87
+1119	tfa_guardian	[headbar] id=10, fill=79
+1119	tfa_guardian	[hit] id=17, value=3
+1119	tfa_guardian	[hit] id=13, value=0
+1119	tfa_guardian	[hit] id=17, value=100
+1120	tfa_guardian	[spotanim] id=thrall_magic_impact (1908), delay=55, height=96
+1120	tfa_guardian	[headbar] id=10, fill=79
+1120	tfa_guardian	[headbar] id=10, fill=76
+1120	tfa_guardian	[headbar] id=10, fill=76
+1120	tfa_guardian	[sequence] id=npc_archive_guardian_special_attack01 (14753)
+1120	tfa_guardian	[hit] id=13, value=0
+1120	tfa_guardian	[hit] id=17, value=40
+1120	tfa_guardian	[hit] id=17, value=2
+1120	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4133, 5602, 0), shape=10, rotation=0
+1120	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4124, 5601, 0), shape=10, rotation=0
+1120	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4126, 5606, 0), shape=10, rotation=0
+1120	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4125, 5602, 0), shape=10, rotation=0
+1120	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4120, 5599, 0), shape=10, rotation=0
+1120	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4123, 5599, 0), shape=10, rotation=0
+1120	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4134, 5596, 0), shape=10, rotation=0
+1120	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4131, 5599, 0), shape=10, rotation=0
+1120	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4133, 5599, 0), shape=10, rotation=0
+1120	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4119, 5597, 0), shape=10, rotation=0
+1121	tfa_guardian	[spotanim] id=xbows_blood_sacrifice_spot_anim (754), delay=2
+1121	tfa_guardian	[headbar] id=10, fill=76
+1121	tfa_guardian	[hit] id=17, value=1
+1123	tfa_guardian	[headbar] id=10, fill=76
+1123	tfa_guardian	[headbar] id=10, fill=71
+1123	tfa_guardian	[hit] id=13, value=0
+1123	tfa_guardian	[hit] id=17, value=64
+1123	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4133, 5602, 0), shape=10, rotation=0
+1123	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4124, 5601, 0), shape=10, rotation=0
+1123	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4126, 5606, 0), shape=10, rotation=0
+1123	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4125, 5602, 0), shape=10, rotation=0
+1123	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4120, 5599, 0), shape=10, rotation=0
+1123	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4123, 5599, 0), shape=10, rotation=0
+1123	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4134, 5596, 0), shape=10, rotation=0
+1123	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4131, 5599, 0), shape=10, rotation=0
+1123	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4133, 5599, 0), shape=10, rotation=0
+1123	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4119, 5597, 0), shape=10, rotation=0
+1124	tfa_guardian	[spotanim] id=thrall_magic_impact (1908), delay=55, height=96
+1124	tfa_guardian	[headbar] id=10, fill=68
+1124	tfa_guardian	[headbar] id=10, fill=60
+1124	tfa_guardian	[hit] id=17, value=29
+1124	tfa_guardian	[hit] id=17, value=100
+1125	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+1125	tfa_guardian	[headbar] id=10, fill=60
+1125	tfa_guardian	[headbar] id=10, fill=60
+1125	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+1125	tfa_guardian	[hit] id=13, value=0
+1125	tfa_guardian	[hit] id=17, value=2
+1125	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4123, 5599, 0), shape=10, rotation=0
+1126	tfa_guardian	[headbar] id=10, fill=59
+1126	tfa_guardian	[hit] id=17, value=14
+1127	tfa_guardian	[headbar] id=10, fill=59
+1127	tfa_guardian	[hit] id=17, value=1
+1128	tfa_guardian	[spotanim] id=thrall_magic_impact (1908), delay=55, height=96
+1128	tfa_guardian	[headbar] id=10, fill=59
+1128	tfa_guardian	[headbar] id=10, fill=57
+1128	tfa_guardian	[hit] id=13, value=0
+1128	tfa_guardian	[hit] id=17, value=27
+1129	tfa_guardian	[headbar] id=10, fill=57
+1129	tfa_guardian	[headbar] id=10, fill=57
+1129	tfa_guardian	[hit] id=13, value=0
+1129	tfa_guardian	[hit] id=17, value=2
+1129	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4131, 5599, 0), shape=10, rotation=0
+1130	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+1130	tfa_guardian	[headbar] id=10, fill=57
+1130	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+1130	tfa_guardian	[hit] id=17, value=1
+1130	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4126, 5606, 0), shape=10, rotation=0
+1131	tfa_guardian	[headbar] id=10, fill=56
+1131	tfa_guardian	[hit] id=17, value=3
+1132	tfa_guardian	[spotanim] id=xbows_blood_sacrifice_spot_anim (754), delay=2
+1132	tfa_guardian	[headbar] id=10, fill=55
+1132	tfa_guardian	[hit] id=17, value=23
+1133	tfa_guardian	[headbar] id=10, fill=54
+1133	tfa_guardian	[hit] id=17, value=2
+1134	tfa_guardian	[headbar] id=10, fill=52
+1134	tfa_guardian	[hit] id=17, value=28
+1134	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4125, 5602, 0), shape=10, rotation=0
+1135	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+1135	tfa_guardian	[headbar] id=10, fill=52
+1135	tfa_guardian	[headbar] id=10, fill=44
+1135	tfa_guardian	[headbar] id=10, fill=44
+1135	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+1135	tfa_guardian	[hit] id=17, value=3
+1135	tfa_guardian	[hit] id=17, value=100
+1135	tfa_guardian	[hit] id=17, value=1
+1135	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4133, 5602, 0), shape=10, rotation=0
+1136	tfa_guardian	[spotanim] id=thrall_magic_impact (1908), delay=55, height=96
+1136	tfa_guardian	[headbar] id=10, fill=41
+1136	tfa_guardian	[headbar] id=10, fill=41
+1136	tfa_guardian	[hit] id=17, value=36
+1136	tfa_guardian	[hit] id=13, value=0
+1137	tfa_guardian	[headbar] id=10, fill=41
+1137	tfa_guardian	[hit] id=13, value=0
+1139	tfa_guardian	[headbar] id=10, fill=41
+1139	tfa_guardian	[headbar] id=10, fill=41
+1139	tfa_guardian	[hit] id=17, value=1
+1139	tfa_guardian	[hit] id=17, value=3
+1140	tfa_guardian	[spotanim] id=thrall_magic_impact (1908), delay=55, height=96
+1140	tfa_guardian	[headbar] id=10, fill=38
+1140	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+1140	tfa_guardian	[hit] id=17, value=39
+1141	tfa_guardian	[headbar] id=10, fill=38
+1141	tfa_guardian	[headbar] id=10, fill=37
+1141	tfa_guardian	[headbar] id=10, fill=37
+1141	tfa_guardian	[hit] id=13, value=0
+1141	tfa_guardian	[hit] id=17, value=7
+1141	tfa_guardian	[hit] id=17, value=2
+1142	tfa_guardian	[headbar] id=10, fill=37
+1142	tfa_guardian	[hit] id=13, value=0
+1143	tfa_guardian	[headbar] id=10, fill=37
+1143	tfa_guardian	[hit] id=17, value=3
+1144	tfa_guardian	[spotanim] id=thrall_magic_impact (1908), delay=55, height=96
+1145	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+1145	tfa_guardian	[headbar] id=10, fill=37
+1145	tfa_guardian	[headbar] id=10, fill=37
+1145	tfa_guardian	[headbar] id=10, fill=36
+1145	tfa_guardian	[headbar] id=10, fill=36
+1145	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+1145	tfa_guardian	[hit] id=17, value=4
+1145	tfa_guardian	[hit] id=13, value=0
+1145	tfa_guardian	[hit] id=17, value=2
+1145	tfa_guardian	[hit] id=17, value=1
+1146	tfa_guardian	[headbar] id=10, fill=36
+1146	tfa_guardian	[headbar] id=10, fill=35
+1146	tfa_guardian	[hit] id=13, value=0
+1146	tfa_guardian	[hit] id=17, value=21
+1147	tfa_guardian	[headbar] id=10, fill=35
+1147	tfa_guardian	[headbar] id=10, fill=35
+1147	tfa_guardian	[hit] id=13, value=0
+1147	tfa_guardian	[hit] id=13, value=0
+1148	tfa_guardian	[spotanim] id=thrall_magic_impact (1908), delay=55, height=96
+1149	tfa_guardian	[headbar] id=10, fill=35
+1149	tfa_guardian	[hit] id=17, value=1
+1150	tfa_guardian	[spotanim] id=vfx_guardian_special_attack_spotanim01 (4205)
+1150	tfa_guardian	[sequence] id=npc_archive_guardian_special_attack01 (14753)
+1150	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4130, 5606, 0), shape=10, rotation=0
+1150	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4130, 5605, 0), shape=10, rotation=0
+1150	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4128, 5606, 0), shape=10, rotation=0
+1150	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4125, 5601, 0), shape=10, rotation=0
+1150	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4126, 5604, 0), shape=10, rotation=0
+1150	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4124, 5599, 0), shape=10, rotation=0
+1150	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4122, 5598, 0), shape=10, rotation=0
+1150	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4120, 5596, 0), shape=10, rotation=0
+1150	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4133, 5593, 0), shape=10, rotation=0
+1150	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4131, 5597, 0), shape=10, rotation=0
+1151	tfa_guardian	[headbar] id=10, fill=35
+1151	tfa_guardian	[headbar] id=10, fill=32
+1151	tfa_guardian	[headbar] id=10, fill=32
+1151	tfa_guardian	[hit] id=17, value=2
+1151	tfa_guardian	[hit] id=17, value=27
+1151	tfa_guardian	[hit] id=17, value=10
+1152	tfa_guardian	[spotanim] id=thrall_magic_impact (1908), delay=55, height=96
+1152	tfa_guardian	[headbar] id=10, fill=30
+1152	tfa_guardian	[headbar] id=10, fill=30
+1152	tfa_guardian	[hit] id=17, value=16
+1152	tfa_guardian	[hit] id=17, value=5
+1153	tfa_guardian	[headbar] id=10, fill=29
+1153	tfa_guardian	[headbar] id=10, fill=29
+1153	tfa_guardian	[hit] id=17, value=13
+1153	tfa_guardian	[hit] id=17, value=3
+1153	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4130, 5606, 0), shape=10, rotation=0
+1153	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4130, 5605, 0), shape=10, rotation=0
+1153	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4128, 5606, 0), shape=10, rotation=0
+1153	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4125, 5601, 0), shape=10, rotation=0
+1153	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4126, 5604, 0), shape=10, rotation=0
+1153	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4124, 5599, 0), shape=10, rotation=0
+1153	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4122, 5598, 0), shape=10, rotation=0
+1153	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4120, 5596, 0), shape=10, rotation=0
+1153	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4133, 5593, 0), shape=10, rotation=0
+1153	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4131, 5597, 0), shape=10, rotation=0
+1155	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+1155	tfa_guardian	[headbar] id=10, fill=28
+1155	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+1155	tfa_guardian	[hit] id=17, value=3
+1155	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4124, 5599, 0), shape=10, rotation=0
+1155	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4122, 5598, 0), shape=10, rotation=0
+1156	tfa_guardian	[spotanim] id=thrall_magic_impact (1908), delay=55, height=96
+1156	tfa_guardian	[headbar] id=10, fill=28
+1156	tfa_guardian	[hit] id=17, value=12
+1156	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4131, 5597, 0), shape=10, rotation=0
+1157	tfa_guardian	[headbar] id=10, fill=27
+1157	tfa_guardian	[headbar] id=10, fill=23
+1157	tfa_guardian	[headbar] id=10, fill=23
+1157	tfa_guardian	[hit] id=17, value=8
+1157	tfa_guardian	[hit] id=17, value=51
+1157	tfa_guardian	[hit] id=17, value=2
+1157	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4130, 5606, 0), shape=10, rotation=0
+1157	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4130, 5605, 0), shape=10, rotation=0
+1157	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4124, 5601, 0), shape=10, rotation=0
+1158	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4128, 5606, 0), shape=10, rotation=0
+1158	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4125, 5601, 0), shape=10, rotation=0
+1158	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4126, 5604, 0), shape=10, rotation=0
+1159	tfa_guardian	[spotanim] id=-1, delay=82, height=96
+1159	tfa_guardian	[headbar] id=10, fill=23
+1159	tfa_guardian	[hit] id=17, value=3
+1160	tfa_guardian	[spotanim] id=thrall_magic_impact (1908), delay=55, height=96
+1160	tfa_guardian	[headbar] id=10, fill=22
+1160	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+1160	tfa_guardian	[hit] id=17, value=9
+1161	tfa_guardian	[headbar] id=10, fill=22
+1161	tfa_guardian	[headbar] id=10, fill=22
+1161	tfa_guardian	[headbar] id=10, fill=19
+1161	tfa_guardian	[headbar] id=10, fill=19
+1161	tfa_guardian	[hit] id=17, value=1
+1161	tfa_guardian	[hit] id=13, value=0
+1161	tfa_guardian	[hit] id=17, value=30
+1161	tfa_guardian	[hit] id=17, value=3
+1162	tfa_guardian	[headbar] id=10, fill=18
+1162	tfa_guardian	[hit] id=17, value=16
+1163	tfa_guardian	[spotanim] id=-1, delay=82, height=96
+1163	tfa_guardian	[headbar] id=10, fill=18
+1163	tfa_guardian	[headbar] id=10, fill=18
+1163	tfa_guardian	[hit] id=17, value=3
+1163	tfa_guardian	[hit] id=13, value=0
+1164	tfa_guardian	[spotanim] id=thrall_magic_impact (1908), delay=55, height=96
+1165	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+1165	tfa_guardian	[headbar] id=10, fill=17
+1165	tfa_guardian	[headbar] id=10, fill=17
+1165	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+1165	tfa_guardian	[hit] id=17, value=2
+1165	tfa_guardian	[hit] id=17, value=1
+1166	tfa_guardian	[headbar] id=10, fill=16
+1166	tfa_guardian	[headbar] id=10, fill=15
+1166	tfa_guardian	[hit] id=17, value=18
+1166	tfa_guardian	[hit] id=17, value=15
+1167	tfa_guardian	[spotanim] id=-1, delay=82, height=96
+1167	tfa_guardian	[headbar] id=10, fill=15
+1167	tfa_guardian	[headbar] id=10, fill=13
+1167	tfa_guardian	[hit] id=17, value=1
+1167	tfa_guardian	[hit] id=17, value=23
+1168	tfa_guardian	[spotanim] id=thrall_magic_impact (1908), delay=55, height=96
+1168	tfa_guardian	[headbar] id=10, fill=11
+1168	tfa_guardian	[hit] id=17, value=23
+1169	tfa_guardian	[headbar] id=10, fill=10
+1169	tfa_guardian	[headbar] id=10, fill=9
+1169	tfa_guardian	[headbar] id=10, fill=9
+1169	tfa_guardian	[hit] id=17, value=18
+1169	tfa_guardian	[hit] id=17, value=3
+1169	tfa_guardian	[hit] id=17, value=3
+1170	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+1170	tfa_guardian	[headbar] id=10, fill=9
+1170	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+1170	tfa_guardian	[hit] id=17, value=1
+1171	tfa_guardian	[spotanim] id=-1, delay=82, height=96
+1171	tfa_guardian	[headbar] id=10, fill=9
+1171	tfa_guardian	[headbar] id=10, fill=9
+1171	tfa_guardian	[headbar] id=10, fill=9
+1171	tfa_guardian	[headbar] id=10, fill=7
+1171	tfa_guardian	[hit] id=17, value=1
+1171	tfa_guardian	[hit] id=17, value=1
+1171	tfa_guardian	[hit] id=17, value=6
+1171	tfa_guardian	[hit] id=17, value=23
+1172	tfa_guardian	[spotanim] id=thrall_magic_impact (1908), delay=55, height=96
+1173	tfa_guardian	[headbar] id=10, fill=7
+1173	tfa_guardian	[headbar] id=10, fill=6
+1173	tfa_guardian	[hit] id=13, value=0
+1173	tfa_guardian	[hit] id=17, value=3
+1174	tfa_guardian	[headbar] id=10, fill=6
+1174	tfa_guardian	[hit] id=13, value=0
+1175	tfa_guardian	[spotanim] id=-1, delay=82, height=96
+1175	tfa_guardian	[headbar] id=10, fill=6
+1175	tfa_guardian	[headbar] id=10, fill=6
+1175	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+1175	tfa_guardian	[hit] id=17, value=3
+1175	tfa_guardian	[hit] id=17, value=1
+1176	tfa_guardian	[spotanim] id=thrall_magic_impact (1908), delay=55, height=96
+1176	tfa_guardian	[headbar] id=10, fill=6
+1176	tfa_guardian	[headbar] id=10, fill=5
+1176	tfa_guardian	[headbar] id=10, fill=2
+1176	tfa_guardian	[hit] id=13, value=0
+1176	tfa_guardian	[hit] id=17, value=11
+1176	tfa_guardian	[hit] id=17, value=36
+1177	tfa_guardian	[headbar] id=10, fill=2
+1177	tfa_guardian	[headbar] id=10, fill=2
+1177	tfa_guardian	[hit] id=13, value=0
+1177	tfa_guardian	[hit] id=17, value=3
+1179	tfa_guardian	[spotanim] id=xbows_diamond_tips_spotanim (758), delay=1
+1179	tfa_guardian	[headbar] id=10, fill=2
+1179	tfa_guardian	[hit] id=17, value=2
+1180	tfa_guardian	[headbar] id=10, fill=0
+1180	tfa_guardian	[headbar] id=10, fill=0
+1180	tfa_guardian	[facing] type=reset
+1180	tfa_guardian	[hit] id=17, value=20
+1180	tfa_guardian	[hit] id=13, value=0
+1181	tfa_guardian	[headbar] id=10, fill=0
+1181	tfa_guardian	[headbar] id=10, fill=0
+1181	tfa_guardian	[headbar] id=10, fill=0
+1181	tfa_guardian	[headbar] id=10, fill=0
+1181	tfa_guardian	[hit] id=13, value=0
+1181	tfa_guardian	[hit] id=13, value=0
+1181	tfa_guardian	[hit] id=13, value=0
+1181	tfa_guardian	[hit] id=13, value=0
+1183	tfa_guardian	[spotanim] id=vfx_guardian_idletoground_spotanim01 (4202)
+1183	tfa_guardian	[headbar] id=19, removed=true
+1183	tfa_guardian	[headbar] id=19, fill=54
+1183	tfa_guardian	[sequence] id=npc_archive_guardian_idle_to_ground01 (14747)
+1183	tfa_guardian	[enabled_ops] opflags=0b11111
+1183	tfa_guardian	[transformation] id=tfa_guardian_unshielded (16660)
+1183	ZONE	map_anim id=tfa_arena_sword_drop_explosion_instant (4389), delay=20, coord=(4127, 5599, 0)
+1184	tfa_guardian_unshielded	[spotanim] id=-1, delay=82, height=96
+1184	tfa_guardian_unshielded	[bas] ready=npc_archive_guardian_ground_idle01 (14746)
+1185	tfa_guardian_unshielded	[headbar] id=19, fill=54
+1185	tfa_guardian_unshielded	[hit] id=13, value=0
+1186	tfa_guardian_unshielded	[spotanim] id=sanguinesti_staff_heal (1542), height=92
+1186	tfa_guardian_unshielded	[headbar] id=19, fill=54
+1186	tfa_guardian_unshielded	[hit] id=17, value=2
+1186	ZONE	map_anim id=dragon_halberd_special_south_red (478), delay=20, height=92, coord=(4127, 5601, 0)
+1187	tfa_guardian_unshielded	[spotanim] id=thrall_magic_impact (1908), delay=55, height=96
+1187	tfa_guardian_unshielded	[headbar] id=19, fill=53
+1187	tfa_guardian_unshielded	[headbar] id=19, fill=52
+1187	tfa_guardian_unshielded	[headbar] id=19, fill=52
+1187	tfa_guardian_unshielded	[headbar] id=19, fill=51
+1187	tfa_guardian_unshielded	[hit] id=17, value=22
+1187	tfa_guardian_unshielded	[hit] id=17, value=31
+1187	tfa_guardian_unshielded	[hit] id=13, value=0
+1187	tfa_guardian_unshielded	[hit] id=17, value=6
+1188	tfa_guardian_unshielded	[spotanim] id=-1, delay=82, height=96
+1188	tfa_guardian_unshielded	[headbar] id=19, fill=51
+1188	tfa_guardian_unshielded	[headbar] id=19, fill=51
+1188	tfa_guardian_unshielded	[hit] id=17, value=12
+1188	tfa_guardian_unshielded	[hit] id=17, value=3
+1189	tfa_guardian_unshielded	[spotanim] id=xbows_diamond_tips_spotanim (758), delay=2
+1189	tfa_guardian_unshielded	[headbar] id=19, fill=50
+1189	tfa_guardian_unshielded	[hit] id=17, value=18
+1190	tfa_guardian_unshielded	[headbar] id=19, fill=50
+1190	tfa_guardian_unshielded	[headbar] id=19, fill=50
+1190	tfa_guardian_unshielded	[hit] id=13, value=0
+1190	tfa_guardian_unshielded	[hit] id=17, value=2
+1191	tfa_guardian_unshielded	[spotanim] id=thrall_magic_impact (1908), delay=55, height=96
+1191	ZONE	map_anim id=dragon_halberd_special_east_red (1172), delay=20, height=92, coord=(4125, 5599, 0)
+1192	tfa_guardian_unshielded	[spotanim] id=-1, delay=82, height=96
+1192	tfa_guardian_unshielded	[headbar] id=19, fill=50
+1192	tfa_guardian_unshielded	[headbar] id=19, fill=50
+1192	tfa_guardian_unshielded	[headbar] id=19, fill=49
+1192	tfa_guardian_unshielded	[headbar] id=19, fill=49
+1192	tfa_guardian_unshielded	[headbar] id=19, fill=49
+1192	tfa_guardian_unshielded	[hit] id=17, value=7
+1192	tfa_guardian_unshielded	[hit] id=17, value=2
+1192	tfa_guardian_unshielded	[hit] id=17, value=4
+1192	tfa_guardian_unshielded	[hit] id=13, value=0
+1192	tfa_guardian_unshielded	[hit] id=13, value=0
+1193	tfa_guardian_unshielded	[headbar] id=19, fill=49
+1193	tfa_guardian_unshielded	[hit] id=17, value=10
+1194	tfa_guardian_unshielded	[headbar] id=19, fill=49
+1194	tfa_guardian_unshielded	[headbar] id=19, fill=49
+1194	tfa_guardian_unshielded	[headbar] id=19, fill=49
+1194	tfa_guardian_unshielded	[hit] id=17, value=3
+1194	tfa_guardian_unshielded	[hit] id=13, value=0
+1194	tfa_guardian_unshielded	[hit] id=17, value=1
+1195	tfa_guardian_unshielded	[spotanim] id=thrall_magic_impact (1908), delay=55, height=96
+1195	tfa_guardian_unshielded	[headbar] id=19, fill=49
+1195	tfa_guardian_unshielded	[hit] id=13, value=0
+1196	tfa_guardian_unshielded	[spotanim] id=-1, delay=82, height=96
+1196	tfa_guardian_unshielded	[headbar] id=19, fill=49
+1196	tfa_guardian_unshielded	[hit] id=17, value=1
+1197	tfa_guardian_unshielded	[headbar] id=19, fill=48
+1197	tfa_guardian_unshielded	[hit] id=17, value=14
+1197	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4133, 5593, 0), shape=10, rotation=0
+1198	tfa_guardian_unshielded	[headbar] id=19, fill=48
+1198	tfa_guardian_unshielded	[headbar] id=19, fill=48
+1198	tfa_guardian_unshielded	[headbar] id=19, fill=48
+1198	tfa_guardian_unshielded	[hit] id=13, value=0
+1198	tfa_guardian_unshielded	[hit] id=17, value=3
+1198	tfa_guardian_unshielded	[hit] id=17, value=18
+1198	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4133, 5599, 0), shape=10, rotation=0
+1199	tfa_guardian_unshielded	[spotanim] id=thrall_magic_impact (1908), delay=55, height=96
+1200	tfa_guardian_unshielded	[spotanim] id=-1, delay=82, height=96
+1200	tfa_guardian_unshielded	[headbar] id=19, fill=47
+1200	tfa_guardian_unshielded	[hit] id=17, value=3
+1200	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4134, 5596, 0), shape=10, rotation=0
+1201	tfa_guardian_unshielded	[headbar] id=19, fill=47
+1201	tfa_guardian_unshielded	[headbar] id=19, fill=47
+1201	tfa_guardian_unshielded	[hit] id=13, value=0
+1201	tfa_guardian_unshielded	[hit] id=17, value=2
+1202	tfa_guardian_unshielded	[headbar] id=19, fill=47
+1202	tfa_guardian_unshielded	[headbar] id=19, fill=47
+1202	tfa_guardian_unshielded	[hit] id=17, value=3
+1202	tfa_guardian_unshielded	[hit] id=17, value=2
+1203	tfa_guardian_unshielded	[spotanim] id=thrall_magic_impact (1908), delay=55, height=96
+1203	ZONE	map_anim id=dragon_halberd_special_north_red (506), delay=20, height=92, coord=(4126, 5597, 0)
+1204	tfa_guardian_unshielded	[spotanim] id=-1, delay=82, height=96
+1204	tfa_guardian_unshielded	[headbar] id=19, fill=47
+1204	tfa_guardian_unshielded	[headbar] id=19, fill=47
+1204	tfa_guardian_unshielded	[headbar] id=19, fill=47
+1204	tfa_guardian_unshielded	[headbar] id=19, fill=47
+1204	tfa_guardian_unshielded	[hit] id=17, value=1
+1204	tfa_guardian_unshielded	[hit] id=13, value=0
+1204	tfa_guardian_unshielded	[hit] id=13, value=0
+1204	tfa_guardian_unshielded	[hit] id=17, value=8
+1205	tfa_guardian_unshielded	[headbar] id=19, fill=47
+1205	tfa_guardian_unshielded	[hit] id=13, value=0
+1206	tfa_guardian_unshielded	[headbar] id=19, fill=47
+1206	tfa_guardian_unshielded	[headbar] id=19, fill=47
+1206	tfa_guardian_unshielded	[hit] id=17, value=2
+1206	tfa_guardian_unshielded	[hit] id=13, value=0
+1207	tfa_guardian_unshielded	[spotanim] id=thrall_magic_impact (1908), delay=55, height=96
+1207	tfa_guardian_unshielded	[headbar] id=19, fill=46
+1207	tfa_guardian_unshielded	[headbar] id=19, fill=45
+1207	tfa_guardian_unshielded	[hit] id=17, value=22
+1207	tfa_guardian_unshielded	[hit] id=17, value=12
+1208	tfa_guardian_unshielded	[spotanim] id=-1, delay=82, height=96
+1208	tfa_guardian_unshielded	[headbar] id=19, fill=45
+1208	tfa_guardian_unshielded	[hit] id=13, value=0
+1208	ZONE	map_anim id=dragon_halberd_special_south_red (478), delay=20, height=92, coord=(4125, 5601, 0)
+1209	tfa_guardian_unshielded	[headbar] id=19, fill=44
+1209	tfa_guardian_unshielded	[headbar] id=19, fill=44
+1209	tfa_guardian_unshielded	[headbar] id=19, fill=44
+1209	tfa_guardian_unshielded	[hit] id=17, value=30
+1209	tfa_guardian_unshielded	[hit] id=13, value=0
+1209	tfa_guardian_unshielded	[hit] id=17, value=2
+1210	tfa_guardian_unshielded	[headbar] id=19, fill=44
+1210	tfa_guardian_unshielded	[headbar] id=19, fill=44
+1210	tfa_guardian_unshielded	[headbar] id=19, fill=42
+1210	tfa_guardian_unshielded	[hit] id=17, value=2
+1210	tfa_guardian_unshielded	[hit] id=13, value=0
+1210	tfa_guardian_unshielded	[hit] id=17, value=42
+1211	tfa_guardian_unshielded	[spotanim] id=thrall_magic_impact (1908), delay=55, height=96
+1212	tfa_guardian_unshielded	[spotanim] id=-1, delay=82, height=96
+1212	tfa_guardian_unshielded	[headbar] id=19, fill=42
+1212	tfa_guardian_unshielded	[headbar] id=19, fill=42
+1212	tfa_guardian_unshielded	[hit] id=17, value=18
+1212	tfa_guardian_unshielded	[hit] id=17, value=2
+1213	tfa_guardian_unshielded	[headbar] id=19, fill=42
+1213	tfa_guardian_unshielded	[headbar] id=19, fill=42
+1213	tfa_guardian_unshielded	[hit] id=13, value=0
+1213	tfa_guardian_unshielded	[hit] id=13, value=0
+1213	ZONE	map_anim id=dragon_halberd_special_west_red (1231), delay=20, height=92, coord=(4129, 5599, 0)
+1214	tfa_guardian_unshielded	[headbar] id=19, fill=42
+1214	tfa_guardian_unshielded	[headbar] id=19, fill=41
+1214	tfa_guardian_unshielded	[headbar] id=19, fill=41
+1214	tfa_guardian_unshielded	[headbar] id=19, fill=41
+1214	tfa_guardian_unshielded	[headbar] id=19, fill=41
+1214	tfa_guardian_unshielded	[hit] id=17, value=2
+1214	tfa_guardian_unshielded	[hit] id=17, value=1
+1214	tfa_guardian_unshielded	[hit] id=17, value=3
+1214	tfa_guardian_unshielded	[hit] id=17, value=13
+1214	tfa_guardian_unshielded	[hit] id=13, value=0
+1215	tfa_guardian_unshielded	[spotanim] id=xbows_diamond_tips_spotanim (758), delay=2
+1215	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4117, 5601, 0), shape=10, rotation=0
+1216	tfa_guardian_unshielded	[spotanim] id=-1, delay=82, height=96
+1216	tfa_guardian_unshielded	[headbar] id=19, fill=41
+1216	tfa_guardian_unshielded	[hit] id=17, value=2
+1218	tfa_guardian_unshielded	[headbar] id=19, fill=40
+1218	tfa_guardian_unshielded	[headbar] id=19, fill=38
+1218	tfa_guardian_unshielded	[headbar] id=19, fill=38
+1218	tfa_guardian_unshielded	[hit] id=17, value=32
+1218	tfa_guardian_unshielded	[hit] id=17, value=26
+1218	tfa_guardian_unshielded	[hit] id=17, value=3
+1218	ZONE	map_anim id=dragon_halberd_special_north_red (506), delay=20, height=92, coord=(4125, 5597, 0)
+1219	tfa_guardian_unshielded	[headbar] id=19, fill=38
+1219	tfa_guardian_unshielded	[headbar] id=19, fill=38
+1219	tfa_guardian_unshielded	[headbar] id=19, fill=38
+1219	tfa_guardian_unshielded	[headbar] id=19, fill=38
+1219	tfa_guardian_unshielded	[headbar] id=19, fill=38
+1219	tfa_guardian_unshielded	[hit] id=13, value=0
+1219	tfa_guardian_unshielded	[hit] id=17, value=2
+1219	tfa_guardian_unshielded	[hit] id=13, value=0
+1219	tfa_guardian_unshielded	[hit] id=17, value=10
+1219	tfa_guardian_unshielded	[hit] id=13, value=0
+1220	tfa_guardian_unshielded	[spotanim] id=-1, delay=82, height=96
+1221	tfa_guardian_unshielded	[spotanim] id=xbows_diamond_tips_spotanim (758), delay=2
+1222	tfa_guardian_unshielded	[headbar] id=19, fill=38
+1222	tfa_guardian_unshielded	[hit] id=17, value=2
+1222	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4119, 5597, 0), shape=10, rotation=0
+1224	tfa_guardian_unshielded	[spotanim] id=-1, delay=82, height=96
+1224	tfa_guardian_unshielded	[headbar] id=19, fill=38
+1224	tfa_guardian_unshielded	[headbar] id=19, fill=36
+1224	tfa_guardian_unshielded	[headbar] id=19, fill=35
+1224	tfa_guardian_unshielded	[hit] id=13, value=0
+1224	tfa_guardian_unshielded	[hit] id=17, value=43
+1224	tfa_guardian_unshielded	[hit] id=17, value=34
+1224	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4120, 5599, 0), shape=10, rotation=0
+1225	tfa_guardian_unshielded	[spotanim] id=sanguinesti_staff_heal (1542), height=92
+1225	tfa_guardian_unshielded	[headbar] id=19, fill=35
+1225	tfa_guardian_unshielded	[hit] id=17, value=1
+1225	ZONE	map_anim id=dragon_halberd_special_north_red (506), delay=20, height=92, coord=(4124, 5598, 0)
+1226	tfa_guardian_unshielded	[headbar] id=19, fill=35
+1226	tfa_guardian_unshielded	[headbar] id=19, fill=35
+1226	tfa_guardian_unshielded	[headbar] id=19, fill=34
+1226	tfa_guardian_unshielded	[headbar] id=19, fill=34
+1226	tfa_guardian_unshielded	[hit] id=17, value=1
+1226	tfa_guardian_unshielded	[hit] id=17, value=5
+1226	tfa_guardian_unshielded	[hit] id=17, value=5
+1226	tfa_guardian_unshielded	[hit] id=17, value=3
+1227	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4120, 5596, 0), shape=10, rotation=0
+1228	tfa_guardian_unshielded	[spotanim] id=-1, delay=82, height=96
+1229	tfa_guardian_unshielded	[headbar] id=19, fill=34
+1229	tfa_guardian_unshielded	[hit] id=13, value=0
+1230	tfa_guardian_unshielded	[spotanim] id=vfx_guardian_groundtoidle_spotanim01 (4203)
+1230	tfa_guardian_unshielded	[headbar] id=10, removed=true
+1230	tfa_guardian_unshielded	[sequence] id=npc_archive_guardian_ground_to_flying01 (14748)
+1230	tfa_guardian_unshielded	[enabled_ops] opflags=0b11111
+1230	tfa_guardian_unshielded	[transformation] id=tfa_guardian (16659)
+1230	tfa_guardian_unshielded	[bas]
+1233	tfa_guardian	[spotanim] id=-1, delay=82, height=96
+1234	tfa_guardian	[headbar] id=10, fill=97
+1234	tfa_guardian	[hit] id=17, value=30
+1235	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+1235	tfa_guardian	[headbar] id=10, fill=96
+1235	tfa_guardian	[headbar] id=10, fill=96
+1235	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+1235	tfa_guardian	[hit] id=17, value=10
+1235	tfa_guardian	[hit] id=13, value=0
+1236	tfa_guardian	[headbar] id=10, fill=95
+1236	tfa_guardian	[hit] id=17, value=22
+1238	tfa_guardian	[headbar] id=10, fill=95
+1238	tfa_guardian	[hit] id=17, value=1
+1239	tfa_guardian	[headbar] id=10, fill=94
+1239	tfa_guardian	[hit] id=17, value=7
+1240	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+1240	tfa_guardian	[headbar] id=10, fill=93
+1240	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+1240	tfa_guardian	[hit] id=17, value=12
+1241	tfa_guardian	[spotanim] id=-1, delay=82, height=96
+1241	tfa_guardian	[headbar] id=10, fill=93
+1241	tfa_guardian	[hit] id=17, value=5
+1243	tfa_guardian	[headbar] id=10, fill=89
+1243	tfa_guardian	[headbar] id=10, fill=89
+1243	tfa_guardian	[headbar] id=10, fill=88
+1243	tfa_guardian	[hit] id=17, value=52
+1243	tfa_guardian	[hit] id=13, value=0
+1243	tfa_guardian	[hit] id=17, value=2
+1244	tfa_guardian	[headbar] id=10, fill=88
+1244	tfa_guardian	[hit] id=17, value=6
+1245	tfa_guardian	[spotanim] id=-1, delay=82, height=96
+1245	tfa_guardian	[headbar] id=10, fill=88
+1245	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+1245	tfa_guardian	[hit] id=13, value=0
+1246	tfa_guardian	[headbar] id=10, fill=88
+1246	tfa_guardian	[hit] id=13, value=0
+1247	tfa_guardian	[spotanim] id=thrall_magic_impact (1908), delay=45, height=96
+1247	tfa_guardian	[headbar] id=10, fill=88
+1247	tfa_guardian	[hit] id=17, value=3
+1248	tfa_guardian	[spotanim] id=xbows_diamond_tips_spotanim (758), delay=2
+1248	tfa_guardian	[headbar] id=10, fill=84
+1248	tfa_guardian	[headbar] id=10, fill=84
+1248	tfa_guardian	[hit] id=17, value=45
+1248	tfa_guardian	[hit] id=17, value=3
+1249	tfa_guardian	[spotanim] id=-1, delay=82, height=96
+1249	tfa_guardian	[headbar] id=10, fill=84
+1249	tfa_guardian	[headbar] id=10, fill=84
+1249	tfa_guardian	[hit] id=13, value=0
+1249	tfa_guardian	[hit] id=17, value=1
+1250	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+1250	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+1251	tfa_guardian	[spotanim] id=thrall_magic_impact (1908), delay=45, height=96
+1251	tfa_guardian	[headbar] id=10, fill=82
+1251	tfa_guardian	[headbar] id=10, fill=78
+1251	tfa_guardian	[headbar] id=10, fill=78
+1251	tfa_guardian	[hit] id=17, value=26
+1251	tfa_guardian	[hit] id=17, value=44
+1251	tfa_guardian	[hit] id=17, value=3
+1252	tfa_guardian	[headbar] id=10, fill=78
+1252	tfa_guardian	[hit] id=17, value=1
+1253	tfa_guardian	[spotanim] id=-1, delay=82, height=96
+1254	tfa_guardian	[headbar] id=10, fill=78
+1254	tfa_guardian	[headbar] id=10, fill=76
+1254	tfa_guardian	[hit] id=17, value=1
+1254	tfa_guardian	[hit] id=17, value=25
+1255	tfa_guardian	[spotanim] id=thrall_magic_impact (1908), delay=45, height=96
+1255	tfa_guardian	[headbar] id=10, fill=75
+1255	tfa_guardian	[headbar] id=10, fill=75
+1255	tfa_guardian	[sequence] id=npc_archive_guardian_special_attack01 (14753)
+1255	tfa_guardian	[hit] id=17, value=14
+1255	tfa_guardian	[hit] id=13, value=0
+1255	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4132, 5600, 0), shape=10, rotation=0
+1255	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4122, 5600, 0), shape=10, rotation=0
+1255	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4122, 5602, 0), shape=10, rotation=0
+1255	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4127, 5605, 0), shape=10, rotation=0
+1255	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4125, 5606, 0), shape=10, rotation=0
+1255	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4121, 5595, 0), shape=10, rotation=0
+1255	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4125, 5598, 0), shape=10, rotation=0
+1255	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4132, 5599, 0), shape=10, rotation=0
+1255	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4131, 5596, 0), shape=10, rotation=0
+1255	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4136, 5599, 0), shape=10, rotation=0
+1256	tfa_guardian	[headbar] id=10, fill=73
+1256	tfa_guardian	[headbar] id=10, fill=73
+1256	tfa_guardian	[headbar] id=10, fill=73
+1256	tfa_guardian	[hit] id=17, value=28
+1256	tfa_guardian	[hit] id=13, value=0
+1256	tfa_guardian	[hit] id=13, value=0
+1257	tfa_guardian	[spotanim] id=-1, delay=82, height=96
+1258	tfa_guardian	[spotanim] id=xbows_diamond_tips_spotanim (758), delay=2
+1258	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4132, 5600, 0), shape=10, rotation=0
+1258	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4122, 5600, 0), shape=10, rotation=0
+1258	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4122, 5602, 0), shape=10, rotation=0
+1258	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4127, 5605, 0), shape=10, rotation=0
+1258	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4125, 5606, 0), shape=10, rotation=0
+1258	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4121, 5595, 0), shape=10, rotation=0
+1258	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4125, 5598, 0), shape=10, rotation=0
+1258	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4132, 5599, 0), shape=10, rotation=0
+1258	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4131, 5596, 0), shape=10, rotation=0
+1258	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4136, 5599, 0), shape=10, rotation=0
+1259	tfa_guardian	[spotanim] id=thrall_magic_impact (1908), delay=45, height=96
+1259	tfa_guardian	[headbar] id=10, fill=72
+1259	tfa_guardian	[headbar] id=10, fill=72
+1259	tfa_guardian	[headbar] id=10, fill=72
+1259	tfa_guardian	[hit] id=17, value=5
+1259	tfa_guardian	[hit] id=13, value=0
+1259	tfa_guardian	[hit] id=17, value=2
+1260	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+1260	tfa_guardian	[headbar] id=10, fill=72
+1260	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+1260	tfa_guardian	[hit] id=17, value=3
+1260	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4132, 5600, 0), shape=10, rotation=0
+1260	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4122, 5600, 0), shape=10, rotation=0
+1260	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4132, 5599, 0), shape=10, rotation=0
+1260	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4136, 5599, 0), shape=10, rotation=0
+1261	tfa_guardian	[spotanim] id=-1, delay=82, height=96
+1261	tfa_guardian	[headbar] id=10, fill=69
+1261	tfa_guardian	[headbar] id=10, fill=66
+1261	tfa_guardian	[headbar] id=10, fill=66
+1261	tfa_guardian	[hit] id=17, value=40
+1261	tfa_guardian	[hit] id=17, value=30
+1261	tfa_guardian	[hit] id=13, value=0
+1262	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4127, 5605, 0), shape=10, rotation=0
+1263	tfa_guardian	[spotanim] id=thrall_magic_impact (1908), delay=45, height=96
+1263	tfa_guardian	[headbar] id=10, fill=66
+1263	tfa_guardian	[hit] id=17, value=1
+1264	tfa_guardian	[headbar] id=10, fill=66
+1264	tfa_guardian	[hit] id=17, value=3
+1265	tfa_guardian	[spotanim] id=-1, delay=87, height=96
+1265	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+1266	tfa_guardian	[headbar] id=10, fill=66
+1266	tfa_guardian	[headbar] id=10, fill=61
+1266	tfa_guardian	[hit] id=17, value=1
+1266	tfa_guardian	[hit] id=17, value=69
+1267	tfa_guardian	[spotanim] id=thrall_magic_impact (1908), delay=45, height=96
+1267	tfa_guardian	[headbar] id=10, fill=59
+1267	tfa_guardian	[headbar] id=10, fill=58
+1267	tfa_guardian	[headbar] id=10, fill=57
+1267	tfa_guardian	[headbar] id=10, fill=57
+1267	tfa_guardian	[headbar] id=10, fill=57
+1267	tfa_guardian	[hit] id=17, value=19
+1267	tfa_guardian	[hit] id=17, value=8
+1267	tfa_guardian	[hit] id=17, value=16
+1267	tfa_guardian	[hit] id=17, value=1
+1267	tfa_guardian	[hit] id=17, value=3
+1268	tfa_guardian	[headbar] id=10, fill=57
+1268	tfa_guardian	[hit] id=17, value=2
+1269	tfa_guardian	[spotanim] id=xbows_diamond_tips_spotanim (758), delay=2
+1270	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+1270	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+1271	tfa_guardian	[spotanim] id=thrall_magic_impact (1908), delay=45, height=96
+1271	tfa_guardian	[headbar] id=10, fill=54
+1271	tfa_guardian	[headbar] id=10, fill=53
+1271	tfa_guardian	[headbar] id=10, fill=53
+1271	tfa_guardian	[headbar] id=10, fill=53
+1271	tfa_guardian	[hit] id=17, value=35
+1271	tfa_guardian	[hit] id=17, value=8
+1271	tfa_guardian	[hit] id=13, value=0
+1271	tfa_guardian	[hit] id=17, value=3
+1271	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4131, 5596, 0), shape=10, rotation=0
+1272	tfa_guardian	[headbar] id=10, fill=51
+1272	tfa_guardian	[headbar] id=10, fill=51
+1272	tfa_guardian	[headbar] id=10, fill=50
+1272	tfa_guardian	[hit] id=17, value=32
+1272	tfa_guardian	[hit] id=13, value=0
+1272	tfa_guardian	[hit] id=17, value=2
+1273	tfa_guardian	[spotanim] id=-1, delay=87, height=96
+1273	tfa_guardian	[headbar] id=10, fill=50
+1273	tfa_guardian	[hit] id=13, value=0
+1275	tfa_guardian	[spotanim] id=thrall_magic_impact (1908), delay=45, height=96
+1275	tfa_guardian	[headbar] id=10, fill=50
+1275	tfa_guardian	[headbar] id=10, fill=50
+1275	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+1275	tfa_guardian	[hit] id=17, value=3
+1275	tfa_guardian	[hit] id=17, value=3
+1276	tfa_guardian	[headbar] id=10, fill=47
+1276	tfa_guardian	[headbar] id=10, fill=47
+1276	tfa_guardian	[hit] id=17, value=40
+1276	tfa_guardian	[hit] id=17, value=3
+1277	tfa_guardian	[spotanim] id=-1, delay=87, height=96
+1277	tfa_guardian	[headbar] id=10, fill=44
+1277	tfa_guardian	[headbar] id=10, fill=43
+1277	tfa_guardian	[headbar] id=10, fill=43
+1277	tfa_guardian	[hit] id=17, value=28
+1277	tfa_guardian	[hit] id=17, value=17
+1277	tfa_guardian	[hit] id=13, value=0
+1278	tfa_guardian	[headbar] id=10, fill=41
+1278	tfa_guardian	[hit] id=17, value=28
+1279	tfa_guardian	[spotanim] id=thrall_magic_impact (1908), delay=45, height=96
+1279	tfa_guardian	[headbar] id=10, fill=41
+1279	tfa_guardian	[headbar] id=10, fill=41
+1279	tfa_guardian	[hit] id=13, value=0
+1279	tfa_guardian	[hit] id=13, value=0
+1280	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+1280	tfa_guardian	[headbar] id=10, fill=41
+1280	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+1280	tfa_guardian	[hit] id=13, value=0
+1281	tfa_guardian	[spotanim] id=-1, delay=87, height=96
+1281	tfa_guardian	[headbar] id=10, fill=40
+1281	tfa_guardian	[hit] id=17, value=9
+1282	tfa_guardian	[headbar] id=10, fill=40
+1282	tfa_guardian	[headbar] id=10, fill=40
+1282	tfa_guardian	[headbar] id=10, fill=40
+1282	tfa_guardian	[hit] id=13, value=0
+1282	tfa_guardian	[hit] id=17, value=4
+1282	tfa_guardian	[hit] id=13, value=0
+1283	tfa_guardian	[spotanim] id=thrall_magic_impact (1908), delay=45, height=96
+1283	tfa_guardian	[headbar] id=10, fill=40
+1283	tfa_guardian	[headbar] id=10, fill=40
+1283	tfa_guardian	[headbar] id=10, fill=40
+1283	tfa_guardian	[hit] id=13, value=0
+1283	tfa_guardian	[hit] id=17, value=1
+1283	tfa_guardian	[hit] id=17, value=1
+1284	tfa_guardian	[headbar] id=10, fill=39
+1284	tfa_guardian	[hit] id=17, value=3
+1285	tfa_guardian	[spotanim] id=-1, delay=87, height=96
+1285	tfa_guardian	[sequence] id=npc_archive_guardian_special_attack01 (14753)
+1285	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4134, 5600, 0), shape=10, rotation=0
+1285	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4126, 5603, 0), shape=10, rotation=0
+1285	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4124, 5601, 0), shape=10, rotation=0
+1285	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4123, 5598, 0), shape=10, rotation=0
+1285	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4122, 5596, 0), shape=10, rotation=0
+1285	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4124, 5594, 0), shape=10, rotation=0
+1285	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4126, 5596, 0), shape=10, rotation=0
+1285	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4131, 5596, 0), shape=10, rotation=0
+1285	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4132, 5599, 0), shape=10, rotation=0
+1285	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4134, 5596, 0), shape=10, rotation=0
+1286	tfa_guardian	[headbar] id=10, fill=39
+1286	tfa_guardian	[hit] id=13, value=0
+1287	tfa_guardian	[spotanim] id=thrall_magic_impact (1908), delay=45, height=96
+1287	tfa_guardian	[headbar] id=10, fill=38
+1287	tfa_guardian	[headbar] id=10, fill=38
+1287	tfa_guardian	[headbar] id=10, fill=38
+1287	tfa_guardian	[headbar] id=10, fill=38
+1287	tfa_guardian	[hit] id=17, value=19
+1287	tfa_guardian	[hit] id=13, value=0
+1287	tfa_guardian	[hit] id=13, value=0
+1287	tfa_guardian	[hit] id=17, value=3
+1288	tfa_guardian	[headbar] id=10, fill=38
+1288	tfa_guardian	[headbar] id=10, fill=38
+1288	tfa_guardian	[headbar] id=10, fill=38
+1288	tfa_guardian	[hit] id=13, value=0
+1288	tfa_guardian	[hit] id=13, value=0
+1288	tfa_guardian	[hit] id=13, value=0
+1288	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4134, 5600, 0), shape=10, rotation=0
+1288	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4126, 5603, 0), shape=10, rotation=0
+1288	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4124, 5601, 0), shape=10, rotation=0
+1288	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4123, 5598, 0), shape=10, rotation=0
+1288	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4122, 5596, 0), shape=10, rotation=0
+1288	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4124, 5594, 0), shape=10, rotation=0
+1288	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4126, 5596, 0), shape=10, rotation=0
+1288	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4131, 5596, 0), shape=10, rotation=0
+1288	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4132, 5599, 0), shape=10, rotation=0
+1288	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4134, 5596, 0), shape=10, rotation=0
+1289	tfa_guardian	[spotanim] id=-1, delay=87, height=96
+1290	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+1290	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+1290	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4134, 5600, 0), shape=10, rotation=0
+1290	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4123, 5598, 0), shape=10, rotation=0
+1290	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4132, 5599, 0), shape=10, rotation=0
+1291	tfa_guardian	[spotanim] id=thrall_magic_impact (1908), delay=45, height=96
+1291	tfa_guardian	[headbar] id=10, fill=38
+1291	tfa_guardian	[headbar] id=10, fill=38
+1291	tfa_guardian	[hit] id=17, value=1
+1291	tfa_guardian	[hit] id=17, value=1
+1292	tfa_guardian	[headbar] id=10, fill=38
+1292	tfa_guardian	[headbar] id=10, fill=38
+1292	tfa_guardian	[headbar] id=10, fill=38
+1292	tfa_guardian	[hit] id=13, value=0
+1292	tfa_guardian	[hit] id=13, value=0
+1292	tfa_guardian	[hit] id=13, value=0
+1293	tfa_guardian	[spotanim] id=-1, delay=87, height=96
+1293	tfa_guardian	[headbar] id=10, fill=38
+1293	tfa_guardian	[headbar] id=10, fill=36
+1293	tfa_guardian	[headbar] id=10, fill=36
+1293	tfa_guardian	[hit] id=13, value=0
+1293	tfa_guardian	[hit] id=17, value=22
+1293	tfa_guardian	[hit] id=13, value=0
+1293	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4124, 5594, 0), shape=10, rotation=0
+1295	tfa_guardian	[spotanim] id=thrall_magic_impact (1908), delay=45, height=96
+1295	tfa_guardian	[headbar] id=10, fill=36
+1295	tfa_guardian	[headbar] id=10, fill=36
+1295	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+1295	tfa_guardian	[hit] id=17, value=1
+1295	tfa_guardian	[hit] id=17, value=2
+1295	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4126, 5603, 0), shape=10, rotation=0
+1296	tfa_guardian	[headbar] id=10, fill=36
+1296	tfa_guardian	[hit] id=17, value=1
+1297	tfa_guardian	[spotanim] id=-1, delay=87, height=96
+1297	tfa_guardian	[headbar] id=10, fill=36
+1297	tfa_guardian	[hit] id=13, value=0
+1298	tfa_guardian	[headbar] id=10, fill=35
+1298	tfa_guardian	[hit] id=17, value=4
+1299	tfa_guardian	[spotanim] id=thrall_magic_impact (1908), delay=45, height=96
+1299	tfa_guardian	[headbar] id=10, fill=35
+1299	tfa_guardian	[headbar] id=10, fill=35
+1299	tfa_guardian	[headbar] id=10, fill=35
+1299	tfa_guardian	[headbar] id=10, fill=35
+1299	tfa_guardian	[hit] id=17, value=1
+1299	tfa_guardian	[hit] id=13, value=0
+1299	tfa_guardian	[hit] id=17, value=2
+1299	tfa_guardian	[hit] id=17, value=1
+1300	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+1300	tfa_guardian	[headbar] id=10, fill=35
+1300	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+1300	tfa_guardian	[hit] id=13, value=0
+1301	tfa_guardian	[spotanim] id=-1, delay=87, height=96
+1302	tfa_guardian	[headbar] id=10, fill=35
+1302	tfa_guardian	[headbar] id=10, fill=32
+1302	tfa_guardian	[hit] id=17, value=2
+1302	tfa_guardian	[hit] id=17, value=29
+1303	tfa_guardian	[spotanim] id=thrall_magic_impact (1908), delay=45, height=96
+1303	tfa_guardian	[headbar] id=10, fill=30
+1303	tfa_guardian	[headbar] id=10, fill=30
+1303	tfa_guardian	[headbar] id=10, fill=30
+1303	tfa_guardian	[hit] id=17, value=27
+1303	tfa_guardian	[hit] id=13, value=0
+1303	tfa_guardian	[hit] id=13, value=0
+1304	tfa_guardian	[spotanim] id=xbows_diamond_tips_spotanim (758), delay=2
+1304	tfa_guardian	[headbar] id=10, fill=30
+1304	tfa_guardian	[headbar] id=10, fill=27
+1304	tfa_guardian	[headbar] id=10, fill=27
+1304	tfa_guardian	[hit] id=13, value=0
+1304	tfa_guardian	[hit] id=17, value=44
+1304	tfa_guardian	[hit] id=17, value=2
+1305	tfa_guardian	[spotanim] id=-1, delay=87, height=96
+1305	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+1307	tfa_guardian	[spotanim] id=thrall_magic_impact (1908), delay=45, height=96
+1307	tfa_guardian	[headbar] id=10, fill=27
+1307	tfa_guardian	[headbar] id=10, fill=26
+1307	tfa_guardian	[headbar] id=10, fill=26
+1307	tfa_guardian	[hit] id=17, value=3
+1307	tfa_guardian	[hit] id=17, value=3
+1307	tfa_guardian	[hit] id=13, value=0
+1308	tfa_guardian	[headbar] id=10, fill=26
+1308	tfa_guardian	[headbar] id=10, fill=26
+1308	tfa_guardian	[hit] id=13, value=0
+1308	tfa_guardian	[hit] id=17, value=1
+1309	tfa_guardian	[spotanim] id=-1, delay=87, height=96
+1309	tfa_guardian	[headbar] id=10, fill=24
+1309	tfa_guardian	[headbar] id=10, fill=24
+1309	tfa_guardian	[hit] id=17, value=25
+1309	tfa_guardian	[hit] id=17, value=4
+1310	tfa_guardian	[spotanim] id=vfx_guardian_special_attack_spotanim01 (4205)
+1310	tfa_guardian	[sequence] id=npc_archive_guardian_special_attack01 (14753)
+1310	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4132, 5600, 0), shape=10, rotation=0
+1310	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4133, 5600, 0), shape=10, rotation=0
+1310	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4130, 5600, 0), shape=10, rotation=0
+1310	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4129, 5604, 0), shape=10, rotation=0
+1310	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4123, 5600, 0), shape=10, rotation=0
+1310	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4124, 5602, 0), shape=10, rotation=0
+1310	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4127, 5601, 0), shape=10, rotation=0
+1310	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4126, 5593, 0), shape=10, rotation=0
+1310	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4134, 5599, 0), shape=10, rotation=0
+1310	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4128, 5589, 0), shape=10, rotation=0
+1311	tfa_guardian	[spotanim] id=xbows_diamond_tips_spotanim (758), delay=2
+1311	tfa_guardian	[headbar] id=10, fill=24
+1311	tfa_guardian	[headbar] id=10, fill=24
+1311	tfa_guardian	[hit] id=13, value=0
+1311	tfa_guardian	[hit] id=13, value=0
+1312	tfa_guardian	[headbar] id=10, fill=24
+1312	tfa_guardian	[headbar] id=10, fill=24
+1312	tfa_guardian	[hit] id=17, value=2
+1312	tfa_guardian	[hit] id=13, value=0
+1313	tfa_guardian	[spotanim] id=-1, delay=87, height=96
+1313	tfa_guardian	[headbar] id=10, fill=21
+1313	tfa_guardian	[hit] id=17, value=36
+1313	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4132, 5600, 0), shape=10, rotation=0
+1313	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4133, 5600, 0), shape=10, rotation=0
+1313	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4130, 5600, 0), shape=10, rotation=0
+1313	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4129, 5604, 0), shape=10, rotation=0
+1313	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4123, 5600, 0), shape=10, rotation=0
+1313	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4124, 5602, 0), shape=10, rotation=0
+1313	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4127, 5601, 0), shape=10, rotation=0
+1313	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4126, 5593, 0), shape=10, rotation=0
+1313	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4134, 5599, 0), shape=10, rotation=0
+1313	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4128, 5589, 0), shape=10, rotation=0
+1314	tfa_guardian	[headbar] id=10, fill=21
+1314	tfa_guardian	[headbar] id=10, fill=17
+1314	tfa_guardian	[hit] id=17, value=4
+1314	tfa_guardian	[hit] id=17, value=45
+1315	tfa_guardian	[spotanim] id=thrall_magic_impact (1908), delay=45, height=96
+1315	tfa_guardian	[headbar] id=10, fill=17
+1315	tfa_guardian	[headbar] id=10, fill=17
+1315	tfa_guardian	[headbar] id=10, fill=17
+1315	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+1315	tfa_guardian	[hit] id=13, value=0
+1315	tfa_guardian	[hit] id=17, value=3
+1315	tfa_guardian	[hit] id=17, value=1
+1315	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4123, 5600, 0), shape=10, rotation=0
+1315	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4131, 5596, 0), shape=10, rotation=0
+1316	tfa_guardian	[headbar] id=10, fill=17
+1316	tfa_guardian	[hit] id=17, value=3
+1316	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4129, 5604, 0), shape=10, rotation=0
+1316	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4134, 5596, 0), shape=10, rotation=0
+1317	tfa_guardian	[spotanim] id=-1, delay=87, height=96
+1317	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4132, 5600, 0), shape=10, rotation=0
+1317	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4133, 5600, 0), shape=10, rotation=0
+1318	tfa_guardian	[headbar] id=10, fill=17
+1318	tfa_guardian	[hit] id=13, value=0
+1319	tfa_guardian	[spotanim] id=thrall_magic_impact (1908), delay=45, height=96
+1319	tfa_guardian	[headbar] id=10, fill=16
+1319	tfa_guardian	[headbar] id=10, fill=16
+1319	tfa_guardian	[hit] id=17, value=3
+1319	tfa_guardian	[hit] id=17, value=2
+1320	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+1320	tfa_guardian	[headbar] id=10, fill=13
+1320	tfa_guardian	[headbar] id=10, fill=13
+1320	tfa_guardian	[headbar] id=10, fill=13
+1320	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+1320	tfa_guardian	[hit] id=17, value=35
+1320	tfa_guardian	[hit] id=17, value=4
+1320	tfa_guardian	[hit] id=17, value=3
+1320	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4134, 5599, 0), shape=10, rotation=0
+1321	tfa_guardian	[spotanim] id=-1, delay=87, height=96
+1321	tfa_guardian_battery_active	[facing] type=reset
+1321	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4121, 5595, 0), shape=10, rotation=0
+1322	tfa_guardian	[headbar] id=10, fill=11
+1322	tfa_guardian	[hit] id=17, value=18
+1323	tfa_guardian	[spotanim] id=thrall_magic_impact (1908), delay=45, height=96
+1323	tfa_guardian	[headbar] id=10, fill=11
+1323	tfa_guardian	[headbar] id=10, fill=11
+1323	tfa_guardian	[hit] id=17, value=1
+1323	tfa_guardian	[hit] id=17, value=3
+1323	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4127, 5601, 0), shape=10, rotation=0
+1324	tfa_guardian	[headbar] id=10, fill=11
+1324	tfa_guardian	[hit] id=13, value=0
+1324	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4125, 5598, 0), shape=10, rotation=0
+1325	tfa_guardian	[spotanim] id=-1, delay=87, height=96
+1325	tfa_guardian	[headbar] id=10, fill=9
+1325	tfa_guardian	[headbar] id=10, fill=7
+1325	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+1325	tfa_guardian	[hit] id=17, value=33
+1325	tfa_guardian	[hit] id=17, value=14
+1325	tfa_guardian_battery_active	[facing] type=reset
+1325	tfa_guardian_battery_active	[enabled_ops] opflags=0b00000
+1325	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4122, 5596, 0), shape=10, rotation=0
+1326	tfa_guardian	[headbar] id=10, fill=7
+1326	tfa_guardian	[hit] id=17, value=9
+1327	tfa_guardian	[headbar] id=10, fill=6
+1327	tfa_guardian	[headbar] id=10, fill=5
+1327	tfa_guardian	[headbar] id=10, fill=5
+1327	tfa_guardian	[hit] id=17, value=14
+1327	tfa_guardian	[hit] id=17, value=3
+1327	tfa_guardian	[hit] id=13, value=0
+1327	tfa_guardian_battery_active	[facing] type=reset
+1328	tfa_guardian_battery_active	[facing] type=reset
+1329	tfa_guardian	[spotanim] id=-1, delay=87, height=96
+1329	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4124, 5601, 0), shape=10, rotation=0
+1329	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4124, 5602, 0), shape=10, rotation=0
+1330	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+1330	tfa_guardian	[headbar] id=10, fill=5
+1330	tfa_guardian	[headbar] id=10, fill=5
+1330	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+1330	tfa_guardian	[hit] id=13, value=0
+1330	tfa_guardian	[hit] id=17, value=8
+1331	tfa_guardian	[headbar] id=10, fill=5
+1331	tfa_guardian	[headbar] id=10, fill=5
+1331	tfa_guardian	[headbar] id=10, fill=5
+1331	tfa_guardian	[hit] id=13, value=0
+1331	tfa_guardian	[hit] id=17, value=1
+1331	tfa_guardian	[hit] id=13, value=0
+1332	tfa_guardian	[headbar] id=10, fill=3
+1332	tfa_guardian	[hit] id=17, value=19
+1333	tfa_guardian	[headbar] id=10, fill=0
+1333	tfa_guardian	[facing] type=reset
+1333	tfa_guardian	[hit] id=17, value=34
+1335	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4130, 5600, 0), shape=10, rotation=0
+1336	tfa_guardian	[spotanim] id=vfx_guardian_idletoground_spotanim01 (4202)
+1336	tfa_guardian	[headbar] id=19, removed=true
+1336	tfa_guardian	[headbar] id=19, fill=34
+1336	tfa_guardian	[sequence] id=npc_archive_guardian_idle_to_ground01 (14747)
+1336	tfa_guardian	[enabled_ops] opflags=0b11111
+1336	tfa_guardian	[transformation] id=tfa_guardian_unshielded (16660)
+1336	ZONE	map_anim id=tfa_arena_sword_drop_explosion_instant (4389), delay=20, coord=(4127, 5599, 0)
+1337	tfa_guardian_unshielded	[bas] ready=npc_archive_guardian_ground_idle01 (14746)
+1338	tfa_guardian_unshielded	[headbar] id=19, fill=34
+1338	tfa_guardian_unshielded	[hit] id=17, value=5
+1340	tfa_guardian_unshielded	[headbar] id=19, fill=33
+1340	tfa_guardian_unshielded	[hit] id=17, value=14
+1340	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4126, 5596, 0), shape=10, rotation=0
+1341	tfa_guardian_unshielded	[spotanim] id=-1, delay=87, height=96
+1341	ZONE	map_anim id=dragon_halberd_special_south_red (478), delay=20, height=92, coord=(4127, 5601, 0)
+1342	tfa_guardian_unshielded	[spotanim] id=thrall_magic_impact (1908), delay=40, height=96
+1342	tfa_guardian_unshielded	[headbar] id=19, fill=33
+1342	tfa_guardian_unshielded	[headbar] id=19, fill=31
+1342	tfa_guardian_unshielded	[headbar] id=19, fill=30
+1342	tfa_guardian_unshielded	[headbar] id=19, fill=30
+1342	tfa_guardian_unshielded	[headbar] id=19, fill=30
+1342	tfa_guardian_unshielded	[hit] id=17, value=24
+1342	tfa_guardian_unshielded	[hit] id=17, value=37
+1342	tfa_guardian_unshielded	[hit] id=17, value=23
+1342	tfa_guardian_unshielded	[hit] id=13, value=0
+1342	tfa_guardian_unshielded	[hit] id=17, value=7
+1343	tfa_guardian_unshielded	[headbar] id=19, fill=30
+1343	tfa_guardian_unshielded	[headbar] id=19, fill=30
+1343	tfa_guardian_unshielded	[headbar] id=19, fill=30
+1343	tfa_guardian_unshielded	[hit] id=13, value=0
+1343	tfa_guardian_unshielded	[hit] id=13, value=0
+1343	tfa_guardian_unshielded	[hit] id=17, value=2
+1345	tfa_guardian_unshielded	[spotanim] id=-1, delay=87, height=96
+1345	tfa_guardian_unshielded	[headbar] id=19, fill=30
+1345	tfa_guardian_unshielded	[hit] id=17, value=3
+1346	tfa_guardian_unshielded	[spotanim] id=thrall_magic_impact (1908), delay=40, height=96
+1347	tfa_guardian_unshielded	[headbar] id=19, fill=30
+1347	tfa_guardian_unshielded	[headbar] id=19, fill=28
+1347	tfa_guardian_unshielded	[headbar] id=19, fill=28
+1347	tfa_guardian_unshielded	[hit] id=17, value=1
+1347	tfa_guardian_unshielded	[hit] id=17, value=32
+1347	tfa_guardian_unshielded	[hit] id=17, value=1
+1347	ZONE	map_anim id=dragon_halberd_special_north_red (506), delay=20, height=92, coord=(4130, 5598, 0)
+1348	tfa_guardian_unshielded	[headbar] id=19, fill=28
+1348	tfa_guardian_unshielded	[headbar] id=19, fill=28
+1348	tfa_guardian_unshielded	[headbar] id=19, fill=28
+1348	tfa_guardian_unshielded	[headbar] id=19, fill=28
+1348	tfa_guardian_unshielded	[hit] id=17, value=2
+1348	tfa_guardian_unshielded	[hit] id=13, value=0
+1348	tfa_guardian_unshielded	[hit] id=13, value=0
+1348	tfa_guardian_unshielded	[hit] id=13, value=0
+1349	tfa_guardian_unshielded	[spotanim] id=-1, delay=87, height=96
+1349	tfa_guardian_unshielded	[headbar] id=19, fill=28
+1349	tfa_guardian_unshielded	[headbar] id=19, fill=26
+1349	tfa_guardian_unshielded	[hit] id=17, value=19
+1349	tfa_guardian_unshielded	[hit] id=17, value=38
+1349	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4126, 5593, 0), shape=10, rotation=0
+1350	tfa_guardian_unshielded	[spotanim] id=vfx_guardian_groundtoidle_spotanim01 (4203)
+1350	tfa_guardian_unshielded	[headbar] id=10, removed=true
+1350	tfa_guardian_unshielded	[sequence] id=npc_archive_guardian_ground_to_flying01 (14748)
+1350	tfa_guardian_unshielded	[enabled_ops] opflags=0b11111
+1350	tfa_guardian_unshielded	[transformation] id=tfa_guardian (16659)
+1350	tfa_guardian_unshielded	[bas]
+1354	tfa_guardian	[spotanim] id=-1, delay=87, height=96
+1355	tfa_guardian	[spotanim] id=vfx_guardian_special_attack_spotanim01 (4205)
+1355	tfa_guardian	[headbar] id=10, fill=99
+1355	tfa_guardian	[sequence] id=npc_archive_guardian_special_attack01 (14753)
+1355	tfa_guardian	[hit] id=17, value=6
+1355	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4130, 5606, 0), shape=10, rotation=0
+1355	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4128, 5610, 0), shape=10, rotation=0
+1355	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4127, 5609, 0), shape=10, rotation=0
+1355	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4126, 5605, 0), shape=10, rotation=0
+1355	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4129, 5596, 0), shape=10, rotation=0
+1355	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4133, 5596, 0), shape=10, rotation=0
+1355	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4135, 5597, 0), shape=10, rotation=0
+1355	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4133, 5595, 0), shape=10, rotation=0
+1355	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4128, 5594, 0), shape=10, rotation=0
+1355	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4128, 5596, 0), shape=10, rotation=0
+1356	tfa_guardian	[spotanim] id=thrall_magic_impact (1908), delay=40, height=96
+1356	tfa_guardian	[headbar] id=10, fill=98
+1356	tfa_guardian	[headbar] id=10, fill=98
+1356	tfa_guardian	[headbar] id=10, fill=98
+1356	tfa_guardian	[hit] id=17, value=10
+1356	tfa_guardian	[hit] id=17, value=6
+1356	tfa_guardian	[hit] id=17, value=2
+1357	tfa_guardian	[headbar] id=10, fill=98
+1357	tfa_guardian	[hit] id=17, value=1
+1358	tfa_guardian	[spotanim] id=-1, delay=87, height=96
+1358	tfa_guardian	[headbar] id=10, fill=98
+1358	tfa_guardian	[hit] id=13, value=0
+1358	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4130, 5606, 0), shape=10, rotation=0
+1358	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4128, 5610, 0), shape=10, rotation=0
+1358	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4127, 5609, 0), shape=10, rotation=0
+1358	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4126, 5605, 0), shape=10, rotation=0
+1358	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4129, 5596, 0), shape=10, rotation=0
+1358	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4133, 5596, 0), shape=10, rotation=0
+1358	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4135, 5597, 0), shape=10, rotation=0
+1358	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4133, 5595, 0), shape=10, rotation=0
+1358	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4128, 5594, 0), shape=10, rotation=0
+1358	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4128, 5596, 0), shape=10, rotation=0
+1360	tfa_guardian	[spotanim] id=thrall_magic_impact (1908), delay=40, height=96
+1360	tfa_guardian	[spotanim] slot=2, id=vfx_guardian_enraged_phase_spotanim01 (4204)
+1360	tfa_guardian	[headbar] id=10, fill=97
+1360	tfa_guardian	[sequence] id=npc_archive_guardian_enraged_phase01 (14754)
+1360	tfa_guardian	[hit] id=17, value=2
+1361	tfa_guardian	[headbar] id=10, fill=97
+1361	tfa_guardian	[hit] id=17, value=3
+1361	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4129, 5596, 0), shape=10, rotation=0
+1362	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4133, 5596, 0), shape=10, rotation=0
+1362	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4133, 5595, 0), shape=10, rotation=0
+1362	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4128, 5589, 0), shape=10, rotation=0
+1363	tfa_guardian	[headbar] id=10, fill=95
+1363	tfa_guardian	[headbar] id=10, fill=94
+1363	tfa_guardian	[hit] id=17, value=27
+1363	tfa_guardian	[hit] id=17, value=10
+1364	tfa_guardian	[spotanim] id=thrall_magic_impact (1908), delay=40, height=96
+1364	tfa_guardian	[headbar] id=10, fill=94
+1364	tfa_guardian	[hit] id=17, value=2
+1365	tfa_guardian	[spotanim] id=xbows_diamond_tips_spotanim (758), delay=2
+1365	tfa_guardian	[headbar] id=10, fill=94
+1365	tfa_guardian	[hit] id=17, value=2
+1368	tfa_guardian	[spotanim] id=thrall_magic_impact (1908), delay=40, height=96
+1368	tfa_guardian	[headbar] id=10, fill=93
+1368	tfa_guardian	[headbar] id=10, fill=91
+1368	tfa_guardian	[headbar] id=10, fill=91
+1368	tfa_guardian	[hit] id=17, value=6
+1368	tfa_guardian	[hit] id=17, value=31
+1368	tfa_guardian	[hit] id=13, value=0
+1368	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4128, 5594, 0), shape=10, rotation=0
+1369	tfa_guardian	[headbar] id=10, fill=91
+1369	tfa_guardian	[hit] id=17, value=2
+1370	tfa_guardian	[facing] coord=(4135, 5592, 0), instant=true
+1370	tfa_guardian_battery_active	[headbar] id=0, fill=0
+1370	tfa_guardian_battery_active	[headbar] id=0, fill=0
+1370	tfa_guardian_battery_active	[hit] id=17, value=400
+1371	tfa_guardian	[headbar] id=10, fill=91
+1371	tfa_guardian	[hit] id=17, value=1
+1371	tfa_guardian_battery_active	[sequence] id=guthixian_battery_despawn (15025)
+1371	tfa_guardian_battery_active	[enabled_ops] opflags=0b00000
+1372	tfa_guardian	[spotanim] id=xbows_diamond_tips_spotanim (758), delay=2
+1372	tfa_guardian	[headbar] id=10, fill=91
+1372	tfa_guardian	[headbar] id=10, fill=91
+1372	tfa_guardian	[hit] id=13, value=0
+1372	tfa_guardian	[hit] id=17, value=1
+1373	tfa_guardian	[headbar] id=10, fill=91
+1373	tfa_guardian	[hit] id=13, value=0
+1373	tfa_guardian_battery_active	[level_change] level=0
+1373	tfa_guardian_battery_active	[headbar] id=0, removed=true
+1373	tfa_guardian_battery_active	[enabled_ops] opflags=0b11111
+1373	tfa_guardian_battery_active	[transformation] id=tfa_guardian_battery_destroyed (16663)
+1374	tfa_guardian	[headbar] id=10, fill=51
+1374	tfa_guardian	[hit] id=17, value=504
+1375	tfa_guardian	[spotanim] id=vfx_guardian_special_attack_spotanim01 (4205)
+1375	tfa_guardian	[headbar] id=10, fill=51
+1375	tfa_guardian	[sequence] id=npc_archive_guardian_special_attack01 (14753)
+1375	tfa_guardian	[hit] id=17, value=1
+1375	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4126, 5594, 0), shape=10, rotation=0
+1375	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4130, 5593, 0), shape=10, rotation=0
+1375	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4132, 5597, 0), shape=10, rotation=0
+1375	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4129, 5594, 0), shape=10, rotation=0
+1375	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4134, 5593, 0), shape=10, rotation=0
+1375	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4132, 5592, 0), shape=10, rotation=0
+1375	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4135, 5592, 0), shape=10, rotation=0
+1375	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4133, 5595, 0), shape=10, rotation=0
+1375	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4133, 5591, 0), shape=10, rotation=0
+1375	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4134, 5589, 0), shape=10, rotation=0
+1376	tfa_guardian	[spotanim] id=thrall_magic_impact (1908), delay=40, height=96
+1376	tfa_guardian	[headbar] id=10, fill=51
+1376	tfa_guardian	[hit] id=17, value=2
+1377	tfa_guardian	[spotanim] id=-1, delay=97, height=96
+1377	tfa_guardian	[headbar] id=10, fill=51
+1377	tfa_guardian	[hit] id=17, value=3
+1378	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4126, 5594, 0), shape=10, rotation=0
+1378	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4130, 5593, 0), shape=10, rotation=0
+1378	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4132, 5597, 0), shape=10, rotation=0
+1378	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4129, 5594, 0), shape=10, rotation=0
+1378	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4134, 5593, 0), shape=10, rotation=0
+1378	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4132, 5592, 0), shape=10, rotation=0
+1378	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4135, 5592, 0), shape=10, rotation=0
+1378	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4133, 5595, 0), shape=10, rotation=0
+1378	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4133, 5591, 0), shape=10, rotation=0
+1378	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4134, 5589, 0), shape=10, rotation=0
+1379	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4128, 5596, 0), shape=10, rotation=0
+1380	tfa_guardian	[spotanim] id=thrall_magic_impact (1908), delay=40, height=96
+1380	tfa_guardian	[spotanim] slot=2, id=vfx_guardian_enraged_phase_spotanim01 (4204)
+1380	tfa_guardian	[headbar] id=10, fill=51
+1380	tfa_guardian	[headbar] id=10, fill=50
+1380	tfa_guardian	[sequence] id=npc_archive_guardian_enraged_phase01 (14754)
+1380	tfa_guardian	[hit] id=13, value=0
+1380	tfa_guardian	[hit] id=17, value=3
+1380	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4126, 5594, 0), shape=10, rotation=0
+1381	tfa_guardian	[spotanim] id=-1, delay=97, height=96
+1381	tfa_guardian	[headbar] id=10, fill=48
+1381	tfa_guardian	[headbar] id=10, fill=48
+1381	tfa_guardian	[hit] id=17, value=35
+1381	tfa_guardian	[hit] id=17, value=1
+1383	tfa_guardian	[headbar] id=10, fill=48
+1383	tfa_guardian	[hit] id=13, value=0
+1384	tfa_guardian	[spotanim] id=thrall_magic_impact (1908), delay=40, height=96
+1384	tfa_guardian	[headbar] id=10, fill=47
+1384	tfa_guardian	[headbar] id=10, fill=47
+1384	tfa_guardian	[hit] id=17, value=2
+1384	tfa_guardian	[hit] id=17, value=1
+1385	tfa_guardian	[spotanim] id=-1, delay=97, height=96
+1385	tfa_guardian	[headbar] id=10, fill=46
+1385	tfa_guardian	[headbar] id=10, fill=46
+1385	tfa_guardian	[hit] id=17, value=16
+1385	tfa_guardian	[hit] id=17, value=2
+1386	tfa_guardian	[spotanim] id=xbows_diamond_tips_spotanim (758), delay=2
+1386	tfa_guardian	[headbar] id=10, fill=43
+1386	tfa_guardian	[headbar] id=10, fill=43
+1386	tfa_guardian	[hit] id=17, value=40
+1386	tfa_guardian	[hit] id=13, value=0
+1388	tfa_guardian	[spotanim] id=thrall_magic_impact (1908), delay=40, height=96
+1388	tfa_guardian	[headbar] id=10, fill=43
+1388	tfa_guardian	[headbar] id=10, fill=42
+1388	tfa_guardian	[headbar] id=10, fill=42
+1388	tfa_guardian	[hit] id=13, value=0
+1388	tfa_guardian	[hit] id=17, value=6
+1388	tfa_guardian	[hit] id=13, value=0
+1389	tfa_guardian	[spotanim] id=-1, delay=97, height=96
+1389	tfa_guardian	[headbar] id=10, fill=42
+1389	tfa_guardian	[headbar] id=10, fill=42
+1389	tfa_guardian	[hit] id=17, value=1
+1389	tfa_guardian	[hit] id=13, value=0
+1390	tfa_guardian	[headbar] id=10, fill=42
+1390	tfa_guardian	[facing] coord=(4119, 5593, 0), instant=true
+1390	tfa_guardian	[hit] id=17, value=1
+1390	tfa_guardian_battery_active	[headbar] id=0, fill=0
+1390	tfa_guardian_battery_active	[headbar] id=0, fill=0
+1390	tfa_guardian_battery_active	[hit] id=17, value=400
+1391	tfa_guardian	[spotanim] id=xbows_diamond_tips_spotanim (758), delay=2
+1391	tfa_guardian	[headbar] id=10, fill=38
+1391	tfa_guardian	[headbar] id=10, fill=38
+1391	tfa_guardian	[headbar] id=10, fill=38
+1391	tfa_guardian	[hit] id=17, value=55
+1391	tfa_guardian	[hit] id=13, value=0
+1391	tfa_guardian	[hit] id=17, value=1
+1391	tfa_guardian_battery_active	[sequence] id=guthixian_battery_despawn (15025)
+1391	tfa_guardian_battery_active	[enabled_ops] opflags=0b00000
+1392	tfa_guardian	[spotanim] id=thrall_magic_impact (1908), delay=40, height=96
+1392	tfa_guardian	[headbar] id=10, fill=38
+1392	tfa_guardian	[headbar] id=10, fill=38
+1392	tfa_guardian	[hit] id=13, value=0
+1392	tfa_guardian	[hit] id=17, value=1
+1393	tfa_guardian	[spotanim] id=-1, delay=97, height=96
+1393	tfa_guardian	[headbar] id=10, fill=38
+1393	tfa_guardian	[hit] id=17, value=2
+1393	tfa_guardian_battery_active	[level_change] level=0
+1393	tfa_guardian_battery_active	[headbar] id=0, removed=true
+1393	tfa_guardian_battery_active	[enabled_ops] opflags=0b11111
+1393	tfa_guardian_battery_active	[transformation] id=tfa_guardian_battery_destroyed (16663)
+1394	tfa_guardian	[headbar] id=10, fill=37
+1394	tfa_guardian	[headbar] id=19, removed=true
+1394	tfa_guardian	[headbar] id=19, fill=26
+1394	tfa_guardian	[headbar] id=19, fill=8
+1394	tfa_guardian	[enabled_ops] opflags=0b11111
+1394	tfa_guardian	[transformation] id=tfa_guardian_unshielded (16660)
+1394	tfa_guardian	[hit] id=17, value=11
+1394	tfa_guardian	[hit] id=17, value=460
+1395	tfa_guardian_unshielded	[spotanim] id=vfx_guardian_special_attack_spotanim01 (4205)
+1395	tfa_guardian_unshielded	[sequence] id=npc_archive_guardian_special_attack01 (14753)
+1395	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4120, 5600, 0), shape=10, rotation=0
+1395	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4120, 5601, 0), shape=10, rotation=0
+1395	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4121, 5594, 0), shape=10, rotation=0
+1395	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4121, 5596, 0), shape=10, rotation=0
+1395	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4122, 5599, 0), shape=10, rotation=0
+1395	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4116, 5601, 0), shape=10, rotation=0
+1395	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4117, 5600, 0), shape=10, rotation=0
+1395	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4119, 5596, 0), shape=10, rotation=0
+1395	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4118, 5598, 0), shape=10, rotation=0
+1395	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4118, 5599, 0), shape=10, rotation=0
+1396	tfa_guardian_unshielded	[headbar] id=19, fill=8
+1396	tfa_guardian_unshielded	[hit] id=17, value=2
+1396	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4120, 5604, 0), shape=10, rotation=0
+1397	tfa_guardian_unshielded	[headbar] id=19, fill=8
+1397	tfa_guardian_unshielded	[hit] id=17, value=4
+1398	tfa_guardian_unshielded	[headbar] id=19, fill=7
+1398	tfa_guardian_unshielded	[hit] id=17, value=28
+1398	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4120, 5600, 0), shape=10, rotation=0
+1398	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4120, 5601, 0), shape=10, rotation=0
+1398	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4121, 5594, 0), shape=10, rotation=0
+1398	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4121, 5596, 0), shape=10, rotation=0
+1398	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4122, 5599, 0), shape=10, rotation=0
+1398	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4116, 5601, 0), shape=10, rotation=0
+1398	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4117, 5600, 0), shape=10, rotation=0
+1398	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4119, 5596, 0), shape=10, rotation=0
+1398	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4118, 5598, 0), shape=10, rotation=0
+1398	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4118, 5599, 0), shape=10, rotation=0
+1399	tfa_guardian_unshielded	[headbar] id=19, fill=7
+1399	tfa_guardian_unshielded	[hit] id=13, value=0
+1400	tfa_guardian_unshielded	[spotanim] slot=2, id=vfx_guardian_enraged_phase_spotanim01 (4204)
+1400	tfa_guardian_unshielded	[headbar] id=19, fill=7
+1400	tfa_guardian_unshielded	[sequence] id=npc_archive_guardian_enraged_phase01 (14754)
+1400	tfa_guardian_unshielded	[hit] id=17, value=2
+1401	tfa_guardian_unshielded	[spotanim] id=thrall_magic_impact (1908), delay=40, height=96
+1402	tfa_guardian_unshielded	[spotanim] id=-1, delay=97, height=96
+1402	tfa_guardian_unshielded	[headbar] id=19, fill=7
+1402	tfa_guardian_unshielded	[hit] id=17, value=1
+1403	tfa_guardian_unshielded	[headbar] id=19, fill=6
+1403	tfa_guardian_unshielded	[hit] id=17, value=10
+1404	tfa_guardian_unshielded	[headbar] id=19, fill=6
+1404	tfa_guardian_unshielded	[headbar] id=19, fill=6
+1404	tfa_guardian_unshielded	[headbar] id=19, fill=6
+1404	tfa_guardian_unshielded	[headbar] id=19, fill=6
+1404	tfa_guardian_unshielded	[hit] id=13, value=0
+1404	tfa_guardian_unshielded	[hit] id=13, value=0
+1404	tfa_guardian_unshielded	[hit] id=17, value=6
+1404	tfa_guardian_unshielded	[hit] id=17, value=2
+1405	tfa_guardian_unshielded	[spotanim] id=thrall_magic_impact (1908), delay=40, height=96
+1405	tfa_guardian_unshielded	[headbar] id=19, fill=6
+1405	tfa_guardian_unshielded	[hit] id=17, value=1
+1406	tfa_guardian_unshielded	[spotanim] id=-1, delay=97, height=96
+1406	tfa_guardian_unshielded	[headbar] id=19, fill=6
+1406	tfa_guardian_unshielded	[headbar] id=19, fill=6
+1406	tfa_guardian_unshielded	[hit] id=13, value=0
+1406	tfa_guardian_unshielded	[hit] id=17, value=1
+1408	tfa_guardian_unshielded	[headbar] id=19, fill=5
+1408	tfa_guardian_unshielded	[headbar] id=19, fill=5
+1408	tfa_guardian_unshielded	[hit] id=17, value=26
+1408	tfa_guardian_unshielded	[hit] id=17, value=3
+1409	tfa_guardian_unshielded	[spotanim] id=thrall_magic_impact (1908), delay=40, height=96
+1409	tfa_guardian_unshielded	[headbar] id=19, fill=5
+1409	tfa_guardian_unshielded	[headbar] id=19, fill=5
+1409	tfa_guardian_unshielded	[headbar] id=19, fill=4
+1409	tfa_guardian_unshielded	[hit] id=17, value=1
+1409	tfa_guardian_unshielded	[hit] id=13, value=0
+1409	tfa_guardian_unshielded	[hit] id=17, value=23
+1410	tfa_guardian_unshielded	[spotanim] id=-1, delay=97, height=96
+1410	tfa_guardian_unshielded	[headbar] id=19, fill=3
+1410	tfa_guardian_unshielded	[headbar] id=19, fill=3
+1410	tfa_guardian_unshielded	[facing] coord=(4119, 5606, 0), instant=true
+1410	tfa_guardian_unshielded	[hit] id=17, value=19
+1410	tfa_guardian_unshielded	[hit] id=17, value=3
+1410	tfa_guardian_battery_active	[headbar] id=0, fill=0
+1410	tfa_guardian_battery_active	[headbar] id=0, fill=0
+1410	tfa_guardian_battery_active	[hit] id=17, value=400
+1411	tfa_guardian_unshielded	[headbar] id=19, fill=3
+1411	tfa_guardian_unshielded	[headbar] id=19, fill=3
+1411	tfa_guardian_unshielded	[hit] id=17, value=3
+1411	tfa_guardian_unshielded	[hit] id=17, value=2
+1411	tfa_guardian_battery_active	[sequence] id=guthixian_battery_despawn (15025)
+1411	tfa_guardian_battery_active	[enabled_ops] opflags=0b00000
+1412	tfa_guardian_unshielded	[headbar] id=19, fill=3
+1412	tfa_guardian_unshielded	[hit] id=17, value=2
+1413	tfa_guardian_unshielded	[spotanim] id=thrall_magic_impact (1908), delay=40, height=96
+1413	tfa_guardian_unshielded	[headbar] id=19, fill=2
+1413	tfa_guardian_unshielded	[headbar] id=19, fill=2
+1413	tfa_guardian_unshielded	[hit] id=17, value=3
+1413	tfa_guardian_unshielded	[hit] id=13, value=0
+1413	tfa_guardian_battery_active	[level_change] level=0
+1413	tfa_guardian_battery_active	[headbar] id=0, removed=true
+1413	tfa_guardian_battery_active	[enabled_ops] opflags=0b11111
+1413	tfa_guardian_battery_active	[transformation] id=tfa_guardian_battery_destroyed (16663)
+1414	tfa_guardian_unshielded	[spotanim] id=-1, delay=97, height=96
+1414	tfa_guardian_unshielded	[headbar] id=19, fill=2
+1414	tfa_guardian_unshielded	[headbar] id=19, fill=2
+1414	tfa_guardian_unshielded	[hit] id=13, value=0
+1414	tfa_guardian_unshielded	[hit] id=17, value=1
+1415	tfa_guardian_unshielded	[spotanim] id=vfx_guardian_special_attack_spotanim01 (4205)
+1415	tfa_guardian_unshielded	[headbar] id=19, fill=2
+1415	tfa_guardian_unshielded	[sequence] id=npc_archive_guardian_special_attack01 (14753)
+1415	tfa_guardian_unshielded	[hit] id=17, value=3
+1415	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4121, 5609, 0), shape=10, rotation=0
+1415	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4124, 5611, 0), shape=10, rotation=0
+1415	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4122, 5604, 0), shape=10, rotation=0
+1415	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4122, 5607, 0), shape=10, rotation=0
+1415	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4120, 5604, 0), shape=10, rotation=0
+1415	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4122, 5605, 0), shape=10, rotation=0
+1415	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4120, 5607, 0), shape=10, rotation=0
+1415	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4129, 5616, 0), shape=10, rotation=0
+1415	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4133, 5618, 0), shape=10, rotation=0
+1415	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4119, 5605, 0), shape=10, rotation=0
+1416	tfa_guardian_unshielded	[headbar] id=19, fill=2
+1416	tfa_guardian_unshielded	[hit] id=13, value=0
+1416	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4125, 5606, 0), shape=10, rotation=0
+1416	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4126, 5605, 0), shape=10, rotation=0
+1417	tfa_guardian_unshielded	[spotanim] id=thrall_magic_impact (1908), delay=40, height=96
+1417	tfa_guardian_unshielded	[headbar] id=19, fill=2
+1417	tfa_guardian_unshielded	[hit] id=17, value=1
+1418	tfa_guardian_unshielded#37661	telejump (4125,5597), newcoord=(4125, 5608, 0)
+1418	tfa_guardian_unshielded	[exact_move] to1=(4125, 5597, 0), delay1=0, to2=(4125, 5608, 0), delay2=52, angle=1024
+1418	tfa_guardian_unshielded	[level_change] level=1,170
+1418	tfa_guardian_unshielded	[headbar] id=19, fill=1
+1418	tfa_guardian_unshielded	[headbar] id=19, fill=1
+1418	tfa_guardian_unshielded	[sequence] id=npc_archive_guardian_swoosh_attack01 (14750)
+1418	tfa_guardian_unshielded	[facing] angle=1024
+1418	tfa_guardian_unshielded	[hit] id=17, value=25
+1418	tfa_guardian_unshielded	[hit] id=17, value=3
+1418	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4121, 5609, 0), shape=10, rotation=0
+1418	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4124, 5611, 0), shape=10, rotation=0
+1418	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4122, 5604, 0), shape=10, rotation=0
+1418	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4122, 5607, 0), shape=10, rotation=0
+1418	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4120, 5604, 0), shape=10, rotation=0
+1418	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4122, 5605, 0), shape=10, rotation=0
+1418	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4120, 5607, 0), shape=10, rotation=0
+1418	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4129, 5616, 0), shape=10, rotation=0
+1418	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4133, 5618, 0), shape=10, rotation=0
+1418	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4119, 5605, 0), shape=10, rotation=0
+1419	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4130, 5606, 0), shape=10, rotation=0
+1420	tfa_guardian_unshielded	[spotanim] slot=2, id=vfx_guardian_enraged_phase_spotanim01 (4204)
+1420	tfa_guardian_unshielded	[sequence] id=npc_archive_guardian_enraged_phase01 (14754)
+1423	tfa_guardian_unshielded	[headbar] id=19, fill=1
+1423	tfa_guardian_unshielded	[hit] id=17, value=3
+1424	tfa_guardian_unshielded	[spotanim] slot=2, id=vfx_ocellus_null (4345), height=200
+1424	tfa_guardian_unshielded	[headbar] id=19, fill=1
+1424	tfa_guardian_unshielded	[headbar] id=19, fill=0
+1424	tfa_guardian_unshielded	[headbar] id=19, fill=0
+1424	tfa_guardian_unshielded	[headbar] id=19, fill=0
+1424	tfa_guardian_unshielded	[sequence] id=npc_archive_guardian_death01 (14749)
+1424	tfa_guardian_unshielded	[facing] type=reset
+1424	tfa_guardian_unshielded	[enabled_ops] opflags=0b00000
+1424	tfa_guardian_unshielded	[hit] id=17, value=9
+1424	tfa_guardian_unshielded	[hit] id=17, value=3
+1424	tfa_guardian_unshielded	[hit] id=13, value=0
+1424	tfa_guardian_unshielded	[hit] id=13, value=0
+1427	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4128, 5610, 0), shape=10, rotation=0
+1429	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4127, 5609, 0), shape=10, rotation=0
+1431	ZONE	message_game type=gamemessage, message="Challenge complete: Archive Guardian. Duration: <col=ef1020>5:47</col>. Total: <col=ef1020>5:47</col>"
+1431	tfa_guardian_battery_destroyed#37665	del (4114,5592)
+1431	tfa_guardian_battery_destroyed#37663	del (4139,5592)
+1431	tfa_guardian_battery_destroyed#37664	del (4114,5605)
+1431	tfa_guardian_battery_active#37662	del (4139,5605)
+1431	tfa_guardian_unshielded	[headbar] id=0, removed=true
+1431	tfa_guardian_unshielded	[enabled_ops] opflags=0b11111
+1431	tfa_guardian_unshielded	[transformation] id=tfa_guardian_dead (16658)
+1431	tfa_guardian_unshielded	[bas]
+1431	ZONE	loc_add_change_v2 id=tfa_nexus_section1_door_west_slightly (63089), coord=(4113, 5584, 0), shape=10, rotation=3
+1431	ZONE	loc_add_change_v2 id=tfa_nexus_section1_door_east_slightly (63092), coord=(4141, 5584, 0), shape=10, rotation=1
+1434	ZONE	loc_add_change_v2 id=tfa_nexus_section1_door_west_slightly_opened (63090), coord=(4113, 5584, 0), shape=10, rotation=3
+1434	ZONE	loc_add_change_v2 id=tfa_nexus_section1_door_east_slightly_opened (63093), coord=(4141, 5584, 0), shape=10, rotation=1
+1451	ZONE	message_game type=gamemessage, message="Spectating bigwangsam69. Click a fighting player's health display to spectate them."
+1452	ZONE	message_game type=gamemessage, message="Spectating the room. Click a fighting player's health display to spectate them."
+1455	ZONE	message_game type=gamemessage, message="Spectating bigwangsam69. Click a fighting player's health display to spectate them."
+1457	ZONE	message_game type=gamemessage, message="Spectating WestBlue. Click a fighting player's health display to spectate them."
+1465	ZONE	loc_add_change_v2 id=tfa_nexus_section_door_closed (63094), coord=(4141, 5610, 0), shape=10, rotation=1
+1465	ZONE	loc_add_change_v2 id=tfa_nexus_section_door_closed (63094), coord=(4113, 5610, 0), shape=10, rotation=3
+1486	ZONE	message_game type=gamemessage, message="Spectating the room. Click a fighting player's health display to spectate them."
+1486	ZONE	loc_add_change_v2 id=tfa_nexus_ocellus_door_closed (63110), coord=(4124, 5621, 0), shape=10, rotation=0
+1491	ZONE	message_game type=gamemessage, message="Spectating WestBlue. Click a fighting player's health display to spectate them."
+1491	tfa_guardian_dead#37661	del (13405,10664)
