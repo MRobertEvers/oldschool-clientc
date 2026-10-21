@@ -4773,6 +4773,10 @@ APNPC2_TWIN_EXEMPT = {
     "monkey": "melee-only refusal (Tai Bwo Wannai Trio: 'Adjacent melee attacks "
               "are dodged ... ranged, Magic, and reach weapons can kill one', "
               "tbwt_monkey.rs2:1-3); the wildcard AP half is the intended kill",
+    "tfa_guardian": "melee-only refusal (the flying Archive Guardian: 'It's "
+                    "flying too high to hit using melee.', RSProx 4297 3/3); "
+                    "ranged and magic from range are the fight, through the "
+                    "wildcard AP half (tfa_guardian.rs2)",
 }
 
 
