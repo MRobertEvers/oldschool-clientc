@@ -103,3 +103,26 @@ idx4301.txt idx4302.txt --ours <ticklog>` (counts per window).
 | corpse heals him / the 200-heal blast | the wiki only | a corpse reaching him heals its health; no blast | unverified / not built |
 | party scaling | fireballs a volley by the raiders standing: 1 alone, 2 at two to four, 3 at five | max(min(n, 2), (n + 1) / 2), n living | matched (4301, 4302, 4304, 4308; was (n + 1) / 2, one short for a duo) |
 | melee | `xarth_attack_melee_01` + `luc2_undead_demon_melee_spot` slot 2 on a target beside him | same | matched (not exercised by the bow test) |
+
+## NPC info audit (2026-10-21)
+
+Every NPC_INFO block of every npc of the room, recording against our tick log, per life:
+`tools/rsprox/npc_stream.py --match <type> --summary <transcript> <ticklog>` (counts per
+life), `tools/rsprox/npc_timeline.py` (the recording's blocks) and
+`tools/rsprox/ticklog_npc_timeline.py` (ours, with the file-only `npc_info` rows:
+spawn angle, ops, level, transparency, exact move, timed bar). Facing is part of npc info
+and is audited block by block (the entity face, the coord face and its `instant`, the angle,
+the reset, the walk type).
+
+| npc | block | recorded | ours now | verdict |
+|---|---|---|---|---|
+| Xarth | spawn | `spawnangle=west`, coord face the way in, level x party | ours north-west | fixed |
+| Xarth | engage | the entity on the tick of the bar and the song (4/4) | `npc_faceplayer` + the mode | fixed |
+| Xarth | attacks | no tile face; the entity is the attack's raider on its tick (4301 [642]) | ours: a tile face every attack | fixed |
+| Xarth | raise | the corpse tile on the seq tick, the entity +1 (10/10) | same | matched |
+| Xarth | party re-faces | the entity moves between raiders off his attack ticks (4301 [649], [657], ...); the transcript's hits carry no source | not built | **open** |
+| Xarth | death | spot + seq + `reset` + ops none, del +6 | same | matched |
+| corpse | add | spawn angle toward his middle, `coord=(middle), instant=true`, fade in; +1 `[facing] npc` Xarth, held (10/10) | `npc_facesquareinstant`, `npc_facenpc` | fixed |
+| corpse | death | reset, ops none, seq, spots; del +4 (13/13) | same | matched |
+| corpse | reaching him | del +2 after its last step (2/2, both at his death) | del +1 | **open** (confounded) |
+| rubble (destroyed) | add | south, seq, spot, `angle=0` (3/3) | ours no angle face | fixed |

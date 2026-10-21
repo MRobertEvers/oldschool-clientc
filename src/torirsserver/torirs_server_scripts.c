@@ -6931,6 +6931,7 @@ script_command(
                 npc->type, npc->mode, (int)mode);
         }
         npc->mode = mode;
+        npc->face_hold_npc_plus1 = 0;
         /*
          * A targetless mode CLEARS THE TARGET. `NPC_SETMODE` in the reference is
          * `clearInteraction()` for `none`/`wander`/`patrol` and `resetDefaults()`
@@ -10122,6 +10123,11 @@ script_command(
         npc->face_angle = (int)angle;
         npc->face_angle_instant = instant != 0;
         npc->masks |= TORIRSSERVER_NMASK_FACE_ANGLE;
+        /* An angle supersedes the entity latch on the client, as a coord
+         * does (see SS_OP_NPC_FACESQUARE): drop our copy without sending a
+         * reset, so a face mode re-latches its target the next tick (the
+         * Guardian's swoosh: `angle=`, then `player=` +1, RSProx 4297 [208]). */
+        npc->face_entity = -1;
         return 1;
     }
 
@@ -10131,6 +10137,62 @@ script_command(
      * it was facing anything (Ocellus as each phase-1 volley walk starts,
      * RSProx 4301 [917], [949]).
      */
+    /*
+     * `npc_setlevel(int $level)` -- the combat level the active npc is drawn
+     * with, sent as NPC_INFO's LEVEL_CHANGE now and with every re-add after
+     * (a jump of more than two tiles re-adds it). The Fractured Archive's
+     * bosses show theirs scaled by the party, the cache's level x1.06 at three
+     * raiders, x1.12 at four, x1.19 at five (RSProx 4297..4308: 24/24).
+     */
+    case SS_OP_NPC_SETLEVEL:
+    {
+        int32_t level;
+        struct ToriRSServerNpc* npc = active_npc(state);
+
+        if( !SSVM_PopInt(state, &level) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_setlevel with no active npc");
+            return 1;
+        }
+        if( level < 0 || level > 65535 )
+        {
+            SSVM_Abort(state, "npc_setlevel %d: must be 0..65535", (int)level);
+            return 1;
+        }
+        npc->level_override = (int)level;
+        npc->level_override_set = 1;
+        npc->masks |= TORIRSSERVER_NMASK_LEVEL;
+        return 1;
+    }
+
+    /*
+     * `npc_facewalktype(int $type)` -- the walk type the active npc's FACING
+     * blocks carry from now on: 0 cancel-on-walk, 1 turn-on-walk
+     * (`walktype=turnonwalk`; the Smorks, RSProx 4308 [532..]).
+     */
+    case SS_OP_NPC_FACEWALKTYPE:
+    {
+        int32_t type;
+        struct ToriRSServerNpc* npc = active_npc(state);
+
+        if( !SSVM_PopInt(state, &type) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_facewalktype with no active npc");
+            return 1;
+        }
+        if( type < 0 || type > 1 )
+        {
+            SSVM_Abort(state, "npc_facewalktype %d: 0 cancel-on-walk or 1 turn-on-walk", (int)type);
+            return 1;
+        }
+        npc->face_walktype = (int)type;
+        return 1;
+    }
+
     case SS_OP_NPC_FACERESET:
     {
         struct ToriRSServerNpc* npc = active_npc(state);
@@ -10140,8 +10202,92 @@ script_command(
             SSVM_Abort(state, "npc_facereset with no active npc");
             return 1;
         }
+        npc->face_hold_npc_plus1 = 0;
         npc->face_entity = -1;
         npc->masks |= TORIRSSERVER_NMASK_FACE_ENTITY;
+        return 1;
+    }
+
+    /*
+     * `npc_facesquareinstant(coord $coord)` -- `npc_facesquare`, the client
+     * snapping to the tile instead of turning (`[facing] coord=...,
+     * instant=true`; Xarth's corpses as they rise, RSProx 4301 [748]).
+     * `npc_facenpc(npc_uid $uid)` -- the active npc faces another, held with
+     * no fight and no mode (`[facing] npc`; the corpses walking to Xarth,
+     * 4301 [749]) until a mode or `npc_facereset` drops it. A target already
+     * gone leaves the npc as it was, as `npc_attacknpc` does.
+     */
+    case SS_OP_NPC_FACESQUAREINSTANT:
+    {
+        int32_t coord;
+        struct ToriRSServerNpc* npc = active_npc(state);
+
+        if( !SSVM_PopInt(state, &coord) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_facesquareinstant with no active npc");
+            return 1;
+        }
+        if( npc->turnspeed == 0 )
+            return 1;
+        npc->face_x = ToriRSServer_CoordFine(coord_x(coord), 1);
+        npc->face_z = ToriRSServer_CoordFine(coord_z(coord), 1);
+        npc->face_coord_instant = 1;
+        npc->masks |= TORIRSSERVER_NMASK_FACE_COORD;
+        ToriRSServer_TicklogNpcFace(npc, coord_x(coord), coord_z(coord));
+        npc->face_entity = -1; /* see SS_OP_NPC_FACESQUARE */
+        return 1;
+    }
+
+    case SS_OP_NPC_FACENPC:
+    {
+        int32_t uid;
+        struct ToriRSServerNpc* npc = active_npc(state);
+        int target;
+        uint16_t generation;
+
+        if( !SSVM_PopInt(state, &uid) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_facenpc with no active npc");
+            return 1;
+        }
+        target = (int)((uint32_t)uid & 0xffffu);
+        generation = (uint16_t)((uint32_t)uid >> 16);
+        if( uid < 0 || target >= TORIRSSERVER_NPC_MAX || !srv->npcs[target].active ||
+            generation == 0 || srv->npcs[target].generation != generation ||
+            &srv->npcs[target] == npc )
+            return 1;
+        npc->face_hold_npc_plus1 = target + 1;
+        npc->face_hold_npc_gen = generation;
+        ToriRSServer_NpcFaceNpc(npc, target);
+        return 1;
+    }
+
+    /*
+     * `npc_faceplayer` -- the active npc faces the active player on this
+     * tick's NPC_INFO. Phase 4 runs the npcs' modes before phase 5 resumes a
+     * player's script, so `npc_setmode(playerface)` from a player script
+     * latches a tick later; Xarth turns on the tick of the bar and of each
+     * attack (RSProx 4301 [636], [642]). The mode, set beside it, holds it.
+     */
+    case SS_OP_NPC_FACEPLAYER:
+    {
+        struct ToriRSServerNpc* npc = active_npc(state);
+
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_faceplayer with no active npc");
+            return 1;
+        }
+        if( !player || !player->active )
+        {
+            SSVM_Abort(state, "npc_faceplayer with no active player");
+            return 1;
+        }
+        ToriRSServer_NpcFacePlayer(npc, player->pid);
         return 1;
     }
 
@@ -10488,6 +10634,7 @@ script_command(
             return 1;
         npc->face_x = ToriRSServer_CoordFine(coord_x(coord), 1);
         npc->face_z = ToriRSServer_CoordFine(coord_z(coord), 1);
+        npc->face_coord_instant = 0;
         npc->masks |= TORIRSSERVER_NMASK_FACE_COORD;
         /* The only writer of an npc's FACE_COORD mask (no C movement or
          * combat path turns an npc to a square), so the tick log's npc_face

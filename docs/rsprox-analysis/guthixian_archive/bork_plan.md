@@ -102,3 +102,22 @@ the bomb on him once) and `tfa_bork_smorks_first.lua`. Inventory:
 | damage | gong 4..7 (prayed), shots up to 28 / 0..1, slams unknown | gong 0..28 (/4 prayed), shots 0..28 / 0..1, slams 20..39 | approximate |
 | defend sounds | not sent to a spectator | null | **open** |
 | Smorks first | no recording | the anger looped, no shadow (the wiki) | unverified |
+
+## NPC info audit (2026-10-21)
+
+Every NPC_INFO block of every npc of the room, recording against our tick log, per life:
+`tools/rsprox/npc_stream.py --match <type> --summary <transcript> <ticklog>` (counts per
+life), `tools/rsprox/npc_timeline.py` (the recording's blocks) and
+`tools/rsprox/ticklog_npc_timeline.py` (ours, with the file-only `npc_info` rows:
+spawn angle, ops, level, transparency, exact move, timed bar). Facing is part of npc info
+and is audited block by block (the entity face, the coord face and its `instant`, the angle,
+the reset, the walk type).
+
+| npc | block | recorded | ours now | verdict |
+|---|---|---|---|---|
+| Bork, Smork | spawn | `spawnangle=west` and the way in as a coord face | same | fixed |
+| Smork | walk type | `walktype=turnonwalk` on every face (4308 [532..]) | `npc_facewalktype(1)` | fixed |
+| Bork | engage | `reset`, the entity +5 | same | fixed |
+| Smork | lines | the entity a tick before say slots 2 and 6, held 4; else his target's tile every 2 ticks from engage+10 | same | fixed |
+| Bork | stun | the stun spot unless stuns=2, and his target's tile | same | fixed (the tile choice unverified) |
+| Bork | stomp, death | the entity at l=13; `reset` at death | same | fixed |

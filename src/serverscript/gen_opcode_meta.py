@@ -1249,6 +1249,40 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # (Ocellus as each phase-1 walk starts, RSProx 4301 [917], [949]).
     "NPC_FACERESET": (11228, 0, 0, 0, 0),
 
+    # npc_setlevel(int $level)
+    #
+    # The active npc's drawn combat level, NPC_INFO's LEVEL_CHANGE now and on
+    # every re-add (a party-scaled boss, RSProx 4297..4308).
+    "NPC_SETLEVEL": (11229, 1, 0, 0, 0),
+
+    # npc_facewalktype(int $type)
+    #
+    # The walk type the active npc's FACING blocks carry: 0 cancel-on-walk,
+    # 1 turn-on-walk (the Smorks, RSProx 4308 [532..]).
+    "NPC_FACEWALKTYPE": (11230, 1, 0, 0, 0),
+
+    # npc_facesquareinstant(coord $coord)
+    #
+    # npc_facesquare with the client snapping to the tile instead of turning,
+    # `[facing] coord=..., instant=true` (Xarth's corpses as they rise,
+    # RSProx 4301 [748]).
+    "NPC_FACESQUAREINSTANT": (11231, 1, 0, 0, 0),
+
+    # npc_facenpc(npc_uid $uid)
+    #
+    # The active npc faces another npc, held until a mode or a face reset
+    # replaces it, `[facing] npc` (Xarth's corpses walking to him, RSProx 4301
+    # [749]). No fight: npc_attacknpc is the one that fights.
+    "NPC_FACENPC": (11232, 1, 0, 0, 0),
+
+    # npc_faceplayer
+    #
+    # The active npc faces the active player on this tick's NPC_INFO. A mode
+    # set from a player-phase script latches on the next npc phase; Xarth turns
+    # to his raider on the very tick of the bar and of each attack (RSProx
+    # 4301 [636], [642]), so the face goes now and the mode holds it.
+    "NPC_FACEPLAYER": (11233, 0, 0, 0, 0),
+
     # npc_setbasestat(npc_stat $stat, int $level)
     #
     # The active npc's BASE level in one non-hitpoint stat until it dies or
@@ -1791,6 +1825,11 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "NPC_HEADBAR_TIMED": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_FACEANGLE": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_FACERESET": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_SETLEVEL": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_FACEWALKTYPE": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_FACESQUAREINSTANT": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_FACENPC": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_FACEPLAYER": ((1 << POINTER_BITS["active_npc"]) | (1 << POINTER_BITS["p_active_player"]), 0),
     "REMOTE_VIEW_START": (1 << POINTER_BITS["p_active_player"], 0),
     "REMOTE_VIEW_END": (1 << POINTER_BITS["p_active_player"], 0),
     # The splat needs somebody to appear over. NPC_DAMAGE (2509) carries

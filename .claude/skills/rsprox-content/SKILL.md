@@ -267,6 +267,12 @@ index reuse):
     A fight whose facing is never compared is not audited, however well its seqs line up.
   - **Entity** (`face_pathingentity` / `[facing] player=..., fallbackangle=`) is the npc's target; it comes from modes (`npc_setmode(opplayer2)`, `playerfaceclose`) and clears on `entity=null` / `type=reset`.
   - **Square** (`face_coord` / `[facing] coord=`) is `npc_facesquare`.
+  - `instant=true` on a coord face is `npc_facesquareinstant`; on an angle, `npc_faceangle(a, true)`.
+  - **Npc entity** (`[facing] npc=`) with no fight is `npc_facenpc(uid)`, held until a mode or a reset.
+  - A mode set from a player-phase script (a room tick, a loc op) latches a tick late: when the
+    recording faces on the very tick, add `npc_faceplayer` beside `npc_setmode(playerface)`.
+  - Many npcs `[facing] type=reset` with their first step after an angle face (Armacus, the
+    Guardians): `npc_facereset` on that tick.
   - **Angle** is `npc_facedir`.
   - Note **when** it re-faces (every attack? only on target change?).
   - Several bosses swing with the facing **held** into the swing (Tekton).

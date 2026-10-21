@@ -205,3 +205,21 @@ timelines: `tools/rsprox/ticklog_tells.py`.
 | defend sound | not sent to a spectator | null | **open**: unknown |
 | damage | melee 0..23, star 20..33, sword 28..52, volley 6..19 (prayers unknown) | melee 0..28 (half under protect from melee), star 20..33, sword 28..52 (one a tick), volley 15..30 | approximate |
 | combat level | `level_change 1,043` at 3 raiders | the cache's 984 | party scaling not built (solo) |
+
+## NPC info audit (2026-10-21)
+
+Every NPC_INFO block of every npc of the room, recording against our tick log, per life:
+`tools/rsprox/npc_stream.py --match <type> --summary <transcript> <ticklog>` (counts per
+life), `tools/rsprox/npc_timeline.py` (the recording's blocks) and
+`tools/rsprox/ticklog_npc_timeline.py` (ours, with the file-only `npc_info` rows:
+spawn angle, ops, level, transparency, exact move, timed bar). Facing is part of npc info
+and is audited block by block (the entity face, the coord face and its `instant`, the angle,
+the reset, the walk type).
+
+| npc | block | recorded | ours now | verdict |
+|---|---|---|---|---|
+| Ezekiel | spawn | `spawnangle=east` | same | fixed |
+| Ezekiel | engage | `reset`, the entity +3 | same | fixed |
+| Ezekiel | special | `reset`, the entity +5; weaken: the entity at recover+1 | same | fixed |
+| Ezekiel | finale | the tile face a tick before the jump, then the angle; the vfx `angle=1024, instant=true` | same, but the jump glides (the engine moves 2 tiles as a walk) | **open (engine)** |
+| swords | flight | `angle=` the flight's | same | fixed |

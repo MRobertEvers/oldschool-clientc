@@ -108,3 +108,24 @@ per window).
 | jelly prayer drain | the wiki only | 4 a blocked swing | unverified |
 | landing without protect from melee | the wiki: "players will take damage regardless of location" | 0..40 to every raider not praying it | unverified |
 | defend sounds | not sent to a spectator | null | **open** |
+
+## NPC info audit (2026-10-21)
+
+Every NPC_INFO block of every npc of the room, recording against our tick log, per life:
+`tools/rsprox/npc_stream.py --match <type> --summary <transcript> <ticklog>` (counts per
+life), `tools/rsprox/npc_timeline.py` (the recording's blocks) and
+`tools/rsprox/ticklog_npc_timeline.py` (ours, with the file-only `npc_info` rows:
+spawn angle, ops, level, transparency, exact move, timed bar). Facing is part of npc info
+and is audited block by block (the entity face, the coord face and its `instant`, the angle,
+the reset, the walk type).
+
+| npc | block | recorded | ours now | verdict |
+|---|---|---|---|---|
+| Dreadnoth | spawn | `spawnangle=west`, coord face (4181,5663), level x party (941 at three, 994 at four, 1056 at five; none sent at one or two) 6/6 | ours had north-west | fixed |
+| Dreadnoth | engage | `[facing] player, walktype=turnonwalk` 6/6 | the entity, now turn-on-walk | fixed |
+| Dreadnoth | leaps | teleport + exact move + `level_change` (the re-add), no face | same | matched |
+| Dreadnoth | death | seq 14782 + ops none, **no reset**, del +4 (4301, 4308) | ours sent a reset | fixed |
+| jelly | hatch | `spawnangle=south`, spawn seq, ops none; +1 ops 0b00010; +2 the entity, held (227/227, 226/227) | ours: no entity, a tile face every swing | fixed |
+| jelly | jumpers | north, exact move, `angle=1024`; no ops block until +2, the entity +3 (28/28) | ours sent ops none at add | fixed |
+| jelly | death | reset + ops none (+ the seq on D 159, D+1 31, D+2 58 of 250); del seq+3 (250/250) | ours: seq and del on one tick, so no death seq was ever seen | fixed |
+| navigator | add | its side's angle, `angle=1536, instant=true`, fade in; +1 `reset` (13/13 east; Ezekiel's west one no reset, 1/1) | ours: no angle face, no reset | fixed |

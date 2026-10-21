@@ -5733,17 +5733,24 @@ npc_face_block(
     const struct ToriRSServerNpc* npc,
     int force_latch)
 {
+    int has;
+
     if( npc->masks & TORIRSSERVER_NMASK_FACE_ANGLE )
     {
         mock239_face_init(face);
         face->kind = MOCK239_FACE_ANGLE;
         face->angle = npc->face_angle;
         face->instant = npc->face_angle_instant;
+        face->walk_mode = npc->face_walktype;
         return 1;
     }
-    return v5_face_from_classic(face, recipient, npc->masks, TORIRSSERVER_NMASK_FACE_ENTITY,
-                                TORIRSSERVER_NMASK_FACE_COORD, npc->face_entity, npc->face_x,
-                                npc->face_z, force_latch);
+    has = v5_face_from_classic(face, recipient, npc->masks, TORIRSSERVER_NMASK_FACE_ENTITY,
+                               TORIRSSERVER_NMASK_FACE_COORD, npc->face_entity, npc->face_x,
+                               npc->face_z, force_latch);
+    face->walk_mode = npc->face_walktype;
+    if( has && face->kind == MOCK239_FACE_LOC )
+        face->instant = npc->face_coord_instant;
+    return has;
 }
 
 /** The flag itself, plus the continuation bits its own width implies. */

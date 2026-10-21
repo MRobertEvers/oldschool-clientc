@@ -87,3 +87,25 @@ The Quartermaster's shop is not recorded (the spectator's ops get no answer,
 |---|---|---|
 | boss line +3 | `tfa_room_navigator` (Follow, Quick-follow) added beside the boss's spot, facing back toward the entry, fade-in over 30 cycles | Ezekiel (4067,5535) W 4301 [276]; Dreadnoth (4184,5663) E [549]; Xarth (4183,5535) E [847]; Bork (4184,5599) 4302 [105], 4303 [694], [2368] |
 | op | Follow: the raider walks up, faces it, and leaves 3..4 ticks later (the transition of §3, into the atrium visit for the next stage) | 4301 [279..285] |
+
+## NPC info audit (2026-10-21)
+
+Every NPC_INFO block of every npc of the room, recording against our tick log, per life:
+`tools/rsprox/npc_stream.py --match <type> --summary <transcript> <ticklog>` (counts per
+life), `tools/rsprox/npc_timeline.py` (the recording's blocks) and
+`tools/rsprox/ticklog_npc_timeline.py` (ours, with the file-only `npc_info` rows:
+spawn angle, ops, level, transparency, exact move, timed bar). Facing is part of npc info
+and is audited block by block (the entity face, the coord face and its `instant`, the angle,
+the reset, the walk type).
+
+| npc | block | recorded | ours now | verdict |
+|---|---|---|---|---|
+| Armacus (after the Guardian) | add | north, `angle=1024, instant=true`; `reset` with the first step +1; the line +5 | ours: no angle face, no reset | fixed |
+| Guardians of Armadyl | fours | one four fewer than the party, 8 ticks apart (two raiders 1, three 2, four 3: 3/3); any of the six kinds; the angle face, reset and run at +5 (16/16) | ours: one four, running at +1 | fixed (solo: one, unrecorded) |
+| atrium speakers | add | turned to their face tile and facing it (15/15; the Quartermaster no face) | ours: the angle only | fixed |
+| Eva / Ivy | lines | `angle=0` every 15 from +8..+13, a line 0..5 after each, from a pool (Eva 3 lines, Ivy 5) (14/14) | ours: no turns, one fixed line | fixed |
+| Quartermaster | lines | +5..+10, then every 12, from 4 lines (4/4) | ours: one line once | fixed |
+| workers | benches | grindstone (26,12) `human_herbing_grind_npc` every 4..6, table (28,20) `human_pickuptable` every 3..5, runes (36,21) `zalcano_runecraft` every 6..8, each its own beat for its life; facing the bench (21 lives) | ours: a random seq every 5 | fixed |
+| workers | builders | facing the middle, `reset` +1, `human_pickupfloor` then +2 the feather, 10 and 7 apart in turn (18/18); they walk between | the anims and faces; no walk | **open (the builders' walks)** |
+| workers | kinds | any of five kinds at any place (49 lives) | random of the five | fixed |
+| reinforcements | fours | before the third stage two fours at the south door +1..+3 and +15 later, one kind each (knights, druids, Guardians); the angle face, reset and run at +5 | entry built; they run up the hall | **open (they go on to the benches)** |

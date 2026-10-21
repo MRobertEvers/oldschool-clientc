@@ -65,3 +65,19 @@ Open does nothing; chest 1 Open, Take-all; Leave). The way in is checked by
 | unique chest | the wiki (platform, one item) | not built | not built (no recording has one) |
 | unclaimed loot | the wiki: the loot wheelbarrow | banked on Leave | stand-in |
 | Merit scroll | Read (no recording of it) | no handler | not built |
+
+## NPC info audit (2026-10-21)
+
+Every NPC_INFO block of every npc of the room, recording against our tick log, per life:
+`tools/rsprox/npc_stream.py --match <type> --summary <transcript> <ticklog>` (counts per
+life), `tools/rsprox/npc_timeline.py` (the recording's blocks) and
+`tools/rsprox/ticklog_npc_timeline.py` (ours, with the file-only `npc_info` rows:
+spawn angle, ops, level, transparency, exact move, timed bar). Facing is part of npc info
+and is audited block by block (the entity face, the coord face and its `instant`, the angle,
+the reset, the walk type).
+
+| npc | block | recorded | ours now | verdict |
+|---|---|---|---|---|
+| chests | add | turned to the vault's middle and facing it (8/8) | ours: angle 0 | fixed |
+| exit Rift | add | north, `angle=1024, instant=true`, fade 0..90 | ours: no angle face | fixed |
+| butterflies | wander | 0.7 steps a tick, 5..13 tiles out; a `reset` with the first step (4/5) | 0.34 a tick (`tfa_vault.npc`, wanderrange 10); no reset | **open (engine: the wander roll's rate, the first-step reset)** |

@@ -3,7 +3,7 @@
  * reference server's content/scripts/engine.rs2. Do not edit by hand --
  * re-run the generator.
  *
- * 392 commands.
+ * 397 commands.
  */
 
 #ifndef SRC_SERVERSCRIPT_SSC_COMMAND_KINDS_GEN_H
@@ -418,6 +418,11 @@ static const struct SSC_CommandTypes g_ssc_command_types[] = {
     { 11226, "npc_headbar_timed", "healthbar int int int", "" },
     { 11227, "npc_faceangle", "int boolean", "" },
     { 11228, "npc_facereset", "", "" },
+    { 11229, "npc_setlevel", "int", "" },
+    { 11230, "npc_facewalktype", "int", "" },
+    { 11231, "npc_facesquareinstant", "coord", "" },
+    { 11232, "npc_facenpc", "npc_uid", "" },
+    { 11233, "npc_faceplayer", "", "" },
 };
 
 #endif

@@ -599,10 +599,15 @@
 #define SS_OP_NPC_HEADBAR_TIMED 11226
 #define SS_OP_NPC_FACEANGLE 11227
 #define SS_OP_NPC_FACERESET 11228
+#define SS_OP_NPC_SETLEVEL 11229
+#define SS_OP_NPC_FACEWALKTYPE 11230
+#define SS_OP_NPC_FACESQUAREINSTANT 11231
+#define SS_OP_NPC_FACENPC 11232
+#define SS_OP_NPC_FACEPLAYER 11233
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11229
+#define SS_OPCODE_MAX 11234
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 577
+#define SS_OPCODE_COUNT 582
 
 #endif

@@ -17507,6 +17507,14 @@ phase_npcs(struct ToriRSServer* srv)
                 continue;
             }
         }
+        /* An `npc_facenpc` hold ends with the npc it names. */
+        if( npc->face_hold_npc_plus1 > 0 )
+        {
+            const struct ToriRSServerNpc* held = &srv->npcs[npc->face_hold_npc_plus1 - 1];
+
+            if( !held->active || held->generation != npc->face_hold_npc_gen )
+                npc->face_hold_npc_plus1 = 0;
+        }
         ToriRSServer_NpcFaceClearIfIdle(npc);
     }
 }

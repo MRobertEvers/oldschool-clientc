@@ -76,6 +76,8 @@ struct TicklogState
      * slot is a different npc and its first tile is a change. */
     int32_t npc_tile_plus1[TORIRSSERVER_NPC_MAX];
     uint16_t npc_generation[TORIRSSERVER_NPC_MAX];
+    /* The slot generation whose spawn angle has been written, plus one. */
+    uint32_t npc_info_gen_plus1[TORIRSSERVER_NPC_MAX];
     int dealer_npc;
     /* Each player's `last_input_tick` as the previous RAIDER row saw it. The
      * stamp alone cannot say "this tick": an in-process client's packets are
@@ -109,6 +111,7 @@ static char const* const k_kind_names[TORIRSSERVER_TICKLOG_KIND_COUNT] = {
     [TORIRSSERVER_TICKLOG_PLAYER_TILE] = "player_tile",
     [TORIRSSERVER_TICKLOG_NPC_TILE] = "npc_tile",
     [TORIRSSERVER_TICKLOG_NPC_FACE] = "npc_face",
+    [TORIRSSERVER_TICKLOG_NPC_INFO] = "npc_info",
     [TORIRSSERVER_TICKLOG_SOUND] = "sound",
     [TORIRSSERVER_TICKLOG_MUSIC] = "music",
     [TORIRSSERVER_TICKLOG_JINGLE] = "jingle",
@@ -1319,6 +1322,45 @@ ticklog_digest(struct ToriRSServer* srv)
                      (int)g, NULL);
 }
 
+/* The NPC_INFO blocks no other row carries, from the masks the encoder sends
+ * them by (FILE-ONLY: TORIRSSERVER_TICKLOG_NPC_INFO). */
+static void
+ticklog_npc_info(
+    const struct ToriRSServerNpc* npc,
+    int slot)
+{
+    static int const k_dir_angle[8] = { 768, 1024, 1280, 512, 1536, 256, 0, 1792 };
+    char label[64];
+
+    if( g_ticklog.npc_info_gen_plus1[slot] != (uint32_t)npc->generation + 1 )
+    {
+        g_ticklog.npc_info_gen_plus1[slot] = (uint32_t)npc->generation + 1;
+        ticklog_write_side(TORIRSSERVER_TICKLOG_NPC_INFO, slot, npc->type, 1,
+                           k_dir_angle[npc->face_dir & 7], 0, 0, 0, "spawnangle");
+    }
+    if( npc->masks & TORIRSSERVER_NMASK_OPS )
+        ticklog_write_side(TORIRSSERVER_TICKLOG_NPC_INFO, slot, npc->type, 2, npc->ops_hidden, 0,
+                           0, 0, "ops");
+    if( npc->masks & TORIRSSERVER_NMASK_LEVEL )
+        ticklog_write_side(TORIRSSERVER_TICKLOG_NPC_INFO, slot, npc->type, 3, npc->level_override,
+                           0, 0, 0, "level");
+    if( npc->masks & TORIRSSERVER_NMASK_TRANSPARENCY )
+        ticklog_write_side(TORIRSSERVER_TICKLOG_NPC_INFO, slot, npc->type, 4,
+                           (npc->transparency_start_cycle << 16) | npc->transparency_end_cycle,
+                           npc->transparency_from, npc->transparency_to, 0, "transparency");
+    if( npc->masks & TORIRSSERVER_NMASK_EXACT_MOVE )
+    {
+        snprintf(label, sizeof(label), "exactmove %d %d %d", npc->exact_delay1, npc->exact_delay2,
+                 npc->exact_direction);
+        ticklog_write_side(TORIRSSERVER_TICKLOG_NPC_INFO, slot, npc->type, 5, npc->exact_dx1,
+                           npc->exact_dz1, npc->exact_dx2, npc->exact_dz2, label);
+    }
+    if( npc->masks & TORIRSSERVER_NMASK_TIMED_BAR )
+        ticklog_write_side(TORIRSSERVER_TICKLOG_NPC_INFO, slot, npc->type, 6, npc->timed_bar_type,
+                           npc->timed_bar_start_fill, npc->timed_bar_end_fill,
+                           npc->timed_bar_end_cycle, "timedbar");
+}
+
 void
 ToriRSServer_TicklogTickEnd(struct ToriRSServer* srv)
 {
@@ -1355,6 +1397,7 @@ ToriRSServer_TicklogTickEnd(struct ToriRSServer* srv)
         if( npc->masks & TORIRSSERVER_NMASK_FACE_ENTITY )
             ticklog_push(TORIRSSERVER_TICKLOG_NPC_FACE, slot, npc->type, -1, npc->face_entity,
                          0, 0, NULL);
+        ticklog_npc_info(npc, slot);
         /* An angle turn: x = -2, z = the angle (`npc_faceangle`). */
         if( npc->masks & TORIRSSERVER_NMASK_FACE_ANGLE )
             ticklog_push(TORIRSSERVER_TICKLOG_NPC_FACE, slot, npc->type, -2, npc->face_angle,

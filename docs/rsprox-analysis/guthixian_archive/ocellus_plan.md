@@ -293,3 +293,23 @@ it, in the later segments only (3/4). Phase 4 lets slot 2's levitation go
 Open: the first walk's path (the recording steps east twice and then
 diagonally; ours diagonally first: the engine's route order); when the volley
 is cast; a party's re-faces; the death angle's rule.
+
+## NPC info audit (2026-10-21)
+
+Every NPC_INFO block of every npc of the room, recording against our tick log, per life:
+`tools/rsprox/npc_stream.py --match <type> --summary <transcript> <ticklog>` (counts per
+life), `tools/rsprox/npc_timeline.py` (the recording's blocks) and
+`tools/rsprox/ticklog_npc_timeline.py` (ours, with the file-only `npc_info` rows:
+spawn angle, ops, level, transparency, exact move, timed bar). Facing is part of npc info
+and is audited block by block (the entity face, the coord face and its `instant`, the angle,
+the reset, the walk type).
+
+| npc | block | recorded | ours now | verdict |
+|---|---|---|---|---|
+| void rifts | add | a random one of eight ways (27 lives, all eight), `angle=` that way, ops none; +1 ops 0b00010; a timed bar `healthbar_75` 0..30 over 840 cycles | ours: south, no angle, no ops, no bar | fixed |
+| void rifts | end | killed in all 33 lives (6..27 ticks): the despawn seq + ops none on the kill, del +2 | ours: a fixed 10-tick despawn, a kill deleted it at once | fixed |
+| rifts, vine | health, bars | 44 health; vine healthbar 0, rifts 2; never face an attacker (0/36) | ours had no server config: 10 health, retaliation latched a face | fixed (`tfa_ocellus.npc`) |
+| rifts, vine | headbar | re-sent every tick while shown (13/life, 18/life) | sent on a hit only | **open (engine)** |
+| deflect arena | phase 4 | a `tfa_invisible_npc` at the last quadrant's middle with the first deflect, kept to the end: range dome D+0 start, D+1 and every 3 to D+19 loop, D+21 end; melee dome D+31, D+32..D+47, D+50 (4301 `_270`, 4308 `_180`) | not built at all | fixed (SW plain and NW `_90` inferred) |
+| Blade (vault entry) | add | his death angle, `angle=` it | same | matched |
+| Ocellus | party re-faces | 72 entity re-sends in phase 4 (5 real changes) | not built | **open** (as before) |

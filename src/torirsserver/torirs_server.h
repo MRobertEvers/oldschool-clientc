@@ -2898,6 +2898,24 @@ struct ToriRSServerNpc
      */
     int face_angle;
     int face_angle_instant;
+    /**
+     * `npc_facewalktype` -- the walk type every FACING block this npc sends
+     * carries (its low three bits): 0 cancel-on-walk (the default), 1
+     * turn-on-walk, `walktype=turnonwalk` (the Smorks' cart, RSProx 4308
+     * [532..]).
+     */
+    int face_walktype;
+    /** `npc_facesquareinstant` -- the coord FACING block snaps instead of
+     *  turning (`instant=true`); a plain `npc_facesquare` clears it. */
+    int face_coord_instant;
+    /**
+     * `npc_facenpc` -- an npc this one keeps facing with no fight and no mode
+     * (Xarth's corpses walking to him, RSProx 4301 [749]): its slot + 1 (0 =
+     * none) and generation. `ToriRSServer_NpcFaceClearIfIdle` re-latches it
+     * instead of clearing; a mode or `npc_facereset` drops it.
+     */
+    int face_hold_npc_plus1;
+    uint16_t face_hold_npc_gen;
     int face_entity;
     char say[80];
     int anim_id;
@@ -3500,6 +3518,13 @@ ToriRSServer_NpcFaceClearIfIdle(struct ToriRSServerNpc* npc)
         return;
     if( npc->mode >= TORIRSSERVER_NPCMODE_PLAYERESCAPE )
         return;
+    /* An `npc_facenpc` hold: re-latched, as a mode re-latches its player
+     * after an `npc_facesquare` drops our copy. */
+    if( npc->face_hold_npc_plus1 > 0 )
+    {
+        ToriRSServer_NpcFaceNpc(npc, npc->face_hold_npc_plus1 - 1);
+        return;
+    }
     if( npc->face_entity == -1 )
         return;
     npc->face_entity = -1;
@@ -6138,6 +6163,16 @@ enum ToriRSServerTicklogKind
     /* a=slot b=type c=start cycle << 16 | end cycle d=hue e=saturation
      * f=lightness g=weight: `npc_tint`, the NPC_INFO tinting block. */
     TORIRSSERVER_TICKLOG_NPC_TINT,
+    /* FILE-ONLY. a=slot b=npc type c=the NPC_INFO block (label names it)
+     * d..g its values, written at the end of the tick it went out: 1 the
+     * spawn angle as sent (d), 2 enabled ops (d = the hidden bits), 3 level
+     * (d), 4 transparency (d = start << 16 | end, e from, f to), 5 exact move
+     * (d dx1, e dz1, f dx2, g dz2; label delays and direction), 6 a timed bar
+     * (d healthbar, e start fill, f end fill, g end cycle). With npc_anim,
+     * npc_spotanim, npc_face, npc_say, npc_retype, npc_tile, npc_headbar,
+     * npc_headicon, npc_body and npc_tint it is the whole of an npc's NPC_INFO
+     * (the rsprox-content skill's wire audit). */
+    TORIRSSERVER_TICKLOG_NPC_INFO,
     TORIRSSERVER_TICKLOG_KIND_COUNT
 };
 

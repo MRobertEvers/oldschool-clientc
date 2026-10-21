@@ -142,3 +142,20 @@ Still open, all engine-generic (not this content's to fake):
 - What paces the special exactly (§3).
 - Tentacle damage style and max (§8); the solo enrage (§9); the melee (§10).
 - Party scaling (4294: 5 players: shield 2520? batteries 400); only solo is built.
+
+## NPC info audit (2026-10-21)
+
+Every NPC_INFO block of every npc of the room, recording against our tick log, per life:
+`tools/rsprox/npc_stream.py --match <type> --summary <transcript> <ticklog>` (counts per
+life), `tools/rsprox/npc_timeline.py` (the recording's blocks) and
+`tools/rsprox/ticklog_npc_timeline.py` (ours, with the file-only `npc_info` rows:
+spawn angle, ops, level, transparency, exact move, timed bar). Facing is part of npc info
+and is audited block by block (the entity face, the coord face and its `instant`, the angle,
+the reset, the walk type).
+
+| npc | block | recorded | ours now | verdict |
+|---|---|---|---|---|
+| Guardian | wake | coord face, then the target entity +1 (4297) | same | fixed |
+| Guardian | swoosh | `angle=` the exact move's angle; the first after the wake faces the target from his middle +5 (4297 [208]) | same | fixed |
+| Guardian | landing | `reset` 3 ticks before he lands; the entity again on the lift tick | same | fixed |
+| Guardian | level | vislevel x party (1.06 / 1.12 / 1.19, +0.065 a raider), on add and every changetype | same | fixed |
