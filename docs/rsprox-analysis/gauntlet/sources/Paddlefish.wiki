@@ -1,0 +1,49 @@
+{{Infobox Item
+|name = Paddlefish
+|image = [[File:Paddlefish.png]]
+|release = [[25 July]] [[2019]]
+|update = Song of the Elves
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = No
+|noteable = No
+|edible = Yes
+|options = Eat, Drop
+|examine = I could eat this.
+|value = 1
+|alchable = No
+|weight = 0.450
+|id = 23874
+}}
+[[File:Paddlefish detail.png|left|120px]]
+'''Paddlefish''' is food obtained within the [[Gauntlet]], healing 20 [[Hitpoints]]. Paddlefish can be obtained by fishing [[raw paddlefish]] with a [[crystal harpoon (The Gauntlet)|crystal harpoon]] and cooking it on the range in the starting room. The paddlefish can burn, producing [[burnt fish (paddlefish)|burnt paddlefish]]. It will stop burning at [[Cooking]] level 47.
+
+They can be upgraded to [[crystal paddlefish]] with an additional 10 [[Crystal shards (The Gauntlet)|crystal shards]]. This reduces the healing from 20 to 16, but also makes it a [[fast food#combo eating|combo food]].
+
+==Creation==
+{{Recipe
+|skill1 = Cooking
+|skill1lvl = 1
+|skill1boostable = No
+|skill1exp = 15
+|members = Yes
+|ticks = 1
+|facilities = Cooking range
+|mat1 = Raw paddlefish
+|mat1cost = No
+|output1 = Paddlefish
+|output1cost = No
+}}
+
+===Cooking chance===
+{{Skilling success chart|label=Paddlefish cooking chance
+|label1=Range|low1=155|high1=368|req1=30|color1=saddlebrown|image1=Paddlefish.png
+}}
+
+==Products==
+{{Uses material list|Paddlefish}} 
+
+{{The Gauntlet}}
+{{Fish}}

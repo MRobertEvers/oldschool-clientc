@@ -1,0 +1,73 @@
+{{Infobox Monster
+|name = Crystalline Dark Beast
+|image = [[File:Crystalline Dark Beast.png|280px]]
+|release = [[25 July]] [[2019]]
+|update = Song of the Elves
+|members = Yes
+|combat = 172
+|size = 3
+|examine = It doesn't look so dark with all those crystals.
+|xpbonus = 
+|max hit = 28
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Ranged]]
+|attack speed = 4
+|hitpoints = 100
+|att = 98
+|str = 98
+|def = 98
+|mage = 98
+|range = 98
+|attbns = 0
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 54
+|rngbns = 106
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|dlight = 0
+|dstandard = 0
+|dheavy = 0
+|poisonresistance = 100
+|venomresistance = 100
+|id = 9034
+|leagueRegion = Tirannwn
+}}
+The '''Crystalline Dark Beast''' is a mini-boss monster found in the [[Gauntlet]] that attacks with [[Ranged]]. Its counterpart in the [[The Gauntlet#Corrupted Gauntlet|Corrupted Gauntlet]] is the [[Corrupted Dark Beast]]. Mini-boss monsters always spawn alone, and only appear at the edges of the Gauntlet map. Unlike regular [[Dark Beast]]s, it does not require a [[Slayer]] level to be harmed.
+
+==Drops==
+===100%===
+{{DropsTableHead}}
+{{DropsLine|name=Crystal shards (The Gauntlet)|quantity=50-60|rarity=Always|gemw=No}}
+{{DropsLine|name=Weapon frame|quantity=1|rarity=Always|gemw=No}}
+{{DropsTableBottom}}
+
+===Weapon components===
+A bowstring will drop if it is not already owned; if it is, there is an equal chance to receive any item that is not already owned.
+{{DropsTableHead}}
+{{DropsLine|name=Crystal orb|quantity=1|rarity=Varies|gemw=No}}
+{{DropsLine|name=Crystal spike|quantity=1|rarity=Varies|gemw=No}}
+{{DropsLine|name=Crystalline bowstring|quantity=1|rarity=Varies|gemw=No}}
+{{DropsTableBottom}}
+
+===Resources===
+{{DropsTableHead}}
+{{DropsLine|name=Raw paddlefish|quantity=5|rarity=Common|gemw=No}}
+{{DropsLine|name=Teleport crystal (The Gauntlet)|quantity=1|rarity=Uncommon|gemw=No}}
+{{DropsTableBottom}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 8 April 2020
+|update = Poll 70 Improvements
+|poll = Old School Content Poll 70: Game Improvements
+|change = Demi-bosses in the Gauntlet will now always drop a weapon frame.
+}}
+{{Subject changes footer}}
+
+{{The Gauntlet}}

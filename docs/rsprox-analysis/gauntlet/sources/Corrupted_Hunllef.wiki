@@ -1,0 +1,127 @@
+{{otheruses|the corrupted version of the [[Crystalline Hunllef]]|the leagues variant|Corrupted Hunllef (Echo)}}
+{{Infobox Monster
+|name = Corrupted Hunllef
+|image = [[File:Corrupted Hunllef.png|280px]]
+|release = [[25 July]] [[2019]]
+|update = Song of the Elves
+|members = Yes
+|combat = 894
+|size = 5
+|examine = A deadly predator formed from crystal.
+|xpbonus = 45
+|max hit = 68
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Magic]], [[Ranged]]
+|attack speed = 5
+|hitpoints = 1000
+|att = 240
+|str = 240
+|def = 240
+|mage = 240
+|range = 240
+|attbns = 90
+|strbns = 112
+|amagic = 90
+|mbns = 112
+|arange = 90
+|rngbns = 112
+|dstab = 20
+|dslash = 20
+|dcrush = 20
+|dmagic = 20
+|dlight = 20
+|dstandard = 20
+|dheavy = 20
+|poisonresistance = 100
+|venomresistance = 100
+|id = 9035,9036,9037,9038
+}}
+The '''Corrupted Hunllef''' is the boss monster within the [[Corrupted Gauntlet]]. Its counterpart in the [[Gauntlet]] is the [[Crystalline Hunllef]].
+
+==Mechanics==
+Both the Crystalline and Corrupted Hunllef use the same mechanics.
+
+===Attacks===
+[[File:Fighting Corrupted Hunllef.png|thumb|left|250px|A player battles the Corrupted Hunllef.]]
+*'''Standard attacks:''' The Hunllef uses two main standard attacks, a range crystal-like attack and a magic based orb attack.  The Hunllef will use Ranged as its first attack style.
+*'''Stomp attack:''' If a player is underneath the Hunllef when it tries to attack the player, the Hunllef will perform a stomp attack which deals up to 68 typeless damage, similar to the stomp attack used by the [[Corporeal Beast]]. This attack does not count towards one of the Hunllef's four standard attacks it uses before switching.
+*'''Prayer Disabling Attack:''' When the Hunllef is attacking using magic-based attacks, it has a chance to use an attack which turns off prayers. These attacks use a different game sound, hence it is recommended to use sounds during the fight. They are also a different colour, in case audio cues are not used.
+*'''Tornadoes:''' The Hunllef summons multiple [[Tornado (Corrupted Gauntlet)|tornadoes]] that chase the player and deal high damage if they reach the player's location. These tornadoes disappear after {{ticks|20}}. The amount of tornadoes summoned increases as the Hunllef takes damage.
+
+The Hunllef will alternate between mage and ranged standard attacks after any combination of 4 standard, prayer-disabling, or tornado attacks.
+
+===Damaging floor===
+During the fight, the floor will light up in various places. Tiles are initially highlighted in crimson and soon turn orange. If the player stands on an orange tile they will take between 10-20 damage{{fact|May be able to hit higher than this.}} every game tick until they step off of the highlighted tiles.
+
+As the fight progresses, the tile patterns become more challenging, and the tiles change from crimson to orange more quickly. There are three sets of floor patterns and corresponding speeds, and which set is used is dependent upon the Hunllef's health. From 1000 to 667 health, the patterns will be from the first set and change at a slow speed, from 666 to 333 health the patterns will come from the second set and change at a medium speed, and while the Hunllef has 332 health or below the final set of floor patterns is used and the tiles change rapidly.
+
+===Attack style cycle===
+The Hunllef changes its prayer and attack styles on predictable cycles. Every fourth attack performed by the Hunllef (excluding the stomp attack but including summoning tornadoes) will cause the Hunllef to change its standard attack style; it will perform an animation before switching attack styles.
+
+===Protection prayer cycle===
+Every sixth off-prayer attack that the player performs on the Hunllef, including attacks which deal zero damage, will trigger a protection prayer change. The Hunllef will use the protection prayer used on the sixth off-prayer hit. Players can use this cycle to ensure the Hunllef never prays against their strongest attack style.
+
+==Protection against its attacks==
+Players can wear pieces of the crystal armour to reduce the damage from all of the Corrupted Hunllef's attacks. Using [[protection prayers]] will further reduce the incoming damage from its standard attacks.
+
+{|class="wikitable"
+! colspan=2 | Armour combination
+!Corrupted Hunllef's max hit<ref group="A">While using the correct [[protection prayer]] against its ranged and magic attacks.</ref>
+!Damage from tornadoes
+!Corrupted Hunllef's max hit (no protection prayer)
+|-
+|{{NA}}||No armour||16||15-30
+|68
+|-
+|{{plinkp|Corrupted helm (basic)}}{{plinkp|Corrupted body (basic)}}{{plinkp|Corrupted legs (basic)}}||Full T1 armour||13||15-25
+|55
+|-
+|{{plinkp|Corrupted helm (attuned)}}{{plinkp|Corrupted body (attuned)}}{{plinkp|Corrupted legs (attuned)}}||Full T2 armour||10||10-20
+|45
+|-
+|{{plinkp|Corrupted helm (perfected)}}{{plinkp|Corrupted body (perfected)}}{{plinkp|Corrupted legs (perfected)}}||Full T3 armour||8||7-15
+|35
+|}
+
+{{Reflist|group=A}}
+
+==Drops==
+{{See also|Reward Chest (The Gauntlet)#Corrupted_loot_table}}
+{{DropsTableHead}}
+{{DropsLine|name=Nothing|rarity=Always|gemw=no}}
+{{DropsTableBottom}}
+Players can find additional rewards for completing the Corrupted Gauntlet from the Reward Chest.
+
+==Combat Achievements==
+{{Sync}}
+{{Combat Achievements list|Corrupted Hunllef}}
+
+==Changes==
+{{Subject changes header}}
+{{subject changes
+|date = 17 May 2023
+|update = Tithe Farm Updates & More Poll 79!
+|poll = Old School Content Poll 79: Quality of Life
+|change = Hunllef now has audio indicators a few ticks before changing its [[attack style]].
+}}
+{{Subject changes
+|date = 2 July 2020
+|update = Poll 71 and Death Feedback Changes
+|poll = Old School Content Poll 71: Gauntlet, Grotesques, CoX and more
+|change = The Corrupted Hunllef will now play an animation and sound effect right before it changes its attack style.
+}}
+{{Subject changes
+|date = 1 August 2019
+|update = SOTE Changes and Small Game Updates
+|poll =
+|change = 
+*The Corrupted Hunllef will now use Ranged as its first attack style.
+*The Corrupted Hunllef will now deal more damage if not praying the correct protection prayer; however, damage when praying correctly has been reduced.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*'Hunllef' is Welsh for 'nightmare'. It may also be based on the ''RuneScape 3'' boss {{RSL|Helwyr}}, who is an elf who defeated a {{RSL|Hunllef}} and took on its form.
+{{The Gauntlet}}
+{{Bosses}}

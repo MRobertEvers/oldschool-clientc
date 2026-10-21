@@ -1,0 +1,81 @@
+{{Infobox Monster
+|name = Corrupted Bat
+|image = [[File:Corrupted Bat.png|280px]]
+|release = [[25 July]] [[2019]]
+|update = Song of the Elves
+|members = Yes
+|combat = 48
+|size = 2
+|examine = They'll be gone when the morning comes.
+|xpbonus = 
+|max hit = 11
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Slash]]
+|attack speed = 4
+|hitpoints = 12
+|att = 36
+|str = 102
+|def = 4
+|mage = 2
+|range = 0
+|attbns = 0
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|dlight = 0
+|dstandard = 0
+|dheavy = 0
+|poisonresistance = 100
+|venomresistance = 100
+|id = 9042
+|leagueRegion = Tirannwn
+}}
+'''Corrupted bats''' are low-level monsters found in the [[The Gauntlet#Corrupted Gauntlet|Corrupted Gauntlet]]. Their counterpart in the [[Gauntlet]] is the [[crystalline bat]]. Up to 3 low-level monsters spawn in a room.
+
+==Drops==
+{{DropLogProject|kills=2758424}}
+
+===100%===
+{{DropsTableHead}}
+{{DropsLine|name=Corrupted shards|quantity=20-30|rarity=Always|gemw=No}}
+{{DropsTableBottom}}
+
+===Resources===
+There is a 5/8 (62.5%) chance to receive a resource.
+{{DropsTableHead}}
+{{DropsLine|name=Nothing|rarity=9/24|gemw=No}}
+{{DropsLine|name=Corrupted shards|quantity=3-7|rarity=9/24|gemw=No}}
+{{DropsLine|name=Raw paddlefish|quantity=1-3|rarity=3/24|gemw=No}}
+{{DropsLine|name=Grym leaf (corrupted)|quantity=1|rarity=2/24|gemw=No}}
+{{DropsLine|name=Corrupted teleport crystal|quantity=1|rarity=1/24|gemw=No}}
+{{DropsTableBottom}}
+
+===Tertiary===
+{{DropsTableHead}}
+{{DropsLine|name=Weapon frame (corrupted)|quantity=1|rarity=1/4|raritynotes={{refn|group=d|A weapon frame is '''always''' received from the first corrupted bat, [[Corrupted Spider|spider]] or [[Corrupted Rat|rat]] killed on each run.}}|gemw=No}}
+{{DropsTableBottom}}
+{{Reflist|group=d}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 22 July 2026
+|update = Summer Sweep-Up Gear & PvM Changes
+|change = 
+* The corrupted bat's [[Defence]] was increased from 2 to 4.
+* The corrupted bat's [[Hitpoints]] was decreased from 14 to 12.
+* The quantity of corrupted shards dropped was increased from 10-30 to 20-30.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*Its examine information is a reference to the ''Meat Loaf'' song {{Wp|Bat Out of Hell (song)|Bat Out of Hell}}.
+
+{{The Gauntlet}}

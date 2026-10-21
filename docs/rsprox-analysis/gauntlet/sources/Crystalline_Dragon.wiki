@@ -1,0 +1,73 @@
+{{Infobox Monster
+|name = Crystalline Dragon
+|image = [[File:Crystalline Dragon.png|280px]]
+|release = [[25 July]] [[2019]]
+|update = Song of the Elves
+|members = Yes
+|combat = 172
+|size = 4
+|examine = Whatever it breathes, I don't want to get in the way of it.
+|xpbonus = 
+|max hit = 28
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Magic]]
+|attack speed = 4
+|hitpoints = 100
+|att = 98
+|str = 98
+|def = 98
+|mage = 98
+|range = 98
+|attbns = 0
+|strbns = 0
+|amagic = 54
+|mbns = 106
+|arange = 0
+|rngbns = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|dlight = 0
+|dstandard = 0
+|dheavy = 0
+|poisonresistance = 100
+|venomresistance = 100
+|id = 9033
+|leagueRegion = Tirannwn
+}}
+The '''crystalline dragon''' is a mini-boss monster found in the [[Gauntlet]] that attacks with [[Magic]]. Its counterpart in the [[The Gauntlet#Corrupted Gauntlet|Corrupted Gauntlet]] is the [[corrupted dragon]]. Mini-boss monsters always spawn alone, and only appear at the edges of the Gauntlet map.
+
+==Drops==
+===100%===
+{{DropsTableHead}}
+{{DropsLine|name=Crystal shards (The Gauntlet)|quantity=50-60|rarity=Always|gemw=No}}
+{{DropsLine|name=Weapon frame|quantity=1|rarity=Always|gemw=No}}
+{{DropsTableBottom}}
+
+===Weapon components===
+An orb will drop if it is not already owned; if it is, there is an equal chance to receive any item that is not already owned.
+{{DropsTableHead}}
+{{DropsLine|name=Crystal orb|quantity=1|rarity=Varies|gemw=No}}
+{{DropsLine|name=Crystal spike|quantity=1|rarity=Varies|gemw=No}}
+{{DropsLine|name=Crystalline bowstring|quantity=1|rarity=Varies|gemw=No}}
+{{DropsTableBottom}}
+
+===Resources===
+{{DropsTableHead}}
+{{DropsLine|name=Raw paddlefish|quantity=5|rarity=Common|gemw=No}}
+{{DropsLine|name=Teleport crystal (The Gauntlet)|quantity=1|rarity=Uncommon|gemw=No}}
+{{DropsTableBottom}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 8 April 2020
+|update = Poll 70 Improvements
+|poll = Old School Content Poll 70: Game Improvements
+|change = Demi-bosses in the Gauntlet will now always drop a weapon frame.
+}}
+{{Subject changes footer}}
+
+{{The Gauntlet}}

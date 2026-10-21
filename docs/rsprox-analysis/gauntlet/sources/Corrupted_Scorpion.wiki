@@ -1,0 +1,76 @@
+{{Infobox Monster
+|name = Corrupted Scorpion
+|image = [[File:Corrupted Scorpion.png|280px]]
+|release = [[25 July]] [[2019]]
+|update = Song of the Elves
+|members = Yes
+|combat = 89
+|size = 2
+|examine = Every miner's nightmare.
+|xpbonus = 
+|max hit = 17
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Slash]]
+|attack speed = 4
+|hitpoints = 38
+|att = 72
+|str = 159
+|def = 18
+|mage = 18
+|range = 0
+|attbns = 0
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|dlight = 0
+|dstandard = 0
+|dheavy = 0
+|poisonresistance = 100
+|venomresistance = 100
+|id = 9044
+|leagueRegion = Tirannwn
+}}
+'''Corrupted Scorpions''' are mid-level monsters found in the [[The Gauntlet#Corrupted Gauntlet|Corrupted Gauntlet]]. Their counterpart in the [[The Gauntlet|Gauntlet]] is the [[Crystalline Scorpion]]. Mid-level monsters always spawn in pairs, if they spawn in a room.
+
+==Drops==
+{{DropLogProject|kills=796616}}
+
+===100%===
+{{DropsTableHead}}
+{{DropsLine|name=Corrupted shards|quantity=80-100|rarity=Always|gemw=No}}
+{{DropsTableBottom}}
+
+===Resources===
+There is a 5/7 (71.4%) chance to receive a resource.
+{{DropsTableHead}}
+{{DropsLine|name=Corrupted shards|quantity=7-14|rarity=9/21|gemw=No}}
+{{DropsLine|name=Nothing|rarity=6/21|gemw=No}}
+{{DropsLine|name=Raw paddlefish|quantity=2-4|rarity=3/21|gemw=No}}
+{{DropsLine|name=Grym leaf (corrupted)|quantity=1|rarity=2/21|gemw=No}}
+{{DropsLine|name=Corrupted teleport crystal|quantity=1|rarity=1/21|gemw=No}}
+{{DropsTableBottom}}
+
+===Tertiary===
+{{DropsTableHead}}
+{{DropsLine|name=Weapon frame (corrupted)|quantity=1|rarity=2/7|raritynotes={{refn|group=d|Guaranteed after killing two of the mid-level monsters ([[Corrupted Unicorn|unicorn]], scorpion, or [[Corrupted Wolf|wolf]]).}}|gemw=No}}
+{{DropsTableBottom}}
+{{Reflist|group=d}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 22 July 2026
+|update = Summer Sweep-Up Gear & PvM Changes
+|change = The quantity of corrupted shards dropped was increased from 50-100 to 80-100.
+}}
+
+{{Subject changes footer}}
+
+{{The Gauntlet}}

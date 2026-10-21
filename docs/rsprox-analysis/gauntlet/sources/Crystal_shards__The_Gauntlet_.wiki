@@ -1,0 +1,97 @@
+{{otheruses|the shards used in The Gauntlet|the shards rewarded from activities around Prifddinas|Crystal shard}}
+{{Infobox Item
+|name = Crystal shards
+|image = [[File:Crystal shard 1.png]] [[File:Crystal shard 2.png]] [[File:Crystal shard 3.png]] [[File:Crystal shard 4.png]] [[File:Crystal shard 5.png]] [[File:Crystal shard 25.png]]
+|release = [[25 July]] [[2019]]
+|update = Song of the Elves
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = Yes
+|noteable = No
+|options = Drop
+|examine = Shards of the finest crystal, used to craft items within the Gauntlet.
+|value = 1
+|alchable = No
+|weight = 0.000
+|id = 23866
+}}
+[[File:Crystal shard detail.png|left|120px]]
+'''Crystal shards''' are obtained from various activities in the [[Gauntlet]], and are used to create most pieces of equipment within the [[minigame]]. They will be automatically placed into the inventory when dropped by monsters or resources.
+
+They can be ground with a [[Pestle and mortar (The Gauntlet)|pestle and mortar]] to receive 10 [[Crystal dust (The Gauntlet)|crystal dust]] each, which are an ingredient to create [[egniol potion]]s.
+
+When inside the [[Corrupted Gauntlet]], [[corrupted shards]] are obtained instead.
+
+==Item sources==
+{{Drop sources|Crystal shards (The Gauntlet)}}
+
+==Creation==
+{{Tabber
+|tab1 = Spike
+|tab2 = Bow string
+|tab3 = Orb
+|tab1content = 
+{{Recipe
+|ticks = 0
+|ticksnote = Requires confirmation to crush the spike in a dialogue box which takes at least 1 tick.
+|tool = Pestle and mortar
+|members = Yes
+|mat1 = Crystal spike
+|mat1cost = No
+|output1 = Crystal shards (The Gauntlet)
+|output1quantity = 80
+|output1cost = No
+}}
+|tab2content = 
+{{Recipe
+|ticks = 0
+|ticksnote = Requires confirmation to crush the bowstring in a dialogue box which takes at least 1 tick.
+|tool = Pestle and mortar
+|members = Yes
+|mat1 = Crystalline bowstring
+|mat1cost = No
+|output1 = Crystal shards (The Gauntlet)
+|output1quantity = 80
+|output1cost = No
+}}
+|tab3content = 
+{{Recipe
+|ticks = 0
+|ticksnote = Requires confirmation to crush the orb in a dialogue box which takes at least 1 tick.
+|tool = Pestle and mortar
+|members = Yes
+|mat1 = Crystal orb
+|mat1cost = No
+|output1 = Crystal shards (The Gauntlet)
+|output1quantity = 80
+|output1cost = No
+}}
+}}
+
+==Products==
+{{Uses material list|Crystal shards (The Gauntlet)}}
+
+==Gallery==
+<gallery captionalign="center" widths="120">
+Crystal shard 1 detail.png|One crystal shard
+Crystal shard 2 detail.png|Two crystal shards
+Crystal shard 3 detail.png|Three crystal shards
+Crystal shard 4 detail.png|Four crystal shards
+Crystal shard 5 detail.png|Five crystal shards
+Crystal shard detail.png|Twenty-five crystal shards
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 22 July 2026
+|update = Summer Sweep-Up Gear & PvM Changes
+|change = 
+* Crystal shards received from various activities in The Gauntlet are now automatically placed in the inventory.
+* The quantity of crystal shards dropped by monsters in The Gauntlet now has a smaller range.
+}}
+{{Subject changes footer}}
+
+{{The Gauntlet}}

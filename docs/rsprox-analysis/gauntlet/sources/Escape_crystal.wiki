@@ -1,0 +1,134 @@
+{{Otheruses|def=no|the escape crystals used in [[The Gauntlet]]|Escape crystal (The Gauntlet)}}
+{{Infobox Item
+|name = Escape crystal
+|image = [[File:Escape crystal.png]]
+|release = [[7 June]] [[2018]]
+|update = The Theatre of Blood
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = Yes
+|stackable = Yes
+|noteable = No
+|options = Teleport, Wear, Auto-afk, Configure, Drop
+|wornoptions = Teleport, Auto-afk, Configure
+|examine = A magical crystal that can transport you out of certain dangerous areas.
+|value = 100000
+|alchable = No
+|weight = 0.000
+|id = 22517
+}}
+[[File:Escape crystal detail.png|left|100px]]
+'''Escape crystals''' are a consumable teleport item that can be equipped in the [[ring slot]]. It can be purchased from [[Rick (Wizards' Tower)|Rick]] in the {{FloorNumber|uk=1}} of the [[Wizards' Tower]], as well as from the [[Mysterious Stranger]] in [[Ver Sinhaza]], for 75,000 coins.
+
+The crystal acts similarly to a [[respawn teleport]], teleporting players away from various activities, which [[Ironman Mode|Hardcore ironmen/group ironmen]] may consider as dangerous upon death:
+{{list|c=1|* [[Barbarian Assault]]
+* [[Chambers of Xeric]]
+* [[The Inferno]]
+* [[Pest Control]]
+* [[Theatre of Blood]]
+* [[TzHaar-Ket-Rak's Challenges]]
+* [[Tombs of Amascut]]
+}}
+
+Players can also use the crystal on their group members to activate them, allowing teleportation of teammates out of danger in an instant. To enable this, players must right-click the crystal and select "Configure", then choose the first option. Both players must have a crystal for this to work, and both crystals will be consumed in the process.
+
+Additionally, the crystal can be configured to auto-activate upon taking damage (including zeros) after a specified time of inactivity (ranging from 2 to 300 seconds) via the "Configure" option; in this case, inactivity is defined as any time the player is not typing, clicking/tapping within the game, moving/zooming the camera, or moving the mouse.{{CiteTwitter|author=OldSchoolRunescape|url=https://twitter.com/OldSchoolRS/status/1681604053397012481|date=19 July 2023|archiveurl=https://reldo.runescape.wiki/i/102146|archivedate=24 July 2023}} For example, if players configure the timer to 30 seconds, they will automatically be teleported away from the aforementioned activities upon taking damage after being inactive for at least 30 seconds. However, if the player has just logged in or hopped worlds and takes damage, the escape crystal will activate immediately even if the inactivity timer has not elapsed. This function will apply in [[The Gauntlet]] if the crystal was in the player's inventory upon entry, and is configured to auto-activate.
+
+The crystal will '''NOT''' activate while the player is moving. If the inactive time is reached at any point during movement, the crystal will activate when the player stops moving.
+
+The crystal can also be equipped and toggled to act in the same manner as a [[ring of life]], although this will cause the crystal to be unable to teleport out from the aforementioned activities, so players must have it unequipped should they wish to be able to do so in those activities.
+
+It is one of the [[Wilderness#Member_teleportation_up_to_level_30_Wilderness|few items]] whose teleports will work up to level 30 Wilderness, while most other means of [[teleport]]ation will not work above level 20 Wilderness.
+
+==Combat stats==
+{{Infobox Bonuses
+|astab = 0
+|aslash = 0
+|acrush = 0
+|amagic = 0
+|arange = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|drange = 0
+|str = 0
+|rstr = 0
+|mdmg = 0
+|prayer = 0
+|slot = ring
+}}
+
+==Shop locations==
+{{Store locations list|Escape crystal}}
+
+==Transcript==
+{{Hastranscript|item}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 17 December 2025
+|update = More Sailing and Interface Changes
+|change = If you're carrying an active escape crystal, it will now auto-teleport you out of the Tombs of Amascut during phase 3 of the Wardens if you appear AFK when the red skulls explode.
+}}
+{{Subject changes
+|date = 26 March 2025
+|update = Poll 83 QoL Changes
+|change = Logging out whilst in the [[Theatre of Blood]] or [[Tombs of Amascut]] while having an escape crystal in your [[inventory]] will now consume the crystal and teleport you outside of the raid on login.
+}}
+{{Subject changes
+|date = 13 November 2024
+|update = Guardians of the Rift Changes Out Now!
+|change = The escape crystal is now disabled on the permanent [[Deadman Mode]] world.
+}}
+{{Subject changes
+|date = 19 July 2023
+|update = <!--https://twitter.com/OldSchoolRS/status/1681604053397012481  https://archive.ph/s40qv-->
+|change = Camera zooms, camera pans, and mouse movement now count as "activity" for the escape crystal's auto-AFK mechanic.
+}}
+{{Subject changes
+|date = 28 June 2023
+|update = Forestry: The Way of the Forester - Part One
+|poll = 
+|change = 
+* There is now a visual and textual indication to tell players when the crystal is active or deactivated.
+* An "Auto-afk" right-click option has been added.
+* The "Activate" option has been replaced by "Teleport".
+}}
+{{Subject changes
+|date = 21 June 2023
+|update = More Poll 79 Changes	
+|poll = Old School Content Poll 79: Quality of Life
+|change =
+* A "Wear" option was added, allowing the escape crystal to be worn in the ring slot.
+* The "Toggle" option was changed to "Configure".
+** Players can now configure the escape crystal to automatically teleport them after a customisable period of inactivity.
+** Players can now configure the escape crystal to act as a [[ring of life]] when worn.
+}}
+{{Subject changes
+|date = 11 October 2022
+|update = Quest Speedrunning Launch
+|change = Using the crystal on another player in the Tombs of Amascut no longer consumes two escape crystals.
+}}
+{{Subject changes
+|date = 2 March 2022
+|update = Group Ironman Improvements
+|poll =
+|change = 
+* The item's name was changed from "Verzik's crystal shard" to "Escape crystal".
+* The examine text was changed; previously, it was ''"The only teleport that overcomes the preventative magicks of the Theatre of Blood."''
+}}
+{{Subject changes
+|date = 4 August 2021
+|update = New Client Features: Milestone 2
+|poll = A Night At The Theatre and Old School Content Poll 75: PvM
+|change = Players can now use the crystal on their party members to activate them, allowing teleportation of teammates out of the raid in an instant. To enable this, right-click a crystal and select "Toggle". Both players must have a crystal for this to work, and both crystals will be consumed in the process.
+}}
+{{Subject changes footer}}
+
+==References==
+{{reflist}}
+
+{{Rings}}

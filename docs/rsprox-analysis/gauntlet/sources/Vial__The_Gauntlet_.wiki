@@ -1,0 +1,62 @@
+{{Infobox Item
+|name = Vial
+|image = [[File:Vial (The Gauntlet).png]]
+|release = [[25 July]] [[2019]]
+|update = Song of the Elves
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Drop
+|examine = An empty vial shaped by crystals deep within the Gauntlet.
+|value = 1
+|alchable = No
+|weight = 0.015
+|id = 23879
+}}
+[[File:Vial (The Gauntlet) detail.png|left|150x150px]]
+The '''vial''' is created via the singing bowl within the [[Gauntlet]] with 10 [[Crystal shards (The Gauntlet)|crystal shards]]. It is used to create [[egniol potion]]s in the Gauntlet.
+
+==Creation==
+<tabber>
+Crystal Shards={{Recipe
+|skill1 = Crafting
+|skill2 = Smithing
+|skill1lvl = 1
+|skill2lvl = 1
+|skill1exp = 5
+|skill2exp = 5
+|ticks = 1
+|members = Yes
+|facilities = Singing Bowl (The Gauntlet)
+|mat1 = Crystal shards (The Gauntlet)
+|mat1quantity = 10
+|mat1cost = No
+|output1 = Vial (The Gauntlet)
+|output1cost = No
+}}
+|-|
+Corrupted Shards={{Recipe
+|skill1 = Crafting
+|skill2 = Smithing
+|skill1lvl = 1
+|skill2lvl = 1
+|skill1exp = 5
+|skill2exp = 5
+|ticks = 1
+|members = Yes
+|facilities = Singing Bowl (The Corrupted Gauntlet)
+|mat1 = Corrupted shards
+|mat1quantity = 10
+|mat1cost = No
+|output1 = Vial (The Gauntlet)
+|output1cost = No
+}}
+</tabber>
+
+==Products==
+{{Uses material list|Vial (The Gauntlet)}}
+
+{{The Gauntlet}}

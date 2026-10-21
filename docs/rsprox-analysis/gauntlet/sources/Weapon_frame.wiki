@@ -1,0 +1,43 @@
+{{Infobox Item
+|name = Weapon frame
+|image = [[File:Weapon frame.png]]
+|release = [[25 July]] [[2019]]
+|update = Song of the Elves
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Drop
+|examine = Could be used to make some kind of weapon.
+|value = 1
+|alchable = No
+|weight = 1.814
+|id = 23871
+}}
+[[File:Weapon frame detail.png|100px|left]]
+A '''weapon frame''' can be obtained as a drop from any monster in the [[Gauntlet]]. The weapon frame is used to create the lowest tier [[Crystal halberd (basic)|crystal halberd]], [[Crystal bow (basic)|bow]], or [[Crystal staff (basic)|staff]]. These items can be attuned to tier 2 by using 50 [[Crystal shards (The Gauntlet)|crystal shards]]. Depending on which weapon is created, the attuned weapons can be perfected to tier 3 by using a unique item (either the [[crystal spike]], [[crystal orb|orb]] or [[crystalline bowstring|bowstring]]).
+
+==Item sources==
+{{Drop sources|Weapon frame}}
+
+==Products==
+{{Uses material list|Weapon frame}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 22 July 2026
+|update = Summer Sweep-Up Gear & PvM Changes
+|change = Weapon frames are now guaranteed from killing the first [[Crystalline Spider|crystalline spider]], [[Crystalline Rat|rat]], or [[Crystalline Bat|bat]].
+}}
+{{Subject changes
+|date = 8 April 2020
+|update = Poll 70 Improvements
+|poll = Old School Content Poll 70: Game Improvements
+|change = Demi-bosses in the Gauntlet will now always drop a weapon frame.
+}}
+{{Subject changes footer}}
+
+{{The Gauntlet}}

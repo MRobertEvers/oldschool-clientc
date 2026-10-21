@@ -1,0 +1,173 @@
+{{Infobox Item
+|defver = 4
+|version1 = 1 dose
+|version2 = 2 dose
+|version3 = 3 dose
+|version4 = 4 dose
+|bucketname1 = (1)
+|bucketname2 = (2)
+|bucketname3 = (3)
+|bucketname4 = (4)
+|name1 = Egniol potion (1)
+|name2 = Egniol potion (2)
+|name3 = Egniol potion (3)
+|name4 = Egniol potion (4)
+|image1 = [[File:Egniol potion (1).png]]
+|image2 = [[File:Egniol potion (2).png]]
+|image3 = [[File:Egniol potion (3).png]]
+|image4 = [[File:Egniol potion (4).png]]
+|release = [[25 July]] [[2019]]
+|update = Song of the Elves
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Drink, Drop
+|examine1 = 1 dose of a divine and energising potion.
+|examine2 = 2 doses of a divine and energising potion.
+|examine3 = 3 doses of a divine and energising potion.
+|examine4 = 4 doses of a divine and energising potion.
+|value = 1
+|alchable = No
+|weight = 0.020
+|id1 = 23882
+|id2 = 23883
+|id3 = 23884
+|id4 = 23885
+}}
+{{Synced switch
+|version1 = [[File:Egniol potion (1) detail.png|left|120px]]
+|version2 = [[File:Egniol potion (2) detail.png|left|120px]]
+|version3 = [[File:Egniol potion (3) detail.png|left|120px]]
+|version4 = [[File:Egniol potion (4) detail.png|left|120px|class=pageimage]]
+}}
+'''Egniol potions''' are a type of potion that can be made whilst in the [[Gauntlet]]. It restores prayer, 40% run energy, and acts as a [[stamina potion]].
+
+==Effects==
+Prayer restore is calculated with: <math>\lfloor PrayerLevel \times \frac{1}{4} \rfloor + 7</math>
+{| class="wikitable" style="text-align:center"
+!{{SCP|Prayer}} Level!!Boost!!{{SCP|Prayer}} Level!!Boost!!{{SCP|Prayer}} Level!!Boost
+|-
+|'''1-3'''||+7||'''36-39'''||+16||'''72-75'''||+25
+|-
+|'''4-7'''||+8||'''40-43'''||+17||'''76-79'''||+26
+|-
+|'''8-11'''||+9||'''44-47'''||+18||'''80-83'''||+27
+|-
+|'''12-15'''||+10||'''48-51'''||+19||'''84-87'''||+28
+|-
+|'''16-19'''||+11||'''52-55'''||+20||'''88-91'''||+29
+|-
+|'''20-23'''||+12||'''56-59'''||+21||'''92-95'''||+30
+|-
+|'''24-27'''||+13||'''60-63'''||+22||'''96-99'''||+31
+|-
+|'''28-31'''||+14||'''64-67'''||+23
+|-
+|'''32-35'''||+15||'''68-71'''||+24
+|}
+
+
+==Creation==
+#Fill a [[Vial (The Gauntlet)|vial]] with water at a [[Water Pump (The Gauntlet)|Water Pump]] or fishing spot to receive a [[water-filled vial]].
+#Use a [[grym leaf]] on the water-filled vial to receive a [[grym potion (unf)]].
+#Use a [[Pestle and mortar (The Gauntlet)|pestle and mortar]] with ten [[Crystal shards (The Gauntlet)|crystal shards]] to receive ten [[Crystal dust (The Gauntlet)|crystal dust]].
+#Use the ten crystal dust with the grym potion (unf) to receive an Egniol potion (3).
+
+===The Gauntlet===
+{{Recipe
+|skill1 = Herblore
+|skill1lvl = 1
+|skill1exp = 10
+|ticks = 1
+|members = Yes
+|mat1 = Grym potion (unf)
+|mat1quantity = 1
+|mat1cost = No
+|mat2 = Crystal dust (The Gauntlet)
+|mat2quantity = 10
+|mat2cost = No
+|output1 = Egniol potion (3)
+|output1cost = No
+}}
+
+===The Corrupted Gauntlet===
+{{Recipe
+|skill1 = Herblore
+|skill1lvl = 1
+|skill1exp = 10
+|ticks = 1
+|members = Yes
+|mat1 = Grym potion (unf)
+|mat1quantity = 1
+|mat1cost = No
+|mat2 = Corrupted dust
+|mat2quantity = 10
+|mat2cost = No
+|output1 = Egniol potion (3)
+|output1cost = No
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 2 July 2020
+|update = Poll 71 and Death Feedback Changes
+|poll =
+|change = The inventory icon of the Egniol potion has been [[graphically updated]] to match the look of normal potions.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{{Switch infobox
+|text1 = 1 dose
+|item1 =
+|text2 = 2 dose
+|item2 =
+|text3 = 3 dose
+|item3 =
+|text4 = 4 dose
+|item4 =
+}}
+{|style="text-align: center" cellpadding="15"
+|
+{{Synced switch
+|version1 = [[File:Egniol potion (1) (v1) detail.png|center|300x150px]]
+|version2 = [[File:Egniol potion (2) (v1) detail.png|center|300x150px]]
+|version3 = [[File:Egniol potion (3) (v1) detail.png|center|300x150px]]
+|version4 = [[File:Egniol potion (4) (v1) detail.png|center|300x150px]]
+}}
+|
+{{Synced switch
+|version1 = [[File:Egniol potion (1) detail.png|center|300x150px]]
+|version2 = [[File:Egniol potion (2) detail.png|center|300x150px]]
+|version3 = [[File:Egniol potion (3) detail.png|center|300x150px]]
+|version4 = [[File:Egniol potion (4) detail.png|center|300x150px]]
+}}
+|-
+|
+{{Synced switch
+|version1 = [[File:Egniol potion (1) v1.png|center]]
+|version2 = [[File:Egniol potion (2) v1.png|center]]
+|version3 = [[File:Egniol potion (3) v1.png|center]]
+|version4 = [[File:Egniol potion (4) v1.png|center]]
+}}
+|
+{{Synced switch
+|version1 = [[File:Egniol potion (1).png|center]]
+|version2 = [[File:Egniol potion (2).png|center]]
+|version3 = [[File:Egniol potion (3).png|center]]
+|version4 = [[File:Egniol potion (4).png|center]]
+}}
+|-
+|25 July 2019 –<br/>2 July 2020
+|2 July 2020 –<br/>present
+|}
+
+==Trivia==
+*Egniol is a Welsh word meaning energetic.
+
+{{The Gauntlet}}
+{{Potions}}

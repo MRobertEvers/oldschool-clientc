@@ -1,0 +1,182 @@
+{{Otheruses|the recipe book for creating items in the [[Corrupted Gauntlet]]|Crystal Singing Recipes (The Corrupted Gauntlet)|the recipe book for creating items outside of [[The Gauntlet]]|Crystal Singing Recipes|def=no}}
+{{Infobox Scenery
+|name = Crystal Singing Recipes
+|image = [[File:Crystal Singing Recipes (The Gauntlet).png|211px]]
+|release = [[25 July]] [[2019]]
+|update = Song of the Elves
+|members = Yes
+|quest = [[Song of the Elves]]
+|location = [[The Gauntlet]]
+|options = Read
+|examine = A book of recipes for crystal singing.
+|map = No
+|id = 36075
+}}
+'''Crystal Singing Recipes''' is a bookstand in the central hub and in the starting room of the [[Gauntlet]]. Players can click the bookstand to get an overview of all recipes for armour and weaponry found within the Gauntlet.
+
+==Locations==
+{{ObjectTableHead}}
+{{ObjectLocLine
+|name = Crystal Singing Recipes
+|location = [[The Gauntlet]], Lobby
+|members = Yes
+|mapID = -1
+|plane = 1
+|3031,6118
+|mtype = pin
+|leagueRegion = tirannwn
+}}
+{{ObjectLocLine
+|name = Crystal Singing Recipes
+|location = [[The Gauntlet]], Starting room
+|members = Yes
+|mapID = -1
+|plane = 1
+|1908,5666
+|mtype = pin
+|leagueRegion = tirannwn
+}}
+{{ObjectTableBottom}}
+
+== Crystal Singing Recipes ==
+The following table shows the crystal singing recipes, as listed in the book.
+{| class="wikitable sortable"
+|+
+!Product
+!Number of [[Crystal shards (The Gauntlet)|Crystal Shards]]
+!Other Materials
+|-
+|{{Plink|Vial (The Gauntlet)|txt=Crystal Vial}}
+|10
+|None
+|-
+|{{Plink|Teleport crystal (The Gauntlet)|txt=Teleport Crystal}}
+|50
+|None
+|-
+|{{Plink|Escape crystal (The Gauntlet)|txt=Escape Crystal}}
+|200
+|None
+|-
+|{{Plink|Crystal paddlefish|txt=Crystal Paddlefish}}
+|10
+|1x {{Plink|Paddlefish}}
+|-
+|{{Plink|Crystal halberd (basic)|txt=Basic Crystal Halberd}}
+|0
+|1x {{Plink|Weapon frame|txt=Weapon Frame}}
+|-
+|{{Plink|Crystal bow (basic)|txt=Basic Crystal Bow}}
+|0
+|1x {{Plink|Weapon frame|txt=Weapon Frame}}
+|-
+|{{Plink|Crystal staff (basic)|txt=Basic Crystal Staff}}
+|0
+|1x {{Plink|Weapon frame|txt=Weapon Frame}}
+|-
+|{{Plink|Crystal helm (basic)|txt=Basic Crystal Helm}}
+|50
+|1x {{Plink|Crystal ore|txt=Crystal Ore}}
+1x {{Plink|Phren bark|txt=Phren Bark}}
+
+1x {{Plink|Linum tirinum|txt=Linum Tirinum}}
+|-
+|{{Plink|Crystal body (basic)|txt=Basic Crystal Body}}
+|50
+|1x {{Plink|Crystal ore|txt=Crystal Ore}}
+1x {{Plink|Phren bark|txt=Phren Bark}}
+
+1x {{Plink|Linum tirinum|txt=Linum Tirinum}}
+|-
+|{{Plink|Crystal legs (basic)|txt=Basic Crystal Legs}}
+|50
+|1x {{Plink|Crystal ore|txt=Crystal Ore}}
+1x {{Plink|Phren bark|txt=Phren Bark}}
+
+1x {{Plink|Linum tirinum|txt=Linum Tirinum}}
+|-
+|{{Plink|Crystal halberd (attuned)|txt=Attuned Crystal Halberd}}
+|50
+|1x {{Plink|Crystal halberd (basic)|txt=Basic Crystal Halberd}}
+|-
+|{{Plink|Crystal bow (attuned)|txt=Attuned Crystal Bow}}
+|50
+|1x {{Plink|Crystal bow (basic)|txt=Basic Crystal Bow}}
+|-
+|{{Plink|Crystal halberd (attuned)|txt=Attuned Crystal Halberd}}
+|50
+|1x {{Plink|Crystal halberd (basic)|txt=Basic Crystal Halberd}}
+|-
+|{{Plink|Crystal helm (attuned)|txt=Attuned Crystal Helm}}
+|50
+|1x {{Plink|Crystal helm (basic)|txt=Basic Crystal Helm}}
+1x {{Plink|Crystal ore|txt=Crystal Ore}}
+
+1x {{Plink|Phren bark|txt=Phren Bark}}
+
+1x {{Plink|Linum tirinum|txt=Linum Tirinum}}
+|-
+|{{Plink|Crystal body (attuned)|txt=Attuned Crystal Body}}
+|100
+|1x {{Plink|Crystal body (basic)|txt=Basic Crystal Body}}
+2x {{Plink|Crystal ore|txt=Crystal Ore}}
+
+2x {{Plink|Phren bark|txt=Phren Bark}}
+
+2x {{Plink|Linum tirinum|txt=Linum Tirinum}}
+|-
+|{{Plink|Crystal legs (attuned)|txt=Attuned Crystal Legs}}
+|50
+|1x {{Plink|Crystal legs (basic)|txt=Basic Crystal Legs}}
+1x {{Plink|Crystal ore|txt=Crystal Ore}}
+
+1x {{Plink|Phren bark|txt=Phren Bark}}
+
+1x {{Plink|Linum tirinum|txt=Linum Tirinum}}
+|-
+|{{Plink|Crystal halberd (perfected)|txt=Perfected Crystal Halberd}}
+|0
+|1x {{Plink|Crystal halberd (attuned)|txt=Attuned Crystal Halberd}}
+1x {{Plink|Crystal spike|txt=Crystal Spike}}
+|-
+|{{Plink|Crystal bow (perfected)|txt=Perfected Crystal Bow}}
+|0
+|1x {{Plink|Crystal bow (attuned)|txt=Attuned Crystal Bow}}
+1x {{Plink|Crystalline bowstring|txt=Crystalline Bowstring}}
+|-
+|{{Plink|Crystal staff (perfected)|txt=Perfected Crystal Staff}}
+|0
+|1x {{Plink|Crystal staff (attuned)|txt=Attuned Crystal Staff}}
+1x {{Plink|Crystal orb|txt=Crystal Orb}}
+|-
+|{{Plink|Crystal helm (perfected)|txt=Perfected Crystal Helm}}
+|100
+|1x {{Plink|Crystal helm (attuned)|txt=Attuned Crystal Helm}}
+2x {{Plink|Crystal ore|txt=Crystal Ore}}
+
+2x {{Plink|Phren bark|txt=Phren Bark}}
+
+2x {{Plink|Linum tirinum|txt=Linum Tirinum}}
+|-
+|{{Plink|Crystal body (perfected)|txt=Perfected Crystal Body}}
+|100
+|1x {{Plink|Crystal body (attuned)|txt=Attuned Crystal Body}}
+2x {{Plink|Crystal ore|txt=Crystal Ore}}
+
+2x {{Plink|Phren bark|txt=Phren Bark}}
+
+2x {{Plink|Linum tirinum|txt=Linum Tirinum}}
+|-
+|{{Plink|Crystal legs (perfected)|txt=Perfected Crystal Legs}}
+|100
+|1x {{Plink|Crystal legs (attuned)|txt=Attuned Crystal Legs}}
+2x {{Plink|Crystal ore|txt=Crystal Ore}}
+
+2x {{Plink|Phren bark|txt=Phren Bark}}
+
+2x {{Plink|Linum tirinum|txt=Linum Tirinum}}
+|}
+
+== Gallery ==
+[[File:Crystal Singing Recipes (The Gauntlet) interface.png|left|thumb|The interface for the Crystal Singing Recipes book.]]
+{{The Gauntlet}}

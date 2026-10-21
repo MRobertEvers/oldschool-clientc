@@ -1,0 +1,22 @@
+{{Infobox Scenery
+|version1 = Normal
+|version2 = Boss Room
+|name = Barrier
+|image = [[File:Barrier (The Gauntlet).png|250x250px]]
+|release = [[25 July]] [[2019]]
+|update = Song of the Elves
+|members = Yes
+|quest = [[Song of the Elves]]
+|location = [[The Gauntlet]]
+|options1 = Pass, Quick-pass
+|options2 = Escape
+|examine = A mystical barrier.
+|map = No
+|id1 = 36079
+|id2 = 36080
+}}
+'''Barriers''' can be found on each side of the boss room of the [[The Gauntlet|Gauntlet]]. Players can use these to pass into the boss room from any adjacent room before the timer runs out. Prior to entering they will be warned that there is no turning back once they enter. The warning can be skipped with the '''Quick-pass''' option.
+
+During the fight, players who wish to escape must '''right-click''' the barrier and choose the "'''Escape'''" option. 
+
+{{The Gauntlet}}

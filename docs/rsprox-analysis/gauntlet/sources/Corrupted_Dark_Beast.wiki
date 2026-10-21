@@ -1,0 +1,84 @@
+{{Infobox Monster
+|name = Corrupted Dark Beast
+|image = [[File:Corrupted Dark Beast.png|280px]]
+|release = [[25 July]] [[2019]]
+|update = Song of the Elves
+|members = Yes
+|combat = 258
+|size = 3
+|examine = It doesn't look so dark with all those crystals.
+|xpbonus = 
+|max hit = 48
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Ranged]]
+|attack speed = 4
+|hitpoints = 100
+|att = 147
+|str = 147
+|def = 98
+|mage = 98
+|range = 147
+|attbns = 0
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 81
+|rngbns = 132
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|dlight = 0
+|dstandard = 0
+|dheavy = 0
+|poisonresistance = 100
+|venomresistance = 100
+|id = 9048
+|leagueRegion = Tirannwn
+}}
+The '''Corrupted Dark Beast''' is a mini-boss monster found in the [[The Gauntlet#Corrupted Gauntlet|Corrupted Gauntlet]] that attacks with [[Ranged]]. Their counterpart in the [[The Gauntlet|Gauntlet]] is the [[Crystalline Dark Beast]]. Mini-boss monsters always spawn alone, and only appear at the edges of the Gauntlet map. Unlike regular [[Dark Beast|Dark Beasts]], it does not require a [[Slayer]] level to be harmed.
+
+==Drops==
+{{DropLogProject|kills=1822439}}
+
+===100%===
+{{DropsTableHead}}
+{{DropsLine|name=Corrupted shards|quantity=50-60|rarity=Always|gemw=No}}
+{{DropsLine|name=Weapon frame (corrupted)|quantity=1|rarity=Always|gemw=No}}
+{{DropsTableBottom}}
+
+===Weapon components===
+A bowstring will drop if it is not already owned; if it is, there is an equal chance to receive any item that is not already owned.
+{{DropsTableHead}}
+{{DropsLine|name=Corrupted bowstring|quantity=1|rarity=Varies|gemw=No}}
+{{DropsLine|name=Corrupted orb|quantity=1|rarity=Varies|gemw=No}}
+{{DropsLine|name=Corrupted spike|quantity=1|rarity=Varies|gemw=No}}
+{{DropsTableBottom}}
+
+===Resources===
+There is a 5/6 (83.3%) chance to receive a resource.
+{{DropsTableHead}}
+{{DropsLine|name=Nothing|rarity=3/18|gemw=No}}
+{{DropsLine|name=Corrupted shards|quantity=10-21|rarity=9/18|gemw=No}}
+{{DropsLine|name=Raw paddlefish|quantity=3-5|rarity=3/18|gemw=No}}
+{{DropsLine|name=Grym leaf (corrupted)|quantity=1|rarity=2/18|gemw=No}}
+{{DropsLine|name=Corrupted teleport crystal|quantity=1|rarity=1/18|gemw=No}}
+{{DropsTableBottom}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 22 July 2026
+|update = Summer Sweep-Up Gear & PvM Changes
+|change = The quantity of corrupted shards dropped was increased from 30-60 to 50-60.
+}}
+{{Subject changes
+|date = 8 April 2020
+|update = Poll 70 Improvements
+|poll = Old School Content Poll 70: Game Improvements
+|change = Demi-bosses in the Gauntlet will now always drop a weapon frame.
+}}
+{{Subject changes footer}}
+
+{{The Gauntlet}}

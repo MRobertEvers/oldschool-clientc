@@ -1,0 +1,49 @@
+{{Otheruses|the food obtained within the Gauntlet|the fish obtained while fighting Tempoross|Crystallised harpoonfish}}
+
+{{Infobox Item
+|name = Crystal paddlefish
+|image = [[File:Crystal paddlefish.png]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = No
+|noteable = No
+|edible = Yes
+|options = Eat, Drop
+|examine = Tastes a bit sharp.
+|value = 1
+|alchable = No
+|weight = 0.450
+|id = 25960
+}}
+[[File:Crystal paddlefish detail.png|130px|left]]
+'''Crystal paddlefish''' are food obtained within the [[Gauntlet]], healing 16 [[Hitpoints]]. Like [[cooked karambwan]], they can be eaten instantly with no delay after eating a paddlefish.
+
+It can be made with 10 [[Crystal shards (The Gauntlet)|crystal shards]] and a [[paddlefish]] at the [[Singing Bowl (The Gauntlet)|singing bowl]].
+
+==Creation==
+{{Recipe
+|skill1 = Crafting
+|skill2 = Smithing
+|skill1lvl = 1
+|skill2lvl = 1
+|skill1exp = 5
+|skill2exp = 5
+|ticks = 1
+|members = Yes
+|facilities = Singing Bowl (The Gauntlet)
+|mat1 = Paddlefish
+|mat1quantity = 1
+|mat1cost = No
+|mat2 = Crystal shards (The Gauntlet)
+|mat2quantity = 10
+|mat2cost = No
+|output1 = Crystal paddlefish
+|output1cost = No
+}}
+
+{{The Gauntlet}}
+{{Fish}}

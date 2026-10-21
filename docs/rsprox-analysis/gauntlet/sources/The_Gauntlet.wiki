@@ -1,0 +1,496 @@
+{{otheruses|the procedurally-generated dungeon|the gloves|gauntlets|the music track|The Gauntlet (music track)}}
+{{Dangerous|noitems=yes}}
+{{HasStrategy}}
+{{Infobox Activity
+|name = The Gauntlet
+|image = [[File:The Gauntlet.png|300px]]
+|release = [[25 July]] [[2019]]
+|update = Song of the Elves
+|type = Minigame
+|members = Yes
+|location = [[Prifddinas]]
+|players = 1
+|skills = Combat, skilling
+|currency = No
+|tutorial = No
+|music = [[The Gauntlet (music track)|The Gauntlet]]
+|map = {{Map|x=3228|y=6116|r=4|mapID=29|mtype=square}}
+|leagueRegion = Tirannwn
+}}
+'''The Gauntlet''' is a solo [[minigame]] in [[Prifddinas]] in which the player is given a limited amount of time to explore a randomly generated dungeon layout, gather various resources and supplies by skilling and defeating crystalline monsters, all in preparation to defeat the [[Crystalline Hunllef]], which is based upon a [[Hunllef (race)|deadly wolf-like predator]] from the elven homeworld of [[Tarddiad]]. The Gauntlet was created as a training ground by the [[Amlodd Clan]] to ensure their warriors were capable of defending Prifddinas during the [[God Wars]].{{CiteNPC|npc=Bryn|quote=This here is the Gauntlet, the finest creation of the Amlodd clan. It was built years ago to help train Prifddinas' finest warriors and survivalists.|loc=|notes=|name=}}
+
+The Gauntlet can be found by entering the [[Gauntlet Portal]], found in the north-western part of Prifddinas.
+
+Players '''cannot''' bring any items into the Gauntlet; when entering the minigame, all items currently on the player will be automatically stored for its duration. Any pre-applied skill boosts will also be removed upon entry to the Gauntlet. It is a dangerous minigame, so [[hardcore ironmen]] will lose their hardcore status, and ultimate ironmen will lose items in [[instanced banks]] should they die in The Gauntlet.
+
+The area contains resource nodes, [[grym leaf|herbs]] and [[raw paddlefish|fish]] obtainable through [[Mining]], [[Woodcutting]], [[Fishing]] and other gathering methods, in order to make weapons, armour, potions and food. These various resources do not require a specific skill level to gather. The dungeon will also contain various crystalline monsters, such as [[Crystalline Bat|bats]], [[Crystalline Unicorn|unicorns]] and [[Crystalline Dark Beast|dark beasts]], which can be killed for further supplies. Higher level monsters will offer better drops at the cost of taking more time to defeat.
+
+Completion of The Gauntlet will reward players with various loot, including [[crystal armour seed]]s for [[crystal armour]], as well as [[enhanced crystal weapon seed]]s for the [[Blade of Saeldor]] or the [[Bow of Faerdhinen]] and the [[crystal shard]]s required to charge the items. Failing to finish, either by death or leaving early, will give a small token reward based upon how well the player performed, but will not grant any chance of unique items.
+
+==Basic overview==
+{{Has calculator|Calculator:Gauntlet resources}}
+The map consists of a 7x7 grid of rooms, and the player starts adjacent to the centre room that contains The Gauntlet's boss: the [[Crystalline Hunllef]]. The player has 10 minutes to prepare to fight this boss, which is indicated by a timer. If the timer runs out, the player will automatically get teleported into the boss room. The player can also choose to manually enter the boss room before the timer ends.
+
+During this 10 minute preparation time, the player may use the resources of The Gauntlet's environment to create a set up to challenge the Crystalline Hunllef. This set up may consist of three tiers of halberds, staves, bows, helmets, body armours and leg armours, as well as food and a potion that restores [[run energy]] and [[prayer points]].
+
+===Starting items===
+{{Inventory|align=right
+|Crystal axe (The Gauntlet) |Crystal pickaxe (The Gauntlet) |Crystal harpoon (The Gauntlet) |Pestle and mortar (The Gauntlet)
+|Teleport crystal (The Gauntlet)\1 | | | 
+| | | | 
+| | | | 
+| | | | 
+| | | | 
+| | | | 
+}}
+The player starts with a few items in their inventory and they will be wielding a [[crystal sceptre]]. These items will be needed for exploring the rooms and collecting resources.
+
+{| class="wikitable align-center-1"
+|-
+! colspan=2 |Item
+!Effect
+|-
+|{{plinkt|Crystal sceptre}}
+|This item is required to light nodes (i.e. to visit new rooms). It can also be used as a weak melee weapon. 
+|-
+|{{plinkt|Crystal axe (The Gauntlet)|txt=Crystal axe}}
+|Used to chop {{plink|Phren bark}}
+|-
+|{{plinkt|Crystal pickaxe (The Gauntlet)|txt=Crystal pickaxe}}
+|Used to mine {{plink|Crystal ore}}
+|-
+|{{plinkt|Crystal harpoon (The Gauntlet)|txt=Crystal harpoon}}
+|Used to fish {{plink|Raw paddlefish}}
+|-
+|{{plinkt|Pestle and mortar (The Gauntlet)|txt=Pestle and mortar}}
+|Used to grind {{plink|Crystal shards (The Gauntlet)|txt=Crystal shards}}<sup>x10</sup> into [[Crystal dust (The Gauntlet)|Crystal dust]]<sup>x10</sup> and to grind each [[Crystal spike]]''',''' [[Crystal orb]]''',''' [[Crystalline bowstring]] into {{plink|Crystal shards (The Gauntlet)|txt=Crystal shards}}<sup>x80</sup>
+|-
+|{{plinkt|Teleport crystal (The Gauntlet)|txt=Teleport crystal}}
+|Single-use item for teleporting the player back to the starting room.
+|}
+{{Clear}}
+
+===Starting room===
+[[File:The Gauntlet Starting Room.png|200px|right|thumb|Features of the starting room]]
+The player will start adjacent to the central room. This room contains features that are used for processing the collected resources.
+*'''[[Crystal Singing Recipes (The Gauntlet)|Crystal Singing Recipes]]:''' A bookstand players can click to get an overview of all recipes for armour and weaponry found within The Gauntlet.
+*'''[[Egniol Potions]]:''' A bookstand players can click to read a text describing the use and recipe of [[egniol potion]]s.
+*'''[[Range (The Gauntlet)|Range]]:''' Used to cook {{plink|Raw paddlefish}} into {{plink|Paddlefish}}.
+*'''[[Singing Bowl]]:''' Used to craft vials, teleport crystals, [[crystal paddlefish]], [[corrupted paddlefish]], armour and weapons.
+*'''[[Teleport Platform (The Gauntlet)|Teleport Platform]]:''' Used to abandon the current challenge.
+*'''[[Tool Storage]]:''' Used to re-obtain [[crystal sceptre]], [[Crystal axe (The Gauntlet)|crystal axe]], [[Crystal pickaxe (The Gauntlet)|crystal pickaxe]], [[Crystal harpoon (The Gauntlet)|crystal harpoon]] and [[Pestle and mortar (The Gauntlet)|pestle and mortar]]
+*'''[[Water Pump (The Gauntlet)|Water Pump]]:''' Used to turn {{plink|Vial (The Gauntlet)|txt=vials}} into {{plink|Water-filled vial|txt=water-filled vials}}, which are needed to make {{plink|Egniol potion (3)|txt=Egniol potions}}.
+{{Clear}}
+
+===Resource rooms===
+Each room in The Gauntlet, except for the starting room and the boss room, contains resource nodes and/or monsters. These resource nodes and monsters are farmed to collect resources that can be processed at the [[Singing Bowl]] in the starting room.
+
+====Resource nodes====
+[[File:Phren Roots.png|right|100px]]
+There are five types of resource nodes. Each resource room will contain zero to five resource nodes. A resource room may contain a combination of different resource nodes.
+*'''[[Crystal Deposit]]:''' Used to mine [[crystal ore]] from. Three crystal ores can be collected from each Crystal Deposit. Used for creating armour within The Gauntlet.
+*'''[[Linum Tirinum (plant)|Linum Tirinum]]:''' Used to pick [[linum tirinum]] from. Three linum tirinum can be collected from each Linum Tirinum plant. Used for creating armour within The Gauntlet.
+*'''[[Phren Roots]]:''' Used to chop [[phren bark]] from. Three phren barks can be collected from each Phren Roots plant. Used for creating armour within The Gauntlet.
+*'''[[Grym Root]]:''' Used to pick a [[grym leaf]] from. One grym leaf can be collected from each Grym Root plant. Used for creating Egniol potions within The Gauntlet.
+*'''[[Fishing Spot (The Gauntlet)|Fishing Spot]]:''' Used to fish [[raw paddlefish]] from. Four raw paddlefish can be collected from each Fishing Spot. Used for food within The Gauntlet, healing 20 Hitpoints when cooked. Also counts as a water source to fill vials.
+
+Collecting resources from the aforementioned nodes may reward the player with [[Crystal shards (The Gauntlet)|crystal shards]].
+
+The inner 3x3 area adjacent to the boss room is guaranteed to include 4 rooms containing each at least 3 Crystal Deposits, Linum Tirinum, Phren Roots and weak monsters respectively.
+This does not apply to the [[Corrupted Gauntlet]].
+
+====Monsters====
+There are nine types of monsters that can be found within the resource rooms, that can be categorized into three categories:
+*'''Weak monsters:''' [[Crystalline Spider]]s (level 22), [[Crystalline Rat]]s (level 23) and [[Crystalline Bat]]s (level 33).
+*'''Strong monsters:''' [[Crystalline Unicorn]]s (level 45), [[Crystalline Scorpion]]s (level 64) and [[Crystalline Wolf|Crystalline Wolves]] (level 69).
+*'''Demi-bosses:''' [[Crystalline Bear]]s (level 172), [[Crystalline Dragon]]s (level 172) and [[Crystalline Dark Beast]]s (level 172).
+
+[[File:Weapon frame detail.png|right|100px]]
+[[File:Crystal spike detail.png|right|100px]]
+The above monsters may be killed for the following items:
+*'''[[Crystal shards (The Gauntlet)|Crystal shards]]:''' Used for processing items at the [[Singing Bowl]].
+*'''[[Weapon frame]]:''' Used for creating the lowest tier bow, halberd or staff at the Singing Bowl.
+*'''[[Raw paddlefish]]:''' Used for food within The Gauntlet, healing 20 [[Hitpoints]] when eaten cooked.
+*'''[[Grym leaf]]:''' Used for creating [[Egniol potion]]s within The Gauntlet.
+*'''[[Teleport crystal (The Gauntlet)|Teleport crystal]]:''' Used for teleporting to the starting room.
+*'''[[Crystal spike]]:''' Used to create the highest tier halberd. Guaranteed drop from the first [[Crystalline Bear]] killed.
+*'''[[Crystal orb]]:''' Used to create the highest tier staff. Guaranteed drop from the first [[Crystalline Dragon]] killed.
+*'''[[Crystalline bowstring]]:''' Used to create the highest tier bow. Guaranteed drop from the first [[Crystalline Dark Beast]] killed.
+
+===Armour and weaponry===
+The Singing Bowl can be used to create armour and weapons. Since the Crystalline Hunllef uses [[protection prayers]], at least two different types of weapons are required.
+
+====Weapons====
+[[File:Crystal halberd (perfected) equipped male.png|right|x250px]]
+There are three types of weapons: bows ([[Ranged]]), halberds ([[Melee]]) and staves ([[Magic]]). These weapons are available in three tiers: basic, attuned and perfected. Higher tiers are created by upgrading from their previous tiers.
+
+The creation of each of the three weapon types requires the same resources:
+*'''Basic''' (tier 1): A [[weapon frame]].
+*'''Attuned''' (tier 2): Basic weapon and 50 [[Crystal shards (The Gauntlet)|crystal shards]].
+*'''Perfected''' (tier 3): Attuned weapon and a [[crystal spike]] (for the halberd), [[crystal orb]] (for the staff) or [[crystalline bowstring]] (for the bow).
+
+Weapons from higher tiers give the player higher accuracy and/or damage. See the table below for an overview of each weapon's bonuses:
+
+{{Infotable Bonuses|Crystal sceptre|Crystal halberd (basic)|Crystal halberd (attuned)|Crystal halberd (perfected)|Crystal bow (basic)|Crystal bow (attuned)|Crystal bow (perfected)|Crystal staff (basic)|Crystal staff (attuned)|Crystal staff (perfected)|nototals=yes|sort=amagic,arange,aslash}}
+
+====Armour====
+[[File:Perfected crystal armour (male) equipped.png|right|150px]]
+There are three armour pieces: helmets, bodies and legs, and they are available in three tiers: basic, attuned and perfected. Higher tiers are created by upgrading from their previous tiers.
+
+The creation of each armour piece requires the following resources:
+{| class="wikitable" style="vertical-align:bottom;"
+|- style="font-weight:bold; vertical-align:middle;"
+! rowspan="2" style="font-weight:normal;" | 
+! colspan="4" style="text-align:center; vertical-align:bottom;" | Tier 1
+! colspan="5" style="text-align:center; vertical-align:bottom;" | Tier 2
+! colspan="4" style="text-align:center; vertical-align:bottom;" | Tier 3
+! 
+|- style="font-weight:bold;"
+! Body
+! Legs
+! Helm
+! Total
+! Body
+! Legs
+! Helm
+! Total 
+!Total (1+2)
+! Body
+! Legs
+! Helm
+! Total
+! Total (All)
+|-
+! style="font-weight:bold;" | Ore
+| 1
+| 1
+| 1
+| 3
+| 2
+| 1
+| 1
+| 4
+|7
+| 2
+| 2
+| 2
+| 6
+| 13
+|-
+! style="font-weight:bold;" | Linum
+| 1
+| 1
+| 1
+| 3
+| 2
+| 1
+| 1
+| 4
+|7
+| 2
+| 2
+| 2
+| 6
+| 13
+|-
+! style="font-weight:bold;" | Bark
+| 1
+| 1
+| 1
+| 3
+| 2
+| 1
+| 1
+| 4
+|7
+| 2
+| 2
+| 2
+| 6
+| 13
+|-
+! style="font-weight:bold;" | Shards
+| 50
+| 50
+| 50
+| 150
+| 100
+| 50
+| 50
+| 200
+|350
+| 100
+| 100
+| 100
+| 300
+| 650
+|}
+
+Armour pieces from higher tiers give player higher defence bonuses and mitigate more damage of the Crystalline Hunllef's attacks. It appears that the damage reduction is roughly 13.33% per level. See the table below for each armour piece's bonuses:
+{{Infotable Bonuses|Crystal helm (basic)|Crystal helm (attuned)|Crystal helm (perfected)|nototals=yes|sort=dmagic|colwidth=42px|itemwidth=190px}}
+
+{{Infotable Bonuses|Crystal body (basic)|Crystal body (attuned)|Crystal body (perfected)|nototals=yes|sort=dmagic|colwidth=42px|itemwidth=190px}}
+
+{{Infotable Bonuses|Crystal legs (basic)|Crystal legs (attuned)|Crystal legs (perfected)|nototals=yes|sort=dmagic|colwidth=42px|itemwidth=190px}}
+
+Wearing pieces of the crystal armour will further reduce damage taken from the Crystalline Hunllef's attacks. The table below describes its max hit while wearing different combinations of armour while using the correct protection prayer against its magic and ranged attacks.
+
+{| class="wikitable"
+! colspan="2" |Armour combination
+!Tier sum
+!Crystalline Hunllef's max hit
+!Damage from tornadoes
+|-
+|{{NA}}||No armour
+|0||12||10-20
+|-
+|{{plinkp|Crystal helm (basic)}}{{plinkp|Crystal body (basic)}}{{plinkp|Crystal legs (basic)}}||Full T1 armour
+|3||10||10-16
+|-
+|{{plinkp|Crystal helm (attuned)}}{{plinkp|Crystal body (attuned)}}{{plinkp|Crystal legs (attuned)}}||Full T2 armour
+|6||8||7-13
+|-
+|{{plinkp|Crystal helm (perfected)}}{{plinkp|Crystal body (basic)}}{{plinkp|Crystal legs (attuned)}}
+|T3+T1+T2
+|6
+|8
+|7-13
+|-
+|{{plinkp|Crystal helm (perfected)}}{{plinkp|Crystal body (perfected)}}{{plinkp|Crystal legs (perfected)}}||Full T3 armour
+|9||6||5-10
+|}
+
+{{Reflist|group=A}}
+
+===Boss room===
+[[File:Crystalline Hunllef.png|right|150px]]
+After the 10 minute timer expires the player is automatically teleported into the boss room. The player may also choose to manually pass through the [[Barrier (The Gauntlet)|barrier]] into the boss room if they're ready before the timer has expired. During the fight, players who wish to escape must '''right-click''' the barrier and choose the "'''Escape'''" option.
+
+The boss room always lies directly adjacent to the starting room.
+
+If the player dies as the boss dies, kill count credit will not be awarded.
+
+==Corrupted Gauntlet==
+[[File:The Corrupted Gauntlet.png|thumb|300px|A player in the Corrupted Gauntlet.]]
+After completing the Gauntlet once, players may try the Corrupted Gauntlet, which has increased difficulty compared to the regular Gauntlet.
+
+Differences include:
+*All monsters are Corrupted instead of Crystalline, with increased stats.
+*All items are Corrupted instead of Crystal, with the same stats.
+*The player only has 7 minutes and 30 seconds to prepare compared to the normal version at 10 minutes.
+*Resource generation of the inner 3x3 area adjacent to the boss room does not have randomness mitigation, with the exception of one room being guaranteed to contain 3 fishing spots.
+
+===Boss Room===
+*The boss room instead contains the [[Corrupted Hunllef]], which has 1000 health and increased aggressive stats. The table below describes its max hit while wearing different combinations of armour while using the correct protection prayer against its magic and ranged attacks.
+**If running full T2, consider making a T3 helm instead of a T2 body if you have spare shards. At the cost of 20 more shards, you'll gain +4 defence bonus stats whilst still retaining the T2 reduced damage effect, even though you technically did not have a full T2 set.
+***It appears that the sum of armour tiers being worn is what determines the max hit of Hunllef's attacks and tornadoes, as 2 T3 pieces provided the same damage reduction as a full set of T2 armour.
+
+{|class="wikitable"
+! colspan=2 | Armour combination
+!Tier sum
+!Corrupted Hunllef's max hit
+!Damage from tornadoes
+|-
+|{{NA}}||No armour
+|0||16||15-30
+|-
+|{{plinkp|Corrupted helm (basic)}}{{plinkp|Corrupted body (basic)}}{{plinkp|Corrupted legs (basic)}}||Full T1 armour
+|3||13||14-25
+|-
+|{{plinkp|Corrupted helm (attuned)}}{{plinkp|Corrupted body (attuned)}}{{plinkp|Corrupted legs (attuned)}}||Full T2 armour
+|6||10||10-20
+|-
+|{{plinkp|Corrupted helm (perfected)}}{{plinkp|Corrupted body (basic)}}{{plinkp|Corrupted legs (attuned)}}
+|T3+T1+T2
+|6
+|10
+|10-20
+|-
+|{{plinkp|Corrupted helm (perfected)}}{{plinkp|Corrupted body (perfected)}}{{plinkp|Corrupted legs (perfected)}}||Full T3 armour
+|9||8||8-15
+|}
+
+{{Reflist|group=A}}
+
+===Rewards===
+Completing the Corrupted Gauntlet rewards three rolls on an upgraded loot table. The player will also receive a {{plink|Gauntlet cape}} upon completion.
+
+==Loot table==
+{{Main|Reward Chest (The Gauntlet)}}
+{{Listen
+|title = [[Clearing the Gauntlet]]
+|align = right
+|filename = Clearing the Gauntlet.ogg
+|desc = The jingle that plays upon completing the Gauntlet.}}
+
+Upon completing The Gauntlet's challenge, players will receive two rolls on the regular loot table, several [[crystal shard]]s and a roll for the unique rewards. For more information on the loot table, visit the [[Reward Chest (The Gauntlet)|Reward Chest]]'s page.
+
+Upon completion of the Corrupted challenge, players will receive three rolls on an upgraded loot table, several crystal shards and a roll for the unique rewards with a higher chance of success.
+
+Upon failing the challenge, players might still get rewarded with some lower value loot.
+
+===Unique Rewards (Normal Mode)===
+{{DropsTableHead|bucket=No}}
+{{DropsLineReward|name=Crystal shard|quantity=5-9|rarity=Always}}
+{{DropsLineReward|name=Crystal weapon seed|quantity=1|rarity=1/120|raritynotes={{CiteTwitter|author=Mod Lenny|url=https://twitter.com/JagexLenny/status/1187713588653412355|date=25 October 2019|archiveurl=https://reldo.runescape.wiki/i/27963364|archivedate=07 April 2026|name=Drop Tables}}}}
+{{DropsLineReward|name=Crystal armour seed|quantity=1|rarity=1/120|raritynotes={{NamedRef|Drop Tables}}}}
+{{DropsLineReward|name=Enhanced crystal weapon seed|quantity=1|rarity=1/2000|raritynotes={{NamedRef|Drop Tables}}}}
+{{DropsLineReward|name=Youngllef|quantity=1|rarity=1/2000|raritynotes={{NamedRef|Drop Tables}}}}
+{{DropsTableBottom}}
+
+===Unique Rewards (Corrupted Mode)===
+{{DropsTableHead|bucket=No}}
+{{DropsLineReward|name=Gauntlet cape|quantity=1|rarity=Always}}
+{{DropsLineReward|name=Crystal shard|quantity=7-12|rarity=Always}}
+{{DropsLineReward|name=Crystal weapon seed|quantity=1|rarity=1/50|raritynotes={{NamedRef|Drop Tables}}}}
+{{DropsLineReward|name=Crystal armour seed|quantity=1|rarity=1/50|raritynotes={{NamedRef|Drop Tables}}}}
+{{DropsLineReward|name=Enhanced crystal weapon seed|quantity=1|rarity=1/400|raritynotes={{NamedRef|Drop Tables}}}}
+{{DropsLineReward|name=Youngllef|quantity=1|rarity=1/800|raritynotes={{NamedRef|Drop Tables}}}}
+{{DropsTableBottom}}
+
+==Money making==
+{{Mmgsection|Completing The Gauntlet|Completing The Corrupted Gauntlet}}
+
+==Collection log==
+{{PAGENAME}} has 5 [[collection log]] items. The [[gauntlet cape]] is guaranteed upon successful completion of the Corrupted Gaunlet.
+{{Sync}}
+{{Collection log list|category={{PAGENAME}}}}
+
+==Combat Achievements==
+===Normal Gauntlet===
+{{Combat Achievements list|Crystalline Hunllef}}
+
+===Corrupted Gauntlet===
+{{Combat Achievements list|Corrupted Hunllef}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 22 July 2026
+|update = Summer Sweep-Up Gear & PvM Changes
+|change = 
+* The north/east/south/west-most rooms from the centre now have a guaranteed random demi-boss spawn.
+* Demi-bosses can spawn in any edge or corner room.
+* Demi-bosses have had their attack range reduced from 16 to 10.
+* Non-demi-boss enemies now have standardised defensive stats.
+* [[Weapon frame]]s are now guaranteed from killing the first [[Crystalline Spider|crystalline spider]], [[Crystalline Rat|rat]], or [[Crystalline Bat|bat]].
+* [[Phren bark]], [[crystal ore]] and [[linum tirinum]] are now stackable.
+* [[Crystal shards (The Gauntlet)|Crystal shards]] are now automatically placed in the [[inventory]]. 
+* The quantity of crystal shards dropped by enemies now has a smaller range.
+* Crystal shard costs for crafting various pieces of equipment have been adjusted:
+** Creating a tier 1 weapon requires no crystal shards, down from 20.
+** Creating a tier 2 weapon requires 50 crystal shards, down from 60.
+** Creating a piece of tier 1 armour requires 50 crystal shards, up from 40.
+** Creating a piece of tier 2 body armour requires 100 crystal shards, up from 60. 
+** Creating a piece of tier 2 leg or helmet armour requires 50 crystal shards, down from 60.
+** Creating a piece of tier 3 armour requires 100 crystal shards, up from 80.
+* [[Gauntlet Speed-Chaser]] now requires a completion in under 4:45, down from 5:00.
+* [[Gauntlet Speed-Runner]] now requires a completion in under 3:45, down from 4:00.
+* [[Corrupted Gauntlet Speed-Chaser]] now requires a completion in under 7:05, down from 7:30.
+* [[Corrupted Gauntlet Speed-Runner]] now requires a completion in under 6:05, down from 6:30.
+}}
+{{Subject changes
+|date = 28 January 2026
+|update = Deadman: Annihilation Drops This Friday!
+|change = The floor mural and the tiles at the Gauntlet now render in the correct order.
+}}
+{{Subject changes
+|date = 11 September 2024
+|update = Araxxor CAs, Poll 82 Updates & More!
+|change = The amount of [[crystal shard]]s obtained from The Gauntlet and The Corrupted Gauntlet has increased from 3-7 to 5-9 and 5-9 to 7-12 respectively.
+}}
+{{Subject changes
+|date = 4 September 2024
+|update = Araxxor Tweaks & Poll 82 Updates
+|change = [[Crystalline spider]]s have been brought back.
+}}
+{{Subject changes
+|date = 28 August 2024
+|update = Araxxor
+|type = hotfix
+|change = Due to a bug which caused [[crystalline spider]]s to phase in and out of visibility, they have been temporarily replaced with [[crystalline rat]]s.
+}}
+{{Subject changes
+|date = 18 January 2023
+|update = Secrets of the North Improvements
+|change = Filling [[vials]] in The Gauntlet no longer interrupts [[fishing]].
+}}
+{{Subject changes
+|date = 2 March 2022
+|update = Group Ironman Improvements
+|poll =
+|change = Entering and leaving The Gauntlet with an [[amulet of avarice]] equipped will no longer clear the player's [[Skull (status)|skull]].
+}}
+{{Subject changes
+|date = 9 December 2021
+|update = Grand Exchange Tax & Item Sink
+|change = The minimum [[HiScores]] 'killcount' required for The Corrupted Gauntlet has been lowered from 10 to 5.
+}}
+{{Subject changes
+|date = 21 July 2021
+|update = Combat Achievements
+|poll = A Night At The Theatre and Old School Content Poll 75: PvM
+|change =
+* Players can now make [[Escape crystal (The Gauntlet)|escape crystal]]s to teleport out of the Gauntlet instantly to avoid loss of [[hardcore ironman]] status.
+* Players can now make [[crystal paddlefish]], which heals 16 Hitpoints and act as [[cooked karambwan]] in that they can be eaten without delay.
+}}
+{{Subject changes
+|date = 30 June 2021
+|update = Phosani's Nightmare
+|change = The [[enhanced crystal weapon seed]] has replaced the inactive Blade of Saeldor in the reward chest drop table, and the blade, as well as the [[Bow of Faerdhinen]], can be created from the enhanced weapon seed.
+}}
+{{Subject changes
+|date = 2 July 2020
+|update = Poll 71 and Death Feedback Changes
+|poll = Old School Content Poll 71: Gauntlet, Grotesques, CoX and more
+|change = 
+*Messages that appear when receiving crystals in The Gauntlet are now filterable; this does affect the untradeable drop notification for crystal shards from monster drops.
+*The max hits of all variants of the crystal and corrupted staves have been increased by 5.
+*Filling vials and cooking paddlefish now occur in one tick (0.6 seconds).
+*The inner square of rooms are now less randomised, and will always contain the same basic resources required to move on to the rest of The Gauntlet. This '''does not''' apply to the Corrupted Gauntlet.
+*Players who have toggled the ability to automatically smash vials can now do so as soon as they've drunk the last dose of an egniol potion.
+*Demi-bosses will now spawn in 6 of the 12 specific rooms of the Gauntlet's outer areas. The rooms in the outer area which they can spawn are the rooms non-adjacent to the corner rooms.
+*The number of total resources required to create tier 2 and 3 armour have been reduced; the number of crystal shards required remain the same.
+*The Crystalline and Corrupted Hunllef now play an animation right before changing attack styles to notify players to quickly change their protection prayers.
+}}
+{{Subject changes
+|date = 2 April 2020
+|update = Easter Event (2 April 2020)
+|change = The Corrupted Gauntlet no longer gives extra [[Gauntlet cape]]s to players who have one stored in a [[cape rack]].
+}}
+{{Subject changes
+|date = 19 September 2019
+|update = Small Changes and Bugfixes
+|change = The Game Filter now filters the message displayed in the chatbox when players sing items at the Gauntlet's singing bowl.
+}}
+{{Subject changes
+|date = 15 August 2019
+|update = Small Game Updates and Betas
+|change = Snowballs are no longer welcome in the Gauntlet.
+}}
+{{Subject changes
+|date = 8 August 2019
+|update = Smithing and Silver Crafting Interfaces
+|poll =
+|change = 
+*When creating items within the Gauntlet, the interface will remain open provided you have the ingredients to create other items.
+*Killing a duplicate tier 3 creature within the Gauntlet will now have a guaranteed chance to drop a different powerful weapon component, provided you don't already have one. This was previously a 50% chance.
+*The scoreboard in the Gauntlet lobby has been extended to display your deaths and the global deaths for each version of the Gauntlet.
+}}
+{{Subject changes
+|date = 1 August 2019
+|update = SOTE Changes and Small Game Updates
+|poll =
+|change = 
+*The Crystalline and Corrupted Hunllef has been altered slightly: Ranged will always be the first attack style, damage has been increased when praying incorrectly (or not at all), and damage has been reduced when praying correctly.
+*Players can no longer remove [[old school bond]]s from their bond pouch while in the Gauntlet.
+}}
+{{Subject changes footer}}
+
+==References==
+{{Reflist}}
+
+{{The Gauntlet}}
+{{Activities}}
+{{Prifddinas}}
+{{DEFAULTSORT|Gauntlet, The}}

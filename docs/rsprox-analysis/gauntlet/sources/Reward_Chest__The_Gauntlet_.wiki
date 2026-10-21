@@ -1,0 +1,255 @@
+{{Infobox Scenery
+|version1 = Closed
+|version2 = Open
+|name = Reward Chest
+|image1 = [[File:Reward Chest (The Gauntlet).png|280px]]
+|image2 = [[File:Reward Chest (The Gauntlet, open).png|280px]]
+|release = [[25 July]] [[2019]]
+|update = Song of the Elves
+|members = Yes
+|quest = [[Song of the Elves]]
+|location = Lobby of [[The Gauntlet]]
+|options1 = Open
+|options2 = None
+|examine1 = What's in the chest?
+|examine2 = Looks pretty empty to me.
+|map = {{Map|mtype=pin|mapID=-1|zoom=3|x=3033|y=6124|plane=1|3027,6123}}
+|dropversion = Regular,Corrupted,Partial completion,Failure
+|id1 = 36087
+|id2 = 36088
+|leagueRegion = Tirannwn
+}}
+The '''reward chest''' can be found in the lobby of [[The Gauntlet]]. After attempting The Gauntlet, players can loot the chest to find rewards for their efforts. If your inventory is full when attempting to loot the reward chest, you will receive the chat message: "You need a free inventory space for whatever you may find in the chest." If you have a space free and you receive multiple items, the extra items will be dropped on the ground.
+
+==Loot mechanics==
+The loot that is awarded depends on how far the player progressed into the challenge.
+
+*If [[Crystalline Hunllef]] is defeated, players receive 5-9 [[crystal shards]] and roll twice on the [[#Regular loot table|regular loot table]].
+*If [[Corrupted Hunllef]] is defeated, players receive 7-12 [[crystal shards]] and roll three times on the [[#Corrupted loot table|corrupted loot table]].
+*If Hunllef is not defeated, the loot depends on the number of points earned during the challenge:
+**50+ points: The [[#Incomplete loot table|incomplete loot table]] is rolled.
+**1-49 points: The [[#Junk table|junk table]] is rolled.
+**0 points: The chest stays open and players receive no loot.
+**Leaving via the [[Barrier (The Gauntlet)#Boss Room|regular]] or [[Barrier (The Corrupted Gauntlet)#Boss Room|corrupted barrier]] during the Hunllef fight yields loot as normal.
+**Leaving via the [[Teleport Platform (The Gauntlet)|regular]] or [[Teleport Platform (The Corrupted Gauntlet)|corrupted teleport platform]] '''does not''' yield loot.
+**Leaving via the [[Escape crystal (The Gauntlet)|escape crystal]] only yields loot if it is activated during the Hunllef fight.
+
+Points are awarded for the following activities:{{Efn|1=Example: Consider a run where 3 weak monsters and 1 demi-boss are killed to make a perfected staff, then 16 raw fish are cooked, then 4 of the cooked fish have crystals added. This is worth:
+*2 + 2 + 2 + 10 = 16 points from killing monsters
+*2 + 5 + 10 = 17 points from the perfected staff
+*16 points from cooking raw fish
+*4 points from crystallising cooked fish
+*53 points total &ge; 50, so the "incomplete loot table" will be rolled unless Hunllef is defeated.
+}}
+*'''10 points''': Killing a demi-boss (bear, dragon, dark beast), or upgrading an item from attuned to perfected.
+*'''5 points''': Killing a strong monster (unicorn, scorpion, wolf), or upgrading an item from basic to attuned.
+*'''2 points''': Killing a weak monster (spider, rat, bat), crafting a basic item, or preparing a crystal/corrupted paddlefish.
+*'''1 point''': Cooking a raw paddlefish, or adding crystals to a cooked paddlefish.
+*'''0 points''': Damaging Hunllef; crafting vials, teleport crystals, or escape crystals; gathering fish, bark, ore, or linum tirinum; or making potions.
+
+Each item on the tertiary tables is rolled independently, so it is possible to receive all three seed drops from a single chest.
+
+==Junk table<span id="Failure"/>==
+{{DropsTableHead|dropversion=Failure}}
+{{DropsLineReward|name=Iwan's flyer|quantity=1|rarity=1/3|gemw=no}}
+{{DropsLineReward|name=Potion (Apothecary)|alt=Potion|quantity=1|rarity=1/3|gemw=no}}
+{{DropsLineReward|name=Rotten tomato|quantity=1|rarity=1/3|gemw=no}}
+{{DropsTableBottom}}
+
+==Incomplete loot table<span id="Partial completion"/>==
+{{DropLogProject|kills=1839|type=partial Gauntlet completions}}
+
+The average loot value from a partial Gauntlet completion is worth {{Coins|{{#expr:{{Average drop value|mob=Reward Chest (The Gauntlet)#Partial completion|raw=y}} round 0}}}}.
+
+===Weapons and armour===
+{{DropsTableHead|dropversion=Partial completion}}
+{{DropsLineReward|name=Adamant dagger|quantity=1|rarity=1/27}}
+{{DropsLineReward|name=Adamant full helm|quantity=1|rarity=1/27}}
+{{DropsLineReward|name=Adamant mace|quantity=2-3 (noted)|rarity=1/27}}
+{{DropsLineReward|name=Adamant pickaxe|quantity=1|rarity=1/27}}
+{{DropsLineReward|name=Adamant platebody|quantity=1|rarity=1/27}}
+{{DropsLineReward|name=Adamant platelegs|quantity=1|rarity=1/27}}
+{{DropsLineReward|name=Adamant plateskirt|quantity=1|rarity=1/27}}
+{{DropsLineReward|name=Adamant scimitar|quantity=1|rarity=1/27}}
+{{DropsLineReward|name=Maple longbow|quantity=7-13 (noted)|rarity=1/27}}
+{{DropsLineReward|name=Maple shortbow|quantity=8-11 (noted)|rarity=1/27}}
+{{DropsLineReward|name=Mithril full helm|quantity=1|rarity=1/27}}
+{{DropsLineReward|name=Mithril mace|quantity=2-5 (noted)|rarity=1/27}}
+{{DropsLineReward|name=Mithril platebody|quantity=1|rarity=1/27}}
+{{DropsLineReward|name=Mithril platelegs|quantity=1|rarity=1/27}}
+{{DropsLineReward|name=Mithril plateskirt|quantity=1|rarity=1/27}}
+{{DropsTableBottom}}
+
+===Runes===
+{{DropsTableHead|dropversion=Partial completion}}
+{{DropsLineReward|name=Air rune|quantity=200-300|rarity=1/27}}
+{{DropsLineReward|name=Body rune|quantity=250-350|rarity=1/27}}
+{{DropsLineReward|name=Earth rune|quantity=200-300|rarity=1/27}}
+{{DropsLineReward|name=Fire rune|quantity=200-300|rarity=1/27}}
+{{DropsLineReward|name=Mind rune|quantity=300-400|rarity=1/27}}
+{{DropsLineReward|name=Water rune|quantity=200-300|rarity=1/27}}
+{{DropsTableBottom}}
+
+===Other===
+{{DropsTableHead|dropversion=Partial completion}}
+{{DropsLineReward|name=Cake|quantity=10-20 (noted)|rarity=1/27}}
+{{DropsLineReward|name=Cod|quantity=75-125 (noted)|rarity=1/27}}
+{{DropsLineReward|name=Trout|quantity=50-100 (noted)|rarity=1/27}}
+{{DropsLineReward|name=Eye of newt|quantity=300-500 (noted)|rarity=1/27}}
+{{DropsLineReward|name=Silver bar|quantity=15-30 (noted)|rarity=1/27}}
+{{DropsLineReward|name=Uncut sapphire|quantity=1-3 (noted)|rarity=1/27}}
+{{DropsTableBottom}}
+
+==Regular loot table<span id="Regular"/>==
+{{DropLogProject|kills=1480|type=Gauntlet completions}}
+
+Upon killing Crystalline Hunllef, players receive crystal shards and '''two''' rolls from the main table. An average boss kill is worth:<!--
+-->{{#vardefine:crystalShardGE|{{#expr:2.5*({{GEP|Divine super combat potion(4)}}-{{GEP|Super combat potion(4)}})}}}}<!--
+-->{{#vardefine:regularCrystalGE|{{#expr:{{Average drop value|mob=Reward Chest (The Gauntlet)#Regular|raw=y|category=Crystal items}} round 0}}}}<!--
+-->{{#vardefine:regularMainGE|{{#expr:{{Average drop value|mob=Reward Chest (The Gauntlet)#Regular|raw=y|exclude=Crystal items}} round 0}}}}<!--
+-->{{#vardefine:regularMainHA|{{#expr:{{Average drop value|mob=Reward Chest (The Gauntlet)#Regular|raw=y|exclude=Crystal items|alch=yes}} round 0}}}}
+*{{Coins|{{#var:regularMainGE}}}} ([[GE]]) / {{Coins|{{#var:regularMainHA}}}} ([[HA]]), excluding crystal shards, uniques, and clue scrolls.
+*{{Coins|{{#expr:{{#var:regularMainGE}} + {{#var:regularCrystalGE}} + (5+9)/2*{{#var:crystalShardGE}} round 0}}}}, including crystal shards and uniques.
+Cutting the gems from the regular loot table yields an average of ~504 crafting exp per boss kill.
+
+===100%===
+{{DropsTableHead|dropversion=Regular}}
+{{DropsLineReward|name=Crystal shard|quantity=5-9|rarity=Always|gemw=no}}
+{{DropsTableBottom}}
+
+===Weapons and armour===
+{{DropsTableHead|dropversion=Regular}}
+{{DropsLineReward|name=Battlestaff|quantity=4-8 (noted)|rarity=1/24|rolls=2}}
+{{DropsLineReward|name=Rune full helm|quantity=2-4 (noted)|rarity=1/24|rolls=2}}
+{{DropsLineReward|name=Rune chainbody|quantity=1-2 (noted)|rarity=1/24|rolls=2}}
+{{DropsLineReward|name=Rune platebody|quantity=1-2 (noted)|rarity=1/24|rolls=2}}
+{{DropsLineReward|name=Rune platelegs|quantity=1-2 (noted)|rarity=1/24|rolls=2}}
+{{DropsLineReward|name=Rune plateskirt|quantity=1-2 (noted)|rarity=1/24|rolls=2}}
+{{DropsLineReward|name=Rune halberd|quantity=1-2 (noted)|rarity=1/24|rolls=2}}
+{{DropsLineReward|name=Rune pickaxe|quantity=1-2 (noted)|rarity=1/24|rolls=2}}
+{{DropsLineReward|name=Dragon halberd|quantity=1 (noted)|rarity=1/24|rolls=2}}
+{{DropsTableBottom}}
+
+===Runes and ammunition===
+{{DropsTableHead|dropversion=Regular}}
+{{DropsLineReward|name=Cosmic rune|quantity=160-240|rarity=1/24|rolls=2}}
+{{DropsLineReward|name=Nature rune|quantity=100-140|rarity=1/24|rolls=2}}
+{{DropsLineReward|name=Law rune|quantity=80-140|rarity=1/24|rolls=2}}
+{{DropsLineReward|name=Chaos rune|quantity=180-300|rarity=1/24|rolls=2}}
+{{DropsLineReward|name=Death rune|quantity=100-160|rarity=1/24|rolls=2}}
+{{DropsLineReward|name=Blood rune|quantity=80-140|rarity=1/24|rolls=2}}
+{{DropsLineReward|name=Mithril arrow|quantity=800-1200|rarity=1/24|rolls=2}}
+{{DropsLineReward|name=Adamant arrow|quantity=400-600|rarity=1/24|rolls=2}}
+{{DropsLineReward|name=Rune arrow|quantity=200-300|rarity=1/24|rolls=2}}
+{{DropsLineReward|name=Dragon arrow|quantity=30-85|rarity=1/24|rolls=2}}
+{{DropsTableBottom}}
+
+===Gems===
+{{DropsTableHead|dropversion=Regular}}
+{{DropsLineReward|name=Uncut sapphire|quantity=20-60 (noted)|rarity=1/24|rolls=2}}
+{{DropsLineReward|name=Uncut emerald|quantity=10-50 (noted)|rarity=1/24|rolls=2}}
+{{DropsLineReward|name=Uncut ruby|quantity=5-30 (noted)|rarity=1/24|rolls=2}}
+{{DropsLineReward|name=Uncut diamond|quantity=3-7 (noted)|rarity=1/24|rolls=2}}
+{{DropsTableBottom}}
+
+===Other===
+{{DropsTableHead|dropversion=Regular}}
+{{DropsLineReward|name=Coins|quantity=20000-80000|rarity=1/24|rolls=2}}
+{{DropsTableBottom}}
+
+===Tertiary===
+{{DropsTableHead|dropversion=Regular}}
+{{DropsLineClue|type=elite|rarity=1/25|reward=yes}}
+{{DropsLineReward|name=Crystal weapon seed|quantity=1|rarity=1/120|raritynotes={{CiteTwitter|author=Mod Lenny|url=https://twitter.com/JagexLenny/status/1187713588653412355|date=25 October 2019|archiveurl=https://web.archive.org/web/20191027075038/https:/twitter.com/JagexLenny/status/1187713588653412355|archivedate=27 October 2019|name=DropTables}}}}
+{{DropsLineReward|name=Crystal armour seed|quantity=1|rarity=1/120|raritynotes={{NamedRef|DropTables}}}}
+{{DropsLineReward|name=Enhanced crystal weapon seed|quantity=1|rarity=1/2000|raritynotes={{NamedRef|DropTables}}}}
+{{DropsLineReward|name=Youngllef|quantity=1|rarity=1/2000|raritynotes={{NamedRef|DropTables}}|gemw=no}}
+{{DropsTableBottom}}
+
+==Corrupted loot table<span id="Corrupted"/>==
+{{DropLogProject|kills=7535|type=Corrupted Gauntlet completions}}
+
+Upon killing Corrupted Hunllef, players receive crystal shards and '''three''' rolls from the main table. An average boss kill is worth:<!--
+-->{{#vardefine:corruptCrystalGE|{{#expr:{{Average drop value|mob=Reward Chest (The Gauntlet)#Corrupted|raw=y|category=Crystal items}} round 0}}}}<!--
+-->{{#vardefine:corruptMainGE|{{#expr:{{Average drop value|mob=Reward Chest (The Gauntlet)#Corrupted|raw=y|exclude=Crystal items}} round 0}}}}<!--
+-->{{#vardefine:corruptMainHA|{{#expr:{{Average drop value|mob=Reward Chest (The Gauntlet)#Corrupted|raw=y|exclude=Crystal items|alch=yes}} round 0}}}}
+*{{Coins|{{#var:corruptMainGE}}}} ([[GE]]) / {{Coins|{{#var:corruptMainHA}}}} ([[HA]]), excluding crystal shards, uniques, and clue scrolls.
+*{{Coins|{{#expr:{{#var:corruptMainGE}} + {{#var:corruptCrystalGE}} + (7+12)/2*{{#var:crystalShardGE}} round 0}}}}, including crystal shards and uniques.
+Cutting the gems from the corrupted loot table yields an average of ~998 Crafting experience per boss kill.
+
+===100%===
+{{DropsTableHead|dropversion=Corrupted}}
+{{DropsLineReward|name=Crystal shard|quantity=7-12|rarity=Always|gemw=no}}
+{{DropsLineReward|name=Gauntlet cape|quantity=1|rarity=Always|raritynotes=<ref group=d>Awarded if the player does not already have a Gauntlet cape</ref>|gemw=no}}
+{{DropsTableBottom}}
+
+===Weapons and armour===
+{{DropsTableHead|dropversion=Corrupted}}
+{{DropsLineReward|name=Battlestaff|quantity=8-12 (noted)|rarity=1/24|rolls=3}}
+{{DropsLineReward|name=Rune full helm|quantity=3-5 (noted)|rarity=1/24|rolls=3}}
+{{DropsLineReward|name=Rune chainbody|quantity=2-3 (noted)|rarity=1/24|rolls=3}}
+{{DropsLineReward|name=Rune platebody|quantity=2 (noted)|rarity=1/24|rolls=3}}
+{{DropsLineReward|name=Rune platelegs|quantity=2-3 (noted)|rarity=1/24|rolls=3}}
+{{DropsLineReward|name=Rune plateskirt|quantity=2-3 (noted)|rarity=1/24|rolls=3}}
+{{DropsLineReward|name=Rune halberd|quantity=2-3 (noted)|rarity=1/24|rolls=3}}
+{{DropsLineReward|name=Rune pickaxe|quantity=2-3 (noted)|rarity=1/24|rolls=3}}
+{{DropsLineReward|name=Dragon halberd|quantity=1-2 (noted)|rarity=0.5/24|rolls=3}}
+{{DropsTableBottom}}
+
+===Runes and ammunition===
+{{DropsTableHead|dropversion=Corrupted}}
+{{DropsLineReward|name=Cosmic rune|quantity=175-250|rarity=1/24|rolls=3}}
+{{DropsLineReward|name=Nature rune|quantity=125-150|rarity=1/24|rolls=3}}
+{{DropsLineReward|name=Law rune|quantity=100-150|rarity=1/24|rolls=3}}
+{{DropsLineReward|name=Chaos rune|quantity=200-350|rarity=1/24|rolls=3}}
+{{DropsLineReward|name=Death rune|quantity=125-175|rarity=1/24|rolls=3}}
+{{DropsLineReward|name=Blood rune|quantity=100-150|rarity=1/24|rolls=3}}
+{{DropsLineReward|name=Mithril arrow|quantity=1000-1500|rarity=1/24|rolls=3}}
+{{DropsLineReward|name=Adamant arrow|quantity=500-750|rarity=1/24|rolls=3}}
+{{DropsLineReward|name=Rune arrow|quantity=250-450|rarity=1/24|rolls=3}}
+{{DropsLineReward|name=Dragon arrow|quantity=50-100|rarity=1/24|rolls=3}}
+{{DropsTableBottom}}
+
+===Gems===
+{{DropsTableHead|dropversion=Corrupted}}
+{{DropsLineReward|name=Uncut sapphire|quantity=25-65 (noted)|rarity=1/24|rolls=3}}
+{{DropsLineReward|name=Uncut emerald|quantity=15-60 (noted)|rarity=1/24|rolls=3}}
+{{DropsLineReward|name=Uncut ruby|quantity=10-40 (noted)|rarity=1/24|rolls=3}}
+{{DropsLineReward|name=Uncut diamond|quantity=5-15 (noted)|rarity=1/24|rolls=3}}
+{{DropsTableBottom}}
+
+===Other===
+{{DropsTableHead|dropversion=Corrupted}}
+{{DropsLineReward|name=Coins|quantity=75000-150000|rarity=1.5/24|rolls=3}}
+{{DropsTableBottom}}
+
+===Tertiary===
+{{DropsTableHead|dropversion=Corrupted}}
+{{DropsLineClue|type=elite|rarity=1/20|reward=yes}}
+{{DropsLineReward|name=Crystal weapon seed|quantity=1|rarity=1/50|raritynotes={{NamedRef|DropTables}}}}
+{{DropsLineReward|name=Crystal armour seed|quantity=1|rarity=1/50|raritynotes={{NamedRef|DropTables}}}}
+{{DropsLineReward|name=Enhanced crystal weapon seed|quantity=1|rarity=1/400|raritynotes={{NamedRef|DropTables}}}}
+{{DropsLineReward|name=Youngllef|quantity=1|rarity=1/800|raritynotes={{NamedRef|DropTables}}|gemw=no}}
+{{DropsTableBottom}}
+
+==Collection log==
+The Gauntlet has 5 [[collection log]] items.
+{{Sync}}
+{{Collection log list|category=The Gauntlet}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 11 September 2024
+|update = Araxxor CAs, Poll 82 Updates & More!
+|change = The amount of [[crystal shard]]s obtained from The Gauntlet and The Corrupted Gauntlet has increased from 3-7 to 5-9 and 5-9 to 7-12 respectively.
+}}
+{{Subject changes footer}}
+
+==Notes==
+{{Notelist}}
+
+==References==
+{{Reflist}}
+
+{{The Gauntlet}}

@@ -1,0 +1,75 @@
+{{Infobox Monster
+|name = Crystalline Bat
+|image = [[File:Crystalline Bat.png|280px]]
+|release = [[25 July]] [[2019]]
+|update = Song of the Elves
+|members = Yes
+|combat = 33
+|size = 2
+|examine = They'll be gone when the morning comes.
+|xpbonus = 
+|max hit = 8
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Slash]]
+|attack speed = 4
+|hitpoints = 12
+|att = 24
+|str = 68
+|def = 4
+|mage = 2
+|range = 0
+|attbns = 0
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|dlight = 0
+|dstandard = 0
+|dheavy = 0
+|poisonresistance = 100
+|venomresistance = 100
+|id = 9028
+|leagueRegion = Tirannwn
+}}
+'''Crystalline bats''' are low-level monsters found in the [[Gauntlet]]. Their counterpart in the [[The Gauntlet#Corrupted Gauntlet|Corrupted Gauntlet]] is the [[corrupted bat]]. Up to 3 low-level monsters spawn in a room.
+
+==Drops==
+===100%===
+{{DropsTableHead}}
+{{DropsLine|name=Crystal shards (The Gauntlet)|quantity=20-30|rarity=Always|gemw=No}}
+{{DropsTableBottom}}
+
+===Materials===
+{{DropsTableHead}}
+{{DropsLine|name=Raw paddlefish|quantity=1,3|rarity=Common|gemw=No}}
+{{DropsLine|name=Grym leaf|quantity=1|rarity=Common|gemw=No}}
+{{DropsLine|name=Weapon frame|quantity=1|rarity=Common|gemw=No|raritynotes={{refn|group=d|A weapon frame is '''always''' received from the first crystalline spider, rat, or bat killed on each run.}}}}
+{{DropsTableBottom}}
+
+===Other===
+{{DropsTableHead}}
+{{DropsLine|name=Teleport crystal (The Gauntlet)|quantity=1|rarity=Uncommon|gemw=No}}
+{{DropsTableBottom}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 22 July 2026
+|update = Summer Sweep-Up Gear & PvM Changes
+|change = 
+* The crystalline bat's [[Defence]] was increased from 2 to 4.
+* The crystalline bat's [[Hitpoints]] was decreased from 14 to 12.
+* The quantity of crystal shards dropped was increased from 10-30 to 20-30.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*Its examine information is a reference to the ''Meat Loaf'' song {{Wp|Bat Out of Hell (song)|Bat Out of Hell}}.
+
+{{The Gauntlet}}

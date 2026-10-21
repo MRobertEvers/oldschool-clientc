@@ -1,0 +1,72 @@
+{{Infobox Monster
+|name = Crystalline Wolf
+|image = [[File:Crystalline Wolf.png|280px]]
+|release = [[25 July]] [[2019]]
+|update = Song of the Elves
+|members = Yes
+|combat = 69
+|size = 2
+|examine = A little too scary to be man's best friend.
+|xpbonus = 
+|max hit = 8
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Crush]]
+|attack speed = 4
+|hitpoints = 38
+|att = 106
+|str = 66
+|def = 18
+|mage = 22
+|range = 0
+|attbns = 0
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|dlight = 0
+|dstandard = 0
+|dheavy = 0
+|poisonresistance = 100
+|venomresistance = 100
+|id = 9031
+|leagueRegion = Tirannwn
+}}
+'''Crystalline Wolves''' are mid-level monsters found in the [[Gauntlet]]. Their counterpart in the [[The Gauntlet#Corrupted Gauntlet|Corrupted Gauntlet]] is the [[Corrupted Wolf]]. Mid-level monsters always spawn in pairs, if they spawn in a room.
+
+==Drops==
+===100%===
+{{DropsTableHead}}
+{{DropsLine|name=Crystal shards (The Gauntlet)|quantity=80-100|rarity=Always|gemw=No}}
+{{DropsTableBottom}}
+
+===Materials===
+{{DropsTableHead}}
+{{DropsLine|name=Raw paddlefish|quantity=4|rarity=Common|gemw=No}}
+{{DropsLine|name=Weapon frame|quantity=1|rarity=Common|gemw=No}}
+{{DropsTableBottom}}
+
+===Other===
+{{DropsTableHead}}
+{{DropsLine|name=Teleport crystal (The Gauntlet)|quantity=1|rarity=Uncommon|gemw=No}}
+{{DropsTableBottom}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 22 July 2026
+|update = Summer Sweep-Up Gear & PvM Changes
+|change = 
+* The crystalline wolf's [[combat level]] was decreased from 74 to 69.
+* The crystalline wolf's [[Defence]] was decreased from 22 to 18.
+* The crystalline wolf's [[Hitpoints]] was decreased from 52 to 38.
+* The quantity of crystal shards dropped was changed from 50-105 to 80-100.
+}}
+{{Subject changes footer}}
+
+{{The Gauntlet}}

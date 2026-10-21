@@ -1,0 +1,118 @@
+{{Redirect|Hunllef|the race|Hunllef (race)}}
+{{Infobox Monster
+|name = Crystalline Hunllef
+|image = [[File:Crystalline Hunllef.png|280px]]
+|release = [[25 July]] [[2019]]
+|update = Song of the Elves
+|members = Yes
+|combat = 674
+|size = 5
+|examine = A deadly predator formed from crystal.
+|xpbonus = 
+|max hit = 50+
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Magic]], [[Ranged]]
+|attack speed = 5
+|hitpoints = 600
+|att = 240
+|str = 240
+|def = 240
+|mage = 240
+|range = 240
+|attbns = 76
+|strbns = 64
+|amagic = 76
+|mbns = 64
+|arange = 76
+|rngbns = 64
+|dstab = 20
+|dslash = 20
+|dcrush = 20
+|dmagic = 20
+|dlight = 20
+|dstandard = 20
+|dheavy = 20
+|poisonresistance = 100
+|venomresistance = 100
+|id = 9021,9022,9023,9024
+}}
+The '''Crystalline Hunllef''' is the boss monster within the [[Gauntlet]]. Its counterpart in the [[The Gauntlet#Corrupted Gauntlet|Corrupted Gauntlet]] is the [[Corrupted Hunllef]].
+
+==Mechanics==
+Both the Crystalline and Corrupted Hunllef use the same mechanics.
+
+===Attacks===
+[[File:Fighting Crystalline Hunllef.png|thumb|left|250px|A player battles the Crystalline Hunllef.]]
+*'''Standard attacks:''' The Hunllef uses two main standard attacks, a range crystal-like attack and a magic based orb attack. The Hunllef will alternate between the two attack styles every 4 attacks. The Hunllef will use Ranged as its first attack style.
+*'''Stomp attack:''' If a player is underneath the Hunllef when it tries to attack the player, the Hunllef will perform a stomp attack which deals very high damage, similar to the stomp attack used by the [[Corporeal Beast]]. This attack does not count towards one of the Hunllef's four standard attacks it uses before switching.
+*'''Prayer Disabling Attack:''' When the Hunllef is attacking using magic-based attacks, it has a chance to use an attack which turns off prayers. These attacks use a different game sound, hence it is recommended to use sounds during the fight.
+*'''Tornadoes:''' The Hunllef summons multiple [[Tornado (The Gauntlet)|tornadoes]] that chase the player and deal high damage if they reach the player's location. The number of tornadoes summoned increases as the Hunllef takes damage. However, they always last for 20 ticks (12 seconds) before despawning.
+
+===Damaging floor===
+During the fight, the floor will light up in various places. Tiles are initially highlighted in blue and soon turn orange. If the player stands on an orange tile they will continue to take high damage until they step off the highlighted tiles.
+
+As the fight progresses, the tile patterns become more challenging, and the tiles change from blue to orange more quickly.
+
+===Attack style cycle===
+The Hunllef changes its prayer and attack styles in predictable cycles. Every fourth attack performed by the Hunllef (excluding the stomp attack) will cause the Hunllef to change its standard attack style.
+
+===Protection prayer cycle===
+Every sixth off-prayer attack that the player performs on the Hunllef, including attacks which deal zero damage, will trigger a protection prayer change. The Hunllef will use the protection prayer used on the sixth off-prayer hit. Players can use this cycle to ensure the Hunllef never prays against their strongest attack style.
+
+==Protection against its attacks==
+Players can wear pieces of the crystal armour to reduce the damage from all of the Crystalline Hunllef's attacks. Using [[protection prayers]] will further reduce the incoming damage from its standard attacks.
+
+{|class="wikitable"
+! colspan=2 | Armour combination
+!Crystalline Hunllef's max hit <ref group="a">While using the correct [[protection prayer]] against its ranged and magic attacks.</ref>
+!Damage from tornadoes
+|-
+|{{NA}}||No armour||12||10-20
+|-
+|{{plinkp|Crystal helm (basic)}}{{plinkp|Crystal body (basic)}}{{plinkp|Crystal legs (basic)}}||Full T1 armour||10||10-16
+|-
+|{{plinkp|Crystal helm (attuned)}}{{plinkp|Crystal body (attuned)}}{{plinkp|Crystal legs (attuned)}}||Full T2 armour||8||7-13
+|-
+|{{plinkp|Crystal helm (perfected)}}{{plinkp|Crystal body (perfected)}}{{plinkp|Crystal legs (perfected)}}||Full T3 armour||6||5-10
+|}
+
+{{Reflist|group=a}}
+
+==Drops==
+{{See also|Reward Chest (The Gauntlet)}}
+{{DropsTableHead}}
+{{DropsLine|name=Nothing|rarity=Always|gemw=no}}
+{{DropsTableBottom}}
+Players can find rewards for completing the Gauntlet from the Reward Chest.
+
+==Gallery==
+<gallery captionalign="center" widths="400" heights="200">
+Crystalline Hunllef artwork.jpg|A piece of official artwork depicting a player in battle with the Crystalline Hunllef.
+Song of the Elves (4).gif|Idle animation of the Crystalline Hunllef, designed by Mod Ghost.
+</gallery>
+
+==Combat Achievements==
+{{Sync}}
+{{Combat Achievements list|Crystalline Hunllef}}
+
+==Changes==
+{{Subject changes header}}
+{{subject changes
+|date = 17 May 2023
+|update = Tithe Farm Updates & More Poll 79!
+|poll = Old School Content Poll 79: Quality of Life
+|change = Hunllef now has audio indicators a few ticks before changing its [[attack style]].
+}}
+{{Subject changes
+|date=1 August 2019
+|update=SOTE Changes and Small Game Updates
+|poll=
+|change=Ranged will always be the first attack style, damage has been increased when praying incorrectly (or not at all), and damage has been reduced when praying correctly.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*'Hunllef' is Welsh for 'nightmare'. It may also be based on the ''RuneScape 3'' boss {{RSL|Helwyr}}, who is an elf who defeated a {{RSL|Hunllef}} and took on its form.
+{{The Gauntlet}}
+{{Bosses}}

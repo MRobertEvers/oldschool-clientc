@@ -1,0 +1,108 @@
+{{Otheruses|the recipe book for creating items outside of [[The Gauntlet]]|the recipe book for creating items in [[The Gauntlet]]|Crystal Singing Recipes (The Gauntlet)|the recipe book for creating items in the [[Corrupted Gauntlet]]|Crystal Singing Recipes (The Corrupted Gauntlet)}}
+{{Infobox Scenery
+|name = Crystal Singing Recipes
+|image = [[File:Crystal Singing Recipes.png|250x250px]]
+|release = [[25 July]] [[2019]]
+|update = Song of the Elves
+|members = Yes
+|quest = None
+|location = [[Prifddinas]]
+|options = Read
+|examine = A book of recipes for crystal singing.
+|map = {{Map|3237,6068|3296,6043|plane=0|mapID=-1|mtype=pin}}
+|id = 37344
+}}
+'''Crystal Singing Recipes''' is a book stand found adjacent to the [[singing bowl]]s found in [[Prifddinas]]. Players can click the book stand to get an overview of all the recipes that can be used with the singing bowls to create various items.
+
+== Crystal Singing Recipes ==
+The following table shows the crystal singing recipes, as listed in the book.
+{| class="wikitable sortable"
+|+
+!Product
+!Number of [[Crystal shards]]
+!Other Materials
+|-
+|{{Plink|Celestial signet|txt=Celestial Signet}}
+|100
+|1x {{Plink|Celestial ring|txt=Celestial Ring}}
+1x {{Plink|Elven signet|txt=Elven Signet}}
+
+1,000x {{Plink|Stardust|txt=Stardust}}
+|-
+|{{Plink|Crystal helm|txt=Crystal Helm}}
+|50
+|1x {{Plink|Crystal armour seed|txt=Crystal Armour Seed}}
+|-
+|{{Plink|Crystal legs|txt=Crystal Legs}}
+|100
+|2x {{Plink|Crystal armour seed|txt=Crystal Armour Seed}}
+|-
+|{{Plink|Crystal body|txt=Crystal Body}}
+|150
+|3x {{Plink|Crystal armour seed|txt=Crystal Armour Seed}}
+|-
+|{{Plink|Crystal pickaxe|txt=Crystal Pickaxe}}
+|120
+|1x {{Plink|Crystal tool seed|txt=Crystal Tool Seed}}
+1x {{Plink|Dragon pickaxe|txt=Dragon Pickaxe}}
+|-
+|{{Plink|Crystal axe|txt=Crystal Axe}}
+|120
+|1x {{Plink|Crystal tool seed|txt=Crystal Tool Seed}}
+1x {{Plink|Dragon axe|txt=Dragon Axe}}
+|-
+|{{Plink|Crystal felling axe|txt=Crystal Felling Axe}}
+|120
+|1x {{Plink|Crystal tool seed|txt=Crystal Tool Seed}}
+1x {{Plink|Dragon felling axe|txt=Dragon Felling Axe}}
+|-
+|{{Plink|Crystal harpoon|txt=Crystal Harpoon}}
+|120
+|1x {{Plink|Crystal tool seed|txt=Crystal Tool Seed}}
+1x {{Plink|Dragon harpoon|txt=Dragon Harpoon}}
+|-
+|{{Plink|Crystal bow|txt=Crystal Bow}}
+|40
+|1x {{Plink|Crystal weapon seed|txt=Crystal Weapon Seed}}
+|-
+|{{Plink|Crystal halberd|txt=Crystal Halberd}}
+|40
+|1x {{Plink|Crystal weapon seed|txt=Crystal Weapon Seed}}
+|-
+|{{Plink|Crystal shield|txt=Crystal Shield}}
+|40
+|1x {{Plink|Crystal weapon seed|txt=Crystal Weapon Seed}}
+|-
+|{{Plink|Enhanced crystal key|txt=Enhanced Crystal Key}}
+|10
+|1x {{Plink|Crystal key|txt=Crystal Key}}
+|-
+|{{Plink|Eternal teleport crystal|txt=Eternal Teleport Crystal}}
+|100
+|1x {{Plink|Enhanced crystal teleport seed|txt=Enhanced Crystal Teleport Seed}}
+|-
+|{{Plink|Enhanced crystal weapon seed|txt=Enhanced Crystal Weapon Seed}}
+|250
+|1x {{Plink|Blade of Saeldor|txt=Blade of Saeldor}} or 1x {{Plink|Bow of Faerdhinen|txt=Bow of Faerdhinen}}
+|-
+|{{Plink|Blade of Saeldor|txt=Blade of Saeldor}}
+|100
+|1x {{Plink|Enhanced crystal weapon seed|txt=Enhanced Crystal Weapon Seed}}
+|-
+|{{Plink|Blade of Saeldor (c)|txt=Blade of Saeldor (c)}}
+|1,000
+|1x {{Plink|Blade of Saeldor|txt=Blade of Saeldor}}
+|-
+|{{Plink|Bow of Faerdhinen|txt=Bow of Faerdhinen}}
+|100
+|1x {{Plink|Enhanced crystal weapon seed|txt=Enhanced Crystal Weapon Seed}}
+|-
+|{{Plink|Bow of Faerdhinen (c)|txt=Bow of Faerdhinen (c)}}
+|1,000
+|1x {{Plink|Bow of Faerdhinen|txt=Bow of Faerdhinen}}
+|}
+
+== Gallery ==
+[[File:Crystal Singing Recipes interface.png|left|thumb|The interface for the Crystal Singing Recipes book.]]
+
+{{Prifddinas}}

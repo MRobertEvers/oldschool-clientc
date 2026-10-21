@@ -1,0 +1,44 @@
+{{Infobox NPC
+|name = Bryn
+|image = [[File:Bryn.png|120px]]
+|release = [[25 July]] [[2019]]
+|update = Song of the Elves
+|members = Yes
+|race = [[Elf]]
+|location = [[The Gauntlet]]
+|gender = Male
+|options = Talk-to
+|examine = He mans the Gauntlet.
+|map = {{Map|x=3030|y=6128|plane=1|r=5|mtype=square|mapID=-1}}
+|id = 9020
+|leagueRegion = Tirannwn
+}}
+[[File:Bryn chathead.png|left]]
+'''Bryn''' is a guide located in the central hub of the [[Gauntlet]]. He will explain the mechanics of the Gauntlet to the player.
+
+==Dialogue==
+{{Hastranscript|npc}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 5 September 2019
+|update = PvP Balancing, LMS, and Elf Graphics
+|poll = Crystal kit charges, Elves and the Iorwerth Dungeon
+|change = Bryn's [[chathead]] was updated.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{| style="text-align: center" cellpadding="15"
+|[[File:Bryn chathead v1.png]]
+|[[File:Bryn chathead.png]]
+|-
+|25 July 2019 –<br/>5 September 2019
+|5 September 2019 –<br/>present
+|}
+
+{{Prifddinas}}
+{{The Gauntlet}}
+
+[[Category:Elves]]
