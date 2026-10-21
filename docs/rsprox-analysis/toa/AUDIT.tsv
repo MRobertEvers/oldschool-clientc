@@ -89,3 +89,10 @@ A87	akkha	Feeling Special? had no orb in front	two orbs a step: the tile left an
 A88	akkha	headbars: Akkha healthbar_19, shadows healthbar_12, ours the standard 30	every revision 223-241	fixed
 A89	akkha	unstable orbs sent no facing	4292: facing angle= on add the way they go, reset at +1 (49 of 49)	fixed
 A90	akkha	unstable orbs' damage by path tier	not measured	open
+A91	zebak	headbar not set (recorded healthbar 20, _standard_120)	4288, 4292: 135 of 135, normal and enraged	fixed
+A92	zebak	waves and rolling jugs sent no facing	waves going north: facing angle=1024 on add (108 of 108), all reset at +1 (162); jugs: facing angle with every roll (125 of 125)	fixed
+A93	baba	headbar 18 (cache _standard_80), recorded 21	every form, rev 223-241	fixed
+A94	baba	rolling boulders sent no facing	facing angle=512 with every roll (896 of 896; cracked 169 of 169)	fixed
+A95	wardens_p1	energy orbs faced once, nine tiles on (rev 223-227)	rev 241: facing angle on add, a tile face on the tile moved to every step (488 of 488)	fixed
+A96	wardens	toa_wardens_elidinis_tells stops at phase two	fails the same on a pack from before this pass (da91c0b573); Tumeken's shielded phase two not fought	open
+A97	kephri	toa_kephri_tells: the raider's bow / egg / swarm attacks fail (driver not_visible)	the same on a pack from before the Kephri pass (fc1e5140a3)	open
