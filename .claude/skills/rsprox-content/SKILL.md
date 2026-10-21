@@ -1,6 +1,6 @@
 ---
 name: rsprox-content
-description: Implement or correct OSRS content (RuneScript in OSRS-Content) from RSProx recordings — loc/npc/obj ops and ap triggers, ladders/stairs/maplinks, doors and loc adds/changes, projectiles, area sounds and synths, spotanims and anims, interface packets (open/close/hide/move/text/highlights/hint arrows), npc info (movement, facing, transforms, ops), dialogues, player facing/movement/teleports/exactmove. Trigger on "implement X from RSProx", "make this match the recording", "port this content from RSProx", or any content work where a recording shows the behaviour.
+description: Implement or correct OSRS content (RuneScript in OSRS-Content) from RSProx recordings — loc/npc/obj ops and ap triggers, ladders/stairs/maplinks, doors and loc adds/changes, projectiles, area sounds and synths, spotanims and anims, interface packets (open/close/hide/move/text/highlights/hint arrows), npc info (movement, facing, transforms, ops), dialogues, player facing/movement/teleports/exactmove, damage (splats on the player, accuracy, max hits, prayer). Trigger on "implement X from RSProx", "make this match the recording", "port this content from RSProx", or any content work where a recording shows the behaviour.
 ---
 
 # Implementing content from RSProx recordings
@@ -85,6 +85,9 @@ fight, cutscene, interaction), before reporting it finished:
    - **Projectiles:** every field -- source tile, target, id, `starttime`, `endtime`, `angle`,
      `progress`, start and end height -- against a fit across many shots (section 4).
    - **Locs, music, jingles, varbits, npc spawns (tile, angle), npc deaths and despawn delay.**
+   - **Damage, every attack** (§13): the splats on the player per cause, prayed and not --
+     zero rate, max, the prayed distribution -- against ours, and the npc's levels against
+     the cache.
    - **NPC INFO, EVERY BLOCK, EVERY TICK -- never skipped.** Start from the per-type, per-life
      summary (`tools/rsprox/rsprox_npcinfo.py --match <regex>`, step 3 of the loop: movement kind
      and tiles per tick, wander vs standing, headicon frames per form, hitsplat and headbar ids,
@@ -333,6 +336,71 @@ if_setevents continue -1..-1 [PAUSEBUTTON], if_settext continue "Click here to c
 
 - Line up **every step tick** with ours: a teleport one tick late is the common bug. Canoes found client input handled a tick late engine-wide (fixed 2026-10-19).
 - A teleport usually comes with `if_opensub fade_overlay` and fade clientscripts, `minimap_toggle`, `cam_*`, and music. Those are part of the same content.
+
+## 13. Damage: splats on the player, and the damage pattern behind them
+
+A green fight with the right animations can still hit twice as hard, never miss, or let a
+prayer through ten times too much. ToA (2026-10-21) had all three: Akkha's max 40 (the
+recordings say 22), no accuracy roll on any attack, 15% through his prayer (9%), Quiet Prayers
+as 50% through (10%), and 74 of its npcs fighting at level 1. Do this for every fight.
+
+**Where the splats are.** A hit on a player rides in that player's player-info block: `[hit]
+id=.., value=..` under `[player_info]` -> `[walk|run|idle] player=(index=N, ...)`. The type is
+the VIEWER's: on the recorder 16 `hitsplat_damage_me`, 12 `hitsplat_block_me` (a zero: a miss, a
+0 roll, or a fully prayed hit), 43 `_damage_max_me`, 65 `_poison_me`, 18 `_shield_me`; 17/13 are
+another player's. Ours sends the generic `hitsplat_damage` (28) / `hitsplat_block` and the
+server picks the viewer's variant (`torirs_server_combat.c`).
+
+**The tool.** `tools/rsprox/rsprox_player_hits.py <txt>...` prints every splat on the recorder
+(`--player NAME` on an `--all-players` transcript) with its cause and the protection prayer up;
+`--summary` groups by cause x prayer (n, zeros, max, mean); `--ours <ticklog.tsv>` gives the
+same view of our tick log. Attribution, in order:
+- `proj`: a projectile aimed at the player, landing on throw + `(endtime + 15) // 30` (Akkha:
+  30 -> +1, 48/54/60 -> +2; 14, 6, 7 of them), the splat's tick or one either side;
+- `swing`: an npc attack sequence (an `attack` name) on the splat's tick or the one before, by
+  an npc whose last face was the player;
+- `tile`: a map spotanim on the player's tile; else `none` (poison, recoil, typeless, unseen).
+
+Prayers: varbit 4101 `prayer_allactive`, which every revision sends: bit 12 Protect from Magic
+(4096), 13 Missiles (8192), 14 Melee; checked against the named varbits 4116/4117 (rev 241).
+Our tick log: `raider.prayers` (varp 83, same bits); a projectile row's `target` is the wire's
+(-(pid + 1) a player, slot + 1 an npc, 0 a tile).
+
+**The damage pattern: compute these, per attack, from every session (§ `rsprox` skill).**
+1. **Group** by cause x (prayed against its style | not) x raid/level band x the modifiers that
+   change damage (Quiet Prayers, a weapon special). Zebak fires mage and ranged with one
+   sequence: attribute by projectile, never by sequence.
+2. **Normalise** each value by the content's own scaling (ToA: x min(raid + path factor, 250%)),
+   so sessions at different levels pool into one base-equivalent distribution.
+3. **Accuracy test.** Unprayed, P(0) of a pure 0..max roll is 1 / (max + 1). Far above it means
+   the attack rolls accuracy (ToA: Zebak's magic 16% of 116, the scarabs' shots 81% of 442,
+   ours 0-4% before the fix). A dodge-based area hit (a slam, a fireball) is not a miss: leave
+   those out.
+4. **Max test.** The largest unprayed value bounds the base max; it takes ~30 accurate hits.
+   Check the npc's own formula too (melee: floor(0.5 + (str + 8) x (strbonus + 64) / 640)).
+5. **Through prayer.** At a fixed level, histogram the prayed nonzero values. `floor(roll x t /
+   100)` over 0..max gives values 1..k with the top one rare unless t is tuned; fit t on the
+   top value's share (Akkha at the cap, max 55: 1/2/3/4 at 34/37/33/33 of 242 -> t = 9).
+6. **Seasonal sessions** (Leagues, Grid Master) change the recorder's damage taken. A ratio
+   inside one session (prayed max / unprayed max, Quiet Prayers / not) cancels it; absolute
+   maxima need a normal-world session.
+7. **Expected zeros from the recorder's own gear.** A `--bas` transcript carries the worn
+   inventory (`update_inv_* id=worn (94)`); defence bonuses are the cache obj's params
+   (`stabdefence`, `magicdefence`, `rangedefence`, ...), levels `update_stat_v2`, prayer boosts
+   their varbits. Defence roll = (level x prayer + 8) x (bonus + 64) (magic: 0.7 magic + 0.3
+   defence); the npc's roll from the cache's `stat1..6` and attack params, x the content's
+   accuracy scaling; P(hit) = 1 - (D + 2) / (2(A + 1)) if A > D, else A / (2(D + 1)). Sum the
+   predicted zeros per model and compare (index 4292 Akkha, prayed magic: 17 recorded, 15.8 for
+   max 22 / t 9, 11.9 for 40 / 15; prayed ranged: 20, 20.5, 17.9).
+8. **Check the npc's levels are ours.** The cache's npc record states `stat1..6` (attack,
+   defence, strength, hitpoints, ranged, magic); `_explicit/configs/server_fields.generated.npc`
+   froze many npcs at the engine's seed (attack/defence/strength 1, ranged/magic 0), overriding
+   the cache (`tools/check_npc_cache_levels.py`: 3,710 npcs still). Print the defence roll
+   (`::toabossdef` is the pattern): Zebak's 2240 = (1 + 9) x (160 + 64) was a Defence of 1.
+
+Write the table per attack in the analysis doc: recorded n, zero %, max, base-equivalent max,
+prayed distribution, ours from the test's tick log, verdict. A zero rate or a max that matches
+only one band is not a match.
 
 ## Traps that have each cost a wrong fix
 
