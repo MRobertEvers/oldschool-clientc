@@ -53,8 +53,7 @@ dodges.
 
 ## Open
 
-- **3,710 other npcs** have cache levels that the explicit-defaults layer overrides with the
-  engine seed (`tools/check_npc_cache_levels.py`, 14,438 levels; molanisk: Hitpoints 52 in the cache, 10 here).
-  Outside ToA, not changed here.
+- ~~3,710 other npcs at the engine seed~~: fixed the same way on 2026-10-21 (14,438 levels;
+  zombies 22-30 Hitpoints, not 10). `tools/check_npc_cache_levels.py` prints 0.
 - Akkha's prayed melee: 4 nonzero hits, all 4s; 15% keeps NR's ratio to ranged, not a fit.
 - Ba-Ba's baboons' max (wiki "1?").

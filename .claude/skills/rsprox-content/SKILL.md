@@ -401,7 +401,8 @@ Our tick log: `raider.prayers` (varp 83, same bits); a projectile row's `target`
 8. **Check the npc's levels are ours.** The cache's npc record states `stat1..6` (attack,
    defence, strength, hitpoints, ranged, magic); `_explicit/configs/server_fields.generated.npc`
    froze many npcs at the engine's seed (attack/defence/strength 1, ranged/magic 0), overriding
-   the cache (`tools/check_npc_cache_levels.py`: 3,710 npcs still). Print the defence roll
+   the cache (fixed for all 3,784 on 2026-10-21; `tools/check_npc_cache_levels.py` must
+   print 0 after any edit there). Print the defence roll
    (`::toabossdef` is the pattern): Zebak's 2240 = (1 + 9) x (160 + 64) was a Defence of 1.
 
 Write the table per attack in the analysis doc: recorded n, zero %, max, base-equivalent max,

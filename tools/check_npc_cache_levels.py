@@ -5,7 +5,8 @@ value while no other .npc block states that level.
 
 That file froze, on 2026-10-11, what the server resolved for every unstated field: the engine
 seeded attack/defence/strength 1, hitpoints 10, ranged/magic 0, and never read the cache's
-levels. ToA's 74 npcs were corrected by hand on 2026-10-21 (docs/rsprox-analysis/toa/damage.md).
+levels. Every such level was set to the cache's on 2026-10-21 (ToA's 74 first, then the
+other 3,710; docs/rsprox-analysis/toa/damage.md). It should print 0.
 
 Usage: tools/check_npc_cache_levels.py [--list] [npc ...]
 """
