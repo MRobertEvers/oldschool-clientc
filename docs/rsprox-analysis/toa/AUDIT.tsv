@@ -82,3 +82,10 @@ A80	raid	::toarun exceeds the 500,000-instruction budget (toa_st_lobby_bits), so
 A81	baba	rock fall fastest from path level 4 (NR's min(2, level/2))	all 20 sessions: 2250 at level 0, 2251 at 3, 4 (five fights with level-4 health), 5, 6; 2252 never; now min(1, tier)	fixed
 A82	baba	party cracked-boulder health flat by party size	duo 45 at tier 2 (3 of 3) but dead to 39 at tier 1 (6 of 6); eight 93 at tier 1; trio 58, five 77, six 87 at tier 2: now tier-2 values scaled by the solo tier	fixed
 A83	baba	sarcophagus skulls' reach by path tier	skulls recorded only at levels 5-6 (Leagues)	open
+A84	akkha	special every 7th slot (six swings)	rev 234-241: seven swings then the special (4292 6 of 6, 3263 2 of 2); Stay Vigilant five (3411, 843, 3413); rev 223-227 had six; test toa_akkha_inv_tells 7 7 7 7	fixed
+A85	akkha	Double Trouble showed the trailing orbs' cast animation half the time	14 of 14 solo casts show 9777; Memory Blast now cast last; test 4 of 4	fixed
+A86	akkha	Keep Back's melee landed with the shot (swing + 3) on every raider	recorded a hit at swing + 1 on raiders beside him (30 of 82 swings, 1 of 653 without); test 8	fixed
+A87	akkha	Feeling Special? had no orb in front	two orbs a step: the tile left and one a step on (105 of 107); test 28 ticks with two	fixed
+A88	akkha	headbars: Akkha healthbar_19, shadows healthbar_12, ours the standard 30	every revision 223-241	fixed
+A89	akkha	unstable orbs sent no facing	4292: facing angle= on add the way they go, reset at +1 (49 of 49)	fixed
+A90	akkha	unstable orbs' damage by path tier	not measured	open

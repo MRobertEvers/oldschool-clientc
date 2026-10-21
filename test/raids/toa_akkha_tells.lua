@@ -154,9 +154,16 @@ return {
         unguard(t)
 
         t.ticklog.mark("akkha.final")
-        t.cheat("::toaakkhanext", false)
-        wait(t, 3)
-        t.expect("akkha.final_stand", said(t, "Akkha makes his final stand!") and "ok" or "fail")
+        -- `::toaakkhanext` hits him to his next threshold, or kills a guarding shadow first,
+        -- and a Memory Blast in flight takes him out of reach: re-issued until the stand.
+        local stood, waited = false, 0
+        while not stood and waited < 90 do
+            if waited % 6 == 0 then t.cheat("::toaakkhanext", false) end
+            wait(t, 1)
+            waited = waited + 1
+            stood = said(t, "Akkha makes his final stand!")
+        end
+        t.expect("akkha.final_stand", stood and "ok" or "fail", string.format("after %d ticks", waited))
         wait(t, 10)
         for _ = 1, 3 do
             t.cheat("::toaakkhanext", false)

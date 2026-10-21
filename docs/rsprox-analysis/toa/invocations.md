@@ -208,6 +208,43 @@ level, all 20 sessions with her:
 Neither change is driven by a test: no cheat sets a path level, and the
 lobby's entry (which the Path Level invocations need) fails on HEAD (A75).
 
+## Akkha's four
+
+All 20 sessions with Akkha (`search npc 11790`, 44 fights):
+
+| Invocation | Recorded | Ours |
+|---|---|---|
+| (cadence) | seven swings then the special in rev 234-241 (4292 6 of 6, 3263); six in rev 223-227; Stay Vigilant five (3411, 843, 3413) | `^toa_akkha_special_every` 8 (was 7) |
+| Double Trouble | both specials at once; the cast animation is Memory Blast's (14 of 14 solo casts), the orbs coming with it | Memory Blast now cast last, so its animation is the one sent |
+| Keep Back | a hit on the tick after a ranged or magic swing, on a raider beside him (30 of 82 swings with it, 1 of 653 without) | was queued with the shot (swing + 3) on every raider; now the melee's own timing, raiders on his edge |
+| Stay Vigilant | the style changes between specials | as recorded |
+| Feeling Special? | Memory Blast's waves every 2 (75 of 85; 4 without, 252); **two trailing orbs a step**: the tile left and one a step on the way they went (105 of 107; one without, 33 of 33). Detonate's "more directions": the one party cast with it is the plain plus (unrecorded otherwise) | the second orb added; the waves already 2 |
+
+**Path level** (Het): Memory Blast's glows 4 at levels 0-1, 5 at 2-3, 6 at
+4-5 (`4 + tier`); Detonate C+10 / C+8 / C+6 by tier; his health ours to the
+nearest 10 at every level to 4 (5-6 seasonal). The unstable orbs' damage by
+tier is not measured.
+
+**Npc info** (index 4292, rev 241, `rsprox_npcinfo.py --match akkha`, against
+our tick log of `toa_akkha_tells`):
+
+| Block | Recorded | Ours | |
+|---|---|---|---|
+| Akkha's headbar | `healthbar_19` (every revision: 14, 3263, 843, 1852, 4292) | `healthbar_standard_30` | fixed (toa.npc) |
+| Shadows' headbar | `healthbar_12` | `healthbar_standard_30` | fixed |
+| Hourglass npcs | `healthbar_36` | 36 | match |
+| Tints | every tick, guarded / clear | every tick | match |
+| Seqs (swings, specials, teleports, death 2 to `[del]`) | as recorded | as recorded | match |
+| Transformations | each form, `level_change`, `enabled_ops` 0b11111 | each form | match (levels not in our log) |
+| Akkha's facing | `player=` re-sent through each style (~1 a swing), resets | the entity face once a form | same raider, same result on screen; the re-sends are not ours |
+| Shadows' facing | `coord=` instant every tick, the same tile (1,432 of 1,452) | once a life | same on screen |
+| Unstable orbs | `facing angle=` on add the way they go (north 1024, 256 a step clockwise; 49 of 49), reset at +1 | none | fixed (`npc_faceangle`, `npc_facereset`) |
+| Trailing orbs | spawn south, no blocks, 7 ticks (260 of 280) | the same | match |
+
+Tests: `test/raids/toa_akkha_inv_tells.lua` (8 of 8); `toa_akkha_tells`
+re-issues `::toaakkhanext` until the stand (the cheat can be spent on a
+guarding shadow, and the stand takes his next special slot).
+
 ## Paths
 
 **Path level** (Scabaras's, for Kephri: the start level plus the rumblings

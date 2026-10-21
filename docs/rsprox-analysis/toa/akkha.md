@@ -31,9 +31,11 @@ He is 3x3; everything below that says "his middle" is his south-west tile
 
 ## The basic attacks
 
-A swing every **6 ticks** from S+6. Six swings in a style, then a special in
-the seventh slot, cast on the tick he takes the next style: melee → ranged
-→ magic → melee (solo: every special, 8 of 8). In the Expert raids (Stay
+A swing every **6 ticks** from S+6. **Seven** swings in a style, then a special
+in the eighth slot, cast on the tick he takes the next style: melee → ranged
+→ magic → melee (revisions 234-241: index 4292 6 of 6, 3263 2 of 2; the
+rev 223-227 recordings here, 14 and 1852, had six and the seventh). With Stay
+Vigilant five and the sixth (rev 234-235: 3411, 843, 3413). In the Expert raids (Stay
 Vigilant) the style also changes between specials. Every change sounds
 `bcs_akh_spawn_02` (5585) range 14.
 
