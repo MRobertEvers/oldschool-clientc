@@ -198,6 +198,28 @@ trspk_rect_intersect(
     *out_y = y0;
 }
 
+static inline int64_t
+trspk_floor_div64(
+    int64_t num,
+    int64_t den)
+{
+    int64_t quot = num / den;
+    if( (num % den) != 0 && ((num < 0) != (den < 0)) )
+        quot--;
+    return quot;
+}
+
+/*
+ * Logical (canvas, y down) -> framebuffer (y up), each EDGE scaled and rounded
+ * outward, the way the D3D9 and ES lanes do it.
+ *
+ * This used to truncate the origin and the size separately. At a fractional
+ * scale that loses up to a pixel off the far edges -- the top row and the right
+ * column of every clip. A healthbar's green half is the red half's sprite
+ * clipped to the fill, so its top row was scissored away and the red showed
+ * through as a line; a clipped interface column lost its right edge and left a
+ * one-pixel streak of whatever was behind it.
+ */
 static inline void
 trspk_logical_rect_to_framebuffer(
     int logical_x,
@@ -216,13 +238,18 @@ trspk_logical_rect_to_framebuffer(
     int* out_fb_w,
     int* out_fb_h)
 {
-    const float sx = (float)lb_w / (float)window_width;
-    const float sy = (float)lb_h / (float)window_height;
-    *out_fb_x = lb_x + (int)(logical_x * sx);
-    *out_fb_w = (int)(logical_w * sx);
-    *out_fb_h = (int)(logical_h * sy);
-    const int logical_bottom = logical_height - logical_y - logical_h;
-    *out_fb_y = lb_y + (int)(logical_bottom * sy);
+    const int64_t win_w = window_width;
+    const int64_t win_h = window_height;
+    const int64_t left = trspk_floor_div64((int64_t)logical_x * lb_w, win_w);
+    const int64_t right = -trspk_floor_div64(-(int64_t)(logical_x + logical_w) * lb_w, win_w);
+    /* Measured from the bottom, as GL counts rows. */
+    const int64_t bottom =
+        trspk_floor_div64((int64_t)(logical_height - logical_y - logical_h) * lb_h, win_h);
+    const int64_t top = -trspk_floor_div64(-(int64_t)(logical_height - logical_y) * lb_h, win_h);
+    *out_fb_x = lb_x + (int)left;
+    *out_fb_w = (int)(right - left);
+    *out_fb_y = lb_y + (int)bottom;
+    *out_fb_h = (int)(top - bottom);
 }
 
 static inline void
