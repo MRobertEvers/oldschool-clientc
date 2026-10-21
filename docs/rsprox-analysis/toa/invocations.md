@@ -192,6 +192,22 @@ level.
 
 Test: `test/raids/toa_zebak_inv_tells.lua` (the hops both ways).
 
+## Ba-Ba by level
+
+Her five invocations are in [baba.md](baba.md) (41 kills, 19 sessions: the
+same set as here; Jungle Japes' two peels in rev 241 are ours). By Apmeken
+level, all 20 sessions with her:
+
+| | Recorded | Ours |
+|---|---|---|
+| Health | ours to the nearest 10 at every level up to 4; the Leagues fights at 5 and 6 have levels 5-6's health (seasonal) | as recorded |
+| Rocks | slow (2250) at level 0, faster (2251) at 3, 4, 5, 6; fastest (2252) never | `~toa_baba_speed` was NR's min(2, level / 2): fastest from 4; now min(1, tier) |
+| Cracked boulders | solo 25 / 27 / 31 by tier; a party's scale with the tier too: duo 45 at tier 2 and dead to 39 at tier 1, eight 93 at tier 1; trio 58, five 77, six 87 at tier 2 | the party values were flat by size (duo 42, seven 93); now tier-2 values (45, 58, 68, 77, 87, 96, 107) scaled by the solo tier's 25 / 27 / 31 |
+| Skulls' reach | recorded only at levels 5-6 (Leagues) | unchanged, open |
+
+Neither change is driven by a test: no cheat sets a path level, and the
+lobby's entry (which the Path Level invocations need) fails on HEAD (A75).
+
 ## Paths
 
 **Path level** (Scabaras's, for Kephri: the start level plus the rumblings

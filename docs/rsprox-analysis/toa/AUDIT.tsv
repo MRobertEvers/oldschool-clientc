@@ -79,3 +79,6 @@ A77	zebak	attack rate and wave gap from level/2 uncapped	levels 0-1 7/4 gap 3, 3
 A78	raid	boss health not rounded	every recorded Zebak (40 of 42) and Kephri (41) base is ours to the nearest 10; index 4292's Kephri 265 open	fixed
 A79	raid	path levels capped at 6	main game stops at 4, 5-6 seasonal (owner; 553 #3 Leagues level-5 health); cap 4, toa.npc ceilings re-derived at 600/4/8, ::toarooms OK	fixed
 A80	raid	::toarun exceeds the 500,000-instruction budget (toa_st_lobby_bits), so toa_selftest never reports	fails the same on a pack built from OSRS-Content HEAD 75aca962e4	open
+A81	baba	rock fall fastest from path level 4 (NR's min(2, level/2))	all 20 sessions: 2250 at level 0, 2251 at 3, 4 (five fights with level-4 health), 5, 6; 2252 never; now min(1, tier)	fixed
+A82	baba	party cracked-boulder health flat by party size	duo 45 at tier 2 (3 of 3) but dead to 39 at tier 1 (6 of 6); eight 93 at tier 1; trio 58, five 77, six 87 at tier 2: now tier-2 values scaled by the solo tier	fixed
+A83	baba	sarcophagus skulls' reach by path tier	skulls recorded only at levels 5-6 (Leagues)	open

@@ -66,8 +66,11 @@ Her swing facing 10 south of her middle, and `toa_baba_rock_fall` (2250),
 `_faster` (2251) or `_fastest` (2252) delay 20 on **every raider's tile** (69 of
 79 on the recorder's own) and on two more where rubble will land. To every
 raider `toa_baba_circular_rocks_falling_01` and `_impact_01` delay 150 - 60 x
-speed. The speed is NR's min(2, path level / 2): Entry kills show 2250 (33),
-the others 2251; the rocks land 6 - 2 x speed later (recorded 4 at speed 1).
+speed. The speed is 0 at Apmeken levels 0-1 and 1 from 2: level 0 shows 2250
+(48 of 48), levels 3, 4 (five fights whose health is level 4's) and the
+seasonal 5-6 all 2251; `_fastest` (2252) is in no recording, so NR's min(2,
+level / 2) is wrong at 4. The rocks land 6 - 2 x speed later (recorded 4 at
+speed 1).
 
 Rubble: the npc and its loc, no animation, its bar re-sent every tick. 20
 hitpoints a raider between the two, the second at half when they differ (solo
