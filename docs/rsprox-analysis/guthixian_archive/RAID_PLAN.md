@@ -68,3 +68,47 @@ stat4 for Ezekiel 3000, Bork 1500, Dreadnoth 2100, Xarth 2600).
 - "Challenge complete: <boss>. Duration: m:ss. Total: m:ss": duration from the
   boss's engage to the line (Ezekiel 4301: engage [65], line [273], 208 ticks =
   2:05), total from the raid's start (1:59 + 2:28 = 4:27).
+
+## Scaling
+
+Every boss's health, as its bar states it (`hpbar_hud_basehp`, varbit 6100;
+the Smorks' second bar `hpbar_hud_extra_base`, 16571), against the party (the
+names on the raid HUD, `script10042`), over index 4297..4308
+(`tools/scaling.py`):
+
+| boss | 1 | 2 | 3 | 4 | 5 |
+|---|---|---|---|---|---|
+| Guardian, shielded | 550 (4297, 4298) | 550 (4300, 4303, 4304, 4305, 4306) | 800 (4304) | 1030 (4306, 4308) | 1260 (4303) |
+| Guardian | 1100 (4297) | 1100 (4299, 4300, 4303, 4304, 4305, 4306) | 1600 (4301, 4304) | 2060 (4306, 4308) | 2520 (4303) |
+| Ezekiel | | 3000 (4300) | 4350 (4301, 4304) | | |
+| Bork (the bar) | | 1500 (4303, 4304, 4306) | 2180 (4304) | 2810 (4306, 4308) | 3440 (4302, 4303) |
+| the Smorks (second bar) | | 600 (4303, 4304, 4306) | 870 (4304) | 1120 (4306, 4308) | 1370 (4302, 4303) |
+| Dreadnoth | | 2100 (4303, 4304) | 3050 (4301, 4304) | 3930 (4308) | 4810 (4302, 4303) |
+| Xarth | | 2600 (4304) | 3770 (4301) | 4860 (4308) | 5950 (4302) |
+| Ocellus, phase 1 | | | 3630 (4301) | 4680 (4308) | |
+| Ocellus, phases 2-4 | | | 7610 (4301) | 9820 (4308) | |
+
+**The rule** (32/32 boss and party pairs, 0 misses): health = the solo/duo
+figure x **1.000** at one or two raiders, **1.450** at three, then **+0.420**
+for each raider more (1.870 at four, 2.290 at five), rounded to the nearest
+10. Ocellus's bases are 2500 and 5250 (no duo recorded; both his pairs fit).
+Six to eight raiders are in no recording: the same step is assumed.
+
+Ours (`~tfa_scale`, tfa_nexus.rs2): the party size is locked when the
+Guardian's challenge begins (the raiders in the room then) and carried room
+to room with the raid's clock; every boss pool, the Smorks' bar, and every
+percentage taken of a pool (Ezekiel's finale, Dreadnoth's slams, Bork's
+speed, Ocellus's floors, the batteries' blast on the Guardian's shield) go
+through it. A form change that the engine re-reads from the config
+(`npc_changetype`) puts the scaled pool back with the damage taken
+(`~tfa_changetype_scaled`). Checked by `test/guthixian_archive/tfa_scaling.lua`
+(`::tfaparty`): Xarth 4860 at four, Dreadnoth 4810 at five, Ocellus 3630 at
+three through his change of form.
+
+Already per party, from the rooms' own rows: Dreadnoth's blob (min(12, 3 x
+raiders x k)), Xarth's volley ((raiders + 1) / 2 fireballs). Unverified (no
+bar to read): the adds' health (jellies 75, corpses 62, Ezekiel's swords 80,
+the Guardian's batteries 180), held at the cache's.
+
+Open: today each raider's later rooms are their own instance (each move
+makes one), so a party's size only reaches the rooms through this lock.
