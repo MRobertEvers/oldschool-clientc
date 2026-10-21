@@ -157,6 +157,41 @@ draws 6 (`~toa_keph_blast_tile`). 1836 #5's panel reads Aerial Assault but its
 fight shows none (single-tile radials and bombers): the panel was stale for a
 new party's first raid.
 
+## Zebak's four
+
+All 21 sessions with Zebak (`search npc 11730`, 42 fights; 4288 is the
+owner's rev-241 raid):
+
+| Invocation | Recorded | Ours |
+|---|---|---|
+| Not Just a Head | blood barrages only with it | as recorded |
+| Arterial Spray | on in every raid with Not Just a Head, so never told apart; the barrage we model is the one with it | unchanged |
+| Blood Thinners | three clouds a cast | as recorded |
+| Upset Stomach | the jug's splash 1 tile out (3x3) with it, 2 (5x5) without, every fight; **the poison's hops**: with it six a landing in the box -1..+3 of it (the wiki's 5x5; 277 of 361 landings six), **without it four of the eight tiles round it** (197 of 369 four; 1,259 of 1,259 hops a tile out) | `~toa_zebak_hops` always drew the Upset Stomach box; now by the invocation |
+
+**Path level** (Crondis): the basic attack 7 / 4 enraged at levels 0-1, 6 / 3
+at 3, 5 / 2 at 4-5, and the wave's gap 3, 2, 1, i.e. a tick and a tile a
+`~toa_path_tier`. Ours divided the raw level by 2 without the tier's cap;
+now the tier. Jugs (5-8 a landing tick), boulders (1-3) and the enrage
+(about a quarter of his bar) do not move with the level.
+
+**Health:** every recorded Zebak base is ours to the nearest 10 (1505 shown
+1510, 1276 1280, 2134 2130; 40 of 42 fights, the other two a stale mask and a
+miscounted party). `~toa_boss_hp` now rounds so. Kephri's shield pool is the
+same in all 41 of her fights; index 4292's 265 (raw 265.7) is the one value
+not on a 10, open.
+
+**Path levels stop at 4** in the main game; 5 and 6 are seasonal (owner).
+553 #3's Leagues Zebak at level 5 has its level-5 health (1650: raw 1647, the
+cap-4 number 1583). `^toa_scale_path_level_max` is 4, and toa.npc's ceilings
+are re-derived at 600 / 4 / 8 (`::toarooms` OK).
+
+**Kephri by level:** swarm triples none at levels 0-1, 3 a stun at 3, about
+4 at 4 (ours every 8th / 6th); stuns 54 / 51 solo, 51 / 48 in a party, at every
+level.
+
+Test: `test/raids/toa_zebak_inv_tells.lua` (the hops both ways).
+
 ## Paths
 
 **Path level** (Scabaras's, for Kephri: the start level plus the rumblings

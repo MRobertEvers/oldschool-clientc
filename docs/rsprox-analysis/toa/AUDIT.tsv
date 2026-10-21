@@ -74,3 +74,8 @@ A72	raid	Path Level invocations' start levels unannounced	34 raids with Pathmast
 A73	raid	Walk the Path: first path's two level-ups could hit one path twice, or a finished path	38 of 38 raids: two different unfinished paths, then one of two, then the last; test toa_paths_tells	fixed
 A74	raid	rumbling line lacks rev 241's trailing </col>	index 4292 4 of 4 end '.</col>'; revisions 227-235 '.'	fixed
 A75	lobby	lobby panel presses do not register and the entry warning cannot be answered	toa_lobby_tells: inv.walk / preset / entry.line / door.question fail with OSRS-Content HEAD 27b2fb32a2's own pack as well (TORIRSSERVER_SCRIPTS snapshot): not these changes	open
+A76	zebak	Upset Stomach's hop pattern used without it	21 sessions: without it 4 hops among the 8 round the landing (1,259 of 1,259 one tile out), with it 6 in -1..+3; test toa_zebak_inv_tells	fixed
+A77	zebak	attack rate and wave gap from level/2 uncapped	levels 0-1 7/4 gap 3, 3 6/3 gap 2, 4-5 5/2 gap 1 (21 sessions): the tier; ours kept dividing past level 4	fixed
+A78	raid	boss health not rounded	every recorded Zebak (40 of 42) and Kephri (41) base is ours to the nearest 10; index 4292's Kephri 265 open	fixed
+A79	raid	path levels capped at 6	main game stops at 4, 5-6 seasonal (owner; 553 #3 Leagues level-5 health); cap 4, toa.npc ceilings re-derived at 600/4/8, ::toarooms OK	fixed
+A80	raid	::toarun exceeds the 500,000-instruction budget (toa_st_lobby_bits), so toa_selftest never reports	fails the same on a pack built from OSRS-Content HEAD 75aca962e4	open
