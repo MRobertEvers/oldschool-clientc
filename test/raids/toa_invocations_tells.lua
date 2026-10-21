@@ -128,7 +128,7 @@ return {
         for _, row in ipairs(rows_since(t, "npc_spawn", S)) do
             if row.type == 11729 then hatch = hatch + 1 end
         end
-        t.expect("larvae.hatching", (hatch >= 4 and hatch <= 6) and "ok" or "fail", tostring(hatch) .. " hatching eggs")
+        t.expect("larvae.hatching", (hatch >= 3 and hatch <= 6) and "ok" or "fail", tostring(hatch) .. " hatching eggs")
 
         -- Deadly Prayers: no prayer was on, so every point gone is the hits'.
         local want = 0

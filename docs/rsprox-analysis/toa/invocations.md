@@ -106,8 +106,12 @@ kill), and in 554 and 553 (after their second wake).
 
 ## The Wardens' six
 
-Every recorded Wardens kill, its Warden invocations from the 6729 masks (index
-4292 has a rev-241 format: `id=script6729 (6729)`):
+Every Wardens kill the index holds (20 sessions, 42 kills; `rsprox_index.py
+search npc 11751`). A raid's set is the last 6729 panel before its "You enter
+the Tombs", whatever the panel's role (a raider who clears the panel one
+invocation at a time enters with the last, empty, one: 3263); 42 of 42 agree
+with what their fight shows (the charge bar, phase two's rate, the slams). The
+table names the ones the write-ups cite; the rest repeat these sets.
 
 | Raid | Level | Warden invocations |
 |---|---|---|
@@ -116,7 +120,7 @@ Every recorded Wardens kill, its Warden invocations from the 6729 masks (index
 | 101 #2-4, 1779 | 300 / 500 / 700, 500 | Ancient Haste, Overclocked |
 | 553 #2 | 150 | Ancient Haste, Acceleration, Penetration, Overclocked |
 | 1845, 1852 #1-7 | 520-530 | all but Insanity |
-| 553 #3 | 310 | all six |
+| 553 #3, index 1737 #1 | 310, 515 | all six |
 
 | Invocation | Recorded | Ours |
 |---|---|---|
@@ -125,7 +129,7 @@ Every recorded Wardens kill, its Warden invocations from the 6729 masks (index
 | Penetration | every obelisk hit: the message, overheads off, no lock; no harder skulls or sweeps | `~toa_wd_ob_hit` |
 | Overclocked | slams every 5 (7, 6 under half health) | `~toa_wd3_rate` |
 | Overclocked 2 | every 4, the `02` slams | `~toa_wd3_rate` |
-| Insanity | every 3; siphons released 8 after landing (18); slams resume; phantoms 7 / 6, enraged 4 / 3 (8, 5) | `~toa_wd3_rate`, `~toa_wd3_phantom_rate` |
+| Insanity | every 3; siphons released 8 after landing (18); slams resume; phantoms 7 / 6, enraged 4 / 3 (8, 5), in both raids with it | `~toa_wd3_rate`, `~toa_wd3_phantom_rate` |
 
 The wiki is wrong on two: Overclocked is two ticks faster, not one, and
 Insanity's enrage lightning is no faster. Ancient Haste is not the reference's
@@ -133,6 +137,49 @@ doubling. Unrecorded, ours as the wiki or unchanged: Tumeken's Warden under
 Acceleration (7), the warning ring under Penetration (14), a beam without it
 (13), Insanity's tile rows (18) and Akkha's and Kephri's phantoms under it
 (their slots' 7 / 6). Test: `test/raids/toa_wardens_inv_tells.lua`.
+
+## Kephri's five
+
+All 20 sessions with Kephri (`search npc 11719`, 41 fights; parties from
+`--all-players` transcripts):
+
+| Invocation | Recorded | Ours |
+|---|---|---|
+| Lively Larvae | hatching eggs a cast: without it 2 (14: 3 casts); with it solo 3, 4, 4, 5, 5, 5, 5, 6, 6; two or three raiders 4-5 (17); five or six 5-10 (11) | `~toa_keph_hatching`; solo 3-6 was 4-6 |
+| More Overlords | first stun melee + ranged, second mage + melee + ranged; without it ranged, then mage + melee, **whatever the party size** (580 and 1828: three raiders, the solo set) | `~toa_keph_guardians`, 41 of 41 |
+| Blowing Mud | two raiders marked a dung strike in a party (most strikes show 2; a 1 is the other raider's graphic not sent); every party ran it | `~toa_keph_dung_mark` |
+| Medic! | swarms outside the stuns only with it (1741 #2: 16, 553 #2: 6, 552 #3: 3; none in 38 fights without) | `~toa_kephri_begin` |
+| Aerial Assault | the radial a 3x3 at height 0 (never without it); **the bombers' shadow and blast a 3x3 too** (6-9 shadows a bomber in 34 of 34 fights, 1 in all 11 without; raiders beside the landing hit 33, 35; the landing's graphics one tile as without it) | `~toa_keph_kamikaze` was one tile |
+
+A blast is never drawn under Kephri or past the arena: every shadow in the 20
+sessions (11,592) is 3 to 8 tiles out from her middle, so a 3x3 beside her
+draws 6 (`~toa_keph_blast_tile`). 1836 #5's panel reads Aerial Assault but its
+fight shows none (single-tile radials and bombers): the panel was stale for a
+new party's first raid.
+
+## Paths
+
+**Path level** (Scabaras's, for Kephri: the start level plus the rumblings
+for Scabaras before her): her fireball flies 120 at levels 0-1, 90 at 3, 60 at
+4 (41 of 41), i.e. by `~toa_path_tier`; the radial every 6 at every level.
+
+**Pathseeker / Pathfinder / Pathmaster** announce the start level on the way
+in: one "You hear a mysterious rumbling coming from the Path of X." a path at
+the fade's T+4, before the time limit's line (34 raids with Pathmaster; 553 #2
+had it without Walk the Path and heard nothing more). The order is Scabaras,
+Het, Crondis, Apmeken in every solo raid and every raid its recorder led (20),
+and Apmeken, Crondis, Het, Scabaras in every party recording made by a member
+(14); ours uses the first.
+
+**Walk the Path** (38 raids): after the first path two **different** other
+paths go up, after the second one of the two left, after the third the last
+one, after the fourth none. Never a finished path. Ours could level the same
+path twice, or a finished one.
+
+Revision 241 sends the rumbling with a stray `</col>` on the end (index 4292,
+4 of 4; revisions 227-235 do not); ours sends it.
+
+Tests: `test/raids/toa_kephri_inv_tells.lua`, `test/raids/toa_paths_tells.lua`.
 
 ## Not built: Arterial Spray
 

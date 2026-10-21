@@ -185,7 +185,7 @@ takes 8 at Entry (1 of 1: "Ouch!"). The third break throws every raider on
 the same tick.
 
 **Eggs.** Two 12-tile layouts (16 of 16). Hatching eggs (`dungball01`):
-2 without Lively Larvae; with it (every party recording ran it) 4-6 solo,
+2 without Lively Larvae; with it (every party recording ran it) 3-6 solo,
 4-5 for two or three raiders, 5-10 for five or six (invocations.md). Every egg is gone 15
 ticks after landing (129 of 133); a hatching one leaves a kite on its tile
 that tick (46 of 46).
