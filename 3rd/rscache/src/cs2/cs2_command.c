@@ -332,6 +332,7 @@ RSCache_CS2_CommandApplyProfile(const struct RSCache* cache)
     } pre241[] = {
         { 3905, one_int, 1 }, /* stockmarket_getofferprice */
         { 3908, one_int, 1 }, /* stockmarket_getoffercompletedgold */
+        { 3925, one_int, 1 }, /* tradingpost_getofferprice */
         { 3932, two_ints, 2 }, /* stockmarket_value */
     };
     bool longs = RSCache_RevisionAtLeastOsrs(

@@ -169,6 +169,10 @@ CANON_IN_RSPROX = {
     # curve. Named for 241 only; the 239 table was generated without them.
     "CAM_MOVETO_CYCLES_V3": "CAM_MOVETO_CYCLES",
     "CAM_ROTATETO_COORDINATE_V3": "CAM_ROTATETO_COORDINATE",
+    # A varp's 64-bit value (RSProx VarpLongDecoder: high g4Alt3, low g4Alt3,
+    # id g2). 241 moved the Grand Exchange's offer price into one (varp 5753,
+    # read by CS2 opcode 64).
+    "VARP_LONG": "VARP_LONG",
 }
 CANON_IN_RSPROX_IF_ABSENT = {
     # survivor              (deleted prot it replaces, canonical name)

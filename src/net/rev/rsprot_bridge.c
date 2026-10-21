@@ -937,13 +937,18 @@ bridge_runclientscript(int revision, uint8_t const* data, int len, struct RevPac
             p->strv[i][n] = '\0';
             p->str_mask |= 1u << i;
         }
+        else if( msg.types[i] == (char)MSG_RUNCLIENTSCRIPT_TYPE_LONG )
+        {
+            p->longv[i] = args[i].lval;
+            p->long_mask |= 1u << i;
+        }
         else
         {
             /*
-             * The array and 64-bit forms have no home in PktRunClientScript,
-             * which carries one int or one string per argument. They decode
-             * correctly and are then narrowed; the same narrowing the
-             * hand-written arm did by only ever reading p4 and pjstr.
+             * The array forms have no home in PktRunClientScript, which carries
+             * one scalar per argument. They decode correctly and are then
+             * narrowed; the same narrowing the hand-written arm did by only
+             * ever reading p4 and pjstr.
              */
             p->intv[i] = args[i].ival;
         }
@@ -1002,6 +1007,27 @@ bridge_cam_moveto_v3(int revision, uint8_t const* data, int len, struct RevPacke
     out->_cam_moveto.rate = msg.rate;
     out->_cam_moveto.rate2 = msg.rate2;
     out->_cam_moveto.absolute = 1;
+    return 1;
+}
+
+/*
+ * VARP_LONG has no RSProt codec to generate from -- RSProt never carried a long
+ * varp -- so this is the hand-written 241 path the overlay leaves to its caller.
+ * Layout from RSProx's VarpLongDecoder: high g4Alt3, low g4Alt3, then id g2.
+ */
+static int
+bridge_varp_long(int revision, uint8_t const* data, int len, struct RevPacket* out)
+{
+    (void)revision;
+    RsprotBuf buf;
+    rsprot_buf_wrap_read(&buf, data, len);
+    uint32_t high = (uint32_t)rsprot_g4_alt3(&buf);
+    uint32_t low = (uint32_t)rsprot_g4_alt3(&buf);
+    int id = rsprot_g2(&buf);
+    if( buf.err )
+        return 0;
+    out->_varp_long.variable = id;
+    out->_varp_long.value = (int64_t)(((uint64_t)high << 32) | (uint64_t)low);
     return 1;
 }
 
@@ -1177,6 +1203,7 @@ static struct BridgeRow const k_rows[] = {
     { PKT_NAME_CAM_LOOKAT, bridge_cam_lookat },
     { PKT_NAME_CAM_MOVETO, bridge_cam_moveto },
     { PKT_NAME_CAM_MOVETO_CYCLES, bridge_cam_moveto_cycles },
+    { PKT_NAME_VARP_LONG, bridge_varp_long },
     { PKT_NAME_CAM_ROTATETO_COORDINATE, bridge_cam_rotateto_coordinate },
     { PKT_NAME_UPDATE_INV_FULL, bridge_update_inv_full },
     { PKT_NAME_UPDATE_INV_PARTIAL, bridge_update_inv_partial },

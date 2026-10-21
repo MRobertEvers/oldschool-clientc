@@ -92,6 +92,11 @@ struct CS2VM2_Frame
     int str_locals_cap;
     int int_locals_dirty;
     int str_locals_dirty;
+    /* The long locals (rev-239 deob field6528), under the same two invariants.
+     * Only the GE and formatting scripts of a 241 cache declare any. */
+    int64_t* long_locals;
+    int long_locals_cap;
+    int long_locals_dirty;
 
     int return_pc;
     int return_frame;
@@ -185,6 +190,7 @@ struct CS2VM2_YieldCheckpoint
 {
     int ints_stack_top;
     int strs_stack_top;
+    int longs_stack_top;
     int frame_sp;
     int active_component_id;
     int dot_component_id;
@@ -246,6 +252,10 @@ struct CS2VM2_Thread
     int ints_stack_top;
     char* strs_stack[CS2VM_STACK_MAX];
     int strs_stack_top;
+    /* The long stack (rev-239 deob class42.field258). Like the other two it is
+     * global to the thread, so a long return value is simply left on it. */
+    int64_t longs_stack[CS2VM_STACK_MAX];
+    int longs_stack_top;
 
     int frame_sp;
 
@@ -480,6 +490,16 @@ CS2VM2_PushInt(
     int operand);
 
 int
+CS2VM2_PopLong(
+    struct CS2VM2_Thread* thread,
+    int64_t* operand);
+
+int
+CS2VM2_PushLong(
+    struct CS2VM2_Thread* thread,
+    int64_t operand);
+
+int
 CS2VM2_PopStr(
     struct CS2VM2_Thread* thread,
     char** operand);
@@ -555,6 +575,12 @@ CS2VM2_SetStringCurrentFrameLocal(
     struct CS2VM2_Thread* thread,
     int local,
     char const* value);
+
+int
+CS2VM2_SetLongCurrentFrameLocal(
+    struct CS2VM2_Thread* thread,
+    int local,
+    int64_t value);
 
 int
 CS2VM2_RunScript(struct CS2VM2_Thread* thread);

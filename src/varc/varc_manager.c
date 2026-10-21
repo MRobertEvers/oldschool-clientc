@@ -28,6 +28,12 @@ VarCManager_Free(struct VarCManager* mgr)
     mgr->strings = NULL;
     mgr->string_count = 0;
 
+    ToriMem_Free(ToriMem_Session(), mgr->longs);
+    ToriMem_Free(ToriMem_Session(), mgr->long_set);
+    mgr->longs = NULL;
+    mgr->long_set = NULL;
+    mgr->long_count = 0;
+
     mgr->change_fn = NULL;
     mgr->change_userdata = NULL;
 }
@@ -111,15 +117,79 @@ ensure_string_capacity(
     return true;
 }
 
+static bool
+ensure_long_capacity(
+    struct VarCManager* mgr,
+    int id)
+{
+    if( id < mgr->long_count )
+        return true;
+
+    int grown = mgr->long_count == 0 ? 64 : mgr->long_count;
+    while( grown <= id )
+        grown *= 2;
+
+    int64_t* longs = ToriMem_Calloc(ToriMem_Session(), (size_t)grown, sizeof(*longs));
+    unsigned char* set = ToriMem_Calloc(ToriMem_Session(), (size_t)grown, sizeof(*set));
+    assert(longs);
+    assert(set);
+    if( mgr->long_count > 0 )
+    {
+        memcpy(longs, mgr->longs, (size_t)mgr->long_count * sizeof(*longs));
+        memcpy(set, mgr->long_set, (size_t)mgr->long_count * sizeof(*set));
+    }
+    ToriMem_Free(ToriMem_Session(), mgr->longs);
+    ToriMem_Free(ToriMem_Session(), mgr->long_set);
+    mgr->longs = longs;
+    mgr->long_set = set;
+    mgr->long_count = grown;
+    return true;
+}
+
+static bool
+holds_long(
+    const struct VarCManager* mgr,
+    int id)
+{
+    return id >= 0 && id < mgr->long_count && mgr->long_set[id];
+}
+
 int
 VarCManager_GetInt(
     const struct VarCManager* mgr,
     int id)
 {
     assert(mgr);
-    if( id < 0 || id >= mgr->int_count )
+    if( id < 0 || id >= mgr->int_count || holds_long(mgr, id) )
         return -1;
     return mgr->ints[id];
+}
+
+int64_t
+VarCManager_GetLong(
+    const struct VarCManager* mgr,
+    int id)
+{
+    assert(mgr);
+    if( holds_long(mgr, id) )
+        return mgr->longs[id];
+    return (int64_t)VarCManager_GetInt(mgr, id);
+}
+
+void
+VarCManager_SetLong(
+    struct VarCManager* mgr,
+    int id,
+    int64_t value)
+{
+    assert(mgr);
+    if( id < 0 || !ensure_long_capacity(mgr, id) )
+        return;
+    if( mgr->long_set[id] && mgr->longs[id] == value )
+        return;
+    mgr->longs[id] = value;
+    mgr->long_set[id] = 1;
+    notify_change(mgr, id, false);
 }
 
 void
@@ -131,6 +201,14 @@ VarCManager_SetInt(
     assert(mgr);
     if( id < 0 || !ensure_int_capacity(mgr, id) )
         return;
+    /* An int write replaces a long one (the reference's map holds one value). */
+    if( holds_long(mgr, id) )
+    {
+        mgr->long_set[id] = 0;
+        mgr->ints[id] = value;
+        notify_change(mgr, id, false);
+        return;
+    }
     if( mgr->ints[id] != value )
     {
         mgr->ints[id] = value;
@@ -182,6 +260,14 @@ VarCManager_ResetAll(struct VarCManager* mgr)
         if( mgr->ints[i] != -1 )
         {
             mgr->ints[i] = -1;
+            notify_change(mgr, i, false);
+        }
+    }
+    for( int i = 0; i < mgr->long_count; i++ )
+    {
+        if( mgr->long_set[i] )
+        {
+            mgr->long_set[i] = 0;
             notify_change(mgr, i, false);
         }
     }

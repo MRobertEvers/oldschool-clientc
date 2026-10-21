@@ -68,6 +68,7 @@ CS2VM2_ScriptFree(struct CS2VM2_Script* script)
     ToriMem_Free(ToriMem_Script(), script->signature);
     ToriMem_Free(ToriMem_Script(), script->opcodes);
     ToriMem_Free(ToriMem_Script(), script->int_operands);
+    ToriMem_Free(ToriMem_Script(), script->long_operands);
     if( script->string_operands )
     {
         for( int i = 0; i < script->op_count; i++ )
@@ -127,6 +128,13 @@ CS2VM2_ScriptCopy(
     dst->int_operands = ToriMem_Alloc(ToriMem_Script(), (size_t)src->op_count * sizeof(*dst->int_operands));
     assert(dst->int_operands);
     memcpy(dst->int_operands, src->int_operands, (size_t)src->op_count * sizeof(*dst->int_operands));
+
+    if( src->long_operands )
+    {
+        dst->long_operands = ToriMem_Alloc(ToriMem_Script(), (size_t)src->op_count * sizeof(*dst->long_operands));
+        assert(dst->long_operands);
+        memcpy(dst->long_operands, src->long_operands, (size_t)src->op_count * sizeof(*dst->long_operands));
+    }
 
     dst->string_operands = ToriMem_Calloc(ToriMem_Script(), (size_t)src->op_count, sizeof(*dst->string_operands));
     assert(dst->string_operands);

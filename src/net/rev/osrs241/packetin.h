@@ -118,7 +118,7 @@ static const struct Osrs241PacketInDef g_packet_in_definitions_osrs241[] = {
     {  117, PKTIN_LENGTH_VARU16,   PKT_NAME_REBUILD_WORLDENTITY,        "REBUILD_WORLDENTITY_V4" },
     {   21, 3,                     PKT_NAME_VARP_SMALL,                 "VARP_SMALL" },
     {   40, 6,                     PKT_NAME_VARP_LARGE,                 "VARP_LARGE" },
-    {   24, 10,                    PKT_NAME_NONE,                       "VARP_LONG" },
+    {   24, 10,                    PKT_NAME_VARP_LONG,                  "VARP_LONG" },
     {   30, 0,                     PKT_NAME_VARP_RESET,                 "VARP_RESET" },
     {   76, 0,                     PKT_NAME_VARP_SYNC,                  "VARP_SYNC" },
     {   26, 4,                     PKT_NAME_CAM_SHAKE,                  "CAM_SHAKE" },

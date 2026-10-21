@@ -1121,6 +1121,23 @@ RS_CS2Host_ScriptWriteVarp(
 }
 
 void
+RS_CS2Host_ScriptWriteVarpLong(
+    struct RS_CS2Host* host,
+    int varp_id,
+    int64_t value)
+{
+    int64_t before;
+
+    assert(host);
+    if( !host->varps )
+        return;
+    before = VarPManager_GetVarpLong(host->varps, varp_id);
+    VarPManager_SetVarpLongOptimistic(host->varps, varp_id, value);
+    if( value != before )
+        RS_CS2Host_NotifyVarChanged(host, varp_id);
+}
+
+void
 RS_CS2Host_ScriptWriteVarbit(
     struct RS_CS2Host* host,
     int varbit_id,
@@ -1259,6 +1276,23 @@ static void
 rs_cs2_social_send_push(
     struct RS_CS2Host* host,
     struct RS_CS2SocialSend const* send);
+
+/*
+ * Whether the GE price commands answer on the long stack. The rev-241 client
+ * gates 3905, 3908 and 3925 on `client.field981 >= 10`, which it reads from
+ * version.dat (clientscript archive 12, group 0): 10 in cache.osrs241, 9 in
+ * cache.osrs239. Our caches carry that file exactly where the profile says 241,
+ * so the profile's revision stands in for it. 3932 (native-only, no deob case)
+ * follows the same split: every 241 call site stores its price as a long.
+ */
+bool
+RS_CS2Host_GePricesAreLong(struct RS_CS2Host const* host)
+{
+    assert(host);
+    assert(host->provider);
+    const struct RSCache* profile = CacheProvider_Profile(host->provider);
+    return RSCache_IsOsrs(profile) && profile->revision >= 241;
+}
 
 int
 RS_CS2Host_VarClanType(
@@ -4799,10 +4833,14 @@ exec_stockmarket_obj_flag(
  */
 #define RS_CS2_STOCKMARKET_VALUE_NOT_READY 0
 static int
-exec_stockmarket_value(struct CS2VM2_Thread* thread)
+exec_stockmarket_value(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* thread)
 {
     if( CS2VM2_PushInt(thread, RS_CS2_STOCKMARKET_VALUE_NOT_READY) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
+    if( RS_CS2Host_GePricesAreLong(host) )
+        return CS2VM2_PushLong(thread, -1);
     return CS2VM2_PushInt(thread, -1);
 }
 
@@ -10564,6 +10602,27 @@ rs_cs2_host_exec_dispatch(
         return CS2VM_EXECNO_OK;
     }
 
+    /* The long arms (rev-241 deob: 51/52 class94.method3541 / method3575,
+     * 64/65 the field4355 long varps). A varp long write moves the client copy
+     * only, like POP_VAR, and feeds the transmit ring on a real change. */
+    case CS2VM_HOST_REQUEST_PUSH_VARC_LONG:
+        return CS2VM2_PushLong(
+            vm,
+            host->varcs ? VarCManager_GetLong(host->varcs, request->u.PUSH_VARC_LONG.varc_id) : -1);
+    case CS2VM_HOST_REQUEST_POP_VARC_LONG:
+        if( host->varcs )
+            VarCManager_SetLong(
+                host->varcs, request->u.POP_VARC_LONG.varc_id, request->u.POP_VARC_LONG.value);
+        return CS2VM_EXECNO_OK;
+    case CS2VM_HOST_REQUEST_PUSH_VAR_LONG:
+        return CS2VM2_PushLong(
+            vm,
+            host->varps ? VarPManager_GetVarpLong(host->varps, request->u.PUSH_VAR_LONG.varp_id) : 0);
+    case CS2VM_HOST_REQUEST_POP_VAR_LONG:
+        RS_CS2Host_ScriptWriteVarpLong(
+            host, request->u.POP_VAR_LONG.varp_id, request->u.POP_VAR_LONG.value);
+        return CS2VM_EXECNO_OK;
+
         RS_CS2_VARC_STRING_READ_CASE(PUSH_VARC_STRING_OLD)
 
         RS_CS2_VARC_STRING_WRITE_CASE(POP_VARC_STRING_OLD);
@@ -10747,7 +10806,7 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_STOCKMARKET_BUYABLE:
         return exec_stockmarket_obj_flag(host, vm, request);
     case CS2VM_HOST_REQUEST_STOCKMARKET_VALUE:
-        return exec_stockmarket_value(vm);
+        return exec_stockmarket_value(host, vm);
     case CS2VM_HOST_REQUEST_PUSH_VARCLANSETTING:
         return RS_CS2Host_PushVarClanSetting(host, vm, request->u.PUSH_VARCLANSETTING.setting_id);
     case CS2VM_HOST_REQUEST_PUSH_VARCLAN:

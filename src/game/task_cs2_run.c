@@ -136,6 +136,10 @@ struct Task_CS2Run
     uint64_t str_mask;
     int str_arg_count;
     char* str_args[TASK_CS2_RUN_STR_ARGS_MAX];
+    /* Bit i set = arg position i is the long long_args[i]. NULL with a zero
+     * mask for every caller but RUNCLIENTSCRIPT, so a hook pays nothing. */
+    uint64_t long_mask;
+    int64_t* long_args;
 
     /*
      * Event context frozen at CreateTask time.
@@ -1318,6 +1322,7 @@ Task_CS2Run_Run(
              * fill string locals in order (OSRS ScriptEvent semantics). */
             int int_i = 0;
             int str_i = 0;
+            int long_i = 0;
             /* task_cs2_run_new clamps this; restated here because it is what
              * bounds the int_args[] read below and nothing between the two
              * says so. The `j < 64` in the string test also means the compiler
@@ -1326,7 +1331,12 @@ Task_CS2Run_Run(
             assert(self->int_arg_count <= TASK_CS2_RUN_INT_ARGS_MAX);
             for( j = 0; j < self->int_arg_count; j++ )
             {
-                if( j < 64 && (self->str_mask & ((uint64_t)1 << j)) )
+                if( j < 64 && (self->long_mask & ((uint64_t)1 << j)) )
+                {
+                    (void)CS2VM2_SetLongCurrentFrameLocal(thread, long_i, self->long_args[j]);
+                    long_i++;
+                }
+                else if( j < 64 && (self->str_mask & ((uint64_t)1 << j)) )
                 {
                     char const* s =
                         str_i < self->str_arg_count ? self->str_args[str_i] : "";
@@ -1724,6 +1734,7 @@ Task_CS2Run_Free(struct ToriRS_Task* task)
     ToriMem_Free(self->task.mem, self->pending);
     for( int i = 0; i < self->str_arg_count; i++ )
         ToriMem_Free(self->task.mem, self->str_args[i]);
+    ToriMem_Free(ToriMem_Script(), self->long_args);
     ToriMem_Free(ToriMem_Script(), self);
 }
 
@@ -1909,6 +1920,30 @@ CreateTask_CS2Run(
         0,
         NULL,
         0);
+}
+
+void
+Task_CS2Run_SetLongArgs(
+    struct ToriRS_Task* task,
+    uint64_t long_mask,
+    int64_t const* long_args)
+{
+    struct Task_CS2Run* self = (struct Task_CS2Run*)task;
+
+    assert(self);
+    assert(self->task.vtable == &Task_CS2Run_VTable);
+    assert(long_mask);
+    assert(long_args);
+    assert(!self->long_args);
+    self->long_args =
+        ToriMem_Calloc(ToriMem_Script(), TASK_CS2_RUN_INT_ARGS_MAX, sizeof(*self->long_args));
+    assert(self->long_args);
+    for( int i = 0; i < self->int_arg_count && i < 64; i++ )
+    {
+        if( long_mask & ((uint64_t)1 << i) )
+            self->long_args[i] = long_args[i];
+    }
+    self->long_mask = long_mask;
 }
 
 struct ToriRS_Task*

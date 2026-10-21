@@ -23,7 +23,7 @@ enum
 };
 
 _Static_assert(
-    HOST_REQUEST_PRODUCER_COUNT == 895,
+    HOST_REQUEST_PRODUCER_COUNT == 899,
     "the producer replay test must exercise every hosted opcode");
 
 struct CaptureHost
@@ -147,9 +147,11 @@ exercise_producer(struct HostRequestProducerEntry const* entry)
     {
         thread->ints_stack[i] = 1;
         thread->strs_stack[i] = stack_string;
+        thread->longs_stack[i] = 1;
     }
     thread->ints_stack_top = CS2VM_STACK_MAX / 2;
     thread->strs_stack_top = CS2VM_STACK_MAX / 2;
+    thread->longs_stack_top = CS2VM_STACK_MAX / 2;
     thread->active_component_id = 1;
     thread->dot_component_id = 1;
 

@@ -79,6 +79,18 @@ struct VarPManager
     int* var;
     int* var_serv;
 
+    /*
+     * The long arm: VARP_LONG (rev 241) and the CS2 long varp opcodes 64/65
+     * (ge_newoffer_price, 5753, moved here from varbit 4398 in 241). Separate
+     * arrays beside the int arm, same current/server split, as the rev-241 deob
+     * keeps them (field4355 / field5648). `var_long_set[id]` is its field4357:
+     * which arm of the id is live, and so which one VARP_SYNC restores.
+     */
+    int64_t* var_long;
+    int64_t* var_long_serv;
+    unsigned char* var_long_set;
+    int var_long_count;
+
     /* readbit[n] = (1 << n) - 1, mask for extracting n bits */
     int readbit[VARP_MANAGER_READBIT_MAX];
 
@@ -163,6 +175,28 @@ VarPManager_ApplyLarge(
     struct VarPManager* mgr,
     int variable,
     int value);
+
+/** Apply VARP_LONG: the varp's long value. Fires change and server-update
+ *  exactly as VARP_LARGE does. */
+void
+VarPManager_ApplyLong(
+    struct VarPManager* mgr,
+    int variable,
+    int64_t value);
+
+/** The varp read as a long (CS2 64): its long arm, 0 when never written. Marks
+ *  the id long, as the reference's opcode 64 does. */
+int64_t
+VarPManager_GetVarpLong(
+    struct VarPManager* mgr,
+    int variable);
+
+/** Optimistic long write (CS2 65): set locally; does not update the server copy. */
+void
+VarPManager_SetVarpLongOptimistic(
+    struct VarPManager* mgr,
+    int variable,
+    int64_t value);
 
 /** VARP_SYNC: restore client-visible vars from the server-authoritative set. */
 void

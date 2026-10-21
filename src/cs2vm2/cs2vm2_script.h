@@ -53,6 +53,9 @@ struct CS2VM2_Script
     int op_count;
     uint16_t* opcodes;
     int* int_operands;
+    /* PUSH_CONSTANT_LONG's operand, a full int64 (rscache long_operands); NULL
+     * for a script that has none. */
+    int64_t* long_operands;
     char** string_operands;
     int switch_table_count;
     struct CS2VM2_ScriptSwitch* switch_tables;

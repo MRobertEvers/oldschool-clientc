@@ -121,6 +121,13 @@ struct PktVarpLarge
     int value; /* g4 */
 };
 
+/* VARP_LONG (rev 241): a varp's 64-bit value. */
+struct PktVarpLong
+{
+    int variable;
+    int64_t value;
+};
+
 struct PktUpdateStat
 {
     int stat;   /* g1: 0-22 */
@@ -1038,7 +1045,11 @@ struct PktRunClientScript
     int script_id;
     int argc;
     uint32_t str_mask;
+    /* Bit i: argument i is the int64 in `longv[i]` (type 0xCF, rev 241's GE
+     * price scripts). Never set together with the same str_mask bit. */
+    uint32_t long_mask;
     int intv[PKT_RUNCLIENTSCRIPT_ARG_MAX];
+    int64_t longv[PKT_RUNCLIENTSCRIPT_ARG_MAX];
     char strv[PKT_RUNCLIENTSCRIPT_ARG_MAX][PKT_RUNCLIENTSCRIPT_STR_LEN];
 };
 
@@ -1112,6 +1123,7 @@ struct RevPacket
         struct PktIfSetTabActive _if_settab_active;
         struct PktVarpSmall _varp_small;
         struct PktVarpLarge _varp_large;
+        struct PktVarpLong _varp_long;
         struct PktUpdateStat _update_stat;
         struct PktUpdateRunEnergy _update_run_energy;
         struct PktIfSetColour _if_setcolour;

@@ -278,6 +278,9 @@ enum GameProtoPktName
     PKT_NAME_CAM_MOVETO_CYCLES,
     PKT_NAME_CAM_ROTATETO_COORDINATE,
 
+    /* A varp's long value (rev 241 VARP_LONG). Appended likewise. */
+    PKT_NAME_VARP_LONG,
+
     PKT_NAME_COUNT
 };
 

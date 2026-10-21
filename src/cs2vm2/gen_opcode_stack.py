@@ -85,6 +85,36 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     48: (0, 1, 0, 0),  # POP_VARC_STRING_OLD(varc id) <- string
     86: (1, 0, 0, 0),  # BRANCH_IF_ONE(value): branch if value == 1 (RS2-era)
     6910: (0, 0, 1, 0),  # LOGIN_INT24 -> Class24.anInt359 (stub: 0)
+    # The long stack (rev 241). This table counts ints and strings only, so a
+    # long op records just its int/string traffic: LONG_ADD's (long, long) ->
+    # long is (0, 0, 0, 0), LONG_TESTBIT's (long, int) -> int is (1, 0, 1, 0).
+    # cs2vm2.c dispatches all of them; the name heuristic would read every
+    # operand as an int.
+    # The core long ops (varc 51/52, varp 64/65, constant, discard, locals,
+    # compares) touch only the long stack.
+    **{op: (0, 0, 0, 0) for op in (51, 52, 61, 62, 64, 65, *range(66, 74))},
+    **{op: (0, 0, 0, 0) for op in (4037, 4038, 4039, 4040, 4041, 4042, 4043, 4055, 4056, 4057, 4058)},
+    4044: (1, 0, 0, 0),  # INT_TO_LONG
+    4047: (1, 0, 0, 0),  # LONG_SETBIT(long, bit)
+    4048: (1, 0, 0, 0),  # LONG_CLEARBIT
+    4049: (1, 0, 1, 0),  # LONG_TESTBIT -> int
+    4050: (0, 0, 1, 0),  # LONG_BITCOUNT -> int
+    4051: (1, 0, 0, 0),  # LONG_TOGGLEBIT
+    4052: (2, 0, 0, 0),  # LONG_SETBIT_RANGE(long, low, high)
+    4053: (2, 0, 0, 0),  # LONG_CLEARBIT_RANGE
+    4054: (2, 0, 0, 0),  # LONG_GETBIT_RANGE
+    4059: (2, 0, 0, 0),  # LONG_SETBIT_RANGE_TOLONG(long, long, low, high)
+    4060: (2, 0, 0, 0),  # LONG_PACK(high, low) -> long
+    4061: (0, 0, 2, 0),  # LONG_UNPACK(long) -> high, low
+    4062: (0, 0, 1, 0),  # LONG_TO_INT
+    4063: (0, 0, 1, 0),  # LONG_HIGH_TO_INT
+    4125: (0, 0, 0, 1),  # TOSTRING_LONG
+    4126: (0, 1, 0, 1),  # TOSTRING_SPACER_LONG(long, separator)
+    # ARRAY_MAX / ARRAY_DELETE: the decoder now types their element argument
+    # (RSCACHE_CS2_CMD_ARRAY_ELEMENT), so its table no longer hands them over as
+    # BASIC rows. These are the shapes it handed over before.
+    8009: (0, 1, 1, 0),
+    8026: (1, 1, 1, 0),
     # ACTIVEPLAYER_SETLOCAL: set the ACTIVE PLAYER to the local player, push
     # whether there is one. The vendored table has no row for it and no script
     # in this
@@ -545,20 +575,27 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
 #      4104, 4200, 4210, 6618..6696, 7506. Left as-is rather than flipped
 #      blind; each needs its own witness before it moves.
 BRIDGE_CONFLICTS_OK: dict[int, tuple[int, int, int, int]] = {
-    # Empty since both tables take their signatures from the client's own
-    # command catalogue (tools/cs2_gen_opcodes/catalogue.py). It held 45 entries
-    # before that; every one was a hand copy disagreeing with the client.
+    # Both tables take their signatures from the client's own command catalogue
+    # (tools/cs2_gen_opcodes/catalogue.py); it held 45 hand-copy entries before
+    # that. What remains is revision-dependent: in a 241 cache the GE prices
+    # moved to the long stack (rs_cs2_host.c RS_CS2Host_GePricesAreLong), which
+    # the decoder's table records and this int/string table cannot. The rows
+    # here keep the rev-239 client's int shapes.
+    3905: (1, 0, 0, 0),
+    3908: (1, 0, 0, 0),
+    3925: (1, 0, 0, 0),
+    3932: (1, 0, 1, 0),
 }
 
 
-def parse_string_protos() -> set[str]:
-    """The prototype ids whose base type lands on the STRING stack.
+def parse_stack_protos(base: str) -> set[str]:
+    """The prototype ids whose base type is `base` (STRING or LONG).
 
-    `RSCache_CS2_TypeStack` (cs2_types.c:109) is a single line: only
-    RSCACHE_CS2_TYPE_STRING is a string-stack type, everything else is an int.
-    So the set is every proto declared CS2_PLAIN(STRING)/CS2_NAMED(STRING, ...)
-    -- read out of the file rather than transcribed, so a new named string
-    prototype cannot silently be counted as an int here.
+    `RSCache_CS2_TypeStack` (cs2_types.c) sends RSCACHE_CS2_TYPE_STRING to the
+    string stack, RSCACHE_CS2_TYPE_LONG to the long stack, and everything else
+    to the int stack. So each set is every proto declared CS2_PLAIN(<base>) /
+    CS2_NAMED(<base>, ...) -- read out of the file rather than transcribed, so a
+    new named prototype cannot silently be counted as an int here.
     """
     text = CS2_TYPES_C.read_text()
     protos: set[str] = set()
@@ -566,9 +603,9 @@ def parse_string_protos() -> set[str]:
         r"\[RSCACHE_CS2_PROTO_([A-Z0-9_]+)\]\s*=\s*CS2_(?:PLAIN|NAMED)\(\s*([A-Z0-9_]+)",
         text,
     ):
-        if m.group(2) == "STRING":
+        if m.group(2) == base:
             protos.add("RSCACHE_CS2_PROTO_" + m.group(1))
-    if "RSCACHE_CS2_PROTO_STRING" not in protos:
+    if "RSCACHE_CS2_PROTO_" + base not in protos:
         raise SystemExit(f"{CS2_TYPES_C}: could not find the prototype table")
     return protos
 
@@ -598,7 +635,10 @@ def parse_command_gen() -> tuple[dict[int, tuple[int, int, int, int]], int]:
         raise SystemExit(f"{COMMAND_GEN_H}: no cs2_proto_pool")
     pool = [p.strip() for p in pool_m.group(1).replace("\n", " ").split(",") if p.strip()]
 
-    string_protos = parse_string_protos()
+    string_protos = parse_stack_protos("STRING")
+    # Long arguments and results ride the long stack, which this table does
+    # not describe: they count as neither ints nor strings.
+    long_protos = parse_stack_protos("LONG")
     out: dict[int, tuple[int, int, int, int]] = {}
     row = re.compile(
         r"\[(\d+)\]\s*=\s*\{\s*(?:\"[^\"]*\"|NULL)\s*,\s*(RSCACHE_CS2_CMD_[A-Z_]+)\s*,"
@@ -616,7 +656,9 @@ def parse_command_gen() -> tuple[dict[int, tuple[int, int, int, int]], int]:
         defs = pool[def_off:def_off + def_count]
         str_in = sum(1 for p in args if p in string_protos)
         str_out = sum(1 for p in defs if p in string_protos)
-        out[op] = (arg_count - str_in, str_in, def_count - str_out, str_out)
+        long_in = sum(1 for p in args if p in long_protos)
+        long_out = sum(1 for p in defs if p in long_protos)
+        out[op] = (arg_count - str_in - long_in, str_in, def_count - str_out - long_out, str_out)
     if not out:
         raise SystemExit(f"{COMMAND_GEN_H}: parsed no BASIC rows")
     return out, table_size

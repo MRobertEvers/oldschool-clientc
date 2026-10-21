@@ -2067,6 +2067,17 @@ RS_CS2Host_ScriptWriteVarp(
     int varp_id,
     int value);
 
+/** True when 3905/3908/3925/3932 push their price as a long (a 241 cache). */
+bool
+RS_CS2Host_GePricesAreLong(struct RS_CS2Host const* host);
+
+/** The same for a long varp (CS2 65, rev 241). */
+void
+RS_CS2Host_ScriptWriteVarpLong(
+    struct RS_CS2Host* host,
+    int varp_id,
+    int64_t value);
+
 void
 RS_CS2Host_ScriptWriteVarbit(
     struct RS_CS2Host* host,

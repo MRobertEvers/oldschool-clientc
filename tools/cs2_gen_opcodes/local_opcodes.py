@@ -28,6 +28,15 @@ LOCAL_NAMES: dict[int, str] = {
     2705: "_2705",
     # RuneLiteOpcodes.RUNELITE_EXECUTE / RuneLiteInstructions.runelite_callback.
     6599: "RUNELITE_CALLBACK",
+    # The long stack's varp access, new in rev 241 and absent from the rev-239
+    # catalogue: 64 reads a varp as a long (operand = varp id; 241 script 9911
+    # feeds it to TOSTRING_SPACER_LONG), 65 writes one (ge_newoffer_price, 5753).
+    64: "PUSH_VAR_LONG",
+    65: "POP_VAR_LONG",
+    # Rev 241, long -> int (script 9914 clamps a long, then returns this).
+    4062: "LONG_TO_INT",
+    # Rev-241 deob: pops a long, pushes (int)(v >> 32) -- 4062's high half.
+    4063: "LONG_HIGH_TO_INT",
     # rev239 Statics.method11128: per-priority-group world-entity draw limit.
     # Modern nullable array/string-stack literal. The cache command catalogue
     # calls this PUSH_CONSTANT_NULL; older RuneLite tables use PUSH_NULL.
@@ -426,6 +435,20 @@ HANDLER_OVERRIDES: dict[int, str] = {
     4017: "CS2_HANDLER_VM",
     8005: "CS2_HANDLER_VM",
     6910: "CS2_HANDLER_VM",  # LOGIN_INT24 — offline stub pushes 0
+    # The long stack (rev-239 deob class42.field258): constants, locals, discard,
+    # compares and the long maths run in the interpreter. 51/52 and 64/65 reach
+    # the host for the varc and varp stores.
+    61: "CS2_HANDLER_VM",
+    62: "CS2_HANDLER_VM",
+    66: "CS2_HANDLER_VM",
+    67: "CS2_HANDLER_VM",
+    68: "CS2_HANDLER_VM",
+    69: "CS2_HANDLER_VM",
+    70: "CS2_HANDLER_VM",
+    71: "CS2_HANDLER_VM",
+    72: "CS2_HANDLER_VM",
+    73: "CS2_HANDLER_VM",
+    **{op: "CS2_HANDLER_VM" for op in (*range(4037, 4045), *range(4047, 4064), 4125, 4126)},
 }
 
 # Free-form banner comments emitted just above an opcode's #define.

@@ -356,12 +356,16 @@ RS_CS2Host_ExecMarketOp(
         case CS2_OP_STOCKMARKET_GETOFFERITEM:
             return CS2VM2_PushInt(vm, offer->obj);
         case CS2_OP_STOCKMARKET_GETOFFERPRICE:
+            if( RS_CS2Host_GePricesAreLong(host) )
+                return CS2VM2_PushLong(vm, offer->price);
             return CS2VM2_PushInt(vm, offer->price);
         case CS2_OP_STOCKMARKET_GETOFFERCOUNT:
             return CS2VM2_PushInt(vm, offer->count);
         case CS2_OP_STOCKMARKET_GETOFFERCOMPLETEDCOUNT:
             return CS2VM2_PushInt(vm, offer->completed_count);
         case CS2_OP_STOCKMARKET_GETOFFERCOMPLETEDGOLD:
+            if( RS_CS2Host_GePricesAreLong(host) )
+                return CS2VM2_PushLong(vm, offer->completed_gold);
             return CS2VM2_PushInt(vm, offer->completed_gold);
         case CS2_OP_STOCKMARKET_ISOFFEREMPTY:
             return CS2VM2_PushInt(vm, state == 0 ? 1 : 0);
@@ -440,6 +444,8 @@ RS_CS2Host_ExecMarketOp(
         case CS2_OP_TRADINGPOST_GETOFFERCOUNT:
             return CS2VM2_PushInt(vm, offer->count);
         case CS2_OP_TRADINGPOST_GETOFFERPRICE:
+            if( RS_CS2Host_GePricesAreLong(host) )
+                return CS2VM2_PushLong(vm, offer->price);
             return CS2VM2_PushInt(vm, offer->price);
         default:
             /* The list's item, the same for every offer. */

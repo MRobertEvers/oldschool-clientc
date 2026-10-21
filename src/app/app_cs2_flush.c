@@ -45,7 +45,9 @@ app_dispatch_clientscript(
         request->argc,
         request->str_mask,
         strp,
-        str_count);
+        str_count,
+        request->long_mask,
+        request->longv);
 }
 
 void
@@ -86,10 +88,11 @@ App_RunClientScript(
     assert(request);
     if( torirs_env_net_debug() )
         TORIRS_LOG(
-            "runclientscript: script=%d argc=%d str_mask=0x%x (held for tick fence)\n",
+            "runclientscript: script=%d argc=%d str_mask=0x%x long_mask=0x%x (held for tick fence)\n",
             request->script_id,
             request->argc,
-            (unsigned)request->str_mask);
+            (unsigned)request->str_mask,
+            (unsigned)request->long_mask);
 
     /* Held, not run — see `pending_clientscripts` in app.h for why, and
      * `App_FlushPendingClientScripts` for where they go. A full queue runs it

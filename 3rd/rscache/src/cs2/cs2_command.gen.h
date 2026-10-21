@@ -882,7 +882,7 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [3922] = { "tradingpost_getofferpreviousname", RSCACHE_CS2_CMD_BASIC, 20, 1, 0, 1, false, 0 },
     [3923] = { "tradingpost_getofferage", RSCACHE_CS2_CMD_BASIC, 20, 1, 0, 1, false, 0 },
     [3924] = { "tradingpost_getoffercount", RSCACHE_CS2_CMD_BASIC, 20, 1, 20, 1, false, 0 },
-    [3925] = { "tradingpost_getofferprice", RSCACHE_CS2_CMD_BASIC, 20, 1, 20, 1, false, 0 },
+    [3925] = { "tradingpost_getofferprice", RSCACHE_CS2_CMD_BASIC, 20, 1, 276, 1, false, 0 },
     [3926] = { "tradingpost_getofferitem", RSCACHE_CS2_CMD_BASIC, 20, 1, 20, 1, false, 0 },
     [3931] = { "stockmarket_sellable", RSCACHE_CS2_CMD_BASIC, 20, 1, 20, 1, false, 0 },
     [3932] = { "stockmarket_value", RSCACHE_CS2_CMD_BASIC, 20, 1, 279, 2, false, 0 },
@@ -943,6 +943,7 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [4060] = { "long_pack", RSCACHE_CS2_CMD_BASIC, 62, 2, 276, 1, false, 0 },
     [4061] = { "long_unpack", RSCACHE_CS2_CMD_BASIC, 276, 1, 62, 2, false, 0 },
     [4062] = { "long_to_int", RSCACHE_CS2_CMD_BASIC, 276, 1, 20, 1, false, 0 },
+    [4063] = { "long_high_to_int", RSCACHE_CS2_CMD_BASIC, 276, 1, 20, 1, false, 0 },
 
     /* string: 4100..4199 — string operations. rev-239 method5814. */
     [4100] = { "append_num", RSCACHE_CS2_CMD_BASIC, 64, 2, 0, 1, false, 0 },

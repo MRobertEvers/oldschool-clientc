@@ -256,7 +256,9 @@ rs_cs2_run_script(
     int arg_count,
     uint64_t str_mask,
     char const* const* str_args,
-    int str_arg_count)
+    int str_arg_count,
+    uint64_t long_mask,
+    int64_t const* long_args)
 {
     struct ToriRS_Task* task;
 
@@ -277,6 +279,8 @@ rs_cs2_run_script(
         str_arg_count);
     if( !task )
         return;
+    if( long_mask )
+        Task_CS2Run_SetLongArgs(task, long_mask, long_args);
     if( join )
     {
         /* Counted before it is queued: the queue decrements on removal
@@ -299,7 +303,7 @@ RS_CS2_RunScript(
     int str_arg_count)
 {
     rs_cs2_run_script(
-        host, runner, NULL, script_id, int_args, arg_count, str_mask, str_args, str_arg_count);
+        host, runner, NULL, script_id, int_args, arg_count, str_mask, str_args, str_arg_count, 0, NULL);
 }
 
 void
@@ -312,11 +316,23 @@ RS_CS2_RunScriptJoined(
     int arg_count,
     uint64_t str_mask,
     char const* const* str_args,
-    int str_arg_count)
+    int str_arg_count,
+    uint64_t long_mask,
+    int64_t const* long_args)
 {
     assert(join);
     rs_cs2_run_script(
-        host, runner, join, script_id, int_args, arg_count, str_mask, str_args, str_arg_count);
+        host,
+        runner,
+        join,
+        script_id,
+        int_args,
+        arg_count,
+        str_mask,
+        str_args,
+        str_arg_count,
+        long_mask,
+        long_args);
 }
 
 /*

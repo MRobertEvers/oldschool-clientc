@@ -41,6 +41,17 @@ CreateTask_CS2RunMixed(
     char const* const* str_args,
     int str_arg_count);
 
+/**
+ * Mark positions of a CS2Run task's argument list as longs: bit i set means
+ * position i is long_args[i] (positional, the int_args index), filling the
+ * script's long locals in order. Only RUNCLIENTSCRIPT sends them (rev 241).
+ */
+void
+Task_CS2Run_SetLongArgs(
+    struct ToriRS_Task* task,
+    uint64_t long_mask,
+    int64_t const* long_args);
+
 /** Same as CreateTask_CS2Run but starts from an already-loaded script pointer. */
 struct ToriRS_Task*
 CreateTask_CS2RunScript(

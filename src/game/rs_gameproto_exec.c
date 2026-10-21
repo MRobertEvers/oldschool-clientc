@@ -1327,6 +1327,9 @@ RS_GameProto_Exec(
     case PKT_NAME_VARP_LARGE:
         VarPManager_ApplyLarge(ctx->varps, packet->_varp_large.variable, packet->_varp_large.value);
         break;
+    case PKT_NAME_VARP_LONG:
+        VarPManager_ApplyLong(ctx->varps, packet->_varp_long.variable, packet->_varp_long.value);
+        break;
 
     /* ---- player stats ---- */
     case PKT_NAME_UPDATE_STAT:

@@ -1,6 +1,7 @@
 #include "mem/torirs_mem.h"
 #include "mem/torimem_rscache.h"
 #include "cs2vm2_script_from_rscache.h"
+#include "cs2vm2/cs2_opcode.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -51,6 +52,17 @@ cs2vm2_script_copy_switch_tables(
 }
 
 static bool
+cs2vm2_script_has_long_constant(const struct RSCache_CS2_Script* src)
+{
+    for( int i = 0; i < src->op_count; i++ )
+    {
+        if( src->opcodes[i] == CS2_OP_PUSH_CONSTANT_LONG )
+            return true;
+    }
+    return false;
+}
+
+static bool
 cs2vm2_script_copy_heap_fields(
     const struct RSCache_CS2_Script* src,
     struct CS2VM2_Script* dst)
@@ -78,6 +90,19 @@ cs2vm2_script_copy_heap_fields(
             dst->int_operands,
             src->int_operands,
             (size_t)src->op_count * sizeof(*dst->int_operands));
+
+        /* Only a script that pushes a long constant needs the int64 per op;
+         * the decoder allocates the array for every script. */
+        if( src->long_operands && cs2vm2_script_has_long_constant(src) )
+        {
+            dst->long_operands =
+                ToriMem_Alloc(ToriMem_Script(), (size_t)src->op_count * sizeof(*dst->long_operands));
+            assert(dst->long_operands);
+            memcpy(
+                dst->long_operands,
+                src->long_operands,
+                (size_t)src->op_count * sizeof(*dst->long_operands));
+        }
 
         dst->string_operands = ToriMem_Calloc(ToriMem_Script(), (size_t)src->op_count, sizeof(*dst->string_operands));
         assert(dst->string_operands);
@@ -123,6 +148,9 @@ CS2VM2_ScriptFromRSCache(
         ToriMem_Script(), src->opcodes, (size_t)src->op_count * sizeof(*dst->opcodes));
     dst->int_operands = ToriMem_TakeFromRSCache(
         ToriMem_Script(), src->int_operands, (size_t)src->op_count * sizeof(*dst->int_operands));
+    if( src->long_operands )
+        dst->long_operands = ToriMem_TakeFromRSCache(
+            ToriMem_Script(), src->long_operands, (size_t)src->op_count * sizeof(*dst->long_operands));
     for( int i = 0; i < src->op_count; i++ )
     {
         if( src->string_operands[i] )

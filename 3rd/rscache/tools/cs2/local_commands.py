@@ -84,6 +84,7 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     "long_pack": (["INT", "INT"], ["LONG"], False),
     "long_unpack": (["LONG"], ["INT", "INT"], False),
     "long_to_int": (["LONG"], ["INT"], False),
+    "long_high_to_int": (["LONG"], ["INT"], False),
     "tostring_long": (["LONG"], ["STRING"], False),
     # 4126 pops the long, then the separator string: `tostring_spacer_long(v, ",")`
     # (script 9911 pushes the long first).
@@ -95,9 +96,12 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     # cache.osrs241 stores 3905's and 3908's one result with pop_long_local, and 3932's
     # two with pop_long_local then pop_int_local (so the long is on top). The
     # table is not per-revision; these are 241's shapes, which is what the
-    # content tree now is.
+    # content tree now is. 3925 has no call site; the rev-241 deob pushes it to
+    # the long stack under the same gate as 3905/3908 (clientscript archive
+    # version.dat >= 10).
     "stockmarket_getofferprice": (["INT"], ["LONG"], False),
     "stockmarket_getoffercompletedgold": (["INT"], ["LONG"], False),
+    "tradingpost_getofferprice": (["INT"], ["LONG"], False),
     "stockmarket_value": (["INT"], ["INT", "LONG"], False),
 
     # Command.kt (2021) never gained these, though Opcodes.kt names them. The

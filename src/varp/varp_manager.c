@@ -138,6 +138,31 @@ ensure_untyped_var_capacity(
     return true;
 }
 
+/*
+ * Rev 241 keeps a varp's int and long values in separate arrays and a per-varp
+ * flag saying which one is live (deob Statics.field4357): VARP_LONG and the
+ * long opcodes 64/65 set it, VARP_SMALL/LARGE and the int opcode 2 clear it, and
+ * VARP_SYNC restores whichever arm the flag names. The reference's opcode 1 (an
+ * int READ) clears it too; GetVarp is const and on the hot path, so here only
+ * int writes do.
+ */
+static inline bool
+varp_holds_long(
+    const struct VarPManager* mgr,
+    int variable)
+{
+    return variable < mgr->var_long_count && mgr->var_long_set[variable];
+}
+
+static inline void
+varp_mark_int(
+    struct VarPManager* mgr,
+    int variable)
+{
+    if( variable < mgr->var_long_count )
+        mgr->var_long_set[variable] = 0;
+}
+
 static void
 apply_varp_value(
     struct VarPManager* mgr,
@@ -149,6 +174,7 @@ apply_varp_value(
     if( variable >= mgr->varp_count && !ensure_untyped_var_capacity(mgr, variable) )
         return;
 
+    varp_mark_int(mgr, variable);
     mgr->var_serv[variable] = value;
 
     if( mgr->var[variable] != value )
@@ -263,6 +289,14 @@ VarPManager_Free(struct VarPManager* mgr)
 
     ToriMem_Free(ToriMem_Session(), mgr->var_serv);
     mgr->var_serv = NULL;
+
+    ToriMem_Free(ToriMem_Session(), mgr->var_long);
+    ToriMem_Free(ToriMem_Session(), mgr->var_long_serv);
+    ToriMem_Free(ToriMem_Session(), mgr->var_long_set);
+    mgr->var_long = NULL;
+    mgr->var_long_serv = NULL;
+    mgr->var_long_set = NULL;
+    mgr->var_long_count = 0;
 
     mgr->change_fn = NULL;
     mgr->change_userdata = NULL;
@@ -515,6 +549,89 @@ VarPManager_ApplyLarge(
     apply_varp_value(mgr, variable, value);
 }
 
+static void
+ensure_long_capacity(
+    struct VarPManager* mgr,
+    int variable)
+{
+    if( variable < mgr->var_long_count )
+        return;
+    int grown = mgr->var_long_count == 0 ? 64 : mgr->var_long_count;
+    while( grown <= variable )
+        grown *= 2;
+    int64_t* cur = ToriMem_Calloc(ToriMem_Session(), (size_t)grown, sizeof(*cur));
+    int64_t* serv = ToriMem_Calloc(ToriMem_Session(), (size_t)grown, sizeof(*serv));
+    unsigned char* set = ToriMem_Calloc(ToriMem_Session(), (size_t)grown, sizeof(*set));
+    assert(cur);
+    assert(serv);
+    assert(set);
+    if( mgr->var_long_count > 0 )
+    {
+        memcpy(cur, mgr->var_long, (size_t)mgr->var_long_count * sizeof(*cur));
+        memcpy(serv, mgr->var_long_serv, (size_t)mgr->var_long_count * sizeof(*serv));
+        memcpy(set, mgr->var_long_set, (size_t)mgr->var_long_count * sizeof(*set));
+    }
+    ToriMem_Free(ToriMem_Session(), mgr->var_long);
+    ToriMem_Free(ToriMem_Session(), mgr->var_long_serv);
+    ToriMem_Free(ToriMem_Session(), mgr->var_long_set);
+    mgr->var_long = cur;
+    mgr->var_long_serv = serv;
+    mgr->var_long_set = set;
+    mgr->var_long_count = grown;
+}
+
+void
+VarPManager_ApplyLong(
+    struct VarPManager* mgr,
+    int variable,
+    int64_t value)
+{
+    assert(mgr);
+    if( variable < 0 )
+        return;
+    ensure_long_capacity(mgr, variable);
+    mgr->var_long_set[variable] = 1;
+    mgr->var_long_serv[variable] = value;
+    if( mgr->var_long[variable] != value )
+    {
+        mgr->var_long[variable] = value;
+        notify_change(mgr, variable);
+    }
+    /* As VARP_LARGE: a resend still re-runs the hooks that list the id. */
+    notify_server_update(mgr, variable);
+}
+
+int64_t
+VarPManager_GetVarpLong(
+    struct VarPManager* mgr,
+    int variable)
+{
+    assert(mgr);
+    if( variable < 0 )
+        return 0;
+    ensure_long_capacity(mgr, variable);
+    mgr->var_long_set[variable] = 1;
+    return mgr->var_long[variable];
+}
+
+void
+VarPManager_SetVarpLongOptimistic(
+    struct VarPManager* mgr,
+    int variable,
+    int64_t value)
+{
+    assert(mgr);
+    if( variable < 0 )
+        return;
+    ensure_long_capacity(mgr, variable);
+    mgr->var_long_set[variable] = 1;
+    if( mgr->var_long[variable] != value )
+    {
+        mgr->var_long[variable] = value;
+        notify_change(mgr, variable);
+    }
+}
+
 void
 VarPManager_SetVarpOptimistic(
     struct VarPManager* mgr,
@@ -527,6 +644,7 @@ VarPManager_SetVarpOptimistic(
     if( variable >= mgr->varp_count && !ensure_untyped_var_capacity(mgr, variable) )
         return;
 
+    varp_mark_int(mgr, variable);
     if( mgr->var[variable] != value )
     {
         mgr->var[variable] = value;
@@ -568,9 +686,18 @@ VarPManager_ApplySync(struct VarPManager* mgr)
 
     for( int i = 0; i < mgr->varp_count; i++ )
     {
-        if( mgr->var[i] != mgr->var_serv[i] )
+        if( !varp_holds_long(mgr, i) && mgr->var[i] != mgr->var_serv[i] )
         {
             mgr->var[i] = mgr->var_serv[i];
+            notify_change(mgr, i);
+            notify_server_update(mgr, i);
+        }
+    }
+    for( int i = 0; i < mgr->var_long_count; i++ )
+    {
+        if( mgr->var_long_set[i] && mgr->var_long[i] != mgr->var_long_serv[i] )
+        {
+            mgr->var_long[i] = mgr->var_long_serv[i];
             notify_change(mgr, i);
             notify_server_update(mgr, i);
         }
@@ -588,6 +715,16 @@ VarPManager_ResetAll(struct VarPManager* mgr)
         if( mgr->var[i] != 0 )
         {
             mgr->var[i] = 0;
+            notify_change(mgr, i);
+        }
+    }
+    for( int i = 0; i < mgr->var_long_count; i++ )
+    {
+        mgr->var_long_serv[i] = 0;
+        mgr->var_long_set[i] = 0;
+        if( mgr->var_long[i] != 0 )
+        {
+            mgr->var_long[i] = 0;
             notify_change(mgr, i);
         }
     }

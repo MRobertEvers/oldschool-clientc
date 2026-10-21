@@ -56,7 +56,9 @@ RS_CS2_RunScript(
 /** RS_CS2_RunScript, with the task counted in `*join` until it ends -- however
  *  it ends (asyncio.h ToriRS_Task.join). For a caller that must know when the
  *  scripts it dispatched have finished: the quest driver's tick fence waits
- *  for the tick's held RUNCLIENTSCRIPTs (App_FlushPendingClientScripts). */
+ *  for the tick's held RUNCLIENTSCRIPTs (App_FlushPendingClientScripts).
+ *  long_mask bit i marks position i as the int64 long_args[i] (positional,
+ *  like int_args; NULL when the mask is 0). */
 void
 RS_CS2_RunScriptJoined(
     struct RS_CS2Host* host,
@@ -67,7 +69,9 @@ RS_CS2_RunScriptJoined(
     int arg_count,
     uint64_t str_mask,
     char const* const* str_args,
-    int str_arg_count);
+    int str_arg_count,
+    uint64_t long_mask,
+    int64_t const* long_args);
 
 /** Once per logic tick: if any widget was unhidden since the last pump, run the
  *  inv/var transmit traversals (per-hook serial gating makes quiet passes free).

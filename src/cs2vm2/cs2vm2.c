@@ -49,6 +49,9 @@ CS2VM2_OnMobile(void)
 }
 char g_cs2_trace_extra[512];
 
+/* A hook signature's long-argument type: '\u00cf' in the client's Cp1252. */
+#define CS2VM2_SIGNATURE_LONG 0xCF
+
 /* --- Call frame pool ----------------------------------------------------- */
 /*
  * Call frames (12 KB each) are uniform blocks with no identity, so the threads
@@ -136,6 +139,28 @@ cs2vm2_frame_reserve_str_locals(struct CS2VM2_Frame* frame, int need)
     frame->str_locals_cap = next;
 }
 
+static void
+cs2vm2_frame_reserve_long_locals(struct CS2VM2_Frame* frame, int need)
+{
+    assert(frame);
+
+    if( need <= frame->long_locals_cap )
+        return;
+
+    int next = cs2vm2_frame_locals_capacity_for(frame->long_locals_cap, need);
+    int64_t* buf =
+        (int64_t*)ToriMem_Realloc(ToriMem_Script(), frame->long_locals, (size_t)next * sizeof(*buf));
+    memset(
+        buf + frame->long_locals_cap,
+        0,
+        (size_t)(next - frame->long_locals_cap) * sizeof(*buf));
+    TORIRS_PERF_COUNT(
+        TORIRS_PERF_CTR_CS2_FRAME_LOCALS_BYTES,
+        (long long)(next - frame->long_locals_cap) * (long long)sizeof(*buf));
+    frame->long_locals = buf;
+    frame->long_locals_cap = next;
+}
+
 /*
  * The slot to write `idx` through: the buffer is grown to reach it and the
  * high-water mark raised to cover it.
@@ -176,6 +201,21 @@ cs2vm2_frame_str_local_ref(struct CS2VM2_Frame* frame, int idx)
     return &frame->str_locals[idx];
 }
 
+static inline int64_t*
+cs2vm2_frame_long_local_ref(struct CS2VM2_Frame* frame, int idx)
+{
+    assert(frame);
+    assert(idx >= 0);
+    assert(idx < CS2VM_MAX_LOCALS);
+
+    if( idx >= frame->long_locals_dirty )
+    {
+        cs2vm2_frame_reserve_long_locals(frame, idx + 1);
+        frame->long_locals_dirty = idx + 1;
+    }
+    return &frame->long_locals[idx];
+}
+
 /*
  * Read a local. A slot the current occupant has not written is zero by
  * invariant, whether or not the buffer even reaches that far — which is why one
@@ -203,6 +243,16 @@ cs2vm2_frame_str_local(const struct CS2VM2_Frame* frame, int idx)
     return idx < frame->str_locals_dirty ? frame->str_locals[idx] : NULL;
 }
 
+static inline int64_t
+cs2vm2_frame_long_local(const struct CS2VM2_Frame* frame, int idx)
+{
+    assert(frame);
+    assert(idx >= 0);
+    assert(idx < CS2VM_MAX_LOCALS);
+
+    return idx < frame->long_locals_dirty ? frame->long_locals[idx] : 0;
+}
+
 /*
  * Return a frame to the state a never-used one is in, keeping its buffers.
  *
@@ -224,6 +274,8 @@ cs2vm2_frame_clear(struct CS2VM2_Frame* frame)
     assert(frame->int_locals_dirty <= frame->int_locals_cap);
     assert(frame->str_locals_dirty >= 0);
     assert(frame->str_locals_dirty <= frame->str_locals_cap);
+    assert(frame->long_locals_dirty >= 0);
+    assert(frame->long_locals_dirty <= frame->long_locals_cap);
 
     if( frame->int_locals_dirty > 0 )
         memset(
@@ -235,8 +287,14 @@ cs2vm2_frame_clear(struct CS2VM2_Frame* frame)
             frame->str_locals,
             0,
             (size_t)frame->str_locals_dirty * sizeof(frame->str_locals[0]));
+    if( frame->long_locals_dirty > 0 )
+        memset(
+            frame->long_locals,
+            0,
+            (size_t)frame->long_locals_dirty * sizeof(frame->long_locals[0]));
     frame->int_locals_dirty = 0;
     frame->str_locals_dirty = 0;
+    frame->long_locals_dirty = 0;
 
     frame->script = NULL;
     frame->pc = 0;
@@ -280,6 +338,7 @@ cs2vm2_frame_destroy(struct CS2VM2_Frame* frame)
         return;
     ToriMem_Free(ToriMem_Script(), frame->int_locals);
     ToriMem_Free(ToriMem_Script(), frame->str_locals);
+    ToriMem_Free(ToriMem_Script(), frame->long_locals);
     ToriMem_Free(ToriMem_Script(), frame);
 }
 
@@ -353,6 +412,7 @@ CS2VM2_SaveYieldCheckpoint(
 
     cp->ints_stack_top = vm->ints_stack_top;
     cp->strs_stack_top = vm->strs_stack_top;
+    cp->longs_stack_top = vm->longs_stack_top;
     cp->frame_sp = vm->frame_sp;
     cp->active_component_id = vm->active_component_id;
     cp->dot_component_id = vm->dot_component_id;
@@ -380,6 +440,7 @@ CS2VM2_RestoreYieldCheckpoint(
 
     vm->ints_stack_top = cp->ints_stack_top;
     vm->strs_stack_top = cp->strs_stack_top;
+    vm->longs_stack_top = cp->longs_stack_top;
     vm->frame_sp = cp->frame_sp;
     vm->active_component_id = cp->active_component_id;
     vm->dot_component_id = cp->dot_component_id;
@@ -854,6 +915,34 @@ CS2VM2_PushInt(
     return CS2VM_EXECNO_OK;
 }
 
+int
+CS2VM2_PopLong(
+    struct CS2VM2_Thread* vm,
+    int64_t* operand)
+{
+    assert(vm);
+    assert(operand);
+    if( vm->longs_stack_top <= 0 )
+        return CS2VM_EXECNO_ERROR;
+    *operand = vm->longs_stack[--vm->longs_stack_top];
+    return CS2VM_EXECNO_OK;
+}
+
+int
+CS2VM2_PushLong(
+    struct CS2VM2_Thread* vm,
+    int64_t value)
+{
+    assert(vm);
+
+    if( vm->longs_stack_top >= CS2VM_STACK_MAX )
+        return CS2VM_EXECNO_ERROR;
+
+    vm->longs_stack[vm->longs_stack_top++] = value;
+
+    return CS2VM_EXECNO_OK;
+}
+
 static inline int
 CS2VM2_SetIntFrameLocal(
     struct CS2VM2_Thread* vm,
@@ -890,6 +979,19 @@ CS2VM2_SetStringCurrentFrameLocal(
         return CS2VM_EXECNO_ERROR;
     frame = CS2VM_FRAME(vm);
     *cs2vm2_frame_str_local_ref(frame, idx) = CS2VM2_StrDup(vm, value);
+    return CS2VM_EXECNO_OK;
+}
+
+int
+CS2VM2_SetLongCurrentFrameLocal(
+    struct CS2VM2_Thread* vm,
+    int idx,
+    int64_t value)
+{
+    assert(vm);
+    if( idx < 0 || idx >= CS2VM_MAX_LOCALS )
+        return CS2VM_EXECNO_ERROR;
+    *cs2vm2_frame_long_local_ref(CS2VM_FRAME(vm), idx) = value;
     return CS2VM_EXECNO_OK;
 }
 
@@ -1825,7 +1927,15 @@ CS2VM2_Op_GosubWithParams(
     struct CS2VM2_Frame* callee = CS2VM_FRAME(vm);
     int str_args = callee->script->string_argument_count;
     int int_args = callee->script->int_argument_count;
+    int long_args = callee->script->long_argument_count;
 
+    for( int i = long_args - 1; i >= 0; i-- )
+    {
+        int64_t value;
+        if( CS2VM2_PopLong(vm, &value) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        *cs2vm2_frame_long_local_ref(callee, i) = value;
+    }
     for( int i = str_args - 1; i >= 0; i-- )
     {
         char* value = NULL;
@@ -4569,6 +4679,17 @@ CS2VM2_Op_IF_SetOnEventHandler(
         for( int i = signature_parse_len - 1; i >= 0; i-- )
         {
             char c = signature[i];
+            if( (unsigned char)c == CS2VM2_SIGNATURE_LONG )
+            {
+                /* The reference takes a long hook argument off the long stack
+                 * (deob: case '\u00cf'). Hook arguments here are stored as
+                 * int-or-string per position, so a long one cannot be carried;
+                 * no 241 script sets one. Fail rather than pop the wrong stack. */
+                TORIRS_LOG("CS2VM2: hook signature \"%s\" has a long argument, which hooks do not carry\n",
+                    signature);
+                ToriMem_Free(ToriMem_Script(), trigger_ids);
+                return CS2VM_EXECNO_ERROR;
+            }
             if( c == 's' || c == 'W' || c == 'X' )
             {
                 char* v = NULL;
@@ -4748,6 +4869,17 @@ CS2VM2_Op_CC_SetOnEventHandler(
         for( int i = signature_parse_len - 1; i >= 0; i-- )
         {
             char c = signature[i];
+            if( (unsigned char)c == CS2VM2_SIGNATURE_LONG )
+            {
+                /* The reference takes a long hook argument off the long stack
+                 * (deob: case '\u00cf'). Hook arguments here are stored as
+                 * int-or-string per position, so a long one cannot be carried;
+                 * no 241 script sets one. Fail rather than pop the wrong stack. */
+                TORIRS_LOG("CS2VM2: hook signature \"%s\" has a long argument, which hooks do not carry\n",
+                    signature);
+                ToriMem_Free(ToriMem_Script(), trigger_ids);
+                return CS2VM_EXECNO_ERROR;
+            }
             if( c == 's' || c == 'W' || c == 'X' )
             {
                 char* v = NULL;
@@ -5325,6 +5457,17 @@ CS2VM2_Op_IF_SetOnInvTransmit(
         for( int i = signature_parse_len - 1; i >= 0; i-- )
         {
             char c = signature[i];
+            if( (unsigned char)c == CS2VM2_SIGNATURE_LONG )
+            {
+                /* The reference takes a long hook argument off the long stack
+                 * (deob: case '\u00cf'). Hook arguments here are stored as
+                 * int-or-string per position, so a long one cannot be carried;
+                 * no 241 script sets one. Fail rather than pop the wrong stack. */
+                TORIRS_LOG("CS2VM2: hook signature \"%s\" has a long argument, which hooks do not carry\n",
+                    signature);
+                ToriMem_Free(ToriMem_Script(), trigger_ids);
+                return CS2VM_EXECNO_ERROR;
+            }
             if( c == 's' || c == 'W' || c == 'X' )
             {
                 char* v = NULL;
@@ -5935,6 +6078,362 @@ CS2VM2_Op_IF_CallOnResize(
     request.u.IF_CALLONRESIZE.component_id = component_id;
 
     return vm->vm->host_exec(vm, &request);
+}
+
+/*
+ * The long stack (OSRS >= 237; the GE and number formatting of a 241 cache).
+ * Every body below is the rev-241 deob's (Statics.method* 4037..4063, the core
+ * loop's 51/52, 61/62, 64..73, and 4125/4126), with Java's long semantics
+ * spelled out where C's differ:
+ *
+ *   - a shift count is taken mod 64 (`1L << n`), never undefined;
+ *   - Long.MIN_VALUE / -1 is Long.MIN_VALUE and % -1 is 0, not a trap;
+ *   - where the client throws (overflow in add/sub/multiply/scale, a zero
+ *     divisor, a bit range whose high end is below its low end) the script
+ *     fails, as the reference's RuntimeException kills it.
+ */
+static inline int64_t
+cs2vm2_long_bit(int n)
+{
+    return (int64_t)((uint64_t)1 << (n & 63));
+}
+
+/* class673.field7141[n]: the low n bits set, n in 0..64. */
+static inline int64_t
+cs2vm2_long_mask(int n)
+{
+    assert(n >= 0);
+    assert(n <= 64);
+    return n == 64 ? -1 : (int64_t)(((uint64_t)1 << n) - 1);
+}
+
+static inline int64_t
+cs2vm2_long_shl(int64_t v, int n)
+{
+    return (int64_t)((uint64_t)v << (n & 63));
+}
+
+static inline int64_t
+cs2vm2_long_ushr(int64_t v, int n)
+{
+    return (int64_t)((uint64_t)v >> (n & 63));
+}
+
+static inline int
+cs2vm2_clamp_bit(int v)
+{
+    return v < 0 ? 0 : v > 63 ? 63 : v;
+}
+
+static int
+cs2vm2_long_fail(
+    struct CS2VM2_Thread* vm,
+    int opcode,
+    char const* why)
+{
+    struct CS2VM2_Frame* frame = CS2VM_FRAME(vm);
+    TORIRS_LOG("CS2VM2: long op %d %s (script %d pc %d)\n",
+        opcode,
+        why,
+        frame->script ? frame->script->script_id : -1,
+        frame->pc);
+    return CS2VM_EXECNO_ERROR;
+}
+
+static int
+CS2VM2_Op_LongBranch(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int opcode,
+    int operand)
+{
+    int64_t b, a;
+    if( CS2VM2_PopLong(vm, &b) != CS2VM_EXECNO_OK || CS2VM2_PopLong(vm, &a) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    bool taken;
+    if( opcode == CS2_OP_LONG_BRANCH_NOT )
+        taken = a != b;
+    else if( opcode == CS2_OP_LONG_BRANCH_EQUALS )
+        taken = a == b;
+    else if( opcode == CS2_OP_LONG_BRANCH_LESS_THAN )
+        taken = a < b;
+    else if( opcode == CS2_OP_LONG_BRANCH_GREATER_THAN )
+        taken = a > b;
+    else if( opcode == CS2_OP_LONG_BRANCH_LESS_THAN_OR_EQUALS )
+        taken = a <= b;
+    else
+        taken = a >= b;
+    return taken ? CS2VM2_JumpRelative(vm, frame, operand) : CS2VM_EXECNO_OK;
+}
+
+static int
+CS2VM2_Op_LongVar(
+    struct CS2VM2_Thread* vm,
+    int opcode,
+    int operand)
+{
+    struct CS2VM_HostRequest request;
+    if( opcode == CS2_OP_PUSH_VARC_LONG )
+    {
+        request.kind = CS2VM_HOST_REQUEST_PUSH_VARC_LONG;
+        memset(&request.u.PUSH_VARC_LONG, 0, sizeof(request.u.PUSH_VARC_LONG));
+        request.u.PUSH_VARC_LONG.varc_id = operand;
+    }
+    else if( opcode == CS2_OP_PUSH_VAR_LONG )
+    {
+        request.kind = CS2VM_HOST_REQUEST_PUSH_VAR_LONG;
+        memset(&request.u.PUSH_VAR_LONG, 0, sizeof(request.u.PUSH_VAR_LONG));
+        request.u.PUSH_VAR_LONG.varp_id = operand;
+    }
+    else
+    {
+        int64_t value;
+        if( CS2VM2_PopLong(vm, &value) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        if( opcode == CS2_OP_POP_VARC_LONG )
+        {
+            request.kind = CS2VM_HOST_REQUEST_POP_VARC_LONG;
+            memset(&request.u.POP_VARC_LONG, 0, sizeof(request.u.POP_VARC_LONG));
+            request.u.POP_VARC_LONG.varc_id = operand;
+            request.u.POP_VARC_LONG.value = value;
+        }
+        else
+        {
+            request.kind = CS2VM_HOST_REQUEST_POP_VAR_LONG;
+            memset(&request.u.POP_VAR_LONG, 0, sizeof(request.u.POP_VAR_LONG));
+            request.u.POP_VAR_LONG.varp_id = operand;
+            request.u.POP_VAR_LONG.value = value;
+        }
+    }
+    return vm->vm->host_exec(vm, &request);
+}
+
+/* Two longs in (a pushed first), one long out: 4037..4042, 4055..4057. */
+static int
+CS2VM2_Op_LongBinary(
+    struct CS2VM2_Thread* vm,
+    int opcode)
+{
+    int64_t b, a, r;
+    if( CS2VM2_PopLong(vm, &b) != CS2VM_EXECNO_OK || CS2VM2_PopLong(vm, &a) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    if( opcode == CS2_OP_LONG_ADD )
+    {
+        r = (int64_t)((uint64_t)a + (uint64_t)b);
+        if( (b > 0) != (r > a) )
+            return cs2vm2_long_fail(vm, opcode, "overflowed");
+    }
+    else if( opcode == CS2_OP_LONG_SUB )
+    {
+        r = (int64_t)((uint64_t)a - (uint64_t)b);
+        if( (b < 0) != (r > a) )
+            return cs2vm2_long_fail(vm, opcode, "overflowed");
+    }
+    else if( opcode == CS2_OP_LONG_MULTIPLY )
+    {
+        r = (int64_t)((uint64_t)a * (uint64_t)b);
+        /* The reference's check is `r / b != a`, in Java division. */
+        if( b != 0 && (b == -1 ? (int64_t)(0 - (uint64_t)r) : r / b) != a )
+            return cs2vm2_long_fail(vm, opcode, "overflowed");
+    }
+    else if( opcode == CS2_OP_LONG_DIVIDE )
+    {
+        if( b == 0 )
+            return cs2vm2_long_fail(vm, opcode, "divided by zero");
+        r = b == -1 ? (int64_t)(0 - (uint64_t)a) : a / b;
+    }
+    else if( opcode == CS2_OP_LONG_MODULO )
+    {
+        if( b == 0 )
+            return cs2vm2_long_fail(vm, opcode, "divided by zero");
+        r = b == -1 ? 0 : a % b;
+    }
+    else if( opcode == CS2_OP_LONG_MIN )
+        r = a < b ? a : b;
+    else if( opcode == CS2_OP_LONG_MAX )
+        r = a > b ? a : b;
+    else if( opcode == CS2_OP_LONG_AND )
+        r = a & b;
+    else
+        r = a | b;
+    return CS2VM2_PushLong(vm, r);
+}
+
+/* LONG_SCALE (4043): a * c / b, computed wide (the reference uses BigInteger),
+ * failing when b is 0 or the quotient leaves the long range. */
+static int
+CS2VM2_Op_LongScale(struct CS2VM2_Thread* vm)
+{
+    int64_t c, b, a;
+    if( CS2VM2_PopLong(vm, &c) != CS2VM_EXECNO_OK || CS2VM2_PopLong(vm, &b) != CS2VM_EXECNO_OK ||
+        CS2VM2_PopLong(vm, &a) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( b == 0 )
+        return cs2vm2_long_fail(vm, CS2_OP_LONG_SCALE, "divided by zero");
+    __int128 q = (__int128)a * (__int128)c / (__int128)b;
+    if( q < (__int128)INT64_MIN || q > (__int128)INT64_MAX )
+        return cs2vm2_long_fail(vm, CS2_OP_LONG_SCALE, "overflowed");
+    return CS2VM2_PushLong(vm, (int64_t)q);
+}
+
+/* (long, bit) in: 4047 setbit, 4048 clearbit, 4051 togglebit push a long;
+ * 4049 testbit pushes an int. */
+static int
+CS2VM2_Op_LongBit(
+    struct CS2VM2_Thread* vm,
+    int opcode)
+{
+    int bit;
+    int64_t v;
+    if( CS2VM2_PopInt(vm, &bit) != CS2VM_EXECNO_OK || CS2VM2_PopLong(vm, &v) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( opcode == CS2_OP_LONG_TESTBIT )
+        return CS2VM2_PushInt(vm, (v & cs2vm2_long_bit(bit)) == 0 ? 0 : 1);
+    if( opcode == CS2_OP_LONG_SETBIT )
+        return CS2VM2_PushLong(vm, v | cs2vm2_long_bit(bit));
+    if( opcode == CS2_OP_LONG_CLEARBIT )
+        return CS2VM2_PushLong(vm, v & ~cs2vm2_long_bit(bit));
+    return CS2VM2_PushLong(vm, v ^ cs2vm2_long_bit(bit));
+}
+
+/* (long, low, high) in, low and high clamped to 0..63: 4052 setbit_range,
+ * 4053 clearbit_range, 4054 getbit_range. */
+static int
+CS2VM2_Op_LongBitRange(
+    struct CS2VM2_Thread* vm,
+    int opcode)
+{
+    int hi_raw, lo_raw;
+    int64_t v;
+    if( CS2VM2_PopInt(vm, &hi_raw) != CS2VM_EXECNO_OK || CS2VM2_PopInt(vm, &lo_raw) != CS2VM_EXECNO_OK ||
+        CS2VM2_PopLong(vm, &v) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    int lo = cs2vm2_clamp_bit(lo_raw);
+    int hi = cs2vm2_clamp_bit(hi_raw);
+    if( hi < lo )
+        return cs2vm2_long_fail(vm, opcode, "has a bit range high < low");
+
+    int64_t field = cs2vm2_long_shl(cs2vm2_long_mask(hi - lo + 1), lo);
+    if( opcode == CS2_OP_LONG_SETBIT_RANGE )
+        return CS2VM2_PushLong(vm, v | field);
+    if( opcode == CS2_OP_LONG_CLEARBIT_RANGE )
+        return CS2VM2_PushLong(vm, v & ~field);
+    int up = 63 - hi;
+    return CS2VM2_PushLong(vm, cs2vm2_long_ushr(cs2vm2_long_shl(v, up), lo + up));
+}
+
+/* LONG_SETBIT_RANGE_TOLONG (4059): (long, value, low, high) -> the long with
+ * bits low..high replaced by value, value capped at the field's all-ones.
+ * Unlike 4052..4054 the reference does not clamp the range here; a range its
+ * mask table cannot index fails the script, as the array read would. */
+static int
+CS2VM2_Op_LongSetBitRangeToLong(struct CS2VM2_Thread* vm)
+{
+    int hi, lo;
+    int64_t value, v;
+    if( CS2VM2_PopInt(vm, &hi) != CS2VM_EXECNO_OK || CS2VM2_PopInt(vm, &lo) != CS2VM_EXECNO_OK ||
+        CS2VM2_PopLong(vm, &value) != CS2VM_EXECNO_OK || CS2VM2_PopLong(vm, &v) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    int width = hi - lo + 1;
+    if( width < 0 || width > 64 )
+        return cs2vm2_long_fail(vm, CS2_OP_LONG_SETBIT_RANGE_TOLONG, "has a bit range out of 0..64");
+
+    int64_t mask = cs2vm2_long_mask(width);
+    int64_t cleared = v & ~cs2vm2_long_shl(mask, lo);
+    if( value > mask )
+        value = mask;
+    return CS2VM2_PushLong(vm, cleared | cs2vm2_long_shl(value, lo));
+}
+
+/* 4044 int_to_long, 4050 long_bitcount, 4058 long_not, 4060 long_pack,
+ * 4061 long_unpack, 4062 long_to_int, 4063 long_high_to_int. */
+static int
+CS2VM2_Op_LongConvert(
+    struct CS2VM2_Thread* vm,
+    int opcode)
+{
+    int64_t v;
+    if( opcode == CS2_OP_INT_TO_LONG )
+    {
+        int i;
+        if( CS2VM2_PopInt(vm, &i) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        return CS2VM2_PushLong(vm, (int64_t)i);
+    }
+    if( opcode == CS2_OP_LONG_PACK )
+    {
+        int lo, hi;
+        if( CS2VM2_PopInt(vm, &lo) != CS2VM_EXECNO_OK || CS2VM2_PopInt(vm, &hi) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        return CS2VM2_PushLong(vm, (int64_t)(((uint64_t)(uint32_t)hi << 32) | (uint32_t)lo));
+    }
+
+    if( CS2VM2_PopLong(vm, &v) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( opcode == CS2_OP_LONG_BITCOUNT )
+        return CS2VM2_PushInt(vm, __builtin_popcountll((unsigned long long)v));
+    if( opcode == CS2_OP_LONG_NOT )
+        return CS2VM2_PushLong(vm, ~v);
+    if( opcode == CS2_OP_LONG_TO_INT )
+        return CS2VM2_PushInt(vm, (int)(uint32_t)v);
+    if( opcode == CS2_OP_LONG_HIGH_TO_INT )
+        return CS2VM2_PushInt(vm, (int)(uint32_t)((uint64_t)v >> 32));
+    /* LONG_UNPACK: the high half is pushed first. */
+    if( CS2VM2_PushInt(vm, (int)(uint32_t)((uint64_t)v >> 32)) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    return CS2VM2_PushInt(vm, (int)(uint32_t)v);
+}
+
+/* TOSTRING_LONG (4125) and TOSTRING_SPACER_LONG (4126). 4126 groups the
+ * digits in threes with the popped separator; 0 is "0" and an empty separator
+ * gives the plain number. Long.MIN_VALUE negates to itself and so, in the
+ * reference's loop, prints as a bare "-"; that is reproduced, not fixed. */
+static int
+CS2VM2_Op_LongToString(
+    struct CS2VM2_Thread* vm,
+    int opcode)
+{
+    char* sep = NULL;
+    int64_t v;
+    if( opcode == CS2_OP_TOSTRING_SPACER_LONG && CS2VM2_PopStr(vm, &sep) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopLong(vm, &v) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    if( opcode == CS2_OP_TOSTRING_LONG || v == 0 || !sep || sep[0] == '\0' )
+        return CS2VM2_PushStr(vm, CS2VM2_StrFmt(vm, "%lld", (long long)v));
+
+    bool negative = v < 0;
+    int64_t rest = negative ? (int64_t)(0 - (uint64_t)v) : v;
+    size_t sep_len = strlen(sep);
+    char digits[32];
+    int ndigits = 0;
+    while( rest > 0 )
+    {
+        digits[ndigits++] = (char)('0' + rest % 10);
+        rest /= 10;
+    }
+
+    size_t len = (negative ? 1 : 0) + (size_t)ndigits +
+                 (ndigits > 0 ? (size_t)((ndigits - 1) / 3) * sep_len : 0);
+    char* out = CS2VM2_StrAlloc(vm, len);
+    assert(out);
+    char* w = out;
+    if( negative )
+        *w++ = '-';
+    for( int i = ndigits - 1; i >= 0; i-- )
+    {
+        *w++ = digits[i];
+        if( i > 0 && i % 3 == 0 )
+        {
+            memcpy(w, sep, sep_len);
+            w += sep_len;
+        }
+    }
+    *w = '\0';
+    return CS2VM2_PushStr(vm, out);
 }
 
 int
@@ -7809,7 +8308,8 @@ cs2vm2_array_fail(char const* what, char const* why)
 
 /* A base-var-type id selects which stack a typed value is on: 0 int, 2 string
  * (the same codes ARRAY_FILL and ARRAY_PUSH read; the char forms 'i'/'1' and
- * 's' are accepted too). Long values have no stack in this VM. */
+ * 's' are accepted too). A long-typed array is not handled; no 241 script
+ * defines one. */
 static int
 cs2vm2_base_type_is_string(int base_type, bool* out_is_string)
 {
@@ -12043,6 +12543,38 @@ CS2VM2_RunOp(
         return CS2VM2_Op_PushVarbit(vm, frame, operand);
     case CS2_OP_POP_VARBIT:
         return CS2VM2_Op_PopVarbit(vm, frame, operand);
+    /* The long stack: 51/52 varc, 64/65 varp (rev 241), 61 constant, 62
+     * discard, 66/67 locals, 68..73 compares. */
+    case CS2_OP_PUSH_VARC_LONG:
+    case CS2_OP_POP_VARC_LONG:
+    case CS2_OP_PUSH_VAR_LONG:
+    case CS2_OP_POP_VAR_LONG:
+        return CS2VM2_Op_LongVar(vm, opcode, operand);
+    case CS2_OP_PUSH_CONSTANT_LONG:
+        assert(frame->script->long_operands);
+        return CS2VM2_PushLong(vm, frame->script->long_operands[frame->pc - 1]);
+    case CS2_OP_POP_LONG_DISCARD:
+    {
+        int64_t discard;
+        return CS2VM2_PopLong(vm, &discard);
+    }
+    case CS2_OP_PUSH_LONG_LOCAL:
+        return CS2VM2_PushLong(vm, cs2vm2_frame_long_local(frame, operand));
+    case CS2_OP_POP_LONG_LOCAL:
+    {
+        int64_t value;
+        if( CS2VM2_PopLong(vm, &value) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        *cs2vm2_frame_long_local_ref(frame, operand) = value;
+        return CS2VM_EXECNO_OK;
+    }
+    case CS2_OP_LONG_BRANCH_NOT:
+    case CS2_OP_LONG_BRANCH_EQUALS:
+    case CS2_OP_LONG_BRANCH_LESS_THAN:
+    case CS2_OP_LONG_BRANCH_GREATER_THAN:
+    case CS2_OP_LONG_BRANCH_LESS_THAN_OR_EQUALS:
+    case CS2_OP_LONG_BRANCH_GREATER_THAN_OR_EQUALS:
+        return CS2VM2_Op_LongBranch(vm, frame, opcode, operand);
     case CS2_OP_PUSH_VARC_INT:
         return CS2VM2_Op_PushVarcInt(vm, frame, operand);
     case CS2_OP_POP_VARC_INT:
@@ -13556,6 +14088,37 @@ CS2VM2_RunOp(
         return CS2VM2_Op_RandomInc(vm, frame, operand);
     case CS2_OP_INTERPOLATE:
         return CS2VM2_Op_Interpolate(vm, frame, operand);
+    case CS2_OP_LONG_ADD:
+    case CS2_OP_LONG_SUB:
+    case CS2_OP_LONG_MULTIPLY:
+    case CS2_OP_LONG_DIVIDE:
+    case CS2_OP_LONG_MIN:
+    case CS2_OP_LONG_MAX:
+    case CS2_OP_LONG_MODULO:
+    case CS2_OP_LONG_AND:
+    case CS2_OP_LONG_OR:
+        return CS2VM2_Op_LongBinary(vm, opcode);
+    case CS2_OP_LONG_SCALE:
+        return CS2VM2_Op_LongScale(vm);
+    case CS2_OP_LONG_SETBIT:
+    case CS2_OP_LONG_CLEARBIT:
+    case CS2_OP_LONG_TESTBIT:
+    case CS2_OP_LONG_TOGGLEBIT:
+        return CS2VM2_Op_LongBit(vm, opcode);
+    case CS2_OP_LONG_SETBIT_RANGE:
+    case CS2_OP_LONG_CLEARBIT_RANGE:
+    case CS2_OP_LONG_GETBIT_RANGE:
+        return CS2VM2_Op_LongBitRange(vm, opcode);
+    case CS2_OP_LONG_SETBIT_RANGE_TOLONG:
+        return CS2VM2_Op_LongSetBitRangeToLong(vm);
+    case CS2_OP_INT_TO_LONG:
+    case CS2_OP_LONG_BITCOUNT:
+    case CS2_OP_LONG_NOT:
+    case CS2_OP_LONG_PACK:
+    case CS2_OP_LONG_UNPACK:
+    case CS2_OP_LONG_TO_INT:
+    case CS2_OP_LONG_HIGH_TO_INT:
+        return CS2VM2_Op_LongConvert(vm, opcode);
 
     /* === CS2 opcode group: string (4100..4199) ===
      * string operations.
@@ -13570,6 +14133,9 @@ CS2VM2_RunOp(
         return CS2VM2_Op_ParaWidth(vm, frame, operand);
     case CS2_OP_TOSTRING:
         return CS2VM2_Op_ToString(vm, frame, operand);
+    case CS2_OP_TOSTRING_LONG:
+    case CS2_OP_TOSTRING_SPACER_LONG:
+        return CS2VM2_Op_LongToString(vm, opcode);
     case CS2_OP_APPEND:
         return CS2VM2_Op_Append(vm, frame, operand);
     case CS2_OP_APPEND_NUM:
@@ -15744,6 +16310,7 @@ CS2VM2_ResetRuntime(struct CS2VM2_Thread* vm)
     assert(vm);
     vm->ints_stack_top = 0;
     vm->strs_stack_top = 0;
+    vm->longs_stack_top = 0;
     vm->frame_sp = 0;
     /* Dropping the stacks and frames drops the last references to every string
      * the finished script made, so this is where the pool is reclaimed. Callers
@@ -15789,6 +16356,7 @@ cs2vm2_thread_init_common(
 
     thread->ints_stack_top = 0;
     thread->strs_stack_top = 0;
+    thread->longs_stack_top = 0;
     thread->frame_sp = 0;
 
     thread->active_component_id = 0;

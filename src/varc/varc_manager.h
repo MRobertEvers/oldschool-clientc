@@ -2,6 +2,7 @@
 #define VARC_MANAGER_H
 
 #include <stdbool.h>
+#include <stdint.h>
 
 /*
  * VarC (client variable) store — the CS2 "varcInt" / "varcString" address
@@ -27,6 +28,17 @@ struct VarCManager
 
     char** strings; /* each entry heap-allocated (strdup); NULL = "" */
     int string_count;
+
+    /*
+     * The long arm (CS2 51/52, OSRS >= 237). The reference keeps one map per
+     * varc id holding an Integer, a Long or a String (deob class96.field1363),
+     * so an int and a long write REPLACE each other: a long read of an int-held
+     * id widens the int (method3252), an int read of a long-held id answers -1
+     * (method3222). `long_set[id]` says the id currently holds a long.
+     */
+    int64_t* longs;
+    unsigned char* long_set;
+    int long_count;
 
     VarCManager_ChangeFn change_fn;
     void* change_userdata;
@@ -72,6 +84,21 @@ VarCManager_SetString(
     struct VarCManager* mgr,
     int id,
     const char* value);
+
+/** Read varc `id` as a long: the long it holds, else its int widened (-1 when
+ *  unset), per the reference's single varc map. */
+int64_t
+VarCManager_GetLong(
+    const struct VarCManager* mgr,
+    int id);
+
+/** Write varc `id` as a long; its int arm reads -1 from then on. Fires
+ *  change_fn (as a non-string change) on a real change. */
+void
+VarCManager_SetLong(
+    struct VarCManager* mgr,
+    int id,
+    int64_t value);
 
 /** Unset every int and clear every string (fires change_fn per changed id). */
 void

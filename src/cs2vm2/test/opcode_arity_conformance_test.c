@@ -16,7 +16,8 @@
  * values and measures, at the moment the handler hands off to the host, how
  * many ints and strings it took. That is the handler's arity, independent of
  * whether it or the host then pushes the results. An opcode that never reaches
- * the host is measured by its net stack change instead.
+ * the host is measured by its net stack change instead. The long stack is
+ * filled too and not measured: the table does not describe it.
  *
  * The ARRAY_* commands take their array as a handle on the string stack, and
  * reject anything that is not a live one exactly as the client throws on a
@@ -129,9 +130,13 @@ check_opcode(int opcode)
     {
         thread->ints_stack[i] = 1;
         thread->strs_stack[i] = sentinel;
+        thread->longs_stack[i] = 1;
     }
     thread->ints_stack_top = SENTINELS;
     thread->strs_stack_top = SENTINELS;
+    /* The table counts ints and strings only; a long op's long operands come
+     * off a stack it does not describe, so give them something to pop. */
+    thread->longs_stack_top = SENTINELS;
     if( strncmp(CS2_OpCode_String(opcode), "ARRAY_", 6) == 0 )
     {
         struct CS2VM2_Array* const array = &thread->arrays[thread->array_alloc++];
