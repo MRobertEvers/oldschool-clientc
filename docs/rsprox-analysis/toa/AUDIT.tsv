@@ -96,3 +96,5 @@ A94	baba	rolling boulders sent no facing	facing angle=512 with every roll (896 o
 A95	wardens_p1	energy orbs faced once, nine tiles on (rev 223-227)	rev 241: facing angle on add, a tile face on the tile moved to every step (488 of 488)	fixed
 A96	wardens	toa_wardens_elidinis_tells stops at phase two	fails the same on a pack from before this pass (da91c0b573); Tumeken's shielded phase two not fought	open
 A97	kephri	toa_kephri_tells: the raider's bow / egg / swarm attacks fail (driver not_visible)	the same on a pack from before the Kephri pass (fc1e5140a3)	open
+A98	all	boss pools rounded to 10 at every size (Kephri's twice): a 263-ish pool read 270	index 4292 Kephri shield 265 at raid 160 path 1; 94 of 94 solo bases match with 10 above 300, 5 from 100	fixed
+A99	all	defence never scaled by raid level (~toa_scale_defence unused)	osrs-dps-calc getNPCDefenceRoll x (250+raid)/250, Kephri overlords exempt; wiki +2%/5 levels; toa_defence_scaling_tells 5/5	fixed

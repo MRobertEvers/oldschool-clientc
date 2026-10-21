@@ -269,6 +269,35 @@ Revision 241 sends the rumbling with a stray `</col>` on the end (index 4292,
 
 Tests: `test/raids/toa_kephri_inv_tells.lua`, `test/raids/toa_paths_tells.lua`.
 
+## Hitpoints and defence by raid level
+
+**Hitpoints** are base x raid (+2% every 5 levels) x team x path, then rounded
+(`~toa_round_hp`): above 300 to the nearest 10, from 100 to 300 to the nearest
+5, below 100 as they come. The boss overlay's base (varbit 6100) at each path
+boss's first appearance, in the 21 sessions: 94 of 94 solo fights match, 61 of
+84 party fights (the 23 others are parties whose size or path level the
+tracker reads from the players it saw, not the raid). The one value that is not
+a multiple of 10 is Kephri's shield at raid level 160, path level 1: 265
+(index 4292). Ours rounded every pool to 10 and Kephri's again, so 270.
+osrs-dps-calc rounds the same way.
+
+**Defence**: every npc in a Tombs room defends with its defence roll x (250 +
+raid level) / 250, except Kephri's three overlords (osrs-dps-calc's
+`getNPCDefenceRoll`, `KEPHRI_OVERLORD_IDS`; the wiki: +2% every 5 levels;
+every raid level is a multiple of 5, so the two agree). The roll is scaled,
+not the Defence level, so a drain still lowers the level it starts from. Ours
+had `~toa_scale_defence` and never called it, so every ToA npc defended as it
+would at level 0. Now `~npc_defence_roll` and `~npc_defence_roll_player`, which
+every player swing and spec meets, go through `~toa_npc_defence_roll`. The
+raid level is read off the room's own pointer to its Nexus, because an npc's
+roll is also asked with no player active. No recording shows a defence roll.
+This one rests on dps-calc and the wiki.
+
+Test: `test/raids/toa_defence_scaling_tells.lua` (`::toabossdef`: Zebak and
+Kephri at raid level 0 keep their rolls; at 75 every style is x 1.30, e.g.
+Zebak's stab 2240 to 2912, Kephri's 11036 to 14346). The rounding and the
+defence factor are also in `toarun`'s `toa_st_boss_hp`.
+
 ## Not built: Arterial Spray
 
 Every recorded blood barrage (79 of 79) had Arterial Spray on, so the barrage
