@@ -399,7 +399,7 @@ the seq beside the raider.
 |---|---|---|---|---|
 | p1 line chip | 3..5 (232) | 3..5 | same | matched |
 | p1 strike | 17..19 (13/13) | 17..19 | same | matched |
-| p1 volley | under the matching prayer 0 (46/47; one 10) | 0..25, prayed 0 | same | matched |
+| p1 volley | 256 shots over 4301..4316: 248 0 (prayed: no chip through), 9 hits 2..24; the prayer read on landing (a switched volley 47/50 0 vs 179/185); the element carries volley to volley and changes 14 of 65 | 0..25, prayed 0; one element a walk | 0..25, prayed 0 on landing; the element changes 14 in 65 a volley | fixed (the element); the top of 0..25 and any accuracy roll unverified |
 | p1 explode near him | 28, 28, 30 | 20..40 | 25..35 | fixed |
 | p1 routine | three volleys on the walk, the corner charge (7 lines), the explode; at 66% the middle's four beats and the strike | same (the stream's apparent extra corner was our bot's slower damage) | same | matched |
 | p2 fired line | 19..25 (10; one 29 unattributed) | 40..55 (from 42, 55 that were The Blade's) | 19..25 | fixed |
