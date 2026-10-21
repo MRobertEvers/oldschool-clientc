@@ -77,7 +77,7 @@ from collections import Counter, defaultdict
 import config_text
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DEFAULT_TREE = os.path.join(REPO, "OSRS-Content", "osrs239-content")
+DEFAULT_TREE = os.path.join(REPO, "OSRS-Content", "osrs-content")
 DEFAULT_REF = os.path.expanduser("~/Documents/git_repos/LostCity_Server")
 MAP_REL = os.path.join("port", "names.map")
 

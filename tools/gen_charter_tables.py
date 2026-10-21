@@ -5,7 +5,7 @@ gen_charter_tables — author the charter ship port and fare dbrows.
     tools/gen_charter_tables.py            # dry run, prints a diff summary
     tools/gen_charter_tables.py --write
 
-Writes, into OSRS-Content/osrs239-content/server/scripts/transport_charter/configs/:
+Writes, into OSRS-Content/osrs-content/server/scripts/transport_charter/configs/:
 
     charter_port.dbrow    16 rows — one per reachable port
     charter_fare.dbrow    240 rows — one per ordered (from, to) pair
@@ -54,7 +54,7 @@ import sys
 import config_text
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONTENT = os.path.join(REPO, "OSRS-Content", "osrs239-content")
+CONTENT = os.path.join(REPO, "OSRS-Content", "osrs-content")
 ALL_DBROW = os.path.join(CONTENT, "configs", "all.dbrow")
 OUT_DIR = os.path.join(
     CONTENT, "server", "scripts", "transport_charter", "configs")

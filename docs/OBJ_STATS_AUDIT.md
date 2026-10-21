@@ -1,6 +1,6 @@
 # Object stats audit — tradeable, members, alch, weapon stats, attack speed
 
-> Measured 2026-08-13, against `OSRS-Content/osrs239-content/configs/all.obj`
+> Measured 2026-08-13, against `OSRS-Content/osrs-content/configs/all.obj`
 > (33,747+ obj records) and the ToriRSServer engine. Every claim below is a literal
 > command; re-run it rather than believing the prose (same contract as
 > `WEAPON_FX.md`). This is the "audit all objects" answer for the fields that
@@ -28,7 +28,7 @@ content**. Nothing here needed scraping; the audit is a proof, not a port.
 ## 1. Tradeable
 
 ```sh
-grep -c "^tradeable=no" OSRS-Content/osrs239-content/configs/all.obj
+grep -c "^tradeable=no" OSRS-Content/osrs-content/configs/all.obj
 grep -n "tradeable" src/torirsserver/torirs_server.h src/torirsserver/torirs_server_ops_obj.c
 ```
 
@@ -41,8 +41,8 @@ design (an item can be tradeable player-to-player without a GE line).
 ## 2. Members
 
 ```sh
-grep -c "^members=yes" OSRS-Content/osrs239-content/configs/all.obj
-grep -rn "oc_members(" OSRS-Content/osrs239-content/server/scripts | wc -l
+grep -c "^members=yes" OSRS-Content/osrs-content/configs/all.obj
+grep -rn "oc_members(" OSRS-Content/osrs-content/server/scripts | wc -l
 ```
 
 `ToriRSServerObjInfo.members` (`torirs_server.h:859`) is opcode 16. `oc_members` is
@@ -55,8 +55,8 @@ world."
 ## 3. High / low alchemy
 
 ```sh
-grep -c "^highalch=\|^lowalch=" OSRS-Content/osrs239-content/configs/all.obj   # 0 — not a stored field, anywhere
-sed -n '40,55p;80,90p' OSRS-Content/osrs239-content/server/scripts/skill_magic/scripts/spells/alchemy.rs2
+grep -c "^highalch=\|^lowalch=" OSRS-Content/osrs-content/configs/all.obj   # 0 — not a stored field, anywhere
+sed -n '40,55p;80,90p' OSRS-Content/osrs-content/server/scripts/skill_magic/scripts/spells/alchemy.rs2
 ```
 
 There is no `highalch`/`lowalch` opcode in the OSRS cache format at all —
@@ -76,7 +76,7 @@ Nothing to port.
 ## 4. Weapon attack speed
 
 ```sh
-grep -n "attackrate" OSRS-Content/osrs239-content/server/scripts/skill_combat/combat.rs2
+grep -n "attackrate" OSRS-Content/osrs-content/server/scripts/skill_combat/combat.rs2
 ```
 
 `param=attackrate` is native to every weapon record (e.g. `bronze_scimitar`

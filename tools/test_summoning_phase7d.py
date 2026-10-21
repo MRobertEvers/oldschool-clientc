@@ -11,7 +11,7 @@ import tempfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
-CONTENT = REPO / "OSRS-Content/osrs239-content"
+CONTENT = REPO / "OSRS-Content/osrs-content"
 CLIENT = REPO / "src/torirs"
 CACHE = REPO / "cache.osrs239.summoning"
 SCRIPTS = CONTENT / "server/scripts/build_summoning"
@@ -101,7 +101,7 @@ def main() -> int:
         "[proc,summoning_logout]",
     ):
         expect(token in script, f"pet lifecycle binding missing {token}")
-    expect("varp6230_summoning_familiar_ticks" not in script[script.index("[proc,summoning_pet_clockwork_cat_release]"):script.index("[proc,summoning_pet_clear_state]")], "pet release reused familiar timer state")
+    expect("varp6905_summoning_familiar_ticks" not in script[script.index("[proc,summoning_pet_clockwork_cat_release]"):script.index("[proc,summoning_pet_clear_state]")], "pet release reused familiar timer state")
     if errors:
         return finish(checks, errors)
 

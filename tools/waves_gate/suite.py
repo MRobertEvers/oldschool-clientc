@@ -29,7 +29,7 @@ QUEST_TESTS_DIR = os.path.join(REPO_ROOT, "test", "quests")
 QUEUE_TSV_PATH = os.path.join(QUEST_TESTS_DIR, "QUEUE.tsv")
 # A passing unit's ledger and shots: selftest/minigames/<game>/<unit>/play/
 # (quest_list.suite_publish_subdir: inferno_nibblers -> inferno/nibblers).
-WAVES_PUBLISH_DIR = os.path.join(REPO_ROOT, "OSRS-Content", "osrs239-content", "server", "scripts",
+WAVES_PUBLISH_DIR = os.path.join(REPO_ROOT, "OSRS-Content", "osrs-content", "server", "scripts",
                                  "selftest", "minigames")
 # The games a wave id may name (docs/WAVES_ORCHESTRATOR.md section 1).
 GAMES = ("inferno", "colosseum")

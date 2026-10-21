@@ -63,7 +63,7 @@ import sys
 import config_text
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONTENT = os.path.join(REPO, "OSRS-Content", "osrs239-content")
+CONTENT = os.path.join(REPO, "OSRS-Content", "osrs-content")
 WIKI = os.path.join(CONTENT, "wiki")
 CATALOG = os.path.join(WIKI, "shop_catalog.csv")
 STOCK = os.path.join(WIKI, "shop_stock.csv")

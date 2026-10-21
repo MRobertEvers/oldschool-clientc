@@ -69,6 +69,12 @@ enum RSCache_CS2_NameTable
     RSCACHE_CS2_NAMES_VARBIT,
     RSCACHE_CS2_NAMES_VARCINT,
     RSCACHE_CS2_NAMES_VARCSTRING,
+    /* The long-stack accesses of the same ids: a varc the scripts read with
+     * opcode 51/52, a varp with 64/65. Checked before the int tables, because
+     * the id-carrying `varp5753_` spelling would otherwise compile as an int
+     * read. Seeded by RSCache_CS2_NamesSeedLongVars. */
+    RSCACHE_CS2_NAMES_VARCLONG,
+    RSCACHE_CS2_NAMES_VARPLONG,
 
     RSCACHE_CS2_NAMES_TABLE_COUNT,
 };
@@ -198,6 +204,24 @@ RSCache_CS2_NamesSet(
     enum RSCache_CS2_NameTable table,
     int id,
     const char* name);
+
+struct RSCache_CS2_Script;
+
+/**
+ * Give every varc a script reads as a long (51/52) and every varp a script reads
+ * as a long (64/65) its name in the long tables.
+ *
+ * A var's stack is not in its config: a varc is int or string by how the
+ * cache's scripts use it (see the varc tables above), and a long varp likewise.
+ * So the long tables are read off the scripts themselves — the varp keeps its
+ * VARP name, which the long table repeats; a varc's name moves out of VARCINT,
+ * since one varc is one stack. Call after the int tables are seeded.
+ */
+void
+RSCache_CS2_NamesSeedLongVars(
+    struct RSCache_CS2_Names* names,
+    const struct RSCache_CS2_Script* const* scripts,
+    int script_count);
 
 /**
  * Pin the trigger a script's header carries: RSCACHE_CS2_TRIGGER_PROC or

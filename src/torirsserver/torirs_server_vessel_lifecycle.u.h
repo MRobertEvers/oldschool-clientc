@@ -92,7 +92,7 @@ vessel_forget_instance(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
 {
     assert(srv);
     assert(player);
-    int varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp5925_map_instance_handle");
+    int varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp6600_map_instance_handle");
     if( varp >= 0 && player->varps[varp] == instance )
         ToriRSServer_WorldSetVarpOn(srv, player, varp, 0);
 }

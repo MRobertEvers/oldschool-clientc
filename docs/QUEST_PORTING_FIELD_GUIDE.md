@@ -122,7 +122,7 @@ so any client you spawn from the same shell stays clean.
 =======
 **Named Gate D BMPs live in the `OSRS-Content` submodule.** Parent-verify
 with `git -C OSRS-Content ls-tree -r --name-only <gitlink-sha> --
-osrs239-content/server/scripts/selftest/<quest_dir>` and unique MD5s.
+osrs-content/server/scripts/selftest/<quest_dir>` and unique MD5s.
 `git ls-tree` on the parent branch only shows the gitlink — it will
 report 0 `.bmp` files even when the content SHA has them. Commit the
 BMPs in OSRS-Content **and** push that SHA, then move the parent
@@ -539,7 +539,7 @@ reading as "it got harder at 70%"):
   after one that frees its pack (check with `grep -n
   ToriRSServer_ScriptsFree` around your insertion point), reload your own
   copy at the top (`ToriRSServer_ScriptsLoad(srv, "OSRS-Content/
-  osrs239-content/server/scripts/build")`, with the `../` fallback and
+  osrs-content/server/scripts/build")`, with the `../` fallback and
   `ToriRSServer_ScriptsFree` at your own end, same as `::elenarun`/
   `::waterfallrun` already do) rather than assuming a pack is already
   loaded. Cost the Jungle Potion audit (2026-08-20) a long detour chasing a
@@ -611,7 +611,7 @@ reading as "it got harder at 70%"):
 ## 8. The two-minute pre-flight, verbatim
 
 ```sh
-# in OSRS-Content/osrs239-content/server/scripts, before compiling:
+# in OSRS-Content/osrs-content/server/scripts, before compiling:
 grep -rEn '^\[[a-z_0-9]+,[^]]+,[^]]+\]' <your files>        # stacked-name headers
 grep -rEn 'return\(.* (&|\|) .*\);' <your files>            # boolean returns
 # non-ASCII inside STRING LITERALS only (comments may use any typography):

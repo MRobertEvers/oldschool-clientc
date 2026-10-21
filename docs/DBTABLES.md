@@ -147,7 +147,7 @@ checks name **collisions** (`validate_symbols`), not id bounds.
 ## 4. The files and the pipeline
 
 ```
-cache.osrs239                  cachepack unpack            OSRS-Content/osrs239-content
+cache.osrs239                  cachepack unpack            OSRS-Content/osrs-content
   config group 39   ────────────────────────────────────►   configs/all.dbtable       (schema text)
   config group 38   ────────────────────────────────────►   configs/all.dbrow         (row text)
   gameval archive 10 ───────────────────────────────────►   configs/all.dbtable.compack  (table names)
@@ -394,7 +394,7 @@ Four steps, verified end to end on table 0 (`quest`):
    ```
    cd 3rd/rscache && ./tools/cachepack/cachepack unpack \
        --cache ../../cache.osrs239 --rev osrs239 \
-       --src ../../OSRS-Content/osrs239-content --types dbtable,dbrow
+       --src ../../OSRS-Content/osrs-content --types dbtable,dbrow
    ```
 
    Measured on table 0: **exactly 215 lines changed** — one `[block]` header in
@@ -458,7 +458,7 @@ matching `^\d+=_` above the allocator marker; the prose header, the marker and
 ```
 cd 3rd/rscache && ./tools/cachepack/cachepack unpack \
     --cache ../../cache.osrs239 --rev osrs239 \
-    --src ../../OSRS-Content/osrs239-content --types dbtable,dbrow
+    --src ../../OSRS-Content/osrs-content --types dbtable,dbrow
 ```
 
 245 lines dropped, 246 names written, 0 still flat-read, 259 and 260 in place

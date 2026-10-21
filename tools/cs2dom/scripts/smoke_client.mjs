@@ -39,7 +39,7 @@ function flag(name, fallback) {
 
 const cache = resolve(flag('cache', join(REPO, 'cache.osrs239')));
 const revision = flag('rev', 'osrs239');
-const content = resolve(flag('content', join(REPO, 'OSRS-Content', 'osrs239-content')));
+const content = resolve(flag('content', join(REPO, 'OSRS-Content', 'osrs-content')));
 /*
  * Interface 600, the Kudos list: text, sprites, a scrollbar and a close button,
  * which is a lot of the raster surface in one record. A near-empty interface

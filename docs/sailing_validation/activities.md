@@ -40,7 +40,7 @@ to each hull's `crew_capacity` and each recruit's unlock state.
 
 Subtype numbers below are the cache's `sailing_boat_facility:facility_subtype`.
 Gameplay sources live under
-[`server/scripts/sailing/scripts`](../../OSRS-Content/osrs239-content/server/scripts/sailing/scripts).
+[`server/scripts/sailing/scripts`](../../OSRS-Content/osrs-content/server/scripts/sailing/scripts).
 
 | Subtype | Facility | Operation and state |
 |---|---|---|

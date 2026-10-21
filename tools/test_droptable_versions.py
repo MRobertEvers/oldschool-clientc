@@ -30,7 +30,7 @@ import wiki_droptable as wd  # noqa: E402
 import config_text  # noqa: E402
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONTENT = os.path.join(REPO, "OSRS-Content", "osrs239-content")
+CONTENT = os.path.join(REPO, "OSRS-Content", "osrs-content")
 TABLES = os.path.join(CONTENT, "server", "scripts", "drop_tables", "scripts")
 NPC_CONFIG = os.path.join(CONTENT, "server", "scripts", "npc", "configs",
                           "combat_stats.generated.npc")

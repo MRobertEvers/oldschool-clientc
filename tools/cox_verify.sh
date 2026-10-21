@@ -24,7 +24,7 @@ set -e
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
-C=OSRS-Content/osrs239-content
+C=OSRS-Content/osrs-content
 
 [ -x src/build_opt/sscompile ] || make -C src sscompile >/dev/null
 [ -x src/build_opt/torirsserver ] || make -C src ToriRSServer >/dev/null

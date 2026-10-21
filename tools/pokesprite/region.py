@@ -50,7 +50,7 @@ def parse(keys):
     return npcs, layer_seqs, loc_keys, obj_keys, spot_keys
 
 
-CONTENT = os.path.join(os.path.dirname(os.path.dirname(HERE)), "OSRS-Content/osrs239-content")
+CONTENT = os.path.join(os.path.dirname(os.path.dirname(HERE)), "OSRS-Content/osrs-content")
 # Walls (0 straight, 1 diagonal corner, 3 post, 9 diagonal; 2, the L corner,
 # is drawn from its straight wall at two rotations), centrepieces, ground decor.
 DRAWN_LOC_SHAPES = (0, 1, 2, 3, 9, 10, 11, 22)

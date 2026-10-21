@@ -11,10 +11,13 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : MidiJingleEncoder
- * Layouts      : 16 distinct, over 19 contiguous revision run(s)
+ * Layouts      : 17 distinct, over 20 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^MidiJingleEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
+ *                Revision(s) 241 come from RSProx, not RSProt
+ *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
+ *                gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -63,6 +66,8 @@ void packet_midi_jingle_v14_out(RsprotExec *x, MsgMidiJingle *m);
 void packet_midi_jingle_v15_out(RsprotExec *x, MsgMidiJingle *m);
 /* v16 -- revs 239. */
 void packet_midi_jingle_v16_out(RsprotExec *x, MsgMidiJingle *m);
+/* v100 -- revs 241. */
+void packet_midi_jingle_v100_out(RsprotExec *x, MsgMidiJingle *m);
 
 /* Per-revision aliases: `packet_midi_jingle_rev239_out` is greppable, which is the
  * point -- "what does 239 do for MIDI_JINGLE" without reading a table. */
@@ -85,6 +90,7 @@ void packet_midi_jingle_v16_out(RsprotExec *x, MsgMidiJingle *m);
 #define packet_midi_jingle_rev237_out packet_midi_jingle_v1_out
 #define packet_midi_jingle_rev238_out packet_midi_jingle_v15_out
 #define packet_midi_jingle_rev239_out packet_midi_jingle_v16_out
+#define packet_midi_jingle_rev241_out packet_midi_jingle_v100_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_midi_jingle_out[];

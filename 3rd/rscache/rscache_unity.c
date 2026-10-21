@@ -108,6 +108,7 @@
 #include "src/revisions/rev_dat2_osrs237.c"
 #include "src/revisions/rev_dat2_osrs238.c"
 #include "src/revisions/rev_dat2_osrs239.c"
+#include "src/revisions/rev_dat2_osrs241.c"
 #include "src/revisions/rev_dat2_rs530.c"
 #include "src/revisions/rev_dat2_rs558.c"
 #include "src/revisions/rev_dat2_rs634.c"

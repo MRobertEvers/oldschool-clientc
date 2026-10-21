@@ -54,7 +54,7 @@ BIN=src/torirs_zukglyph
 OBJ=build_zukglyph
 MANIFEST=tools/zuk_glyph/world.ini
 CACHE=cache.osrs239.baked
-PACK=OSRS-Content/osrs239-content/server/scripts/build/script.dat
+PACK=OSRS-Content/osrs-content/server/scripts/build/script.dat
 
 # The camera, and it is load-bearing. Whether the seam exception fires at all is
 # a function of where the eye sits relative to a tile, so the gate is only as

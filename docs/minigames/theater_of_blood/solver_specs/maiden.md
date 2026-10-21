@@ -1,7 +1,7 @@
 # SPEC: The Maiden of Sugadinti, Normal mode, trio (solver from scratch)
 
 Abbreviations used in citations:
-- M = OSRS-Content/osrs239-content/server/scripts/minigames/minigame_tob/scripts/tob_maiden.rs2
+- M = OSRS-Content/osrs-content/server/scripts/minigames/minigame_tob/scripts/tob_maiden.rs2
 - K = .../minigame_tob/configs/tob.constant
 - KM = .../configs/tob_maiden.constant
 - NPC = .../configs/tob.npc

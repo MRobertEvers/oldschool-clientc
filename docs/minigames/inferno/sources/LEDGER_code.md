@@ -82,7 +82,7 @@ only for policy the cache does not state"); the Inferno path quoted by `docs/INF
 (`inferno.constant` "Where Kronos and the wiki differ, the wiki is what this tree follows").
 
 What the tree took, quoted from the content it ports into
-(`OSRS-Content/osrs239-content/server/scripts/minigames/minigame_inferno/`, every line that names Kronos):
+(`OSRS-Content/osrs-content/server/scripts/minigames/minigame_inferno/`, every line that names Kronos):
 
 ```
 configs/inferno.constant:3:// (Kronos TzKalZuk), remapped to osrs239 pack names. Waves/pillars: Kronos

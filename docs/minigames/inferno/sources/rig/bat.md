@@ -27,7 +27,7 @@ Method: docs/minigames/waves_loop/RIG_PASS.md. Documents only; nothing run or re
 ## Unknown
 - Nothing on the rig is left unclassified.
 
-## Ledger (OSRS-Content/osrs239-content/npc_combat/i/inferno_creature_harpie.combat)
+## Ledger (OSRS-Content/osrs-content/npc_combat/i/inferno_creature_harpie.combat)
 - death jalmejrah_death, attack jalmejrah_attack, defend jalmejrah_defend: all on the rig and Jal-MejRah by name. 0 disagreements.
 - attack/defend/death sounds are "-" (none carried): agrees with the cache.
 - File says NOT COMPILED: inferno.npc has its own authored block that wins.

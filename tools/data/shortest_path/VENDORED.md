@@ -7,7 +7,7 @@ Source: https://github.com/Skretzo/shortest-path
 - Files: `transports/*.tsv`, copied verbatim from
   `src/main/resources/transports/` at the commit above. No content was edited;
   `tools/maplink_import.py` is the only consumer and treats every row as an
-  unverified claim to be checked against `OSRS-Content/osrs239-content` before
+  unverified claim to be checked against `OSRS-Content/osrs-content` before
   it can land in generated content.
 
 Re-vendor with:

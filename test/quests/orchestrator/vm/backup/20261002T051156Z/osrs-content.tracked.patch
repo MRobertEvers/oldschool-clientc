@@ -21,7 +21,7 @@ index 88b7603b55..73e388b426 100644
 +// the table is recorded exactly as ~poh_build_single records it. The player is
 +// left beside the Rimmington portal, outside the house.
 +[debugproc,coldwarpoh]
-+if (%varp5925_map_instance_handle ! ^map_instance_none) {
++if (%varp6600_map_instance_handle ! ^map_instance_none) {
 +    mes("Cold War POH: leave your house first (::pohleave).");
 +    return;
 +}

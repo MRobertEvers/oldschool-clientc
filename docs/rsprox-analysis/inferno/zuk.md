@@ -1,6 +1,6 @@
 # TzKal-Zuk: recorded behaviour
 
-The sources are submissions 3299, 1754 and 199 (see [README.md](README.md)). Ticks are each recording's own. Ours were measured with `test/waves/inferno_zuk_tells.lua` and `tools/rsprox/ticklog_tells.py`, and every row marked **matches** was checked in that run (2026-10-18). Content is in `OSRS-Content/osrs239-content/server/scripts/minigames/minigame_inferno/`.
+The sources are submissions 3299, 1754 and 199 (see [README.md](README.md)). Ticks are each recording's own. Ours were measured with `test/waves/inferno_zuk_tells.lua` and `tools/rsprox/ticklog_tells.py`, and every row marked **matches** was checked in that run (2026-10-18). Content is in `OSRS-Content/osrs-content/server/scripts/minigames/minigame_inferno/`.
 
 ## 1. Wave 68 → the cutscene
 

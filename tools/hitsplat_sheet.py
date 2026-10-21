@@ -20,10 +20,10 @@ from PIL import Image, ImageDraw, ImageFont
 import config_text
 
 # ---- reading what the tree already holds ---------------------------------
-SPRITES = 'OSRS-Content/osrs239-content/sprites'
-CONFIG  = 'OSRS-Content/osrs239-content/configs/all.hitsplat'
-COMPACK = 'OSRS-Content/osrs239-content/configs/all.hitsplat.compack'
-SPRPACK = 'OSRS-Content/osrs239-content/pack/8_sprites.pack'
+SPRITES = 'OSRS-Content/osrs-content/sprites'
+CONFIG  = 'OSRS-Content/osrs-content/configs/all.hitsplat'
+COMPACK = 'OSRS-Content/osrs-content/configs/all.hitsplat.compack'
+SPRPACK = 'OSRS-Content/osrs-content/pack/8_sprites.pack'
 
 def read_bmp32(path):
     """The 32-bit BGRA bottom-up bmp `bmp_write_file` writes. Returns (w, h, [RGBA...])."""

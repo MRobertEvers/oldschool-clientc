@@ -109,7 +109,7 @@ selftest_sailing_stale_queues(struct ToriRSServer* srv,
     /* The catalogue opens only for a hull berthed at the captain's Shipyard
      * (boat_customisation.rs2 ~sailing_at_shipyard): stand this one there --
      * a Shipyard copy that records the hull, named by the captain's varp. */
-    int shipyard_varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp7480_sailing_shipyard_instance");
+    int shipyard_varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp8155_sailing_shipyard_instance");
     int shipyard = ToriRSServer_MapInstanceAlloc(ToriRSServer_WorldCacheDir(), 1, 1);
     int saved_shipyard = 0;
     SELFTEST_CHECK(shipyard_varp >= 0 && shipyard > 0, "a Shipyard copy can be stood up for the arrival");

@@ -15,7 +15,7 @@ classes — this is the part that is per-item research, not one global choice),
 
 ## 1. What counts, and how the list was built
 
-The ops are already in the cache. `OSRS-Content/osrs239-content/configs/all.obj`
+The ops are already in the cache. `OSRS-Content/osrs-content/configs/all.obj`
 is exporter-owned (see `docs/PORTING_GUIDE.md` §3 and the
 `exporter-owns-generated-configs` rule) and already carries `ifop3=Check`,
 `ifop4=Uncharge`, `Charge`, `Break`, `Revert`, `Dissolve`, `Dismantle`,
@@ -99,7 +99,7 @@ account-scoped ones the wiki pass will confirm.
 
 Declared as `[name]` blocks in `server/scripts/**/configs/*.varp` with
 `scope=perm`, allocated by `tools/ss_allocate.py` into
-`OSRS-Content/osrs239-content/pack/varp.alloc` (609 ids allocated today, no
+`OSRS-Content/osrs-content/pack/varp.alloc` (609 ids allocated today, no
 pressure). `torirs_server_save.c` persists only `scope=perm` varps — a `scope=temp`
 charge counter would silently reset on logout.
 
@@ -174,7 +174,7 @@ Reads `configs/all.obj`, groups objs into name-families, classifies each by its
 op set, and emits:
 
 - `docs/ITEM_CHARGES.md` — the human table, grouped by storage class
-- `OSRS-Content/osrs239-content/wiki/charged_items.csv` — the ledger:
+- `OSRS-Content/osrs-content/wiki/charged_items.csv` — the ledger:
   `family, obj_ids, ops, storage, max_charges, charge_source, drain_event,
   depletion, wiki_title, status, note`
 
@@ -189,8 +189,8 @@ Cloned from `tools/wiki_fetch.py`'s shape and etiquette — batched
 descriptive User-Agent with a contact address, no parallelism, and a manifest
 that makes a second run a network no-op unless `--refetch` is passed. Writes:
 
-    OSRS-Content/osrs239-content/wiki/items/<title>.wikitext
-    OSRS-Content/osrs239-content/wiki/items_manifest.tsv    title, revid, redirected_from, fetch_date
+    OSRS-Content/osrs-content/wiki/items/<title>.wikitext
+    OSRS-Content/osrs-content/wiki/items_manifest.tsv    title, revid, redirected_from, fetch_date
 
 The wikitext is committed so every number in the ledger is auditable offline and
 re-derivable, exactly as `wiki/monsters/` already is for npc stats.
@@ -208,7 +208,7 @@ regex over the page corrupts on the first nested `{{plink|...}}`) to read
 
 ## 5. The shared content library
 
-`OSRS-Content/osrs239-content/server/scripts/general/scripts/charges/`
+`OSRS-Content/osrs-content/server/scripts/general/scripts/charges/`
 
 One API over all four storage classes, so binding code never branches:
 

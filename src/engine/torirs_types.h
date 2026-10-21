@@ -348,7 +348,7 @@ struct ToriRS_Location
  * disagree, and the reason the list is short.
  *
  * The value is allocated once by tools/ss_allocate.py and recorded in
- * OSRS-Content/osrs239-content/pack/param.alloc. Ids there are stable: the
+ * OSRS-Content/osrs-content/pack/param.alloc. Ids there are stable: the
  * allocator only appends, and keeps an id even after its declaration goes away.
  * If this constant and that ledger ever disagree, the ledger is right and the
  * client is reading someone else's param.

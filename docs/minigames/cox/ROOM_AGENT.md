@@ -52,8 +52,8 @@ Do not fix it by resetting the tree. Use `--no-build` and a private
 
 Config roots:
 
-- `OSRS-Content/osrs239-content/server/scripts/minigames/minigame_cox/scripts/`
-- `OSRS-Content/osrs239-content/server/scripts/minigames/minigame_cox/configs/`
+- `OSRS-Content/osrs-content/server/scripts/minigames/minigame_cox/scripts/`
+- `OSRS-Content/osrs-content/server/scripts/minigames/minigame_cox/configs/`
 
 ## Precedence (sources)
 

@@ -21,13 +21,13 @@ index 207fae4a6c..1023beddbb 100644
 --- a/osrs239-content/pack/varp.alloc
 +++ b/osrs239-content/pack/varp.alloc
 @@ -1517,3 +1517,7 @@
- 7210=varp7210_viking_lock_3
- 7211=varp7211_viking_lock_4
- 7212=varp7212_viking_name
-+7213=varp7213_fris_jester_round
-+7214=varp7214_fris_jester_step
-+7215=varp7215_fris_jester_want
-+7216=varp7216_fris_bork_supplies
+ 7210=varp7885_viking_lock_3
+ 7211=varp7886_viking_lock_4
+ 7212=varp7887_viking_name
++7213=varp7888_fris_jester_round
++7214=varp7889_fris_jester_step
++7215=varp7890_fris_jester_want
++7216=varp7891_fris_bork_supplies
 diff --git a/osrs239-content/server/scripts/areas/area_miscellania/scripts/fisherman_frodi.rs2 b/osrs239-content/server/scripts/areas/area_miscellania/scripts/fisherman_frodi.rs2
 index 3bb69f879f..dfe2dd1c93 100644
 --- a/osrs239-content/server/scripts/areas/area_miscellania/scripts/fisherman_frodi.rs2
@@ -2074,7 +2074,7 @@ index d633dba817..d4d3d3072f 100644
 +mes("You fail to steal a cowbell.");
 +mes("The cow kicks you and stuns you!");
 +damage(uid, hitsplat_damage, 1);
-+%varp5732_action_delay = calc(map_clock + 3);
++%varp6407_action_delay = calc(map_clock + 3);
 +
 +[oploc4,fairy_fat_cow]
 +if (%varb3293_peng_quest = ^coldwar_not_started) {
@@ -2897,11 +2897,11 @@ index 63cc2c2991..44d1182a3e 100644
 +// panel with `%varb3308_peng_doing_greeting` set.
 +// ------------------------------------------------------------------
 +[proc,coldwar_side_tab](interface $panel)
-+if (%varp7138_client_mobile = 1) {
++if (%varp7813_client_mobile = 1) {
 +    if_opensub(toplevel_osm:side12, $panel, 1);
-+} else if (%varp6917_client_layout = ^client_mode_fixed) {
++} else if (%varp7592_client_layout = ^client_mode_fixed) {
 +    if_opensub(toplevel:side12, $panel, 1);
-+} else if (%varp6917_client_layout = ^client_mode_resizable_modern) {
++} else if (%varp7592_client_layout = ^client_mode_resizable_modern) {
 +    if_opensub(toplevel_pre_eoc:side12, $panel, 1);
 +} else {
 +    if_opensub(toplevel_osrs_stretch:side12, $panel, 1);
@@ -6377,8 +6377,8 @@ index 15bdeba191..1ee019b7b1 100644
 -[opnpc1,sang_myq3_mine_guard_juvinate_female]
 -if (%varb2573_myq3_main_quest < ^doh_return_meiyerditch) {
 -    ~chatnpc("Get back to work.");
-+if (%varp5732_action_delay < map_clock) {
-+    %varp5732_action_delay = calc(map_clock + ~mining_pickaxe_rate($pick));
++if (%varp6407_action_delay < map_clock) {
++    %varp6407_action_delay = calc(map_clock + ~mining_pickaxe_rate($pick));
 +    anim(~mining_pickaxe_anim($pick), 0);
 +    mes("You swing your pick at the rock.");
 +    p_oploc(1);
@@ -6389,7 +6389,7 @@ index 15bdeba191..1ee019b7b1 100644
 -    ~chatnpc_anim(^chat_neutral, "Here -- don't lose it.");
 -    if (inv_freespace(inv) > 0) {
 -        inv_add(inv, bronze_pickaxe, 1);
-+if (%varp5732_action_delay = map_clock) {
++if (%varp6407_action_delay = map_clock) {
 +    anim(~mining_pickaxe_anim($pick), 0);
 +    if (random(3) = 0) {
 +        inv_add(inv, castle_drakan_daeyalt_ore, 1);
@@ -9077,17 +9077,17 @@ index 408ffc2323..c79ad719f4 100644
 +// asked for that the player has not yet done (0 = none outstanding), and which
 +// round it is (1 = first spy mission, 2 = second). All three reset at login: a
 +// performance is never resumed.
-+[varp7214_fris_jester_step]
++[varp7889_fris_jester_step]
 +protect=no
 +transmit=no
 +scope=temp
 +
-+[varp7215_fris_jester_want]
++[varp7890_fris_jester_want]
 +protect=no
 +transmit=no
 +scope=temp
 +
-+[varp7213_fris_jester_round]
++[varp7888_fris_jester_round]
 +protect=no
 +transmit=no
 +scope=temp
@@ -9095,7 +9095,7 @@ index 408ffc2323..c79ad719f4 100644
 +// Which of Bork Sigmundson's three one-time supplies the player has taken
 +// (bit 0 food, bit 1 Strength potions, bit 2 Prayer potions): the wiki gives
 +// each request once, and the count survives leaving the cave.
-+[varp7216_fris_bork_supplies]
++[varp7891_fris_bork_supplies]
 +protect=no
 +transmit=no
 +scope=perm
@@ -10695,7 +10695,7 @@ index 6dcc4a9e00..879810d0d6 100644
 +~fris_bork_menu;
 +
 +[proc,fris_bork_menu]
-+if (testbit(%varp7216_fris_bork_supplies, 0) = ^true & testbit(%varp7216_fris_bork_supplies, 1) = ^true & testbit(%varp7216_fris_bork_supplies, 2) = ^true) {
++if (testbit(%varp7891_fris_bork_supplies, 0) = ^true & testbit(%varp7891_fris_bork_supplies, 1) = ^true & testbit(%varp7891_fris_bork_supplies, 2) = ^true) {
 +    ~fris_bork("I've run out of supplies, <~fris_name>! Only our bravery remains.");
 +    return;
 +}
@@ -10707,11 +10707,11 @@ index 6dcc4a9e00..879810d0d6 100644
 +}
 +if ($pick = 1) {
 +    ~chatplayer("Give me food, Bork!");
-+    if (testbit(%varp7216_fris_bork_supplies, 0) = ^true) {
++    if (testbit(%varp7891_fris_bork_supplies, 0) = ^true) {
 +        ~fris_bork("I've already given you all the food I can spare, <~fris_name>!");
 +        return;
 +    }
-+    %varp7216_fris_bork_supplies = setbit(%varp7216_fris_bork_supplies, 0);
++    %varp7891_fris_bork_supplies = setbit(%varp7891_fris_bork_supplies, 0);
 +    ~fris_bork("Here, take this tuna quickly, <text_gender("sir", "madam")>!");
 +    ~fris_bork_give(tuna, calc(random(3) + 8));
 +    mes("Bork Sigmundson hands you some Tuna.");
@@ -10719,22 +10719,22 @@ index 6dcc4a9e00..879810d0d6 100644
 +}
 +if ($pick = 2) {
 +    ~chatplayer("I need Strength potions!");
-+    if (testbit(%varp7216_fris_bork_supplies, 1) = ^true) {
++    if (testbit(%varp7891_fris_bork_supplies, 1) = ^true) {
 +        ~fris_bork("I've already given you all the Strength potions I can spare, <~fris_name>!");
 +        return;
 +    }
-+    %varp7216_fris_bork_supplies = setbit(%varp7216_fris_bork_supplies, 1);
++    %varp7891_fris_bork_supplies = setbit(%varp7891_fris_bork_supplies, 1);
 +    ~fris_bork("Strength be with you, <~fris_name>!");
 +    ~fris_bork_give(strength4, calc(random(3) + 2));
 +    mes("Bork Sigmundson hands you some Strength potions.");
 +    return;
 +}
 +~chatplayer("I need Prayer potions!");
-+if (testbit(%varp7216_fris_bork_supplies, 2) = ^true) {
++if (testbit(%varp7891_fris_bork_supplies, 2) = ^true) {
 +    ~fris_bork("I've already given you all the Prayer potions I can spare, <~fris_name>!");
 +    return;
 +}
-+%varp7216_fris_bork_supplies = setbit(%varp7216_fris_bork_supplies, 2);
++%varp7891_fris_bork_supplies = setbit(%varp7891_fris_bork_supplies, 2);
 +~fris_bork("May the gods be with you <~fris_name>!");
 +~fris_bork_give(3doseprayerrestore, calc(random(3) + 2));
 +mes("Bork Sigmundson hands you some Prayer potions.");
@@ -10915,9 +10915,9 @@ index 07f43bb753..34755d4b23 100644
  %varb3316_fris_king = ^fris_king_crowned;
 -%varb3312_fris_task = ^fris_task_trolls_needed;
 +%varb3326_frisd_pub_favours = 0;
-+%varp7216_fris_bork_supplies = 0;
-+%varp7214_fris_jester_step = 0;
-+%varp7215_fris_jester_want = 0;
++%varp7891_fris_bork_supplies = 0;
++%varp7889_fris_jester_step = 0;
++%varp7890_fris_jester_want = 0;
  ~fris_reset_tax;
  
  [debugproc,fremennikisles]

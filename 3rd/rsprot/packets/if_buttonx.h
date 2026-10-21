@@ -11,10 +11,13 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : IfButtonXDecoder
- * Layouts      : 1 distinct, over 1 contiguous revision run(s)
+ * Layouts      : 1 distinct, over 2 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^IfButtonXDecoder\tin\t' 3rd/rsprot/gen/packet_versions.txt
+ *                Revision(s) 241 come from RSProx, not RSProt
+ *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
+ *                gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -33,7 +36,7 @@ typedef struct MsgIfButtonX {
 	int32_t op;
 } MsgIfButtonX;
 
-/* v1 -- revs 231-239. */
+/* v1 -- revs 231-239, 241. */
 void packet_if_buttonx_v1_in(RsprotExec *x, MsgIfButtonX *m);
 
 /* Per-revision aliases: `packet_if_buttonx_rev239_in` is greppable, which is the
@@ -47,6 +50,7 @@ void packet_if_buttonx_v1_in(RsprotExec *x, MsgIfButtonX *m);
 #define packet_if_buttonx_rev237_in packet_if_buttonx_v1_in
 #define packet_if_buttonx_rev238_in packet_if_buttonx_v1_in
 #define packet_if_buttonx_rev239_in packet_if_buttonx_v1_in
+#define packet_if_buttonx_rev241_in packet_if_buttonx_v1_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_if_buttonx_in[];

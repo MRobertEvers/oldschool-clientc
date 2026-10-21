@@ -343,8 +343,8 @@ return {
                 "npc:Well then go away",
             })
             t.ticks(2)
-            local _, lub = t.var.server("varp6052_tbwt_lubufu")
-            t.check("goToLubufu-brushoff.var", lub == 1, "varp6052_tbwt_lubufu = " .. tostring(lub) .. " (intro)")
+            local _, lub = t.var.server("varp6727_tbwt_lubufu")
+            t.check("goToLubufu-brushoff.var", lub == 1, "varp6727_tbwt_lubufu = " .. tostring(lub) .. " (intro)")
             t.exec("goToLubufu-ask", t.player.talk_to, "tbwt_lubufu", 1)
             t.exec("goToLubufu-ask-dialog", t.chat.play, {
                 "npc:You again!",
@@ -380,8 +380,8 @@ return {
                 "npc:Any small net will do",
             })
             t.ticks(2)
-            _, lub = t.var.server("varp6052_tbwt_lubufu")
-            t.check("goToLubufu-ask.var", lub == 5, "varp6052_tbwt_lubufu = " .. tostring(lub) .. " (fetch_karambwanji)")
+            _, lub = t.var.server("varp6727_tbwt_lubufu")
+            t.check("goToLubufu-ask.var", lub == 5, "varp6727_tbwt_lubufu = " .. tostring(lub) .. " (fetch_karambwanji)")
 
             t.exec("goToLubufu-give", t.player.talk_to, "tbwt_lubufu", 1)
             t.exec("goToLubufu-give-dialog", t.chat.play, {
@@ -391,8 +391,8 @@ return {
                 "npc:Thank you! This should tide me over",
             })
             t.ticks(2)
-            _, lub = t.var.server("varp6052_tbwt_lubufu")
-            t.check("goToLubufu-give.var", lub == 25, "varp6052_tbwt_lubufu = " .. tostring(lub) .. " (given_karambwanji), raw karambwanji left: " .. tostring(select(2, t.inv.count("tbwt_raw_karambwanji"))))
+            _, lub = t.var.server("varp6727_tbwt_lubufu")
+            t.check("goToLubufu-give.var", lub == 25, "varp6727_tbwt_lubufu = " .. tostring(lub) .. " (given_karambwanji), raw karambwanji left: " .. tostring(select(2, t.inv.count("tbwt_raw_karambwanji"))))
 
             -- getMoreVessel (tbwt_lubufu.rs2 given_karambwanji_ops): three of the four questions each add
             -- one to the lubufu var (25 -> 28); the third makes him offer the apprenticeship + a vessel.
@@ -440,8 +440,8 @@ return {
                 "npc:Feel free to practise",
             })
             t.ticks(2)
-            _, lub = t.var.server("varp6052_tbwt_lubufu")
-            t.check("getMoreVessel-apprentice.var", lub == 31, "varp6052_tbwt_lubufu = " .. tostring(lub) .. " (complete: apprentice)")
+            _, lub = t.var.server("varp6727_tbwt_lubufu")
+            t.check("getMoreVessel-apprentice.var", lub == 31, "varp6727_tbwt_lubufu = " .. tostring(lub) .. " (complete: apprentice)")
             t.exec("getMoreVessel-first", t.inv.expect_has, "tbwt_karambwan_vessel", 1)
 
             -- dropVessel: drop the vessel so the lost-vessel option appears, then ask for another.
@@ -734,8 +734,8 @@ return {
             -- LEG 3 END
             local _, l3stage = t.quest.stage()
             local _, l3tile = t.world.tile()
-            local _, tam = t.var.server("varp6053_tbwt_tamayu")
-            t.check("leg.3.end", tam == 3, "tile " .. tostring(l3tile.x) .. "," .. tostring(l3tile.z) .. " level " .. tostring(l3tile.level) .. ", varp320_tbwt_main=" .. tostring(l3stage) .. ", varp6053_tbwt_tamayu=" .. tostring(tam) .. ", Tamayu holds the poisoned spear and the agility potion; pack: banana rum, marinated burnt bones, seaweed, knife, tinderbox, sharks")
+            local _, tam = t.var.server("varp6728_tbwt_tamayu")
+            t.check("leg.3.end", tam == 3, "tile " .. tostring(l3tile.x) .. "," .. tostring(l3tile.z) .. " level " .. tostring(l3tile.level) .. ", varp320_tbwt_main=" .. tostring(l3stage) .. ", varp6728_tbwt_tamayu=" .. tostring(tam) .. ", Tamayu holds the poisoned spear and the agility potion; pack: banana rum, marinated burnt bones, seaweed, knife, tinderbox, sharks")
         end },
         { name = "hunt_to_end", run = function(t)
             -- LEG 4 BEGIN: goOnHuntToKill
@@ -749,8 +749,8 @@ return {
             })
             t.exec("goOnHuntToKill.cutscene", t.cutscene.await, "goOnHuntToKill", { expect = { { op = "reset" } } })
             t.ticks(4)
-            local _, tam = t.var.server("varp6053_tbwt_tamayu")
-            t.check("goOnHuntToKill.var", tam == 4, "varp6053_tbwt_tamayu = " .. tostring(tam) .. " after the killing hunt")
+            local _, tam = t.var.server("varp6728_tbwt_tamayu")
+            t.check("goOnHuntToKill.var", tam == 4, "varp6728_tbwt_tamayu = " .. tostring(tam) .. " after the killing hunt")
 
             -- getMonkeyCorpse: the corpse drops only for a monkey killed at range or by magic (tbwt_monkey.rs2:20-31, :53-60)
             t.exec("goto-getMonkeyCorpse", t.player.goto_tile, 2834, 3032, 0)
@@ -822,8 +822,8 @@ return {
                 "player:... I'll be back later",
             })
             t.ticks(2)
-            local _, tin = t.var.server("varp6054_tbwt_tinsay")
-            t.check("talkToTinsay.var", tin == 2, "varp6054_tbwt_tinsay = " .. tostring(tin) .. " after the first talk (fetch banana rum)")
+            local _, tin = t.var.server("varp6729_tbwt_tinsay")
+            t.check("talkToTinsay.var", tin == 2, "varp6729_tbwt_tinsay = " .. tostring(tin) .. " after the first talk (fetch banana rum)")
 
             -- talkToTinsay (2nd visit): banana in Karamjan rum, tbwt_tinsay.rs2:272-285
             t.exec("talkToTinsay-banana", t.player.talk_to, "tbwt_tinsay", 1)
@@ -853,8 +853,8 @@ return {
                 "player:I'll be back later",
             })
             t.ticks(2)
-            _, tin = t.var.server("varp6054_tbwt_tinsay")
-            t.check("talkToTinsay-banana.var", tin == 4, "varp6054_tbwt_tinsay = " .. tostring(tin) .. " (fetch_seaweedsandwich)")
+            _, tin = t.var.server("varp6729_tbwt_tinsay")
+            t.check("talkToTinsay-banana.var", tin == 4, "varp6729_tbwt_tinsay = " .. tostring(tin) .. " (fetch_seaweedsandwich)")
 
             -- talkToTinsay (3rd visit): the seaweed in monkey skin sandwich
             t.exec("talkToTinsay-sandwich", t.player.talk_to, "tbwt_tinsay", 1)
@@ -893,8 +893,8 @@ return {
                 "player:I'll be back",
             })
             t.ticks(2)
-            _, tin = t.var.server("varp6054_tbwt_tinsay")
-            t.check("talkToTinsay-sandwich.var", tin == 6, "varp6054_tbwt_tinsay = " .. tostring(tin) .. " (fetch_marinatedbones)")
+            _, tin = t.var.server("varp6729_tbwt_tinsay")
+            t.check("talkToTinsay-sandwich.var", tin == 6, "varp6729_tbwt_tinsay = " .. tostring(tin) .. " (fetch_marinatedbones)")
 
             -- talkToTinsay (4th visit): the burnt jogre bones marinated in karambwanji
             t.exec("talkToTinsay-bones", t.player.talk_to, "tbwt_tinsay", 1)
@@ -920,8 +920,8 @@ return {
                 "npc:Very well. I will meet you",
             })
             t.ticks(2)
-            _, tin = t.var.server("varp6054_tbwt_tinsay")
-            t.check("talkToTinsay-bones.var", tin == 7, "varp6054_tbwt_tinsay = " .. tostring(tin) .. " (complete)")
+            _, tin = t.var.server("varp6729_tbwt_tinsay")
+            t.check("talkToTinsay-bones.var", tin == 7, "varp6729_tbwt_tinsay = " .. tostring(tin) .. " (complete)")
 
             -- useVesselOnTinsay: tbwt_tinsay.rs2:46-72 -- the plain vessel Tiadeche sent along, now that Tinsay is satisfied
             t.exec("useVesselOnTinsay", t.player.use_on, "tbwt_karambwan_vessel", t.player.by_symbol("npc", "tbwt_tinsay"))

@@ -52,7 +52,7 @@ void
 ToriRSServer_BootDefaults(struct ToriRSServerBootConfig* config);
 
 /** The content tree the server reads: TORIRSSERVER_CONTENT, else
- *  OSRS-Content/osrs239-content from the repo root or from src/. */
+ *  OSRS-Content/osrs-content from the repo root or from src/. */
 const char*
 ToriRSServer_BootContentDir(void);
 

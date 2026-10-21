@@ -1,5 +1,5 @@
 # spotanims (graphics and projectiles) -- 83 records selected from cache.osrs239
-# source: OSRS-Content/osrs239-content/configs/all.spotanim (record header line given per record)
+# source: OSRS-Content/osrs-content/configs/all.spotanim (record header line given per record)
 # why= the selection rule(s) that chose the record (LEDGER_cache.md)
 
 [2666] npc_colossi_colossi_01_land    (configs/all.spotanim:17439)

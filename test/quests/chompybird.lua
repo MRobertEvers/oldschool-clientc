@@ -167,7 +167,7 @@ return {
         end
         local _, arrows = t.inv.count("ogre_arrow")
         t.check("useTipsOnShafts.count", (arrows or 0) >= 8, "ogre_arrow=" .. tostring(arrows))
-        local _, kills_bits = t.var.server("varp6192_chompybird_kills")
+        local _, kills_bits = t.var.server("varp6867_chompybird_kills")
         t.check("made_arrows.flag", kills_bits ~= nil and kills_bits % 2 == 1, "chompybird_kills=" .. tostring(kills_bits) .. " bit0 = made_arrows")
 
         -- ---- useArrowsOnRantz: ogre arrows used on Rantz ----
@@ -492,7 +492,7 @@ return {
         })
         t.ticks(2)
         t.expect("quest.stage.told_to_cook_chompy", t.quest.expect_stage("told_to_cook_chompy"))
-        local _, kv0 = t.var.server("varp6192_chompybird_kills")
+        local _, kv0 = t.var.server("varp6867_chompybird_kills")
         local rantz_flavour = math.floor((kv0 or 0) / 2) % 2
 
         -- ---- enterCaveAgain, talkToBugs, talkToFycie, leaveCaveAgain ----
@@ -505,7 +505,7 @@ return {
         t.exec("goto-fycie", t.player.goto_tile, 2649, 9391, 0)
         t.exec("talkToFycie", t.player.talk_to, "fycie", 1)
         t.exec("talkToFycie.dialog", t.chat.play, { "npc:Dad say's you's roastling", "end" })
-        local _, kv1 = t.var.server("varp6192_chompybird_kills")
+        local _, kv1 = t.var.server("varp6867_chompybird_kills")
         local bugs_flavour = math.floor((kv1 or 0) / 4) % 4
         local fycie_flavour = math.floor((kv1 or 0) / 16) % 4
         t.check("flavour.rolled", bugs_flavour >= 1 and bugs_flavour <= 2 and fycie_flavour >= 1 and fycie_flavour <= 2,
@@ -579,7 +579,7 @@ return {
         t.exec("reward.ogre_bow.off", t.player.unequip, "ogre_bow")
         local bow_result, bow_detail = t.inv.expect_has("ogre_bow", 1)
         t.check("reward.ogre_bow", bow_result == "ok", "ogre_bow in backpack after unequip -> " .. tostring(bow_result) .. " " .. tostring(bow_detail))
-        local _, kv2 = t.var.server("varp6192_chompybird_kills")
+        local _, kv2 = t.var.server("varp6867_chompybird_kills")
         t.check("kills.reset", kv2 == 0, "chompybird_kills=" .. tostring(kv2))
         t.finish(0)
         return

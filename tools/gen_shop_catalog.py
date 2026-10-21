@@ -7,8 +7,8 @@ gen_shop_catalog — turn the cached shop wikitext into two reviewable tables.
 
 ## What it writes
 
-    OSRS-Content/osrs239-content/wiki/shop_catalog.csv   one row per stock table
-    OSRS-Content/osrs239-content/wiki/shop_stock.csv     one row per stocked obj
+    OSRS-Content/osrs-content/wiki/shop_catalog.csv   one row per stock table
+    OSRS-Content/osrs-content/wiki/shop_stock.csv     one row per stocked obj
 
 `shop_catalog.csv` is the *behaviour*: the three price multipliers, the owner,
 the location, whether it is members-only, what currency it trades in. Every
@@ -75,7 +75,7 @@ import subprocess
 import sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONTENT = os.path.join(REPO, "OSRS-Content", "osrs239-content")
+CONTENT = os.path.join(REPO, "OSRS-Content", "osrs-content")
 SHOPS_DIR = os.path.join(CONTENT, "wiki", "shops")
 MANIFEST = os.path.join(CONTENT, "wiki", "shops_manifest.tsv")
 CATALOG = os.path.join(CONTENT, "wiki", "shop_catalog.csv")

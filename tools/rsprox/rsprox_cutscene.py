@@ -14,7 +14,7 @@ statements that send the same packets on the same ticks, in the order the record
 
 Tiles are printed as `~<name>_at(dx, dz, level)`: offsets from `--origin` (the SW tile of the copied
 template square), so the draft drops into an instance copy unchanged. Every 239 symbol is looked up in
-OSRS-Content/osrs239-content (configs/all.*.compack, pack/4_soundeffects.pack, pack/6_musictracks.pack);
+OSRS-Content/osrs-content (configs/all.*.compack, pack/4_soundeffects.pack, pack/6_musictracks.pack);
 an id the 239 cache names differently is still printed by its 239 name, with the recorded name in a
 comment -- check those (recorded ids are the session's revision).
 
@@ -27,7 +27,7 @@ import os
 import re
 import sys
 
-ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "OSRS-Content", "osrs239-content")
+ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "OSRS-Content", "osrs-content")
 
 
 def table(path):

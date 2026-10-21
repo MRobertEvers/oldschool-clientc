@@ -1,5 +1,5 @@
 -- Ratcatchers. Guide: RatCatchers.java via ladder.py (46 steps). Content:
--- OSRS-Content/osrs239-content/server/scripts/quests/quest_ratcatchers/scripts/ratcatchers.rs2.
+-- OSRS-Content/osrs-content/server/scripts/quests/quest_ratcatchers/scripts/ratcatchers.rs2.
 -- Guide requires: Icthlarin's Little Helper finished, The Giant Dwarf started
 -- (ratcatchers_shared.rs2 ratcatch_meets_prereqs), a non-overgrown cat, a Catspeak amulet.
 --
@@ -425,8 +425,8 @@ return {
             face_hole()
             t.exec("useCatOnHole", t.player.use_on, "kittenobject", wall)
             t.exec("useCatOnHole-dialog", t.chat.play, { "mesbox:Send your cat", "choose:Yes.", "choose:Be careful in there, cat!" })
-            local _, active = t.var.server("varp7202_ratcatch_kr_active")
-            t.check("useCatOnHole.sent", active == 1, "varp7202_ratcatch_kr_active = " .. tostring(active))
+            local _, active = t.var.server("varp7877_ratcatch_kr_active")
+            t.check("useCatOnHole.sent", active == 1, "varp7877_ratcatch_kr_active = " .. tostring(active))
             -- feedCatAsItFights: ratcatch_kingrat_round every 3 ticks; the cat has 5 hp, the King Rat 10
             -- (ratcatchers.constant); the cat hits random(3), the King random(2) a round. A trout used on
             -- the wall heals 2 (ratcatch_feed_cat). The cat is fed once it is hurt; in a short fight the
@@ -455,7 +455,7 @@ return {
                     if count(t, "trout") < tb then break end
                     t.ticks(1)
                 end
-                local _, hurt2 = t.var.server("varp7204_ratcatch_kr_cat_hurt")
+                local _, hurt2 = t.var.server("varp7879_ratcatch_kr_cat_hurt")
                 local _, v2 = t.var.server("varb1404_ratcatch_var")
                 if count(t, "trout") == tb and v2 >= 65 then
                     t.note(label .. ": the fight ended (stage " .. v2 .. ") before the trout landed; trout kept " .. tb)
@@ -468,13 +468,13 @@ return {
             for _ = 1, 160 do
                 local _, v = t.var.server("varb1404_ratcatch_var")
                 if v >= 65 then break end
-                local _, hurt = t.var.server("varp7204_ratcatch_kr_cat_hurt")
-                local _, act = t.var.server("varp7202_ratcatch_kr_active")
+                local _, hurt = t.var.server("varp7879_ratcatch_kr_cat_hurt")
+                local _, act = t.var.server("varp7877_ratcatch_kr_active")
                 hurt = hurt or 0
                 if act == 0 and resent < 2 then
                     -- the cat scrambled out nearly dead: feed it whole, send it back in.
-                    while (select(2, t.var.server("varp7204_ratcatch_kr_cat_hurt")) or 0) > 0 and count(t, "trout") > 0 do
-                        feed("feedCatAsItFights-" .. (fed + 1), select(2, t.var.server("varp7204_ratcatch_kr_cat_hurt")))
+                    while (select(2, t.var.server("varp7879_ratcatch_kr_cat_hurt")) or 0) > 0 and count(t, "trout") > 0 do
+                        feed("feedCatAsItFights-" .. (fed + 1), select(2, t.var.server("varp7879_ratcatch_kr_cat_hurt")))
                     end
                     resent = resent + 1
                     face_hole()

@@ -123,7 +123,7 @@ banker two tiles back may refuse too; a booth op is not affected.
 
 A `walk_to` or `click_loc` from outside stops at the wall, and the easy fix is a `goto_tile`
 inside. Find the building's door first and use it; a goto inside is the last resort. The
-map square file lists every placed loc: `OSRS-Content/osrs239-content/maps/m<X>_<Z>.jl2`,
+map square file lists every placed loc: `OSRS-Content/osrs-content/maps/m<X>_<Z>.jl2`,
 where X = x / 64 and Z = z / 64. Each line reads `level lx lz: id shape [rot]`, with
 lx = x - 64*X and lz = z - 64*Z. Shape 0 is a straight wall, shape 3 a wall corner. Rot is
 the tile edge the wall sits on: 0 west, 1 north, 2 east, 3 south. The id is named in
@@ -285,7 +285,7 @@ Logs, leaves, rocks and tunnels that end in `~maplink_agility`
 when the click lands, then match the loc. They teleport only from a row's exact `src` tile. Any
 other tile answers `~displaymessage(^dm_default)` ("Nothing interesting happens."), and so does a
 loc with no row at all. Before the crossing, `grep -n -B2 -A3 '<loc symbol>'
-OSRS-Content/osrs239-content/server/scripts/skill_agility/configs/maplink_agility.dbrow`, stand on
+OSRS-Content/osrs-content/server/scripts/skill_agility/configs/maplink_agility.dbrow`, stand on
 the row's `src` (`click_loc(..., { at = {x, z} })` or a walk), and click. If no row names the loc
 (Regicide's `regicide_logbalance*_start`), that is a content seam, not a tile to hunt for.
 Regicide's dense forests (`regicide_cross_over*`) no longer read the table at all (FIXED seam37):

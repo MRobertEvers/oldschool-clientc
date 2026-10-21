@@ -143,7 +143,7 @@
     "boat": "skiff",
     "binary_sha256": "092d1e5bfc50466e66814f55675c39f6cc1d384ffc9f864a983830893098da04",
     "script_pack": "/private/tmp/sailing-utils-check/script.dat",
-    "launch_script_pack": "/Users/matthewevers/Documents/git_repos/3draster/OSRS-Content/osrs239-content/server/scripts/build/script.dat",
+    "launch_script_pack": "/Users/matthewevers/Documents/git_repos/3draster/OSRS-Content/osrs-content/server/scripts/build/script.dat",
     "script_sha256": "b118d39851de53586f5b5eaafd7a6b3b52d9c32a40b709e4a893a6b26b2a52ad",
     "allow_stale_scripts": true
   },

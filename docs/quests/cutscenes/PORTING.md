@@ -43,7 +43,7 @@ worth knowing before you start:
 | The clip (1080p, 3 s padding either side) and its sidecar | `~/Documents/osrs_cutscenes/<test_id>/<test_id>-<index>-<slug>.mp4` and `meta-<same>.txt`; mirror on `/Volumes/MatthewLLM_Shared/osrs_cutscenes/` |
 | The wiki's trigger, participants, description, evidence line | `TRIAGE.tsv` |
 | The wiki transcript | the `source` URL in `../CUTSCENES.tsv` (with revision); `Transcript:<Quest>` |
-| The quest's scripts | `OSRS-Content/osrs239-content/server/scripts/quests/<quest_dir>/scripts/*.rs2` |
+| The quest's scripts | `OSRS-Content/osrs-content/server/scripts/quests/<quest_dir>/scripts/*.rs2` |
 | The quest's test | `test/quests/<test_id>.lua`; it must be `green` in `test/quests/QUEUE.tsv` |
 | What is already ported | `PORTS.tsv` |
 

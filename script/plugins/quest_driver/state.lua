@@ -598,7 +598,7 @@ function QD.skill.read(name)
     return api_drive.skill(stat_index)
 end
 
--- The stat pack's own fixed protocol table (OSRS-Content/osrs239-content/
+-- The stat pack's own fixed protocol table (OSRS-Content/osrs-content/
 -- pack/stat.pack: "Skill ids. Fixed by the protocol", torirs_server.h:900-918)
 -- -- there is no drive primitive that enumerates stats, only symbol(name)->id
 -- and skill(id)->reading, so snapshot has to name every stat itself to visit
@@ -696,7 +696,7 @@ end
 -- WHY THE CHAT LINE AND NOT THE HITPOINTS.  A client is told its own
 -- hitpoints, so `skill.read("hitpoints").level == 0` looks like the reading to
 -- take -- but it is true only for the ticks between the killing blow and
--- [proc,player_death_restore]'s refill (OSRS-Content/osrs239-content/server/
+-- [proc,player_death_restore]'s refill (OSRS-Content/osrs-content/server/
 -- scripts/player/death.rs2), and a driver that polls once a tick while a click
 -- verb is blocked inside a twenty-tick settle sees none of it.  What survives
 -- is the sentence: death.rs2:280/284 and skill_combat/combat.rs2:398 print

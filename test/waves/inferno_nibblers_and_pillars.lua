@@ -913,7 +913,7 @@ return {
         "::give bloodrune 40", "::give deathrune 70", "::give waterrune 120",
         "::setvar varp172_option_nodef 1", "::setvar varb4070_spellbook 1",
         -- staging (labelled): a real run paused at wave 1 (seam pass 4's staging)
-        "::setvar varb5646_inferno_sacrificed_firecape 2", "::setvar varp6056_inferno_paused 1", "::setvar varp6065_inferno_saved_wave 1",
+        "::setvar varb5646_inferno_sacrificed_firecape 2", "::setvar varp6731_inferno_paused 1", "::setvar varp6740_inferno_saved_wave 1",
     },
     run = function(t)
         t.ticklog.start()

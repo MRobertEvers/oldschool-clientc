@@ -11,10 +11,13 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : OpWorldEntity6Decoder
- * Layouts      : 4 distinct, over 5 contiguous revision run(s)
+ * Layouts      : 4 distinct, over 6 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^OpWorldEntity6Decoder\tin\t' 3rd/rsprot/gen/packet_versions.txt
+ *                Revision(s) 241 come from RSProx, not RSProt
+ *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
+ *                gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -36,7 +39,7 @@ void packet_opworldentity6_v1_in(RsprotExec *x, MsgOpWorldEntity6 *m);
 void packet_opworldentity6_v2_in(RsprotExec *x, MsgOpWorldEntity6 *m);
 /* v3 -- revs 235-237. */
 void packet_opworldentity6_v3_in(RsprotExec *x, MsgOpWorldEntity6 *m);
-/* v4 -- revs 238. */
+/* v4 -- revs 238, 241. */
 void packet_opworldentity6_v4_in(RsprotExec *x, MsgOpWorldEntity6 *m);
 
 /* Per-revision aliases: `packet_opworldentity6_rev239_in` is greppable, which is the
@@ -48,6 +51,7 @@ void packet_opworldentity6_v4_in(RsprotExec *x, MsgOpWorldEntity6 *m);
 #define packet_opworldentity6_rev237_in packet_opworldentity6_v3_in
 #define packet_opworldentity6_rev238_in packet_opworldentity6_v4_in
 #define packet_opworldentity6_rev239_in packet_opworldentity6_v2_in
+#define packet_opworldentity6_rev241_in packet_opworldentity6_v4_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_opworldentity6_in[];

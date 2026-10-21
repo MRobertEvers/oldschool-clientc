@@ -1,5 +1,5 @@
 # ladder enlightenedjourney quest_dir=quest_enlightenedjourney guide=src/main/java/com/questhelper/helpers/quests/enlightenedjourney/EnlightenedJourney.java steps=11 legs=1:1-11@s0
-#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
 leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
 1	1	0	travelToEntrana	NpcStep	npc:shipmonk1_c	3047,3236,0	Bank all weapons and armour you have, and go to Port Sarim to get a boat to Entrana.				areas/port_sarim/scripts/monk_of_entrana.rs2:17 opnpc1; +1
 1	2	0	talkToAuguste	NpcStep	npc:zep_piccard	2809,3354,0	Talk to Auguste on Entrana 3 times.		Papyrus; Ball of wool	Yes! Sign me up. | Umm, yes. What's your point? | Yes.	quests/quest_enlightenedjourney/scripts/ej_network.rs2:53 opnpc4; +1

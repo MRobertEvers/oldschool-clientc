@@ -786,6 +786,8 @@ cs2_common_stack_type(
     }
     if( !any )
         return RSCACHE_CS2_TYPE_NONE;
+    if( stack == RSCACHE_CS2_STACK_LONG )
+        return RSCACHE_CS2_TYPE_LONG;
     return stack == RSCACHE_CS2_STACK_STRING ? RSCACHE_CS2_TYPE_STRING : RSCACHE_CS2_TYPE_INT;
 }
 static bool
@@ -802,15 +804,19 @@ cs2_calc_types(struct cs2_dfa* dfa)
             RSCache_CS2_VecPush(&unresolved.items, typing);
     }
 
-    /* Strings first: the stack has exactly one string type, so a string slot's
-     * type is decided before any inference runs. */
+    /* Strings and longs first: each of those stacks has exactly one type, so
+     * such a slot's type is decided before any inference runs. */
     for( int i = 0; i < unresolved.items.count; i++ )
     {
         struct RSCache_CS2_Typing* typing =
             (struct RSCache_CS2_Typing*)unresolved.items.items[i];
-        if( typing->stack_type == RSCACHE_CS2_STACK_STRING )
+        if( typing->stack_type == RSCACHE_CS2_STACK_STRING ||
+            typing->stack_type == RSCACHE_CS2_STACK_LONG )
         {
-            RSCache_CS2_TypingFreezeType(typing, RSCACHE_CS2_TYPE_STRING);
+            RSCache_CS2_TypingFreezeType(
+                typing,
+                typing->stack_type == RSCACHE_CS2_STACK_LONG ? RSCACHE_CS2_TYPE_LONG
+                                                             : RSCACHE_CS2_TYPE_STRING);
             unresolved.items.items[i] = NULL;
         }
     }
@@ -1057,8 +1063,10 @@ cs2_calc_types(struct cs2_dfa* dfa)
             (struct RSCache_CS2_Typing*)unresolved.items.items[i];
         if( !typing )
             continue;
-        typing->type = typing->stack_type == RSCACHE_CS2_STACK_STRING ? RSCACHE_CS2_TYPE_STRING
-                                                                      : RSCACHE_CS2_TYPE_INT;
+        typing->type = typing->stack_type == RSCACHE_CS2_STACK_STRING
+                           ? RSCACHE_CS2_TYPE_STRING
+                           : (typing->stack_type == RSCACHE_CS2_STACK_LONG ? RSCACHE_CS2_TYPE_LONG
+                                                                           : RSCACHE_CS2_TYPE_INT);
     }
     RSCache_CS2_VecFree(&unresolved.items);
     return true;

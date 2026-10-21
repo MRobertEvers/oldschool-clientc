@@ -35,7 +35,7 @@ from pathlib import Path
 
 
 REPO = Path(__file__).resolve().parents[1]
-CONTENT = REPO / "OSRS-Content/osrs239-content"
+CONTENT = REPO / "OSRS-Content/osrs-content"
 SCRIPT_LANE = CONTENT / "server/scripts/ported_scape2009_summoning"
 # `make -C src` by anyone relinks src/torirs without the embedded server, which
 # breaks the runtime half here for a reason unrelated to the leash. Point

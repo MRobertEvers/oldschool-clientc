@@ -313,7 +313,7 @@ def simulate(rows) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--tree", default="OSRS-Content/osrs239-content")
+    parser.add_argument("--tree", default="OSRS-Content/osrs-content")
     args = parser.parse_args()
     path = (
         Path(args.tree)

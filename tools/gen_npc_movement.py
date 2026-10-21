@@ -640,7 +640,7 @@ def claim_server_membership(content_dir, names):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--content", default="OSRS-Content/osrs239-content")
+    ap.add_argument("--content", default="OSRS-Content/osrs-content")
     ap.add_argument("--spawn-dump", default=os.path.expanduser(
         "~/Documents/git_repos/xrsps-typescript/server/data/npc-spawns.json"))
     ap.add_argument("--rsmod", default=os.path.expanduser(

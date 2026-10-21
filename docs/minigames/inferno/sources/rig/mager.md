@@ -33,7 +33,7 @@ Method: docs/minigames/waves_loop/RIG_PASS.md. Documents only; nothing run or re
 ## Unknown
 - Nothing on the rig is left unclassified. No defend animation exists on the rig.
 
-## Ledger (OSRS-Content/osrs239-content/npc_combat/i/inferno_creature_mager.combat; finalwave same)
+## Ledger (OSRS-Content/osrs-content/npc_combat/i/inferno_creature_mager.combat; finalwave same)
 - death jalakxil_death (a2), attack jalakxil_attack_magic (a3, ranked 2): on rig, right monster.
 - defend null (a5): consistent, rig has none. All sounds "-": consistent.
 - Both files say NOT COMPILED: the authored inferno.npc block wins.

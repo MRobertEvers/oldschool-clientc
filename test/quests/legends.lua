@@ -438,13 +438,13 @@ return {
             for _, sketch in ipairs({ { "moveToWest", 2791, 2917 }, { "moveToMiddle", 2852, 2915 }, { "moveToEast", 2910, 2916 } }) do
                 local step, x, z = sketch[1], sketch[2], sketch[3]
                 t.exec("goto-" .. step, t.player.goto_tile, x, z, 0)
-                local _, bits_before = t.var.server("varp6202_legends_bits")
+                local _, bits_before = t.var.server("varp6877_legends_bits")
                 local drawn = false
                 for try = 1, 8 do
                     t.exec(step .. "-map-" .. try, t.player.inv_op, "thkaramjamap", 2)
                     t.chat.drain({ max_pages = 4 })
                     t.ticks(3)
-                    local _, bits_after = t.var.server("varp6202_legends_bits")
+                    local _, bits_after = t.var.server("varp6877_legends_bits")
                     local _, complete = t.inv.count("thkaramjamapcomp")
                     if bits_after ~= bits_before or complete > 0 then
                         t.ticks(3)
@@ -1757,7 +1757,7 @@ return {
             -- the guide's option 2 (Save): "If you wish to keep Viyeldi alive, teleport out now, and you'll be
             -- guided to get the holy force" -- the hat beside the rope is left where it lies, Viyeldi is not
             -- summoned, and Camelot Teleport leaves the caves with Echned's dark dagger
-            -- ANY-OF: killViyeldi talkToUngaduluForForce the Save option keeps Viyeldi alive and hands the dark dagger to Ungadulu for the Holy Force instead: OSRS-Content/osrs239-content/server/scripts/quests/quest_legends/scripts/ungadulu.rs2:525
+            -- ANY-OF: killViyeldi talkToUngaduluForForce the Save option keeps Viyeldi alive and hands the dark dagger to Ungadulu for the Holy Force instead: OSRS-Content/osrs-content/server/scripts/quests/quest_legends/scripts/ungadulu.rs2:525
             do
                 local _, hat = t.world.obj_near("viyeldihat", 8)
                 local _, dagger = t.inv.count("deathdagger")
@@ -2008,8 +2008,8 @@ return {
             ---------------------------------------------------------------- pushBoulderWithForce
             -- legends_boulder.rs2:6 below stage 22 summons Echned and opens echned_dialogue itself;
             -- echned_zekin.rs2:75 asks for the dagger, the Holy Force answers by inventory op instead
-            -- ANY-OF: pushBoulderAgain pushBoulderWithForce the boulder press summons Echned for the holy force route: OSRS-Content/osrs239-content/server/scripts/quests/quest_legends/scripts/legends_boulder.rs2:6
-            -- ANY-OF: giveDaggerToEchned castForce the holy force card stands in for the glowing dagger (long route): OSRS-Content/osrs239-content/server/scripts/quests/quest_legends/scripts/echned_zekin.rs2:39
+            -- ANY-OF: pushBoulderAgain pushBoulderWithForce the boulder press summons Echned for the holy force route: OSRS-Content/osrs-content/server/scripts/quests/quest_legends/scripts/legends_boulder.rs2:6
+            -- ANY-OF: giveDaggerToEchned castForce the holy force card stands in for the glowing dagger (long route): OSRS-Content/osrs-content/server/scripts/quests/quest_legends/scripts/echned_zekin.rs2:39
             t.player.walk_to(2395, 4679, 60)
             t.exec("pushBoulderWithForce", t.player.press, "boulder_legends", 1, 10, { at = { 2392, 4678 } })
             do
@@ -2393,9 +2393,9 @@ return {
             -- when legends_killed_viyeldi is set (nezikchened.rs2:151, "Corrupted are we now Viyeldi was
             -- slain..."), so the pole brings Nezikchened alone. Quest Helper's kill steps are conditioned on
             -- each hero standing nearby (placingTheTotem ranalphNearby/irvigNearby/sanNearby).
-            -- ANY-OF: killSan defeatDemon on the Save route Viyeldi lives and no ancient hero rises, Nezikchened is fought alone: OSRS-Content/osrs239-content/server/scripts/quests/quest_legends/scripts/nezikchened.rs2:151
-            -- ANY-OF: killIrvig defeatDemon on the Save route Viyeldi lives and no ancient hero rises, Nezikchened is fought alone: OSRS-Content/osrs239-content/server/scripts/quests/quest_legends/scripts/nezikchened.rs2:151
-            -- ANY-OF: killRanalph defeatDemon on the Save route Viyeldi lives and no ancient hero rises, Nezikchened is fought alone: OSRS-Content/osrs239-content/server/scripts/quests/quest_legends/scripts/nezikchened.rs2:151
+            -- ANY-OF: killSan defeatDemon on the Save route Viyeldi lives and no ancient hero rises, Nezikchened is fought alone: OSRS-Content/osrs-content/server/scripts/quests/quest_legends/scripts/nezikchened.rs2:151
+            -- ANY-OF: killIrvig defeatDemon on the Save route Viyeldi lives and no ancient hero rises, Nezikchened is fought alone: OSRS-Content/osrs-content/server/scripts/quests/quest_legends/scripts/nezikchened.rs2:151
+            -- ANY-OF: killRanalph defeatDemon on the Save route Viyeldi lives and no ancient hero rises, Nezikchened is fought alone: OSRS-Content/osrs-content/server/scripts/quests/quest_legends/scripts/nezikchened.rs2:151
             t.ticks(2)
             do
                 local risen = {}
@@ -2442,8 +2442,8 @@ return {
             -- talk (gujuo.rs2:113) hands over the gilded totem pole and moves the stage to 45
             t.exec("useTotemOnTotemAgain-gift", t.inv.await, "thtotempolegift", 1, 10)
             t.expect("quest.stage.got_gilded_totem", t.quest.expect_stage(45))
-            -- ANY-OF: summonGujou useTotemOnTotemAgain the replaced pole itself brings Gujuo, no bullroarer swing is asked for: OSRS-Content/osrs239-content/server/scripts/quests/quest_legends/scripts/quest_legends.rs2:1823
-            -- ANY-OF: talkToGujouForTotem useTotemOnTotemAgain Gujuo opens his own stage-40 talk and gives the gift, then leaves: OSRS-Content/osrs239-content/server/scripts/quests/quest_legends/scripts/gujuo.rs2:113
+            -- ANY-OF: summonGujou useTotemOnTotemAgain the replaced pole itself brings Gujuo, no bullroarer swing is asked for: OSRS-Content/osrs-content/server/scripts/quests/quest_legends/scripts/quest_legends.rs2:1823
+            -- ANY-OF: talkToGujouForTotem useTotemOnTotemAgain Gujuo opens his own stage-40 talk and gives the gift, then leaves: OSRS-Content/osrs-content/server/scripts/quests/quest_legends/scripts/gujuo.rs2:113
 
             ---------------------------------------------------------------- returnToRadimus
             -- Karamja is an island: Camelot Teleport home (the guide's hint is a teleport too), overland to
@@ -2514,7 +2514,7 @@ return {
             end
             -- the fourth pick reaches stage 70 and radimus_training (:92) queues legends_quest_complete
             -- (:95) in the same talk, so the guide's second talk (talkToRadimusInGuildAgain) has no scene left
-            -- ANY-OF: talkToRadimusInGuildAgain talkToRadimusInGuild the fourth training pick already runs radimus_training's stage-70 branch and queues legends_quest_complete in the same talk: OSRS-Content/osrs239-content/server/scripts/quests/quest_legends/scripts/radimus_erkle.rs2:95
+            -- ANY-OF: talkToRadimusInGuildAgain talkToRadimusInGuild the fourth training pick already runs radimus_training's stage-70 branch and queues legends_quest_complete in the same talk: OSRS-Content/osrs-content/server/scripts/quests/quest_legends/scripts/radimus_erkle.rs2:95
             t.exec("talkToRadimusInGuild-finish", t.chat.drain, { max_pages = 20 })
             t.ticks(4)
 

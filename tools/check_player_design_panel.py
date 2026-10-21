@@ -5,7 +5,7 @@
 the seven body-part rows from 15 and the five colour rows from 46, four
 components to a row -- so that a click can be stepped on the client before the
 server answers it. The panel itself is content
-(`OSRS-Content/osrs239-content/interfaces/player_design.compack`), and content
+(`OSRS-Content/osrs-content/interfaces/player_design.compack`), and content
 moves.
 
 A row inserted into the panel would slide every id after it by four. Nothing
@@ -23,7 +23,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PANEL = os.path.join(ROOT, "src", "game", "rs_design_panel.c")
 COMPACK = os.path.join(
-    ROOT, "OSRS-Content", "osrs239-content", "interfaces", "player_design.compack",
+    ROOT, "OSRS-Content", "osrs-content", "interfaces", "player_design.compack",
 )
 
 # The panel's rows, in the order the client numbers them: design parts are the

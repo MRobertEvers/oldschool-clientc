@@ -1,5 +1,5 @@
 -- Prying Times -- 'Squawking' Steve Beanie's crowbar quest (after Pandemonium).
--- OSRS-Content/osrs239-content/server/scripts/quests/quest_pryingtimes/.
+-- OSRS-Content/osrs-content/server/scripts/quests/quest_pryingtimes/.
 --
 -- RE-AUTHORED 2026-09-26 against parity1o's content rebuild (both
 -- pryingtimes.rs2 and pryingtimes_locs.rs2 were rewritten that pass -- read

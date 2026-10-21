@@ -11,7 +11,7 @@ client cycles. `t.ticks(10)` is not "wait a bit"; it is 200ms for the world to a
 ## Trap 2. Content symbols, not display names -- and where to find one.
 
 A target is always a content symbol (`"cook"`, `"cookquest"`, `"bucket_of_milk"`), never a numeric
-id or a client-lane spelling. Look one up in `OSRS-Content/osrs239-content/configs/all.*.compack`
+id or a client-lane spelling. Look one up in `OSRS-Content/osrs-content/configs/all.*.compack`
 (what `lint_quest.py` checks against) or `quest_inventory.tsv`. `quest.bind`'s `display=` is the
 quest-LIST row text `ui.journal_open` searches for; the journal's own title can differ -- that is
 `journal_title=`. Two obj symbols can share a display name too (a "Pigeon cage" is both `pigeons`

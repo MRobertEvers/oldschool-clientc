@@ -108,7 +108,7 @@ the caller owns "Unknown command".
 `pray`, `quest`, `stage`, `skip`, `invincible`. Where these exist they are
 **content debugprocs**, resolved by `cheat_dispatch`'s content-first step:
 - `[debugproc,tele]`, `[debugproc,telefind]` --
-  OSRS-Content/osrs239-content/server/scripts/general/scripts/misc/cheat_tele.rs2:51+
+  OSRS-Content/osrs-content/server/scripts/general/scripts/misc/cheat_tele.rs2:51+
   -- a `string` cheat (coord literal or curated name, see §E) that answers
   the packet BEFORE the C ladder's own `tele %d %d`/`vesselgoto` ever see the
   word "tele".
@@ -370,7 +370,7 @@ Is there an engine cheat to kill an npc / set a varp by name?
   C ladder). Instead, per-quest "skip"/"pass" debugprocs exist that write
   the specific varp(s) a quest needs directly, e.g.
   `[debugproc,biohazard_pass_mourner]`
-  (OSRS-Content/osrs239-content/server/scripts/quests/quest_biohazard/scripts/quest_biohazard.rs2:85-90):
+  (OSRS-Content/osrs-content/server/scripts/quests/quest_biohazard/scripts/quest_biohazard.rs2:85-90):
   ```
   [debugproc,biohazard_pass_mourner]
   if (%biohazard = ^biohazard_poisoned_stew) {

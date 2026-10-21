@@ -66,7 +66,7 @@ PORTALS = {"raids_mystics_portal_start": (14, 2), "raids_mystics_portal_middle":
 # Raw transcripts print a sound as its bare id: name it from the content's list.
 SOUND_NAMES = {}
 _PACK = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "OSRS-Content",
-                     "osrs239-content", "pack", "4_soundeffects.pack")
+                     "osrs-content", "pack", "4_soundeffects.pack")
 if os.path.exists(_PACK):
     for _line in open(_PACK, errors="replace"):
         _k, _, _v = _line.strip().partition("=")
@@ -636,7 +636,7 @@ class Probe:
     def __init__(self, binary):
         import subprocess
         root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
-        self.p = subprocess.Popen([binary, "cache.osrs239", "3280", "5264", "OSRS-Content/osrs239-content/server/pack"],
+        self.p = subprocess.Popen([binary, "cache.osrs239", "3280", "5264", "OSRS-Content/osrs-content/server/pack"],
                                   cwd=root, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                   stderr=subprocess.DEVNULL, text=True)
 

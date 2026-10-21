@@ -76,10 +76,10 @@ def start(directory, binary, scripts=None, content_root=None):
     env = os.environ.copy()
     env.update(TORIRS_CONTENT_TEST=str(directory), TORIRS_CONTENT_TEST_CHECKPOINTS='1', TORIRS_CONTENT_TEST_TICK_ONLY='1', SDL_VIDEODRIVER='dummy', SDL_AUDIODRIVER='dummy',
                TORIRSSERVER_SAVES=str(directory / 'saves'), TORIRS_PREFS='',
-               TORIRSSERVER_CONTENT=str(Path(content_root).resolve() if content_root else ROOT / 'OSRS-Content/osrs239-content'),
+               TORIRSSERVER_CONTENT=str(Path(content_root).resolve() if content_root else ROOT / 'OSRS-Content/osrs-content'),
                TORIRS_PLUGIN_PREFS=str(directory / 'plugin_prefs.ini'),
                TORIRSSERVER_HOME='3243,3237', TORIRSSERVER_TUTORIAL_HOME='3243,3237',
-               TORIRSSERVER_SCRIPTS=str(Path(scripts).resolve() if scripts else ROOT / 'OSRS-Content/osrs239-content/server/scripts/build'),
+               TORIRSSERVER_SCRIPTS=str(Path(scripts).resolve() if scripts else ROOT / 'OSRS-Content/osrs-content/server/scripts/build'),
                TORIRSSERVER_CACHE=str(ROOT / 'cache.osrs239'), TORIRSSERVER_STAFF_LEVEL='2')
     with (directory / 'client.log').open('w') as log:
         process = subprocess.Popen([str(Path(binary).resolve()), '--manifest', manifest,
@@ -205,7 +205,7 @@ def dependency_fingerprint(content=None):
     """Inputs loaded once by the compiler; body edits are handled separately."""
     import hashlib
     digest = hashlib.sha256()
-    content = Path(content) if content else ROOT / 'OSRS-Content/osrs239-content'
+    content = Path(content) if content else ROOT / 'OSRS-Content/osrs-content'
     skip = {'models', 'maps', 'sprites', 'synth', 'songs', 'textures', '.git', 'build', 'build_rs2012'}
     suffixes = {'.pack', '.constant', '.dbtable', '.varp', '.varbit', '.com', '.compack', '.ini'}
     for base, dirs, files in os.walk(content):
@@ -232,7 +232,7 @@ def compiler_start(session, restart=False, content_root=None):
             pass  # failed cold compile: the recorded process has already exited
         (folder / 'compiler.pid').unlink()
     (folder / 'compile.response').unlink(missing_ok=True)
-    content = Path(content_root).resolve() if content_root else ROOT / 'OSRS-Content/osrs239-content'
+    content = Path(content_root).resolve() if content_root else ROOT / 'OSRS-Content/osrs-content'
     (folder / 'compiler.content_root').write_text(str(content))
     (folder / 'compiler.dependencies').write_text(dependency_fingerprint(content))
     started = time.monotonic()

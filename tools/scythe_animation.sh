@@ -83,7 +83,7 @@ do
         east)  spot=$id_east;  model=east;  tx=1;  tz=0  ;;
         west)  spot=$id_west;  model=west;  tx=-1; tz=0  ;;
     esac
-    arc=OSRS-Content/osrs239-content/models/spot/dragon_halberd_special_${model}_red.model
+    arc=OSRS-Content/osrs-content/models/spot/dragon_halberd_special_${model}_red.model
     [ -f "$arc" ] || { echo "no such model: $arc" >&2; exit 1; }
 
     "$swing" --rev osrs239 cache.osrs239 \

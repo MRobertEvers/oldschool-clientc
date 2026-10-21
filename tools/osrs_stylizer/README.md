@@ -117,7 +117,7 @@ for reproducing or extending them.
 ## What each tool does
 
 ### `gen_osrs_corpus.py` — build the OSRS training class
-Renders raw OSRS `.model` files from `OSRS-Content/osrs239-content/models/`
+Renders raw OSRS `.model` files from `OSRS-Content/osrs-content/models/`
 through **`rs2012_model_view.exe`** — this repo's own software-rendered engine
 harness (build it with `make -C src rs2012-model-view`). This matters: the
 corpus shows the *actual* OSRS rasterizer output (flat shading, palette
@@ -645,9 +645,9 @@ real asset:
 ```bash
 python osrsify.py --mode author --preset qbd \
     --author-from tools/osrs_stylizer/runs/<study>/best \
-    --author-out OSRS-Content/osrs239-content/models/ported/rs2012_qbd_td \
+    --author-out OSRS-Content/osrs-content/models/ported/rs2012_qbd_td \
     --author-suffix _lowpoly \
-    --pack OSRS-Content/osrs239-content/ported/rs2012_qbd_td/pack/7_models.pack \
+    --pack OSRS-Content/osrs-content/ported/rs2012_qbd_td/pack/7_models.pack \
     --pack-id 110662 --pack-id 110663 \
     --max-verts 6000 --max-faces 6000
 ```

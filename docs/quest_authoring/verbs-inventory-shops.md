@@ -52,7 +52,7 @@ every buy. `shop.attach(shop_inv)` is the answer to that, and it is the one to r
 
 #### Read the shop's row in `shop_stock.csv` first
 
-Before picking a shop, read ITS row in `OSRS-Content/osrs239-content/wiki/shop_stock.csv`, not just
+Before picking a shop, read ITS row in `OSRS-Content/osrs-content/wiki/shop_stock.csv`, not just
 the wiki page: a row can carry baseline `stock` 0 for an item the page lists, and a buy then refuses
 `stocks 0 <item>` -- the fix is a different shop, not a retry.
 

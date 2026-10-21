@@ -3,7 +3,7 @@
 Every monster in this game is silent. It swings without a noise, takes a hit
 without a noise, and dies without a noise. The *call sites* exist — ported quest
 scripts already read `npc_param(attack_sound)` — and the data does not: **zero**
-npcs in `OSRS-Content/osrs239-content` state a sound param of any kind.
+npcs in `OSRS-Content/osrs-content` state a sound param of any kind.
 
 This document is the search for a source that does state them, kept as a log
 rather than a conclusion, because most of the routes failed and the reasons they

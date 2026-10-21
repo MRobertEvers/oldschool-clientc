@@ -123,11 +123,29 @@ packet_event_mouse_click_v2_v8_in(RsprotExec *x, MsgEventMouseClickV2 *m)
     m->right_click = right_click;
 }
 
+/* v100 -- revs 241. */
+void
+packet_event_mouse_click_v2_v100_in(RsprotExec *x, MsgEventMouseClickV2 *m)
+{
+    RSPROT_U2_ALT3(x, m->y);
+    RSPROT_U2_ALT3(x, m->x);
+    RSPROT_U2_ALT2(x, m->packed);
+    RSPROT_U1_ALT2(x, m->code);
+    int32_t right_click = (m->packed & (0x1 != 0));
+    int32_t last_transmitted_mouse_click = ((int32_t)((uint32_t)(m->packed) >> (1)));
+    m->last_transmitted_mouse_click = last_transmitted_mouse_click;
+    m->right_click = right_click;
+}
+
 /*
- * 8 row(s) for 8 layout(s), complete over revisions 221-239.
+ * 9 row(s) for 9 layout(s), complete over revisions 221-239.
  * A complete table makes rsprot_version_pick's NULL mean exactly one thing: a
  * revision outside that span. An incomplete one would conflate "not
  * transcribed" with "no such packet", and those are different facts.
+ *
+ * Plus revision(s) 241, which RSProt never vendored: derived from
+ * RSProx's decoders by tools/rsprox_codec_overlay.py. Revisions between 239
+ * and those are not covered and pick NULL.
  */
 const RsprotVersionRange rsprot_event_mouse_click_v2_in[] = {
     { 232, 232, (RsprotCodecFn)packet_event_mouse_click_v2_v1_in },
@@ -138,6 +156,7 @@ const RsprotVersionRange rsprot_event_mouse_click_v2_in[] = {
     { 237, 237, (RsprotCodecFn)packet_event_mouse_click_v2_v6_in },
     { 238, 238, (RsprotCodecFn)packet_event_mouse_click_v2_v7_in },
     { 239, 239, (RsprotCodecFn)packet_event_mouse_click_v2_v8_in },
+    { 241, 241, (RsprotCodecFn)packet_event_mouse_click_v2_v100_in },
 };
 
 const int rsprot_event_mouse_click_v2_in_count =

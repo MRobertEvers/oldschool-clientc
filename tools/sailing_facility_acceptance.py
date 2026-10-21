@@ -229,7 +229,7 @@ def run(s: Session, output: Path) -> dict:
         result["elapsed_ms"] = round((time.perf_counter() - started) * 1000, 3)
         result["loaded_script_sha256"] = s.metadata().get("script_sha256")
         result["binary_sha256"] = s.metadata().get("binary_sha256")
-        result["script_pack_on_disk_sha256"] = hashlib.sha256((ROOT / "OSRS-Content/osrs239-content/server/scripts/build/script.dat").read_bytes()).hexdigest()
+        result["script_pack_on_disk_sha256"] = hashlib.sha256((ROOT / "OSRS-Content/osrs-content/server/scripts/build/script.dat").read_bytes()).hexdigest()
         return result
     finally:
         (output / "activity-results.json").write_text(json.dumps(result, indent=2) + "\n")

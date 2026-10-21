@@ -39,7 +39,7 @@ import sys
 import config_text
 
 WIKI = "docs/skills/mining/sources/Smithing.wiki"
-ROWS = ("OSRS-Content/osrs239-content/server/scripts/skill_smithing/configs/"
+ROWS = ("OSRS-Content/osrs-content/server/scripts/skill_smithing/configs/"
         "smelting.dbrow")
 
 

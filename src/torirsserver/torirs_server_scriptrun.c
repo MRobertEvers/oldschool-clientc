@@ -5051,12 +5051,26 @@ ToriRSServer_ScriptRun(
         fprintf(stderr, "scriptrun: cannot read %s\n", run.test_path);
         return 2;
     }
-    /* The bots decode revision 239 (the content's own revision), so the world
-     * writes 239's bytes whatever the standalone server's default wire is. */
-    run.rev = GameProtoRev_OSRS239();
-    assert(run.rev);
-    srv->wire = ToriRSServer_WireByName("osrs239");
-    assert(srv->wire);
+    /* The bots decode revision 241 -- the selected revision -- with the
+     * client's own parser, so the world writes 241's bytes whatever the
+     * standalone server's default wire is. TORIRS_SCRIPTRUN_REV=osrs239 runs
+     * the same test on the 239 pair (both ends are chosen by the one name). */
+    {
+        char const* rev_name = getenv("TORIRS_SCRIPTRUN_REV");
+
+        if( !rev_name || !rev_name[0] )
+            rev_name = "osrs241";
+        /* Only the two modern tables are linked into the server. */
+        run.rev = strcmp(rev_name, "osrs239") == 0   ? GameProtoRev_OSRS239()
+                  : strcmp(rev_name, "osrs241") == 0 ? GameProtoRev_OSRS241()
+                                                     : NULL;
+        srv->wire = ToriRSServer_WireByName(rev_name);
+        if( !run.rev || !srv->wire )
+        {
+            fprintf(stderr, "scriptrun: unknown TORIRS_SCRIPTRUN_REV '%s'\n", rev_name);
+            return 2;
+        }
+    }
 
     /* The client's own cache, for the map files its scene is built from. The
      * map keys (xteas.json) are rscache-global and the server's scene build

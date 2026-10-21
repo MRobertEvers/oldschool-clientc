@@ -59,7 +59,7 @@ from pathlib import Path
 import config_text
 
 ROOT = Path(__file__).resolve().parents[1]
-BASE = ROOT / "OSRS-Content/osrs239-content"
+BASE = ROOT / "OSRS-Content/osrs-content"
 FEATURE = BASE / "server/scripts/transport_charter"
 
 # TextIO performs universal-newline conversion.  That matters on Windows:
@@ -82,7 +82,7 @@ TRAVEL_RS2 = (FEATURE / "scripts/charter_travel.rs2").read_text()
 DOC = (ROOT / "docs/transport/CHARTER_SHIPS.md").read_text()
 
 # clientscript 9104's own exclusions, by cache dbrow id. Transcribed from
-# OSRS-Content/osrs239-content/scripts/script_9104.cs2.
+# OSRS-Content/osrs-content/scripts/script_9104.cs2.
 CLIENT_EXCLUSIONS = {
     frozenset(("Port Sarim", "Musa Point")),
     frozenset(("Port Sarim", "Port Piscarilius")),
@@ -160,7 +160,7 @@ def parse_cache_destinations() -> dict:
             a, b = corners
             if (a, b) != (0, 0):
                 zone = (((a >> 14) & 0x3FFF, a & 0x3FFF), ((b >> 14) & 0x3FFF, b & 0x3FFF))
-        related = row.typed("related_content", names)
+        related = row.typed("restricted_content", names)
         out[m.group(1)] = {
             "id": first("id", (-1,))[0],
             "name": first("name", ("",))[0].strip(),

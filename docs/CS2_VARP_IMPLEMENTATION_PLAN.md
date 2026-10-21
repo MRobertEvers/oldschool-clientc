@@ -30,7 +30,7 @@ Implementation also corrected two contracts discovered during review:
   mode `0` (Area).
 
 The canonical per-varp result and evidence is
-`OSRS-Content/osrs239-content/port/cs2_varps.map`.
+`OSRS-Content/osrs-content/port/cs2_varps.map`.
 
 ### Verification result
 

@@ -1,5 +1,5 @@
 # ladder royaltrouble quest_dir=quest_royaltrouble guide=src/main/java/com/questhelper/helpers/quests/royaltrouble/RoyalTrouble.java steps=81 legs=1:1-10@s0 2:11-20@s20 3:21-30@s20 4:31-40@s20 5:41-51@s20 6:52-61@s20 7:62-71@s20 8:72-81@s20
-#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
 leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
 1	1	0	travelToMisc	NpcStep	npc:viking_sailor	2629,3693,0	Travel to Miscellania. You can take a boat from Rellekka. You can also use Fairy Rings to teleport there with the code CIP If you've unlocked them.			Yes.	quests/quest_viking/scripts/viking_sailor.rs2:1 opnpc1
 1	2	0	goUpToGhrim	ObjectStep	loc:spiralstairs_wooden	2506,3849,0	Talk to Advisor Ghrim in Miscellania castle.				ladders_stairs/scripts/ladders.rs2:175 oploc1; +1

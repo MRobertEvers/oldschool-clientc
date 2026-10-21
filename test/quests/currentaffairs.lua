@@ -1,5 +1,5 @@
 -- Current Affairs.
--- content: OSRS-Content/osrs239-content/server/scripts/quests/quest_currentaffairs/scripts/currentaffairs.rs2
+-- content: OSRS-Content/osrs-content/server/scripts/quests/quest_currentaffairs/scripts/currentaffairs.rs2
 -- Arhein's opnpc1 delegates to `ca_arhein_talk` via
 -- areas/area_catherby/scripts/arhein.rs2 (op 1, confirmed). Harry's
 -- opnpc1 delegates to `ca_harry_talk` the same way, only inside the

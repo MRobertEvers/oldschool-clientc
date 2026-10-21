@@ -293,7 +293,7 @@ selftest_quest_biohazard(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
     npc_guidor = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "guidor");
     npc_lathas = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "kinglathas");
     varp_bio = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp68_biohazard");
-    varp_errand = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp6004_bioerrand");
+    varp_errand = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp6679_bioerrand");
     varp_elena = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp165_elenaquest");
     varp_qp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp");
     vb_home = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb1784_plaguecity_elena_at_home");

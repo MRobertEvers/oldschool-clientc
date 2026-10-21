@@ -41,7 +41,7 @@ SIZE = 2
 # Raw transcripts print a sound as its bare id: name it from the content's list.
 SOUND_NAMES = {}
 _PACK = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "OSRS-Content",
-                     "osrs239-content", "pack", "4_soundeffects.pack")
+                     "osrs-content", "pack", "4_soundeffects.pack")
 if os.path.exists(_PACK):
     for _line in open(_PACK, errors="replace"):
         _k, _, _v = _line.strip().partition("=")

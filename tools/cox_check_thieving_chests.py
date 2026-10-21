@@ -46,10 +46,10 @@ sys.path.insert(0, str(HERE))
 from cox_template_survey import read_jl2, read_names, square_path  # noqa: E402
 
 ROOT = HERE.parent
-CONTENT = ROOT / "OSRS-Content/osrs239-content"
+CONTENT = ROOT / "OSRS-Content/osrs-content"
 PUZZLES = (
     ROOT
-    / "OSRS-Content/osrs239-content/server/scripts/minigames/minigame_cox/scripts/cox_puzzles.rs2"
+    / "OSRS-Content/osrs-content/server/scripts/minigames/minigame_cox/scripts/cox_puzzles.rs2"
 )
 
 PITCH = 32

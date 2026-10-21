@@ -1,4 +1,4 @@
--- Devious Minds. Content: OSRS-Content/osrs239-content/server/scripts/quests/quest_deviousminds/
+-- Devious Minds. Content: OSRS-Content/osrs-content/server/scripts/quests/quest_deviousminds/
 -- Setup stages the four prerequisite quests, the three skill levels and what the guide
 -- lists as brought along (mithril 2h sword, bow string, large pouch).
 --
@@ -199,7 +199,7 @@ return {
         gate_west("mageTrip")
         t.exec("goto-mageTrip.ditchSouth", t.player.goto_tile, 3106, 3505, 0)
         -- wilderness_warning.rs2: walking north into the strip at z 3512-3515 (unwarned this
-        -- session, %varp5753_wilderness = 0) stops the walk with three pages; the ditch then
+        -- session, %varp6428_wilderness = 0) stops the walk with three pages; the ditch then
         -- warns no more (wilderness_ditch.rs2 reads the same varp).
         t.player.walk_to(3106, 3520, 30)
         t.exec("mageTrip.wildernessWarning", t.chat.play, {
@@ -208,10 +208,10 @@ return {
             "mesbox:In the wilderness an indicator",
         })
         t.player.walk_to(3106, 3520, 20)
-        local war, warn = t.var.server("varp5753_wilderness")
+        local war, warn = t.var.server("varp6428_wilderness")
         local dr, dt = t.world.tile()
         t.check("mageTrip.ditchSide", dr == "ok" and dt.x == 3106 and dt.z == 3520 and dt.level == 0,
-            "walked to the ditch's south side -> " .. tile_text(dr, dt) .. " (want 3106,3520,0); varp5753_wilderness = "
+            "walked to the ditch's south side -> " .. tile_text(dr, dt) .. " (want 3106,3520,0); varp6428_wilderness = "
                 .. tostring(warn) .. " (" .. tostring(war) .. ")")
         t.exec("mageTrip.crossDitch", t.player.cross_trap, { loc = "ditch_wilderness_cover", op_name = "Cross",
             at = { 3106, 3521, 0 }, src = { 3106, 3520 }, dest = { 3106, 3523 } })

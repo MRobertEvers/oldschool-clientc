@@ -19,15 +19,15 @@ Repository:
 
 Content tree:
 
-/Users/matthewevers/Documents/git_repos/3draster/OSRS-Content/osrs239-content
+/Users/matthewevers/Documents/git_repos/3draster/OSRS-Content/osrs-content
 
 Current name pack:
 
-OSRS-Content/osrs239-content/pack/12_clientscripts.pack
+OSRS-Content/osrs-content/pack/12_clientscripts.pack
 
 Current sources:
 
-OSRS-Content/osrs239-content/scripts
+OSRS-Content/osrs-content/scripts
 
 The trusted baseline is determined exclusively from the sources at commit
 a50d766bacf081c0ff5ee92097ea982076b0186b.
@@ -232,7 +232,7 @@ CACHEPACK_CS2_NAMES=/Users/matthewevers/Documents/git_repos/cs2/src/main/resourc
 3rd/rscache/tools/cachepack/cachepack verify \
     --cache cache.osrs239 \
     --rev osrs239 \
-    --src OSRS-Content/osrs239-content \
+    --src OSRS-Content/osrs-content \
     --assets=scripts
 
 Require zero declined source records and byte-identical script output. If the executable path differs, locate the existing built cachepack binary; do not rebuild or unpack content unnecessarily.

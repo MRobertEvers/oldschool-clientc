@@ -1,5 +1,5 @@
 -- A Tail of Two Cats (2 QP). Content:
--- OSRS-Content/osrs239-content/server/scripts/quests/quest_atailoftwocats/scripts/twocats.rs2
+-- OSRS-Content/osrs-content/server/scripts/quests/quest_atailoftwocats/scripts/twocats.rs2
 -- (2052 lines) plus its delegation hosts:
 --   quest_dragonslayer2/scripts/dragonslayer2.rs2 -- Bob's ONLY [opnpc1,...]
 --     trigger (death_growncat_black) and the Sphinx's ([opnpc1,ics_little_sphinx]).
@@ -505,7 +505,7 @@ return {
                 local found, turns = 0, 0
                 for i = 1, 17 do
                     t.ticks(2)
-                    local fr, fv = t.var.server("varp7166_twocats_locator_found")
+                    local fr, fv = t.var.server("varp7841_twocats_locator_found")
                     if fr == "ok" and fv == 1 then
                         found = 1
                         break
@@ -524,7 +524,7 @@ return {
                 if found == 1 and r_whisker then
                     t.ui.invoke(r_whisker, 1)
                     t.ticks(2)
-                    local nr, nv = t.var.server("varp7166_twocats_locator_found")
+                    local nr, nv = t.var.server("varp7841_twocats_locator_found")
                     near = (nr == "ok" and nv == 1)
                 end
                 t.key("escape")

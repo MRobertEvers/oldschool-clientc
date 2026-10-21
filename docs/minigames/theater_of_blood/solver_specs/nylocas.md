@@ -1,7 +1,7 @@
 # SPEC: The Nylocas, Normal mode, trio (waves 1-31 + Nylocas Vasilias)
 
 Abbreviations for citations:
-- `N:` = OSRS-Content/osrs239-content/server/scripts/minigames/minigame_tob/scripts/tob_nylocas.rs2
+- `N:` = OSRS-Content/osrs-content/server/scripts/minigames/minigame_tob/scripts/tob_nylocas.rs2
 - `B:` = .../scripts/tob_nylocas_boss.rs2
 - `D:` = .../scripts/tob_damage.rs2
 - `P:` = .../scripts/tob_party.rs2

@@ -1,6 +1,6 @@
 # Treasure Trails
 
-Port notes for `OSRS-Content/osrs239-content/server/scripts/trail/`.
+Port notes for `OSRS-Content/osrs-content/server/scripts/trail/`.
 Queue: [`NEAR_REALITY_CONTENT_QUEUE.md`](../NEAR_REALITY_CONTENT_QUEUE.md) wave A.
 
 ---

@@ -16,8 +16,8 @@ Names carry their id, so a collision is a rename, not only a renumber.
 At merge time, after `git -C OSRS-Content merge origin/v3` (taking v3's `pack/*.alloc`):
 
 1. List every var the raid branch added: `git -C OSRS-Content diff $(git -C OSRS-Content
-   merge-base HEAD origin/v3) HEAD -- osrs239-content/pack/varp.alloc
-   osrs239-content/pack/varbit.alloc osrs239-content/pack/varc.alloc` (later seams may
+   merge-base HEAD origin/v3) HEAD -- osrs-content/pack/varp.alloc
+   osrs-content/pack/varbit.alloc osrs-content/pack/varc.alloc` (later seams may
    have added more than the three above).
 2. For each whose id v3 now uses for another name, pick the next free id on v3 (7223 on
    2026-10-03; re-check), and rename it everywhere in BOTH repos by explicit path: the
@@ -80,7 +80,7 @@ run the four and send that session the first failing row of any that moves.
 ## 2a. The content worktree is not clean (2026-10-03, seam8)
 
 Two fixer runs without `--no-publish` rewrote published evidence in
-`OSRS-Content/osrs239-content/server/scripts/selftest/quests/quest_cook/play` and
+`OSRS-Content/osrs-content/server/scripts/selftest/quests/quest_cook/play` and
 `quest_druid/play` (113 PNGs deleted, 113 untracked, 2 ledgers modified, all uncommitted).
 The seam8 closer's restore was refused by the permission check and the raid loop did not
 route around it: the owner restores those two directories from HEAD (or says to). Closers

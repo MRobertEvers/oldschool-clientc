@@ -412,7 +412,7 @@ return {
         })
         t.exec("talkToSaba-story", t.chat.drain, {})
         t.ticks(2)
-        mr, mv = t.var.server("varp5767_death_map")
+        mr, mv = t.var.server("varp6442_death_map")
         t.check("talkToSaba-map", tonumber(mv) == 1, "death_map = " .. tostring(mv) .. " (want 1 spoken_saba)")
         t.exec("leaveSabaCave", t.player.climb, { loc = "death_hermitcave_exit", op = 1, op_name = "Exit",
             at = { 2268, 4750, 0 }, dest = { 2858, 3577, 0 },
@@ -431,7 +431,7 @@ return {
         t.exec("talkToTenzing1-accept", t.chat.choose, "OK, I'll get those for you.")
         t.exec("talkToTenzing1-tail", t.chat.drain, {})
         t.ticks(2)
-        mr, mv = t.var.server("varp5767_death_map")
+        mr, mv = t.var.server("varp6442_death_map")
         t.check("talkToTenzing1-map", tonumber(mv) == 2, "death_map = " .. tostring(mv) .. " (want 2 spoken_tenzing)")
         t.exec("talkToTenzing1-boots", t.inv.expect_has, "death_climbingboots", 1)
         tenzing_out("talkToTenzing1")
@@ -445,7 +445,7 @@ return {
         })
         t.exec("talkToDunstan1-story", t.chat.drain, {})
         t.ticks(2)
-        mr, mv = t.var.server("varp5767_death_map")
+        mr, mv = t.var.server("varp6442_death_map")
         t.check("talkToDunstan1-map", tonumber(mv) == 3, "death_map = " .. tostring(mv) .. " (want 3 spoken_smithy)")
         dunstan_out("talkToDunstan1")
 
@@ -458,7 +458,7 @@ return {
         })
         t.exec("talkToDenulthForDunstan-story", t.chat.drain, {})
         t.ticks(2)
-        mr, mv = t.var.server("varp5767_death_map")
+        mr, mv = t.var.server("varp6442_death_map")
         t.check("talkToDenulthForDunstan-map", tonumber(mv) == 4, "death_map = " .. tostring(mv) .. " (want 4 got_entrancecert)")
         t.exec("talkToDenulthForDunstan-certificate", t.inv.expect_has, "death_entrancecert", 1)
 
@@ -476,7 +476,7 @@ return {
             "npc:No problem.",
         })
         t.ticks(2)
-        mr, mv = t.var.server("varp5767_death_map")
+        mr, mv = t.var.server("varp6442_death_map")
         t.check("talkToDunstan2-map", tonumber(mv) == 5, "death_map = " .. tostring(mv) .. " (want 5 given_cert)")
         t.exec("talkToDunstan2-spikedBoots", t.inv.expect_has, "death_spikedboots", 1)
         dunstan_out("talkToDunstan2")
@@ -498,7 +498,7 @@ return {
             "npc:You are wise for one so young.",
         })
         t.ticks(2)
-        mr, mv = t.var.server("varp5767_death_map")
+        mr, mv = t.var.server("varp6442_death_map")
         t.check("talkToTenzing2-map", tonumber(mv) == 7, "death_map = " .. tostring(mv) .. " (want 7 got_map)")
         t.exec("talkToTenzing2-secretMap", t.inv.expect_has, "death_secretwaymap", 1)
 
@@ -514,7 +514,7 @@ return {
             { 2817, 3564 }, { 2817, 3573 }, { 2817, 3582 }, { 2819, 3589 }, { 2825, 3592 }, { 2830, 3596 },
             { 2834, 3601 }, { 2840, 3604 }, { 2845, 3608 }, { 2853, 3609 }, { 2862, 3609 }, { 2866, 3609 },
         })
-        t.exec("goNorth-scouted", t.var.await_server, "varp5767_death_map", 8, 20)
+        t.exec("goNorth-scouted", t.var.await_server, "varp6442_death_map", 8, 20)
         t.exec("goNorth-farEnough", t.chat.drain, {})
         t.ticks(2)
 

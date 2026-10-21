@@ -7,7 +7,7 @@ The plan, the encounter log and the asset index quote several hundred numeric
 ids. A wrong one is invisible in prose and fatal in a script, so every id the
 docs state in an `id`-shaped position is re-read out of
 `docs/minigames/tombs_of_amascut/sources/` — which is itself a mechanical dump of
-`OSRS-Content/osrs239-content/` — and reported if it does not exist there.
+`OSRS-Content/osrs-content/` — and reported if it does not exist there.
 
 This is a documentation test, not a lint: it is expected to fail loudly when a
 doc drifts from the cache, and it is expected to fail if `toa_cache_dump.py` is
@@ -23,7 +23,7 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 DOCS = ROOT / "docs/minigames/tombs_of_amascut"
 SRC = DOCS / "sources"
-CONTENT = ROOT / "OSRS-Content/osrs239-content"
+CONTENT = ROOT / "OSRS-Content/osrs-content"
 
 failures = []
 checks = 0

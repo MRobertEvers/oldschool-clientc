@@ -170,7 +170,7 @@ going in (a client-native store, or a bitset of varbits): confirmed zero
 "collection"-named ops anywhere in `3rd/rscache/src/cs2/cs2_command.gen.h`.
 
 **Container 620 is a real, named cache config**:
-`OSRS-Content/osrs239-content/configs/all.inv.compack:621` →
+`OSRS-Content/osrs-content/configs/all.inv.compack:621` →
 `620=collection_transmit`; `configs/all.inv:1863-1864` → `size=500`
 (confirmed). `docs/INVENTORIES.md:17` independently lists `620 | Collection
 log` in the editor's mock inventory registry — three independent sources

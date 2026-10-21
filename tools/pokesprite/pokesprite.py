@@ -77,7 +77,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 # long batch still runs the installed binary.
 EV_SHEET = os.environ.get("POKESPRITE_EV_SHEET") or os.path.join(ROOT, "tools/entity_viewer/ev_sheet")
 CACHE = os.path.join(ROOT, "cache.osrs239")
-CONTENT = os.path.join(ROOT, "OSRS-Content/osrs239-content")
+CONTENT = os.path.join(ROOT, "OSRS-Content/osrs-content")
 
 FACINGS = [("down", 0), ("left", 512), ("right", 1536), ("up", 1024)]
 

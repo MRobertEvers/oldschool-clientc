@@ -17,9 +17,9 @@ come back as one batch of pages with the redirect table alongside them.
 
 ## What gets written
 
-    OSRS-Content/osrs239-content/wiki/monsters/<title>.wikitext   raw wikitext
-    OSRS-Content/osrs239-content/wiki/manifest.tsv                title, revid, redirected_from, fetch_date
-    OSRS-Content/osrs239-content/wiki/disambig.tsv                roster name -> candidate titles fetched
+    OSRS-Content/osrs-content/wiki/monsters/<title>.wikitext   raw wikitext
+    OSRS-Content/osrs-content/wiki/manifest.tsv                title, revid, redirected_from, fetch_date
+    OSRS-Content/osrs-content/wiki/disambig.tsv                roster name -> candidate titles fetched
                                                                     for a name whose own page disambiguates
 
 One file per resolved wiki page (title, not per-npc — several ids share a
@@ -50,7 +50,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wiki_infobox  # noqa: E402
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONTENT = os.path.join(REPO, "OSRS-Content", "osrs239-content")
+CONTENT = os.path.join(REPO, "OSRS-Content", "osrs-content")
 ROSTER = os.path.join(CONTENT, "wiki", "npc_roster.csv")
 OUT_DIR = os.path.join(CONTENT, "wiki", "monsters")
 MANIFEST = os.path.join(CONTENT, "wiki", "manifest.tsv")

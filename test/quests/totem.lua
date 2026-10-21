@@ -35,7 +35,7 @@ return {
             t.check(label, r == "ok" and v == want, "%varp200_totemquest = " .. tostring(v) .. ", want " .. want)
         end
         local function bits(want_bit0, want_bit1, label)
-            local r, v = t.var.server("varp6195_handelmort_traps_disabled")
+            local r, v = t.var.server("varp6870_handelmort_traps_disabled")
             local b0 = (v or 0) % 2
             local b1 = math.floor((v or 0) / 2) % 2
             t.check(label, r == "ok" and b0 == want_bit0 and b1 == want_bit1,

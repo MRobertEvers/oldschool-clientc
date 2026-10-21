@@ -34,9 +34,9 @@ selftest_click_swing_clock(
     assert(player);
     fprintf(stderr, "ToriRSServer selftest: a clicked swing runs on its own tick's clock\n");
     goblin = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "goblin_unarmed_melee_1");
-    delay_varp = ToriRSServer_WorldVarp("varp5732_action_delay");
+    delay_varp = ToriRSServer_WorldVarp("varp6407_action_delay");
     SELFTEST_CHECK(goblin >= 0, "click_swing_clock: goblin_unarmed_melee_1 resolves");
-    SELFTEST_CHECK(delay_varp >= 0, "click_swing_clock: varp5732_action_delay resolves");
+    SELFTEST_CHECK(delay_varp >= 0, "click_swing_clock: varp6407_action_delay resolves");
     if( goblin < 0 || delay_varp < 0 )
         return;
 

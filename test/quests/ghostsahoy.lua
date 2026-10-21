@@ -500,7 +500,7 @@ return {
                 t.blocked("Rune-Draw: game " .. rd_games .. " answered " .. tostring(gr) .. " -- " .. tostring(game))
                 return
             end
-            local debt_res, debt_val = t.quest._read_content("varp7172_ahoy_robin_debt")
+            local debt_res, debt_val = t.quest._read_content("varp7847_ahoy_robin_debt")
             t.step("runedraw.debt." .. rd_games, (debt_res == "ok" and tonumber(debt_val) ~= nil) and "PASS" or "FAIL",
                 "ahoy_robin_debt = " .. tostring(debt_val) .. " (" .. tostring(debt_res) .. ") after game " .. rd_games)
         end
@@ -587,9 +587,9 @@ return {
             t.blocked("searchMast: the three flag colours were not all shown in " .. mast_presses .. " searches")
             return
         end
-        local top_res, top_srv = t.quest._read_content("varp6828_ahoy_flag_top")
-        local bot_res, bot_srv = t.quest._read_content("varp6829_ahoy_flag_bottom")
-        local sku_res, sku_srv = t.quest._read_content("varp6830_ahoy_flag_skull")
+        local top_res, top_srv = t.quest._read_content("varp7503_ahoy_flag_top")
+        local bot_res, bot_srv = t.quest._read_content("varp7504_ahoy_flag_bottom")
+        local sku_res, sku_srv = t.quest._read_content("varp7505_ahoy_flag_skull")
         t.check("searchMast.matchesRoll", top_res == "ok" and bot_res == "ok" and sku_res == "ok"
             and tonumber(top_srv) == top_val and tonumber(bot_srv) == bot_val and tonumber(sku_srv) == sku_val,
             "read " .. top_val .. "/" .. bot_val .. "/" .. sku_val .. " vs the per-player roll top="
@@ -649,7 +649,7 @@ return {
         -- [oplocu,ahoy_chest_locked] is the unlock trigger (last_useitem =
         -- ahoy_chest_key), a USE-ON, never a plain click_loc.
         t.exec("useKeyOnChest", t.player.use_on, "ahoy_chest_key", chest_target, { at = { 3619, 3545, 1 } })
-        local cu_res, cu_val = t.quest._read_content("varp6835_ahoy_captain_chest_unlocked")
+        local cu_res, cu_val = t.quest._read_content("varp7510_ahoy_captain_chest_unlocked")
         local ck_res, ck_n = t.inv.count("ahoy_chest_key")
         t.check("useKeyOnChest.unlocked", cu_res == "ok" and tonumber(cu_val) == 1 and ck_res == "ok" and ck_n == 0,
             "ahoy_captain_chest_unlocked = " .. tostring(cu_val) .. ", chest keys left " .. tostring(ck_n)

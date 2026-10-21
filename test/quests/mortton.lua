@@ -1069,20 +1069,20 @@ return {
             "polled " .. tostring(altar_rounds) .. " round(s) of 5 ticks: loc templefire_altar (lit) "
                 .. loc_text(altar_near_result, altar_near) .. " (want 3506,3316)")
 
-        -- Sanctity (%varp6753_temple_sanctity, 3000 = 100%) is what the flame spends:
+        -- Sanctity (%varp7428_temple_sanctity, 3000 = 100%) is what the flame spends:
         -- every repair action added its resource amount (flamtaer_temple.rs2:137-139),
         -- [timer,sanctity_drain] takes 30 per 100 ticks (:164-168). The guide's
         -- repairTo20Sanctity: Serum 208 needs >= 600 (20%) before the flame takes a
         -- Serum 207 (:438-441), and the oil costs 81 first (:413-422).
         local function read_sanctity()
-            local sr, sv = t.var.server("varp6753_temple_sanctity")
+            local sr, sv = t.var.server("varp7428_temple_sanctity")
             if sr == "ok" and type(sv) == "number" then
                 return sv
             end
             return nil
         end
         local function read_runtime_bit(bit)
-            local rr, rv = t.var.server("varp6752_mortton_runtime")
+            local rr, rv = t.var.server("varp7427_mortton_runtime")
             if rr == "ok" and type(rv) == "number" then
                 return math.floor(rv / (2 ^ bit)) % 2, rv
             end
@@ -1097,7 +1097,7 @@ return {
         end
         local sanctity_at_light = read_sanctity()
         t.check("repairTo20Sanctity", sanctity_at_light ~= nil and sanctity_at_light >= 600 + 81,
-            "varp6753_temple_sanctity = " .. tostring(sanctity_at_light) .. " after the repairs (want >= 681: "
+            "varp7428_temple_sanctity = " .. tostring(sanctity_at_light) .. " after the repairs (want >= 681: "
                 .. "600 for Serum 208 (flamtaer_temple.rs2:438) plus the oil's 81 spent first)")
 
         -- Sanctify the olive oil in the lit flame (oc_category 110,
@@ -1111,7 +1111,7 @@ return {
         -- (flamtaer_temple.rs2:432-466, oc_category 108): sanctity >= 600 first, then
         -- 150 sanctity per dose spent, the vial set to next_obj_stage_temple
         -- (mort_serum3 -> mort_serum_perm3, quest_mortton.obj:18-21), bit
-        -- player_made_perm_serum (7) of %varp6752_mortton_runtime set, and a mesbox the
+        -- player_made_perm_serum (7) of %varp7427_mortton_runtime set, and a mesbox the
         -- first time. A FRESH 3-dose mix from the reserve pair (the guide's addAshes
         -- again): three doses of Serum 208 -- Razmire, Ulsquire, and one left in hand for
         -- Ulsquire's "already used" answer (ulsquire_shauncy.rs2:22-26 consumes nothing).

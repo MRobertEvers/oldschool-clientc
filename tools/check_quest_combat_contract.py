@@ -14,7 +14,7 @@ import config_text
 
 
 ROOT = Path(__file__).resolve().parents[1]
-CONTENT = ROOT / "OSRS-Content/osrs239-content/server/scripts"
+CONTENT = ROOT / "OSRS-Content/osrs-content/server/scripts"
 MANIFEST = ROOT / "docs/bosses/quest_combat_manifest.json"
 DELRITH = CONTENT / "quests/quest_demon/scripts/delrith.rs2"
 DELRITH_NPC = CONTENT / "quests/quest_demon/configs/quest_demon.npc"
@@ -302,7 +302,7 @@ AHOY_ROBES = CONTENT / "quests/quest_ghostsahoy/scripts/ahoy_robes.rs2"
 AHOY_SHARED = CONTENT / "quests/quest_ghostsahoy/scripts/ahoy_shared.rs2"
 AHOY_COOKING = CONTENT / "skill_cooking/scripts/cooking.rs2"
 AHOY_DYES = CONTENT / "skill_crafting/scripts/dye_cape.rs2"
-CATEGORY_PACK = ROOT / "OSRS-Content/osrs239-content/pack/category.pack"
+CATEGORY_PACK = ROOT / "OSRS-Content/osrs-content/pack/category.pack"
 COMBAT_STATS = CONTENT / "skill_combat/combat_stats.rs2"
 PLAYER_DEATH = CONTENT / "player/death.rs2"
 PLAYER_LOGOUT = CONTENT / "player/logout.rs2"
@@ -314,15 +314,15 @@ SHOP_GENERATOR = ROOT / "tools/gen_shop_scripts.py"
 QUEST_MANIFEST_GENERATOR = ROOT / "tools/generate_quest_combat_manifest.py"
 PIP_MYREQUE_WELL = CONTENT / "quests/quest_inaidofthemyreque/scripts/myreque2_rod.rs2"
 PIP_WORLD_SPAWN = CONTENT / "areas/world/configs/m53_154.spawn"
-PIP_VARP_ALLOC = ROOT / "OSRS-Content/osrs239-content/pack/varp.alloc"
+PIP_VARP_ALLOC = ROOT / "OSRS-Content/osrs-content/pack/varp.alloc"
 POWERED_STAFF = CONTENT / "skill_combat/scripts/player/gear/powered_staff.rs2"
 PLAYER_HIT_FUNNEL = CONTENT / "skill_combat/scripts/player/player_hit_npc_prepare.rs2"
-NPC_ALLOC = ROOT / "OSRS-Content/osrs239-content/pack/npc.alloc"
-NPC_CLIENT = ROOT / "OSRS-Content/osrs239-content/pack/npc.client"
+NPC_ALLOC = ROOT / "OSRS-Content/osrs-content/pack/npc.alloc"
+NPC_CLIENT = ROOT / "OSRS-Content/osrs-content/pack/npc.client"
 COMBAT_PARAM = CONTENT / "skill_combat/configs/combat.param"
 SPELL_CONSTANTS = CONTENT / "skill_combat/configs/magic/spells.constant"
 PLAYER_MAGIC = CONTENT / "skill_combat/scripts/player/player_magic.rs2"
-PARAM_ALLOC = ROOT / "OSRS-Content/osrs239-content/pack/param.alloc"
+PARAM_ALLOC = ROOT / "OSRS-Content/osrs-content/pack/param.alloc"
 SPAWN_GENERATOR = ROOT / "tools/gen_spawns.py"
 MOCK_HEADER = ROOT / "src/torirsserver/torirs_server.h"
 MOCK_WORLD = ROOT / "src/torirsserver/torirs_server_world.c"
@@ -335,15 +335,15 @@ MOCK_NPC_OPS = ROOT / "src/torirsserver/torirs_server_ops_npc.c"
 MOCK_CONTENT = ROOT / "src/torirsserver/torirs_server_content.c"
 MOCK_CONTENT_HEADER = ROOT / "src/torirsserver/torirs_server_content.h"
 CONTENT_REGISTER = ROOT / "src/content/content_register.c"
-CONTENT_INI = ROOT / "OSRS-Content/osrs239-content/content.ini"
-VARN_ALLOC = ROOT / "OSRS-Content/osrs239-content/pack/varn.alloc"
+CONTENT_INI = ROOT / "OSRS-Content/osrs-content/content.ini"
+VARN_ALLOC = ROOT / "OSRS-Content/osrs-content/pack/varn.alloc"
 
 
 def _load_var_names() -> dict[str, str]:
     """Base name -> spelled name. Var names carry their kind and id
     (`ca_tier_status_hard` is `varb<id>_ca_tier_status_hard`), so a needle
     built from a base name goes through this."""
-    tree = ROOT / "OSRS-Content/osrs239-content"
+    tree = ROOT / "OSRS-Content/osrs-content"
     names = {}
     for path in (tree / "configs/all.varbit.compack", tree / "configs/all.varp.compack",
                  tree / "configs/all.varc.compack", tree / "pack/varp.alloc"):
@@ -713,13 +713,13 @@ def check_delrith() -> None:
     require_text(
         varp,
         (
-            "[varp6628_demon_delrith_engaged]",
+            "[varp7303_demon_delrith_engaged]",
             "scope=temp",
-            "[varp6632_demon_incantation_1]",
-            "[varp6633_demon_incantation_2]",
-            "[varp6634_demon_incantation_3]",
-            "[varp6635_demon_incantation_4]",
-            "[varp6636_demon_incantation_5]",
+            "[varp7307_demon_incantation_1]",
+            "[varp7308_demon_incantation_2]",
+            "[varp7309_demon_incantation_3]",
+            "[varp7310_demon_incantation_4]",
+            "[varp7311_demon_incantation_5]",
         ),
         "Delrith engagement/incantation state",
     )
@@ -828,7 +828,7 @@ def check_witches_experiment() -> None:
             "[ai_queue3,shapeshifterwolf]",
             "@defeat_witches_experiment;",
             "%varp226_ballquest = ^ball_defeated_experiment;",
-            "%varp6660_ball_shed_unlocked = 1;",
+            "%varp7335_ball_shed_unlocked = 1;",
         ),
         "Witch's experiment",
     )
@@ -863,7 +863,7 @@ def check_witches_experiment() -> None:
         )
     require(npc.count("param=death_drop,null") == 4,
             "Witch's experiment: all four forms must suppress ordinary drops")
-    require_text(config_text.read_text(WITCH_VARP), ("[varp6660_ball_shed_unlocked]", "scope=temp"),
+    require_text(config_text.read_text(WITCH_VARP), ("[varp7335_ball_shed_unlocked]", "scope=temp"),
                  "Witch's House shed lock state")
 
 
@@ -1187,19 +1187,19 @@ def check_grand_tree() -> None:
             "case grandtree_pillaru : $expected = grandtree_twigu; $bit = 2;",
             "case grandtree_pillarz : $expected = grandtree_twigz; $bit = 4;",
             "case grandtree_pillaro : $expected = grandtree_twigo; $bit = 8;",
-            "%varp6674_grandtree_tuzo_mask = or(%varp6674_grandtree_tuzo_mask, $bit);",
-            "if (%varp6674_grandtree_tuzo_mask = 15)",
+            "%varp7349_grandtree_tuzo_mask = or(%varp7349_grandtree_tuzo_mask, $bit);",
+            "if (%varp7349_grandtree_tuzo_mask = 15)",
             "%varp150_grandtree = ^grandtree_unlocked_trapdoor;",
         ),
         "The Grand Tree TUZO gate",
     )
-    require_text(config_text.read_text(GRAND_VARP), ("[varp6674_grandtree_tuzo_mask]", "scope=temp"),
+    require_text(config_text.read_text(GRAND_VARP), ("[varp7349_grandtree_tuzo_mask]", "scope=temp"),
                  "The Grand Tree TUZO state")
 
     require_text(
         GRAND_ROOTS.read_text(),
         (
-            "%varp5869_daconia_rock_root",
+            "%varp6544_daconia_rock_root",
             "~obj_gettotal(grandtree_daconiarock) = 0",
             "inv_freespace(inv) = 0",
             "inv_add(inv, grandtree_daconiarock, 1);",
@@ -1209,7 +1209,7 @@ def check_grand_tree() -> None:
     require_text(
         GRAND_KING.read_text(),
         (
-            "%varp5869_daconia_rock_root = ~random_range(1, 15);",
+            "%varp6544_daconia_rock_root = ~random_range(1, 15);",
             "stat_advance(agility, 79000);",
             "stat_advance(attack, 184000);",
             "stat_advance(magic, 21500);",
@@ -1243,8 +1243,8 @@ def check_grand_tree() -> None:
         ),
         "elemental weakness combat mechanics",
     )
-    require("2738=elemental_weakness" in PARAM_ALLOC.read_text() and
-            "2739=elemental_weakness_percent" in PARAM_ALLOC.read_text(),
+    require("3104=elemental_weakness" in PARAM_ALLOC.read_text() and
+            "3105=elemental_weakness_percent" in PARAM_ALLOC.read_text(),
             "elemental weakness param allocation drift")
 
 
@@ -1459,7 +1459,7 @@ def check_observatory_quest() -> None:
             "obj_add(npc_coord, bones, 1, ^lootdrop_duration);",
             "def_int $drop = random(128);", "if ($drop < 3)",
             "else if ($drop < 90)", "%varp714_rag_quest = ^rag_collecting",
-            "testbit(%varp6208_rag_submit, ^rag_bit_goblin) = ^false", "random(4)",
+            "testbit(%varp6883_rag_submit, ^rag_bit_goblin) = ^false", "random(4)",
             "obj_add(npc_coord, rag_goblin_bone, 1, ^lootdrop_duration);",
             "random(35)", "arceuus_corpse_goblin", "random(64)",
             "trail_clue_beginner", "$easy_rate = 121;",
@@ -1557,15 +1557,15 @@ def check_tourist_trap() -> None:
             "%varp197_desertrescue = ^desertrescue_approached_captain;",
             "It's a funny captain who can't fight his own battles!",
             "[label,desertrescue_captain_begin_duel]",
-            "%varp6704_desertrescue_captain_duel = 1;",
+            "%varp7379_desertrescue_captain_duel = 1;",
             "~npc_retaliate(0);",
             "[opnpc2,desertminingcaptain]",
             "[apnpc2,desertminingcaptain]",
             "[label,desertrescue_captain_attack_warning]",
             "npc_setmode(playerescape);",
             "[label,desertrescue_captain_randompunish]",
-            "getbit_range(%varp5981_desertrescue_map_mechanisms, 0, 1)",
-            "setbit_range_toint(%varp5981_desertrescue_map_mechanisms, $next_stage, 0, 1);",
+            "getbit_range(%varp6656_desertrescue_map_mechanisms, 0, 1)",
+            "setbit_range_toint(%varp6656_desertrescue_map_mechanisms, $next_stage, 0, 1);",
             "~desertrescue_find_camp_merc(coord, 7, 0)",
             "pretends to start hitting you.",
             "gives you a sharp kick.",
@@ -1620,7 +1620,7 @@ def check_tourist_trap() -> None:
     )
     require_text(
         config_text.read_text(TOURIST_VARP),
-        ("[varp6704_desertrescue_captain_duel]", "scope=temp"),
+        ("[varp7379_desertrescue_captain_duel]", "scope=temp"),
         "The Tourist Trap duel state",
     )
     require("[ai_queue3,desertminingcaptain]" not in TOURIST_GENERIC_DROP.read_text(),
@@ -1672,7 +1672,7 @@ def check_watchtower() -> None:
         gorad,
         (
             "[opnpc1,gorad]",
-            "getbit_range(%varp6190_itwatchtower_bits, ^itwatchtower_spoken_grew, ^itwatchtower_helped_grew) = 1",
+            "getbit_range(%varp6865_itwatchtower_bits, ^itwatchtower_spoken_grew, ^itwatchtower_helped_grew) = 1",
             "~npc_retaliate(0);",
             "[ai_queue3,gorad]", "if (npc_findhero = ^false)",
             "obj_add_private(npc_coord, big_bones, 1",
@@ -1681,7 +1681,7 @@ def check_watchtower() -> None:
             "if (random(400) = 0)", "dorgesh_construction_bone",
             "if (random(10025) < 2)", "dorgesh_construction_bone_curved",
             "queue(defeat_gorad, 0, 0);", "[queue,defeat_gorad]",
-            "getbit_range(%varp6190_itwatchtower_bits, ^itwatchtower_spoken_grew, ^itwatchtower_helped_grew) ! 1",
+            "getbit_range(%varp6865_itwatchtower_bits, ^itwatchtower_spoken_grew, ^itwatchtower_helped_grew) ! 1",
             "~obj_gettotal(ogretooth) > 0", "inv_freespace(inv) = 0",
             "inv_add(inv, ogretooth, 1);",
             "[proc,watchtower_gorad_uncommon_seed]()(namedobj, int)",
@@ -1706,9 +1706,9 @@ def check_watchtower() -> None:
         grew,
         (
             "[opnpc1,grew]", "[label,grew_spoken]", "[opnpcu,grew]",
-            "getbit_range(%varp6190_itwatchtower_bits, ^itwatchtower_spoken_grew, ^itwatchtower_helped_grew) = 1",
+            "getbit_range(%varp6865_itwatchtower_bits, ^itwatchtower_spoken_grew, ^itwatchtower_helped_grew) = 1",
             "inv_total(inv, ogretooth) > 0",
-            "setbit_range_toint(%varp6190_itwatchtower_bits, 2, ^itwatchtower_spoken_grew, ^itwatchtower_helped_grew)",
+            "setbit_range_toint(%varp6865_itwatchtower_bits, 2, ^itwatchtower_spoken_grew, ^itwatchtower_helped_grew)",
             "inv_del(inv, ogretooth, 1);", "inv_add(inv, relicpart2, 1);",
             "inv_add(inv, powering_crystal1, 1);",
         ),
@@ -1829,7 +1829,7 @@ def check_legends_quest() -> None:
             "[oplocu,lg_ord_totem_pole]", "last_useitem = thtotempole",
             "@summon_nezi_part3;", "%varp139_legendsquest = ^legends_replaced_totem;",
             "npc_setowner;", "[opheldu,goldbowlbless_pure]",
-            "getbit_range(%varp6202_legends_bits, ^legends_golden_bowl_uses_start, ^legends_golden_bowl_uses_end)",
+            "getbit_range(%varp6877_legends_bits, ^legends_golden_bowl_uses_start, ^legends_golden_bowl_uses_end)",
             "inv_add(inv, holy_water, 1);", "if ($bowl_uses >= 9)",
         ),
         "Legends' Quest bowl and final totem",
@@ -1872,14 +1872,14 @@ def check_legends_quest() -> None:
             "oc_param(holy_water, rangebonus_ammo)",
             "multiply($holy_base, 16)", "add(divide(multiply($holy_base, 16), 10), 5)",
             "npc_statsub(defence, 0, 5);",
-            "%varp6732_legends_nezikchened_holy_water = 2;",
+            "%varp7407_legends_nezikchened_holy_water = 2;",
         ),
         "Legends' Quest Holy Water combat formula",
     )
 
     require_text(
         config_text.read_text(LEGENDS_VARP),
-        ("[varp6731_legends_nezikchened_dagger_used]", "[varp6732_legends_nezikchened_holy_water]"),
+        ("[varp7406_legends_nezikchened_dagger_used]", "[varp7407_legends_nezikchened_holy_water]"),
         "Legends' Quest attempt state",
     )
 
@@ -1990,7 +1990,7 @@ def check_big_chompy() -> None:
     require_text(
         CHOMPY_ARROWS.read_text(),
         ("[opheldu,wolf_bones]", "[label,make_ogre_arrows]",
-         "%varp6192_chompybird_kills = setbit(%varp6192_chompybird_kills, ^chompybird_varbit_made_arrows);"),
+         "%varp6867_chompybird_kills = setbit(%varp6867_chompybird_kills, ^chompybird_varbit_made_arrows);"),
         "Big Chompy Bird Hunting arrow recipe",
     )
     require_text(CHOMPY_CHEST.read_text(),
@@ -2161,7 +2161,7 @@ def check_nature_spirit() -> None:
     require_text(
         ghast,
         (
-            "add(%varp6217_ghast_delay, 26) > map_clock", "def_int $rand = random(10);",
+            "add(%varp6892_ghast_delay, 26) > map_clock", "def_int $rand = random(10);",
             "if ($rand < 3)", "~random_range(1, 3)",
             "[opnpcu,ghast_invis]", "~player_in_combat_check = false",
             "inv_del(inv, druid_pouch, 1);", "inv_add(inv, druid_pouch_empty, 1);",
@@ -2365,26 +2365,26 @@ def check_priest_in_peril() -> None:
         (
             "[oploc1,priestperil_grave_base1]", "[oploc1,priestperil_grave_base7]",
             "[oploc2,priestperil_grave_base1]", "[oplocu,priestperil_grave_base7]",
-            "testbit(%varp6733_priestperil_mausoleum, 21)",
-            "setbit_range_toint(%varp6733_priestperil_mausoleum, random(100), 22, 28)",
+            "testbit(%varp7408_priestperil_mausoleum, 21)",
+            "setbit_range_toint(%varp7408_priestperil_mausoleum, random(100), 22, 28)",
             "multiply($grave_no, 17)", "modulo($seed, 7)",
             "if ($grave_item = pipkey_iron)", "last_useitem ! pipkey_gold",
             "if (~obj_gettotal(pipkey_iron) > 0)",
             "inv_del(inv, pipkey_gold, 1);", "inv_add(inv, pipkey_iron, 1);",
-            "setbit(%varp6733_priestperil_mausoleum, $swap_bit)",
+            "setbit(%varp7408_priestperil_mausoleum, $swap_bit)",
             "damage(uid, hitsplat_damage, add(random(6), 1));",
         ),
         "Priest in Peril randomized monument swaps",
     )
-    require("6733=varp6733_priestperil_mausoleum" in PIP_VARP_ALLOC.read_text(),
+    require("7408=varp7408_priestperil_mausoleum" in PIP_VARP_ALLOC.read_text(),
             "Priest in Peril: durable monument varp allocation missing")
 
     gates = PIP_GATES.read_text()
     require_text(
         gates,
         (
-            "[oploc1,pip_underground_door1]", "testbit(%varp6733_priestperil_mausoleum, 20)",
-            "inv_total(inv, pipkey_gold) = 0", "setbit(%varp6733_priestperil_mausoleum, 20)",
+            "[oploc1,pip_underground_door1]", "testbit(%varp7408_priestperil_mausoleum, 20)",
+            "inv_total(inv, pipkey_gold) = 0", "setbit(%varp7408_priestperil_mausoleum, 20)",
             "[oploc1,pip_underground_door2]",
             "~check_priest_peril_gate(^priestperil_meet_in_mausoleum);",
         ),
@@ -2595,7 +2595,7 @@ def check_tai_bwo_wannai_trio() -> None:
             "[opheldu,tbwt_poisonous_karambwan_paste]", "inv_setslot(inv, last_useslot, $product, 1);",
             "[oploc1,tbwt_bamboo_door]", "~door_selfstage_open;",
             "[oploc2,tbwt_bamboo_door]", "~door_selfstage_close;",
-            "%varp6054_tbwt_tinsay < ^tbwt_tinsay_claimed_final_reward | %varp321_tbwt_tiadeche < ^tbwt_tiadeche_claimed_final_reward",
+            "%varp6729_tbwt_tinsay < ^tbwt_tinsay_claimed_final_reward | %varp321_tbwt_tiadeche < ^tbwt_tiadeche_claimed_final_reward",
             "@pray_at_altar(stat_base(prayer));", "[queue,tbwt_quest_complete]",
             # The real scroll (wiki File:Tai_Bwo_Wannai_Trio_reward_scroll.png) lists
             # the brothers' four XP rewards and no coins line; seam b49-seam2.
@@ -2612,13 +2612,13 @@ def check_tai_bwo_wannai_trio() -> None:
         (
             "sub(4, $current)", "~set_tbwt_tamayu_agility_count(add($doses, $current));",
             "~tbwt_is_acceptable_tamayu_spear($spear)", "~tbwt_is_kp_spear($spear)",
-            "testbit(%varp6051_tbwt_flags, ^tbwt_tamayu_received_acceptable_spear) = ^true",
-            "testbit(%varp6051_tbwt_flags, ^tbwt_tamayu_received_kp_spear) = ^true",
+            "testbit(%varp6726_tbwt_flags, ^tbwt_tamayu_received_acceptable_spear) = ^true",
+            "testbit(%varp6726_tbwt_flags, ^tbwt_tamayu_received_kp_spear) = ^true",
             "npc_add(^tbwt_tamayu_hunter_cutscene_spawn, tbwt_tamayu_hunter, 200);",
             "npc_add(^tbwt_shaikahan_cutscene_spawn, tbwt_beast_cutscene, 200);",
             "npc_add(^tbwt_tamayu_hunter_cutscene_final_spawn, tbwt_tamayu_final_hunter, 100);",
             "npc_add(^tbwt_shaikahan_cutscene_final_spawn, tbwt_beast_cutscene, 100);",
-            "sound_synth(beast_hit, 1, 0);", "%varp6053_tbwt_tamayu = ^tbwt_tamayu_complete;",
+            "sound_synth(beast_hit, 1, 0);", "%varp6728_tbwt_tamayu = ^tbwt_tamayu_complete;",
         ),
         "Tai Bwo Wannai Trio Tamayu hunt",
     )
@@ -2668,7 +2668,7 @@ def check_tai_bwo_wannai_trio() -> None:
         cooking,
         (
             "[label,cook_tbwt_karambwan](category $source)",
-            "%varp6054_tbwt_tinsay >= ^tbwt_tinsay_claimed_final_reward & stat(cooking) >= 30",
+            "%varp6729_tbwt_tinsay >= ^tbwt_tinsay_claimed_final_reward & stat(cooking) >= 30",
             '"Cook it thoroughly."', "stat_random(cooking, 70, 256)",
             "inv_add(inv, tbwt_burnt_karambwan, 1);", "inv_add(inv, tbwt_cooked_karambwan, 1);",
             "stat_advance(cooking, 1900);", "inv_add(inv, tbwt_poorly_cooked_karambwan, 1);",
@@ -2771,7 +2771,7 @@ def check_troll_stronghold() -> None:
         (
             "[opnpc2,troll_champion]", "[apnpc2,troll_champion]",
             "[ai_opplayer2,troll_champion]", "random(3) = 0",
-            "%varp5756_aggressive_npc = npc_uid;", "movecoord($centre, $step_x, 0, $step_z)",
+            "%varp6431_aggressive_npc = npc_uid;", "movecoord($centre, $step_x, 0, $step_z)",
             "npc_attackdelay(8);", "[ai_queue2,troll_champion]",
             "$damage = max(0, sub(npc_stat(hitpoints), 19));",
             "[label,troll_dad_surrender]", "%varp317_troll_quest = ^troll_defeated_dad;",
@@ -2911,7 +2911,7 @@ def check_shades_of_mortton() -> None:
             "npc_type = shadeshadow_level1 | npc_type = shade_level1",
             "queue(mortton_quest_shade_kill, 0, 0);", "[queue,mortton_quest_shade_kill]",
             "%varp339_morttonquest = ^mortton_killed_5_shades;", "random(20) = 0",
-            "stat_sub(strength, 1, 0);", "%varp6753_temple_sanctity = min(3000",
+            "stat_sub(strength, 1, 0);", "%varp7428_temple_sanctity = min(3000",
         ),
         "Shades of Mort'ton shade combat, remains and five-kill credit",
     )
@@ -2994,7 +2994,7 @@ def check_shades_of_mortton() -> None:
             "~mortton_chest_preroll(shades_lock_gold, 54)",
             "sub(63, $wealth_bonus)", "[proc,mortton_splitbark_reward]",
             "~obj_gettotal(flamtaer_bag) = 0 & random(2) = 0",
-            "[oplocu,shade_lair_temple_altar]", "%varp6754_mortton_altar_charges = add",
+            "[oplocu,shade_lair_temple_altar]", "%varp7429_mortton_altar_charges = add",
             "[oploc1,shade_lair_temple_altar]", "stat_heal(prayer, stat_base(prayer), 0);",
         ),
         "Shades of Mort'ton catacombs, chest and Altar of the Damned contract",
@@ -3076,8 +3076,8 @@ def check_fremennik_trials() -> None:
     )
     require_text(
         config_text.read_text(VIKING_VARP),
-        ("[varp6757_viking_draugen_spot]", "[varp6756_viking_draugen_active]",
-         "[varp6758_viking_koschei_active]", "[varp6759_viking_koschei_phase]"),
+        ("[varp7432_viking_draugen_spot]", "[varp7431_viking_draugen_active]",
+         "[varp7433_viking_koschei_active]", "[varp7434_viking_koschei_phase]"),
         "The Fremennik Trials private encounter state",
     )
 
@@ -3109,7 +3109,7 @@ def check_fremennik_trials() -> None:
     require_text(
         thorvald,
         ("[oploc2,viking_warrior_ladder]", "~viking_koschei_forbidden_loadout",
-         "%varp6759_viking_koschei_phase = 0;", "~viking_koschei_spawn(1);",
+         "%varp7434_viking_koschei_phase = 0;", "~viking_koschei_spawn(1);",
          "[ai_queue3,viking_enemy1]", "~viking_koschei_spawn(2);",
          "[ai_queue3,viking_enemy2]", "~viking_koschei_spawn(3);",
          "[ai_queue3,viking_enemy3]", "~viking_koschei_spawn(4);",
@@ -3251,7 +3251,7 @@ def check_horror_from_the_deep() -> None:
     )
     require_text(
         config_text.read_text(HORROR_VARP),
-        ("[varp6775_horror_boss_active]", "[varp6776_horror_magic_element]", "[varp6777_horror_reward_book]",
+        ("[varp7450_horror_boss_active]", "[varp7451_horror_magic_element]", "[varp7452_horror_reward_book]",
          "scope=temp", "scope=perm"),
         "Horror from the Deep private encounter and reward state",
     )
@@ -3282,19 +3282,19 @@ def check_horror_from_the_deep() -> None:
          "stat_advance(ranged, 46625);", "~quest_complete_rewards(quest_horrorfromthedeep",
          "[proc,horror_abort]", "[proc,horror_on_logout]", "[proc,horror_on_death]",
          "[proc,horror_mother_prepare_hit]", "case horror_dagganoth_air",
-         "%varp6776_horror_magic_element = ^element_air", "case horror_dagganoth_water",
-         "%varp6776_horror_magic_element = ^element_water", "case horror_dagganoth_melee",
-         "%varp6295_damagetype = ^melee_style", "case horror_dagganoth_earth",
-         "%varp6776_horror_magic_element = ^element_earth", "case horror_dagganoth_fire",
-         "%varp6776_horror_magic_element = ^element_fire", "case horror_dagganoth_ranged",
-         "%varp6295_damagetype = ^ranged_style", "return(0);"),
+         "%varp7451_horror_magic_element = ^element_air", "case horror_dagganoth_water",
+         "%varp7451_horror_magic_element = ^element_water", "case horror_dagganoth_melee",
+         "%varp6970_damagetype = ^melee_style", "case horror_dagganoth_earth",
+         "%varp7451_horror_magic_element = ^element_earth", "case horror_dagganoth_fire",
+         "%varp7451_horror_magic_element = ^element_fire", "case horror_dagganoth_ranged",
+         "%varp6970_damagetype = ^ranged_style", "return(0);"),
         "Horror from the Deep owner-private combat and reward controller",
     )
 
     require_text(
         HORROR_JOSSIK.read_text(),
-        ("[opnpc1,horror_lighthousekeeeper_well]", "%varp6777_horror_reward_book = 1;",
-         "%varp6777_horror_reward_book = 2;", "%varp6777_horror_reward_book = 3;",
+        ("[opnpc1,horror_lighthousekeeeper_well]", "%varp7452_horror_reward_book = 1;",
+         "%varp7452_horror_reward_book = 2;", "%varp7452_horror_reward_book = 3;",
          "~p_choice3_header(\"Saradomin\", 1, \"Zamorak\", 2, \"Guthix\", 3",
          "unfinished_saradominbook", "unfinished_zamorakbook", "unfinished_guthixbook",
          "inv_del(inv, horror_casket, 1);", "[opnpc4,horror_lighthousekeeeper_well]",
@@ -3316,8 +3316,8 @@ def check_horror_from_the_deep() -> None:
     )
     require_text(
         HORROR_MAGIC.read_text(),
-        ("%varp6776_horror_magic_element = ~elemental_spell_element($spell);",
-         "%varp6776_horror_magic_element = ^element_none;"),
+        ("%varp7451_horror_magic_element = ~elemental_spell_element($spell);",
+         "%varp7451_horror_magic_element = ^element_none;"),
         "Horror from the Deep elemental spell latch",
     )
     require_text(PLAYER_DEATH.read_text(), ("~horror_on_death;",),
@@ -3368,7 +3368,7 @@ def check_monkey_madness_i() -> None:
     )
     require_text(
         config_text.read_text(MM1_VARP),
-        ("[varp6783_mm_demon_active]", "protect=no", "transmit=no", "scope=temp"),
+        ("[varp7458_mm_demon_active]", "protect=no", "transmit=no", "scope=temp"),
         "Monkey Madness I private encounter state",
     )
 
@@ -3393,7 +3393,7 @@ def check_monkey_madness_i() -> None:
          "npc_range(coord) < 3", "~npc_meleeattack;",
          "~npc_cast_spell_with_forced_max_hit($spell, 6, 32);",
          "[ai_queue3,mm_demon]", "if (npc_findhero = ^false)",
-         "def_npc_uid $dead_demon = npc_uid;", "%varp6783_mm_demon_active = 2;",
+         "def_npc_uid $dead_demon = npc_uid;", "%varp7458_mm_demon_active = 2;",
          "%varp365_mm_main = ^monkeymadness_defeated_demon;",
          "obj_add_private(npc_coord, malicious_ashes, 1",
          "npc_finduid($dead_demon);", "~npc_default_death;",
@@ -3474,7 +3474,7 @@ def check_haunted_mine() -> None:
     )
     require_text(
         config_text.read_text(HMQ_VARP),
-        ("[varp6792_hmq_dayth_active]", "[varp6793_hmq_dayth_crane_cd]", "protect=no",
+        ("[varp7467_hmq_dayth_active]", "[varp7468_hmq_dayth_crane_cd]", "protect=no",
          "transmit=no", "scope=temp"),
         "Haunted Mine private encounter state",
     )
@@ -3544,7 +3544,7 @@ def check_troll_romance() -> None:
     )
     require_text(
         config_text.read_text(TROLLLOVE_VARP),
-        ("[varp6804_troll_love_arrg_active]", "[varp6805_troll_love_sled_riding]",
+        ("[varp7479_troll_love_arrg_active]", "[varp7480_troll_love_sled_riding]",
          "protect=no", "transmit=no", "scope=temp"),
         "Troll Romance private session state",
     )
@@ -3626,7 +3626,7 @@ def check_in_search_of_the_myreque() -> None:
             "In Search of the Myreque: Skeleton Hellhound must not be undead")
     require_text(
         config_text.read_text(ROUTEQUEST_VARP),
-        ("[varp6816_routequest_hound_active]", "[varp6817_routequest_hound_death]",
+        ("[varp7491_routequest_hound_active]", "[varp7492_routequest_hound_death]",
          "protect=no", "transmit=no", "scope=temp"),
         "In Search of the Myreque private encounter state",
     )
@@ -3649,7 +3649,7 @@ def check_in_search_of_the_myreque() -> None:
     hideout = ROUTEQUEST_HIDEOUT.read_text() + "\n" + ROUTEQUEST_HOUND.read_text()
     require_text(
         hideout,
-        ("[proc,routequest_veliaf]", "getbit_range(%varp6203_routequest_myreque_bits",
+        ("[proc,routequest_veliaf]", "getbit_range(%varp6878_routequest_myreque_bits",
          "inv_del(inv, steel_longsword, 1);", "inv_del(inv, steel_sword, 2);",
          "inv_del(inv, steel_mace, 1);", "inv_del(inv, steel_warhammer, 1);",
          "inv_del(inv, steel_dagger, 1);", "%varp387_routequest = ^routequest_ambush;",
@@ -3657,7 +3657,7 @@ def check_in_search_of_the_myreque() -> None:
          "npc_setowner;", "npc_setmode(opplayer2);", "[ai_queue3,skeleton_hellhound]",
          "%varp387_routequest = ^routequest_saved_myreque;", "It drops nothing",
          "[timer,routequest_hound_monitor]", "[proc,routequest_hound_cleanup]",
-         "[proc,routequest_on_death]", "%varp6817_routequest_hound_death = 1;",
+         "[proc,routequest_on_death]", "%varp7492_routequest_hound_death = 1;",
          "[proc,routequest_on_logout]", "[proc,routequest_on_login]",
          "inzone(^routequest_chamber_min, ^routequest_chamber_max, coord) = true",
          "[oploc1,thrttavernbasementfalsewall]", "[oploc1,thrttavernbasementladder]",
@@ -3692,7 +3692,7 @@ def check_in_search_of_the_myreque() -> None:
     require_text(PLAYER_LOGIN.read_text(), ("~routequest_on_login;",),
                  "In Search of the Myreque login reconciliation hook")
     alloc = PIP_VARP_ALLOC.read_text()
-    require("6816=varp6816_routequest_hound_active" in alloc and "6817=varp6817_routequest_hound_death" in alloc,
+    require("7491=varp7491_routequest_hound_active" in alloc and "7492=varp7492_routequest_hound_death" in alloc,
             "In Search of the Myreque: private varp allocations drifted")
 
 
@@ -3997,7 +3997,7 @@ def check_twilightspromise() -> None:
     no block they fought on npc_default.npc's 10 hp and died in a tick). Wiki
     Knight_of_Varlamore_(Twilight's_Promise) oldid 15200510, Cultist oldid 15326762,
     Twilight's_Promise oldid 15356498."""
-    base = ROOT / "OSRS-Content/osrs239-content/server/scripts/quests/quest_twilightspromise"
+    base = ROOT / "OSRS-Content/osrs-content/server/scripts/quests/quest_twilightspromise"
     npc = config_text.read_text(base / "configs/twilightspromise.npc")
     for name, needles in (
         ("vmq2_knight_6_combat", ("hitpoints=100", "attack=70", "strength=70", "defence=40",
@@ -4026,7 +4026,7 @@ def check_twilightspromise() -> None:
          "queue(tp_mezan_leave, 4, 0);", "~npc_default_death;"),
         "Twilight's Promise colosseum script",
     )
-    funnel = (ROOT / "OSRS-Content/osrs239-content/server/scripts/skill_combat/scripts/player/player_hit_npc_prepare.rs2").read_text()
+    funnel = (ROOT / "OSRS-Content/osrs-content/server/scripts/skill_combat/scripts/player/player_hit_npc_prepare.rs2").read_text()
     require("~tp_mezan_prepare_hit($prepared, $style, $hit_success)" in funnel,
             "Twilight's Promise: player_hit_npc_prepare does not call ~tp_mezan_prepare_hit")
     battle = (base / "scripts/twilightspromise_battle.rs2").read_text()
@@ -4036,7 +4036,7 @@ def check_twilightspromise() -> None:
          "npc_add(map_findsquare(movecoord($landing, 5, 0, 0), 0, 2, ^map_findsquare_lineofwalk), vmq2_cultist_m_1",
          "npc_setmode(opplayer2);", "[opnpc2,vmq2_cultist_m_1]", "[opnpc2,vmq2_cultist_f_3]",
          "[ai_queue3,vmq2_cultist_m_1]", "[ai_queue3,vmq2_cultist_f_3]",
-         "%varp7291_tp_battle_kills >= ^tp_cultists_total", "queue(tp_battle_won, 3, 0);",
+         "%varp7966_tp_battle_kills >= ^tp_cultists_total", "queue(tp_battle_won, 3, 0);",
          "[queue,tp_battle_won]", "~map_instance_release_here;", "%varb9649_vmq2 = ^tp_finish;"),
         "Twilight's Promise battle script",
     )
@@ -4245,7 +4245,7 @@ def check_roving_elves() -> None:
             "npc_attackdelay(6);", "[ai_queue3,roving_mossgiant]",
             "npc_findhero", "p_finduid(uid)",
             "obj_add_private(npc_coord, roving_old_consecration_seed, 1",
-            "%varp6262_rovingelves_quest = ^rovingelves_obtained_old_seed;",
+            "%varp6937_rovingelves_quest = ^rovingelves_obtained_old_seed;",
             "if (random(400) = 0)", "dorgesh_construction_bone",
             "if (random(10025) < 2)", "dorgesh_construction_bone_curved",
             "~npc_default_death;",
@@ -4275,7 +4275,7 @@ def check_roving_elves() -> None:
             "inzone(^rovingelves_chalice_zone_min, ^rovingelves_chalice_zone_max, coord)",
             "loc_find(^rovingelves_chalice_coord, baxtorian_chalice_waterfall_quest)",
             "inv_del(inv, roving_new_consecration_seed, 1);",
-            "%varp6262_rovingelves_quest = ^rovingelves_seed_planted;",
+            "%varp6937_rovingelves_quest = ^rovingelves_seed_planted;",
             "loc_add(^rovingelves_chalice_coord, roving_crystal_growth, 0, centrepiece_straight, 20);",
         ),
         "Roving Elves spade, Chalice and growth ritual",
@@ -4305,7 +4305,7 @@ def check_roving_elves() -> None:
         (
             "case crystal_bow, crystal_bow_2500, crystal_shield, crystal_shield_2500",
             "roving_crystal_bow_new", "roving_crystal_shield_new",
-            "if (%varp6262_rovingelves_quest < ^rovingelves_complete)",
+            "if (%varp6937_rovingelves_quest < ^rovingelves_complete)",
         ),
         "Roving Elves crystal equipment completion gate",
     )
@@ -4332,10 +4332,10 @@ def check_ghosts_ahoy() -> None:
     require_text(
         config_text.read_text(AHOY_VARP),
         (
-            "[varp6827_ahoy_lobster_active]", "scope=temp",
-            "[varp6828_ahoy_flag_top]", "[varp6829_ahoy_flag_bottom]", "[varp6830_ahoy_flag_skull]",
-            "[varp6831_ahoy_ship_top]", "[varp6832_ahoy_ship_bottom]", "[varp6833_ahoy_ship_skull]",
-            "[varp6834_ahoy_dragontooth_pass]", "[varp6835_ahoy_captain_chest_unlocked]",
+            "[varp7502_ahoy_lobster_active]", "scope=temp",
+            "[varp7503_ahoy_flag_top]", "[varp7504_ahoy_flag_bottom]", "[varp7505_ahoy_flag_skull]",
+            "[varp7506_ahoy_ship_top]", "[varp7507_ahoy_ship_bottom]", "[varp7508_ahoy_ship_skull]",
+            "[varp7509_ahoy_dragontooth_pass]", "[varp7510_ahoy_captain_chest_unlocked]",
         ),
         "Ghosts Ahoy private persistent puzzle state",
     )
@@ -4375,7 +4375,7 @@ def check_ghosts_ahoy() -> None:
             "case reddye", "case bluedye", "case yellowdye",
             "case orangedye", "case greendye", "case purpledye",
             "if_openoverlay(ahoy_windspeed)", "[timer,ahoy_wind]",
-            "%varp6831_ahoy_ship_top ! %varp6828_ahoy_flag_top",
+            "%varp7506_ahoy_ship_top ! %varp7503_ahoy_flag_top",
             "if (loc_coord = ^ahoy_rock_chest_coord)",
             "if (loc_coord ! ^ahoy_lobster_chest_coord)",
             "if (loc_coord ! ^ahoy_lobster_loot_coord)",
@@ -4432,7 +4432,7 @@ def check_ghosts_ahoy() -> None:
             "inv_total(inv, ahoy_map_scrap_3) < 1",
             "inv_add(inv, ahoy_map_complete, 1);",
             "inv_total(worn, ring_of_charos_unlocked) > 0", "$fare = 10;",
-            "inv_total(inv, ectotoken) < 500", "%varp6834_ahoy_dragontooth_pass = 1;",
+            "inv_total(inv, ectotoken) < 500", "%varp7509_ahoy_dragontooth_pass = 1;",
             "distance(coord, ^ahoy_dragontooth_dock_coord) <= 24",
             "coord = ^ahoy_dig_book_coord", "inv_add(inv, ahoy_book_of_haricanto, 1);",
         ),
@@ -4456,8 +4456,8 @@ def check_ghosts_ahoy() -> None:
     require_text(
         AHOY_SHARED.read_text(),
         ("%varp107_prieststart < ^priest_complete", "%varp302_priestperil < ^priestperil_complete",
-         "%varp302_priestperil = ^priestperil_complete;", "%varp6828_ahoy_flag_top = 0;",
-         "%varp6834_ahoy_dragontooth_pass = 0;", "%varp6835_ahoy_captain_chest_unlocked = 0;"),
+         "%varp302_priestperil = ^priestperil_complete;", "%varp7503_ahoy_flag_top = 0;",
+         "%varp7509_ahoy_dragontooth_pass = 0;", "%varp7510_ahoy_captain_chest_unlocked = 0;"),
         "Ghosts Ahoy deterministic reset coverage",
     )
     require_text(AHOY_COOKING.read_text(), ("if (last_useitem = bowl_nettlewater)", "~ahoy_boil_nettle_tea;"),
@@ -4488,7 +4488,7 @@ def check_one_small_favour() -> None:
     )
     require_text(
         config_text.read_text(OSF_VARP),
-        ("[varp6868_osf_gang_kills]", "[varp6869_osf_slagilith_active]", "scope=temp"),
+        ("[varp7543_osf_gang_kills]", "[varp7544_osf_slagilith_active]", "scope=temp"),
         "One Small Favour owner and dwarf state",
     )
     require(config_text.read_text(OSF_VARP).count("scope=temp") == 2,
@@ -4515,7 +4515,7 @@ def check_one_small_favour() -> None:
             "if (last_useitem ! favour_animate_rock)",
             "%varp416_onesmallfavour = ^osf_slagilith_fight;",
             "~osf_spawn_slagilith;",
-            "if (%varp6869_osf_slagilith_active = 1)",
+            "if (%varp7544_osf_slagilith_active = 1)",
             "if (%varp416_onesmallfavour = ^osf_slagilith_defeated)",
             "npc_add(^osf_slagilith_coord, favour_petra, ^osf_petra_lifetime);",
             "npc_setowner;",
@@ -4529,7 +4529,7 @@ def check_one_small_favour() -> None:
     require_text(
         relay,
         (
-            "%varp6868_osf_gang_kills = 0;",
+            "%varp7543_osf_gang_kills = 0;",
             "[opnpc2,favour_gangster_dwarf]",
             "[opnpc2,favour_gangster_dwarf_2]",
             "[opnpc2,favour_gangster_dwarf_3]",
@@ -4537,8 +4537,8 @@ def check_one_small_favour() -> None:
             "[apnpc2,favour_gangster_dwarf_2]",
             "[apnpc2,favour_gangster_dwarf_3]",
             "[proc,osf_record_gang_kill](int $bit)",
-            "%varp6868_osf_gang_kills = setbit(%varp6868_osf_gang_kills, $bit);",
-            "if (%varp6868_osf_gang_kills = ^osf_gang_complete_mask)",
+            "%varp7543_osf_gang_kills = setbit(%varp7543_osf_gang_kills, $bit);",
+            "if (%varp7543_osf_gang_kills = ^osf_gang_complete_mask)",
             "~osf_record_gang_kill(^osf_gang_dwarf_1_bit);",
             "~osf_record_gang_kill(^osf_gang_dwarf_2_bit);",
             "~osf_record_gang_kill(^osf_gang_dwarf_3_bit);",
@@ -4893,9 +4893,9 @@ PROGRESS_VARP_OVERRIDES = {
     "quest_zombiequeen": ("varp116_zombiequeen",),                  # was zq_map_mechanisms
 }
 QUEST_INVENTORY = ROOT / "tools/quest_gate/quest_inventory.tsv"
-ALL_VARP = ROOT / "OSRS-Content/osrs239-content/configs/all.varp"
-ALL_VARBIT = ROOT / "OSRS-Content/osrs239-content/configs/all.varbit"
-VARP_ALLOC = ROOT / "OSRS-Content/osrs239-content/pack/varp.alloc"
+ALL_VARP = ROOT / "OSRS-Content/osrs-content/configs/all.varp"
+ALL_VARBIT = ROOT / "OSRS-Content/osrs-content/configs/all.varbit"
+VARP_ALLOC = ROOT / "OSRS-Content/osrs-content/pack/varp.alloc"
 
 
 def load_content_varp_defs() -> dict[str, dict]:

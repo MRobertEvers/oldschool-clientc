@@ -1,6 +1,6 @@
 # Tormented Demons: what Jagex's server sends
 
-Old School's Tormented Demon (2024, While Guthix Sleeps), read from RSProx recordings. The method and caveats are the same as for [the Inferno](../inferno/README.md). Content is in `OSRS-Content/osrs239-content/server/scripts/bosses/boss_tormented_demons/`.
+Old School's Tormented Demon (2024, While Guthix Sleeps), read from RSProx recordings. The method and caveats are the same as for [the Inferno](../inferno/README.md). Content is in `OSRS-Content/osrs-content/server/scripts/bosses/boss_tormented_demons/`.
 
 ## Sources
 

@@ -40,7 +40,7 @@ if ! git submodule update --init --filter=blob:none OSRS-Content; then
 	echo "session-start:   git submodule update --init --filter=blob:none OSRS-Content" >&2
 fi
 
-# 3. The osrs239 cache: OpenRS2 #2639, the build OSRS-Content/osrs239-content
+# 3. The osrs239 cache: OpenRS2 #2639, the build OSRS-Content/osrs-content
 #    was unpacked from (its meta.ini [source] dat2 crc32 d5d59ebb). `cachepack
 #    pack --base` refuses any other. Needs archive.openrs2.org allowed by the
 #    environment's network policy.

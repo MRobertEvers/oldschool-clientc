@@ -5,8 +5,8 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ALLOC = ROOT / "OSRS-Content/osrs239-content/ported/rs2012_qbd_td/pack/npc.alloc"
-LEDGER = ROOT / "OSRS-Content/osrs239-content/port/rs2012_qbd_td.map"
+ALLOC = ROOT / "OSRS-Content/osrs-content/ported/rs2012_qbd_td/pack/npc.alloc"
+LEDGER = ROOT / "OSRS-Content/osrs-content/port/rs2012_qbd_td.map"
 MANIFEST = ROOT / "ports/rs2012_qbd_td.ini"
 ENCODER = ROOT / "src/torirsserver/torirs_server_encode.c"
 EXPECTED = tuple(range(25000, 25010))

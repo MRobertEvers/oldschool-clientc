@@ -36,7 +36,7 @@ import sys
 from collections import Counter, defaultdict
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-CONTENT = os.path.join(HERE, "..", "OSRS-Content", "osrs239-content")
+CONTENT = os.path.join(HERE, "..", "OSRS-Content", "osrs-content")
 
 ROOMS = {
     (55, 80): "nexus",

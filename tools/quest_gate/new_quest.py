@@ -214,7 +214,7 @@ def _load_pack(kind: str) -> tuple[set[str], dict[str, str]]:
         return set(), {}
     if pack_name not in _PACK_CACHE:
         names = qhe.load_compack_names(
-            REPO / "OSRS-Content" / "osrs239-content" / "configs" / f"all.{pack_name}.compack"
+            REPO / "OSRS-Content" / "osrs-content" / "configs" / f"all.{pack_name}.compack"
         )
         _PACK_CACHE[pack_name] = names
         _PACK_PLUS_CACHE[pack_name] = {
@@ -376,7 +376,7 @@ def load_constants(dir_name: str) -> dict[str, int]:
     plain integers (quest.lua's own banner) and a coord literal there would
     silently make quest.expect_stage compare a stage varp against a tile
     encoding."""
-    path = REPO / "OSRS-Content" / "osrs239-content" / "server" / "scripts" \
+    path = REPO / "OSRS-Content" / "osrs-content" / "server" / "scripts" \
         / "quests" / dir_name / "configs" / f"{dir_name}.constant"
     values: dict[str, int] = {}
     if not path.is_file():
@@ -777,7 +777,7 @@ def resolve_quest_prereq(token: str, inventory: list[dict]) -> str | None:
     return row["dir"] if row else None
 
 
-QUEST_CHEAT_RS2 = (Path(__file__).resolve().parents[2] / "OSRS-Content" / "osrs239-content" / "server"
+QUEST_CHEAT_RS2 = (Path(__file__).resolve().parents[2] / "OSRS-Content" / "osrs-content" / "server"
                    / "scripts" / "quests" / "scripts" / "quest_cheat.rs2")
 _CHEAT_ARM_RE = re.compile(r"if\s*\(\s*\$row\s*=\s*(\w+)\s*\)\s*\{\s*if\s*\(\s*(%\w+)\s*>=")
 _COMPLETE_REWARDS_RE = re.compile(r"~quest_complete_rewards\(\s*((?:mini)?quest_\w+)")
@@ -2015,10 +2015,10 @@ def generate(
             checks.append(f"varp: {varp!r} is not a declared var (OSRS-Content/docs/VAR_NAMES.md)")
 
     dbrow_names = qhe.load_compack_names(
-        REPO / "OSRS-Content" / "osrs239-content" / "configs" / "all.dbrow.compack"
+        REPO / "OSRS-Content" / "osrs-content" / "configs" / "all.dbrow.compack"
     )
     dbrow_names |= qhe.load_compack_names(
-        REPO / "OSRS-Content" / "osrs239-content" / "pack" / "dbrow.alloc"
+        REPO / "OSRS-Content" / "osrs-content" / "pack" / "dbrow.alloc"
     )
     row_guess = qhe.guess_quest_dbrow(helper_name, text, dbrow_names)
     # questhelper_extract.guess_quest_dbrow's own fallback candidate comes

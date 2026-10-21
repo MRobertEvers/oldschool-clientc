@@ -145,7 +145,7 @@ def quests_with_cutscene(repo):
     assert repo
     out = {}
     for row in read_queue(repo):
-        our_dir = os.path.join(repo, "OSRS-Content/osrs239-content/server/scripts/quests", row["quest_dir"])
+        our_dir = os.path.join(repo, "OSRS-Content/osrs-content/server/scripts/quests", row["quest_dir"])
         if not os.path.isdir(our_dir):
             continue
         counts, files = count_cam_ops(our_dir)
@@ -213,7 +213,7 @@ def cutscene_sites(repo):
     out = {}
     queue = {row["test_id"]: row for row in read_queue(repo)}
     for test_id in quests_with_cutscene(repo):
-        rel = os.path.join("OSRS-Content/osrs239-content/server/scripts/quests", queue[test_id]["quest_dir"])
+        rel = os.path.join("OSRS-Content/osrs-content/server/scripts/quests", queue[test_id]["quest_dir"])
         sites = framing_sites(os.path.join(repo, rel))
         for site in sites:
             site["file"] = os.path.join(rel, site["file"])
@@ -274,7 +274,7 @@ def sweep(repo, lostcity, lostcity_server):
     ledger = read_cutscene_ledger(repo)
     roots = lostcity_quest_roots(lostcity, lostcity_server)
     for q in read_queue(repo):
-        our_dir = os.path.join(repo, "OSRS-Content/osrs239-content/server/scripts/quests", q["quest_dir"])
+        our_dir = os.path.join(repo, "OSRS-Content/osrs-content/server/scripts/quests", q["quest_dir"])
         lc_tree, lc_dir = lostcity_quest_dir(roots, q["quest_dir"])
         # Graded with debugprocs blanked on both sides (script_lines).
         ours, our_files = count_cam_ops(our_dir, skip_debugproc=True) if os.path.isdir(our_dir) else ({}, {})

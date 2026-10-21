@@ -30,7 +30,7 @@ REPO = Path(__file__).resolve().parents[1]
 CORPUS = REPO / "docs/summoning_port/familiar_dialogue.json"
 OUT = (
     REPO
-    / "OSRS-Content/osrs239-content/server/scripts/ported_scape2009_summoning"
+    / "OSRS-Content/osrs-content/server/scripts/ported_scape2009_summoning"
     / "scripts/summoning_dialogue.rs2"
 )
 

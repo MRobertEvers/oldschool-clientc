@@ -20,7 +20,7 @@ import config_text
 # helpfully: parse_pack falls back to the tree-wide pack/ and reports the whole
 # cache's 12010 sound effects against an expectation of 29.
 REPO = Path(__file__).resolve().parents[1]
-DEFAULT_TREE = REPO / "OSRS-Content" / "osrs239-content"
+DEFAULT_TREE = REPO / "OSRS-Content" / "osrs-content"
 DEFAULT_AUDIOPROBE = REPO / "3rd/rscache/tools/audioprobe/audioprobe"
 
 

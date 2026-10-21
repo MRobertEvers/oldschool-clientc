@@ -20,7 +20,7 @@ import re
 import sys
 
 SRC = "docs/minigames/chompy/sources/Chompy_bird_hunting.wiki"
-DEST = ("OSRS-Content/osrs239-content/server/scripts/quests/quest_chompybird/"
+DEST = ("OSRS-Content/osrs-content/server/scripts/quests/quest_chompybird/"
         "configs/chompy_hats.enum")
 
 HEADER = """// Chompy hat ladder -- GENERATED, do not hand-edit.

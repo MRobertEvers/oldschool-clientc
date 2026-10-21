@@ -3,13 +3,13 @@
 > Historical baseline: the implementation described here has now been applied.
 > `python3 tools/cs2_varp_audit.py --report` currently reports 175 shared varps
 > and **0 transmission gaps**. The reviewed disposition/evidence ledger is
-> `OSRS-Content/osrs239-content/port/cs2_varps.map`; 78 rows are implemented and
+> `OSRS-Content/osrs-content/port/cs2_varps.map`; 78 rows are implemented and
 > the 27 music-unlock rows name their missing region-to-music producer as a
 > blocker after storage and transmission were added.
 
 This audit identifies actionable varp implementation gaps in the revision 239 content: a varp is listed when all three conditions hold:
 
-1. A decompiled client script in OSRS-Content/osrs239-content/scripts/*.cs2 references %var<ID>.
+1. A decompiled client script in OSRS-Content/osrs-content/scripts/*.cs2 references %var<ID>.
 2. A server .rs2 script references the corresponding varp symbol.
 3. No matching server .varp declaration enables transmit=yes.
 
@@ -143,6 +143,6 @@ These varps have a server .varp section, but that section does not set transmit=
 
 ## Notes
 
-- Script names are the filenames in OSRS-Content/osrs239-content/scripts/.
+- Script names are the filenames in OSRS-Content/osrs-content/scripts/.
 - “Referenced by server scripts” includes both reads and writes; this audit does not infer ownership from source syntax.
 - A missing transmission is not automatically fixed by adding transmit=yes: shared varp carriers and client-local state still need semantic review before implementation.

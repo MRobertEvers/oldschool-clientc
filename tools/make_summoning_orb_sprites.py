@@ -50,7 +50,7 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SPRITES = REPO_ROOT / "OSRS-Content" / "osrs239-content" / "sprites"
+SPRITES = REPO_ROOT / "OSRS-Content" / "osrs-content" / "sprites"
 LANE = SPRITES / "ported" / "scape2009_summoning"
 
 # Cyan (192 deg) to teal-green (168 deg). Small enough that the orb still reads

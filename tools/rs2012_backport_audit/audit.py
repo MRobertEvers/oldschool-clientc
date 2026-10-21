@@ -2343,7 +2343,7 @@ def main():
     if not o.model or not o.seq:
         ap.error("need --model and --seq (or --preset)")
     o.seqcfg = o.seqcfg or os.path.join(
-        "OSRS-Content", "osrs239-content", "ported", "rs2012_qbd_td",
+        "OSRS-Content", "osrs-content", "ported", "rs2012_qbd_td",
         "configs", "rs2012.seq")
     o.cache = o.cache or "cache.osrs239.rs2012"
     o.seq = [s if not s.isdigit() else "rs2012_seq_" + s for s in o.seq]

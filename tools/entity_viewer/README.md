@@ -17,7 +17,7 @@ tools/entity_viewer/run.sh                      # checks freshness, then serves
 # names and the name-similarity guesses. Rig matching no longer needs it.
 mkdir -p out/osrs239_anims
 tools/entity_viewer/ev_catalog --rev osrs239 cache.osrs239 \
-    --names OSRS-Content/osrs239-content --out out/osrs239_anims
+    --names OSRS-Content/osrs-content --out out/osrs239_anims
 ```
 
 `--names` is what turns the **player half** on: it supplies the gameval names
@@ -467,7 +467,7 @@ where the blade is and where the *lit* part of the graphic is at each one.
 
 ```sh
 tools/entity_viewer/ev_swing --rev osrs239 cache.osrs239 \
-    --arc-model OSRS-Content/osrs239-content/models/spot/dragon_halberd_special_west_red.model \
+    --arc-model OSRS-Content/osrs-content/models/spot/dragon_halberd_special_west_red.model \
     --orient 3 --out /tmp/scythe
 ```
 

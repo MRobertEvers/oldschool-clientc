@@ -130,7 +130,7 @@ dependencies, not reasons to duplicate them locally.
 ### 2.1 What already exists
 
 The partial port is in
-`OSRS-Content/osrs239-content/server/scripts/minigames/minigame_wintertodt/`.
+`OSRS-Content/osrs-content/server/scripts/minigames/minigame_wintertodt/`.
 
 | Area | Present now [C] | Required correction |
 |---|---|---|

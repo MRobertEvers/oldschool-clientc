@@ -6,7 +6,7 @@
  *
  * Usage: rs2012_wake_dump --cache DIR --seq NAME
  *   NAME is a [rs2012_seq_NNNNN] section in
- *   OSRS-Content/osrs239-content/ported/rs2012_qbd_td/configs/rs2012.seq
+ *   OSRS-Content/osrs-content/ported/rs2012_qbd_td/configs/rs2012.seq
  */
 #include "datatypes/dat2_frame.h"
 #include "datatypes/dat2_framemap.h"
@@ -32,7 +32,7 @@ main(int argc, char** argv)
 {
     const char* cache_dir = NULL;
     const char* seq_cfg =
-        "OSRS-Content/osrs239-content/ported/rs2012_qbd_td/configs/rs2012.seq";
+        "OSRS-Content/osrs-content/ported/rs2012_qbd_td/configs/rs2012.seq";
     const char* seq_name = NULL;
 
     for( int i = 1; i < argc; i++ )

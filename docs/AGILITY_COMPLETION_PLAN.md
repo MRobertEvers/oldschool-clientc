@@ -1,6 +1,6 @@
 # Finishing Agility
 
-Plan to take `OSRS-Content/osrs239-content/server/scripts/skill_agility/` from
+Plan to take `OSRS-Content/osrs-content/server/scripts/skill_agility/` from
 its current rooftops-plus-six-shortcuts port to the complete current
 [Agility](https://oldschool.runescape.wiki/w/Agility) skill.
 
@@ -611,7 +611,7 @@ row, listed with what each actually needs.
     records are exactly cache category 211, named `stile` in
     `server/pack/category.pack`, and one `[oploc1,_stile]` binds all of them.
     The crossing arithmetic is checked against the placements in
-    `OSRS-Content/osrs239-content/maps` and the landing pairs published in
+    `OSRS-Content/osrs-content/maps` and the landing pairs published in
     `tools/data/shortest_path/transports/transports.tsv` (`::agilityrun`);
     the dispatch is checked at Fred's farm by the `stile Climb-over` selftest
     leg. No level and no XP — a stile is a way through a fence.

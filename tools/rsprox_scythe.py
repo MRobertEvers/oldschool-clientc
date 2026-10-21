@@ -57,7 +57,7 @@ COPIES = {478: ("south", "red"), 506: ("north", "red"), 1172: ("east", "red"), 1
           1894: ("west", "darkred"), 1895: ("south", "blue"), 1896: ("north", "blue"),
           1897: ("east", "blue"), 1898: ("west", "blue")}
 STEP = {"north": (0, 1), "south": (0, -1), "east": (1, 0), "west": (-1, 0)}
-NPC_CONFIG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "OSRS-Content", "osrs239-content",
+NPC_CONFIG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "OSRS-Content", "osrs-content",
                           "configs", "all.npc")
 
 

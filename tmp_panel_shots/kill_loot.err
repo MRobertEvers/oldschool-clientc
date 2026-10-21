@@ -25,7 +25,7 @@ net: -> 144 bytes (first 0x10)
 Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
 Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
 torirsserver: login user='testloot' session=ok
-torirsserver: 1232 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 1232 scripts loaded from OSRS-Content/osrs-content/server/scripts/build
 torirsserver: 2 opcode(s) this content uses are not implemented:
   LINEOFWALK                   first wanted by [opheld1,mithril_seed]
   OC_MEMBERS                   first wanted by [label,attempt_cut_tree]

@@ -200,7 +200,7 @@ while the blade's must not.
 The attached case needs no `--tile`; `before/` was made with:
 
 ```sh
-M=OSRS-Content/osrs239-content/models/spot
+M=OSRS-Content/osrs-content/models/spot
 for row in south:0 west:512 north:1024 east:1536; do
   f=${row%%:*}; y=${row##*:}
   tools/entity_viewer/ev_swing --rev osrs239 cache.osrs239 \

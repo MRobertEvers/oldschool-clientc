@@ -2010,7 +2010,7 @@ index d633dba817..d4d3d3072f 100644
 +mes("You fail to steal a cowbell.");
 +mes("The cow kicks you and stuns you!");
 +damage(uid, hitsplat_damage, 1);
-+%varp5732_action_delay = calc(map_clock + 3);
++%varp6407_action_delay = calc(map_clock + 3);
 +
 +[oploc4,fairy_fat_cow]
 +if (%varb3293_peng_quest = ^coldwar_not_started) {
@@ -2833,11 +2833,11 @@ index 63cc2c2991..44d1182a3e 100644
 +// panel with `%varb3308_peng_doing_greeting` set.
 +// ------------------------------------------------------------------
 +[proc,coldwar_side_tab](interface $panel)
-+if (%varp7138_client_mobile = 1) {
++if (%varp7813_client_mobile = 1) {
 +    if_opensub(toplevel_osm:side12, $panel, 1);
-+} else if (%varp6917_client_layout = ^client_mode_fixed) {
++} else if (%varp7592_client_layout = ^client_mode_fixed) {
 +    if_opensub(toplevel:side12, $panel, 1);
-+} else if (%varp6917_client_layout = ^client_mode_resizable_modern) {
++} else if (%varp7592_client_layout = ^client_mode_resizable_modern) {
 +    if_opensub(toplevel_pre_eoc:side12, $panel, 1);
 +} else {
 +    if_opensub(toplevel_osrs_stretch:side12, $panel, 1);

@@ -13,7 +13,7 @@ from pathlib import Path
 
 
 REPO = Path(__file__).resolve().parents[1]
-CONTENT = REPO / "OSRS-Content/osrs239-content"
+CONTENT = REPO / "OSRS-Content/osrs-content"
 SUMMONING_LANE = CONTENT / "ported/scape2009_summoning"
 SUMMONING_SCRIPTS = CONTENT / "server/scripts/ported_scape2009_summoning"
 
@@ -79,7 +79,7 @@ def main() -> int:
     )
     expect("[oploc1,summoning_obelisk]" in points_script, "Obelisk op1 does not open infusion")
     expect(
-        "%varp6255_summoning_infuse_obelisk_coord = loc_coord;" in points_script,
+        "%varp6930_summoning_infuse_obelisk_coord = loc_coord;" in points_script,
         "oploc1 does not preserve the actual clicked obelisk",
     )
     expect(
@@ -92,7 +92,7 @@ def main() -> int:
             f"missing server handler for pouch operation {trigger}",
         )
     expect(
-        "loc_find(%varp6255_summoning_infuse_obelisk_coord, summoning_obelisk)" in script,
+        "loc_find(%varp6930_summoning_infuse_obelisk_coord, summoning_obelisk)" in script,
         "button action does not recover its saved live obelisk",
     )
     expect(

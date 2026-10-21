@@ -1,5 +1,5 @@
 # ladder clientofkourend quest_dir=quest_clientofkourend guide=src/main/java/com/questhelper/helpers/quests/clientofkourend/ClientOfKourend.java steps=10 legs=1:1-10@s0
-#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
 leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
 1	1	0	talkToVeos	NpcStep	npc:veos_vis_amulet	1824,3690,0	Talk to Veos on the Port Piscarilius docks. You can travel to him by talking to Veos in Port Sarim.			Sounds interesting! How can I help? | Can you take me to Gr…	quests/quest_clientofkourend/scripts/clientofkourend.rs2:24 opnpc1; +1
 1	2	1	useFeatherOnScroll	DetailedQuestStep			Use a feather on the Enchanted Scroll.		Feather; Enchanted scroll		

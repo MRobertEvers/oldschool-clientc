@@ -1,5 +1,5 @@
 # ladder onesmallfavour quest_dir=quest_onesmallfavour guide=src/main/java/com/questhelper/helpers/quests/onesmallfavour/OneSmallFavour.java steps=60 legs=1:1-10@s0 2:11-20@s70 3:21-31@s110 4:32-40@s152 5:41-52@s190 6:53-60@s240
-#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
 leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
 1	1	0	talkToYanni	NpcStep	npc:shiloantiques	2836,2983,0	Talk to Yanni Salika in Shilo Village. CKR fairy ring or take cart from Brimhaven.			Is there anything else interesting to do around here? | Yes.	areas/area_shilo/scripts/yanni_salika.rs2:9 opnpc1; +1
 1	2	5	talkToJungleForester	NpcStep	npc:jungleforester_f npc:jungleforester_m	2861,2942,0	Talk to a Jungle Forester south of Shilo Village.			I need to talk to you about red mahogany. | Okay, I'll take…	quests/quest_legends/scripts/jungle_forester.rs2:12 opnpc1; +3

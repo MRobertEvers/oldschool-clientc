@@ -215,8 +215,8 @@ class Session:
             "TORIRS_TRANSPORT": "embed",
             "TORIRSSERVER_SAVES": str(saves),
             "TORIRSSERVER_REV": "osrs239",
-            "TORIRSSERVER_CONTENT": str(ROOT / "OSRS-Content/osrs239-content"),
-            "TORIRSSERVER_SCRIPTS": str(ROOT / "OSRS-Content/osrs239-content/server/scripts/build"),
+            "TORIRSSERVER_CONTENT": str(ROOT / "OSRS-Content/osrs-content"),
+            "TORIRSSERVER_SCRIPTS": str(ROOT / "OSRS-Content/osrs-content/server/scripts/build"),
             "TORIRS_STDERR_UNBUFFERED": "1",
             "TORIRS_NET_CHEAT": (
                 "setting 18314 50;setlevel sailing 99;setlevel construction 99;"

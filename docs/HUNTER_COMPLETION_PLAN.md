@@ -1,6 +1,6 @@
 # Finishing Hunter
 
-Plan to take `OSRS-Content/osrs239-content/server/scripts/skill_hunter/`
+Plan to take `OSRS-Content/osrs-content/server/scripts/skill_hunter/`
 from its current broad-but-incomplete port to the complete current
 [Hunter](https://oldschool.runescape.wiki/w/Hunter) skill.
 

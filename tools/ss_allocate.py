@@ -12,7 +12,7 @@ This is that packer. Without it, every server-authored config block is a name th
 compiler cannot resolve, which is what porting the reference's content runs into
 about four files in.
 
-    tools/ss_allocate.py --tree OSRS-Content/osrs239-content [--check]
+    tools/ss_allocate.py --tree OSRS-Content/osrs-content [--check]
 
 Three rules, and each one is a bug this tree has already paid for once:
 

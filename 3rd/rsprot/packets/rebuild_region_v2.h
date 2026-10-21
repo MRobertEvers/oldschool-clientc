@@ -11,10 +11,13 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : RebuildRegionV2Encoder
- * Layouts      : 3 distinct, over 3 contiguous revision run(s)
+ * Layouts      : 4 distinct, over 4 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^RebuildRegionV2Encoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
+ *                Revision(s) 241 come from RSProx, not RSProt
+ *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
+ *                gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -38,12 +41,15 @@ void packet_rebuild_region_v2_v1_out(RsprotExec *x, MsgRebuildRegionV2 *m);
 void packet_rebuild_region_v2_v2_out(RsprotExec *x, MsgRebuildRegionV2 *m);
 /* v3 -- revs 239. */
 void packet_rebuild_region_v2_v3_out(RsprotExec *x, MsgRebuildRegionV2 *m);
+/* v100 -- revs 241. */
+void packet_rebuild_region_v2_v100_out(RsprotExec *x, MsgRebuildRegionV2 *m);
 
 /* Per-revision aliases: `packet_rebuild_region_v2_rev239_out` is greppable, which is the
  * point -- "what does 239 do for REBUILD_REGION_V2" without reading a table. */
 #define packet_rebuild_region_v2_rev237_out packet_rebuild_region_v2_v1_out
 #define packet_rebuild_region_v2_rev238_out packet_rebuild_region_v2_v2_out
 #define packet_rebuild_region_v2_rev239_out packet_rebuild_region_v2_v3_out
+#define packet_rebuild_region_v2_rev241_out packet_rebuild_region_v2_v100_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_rebuild_region_v2_out[];

@@ -187,13 +187,13 @@ A Zulrah implementation is complete only when all of these are true:
 13. The automated and live-client matrix in §14 passes.
 
 Out of scope, and owned elsewhere: the Regicide quest itself
-([`quests/quest_regicide/`](../../OSRS-Content/osrs239-content/server/scripts/quests/quest_regicide/)),
+([`quests/quest_regicide/`](../../OSRS-Content/osrs-content/server/scripts/quests/quest_regicide/)),
 the serpentine helm / toxic staff charge system (already landed in
-[zulrah_item_charges.rs2](../../OSRS-Content/osrs239-content/server/scripts/skill_combat/scripts/player/gear/zulrah_item_charges.rs2)),
+[zulrah_item_charges.rs2](../../OSRS-Content/osrs-content/server/scripts/skill_combat/scripts/player/gear/zulrah_item_charges.rs2)),
 the toxic blowpipe special
-([pvm_toxic_blowpipe.rs2](../../OSRS-Content/osrs239-content/server/scripts/skill_combat/scripts/player/specs/pvm_toxic_blowpipe.rs2)),
+([pvm_toxic_blowpipe.rs2](../../OSRS-Content/osrs-content/server/scripts/skill_combat/scripts/player/specs/pvm_toxic_blowpipe.rs2)),
 sacred eel fishing
-([sacred_eel.rs2](../../OSRS-Content/osrs239-content/server/scripts/skill_fishing/scripts/fishing_spots/sacred_eel.rs2)),
+([sacred_eel.rs2](../../OSRS-Content/osrs-content/server/scripts/skill_fishing/scripts/fishing_spots/sacred_eel.rs2)),
 and the paid 100k / 50-kc private instance sold by Priestess Zul-Gwenwynig
 (an upsell *over* the instance this plan builds; add it after §4 lands).
 
@@ -202,7 +202,7 @@ and the paid 100k / 50-kc private instance sold by Priestess Zul-Gwenwynig
 ## 2. Current tree — what exists, and the measured gaps
 
 Content lives in
-[`minigames/minigame_zulrah/`](../../OSRS-Content/osrs239-content/server/scripts/minigames/minigame_zulrah/).
+[`minigames/minigame_zulrah/`](../../OSRS-Content/osrs-content/server/scripts/minigames/minigame_zulrah/).
 It is 5 lines of varp, 15 lines of constants and 78 lines of script. What it
 does today:
 
@@ -223,8 +223,8 @@ Everything else is missing. The gaps, each verified against this tree:
 | G4 | No rotation machine, no phases, no positions, no dive/emerge. | `zulrah.rs2` |
 | G5 | No snakelings, no orbs, no venom clouds. | ditto |
 | G6 | No drop table, no kill count, no collection log, no CAs. | `drop_tables/scripts/` has no zulrah file |
-| G7 | Nothing applies venom to a player anywhere in the tree. The state machine exists and is correct; no monster feeds it. | [venom.rs2](../../OSRS-Content/osrs239-content/server/scripts/skill_combat/scripts/venom.rs2) header, lines 17-20 |
-| G8 | **Priestess Zul-Gwenwynig (npc 1617, `snakeboss_priest_1op`) is not spawned anywhere.** The Zul-Andra roster instead spawns `snakeboss_priest` — npc **2124**, whose cache `name=` is **"Badger"**. | [m34_47.spawn:18](../../OSRS-Content/osrs239-content/server/scripts/areas/world/configs/m34_47.spawn#L18) vs `configs/all.npc` |
+| G7 | Nothing applies venom to a player anywhere in the tree. The state machine exists and is correct; no monster feeds it. | [venom.rs2](../../OSRS-Content/osrs-content/server/scripts/skill_combat/scripts/venom.rs2) header, lines 17-20 |
+| G8 | **Priestess Zul-Gwenwynig (npc 1617, `snakeboss_priest_1op`) is not spawned anywhere.** The Zul-Andra roster instead spawns `snakeboss_priest` — npc **2124**, whose cache `name=` is **"Badger"**. | [m34_47.spawn:18](../../OSRS-Content/osrs-content/server/scripts/areas/world/configs/m34_47.spawn#L18) vs `configs/all.npc` |
 | G9 | No Zul-Andra dialogue at all: no sacrifice offer, no deposit-chest gate, no Zul-Urgish refusal. | no script references `snakeboss_highpriest` |
 | G10 | `ai_queue3` death handlers are duplicated verbatim three times, one per form. Once forms become states of one encounter this collapses to one. | `zulrah.rs2:56-78` |
 | G11 | No elite-diary resurrection anywhere. | no `resurrect` in `skill_combat/` |
@@ -408,7 +408,7 @@ player, which silently rewrites every rotation's difficulty.
 The engine already has everything needed —
 `map_instance_alloc` / `setchunk` / `build` / `coord` / `free` / `find`
 (opcodes 11009–11014), with helper procs in
-[map_instance_procs.rs2](../../OSRS-Content/osrs239-content/server/scripts/general/scripts/misc/map_instance_procs.rs2).
+[map_instance_procs.rs2](../../OSRS-Content/osrs-content/server/scripts/general/scripts/misc/map_instance_procs.rs2).
 
 The shrine straddles the m35_47 / m35_48 boundary (base at z 3068–3070 on
 m35_47, arms running to z 3078 on m35_48), so `~map_instance_from_square` is
@@ -416,7 +416,7 @@ the wrong helper — it copies **one** square. Use `map_instance_alloc(8, 8)`
 plus two `~map_instance_copy_area` calls, or a purpose-built
 `~zulrah_build_instance` that copies the 4×4-zone rectangle covering
 x 2240–2271 / z 3040–3103. Follow the Gauntlet's shape in
-[gauntlet.rs2:137-165](../../OSRS-Content/osrs239-content/server/scripts/minigames/minigame_gauntlet/scripts/gauntlet.rs2#L137-L165).
+[gauntlet.rs2:137-165](../../OSRS-Content/osrs-content/server/scripts/minigames/minigame_gauntlet/scripts/gauntlet.rs2#L137-L165).
 
 Store the handle in `%map_instance_handle` so the existing
 `~map_instance_logout_release` backstop catches an unclean logout, and add a
@@ -440,7 +440,7 @@ The Wiki's gate is two-step and currently absent (G8, G9):
 Work items:
 
 - **A1** Fix the roster: replace `snakeboss_priest` (2124, "Badger") in
-  [m34_47.spawn](../../OSRS-Content/osrs239-content/server/scripts/areas/world/configs/m34_47.spawn)
+  [m34_47.spawn](../../OSRS-Content/osrs-content/server/scripts/areas/world/configs/m34_47.spawn)
   with `snakeboss_priest_1op` (1617) at the dock. Because that file is
   generated by `tools/gen_spawns.py`, the correction belongs in the generator's
   override path, not as a hand edit that the next run reverts.
@@ -490,7 +490,7 @@ run `tools/gen_npc_stats.py` to produce `npc_stats/s/snakeboss_boss_*.stats`
 ledgers (regenerable, joined to the Wiki infobox by npc id — which is exactly
 what that tool does), or hand-author a `minigame_zulrah/configs/zulrah.npc` in
 the Inferno style
-([inferno.npc:87-95](../../OSRS-Content/osrs239-content/server/scripts/minigames/minigame_inferno/configs/inferno.npc#L87-L95)).
+([inferno.npc:87-95](../../OSRS-Content/osrs-content/server/scripts/minigames/minigame_inferno/configs/inferno.npc#L87-L95)).
 Prefer the generator.
 
 ### 6.2 Per-form profile
@@ -529,7 +529,7 @@ safespots for this phase.
 - **Damage cap.** Any player hit above 50 is replaced by a uniform roll in
   45–50. Implement as a rung on `~player_hit_npc_prepare` — the funnel the
   Gauntlet and QBD already hook
-  ([gauntlet_hunllef.rs2:252](../../OSRS-Content/osrs239-content/server/scripts/minigames/minigame_gauntlet/scripts/gauntlet_hunllef.rs2#L252)).
+  ([gauntlet_hunllef.rs2:252](../../OSRS-Content/osrs-content/server/scripts/minigames/minigame_gauntlet/scripts/gauntlet_hunllef.rs2#L252)).
   Boss only; snakelings take their 1 damage uncapped.
 - **Melee reach.** Since 7 May 2025 Zulrah is no longer melee-immune, but only
   halberds reach it — a consequence of the 5×5 footprint plus the water gap,
@@ -540,7 +540,7 @@ safespots for this phase.
   same tick that Zulrah begins its attack animation". So: roll the hit when the
   animation plays, queue the hitsplat for the flight duration.
   `~player_projectile`
-  ([projectile.rs2:30](../../OSRS-Content/osrs239-content/server/scripts/skill_combat/scripts/projectile.rs2#L30))
+  ([projectile.rs2:30](../../OSRS-Content/osrs-content/server/scripts/skill_combat/scripts/projectile.rs2#L30))
   returns exactly that duration. During a Jad phase the player is *expected* to
   have already switched prayers by the time the projectile lands.
 - **A death mid-swing still lands.** "Zulrah's existing attacks will cause
@@ -950,7 +950,7 @@ so a single `db_find` on `(rotation, phase)` yields everything the emerge needs
 without a second lookup.
 
 The tree already has the DB opcodes (`DB_*` 7500–7510) and
-[drop_table.rs2](../../OSRS-Content/osrs239-content/server/scripts/drop_tables/scripts/drop_table.rs2)
+[drop_table.rs2](../../OSRS-Content/osrs-content/server/scripts/drop_tables/scripts/drop_table.rs2)
 demonstrates the walker pattern.
 
 Runner state, all `%`-scope temp varps:
@@ -968,7 +968,7 @@ Runner state, all `%`-scope temp varps:
 | `%zulrah_ca_perfect` | cleared by any of the four Perfect-Zulrah damage sources |
 
 Driven from a single `[ai_timer,snakeboss_boss_*]`, in the shape of
-[gauntlet_hunllef.rs2:309-330](../../OSRS-Content/osrs239-content/server/scripts/minigames/minigame_gauntlet/scripts/gauntlet_hunllef.rs2#L309-L330).
+[gauntlet_hunllef.rs2:309-330](../../OSRS-Content/osrs-content/server/scripts/minigames/minigame_gauntlet/scripts/gauntlet_hunllef.rs2#L309-L330).
 
 **Phase transition.** `snakeboss_sinkfast` → drain nothing → reposition →
 `snakeboss_emergefast` → drain `%zulrah_pending_spawns`. Where the next phase
@@ -981,7 +981,7 @@ deferred-damage rule needs explicit handling there.
 one call times the hitsplat, the splash and the sound). Orbs and cloud barrages
 are ground-targeted: `projanim_map` for the lob, `loc_add` or `npc_add` on
 landing, `spotanim_map` for the impact — the Inferno meteor
-([inferno_adds.rs2:529-531](../../OSRS-Content/osrs239-content/server/scripts/minigames/minigame_inferno/scripts/inferno_adds.rs2#L529-L531))
+([inferno_adds.rs2:529-531](../../OSRS-Content/osrs-content/server/scripts/minigames/minigame_inferno/scripts/inferno_adds.rs2#L529-L531))
 is the exact shape.
 
 ### 8.1 Venom-cloud placement
@@ -1067,7 +1067,7 @@ independently rollable, which is wrong.
 elite clue 1/75 · `jar_of_swamp` 1/3000 · `snakepet` 1/4000.
 
 Follow the convention in
-[drop_tables/scripts/](../../OSRS-Content/osrs239-content/server/scripts/drop_tables/scripts/) —
+[drop_tables/scripts/](../../OSRS-Content/osrs-content/server/scripts/drop_tables/scripts/) —
 an `[ai_queue3,<npc>]` handler with a threshold walk and `obj_add(…,
 ^lootdrop_duration)`. Two departures from the ported LostCity tables:
 
@@ -1081,7 +1081,7 @@ an `[ai_queue3,<npc>]` handler with a threshold walk and `obj_add(…,
 ## 11. Rewards, log and achievements
 
 **Collection log** — a new Zulrah page under
-[interface_collection/](../../OSRS-Content/osrs239-content/server/scripts/interface_collection/):
+[interface_collection/](../../OSRS-Content/osrs-content/server/scripts/interface_collection/):
 tanzanite fang, magic fang, serpentine visage, uncut onyx, tanzanite mutagen,
 magma mutagen, jar of swamp, pet snakeling.
 
@@ -1176,7 +1176,7 @@ once the boss stands in the right place at the right cadence.
 ## 14. Test matrix
 
 **Automated** — a `zulrah_selftest.rs2` in the minigame directory, following
-[gauntlet_selftest.rs2](../../OSRS-Content/osrs239-content/server/scripts/minigames/minigame_gauntlet/scripts/gauntlet_selftest.rs2):
+[gauntlet_selftest.rs2](../../OSRS-Content/osrs-content/server/scripts/minigames/minigame_gauntlet/scripts/gauntlet_selftest.rs2):
 
 1. Instance builds, spans both map squares, contains both pillars at (2265,
    3071) and (2271, 3071), and frees on every one of the four exit paths.

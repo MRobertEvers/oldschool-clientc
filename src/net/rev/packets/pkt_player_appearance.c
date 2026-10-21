@@ -319,10 +319,62 @@ read_classic_lc289(
  * reference test decoder — the decoder stops after the three name extras and
  * misses the trailing pronoun byte, which shifts the whole block's length).
  */
+/*
+ * One worn slot's obj customisation at 241 (RSProx decodeAppearance): a slot
+ * flag byte, then -- each behind its own bit -- 0x1 recolours and 0x2
+ * retextures as `g1 count, count x (g1 index, g2 value)`, 0x10 a g1 override
+ * flag and a g2 colour, 0x4 two g4 wear models, 0x8 two g4 head models. Read
+ * and dropped: the client has no customised-obj model path yet, and stepping
+ * over it is what keeps the name and the trailing fields aligned.
+ */
+static int
+skip_obj_customisation_v6(struct RSCache_Buffer* rsbuf)
+{
+    int slot_flag;
+
+    if( !need(rsbuf, 1) )
+        return 0;
+    slot_flag = g1(rsbuf);
+    for( int bit = 0x1; bit <= 0x2; bit <<= 1 )
+    {
+        if( slot_flag & bit )
+        {
+            int count;
+
+            if( !need(rsbuf, 1) )
+                return 0;
+            count = g1(rsbuf);
+            if( !need(rsbuf, count * 3) )
+                return 0;
+            rsbuf->position += (uint32_t)(count * 3);
+        }
+    }
+    if( slot_flag & 0x10 )
+    {
+        if( !need(rsbuf, 3) )
+            return 0;
+        rsbuf->position += 3;
+    }
+    if( slot_flag & 0x4 )
+    {
+        if( !need(rsbuf, 8) )
+            return 0;
+        rsbuf->position += 8;
+    }
+    if( slot_flag & 0x8 )
+    {
+        if( !need(rsbuf, 8) )
+            return 0;
+        rsbuf->position += 8;
+    }
+    return 1;
+}
+
 static int
 read_v5(
     struct OpWriter* w,
-    struct RSCache_Buffer* rsbuf)
+    struct RSCache_Buffer* rsbuf,
+    int v6)
 {
     if( !need(rsbuf, 3) )
         return 0;
@@ -407,7 +459,15 @@ read_v5(
     {
         int flag = g2(rsbuf);
         if( flag & 0x1ffe )
-            return 0;
+        {
+            if( !v6 )
+                return 0;
+            /* `customisationFlag shr (12 - i) and 1` per wear position i, and
+             * 32768 alone is the refresh bit with no blocks behind it. */
+            for( int i = 0; i < 12; i++ )
+                if( ((flag >> (12 - i)) & 1) && !skip_obj_customisation_v6(rsbuf) )
+                    return 0;
+        }
     }
 
     for( int i = 0; i < 3; i++ )
@@ -450,8 +510,8 @@ pkt_appearance_read(
     w.capacity = ops_capacity;
     RSCache_BufferInit(&rsbuf, (uint8_t*)data, (uint32_t)len);
 
-    if( encoding == APPEARANCE_ENC_V5 )
-        ok = read_v5(&w, &rsbuf);
+    if( encoding == APPEARANCE_ENC_V5 || encoding == APPEARANCE_ENC_V6 )
+        ok = read_v5(&w, &rsbuf, encoding == APPEARANCE_ENC_V6);
     else if( encoding == APPEARANCE_ENC_CLASSIC_LC289 )
         ok = read_classic_lc289(&w, &rsbuf);
     else

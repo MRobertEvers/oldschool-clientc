@@ -466,8 +466,8 @@ selftest_quest_deathplateau(struct ToriRSServer* srv, struct ToriRSServerPlayer*
     npc_tenzing = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "death_sherpa");
     npc_dunstan = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "death_smithy");
     varp_equip = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp314_death_equiproom");
-    varp_map = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp5767_death_map");
-    varp_bits = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp5768_death_bits");
+    varp_map = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp6442_death_map");
+    varp_bits = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp6443_death_bits");
     varp_qp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp");
     varp_troll = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp317_troll_quest");
     stat_attack = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, "attack");

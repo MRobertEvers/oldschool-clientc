@@ -45,7 +45,7 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONTENT = os.path.join(ROOT, "OSRS-Content", "osrs239-content", "server", "scripts")
+CONTENT = os.path.join(ROOT, "OSRS-Content", "osrs-content", "server", "scripts")
 # The C server tree was renamed from src/net/mock to src/torirsserver on
 # 2026-08-20. Both are checked so the tool works either side of the rename and
 # in a worktree that predates it.

@@ -12,7 +12,7 @@ place and a player can measure in one lap. Four of these courses were wrong by
 24-146 XP when this was written (docs/AGILITY_COMPLETION_PLAN.md §0.1), and
 nothing in the tree would have noticed.
 
-    tools/agility_xp_audit.py [--tree OSRS-Content/osrs239-content]
+    tools/agility_xp_audit.py [--tree OSRS-Content/osrs-content]
 
 Exits non-zero on any mismatch, and is run by `make -C src torirsserver-scripts`.
 """
@@ -166,7 +166,7 @@ def course_xp_tenths(text):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--tree", default="OSRS-Content/osrs239-content")
+    parser.add_argument("--tree", default="OSRS-Content/osrs-content")
     args = parser.parse_args()
 
     scripts = os.path.join(args.tree, "server", "scripts")

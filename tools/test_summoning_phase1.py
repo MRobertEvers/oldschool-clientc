@@ -20,7 +20,7 @@ def main() -> int:
     parser.add_argument("--client", type=Path, default=REPO_ROOT / "src" / "torirs")
     parser.add_argument("--flag-on", type=Path, default=REPO_ROOT / "cache.osrs239.summoning")
     parser.add_argument("--flag-off", type=Path, default=REPO_ROOT / "cache.osrs239")
-    parser.add_argument("--scripts", type=Path, default=REPO_ROOT / "OSRS-Content/osrs239-content/server/scripts/build_summoning")
+    parser.add_argument("--scripts", type=Path, default=REPO_ROOT / "OSRS-Content/osrs-content/server/scripts/build_summoning")
     parser.add_argument("--manifest", type=Path, default=REPO_ROOT / "manifests/manifest_osrs239.ini")
     parser.add_argument("--out", type=Path, default=REPO_ROOT / "build" / "summoning-phase1")
     args = parser.parse_args()
@@ -52,12 +52,12 @@ def main() -> int:
 
     content_lane = (
         REPO_ROOT
-        / "OSRS-Content/osrs239-content/ported/scape2009_summoning"
+        / "OSRS-Content/osrs-content/ported/scape2009_summoning"
     )
     stats_source = (content_lane / "interfaces/stats.if").read_text(encoding="utf-8")
     icon_path = (
         REPO_ROOT
-        / "OSRS-Content/osrs239-content/sprites/ported/scape2009_summoning"
+        / "OSRS-Content/osrs-content/sprites/ported/scape2009_summoning"
         / "summoning_staticon/0.bmp"
     )
     icon_meta = icon_path.with_name("pack.meta").read_text(encoding="utf-8")

@@ -251,7 +251,7 @@ return {
 
         -- The Gnome Stronghold gate (gnome_gate.rs2 [oploc1,gnome_areagate]): a press from either
         -- entrance force-moves the player three tiles through it (south entrance 2461,3382, north
-        -- 2461,3385). While %varp5856_femi_help = 0 a press from the south with Femi within 6 tiles
+        -- 2461,3385). While %varp6531_femi_help = 0 a press from the south with Femi within 6 tiles
         -- opens her boxes instead (gnome_gate.rs2:36-38 -> femi.rs2 @grandtree_femi_boxes); declining
         -- sets femi_help 1 (femi.rs2:84-87), and the gate is then crossed by its verb.
         local function stronghold_gate_in(pfx)   -- from the pool hop 2461,3379 (open ground south of the gate)
@@ -268,9 +268,9 @@ return {
                 t.exec(pfx .. ".femiBoxes-dialog", t.chat.play, {
                     "npc:Hello there", "player:Hi!", "npc:Could you help me lift", "options",
                     "choose:Sorry, I'm a bit busy.", "player:Sorry, I'm a bit busy.", "npc:Oh, OK, I'll do it myself." })
-                local femi_result, femi_help = t.var.server("varp5856_femi_help")
+                local femi_result, femi_help = t.var.server("varp6531_femi_help")
                 t.check(pfx .. ".femiDeclined", femi_result == "ok" and femi_help == 1,
-                    "click_loc gnome_areagate -> " .. tostring(press_result) .. "; varp5856_femi_help = " .. tostring(femi_help)
+                    "click_loc gnome_areagate -> " .. tostring(press_result) .. "; varp6531_femi_help = " .. tostring(femi_help)
                         .. " (" .. tostring(femi_result) .. "), want 1: her boxes declined (femi.rs2:84-87)")
                 t.exec(pfx .. ".gateIn", t.player.cross_gate, { loc = "gnome_areagate", at = { 2459, 3383, 0 }, near = { 2461, 3382 },
                     far_ok = function(tile) return tile.z >= 3385 end, far_desc = "inside the Stronghold, z >= 3385" })

@@ -398,7 +398,7 @@ enum
  * resolves that pack by NAME (static_sprites.c, STATIC_SPRITE_HEADICONS_PRAYER)
  * — the provider offers no synchronous name -> group-id lookup to close the
  * gap with, only an async load task. So the number is stated here, from
- * `OSRS-Content/osrs239-content/pack/8_sprites.pack` line 441, where it is the
+ * `OSRS-Content/osrs-content/pack/8_sprites.pack` line 441, where it is the
  * only group any of this cache's 77 headicon-bearing npc records names.
  *
  * Failure mode if a future cache renumbers it: npcs stop drawing overheads.

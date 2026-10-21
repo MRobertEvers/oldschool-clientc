@@ -392,7 +392,7 @@ def main() -> int:
     parser.add_argument(
         "--content",
         type=Path,
-        default=Path("OSRS-Content/osrs239-content"),
+        default=Path("OSRS-Content/osrs-content"),
         help="revision content root",
     )
     parser.add_argument("--json", action="store_true", help="emit the validated summary as JSON")

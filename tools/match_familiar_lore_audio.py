@@ -53,7 +53,7 @@ from pathlib import Path
 from js5_cache_verify import read_group, read_index
 
 REPO = Path(__file__).resolve().parents[1]
-SOUND_PACK = REPO / "OSRS-Content" / "osrs239-content" / "pack" / "4_soundeffects.pack"
+SOUND_PACK = REPO / "OSRS-Content" / "osrs-content" / "pack" / "4_soundeffects.pack"
 ROSTER = REPO / "docs" / "summoning_port" / "roster_assets_530.csv"
 OUT = REPO / "docs" / "summoning_port" / "familiar_lore_audio_239.csv"
 TARGET_CACHE = REPO / "cache.osrs239"

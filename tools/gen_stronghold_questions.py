@@ -29,7 +29,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WIKI = os.path.join(ROOT, "docs/areas/stronghold/sources/Stronghold_of_Security.wiki")
-OUT = os.path.join(ROOT, "OSRS-Content/osrs239-content/server/scripts/areas/area_stronghold/"
+OUT = os.path.join(ROOT, "OSRS-Content/osrs-content/server/scripts/areas/area_stronghold/"
                    "scripts/stronghold_questions.generated.rs2")
 
 CORRECT = ("Correct!", "Well done!")

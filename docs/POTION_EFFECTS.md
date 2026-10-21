@@ -3,11 +3,11 @@
 Every drinkable potion the osrs239 cache ships, what it does, and where its
 Drink handler lives. Built by sweeping `configs/all.obj` for every dose family
 and diffing against the `[opheld1,...]` bindings in
-`OSRS-Content/osrs239-content/server/scripts`, so it is a mechanical list, not a
+`OSRS-Content/osrs-content/server/scripts`, so it is a mechanical list, not a
 remembered one. Re-run the sweep rather than trusting this file to stay current:
 
 ```sh
-cd OSRS-Content/osrs239-content/server/scripts
+cd OSRS-Content/osrs-content/server/scripts
 grep -rhoE "^\[opheld[0-9],[a-z0-9_+]+\]" . | sed -E 's/^\[opheld[0-9],//;s/\]$//' | sort -u
 ```
 

@@ -437,9 +437,9 @@ cast. `npc_delay` stays only for LostCity's own scripted pauses (cabbage 1 tick,
 
 (c) Proving content against HEAD without mutating the shared tree: `git -C OSRS-Content worktree
 add --detach <scratch>/wt HEAD`, copy server/pack into it, build its pack with `make -C src
-torirsserver-scripts-lanes TORIRSSERVER_SCRIPT_LANES= TORIRSSERVER_CONTENT_DIR=<wt>/osrs239-content
-TORIRSSERVER_SCRIPT_OUT=<wt>/osrs239-content/server/scripts/build`, then
-`TORIRSSERVER_CONTENT=<wt>/osrs239-content run.py --script ...`.
+torirsserver-scripts-lanes TORIRSSERVER_SCRIPT_LANES= TORIRSSERVER_CONTENT_DIR=<wt>/osrs-content
+TORIRSSERVER_SCRIPT_OUT=<wt>/osrs-content/server/scripts/build`, then
+`TORIRSSERVER_CONTENT=<wt>/osrs-content run.py --script ...`.
 
 (d) The driver's npc row carries `hit_cycle` (the newest splat's start cycle) and
 `overhead`/`overhead_timer`: a `hit_cycle` stamp every swing proves the npc drained its queue that
@@ -1865,7 +1865,7 @@ rule. Conformance row `seam.npc_drawing_no_face_is_pressed` covers it. biohazard
 fallbacks are no longer needed.
 
 (i) **Proving pre-fix content behaviour without mutating the shared tree**: build a symlink farm
-that mirrors `osrs239-content` with the one file replaced by its HEAD copy, compile it with
+that mirrors `osrs-content` with the one file replaced by its HEAD copy, compile it with
 `src/build_opt/sscompile --src <farm>/server/scripts --out <farm>/server/scripts/build`, and run with
 `TORIRSSERVER_SCRIPTS=<that build dir>` (the phoenixdoor2 and Keldagrim baselines).
 
@@ -2101,7 +2101,7 @@ verbs-pointer.md. Conformance `player.climb`, `player.cancel_selection` and
 quest id, and without `--no-publish` it rewrites `OSRS-Content/.../selftest/quests/<dir>/play`. Two
 fixers in this pass did so for cooks_assistant and druid, and a hand restore then zeroed 72 tracked
 files. When you read a file back with `git show HEAD:<path>`, remember that OSRS-Content's git root
-is `OSRS-Content/`, not `osrs239-content/`: the path needs the `osrs239-content/` prefix.
+is `OSRS-Content/`, not `osrs-content/`: the path needs the `osrs-content/` prefix.
 
 ## Seam pass matthew-mbp-m4-b61-seam1 (2026-10-05, batch matthew-mbp-m4-b61)
 
@@ -2705,7 +2705,7 @@ names Priest in Peril + Drezel's warning; no varp source for the warning was fou
 gated.
 
 (b) **A before-run on the pre-edit pack without a worktree.** Copy
-`OSRS-Content/osrs239-content/server/scripts/build/script.{dat,idx}` aside BEFORE rebuilding, then
+`OSRS-Content/osrs-content/server/scripts/build/script.{dat,idx}` aside BEFORE rebuilding, then
 run with `TORIRSSERVER_SCRIPTS=<copy> TORIRSSERVER_ALLOW_STALE_SCRIPTS=1` (configs read at run time
 still come from the tree: see b67-seam1 (i) for a config A/B).
 

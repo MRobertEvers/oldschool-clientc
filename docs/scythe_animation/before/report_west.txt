@@ -1,6 +1,6 @@
 weapon obj 22325      wear model vertices 288..677 of 678
 attack seq 8056     22 frames, 77 client cycles, rig 0
-spotanim 1231       model OSRS-Content/osrs239-content/models/spot/dragon_halberd_special_west_red.model, seq 1204: 16 frames, 67 cycles, rig 899
+spotanim 1231       model OSRS-Content/osrs-content/models/spot/dragon_halberd_special_west_red.model, seq 1204: 16 frames, 67 cycles, rig 899
 shipped placement: height 100, delay 16 cycles
 
 weapon sweep: 110 of 390 vertices move within 40% of the fastest, and the

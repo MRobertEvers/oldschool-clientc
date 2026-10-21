@@ -58,7 +58,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 WIKITEXT = ROOT / "docs/audio/osrs_wiki_sound_ids.wikitext"
-PACK = ROOT / "OSRS-Content/osrs239-content/pack/4_soundeffects.pack"
+PACK = ROOT / "OSRS-Content/osrs-content/pack/4_soundeffects.pack"
 
 
 def parse_wiki(path):

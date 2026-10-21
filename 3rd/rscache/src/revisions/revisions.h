@@ -137,6 +137,10 @@ RSCache_ProfileDat2Osrs238(void);
 struct RSCache
 RSCache_ProfileDat2Osrs239(void);
 
+/** OSRS 241 (`cache.osrs241`, OpenRS2 #2746) — 239's gates. */
+struct RSCache
+RSCache_ProfileDat2Osrs241(void);
+
 /* --- lookup ------------------------------------------------------------- */
 
 /**

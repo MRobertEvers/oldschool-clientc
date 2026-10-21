@@ -7,7 +7,7 @@ OSRS wiki "Small shipwreck" pins (3095,2928 .. 3132,2951; 1574,3326 ..) are
 exactly the cache's stump tiles. Sites of one kind within CLUSTER tiles of
 each other form one area: a shared pool (wiki "Salvaging": "Each area has a
 shared spawn pool"). Writes
-OSRS-Content/osrs239-content/server/scripts/sailing/scripts/sailing_wreck_sites.rs2.
+OSRS-Content/osrs-content/server/scripts/sailing/scripts/sailing_wreck_sites.rs2.
 
     python3 tools/gen_sailing_wreck_sites.py
 """
@@ -18,7 +18,7 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONTENT = os.path.join(ROOT, "OSRS-Content", "osrs239-content")
+CONTENT = os.path.join(ROOT, "OSRS-Content", "osrs-content")
 OUT = os.path.join(CONTENT, "server", "scripts", "sailing", "scripts", "sailing_wreck_sites.rs2")
 KINDS = ["small", "fisherman", "barracuda", "large", "pirate", "mercenary", "fremennik", "merchant"]
 CLUSTER = 64

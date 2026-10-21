@@ -76,12 +76,12 @@ of the three are id-shaped and ids never cross trees (PORTING_GUIDE §4.1 rule 4
 
 ### 3.1 Cache — what exists *here*
 
-`OSRS-Content/osrs239-content/`. The authority for which objs are weapons, what
+`OSRS-Content/osrs-content/`. The authority for which objs are weapons, what
 `category=` (config opcode 94) they carry, what `attackrate` the cache states,
 and — the load-bearing part — **which seq names are spellable**.
 
 ```sh
-grep -c '^\[' OSRS-Content/osrs239-content/configs/all.seq       # 14413 seq records
+grep -c '^\[' OSRS-Content/osrs-content/configs/all.seq       # 14413 seq records
 grep -n '^\[scythe_of_vitur_attack\]' …/configs/all.seq          # it is there
 ```
 
@@ -251,7 +251,7 @@ The LostCity combat port deleted `sound_synth` wholesale, and said so in each
 file header:
 
 ```sh
-grep -rn "drop sound_synth" OSRS-Content/osrs239-content/server/scripts/skill_combat/
+grep -rn "drop sound_synth" OSRS-Content/osrs-content/server/scripts/skill_combat/
 ```
 
 — `player_ranged.rs2`, `player_magic.rs2`, `npc_combat_magic.rs2`,
@@ -437,7 +437,7 @@ This is that table landing.
 cache's own `attack_anim` (param 2635)"*. Measured:
 
 ```sh
-grep -c "param_2635" OSRS-Content/osrs239-content/configs/all.obj   # 0
+grep -c "param_2635" OSRS-Content/osrs-content/configs/all.obj   # 0
 ```
 
 There is no param 2635 on any obj record in this cache, and no obj param of any

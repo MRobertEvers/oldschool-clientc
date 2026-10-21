@@ -1,6 +1,6 @@
 # Daddy's Home, from RSProx
 
-Written 2026-10-20. Content: `OSRS-Content/osrs239-content/server/scripts/quests/quest_daddyshome/`,
+Written 2026-10-20. Content: `OSRS-Content/osrs-content/server/scripts/quests/quest_daddyshome/`,
 the sawmill's Buy-plank and Trade in `skill_construction/scripts/poh_sawmill.rs2`, and the
 sawmill's stock in `shop/sawmill/configs/construction_supplies.inv`. Test: `test/quests/daddyshome.lua`.
 

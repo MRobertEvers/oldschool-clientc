@@ -1,4 +1,5 @@
 #include "cs2_command.h"
+#include "../rscache_profile.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -251,16 +252,22 @@ RSCache_CS2_CommandBranchInfix(int opcode)
     switch( opcode )
     {
     case RSCACHE_CS2_OP_BRANCH_EQUALS:
+    case RSCACHE_CS2_OP_LONG_BRANCH_EQUALS:
         return "=";
     case RSCACHE_CS2_OP_BRANCH_GREATER_THAN:
+    case RSCACHE_CS2_OP_LONG_BRANCH_GREATER_THAN:
         return ">";
     case RSCACHE_CS2_OP_BRANCH_GREATER_THAN_OR_EQUALS:
+    case RSCACHE_CS2_OP_LONG_BRANCH_GREATER_THAN_OR_EQUALS:
         return ">=";
     case RSCACHE_CS2_OP_BRANCH_LESS_THAN:
+    case RSCACHE_CS2_OP_LONG_BRANCH_LESS_THAN:
         return "<";
     case RSCACHE_CS2_OP_BRANCH_LESS_THAN_OR_EQUALS:
+    case RSCACHE_CS2_OP_LONG_BRANCH_LESS_THAN_OR_EQUALS:
         return "<=";
     case RSCACHE_CS2_OP_BRANCH_NOT:
+    case RSCACHE_CS2_OP_LONG_BRANCH_NOT:
         return "!";
     case RSCACHE_CS2_OP_SS_OR:
         return "|";
@@ -284,12 +291,18 @@ RSCache_CS2_CommandPrecedence(int opcode)
     case RSCACHE_CS2_OP_SUB:
         return 2;
     case RSCACHE_CS2_OP_BRANCH_GREATER_THAN:
+    case RSCACHE_CS2_OP_LONG_BRANCH_GREATER_THAN:
     case RSCACHE_CS2_OP_BRANCH_GREATER_THAN_OR_EQUALS:
+    case RSCACHE_CS2_OP_LONG_BRANCH_GREATER_THAN_OR_EQUALS:
     case RSCACHE_CS2_OP_BRANCH_LESS_THAN:
+    case RSCACHE_CS2_OP_LONG_BRANCH_LESS_THAN:
     case RSCACHE_CS2_OP_BRANCH_LESS_THAN_OR_EQUALS:
+    case RSCACHE_CS2_OP_LONG_BRANCH_LESS_THAN_OR_EQUALS:
         return 3;
     case RSCACHE_CS2_OP_BRANCH_EQUALS:
+    case RSCACHE_CS2_OP_LONG_BRANCH_EQUALS:
     case RSCACHE_CS2_OP_BRANCH_NOT:
+    case RSCACHE_CS2_OP_LONG_BRANCH_NOT:
         return 4;
     case RSCACHE_CS2_OP_AND:
         return 5;
@@ -301,5 +314,35 @@ RSCache_CS2_CommandPrecedence(int opcode)
         return 8;
     default:
         return 0;
+    }
+}
+
+void
+RSCache_CS2_CommandApplyProfile(const struct RSCache* cache)
+{
+    assert(cache);
+    static const enum RSCache_CS2_ProtoId one_int[] = { RSCACHE_CS2_PROTO_INT };
+    static const enum RSCache_CS2_ProtoId two_ints[] = { RSCACHE_CS2_PROTO_INT,
+                                                         RSCACHE_CS2_PROTO_INT };
+    static const struct
+    {
+        int opcode;
+        const enum RSCache_CS2_ProtoId* defs;
+        int def_count;
+    } pre241[] = {
+        { 3905, one_int, 1 }, /* stockmarket_getofferprice */
+        { 3908, one_int, 1 }, /* stockmarket_getoffercompletedgold */
+        { 3932, two_ints, 2 }, /* stockmarket_value */
+    };
+    bool longs = RSCache_RevisionAtLeastOsrs(
+        cache, RSCACHE_TYPE_CLIENTSCRIPT, 241, RSCACHE_GROUP_REVISION_UNKNOWN, true);
+    for( size_t i = 0; i < sizeof(pre241) / sizeof(pre241[0]); i++ )
+    {
+        bool ok = longs ? RSCache_CS2_CommandOverride(
+                              pre241[i].opcode, NULL, NULL, -1, NULL, 0, false)
+                        : RSCache_CS2_CommandOverride(
+                              pre241[i].opcode, NULL, one_int, 1, pre241[i].defs,
+                              pre241[i].def_count, false);
+        assert(ok);
     }
 }

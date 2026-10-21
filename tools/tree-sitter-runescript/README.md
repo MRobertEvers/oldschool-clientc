@@ -21,9 +21,9 @@ to read it:
 
 ```bash
 npx tree-sitter-cli@0.26.12 parse --quiet --stat \
-    '../../OSRS-Content/osrs239-content/server/scripts/**/*.rs2'
+    '../../OSRS-Content/osrs-content/server/scripts/**/*.rs2'
 npx tree-sitter-cli@0.26.12 parse --quiet --stat \
-    '../../OSRS-Content/osrs239-content/scripts/*.cs2'
+    '../../OSRS-Content/osrs-content/scripts/*.cs2'
 ```
 
 | corpus | files | parsed |

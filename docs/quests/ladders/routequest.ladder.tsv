@@ -1,5 +1,5 @@
 # ladder routequest quest_dir=quest_routequest guide=src/main/java/com/questhelper/helpers/quests/insearchofthemyreque/InSearchOfTheMyreque.java steps=39 legs=1:1-10@s0 2:11-20@s25 3:21-28@s65 4:29-39@s71
-#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
 leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
 1	1	0	talkToVanstrom	NpcStep	npc:route_vanstrom_klause_sitting	3503,3477,0	Talk to Vanstrom Klause in the Canifis pub.			Yes.	quests/quest_routequest/scripts/routequest_start_and_route.rs2:24 opnpc1; +1
 1	2	5	fillDruidPouch	DetailedQuestStep			Fill a druid pouch with at least 5 Mort Myre items. Try to have more in case a ghast hits you.		Charges in a druid pouch	I'd better be off.	

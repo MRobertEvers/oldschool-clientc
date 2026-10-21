@@ -1433,7 +1433,7 @@ def main():
                     help="HD source cache the bake reads materials out of — "
                          "NOT --cache, which is the dat2 cache the sequences "
                          "decode from")
-    ap.add_argument("--backport-tree", default="OSRS-Content/osrs239-content",
+    ap.add_argument("--backport-tree", default="OSRS-Content/osrs-content",
                     help="content tree whose ported lane gets baked")
     ap.add_argument("--matte", type=int, default=None,
                     help="compress each baked face's lightness toward its "

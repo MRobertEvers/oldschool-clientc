@@ -1,7 +1,7 @@
 # Quest inventory for client-driven test planning
 
 Scope: `server/scripts/quests/` in
-`/Users/matthewevers/Documents/git_repos/3draster-quest-driver/OSRS-Content/osrs239-content`.
+`/Users/matthewevers/Documents/git_repos/3draster-quest-driver/OSRS-Content/osrs-content`.
 `ls server/scripts/quests` shows **182 entries**, but three of those are not
 quests: `configs/` (shared `questcheat.constant`/`questpoints.varp`/
 `questscroll.constant`), `scripts/` (shared helper procs, see below) and

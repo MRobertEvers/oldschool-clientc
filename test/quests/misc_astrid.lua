@@ -1,5 +1,5 @@
 -- Throne of Miscellania, Astrid path (1 QP). Content:
--- OSRS-Content/osrs239-content/server/scripts/quests/quest_misc/scripts/
+-- OSRS-Content/osrs-content/server/scripts/quests/quest_misc/scripts/
 --   misc_king_vargas.rs2, misc_princess_astrid.rs2, misc_prince_brand.rs2,
 --   misc_queen_sigrid.rs2, misc_advisor_ghrim.rs2, misc_giant_nib.rs2,
 --   misc_courting_emotes.rs2, misc_door_guard.rs2, misc_debug.rs2

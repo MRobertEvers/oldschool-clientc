@@ -1,5 +1,5 @@
 # ladder swansong quest_dir=quest_swansong guide=src/main/java/com/questhelper/helpers/quests/swansong/SwanSong.java steps=22 legs=1:1-22@s0
-#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
 leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
 1	1	0	talkToHerman	NpcStep	npc:swan_herman	2345,3651,0	Talk to Herman Carnos outside the Fishing Colony.			What's the rush? | Do you need any help? | I'm a brave adve…	quests/quest_swansong/scripts/swansong_colony.rs2:151 opnpc1; +1
 1	2	10	talkToWom	NpcStep	npc:wise_old_man	3089,3253,0	Talk to the Wise Old Man in Draynor Village.		Blood rune; Lava rune; Mist rune	Draynor Village | You used to be a famous adventurer, didn'…	quests/quest_makingfriendswithmyarm/scripts/makingfriendswithmyarm.rs2:324 opnpc1; +1

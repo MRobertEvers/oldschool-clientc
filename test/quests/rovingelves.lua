@@ -1,5 +1,5 @@
 -- Roving Elves. Rewritten by hand from quest_rovingelves's own scripts
--- (OSRS-Content/osrs239-content/server/scripts/quests/quest_rovingelves/) --
+-- (OSRS-Content/osrs-content/server/scripts/quests/quest_rovingelves/) --
 -- the scaffold's Quest Helper guess (real-OSRS Waterfall Quest traversal:
 -- log raft, ropes, falls door, crate key) does not match this port at all.
 -- This pack's rovingelves_seed.rs2 plants the seed at a fixed zone/coord
@@ -73,7 +73,7 @@
 -- THE VARP SEAM (QUEST_AUTHORING.md section 8, same shape as
 -- test/quests/pryingtimes.lua and makinghistory.lua): `rovingelves_quest`
 -- (varp.alloc:549, id 6262) is declared `transmit=yes` in the quest's own
--- configs/quest_rovingelves.varp, but `OSRS-Content/osrs239-content/
+-- configs/quest_rovingelves.varp, but `OSRS-Content/osrs-content/
 -- pack/varp.client` -- the membership file `cachepack pack` actually routes
 -- on -- never lists it, and it is not part of the base cache either (it is
 -- absent from all.varp.compack entirely, which tops out at id 5704). Per
@@ -436,7 +436,7 @@ return {
         end
 
         local bind_result, bind_detail = t.quest.bind({
-            varp = "varp6262_rovingelves_quest",
+            varp = "varp6937_rovingelves_quest",
             constants = {
                 not_started = 0,
                 spoken_islwyn = 10,

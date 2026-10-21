@@ -4,7 +4,7 @@ live variant, whether that shell is actually spawned in the world, and
 whether any quest script already references the switch.
 
     tools/gen_multinpc_catalog.py \
-        --content OSRS-Content/osrs239-content \
+        --content OSRS-Content/osrs-content \
         --out-dir tools/data
 
 A `multinpc` record is a shell: no `model*=` of its own, just `multivarp=` or
@@ -198,7 +198,7 @@ def default_variant(variants):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--content", required=True, help="path to osrs239-content")
+    parser.add_argument("--content", required=True, help="path to osrs-content")
     parser.add_argument("--out-dir", required=True)
     args = parser.parse_args()
 

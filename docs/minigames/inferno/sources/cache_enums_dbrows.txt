@@ -1,4 +1,4 @@
-# enums, dbrows and structs that belong to the minigame -- quoted from OSRS-Content/osrs239-content/configs/all.{enum,dbrow,struct}
+# enums, dbrows and structs that belong to the minigame -- quoted from OSRS-Content/osrs-content/configs/all.{enum,dbrow,struct}
 
 [dbrow 2811] music_inferno    (configs/all.dbrow:44658)  why= name: music_inferno
   columns=15    (configs/all.dbrow:44659)

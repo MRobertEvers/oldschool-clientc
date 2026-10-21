@@ -2500,6 +2500,10 @@ cs2_seed_varc_names(struct cp_cs2_state* state, const struct LC_Pack* pack)
     snprintf(path, sizeof(path), "%s/configs/all.varc", state->ctx->srcdir);
     struct RSCache_CS2_IntMap strings;
     RSCache_CS2_IntMapInit(&strings);
+    /* `type=long`: a varc the tree states as long, for one only the tree's own
+     * scripts read (the cache's uses are found by cs2_seed_long_vars). */
+    struct RSCache_CS2_IntMap longs;
+    RSCache_CS2_IntMapInit(&longs);
     FILE* file = fopen(path, "rb");
     if( file )
     {
@@ -2517,12 +2521,14 @@ cs2_seed_varc_names(struct cp_cs2_state* state, const struct LC_Pack* pack)
                 memcpy(current, line + 1, length);
                 current[length] = '\0';
             }
-            else if( current[0] && strcmp(line, "type=string") == 0 )
+            else if( current[0] && (strcmp(line, "type=string") == 0 ||
+                                    strcmp(line, "type=long") == 0) )
             {
+                struct RSCache_CS2_IntMap* set = line[5] == 's' ? &strings : &longs;
                 for( int id = 0; id < pack->max; id++ )
                 {
                     if( pack->names && pack->names[id] && strcmp(pack->names[id], current) == 0 )
-                        RSCache_CS2_IntMapPut(&strings, id, (void*)1);
+                        RSCache_CS2_IntMapPut(set, id, (void*)1);
                 }
             }
         }
@@ -2533,14 +2539,49 @@ cs2_seed_varc_names(struct cp_cs2_state* state, const struct LC_Pack* pack)
         const char* name = pack->names ? pack->names[id] : NULL;
         if( !name || !cs2_is_identifier(name) || cs2_is_var_filler(name) )
             continue;
-        RSCache_CS2_NamesSet(
-            &state->names,
-            RSCache_CS2_IntMapContains(&strings, id) ? RSCACHE_CS2_NAMES_VARCSTRING
-                                                     : RSCACHE_CS2_NAMES_VARCINT,
-            id,
-            name);
+        enum RSCache_CS2_NameTable table = RSCACHE_CS2_NAMES_VARCINT;
+        if( RSCache_CS2_IntMapContains(&strings, id) )
+            table = RSCACHE_CS2_NAMES_VARCSTRING;
+        else if( RSCache_CS2_IntMapContains(&longs, id) )
+            table = RSCACHE_CS2_NAMES_VARCLONG;
+        RSCache_CS2_NamesSet(&state->names, table, id, name);
     }
     RSCache_CS2_IntMapFree(&strings);
+    RSCache_CS2_IntMapFree(&longs);
+}
+
+/*
+ * The long varcs and varps the cache's own scripts read (51/52, 64/65). Decoded
+ * straight off the disk rather than through cs2_load_script: packing, that
+ * compiles the tree's source first, and the tree's source is what needs these
+ * names to compile.
+ */
+static void
+cs2_seed_long_vars(struct cp_cs2_state* state)
+{
+    struct RSCache_ClientScript** decoded = calloc((size_t)state->capacity, sizeof(*decoded));
+    const struct RSCache_CS2_Script** scripts = calloc((size_t)state->capacity, sizeof(*scripts));
+    assert(decoded);
+    assert(scripts);
+    int count = 0;
+    for( int id = 0; id < state->capacity; id++ )
+    {
+        struct RSCache_Dat2DiskArchive* archive =
+            RSCache_Dat2DiskArchiveNewLoad(state->ctx->cache.disk, state->table, id);
+        if( !archive )
+            continue;
+        decoded[id] = RSCache_ClientScriptNewFromDecodeFlags(
+            id, (const uint8_t*)archive->data, archive->data_size,
+            RSCache_ClientScriptFlags(&state->ctx->profile));
+        RSCache_Dat2DiskArchiveFree(archive);
+        if( decoded[id] )
+            scripts[count++] = &decoded[id]->script;
+    }
+    RSCache_CS2_NamesSeedLongVars(&state->names, scripts, count);
+    for( int id = 0; id < state->capacity; id++ )
+        RSCache_ClientScriptFree(decoded[id]);
+    free(decoded);
+    free(scripts);
 }
 
 static void
@@ -2615,7 +2656,24 @@ cs2_seed_script_names(struct cp_cs2_state* state)
                  asset->codec->ext);
         FILE* source = fopen(path, "rb");
         if( !source )
-            continue; /* bytecode-only (`.cs2b`), or a tree with no scripts yet */
+        {
+            /* Bytecode-only (`.cs2b`): no header to read, but the pack names
+             * it, and a `~name` / hook call to it is to that id. Registered
+             * bare -- no trigger -- which the lookup accepts for any trigger
+             * (RSCache_CS2_NamesScriptId's exact match). Without it a script
+             * whose bytecode the decompiler declines became uncallable by
+             * name: 73 of the 241 tree's sources failed on exactly that
+             * (`no proc with the name 'bankmain_build_277'`, 2026-10-20). */
+            char bytecode[1700];
+            snprintf(bytecode, sizeof(bytecode), "%s/%s/%s.cs2b", state->ctx->srcdir, asset->dir, file);
+            FILE* raw = fopen(bytecode, "rb");
+            if( raw )
+            {
+                fclose(raw);
+                RSCache_CS2_NamesSetScript(&state->names, id, file);
+            }
+            continue;
+        }
 
         /* The header is the first line that opens a bracket; the `// <id>` banner
          * above it is a comment. Everything from `]` on is the parameter list,
@@ -2762,11 +2820,13 @@ cs2_state_ready(struct CP_Ctx* ctx)
     g_cs2.attempted = calloc((size_t)g_cs2.capacity, 1);
     if( !g_cs2.scripts || !g_cs2.attempted )
         return 0;
+    RSCache_CS2_CommandApplyProfile(&ctx->profile);
     RSCache_CS2_NamesInit(&g_cs2.names);
     /* Every name comes from the tree: the dialect's own words are built into
      * RSCache_CS2_NamesInit, records are named by the tree's packs, scripts by
      * their headers. Nothing outside the content repo is read. */
     cs2_seed_record_names(&g_cs2);
+    cs2_seed_long_vars(&g_cs2);
     cs2_seed_script_names(&g_cs2);
     cs2_load_param_types(&g_cs2);
     g_cs2.db_columns = tool_db_columns_load(ctx->cache.disk);

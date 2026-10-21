@@ -63,7 +63,7 @@ import re
 import sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONTENT = os.path.join(REPO, "OSRS-Content", "osrs239-content")
+CONTENT = os.path.join(REPO, "OSRS-Content", "osrs-content")
 CATALOG = os.path.join(CONTENT, "wiki", "shop_catalog.csv")
 OWNERS = os.path.join(CONTENT, "wiki", "shop_owners.csv")
 INV_COMPACK = os.path.join(CONTENT, "configs", "all.inv.compack")

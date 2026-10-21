@@ -173,7 +173,7 @@ the observed behavior because none of those systems ran.
 #### The authoritative client control flow
 
 The chatbox Enter handler is decompiled as
-`OSRS-Content/osrs239-content/scripts/script_73.cs2`,
+`OSRS-Content/osrs-content/scripts/script_73.cs2`,
 `[clientscript,chatdefault_onkey]`. On internal Enter key 84 it processes the
 chat input in this order:
 

@@ -9,7 +9,7 @@ and their ledgers are `sources/LEDGER_<part>.md` (all paths below are relative t
 `docs/minigames/colosseum/` unless they start with `tools/` or `build/`).
 
 Nothing in `sources/` is authored by this project except the cache extracts and
-the rig tables, which are mechanical dumps of `OSRS-Content/osrs239-content/`, and
+the rig tables, which are mechanical dumps of `OSRS-Content/osrs-content/`, and
 the id maps, which are tables of file:line quotes. Treat all of it as evidence,
 not as specification. Where two sources disagree, section 10 says so and gives no
 verdict: the spec workers settle each from the source line. Where no source
@@ -301,7 +301,7 @@ Searched (namespace 112, srlimit 50, 2026-10-03): Fortis Colosseum 39 hits, Colo
 
 Dumped **2026-10-03** by the inventory agent with
 `tools/waves_gate/cache_dump.py --game colosseum` from the unpacked text cache at
-`OSRS-Content/osrs239-content/` (revision 239, OSRS-Content at `c70422bdf6`); the
+`OSRS-Content/osrs-content/` (revision 239, OSRS-Content at `c70422bdf6`); the
 command and the per-file selection rules are in `sources/LEDGER_cache.md`, and
 re-running it reproduces every file byte for byte. The binary cache was not read.
 The cache has no wave table, no reward table and no 5-tick cadence; it does have

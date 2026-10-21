@@ -62,7 +62,7 @@ and writes an isolated pack under the session directory. After a body edit:
 
 ```sh
 .venv/bin/python tools/content_selftest.py recompile \
-  OSRS-Content/osrs239-content/server/scripts/canoes/scripts/canoe_cutscene.rs2
+  OSRS-Content/osrs-content/server/scripts/canoes/scripts/canoe_cutscene.rs2
 .venv/bin/python tools/content_selftest.py canoes
 ```
 

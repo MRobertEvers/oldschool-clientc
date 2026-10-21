@@ -631,7 +631,7 @@ Result: abs `40,373`, 20px right of centre and ~25px too low. Pristine
 layout; sibling `chat_left` (231) mounts into the same slot with
 `xmode=1 ymode=1` instead.
 
-**Fix (content).** In `OSRS-Content/osrs239-content/interfaces/chatmenu.if`,
+**Fix (content).** In `OSRS-Content/osrs-content/interfaces/chatmenu.if`,
 drop `x=20`/`y=12` on `[options]` and add `xmode=1 ymode=1` (keep 479×122),
 so the layer centres in chatmodal the way 231's root does. Re-pack interfaces
 into the boot cache before measuring — the pristine cache still has the old

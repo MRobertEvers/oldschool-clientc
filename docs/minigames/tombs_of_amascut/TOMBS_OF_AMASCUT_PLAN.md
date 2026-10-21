@@ -139,7 +139,7 @@ copies that shape deliberately and says so at each step.
 Following the ToB layout exactly:
 
 ```
-OSRS-Content/osrs239-content/server/scripts/minigames/minigame_toa/
+OSRS-Content/osrs-content/server/scripts/minigames/minigame_toa/
   configs/
     toa.constant          every id, tile, tick and threshold, each with a
                           provenance tag or an [Mn]

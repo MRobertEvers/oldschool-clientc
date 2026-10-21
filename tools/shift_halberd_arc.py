@@ -41,7 +41,7 @@ import os
 import sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONTENT = os.path.join(REPO, "OSRS-Content/osrs239-content/models")
+CONTENT = os.path.join(REPO, "OSRS-Content/osrs-content/models")
 DEFAULT_MODEL = "spot/dragon_halberd_special_west_red"
 
 # Bit in a vertex's direction flag saying that axis carries a delta.
@@ -119,7 +119,7 @@ def main():
     ap.add_argument("--dz", type=int, default=0,
                     help="model units to shift Z by; negative is forward")
     ap.add_argument("--model", default=DEFAULT_MODEL,
-                    help="path under OSRS-Content/osrs239-content/models, without .model "
+                    help="path under OSRS-Content/osrs-content/models, without .model "
                          "(default: %s)" % DEFAULT_MODEL)
     ap.add_argument("--show", action="store_true", help="report bounds, write nothing")
     args = ap.parse_args()

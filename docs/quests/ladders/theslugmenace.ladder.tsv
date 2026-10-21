@@ -1,5 +1,5 @@
 # ladder theslugmenace quest_dir=quest_theslugmenace guide=src/main/java/com/questhelper/helpers/quests/theslugmenace/TheSlugMenace.java steps=28 legs=1:1-28@s0
-#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
 leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
 1	1	0	talkToTiffy	NpcStep	npc:rd_teleporter_guy	2996,3373,0	Talk to Sir Tiffy Cashien in Falador Park.		Commorb (can get another from Sir Tiffy)	Do you have any jobs for me yet?	shop/falador_park/scripts/initiate_temple_knight_armoury.rs2:8 opnpc3; +1
 1	2	1	talkToNiall	NpcStep	npc:slug2_oniall_stage1	2739,3311,0	Talk to Col. O'Niall on the pier in Witchaven, east of Ardougne.			Who are the important people in Witchaven? | Nothing at the…	quests/quest_theslugmenace/scripts/slugmenace_witchaven.rs2:25 opnpc1

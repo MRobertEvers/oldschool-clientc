@@ -29,7 +29,7 @@ import os
 import re
 import sys
 
-LEDGERS = "OSRS-Content/osrs239-content/npc_stats"
+LEDGERS = "OSRS-Content/osrs-content/npc_stats"
 
 
 def main():

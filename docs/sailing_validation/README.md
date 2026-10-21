@@ -75,9 +75,9 @@ Build once, then keep the client loaded:
 ```sh
 make -C src -j8 EMBED_SERVER=1 torirs
 make -C src sscompile
-src/build_opt/sscompile --src OSRS-Content/osrs239-content/server/scripts \
-  --out OSRS-Content/osrs239-content/server/scripts/build \
-  --content-root OSRS-Content/osrs239-content
+src/build_opt/sscompile --src OSRS-Content/osrs-content/server/scripts \
+  --out OSRS-Content/osrs-content/server/scripts/build \
+  --content-root OSRS-Content/osrs-content
 python3 tools/sailing_harness.py --session /tmp/sailing start --headless
 python3 tools/sailing_harness.py --session /tmp/sailing save ocean
 python3 tools/sailing_harness.py --session /tmp/sailing cheat 'vesselsail 0 2'

@@ -13,7 +13,7 @@ set -euo pipefail
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo"
 
-LANE="${LANE:-OSRS-Content/osrs239-content/models/ported/rs2012_qbd_td}"
+LANE="${LANE:-OSRS-Content/osrs-content/models/ported/rs2012_qbd_td}"
 AUTHORED="${AUTHORED:-docs/rs2012_qbd_priorities/run}"
 CACHE="${CACHE:-cache.osrs239.rs2012}"
 OUT="${OUT:-docs/rs2012_qbd_wake}"
@@ -38,7 +38,7 @@ import re, sys
 sys.path.insert(0, "tools")
 import config_text
 cfg = config_text.read_text(
-    "OSRS-Content/osrs239-content/ported/rs2012_qbd_td/configs/rs2012.seq")
+    "OSRS-Content/osrs-content/ported/rs2012_qbd_td/configs/rs2012.seq")
 block = re.search(rf"\[{sys.argv[1]}\]\n(.*?)(?=\n\[|\Z)", cfg, re.S).group(1)
 ids = [m.group(1) for m in re.finditer(r"frame=(\d+),(\d+)", block)]
 with open("build/wake.frames", "w", newline="\n") as f:

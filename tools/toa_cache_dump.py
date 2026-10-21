@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Extract every Tombs of Amascut record from the unpacked osrs239 cache.
 
-    tools/…/toa_cache_dump.py OSRS-Content/osrs239-content docs/minigames/tombs_of_amascut/sources
+    tools/…/toa_cache_dump.py OSRS-Content/osrs-content docs/minigames/tombs_of_amascut/sources
 
 Writes one file per config type: the numeric id, the cache's own symbol, and
 (for npc/loc/obj) the whole decoded record.

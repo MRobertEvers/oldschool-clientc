@@ -11,10 +11,13 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : AffinedClanSettingsAddBannedFromChannelDecoder
- * Layouts      : 1 distinct, over 1 contiguous revision run(s)
+ * Layouts      : 1 distinct, over 2 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^AffinedClanSettingsAddBannedFromChannelDecoder\tin\t' 3rd/rsprot/gen/packet_versions.txt
+ *                Revision(s) 241 come from RSProx, not RSProt
+ *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
+ *                gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -32,7 +35,7 @@ typedef struct MsgAffinedClanSettingsAddBannedFromChannel {
 	const char *name;
 } MsgAffinedClanSettingsAddBannedFromChannel;
 
-/* v1 -- revs 221-239. */
+/* v1 -- revs 221-239, 241. */
 void packet_affinedclansettings_addbanned_fromchannel_v1_in(RsprotExec *x, MsgAffinedClanSettingsAddBannedFromChannel *m);
 
 /* Per-revision aliases: `packet_affinedclansettings_addbanned_fromchannel_rev239_in` is greppable, which is the
@@ -56,6 +59,7 @@ void packet_affinedclansettings_addbanned_fromchannel_v1_in(RsprotExec *x, MsgAf
 #define packet_affinedclansettings_addbanned_fromchannel_rev237_in packet_affinedclansettings_addbanned_fromchannel_v1_in
 #define packet_affinedclansettings_addbanned_fromchannel_rev238_in packet_affinedclansettings_addbanned_fromchannel_v1_in
 #define packet_affinedclansettings_addbanned_fromchannel_rev239_in packet_affinedclansettings_addbanned_fromchannel_v1_in
+#define packet_affinedclansettings_addbanned_fromchannel_rev241_in packet_affinedclansettings_addbanned_fromchannel_v1_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_affinedclansettings_addbanned_fromchannel_in[];

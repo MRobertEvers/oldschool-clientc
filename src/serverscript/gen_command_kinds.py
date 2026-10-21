@@ -67,6 +67,8 @@ EXTRA_DECLARATIONS = [
     "[command,hitmark_bar](int $uid, int $self, int $other, int $amount, int $healthbar, int $fill)",
     "[command,npc_facedir](coord $coord)",
     "[command,npc_setblockwalk](int $blockwalk)",
+    "[command,cam_moveto_cycles](coord $coord, int $height, int $cycles, int $ignore_terrain, int $easing)",
+    "[command,cam_rotateto_coordinate](coord $coord, int $height, int $cycles, int $easing)",
     "[command,npc_setbasestat](npc_stat $stat, int $level)",
 ]
 

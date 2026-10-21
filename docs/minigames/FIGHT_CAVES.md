@@ -8,7 +8,7 @@ is left.
 Two kinds of statement appear below and they are kept apart on purpose:
 
 - **[W*n*]** — stated by the wiki. The numbered reference list is §8.
-- **[C]** — read out of this tree's cache (`OSRS-Content/osrs239-content/configs/`)
+- **[C]** — read out of this tree's cache (`OSRS-Content/osrs-content/configs/`)
   or its content tree. The wiki publishes no npc record fields, sequence ids or
   recolour tables, so everything of that kind here is measured, not cited.
 
@@ -32,7 +32,7 @@ four healers. Completing it awards the fire cape and 8,032 Tokkul [W1].
 
 ## 2. NPCs
 
-Cache names are the `[gameval]` keys in `OSRS-Content/osrs239-content/configs/all.npc`.
+Cache names are the `[gameval]` keys in `OSRS-Content/osrs-content/configs/all.npc`.
 The cache's stat slots map `stat1`=attack, `stat2`=defence, `stat3`=strength,
 `stat4`=hitpoints, `stat5`=ranged, `stat6`=magic [C] — established by
 `[tzhaar_fightcave_swarm_boss]`, whose six values are the six the wiki publishes
@@ -370,7 +370,7 @@ subsystem** — `combat_achieve` matches nothing in the tree.
 | W15 | Karamja Diary | https://oldschool.runescape.wiki/w/Karamja_Diary |
 | W16 | Combat Achievements | https://oldschool.runescape.wiki/w/Combat_Achievements |
 
-Cache sources [C], under `OSRS-Content/osrs239-content/`: `configs/all.npc`
+Cache sources [C], under `OSRS-Content/osrs-content/`: `configs/all.npc`
 (the eleven `tzhaar_fightcave_swarm_*` records and `tzhaar_fightcave_master`),
 `configs/all.loc` (the two wall records), `configs/all.obj`, `configs/all.seq`
 (the `firebat_*`, `lavabeast_*`, `magmaquris_*`, `lizard_cleric_*`,

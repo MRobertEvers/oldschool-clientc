@@ -26,7 +26,7 @@ import sys
 import config_text
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONTENT = os.path.join(REPO, "OSRS-Content", "osrs239-content")
+CONTENT = os.path.join(REPO, "OSRS-Content", "osrs-content")
 ALL_LOC = os.path.join(CONTENT, "configs", "all.loc")
 OUT = os.path.join(CONTENT, "server", "scripts", "skill_farming", "configs",
                    "farming_crop.loc")

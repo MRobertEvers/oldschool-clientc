@@ -1,4 +1,4 @@
--- Desert Treasure I. Stage values: OSRS-Content/osrs239-content/server/scripts/quests/quest_deserttreasure/configs/deserttreasure.constant
+-- Desert Treasure I. Stage values: OSRS-Content/osrs-content/server/scripts/quests/quest_deserttreasure/configs/deserttreasure.constant
 -- Setup stages the prerequisites (quests, levels) and the brought-along kit; every diamond is obtained in play.
 --
 -- Door rule (fix_b61 re-drive, docs/QUEST_ORCHESTRATOR.md standing rules, owner 2026-10-03): no goto_tile
@@ -490,7 +490,7 @@ return {
         t.exec("openChest-key", t.inv.await, "fd_firekey", 1, 10)
         t.check("openChest-key-held", count("fd_firekey") == 1, "warm keys held: " .. count("fd_firekey"))
         t.exec("goto-useWarmKey", t.player.goto_tile, 3303, 9376, 0)
-        -- ANY-OF: useWarmKey useWarmKey.openGate the gate's own Open spends the warm key held in the pack and walks the player in (no [oplocu] trigger on fd_fw_metalgateclosed_r): OSRS-Content/osrs239-content/server/scripts/quests/quest_deserttreasure/scripts/deserttreasure.rs2:986
+        -- ANY-OF: useWarmKey useWarmKey.openGate the gate's own Open spends the warm key held in the pack and walks the player in (no [oplocu] trigger on fd_fw_metalgateclosed_r): OSRS-Content/osrs-content/server/scripts/quests/quest_deserttreasure/scripts/deserttreasure.rs2:986
         -- Fareed is a melee fighter (deserttreasure.rs2:1042 ~npc_meleeattack): Protect from Melee goes UP before the
         -- gate press that spawns him (dt_smoke_gate_open npc_add), so it is on for his first swing.
         local _, pr_f = t.skill.read("prayer")
@@ -538,8 +538,8 @@ return {
             "player:Not a problem",
         })
         t.ticks(2)
-        t.check("talkToRasolo-shadow-fetch", select(2, t.var.server("varp5947_dt_shadow_stage")) == 1,
-            "dt_shadow_stage = " .. tostring(select(2, t.var.server("varp5947_dt_shadow_stage"))) .. " (dt_shadow_fetch)")
+        t.check("talkToRasolo-shadow-fetch", select(2, t.var.server("varp6622_dt_shadow_stage")) == 1,
+            "dt_shadow_stage = " .. tostring(select(2, t.var.server("varp6622_dt_shadow_stage"))) .. " (dt_shadow_fetch)")
 
         -- Back to the Bandit Camp: Lumbridge Teleport, the Al Kharid bank for lockpicks (Quest Helper: "as many
         -- lockpicks as you can"), the Shantay Pass.
@@ -568,7 +568,7 @@ return {
                 t.player.click_loc("fd_bandit_shutchest", 1)
                 t.chat.play({ "mesbox:Your skill as a thief", "choose:Yes" })
                 t.ticks(6)
-                if select(2, t.var.server("varp5947_dt_shadow_stage")) == 2 then picked = true break end
+                if select(2, t.var.server("varp6622_dt_shadow_stage")) == 2 then picked = true break end
             end
             if picked then break end
             -- Every lockpick snapped: out by the Shantay doorway (free from the south, shantay_pass.rs2:84), more from the bank.
@@ -579,7 +579,7 @@ return {
             shantay("getCross.return" .. trip)
             t.exec("goto-getCross.return" .. trip, t.player.goto_tile, 3169, 2965, 0)
         end
-        t.check("pickChestLocks", picked, "dt_shadow_stage = " .. tostring(select(2, t.var.server("varp5947_dt_shadow_stage"))) .. " after " .. pick_tries .. " attempt(s) (dt_shadow_unlocked = 2)")
+        t.check("pickChestLocks", picked, "dt_shadow_stage = " .. tostring(select(2, t.var.server("varp6622_dt_shadow_stage"))) .. " after " .. pick_tries .. " attempt(s) (dt_shadow_unlocked = 2)")
         t.exec("getCross", t.player.click_loc, "fd_bandit_shutchest", 1)
         t.exec("getCross-held", t.inv.await, "fd_sword_cross", 1, 10)
         t.check("getCross-count", count("fd_sword_cross") == 1, "gilded crosses held: " .. count("fd_sword_cross"))
@@ -642,7 +642,7 @@ return {
         })
         t.ticks(2)
         t.check("returnCross-ring", count("fd_ring_visibility") == 1 and count("fd_sword_cross") == 0, "rings of visibility held: " .. count("fd_ring_visibility")
-            .. ", crosses " .. count("fd_sword_cross") .. ", dt_shadow_stage = " .. tostring(select(2, t.var.server("varp5947_dt_shadow_stage"))))
+            .. ", crosses " .. count("fd_sword_cross") .. ", dt_shadow_stage = " .. tostring(select(2, t.var.server("varp6622_dt_shadow_stage"))))
 
         t.exec("wear-ringOfVisibility", t.player.equip, "fd_ring_visibility")
         t.ticks(2)
@@ -738,8 +738,8 @@ return {
             .. table.concat(prayer_doses, ", ") .. "])", damis_lowest, count("shark"))
         protect_melee("killDamis-prayerOff", 0)
         t.ticks(2)
-        t.check("killDamis-stage", select(2, t.var.server("varp5947_dt_shadow_stage")) == 100,
-            "dt_shadow_stage = " .. tostring(select(2, t.var.server("varp5947_dt_shadow_stage"))) .. " a tick after the corpse (was 3 = ring, dt_shadow_complete = 100)")
+        t.check("killDamis-stage", select(2, t.var.server("varp6622_dt_shadow_stage")) == 100,
+            "dt_shadow_stage = " .. tostring(select(2, t.var.server("varp6622_dt_shadow_stage"))) .. " a tick after the corpse (was 3 = ring, dt_shadow_complete = 100)")
         t.exec("pickUpShadowDiamond", t.player.click_obj, "fd_dark_diamond", 3)
         t.exec("pickUpShadowDiamond-held", t.inv.await, "fd_dark_diamond", 1, 10)
 
@@ -797,7 +797,7 @@ return {
             "npc:Come and see me",
         })
         t.ticks(2)
-        t.check("talkToMalak-agreed", select(2, t.var.server("varp5932_dt_blood_stage")) ~= 0, "dt_blood_stage = " .. tostring(select(2, t.var.server("varp5932_dt_blood_stage"))) .. " (dt_blood_agreed)")
+        t.check("talkToMalak-agreed", select(2, t.var.server("varp6607_dt_blood_stage")) ~= 0, "dt_blood_stage = " .. tostring(select(2, t.var.server("varp6607_dt_blood_stage"))) .. " (dt_blood_agreed)")
         -- The content has no "How can I kill Dessous?" option (deserttreasure.rs2:444 opnpc1); the how-to is the agreement's own pages above
         -- and the repeat talk repeats the instructions, so the ask step is driven by the repeat talk.
         t.exec("askAboutKillingDessous", t.player.talk_to, "fourdiamonds_vampire_lord", 1)
@@ -853,7 +853,7 @@ return {
         local _, stage = t.var.server("varb358_deserttreasure")
         t.check("leg.3.end", stage == 10 and count("fd_silver_pot") == 1 and count("fd_dark_diamond") == 1,
             "tile " .. reading() .. ", deserttreasure stage read from server = " .. tostring(stage)
-            .. ", dt_shadow_stage " .. tostring(select(2, t.var.server("varp5947_dt_shadow_stage"))) .. "; dark diamond "
+            .. ", dt_shadow_stage " .. tostring(select(2, t.var.server("varp6622_dt_shadow_stage"))) .. "; dark diamond "
             .. count("fd_dark_diamond") .. ", smoke diamond " .. count("fd_diamond_fire") .. ", silver pot " .. count("fd_silver_pot") .. ", sharks " .. count("shark"))
             end,
         },
@@ -1015,8 +1015,8 @@ return {
         end
         margin("killDessous-margin", "Dessous (sharks at the start " .. sharks_at_dessous .. ")", dessous_lowest, count("shark"))
         t.ticks(2)
-        t.check("killDessous-stage", select(2, t.var.server("varp5932_dt_blood_stage")) == 3,
-            "dt_blood_stage = " .. tostring(select(2, t.var.server("varp5932_dt_blood_stage"))) .. " a tick after the corpse (3 = dt_blood_killed)")
+        t.check("killDessous-stage", select(2, t.var.server("varp6607_dt_blood_stage")) == 3,
+            "dt_blood_stage = " .. tostring(select(2, t.var.server("varp6607_dt_blood_stage"))) .. " a tick after the corpse (3 = dt_blood_killed)")
 
         t.exec("goto-talkToMalakForDiamond", t.player.goto_tile, 3496, 3477, 0)
         t.exec("talkToMalakForDiamond", t.player.talk_to, "fourdiamonds_vampire_lord", 1)
@@ -1028,7 +1028,7 @@ return {
         })
         t.ticks(2)
         t.check("talkToMalakForDiamond-held", count("fd_blood_diamond") == 1,
-            "blood diamonds held: " .. count("fd_blood_diamond") .. ", dt_blood_stage " .. tostring(select(2, t.var.server("varp5932_dt_blood_stage"))))
+            "blood diamonds held: " .. count("fd_blood_diamond") .. ", dt_blood_stage " .. tostring(select(2, t.var.server("varp6607_dt_blood_stage"))))
 
         -- To the troll child: Camelot Teleport, the Seers' bank for the Ice Path kit, then the whole walk up to the
         -- Trollheim summit (a pocket on foot: eadgar.lua's route, sampler b58 round 2).
@@ -1148,7 +1148,7 @@ return {
         local sub = select(2, t.var.server("varb382_fd_icewarrior_subquest"))
         t.check("leg.4.end", stage == 10 and sub == 2 and count("fd_blood_diamond") == 1,
             "tile " .. reading() .. ", deserttreasure stage read from server = " .. tostring(stage)
-            .. ", dt_blood_stage " .. tostring(select(2, t.var.server("varp5932_dt_blood_stage"))) .. ", fd_icewarrior_subquest " .. tostring(sub)
+            .. ", dt_blood_stage " .. tostring(select(2, t.var.server("varp6607_dt_blood_stage"))) .. ", fd_icewarrior_subquest " .. tostring(sub)
             .. " (want 2); carrying shadow, smoke and blood diamonds, sharks " .. count("shark"))
                 -- LEG 4 END
             end,
@@ -1296,7 +1296,7 @@ return {
         protect_melee("killKamil-prayerOff", 0)
         t.ticks(2)
         t.check("killKamil-stage", select(2, t.var.server("varb382_fd_icewarrior_subquest")) == 3,
-            "fd_icewarrior_subquest = " .. tostring(select(2, t.var.server("varb382_fd_icewarrior_subquest"))) .. " a tick after the corpse (3 = Kamil dead), dt_ice_stage " .. tostring(select(2, t.var.server("varp5943_dt_ice_stage"))))
+            "fd_icewarrior_subquest = " .. tostring(select(2, t.var.server("varb382_fd_icewarrior_subquest"))) .. " a tick after the corpse (3 = Kamil dead), dt_ice_stage " .. tostring(select(2, t.var.server("varp6618_dt_ice_stage"))))
 
         -- Kamil's path runs on to the ice ledge (one walking component: reach.py 204 tiles, every door shut).
         t.exec("goto-climbOnToLedge", t.player.goto_tile, 2837, 3805, 0)

@@ -35,7 +35,7 @@ The content tree is shared with the unpacked cache — see `OSRS-Content/README.
 a cache.
 
 ```
-OSRS-Content/osrs239-content/
+OSRS-Content/osrs-content/
   pack/                      id=name, one file per namespace — written by cachepack
     npc.pack obj.pack loc.pack seq.pack        the cache's own gameval names
     interface.pack component.pack varbit.pack
@@ -548,7 +548,7 @@ content refers to it by — and writes the `.pack` files.
 ```
 the cache's own gameval table --search npcs goblin
 the cache's own gameval table --names the cache's own gameval table \
-    --out OSRS-Content/osrs239-content/names
+    --out OSRS-Content/osrs-content/names
 ```
 
 `the cache's own gameval table` is the request list; a symbol not in it is not

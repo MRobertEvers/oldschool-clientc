@@ -364,7 +364,7 @@ main(
     int argc,
     char** argv)
 {
-    const char* dir = argc > 1 ? argv[1] : "OSRS-Content/osrs239-content";
+    const char* dir = argc > 1 ? argv[1] : "OSRS-Content/osrs-content";
 
     check_presence();
     check_check();

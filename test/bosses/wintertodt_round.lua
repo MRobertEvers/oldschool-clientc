@@ -71,7 +71,7 @@ return {
         "::clearinv",
         "::setlevel firemaking 99", "::setlevel woodcutting 99", "::setlevel fletching 99",
         "::setlevel herblore 99", "::setlevel construction 99", "::setlevel hitpoints 99",
-        "::setvar varp5801_wint_ignisia 1",
+        "::setvar varp6476_wint_ignisia 1",
         "::give dragon_axe", "::give knife", "::give tinderbox", "::give hammer",
         "::give wint_potion4 16",
         -- The pyromancer outfit: four warm items, as every recorded player wore.

@@ -6,14 +6,14 @@ reproduces every file byte for byte.
 
 ```
 python3 tools/waves_gate/cache_dump.py --game inferno \
-    --content OSRS-Content/osrs239-content \
+    --content OSRS-Content/osrs-content \
     --out docs/minigames/inferno/sources \
     --index build/inventory_state/inferno.cache_index.json
 ```
 
 ## What was read
 
-- **Cache:** revision 239 (`OSRS-Content/osrs239-content/meta.ini`: `revision = 239`,
+- **Cache:** revision 239 (`OSRS-Content/osrs-content/meta.ini`: `revision = 239`,
   `rev_name = osrs239`, source `cache.osrs239`). The dumps quote the unpacked text form in
   OSRS-Content at commit `c70422bdf6` (2026-10-03, branch `matthew-mbp-m4-waves-b1`); the
   binary cache is not read.

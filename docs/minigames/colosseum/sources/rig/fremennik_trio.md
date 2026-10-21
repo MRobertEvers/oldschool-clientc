@@ -32,7 +32,7 @@ the cache does not tie them to the gib. Four sibling gibs exist (manticore, mino
 ## Unknown
 Everything else on rig 0 stays `unknown` and is not listed. The gib has nothing on any rig.
 
-## Ledger (OSRS-Content/osrs239-content/npc_combat/c/*.combat)
+## Ledger (OSRS-Content/osrs-content/npc_combat/c/*.combat)
 All four files have death, attack and defend `-` and sounds `-`. No disagreement: the ledger names no
 animation, while three name candidates per warbander exist (it is silent, not wrong).
 

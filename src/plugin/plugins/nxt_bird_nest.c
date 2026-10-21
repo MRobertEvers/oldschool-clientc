@@ -64,7 +64,7 @@
  *
  * Read out of the cache rather than guessed at:
  *
- *     grep -E "^[0-9]+=bird_nest" OSRS-Content/osrs239-content/configs/all.obj.compack
+ *     grep -E "^[0-9]+=bird_nest" OSRS-Content/osrs-content/configs/all.obj.compack
  *
  * Ten of them, and the list is stable in a way a NAME match would not be: all
  * ten are called "Bird nest" and so is the empty one you get from a Wintertodt

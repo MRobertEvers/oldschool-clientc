@@ -1,5 +1,5 @@
 # ladder gettingahead quest_dir=quest_gettingahead guide=src/main/java/com/questhelper/helpers/quests/gettingahead/GettingAhead.java steps=26 legs=1:1-26@s0
-#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
 leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
 1	1	0	talkToGordon1	NpcStep	npc:ga_gordon	1248,3686,0	Talk to Gordon south of the Farming Guild.			Need a hand with anything? | Yes.	quests/quest_gettingahead/scripts/gettingahead.rs2:173 opnpc1; +1
 1	2	2	talkToMary	NpcStep	npc:ga_mary_1op	1237,3678,0	Talk to Mary inside the main building, west of Gordon.				quests/quest_gettingahead/scripts/gettingahead.rs2:295 opnpc1; +1

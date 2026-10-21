@@ -384,7 +384,7 @@ return {
         end
         t.check("kittenFound", kitten_found == true,
             "kittens_mew crate search: found at crate index " .. tostring(kitten_crate_index)
-                .. " of 6 (%varp5749_fluffs_crate matched)")
+                .. " of 6 (%varp6424_fluffs_crate matched)")
         t.expect("haveKitten", t.inv.expect_has("gertrudekittens", 1))
 
         -- Give the found kitten back to Fluffs (OPNPCU, quest_fluffs.rs2:249-

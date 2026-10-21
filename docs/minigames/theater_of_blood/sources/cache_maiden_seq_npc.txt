@@ -1,5 +1,5 @@
 # Maiden sequence lengths and per-mode npc stats, derived from the rev239 cache decompile
-# (OSRS-Content/osrs239-content/configs/all.seq, all.npc, all.spotanim) on 2026-10-02 by the Maiden spec pass.
+# (OSRS-Content/osrs-content/configs/all.seq, all.npc, all.spotanim) on 2026-10-02 by the Maiden spec pass.
 # A seq is the sum of its frame durations in CLIENT CYCLES (20 ms; 30 cycles per game tick). The cache states
 # no projectile flight time and no attack rate for the Maiden (no `attackrate` param on any of her records).
 

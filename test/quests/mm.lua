@@ -184,11 +184,11 @@ local function camelot_teleport(t, name)
 end
 
 -- Camelot (or the zoo) -> south of the Stronghold gate, then through it. The gate's press from the
--- south opens Femi's boxes instead while %varp5856_femi_help = 0 and she stands within 6 tiles
+-- south opens Femi's boxes instead while %varp6531_femi_help = 0 and she stands within 6 tiles
 -- (gnome_gate.rs2:31-33 -> femi.rs2 @grandtree_femi_boxes): decline (femi_help 1), then press again.
 local function stronghold_in(t, pfx)
     t.exec("goto-" .. pfx .. ".strongholdGate", t.player.goto_tile, 2461, 3379, 0)
-    local femi_result, femi_help = t.var.server("varp5856_femi_help")
+    local femi_result, femi_help = t.var.server("varp6531_femi_help")
     if femi_result == "ok" and femi_help == 0 then
         t.exec(pfx .. ".gateApproach", t.player.walk_route, { { 2461, 3382 } })
         local press_result, press_detail = t.player.click_loc("gnome_areagate", 1, { at = { 2459, 3383 } })

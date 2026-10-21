@@ -54,7 +54,7 @@ REPO_OPCODE_META = HERE.parents[3] / "src" / "cs2vm2" / "cs2_opcode_meta.c"
 REPO_OPCODE_TOOLS = HERE.parents[3] / "tools" / "cs2_gen_opcodes"
 
 sys.path.insert(0, str(HERE))
-from local_commands import LOCAL_BASIC, LOCAL_KINDS, LOCAL_NAMES  # noqa: E402
+from local_commands import LOCAL_BASIC, LOCAL_KINDS, LOCAL_NAMES, LOCAL_STACK_KINDS  # noqa: E402
 
 sys.path.insert(0, str(REPO_OPCODE_TOOLS))
 from opcode_groups import group_for_opcode, span_for_opcode  # noqa: E402
@@ -538,6 +538,14 @@ def main() -> int:
     # by hand -- and only the kind changes.
     for opcode, kind in LOCAL_KINDS.items():
         _, args, defs, dot, extra = commands.get(opcode, ("UNKNOWN", [], [], False, "0"))
+        commands[opcode] = (kind, args, defs, dot, extra)
+        if opcode not in by_id:
+            by_id[opcode] = f"_{opcode}"
+
+    # The long stack's discard and branch forms carry the stack they act on in
+    # `extra`, which LOCAL_KINDS (kind only) cannot set.
+    for opcode, (kind, extra) in LOCAL_STACK_KINDS.items():
+        _, args, defs, dot, _ = commands.get(opcode, ("UNKNOWN", [], [], False, "0"))
         commands[opcode] = (kind, args, defs, dot, extra)
         if opcode not in by_id:
             by_id[opcode] = f"_{opcode}"

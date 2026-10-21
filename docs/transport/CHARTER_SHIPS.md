@@ -17,7 +17,7 @@
 > [Transcript:Trader Stan](https://oldschool.runescape.wiki/w/Transcript:Trader_Stan)
 >
 > Every id, coord, varbit, dbrow and interface number below was **measured from this
-> tree** (`OSRS-Content/osrs239-content/`, abbreviated `CT/` throughout), not copied from
+> tree** (`OSRS-Content/osrs-content/`, abbreviated `CT/` throughout), not copied from
 > the wiki. Where a number is still unmeasured it is marked *(to measure)*.
 > Reference implementation availability: **LostCity: none** (charter ships are 2006
 > content, post-254). **Kronos / 2009scape: no port in this tree** — grep for
@@ -701,7 +701,7 @@ port's own jetty. Locked ports are refused with the fare untouched; bedsheets,
 ectoplasm bedsheets and Crandor are refused too, and Karamjan rum is lost to a
 dice game mid-voyage as it is on the Karamja ferry.
 
-**Files.** `OSRS-Content/osrs239-content/server/scripts/transport_charter/`
+**Files.** `OSRS-Content/osrs-content/server/scripts/transport_charter/`
 (README, 7 configs, 6 scripts), `tools/gen_charter_tables.py`,
 `tools/check_charter_contract.py`, a `check-charter-contract` target wired into
 `torirsserver-scripts`, and a `torirs_server_world.c` selftest section with four new

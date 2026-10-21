@@ -1,5 +1,5 @@
 # ladder childrenofthesun quest_dir=quest_childrenofthesun guide=src/main/java/com/questhelper/helpers/quests/childrenofthesun/ChildrenOfTheSun.java steps=13 legs=1:1-13@s0
-#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
 leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
 1	1	0	talkToAlina	NpcStep	npc:vmq1_alina_vis	3225,3426,0	Talk to Alina east of Varrock Square.			When will this delegation arrive? | Yes.	quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:151 opnpc1; +1
 1	2	6	followGuardPuzzleWrapper	NpcStep	npc:vmq1_bag_guard		Follow the guard, keeping out of sight whilst also not letting them get too far away.				quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:389 opnpc1; +1

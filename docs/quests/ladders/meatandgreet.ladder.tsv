@@ -1,5 +1,5 @@
 # ladder meatandgreet quest_dir=quest_meatandgreet guide=src/main/java/com/questhelper/helpers/quests/meatandgreet/MeatAndGreet.java steps=25 legs=1:1-25@s0
-#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
 leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
 1	1	0	talkToEmelioToStartQuest	NpcStep	npc:mag_emelio_1op	1753,3074,0	Talk to Emelio in Outer Fortis at the south-eastern entrance of Civitas illa Fortis to start the quest.			Yes.	quests/quest_meatandgreet/scripts/meatandgreet.rs2:201 opnpc1
 1	2	4	talkToSpiceMerchantInBazaar	NpcStep	npc:fortis_shop_spices	1685,3101,0	Talk to the Spice Merchant in the Bazaar in the middle of Civitas illa Fortis about the missing delivery.			I'm here about a missing delivery. | Could I have a look at…	quests/quest_meatandgreet/scripts/meatandgreet_npcs.rs2:68 opnpc1

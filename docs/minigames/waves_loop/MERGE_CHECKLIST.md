@@ -3,7 +3,7 @@
 Every var id, alloc row or other numbered allocation the waves branch adds, so that
 whoever reaches `v3` second can see the collision before the pack does
 (`docs/WAVES_ORCHESTRATOR.md` section 10 lesson 11: names carry the id). One row per id.
-Check each id against `v3`'s `OSRS-Content/osrs239-content/pack/varp.alloc` (and the
+Check each id against `v3`'s `OSRS-Content/osrs-content/pack/varp.alloc` (and the
 matching alloc file for other kinds) and the raid branch's before merging; renumber
 the name and every reference together.
 
@@ -11,7 +11,7 @@ the name and every reference together.
 `patches/matthew-mbp-m4-waves-b1-seam3.eat_delay_port.content.patch`; the branch's `varp.alloc`
 does not carry them yet. Keep the rows so whoever lands the patch checks them again.
 
-**Seam pass 4 `eat_delay_land` (2026-10-04): landed.** The patch is applied; `OSRS-Content/osrs239-content/pack/varp.alloc`
+**Seam pass 4 `eat_delay_land` (2026-10-04): landed.** The patch is applied; `OSRS-Content/osrs-content/pack/varp.alloc`
 now carries `7223=varp7223_consume_combo_delay`, `7224=varp7224_consume_food_delay`,
 `7225=varp7225_consume_potion_delay` (its last three lines at the landing; checked free against the
 branch's alloc, which ends at 7222 before them). No other id was allocated. The Gauntlet's own

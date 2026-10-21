@@ -5,7 +5,7 @@ Section 5 of the manual, traps 13-22.
 ## Trap 13. Finding an npc: use `*.spawn` rows, not just Quest Helper.
 
 If `talk_to`/an npc lookup still answers `screen_position`/`no_row` at the WorldPoint tile,
-`grep -rn --include='*.spawn' "<symbol>" OSRS-Content/osrs239-content/server/scripts/` -- each hit
+`grep -rn --include='*.spawn' "<symbol>" OSRS-Content/osrs-content/server/scripts/` -- each hit
 is `symbol  x  z  level`, whitespace-separated, under an `==== NPC ====` header, one file per map
 square. Search the WHOLE of `server/scripts` as above, not just `areas/`: 972 of the 984 `*.spawn`
 files are `areas/world/configs`'s map squares but twelve are not, and a quest's own npcs are exactly

@@ -35,8 +35,8 @@
 -- prints them as a single `key=value` line (`::tobstate`, `::toastate`,
 -- `::coxstate`) and state() parses it.  Which raid is active is read first from
 -- the three session varps through t.var.server (they are transmit=no, so that
--- is the server content copy): varp5893_tob_active, varp6910_toa_active,
--- varp5912_cox_active.
+-- is the server content copy): varp6568_tob_active, varp7585_toa_active,
+-- varp6587_cox_active.
 --
 -- THE SETTLE.  After the landing cheat the player has been teleported into a
 -- freshly built instance, and the client is a tick or more behind the server

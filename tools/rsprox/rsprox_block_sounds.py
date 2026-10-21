@@ -13,7 +13,7 @@ import os
 import re
 import sys
 from collections import Counter,defaultdict
-CONTENT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'OSRS-Content', 'osrs239-content')
+CONTENT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'OSRS-Content', 'osrs-content')
 objn={}
 for line in open(os.path.join(CONTENT, 'configs', 'all.obj.compack'),encoding='latin-1'):
     k,_,v=line.strip().partition('=')

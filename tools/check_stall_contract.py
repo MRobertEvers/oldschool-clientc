@@ -26,7 +26,7 @@ import sys
 import config_text
 
 WIKI = "docs/skills/thieving/sources/Stall_Thievable.wiki"
-ROWS = ("OSRS-Content/osrs239-content/server/scripts/skill_thieving/configs/"
+ROWS = ("OSRS-Content/osrs-content/server/scripts/skill_thieving/configs/"
         "stalls/stealing.dbrow")
 
 # our block -> the wiki row's item name

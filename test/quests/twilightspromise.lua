@@ -591,7 +591,7 @@ return {
                 local _, food0 = t.inv.count("shark")
                 local lowest, kills = 999, 0
                 for round = 1, 40 do
-                    local _, k = t.var.server("varp7291_tp_battle_kills")
+                    local _, k = t.var.server("varp7966_tp_battle_kills")
                     kills = tonumber(k) or kills
                     local _, stg = t.var.server("varb9649_vmq2")
                     if kills >= 8 or stg ~= 44 then break end
@@ -605,9 +605,9 @@ return {
                         end
                     end
                 end
-                local _, kfin = t.var.server("varp7291_tp_battle_kills")
+                local _, kfin = t.var.server("varp7966_tp_battle_kills")
                 local _, food1 = t.inv.count("shark")
-                t.check("defeat8Cultists.kills", tonumber(kfin) == 8, "cultists felled " .. tostring(kfin) .. " of 8 (varp7291_tp_battle_kills)")
+                t.check("defeat8Cultists.kills", tonumber(kfin) == 8, "cultists felled " .. tostring(kfin) .. " of 8 (varp7966_tp_battle_kills)")
                 t.check("defeat8Cultists.margin", (food1 or 0) >= 1 and lowest >= 25, "sharks before " .. tostring(food0) .. ", left " .. tostring(food1) .. ", lowest hp " .. tostring(lowest) .. "/80 (margin: food left >= 1 AND lowest hp >= 25)")
                 t.ticks(8)
                 t.msg.expect("You leave the battle")

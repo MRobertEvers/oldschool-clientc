@@ -67,7 +67,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 WIKI_TSV = ROOT / "docs/audio/osrs_wiki_jingle_ids.tsv"
-PACK = ROOT / "OSRS-Content/osrs239-content/pack/11_musicjingles.pack"
+PACK = ROOT / "OSRS-Content/osrs-content/pack/11_musicjingles.pack"
 NAMES_TSV = ROOT / "docs/audio/jingle_names.tsv"
 AUDIOPROBE = ROOT / "3rd/rscache/tools/audioprobe/audioprobe"
 CACHE = ROOT / "cache.osrs239"

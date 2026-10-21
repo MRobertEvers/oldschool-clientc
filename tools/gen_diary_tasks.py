@@ -2,7 +2,7 @@
 """Generate the achievement-diary task registry from the pinned wiki pages.
 
 Reads   docs/diaries/sources/*_Diary.wiki
-Writes  OSRS-Content/osrs239-content/server/scripts/interface_diaries/configs/diary_tasks.dbrow
+Writes  OSRS-Content/osrs-content/server/scripts/interface_diaries/configs/diary_tasks.dbrow
 
 WHAT THIS DOES AND DOES NOT DO
 ------------------------------
@@ -39,7 +39,7 @@ import config_text  # noqa: E402
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SOURCES = os.path.join(ROOT, "docs", "diaries", "sources")
 OUT = os.path.join(
-    ROOT, "OSRS-Content", "osrs239-content", "server", "scripts",
+    ROOT, "OSRS-Content", "osrs-content", "server", "scripts",
     "interface_diaries", "configs", "diary_tasks.dbrow",
 )
 

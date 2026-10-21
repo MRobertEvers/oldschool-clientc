@@ -11,10 +11,13 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : ClanChannelFullRequestDecoder
- * Layouts      : 1 distinct, over 1 contiguous revision run(s)
+ * Layouts      : 1 distinct, over 2 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^ClanChannelFullRequestDecoder\tin\t' 3rd/rsprot/gen/packet_versions.txt
+ *                Revision(s) 241 come from RSProx, not RSProt
+ *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
+ *                gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -30,7 +33,7 @@ typedef struct MsgClanChannelFullRequest {
 	int32_t clan_id;
 } MsgClanChannelFullRequest;
 
-/* v1 -- revs 221-239. */
+/* v1 -- revs 221-239, 241. */
 void packet_clanchannel_full_request_v1_in(RsprotExec *x, MsgClanChannelFullRequest *m);
 
 /* Per-revision aliases: `packet_clanchannel_full_request_rev239_in` is greppable, which is the
@@ -54,6 +57,7 @@ void packet_clanchannel_full_request_v1_in(RsprotExec *x, MsgClanChannelFullRequ
 #define packet_clanchannel_full_request_rev237_in packet_clanchannel_full_request_v1_in
 #define packet_clanchannel_full_request_rev238_in packet_clanchannel_full_request_v1_in
 #define packet_clanchannel_full_request_rev239_in packet_clanchannel_full_request_v1_in
+#define packet_clanchannel_full_request_rev241_in packet_clanchannel_full_request_v1_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_clanchannel_full_request_in[];

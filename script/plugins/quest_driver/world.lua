@@ -232,7 +232,7 @@ end
 --
 -- loc_near answers the nearest copy.  The Verzik room's AV row counts the
 -- spectator cages, and the map places `tob_dungeon_verzik_death_cage` 32717
--- twenty-four times (OSRS-Content/osrs239-content/maps/m49_67.jl2:255-278):
+-- twenty-four times (OSRS-Content/osrs-content/maps/m49_67.jl2:255-278):
 -- a count needs every copy.  api_drive.locs(0) plus a filter is not one -- it
 -- keeps the nearest 8192 placements of every id (a Lumbridge scene holds
 -- 8,515) and builds a Lua table for each -- so api_drive.loc_copies filters on

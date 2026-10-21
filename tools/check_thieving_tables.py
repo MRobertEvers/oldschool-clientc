@@ -27,7 +27,7 @@ import sys
 import config_text
 
 WIKI = "docs/skills/thieving/sources/Thieving.wiki"
-BASE = "OSRS-Content/osrs239-content/server/scripts/skill_thieving/configs"
+BASE = "OSRS-Content/osrs-content/server/scripts/skill_thieving/configs"
 CHESTS = os.path.join(BASE, "chests", "trapped_chest.dbrow")
 DOORS = os.path.join(BASE, "doors", "locked_door.dbrow")
 

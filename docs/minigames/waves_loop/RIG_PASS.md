@@ -37,7 +37,7 @@ client or server is built or run, no generated file is rewritten.
 5. **Graphics and projectiles.** A spotanim has its own model and rig, so the join does not
    reach it. List the spotanims in `cache_spotanim.txt` whose Jagex name shares the
    monster's name words, tier `name`, with their `anim=` sequence and its length.
-6. **The generated ledger.** Compare with `OSRS-Content/osrs239-content/npc_combat/<letter>/<npc>.combat`
+6. **The generated ledger.** Compare with `OSRS-Content/osrs-content/npc_combat/<letter>/<npc>.combat`
    and write down every row where the ledger names an animation that is NOT on the npc's
    rig or belongs to another monster by name (the Colosseum inventory found Sol Heredit
    given the javelin colossus's attack and death). Do not edit the ledger: it is generated.

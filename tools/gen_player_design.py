@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Generate the character-design panel's kit tables from the cache.
 
-Reads   OSRS-Content/osrs239-content/configs/all.idk
-        OSRS-Content/osrs239-content/configs/all.idk.compack
-Writes  OSRS-Content/osrs239-content/server/scripts/player/configs/player_design.enum
+Reads   OSRS-Content/osrs-content/configs/all.idk
+        OSRS-Content/osrs-content/configs/all.idk.compack
+Writes  OSRS-Content/osrs-content/server/scripts/player/configs/player_design.enum
 
 The design panel offers a list of identity kits per body part, and that list is
 the cache's own: `bodypart` groups them (0..6 male, 7..13 male's female twin)
@@ -32,7 +32,7 @@ import sys
 import config_text
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONTENT = os.path.join(ROOT, "OSRS-Content", "osrs239-content")
+CONTENT = os.path.join(ROOT, "OSRS-Content", "osrs-content")
 OUT = os.path.join(
     CONTENT, "server", "scripts", "player", "configs", "player_design.enum"
 )

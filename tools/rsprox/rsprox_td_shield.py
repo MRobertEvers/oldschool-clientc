@@ -25,7 +25,7 @@ import os
 import re
 from collections import Counter
 
-ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "OSRS-Content", "osrs239-content")
+ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "OSRS-Content", "osrs-content")
 TD = set(range(13599, 13607))
 OWNER = re.compile(r"\[(?:add|del|idle|walk|run|teleport|crawl)\] (npc|player)=\(index=(\d+), "
                    r"(?:id=(?:[a-z0-9_]+ \((\d+)\)|(\d+))|[^,]*?\(id=(\d+)\))?")

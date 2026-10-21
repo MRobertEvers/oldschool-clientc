@@ -66,7 +66,7 @@ SCRIPT_GLOBS = (
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--tree", default="OSRS-Content/osrs239-content")
+    parser.add_argument("--tree", default="OSRS-Content/osrs-content")
     parser.add_argument("--cache", default="cache.osrs239")
     parser.add_argument("--probe", default="src/build_opt/walkable_probe")
     args = parser.parse_args()

@@ -46,7 +46,7 @@ import config_text  # noqa: E402
 from gen_npc_combat import claim_server_membership  # noqa: E402
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONTENT = os.path.join(REPO, "OSRS-Content", "osrs239-content")
+CONTENT = os.path.join(REPO, "OSRS-Content", "osrs-content")
 ROSTER = os.path.join(CONTENT, "wiki", "npc_roster.csv")
 LEDGER_DIR = os.path.join(CONTENT, "npc_stats")
 NPC_CONFIGS_DIR = os.path.join(CONTENT, "server", "scripts", "npc", "configs")

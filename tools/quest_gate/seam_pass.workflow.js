@@ -29,7 +29,7 @@ export const meta = {
 // releases the lock after its last push.
 
 const WT = '/Users/matthewevers/Documents/git_repos/3draster'
-const CONTENT = `${WT}/OSRS-Content/osrs239-content`
+const CONTENT = `${WT}/OSRS-Content/osrs-content`
 const pass = args && args.pass
 // The batch branch (docs/QUEST_ORCHESTRATOR.md): <host>-b<N>, the pass name without its -parity / -seamN suffix, or args.branch.
 const BATCH = (args && args.branch) || String(pass || '').replace(/-(parity|seam\d+)$/, '')

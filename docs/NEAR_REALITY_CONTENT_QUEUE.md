@@ -8,7 +8,7 @@ its measured size on both sides).
 
 Written 2026-08-19 from a full audit of
 `~/Documents/git_repos/RSPS-NEAR-REALITY/near-reality-server-main` against
-`OSRS-Content/osrs239-content/server/scripts`.
+`OSRS-Content/osrs-content/server/scripts`.
 
 Companion documents — read them, do not restate them:
 
@@ -113,7 +113,7 @@ Reproducible; re-run it after any large wave to re-measure the deltas.
 
 ```sh
 NR=~/Documents/git_repos/RSPS-NEAR-REALITY/near-reality-server-main
-OURS=OSRS-Content/osrs239-content/server/scripts
+OURS=OSRS-Content/osrs-content/server/scripts
 
 # NR content surface: every package under game/content, aggregated across
 # core/, core-restricted/, plugins/excluded/ (a package is split across modules).

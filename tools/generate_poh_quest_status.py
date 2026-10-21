@@ -18,7 +18,7 @@ import config_text
 
 
 ROOT = Path(__file__).resolve().parents[1]
-CONTENT = ROOT / "OSRS-Content" / "osrs239-content"
+CONTENT = ROOT / "OSRS-Content" / "osrs-content"
 QUEST_CHEAT = CONTENT / "server/scripts/quests/scripts/quest_cheat.rs2"
 DBROWS = CONTENT / "configs/all.dbrow"
 OUTPUT = (

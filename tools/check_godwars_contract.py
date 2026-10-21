@@ -19,7 +19,7 @@ import config_text
 
 
 ROOT = Path(__file__).resolve().parents[1]
-GWD = ROOT / "OSRS-Content/osrs239-content/server/scripts/areas/area_godwars"
+GWD = ROOT / "OSRS-Content/osrs-content/server/scripts/areas/area_godwars"
 NEX = (GWD / "scripts/godwars_nex.rs2").read_text()
 NEX_DROPS = (GWD / "scripts/godwars_nex_drops.rs2").read_text()
 PRISON = (GWD / "scripts/godwars_prison.rs2").read_text()
@@ -27,7 +27,7 @@ PRISON_DROPS = (GWD / "scripts/godwars_prison_drops.rs2").read_text()
 AMBIENT_DROPS = (GWD / "scripts/godwars_ambient_drops.rs2").read_text()
 DROPS = (GWD / "scripts/godwars_drops.rs2").read_text()
 WIKI_IMP = (
-    ROOT / "OSRS-Content/osrs239-content/server/scripts/drop_tables/scripts/wiki_imp.rs2"
+    ROOT / "OSRS-Content/osrs-content/server/scripts/drop_tables/scripts/wiki_imp.rs2"
 ).read_text()
 FROZEN = (GWD / "scripts/godwars_frozen_door.rs2").read_text()
 ENTRANCE = (GWD / "scripts/godwars_entrance.rs2").read_text()
@@ -42,47 +42,47 @@ NPC = config_text.read_text(GWD / "configs/godwars.npc")
 LOC = config_text.read_text(GWD / "configs/godwars.loc")
 CONSTANT = (GWD / "configs/godwars.constant").read_text()
 COMBAT_PARAM = config_text.read_text(
-    ROOT / "OSRS-Content/osrs239-content/server/scripts/skill_combat/configs/combat.param"
+    ROOT / "OSRS-Content/osrs-content/server/scripts/skill_combat/configs/combat.param"
 )
 RANGED_COMBAT = (
     ROOT
-    / "OSRS-Content/osrs239-content/server/scripts/skill_combat/scripts/npc_combat_ranged.rs2"
+    / "OSRS-Content/osrs-content/server/scripts/skill_combat/scripts/npc_combat_ranged.rs2"
 ).read_text()
 ANCIENT_GODSWORD = (
     ROOT
-    / "OSRS-Content/osrs239-content/server/scripts/skill_combat/scripts/player/specs/pvm_ancient_godsword.rs2"
+    / "OSRS-Content/osrs-content/server/scripts/skill_combat/scripts/player/specs/pvm_ancient_godsword.rs2"
 ).read_text()
 SARADOMIN_GODSWORD = (
     ROOT
-    / "OSRS-Content/osrs239-content/server/scripts/skill_combat/scripts/player/specs/pvm_sgs.rs2"
+    / "OSRS-Content/osrs-content/server/scripts/skill_combat/scripts/player/specs/pvm_sgs.rs2"
 ).read_text()
 ZAMORAK_GODSWORD = (
     ROOT
-    / "OSRS-Content/osrs239-content/server/scripts/skill_combat/scripts/player/specs/pvm_zgs.rs2"
+    / "OSRS-Content/osrs-content/server/scripts/skill_combat/scripts/player/specs/pvm_zgs.rs2"
 ).read_text()
 PLAYER_LOGIN = (
-    ROOT / "OSRS-Content/osrs239-content/server/scripts/player/login.rs2"
+    ROOT / "OSRS-Content/osrs-content/server/scripts/player/login.rs2"
 ).read_text()
 PLAYER_LOGOUT = (
-    ROOT / "OSRS-Content/osrs239-content/server/scripts/player/logout.rs2"
+    ROOT / "OSRS-Content/osrs-content/server/scripts/player/logout.rs2"
 ).read_text()
 PLAYER_DEATH = (
-    ROOT / "OSRS-Content/osrs239-content/server/scripts/player/death.rs2"
+    ROOT / "OSRS-Content/osrs-content/server/scripts/player/death.rs2"
 ).read_text()
 SLAYER_LEVEL_GATE = (
     ROOT
-    / "OSRS-Content/osrs239-content/server/scripts/skill_slayer/scripts/slayer_level_gate.rs2"
+    / "OSRS-Content/osrs-content/server/scripts/skill_slayer/scripts/slayer_level_gate.rs2"
 ).read_text()
 CONTENT_ENGINE = (ROOT / "src/torirsserver/torirs_server_content.c").read_text()
 SCRIPT_HOST = (ROOT / "src/torirsserver/torirs_server_scripts.c").read_text()
-MANIFEST = ROOT / "OSRS-Content/osrs239-content/wiki/godwars_combat_manifest.csv"
+MANIFEST = ROOT / "OSRS-Content/osrs-content/wiki/godwars_combat_manifest.csv"
 
 
 def _load_var_names() -> dict[str, str]:
     """Base name -> spelled name. Var names carry their kind and id
     (`ca_tier_status_hard` is `varb<id>_ca_tier_status_hard`), so a needle
     built from a base name goes through this."""
-    tree = ROOT / "OSRS-Content/osrs239-content"
+    tree = ROOT / "OSRS-Content/osrs-content"
     names = {}
     for path in (tree / "configs/all.varbit.compack", tree / "configs/all.varp.compack",
                  tree / "configs/all.varc.compack", tree / "pack/varp.alloc"):
@@ -218,7 +218,7 @@ def main() -> None:
     require(NEX, "return($rangedefence)", "Nex ranged defence tie-break")
     require(NEX, "return($magicdefence)", "Nex magic defence tie-break")
     require(NEX, "[proc,nex_player_highest_attack_bonus]", "Choke attack-bonus drain")
-    require(NEX, "%varp6610_nex_cough_until = add(map_clock, ^nex_cough_ticks);", "Choke duration reset")
+    require(NEX, "%varp7285_nex_cough_until = add(map_clock, ^nex_cough_ticks);", "Choke duration reset")
     require(NEX, "[ai_timer,nex]", "eight-tick out-of-combat leap")
     require(NEX, "npc_settimer(8);", "Nex leap cadence")
     require(NEX, "modulo($attacks, ^nex_special_every) = 0", "Nex special cadence")
@@ -228,7 +228,7 @@ def main() -> None:
     require(NEX, "huntall($target, 1, 0);", "3x3 barrage/prison area")
     require(NEX, "randominc(75)", "Ice Prison maximum")
     require(NEX, "oc_category($weapon) = weapon_salamander", "Ice Prison salamander")
-    require(NEX, "~player_attack_roll(%varp6295_damagetype)", "Ice Prison accuracy roll")
+    require(NEX, "~player_attack_roll(%varp6970_damagetype)", "Ice Prison accuracy roll")
     require(NEX, "add($dx, $dz) = 1", "Ice Prison adjacent displacement")
     require(LOC, "[nex_icicle_1]\nop1=Attack", "attackable outer prison")
     require(CONSTANT, "^nex_prison_defence_level", "named Ice Prison defence")
@@ -278,12 +278,12 @@ def main() -> None:
     require(NEX_DROPS, 'npc_say("Taste my wrath!")', "Nex Wrath cry")
     score = proc_body(NEX_DROPS, "nex_finish_personal_score")
     require(score, "%varp3269_total_nex_kills = calc(%varp3269_total_nex_kills + 1);", "Nex kill scoreboard")
-    require(score, "%varp6608_nex_personal_best_ticks = $duration;", "Nex personal-best scoreboard")
+    require(score, "%varp7283_nex_personal_best_ticks = $duration;", "Nex personal-best scoreboard")
     require(score, "~nex_clear_contribution;", "Nex scored contribution cleanup")
     contribution_cleanup = proc_body(NEX, "nex_clear_contribution")
-    for state in ("varp6606_nex_contribution_uid", "varp6605_nex_contribution_damage", "varp6607_nex_encounter_start"):
+    for state in ("varp7281_nex_contribution_uid", "varp7280_nex_contribution_damage", "varp7282_nex_encounter_start"):
         require(contribution_cleanup, f"%{state} = 0;", f"Nex cleanup clears {state}")
-    require(NEX_DROPS, "else if (%varp6606_nex_contribution_uid = $dead)",
+    require(NEX_DROPS, "else if (%varp7281_nex_contribution_uid = $dead)",
             "sub-threshold Nex contribution cleanup")
     require(proc_body(FROZEN, "gwd_nex_barrier"), "~nex_clear_contribution;",
             "public Nex arena-exit contribution cleanup")
@@ -389,8 +389,8 @@ def main() -> None:
     for tier, amount in (("hard", 35), ("elite", 30), ("master", 25), ("grandmaster", 15)):
         require(required, f"%{VAR_NAMES['ca_tier_status_' + tier]} = 2", f"{tier} GWD KC reward")
         require(required, f"return({amount});", f"{tier} GWD KC amount")
-    assert "varp6602_gwd_ecumenical_charges" not in ENTRANCE
-    assert "varp6602_gwd_ecumenical_charges" not in FROZEN
+    assert "varp7277_gwd_ecumenical_charges" not in ENTRANCE
+    assert "varp7277_gwd_ecumenical_charges" not in FROZEN
     access = proc_body(ENTRANCE, "gwd_has_chamber_access")
     assert access.index("~gwd_kc_of($faction) >= ~gwd_kc_required") < access.index("inv_total(inv, ecumenical_key)")
     take_access = proc_body(ENTRANCE, "gwd_take_chamber_access")
@@ -447,7 +447,7 @@ def main() -> None:
         require(PRIVATE, f"return({fee});", f"{tier} private fee")
     require(PRIVATE, "return(150000);", "Hard private fee")
     require(PRIVATE, "~map_instance_from_square", "private-room map clone")
-    require(PRIVATE, "%varp5925_map_instance_handle = $handle;", "private-room ownership")
+    require(PRIVATE, "%varp6600_map_instance_handle = $handle;", "private-room ownership")
     for actor in (
         "godwars_armadyl_avatar", "godwars_armadyl_bodyguard_skree",
         "godwars_armadyl_bodyguard_geerin", "godwars_armadyl_bodyguard_kilisa",
@@ -485,8 +485,8 @@ def main() -> None:
         ("huntall(~gwd_private_coord($handle, ^nex_centre), 64, 0);", "instance population scan"),
         ("~gwd_nex_private_has_space($population)", "twenty-player cap gate"),
         ("~gwd_take_chamber_access(5)", "guest essence/key consumption"),
-        ("%varp5925_map_instance_handle = $handle;", "guest room handle binding"),
-        ("%varp6637_gwd_private_faction = 5;", "guest Nex-room binding"),
+        ("%varp6600_map_instance_handle = $handle;", "guest room handle binding"),
+        ("%varp7312_gwd_private_faction = 5;", "guest Nex-room binding"),
     ):
         require(nex_join, needle, f"private Nex friend join {label}")
     nex_has_space = proc_body(PRIVATE, "gwd_nex_private_has_space")
@@ -538,7 +538,7 @@ def main() -> None:
     hilt = proc_body(ENTRANCE, "gwd_hilt_teleport")
     require(hilt, "$limit = 3;", "Ghommal hilt 1 daily limit")
     require(hilt, "$limit = 5;", "Ghommal hilt 2 daily limit")
-    require(hilt, "%varp6613_gwd_hilt_reset_day ! date_runeday()", "Ghommal hilt daily reset")
+    require(hilt, "%varp7288_gwd_hilt_reset_day ! date_runeday()", "Ghommal hilt daily reset")
     require(hilt, "%varb12875_ca_teleport_count_trollheim = calc(%varb12875_ca_teleport_count_trollheim + 1)", "Ghommal hilt usage")
     require(hilt, "map_findsquare(^gwd_entrance_stand", "Ghommal hilt boulder destination")
     bridge = proc_body(ENTRANCE, "gwd_ice_bridge")
@@ -576,17 +576,17 @@ def main() -> None:
         require(GODSWORD, f"[opheld3,{sword}]", f"{sword} dismantle option")
     require(
         GODSWORD,
-        "$sword = ancient_godsword & %varp6740_ancient_godsword_mark_count > 0",
+        "$sword = ancient_godsword & %varp7415_ancient_godsword_mark_count > 0",
         "active Blood Sacrifice dismantle lock",
     )
-    require(GWD_VARP, "[varp6740_ancient_godsword_mark_count]", "Blood Sacrifice mark count")
-    mark_decl = GWD_VARP.split("[varp6740_ancient_godsword_mark_count]", 1)[1].split("[", 1)[0]
+    require(GWD_VARP, "[varp7415_ancient_godsword_mark_count]", "Blood Sacrifice mark count")
+    mark_decl = GWD_VARP.split("[varp7415_ancient_godsword_mark_count]", 1)[1].split("[", 1)[0]
     require(mark_decl, "scope=temp", "Blood Sacrifice temporary state")
     require(ANCIENT_GODSWORD, "anim(ngs_special_player, 0);", "Blood Sacrifice animation 9171")
     require(ANCIENT_GODSWORD, "spotanim_pl(ngs_special_spotanim, 0, 0);", "Blood Sacrifice graphic 1996")
     require(ANCIENT_GODSWORD, "sound_synth(blood_sacrifice, 1, 0);", "Blood Sacrifice sound 2911")
-    require(ANCIENT_GODSWORD, "multiply(~player_attack_roll(%varp6295_damagetype), 2)", "Blood Sacrifice accuracy")
-    require(ANCIENT_GODSWORD, "scale(110, 100, %varp6287_com_maxhit)", "Blood Sacrifice primary damage")
+    require(ANCIENT_GODSWORD, "multiply(~player_attack_roll(%varp6970_damagetype), 2)", "Blood Sacrifice accuracy")
+    require(ANCIENT_GODSWORD, "scale(110, 100, %varp6962_com_maxhit)", "Blood Sacrifice primary damage")
     require(
         ANCIENT_GODSWORD,
         "queue*(ancient_godsword_sacrifice, 7)(npc_uid, npc_basestat(hitpoints), map_instance_find(coord));",
@@ -604,15 +604,15 @@ def main() -> None:
     require(heal, "$damage_dealt", "Blood Sacrifice actual-damage heal cap")
     clear_marks = proc_body(ANCIENT_GODSWORD, "ancient_godsword_clear_marks")
     require(clear_marks, "clearqueue(ancient_godsword_sacrifice);", "Blood Sacrifice queue cleanup")
-    require(clear_marks, "%varp6740_ancient_godsword_mark_count = 0;", "Blood Sacrifice count cleanup")
+    require(clear_marks, "%varp7415_ancient_godsword_mark_count = 0;", "Blood Sacrifice count cleanup")
     require(PLAYER_LOGIN, "~ancient_godsword_clear_marks;", "Blood Sacrifice login cleanup")
     require(PLAYER_LOGOUT, "~ancient_godsword_clear_marks;", "Blood Sacrifice logout cleanup")
     require(PLAYER_DEATH, "~ancient_godsword_clear_marks;", "Blood Sacrifice death cleanup")
 
     # Healing Blade restores from the successful potential-damage roll, not
     # capped/actual damage, and retains its guaranteed restoration minima.
-    require(SARADOMIN_GODSWORD, "multiply(~player_attack_roll(%varp6295_damagetype), 2)", "Healing Blade accuracy")
-    require(SARADOMIN_GODSWORD, "scale(110, 100, %varp6287_com_maxhit)", "Healing Blade primary damage")
+    require(SARADOMIN_GODSWORD, "multiply(~player_attack_roll(%varp6970_damagetype), 2)", "Healing Blade accuracy")
+    require(SARADOMIN_GODSWORD, "scale(110, 100, %varp6962_com_maxhit)", "Healing Blade primary damage")
     require(SARADOMIN_GODSWORD, "if ($hit = true)", "Healing Blade successful-hit restoration")
     require(SARADOMIN_GODSWORD, "~pvm_sgs_heal_amount($damage)", "Healing Blade pre-overkill HP basis")
     require(SARADOMIN_GODSWORD, "~pvm_sgs_prayer_amount($damage)", "Healing Blade pre-overkill Prayer basis")
@@ -802,7 +802,7 @@ def main() -> None:
             "~gwd_drop_brimstone_key($where, ~gwd_armadyl_bodyguard_brimstone_denominator);",
             "Armadyl bodyguard Brimstone tertiary")
     frozen_piece = proc_body(DROPS, "gwd_drop_frozen_key_piece")
-    require(frozen_piece, "%varp6603_gwd_frozen_door_state < 1",
+    require(frozen_piece, "%varp7278_gwd_frozen_door_state < 1",
             "frozen-key inactive-miniquest suppression")
     require(frozen_piece, "inv_total(inv, nex_frozen_key)",
             "assembled frozen-key inventory suppression")
@@ -812,7 +812,7 @@ def main() -> None:
             "owned frozen-key piece suppression")
     for needle in (
         "%varp714_rag_quest = ^rag_collecting",
-        "testbit(%varp6208_rag_submit, ^rag_bit_goblin) = ^false",
+        "testbit(%varp6883_rag_submit, ^rag_bit_goblin) = ^false",
         "inv_total(inv, rag_goblin_bone) = 0",
         "inv_total(bank, rag_goblin_bone) = 0",
     ):

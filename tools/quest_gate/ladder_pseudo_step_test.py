@@ -46,7 +46,7 @@ import helper_coverage as hc  # noqa: E402
 import ladder  # noqa: E402
 
 LEDGER_COMMIT = "4b277a1d8a"
-LEDGER = "osrs239-content/server/scripts/selftest/quests/%s/play/ledger.tsv"
+LEDGER = "osrs-content/server/scripts/selftest/quests/%s/play/ledger.tsv"
 QUESTS = {
     "blackarmgang": ("quest_blackarmgang", "(goto past blackarmdoor)"),
     "haunted": ("quest_haunted", "(goto past draynor_panelled_door)"),

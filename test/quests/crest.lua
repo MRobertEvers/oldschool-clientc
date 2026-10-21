@@ -1,4 +1,4 @@
--- Family Crest. Hand-authored against OSRS-Content/osrs239-content/server/
+-- Family Crest. Hand-authored against OSRS-Content/osrs-content/server/
 -- scripts/quests/quest_crest/scripts/*.rs2 (crest_dimintheis.rs2,
 -- crest_caleb.rs2, crest_avan.rs2, crest_boot.rs2, crest_witchaven.rs2,
 -- crest_johnathon.rs2, crest_chronozon.rs2, crest_quest.rs2),
@@ -748,7 +748,7 @@ return {
             end
             t.check("killChronizon." .. blast, weakened, "new 'Chronozon weakens...' line after " .. casts .. " cast(s); last cast: " .. last)
         end
-        local bits_r, bits = t.var.server("varp6189_crest_spells_levers_gauntlets")
+        local bits_r, bits = t.var.server("varp6864_crest_spells_levers_gauntlets")
         t.check("killChronizon.allFourBlasts", bits_r == "ok" and type(bits) == "number" and bits % 16 == 15,
             "crest_spells_levers_gauntlets=" .. tostring(bits) .. " (low four bits = ^crest_all_spells_cast 15)")
         -- With all four bits set, one fire blast engages him and

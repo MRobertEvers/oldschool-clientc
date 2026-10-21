@@ -737,6 +737,8 @@ enum App_CamScriptOp
     APP_CAM_SCRIPT_OP_LOOKAT = 2,
     APP_CAM_SCRIPT_OP_SHAKE = 3,
     APP_CAM_SCRIPT_OP_RESET = 4,
+    APP_CAM_SCRIPT_OP_MOVETO_CYCLES = 5,
+    APP_CAM_SCRIPT_OP_ROTATETO_COORDINATE = 6,
 };
 
 /** Size of App_CamScript.events: the camera packets the driver can read back.
@@ -2707,6 +2709,35 @@ struct App
         int scripted; /* 1 while a CAM_MOVETO/LOOKAT script overrides free-fly */
         int move_lx, move_lz, move_height, move_rate, move_rate2;
         int look_lx, look_lz, look_height, look_rate, look_rate2;
+        /**
+         * CAM_MOVETO_CYCLES: the eye eased from where it was to a target over
+         * `duration` client cycles (deob class568, built in client.java's
+         * class243.field3064 handler). While `active`, it replaces the rate
+         * walk above; once done it holds the eye at the end until the next
+         * CAM_MOVETO/CAM_RESET. `y0`/`y1` are absolute scene y when
+         * `ignore_terrain`, else height above the ground under the eye.
+         */
+        struct App_CamMoveCycles
+        {
+            int active;
+            int x0, z0, y0, x1, z1, y1;
+            int ignore_terrain;
+            int start_cycle, duration, easing;
+        } move_cycles;
+        /**
+         * CAM_ROTATETO_COORDINATE: pitch and yaw eased to face a tile (deob
+         * class563 x2, client.java class243.field3046). Held at the end until
+         * the next CAM_LOOKAT/CAM_RESET, like move_cycles.
+         */
+        struct App_CamRotateCycles
+        {
+            int active;
+            int pitch0, pitch1, yaw0, yaw1;
+            int start_cycle, duration, easing;
+        } rotate_cycles;
+        /** The last CAM_MOVETO's height: what a height-relative move adds to
+         *  (deob Statics.field6040). */
+        int last_move_height;
         int shake[5];
         int shake_jitter[5];    /* random spread either side of the sine */
         int shake_amplitude[5]; /* sine amplitude */
@@ -4228,6 +4259,29 @@ App_CinemaCameraSnapPosition(struct App* app);
 
 void
 App_CinemaCameraSnapAngle(struct App* app);
+
+/** CAM_MOVETO_CYCLES / CAM_ROTATETO_COORDINATE, at arrival (rs_gameproto_exec.c).
+ *  `local_x`/`local_z` are scene-local tiles. */
+void
+App_CinemaCameraMoveCycles(
+    struct App* app,
+    int local_x,
+    int local_z,
+    int height,
+    int cycles,
+    int ignore_terrain,
+    int easing,
+    int height_relative);
+
+void
+App_CinemaCameraRotateCycles(
+    struct App* app,
+    int local_x,
+    int local_z,
+    int height,
+    int cycles,
+    int easing,
+    int height_relative);
 
 /* Spawn a projectile (reference ClientProj) from a spotanim config, driven by
  * the MAP_PROJANIM zone packet. Enqueues an async load of the spotanim config +

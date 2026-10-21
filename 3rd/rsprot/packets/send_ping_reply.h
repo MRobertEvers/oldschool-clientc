@@ -11,10 +11,13 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : SendPingReplyDecoder
- * Layouts      : 19 distinct, over 19 contiguous revision run(s)
+ * Layouts      : 20 distinct, over 20 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^SendPingReplyDecoder\tin\t' 3rd/rsprot/gen/packet_versions.txt
+ *                Revision(s) 241 come from RSProx, not RSProt
+ *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
+ *                gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -71,6 +74,8 @@ void packet_send_ping_reply_v17_in(RsprotExec *x, MsgSendPingReply *m);
 void packet_send_ping_reply_v18_in(RsprotExec *x, MsgSendPingReply *m);
 /* v19 -- revs 239. */
 void packet_send_ping_reply_v19_in(RsprotExec *x, MsgSendPingReply *m);
+/* v100 -- revs 241. */
+void packet_send_ping_reply_v100_in(RsprotExec *x, MsgSendPingReply *m);
 
 /* Per-revision aliases: `packet_send_ping_reply_rev239_in` is greppable, which is the
  * point -- "what does 239 do for SEND_PING_REPLY" without reading a table. */
@@ -93,6 +98,7 @@ void packet_send_ping_reply_v19_in(RsprotExec *x, MsgSendPingReply *m);
 #define packet_send_ping_reply_rev237_in packet_send_ping_reply_v17_in
 #define packet_send_ping_reply_rev238_in packet_send_ping_reply_v18_in
 #define packet_send_ping_reply_rev239_in packet_send_ping_reply_v19_in
+#define packet_send_ping_reply_rev241_in packet_send_ping_reply_v100_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_send_ping_reply_in[];

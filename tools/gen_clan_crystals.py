@@ -102,7 +102,7 @@ def render(rows, crowns, keys):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--content", default="OSRS-Content/osrs239-content")
+    ap.add_argument("--content", default="OSRS-Content/osrs-content")
     ap.add_argument("--check", action="store_true")
     args = ap.parse_args()
 

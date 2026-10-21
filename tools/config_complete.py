@@ -8,7 +8,7 @@ asks cachepack which keys are missing -- `cachepack missing` merges the tree
 exactly as `pack` does -- and appends `<key>=default` to the record's block in
 the first file that declares it, leaving every other byte of the file alone.
 
-    python3 tools/config_complete.py --src OSRS-Content/osrs239-content [--check]
+    python3 tools/config_complete.py --src OSRS-Content/osrs-content [--check]
 
 `--check` writes nothing and exits 1 if anything is missing (a gate).
 """

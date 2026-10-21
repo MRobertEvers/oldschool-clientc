@@ -29,15 +29,29 @@ packet_bug_report_v2_in(RsprotExec *x, MsgBugReport *m)
     RSPROT_JSTR(x, m->instructions);
 }
 
+/* v100 -- revs 241. */
+void
+packet_bug_report_v100_in(RsprotExec *x, MsgBugReport *m)
+{
+    RSPROT_JSTR(x, m->instructions);
+    RSPROT_U1_ALT2(x, m->type);
+    RSPROT_JSTR(x, m->description);
+}
+
 /*
- * 2 row(s) for 2 layout(s), complete over revisions 221-239.
+ * 3 row(s) for 3 layout(s), complete over revisions 221-239.
  * A complete table makes rsprot_version_pick's NULL mean exactly one thing: a
  * revision outside that span. An incomplete one would conflate "not
  * transcribed" with "no such packet", and those are different facts.
+ *
+ * Plus revision(s) 241, which RSProt never vendored: derived from
+ * RSProx's decoders by tools/rsprox_codec_overlay.py. Revisions between 239
+ * and those are not covered and pick NULL.
  */
 const RsprotVersionRange rsprot_bug_report_in[] = {
     { 221, 221, (RsprotCodecFn)packet_bug_report_v1_in },
     { 222, 239, (RsprotCodecFn)packet_bug_report_v2_in },
+    { 241, 241, (RsprotCodecFn)packet_bug_report_v100_in },
 };
 
 const int rsprot_bug_report_in_count =

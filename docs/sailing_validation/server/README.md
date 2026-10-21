@@ -117,7 +117,7 @@ players land within 12 tiles of 3059,2979, walkable and not sailable.
 ## Isolated packs for the full suite
 
 `src/torirsserver/torirs_server_world_selftest.c` hard-coded
-`"OSRS-Content/osrs239-content/server/scripts/build"` 118 times and its `../`
+`"OSRS-Content/osrs-content/server/scripts/build"` 118 times and its `../`
 sibling form 115 times — 233 literals across ~118 load sites. Only the canoe
 section read `TORIRSSERVER_SCRIPTS`.
 A worker validating its own `sscompile` output could therefore run the
@@ -139,7 +139,7 @@ Proof is in the logs, not in a passing exit code — the run's own load lines
 name the directory:
 
 - run 4 (no `TORIRSSERVER_SCRIPTS`): every `scripts loaded from ...` line says
-  `OSRS-Content/osrs239-content/server/scripts/build`.
+  `OSRS-Content/osrs-content/server/scripts/build`.
 - run 5 (`TORIRSSERVER_SCRIPTS=/tmp/sailing-final-packroot/build`): all **106**
   load lines say `/tmp/sailing-final-packroot/build`, and **zero** say the
   canonical path. Same 220 sections, same 250,071 checks, 0 failures as run 4.

@@ -53,7 +53,7 @@ REPO = Path(__file__).resolve().parent.parent
 # `rs2012_material_*` in the same directory are 3D texture sources that go
 # through the procedural-texture bake, not the 2D blitter, and are left alone.
 DEFAULT_GLOBS = [
-    "OSRS-Content/osrs239-content/sprites/ported/rs2012_qbd_td/rs2012_qbd_sprite_*",
+    "OSRS-Content/osrs-content/sprites/ported/rs2012_qbd_td/rs2012_qbd_sprite_*",
 ]
 
 # Alpha at or above this becomes opaque, below it becomes clear. 128 is the

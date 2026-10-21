@@ -53,6 +53,31 @@
 #define RSCACHE_CS2_OP_PUSH_VARC_STRING 49
 #define RSCACHE_CS2_OP_POP_VARC_STRING 50
 #define RSCACHE_CS2_OP_SWITCH 60
+/*
+ * The long stack (OSRS >= 237). Push/pop pairs over the same three places the
+ * int stack has — a varc, a local, a constant — plus a varp read as a long
+ * (64/65, new in 241), and the six compare-and-branch forms. The rev-239 deob's
+ * core loop (Statics, `class42.field258`) is the reference; 64/65 postdate it
+ * and are read off cache.osrs241, where 64's operand is a varp id and its
+ * result feeds `tostring_spacer_long`.
+ *
+ * PUSH_CONSTANT_LONG and POP_LONG_DISCARD repeat clientscript.c's spelling
+ * exactly, which the unity build needs.
+ */
+#define RSCACHE_CS2_OP_PUSH_VARC_LONG 51
+#define RSCACHE_CS2_OP_POP_VARC_LONG 52
+#define RSCACHE_CS2_OP_PUSH_CONSTANT_LONG 61
+#define RSCACHE_CS2_OP_POP_LONG_DISCARD 62
+#define RSCACHE_CS2_OP_PUSH_VAR_LONG 64
+#define RSCACHE_CS2_OP_POP_VAR_LONG 65
+#define RSCACHE_CS2_OP_PUSH_LONG_LOCAL 66
+#define RSCACHE_CS2_OP_POP_LONG_LOCAL 67
+#define RSCACHE_CS2_OP_LONG_BRANCH_NOT 68
+#define RSCACHE_CS2_OP_LONG_BRANCH_EQUALS 69
+#define RSCACHE_CS2_OP_LONG_BRANCH_LESS_THAN 70
+#define RSCACHE_CS2_OP_LONG_BRANCH_GREATER_THAN 71
+#define RSCACHE_CS2_OP_LONG_BRANCH_LESS_THAN_OR_EQUALS 72
+#define RSCACHE_CS2_OP_LONG_BRANCH_GREATER_THAN_OR_EQUALS 73
 #define RSCACHE_CS2_OP_PUSH_VARCLANSETTING 74
 #define RSCACHE_CS2_OP_PUSH_VARCLAN 76
 #define RSCACHE_CS2_OP_ENUM 3408
@@ -119,6 +144,12 @@ enum RSCache_CS2_CommandKind
     RSCACHE_CS2_CMD_DB_GETFIELD,
     /** db_find and friends: the search value's stack comes from the column. */
     RSCACHE_CS2_CMD_DB_FIND,
+    /**
+     * array_delete / array_max: pops its recorded arguments and pushes one value
+     * onto the array's own element stack (Statics.method7522), which the
+     * interpreter reads off the value's consumer.
+     */
+    RSCACHE_CS2_CMD_ARRAY_ELEMENT,
 };
 
 struct RSCache_CS2_CommandInfo
@@ -173,6 +204,18 @@ RSCache_CS2_CommandOverride(
 /** Drop every override installed so far. */
 void
 RSCache_CS2_CommandClearOverrides(void);
+
+struct RSCache;
+
+/**
+ * Fit the table to one cache's era. The generated table is the content tree's
+ * revision (osrs241); a cache older than 241 still has the Grand Exchange's
+ * values on the int stack (3905, 3908, 3932 pushed ints until 241 moved them
+ * to longs), so those three get their earlier shapes as overrides. An unknown
+ * revision is taken as the tree's. Call once the profile is resolved.
+ */
+void
+RSCache_CS2_CommandApplyProfile(const struct RSCache* cache);
 
 /**
  * Lowercase source spelling. NULL when unnamed — the caller decides whether

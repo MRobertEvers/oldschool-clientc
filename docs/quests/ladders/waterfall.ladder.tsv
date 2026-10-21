@@ -1,5 +1,5 @@
 # ladder waterfall quest_dir=quest_waterfall guide=src/main/java/com/questhelper/helpers/quests/waterfallquest/WaterfallQuest.java steps=27 legs=1:1-27@s0
-#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
 leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
 1	1	0	talkToAlmera	NpcStep	npc:almera_waterfall_quest	2521,3495,0	Talk to Almera on top of Baxtorian Falls, south of Barbarian Outpost.			Yes.	quests/quest_waterfall/scripts/almera.rs2:8 opnpc1
 1	2	1	boardRaft	ObjectStep	loc:lograft_waterfall_quest	2509,3494,0	Board the log raft west of Almera.		Rope		quests/quest_waterfall/scripts/quest_waterfall_locs.rs2:193 oploc1

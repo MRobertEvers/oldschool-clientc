@@ -227,7 +227,7 @@ A project is a directory with `cs2dom.json`:
 
 ```json
 {
-  "content": "../../../OSRS-Content/osrs239-content",
+  "content": "../../../OSRS-Content/osrs-content",
   "cache": "../../../cache.osrs239",
   "revision": "osrs239",
   "cs2Names": "../../../../cs2/src/main/resources/org/runestar/cs2",

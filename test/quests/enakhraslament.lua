@@ -1,4 +1,4 @@
--- Enakhra's Lament. Stage values: OSRS-Content/osrs239-content/server/scripts/quests/
+-- Enakhra's Lament. Stage values: OSRS-Content/osrs-content/server/scripts/quests/
 -- quest_enakhraslament/configs/enakhraslament.constant (enakh_quest 0/10/20/30/40/50/60/70, the
 -- canonical values Quest Helper's steps.put ladder reads).
 -- Guide: quest-helper helpers/quests/enakhraslament/EnakhrasLament.java; wiki Enakhra's_Lament

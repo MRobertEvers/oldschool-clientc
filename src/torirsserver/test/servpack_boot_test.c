@@ -71,7 +71,7 @@ main(
     int argc,
     char** argv)
 {
-    const char* content = argc > 1 ? argv[1] : "OSRS-Content/osrs239-content";
+    const char* content = argc > 1 ? argv[1] : "OSRS-Content/osrs-content";
     const char* scratch = argc > 2 ? argv[2] : "build/servpack_boot_scratch";
     char path[1024];
     struct stat info;

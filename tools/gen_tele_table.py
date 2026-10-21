@@ -35,7 +35,7 @@ small box on one plane. Everything else is discarded with a count in the report.
 That is the whole reason this is a generator and not a checked-in list: the
 ambiguity test has to be re-run whenever the roster or the cache moves.
 
-    tools/gen_tele_table.py [--tree OSRS-Content/osrs239-content] [--check]
+    tools/gen_tele_table.py [--tree OSRS-Content/osrs-content] [--check]
 
 `--check` regenerates into memory and fails if the tree's files differ, which is
 what a build hook wants.
@@ -62,7 +62,7 @@ import sys
 import config_text
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DEFAULT_TREE = os.path.join(REPO, "OSRS-Content", "osrs239-content")
+DEFAULT_TREE = os.path.join(REPO, "OSRS-Content", "osrs-content")
 
 # Bounding box, in tiles, inside which several spawns of one name are still
 # "the same place". 20 covers a shop's two shopkeepers and a boss's arena; it

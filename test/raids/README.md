@@ -33,7 +33,7 @@ the quest gate script (`tools/raid_gate/README.md`).
 
 - Fixtures come from `test/raids/fixtures/` (seeded with `fresh_lumbridge.ini`).
   `tob_normal_done.ini` is `fresh_lumbridge.ini` plus one Theatre of Blood completion
-  (`6826 = 1`, `varp6826_tob_completions`), so every raider of a Hard party test passes the
+  (`6826 = 1`, `varp7501_tob_completions`), so every raider of a Hard party test passes the
   door's "You must complete the Theatre of Blood once" check (raid seam19).
 - Artefacts land in `build/quest_gate/<id>/` like a quest's. That directory,
   the session lock (`build/quest_gate/.locks/<id>.lock`) and a relay's
@@ -42,7 +42,7 @@ the quest gate script (`tools/raid_gate/README.md`).
   wrappers refuse to run if any `test/raids/<id>.lua` shares an id with
   `test/quests/` or `QUEUE.tsv`.
 - A PASS is published to
-  `OSRS-Content/osrs239-content/server/scripts/selftest/minigames/<raid>/<room>/play/`
+  `OSRS-Content/osrs-content/server/scripts/selftest/minigames/<raid>/<room>/play/`
   (`tob_maiden` -> `tob/maiden`: the id split at its first `_`), not under
   `selftest/quests/`. `--no-publish` skips it.
 - `gate.py`'s Quest Helper coverage check reads "not graded" for a raid id (no

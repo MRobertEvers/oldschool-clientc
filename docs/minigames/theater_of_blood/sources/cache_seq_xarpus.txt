@@ -1,4 +1,4 @@
-# Xarpus sequence durations, read 2026-10-02 from OSRS-Content/osrs239-content/configs/all.seq (read-only; cycles of 20 ms, 30 per game tick)
+# Xarpus sequence durations, read 2026-10-02 from OSRS-Content/osrs-content/configs/all.seq (read-only; cycles of 20 ms, 30 per game tick)
 # seq_name	frames	cycles	ticks	cycles_before_frame10	sound_lines
 tob_xarpus_idle	52	120	4.00	26	1,3541,1,7,0,100;14,3975,1,7,0,100;27,3964,1,7,0,100
 tob_xarpus_attack_ranged	21	60	2.00	27	10,3290,1,7,0,100

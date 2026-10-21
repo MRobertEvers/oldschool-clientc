@@ -1,6 +1,6 @@
 # SOTETSEG (Normal, trio) -- solver SPEC
 
-Abbreviations: `S.rs2` = OSRS-Content/osrs239-content/server/scripts/minigames/minigame_tob/scripts/tob_sotetseg.rs2;
+Abbreviations: `S.rs2` = OSRS-Content/osrs-content/server/scripts/minigames/minigame_tob/scripts/tob_sotetseg.rs2;
 `tob.c` = .../minigame_tob/configs/tob.constant; `sote.c` = .../configs/tob_sotetseg.constant;
 `raid.rs2` = .../scripts/tob_raid.rs2; `party.rs2` = .../scripts/tob_party.rs2;
 `SR.c` = src/torirsserver/torirs_server_scriptrun.c; `SC.c` = src/scriptrun/scriptrun_core.c;

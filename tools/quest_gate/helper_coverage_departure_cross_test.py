@@ -65,7 +65,7 @@ import helper_coverage  # noqa: E402
 
 ACCEPTED = "171bc81b0"
 LEDGER_COMMIT = "343f1b4163"
-LEDGER = "osrs239-content/server/scripts/selftest/quests/quest_meatandgreet/play/ledger.tsv"
+LEDGER = "osrs-content/server/scripts/selftest/quests/quest_meatandgreet/play/ledger.tsv"
 STEP = "leaveColosseumToReturnToEmelio"
 GOTO_LINE = 't.exec("goto-emelio.end", t.player.goto_tile, 1753, 3074, 0)'
 CLICK_LINE = 't.exec("leaveColosseumToReturnToEmelio", t.player.click_loc, "colosseum_exit_lobby", 1)'
@@ -137,7 +137,7 @@ def grade_case(lua, ledger_text):
     return step["class"], step["reason"]
 
 
-PLAY_LEDGER = "osrs239-content/server/scripts/selftest/quests/quest_%s/play/ledger.tsv"
+PLAY_LEDGER = "osrs-content/server/scripts/selftest/quests/quest_%s/play/ledger.tsv"
 NEUTRAL = ("DRIVEN", "TRAVEL", "ALTERNATIVE", "EQUIVALENT", "BRING_ALONG")
 
 

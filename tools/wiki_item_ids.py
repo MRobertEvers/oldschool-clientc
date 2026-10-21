@@ -23,9 +23,9 @@ way from the shop table alone to know which numbered version applies.
 
 ## What gets written
 
-    OSRS-Content/osrs239-content/wiki/items/<title>.wikitext   raw wikitext
-    OSRS-Content/osrs239-content/wiki/items_manifest.tsv       title, revid, id, fetch_date
-    OSRS-Content/osrs239-content/wiki/shop_stock.csv            patched in place
+    OSRS-Content/osrs-content/wiki/items/<title>.wikitext   raw wikitext
+    OSRS-Content/osrs-content/wiki/items_manifest.tsv       title, revid, id, fetch_date
+    OSRS-Content/osrs-content/wiki/shop_stock.csv            patched in place
 
 A patched row gets `match_rule=wiki-infobox-id`, `review=` cleared, and
 `obj_id`/`obj_gameval` set to the wiki's stated id — but **only if that id is
@@ -49,7 +49,7 @@ import urllib.parse
 import urllib.request
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONTENT = os.path.join(REPO, "OSRS-Content", "osrs239-content")
+CONTENT = os.path.join(REPO, "OSRS-Content", "osrs-content")
 STOCK = os.path.join(CONTENT, "wiki", "shop_stock.csv")
 CATALOG = os.path.join(CONTENT, "wiki", "shop_catalog.csv")
 OUT_DIR = os.path.join(CONTENT, "wiki", "items")

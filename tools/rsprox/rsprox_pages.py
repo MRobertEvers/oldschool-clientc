@@ -17,7 +17,7 @@ last = int(sys.argv[3]) if len(sys.argv) > 3 else 1 << 30
 
 SEQ = {}
 _seq_pack = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..",
-                         "OSRS-Content", "osrs239-content", "configs", "all.seq.compack")
+                         "OSRS-Content", "osrs-content", "configs", "all.seq.compack")
 for l in open(_seq_pack):
     if "=" in l:
         k, v = l.strip().split("=", 1)

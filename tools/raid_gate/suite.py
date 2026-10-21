@@ -21,7 +21,7 @@ QUEST_TESTS_DIR = os.path.join(REPO_ROOT, "test", "quests")
 QUEUE_TSV_PATH = os.path.join(QUEST_TESTS_DIR, "QUEUE.tsv")
 # A passing room's ledger and shots: selftest/minigames/<raid>/<room>/play/
 # (quest_list.suite_publish_subdir: tob_maiden -> tob/maiden).
-RAID_PUBLISH_DIR = os.path.join(REPO_ROOT, "OSRS-Content", "osrs239-content", "server", "scripts",
+RAID_PUBLISH_DIR = os.path.join(REPO_ROOT, "OSRS-Content", "osrs-content", "server", "scripts",
                                 "selftest", "minigames")
 
 

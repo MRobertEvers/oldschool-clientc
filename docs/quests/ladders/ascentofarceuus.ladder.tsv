@@ -1,5 +1,5 @@
 # ladder ascentofarceuus quest_dir=quest_ascentofarceuus guide=src/main/java/com/questhelper/helpers/quests/theascentofarceuus/TheAscentOfArceuus.java steps=24 legs=1:1-24@s0
-#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
 leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
 1	1	0	talkToMori	NpcStep	npc:arcquest_mori_visible	1698,3742,0	Talk to Mori in Arceuus.			What can I do to help? | We should let someone know about t…	quests/quest_ascentofarceuus/scripts/ascentofarceuus.rs2:79 opnpc1; +1
 1	2	1	goUpToAndrews	ObjectStep	loc:fai_varrock_stairs_taller_new_fix	1616,3681,0	Talk to Councillor Andrews in Kourend Castle.				ladders_stairs/scripts/ladders.rs2:175 oploc1; +1

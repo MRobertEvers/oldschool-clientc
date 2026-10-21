@@ -2,7 +2,7 @@
 
 - OSRS-Content: real submodule checkout at the recorded commit (cloned with
   --reference to the main checkout's objects). The compiled script pack lives at
-  OSRS-Content/osrs239-content/server/scripts/build/script.dat; rebuild with
+  OSRS-Content/osrs-content/server/scripts/build/script.dat; rebuild with
   `make -C src torirsserver-scripts`.
 - cache.osrs239: a full COPY of the pristine rev-239 cache (218 MB), not a link,
   so nothing here can touch the main tree's copy.
@@ -15,7 +15,7 @@
 - Never point TORIRSSERVER_SAVES, TORIRS_PREFS or TORIRS_PLUGIN_PREFS at the
   repo's own files; use a scratch dir per run.
 - Server pack band: `make -C src torirsserver-servpack` writes 10,428 records into
-  OSRS-Content/osrs239-content/server/pack and then fails its membership gate
+  OSRS-Content/osrs-content/server/pack and then fails its membership gate
   ("6 record(s) state a server field pack/<ns>.server does not claim"). Same
   submodule commit as the main tree, so this is pre-existing content state, not
   this worktree; the band files it needs exist. Not required by the quest driver.

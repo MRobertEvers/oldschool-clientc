@@ -1,6 +1,6 @@
 -- Elemental Workshop II (quest_elementalworkshop2). Authored b72 from Quest Helper's
 -- helpers/quests/elementalworkshopii (ElementalWorkshopII.java) and the content scripts
--- OSRS-Content/osrs239-content/server/scripts/quests/quest_elementalworkshopii/scripts/*.rs2;
+-- OSRS-Content/osrs-content/server/scripts/quests/quest_elementalworkshopii/scripts/*.rs2;
 -- driven end to end after the b72 content fix (the boiler's hide-key varbit, the six deep
 -- workshop climbs, the crane claw on the placed crane, the jig cart's spawn). The junction box is
 -- the cache's own pipe screen (interface 262), wired end by end and read off the screen, and the

@@ -1,5 +1,5 @@
 -- What Lies Below. Guide: Quest Helper WhatLiesBelow (ladder.py whatliesbelow).
--- Scripts: OSRS-Content/osrs239-content/server/scripts/quests/quest_whatliesbelow/scripts/
+-- Scripts: OSRS-Content/osrs-content/server/scripts/quests/quest_whatliesbelow/scripts/
 -- Brought along (guide item list): bowl, 15 chaos runes, chaos talisman (the Chaos Altar entry),
 -- a weapon and food for King Roald. Everything else is gathered in game.
 return {
@@ -189,7 +189,7 @@ return {
         -- ------------------------------------------------------------ enterChaosAltar
         -- Out of the palace door by door, overland to the open ground south of the Wilderness
         -- strip, then north on foot: wilderness_warning.rs2 zones 0_47_54_*_56 (z 3512-3519)
-        -- stop the walk with three pages while %varp5753_wilderness is unset (fresh session),
+        -- stop the walk with three pages while %varp6428_wilderness is unset (fresh session),
         -- and the Wilderness Ditch (ditch_wilderness_cover 3060,3521 angle 0, 1x2 over z
         -- 3521-3522; wilderness_ditch.rs2 ~wilderness_ditch_cross jumps z-1 <-> z+2) is crossed
         -- by its own Cross op. North of it the ruins are open Wilderness ground (reach.py

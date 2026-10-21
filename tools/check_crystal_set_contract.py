@@ -39,7 +39,7 @@ WORLD = Path("src/torirsserver/torirs_server_world.c")
 WORLD_SELFTEST = Path("src/torirsserver/torirs_server_world_selftest.c")
 INCIDENT_DOC = Path("docs/CRYSTAL_SET_COMMAND.md")
 
-DEFAULT_CONTENT = Path("OSRS-Content/osrs239-content")
+DEFAULT_CONTENT = Path("OSRS-Content/osrs-content")
 
 
 def crystal_definition_errors(definitions: list[Path], text: str) -> list[str]:
@@ -169,7 +169,7 @@ def main() -> int:
         type=Path,
         default=None,
         help="OSRS-Content tree to check (default: $TORIRSSERVER_CONTENT_DIR, "
-        "else <repo>/OSRS-Content/osrs239-content)",
+        "else <repo>/OSRS-Content/osrs-content)",
     )
     parser.add_argument("--self-test", action="store_true", help="run checker negative controls")
     args = parser.parse_args()

@@ -3,7 +3,7 @@
 Plan to take `skill_runecraft/` from its current vertical slice to the complete
 [Runecraft](https://oldschool.runescape.wiki/w/Runecraft) skill. The wiki is
 the authority for behaviour (levels, XP, rates, gear effects, locations); the
-cache (`OSRS-Content/osrs239-content/configs/all.loc`, `all.obj`, `all.npc`) is
+cache (`OSRS-Content/osrs-content/configs/all.loc`, `all.obj`, `all.npc`) is
 the authority for names and for what is *expressible* at this revision;
 `LostCity_Server/content/scripts/skill_runecraft/` is the reference for script
 shape wherever it has one — and for half the slices below it does not.
@@ -16,7 +16,7 @@ of the Rift) is a minigame, not a skill slice, and is scoped out at §8.
 
 ## 0. Where runecrafting stands today — measured
 
-`OSRS-Content/osrs239-content/server/scripts/skill_runecraft/` is **~660 lines**
+`OSRS-Content/osrs-content/server/scripts/skill_runecraft/` is **~660 lines**
 across 2 scripts and 6 config files:
 
 | file | lines | what it holds |

@@ -605,7 +605,7 @@ check_register_rules(void)
 int
 main(int argc, char** argv)
 {
-    const char* dir = argc > 1 ? argv[1] : "../../OSRS-Content/osrs239-content";
+    const char* dir = argc > 1 ? argv[1] : "../../OSRS-Content/osrs-content";
 
     check_band();
     check_header();

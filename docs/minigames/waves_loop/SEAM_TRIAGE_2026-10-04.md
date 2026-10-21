@@ -44,7 +44,7 @@ Evidence. `CONTENT_BUGS.md` ENG-16, ENG-17, ENG-18; seam pass 3's close report
 
 Units: every unit (prayer is held through every wave); inferno_blob_and_splits.
 
-Files: `the files named in docs/minigames/waves_loop/patches/matthew-mbp-m4-waves-b1-seam3.prayer_regen_and_drain.content.patch`, `OSRS-Content/osrs239-content/server/scripts/player/death.rs2`, `the prayer config file that states each prayer's drain effect (find it from skill_prayer/; name it in your report)`
+Files: `the files named in docs/minigames/waves_loop/patches/matthew-mbp-m4-waves-b1-seam3.prayer_regen_and_drain.content.patch`, `OSRS-Content/osrs-content/server/scripts/player/death.rs2`, `the prayer config file that states each prayer's drain effect (find it from skill_prayer/; name it in your report)`
 
 Summary. Apply seam pass 3's held prayer patch the same way (you run after
 `eat_delay_land`, whose patch also touches `death.rs2`: make the smallest edit there).
@@ -68,7 +68,7 @@ of seam pass 3.
 
 Units: inferno_single_jad, inferno_triple_jad, inferno_zuk_sets_and_healers.
 
-Files: `OSRS-Content/osrs239-content/server/scripts/minigames/minigame_inferno/scripts/inferno_pillars.rs2`
+Files: `OSRS-Content/osrs-content/server/scripts/minigames/minigame_inferno/scripts/inferno_pillars.rs2`
 
 Summary. ENG-20 (and ENG-21, the same shape): wave 67 never spawns its Jad because
 `~inferno_pillars_collapse_all` aborts at `inferno_pillars.rs2:150` (a nested
@@ -87,7 +87,7 @@ Evidence. `CONTENT_BUGS.md` ENG-20, ENG-21; `fix.inferno_wave_respawn.json` of s
 
 Units: inferno_nibblers_and_pillars; every npc whose record says it does not retaliate.
 
-Files: `src/torirsserver/torirs_server_scripts.c`, `src/torirsserver/torirs_server_world.c`, `OSRS-Content/osrs239-content/server/scripts/minigames/minigame_inferno/configs/inferno.npc`
+Files: `src/torirsserver/torirs_server_scripts.c`, `src/torirsserver/torirs_server_world.c`, `OSRS-Content/osrs-content/server/scripts/minigames/minigame_inferno/configs/inferno.npc`
 
 Summary. ENG-25, ENG-26, ENG-27 (ENG-4's first item, not fixed in seam pass 3 because the
 files were outside that seam): the default retaliation ignores an npc record's

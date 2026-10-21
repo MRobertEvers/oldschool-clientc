@@ -34,7 +34,7 @@ family:
 | 3998 | `[clientscript,settings_client_mode]` | the Display panel's fixed/resizable dropdown. Its entire body is `setwindowmode` + `setdefaultwindowmode` |
 
 The toplevels are all named in the pack
-(`OSRS-Content/osrs239-content/pack/3_interfaces.pack`): 80 `toplevel_spectator`,
+(`OSRS-Content/osrs-content/pack/3_interfaces.pack`): 80 `toplevel_spectator`,
 161 `toplevel_osrs_stretch`, 164 `toplevel_pre_eoc`, 165 `toplevel_display`,
 548 `toplevel`, 601 `toplevel_osm`. `manifests/manifest_osrs230.ini` boots **161**.
 
@@ -685,7 +685,7 @@ mirrored OpenRune's reference `GameframeLoader` table verbatim (§8 header),
 which mounts interface 90 unconditionally on every login regardless of world
 type — matching real client/server traffic. On the real game the mounted
 widget's own onload chain (script 865 → `~pvp_icons_layout`, script 386,
-`OSRS-Content/osrs239-content/scripts/script_386.cs2`) then reads
+`OSRS-Content/osrs-content/scripts/script_386.cs2`) then reads
 `deadman_world` / `wildwars_world` / `kots_world` / `clanwars_ffa_arena(coord)`
 / `wilderness_level` to pick a branch, and a normal world presumably resolves
 to something that stays visually inert. ToriRSServer implements none of those
@@ -700,7 +700,7 @@ because the *server* opened a widget whose correct rendering depends entirely
 on state this server doesn't model.
 
 **Fix:** removed the `pvp_icons` row from all three `gameframe.enum` sections
-(`OSRS-Content/osrs239-content/server/scripts/player/configs/gameframe.enum`).
+(`OSRS-Content/osrs-content/server/scripts/player/configs/gameframe.enum`).
 Interface 90 is now never opened, exactly like a real non-PVP-world server
 apparently leaves some login-time widget unopened rather than shipping a
 script that cannot answer its own preconditions — its `onload` never fires,

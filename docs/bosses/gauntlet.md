@@ -94,7 +94,7 @@ the seeds awarded here, but their broader work remains owned by
 ## 2. Current tree — reusable foundation and measured gaps
 
 Content currently lives in
-`OSRS-Content/osrs239-content/server/scripts/minigames/minigame_gauntlet/`.
+`OSRS-Content/osrs-content/server/scripts/minigames/minigame_gauntlet/`.
 There are about 2,645 lines across eight scripts, plus constants and varps.
 The cache already contains the maps, all temporary item/NPC/loc definitions,
 models, sequences, projectiles, map icons and interfaces 637–640.

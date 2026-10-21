@@ -63,7 +63,7 @@ import sys
 import config_text
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONTENT = os.path.join(REPO, "OSRS-Content", "osrs239-content")
+CONTENT = os.path.join(REPO, "OSRS-Content", "osrs-content")
 LANE = os.path.join(CONTENT, "server", "scripts", "ported_scape2009_summoning")
 DOCS = os.path.join(REPO, "docs", "summoning_port")
 

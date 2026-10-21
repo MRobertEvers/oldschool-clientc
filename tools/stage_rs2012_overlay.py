@@ -22,7 +22,7 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_TREE = REPO_ROOT / "OSRS-Content" / "osrs239-content"
+DEFAULT_TREE = REPO_ROOT / "OSRS-Content" / "osrs-content"
 LANE = Path("ported") / "rs2012_qbd_td"
 BASE_PLACEMENTS = "BASE_PLACEMENTS.tsv"
 # `ported/<lane>/lane.ini` is the lane descriptor the ServerScript compiler reads

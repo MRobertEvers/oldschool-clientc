@@ -351,7 +351,7 @@ PROTECTION_BITS = {"protectfrommagic": 12, "protectfrommissiles": 13, "protectfr
 
 def read_protection_bits():
     path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-                        "OSRS-Content", "osrs239-content", "configs", "all.varbit")
+                        "OSRS-Content", "osrs-content", "configs", "all.varbit")
     bits = dict(PROTECTION_BITS)
     if not os.path.isfile(path):
         return bits

@@ -419,7 +419,7 @@ return {
         t.exec("check-crate-full", t.player.click_loc, "bananacrate", 1)
         t.expect("hunt.crate_full_msg", t.msg.expect("crate is full of bananas"))
         -- ...and the rum is under them (banana_crate.rs2 [oploc1,bananacrate],
-        -- %varp5737_crate_rum = 1).
+        -- %varp6412_crate_rum = 1).
         t.expect("hunt.crate_rum_msg", t.msg.expect("some rum stashed in here"))
 
         -- Hand the crate over -- Luthas pays 30 coins and ships it

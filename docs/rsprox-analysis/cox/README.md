@@ -101,4 +101,4 @@ A searchable index of every recording, with content search like rsprox.net's, is
 
 ## Sound ids
 
-Recordings give numeric sound ids. Our names are in `OSRS-Content/osrs239-content/pack/4_soundeffects.pack` (`id=name`).
+Recordings give numeric sound ids. Our names are in `OSRS-Content/osrs-content/pack/4_soundeffects.pack` (`id=name`).

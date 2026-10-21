@@ -272,7 +272,7 @@ Proof (`--ledger` grades another run's ledger):
 
 ```sh
 git show 2c35057c6:test/quests/regicide.lua > /tmp/r.lua
-git -C OSRS-Content show 5f4908df1:osrs239-content/server/scripts/selftest/quests/quest_regicide/play/ledger.tsv > /tmp/r.tsv
+git -C OSRS-Content show 5f4908df1:osrs-content/server/scripts/selftest/quests/quest_regicide/play/ledger.tsv > /tmp/r.tsv
 python3 tools/quest_gate/helper_coverage.py regicide --lua /tmp/r.lua --ledger /tmp/r.tsv
 ```
 

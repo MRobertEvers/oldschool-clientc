@@ -3,7 +3,7 @@
  * reference server's content/scripts/engine.rs2. Do not edit by hand --
  * re-run the generator.
  *
- * 385 commands.
+ * 387 commands.
  */
 
 #ifndef SRC_SERVERSCRIPT_SSC_COMMAND_KINDS_GEN_H
@@ -411,6 +411,8 @@ static const struct SSC_CommandTypes g_ssc_command_types[] = {
     { 11172, "npc_setblockwalk", "int", "" },
     { 11180, "npc_setbasestat", "npc_stat int", "" },
     { 11210, "spotanim_pl_slot", "spotanim int int int", "" },
+    { 11220, "cam_moveto_cycles", "coord int int int int", "" },
+    { 11221, "cam_rotateto_coordinate", "coord int int int", "" },
 };
 
 #endif

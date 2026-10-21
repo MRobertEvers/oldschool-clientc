@@ -1,6 +1,6 @@
 # zanaris (Lost City) -- notes (parity3d pass, LostCity checked leg by leg)
 
-Source: LostCity quest_zanaris. Content: OSRS-Content/osrs239-content/server/scripts/quests/quest_zanaris/scripts/leprechaun_tree.rs2.
+Source: LostCity quest_zanaris. Content: OSRS-Content/osrs-content/server/scripts/quests/quest_zanaris/scripts/leprechaun_tree.rs2.
 Driven headless: scratch runs parity_zanaris (62 rows), parity_zanaris_z4 / _z (zombie drops), parity_zanaris_ent (Entrana ladder). Not committed tests.
 
 - Zanaris is map square m38_69 here. LostCity 225 used m50_149 with the same local coords, so a coord

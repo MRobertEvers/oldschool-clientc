@@ -11,10 +11,13 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : OpNpc6Decoder
- * Layouts      : 4 distinct, over 12 contiguous revision run(s)
+ * Layouts      : 4 distinct, over 13 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^OpNpc6Decoder\tin\t' 3rd/rsprot/gen/packet_versions.txt
+ *                Revision(s) 241 come from RSProx, not RSProt
+ *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
+ *                gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -36,7 +39,7 @@ void packet_opnpc6_v1_in(RsprotExec *x, MsgOpNpc6 *m);
 void packet_opnpc6_v2_in(RsprotExec *x, MsgOpNpc6 *m);
 /* v3 -- revs 225, 228, 236-237. */
 void packet_opnpc6_v3_in(RsprotExec *x, MsgOpNpc6 *m);
-/* v4 -- revs 226, 231-233, 238-239. */
+/* v4 -- revs 226, 231-233, 238-239, 241. */
 void packet_opnpc6_v4_in(RsprotExec *x, MsgOpNpc6 *m);
 
 /* Per-revision aliases: `packet_opnpc6_rev239_in` is greppable, which is the
@@ -60,6 +63,7 @@ void packet_opnpc6_v4_in(RsprotExec *x, MsgOpNpc6 *m);
 #define packet_opnpc6_rev237_in packet_opnpc6_v3_in
 #define packet_opnpc6_rev238_in packet_opnpc6_v4_in
 #define packet_opnpc6_rev239_in packet_opnpc6_v4_in
+#define packet_opnpc6_rev241_in packet_opnpc6_v4_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_opnpc6_in[];

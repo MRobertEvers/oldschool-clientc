@@ -25,7 +25,7 @@
  *
  *     make -C tools/entity_viewer ev_swing
  *     tools/entity_viewer/ev_swing --rev osrs239 cache.osrs239 \
- *         --arc-model OSRS-Content/osrs239-content/models/spot/dragon_halberd_special_south_red.model \
+ *         --arc-model OSRS-Content/osrs-content/models/spot/dragon_halberd_special_south_red.model \
  *         --tile 0 -1 --out /tmp/scythe
  *
  * Defaults are the scythe of vitur's: obj 22325 in the right hand, sequence 8056

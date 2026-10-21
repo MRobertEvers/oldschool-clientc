@@ -11,10 +11,13 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : CamSkyboxEncoder
- * Layouts      : 2 distinct, over 2 contiguous revision run(s)
+ * Layouts      : 3 distinct, over 3 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^CamSkyboxEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
+ *                Revision(s) 241 come from RSProx, not RSProt
+ *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
+ *                gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -34,11 +37,14 @@ typedef struct MsgCamSkybox {
 void packet_cam_skybox_v1_out(RsprotExec *x, MsgCamSkybox *m);
 /* v2 -- revs 239. */
 void packet_cam_skybox_v2_out(RsprotExec *x, MsgCamSkybox *m);
+/* v100 -- revs 241. */
+void packet_cam_skybox_v100_out(RsprotExec *x, MsgCamSkybox *m);
 
 /* Per-revision aliases: `packet_cam_skybox_rev239_out` is greppable, which is the
  * point -- "what does 239 do for CAM_SKYBOX" without reading a table. */
 #define packet_cam_skybox_rev238_out packet_cam_skybox_v1_out
 #define packet_cam_skybox_rev239_out packet_cam_skybox_v2_out
+#define packet_cam_skybox_rev241_out packet_cam_skybox_v100_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_cam_skybox_out[];

@@ -42,7 +42,7 @@ does not depend on which cache the client booted.
 
 ## What the client actually did
 
-`OSRS-Content/osrs239-content/scripts/script_73.cs2` is the chatbox Enter
+`OSRS-Content/osrs-content/scripts/script_73.cs2` is the chatbox Enter
 handler. On Enter it first calls `~script7304(%varcstring335)`. Only if that
 local handler returns 0 does text beginning with `::` reach `docheat(...)`.
 
@@ -111,7 +111,7 @@ slot. The final behavior depended on traversal order, with no collision error.
 The obsolete Gauntlet declaration was removed. The sole owner is now:
 
 ```text
-OSRS-Content/osrs239-content/server/scripts/
+OSRS-Content/osrs-content/server/scripts/
   skill_combat/scripts/player/crystal_set.rs2
 ```
 

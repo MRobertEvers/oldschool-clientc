@@ -349,7 +349,7 @@ owner rule (e) forbids writing a prerequisite's varp.
   `Usage: ::complete quest_cooksassistant - name a quest row.` and writes nothing. Monkey Madness's
   `::complete quest_tree` did the same (Tree Gnome Village's row is `quest_treegnomevillage`), and so
   does `::complete quest_death`: Death Plateau's folder is `quest_death`, its row
-  `quest_deathplateau` (troll_love, matthew-mbp-m4-b47). Look the row up with `grep -n '^\[quest_' OSRS-Content/osrs239-content/configs/all.dbrow` and fix the
+  `quest_deathplateau` (troll_love, matthew-mbp-m4-b47). Look the row up with `grep -n '^\[quest_' OSRS-Content/osrs-content/configs/all.dbrow` and fix the
   scaffold's line before the first run.
 - `quest_treegnomevillage` and `quest_undergroundpass` had no arm, and the b44 authors wrote
   `::setvar varp111_treequest 9` (Monkey Madness) and `::setvar varp161_upass ^upass_complete` plus

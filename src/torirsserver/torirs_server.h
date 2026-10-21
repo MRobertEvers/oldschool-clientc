@@ -79,7 +79,7 @@ struct RSCache_ServerPack;
 
 /*
  * The cache this server reads, and the profile revision every decoder is opened
- * with. The content tree in OSRS-Content/osrs239-content is an unpack of exactly
+ * with. The content tree in OSRS-Content/osrs-content is an unpack of exactly
  * this cache — its `meta.ini` says so — and the ids in its pack files are that
  * cache's. Pointing one at a different cache than the other silently spawns the
  * wrong npc rather than failing.
@@ -87,7 +87,7 @@ struct RSCache_ServerPack;
  * The server still speaks the rev-230 protocol: what moved to 239 is the content,
  * not the wire.
  */
-#define TORIRSSERVER_CACHE_REVISION 239
+#define TORIRSSERVER_CACHE_REVISION 241
 /*
  * The pristine cache, deliberately: the world reads the same directory JS5
  * serves. Every server-authored value reaches the runtime through the content
@@ -98,7 +98,7 @@ struct RSCache_ServerPack;
  * client-visible content matters, point BOTH the world and JS5 at the baked
  * cache; run-osrs239.sh makes that one knob ($CACHE).
  */
-#define TORIRSSERVER_CACHE_DIR_DEFAULT "cache.osrs239"
+#define TORIRSSERVER_CACHE_DIR_DEFAULT "cache.osrs241"
 
 #include "torirs_server_bank.h"
 #include "torirs_server_interface_state.h"
@@ -484,8 +484,14 @@ enum
      * `%newplayer_seeded`, `%mock_mapzone_log`) directly on top of packed
      * varbits. `ToriRSServer_VarbitLoad` reports the real ceiling at boot and
      * complains if a cache ever reaches past this.
+     *
+     * 6400 since rev 241 (2026-10-20): that cache states varps to 5995 and
+     * varbits on base varps to 5992, right through the 5725.. block this tree
+     * had allocated. The tree's varps moved to 6400.. (tools/alloc_rebase.py,
+     * osrs-content/port/alloc_rebase_241.map), leaving room for the next
+     * few revisions' varps before the same collision comes round again.
      */
-    TORIRSSERVER_VARP_CACHE_MAX = 5725,
+    TORIRSSERVER_VARP_CACHE_MAX = 6400,
     /*
      * Room above the cache for the tree's own varps, and it is a MEASUREMENT.
      *
@@ -508,8 +514,12 @@ enum
      * could report, and its result varp read back as the harness's own seed
      * rather than as a failure count. The abort message names the varp, which
      * is what made it findable at all.
+     *
+     * Raised 2048 -> 3072 with rev 241: the tree's block moved to 6400..8235
+     * and ported lanes' own varps that 241 reached were re-minted from 9000
+     * (tools/alloc_rebase.py --lane-floor), clear of the main block's growth.
      */
-    TORIRSSERVER_VARP_SERVER_HEADROOM = 2048,
+    TORIRSSERVER_VARP_SERVER_HEADROOM = 3072,
     TORIRSSERVER_VARP_COUNT = TORIRSSERVER_VARP_CACHE_MAX + TORIRSSERVER_VARP_SERVER_HEADROOM,
     /*
      * World-shared variables — `%name` resolving to SSC_SYM_VARS, one value per
@@ -8859,6 +8869,25 @@ ToriRSServer_SendVarpSync(struct ToriRSServerPlayer* player);
  * the scene-local subtraction that used to be at the call site now lives beside
  * the classic writer that needs it.
  */
+void
+ToriRSServer_SendCamMovetoCycles(
+    struct ToriRSServerPlayer* player,
+    int world_x,
+    int world_z,
+    int height,
+    int cycles,
+    int ignore_terrain,
+    int easing);
+
+void
+ToriRSServer_SendCamRotatetoCoordinate(
+    struct ToriRSServerPlayer* player,
+    int world_x,
+    int world_z,
+    int height,
+    int cycles,
+    int easing);
+
 void
 ToriRSServer_SendCamMoveto(
     struct ToriRSServerPlayer* player,

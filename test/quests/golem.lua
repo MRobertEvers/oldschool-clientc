@@ -253,7 +253,7 @@ return {
             "player:I want to open a portal to the lair of an elder-demon.",
             "npc:Good heavens! I'd never let you do such a dangerous thing.",
         })
-        local curator_talk_result, curator_talk_value = t.var.server("varp7150_golem_talked_curator")
+        local curator_talk_result, curator_talk_value = t.var.server("varp7825_golem_talked_curator")
         t.check("talkToCurator.talked", curator_talk_result == "ok" and curator_talk_value == 1,
             "golem_talked_curator (varp, curator.rs2:127) = " .. tostring(curator_talk_value))
 

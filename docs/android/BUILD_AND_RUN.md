@@ -191,7 +191,7 @@ git submodule update --init --recursive
 
 | Submodule | Role |
 |---|---|
-| [`OSRS-Content/`](OSRS-Content/) | the server content tree (`osrs239-content`) — RuneScript sources, configs, packs. **Required** for any live server run. |
+| [`OSRS-Content/`](OSRS-Content/) | the server content tree (`osrs-content`) — RuneScript sources, configs, packs. **Required** for any live server run. |
 | [`Client-TS/`](Client-TS/) | LostCity's TypeScript client, kept as a parity oracle. Not built here. |
 
 A checkout without `OSRS-Content` has no scripts to compile, and a server
@@ -699,7 +699,7 @@ which is also what keeps its composed cache and its script pack on the same
 namespace.
 
 Neither launcher makes you know which checkout that is. Both look at
-`OSRS-Content/osrs239-content` first, then each `build/*/osrs239-content`, and
+`OSRS-Content/osrs-content` first, then each `build/*/osrs-content`, and
 take the first one carrying both lanes:
 
 ```powershell
@@ -714,12 +714,12 @@ launchers take the same override, `TORIRSSERVER_CONTENT_DIR` — there is no sep
 `-ContentDir` flag on the PowerShell side:
 
 ```powershell
-$env:TORIRSSERVER_CONTENT_DIR = "$PWD\some\other\osrs239-content"
+$env:TORIRSSERVER_CONTENT_DIR = "$PWD\some\other\osrs-content"
 .\run-live.ps1 manifests/manifest_osrs239_rs2012.ini
 ```
 
 ```sh
-TORIRSSERVER_CONTENT_DIR=$PWD/some/other/osrs239-content \
+TORIRSSERVER_CONTENT_DIR=$PWD/some/other/osrs-content \
   ./run-live.sh manifests/manifest_osrs239_rs2012.ini
 ```
 
@@ -759,7 +759,7 @@ Environment:
 |---|---|---|
 | `TORIRSSERVER_VERBOSE=1` | off | log every packet in and out |
 | `TORIRSSERVER_CACHE=<dir>` | `cache.osrs239.baked` | cache to read obj/npc/loc metadata from |
-| `TORIRSSERVER_CONTENT=<dir>` | `OSRS-Content/osrs239-content` | content tree |
+| `TORIRSSERVER_CONTENT=<dir>` | `OSRS-Content/osrs-content` | content tree |
 | `TORIRSSERVER_SCRIPTS=<dir>` | `<content>/scripts/build` | compiled script pack |
 | `TORIRSSERVER_HOME=x,z` | `3222,3218` | login tile (Lumbridge courtyard, beside Hans) |
 | `TORIRSSERVER_REV=osrs230\|osrs239` | `osrs230` | which revision's bytes to write (`--rev` beats it) |
@@ -850,8 +850,8 @@ pristine dump. Four steps, in order:
 
 | Step | Command | Output |
 |---|---|---|
-| ServerScript pack | `make -C src torirsserver-scripts` | `OSRS-Content/osrs239-content/server/scripts/build/script.dat` |
-| Server bands | `make -C src torirsserver-servpack` | `OSRS-Content/osrs239-content/server/pack/` (no cache opened) |
+| ServerScript pack | `make -C src torirsserver-scripts` | `OSRS-Content/osrs-content/server/scripts/build/script.dat` |
+| Server bands | `make -C src torirsserver-servpack` | `OSRS-Content/osrs-content/server/pack/` (no cache opened) |
 | Cache bake | `make -C src torirsserver-cache` | `cache.osrs239.baked` |
 | Table check | `make -C src torirsserver-cache-check` | asserts all 23 dat2 tables landed |
 
@@ -1079,9 +1079,9 @@ cachepack membership --src DIR --rev NAME [--types a,b] [--check-only]
 
 ```sh
 3rd/rscache/tools/cachepack/cachepack unpack \
-    --cache cache.osrs239 --rev osrs239 --src OSRS-Content/osrs239-content --assets
+    --cache cache.osrs239 --rev osrs239 --src OSRS-Content/osrs-content --assets
 3rd/rscache/tools/cachepack/cachepack pack \
-    --src OSRS-Content/osrs239-content --out cache.mine --base cache.osrs239 \
+    --src OSRS-Content/osrs-content --out cache.mine --base cache.osrs239 \
     --rev osrs239 --assets --binary --gamevals
 ```
 
@@ -1202,10 +1202,10 @@ sscompile --src DIR --out DIR [--pack DIR]... [--constants DIR]
 
 ```sh
 src/build/sscompile \
-    --src OSRS-Content/osrs239-content/server/scripts \
-    --out OSRS-Content/osrs239-content/server/scripts/build \
-    --pack OSRS-Content/osrs239-content/pack \
-    --pack OSRS-Content/osrs239-content/configs
+    --src OSRS-Content/osrs-content/server/scripts \
+    --out OSRS-Content/osrs-content/server/scripts/build \
+    --pack OSRS-Content/osrs-content/pack \
+    --pack OSRS-Content/osrs-content/configs
 ```
 
 In practice you never call it directly — `make -C src torirsserver-scripts` runs

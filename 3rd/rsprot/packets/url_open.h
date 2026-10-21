@@ -11,10 +11,13 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : UrlOpenEncoder
- * Layouts      : 1 distinct, over 1 contiguous revision run(s)
+ * Layouts      : 1 distinct, over 2 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^UrlOpenEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
+ *                Revision(s) 241 come from RSProx, not RSProt
+ *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
+ *                gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -30,7 +33,7 @@ typedef struct MsgUrlOpen {
 	const char *url;
 } MsgUrlOpen;
 
-/* v2 -- revs 235-239. */
+/* v2 -- revs 235-239, 241. */
 void packet_url_open_v2_out(RsprotExec *x, MsgUrlOpen *m);
 
 /* Per-revision aliases: `packet_url_open_rev239_out` is greppable, which is the
@@ -40,6 +43,7 @@ void packet_url_open_v2_out(RsprotExec *x, MsgUrlOpen *m);
 #define packet_url_open_rev237_out packet_url_open_v2_out
 #define packet_url_open_rev238_out packet_url_open_v2_out
 #define packet_url_open_rev239_out packet_url_open_v2_out
+#define packet_url_open_rev241_out packet_url_open_v2_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_url_open_out[];

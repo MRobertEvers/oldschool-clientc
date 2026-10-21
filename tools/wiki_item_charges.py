@@ -15,8 +15,8 @@ passed.
 
 ## What gets written
 
-    OSRS-Content/osrs239-content/wiki/items/<title>.wikitext   raw wikitext
-    OSRS-Content/osrs239-content/wiki/items_manifest.tsv       title, revid, requested_as, fetch_date
+    OSRS-Content/osrs-content/wiki/items/<title>.wikitext   raw wikitext
+    OSRS-Content/osrs-content/wiki/items_manifest.tsv       title, revid, requested_as, fetch_date
 
 Titles come from `charged_items.csv`'s own `family` column, restricted (by
 default) to rows whose `status` is `implemented` or `charges_only` — the
@@ -38,7 +38,7 @@ import urllib.parse
 import urllib.request
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONTENT = os.path.join(REPO, "OSRS-Content", "osrs239-content")
+CONTENT = os.path.join(REPO, "OSRS-Content", "osrs-content")
 LEDGER = os.path.join(CONTENT, "wiki", "charged_items.csv")
 OUT_DIR = os.path.join(CONTENT, "wiki", "items")
 MANIFEST = os.path.join(CONTENT, "wiki", "items_manifest.tsv")

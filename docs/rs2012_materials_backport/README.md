@@ -326,7 +326,7 @@ faces.
 | flag | default | §|
 |---|---|---|
 | `--cache DIR` | `cache.rs727_preeoc` | |
-| `--tree DIR` | `OSRS-Content/osrs239-content` | |
+| `--tree DIR` | `OSRS-Content/osrs-content` | |
 | `--apply` | off (dry run) | 6 |
 | `--models-out DIR` | — | 6 |
 | `--no-ground-mesh-fallback` | fallback on | 2 |
@@ -409,7 +409,7 @@ affected: `proctex_generator.o` links into `test-proctex-coverage` and
 
 This is the part that bites, and it is not a tool problem. The baked OB3s are
 **tracked content** — they live in OSRS-Content at
-`osrs239-content/models/ported/rs2012_qbd_td/`. A machine that pulls the content
+`osrs-content/models/ported/rs2012_qbd_td/`. A machine that pulls the content
 repo and runs `make -C src torirsserver-cache-rs2012` therefore needs no RS727 cache
 and no bake at all; it packs the models the commit carries.
 

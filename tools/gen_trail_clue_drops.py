@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Generate the per-npc clue-scroll drop table from the pinned wiki corpus.
 
-Reads   OSRS-Content/osrs239-content/wiki/monsters/*.wikitext
-        OSRS-Content/osrs239-content/npc_stats/*/*.stats     (title -> gameval)
-Writes  OSRS-Content/osrs239-content/server/scripts/trail/configs/trail_clue_drops.dbrow
+Reads   OSRS-Content/osrs-content/wiki/monsters/*.wikitext
+        OSRS-Content/osrs-content/npc_stats/*/*.stats     (title -> gameval)
+Writes  OSRS-Content/osrs-content/server/scripts/trail/configs/trail_clue_drops.dbrow
 
 WHY THIS EXISTS
 ---------------
@@ -52,7 +52,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import config_text  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONTENT = os.path.join(ROOT, "OSRS-Content", "osrs239-content")
+CONTENT = os.path.join(ROOT, "OSRS-Content", "osrs-content")
 MONSTERS = os.path.join(CONTENT, "wiki", "monsters")
 STATS = os.path.join(CONTENT, "npc_stats")
 OUT = os.path.join(

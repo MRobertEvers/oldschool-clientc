@@ -36,7 +36,7 @@ Options:
 
 ```sh
 ./bench_projection_neon_scene \
-  --models ../../OSRS-Content/osrs239-content/models \
+  --models ../../OSRS-Content/osrs-content/models \
   --model-count 256 \
   --repetitions 100 \
   --samples 9

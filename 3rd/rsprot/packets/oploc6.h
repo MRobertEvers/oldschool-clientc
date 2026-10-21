@@ -11,10 +11,13 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : OpLoc6Decoder
- * Layouts      : 4 distinct, over 16 contiguous revision run(s)
+ * Layouts      : 4 distinct, over 17 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^OpLoc6Decoder\tin\t' 3rd/rsprot/gen/packet_versions.txt
+ *                Revision(s) 241 come from RSProx, not RSProt
+ *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
+ *                gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -34,7 +37,7 @@ typedef struct MsgOpLoc6 {
 void packet_oploc6_v1_in(RsprotExec *x, MsgOpLoc6 *m);
 /* v2 -- revs 222, 226-227, 229, 231, 233-234, 239. */
 void packet_oploc6_v2_in(RsprotExec *x, MsgOpLoc6 *m);
-/* v3 -- revs 223, 228, 235-236. */
+/* v3 -- revs 223, 228, 235-236, 241. */
 void packet_oploc6_v3_in(RsprotExec *x, MsgOpLoc6 *m);
 /* v4 -- revs 225, 232, 237. */
 void packet_oploc6_v4_in(RsprotExec *x, MsgOpLoc6 *m);
@@ -60,6 +63,7 @@ void packet_oploc6_v4_in(RsprotExec *x, MsgOpLoc6 *m);
 #define packet_oploc6_rev237_in packet_oploc6_v4_in
 #define packet_oploc6_rev238_in packet_oploc6_v1_in
 #define packet_oploc6_rev239_in packet_oploc6_v2_in
+#define packet_oploc6_rev241_in packet_oploc6_v3_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_oploc6_in[];

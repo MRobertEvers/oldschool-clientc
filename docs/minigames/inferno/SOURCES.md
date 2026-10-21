@@ -159,7 +159,7 @@ No newspost states a Jad number for the Inferno. Mention-only or Fight Cave: `do
 ## 2. The rev-239 cache (data; dumped 2026-10-03)
 
 Pinned by the inventory agent (commit c992f27f1) as mechanical dumps of the unpacked text form in OSRS-Content at commit
-`c70422bdf6` (branch `matthew-mbp-m4-waves-b1`; revision 239, `osrs239-content/meta.ini`); the binary cache is not read.
+`c70422bdf6` (branch `matthew-mbp-m4-waves-b1`; revision 239, `osrs-content/meta.ini`); the binary cache is not read.
 The command that reproduces every file byte for byte, the selection rules and the negative results are in
 [LEDGER_cache](sources/LEDGER_cache.md). Nothing here is a Jagex statement about behaviour: it is data (hitpoints,
 animations, frame lengths, ids, placements) and it decides ids and frame counts that no other source states.
@@ -279,7 +279,7 @@ Kronos and LostCity were **not fetched** on purpose. The ids, shapes and opening
 listed from the content's own comments in `docs/minigames/inferno/sources/LEDGER_code.md` section 3. Kronos's 125 vs 130
 (Jal-Xil), 75 vs 80 (Jal-MejJak) and 251 vs 148 (Zuk max) were already overridden by wiki figures, so no server balance
 number appears in `CODE_CONSTANTS.md`. Our own content (not a source) is in
-`OSRS-Content/osrs239-content/server/scripts/minigames/minigame_inferno/` (`configs/inferno.constant`, `scripts/inferno*.rs2`).
+`OSRS-Content/osrs-content/server/scripts/minigames/minigame_inferno/` (`configs/inferno.constant`, `scripts/inferno*.rs2`).
 
 ## 7. The pinned OSRS Wiki (secondary; fetched 2026-10-03)
 
@@ -404,7 +404,7 @@ Every source no worker could get, and why. None is filled in from memory.
 One row per disagreement seen across the four "what this part states" lists and `CODE_CONSTANTS.md`. **No verdict**:
 each source's value is quoted with file and line, and the spec workers settle the row from the lines. Paths are under
 `docs/minigames/inferno/sources/` unless they begin `OSRS-Content/`. "C0nn" = the row of `CODE_CONSTANTS.md`.
-"Tree" = our content, `OSRS-Content/osrs239-content/server/scripts/minigames/minigame_inferno/configs/inferno.constant`; it came from a private-server
+"Tree" = our content, `OSRS-Content/osrs-content/server/scripts/minigames/minigame_inferno/configs/inferno.constant`; it came from a private-server
 port and is not a source.
 
 | # | Quantity | Source values (file:line) |

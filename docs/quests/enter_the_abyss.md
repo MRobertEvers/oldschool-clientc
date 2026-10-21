@@ -480,9 +480,9 @@ Selftest command (private scratch):
 
 ```sh
 make -C src sscompile PLATFORM_OBJ_BASE=/tmp/gp-abyss-t1-obj
-/tmp/gp-abyss-t1-obj_opt/sscompile --src OSRS-Content/osrs239-content/server/scripts \
+/tmp/gp-abyss-t1-obj_opt/sscompile --src OSRS-Content/osrs-content/server/scripts \
   --out /tmp/gp-abyss-t1-obj/scripts \
-  --content-root OSRS-Content/osrs239-content
+  --content-root OSRS-Content/osrs-content
 make -C src torirsserver PLATFORM_OBJ_BASE=/tmp/gp-abyss-t1-obj
 TORIRSSERVER_SCRIPTS=/tmp/gp-abyss-t1-obj/scripts TORIRSSERVER_SAVES=$(mktemp -d) \
   /tmp/gp-abyss-t1-obj_opt/torirsserver --selftest
@@ -522,18 +522,18 @@ evidence. No required kill; no boss cheat.
 Headless client captures (`SDL_VIDEODRIVER=dummy`, `TORIRS_PLUGINS=0`,
 `TORIRSSERVER_SAVES=$(mktemp -d)`, `--soft3d`, `TORIRS_EXIT_BMP` /
 `TORIRS_NET_CHEAT=etabmp_*`). 9 BMPs under
-`OSRS-Content/osrs239-content/server/scripts/selftest/quests/quest_entertheabyss/scenes/`
+`OSRS-Content/osrs-content/server/scripts/selftest/quests/quest_entertheabyss/scenes/`
 (paths relative to `OSRS-Content/`):
 
-- `osrs239-content/server/scripts/selftest/quests/quest_entertheabyss/scenes/01_talk_mage.bmp`
-- `osrs239-content/server/scripts/selftest/quests/quest_entertheabyss/scenes/02_wildy_start.bmp`
-- `osrs239-content/server/scripts/selftest/quests/quest_entertheabyss/scenes/03_varrock_offer.bmp`
-- `osrs239-content/server/scripts/selftest/quests/quest_entertheabyss/scenes/04_accept_orb.bmp`
-- `osrs239-content/server/scripts/selftest/quests/quest_entertheabyss/scenes/05_charged_orb.bmp`
-- `osrs239-content/server/scripts/selftest/quests/quest_entertheabyss/scenes/06_handover.bmp`
-- `osrs239-content/server/scripts/selftest/quests/quest_entertheabyss/scenes/07_reward_scroll.bmp`
-- `osrs239-content/server/scripts/selftest/quests/quest_entertheabyss/scenes/08_varrock_postquest.bmp`
-- `osrs239-content/server/scripts/selftest/quests/quest_entertheabyss/scenes/09_wildy_teleport.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_entertheabyss/scenes/01_talk_mage.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_entertheabyss/scenes/02_wildy_start.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_entertheabyss/scenes/03_varrock_offer.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_entertheabyss/scenes/04_accept_orb.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_entertheabyss/scenes/05_charged_orb.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_entertheabyss/scenes/06_handover.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_entertheabyss/scenes/07_reward_scroll.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_entertheabyss/scenes/08_varrock_postquest.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_entertheabyss/scenes/09_wildy_teleport.bmp`
 
 `ls` of that folder shows those 9 named files only (no `frame_NNNNN.bmp`).
 Unique MD5s; luma ~69–97 (not black/login). Talk shows the Wilderness Mage

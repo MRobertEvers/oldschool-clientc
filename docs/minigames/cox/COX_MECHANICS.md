@@ -151,7 +151,7 @@ Room type is `(plane, y)`:
 door layouts*, not runtime rotations — the same shape as the Gauntlet's three
 door archetypes. So the layout generator picks a **variant**, it does not rotate
 geometry. That confirms the choice already made in
-[`cox.rs2`](../../../OSRS-Content/osrs239-content/server/scripts/minigames/minigame_cox/scripts/cox.rs2)
+[`cox.rs2`](../../../OSRS-Content/osrs-content/server/scripts/minigames/minigame_cox/scripts/cox.rs2)
 to stamp rooms with `^map_instance_turn_none`.
 
 ⚠️ The plugin's x/y are its own key encoding, **not** world coordinates — do not

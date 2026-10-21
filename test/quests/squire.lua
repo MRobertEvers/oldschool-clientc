@@ -8,7 +8,7 @@
 -- to the Squire completes the quest.
 --
 -- Every gather step below is driven through real clicks against the
--- quest's own scripts (OSRS-Content/osrs239-content/server/scripts/
+-- quest's own scripts (OSRS-Content/osrs-content/server/scripts/
 -- quests/quest_squire/scripts/quest_squire.rs2, areas/falador/scripts/
 -- squire.rs2, areas/varrock/scripts/reldo.rs2, areas/port_sarim/scripts/
 -- thurgo.rs2) -- redberry pie, both iron bars and a pickaxe are setup

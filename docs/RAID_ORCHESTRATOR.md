@@ -24,7 +24,7 @@ Read, in this order, before the first launch:
 4. The three plans and their constants files: `THEATRE_OF_BLOOD_PLAN.md` section 16,
    `cox/COX_PLAN.md` section 11, `tombs_of_amascut/TOMBS_OF_AMASCUT_PLAN.md` section 12,
    and the provenance legends at the top of `tob.constant`, `cox.constant`, `toa.constant`
-   (`OSRS-Content/osrs239-content/server/scripts/minigames/minigame_<raid>/configs/`).
+   (`OSRS-Content/osrs-content/server/scripts/minigames/minigame_<raid>/configs/`).
 
 ## 1. Where the three raids stand (2026-10-02)
 

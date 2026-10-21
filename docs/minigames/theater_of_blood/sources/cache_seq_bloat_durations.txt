@@ -1,4 +1,4 @@
-# Pestilent Bloat sequence durations, from the rev239 cache (OSRS-Content/osrs239-content/configs/all.seq).
+# Pestilent Bloat sequence durations, from the rev239 cache (OSRS-Content/osrs-content/configs/all.seq).
 # Generated 2026-10-02 by the bloat spec pass. One client cycle (20 ms) per frame-duration unit; 30 cycles per game tick.
 # symbol | all.seq line | frames | total cycles | game ticks | sound frames (frame index -> cumulative cycle -> tick)
 tob_bloat_ready | all.seq:181469 | 16 frames | 58 cycles | 1.933 ticks | 

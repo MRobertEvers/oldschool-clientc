@@ -22,7 +22,7 @@ from __future__ import annotations
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-TREE = ROOT / "OSRS-Content/osrs239-content"
+TREE = ROOT / "OSRS-Content/osrs-content"
 LANE = TREE / "ported/rs558_ancient_curses"
 
 BOOK = 2

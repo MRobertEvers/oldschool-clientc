@@ -1,4 +1,4 @@
--- Zogre Flesh Eaters. Content: OSRS-Content/osrs239-content/server/scripts/
+-- Zogre Flesh Eaters. Content: OSRS-Content/osrs-content/server/scripts/
 -- quests/quest_zogreflesheaters/scripts/{zogreflesheaters,zogre_finish}.rs2.
 -- Guide: quest-helper ZogreFleshEaters.java (getPanels() is the step ladder
 -- driven below; the guide text is paraphrase, the .rs2 dialogue quoted here
@@ -414,7 +414,7 @@ return {
             "npc:Noooo",
             "end",
         })
-        local at_r, at_v = t.var.server("varp5977_zfe_asked_tankard")
+        local at_r, at_v = t.var.server("varp6652_zfe_asked_tankard")
         t.check("useTankardOnBartender.asked", at_r == "ok" and at_v == 1,
             "zfe_asked_tankard=" .. tostring(at_v) .. " (want 1); tankard held " .. tostring(count("zogre_dragon_tankard"))
                 .. " (the content keeps it)")

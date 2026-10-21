@@ -369,7 +369,7 @@ return {
         t.exec("walk-monument1", t.player.walk_to, 3417, 9892)
         t.exec("study1", t.player.click_loc, "priestperil_grave_base1", 1)
         t.exec("study1-open", t.ui.await_open, "priestperil_gravemonument")
-        local seed_r, mausoleum_bits = t.var.server("varp6733_priestperil_mausoleum")
+        local seed_r, mausoleum_bits = t.var.server("varp7408_priestperil_mausoleum")
         t.step("monument.seed-initialised", seed_r == "ok" and mausoleum_bits > 0 and "PASS" or "FAIL",
             "priestperil_mausoleum = " .. tostring(mausoleum_bits))
         local seed = math.floor(mausoleum_bits / 4194304) % 128

@@ -21,7 +21,7 @@ authored. The whole job is server content.
 Regenerate the evidence:
 
 ```
-python3 tools/toa_cache_dump.py OSRS-Content/osrs239-content \
+python3 tools/toa_cache_dump.py OSRS-Content/osrs-content \
     docs/minigames/tombs_of_amascut/sources
 python3 tools/toa_fetch_wiki.py docs/minigames/tombs_of_amascut/sources \
     --combat-achievements

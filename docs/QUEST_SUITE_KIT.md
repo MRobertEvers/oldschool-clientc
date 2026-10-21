@@ -208,7 +208,7 @@ new `lint_quest.py`; 3b new `new_quest.py` (extends
 - `lint_quest.py <file>`: refuses numeric ids where a symbol belongs
   (`talk_to(123)`), `::complete <own row>` in setup, `t.step(..., "PASS"`
   literals, `-- CHECK` markers, duplicate `t.exec` names, symbols not in the
-  compack (`OSRS-Content/osrs239-content/configs/all.*.compack`).
+  compack (`OSRS-Content/osrs-content/configs/all.*.compack`).
 - `new_quest.py <helper_dir>`: see the plan's section 5 table. Emits
   `test/quests/<quest>.lua` with header (helper path, varp, constants table,
   tier from the inventory), `quest.bind{...}`, `setup` from requirements

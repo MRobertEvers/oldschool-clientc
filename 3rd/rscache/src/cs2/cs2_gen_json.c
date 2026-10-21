@@ -169,7 +169,7 @@ cs2_json_field_bool(struct cs2_json_writer* writer, const char* key, bool value)
 static const char*
 cs2_json_stack_type_name(enum RSCache_CS2_StackType stack_type)
 {
-    return stack_type == RSCACHE_CS2_STACK_STRING ? "string" : "int";
+    return RSCache_CS2_StackTypeLiteral(stack_type);
 }
 
 static const char*
@@ -195,6 +195,12 @@ cs2_json_var_kind_name(enum RSCache_CS2_VarKind kind)
         return "string";
     case RSCACHE_CS2_VAR_ARRAY:
         return "array";
+    case RSCACHE_CS2_VAR_VARCLONG:
+        return "varclong";
+    case RSCACHE_CS2_VAR_VARPLONG:
+        return "varplong";
+    case RSCACHE_CS2_VAR_LONG:
+        return "long";
     default:
         return NULL;
     }
@@ -226,8 +232,7 @@ cs2_json_variable_literal(
     struct RSCache_CS2_Typing* typing =
         RSCache_CS2_TypingsOfVariable(&writer->fs->typings, variable);
     if( typing->type == RSCACHE_CS2_TYPE_NONE )
-        return RSCache_CS2_VarStackType(variable->kind) == RSCACHE_CS2_STACK_STRING ? "string"
-                                                                                   : "int";
+        return RSCache_CS2_StackTypeLiteral(RSCache_CS2_VarStackType(variable->kind));
     return RSCache_CS2_TypeLiteral(typing->type);
 }
 
@@ -336,6 +341,22 @@ cs2_json_write_constant(struct cs2_json_writer* writer, struct RSCache_CS2_Expr*
         cs2_json_put_string(writer, expr->value.string_value);
         cs2_json_put_char(writer, ',');
         cs2_json_field_string(writer, "type", "string");
+        cs2_json_put_char(writer, ',');
+        cs2_json_field_string(writer, "identifier", NULL);
+        cs2_json_put_char(writer, ',');
+        cs2_json_field_string(writer, "literal", NULL);
+        cs2_json_put_char(writer, '}');
+        return;
+    }
+    if( expr->value.stack_type == RSCACHE_CS2_STACK_LONG )
+    {
+        /* As a string: JSON numbers stop being exact at 2^53. */
+        char text[32];
+        snprintf(text, sizeof(text), "%lld", (long long)expr->value.long_value);
+        cs2_json_key(writer, "value");
+        cs2_json_put_string(writer, text);
+        cs2_json_put_char(writer, ',');
+        cs2_json_field_string(writer, "type", "long");
         cs2_json_put_char(writer, ',');
         cs2_json_field_string(writer, "identifier", NULL);
         cs2_json_put_char(writer, ',');

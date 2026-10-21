@@ -11,10 +11,13 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : NpcHeadIconSpecificEncoder
- * Layouts      : 19 distinct, over 19 contiguous revision run(s)
+ * Layouts      : 20 distinct, over 20 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^NpcHeadIconSpecificEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
+ *                Revision(s) 241 come from RSProx, not RSProt
+ *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
+ *                gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -71,6 +74,8 @@ void packet_npc_headicon_specific_v17_out(RsprotExec *x, MsgNpcHeadIconSpecific 
 void packet_npc_headicon_specific_v18_out(RsprotExec *x, MsgNpcHeadIconSpecific *m);
 /* v19 -- revs 239. */
 void packet_npc_headicon_specific_v19_out(RsprotExec *x, MsgNpcHeadIconSpecific *m);
+/* v100 -- revs 241. */
+void packet_npc_headicon_specific_v100_out(RsprotExec *x, MsgNpcHeadIconSpecific *m);
 
 /* Per-revision aliases: `packet_npc_headicon_specific_rev239_out` is greppable, which is the
  * point -- "what does 239 do for NPC_HEADICON_SPECIFIC" without reading a table. */
@@ -93,6 +98,7 @@ void packet_npc_headicon_specific_v19_out(RsprotExec *x, MsgNpcHeadIconSpecific 
 #define packet_npc_headicon_specific_rev237_out packet_npc_headicon_specific_v17_out
 #define packet_npc_headicon_specific_rev238_out packet_npc_headicon_specific_v18_out
 #define packet_npc_headicon_specific_rev239_out packet_npc_headicon_specific_v19_out
+#define packet_npc_headicon_specific_rev241_out packet_npc_headicon_specific_v100_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_npc_headicon_specific_out[];

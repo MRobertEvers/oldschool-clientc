@@ -1,5 +1,5 @@
 # map squares -- every loc the cache map places in the minigame's squares,
-# from OSRS-Content/osrs239-content/maps/m<x>_<z>.jl2 (`==== LOC ====`: `level x z: loc shape [angle]`).
+# from OSRS-Content/osrs-content/maps/m<x>_<z>.jl2 (`==== LOC ====`: `level x z: loc shape [angle]`).
 # A square is 64x64 tiles: world x = 64*sqx + local x, world z = 64*sqz + local z.
 # Per square: one line per distinct loc (count, levels, local bounding box, first
 # placement line); then every placement of the locs the name rule selects.

@@ -1,7 +1,7 @@
 # Lizardman shamans: tick spec and content audit
 
 Room unit `shamans` (COX_FINISH_PLAN.md R). Content: the shaman procs in
-`OSRS-Content/osrs239-content/server/scripts/minigames/minigame_cox/scripts/cox_minions.rs2`,
+`OSRS-Content/osrs-content/server/scripts/minigames/minigame_cox/scripts/cox_minions.rs2`,
 the shaman blocks of `configs/cox.constant`, `configs/cox.npc`, `configs/cox.varp`.
 Written 2026-10-18 for the owner's order "match OSRS as close as possible".
 

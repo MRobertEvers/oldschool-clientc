@@ -436,7 +436,7 @@ only the two ramp lengths.
 
 `docs/WEAPON_FX.md` §6 established the chain and it is now closed:
 weapon obj params (`sound_stance1..4`, `equipment_sound`; 2,307 objs carry one)
-→ server script `sound_synth` (246 call sites in `OSRS-Content/osrs239-content`)
+→ server script `sound_synth` (246 call sites in `OSRS-Content/osrs-content`)
 → `SS_OP_SOUND_SYNTH` ([torirs_server_scripts.c:7634](src/torirsserver/torirs_server_scripts.c#L7634))
 → `SYNTH_SOUND` encoder ([torirs_server_encode.c:1734](src/torirsserver/torirs_server_encode.c#L1734))
 → opcode 77 on osrs239 / 102 on osrs230 → `RS_Audio_Synth`.

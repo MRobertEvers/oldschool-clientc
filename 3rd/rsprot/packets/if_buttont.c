@@ -239,11 +239,27 @@ packet_if_buttont_v19_in(RsprotExec *x, MsgIfButtonT *m)
     RSPROT_COM_ALT2(x, m->selected_combined_id);
 }
 
+/* v100 -- revs 241. */
+void
+packet_if_buttont_v100_in(RsprotExec *x, MsgIfButtonT *m)
+{
+    RSPROT_COM_ALT1(x, m->target_combined_id);
+    RSPROT_U2_ALT3(x, m->selected_obj);
+    RSPROT_COM_ALT2(x, m->selected_combined_id);
+    RSPROT_U2_ALT3(x, m->target_obj);
+    RSPROT_U2(x, m->target_sub);
+    RSPROT_U2_ALT3(x, m->selected_sub);
+}
+
 /*
- * 19 row(s) for 19 layout(s), complete over revisions 221-239.
+ * 20 row(s) for 20 layout(s), complete over revisions 221-239.
  * A complete table makes rsprot_version_pick's NULL mean exactly one thing: a
  * revision outside that span. An incomplete one would conflate "not
  * transcribed" with "no such packet", and those are different facts.
+ *
+ * Plus revision(s) 241, which RSProt never vendored: derived from
+ * RSProx's decoders by tools/rsprox_codec_overlay.py. Revisions between 239
+ * and those are not covered and pick NULL.
  */
 const RsprotVersionRange rsprot_if_buttont_in[] = {
     { 221, 221, (RsprotCodecFn)packet_if_buttont_v1_in },
@@ -265,6 +281,7 @@ const RsprotVersionRange rsprot_if_buttont_in[] = {
     { 237, 237, (RsprotCodecFn)packet_if_buttont_v17_in },
     { 238, 238, (RsprotCodecFn)packet_if_buttont_v18_in },
     { 239, 239, (RsprotCodecFn)packet_if_buttont_v19_in },
+    { 241, 241, (RsprotCodecFn)packet_if_buttont_v100_in },
 };
 
 const int rsprot_if_buttont_in_count =

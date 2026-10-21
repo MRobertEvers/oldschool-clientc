@@ -11,10 +11,13 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : DesktopUpdateZonePartialEnclosedEncoder
- * Layouts      : 14 distinct, over 15 contiguous revision run(s)
+ * Layouts      : 15 distinct, over 16 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^DesktopUpdateZonePartialEnclosedEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
+ *                Revision(s) 241 come from RSProx, not RSProt
+ *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
+ *                gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -60,6 +63,8 @@ void packet_update_zone_partial_enclosed_v16_out(RsprotExec *x, MsgDesktopUpdate
 void packet_update_zone_partial_enclosed_v17_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
 /* v18 -- revs 239. */
 void packet_update_zone_partial_enclosed_v18_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
+/* v100 -- revs 241. */
+void packet_update_zone_partial_enclosed_v100_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
 
 /* Per-revision aliases: `packet_update_zone_partial_enclosed_rev239_out` is greppable, which is the
  * point -- "what does 239 do for UPDATE_ZONE_PARTIAL_ENCLOSED" without reading a table. */
@@ -78,6 +83,7 @@ void packet_update_zone_partial_enclosed_v18_out(RsprotExec *x, MsgDesktopUpdate
 #define packet_update_zone_partial_enclosed_rev237_out packet_update_zone_partial_enclosed_v16_out
 #define packet_update_zone_partial_enclosed_rev238_out packet_update_zone_partial_enclosed_v17_out
 #define packet_update_zone_partial_enclosed_rev239_out packet_update_zone_partial_enclosed_v18_out
+#define packet_update_zone_partial_enclosed_rev241_out packet_update_zone_partial_enclosed_v100_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_update_zone_partial_enclosed_out[];

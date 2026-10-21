@@ -24,7 +24,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MANIFEST = REPO_ROOT / "docs" / "summoning_port" / "pouches_530.json"
 DEFAULT_BOUNDARY = REPO_ROOT / "docs" / "summoning_port" / "roster_boundary_530.json"
-DEFAULT_TREE = REPO_ROOT / "OSRS-Content" / "osrs239-content"
+DEFAULT_TREE = REPO_ROOT / "OSRS-Content" / "osrs-content"
 MAP_REL = Path("port") / "summoning_530.map"
 
 HEADER = ("kind", "src_id", "src_name", "dst_id", "dst_name", "disposition", "signoff")

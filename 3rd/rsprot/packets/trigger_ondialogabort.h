@@ -11,10 +11,13 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : TriggerOnDialogAbortEncoder
- * Layouts      : 1 distinct, over 1 contiguous revision run(s)
+ * Layouts      : 1 distinct, over 2 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^TriggerOnDialogAbortEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
+ *                Revision(s) 241 come from RSProx, not RSProt
+ *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
+ *                gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -32,7 +35,7 @@ typedef struct MsgTriggerOnDialogAbort {
 	int32_t _unused;
 } MsgTriggerOnDialogAbort;
 
-/* v1 -- revs 221-239. */
+/* v1 -- revs 221-239, 241. */
 void packet_trigger_ondialogabort_v1_out(RsprotExec *x, MsgTriggerOnDialogAbort *m);
 
 /* Per-revision aliases: `packet_trigger_ondialogabort_rev239_out` is greppable, which is the
@@ -56,6 +59,7 @@ void packet_trigger_ondialogabort_v1_out(RsprotExec *x, MsgTriggerOnDialogAbort 
 #define packet_trigger_ondialogabort_rev237_out packet_trigger_ondialogabort_v1_out
 #define packet_trigger_ondialogabort_rev238_out packet_trigger_ondialogabort_v1_out
 #define packet_trigger_ondialogabort_rev239_out packet_trigger_ondialogabort_v1_out
+#define packet_trigger_ondialogabort_rev241_out packet_trigger_ondialogabort_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_trigger_ondialogabort_out[];

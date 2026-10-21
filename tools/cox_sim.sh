@@ -26,7 +26,7 @@ set -e
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
-C=OSRS-Content/osrs239-content
+C=OSRS-Content/osrs-content
 TRACE=build/cox_sim/trace.txt
 
 TICKS=64

@@ -139,14 +139,14 @@ import helper_coverage  # noqa: E402
 
 ACCEPTED = "65ce7e0e1"
 LEDGER_COMMIT = "d2b3188d1e"
-LEDGER = "osrs239-content/server/scripts/selftest/quests/quest_losttribe/play/ledger.tsv"
+LEDGER = "osrs-content/server/scripts/selftest/quests/quest_losttribe/play/ledger.tsv"
 GOTO_LINE = 't.exec("goto-enterHamLair", t.player.goto_tile, 3152, 9644, 0)'
 CLIMB_LINE = 't.exec("enterHamLair", t.player.click_loc, "osf_trapdoor_open", 1)'
 JUMP = "teleport: 3166,3253,0 -> 3152,9644,0 (a jump no walk makes, held 2 tick(s)) -- "
 
 DEATH_LUA_COMMIT = "f7728f806"
 DEATH_LEDGER_COMMIT = "ba3189266c"
-DEATH_LEDGER = "osrs239-content/server/scripts/selftest/quests/quest_death/play/ledger.tsv"
+DEATH_LEDGER = "osrs-content/server/scripts/selftest/quests/quest_death/play/ledger.tsv"
 DEATH_DOOR_ROW = "goToHaroldStairs1.castleDoorOut"
 HAROLD_PRESS = "talk_to death_guard_equiproom op1 -> ok map_flag; dialogue npc is up"
 
@@ -216,10 +216,10 @@ def cases():
 
 MCANNON_LUA_COMMIT = "69f7e7bd8"
 MCANNON_LEDGER_COMMIT = "22669be78"
-MCANNON_LEDGER = "osrs239-content/server/scripts/selftest/quests/quest_mcannon/play/ledger.tsv"
+MCANNON_LEDGER = "osrs-content/server/scripts/selftest/quests/quest_mcannon/play/ledger.tsv"
 WATCHTOWER_LUA_COMMIT = "16ad11389"
 WATCHTOWER_LEDGER_COMMIT = "c436ddab5a"
-WATCHTOWER_LEDGER = "osrs239-content/server/scripts/selftest/quests/quest_itwatchtower/play/ledger.tsv"
+WATCHTOWER_LEDGER = "osrs-content/server/scripts/selftest/quests/quest_itwatchtower/play/ledger.tsv"
 HM_FULLROUTE = os.path.join(helper_coverage.REPO_ROOT, "build", "orchestrator", "fix_b63")
 VERDICT = "(verdict)"
 ABSENT = "absent"
@@ -279,7 +279,7 @@ def start_fixture(test_id):
     lua_commit, ledger_commit = START_FIXTURES[test_id]
     lua = git_show(helper_coverage.REPO_ROOT, lua_commit, "test/quests/%s.lua" % test_id)
     ledger = git_show(os.path.join(helper_coverage.REPO_ROOT, "OSRS-Content"), ledger_commit,
-                      "osrs239-content/server/scripts/selftest/quests/quest_%s/play/ledger.tsv" % test_id)
+                      "osrs-content/server/scripts/selftest/quests/quest_%s/play/ledger.tsv" % test_id)
     return lua, ledger
 
 

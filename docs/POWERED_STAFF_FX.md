@@ -84,7 +84,7 @@ Name-mediated in three hops, never a bare integer:
 
 1. RuneLite `runelite-api/.../gameval/SpotanimID.java` and `AnimationID.java`
    give the numeric id a name.
-2. That name must exist in `OSRS-Content/osrs239-content/configs/all.spotanim`
+2. That name must exist in `OSRS-Content/osrs-content/configs/all.spotanim`
    or `all.seq` — `sscompile` fails the build if it does not, which is the
    check that catches a typo (verified by feeding it a deliberately bogus name).
 3. Each pairing was cross-checked against an independent server's own table

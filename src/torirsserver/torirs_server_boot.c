@@ -108,11 +108,11 @@ resolve_content_dir(void)
     if( configured )
         return configured;
 
-    snprintf(resolved, sizeof(resolved), "OSRS-Content/osrs239-content");
+    snprintf(resolved, sizeof(resolved), "OSRS-Content/osrs-content");
     if( stat(resolved, &info) == 0 )
         return resolved;
 
-    snprintf(resolved, sizeof(resolved), "../OSRS-Content/osrs239-content");
+    snprintf(resolved, sizeof(resolved), "../OSRS-Content/osrs-content");
     return resolved;
 }
 

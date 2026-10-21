@@ -21,7 +21,7 @@ from protocol_test import Server, check, FAILURES, DEFAULT_BINARY  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
-DEFAULT_CONTENT = os.path.join(REPO_ROOT, "OSRS-Content", "osrs239-content")
+DEFAULT_CONTENT = os.path.join(REPO_ROOT, "OSRS-Content", "osrs-content")
 
 # A real script, and the things in it whose resolution is worth asserting.
 SAMPLE = os.path.join("server", "scripts", "skill_fletching", "scripts", "bows.rs2")

@@ -45,7 +45,7 @@ modern content, identifying the animation *is* identifying the sound. The
 
 ## 2. Where the output lives, and why it is two files
 
-**`OSRS-Content/osrs239-content/npc_combat/<shard>/<gameval>.combat`** — one file
+**`OSRS-Content/osrs-content/npc_combat/<shard>/<gameval>.combat`** — one file
 per npc, 16,292 of them, sharded by first character. This is the *decision*.
 
 **`server/scripts/npc/configs/npc_anims.generated.npc`** — compiled from the

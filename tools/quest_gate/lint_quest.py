@@ -101,8 +101,8 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(os.path.dirname(HERE))
-CONFIGS_DIR = os.path.join(REPO_ROOT, "OSRS-Content", "osrs239-content", "configs")
-PACK_ALLOC_DIR = os.path.join(REPO_ROOT, "OSRS-Content", "osrs239-content", "pack")
+CONFIGS_DIR = os.path.join(REPO_ROOT, "OSRS-Content", "osrs-content", "configs")
+PACK_ALLOC_DIR = os.path.join(REPO_ROOT, "OSRS-Content", "osrs-content", "pack")
 
 PACK_NPC = "npc"
 PACK_OBJ = "obj"
@@ -280,7 +280,7 @@ def load_compack(name):
 
 
 def load_alloc(name):
-    """The symbol set of OSRS-Content/osrs239-content/pack/<name>.alloc --
+    """The symbol set of OSRS-Content/osrs-content/pack/<name>.alloc --
     the ids this server allocated ABOVE the cache's own (`7166=
     twocats_locator_found`), `id=symbol` lines under `//` comments. A var
     content allocates there is as real as a compack one, so the symbol
@@ -698,7 +698,7 @@ def check_complete_own_row(text):
     return findings
 
 
-QUEST_CHEAT_RS2 = os.path.join(REPO_ROOT, "OSRS-Content", "osrs239-content", "server", "scripts", "quests",
+QUEST_CHEAT_RS2 = os.path.join(REPO_ROOT, "OSRS-Content", "osrs-content", "server", "scripts", "quests",
                                "scripts", "quest_cheat.rs2")
 _CHEAT_ARM_RE = re.compile(r'\$row\s*=\s*(?:~quest_cheat_row\(\s*)?([A-Za-z_]\w*)')
 _cheat_arms_cache = None

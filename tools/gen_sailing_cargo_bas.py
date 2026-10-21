@@ -16,7 +16,7 @@ skill_combat/configs/bas/attack_anims_modern.obj, from rsmod's objs.toml).
 No source names a sailing-only carry set: neither the wiki nor RuneLite's
 gameval AnimationID (read 2026-10-16) has one.
 
-Writes OSRS-Content/osrs239-content/server/scripts/sailing/configs/
+Writes OSRS-Content/osrs-content/server/scripts/sailing/configs/
 cargo_crates_bas.obj and deletes the *_baseanim lines those crates stated in
 server_fields.generated.obj (its rule: a value stated in an authored block
 wins, and the generated line is deleted).
@@ -29,7 +29,7 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONTENT = os.path.join(ROOT, "OSRS-Content", "osrs239-content")
+CONTENT = os.path.join(ROOT, "OSRS-Content", "osrs-content")
 OUT = os.path.join(CONTENT, "server", "scripts", "sailing", "configs", "cargo_crates_bas.obj")
 GENERATED = os.path.join(CONTENT, "server", "scripts", "_explicit", "configs", "server_fields.generated.obj")
 CARGO_CATEGORY = "2294"

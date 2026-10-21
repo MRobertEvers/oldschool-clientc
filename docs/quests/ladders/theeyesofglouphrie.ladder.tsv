@@ -1,5 +1,5 @@
 # ladder theeyesofglouphrie quest_dir=quest_theeyesofglouphrie guide=src/main/java/com/questhelper/helpers/quests/theeyesofglouphrie/TheEyesOfGlouphrie.java steps=23 legs=1:1-23@s0
-#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
 leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
 1	1	0	talkToBrimstail	NpcStep	npc:gnome_brimstail_cutscene npc:gnome_brimstail_2op	2410,9818,0	Talk to Brimstail.			What's that cute creature wandering around? | Yes, that sou…	areas/area_gnome/scripts/brimstail.rs2:9 opnpc1; +1
 1	2	0	enterCave	ObjectStep	loc:eyeglo_brimstails_cave_entrance npc:gnome_brimstail_cutscene npc:gnome_brimstail_2op	2404,3419,0	Go talk to Brimstail in his cave in west Tree Gnome Stronghold.	talkToBrimstail			quests/quest_theeyesofglouphrie/scripts/eyeglo_quest.rs2:22 oploc1

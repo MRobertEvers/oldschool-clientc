@@ -3,7 +3,7 @@
 Plan to take `skill_crafting/` from its LostCity-era vertical slice to the
 complete [Crafting](https://oldschool.runescape.wiki/w/Crafting) skill. The
 wiki is the authority for content (products, levels, XP, materials, gates); the
-cache (`OSRS-Content/osrs239-content/configs/all.obj`, `all.loc`, `all.seq`,
+cache (`OSRS-Content/osrs-content/configs/all.obj`, `all.loc`, `all.seq`,
 `pack/category.pack`) is the authority for names and for what is *expressible*
 at this revision.
 
@@ -95,7 +95,7 @@ loc side.
 
 **5. The real make-menu is still alive client-side and unused server-side.**
 Interface **270 `skillmulti`** is unpacked and named
-(`OSRS-Content/osrs239-content/interfaces/skillmulti.if`, 35 components:
+(`OSRS-Content/osrs-content/interfaces/skillmulti.if`, 35 components:
 `1/5/10/other/x/all` + 18 item slots `a`–`r`), clientscripts **2046–2063** are
 present, and both varcs exist (`200=skillmulti_quantity`,
 `201=skillmulti_suggestedquantity`, plus `1167=skillmulti_quantity_string`).
@@ -112,7 +112,7 @@ worth doing before adding recipes, and it is **shared with Fletching S2**.
 
 ### 0.1 What is wired
 
-`OSRS-Content/osrs239-content/server/scripts/skill_crafting/`
+`OSRS-Content/osrs-content/server/scripts/skill_crafting/`
 
 | file | L | what it does |
 |---|---|---|

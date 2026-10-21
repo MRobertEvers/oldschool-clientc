@@ -10,7 +10,7 @@
  * of the group's labels (class144.method4834). Before this the decoder dropped
  * every non-bone curve, so the fade never drew.
  *
- * Usage: toridraw_skeletal_alpha_test <osrs239-content dir>
+ * Usage: toridraw_skeletal_alpha_test <osrs-content dir>
  */
 #include "engine/toridraw_animation_from_rscache.h"
 
@@ -95,7 +95,7 @@ main(int argc, char** argv)
 {
     if( argc < 2 )
     {
-        fprintf(stderr, "usage: %s <osrs239-content dir>\n", argv[0]);
+        fprintf(stderr, "usage: %s <osrs-content dir>\n", argv[0]);
         return 2;
     }
     char path[1024];

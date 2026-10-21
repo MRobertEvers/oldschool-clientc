@@ -24,8 +24,8 @@ import sys
 
 import config_text
 
-CACHE = "OSRS-Content/osrs239-content/configs/all.npc"
-PROC = ("OSRS-Content/osrs239-content/server/scripts/skill_slayer/scripts/"
+CACHE = "OSRS-Content/osrs-content/configs/all.npc"
+PROC = ("OSRS-Content/osrs-content/server/scripts/skill_slayer/scripts/"
         "slayer_superior.rs2")
 
 # Suffixes/infixes that mark a cache record as a variant of a superior rather

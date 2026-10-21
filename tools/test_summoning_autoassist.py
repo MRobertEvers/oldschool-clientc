@@ -36,13 +36,13 @@ from summoning_script_sources import definition, script_dir
 
 
 REPO = Path(__file__).resolve().parents[1]
-LANE = REPO / "OSRS-Content/osrs239-content/server/scripts/ported_scape2009_summoning"
+LANE = REPO / "OSRS-Content/osrs-content/server/scripts/ported_scape2009_summoning"
 TABLE = LANE / "scripts/summoning_combat_table.rs2"
 CONFIGS = LANE / "configs"
 AUDIT = REPO / "docs/summoning_port/familiar_normal_combat_530.csv"
 BOUNDARY = REPO / "docs/summoning_port/roster_boundary_530.json"
-COMBAT = REPO / "OSRS-Content/osrs239-content/server/scripts/skill_combat/combat.rs2"
-CLIENT_LANE = REPO / "OSRS-Content/osrs239-content/ported/scape2009_summoning"
+COMBAT = REPO / "OSRS-Content/osrs-content/server/scripts/skill_combat/combat.rs2"
+CLIENT_LANE = REPO / "OSRS-Content/osrs-content/ported/scape2009_summoning"
 # The preserved, unreviewed bulk import. A record inside it reaches the built
 # cache only by being named in the boundary's `admitted_review_references`.
 REVIEW_PREFIX = "summoning_roster_530"
@@ -140,11 +140,11 @@ def main() -> int:
         expect("~summoning_familiar_autoassist;" in tick,
                "the familiar tick never calls ~summoning_familiar_autoassist")
         expect(tick.index("~summoning_familiar_autoassist;")
-               < tick.index("%varp6257_summoning_familiar_type = 16"),
+               < tick.index("%varp6932_summoning_familiar_type = 16"),
                "auto-assist must latch the target before any handler reads it")
 
         # ---- the source conjunction ----
-        expect("~summoning_familiar_auto_assists(%varp6257_summoning_familiar_type)" in decision,
+        expect("~summoning_familiar_auto_assists(%varp6932_summoning_familiar_type)" in decision,
                "auto-assist does not consult the per-familiar table")
         expect("map_multiway(" not in allowed and "combat_assist_singles" not in allowed,
                "the assist gate still checks area/multiway — the leash rule "

@@ -38,7 +38,7 @@ Rules for every seam here:
 
 Units: every Inferno wave unit (no wave can be cleared while it re-spawns).
 
-Files: `OSRS-Content/osrs239-content/server/scripts/minigames/minigame_inferno/scripts/inferno_waves.rs2`
+Files: `OSRS-Content/osrs-content/server/scripts/minigames/minigame_inferno/scripts/inferno_waves.rs2`
 
 Summary. ENG-5: a wave's set spawns again every 8 ticks because the `inferno_wave_tick`
 softtimer (`inferno_waves.rs2:154`) is not cleared when the wave begins
@@ -90,7 +90,7 @@ section 5 (the four engine findings) and section 10 lesson 14.
 Units: inferno_nibblers_and_pillars (a nibbler must not turn on the player), every unit
 fought with magic, inferno_pause_and_logout.
 
-Files: `src/torirsserver/torirs_server_combat.c`, `OSRS-Content/osrs239-content/server/scripts/skill_combat/scripts/combat.rs2`, `OSRS-Content/osrs239-content/server/scripts/skill_combat/scripts/player/player_magic.rs2`, `OSRS-Content/osrs239-content/server/scripts/interface_logout/scripts/logout.rs2`
+Files: `src/torirsserver/torirs_server_combat.c`, `OSRS-Content/osrs-content/server/scripts/skill_combat/scripts/combat.rs2`, `OSRS-Content/osrs-content/server/scripts/skill_combat/scripts/player/player_magic.rs2`, `OSRS-Content/osrs-content/server/scripts/interface_logout/scripts/logout.rs2`
 
 Summary. Three rules, each measured before it is touched.
 (1) ENG-4 item 1: the default retaliation ignores an npc record's `retaliate=no`. Measure
@@ -117,7 +117,7 @@ Evidence. `CONTENT_BUGS.md` ENG-4, ENG-9; seam pass 1's `left_out` list
 
 Units: every unit (prayer is held through every wave); inferno_blob_and_splits (the flick).
 
-Files: `OSRS-Content/osrs239-content/server/scripts/player/scripts/stat_restore.rs2`, `OSRS-Content/osrs239-content/server/scripts/skill_prayer/scripts/prayer.rs2`
+Files: `OSRS-Content/osrs-content/server/scripts/player/scripts/stat_restore.rs2`, `OSRS-Content/osrs-content/server/scripts/skill_prayer/scripts/prayer.rs2`
 
 Summary. (1) ENG-10: prayer points regenerate (91 to 93 over 220 ticks with nothing lit)
 because `[timer,stat_restore]` skips only hitpoints. Source: the wiki's Prayer page (pin it; quote the sentence that says prayer points do not regenerate on their own). Fix.

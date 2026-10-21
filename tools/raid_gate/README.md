@@ -27,7 +27,7 @@ empty) they change nothing, byte for byte:
   split at its first `_` (`tob_maiden` -> `tob/maiden`).
 
 The wrappers set them to `test/raids` and
-`OSRS-Content/osrs239-content/server/scripts/selftest/minigames` and
+`OSRS-Content/osrs-content/server/scripts/selftest/minigames` and
 `os.execv` the quest gate script. Before that they refuse (exit 2) if any
 `test/raids/<id>.lua` shares an id with `test/quests/` or `QUEUE.tsv`'s
 `test_id` column: `build/quest_gate/<id>/`, the session lock and the relay

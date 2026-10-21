@@ -77,7 +77,7 @@ shop_main_init [clientscript 1074](inv $inv0, int $int1, int $int2, int $int3, s
   if_setonvartransmit("shop_quantity(...){var1022}", interface_300:2)
   if (~script2288 = 1) { ~script2461(19660817, 0) }             note_button, see §1.3
 ```
-(`OSRS-Content/osrs239-content/scripts/script_1074.cs2`, read in full and
+(`OSRS-Content/osrs-content/scripts/script_1074.cs2`, read in full and
 reproduced above verbatim modulo whitespace.)
 
 `shop_main_update` (`script_1076.cs2`) walks `$int1` slots of the container,
@@ -147,7 +147,7 @@ load-bearing**, don't port it blind.
 > **This section's premise was wrong, and the correction is the answer.** It
 > assumed a `shopside_init` existed and this decompile pass had missed it.
 > Re-running the whole cache through `3rd/rscache/tools/cs2` —
-> `cs2 decompile --cache cache.osrs239 --rev osrs239 --names OSRS-Content/osrs239-content`,
+> `cs2 decompile --cache cache.osrs239 --rev osrs239 --names OSRS-Content/osrs-content`,
 > **9,724 of 9,725 scripts, one failure (script 0, not in this cache)** —
 > confirms the corpus is complete and that **no clientscript in this cache
 > mentions interface 301 at all**. `shopside.if` carries one component and no
@@ -222,7 +222,7 @@ bank tab, not a static dbtable the client reads once.**
 - `if_setoninvtransmit(...){$inv0}` is the identical auto-repaint idiom bank
   uses for its own containers.
 - Each named shop is its **own** container definition in the cache:
-  `OSRS-Content/osrs239-content/configs/all.inv` has 411 `shop`-matching
+  `OSRS-Content/osrs-content/configs/all.inv` has 411 `shop`-matching
   blocks (confirmed count) — `axeshop`, `generalshop1`, `swordshop`, etc,
   each `[name]/size=N` — matching LostCity's per-shop `.inv` model (§6)
   rather than one shared "shop stock" table.

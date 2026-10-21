@@ -6,7 +6,7 @@ infobox.
     tools/gen_npc_immunity.py            # report only
     tools/gen_npc_immunity.py --write    # rewrite the generated .npc file
 
-Source: the cached `Infobox Monster` pages (OSRS-Content/osrs239-content/wiki/
+Source: the cached `Infobox Monster` pages (OSRS-Content/osrs-content/wiki/
 monsters), parsed by wiki_infobox, joined to this cache's npc ids by each
 version block's own `id`/`idN` list -- never by name (docs/NPC_WIKI_STATS_PLAN.md
 §1). Two infobox rows answer the question:
@@ -38,7 +38,7 @@ import re
 import sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONTENT = os.path.join(REPO, "OSRS-Content", "osrs239-content")
+CONTENT = os.path.join(REPO, "OSRS-Content", "osrs-content")
 COMPACK = os.path.join(CONTENT, "configs", "all.npc.compack")
 SERVER_FIELDS = os.path.join(CONTENT, "server", "scripts", "_explicit", "configs",
                              "server_fields.generated.npc")

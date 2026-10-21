@@ -22,7 +22,7 @@ import config_text
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG = os.path.join(
-    ROOT, "OSRS-Content", "osrs239-content", "server", "scripts", "minigames",
+    ROOT, "OSRS-Content", "osrs-content", "server", "scripts", "minigames",
     "minigame_dagannothkings", "configs", "dks.npc",
 )
 SOURCES = os.path.join(ROOT, "docs", "bosses", "dagannoth_kings", "sources")

@@ -10,7 +10,7 @@ No Inferno sequence on any of these rigs carries an in-band frame sound, so no r
 (`sources/blert/plugin/src/main/java/io/blert/challenges/inferno/InfernoNpc.java:33-76`, read by the closer).
 It is corroboration from a load-bearing plugin constant, not a tier; the tables keep the method's tiers.
 
-**What compiles.** Every combat npc's generated ledger (`OSRS-Content/osrs239-content/npc_combat/i/inferno_*.combat`)
+**What compiles.** Every combat npc's generated ledger (`OSRS-Content/osrs-content/npc_combat/i/inferno_*.combat`)
 says `NOT COMPILED`: the authored blocks in `MI/configs/inferno.npc` win (MI = `server/scripts/minigames/minigame_inferno/`).
 A ledger disagreement below is a defect in the ledger, not in what the game plays today; the authored value is given beside it.
 

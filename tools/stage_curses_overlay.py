@@ -11,7 +11,7 @@ much smaller: no npcs, no locs, no map squares, no database rows, no interface
 overlays. It contributes twenty objs, one enum, two varps, two varbits, six
 patched clientscripts, and the assets those reference.
 
-  tools/stage_curses_overlay.py --tree OSRS-Content/osrs239-content \
+  tools/stage_curses_overlay.py --tree OSRS-Content/osrs-content \
                                --out build/curses-overlay
 """
 

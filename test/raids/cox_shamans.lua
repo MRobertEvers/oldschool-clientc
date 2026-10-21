@@ -102,7 +102,7 @@ return {
         "::setvar varb5451_prayer_rigour_unlocked 1",
         "::setvar varb5452_prayer_augury_unlocked 1",
         "::setvar varb5453_prayer_preserve_unlocked 1",
-        "::setvar varp7348_barbarian_vial_smash 1",
+        "::setvar varp8023_barbarian_vial_smash 1",
         "::give fris_kingly_helm 1", "::wield fris_kingly_helm",
         "::give barbassault_penance_fighter_torso 1", "::wield barbassault_penance_fighter_torso",
         "::give black_dragonhide_chaps 1", "::wield black_dragonhide_chaps",

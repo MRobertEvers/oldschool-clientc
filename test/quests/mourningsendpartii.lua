@@ -1830,7 +1830,7 @@ return {
         -- own documented fallback, ~quest_journal_unwritten (line 1107),
         -- which appends the literal "This world does not run this quest
         -- yet." (line 262) and never reports complete=true. CONTENT_BUG:
-        -- OSRS-Content/osrs239-content/server/scripts/interface_questjournal/
+        -- OSRS-Content/osrs-content/server/scripts/interface_questjournal/
         -- scripts/quest_journal.rs2:1107 (missing quest_mourningsendpart2
         -- branch in quest_journal_open_by_id; compare line 435's sibling
         -- quest for the pattern this quest never got). gate.py's own rule

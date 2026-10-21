@@ -5613,7 +5613,7 @@ sound_synth_ticklog(
  * below 100, so the VM's per-command dot latch never sees it. Masked off and
  * ignored, a `.%varp` read the PRIMARY player -- in an npc's timer, which has
  * none, a NULL one: every Verzik P3 seed segfaulted on
- * `~tob_dbg_attack`'s `.%varp6880_tob_dbg_attacks` under `.huntnext`
+ * `~tob_dbg_attack`'s `.%varp7555_tob_dbg_attacks` under `.huntnext`
  * (2026-10-09).
  */
 static struct ToriRSServerPlayer*
@@ -11691,6 +11691,34 @@ script_command(
     case SS_OP_CAM_RESET:
         ToriRSServer_SendCamReset(player);
         return 1;
+
+    /* cam_moveto_cycles(coord, height, cycles, ignore_terrain, easing) and
+     * cam_rotateto_coordinate(coord, height, cycles, easing): the eased camera
+     * (CAM_MOVETO_CYCLES_V3 / CAM_ROTATETO_COORDINATE_V3). */
+    case SS_OP_CAM_MOVETO_CYCLES:
+    {
+        int32_t values[5];
+        for( int i = 4; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        ToriRSServer_SendCamMovetoCycles(player, coord_x(values[0]), coord_z(values[0]), (int)values[1],
+                                         (int)values[2], (int)values[3], (int)values[4]);
+        return 1;
+    }
+    case SS_OP_CAM_ROTATETO_COORDINATE:
+    {
+        int32_t values[4];
+        for( int i = 3; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        ToriRSServer_SendCamRotatetoCoordinate(player, coord_x(values[0]), coord_z(values[0]),
+                                               (int)values[1], (int)values[2], (int)values[3]);
+        return 1;
+    }
 
     /* `minimap_toggle(int $type)` -- the MINIMAP_TOGGLE packet. Jagex sends
      * it beside the minimap_state varbit on both edges of a cutscene

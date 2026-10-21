@@ -13,7 +13,7 @@ sound and the tick it lands on without opening the config.
     python3 tools/raid_gate/seq_frame_sounds.py <seq> [<seq> ...] [--tsv]
 
 <seq> is a seq id (14399) or its cache name (maiden_spawn). Reads three files
-and nothing else: OSRS-Content/osrs239-content/configs/all.seq (the records),
+and nothing else: OSRS-Content/osrs-content/configs/all.seq (the records),
 configs/all.seq.compack (id=name) and pack/4_soundeffects.pack (sound
 id=name). A frame sound line is `sound=frame,id,loops,location,retain,weight`
 (rscache dat2_config_sequence.h RSCache_Dat2ConfigFrameSound; tools/
@@ -28,7 +28,7 @@ import os
 import sys
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-CONTENT = os.path.join(ROOT, "OSRS-Content", "osrs239-content")
+CONTENT = os.path.join(ROOT, "OSRS-Content", "osrs-content")
 SEQ = os.path.join(CONTENT, "configs", "all.seq")
 SEQ_NAMES = os.path.join(CONTENT, "configs", "all.seq.compack")
 SOUND_NAMES = os.path.join(CONTENT, "pack", "4_soundeffects.pack")

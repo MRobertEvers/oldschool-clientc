@@ -19,7 +19,7 @@ from port_rs2012_qbd_ui import (
 )
 
 
-TREE = REPO_ROOT / "OSRS-Content" / "osrs239-content"
+TREE = REPO_ROOT / "OSRS-Content" / "osrs-content"
 
 
 def require(condition: bool, message: str) -> None:

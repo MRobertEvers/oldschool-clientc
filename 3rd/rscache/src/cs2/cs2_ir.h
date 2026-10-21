@@ -42,6 +42,8 @@ struct RSCache_CS2_Value
 {
     enum RSCache_CS2_StackType stack_type;
     int int_value;
+    /* STACK_LONG only: the full int64 `push_constant_long` carries. */
+    int64_t long_value;
     /* Arena-owned; NUL-terminated windows-1252 bytes, exactly as the cache
      * stores them. */
     const char* string_value;
@@ -59,12 +61,19 @@ enum RSCache_CS2_VarKind
     RSCACHE_CS2_VAR_VARCSTRING,
     RSCACHE_CS2_VAR_VARCLANSETTING,
     RSCACHE_CS2_VAR_VARCLAN,
+    /* The long-stack globals: a varc read as a long (51/52) and a varp read as
+     * a long (64/65, new in 241: `ge_newoffer_price` moved there from varbit
+     * 4398). The same id spaces as varcint and var, a different stack. */
+    RSCACHE_CS2_VAR_VARCLONG,
+    RSCACHE_CS2_VAR_VARPLONG,
     /* Locals, distinguished from globals by carrying a script id. */
     RSCACHE_CS2_VAR_STACKINT,
     RSCACHE_CS2_VAR_STACKSTRING,
     RSCACHE_CS2_VAR_INT,
     RSCACHE_CS2_VAR_STRING,
     RSCACHE_CS2_VAR_ARRAY,
+    RSCACHE_CS2_VAR_STACKLONG,
+    RSCACHE_CS2_VAR_LONG,
 
     RSCACHE_CS2_VAR_KIND_COUNT,
 };
@@ -507,6 +516,8 @@ struct RSCache_CS2_Function
     int original_local_string_count;
     int original_int_argument_count;
     int original_string_argument_count;
+    int original_local_long_count;
+    int original_long_argument_count;
     /** Generator may emit fingerprinted/serialized lossless comment metadata. */
     bool generate_lossless_metadata;
     bool preserve_frame_counts;
@@ -521,6 +532,9 @@ struct RSCache_CS2_Function
     unsigned char array_slots[RSCACHE_CS2_MAX_ARRAY_SLOTS / 8];
     int* return_default_values;
     bool* return_default_is_int_constant;
+    /* The long-stack counterparts: a `push_constant_long` epilogue slot. */
+    int64_t* return_default_long_values;
+    bool* return_default_is_long_constant;
 };
 
 struct RSCache_CS2_FunctionSet
@@ -583,6 +597,9 @@ RSCache_CS2_ExprConstantInt(struct RSCache_CS2_Arena* arena, int value);
 
 struct RSCache_CS2_Expr*
 RSCache_CS2_ExprConstantString(struct RSCache_CS2_Arena* arena, const char* value);
+
+struct RSCache_CS2_Expr*
+RSCache_CS2_ExprConstantLong(struct RSCache_CS2_Arena* arena, int64_t value);
 
 struct RSCache_CS2_Expr*
 RSCache_CS2_ExprAccess(

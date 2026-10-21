@@ -1,5 +1,5 @@
 # ladder darknessofhallowvale quest_dir=quest_darknessofhallowvale guide=src/main/java/com/questhelper/helpers/quests/darknessofhallowvale/DarknessOfHallowvale.java steps=58 legs=1:1-11@s0 2:12-19@s60 3:20-30@s0 4:31-41@s30 5:42-47@s220 6:48-58@s260
-#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
 leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
 1	1	0	climbOverBrokenWall	ObjectStep<startQuest	loc:burgh_inn_climb_over	3491,3230,0					
 1	2	0	enterBurghPubBasement	ObjectStep<startQuest	loc:burgh_inn_trapdoor_multiloc?	3490,3232,0					

@@ -231,9 +231,9 @@ own** — `/tmp/sailing-<name>-pack/build`, never `/tmp/sailing-<name>-pack`:
 
 ```sh
 mkdir -p /tmp/sailing-<name>-pack/build
-src/build_opt/sscompile --src OSRS-Content/osrs239-content/server/scripts \
+src/build_opt/sscompile --src OSRS-Content/osrs-content/server/scripts \
     --out /tmp/sailing-<name>-pack/build \
-    --content-root OSRS-Content/osrs239-content
+    --content-root OSRS-Content/osrs-content
 python3 tools/sailing_harness.py start --scripts /tmp/sailing-<name>-pack/build ...
 ```
 

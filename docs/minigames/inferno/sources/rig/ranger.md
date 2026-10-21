@@ -29,7 +29,7 @@ Method: docs/minigames/waves_loop/RIG_PASS.md. Documents only; nothing run or re
 ## Unknown
 - Nothing on the rig is left unclassified.
 
-## Ledger (OSRS-Content/osrs239-content/npc_combat/i/inferno_creature_ranger.combat; finalwave identical)
+## Ledger (OSRS-Content/osrs-content/npc_combat/i/inferno_creature_ranger.combat; finalwave identical)
 - death jalxil_death (a2), defend jalxil_defend (a2): on rig, right monster. No disagreement.
 - attack jalxil_attack_melee (a3, ranked 2): on rig, right monster, but a3 is a rank, not evidence;
   the ranged variant (7605) is the rig's other attack. Not a rig/ownership disagreement; flagged.

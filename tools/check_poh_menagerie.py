@@ -9,7 +9,7 @@ from pathlib import Path
 import config_text
 
 ROOT = Path(__file__).resolve().parents[1]
-CONTENT = ROOT / "OSRS-Content" / "osrs239-content"
+CONTENT = ROOT / "OSRS-Content" / "osrs-content"
 SCRIPT = CONTENT / "server/scripts/skill_construction/scripts/poh_menagerie.rs2"
 VARBIT = CONTENT / "configs/all.varbit"
 COMPACK = CONTENT / "configs/all.varbit.compack"

@@ -1,4 +1,4 @@
--- Holy Grail. Hand-authored against OSRS-Content/osrs239-content/server/
+-- Holy Grail. Hand-authored against OSRS-Content/osrs-content/server/
 -- scripts/quests/quest_grail/scripts/*.rs2 (quest_grail.rs2, king_arthur.rs2,
 -- merlin.rs2, high_priest_of_entrana.rs2/grail_crone.rs2, brother_galahad.rs2,
 -- black_knight_titan.rs2, grail_realm_npcs.rs2, fisher_king.rs2,

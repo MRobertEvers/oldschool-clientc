@@ -2,7 +2,7 @@
 """
 wiki_npc_roster — which npcs actually stand in the rev-239 world and can fight.
 
-    tools/wiki_npc_roster.py --write     # OSRS-Content/osrs239-content/wiki/npc_roster.csv
+    tools/wiki_npc_roster.py --write     # OSRS-Content/osrs-content/wiki/npc_roster.csv
     tools/wiki_npc_roster.py             # same report, stdout only
 
 See docs/NPC_WIKI_STATS_PLAN.md §1. This is the roster the rest of the wiki
@@ -42,7 +42,7 @@ import subprocess
 import sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONTENT = os.path.join(REPO, "OSRS-Content", "osrs239-content")
+CONTENT = os.path.join(REPO, "OSRS-Content", "osrs-content")
 CACHE = os.path.join(REPO, "cache.osrs239")
 DUMP_STATS_BIN = os.path.join(REPO, "tools", "dump_stats", "dump_stats")
 OUT_CSV = os.path.join(CONTENT, "wiki", "npc_roster.csv")

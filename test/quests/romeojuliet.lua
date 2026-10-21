@@ -2,7 +2,7 @@
 --
 -- Regenerated from tools/quest_gate/new_quest.py's scaffold (Quest Helper's
 -- helpers/quests/romeoandjuliet/), then corrected against this content
--- pack's own scripts -- OSRS-Content/osrs239-content/server/scripts/quests/
+-- pack's own scripts -- OSRS-Content/osrs-content/server/scripts/quests/
 -- quest_romeojuliet/scripts/quest_romeojuliet.rs2 (state machine + the
 -- selftest debugproc's own state-transition order) and areas/varrock/
 -- scripts/{romeo,juliet,father_lawrence,apothecary}.rs2 (the real
@@ -73,7 +73,7 @@
 --      entered.
 --   6. quest.bind's `display` ("Romeo & Juliet") and the dbrow's
 --      questpoints (5) are confirmed against
---      OSRS-Content/osrs239-content/configs/all.dbrow's own
+--      OSRS-Content/osrs-content/configs/all.dbrow's own
 --      `[quest_romeoandjuliet]` block; `~quest_complete_rewards(
 --      quest_romeoandjuliet, "", coins)` passes an EMPTY rewards string and
 --      "coins" only as the scroll's icon obj, not a coin amount -- this

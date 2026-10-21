@@ -1,5 +1,5 @@
 -- Spirits of the Elid (spiritsoftheelid) -- brief docs/quests/spirits_of_the_elid.md,
--- content quest_spiritsoftheelid (OSRS-Content/osrs239-content/server/scripts/quests/
+-- content quest_spiritsoftheelid (OSRS-Content/osrs-content/server/scripts/quests/
 -- quest_spiritsoftheelid/). Progress varp %elidquest, constants from
 -- configs/quest_spiritsoftheelid.constant (0..60, ten steps.put plateaus + complete).
 --

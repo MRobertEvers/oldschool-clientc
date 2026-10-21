@@ -133,7 +133,7 @@ test: $(TEST_BINS) $(BUILD)/bzip_interop_helper
 		*test_db_encode) ./$$bin "$(CACHE_ROOT)/cache.osrs239" || status=1 ;; \
 		*test_opcode_codec) ./$$bin "$(CACHE_ROOT)/cache.osrs239" || status=1 ;; \
 		*test_dat1_encode) ./$$bin "$(CACHE_ROOT)/cache254" || status=1 ;; \
-		*test_fields) ./$$bin "$(CACHE_ROOT)/OSRS-Content/osrs239-content" || status=1 ;; \
+		*test_fields) ./$$bin "$(CACHE_ROOT)/OSRS-Content/osrs-content" || status=1 ;; \
 		*) ./$$bin || status=1 ;; \
 		esac; \
 	done; \

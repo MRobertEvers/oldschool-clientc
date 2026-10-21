@@ -1,6 +1,6 @@
 -- Biohazard. Scaffolded by tools/quest_gate/new_quest.py from Quest
 -- Helper's helpers/quests/biohazard/, then hand-corrected against the
--- pack's own scripts (OSRS-Content/osrs239-content/server/scripts/
+-- pack's own scripts (OSRS-Content/osrs-content/server/scripts/
 -- quests/quest_biohazard/, areas/area_ardougne_east/scripts/elena.rs2,
 -- areas/area_combat_training/configs/combat_training.constant) and its
 -- own audit doc (docs/quests/biohazard.md). Tier (quest_inventory.tsv): 1.
@@ -439,7 +439,7 @@ return {
 
         -- Guide step enterBackyardOfHeadquarters ("Squeeze through the fence
         -- to enter the Mourner's Headquarters yard"): mournerstewfence at
-        -- 2541,3331,0 (OSRS-Content/osrs239-content/maps/m39_52.jl2:2269).
+        -- 2541,3331,0 (OSRS-Content/osrs-content/maps/m39_52.jl2:2269).
         -- [oploc1,mournerstewfence] (general_use/scripts/fence.rs2:5-32) is
         -- unconditional -- an agility_exactmove squeeze-through with no chat
         -- and no mes(). Approach from the street west of the fence.

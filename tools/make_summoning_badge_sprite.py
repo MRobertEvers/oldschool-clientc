@@ -17,8 +17,8 @@ scaled draw was already putting on screen. No colour is invented, which also
 keeps every pixel inside the pack's recorded palette.
 
     python3 tools/make_summoning_badge_sprite.py \
-        --source OSRS-Content/osrs239-content/sprites/ported/scape2009_summoning/summoning_familiar_special_overlay \
-        --out    OSRS-Content/osrs239-content/sprites/ported/scape2009_summoning/summoning_familiar_special_overlay_badge \
+        --source OSRS-Content/osrs-content/sprites/ported/scape2009_summoning/summoning_familiar_special_overlay \
+        --out    OSRS-Content/osrs-content/sprites/ported/scape2009_summoning/summoning_familiar_special_overlay_badge \
         --size 18x25
 """
 

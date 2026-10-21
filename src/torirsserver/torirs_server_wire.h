@@ -139,6 +139,23 @@ struct ToriRSServerWirePayload
         int height,
         int rate,
         int rate2);
+    /* CAM_MOVETO_CYCLES / CAM_ROTATETO_COORDINATE (241): absolute world tiles.
+     * NULL at a revision the server does not send them at. */
+    void (*cam_moveto_cycles)(
+        struct RSAreaBuf* buf,
+        int x,
+        int z,
+        int height,
+        int cycles,
+        int ignore_terrain,
+        int easing);
+    void (*cam_rotateto_coordinate)(
+        struct RSAreaBuf* buf,
+        int x,
+        int z,
+        int height,
+        int cycles,
+        int easing);
     void (*cam_shake)(
         struct RSAreaBuf* buf,
         int axis,
@@ -278,6 +295,24 @@ struct ToriRSServerWirePayload
     /** WORLDENTITY_INFO_V7's updateFlags payload: the 5-bit op mask through
      *  `(128 - b) & 0xFF`. Only written when flag bit 0x2 is set. */
     void (*wev_op_mask)(struct RSAreaBuf* buf, int op_mask);
+
+    /*
+     * Revision 241 reordered the world-entity spawn head and the flag
+     * payload (RSProx WorldEntityInfoClient, osrs-241). NULL means the 239
+     * shape: the encoder writes the flags byte plain and calls
+     * `wev_spawn_scalars`, and the sequence block is `p2 id, p1 delay`.
+     *
+     * `wev_spawn_header` writes everything after the 2-byte view id up to
+     * the transform -- flags, size, priority, config, in its revision's order.
+     * `wev_seq` writes the 0x1 sequence block of an update record.
+     */
+    void (*wev_spawn_header)(
+        struct RSAreaBuf* buf,
+        int flags,
+        int size_byte,
+        int priority_group,
+        int config_id);
+    void (*wev_seq)(struct RSAreaBuf* buf, int seq_id, int delay);
     void (*rebuild_normal)(
         struct RSAreaBuf* buf,
         int world_area,
@@ -446,7 +481,11 @@ ToriRSServer_WirePlayerIndex(int pool_pid)
     return pool_pid + 1;
 }
 
-/** "osrs230" or "osrs239"; NULL when unknown. */
+/** The revision-241 wire (torirs_server_wire241.c). */
+const struct ToriRSServerWire*
+ToriRSServer_Wire241(void);
+
+/** "osrs230", "osrs239" or "osrs241"; NULL when unknown. */
 const struct ToriRSServerWire*
 ToriRSServer_WireByName(char const* name);
 

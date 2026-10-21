@@ -166,7 +166,7 @@ type the wire named, with no resolution step in between.
 
 **Server.** `torirs_server_combat.c` names its splats out of the content pack —
 `hitsplat_block()`, `hitsplat_poison()`, `hitsplat_shield()` — and
-`OSRS-Content/osrs239-content/configs/all.hitsplat.compack` names ten ids, of
+`OSRS-Content/osrs-content/configs/all.hitsplat.compack` names ten ids, of
 which the two that matter are `26=hitsplat_block` and `28=hitsplat_damage`.
 Those are **leaves**. A leaf has no opcode 18, so even a client that resolved
 perfectly would have nothing to resolve: the server is sending the answer

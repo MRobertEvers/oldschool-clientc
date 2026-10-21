@@ -30,7 +30,7 @@ default, which is the honest outcome: the catalog does not know its animations.
 
 Usage:
   python3 gen_npc_anims.py --catalog out/osrs239_anims \\
-      --content OSRS-Content/osrs239-content [--write] [--limit N]
+      --content OSRS-Content/osrs-content [--write] [--limit N]
 
 Without `--write` it reports what it would do and changes nothing.
 """
@@ -442,7 +442,7 @@ def main():
         "// Regenerate with:",
         "//   python3 tools/entity_viewer/gen_npc_anims.py \\",
         "//       --catalog out/osrs239_anims \\",
-        "//       --content OSRS-Content/osrs239-content --write",
+        "//       --content OSRS-Content/osrs-content --write",
         "//",
         "// Do not hand-edit: the next run overwrites the file. An npc that needs",
         "// something other than what the rig walk found belongs in an authored",

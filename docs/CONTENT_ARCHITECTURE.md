@@ -1,6 +1,6 @@
 # Content architecture — unifying the cache tools and the server tree
 
-Two lines of work landed in `OSRS-Content/osrs239-content/` from opposite ends:
+Two lines of work landed in `OSRS-Content/osrs-content/` from opposite ends:
 
 - **`cachepack`** (`3rd/rscache/tools/cachepack/`) turns a cache into an editable
   tree and back. It owns `pack/`, `configs/`, and the asset directories.
@@ -173,7 +173,7 @@ and `the cache's own gameval table` currently requests eight of them — 39 `npc
 
 ```sh
 the cache's own gameval table --names the cache's own gameval table \
-    --out OSRS-Content/osrs239-content/pack
+    --out OSRS-Content/osrs-content/pack
 ```
 
 **truncates `configs/all.npc.compack` from 16,292 lines to 39**, `varp.pack` from 5,705 to
@@ -462,19 +462,19 @@ id" — `goblin` 3028 vs 655). This makes it mechanical.
 ```sh
 # 1. absorb — rewrites pack/ and configs/, never touches names/ or server/
 cachepack unpack --cache cache.osrsNEW --rev osrsNEW \
-  --src OSRS-Content/osrs239-content --assets \
+  --src OSRS-Content/osrs-content --assets \
   --compare cache.osrs239 --compare-rev osrs239
 
 # 2. read one file
-$EDITOR OSRS-Content/osrs239-content/configs/_unpack/osrsNEW/report.ini
+$EDITOR OSRS-Content/osrs-content/configs/_unpack/osrsNEW/report.ini
 
 # 3. gate
 make -C src torirsserver-pack && src/build/ToriRSServer_Pack --cache cache.osrsNEW \
-  --content OSRS-Content/osrs239-content       # pins + symbol closure + overlays
+  --content OSRS-Content/osrs-content       # pins + symbol closure + overlays
 make -C src torirsserver-scripts test-ToriRSServer
 
 # 4. emit — one packer, overlays included, no second bake step
-cachepack pack --src OSRS-Content/osrs239-content --base cache.osrsNEW \
+cachepack pack --src OSRS-Content/osrs-content --base cache.osrsNEW \
   --out /tmp/cache.patched --assets
 ```
 

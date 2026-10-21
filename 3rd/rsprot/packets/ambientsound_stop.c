@@ -25,15 +25,27 @@ packet_ambientsound_stop_v2_out(RsprotExec *x, MsgAmbientSoundStop *m)
     RSPROT_BOOL(x, m->fade);
 }
 
+/* v100 -- revs 241. */
+void
+packet_ambientsound_stop_v100_out(RsprotExec *x, MsgAmbientSoundStop *m)
+{
+    RSPROT_U1_ALT2(x, m->fade);
+}
+
 /*
- * 2 row(s) for 2 layout(s), complete over revisions 221-239.
+ * 3 row(s) for 3 layout(s), complete over revisions 221-239.
  * A complete table makes rsprot_version_pick's NULL mean exactly one thing: a
  * revision outside that span. An incomplete one would conflate "not
  * transcribed" with "no such packet", and those are different facts.
+ *
+ * Plus revision(s) 241, which RSProt never vendored: derived from
+ * RSProx's decoders by tools/rsprox_codec_overlay.py. Revisions between 239
+ * and those are not covered and pick NULL.
  */
 const RsprotVersionRange rsprot_ambientsound_stop_out[] = {
     { 238, 238, (RsprotCodecFn)packet_ambientsound_stop_v1_out },
     { 239, 239, (RsprotCodecFn)packet_ambientsound_stop_v2_out },
+    { 241, 241, (RsprotCodecFn)packet_ambientsound_stop_v100_out },
 };
 
 const int rsprot_ambientsound_stop_out_count =

@@ -1,7 +1,7 @@
 # Tightrope — tick spec, rulings and content audit (2026-10-18)
 
 Unit `icedemon_tightrope` (COX_FINISH_PLAN.md R). Content: the tightrope procs of
-`OSRS-Content/osrs239-content/server/scripts/minigames/minigame_cox/scripts/cox_puzzles.rs2`
+`OSRS-Content/osrs-content/server/scripts/minigames/minigame_cox/scripts/cox_puzzles.rs2`
 (the thieving procs there are another unit's), the tightrope blocks of
 `configs/cox.constant` / `cox.npc`. Solver plan: `tightrope_solver.md`.
 Ruling order: Jagex > recorded data > wiki > plugin constants > Near-Reality > ours.

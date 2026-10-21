@@ -136,8 +136,7 @@ cs2_variable_literal(struct cs2_writer* writer, struct RSCache_CS2_Variable* var
      * that the compiler could not read back. The bank it lives in is known even
      * when the type is not, and that is what `int` and `string` name. */
     if( typing->type == RSCACHE_CS2_TYPE_NONE )
-        return RSCache_CS2_VarStackType(variable->kind) == RSCACHE_CS2_STACK_STRING ? "string"
-                                                                                   : "int";
+        return RSCache_CS2_StackTypeLiteral(RSCache_CS2_VarStackType(variable->kind));
     return RSCache_CS2_TypeLiteral(typing->type);
 }
 
@@ -184,7 +183,8 @@ static bool
 cs2_is_numbered_global(const char* name)
 {
     static const char* const PREFIXES[] = {
-        "varclansetting", "varcstring", "varclan", "varcint", "varbit", "var",
+        "varclansetting", "varcstring", "varclong", "varclan", "varcint", "varbit",
+        "varlong", "var",
     };
     for( size_t i = 0; i < sizeof(PREFIXES) / sizeof(PREFIXES[0]); i++ )
     {
@@ -219,6 +219,12 @@ cs2_global_name(struct cs2_writer* writer, struct RSCache_CS2_Variable* variable
     case RSCACHE_CS2_VAR_VARCSTRING:
         table = RSCACHE_CS2_NAMES_VARCSTRING;
         break;
+    case RSCACHE_CS2_VAR_VARCLONG:
+        table = RSCACHE_CS2_NAMES_VARCLONG;
+        break;
+    case RSCACHE_CS2_VAR_VARPLONG:
+        table = RSCACHE_CS2_NAMES_VARPLONG;
+        break;
     default:
         return NULL;
     }
@@ -246,10 +252,13 @@ cs2_write_var_identifier(struct cs2_writer* writer, struct RSCache_CS2_Variable*
     {
     case RSCACHE_CS2_VAR_INT:
     case RSCACHE_CS2_VAR_STRING:
+    case RSCACHE_CS2_VAR_LONG:
     case RSCACHE_CS2_VAR_ARRAY:
     {
         struct RSCache_CS2_Typing* typing = cs2_typing_of_variable(writer, variable);
-        cs2_put(writer, typing->identifier ? typing->identifier : "int");
+        cs2_put(writer, typing->identifier ? typing->identifier
+                                           : (variable->kind == RSCACHE_CS2_VAR_LONG ? "long"
+                                                                                     : "int"));
         if( variable->kind == RSCACHE_CS2_VAR_ARRAY )
             cs2_put(writer, "array");
         cs2_put_int(writer, variable->id);
@@ -272,6 +281,12 @@ cs2_write_var_identifier(struct cs2_writer* writer, struct RSCache_CS2_Variable*
         break;
     case RSCACHE_CS2_VAR_VARCLAN:
         cs2_put(writer, "varclan");
+        break;
+    case RSCACHE_CS2_VAR_VARCLONG:
+        cs2_put(writer, "varclong");
+        break;
+    case RSCACHE_CS2_VAR_VARPLONG:
+        cs2_put(writer, "varlong");
         break;
     default:
         cs2_gen_fail(writer, "an operand-stack slot survived to code generation");
@@ -340,6 +355,15 @@ cs2_write_constant(struct cs2_writer* writer, struct RSCache_CS2_Expr* expr)
         cs2_put_char(writer, '"');
         return;
     }
+    /* A long literal carries its `L`: the stack it goes on is part of the
+     * value, and `0` would compile as an int push. */
+    if( expr->value.stack_type == RSCACHE_CS2_STACK_LONG )
+    {
+        char text[32];
+        snprintf(text, sizeof(text), "%lldL", (long long)expr->value.long_value);
+        cs2_put(writer, text);
+        return;
+    }
 
     struct RSCache_CS2_Typing* typing =
         RSCache_CS2_TypingsOfElement(&writer->fs->typings, expr);
@@ -381,6 +405,14 @@ cs2_write_operand(
                               : 0;
     bool parenthesise = expr_precedence > op_precedence ||
                         (right_hand_side && op_precedence == expr_precedence);
+    /* Arithmetic outside a calc prints as `calc(...)`, which is already one
+     * operand. `&` and `|` outrank the comparisons, so `(calc($a & 2)) ! 0`
+     * came out — and the compiler reads a leading `(` in a condition as a
+     * grouped condition, which then has no comparison (241 scripts 9991,
+     * 9992). */
+    if( parenthesise && !writer->in_calc && expr->kind == RSCACHE_CS2_EXPR_OPERATION &&
+        RSCache_CS2_CommandCalcInfix(expr->opcode) && RSCache_CS2_CommandBranchInfix(op->opcode) )
+        parenthesise = false;
     if( parenthesise )
         cs2_put_char(writer, '(');
     cs2_write_expr(writer, expr);
@@ -1009,6 +1041,7 @@ RSCache_CS2_Generate(
 
     int generated_int_args = 0;
     int generated_string_args = 0;
+    int generated_long_args = 0;
     for( int i = 0; i < function->arguments.count; i++ )
     {
         struct RSCache_CS2_Variable* argument =
@@ -1016,13 +1049,16 @@ RSCache_CS2_Generate(
         if( argument->kind == RSCACHE_CS2_VAR_ARRAY ||
             RSCache_CS2_VarStackType(argument->kind) == RSCACHE_CS2_STACK_STRING )
             generated_string_args++;
+        else if( RSCache_CS2_VarStackType(argument->kind) == RSCACHE_CS2_STACK_LONG )
+            generated_long_args++;
         else
             generated_int_args++;
     }
     bool preserve_frame = function->generate_lossless_metadata &&
                           (function->preserve_frame_counts ||
                            generated_int_args != function->original_int_argument_count ||
-                           generated_string_args != function->original_string_argument_count);
+                           generated_string_args != function->original_string_argument_count ||
+                           generated_long_args != function->original_long_argument_count);
     if( preserve_frame )
     {
         cs2_put(&writer, "// @rscache-frame ");
@@ -1033,6 +1069,15 @@ RSCache_CS2_Generate(
         cs2_put_int(&writer, function->original_int_argument_count);
         cs2_put_char(&writer, ' ');
         cs2_put_int(&writer, function->original_string_argument_count);
+        /* The long bank's two counts follow only where a frame has one, so a
+         * script without longs keeps its four-number header. */
+        if( function->original_local_long_count || function->original_long_argument_count )
+        {
+            cs2_put_char(&writer, ' ');
+            cs2_put_int(&writer, function->original_local_long_count);
+            cs2_put_char(&writer, ' ');
+            cs2_put_int(&writer, function->original_long_argument_count);
+        }
         cs2_next_line(&writer);
     }
 
@@ -1041,10 +1086,18 @@ RSCache_CS2_Generate(
          function->generate_lossless_metadata && returns && i < returns->count;
          i++ )
     {
-        if( !function->return_default_is_int_constant[i] ||
-            RSCache_CS2_TypeStackType(returns->items[i]->type) != RSCACHE_CS2_STACK_INT ||
-            function->return_default_values[i] ==
-                RSCache_CS2_TypeEpilogueDefault(returns->items[i]->type) )
+        /* A long slot's canonical default is 0L; one that pushes anything else
+         * is recorded with its `L`, as a long literal is spelled. */
+        bool long_slot = function->return_default_is_long_constant[i] &&
+                         RSCache_CS2_TypeStackType(returns->items[i]->type) ==
+                             RSCACHE_CS2_STACK_LONG &&
+                         function->return_default_long_values[i] != 0;
+        bool int_slot = function->return_default_is_int_constant[i] &&
+                        RSCache_CS2_TypeStackType(returns->items[i]->type) ==
+                            RSCACHE_CS2_STACK_INT &&
+                        function->return_default_values[i] !=
+                            RSCache_CS2_TypeEpilogueDefault(returns->items[i]->type);
+        if( !long_slot && !int_slot )
             continue;
         if( !wrote_epilogue )
         {
@@ -1057,7 +1110,16 @@ RSCache_CS2_Generate(
         }
         cs2_put_int(&writer, i);
         cs2_put_char(&writer, '=');
-        cs2_put_int(&writer, function->return_default_values[i]);
+        if( long_slot )
+        {
+            char text[32];
+            snprintf(text, sizeof(text), "%lldL", (long long)function->return_default_long_values[i]);
+            cs2_put(&writer, text);
+        }
+        else
+        {
+            cs2_put_int(&writer, function->return_default_values[i]);
+        }
     }
     if( wrote_epilogue )
         cs2_next_line(&writer);

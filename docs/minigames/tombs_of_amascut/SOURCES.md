@@ -6,7 +6,7 @@ wiki page is stored as raw wikitext and pinned to the revision listed below; the
 `?oldid=` link renders exactly the text in `sources/`.
 
 Nothing in `sources/` is authored by this project except the cache extracts,
-which are mechanical dumps of `OSRS-Content/osrs239-content/`. Treat all of it as
+which are mechanical dumps of `OSRS-Content/osrs-content/`. Treat all of it as
 evidence, not as specification: where two sources disagree this folder's readers
 say so and pick one, and where no source settles a number the plan raises an
 `[Mn]` task instead of inventing one.
@@ -67,7 +67,7 @@ filename. Re-fetch with the script recorded in §4.
 
 ## 2. rev-239 cache extracts (authoritative for ids)
 
-Produced from `OSRS-Content/osrs239-content/` — the unpacked osrs239 cache that
+Produced from `OSRS-Content/osrs-content/` — the unpacked osrs239 cache that
 both the client and the server in this tree read. Regenerate with the one-liners
 in [`ASSET_INDEX.md`](ASSET_INDEX.md) §0.
 
@@ -170,7 +170,7 @@ python3 tools/toa_fetch_wiki.py docs/minigames/tombs_of_amascut/sources \
 Cache extracts, including the invocation table:
 
 ```
-python3 tools/toa_cache_dump.py OSRS-Content/osrs239-content \
+python3 tools/toa_cache_dump.py OSRS-Content/osrs-content \
     docs/minigames/tombs_of_amascut/sources
 ```
 

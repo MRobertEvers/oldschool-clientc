@@ -62,7 +62,7 @@ or share those values rather than duplicate a second policy table in the quest.
 | `server/scripts/quests/quest_kingdomdivided/scripts/kingdomdivided.rs2` | Journal, dialogue, interactions, completion, and debug walk | Only 375 lines for a long quest; contains 20 active `Soft-skip` messages and no faithful critical path |
 
 Paths in this section are relative to
-`OSRS-Content/osrs239-content/` unless stated otherwise.
+`OSRS-Content/osrs-content/` unless stated otherwise.
 
 ### Shared and cross-directory consumers
 

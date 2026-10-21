@@ -5,9 +5,9 @@ Pass: matthew-mbp-m4-raid-b1-rig-tob, closer, 2026-10-03. Documents only.
 The per-room joins are in `sources/rig/<room>.tsv`, and each has a `.md` with the worker's findings and the closer's strikes. The rig catalog is `out/osrs239_anims/framemap_seqs.csv` and `npc_rigs.csv`, read with the loaders in `tools/gen_npc_combat.py`.
 
 Paths below are short forms:
-- `npc_combat/` means `OSRS-Content/osrs239-content/npc_combat/`.
-- `gen.npc` means `OSRS-Content/osrs239-content/server/scripts/npc/configs/npc_anims.generated.npc`.
-- `tob.npc` and the `.rs2` files are under `OSRS-Content/osrs239-content/server/scripts/minigames/minigame_tob/`.
+- `npc_combat/` means `OSRS-Content/osrs-content/npc_combat/`.
+- `gen.npc` means `OSRS-Content/osrs-content/server/scripts/npc/configs/npc_anims.generated.npc`.
+- `tob.npc` and the `.rs2` files are under `OSRS-Content/osrs-content/server/scripts/minigames/minigame_tob/`.
 
 **STALE (seam11): the paragraph below is wrong.** The server loads every `*.generated.npc` first and every authored `.npc` second (`torirs_server_content.c` `load_npc_generated_config`, then `load_npc_authored_config`; cachepack ranks generated 1 and authored 2), so an authored value, `null` included, always wins; lines 2030-2041 are the per-header seed. The Athanatos null held in all three modes before any edit. The L rows were real for a different reason: `tob.npc` never stated an attack for those records. Seam11 authored the nulls (CONTENT_BUGS.md, seam11).
 

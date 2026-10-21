@@ -81,5 +81,5 @@ No other room uses gameplay `~cox_coord(...)` teleports. Only `cox_olm.rs2` (cha
 python3 tools/cox_template_survey.py --find raids_tekton_anvil
 # layout: read ~cox_room_src_plane / ~cox_room_src_cz in cox_layout.rs2
 # spawns: ~cox_pack_local tables vs docs/minigames/cox/sources/nr/room_coords.txt
-rg -n '~cox_coord\(' OSRS-Content/osrs239-content/server/scripts/minigames/minigame_cox/scripts/
+rg -n '~cox_coord\(' OSRS-Content/osrs-content/server/scripts/minigames/minigame_cox/scripts/
 ```

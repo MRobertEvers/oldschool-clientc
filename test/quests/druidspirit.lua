@@ -375,10 +375,10 @@ return {
         t.exec("walk-useMushroom", t.player.walk_to, 3440, 3334)
         t.exec("useMushroom", t.player.use_on, "mortmyremushroom", t.player.by_symbol("loc", "stonedisc_ds_nature"))
         t.exec("useMushroom-msg", t.msg.expect, "The stone seems to absorb the fungus.")
-        t.exec("useMushroom-bit", t.var.await_server, "varp6200_druidspirit_bits", 1, 10)
+        t.exec("useMushroom-bit", t.var.await_server, "varp6875_druidspirit_bits", 1, 10)
         t.exec("useSpellCard", t.player.use_on, "used_bloom_spell", t.player.by_symbol("loc", "stonedisc_ds_spirit"))
         t.exec("useSpellCard-msg", t.msg.expect, "The stone seems to absorb the used spell scroll.")
-        t.exec("useSpellCard-bit", t.var.await_server, "varp6200_druidspirit_bits", 3, 10)
+        t.exec("useSpellCard-bit", t.var.await_server, "varp6875_druidspirit_bits", 3, 10)
 
         -- tellFillimanToCast / standOnOrange: the ritual, 55 -> 60
         -- Filliman's spirit lives 100 ticks from the grotto door that summoned him (npc_add(...,

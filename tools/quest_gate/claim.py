@@ -106,7 +106,7 @@ REPO = HERE.parent.parent
 QUEUE_REL = "test/quests/QUEUE.tsv"
 LOCK_REL = "test/quests/CONTENT_LOCK"
 SUBMODULE = "OSRS-Content"
-ALLOC_GLOB = "osrs239-content/pack/*.alloc"
+ALLOC_GLOB = "osrs-content/pack/*.alloc"
 REMOTE = "origin"
 BRANCH = "v3"
 WORKTREE_REL = "build/claim_v3_worktree"
@@ -528,7 +528,7 @@ def cmd_done(args) -> int:
         if make.returncode != 0:
             raise Refused("the script pack did not rebuild after merging %s into %s:\n%s"
                           % (upstream(), SUBMODULE, (make.stderr or make.stdout)[-3000:]))
-        changed = [l.split()[-1] for l in git("status", "--porcelain", "--", "osrs239-content/pack",
+        changed = [l.split()[-1] for l in git("status", "--porcelain", "--", "osrs-content/pack",
                                               repo=sub).stdout.splitlines()]
         if changed:
             git("add", "--", *changed, repo=sub)

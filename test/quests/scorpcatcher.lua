@@ -1,5 +1,5 @@
 -- Scorpion Catcher. quest_scorpcatcher's own content
--- (OSRS-Content/osrs239-content/server/scripts/quests/quest_scorpcatcher/,
+-- (OSRS-Content/osrs-content/server/scripts/quests/quest_scorpcatcher/,
 -- areas/area_seers/scripts/{thormac,seer}.rs2): Thormac at the top of the
 -- Sorcerer's Tower, two Seers' visits, and three Kharid scorpions caught with
 -- a use of the cage (opnpcu) -- Taverley Dungeon's secret room, the Edgeville
@@ -306,11 +306,11 @@ return {
             "player:Well can I join your order?",
             "npc:Ok, I see you are someone suit",
         })
-        -- varp5751_prayer_guild is server-authored (configs/prayer_guild.varp): the client has no
+        -- varp6426_prayer_guild is server-authored (configs/prayer_guild.varp): the client has no
         -- copy (run 2: t.var.varp -> not_found), so read the server's.
-        local guild_result, guild_value, guild_source = t.var.server("varp5751_prayer_guild")
+        local guild_result, guild_value, guild_source = t.var.server("varp6426_prayer_guild")
         t.check("enterMonastery.joinedOrder", guild_result == "ok" and guild_value == 1,
-            "varp5751_prayer_guild after Abbot Langley: " .. tostring(guild_result) .. " " .. tostring(guild_value)
+            "varp6426_prayer_guild after Abbot Langley: " .. tostring(guild_result) .. " " .. tostring(guild_value)
                 .. " (" .. tostring(guild_source) .. "; want 1, abbot_langley.rs2 @ask_to_join_abbot_langley2)")
         -- No maplink row: [proc,climb] moves the player one plane on the tile
         -- it stands on.

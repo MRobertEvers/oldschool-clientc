@@ -11,10 +11,13 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : ObjUncustomiseSpecificEncoder
- * Layouts      : 8 distinct, over 8 contiguous revision run(s)
+ * Layouts      : 9 distinct, over 9 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^ObjUncustomiseSpecificEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
+ *                Revision(s) 241 come from RSProx, not RSProt
+ *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
+ *                gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -48,6 +51,8 @@ void packet_obj_uncustomise_specific_v6_out(RsprotExec *x, MsgObjUncustomiseSpec
 void packet_obj_uncustomise_specific_v7_out(RsprotExec *x, MsgObjUncustomiseSpecific *m);
 /* v8 -- revs 239. */
 void packet_obj_uncustomise_specific_v8_out(RsprotExec *x, MsgObjUncustomiseSpecific *m);
+/* v100 -- revs 241. */
+void packet_obj_uncustomise_specific_v100_out(RsprotExec *x, MsgObjUncustomiseSpecific *m);
 
 /* Per-revision aliases: `packet_obj_uncustomise_specific_rev239_out` is greppable, which is the
  * point -- "what does 239 do for OBJ_UNCUSTOMISE_SPECIFIC" without reading a table. */
@@ -59,6 +64,7 @@ void packet_obj_uncustomise_specific_v8_out(RsprotExec *x, MsgObjUncustomiseSpec
 #define packet_obj_uncustomise_specific_rev237_out packet_obj_uncustomise_specific_v6_out
 #define packet_obj_uncustomise_specific_rev238_out packet_obj_uncustomise_specific_v7_out
 #define packet_obj_uncustomise_specific_rev239_out packet_obj_uncustomise_specific_v8_out
+#define packet_obj_uncustomise_specific_rev241_out packet_obj_uncustomise_specific_v100_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_obj_uncustomise_specific_out[];

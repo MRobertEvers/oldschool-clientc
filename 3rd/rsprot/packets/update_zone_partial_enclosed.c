@@ -137,11 +137,24 @@ packet_update_zone_partial_enclosed_v18_out(RsprotExec *x, MsgDesktopUpdateZoneP
     RSPROT_U1_ALT1(x, m->zone_x);
 }
 
+/* v100 -- revs 241. */
+void
+packet_update_zone_partial_enclosed_v100_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
+{
+    RSPROT_U1(x, m->zone_z);
+    RSPROT_U1(x, m->zone_x);
+    RSPROT_U1_ALT3(x, m->level);
+}
+
 /*
- * 15 row(s) for 14 layout(s), complete over revisions 221-239.
+ * 16 row(s) for 15 layout(s), complete over revisions 221-239.
  * A complete table makes rsprot_version_pick's NULL mean exactly one thing: a
  * revision outside that span. An incomplete one would conflate "not
  * transcribed" with "no such packet", and those are different facts.
+ *
+ * Plus revision(s) 241, which RSProt never vendored: derived from
+ * RSProx's decoders by tools/rsprox_codec_overlay.py. Revisions between 239
+ * and those are not covered and pick NULL.
  */
 const RsprotVersionRange rsprot_update_zone_partial_enclosed_out[] = {
     { 225, 225, (RsprotCodecFn)packet_update_zone_partial_enclosed_v5_out },
@@ -159,6 +172,7 @@ const RsprotVersionRange rsprot_update_zone_partial_enclosed_out[] = {
     { 237, 237, (RsprotCodecFn)packet_update_zone_partial_enclosed_v16_out },
     { 238, 238, (RsprotCodecFn)packet_update_zone_partial_enclosed_v17_out },
     { 239, 239, (RsprotCodecFn)packet_update_zone_partial_enclosed_v18_out },
+    { 241, 241, (RsprotCodecFn)packet_update_zone_partial_enclosed_v100_out },
 };
 
 const int rsprot_update_zone_partial_enclosed_out_count =

@@ -1,6 +1,6 @@
 # Tekton: the tick-level spec and the content audit (2026-10-18)
 
-Content: `OSRS-Content/osrs239-content/server/scripts/minigames/minigame_cox/scripts/cox_tekton.rs2`,
+Content: `OSRS-Content/osrs-content/server/scripts/minigames/minigame_cox/scripts/cox_tekton.rs2`,
 Tekton blocks in `configs/cox.constant` (`^cox_tekton_*`, `^cox_npcvar_tekton_*`,
 `^cox_var_tekton_down`) and `configs/cox.npc` (the six `raids_tekton_*` records).
 Solver plan: [`tekton_solver.md`](tekton_solver.md).

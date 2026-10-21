@@ -58,7 +58,7 @@ import sys
 import config_text
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-TREE = os.path.join(REPO, "OSRS-Content", "osrs239-content")
+TREE = os.path.join(REPO, "OSRS-Content", "osrs-content")
 REF = "/Users/matthewevers/Documents/git_repos/LostCity_Server/content"
 MAP = os.path.join(TREE, "port", "vars.map")
 

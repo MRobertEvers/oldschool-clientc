@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 REPO = Path(__file__).resolve().parents[1]
-CONTENT = REPO / "OSRS-Content/osrs239-content"
+CONTENT = REPO / "OSRS-Content/osrs-content"
 SCRIPT_DIR_REL = Path("server/scripts/ported_scape2009_summoning/scripts")
 EXPECTED_MODULES = frozenset(
     {

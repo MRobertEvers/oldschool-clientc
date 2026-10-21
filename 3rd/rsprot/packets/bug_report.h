@@ -11,10 +11,13 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : BugReportDecoder
- * Layouts      : 2 distinct, over 2 contiguous revision run(s)
+ * Layouts      : 3 distinct, over 3 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^BugReportDecoder\tin\t' 3rd/rsprot/gen/packet_versions.txt
+ *                Revision(s) 241 come from RSProx, not RSProt
+ *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
+ *                gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -36,6 +39,8 @@ typedef struct MsgBugReport {
 void packet_bug_report_v1_in(RsprotExec *x, MsgBugReport *m);
 /* v2 -- revs 222-239. */
 void packet_bug_report_v2_in(RsprotExec *x, MsgBugReport *m);
+/* v100 -- revs 241. */
+void packet_bug_report_v100_in(RsprotExec *x, MsgBugReport *m);
 
 /* Per-revision aliases: `packet_bug_report_rev239_in` is greppable, which is the
  * point -- "what does 239 do for BUG_REPORT" without reading a table. */
@@ -58,6 +63,7 @@ void packet_bug_report_v2_in(RsprotExec *x, MsgBugReport *m);
 #define packet_bug_report_rev237_in packet_bug_report_v2_in
 #define packet_bug_report_rev238_in packet_bug_report_v2_in
 #define packet_bug_report_rev239_in packet_bug_report_v2_in
+#define packet_bug_report_rev241_in packet_bug_report_v100_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_bug_report_in[];

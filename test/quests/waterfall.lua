@@ -1,5 +1,5 @@
 -- Waterfall Quest. Driven from the Quest Helper ladder (tools/quest_gate/ladder.py waterfall).
--- Sources: OSRS-Content/osrs239-content/server/scripts/quests/quest_waterfall/scripts/*.rs2
+-- Sources: OSRS-Content/osrs-content/server/scripts/quests/quest_waterfall/scripts/*.rs2
 -- Brought along: a rope (used on rock and tree every trip) and, for the puzzle, 6 air / earth /
 -- water runes. The tomb refuses any rune in the backpack, so the runes are given at the
 -- getFinalItems step (the guide banks them before the pebble), not in setup.

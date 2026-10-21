@@ -103,7 +103,7 @@ return {
             "npc:Then you are a fool", "mesbox:The man jumps onto the raft" })
         t.ticks(3)
         t.expect("quest.stage.clivet_decision", t.quest.expect_stage("clivet_decision"))
-        t.expect("side.goodside", t.var.await_server("varp5927_hazeelcult_side", 0, 5))
+        t.expect("side.goodside", t.var.await_server("varp6602_hazeelcult_side", 0, 5))
         local nr = t.npc.nearest("clivet_hazeel_cultist", 8)
         t.check("clivet.gone", nr ~= "ok", "npc.nearest clivet after decision = " .. tostring(nr))
         -- valves: partial first (valve 1 right only -> first island), then the full solution
@@ -113,7 +113,7 @@ return {
         t.exec("goto-valve1", t.player.goto_tile, 2562, 3249, 0)
         t.exec("valve1.right", t.player.click_loc, "sewervalve1", 1)
         t.exec("valve1.right.dialog", t.chat.play, { "options", "choose:Turn right.", "mesbox:You turn the large metal valve to the right" })
-        t.expect("valves.bit0", t.var.await_server("varp5928_hazeelcult_valves", 1, 5))
+        t.expect("valves.bit0", t.var.await_server("varp6603_hazeelcult_valves", 1, 5))
         t.exec("goto-cave2", t.player.goto_tile, 2587, 3237, 0)
         t.exec("cave.enter2", t.player.click_loc, "hazeelcultcave", 1)
         t.ticks(3)
@@ -139,7 +139,7 @@ return {
             local dir = (v[4] == "Turn left.") and "left" or "right"
             t.exec(v[1] .. ".dialog", t.chat.play, { "options", "choose:" .. v[4], "mesbox:You turn the large metal valve to the " .. dir })
         end
-        t.expect("valves.mask", t.var.await_server("varp5928_hazeelcult_valves", 27, 5))
+        t.expect("valves.mask", t.var.await_server("varp6603_hazeelcult_valves", 27, 5))
         t.exec("goto-cave3", t.player.goto_tile, 2587, 3237, 0)
         t.exec("cave.enter3", t.player.click_loc, "hazeelcultcave", 1)
         t.ticks(3)
@@ -257,7 +257,7 @@ return {
             "npc:Excellent.", "npc:Here. Take this poison" })
         t.ticks(3)
         t.expect("quest.stage.clivet_decision.hazeel", t.quest.expect_stage("clivet_decision"))
-        t.expect("side.evilside", t.var.await_server("varp5927_hazeelcult_side", 1, 5))
+        t.expect("side.evilside", t.var.await_server("varp6602_hazeelcult_side", 1, 5))
         t.exec("h.poison.have", t.inv.await, "poison", 1, 3)
         t.exec("h.clivet.still_there", t.npc.await_present, "clivet_hazeel_cultist", 8, 3)
         -- out of the cave by its stairs, back into the house, and down the kitchen ladder
@@ -312,7 +312,7 @@ return {
             local dir = (v[4] == "Turn left.") and "left" or "right"
             t.exec("h." .. v[1] .. ".dialog", t.chat.play, { "options", "choose:" .. v[4], "mesbox:You turn the large metal valve to the " .. dir })
         end
-        t.expect("h.valves.mask", t.var.await_server("varp5928_hazeelcult_valves", 27, 5))
+        t.expect("h.valves.mask", t.var.await_server("varp6603_hazeelcult_valves", 27, 5))
         t.exec("h.goto-cave3", t.player.goto_tile, 2587, 3237, 0)
         t.exec("h.cave.enter3", t.player.click_loc, "hazeelcultcave", 1)
         t.ticks(3)

@@ -3,7 +3,7 @@
 gen_explicit_server_fields — state, once, every server field a record left to a
 default.
 
-    cachepack pack --src OSRS-Content/osrs239-content --server-only \\
+    cachepack pack --src OSRS-Content/osrs-content --server-only \\
         --server-out <scratch> --defaults-report <scratch>/report.tsv
     TORIRS_DEFS_DUMP=<scratch>/engine.dump <a server built with the dump hook> --selftest
     tools/gen_explicit_server_fields.py --report <scratch>/report.tsv \\
@@ -53,7 +53,7 @@ import re
 import sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONTENT = os.path.join(REPO, "OSRS-Content", "osrs239-content")
+CONTENT = os.path.join(REPO, "OSRS-Content", "osrs-content")
 OUT_DIR = os.path.join(CONTENT, "server", "scripts", "_explicit", "configs")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wiki_droptable as wd  # noqa: E402

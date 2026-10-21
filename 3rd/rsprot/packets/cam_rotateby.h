@@ -11,10 +11,13 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : CamRotateByEncoder
- * Layouts      : 1 distinct, over 1 contiguous revision run(s)
+ * Layouts      : 1 distinct, over 2 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^CamRotateByEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
+ *                Revision(s) 241 come from RSProx, not RSProt
+ *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
+ *                gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -33,7 +36,7 @@ typedef struct MsgCamRotateBy {
 	int32_t easing_id;
 } MsgCamRotateBy;
 
-/* v1 -- revs 223-239. */
+/* v1 -- revs 223-239, 241. */
 void packet_cam_rotateby_v1_out(RsprotExec *x, MsgCamRotateBy *m);
 
 /* Per-revision aliases: `packet_cam_rotateby_rev239_out` is greppable, which is the
@@ -55,6 +58,7 @@ void packet_cam_rotateby_v1_out(RsprotExec *x, MsgCamRotateBy *m);
 #define packet_cam_rotateby_rev237_out packet_cam_rotateby_v1_out
 #define packet_cam_rotateby_rev238_out packet_cam_rotateby_v1_out
 #define packet_cam_rotateby_rev239_out packet_cam_rotateby_v1_out
+#define packet_cam_rotateby_rev241_out packet_cam_rotateby_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_cam_rotateby_out[];

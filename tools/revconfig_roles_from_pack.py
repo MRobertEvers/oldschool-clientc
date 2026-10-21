@@ -5,7 +5,7 @@ Owner: core-revconfig (docs/ARCHITECT.md). Two jobs, one file, because they
 must never disagree:
 
   --write   regenerate the [iface:] and [role:] sections for the osrs239 dat2
-            lane from OSRS-Content/osrs239-content/pack/3_interfaces.pack and
+            lane from OSRS-Content/osrs-content/pack/3_interfaces.pack and
             each interface's own .compack (falling back to counting an .if
             file's `[name]` section headers, loudly, when a .compack is
             missing), into revconfig/osrs239/osrs239_dat2_roles.gen.ini -- a
@@ -39,7 +39,7 @@ import sys
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(SCRIPT_DIR)
-CONTENT_ROOT = os.path.join(REPO_ROOT, "OSRS-Content", "osrs239-content")
+CONTENT_ROOT = os.path.join(REPO_ROOT, "OSRS-Content", "osrs-content")
 PACK_INTERFACES = os.path.join(CONTENT_ROOT, "pack", "3_interfaces.pack")
 INTERFACES_DIR = os.path.join(CONTENT_ROOT, "interfaces")
 
@@ -255,7 +255,7 @@ def generate():
         "; src/revconfig/revconfig_refs.c), never into it. Source of truth: OSRS-Content/"
     )
     lines.append(
-        "; osrs239-content/pack/3_interfaces.pack (ids) and each interface's own .compack"
+        "; osrs-content/pack/3_interfaces.pack (ids) and each interface's own .compack"
     )
     lines.append("; (child indices) -- @see docs/QUEST_DRIVER_PLAN.md sections 1b-1f.")
     lines.append("")

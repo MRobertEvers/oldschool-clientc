@@ -35,7 +35,7 @@ function QD.T2.exec.init(S)
         special = { state = "off", pressed = -10 },
         run = { state = "on", pressed = -10 },
         -- THE WEAPON CLOCK, in the server's clock (map_clock): the content's
-        -- %varp5732_action_delay. A swing stamped at clock c sets it to c +
+        -- %varp6407_action_delay. A swing stamped at clock c sets it to c +
         -- the weapon's speed; the monitor stamps the swings it sees.
         swing_last = nil,       -- the server clock of my last measured swing
         swing_last_npc = nil,   -- the npc type that swing was pressed at

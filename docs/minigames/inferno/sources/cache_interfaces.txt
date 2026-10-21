@@ -1,4 +1,4 @@
-# interfaces and clientscripts -- quoted from OSRS-Content/osrs239-content/interfaces/*.if and scripts/*.cs2 (the decompiled CS2 suite)
+# interfaces and clientscripts -- quoted from OSRS-Content/osrs-content/interfaces/*.if and scripts/*.cs2 (the decompiled CS2 suite)
 
 [161] toplevel_osrs_stretch    (pack/3_interfaces.pack:162)
   why= ref: server/scripts/minigames/minigame_inferno/scripts/inferno.rs2:108 (+2)

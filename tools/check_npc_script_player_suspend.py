@@ -31,7 +31,7 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DEFAULT_CONTENT = os.path.join(ROOT, "OSRS-Content", "osrs239-content", "server", "scripts")
+DEFAULT_CONTENT = os.path.join(ROOT, "OSRS-Content", "osrs-content", "server", "scripts")
 
 SUSPEND_COMMANDS = {
     "p_pausebutton",

@@ -2,7 +2,7 @@
 """Generate the shooting-star landing sites from the pinned wiki page.
 
 Reads   docs/shooting_stars/sources/Shooting_Stars.wiki
-Writes  OSRS-Content/osrs239-content/server/scripts/minigames/game_shootingstars/configs/star_sites.enum
+Writes  OSRS-Content/osrs-content/server/scripts/minigames/game_shootingstars/configs/star_sites.enum
 
 The wiki lists every landing site as a map pin —
 `{{Map|mtype=pin|X,Y|...|title=<region>|desc=<place>}}` — which is a table, not
@@ -27,7 +27,7 @@ import config_text  # noqa: E402
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "docs", "shooting_stars", "sources", "Shooting_Stars.wiki")
 OUT = os.path.join(
-    ROOT, "OSRS-Content", "osrs239-content", "server", "scripts", "minigames",
+    ROOT, "OSRS-Content", "osrs-content", "server", "scripts", "minigames",
     "game_shootingstars", "configs", "star_sites.enum",
 )
 

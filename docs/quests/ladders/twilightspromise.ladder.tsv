@@ -1,5 +1,5 @@
 # ladder twilightspromise quest_dir=quest_twilightspromise guide=src/main/java/com/questhelper/helpers/quests/twilightspromise/TwilightsPromise.java steps=36 legs=1:1-7@s0 2:8-20@s14 3:21-26@s22 4:27-36@s28
-#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
 leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
 1	1	0	talkToRegulusStart	NpcStep	npc:vmq2_quetzal_keeper_1op	3281,3413,0	Talk to Regulus Cento outside Varrock's East Gate to travel to Varlamore.			Let's do it!	quests/quest_twilightspromise/scripts/twilightspromise.rs2:146 opnpc1; +2
 1	2	0	talkToEnnius	NpcStep	npc:vmq2_ennius_vis	1687,3141,0	Talk to Ennius Tullus just west of where you arrived, next to the fountain.			Yes.	quests/quest_twilightspromise/scripts/twilightspromise.rs2:185 opnpc1; +2

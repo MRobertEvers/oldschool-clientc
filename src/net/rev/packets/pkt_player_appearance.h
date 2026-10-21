@@ -150,7 +150,18 @@ enum AppearanceEncoding
      * the under-read cannot desync the packet -- it just silently drops the
      * one field 289 added.
      */
-    APPEARANCE_ENC_CLASSIC_LC289 = 2
+    APPEARANCE_ENC_CLASSIC_LC289 = 2,
+    /*
+     * osrs241 (RSProx PlayerInfoClient.decodeAppearance): the v5 block byte
+     * for byte, except the per-slot obj customisation. At 239 a recolour or
+     * retexture is a packed pair of 4-bit INDICES with a replacement only
+     * behind each index that is not 15 -- unreadable without the obj's own
+     * recolour table. At 241 it is self-delimiting: a count, then count x
+     * (g1 index, g2 colour), and a new 0x10 field (g1 override flag, g2 colour)
+     * before the model ids. So v6 can step over a customised slot where v5 has
+     * to reject the whole appearance.
+     */
+    APPEARANCE_ENC_V6 = 3
 };
 
 /* Wire tags, stated together so a mismatch is one line apart rather than one
@@ -165,8 +176,9 @@ enum AppearanceEncoding
 static inline int
 Appearance_WireObjTag(enum AppearanceEncoding encoding)
 {
-    return encoding == APPEARANCE_ENC_V5 ? APPEARANCE_WIRE_OBJ_TAG_V5
-                                         : APPEARANCE_WIRE_OBJ_TAG_CLASSIC;
+    return (encoding == APPEARANCE_ENC_V5 || encoding == APPEARANCE_ENC_V6)
+               ? APPEARANCE_WIRE_OBJ_TAG_V5
+               : APPEARANCE_WIRE_OBJ_TAG_CLASSIC;
 }
 
 /**

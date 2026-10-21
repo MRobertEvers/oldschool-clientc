@@ -105,7 +105,7 @@ Bound: ready 10840, walk 10842.
 - Every gib (sol, colossi, manticore, minotaur, human): no rig; probably a model plus an explosion spotanim.
 
 ## Disagreements with the generated npc_combat ledgers
-`OSRS-Content/osrs239-content/npc_combat/c/`. Each is one row in `../waves_loop/CONTENT_BUGS.md`.
+`OSRS-Content/osrs-content/npc_combat/c/`. Each is one row in `../waves_loop/CONTENT_BUGS.md`.
 - RIG-1 `colosseum_sol_p1.combat:15` death_anim `npc_colossi_javelin_01_death` (a3): the javelin colossus's
   death; Sol's own is 10888.
 - RIG-2 `colosseum_sol_p1.combat:16` attack_anim `npc_colossi_javelin_01_range_attack` (a3): the javelin's;

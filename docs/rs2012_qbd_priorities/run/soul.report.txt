@@ -52,4 +52,4 @@ worst feature pairs (last round):
 
 separations the bands actually buy:
   over  under     net px
-rs2012_face_priorities: OSRS-Content/osrs239-content/models/ported/rs2012_qbd_td/rs2012_model_70761.ob3 -> docs/rs2012_qbd_priorities/run/rs2012_model_70761.ob3 (26149 bytes)
+rs2012_face_priorities: OSRS-Content/osrs-content/models/ported/rs2012_qbd_td/rs2012_model_70761.ob3 -> docs/rs2012_qbd_priorities/run/rs2012_model_70761.ob3 (26149 bytes)

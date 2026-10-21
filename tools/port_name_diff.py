@@ -39,7 +39,7 @@ import sys
 import config_text
 
 REPO =os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DEFAULT_TREE = os.path.join(REPO, "OSRS-Content", "osrs239-content")
+DEFAULT_TREE = os.path.join(REPO, "OSRS-Content", "osrs-content")
 DEFAULT_REF = os.path.expanduser("~/Documents/git_repos/LostCity_Server")
 
 # The namespaces where both trees state a record and the record says what it is.

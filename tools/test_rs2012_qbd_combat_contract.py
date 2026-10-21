@@ -17,7 +17,7 @@ from pathlib import Path
 import config_text
 
 
-CONTENT = Path("OSRS-Content/osrs239-content")
+CONTENT = Path("OSRS-Content/osrs-content")
 SCRIPTS = CONTENT / "server/scripts"
 QBD = SCRIPTS / "minigames/minigame_rs2012_qbd"
 QBD_CONSTANTS = QBD / "configs/rs2012_qbd.constant"
@@ -386,8 +386,8 @@ def check(root: Path) -> list[str]:
     for fragment in (
         "$damage = ~gear_reduce_damage($damage, $style);",
         "[queue,rs2012_qbd_damage_player](npc_uid $source, int $damage, int $style)",
-        "if (%varp6231_rs2012_qbd_active = 0 | %varp6238_rs2012_qbd_reward_ready = 1) return;",
-        "%varp6242_rs2012_qbd_time_damage = add(%varp6242_rs2012_qbd_time_damage, $damage);",
+        "if (%varp6906_rs2012_qbd_active = 0 | %varp6913_rs2012_qbd_reward_ready = 1) return;",
+        "%varp6917_rs2012_qbd_time_damage = add(%varp6917_rs2012_qbd_time_damage, $damage);",
         "queue*(rs2012_qbd_damage_player, 0)($source, $damage, $style);",
     ):
         require(fragment in combat, f"{QBD_COMBAT}: missing typed player-damage contract: {fragment!r}")
@@ -400,8 +400,8 @@ def check(root: Path) -> list[str]:
         "QBD/add damage still passes through the magic-only combat_damage_player queue",
     )
     require(
-        "if (%varp6231_rs2012_qbd_active = 0 | %varp6238_rs2012_qbd_reward_ready = 1 |\n"
-        "    %varp6237_rs2012_qbd_phase ! 4 | %varp6234_rs2012_qbd_intermission = 1) return;" in combat,
+        "if (%varp6906_rs2012_qbd_active = 0 | %varp6913_rs2012_qbd_reward_ready = 1 |\n"
+        "    %varp6912_rs2012_qbd_phase ! 4 | %varp6909_rs2012_qbd_intermission = 1) return;" in combat,
         f"{QBD_COMBAT}: an extreme-fire pulse can escape into the reward transition",
     )
     for fragment in (

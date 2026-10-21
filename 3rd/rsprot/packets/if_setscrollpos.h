@@ -11,10 +11,13 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : IfSetScrollPosEncoder
- * Layouts      : 15 distinct, over 18 contiguous revision run(s)
+ * Layouts      : 15 distinct, over 19 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^IfSetScrollPosEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
+ *                Revision(s) 241 come from RSProx, not RSProt
+ *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
+ *                gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -57,7 +60,7 @@ void packet_if_setscrollpos_v11_out(RsprotExec *x, MsgIfSetScrollPos *m);
 void packet_if_setscrollpos_v12_out(RsprotExec *x, MsgIfSetScrollPos *m);
 /* v13 -- revs 235. */
 void packet_if_setscrollpos_v13_out(RsprotExec *x, MsgIfSetScrollPos *m);
-/* v14 -- revs 236-237. */
+/* v14 -- revs 236-237, 241. */
 void packet_if_setscrollpos_v14_out(RsprotExec *x, MsgIfSetScrollPos *m);
 /* v15 -- revs 238. */
 void packet_if_setscrollpos_v15_out(RsprotExec *x, MsgIfSetScrollPos *m);
@@ -83,6 +86,7 @@ void packet_if_setscrollpos_v15_out(RsprotExec *x, MsgIfSetScrollPos *m);
 #define packet_if_setscrollpos_rev237_out packet_if_setscrollpos_v14_out
 #define packet_if_setscrollpos_rev238_out packet_if_setscrollpos_v15_out
 #define packet_if_setscrollpos_rev239_out packet_if_setscrollpos_v10_out
+#define packet_if_setscrollpos_rev241_out packet_if_setscrollpos_v14_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_if_setscrollpos_out[];

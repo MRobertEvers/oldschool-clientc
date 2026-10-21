@@ -10,7 +10,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 CATALOG = REPO / "docs/summoning_port/corpus_cohort_530.json"
 MANIFEST = REPO / "docs/summoning_port/corpus_cohort_530.ini"
-LEDGER = REPO / "OSRS-Content/osrs239-content/port/summoning_corpus_530.map"
+LEDGER = REPO / "OSRS-Content/osrs-content/port/summoning_corpus_530.map"
 BOUNDARY = REPO / "docs/summoning_port/roster_boundary_530.json"
 
 def load(name, path):

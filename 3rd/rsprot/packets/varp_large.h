@@ -11,10 +11,13 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : VarpLargeEncoder
- * Layouts      : 14 distinct, over 19 contiguous revision run(s)
+ * Layouts      : 15 distinct, over 20 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^VarpLargeEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
+ *                Revision(s) 241 come from RSProx, not RSProt
+ *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
+ *                gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -59,6 +62,8 @@ void packet_varp_large_v12_out(RsprotExec *x, MsgVarpLarge *m);
 void packet_varp_large_v13_out(RsprotExec *x, MsgVarpLarge *m);
 /* v14 -- revs 238. */
 void packet_varp_large_v14_out(RsprotExec *x, MsgVarpLarge *m);
+/* v100 -- revs 241. */
+void packet_varp_large_v100_out(RsprotExec *x, MsgVarpLarge *m);
 
 /* Per-revision aliases: `packet_varp_large_rev239_out` is greppable, which is the
  * point -- "what does 239 do for VARP_LARGE" without reading a table. */
@@ -81,6 +86,7 @@ void packet_varp_large_v14_out(RsprotExec *x, MsgVarpLarge *m);
 #define packet_varp_large_rev237_out packet_varp_large_v12_out
 #define packet_varp_large_rev238_out packet_varp_large_v14_out
 #define packet_varp_large_rev239_out packet_varp_large_v1_out
+#define packet_varp_large_rev241_out packet_varp_large_v100_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_varp_large_out[];

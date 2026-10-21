@@ -2,10 +2,10 @@
 """Rebuild the world's `.spawn` roster from an external spawn dump.
 
     tools/gen_spawns.py \
-        --content OSRS-Content/osrs239-content \
+        --content OSRS-Content/osrs-content \
         --npc-json  ~/Documents/git_repos/xrsps-typescript/server/data/npc-spawns.json \
         --obj-json  ~/Documents/git_repos/xrsps-typescript/server/gamemodes/vanilla/data/groundItemSpawnData.json \
-        --out OSRS-Content/osrs239-content/server/scripts/areas/world/configs \
+        --out OSRS-Content/osrs-content/server/scripts/areas/world/configs \
         --report /tmp/spawn_report.txt
 
 An OldSchool cache holds no spawns — where an npc stands and what lies on the

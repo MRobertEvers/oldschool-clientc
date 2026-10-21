@@ -481,8 +481,8 @@ return {
             local _, sw = t.ui.widget("anma_rgb:anma_buton_" .. n .. "_on")
             local inv_r = t.ui.invoke(sw, 1)
             t.ticks(2)
-            local _, bit_value = t.var.varp("varp6204_anma_note_bits")
-            t.check("translateNotes-switch" .. n, inv_r == "ok", "clicked anma_buton_" .. n .. "_on (component " .. tostring(sw) .. "); varp6204_anma_note_bits = " .. tostring(bit_value))
+            local _, bit_value = t.var.varp("varp6879_anma_note_bits")
+            t.check("translateNotes-switch" .. n, inv_r == "ok", "clicked anma_buton_" .. n .. "_on (component " .. tostring(sw) .. "); varp6879_anma_note_bits = " .. tostring(bit_value))
         end
         t.ticks(2)
         t.expect("quest.stage.translate", t.quest.expect_stage("translate"))

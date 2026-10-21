@@ -1,5 +1,5 @@
 # ladder horror quest_dir=quest_horror guide=src/main/java/com/questhelper/helpers/quests/horrorfromthedeep/HorrorFromTheDeep.java steps=21 legs=1:1-21@s0
-#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
 leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
 1	1	0	talkToLarrissa	NpcStep	npc:horror_girlfriend_prequest	2507,3634,0	Talk to Larrissa outside the Lighthouse north of the Barbarian Outpost. You can get here by Fairy Ring (alp), by jumping over the bassalt rocks from the Barbar…			With what? | But how can I help? | Okay, I'll help!	quests/quest_horror/scripts/horror_girlfriend.rs2:10 opnpc1
 1	2	1	usePlankOnBridge	ObjectStep	loc:horror_broken_bridge_left_spot	2596,3608,0	Use a plank on the bridge east of the Lighthouse.		Plank; Steel nails; Hammer		quests/quest_horror/scripts/horror_interactions.rs2:87 oploc1; +1

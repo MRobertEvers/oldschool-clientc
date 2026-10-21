@@ -28,7 +28,7 @@ DEFAULT_SRC = (
 )
 DEFAULT_OUT = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    "OSRS-Content/osrs239-content/server/scripts/minigames/minigame_zulrah"
+    "OSRS-Content/osrs-content/server/scripts/minigames/minigame_zulrah"
     "/configs/zulrah_phase.dbrow",
 )
 

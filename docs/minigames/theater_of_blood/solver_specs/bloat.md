@@ -1,6 +1,6 @@
 # SPEC: The Pestilent Bloat, Normal mode, trio (solver input)
 
-Abbreviations (all paths under OSRS-Content/osrs239-content/ unless rooted otherwise):
+Abbreviations (all paths under OSRS-Content/osrs-content/ unless rooted otherwise):
 - B = server/scripts/minigames/minigame_tob/scripts/tob_bloat.rs2
 - K = server/scripts/minigames/minigame_tob/configs/tob.constant
 - KB = server/scripts/minigames/minigame_tob/configs/tob_bloat.constant

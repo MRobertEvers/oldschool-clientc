@@ -1,5 +1,5 @@
 # ladder regicide quest_dir=quest_regicide guide=src/main/java/com/questhelper/helpers/quests/regicide/Regicide.java steps=63 legs=1:1-10@s0 2:11-21@s2 3:22-32@s2 4:33-42@s2 5:43-52@s2 6:53-63@s11
-#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
 leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
 1	1	0	goToArdougneCastleFloor2	ObjectStep<goTalkToLathasToFinish	loc:stairs	2572,3296,0	Go to the second floor of Ardougne Castle.				ladders_stairs/scripts/ladders.rs2:175 oploc1; +3
 1	2	0	talkToKingLathas	NpcStep<goTalkToLathasToFinish	npc:kinglathas_vis loc:stairs	2578,3293,1	Talk to King Lathas.	goToArdougneCastleFloor2		I assume you have a plan? | I can handle it. | Yes.	areas/area_ardougne_east/scripts/king_lathas.rs2:79 opnpc1; +4

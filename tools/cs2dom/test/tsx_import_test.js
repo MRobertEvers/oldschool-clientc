@@ -20,7 +20,7 @@ import {
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CONTENT = process.env.CS2DOM_CONTENT
-    ?? join(HERE, '..', '..', '..', 'OSRS-Content', 'osrs239-content');
+    ?? join(HERE, '..', '..', '..', 'OSRS-Content', 'osrs-content');
 
 const tests = [];
 function test(name, fn) { tests.push([name, fn]); }

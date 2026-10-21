@@ -88,7 +88,7 @@ save migration/history before removing or writing it; the current two-bit
 
 ## 3. Implementation surface
 
-Paths below are relative to `OSRS-Content/osrs239-content/`.
+Paths below are relative to `OSRS-Content/osrs-content/`.
 
 ### Miniquest-owned files
 

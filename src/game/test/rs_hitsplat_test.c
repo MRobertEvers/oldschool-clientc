@@ -20,7 +20,7 @@
  * ## The records are the cache's own
  *
  * The byte arrays below are records 16, 17, 28, 29 and 43 of cache.osrs239's
- * group 32, reproduced from `OSRS-Content/osrs239-content/configs/all.hitsplat`
+ * group 32, reproduced from `OSRS-Content/osrs-content/configs/all.hitsplat`
  * — which `cachepack verify --types hitsplat` reports as 83/83 byte-exact
  * against the cache. The decode assertions restate that table, so a decoder
  * change that silently re-reads a field fails here rather than in a fight.

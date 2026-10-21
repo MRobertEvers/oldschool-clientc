@@ -330,7 +330,7 @@ return {
             talk("talkToSani", "route_sani_piliu")
             talk("talkToPolmafi", "route_polmafi_ferdygris_parent")
             talk("talkToIvan", "route_ivan_strom_parent")
-            local _, bits = t.var.server("varp6203_routequest_myreque_bits")
+            local _, bits = t.var.server("varp6878_routequest_myreque_bits")
             t.check("talkToMembers", bits == 31, "all five members met, routequest_myreque_bits=" .. tostring(bits) .. " (routequest_hideout.rs2:62 routequest_member_met)")
 
             -- Veliaf again: hand over the steel weapons, then the ambush cutscene plays (routequest_hideout.rs2:276-330, 438-550).

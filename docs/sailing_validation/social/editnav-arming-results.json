@@ -9,16 +9,16 @@
     "opcode_handler": "Statics.java:36506 (var0 == 1312, CC_SETTARGETPRIORITY): -1 -> field4122 = 1431939116; 1..32 -> field4122 = (v-1) * -1789498869; every other value ignored. 4 * -1789498869 == 1431939116 (mod 2^32), so -1 stores the value 4 -- the same 4 class308.java:594/893 seed at construction. field4122 is read as field4122 * -1201188445 (class308.java:3790).",
     "menu_builder": "Statics.java:52537-52586: for (var3 = 31; var3 >= 0; var3--) { if (var0.field4122 * -1201188445 == var3) emit targetRow; ... if (var3 > priority) deprioritize op }. A negative priority is unrepresentable there; the row is emitted for every value the opcode can store.",
     "row_gate": "class545.method12079: method7577(method12093(this, widget)) != 0 && targetVerb non-blank. method7577 is 'var0 >> 11 & 0x3F'; method12093 (Statics.java:53773) returns the SERVER'S IF_SETEVENTS entry for the widget (or its parent's dynamic-child range) when one exists, and the widget's own decoded flags (field4113) when it does not.",
-    "native_precedent": "OSRS-Content/osrs239-content/scripts/inventory_noops_allowinteraction_bind_actions_6011.cs2:5 -- the native inventory painter opens with the same cc_settargetpriority(-1) before it computes a real priority. Reading -1 as 'no target row' would have cost the inventory its Use row too."
+    "native_precedent": "OSRS-Content/osrs-content/scripts/inventory_noops_allowinteraction_bind_actions_6011.cs2:5 -- the native inventory painter opens with the same cc_settargetpriority(-1) before it computes a real priority. Reading -1 as 'no target row' would have cost the inventory its Use row too."
   },
   "cache_provenance": {
     "clientscript": 8779,
     "name": "torirs_sailing_edit_navigator_btn",
     "source": "pristine cache.osrs239 (manifests/manifest_osrs239_sailing.ini dir=../cache.osrs239) -- interface 937 and script 8779 are NATIVE rev-239 records, not authored content, so the -1 and the 'Edit-navigator' verb are Jagex's own bytes",
-    "arming": "OSRS-Content/osrs239-content/server/scripts/sailing/scripts/boat_sidepanel.rs2:27 if_setevents(sailing_sidepanel:crew_content_clicklayer, 0, 127, calc(^if_event_op_all + 16384)) = 2046 + 16384 = 0x47fe; (0x47fe >> 11) & 0x3F = 0x8 = TORIRS_TARGET_MASK_PLAYER",
+    "arming": "OSRS-Content/osrs-content/server/scripts/sailing/scripts/boat_sidepanel.rs2:27 if_setevents(sailing_sidepanel:crew_content_clicklayer, 0, 127, calc(^if_event_op_all + 16384)) = 2046 + 16384 = 0x47fe; (0x47fe >> 11) & 0x3F = 0x8 = TORIRS_TARGET_MASK_PLAYER",
     "script_changed": false,
     "cache_bake_needed": false,
-    "bake_recipe_if_it_had_been": "make -C src torirsserver-cache (cachepack pack --src OSRS-Content/osrs239-content --base cache.osrs239 --out cache.osrs239.baked --rev osrs239 --assets --binary --gamevals), then point the manifest's [cache:boot] dir= and JS5 at the baked tree. SHARED build -- root's, not a worker's."
+    "bake_recipe_if_it_had_been": "make -C src torirsserver-cache (cachepack pack --src OSRS-Content/osrs-content --base cache.osrs239 --out cache.osrs239.baked --rev osrs239 --assets --binary --gamevals), then point the manifest's [cache:boot] dir= and JS5 at the baked tree. SHARED build -- root's, not a worker's."
   },
   "fix": {
     "file": "src/game/rs_minimenu_build.c",
@@ -109,7 +109,7 @@
     "docs/sailing_validation/social/editnav-rightclick-menu.png": "59f71f1b975fffacdeb5f0739b2e164fc79c089dabb0c724aa3775a0faa5d7cc",
     "src/game/rs_minimenu_build.c": "fc3b54753d4f01b852fd19c624075b4678c424347d80c658268072099ce37bc5",
     "src/game/test/rs_minimenu_world_test.c": "39356c92a054d3fc78363e892ec924dc0ff0295fe506be268f495b61f2ad3ede",
-    "OSRS-Content/osrs239-content/scripts/torirs_sailing_edit_navigator_btn.cs2": "eccd7908726788e99170af42b7889fd5e7a96bd6a4b2a5e61cce75cd2df09481 (UNCHANGED)"
+    "OSRS-Content/osrs-content/scripts/torirs_sailing_edit_navigator_btn.cs2": "eccd7908726788e99170af42b7889fd5e7a96bd6a4b2a5e61cce75cd2df09481 (UNCHANGED)"
   },
   "open_issues_for_root": [
     {

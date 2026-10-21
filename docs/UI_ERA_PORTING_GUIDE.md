@@ -1,6 +1,6 @@
 # Porting interfaces across eras: LostCity → Kronos → OpenRune/xrsps
 
-> **What this is for.** `OSRS-Content/osrs239-content` is a LostCity content tree
+> **What this is for.** `OSRS-Content/osrs-content` is a LostCity content tree
 > driving a rev-230 client. LostCity's interface vocabulary is the 2004 one and
 > it does not describe what a rev-230 client needs, so every ported interface
 > stalls in the same place. This document says exactly where the two models
@@ -183,7 +183,7 @@ paint.
 Given a LostCity `.rs2` that drives an IF1 interface:
 
 1. **Find the modern interface by name, not by id.**
-   `grep -n "=<name>" OSRS-Content/osrs239-content/pack/3_interfaces.pack`.
+   `grep -n "=<name>" OSRS-Content/osrs-content/pack/3_interfaces.pack`.
    Ids are not stable across eras; names very nearly are.
 
 2. **Decompile its onload before writing anything.**

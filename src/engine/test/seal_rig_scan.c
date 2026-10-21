@@ -371,7 +371,7 @@ main(int argc, char** argv)
 {
     struct RSCache_Dat2Disk* disk;
     char const* cache_dir = argc > 1 ? argv[1] : "cache.osrs239";
-    char const* seq_path = argc > 2 ? argv[2] : "OSRS-Content/osrs239-content/configs/all.seq";
+    char const* seq_path = argc > 2 ? argv[2] : "OSRS-Content/osrs-content/configs/all.seq";
     char const* models = argc > 3 ? argv[3] : "33033,33035,33037,33039,33040,33034,33038";
     char const* p;
 

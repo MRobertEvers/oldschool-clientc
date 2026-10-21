@@ -1,7 +1,7 @@
 # Familiar "Interact" (npc op1) — source references and port
 
 Status: fixed 2026-08-12. Implementation lives in
-`OSRS-Content/osrs239-content/server/scripts/ported_scape2009_summoning/scripts/summoning_interact.rs2`;
+`OSRS-Content/osrs-content/server/scripts/ported_scape2009_summoning/scripts/summoning_interact.rs2`;
 acceptance is `make -C src test-summoning-interact`.
 
 ## The defect

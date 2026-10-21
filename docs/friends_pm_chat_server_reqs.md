@@ -16,7 +16,7 @@
 > Companion to `docs/questlist_chatmenu_levelup.md`, same discovery pass
 > (`docs/PORTING_GUIDE.md` §5.3) applied to the two interfaces §5.2 names as
 > the thing to do **before** clan chat: *"Do friends/PM first; clan chat
-> reuses its plumbing."* `OSRS-Content/osrs239-content` is abbreviated
+> reuses its plumbing."* `OSRS-Content/osrs-content` is abbreviated
 > `content/` below.
 
 ## 0. Status at a glance

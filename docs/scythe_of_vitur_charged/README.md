@@ -117,7 +117,7 @@ call for whoever owns that file.
 `tools/entity_viewer/ev_swing`; see `tools/entity_viewer/README.md`.
 
 ```sh
-M=OSRS-Content/osrs239-content/models/spot
+M=OSRS-Content/osrs-content/models/spot
 for d in south:0 west:512 north:1024 east:1536; do
   n=${d%%:*}; y=${d##*:}
   tools/entity_viewer/ev_swing --rev osrs239 cache.osrs239 \

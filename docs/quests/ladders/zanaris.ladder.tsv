@@ -1,5 +1,5 @@
 # ladder zanaris quest_dir=quest_zanaris guide=src/main/java/com/questhelper/helpers/quests/lostcity/LostCity.java steps=12 legs=1:1-12@s0
-#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
 leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
 1	1	0	talkToWarrior	NpcStep	npc:warrioradventurerpg	3151,3207,0	Talk to the Warrior south east of Draynor Village.			What are you camped out here for? | What makes you think it…	areas/lumbridge/scripts/zanaris_camp.rs2:77 opnpc1
 1	2	1	chopTree	ObjectStep	loc:leprechauntree	3139,3213,0	Try cutting the tree just to the west.		Any axe	I've been in that shed, I didn't see a city.	quests/quest_zanaris/scripts/leprechaun_tree.rs2:25 oploc1; +1

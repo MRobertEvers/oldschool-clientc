@@ -751,7 +751,7 @@ main(
     int argc,
     char** argv)
 {
-    const char* model_dir = "../../OSRS-Content/osrs239-content/models";
+    const char* model_dir = "../../OSRS-Content/osrs-content/models";
     size_t model_count = 256;
     int repetitions = 100;
     int samples = 9;

@@ -102,7 +102,7 @@ ACTION=${ACTION:-run}
 
 # The default the header advertises, and the one everything below is verified
 # against. Any manifest whose [net:boot] rev is osrs239 works the same way.
-MANIFEST=${MANIFEST:-manifests/manifest_osrs239.ini}
+MANIFEST=${MANIFEST:-manifests/manifest_osrs241.ini}
 
 say()  { printf '%s\n' "$*"; }
 warn() { printf 'run-runelite: %s\n' "$*" >&2; }
@@ -191,7 +191,7 @@ esac
 # the name RUNNING.md and run-osrs239.sh already seeded, so the common case
 # reuses a copy that is already on disk.
 case "$(basename "$CACHE_DIR")" in
-    cache.osrs239) CACHEDIR=${CACHEDIR:-torirs239} ;;
+    cache.osrs241) CACHEDIR=${CACHEDIR:-torirs239} ;;
     *) CACHEDIR=${CACHEDIR:-torirs239_$(basename "$CACHE_DIR" | sed 's/^cache\.osrs239\.//; s/^cache\.//; s/[^A-Za-z0-9_.-]/_/g')} ;;
 esac
 SEEDED="$HOME/jagexcache/$CACHEDIR/LIVE"
@@ -269,7 +269,7 @@ content_tree_has_lanes() {
     [ -d "$1/ported/scape2009_summoning" ] && [ -d "$1/ported/rs2012_qbd_td" ]
 }
 if [ -z "${TORIRSSERVER_CONTENT_DIR:-}" ]; then
-    for candidate in OSRS-Content/osrs239-content build/*/osrs239-content; do
+    for candidate in OSRS-Content/osrs-content build/*/osrs-content; do
         if content_tree_has_lanes "$candidate"; then
             TORIRSSERVER_CONTENT_DIR=$(cd "$candidate" && pwd)
             break

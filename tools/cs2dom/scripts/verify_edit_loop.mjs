@@ -37,7 +37,7 @@ function flag(name, fallback) {
     return at > 0 && process.argv[at + 1] ? process.argv[at + 1] : fallback;
 }
 
-const content = resolve(flag('content', join(REPO, 'OSRS-Content', 'osrs239-content')));
+const content = resolve(flag('content', join(REPO, 'OSRS-Content', 'osrs-content')));
 const cache = resolve(flag('cache', join(REPO, 'cache.osrs239')));
 const revision = flag('rev', 'osrs239');
 const port = Number(flag('port', '8244'));

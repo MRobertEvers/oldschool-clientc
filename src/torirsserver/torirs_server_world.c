@@ -9313,42 +9313,42 @@ reset_character_proc(
 /* Varps a timed effect holds, from the content that sets them. */
 static const char* const g_reset_character_varps[] = {
     /* consumption/energy_potion.rs2 (stamina) */
-    "varp6221_stamina_ticks_left",
+    "varp6896_stamina_ticks_left",
     /* consumption/cox_potion.rs2, inferno_potions.rs2 (overloads) */
-    "varp6365_overload_ticks_left",
-    "varp7116_blighted_overload_ticks_left",
+    "varp7040_overload_ticks_left",
+    "varp7791_blighted_overload_ticks_left",
     /* consumption/divine_potion.rs2 */
-    "varp6218_divine_hold_defence",
-    "varp6219_divine_hold_left",
-    "varp6358_divine_combat_hold_left",
-    "varp6359_divine_potion_attack",
-    "varp6360_divine_potion_defence",
-    "varp6361_divine_potion_hold_left",
-    "varp6362_divine_potion_magic",
-    "varp6363_divine_potion_strength",
+    "varp6893_divine_hold_defence",
+    "varp6894_divine_hold_left",
+    "varp7033_divine_combat_hold_left",
+    "varp7034_divine_potion_attack",
+    "varp7035_divine_potion_defence",
+    "varp7036_divine_potion_hold_left",
+    "varp7037_divine_potion_magic",
+    "varp7038_divine_potion_strength",
     /* prayer_potion.rs2, restore_potion.rs2, skill_prayer drain */
-    "varp6220_prayer_regen_ticks_left",
-    "varp6366_prayer_enhance_ticks_left",
-    "varp6296_prayer_drain_counter",
-    "varp6297_prayer_drain_effect",
+    "varp6895_prayer_regen_ticks_left",
+    "varp7041_prayer_enhance_ticks_left",
+    "varp6971_prayer_drain_counter",
+    "varp6972_prayer_drain_effect",
     /* varlamore_potion.rs2, hunter_meat.rs2 */
-    "varp6364_menaphite_remedy_ticks_left",
-    "varp6679_hunter_meat_secondary_effect",
-    "varp6680_hunter_meat_secondary_heal",
+    "varp7039_menaphite_remedy_ticks_left",
+    "varp7354_hunter_meat_secondary_effect",
+    "varp7355_hunter_meat_secondary_heal",
     /* skill_combat npc_combat_magic.rs2 (freeze), skill_magic magic.rs2
      * (teleblock), lunar vengeance */
-    "varp5754_frozen",
-    "varp6447_teleblock",
-    "varp6449_vengeance_active",
-    "varp6450_vengeance_ready",
+    "varp6429_frozen",
+    "varp7122_teleblock",
+    "varp7124_vengeance_active",
+    "varp7125_vengeance_ready",
     /* The Theatre's per-raid registers (tob.rs2 `~tob_debug_reset`). */
-    "varp6844_tob_points",
-    "varp6854_tob_supply_1",
-    "varp6855_tob_supply_2",
-    "varp6853_tob_stamina_bought",
-    "varp6840_tob_died_in",
-    "varp6845_tob_raid_deaths",
-    "varp6857_tob_damage_dealt",
+    "varp7519_tob_points",
+    "varp7529_tob_supply_1",
+    "varp7530_tob_supply_2",
+    "varp7528_tob_stamina_bought",
+    "varp7515_tob_died_in",
+    "varp7520_tob_raid_deaths",
+    "varp7532_tob_damage_dealt",
 };
 
 static const char* const g_reset_character_varbits[] = {
@@ -9496,9 +9496,9 @@ reset_character_clean(
     assert(srv->active_player == player);
     memset(tally, 0, sizeof(*tally));
 
-    reset_character_leave_raid(srv, player, "varp5893_tob_active", "tob_leave", "Theatre", tally);
-    reset_character_leave_raid(srv, player, "varp5912_cox_active", "cox_leave", "Chambers", tally);
-    reset_character_leave_raid(srv, player, "varp6910_toa_active", "toa_leave", "Tombs", tally);
+    reset_character_leave_raid(srv, player, "varp6568_tob_active", "tob_leave", "Theatre", tally);
+    reset_character_leave_raid(srv, player, "varp6587_cox_active", "cox_leave", "Chambers", tally);
+    reset_character_leave_raid(srv, player, "varp7585_toa_active", "toa_leave", "Tombs", tally);
     cheat_teleport_stop_action(srv, player);
 
     row = ToriRSServer_ContainerResolve(srv, player, ids->inv_backpack);
@@ -9580,7 +9580,7 @@ reset_character_clean(
  *      paths (teleport, WorldSetVarpOn, ContainerSet) so the client sees
  *      them without a relog;
  *   3. `~newplayer_setup`, which runs because step 1 zeroed its perm
- *      `%varp6298_newplayer_seeded` -- exactly as on a first login.
+ *      `%varp6973_newplayer_seeded` -- exactly as on a first login.
  * What still DIFFERS from a fresh login (stated in the reply): temp-scope
  * varps keep this session's values; appearance, display name, POH, sailing,
  * the random stream and chat modes are the live character's; and the other
@@ -9847,7 +9847,7 @@ reset_character_apply_fixture(
         srv, player, ToriRSServer_WorldVarp("varp173_option_run"), player->run_toggle);
 
     /* 3. [login]'s first-login step, armed by the zeroed seeded varp. */
-    seeded = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp6298_newplayer_seeded");
+    seeded = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp6973_newplayer_seeded");
     if( seeded >= 0 && player->varps[seeded] != 0 )
         ToriRSServer_WorldSetVarpOn(srv, player, seeded, 0);
     ToriRSServer_ScriptsRunProc(srv, "[proc,newplayer_setup]", NULL, 0);
@@ -11442,7 +11442,7 @@ ToriRSServer_RunCheatLadder(
             "setvar varb5451_prayer_rigour_unlocked 1",
             "setvar varb5452_prayer_augury_unlocked 1",
             "setvar varb5453_prayer_preserve_unlocked 1",
-            "setvar varp7348_barbarian_vial_smash 1",
+            "setvar varp8023_barbarian_vial_smash 1",
             "give fris_kingly_helm 1", "wield fris_kingly_helm",
             "give barbassault_penance_fighter_torso 1", "wield barbassault_penance_fighter_torso",
             "give black_dragonhide_chaps 1", "wield black_dragonhide_chaps",
@@ -11472,11 +11472,11 @@ ToriRSServer_RunCheatLadder(
             "setvar varb1623_rune_pouch_type_3 5", "setvar varb1626_rune_pouch_quantity_3 500",
             "coxolmrush",
         };
-        int cox_active = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp5912_cox_active");
+        int cox_active = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp6587_cox_active");
 
         if( cox_active < 0 )
         {
-            say(srv, "::%s: this content has no varp5912_cox_active.", text);
+            say(srv, "::%s: this content has no varp6587_cox_active.", text);
             return TORIRSSERVER_TRIGGER_FAILED;
         }
         assert(cox_active < TORIRSSERVER_VARP_COUNT);
@@ -11539,7 +11539,7 @@ ToriRSServer_RunCheatLadder(
             "setvar varb4070_spellbook ^spellbook_ancient",
             "setvar varb5646_inferno_sacrificed_firecape ^inferno_firecape_sacrificed",
             /* The crystal shield's wear gate (levelrequire.rs2). */
-            "setvar varp6262_rovingelves_quest ^rovingelves_complete",
+            "setvar varp6937_rovingelves_quest ^rovingelves_complete",
             "give crystal_helmet 1", "wield crystal_helmet",
             "give avas_assembler 1", "wield avas_assembler",
             "give occult_necklace 1", "wield occult_necklace",
@@ -12748,7 +12748,7 @@ ToriRSServer_WorldTeleport(
     if( old_boat && ToriRSServer_MapInstanceFind(abs_x, abs_z) != old_boat->instance )
     {
         old_boat->navigator_generation[player->pid] = 0;
-        int varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp5925_map_instance_handle");
+        int varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp6600_map_instance_handle");
         if( varp >= 0 && player->varps[varp] == old_boat->instance )
             ToriRSServer_WorldSetVarpOn(srv, player, varp, 0);
         player->sailing.aboard_slot = 0;
@@ -16883,7 +16883,7 @@ ToriRSServer_WorldLoginFinish(struct ToriRSServerPlayer* player)
         int iface = ids->iface_gameframe;
         int32_t args[1];
         int const mobile = ToriRSServer_PlayerIsMobile(player) && ids->iface_toplevel_osm > 0;
-        int const varp_client_mobile = ToriRSServer_WorldVarp("varp7138_client_mobile");
+        int const varp_client_mobile = ToriRSServer_WorldVarp("varp7813_client_mobile");
 
         if( mode < 0 || mode > 2 )
             mode = 1;

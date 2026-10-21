@@ -244,7 +244,7 @@ selftest_quest_animalmagnetism(struct ToriRSServer* srv, struct ToriRSServerPlay
     varp_haunted = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp32_haunted");
     varp_pip = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp302_priestperil");
     varp_qp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp");
-    varp_notes = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp6204_anma_note_bits");
+    varp_notes = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp6879_anma_note_bits");
     obj_ghostspeak = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "amulet_of_ghostspeak");
     obj_humanspeak = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "amulet_of_humanspeak");
     obj_ecto = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "ectotoken");

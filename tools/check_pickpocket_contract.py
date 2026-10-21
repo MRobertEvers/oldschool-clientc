@@ -24,7 +24,7 @@ import sys
 import config_text
 
 WIKI = "docs/skills/thieving/sources/Thieving.wiki"
-ROWS = ("OSRS-Content/osrs239-content/server/scripts/skill_thieving/configs/"
+ROWS = ("OSRS-Content/osrs-content/server/scripts/skill_thieving/configs/"
         "pickpocking/pickpocket.dbrow")
 
 # our dbrow block -> the wiki's row label

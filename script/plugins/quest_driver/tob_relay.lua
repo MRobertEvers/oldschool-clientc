@@ -68,7 +68,7 @@ function QD.raid.tob_relay_test(mode, opts)
         "::setvar varb358_deserttreasure ^dt_complete",
         "::setvar varb4070_spellbook 1",
         -- barbarian vial smashing: a last dose leaves no vial (owner 2026-10-12)
-        "::setvar varp7348_barbarian_vial_smash 1",
+        "::setvar varp8023_barbarian_vial_smash 1",
     }) do kit[#kit + 1] = line end
     for _, obj in ipairs(WORN) do
         kit[#kit + 1] = "::give " .. obj .. " 1"

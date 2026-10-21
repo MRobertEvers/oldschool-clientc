@@ -11,10 +11,13 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : GroupVarIntEncoder
- * Layouts      : 1 distinct, over 1 contiguous revision run(s)
+ * Layouts      : 1 distinct, over 2 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^GroupVarIntEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
+ *                Revision(s) 241 come from RSProx, not RSProt
+ *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
+ *                gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -32,12 +35,13 @@ typedef struct MsgGroupVarInt {
 	int32_t update_variable_value;
 } MsgGroupVarInt;
 
-/* v1 -- revs 239. */
+/* v1 -- revs 239, 241. */
 void packet_group_var_int_v1_out(RsprotExec *x, MsgGroupVarInt *m);
 
 /* Per-revision aliases: `packet_group_var_int_rev239_out` is greppable, which is the
  * point -- "what does 239 do for GROUP_VAR_INT" without reading a table. */
 #define packet_group_var_int_rev239_out packet_group_var_int_v1_out
+#define packet_group_var_int_rev241_out packet_group_var_int_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_group_var_int_out[];

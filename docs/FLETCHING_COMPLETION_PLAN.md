@@ -3,7 +3,7 @@
 Plan to take `skill_fletching/` from its F2P vertical slice to the complete
 [Fletching](https://oldschool.runescape.wiki/w/Fletching) skill. The wiki is the
 authority for content (products, levels, XP, tools, gates); the cache
-(`OSRS-Content/osrs239-content/configs/all.obj`, `all.seq`, `pack/category.pack`)
+(`OSRS-Content/osrs-content/configs/all.obj`, `all.seq`, `pack/category.pack`)
 is the authority for names and for what is *expressible* at this revision.
 
 ## Implementation status (2026-08-16)
@@ -122,7 +122,7 @@ returns **zero** hits — every skill inlines `~p_choice3("Make 1","Make 5","Mak
 
 ### 0.1 What is wired
 
-`OSRS-Content/osrs239-content/server/scripts/skill_fletching/` is **775 lines**
+`OSRS-Content/osrs-content/server/scripts/skill_fletching/` is **775 lines**
 across 7 scripts plus 5 dbrow files and a 16-line dbtable.
 
 | file | recipes | notes |
@@ -224,7 +224,7 @@ Replace the hardcoded `SSVM_PushInt(state, 0)` at
 env override to force a free world.
 
 **Before changing it**, run `grep -rn 'map_members'
-OSRS-Content/osrs239-content/server/scripts` and enumerate every other behaviour
+OSRS-Content/osrs-content/server/scripts` and enumerate every other behaviour
 the flag flips — report that list rather than discovering it from a test failure.
 Then run the full suite and confirm the failure count is unchanged from its
 pre-fletching baseline.
@@ -285,7 +285,7 @@ script. This is the move [`FISHING_COMPLETION_PLAN.md`](FISHING_COMPLETION_PLAN.
   line 28 flags exactly this hazard. There is no `[opheldu,_]` wildcard,
   deliberately.
 - **New param/table names need allocation.** A `.param` file beside the configs,
-  then `python3 tools/ss_allocate.py --tree OSRS-Content/osrs239-content` (which
+  then `python3 tools/ss_allocate.py --tree OSRS-Content/osrs-content` (which
   `make -C src torirsserver-scripts` runs for you). Server dbtable ids ≥ 259, dbrow
   ids ≥ 16940 ([`DBTABLES.md`](DBTABLES.md)). `.obj` overlays have **no** C
   whitelist — only `.npc` params go through `apply_param()`
@@ -689,7 +689,7 @@ asserting the table, not by calling the label.
   `make -C src test-ToriRSServer` — which deliberately re-depends on
   `torirsserver-scripts`, so a fresh binary can never be tested against a stale pack.
 - Use a **scratch `TORIRSSERVER_SAVES`** — headless runs are not independent.
-- **S0**: `grep -rn 'map_members' OSRS-Content/osrs239-content/server/scripts`
+- **S0**: `grep -rn 'map_members' OSRS-Content/osrs-content/server/scripts`
   before and after; enumerate everything else the flag flips, and confirm the
   suite's failure count is unchanged from its pre-fletching baseline.
 - **S1**: A/B — run the existing 24 recipes before and after the refactor and

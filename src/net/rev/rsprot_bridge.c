@@ -7,8 +7,12 @@
 #include "rsprot_exec.h"
 
 #include "packets/cam_lookat_v2.h"
+#include "packets/cam_lookat_v3.h"
 #include "packets/if_resync_v2.h"
 #include "packets/cam_moveto_v2.h"
+#include "packets/cam_moveto_v3.h"
+#include "packets/cam_moveto_cycles_v3.h"
+#include "packets/cam_rotateto_coordinate_v3.h"
 #include "packets/cam_shake.h"
 #include "packets/runclientscript.h"
 #include "packets/set_map_flag_v2.h"
@@ -75,6 +79,10 @@ rsprot_bridge_revision(struct GameProtoRevTable const* rev)
         return 230;
     case GAMEPROTO_REVISION_OSRS239:
         return 239;
+    /* Not an RSProt revision: the 241 rows in 3rd/rsprot/packets/ come from
+     * RSProx through tools/rsprox_codec_overlay.py. Same lookup. */
+    case GAMEPROTO_REVISION_OSRS241:
+        return 241;
     /*
      * lc254, lc245_2 and xrsps233 are NOT RSProt revisions — LostCity and a
      * private server respectively — so there is no revision number to look up
@@ -963,9 +971,74 @@ bridge_update_inv_stop_transmit(
  * axes x/z; the canonical struct calls them local_x/local_z and the name is now
  * a slight lie, kept because every consumer reads it.
  */
+/*
+ * CAM_LOOKAT_V3 / CAM_MOVETO_V3: the only camera prots left at 241, where the
+ * V2 pair was deleted. One extra byte, `heightRelative` -- per RSProx, the
+ * height is relative to the previous camera move's height rather than the
+ * ground. The canonical struct has no home for it and is DROPPED here, so a
+ * relative move applies its height as an absolute one; this server never sets
+ * it.
+ */
+static int
+bridge_cam_lookat_v3(int revision, uint8_t const* data, int len, struct RevPacket* out)
+{
+    BRIDGE_RUN(rsprot_cam_lookat_v3_out, MsgCamLookAtV3)
+    out->_cam_lookat.local_x = msg.x;
+    out->_cam_lookat.local_z = msg.z;
+    out->_cam_lookat.height = msg.height;
+    out->_cam_lookat.rate = msg.rate;
+    out->_cam_lookat.rate2 = msg.rate2;
+    out->_cam_lookat.absolute = 1;
+    return 1;
+}
+
+static int
+bridge_cam_moveto_v3(int revision, uint8_t const* data, int len, struct RevPacket* out)
+{
+    BRIDGE_RUN(rsprot_cam_moveto_v3_out, MsgCamMoveToV3)
+    out->_cam_moveto.local_x = msg.x;
+    out->_cam_moveto.local_z = msg.z;
+    out->_cam_moveto.height = msg.height;
+    out->_cam_moveto.rate = msg.rate;
+    out->_cam_moveto.rate2 = msg.rate2;
+    out->_cam_moveto.absolute = 1;
+    return 1;
+}
+
+/* The eased camera pair. Both carry absolute world tiles, like the V3 pair. */
+static int
+bridge_cam_moveto_cycles(int revision, uint8_t const* data, int len, struct RevPacket* out)
+{
+    BRIDGE_RUN(rsprot_cam_moveto_cycles_v3_out, MsgCamMoveToCyclesV3)
+    out->_cam_moveto_cycles.x = msg.x;
+    out->_cam_moveto_cycles.z = msg.z;
+    out->_cam_moveto_cycles.height = msg.height;
+    out->_cam_moveto_cycles.cycles = msg.cycles;
+    out->_cam_moveto_cycles.ignore_terrain = msg.ignore_terrain;
+    out->_cam_moveto_cycles.easing = msg.easing_id;
+    out->_cam_moveto_cycles.height_relative = msg.height_relative;
+    return 1;
+}
+
+static int
+bridge_cam_rotateto_coordinate(int revision, uint8_t const* data, int len, struct RevPacket* out)
+{
+    BRIDGE_RUN(rsprot_cam_rotateto_coordinate_v3_out, MsgCamRotateToCoordinateV3)
+    out->_cam_rotateto_coordinate.x = msg.x;
+    out->_cam_rotateto_coordinate.z = msg.z;
+    out->_cam_rotateto_coordinate.height = msg.height;
+    out->_cam_rotateto_coordinate.cycles = msg.cycles;
+    out->_cam_rotateto_coordinate.easing = msg.easing_id;
+    out->_cam_rotateto_coordinate.height_relative = msg.height_relative;
+    out->_cam_rotateto_coordinate.track_target = msg.track_target;
+    return 1;
+}
+
 static int
 bridge_cam_lookat(int revision, uint8_t const* data, int len, struct RevPacket* out)
 {
+    if( revision >= 241 )
+        return bridge_cam_lookat_v3(revision, data, len, out);
     BRIDGE_RUN(rsprot_cam_lookat_v2_out, MsgCamLookAtV2)
     out->_cam_lookat.local_x = msg.x;
     out->_cam_lookat.local_z = msg.z;
@@ -979,6 +1052,8 @@ bridge_cam_lookat(int revision, uint8_t const* data, int len, struct RevPacket* 
 static int
 bridge_cam_moveto(int revision, uint8_t const* data, int len, struct RevPacket* out)
 {
+    if( revision >= 241 )
+        return bridge_cam_moveto_v3(revision, data, len, out);
     BRIDGE_RUN(rsprot_cam_moveto_v2_out, MsgCamMoveToV2)
     out->_cam_moveto.local_x = msg.x;
     out->_cam_moveto.local_z = msg.z;
@@ -1101,6 +1176,8 @@ static struct BridgeRow const k_rows[] = {
     { PKT_NAME_IF_RESYNC_V2, bridge_if_resync },
     { PKT_NAME_CAM_LOOKAT, bridge_cam_lookat },
     { PKT_NAME_CAM_MOVETO, bridge_cam_moveto },
+    { PKT_NAME_CAM_MOVETO_CYCLES, bridge_cam_moveto_cycles },
+    { PKT_NAME_CAM_ROTATETO_COORDINATE, bridge_cam_rotateto_coordinate },
     { PKT_NAME_UPDATE_INV_FULL, bridge_update_inv_full },
     { PKT_NAME_UPDATE_INV_PARTIAL, bridge_update_inv_partial },
     { PKT_NAME_UPDATE_INV_STOP_TRANSMIT, bridge_update_inv_stop_transmit },

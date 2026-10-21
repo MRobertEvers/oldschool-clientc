@@ -73,7 +73,7 @@ import helper_coverage  # noqa: E402
 
 LUA_COMMIT = "7936d2d97"
 LEDGER_COMMIT = "994d64d507"
-LEDGER = "osrs239-content/server/scripts/selftest/quests/quest_%s/play/ledger.tsv"
+LEDGER = "osrs-content/server/scripts/selftest/quests/quest_%s/play/ledger.tsv"
 # Another Slice of H.A.M. round 7 (green 149/0, graded FULL before sealed_exits)
 ASOH_LUA_COMMIT = "ab832b98d"
 ASOH_LEDGER_COMMIT = "58364738ca"

@@ -30,8 +30,8 @@ that carry no table.
 
 ## What gets written
 
-    OSRS-Content/osrs239-content/wiki/shops/<title>.wikitext   raw wikitext
-    OSRS-Content/osrs239-content/wiki/shops_manifest.tsv       title, revid,
+    OSRS-Content/osrs-content/wiki/shops/<title>.wikitext   raw wikitext
+    OSRS-Content/osrs-content/wiki/shops_manifest.tsv       title, revid,
                                                                infobox, table,
                                                                fetch_date
 
@@ -58,7 +58,7 @@ import urllib.parse
 import urllib.request
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONTENT = os.path.join(REPO, "OSRS-Content", "osrs239-content")
+CONTENT = os.path.join(REPO, "OSRS-Content", "osrs-content")
 OUT_DIR = os.path.join(CONTENT, "wiki", "shops")
 MANIFEST = os.path.join(CONTENT, "wiki", "shops_manifest.tsv")
 

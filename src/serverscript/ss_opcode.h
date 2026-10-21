@@ -590,10 +590,12 @@
 #define SS_OP_NPC_SETBASESTAT 11180
 #define SS_OP_NPC_VENOM 11200
 #define SS_OP_SPOTANIM_PL_SLOT 11210
+#define SS_OP_CAM_MOVETO_CYCLES 11220
+#define SS_OP_CAM_ROTATETO_COORDINATE 11221
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11211
+#define SS_OPCODE_MAX 11222
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 568
+#define SS_OPCODE_COUNT 570
 
 #endif

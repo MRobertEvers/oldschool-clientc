@@ -205,7 +205,7 @@ ToriRSServer_EmbedStart(char const* rev_name)
 
         if( !wire )
         {
-            fprintf(stderr, "torirsserver: unknown embed revision '%s' (osrs230, osrs239)\n",
+            fprintf(stderr, "torirsserver: unknown embed revision '%s' (osrs230, osrs239, osrs241)\n",
                     rev_name);
             ToriRSServer_BootFree();
             ToriMem_Free(ToriMem_ServerNet(), embed);

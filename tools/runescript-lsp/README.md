@@ -264,5 +264,5 @@ rebuilds nothing: `struct RS_Symbol` grew a field once, `index.o` was rebuilt
 and `server.o` was not, and a silent struct-size mismatch read as a segfault a
 long way from the edit.
 
-Indexing the full `OSRS-Content/osrs239-content` tree: 16,664 files, ~800,000
+Indexing the full `OSRS-Content/osrs-content` tree: 16,664 files, ~800,000
 names, 3.5 s, 200 MB resident.

@@ -360,7 +360,7 @@ the sheet and its strip above the keyboard; one pin red per plugin under a stub,
 the band itself has no headless capture (the harness raises no keyboard).
 
 OSRS captures must use the prepared manifest (`MANIFEST=/private/tmp/plugin-engine-prepared-actions.ini`,
-`TORIRSSERVER_CONTENT=/private/tmp/plugin-engine-content/osrs239-content`): the shared repo's
+`TORIRSSERVER_CONTENT=/private/tmp/plugin-engine-content/osrs-content`): the shared repo's
 `OSRS-Content` carries live uncommitted edits and its manifest is refused by the freshness gate.
 
 ## Superseded execution API removal

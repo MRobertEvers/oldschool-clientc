@@ -43,7 +43,7 @@ import re
 import config_text
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONTENT = os.path.join(REPO, "OSRS-Content", "osrs239-content")
+CONTENT = os.path.join(REPO, "OSRS-Content", "osrs-content")
 NPC_CACHE = os.path.join(CONTENT, "configs", "all.npc")
 DBROW = os.path.join(CONTENT, "configs", "all.dbrow")
 MEMBER_DBROW = os.path.join(

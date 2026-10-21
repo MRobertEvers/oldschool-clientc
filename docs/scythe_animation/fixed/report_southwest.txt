@@ -4,7 +4,7 @@ tile graphic: +0,-1 tiles in world space, held there against a player
 trial shift: graphic moved dx +91, dz -91 before merging
 weapon obj 22325      wear model vertices 288..677 of 678
 attack seq 8056     22 frames, 77 client cycles, rig 0
-spotanim 478       model OSRS-Content/osrs239-content/models/spot/dragon_halberd_special_south_red.model, seq 1204: 16 frames, 67 cycles, rig 899
+spotanim 478       model OSRS-Content/osrs-content/models/spot/dragon_halberd_special_south_red.model, seq 1204: 16 frames, 67 cycles, rig 899
 shipped placement: height 96, delay 20 cycles
 
 weapon sweep: 110 of 390 vertices move within 40% of the fastest, and the

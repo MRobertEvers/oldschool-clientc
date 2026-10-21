@@ -2,7 +2,7 @@
 """Dump every rev-239 cache record a wave minigame ships, quoted for citation.
 
     tools/waves_gate/cache_dump.py --game inferno \\
-        --content OSRS-Content/osrs239-content \\
+        --content OSRS-Content/osrs-content \\
         --out docs/minigames/inferno/sources \\
         --index build/inventory_state/inferno.cache_index.json
 
@@ -28,7 +28,7 @@ The minigame is a table at the bottom (GAMES). The Fortis Colosseum reuses the
 tool by adding its own entry; nothing above the table is Inferno-specific.
 
     tools/waves_gate/cache_dump.py --game colosseum \\
-        --content OSRS-Content/osrs239-content \\
+        --content OSRS-Content/osrs-content \\
         --out docs/minigames/colosseum/sources \\
         --index build/inventory_state/colosseum.cache_index.json
 
@@ -680,7 +680,7 @@ def run(game_name, content, out, index_path):
 
     def emit_config(kind, fname, title, summarise=None, src_file=None):
         lines = [f"# {title} -- {len(S.sel[kind])} records selected from cache.osrs239",
-                 f"# source: OSRS-Content/osrs239-content/{src_file or 'configs/all.' + kind}"
+                 f"# source: OSRS-Content/osrs-content/{src_file or 'configs/all.' + kind}"
                  " (record header line given per record)",
                  "# why= the selection rule(s) that chose the record (LEDGER_cache.md)", ""]
         for i in sorted(S.sel[kind]):
@@ -815,7 +815,7 @@ def run(game_name, content, out, index_path):
 
     # sounds: name-only pack
     lines = [f"# sound effects -- {len(S.sel['sound'])} selected from "
-             "OSRS-Content/osrs239-content/pack/4_soundeffects.pack (Jagex's own names)",
+             "OSRS-Content/osrs-content/pack/4_soundeffects.pack (Jagex's own names)",
              "# why= the selection rule(s); `bind: frame sound of seq N` means the cache",
              "# itself plays it in-band; every other row is a server-side choice.", ""]
     for i in sorted(S.sel["sound"]):
@@ -831,7 +831,7 @@ def run(game_name, content, out, index_path):
 
     # interfaces: the whole .if for a selected interface, or only the
     # referenced components of a shared top level
-    lines = ["# interfaces and clientscripts -- quoted from OSRS-Content/osrs239-content/"
+    lines = ["# interfaces and clientscripts -- quoted from OSRS-Content/osrs-content/"
              "interfaces/*.if and scripts/*.cs2 (the decompiled CS2 suite)", ""]
     for i in sorted(S.sel["interface"]):
         sym, n = ifaces[i]
@@ -888,7 +888,7 @@ def run(game_name, content, out, index_path):
 
     # enums, dbrows, structs
     lines = ["# enums, dbrows and structs that belong to the minigame -- quoted from "
-             "OSRS-Content/osrs239-content/configs/all.{enum,dbrow,struct}", ""]
+             "OSRS-Content/osrs-content/configs/all.{enum,dbrow,struct}", ""]
     struct_rows = []
     for sym, rec in recs["struct"].items():
         fl = fields(rec)
@@ -975,7 +975,7 @@ def run(game_name, content, out, index_path):
     # the map squares, whole: every loc each one places (games that ask)
     if game.get("map_dump"):
         lines = ["# map squares -- every loc the cache map places in the minigame's squares,",
-                 "# from OSRS-Content/osrs239-content/maps/m<x>_<z>.jl2 (`==== LOC ====`: "
+                 "# from OSRS-Content/osrs-content/maps/m<x>_<z>.jl2 (`==== LOC ====`: "
                  "`level x z: loc shape [angle]`).",
                  "# A square is 64x64 tiles: world x = 64*sqx + local x, world z = 64*sqz + local z.",
                  "# Per square: one line per distinct loc (count, levels, local bounding box, first",

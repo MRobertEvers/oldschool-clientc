@@ -76,7 +76,7 @@ file from `quest_inventory.tsv`, which is how the shape stays checkable.
 Artefacts land in `build/quest_gate/<quest>/` (ledger, `shots/NN-name.png`,
 `client.log`), which is deleted on the next run. A run whose ledger SUMMARY
 says PASS is also copied to
-`OSRS-Content/osrs239-content/server/scripts/selftest/quests/<quest_dir>/play/`
+`OSRS-Content/osrs-content/server/scripts/selftest/quests/<quest_dir>/play/`
 (ledger + shots; `<quest_dir>` is QUEUE.tsv's `quest_dir` column for the
 test_id, or `quest_<test_id>` when it has no row), beside that quest's
 `scenes/` (the hand-run Gate D BMPs), so the last green run's evidence is

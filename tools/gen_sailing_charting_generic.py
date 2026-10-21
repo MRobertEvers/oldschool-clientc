@@ -4,7 +4,7 @@
 Every chartable loc (configs/all.loc sailing_charting_generic_*, op1 "Chart")
 is bound to the sailing_charting_generic row of the same name; the one pair
 whose names differ is mapped by hand below. Writes
-OSRS-Content/osrs239-content/server/scripts/sailing/scripts/sailing_charting_generic.rs2.
+OSRS-Content/osrs-content/server/scripts/sailing/scripts/sailing_charting_generic.rs2.
 
     python3 tools/gen_sailing_charting_generic.py
 """
@@ -14,7 +14,7 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONTENT = os.path.join(ROOT, "OSRS-Content", "osrs239-content")
+CONTENT = os.path.join(ROOT, "OSRS-Content", "osrs-content")
 OUT = os.path.join(CONTENT, "server", "scripts", "sailing", "scripts", "sailing_charting_generic.rs2")
 
 # loc symbol -> row symbol where the cache names them differently (same sea,

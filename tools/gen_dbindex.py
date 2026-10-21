@@ -290,7 +290,7 @@ def main() -> int:
     repo = Path(__file__).resolve().parents[1]
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--content", type=Path, default=repo / "OSRS-Content/osrs239-content"
+        "--content", type=Path, default=repo / "OSRS-Content/osrs-content"
     )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--check", action="store_true", help="fail if any committed index is stale")

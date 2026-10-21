@@ -324,12 +324,12 @@ return {
             t.exec(name, t.player.cross_gate, { loc = "gnome_areagate", at = { 2459, 3383, 0 }, near = { 2461, 3385 },
                 far_ok = function(tile) return tile.z <= 3382 end, far_desc = "south of the Stronghold gate, z <= 3382" })
         end
-        -- from south of the gate: while %varp5856_femi_help = 0 a press with Femi within 6 tiles opens her
+        -- from south of the gate: while %varp6531_femi_help = 0 a press with Femi within 6 tiles opens her
         -- boxes instead of the gate (gnome_gate.rs2:31-32 -> femi.rs2 @grandtree_femi_boxes); helping sets 2.
         local function enter_stronghold(pfx)
             t.exec("goto-" .. pfx .. ".gate", t.player.goto_tile, 2461, 3379, 0)
             t.exec(pfx .. ".gateApproach", t.player.walk_route, { { 2461, 3382 } })
-            if sv("varp5856_femi_help") ~= 0 then
+            if sv("varp6531_femi_help") ~= 0 then
                 gate_in(pfx .. ".gateIn")
                 return
             end
@@ -346,9 +346,9 @@ return {
                 t.expect(pfx .. ".femiBoxes.thanks_page", t.await({ level = function() return t.chat.kind() == "npc" end,
                     note = "Femi's thanks after the boxes" }, 20))
                 t.exec(pfx .. ".femiBoxes-dialog-2", t.chat.play, { "npc:Thanks again friend", "end" })
-                local fr, fh = t.var.server("varp5856_femi_help")
+                local fr, fh = t.var.server("varp6531_femi_help")
                 t.check(pfx .. ".femiHelped", fr == "ok" and fh == 2,
-                    "click_loc gnome_areagate -> " .. tostring(press_result) .. "; varp5856_femi_help = " .. tostring(fh)
+                    "click_loc gnome_areagate -> " .. tostring(press_result) .. "; varp6531_femi_help = " .. tostring(fh)
                         .. " (" .. tostring(fr) .. "), want 2: the boxes lifted (femi.rs2 @grandtree_femi_boxes)")
                 gate_in(pfx .. ".gateIn")
             else

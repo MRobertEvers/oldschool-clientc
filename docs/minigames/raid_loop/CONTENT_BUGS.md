@@ -75,7 +75,7 @@ The spec pass's 65 ToB rows. Seam pass 2 (`matthew-mbp-m4-raid-b1-seam2`) fixed 
 them; each fixed row is replaced here by the commit that fixed it and what the server
 measures now (run directories under `build/quest_gate/`, named in SEAM_LEDGER.md). What
 is still open is listed in full under "Still open". Paths: `minigame_tob/` is
-`OSRS-Content/osrs239-content/server/scripts/minigames/minigame_tob/`; tables are
+`OSRS-Content/osrs-content/server/scripts/minigames/minigame_tob/`; tables are
 `docs/minigames/theater_of_blood/encounters/<room>.tsv`.
 
 ### Fixed by seam2

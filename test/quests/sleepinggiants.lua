@@ -380,7 +380,7 @@ return {
                 local caught = false
                 for iteration = 1, 300 do
                     -- A sweet spot (sg_refine.rs2: varp7484 = count * 4 + state, 1 open): click the machine once.
-                    local sweet = sv("varp7484_sg_sweet")
+                    local sweet = sv("varp8159_sg_sweet")
                     if mode == "tool" and sweet >= 0 and sweet % 4 == 1 and not caught then
                         press(tool, 1)
                         caught = true
@@ -445,7 +445,7 @@ return {
             t.ticks(2)
             t.check("polishPreform.quality", quality() > 0, state("sword kept some quality"))
             -- Recorded: two sweet spots on the first sword (at 420 and 840); a caught one gives +60 instead of +10.
-            t.check("sweetSpots.caught", sweet_bonus >= 1, "sweet spot bonuses seen: " .. sweet_bonus .. ", varp7484 " .. sv("varp7484_sg_sweet"))
+            t.check("sweetSpots.caught", sweet_bonus >= 1, "sweet spot bonuses seen: " .. sweet_bonus .. ", varp7484 " .. sv("varp8159_sg_sweet"))
 
             t.check("handInPreform.quality", quality() > 0, "the sword kept quality " .. quality() .. " (the dialogue below is the 'Great!' branch, sg_refine.rs2:577)")
             local _, xp_before = t.skill.snapshot()

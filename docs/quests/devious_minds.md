@@ -115,7 +115,7 @@ before code is authored; these are explicit evidence gaps, not soft-skip areas.
 ## 4. Implementation and ownership surface
 
 Paths in this section are relative to
-`OSRS-Content/osrs239-content/` unless stated otherwise.
+`OSRS-Content/osrs-content/` unless stated otherwise.
 
 ### Quest-owned files
 

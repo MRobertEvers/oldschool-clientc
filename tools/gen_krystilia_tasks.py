@@ -27,7 +27,7 @@ import re
 import sys
 
 SRC = "docs/skills/slayer/sources/Krystilia.wiki"
-DEST = ("OSRS-Content/osrs239-content/server/scripts/skill_slayer/configs/"
+DEST = ("OSRS-Content/osrs-content/server/scripts/skill_slayer/configs/"
         "krystilia_tasks.enum")
 
 HEADER = """// Krystilia's Wilderness Slayer tasks -- GENERATED, do not hand-edit.

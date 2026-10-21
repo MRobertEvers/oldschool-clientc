@@ -181,11 +181,11 @@ selftest_quest_haunted(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
     npc_chicken = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "ernest_multichicken");
     npc_ernest = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "ernest");
     varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp32_haunted");
-    settle = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp7147_haunted_settle");
+    settle = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp7822_haunted_settle");
     qp_varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp");
     lever_varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp33_ernestlever");
     door_varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp668_ernestdoors");
-    fountain_varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp5734_haunted_manor_fountain_poisoned");
+    fountain_varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp6409_haunted_manor_fountain_poisoned");
     portal_check = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb1766_slayer_killerwatt_portal_check");
     obj_poison = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "poison");
     obj_food = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "fish_food");

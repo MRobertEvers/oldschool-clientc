@@ -38,7 +38,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define DEFAULT_LANE "OSRS-Content/osrs239-content/models/ported/rs2012_qbd_td"
+#define DEFAULT_LANE "OSRS-Content/osrs-content/models/ported/rs2012_qbd_td"
 
 struct stats
 {

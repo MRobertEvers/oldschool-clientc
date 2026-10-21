@@ -117,7 +117,7 @@ return {
         t.player.click_loc("raids_exit_steps_reload", 1)
         cr, cd = t.chat.play({ "options", "choose:Leave the Chambers." })
         t.ticks(3)
-        t.check("steps.out", cr == "ok" and sv("varp5912_cox_active") == 0, tostring(cd))
+        t.check("steps.out", cr == "ok" and sv("varp6587_cox_active") == 0, tostring(cd))
         t.player.click_loc("raids_entrance_steps", 1)
         t.ticks(14)
         hr, here = t.raid.cox_here()

@@ -21,8 +21,8 @@ Two sources for the id, and they cover different halves of the catalogue:
 
 ## What gets written
 
-    OSRS-Content/osrs239-content/wiki/owners/<title>.wikitext   raw wikitext
-    OSRS-Content/osrs239-content/wiki/shop_owners.csv           the join
+    OSRS-Content/osrs-content/wiki/owners/<title>.wikitext   raw wikitext
+    OSRS-Content/osrs-content/wiki/shop_owners.csv           the join
 
 One row per (shop, owner npc id): a shop with a keeper *and* an assistant is
 two rows, because both need the trigger. `spawned` is the reachability column —
@@ -47,7 +47,7 @@ import urllib.parse
 import urllib.request
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONTENT = os.path.join(REPO, "OSRS-Content", "osrs239-content")
+CONTENT = os.path.join(REPO, "OSRS-Content", "osrs-content")
 CATALOG = os.path.join(CONTENT, "wiki", "shop_catalog.csv")
 OUT_DIR = os.path.join(CONTENT, "wiki", "owners")
 MANIFEST = os.path.join(CONTENT, "wiki", "owners_manifest.tsv")

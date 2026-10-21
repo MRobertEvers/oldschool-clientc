@@ -3,7 +3,7 @@
 Plan to take `skill_mining/` from its current vertical slice to the complete
 [Mining](https://oldschool.runescape.wiki/w/Mining) skill. Wiki is the authority
 for behaviour (levels, XP, rates, gear effects, locations); the cache
-(`OSRS-Content/osrs239-content/configs/all.loc`, `all.obj`, `all.npc`) is the
+(`OSRS-Content/osrs-content/configs/all.loc`, `all.obj`, `all.npc`) is the
 authority for names and for what is *expressible* at this revision;
 `LostCity_Server/content/scripts/skill_mining/` is the reference for the script
 shape wherever it has one.
@@ -16,7 +16,7 @@ Volcanic / Stars) stays in the KRONOS lane and is scoped in §9.
 
 ## 0. Where mining stands today — measured
 
-`OSRS-Content/osrs239-content/server/scripts/skill_mining/` is **496 lines**
+`OSRS-Content/osrs-content/server/scripts/skill_mining/` is **496 lines**
 across 2 scripts and 4 config files:
 
 | file | lines | what it holds |

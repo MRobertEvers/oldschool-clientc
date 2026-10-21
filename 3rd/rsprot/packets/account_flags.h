@@ -11,10 +11,13 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : AccountFlagsEncoder
- * Layouts      : 1 distinct, over 1 contiguous revision run(s)
+ * Layouts      : 1 distinct, over 2 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^AccountFlagsEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
+ *                Revision(s) 241 come from RSProx, not RSProt
+ *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
+ *                gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -30,7 +33,7 @@ typedef struct MsgAccountFlags {
 	int64_t flags;
 } MsgAccountFlags;
 
-/* v1 -- revs 233-239. */
+/* v1 -- revs 233-239, 241. */
 void packet_account_flags_v1_out(RsprotExec *x, MsgAccountFlags *m);
 
 /* Per-revision aliases: `packet_account_flags_rev239_out` is greppable, which is the
@@ -42,6 +45,7 @@ void packet_account_flags_v1_out(RsprotExec *x, MsgAccountFlags *m);
 #define packet_account_flags_rev237_out packet_account_flags_v1_out
 #define packet_account_flags_rev238_out packet_account_flags_v1_out
 #define packet_account_flags_rev239_out packet_account_flags_v1_out
+#define packet_account_flags_rev241_out packet_account_flags_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_account_flags_out[];

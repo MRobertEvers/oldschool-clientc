@@ -52,7 +52,7 @@ import helper_coverage  # noqa: E402
 
 G = helper_coverage.Grader
 LEDGER_COMMIT = "5ab18e9fc9"
-LEDGER = "osrs239-content/server/scripts/selftest/quests/quest_queenofthieves/play/ledger.tsv"
+LEDGER = "osrs-content/server/scripts/selftest/quests/quest_queenofthieves/play/ledger.tsv"
 GOTO_LINE = 't.exec("goto-barman", t.player.goto_tile, 1550, 3560, 0)'
 GOTO_DETAIL = "at 1550,3560,0 from 3206,3233,0"
 LUMBRIDGE = (3206, 3233)

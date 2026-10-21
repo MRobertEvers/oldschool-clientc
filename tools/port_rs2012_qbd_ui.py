@@ -23,7 +23,7 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_TREE = REPO_ROOT / "OSRS-Content" / "osrs239-content"
+DEFAULT_TREE = REPO_ROOT / "OSRS-Content" / "osrs-content"
 DEFAULT_CACHE = REPO_ROOT / "cache.rs727_preeoc"
 DEFAULT_CACHEPACK = REPO_ROOT / "3rd/rscache/tools/cachepack/cachepack"
 LANE = Path("ported/rs2012_qbd_td")

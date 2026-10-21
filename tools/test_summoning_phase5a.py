@@ -40,7 +40,7 @@ REVIEW_ONLY_SHA256 = {
     REVIEW_ONLY_ROSTER_MANIFEST: "94773790c8a1f7d90cfafaeccbafea2a96997eebc69ba2a99ce46760c78c6e5a",
 }
 BOUNDARY = REPO / "docs/summoning_port/roster_boundary_530.json"
-TREE = REPO / "OSRS-Content/osrs239-content"
+TREE = REPO / "OSRS-Content/osrs-content"
 LEDGER_TOOL = REPO / "tools/port_summoning_ids.py"
 ROSTER_TOOL = REPO / "tools/summoning_roster_assets.py"
 STAGER = REPO / "tools/stage_summoning_overlay.py"

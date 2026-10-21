@@ -76,7 +76,7 @@ for pair, in both directions — because that is the one place both forms are
 loaded at once, and a drift that a regeneration would fix silently is exactly
 what a diff of generated output cannot catch.
 
-    tools/gen_levelrequire_dbrow.py --tree OSRS-Content/osrs239-content [--check]
+    tools/gen_levelrequire_dbrow.py --tree OSRS-Content/osrs-content [--check]
 
 then `tools/ss_allocate.py --tree ...` to give the new rows ids.
 """

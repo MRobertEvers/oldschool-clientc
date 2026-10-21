@@ -10,34 +10,34 @@ torirsserver: 2886 varp(s) carry varbits (highest basevar 5724)
 torirsserver: varbit table loaded (19086 records from manifests/../cache.osrs239)
 torirsserver: client varp capacity 5725 from manifests/../cache.osrs239
 torirsserver: 1117 param types from configs/all.param
-torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/areas/area_mage_arena/configs/mage_arena.param
-torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/doors/configs/doors.param
-torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/interface_bank/configs/bank.param
-torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/minigames/game_mortton/configs/mortton_shades.param
-torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/npc/configs/npc.param
-torirsserver: 7 server param type(s) from OSRS-Content/osrs239-content/server/scripts/player/configs/bas.param
-torirsserver: 2 server param type(s) from OSRS-Content/osrs239-content/server/scripts/player/configs/consumption/consume.param
-torirsserver: 2 server param type(s) from OSRS-Content/osrs239-content/server/scripts/player/configs/death.param
-torirsserver: 3 server param type(s) from OSRS-Content/osrs239-content/server/scripts/quests/quest_fluffs/configs/quest_fluffs.param
-torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/quests/quest_haunted/configs/quest_haunted.param
-torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/quests/quest_hazeelcult/configs/quest_hazeelcult.param
-torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/quests/quest_legends/configs/quest_legends.param
-torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/quests/quest_mm/configs/quest_mm.param
-torirsserver: 22 server param type(s) from OSRS-Content/osrs239-content/server/scripts/quests/quest_mortton/configs/quest_mortton.param
-torirsserver: 2 server param type(s) from OSRS-Content/osrs239-content/server/scripts/quests/quest_murder/configs/quest_murder.param
-torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/quests/quest_tbwt/configs/quest_tbwt.param
-torirsserver: 3 server param type(s) from OSRS-Content/osrs239-content/server/scripts/quests/quest_upass/configs/quest_upass.param
-torirsserver: 8 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_agility/configs/agility.param
-torirsserver: 48 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_combat/configs/combat.param
-torirsserver: 13 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_combat/configs/npc_combat.param
-torirsserver: 2 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_combat/configs/weapon_poison.param
-torirsserver: 10 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_cooking/configs/gnome_cooking/gnome_cooking.param
-torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_fishing/configs/fishing.param
-torirsserver: 2 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_magic/configs/magic.param
-torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_mining/configs/mining.param
-torirsserver: 2 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_mining/configs/pickaxes.param
-torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_prayer/configs/bones.param
-torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_runecraft/configs/runecraft.param
+torirsserver: 1 server param type(s) from OSRS-Content/osrs-content/server/scripts/areas/area_mage_arena/configs/mage_arena.param
+torirsserver: 1 server param type(s) from OSRS-Content/osrs-content/server/scripts/doors/configs/doors.param
+torirsserver: 1 server param type(s) from OSRS-Content/osrs-content/server/scripts/interface_bank/configs/bank.param
+torirsserver: 1 server param type(s) from OSRS-Content/osrs-content/server/scripts/minigames/game_mortton/configs/mortton_shades.param
+torirsserver: 1 server param type(s) from OSRS-Content/osrs-content/server/scripts/npc/configs/npc.param
+torirsserver: 7 server param type(s) from OSRS-Content/osrs-content/server/scripts/player/configs/bas.param
+torirsserver: 2 server param type(s) from OSRS-Content/osrs-content/server/scripts/player/configs/consumption/consume.param
+torirsserver: 2 server param type(s) from OSRS-Content/osrs-content/server/scripts/player/configs/death.param
+torirsserver: 3 server param type(s) from OSRS-Content/osrs-content/server/scripts/quests/quest_fluffs/configs/quest_fluffs.param
+torirsserver: 1 server param type(s) from OSRS-Content/osrs-content/server/scripts/quests/quest_haunted/configs/quest_haunted.param
+torirsserver: 1 server param type(s) from OSRS-Content/osrs-content/server/scripts/quests/quest_hazeelcult/configs/quest_hazeelcult.param
+torirsserver: 1 server param type(s) from OSRS-Content/osrs-content/server/scripts/quests/quest_legends/configs/quest_legends.param
+torirsserver: 1 server param type(s) from OSRS-Content/osrs-content/server/scripts/quests/quest_mm/configs/quest_mm.param
+torirsserver: 22 server param type(s) from OSRS-Content/osrs-content/server/scripts/quests/quest_mortton/configs/quest_mortton.param
+torirsserver: 2 server param type(s) from OSRS-Content/osrs-content/server/scripts/quests/quest_murder/configs/quest_murder.param
+torirsserver: 1 server param type(s) from OSRS-Content/osrs-content/server/scripts/quests/quest_tbwt/configs/quest_tbwt.param
+torirsserver: 3 server param type(s) from OSRS-Content/osrs-content/server/scripts/quests/quest_upass/configs/quest_upass.param
+torirsserver: 8 server param type(s) from OSRS-Content/osrs-content/server/scripts/skill_agility/configs/agility.param
+torirsserver: 48 server param type(s) from OSRS-Content/osrs-content/server/scripts/skill_combat/configs/combat.param
+torirsserver: 13 server param type(s) from OSRS-Content/osrs-content/server/scripts/skill_combat/configs/npc_combat.param
+torirsserver: 2 server param type(s) from OSRS-Content/osrs-content/server/scripts/skill_combat/configs/weapon_poison.param
+torirsserver: 10 server param type(s) from OSRS-Content/osrs-content/server/scripts/skill_cooking/configs/gnome_cooking/gnome_cooking.param
+torirsserver: 1 server param type(s) from OSRS-Content/osrs-content/server/scripts/skill_fishing/configs/fishing.param
+torirsserver: 2 server param type(s) from OSRS-Content/osrs-content/server/scripts/skill_magic/configs/magic.param
+torirsserver: 1 server param type(s) from OSRS-Content/osrs-content/server/scripts/skill_mining/configs/mining.param
+torirsserver: 2 server param type(s) from OSRS-Content/osrs-content/server/scripts/skill_mining/configs/pickaxes.param
+torirsserver: 1 server param type(s) from OSRS-Content/osrs-content/server/scripts/skill_prayer/configs/bones.param
+torirsserver: 1 server param type(s) from OSRS-Content/osrs-content/server/scripts/skill_runecraft/configs/runecraft.param
 torirsserver: 5862 enums from configs/all.enum
 torirsserver: 288 shop definitions from server/scripts/**/*.inv
 torirsserver: content loaded (239088 symbols, 12762 constants, 9431 npc defs, 4139 loc defs, 2066 varp defs, 1515 equip reqs (677 from the cache), 23158 npc spawns, 2256 obj spawns)
@@ -126,7 +126,7 @@ Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
 [loot-beam] prices.txt: 10 price overrides
 [ground-items] prices.txt: 10 price overrides
 torirsserver: login user='testc' session=ok
-torirsserver: 29520 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 29520 scripts loaded from OSRS-Content/osrs-content/server/scripts/build
 torirsserver: stated gap HINT_NPC             (first wanted by [proc,ahoy_spawn_lobster])
 torirsserver: stated gap HINT_STOP            (first wanted by [label,troll_dad_surrender])
 torirsserver: 3 engine fallback(s) still answer triggers content does not bind

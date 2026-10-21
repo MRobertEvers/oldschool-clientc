@@ -11,10 +11,13 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : EventMouseClickV1Decoder
- * Layouts      : 1 distinct, over 1 contiguous revision run(s)
+ * Layouts      : 1 distinct, over 2 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^EventMouseClickV1Decoder\tin\t' 3rd/rsprot/gen/packet_versions.txt
+ *                Revision(s) 241 come from RSProx, not RSProt
+ *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
+ *                gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -34,7 +37,7 @@ typedef struct MsgEventMouseClickV1 {
 	int32_t right_click;
 } MsgEventMouseClickV1;
 
-/* v1 -- revs 232-239. */
+/* v1 -- revs 232-239, 241. */
 void packet_event_mouse_click_v1_v1_in(RsprotExec *x, MsgEventMouseClickV1 *m);
 
 /* Per-revision aliases: `packet_event_mouse_click_v1_rev239_in` is greppable, which is the
@@ -47,6 +50,7 @@ void packet_event_mouse_click_v1_v1_in(RsprotExec *x, MsgEventMouseClickV1 *m);
 #define packet_event_mouse_click_v1_rev237_in packet_event_mouse_click_v1_v1_in
 #define packet_event_mouse_click_v1_rev238_in packet_event_mouse_click_v1_v1_in
 #define packet_event_mouse_click_v1_rev239_in packet_event_mouse_click_v1_v1_in
+#define packet_event_mouse_click_v1_rev241_in packet_event_mouse_click_v1_v1_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_event_mouse_click_v1_in[];

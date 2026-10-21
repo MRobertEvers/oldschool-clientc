@@ -12,7 +12,7 @@ Mechanics and provenance live in [`ENCOUNTERS.md`](ENCOUNTERS.md); the plan is
 ## 0. Regenerating this
 
 ```
-python3 tools/toa_cache_dump.py OSRS-Content/osrs239-content \
+python3 tools/toa_cache_dump.py OSRS-Content/osrs-content \
     docs/minigames/tombs_of_amascut/sources
 ```
 
@@ -26,8 +26,8 @@ Spot-check any single record without the tool:
 
 ```
 awk -v s='[toa_baba]' '$0==s{f=1;next} /^\[/{f=0} f' \
-    OSRS-Content/osrs239-content/configs/all.npc
-grep -n '=toa_baba$' OSRS-Content/osrs239-content/configs/all.npc.compack
+    OSRS-Content/osrs-content/configs/all.npc
+grep -n '=toa_baba$' OSRS-Content/osrs-content/configs/all.npc.compack
 ```
 
 ## 1. Map squares — twelve, all present

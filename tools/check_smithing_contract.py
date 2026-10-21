@@ -31,7 +31,7 @@ import collections
 
 import config_text
 
-ROWS = ("OSRS-Content/osrs239-content/server/scripts/skill_smithing/configs/"
+ROWS = ("OSRS-Content/osrs-content/server/scripts/skill_smithing/configs/"
         "smithing.dbrow")
 
 # The wiki names cannonballs as an exception to the per-bar rule.

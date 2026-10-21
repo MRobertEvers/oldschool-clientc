@@ -6,7 +6,7 @@ All Settings row **470**, struct **6372**, enum **244**, varbit **19614**
 
 ## The defect
 
-`OSRS-Content/osrs239-content/scripts/setting_dropdown_entry_op.cs2` — clientscript
+`OSRS-Content/osrs-content/scripts/setting_dropdown_entry_op.cs2` — clientscript
 **3852** — is what a click on a dropdown choice actually runs:
 
 ```

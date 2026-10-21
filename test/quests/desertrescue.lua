@@ -22,7 +22,7 @@
 -- open tiles (reach.py REACH closed-doors, len 119-127).
 --
 -- Content source for every symbol/text/stage number below:
--- OSRS-Content/osrs239-content/server/scripts/quests/quest_desertrescue/
+-- OSRS-Content/osrs-content/server/scripts/quests/quest_desertrescue/
 --   scripts/{mercenary_captain,mining_slave,mining_camp_gate,camp_guard,
 --   al_shabim,captain_siad,bedabin_nomad_guard,mine_cart_driver,ana,irena,
 --   quest_desertrescue}.rs2, configs/desertrescue.constant.
@@ -466,7 +466,7 @@ return {
             "*",
             "*",
         })
-        local rsail, vsail = t.var.server("varp5981_desertrescue_map_mechanisms")
+        local rsail, vsail = t.var.server("varp6656_desertrescue_map_mechanisms")
         t.check("talkToSiad-distracted", rsail == "ok" and vsail and (math.floor(vsail / 256) % 2) == 1, "map_mechanisms -> " .. tostring(vsail) .. " (bit 8 = distracted_siad)")
 
         t.exec("searchChest", t.player.click_loc, "captain_siads_chest_closed", 1)
@@ -865,7 +865,7 @@ return {
             "*",
             "*",
         })
-        local rrr, rrv = t.var.server("varp5981_desertrescue_map_mechanisms")
+        local rrr, rrv = t.var.server("varp6656_desertrescue_map_mechanisms")
         t.check("talkToDriver-ready", rrr == "ok" and rrv and (math.floor(rrv / 65536) % 2) == 1, "map_mechanisms -> " .. tostring(rrv) .. " (bit 16 = ready_rescue)")
 
         t.exec("useBarrelOnCart2", t.player.click_loc, "tourtrap_qip_multi_flatback_cart", 2)

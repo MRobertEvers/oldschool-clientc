@@ -25,7 +25,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--importer", type=Path, default=REPO / "3rd/rscache/tools/cachepack/cachepack")
     parser.add_argument("--manifest", type=Path, default=REPO / "docs/summoning_port/spirit_wolf_import.ini")
-    parser.add_argument("--tree", type=Path, default=REPO / "OSRS-Content/osrs239-content")
+    parser.add_argument("--tree", type=Path, default=REPO / "OSRS-Content/osrs-content")
     args = parser.parse_args()
 
     lane = args.tree / "ported/scape2009_summoning"

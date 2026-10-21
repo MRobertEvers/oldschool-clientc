@@ -1,4 +1,4 @@
--- Watchtower. Authored against OSRS-Content/osrs239-content/server/scripts/
+-- Watchtower. Authored against OSRS-Content/osrs-content/server/scripts/
 -- quests/quest_itwatchtower/scripts/*.rs2 (watchtower_wizard.rs2, grew.rs2,
 -- og.rs2, toban.rs2, gorad.rs2, ogre_guard.rs2, city_guard.rs2, skavid.rs2,
 -- enclave_guard.rs2, ogre_potion.rs2, ogre_shaman.rs2, quest_itwatchtower.rs2)

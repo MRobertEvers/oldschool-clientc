@@ -126,15 +126,24 @@ def manifest():
     manifests/ 50/78, session dir 46/78. The name is a dotfile this gate owns
     and rewrites every run; `dir=` inside it is absolute, so two sessions
     racing it write the same bytes.""" 
-    source = os.path.join(REPO_ROOT, "manifests", "manifest_osrs239.ini")
+    source = os.path.join(REPO_ROOT, "manifests", "manifest_osrs241.ini")
     out = os.path.join(REPO_ROOT, "manifests", ".conformance.ini")
     lines = []
     with open(source, "r", encoding="utf-8") as handle:
         for line in handle:
             if line.startswith("dir="):
-                line = "dir=%s\n" % os.path.join(REPO_ROOT, "cache.osrs239")
+                line = "dir=%s\n" % os.path.join(REPO_ROOT, "cache.osrs241")
             elif line.startswith("transport="):
                 line = "transport=embed\n"
+            # The PROTOCOL is revision 241 (src/net/rev/osrs241, the selected
+            # revision); the cache and content stay what this manifest names
+            # until their 241 copies are repointed here. Set QUEST_PROTO_REV=
+            # osrs239 to run the same test on the 239 pair.
+            elif line.startswith("rev="):
+                line = "rev=%s\n" % os.environ.get("QUEST_PROTO_REV", "osrs241")
+            elif line.startswith("client_version="):
+                line = "client_version=%s\n" % (
+                    os.environ.get("QUEST_PROTO_REV", "osrs241")[len("osrs"):])
             lines.append(line)
     with open(out, "w", encoding="utf-8") as handle:
         handle.writelines(lines)

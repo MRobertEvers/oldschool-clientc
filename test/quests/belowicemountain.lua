@@ -1,5 +1,5 @@
 -- Below Ice Mountain (tier 4). Guide: Quest Helper BelowIceMountain.java via ladder.py.
--- Source of truth for content: OSRS-Content/osrs239-content/server/scripts/quests/quest_belowicemountain/
+-- Source of truth for content: OSRS-Content/osrs-content/server/scripts/quests/quest_belowicemountain/
 -- (belowicemountain.rs2: the [opnpc1,bim_willow_*], bim_checkal_*, bim_atlas, bim_marley_*, cook, bim_burntof_*, risingsun_barmaid* and [oploc1,bim_entrance] handlers).
 -- Brought along: 16 QP prerequisite, bread/knife/cooked meat/coins (the longhall meat is not
 -- a spawn we found), a weapon + food for the Ancient Guardian.

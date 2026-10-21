@@ -22,7 +22,7 @@ import re
 import sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONTENT = os.path.join(REPO, "OSRS-Content", "osrs239-content")
+CONTENT = os.path.join(REPO, "OSRS-Content", "osrs-content")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import config_text  # noqa: E402
 import wiki_infobox as wi  # noqa: E402

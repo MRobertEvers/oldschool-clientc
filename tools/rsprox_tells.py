@@ -29,7 +29,7 @@ import re
 import sys
 from collections import Counter, defaultdict
 
-CONTENT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "OSRS-Content", "osrs239-content")
+CONTENT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "OSRS-Content", "osrs-content")
 TICK = re.compile(r"^\[(\d+)\]$")
 VERSION = re.compile(r"^version: (\d+)")
 ME = re.compile(r"local player index: (\d+)")

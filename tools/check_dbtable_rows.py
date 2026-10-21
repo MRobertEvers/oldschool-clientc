@@ -29,14 +29,14 @@ import sys
 
 import config_text
 
-SCRIPTS = "OSRS-Content/osrs239-content/server/scripts"
+SCRIPTS = "OSRS-Content/osrs-content/server/scripts"
 
 # Tables that legitimately have no rows anywhere, with the reason. A NEW name
 # appearing outside this list is the finding; these are known and documented at
 # the point of use.
 KNOWN_EMPTY = {
 }
-CACHE_INDEX = "OSRS-Content/osrs239-content/configs/all.dbtable.compack"
+CACHE_INDEX = "OSRS-Content/osrs-content/configs/all.dbtable.compack"
 
 
 def declared_tables():

@@ -180,7 +180,7 @@ return {
         for i = 1, 60 do
             t.ticks(10)
             local _, v = t.var.server("varb18335_trr")
-            local _, n = t.var.server("varp7206_trr_crew_slain")
+            local _, n = t.var.server("varp7881_trr_crew_slain")
             local hp = hp_now()
             if hp ~= nil and (ship_low == nil or hp < ship_low) then ship_low = hp end
             t.check("sinkBlackEyeBethelBoats.watch" .. i, true, "trr=" .. tostring(v) .. " slain=" .. tostring(n) .. " hp=" .. tostring(hp)

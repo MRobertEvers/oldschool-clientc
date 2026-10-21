@@ -151,7 +151,7 @@ def render(booths, dead_count):
 def main():
     here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     parser = argparse.ArgumentParser()
-    parser.add_argument("--content", default=os.path.join(here, "OSRS-Content", "osrs239-content"))
+    parser.add_argument("--content", default=os.path.join(here, "OSRS-Content", "osrs-content"))
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--report", action="store_true")
     args = parser.parse_args()

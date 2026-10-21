@@ -21,7 +21,7 @@ import sys
 import config_text
 
 WIKI = "docs/skills/mining/sources/Mining.wiki"
-ROWS = ("OSRS-Content/osrs239-content/server/scripts/skill_mining/configs/"
+ROWS = ("OSRS-Content/osrs-content/server/scripts/skill_mining/configs/"
         "mine.dbrow")
 
 

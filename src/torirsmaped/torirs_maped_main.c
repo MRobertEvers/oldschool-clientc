@@ -4,7 +4,7 @@
  *   src/build/torirsmaped [port] [--content-dir <dir>] [--repo-root <dir>]
  *
  * Defaults: port 43610 (TORIRSMAPED_DEFAULT_PORT), content dir
- * $TORIRSMAPED_CONTENT_DIR or OSRS-Content/osrs239-content, repo root
+ * $TORIRSMAPED_CONTENT_DIR or OSRS-Content/osrs-content, repo root
  * $TORIRSMAPED_REPO_ROOT or "." (pass --repo-root '' to disable baking).
  *
  * Serves several connections at once — that is the point of the daemon. A
@@ -470,7 +470,7 @@ main(
     static struct ToriRSMapEd maped;
 
     if( !content_dir )
-        content_dir = "OSRS-Content/osrs239-content";
+        content_dir = "OSRS-Content/osrs-content";
     if( !repo_root )
         repo_root = ".";
 

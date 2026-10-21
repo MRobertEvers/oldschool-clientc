@@ -21,7 +21,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BUILD = os.path.join(ROOT, "src", "engine", "entity_model_build.c")
 CONST = os.path.join(
-    ROOT, "OSRS-Content", "osrs239-content", "server", "scripts",
+    ROOT, "OSRS-Content", "osrs-content", "server", "scripts",
     "player", "configs", "player_design.constant",
 )
 ROWS = ["hair", "torso", "legs", "feet", "skin"]

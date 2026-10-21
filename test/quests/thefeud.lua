@@ -17,10 +17,10 @@
 -- (reach.py: all REACH closed-doors, none solid). No dialogue on the route
 -- branches on combat level (grep combat_level over quest_thefeud, shantay*,
 -- magic_carpet*), so the staged 99 melee stats see the only branch there is. Content source for every symbol/text/stage number:
--- OSRS-Content/osrs239-content/server/scripts/quests/quest_thefeud/
+-- OSRS-Content/osrs-content/server/scripts/quests/quest_thefeud/
 --   scripts/{feud_alimorrisane,feud_recruitment,feud_heist,feud_traitor,
 --   feud_confrontation,feud_villagers}.rs2, configs/quest_thefeud.constant,
--- OSRS-Content/osrs239-content/server/scripts/areas/area_alkharid/scripts/
+-- OSRS-Content/osrs-content/server/scripts/areas/area_alkharid/scripts/
 --   shantay.rs2, shantay_pass.rs2; areas/area_desert/scripts/
 --   magic_carpet.rs2, magic_carpet_talk.rs2; shop/pollnivneach/scripts/
 --   the_asp_snake_bar.rs2; quest_ratcatchers/scripts/ratcatchers.rs2

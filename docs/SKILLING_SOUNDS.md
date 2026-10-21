@@ -42,7 +42,7 @@ was dropped skill-by-skill for a reason that is no longer true.
 ## 1. Why it was dropped, and why that reason is dead
 
 The rationale is written down, in the first script that hit it —
-[`skill_prayer/scripts/bury_bone.rs2:26-29`](../OSRS-Content/osrs239-content/server/scripts/skill_prayer/scripts/bury_bone.rs2#L26-L29):
+[`skill_prayer/scripts/bury_bone.rs2:26-29`](../OSRS-Content/osrs-content/server/scripts/skill_prayer/scripts/bury_bone.rs2#L26-L29):
 
 > `sound_synth` is dropped, because the synth table in this cache is unnamed —
 > every id in `synth.pack` reads `synth_<n>` — so there is no honest symbol to
@@ -69,7 +69,7 @@ edit whose symbol compiles.
 | `synth` symbol type in the compiler | **works** | [`ssc_symbols.c:504`](../src/serverscript/ssc_symbols.c#L504) |
 | loc ambient sound (`soundid=`) | **works, and already playing** | decode [`torirs_location_from_rscache.c:128`](../src/engine/torirs_location_from_rscache.c#L128) → emitter [`world_scenery.u.c:1993`](../src/engine/world_builder/world_scenery.u.c#L1993) → `rs_audio.c` ambient loops |
 | `huntall` / `huntnext` | **works** — so `~sound_area` is portable as 4 lines of content | [`torirs_server_scripts.c:4740`](../src/torirsserver/torirs_server_scripts.c#L4740) |
-| `~sound_area` / `~sound_within_distance` procs | **already ported — and called by nothing** (0 call sites) | [`general/scripts/misc/sound.rs2`](../OSRS-Content/osrs239-content/server/scripts/general/scripts/misc/sound.rs2) |
+| `~sound_area` / `~sound_within_distance` procs | **already ported — and called by nothing** (0 call sites) | [`general/scripts/misc/sound.rs2`](../OSRS-Content/osrs-content/server/scripts/general/scripts/misc/sound.rs2) |
 | `MIDI_JINGLE` (level-up jingles) | **opcode declared, server-side unimplemented**, and `11_musicjingles.pack` is entirely unnamed (`jingle_0…`) | [`ss_opcode.h:138`](../src/serverscript/ss_opcode.h#L138) |
 
 The only *blocked* row is the last one (§6). The `~sound_area` row is the
@@ -95,7 +95,7 @@ it is **what kind of thing would have to be wrong** for the row to be wrong.
 | **d** | **Derived** — no source names it; picked by analogy with an L or W row. | the analogy |
 
 Every name in every table below was checked against
-`OSRS-Content/osrs239-content/pack/4_soundeffects.pack`. Ids are that pack's,
+`OSRS-Content/osrs-content/pack/4_soundeffects.pack`. Ids are that pack's,
 which is this cache's. **Write the name, never the id** — `sound_synth(mine, 1,
 0)`, not `sound_synth(2656, 1, 0)` — for the reason `PORTING_GUIDE` §4.1 rule 4
 gives: ids never cross trees, names do.
@@ -167,7 +167,7 @@ seq already states it:
 
 ```
 awk '/^\[human_mining_bronze_pickaxe\]/,/^$/' \
-    OSRS-Content/osrs239-content/configs/all.seq | grep '^sound='
+    OSRS-Content/osrs-content/configs/all.seq | grep '^sound='
 ```
 
 ### 4.3 Fishing — `skill_fishing/`
@@ -363,7 +363,7 @@ barbarian, wilderness courses and shortcuts) unless marked.
 Our tree's agility is the **rooftop** courses, which LostCity (Sept 2004) does
 not have — so the rooftop obstacles take the layer-**W** rows above, matched by
 obstacle kind. 113 `anim(` call sites across
-[`skill_agility/`](../OSRS-Content/osrs239-content/server/scripts/skill_agility/)
+[`skill_agility/`](../OSRS-Content/osrs-content/server/scripts/skill_agility/)
 is the size of that job.
 
 ### 4.13 Farming — `skill_farming/` *(all layer W — LostCity has no farming)*
@@ -385,14 +385,14 @@ The 2427–2449 block is farming end-to-end, and the names are unusually literal
 | `pick_cactus` | 2448 | cactus | | `slice_watermelon` | 2449 | watermelon |
 
 69 `anim(` sites in
-[`skill_farming/`](../OSRS-Content/osrs239-content/server/scripts/skill_farming/);
+[`skill_farming/`](../OSRS-Content/osrs-content/server/scripts/skill_farming/);
 the highest-value four are rake / dib / water / pick, which is the whole loop.
 
 ### 4.14 Hunter — `skill_hunter/` *(all layer W)*
 
 The 2616–2654 block is hunter end-to-end, 32 usable names — the richest
 untouched block in the cache, against 83 `anim(` sites in
-[`skill_hunter/`](../OSRS-Content/osrs239-content/server/scripts/skill_hunter/):
+[`skill_hunter/`](../OSRS-Content/osrs-content/server/scripts/skill_hunter/):
 
 | trap | set | trigger / catch | dismantle |
 |---|---|---|---|
@@ -516,7 +516,7 @@ be violated:
 ### 5.1 Phase 0 — the shared prerequisite (half a day)
 
 **`~sound_area` is already there — start using it.**
-[`general/scripts/misc/sound.rs2`](../OSRS-Content/osrs239-content/server/scripts/general/scripts/misc/sound.rs2)
+[`general/scripts/misc/sound.rs2`](../OSRS-Content/osrs-content/server/scripts/general/scripts/misc/sound.rs2)
 already carries `[proc,sound_area]`, `[proc,.sound_area]` and
 `[proc,sound_within_distance]`, all built on `huntall`/`huntnext` (implemented
 at [`torirs_server_scripts.c:4740`](../src/torirsserver/torirs_server_scripts.c#L4740)), and

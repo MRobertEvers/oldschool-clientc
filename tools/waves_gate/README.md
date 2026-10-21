@@ -33,7 +33,7 @@ empty) they change nothing, byte for byte:
   `colosseum_sol_heredit` -> `colosseum/sol_heredit`).
 
 The wrappers set them to `test/waves` and
-`OSRS-Content/osrs239-content/server/scripts/selftest/minigames` and run the
+`OSRS-Content/osrs-content/server/scripts/selftest/minigames` and run the
 quest gate script. Before that they refuse (exit 2):
 
 - if any `test/waves/<id>.lua` shares an id with `test/quests/` or `QUEUE.tsv`'s

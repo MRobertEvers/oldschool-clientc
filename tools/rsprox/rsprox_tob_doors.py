@@ -18,7 +18,7 @@ directly with our template-relative room constants.
 import re
 import sys
 
-COMPACK = "/Users/matthewevers/Documents/git_repos/3draster/OSRS-Content/osrs239-content/configs/all.loc.compack"
+COMPACK = "/Users/matthewevers/Documents/git_repos/3draster/OSRS-Content/osrs-content/configs/all.loc.compack"
 LOC = {}
 for line in open(COMPACK, encoding="utf-8", errors="replace"):
     if "=" in line and line[0].isdigit():

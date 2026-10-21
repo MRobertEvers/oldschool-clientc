@@ -8,7 +8,7 @@ which is itself extracted from the rev558 cache (enum 863 -> structs 888-907).
 Regenerating is therefore safe and idempotent: the cache stays the single source
 of the levels, names, tooltips and icon ids.
 
-What it writes, all under OSRS-Content/osrs239-content:
+What it writes, all under OSRS-Content/osrs-content:
 
   ported/rs558_ancient_curses/configs/curses.obj        20 book entries
   ported/rs558_ancient_curses/configs/curses.enum       the book itself
@@ -45,7 +45,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import config_text  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
-TREE = ROOT / "OSRS-Content/osrs239-content"
+TREE = ROOT / "OSRS-Content/osrs-content"
 LANE = TREE / "ported/rs558_ancient_curses"
 BOOK = ROOT / "docs/rs558_ancient_curses/tables/curses_book.csv"
 
@@ -153,17 +153,17 @@ def main() -> int:
         "// Mask carriers for the third prayer book, mirroring the cache's own\n"
         "// prayer_ruinous_0 / prayer_ruinous_1 pair. A varp record carries no\n"
         "// fields; existence is the whole record.\n\n"
-        "[varp5705_prayer_curses_0]\n\n[varp5706_prayer_curses_1]\n")
+        "[varp9000_prayer_curses_0]\n\n[varp9001_prayer_curses_1]\n")
 
     config_text.write_config(LANE / "configs/curses.varbit", 
         "// The two 20-bit masks, one bit per curse in book order.\n"
         "// Shaped exactly like prayer_allactive_ruinous / quickprayer_selected_ruinous.\n\n"
         "[varb20412_prayer_allactive_curses]\n"
-        "basevar=varp5705_prayer_curses_0\n"
+        "basevar=varp9000_prayer_curses_0\n"
         "startbit=0\n"
         "endbit=19\n\n"
         "[varb20413_quickprayer_selected_curses]\n"
-        "basevar=varp5706_prayer_curses_1\n"
+        "basevar=varp9001_prayer_curses_1\n"
         "startbit=0\n"
         "endbit=19\n")
 
@@ -177,7 +177,7 @@ def main() -> int:
     # along and cannot go stale behind us.
     summoning = TREE / "ported/scape2009_summoning/configs"
     for ns, extra in (
-        ("varp", [(VARP_ACTIVE, "varp5705_prayer_curses_0"), (VARP_QUICK, "varp5706_prayer_curses_1")]),
+        ("varp", [(VARP_ACTIVE, "varp9000_prayer_curses_0"), (VARP_QUICK, "varp9001_prayer_curses_1")]),
         ("varbit", [(VARBIT_ACTIVE, "varb20412_prayer_allactive_curses"),
                     (VARBIT_QUICK, "varb20413_quickprayer_selected_curses")]),
     ):

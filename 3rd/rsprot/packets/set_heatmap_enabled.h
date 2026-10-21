@@ -11,10 +11,13 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : SetHeatmapEnabledEncoder
- * Layouts      : 1 distinct, over 1 contiguous revision run(s)
+ * Layouts      : 1 distinct, over 2 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^SetHeatmapEnabledEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
+ *                Revision(s) 241 come from RSProx, not RSProt
+ *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
+ *                gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -30,7 +33,7 @@ typedef struct MsgSetHeatmapEnabled {
 	int32_t enabled;
 } MsgSetHeatmapEnabled;
 
-/* v1 -- revs 223-239. */
+/* v1 -- revs 223-239, 241. */
 void packet_set_heatmap_enabled_v1_out(RsprotExec *x, MsgSetHeatmapEnabled *m);
 
 /* Per-revision aliases: `packet_set_heatmap_enabled_rev239_out` is greppable, which is the
@@ -52,6 +55,7 @@ void packet_set_heatmap_enabled_v1_out(RsprotExec *x, MsgSetHeatmapEnabled *m);
 #define packet_set_heatmap_enabled_rev237_out packet_set_heatmap_enabled_v1_out
 #define packet_set_heatmap_enabled_rev238_out packet_set_heatmap_enabled_v1_out
 #define packet_set_heatmap_enabled_rev239_out packet_set_heatmap_enabled_v1_out
+#define packet_set_heatmap_enabled_rev241_out packet_set_heatmap_enabled_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_set_heatmap_enabled_out[];

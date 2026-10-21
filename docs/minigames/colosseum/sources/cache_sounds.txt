@@ -1,4 +1,4 @@
-# sound effects -- 503 selected from OSRS-Content/osrs239-content/pack/4_soundeffects.pack (Jagex's own names)
+# sound effects -- 503 selected from OSRS-Content/osrs-content/pack/4_soundeffects.pack (Jagex's own names)
 # why= the selection rule(s); `bind: frame sound of seq N` means the cache
 # itself plays it in-band; every other row is a server-side choice.
 

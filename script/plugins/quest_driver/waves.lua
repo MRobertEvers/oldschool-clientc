@@ -33,7 +33,7 @@
 -- second argument is PRACTICE.  So every run `enter` makes is a practice run,
 -- and a practice run is ONE wave: when its last npc dies the content prints
 -- "Practice wave complete." and leaves (inferno_waves.rs2, `inferno_npc_died`,
--- the `%varp6038_inferno_practice = 1` branch).  A real run is entered by
+-- the `%varp6713_inferno_practice = 1` branch).  A real run is entered by
 -- clicking the Cave entrance (`[oploc1,inferno_entrance_op]`, inferno.rs2:273),
 -- which the entry unit's test does itself with t.player.click_loc.  `enter` is
 -- a bring-along: it refuses when a run is already active unless
@@ -80,21 +80,21 @@ QD.wave.INFERNO = {
     wave_zuk = 69,  -- ^inferno_wave_zuk (minigame_inferno/configs/inferno.constant:10)
     cheat = "::inferno",
     vars = {
-        active = "varp5889_inferno_active",
-        wave = "varp6040_inferno_wave",
-        alive = "varp5890_inferno_alive",
-        practice = "varp6038_inferno_practice",
-        paused = "varp6056_inferno_paused",
-        logout_requested = "varp6055_inferno_logout_req",
-        saved_wave = "varp6065_inferno_saved_wave",
-        death_pending = "varp6256_inferno_death_pending",
+        active = "varp6564_inferno_active",
+        wave = "varp6715_inferno_wave",
+        alive = "varp6565_inferno_alive",
+        practice = "varp6713_inferno_practice",
+        paused = "varp6731_inferno_paused",
+        logout_requested = "varp6730_inferno_logout_req",
+        saved_wave = "varp6740_inferno_saved_wave",
+        death_pending = "varp6931_inferno_death_pending",
     },
     -- Read in this order; the detail prints them w, s, e.
     pillar_order = { "w", "s", "e" },
     pillars = {
-        w = { hp = "varp6037_inferno_pillar_w_hp", dead = "varp6036_inferno_pillar_w_dead" },
-        s = { hp = "varp6035_inferno_pillar_s_hp", dead = "varp6034_inferno_pillar_s_dead" },
-        e = { hp = "varp6033_inferno_pillar_e_hp", dead = "varp6032_inferno_pillar_e_dead" },
+        w = { hp = "varp6712_inferno_pillar_w_hp", dead = "varp6711_inferno_pillar_w_dead" },
+        s = { hp = "varp6710_inferno_pillar_s_hp", dead = "varp6709_inferno_pillar_s_dead" },
+        e = { hp = "varp6708_inferno_pillar_e_hp", dead = "varp6707_inferno_pillar_e_dead" },
     },
     -- The npcs that are wave credit: every type whose death runs
     -- `~inferno_npc_died` (inferno_waves.rs2's [ai_queue3,...] list, plus the

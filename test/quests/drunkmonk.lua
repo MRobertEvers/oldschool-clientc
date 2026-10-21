@@ -1,11 +1,11 @@
 -- Monk's Friend (test_id drunkmonk, content quest_monksfriend / quest_drunkmonk).
 -- Every CHECK from the scaffold resolved against:
---   OSRS-Content/osrs239-content/server/scripts/quests/quest_drunkmonk/configs/quest_drunkmonk.constant
---   OSRS-Content/osrs239-content/server/scripts/quests/quest_drunkmonk/scripts/quest_drunkmonk.rs2
---   OSRS-Content/osrs239-content/server/scripts/quests/quest_drunkmonk/scripts/drunkmonk_journal.rs2
---   OSRS-Content/osrs239-content/server/scripts/areas/ardougne_east/scripts/brother_omad.rs2
---   OSRS-Content/osrs239-content/server/scripts/areas/ardougne_east/scripts/brother_cedric.rs2
---   OSRS-Content/osrs239-content/server/scripts/areas/wilderness/scripts/lava_maze.rs2 (wildymirrorladdertop1)
+--   OSRS-Content/osrs-content/server/scripts/quests/quest_drunkmonk/configs/quest_drunkmonk.constant
+--   OSRS-Content/osrs-content/server/scripts/quests/quest_drunkmonk/scripts/quest_drunkmonk.rs2
+--   OSRS-Content/osrs-content/server/scripts/quests/quest_drunkmonk/scripts/drunkmonk_journal.rs2
+--   OSRS-Content/osrs-content/server/scripts/areas/ardougne_east/scripts/brother_omad.rs2
+--   OSRS-Content/osrs-content/server/scripts/areas/ardougne_east/scripts/brother_cedric.rs2
+--   OSRS-Content/osrs-content/server/scripts/areas/wilderness/scripts/lava_maze.rs2 (wildymirrorladdertop1)
 --
 -- Flow: Brother Omad (south of East Ardougne monastery) sends the player to
 -- a secret cave under a ring of stones for a stolen child's blanket, then to

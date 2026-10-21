@@ -11,10 +11,13 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : IfSetObjectEncoder
- * Layouts      : 19 distinct, over 19 contiguous revision run(s)
+ * Layouts      : 20 distinct, over 20 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^IfSetObjectEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
+ *                Revision(s) 241 come from RSProx, not RSProt
+ *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
+ *                gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -70,6 +73,8 @@ void packet_if_setobject_v17_out(RsprotExec *x, MsgIfSetObject *m);
 void packet_if_setobject_v18_out(RsprotExec *x, MsgIfSetObject *m);
 /* v19 -- revs 239. */
 void packet_if_setobject_v19_out(RsprotExec *x, MsgIfSetObject *m);
+/* v100 -- revs 241. */
+void packet_if_setobject_v100_out(RsprotExec *x, MsgIfSetObject *m);
 
 /* Per-revision aliases: `packet_if_setobject_rev239_out` is greppable, which is the
  * point -- "what does 239 do for IF_SETOBJECT" without reading a table. */
@@ -92,6 +97,7 @@ void packet_if_setobject_v19_out(RsprotExec *x, MsgIfSetObject *m);
 #define packet_if_setobject_rev237_out packet_if_setobject_v17_out
 #define packet_if_setobject_rev238_out packet_if_setobject_v18_out
 #define packet_if_setobject_rev239_out packet_if_setobject_v19_out
+#define packet_if_setobject_rev241_out packet_if_setobject_v100_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_if_setobject_out[];

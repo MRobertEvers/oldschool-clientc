@@ -29,7 +29,7 @@ import sys
 import config_text
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONTENT = os.path.join(ROOT, "OSRS-Content", "osrs239-content")
+CONTENT = os.path.join(ROOT, "OSRS-Content", "osrs-content")
 WIKI = os.path.join(ROOT, "docs", "bosses", "wiki")
 CONFIGS = [
     os.path.join(CONTENT, "server", "scripts", "bosses", "boss_wilderness_singles",

@@ -760,9 +760,9 @@ return {
         -- on every selected piece, so a finished piece is deselected before
         -- the next is selected.
         local puzzle_pieces = {
-            { n = 1, select = w_select1, dx = "varp7153_dwarfrock_puzzle_dx1", dy = "varp7156_dwarfrock_puzzle_dy1", rot = "varp7168_dwarfrock_puzzle_rot1" },
-            { n = 2, select = w_select2, dx = "varp7154_dwarfrock_puzzle_dx2", dy = "varp7157_dwarfrock_puzzle_dy2", rot = "varp7169_dwarfrock_puzzle_rot2" },
-            { n = 3, select = w_select3, dx = "varp7155_dwarfrock_puzzle_dx3", dy = "varp7158_dwarfrock_puzzle_dy3", rot = "varp7170_dwarfrock_puzzle_rot3" },
+            { n = 1, select = w_select1, dx = "varp7828_dwarfrock_puzzle_dx1", dy = "varp7831_dwarfrock_puzzle_dy1", rot = "varp7843_dwarfrock_puzzle_rot1" },
+            { n = 2, select = w_select2, dx = "varp7829_dwarfrock_puzzle_dx2", dy = "varp7832_dwarfrock_puzzle_dy2", rot = "varp7844_dwarfrock_puzzle_rot2" },
+            { n = 3, select = w_select3, dx = "varp7830_dwarfrock_puzzle_dx3", dy = "varp7833_dwarfrock_puzzle_dy3", rot = "varp7845_dwarfrock_puzzle_rot3" },
         }
         for _, piece in ipairs(puzzle_pieces) do
             t.ui.invoke(piece.select, 1) -- select ON (togglebit)

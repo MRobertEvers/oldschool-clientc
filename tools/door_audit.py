@@ -21,9 +21,9 @@ A loc can only need fixing if it is *placed*: 62k cache records name
 counts also rank the queue — a door at 34 map squares matters more than one
 at 1.
 
-    tools/door_audit.py --tree OSRS-Content/osrs239-content
-    tools/door_audit.py --tree OSRS-Content/osrs239-content --write-queue docs/DOORS_GATES_QUEUE.md
-    tools/door_audit.py --tree OSRS-Content/osrs239-content --suggest-pairs
+    tools/door_audit.py --tree OSRS-Content/osrs-content
+    tools/door_audit.py --tree OSRS-Content/osrs-content --write-queue docs/DOORS_GATES_QUEUE.md
+    tools/door_audit.py --tree OSRS-Content/osrs-content --suggest-pairs
 
 `--suggest-pairs` proposes an `open` partner for each uncovered Open/Close
 loc, the way the reference importer did — by name. It is a proposal, not an
@@ -718,8 +718,8 @@ SELFSTAGE_HEADER = """\
 // Doors that swing without becoming a different loc.
 //
 // DERIVED — regenerate with:
-//     tools/door_audit.py --tree OSRS-Content/osrs239-content \\
-//         --write-selfstage OSRS-Content/osrs239-content/server/scripts/doors/configs/doors_selfstage.loc
+//     tools/door_audit.py --tree OSRS-Content/osrs-content \\
+//         --write-selfstage OSRS-Content/osrs-content/server/scripts/doors/configs/doors_selfstage.loc
 //
 // Every record here has an `Open` op, is placed only as `wall_straight` or
 // `wall_diagonal`, and has NO opened counterpart anywhere in the cache — so
@@ -869,7 +869,7 @@ def cmd_write_selfstage(rows, buckets, tree, path):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--tree", required=True, help="osrs239-content tree")
+    ap.add_argument("--tree", required=True, help="osrs-content tree")
     ap.add_argument("--write-queue", metavar="PATH", help="write the markdown queue doc")
     ap.add_argument("--write-selfstage", metavar="PATH",
                     help="write doors_selfstage.loc (the category=door_selfstage block list)")

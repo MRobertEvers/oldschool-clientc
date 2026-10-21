@@ -18,8 +18,8 @@ What it found when it was written: A Tail of Two Cats had no route to its own
 completion step, and nothing in the tree wrote Observatory Quest's
 `^itgronigen_complete`.
 
-    tools/script_orphans.py --tree OSRS-Content/osrs239-content
-    tools/script_orphans.py --tree OSRS-Content/osrs239-content --all
+    tools/script_orphans.py --tree OSRS-Content/osrs-content
+    tools/script_orphans.py --tree OSRS-Content/osrs-content --all
 
 Two things this has to get right, both of which produced badly wrong numbers
 first time round:
@@ -112,7 +112,7 @@ def scan(root, include_debugproc=False, include_selftest=False):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--tree", required=True, help="osrs239-content tree")
+    ap.add_argument("--tree", required=True, help="osrs-content tree")
     ap.add_argument("--all", action="store_true",
                     help="include debugproc, which is reached by typing ::name")
     ap.add_argument("--include-selftest", action="store_true",

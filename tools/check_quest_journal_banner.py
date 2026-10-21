@@ -33,7 +33,7 @@ import re
 import sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SCRIPTS = os.path.join(REPO, "OSRS-Content", "osrs239-content", "server", "scripts")
+SCRIPTS = os.path.join(REPO, "OSRS-Content", "osrs-content", "server", "scripts")
 
 BANNER = "QUEST COMPLETE!"
 CALL = "~quest_journal("

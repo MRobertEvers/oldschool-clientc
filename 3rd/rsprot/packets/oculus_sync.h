@@ -11,10 +11,13 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : OculusSyncEncoder
- * Layouts      : 1 distinct, over 1 contiguous revision run(s)
+ * Layouts      : 1 distinct, over 2 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^OculusSyncEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
+ *                Revision(s) 241 come from RSProx, not RSProt
+ *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
+ *                gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -30,7 +33,7 @@ typedef struct MsgOculusSync {
 	int32_t value;
 } MsgOculusSync;
 
-/* v1 -- revs 221-239. */
+/* v1 -- revs 221-239, 241. */
 void packet_oculus_sync_v1_out(RsprotExec *x, MsgOculusSync *m);
 
 /* Per-revision aliases: `packet_oculus_sync_rev239_out` is greppable, which is the
@@ -54,6 +57,7 @@ void packet_oculus_sync_v1_out(RsprotExec *x, MsgOculusSync *m);
 #define packet_oculus_sync_rev237_out packet_oculus_sync_v1_out
 #define packet_oculus_sync_rev238_out packet_oculus_sync_v1_out
 #define packet_oculus_sync_rev239_out packet_oculus_sync_v1_out
+#define packet_oculus_sync_rev241_out packet_oculus_sync_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_oculus_sync_out[];

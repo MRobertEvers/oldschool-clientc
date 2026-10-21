@@ -544,9 +544,9 @@ return {
             t.check("crossThePit-outbound-landed", at.x >= 2465, "after the swing at " .. at.x .. "," .. at.z .. " :: " .. last_lines(4))
             climb("climbOverRockslide4", 2491, 9691)
             climb("climbOverRockslide5", 2482, 9679)
-            -- crossTheGrid: %varp6010_upass_grid_pattern names one safe 2-row band per column group (upass_grid.rs2:72-96);
+            -- crossTheGrid: %varp6685_upass_grid_pattern names one safe 2-row band per column group (upass_grid.rs2:72-96);
             -- the timer fails a player outside all three. Band of digit d is z 9673+2(d-1) .. +1.
-            local _, pattern = t.var.server("varp6010_upass_grid_pattern")
+            local _, pattern = t.var.server("varp6685_upass_grid_pattern")
             pattern = tonumber(pattern) or 0
             local d1, d2, d3 = math.floor(pattern / 100) % 10, math.floor(pattern / 10) % 10, pattern % 10
             local function band_z(d) return 9673 + 2 * (d - 1) end
@@ -748,7 +748,7 @@ return {
             climb("climbOverRockslide4-return", 2491, 9691)
             t.player.walk_to(2484, 9679, 40)
             climb("climbOverRockslide5-return", 2482, 9679)
-            local _, pattern = t.var.server("varp6010_upass_grid_pattern")
+            local _, pattern = t.var.server("varp6685_upass_grid_pattern")
             pattern = tonumber(pattern) or 0
             local d1, d2, d3 = math.floor(pattern / 100) % 10, math.floor(pattern / 10) % 10, pattern % 10
             local function band_z(d) return 9673 + 2 * (d - 1) end
@@ -1693,14 +1693,14 @@ return {
             t.check("crossThePit-again-crossed", swing_at.x >= 2464, "after the swing at " .. swing_at.x .. "," .. swing_at.z .. " :: " .. last_lines(4))
             climb("climbOverRockslide4-again", 2491, 9691)
             climb("climbOverRockslide5-again", 2482, 9679)
-            -- crossTheGrid (again): the safe bands come from %varp6010_upass_grid_pattern (upass_grid.rs2:72-96)
+            -- crossTheGrid (again): the safe bands come from %varp6685_upass_grid_pattern (upass_grid.rs2:72-96)
             do
-                local _, pattern = t.var.server("varp6010_upass_grid_pattern")
+                local _, pattern = t.var.server("varp6685_upass_grid_pattern")
                 pattern = tonumber(pattern) or 0
                 if pattern == 0 then
-                    -- (no mid-run grid-pattern seed: the ::complete arm rolled it; leg 3/6 read %varp6010_upass_grid_pattern)
+                    -- (no mid-run grid-pattern seed: the ::complete arm rolled it; leg 3/6 read %varp6685_upass_grid_pattern)
                     t.ticks(2)
-                    _, pattern = t.var.server("varp6010_upass_grid_pattern")
+                    _, pattern = t.var.server("varp6685_upass_grid_pattern")
                     pattern = tonumber(pattern) or 0
                 end
                 local d1, d2, d3 = math.floor(pattern / 100) % 10, math.floor(pattern / 10) % 10, pattern % 10

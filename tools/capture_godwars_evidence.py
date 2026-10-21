@@ -19,11 +19,11 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = (
     ROOT
-    / "OSRS-Content/osrs239-content/wiki/godwars_combat_manifest.csv"
+    / "OSRS-Content/osrs-content/wiki/godwars_combat_manifest.csv"
 )
 DEFAULT_SERVER = Path("src/build_opt/torirsserver")
 DEFAULT_SCRIPTS = Path(
-    "OSRS-Content/osrs239-content/server/scripts/build"
+    "OSRS-Content/osrs-content/server/scripts/build"
 )
 DEFAULT_OUTPUT = Path("docs/evidence/godwars_runtime_trace.tsv")
 

@@ -24,7 +24,7 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONTENT = os.path.join(ROOT, "OSRS-Content", "osrs239-content")
+CONTENT = os.path.join(ROOT, "OSRS-Content", "osrs-content")
 SCRIPTS = os.path.join(CONTENT, "server", "scripts", "skill_construction", "scripts")
 RUNTIME = os.path.join(CONTENT, "server", "scripts", "skill_construction", "configs",
                        "poh_runtime_generated.dbrow")

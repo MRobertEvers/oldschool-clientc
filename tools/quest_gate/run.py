@@ -177,7 +177,7 @@ DEFAULT_FIXTURE = "fresh_lumbridge.ini"
 # so the shots a quest test took are versioned with the content they
 # photograph, and everything about one quest's evidence sits under one
 # directory (2026-09-23, selftest/quests/README.md).
-PUBLISH_DIR = os.path.join(REPO_ROOT, "OSRS-Content", "osrs239-content", "server", "scripts",
+PUBLISH_DIR = os.path.join(REPO_ROOT, "OSRS-Content", "osrs-content", "server", "scripts",
                            "selftest", "quests")
 # tools/raid_gate/run.py moves it (TORIRS_QUEST_PUBLISH_DIR, quest_list.py):
 # a raid room's evidence is kept under selftest/minigames/<raid>/<room>/play/.
@@ -282,15 +282,24 @@ def write_manifest():
     same reason the output has to live under manifests/ and not a session
     dir (measured A/B there: 50/78 from manifests/, 46/78 from a session
     dir)."""
-    source = os.path.join(REPO_ROOT, "manifests", "manifest_osrs239.ini")
+    source = os.path.join(REPO_ROOT, "manifests", "manifest_osrs241.ini")
     out = os.path.join(REPO_ROOT, "manifests", ".questtest.ini")
     lines = []
     with open(source, "r", encoding="utf-8") as handle:
         for line in handle:
             if line.startswith("dir="):
-                line = "dir=%s\n" % os.path.join(REPO_ROOT, "cache.osrs239")
+                line = "dir=%s\n" % os.path.join(REPO_ROOT, "cache.osrs241")
             elif line.startswith("transport="):
                 line = "transport=embed\n"
+            # The PROTOCOL is revision 241 (src/net/rev/osrs241, the selected
+            # revision); the cache and content stay what this manifest names
+            # until their 241 copies are repointed here. Set QUEST_PROTO_REV=
+            # osrs239 to run the same test on the 239 pair.
+            elif line.startswith("rev="):
+                line = "rev=%s\n" % os.environ.get("QUEST_PROTO_REV", "osrs241")
+            elif line.startswith("client_version="):
+                line = "client_version=%s\n" % (
+                    os.environ.get("QUEST_PROTO_REV", "osrs241")[len("osrs"):])
             lines.append(line)
     with open(out, "w", encoding="utf-8") as handle:
         handle.writelines(lines)
@@ -532,9 +541,9 @@ CHECKPOINT_HEADER = "[checkpoint]"
 # it; a stale one is refused at boot). A checkpoint is only as good as the
 # scripts that wrote its varps.
 PACK_FILES = [
-    os.path.join(REPO_ROOT, "OSRS-Content", "osrs239-content", "server", "scripts", "build",
+    os.path.join(REPO_ROOT, "OSRS-Content", "osrs-content", "server", "scripts", "build",
                  "script.dat"),
-    os.path.join(REPO_ROOT, "OSRS-Content", "osrs239-content", "server", "scripts", "build",
+    os.path.join(REPO_ROOT, "OSRS-Content", "osrs-content", "server", "scripts", "build",
                  "script.idx"),
 ]
 # The manifest keys compared for staleness, and what each one means when it

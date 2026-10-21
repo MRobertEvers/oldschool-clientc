@@ -27,7 +27,7 @@ set -euo pipefail
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo"
 
-TREE="${TREE:-OSRS-Content/osrs239-content}"
+TREE="${TREE:-OSRS-Content/osrs-content}"
 LANE="${LANE:-$TREE/models/ported/rs2012_qbd_td}"
 PRIO="${PRIO:-docs/rs2012_qbd_priorities/run}"
 OUT="${OUT:-docs/qbd_port_compare}"

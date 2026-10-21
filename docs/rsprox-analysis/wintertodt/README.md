@@ -2,7 +2,7 @@
 
 What Jagex's server sends during the Wintertodt, read out of four RSProx
 recordings. The content in
-`OSRS-Content/osrs239-content/server/scripts/minigames/minigame_wintertodt` is built
+`OSRS-Content/osrs-content/server/scripts/minigames/minigame_wintertodt` is built
 from these rows. Each constant in `wintertodt.constant` names the row it comes
 from.
 

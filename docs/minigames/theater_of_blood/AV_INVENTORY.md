@@ -1,6 +1,6 @@
 # Theatre of Blood: audiovisual and presentation inventory
 
-`AV_INVENTORY.tsv` (989 rows) has one row for each rev-239 cache asset this raid ships, and records whether our content uses it. The assets come from `sources/cache_{seq,spotanim,sounds,locs,vars,npc_*}.txt`, plus the 14 music tracks, the Verzik's Defeat jingle and the 7 `tob_*` interfaces. Paths below are relative to the worktree. `MT` stands for `OSRS-Content/osrs239-content/server/scripts/minigames/minigame_tob/scripts/`.
+`AV_INVENTORY.tsv` (989 rows) has one row for each rev-239 cache asset this raid ships, and records whether our content uses it. The assets come from `sources/cache_{seq,spotanim,sounds,locs,vars,npc_*}.txt`, plus the 14 music tracks, the Verzik's Defeat jingle and the 7 `tob_*` interfaces. Paths below are relative to the worktree. `MT` stands for `OSRS-Content/osrs-content/server/scripts/minigames/minigame_tob/scripts/`.
 
 **How "used" was decided.** Each asset was matched whole-symbol against every non-comment line of `minigame_tob/` (scripts and configs) and the 19 other server files that name ToB symbols. Numeric forms (`varb6447_*`, `seq_N`, ...) were matched separately. No script uses a bare numeric id for a seq, spotanim, sound, loc or npc; the varbits are all written in the `varbNNNN_name` form. An asset also counts as used when it is reached through other content:
 - a seq that is the `readyanim`/`walkanim` (cache record) of an npc we spawn;
@@ -41,7 +41,7 @@ The `unknown` room covers assets two rooms share (`tob_shadow_projectile*` is th
 ## 0. Wrong-place findings (3)
 
 - **seq 8132 `verzik_lightning_impact`** is passed to `spotanim_pl` at `MT/tob_verzik.rs2:1569` (P2 zap hit). That symbol is a seq. The cache has no spotanim of that name (`configs/all.spotanim`), so the zap impact graphic is not what the cache defines.
-- **sound 3542 `tob_verzik_vampire_death`** is played at `MT/tob_verzik.rs2:3058` on the P3 death (`npc_anim(verzik_phase3_death_a)`, line 3055). The cache carries it only as a frame sound of `verzik_phase2_death` (`configs/all.seq:182835`), which plays it already. P3 death_a carries no sound (`OSRS-Content/osrs239-content/npc_combat/v/verzik_phase3.combat:21`).
+- **sound 3542 `tob_verzik_vampire_death`** is played at `MT/tob_verzik.rs2:3058` on the P3 death (`npc_anim(verzik_phase3_death_a)`, line 3055). The cache carries it only as a frame sound of `verzik_phase2_death` (`configs/all.seq:182835`), which plays it already. P3 death_a carries no sound (`OSRS-Content/osrs-content/npc_combat/v/verzik_phase3.combat:21`).
 - **spotanim 1570 `tob_bloat_falling_flesh1`** is used for Verzik hard-mode pillar debris (`MT/tob_verzik.rs2:819`). blert names 1570-1573 `BLOAT_HANDS_GRAPHICS` (`sources/blert_plugin/BloatDataTracker.java:59`).
 
 **Sounds played twice.** At 15 sites a script calls `sound_synth` for a sound that the seq it just played already carries in-band, so the client hears it twice: `MT/tob_maiden.rs2:654`, `MT/tob_nylocas.rs2:1082,1084,1171`, `MT/tob_sotetseg.rs2:245`, `MT/tob_bloat.rs2:646,697`, `MT/tob_verzik.rs2:853,1433,1453,2480,2520,2526,2737,2855`. The `detail` column marks each one `DOUBLE:`.

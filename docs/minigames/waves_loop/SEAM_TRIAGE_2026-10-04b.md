@@ -31,7 +31,7 @@ Sources: OSRS behaviour first; the 2004 source is never cited
 (`docs/WAVES_ORCHESTRATOR.md` section 12). After any content edit:
 `make -C <worktree>/src torirsserver-scripts > <log> 2>&1`. C is proved with a private
 client; the closer builds the shared one. `MI` below is
-`OSRS-Content/osrs239-content/server/scripts/minigames/minigame_inferno`.
+`OSRS-Content/osrs-content/server/scripts/minigames/minigame_inferno`.
 
 ## content: inferno_waves_file
 
@@ -122,7 +122,7 @@ Evidence. `CONTENT_BUGS.md` MAGER-*, BAT-REVIVE, MELEE-REVIVE-HP; `mager_resurre
 Units: entry_and_cape, pause_and_logout, death_and_failure_reward, practice_mode,
 completion_reward_and_pet.
 
-Files: `MI/scripts/inferno.rs2`, `MI/scripts/inferno_practice_fee.rs2`, `MI/configs/inferno_practice_fee.constant`, `MI/configs/inferno.constant`, `OSRS-Content/osrs239-content/server/scripts/interface_logout/scripts/logout.rs2`
+Files: `MI/scripts/inferno.rs2`, `MI/scripts/inferno_practice_fee.rs2`, `MI/configs/inferno_practice_fee.constant`, `MI/configs/inferno.constant`, `OSRS-Content/osrs-content/server/scripts/interface_logout/scripts/logout.rs2`
 
 Summary. Tables: `entry_and_cape.tsv`, `pause_and_logout.tsv`,
 `death_and_failure_reward.tsv`, `practice_mode.tsv`, `completion_reward_and_pet.tsv`.
@@ -154,7 +154,7 @@ PRACTICE-*, REWARD-*, INF-AV-001, INF-AV-008, INF-AV-009; the five tables.
 
 Units: every unit (death, eating, logout); the tree's own checks.
 
-Files: `OSRS-Content/osrs239-content/server/scripts/player/death.rs2`, `tools/check_gauntlet_contract.py`, `src/app/app_logout.c or whichever client file holds the 5-second logout fallback (name it)`
+Files: `OSRS-Content/osrs-content/server/scripts/player/death.rs2`, `tools/check_gauntlet_contract.py`, `src/app/app_logout.c or whichever client file holds the 5-second logout fallback (name it)`
 
 Summary. (1) ENG-60: prayer is not restored on death (quest test `mm`'s end save 20 of 52
 after a death and respawn, `build/probe_state/v3merge/mm/`). Find whether the death

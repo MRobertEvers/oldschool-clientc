@@ -21,7 +21,7 @@ Vanguards block of `cox.npc`, the `^cox_vanguard_*` / `^cox_var_vanguard_*` /
 | wiki | W3 | CA tasks: Perfectly Balanced (no reset), Together We'll Fall (all dead within 10 s of the first) | `sources/wiki_combat_achievements_cox.tsv:16-17` |
 | video | V1 | Synq 1:38:49-1:45:29: spawn style random; keep within 40%; white tornado = too much damage dealt to it, darker = not enough; follow the one you need as it retreats; trample; ranged one won't move if you stand under it; magic one moves after >1 tick under it; melee one can be safespotted (leash from its spawn); 4-tick vanguards vs 5-tick weapons; cap max hit (gear, prayers) | `synq_transcript.md:546-572` |
 | ref server | N1 | Near-Reality `npc/Vanguard.java`, `room/VanguardRoom.java`: positions (centre tiles), wake `< 7`, rise 2-step, aggression 3, ranged can't walk outside a shuffle, AoE tile picker, projectiles/graphics/sounds, prayer x0.33, fall/rise animations, shuffle 1 + 10 ticks, gap check at the shuffle only (33% flat), death rule, drops, crystal 30017, book loc 30026 | `~/Documents/git_repos/RSPS-NEAR-REALITY/near-reality-server-main/core/.../chambersofxeric/` |
-| cache | C1 | npc 7525 dormant, 7526 walking (op1 Attack), 7527 melee / 7528 ranged / 7529 magic (op2 Attack), size 3; seq ids from `configs/all.seq.compack`; spotanims 56/57 swirls, 1331 magic, 1332/1333/1334 three rock sizes | `OSRS-Content/osrs239-content/configs/` |
+| cache | C1 | npc 7525 dormant, 7526 walking (op1 Attack), 7527 melee / 7528 ranged / 7529 magic (op2 Attack), size 3; seq ids from `configs/all.seq.compack`; spotanims 56/57 swirls, 1331 magic, 1332/1333/1334 three rock sizes | `OSRS-Content/osrs-content/configs/` |
 
 ## The tick spec
 

@@ -1601,7 +1601,7 @@ def cutscene_exemptions(name, rows, sites):
                             % (where, reason, ("guide step(s) %s with no PASS row" % ", ".join(named))
                                if named else "no guide step", ", ".join(sorted(guide_steps))))
             continue
-        content_prefix = "OSRS-Content/osrs239-content/server/scripts/"
+        content_prefix = "OSRS-Content/osrs-content/server/scripts/"
         site_rel = site["file"][len(content_prefix):] if site["file"].startswith(content_prefix) else site["file"]
         entries, unresolved = site_entry_triggers(site_rel, site["line"])
         on_route = ["[%s,%s] <- guide step %s" % (kind, subject, "/".join(sorted(set(route[subject]))))

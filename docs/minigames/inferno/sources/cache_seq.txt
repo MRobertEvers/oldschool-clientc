@@ -1,5 +1,5 @@
 # sequences -- 96 records selected from cache.osrs239
-# source: OSRS-Content/osrs239-content/configs/all.seq (record header line given per record)
+# source: OSRS-Content/osrs-content/configs/all.seq (record header line given per record)
 # why= the selection rule(s) that chose the record (LEDGER_cache.md)
 
 [523] gas    (configs/all.seq:7502)

@@ -159,7 +159,7 @@ Two non-obvious entry points:
 
 ## 3. Target topology — this tree
 
-Root: `OSRS-Content/osrs239-content/server/scripts/minigames/minigame_cox/`
+Root: `OSRS-Content/osrs-content/server/scripts/minigames/minigame_cox/`
 
 ```
 configs/cox.constant   958  ids, tables, tick constants

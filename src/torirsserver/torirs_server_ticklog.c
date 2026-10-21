@@ -43,7 +43,7 @@
 #include <string.h>
 
 /* A VARP row's label: the varp's content name, so a lane comparison reads
- * `varp6857_tob_damage_dealt` rather than 6857. The pack's reverse map is a
+ * `varp7532_tob_damage_dealt` rather than 6857. The pack's reverse map is a
  * linear scan, so each id is looked up once. */
 static char const*
 ticklog_varp_name(int varp)

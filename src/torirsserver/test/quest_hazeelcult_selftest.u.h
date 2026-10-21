@@ -293,9 +293,9 @@ selftest_quest_hazeelcult(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
     npc_jones = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "butler_jones_hazeel_cultist");
     npc_guard = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "guard_carnillean");
     varp_quest = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp223_hazeelcultquest");
-    varp_side = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp5927_hazeelcult_side");
-    varp_valves = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp5928_hazeelcult_valves");
-    varp_settle = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp7148_hazeelcult_settle");
+    varp_side = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp6602_hazeelcult_side");
+    varp_valves = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp6603_hazeelcult_valves");
+    varp_settle = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp7823_hazeelcult_settle");
     varp_secondary = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp3748_hazeelcult_secondary");
     varp_qp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp");
     vb_poison_ok = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb14775_hazeelcult_poison_success");

@@ -12,7 +12,7 @@ open ocean often has no player floor flag at all.
 
 The unpacked revision-239 cache supplies the terrain evidence:
 
-- `OSRS-Content/osrs239-content/maps/m48_49.jm2`, tile `0 0 24`, places
+- `OSRS-Content/osrs-content/maps/m48_49.jm2`, tile `0 0 24`, places
   `(3072,3160)` on `h1 o445;0;0 u48`, a full ocean overlay with no BLOCK setting.
 - All 289 tiles in the surrounding 17 by 17 square have full ocean overlays.
   There are no level-zero loc origins within 12 tiles; the nearest land or

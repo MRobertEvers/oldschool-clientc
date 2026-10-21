@@ -51,7 +51,7 @@ page). Don't re-probe them.
 
 ## 2. rev-239 cache extracts (authoritative for ids)
 
-Produced from `OSRS-Content/osrs239-content/` — the unpacked osrs239 cache that
+Produced from `OSRS-Content/osrs-content/` — the unpacked osrs239 cache that
 both the client and the server in this tree read.
 
 | File | Contents |
@@ -70,7 +70,7 @@ both the client and the server in this tree read.
 | `cache_vars.txt` | the ToB varbits (`tob_client_*`, `tob_treasureroom_*`, `tob_progress`, `tobquest*`, …) |
 
 Regenerate any of them with `tools/…`-style one-liners over
-`OSRS-Content/osrs239-content/configs/all.<type>` plus the matching
+`OSRS-Content/osrs-content/configs/all.<type>` plus the matching
 `.compack` id map; the exact commands are in the plan's §3.
 
 ## 3. Crowdsourced tick data (code, not prose)

@@ -7,7 +7,7 @@ tree's `cache.osrs239` config data.
 Two kinds of statement appear below and they are kept apart on purpose:
 
 - **[W*n*]** — stated by the wiki. The numbered reference list is at the end.
-- **[C]** — read out of this tree's cache (`OSRS-Content/osrs239-content/configs/`).
+- **[C]** — read out of this tree's cache (`OSRS-Content/osrs-content/configs/`).
   The wiki does not publish sequence ids or frame timings, so every animation
   length here is measured, not cited. Frame delays in a `.seq` are client
   cycles of 20 ms; **30 cycles = 1 game tick = 600 ms**.
@@ -395,7 +395,7 @@ tagged [W7]. Different npc, different cadence, different heal band — see
 | W13 | Mod Ash, 30 Dec 2020 — "Its other heal code appears to do 15-24 every 4 ticks." | https://twitter.com/JagexAsh/status/1344226351654514688 (archived: https://reldo.runescape.wiki/i/106494) |
 | W14 | TzHaar Fight Cave/Rotations | https://oldschool.runescape.wiki/w/TzHaar_Fight_Cave/Rotations |
 
-Cache sources [C], all under `OSRS-Content/osrs239-content/configs/`:
+Cache sources [C], all under `OSRS-Content/osrs-content/configs/`:
 `all.npc` (`[tzhaar_fightcave_swarm_boss]`, `[tzhaar_fightcave_swarm_boss_cleric]`),
 `all.seq` + `all.seq.compack` (the `lordmagmus_*`, `jaltokjad_*` and
 `lizard_cleric_*` families), `all.spotanim.compack` (447–451, 444, 157).

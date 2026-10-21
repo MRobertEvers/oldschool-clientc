@@ -266,12 +266,12 @@ function Test-ContentTree([string]$Dir) {
 # that hasn't been merged yet) still works via $env:TORIRSSERVER_CONTENT_DIR, which
 # is obeyed as given, in front of this whole function.
 function Get-ContentCandidates {
-    $candidates = @(Join-Path $repo 'OSRS-Content\osrs239-content')
+    $candidates = @(Join-Path $repo 'OSRS-Content\osrs-content')
     $buildRoot = Join-Path $repo 'build'
     if (Test-Path -LiteralPath $buildRoot) {
         $candidates += Get-ChildItem -LiteralPath $buildRoot -Directory |
             Sort-Object Name |
-            ForEach-Object { Join-Path $_.FullName 'osrs239-content' }
+            ForEach-Object { Join-Path $_.FullName 'osrs-content' }
     }
     return $candidates
 }
@@ -287,7 +287,7 @@ function Set-ContentTree([string]$Dir) {
     # which tree to compile the server script pack from and to stage the cache
     # overlay out of. TORIRSSERVER_CONTENT is the RUNTIME side: torirs_server_boot.c's
     # resolve_content_dir() reads it, and with it unset falls back to a
-    # hardcoded "OSRS-Content/osrs239-content" -- the submodule, whatever tree
+    # hardcoded "OSRS-Content/osrs-content" -- the submodule, whatever tree
     # the build just used.
     #
     # Setting only the first is how a run compiles script.dat into the build\

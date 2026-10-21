@@ -1,7 +1,7 @@
 # Guardians (Chambers of Xeric) -- tick spec and content audit
 
 Unit: guardians_mystics. Written 2026-10-18 for `docs/minigames/cox/COX_FINISH_PLAN.md`
-phases 1-3. Content: `OSRS-Content/osrs239-content/server/scripts/minigames/minigame_cox/scripts/cox_guardians.rs2`,
+phases 1-3. Content: `OSRS-Content/osrs-content/server/scripts/minigames/minigame_cox/scripts/cox_guardians.rs2`,
 the guardian blocks of `configs/cox.npc` and `configs/cox.constant`.
 
 ## Sources (rank order: Jagex > recorded data > wiki > plugins > Near-Reality > ours)

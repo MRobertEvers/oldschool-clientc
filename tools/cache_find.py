@@ -31,7 +31,7 @@ import sys
 
 import config_text
 
-CONTENT = "OSRS-Content/osrs239-content/configs"
+CONTENT = "OSRS-Content/osrs-content/configs"
 KINDS = ("npc", "obj", "loc", "seq", "spotanim", "inv", "enum", "struct",
          "varp", "varbit", "dbtable", "param")
 

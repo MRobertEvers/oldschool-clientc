@@ -13,7 +13,7 @@
 bool
 RSCache_CS2_VarIsGlobal(enum RSCache_CS2_VarKind kind)
 {
-    return kind <= RSCACHE_CS2_VAR_VARCLAN;
+    return kind <= RSCACHE_CS2_VAR_VARPLONG;
 }
 
 bool
@@ -25,7 +25,8 @@ RSCache_CS2_VarIsLocal(enum RSCache_CS2_VarKind kind)
 bool
 RSCache_CS2_VarIsStack(enum RSCache_CS2_VarKind kind)
 {
-    return kind == RSCACHE_CS2_VAR_STACKINT || kind == RSCACHE_CS2_VAR_STACKSTRING;
+    return kind == RSCACHE_CS2_VAR_STACKINT || kind == RSCACHE_CS2_VAR_STACKSTRING ||
+           kind == RSCACHE_CS2_VAR_STACKLONG;
 }
 
 enum RSCache_CS2_StackType
@@ -37,6 +38,11 @@ RSCache_CS2_VarStackType(enum RSCache_CS2_VarKind kind)
     case RSCACHE_CS2_VAR_STACKSTRING:
     case RSCACHE_CS2_VAR_STRING:
         return RSCACHE_CS2_STACK_STRING;
+    case RSCACHE_CS2_VAR_VARCLONG:
+    case RSCACHE_CS2_VAR_VARPLONG:
+    case RSCACHE_CS2_VAR_STACKLONG:
+    case RSCACHE_CS2_VAR_LONG:
+        return RSCACHE_CS2_STACK_LONG;
     default:
         /* Arrays are int-typed handles; their elements carry their own type. */
         return RSCACHE_CS2_STACK_INT;
@@ -242,6 +248,15 @@ RSCache_CS2_ExprConstantInt(struct RSCache_CS2_Arena* arena, int value)
     struct RSCache_CS2_Expr* expr = cs2_expr_new(arena, RSCACHE_CS2_EXPR_CONSTANT);
     expr->value.stack_type = RSCACHE_CS2_STACK_INT;
     expr->value.int_value = value;
+    return expr;
+}
+
+struct RSCache_CS2_Expr*
+RSCache_CS2_ExprConstantLong(struct RSCache_CS2_Arena* arena, int64_t value)
+{
+    struct RSCache_CS2_Expr* expr = cs2_expr_new(arena, RSCACHE_CS2_EXPR_CONSTANT);
+    expr->value.stack_type = RSCACHE_CS2_STACK_LONG;
+    expr->value.long_value = value;
     return expr;
 }
 
@@ -984,15 +999,18 @@ RSCache_CS2_TypingsArgs(
         return list;
 
     list = cs2_typing_list_new(typings->arena, count);
-    /* Int and string arguments are numbered in separate sequences, matching how
-     * the VM lays out a frame's locals. */
+    /* Int, string and long arguments are numbered in separate sequences,
+     * matching how the VM lays out a frame's locals. */
     int int_index = 0;
     int string_index = 0;
+    int long_index = 0;
     for( int i = 0; i < count; i++ )
     {
         struct RSCache_CS2_Variable* variable;
         if( stack_types[i] == RSCACHE_CS2_STACK_INT )
             variable = RSCache_CS2_VarIntern(fs, RSCACHE_CS2_VAR_INT, script_id, int_index++);
+        else if( stack_types[i] == RSCACHE_CS2_STACK_LONG )
+            variable = RSCache_CS2_VarIntern(fs, RSCACHE_CS2_VAR_LONG, script_id, long_index++);
         else
             variable =
                 RSCache_CS2_VarIntern(fs, RSCACHE_CS2_VAR_STRING, script_id, string_index++);

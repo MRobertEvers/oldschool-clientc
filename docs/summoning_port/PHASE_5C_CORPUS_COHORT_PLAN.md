@@ -98,7 +98,7 @@ Void torcher, Void shifter, and Rune minotaur remain in the 45. Their unusual so
 | --- | --- |
 | docs/summoning_port/corpus_cohort_530.json | Checked source-policy catalog: exact 45 rows, stable type IDs, source fields, deferred capabilities, and the expected imported closure. |
 | docs/summoning_port/corpus_cohort_530.ini | Generated narrow importer manifest. It exports only the 45 NPC and 45 pouch roots with npc_sounds=no. |
-| OSRS-Content/osrs239-content/port/summoning_corpus_530.map | Separate exact corpus closure ledger; every row is minted/unreviewed until a distinct human material review. |
+| OSRS-Content/osrs-content/port/summoning_corpus_530.map | Separate exact corpus closure ledger; every row is minted/unreviewed until a distinct human material review. |
 | docs/summoning_port/roster_boundary_530.json | Adds the corpus prefix, all 90 roots, one dedicated ledger record, and measured non-overlapping reservations; keeps Dreadfowl and review-only data unchanged. |
 | cohort-named lane files/assets | summoning_cohort_corpus.{npc,obj,seq,...}, cohort-named model/animset/framemap files, and cohort-only pack/allocation rows. |
 | source-catalog generator/checker | Rebuilds the catalog/INI deterministically and rejects any source-set drift before import. |
@@ -113,7 +113,7 @@ The catalog is the authority for membership and runtime profile data. It must co
 Before adding any corpus file, record git status --short for the root and both content/client submodules. Preserve unrelated QBD/client work. Run the existing preservation regressions and save their output with the work log:
 
     python3 tools/port_summoning_ids.py --check
-    python3 tools/test_summoning_phase5a.py --tree OSRS-Content/osrs239-content
+    python3 tools/test_summoning_phase5a.py --tree OSRS-Content/osrs-content
     make -C src test-summoning-phase5b
 
 Do not use git stash, reset, clean, or a bulk importer apply at this stage. A failure in the review-only fingerprint/count test is a stop condition, not something to repair by regenerating the old roster.
@@ -231,7 +231,7 @@ Negative real-client cases must cover insufficient level/points, an existing fol
 Run all feature-on outputs in disposable directories. The final evidence set is:
 
     python3 tools/port_summoning_ids.py --check
-    python3 tools/test_summoning_phase5a.py --tree OSRS-Content/osrs239-content
+    python3 tools/test_summoning_phase5a.py --tree OSRS-Content/osrs-content
     make -C src test-summoning-phase5b
     make -C src test-summoning-phase5c-corpus
     make -C src torirsserver-cache-summoning

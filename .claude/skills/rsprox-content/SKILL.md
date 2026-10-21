@@ -24,7 +24,7 @@ the script command that emits it. Keep it open.
    **several** occurrences: one recording shows one roll.
 3. **Write the timeline down** in the analysis doc as `L+1 face; L+2 seq 827, busy=1; L+3
    teleport`, citing session and tick (`index 4286 [38]`).
-4. **Find our side.** Grep `OSRS-Content/osrs239-content/server/scripts` for the trigger (by name,
+4. **Find our side.** Grep `OSRS-Content/osrs-content/server/scripts` for the trigger (by name,
    or by `_category` from the loc's `.loc` config). Check the shared procs first:
    - `~climb*` / `~maplink_try` in `ladders_stairs/scripts/`
    - door procs in `doors/scripts/`
@@ -63,7 +63,7 @@ fight, cutscene, interaction), before reporting it finished:
    then checked once in a second session). Then walk every row of OURS the recording lacks:
    delete it, or explain it. Check, field by field:
    - **Sounds:** every `synth_sound` (id, loops, delay) and every `sound_area` (id, loops, delay,
-     range, tile). Name each id in 239 (`OSRS-Content/osrs239-content/pack/4_soundeffects.pack`).
+     range, tile). Name each id in 239 (`OSRS-Content/osrs-content/pack/4_soundeffects.pack`).
      Npc attack/defend/death sounds come from the npc config's `attack_sound`/`defend_sound`/
      `death_sound` params, and the generated block (`_explicit/configs/server_fields.generated.npc`)
      sets them to `null`: a fight is silent until content sets them.

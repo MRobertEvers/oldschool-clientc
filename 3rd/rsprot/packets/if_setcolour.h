@@ -11,10 +11,13 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : IfSetColourEncoder
- * Layouts      : 13 distinct, over 19 contiguous revision run(s)
+ * Layouts      : 13 distinct, over 20 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^IfSetColourEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
+ *                Revision(s) 241 come from RSProx, not RSProt
+ *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
+ *                gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -47,7 +50,7 @@ void packet_if_setcolour_v6_out(RsprotExec *x, MsgIfSetColour *m);
 void packet_if_setcolour_v7_out(RsprotExec *x, MsgIfSetColour *m);
 /* v8 -- revs 230. */
 void packet_if_setcolour_v8_out(RsprotExec *x, MsgIfSetColour *m);
-/* v9 -- revs 232. */
+/* v9 -- revs 232, 241. */
 void packet_if_setcolour_v9_out(RsprotExec *x, MsgIfSetColour *m);
 /* v10 -- revs 233. */
 void packet_if_setcolour_v10_out(RsprotExec *x, MsgIfSetColour *m);
@@ -79,6 +82,7 @@ void packet_if_setcolour_v13_out(RsprotExec *x, MsgIfSetColour *m);
 #define packet_if_setcolour_rev237_out packet_if_setcolour_v12_out
 #define packet_if_setcolour_rev238_out packet_if_setcolour_v13_out
 #define packet_if_setcolour_rev239_out packet_if_setcolour_v12_out
+#define packet_if_setcolour_rev241_out packet_if_setcolour_v9_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_if_setcolour_out[];

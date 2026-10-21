@@ -83,7 +83,7 @@ and what is already settled.
 
 ## 4. Reading traps (each one has cost a wrong fix)
 
-- **Recorded ids are OLDER revisions** (223–241; our cache is 239). Jagex reuses freed slots. Look up the 239 name in `OSRS-Content/osrs239-content/configs/all.<type>.compack` before using any id. seq 579 is a chathead in the recordings but an axe special in 239. Rev-227 transcripts print bare ids. Sound names are in `OSRS-Content/osrs239-content/pack/4_soundeffects.pack`.
+- **Recorded ids are OLDER revisions** (223–241; our cache is 239). Jagex reuses freed slots. Look up the 239 name in `OSRS-Content/osrs-content/configs/all.<type>.compack` before using any id. seq 579 is a chathead in the recordings but an axe special in 239. Rev-227 transcripts print bare ids. Sound names are in `OSRS-Content/osrs-content/pack/4_soundeffects.pack`.
 - **Transcript format differs by transcriber.** The index's RSProx (all `get` output) prints npc adds as `coord=(...)), spawnangle=east` and faces as `[facing] coord=`. Older shared transcripts printed `angle=1536`. `rsprox_tells.py` handles both. If an older per-room tool returns nothing on a `get` transcript, check its regex against both formats.
 - **Only the recorder's player is shown** by default (seqs, graphics, movement). Never conclude something is private from that. Use `--all-players` for party behaviour.
 - **Instance tiles are translated to the template**, and in a quarter-turned room that mirrors offsets inside each 8x8 chunk. A large npc in a 180° room prints the wrong corner. Measure anything between a player and an npc on `--raw`.

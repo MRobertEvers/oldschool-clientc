@@ -25,7 +25,7 @@ the four edits uncommitted on disk at the time of writing.
   files
 
 `maps/multiway.csv` was **never committed** and is **not** in the working tree.
-Confirmed: `git log 48aa6cb5c710..HEAD -- osrs239-content/maps/multiway.csv`
+Confirmed: `git log 48aa6cb5c710..HEAD -- osrs-content/maps/multiway.csv`
 is empty and `git status` lists four modified files, none of them it.
 
 **Sources used, in order of authority.**

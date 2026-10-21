@@ -683,7 +683,7 @@ ordinary combat, not that item/drop/state behavior may be skipped.
 ### 5.1 Existing surfaces to build on
 
 The implementation belongs primarily under
-`OSRS-Content/osrs239-content/server/scripts/`, not in quest-specific C:
+`OSRS-Content/osrs-content/server/scripts/`, not in quest-specific C:
 
 | Surface | Responsibility in this plan |
 | --- | --- |

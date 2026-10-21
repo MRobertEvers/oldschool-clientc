@@ -1,5 +1,5 @@
 # ladder legends quest_dir=quest_legends guide=src/main/java/com/questhelper/helpers/quests/legendsquest/LegendsQuest.java steps=94 legs=1:1-10@s0 2:11-21@s5 3:22-31@s8 4:32-43@s8 5:44-50@s12 6:51-62@s15 7:63-73@s20 8:74-83@s25 9:84-94@s30
-#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
 leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
 1	1	0	talkToGuard	NpcStep	npc:legends_guild_guard1	2729,3348,0	Talk to one of the guards outside the Legends' Guild.			Can I speak to someone in charge? | Can I go on the quest? …	quests/quest_legends/scripts/legends_guard.rs2:1 opnpc1; +1
 1	2	0	talkToRadimus	NpcStep	npc:radimus_erkle	2725,3368,0	Talk to Radimus Erkle inside the Legends' Guild's grounds.			Yes actually, what's involved? | Yes, it sounds great! | Ye…	quests/quest_legends/scripts/radimus_erkle.rs2:9 opnpc1; +5

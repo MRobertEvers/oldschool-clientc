@@ -126,8 +126,8 @@ judge, ~20 min:
 ```sh
 make -C src rs2012-face-priorities
 src/build_win64_opt/rs2012_face_priorities \
-    --in  OSRS-Content/osrs239-content/models/ported/rs2012_qbd_td/rs2012_model_70260.ob3 \
-    --in  OSRS-Content/osrs239-content/models/ported/rs2012_qbd_td/rs2012_model_69766.ob3 \
+    --in  OSRS-Content/osrs-content/models/ported/rs2012_qbd_td/rs2012_model_70260.ob3 \
+    --in  OSRS-Content/osrs-content/models/ported/rs2012_qbd_td/rs2012_model_69766.ob3 \
     --out docs/rs2012_qbd_priorities/slow/rs2012_model_70260.ob3 \
     --out docs/rs2012_qbd_priorities/slow/rs2012_model_69766.ob3 \
     --views 12 --pitches 4 --judge-tile 288 --slow 2500 --slow-seed 0x51F0D5
@@ -485,7 +485,7 @@ src/build/rs2012_model_view --model out/model_A.ob3  --model out/model_B.ob3 \
     --out after.bmp  --angles 8 --pitch 190,300,383 --tile 300 --score
 
 # 3. only then copy into the lane and re-pack
-cp out/*.ob3 OSRS-Content/osrs239-content/models/ported/<lane>/
+cp out/*.ob3 OSRS-Content/osrs-content/models/ported/<lane>/
 make -C src torirsserver-cache-rs2012            # the QBD lane's re-pack target
 ```
 

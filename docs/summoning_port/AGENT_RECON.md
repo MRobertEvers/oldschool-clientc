@@ -712,10 +712,10 @@ Pet-incubator scenery (relevant if pets are in scope): 28336, 28359 (`Take-Egg`,
 
 ## 8. Target-repo absence checks (3draster / OSRS-Content)
 
-- `OSRS-Content/osrs239-content/pack/stat.pack` ends at `22=construction`. **No `23=summoning`.** CONFIRMED ABSENT.
+- `OSRS-Content/osrs-content/pack/stat.pack` ends at `22=construction`. **No `23=summoning`.** CONFIRMED ABSENT.
 - `grep -ril "gold_charm|spirit_shard|summoning_pouch" OSRS-Content` → **no hits**. CONFIRMED ABSENT.
-- `OSRS-Content/osrs239-content/pack/npc.server` contains only unrelated `*summon*` names (`rt_summon_elemental_fire`, `summonedzombie`, …) — no familiar.
-- Existing pack layout to mirror: `OSRS-Content/osrs239-content/pack/` (`{loc,npc,varp,enum,param,struct,category,dbtable,dbrow}.{alloc,client,server}` + `N_*.pack` group files) and `OSRS-Content/osrs239-content/port/` (`names.map`, `vars.map`, `configs.map`, `constants.map`, `cs2_varps.map`, `categories*.map`). A ported-content folder would need its own allocation band — see the `servsplit-alloc-ledger` memory note (allocation-is-membership routing, one-cache rule).
+- `OSRS-Content/osrs-content/pack/npc.server` contains only unrelated `*summon*` names (`rt_summon_elemental_fire`, `summonedzombie`, …) — no familiar.
+- Existing pack layout to mirror: `OSRS-Content/osrs-content/pack/` (`{loc,npc,varp,enum,param,struct,category,dbtable,dbrow}.{alloc,client,server}` + `N_*.pack` group files) and `OSRS-Content/osrs-content/port/` (`names.map`, `vars.map`, `configs.map`, `constants.map`, `cs2_varps.map`, `categories*.map`). A ported-content folder would need its own allocation band — see the `servsplit-alloc-ledger` memory note (allocation-is-membership routing, one-cache rule).
 
 ---
 
@@ -949,7 +949,7 @@ All ids below are **rev-530 ids** and collide with unrelated osrs239 records —
 13. **Loc records at 530 are entirely unverified.** No tool dumps them (`find_named --type loc` returns nothing) and `dump_stats` covers only npc/obj. The summoning obelisk *loc* (as opposed to obj 14657) has not been located.
 14. **`ToriRS_Features_ForCache` maps rs2 → LostCity features** (`features.c:188-194`). Anything booting a 530 cache to compare behaviour gets 2004 pathing unless the manifest overrides `[features:boot] era=`.
 15. **Documented policy conflict.** `docs/PORTING_GUIDE.md:35` and `docs/SCAPE2009_CONTENT_PORT_QUEUE.md:65` both instruct agents to skip Summoning. Any loop-driven agent reading those files will refuse or de-prioritise this work until they are amended.
-16. **`OSRS-Content/osrs239-content/port/` is NOT a ported-content home** — it holds `names.map`, `configs.map`, `constants.map`, `vars.map`, `name_diff.signed`, i.e. cross-revision *mapping* tables. The "distinct folder clearly marked as ported" the goal asks for does not exist yet and has no precedent in this tree.
+16. **`OSRS-Content/osrs-content/port/` is NOT a ported-content home** — it holds `names.map`, `configs.map`, `constants.map`, `vars.map`, `name_diff.signed`, i.e. cross-revision *mapping* tables. The "distinct folder clearly marked as ported" the goal asks for does not exist yet and has no precedent in this tree.
 
 Scratch artifacts (read-only inspection, outside both repos): `/private/tmp/claude-501/-Users-matthewevers-Documents-git-repos-3draster/24607df3-1c87-44c1-b268-71a42635e4ab/scratchpad/` — `rt530.py` (dat2 reference-table reader), `fl530.py` (filelist splitter), `npc530.csv`, `obj530.csv`, `obj_pouch.txt`.
 
@@ -1226,9 +1226,9 @@ Familiar NPCs (6796–6841+) live in `idx18`; pouch/scroll objs (12009–12466+)
 
 - **Summoning is ABSENT from OSRS-Content.** `grep -rli summon OSRS-Content/` hits only NPC combat names (`npc_combat/s/summonedzombie.combat` etc.). No skill, no pouches, no familiars, no 662/747 analogue.
 - **Skill array already has headroom**: `src/game/rs_player_stats.h:11` — `#define RS_PLAYER_STATS_SKILL_COUNT 25`, so stat index 23 is already addressable. `src/game/rs_gameproto_exec.c:563` bounds-checks against it.
-- Interfaces in the target are authored as text: `OSRS-Content/osrs239-content/interfaces/*.if` + `*.compack` (e.g. `orbs.if` = OSRS group 160, 57 components, `if3=yes`, `type=`, `graphic=`, `onload=i:8220,…`). A ported 530 interface would be transcoded into this format.
-- `OSRS-Content/osrs239-content/content.ini` already defines a `names` ownership value **`imported` — "a foreign revision's table — every line is a *claim*"**, and `membership` files (`pack/<ns>.client` / `.server`) route what reaches the client cache. That is the existing seam for "ported content in a distinct folder".
-- `OSRS-Content/osrs239-content/port/` exists (`configs.map`, `constants.map`, `cs2_varps.map`, `names.map`, `vars.map`, `name_diff.signed`) — an established cross-revision mapping area.
+- Interfaces in the target are authored as text: `OSRS-Content/osrs-content/interfaces/*.if` + `*.compack` (e.g. `orbs.if` = OSRS group 160, 57 components, `if3=yes`, `type=`, `graphic=`, `onload=i:8220,…`). A ported 530 interface would be transcoded into this format.
+- `OSRS-Content/osrs-content/content.ini` already defines a `names` ownership value **`imported` — "a foreign revision's table — every line is a *claim*"**, and `membership` files (`pack/<ns>.client` / `.server`) route what reaches the client cache. That is the existing seam for "ported content in a distinct folder".
+- `OSRS-Content/osrs-content/port/` exists (`configs.map`, `constants.map`, `cs2_varps.map`, `names.map`, `vars.map`, `name_diff.signed`) — an established cross-revision mapping area.
 
 ---
 
@@ -1267,11 +1267,11 @@ Grep for `summon` across `src/`, `tools/`, `OSRS-Content/` returns **zero** impl
 
 ---
 
-## 1. `OSRS-Content/README.md` + `osrs239-content/content.ini`
+## 1. `OSRS-Content/README.md` + `osrs-content/content.ini`
 
 ### The tree shape
 
-`OSRS-Content/` holds one thing: `osrs239-content/` — an unpacked OldSchool rev-239 cache **plus** the server content that never enters a cache. `README.md:9-11`. It is a git submodule mounted at `OSRS-Content/`.
+`OSRS-Content/` holds one thing: `osrs-content/` — an unpacked OldSchool rev-239 cache **plus** the server content that never enters a cache. `README.md:9-11`. It is a git submodule mounted at `OSRS-Content/`.
 
 `README.md:17` — *"One tree, two halves, and the split is whether the client can see it."*
 
@@ -1285,7 +1285,7 @@ Grep for `summon` across `src/`, `tools/`, `OSRS-Content/` returns **zero** impl
 
 `cachepack` writes and reads everything outside `server/`; it does not look inside `server/` at all (`README.md:36-38`).
 
-### The namespace register (`osrs239-content/content.ini`, 302 lines, all header prose + 15 `[namespace:*]` blocks)
+### The namespace register (`osrs-content/content.ini`, 302 lines, all header prose + 15 `[namespace:*]` blocks)
 
 One declaration of what namespaces exist and who owns each part, **read by every tool that loads symbols**. It replaced three tables in two languages that "agreed by accident rather than by construction" (`content.ini:5-8`): `torirs_server_content.c`'s `k_namespaces[]`, `ssc_symbols.c`'s `kind_for_pack()`, `cachepack`'s `cp_names_load`.
 
@@ -1328,7 +1328,7 @@ ref    = loc
 
 ---
 
-## 2. Top-level dir walk of `osrs239-content/`
+## 2. Top-level dir walk of `osrs-content/`
 
 24 directories + `content.ini` + `meta.ini`.
 
@@ -1410,7 +1410,7 @@ Note `port/names.map:22-25` states the hard rule that applies verbatim here:
 
 ## 5. `.client` / `.server` membership routing — a real example
 
-### Files on disk (`osrs239-content/pack/`)
+### Files on disk (`osrs-content/pack/`)
 
 | file | header lines | **data lines** |
 |---|---:|---:|
@@ -1492,7 +1492,7 @@ Each is `<domain>_<name>/{configs,scripts}`. **LostCity-, Kronos-, 2009scape- an
 // Mapzones (jl2): Champions 0_49_52, Rimmington 0_45_50, Etceteria 0_40_60, Ardougne 0_40_50.
 ```
 
-Grep counts under `osrs239-content/server/`:
+Grep counts under `osrs-content/server/`:
 
 | term | files |
 |---|---:|
@@ -1681,7 +1681,7 @@ cachepack membership --src DIR --rev NAME [--types a,b] [--check-only]
 `--check-only` belongs to `membership` only (routing audit), **not** to pack/verify.
 
 Repo build integration:
-- `src/makefile:1677` `torirsserver-cache` → `cachepack pack --src OSRS-Content/osrs239-content --base cache.osrs239 --out cache.osrs239.baked --rev osrs239 --assets --binary --gamevals`, then `torirsserver-cache-check` (asserts idx `0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 18 19 20 21 22 24 255` all exist).
+- `src/makefile:1677` `torirsserver-cache` → `cachepack pack --src OSRS-Content/osrs-content --base cache.osrs239 --out cache.osrs239.baked --rev osrs239 --assets --binary --gamevals`, then `torirsserver-cache-check` (asserts idx `0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 18 19 20 21 22 24 255` all exist).
 - `src/makefile:1632` `torirsserver-servpack` → `pack --server-only` (server band, no cache).
 - `the osrs239-net profile (profiles/osrs239-net.ini):24` `dir=cache.osrs239.baked` — the baked cache is already the boot target for the net manifest. `TORIRSSERVER_CACHE_DIR_DEFAULT "cache.osrs239"` (`src/torirsserver/torirs_server.h:99`) is the pristine default; the one-cache rule says point BOTH the world and JS5 at the bake.
 
@@ -1692,7 +1692,7 @@ Repo build integration:
 ### 2a. Config types (`cachepack --list`, 20 types)
 `underlay(1) overlay(4) idk(3) inv(5) loc(6) enum(8) npc(9) obj(10) param(11) seq(12) spotanim(13) varbit(14) varp(16) varc(19) hitsplat(32) healthbar(33) struct(34) mapelement(35) dbrow(38) dbtable(39)`
 
-- **On-disk source**: `OSRS-Content/osrs239-content/configs/all.<type>` — `[name]` blocks of `key=value`; member index `configs/all.<type>.compack` (`id=name`).
+- **On-disk source**: `OSRS-Content/osrs-content/configs/all.<type>` — `[name]` blocks of `key=value`; member index `configs/all.<type>.compack` (`id=name`).
 - **Encoders: ALL 20 present.** `CP_TYPE_NO_ENCODER` (`cachepack.h:118`) is set on **zero** types today — `--list` shows no `unpack-only`. EXCEPTIONS **H1 (dbrow/dbtable unpack-only) is STALE**: `RSCache_Dat2ConfigDbRowEncode` / `...DbTableEncode` exist and are held to byte-identity (`src/content/content_register.c:88-100` records the correction).
 - **Decoders**: all present (`3rd/rscache/src/datatypes/dat2_config_*.c`).
 - **Lossy** (flagged in `--list`): loc, enum, npc, obj, seq, spotanim, mapelement — see EXCEPTIONS B2 for the exact opcode lists. Lossy = semantic round-trip only, not byte-exact.
@@ -1749,7 +1749,7 @@ Required reading; 2,600 lines, 60+ entries. The ones that matter here:
 
 ---
 
-## 4. On-disk source format in `OSRS-Content/osrs239-content/`
+## 4. On-disk source format in `OSRS-Content/osrs-content/`
 
 **Raw decompressed archive payloads, never a decoded intermediate**, for every kind with no codec. Verified by hexdump:
 
@@ -1786,7 +1786,7 @@ Extensions come from the payload magic, not the era (EXCEPTIONS H6, `cp_assets.h
 - `tools/Rl239TransplantMethods.java` — JVM bytecode method transplant for bisecting a *decompiler* regression. **Nothing to do with assets.**
 - `tools/port_*.py` (`port_config_diff.py`, `port_name_diff.py`, `port_category_crawl.py`, `port_weapon_fx.py`) — diff/crawl reporting over already-unpacked trees, not importers.
 
-**ABSENT**: any path that writes a foreign-revision asset **into `OSRS-Content/osrs239-content/`**. Every existing converter writes into a *cache directory* or a *LostCity content tree*. A rev-530 → osrs239-content importer must be written (or synthesised as: `port_npc --to-rev osrs239 --out cache.tmp` → `cachepack unpack cache.tmp`).
+**ABSENT**: any path that writes a foreign-revision asset **into `OSRS-Content/osrs-content/`**. Every existing converter writes into a *cache directory* or a *LostCity content tree*. A rev-530 → osrs-content importer must be written (or synthesised as: `port_npc --to-rev osrs239 --out cache.tmp` → `cachepack unpack cache.tmp`).
 
 ---
 
@@ -1915,14 +1915,14 @@ RECON: 3draster skill system end to end — adding a 24th skill
 ## 0. HEADLINE (read this first)
 
 **Stat index 23 is NOT free.** The osrs239 cache already assigns **23 = Sailing**.
-- `OSRS-Content/osrs239-content/configs/all.enum` → `[enum_681]` (int→stat, the client's canonical skill roster) has `val=24,23`.
+- `OSRS-Content/osrs-content/configs/all.enum` → `[enum_681]` (int→stat, the client's canonical skill roster) has `val=24,23`.
 - `[enum_108]` (int→string) has `valstr=24,Sailing`; `[enum_680]` (stat→string) has `valstr=23,Sailing`; `[enum_255]` (stat→graphic) has `val=23,228`.
 - `scripts/script_8950.cs2` is `[proc,script8950](int)` → `switch_int { case 23: return(~script8951(1)) }` — a hard-coded 23 gating Sailing out of total level / total xp.
 - `interfaces/stats.compack` child 24 = `sailing`; `interfaces/levelup_display.compack` child 57 = `sailing`.
 
 2009scape's `Server/src/main/core/game/node/entity/skill/Skills.java:57` defines `SUMMONING = 23` — a **direct collision** with the cache. Summoning must take **24** (or displace Sailing, which would corrupt cache-native CS2).
 
-Also: `OSRS-Content/osrs239-content/pack/stat.pack` stops at `22=construction` — **sailing (23) is ABSENT from stat.pack** while it is present in the cache enums. The pack and the cache already disagree; whichever id Summoning takes, this gap must be resolved first.
+Also: `OSRS-Content/osrs-content/pack/stat.pack` stops at `22=construction` — **sailing (23) is ABSENT from stat.pack** while it is present in the cache enums. The pack and the cache already disagree; whichever id Summoning takes, this gap must be resolved first.
 
 ---
 
@@ -1972,7 +1972,7 @@ Apply site: `src/game/rs_gameproto_exec.c:561-575` — bounds against 25, calls 
 
 Three independent tables, and they must agree:
 
-1. **`OSRS-Content/osrs239-content/pack/stat.pack`** — the *server/compiler* name table. Authored, 23 lines `0=attack` … `22=construction`. Header comment: "Fixed by the protocol … so they are authored, not imported." Declared in `content.ini:103-105`:
+1. **`OSRS-Content/osrs-content/pack/stat.pack`** — the *server/compiler* name table. Authored, 23 lines `0=attack` … `22=construction`. Header comment: "Fixed by the protocol … so they are authored, not imported." Declared in `content.ini:103-105`:
    ```
    [namespace:stat]
    ids   = protocol
@@ -2000,7 +2000,7 @@ Three independent tables, and they must agree:
 
 **Level-up jingle: ABSENT end-to-end.** `SS_OP_MIDI_JINGLE 2064` (`src/serverscript/ss_opcode.h:138`) has **no handler** in `src/torirsserver/` (only a name in `torirs_server_wire.c:1282`). Not in `torirs_server_opcode_coverage.gen.h`.
 
-**What level-up actually does today:** `ToriRSServer_CombatAddXp` fires `SS_TRIGGER_ADVANCESTAT` (160) when the base level changes → `OSRS-Content/osrs239-content/server/scripts/levelup/scripts/levelup.rs2`, which is **23 `[advancestat,<skill>]` lines** all routing to `[label,levelup]` → `mes("You feel yourself getting stronger."); ~summary_combat_level_push;`. No sailing line. A Summoning line must be added here.
+**What level-up actually does today:** `ToriRSServer_CombatAddXp` fires `SS_TRIGGER_ADVANCESTAT` (160) when the base level changes → `OSRS-Content/osrs-content/server/scripts/levelup/scripts/levelup.rs2`, which is **23 `[advancestat,<skill>]` lines** all routing to `[label,levelup]` → `mes("You feel yourself getting stronger."); ~summary_combat_level_push;`. No sailing line. A Summoning line must be added here.
 
 **Total level / total xp in CS2** are enum-driven and therefore self-extending: `script_1007.cs2` (`[proc,stat_totallevel]`) and `script_1008.cs2` (`[proc,stats_totalxp]`) walk `enum_681` until null, skipping anything `~script8950` gates. Adding a row to `enum_681` puts Summoning in total level automatically. Adding a `case 24:` to script 8950 is how you'd gate it.
 
@@ -2095,7 +2095,7 @@ Name resolution: `ssc_compile.c:770-772` sets `base_hint = SSC_SYM_STAT` when th
 - `src/torirsserver/torirs_server_world.c:23478-23480` — selftest `cooking > 0 && cooking < TORIRSSERVER_STAT_COUNT`
 
 **Content — server half**
-- `OSRS-Content/osrs239-content/pack/stat.pack` — 23 rows, `0=attack`…`22=construction`. **No sailing.**
+- `OSRS-Content/osrs-content/pack/stat.pack` — 23 rows, `0=attack`…`22=construction`. **No sailing.**
 - `server/scripts/levelup/scripts/levelup.rs2:8-30` — 23 `[advancestat,X]` blocks
 - `server/scripts/interface_skill_guide/scripts/skill_guide.rs2:96-119` — 24 `if_setevents(stats:X, …)` incl. `stats:sailing`; `:153+` — 24 `[if_button2,stats:X]` blocks
 - `server/scripts/player/scripts/combat_level.rs2:5-11` — 7 stats
@@ -2130,7 +2130,7 @@ Name resolution: `ssc_compile.c:770-772` sets `base_hint = SSC_SYM_STAT` when th
 - `sscompile` has **no include/exclude flag** — `src/serverscript/ssc_main.c:50-72` accepts only `--src`, `--out`, `--pack`, `--constants`.
 - `collect_sources` (`ssc_compile.c:2866-2910`) recurses everything under `--src` taking every `*.rs2`; skips only names starting with `.`.
 - `walk_configs` (`torirs_server_content.c:2868-2890`) recurses everything under `server/scripts` by extension; skips only names starting with `.`.
-- So a new directory `OSRS-Content/osrs239-content/server/scripts/ported_summoning/` is **picked up automatically with no opt-in**, and the only existing way to exclude it is a leading `.` in the directory name (a hack, and `docs/SKILLS_CONTENT_PORT_QUEUE.md:33-37` explicitly forbids `.skip`-style parking of content).
+- So a new directory `OSRS-Content/osrs-content/server/scripts/ported_summoning/` is **picked up automatically with no opt-in**, and the only existing way to exclude it is a leading `.` in the directory name (a hack, and `docs/SKILLS_CONTENT_PORT_QUEUE.md:33-37` explicitly forbids `.skip`-style parking of content).
 
 GUESS: the three plausible flag designs are (a) a new `content.ini` key + a directory filter shared by `collect_sources` and `walk_configs` (touches two walkers in two binaries), (b) a varbit/varp guard at the top of every ported script + a `stat.pack` entry that is always present (cheap, but Summoning still appears in the skills tab), (c) an env var read at `ToriRSServer_BootLoad` gating a directory. None of these exist today.
 
@@ -2202,9 +2202,9 @@ Verified live this session: `cs2 roundtrip --cache cache.osrs239 --rev osrs239 3
 
 **(b) The committed tree's `.cs2` sources: 98.99%.** MEASURED THIS SESSION:
 ```
-OSRS-Content/osrs239-content/scripts/   9368 *.cs2   +   357 *.cs2b   = 9725
+OSRS-Content/osrs-content/scripts/   9368 *.cs2   +   357 *.cs2b   = 9725
 cs2 compile --cache cache.osrs239 --rev osrs239 --names <runestar> \
-    --src OSRS-Content/osrs239-content/scripts --out /tmp/…
+    --src OSRS-Content/osrs-content/scripts --out /tmp/…
   → compiled 9273, failed 95
 ```
 The 95 failing ids (an edit to any of these **cannot ship**):
@@ -2216,7 +2216,7 @@ Failure taxonomy: 68 `unexpected '('`, 11 `expected ','`, 8 `'(' is not a compar
 
 ### Names are a hard dependency, and missing them is near-silent
 
-Measured: compiling `OSRS-Content/osrs239-content/scripts/script_393.cs2` **without** `--names` → `FAIL script_393.cs2: line 8: unknown constant '^iftype_graphic'`. With `--names ~/Documents/git_repos/cs2/src/main/resources/org/runestar/cs2` → `compiled 1, failed 0`.
+Measured: compiling `OSRS-Content/osrs-content/scripts/script_393.cs2` **without** `--names` → `FAIL script_393.cs2: line 8: unknown constant '^iftype_graphic'`. With `--names ~/Documents/git_repos/cs2/src/main/resources/org/runestar/cs2` → `compiled 1, failed 0`.
 
 `src/makefile:1675` — `RUNESTAR_CS2_NAMES ?= $(HOME)/Documents/git_repos/cs2/src/main/resources/org/runestar/cs2` (this directory **exists** on this machine; it has `stat-names.tsv` with ids 0..22 only). `torirsserver-cache` exports it as `CACHEPACK_CS2_NAMES` when set. In `cachepack`, a compile failure prints `cachepack: script <id>: <error>` to stderr and then **ships the base cache's bytes** (`cp_decode.c:2447-2452`) — the edit goes nowhere and only a counter says so.
 
@@ -2230,20 +2230,20 @@ The content tree already holds every clientscript as source. A component/sprite/
 # 0. (once, recommended) refresh the stale sources for the scripts you must edit
 CACHEPACK_CS2_NAMES=~/Documents/git_repos/cs2/src/main/resources/org/runestar/cs2 \
   3rd/rscache/tools/cachepack/cachepack unpack --cache cache.osrs239 --rev osrs239 \
-    --src OSRS-Content/osrs239-content --assets=scripts
+    --src OSRS-Content/osrs-content --assets=scripts
 
 # 1. edit the source in place
-$EDITOR OSRS-Content/osrs239-content/scripts/script_393.cs2      # keep the `// 393` header
+$EDITOR OSRS-Content/osrs-content/scripts/script_393.cs2      # keep the `// 393` header
 
 # 2. prove it compiles BEFORE baking (this is the check that is otherwise near-silent)
-mkdir -p /tmp/cs2src && cp OSRS-Content/osrs239-content/scripts/script_393.cs2 /tmp/cs2src/
+mkdir -p /tmp/cs2src && cp OSRS-Content/osrs-content/scripts/script_393.cs2 /tmp/cs2src/
 3rd/rscache/tools/cs2/cs2 compile --cache cache.osrs239 --rev osrs239 \
   --names ~/Documents/git_repos/cs2/src/main/resources/org/runestar/cs2 \
   --src /tmp/cs2src --out /tmp/cs2bin           # want: compiled 1, failed 0
 
 # 3. bake the whole tree into the cache the client boots
 make -C src torirsserver-cache          # src/makefile:1676-1692
-   # = cachepack pack --src OSRS-Content/osrs239-content --base cache.osrs239 \
+   # = cachepack pack --src OSRS-Content/osrs-content --base cache.osrs239 \
    #       --out cache.osrs239.baked --rev osrs239 --assets --binary --gamevals
    # then torirsserver-cache-check asserts all 23 idx tables landed
 
@@ -2345,7 +2345,7 @@ Hook-list ceilings are fine: `RS_CS2_HOST_TRANSMIT_TRIGGER_MAX 32` (`rs_cs2_host
 **Interface 214 = `skill_guide` (legacy), interface 860 = `skill_guide_v2` (the live one)** — `pack/3_interfaces.pack:215`, `:861`. 860 draws none of itself; everything is built by clientscript **1902** → `1903` → `1904` (`~script1911`, `if_callonresize`). Fully documented in **`docs/skill_guide.md`** (a case file) and **`docs/skill_guide_server_reqs.md`**.
 
 Server side already exists and is complete for 24 skills:
-- `OSRS-Content/osrs239-content/server/scripts/interface_skill_guide/scripts/skill_guide.rs2` — 24 `if_setevents(stats:<skill>, 0, 0, ^if_event_op2)` + 24 `[if_button2,stats:<skill>]` handlers + `[proc,skill_guide_open]` (`if_opensub` then `runclientscript*`, order load-bearing)
+- `OSRS-Content/osrs-content/server/scripts/interface_skill_guide/scripts/skill_guide.rs2` — 24 `if_setevents(stats:<skill>, 0, 0, ^if_event_op2)` + 24 `[if_button2,stats:<skill>]` handlers + `[proc,skill_guide_open]` (`if_opensub` then `runclientscript*`, order load-bearing)
 - `.../configs/skill_guide.constant` — `^clientscript_skill_guide_init = 1902`, `^skill_guide_tab_default = 0`, and `^skill_guide_attack..^skill_guide_sailing = 1..24`
 
 ### Per-skill content is DBTABLE-sourced (cache tables, not server tables)
@@ -2363,7 +2363,7 @@ Script 1904 reads them as `db_find(868352, %varcint1172, 0)` = `(212<<12)|(0<<4)
 
 MEASURED THIS SESSION:
 ```
-cachepack verify --cache cache.osrs239 --rev osrs239 --src OSRS-Content/osrs239-content --types dbrow,dbtable
+cachepack verify --cache cache.osrs239 --rev osrs239 --src OSRS-Content/osrs-content --types dbrow,dbtable
   type      records    exact  same-len  differ  lost-here
   dbrow       16711    16711         0       0          0
   dbtable       246      246         0       0          0
@@ -2407,7 +2407,7 @@ Adding a *new* sprite id (safer for a "ported content" folder): append `8535=sum
 
 **YES for the mechanism; NO for a semantic change.**
 
-- `OSRS-Content/osrs239-content/scripts/script_73.cs2` and `script_7304.cs2` are hand-edited and committed (commits `9079d4d8c0` "Fix crystal command contract after content merge", `f562c8174d`) — but the diffs are **comment-only** (a 4-line and a 2-line explanatory comment about the `cry` / `::crystal_set` alias collision). No opcode changed. There is a CI-style guard on them: `tools/check_crystal_set_contract.py`, a hard prerequisite of `make -C src torirsserver-cache`.
+- `OSRS-Content/osrs-content/scripts/script_73.cs2` and `script_7304.cs2` are hand-edited and committed (commits `9079d4d8c0` "Fix crystal command contract after content merge", `f562c8174d`) — but the diffs are **comment-only** (a 4-line and a 2-line explanatory comment about the `cry` / `::crystal_set` alias collision). No opcode changed. There is a CI-style guard on them: `tools/check_crystal_set_contract.py`, a hard prerequisite of `make -C src torirsserver-cache`.
 - `src/makefile:1636-1652` is the design statement that the path is real: *"a `.cs2` edit packed into no cache is an edit that ships nowhere, and the Display panel's layout dropdown was the case that found it"* — i.e. `torirsserver-cache` exists **because** a CS2 edit was made and did not reach the client.
 - `docs/CS2_REV239_ROUNDTRIP_QUEUE.md` §10.6 documents an explicit edit-safety test: a blank line inserted into lossless script 15 invalidated the snapshot fingerprint and the canonical 35-byte compile shipped instead of the original 38 bytes.
 - **ABSENT: no authored/new clientscript** anywhere. Every `pack/12_clientscripts.pack` line is `<id>=script_<id>`; there are zero named script files and zero ids above the cache's. Max clientscript id 9726.
@@ -2527,11 +2527,11 @@ How a flag would reach each consumer:
 **(c) ServerScript `.rs2`** — **no build-time exclusion exists.** `SSC_CompileDir` → `collect_sources` (`src/serverscript/ssc_compile.c:2867-2911`) walks `--src` recursively and compiles **everything**; `ssc_main.c` (`:1-17`) exposes `--src / --out / --pack / --constants` and nothing else. Available in-language gates: a `^constant` in `server/scripts/**/*.constant` (compile-time value, runtime test — flip = `make -C src torirsserver-scripts`), or a `%varp` (runtime, per player; grammar keys `transmit`/`scope`/`clientcode` at `torirs_server_content.c:2136-2143`).
   ⚠️ The one *mechanical* exclusion that exists — a leading `.` on a directory, skipped identically by `ssc_compile.c:2883`, `torirs_server_content.c:2881`, and `cp_walk.c:58` — is **explicitly forbidden**: `docs/PORTING_GUIDE.md:1205-1213` "Do not ever skip / silence / park another lane… Forbidden: `*.rs2.skip`, `dirname.skip`, moving trees aside", enforced by `.cursor/rules/no-park-sibling-content.mdc`. Do not build the Summoning gate on it.
 
-**(d) CS2 clientscripts** — CS2 lives *inside the cache* (`OSRS-Content/osrs239-content/scripts/*.cs2`, 9,725 files, packed to idx 12). It cannot read a C-side flag at all. Its only inputs are varps/varbits (server-transmitted) and whether the interface/component exists in the loaded cache. **A CS2 gate is necessarily a varbit or a varp.**
+**(d) CS2 clientscripts** — CS2 lives *inside the cache* (`OSRS-Content/osrs-content/scripts/*.cs2`, 9,725 files, packed to idx 12). It cannot read a C-side flag at all. Its only inputs are varps/varbits (server-transmitted) and whether the interface/component exists in the loaded cache. **A CS2 gate is necessarily a varbit or a varp.**
 
 **(e) cachepack** — a real, already-working content gate, in two layers:
   - **Per-type**: `fields/<type>.ini` `records = client|server` → `CP_Fields.records_client` (`cp_fields.c:297`, default **0 via `memset` at `cp_fields.c:222`**). `record_is_client()` (`cp_pack.c:524-530`) = `!(origin_rank > 0 && !records_client)`. **A new record authored under `server/scripts/` therefore does NOT reach the client cache unless the type opts in.** Only `dbrow/dbtable/enum/param` state a value today (all `= server`); `obj`, `npc`, `loc` state none → default server → **new Summoning pouches/scrolls would be silently server-only**.
-  - **Per-entity**: `pack/<ns>.client` / `pack/<ns>.server`, parsed by `3rd/rscache/tools/cachepack/cp_membership.c`, routed by `cp_pack.c:690-760`. Exists for exactly 5 namespaces today: `enum, loc, npc, param, varp` (`ls OSRS-Content/osrs239-content/pack/`). **ABSENT for `obj`, `seq`, `spotanim`, `struct`, `inv`, `varbit`, models, sprites, interfaces.**
+  - **Per-entity**: `pack/<ns>.client` / `pack/<ns>.server`, parsed by `3rd/rscache/tools/cachepack/cp_membership.c`, routed by `cp_pack.c:690-760`. Exists for exactly 5 namespaces today: `enum, loc, npc, param, varp` (`ls OSRS-Content/osrs-content/pack/`). **ABSENT for `obj`, `seq`, `spotanim`, `struct`, `inv`, `varbit`, models, sprites, interfaces.**
   - cachepack CLI (`3rd/rscache/tools/cachepack/main.c:16-90`) has `--types a,b` (config types) but **no subtree/lane exclusion**. And `cachepack does not look inside server/scripts at all` (`docs/PORTING_GUIDE.md` §3.2 item 5).
 
 ---
@@ -2567,7 +2567,7 @@ All are paths, debug tracing, or the one pathing knob. The closest thing to a co
 
 Two adjacent mechanisms worth knowing:
 - `enum ToriRSServerFallback` (`torirs_server.h:3786-3833`): the engine's built-in C answers for `OPNPC`/`INV_BUTTON`/`IF_BUTTON` are switched **off** when a script pack loads. Content presence, not a flag.
-- `content.ini` (`OSRS-Content/osrs239-content/content.ini`) is read by `ContentRegister_Load` (`src/content/content_register.c:458`), which **ignores every section that is not `[namespace:*]`** ("Anything else in the file is not ours"). So a `[feature:summoning] enabled = 1` section could be added there today without breaking any existing reader — that is the cleanest place to put a *content-tree-owned* gate.
+- `content.ini` (`OSRS-Content/osrs-content/content.ini`) is read by `ContentRegister_Load` (`src/content/content_register.c:458`), which **ignores every section that is not `[namespace:*]`** ("Anything else in the file is not ours"). So a `[feature:summoning] enabled = 1` section could be added there today without breaking any existing reader — that is the cleanest place to put a *content-tree-owned* gate.
 
 ---
 
@@ -2589,7 +2589,7 @@ If, during implementation, you do find engine divergence (e.g. a follower-slot r
 
 This is the strongest gate and it already defaults to OFF. Evidence: `cp_fields.c:222` zeroes `records_client`, and `cp_pack.c:524-530` refuses any rank-1-only record for a type that has not opted in. So:
 
-- Put ported records under a distinct rank-1 root, e.g. `OSRS-Content/osrs239-content/server/scripts/ported_2009scape/summoning/**` (the walkers are recursive — `torirs_server_content.c:2868`, `ssc_compile.c:2867` — so no loader change is needed).
+- Put ported records under a distinct rank-1 root, e.g. `OSRS-Content/osrs-content/server/scripts/ported_2009scape/summoning/**` (the walkers are recursive — `torirs_server_content.c:2868`, `ssc_compile.c:2867` — so no loader change is needed).
 - Client-visible records (pouch objs, familiar npcs, obelisk locs, the tab interface) must be opted in **per entity** via `pack/obj.client`, `pack/npc.client`, `pack/loc.client`. `npc.client` and `loc.client` already exist; **`pack/obj.client` does NOT and must be created** (`cp_membership.h` "creates only files that do not exist"; `cachepack membership` seeds it). Prefer this over flipping `fields/obj.ini` `records = client`, which is one boolean for the whole 30k-obj namespace.
 - The bake target is a **different cache directory**: `make -C src torirsserver-cache TORIRSSERVER_CACHE_DIR=$PWD/cache.osrs239.summoning` (`src/makefile:1677-1690`) and a `manifests/manifest_osrs239_summoning.ini` whose only real diff is `[cache:boot] dir=`. **Booting `manifests/manifest_osrs239.ini` (pristine `cache.osrs239`) is the flag-off client, for free.**
 
@@ -2647,11 +2647,11 @@ CS2 can only see a varp/varbit or the absence of an interface. Reuse the §6c va
 |---|---|
 | Server ("ToriRSServer" is a misnomer — it *is* the server) | `src/torirsserver/` (88 files, `torirs_server_world.c` alone is 1.15 MB) |
 | ServerScript compiler + VM | `src/serverscript/` |
-| Content tree (submodule) | `OSRS-Content/osrs239-content/` |
-| Server content half | `OSRS-Content/osrs239-content/server/{pack,scripts}/` |
+| Content tree (submodule) | `OSRS-Content/osrs-content/` |
+| Server content half | `OSRS-Content/osrs-content/server/{pack,scripts}/` |
 | Port operating guide | `docs/PORTING_GUIDE.md` |
 
-**Summoning in the target tree: ABSENT everywhere.** No `summon*` npc/obj/inv/interface record in `OSRS-Content/osrs239-content/configs/all.*.compack` beyond unrelated names (`synth_summon` dbrow 4546, `summon_spotanim` spotanim 480, `regicide_quest_kings_summons` obj 3206). No stat, no scripts, no varbits.
+**Summoning in the target tree: ABSENT everywhere.** No `summon*` npc/obj/inv/interface record in `OSRS-Content/osrs-content/configs/all.*.compack` beyond unrelated names (`synth_summon` dbrow 4546, `summon_spotanim` spotanim 480, `regicide_quest_kings_summons` obj 3206). No stat, no scripts, no varbits.
 
 **Summoning is on two written SKIP lists** — reversing an existing recorded decision, not filling a gap:
 - `docs/SCAPE2009_CONTENT_PORT_QUEUE.md:71` — `| content/global/skill/summoning/**, Wolf Whistle | Summoning is not in OSRS |`, plus `| Evil Turnip / summoning-linked patches | Summoning ecosystem |`
@@ -2676,7 +2676,7 @@ Both queue docs must be edited or the loop agents will keep skipping the slice.
 7. `ToriRSServer_BankLoad(cache_dir)` — inv sizes from cache config group 5 + varbit bit ranges
 8. `ToriRSServer_WorldSetHome` (default 3222,3218 Lumbridge)
 
-Content dir resolution: `TORIRSSERVER_CONTENT` env → `OSRS-Content/osrs239-content` → `../OSRS-Content/osrs239-content`. Scripts: `TORIRSSERVER_SCRIPTS` → `<content>/server/scripts/build`.
+Content dir resolution: `TORIRSSERVER_CONTENT` env → `OSRS-Content/osrs-content` → `../OSRS-Content/osrs-content`. Scripts: `TORIRSSERVER_SCRIPTS` → `<content>/server/scripts/build`.
 
 ### Transport / session / embed seam
 - `torirs_server_transport.h` — 4-fn vtable (`recv/send/pollfd/close`). Two impls: socket (`ToriRSServer_TransportSocket`, wraps `ToriRSServerConn`, which itself sniffs raw TCP vs RFC-6455 WebSocket) and memory (`ToriRSServer_TransportMemory` over a `ToriRSServerPipe` FIFO pair).
@@ -2731,7 +2731,7 @@ Plus rev-230-only **EXTRA_TRIGGERS** allocated above 167 (`gen_opcode_meta.py:46
 `TIMER`/`SOFTTIMER`/`QUEUE` are dispatched by *script id*, not by trigger id — `settimer(<script>, n)` names the script directly.
 
 ### Where `.rs2` lives and how it compiles
-- Sources: `OSRS-Content/osrs239-content/server/scripts/**` — **1,464 `.rs2` files** across ~70 subject folders (`skill_*`, `interface_*`, `quests/`, `npc/`, `areas/`, `minigames/`, `shop/`, `bosses/`, `player/`, `levelup/`, `drop_tables/`). Configs colocated: 972 `.spawn`, 267 `.constant`, 234 `.varp`, 58 `.dbrow`, 46 `.dbtable`, 33 `.npc`, 23 `.param`, 21 `.enum`, 20 `.loc`, 16 `.obj`, 1 `.struct`.
+- Sources: `OSRS-Content/osrs-content/server/scripts/**` — **1,464 `.rs2` files** across ~70 subject folders (`skill_*`, `interface_*`, `quests/`, `npc/`, `areas/`, `minigames/`, `shop/`, `bosses/`, `player/`, `levelup/`, `drop_tables/`). Configs colocated: 972 `.spawn`, 267 `.constant`, 234 `.varp`, 58 `.dbrow`, 46 `.dbtable`, 33 `.npc`, 23 `.param`, 21 `.enum`, 20 `.loc`, 16 `.obj`, 1 `.struct`.
 - Compile: `make -C src torirsserver-scripts` (`src/makefile:1616-1622`) → `tools/ss_allocate.py --tree <content>` (appends ids for new `.enum`/`.dbtable`/`.param` blocks to `pack/*.alloc`) → `sscompile --src server/scripts --out server/scripts/build --pack pack --pack configs`.
 - Output: `server/scripts/build/{script.dat,script.idx}` — **gitignored** (`OSRS-Content/.gitignore`).
 - Discovery is recursive over `*.rs2` only (`ssc_compile.c:2896`). **Compile order is sorted path order** — a gosub compiles to a script *id*, so an unstable order silently repoints every call.
@@ -2839,7 +2839,7 @@ Reference values from 2009scape for orientation (rev-530 ids, **must not be copi
 
 ## 7. Skills — data or hardcoded? **Both, and the split matters.**
 
-**Content side:** `OSRS-Content/osrs239-content/pack/stat.pack` — authored, 23 entries `0=attack … 21=hunter, 22=construction`. `content.ini [namespace:stat] ids = protocol, names = authored` — "No gameval archive names the skills … the ids are the protocol's: UPDATE_STAT carries this index." `torirs_server_content.c:1563` errors with "`%s` is not in `pack/stat.pack`" for an unknown skill name.
+**Content side:** `OSRS-Content/osrs-content/pack/stat.pack` — authored, 23 entries `0=attack … 21=hunter, 22=construction`. `content.ini [namespace:stat] ids = protocol, names = authored` — "No gameval archive names the skills … the ids are the protocol's: UPDATE_STAT carries this index." `torirs_server_content.c:1563` errors with "`%s` is not in `pack/stat.pack`" for an unknown skill name.
 
 **Engine side, hardcoded:** `torirs_server.h:506-518`
 ```c
@@ -2913,7 +2913,7 @@ Death credit is player-indexed: `ToriRSServerNpc.death_credit_players[TORIRSSERV
 6. **GUESS:** `npc_setmode(playerfollow)` + `npc_finduid` + a player `settimer` is enough to express a non-combat familiar in pure content *today* for a single-player world. Untested; the `active_player` staleness makes it wrong the moment a second player logs in.
 7. rev-530 ids (varp 1160, varbits 4280-4282, ifaces 662/671, npc/obj ids) from 2009scape are a *behaviour* reference only — `PORTING_GUIDE.md` and both port queues forbid copying them into osrs239 content. Every id must be allocated fresh through `pack/*.alloc` + `tools/ss_allocate.py`.
 8. `ToriRSServer_ContainerScope` and the absent inv namespace are a known, documented blocker (`shop` is blocked on the same thing). Landing `fields/inv.ini` + `[namespace:inv]` is arguably a prerequisite slice of its own, not part of Summoning.
-9. "Distinct folder clearly marked as ported" has no precedent in the tree: the two `port`-named things are `osrs239-content/port/` (id-mapping `.map` files from a cache diff, not scripts) and `docs/*_PORT_QUEUE.md`. `server/scripts/` is organised strictly by subject (`skill_*`, `quests/`, …). A `server/scripts/ported_summoning/` breaks that convention; `skill_summoning/` matches it but is not marked. Needs a decision.
+9. "Distinct folder clearly marked as ported" has no precedent in the tree: the two `port`-named things are `osrs-content/port/` (id-mapping `.map` files from a cache diff, not scripts) and `docs/*_PORT_QUEUE.md`. `server/scripts/` is organised strictly by subject (`skill_*`, `quests/`, …). A `server/scripts/ported_summoning/` breaks that convention; `skill_summoning/` matches it but is not marked. Needs a decision.
 10. I did not audit: `torirs_server_zone.c` event buffering, `torirs_server_mapinstance.c` interaction with familiars, whether `TORIRSSERVER_PLAYER_MAX = 8` × 16 containers × a BoB row hits any static-size ceiling, or the RSProt/osrs239 codec path (`docs/RSPROT_OSRS239_PORT.md`).
 
 ===== RECON: rs-interfaces-ui =====
@@ -2921,7 +2921,7 @@ Death credit is player-indexed: `ToriRSServerNpc.death_credit_players[TORIRSSERV
 
 ## 1. On-disk interface format + encoder
 
-**Location:** `OSRS-Content/osrs239-content/interfaces/` — 1936 files, 9.4 MB, **968 interfaces × 2 files each**.
+**Location:** `OSRS-Content/osrs-content/interfaces/` — 1936 files, 9.4 MB, **968 interfaces × 2 files each**.
 
 Two plain-text files per interface:
 
@@ -2965,7 +2965,7 @@ onload=i:82,i:-2147483645,i:10485781,...
 
 **Archive index:** `pack/3_interfaces.pack`, 969 lines, `0=100guide_eggs_overlay` … `968=myq6_integrity_bar`. (969 names / 968 real archives — one phantom from gameval 14.)
 
-**Bake pipeline:** `make -C src torirsserver-cache` (`src/makefile:1676`) → `cachepack pack --src OSRS-Content/osrs239-content --base cache.osrs239 --out cache.osrs239.baked --rev osrs239 --assets --binary --gamevals`. Client-visible edits (interfaces, CS2, sprites, configs) reach a running client **only** through this bake; pure server `.rs2` does not need it.
+**Bake pipeline:** `make -C src torirsserver-cache` (`src/makefile:1676`) → `cachepack pack --src OSRS-Content/osrs-content --base cache.osrs239 --out cache.osrs239.baked --rev osrs239 --assets --binary --gamevals`. Client-visible edits (interfaces, CS2, sprites, configs) reach a running client **only** through this bake; pure server `.rs2` does not need it.
 
 ## 2. Rules for rev-230/239 UI (`docs/UI_ERA_PORTING_GUIDE.md`, `docs/REV230_UI_OWNERSHIP.md`)
 
@@ -3005,7 +3005,7 @@ Key rules:
 
 **ServerScript ops** (`src/serverscript/ss_opcode.h:429`): `IF_SETEVENTS` 11000, `IF_OPENSUB` 11001, `RUNCLIENTSCRIPT_SS` 11002, `RUNCLIENTSCRIPTVARARG` 11003, `P_COUNTDIALOG_NOPROMPT` 11004, `IF_CLOSESUB` 11005, `IF_OPENTOP` 11006, `IF_MOVESUB` 11007, `IF_GETMAIN` 11008.
 
-**The mount table is content, not C:** `OSRS-Content/osrs239-content/server/scripts/player/configs/gameframe.enum` — `[toplevel_osrs_stretch]` `inputtype=component outputtype=interface`, 24 rows: 9 HUD overlays (`chat_container→chatbox`, `orbs→orbs`, `hpbar_hud`, `buff_bar`, `stat_boosts_hud`, `pm_container`, `pvp_icons`, `popout`, `tli_listener`) + `side0..side13`. **Order matters** — mounted in file order.
+**The mount table is content, not C:** `OSRS-Content/osrs-content/server/scripts/player/configs/gameframe.enum` — `[toplevel_osrs_stretch]` `inputtype=component outputtype=interface`, 24 rows: 9 HUD overlays (`chat_container→chatbox`, `orbs→orbs`, `hpbar_hud`, `buff_bar`, `stat_boosts_hud`, `pm_container`, `pvp_icons`, `popout`, `tli_listener`) + `side0..side13`. **Order matters** — mounted in file order.
 
 **Sidebar tabs: visibility is purely `if_hassub`.** `scripts/script_912.cs2` = `[proc,toplevel_sidebuttons_enable]`:
 
@@ -3125,7 +3125,7 @@ Mechanism, end to end:
 3. **No rev-530 cache profile.** `3rd/rscache/src/revisions/` has no `rev_dat2_rs530.c`. `dump_interface` decoded 530 interfaces plausibly, but it uses the legacy `RSCacheDat2A_*` API with **no era selection** at all, so the decode is unvalidated. `cachepack`'s rev-aware path (`RSCache_Dat2ComponentDecodeRevFromProfile`) would refuse or mis-select. Cross-family risk is real: `decode_if3_rs2` (`dat2_component.c:595`) is a genuinely different layout and `RSCache_Dat2ComponentEncodeIf3` **refuses to invert it** (`:1428`).
 4. **Every ported graphic/font/model id must be remapped.** 530:747 references `graphic=1206/1244/1245`; those ids mean unrelated sprites in osrs239. Sprite ids in the tree run 0..8534 (`pack/8_sprites.pack`); sprites are directories of BMPs + `pack.meta` (palette + per-sprite offset/size). `port_npc` (`3rd/rscache/tools/port_npc/`) is a cross-revision closure porter but takes `--from-rev`/`--to-rev` profile names, so 530 needs a profile first. `port_lostcity` runs the wrong direction (dat2 → LostCity source).
 5. **Stat 23 does not exist.** `pack/stat.pack` stops at 22; the index is protocol-fixed by UPDATE_STAT. A summoning *level* needs engine + wire + interface-320 work, or must be faked in a varp. Decide this before authoring any orb that calls `stat_base(...)`.
-6. **`port/` is LostCity-only.** `OSRS-Content/osrs239-content/port/{names,configs,vars,constants,categories}.map` and `make -C src test-port` are all keyed to the rev-254 LostCity reference. A 530 port has no equivalent ledger, and `test-port` will not gate it. GUESS: a parallel `port530/` ledger is the honest shape.
+6. **`port/` is LostCity-only.** `OSRS-Content/osrs-content/port/{names,configs,vars,constants,categories}.map` and `make -C src test-port` are all keyed to the rev-254 LostCity reference. A 530 port has no equivalent ledger, and `test-port` will not gate it. GUESS: a parallel `port530/` ledger is the honest shape.
 7. **`cachepack pack` declines silently when a codec refuses.** With `--base`, an archive the codec cannot re-encode keeps the *base* bytes and is byte-indistinguishable from success (counted as `codec-declined`, printed but easy to miss). Read cachepack's summary line on every bake; 219 of osrs239's clientscripts already decompile-but-do-not-recompile.
 8. **Double-bake trap** (`memory/interface-pack-double-bake.md`): CS2 pre-bakes packs (script 901 pre-bakes 149/163/728/896 during the 161 boot) before the server's `IF_OPENSUB`. `UITree_FindByComponentId` returns the **lowest** node index, so all CS2 mutations go into the first (hidden) copy and the mounted copy renders blank. Any new panel the gameframe touches early is exposed to this.
 9. **`orbs` is a *shared* record.** Appending to `interfaces/orbs.if` means the summoning orb ships to every player whether or not the feature flag is on. Gating has to be a `if_sethide` from CS2/content (the `xp_drops` precedent: not in `gameframe.enum` at all, mounted by `~xpdrops_sync_mount` behind `xpdrops_enabled`), not a build-time exclusion.
@@ -3145,7 +3145,7 @@ All paths repo-relative to `/Users/matthewevers/Documents/git_repos/3draster` un
 | § | lines | content |
 |---|---|---|
 | header | 1–24 | Goal + the three failure modes the guide exists to prevent: (1) hardcoding content in C, (2) confusion over which pack data belongs in, (3) treating a modern client feature as un-portable. |
-| **1 The map** | 26–83 | 6 repos. `OSRS-Content/osrs239-content` = **the** destination tree. `2009scape` row (L35) says *"Never copy rev-530 ids; skip bots/holiday/**Summoning**/RS2-only"*. Pipeline diagram L46–71: `cachepack unpack --assets` → tree → `cachepack pack` (**ONE baker**) → client cache (`--out`) + `server/pack`; `make -C src torirsserver-scripts` → `server/scripts/build/{script.dat,script.idx}`. Boot order L65–71: cache → content tree → script pack. |
+| **1 The map** | 26–83 | 6 repos. `OSRS-Content/osrs-content` = **the** destination tree. `2009scape` row (L35) says *"Never copy rev-530 ids; skip bots/holiday/**Summoning**/RS2-only"*. Pipeline diagram L46–71: `cachepack unpack --assets` → tree → `cachepack pack` (**ONE baker**) → client cache (`--out`) + `server/pack`; `make -C src torirsserver-scripts` → `server/scripts/build/{script.dat,script.idx}`. Boot order L65–71: cache → content tree → script pack. |
 | **2.1 The rule** | 89–103 | *"If LostCity states it in a `.rs2` proc or a config field, it is content's."* Engine keeps only: tick clock, HP/death bookkeeping, accuracy/max-hit rolls, wire encoders, collision map, dispatch. |
 | **2.2 The procedure** | 104–129 | **Mandatory greps before implementing anything:** `grep -ril '<kw>' LostCity_Server/engine/src` and `.../content/scripts`. Interpretation rules: engine hits that are vars/flags don't count; **port the proc, not the field**; a trigger with no script is answered by the `_` wildcard, never by a C fallback. |
 | 2.3 | 131–161 | Ownership table. CONTENT: all combat formulas, shops, dialogue, **all 14 skills + levelup + level requirements**, quests, drop tables, minigames, npc AI policy, hunt profiles, cheats. |
@@ -3229,11 +3229,11 @@ From `docs/CONTENT_ARCHITECTURE.md` (1,074 lines), `docs/CONTENT_PACK_PLAN.md` (
 - `varp`/`varbit`/`varn`/`vars` share one `%name` domain; a cross-namespace collision is a load error (§4.1).
 
 **Field rules**
-- Every field of every config type is declared in `fields/<type>.ini`. Today only 8 exist: `dbrow dbtable enum loc npc obj param varp` (`OSRS-Content/osrs239-content/fields/`). **There is no `fields/inv.ini` and no `[namespace:inv]`** — this is the single blocker that has kept `shop` un-portable (PORTING_GUIDE §6 Phase 4, L1174–1184) and it will bite any summoning BoB/pouch container.
+- Every field of every config type is declared in `fields/<type>.ini`. Today only 8 exist: `dbrow dbtable enum loc npc obj param varp` (`OSRS-Content/osrs-content/fields/`). **There is no `fields/inv.ini` and no `[namespace:inv]`** — this is the single blocker that has kept `shop` un-portable (PORTING_GUIDE §6 Phase 4, L1174–1184) and it will bite any summoning BoB/pouch container.
 - `client = param:` projections were **retired** 2026-08-06 (§6.7 item 3): server fields now say `client = drop` + `param = <name>` for the runtime binding.
 
 **Entity membership (`PACK_ENTITY_SPLIT_PLAN.md`)**
-- `pack/<ns>.client` / `pack/<ns>.server` list **entity names, not ids** (§3.1). Five namespaces have them: `enum loc npc param varp` (`ls OSRS-Content/osrs239-content/pack/`).
+- `pack/<ns>.client` / `pack/<ns>.server` list **entity names, not ids** (§3.1). Five namespaces have them: `enum loc npc param varp` (`ls OSRS-Content/osrs-content/pack/`).
 - Routing rule as built (§10.1): client = named in `<ns>.client` **or** the base cache already holds (kind, id) **or** the type default; server = named in `<ns>.server` **or** (if the file is absent) the old field-presence gate.
 - Three fatal/counted cells (§10.2): **(a)** record states a band field but `<ns>.server` doesn't name it ⇒ **error**; **(b)** server-only record stating a client field ⇒ counted warning; **(c)** neither file names it and the cache doesn't hold its id ⇒ **error**. Any *new* summoning npc/obj/loc lands squarely in cell (c) unless the plan adds membership lines.
 
@@ -3260,7 +3260,7 @@ From `docs/CONTENT_ARCHITECTURE.md` (1,074 lines), `docs/CONTENT_PACK_PLAN.md` (
 `skill_hunter/` — the most recently completed whole skill (SCAPE2009 rows 2a–2at, ~40 queue ticks):
 
 ```
-OSRS-Content/osrs239-content/server/scripts/skill_hunter/   38 files, 5,589 lines
+OSRS-Content/osrs-content/server/scripts/skill_hunter/   38 files, 5,589 lines
   scripts/  16 × .rs2      pitfall 333, net_trap 332, common_trail 320, polar_trail 288,
                            desert_jungle_trail 252, bird_snare 229, deadfall 228,
                            box_trap 213, rabbit_snare 206, magic_box 196, falconry 188,
@@ -3295,7 +3295,7 @@ src/build/ToriRSServer_Pack --check-only           # MUST be 0 errors  (PORTING_
 ```sh
 make -C src torirsserver-scripts     # tools/ss_allocate.py --tree ... ; then sscompile --src server/scripts
                                 #   --out server/scripts/build --pack pack --pack configs   (makefile:1616–1622)
-make -C src torirsserver-servpack    # cachepack pack --src OSRS-Content/osrs239-content --server-only (1631–1634)
+make -C src torirsserver-servpack    # cachepack pack --src OSRS-Content/osrs-content --server-only (1631–1634)
 make -C src torirsserver-cache       # ONLY for client-visible edits: cachepack pack --base --out --rev osrs239
                                 #   --assets --binary --gamevals, then torirsserver-cache-check (1676–1717)
 ```

@@ -1,6 +1,6 @@
 # upass -- notes (parity3d pass, LostCity port checked leg by leg)
 
-Source: LostCity quest_upass. Content: OSRS-Content/osrs239-content/server/scripts/quests/quest_upass/scripts.
+Source: LostCity quest_upass. Content: OSRS-Content/osrs-content/server/scripts/quests/quest_upass/scripts.
 Driven headless: scratch runs parity_upass (21 rows) and parity_upass_kalrag (8 rows); not a committed test.
 
 - Koftik is six cache shells caveguide1..6 (multivarbit upass_koftik_*). Only the shell name binds triggers.

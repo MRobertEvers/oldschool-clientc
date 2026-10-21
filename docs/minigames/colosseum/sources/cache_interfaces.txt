@@ -1,4 +1,4 @@
-# interfaces and clientscripts -- quoted from OSRS-Content/osrs239-content/interfaces/*.if and scripts/*.cs2 (the decompiled CS2 suite)
+# interfaces and clientscripts -- quoted from OSRS-Content/osrs-content/interfaces/*.if and scripts/*.cs2 (the decompiled CS2 suite)
 
 [246] colosseum_reward_chest    (pack/3_interfaces.pack:247)
   why= name: colosseum_reward_chest

@@ -28,7 +28,14 @@ enum RSCache_CS2_StackType
 {
     RSCACHE_CS2_STACK_INT = 0,
     RSCACHE_CS2_STACK_STRING = 1,
+    /* OSRS >= 237: a third operand stack of int64 (the rev-239 deob's
+     * class42.field258 / field259), with its own locals and arguments. */
+    RSCACHE_CS2_STACK_LONG = 2,
 };
+
+/** "int", "string" or "long", for messages. */
+const char*
+RSCache_CS2_StackTypeLiteral(enum RSCache_CS2_StackType stack_type);
 
 /* -------------------------------------------------------------------------
  * Types
@@ -74,6 +81,9 @@ enum RSCache_CS2_Type
     RSCACHE_CS2_TYPE_DBROW,
     /** Rev-239 enum key descriptor 0xD8; an int-stack semantic id. */
     RSCACHE_CS2_TYPE_ENUMKEY_D8,
+    /* The long stack's one type. Descriptor 0xCF ('\u00cf'), which the rev-239
+     * deob's enum command (3408) tests to push onto the long stack. */
+    RSCACHE_CS2_TYPE_LONG,
 
     RSCACHE_CS2_TYPE_COUNT,
     RSCACHE_CS2_TYPE_NONE = -1,
@@ -109,7 +119,8 @@ RSCache_CS2_TypeStackType(enum RSCache_CS2_Type type);
 /**
  * The int-stack value a script's epilogue pushes for a declared return of this
  * type: 0 for `int`, -1 for everything else. Meaningless for `string`, whose
- * epilogue pushes `""`.
+ * epilogue pushes `""`, and for `long`, whose epilogue pushes `0L` (every long
+ * return slot in cache.osrs241).
  *
  * The epilogue is unreachable — one default per declared return type, then a
  * `return` — and exists only so the arity and stack shape can be read back off
@@ -246,6 +257,7 @@ enum RSCache_CS2_ProtoId
     RSCACHE_CS2_PROTO_PLAYER_UID,
     RSCACHE_CS2_PROTO_SPOTANIM,
     RSCACHE_CS2_PROTO_DBROW,
+    RSCACHE_CS2_PROTO_LONG,
 
     /* Named prototypes: a type plus an identifier hint. */
     RSCACHE_CS2_PROTO_OPBASE,

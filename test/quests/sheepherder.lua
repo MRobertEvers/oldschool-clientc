@@ -1,7 +1,7 @@
 -- Sheep Herder quest test.
 -- Scaffolded from Quest Helper's helpers/quests/sheepherder/, rewritten
 -- against the real content scripts under
--- OSRS-Content/osrs239-content/server/scripts/quests/quest_sheepherder/.
+-- OSRS-Content/osrs-content/server/scripts/quests/quest_sheepherder/.
 -- Tier (quest_inventory.tsv): 1.
 --
 -- Rewards (quest_sheepherder.rs2 [queue,sheepherder_complete]): 3100 coins,
@@ -57,7 +57,7 @@
 -- diagnosis was backwards -- sheepherder_pen_gate (2592-2594,3360-3363) is
 -- WEST of the pen's own x-span (2595-2609), not inside it, so a correct
 -- route never needs to cross x=2609 at all. Verified directly against
--- OSRS-Content/osrs239-content/maps/m40_52.jl2 (grep '^0 35 ', local x=35 =
+-- OSRS-Content/osrs-content/maps/m40_52.jl2 (grep '^0 35 ', local x=35 =
 -- world x=2595, the pen's WEST wall): loc 980 there is continuous for local
 -- z=23..32 and 35..36 (world z=3351..3360 and 3363..3364) but has NO row at
 -- local z=33..34 (world z=3361..3362) -- and that exact gap is occupied by

@@ -1,5 +1,5 @@
 # varps -- 15 records selected from cache.osrs239
-# source: OSRS-Content/osrs239-content/configs/all.varp (record header line given per record)
+# source: OSRS-Content/osrs-content/configs/all.varp (record header line given per record)
 # why= the selection rule(s) that chose the record (LEDGER_cache.md)
 
 [4127] varp4127_colosseum_int_temp_transmit_1    (configs/all.varp:8273)
@@ -92,7 +92,7 @@
 
 
 # varbits -- 35 records selected from cache.osrs239
-# source: OSRS-Content/osrs239-content/configs/all.varbit (record header line given per record)
+# source: OSRS-Content/osrs-content/configs/all.varbit (record header line given per record)
 # why= the selection rule(s) that chose the record (LEDGER_cache.md)
 
 [4588] varb4588_colosseum_modifier_mantimayhem_stacks_client    (configs/all.varbit:22943)
@@ -347,7 +347,7 @@
 
 
 # varcs (client-only vars) -- 3 records selected from cache.osrs239
-# source: OSRS-Content/osrs239-content/configs/all.varc (record header line given per record)
+# source: OSRS-Content/osrs-content/configs/all.varc (record header line given per record)
 # why= the selection rule(s) that chose the record (LEDGER_cache.md)
 
 [1194] varc1194_colosseum_selected_modifier_client    (configs/all.varc:2968)

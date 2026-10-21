@@ -6,7 +6,7 @@
   "shared_binaries_verified": {
     "src/torirs": "c7e62cce180aaeb6bc4cd044818b0209ca99edb478f5280c3ebd10d6b79b1d8d",
     "src/build_opt/torirsserver": "a53899eb8ce5d086e36df3653aaccfd2ee93c05f8e767ece05ecc40a94b9c3db",
-    "OSRS-Content/osrs239-content/server/scripts/build/script.dat": "902a6b8d242bba01990b3955100e301c2a0edb6b1f18fc6ca83fd703a880df59"
+    "OSRS-Content/osrs-content/server/scripts/build/script.dat": "902a6b8d242bba01990b3955100e301c2a0edb6b1f18fc6ca83fd703a880df59"
   },
   "sessions": {
     "gl3": {

@@ -35,7 +35,7 @@ Method: docs/minigames/waves_loop/RIG_PASS.md. Documents only; nothing run or re
 ## Unknown
 - Nothing on the rig is left unclassified (role unknown: 0).
 
-## Ledger (OSRS-Content/osrs239-content/npc_combat/i/inferno_creature_splitter*.combat)
+## Ledger (OSRS-Content/osrs-content/npc_combat/i/inferno_creature_splitter*.combat)
 - All four files give death jalak_death, attack jalak_attack_magic, defend jalak_defend, sounds "-". All on the rig and the right monster.
 - Disagreement 1: _melee (7696) is given jalak_attack_magic although jalak_attack_melee is on its rig.
 - Disagreement 2: _range (7695) is given jalak_attack_magic although jalak_attack_ranged is on its rig.

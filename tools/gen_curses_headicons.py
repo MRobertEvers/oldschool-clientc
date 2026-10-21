@@ -52,7 +52,7 @@ import shutil
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-TREE = ROOT / "OSRS-Content/osrs239-content"
+TREE = ROOT / "OSRS-Content/osrs-content"
 BASE_GROUP = TREE / "sprites/headicons_prayer"
 LANE_OUT = TREE / "ported/rs558_ancient_curses/sprites_override/headicons_prayer"
 

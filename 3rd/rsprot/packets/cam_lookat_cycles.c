@@ -23,14 +23,31 @@ packet_cam_lookat_cycles_v1_out(RsprotExec *x, MsgCamLookAtCycles *m)
     RSPROT_U2_ALT2(x, m->height);
 }
 
+/* v100 -- revs 241. */
+void
+packet_cam_lookat_cycles_v100_out(RsprotExec *x, MsgCamLookAtCycles *m)
+{
+    RSPROT_U2_ALT2(x, m->height);
+    RSPROT_U1(x, m->easing_id);
+    RSPROT_U2_ALT1(x, m->x);
+    RSPROT_U2_ALT1(x, m->z);
+    RSPROT_U2_ALT3(x, m->cycles);
+    RSPROT_U1_ALT1(x, m->height_relative);
+}
+
 /*
- * 1 row(s) for 1 layout(s), complete over revisions 221-239.
+ * 2 row(s) for 2 layout(s), complete over revisions 221-239.
  * A complete table makes rsprot_version_pick's NULL mean exactly one thing: a
  * revision outside that span. An incomplete one would conflate "not
  * transcribed" with "no such packet", and those are different facts.
+ *
+ * Plus revision(s) 241, which RSProt never vendored: derived from
+ * RSProx's decoders by tools/rsprox_codec_overlay.py. Revisions between 239
+ * and those are not covered and pick NULL.
  */
 const RsprotVersionRange rsprot_cam_lookat_cycles_out[] = {
     { 239, 239, (RsprotCodecFn)packet_cam_lookat_cycles_v1_out },
+    { 241, 241, (RsprotCodecFn)packet_cam_lookat_cycles_v100_out },
 };
 
 const int rsprot_cam_lookat_cycles_out_count =

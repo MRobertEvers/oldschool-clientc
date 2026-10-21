@@ -28,7 +28,7 @@ import sys
 
 from PIL import Image, ImageDraw
 
-TREE = "OSRS-Content/osrs239-content/sprites/ported/rs2012_qbd_td"
+TREE = "OSRS-Content/osrs-content/sprites/ported/rs2012_qbd_td"
 OUT = "docs/rs2012_materials_backport/images"
 REPORT = "docs/rs2012_materials_backport/bake_report.txt"
 

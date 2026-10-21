@@ -40,8 +40,43 @@ packet_update_inv_full_v1_out(RsprotExec *x, MsgUpdateInvFull *m)
     }
 }
 
+/*
+ * Revision 241, transcribed from RSProx:
+ *   protocol/osrs-241/.../v241/game/outgoing/decoder/codec/inv/UpdateInvFullDecoder.kt
+ *
+ *     val combinedId = buffer.gCombinedId()
+ *     val inventoryId = buffer.g2()
+ *     val capacity = buffer.g2()
+ *     for (i in 0..<capacity) {
+ *         val id = buffer.g2Alt1()
+ *         var count = buffer.g1Alt3()
+ *         if (count >= 0xFF) count = buffer.g4Alt2()
+ *         add(UpdateInvFull.Obj(id - 1, count))
+ *     }
+ *
+ * The header is 239's; per slot the id now LEADS and the long count is Alt2
+ * (239: count, [g4Alt3], id).
+ */
+void
+packet_update_inv_full_v100_out(RsprotExec *x, MsgUpdateInvFull *m)
+{
+    RSPROT_COM(x, m->combined_id);
+    RSPROT_U2(x, m->inventory_id);
+    RSPROT_COUNT2(x, m->capacity, MSG_UPDATE_INV_FULL_MAX_SLOTS);
+
+    for (int32_t i = 0; i < m->capacity; i++) {
+        MsgUpdateInvFullSlot *slot = &m->slots[i];
+
+        RSPROT_XFORM(x, U2_ALT1, slot->id, 1);
+        RSPROT_CLAMP(x, U1_ALT3, slot->count_lo, slot->count, 255);
+        if (RSPROT_BRANCH(x, slot->count_lo) == 255)
+            RSPROT_U4_ALT2(x, slot->count);
+    }
+}
+
 const RsprotVersionRange rsprot_update_inv_full_out[] = {
     { 221, 239, (RsprotCodecFn)packet_update_inv_full_v1_out },
+    { 241, 241, (RsprotCodecFn)packet_update_inv_full_v100_out },
 };
 
 const int rsprot_update_inv_full_out_count =

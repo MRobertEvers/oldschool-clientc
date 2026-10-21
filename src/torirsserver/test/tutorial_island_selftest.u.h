@@ -459,7 +459,7 @@ selftest_tutorial_island(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
     owned = !srv->scripts_ok ? 1 : 0;
 
     varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp281_tutorial");
-    varp_design = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp7136_newplayer_design_done");
+    varp_design = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp7811_newplayer_design_done");
     varp_run = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp173_option_run");
     npc_basics = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "newbie_basics_instructor");
     npc_survival = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "newbie_survival_instructor");

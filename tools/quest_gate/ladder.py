@@ -99,7 +99,7 @@ def quest_triggers(quest_dir, targets, cap=1):
     """`path.rs2:line trigger` for the [op*]/[ap*] triggers on a step's
     targets: the ones in the quest's own directory; when it has none, the
     shared ones elsewhere (an npc's area script). Paths are relative to
-    OSRS-Content/osrs239-content/server/scripts/."""
+    OSRS-Content/osrs-content/server/scripts/."""
     prefix = os.path.join("quests", quest_dir) + os.sep
     own, other = [], []
     for _, symbol in targets:
@@ -314,7 +314,7 @@ COLUMNS = ["leg", "n", "stage", "step", "kind", "target", "point", "text",
 
 
 LEGEND = ("  (leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, "
-          "x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; "
+          "x? = no content symbol; trig = OSRS-Content/osrs-content/server/scripts/<file>:<line>, op1 first, +N more; "
           "items = means the row above's)")
 
 

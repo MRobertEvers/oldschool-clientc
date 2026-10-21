@@ -47,7 +47,7 @@ measurement scratch is run with no build and nothing published).
   are keyed by id alone, so **a wave id must never equal a quest id**, and it
   must start with its game: the wrappers refuse (exit 2) otherwise.
 - A PASS is published to
-  `OSRS-Content/osrs239-content/server/scripts/selftest/minigames/<game>/<unit>/play/`
+  `OSRS-Content/osrs-content/server/scripts/selftest/minigames/<game>/<unit>/play/`
   (`inferno_nibblers` -> `inferno/nibblers`: the id split at its first `_`), not
   under `selftest/quests/`. `--no-publish` skips it.
 - `gate.py`'s Quest Helper coverage check reads "not graded" for a wave id (no

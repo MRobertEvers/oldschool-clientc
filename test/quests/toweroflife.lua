@@ -1,6 +1,6 @@
 -- Tower of Life. Scaffolded by tools/quest_gate/new_quest.py from Quest Helper's
 -- helpers/quests/toweroflife/ (b72), then rewritten by hand against the pack's own
--- scripts: OSRS-Content/osrs239-content/server/scripts/quests/quest_toweroflife/
+-- scripts: OSRS-Content/osrs-content/server/scripts/quests/quest_toweroflife/
 -- scripts/{tol_start,tol_outfit,tol_tower,tol_puzzles,tol_basement,tol_homunculus,tol_shared}.rs2
 -- and configs/toweroflife.constant (the stage ladder 0/2/4/6/8/10/11/12/14/16/17/18,
 -- Quest Helper's steps.put keys).

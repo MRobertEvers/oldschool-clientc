@@ -66,7 +66,7 @@ appears **nowhere in the cache**, as expected: it's server knowledge only.
 
 ## 3. Already landed, end to end
 
-`OSRS-Content/osrs239-content/server/scripts/interface_emote/` exists and is
+`OSRS-Content/osrs-content/server/scripts/interface_emote/` exists and is
 wired:
 
 ```

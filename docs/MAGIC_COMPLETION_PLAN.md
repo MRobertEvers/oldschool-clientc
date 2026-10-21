@@ -5,7 +5,7 @@ Plan to take Magic from its **standard-spellbook-only** state to the complete
 four spellbooks, plus the items, locs and NPCs each one needs.
 
 The wiki is the authority for content (levels, runes, XP, effects, unlock
-gates). The cache (`OSRS-Content/osrs239-content/interfaces/magic_spellbook.compack`,
+gates). The cache (`OSRS-Content/osrs-content/interfaces/magic_spellbook.compack`,
 `configs/all.obj`, `all.loc`, `all.npc`, `all.spotanim`, `all.seq`) is the
 authority for **names** and for what is *expressible* at this revision.
 

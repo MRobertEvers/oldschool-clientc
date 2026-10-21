@@ -10,16 +10,16 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 COMPONENT = (
     ROOT
-    / "OSRS-Content/osrs239-content/server/scripts/minigames/minigame_rs2012_qbd"
+    / "OSRS-Content/osrs-content/server/scripts/minigames/minigame_rs2012_qbd"
 )
 CONSTANTS = COMPONENT / "configs/rs2012_grotworm_route.constant"
 ROUTES = COMPONENT / "scripts/rs2012_grotworm_route.rs2"
 QBD_SESSION = COMPONENT / "scripts/rs2012_qbd_session.rs2"
-MAPS = ROOT / "OSRS-Content/osrs239-content/ported/rs2012_qbd_td/maps"
+MAPS = ROOT / "OSRS-Content/osrs-content/ported/rs2012_qbd_td/maps"
 BASE_PLACEMENTS = (
-    ROOT / "OSRS-Content/osrs239-content/ported/rs2012_qbd_td/BASE_PLACEMENTS.tsv"
+    ROOT / "OSRS-Content/osrs-content/ported/rs2012_qbd_td/BASE_PLACEMENTS.tsv"
 )
-LEDGER = ROOT / "OSRS-Content/osrs239-content/port/rs2012_qbd_td.map"
+LEDGER = ROOT / "OSRS-Content/osrs-content/port/rs2012_qbd_td.map"
 
 
 # name: (world plane, x, z)

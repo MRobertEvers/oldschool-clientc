@@ -26,7 +26,7 @@ Method: docs/minigames/waves_loop/RIG_PASS.md. Documents only; nothing run or re
 - 7568 moving_safe_spot_hit: attack, defend or a hit reaction.
 - Whether 7709 plays anything; whether 7561 belongs to 7709, 7710, or a loc.
 
-## Ledger (OSRS-Content/osrs239-content/npc_combat/i/*.combat)
+## Ledger (OSRS-Content/osrs-content/npc_combat/i/*.combat)
 - inferno_moving_safespot: death moving_safe_spot_death (right), attack moving_safe_spot_hit (a4, only forcedpriority 6 seq), defend null, sounds "-".
 - Disagreement 1: attack_anim = moving_safe_spot_hit although the cache names it neither attack nor defend; the role stays unknown (closer: the earlier guess that it is the reaction to a Jad strike rests on no cache evidence).
 - inferno_invisible_3x3 and inferno_safespot_dying: all "-"; no disagreement. Gap: 7710 has no death although 7561 exists (INF-AV-003).

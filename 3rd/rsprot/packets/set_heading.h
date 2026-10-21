@@ -11,10 +11,13 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : SetHeadingDecoder
- * Layouts      : 4 distinct, over 11 contiguous revision run(s)
+ * Layouts      : 4 distinct, over 12 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^SetHeadingDecoder\tin\t' 3rd/rsprot/gen/packet_versions.txt
+ *                Revision(s) 241 come from RSProx, not RSProt
+ *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
+ *                gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -32,7 +35,7 @@ typedef struct MsgSetHeading {
 
 /* v1 -- revs 226, 229, 238. */
 void packet_set_heading_v1_in(RsprotExec *x, MsgSetHeading *m);
-/* v2 -- revs 227, 232-233, 235-236. */
+/* v2 -- revs 227, 232-233, 235-236, 241. */
 void packet_set_heading_v2_in(RsprotExec *x, MsgSetHeading *m);
 /* v3 -- revs 228, 237. */
 void packet_set_heading_v3_in(RsprotExec *x, MsgSetHeading *m);
@@ -55,6 +58,7 @@ void packet_set_heading_v4_in(RsprotExec *x, MsgSetHeading *m);
 #define packet_set_heading_rev237_in packet_set_heading_v3_in
 #define packet_set_heading_rev238_in packet_set_heading_v1_in
 #define packet_set_heading_rev239_in packet_set_heading_v4_in
+#define packet_set_heading_rev241_in packet_set_heading_v2_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_set_heading_in[];

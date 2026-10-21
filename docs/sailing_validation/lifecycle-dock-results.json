@@ -8,7 +8,7 @@
     "client_sha256": "4854e3036abf814d07ce97649845d30206bac647b49adce560e3e9b28fa927a4",
     "server_standalone": "src/build_opt/torirsserver",
     "server_sha256": "214b43d7a30dd47b67b47693e1b9820d299c2154eeb2193aeb2c4ec0b7082186",
-    "script_pack": "OSRS-Content/osrs239-content/server/scripts/build/script.dat",
+    "script_pack": "OSRS-Content/osrs-content/server/scripts/build/script.dat",
     "script_sha256": "902a6b8d242bba01990b3955100e301c2a0edb6b1f18fc6ca83fd703a880df59",
     "script_count": 30076,
     "hashes_verified_before_the_run": true,

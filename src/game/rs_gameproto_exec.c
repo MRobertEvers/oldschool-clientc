@@ -1924,6 +1924,8 @@ RS_GameProto_Exec(
             app->cam_script.move_height = packet->_cam_moveto.height;
             app->cam_script.move_rate = packet->_cam_moveto.rate;
             app->cam_script.move_rate2 = packet->_cam_moveto.rate2;
+            app->cam_script.move_cycles.active = 0;
+            app->cam_script.last_move_height = packet->_cam_moveto.height;
             if( !app->cam_script.scripted )
             {
                 /* First op of a cutscene: aim at where we already are, so the
@@ -1962,6 +1964,7 @@ RS_GameProto_Exec(
             app->cam_script.look_height = packet->_cam_lookat.height;
             app->cam_script.look_rate = packet->_cam_lookat.rate;
             app->cam_script.look_rate2 = packet->_cam_lookat.rate2;
+            app->cam_script.rotate_cycles.active = 0;
             if( !app->cam_script.scripted )
             {
                 app->cam_script.move_lx = app->frame_view->world_camera_pos.x / 128;
@@ -1978,6 +1981,58 @@ RS_GameProto_Exec(
                 packet->_cam_lookat.height,
                 packet->_cam_lookat.rate,
                 packet->_cam_lookat.rate2);
+            app->need_redraw = 1;
+        }
+        break;
+    case PKT_NAME_CAM_MOVETO_CYCLES:
+        if( ctx->app && ctx->app->world )
+        {
+            struct App* app = ctx->app;
+            /* Absolute world tiles, like the V3 pair. */
+            int cam_lx = packet->_cam_moveto_cycles.x - app->world->_base_tile_x;
+            int cam_lz = packet->_cam_moveto_cycles.z - app->world->_base_tile_z;
+            App_CinemaCameraMoveCycles(
+                app,
+                cam_lx,
+                cam_lz,
+                packet->_cam_moveto_cycles.height,
+                packet->_cam_moveto_cycles.cycles,
+                packet->_cam_moveto_cycles.ignore_terrain,
+                packet->_cam_moveto_cycles.easing,
+                packet->_cam_moveto_cycles.height_relative);
+            exec_cam_script_record(
+                app,
+                APP_CAM_SCRIPT_OP_MOVETO_CYCLES,
+                packet->_cam_moveto_cycles.x,
+                packet->_cam_moveto_cycles.z,
+                packet->_cam_moveto_cycles.height,
+                packet->_cam_moveto_cycles.cycles,
+                packet->_cam_moveto_cycles.easing);
+            app->need_redraw = 1;
+        }
+        break;
+    case PKT_NAME_CAM_ROTATETO_COORDINATE:
+        if( ctx->app && ctx->app->world )
+        {
+            struct App* app = ctx->app;
+            int cam_lx = packet->_cam_rotateto_coordinate.x - app->world->_base_tile_x;
+            int cam_lz = packet->_cam_rotateto_coordinate.z - app->world->_base_tile_z;
+            App_CinemaCameraRotateCycles(
+                app,
+                cam_lx,
+                cam_lz,
+                packet->_cam_rotateto_coordinate.height,
+                packet->_cam_rotateto_coordinate.cycles,
+                packet->_cam_rotateto_coordinate.easing,
+                packet->_cam_rotateto_coordinate.height_relative);
+            exec_cam_script_record(
+                app,
+                APP_CAM_SCRIPT_OP_ROTATETO_COORDINATE,
+                packet->_cam_rotateto_coordinate.x,
+                packet->_cam_rotateto_coordinate.z,
+                packet->_cam_rotateto_coordinate.height,
+                packet->_cam_rotateto_coordinate.cycles,
+                packet->_cam_rotateto_coordinate.easing);
             app->need_redraw = 1;
         }
         break;
@@ -2013,6 +2068,8 @@ RS_GameProto_Exec(
         {
             struct App* app = ctx->app;
             app->cam_script.scripted = 0;
+            app->cam_script.move_cycles.active = 0;
+            app->cam_script.rotate_cycles.active = 0;
             for( int i = 0; i < 5; i++ )
                 app->cam_script.shake[i] = 0;
             exec_cam_script_record(app, APP_CAM_SCRIPT_OP_RESET, -1, -1, 0, 0, 0);

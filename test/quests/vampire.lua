@@ -1,5 +1,5 @@
 -- Vampyre Slayer. Rewritten from tools/quest_gate/new_quest.py's scaffold
--- against the quest's own .rs2 (OSRS-Content/osrs239-content/server/scripts/
+-- against the quest's own .rs2 (OSRS-Content/osrs-content/server/scripts/
 -- quests/quest_vampire/, areas/draynor/scripts/morgan.rs2,
 -- areas/varrock/scripts/harlow.rs2, areas/varrock/scripts/bartender.rs2,
 -- areas/draynor/scripts/garlic_cupboard.rs2, doors/scripts/doors.rs2).
@@ -280,7 +280,7 @@ return {
             "goDownToBasement.stairsGoNowhere")
         if crypt == nil then
             t.blocked("content_bug: Draynor Manor's crypt stairs did not land in the crypt. "
-                .. "OSRS-Content/osrs239-content/server/scripts/quests/quest_vampire/scripts/vampire_crypt_stairs.rs2:20-26 "
+                .. "OSRS-Content/osrs-content/server/scripts/quests/quest_vampire/scripts/vampire_crypt_stairs.rs2:20-26 "
                 .. "[oploc1,cryptstairsdown] at 0_48_52_43_29 should p_telejump(0_48_152_5_43) (3077,9771,0), "
                 .. "LostCity_Server content/scripts/ladders+stairs/scripts/stairs.rs2:408-417; the press, its answer and "
                 .. "the chat are in goDownToBasement.stairsGoNowhere. The basement holds the coffin and Count Draynor "

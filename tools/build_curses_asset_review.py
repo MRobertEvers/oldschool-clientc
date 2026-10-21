@@ -7,7 +7,7 @@ tree or a ledger, so it is safe to re-run at any point in the port.
 Two sources are rendered side by side on purpose:
 
   rev558  cache.rs558_20091209_ancientcurses  — the authentic Dec-2009 curses
-  osrs239 OSRS-Content/osrs239-content        — the Ruinous Powers set already
+  osrs239 OSRS-Content/osrs-content        — the Ruinous Powers set already
                                                 shipping in the target cache
 
 Sprites come out of `cachepack unpack --assets=sprites` as BMP plus a
@@ -42,7 +42,7 @@ RS558_ICONS_A = range(2321, 2347)
 RS558_ICONS_B = range(2347, 2373)
 
 # The osrs239 Ruinous Powers icons, already unpacked in the content tree.
-OSRS239_SPRITES = ROOT / "OSRS-Content/osrs239-content/sprites"
+OSRS239_SPRITES = ROOT / "OSRS-Content/osrs-content/sprites"
 OSRS239_ICON_SETS = ("icon_prayer_zaros01_30x30", "icon_prayer_zaros02_30x30")
 
 # Curse spotanim block, contiguous in the rev558 cache with no gaps.

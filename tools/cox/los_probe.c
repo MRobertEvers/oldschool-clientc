@@ -14,7 +14,7 @@
  * Build it with the walkable-probe link line plus the server pack reader:
  *   cd src && eval "$(make -n walkable-probe | grep -A6 -- '-o .*walkable_probe' | tr -d '\\\n' \
  *     | sed 's#-o [^ ]*walkable_probe#-o /tmp/los_probe#; s#torirsserver/test/walkable_probe.c#../tools/cox/los_probe.c torirsserver/torirs_server_servpack.c#; s#echo.*##')"
- *   /tmp/los_probe cache.osrs239 3280 5264 OSRS-Content/osrs239-content/server/pack   (from the repo root)
+ *   /tmp/los_probe cache.osrs239 3280 5264 OSRS-Content/osrs-content/server/pack   (from the repo root)
  */
 #include "torirs_server_scene.h"
 #include "torirs_server_servpack.h"

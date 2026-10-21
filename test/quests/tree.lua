@@ -1,5 +1,5 @@
 -- Tree Gnome Village -- hand-written against the quest's own scripts
--- (OSRS-Content/osrs239-content/server/scripts/quests/quest_tree/,
+-- (OSRS-Content/osrs-content/server/scripts/quests/quest_tree/,
 -- areas/area_gnome/scripts/{king_bolren,commander_montai,elkoy}.rs2) and
 -- Quest Helper's TreeGnomeVillage.java step ladder. Tier 2.
 --

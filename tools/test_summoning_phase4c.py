@@ -22,7 +22,7 @@ def main() -> int:
     parser.add_argument(
         "--scripts",
         type=Path,
-        default=REPO / "OSRS-Content/osrs239-content/server/scripts/build_summoning",
+        default=REPO / "OSRS-Content/osrs-content/server/scripts/build_summoning",
     )
     parser.add_argument("--manifest", type=Path, default=REPO / "manifests/manifest_osrs239.ini")
     parser.add_argument("--out", type=Path, default=REPO / "build/summoning-phase4c")
@@ -52,7 +52,7 @@ def main() -> int:
 
     sprite_root = (
         REPO
-        / "OSRS-Content/osrs239-content/sprites/ported/scape2009_summoning"
+        / "OSRS-Content/osrs-content/sprites/ported/scape2009_summoning"
     )
     # The wolf head is still the exact rev-530 import; only the sprite canvas
     # around it changed, from 20x20 to the 26x26 box every osrs239 orb icon is

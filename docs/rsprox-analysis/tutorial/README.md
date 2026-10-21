@@ -7,7 +7,7 @@ Teleport into Lumbridge: ticks [0]..[1407]. The index failed to index it
 it. Tick numbers below are the transcript's `[n]`. **L** is the player's last step of a walk, and
 a loc or npc op fires at L+1 (`tools/rsprox/rsprox_interact.py` labels both).
 
-Content: `OSRS-Content/osrs239-content/server/scripts/tutorial/`. Test:
+Content: `OSRS-Content/osrs-content/server/scripts/tutorial/`. Test:
 `test/quests/tutorialisland.lua`.
 
 ## The step varp (281): Jagex's own values

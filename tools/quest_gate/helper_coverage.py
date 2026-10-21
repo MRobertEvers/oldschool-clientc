@@ -213,7 +213,7 @@ import config_text  # noqa: E402
 
 QUEUE_PATH = os.path.join(REPO_ROOT, "test", "quests", "QUEUE.tsv")
 AUDIT_PATH = os.path.join(HERE, "helper_coverage.tsv")
-CONTENT_ROOT = os.path.join(REPO_ROOT, "OSRS-Content", "osrs239-content", "server", "scripts")
+CONTENT_ROOT = os.path.join(REPO_ROOT, "OSRS-Content", "osrs-content", "server", "scripts")
 QUEST_HELPER_ROOT = os.environ.get(
     "QUEST_HELPER_ROOT",
     os.path.join(os.path.dirname(REPO_ROOT), "quest-helper"))
@@ -1696,7 +1696,7 @@ def content_index():
     return _CONTENT_INDEX
 
 
-MAPS_ROOT = os.path.join(REPO_ROOT, "OSRS-Content", "osrs239-content", "maps")
+MAPS_ROOT = os.path.join(REPO_ROOT, "OSRS-Content", "osrs-content", "maps")
 # A wall loc on a room's perimeter that is the way through it: its display
 # name, or an Open op (a closed door/gate shows Open).
 DOOR_NAME_RE = re.compile(r"\b(door|doors|gate|gates|portcullis|doorway)\b")
@@ -2862,7 +2862,7 @@ STAND_ON_OPTIN = re.compile(r"\bstand_on_square\s*=\s*true\b")
 STAND_ON_MARKER_SPAN = 8
 
 
-MAPS_ROOT = os.path.join(REPO_ROOT, "OSRS-Content", "osrs239-content", "maps")
+MAPS_ROOT = os.path.join(REPO_ROOT, "OSRS-Content", "osrs-content", "maps")
 
 
 def rs2_citation(reason):
@@ -2870,7 +2870,7 @@ def rs2_citation(reason):
     real script under server/scripts (by path, or by unique basename), as the
     text cited it; else the first map fact -- `m<x>_<z>.jm2`/`.jl2` (a map
     square's collision or loc file, optionally `:<line>`) that exists under
-    OSRS-Content/osrs239-content/maps/ -- which is how a "no route ends on
+    OSRS-Content/osrs-content/maps/ -- which is how a "no route ends on
     that square" marker cites its evidence; None when there is none. A
     GUIDE-GAP marker is evidence only when its citation resolves --
     `foo.rs2:12` for a file that does not exist is not evidence of anything."""

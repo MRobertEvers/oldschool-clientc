@@ -3,7 +3,7 @@
 Plan to take `skill_farming/` from its current vertical slice to the complete
 [Farming](https://oldschool.runescape.wiki/w/Farming) skill. Wiki is the
 authority for content (seeds, levels, XP, payments, locations); the cache
-(`OSRS-Content/osrs239-content/configs/all.obj`, `all.loc`, `all.varbit`) is the
+(`OSRS-Content/osrs-content/configs/all.obj`, `all.loc`, `all.varbit`) is the
 authority for names and for what is *expressible* at this revision.
 
 Queue items this closes: **#131–#137** in
@@ -14,7 +14,7 @@ Guild remainder) stays blocked on KRONOS and is scoped at the bottom.
 
 ## 0. Where farming stands today — measured
 
-`OSRS-Content/osrs239-content/server/scripts/skill_farming/` is **4,925 lines**
+`OSRS-Content/osrs-content/server/scripts/skill_farming/` is **4,925 lines**
 across 12 scripts and 19 config files. It is a working vertical slice, not a
 stub: raking, planting, growth via `softtimer` + `date_minutes` catch-up,
 harvesting with a lives roll, compost bins, and `farming_view` painting all

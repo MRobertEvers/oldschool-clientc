@@ -267,7 +267,7 @@ def main() -> int:
     args = parser.parse_args()
 
     repo = args.repo.resolve()
-    tree = repo / "OSRS-Content/osrs239-content"
+    tree = repo / "OSRS-Content/osrs-content"
     lane = tree / "ported/rs2012_qbd_td"
     inventory_path = args.inventory or repo / "build/rs2012_map_inventory.tsv"
     square_counts, square_metadata, source_locs, underlays, overlays, placements = read_inventory(inventory_path)

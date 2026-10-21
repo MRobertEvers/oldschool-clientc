@@ -22,4 +22,4 @@ Source: OSRS wiki + Quest Helper. LostCity has no copy of this quest (2022, Gian
 
 Tutorial bits (varb13903): 10 commission, 15 crate, 25 crucible full, 30 mould talk, 35 mould set, 40 pour talk, 45 poured, 50 preform, 55 handed in.
 
-Port: `OSRS-Content/osrs239-content/server/scripts/quests/quest_sleepinggiants/`. Notes from driving: `docs/quests/ladders/sleepinggiants.notes.md`.
+Port: `OSRS-Content/osrs-content/server/scripts/quests/quest_sleepinggiants/`. Notes from driving: `docs/quests/ladders/sleepinggiants.notes.md`.

@@ -8,9 +8,9 @@ into the `cluehelper_clue_*` database -- but nothing in the cache states the
 *pool*: there is no "all easy steps" list, because the client never needs one.
 The server does, so it is derived here rather than typed.
 
-Reads   OSRS-Content/osrs239-content/configs/all.obj
-        OSRS-Content/osrs239-content/configs/all.obj.compack   (ids, for sort)
-Writes  OSRS-Content/osrs239-content/server/scripts/trail/configs/trail_steps.enum
+Reads   OSRS-Content/osrs-content/configs/all.obj
+        OSRS-Content/osrs-content/configs/all.obj.compack   (ids, for sort)
+Writes  OSRS-Content/osrs-content/server/scripts/trail/configs/trail_steps.enum
 
 Rerun after any cache absorb. The output is machine-owned: hand edits are lost,
 which is why the header says so in the file itself.
@@ -38,7 +38,7 @@ TIERS = [
 ]
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONTENT = os.path.join(ROOT, "OSRS-Content", "osrs239-content")
+CONTENT = os.path.join(ROOT, "OSRS-Content", "osrs-content")
 ALL_OBJ = os.path.join(CONTENT, "configs", "all.obj")
 COMPACK = os.path.join(CONTENT, "configs", "all.obj.compack")
 OUT = os.path.join(

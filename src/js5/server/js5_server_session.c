@@ -126,7 +126,7 @@ Js5ServerSessionConfigInit(struct Js5ServerSessionConfig* config)
 {
     assert(config);
     memset(config, 0, sizeof(*config));
-    config->revision = 239u;
+    config->revision = 241u;
     config->max_pending_per_lane = 200u;
     config->handshake_timeout_ms = 10000u;
     config->idle_timeout_ms = 300000u;

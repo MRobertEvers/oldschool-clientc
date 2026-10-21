@@ -1,5 +1,5 @@
 # ladder thefremennikisles quest_dir=quest_thefremennikisles guide=src/main/java/com/questhelper/helpers/quests/thefremennikisles/TheFremennikIsles.java steps=55 legs=1:1-12@s0 2:13-19@s90 3:20-33@s160 4:34-47@s230 5:48-49@s280 6:50-55@s300 cut=route:thefremennikisles.legs (n is the route order; guide_n the guide's)
-#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
 leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers	guide_n
 1	1	0	talkToMord	NpcStep	npc:fris_r_ferryman_rellekka	2644,3709,0	Talk to Mord Gunnars on a pier in north Rellekka.				quests/quest_thefremennikisles/scripts/fris_ferry.rs2:8 opnpc1	10
 1	2	5	travelToJatizso	NpcStep	npc:fris_r_ferryman_rellekka	2644,3709,0	Travel to Jatizso with Mord.			Can you ferry me to Jatizso?	quests/quest_thefremennikisles/scripts/fris_ferry.rs2:8 opnpc1	11

@@ -49,7 +49,7 @@ yourself authoring one, stop — you have the wrong seam.
 ## Where it mounts
 
 `toplevel_osrs_stretch` component **4 = `helper`**, from
-`OSRS-Content/osrs239-content/interfaces/toplevel_osrs_stretch.compack`. Not the
+`OSRS-Content/osrs-content/interfaces/toplevel_osrs_stretch.compack`. Not the
 floater (component 18) — the world map lives there — and not `hpbar_hud`
 (component 2), which is the enemy health overlay.
 

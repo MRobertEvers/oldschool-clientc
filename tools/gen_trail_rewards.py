@@ -2,9 +2,9 @@
 """Generate the treasure-trail reward tables from the pinned wiki corpus.
 
 Reads   docs/treasure_trails/sources/Reward_casket_(<tier>).wiki
-        OSRS-Content/osrs239-content/configs/all.obj{,.compack}
+        OSRS-Content/osrs-content/configs/all.obj{,.compack}
         tools/trail_reward_aliases.tsv       (hand-owned; see below)
-Writes  OSRS-Content/osrs239-content/server/scripts/trail/configs/trail_rewards.dbrow
+Writes  OSRS-Content/osrs-content/server/scripts/trail/configs/trail_rewards.dbrow
 
 WHY THIS IS GENERATED
 ---------------------
@@ -61,7 +61,7 @@ from fractions import Fraction
 import config_text
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONTENT = os.path.join(ROOT, "OSRS-Content", "osrs239-content")
+CONTENT = os.path.join(ROOT, "OSRS-Content", "osrs-content")
 SOURCES = os.path.join(ROOT, "docs", "treasure_trails", "sources")
 ALIASES = os.path.join(ROOT, "tools", "trail_reward_aliases.tsv")
 OUT = os.path.join(

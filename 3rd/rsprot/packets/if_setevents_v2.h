@@ -11,10 +11,13 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : IfSetEventsV2Encoder
- * Layouts      : 9 distinct, over 9 contiguous revision run(s)
+ * Layouts      : 10 distinct, over 10 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^IfSetEventsV2Encoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
+ *                Revision(s) 241 come from RSProx, not RSProt
+ *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
+ *                gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -52,6 +55,8 @@ void packet_if_setevents_v2_v7_out(RsprotExec *x, MsgIfSetEventsV2 *m);
 void packet_if_setevents_v2_v8_out(RsprotExec *x, MsgIfSetEventsV2 *m);
 /* v9 -- revs 239. */
 void packet_if_setevents_v2_v9_out(RsprotExec *x, MsgIfSetEventsV2 *m);
+/* v100 -- revs 241. */
+void packet_if_setevents_v2_v100_out(RsprotExec *x, MsgIfSetEventsV2 *m);
 
 /* Per-revision aliases: `packet_if_setevents_v2_rev239_out` is greppable, which is the
  * point -- "what does 239 do for IF_SETEVENTS_V2" without reading a table. */
@@ -64,6 +69,7 @@ void packet_if_setevents_v2_v9_out(RsprotExec *x, MsgIfSetEventsV2 *m);
 #define packet_if_setevents_v2_rev237_out packet_if_setevents_v2_v7_out
 #define packet_if_setevents_v2_rev238_out packet_if_setevents_v2_v8_out
 #define packet_if_setevents_v2_rev239_out packet_if_setevents_v2_v9_out
+#define packet_if_setevents_v2_rev241_out packet_if_setevents_v2_v100_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_if_setevents_v2_out[];

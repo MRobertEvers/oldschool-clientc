@@ -1225,7 +1225,7 @@ usage(void)
             "  --check-only     validate and exit non-zero on any error. This is\n"
             "                   all the tool does, so the flag is accepted for the\n"
             "                   documented invocation rather than changing anything\n"
-            "  --content DIR    content tree (default OSRS-Content/osrs239-content)\n"
+            "  --content DIR    content tree (default OSRS-Content/osrs-content)\n"
             "  --cache DIR      source cache (default cache.osrs239)\n"
             "  --prune-doors    rewrite doors.loc without the pairs the cache\n"
             "                   rejects\n"
@@ -1237,10 +1237,10 @@ main(
     int argc,
     char** argv)
 {
-    const char* content = "OSRS-Content/osrs239-content";
+    const char* content = "OSRS-Content/osrs-content";
     /* Pack validates against the pristine unpack source, not the baked client
      * cache the live server shares with the client. */
-    const char* cache = "cache.osrs239";
+    const char* cache = "cache.osrs241";
     int prune = 0;
 
     for( int i = 1; i < argc; i++ )

@@ -26,7 +26,7 @@
 > [Transcript:Guardian mummy](https://oldschool.runescape.wiki/w/Transcript:Guardian_mummy)
 >
 > Every id, coord, plane and placement count below was **measured from this
-> tree** — `OSRS-Content/osrs239-content/configs/*.compack`, `configs/all.npc`,
+> tree** — `OSRS-Content/osrs-content/configs/*.compack`, `configs/all.npc`,
 > `configs/all.varbit`, `maps/m30_69.jl2`, `maps/m51_43.jl2`,
 > `interfaces/ntk_overlay.if`. Rows marked *(to measure)* have not been.
 > Re-measure rather than trusting this prose.
@@ -45,9 +45,9 @@ Three files, 810 lines, already compiled into every build (the whole
 
 | File | Lines |
 |---|---|
-| [plunder.rs2](../../OSRS-Content/osrs239-content/server/scripts/minigames/minigame_pyramidplunder/scripts/plunder.rs2) | 729 |
-| [plunder.constant](../../OSRS-Content/osrs239-content/server/scripts/minigames/minigame_pyramidplunder/configs/plunder.constant) | 33 |
-| [plunder.varp](../../OSRS-Content/osrs239-content/server/scripts/minigames/minigame_pyramidplunder/configs/plunder.varp) | 48 |
+| [plunder.rs2](../../OSRS-Content/osrs-content/server/scripts/minigames/minigame_pyramidplunder/scripts/plunder.rs2) | 729 |
+| [plunder.constant](../../OSRS-Content/osrs-content/server/scripts/minigames/minigame_pyramidplunder/configs/plunder.constant) | 33 |
+| [plunder.varp](../../OSRS-Content/osrs-content/server/scripts/minigames/minigame_pyramidplunder/configs/plunder.varp) | 48 |
 
 The port queue marks slices `7`, `7b`, `7c` **done**
 ([SCAPE2009_CONTENT_PORT_QUEUE.md:128-152](../SCAPE2009_CONTENT_PORT_QUEUE.md)),
@@ -63,9 +63,9 @@ Nothing here needs authoring. Everything below is already in the rev239 cache
 and mostly unreferenced by server content:
 
 ```
-grep -cE "=ntk_" OSRS-Content/osrs239-content/configs/all.loc.compack   # 96
-grep  -n "ntk_"  OSRS-Content/osrs239-content/pack/npc.server           # 8
-grep  -n "ntk_"  OSRS-Content/osrs239-content/configs/all.varbit.compack # 32
+grep -cE "=ntk_" OSRS-Content/osrs-content/configs/all.loc.compack   # 96
+grep  -n "ntk_"  OSRS-Content/osrs-content/pack/npc.server           # 8
+grep  -n "ntk_"  OSRS-Content/osrs-content/configs/all.varbit.compack # 32
 ```
 
 Measured placement counts in `maps/m30_69.jl2` — these **confirm the wiki's
@@ -179,7 +179,7 @@ the tree.** See §9.
 
 ### 3.5 Interfaces
 
-`ntk_overlay` = **IF 428** ([interfaces/ntk_overlay.if](../../OSRS-Content/osrs239-content/interfaces/ntk_overlay.if)),
+`ntk_overlay` = **IF 428** ([interfaces/ntk_overlay.if](../../OSRS-Content/osrs-content/interfaces/ntk_overlay.if)),
 8 components: a `type=6` model (the hourglass model 16350, removed from live
 OSRS 12 Apr 2018 but still in this cache), a `type=4` timer text, and a
 two-layer `type=3` progress bar (`com_6` track + `bar` fill).
@@ -214,12 +214,12 @@ two-layer `type=3` progress bar (`com_6` track + `bar` fill).
 Every roll in this minigame is the standard OSRS skilling interpolation in
 256ths. **The engine already exposes it as one opcode**: `stat_random(stat,
 low, high)` (`SS_OP_STAT_RANDOM` 2119), used by
-[thieving.rs2:51](../../OSRS-Content/osrs239-content/server/scripts/skill_thieving/scripts/thieving.rs2#L51).
+[thieving.rs2:51](../../OSRS-Content/osrs-content/server/scripts/skill_thieving/scripts/thieving.rs2#L51).
 Where the room penalty has to be applied, the arithmetic form is the one
 already written twice in this tree — `~agility_success_chance`
-([agility_lap.rs2:100](../../OSRS-Content/osrs239-content/server/scripts/skill_agility/scripts/agility_lap.rs2#L100))
+([agility_lap.rs2:100](../../OSRS-Content/osrs-content/server/scripts/skill_agility/scripts/agility_lap.rs2#L100))
 and `~hunter_success_chance_for`
-([hunter_traps.rs2:40](../../OSRS-Content/osrs239-content/server/scripts/skill_hunter/scripts/hunter_traps.rs2#L40)):
+([hunter_traps.rs2:40](../../OSRS-Content/osrs-content/server/scripts/skill_hunter/scripts/hunter_traps.rs2#L40)):
 
 ```
 chance256 = floor((low * (99 - level) + high * (level - 1) + 49) / 98) + 1
@@ -272,7 +272,7 @@ obstacle-style rolls is `stat_base` (`~agility_success`).
   (the bandaged arm), message *"A mysterious bandaged hand punches you away
   from the door. Ouch!"*, **stun** and **1–4 damage**. The stun idiom in this
   tree is `%action_delay = calc(map_clock + $ticks)`
-  ([thieving.rs2:71](../../OSRS-Content/osrs239-content/server/scripts/skill_thieving/scripts/thieving.rs2#L71)).
+  ([thieving.rs2:71](../../OSRS-Content/osrs-content/server/scripts/skill_thieving/scripts/thieving.rs2#L71)).
 - Wrong doors: open at **any** level, no XP, no damage — deposit into one of
   the three empty antechambers.
 - Leaving any antechamber → `^ntk_outside` (north door).
@@ -586,7 +586,7 @@ Two options:
 - **(a) Derive from `map_clock`.** The 25-minute entrance rotation needs no
   mutable state at all: `door = (map_clock / 2500) % 4`, evaluated fresh on
   every search. `map_clock` is already used this way in
-  [sewerpipe.rs2:45](../../OSRS-Content/osrs239-content/server/scripts/quests/quest_elena/scripts/sewerpipe.rs2#L45).
+  [sewerpipe.rs2:45](../../OSRS-Content/osrs-content/server/scripts/quests/quest_elena/scripts/sewerpipe.rs2#L45).
   This solves the entrance **completely and for free**. It does *not* solve
   the tomb doors, whose reroll is event-driven.
 - **(b) Implement `vars`.** Add a `.vars` config kind, the alloc file, and VM

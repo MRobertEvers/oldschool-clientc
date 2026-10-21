@@ -37,7 +37,7 @@
 set -e
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-CONTENT="$ROOT/OSRS-Content/osrs239-content"
+CONTENT="$ROOT/OSRS-Content/osrs-content"
 WORK="${TMPDIR:-/tmp}/cox-compile-check"
 ISO="$WORK/isotree"
 OUT="$WORK/out"
@@ -74,14 +74,14 @@ KEEP='minigame_cox|skill_combat/npc_combat\.rs2'
 
 reverted=0
 for f in $(git -C "$CONTENT" diff --name-only HEAD | grep 'server/scripts/' || true); do
-    rel=${f#osrs239-content/}
+    rel=${f#osrs-content/}
     echo "$rel" | grep -Eq "$KEEP" && continue
     [ -e "$ISO/$rel" ] || continue
     git -C "$CONTENT" show "HEAD:$f" > "$ISO/$rel" 2>/dev/null && reverted=$((reverted + 1))
 done
 removed=0
 for f in $(git -C "$CONTENT" ls-files --others --exclude-standard | grep 'server/scripts/' || true); do
-    rel=${f#osrs239-content/}
+    rel=${f#osrs-content/}
     echo "$rel" | grep -Eq "$KEEP" && continue
     [ -e "$ISO/$rel" ] || continue
     rm -f "$ISO/$rel" && removed=$((removed + 1))

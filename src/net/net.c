@@ -427,7 +427,9 @@ loginproto_drive(struct ToriRS_Network* net)
                 /* The v5 player stream is keyed on this index and its init
                  * block skips exactly this slot, so the entity reader has to
                  * know it before the login REBUILD arrives. */
-                if( net->rev->player_info_read )
+                if( net->rev->player_info_set_local )
+                    net->rev->player_info_set_local(index);
+                else if( net->rev->player_info_read )
                     osrs239_playerinfo_set_local(index);
 
                 memset(&packet, 0, sizeof(packet));
@@ -451,7 +453,9 @@ loginproto_drive(struct ToriRS_Network* net)
             uint8_t const* block = net->rev->login->reconnect_block(net->login_generic,
                                                                     &block_len);
 
-            if( block && block_len > 0 && net->rev->player_info_read )
+            if( block && block_len > 0 && net->rev->player_info_init )
+                net->rev->player_info_init(block, block_len);
+            else if( block && block_len > 0 && net->rev->player_info_read )
                 osrs239_playerinfo_init(block, block_len);
         }
         net->reconnect = 0;

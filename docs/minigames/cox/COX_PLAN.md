@@ -6,7 +6,7 @@ raid was still stamping ONE room and that thirteen finished encounters had no
 way into a layout.
 
 Status before that pass: **built and ticking; not yet played.**
-[`minigame_cox/`](../../../OSRS-Content/osrs239-content/server/scripts/minigames/minigame_cox/)
+[`minigame_cox/`](../../../OSRS-Content/osrs-content/server/scripts/minigames/minigame_cox/)
 is ~4,500 lines across 18 scripts and three config files. The 2026-08-17 tick
 audit (§11) found 22 divergences from the sources, of which **19 are now fixed**
 — including F0, which was the one that mattered: every `[ai_timer]` in the raid
@@ -60,7 +60,7 @@ of engine plumbing.
 ### 0.1 NPCs ✅
 
 All ids below are verified from
-[`configs/all.npc.compack`](../../../OSRS-Content/osrs239-content/configs/all.npc.compack).
+[`configs/all.npc.compack`](../../../OSRS-Content/osrs-content/configs/all.npc.compack).
 
 | Room | Cache ids |
 | --- | --- |
@@ -120,7 +120,7 @@ All ids below are verified from
 ### 0.2 Locs ✅
 
 259 `raids_*` locs in
-[`configs/all.loc.compack`](../../../OSRS-Content/osrs239-content/configs/all.loc.compack).
+[`configs/all.loc.compack`](../../../OSRS-Content/osrs-content/configs/all.loc.compack).
 The ones that carry mechanics:
 
 | Purpose | Loc ids |
@@ -286,18 +286,18 @@ mid-build.
 
 ### 1.2 The Gauntlet is the architectural precedent ✅
 
-[`minigame_gauntlet`](../../../OSRS-Content/osrs239-content/server/scripts/minigames/minigame_gauntlet/)
+[`minigame_gauntlet`](../../../OSRS-Content/osrs-content/server/scripts/minigames/minigame_gauntlet/)
 (4,659 lines) already solves the same shape of problem: a seeded room graph, a
 map instance assembled zone-by-zone from template squares, per-instance state,
 and a boss with a tick-scripted attack machine. Read these four first:
 
-- [`gauntlet_layout.rs2`](../../../OSRS-Content/osrs239-content/server/scripts/minigames/minigame_gauntlet/scripts/gauntlet_layout.rs2)
+- [`gauntlet_layout.rs2`](../../../OSRS-Content/osrs-content/server/scripts/minigames/minigame_gauntlet/scripts/gauntlet_layout.rs2)
   — seeded graph, room→(source square, rotation) mapping. **The direct model for CoX layout generation.**
-- [`gauntlet.rs2:139`](../../../OSRS-Content/osrs239-content/server/scripts/minigames/minigame_gauntlet/scripts/gauntlet.rs2#L139)
+- [`gauntlet.rs2:139`](../../../OSRS-Content/osrs-content/server/scripts/minigames/minigame_gauntlet/scripts/gauntlet.rs2#L139)
   — the `map_instance_setchunk` loop that stamps template zones into the instance.
-- [`gauntlet_map_state.rs2`](../../../OSRS-Content/osrs239-content/server/scripts/minigames/minigame_gauntlet/scripts/gauntlet_map_state.rs2)
+- [`gauntlet_map_state.rs2`](../../../OSRS-Content/osrs-content/server/scripts/minigames/minigame_gauntlet/scripts/gauntlet_map_state.rs2)
   — per-instance state via `map_instance_flag_get/set`.
-- [`gauntlet_hunllef.rs2`](../../../OSRS-Content/osrs239-content/server/scripts/minigames/minigame_gauntlet/scripts/gauntlet_hunllef.rs2)
+- [`gauntlet_hunllef.rs2`](../../../OSRS-Content/osrs-content/server/scripts/minigames/minigame_gauntlet/scripts/gauntlet_hunllef.rs2)
   (643 lines) — a tick-driven boss attack cycle. The Olm is this, times four.
 
 Engine ops available ✅: `map_instance_alloc`, `_setchunk`, `_build`, `_free`,
@@ -764,7 +764,7 @@ Cache ✅: `raids_bat_0..6` = 7587–7593 — the seven bat tiers, in order.
 
 Cooking points 📖: `4 + (8 × bat tier)`, **+50% if another player eats it**.
 
-There is a partial implementation already: [`cox_bats.rs2`](../../../OSRS-Content/osrs239-content/server/scripts/minigames/minigame_cox/scripts/cox_bats.rs2) (90 lines) ✅ — read it first.
+There is a partial implementation already: [`cox_bats.rs2`](../../../OSRS-Content/osrs-content/server/scripts/minigames/minigame_cox/scripts/cox_bats.rs2) (90 lines) ✅ — read it first.
 
 #### Herblore / potions
 
@@ -1077,7 +1077,7 @@ Goal: enter a **map-instanced** single-room raid, fight Tekton, exit, get a
 points readout. Replaces the old staging-tile stub.
 
 Files, all under
-[`minigame_cox/`](../../../OSRS-Content/osrs239-content/server/scripts/minigames/minigame_cox/):
+[`minigame_cox/`](../../../OSRS-Content/osrs-content/server/scripts/minigames/minigame_cox/):
 
 | File | What it holds |
 | --- | --- |
@@ -1101,7 +1101,7 @@ Done in this pass:
 
 - ✅ **The damage→points hook (E4) is wired.** `~cox_on_damage` is called from
   `~npc_default_damage` in
-  [`skill_combat/npc_combat.rs2:117`](../../../OSRS-Content/osrs239-content/server/scripts/skill_combat/npc_combat.rs2#L117),
+  [`skill_combat/npc_combat.rs2:117`](../../../OSRS-Content/osrs-content/server/scripts/skill_combat/npc_combat.rs2#L117),
   beside the existing `~pest_on_damage` / `~mole_on_damage` hooks — the seam
   this codebase already uses for per-encounter damage accounting.
 
@@ -1229,7 +1229,7 @@ Goal: all 17 rooms, linear, fixed. No layout generation, no Olm.
 
 ### Phase 3 — the Great Olm — **started; rotation and clock implemented**
 
-[`cox_olm.rs2`](../../../OSRS-Content/osrs239-content/server/scripts/minigames/minigame_cox/scripts/cox_olm.rs2)
+[`cox_olm.rs2`](../../../OSRS-Content/osrs-content/server/scripts/minigames/minigame_cox/scripts/cox_olm.rs2)
 now implements the parts the research pinned down exactly
 ([`COX_MECHANICS.md` §2](COX_MECHANICS.md)):
 
@@ -1455,8 +1455,8 @@ yt-dlp --skip-download --write-auto-subs --sub-langs "en.*" --sub-format vtt \
 
 **In-tree**
 
-- [`minigame_gauntlet/`](../../../OSRS-Content/osrs239-content/server/scripts/minigames/minigame_gauntlet/) — the architectural precedent
-- [`minigame_inferno/`](../../../OSRS-Content/osrs239-content/server/scripts/minigames/minigame_inferno/) — tick-scripted multi-wave boss, ground effects
+- [`minigame_gauntlet/`](../../../OSRS-Content/osrs-content/server/scripts/minigames/minigame_gauntlet/) — the architectural precedent
+- [`minigame_inferno/`](../../../OSRS-Content/osrs-content/server/scripts/minigames/minigame_inferno/) — tick-scripted multi-wave boss, ground effects
 - [`torirs_server_mapinstance.h`](../../../src/torirsserver/torirs_server_mapinstance.h) — instance limits and the rotation contract
 - [`docs/GAUNTLET.md`](../../GAUNTLET.md), [`docs/minigames/FIGHT_CAVES.md`](../FIGHT_CAVES.md)
 
@@ -1702,7 +1702,7 @@ change needed — but the reason is now recorded rather than assumed.**
 ### 11.3 Findings — the implementation against that corpus
 
 Ordered by how far the fight drifts from the real one. File references are to
-[`minigame_cox/`](../../../OSRS-Content/osrs239-content/server/scripts/minigames/minigame_cox/).
+[`minigame_cox/`](../../../OSRS-Content/osrs-content/server/scripts/minigames/minigame_cox/).
 
 **F0 — nothing in the raid is on a clock: 21 `[ai_timer]` hooks, zero
 `npc_settimer` calls.** Found while checking F8. The engine gates the trigger on

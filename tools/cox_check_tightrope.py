@@ -43,7 +43,7 @@ from pathlib import Path
 import config_text
 
 ROOT =Path(__file__).resolve().parent.parent
-PKG = ROOT / "OSRS-Content/osrs239-content/server/scripts/minigames/minigame_cox"
+PKG = ROOT / "OSRS-Content/osrs-content/server/scripts/minigames/minigame_cox"
 PUZZLES = PKG / "scripts/cox_puzzles.rs2"
 NPC_CONFIG = PKG / "configs/cox.npc"
 

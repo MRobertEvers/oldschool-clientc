@@ -201,11 +201,25 @@ packet_map_anim_specific_v19_out(RsprotExec *x, MsgMapAnimSpecific *m)
     RSPROT_U2_ALT2(x, m->delay);
 }
 
+/* v100 -- revs 241. */
+void
+packet_map_anim_specific_v100_out(RsprotExec *x, MsgMapAnimSpecific *m)
+{
+    RSPROT_U2_ALT3(x, m->id);
+    RSPROT_U2(x, m->delay);
+    RSPROT_U1_ALT3(x, m->height);
+    RSPROT_U3_ALT2(x, m->coord_in_build_area_packed);
+}
+
 /*
- * 19 row(s) for 19 layout(s), complete over revisions 221-239.
+ * 20 row(s) for 20 layout(s), complete over revisions 221-239.
  * A complete table makes rsprot_version_pick's NULL mean exactly one thing: a
  * revision outside that span. An incomplete one would conflate "not
  * transcribed" with "no such packet", and those are different facts.
+ *
+ * Plus revision(s) 241, which RSProt never vendored: derived from
+ * RSProx's decoders by tools/rsprox_codec_overlay.py. Revisions between 239
+ * and those are not covered and pick NULL.
  */
 const RsprotVersionRange rsprot_map_anim_specific_out[] = {
     { 221, 221, (RsprotCodecFn)packet_map_anim_specific_v1_out },
@@ -227,6 +241,7 @@ const RsprotVersionRange rsprot_map_anim_specific_out[] = {
     { 237, 237, (RsprotCodecFn)packet_map_anim_specific_v17_out },
     { 238, 238, (RsprotCodecFn)packet_map_anim_specific_v18_out },
     { 239, 239, (RsprotCodecFn)packet_map_anim_specific_v19_out },
+    { 241, 241, (RsprotCodecFn)packet_map_anim_specific_v100_out },
 };
 
 const int rsprot_map_anim_specific_out_count =

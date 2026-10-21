@@ -72,6 +72,9 @@ RSCache_Dat2ConfigObjFlags(const struct RSCache* cache)
     if( RSCache_RevisionAtLeastOsrs(
             cache, RSCACHE_TYPE_OBJ, 239, RSCACHE_GROUP_REVISION_UNKNOWN, false) )
         flags |= RSCACHE_CONFIG_OBJ_DECODE_REV239_STACKABLE2;
+    if( RSCache_RevisionAtLeastOsrs(
+            cache, RSCACHE_TYPE_OBJ, 241, RSCACHE_GROUP_REVISION_UNKNOWN, false) )
+        flags |= RSCACHE_CONFIG_OBJ_DECODE_REV241_OP251;
 
     return flags;
 }
@@ -316,6 +319,18 @@ RSCache_Dat2ConfigObjEncodeFlags(
         pparams(&buffer, &object->params);
     }
 
+    /* A rev-239 stream has no opcode 251: packing a 241 record for the 239
+     * client drops the flag rather than writing an opcode its decoder stops on. */
+    if( (flags & RSCACHE_CONFIG_OBJ_DECODE_REV241_OP251) && OBJ_HAS(OP161) )
+    {
+        p1(&buffer, 161);
+        p2(&buffer, object->op161_count);
+        for( int i = 0; i < object->op161_count; i++ )
+            p2(&buffer, object->op161[i]);
+    }
+    if( (flags & RSCACHE_CONFIG_OBJ_DECODE_REV241_OP251) && OBJ_HAS(OP251) )
+        p1(&buffer, 251);
+
 #undef OBJ_P_IF
 #undef OBJ_HAS
 
@@ -437,6 +452,7 @@ RSCache_Dat2ConfigObjFreeInplace(struct RSCache_Dat2ConfigObj* object)
     RSCACHE_FREE(object->recolors_to);
     RSCACHE_FREE(object->retextures_from);
     RSCACHE_FREE(object->retextures_to);
+    RSCACHE_FREE(object->op161);
     for( i = 0; i < 5; i++ )
     {
         RSCACHE_FREE(object->actions[i]);
@@ -1454,6 +1470,25 @@ RSCache_Dat2ConfigObjDecodeOp(
             RSCache_BufferReadParams(buffer, &object->params);
             OBJ_SET(PARAMS);
             break;
+        case 251:
+            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV241_OP251) )
+                return false;
+            OBJ_SET(OP251);
+            break;
+        case 161:
+        {
+            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV241_OP251) )
+                return false;
+            int count = g2(buffer);
+            RSCACHE_FREE(object->op161);
+            object->op161 = RSCACHE_MALLOC((count > 0 ? count : 1) * sizeof(int));
+            assert(object->op161);
+            for( int i = 0; i < count; i++ )
+                object->op161[i] = g2(buffer);
+            object->op161_count = count;
+            OBJ_SET(OP161);
+            break;
+        }
         default:
             /* Unknown payload length: stop rather than misalign later fields. */
             return false;

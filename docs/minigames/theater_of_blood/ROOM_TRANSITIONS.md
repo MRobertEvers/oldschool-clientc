@@ -53,7 +53,7 @@ room, never time the start").
 
 ## The change
 
-Content (`OSRS-Content/osrs239-content/server/scripts/minigames/minigame_tob`):
+Content (`OSRS-Content/osrs-content/server/scripts/minigames/minigame_tob`):
 - `configs/tob.constant`: slot 87 was `^tob_var_transition`. It is now `^tob_var_next_handle`: the
   next room's instance, written on the room being LEFT.
 - `scripts/tob_raid.rs2`:

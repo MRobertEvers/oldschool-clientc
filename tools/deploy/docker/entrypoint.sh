@@ -32,7 +32,7 @@ RESTART_DELAY=${TORIRS_RESTART_DELAY:-3}
 # image so that the same image serves a differently-laid-out deployment.
 export TORIRSSERVER_BIND=${TORIRSSERVER_BIND:-0.0.0.0}
 export TORIRSSERVER_CACHE=${TORIRSSERVER_CACHE:-$ROOT/cache.osrs239}
-export TORIRSSERVER_CONTENT=${TORIRSSERVER_CONTENT:-$ROOT/content/osrs239-content}
+export TORIRSSERVER_CONTENT=${TORIRSSERVER_CONTENT:-$ROOT/content/osrs-content}
 export TORIRSSERVER_SAVES=${TORIRSSERVER_SAVES:-$ROOT/saves}
 
 say() { printf 'torirs-docker: %s\n' "$*"; }

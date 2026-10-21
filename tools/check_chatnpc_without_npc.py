@@ -40,7 +40,7 @@ import sys
 from collections import deque
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DEFAULT_CONTENT = os.path.join(ROOT, "OSRS-Content", "osrs239-content", "server", "scripts")
+DEFAULT_CONTENT = os.path.join(ROOT, "OSRS-Content", "osrs-content", "server", "scripts")
 
 # The procs that read the active npc. ~chatnpc gosubs ~chatnpc_anim, so it is
 # reached through the walk; naming both keeps the chain short in the report.

@@ -30,7 +30,7 @@ SERVER = os.path.join(ROOT, "src", "build_botrun_opt", "torirsserver")
 LOADOUTS = os.path.join(ROOT, "test", "raids", "fixtures", "loadouts")
 BASE = os.path.join(ROOT, "test", "raids", "fixtures", "fresh_lumbridge.ini")
 KEEP = ("stats", "inv", "inv_var", "worn", "worn_var")
-QUEST_CHEAT = os.path.join(ROOT, "OSRS-Content", "osrs239-content", "server", "scripts", "quests", "scripts",
+QUEST_CHEAT = os.path.join(ROOT, "OSRS-Content", "osrs-content", "server", "scripts", "quests", "scripts",
                            "quest_cheat.rs2")
 
 

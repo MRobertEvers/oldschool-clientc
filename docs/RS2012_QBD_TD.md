@@ -493,7 +493,7 @@ and changes only its loc ID through the import ledger.
 
 All source IDs below are revision-727 IDs. Destination IDs are deliberately
 allocated through `ports/rs2012_qbd_td.ini` and recorded in
-`OSRS-Content/osrs239-content/port/rs2012_qbd_td.map`; source IDs must never be
+`OSRS-Content/osrs-content/port/rs2012_qbd_td.map`; source IDs must never be
 assumed valid in OSRS239.
 
 ### 5.1 NPCs and models
@@ -1006,7 +1006,7 @@ target HP ceilings, and XP-domain scaling remain correct for the special.
 
 Manifest: `ports/rs2012_qbd_td.ini`.
 
-Lane: `OSRS-Content/osrs239-content/ported/rs2012_qbd_td` plus matching
+Lane: `OSRS-Content/osrs-content/ported/rs2012_qbd_td` plus matching
 `models/`, `animsets/`, `framemaps/`, `synth/`, `samples/`, `patches/`, and
 `songs/` ported subtrees.
 
@@ -1159,8 +1159,8 @@ described in §5.6.
 
 QBD:
 
-- `OSRS-Content/osrs239-content/server/scripts/minigames/minigame_rs2012_qbd/configs/rs2012_grotworm_route.constant`
-- `OSRS-Content/osrs239-content/server/scripts/minigames/minigame_rs2012_qbd/configs/rs2012_qbd.constant`
+- `OSRS-Content/osrs-content/server/scripts/minigames/minigame_rs2012_qbd/configs/rs2012_grotworm_route.constant`
+- `OSRS-Content/osrs-content/server/scripts/minigames/minigame_rs2012_qbd/configs/rs2012_qbd.constant`
 - `.../rs2012_qbd.npc`, `rs2012_qbd.obj`, `rs2012_qbd.varp`, `rs2012_qbd.dbrow`, `rs2012_qbd.inv`
 - `.../scripts/rs2012_qbd_session.rs2`
 - `.../scripts/rs2012_qbd_combat.rs2`
@@ -1171,7 +1171,7 @@ QBD:
 - `.../scripts/rs2012_qbd_selftest.rs2`
 - `.../scripts/rs2012_royal_crossbow.rs2`
 - `.../scripts/rs2012_grotworm_route.rs2`
-- `OSRS-Content/osrs239-content/ported/rs2012_qbd_td/interfaces/rs2012_qbd_hud.if`
+- `OSRS-Content/osrs-content/ported/rs2012_qbd_td/interfaces/rs2012_qbd_hud.if`
 - `.../interfaces/rs2012_qbd_coffer.if` and their `.compack` files
 - `.../scripts/rs2012_qbd_hud_pool.cs2`
 - `.../scripts/rs2012_qbd_hud_pool_fade.cs2`
@@ -1181,7 +1181,7 @@ QBD:
 
 TD:
 
-- `OSRS-Content/osrs239-content/server/scripts/areas/area_rs2012_tormented_demons/configs/`
+- `OSRS-Content/osrs-content/server/scripts/areas/area_rs2012_tormented_demons/configs/`
 - `.../scripts/rs2012_td_encounter.rs2`
 - `.../scripts/rs2012_td_combat.rs2`
 - `.../scripts/rs2012_td_player_hit.rs2`
@@ -1194,8 +1194,8 @@ Map/cache port:
 
 - `3rd/rscache/tools/map_port/main.c`
 - `ports/rs2012_qbd_td.ini`
-- `OSRS-Content/osrs239-content/ported/rs2012_qbd_td/maps/`
-- `OSRS-Content/osrs239-content/ported/rs2012_qbd_td/BASE_PLACEMENTS.tsv`
+- `OSRS-Content/osrs-content/ported/rs2012_qbd_td/maps/`
+- `OSRS-Content/osrs-content/ported/rs2012_qbd_td/BASE_PLACEMENTS.tsv`
 - `tools/stage_rs2012_overlay.py`
 - `tools/test_rs2012_map_port.py`
 - `tools/test_rs2012_grotworm_routes.py`
@@ -1210,8 +1210,8 @@ Map/cache port:
 - `tools/test_rs2012_server_overlay.py`
 - `3rd/rscache/tools/audioprobe/main.c`
 - `src/engine/proctex/test/rs2012_material_bake.c`
-- `OSRS-Content/osrs239-content/port/rs2012_qbd_td.materials.tsv`
-- `OSRS-Content/osrs239-content/ported/rs2012_qbd_td/PROVENANCE.md`
+- `OSRS-Content/osrs-content/port/rs2012_qbd_td.materials.tsv`
+- `OSRS-Content/osrs-content/ported/rs2012_qbd_td/PROVENANCE.md`
 - `manifests/manifest_osrs239_rs2012.ini`, `manifests/manifest_osrs239_rs2012_td.ini`, and the
   `torirsserver-cache-rs2012` make target
 

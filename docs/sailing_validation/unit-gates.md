@@ -22,7 +22,7 @@ the shared objdirs. **Every make ran serially — never two at once.**
 |---|---|
 | `src/torirs` | `c7e62cce180aaeb6bc4cd044818b0209ca99edb478f5280c3ebd10d6b79b1d8d` |
 | `src/build_opt/torirsserver` | `a53899eb8ce5d086e36df3653aaccfd2ee93c05f8e767ece05ecc40a94b9c3db` |
-| `OSRS-Content/osrs239-content/server/scripts/build/script.dat` | `902a6b8d242bba01990b3955100e301c2a0edb6b1f18fc6ca83fd703a880df59` |
+| `OSRS-Content/osrs-content/server/scripts/build/script.dat` | `902a6b8d242bba01990b3955100e301c2a0edb6b1f18fc6ca83fd703a880df59` |
 
 All three matched the hashes handed to this worker **before the first make and
 again after the last**. No gate relinked a shared binary: each unit gate compiles
@@ -609,7 +609,7 @@ final phase names, on the new shared objdir, **serially, one make at a time**.
 |---|---|
 | `src/torirs` | `4854e3036abf814d07ce97649845d30206bac647b49adce560e3e9b28fa927a4` |
 | `src/build_opt/torirsserver` | `214b43d7a30dd47b67b47693e1b9820d299c2154eeb2193aeb2c4ec0b7082186` |
-| `OSRS-Content/osrs239-content/server/scripts/build/script.dat` | `902a6b8d242bba01990b3955100e301c2a0edb6b1f18fc6ca83fd703a880df59` |
+| `OSRS-Content/osrs-content/server/scripts/build/script.dat` | `902a6b8d242bba01990b3955100e301c2a0edb6b1f18fc6ca83fd703a880df59` |
 
 `make -C src EMBED_SERVER=1 <target>` → objdir `src/build_opt_es` (OPT defaults
 to 1). No shared client or server link rule was invoked; each gate builds its
@@ -702,7 +702,7 @@ asserts and test controls, and re-ran **twelve** targets on the new pair.
 |---|---|
 | `src/torirs` | `5e34b81f9d2a45eae7306e8ddf93de5c590a0b3cd475d726a7745eb0deffd03b` |
 | `src/build_opt/torirsserver` | `6a0e7f0441c25f1249bc8342a5103744a4dbd991d721b67eaea1846db7d910d4` |
-| `OSRS-Content/osrs239-content/server/scripts/build/script.dat` | `902a6b8d242bba01990b3955100e301c2a0edb6b1f18fc6ca83fd703a880df59` |
+| `OSRS-Content/osrs-content/server/scripts/build/script.dat` | `902a6b8d242bba01990b3955100e301c2a0edb6b1f18fc6ca83fd703a880df59` |
 
 `/tmp/sailing-fin3/hashes.txt`. Build logs `/tmp/sailing-fin3/server-build.log`
 and `client-build.log`, both `exit=0`. The server hash equals the intermediate

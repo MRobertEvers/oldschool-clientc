@@ -1,5 +1,5 @@
 -- Recruitment Drive (Falador -> Temple Knights training grounds).
--- Content: OSRS-Content/osrs239-content/server/scripts/quests/quest_recruitmentdrive/.
+-- Content: OSRS-Content/osrs-content/server/scripts/quests/quest_recruitmentdrive/.
 -- Port note (recruitmentdrive.rs2:4-8): only 5-of-7 random rooms + random
 -- order per the real wiki quest (Sir Leye mandatory) is DEFERRED -- this
 -- port always runs all 7 rooms in a FIXED order: Spishyus(1) -> Kuam(3) ->

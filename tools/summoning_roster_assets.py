@@ -186,7 +186,7 @@ def build_manifest(
         "from_rev=rs530",
         "from_cache=../../../2009scape/Server/data/cache",
         "to_rev=osrs239",
-        "to_tree=../../OSRS-Content/osrs239-content",
+        "to_tree=../../OSRS-Content/osrs-content",
         "lane=ported/scape2009_summoning",
         "ledger=port/summoning_530.map",
         "# A dedicated prefix prevents this candidate from truncating the Spirit-wolf cohort configs.",

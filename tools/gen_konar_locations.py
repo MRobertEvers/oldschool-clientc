@@ -131,7 +131,7 @@ def main():
               "8 per task -- widen the stride" % widest, file=sys.stderr)
         return 1
 
-    dest = ("OSRS-Content/osrs239-content/server/scripts/skill_slayer/configs/"
+    dest = ("OSRS-Content/osrs-content/server/scripts/skill_slayer/configs/"
             "konar_locations.enum")
     text = render(rows)
     if args.check:

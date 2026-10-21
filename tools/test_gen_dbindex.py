@@ -11,7 +11,7 @@ from pathlib import Path
 
 
 REPO = Path(__file__).resolve().parents[1]
-SOURCE = REPO / "OSRS-Content/osrs239-content"
+SOURCE = REPO / "OSRS-Content/osrs-content"
 GENERATOR = REPO / "tools/gen_dbindex.py"
 
 

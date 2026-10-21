@@ -11,8 +11,8 @@
     "headless": true,
     "boat": "sloop",
     "binary_sha256": "092d1e5bfc50466e66814f55675c39f6cc1d384ffc9f864a983830893098da04",
-    "script_pack": "/Users/matthewevers/Documents/git_repos/3draster/OSRS-Content/osrs239-content/server/scripts/build/script.dat",
-    "launch_script_pack": "/Users/matthewevers/Documents/git_repos/3draster/OSRS-Content/osrs239-content/server/scripts/build/script.dat",
+    "script_pack": "/Users/matthewevers/Documents/git_repos/3draster/OSRS-Content/osrs-content/server/scripts/build/script.dat",
+    "launch_script_pack": "/Users/matthewevers/Documents/git_repos/3draster/OSRS-Content/osrs-content/server/scripts/build/script.dat",
     "script_sha256": "65d6b790ef04bd873d1ff7f9804deef5677ce22a76dd7c1d19cf13acb7955c55",
     "allow_stale_scripts": true
   },

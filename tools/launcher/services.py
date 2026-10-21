@@ -210,7 +210,7 @@ def _build_javconfig(config, context):
     manifest = context["manifest"]
     port = config.get("port") or DEFAULT_JAV_PORT
     cachedir = config.get("cachedir") or os.path.expanduser(
-        "~/jagexcache/torirs-%s" % (manifest.rev or "osrs239"))
+        "~/jagexcache/torirs-%s" % (manifest.rev or "osrs241"))
     argv = [
         "python3", "tools/torirs_javconfig.py",
         "--host", config.get("host") or "127.0.0.1",
@@ -240,7 +240,7 @@ def _build_torirsmaped(config, context):
     binary = _first_existing(context["repo_root"], candidates)
     port = config.get("port") or manifest.editor_port or DEFAULT_MAPED_PORT
     content = (config.get("content_dir") or manifest.editor_content_dir
-               or "OSRS-Content/osrs239-content")
+               or "OSRS-Content/osrs-content")
     repo_dir = config.get("repo_root") or manifest.editor_repo_root or "."
     argv = [
         "./" + binary, str(port),

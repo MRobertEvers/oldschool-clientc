@@ -443,7 +443,7 @@ rather than UB. Four cases added to `make -C src test-cs2-math`.
 
 ### 7.4 Content: the panels are reachable at all now
 
-`OSRS-Content/osrs239-content/server/scripts/interface_chrome/scripts/chrome_panels.rs2`
+`OSRS-Content/osrs-content/server/scripts/interface_chrome/scripts/chrome_panels.rs2`
 adds `[debugproc,xptracker]`, `[debugproc,loottools]`, `[debugproc,hiscores]`,
 each opening its panel into **`popout:container` (728:9) type 1** — the
 overlay form the strip's own layout scripts size against. An earlier pass

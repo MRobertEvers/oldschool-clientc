@@ -1,5 +1,5 @@
 # ladder gardenoftranquility quest_dir=quest_gardenoftranquility guide=src/main/java/com/questhelper/helpers/quests/gardenoftranquility/GardenOfTranquillity.java steps=50 legs=1:1-10@s0 2:11-20@s40 3:21-30@s40 4:31-40@s40 5:41-50@s40
-#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
 leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
 1	1	0	talkToEllamaria	NpcStep	npc:queen_ellamaria	3230,3478,0	Talk to Ellamaria east of Varrock Castle.			I would be happy to help someone who is so in touch with th…	quests/quest_gardenoftranquility/scripts/garden_shared.rs2:8 opnpc1; +1
 1	2	10	talkToWom	NpcStep	npc:wise_old_man	3089,3254,0	Talk to the Wise Old Man in Draynor Village.		Ring of Charos	Queen Ellamaria has sent me to seek your guidance. | I have…	quests/quest_makingfriendswithmyarm/scripts/makingfriendswithmyarm.rs2:324 opnpc1; +1

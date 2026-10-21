@@ -27,7 +27,7 @@ set -euo pipefail
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo"
 
-LANE="${LANE:-OSRS-Content/osrs239-content/models/ported/rs2012_qbd_td}"
+LANE="${LANE:-OSRS-Content/osrs-content/models/ported/rs2012_qbd_td}"
 OUT="${OUT:-docs/rs2012_qbd_priorities/run}"
 FORMS="${FORMS:-default crystal hardened soul worm}"
 

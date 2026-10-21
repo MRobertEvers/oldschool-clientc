@@ -1,7 +1,7 @@
 # Twilight's Promise (wiki-pinned brief)
 
 Pinned 2026-10-03 for parity b56. Not a LostCity quest (2024). Quest dir
-`OSRS-Content/osrs239-content/server/scripts/quests/quest_twilightspromise/`, progress var
+`OSRS-Content/osrs-content/server/scripts/quests/quest_twilightspromise/`, progress var
 `varb9649_vmq2` (carrier `varp4076_vmq2_primary`, bits 0-6), complete = 50.
 
 ## Sources (wiki oldids, fetched through api.php)

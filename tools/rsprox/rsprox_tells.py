@@ -10,7 +10,7 @@ messages, and the local player's sequences and graphics.
 
 --npc keeps npcs whose name holds any SUBSTR (default: all). A rev whose
 transcript has bare ids (no names, e.g. rev 227) gets them per type from our
-configs (OSRS-Content/osrs239-content/configs/all.<type>.compack, `id=name`). --timeline prints the ordered event stream
+configs (OSRS-Content/osrs-content/configs/all.<type>.compack, `id=name`). --timeline prints the ordered event stream
 instead of the inventory, for timing work.
 """
 import argparse
@@ -40,7 +40,7 @@ MESSAGE = re.compile(r'\[message_game\] type=([a-z]+), message="(.*)"$')
 SAY = re.compile(r'\[say\] text="(.*)"')
 
 
-CONFIGS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "OSRS-Content", "osrs239-content", "configs")
+CONFIGS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "OSRS-Content", "osrs-content", "configs")
 
 
 def load_names():

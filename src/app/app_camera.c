@@ -488,25 +488,19 @@ app_cinema_point(
     *out_y = app_world_height(app, x, z, app_cinema_level(app)) - height;
 }
 
-/* Pitch/yaw that point the eye at the look-at target. Reference cinemaCamera
- * (Client-TS 3542): note the yaw multiplier is *negative* 325.949 — the scene
- * turns the opposite way to the mathematical angle. */
+/* Pitch/yaw that point the frame view's eye at scene point (tx, ty, tz). The
+ * yaw multiplier is *negative* 325.949 -- the scene turns the opposite way to
+ * the mathematical angle. */
 static void
-app_cinema_angles(
+app_cinema_angles_to(
     struct App* app,
+    int tx,
+    int ty,
+    int tz,
     int* out_pitch,
     int* out_yaw)
 {
-    int tx, ty, tz, dx, dy, dz, distance, pitch;
-
-    app_cinema_point(
-        app,
-        app->cam_script.look_lx,
-        app->cam_script.look_lz,
-        app->cam_script.look_height,
-        &tx,
-        &ty,
-        &tz);
+    int dx, dy, dz, distance, pitch;
 
     dx = tx - app->frame_view->world_camera_pos.x;
     dy = ty - app->frame_view->world_camera_pos.y;
@@ -520,6 +514,203 @@ app_cinema_angles(
 
     *out_pitch = pitch;
     *out_yaw = (int)(atan2((double)dx, (double)dz) * -325.949) & 0x7ff;
+}
+
+/* Pitch/yaw that point the eye at the look-at target. Reference cinemaCamera
+ * (Client-TS 3542). */
+static void
+app_cinema_angles(
+    struct App* app,
+    int* out_pitch,
+    int* out_yaw)
+{
+    int tx, ty, tz;
+
+    app_cinema_point(
+        app,
+        app->cam_script.look_lx,
+        app->cam_script.look_lz,
+        app->cam_script.look_height,
+        &tx,
+        &ty,
+        &tz);
+    app_cinema_angles_to(app, tx, ty, tz, out_pitch, out_yaw);
+}
+
+/*
+ * The eased camera's curve: how far along (0..1) an interpolation is after
+ * `elapsed` of `duration` client cycles on easing `easing`. A port of the deob's
+ * Statics.method7961, case for case (ids per RSProx CameraEaseFunction: 0
+ * linear, 1/2/3 sine in/out/in-out, 4..6 quad, 7..9 cubic, 10..12 quart,
+ * 13..15 quint, 16..18 expo, 19..21 circ, 22..24 back, 25..27 elastic). An id
+ * outside 0..27 is linear, as class560's constructor makes it.
+ */
+#define APP_CAM_PI 3.14159265358979323846
+
+static double
+app_cam_ease(
+    int elapsed,
+    int duration,
+    int easing)
+{
+    const double c1 = 1.70158, c2 = 2.5949095, c3 = 2.70158;
+    double t = 1.0;
+
+    if( duration > 0 )
+    {
+        t = (double)elapsed / (double)duration;
+        if( t < 0.0 )
+            t = 0.0;
+        if( t > 1.0 )
+            t = 1.0;
+    }
+    if( t <= 0.0 )
+        return 0.0;
+    if( t >= 1.0 )
+        return 1.0;
+    switch( easing )
+    {
+    case 1: return 1.0 - cos(t * APP_CAM_PI / 2.0);
+    case 2: return sin(t * APP_CAM_PI / 2.0);
+    case 3: return -(cos(t * APP_CAM_PI) - 1.0) / 2.0;
+    case 4: return t * t;
+    case 5: return 1.0 - (1.0 - t) * (1.0 - t);
+    case 6: return t < 0.5 ? 2.0 * t * t : 1.0 - pow(-2.0 * t + 2.0, 2.0) / 2.0;
+    case 7: return t * t * t;
+    case 8: return 1.0 - pow(1.0 - t, 3.0);
+    case 9: return t < 0.5 ? 4.0 * t * t * t : 1.0 - pow(-2.0 * t + 2.0, 3.0) / 2.0;
+    case 10: return t * t * t * t;
+    case 11: return 1.0 - pow(1.0 - t, 4.0);
+    case 12: return t < 0.5 ? 8.0 * t * t * t * t : 1.0 - pow(-2.0 * t + 2.0, 4.0) / 2.0;
+    case 13: return t * t * t * t * t;
+    case 14: return 1.0 - pow(1.0 - t, 5.0);
+    case 15: return t < 0.5 ? 16.0 * t * t * t * t * t : 1.0 - pow(-2.0 * t + 2.0, 5.0) / 2.0;
+    case 16: return pow(2.0, 10.0 * t - 10.0);
+    case 17: return 1.0 - pow(2.0, -10.0 * t);
+    /* The deob prints 2^(20t + 10) / 2 for the first half -- a value that is
+     * not a curve on [0, 0.5) at all -- where easings.net (which the other 27
+     * match term for term) has 2^(20t - 10) / 2. Taken as a decompiler sign
+     * slip; the second half agrees. */
+    case 18: return t < 0.5 ? pow(2.0, 20.0 * t - 10.0) / 2.0 : (2.0 - pow(2.0, -20.0 * t + 10.0)) / 2.0;
+    case 19: return 1.0 - sqrt(1.0 - pow(t, 2.0));
+    case 20: return sqrt(1.0 - pow(t - 1.0, 2.0));
+    case 21:
+        return t < 0.5 ? (1.0 - sqrt(1.0 - pow(2.0 * t, 2.0))) / 2.0
+                       : (sqrt(1.0 - pow(-2.0 * t + 2.0, 2.0)) + 1.0) / 2.0;
+    case 22: return c3 * t * t * t - c1 * t * t;
+    case 23: return 1.0 + c3 * pow(t - 1.0, 3.0) + c1 * pow(t - 1.0, 2.0);
+    case 24:
+        return t < 0.5 ? (pow(2.0 * t, 2.0) * ((c2 + 1.0) * 2.0 * t - c2)) / 2.0
+                       : (pow(2.0 * t - 2.0, 2.0) * ((c2 + 1.0) * (t * 2.0 - 2.0) + c2) + 2.0) / 2.0;
+    case 25: return -pow(2.0, 10.0 * t - 10.0) * sin((t * 10.0 - 10.75) * (2.0 * APP_CAM_PI / 3.0));
+    case 26: return pow(2.0, -10.0 * t) * sin((t * 10.0 - 0.75) * (2.0 * APP_CAM_PI / 3.0)) + 1.0;
+    case 27:
+    {
+        double s = sin((20.0 * t - 11.125) * (4.0 * APP_CAM_PI / 9.0));
+        return t < 0.5 ? -(pow(2.0, 20.0 * t - 10.0) * s) / 2.0 : pow(2.0, -20.0 * t + 10.0) * s / 2.0 + 1.0;
+    }
+    default: return t;
+    }
+}
+
+static int
+app_cam_cycle(struct App* app)
+{
+    return app->world ? app->world->cycle : 0;
+}
+
+/*
+ * CAM_MOVETO_CYCLES at arrival. The interpolation starts where the eye IS, as
+ * the deob's class568 does: in absolute scene y when `ignore_terrain`, else in
+ * height above the ground under the eye -- so the path follows the terrain.
+ */
+void
+App_CinemaCameraMoveCycles(
+    struct App* app,
+    int local_x,
+    int local_z,
+    int height,
+    int cycles,
+    int ignore_terrain,
+    int easing,
+    int height_relative)
+{
+    struct App_CamMoveCycles* m;
+    int level, cx, cy, cz, x1, z1;
+
+    assert(app);
+    if( !app->world )
+        return;
+    m = &app->cam_script.move_cycles;
+    level = app_cinema_level(app);
+    cx = app->frame_view->world_camera_pos.x;
+    cy = app->frame_view->world_camera_pos.y;
+    cz = app->frame_view->world_camera_pos.z;
+    x1 = local_x * 128 + 64;
+    z1 = local_z * 128 + 64;
+    m->x0 = cx;
+    m->z0 = cz;
+    m->x1 = x1;
+    m->z1 = z1;
+    m->ignore_terrain = ignore_terrain;
+    if( ignore_terrain )
+    {
+        m->y0 = cy;
+        m->y1 = height_relative ? cy - height : app_world_height(app, x1, z1, level) - height;
+    }
+    else
+    {
+        m->y0 = app_world_height(app, cx, cz, level) - cy;
+        m->y1 = height_relative ? app->cam_script.last_move_height + height : height;
+    }
+    m->start_cycle = app_cam_cycle(app);
+    m->duration = cycles;
+    m->easing = easing;
+    m->active = 1;
+    app->cam_script.scripted = 1;
+}
+
+/*
+ * CAM_ROTATETO_COORDINATE at arrival: the pitch and yaw that face the tile
+ * from where the eye is now, eased toward from the current ones. The yaw is
+ * taken the short way round (the deob's class563 interpolates the raw ints).
+ */
+void
+App_CinemaCameraRotateCycles(
+    struct App* app,
+    int local_x,
+    int local_z,
+    int height,
+    int cycles,
+    int easing,
+    int height_relative)
+{
+    struct App_CamRotateCycles* r;
+    int tx, ty, tz, pitch, yaw;
+
+    assert(app);
+    if( !app->world )
+        return;
+    r = &app->cam_script.rotate_cycles;
+    tx = local_x * 128 + 64;
+    tz = local_z * 128 + 64;
+    ty = app_world_height(app, tx, tz, app_cinema_level(app)) -
+         (height_relative ? app->cam_script.look_height + height : height);
+    app_cinema_angles_to(app, tx, ty, tz, &pitch, &yaw);
+    r->pitch0 = app->frame_view->world_camera.pitch;
+    r->yaw0 = app->frame_view->world_camera.yaw;
+    r->pitch1 = pitch;
+    if( yaw - r->yaw0 > 1024 )
+        yaw -= 2048;
+    else if( yaw - r->yaw0 < -1024 )
+        yaw += 2048;
+    r->yaw1 = yaw;
+    r->start_cycle = app_cam_cycle(app);
+    r->duration = cycles;
+    r->easing = easing;
+    r->active = 1;
+    app->cam_script.look_height = height_relative ? app->cam_script.look_height + height : height;
+    app->cam_script.scripted = 1;
 }
 
 /* A CAM_* snap takes every attached view (owner decision 2): the scripted
@@ -593,21 +784,49 @@ app_world_camera_cinema(struct App* app)
     if( !app->cam_script.scripted || !app->world )
         return;
 
-    app_cinema_point(
-        app,
-        app->cam_script.move_lx,
-        app->cam_script.move_lz,
-        app->cam_script.move_height,
-        &tx,
-        &ty,
-        &tz);
+    if( app->cam_script.move_cycles.active )
+    {
+        /* The eased move owns the eye; the rate walk below waits for the next
+         * CAM_MOVETO. */
+        struct App_CamMoveCycles* m = &app->cam_script.move_cycles;
+        double f = app_cam_ease(app_cam_cycle(app) - m->start_cycle, m->duration, m->easing);
+        int x = m->x0 + (int)lround((m->x1 - m->x0) * f);
+        int z = m->z0 + (int)lround((m->z1 - m->z0) * f);
+        int y = m->y0 + (int)lround((m->y1 - m->y0) * f);
+        app->frame_view->world_camera_pos.x = x;
+        app->frame_view->world_camera_pos.z = z;
+        app->frame_view->world_camera_pos.y =
+            m->ignore_terrain ? y : app_world_height(app, x, z, app_cinema_level(app)) - y;
+    }
+    else
+    {
+        app_cinema_point(
+            app,
+            app->cam_script.move_lx,
+            app->cam_script.move_lz,
+            app->cam_script.move_height,
+            &tx,
+            &ty,
+            &tz);
 
-    app->frame_view->world_camera_pos.x =
-        app_cinema_ease(app->frame_view->world_camera_pos.x, tx, rate, rate2);
-    app->frame_view->world_camera_pos.y =
-        app_cinema_ease(app->frame_view->world_camera_pos.y, ty, rate, rate2);
-    app->frame_view->world_camera_pos.z =
-        app_cinema_ease(app->frame_view->world_camera_pos.z, tz, rate, rate2);
+        app->frame_view->world_camera_pos.x =
+            app_cinema_ease(app->frame_view->world_camera_pos.x, tx, rate, rate2);
+        app->frame_view->world_camera_pos.y =
+            app_cinema_ease(app->frame_view->world_camera_pos.y, ty, rate, rate2);
+        app->frame_view->world_camera_pos.z =
+            app_cinema_ease(app->frame_view->world_camera_pos.z, tz, rate, rate2);
+    }
+
+    if( app->cam_script.rotate_cycles.active )
+    {
+        struct App_CamRotateCycles* r = &app->cam_script.rotate_cycles;
+        double f = app_cam_ease(app_cam_cycle(app) - r->start_cycle, r->duration, r->easing);
+        app->frame_view->world_camera.pitch =
+            app_world_clamp_pitch(app, r->pitch0 + (int)lround((r->pitch1 - r->pitch0) * f));
+        app->frame_view->world_camera.yaw = (r->yaw0 + (int)lround((r->yaw1 - r->yaw0) * f)) & 0x7ff;
+        app->need_redraw = 1;
+        return;
+    }
 
     app_cinema_angles(app, &pitch, &yaw);
     rate = app->cam_script.look_rate;

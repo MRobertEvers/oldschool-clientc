@@ -9,7 +9,7 @@ from pathlib import Path
 import config_text
 
 ROOT = Path(__file__).resolve().parents[1]
-CONTENT = ROOT / "OSRS-Content" / "osrs239-content"
+CONTENT = ROOT / "OSRS-Content" / "osrs-content"
 SCRIPT = CONTENT / "server/scripts/skill_construction/scripts/poh_league_hall.rs2"
 BUILD = CONTENT / "server/scripts/skill_construction/scripts/poh_build.rs2"
 DISPATCH = CONTENT / "server/scripts/skill_construction/scripts/poh_chapel_functions.rs2"

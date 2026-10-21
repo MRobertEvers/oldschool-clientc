@@ -18,18 +18,18 @@ MOCK_INV = REPO / "src/torirsserver/torirs_server_ops_inv.c"
 MOCK_WORLD = REPO / "src/torirsserver/torirs_server_world.c"
 MOCK_HEADER = REPO / "src/torirsserver/torirs_server.h"
 MOCK_COMBAT = REPO / "src/torirsserver/torirs_server_combat.c"
-PLAYER_RANGED = REPO / "OSRS-Content/osrs239-content/server/scripts/skill_combat/scripts/player/player_ranged.rs2"
+PLAYER_RANGED = REPO / "OSRS-Content/osrs-content/server/scripts/skill_combat/scripts/player/player_ranged.rs2"
 INTERFACE = REPO / (
-    "OSRS-Content/osrs239-content/ported/scape2009_summoning/"
+    "OSRS-Content/osrs-content/ported/scape2009_summoning/"
     "interfaces/summoning_familiar.if"
 )
 ORBS_INTERFACE = REPO / (
-    "OSRS-Content/osrs239-content/ported/scape2009_summoning/"
+    "OSRS-Content/osrs-content/ported/scape2009_summoning/"
     "interfaces/orbs.if"
 )
 SPECIAL_MANIFEST = REPO / "docs/summoning_port/special_move_assets_530.ini"
 COMBAT_PROFILES = REPO / (
-    "OSRS-Content/osrs239-content/server/scripts/ported_scape2009_summoning/"
+    "OSRS-Content/osrs-content/server/scripts/ported_scape2009_summoning/"
     "configs/summoning_special_combat.npc"
 )
 
@@ -111,7 +111,7 @@ def main() -> int:
         expect(validate_at >= 0 and execute_at >= 0 and commit_at >= 0 and
                validate_at < execute_at < commit_at,
                "special resources can be committed before its operation accepts")
-        expect("~summoning_familiar_special_fire(%varp6257_summoning_familiar_type);" in orb_handler,
+        expect("~summoning_familiar_special_fire(%varp6932_summoning_familiar_type);" in orb_handler,
                "the Summoning orb's plain click does not fire the immediate/self-cast special")
         expect("DreadfowlNPC.java: Dreadfowl Strike" in execute and
                "npc_findcombat = false" in execute and
@@ -509,7 +509,7 @@ def main() -> int:
         expect("npc_findcombat = false" in auto_assist,
                "auto-assist no longer reads the owner's combat target")
         iron_tick = definition(scripts, "proc,summoning_iron_titan_normal_combat_tick")
-        expect("%varp6257_summoning_familiar_type = 76" in normal_tick and
+        expect("%varp6932_summoning_familiar_type = 76" in normal_tick and
                "~summoning_iron_titan_normal_combat_tick" in normal_tick and
                "~summoning_familiar_engagement($familiar)" in iron_tick and
                "npc_finduid($familiar) = false" in iron_tick and
@@ -531,7 +531,7 @@ def main() -> int:
                "Venom Shot lacks its strict source weapon family, one-shot poison, or asset closure")
         expect("~summoning_spirit_scorpion_adjust_ranged_battle($rhand, $spirit_scorpion_target);" in player_ranged and
                player_ranged.index("~summoning_spirit_scorpion_adjust_ranged_battle") >
-               player_ranged.index("~player_npc_hit_roll(%varp6295_damagetype)") and
+               player_ranged.index("~player_npc_hit_roll(%varp6970_damagetype)") and
                player_ranged.index("~summoning_spirit_scorpion_adjust_ranged_battle") <
                player_ranged.index("~player_hit_npc_prepare"),
                "Spirit Scorpion's source battle adjustment is not between ranged state creation and impact preparation")
@@ -651,10 +651,10 @@ def main() -> int:
         # declared as a constant and present in the lane's clientscript pack —
         # a `runclientscript*` to an id the client cannot resolve takes down the
         # rest of the update batch, not just its own call.
-        constants = (REPO / "OSRS-Content/osrs239-content/server/scripts"
+        constants = (REPO / "OSRS-Content/osrs-content/server/scripts"
                      "/ported_scape2009_summoning/configs/summoning.constant"
                      ).read_text(encoding="utf-8")
-        packed = (REPO / "OSRS-Content/osrs239-content/ported/scape2009_summoning"
+        packed = (REPO / "OSRS-Content/osrs-content/ported/scape2009_summoning"
                   "/pack/12_clientscripts.pack").read_text(encoding="utf-8")
         packed_ids = {int(line.split("=", 1)[0]) for line in packed.splitlines() if "=" in line}
         # Only lane-owned scripts are checked here: a constant declared in

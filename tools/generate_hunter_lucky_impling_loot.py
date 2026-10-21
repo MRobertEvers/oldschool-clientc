@@ -264,13 +264,13 @@ def main() -> None:
     parser.add_argument(
         "--objects",
         type=Path,
-        default=Path("OSRS-Content/osrs239-content/configs/all.obj"),
+        default=Path("OSRS-Content/osrs-content/configs/all.obj"),
     )
     parser.add_argument(
         "--output",
         type=Path,
         default=Path(
-            "OSRS-Content/osrs239-content/server/scripts/skill_hunter/configs/"
+            "OSRS-Content/osrs-content/server/scripts/skill_hunter/configs/"
             "lucky_impling_loot.dbrow"
         ),
     )

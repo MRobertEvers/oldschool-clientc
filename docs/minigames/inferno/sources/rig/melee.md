@@ -38,7 +38,7 @@
   melee is a close-range attacker; no projectile or hit graphic is claimed.
 
 ## ledger comparison
-- OSRS-Content/osrs239-content/npc_combat/i/inferno_creature_melee.combat and ..._melee_small.combat:
+- OSRS-Content/osrs-content/npc_combat/i/inferno_creature_melee.combat and ..._melee_small.combat:
   death jalimkot_death, attack jalimkot_attack, defend jalimkot_defend (all layer a2, rig's only
   seq); all three sounds `-`. Disagreements: 0. Both files are NOT COMPILED because inferno.npc
   authors its own block; that block is what the game reads.

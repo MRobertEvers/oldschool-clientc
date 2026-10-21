@@ -8,9 +8,9 @@ import tempfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
-LEDGER = REPO / "OSRS-Content/osrs239-content/port/summoning_530.map"
+LEDGER = REPO / "OSRS-Content/osrs-content/port/summoning_530.map"
 AUDIT = REPO / "docs/summoning_port/phase7_completion_audit.json"
-TREE = REPO / "OSRS-Content/osrs239-content"
+TREE = REPO / "OSRS-Content/osrs-content"
 STAGER = REPO / "tools/stage_summoning_overlay.py"
 
 def main() -> int:

@@ -27,7 +27,7 @@ Npc: `colosseum_standard_mager`, id 12811, name "Serpent shaman", models 50747, 
   not named in the cache; the water impact sound `varl_serpent_shaman_water_impact_01` is in the
   synth menu only (AV_INVENTORY).
 
-## Ledger (OSRS-Content/osrs239-content/npc_combat/c/colosseum_standard_mager.combat)
+## Ledger (OSRS-Content/osrs-content/npc_combat/c/colosseum_standard_mager.combat)
 All six rows are `-` (a5: rig shared, 3905 seqs; no sound source). No disagreement: the ledger
 names nothing wrong, it names nothing.
 

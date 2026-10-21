@@ -51,7 +51,7 @@ REGIONS = ROOT / "docs/audio/music_regions.tsv"
 TRACKS = ROOT / "docs/audio/music_tracks_osrs239.tsv"
 MUSIC_VARP = (
     ROOT
-    / "OSRS-Content/osrs239-content/server/scripts/interface_music/configs/music.varp"
+    / "OSRS-Content/osrs-content/server/scripts/interface_music/configs/music.varp"
 )
 
 

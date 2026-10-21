@@ -29,7 +29,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, "..", ".."))
 
 DEFAULT_VIEWER = os.path.join(REPO, "src", "build_win64_opt", "rs2012_model_view.exe")
-DEFAULT_MODELS = os.path.join(REPO, "OSRS-Content", "osrs239-content", "models")
+DEFAULT_MODELS = os.path.join(REPO, "OSRS-Content", "osrs-content", "models")
 DEFAULT_OUT = os.path.join(HERE, "data", "osrs")
 
 # Shared with the high-poly corpus renderer: BOTH classes render on this same

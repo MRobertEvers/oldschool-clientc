@@ -273,6 +273,11 @@ enum GameProtoPktName
     PKT_NAME_HIDELOCOPS,
     PKT_NAME_HIDEOBJOPS,
 
+    /* Eased, cycle-timed camera (rev 241 CAM_MOVETO_CYCLES_V3 /
+     * CAM_ROTATETO_COORDINATE_V3). Appended so no earlier name renumbers. */
+    PKT_NAME_CAM_MOVETO_CYCLES,
+    PKT_NAME_CAM_ROTATETO_COORDINATE,
+
     PKT_NAME_COUNT
 };
 

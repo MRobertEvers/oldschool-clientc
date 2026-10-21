@@ -1,7 +1,7 @@
 # SPEC: Xarpus, Normal mode, trio (solver from scratch)
 
 Paths are abbreviated:
-- XR = OSRS-Content/osrs239-content/server/scripts/minigames/minigame_tob/scripts/tob_xarpus.rs2
+- XR = OSRS-Content/osrs-content/server/scripts/minigames/minigame_tob/scripts/tob_xarpus.rs2
 - TC = .../minigame_tob/configs/tob.constant
 - XC = .../minigame_tob/configs/tob_xarpus.constant
 - DMG = .../minigame_tob/scripts/tob_damage.rs2

@@ -1,7 +1,7 @@
 # Ice demon — tick spec, rulings and content audit (2026-10-18)
 
 Unit `icedemon_tightrope` (COX_FINISH_PLAN.md R). Content:
-`OSRS-Content/osrs239-content/server/scripts/minigames/minigame_cox/scripts/cox_icedemon.rs2`,
+`OSRS-Content/osrs-content/server/scripts/minigames/minigame_cox/scripts/cox_icedemon.rs2`,
 the ice demon blocks of `configs/cox.constant` / `cox.npc` / `cox.loc`. Solver plan:
 `icedemon_solver.md`. Ruling order (plan): Jagex > recorded data > wiki > plugin
 constants > Near-Reality > our code.

@@ -379,14 +379,14 @@ ordering, including the players-after / NPCs-before asymmetry §4 calls for.
 
 ### Content corpus
 
-240 of 2,330 `.rs2` files under `OSRS-Content/osrs239-content/server/scripts/` call queue ops:
+240 of 2,330 `.rs2` files under `OSRS-Content/osrs-content/server/scripts/` call queue ops:
 `queue(` ×320, `npc_queue(` ×159, `clearqueue(` ×77, vararg `queue*` ×46, `getqueue(` ×18,
 `longqueue(` ×17, `weakqueue(` ×2, `strongqueue(` ×2, `softqueue` ×0. Declarations: 1,237
 `[ai_queue<n>]`, 161 `[queue,…]`, 83 `[ai_timer]`, 56 `[timer]`, 45 `[softtimer]`.
 `p_delay(` ×1,356.
 
 The purpose-built test corpus is
-`OSRS-Content/osrs239-content/server/scripts/selftest_triggers.rs2` (queue-kind, strongqueue-arm,
+`OSRS-Content/osrs-content/server/scripts/selftest_triggers.rs2` (queue-kind, strongqueue-arm,
 access-gate, clearqueue, getqueue and weak-only stanzas), driven from
 [torirs_server_world.c:30172-30360](../src/torirsserver/torirs_server_world.c#L30172-L30360).
 

@@ -11,10 +11,13 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : IfSetNpcHeadEncoder
- * Layouts      : 15 distinct, over 18 contiguous revision run(s)
+ * Layouts      : 16 distinct, over 19 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^IfSetNpcHeadEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
+ *                Revision(s) 241 come from RSProx, not RSProt
+ *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
+ *                gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -61,6 +64,8 @@ void packet_if_setnpchead_v13_out(RsprotExec *x, MsgIfSetNpcHead *m);
 void packet_if_setnpchead_v14_out(RsprotExec *x, MsgIfSetNpcHead *m);
 /* v15 -- revs 239. */
 void packet_if_setnpchead_v15_out(RsprotExec *x, MsgIfSetNpcHead *m);
+/* v100 -- revs 241. */
+void packet_if_setnpchead_v100_out(RsprotExec *x, MsgIfSetNpcHead *m);
 
 /* Per-revision aliases: `packet_if_setnpchead_rev239_out` is greppable, which is the
  * point -- "what does 239 do for IF_SETNPCHEAD" without reading a table. */
@@ -83,6 +88,7 @@ void packet_if_setnpchead_v15_out(RsprotExec *x, MsgIfSetNpcHead *m);
 #define packet_if_setnpchead_rev237_out packet_if_setnpchead_v13_out
 #define packet_if_setnpchead_rev238_out packet_if_setnpchead_v14_out
 #define packet_if_setnpchead_rev239_out packet_if_setnpchead_v15_out
+#define packet_if_setnpchead_rev241_out packet_if_setnpchead_v100_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_if_setnpchead_out[];

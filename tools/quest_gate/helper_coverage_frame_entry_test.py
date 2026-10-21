@@ -39,7 +39,7 @@ import helper_coverage  # noqa: E402
 
 ACCEPTED = "9813e5044"
 LEDGER_COMMIT = "30d5622731"
-LEDGER = "osrs239-content/server/scripts/selftest/quests/quest_theeyesofglouphrie/play/ledger.tsv"
+LEDGER = "osrs-content/server/scripts/selftest/quests/quest_theeyesofglouphrie/play/ledger.tsv"
 STEP = "enterCave"
 INTO_CAVE = ("goto-repairMachine", "goto-killCreature1", "goto-allDead")
 IN_CAVE = "2400,9820,0"

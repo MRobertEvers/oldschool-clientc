@@ -140,7 +140,7 @@ Js5ServerConfigInit(struct Js5ServerConfig* config)
     memset(config, 0, sizeof(*config));
     config->bind_address = "127.0.0.1";
     config->port = 43594u;
-    config->revision = 239u;
+    config->revision = 241u;
     config->max_clients = 48u;
     config->backlog = 64u;
     config->max_pending_per_lane = 200u;

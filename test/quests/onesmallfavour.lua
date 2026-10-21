@@ -1,5 +1,5 @@
 -- One Small Favour (tier 2). Driven against the real relay chain in
--- OSRS-Content/osrs239-content/server/scripts/quests/quest_onesmallfavour/
+-- OSRS-Content/osrs-content/server/scripts/quests/quest_onesmallfavour/
 -- (onesmallfavour_relay.rs2, onesmallfavour_puzzles.rs2, onesmallfavour.constant)
 -- plus the shared-npc owner files each leg merges into (yanni_salika.rs2,
 -- jungle_forester.rs2, brian.rs2, aggie.rs2, dttd_haminfiltrate.rs2,

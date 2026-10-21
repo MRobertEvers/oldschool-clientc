@@ -22,9 +22,9 @@ import re
 import config_text
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DBROW = os.path.join(REPO, "OSRS-Content", "osrs239-content", "configs", "all.dbrow")
+DBROW = os.path.join(REPO, "OSRS-Content", "osrs-content", "configs", "all.dbrow")
 MEMBER_DBROW = os.path.join(
-    REPO, "OSRS-Content", "osrs239-content", "server", "scripts",
+    REPO, "OSRS-Content", "osrs-content", "server", "scripts",
     "skill_slayer", "configs", "slayer_task_member.dbrow",
 )
 

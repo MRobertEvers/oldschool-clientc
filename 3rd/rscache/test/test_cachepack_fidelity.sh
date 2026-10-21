@@ -32,7 +32,7 @@ set -u
 
 ROOT=${1:-../..}
 CACHE="$ROOT/cache.osrs239"
-SRC="$ROOT/OSRS-Content/osrs239-content"
+SRC="$ROOT/OSRS-Content/osrs-content"
 REV=osrs239
 TMP=build/cachepack_fidelity
 

@@ -3,7 +3,7 @@
 the same tells tools/rsprox/rsprox_tells.py reads from an RSProx transcript:
 npc animations and graphics, projectiles, map graphics, sounds, music, loc
 changes and animations, spawns and removals, hits. Ids are named from
-OSRS-Content/osrs239-content/configs/all.<type>.compack and pack/4_soundeffects.pack.
+OSRS-Content/osrs-content/configs/all.<type>.compack and pack/4_soundeffects.pack.
 
     python3 tools/rsprox/ticklog_tells.py <ticklog.tsv> [--from T] [--to T] [--npc SUBSTR ...]
 
@@ -13,7 +13,7 @@ Chebyshev distance between its source and destination tiles.
 import argparse
 import os
 
-ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "OSRS-Content", "osrs239-content")
+ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "OSRS-Content", "osrs-content")
 SKIP = {"npc_state", "varp", "raider", "digest", "player_tile", "npc_face", "input", "start", "tick", "player_state"}
 
 

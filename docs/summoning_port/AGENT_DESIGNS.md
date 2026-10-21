@@ -23,7 +23,7 @@ Everything below is measured against the two trees unless marked GUESS or UNVERI
 
 | Measurement | Result | Consequence |
 |---|---|---|
-| Model trailer census, `OSRS-Content/osrs239-content/models/*.model` (61,615 files) | **34,625 `FF FD` (V3) + 26,990 `FF FE` (V2). Zero OB2, zero OB3.** | 530's 39,694 OB3 + 5,778 OB2 are a **disjoint** format set. Models cannot be byte-copied; they must be re-encoded. |
+| Model trailer census, `OSRS-Content/osrs-content/models/*.model` (61,615 files) | **34,625 `FF FD` (V3) + 26,990 `FF FE` (V2). Zero OB2, zero OB3.** | 530's 39,694 OB3 + 5,778 OB2 are a **disjoint** format set. Models cannot be byte-copied; they must be re-encoded. |
 | `grep -c "/" pack/7_models.pack` | **53,421 of 61,615 names already contain a `/`** (`0=npc/royal_dwarf_citizen1_head`) | A "distinct, clearly-marked ported folder" for assets needs **zero tool changes**. `import_one` (`cp_assets.c:1407`) does `snprintf(base,"%s/%s",root,name)`. |
 | `find_named --model` on familiar models 30443 / 31211 / 30435 / 31168 / 30469 | **every one carries 3–21 texture triangles and a `textures` array** | Material-id remapping is on the critical path for *every* familiar model, not a tail case. This is the pipeline's biggest risk (§8). |
 
@@ -77,7 +77,7 @@ tools/port_scape2009_ids.py                         NEW  ~300 LOC  port/ ledger 
 from_rev   = rs530
 from_cache = /Users/…/2009scape/Server/data/cache
 to_rev     = osrs239
-to_tree    = OSRS-Content/osrs239-content
+to_tree    = OSRS-Content/osrs-content
 lane       = ported/scape2009_summoning     ; the marked folder, used for BOTH
                                             ; asset paths and the configs dir
 configs    = server/scripts/ported_scape2009_summoning/configs
@@ -261,7 +261,7 @@ Three independent reasons, any one sufficient:
 2. **Every hook is a dead pointer.** A 530 component's `onload`/`onop` args name 530 clientscript ids. `sendRunScript(757/765)` in `SummoningCreator.java:62` names scripts that do not exist in osrs239's 9,725.
 3. **Every graphic/font/model id inside is wrong.** Interface 747 references sprites 1206/1244/1245/1200; those ids are unrelated art in osrs239.
 
-`RSCache_Dat2ComponentEncodeIf3` explicitly refuses to invert the RS2 layout (`dat2_component.c:1428`). Authoring a fresh `.if` + `.compack` in `OSRS-Content/osrs239-content/interfaces/` is both cheaper and the only path the encoder supports. Read the 530 interface with `tools/dump_interface` for **layout reference only**.
+`RSCache_Dat2ComponentEncodeIf3` explicitly refuses to invert the RS2 layout (`dat2_component.c:1428`). Authoring a fresh `.if` + `.compack` in `OSRS-Content/osrs-content/interfaces/` is both cheaper and the only path the encoder supports. Read the 530 interface with `tools/dump_interface` for **layout reference only**.
 
 ### 3.10 CS2 clientscripts — **REAUTHOR.** Cannot be imported.
 
@@ -335,7 +335,7 @@ This keeps the machine-owned `configs/` tree untouched, which is what `test-serv
 
 Every client-visible ported config record must therefore **also** be named in `pack/<ns>.client`.
 
-Files that must be created (`cachepack membership --src OSRS-Content/osrs239-content --rev osrs239 --types obj,seq,spotanim`; it creates only files that do not exist and refuses to overwrite):
+Files that must be created (`cachepack membership --src OSRS-Content/osrs-content --rev osrs239 --types obj,seq,spotanim`; it creates only files that do not exist and refuses to overwrite):
 
 | namespace | `.client` today | needed |
 |---|---|---|
@@ -372,7 +372,7 @@ Written by `cachepack import`, checked by a new `tools/port_scape2009_ids.py --c
 
 Unchanged from the existing path — **new archives need no JS5 wiring**.
 
-1. `cachepack pack --src OSRS-Content/osrs239-content --base cache.osrs239 --out cache.osrs239.baked --rev osrs239 --assets --binary --gamevals` (`src/makefile:1677`, target `make -C src torirsserver-cache`).
+1. `cachepack pack --src OSRS-Content/osrs-content --base cache.osrs239 --out cache.osrs239.baked --rev osrs239 --assets --binary --gamevals` (`src/makefile:1677`, target `make -C src torirsserver-cache`).
    - `--base` copies the pristine cache first. **Mandatory** — `EXCEPTIONS.md` B4: `RSCache_Dat2DiskWriteArchive` appends and re-points, orphaning old sectors, so repacking in place grows forever. The recipe already `rm -rf`s the output.
    - For a new archive id, `cp_reference_sync` (`cp_binary.c:375-470`) grows **both** the reference table's `archives` array (indexed by archive id, gaps at `index == -1`) and its ascending `ids` list; `cp_reference_set_name` names it (`cp_assets.c:1350`).
    - CRC gotcha, `EXCEPTIONS.md` H4: the reference-table CRC covers the container **minus** the u16 version trailer. Get it wrong and the client rejects the archive. This is already right; don't re-derive it.
@@ -428,7 +428,7 @@ anim_compare --a-rev rs530 --a-cache <530> --a-seq 8297 --a-model 30443 \
 
 ### T3 — Catalog + viewer (catches: "it decoded but nothing points at it")
 
-`tools/entity_viewer/ev_catalog --rev osrs239 cache.osrs239.baked --names OSRS-Content/osrs239-content --out out/summoning_anims`, then `ev_server --catalog …`.
+`tools/entity_viewer/ev_catalog --rev osrs239 cache.osrs239.baked --names OSRS-Content/osrs-content --out out/summoning_anims`, then `ev_server --catalog …`.
 
 Pass bar: every ported familiar appears in `npc_catalog.csv` with `rig_match_classic > 0`, its seed idle/walk seqs resolve, and `npc_rigs.csv` shows it on **its own** ported rig — not on framemap 0, the shared human rig with 3,905 sequences on it. A ported familiar landing on framemap 0 means the rig id got remapped to a collision.
 
@@ -548,7 +548,7 @@ Verification complete. Here is the design.
 
 ---
 
-# Summoning as a real, drawable 24th skill in `3draster` / `osrs239-content`
+# Summoning as a real, drawable 24th skill in `3draster` / `osrs-content`
 
 Everything below was checked against the tree and `cache.osrs239`. Where I say "measured", I ran it in this session.
 
@@ -581,7 +581,7 @@ Client headroom is exact: `src/game/rs_player_stats.h:11` `#define RS_PLAYER_STA
 | # | Layer | File | Edit |
 |---|---|---|---|
 | 1 | server C | `src/torirsserver/torirs_server.h:558` | `TORIRSSERVER_STAT_COUNT = 23` → `25`. 40 call sites, all `< TORIRSSERVER_STAT_COUNT` bounds or `[TORIRSSERVER_STAT_COUNT]` arrays (measured). `stat_dirty` is `uint32_t` — 25 fits. `torirs_server_save.c:202/491` is id-keyed ini, so saves stay forward/backward compatible. |
-| 2 | skill-name pack | `OSRS-Content/osrs239-content/pack/stat.pack` | append `23=sailing` **and** `24=summoning`. The file stops at `22=construction` today, so it already disagrees with the cache; adding 23 is a correctness fix with no behaviour (nothing awards Sailing xp). Namespace is `ids = protocol, names = authored`, not swept by `ss_allocate.py` — a hand edit is the sanctioned path. |
+| 2 | skill-name pack | `OSRS-Content/osrs-content/pack/stat.pack` | append `23=sailing` **and** `24=summoning`. The file stops at `22=construction` today, so it already disagrees with the cache; adding 23 is a correctness fix with no behaviour (nothing awards Sailing xp). Namespace is `ids = protocol, names = authored`, not swept by `ss_allocate.py` — a hand edit is the sanctioned path. |
 | 3 | ServerScript stat commands | none | `ssc_compile.c:755-771` gives `STAT*`/`NPC_STAT*` opcodes `base_hint = SSC_SYM_STAT`, so `stat_base(summoning)`, `stat_advance(summoning, …)`, `stat(summoning)` resolve **the moment #2 lands**. No compiler change. |
 | 4 | xp table | none | `torirs_server_combat.c:400-441` `g_xp_table[99]` is per-level, skill-agnostic. `rs_player_stats.c:19-24` likewise. |
 | 5 | total level | see §1 | three implementations, two auto-extend, one is deliberately frozen |
@@ -799,7 +799,7 @@ The tree's source predates the decompiler learning opcode 1703's name. **The tre
 # 0. refresh only the stale sources you need (1904 is the only one)
 CACHEPACK_CS2_NAMES=~/Documents/git_repos/cs2/src/main/resources/org/runestar/cs2 \
   3rd/rscache/tools/cachepack/cachepack unpack --cache cache.osrs239 --rev osrs239 \
-    --src OSRS-Content/osrs239-content --assets=scripts
+    --src OSRS-Content/osrs-content --assets=scripts
 #    ⚠ this also rewrites script_73.cs2 / script_7304.cs2, which carry hand-authored
 #      comments guarded by tools/check_crystal_set_contract.py (a hard prerequisite
 #      of torirsserver-cache). Re-apply those two comments, or unpack selectively.
@@ -948,7 +948,7 @@ values=6:0:1
 
 **Routing** — `fields/dbrow.ini` says `records = server`, and `routing_client_member` (`cp_pack.c:690-760`) routes an alloc-claimed record server-side. A guide row must reach the **client**. The gate's own order is *named in `<ns>.client` → substrate → rank-0 → `<ns>.server` → alloc → default*, so the fix is:
 - `[namespace:dbrow] membership = authored` in `content.ini`
-- `cachepack membership --src OSRS-Content/osrs239-content --rev osrs239 --types dbrow` to seed `pack/dbrow.client`
+- `cachepack membership --src OSRS-Content/osrs-content --rev osrs239 --types dbrow` to seed `pack/dbrow.client`
 - name every Summoning guide row in `pack/dbrow.client`
 
 This is the **first real use of the designed-but-unexercised add path** (all five existing `.client` files are empty). Budget for finding its bugs; prove it with a 2-row spike before authoring 200.
@@ -993,7 +993,7 @@ the vacant target id 229 and records the 222→229 translation in `port/summonin
 Measured in `3rd/rscache/tools/cachepack/cp_merge.c:300-380`: **arity is observed from rank 0**, and *"a key rank 0 states more than once is a list: append, never replace."* `enum_681` states `val=` 24 times in `configs/all.enum` (rank 0), so `val` is multi-valued for enums, so a rank-1 block:
 
 ```ini
-; OSRS-Content/osrs239-content/server/scripts/ported_scape2009_summoning/configs/summoning.enum
+; OSRS-Content/osrs-content/server/scripts/ported_scape2009_summoning/configs/summoning.enum
 ; Policy: 2009scape Skills.java (SUMMONING) — remapped to stat 24, see docs/SUMMONING_PORT.md
 [enum_681]
 val=25,24
@@ -1011,7 +1011,7 @@ valstr=24,Summoning
 Tree layout:
 
 ```
-OSRS-Content/osrs239-content/
+OSRS-Content/osrs-content/
   server/scripts/ported_scape2009_summoning/
     configs/  summoning.enum          # the 8 enum overlays above
               summoning.constant      # ^summoning_enabled, ^skill_guide_summoning
@@ -1339,7 +1339,7 @@ I re-measured the load-bearing claims from recon before designing. **Five recon 
 Provenance is marked three ways, because a directory name is invisible to `sscompile`, `cachepack` and `ToriRSServer` (all three walk recursively and only skip a leading `.`): (a) the folder name, (b) a `PROVENANCE.md`, (c) the mandatory `// Policy: 2009scape <Class>.java` header on every `.rs2` — the existing house convention (295 files already carry a `2009scape` header).
 
 ```
-OSRS-Content/osrs239-content/
+OSRS-Content/osrs-content/
 ├── content.ini                                  # EDIT: +[namespace:obj|inv|seq|spotanim|struct]
 │                                                #        membership = authored
 │                                                #       [namespace:varbit] ids = cache -> server
@@ -1978,7 +1978,7 @@ same-packet extended/update + mask-`0x1` transformed-16-bit replacement path. Th
 ### 1.3 Where the ported content physically lives
 
 ```
-OSRS-Content/osrs239-content/
+OSRS-Content/osrs-content/
   ported_scape2009_summoning/          <- NEW top-level dir. Invisible to every walker.
     README.md                          <- provenance, policy, the flag contract
     client/                            <- the overlay half
@@ -2009,13 +2009,13 @@ Chained two-pass, using unmodified cachepack:
 
 ```sh
 # pass 1 — today's bake, byte-for-byte unchanged
-cachepack pack --src OSRS-Content/osrs239-content \
+cachepack pack --src OSRS-Content/osrs-content \
   --base cache.osrs239 --out cache.osrs239.baked \
   --rev osrs239 --assets --binary --gamevals
 
 # stage the overlay: base tree's meta.ini/content.ini/fields/ + full *.compack
 # indexes (inert: they name ids, they do not emit records) + the ported client/ dir
-python3 tools/stage_summoning_overlay.py --tree OSRS-Content/osrs239-content \
+python3 tools/stage_summoning_overlay.py --tree OSRS-Content/osrs-content \
   --out build/summoning-overlay
 
 # pass 2 — only the records/assets the overlay states
@@ -2106,7 +2106,7 @@ queue documents and `.cursor/rules/no-park-sibling-content.mdc`.
 Not because Summoning is special, but because it is the first port that is **(a) cross-cache-revision, (b) behind a flag, (c) asset-bearing**. None of the four existing queue docs have a column for any of that. Contents:
 
 1. **Charter** — why the skip lists were reversed, who decided, the flag contract, and the byte-identity requirement stated as a bar.
-2. **The id ledger** — the one thing no existing doc provides: rev-530 id → osrs239 id, per namespace, with disposition. Mirrors `port/names.map`'s contract (generated columns re-derived by `--check`, human columns never regenerated). Backed by new files `OSRS-Content/osrs239-content/port530/{npc,obj,seq,spotanim,model,sprite}.map` and a new `tools/port530_diff.py --check` wired into `make -C src test-port`. **`port/` today is LostCity-keyed and cannot host this** — its diff tools take a RuneScript content checkout as `--reference` and 2009scape has no `.rs2`, no `^constant`, no `pack/`.
+2. **The id ledger** — the one thing no existing doc provides: rev-530 id → osrs239 id, per namespace, with disposition. Mirrors `port/names.map`'s contract (generated columns re-derived by `--check`, human columns never regenerated). Backed by new files `OSRS-Content/osrs-content/port530/{npc,obj,seq,spotanim,model,sprite}.map` and a new `tools/port530_diff.py --check` wired into `make -C src test-port`. **`port/` today is LostCity-keyed and cannot host this** — its diff tools take a RuneScript content checkout as `--reference` and 2009scape has no `.rs2`, no `^constant`, no `pack/`.
 3. **The slice queue** — same `#`/status/notes shape as SCAPE2009.
 4. **The opcode gap log** — every new VM opcode, logged *before* C is written (PORTING_GUIDE §4.5 step 4).
 5. **The NPC mapping ledger** — a live rev-530 definition id → osrs239 cache/config id map, updated per slice. This is translation and collision bookkeeping, not a budget: NPC_INFO's 14-bit field is only its direct initial definition, and high definitions use the extended update path.
@@ -2146,7 +2146,7 @@ make -C src test-ss-provider test-db test-torirsserver-param test-torirsserver-n
 # --- cache fidelity (read 3rd/rscache/EXCEPTIONS.md FIRST)
 make -C 3rd/rscache test
 cachepack verify --cache cache.osrs239 --rev osrs239 \
-  --src OSRS-Content/osrs239-content --assets      # lost-here == 0 per type
+  --src OSRS-Content/osrs-content --assets      # lost-here == 0 per type
 
 # --- the flag-off bake, unchanged
 make -C src torirsserver-cache

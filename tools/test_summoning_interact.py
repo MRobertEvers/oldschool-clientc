@@ -39,7 +39,7 @@ from pathlib import Path
 import config_text
 
 REPO = Path(__file__).resolve().parents[1]
-CONTENT = REPO / "OSRS-Content/osrs239-content"
+CONTENT = REPO / "OSRS-Content/osrs-content"
 LANE = CONTENT / "ported/scape2009_summoning"
 SCRIPT_LANE = CONTENT / "server/scripts/ported_scape2009_summoning"
 # `make -C src` by anyone relinks src/torirs without the embedded server, which

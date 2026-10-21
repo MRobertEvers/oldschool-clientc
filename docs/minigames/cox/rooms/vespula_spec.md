@@ -1,6 +1,6 @@
 # Vespula — tick spec, rulings and content audit (2026-10-18)
 
-Unit `vespula` (COX_FINISH_PLAN.md R). Content: `OSRS-Content/osrs239-content/
+Unit `vespula` (COX_FINISH_PLAN.md R). Content: `OSRS-Content/osrs-content/
 server/scripts/minigames/minigame_cox/scripts/cox_vespula.rs2`, Vespula blocks in
 `configs/cox.constant` / `cox.npc`. Solver plan: `vespula_solver.md`.
 

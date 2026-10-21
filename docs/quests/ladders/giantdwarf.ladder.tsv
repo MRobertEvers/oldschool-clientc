@@ -1,5 +1,5 @@
 # ladder giantdwarf quest_dir=quest_giantdwarf guide=src/main/java/com/questhelper/helpers/quests/thegiantdwarf/TheGiantDwarf.java steps=31 legs=1:1-10@s0 2:11-24@s20 3:25-31@s30
-#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
 leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
 1	1	0	enterDwarfCave	ObjectStep	loc:trollromance_stronghold_exit_tunnel	2732,3713,0	Speak to the Dwarven Boatman.				ladders_stairs/scripts/maplink.rs2:77 oploc1; +3
 1	2	0	enterDwarfCave2	ObjectStep	loc:dwarf_cavewall_tunnel	2781,10161,0	Speak to the Dwarven Boatman.				quests/quest_betweenarock/scripts/betweenarock_travel.rs2:29 oploc1

@@ -10,7 +10,7 @@ grades each one, and writes a ledger for review. Nothing here writes content.
 
 The whole method rests on one fact about the target cache: **osrs239 names its
 sound effects**, and the names are creature-shaped.
-`OSRS-Content/osrs239-content/pack/4_soundeffects.pack` carries a name for all
+`OSRS-Content/osrs-content/pack/4_soundeffects.pack` carries a name for all
 12,010 records, and 279 stems have a complete `<stem>_attack` / `<stem>_hit` /
 `<stem>_death` triple. `_hit` is the sound the creature makes when it is hit —
 the defend slot.
@@ -119,7 +119,7 @@ from pathlib import Path
 import config_text
 
 REPO = Path(__file__).resolve().parents[1]
-CONTENT = REPO / "OSRS-Content" / "osrs239-content"
+CONTENT = REPO / "OSRS-Content" / "osrs-content"
 SOUND_PACK = CONTENT / "pack" / "4_soundeffects.pack"
 ROSTER = REPO / "docs" / "summoning_port" / "roster_assets_530.csv"
 SCAPE = Path.home() / "Documents" / "git_repos" / "2009scape"

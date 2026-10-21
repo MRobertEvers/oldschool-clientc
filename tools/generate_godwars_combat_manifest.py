@@ -22,7 +22,7 @@ import config_text
 
 
 ROOT = Path(__file__).resolve().parents[1]
-CONTENT = ROOT / "OSRS-Content/osrs239-content"
+CONTENT = ROOT / "OSRS-Content/osrs-content"
 SCRIPTS = CONTENT / "server/scripts"
 GWD = SCRIPTS / "areas/area_godwars"
 OUT = CONTENT / "wiki/godwars_combat_manifest.csv"

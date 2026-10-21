@@ -292,7 +292,7 @@ return {
         for _ = 1, 400 do
             local _, stage = t.var.server("varb5795_fossilquest_progress")
             if stage ~= 30 then break end
-            local _, bearing = t.var.server("varp7220_bv_voy_bearing")
+            local _, bearing = t.var.server("varp7895_bv_voy_bearing")
             last_bearing = bearing
             if bearing < 4 then
                 t.ui.invoke(right_w, 1)

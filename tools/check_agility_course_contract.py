@@ -23,7 +23,7 @@ import re
 import sys
 
 WIKI = "docs/skills/agility/sources"
-SCRIPTS = "OSRS-Content/osrs239-content/server/scripts/skill_agility/scripts"
+SCRIPTS = "OSRS-Content/osrs-content/server/scripts/skill_agility/scripts"
 
 # Every proc in agility.rs2 that awards Agility experience from its first
 # argument. See ours_tenths' docstring for why this is a list and not a guess.

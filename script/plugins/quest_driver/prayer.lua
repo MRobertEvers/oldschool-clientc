@@ -21,7 +21,7 @@
 -- -> app_send_if_button -> IF_BUTTONX, the dispatcher a real click reaches.
 -- The server answers with `[if_button,prayerbook:prayerN]` ->
 -- `~prayerbook_button` -> `[proc,prayer_toggle]`
--- (OSRS-Content/osrs239-content/server/scripts/skill_prayer/scripts/
+-- (OSRS-Content/osrs-content/server/scripts/skill_prayer/scripts/
 -- prayer.rs2:365-532).  There is no C prayer mask: the varbits ARE the state
 -- (`~prayer_set`, prayer.rs2), all on `varp83_prayer0` (transmit=yes), so the
 -- verb settles on the varbit as the server sent it (QD._var_server_varbit).
@@ -284,7 +284,7 @@ end
 -- THE CONTENT'S PROTECTION BLOCK (owner_praypress, 2026-10-07).  An unprayed
 -- Sotetseg ball calls `~prayer_block_protection` (tob_sotetseg.rs2), which
 -- puts all three protections out and makes `[proc,prayer_can_use]` REFUSE
--- every protection press while `%varp6891_prayer_protect_blocked > map_clock`
+-- every protection press while `%varp7566_prayer_protect_blocked > map_clock`
 -- (skill_prayer/scripts/prayer.rs2:108, 137-141).  A plan pressing into it is
 -- not losing the press: the server is saying no, in these words.  Reported as
 -- "the press path loses the prayer on consecutive ticks" because the reason
@@ -497,7 +497,7 @@ end
 --
 -- WHAT A FLICK COSTS on this server: prayer.rs2's `[proc,prayer_switched]`
 -- arms `settimer(prayer_drain, 1)`, `[timer,prayer_drain]` adds the drain
--- effect (12 for each protection) to %varp6296_prayer_drain_counter every
+-- effect (12 for each protection) to %varp6971_prayer_drain_counter every
 -- tick a prayer is up and takes a point per max(60, 60 + 2 * prayer bonus),
 -- and the last prayer going off clears the timer AND zeroes the counter.  A
 -- timer armed on T first fires on T+1 (`srv->tick >= clock + interval`,
@@ -887,7 +887,7 @@ function QD.prayer.switch(list, opts)
 end
 
 -- (points, counter) now: the prayer stat's current level as the client holds
--- it, and the server's drain counter (%varp6296_prayer_drain_counter, a
+-- it, and the server's drain counter (%varp6971_prayer_drain_counter, a
 -- server-only varp, read through t.var.server's content path).  nil when
 -- unreadable.
 function QD.prayer._drain_reading()
@@ -896,7 +896,7 @@ function QD.prayer._drain_reading()
     if skill_result == "ok" then
         points = reading.level
     end
-    local counter_result, counter = QD.var.server("varp6296_prayer_drain_counter")
+    local counter_result, counter = QD.var.server("varp6971_prayer_drain_counter")
     if counter_result ~= "ok" then
         counter = nil
     end

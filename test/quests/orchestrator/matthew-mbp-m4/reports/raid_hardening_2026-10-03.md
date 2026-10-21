@@ -45,9 +45,9 @@ This decides how a "green" should be read:
   - `tools/wiki_droptable.py`
   - The `OSRS-Content` gitlink was staged at the content worktree's HEAD.
 - **Content conflict (1): `osrs239-content/pack/varp.alloc`.** The raid branch's consume varps collided with v3's 7218-7222. They were renumbered in the scratch merge only:
-  - `varp7218_consume_combo_delay` -> `varp7223_consume_combo_delay`
-  - `varp7219_consume_food_delay` -> `varp7224_consume_food_delay`
-  - `varp7220_consume_potion_delay` -> `varp7225_consume_potion_delay`
+  - `varp7218_consume_combo_delay` -> `varp7898_consume_combo_delay`
+  - `varp7219_consume_food_delay` -> `varp7899_consume_food_delay`
+  - `varp7220_consume_potion_delay` -> `varp7900_consume_potion_delay`
   - The three names appear only in `varp.alloc`, `player/configs/consumption/consume_delay.varp` and `player/scripts/consumption/consume_shared.rs2`; all three were edited.
   - A `var_prefix_names.py` dry run reported only a pre-existing `%action_delay` inside a LostCity quote comment.
   - The pack compiled (`compiled 42321 scripts`, fingerprint 27b80ba6).
@@ -193,7 +193,7 @@ This decides how a "green" should be read:
 ## For the raid orchestrator (reported, not fixed)
 
 - The CONTENT_BUGS "Quest loop impact" entry for deserttreasure lists only Kamil's Magic. The eat-delay port also makes **Damis' true form** lethal: 2/2 deaths under other accounts, and the green run ended at 9/99 OUT. **Unprayed Kamil** is also lethal: 1 death, and 13 sharks eaten in the green run.
-- Varp collision at merge time: the consume delay varps `7218/7219/7220` are already `varp7218_ft_jugs`, `varp7219_ft_fluid_seed` and `varp7220..7222_bv_voy_*` on content v3. They need renumbering, for example to 7223-7225 as above, in `varp.alloc`, `consume_delay.varp` and `consume_shared.rs2`.
+- Varp collision at merge time: the consume delay varps `7218/7219/7220` are already `varp7893_ft_jugs`, `varp7894_ft_fluid_seed` and `varp7220..7222_bv_voy_*` on content v3. They need renumbering, for example to 7223-7225 as above, in `varp.alloc`, `consume_delay.varp` and `consume_shared.rs2`.
 - The parent merge of the raid branch with v3 conflicts in 5 files where both sides landed the same fix. Taking v3's side compiled and ran.
 
 ## Unified diffs
@@ -470,8 +470,8 @@ This decides how a "green" should be read:
 +            .. ", left " .. tostring(sharks_after_damis) .. ", lowest hp " .. tostring(damis_lowest) .. "/99 (margin: sharks left >= 2 or lowest hp > 25)")
 +        protect_melee("killDamis-prayerOff", 0)
          t.ticks(2)
-         t.check("killDamis-stage", select(2, t.var.server("varp5947_dt_shadow_stage")) == 100,
-             "dt_shadow_stage = " .. tostring(select(2, t.var.server("varp5947_dt_shadow_stage"))) .. " a tick after the corpse (was 3 = ring, dt_shadow_complete = 100)")
+         t.check("killDamis-stage", select(2, t.var.server("varp6622_dt_shadow_stage")) == 100,
+             "dt_shadow_stage = " .. tostring(select(2, t.var.server("varp6622_dt_shadow_stage"))) .. " a tick after the corpse (was 3 = ring, dt_shadow_complete = 100)")
 @@ -473,9 +521,14 @@
              return tostring(type(tile) == "table" and (tostring(tile.x) .. "," .. tostring(tile.z)) or tile) .. " level " .. tostring(level)
          end
@@ -602,7 +602,7 @@ This decides how a "green" should be read:
 +        protect_melee("killKamil-prayerOff", 0)
          t.ticks(2)
          t.check("killKamil-stage", select(2, t.var.server("varb382_fd_icewarrior_subquest")) == 3,
-             "fd_icewarrior_subquest = " .. tostring(select(2, t.var.server("varb382_fd_icewarrior_subquest"))) .. " a tick after the corpse (3 = Kamil dead), dt_ice_stage " .. tostring(select(2, t.var.server("varp5943_dt_ice_stage"))))
+             "fd_icewarrior_subquest = " .. tostring(select(2, t.var.server("varb382_fd_icewarrior_subquest"))) .. " a tick after the corpse (3 = Kamil dead), dt_ice_stage " .. tostring(select(2, t.var.server("varp6618_dt_ice_stage"))))
 @@ -713,8 +818,14 @@
          -- The long walk to the blocks drains again; drink only if the cold has taken twenty levels since Kamil.
          if cold_deficit() >= 20 then drink_restores("drinkRestore-breakIce") end

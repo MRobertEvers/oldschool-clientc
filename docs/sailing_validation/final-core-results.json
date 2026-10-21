@@ -38,8 +38,8 @@
     "headless": true,
     "boat": "skiff",
     "binary_sha256": "092d1e5bfc50466e66814f55675c39f6cc1d384ffc9f864a983830893098da04",
-    "script_pack": "/Users/matthewevers/Documents/git_repos/3draster/OSRS-Content/osrs239-content/server/scripts/build/script.dat",
-    "launch_script_pack": "/Users/matthewevers/Documents/git_repos/3draster/OSRS-Content/osrs239-content/server/scripts/build/script.dat",
+    "script_pack": "/Users/matthewevers/Documents/git_repos/3draster/OSRS-Content/osrs-content/server/scripts/build/script.dat",
+    "launch_script_pack": "/Users/matthewevers/Documents/git_repos/3draster/OSRS-Content/osrs-content/server/scripts/build/script.dat",
     "script_sha256": "355e1388465d2eb336fb10894bc67cf88d868f90055ffabb8cc9e7dddb05907c",
     "allow_stale_scripts": false
   }

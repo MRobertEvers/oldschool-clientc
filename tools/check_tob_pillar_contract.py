@@ -43,7 +43,7 @@ from pathlib import Path
 import config_text
 
 ROOT = Path(__file__).resolve().parent.parent
-TOB = ROOT / "OSRS-Content/osrs239-content/server/scripts/minigames/minigame_tob/configs"
+TOB = ROOT / "OSRS-Content/osrs-content/server/scripts/minigames/minigame_tob/configs"
 CACHE_DUMP = ROOT / "docs/minigames/theater_of_blood/sources/cache_npc_nylocas.txt"
 
 # (constant suffix, npc block, cache npc name, cache id)

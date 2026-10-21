@@ -23,7 +23,7 @@ Three sources, and they answer different questions. Do not substitute one for
 another — §4.1 rule 4 is that ids never cross trees, and two of these three are
 id-shaped.
 
-  1. **Cache** (`OSRS-Content/osrs239-content/`) — the authority for *what
+  1. **Cache** (`OSRS-Content/osrs-content/`) — the authority for *what
      exists here*: which objs are weapons, what `category=` they carry, and
      which seq **names** are spellable. 14,413 seq records, all named. If a name
      does not resolve here, the row cannot be written, and that is the whole of
@@ -71,7 +71,7 @@ import config_text
 
 HERE =os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
-TREE = os.path.join(REPO, "OSRS-Content", "osrs239-content")
+TREE = os.path.join(REPO, "OSRS-Content", "osrs-content")
 GITREPOS = os.path.expanduser("~/Documents/git_repos")
 RSMOD = os.path.join(GITREPOS, "rsmod")
 RUNELITE = os.path.join(GITREPOS, "runelite")
@@ -428,7 +428,7 @@ def cmd_sources(src, name):
     record = src.weapons[name]
     print("== %s (%s)" % (r["obj"], r["display"]))
     print()
-    print("1. CACHE  OSRS-Content/osrs239-content/configs/all.obj")
+    print("1. CACHE  OSRS-Content/osrs-content/configs/all.obj")
     print("     category      %s" % r["category"])
     print("     attackrate    %s" % (r["attackrate"] or "<unstated>"))
     print("     wearpos       3")

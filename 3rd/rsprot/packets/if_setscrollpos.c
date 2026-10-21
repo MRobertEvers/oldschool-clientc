@@ -115,7 +115,7 @@ packet_if_setscrollpos_v13_out(RsprotExec *x, MsgIfSetScrollPos *m)
     RSPROT_U2(x, m->scroll_pos);
 }
 
-/* v14 -- revs 236-237. */
+/* v14 -- revs 236-237, 241. */
 void
 packet_if_setscrollpos_v14_out(RsprotExec *x, MsgIfSetScrollPos *m)
 {
@@ -132,10 +132,14 @@ packet_if_setscrollpos_v15_out(RsprotExec *x, MsgIfSetScrollPos *m)
 }
 
 /*
- * 18 row(s) for 15 layout(s), complete over revisions 221-239.
+ * 19 row(s) for 15 layout(s), complete over revisions 221-239.
  * A complete table makes rsprot_version_pick's NULL mean exactly one thing: a
  * revision outside that span. An incomplete one would conflate "not
  * transcribed" with "no such packet", and those are different facts.
+ *
+ * Plus revision(s) 241, which RSProt never vendored: derived from
+ * RSProx's decoders by tools/rsprox_codec_overlay.py. Revisions between 239
+ * and those are not covered and pick NULL.
  */
 const RsprotVersionRange rsprot_if_setscrollpos_out[] = {
     { 221, 221, (RsprotCodecFn)packet_if_setscrollpos_v1_out },
@@ -156,6 +160,7 @@ const RsprotVersionRange rsprot_if_setscrollpos_out[] = {
     { 236, 237, (RsprotCodecFn)packet_if_setscrollpos_v14_out },
     { 238, 238, (RsprotCodecFn)packet_if_setscrollpos_v15_out },
     { 239, 239, (RsprotCodecFn)packet_if_setscrollpos_v10_out },
+    { 241, 241, (RsprotCodecFn)packet_if_setscrollpos_v14_out },
 };
 
 const int rsprot_if_setscrollpos_out_count =

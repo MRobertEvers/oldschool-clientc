@@ -23,8 +23,8 @@
  *       20_101,21_101,16_101,17_100,17_101,18_101,40_89,39_89,39_90,39_91,40_90 \
  *     --inventory build/rs2012_map_inventory.tsv
  *
- *   map_port ... --ledger OSRS-Content/osrs239-content/port/rs2012_qbd_td.map \
- *     --out OSRS-Content/osrs239-content/ported/rs2012_qbd_td --apply
+ *   map_port ... --ledger OSRS-Content/osrs-content/port/rs2012_qbd_td.map \
+ *     --out OSRS-Content/osrs-content/ported/rs2012_qbd_td --apply
  */
 
 #include "asset_access.h"

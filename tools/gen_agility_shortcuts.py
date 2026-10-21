@@ -28,7 +28,7 @@ import re
 import sys
 
 SRC = "docs/skills/agility/sources/Shortcuts.wiki"
-DEST = ("OSRS-Content/osrs239-content/server/scripts/skill_agility/configs/"
+DEST = ("OSRS-Content/osrs-content/server/scripts/skill_agility/configs/"
         "agility_shortcuts.enum")
 
 HEADER = """// Agility shortcuts -- GENERATED, do not hand-edit.

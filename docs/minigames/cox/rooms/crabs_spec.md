@@ -21,7 +21,7 @@ records in `cox.npc`, the `^cox_crab_*` / `^cox_var_crab_crystals` constants in
 | video | V1 | Synq 0:20:40-0:25:34 (crystal pairing, clockwise bounce, "standing two tiles away ... immediately aggro", de-aggro out of range, destroy a wrong orb by recolouring the next crab or running into it, three layouts good/bad/rare, crabs spawn on the template's west side) | `synq_transcript.md:220-236` |
 | video | V2 | The Academy (bounce "to the right of the orb's perspective"; hammer in the inventory smashes), ThePerfectG bad-crabs solve (hammer, re-hammer), Steins;Gate | `sources/transcripts/yt_xnAytiI0Mzo.md`, `yt_Inv2k3a0XdU.md`, `yt_dh3inAB0dDw.md` |
 | ref server | N1 | Near-Reality CrabPuzzleRoom / EnergyFocus / JewelledCrab / JewelledCrabPlugin (tiles, focus heading, orb loop, graphics, 1600 points, smash) | `sources/nr/*.java` (NR commit f577de7d) |
-| cache | C1 | crab 7576 `horror_crab_ready/walk`, op2 Attack op3 Smash, no combat stats; orb 7580 `stoneglow`; small crystals 29758-29762 **blockwalk=1**; big crystal 29753-29757 2x2 blockwalk; spot 1326 `raids_lasercrabs_shattercrystal`, 245 `stunned_thieving`, seq 1313 `horror_crab_defend`, 401 `human_blunt_pound` | `OSRS-Content/osrs239-content/configs/all.{npc,loc,seq,spotanim}` |
+| cache | C1 | crab 7576 `horror_crab_ready/walk`, op2 Attack op3 Smash, no combat stats; orb 7580 `stoneglow`; small crystals 29758-29762 **blockwalk=1**; big crystal 29753-29757 2x2 blockwalk; spot 1326 `raids_lasercrabs_shattercrystal`, 245 `stunned_thieving`, seq 1313 `horror_crab_defend`, 401 `human_blunt_pound` | `OSRS-Content/osrs-content/configs/all.{npc,loc,seq,spotanim}` |
 
 ## The tick spec
 

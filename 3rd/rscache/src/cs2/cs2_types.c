@@ -52,6 +52,7 @@ static const struct cs2_type_info cs2_types[RSCACHE_CS2_TYPE_COUNT] = {
     [RSCACHE_CS2_TYPE_TYPE] = { "type", 0 },
     [RSCACHE_CS2_TYPE_DBROW] = { "dbrow", 0xD0 },
     [RSCACHE_CS2_TYPE_ENUMKEY_D8] = { "enumkey_d8", 0xD8 },
+    [RSCACHE_CS2_TYPE_LONG] = { "long", 0xCF },
 };
 
 const char*
@@ -107,7 +108,25 @@ RSCache_CS2_TypeOfLiteral(const char* literal)
 enum RSCache_CS2_StackType
 RSCache_CS2_TypeStackType(enum RSCache_CS2_Type type)
 {
-    return type == RSCACHE_CS2_TYPE_STRING ? RSCACHE_CS2_STACK_STRING : RSCACHE_CS2_STACK_INT;
+    if( type == RSCACHE_CS2_TYPE_STRING )
+        return RSCACHE_CS2_STACK_STRING;
+    if( type == RSCACHE_CS2_TYPE_LONG )
+        return RSCACHE_CS2_STACK_LONG;
+    return RSCACHE_CS2_STACK_INT;
+}
+
+const char*
+RSCache_CS2_StackTypeLiteral(enum RSCache_CS2_StackType stack_type)
+{
+    switch( stack_type )
+    {
+    case RSCACHE_CS2_STACK_STRING:
+        return "string";
+    case RSCACHE_CS2_STACK_LONG:
+        return "long";
+    default:
+        return "int";
+    }
 }
 
 int
@@ -361,6 +380,7 @@ static struct RSCache_CS2_Prototype cs2_prototypes[RSCACHE_CS2_PROTO_COUNT_] = {
     [RSCACHE_CS2_PROTO_PLAYER_UID] = CS2_PLAIN(PLAYER_UID),
     [RSCACHE_CS2_PROTO_SPOTANIM] = CS2_PLAIN(SPOTANIM),
     [RSCACHE_CS2_PROTO_DBROW] = CS2_PLAIN(DBROW),
+    [RSCACHE_CS2_PROTO_LONG] = CS2_PLAIN(LONG),
 
     [RSCACHE_CS2_PROTO_OPBASE] = CS2_NAMED(STRING, "opbase"),
     [RSCACHE_CS2_PROTO_MOUSEX] = CS2_NAMED(INT, "mousex"),

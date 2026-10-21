@@ -32,7 +32,7 @@ RUNELITE_GAMEVAL = os.path.expanduser(
     "~/Documents/git_repos/runelite/runelite-api/src/main/java/net/runelite/api/gameval"
 )
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONTENT = os.path.join(REPO, "OSRS-Content", "osrs239-content")
+CONTENT = os.path.join(REPO, "OSRS-Content", "osrs-content")
 
 SYM_FILES = {
     "seq": os.path.join(RSMOD, "seq.sym"),

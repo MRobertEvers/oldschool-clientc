@@ -1,7 +1,7 @@
 # Meat and Greet (wiki-pinned brief)
 
 Pinned 2026-10-03 for parity b55. Not a LostCity quest. Quest dir
-`OSRS-Content/osrs239-content/server/scripts/quests/quest_meatandgreet/`, progress
+`OSRS-Content/osrs-content/server/scripts/quests/quest_meatandgreet/`, progress
 var `varb11182_mag` (carrier `varp4399_mag_primary`), complete = 26.
 
 ## Sources (wiki oldids, fetched through api.php)

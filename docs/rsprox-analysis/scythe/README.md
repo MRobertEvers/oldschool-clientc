@@ -110,7 +110,7 @@ Four more ToB and Leagues sessions (1764, 1852 hard mode, 1857, 1875) were trans
 ## Caveats
 
 - **Rotated rooms.** RSProx prints instance coordinates mapped back to the template. In a room built from rotated chunks (CoX's Tekton and Vasa rooms here), the real-world step comes out rotated in print while the copy's name does not. Each such room shows one fixed mismatch, for example north copy on the printed east tile, which is consistent with a chunk rotation. These swings are kept out of the rule tests. The Olm chamber is never rotated, and projectile coordinates confirm that its npc and player frames agree.
-- **Rev 227 transcripts have no names.** RSProx has no symbol names for that revision, so its sequences, graphics and npcs print as ids. Sizes come from `OSRS-Content/osrs239-content/configs/all.npc` by id.
+- **Rev 227 transcripts have no names.** RSProx has no symbol names for that revision, so its sequences, graphics and npcs print as ids. Sizes come from `OSRS-Content/osrs-content/configs/all.npc` by id.
 - **Seasonal worlds.** Leagues and Grid Master relics change speed and damage. Nothing indicates they change the sweep packet: the copy, delay and height agree across both world types and both revisions.
 
 ## Reproducing

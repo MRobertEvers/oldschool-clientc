@@ -524,7 +524,7 @@ function QD.COX.solo_kit_cheats()
     for _, line in ipairs({
         "::setvar varb3888_kr_quest ^kr_complete", "::setvar varb3909_kr_knightwaves_state 8",
         "::setvar varb5451_prayer_rigour_unlocked 1", "::setvar varb5452_prayer_augury_unlocked 1",
-        "::setvar varb5453_prayer_preserve_unlocked 1", "::setvar varp7348_barbarian_vial_smash 1",
+        "::setvar varb5453_prayer_preserve_unlocked 1", "::setvar varp8023_barbarian_vial_smash 1",
     }) do lines[#lines + 1] = line end
     for _, obj in ipairs(K.worn) do
         lines[#lines + 1] = "::give " .. obj .. " 1"
@@ -562,7 +562,7 @@ function QD.COX.kit_cheats(opts)
         "::setvar varb5451_prayer_rigour_unlocked 1",
         "::setvar varb5452_prayer_augury_unlocked 1",
         "::setvar varb5453_prayer_preserve_unlocked 1",
-        "::setvar varp7348_barbarian_vial_smash 1",
+        "::setvar varp8023_barbarian_vial_smash 1",
     }) do lines[#lines + 1] = line end
     for _, obj in ipairs(QD.COX.KIT.worn) do
         lines[#lines + 1] = "::give " .. obj .. " 1"

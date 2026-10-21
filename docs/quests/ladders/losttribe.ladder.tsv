@@ -1,5 +1,5 @@
 # ladder losttribe quest_dir=quest_losttribe guide=src/main/java/com/questhelper/helpers/quests/thelosttribe/TheLostTribe.java steps=28 legs=1:1-28@s0
-#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
 leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
 1	1	0	goUpToF1	ObjectStep<goTalkToSigmundToStart	loc:spiralstairsbottom_3	3205,3208,0	Go up to the first floor of Lumbridge Castle.			Can you show me the way out of the mines?	ladders_stairs/scripts/ladders.rs2:175 oploc1; +2
 1	2	0	goDownFromF2	ObjectStep<goTalkToSigmundToStart	loc:spiralstairstop_3	3205,3208,2	Go downstairs.				ladders_stairs/scripts/ladders.rs2:178 oploc1; +3

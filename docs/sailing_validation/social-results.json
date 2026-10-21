@@ -10,7 +10,7 @@
     "src/torirs": "c7e62cce180aaeb6bc4cd044818b0209ca99edb478f5280c3ebd10d6b79b1d8d",
     "src/build_opt/torirsserver": "a53899eb8ce5d086e36df3653aaccfd2ee93c05f8e767ece05ecc40a94b9c3db",
     "script.dat": "902a6b8d242bba01990b3955100e301c2a0edb6b1f18fc6ca83fd703a880df59",
-    "script_pack": "OSRS-Content/osrs239-content/server/scripts/build/script.dat (30,076 scripts)",
+    "script_pack": "OSRS-Content/osrs-content/server/scripts/build/script.dat (30,076 scripts)",
     "renderer": "soft3d, headless",
     "ocean_fixture": {
       "session": "/tmp/sailing-final-social-ocean",
@@ -118,7 +118,7 @@
         "REVOKE with the panel open: mask 2 -> 0, VesselCanNavigate false, and after 1020 further stepped frames (34 ticks) the caption still read 'Navigator: Deckhand'.",
         "Running the publisher by hand in the captain's own context - harness 'proc sailing_player_names' - did NOT republish either: the caption stayed 'Deckhand' at mask 0."
       ],
-      "mechanism": "OSRS-Content/osrs239-content/server/scripts/sailing/scripts/boat_social.rs2, [proc,sailing_player_names]. The memo guard is on line 6 of the proc ('if (%sailing_social_names_serial = $serial & %sailing_social_names_mask = $mask) return;') and the memo is WRITTEN on lines 7-8, twenty lines AHEAD of the side effect it guards, 'runclientscript*(8777)(1, 1, $captain_name, $navigator_names)' on line 26. Between the write and the publish the proc re-points the active player four times (p_finduid($captain), p_finduid($who) in the name loop, p_finduid($viewer)) and has an early return at line 25. The direct 'proc sailing_player_names' probe returning without publishing, at a (serial, mask) the client demonstrably has not been told about, proves the memo had already been marked spent for that exact state by an earlier pass whose publish never reached this viewer. A memo must be written AFTER the publish it stands for, or a pass that does not publish permanently suppresses every later pass until the serial or mask changes again.",
+      "mechanism": "OSRS-Content/osrs-content/server/scripts/sailing/scripts/boat_social.rs2, [proc,sailing_player_names]. The memo guard is on line 6 of the proc ('if (%sailing_social_names_serial = $serial & %sailing_social_names_mask = $mask) return;') and the memo is WRITTEN on lines 7-8, twenty lines AHEAD of the side effect it guards, 'runclientscript*(8777)(1, 1, $captain_name, $navigator_names)' on line 26. Between the write and the publish the proc re-points the active player four times (p_finduid($captain), p_finduid($who) in the name loop, p_finduid($viewer)) and has an early return at line 25. The direct 'proc sailing_player_names' probe returning without publishing, at a (serial, mask) the client demonstrably has not been told about, proves the memo had already been marked spent for that exact state by an earlier pass whose publish never reached this viewer. A memo must be written AFTER the publish it stands for, or a pass that does not publish permanently suppresses every later pass until the serial or mask changes again.",
       "not_owned_by_this_worker": "boat_social.rs2 is content and belongs to the lifecycle/social content owner (Copernicus's list). No fix was attempted here and no source was edited. Reported for root to assign.",
       "why_it_survived_until_now": "Every prior capture of this caption was taken just after a panel open, which is the one path that publishes."
     }

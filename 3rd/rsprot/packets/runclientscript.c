@@ -81,6 +81,8 @@ packet_runclientscript_v1_out(RsprotExec *x, MsgRunClientScript *m)
 
 const RsprotVersionRange rsprot_runclientscript_out[] = {
     { 221, 239, (RsprotCodecFn)packet_runclientscript_v1_out },
+    /* 241 (RSProx osrs-241, RunClientScriptDecoder): decode body unchanged from 239. */
+    { 241, 241, (RsprotCodecFn)packet_runclientscript_v1_out },
 };
 
 const int rsprot_runclientscript_out_count =

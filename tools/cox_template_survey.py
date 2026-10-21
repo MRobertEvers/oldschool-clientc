@@ -60,7 +60,7 @@ import re
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-CONTENT = os.path.join(HERE, "..", "OSRS-Content", "osrs239-content")
+CONTENT = os.path.join(HERE, "..", "OSRS-Content", "osrs-content")
 
 # The block of map squares that holds the raid, measured with `--sweep` (which
 # reports every square in the cache placing a `raids_*` loc, not just this

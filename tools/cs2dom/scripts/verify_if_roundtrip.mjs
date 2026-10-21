@@ -19,7 +19,7 @@ import { join } from 'node:path';
 import { parseIf, parseCompack, emitCompack } from '../src/if_record.js';
 
 const contentDir = process.argv[2]
-    ?? join(process.cwd(), '..', '..', 'OSRS-Content', 'osrs239-content');
+    ?? join(process.cwd(), '..', '..', 'OSRS-Content', 'osrs-content');
 const interfaces = join(contentDir, 'interfaces');
 
 let files = [];

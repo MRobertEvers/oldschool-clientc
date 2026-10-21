@@ -780,7 +780,7 @@ end
 --
 -- `op` defaults to 2 because Attack is op 2 on the npc records this pack
 -- ships (`op1=Talk-to`, `op2=Attack` on falador_gardener in
--- OSRS-Content/osrs239-content/configs/all.npc), and is an argument because
+-- OSRS-Content/osrs-content/configs/all.npc), and is an argument because
 -- it is not universal -- a pure monster with no Talk-to carries Attack on
 -- op 1.  Whatever the number, the row that gets PRESSED is checked: the
 -- minimenu row text has to start with "Attack", and a click that landed on
@@ -1156,7 +1156,7 @@ QD.COMBAT_EAT_DELAY_TICKS = 3
 -- six ticks (DRIVER_NOTES); the server takes one every three: food.rs2
 -- binds every plain food to `@eat_food(..., ^eat_delay, ^eat_delay)`,
 -- food.constant:29 `^eat_delay = 2`, and consume_shared.rs2:80/:89 refuse
--- a bite while `%varp7224_consume_food_delay >= map_clock` after setting it
+-- a bite while `%varp7899_consume_food_delay >= map_clock` after setting it
 -- to `map_clock + 2` -- the next bite lands on the press tick + 3, the
 -- wiki's "3 tick Eat delay" (Food/Fast foods).  The quick eater presses with
 -- t.player.eat (one click, the next read) and counts the delay from the

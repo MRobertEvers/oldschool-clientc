@@ -130,7 +130,7 @@ Slices 3, 10 and 12 are shardable — many independent items, one file each.
 ```sh
 # slice 3 — N agents, disjoint by construction, verified below
 python3 tools/port_weapon_fx.py --write \
-  OSRS-Content/osrs239-content/server/scripts/skill_combat/configs/bas/attack_anims_modern_<i>.obj \
+  OSRS-Content/osrs-content/server/scripts/skill_combat/configs/bas/attack_anims_modern_<i>.obj \
   --shard <i>/<n>
 ```
 
@@ -191,7 +191,7 @@ overlays must keep working with no edit.
 
 **Steps.**
 
-1. Read `OSRS-Content/osrs239-content/fields/param.ini` and find out whether a
+1. Read `OSRS-Content/osrs-content/fields/param.ini` and find out whether a
    `synth` param type exists. If it does, use it; if not, use `type=int` and
    write one comment line saying which and why. Do not invent a type.
 2. In `skill_combat/configs/combat.param`, add nine blocks, copying the comment
@@ -216,7 +216,7 @@ overlays must keep working with no edit.
    (unarmed has no obj to hang a param on), not a patch over a wrong key.
 6. **Correct `combat.param:116`** while you are in the file: it says the general
    `attack_anim` is "the cache's own `attack_anim` (param 2635)". Measured,
-   `grep -c "param_2635" OSRS-Content/osrs239-content/configs/all.obj` is **0**,
+   `grep -c "param_2635" OSRS-Content/osrs-content/configs/all.obj` is **0**,
    and no obj param of any number in this cache carries an animation. Rewrite
    the sentence to say it is server-allocated like the rest.
 
@@ -275,7 +275,7 @@ and reports 0 problems.
 
 ```sh
 cd /Users/matthewevers/Documents/git_repos/3draster
-OUT=OSRS-Content/osrs239-content/server/scripts/skill_combat/configs/bas
+OUT=OSRS-Content/osrs-content/server/scripts/skill_combat/configs/bas
 python3 tools/port_weapon_fx.py --write $OUT/attack_anims_modern.obj      # 667 records
 # or, sharded across n agents:
 python3 tools/port_weapon_fx.py --write $OUT/attack_anims_modern_<i>.obj --shard <i>/<n>
@@ -509,7 +509,7 @@ Needs slices 1 and 7.
    file names itself in its own header:
 
    ```sh
-   grep -rn "drop sound_synth\|sound_synth dropped" OSRS-Content/osrs239-content/server/scripts/
+   grep -rn "drop sound_synth\|sound_synth dropped" OSRS-Content/osrs-content/server/scripts/
    ```
 
    Upstream, `[proc,combat_swing_anim_and_synth]`

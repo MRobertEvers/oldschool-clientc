@@ -33,7 +33,7 @@ Each step shows:
 - the instruction text (cut at 160 characters), `subs` (the `addSubSteps` children folded into the
   step), `items` (its item requirements by display name), `dialog` (the `addDialogSteps` options).
 - `trig` -- the content trigger for the target, `path.rs2:line trigger`, relative to
-  `OSRS-Content/osrs239-content/server/scripts/`. The quest's own directory comes first, then
+  `OSRS-Content/osrs-content/server/scripts/`. The quest's own directory comes first, then
   shared scripts (an npc's area file, `ladders_stairs`), another quest's last; op1 before other ops;
   `+N` says how many more there are. This is the grep you no longer run.
 

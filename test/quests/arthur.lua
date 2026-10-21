@@ -109,7 +109,7 @@ return {
         end
 
         local function excalibur_bits()
-            local vr, vv = t.var.server("varp5761_excalibur_components_progress")
+            local vr, vv = t.var.server("varp6436_excalibur_components_progress")
             return vr == "ok" and type(vv) == "number", vv
         end
 
@@ -379,15 +379,15 @@ return {
         do local r, d = t.shop.close(); t.check("arhein-shop-close", r == "ok", tostring(r) .. ": " .. tostring(d)) end
 
         -- optionalUseRepellent: Use the repellent on a hive (bees.rs2 [label,pour_repellent_bees]
-        -- sets %varp5759_beehive_free and keeps the repellent), then Use the bucket for the wax
+        -- sets %varp6434_beehive_free and keeps the repellent), then Use the bucket for the wax
         t.exec("goto-optionalUseRepellent", t.player.goto_tile, 2758, 3439, 0)
         do
             local hive = t.player.by_symbol("loc", "merlin_beehive")
             t.exec("optionalUseRepellent", t.player.use_on, "insect_repellent", hive)
             dialog("hive.repel", {})
             do
-                local vr, vv = t.var.server("varp5759_beehive_free")
-                t.check("hive.bees_left", vr == "ok" and vv == 1, "varp5759_beehive_free " .. tostring(vr) .. " " .. tostring(vv) .. " (want 1 after the repellent)")
+                local vr, vv = t.var.server("varp6434_beehive_free")
+                t.check("hive.bees_left", vr == "ok" and vv == 1, "varp6434_beehive_free " .. tostring(vr) .. " " .. tostring(vv) .. " (want 1 after the repellent)")
             end
             t.exec("hive-bucket", t.player.use_on, "bucket_empty", hive)
             dialog("hive.wax", {})

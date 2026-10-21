@@ -48,7 +48,7 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_TREE = REPO_ROOT / "OSRS-Content" / "osrs239-content"
+DEFAULT_TREE = REPO_ROOT / "OSRS-Content" / "osrs-content"
 
 # Both stagers require the same layout: the lane at `ported/<name>`, and its
 # binary payloads at `<asset root>/ported/<name>`.  This is the union of the two

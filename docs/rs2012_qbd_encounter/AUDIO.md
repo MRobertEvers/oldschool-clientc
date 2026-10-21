@@ -9,7 +9,7 @@ port ledger.
 Every source id below was read out of `cache.rs727_preeoc` for this audit —
 sequences from index 20 (128 records per group), locs from index 16, npcs from
 index 18, samples from index 14, synths from index 4. Destination ids come from
-`OSRS-Content/osrs239-content/port/rs2012_qbd_td.map`.
+`OSRS-Content/osrs-content/port/rs2012_qbd_td.map`.
 
 The encounter's audio has four independent layers, and they fail independently:
 

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Generate the STASH-unit loc categories.
 
-Reads   OSRS-Content/osrs239-content/configs/all.loc
-Writes  OSRS-Content/osrs239-content/server/scripts/trail/configs/trail_stash.loc
+Reads   OSRS-Content/osrs-content/configs/all.loc
+Writes  OSRS-Content/osrs-content/server/scripts/trail/configs/trail_stash.loc
 
 The hidey-hole locs carry `op1=Build` / `op2=Search` and no category, so a
 handler would have to bind 44 names twice over. They divide by their own naming
@@ -26,7 +26,7 @@ import sys
 import config_text
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONTENT = os.path.join(ROOT, "OSRS-Content", "osrs239-content")
+CONTENT = os.path.join(ROOT, "OSRS-Content", "osrs-content")
 OUT = os.path.join(
     CONTENT, "server", "scripts", "trail", "configs", "trail_stash.loc"
 )

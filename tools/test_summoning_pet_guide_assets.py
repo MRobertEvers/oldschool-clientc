@@ -12,7 +12,7 @@ import config_text
 
 
 REPO =Path(__file__).resolve().parents[1]
-DEFAULT_TREE = REPO / "OSRS-Content/osrs239-content"
+DEFAULT_TREE = REPO / "OSRS-Content/osrs-content"
 DEFAULT_MANIFEST = REPO / "docs/summoning_port/pet_guide_assets_727.ini"
 LANE = Path("ported/scape2009_summoning")
 PREFIX = "summoning_guide_pet_"

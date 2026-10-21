@@ -410,7 +410,7 @@ main(int argc, char** argv)
 {
     const char* build_dir = argc > 1 ? argv[1] : "build";
     const char* content_dir =
-        argc > 2 ? argv[2] : "../OSRS-Content/osrs239-content";
+        argc > 2 ? argv[2] : "../OSRS-Content/osrs-content";
 
     test_fixture(build_dir);
     test_markers(build_dir);

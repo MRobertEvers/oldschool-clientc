@@ -19,7 +19,7 @@ comments they are written into:
 
   group   mutual-exclusion sets, from Void_RS2011Server's prayers.toml.
 
-Writes under OSRS-Content/osrs239-content/server/scripts/ported_rs558_ancient_curses:
+Writes under OSRS-Content/osrs-content/server/scripts/ported_rs558_ancient_curses:
   configs/curses.constant  ^curse_* indices, ^curse_count, group ids
   configs/curses.dbtable   the table
   configs/curses.dbrow     20 rows
@@ -35,7 +35,7 @@ import config_text  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 BOOK = ROOT / "docs/rs558_ancient_curses/tables/curses_book.csv"
-LANE = ROOT / "OSRS-Content/osrs239-content/server/scripts/ported_rs558_ancient_curses"
+LANE = ROOT / "OSRS-Content/osrs-content/server/scripts/ported_rs558_ancient_curses"
 
 # drain = 3.6 / wiki-seconds-per-point (ANCIENT_CURSES.md §6.1)
 #

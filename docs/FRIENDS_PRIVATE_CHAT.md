@@ -82,10 +82,10 @@ Everything in this section was produced by
 
 ```
 ./3rd/rscache/tools/cs2/cs2 decompile --rev osrs239 --cache cache.osrs239 \
-    --names OSRS-Content/osrs239-content/pack --out <scratch> 123 125 126 127 129 681 926 89
+    --names OSRS-Content/osrs-content/pack --out <scratch> 123 125 126 127 129 681 926 89
 ```
 
-and by reading `OSRS-Content/osrs239-content/interfaces/{friends,ignore}.{if,compack}`
+and by reading `OSRS-Content/osrs-content/interfaces/{friends,ignore}.{if,compack}`
 and `pack/3_interfaces.pack`. Ids are resolved through the pack, never copied.
 
 ### 1.1 Interfaces and mounts
@@ -1595,8 +1595,8 @@ private mode a second way and repaints off it.
 | fact | where |
 |---|---|
 | varbit **13674** = `chat_filter_private`, bits **13..15** of varp **1054** `chat_filter_clan` | `cachepack unpack --types varbit,varp` of `cache.osrs239` |
-| proc **113** `torirs_chatbox_layout` line 86: `if (chat_getfilter_private ! %varbit13674) { ~chat_set_filter_184(3, %varbit13674); }` then `~redraw_chat_buttons` | `OSRS-Content/osrs239-content/scripts/torirs_chatbox_layout.cs2` |
-| that proc is interface_162:0's `if_setonvartransmit` hook, and **`var1054` is first in its list** | `OSRS-Content/osrs239-content/scripts/chatbox_init.cs2:5` |
+| proc **113** `torirs_chatbox_layout` line 86: `if (chat_getfilter_private ! %varbit13674) { ~chat_set_filter_184(3, %varbit13674); }` then `~redraw_chat_buttons` | `OSRS-Content/osrs-content/scripts/torirs_chatbox_layout.cs2` |
+| that proc is interface_162:0's `if_setonvartransmit` hook, and **`var1054` is first in its list** | `OSRS-Content/osrs-content/scripts/chatbox_init.cs2:5` |
 
 So the varbit write **is** the repaint trigger: the varp transmit wakes the
 hook, the hook re-reads the varbit, applies it through `chat_setfilter` (which
@@ -1621,7 +1621,7 @@ has not declared, so **varp 1054 must be declared `transmit=yes`** or the write
 never leaves the server and proc 113 keeps reading 0:
 
 ```ini
-; OSRS-Content/osrs239-content/server/scripts/**/chat_filter.varp
+; OSRS-Content/osrs-content/server/scripts/**/chat_filter.varp
 [chat_filter_clan]
 protect=no
 transmit=yes

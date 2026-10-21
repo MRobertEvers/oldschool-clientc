@@ -1,9 +1,9 @@
 -- Sea Slug (1 QP). Content:
--- OSRS-Content/osrs239-content/server/scripts/quests/quest_seaslug/
--- OSRS-Content/osrs239-content/server/scripts/areas/ardougne_east/scripts/caroline.rs2
--- OSRS-Content/osrs239-content/server/scripts/areas/area_fishing_platform/scripts/
+-- OSRS-Content/osrs-content/server/scripts/quests/quest_seaslug/
+-- OSRS-Content/osrs-content/server/scripts/areas/ardougne_east/scripts/caroline.rs2
+-- OSRS-Content/osrs-content/server/scripts/areas/area_fishing_platform/scripts/
 --     holgart.rs2, kennith.rs2, kent.rs2, bailey.rs2
--- OSRS-Content/osrs239-content/server/scripts/skill_cooking/scripts/dough.rs2
+-- OSRS-Content/osrs-content/server/scripts/skill_cooking/scripts/dough.rs2
 --
 -- RETRY after b44ce7a2d (queue.py show seaslug): both prior blockers are
 -- gone. The cook fix (033d83f61f) added skill_cooking/configs/

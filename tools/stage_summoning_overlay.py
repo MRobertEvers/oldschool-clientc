@@ -28,7 +28,7 @@ import config_text
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_TREE = REPO_ROOT / "OSRS-Content" / "osrs239-content"
+DEFAULT_TREE = REPO_ROOT / "OSRS-Content" / "osrs-content"
 DEFAULT_BOUNDARY = REPO_ROOT / "docs" / "summoning_port" / "roster_boundary_530.json"
 LANE = Path("ported") / "scape2009_summoning"
 # `ported/<lane>/lane.ini` is the lane descriptor the ServerScript compiler reads

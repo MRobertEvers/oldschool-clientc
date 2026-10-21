@@ -25,7 +25,7 @@ import re
 import sys
 
 SRC = "docs/bosses/wiki/Corpbane_weapons.wiki"
-DEST = ("OSRS-Content/osrs239-content/server/scripts/bosses/boss_corp/configs/"
+DEST = ("OSRS-Content/osrs-content/server/scripts/bosses/boss_corp/configs/"
         "corpbane.generated.enum")
 
 HEADER = """// Corpbane weapons -- GENERATED, do not hand-edit.

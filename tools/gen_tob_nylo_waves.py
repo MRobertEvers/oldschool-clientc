@@ -49,7 +49,7 @@ import config_text  # noqa: E402
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(REPO, "docs", "minigames", "theater_of_blood", "sources",
                    "blert_nylocas-waves.json")
-OUT_DIR = os.path.join(REPO, "OSRS-Content", "osrs239-content", "server", "scripts",
+OUT_DIR = os.path.join(REPO, "OSRS-Content", "osrs-content", "server", "scripts",
                        "minigames", "minigame_tob", "configs")
 TABLE_OUT = os.path.join(OUT_DIR, "tob_nylo.dbtable")
 ROW_OUT = os.path.join(OUT_DIR, "tob_nylo.dbrow")

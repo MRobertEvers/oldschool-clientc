@@ -15,7 +15,7 @@ fixture under its own rules.
   unless the raid suite needs a different state, and then give that state its
   own file.
 - `tob_normal_done.ini` -- `fresh_lumbridge.ini` plus one Theatre of Blood
-  completion (`6826 = 1`, `varp6826_tob_completions`, scope=perm), so every
+  completion (`6826 = 1`, `varp7501_tob_completions`, scope=perm), so every
   raider of a Hard party test passes the door's "You must complete the Theatre
   of Blood once before attempting Hard Mode." check (raid seam19).
 

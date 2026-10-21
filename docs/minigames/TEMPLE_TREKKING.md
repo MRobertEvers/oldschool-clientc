@@ -26,7 +26,7 @@
 > [Darkness of Hallowvale](https://oldschool.runescape.wiki/w/Darkness_of_Hallowvale)
 >
 > Every id, coord, varbit bit range and map square below was **measured from
-> this tree** (`OSRS-Content/osrs239-content/configs/*.compack`,
+> this tree** (`OSRS-Content/osrs-content/configs/*.compack`,
 > `maps/*.jl2`, `configs/all.varbit`, `MULTI_NPCS.md`). Rows marked
 > *(to measure)* have not been. Re-measure rather than trusting this prose —
 > the same rule the [Gauntlet plan](../GAUNTLET.md) states.
@@ -44,7 +44,7 @@ minigames: 8 map squares of event terrain, 140 NPC records, 78 loc records,
 plan. Almost none of it is referenced by server content today.
 
 ```
-grep -rn "templetrek\|ttrek\|ramble_" OSRS-Content/osrs239-content/server/scripts/
+grep -rn "templetrek\|ttrek\|ramble_" OSRS-Content/osrs-content/server/scripts/
 ```
 
 Two real hits, and **both are trigger hazards, not head starts**:
@@ -331,7 +331,7 @@ variants of the same room grid — each square packs ~6 rooms on a coarse 16-til
 lattice. Full marker dump:
 
 ```sh
-cd OSRS-Content/osrs239-content && python3 - <<'EOF'
+cd OSRS-Content/osrs-content && python3 - <<'EOF'
 import re,os
 NAMES={13831:'evade',13832:'success',13833:'fail',13869:'evade_br',13870:'success_br',
        13871:'fail_br',13866:'cont1',13867:'cont2',13868:'burgh_return',13873:'dangersign',
@@ -470,7 +470,7 @@ shade minigame next door uses `game_mortton/` — match the newer
 `minigame_` prefix.
 
 ```
-OSRS-Content/osrs239-content/server/scripts/minigames/minigame_templetrek/
+OSRS-Content/osrs-content/server/scripts/minigames/minigame_templetrek/
   configs/
     templetrek.constant        # route ids, event ids, point values, coords
     templetrek.varp            # only if a server-side varp is genuinely needed
@@ -600,7 +600,7 @@ Names must be globally unique — the compiler rejects duplicates, and
 ## 12. As built (2026-08-17)
 
 Content lives in
-`OSRS-Content/osrs239-content/server/scripts/minigames/minigame_templetrek/`.
+`OSRS-Content/osrs-content/server/scripts/minigames/minigame_templetrek/`.
 The whole tree compiles with it in place, and `::trekrun` asserts its
 deterministic contracts from inside `ToriRSServer --selftest`.
 

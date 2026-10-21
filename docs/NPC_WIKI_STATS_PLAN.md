@@ -267,7 +267,7 @@ Rules the crawler follows:
 - The crawl output is a *corpus*, not a decision. Nothing under
   `server/scripts` is written by the fetch step.
 
-Storage: `OSRS-Content/osrs239-content/wiki/monsters/<page>.wikitext` plus a
+Storage: `OSRS-Content/osrs-content/wiki/monsters/<page>.wikitext` plus a
 `manifest.tsv` of page → revid → fetch date. ~4 MB of text; it belongs in the
 tree for the same reason `npc_combat/` does — a decision nobody can re-derive
 offline is a decision nobody can review.
@@ -281,7 +281,7 @@ that file's header states (cachepack's 1,024-source ceiling; a block is not free
 because `npc_default.npc` overlays it; the ledger holds what a config cannot
 express).
 
-**Layer 1 — the ledger.** `OSRS-Content/osrs239-content/npc_stats/<shard>/<gameval>.stats`,
+**Layer 1 — the ledger.** `OSRS-Content/osrs-content/npc_stats/<shard>/<gameval>.stats`,
 one file per attackable spawned npc, written by `tools/gen_npc_stats.py`:
 
 ```
@@ -395,7 +395,7 @@ The `--validate` mode measures all of this and writes nothing, the same contract
 ## 7. Order of work
 
 1. **`tools/wiki_fetch.py`** — the category crawl of §3 into
-   `OSRS-Content/osrs239-content/wiki/monsters/`, with the manifest. Idempotent,
+   `OSRS-Content/osrs-content/wiki/monsters/`, with the manifest. Idempotent,
    rate-limited, resumable. No content is written.
 2. **`tools/wiki_infobox.py`** — wikitext → per-version dict, including the
    `idN` lists. Templates nest and fields carry wiki markup (`[[Crush]]`,

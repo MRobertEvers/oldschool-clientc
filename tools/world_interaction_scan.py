@@ -30,7 +30,7 @@ import config_text
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.environ.get(
     "TORIRSSERVER_CONTENT_DIR",
-    os.path.join(os.path.dirname(HERE), "OSRS-Content", "osrs239-content"))
+    os.path.join(os.path.dirname(HERE), "OSRS-Content", "osrs-content"))
 CFG = os.path.join(ROOT, "configs")
 SCRIPTS = os.path.join(ROOT, "server", "scripts")
 

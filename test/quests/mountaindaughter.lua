@@ -1,5 +1,5 @@
 -- Mountain Daughter, driven end to end against
--- OSRS-Content/osrs239-content/server/scripts/quests/quest_mountaindaughter/.
+-- OSRS-Content/osrs-content/server/scripts/quests/quest_mountaindaughter/.
 -- docs/quests/mountain_daughter.md is the pinned brief (wiki oldids + the
 -- port's own breakpoint derivation); this file follows its stage table.
 --

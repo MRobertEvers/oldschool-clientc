@@ -874,7 +874,7 @@ main(void)
     const char* content_dir;
 
     cache_dir = resolve_dir(TORIRSSERVER_CACHE_DIR_DEFAULT, cache_scratch, sizeof(cache_scratch));
-    content_dir = resolve_dir("OSRS-Content/osrs239-content", content_scratch,
+    content_dir = resolve_dir("OSRS-Content/osrs-content", content_scratch,
                               sizeof(content_scratch));
 
     printf("param tables (%s)\n", cache_dir);

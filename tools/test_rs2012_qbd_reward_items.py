@@ -10,7 +10,7 @@ import config_text
 
 
 ROOT = Path(__file__).resolve().parents[1]
-CONTENT = ROOT / "OSRS-Content" / "osrs239-content"
+CONTENT = ROOT / "OSRS-Content" / "osrs-content"
 
 
 def read(relative: str) -> str:

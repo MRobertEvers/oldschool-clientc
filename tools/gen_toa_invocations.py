@@ -39,7 +39,7 @@ import sys
 import config_text
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-CONTENT = ROOT / "OSRS-Content/osrs239-content"
+CONTENT = ROOT / "OSRS-Content/osrs-content"
 OUT = CONTENT / "server/scripts/minigames/minigame_toa/configs"
 
 STRUCT_INDEX = "param_1159"

@@ -64,7 +64,7 @@ def main() -> int:
     parser.add_argument(
         "--scripts",
         type=Path,
-        default=REPO / "OSRS-Content/osrs239-content/server/scripts/build_summoning",
+        default=REPO / "OSRS-Content/osrs-content/server/scripts/build_summoning",
     )
     parser.add_argument("--manifest", type=Path, default=REPO / "manifests/manifest_osrs239.ini")
     parser.add_argument("--out", type=Path, default=REPO / "build/use-selection-clear")

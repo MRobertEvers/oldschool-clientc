@@ -69,6 +69,7 @@ void packet_update_friendlist_v1_out(RsprotExec *x, MsgUpdateFriendList *m);
 #define packet_update_friendlist_rev221_out packet_update_friendlist_v1_out
 #define packet_update_friendlist_rev230_out packet_update_friendlist_v1_out
 #define packet_update_friendlist_rev239_out packet_update_friendlist_v1_out
+#define packet_update_friendlist_rev241_out packet_update_friendlist_v1_out
 
 extern const RsprotVersionRange rsprot_update_friendlist_out[];
 extern const int rsprot_update_friendlist_out_count;

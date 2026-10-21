@@ -11,10 +11,13 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : AnimSpecificEncoder
- * Layouts      : 15 distinct, over 18 contiguous revision run(s)
+ * Layouts      : 15 distinct, over 19 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^AnimSpecificEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
+ *                Revision(s) 241 come from RSProx, not RSProt
+ *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
+ *                gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -45,7 +48,7 @@ void packet_anim_specific_v5_out(RsprotExec *x, MsgAnimSpecific *m);
 void packet_anim_specific_v6_out(RsprotExec *x, MsgAnimSpecific *m);
 /* v7 -- revs 227. */
 void packet_anim_specific_v7_out(RsprotExec *x, MsgAnimSpecific *m);
-/* v8 -- revs 228. */
+/* v8 -- revs 228, 241. */
 void packet_anim_specific_v8_out(RsprotExec *x, MsgAnimSpecific *m);
 /* v9 -- revs 229, 237. */
 void packet_anim_specific_v9_out(RsprotExec *x, MsgAnimSpecific *m);
@@ -83,6 +86,7 @@ void packet_anim_specific_v15_out(RsprotExec *x, MsgAnimSpecific *m);
 #define packet_anim_specific_rev237_out packet_anim_specific_v9_out
 #define packet_anim_specific_rev238_out packet_anim_specific_v15_out
 #define packet_anim_specific_rev239_out packet_anim_specific_v1_out
+#define packet_anim_specific_rev241_out packet_anim_specific_v8_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_anim_specific_out[];

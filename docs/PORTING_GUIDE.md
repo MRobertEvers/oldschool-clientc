@@ -30,7 +30,7 @@ Four repositories:
 | repo | what it is |
 |---|---|
 | this repo (`3draster`) | the client, the server (`src/torirsserver/`, "ToriRSServer" — a misnomer, it is *the* server), ServerScript (`src/serverscript/`), cachepack (`3rd/rscache/tools/cachepack/`) |
-| `OSRS-Content/osrs239-content` (submodule) | **the content tree** — the destination for all ported content |
+| `OSRS-Content/osrs-content` (submodule) | **the content tree** — the destination for all ported content |
 | `/Users/matthewevers/Documents/git_repos/LostCity_Server` | **the primary content reference.** `engine/` = Engine-TS (branch `254_zuk`), `content/` = the content tree (branch `254_inferno`). Rev **254** (Sept 2004), not 225 — the `_unpack/225` dir is decompiled reference data, not the tree itself |
 | `/Users/matthewevers/Documents/git_repos/2009scape` | **authentic mid-era (~Jan 2009 / rev 530) behaviour reference** (Java/Kotlin). Prefer over Kronos for anything that existed by 2009 (farming, hunter, construction, slayer, Pest Control, Barrows, mid-era quests). Never copy rev-530 ids; skip bots/holiday/RS2-only. **Summoning is no longer skipped** — it is a flagged port with its own queue: [`SUMMONING_PORT_QUEUE.md`](SUMMONING_PORT_QUEUE.md). Queue: [`SCAPE2009_CONTENT_PORT_QUEUE.md`](SCAPE2009_CONTENT_PORT_QUEUE.md) |
 | `/Users/matthewevers/Documents/git_repos/Kronos184-Fixed_2` | **modern / post-2009 OSRS behaviour reference** (Java). Use when LostCity *and* 2009scape have no proc (Wintertodt, Motherlode, rooftops, Zulrah, …). Never copy rev-184 ids; skip custom private-server packs. Queue: [`KRONOS_CONTENT_PORT_QUEUE.md`](KRONOS_CONTENT_PORT_QUEUE.md). Wire/UI role still per [`UI_ERA_PORTING_GUIDE.md`](UI_ERA_PORTING_GUIDE.md) |
@@ -49,7 +49,7 @@ The pipeline, end to end:
 cache.osrs239 (pristine, frozen, archived)
       │ cachepack unpack --assets            (one-time baseline; re-runs are merges)
       ▼
-OSRS-Content/osrs239-content/                ← source of truth for what it states
+OSRS-Content/osrs-content/                ← source of truth for what it states
   content.ini      the three-axis namespace register (§3.1)
   fields/*.ini     per-type field register: client vs server scope (§3.1)
   pack/*.pack      id ↔ name, one file per namespace
@@ -460,7 +460,7 @@ Ask in this order:
 
 ### 3.3 Recipe — new field on an existing type
 
-1. Declare it in `OSRS-Content/osrs239-content/fields/<type>.ini` with the
+1. Declare it in `OSRS-Content/osrs-content/fields/<type>.ini` with the
    dispositions above (`ref = <ns>` if the value is symbolic).
 2. Author it in a rank-1 config overlay under `server/scripts/**/configs/`.
 3. `cachepack pack` — watch the per-field counts it reports; `client = error`

@@ -1,6 +1,6 @@
 # NPC drop tables — todo
 
-Full detail lives in `OSRS-Content/osrs239-content/wiki/npc_droptable_status.csv`
+Full detail lives in `OSRS-Content/osrs-content/wiki/npc_droptable_status.csv`
 (one row per roster npc: `id, gameval, display_name, combat_level, size,
 category_id, category_name, status, wiki_group, join_state, wiki_title`). This
 file is a prioritized reading of it. See `docs/NPC_WIKI_DROPTABLES_PLAN.md` for

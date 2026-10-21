@@ -11,10 +11,13 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : MembershipPromotionEligibilityDecoder
- * Layouts      : 1 distinct, over 1 contiguous revision run(s)
+ * Layouts      : 1 distinct, over 2 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^MembershipPromotionEligibilityDecoder\tin\t' 3rd/rsprot/gen/packet_versions.txt
+ *                Revision(s) 241 come from RSProx, not RSProt
+ *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
+ *                gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -31,7 +34,7 @@ typedef struct MsgMembershipPromotionEligibility {
 	int32_t eligible_for_trial_purchase;
 } MsgMembershipPromotionEligibility;
 
-/* v1 -- revs 221-239. */
+/* v1 -- revs 221-239, 241. */
 void packet_membership_promotion_eligibility_v1_in(RsprotExec *x, MsgMembershipPromotionEligibility *m);
 
 /* Per-revision aliases: `packet_membership_promotion_eligibility_rev239_in` is greppable, which is the
@@ -55,6 +58,7 @@ void packet_membership_promotion_eligibility_v1_in(RsprotExec *x, MsgMembershipP
 #define packet_membership_promotion_eligibility_rev237_in packet_membership_promotion_eligibility_v1_in
 #define packet_membership_promotion_eligibility_rev238_in packet_membership_promotion_eligibility_v1_in
 #define packet_membership_promotion_eligibility_rev239_in packet_membership_promotion_eligibility_v1_in
+#define packet_membership_promotion_eligibility_rev241_in packet_membership_promotion_eligibility_v1_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_membership_promotion_eligibility_in[];

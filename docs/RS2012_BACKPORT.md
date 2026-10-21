@@ -11,7 +11,7 @@ below is a property the source content was allowed to have because the source
 renderer could absorb it.
 
 Related: [`docs/qbd_toridraw_streaks_debug.md`](docs/qbd_toridraw_streaks_debug.md)
-(the debug log this came out of), [`OSRS-Content/osrs239-content/ported/rs2012_qbd_td/PROVENANCE.md`](OSRS-Content/osrs239-content/ported/rs2012_qbd_td/PROVENANCE.md)
+(the debug log this came out of), [`OSRS-Content/osrs-content/ported/rs2012_qbd_td/PROVENANCE.md`](OSRS-Content/osrs-content/ported/rs2012_qbd_td/PROVENANCE.md)
 (what the import closure contains).
 
 ---
@@ -395,7 +395,7 @@ Models, sprites and textures are assets, not configs. A change to them reaches
 a client only through:
 
 ```sh
-python tools/stage_rs2012_overlay.py --tree OSRS-Content/osrs239-content --out build/rs2012-overlay
+python tools/stage_rs2012_overlay.py --tree OSRS-Content/osrs-content --out build/rs2012-overlay
 3rd/rscache/tools/cachepack/cachepack.exe pack --src build/rs2012-overlay \
   --base cache.osrs239 --out cache.osrs239.rs2012 --rev osrs239 --assets --binary --gamevals
 ```

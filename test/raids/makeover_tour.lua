@@ -14,7 +14,7 @@
 --
 -- The appearance itself has no reader here; what the makeover wrote is read
 -- back from the character-design panel's varps it keeps in step
--- (varp7131_design_kit_hair & co., player/configs/player_design.varp).
+-- (varp7806_design_kit_hair & co., player/configs/player_design.varp).
 --
 --   TORIRS_STDERR_UNBUFFERED=1 ./src/build_<you>_opt/torirsserver --scriptrun \
 --       test/raids/makeover_tour.lua --bots 1 --name mk --ticks 20000 \

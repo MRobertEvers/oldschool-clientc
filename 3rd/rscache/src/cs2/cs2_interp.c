@@ -30,7 +30,8 @@ RSCache_CS2_ScriptReturnTypes(
     {
         int opcode = script->opcodes[i];
         if( opcode == RSCACHE_CS2_OP_PUSH_CONSTANT_INT ||
-            opcode == RSCACHE_CS2_OP_PUSH_CONSTANT_STRING )
+            opcode == RSCACHE_CS2_OP_PUSH_CONSTANT_STRING ||
+            opcode == RSCACHE_CS2_OP_PUSH_CONSTANT_LONG )
         {
             count++;
             first = i;
@@ -49,11 +50,14 @@ RSCache_CS2_ScriptReturnTypes(
     {
         int opcode = script->opcodes[i];
         if( opcode == RSCACHE_CS2_OP_PUSH_CONSTANT_INT ||
-            opcode == RSCACHE_CS2_OP_PUSH_CONSTANT_STRING )
+            opcode == RSCACHE_CS2_OP_PUSH_CONSTANT_STRING ||
+            opcode == RSCACHE_CS2_OP_PUSH_CONSTANT_LONG )
         {
             out[written++] = opcode == RSCACHE_CS2_OP_PUSH_CONSTANT_STRING
                                  ? RSCACHE_CS2_STACK_STRING
-                                 : RSCACHE_CS2_STACK_INT;
+                                 : (opcode == RSCACHE_CS2_OP_PUSH_CONSTANT_LONG
+                                        ? RSCACHE_CS2_STACK_LONG
+                                        : RSCACHE_CS2_STACK_INT);
             continue;
         }
         const struct RSCache_CS2_CommandInfo* info = RSCache_CS2_CommandGet(opcode);
@@ -173,6 +177,10 @@ cs2_is_simple_push(int opcode)
     case RSCACHE_CS2_OP_PUSH_VARC_STRING:
     case RSCACHE_CS2_OP_PUSH_VARCLANSETTING:
     case RSCACHE_CS2_OP_PUSH_VARCLAN:
+    case RSCACHE_CS2_OP_PUSH_CONSTANT_LONG:
+    case RSCACHE_CS2_OP_PUSH_VARC_LONG:
+    case RSCACHE_CS2_OP_PUSH_VAR_LONG:
+    case RSCACHE_CS2_OP_PUSH_LONG_LOCAL:
         return true;
     default:
         return false;
@@ -202,7 +210,9 @@ cs2_push(
 {
     enum RSCache_CS2_VarKind kind = stack_type == RSCACHE_CS2_STACK_INT
                                         ? RSCACHE_CS2_VAR_STACKINT
-                                        : RSCACHE_CS2_VAR_STACKSTRING;
+                                        : (stack_type == RSCACHE_CS2_STACK_LONG
+                                               ? RSCACHE_CS2_VAR_STACKLONG
+                                               : RSCACHE_CS2_VAR_STACKSTRING);
     struct RSCache_CS2_Variable* variable =
         RSCache_CS2_VarIntern(interp->fs, kind, interp->script_id, interp->stack_counter++);
     struct RSCache_CS2_Expr* access = RSCache_CS2_ExprAccess(cs2_arena(interp), variable, value);
@@ -243,7 +253,7 @@ cs2_pop(struct cs2_interp* interp, enum RSCache_CS2_StackType stack_type)
             interp->script_id,
             interp->pc,
             cs2_opcode(interp),
-            stack_type == RSCACHE_CS2_STACK_INT ? "int" : "string");
+            RSCache_CS2_StackTypeLiteral(stack_type));
     return top;
 }
 
@@ -377,8 +387,8 @@ cs2_assign_element_to_proto(
             interp->script_id,
             interp->pc,
             cs2_opcode(interp),
-            from->stack_type == RSCACHE_CS2_STACK_INT ? "int" : "string",
-            to->stack_type == RSCACHE_CS2_STACK_INT ? "int" : "string");
+            RSCache_CS2_StackTypeLiteral(from->stack_type),
+            RSCache_CS2_StackTypeLiteral(to->stack_type));
 }
 
 /* -------------------------------------------------------------------------
@@ -397,15 +407,24 @@ cs2_translate_assign(struct cs2_interp* interp, int opcode)
     {
     case RSCACHE_CS2_OP_PUSH_CONSTANT_INT:
     {
-        struct RSCache_CS2_Value value = { RSCACHE_CS2_STACK_INT, operand, NULL };
+        struct RSCache_CS2_Value value = { RSCACHE_CS2_STACK_INT, operand, 0, NULL };
         definitions = cs2_push(interp, RSCACHE_CS2_STACK_INT, &value);
         expression = RSCache_CS2_ExprConstantInt(arena, operand);
+        break;
+    }
+    case RSCACHE_CS2_OP_PUSH_CONSTANT_LONG:
+    {
+        int64_t long_value =
+            interp->script->long_operands ? interp->script->long_operands[interp->pc] : 0;
+        struct RSCache_CS2_Value value = { RSCACHE_CS2_STACK_LONG, 0, long_value, NULL };
+        definitions = cs2_push(interp, RSCACHE_CS2_STACK_LONG, &value);
+        expression = RSCache_CS2_ExprConstantLong(arena, long_value);
         break;
     }
     case RSCACHE_CS2_OP_PUSH_CONSTANT_STRING:
     {
         const char* text = cs2_operand_string(interp);
-        struct RSCache_CS2_Value value = { RSCACHE_CS2_STACK_STRING, 0, text };
+        struct RSCache_CS2_Value value = { RSCACHE_CS2_STACK_STRING, 0, 0, text };
         definitions = cs2_push(interp, RSCACHE_CS2_STACK_STRING, &value);
         expression = RSCache_CS2_ExprConstantString(arena, text);
         break;
@@ -442,6 +461,14 @@ cs2_translate_assign(struct cs2_interp* interp, int opcode)
             RSCACHE_CS2_STACK_INT)
         CS2_PUSH_VAR_CASE(
             RSCACHE_CS2_OP_PUSH_VARCLAN, RSCACHE_CS2_VAR_VARCLAN, RSCACHE_CS2_STACK_INT)
+        CS2_PUSH_VAR_CASE(
+            RSCACHE_CS2_OP_PUSH_VARC_LONG, RSCACHE_CS2_VAR_VARCLONG, RSCACHE_CS2_STACK_LONG)
+        CS2_POP_VAR_CASE(
+            RSCACHE_CS2_OP_POP_VARC_LONG, RSCACHE_CS2_VAR_VARCLONG, RSCACHE_CS2_STACK_LONG)
+        CS2_PUSH_VAR_CASE(
+            RSCACHE_CS2_OP_PUSH_VAR_LONG, RSCACHE_CS2_VAR_VARPLONG, RSCACHE_CS2_STACK_LONG)
+        CS2_POP_VAR_CASE(
+            RSCACHE_CS2_OP_POP_VAR_LONG, RSCACHE_CS2_VAR_VARPLONG, RSCACHE_CS2_STACK_LONG)
 #undef CS2_PUSH_VAR_CASE
 #undef CS2_POP_VAR_CASE
 
@@ -476,6 +503,22 @@ cs2_translate_assign(struct cs2_interp* interp, int opcode)
                 interp->fs, RSCACHE_CS2_VAR_STRING, interp->script_id, operand),
             NULL);
         expression = cs2_pop(interp, RSCACHE_CS2_STACK_STRING);
+        break;
+    case RSCACHE_CS2_OP_PUSH_LONG_LOCAL:
+        definitions = cs2_push(interp, RSCACHE_CS2_STACK_LONG, NULL);
+        expression = RSCache_CS2_ExprAccess(
+            arena,
+            RSCache_CS2_VarIntern(
+                interp->fs, RSCACHE_CS2_VAR_LONG, interp->script_id, operand),
+            NULL);
+        break;
+    case RSCACHE_CS2_OP_POP_LONG_LOCAL:
+        definitions = RSCache_CS2_ExprAccess(
+            arena,
+            RSCache_CS2_VarIntern(
+                interp->fs, RSCACHE_CS2_VAR_LONG, interp->script_id, operand),
+            NULL);
+        expression = cs2_pop(interp, RSCACHE_CS2_STACK_LONG);
         break;
     default:
         cs2_fail(interp, "script %d pc %d: opcode %d is not an assignment",
@@ -588,11 +631,87 @@ cs2_translate_basic(
 }
 
 /**
+ * The stack the next instruction takes its first value from.
+ *
+ * For a command whose result stack is a property of its operand rather than of
+ * the opcode — `array_delete` pushes onto the array's element stack — and whose
+ * array is often a handle this script never defined. Every such call site in
+ * cache.osrs241 is consumed at once, by a discard or a store or a command, so
+ * the consumer says which stack the value is on. Int when nothing says otherwise.
+ */
+static enum RSCache_CS2_StackType
+cs2_consumer_stack(struct cs2_interp* interp)
+{
+    int next = interp->pc + 1;
+    if( next >= interp->script->op_count )
+        return RSCACHE_CS2_STACK_INT;
+    int opcode = interp->script->opcodes[next];
+    switch( opcode )
+    {
+    case RSCACHE_CS2_OP_POP_STRING_LOCAL:
+    case RSCACHE_CS2_OP_POP_VARC_STRING:
+        return RSCACHE_CS2_STACK_STRING;
+    case RSCACHE_CS2_OP_POP_LONG_LOCAL:
+    case RSCACHE_CS2_OP_POP_VARC_LONG:
+    case RSCACHE_CS2_OP_POP_VAR_LONG:
+        return RSCACHE_CS2_STACK_LONG;
+    default:
+        break;
+    }
+    const struct RSCache_CS2_CommandInfo* info = RSCache_CS2_CommandGet(opcode);
+    if( !info )
+        return RSCACHE_CS2_STACK_INT;
+    if( info->kind == RSCACHE_CS2_CMD_DISCARD )
+        return (enum RSCache_CS2_StackType)info->extra;
+    if( info->kind == RSCACHE_CS2_CMD_JOIN_STRING )
+        return RSCACHE_CS2_STACK_STRING;
+    if( info->kind == RSCACHE_CS2_CMD_BASIC && info->arg_count > 0 )
+    {
+        enum RSCache_CS2_ProtoId top = RSCache_CS2_CommandArg(info, info->arg_count - 1);
+        if( top != RSCACHE_CS2_PROTO_NONE )
+            return RSCache_CS2_TypeStackType(RSCache_CS2_ProtoGet(top)->type);
+    }
+    return RSCACHE_CS2_STACK_INT;
+}
+
+/** array_delete / array_max: fixed arguments, one result on the element stack. */
+static struct RSCache_CS2_Insn*
+cs2_translate_array_element(
+    struct cs2_interp* interp,
+    int opcode,
+    const struct RSCache_CS2_CommandInfo* info)
+{
+    struct RSCache_CS2_Arena* arena = cs2_arena(interp);
+    struct RSCache_CS2_Expr* popped[8];
+    if( info->arg_count > (int)(sizeof(popped) / sizeof(popped[0])) || info->def_count != 1 )
+    {
+        cs2_fail(interp, "script %d pc %d: opcode %d has an invalid array-element signature",
+                 interp->script_id, interp->pc, opcode);
+        return NULL;
+    }
+    cs2_pop_many(interp, info->arg_count, popped);
+    struct RSCache_CS2_Expr* arguments =
+        RSCache_CS2_ExprFromList(arena, popped, info->arg_count);
+    enum RSCache_CS2_ProtoId arg_protos[8];
+    for( int i = 0; i < info->arg_count; i++ )
+        arg_protos[i] = RSCache_CS2_CommandArg(info, i);
+    cs2_assign_expr_to_protos(interp, arguments, arg_protos, info->arg_count);
+
+    enum RSCache_CS2_StackType stack_type = cs2_consumer_stack(interp);
+    struct RSCache_CS2_Expr* operation =
+        RSCache_CS2_ExprOperation(arena, &stack_type, 1, opcode, arguments, false);
+    struct RSCache_CS2_Expr* definition = cs2_push(interp, stack_type, NULL);
+    RSCache_CS2_TypingAssign(
+        RSCache_CS2_TypingsOfExpr(cs2_typings(interp), operation)->items[0],
+        RSCache_CS2_TypingsOfElement(cs2_typings(interp), definition));
+    return RSCache_CS2_InsnAssignment(arena, definition, operation);
+}
+
+/**
  * Commands which call Statics.method6560 in the rev-239 client have one value
  * whose physical stack is selected by the final base-type argument: 0 is int,
- * 1 is long and 2 is string. The source language currently models the client's
- * int and string banks, so a long selector is reported rather than silently
- * consuming an int. LOCAL_BASIC marks the selected slot with PROTO_NONE.
+ * 1 is long and 2 is string (class634's serial ids). LOCAL_BASIC marks the
+ * selected slot with PROTO_NONE.
  */
 static struct RSCache_CS2_Insn*
 cs2_translate_typed_pop(
@@ -656,6 +775,8 @@ cs2_translate_typed_pop(
     {
         if( selector->int_value == 2 )
             dynamic_type = RSCACHE_CS2_TYPE_STRING;
+        else if( selector->int_value == 1 )
+            dynamic_type = RSCACHE_CS2_TYPE_LONG;
         else if( selector->int_value != 0 )
         {
             cs2_fail(
@@ -671,9 +792,11 @@ cs2_translate_typed_pop(
     else if( !selector )
     {
         int depth = info->arg_count - 1 - dynamic_index;
-        dynamic_type = cs2_peek_stack_type_at(interp, depth) == RSCACHE_CS2_STACK_STRING
+        enum RSCache_CS2_StackType slot = cs2_peek_stack_type_at(interp, depth);
+        dynamic_type = slot == RSCACHE_CS2_STACK_STRING
                            ? RSCACHE_CS2_TYPE_STRING
-                           : RSCACHE_CS2_TYPE_INT;
+                           : (slot == RSCACHE_CS2_STACK_LONG ? RSCACHE_CS2_TYPE_LONG
+                                                             : RSCACHE_CS2_TYPE_INT);
     }
     else
     {
@@ -1170,6 +1293,8 @@ cs2_translate_find_param(
             value_stacks[i] = RSCACHE_CS2_STACK_INT;
         else if( selectors[i] == 2 )
             value_stacks[i] = RSCACHE_CS2_STACK_STRING;
+        else if( selectors[i] == 1 )
+            value_stacks[i] = RSCACHE_CS2_STACK_LONG;
         else
         {
             cs2_fail(
@@ -1197,8 +1322,10 @@ cs2_translate_find_param(
     {
         if( !RSCache_CS2_TypingFreezeType(
                 RSCache_CS2_TypingsOfElement(cs2_typings(interp), args[at]),
-                value_stacks[1] == RSCACHE_CS2_STACK_STRING ? RSCACHE_CS2_TYPE_STRING
-                                                            : RSCACHE_CS2_TYPE_INT) )
+                value_stacks[1] == RSCACHE_CS2_STACK_STRING
+                    ? RSCACHE_CS2_TYPE_STRING
+                    : (value_stacks[1] == RSCACHE_CS2_STACK_LONG ? RSCACHE_CS2_TYPE_LONG
+                                                                : RSCACHE_CS2_TYPE_INT)) )
             cs2_fail(interp, "script %d pc %d: opcode %d selected the wrong value stack",
                      interp->script_id, interp->pc, opcode);
         at++;
@@ -1208,8 +1335,10 @@ cs2_translate_find_param(
     {
         if( !RSCache_CS2_TypingFreezeType(
                 RSCache_CS2_TypingsOfElement(cs2_typings(interp), args[at]),
-                value_stacks[0] == RSCACHE_CS2_STACK_STRING ? RSCACHE_CS2_TYPE_STRING
-                                                            : RSCACHE_CS2_TYPE_INT) )
+                value_stacks[0] == RSCACHE_CS2_STACK_STRING
+                    ? RSCACHE_CS2_TYPE_STRING
+                    : (value_stacks[0] == RSCACHE_CS2_STACK_LONG ? RSCACHE_CS2_TYPE_LONG
+                                                                : RSCACHE_CS2_TYPE_INT)) )
             cs2_fail(interp, "script %d pc %d: opcode %d selected the wrong value stack",
                      interp->script_id, interp->pc, opcode);
         at++;
@@ -1616,7 +1745,8 @@ cs2_translate_proc(struct cs2_interp* interp)
         return NULL;
     }
 
-    int arg_count = callee->int_argument_count + callee->string_argument_count;
+    int arg_count = callee->int_argument_count + callee->string_argument_count +
+                    callee->long_argument_count;
     struct RSCache_CS2_Expr* popped[128];
     if( arg_count < 0 || arg_count > (int)(sizeof(popped) / sizeof(popped[0])) )
     {
@@ -1659,11 +1789,14 @@ cs2_translate_proc(struct cs2_interp* interp)
     }
     int next_int = 0;
     int next_string = 0;
+    int next_long = 0;
     bool assigned = true;
     for( int i = 0; i < from->count; i++ )
     {
         enum RSCache_CS2_StackType bank = from->items[i]->stack_type;
-        int ordinal = bank == RSCACHE_CS2_STACK_STRING ? next_string++ : next_int++;
+        int ordinal = bank == RSCACHE_CS2_STACK_STRING
+                          ? next_string++
+                          : (bank == RSCACHE_CS2_STACK_LONG ? next_long++ : next_int++);
         int target = -1;
         for( int j = 0, seen = 0; j < args_typing->count; j++ )
         {
@@ -1680,7 +1813,8 @@ cs2_translate_proc(struct cs2_interp* interp)
             assigned = false;
     }
     if( !assigned || next_int != callee->int_argument_count ||
-        next_string != callee->string_argument_count )
+        next_string != callee->string_argument_count ||
+        next_long != callee->long_argument_count )
     {
         cs2_fail(
             interp,
@@ -1741,6 +1875,9 @@ cs2_translate(struct cs2_interp* interp)
 
     case RSCACHE_CS2_CMD_TYPED_POP:
         return cs2_translate_typed_pop(interp, opcode, info);
+
+    case RSCACHE_CS2_CMD_ARRAY_ELEMENT:
+        return cs2_translate_array_element(interp, opcode, info);
 
     case RSCACHE_CS2_CMD_DESCRIPTOR_ARGS:
         return cs2_translate_descriptor_args(interp, opcode);
@@ -1814,8 +1951,8 @@ cs2_translate(struct cs2_interp* interp)
                 interp->script_id,
                 interp->pc,
                 i,
-                stack_types[i] == RSCACHE_CS2_STACK_INT ? "int" : "string",
-                interp->return_types[i] == RSCACHE_CS2_STACK_INT ? "int" : "string");
+                RSCache_CS2_StackTypeLiteral(stack_types[i]),
+                RSCache_CS2_StackTypeLiteral(interp->return_types[i]));
             return NULL;
         }
 
@@ -1833,8 +1970,10 @@ cs2_translate(struct cs2_interp* interp)
 
     case RSCACHE_CS2_CMD_BRANCH_COMPARE:
     {
-        struct RSCache_CS2_Expr* right = cs2_pop(interp, RSCACHE_CS2_STACK_INT);
-        struct RSCache_CS2_Expr* left = cs2_pop(interp, RSCACHE_CS2_STACK_INT);
+        /* `extra` names the stack compared: int for 7..10/31/32, long for 68..73. */
+        enum RSCache_CS2_StackType compared = (enum RSCache_CS2_StackType)info->extra;
+        struct RSCache_CS2_Expr* right = cs2_pop(interp, compared);
+        struct RSCache_CS2_Expr* left = cs2_pop(interp, compared);
         RSCache_CS2_TypingCompare(
             RSCache_CS2_TypingsOfElement(cs2_typings(interp), left),
             RSCache_CS2_TypingsOfElement(cs2_typings(interp), right));
@@ -2080,7 +2219,9 @@ cs2_translate(struct cs2_interp* interp)
                             : NULL;
                     if( callee )
                     {
-                        int total = callee->int_argument_count + callee->string_argument_count;
+                        int total = callee->int_argument_count +
+                                    callee->string_argument_count +
+                                    callee->long_argument_count;
                         if( total <= after )
                         {
                             /* This call consumes only values pushed after the
@@ -2446,12 +2587,15 @@ cs2_interpret_one(struct cs2_interp* interp, int script_id)
     function->original_local_string_count = script->local_string_count;
     function->original_int_argument_count = script->int_argument_count;
     function->original_string_argument_count = script->string_argument_count;
+    function->original_local_long_count = script->local_long_count;
+    function->original_long_argument_count = script->long_argument_count;
 
     /* Trailing unused frame slots and VM array slots have no ordinary source
      * declaration. Mark scripts whose exact trailer therefore needs the
      * lossless metadata comment emitted by cs2_gen. */
     int used_int_locals = script->int_argument_count;
     int used_string_locals = script->string_argument_count;
+    int used_long_locals = script->long_argument_count;
     bool has_array_opcode = false;
     for( int i = 0; i < script->op_count; i++ )
     {
@@ -2465,6 +2609,10 @@ cs2_interpret_one(struct cs2_interp* interp, int script_id)
                   opcode == RSCACHE_CS2_OP_POP_STRING_LOCAL) &&
                  slot + 1 > used_string_locals )
             used_string_locals = slot + 1;
+        else if( (opcode == RSCACHE_CS2_OP_PUSH_LONG_LOCAL ||
+                  opcode == RSCACHE_CS2_OP_POP_LONG_LOCAL) &&
+                 slot + 1 > used_long_locals )
+            used_long_locals = slot + 1;
         if( opcode == RSCACHE_CS2_OP_DEFINE_ARRAY || opcode == RSCACHE_CS2_OP_PUSH_ARRAY_INT ||
             opcode == RSCACHE_CS2_OP_POP_ARRAY_INT )
         {
@@ -2477,7 +2625,8 @@ cs2_interpret_one(struct cs2_interp* interp, int script_id)
     }
     function->preserve_frame_counts =
         has_array_opcode || used_int_locals != script->local_int_count ||
-        used_string_locals != script->local_string_count;
+        used_string_locals != script->local_string_count ||
+        used_long_locals != script->local_long_count;
 
     function->return_default_values = (int*)RSCache_CS2_ArenaAlloc(
         cs2_arena(interp),
@@ -2489,6 +2638,17 @@ cs2_interpret_one(struct cs2_interp* interp, int script_id)
         function->return_default_is_int_constant,
         0,
         (size_t)(interp->return_type_count > 0 ? interp->return_type_count : 1) * sizeof(bool));
+    function->return_default_long_values = (int64_t*)RSCache_CS2_ArenaAlloc(
+        cs2_arena(interp),
+        (size_t)(interp->return_type_count > 0 ? interp->return_type_count : 1) *
+            sizeof(int64_t));
+    function->return_default_is_long_constant = (bool*)RSCache_CS2_ArenaAlloc(
+        cs2_arena(interp),
+        (size_t)(interp->return_type_count > 0 ? interp->return_type_count : 1) * sizeof(bool));
+    memset(
+        function->return_default_is_long_constant,
+        0,
+        (size_t)(interp->return_type_count > 0 ? interp->return_type_count : 1) * sizeof(bool));
 
     /* Align the serialized epilogue producers with return slots. This mirrors
      * ScriptReturnTypes' backwards boundary scan, then records literal int
@@ -2498,7 +2658,8 @@ cs2_interpret_one(struct cs2_interp* interp, int script_id)
     {
         int opcode = script->opcodes[i];
         if( opcode == RSCACHE_CS2_OP_PUSH_CONSTANT_INT ||
-            opcode == RSCACHE_CS2_OP_PUSH_CONSTANT_STRING )
+            opcode == RSCACHE_CS2_OP_PUSH_CONSTANT_STRING ||
+            opcode == RSCACHE_CS2_OP_PUSH_CONSTANT_LONG )
         {
             epilogue_first = i;
             continue;
@@ -2520,6 +2681,12 @@ cs2_interpret_one(struct cs2_interp* interp, int script_id)
             function->return_default_is_int_constant[return_slot] = true;
             function->return_default_values[return_slot++] = script->int_operands[i];
         }
+        else if( opcode == RSCACHE_CS2_OP_PUSH_CONSTANT_LONG )
+        {
+            function->return_default_is_long_constant[return_slot] = true;
+            function->return_default_long_values[return_slot++] =
+                script->long_operands ? script->long_operands[i] : 0;
+        }
         else if( opcode == RSCACHE_CS2_OP_PUSH_CONSTANT_STRING )
         {
             return_slot++;
@@ -2539,6 +2706,10 @@ cs2_interpret_one(struct cs2_interp* interp, int script_id)
         RSCache_CS2_VecPush(
             &function->arguments,
             RSCache_CS2_VarIntern(interp->fs, RSCACHE_CS2_VAR_STRING, script_id, i));
+    for( int i = 0; i < script->long_argument_count; i++ )
+        RSCache_CS2_VecPush(
+            &function->arguments,
+            RSCache_CS2_VarIntern(interp->fs, RSCACHE_CS2_VAR_LONG, script_id, i));
 
     bool ok = cs2_add_labels(interp, instructions, script->op_count, &function->instructions);
     RSCACHE_FREE(instructions);

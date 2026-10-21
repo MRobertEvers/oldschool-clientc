@@ -306,7 +306,7 @@ return {
             "player:I have some bones.",
             "npc:Give 'em here then.",
         })
-        t.exec("traiborn.bones", t.var.await_server, "varp7143_demon_bones_given", 25, 60)
+        t.exec("traiborn.bones", t.var.await_server, "varp7818_demon_bones_given", 25, 60)
         t.exec("traiborn.ritual", t.chat.play, {
             "npc:Hurrah! That's all 25 sets of bones.",
             "mesbox:Traiborn places the bones in a circle",

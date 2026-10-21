@@ -2,7 +2,7 @@
 -- (python3 tools/quest_gate/ladder.py defenderofvarrock: 56 steps, 6 legs) and the wiki
 -- (Defender_of_Varrock/Quick_guide oldid 15079953, Defender_of_Varrock oldid 15314409,
 -- Transcript:Defender_of_Varrock oldid 15341906). Content:
--- OSRS-Content/osrs239-content/server/scripts/quests/quest_defenderofvarrock/ (dov_elias.rs2: Elias,
+-- OSRS-Content/osrs-content/server/scripts/quests/quest_defenderofvarrock/ (dov_elias.rs2: Elias,
 -- the trail, the trapdoor, the base; dov_camdozaal.rs2: Ramarno, the golems, the Sacred Forge;
 -- dov_rovin.rs2 + areas/varrock/scripts/captain_rovin.rs2: Rovin; dov_invasion.rs2: the library and
 -- Aeonisig; reldo/king_roald/sir_prysin/romeo/horvik/curator.rs2 and quest_crest/scripts/

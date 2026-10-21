@@ -255,7 +255,7 @@ selftest_quest_entertheabyss(struct ToriRSServer* srv, struct ToriRSServerPlayer
     varp_eta = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp492_abyssal_miniquest");
     varp_rm = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp63_runemysteries");
     varp_warp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp491_abyssal_warp");
-    varp_skull = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp5766_pk_skull");
+    varp_skull = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp6441_pk_skull");
     bit_aubury = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb2315_rcu_essencespot_aubury");
     bit_tower = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb2314_rcu_essencespot_wizardstower");
     bit_cromperty = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb2316_rcu_essencespot_cromperty");

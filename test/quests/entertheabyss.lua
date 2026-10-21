@@ -1,6 +1,6 @@
 -- Enter the Abyss (miniquest). Content:
--- OSRS-Content/osrs239-content/server/scripts/quests/quest_entertheabyss/scripts/entertheabyss.rs2
--- dbrow: OSRS-Content/osrs239-content/configs/all.dbrow [miniquest_entertheabyss]
+-- OSRS-Content/osrs-content/server/scripts/quests/quest_entertheabyss/scripts/entertheabyss.rs2
+-- dbrow: OSRS-Content/osrs-content/configs/all.dbrow [miniquest_entertheabyss]
 --   questpoints=0, endstate=4 (^eta_complete), stat_xp_awarded=20,10000
 --   (runecraft, 1000 xp unscaled), displayname="Enter the Abyss".
 --
@@ -170,7 +170,7 @@ return {
             t.exec(name, t.player.climb, { loc = "blankrunestone_exit_portal", op = 1, op_name = "Use",
                 at = { best[1], best[2], 0 }, dest = { dest_x, dest_z, 0 }, slack = 2, ticks = 25,
                 landed_ok = room_ok, landed_desc = room_desc,
-                same_level = "essence_mine.rs2 [label,essence_mine_exit] p_telejump(map_findsquare(%varp5744_exit_essence_mine_coord, 0, 2))" })
+                same_level = "essence_mine.rs2 [label,essence_mine_exit] p_telejump(map_findsquare(%varp6419_exit_essence_mine_coord, 0, 2))" })
         end
 
         local function chapel_in(prefix)
@@ -186,7 +186,7 @@ return {
         -- The setup's ::goto 3106 3510 0 stands the player on open ground south of the ditch (reach.py
         -- 3106,3510 -> 3106,3520: REACH closed-doors len=10; -> 3106,3523: NEEDS-OP via the ditch).
         -- Into the Wilderness on foot: walk north into the warning strip (wilderness_warning.rs2: a
-        -- step into zone 0_48_54_32_56 with %varp5753_wilderness unset stops the walk on z 3512-3515
+        -- step into zone 0_48_54_32_56 with %varp6428_wilderness unset stops the walk on z 3512-3515
         -- and opens the three warning pages, then sets the varp), read them, walk on to the ditch and
         -- Cross it north by its own op (wilderness_ditch.rs2 ~wilderness_ditch_cross: from z 3520 the
         -- jump lands on the loc's z + 2 = 3523; the varp is now set, so the jump opens no page). Then
@@ -202,7 +202,7 @@ return {
         local sr, st = t.world.tile()
         t.check("walkIntoWarningStrip.pageOpened", paged == "ok" and t.chat.kind() == "mesbox",
             "await -> " .. tostring(paged) .. ", chat.kind() -> " .. tostring(t.chat.kind()) .. " at "
-                .. tile_text(sr, st) .. " (want a mesbox: zone 0_48_54_32_56 on z 3512-3515, %varp5753_wilderness unset)")
+                .. tile_text(sr, st) .. " (want a mesbox: zone 0_48_54_32_56 on z 3512-3515, %varp6428_wilderness unset)")
         t.exec("walkIntoWarningStrip-warning", t.chat.play, {
             "mesbox:WARNING! Proceed with caution",
             "mesbox:The further north you go",
@@ -213,7 +213,7 @@ return {
             at = { 3106, 3521, 0 }, src = { 3106, 3520 }, dest = { 3106, 3523 }, attempts = 1 })
         local nk = t.chat.kind()
         t.check("crossWildernessDitchNorth.noWarning", nk == "none",
-            "chat.kind() after the north jump -> " .. tostring(nk) .. " (want none: the strip's pages already set %varp5753_wilderness)")
+            "chat.kind() after the north jump -> " .. tostring(nk) .. " (want none: the strip's pages already set %varp6428_wilderness)")
         t.exec("goto-talkToMageInWildy", t.player.goto_tile, 3106, 3558, 0) -- from 3106,3523 across the open plain
         t.exec("talkToMageInWildy", t.player.talk_to, "rcu_zammy_mage1", 1)
         t.exec("talkToMageInWildy-dialog", t.chat.play, {

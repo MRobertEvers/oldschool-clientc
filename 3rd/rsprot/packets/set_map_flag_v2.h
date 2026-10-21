@@ -11,10 +11,13 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : SetMapFlagV2Encoder
- * Layouts      : 1 distinct, over 1 contiguous revision run(s)
+ * Layouts      : 1 distinct, over 2 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^SetMapFlagV2Encoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
+ *                Revision(s) 241 come from RSProx, not RSProt
+ *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
+ *                gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -30,7 +33,7 @@ typedef struct MsgSetMapFlagV2 {
 	int32_t coord_grid_packed;
 } MsgSetMapFlagV2;
 
-/* v1 -- revs 236-239. */
+/* v1 -- revs 236-239, 241. */
 void packet_set_map_flag_v2_v1_out(RsprotExec *x, MsgSetMapFlagV2 *m);
 
 /* Per-revision aliases: `packet_set_map_flag_v2_rev239_out` is greppable, which is the
@@ -39,6 +42,7 @@ void packet_set_map_flag_v2_v1_out(RsprotExec *x, MsgSetMapFlagV2 *m);
 #define packet_set_map_flag_v2_rev237_out packet_set_map_flag_v2_v1_out
 #define packet_set_map_flag_v2_rev238_out packet_set_map_flag_v2_v1_out
 #define packet_set_map_flag_v2_rev239_out packet_set_map_flag_v2_v1_out
+#define packet_set_map_flag_v2_rev241_out packet_set_map_flag_v2_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_set_map_flag_v2_out[];

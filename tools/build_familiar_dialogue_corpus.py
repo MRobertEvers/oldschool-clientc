@@ -36,7 +36,7 @@ import urllib.request
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
-SCRIPT_LANE = REPO / "OSRS-Content/osrs239-content/server/scripts/ported_scape2009_summoning"
+SCRIPT_LANE = REPO / "OSRS-Content/osrs-content/server/scripts/ported_scape2009_summoning"
 CORPUS = REPO / "docs/summoning_port/familiar_dialogue.json"
 API = "https://runescape.wiki/api.php"
 UA = "3draster-summoning-port/1.0 (one-off familiar dialogue transcript pull)"

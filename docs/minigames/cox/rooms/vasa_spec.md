@@ -1,6 +1,6 @@
 # Vasa Nistirio -- tick spec and content audit (2026-10-18)
 
-Unit: vasa. Content: `OSRS-Content/osrs239-content/server/scripts/minigames/minigame_cox/scripts/cox_vasa.rs2`,
+Unit: vasa. Content: `OSRS-Content/osrs-content/server/scripts/minigames/minigame_cox/scripts/cox_vasa.rs2`,
 the Vasa block of `configs/cox.constant` (`^cox_vasa_*`, `^cox_npcvar_vasa_*`) and the four
 `raids_vasanistirio_*` records of `configs/cox.npc`. Solver plan: `vasa_solver.md` (this folder).
 

@@ -52,7 +52,7 @@ import urllib.request
 import config_text
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONSTANTS = os.path.join(REPO, "OSRS-Content", "osrs239-content", "server", "scripts",
+CONSTANTS = os.path.join(REPO, "OSRS-Content", "osrs-content", "server", "scripts",
                          "minigames", "minigame_tob", "configs", "tob.constant")
 API = "https://blert.io/api/v1"
 CHALLENGE_TYPE_TOB = 1
@@ -169,7 +169,7 @@ def constants() -> dict[str, int]:
 
 def wave_table() -> dict[int, int]:
     """The generated `tob_nylo_wave` rows: wave -> natural stall."""
-    path = os.path.join(REPO, "OSRS-Content", "osrs239-content", "server", "scripts",
+    path = os.path.join(REPO, "OSRS-Content", "osrs-content", "server", "scripts",
                         "minigames", "minigame_tob", "configs", "tob_nylo.dbrow")
     out, wave = {}, None
     with open(path, encoding="utf-8") as fh:

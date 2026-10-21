@@ -4,7 +4,7 @@ set -e
 cd "$(dirname "$0")"
 fetch() {
   out="$2"
-  curl -sf -A 'osrs239-content port (contact: repo owner)' \
+  curl -sf -A 'osrs-content port (contact: repo owner)' \
     "https://oldschool.runescape.wiki/w/$1?action=raw" -o "$out"
   echo "$out $(wc -c < "$out") bytes"
 }

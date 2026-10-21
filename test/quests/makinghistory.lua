@@ -42,7 +42,7 @@
 -- blocker -- it just means every stage read past not_started goes through
 -- ui.journal_open/t.inv.* instead of t.quest.expect_stage/t.var.server):
 -- `[makinghistory]` has an EMPTY body in
--- `OSRS-Content/osrs239-content/configs/all.varp` (`quest_makinghistory/
+-- `OSRS-Content/osrs-content/configs/all.varp` (`quest_makinghistory/
 -- configs/` holds only the `.constant` file -- no `makinghistory.varp`
 -- declaring `transmit=yes`, unlike `quest_runemysteries/configs/
 -- quest_runemysteries.varp`'s own `[runemysteries] transmit=yes`), so the
@@ -718,7 +718,7 @@ return {
         -- ------------------------------------------------- the committed state
         -- The varp seam this file used to block on (see queue.py's
         -- last_failure after 68c5e8d9d, and the RESUMED banner) is fixed:
-        -- OSRS-Content/osrs239-content/server/scripts/quests/quest_makinghistory/
+        -- OSRS-Content/osrs-content/server/scripts/quests/quest_makinghistory/
         -- configs/quest_makinghistory.varp now declares `[makinghistory]
         -- transmit=yes`, so %makinghistory_prog (and every other varbit on
         -- that basevar) reaches the client for real: t.quest.expect_stage

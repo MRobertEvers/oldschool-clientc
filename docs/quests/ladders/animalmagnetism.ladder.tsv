@@ -1,5 +1,5 @@
 # ladder animalmagnetism quest_dir=quest_animalmagnetism guide=src/main/java/com/questhelper/helpers/quests/animalmagnetism/AnimalMagnetism.java steps=23 legs=1:1-23@s0
-#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
 leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
 1	1	0	talkToAva	NpcStep	npc:anma_assistant	3093,3357,0	Talk to Ava to begin the quest.			I would be happy to make your home a better place.	quests/quest_animalmagnetism/scripts/anma.rs2:79 opnpc1; +4
 1	2	10	talkToAlicesHusband	NpcStep	npc:anma_ghost_farmer	3618,3526,0	Talk to Malcolm at the farm west of the Ectofuntus.		Ghostspeak amulet		quests/quest_animalmagnetism/scripts/anma_farm.rs2:5 opnpc1

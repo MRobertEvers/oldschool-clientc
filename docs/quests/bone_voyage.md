@@ -129,7 +129,7 @@ progress/bearing interface has a server owner.
 
 ## 3. Implementation surface
 
-Paths below are relative to `OSRS-Content/osrs239-content/`.
+Paths below are relative to `OSRS-Content/osrs-content/`.
 
 ### Quest-owned files
 

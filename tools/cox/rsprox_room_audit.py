@@ -30,7 +30,7 @@ from collections import Counter, defaultdict
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from rsprox_room import load_room, TURNS  # noqa: E402
 
-CONTENT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "OSRS-Content", "osrs239-content")
+CONTENT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "OSRS-Content", "osrs-content")
 
 # the room's own npcs (all.npc.compack), which find its window and its cell
 ROOMS = {

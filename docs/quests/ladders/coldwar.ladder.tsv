@@ -1,5 +1,5 @@
 # ladder coldwar quest_dir=quest_coldwar guide=src/main/java/com/questhelper/helpers/quests/coldwar/ColdWar.java steps=51 legs=1:1-8@s0 2:9-22@s25 3:23-31@s50 4:32-41@s85 5:42-51@s115
-#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
 leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
 1	1	0	talkToLarry	NpcStep	npc:peng_larry_zoo	2597,3266,0	Talk to Larry at the Ardougne Zoo.			Yes. | Okay, why not!	quests/quest_coldwar/scripts/coldwar_larry.rs2:49 opnpc1; +3
 1	2	5	talkToLarryAgain	NpcStep	npc:peng_larry_zoo	2597,3266,0	Talk to Larry again.		Oak Planks (unnoted); Steel Nails; Hammer; Spade	Yes, I have all the materials. | Yes	quests/quest_coldwar/scripts/coldwar_larry.rs2:49 opnpc1; +3

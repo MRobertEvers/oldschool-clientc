@@ -268,7 +268,7 @@ above is a measurement:
 ```sh
 # 1. A content tree you may write to: symlink the heavy directories, copy the
 #    three the compiler and the allocator touch.
-SRC=OSRS-Content/osrs239-content
+SRC=OSRS-Content/osrs-content
 DST=/tmp/content-scratch
 rm -rf $DST && mkdir -p $DST
 for e in $(ls $SRC); do

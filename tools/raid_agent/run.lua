@@ -20,7 +20,7 @@ local policy = require(arg[1] or "verzik")
 
 local function load_names(space)
     local t = {}
-    local f = io.open(ROOT .. "/OSRS-Content/osrs239-content/configs/all." .. space .. ".compack", "r")
+    local f = io.open(ROOT .. "/OSRS-Content/osrs-content/configs/all." .. space .. ".compack", "r")
     assert(f, "run.lua: no all." .. space .. ".compack")
     for line in f:lines() do
         local id, name = line:match("^(%d+)=(.+)$")

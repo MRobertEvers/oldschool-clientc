@@ -366,7 +366,7 @@ OPTS = [
          group="backport",
          help="HD source cache the bake reads materials out of — NOT --cache, "
               "which is the dat2 cache the sequences decode from"),
-    dict(flag="backport-tree", kind="str", default="OSRS-Content/osrs239-content",
+    dict(flag="backport-tree", kind="str", default="OSRS-Content/osrs-content",
          group="backport", help="content tree whose ported lane gets baked"),
     dict(flag="bake-tool", kind="str", default="", group="backport",
          help="material bake binary (blank = default)"),

@@ -11,10 +11,13 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : CamLookAtCyclesEncoder
- * Layouts      : 1 distinct, over 1 contiguous revision run(s)
+ * Layouts      : 2 distinct, over 2 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^CamLookAtCyclesEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
+ *                Revision(s) 241 come from RSProx, not RSProt
+ *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
+ *                gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -37,10 +40,13 @@ typedef struct MsgCamLookAtCycles {
 
 /* v1 -- revs 239. */
 void packet_cam_lookat_cycles_v1_out(RsprotExec *x, MsgCamLookAtCycles *m);
+/* v100 -- revs 241. */
+void packet_cam_lookat_cycles_v100_out(RsprotExec *x, MsgCamLookAtCycles *m);
 
 /* Per-revision aliases: `packet_cam_lookat_cycles_rev239_out` is greppable, which is the
  * point -- "what does 239 do for CAM_LOOKAT_CYCLES" without reading a table. */
 #define packet_cam_lookat_cycles_rev239_out packet_cam_lookat_cycles_v1_out
+#define packet_cam_lookat_cycles_rev241_out packet_cam_lookat_cycles_v100_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_cam_lookat_cycles_out[];

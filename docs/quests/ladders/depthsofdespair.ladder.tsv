@@ -1,5 +1,5 @@
 # ladder depthsofdespair quest_dir=quest_depthsofdespair guide=src/main/java/com/questhelper/helpers/quests/thedepthsofdespair/TheDepthsOfDespair.java steps=14 legs=1:1-14@s0
-#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
 leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
 1	1	0	talkToLordKandur	NpcStep	npc:hosidiusquest_lord_vis	1782,3572,0	Talk to Lord Kandur Hosidius in the house west of the vinery.			Anything I can help you with? | Yes.	quests/quest_depthsofdespair/scripts/depthsofdespair.rs2:10 opnpc1; +1
 1	2	1	talkToChefOlivia	NpcStep	npc:hosidiusquest_chef	1776,3567,0	Speak to Chef Olivia in Lord Kandur's kitchen.				quests/quest_depthsofdespair/scripts/depthsofdespair.rs2:74 opnpc1

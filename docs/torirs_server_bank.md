@@ -15,8 +15,8 @@ ones are two staircases up from the spawn tile.
 | file | contents |
 | --- | --- |
 | `src/torirsserver/torirs_server_bank.c` | the container, the settings, the arithmetic, the wire |
-| `OSRS-Content/osrs239-content/server/scripts/interface_bank/` | the ported LostCity content |
-| `OSRS-Content/osrs239-content/pack/varbit.pack` | the bank's varbit ids (new namespace) |
+| `OSRS-Content/osrs-content/server/scripts/interface_bank/` | the ported LostCity content |
+| `OSRS-Content/osrs-content/pack/varbit.pack` | the bank's varbit ids (new namespace) |
 | `src/ui/uitree_obj_cell.c` | the one client-side change this needed (§6) |
 
 Tests: `make -C src test-ToriRSServer` covers varbit packing, deposit/withdraw,
@@ -165,8 +165,8 @@ op 10                   Examine
 ```
 
 Content binds `[if_button1..8,bankmain:items]` and the side-panel deposit map in
-[`bank.rs2`](../OSRS-Content/osrs239-content/server/scripts/interface_bank/scripts/bank.rs2) /
-[`bank_deposit.rs2`](../OSRS-Content/osrs239-content/server/scripts/interface_bank/scripts/bank_deposit.rs2).
+[`bank.rs2`](../OSRS-Content/osrs-content/server/scripts/interface_bank/scripts/bank.rs2) /
+[`bank_deposit.rs2`](../OSRS-Content/osrs-content/server/scripts/interface_bank/scripts/bank_deposit.rs2).
 Amounts come from `%bank_quantity_type` / `%bank_requestedquantity` and
 `^bank_qty_*`. Withdraw-X uses `p_countdialog` and writes last-X into
 `%bank_requestedquantity`. The engine keeps open/close, `IF_SETEVENTS`,

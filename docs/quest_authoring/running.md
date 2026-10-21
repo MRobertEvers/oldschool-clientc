@@ -78,7 +78,7 @@ share no environment, so the workflow prompts carry `--no-publish` on every comm
 To show a content seam's behaviour BEFORE the fix without touching the shared pack, compile a
 scratch pack (seam-facts: Seam pass matthew-mbp-m4-b58-seam1 (i)): copy `server/scripts` without
 `build*/` and `selftest/` into `<scratch>/server/scripts`, symlink every other entry of
-`osrs239-content` beside it, put the HEAD copy of the file there, and run
+`osrs-content` beside it, put the HEAD copy of the file there, and run
 `src/build_opt/sscompile --src <scratch>/server/scripts --content-root <scratch> --out <pack>`.
 `--content-root` must be the scratch root, not the real tree (the lane-gated rs2012 files fail to
 compile against the real one). Then run with `TORIRSSERVER_SCRIPTS=<pack>

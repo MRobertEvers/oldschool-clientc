@@ -1,5 +1,5 @@
 -- construction_tour: the house's whole-house flows on one account. Content:
--- OSRS-Content/osrs239-content/server/scripts/skill_construction/
+-- OSRS-Content/osrs-content/server/scripts/skill_construction/
 -- (poh_estate_agent, poh_enter_leave, poh_options).
 --
 --   1. buy      Varrock estate agent sells the starter house (1,000 coins).

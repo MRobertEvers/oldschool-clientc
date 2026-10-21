@@ -11,7 +11,7 @@
 
 Source: `/Users/matthewevers/Documents/git_repos/LostCity_Server/content`
 (a fork of 2004scape's content at `d386509 prepare for zuk`).
-Destination: `OSRS-Content/osrs239-content`, read by `src/torirsserver/torirsserver`
+Destination: `OSRS-Content/osrs-content`, read by `src/torirsserver/torirsserver`
 against `cache.osrs239`.
 
 ---
@@ -522,9 +522,9 @@ error, move that file aside, repeat.
 
 ```sh
 sscompile --src <lostcity>/scripts --out /tmp/out \
-    --pack OSRS-Content/osrs239-content/pack \
-    --pack OSRS-Content/osrs239-content/configs \
-    --pack OSRS-Content/osrs239-content/interfaces
+    --pack OSRS-Content/osrs-content/pack \
+    --pack OSRS-Content/osrs-content/configs \
+    --pack OSRS-Content/osrs-content/interfaces
 ```
 
 **Loading the symbols works: 239,207 symbols, 1,562 constants.** The compiler
@@ -640,7 +640,7 @@ The 55 `.png` sprites belong to this decision, not to the asset decision (§3).
 
 ### 7.4 `p_choice` — 28 % of the tree, and it is not hopeless
 
-`OSRS-Content/osrs239-content/server/scripts/interface_chat/scripts/chat.rs2`
+`OSRS-Content/osrs-content/server/scripts/interface_chat/scripts/chat.rs2`
 already records the finding: rev 230's option dialogue is interface **219
 `chatmenu`**, and its component list is exactly
 
@@ -2462,7 +2462,7 @@ place: the binding count, which was the tree-wide 175 rather than the slice's
 137, and the obj-name count, which was 293 rather than 282):
 
 ```sh
-D=OSRS-Content/osrs239-content/server/scripts/drop_tables/scripts
+D=OSRS-Content/osrs-content/server/scripts/drop_tables/scripts
 ls $D | wc -l; cat $D/*.rs2 | wc -l              # 69 files, 4,030 lines
 grep -ho '^\[[a-z_0-9]*' $D/*.rs2 | sort | uniq -c  # 136 ai_queue3, 22 label, 6 proc, 1 opnpc1
 grep -c '^\[ai_queue3,_' $D/*.rs2 | grep -v ':0'    # the six category subjects
@@ -2618,7 +2618,7 @@ reproducible:
 ```
 reference   ~/Documents/git_repos/LostCity_Server   d386509  branch 254_zuk
               content submodule                     593008c87  (2 modified, 1 untracked)
-this tree   OSRS-Content/osrs239-content            531d8f687a
+this tree   OSRS-Content/osrs-content            531d8f687a
 ```
 
 `drop tables/` (§10.1) and §16.11 were measured later the same day, at the same
@@ -2626,7 +2626,7 @@ reference commit and one destination commit on:
 
 ```
 reference   ~/Documents/git_repos/LostCity_Server   d386509  content 593008c87
-this tree   OSRS-Content/osrs239-content            82c8b8773e
+this tree   OSRS-Content/osrs-content            82c8b8773e
 ```
 
 ### 12.4 Baseline on the destination tree, 2026-08-01
@@ -2979,7 +2979,7 @@ number is how the two drift.
 > reference's directory for it already exists in this tree.**
 
 Everything else waits for the thing that knows the answer. The classification,
-all 1,562 rows, is `OSRS-Content/osrs239-content/port/constants.map`:
+all 1,562 rows, is `OSRS-Content/osrs-content/port/constants.map`:
 
 | disposition | rows | what it means |
 |---|---:|---|
@@ -4105,7 +4105,7 @@ exists.
 ## 19. §9 step 3e, as landed — npc / loc / seq / spotanim name maps
 
 Written 2026-08-01, after §14–§18. The deliverable is
-`OSRS-Content/osrs239-content/port/names.map` (524 rows) and
+`OSRS-Content/osrs-content/port/names.map` (524 rows) and
 `tools/port_names_diff.py --check`, which runs inside `make -C src test-port`.
 **No content file was written**, for the same reason §18 wrote no `.varp`: this
 step ports no scripts, and a map is a statement about what a name becomes, not

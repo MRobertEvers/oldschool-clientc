@@ -3084,7 +3084,7 @@ usage(const char* argv0)
             "         [--no-face-alpha-bake] [--face-bake-debug MODEL] [--models-out DIR]\n"
             "         [--matte 0-100] [--wisp-alpha screen|capped|off]\n"
             "         [--keep-priorities]\n"
-            "Defaults: cache.rs727_preeoc and OSRS-Content/osrs239-content.\n"
+            "Defaults: cache.rs727_preeoc and OSRS-Content/osrs-content.\n"
             "The default backport composites each erased material's baked frame into\n"
             "the face colours it falls back to (modulate) and turns the frame's alpha\n"
             "coverage into face translucency, dropping faces that end up invisible.\n"
@@ -3112,7 +3112,7 @@ int
 main(int argc, char** argv)
 {
     const char* cache_path = "cache.rs727_preeoc";
-    const char* to_tree = "OSRS-Content/osrs239-content";
+    const char* to_tree = "OSRS-Content/osrs-content";
     bool apply = false;
     for( int i = 1; i < argc; i++ )
     {

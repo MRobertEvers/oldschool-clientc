@@ -64,7 +64,7 @@ sys.path.append(TOOLS)
 import goto_table  # noqa: E402
 import reach  # noqa: E402
 
-LEDGER = "osrs239-content/server/scripts/selftest/quests/%s/play/ledger.tsv"
+LEDGER = "osrs-content/server/scripts/selftest/quests/%s/play/ledger.tsv"
 R1, R3 = "9f83f98e1b", "dafbe3c8e3"          # content commits of parent 4686b1706 / 80432596c
 MM_LUA, MM_LEDGER = "5e6acb314", "5bc8ef66ca"
 CHARGED = ("7", "16", "38", "44", "93")
@@ -208,7 +208,7 @@ def tools_root():
         saved = reach.REPO
         try:
             rest = reach.take_root(["1", "2", "--root", scratch, "3"])
-            moved = reach.BASE == os.path.abspath(scratch) + "/OSRS-Content/osrs239-content" and rest == ["1", "2", "3"]
+            moved = reach.BASE == os.path.abspath(scratch) + "/OSRS-Content/osrs-content" and rest == ["1", "2", "3"]
         finally:
             reach.set_root(saved)
     return here and moved, "reach.REPO %s (helper_coverage.REPO_ROOT %s); --root moves BASE: %s" % (

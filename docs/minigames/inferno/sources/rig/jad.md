@@ -51,7 +51,7 @@ Healer (both npcs):
   1.1 ticks), tzhaar_rock_smash 451 (16 frames, 2.2 ticks), firewave_impact 157 (anim wave_impact,
   8 frames, 0.8 ticks). None has a frame sound. Settled only by a picture or a plugin constant.
 
-## Ledger (OSRS-Content/osrs239-content/npc_combat/i/, four files)
+## Ledger (OSRS-Content/osrs-content/npc_combat/i/, four files)
 - inferno_jad and _finalwave: death jaltokjad_death (a2), defend jaltokjad_defend (a2): on rig,
   right monster. attack jaltokjad_attack_melee (a3, ranked 3): on rig, right monster, but a3 is a
   rank, not evidence; magic (7592) and ranged (7593) are the boss's other attacks, so a melee

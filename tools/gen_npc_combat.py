@@ -1329,7 +1329,7 @@ def fix_authored(content_dir, out_path, seq_framemaps, npc_rigs, gameval_to_id,
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--catalog", default="out/osrs239_anims")
-    ap.add_argument("--content", default="OSRS-Content/osrs239-content")
+    ap.add_argument("--content", default="OSRS-Content/osrs-content")
     ap.add_argument("--lostcity",
                     default=os.path.expanduser("~/Documents/git_repos/LostCity_Server/content"))
     ap.add_argument("--rsmod", default=os.path.expanduser(

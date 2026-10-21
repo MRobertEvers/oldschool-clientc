@@ -11,10 +11,13 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : FriendChatSetRankDecoder
- * Layouts      : 7 distinct, over 17 contiguous revision run(s)
+ * Layouts      : 7 distinct, over 18 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^FriendChatSetRankDecoder\tin\t' 3rd/rsprot/gen/packet_versions.txt
+ *                Revision(s) 241 come from RSProx, not RSProt
+ *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
+ *                gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -43,7 +46,7 @@ void packet_friendchat_setrank_v4_in(RsprotExec *x, MsgFriendChatSetRank *m);
 void packet_friendchat_setrank_v5_in(RsprotExec *x, MsgFriendChatSetRank *m);
 /* v6 -- revs 232, 234. */
 void packet_friendchat_setrank_v6_in(RsprotExec *x, MsgFriendChatSetRank *m);
-/* v7 -- revs 238. */
+/* v7 -- revs 238, 241. */
 void packet_friendchat_setrank_v7_in(RsprotExec *x, MsgFriendChatSetRank *m);
 
 /* Per-revision aliases: `packet_friendchat_setrank_rev239_in` is greppable, which is the
@@ -67,6 +70,7 @@ void packet_friendchat_setrank_v7_in(RsprotExec *x, MsgFriendChatSetRank *m);
 #define packet_friendchat_setrank_rev237_in packet_friendchat_setrank_v3_in
 #define packet_friendchat_setrank_rev238_in packet_friendchat_setrank_v7_in
 #define packet_friendchat_setrank_rev239_in packet_friendchat_setrank_v4_in
+#define packet_friendchat_setrank_rev241_in packet_friendchat_setrank_v7_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_friendchat_setrank_in[];

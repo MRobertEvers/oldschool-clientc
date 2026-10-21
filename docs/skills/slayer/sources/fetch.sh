@@ -6,7 +6,7 @@ fetch() {
   # A missing page is reported, not fatal: not every master has an assignments
   # subpage (Spria shares Turael's list) and `set -e` would otherwise stop the
   # whole pin at the first one.
-  if curl -sf -A 'osrs239-content port (contact: repo owner)' \
+  if curl -sf -A 'osrs-content port (contact: repo owner)' \
       "https://oldschool.runescape.wiki/w/$1?action=raw" -o "$2"; then
     echo "$2 $(wc -c < "$2") bytes"
   else

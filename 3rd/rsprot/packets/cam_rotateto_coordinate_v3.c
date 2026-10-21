@@ -24,14 +24,32 @@ packet_cam_rotateto_coordinate_v3_v1_out(RsprotExec *x, MsgCamRotateToCoordinate
     RSPROT_U1(x, m->easing_id);
 }
 
+/* v100 -- revs 241. */
+void
+packet_cam_rotateto_coordinate_v3_v100_out(RsprotExec *x, MsgCamRotateToCoordinateV3 *m)
+{
+    RSPROT_U2_ALT1(x, m->x);
+    RSPROT_U2(x, m->height);
+    RSPROT_U2_ALT3(x, m->z);
+    RSPROT_BOOL(x, m->height_relative);
+    RSPROT_U2_ALT2(x, m->cycles);
+    RSPROT_U1_ALT1(x, m->track_target);
+    RSPROT_U1_ALT3(x, m->easing_id);
+}
+
 /*
- * 1 row(s) for 1 layout(s), complete over revisions 221-239.
+ * 2 row(s) for 2 layout(s), complete over revisions 221-239.
  * A complete table makes rsprot_version_pick's NULL mean exactly one thing: a
  * revision outside that span. An incomplete one would conflate "not
  * transcribed" with "no such packet", and those are different facts.
+ *
+ * Plus revision(s) 241, which RSProt never vendored: derived from
+ * RSProx's decoders by tools/rsprox_codec_overlay.py. Revisions between 239
+ * and those are not covered and pick NULL.
  */
 const RsprotVersionRange rsprot_cam_rotateto_coordinate_v3_out[] = {
     { 239, 239, (RsprotCodecFn)packet_cam_rotateto_coordinate_v3_v1_out },
+    { 241, 241, (RsprotCodecFn)packet_cam_rotateto_coordinate_v3_v100_out },
 };
 
 const int rsprot_cam_rotateto_coordinate_v3_out_count =

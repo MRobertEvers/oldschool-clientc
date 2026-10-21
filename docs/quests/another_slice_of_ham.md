@@ -93,7 +93,7 @@ re-audited and that stale rationale removed.
 
 ## 3. Implementation surface
 
-Paths below are relative to `OSRS-Content/osrs239-content/`.
+Paths below are relative to `OSRS-Content/osrs-content/`.
 
 ### Quest-owned files
 
@@ -710,7 +710,7 @@ evidence. Combat chapters use
 (`PASS anothersliceofham boss=<name> CHEAT-SKIP`). Production OPNPC2 Attack
 does not silently complete.
 
-Gate D BMPs (`OSRS-Content/osrs239-content/server/scripts/selftest/quests/quest_anothersliceofham/scenes/`, 16 unique MD5s):
+Gate D BMPs (`OSRS-Content/osrs-content/server/scripts/selftest/quests/quest_anothersliceofham/scenes/`, 16 unique MD5s):
 
 - `01_talk_urtag.bmp`
 - `02_choice_accept.bmp`

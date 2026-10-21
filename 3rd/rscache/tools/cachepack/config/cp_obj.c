@@ -40,6 +40,12 @@ obj_applies_untradeable(const struct CP_Ctx* ctx)
 }
 
 static int
+obj_applies_op251(const struct CP_Ctx* ctx)
+{
+    return (obj_flags(ctx) & RSCACHE_CONFIG_OBJ_DECODE_REV241_OP251) != 0;
+}
+
+static int
 obj_applies_entity_ops(const struct CP_Ctx* ctx)
 {
     return (obj_flags(ctx) & RSCACHE_CONFIG_OBJ_DECODE_REV237_ENTITY_OPS) != 0;
@@ -63,6 +69,8 @@ const struct CP_KeySpec cp_obj_keys[] = {
     { "stackable", 0, NULL, NULL },
     { "tradeable", 0, obj_applies_untradeable, NULL },
     { "getradeable", 0, NULL, NULL },
+    { "flag251", 0, obj_applies_op251, NULL },
+    { "seqs161", 0, obj_applies_op251, NULL },
     { "members", 0, NULL, NULL },
     { "wearpos", 0, NULL, NULL },
     { "wearpos2", 0, NULL, NULL },
@@ -259,6 +267,8 @@ emit_obj(
     if( obj_applies_untradeable(ctx) )
         EMIT_FLAG(UNTRADEABLE, "tradeable", "no");
     EMIT_FLAG(GE_TRADEABLE, "getradeable", "yes");
+    if( obj_applies_op251(ctx) )
+        EMIT_FLAG(OP251, "flag251", "yes");
     EMIT_FLAG(MEMBERS, "members", "yes");
     EMIT_INT(WEARPOS, wearpos_1, "wearpos");
     EMIT_INT(WEARPOS2, wearpos_2, "wearpos2");
@@ -348,6 +358,28 @@ emit_obj(
                entry->recolor_count, "recol");
     emit_pairs(out, OBJ_HAS(RETEX), entry->retextures_from, entry->retextures_to,
                entry->retexture_count, "retex");
+
+    /* Opcode 161 (rev 241+): one line, the seq ids comma-separated. */
+    if( obj_applies_op251(ctx) && OBJ_HAS(OP161) )
+    {
+        char list[2048];
+        int len = 0;
+        list[0] = '\0';
+        for( int i = 0; i < entry->op161_count; i++ )
+        {
+            int wrote = snprintf(list + len, sizeof(list) - (size_t)len, "%s%d", i ? "," : "",
+                                 entry->op161[i]);
+            assert(wrote > 0);
+            assert(len + wrote < (int)sizeof(list));
+            len += wrote;
+        }
+        if( entry->op161_count == 0 )
+            cp_lines_add_empty(out, "seqs161");
+        else
+            cp_lines_addf(out, "seqs161=%s", list);
+    }
+    else if( obj_applies_op251(ctx) )
+        cp_lines_add_default(out, "seqs161");
 
     if( !OBJ_HAS(PARAMS) )
         cp_lines_add_default(out, "param");
@@ -581,6 +613,41 @@ cp_pack_obj(
             OBJ_SET(GE_TRADEABLE);
             ok = parse_flag(value, "yes");
             entry->ge_tradeable = true;
+        }
+        else if( strcmp(key, "flag251") == 0 )
+        {
+            OBJ_SET(OP251);
+            ok = parse_flag(value, "yes");
+        }
+        else if( strcmp(key, "seqs161") == 0 && cp_value_is_empty(value) )
+        {
+            OBJ_SET(OP161);
+            free(entry->op161);
+            entry->op161 = NULL;
+            entry->op161_count = 0;
+        }
+        else if( strcmp(key, "seqs161") == 0 )
+        {
+            struct CP_IntList seqs = { 0 };
+            const char* p = value;
+            while( *p )
+            {
+                char* end = NULL;
+                long v = strtol(p, &end, 10);
+                if( end == p )
+                {
+                    ok = 0;
+                    break;
+                }
+                cp_intlist_push(&seqs, (int)v);
+                p = end;
+                if( *p == ',' )
+                    p++;
+            }
+            OBJ_SET(OP161);
+            free(entry->op161);
+            entry->op161 = seqs.items;
+            entry->op161_count = seqs.count;
         }
         else if( strcmp(key, "members") == 0 )
         {

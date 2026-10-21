@@ -169,7 +169,7 @@ return {
         camelot_teleport("goToStronghold.camelotTeleport")
         t.exec("goto-goToStronghold.gate", t.player.goto_tile, 2461, 3379, 0)
 
-        -- First entry: while %varp5856_femi_help = 0 a press from the south with Femi within 6 tiles
+        -- First entry: while %varp6531_femi_help = 0 a press from the south with Femi within 6 tiles
         -- opens her boxes instead of the gate (gnome_gate.rs2:36-38 -> femi.rs2 @grandtree_femi_boxes).
         -- Helping (option 2) sets femi_help 2, which is what lets her sneak the player in later for free.
         t.exec("goToStronghold.gateApproach", t.player.walk_route, { { 2461, 3382 } })
@@ -189,9 +189,9 @@ return {
             t.expect("goToStronghold.femiBoxes.thanks_page", t.await({ level = function() return t.chat.kind() == "npc" end,
                 note = "Femi's thanks after the boxes" }, 20))
             t.exec("goToStronghold.femiBoxes-dialog-2", t.chat.play, { "npc:Thanks again friend", "end" })
-            local femi_result, femi_help = t.var.server("varp5856_femi_help")
+            local femi_result, femi_help = t.var.server("varp6531_femi_help")
             t.check("goToStronghold.femiHelped", femi_result == "ok" and femi_help == 2,
-                "click_loc gnome_areagate -> " .. tostring(press_result) .. "; varp5856_femi_help = " .. tostring(femi_help)
+                "click_loc gnome_areagate -> " .. tostring(press_result) .. "; varp6531_femi_help = " .. tostring(femi_help)
                     .. " (" .. tostring(femi_result) .. "), want 2: the boxes lifted (femi.rs2 @grandtree_femi_boxes)")
             gate_in("goToStronghold.gateIn")
         else
@@ -554,7 +554,7 @@ return {
             { "largeroot2_gnome", 2481, 9904 }, { "largeroot_gnome", 2485, 9885 }, { "largeroot_gnome", 2490, 9889 },
             { "largeroot2_gnome", 2467, 9872 },
         }
-        local root_result, root_index = t.var.server("varp5869_daconia_rock_root")
+        local root_result, root_index = t.var.server("varp6544_daconia_rock_root")
         t.check("findDaconiaStone.root", root_result == "ok" and root_index ~= nil and roots[root_index + 1] ~= nil,
             "daconia_rock_root = " .. tostring(root_index))
         local root = roots[(root_index or 0) + 1]

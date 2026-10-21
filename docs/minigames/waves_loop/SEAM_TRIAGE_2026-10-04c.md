@@ -15,7 +15,7 @@ PLAYING with real attacks, prayer and food, quoting tick-log distributions befor
 after; presentation only from a source; write the fixing commit into each row's `fixed in`.
 Several batch C rows were measured under `::god` or `::zukhp`: re-measure each by a fight
 where a fight can reach it before you call it fixed. `MI` is
-`OSRS-Content/osrs239-content/server/scripts/minigames/minigame_inferno`.
+`OSRS-Content/osrs-content/server/scripts/minigames/minigame_inferno`.
 
 ## content: inferno_jad_file
 

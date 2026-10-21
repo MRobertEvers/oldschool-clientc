@@ -228,7 +228,8 @@ cp_pack_varp(
 
 /*
  * `type` is text-only: the script compiler reads it (`type=string` on the string
- * varcs, which the content tree states by hand) and no opcode carries it. It is
+ * varcs, which the content tree states by hand, and `type=long` on a long one
+ * only the tree's scripts read) and no opcode carries it. It is
  * still a key of the type, so the unpacker states it -- always `type=default`,
  * because the cache cannot say otherwise, and the default is int.
  */
@@ -308,7 +309,8 @@ cp_pack_varc(
          * the varc-string or varc-int push by it). The config encodes nothing
          * for it — see cs2_seed_varc_names. */
         else if( strcmp(key, "type") == 0 )
-            ok = strcmp(value, "int") == 0 || strcmp(value, "string") == 0;
+            ok = strcmp(value, "int") == 0 || strcmp(value, "string") == 0 ||
+                 strcmp(value, "long") == 0;
         else
             cp_warn(ctx, &ctx->warn_unknown_key, "varc [%s]: unknown key %s",
                     config->debugname, key);

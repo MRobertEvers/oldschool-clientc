@@ -289,7 +289,7 @@ fi
 
 # ---- a real cache ------------------------------------------------------------
 CACHE="$ROOT/cache.osrs239"
-SRC="$ROOT/OSRS-Content/osrs239-content"
+SRC="$ROOT/OSRS-Content/osrs-content"
 if [ ! -f "$CACHE/main_file_cache.dat2" ] || [ ! -f "$SRC/meta.ini" ]; then
     echo "cachepack-value-text: cache.osrs239 SKIPPED — no cache/content at $ROOT"
 else

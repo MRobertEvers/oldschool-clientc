@@ -75,7 +75,7 @@ packet_if_setcolour_v8_out(RsprotExec *x, MsgIfSetColour *m)
     RSPROT_U2(x, m->colour15_bit_packed);
 }
 
-/* v9 -- revs 232. */
+/* v9 -- revs 232, 241. */
 void
 packet_if_setcolour_v9_out(RsprotExec *x, MsgIfSetColour *m)
 {
@@ -116,10 +116,14 @@ packet_if_setcolour_v13_out(RsprotExec *x, MsgIfSetColour *m)
 }
 
 /*
- * 19 row(s) for 13 layout(s), complete over revisions 221-239.
+ * 20 row(s) for 13 layout(s), complete over revisions 221-239.
  * A complete table makes rsprot_version_pick's NULL mean exactly one thing: a
  * revision outside that span. An incomplete one would conflate "not
  * transcribed" with "no such packet", and those are different facts.
+ *
+ * Plus revision(s) 241, which RSProt never vendored: derived from
+ * RSProx's decoders by tools/rsprox_codec_overlay.py. Revisions between 239
+ * and those are not covered and pick NULL.
  */
 const RsprotVersionRange rsprot_if_setcolour_out[] = {
     { 221, 221, (RsprotCodecFn)packet_if_setcolour_v1_out },
@@ -141,6 +145,7 @@ const RsprotVersionRange rsprot_if_setcolour_out[] = {
     { 237, 237, (RsprotCodecFn)packet_if_setcolour_v12_out },
     { 238, 238, (RsprotCodecFn)packet_if_setcolour_v13_out },
     { 239, 239, (RsprotCodecFn)packet_if_setcolour_v12_out },
+    { 241, 241, (RsprotCodecFn)packet_if_setcolour_v9_out },
 };
 
 const int rsprot_if_setcolour_out_count =

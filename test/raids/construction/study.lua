@@ -592,13 +592,13 @@ DEEP_OPS[#DEEP_OPS + 1] = { loc = "^poh_pool_", op = "Drink",
         local hp, hp_base = level("hitpoints")
         t.check(tag .. ".hitpoints", (tier >= 5) == (hp == hp_base),
             "hitpoints " .. hp .. "/" .. hp_base .. " (tier " .. tier .. ")")
-        local cured = H.server("varp102_poison") == 0 and H.server("varp6356_venom") == 0
+        local cured = H.server("varp102_poison") == 0 and H.server("varp7031_venom") == 0
             and H.server("varp456_disease") == 0
         t.check(tag .. ".cured", (tier >= 5) == cured, "poison " .. tostring(H.server("varp102_poison"))
-            .. " venom " .. tostring(H.server("varp6356_venom")) .. " disease " .. tostring(H.server("varp456_disease")))
+            .. " venom " .. tostring(H.server("varp7031_venom")) .. " disease " .. tostring(H.server("varp456_disease")))
         -- Leave the player whole for the next piece.
         t.cheat("::setvar varp102_poison 0", false)
-        t.cheat("::setvar varp6356_venom 0", false)
+        t.cheat("::setvar varp7031_venom 0", false)
         t.cheat("::setvar varp456_disease 0", false)
         t.cheat("::maxstats", false)
     end }
@@ -910,7 +910,7 @@ DEEP_OPS[#DEEP_OPS + 1] = { loc = "^poh_altar_[a-z]+_%d$", op = "Pray",
             "prayer " .. tostring(type(r) == "table" and r.level) .. "/" .. tostring(type(r) == "table" and r.base_level)
             .. "; " .. H.last_messages(1))
         t.cheat("::setvar varp102_poison 0", false)
-        t.cheat("::setvar varp6356_venom 0", false)
+        t.cheat("::setvar varp7031_venom 0", false)
         t.cheat("::setvar varp456_disease 0", false)
         t.cheat("::maxstats", false)
     end }

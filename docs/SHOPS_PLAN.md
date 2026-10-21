@@ -83,7 +83,7 @@ are shops this server has to open. 6 carry an infobox but no table.
 
 ### 1.2 What was written
 
-    OSRS-Content/osrs239-content/wiki/
+    OSRS-Content/osrs-content/wiki/
       shops/*.wikitext          1,062 raw pages
       shops_manifest.tsv        title, revid, infobox?, table?, fetch_date
       owners/*.wikitext           435 owner npc pages
@@ -264,7 +264,7 @@ each is the previous one's precondition.
 
 ### 3.1 `.inv` server config parser + `scope` classification
 
-*Files:* `OSRS-Content/osrs239-content/fields/inv.ini`,
+*Files:* `OSRS-Content/osrs-content/fields/inv.ini`,
 `src/torirsserver/torirs_server_content.c`, `src/torirsserver/torirs_server_container.c`
 
 Add the server half of the inv field register — the file already says the shape

@@ -6,7 +6,7 @@ every command and file. Read them fully before touching anything, in this
 order: `PORTING.md` (engine reference), `AUTHORING.md` (the steps),
 `REVIEW.md` section 1 (what you hand over). The pilot's files are your
 worked example: `shots/tearsofguthix-1.md`, the block at
-`OSRS-Content/osrs239-content/server/scripts/quests/quest_tearsofguthix/scripts/tearsofguthix.rs2`
+`OSRS-Content/osrs-content/server/scripts/quests/quest_tearsofguthix/scripts/tearsofguthix.rs2`
 (grep `cam_moveto`), the rows named `tog.bowl.*` in `test/quests/tearsofguthix.lua`,
 and `PORTS.tsv` row 1.
 

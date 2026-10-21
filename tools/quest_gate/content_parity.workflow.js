@@ -29,7 +29,7 @@ export const meta = {
 // workers' model.
 
 const WT = '/Users/matthewevers/Documents/git_repos/3draster'
-const CONTENT = `${WT}/OSRS-Content/osrs239-content`
+const CONTENT = `${WT}/OSRS-Content/osrs-content`
 const LC = '/Users/matthewevers/Documents/git_repos/LostCity_Content2'
 const LCS = '/Users/matthewevers/Documents/git_repos/LostCity_Server'
 const QH = '/Users/matthewevers/Documents/git_repos/quest-helper'

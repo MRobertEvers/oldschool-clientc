@@ -1753,6 +1753,8 @@ ToriRSServer_WireByName(char const* name)
         return &k_wire_osrs230;
     if( strcmp(name, "osrs239") == 0 )
         return &k_wire_osrs239;
+    if( strcmp(name, "osrs241") == 0 )
+        return ToriRSServer_Wire241();
     return NULL;
 }
 
@@ -1838,6 +1840,8 @@ ToriRSServer_WirePktName(int pkt_name)
     case PKT_NAME_UPDATE_IGNORELIST: return "UPDATE_IGNORELIST";
     case PKT_NAME_CAM_RESET: return "CAM_RESET";
     case PKT_NAME_CAM_MOVETO: return "CAM_MOVETO";
+    case PKT_NAME_CAM_MOVETO_CYCLES: return "CAM_MOVETO_CYCLES";
+    case PKT_NAME_CAM_ROTATETO_COORDINATE: return "CAM_ROTATETO_COORDINATE";
     case PKT_NAME_CAM_LOOKAT: return "CAM_LOOKAT";
     case PKT_NAME_CAM_SHAKE: return "CAM_SHAKE";
     case PKT_NAME_SYNTH_SOUND: return "SYNTH_SOUND";

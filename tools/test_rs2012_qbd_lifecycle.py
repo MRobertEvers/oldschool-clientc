@@ -12,7 +12,7 @@ import config_text
 ROOT = Path(__file__).resolve().parents[1]
 QBD = (
     ROOT
-    / "OSRS-Content/osrs239-content/server/scripts/minigames/minigame_rs2012_qbd"
+    / "OSRS-Content/osrs-content/server/scripts/minigames/minigame_rs2012_qbd"
 )
 SESSION = QBD / "scripts/rs2012_qbd_session.rs2"
 ADDS = QBD / "scripts/rs2012_qbd_adds.rs2"
@@ -20,8 +20,8 @@ COMBAT = QBD / "scripts/rs2012_qbd_combat.rs2"
 VARPS = QBD / "configs/rs2012_qbd.varp"
 CONSTANTS = QBD / "configs/rs2012_qbd.constant"
 MANIFEST = ROOT / "manifests/manifest_osrs239_rs2012.ini"
-LOGOUT = ROOT / "OSRS-Content/osrs239-content/server/scripts/player/logout.rs2"
-DEATH = ROOT / "OSRS-Content/osrs239-content/server/scripts/player/death.rs2"
+LOGOUT = ROOT / "OSRS-Content/osrs-content/server/scripts/player/logout.rs2"
+DEATH = ROOT / "OSRS-Content/osrs-content/server/scripts/player/death.rs2"
 WORLD = ROOT / "src/torirsserver/torirs_server_world.c"
 # The coffer fixture below is a self-test stanza, and the self-test is its own
 # translation unit since it outgrew the world. Read both as one text.
@@ -43,7 +43,7 @@ def main() -> None:
     varps = config_text.read_text(VARPS, encoding="utf-8")
     constants = CONSTANTS.read_text(encoding="utf-8")
 
-    handle_varp = block(varps, "varp6254_rs2012_qbd_handle")
+    handle_varp = block(varps, "varp6929_rs2012_qbd_handle")
     assert "scope=temp" in handle_varp and "transmit=no" in handle_varp
     assert "^rs2012_qbd_lifecycle_ticks = 1" in constants
 
@@ -55,23 +55,23 @@ def main() -> None:
         "proc,rs2012_qbd_floor_coord",
     ):
         body = block(session, proc)
-        assert "%varp6254_rs2012_qbd_handle" in body
-        assert "%varp5925_map_instance_handle" not in body
+        assert "%varp6929_rs2012_qbd_handle" in body
+        assert "%varp6600_map_instance_handle" not in body
     for text in (
         session,
         ADDS.read_text(encoding="utf-8"),
         COMBAT.read_text(encoding="utf-8"),
     ):
-        assert "map_instance_find(coord) ! %varp5925_map_instance_handle" not in text
+        assert "map_instance_find(coord) ! %varp6600_map_instance_handle" not in text
 
     enter = block(session, "proc,rs2012_qbd_enter_checked")
     assert "$summoning_bypass = false & stat_base(summoning) < 60" in enter
-    assert enter.count("%varp6254_rs2012_qbd_handle = ") == 2
+    assert enter.count("%varp6929_rs2012_qbd_handle = ") == 2
     assert enter.count(
         "softtimer(rs2012_qbd_lifecycle, ^rs2012_qbd_lifecycle_ticks);"
     ) == 2
     assert "stat_add" not in enter and "stat_boost" not in enter
-    assert "%varp6251_rs2012_song_from_depths_complete =" not in enter
+    assert "%varp6926_rs2012_song_from_depths_complete =" not in enter
 
     production = block(session, "proc,rs2012_qbd_enter")
     assert "~rs2012_qbd_enter_checked($ruleset, false);" in production
@@ -114,7 +114,7 @@ def main() -> None:
         "extreme_pulse",
     ):
         assert f"clearqueue(rs2012_qbd_{queue});" in clear
-    assert "%varp6238_rs2012_qbd_reward_ready =" not in clear
+    assert "%varp6913_rs2012_qbd_reward_ready =" not in clear
     assert "inv_clear(rs2012_qbd_rewardinv)" not in clear
 
     release = block(session, "proc,rs2012_qbd_release_handle")
@@ -122,15 +122,15 @@ def main() -> None:
     assert "~rs2012_qbd_despawn_handle($handle);" in release
     assert "~rs2012_qbd_clear_state;" in release
     assert "map_instance_free($handle);" in release
-    assert "%varp6254_rs2012_qbd_handle = ^map_instance_none;" in release
+    assert "%varp6929_rs2012_qbd_handle = ^map_instance_none;" in release
     assert (
-        "if (%varp5925_map_instance_handle = $handle) %varp5925_map_instance_handle = ^map_instance_none;"
+        "if (%varp6600_map_instance_handle = $handle) %varp6600_map_instance_handle = ^map_instance_none;"
         in release
     )
     assert "p_teleport" not in release
 
     lifecycle = block(session, "proc,rs2012_qbd_lifecycle_tick")
-    assert "def_int $handle = %varp6254_rs2012_qbd_handle;" in lifecycle
+    assert "def_int $handle = %varp6929_rs2012_qbd_handle;" in lifecycle
     assert "map_instance_find(coord) = $handle" in lifecycle
     assert "~rs2012_qbd_release_handle($handle);" in lifecycle
     assert "p_teleport" not in lifecycle
@@ -140,8 +140,8 @@ def main() -> None:
     )
 
     stairs = block(session, "oploc1,rs2012_loc_70790")
-    assert "def_int $old = %varp6254_rs2012_qbd_handle;" in stairs
-    assert "%varp6254_rs2012_qbd_handle = $reward;" in stairs
+    assert "def_int $old = %varp6929_rs2012_qbd_handle;" in stairs
+    assert "%varp6929_rs2012_qbd_handle = $reward;" in stairs
     assert stairs.index("p_teleport(") < stairs.index(
         "~rs2012_qbd_despawn_handle($old);"
     ) < stairs.index("map_instance_free($old);")
@@ -152,13 +152,13 @@ def main() -> None:
         "~rs2012_qbd_release_handle($handle);"
     )
     logout = block(session, "proc,rs2012_qbd_on_logout")
-    assert "%varp6254_rs2012_qbd_handle" in logout
+    assert "%varp6929_rs2012_qbd_handle" in logout
     assert "~rs2012_qbd_release_handle($handle);" in logout
     assert "~rs2012_qbd_on_logout;" in LOGOUT.read_text(encoding="utf-8")
 
     death = block(session, "proc,rs2012_qbd_on_death")
     finish = block(session, "proc,rs2012_qbd_finish_death")
-    assert "%varp6254_rs2012_qbd_handle" in death
+    assert "%varp6929_rs2012_qbd_handle" in death
     assert "map_instance_free" not in death
     assert "~rs2012_qbd_despawn_handle($handle);" in death
     assert "map_instance_free($handle);" in finish

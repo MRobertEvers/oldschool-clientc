@@ -3,7 +3,7 @@
 Plan to take `skill_fishing/` from its current vertical slice to the complete
 [Fishing](https://oldschool.runescape.wiki/w/Fishing) skill. The wiki is the
 authority for content (fish, levels, XP, tools, bait, locations, gates); the
-cache (`OSRS-Content/osrs239-content/configs/all.obj`, `all.npc`, `all.loc`) is
+cache (`OSRS-Content/osrs-content/configs/all.obj`, `all.npc`, `all.loc`) is
 the authority for names and for what is *expressible* at this revision.
 
 Queue items this closes: **#63–#68** in
@@ -78,7 +78,7 @@ Two real bugs this pass found and fixed, not just new content:
 
 ## 0. Where fishing stands today — measured
 
-`OSRS-Content/osrs239-content/server/scripts/skill_fishing/` is **1,161 lines**
+`OSRS-Content/osrs-content/server/scripts/skill_fishing/` is **1,161 lines**
 across 8 scripts plus a **1,426-line** `configs/fishing.npc`. It is a working
 vertical slice, not a stub: the four classic spot families, karambwan, slimy
 eels and lava eels all fish end to end, with the LostCity tick cadence

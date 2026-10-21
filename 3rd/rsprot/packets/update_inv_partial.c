@@ -51,6 +51,8 @@ packet_update_inv_partial_v1_out(RsprotExec *x, MsgUpdateInvPartial *m)
 
 const RsprotVersionRange rsprot_update_inv_partial_out[] = {
     { 221, 239, (RsprotCodecFn)packet_update_inv_partial_v1_out },
+    /* 241 (RSProx osrs-241, UpdateInvPartialDecoder): decode body unchanged from 239. */
+    { 241, 241, (RsprotCodecFn)packet_update_inv_partial_v1_out },
 };
 
 const int rsprot_update_inv_partial_out_count =

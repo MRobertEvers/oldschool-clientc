@@ -1247,7 +1247,7 @@ terrain_ocean_kind(const struct RSCache_MapFloor* tile, int source_level)
 
     assert(tile);
     overlay = tile->overlay_id;
-    if( TORIRSSERVER_CACHE_REVISION != 239 || source_level != 0 || tile->shape != 0 ||
+    if( TORIRSSERVER_CACHE_REVISION < 239 || source_level != 0 || tile->shape != 0 ||
         overlay < 442 || overlay > 625 || (overlay - 442) % 3 == 1 )
         return TERRAIN_OCEAN_NONE;
     if( overlay == TERRAIN_OVERLAY_PENGUIN_COURSE_WADE )

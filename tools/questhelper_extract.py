@@ -6,7 +6,7 @@ The RuneLite Quest Helper under
 defines how to *test* a quest (`steps.put(N, …)` = quest varbit values) and
 names every subject via `net.runelite.api.gameval.*`. Those gameval constants
 are the osrs239 cache's own names — lowercased they should resolve in
-`OSRS-Content/osrs239-content/configs/all.*.compack`.
+`OSRS-Content/osrs-content/configs/all.*.compack`.
 
 This tool is the lane's §4.1 "measure first" gate
 (`docs/QUESTHELPER_CONTENT_PORT_QUEUE.md`, `docs/PORTING_GUIDE.md` §4.6).
@@ -35,7 +35,7 @@ DEFAULT_QH = Path(
     "/Users/matthewevers/Documents/git_repos/quest-helper"
     "/src/main/java/com/questhelper/helpers/quests"
 )
-DEFAULT_CONTENT = REPO / "OSRS-Content" / "osrs239-content"
+DEFAULT_CONTENT = REPO / "OSRS-Content" / "osrs-content"
 
 # gameval kind → (compack file, optional alternate files)
 KIND_COMPACK = {

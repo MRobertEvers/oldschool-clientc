@@ -1,5 +1,5 @@
 # ladder mm quest_dir=quest_mm guide=src/main/java/com/questhelper/helpers/quests/monkeymadnessi/MonkeyMadnessI.java steps=78 legs=1:1-11@s0 2:12-20@s3 3:21-29@s3 4:30-39@s3 5:40-49@s3 6:50-59@s3 7:60-68@s4 8:69-78@s4
-#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
 leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
 1	1	0	talkToNarnode	NpcStep	npc:grandtree_narnode_1op	2465,3496,0	Talk to King Narnode Shareen in the Tree Gnome Stronghold.		Stamina potions	Yes.	quests/quest_grandtree/scripts/king_narnode.rs2:11 opnpc1; +1
 1	2	1	flyGandius	NpcStep	npc:pilot_grand_tree	2464,3501,3	Fly with Captain Errdo to Gandius.	goUpF0ToF1 goUpF1ToF2 goUpF2ToF3			areas/area_gnome/scripts/gnome_glider.rs2:12 opnpc1

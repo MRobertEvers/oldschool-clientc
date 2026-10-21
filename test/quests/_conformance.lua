@@ -166,7 +166,7 @@ local SEAM_COUNT = 209
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
--- exists in this content pack (OSRS-Content/osrs239-content/configs/*.compack).
+-- exists in this content pack (OSRS-Content/osrs-content/configs/*.compack).
 -- Most cheats below are [debugproc]s, which is what this harness needed when
 -- it was written: DriveCore_Cheat used to dispatch ONLY through
 -- ToriRSServer_RunDebugprocForTest, so an engine-ladder cheat (::give,
@@ -228,7 +228,7 @@ local VARBIT_SYMBOL = "varb0_troll_freed_eadgar"
 -- not_found for the whole run.  The seam row below is the only thing in this
 -- harness that can read it at all; if a later cache widens the client's table
 -- past 6262 that row says so in its own detail rather than passing quietly.
-local HIGH_ID_VARP = "varp6262_rovingelves_quest"
+local HIGH_ID_VARP = "varp6937_rovingelves_quest"
 -- Cook's Assistant, the one quest this content pack can be driven into every
 -- state of from a cheat: `::setvar cookquest ^cook_started` stages it,
 -- `::cookbmp_reward` completes it and puts the real reward scroll up, and its
@@ -2495,7 +2495,7 @@ return {
         -- not_visible/no_row every run and said nothing about the reader
         -- behind them.  ::cookbmp_reward sets %cookquest = ^cook_complete and
         -- calls ~quest_complete_rewards directly
-        -- (OSRS-Content/osrs239-content/server/scripts/quests/quest_cook/
+        -- (OSRS-Content/osrs-content/server/scripts/quests/quest_cook/
         -- scripts/quest_cook.rs2:297-300), which is the same completion scroll
         -- the quest itself puts up -- with no inventory or dialogue
         -- prerequisite of its own, so it works from whatever state phase 6
@@ -3750,7 +3750,7 @@ return {
             local function reading()
                 settle(2)
                 local _, r = points_fn()
-                local cr, counter = server("varp6296_prayer_drain_counter")
+                local cr, counter = server("varp6971_prayer_drain_counter")
                 if type(r) ~= "table" or cr ~= "ok" or type(counter) ~= "number" then
                     return nil, "points " .. describe(r and r.level) .. ", counter " .. describe(cr) .. " " .. describe(counter)
                 end
@@ -3789,7 +3789,7 @@ return {
         -- block: an unprayed ball calls `~prayer_block_protection`
         -- (tob_sotetseg.rs2), which puts all three out and makes
         -- `[proc,prayer_can_use]` refuse every protection press while
-        -- `%varp6891_prayer_protect_blocked > map_clock` (prayer.rs2:108,
+        -- `%varp7566_prayer_protect_blocked > map_clock` (prayer.rs2:108,
         -- 137-141).  The plan's presses were refused by the server, and the
         -- reason was being cut off at 160 characters exactly where it sat
         -- ("the server said 'You ").  So the second half pins the refusal: a
@@ -3841,13 +3841,13 @@ return {
             -- THE NEGATIVE CONTROL: the content's protection block.
             local cheat = verb("cheat")
             if not cheat then return missing("cheat") end
-            local cr = cheat("::setvar varp6891_prayer_protect_blocked 999999999", true)
+            local cr = cheat("::setvar varp7566_prayer_protect_blocked 999999999", true)
             if cr ~= "ok" then
                 return "no_subject", "the protection block could not be set: " .. describe(cr)
             end
             local blocked_result, blocked_detail = tog(function() set("protectfrommelee", true) end)
             local _, blocked_value = server(VARBIT.protectfrommelee)
-            cheat("::setvar varp6891_prayer_protect_blocked 0", true)
+            cheat("::setvar varp7566_prayer_protect_blocked 0", true)
             if blocked_result ~= "refused" or blocked_value == 1
                 or not string.find(tostring(blocked_detail), "protection prayers", 1, true) then
                 return "hollow", string.format("under the protection block a press answered %s (varbit %s)"
@@ -6342,19 +6342,19 @@ return {
             local await_server = verb("var", "await_server")
             if not server then return missing("var", "server") end
             if not await_server then return missing("var", "await_server") end
-            setup_cheat("::setvar varp7152_twocats_lamp_pick 3")
+            setup_cheat("::setvar varp7827_twocats_lamp_pick 3")
             settle(2)
-            local result, value, source = server("varp7152_twocats_lamp_pick")
+            local result, value, source = server("varp7827_twocats_lamp_pick")
             if result ~= "ok" or value ~= 3 then
                 return (result == "ok") and "refused" or result,
                     "var.server(twocats_lamp_pick) after ::setvar 3 -> " .. describe(result) .. "/"
                     .. describe(value) .. " " .. describe(source)
             end
-            local awaited, await_detail = await_server("varp7152_twocats_lamp_pick", 3, 5)
+            local awaited, await_detail = await_server("varp7827_twocats_lamp_pick", 3, 5)
             if awaited ~= "ok" then
                 return awaited, "var.await_server(twocats_lamp_pick, 3): " .. describe(await_detail)
             end
-            local puzzle_result, puzzle_value, puzzle_source = server("varp7153_dwarfrock_puzzle_dx1")
+            local puzzle_result, puzzle_value, puzzle_source = server("varp7828_dwarfrock_puzzle_dx1")
             if puzzle_result ~= "ok" or type(puzzle_value) ~= "number" then
                 return (puzzle_result == "ok") and "hollow" or puzzle_result,
                     "var.server(dwarfrock_puzzle_dx1) -> " .. describe(puzzle_result) .. "/"
@@ -8231,7 +8231,7 @@ return {
             end
             settle(1)
             local _, coins_after = count("coins")
-            local debt_result, debt = read_content("varp7172_ahoy_robin_debt")
+            local debt_result, debt = read_content("varp7847_ahoy_robin_debt")
             local text = describe(game.text) .. "; ahoy_robin_debt " .. describe(debt_result) .. " "
                 .. describe(debt) .. ", coins " .. describe(coins_before) .. " -> " .. describe(coins_after)
             local want_debt, want_coins = 0, coins_before
@@ -11811,7 +11811,7 @@ return {
                 -- 0_46_52) and the patch's check-health flag.
                 setup_cheat("::setvar " .. state_var .. " 21")
                 setup_cheat("::setvar varb4771_farming_transmit_a 21")
-                setup_cheat("::setvar varp5820_farming_falador_tree_check 1")
+                setup_cheat("::setvar varp6495_farming_falador_tree_check 1")
                 -- The grown willow's model is first asked for now; let it land
                 -- before the click hunts its triangles.
                 settle(10)
@@ -14128,7 +14128,7 @@ return {
             local function reading()
                 settle(2)
                 local _, r = points_fn()
-                local cr, counter = server("varp6296_prayer_drain_counter")
+                local cr, counter = server("varp6971_prayer_drain_counter")
                 if type(r) ~= "table" or cr ~= "ok" or type(counter) ~= "number" then
                     return nil, "points " .. describe(r and r.level) .. ", counter " .. describe(cr) .. " " .. describe(counter)
                 end
@@ -15761,7 +15761,7 @@ return {
 --                  the share, a dry allocation draw; the chest contents against their rows.
 -- A raid test can read its ending with existing verbs:
 --   t.cheat("::tobrewards") then t.msg.last(..) lines "tobrewards raid ...", "tobrewards chest ...";
---   t.var.server("varp6826_tob_completions").
+--   t.var.server("varp7501_tob_completions").
 --
 -- Seam row (merged by the seam8 closer) (cheap: no raid, ~4 s). Place in _conformance.lua's PLAN after
 -- the last seam6/seam7 Theatre row (seam.nylocas_protect_blocks_wave_hit) if the closer wants the
@@ -16085,7 +16085,7 @@ return {
 --
 -- Measurement cheats, as in the seam7 raid rows: ::god keeps the idle raider alive;
 -- ::tobmate (a party member who is not a player) keeps a forced jail from reading as
--- a wipe; ::setvar varp6840_tob_died_in 1 sets bit 0, the spectator-cage flag
+-- a wipe; ::setvar varp7515_tob_died_in 1 sets bit 0, the spectator-cage flag
 -- ~tob_jailed reads (tob_spectate.rs2), while the raider stands where the flies reach
 -- him. Proved by build/seam_state/matthew-mbp-m4-raid-b1-seam8/bloat8/scratch_b8_conf.lua
 -- (runs b8_conf on the shared pack: row 1 ok; b8_conf_priv on the private root with
@@ -16104,7 +16104,7 @@ return {
             if not log_rows then return missing("ticklog", "rows") end
             if not tick then return missing("tick") end
             local function teardown()
-                setup_cheat("::setvar varp6840_tob_died_in 0")
+                setup_cheat("::setvar varp7515_tob_died_in 0")
                 setup_cheat("::god 0")
                 setup_cheat("::tobout")
             end
@@ -16148,7 +16148,7 @@ return {
             -- 2. the cage: the flies reached this tile (control), then nothing does.
             local _, before = log_rows({ since = base, kind = "hit_player" })
             local control = #(before or {})
-            setup_cheat("::setvar varp6840_tob_died_in 1")
+            setup_cheat("::setvar varp7515_tob_died_in 1")
             settle(1)
             local _, jailed_at = tick()
             settle(16)
@@ -18511,11 +18511,11 @@ return {
             end
             ticks(8)
             -- the cage: her P2 attacks with the jail bit set, then cleared
-            setup_cheat("::setvar varp6840_tob_died_in 1")
+            setup_cheat("::setvar varp7515_tob_died_in 1")
             local s_cage = newest_serial("seam.verzik caged")
             ticks(20)
             local caged = aimed_since(s_cage)
-            setup_cheat("::setvar varp6840_tob_died_in 0")
+            setup_cheat("::setvar varp7515_tob_died_in 0")
             local s_free = newest_serial("seam.verzik uncaged")
             ticks(20)
             local freed = aimed_since(s_free)
@@ -19274,7 +19274,7 @@ return {
 -- SEAM_COUNT +1.
         -- (2) seam.loc_copies_verzik_death_cage -- the Verzik room's spectator cages:
         --     the cache map places `tob_dungeon_verzik_death_cage` 32717 twenty-four
-        --     times (OSRS-Content/osrs239-content/maps/m49_67.jl2:255-278, AV_INVENTORY
+        --     times (OSRS-Content/osrs-content/maps/m49_67.jl2:255-278, AV_INVENTORY
         --     .tsv:375 "map 49_67 x24") on local tiles x 21..26 and 39..44, z 36..38. The
         --     instance copy must stand all 24, on the same pattern (each copy's offset
         --     from the south-west-most copy equals the map's). Before: t.world.loc_copies

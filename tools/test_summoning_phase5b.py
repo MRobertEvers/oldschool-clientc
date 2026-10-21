@@ -32,7 +32,7 @@ import config_text
 
 
 REPO = Path(__file__).resolve().parents[1]
-DEFAULT_TREE = REPO / "OSRS-Content/osrs239-content"
+DEFAULT_TREE = REPO / "OSRS-Content/osrs-content"
 DEFAULT_BOUNDARY = REPO / "docs/summoning_port/roster_boundary_530.json"
 DEFAULT_MANIFEST = REPO / "docs/summoning_port/dreadfowl_cohort_530.ini"
 STAGER = REPO / "tools/stage_summoning_overlay.py"
@@ -47,7 +47,7 @@ EXPECTED_IMPORT = {
     "from_rev": "rs530",
     "from_cache": "../../../2009scape/Server/data/cache",
     "to_rev": "osrs239",
-    "to_tree": "../../OSRS-Content/osrs239-content",
+    "to_tree": "../../OSRS-Content/osrs-content",
     "lane": "ported/scape2009_summoning",
     "ledger": "port/summoning_dreadfowl_530.map",
     "prefix": COHORT,

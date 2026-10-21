@@ -998,7 +998,7 @@ def cmd_doctor(args):
     checks = []
     notes = []
 
-    submodule = os.path.join(REPO_ROOT, "OSRS-Content", "osrs239-content")
+    submodule = os.path.join(REPO_ROOT, "OSRS-Content", "osrs-content")
     if os.path.isdir(submodule):
         checks.append(("content submodule", "present"))
     else:

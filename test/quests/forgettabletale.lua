@@ -140,8 +140,8 @@ return {
                 "feud_karidian_fakebeard", "flier", "king_worm", "pink_skirt", "potato", "red_cape",
                 "spinning_plate", "studded_chaps", "steel_dart", "swamp_tar", "horsey_brown", "vampire_dust",
                 "white_apron" }
-            local want_result, want = t.var.server("varp7194_forget_rowdy_item")
-            if want_result ~= "ok" then want_result, want = t.var.varbit("varp7194_forget_rowdy_item") end
+            local want_result, want = t.var.server("varp7869_forget_rowdy_item")
+            if want_result ~= "ok" then want_result, want = t.var.varbit("varp7869_forget_rowdy_item") end
             local item = rowdy_items[want]
             t.check("talkToRowdyDwarf-request", item ~= nil, "Rowdy asked for item index " .. tostring(want) .. " (" .. tostring(want_result) .. ")" .. " = " .. tostring(item))
             if item == nil then t.blocked("seam: cannot read forget_rowdy_item (" .. tostring(want_result) .. ")") return end
@@ -474,7 +474,7 @@ return {
             t.ui.invoke(okw, 0)
             local closed = t.ui.await_close("forget_puzzle1", 30)
             t.check("puzzle1Ok", closed == "ok", "interface closed: " .. tostring(closed)
-                .. ", forget_route=" .. tostring(select(2, t.var.server("varp7193_forget_route"))) .. " want 1")
+                .. ", forget_route=" .. tostring(select(2, t.var.server("varp7868_forget_route"))) .. " want 1")
             t.exec("takePuzzle1Cart", t.player.click_loc, "forget_train_cart", 1)
             t.ticks(6)
             t.check("platform1-level", select(2, t.world.level()) == 3, "level " .. tostring(select(2, t.world.level())))
@@ -488,7 +488,7 @@ return {
             t.check("leg.4.end", type(endtile) == "table" and select(2, t.world.level()) == 1,
                 "tile " .. tostring(type(endtile) == "table" and (endtile.x .. "," .. endtile.z) or endtile)
                 .. " level " .. tostring(select(2, t.world.level())) .. ", forget_quest=" .. tostring(endstage)
-                .. ", forget_route=" .. tostring(select(2, t.var.server("varp7193_forget_route"))))
+                .. ", forget_route=" .. tostring(select(2, t.var.server("varp7868_forget_route"))))
             -- LEG 4 END
         end },
         { name = "puzzle_group_two", run = function(t)
@@ -555,8 +555,8 @@ return {
             local _, okw = t.ui.widget("forget_puzzle1:ok_button")
             t.ui.invoke(okw, 0)
             local closed = t.ui.await_close("forget_puzzle1", 30)
-            t.check("puzzle2Ok", closed == "ok" and select(2, t.var.server("varp7193_forget_route")) == 2,
-                "interface closed: " .. tostring(closed) .. ", forget_route=" .. tostring(select(2, t.var.server("varp7193_forget_route"))) .. " want 2")
+            t.check("puzzle2Ok", closed == "ok" and select(2, t.var.server("varp7868_forget_route")) == 2,
+                "interface closed: " .. tostring(closed) .. ", forget_route=" .. tostring(select(2, t.var.server("varp7868_forget_route"))) .. " want 2")
             t.exec("takePuzzle2Cart", t.player.click_loc, "forget_train_cart", 1)
             t.ticks(6)
             t.check("platform2-level", select(2, t.world.level()) == 3, "level " .. tostring(select(2, t.world.level())))
@@ -603,8 +603,8 @@ return {
             local _, okw = t.ui.widget("forget_puzzle1:ok_button")
             t.ui.invoke(okw, 0)
             local closed = t.ui.await_close("forget_puzzle1", 30)
-            t.check("puzzle3Ok", closed == "ok" and select(2, t.var.server("varp7193_forget_route")) == 3,
-                "interface closed: " .. tostring(closed) .. ", forget_route=" .. tostring(select(2, t.var.server("varp7193_forget_route"))) .. " want 3")
+            t.check("puzzle3Ok", closed == "ok" and select(2, t.var.server("varp7868_forget_route")) == 3,
+                "interface closed: " .. tostring(closed) .. ", forget_route=" .. tostring(select(2, t.var.server("varp7868_forget_route"))) .. " want 3")
             t.exec("takePuzzle3Cart", t.player.click_loc, "forget_train_cart", 1)
             t.ticks(6)
             t.expect("quest.stage.listening_room", t.quest.expect_stage("listening_room"))
@@ -703,8 +703,8 @@ return {
             local _, okw = t.ui.widget("forget_puzzle2:ok_button")
             t.ui.invoke(okw, 0)
             local closed = t.ui.await_close("forget_puzzle2", 30)
-            t.check("puzzle4Ok", closed == "ok" and select(2, t.var.server("varp7193_forget_route")) == 4,
-                "interface closed: " .. tostring(closed) .. ", forget_route=" .. tostring(select(2, t.var.server("varp7193_forget_route"))) .. " want 4")
+            t.check("puzzle4Ok", closed == "ok" and select(2, t.var.server("varp7868_forget_route")) == 4,
+                "interface closed: " .. tostring(closed) .. ", forget_route=" .. tostring(select(2, t.var.server("varp7868_forget_route"))) .. " want 4")
             t.exec("takePuzzle4Cart", t.player.click_loc, "forget_train_cart", 1)
             t.ticks(6)
             t.check("platform4-level", select(2, t.world.level()) == 3, "level " .. tostring(select(2, t.world.level())))
@@ -722,8 +722,8 @@ return {
             local _, ok5 = t.ui.widget("forget_puzzle2:ok_button")
             t.ui.invoke(ok5, 0)
             local closed5 = t.ui.await_close("forget_puzzle2", 30)
-            t.check("puzzle5Ok", closed5 == "ok" and select(2, t.var.server("varp7193_forget_route")) == 5,
-                "interface closed: " .. tostring(closed5) .. ", forget_route=" .. tostring(select(2, t.var.server("varp7193_forget_route"))) .. " want 5")
+            t.check("puzzle5Ok", closed5 == "ok" and select(2, t.var.server("varp7868_forget_route")) == 5,
+                "interface closed: " .. tostring(closed5) .. ", forget_route=" .. tostring(select(2, t.var.server("varp7868_forget_route"))) .. " want 5")
             local _, endtile = t.world.tile()
             local _, endstage = t.var.server("varb822_forget_quest")
             t.check("leg.7.end", type(endtile) == "table" and select(2, t.world.level()) == 1,
@@ -803,8 +803,8 @@ return {
             local _, ok6 = t.ui.widget("forget_puzzle2:ok_button")
             t.ui.invoke(ok6, 0)
             local closed6 = t.ui.await_close("forget_puzzle2", 30)
-            t.check("puzzle6Ok", closed6 == "ok" and select(2, t.var.server("varp7193_forget_route")) == 6,
-                "interface closed: " .. tostring(closed6) .. ", forget_route=" .. tostring(select(2, t.var.server("varp7193_forget_route"))) .. " want 6")
+            t.check("puzzle6Ok", closed6 == "ok" and select(2, t.var.server("varp7868_forget_route")) == 6,
+                "interface closed: " .. tostring(closed6) .. ", forget_route=" .. tostring(select(2, t.var.server("varp7868_forget_route"))) .. " want 6")
             t.exec("takePuzzle6Cart", t.player.click_loc, "forget_train_cart", 1)
             t.ticks(6)
             t.expect("quest.stage.library", t.quest.expect_stage("library"))
@@ -897,8 +897,8 @@ return {
             local _, ok7 = t.ui.widget("forget_puzzle3:ok_button")
             t.ui.invoke(ok7, 0)
             local closed7 = t.ui.await_close("forget_puzzle3", 30)
-            t.check("puzzle7Ok", closed7 == "ok" and select(2, t.var.server("varp7193_forget_route")) == 7,
-                "interface closed: " .. tostring(closed7) .. ", forget_route=" .. tostring(select(2, t.var.server("varp7193_forget_route"))) .. " want 7")
+            t.check("puzzle7Ok", closed7 == "ok" and select(2, t.var.server("varp7868_forget_route")) == 7,
+                "interface closed: " .. tostring(closed7) .. ", forget_route=" .. tostring(select(2, t.var.server("varp7868_forget_route"))) .. " want 7")
             local _, endtile = t.world.tile()
             local _, endstage = t.var.server("varb822_forget_quest")
             t.check("leg.9.end", type(endtile) == "table",
@@ -1046,8 +1046,8 @@ return {
             local _, ok8 = t.ui.widget("forget_puzzle3:ok_button")
             t.ui.invoke(ok8, 0)
             local closed8 = t.ui.await_close("forget_puzzle3", 30)
-            t.check("puzzle8Ok", closed8 == "ok" and select(2, t.var.server("varp7193_forget_route")) == 8,
-                "interface closed: " .. tostring(closed8) .. ", forget_route=" .. tostring(select(2, t.var.server("varp7193_forget_route"))) .. " want 8")
+            t.check("puzzle8Ok", closed8 == "ok" and select(2, t.var.server("varp7868_forget_route")) == 8,
+                "interface closed: " .. tostring(closed8) .. ", forget_route=" .. tostring(select(2, t.var.server("varp7868_forget_route"))) .. " want 8")
             t.exec("takePuzzle8Cart", t.player.click_loc, "forget_train_cart", 1)
             t.ticks(6)
             t.check("platform8-level", select(2, t.world.level()) == 3, "level " .. tostring(select(2, t.world.level())))
@@ -1099,8 +1099,8 @@ return {
             local _, ok9 = t.ui.widget("forget_puzzle3:ok_button")
             t.ui.invoke(ok9, 0)
             local closed9 = t.ui.await_close("forget_puzzle3", 30)
-            t.check("puzzle9Ok", closed9 == "ok" and select(2, t.var.server("varp7193_forget_route")) == 9,
-                "interface closed: " .. tostring(closed9) .. ", forget_route=" .. tostring(select(2, t.var.server("varp7193_forget_route"))) .. " want 9")
+            t.check("puzzle9Ok", closed9 == "ok" and select(2, t.var.server("varp7868_forget_route")) == 9,
+                "interface closed: " .. tostring(closed9) .. ", forget_route=" .. tostring(select(2, t.var.server("varp7868_forget_route"))) .. " want 9")
             t.exec("takePuzzle9Cart", t.player.click_loc, "forget_train_cart", 1)
             t.ticks(8)
             t.exec("watchCutscene", t.chat.play, {

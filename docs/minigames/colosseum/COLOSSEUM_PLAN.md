@@ -182,7 +182,7 @@ broken, max cape and hood) in `sources/cache_objs.txt`.
 
 ### 1.7 What our tree already has
 
-- `OSRS-Content/osrs239-content/server/scripts/quests/quest_twilightspromise/scripts/twilightspromise.rs2:351-370`
+- `OSRS-Content/osrs-content/server/scripts/quests/quest_twilightspromise/scripts/twilightspromise.rs2:351-370`
   owns `[oploc1,colosseum_entrance_outside]`: at Meat and Greet stages it teleports to
   `^mg_arena_coord` 0_28_48_31_33, at Twilight's Promise stages to the lobby
   (0_28_148_27_12 or 0_28_148_13_50), else prints "The Colosseum entrance.". `:372`
@@ -837,7 +837,7 @@ prayer row depends on it).
 
 ## 6. Build order
 
-New content lives in `OSRS-Content/osrs239-content/server/scripts/minigames/minigame_colosseum/`
+New content lives in `OSRS-Content/osrs-content/server/scripts/minigames/minigame_colosseum/`
 (`configs/`, `scripts/`), the Inferno's layout. One seam per file, in dependency order.
 **Before a seam starts, its spec table(s) exist and pass the validator**; the seam
 builds only rows graded A-D or tagged `[Mn]`, and opens a `CONTENT_BUGS.md` row for

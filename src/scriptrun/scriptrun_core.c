@@ -78,7 +78,9 @@ ScriptrunCore_New(struct GameProtoRevTable const* rev)
     if( rev->player_info_read )
     {
         core->player_decoder_state =
-            ToriMem_Calloc(ToriMem_ServerPlayers(), 1, osrs239_playerinfo_state_size());
+            ToriMem_Calloc(ToriMem_ServerPlayers(), 1,
+                           rev->player_info_state_size ? rev->player_info_state_size()
+                                                       : osrs239_playerinfo_state_size());
         assert(core->player_decoder_state);
     }
     core->run_energy = 10000;
@@ -113,7 +115,12 @@ ScriptrunCore_SetLocalIndex(
     /* The live client mirrors this every frame (app_world_frame); the world's
      * local-player rules (the scene-edge teleport, the off-band reset) read it. */
     core->world->local_pid = index;
-    if( core->player_decoder_state )
+    if( core->player_decoder_state && core->rev->player_info_set_local )
+    {
+        core->rev->player_info_set_local(index);
+        core->rev->player_info_state_save(core->player_decoder_state);
+    }
+    else if( core->player_decoder_state )
     {
         osrs239_playerinfo_set_local(index);
         osrs239_playerinfo_state_save(core->player_decoder_state);
@@ -1709,10 +1716,14 @@ ScriptrunCore_Packet(
     assert(core);
     assert(len >= 0);
     core->packets++;
-    if( core->player_decoder_state )
+    if( core->player_decoder_state && core->rev->player_info_state_load )
+        core->rev->player_info_state_load(core->player_decoder_state);
+    else if( core->player_decoder_state )
         osrs239_playerinfo_state_load(core->player_decoder_state);
     core_packet(core, pkt_name, payload, len);
-    if( core->player_decoder_state )
+    if( core->player_decoder_state && core->rev->player_info_state_save )
+        core->rev->player_info_state_save(core->player_decoder_state);
+    else if( core->player_decoder_state )
         osrs239_playerinfo_state_save(core->player_decoder_state);
 }
 

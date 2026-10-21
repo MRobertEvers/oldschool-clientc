@@ -48,7 +48,7 @@ import sys
 import config_text
 
 REPO =os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DEFAULT_TREE = os.path.join(REPO, "OSRS-Content", "osrs239-content")
+DEFAULT_TREE = os.path.join(REPO, "OSRS-Content", "osrs-content")
 
 # The trigger families whose subject is an npc type (or an npc category).
 NPC_TRIGGERS = (

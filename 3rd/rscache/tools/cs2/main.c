@@ -313,6 +313,31 @@ list_cache_ids(struct script_store* store, int* out_count)
     return ids;
 }
 
+/**
+ * Seed the long-var name tables from every script in the store: a varc read
+ * with 51/52 or a varp with 64/65 is a long one (RSCache_CS2_NamesSeedLongVars).
+ */
+static void
+seed_long_vars(struct script_store* store, struct RSCache_CS2_Names* names)
+{
+    /* `compile --src` alone has no scripts to read the uses from. */
+    if( !store->have_cache && !store->raw_directory )
+        return;
+    int count = 0;
+    int* ids = store->have_cache ? list_cache_ids(store, &count)
+                                 : list_raw_ids(store->raw_directory, &count);
+    if( !ids )
+        return;
+    const struct RSCache_CS2_Script** scripts =
+        (const struct RSCache_CS2_Script**)calloc((size_t)(count > 0 ? count : 1), sizeof(*scripts));
+    assert(scripts);
+    for( int i = 0; i < count; i++ )
+        scripts[i] = store_load(store, ids[i]);
+    RSCache_CS2_NamesSeedLongVars(names, scripts, count);
+    free(scripts);
+    free(ids);
+}
+
 /* -------------------------------------------------------------------------
  * Commands
  * ---------------------------------------------------------------------- */
@@ -539,6 +564,7 @@ run_decompile(struct options* options, struct script_store* store, int* ids, int
         RSCache_CS2_NamesLoadDirectory(&names, options->names_directory);
     if( store->have_cache )
         load_param_types_from_cache(store, &names);
+    seed_long_vars(store, &names);
     struct ToolDbColumns* db_columns = store->have_cache ? tool_db_columns_load(store->disk) : NULL;
 
     struct param_source param_source = { &names };
@@ -653,6 +679,7 @@ run_compile(struct options* options, struct script_store* store, int* ids, int i
         RSCache_CS2_NamesLoadDirectory(&names, options->names_directory);
     if( store->have_cache )
         load_param_types_from_cache(store, &names);
+    seed_long_vars(store, &names);
 
     struct ToolDbColumns* db_columns = store->have_cache ? tool_db_columns_load(store->disk) : NULL;
 
@@ -957,6 +984,7 @@ run_infer(struct options* options, struct script_store* store, int* ids, int id_
         RSCache_CS2_NamesLoadDirectory(&names, options->names_directory);
     if( store->have_cache )
         load_param_types_from_cache(store, &names);
+    seed_long_vars(store, &names);
     struct ToolDbColumns* db_columns = store->have_cache ? tool_db_columns_load(store->disk) : NULL;
 
     struct param_source param_source = { &names };
@@ -1530,6 +1558,7 @@ run_roundtrip(struct options* options, struct script_store* store, int* ids, int
         RSCache_CS2_NamesLoadDirectory(&names, options->names_directory);
     if( store->have_cache )
         load_param_types_from_cache(store, &names);
+    seed_long_vars(store, &names);
     struct ToolDbColumns* db_columns = store->have_cache ? tool_db_columns_load(store->disk) : NULL;
 
     struct param_source param_source = { &names };
@@ -1805,6 +1834,10 @@ main(int argc, char** argv)
         else
             store.trailer_flags = RSCACHE_CLIENTSCRIPT_DECODE_TRAILER_LEGACY;
     }
+    /* The command table is the tree's era; an older cache gets its own shapes.
+     * Only once a revision is named — a bare dump's zeroed profile is not one. */
+    if( options.revision_name )
+        RSCache_CS2_CommandApplyProfile(&store.profile);
 
     int* ids = options.ids;
     int id_count = options.id_count;

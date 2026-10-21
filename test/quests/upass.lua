@@ -601,7 +601,7 @@ return {
             -- crossTheGrid: %upass_grid_pattern (set at the quest start by ~setupassgrilltrap, king_lathas.rs2:129)
             -- names one safe 2-row band per column group (upass_grid.rs2:72-96): the timer fails a player who is
             -- outside all three bands. Band of digit d is z 9673+2(d-1) .. +1; col1 x 2473-2478, col3 x 2469-2474, col5 x 2467-2470.
-            local _, pattern = t.var.server("varp6010_upass_grid_pattern")
+            local _, pattern = t.var.server("varp6685_upass_grid_pattern")
             pattern = tonumber(pattern) or 0
             local d1, d2, d3 = math.floor(pattern / 100) % 10, math.floor(pattern / 10) % 10, pattern % 10
             local function band_z(d) return 9673 + 2 * (d - 1) end

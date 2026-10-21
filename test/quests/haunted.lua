@@ -15,7 +15,7 @@
 --
 -- The basement maze is walked end to end. Each of its nine gates is a
 -- shape-10 tile with a blankwall_no_blockrange on its south/west edge
--- (OSRS-Content/osrs239-content/maps/m48_152.jl2:3-11, :998-1006); seam
+-- (OSRS-Content/osrs-content/maps/m48_152.jl2:3-11, :998-1006); seam
 -- matthew-mbp-m4-b58-seam1 (c) gave every gate an [aploc1] in
 -- quest_haunted.rs2 (label ernest_approach_maze_door, p_aprange(1)), so a
 -- gate is pressed from EITHER side, from the tile in line with it on its

@@ -71,7 +71,7 @@ import sys
 import time
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
-CONTENT = os.path.join(REPO_ROOT, "OSRS-Content", "osrs239-content")
+CONTENT = os.path.join(REPO_ROOT, "OSRS-Content", "osrs-content")
 SCRIPTS = os.path.join(CONTENT, "server", "scripts")
 PACK_DIR = os.path.join(SCRIPTS, "build")
 PACK_FILES = [os.path.join(PACK_DIR, "script.dat"), os.path.join(PACK_DIR, "script.idx")]

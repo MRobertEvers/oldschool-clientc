@@ -27,7 +27,7 @@
 **Deliverables**
 
 1. Evidence-based friendly names for every cache dbtable that can be
-   *identified* — in `OSRS-Content/osrs239-content/configs/all.dbtable.compack`,
+   *identified* — in `OSRS-Content/osrs-content/configs/all.dbtable.compack`,
    with the data files kept in agreement and the round-trip verified.
 2. `docs/DBTABLES.md` — the reference for what dbtables are, where they are
    used, how the two populations relate, and how server content consumes them.
@@ -76,7 +76,7 @@ exact two-tables-agreeing-by-hand failure of `CONTENT_ARCHITECTURE.md` §8.2(c),
 third occurrence.
 
 1. Add `[namespace:dbtable]` and `[namespace:dbrow]` to
-   `OSRS-Content/osrs239-content/content.ini` with `ids = server` and a comment
+   `OSRS-Content/osrs-content/content.ini` with `ids = server` and a comment
    explaining the dual population (cache ids 0..258 / 0..16724 keep their ids;
    `server` licenses growth above the high-water mark — same correction `param`
    and `varp` already record in that file).
@@ -85,7 +85,7 @@ third occurrence.
    Check what `CONTENT_IDS_SERVER` changes behaviourally in
    `torirs_server_content.c` / `cachepack` before flipping — read the consumers, do
    not assume the enum is inert documentation.
-3. Verify: `python3 tools/ss_allocate.py --tree OSRS-Content/osrs239-content
+3. Verify: `python3 tools/ss_allocate.py --tree OSRS-Content/osrs-content
    --check` still exits 0; `make -C src test-ToriRSServer` green;
    `validate_id_bases` (`src/torirsserver/torirs_server_pack.c:553`) still passes on
    boot.

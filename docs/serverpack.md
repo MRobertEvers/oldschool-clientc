@@ -1,6 +1,6 @@
 # Server packs: incremental builds, staleness, and the reload contract
 
-The server boots from three packs built out of `OSRS-Content/osrs239-content`:
+The server boots from three packs built out of `OSRS-Content/osrs-content`:
 
 | pack | built by | where | what |
 |---|---|---|---|

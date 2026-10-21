@@ -105,7 +105,7 @@ file and `port/cs2_varps.map`.
 ## 3. Implementation and ownership surface
 
 Paths in this section are relative to
-`OSRS-Content/osrs239-content/` unless stated otherwise.
+`OSRS-Content/osrs-content/` unless stated otherwise.
 
 ### Quest-owned files
 
@@ -447,7 +447,7 @@ DORIC PASS: full inventory blocked accept without losing the pickaxe
 DORIC PASS: start-to-complete via OPNPC1
 ```
 
-BMP list (`OSRS-Content/osrs239-content/server/scripts/selftest/quests/quest_doric/scenes/`):
+BMP list (`OSRS-Content/osrs-content/server/scripts/selftest/quests/quest_doric/scenes/`):
 
 | File | What it shows |
 | --- | --- |

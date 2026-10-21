@@ -237,7 +237,7 @@ python tools/deploy/build_osrs239_package.py --skip-build   # restage what is bu
 
 `tools/deploy/build_osrs239_package.py` builds the script pack (if stale), the
 web client and both servers, then stages `bin/`, `build-web/`,
-`cache.osrs239/`, the slice of `OSRS-Content/osrs239-content` torirsserver
+`cache.osrs239/`, the slice of `OSRS-Content/osrs-content` torirsserver
 opens (not the 11 GB selftest corpus, and only the `.jm2` maps), the manifest
 rewritten for that layout, `revconfig/`, `script/` and start scripts, and zips
 it. The servers are native binaries, so run it on the OS that will host the

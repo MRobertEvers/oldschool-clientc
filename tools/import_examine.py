@@ -39,7 +39,7 @@ Both files are rewritten whole on every run, so re-running after a cache refresh
 is the update path.
 
 Usage:
-  tools/import_examine.py [--dat1 cache254.lostcity] [--tree OSRS-Content/osrs239-content]
+  tools/import_examine.py [--dat1 cache254.lostcity] [--tree OSRS-Content/osrs-content]
   tools/import_examine.py --report          # coverage only, writes nothing
 """
 
@@ -383,7 +383,7 @@ def emit(path, header, rows):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dat1", default="cache254.lostcity")
-    ap.add_argument("--tree", default="OSRS-Content/osrs239-content")
+    ap.add_argument("--tree", default="OSRS-Content/osrs-content")
     ap.add_argument("--wiki", default=None, help="monster wikitext dir (default: <tree>/wiki/monsters)")
     ap.add_argument("--report", action="store_true", help="print coverage, write nothing")
     args = ap.parse_args()

@@ -1,4 +1,5 @@
 #include "cs2_names.h"
+#include "../datatypes/cs2_script.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -42,6 +43,8 @@ static const struct cs2_name_file cs2_name_files[] = {
     { RSCACHE_CS2_NAMES_VARBIT, "varbit-names.tsv" },
     { RSCACHE_CS2_NAMES_VARCINT, "varcint-names.tsv" },
     { RSCACHE_CS2_NAMES_VARCSTRING, "varcstring-names.tsv" },
+    { RSCACHE_CS2_NAMES_VARCLONG, "varclong-names.tsv" },
+    { RSCACHE_CS2_NAMES_VARPLONG, "varplong-names.tsv" },
 };
 
 #define CS2_NAME_FILE_COUNT ((int)(sizeof(cs2_name_files) / sizeof(cs2_name_files[0])))
@@ -1050,4 +1053,48 @@ RSCache_CS2_NamesLoadDecompileSettings(
     }
     fclose(file);
     return loaded;
+}
+
+void
+RSCache_CS2_NamesSeedLongVars(
+    struct RSCache_CS2_Names* names,
+    const struct RSCache_CS2_Script* const* scripts,
+    int script_count)
+{
+    assert(names);
+    if( script_count == 0 )
+        return;
+    assert(scripts);
+    for( int i = 0; i < script_count; i++ )
+    {
+        const struct RSCache_CS2_Script* script = scripts[i];
+        if( !script )
+            continue;
+        for( int pc = 0; pc < script->op_count; pc++ )
+        {
+            int opcode = script->opcodes[pc];
+            int id = script->int_operands[pc];
+            /* 51/52 are push/pop_varc_long, 64/65 push/pop_var_long. */
+            if( opcode == 51 || opcode == 52 )
+            {
+                if( RSCache_CS2_NamesLookup(names, RSCACHE_CS2_NAMES_VARCLONG, id) )
+                    continue;
+                const char* name = RSCache_CS2_NamesLookup(names, RSCACHE_CS2_NAMES_VARCINT, id);
+                if( !name )
+                    continue;
+                /* Arena-owned, so it outlives the removal; NamesSet bumps the
+                 * generation, which rebuilds both reverse indexes. */
+                RSCache_CS2_IntMapRemove(&names->tables[RSCACHE_CS2_NAMES_VARCINT], id);
+                RSCache_CS2_NamesSet(names, RSCACHE_CS2_NAMES_VARCLONG, id, name);
+            }
+            else if( opcode == 64 || opcode == 65 )
+            {
+                if( RSCache_CS2_NamesLookup(names, RSCACHE_CS2_NAMES_VARPLONG, id) )
+                    continue;
+                const char* name = RSCache_CS2_NamesLookup(names, RSCACHE_CS2_NAMES_VARP, id);
+                if( name )
+                    RSCache_CS2_NamesSet(names, RSCACHE_CS2_NAMES_VARPLONG, id, name);
+            }
+        }
+    }
 }

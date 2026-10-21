@@ -6,7 +6,7 @@
 -- the four-form shapeshifter experiment), fight all four forms for real,
 -- pick up the ball and hand it back to the Boy.
 --
--- Read against OSRS-Content/osrs239-content/server/scripts/quests/quest_ball/
+-- Read against OSRS-Content/osrs-content/server/scripts/quests/quest_ball/
 -- (quest_ball_locs.rs2, nora_t_hagg.rs2, witches_diary.rs2) and
 -- server/scripts/areas/area_taverly/scripts/boy.rs2, cross-checked against
 -- Quest Helper's WitchsHouse.java (quest-helper/.../helpers/quests/

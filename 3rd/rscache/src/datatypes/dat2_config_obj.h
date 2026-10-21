@@ -95,6 +95,8 @@ enum RSCache_Dat2ConfigObjField
     RSCACHE_OBJ_FIELD_ENTITY_COND_OPS,    /* 201, rev 237+ */
     RSCACHE_OBJ_FIELD_ENTITY_COND_SUB_OPS,/* 202, rev 237+ */
     RSCACHE_OBJ_FIELD_PARAMS,             /* 249 */
+    RSCACHE_OBJ_FIELD_OP251,              /* 251, rev 241+: payload-free flag */
+    RSCACHE_OBJ_FIELD_OP161,              /* 161, rev 241+: u16 count, u16 seq ids */
     /* RS2 only: decoded and stored, but the OldSchool stream cannot carry them. */
     RSCACHE_OBJ_FIELD_RS2_ITEM_TYPE,      /* 96 */
     RSCACHE_OBJ_FIELD_RS2_LEND,           /* 121 */
@@ -146,6 +148,10 @@ struct RSCache_Dat2ConfigObj
     int* retextures_from;
     int* retextures_to;
     int retexture_count;
+
+    /** Opcode 161 (rev 241+): seq ids, meaning not yet known. */
+    int* op161;
+    int op161_count;
 
     int zoom2d;
     int offset_x2d;
@@ -216,6 +222,11 @@ struct RSCache_Dat2ConfigObj
 #define RSCACHE_CONFIG_OBJ_DECODE_REV238_UNTRADEABLE 4
 /** Rev 239+: opcode 160 stackable = 2. */
 #define RSCACHE_CONFIG_OBJ_DECODE_REV239_STACKABLE2 8
+/** Rev 241+: opcode 251, a payload-free flag (OpenRS2 #2746: 4,576 objs), and
+ *  opcode 161, a u16-counted list of u16 seq ids (4 objs: the obligator and
+ *  Zorya's tome, charged and uncharged). 128, not 16: 16..64 are the RS2 codecs
+ *  below, and sharing a bit switched every 241 obj into the varuint codec. */
+#define RSCACHE_CONFIG_OBJ_DECODE_REV241_OP251 128
 
 /**
  * The RS2 build-670+ branch (rev 727 and its neighbours).

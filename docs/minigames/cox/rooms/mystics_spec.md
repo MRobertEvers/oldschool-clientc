@@ -1,7 +1,7 @@
 # Skeletal Mystics (Chambers of Xeric) -- tick spec and content audit
 
 Unit: guardians_mystics. Written 2026-10-18 for `docs/minigames/cox/COX_FINISH_PLAN.md`
-phases 1-3. Content: the MYSTIC procs of `OSRS-Content/osrs239-content/server/scripts/minigames/minigame_cox/scripts/cox_minions.rs2`
+phases 1-3. Content: the MYSTIC procs of `OSRS-Content/osrs-content/server/scripts/minigames/minigame_cox/scripts/cox_minions.rs2`
 (the shaman procs in the same file belong to the shamans unit), the mystic blocks of `configs/cox.npc` and `configs/cox.constant`.
 
 ## Sources (rank order: Jagex > recorded data > wiki > plugins > Near-Reality > ours)

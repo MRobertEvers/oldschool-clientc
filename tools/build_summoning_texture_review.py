@@ -15,7 +15,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PORT = ROOT / "OSRS-Content/osrs239-content/port"
+PORT = ROOT / "OSRS-Content/osrs-content/port"
 SOURCE_CACHE = Path("/Users/matthewevers/Documents/git_repos/2009scape/Server/data/cache")
 TARGET_CACHE = ROOT / "cache.osrs239.summoning"
 ANIM_COMPARE = ROOT / "3rd/rscache/tools/anim_compare/anim_compare"

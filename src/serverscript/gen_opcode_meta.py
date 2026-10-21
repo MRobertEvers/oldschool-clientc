@@ -1182,6 +1182,19 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # mechanic: Verzik blocks raiders (2, all) while she throws her webs.
     "NPC_SETBLOCKWALK": (11172, 1, 0, 0, 0),
 
+    # cam_moveto_cycles(coord $coord, int $height, int $cycles,
+    #                   int $ignore_terrain, int $easing)
+    # cam_rotateto_coordinate(coord $coord, int $height, int $cycles, int $easing)
+    #
+    # The eased, cycle-timed camera: CAM_MOVETO_CYCLES_V3 moves the eye to
+    # `coord` at `height` over `cycles` client cycles on easing curve `easing`
+    # (0 linear, 1 ease-in sine, 2 ease-out sine, ... RSProx
+    # CameraEaseFunction); CAM_ROTATETO_COORDINATE_V3 turns the camera to face
+    # `coord` the same way (0 cycles: at once). The Guthixian Archive's intro
+    # cutscene opens on both (RSProx 4293 [174], [190]).
+    "CAM_MOVETO_CYCLES": (11220, 5, 0, 0, 0),
+    "CAM_ROTATETO_COORDINATE": (11221, 4, 0, 0, 0),
+
     # npc_setbasestat(npc_stat $stat, int $level)
     #
     # The active npc's BASE level in one non-hitpoint stat until it dies or

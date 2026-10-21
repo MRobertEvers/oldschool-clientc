@@ -257,7 +257,7 @@ One or two sentences each; the trap files (`traps-01-12.md`, `traps-13-22.md`, `
 have the evidence and the exceptions.
 
 1. Every tick count is SERVER ticks; `t.ticks(10)` is 200ms for the world to answer one thing.
-2. Targets are content symbols from `OSRS-Content/osrs239-content/configs/all.*.compack`, never ids or display names.
+2. Targets are content symbols from `OSRS-Content/osrs-content/configs/all.*.compack`, never ids or display names.
 3. `choose:` takes a 1-based index, the EXACT row text, or a `/lua pattern/`; a wrong spelling is `no_row`.
 4. Two byte-identical shots in `shots/` fail the gate; a repeated page chain is clicked through with `t.ticks(2)` + `continue_`.
 5. No `pcall`: a guard that raises ends the run; `t.exec` stringifies a table detail.
@@ -268,7 +268,7 @@ have the evidence and the exceptions.
 10. The evidence is the `ledger.tsv` row and the failure block, not `client.log`.
 11. Never `shots=false` on `chat.drain`; its shot is a frame pump.
 12. A verb that answers `ok` with no detail cannot go through `t.exec`, and `gate.py` fails EVERY PASS row with an empty detail: read the value back and write it.
-13. Find an npc's tile from its `*.spawn` row under `OSRS-Content/osrs239-content/server/scripts/` (grep the whole tree).
+13. Find an npc's tile from its `*.spawn` row under `OSRS-Content/osrs-content/server/scripts/` (grep the whole tree).
 14. Name stage rows `quest.stage.<constant>`; the gate matches the literal `quest.` prefix.
 15. Never pad the shot count; a shot follows a click that changed something.
 16. Never cheat the quest's own work; `::give`/`::kill`/`::setvar` are for setup and brought-along prerequisites.

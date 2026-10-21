@@ -8,10 +8,10 @@ selftest_sailing_lifecycle(struct ToriRSServer* srv, struct ToriRSServerPlayer* 
     {
         const char* scripts = getenv("TORIRSSERVER_SCRIPTS");
         scripts_owned = ToriRSServer_ScriptsLoad(srv, scripts ? scripts :
-            "OSRS-Content/osrs239-content/server/scripts/build");
+            "OSRS-Content/osrs-content/server/scripts/build");
         if( !scripts_owned && !scripts )
             scripts_owned = ToriRSServer_ScriptsLoad(srv,
-                "../OSRS-Content/osrs239-content/server/scripts/build");
+                "../OSRS-Content/osrs-content/server/scripts/build");
     }
     SELFTEST_CHECK(srv->scripts_ok, "lifecycle validation requires the real compiled content");
     if( !srv->scripts_ok ) return;
@@ -343,7 +343,7 @@ selftest_sailing_lifecycle(struct ToriRSServer* srv, struct ToriRSServerPlayer* 
             owner->sailing.shore_x = 3059;
             owner->sailing.shore_z = 2979;
             SELFTEST_CHECK(ToriRSServer_VesselBoardPlayer(srv, owner, owned), "board before disconnect");
-            int instance_varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp5925_map_instance_handle");
+            int instance_varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp6600_map_instance_handle");
             if( instance_varp >= 0 ) owner->varps[instance_varp] = owned->instance;
             int departed_pid = owner->pid;
             ToriRSServer_WorldRemovePlayer(srv, owner);

@@ -277,11 +277,29 @@ packet_obj_add_v19_out(RsprotExec *x, MsgObjAdd *m)
     RSPROT_U4_ALT1(x, m->quantity);
 }
 
+/* v100 -- revs 241. */
+void
+packet_obj_add_v100_out(RsprotExec *x, MsgObjAdd *m)
+{
+    RSPROT_U1_ALT2(x, m->ownership_type);
+    RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
+    RSPROT_U2_ALT1(x, m->id);
+    RSPROT_U2_ALT2(x, m->time_until_despawn);
+    RSPROT_U1_ALT2(x, m->op_flags);
+    RSPROT_U4(x, m->quantity);
+    RSPROT_U2_ALT3(x, m->time_until_public);
+    RSPROT_U1_ALT3(x, m->never_becomes_public);
+}
+
 /*
- * 19 row(s) for 19 layout(s), complete over revisions 221-239.
+ * 20 row(s) for 20 layout(s), complete over revisions 221-239.
  * A complete table makes rsprot_version_pick's NULL mean exactly one thing: a
  * revision outside that span. An incomplete one would conflate "not
  * transcribed" with "no such packet", and those are different facts.
+ *
+ * Plus revision(s) 241, which RSProt never vendored: derived from
+ * RSProx's decoders by tools/rsprox_codec_overlay.py. Revisions between 239
+ * and those are not covered and pick NULL.
  */
 const RsprotVersionRange rsprot_obj_add_out[] = {
     { 221, 221, (RsprotCodecFn)packet_obj_add_v1_out },
@@ -303,6 +321,7 @@ const RsprotVersionRange rsprot_obj_add_out[] = {
     { 237, 237, (RsprotCodecFn)packet_obj_add_v17_out },
     { 238, 238, (RsprotCodecFn)packet_obj_add_v18_out },
     { 239, 239, (RsprotCodecFn)packet_obj_add_v19_out },
+    { 241, 241, (RsprotCodecFn)packet_obj_add_v100_out },
 };
 
 const int rsprot_obj_add_out_count =

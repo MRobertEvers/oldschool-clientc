@@ -3,8 +3,8 @@
 > **What this is.** `docs/LOSTCITY_PORT_TRIAGE.md` §9 step 6 names the interface
 > queue as **questlist → chatmenu → levelup → the rest on demand**. This is the
 > §5.3 feature-checklist discovery pass for those three, done against the
-> decompiled CS2 in `OSRS-Content/osrs239-content/scripts/` and the interface
-> layouts in `OSRS-Content/osrs239-content/interfaces/`, cross-referenced
+> decompiled CS2 in `OSRS-Content/osrs-content/scripts/` and the interface
+> layouts in `OSRS-Content/osrs-content/interfaces/`, cross-referenced
 > against `src/torirsserver/` and `src/game/` to say what ToriRSServer already does and
 > what it doesn't. It is a server-requirements spec, not an implementation —
 > per `docs/PORTING_GUIDE.md` §2, the write-up below is a starting point for
@@ -56,7 +56,7 @@ script_1412  [proc,questdisplay_setup]   -> db_getfield/db_find_with_count again
 
 The quest **names, F2P/members flags, release-type and parent-quest chain** all
 come from `db_getfield`/`db_find_with_count` against **dbtable 0 `quest`**
-(`OSRS-Content/osrs239-content/configs/all.dbtable:3-63`, 213 rows). That table
+(`OSRS-Content/osrs-content/configs/all.dbtable:3-63`, 213 rows). That table
 already loads generically — no server work needed for the list content itself,
 only for the header numbers below.
 
@@ -207,7 +207,7 @@ traffic, not against reading that proc.
 ### 2.2 Server mechanism (already landed)
 
 - `^clientscript_chatbox_multi_init = 58` declared content-side:
-  `OSRS-Content/osrs239-content/server/scripts/interface_chat/configs/chat.constant:53`.
+  `OSRS-Content/osrs-content/server/scripts/interface_chat/configs/chat.constant:53`.
 - Wire: `SS_OP_RUNCLIENTSCRIPT_SS`, opcode **11002**
   (`src/torirsserver/torirs_server_opcode_coverage.gen.h:260`), handled at
   `src/torirsserver/torirs_server_scripts.c:3462-3472`, encoder
@@ -217,7 +217,7 @@ traffic, not against reading that proc.
   `torirs_server.h:220`) rather than slot 0, because the clientscript's rows carry
   sub-ids 1..5, not separate components.
 - Content driver, fully rewritten against `chatmenu`:
-  `OSRS-Content/osrs239-content/server/scripts/interface_chat/scripts/chat.rs2:142-232`
+  `OSRS-Content/osrs-content/server/scripts/interface_chat/scripts/chat.rs2:142-232`
   (`p_choice_open`, `p_choice2..5`, `p_choice2_header`) — verified directly,
   matches the doc exactly:
   ```
@@ -293,7 +293,7 @@ model components already baked with `model=`/`modelzoom=`/`modelxan=`/`modelyan=
 `messagebox`, `messagebox_titled`, `objectbox_double`, `levelup_display`).
 
 **Nothing in the CS2 corpus opens this interface.** `grep -rlF "if_open"
-OSRS-Content/osrs239-content/scripts` is 0 hits across all 9,725 files — at
+OSRS-Content/osrs-content/scripts` is 0 hits across all 9,725 files — at
 this era, opening an interface is never a clientscript's job (§2.4 of
 `docs/UI_ERA_PORTING_GUIDE.md`). Panel selection is by name match (panel name
 == skill name), so no index table is needed — just the string.

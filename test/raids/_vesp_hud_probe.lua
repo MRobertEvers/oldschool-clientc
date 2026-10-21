@@ -32,7 +32,7 @@ return {
         "::setlevel defence 99", "::setlevel hitpoints 99", "::setlevel prayer 99", "::setlevel magic 99",
         "::setlevel agility 99",
         "::setvar varb5452_prayer_augury_unlocked 1",
-        "::setvar varp7348_barbarian_vial_smash 1",
+        "::setvar varp8023_barbarian_vial_smash 1",
         -- Synq's room line (1:25:34): "The shadow is the best weapon to use on
         -- the portal" -- Tumeken's shadow, charged, with the max magic set
         -- (cheat_max_gear.rs2 [debugproc,maxmage])

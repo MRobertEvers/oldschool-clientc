@@ -13,7 +13,7 @@
  * prop at a time: if_setposition carries x, y and both modes together, so changing
  * `y` alone still has to send the other three, taken from the node's static values.
  *
- * Argument orders are read off the shipped corpus (OSRS-Content/osrs239-content/
+ * Argument orders are read off the shipped corpus (OSRS-Content/osrs-content/
  * scripts), not guessed — and every entry is compiled by test/run_tests.js through
  * the real CS2 compiler, so a wrong arity fails the build rather than the client.
  */

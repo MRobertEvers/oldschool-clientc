@@ -3,7 +3,7 @@
 Plan to take `skill_smithing/` from its F2P vertical slice to the complete
 [Smithing](https://oldschool.runescape.wiki/w/Smithing) skill. The wiki is the
 authority for content (products, levels, XP, bars-per-item, tools, gates); the
-cache (`OSRS-Content/osrs239-content/configs/all.obj`, `all.loc`,
+cache (`OSRS-Content/osrs-content/configs/all.obj`, `all.loc`,
 `pack/category.pack`) is the authority for names and for what is *expressible*
 at this revision.
 
@@ -96,7 +96,7 @@ Primary wiki sources, all read for this plan:
 `dwarf_keldagrim_anvil`, `lovakengj_anvil`, `darkm_anvil` and nine more carry
 `category=772`. The whole tree defines exactly **one** anvil trigger —
 `[oplocu,_anvil]` at
-[`smithing.rs2:16`](../OSRS-Content/osrs239-content/server/scripts/skill_smithing/scripts/smithing/smithing.rs2#L16).
+[`smithing.rs2:16`](../OSRS-Content/osrs-content/server/scripts/skill_smithing/scripts/smithing/smithing.rs2#L16).
 There is no `[oploc1,_anvil]`. The only way to smith today is to *use a bar on*
 the anvil; the advertised "Smith" option is an inert row. The wiki is explicit
 that both work: *"An anvil can be used to smith items by click on an anvil or

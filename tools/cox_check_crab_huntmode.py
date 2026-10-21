@@ -48,7 +48,7 @@ import config_text
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT = [
     ROOT
-    / "OSRS-Content/osrs239-content/server/scripts/minigames/minigame_cox/configs/cox.npc"
+    / "OSRS-Content/osrs-content/server/scripts/minigames/minigame_cox/configs/cox.npc"
 ]
 
 CRAB_FORMS = [

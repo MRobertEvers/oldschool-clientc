@@ -25,7 +25,7 @@ raids.
   QUEUE.tsv is not read. With both variables unset, the quest gate behaves exactly as
   before.
 - A passing room publishes to
-  `OSRS-Content/osrs239-content/server/scripts/selftest/minigames/<raid>/<room>/play/`.
+  `OSRS-Content/osrs-content/server/scripts/selftest/minigames/<raid>/<room>/play/`.
   Use `--no-publish` for scratch runs.
 - A raid id must never equal a quest id. `build/quest_gate/<id>/`, the session lock and
   the relay checkpoints are keyed by id alone, so the wrappers exit 2 when a
@@ -339,13 +339,13 @@ asserts after it. Each was measured with a scratch script that entered the room 
 
 - `run.py` checks and rebuilds the SHARED pack first, so another worker's half-written
   file breaks your run. To isolate a before/after, build a private content root:
-  `git archive HEAD -- osrs239-content/server/scripts` (leave out `selftest` and
+  `git archive HEAD -- osrs-content/server/scripts` (leave out `selftest` and
   `build*`), symlink the other content directories, compile it with
   `src/build_opt/sscompile --src <copy>/server/scripts --out <copy>/server/scripts/build
   --content-root <copy>`, and run with `TORIRSSERVER_CONTENT=<copy>` and
   `TORIRSSERVER_SCRIPTS=<copy>/server/scripts/build`. The embedded server also reads the
   `.npc` configs from that root.
-- Keep that pack inside its own worktree (`<copy>/osrs239-content/server/scripts/build`).
+- Keep that pack inside its own worktree (`<copy>/osrs-content/server/scripts/build`).
   The server's stale check walks the pack's parent directory, so a pack in a shared
   scratch directory picks up other workers' files.
 - The C `--selftest` loads the repo's shared pack unless `TORIRSSERVER_SCRIPTS` is set.
@@ -864,9 +864,9 @@ under `build/seam_state/matthew-mbp-m4-raid-b1-seam3/`.
   `hit_player` rows outside that window keep their real damage. Never in a room test.
 - A private content root, for measuring while other workers edit OSRS-Content:
   `git archive` OSRS-Content HEAD `server/scripts` with the pathspecs
-  `':(exclude)osrs239-content/server/scripts/selftest'` and
-  `':(exclude)osrs239-content/server/scripts/build*'` (or the archive is 16 GB), symlink
-  every other entry of osrs239-content and osrs239-content/server, `mkdir
+  `':(exclude)osrs-content/server/scripts/selftest'` and
+  `':(exclude)osrs-content/server/scripts/build*'` (or the archive is 16 GB), symlink
+  every other entry of osrs-content and osrs-content/server, `mkdir
   server/scripts/build` (or sscompile fails "cannot write .../build/script.dat"), run
   `tools/ss_allocate.py --tree` and `src/build_opt/sscompile --src/--out/--content-root`,
   then run with `TORIRSSERVER_CONTENT` / `TORIRSSERVER_SCRIPTS` set
@@ -1445,7 +1445,7 @@ outside its files, and changed nothing. The fixers' reports are under
 
 ## Proving a content change without the shared tree
 
-- Make a scratchpad copy of osrs239-content as a symlink farm, with configs/, pack/,
+- Make a scratchpad copy of osrs-content as a symlink farm, with configs/, pack/,
   server/pack and server/scripts (minus build* and selftest) copied, so ss_allocate's
   writes stay private.
 - Build its pack with `make -C src torirsserver-scripts-lanes TORIRSSERVER_SCRIPT_LANES=
@@ -1958,7 +1958,7 @@ damage, hitpoint or spawn rule changed. The fixers' reports and scratches are un
 ## Proving a presentation change without the shared tree
 
 - A before/after on content: copy server/scripts (minus build*, png, bmp) into a mirror
-  root whose other entries are symlinks to osrs239-content, compile one pack with the HEAD
+  root whose other entries are symlinks to osrs-content, compile one pack with the HEAD
   version of the file and one with yours (`build_opt/sscompile --src <root>/server/scripts
   --out <pack> --content-root <root>`), and run with `TORIRSSERVER_SCRIPTS=<pack>
   TORIRSSERVER_ALLOW_STALE_SCRIPTS=1`. Both packs carry the same snapshot of other edits.
@@ -3986,11 +3986,11 @@ yet a test (SEAM_LEDGER.md, seam15).
 
 ## Content A/B between two packs
 
-- Build a private HEAD pack: `git -C OSRS-Content archive HEAD -- osrs239-content/server/scripts
-  | tar -x -C <dir> --exclude='osrs239-content/server/scripts/build*' --exclude='*/selftest/*'`.
-  Symlink every other osrs239-content entry and server/pack into it, then run
-  `src/build_opt/sscompile --src <dir>/osrs239-content/server/scripts --out
-  <dir>/osrs239-content/server/scripts/build --content-root <dir>/osrs239-content`. Do NOT run
+- Build a private HEAD pack: `git -C OSRS-Content archive HEAD -- osrs-content/server/scripts
+  | tar -x -C <dir> --exclude='osrs-content/server/scripts/build*' --exclude='*/selftest/*'`.
+  Symlink every other osrs-content entry and server/pack into it, then run
+  `src/build_opt/sscompile --src <dir>/osrs-content/server/scripts --out
+  <dir>/osrs-content/server/scripts/build --content-root <dir>/osrs-content`. Do NOT run
   ss_allocate.py on it: it writes through the symlinks.
 - Run with TORIRSSERVER_CONTENT and TORIRSSERVER_SCRIPTS set. Compare before and after under
   the SAME --name: the name is the seed, so a different name is a different fight.

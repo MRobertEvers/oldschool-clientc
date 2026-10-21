@@ -12,7 +12,7 @@ workflow.
   12-indent lines under it are that entity's extended info.
 - **Names.** Rev 230+ prints `name (id)`. Rev 227 prints bare ids. **Every id is from the
   recording's revision, not 239**: look it up in
-  `OSRS-Content/osrs239-content/configs/all.<type>.compack` before using it. Synth and area-sound
+  `OSRS-Content/osrs-content/configs/all.<type>.compack` before using it. Synth and area-sound
   ids are named in `pack/4_soundeffects.pack`. Hitsplats are in `all.hitsplat.compack` (12
   block_me, 13 block_other, 16 damage_me, 17 damage_other, 18 shield_me). Healthbars are in
   `all.healthbar.compack` (0 standard_30, 17 standard_60, 20 standard_120).
@@ -21,7 +21,7 @@ workflow.
   **Angles** run 0..2047: 0 south, 512 west, 1024 north, 1536 east. **Coordinates** are
   `(x, z, level)` absolute, but instance tiles are translated to the template unless the
   transcript is `--raw`.
-- **Our command** is the RuneScript command (`OSRS-Content/osrs239-content/server/scripts`) that
+- **Our command** is the RuneScript command (`OSRS-Content/osrs-content/server/scripts`) that
   puts this packet on our wire. The signatures are in `src/serverscript/ssc_command_kinds.gen.h`.
   Our extra opcodes (11xxx) are documented in `src/serverscript/gen_opcode_meta.py` EXTRA_OPCODES.
   To see our own wire, set `TORIRSSERVER_TRACE_OUT=1` (or `=2` to include packet bodies).

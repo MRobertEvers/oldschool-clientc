@@ -726,7 +726,7 @@ def render_runtime_rows(crosswalk: dict[str, object]) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--content", type=Path, default=Path("OSRS-Content/osrs239-content"))
+    parser.add_argument("--content", type=Path, default=Path("OSRS-Content/osrs-content"))
     parser.add_argument(
         "--output",
         type=Path,
@@ -756,7 +756,7 @@ def main() -> int:
         "--runtime-output",
         type=Path,
         default=Path(
-            "OSRS-Content/osrs239-content/server/scripts/skill_construction/"
+            "OSRS-Content/osrs-content/server/scripts/skill_construction/"
             "configs/poh_runtime_generated.dbrow"
         ),
     )

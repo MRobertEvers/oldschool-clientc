@@ -49,7 +49,7 @@ import helper_coverage  # noqa: E402
 
 ACCEPTED = "8f3c5b544"
 LEDGER_COMMIT = "b6c144c108"
-LEDGER = "osrs239-content/server/scripts/selftest/quests/quest_taleoftherighteous/play/ledger.tsv"
+LEDGER = "osrs-content/server/scripts/selftest/quests/quest_taleoftherighteous/play/ledger.tsv"
 TEST_ID = "taleoftherighteous"
 STEPS = ("talkToPhileasAgain", "returnToPhileasTent")
 AGAIN, RETURN = "goto-talkToPhileasAgain", "returnToPhileasTent"

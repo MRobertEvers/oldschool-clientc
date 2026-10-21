@@ -7,14 +7,14 @@ Colosseum's entry: re-run into a scratch directory, `diff -rq` empty, index iden
 
 ```
 python3 tools/waves_gate/cache_dump.py --game colosseum \
-    --content OSRS-Content/osrs239-content \
+    --content OSRS-Content/osrs-content \
     --out docs/minigames/colosseum/sources \
     --index build/inventory_state/colosseum.cache_index.json
 ```
 
 ## What was read
 
-- **Cache:** revision 239 (`OSRS-Content/osrs239-content/meta.ini`), the unpacked text form
+- **Cache:** revision 239 (`OSRS-Content/osrs-content/meta.ini`), the unpacked text form
   in OSRS-Content at `c70422bdf6` (2026-10-03). The binary cache is not read.
 - **Config files:** `configs/all.<kind>` with `.compack` for npc, seq, spotanim, loc, obj,
   varp, varbit, varc, inv, enum, dbrow, struct; `configs/all.param` (param types);

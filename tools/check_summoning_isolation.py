@@ -12,7 +12,7 @@ import config_text
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_TREE = REPO_ROOT / "OSRS-Content" / "osrs239-content"
+DEFAULT_TREE = REPO_ROOT / "OSRS-Content" / "osrs-content"
 LANE = Path("ported") / "scape2009_summoning"
 PREFIX = "summoning_"
 PREFIX_TOKEN = re.compile(r"(?<![A-Za-z0-9_])summoning_")

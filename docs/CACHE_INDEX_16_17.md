@@ -99,7 +99,7 @@ The whole record is 83 bytes and every one is accounted for
 ```
 
 **The eleven sprite ids**, resolved against
-`OSRS-Content/osrs239-content/pack/8_sprites.pack`:
+`OSRS-Content/osrs-content/pack/8_sprites.pack`:
 
 | # | id  | name               |
 | - | --- | ------------------ |

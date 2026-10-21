@@ -1,5 +1,5 @@
 # ladder dragon quest_dir=quest_dragon guide=src/main/java/com/questhelper/helpers/quests/dragonslayer/DragonSlayer.java steps=44 legs=1:1-11@s0 2:12-22@s2 3:23-33@s2 4:34-44@s2
-#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
 leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
 1	1	0	startQuest	NpcStep	npc:guildmaster	3190,3360,0	Talk to the Guildmaster in the Champions' Guild, south of Varrock.			Can I have a quest?	areas/varrock/scripts/guild_master.rs2:4 opnpc1
 1	2	1	talkToOziach	NpcStep	npc:oziach	3068,3517,0	Talk to Oziach in his house in north western Edgeville.			Can you sell me a rune platebody? | The Guildmaster of the …	areas/edgeville/scripts/oziach.rs2:5 opnpc1; +1

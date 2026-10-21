@@ -108,13 +108,13 @@ def hull_vertices(boat):
     # These are the cache files, not values read back from the tested renderer.
     # Footer layouts match rscache/src/datatypes/model.c (types 2 and 3).
     name={1:'log',2:'dugout',3:'catamaran',4:'waka'}[boat]
-    data=(Path(__file__).resolve().parents[1]/f'OSRS-Content/osrs239-content/models/loc/canoeing_{name}.model').read_bytes()
+    data=(Path(__file__).resolve().parents[1]/f'OSRS-Content/osrs-content/models/loc/canoeing_{name}.model').read_bytes()
     footer={b'\xff\xfe':23,b'\xff\xfd':26}[data[-2:]]
     return int.from_bytes(data[-footer:-footer+2],'big')
 
 
 def sink_terrain():
-    root=Path(__file__).resolve().parents[1]/'OSRS-Content/osrs239-content/maps'
+    root=Path(__file__).resolve().parents[1]/'OSRS-Content/osrs-content/maps'
     cache={};proof={}
     for destination,(_,point,angle) in SINKS.items():
         cells=[]

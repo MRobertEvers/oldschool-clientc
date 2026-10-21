@@ -627,7 +627,7 @@ selftest_quest_mcannon(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
      * lost_my_cannon, take_a_cannon; Transcript:Nulodion). The menu rows:
      * 1 sell, 2 lost, 3 more, 4 bye; the sell menu row 1 is "take a cannon". */
     {
-        int varp_last = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp7189_cannon_last_stage");
+        int varp_last = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp7864_cannon_last_stage");
         int obj_part1 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "twpart1");
         int obj_part2 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "twpart2");
         int obj_part3 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "twpart3");

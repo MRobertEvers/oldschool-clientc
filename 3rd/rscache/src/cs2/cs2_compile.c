@@ -50,6 +50,7 @@ enum cs2_cc_token_kind
     CS2_CC_TOK_END = 0,
     CS2_CC_TOK_IDENT,
     CS2_CC_TOK_INT,
+    CS2_CC_TOK_LONG,     /* 123L   */
     CS2_CC_TOK_STRING,
     CS2_CC_TOK_LOCAL,    /* $name  */
     CS2_CC_TOK_GLOBAL,   /* %name  */
@@ -69,6 +70,7 @@ struct cs2_cc_token
      */
     int start;
     int int_value;
+    int64_t long_value;
     int line;
     char punct;
     /** Set for `<=`, `>=`; the punct stays '<' or '>'. */
@@ -89,6 +91,8 @@ struct cs2_cc_ops
     uint16_t* opcodes;
     int* int_operands;
     char** string_operands;
+    /* `push_constant_long`'s operand; zero everywhere else. */
+    int64_t* long_operands;
     int count;
     int capacity;
 };
@@ -110,6 +114,8 @@ struct cs2_cc_local
     enum RSCache_CS2_Type type;
     int slot;
     bool is_string;
+    /* The long bank: `def_long`, a `long` argument. Never an array. */
+    bool is_long;
     bool is_array;
 };
 
@@ -136,8 +142,10 @@ struct cs2_cc_compiler
 
     int int_local_count;
     int string_local_count;
+    int long_local_count;
     int int_argument_count;
     int string_argument_count;
+    int long_argument_count;
 
     int script_id;
     enum RSCache_CS2_Type return_types[128];
@@ -147,8 +155,11 @@ struct cs2_cc_compiler
     int override_local_string_count;
     int override_int_argument_count;
     int override_string_argument_count;
+    int override_local_long_count;
+    int override_long_argument_count;
     bool return_default_override[128];
     int return_default_values[128];
+    int64_t return_default_long_values[128];
 
     /*
      * Nesting depth inside a `calc(...)`.
@@ -196,6 +207,7 @@ cs2_cc_ops_free(struct cs2_cc_ops* ops)
     RSCACHE_FREE(ops->opcodes);
     RSCACHE_FREE(ops->int_operands);
     RSCACHE_FREE(ops->string_operands);
+    RSCACHE_FREE(ops->long_operands);
     memset(ops, 0, sizeof(*ops));
 }
 
@@ -211,19 +223,22 @@ cs2_cc_ops_reserve(struct cs2_cc_ops* ops, int needed)
     int* int_operands = (int*)RSCACHE_REALLOC(ops->int_operands, (size_t)capacity * sizeof(int));
     char** string_operands =
         (char**)RSCACHE_REALLOC(ops->string_operands, (size_t)capacity * sizeof(char*));
-    if( opcodes )
-        ops->opcodes = opcodes;
-    if( int_operands )
-        ops->int_operands = int_operands;
-    if( string_operands )
-        ops->string_operands = string_operands;
-    if( !opcodes || !int_operands || !string_operands )
-        return false;
+    int64_t* long_operands =
+        (int64_t*)RSCACHE_REALLOC(ops->long_operands, (size_t)capacity * sizeof(int64_t));
+    assert(opcodes);
+    assert(int_operands);
+    assert(string_operands);
+    assert(long_operands);
+    ops->opcodes = opcodes;
+    ops->int_operands = int_operands;
+    ops->string_operands = string_operands;
+    ops->long_operands = long_operands;
     for( int i = ops->capacity; i < capacity; i++ )
     {
         ops->opcodes[i] = 0;
         ops->int_operands[i] = 0;
         ops->string_operands[i] = NULL;
+        ops->long_operands[i] = 0;
     }
     ops->capacity = capacity;
     return true;
@@ -240,7 +255,17 @@ cs2_cc_emit(struct cs2_cc_compiler* cc, int opcode, int operand)
     int index = cc->ops.count++;
     cc->ops.opcodes[index] = (uint16_t)opcode;
     cc->ops.int_operands[index] = operand;
+    cc->ops.long_operands[index] = 0;
     return index;
+}
+
+static void
+cs2_cc_emit_long(struct cs2_cc_compiler* cc, int64_t value)
+{
+    int index = cs2_cc_emit(cc, RSCACHE_CS2_OP_PUSH_CONSTANT_LONG, 0);
+    if( cc->failed )
+        return;
+    cc->ops.long_operands[index] = value;
 }
 
 static void
@@ -276,6 +301,7 @@ cs2_cc_rollback(struct cs2_cc_compiler* cc, int mark)
         cc->ops.string_operands[i] = NULL;
         cc->ops.opcodes[i] = 0;
         cc->ops.int_operands[i] = 0;
+        cc->ops.long_operands[i] = 0;
     }
     cc->ops.count = mark;
     cc->failed = false;
@@ -465,6 +491,14 @@ cs2_cc_scan(struct cs2_cc_compiler* cc, struct cs2_cc_token* token)
                 token->int_value = (int)value;
                 return;
             }
+            /* `123L`: the decompiler's spelling of a long literal. */
+            long long long_value = strtoll(token->text, &end, 10);
+            if( end && end[0] == 'L' && end[1] == '\0' && end != token->text )
+            {
+                token->kind = CS2_CC_TOK_LONG;
+                token->long_value = (int64_t)long_value;
+                return;
+            }
         }
         token->kind = CS2_CC_TOK_IDENT;
         return;
@@ -600,6 +634,23 @@ cs2_cc_split_local_name(const char* name, int* out_slot, bool* out_array)
     return true;
 }
 
+/** The opcode that pushes a local's bank: string (and every array handle), long, int. */
+static int
+cs2_cc_local_push(const struct cs2_cc_local* local)
+{
+    if( local->is_string )
+        return RSCACHE_CS2_OP_PUSH_STRING_LOCAL;
+    return local->is_long ? RSCACHE_CS2_OP_PUSH_LONG_LOCAL : RSCACHE_CS2_OP_PUSH_INT_LOCAL;
+}
+
+static int
+cs2_cc_local_pop(const struct cs2_cc_local* local)
+{
+    if( local->is_string )
+        return RSCACHE_CS2_OP_POP_STRING_LOCAL;
+    return local->is_long ? RSCACHE_CS2_OP_POP_LONG_LOCAL : RSCACHE_CS2_OP_POP_INT_LOCAL;
+}
+
 static int
 cs2_cc_find_local(struct cs2_cc_compiler* cc, const char* name)
 {
@@ -659,6 +710,7 @@ cs2_cc_declare_local(
      * `$intarray0(i)` is the element.
      */
     cc->locals[index].is_string = is_array || type == RSCACHE_CS2_TYPE_STRING;
+    cc->locals[index].is_long = !is_array && type == RSCACHE_CS2_TYPE_LONG;
 
     if( cc->locals[index].is_string )
     {
@@ -666,6 +718,13 @@ cs2_cc_declare_local(
             cc->string_local_count = slot + 1;
         if( is_argument )
             cc->string_argument_count++;
+    }
+    else if( cc->locals[index].is_long )
+    {
+        if( slot + 1 > cc->long_local_count )
+            cc->long_local_count = slot + 1;
+        if( is_argument )
+            cc->long_argument_count++;
     }
     else
     {
@@ -1133,12 +1192,15 @@ cs2_cc_numbered_global(const char* name, int* out_push, int* out_pop, int* out_i
         int push;
         int pop;
     } kinds[] = {
-        /* Longest first: `varcstring` must beat `varc`, and `varbit` beat `var`. */
+        /* Longest first: `varcstring` must beat `varc`, and `varbit` and
+         * `varlong` beat `var`. */
         { "varclansetting", RSCACHE_CS2_OP_PUSH_VARCLANSETTING, -1 },
         { "varcstring", RSCACHE_CS2_OP_PUSH_VARC_STRING, RSCACHE_CS2_OP_POP_VARC_STRING },
+        { "varclong", RSCACHE_CS2_OP_PUSH_VARC_LONG, RSCACHE_CS2_OP_POP_VARC_LONG },
         { "varclan", RSCACHE_CS2_OP_PUSH_VARCLAN, -1 },
         { "varcint", RSCACHE_CS2_OP_PUSH_VARC_INT, RSCACHE_CS2_OP_POP_VARC_INT },
         { "varbit", RSCACHE_CS2_OP_PUSH_VARBIT, RSCACHE_CS2_OP_POP_VARBIT },
+        { "varlong", RSCACHE_CS2_OP_PUSH_VAR_LONG, RSCACHE_CS2_OP_POP_VAR_LONG },
         { "var", RSCACHE_CS2_OP_PUSH_VAR, RSCACHE_CS2_OP_POP_VAR },
     };
     for( size_t i = 0; i < sizeof(kinds) / sizeof(kinds[0]); i++ )
@@ -1156,10 +1218,48 @@ cs2_cc_numbered_global(const char* name, int* out_push, int* out_pop, int* out_i
                 numbered = false;
         }
         if( !numbered )
-            return false; /* `varbit_6`, `variable`: not a numbered global */
+            break; /* `varbit_6`, `variable`: not a numbered global */
         *out_push = kinds[i].push;
         *out_pop = kinds[i].pop;
         *out_id = atoi(digits);
+        return true;
+    }
+
+    /*
+     * A name that carries its kind and id: `varp279_awarded_points`,
+     * `varb542_cutscene_status` (OSRS-Content README, "Var names carry their
+     * kind and id"). The id is in the name, so it resolves whichever name
+     * table is loaded. unpack's round-trip check compiles the decompiled text
+     * against the cache's own (unprefixed) gameval names, and without this
+     * every vartransmit trigger list naming a tree var failed it: 358 of the
+     * 241 tree's scripts stayed bytecode on `'$varp279_awarded_points' is used
+     * before it is defined`. A varc's id does not say int or string, so `varc`
+     * is left to the named tables.
+     */
+    static const struct
+    {
+        const char* prefix;
+        int push;
+        int pop;
+    } carried[] = {
+        { "varp", RSCACHE_CS2_OP_PUSH_VAR, RSCACHE_CS2_OP_POP_VAR },
+        { "varb", RSCACHE_CS2_OP_PUSH_VARBIT, RSCACHE_CS2_OP_POP_VARBIT },
+    };
+    for( size_t i = 0; i < sizeof(carried) / sizeof(carried[0]); i++ )
+    {
+        size_t length = strlen(carried[i].prefix);
+        if( strncmp(name, carried[i].prefix, length) != 0 )
+            continue;
+        const char* cursor = name + length;
+        if( !isdigit((unsigned char)*cursor) )
+            continue;
+        while( isdigit((unsigned char)*cursor) )
+            cursor++;
+        if( *cursor != '_' || !cursor[1] )
+            continue;
+        *out_push = carried[i].push;
+        *out_pop = carried[i].pop;
+        *out_id = atoi(name + length);
         return true;
     }
     return false;
@@ -1173,6 +1273,27 @@ cs2_cc_global_kind(
     int* out_pop,
     int* out_id)
 {
+    /* The long tables first: a long varp keeps its id-carrying `varp5753_`
+     * name, which the numbered path would otherwise read as an int varp. */
+    static const struct
+    {
+        enum RSCache_CS2_NameTable table;
+        int push;
+        int pop;
+    } longs[] = {
+        { RSCACHE_CS2_NAMES_VARPLONG, RSCACHE_CS2_OP_PUSH_VAR_LONG, RSCACHE_CS2_OP_POP_VAR_LONG },
+        { RSCACHE_CS2_NAMES_VARCLONG, RSCACHE_CS2_OP_PUSH_VARC_LONG, RSCACHE_CS2_OP_POP_VARC_LONG },
+    };
+    for( size_t i = 0; i < sizeof(longs) / sizeof(longs[0]); i++ )
+    {
+        if( RSCache_CS2_NamesLookupId(cs2_cc_names(cc), longs[i].table, name, out_id) )
+        {
+            *out_push = longs[i].push;
+            *out_pop = longs[i].pop;
+            return true;
+        }
+    }
+
     if( cs2_cc_numbered_global(name, out_push, out_pop, out_id) )
         return true;
 
@@ -1302,6 +1423,8 @@ cs2_cc_infer_type(struct cs2_cc_compiler* cc, const char* text, enum cs2_cc_toke
     {
     case CS2_CC_TOK_INT:
         return RSCACHE_CS2_TYPE_INT;
+    case CS2_CC_TOK_LONG:
+        return RSCACHE_CS2_TYPE_LONG;
     case CS2_CC_TOK_STRING:
         return RSCACHE_CS2_TYPE_STRING;
     case CS2_CC_TOK_CONSTANT:
@@ -2289,7 +2412,10 @@ cs2_cc_command(struct cs2_cc_compiler* cc, const char* name, bool dot)
         cs2_cc_emit(cc, opcode, 0);
         return;
     }
-    if( info->kind != RSCACHE_CS2_CMD_BASIC && info->kind != RSCACHE_CS2_CMD_TYPED_POP )
+    /* An array-element command's arguments are fixed; only its result's stack
+     * is not, and that is the caller's business (cs2_cc_result_stacks). */
+    if( info->kind != RSCACHE_CS2_CMD_BASIC && info->kind != RSCACHE_CS2_CMD_TYPED_POP &&
+        info->kind != RSCACHE_CS2_CMD_ARRAY_ELEMENT )
     {
         cs2_cc_fail(cc, "'%s' cannot be written as a call", name);
         return;
@@ -2374,6 +2500,11 @@ cs2_cc_expression(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type expected)
         cs2_cc_next(cc);
         return;
 
+    case CS2_CC_TOK_LONG:
+        cs2_cc_emit_long(cc, cc->token.long_value);
+        cs2_cc_next(cc);
+        return;
+
     case CS2_CC_TOK_STRING:
     {
         const char* body = cc->token.text;
@@ -2431,11 +2562,7 @@ cs2_cc_expression(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type expected)
             cs2_cc_emit(cc, RSCACHE_CS2_OP_PUSH_ARRAY_INT, cc->locals[index].slot);
             return;
         }
-        cs2_cc_emit(
-            cc,
-            cc->locals[index].is_string ? RSCACHE_CS2_OP_PUSH_STRING_LOCAL
-                                        : RSCACHE_CS2_OP_PUSH_INT_LOCAL,
-            cc->locals[index].slot);
+        cs2_cc_emit(cc, cs2_cc_local_push(&cc->locals[index]), cc->locals[index].slot);
         return;
     }
 
@@ -2622,6 +2749,13 @@ cs2_cc_expression(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type expected)
 static void
 cs2_cc_condition(struct cs2_cc_compiler* cc, struct cs2_cc_jumps* pass, struct cs2_cc_jumps* fail);
 
+static int
+cs2_cc_result_stacks(
+    struct cs2_cc_compiler* cc,
+    int mark,
+    enum RSCache_CS2_StackType* stacks,
+    int capacity);
+
 static void
 cs2_cc_comparison(struct cs2_cc_compiler* cc, struct cs2_cc_jumps* pass)
 {
@@ -2637,9 +2771,15 @@ cs2_cc_comparison(struct cs2_cc_compiler* cc, struct cs2_cc_jumps* pass)
             right_expected = cc->locals[local].type;
     }
 
+    int left_mark = cc->ops.count;
     cs2_cc_expression(cc, RSCACHE_CS2_TYPE_NONE);
     if( cc->failed )
         return;
+    /* Two longs compare with 68..73 (the deob's long-stack branches), whose
+     * operators print exactly as the int ones; the left side says which. */
+    enum RSCache_CS2_StackType left_stacks[64];
+    int left_count = cs2_cc_result_stacks(cc, left_mark, left_stacks, 64);
+    bool long_compare = left_count > 0 && left_stacks[left_count - 1] == RSCACHE_CS2_STACK_LONG;
 
     if( cc->token.kind != CS2_CC_TOK_PUNCT )
     {
@@ -2666,6 +2806,30 @@ cs2_cc_comparison(struct cs2_cc_compiler* cc, struct cs2_cc_jumps* pass)
     default:
         cs2_cc_fail(cc, "'%c' is not a comparison", cc->token.punct);
         return;
+    }
+    if( long_compare )
+    {
+        switch( opcode )
+        {
+        case RSCACHE_CS2_OP_BRANCH_EQUALS:
+            opcode = RSCACHE_CS2_OP_LONG_BRANCH_EQUALS;
+            break;
+        case RSCACHE_CS2_OP_BRANCH_NOT:
+            opcode = RSCACHE_CS2_OP_LONG_BRANCH_NOT;
+            break;
+        case RSCACHE_CS2_OP_BRANCH_LESS_THAN:
+            opcode = RSCACHE_CS2_OP_LONG_BRANCH_LESS_THAN;
+            break;
+        case RSCACHE_CS2_OP_BRANCH_GREATER_THAN:
+            opcode = RSCACHE_CS2_OP_LONG_BRANCH_GREATER_THAN;
+            break;
+        case RSCACHE_CS2_OP_BRANCH_LESS_THAN_OR_EQUALS:
+            opcode = RSCACHE_CS2_OP_LONG_BRANCH_LESS_THAN_OR_EQUALS;
+            break;
+        default:
+            opcode = RSCACHE_CS2_OP_LONG_BRANCH_GREATER_THAN_OR_EQUALS;
+            break;
+        }
     }
     cs2_cc_next(cc);
     cs2_cc_expression(cc, right_expected);
@@ -3010,6 +3174,7 @@ cs2_cc_switch(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type subject_type)
                 RSCache_CS2_StrBufAppend(&body, cc->token.text);
                 break;
             case CS2_CC_TOK_INT:
+            case CS2_CC_TOK_LONG: /* the text keeps its `L` */
                 RSCache_CS2_StrBufAppend(&body, cc->token.text);
                 break;
             case CS2_CC_TOK_STRING:
@@ -3189,11 +3354,7 @@ cs2_cc_emit_store(struct cs2_cc_compiler* cc, const struct cs2_cc_token* target)
             cs2_cc_fail(cc, "'$%s' is assigned before it is defined", target->text);
             return;
         }
-        cs2_cc_emit(
-            cc,
-            cc->locals[index].is_string ? RSCACHE_CS2_OP_POP_STRING_LOCAL
-                                        : RSCACHE_CS2_OP_POP_INT_LOCAL,
-            cc->locals[index].slot);
+        cs2_cc_emit(cc, cs2_cc_local_pop(&cc->locals[index]), cc->locals[index].slot);
         return;
     }
 
@@ -3288,34 +3449,67 @@ cs2_cc_db_result_stacks(
     return 1;
 }
 
-static void
-cs2_cc_emit_call_discards(struct cs2_cc_compiler* cc, int mark)
+/** The element stack of the array local whose handle instruction `index` pushes. */
+static int
+cs2_cc_array_element_stack(struct cs2_cc_compiler* cc, int index)
 {
-    if( cc->failed || cc->ops.count <= mark )
-        return;
+    if( index < 0 || cc->ops.opcodes[index] != RSCACHE_CS2_OP_PUSH_STRING_LOCAL )
+        return -1;
+    for( int i = 0; i < cc->local_count; i++ )
+    {
+        if( cc->locals[i].is_array && cc->locals[i].slot == cc->ops.int_operands[index] )
+            return (int)RSCache_CS2_TypeStackType(cc->locals[i].type);
+    }
+    return -1;
+}
+
+/**
+ * What the last instruction (emitted since `mark`) leaves on the stacks, in push
+ * order. -1 when that is not statically known — see cs2_cc_emit_call_discards.
+ */
+static int
+cs2_cc_result_stacks(
+    struct cs2_cc_compiler* cc,
+    int mark,
+    enum RSCache_CS2_StackType* stacks,
+    int capacity)
+{
+    if( cc->failed || cc->ops.count <= mark || capacity < 1 )
+        return -1;
 
     int index = cc->ops.count - 1;
     int opcode = cc->ops.opcodes[index];
-    enum RSCache_CS2_StackType stacks[64];
     int count = 0;
+
+    switch( opcode )
+    {
+    case RSCACHE_CS2_OP_PUSH_CONSTANT_LONG:
+    case RSCACHE_CS2_OP_PUSH_LONG_LOCAL:
+    case RSCACHE_CS2_OP_PUSH_VARC_LONG:
+    case RSCACHE_CS2_OP_PUSH_VAR_LONG:
+        stacks[0] = RSCACHE_CS2_STACK_LONG;
+        return 1;
+    default:
+        break;
+    }
 
     if( opcode == RSCACHE_CS2_OP_GOSUB_WITH_PARAMS )
     {
         if( !cc->options || !cc->options->scripts.load )
-            return;
+            return -1;
         const struct RSCache_CS2_Script* callee =
             cc->options->scripts.load(cc->options->scripts.user, cc->ops.int_operands[index]);
         if( !callee )
-            return;
-        count = RSCache_CS2_ScriptReturnTypes(callee, stacks, 64);
-        if( count < 0 )
-            return;
+            return -1;
+        count = RSCache_CS2_ScriptReturnTypes(callee, stacks, capacity);
+        if( count < 0 || count > capacity )
+            return -1;
     }
     else
     {
         const struct RSCache_CS2_CommandInfo* info = RSCache_CS2_CommandGet(opcode);
         if( !info )
-            return;
+            return -1;
         switch( info->kind )
         {
         case RSCACHE_CS2_CMD_BASIC:
@@ -3323,15 +3517,27 @@ cs2_cc_emit_call_discards(struct cs2_cc_compiler* cc, int mark)
         /* `cc_find_param`'s *arguments* depend on the param's type; what it
          * pushes is fixed (one int, found or not), so its defs say what to drop. */
         case RSCACHE_CS2_CMD_FIND_PARAM:
-            for( int i = 0; i < info->def_count && count < 64; i++ )
+            for( int i = 0; i < info->def_count && count < capacity; i++ )
             {
                 const struct RSCache_CS2_Prototype* proto =
                     RSCache_CS2_ProtoGet(RSCache_CS2_CommandDef(info, i));
                 if( !proto )
-                    return;
+                    return -1;
                 stacks[count++] = RSCache_CS2_TypeStackType(proto->type);
             }
             break;
+        case RSCACHE_CS2_CMD_ARRAY_ELEMENT:
+        {
+            /* The array's element stack, from the local whose handle the call
+             * was given first (`array_delete($stringarray0, $int0)`). An array
+             * this script never names as one keeps the recorded int. */
+            int element = -1;
+            for( int i = mark; i < index && element < 0; i++ )
+                element = cs2_cc_array_element_stack(cc, i);
+            stacks[count++] = element < 0 ? RSCACHE_CS2_STACK_INT
+                                          : (enum RSCache_CS2_StackType)element;
+            break;
+        }
         case RSCACHE_CS2_CMD_JOIN_STRING:
             stacks[count++] = RSCACHE_CS2_STACK_STRING;
             break;
@@ -3341,9 +3547,9 @@ cs2_cc_emit_call_discards(struct cs2_cc_compiler* cc, int mark)
         case RSCACHE_CS2_CMD_DB_FIND:
             /* One int — the number of matching rows — however wide the column
              * is, so no operand needs reading. */
-            count = cs2_cc_db_result_stacks(cc, info->kind, 0, stacks, 64);
+            count = cs2_cc_db_result_stacks(cc, info->kind, 0, stacks, capacity);
             if( count < 0 )
-                return;
+                return -1;
             break;
         case RSCACHE_CS2_CMD_DB_GETFIELD:
         {
@@ -3353,13 +3559,13 @@ cs2_cc_emit_call_discards(struct cs2_cc_compiler* cc, int mark)
              * before the call. Anything else and the shape is unread and
              * nothing is dropped. */
             if( index - 2 < mark )
-                return;
+                return -1;
             if( cc->ops.opcodes[index - 2] != RSCACHE_CS2_OP_PUSH_CONSTANT_INT )
-                return;
+                return -1;
             count = cs2_cc_db_result_stacks(cc, info->kind, cc->ops.int_operands[index - 2],
-                                            stacks, 64);
+                                            stacks, capacity);
             if( count < 0 )
-                return;
+                return -1;
             break;
         }
         default:
@@ -3367,16 +3573,25 @@ cs2_cc_emit_call_discards(struct cs2_cc_compiler* cc, int mark)
              * return, switch, define_array) or has a shape only an argument
              * knows and this cannot recover (param, enum). Neither wants a
              * discard from here. */
-            return;
+            return -1;
         }
     }
+    return count;
+}
 
+static void
+cs2_cc_emit_call_discards(struct cs2_cc_compiler* cc, int mark)
+{
+    enum RSCache_CS2_StackType stacks[64];
+    int count = cs2_cc_result_stacks(cc, mark, stacks, 64);
     for( int i = count - 1; i >= 0; i-- )
     {
-        cs2_cc_emit(cc,
-                    stacks[i] == RSCACHE_CS2_STACK_STRING ? RSCACHE_CS2_OP_POP_STRING_DISCARD
-                                                          : RSCACHE_CS2_OP_POP_INT_DISCARD,
-                    0);
+        int discard = RSCACHE_CS2_OP_POP_INT_DISCARD;
+        if( stacks[i] == RSCACHE_CS2_STACK_STRING )
+            discard = RSCACHE_CS2_OP_POP_STRING_DISCARD;
+        else if( stacks[i] == RSCACHE_CS2_STACK_LONG )
+            discard = RSCACHE_CS2_OP_POP_LONG_DISCARD;
+        cs2_cc_emit(cc, discard, 0);
     }
 }
 
@@ -3477,11 +3692,7 @@ cs2_cc_statement(struct cs2_cc_compiler* cc)
             return;
         /* An array's value is its handle, not an element. */
         cs2_cc_expression(cc, cc->locals[index].is_array ? RSCACHE_CS2_TYPE_NONE : type);
-        cs2_cc_emit(
-            cc,
-            cc->locals[index].is_string ? RSCACHE_CS2_OP_POP_STRING_LOCAL
-                                        : RSCACHE_CS2_OP_POP_INT_LOCAL,
-            cc->locals[index].slot);
+        cs2_cc_emit(cc, cs2_cc_local_pop(&cc->locals[index]), cc->locals[index].slot);
         cs2_cc_accept_punct(cc, ';');
         return;
     }
@@ -3842,6 +4053,7 @@ cs2_cc_drop_redundant_branches(struct cs2_cc_compiler* cc)
                 {
                     cc->ops.opcodes[written] = cc->ops.opcodes[i];
                     cc->ops.int_operands[written] = cc->ops.int_operands[i];
+                    cc->ops.long_operands[written] = cc->ops.long_operands[i];
                     cc->ops.string_operands[written] = cc->ops.string_operands[i];
                     cc->ops.string_operands[i] = NULL;
                     absolute[written] = absolute[i];
@@ -3959,15 +4171,20 @@ RSCache_CS2_Compile(
         const char* frame = strstr(source, "// @rscache-frame ");
         if( frame )
         {
-            int li = 0, ls = 0, ai = 0, as = 0;
-            if( sscanf(frame, "// @rscache-frame %d %d %d %d", &li, &ls, &ai, &as) == 4 &&
-                li >= 0 && ls >= 0 && ai >= 0 && as >= 0 )
+            /* Four counts, then the long bank's two where the frame has one. */
+            int li = 0, ls = 0, ai = 0, as = 0, ll = 0, al = 0;
+            int read = sscanf(frame, "// @rscache-frame %d %d %d %d %d %d", &li, &ls, &ai, &as,
+                              &ll, &al);
+            if( (read == 4 || read == 6) && li >= 0 && ls >= 0 && ai >= 0 && as >= 0 &&
+                ll >= 0 && al >= 0 )
             {
                 cc.frame_counts_override = true;
                 cc.override_local_int_count = li;
                 cc.override_local_string_count = ls;
                 cc.override_int_argument_count = ai;
                 cc.override_string_argument_count = as;
+                cc.override_local_long_count = ll;
+                cc.override_long_argument_count = al;
             }
         }
 
@@ -3984,11 +4201,15 @@ RSCache_CS2_Compile(
                 if( end == epilogue || slot < 0 || slot >= 128 || *end != '=' )
                     break;
                 epilogue = end + 1;
-                long value = strtol(epilogue, &end, 10);
+                long long value = strtoll(epilogue, &end, 10);
                 if( end == epilogue )
                     break;
                 cc.return_default_override[slot] = true;
                 cc.return_default_values[slot] = (int)value;
+                cc.return_default_long_values[slot] = (int64_t)value;
+                /* A long slot's default is spelled with its `L`. */
+                if( *end == 'L' )
+                    end++;
                 epilogue = end;
             }
         }
@@ -4036,6 +4257,9 @@ RSCache_CS2_Compile(
         {
             if( RSCache_CS2_TypeStackType(cc.return_types[i]) == RSCACHE_CS2_STACK_STRING )
                 cs2_cc_emit_string(&cc, "");
+            else if( RSCache_CS2_TypeStackType(cc.return_types[i]) == RSCACHE_CS2_STACK_LONG )
+                cs2_cc_emit_long(
+                    &cc, cc.return_default_override[i] ? cc.return_default_long_values[i] : 0);
             else
                 cs2_cc_emit(&cc, RSCACHE_CS2_OP_PUSH_CONSTANT_INT,
                             cc.return_default_override[i]
@@ -4061,7 +4285,9 @@ RSCache_CS2_Compile(
         script->opcodes = cc.ops.opcodes;
         script->int_operands = cc.ops.int_operands;
         script->string_operands = cc.ops.string_operands;
-        script->long_operands = (int64_t*)RSCACHE_CALLOC((size_t)cc.ops.count, sizeof(int64_t));
+        /* Handed over like the other operand arrays; the buffer is never empty
+         * (the epilogue's `return` is always in it). */
+        script->long_operands = cc.ops.long_operands;
         script->int_argument_count = cc.frame_counts_override ? cc.override_int_argument_count
                                                               : cc.int_argument_count;
         script->string_argument_count = cc.frame_counts_override
@@ -4072,6 +4298,11 @@ RSCache_CS2_Compile(
         script->local_string_count = cc.frame_counts_override
                                          ? cc.override_local_string_count
                                          : cc.string_local_count;
+        script->local_long_count = cc.frame_counts_override ? cc.override_local_long_count
+                                                            : cc.long_local_count;
+        script->long_argument_count = cc.frame_counts_override
+                                          ? cc.override_long_argument_count
+                                          : cc.long_argument_count;
 
         if( RSCache_CS2_ScriptAllocSwitches(script, cc.switch_count) )
         {

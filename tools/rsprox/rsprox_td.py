@@ -19,14 +19,14 @@ measures, across all lives in the given transcripts:
     python3 tools/rsprox/rsprox_td.py ~/.rsprox/binary/archive/{3312,1756,552}.txt [--lives N]
 
 Rev 227 transcripts carry numeric ids; names come from our configs
-(OSRS-Content/osrs239-content/configs/all.<type>.compack).
+(OSRS-Content/osrs-content/configs/all.<type>.compack).
 """
 import argparse
 import os
 import re
 from collections import Counter, defaultdict
 
-ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "OSRS-Content", "osrs239-content")
+ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "OSRS-Content", "osrs-content")
 TD = {"13599", "13600", "13601", "13602", "13603", "13604", "13605", "13606"}
 
 TICK = re.compile(r"^\[(\d+)\]$")

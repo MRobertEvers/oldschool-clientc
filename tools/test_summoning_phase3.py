@@ -30,7 +30,7 @@ def sha256(path: Path) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--tree", type=Path, default=REPO / "OSRS-Content/osrs239-content")
+    parser.add_argument("--tree", type=Path, default=REPO / "OSRS-Content/osrs-content")
     parser.add_argument("--off", type=Path)
     parser.add_argument("--on", type=Path)
     args = parser.parse_args()
@@ -195,19 +195,19 @@ def main() -> int:
         )
     )
     familiar_persisted = {
-            "varp6226_summoning_familiar_active",
-            "varp6257_summoning_familiar_type",
-            "varp6230_summoning_familiar_ticks",
-            "varp6228_summoning_familiar_special",
-            "varp6229_summoning_familiar_special_clock",
-            "varp6227_summoning_familiar_point_accumulator",
+            "varp6901_summoning_familiar_active",
+            "varp6932_summoning_familiar_type",
+            "varp6905_summoning_familiar_ticks",
+            "varp6903_summoning_familiar_special",
+            "varp6904_summoning_familiar_special_clock",
+            "varp6902_summoning_familiar_point_accumulator",
         }
     expect(
         persisted == familiar_persisted,
         "familiar state is not the six-field persisted type/timer contract",
     )
     expect(
-        re.search(r"^\[varp6258_summoning_unlocked\]\n(?:[^\n]*\n)*?scope=perm$", varps, re.MULTILINE)
+        re.search(r"^\[varp6933_summoning_unlocked\]\n(?:[^\n]*\n)*?scope=perm$", varps, re.MULTILINE)
         is not None,
         "per-account Summoning unlock is not permanent",
     )
@@ -215,7 +215,7 @@ def main() -> int:
         "[proc,summoning_wolf_whistle_complete]",
         "stat_advance(summoning, ^summoning_wolf_whistle_xp);",
         "inv_add(inv, summoning_wolf_whistle_gold_charm, ^summoning_wolf_whistle_gold_charms);",
-        "if (%varp6258_summoning_unlocked = 1) return;",
+        "if (%varp6933_summoning_unlocked = 1) return;",
         "[oploc3,summoning_obelisk]",
         "~summoning_wolf_whistle_complete;",
     ):
@@ -294,7 +294,7 @@ def main() -> int:
     # `~summoning_familiar_ready_seq` for why a body sequence does pose these
     # heads.)
     expect(
-        "~summoning_familiar_npc(%varp6257_summoning_familiar_type)" in source
+        "~summoning_familiar_npc(%varp6932_summoning_familiar_type)" in source
         and "if_setnpchead(" in source
         and "if_setanim(summoning_familiar:model," in source
         and "if_settext(summoning_familiar:title, $name);" in source
@@ -340,8 +340,8 @@ def main() -> int:
         "^summoning_dreadfowl_cost = 1",
         "^summoning_dreadfowl_lifetime = 400",
         "^summoning_dreadfowl_drain_interval = 100",
-        "%varp6227_summoning_familiar_point_accumulator >= $drain_interval",
-        "%varp6230_summoning_familiar_ticks > 0",
+        "%varp6902_summoning_familiar_point_accumulator >= $drain_interval",
+        "%varp6905_summoning_familiar_ticks > 0",
     ):
         expect(token in constants or token in source, f"missing Dreadfowl timer contract: {token}")
 

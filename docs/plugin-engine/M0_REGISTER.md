@@ -214,7 +214,7 @@ GF_MATRIX_LC_SAVE=/path/to/test-owned-gameplay-seed.sav GF_MATRIX_SCENARIOS=1 \
 tools/gameframe_matrix.sh /tmp/rs289-new-run
 
 REPO=/path/to/installed/runtime BIN=/path/to/exact/client \
-TORIRSSERVER_CONTENT=/path/to/matching/OSRS-Content/osrs239-content \
+TORIRSSERVER_CONTENT=/path/to/matching/OSRS-Content/osrs-content \
 MANIFEST=/path/to/prepared-osrs239.ini GF_MATRIX_BASELINE=1 \
 GF_MATRIX_TAGS=m01,m11,m21,m31 tools/gameframe_matrix.sh /tmp/osrs239-new-run
 ```

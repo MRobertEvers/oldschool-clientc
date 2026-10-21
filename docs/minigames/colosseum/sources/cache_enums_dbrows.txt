@@ -1,4 +1,4 @@
-# enums, dbrows and structs that belong to the minigame -- quoted from OSRS-Content/osrs239-content/configs/all.{enum,dbrow,struct}
+# enums, dbrows and structs that belong to the minigame -- quoted from OSRS-Content/osrs-content/configs/all.{enum,dbrow,struct}
 
 [dbrow 3475] music_fortis_colosseum    (configs/all.dbrow:54890)  why= name: music_fortis_colosseum
   columns=15    (configs/all.dbrow:54891)

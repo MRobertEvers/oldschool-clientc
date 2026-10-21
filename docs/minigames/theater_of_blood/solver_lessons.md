@@ -411,10 +411,10 @@ below; the timelines gave them up at once.
     on 2026-10-09 another session's dotted-hunt rewrite segfaulted my
     binary at the fight's first tick on every seed. `git -C OSRS-Content
     worktree add --detach <wt> HEAD`, apply your own diff there, build its
-    packs with `TORIRSSERVER_CONTENT_DIR=<wt>/osrs239-content` (scripts 29 s,
+    packs with `TORIRSSERVER_CONTENT_DIR=<wt>/osrs-content` (scripts 29 s,
     servpack 118 s), and run the server from a scratch root of symlinks
     whose `OSRS-Content` points at the worktree: the server resolves
-    `OSRS-Content/osrs239-content` relative to its working directory.
+    `OSRS-Content/osrs-content` relative to its working directory.
 
 ## What Maiden's lane identity added (2026-10-09)
 

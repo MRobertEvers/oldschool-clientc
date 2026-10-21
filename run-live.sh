@@ -230,7 +230,7 @@ else
     # a frozen build/ worktree is now the stale tree, and the submodule --
     # what everyone actually commits to -- is preferred again. See
     # run-live.ps1.
-    for candidate in OSRS-Content/osrs239-content build/*/osrs239-content; do
+    for candidate in OSRS-Content/osrs-content build/*/osrs-content; do
         if content_tree_has_lanes "$candidate"; then
             TORIRSSERVER_CONTENT_DIR=$(cd "$candidate" && pwd)
             export TORIRSSERVER_CONTENT_DIR
@@ -241,7 +241,7 @@ fi
 
 # TORIRSSERVER_CONTENT_DIR is the BUILD side (src/makefile); TORIRSSERVER_CONTENT is the
 # RUNTIME side (torirs_server_boot.c resolve_content_dir), which otherwise falls back
-# to a hardcoded OSRS-Content/osrs239-content. Setting only the first compiles
+# to a hardcoded OSRS-Content/osrs-content. Setting only the first compiles
 # script.dat into one tree and boots another's -- the "Unknown command:
 # rs2012qbdmanifest" failure. See run-live.ps1's Set-ContentTree.
 if [ -n "${TORIRSSERVER_CONTENT_DIR:-}" ]; then
@@ -350,6 +350,7 @@ fi
 USE_EMBED=0
 USE_TORIRSSERVER=0
 if [ "$MODE" = web ] && { [ "$CLIENT_REV" = "osrs230" ] || [ "$CLIENT_REV" = "osrs239" ] || \
+                           [ "$CLIENT_REV" = "osrs241" ] || \
                            [ "$MANIFEST_TRANSPORT" = "embed" ] || [ "${TORIRS_TRANSPORT:-}" = "embed" ]; }; then
     # An Emscripten TCP socket is an RFC 6455 WebSocket. Never leave an embed
     # selection in place for a web run: the browser module is intentionally
@@ -358,7 +359,7 @@ if [ "$MODE" = web ] && { [ "$CLIENT_REV" = "osrs230" ] || [ "$CLIENT_REV" = "os
 fi
 
 if [ "$MODE" = native ]; then
-    if { [ "$REV" = "osrs230" ] || [ "$REV" = "osrs239" ]; } && [ "$OFFLINE" = 0 ]; then
+    if { [ "$REV" = "osrs230" ] || [ "$REV" = "osrs239" ] || [ "$REV" = "osrs241" ]; } && [ "$OFFLINE" = 0 ]; then
         USE_EMBED=1
         export TORIRS_TRANSPORT=embed
         # Embed defaults to osrs230 unless told otherwise; keep server wire = client rev.
@@ -368,7 +369,7 @@ elif [ "$OFFLINE" = 0 ]; then
     # Own only a reachable IPv4 loopback endpoint. ToriRSServer intentionally binds
     # 127.0.0.1 (not IPv6); a remote or explicit IPv6 endpoint belongs to the
     # caller and must not get an unused local process.
-    if { [ "$CLIENT_REV" = "osrs230" ] || [ "$CLIENT_REV" = "osrs239" ]; } && valid_port "$WEB_GAME_PORT"; then
+    if { [ "$CLIENT_REV" = "osrs230" ] || [ "$CLIENT_REV" = "osrs239" ] || [ "$CLIENT_REV" = "osrs241" ]; } && valid_port "$WEB_GAME_PORT"; then
         case "$WEB_GAME_HOST" in
             localhost | 127.0.0.1) USE_TORIRSSERVER=1 ;;
         esac
@@ -582,7 +583,7 @@ cache_base_bake() {
     esac
     if python3 tools/cache_overlay_stale.py \
             --cache "$_cache" \
-            --base "${TORIRSSERVER_CACHE_BASE:-cache.osrs239}" \
+            --base "${TORIRSSERVER_CACHE_BASE:-cache.osrs241}" \
             ${TORIRSSERVER_CONTENT_DIR:+--tree "$TORIRSSERVER_CONTENT_DIR"} \
             --input src/makefile \
             --input 3rd/rscache/tools/cachepack >&2; then
@@ -620,12 +621,12 @@ cache_base_warn() {
         _stale=$?
     fi
     [ "$_stale" = 0 ] || return 0
-    echo "run-live.sh: ^^ $_cache is composed on the pristine cache.osrs239, so" >&2
+    echo "run-live.sh: ^^ $_cache is composed on the pristine cache.osrs241, so" >&2
     echo "  those ordinary-content edits are NOT in it and no bake here can put" >&2
     echo "  them there. Server-side work (.rs2, params, npc/loc server fields)" >&2
     echo "  travels by the script pack and is unaffected. For client-visible" >&2
     echo "  edits, rebase the chain: make -C src torirsserver-cache, then rerun with" >&2
-    echo "  RS2012_CACHE_BASE=\$PWD/cache.osrs239.baked TORIRS_FORCE_CACHE_BAKE=1" >&2
+    echo "  RS2012_CACHE_BASE=\$PWD/cache.osrs241.baked TORIRS_FORCE_CACHE_BAKE=1" >&2
 }
 
 # The bases match the Makefile's `?=` defaults, and honour the same overrides:
@@ -653,11 +654,11 @@ build_cache_overlay() {
         # `*cache.osrs239.rs2012-summoning` arm below would otherwise never
         # match this one, but a `*`-prefixed glob DOES match a longer suffix, so
         # this has to be tested before it.
-        *cache.osrs239.rs2012-summoning-curses)
-            _rs2012_base=${RS2012_CACHE_DIR:-cache.osrs239.rs2012}
-            _rs2012_summ=cache.osrs239.rs2012-summoning
+        *cache.osrs241.rs2012-summoning-curses)
+            _rs2012_base=${RS2012_CACHE_DIR:-cache.osrs241.rs2012}
+            _rs2012_summ=cache.osrs241.rs2012-summoning
             cache_overlay "RS2012 QBD/TD" rs2012_qbd_td \
-                "${RS2012_CACHE_BASE:-cache.osrs239}" \
+                "${RS2012_CACHE_BASE:-cache.osrs241}" \
                 tools/stage_rs2012_overlay.py torirsserver-cache-rs2012 \
                 "$_rs2012_base"
             cache_overlay "Summoning over QBD/TD" scape2009_summoning \
@@ -672,16 +673,16 @@ build_cache_overlay() {
         # Rooted on the content bake, so layer 0 runs first: a rebuilt base is
         # one of the overlay predicate's own inputs, which is what carries an
         # ordinary-content edit up into the overlay without a second rule.
-        *cache.osrs239.curses)
-            cache_base_bake "${CURSES_CACHE_BASE:-cache.osrs239.baked}"
+        *cache.osrs241.curses)
+            cache_base_bake "${CURSES_CACHE_BASE:-cache.osrs241.baked}"
             cache_overlay "Ancient Curses" rs558_ancient_curses \
-                "${CURSES_CACHE_BASE:-cache.osrs239.baked}" \
+                "${CURSES_CACHE_BASE:-cache.osrs241.baked}" \
                 tools/stage_curses_overlay.py torirsserver-cache-curses
             ;;
-        *cache.osrs239.rs2012-summoning)
-            _rs2012_base=${RS2012_CACHE_DIR:-cache.osrs239.rs2012}
+        *cache.osrs241.rs2012-summoning)
+            _rs2012_base=${RS2012_CACHE_DIR:-cache.osrs241.rs2012}
             cache_overlay "RS2012 QBD/TD" rs2012_qbd_td \
-                "${RS2012_CACHE_BASE:-cache.osrs239}" \
+                "${RS2012_CACHE_BASE:-cache.osrs241}" \
                 tools/stage_rs2012_overlay.py torirsserver-cache-rs2012 \
                 "$_rs2012_base"
             cache_overlay "Summoning over QBD/TD" scape2009_summoning \
@@ -689,10 +690,10 @@ build_cache_overlay() {
                 tools/stage_summoning_overlay.py torirsserver-cache-rs2012-summoning
             cache_base_warn "$CACHE_DIR"
             ;;
-        *cache.osrs239.summoning)
-            cache_base_bake "${SUMMONING_CACHE_BASE:-cache.osrs239.baked}"
+        *cache.osrs241.summoning)
+            cache_base_bake "${SUMMONING_CACHE_BASE:-cache.osrs241.baked}"
             cache_overlay "Summoning" scape2009_summoning \
-                "${SUMMONING_CACHE_BASE:-cache.osrs239.baked}" \
+                "${SUMMONING_CACHE_BASE:-cache.osrs241.baked}" \
                 tools/stage_summoning_overlay.py torirsserver-cache-summoning
             ;;
         # The QBD/TD lane's cache is composed, not shipped, so a manifest
@@ -705,16 +706,16 @@ build_cache_overlay() {
         # the boot reads out of <content>/server/pack). That never ran, so it
         # is not restored here; add it deliberately if the lane turns out to
         # need it.
-        *cache.osrs239.rs2012)
+        *cache.osrs241.rs2012)
             cache_overlay "RS2012 QBD/TD" rs2012_qbd_td \
-                "${RS2012_CACHE_BASE:-cache.osrs239}" \
+                "${RS2012_CACHE_BASE:-cache.osrs241}" \
                 tools/stage_rs2012_overlay.py torirsserver-cache-rs2012
             cache_base_warn "$CACHE_DIR"
             ;;
         # A manifest that boots the ordinary bake itself (the osrs239-net profile (profiles/osrs239-net.ini)).
         # It had no arm at all, so the one cache every non-lane profile runs on was
         # the only one nothing ever checked.
-        *cache.osrs239.baked)
+        *cache.osrs241.baked)
             cache_base_bake "$CACHE_DIR"
             ;;
     esac
@@ -728,11 +729,11 @@ build_cache_overlay() {
 # matches; the server refuses a pack whose stamp does not.
 servpack_lanes() {
     case "$CACHE_DIR" in
-        *cache.osrs239.rs2012-summoning-curses) echo "rs2012_qbd_td scape2009_summoning rs558_ancient_curses" ;;
-        *cache.osrs239.rs2012-summoning) echo "rs2012_qbd_td scape2009_summoning" ;;
-        *cache.osrs239.rs2012) echo "rs2012_qbd_td" ;;
-        *cache.osrs239.summoning) echo "scape2009_summoning" ;;
-        *cache.osrs239.curses) echo "rs558_ancient_curses" ;;
+        *cache.osrs241.rs2012-summoning-curses) echo "rs2012_qbd_td scape2009_summoning rs558_ancient_curses" ;;
+        *cache.osrs241.rs2012-summoning) echo "rs2012_qbd_td scape2009_summoning" ;;
+        *cache.osrs241.rs2012) echo "rs2012_qbd_td" ;;
+        *cache.osrs241.summoning) echo "scape2009_summoning" ;;
+        *cache.osrs241.curses) echo "rs558_ancient_curses" ;;
         *) echo "" ;;
     esac
 }

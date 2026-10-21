@@ -230,6 +230,10 @@ struct Mock239PlayerInfoState
 {
     int initialized;
     int local_index;
+    /* The wire revision the extended-info tail is written for. 0 (what
+     * state_init leaves) is 239's; 241 selects mock241_playerinfo.c's tail.
+     * The bit sections are the same at both. */
+    int wire_revision;
     uint8_t high[MOCK239_PLAYER_SLOTS];
     uint8_t inactive[MOCK239_PLAYER_SLOTS];
     int32_t coord[MOCK239_PLAYER_SLOTS];

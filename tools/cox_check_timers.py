@@ -30,7 +30,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-CONTENT = ROOT / "OSRS-Content/osrs239-content/server/scripts"
+CONTENT = ROOT / "OSRS-Content/osrs-content/server/scripts"
 DEFAULT = [CONTENT / "minigames/minigame_cox"]
 
 TRIGGER = re.compile(r"^\[(ai_timer|ai_spawn),([a-z_0-9]+)\]", re.M)

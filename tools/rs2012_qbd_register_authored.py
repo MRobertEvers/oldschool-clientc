@@ -32,7 +32,7 @@ import shutil
 import sys
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
-TREE = REPO / "OSRS-Content" / "osrs239-content"
+TREE = REPO / "OSRS-Content" / "osrs-content"
 LANE = TREE / "ported" / "rs2012_qbd_td"
 MODELS = TREE / "models" / "ported" / "rs2012_qbd_td"
 SOLVED = REPO / "docs" / "rs2012_qbd_priorities" / "run"

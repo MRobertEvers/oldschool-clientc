@@ -31,7 +31,7 @@ const tree = join(scratch, 'content');
 const cachepack = join(REPO, '3rd/rscache/tools/cachepack/cachepack');
 
 /* A private copy of the content tree, so nothing edits the checkout. */
-cpSync(join(REPO, 'OSRS-Content/osrs239-content'), tree, { recursive: true });
+cpSync(join(REPO, 'OSRS-Content/osrs-content'), tree, { recursive: true });
 
 const NAME = 'vm_kudos_info';
 const ifPath = join(tree, 'interfaces', `${NAME}.if`);

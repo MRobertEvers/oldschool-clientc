@@ -3,6 +3,7 @@
 
 #include "pktnames.h"
 
+#include <stddef.h>
 #include <stdint.h>
 
 /*
@@ -33,6 +34,7 @@ enum GameProtoRevision
     GAMEPROTO_REVISION_OSRS230 = 4,
     GAMEPROTO_REVISION_OSRS239 = 5,
     GAMEPROTO_REVISION_LC289 = 6,
+    GAMEPROTO_REVISION_OSRS241 = 7,
 };
 
 /** Wire transport a revision speaks. TCP is the classic raw stream; WS is a
@@ -196,6 +198,19 @@ struct GameProtoRevTable
      * bitcodec (pkt_player_info.c / pkt_npc_info.c). Wired in Phase 3. */
     int (*player_info_read)(uint8_t const* data, int len, struct PktPlayerInfoOp* ops, int cap);
     int (*npc_info_read)(uint8_t const* data, int len, struct PktNpcInfoOp* ops, int cap);
+    /**
+     * The modern player stream's session state lives inside its reader's
+     * module (a 2048-slot high-resolution table), and the host has to seed,
+     * park and restore it. NULL here means "the osrs239 module's" -- the
+     * functions net.c and scriptrun_core.c called by name before a second
+     * modern revision existed; a revision with its OWN reader (osrs241) must
+     * set all five, or its stream is decoded against another module's table.
+     */
+    void (*player_info_set_local)(int local_index);
+    void (*player_info_init)(uint8_t const* data, int len);
+    size_t (*player_info_state_size)(void);
+    void (*player_info_state_save)(void* out);
+    void (*player_info_state_load)(void const* in);
     /** Per-rev appearance-block decode. NULL = 254-era PktPlayerAppearance_Decode. */
     int (*appearance_decode)(uint8_t const* data, int len, struct PktPlayerAppearance* out);
 
@@ -222,11 +237,15 @@ GameProtoRev_OSRS230(void);
 struct GameProtoRevTable const*
 GameProtoRev_OSRS239(void);
 
+/** A copy of the osrs239 table changed to revision 241's wire (RSProx). */
+struct GameProtoRevTable const*
+GameProtoRev_OSRS241(void);
+
 struct GameProtoRevTable const*
 GameProtoRev_LC289(void);
 
 /** Resolve a revision by name ("lc254", "lc289", "lc245_2", "xrsps233",
- *  "osrs230", "osrs239"); NULL when unknown. */
+ *  "osrs230", "osrs239", "osrs241"); NULL when unknown. */
 struct GameProtoRevTable const*
 GameProtoRev_ByName(char const* name);
 

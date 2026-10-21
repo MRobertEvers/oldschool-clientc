@@ -194,7 +194,7 @@ selftest_quest_imp(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
     obj_red = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "red_bead");
     obj_amulet = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "amulet_of_accuracy");
     varp_imp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp160_imp");
-    varp_settle = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp7142_imp_settle");
+    varp_settle = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp7817_imp_settle");
     varp_qp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp");
     chatmenu = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "chatmenu:options");
 

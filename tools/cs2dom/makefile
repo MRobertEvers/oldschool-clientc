@@ -123,7 +123,7 @@ corpus-aot: generated $(AST_STAMP)
 
 # The round trip's real gate: every .if in the content tree must survive a
 # parse-and-write unchanged, or a diff after an edit shows more than the edit.
-CONTENT ?= $(REPO_ROOT)/OSRS-Content/osrs239-content
+CONTENT ?= $(REPO_ROOT)/OSRS-Content/osrs-content
 
 roundtrip-if:
 	$(NODE) scripts/verify_if_roundtrip.mjs $(CONTENT)

@@ -30,11 +30,11 @@ content *already answers clicks for* is a live bug today (the script runs, the
 loc never changes), while one with no binding is unwritten content, which is a
 different and much larger job.
 
-    tools/loc_var_audit.py --tree OSRS-Content/osrs239-content
-    tools/loc_var_audit.py --tree OSRS-Content/osrs239-content --bucket op_bound_gap
-    tools/loc_var_audit.py --tree OSRS-Content/osrs239-content --var pest_lander_difficulty
-    tools/loc_var_audit.py --tree OSRS-Content/osrs239-content --write-queue docs/LOC_VARS_QUEUE.md
-    tools/loc_var_audit.py --tree OSRS-Content/osrs239-content --json /tmp/loc_vars.json
+    tools/loc_var_audit.py --tree OSRS-Content/osrs-content
+    tools/loc_var_audit.py --tree OSRS-Content/osrs-content --bucket op_bound_gap
+    tools/loc_var_audit.py --tree OSRS-Content/osrs-content --var pest_lander_difficulty
+    tools/loc_var_audit.py --tree OSRS-Content/osrs-content --write-queue docs/LOC_VARS_QUEUE.md
+    tools/loc_var_audit.py --tree OSRS-Content/osrs-content --json /tmp/loc_vars.json
 
 Read-only. Nothing here writes to the content tree; `--write-queue` writes the
 one doc it is given.
@@ -459,7 +459,7 @@ def write_queue(rows, path):
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--tree", default="OSRS-Content/osrs239-content")
+    ap.add_argument("--tree", default="OSRS-Content/osrs-content")
     ap.add_argument("--bucket", choices=BUCKET_ORDER)
     ap.add_argument("--var", help="name or id of one variable, as JSON")
     ap.add_argument("--top", type=int, default=25)

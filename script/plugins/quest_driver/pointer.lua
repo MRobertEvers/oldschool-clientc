@@ -60,7 +60,7 @@
 -- their text.  Where each one comes from:
 --
 --   "I can't reach that!"          [proc,cannot_reach_message] --
---       OSRS-Content/osrs239-content/server/scripts/player/messages.rs2:123,
+--       OSRS-Content/osrs-content/server/scripts/player/messages.rs2:123,
 --       said by the engine at src/torirsserver/torirs_server_world.c:2276 and
 --       :2306 when an interaction cannot close the distance (the route failed,
 --       or the player stalled with no waypoints left and no step taken).
@@ -140,7 +140,7 @@ end
 -- the ID was.
 --
 -- `councillor_halgrive` is id 1115 in all.npc.compack and its def
--- (OSRS-Content/osrs239-content/configs/all.npc:29997) is a MULTINPC whose
+-- (OSRS-Content/osrs-content/configs/all.npc:29997) is a MULTINPC whose
 -- every `multinpcN=` slot is `councillor_halgrive_vis`, id 8765.  The server
 -- spawns and the wire sends 1115; the client resolves it through the multiNpc
 -- table and the live WorldEntity_NPC carries `npc_id = 8765` with

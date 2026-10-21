@@ -229,10 +229,10 @@ resulting ledger:
 ./map_port/map_port --rev rs727 --cache ../../../cache.rs727_preeoc \
   --squares 22_99,20_95,16_99,17_99,18_99,20_99,21_99,20_100,21_100,20_101,21_101,16_101,17_100,17_101,18_101,40_89,39_89,39_90,39_91,40_90 \
   --inventory ../../../build/rs2012_map_inventory.tsv \
-  --ledger ../../../OSRS-Content/osrs239-content/port/rs2012_qbd_td.map \
-  --material-ledger ../../../OSRS-Content/osrs239-content/port/rs2012_qbd_td.materials.tsv \
-  --out ../../../OSRS-Content/osrs239-content/ported/rs2012_qbd_td \
-  --base-tree ../../../OSRS-Content/osrs239-content --apply
+  --ledger ../../../OSRS-Content/osrs-content/port/rs2012_qbd_td.map \
+  --material-ledger ../../../OSRS-Content/osrs-content/port/rs2012_qbd_td.materials.tsv \
+  --out ../../../OSRS-Content/osrs-content/ported/rs2012_qbd_td \
+  --base-tree ../../../OSRS-Content/osrs-content --apply
 ```
 
 The output is `.jm2`/`.jl2`, `mX_Z.filepack`, map pack rows, and the exact set of

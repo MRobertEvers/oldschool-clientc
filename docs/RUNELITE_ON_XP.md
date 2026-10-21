@@ -162,7 +162,7 @@ Three pieces, all reachable from the XP box:
 
 1. **ToriRSServer** — `src/build_win64_opt/torirsserver.exe 43596 --rev
    osrs239`, run **from the repo root**: the defaults `cache.osrs239` and
-   `OSRS-Content/osrs239-content` resolve relative to the cwd, and from the
+   `OSRS-Content/osrs-content` resolve relative to the cwd, and from the
    wrong cwd the process dies before its (block-buffered when redirected)
    banner ever flushes — i.e. silently. It serves both the game protocol and
    JS5 on one socket (first byte 14 = game, 15 = JS5), binds

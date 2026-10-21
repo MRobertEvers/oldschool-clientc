@@ -1,5 +1,5 @@
 # ladder redreef quest_dir=quest_redreef guide=src/main/java/com/questhelper/helpers/quests/theredreef/TheRedReef.java steps=30 legs=1:1-30@s0
-#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
 leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
 1	1	0	talkToRaleyToStartQuest	NpcStep	npc:tt_raley_conch	3186,2405,0	Talk to Elder Raley at his home in The Great Conch to start the quest.			Yes.	quests/quest_troubledtortugans/scripts/troubledtortugans.rs2:246 opnpc1
 1	2	4	talkToFinn	NpcStep	npc:tortugan_finn	3197,2401,0	Talk to Finn, south-east of Elder Raley's house, about Floopa's whereabouts.				quests/quest_redreef/scripts/redreef.rs2:182 opnpc1

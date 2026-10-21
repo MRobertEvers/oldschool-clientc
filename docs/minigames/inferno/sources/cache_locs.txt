@@ -1,5 +1,5 @@
 # loc records -- 106 records selected from cache.osrs239
-# source: OSRS-Content/osrs239-content/configs/all.loc (record header line given per record)
+# source: OSRS-Content/osrs-content/configs/all.loc (record header line given per record)
 # why= the selection rule(s) that chose the record (LEDGER_cache.md)
 
 [4657] boardgames_barstool_invis    (configs/all.loc:41313)

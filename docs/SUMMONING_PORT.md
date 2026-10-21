@@ -1,6 +1,6 @@
 # Summoning port — plan and working state
 
-**Source:** `2009scape` (RS2 rev 530, Jan 2009) · **Target:** this repo + `OSRS-Content/osrs239-content` (OldSchool rev 239)
+**Source:** `2009scape` (RS2 rev 530, Jan 2009) · **Target:** this repo + `OSRS-Content/osrs-content` (OldSchool rev 239)
 
 **Status:** Phases 0–4 and all 77 bounded Phase-5 familiar/pouch cohorts are implemented. The
 completion lanes below supersede the former Phase-7 holdbacks for Wolf Whistle, safe audio, and
@@ -133,7 +133,7 @@ handoff and `PORTING_GUIDE.md`; F3 is not the only record of it.
 
 ### F4 — The cross-revision asset importer does not exist. This is the project.
 
-**[measured]** all 61,615 models in `osrs239-content/models/` are `FF FD` (V3, 34,625) or `FF FE`
+**[measured]** all 61,615 models in `osrs-content/models/` are `FF FD` (V3, 34,625) or `FF FE`
 (V2, 26,990). **Zero OB2, zero OB3.** The 530 cache is 39,694 OB3 + 5,778 OB2 — a **disjoint
 format set**. Models cannot be copied; they must be decoded and re-encoded, and **there is no
 existence proof anywhere in this tree that the client renders either source format.**
@@ -222,7 +222,7 @@ One prefix everywhere, so provenance is visible in the pack file, on disk, and i
 header:
 
 ```
-OSRS-Content/osrs239-content/
+OSRS-Content/osrs-content/
   ported/scape2009_summoning/            PROVENANCE.md + configs (.npc .obj .loc .seq .spotanim)
   models/ported/scape2009_summoning/     *.model
   animsets/ported/scape2009_summoning/

@@ -34,7 +34,7 @@ SRC = "docs/skills/magic/sources/spells"
 # castable from every book) and are deliberately excluded rather than filed
 # under one.
 BOOKS = ("Normal", "Lunar", "Arceuus", "Ancient")
-DEST = ("OSRS-Content/osrs239-content/server/scripts/skill_magic/configs/"
+DEST = ("OSRS-Content/osrs-content/server/scripts/skill_magic/configs/"
         "spellbooks.generated.enum")
 
 HEADER = """// Lunar and Arceuus spellbooks -- GENERATED, do not hand-edit.

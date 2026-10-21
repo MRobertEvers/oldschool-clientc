@@ -183,7 +183,7 @@ struct EditorHost
  * The desktop binding: direct filesystem access, no daemon, no socket.
  *
  * @param content_dir  the revision's content root, the directory holding
- *                     `maps/` (e.g. `OSRS-Content/osrs239-content`).
+ *                     `maps/` (e.g. `OSRS-Content/osrs-content`).
  * @param repo_root    where the bake runs from; NULL disables baking, which is
  *                     what a session that only wants to read should pass.
  */

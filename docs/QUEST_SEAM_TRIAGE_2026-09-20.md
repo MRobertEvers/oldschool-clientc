@@ -44,7 +44,7 @@ Evidence: build/quest_gate/murder/ledger.tsv (17:01 run, fresh directory): row 1
 
 ## content: quest-carrier-varp-never-transmitted
 Quests: mourningsendpartii, mourningsendparti  
-Files: /Users/matthewevers/Documents/git_repos/3draster-quest-driver/OSRS-Content/osrs239-content/server/scripts/quests/quest_mourningsendpartii/configs/mend2.varp, /Users/matthewevers/Documents/git_repos/3draster-quest-driver/OSRS-Content/osrs239-content/server/scripts/quests/quest_mourningsendparti/configs/mend1.varp
+Files: /Users/matthewevers/Documents/git_repos/3draster-quest-driver/OSRS-Content/osrs-content/server/scripts/quests/quest_mourningsendpartii/configs/mend2.varp, /Users/matthewevers/Documents/git_repos/3draster-quest-driver/OSRS-Content/osrs-content/server/scripts/quests/quest_mourningsendparti/configs/mend1.varp
 
 CONFIRMED, and it is a one-file content fix with two live precedents. A quest whose progress lives in a varbit can only be read by the driver if the varbit's BASE varp is declared transmit=yes in a per-quest *.varp config: configs/all.varp carries bare name reservations ([mourning_quest] at 1047, [mourning_quest_part2] at 1161 -- both empty bodies), and the declaration that turns on transmission lives beside the quest (quest_pryingtimes/configs/pryingtimes.varp declares [pry_main] protect=no/transmit=yes/scope=perm; quest_kingsransom/configs/kingsransom.varp does the same for kr_varp1-3; quest_haunted/configs/quest_haunted.varp does it for [ernestdoors] with a banner saying exactly why). Neither Mourning's End quest has a *.varp config at all. Add server/scripts/quests/quest_mourningsendpartii/configs/mend2.varp with [mourning_quest_part2] and server/scripts/quests/quest_mourningsendparti/configs/mend1.varp with [mourning_quest], both protect=no/transmit=yes/scope=perm, then `make -C src torirsserver-scripts` and re-run. That makes t.quest.stage()/expect_stage/expect_complete work for part II and lets part I drop its journal-only workaround. (The queue's 'Making History' expectation is mis-stated: makinghistory is GREEN -- it worked around the identical [makinghistory] empty body through the journal, the way mourningsendparti.lua:69-76 says it copied. Fixing that carrier the same way is optional cleanup, not a tier-1 blocker.) If a transmitted carrier still reads 0 on BOTH sides after this, then and only then is the drive bridge's var read an engine seam.
 
@@ -52,7 +52,7 @@ Evidence: build/quest_gate/mourningsendpartii/ledger.tsv row 16 BLOCKED: "mourni
 
 ## content: mend1-gnome-task-stage-is-never-written
 Quests: mourningsendparti  
-Files: /Users/matthewevers/Documents/git_repos/3draster-quest-driver/OSRS-Content/osrs239-content/server/scripts/quests/quest_mourningsendparti/scripts/mend1_gnome.rs2, /Users/matthewevers/Documents/git_repos/3draster-quest-driver/OSRS-Content/osrs239-content/server/scripts/quests/quest_mourningsendparti/scripts/mend1_disguise.rs2
+Files: /Users/matthewevers/Documents/git_repos/3draster-quest-driver/OSRS-Content/osrs-content/server/scripts/quests/quest_mourningsendparti/scripts/mend1_gnome.rs2, /Users/matthewevers/Documents/git_repos/3draster-quest-driver/OSRS-Content/osrs-content/server/scripts/quests/quest_mourningsendparti/scripts/mend1_disguise.rs2
 
 CONFIRMED by source and by a live click. Essyllt hands over the gnome key and the broken device and writes %mourning_quest = ^mend1_assignment (4). The caged gnome -- and the whole dye/toad/sheep branch and the poison branch behind it -- is gated on ^mend1_gnome_task (5), and the only write of 5 anywhere in the quest is inside the mend1run debugproc's soft-skip walk (mend1_debug.rs2:69). So the ladder has a rung nothing steps on. Cheapest correct fix: make the gnome cage accept the stage Essyllt actually leaves the player in -- relax mend1_gnome.rs2:37 to `< ^mend1_assignment` (and :41 to `> ^mend1_gnome_task`) and write %mourning_quest = ^mend1_gnome_task at the successful end of [label,mend1_gnome_first_talk] (mend1_gnome.rs2:70-80), which is the moment the player learns the gnome's weaknesses. The alternative one-liner -- writing ^mend1_gnome_task at mend1_disguise.rs2:175 instead of ^mend1_assignment -- is smaller but makes stage 4 dead, and Essyllt's own re-greeting at :178 already handles both values. Note mend1_sheep.rs2:31/44/57/70/165 all test `!= ^mend1_gnome_task` exactly, so whichever way it is written, gnome_task must be the value the player actually holds while marking sheep.
 
@@ -60,7 +60,7 @@ Evidence: build/quest_gate/mourningsendparti/ledger.tsv: 46 PASS, 0 FAIL, then r
 
 ## content: councillor-catherine-has-no-spawn-row
 Quests: currentaffairs  
-Files: /Users/matthewevers/Documents/git_repos/3draster-quest-driver/OSRS-Content/osrs239-content/server/scripts/quests/quest_currentaffairs/configs/currentaffairs.spawn
+Files: /Users/matthewevers/Documents/git_repos/3draster-quest-driver/OSRS-Content/osrs-content/server/scripts/quests/quest_currentaffairs/configs/currentaffairs.spawn
 
 CONFIRMED exactly as the queue states, and fixable in one new file. current_affairs_councillor resolves in all.npc (474420) and all.npc.compack (14952) but nothing anywhere in the tree places her, so the quest dies at %current_affairs = ^ca_councillor (5) for every player. ^ca_councillor_coord = 0_44_53_9_62 decodes to 2825,3454,0 (44*64+9, 53*64+62). Precedent for a quest-local spawn file: quest_animalmagnetism/configs/anma.spawn, quest_arena/configs/quest_arena.spawn, quest_demon/configs/quest_demon.spawn -- a '==== NPC ====' section with `symbol  x  z  level`. Add server/scripts/quests/quest_currentaffairs/configs/currentaffairs.spawn placing current_affairs_councillor at 2825 3454 0, then `make -C src torirsserver-scripts`. Caveat for whoever takes it: this only proves the next step; the quest continues past the councillor and has never been driven beyond her, so budget for a second pass rather than assuming green.
 
@@ -68,7 +68,7 @@ Evidence: build/quest_gate/currentaffairs ledger (mirrored at OSRS-Content/.../s
 
 ## content: gertrude-dispatch-hides-the-two-cats-topic
 Quests: atailoftwocats  
-Files: /Users/matthewevers/Documents/git_repos/3draster-quest-driver/OSRS-Content/osrs239-content/server/scripts/areas/varrock/scripts/gertrude.rs2
+Files: /Users/matthewevers/Documents/git_repos/3draster-quest-driver/OSRS-Content/osrs-content/server/scripts/areas/varrock/scripts/gertrude.rs2
 
 CONFIRMED. [opnpc1,gertrude] (gertrude.rs2:10-63) is a first-match ladder over %fluffs, and its trailing `else { ~gertrude_route_topics; }` is the ONLY path to the A Tail of Two Cats topic. A fresh character's %fluffs is 0 (^fluffs_not_started), which matches the FIRST branch, so the Bob's-parents topic -- gated correctly on 20<=%twocats_quest<=28 inside [proc,gertrude_route_topics] (gertrude.rs2:85-114) -- is unreachable until the unrelated Gertrude's Cat quest is fully complete. That prerequisite does not exist in live OSRS. Fix in gertrude.rs2: test the A Tail window BEFORE the %fluffs ladder (if %twocats_quest is in [20,28], call ~gertrude_route_topics, which already composes Ratcatchers + A Tail + 'Something else' correctly with ~p_choice3) -- the composer was written for exactly this and the author's own comment at gertrude.rs2:83-84 says the first-match hiding was already known about once. twocats.rs2:108-120 needs no change; its [opnpc1,gertrude_post] trigger stays correct for the post-Fluffs form.
 
@@ -76,7 +76,7 @@ Evidence: QUEUE.tsv's own row plus the source: gertrude.rs2:11 `if (%fluffs = ^f
 
 ## content: juna-chatnpc_specific-has-no-npc-bound
 Quests: tearsofguthix  
-Files: /Users/matthewevers/Documents/git_repos/3draster-quest-driver/OSRS-Content/osrs239-content/server/scripts/quests/quest_tearsofguthix/scripts/tearsofguthix.rs2, /Users/matthewevers/Documents/git_repos/3draster-quest-driver/OSRS-Content/osrs239-content/server/scripts/quests/quest_deathtothedorgeshuun/scripts/dttd_savezanik.rs2
+Files: /Users/matthewevers/Documents/git_repos/3draster-quest-driver/OSRS-Content/osrs-content/server/scripts/quests/quest_tearsofguthix/scripts/tearsofguthix.rs2, /Users/matthewevers/Documents/git_repos/3draster-quest-driver/OSRS-Content/osrs-content/server/scripts/quests/quest_deathtothedorgeshuun/scripts/dttd_savezanik.rs2
 
 CONFIRMED, with the production precedent the fix should copy. [proc,tog_juna] is one line -- ~chatnpc_specific("Juna", tog_juna_dummy, $text) -- and nothing ever finds or adds a tog_juna_dummy near the player, so chatnpc_specific_anim's first p_pausebutton (chat.rs2:108-118, which needs the active npc for facesquare) never resolves: the page mounts, continue_ acks it, the page never changes, and every later continue_ answers 'a resume is already outstanding' (chat.lua:148-151) because only a new mount clears the latch. The pattern to copy is dttd_bmp.rs2:72-76 `[proc,dttdbmp_bind](npc $type) if (npc_find(coord, $type, 12, 0) = false) { npc_add(movecoord(coord,1,0,0), $type, 200); npc_setmode(playerface); }`, and quest_hazeelcult_locs.rs2:189-203 is the same npc_find-then-npc_add shape in production content. Add the bind at the top of [proc,tog_juna] (or once in [oploc1,tog_juna] before @tog_juna_talk). dttd_savezanik.rs2:49-80 makes the same bare chatnpc_specific calls and should be checked in the same pass. Secondary, for the driver queue, not a blocker: a resume that can never be answered reads as a permanent 'already outstanding' refusal with no elapsed-time hint -- worth a detail that says how long it has been pending.
 
@@ -84,7 +84,7 @@ Evidence: test/quests/tearsofguthix.lua:134's blocked row, re-verified live 2026
 
 ## content: biohazard-ground-spawn-is-the-empty-cage
 Quests: biohazard  
-Files: /Users/matthewevers/Documents/git_repos/3draster-quest-driver/OSRS-Content/osrs239-content/server/scripts/areas/world/configs/m40_51.spawn
+Files: /Users/matthewevers/Documents/git_repos/3draster-quest-driver/OSRS-Content/osrs-content/server/scripts/areas/world/configs/m40_51.spawn
 
 CONFIRMED, and it is a three-word fix in one spawn file. all.obj has TWO items: [pigeons] (5609) 'Pigeon cage / It's full of pigeons.' with ifop1=Open -- the one [opheld1,pigeons] keys on -- and [pigeoncage] (5625) 'Pigeon cage / It's empty...' with no ifop, which is what the release handler GIVES BACK after the birds fly (quest_biohazard_locs.rs2:73 inv_add(inv, pigeoncage, 1)). The ground spawn behind Jerico's house places the EMPTY one, so the player picks up an item with no op1 and the release can never fire. Change m40_51.spawn:116-118 from `pigeoncage` to `pigeons` (three rows at 2618,3323/3324/3325). That is also the direction the queue offers ('the pickup must grant, or the release must accept, one item') and it is the right half to move: the release handler's inv_del(pigeons)/inv_add(pigeoncage) pair and quest_biohazard.rs2:70's cleanup of pigeoncage are both already consistent with a full cage on the ground. Both C selftests that cheat obj_pigeons straight into the inventory (quest_biohazard_selftest.u.h:437-439, torirs_server_world_selftest.c:49160-49161) should then be able to take the item off the floor instead.
 
@@ -92,7 +92,7 @@ Evidence: configs/all.obj:5609-5623 ([pigeons], desc 'It's full of pigeons.', if
 
 ## content: dondakan-helmet-guard-reads-inv-not-worn
 Quests: betweenarock  
-Files: /Users/matthewevers/Documents/git_repos/3draster-quest-driver/OSRS-Content/osrs239-content/server/scripts/quests/quest_betweenarock/scripts/betweenarock_dondakan.rs2
+Files: /Users/matthewevers/Documents/git_repos/3draster-quest-driver/OSRS-Content/osrs-content/server/scripts/quests/quest_betweenarock/scripts/betweenarock_dondakan.rs2
 
 CONFIRMED by reading the two guards. In [proc,dwarfrock_dondakan_talk]'s ^dwarfrock_assembling_schematics branch, line 79 returns the 'go smith a helmet' message when inv_total(inv, dwarf_goldrock_helmet) = 0, and line 87 returns the 'go wear the helmet' message when inv_total(worn, ...) = 0. Equipping moves the only copy out of the backpack, so a player holding exactly one helmet -- the only quantity betweenarock_schematics.rs2:135's own anti-duplicate gate permits -- can never satisfy both, and the 'Ready as I'll ever be.' case at :91-96, the ONLY writer of ^dwarfrock_in_the_realm and the only caller of ~dwarfrock_enter_realm, is unreachable. Fix line 79 to mean 'owns one at all': `if (inv_total(inv, dwarf_goldrock_helmet) = 0 & inv_total(worn, dwarf_goldrock_helmet) = 0)`. Line 87 then correctly carries the 'wear it' case on its own and the defence gate at :82 is untouched.
 
@@ -100,7 +100,7 @@ Evidence: betweenarock_dondakan.rs2:74-96 read in full: :79 `if (inv_total(inv, 
 
 ## content: prying-times-crates-are-never-placed
 Quests: pryingtimes  
-Files: /Users/matthewevers/Documents/git_repos/3draster-quest-driver/OSRS-Content/osrs239-content/server/scripts/quests/quest_pryingtimes/scripts/pryingtimes_locs.rs2, /Users/matthewevers/Documents/git_repos/3draster-quest-driver/OSRS-Content/osrs239-content/server/scripts/quests/quest_pryingtimes/scripts/pryingtimes.rs2, /Users/matthewevers/Documents/git_repos/3draster-quest-driver/test/quests/pryingtimes.lua
+Files: /Users/matthewevers/Documents/git_repos/3draster-quest-driver/OSRS-Content/osrs-content/server/scripts/quests/quest_pryingtimes/scripts/pryingtimes_locs.rs2, /Users/matthewevers/Documents/git_repos/3draster-quest-driver/OSRS-Content/osrs-content/server/scripts/quests/quest_pryingtimes/scripts/pryingtimes.rs2, /Users/matthewevers/Documents/git_repos/3draster-quest-driver/test/quests/pryingtimes.lua
 
 CONFIRMED: two locs the quest cannot proceed without exist as definitions and are placed nowhere. [sailing_charting_drink_crate] (all.loc:733065-733076, op1=Pry-open) is wanted at 3013,2998,0 and pry_crate_multi/pry_crate_sealed at 3048,2965,0. Loc placement in this pack lives in the cache maps (maps/m*.jl2 '==== LOC ====' sections) -- there is no *.loc placement mirror, which QUEST_AUTHORING.md trap 20 states outright -- so the practical content fix is a loc_add from the quest's own scripts, the shape quest_waterfall_locs.rs2:269-274 and the fris_* files already use: an ~pry_ensure_crates proc called when the stage that needs each crate is reached (^pry_test_key for the sea crate, the hand-in stage for the bar crate), with a long duration so world.loc_near can see it. SECOND FINDING, stale: this file's THIRD t.blocked (the varbit-only quest_pry making quest.varp_complete impossible) is obsolete -- quest.bind now resolves the name through QD._var_resolve varbit-table-first and remembers the kind (quest.lua:27-47's own banner names test/quests/pryingtimes.lua as the case it fixed), so once the crates are placed the file should call t.quest.expect_complete() instead of blocking.
 
@@ -108,7 +108,7 @@ Evidence: test/quests/pryingtimes.lua:177-183 and :245-251 -- `world.loc_near(sa
 
 ## content: candle-chest-writes-the-black-arm-stage-on-the-phoenix-route
 Quests: hero  
-Files: /Users/matthewevers/Documents/git_repos/3draster-quest-driver/OSRS-Content/osrs239-content/server/scripts/quests/quest_hero/scripts/brimhaven_scarface_mansion.rs2
+Files: /Users/matthewevers/Documents/git_repos/3draster-quest-driver/OSRS-Content/osrs-content/server/scripts/quests/quest_hero/scripts/brimhaven_scarface_mansion.rs2
 
 CONFIRMED, and the answer to 'which kind?' is: a route-blind varp write, not a missing loc and not a driver seam. %heroquest is one linear ladder carrying BOTH gang routes (phoenix 2-6, blackarm 7-13, quest_hero.constant:8-19), and [oploc1,opencandlechest] (brimhaven_scarface_mansion.rs2:97-109) writes `%heroquest = ^hero_blackarm_looted_chest` (12) for anybody below 12 -- including a Phoenix player sitting at ^hero_phoenix_killed_grip (5). Straven's candlestick hand-in (straven.rs2:107) is gated on `%heroquest >= ^hero_phoenix_gangmember_spoken & %heroquest < ^hero_phoenix_obtained_armband`, i.e. 2..5, so looting the chest is what deletes the option. Fix: gate the write on the route -- only advance to ^hero_blackarm_looted_chest when %heroquest is already in the Black Arm band (>= ^hero_blackarm_gangmember_spoken), and leave a Phoenix player's stage alone (the two candlesticks are still granted, which is all the Phoenix route needs).
 
@@ -116,7 +116,7 @@ Evidence: brimhaven_scarface_mansion.rs2:97-109 read in full -- `inv_add(inv, pe
 
 ## content: ernest-maze-door-has-no-clickable-form
 Quests: haunted  
-Files: /Users/matthewevers/Documents/git_repos/3draster-quest-driver/OSRS-Content/osrs239-content/configs/all.loc
+Files: /Users/matthewevers/Documents/git_repos/3draster-quest-driver/OSRS-Content/osrs-content/configs/all.loc
 
 NOT the blocker -- haunted's blocker is the chat-page seam above, and its lever maze is an ordinary click list now (the six-lever combination the old t.blocked called a design problem was deleted and the maze is driven for real). But the run recorded a second, worked-around defect worth a content row: with the door logically open server-side, the door loc never offers an interactive row from any approach tile, and the file reaches the oil can by goto_tile instead of through it. The varp is not the cause -- quest_haunted/configs/quest_haunted.varp:22-29 already declares [ernestdoors] transmit=yes with a banner about exactly this. The suspect is the loc definitions: [ernest_doorclosed] (all.loc:127317) and [ernest_doorajar] (:127322) both carry `models=` with NO `shape1=` entry, while the wrapper [5to6] (:1292-1298) is blockwalk=1/multivarbit=ernestdoor_5to6/multiloc1=ernest_doorclosed/multiloc2=ernest_doorajar -- every comparable wall-shaped loc in this pack states its shape (e.g. [kr_mansion_window_multi_01] `shape1=0,27297`), so the transformed child most likely has no model for the placed shape and renders nothing to press. Verify that reading before editing; if it holds, give both children the shape entry their placement uses.
 

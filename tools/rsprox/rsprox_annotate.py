@@ -2,7 +2,7 @@
 import re
 import sys
 
-ROOT = "/Users/matthewevers/Documents/git_repos/3draster/OSRS-Content/osrs239-content/"
+ROOT = "/Users/matthewevers/Documents/git_repos/3draster/OSRS-Content/osrs-content/"
 
 
 def table(path):

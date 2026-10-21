@@ -90,7 +90,7 @@ map things. If a row's `sees` is only "dark cave", go back to the frames.
 **The trigger.** Grep the dialogue on screen at the cut:
 
 ```
-grep -rn "There is a cave on the south" OSRS-Content/osrs239-content/server/scripts/quests/quest_tearsofguthix/
+grep -rn "There is a cave on the south" OSRS-Content/osrs-content/server/scripts/quests/quest_tearsofguthix/
 ```
 
 The cutscene goes between the page that closes as the video cuts and the page
@@ -171,7 +171,7 @@ block.
 
 Edit the quest's `.rs2` at the trigger. Use an exact-string edit (the Edit
 tool or a careful `sed` on a unique line), then read the block back and run
-`git -C OSRS-Content diff osrs239-content/server/scripts/quests/<quest_dir>`
+`git -C OSRS-Content diff osrs-content/server/scripts/quests/<quest_dir>`
 (the shared tree carries other workers' edits; diff only your quest) before
 building. A replacement that swallows a
 neighbouring line produces a script that runs but skips pages, and the trace

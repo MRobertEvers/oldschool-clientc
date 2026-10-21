@@ -11,7 +11,7 @@ processes a browser needs (docs/WEB_SERVERS.md) with nothing else installed:
     bin/io_server[.exe]         the page, POST /io cache reads, GET /boot/
     build-web/                  the emscripten client and its host page
     cache.osrs239/              the pristine rev-239 cache both servers read
-    content/osrs239-content/    the slice of the content tree the server opens
+    content/osrs-content/    the slice of the content tree the server opens
     manifests/                  the boot manifest, rewritten for this layout
     revconfig/, script/         what the page fetches through /boot/
     run.cmd, run.sh             start both in the foreground
@@ -45,7 +45,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 SRC = REPO / "src"
-CONTENT = REPO / "OSRS-Content" / "osrs239-content"
+CONTENT = REPO / "OSRS-Content" / "osrs-content"
 SCRIPT_PACK = CONTENT / "server" / "scripts" / "build"
 PACKAGE_NAME = "torirs-osrs239"
 IS_WINDOWS = os.name == "nt"
@@ -165,7 +165,7 @@ def copy_tree(src: Path, dst: Path, keep=None) -> int:
 
 
 def stage_content(stage: Path) -> None:
-    out = stage / "content" / "osrs239-content"
+    out = stage / "content" / "osrs-content"
     total = 0
     for rel in CONTENT_DIRS:
         src = CONTENT / rel
@@ -270,7 +270,7 @@ if "%TORIRS_GAME_PORT%"=="" set TORIRS_GAME_PORT={game_port}
 if "%TORIRS_WEB_PORT%"=="" set TORIRS_WEB_PORT={web_port}
 if "%TORIRSSERVER_BIND%"=="" set TORIRSSERVER_BIND=0.0.0.0
 set TORIRSSERVER_CACHE=cache.osrs239
-set TORIRSSERVER_CONTENT=content/osrs239-content
+set TORIRSSERVER_CONTENT=content/osrs-content
 set TORIRSSERVER_SAVES=saves
 if not exist saves mkdir saves
 if not exist logs mkdir logs
@@ -287,7 +287,7 @@ cd "$(dirname "$0")"
 : "${{TORIRSSERVER_BIND:=0.0.0.0}}"
 export TORIRSSERVER_BIND
 export TORIRSSERVER_CACHE=cache.osrs239
-export TORIRSSERVER_CONTENT=content/osrs239-content
+export TORIRSSERVER_CONTENT=content/osrs-content
 export TORIRSSERVER_SAVES=saves
 mkdir -p saves logs
 echo "torirs-osrs239: game port $TORIRS_GAME_PORT (bind $TORIRSSERVER_BIND), web port $TORIRS_WEB_PORT"
@@ -318,7 +318,7 @@ Set-Location $PSScriptRoot
 New-Item -ItemType Directory -Force -Path saves, logs | Out-Null
 $env:TORIRSSERVER_BIND = $Bind
 $env:TORIRSSERVER_CACHE = "cache.osrs239"
-$env:TORIRSSERVER_CONTENT = "content/osrs239-content"
+$env:TORIRSSERVER_CONTENT = "content/osrs-content"
 $env:TORIRSSERVER_SAVES = "saves"
 
 function Start-Game {{

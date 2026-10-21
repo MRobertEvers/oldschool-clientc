@@ -1,7 +1,7 @@
 # OSRS-Content icon contact sheets
 
 Contact sheets of every icon-sized sprite in
-`OSRS-Content/osrs239-content/sprites/` — 5714 sprites whose first frame
+`OSRS-Content/osrs-content/sprites/` — 5714 sprites whose first frame
 (`0.bmp`) is between 10x10 and 64x64. Each cell shows the sprite over black
 (black is the transparent colour in these BMPs) with its directory name below.
 

@@ -11,10 +11,13 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : LocAnimEncoder
- * Layouts      : 18 distinct, over 19 contiguous revision run(s)
+ * Layouts      : 19 distinct, over 20 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^LocAnimEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
+ *                Revision(s) 241 come from RSProx, not RSProt
+ *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
+ *                gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -68,6 +71,8 @@ void packet_loc_anim_v16_out(RsprotExec *x, MsgLocAnim *m);
 void packet_loc_anim_v17_out(RsprotExec *x, MsgLocAnim *m);
 /* v18 -- revs 239. */
 void packet_loc_anim_v18_out(RsprotExec *x, MsgLocAnim *m);
+/* v100 -- revs 241. */
+void packet_loc_anim_v100_out(RsprotExec *x, MsgLocAnim *m);
 
 /* Per-revision aliases: `packet_loc_anim_rev239_out` is greppable, which is the
  * point -- "what does 239 do for LOC_ANIM" without reading a table. */
@@ -90,6 +95,7 @@ void packet_loc_anim_v18_out(RsprotExec *x, MsgLocAnim *m);
 #define packet_loc_anim_rev237_out packet_loc_anim_v14_out
 #define packet_loc_anim_rev238_out packet_loc_anim_v17_out
 #define packet_loc_anim_rev239_out packet_loc_anim_v18_out
+#define packet_loc_anim_rev241_out packet_loc_anim_v100_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_loc_anim_out[];

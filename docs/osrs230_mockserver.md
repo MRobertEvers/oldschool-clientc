@@ -47,7 +47,7 @@ src/torirs --manifest manifests/manifest_osrs230.ini --user test --pass test
 | --- | --- |
 | `TORIRSSERVER_VERBOSE=1` | log every packet in and out |
 | `TORIRSSERVER_CACHE=dir` | cache to read metadata and map squares from (default `cache.osrs239.baked`, falling back to `../cache.osrs239.baked`) |
-| `TORIRSSERVER_CONTENT=dir` | content tree (default `OSRS-Content/osrs239-content`) |
+| `TORIRSSERVER_CONTENT=dir` | content tree (default `OSRS-Content/osrs-content`) |
 | `TORIRSSERVER_SCRIPTS=dir` | compiled script pack (default `<content>/scripts/build`) |
 | `TORIRSSERVER_HOME=x,z` | tile to log in on (default `3222,3218` — the Lumbridge castle courtyard). The scene's origin zone is derived from it |
 
@@ -89,7 +89,7 @@ Layout:
 
 The world is **Lumbridge**, spawned from OpenRune's own spawn list, with
 collision read out of the same map squares the client draws. Content — combat
-stats, drop tables, doors, dialogue — lives in `OSRS-Content/osrs239-content` and is
+stats, drop tables, doors, dialogue — lives in `OSRS-Content/osrs-content` and is
 documented separately in [`torirs_server_content.md`](torirs_server_content.md). The HUD
 that fighting drives — hitsplats, the skills tab, npc level suffixes, facing,
 the combat tab — is in [`combat_hud.md`](combat_hud.md).
@@ -518,7 +518,7 @@ where work goes whereas an absent one invites putting it wherever is nearest.
 ## 3.10 Content is RuneScript, not C
 
 Behaviour that a server operator would want to change lives in
-`OSRS-Content/osrs239-content/server/scripts/`, compiled by `src/serverscript`'s `sscompile`
+`OSRS-Content/osrs-content/server/scripts/`, compiled by `src/serverscript`'s `sscompile`
 and executed by the ServerScript VM. See `docs/serverscript.md` for the
 toolchain and [`torirs_server_content.md`](torirs_server_content.md) for the tree.
 
@@ -3334,7 +3334,7 @@ there is no pack, and the load prints a banner:
 
 ```
 torirsserver: ============================================================
-torirsserver: NO SCRIPT PACK at OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: NO SCRIPT PACK at OSRS-Content/osrs-content/server/scripts/build
 torirsserver:   cannot read .../script.dat
 torirsserver: The game's behaviour is content, not C. Without the pack the
 torirsserver: engine's fallbacks stay OFF and almost nothing will work —
@@ -3681,7 +3681,7 @@ The data, re-measured: **857 objs, 1,254 (stat, level) pairs** across
 `skill_combat/configs/*.obj` — 613 objs with one pair, 187 with two, 33 with
 three, 24 with seven, 23 distinct stats.
 
-    grep -rh param=levelrequire OSRS-Content/osrs239-content/server --include=*.obj | wc -l
+    grep -rh param=levelrequire OSRS-Content/osrs-content/server --include=*.obj | wc -l
 
 `oc_param` cannot answer it, and `fields/obj.ini`'s `[obj.levelrequire]` already
 says why *in the file*: a param maps one id to one scalar and this is a

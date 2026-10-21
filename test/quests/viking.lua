@@ -441,7 +441,7 @@ return {
             local rn = "not_tried"
             local tries = {}
             local function spot_now()
-                local _, v = t.var.server("varp6757_viking_draugen_spot")
+                local _, v = t.var.server("varp7432_viking_draugen_spot")
                 return math.tointeger(tonumber(v) or 0) or 0
             end
             for attempt = 1, 4 do
@@ -512,8 +512,8 @@ return {
 
             local _, tile = t.world.tile()
             local _, stage = t.quest.stage()
-            local _, bits = t.var.server("varp6199_viking_bits")
-            t.check("leg.3.state", stage == 4 and ((bits or 0) >> 23) & 15 == 3, string.format("tile %s,%s level %s; varp347_viking=%s; sigmund progress=%s (spoke to olaf); varp6199_viking_bits=%s",
+            local _, bits = t.var.server("varp6874_viking_bits")
+            t.check("leg.3.state", stage == 4 and ((bits or 0) >> 23) & 15 == 3, string.format("tile %s,%s level %s; varp347_viking=%s; sigmund progress=%s (spoke to olaf); varp6874_viking_bits=%s",
                 tostring(tile.x), tostring(tile.z), tostring(tile.level), tostring(stage), tostring(((bits or 0) >> 23) & 15), tostring(bits)))
         end },
         -- LEG 3 END
@@ -543,7 +543,7 @@ return {
                     end
                 end
                 t.ticks(3)
-                local _, bits = t.var.server("varp6199_viking_bits")
+                local _, bits = t.var.server("varp6874_viking_bits")
                 local progress = ((bits or 0) >> 23) & 15
                 t.check(step .. ".progress", progress == want, "sigmund progress=" .. tostring(progress) .. " want=" .. tostring(want))
                 if door then
@@ -563,7 +563,7 @@ return {
 
             local _, tile = t.world.tile()
             local _, stage = t.quest.stage()
-            local _, bits = t.var.server("varp6199_viking_bits")
+            local _, bits = t.var.server("varp6874_viking_bits")
             t.check("leg.4.end", stage == 4 and ((bits or 0) >> 23) & 15 == 13, string.format("tile %s,%s level %s; varp347_viking=%s; sigmund progress=%s (spoke to thora); backpack keeps strung lyre, rune scimitar, lobster; askeladden is next",
                 tostring(tile.x), tostring(tile.z), tostring(tile.level), tostring(stage), tostring(((bits or 0) >> 23) & 15)))
         end },
@@ -573,7 +573,7 @@ return {
             -- Same dialogue shape as leg 4: "Ask about the Merchant's trial" first, then "Yes" confirmations
             -- (build/parity_state/parity3g/viking_drv/sigmund.lua). `have` is the note/item the npc takes or gives.
             local function progress_of()
-                local _, bits = t.var.server("varp6199_viking_bits")
+                local _, bits = t.var.server("varp6874_viking_bits")
                 return ((bits or 0) >> 23) & 15
             end
             local function ask(step, sym, x, z, door)
@@ -641,7 +641,7 @@ return {
         { name = "sigmund_final_and_koschei", run = function(t)
             -- Same dialogue shape as legs 4 and 5 (build/parity_state/parity3g/viking_drv/sigmund.lua).
             local function progress_of()
-                local _, bits = t.var.server("varp6199_viking_bits")
+                local _, bits = t.var.server("varp6874_viking_bits")
                 return ((bits or 0) >> 23) & 15
             end
             local function ask(step, sym, x, z, door)
@@ -761,7 +761,7 @@ return {
             for i = 1, 20 do
                 local res, res_detail = t.npc.await_dead_engaged(40, 4, { eat = { item = "lobster", below = 40 } })
                 k3_details[#k3_details + 1] = res_detail
-                phase3 = select(2, t.var.server("varp6759_viking_koschei_phase")) or 0
+                phase3 = select(2, t.var.server("varp7434_viking_koschei_phase")) or 0
                 trace[#trace + 1] = tostring(res) .. "/" .. tostring(phase3)
                 if phase3 == 4 or phase3 == 0 then break end
             end
@@ -778,7 +778,7 @@ return {
             local phase4 = 4
             for i = 1, 40 do
                 t.npc.await_dead_engaged(30, 2)
-                phase4 = select(2, t.var.server("varp6759_viking_koschei_phase")) or 0
+                phase4 = select(2, t.var.server("varp7434_viking_koschei_phase")) or 0
                 if phase4 == 0 then break end
             end
             t.ticks(4)
@@ -786,7 +786,7 @@ return {
             local _, tile = t.world.tile()
             local _, stage = t.quest.stage()
             local _, lobsters = t.inv.count("lobster")
-            local _, active = t.var.server("varp6758_viking_koschei_active")
+            local _, active = t.var.server("varp7433_viking_koschei_active")
             t.check("killKoschei4.done", phase4 == 0 and active == 0 and tile.level == 0, string.format("koschei phase=%s active=%s; back on tile %s,%s level %s; varp347_viking=%s", tostring(phase4), tostring(active), tostring(tile.x), tostring(tile.z), tostring(tile.level), tostring(stage)))
             t.check("leg.6.end", stage == 6 and tile.level == 0, string.format("tile %s,%s level %s; varp347_viking=%s (Thorvald's vote earned; trial over, outside the arena); lobster x%s, everything else banked with Peer",
                 tostring(tile.x), tostring(tile.z), tostring(tile.level), tostring(stage), tostring(lobsters)))
@@ -797,7 +797,7 @@ return {
             -- killKoschei4 and its parent killKoschei1 (three forms, then the safe death) were driven in leg 6, which had to
             -- end outside the arena (a checkpoint is refused in combat). Read the result here.
             local _, stage0 = t.quest.stage()
-            local _, phase = t.var.server("varp6759_viking_koschei_phase")
+            local _, phase = t.var.server("varp7434_viking_koschei_phase")
             t.step("killKoschei4.verified", (phase == 0 and stage0 == 6) and "PASS" or "FAIL", string.format("driven in leg 6 (rows killKoschei4/.done): koschei phase=%s, varp347_viking=%s", tostring(phase), tostring(stage0)))
             t.step("killKoschei1", (stage0 == 6) and "PASS" or "FAIL", string.format("forms 1-3 (killKoschei2, killKoschei2-again, killKoschei3) and the safe death of form 4 done in leg 6; varp347_viking=%s", tostring(stage0)))
 
@@ -882,7 +882,7 @@ return {
             t.exec("talkToPeer.bank", t.chat.choose, "Yes")
             t.exec("talkToPeer.done", t.chat.drain, {})
             t.ticks(3)
-            local _, bits = t.var.server("varp6199_viking_bits")
+            local _, bits = t.var.server("varp6874_viking_bits")
             local riddle = (bits >> 3) & 7
             local peerprog = (bits >> 18) & 3
             t.check("talkToPeer.state", riddle >= 0 and riddle <= 5 and peerprog == 1, string.format("riddle=%s peer progress=%s (started)", tostring(riddle), tostring(peerprog)))
@@ -908,7 +908,7 @@ return {
             local _, enter = t.ui.widget("seer_combolock:seerenter")
             t.ui.invoke(enter, 1)
             t.ticks(3)
-            local _, bits2 = t.var.server("varp6199_viking_bits")
+            local _, bits2 = t.var.server("varp6874_viking_bits")
             t.check("enterCode", ((bits2 >> 18) & 3) == 2, string.format("riddle %s entered as wheels %d,%d,%d,%d; peer progress=%s (completed riddle)", tostring(riddle), w[1], w[2], w[3], w[4], tostring((bits2 >> 18) & 3)))
             t.exec("enterCode.door", t.player.click_loc, "viking_seers_door1", 1)
             t.ticks(4)
@@ -973,12 +973,12 @@ return {
             local mural = t.player.by_symbol("loc", "viking_seers_mural")
             t.exec("useDiskOldOnMural", t.player.use_on, "viking_red_wooden_coin_old", mural)
             t.ticks(2)
-            local _, bits1 = t.var.server("varp6199_viking_bits")
+            local _, bits1 = t.var.server("varp6874_viking_bits")
             t.exec("useDiskNewOnMural", t.player.use_on, "viking_red_wooden_coin", mural)
             t.ticks(2)
-            local _, bits2 = t.var.server("varp6199_viking_bits")
+            local _, bits2 = t.var.server("varp6874_viking_bits")
             t.exec("useDiskNewOnMural.lid", t.inv.await, "viking_vase_lid", 1, 8)
-            t.check("useDiskAnyOnMural", bits2 ~= bits1 and bits1 ~= nil, string.format("both red disks in the mural; varp6199_viking_bits %s -> %s, vase lid taken", tostring(bits1), tostring(bits2)))
+            t.check("useDiskAnyOnMural", bits2 ~= bits1 and bits1 ~= nil, string.format("both red disks in the mural; varp6874_viking_bits %s -> %s, vase lid taken", tostring(bits1), tostring(bits2)))
             -- back up (viking_peer.rs2:393)
             t.exec("goUpstairsWithVaseLid", t.player.click_loc, "viking_seer_down_ladder", 1, { at = { 2636, 3663 } })
             t.ticks(3)

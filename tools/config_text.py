@@ -573,7 +573,7 @@ def read_id_map(path, encoding="utf-8"):
 
 
 class Names:
-    """Record names -> ids for one content tree (`.../osrs239-content`).
+    """Record names -> ids for one content tree (`.../osrs-content`).
 
     A config type resolves through `configs/all.<kind>.compack`; `stat` through
     `pack/stat.pack`; `category` through `pack/category.pack`; a component

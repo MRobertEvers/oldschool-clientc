@@ -29,7 +29,7 @@ from summoning_script_sources import read_all, script_dir
 
 
 REPO = Path(__file__).resolve().parents[1]
-CONTENT = REPO / "OSRS-Content/osrs239-content"
+CONTENT = REPO / "OSRS-Content/osrs-content"
 LANE = CONTENT / "ported/scape2009_summoning"
 SCRIPT_LANE = CONTENT / "server/scripts/ported_scape2009_summoning"
 
@@ -312,10 +312,10 @@ def static_contract(expect: object) -> None:
     # roster — each cohort npc was ported as one rig, so the head model carries
     # the labels the body's frames address.
     check(
-        "~summoning_familiar_npc(%varp6257_summoning_familiar_type)" in script
+        "~summoning_familiar_npc(%varp6932_summoning_familiar_type)" in script
         and "if_setnpchead(" in script
         and "if_setanim(summoning_familiar:model," in script
-        and "~summoning_familiar_ready_seq(%varp6257_summoning_familiar_type)" in script
+        and "~summoning_familiar_ready_seq(%varp6932_summoning_familiar_type)" in script
         and 'if_settext(summoning_familiar:title, $name);' in script,
         "sidebar does not bind the selected familiar head icon, idle and title",
     )
@@ -341,18 +341,18 @@ def static_contract(expect: object) -> None:
 
     alloc = parse_alloc(alloc_path)
     for name, value in (
-        ("varp6226_summoning_familiar_active", VARP_ACTIVE),
-        ("varp6227_summoning_familiar_point_accumulator", VARP_ACCUMULATOR),
-        ("varp6230_summoning_familiar_ticks", VARP_TICKS),
-        ("varp6257_summoning_familiar_type", VARP_TYPE),
+        ("varp6901_summoning_familiar_active", VARP_ACTIVE),
+        ("varp6902_summoning_familiar_point_accumulator", VARP_ACCUMULATOR),
+        ("varp6905_summoning_familiar_ticks", VARP_TICKS),
+        ("varp6932_summoning_familiar_type", VARP_TYPE),
     ):
         check(alloc.get(name) == value, f"varp allocation {name}={alloc.get(name)!r}, expected {value}")
     varp_cfg = config_text.filter_text(read(varp_cfg_path))
     for name in (
-        "varp6226_summoning_familiar_active",
-        "varp6227_summoning_familiar_point_accumulator",
-        "varp6230_summoning_familiar_ticks",
-        "varp6257_summoning_familiar_type",
+        "varp6901_summoning_familiar_active",
+        "varp6902_summoning_familiar_point_accumulator",
+        "varp6905_summoning_familiar_ticks",
+        "varp6932_summoning_familiar_type",
     ):
         check(
             re.search(rf"(?ms)^\[{re.escape(name)}\]\s*.*?^scope=perm\s*$", varp_cfg) is not None,

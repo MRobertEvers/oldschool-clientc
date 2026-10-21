@@ -69,7 +69,7 @@ Evidence. `CONTENT_BUGS.md` TEST-4; the sampler's sent_back list.
 
 Units: nibblers_and_pillars, bat, melee, mager_resurrection.
 
-Files: `OSRS-Content/osrs239-content/server/scripts/minigames/minigame_inferno/scripts/inferno_ai.rs2`, `OSRS-Content/osrs239-content/server/scripts/minigames/minigame_inferno/scripts/inferno_zek.rs2`, `OSRS-Content/osrs239-content/server/scripts/minigames/minigame_inferno/configs/inferno.npc`
+Files: `OSRS-Content/osrs-content/server/scripts/minigames/minigame_inferno/scripts/inferno_ai.rs2`, `OSRS-Content/osrs-content/server/scripts/minigames/minigame_inferno/scripts/inferno_zek.rs2`, `OSRS-Content/osrs-content/server/scripts/minigames/minigame_inferno/configs/inferno.npc`
 
 Summary. What the fought tests found against the tables: TEST-1 (the nibblers on one
 pillar never bite on the same tick: 576 gaps of 1, 2 or 3 and never 4, while each alone

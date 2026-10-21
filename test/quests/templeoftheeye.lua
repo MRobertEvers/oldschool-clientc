@@ -1,5 +1,5 @@
 -- Temple of the Eye. Content:
---   OSRS-Content/osrs239-content/server/scripts/quests/quest_templeoftheeye/scripts/templeoftheeye.rs2
+--   OSRS-Content/osrs-content/server/scripts/quests/quest_templeoftheeye/scripts/templeoftheeye.rs2
 --   configs/templeoftheeye.constant (stages 0..130, %varb13738_tote on varp3405_tote_primary),
 --   configs/templeoftheeye.spawn (Persten, the apprentices), configs/templeoftheeye_maplink.dbrow
 --   (the temple's way out).

@@ -1,5 +1,5 @@
 # ladder whatliesbelow quest_dir=quest_whatliesbelow guide=src/main/java/com/questhelper/helpers/quests/whatliesbelow/WhatLiesBelow.java steps=15 legs=1:1-15@s0
-#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
 leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
 1	1	0	talkToRat	NpcStep	npc:surok_rat	3266,3333,0	Talk to Rat Burgiss south of Varrock.			Yes. | Shall I get them back for you? | Of course! Tell me …	quests/quest_whatliesbelow/scripts/whatliesbelow.rs2:40 opnpc1
 1	2	10	killOutlaws	NpcStep	npc:surok_outlaw1 npc:surok_outlaw2 npc:surok_outlaw3 npc:surok_outlaw4 npc:surok_outlaw5 npc:surok_outlaw6 npc:surok_outlaw7 npc:surok_outlaw8 npc:surok_outlaw9 npc:surok_outlaw10	3118,3472,0	Go to the Bandits west of the Grand Exchange and kill 5 for intel. Put the intel into the folder Rat gave you.		Folder; Rat's paper		quests/quest_whatliesbelow/scripts/whatliesbelow_papers.rs2:22 ai_queue3; +9

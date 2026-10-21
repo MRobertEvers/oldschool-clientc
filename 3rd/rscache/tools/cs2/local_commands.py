@@ -34,11 +34,72 @@ LOCAL_NAMES: dict[int, str] = {
     # At osrs239 it is IF_SETPARAM (xrsps WidgetOps); Overview script 9176
     # call sites are five ints and nothing out — haschild's (2i->1i) desyncs.
     2704: "if_setparam",
+    # A varp read and written as a long (cache.osrs241, absent from the rev-239
+    # deob): script 9911 pushes 64's result into `tostring_spacer_long`, and
+    # 778 stores to varp 5753 (ge_newoffer_price) with 65.
+    64: "push_var_long",
+    65: "pop_var_long",
+    # New in 241 and absent from the rev-239 deob. Script 9914, its one call
+    # site, clamps a long local with long_max/long_min, then 4062 takes that
+    # long and the script returns its one int: long -> int.
+    4062: "long_to_int",
 }
 
 # NAME -> (args, defs, dot)
 LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     "runelite_callback": (["STRING"], [], False),
+
+    # ---------------------------------------------------------------
+    # The long stack. Every count is the rev-239 deob's own (Statics, the
+    # 4000-range math handler: class42.field258 is the long stack, field259 its
+    # pointer; field254/field257 the ints). A long's operand order across two
+    # stacks is the order the cache's compiler pushes them in, read off
+    # cache.osrs241's call sites where they exist.
+    # ---------------------------------------------------------------
+    "long_add": (["LONG", "LONG"], ["LONG"], False),
+    "long_sub": (["LONG", "LONG"], ["LONG"], False),
+    "long_multiply": (["LONG", "LONG"], ["LONG"], False),
+    "long_divide": (["LONG", "LONG"], ["LONG"], False),
+    "long_min": (["LONG", "LONG"], ["LONG"], False),
+    "long_max": (["LONG", "LONG"], ["LONG"], False),
+    # 4043: a * c / b through BigInteger, three longs in.
+    "long_scale": (["LONG", "LONG", "LONG"], ["LONG"], False),
+    "int_to_long": (["INT"], ["LONG"], False),
+    "long_setbit": (["LONG", "INT"], ["LONG"], False),
+    "long_clearbit": (["LONG", "INT"], ["LONG"], False),
+    "long_testbit": (["LONG", "INT"], ["BOOLEAN"], False),
+    "long_bitcount": (["LONG"], ["INT"], False),
+    "long_togglebit": (["LONG", "INT"], ["LONG"], False),
+    "long_setbit_range": (["LONG", "INT", "INT"], ["LONG"], False),
+    "long_clearbit_range": (["LONG", "INT", "INT"], ["LONG"], False),
+    "long_getbit_range": (["LONG", "INT", "INT"], ["LONG"], False),
+    "long_modulo": (["LONG", "LONG"], ["LONG"], False),
+    "long_and": (["LONG", "LONG"], ["LONG"], False),
+    "long_or": (["LONG", "LONG"], ["LONG"], False),
+    "long_not": (["LONG"], ["LONG"], False),
+    # 4059 pops two longs and two ints; no 241 script calls it, so the
+    # interleaving is the deob's own read order.
+    "long_setbit_range_tolong": (["LONG", "LONG", "INT", "INT"], ["LONG"], False),
+    # 4060 packs (hi, lo) ints into one long; 4061 splits it back, hi first.
+    "long_pack": (["INT", "INT"], ["LONG"], False),
+    "long_unpack": (["LONG"], ["INT", "INT"], False),
+    "long_to_int": (["LONG"], ["INT"], False),
+    "tostring_long": (["LONG"], ["STRING"], False),
+    # 4126 pops the long, then the separator string: `tostring_spacer_long(v, ",")`
+    # (script 9911 pushes the long first).
+    "tostring_spacer_long": (["LONG", "STRING"], ["STRING"], False),
+    # 3229: the first op of script 9790, with nothing on the stack, before a
+    # run of translations_set pairs. No case in the rev-239 deob.
+    "translations_clear": ([], [], False),
+    # Grand Exchange prices went to the long stack in 241: every call site in
+    # cache.osrs241 stores 3905's and 3908's one result with pop_long_local, and 3932's
+    # two with pop_long_local then pop_int_local (so the long is on top). The
+    # table is not per-revision; these are 241's shapes, which is what the
+    # content tree now is.
+    "stockmarket_getofferprice": (["INT"], ["LONG"], False),
+    "stockmarket_getoffercompletedgold": (["INT"], ["LONG"], False),
+    "stockmarket_value": (["INT"], ["INT", "LONG"], False),
+
     # Command.kt (2021) never gained these, though Opcodes.kt names them. The
     # pop/push counts are src/cs2vm2/cs2vm2_opcode_stack.gen.h's, i.e. taken
     # from a client that executes them, not from the name.
@@ -137,8 +198,8 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     "hiscore_geterror": ([], ["STRING"], False),
     # 7812: 1 witness, unique.
     "hiscore_setapi": (["INT"], [], False),
-    # 3932: 4 witnesses, unique (round 1).
-    "stockmarket_value": (["INT"], ["INT", "INT"], False),
+    # 3932: 4 witnesses, unique (round 1) -- (int) -> (int, int) on the 230
+    # corpus. 241 made the second a long; see stockmarket_value above.
     # 7471: 1 witness, unique (round 1).
     "minimenu_getscroll": ([], ["INT"], False),
     # 7823: 1 witness, unique (round 1).
@@ -593,7 +654,10 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     # Second pass, once the block above stopped hiding these behind other
     # unknowns. Same tree, same method.
     "oc_byid": (["INT"], ["INT"], False),          # method2965, the `var0 != 4224` arm
-    "array_insert": (["STRING", "INT", "NONE", "INT"], [], False),
+    # Statics 8025 pops the selector, then the index, then the selector's value,
+    # then the array: chronologically array, value, index, selector (script
+    # 10123 inserts "Current" into a string array in exactly that order).
+    "array_insert": (["STRING", "NONE", "INT", "INT"], [], False),
     "array_pushall": (["STRING", "STRING"], [], False),                  # method12336
     # 8009 is polymorphic like 8026 — it pushes to the int stack or the string
     # stack depending on the array's element type. Recorded as int because all
@@ -839,4 +903,31 @@ LOCAL_KINDS: dict[int, str] = {
     # one dbtable. These two used to be the other way round, matching a host
     # that had the branches swapped as well.
     7509: "DB_FIND",
+    # The long stack's assignment forms: one value moved between the stack and a
+    # varc (51/52), a varp (64/65), a local (66/67), or a literal (61).
+    51: "ASSIGN",
+    52: "ASSIGN",
+    61: "ASSIGN",
+    64: "ASSIGN",
+    65: "ASSIGN",
+    66: "ASSIGN",
+    67: "ASSIGN",
+    # 8026 array_delete and 8009 array_max end in `method7522`, which pushes onto
+    # the array's own element stack. The interpreter reads that stack off the
+    # value's consumer; 1 of 241's 62 array_delete sites is a string array.
+    8009: "ARRAY_ELEMENT",
+    8026: "ARRAY_ELEMENT",
+}
+
+# opcode -> (kind, extra) for the kinds whose `extra` names a stack: the long
+# stack's discard and its six compare-and-branch forms (deob core loop, 62 and
+# 68..73), which the vendored tables never carried.
+LOCAL_STACK_KINDS: dict[int, tuple[str, str]] = {
+    62: ("DISCARD", "RSCACHE_CS2_STACK_LONG"),
+    68: ("BRANCH_COMPARE", "RSCACHE_CS2_STACK_LONG"),
+    69: ("BRANCH_COMPARE", "RSCACHE_CS2_STACK_LONG"),
+    70: ("BRANCH_COMPARE", "RSCACHE_CS2_STACK_LONG"),
+    71: ("BRANCH_COMPARE", "RSCACHE_CS2_STACK_LONG"),
+    72: ("BRANCH_COMPARE", "RSCACHE_CS2_STACK_LONG"),
+    73: ("BRANCH_COMPARE", "RSCACHE_CS2_STACK_LONG"),
 }

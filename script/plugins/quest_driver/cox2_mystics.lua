@@ -69,7 +69,7 @@ function QD.COXM.ids(opts)
         { "assembler", "obj", QD.COX.ava_name() }, { "dhide_body", "obj", "black_dragonhide_body" },
         { "chaps", "obj", "black_dragonhide_chaps" },
         { "vial_empty", "obj", "raids_vial_empty" },
-        { "com_mode", "varp", "varp43_com_mode" }, { "damagestyle", "varp", "varp6294_damagestyle" }, { "style_slot_1", "component", "combat_interface:style_slot_1" },
+        { "com_mode", "varp", "varp43_com_mode" }, { "damagestyle", "varp", "varp6969_damagestyle" }, { "style_slot_1", "component", "combat_interface:style_slot_1" },
     })
     for k, v in pairs(room) do ids[k] = v end
     local tr, combat_tab = api_drive.tab_by_name("combat")

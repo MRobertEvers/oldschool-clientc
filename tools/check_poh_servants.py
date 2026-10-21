@@ -7,7 +7,7 @@ import sys
 
 
 ROOT = Path(__file__).resolve().parents[1]
-CONTENT = ROOT / "OSRS-Content/osrs239-content/server/scripts/skill_construction"
+CONTENT = ROOT / "OSRS-Content/osrs-content/server/scripts/skill_construction"
 SCRIPT = CONTENT / "scripts/poh_servants.rs2"
 CONSTANTS = CONTENT / "configs/construction.constant"
 ENGINE = ROOT / "src/torirsserver/torirs_server_poh.c"

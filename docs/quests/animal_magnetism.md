@@ -82,7 +82,7 @@ those values; metadata alone does not make a playable quest.
 
 ## 3. Implementation surface
 
-Paths below are relative to `OSRS-Content/osrs239-content/`.
+Paths below are relative to `OSRS-Content/osrs-content/`.
 
 ### Quest-owned files
 
@@ -719,25 +719,25 @@ Headless client captures (`SDL_VIDEODRIVER=dummy`,
 `TORIRSSERVER_SAVES=$(mktemp -d)`, `--soft3d`, `TORIRS_EXIT_BMP` /
 `TORIRS_NET_CHEAT=anmabmp_*` against `/tmp/gp-anma-t1-obj/scripts`). 15 named
 BMPs under
-`OSRS-Content/osrs239-content/server/scripts/selftest/quests/quest_animalmagnetism/scenes/`
+`OSRS-Content/osrs-content/server/scripts/selftest/quests/quest_animalmagnetism/scenes/`
 (paths relative to `OSRS-Content/`; 15 unique MD5s; no `frame_*.bmp` /
 `exit.bmp`):
 
-- `osrs239-content/server/scripts/selftest/quests/quest_animalmagnetism/scenes/01_talk_ava.bmp`
-- `osrs239-content/server/scripts/selftest/quests/quest_animalmagnetism/scenes/02_choice_accept.bmp`
-- `osrs239-content/server/scripts/selftest/quests/quest_animalmagnetism/scenes/03_talk_malcolm.bmp`
-- `osrs239-content/server/scripts/selftest/quests/quest_animalmagnetism/scenes/04_talk_alice.bmp`
-- `osrs239-content/server/scripts/selftest/quests/quest_animalmagnetism/scenes/05_talk_crone.bmp`
-- `osrs239-content/server/scripts/selftest/quests/quest_animalmagnetism/scenes/06_give_amulet.bmp`
-- `osrs239-content/server/scripts/selftest/quests/quest_animalmagnetism/scenes/07_buy_chickens.bmp`
-- `osrs239-content/server/scripts/selftest/quests/quest_animalmagnetism/scenes/08_talk_witch.bmp`
-- `osrs239-content/server/scripts/selftest/quests/quest_animalmagnetism/scenes/09_hammer_magnet.bmp`
-- `osrs239-content/server/scripts/selftest/quests/quest_animalmagnetism/scenes/10_give_magnet.bmp`
-- `osrs239-content/server/scripts/selftest/quests/quest_animalmagnetism/scenes/11_chop_tree.bmp`
-- `osrs239-content/server/scripts/selftest/quests/quest_animalmagnetism/scenes/12_talk_turael.bmp`
-- `osrs239-content/server/scripts/selftest/quests/quest_animalmagnetism/scenes/13_notes.bmp`
-- `osrs239-content/server/scripts/selftest/quests/quest_animalmagnetism/scenes/14_reward_scroll.bmp`
-- `osrs239-content/server/scripts/selftest/quests/quest_animalmagnetism/scenes/15_postquest.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_animalmagnetism/scenes/01_talk_ava.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_animalmagnetism/scenes/02_choice_accept.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_animalmagnetism/scenes/03_talk_malcolm.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_animalmagnetism/scenes/04_talk_alice.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_animalmagnetism/scenes/05_talk_crone.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_animalmagnetism/scenes/06_give_amulet.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_animalmagnetism/scenes/07_buy_chickens.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_animalmagnetism/scenes/08_talk_witch.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_animalmagnetism/scenes/09_hammer_magnet.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_animalmagnetism/scenes/10_give_magnet.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_animalmagnetism/scenes/11_chop_tree.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_animalmagnetism/scenes/12_talk_turael.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_animalmagnetism/scenes/13_notes.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_animalmagnetism/scenes/14_reward_scroll.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_animalmagnetism/scenes/15_postquest.bmp`
 
 Pinned oldids: article 15292390, guide 15126950, transcript 15263367, Ava
 15153599, device 15271380, attractor 15270656, accumulator 15186234, blessed

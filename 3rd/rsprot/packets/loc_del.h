@@ -11,10 +11,13 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : LocDelEncoder
- * Layouts      : 15 distinct, over 19 contiguous revision run(s)
+ * Layouts      : 15 distinct, over 20 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^LocDelEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
+ *                Revision(s) 241 come from RSProx, not RSProt
+ *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
+ *                gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -43,7 +46,7 @@ void packet_loc_del_v4_out(RsprotExec *x, MsgLocDel *m);
 void packet_loc_del_v5_out(RsprotExec *x, MsgLocDel *m);
 /* v6 -- revs 226, 235. */
 void packet_loc_del_v6_out(RsprotExec *x, MsgLocDel *m);
-/* v7 -- revs 227. */
+/* v7 -- revs 227, 241. */
 void packet_loc_del_v7_out(RsprotExec *x, MsgLocDel *m);
 /* v8 -- revs 228. */
 void packet_loc_del_v8_out(RsprotExec *x, MsgLocDel *m);
@@ -83,6 +86,7 @@ void packet_loc_del_v15_out(RsprotExec *x, MsgLocDel *m);
 #define packet_loc_del_rev237_out packet_loc_del_v13_out
 #define packet_loc_del_rev238_out packet_loc_del_v14_out
 #define packet_loc_del_rev239_out packet_loc_del_v15_out
+#define packet_loc_del_rev241_out packet_loc_del_v7_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_loc_del_out[];

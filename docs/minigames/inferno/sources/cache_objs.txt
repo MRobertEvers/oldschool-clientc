@@ -1,5 +1,5 @@
 # obj records -- 22 records selected from cache.osrs239
-# source: OSRS-Content/osrs239-content/configs/all.obj (record header line given per record)
+# source: OSRS-Content/osrs-content/configs/all.obj (record header line given per record)
 # why= the selection rule(s) that chose the record (LEDGER_cache.md)
 
 [6529] tzhaar_token    (configs/all.obj:103286)

@@ -394,7 +394,7 @@ Repository `docs/SAILING.md`, the real revision-239 cache, and:
 Local exact deob source:
 `/Users/matthewevers/Documents/git_repos/Deobfuscator/src_osrs239_rl1_12_33/deob/`
 (`Statics.java`, `class121.java`, `class155.java`, `class467.java`, …).
-Decompiled CS2 sources are in `OSRS-Content/osrs239-content/scripts/`; config,
+Decompiled CS2 sources are in `OSRS-Content/osrs-content/scripts/`; config,
 DB and interface definitions under `configs/` and `interfaces/`. **Actual cache
 bytes and runtime behaviour take precedence when the reconstructed source and
 the shipped cache disagree.** Video storyboards were inspected under

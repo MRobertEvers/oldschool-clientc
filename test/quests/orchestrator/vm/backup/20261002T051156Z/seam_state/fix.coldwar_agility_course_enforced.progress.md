@@ -1,7 +1,7 @@
 # fix.coldwar_agility_course_enforced -- notebook
 ## step 1 (read)
 - instructor: coldwar_outpost.rs2 [opnpc1,peng_agility_instructor] writes 100->105 with no course check.
-- lap tracker: agility_lap.rs2 temp varps varp6669_agility_lap_course / varp6670_agility_lap_step; penguin = course 17,
+- lap tracker: agility_lap.rs2 temp varps varp7344_agility_lap_course / varp7345_agility_lap_step; penguin = course 17,
   steps crusher=1 stone7=2 icicles 3-6 ice=7 gate=8 (gate calls ~agility_lap_complete -> resets lap).
 - %varb3305_peng_agility_state is used by the port for icelord kills (reset at capture, stage 125).
 - sources: wiki Transcript:Cold_War instructor "You've successfully completed the physical"; Quick guide course

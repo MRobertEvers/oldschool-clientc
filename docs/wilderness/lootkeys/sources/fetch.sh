@@ -2,7 +2,7 @@
 # Pinned OSRS Wiki source for loot keys (slice E12).
 set -e
 cd "$(dirname "$0")"
-if curl -sf -A 'osrs239-content port (contact: repo owner)' \
+if curl -sf -A 'osrs-content port (contact: repo owner)' \
     "https://oldschool.runescape.wiki/w/Loot_key?action=raw" -o Loot_key.wiki; then
   echo "Loot_key.wiki $(wc -c < Loot_key.wiki) bytes"
 else

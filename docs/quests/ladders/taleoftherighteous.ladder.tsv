@@ -1,5 +1,5 @@
 # ladder taleoftherighteous quest_dir=quest_taleoftherighteous guide=src/main/java/com/questhelper/helpers/quests/taleoftherighteous/TaleOfTheRighteous.java steps=30 legs=1:1-30@s0
-#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
 leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
 1	1	0	talkToPhileas	NpcStep	npc:phileas_rimor_visible	1542,3570,0	Talk to Phileas Rimor in Shayzien.			Do you need help with anything? | Yes. | What do you need?	quests/quest_taleoftherighteous/scripts/taleoftherighteous.rs2:95 opnpc1; +2
 1	2	1	teleportToArchive	NpcStep	npc:raidquest_library_archive_guardian	1625,3808,0	Bring a melee weapon, ranged weapon, and runes for magic attacks and teleport with Archeio in the Arceuus Library.		Any ranged weapon + ammo; Runes for a few casts of a combat spell	Yes please!	quests/quest_taleoftherighteous/scripts/tor_archive.rs2:33 opnpc1; +1

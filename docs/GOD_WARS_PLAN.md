@@ -52,7 +52,7 @@ cache NPC to a Wiki version.
 This document remains the acceptance plan; checked boxes below are not waived
 by the existence of code. As of the audit date, the repository now has:
 
-- [x] A generated [classic combat ledger](../OSRS-Content/osrs239-content/wiki/godwars_combat_manifest.csv)
+- [x] A generated [classic combat ledger](../OSRS-Content/osrs-content/wiki/godwars_combat_manifest.csv)
   covering all **69** main-dungeon gamevals and **126** distinct player/NPC
   attack paths, with a build-failing one-handler-per-NPC check.
 - [x] Explicit original-general/bodyguard combat, room AOE/assist/reset logic,
@@ -487,7 +487,7 @@ diagnostic evidence.
 ## Audit-start repository baseline and known gaps
 
 At the start of this audit, the implementation lived in
-`OSRS-Content/osrs239-content/server/scripts/areas/area_godwars/`, with classic
+`OSRS-Content/osrs-content/server/scripts/areas/area_godwars/`, with classic
 spawns in `areas/world/configs/m44_82.spawn`, `m44_83.spawn`, `m45_82.spawn`, and
 `m45_83.spawn`. It is useful scaffolding, but it is not the acceptance baseline:
 

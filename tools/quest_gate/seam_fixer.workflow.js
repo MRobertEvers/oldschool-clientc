@@ -25,7 +25,7 @@ export const meta = {
 // first, but a long batch can outlast its patience.
 
 const WT = '/Users/matthewevers/Documents/git_repos/3draster-quest-driver'
-const CONTENT = `${WT}/OSRS-Content/osrs239-content`
+const CONTENT = `${WT}/OSRS-Content/osrs-content`
 const COMMON = `You are one worker in a multi-agent build. Work ONLY inside ${WT} (branch v3; the content is the OSRS-Content submodule at ${CONTENT}). No author batch is running. NEVER cd into, build in, or touch /Users/matthewevers/Documents/git_repos/3draster. Absolute paths. FIRST read ${WT}/docs/QUEST_SUITE_KIT.md (working rules: a C change is built into a PRIVATE objdir and driven with QUEST_BINARY=...; only the closer rebuilds src/torirs_questtest) and ${WT}/docs/QUEST_AUTHORING.md; then the last seam pass's commit (git log --oneline -30 | grep 'quest-driver: seams') --stat and message. Edit ONLY the files assigned to you. Do NOT commit or push. Never git stash/checkout/reset/clean/amend. Never touch test/quests/*.lua or QUEUE.tsv (the closer reopens rows). After ANY content edit: make -C ${WT}/src torirsserver-scripts (the embedded server refuses a stale pack). CLAUDE.md rules for C. The gate is behaviour: quote proving ledger rows and Read the PNGs. Report honestly.
 
 THE GOAL, from the owner: every tier 1 quest green. Never git commit --amend, reset, or add -A.`

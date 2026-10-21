@@ -11,10 +11,13 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : ChatFilterSettingsEncoder
- * Layouts      : 15 distinct, over 19 contiguous revision run(s)
+ * Layouts      : 16 distinct, over 20 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^ChatFilterSettingsEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
+ *                Revision(s) 241 come from RSProx, not RSProt
+ *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
+ *                gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -61,6 +64,8 @@ void packet_chat_filter_settings_v13_out(RsprotExec *x, MsgChatFilterSettings *m
 void packet_chat_filter_settings_v14_out(RsprotExec *x, MsgChatFilterSettings *m);
 /* v15 -- revs 239. */
 void packet_chat_filter_settings_v15_out(RsprotExec *x, MsgChatFilterSettings *m);
+/* v100 -- revs 241. */
+void packet_chat_filter_settings_v100_out(RsprotExec *x, MsgChatFilterSettings *m);
 
 /* Per-revision aliases: `packet_chat_filter_settings_rev239_out` is greppable, which is the
  * point -- "what does 239 do for CHAT_FILTER_SETTINGS" without reading a table. */
@@ -83,6 +88,7 @@ void packet_chat_filter_settings_v15_out(RsprotExec *x, MsgChatFilterSettings *m
 #define packet_chat_filter_settings_rev237_out packet_chat_filter_settings_v5_out
 #define packet_chat_filter_settings_rev238_out packet_chat_filter_settings_v8_out
 #define packet_chat_filter_settings_rev239_out packet_chat_filter_settings_v15_out
+#define packet_chat_filter_settings_rev241_out packet_chat_filter_settings_v100_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_chat_filter_settings_out[];

@@ -276,14 +276,14 @@ and is never the sole citation for a constant.
 
 ## 3. What the rev-239 cache already ships
 
-Everything below was extracted from `OSRS-Content/osrs239-content/` and is dumped
+Everything below was extracted from `OSRS-Content/osrs-content/` and is dumped
 in full under [`sources/`](sources/). **Never hardcode these ids in C** — they go
 in `tob.constant` and the `.npc`/`.loc` packs, per the tree's id-authority rule.
 
 Regenerate any table with, e.g.:
 
 ```sh
-cd OSRS-Content/osrs239-content
+cd OSRS-Content/osrs-content
 grep -inE '=(tob_|verzik|nylocas_boss|maiden_)' configs/all.npc.compack
 ```
 
@@ -442,7 +442,7 @@ Sotetseg's maze uses ground objects **33033 (disabled) / 33034 (inactive) /
 The `tobquest*` varbits (6573, 10996, 12276, 12277, 12972–12975, 14610, 15607)
 belong to A Night at the Theatre and are out of scope.
 
-Interface `tob_infoboard.if` exists in `OSRS-Content/osrs239-content/interfaces/`.
+Interface `tob_infoboard.if` exists in `OSRS-Content/osrs-content/interfaces/`.
 
 ---
 
@@ -459,7 +459,7 @@ ToB npcs:
   `tob_verzik_phase2_bloodnylocas_story`. These carry hitpoints, the six combat
   levels, offensive/defensive bonuses, `attackrate`, `damagetype`, `huntmode`,
   `huntrange` and `death_drop`.
-- **6** wiki source files under `OSRS-Content/osrs239-content/wiki/monsters/`
+- **6** wiki source files under `OSRS-Content/osrs-content/wiki/monsters/`
   (`The Maiden of Sugadinti`, `Pestilent Bloat`, `Nylocas Vasilias`,
   `Nylocas Matomenos`, `Sotetseg`, `Xarpus`).
 

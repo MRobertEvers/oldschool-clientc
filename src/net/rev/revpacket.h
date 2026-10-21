@@ -554,6 +554,40 @@ struct PktCamMoveTo
     int absolute;
 };
 
+/*
+ * CAM_MOVETO_CYCLES (rev 241 CAM_MOVETO_CYCLES_V3): move the camera's eye to a
+ * world tile and height over `cycles` client cycles on easing curve
+ * `easing`. The deob builds the interpolation from where the camera IS to the
+ * target: client.java, the class243.field3064 handler -> class568.
+ */
+struct PktCamMoveToCycles
+{
+    int x;               /* absolute world tile */
+    int z;
+    int height;
+    int cycles;
+    int ignore_terrain;  /* height above sea level rather than above the ground */
+    int easing;
+    int height_relative; /* relative to the previous move's height */
+};
+
+/*
+ * CAM_ROTATETO_COORDINATE (rev 241 CAM_ROTATETO_COORDINATE_V3): turn the
+ * camera's pitch and yaw toward a world tile and height over `cycles` client
+ * cycles on easing curve `easing` (0 cycles: at once). Deob: client.java, the
+ * class243.field3046 handler -> two class563 angle interpolations.
+ */
+struct PktCamRotateToCoordinate
+{
+    int x;
+    int z;
+    int height;
+    int cycles;
+    int easing;
+    int height_relative;
+    int track_target;
+};
+
 struct PktCamShake
 {
     int axis;      /* g1 */
@@ -1117,6 +1151,8 @@ struct RevPacket
         struct PktSoundArea _sound_area;
         struct PktCamLookAt _cam_lookat;
         struct PktCamMoveTo _cam_moveto;
+        struct PktCamMoveToCycles _cam_moveto_cycles;
+        struct PktCamRotateToCoordinate _cam_rotateto_coordinate;
         struct PktCamShake _cam_shake;
         struct PktIfOpenMain _if_openmain;
         struct PktIfOpenSide _if_openside;

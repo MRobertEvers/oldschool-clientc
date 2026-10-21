@@ -376,8 +376,8 @@ TORIRS_PLUGIN_LOG=1                  TORIRS_PLUGIN_PREFS=<session>/plugin_prefs.
 TORIRS_PREFS=<session>/preferences.ini
 TORIRSSERVER_SAVES=<session>/saves   TORIRSSERVER_STAFF_LEVEL=2
 TORIRSSERVER_HOME=3222,3218          TORIRSSERVER_TUTORIAL_HOME=3222,3218   # skip Tutorial Island
-TORIRSSERVER_CONTENT=<root>/OSRS-Content/osrs239-content
-TORIRSSERVER_SCRIPTS=<root>/OSRS-Content/osrs239-content/server/scripts/build
+TORIRSSERVER_CONTENT=<root>/OSRS-Content/osrs-content
+TORIRSSERVER_SCRIPTS=<root>/OSRS-Content/osrs-content/server/scripts/build
 TORIRSSERVER_CACHE=<root>/cache.osrs239
 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy TORIRS_STDERR_UNBUFFERED=1
 argv: --manifest <rewritten manifest_osrs239.ini> --user <name> --pass test --soft3d --window 765x503

@@ -52,7 +52,7 @@ import helper_coverage  # noqa: E402
 
 ACCEPTED = "03d4ac076"
 LEDGER_COMMIT = "b52050c293"
-LEDGER = "osrs239-content/server/scripts/selftest/quests/quest_mortton/play/ledger.tsv"
+LEDGER = "osrs-content/server/scripts/selftest/quests/quest_mortton/play/ledger.tsv"
 TEST_ID = "mortton"
 NOT_DRIVEN = ("use207OnFlame", "use208OnRazmire", "use208OnUlsquire")
 FAMILY_DRIVEN = ("useOilOnFlame", "use207OnUlsquire")
@@ -202,7 +202,7 @@ NAMED_LUA = SCORP_LUA.replace('"catch.scorpiona"', '"catchOutpostScorpion"')
 NAMED_LEDGER = SCORP_LEDGER.replace("\tcatch.scorpiona\t", "\tcatchOutpostScorpion\t")
 COG_LUA_COMMIT = "5e3675055"
 COG_LEDGER_COMMIT = "6762eaf875"
-COG_LEDGER = "osrs239-content/server/scripts/selftest/quests/quest_cog/play/ledger.tsv"
+COG_LEDGER = "osrs-content/server/scripts/selftest/quests/quest_cog/play/ledger.tsv"
 
 
 def grade_id(test_id, lua, ledger_text):

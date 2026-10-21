@@ -4,7 +4,7 @@
 
 The assets come from `sources/cache_{npc,seq,spotanim,sounds,locs,vars,objs,interfaces,enums_dbrows,music}.txt`. `tools/waves_gate/cache_dump.py` writes those files; its selection rules are in `sources/LEDGER_cache.md`.
 
-Paths below are relative to the worktree. `MI/` means `OSRS-Content/osrs239-content/server/scripts/minigames/minigame_inferno/`. Every finding that is a defect in our content is a row in `docs/minigames/waves_loop/CONTENT_BUGS.md` (INF-AV-001 to INF-AV-009).
+Paths below are relative to the worktree. `MI/` means `OSRS-Content/osrs-content/server/scripts/minigames/minigame_inferno/`. Every finding that is a defect in our content is a row in `docs/minigames/waves_loop/CONTENT_BUGS.md` (INF-AV-001 to INF-AV-009).
 
 **How "used" was decided.** Each asset was matched whole-symbol against every non-comment line of these files:
 - `MI/` (scripts and configs);

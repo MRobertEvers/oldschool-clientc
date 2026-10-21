@@ -44,7 +44,7 @@ interpenetrate and cannot be resolved by face order alone.
 
 ### Content pipeline
 
-The client boots from a cache built from `OSRS-Content/osrs239-content/`:
+The client boots from a cache built from `OSRS-Content/osrs-content/`:
 
 | Step | Command | Output |
 |---|---|---|

@@ -522,9 +522,9 @@ Selftest command (private scratch):
 
 ```sh
 make -C src sscompile PLATFORM_OBJ_BASE=/tmp/gp-demon-t1-obj
-/tmp/gp-demon-t1-obj_opt/sscompile --src OSRS-Content/osrs239-content/server/scripts \
+/tmp/gp-demon-t1-obj_opt/sscompile --src OSRS-Content/osrs-content/server/scripts \
   --out /tmp/gp-demon-t1-obj/scripts \
-  --content-root OSRS-Content/osrs239-content
+  --content-root OSRS-Content/osrs-content
 make -C src torirsserver PLATFORM_OBJ_BASE=/tmp/gp-demon-t1-obj
 TORIRSSERVER_SCRIPTS=/tmp/gp-demon-t1-obj/scripts \
   /tmp/gp-demon-t1-obj_opt/torirsserver --selftest
@@ -560,19 +560,19 @@ playthrough evidence. Boss cheat name: `[debugproc,demon_skipboss]` /
 Headless client captures (`SDL_VIDEODRIVER=dummy`,
 `TORIRSSERVER_SAVES=$(mktemp -d)`, `--soft3d`, `TORIRS_EXIT_BMP` /
 `TORIRS_NET_CHEAT=demonbmp_*`). 11 BMPs under
-`OSRS-Content/osrs239-content/server/scripts/selftest/quests/quest_demon/scenes/`
+`OSRS-Content/osrs-content/server/scripts/selftest/quests/quest_demon/scenes/`
 (paths relative to `OSRS-Content/`):
 
-- `osrs239-content/server/scripts/selftest/quests/quest_demon/scenes/01_talk_aris.bmp`
-- `osrs239-content/server/scripts/selftest/quests/quest_demon/scenes/02_choice_accept.bmp`
-- `osrs239-content/server/scripts/selftest/quests/quest_demon/scenes/03_prysin_keys.bmp`
-- `osrs239-content/server/scripts/selftest/quests/quest_demon/scenes/04_rovin_key.bmp`
-- `osrs239-content/server/scripts/selftest/quests/quest_demon/scenes/05_drain_pour.bmp`
-- `osrs239-content/server/scripts/selftest/quests/quest_demon/scenes/06_sewer_key.bmp`
-- `osrs239-content/server/scripts/selftest/quests/quest_demon/scenes/07_traiborn.bmp`
-- `osrs239-content/server/scripts/selftest/quests/quest_demon/scenes/08_silverlight.bmp`
-- `osrs239-content/server/scripts/selftest/quests/quest_demon/scenes/09_boss_delrith_precheat.bmp`
-- `osrs239-content/server/scripts/selftest/quests/quest_demon/scenes/10_boss_delrith_skip.bmp`
-- `osrs239-content/server/scripts/selftest/quests/quest_demon/scenes/11_reward_scroll.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_demon/scenes/01_talk_aris.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_demon/scenes/02_choice_accept.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_demon/scenes/03_prysin_keys.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_demon/scenes/04_rovin_key.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_demon/scenes/05_drain_pour.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_demon/scenes/06_sewer_key.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_demon/scenes/07_traiborn.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_demon/scenes/08_silverlight.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_demon/scenes/09_boss_delrith_precheat.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_demon/scenes/10_boss_delrith_skip.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_demon/scenes/11_reward_scroll.bmp`
 
 Gate D: **verified-modern** (boss deferred; cheat `demon_skipboss`).

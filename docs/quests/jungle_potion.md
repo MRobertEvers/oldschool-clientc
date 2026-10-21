@@ -2,7 +2,7 @@
 
 Status: `verified-modern` (2026-09-09, gp-jungle-t1) — P0 shipped-but-shit
 gaps are closed and 11 named BMPs are on disk under
-`OSRS-Content/osrs239-content/server/scripts/selftest/quests/quest_junglepotion/scenes/`
+`OSRS-Content/osrs-content/server/scripts/selftest/quests/quest_junglepotion/scenes/`
 (see §14 Gate D). Native varp 175 / `%junglepotion` 0–13; snake-weed
 Herblore-scaled harvest roll; rogue's-purse wall depletes to
 `rogues_purse_cave_empty` for 100 ticks; post-quest herb sales pay
@@ -440,7 +440,7 @@ Required commands after implementation:
 ```sh
 python3 tools/questhelper_extract.py junglepotion --check
 make -C src torirsserver-scripts
-OSRS_CONTENT_ROOT="$PWD/OSRS-Content/osrs239-content" \
+OSRS_CONTENT_ROOT="$PWD/OSRS-Content/osrs-content" \
   ./src/ToriRSServer_Pack --check-only
 git diff --check
 ```
@@ -514,20 +514,20 @@ required kill; no boss cheat.
 Headless client captures (`SDL_VIDEODRIVER=dummy`,
 `TORIRSSERVER_SAVES=$(mktemp -d)`, `--soft3d`, `TORIRS_EXIT_BMP` /
 `TORIRS_NET_CHEAT=junglebmp_*`). 11 BMPs under
-`OSRS-Content/osrs239-content/server/scripts/selftest/quests/quest_junglepotion/scenes/`
+`OSRS-Content/osrs-content/server/scripts/selftest/quests/quest_junglepotion/scenes/`
 (paths relative to `OSRS-Content/`):
 
-- `osrs239-content/server/scripts/selftest/quests/quest_junglepotion/scenes/01_talk_trufitus.bmp`
-- `osrs239-content/server/scripts/selftest/quests/quest_junglepotion/scenes/02_choice_accept.bmp`
-- `osrs239-content/server/scripts/selftest/quests/quest_junglepotion/scenes/03_snake_vine.bmp`
-- `osrs239-content/server/scripts/selftest/quests/quest_junglepotion/scenes/04_ardrigal_palm.bmp`
-- `osrs239-content/server/scripts/selftest/quests/quest_junglepotion/scenes/05_sito_earth.bmp`
-- `osrs239-content/server/scripts/selftest/quests/quest_junglepotion/scenes/06_volencia_rock.bmp`
-- `osrs239-content/server/scripts/selftest/quests/quest_junglepotion/scenes/07_pothole_enter.bmp`
-- `osrs239-content/server/scripts/selftest/quests/quest_junglepotion/scenes/08_rogues_purse.bmp`
-- `osrs239-content/server/scripts/selftest/quests/quest_junglepotion/scenes/09_handin.bmp`
-- `osrs239-content/server/scripts/selftest/quests/quest_junglepotion/scenes/10_reward_scroll.bmp`
-- `osrs239-content/server/scripts/selftest/quests/quest_junglepotion/scenes/11_postquest.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_junglepotion/scenes/01_talk_trufitus.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_junglepotion/scenes/02_choice_accept.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_junglepotion/scenes/03_snake_vine.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_junglepotion/scenes/04_ardrigal_palm.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_junglepotion/scenes/05_sito_earth.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_junglepotion/scenes/06_volencia_rock.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_junglepotion/scenes/07_pothole_enter.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_junglepotion/scenes/08_rogues_purse.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_junglepotion/scenes/09_handin.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_junglepotion/scenes/10_reward_scroll.bmp`
+- `osrs-content/server/scripts/selftest/quests/quest_junglepotion/scenes/11_postquest.bmp`
 
 No `TORIRS_BMP_SERIES`, `frame_NNNNN.bmp`, or `exit.bmp`. Eleven unique
 MD5s; mean luma 60.7–99.0 (not black/login). `python3 tools/questhelper_extract.py

@@ -1,5 +1,5 @@
 # ladder deserttreasure quest_dir=quest_deserttreasure guide=src/main/java/com/questhelper/helpers/quests/deserttreasure/DesertTreasure.java steps=58 legs=1:1-8@s0 2:9-19@s11 3:20-29@s11 4:30-39@s11 5:40-48@s11 6:49-58@s12
-#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
 leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
 1	1	0	talkToArchaeologist	NpcStep	npc:fourdiamonds_indiana_vis	3177,3043,0	Talk to the Archaeologist in the Bedabin Camp. You can use the flying carpet service from the Shantay Pass to get here.			Do you have any quests? | Yes. | Yes, I'll help you.	quests/quest_deserttreasure/scripts/deserttreasure.rs2:64 opnpc1; +1
 1	2	1	talkToExpert	NpcStep	npc:archaeological_expert	3359,3334,0	Talk to the Terry Balando in the Exam Centre found south-east of Varrock, directly south of the Digsite.		Etchings	Ask about the Desert Treasure quest.	quests/quest_itexam/scripts/archaeological_expert.rs2:11 opnpc1; +1

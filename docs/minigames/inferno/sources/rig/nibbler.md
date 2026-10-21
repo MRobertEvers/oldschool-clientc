@@ -35,7 +35,7 @@
   nibbler is a melee biter; no projectile or hit graphic is claimed.
 
 ## ledger comparison
-- OSRS-Content/osrs239-content/npc_combat/i/inferno_nibbler.combat: death jalnib_death,
+- OSRS-Content/osrs-content/npc_combat/i/inferno_nibbler.combat: death jalnib_death,
   attack jalnib_attack, defend jalnib_defend (all layer a2, "rig's only ... seq"); sounds `-`.
 - Disagreements: 0. All three are on the rig and named Jal-Nib. The file is marked NOT COMPILED
   because inferno.npc authors its own [inferno_nibbler] block; that block is what the game reads.

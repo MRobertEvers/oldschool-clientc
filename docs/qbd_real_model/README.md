@@ -61,7 +61,7 @@ fix, and is what the "after" panel shows: dark red-brown head, cream horns,
 purple frill — the reference palette.
 
 ```sh
-L=OSRS-Content/osrs239-content/models/ported/rs2012_qbd_td
+L=OSRS-Content/osrs-content/models/ported/rs2012_qbd_td
 for m in 70260 69766 70267 70268 70761 69765; do
   cp docs/rs2012_qbd_priorities/run/rs2012_model_$m.ob3 $L/rs2012_model_${m}_authored.ob3
 done

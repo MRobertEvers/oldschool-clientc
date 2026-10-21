@@ -1,5 +1,5 @@
 # npc records -- 45 records selected from cache.osrs239
-# source: OSRS-Content/osrs239-content/configs/all.npc (record header line given per record)
+# source: OSRS-Content/osrs-content/configs/all.npc (record header line given per record)
 # why= the selection rule(s) that chose the record (LEDGER_cache.md)
 
 [12767] poh_solheredit_pet    (configs/all.npc:414489)

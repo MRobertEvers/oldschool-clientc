@@ -14,7 +14,7 @@ from summoning_script_sources import definition, read_module
 
 
 REPO = Path(__file__).resolve().parents[1]
-DEFAULT_TREE = REPO / "OSRS-Content/osrs239-content"
+DEFAULT_TREE = REPO / "OSRS-Content/osrs-content"
 DEFAULT_MANIFEST = REPO / "docs/summoning_port/scroll_assets_530.ini"
 DEFAULT_SPECIAL_MANIFEST = REPO / "docs/summoning_port/special_move_assets_530.ini"
 DEFAULT_POUCHES = REPO / "docs/summoning_port/pouches_530.json"

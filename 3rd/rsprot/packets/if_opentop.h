@@ -120,6 +120,7 @@ void packet_if_opentop_v4_out(RsprotExec *x, MsgIfOpenTop *m);
 #define packet_if_opentop_rev237_out packet_if_opentop_v3_out
 #define packet_if_opentop_rev238_out packet_if_opentop_v2_out
 #define packet_if_opentop_rev239_out packet_if_opentop_v4_out
+#define packet_if_opentop_rev241_out packet_if_opentop_v4_out
 
 /** Ranges, because 348 of 423 codec classes have every layout in one
  *  contiguous run — most of these tables are a single row. This packet is the

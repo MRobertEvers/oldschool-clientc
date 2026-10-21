@@ -595,9 +595,9 @@ return {
         local ORE_OF = { [2] = "copper_ore", [3] = "tin_ore", [4] = "iron_ore", [8] = "coal" }
 
         local function task_vars()
-            local _, task = t.var.server("varp7199_gdwarf_task")
-            local _, n = t.var.server("varp7200_gdwarf_task_count")
-            local _, points = t.var.server("varp7198_gdwarf_points")
+            local _, task = t.var.server("varp7874_gdwarf_task")
+            local _, n = t.var.server("varp7875_gdwarf_task_count")
+            local _, points = t.var.server("varp7873_gdwarf_points")
             local _, st = t.quest.stage()
             return task, n, points, st
         end
@@ -605,7 +605,7 @@ return {
             for _ = 1, 12 do
                 local kind = t.chat.kind()
                 if kind == "options" then
-                    local _, tk = t.var.server("varp7199_gdwarf_task")
+                    local _, tk = t.var.server("varp7874_gdwarf_task")
                     if accept(tk) then
                         if t.chat.choose("I'll take it.") ~= "ok" then t.chat.choose("I'll keep looking.") end
                     else

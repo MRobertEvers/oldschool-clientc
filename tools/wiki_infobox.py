@@ -32,7 +32,7 @@ import re
 import sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-MONSTERS_DIR = os.path.join(REPO, "OSRS-Content", "osrs239-content", "wiki", "monsters")
+MONSTERS_DIR = os.path.join(REPO, "OSRS-Content", "osrs-content", "wiki", "monsters")
 
 TEMPLATE_OPEN_RE = re.compile(r"\{\{\s*Infobox[ _]Monster\b", re.IGNORECASE)
 

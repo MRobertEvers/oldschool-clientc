@@ -96,7 +96,7 @@ Roving Elves' Eluned carried the same off-by-one (fixed to 0/1/2), but its base 
 
 ## Trap 29. A `loc_near(sym, R) -> not_found` SWEEP IS NOT EVIDENCE THAT A LOC IS UNPLACED.
 
-Grep the map text first: `grep -rn ': <id> ' OSRS-Content/osrs239-content/maps/*.jl2`, and decode
+Grep the map text first: `grep -rn ': <id> ' OSRS-Content/osrs-content/maps/*.jl2`, and decode
 the hit as `abs_x = mapx*64 + localx`, `abs_z = mapz*64 + localz` off its
 `level localx localz: id shape rot` line. Six anchors at radius 60 sound exhaustive and are
 worthless when the only copy is in the UNDERGROUND band, which is `z + 6400` -- Mourning's End Part

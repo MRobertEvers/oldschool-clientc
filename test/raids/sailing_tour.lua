@@ -1,5 +1,5 @@
 -- sailing_tour: the Sailing flows a player drives, one after the other, on
--- one account. Content: OSRS-Content/osrs239-content/server/scripts/sailing/
+-- one account. Content: OSRS-Content/osrs-content/server/scripts/sailing/
 -- (boat_selection, boat_gangplank, boat_customisation, boat_crew,
 -- boat_facilities, boat_sidepanel) and quest_pandemonium's Junior Jim.
 --

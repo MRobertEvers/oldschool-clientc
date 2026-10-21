@@ -1,5 +1,5 @@
 # ladder eaglepeak quest_dir=quest_eaglepeak guide=src/main/java/com/questhelper/helpers/quests/eaglespeak/EaglesPeak.java steps=57 legs=1:1-10@s0 2:11-19@s15 3:20-28@s15 4:29-38@s15 5:39-48@s15 6:49-57@s15
-#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
 leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
 1	1	0	speakToCharlie	NpcStep	npc:eaglepeak_zookeeper_charlie	2607,3264,0	Speak to Charlie in the Ardougne Zoo.			Ah, you sound like someone who needs a quest doing! | Sure.…	quests/quest_eaglepeak/scripts/eaglepeak.rs2:4 opnpc1
 1	2	5	inspectBooks	ObjectStep	loc:eaglepeak_books_multi	2319,3506,0	Go to the camp north of Eagles' Peak and search the pile of books for a Bird Book. The closest fairy ring is AKQ or teleport to The Outpost using the Necklace …			The Outpost	quests/quest_eaglepeak/scripts/eaglepeak.rs2:86 oploc1

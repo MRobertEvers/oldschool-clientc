@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate fishing_movement.enum from this tree's own `.spawn` roster.
 
-    tools/gen_fishing_movement.py --content OSRS-Content/osrs239-content [--check]
+    tools/gen_fishing_movement.py --content OSRS-Content/osrs-content [--check]
 
 docs/FISHING_COMPLETION_PLAN.md S10: OSRS fishing spots teleport between a
 fixed per-location set of tiles every 250-530 ticks rather than standing
@@ -46,7 +46,7 @@ ENUM_HEADER = """// Fishing spot relocation targets, one enum per map-square-sco
 // docs/FISHING_COMPLETION_PLAN.md S10 for why this is built from spawns
 // rather than ported LostCity coordinates.
 //
-//     tools/gen_fishing_movement.py --content OSRS-Content/osrs239-content
+//     tools/gen_fishing_movement.py --content OSRS-Content/osrs-content
 
 """
 
