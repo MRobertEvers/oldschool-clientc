@@ -20,17 +20,18 @@ projectiles of a window).
 
 ## 2. Phase 1
 
-His health: 2500 at 1-2 raiders (3630 at three, 4680 at four). The route, the
-same in both fights to the tick:
+His health: 2500 at 1-2 raiders (3630 at three, 4680 at four). The timetable
+(the route itself is random, below):
 
 | when | recorded |
 |---|---|
-| start +4 | he walks to the south-east corner (sw (5,-7)), a volley every 5 ticks from his first step |
-| the last volley (him 0-1 tiles from the corner) | played as `npc_ocellus_phase1_basic_projectile_end` (the others `_start`) |
-| that +6 = C | the charge: `npc_ocellus_phase1_charge` and a crack line every 2 ticks, seven (C..C+12); `vfx_ocellus_p1_charge` every 2 from C+5; "Pointless..." or "Unworthy..." at C+15 (either: 4301 both, 4308 "Pointless..." x3); `npc_ocellus_phase1_explode` at C+18 with `vfx_ocellus_p1_explode_npc` |
+| start +4 | he walks to his first corner (SE (5,-7) in 4301, 4308, 4312; NW (-7,5) in 4309, 4312, 4316; SW in 4315), a volley every 5 ticks from his first step |
+| the volley his step reaches the corner on (or 1 short) | played as `npc_ocellus_phase1_basic_projectile_end` (the others `_start`), shots and spot as usual; the middle faced +1 and +5; C = +6 (16/16) |
+| a volley's tick with him already standing at the corner (a walk of 8 or 12 tiles arrives 2 or 4 ticks before it) | the `_end` seq alone (no shots, no spot), the middle faced and his overhead cleared on it; C = +1 (4309 [1386] [1423], 4312 [3591] [3628], 4315 [5975], 4316 [1913] [1950]: 7/7) |
+| C | the charge: `npc_ocellus_phase1_charge` and a crack line every 2 ticks, seven (C..C+12); `vfx_ocellus_p1_charge` every 2 from C+5; one of "Pointless..." (9), "You... fail..." (8), "Unworthy..." (4) at C+15 (21 corners); `npc_ocellus_phase1_explode` at C+18 with `vfx_ocellus_p1_explode_npc` |
 | C+19 | the blast: `vfx_ocellus_p1_explode_floor` (a random one of `_90/_180/_270`) on every open tile beside his 3x3 at delay 0 and the next ring at delay 2 (6/6) |
-| C+21 | the next corner: north-east (5,5), then (after the middle) south-west (-7,-7) |
-| health at or under 66% (checked after a corner's explosion), and at a quarter (at once if he is walking: 4301 [1040]) | `npc_ocellus_phase1_teleport_out` + `vfx_ocellus_p1_teleport_out` slot 2; +4 he is at the middle (sw (-1,-1)) with `_teleport_in`, and `tfa_wallkit_archive03_center01_blockwalk` on his sw tile |
+| C+21 | the next corner: one of the other three (19 recorded: the next anticlockwise 10, clockwise 3, across 6; the four that went by way of the middle were all across); he keeps it through a visit to the middle |
+| health at or under 66% or a quarter: checked after a corner's explosion, and while he walks (or waits at the corner) on each volley's tick, in its place (4301 [1040], 4309 [1546], 4312 [1508] [3660], 4315 [6088], 4316 [1982] [2073]: 7/7) | `npc_ocellus_phase1_teleport_out` + `vfx_ocellus_p1_teleport_out` slot 2; +4 he is at the middle (sw (-1,-1)) with `_teleport_in`, facing the side of his first cracks with `instant=true` (16/16), and `tfa_wallkit_archive03_center01_blockwalk` on his sw tile |
 | +8, then every 8, four beats B | the charge seq and two diagonal cracks from neighbouring corners of his 3x3, clockwise from a random pair (the earlier at delay 0, the later at 60); `vfx_ocellus_p1_charge` at B+4 and B+6; the explosion at B+6, the blast at B+7 |
 | the last explosion +2 | "Death... awaits..." (every recorded strike); `tfa_wallkit_archive03_center01` back on his tile; the meter emptied |
 | +1 | every raider healed 4..8 (hitsplat 6) |
@@ -51,21 +52,41 @@ immediate / later line) with the `_end` pieces at delay 0, 1, ... The pieces
 are named by the way the line grows: `vfx_ocellus_p1_floor_crack_01` straight
 north (`_90` east, `_180` south, `_270` west), `_02` diagonal north-east
 (`_90` south-east, `_180` south-west, `_270` north-west), each with `_start`
-and `_end` forms. At a corner, eight long, each of the seven one of seven
-roots (every corner charge of 4301, 4308, 4309, 4312, 4315, 4316: 149 roots,
-in his corner's frame, "inner" = toward the middle):
+and `_end` forms.
 
-| root | recorded | ours before |
+**A corner's seven are three tendrils**, each growing from one of his three
+tiles on the middle's side, taken in turn: line n comes from the same tendril
+as line n-3 (21/21 charges cycle the three; 0/129 lines repeat either of the
+two before, 40/91 repeat the one three before). In his corner's frame:
+
+| tendril | grows from | its lines (recorded) |
 |---|---|---|
-| straight along his middle row or column | 62 (row 34, column 28) | 1 in 3 of the straight ones |
-| straight along the row or column on the inner side | 22 (12, 10) | 1 in 3 |
-| straight along the row or column on the OUTER side | 0 | 1 in 3 |
-| diagonal to his inner corner, or the tile beside it either way | 65 (26, 20, 19) | 1 in 3 of all |
+| x face | the middle tile of his face toward the middle's x | straight along his middle row, or diagonal past his inner corner ending beside it on that face |
+| z face | the same toward the middle's z | straight along his middle column, or diagonal ending beside the corner on that face |
+| corner | his inner corner | along the inner row, the inner column, or diagonal past the corner |
 
-They are not aimed: a raider stood on only 42 of 205 at their add. Ours now
-draws from the same seven at the recorded weights. At the middle, six long, from
-beside one of his corners: (3,2) or (2,3) of the corner's frame, 28 each, the
-beat's first at delay 0 and its second at 60 (56/56).
+The faces are 62 straight / 45 diagonal, re-rolled each time (a tendril's next
+does not depend on its last: 12/18 and 8/13 straight after straight and after
+diagonal); the corner 20 diagonal, 13 / 9 along (taken as even). The first
+line is always the same face of one pattern turned with his corner: the z face
+at NE and SW, the x face at SE and NW (21/21; the outer row or column is never
+used because no tendril grows from there). Then the corner and the other face,
+either order (10 / 11). They are not aimed (a raider stood on 70 of 149 the
+tick before their add; no rule over t-2..t).
+
+**At the middle, the same pattern every time**, two six-long diagonals on one
+face of his 3x3 a beat, a quarter clockwise each beat, the first at delay 0
+and the second at 60 (every beat of six sessions: 64/64), ending at (of his sw):
+
+| face | first (delay 0) | second (60) |
+|---|---|---|
+| east | (3,2) | (3,0) |
+| south | (2,-1) | (0,-1) |
+| west | (-1,0) | (-1,2) |
+| north | (0,3) | (2,3) |
+
+The face he starts on varies (east 4, north 4, west 3, south 3 over 14 visits;
+not the raiders' side); his landing face says which.
 
 **The meter (the yellow bar).** A line that closes with nobody on it adds 2
 (4308 [1520], [1522], [1585], [1640], [1668]; 4301 [970]); he heals 2
@@ -235,6 +256,31 @@ hall, Talk-to; `::tfaboss` to 66%, a quarter, 0). Inventory:
 | head icon | `headicon_customisation` 440 on the start | not sent | **open (engine)** |
 | music | `midi_song_v2` with fades | plain `midi_song` | **open (engine)** |
 | sound -1 | `sound_area id=-1` delays 77..107 near him at some line closings | not sent | open (unexplained) |
+
+## Audit: phase 1's roots, route and waits, all six sessions (2026-10-21, later)
+
+The owner's live run (`./launch run osrs241`, pack built after 6fb95167f8)
+showed the roots wrong. 6fb95167f8 had matched the seven roots' *marginal*
+weights and drawn each independently; the recordings are structured. Tools:
+the per-line classifier over `--all-players` transcripts of 4301, 4308, 4309,
+4312, 4315, 4316 (149 corner lines, 64 middle beats), our tick log's
+`map_spotanim` rows decoded the same way, `oc_stream.py` against 4309 (whose
+first corner, NW, is a waiting one).
+
+| rule | recorded | ours before | ours now |
+|---|---|---|---|
+| middle roots | one face a beat, fixed tiles (64/64) | each root beside its corner on a random side (half on the wrong face) | the fixed pairs (4 seeds: 32/32) |
+| corner roots | three tendrils in turn (21/21), first face by corner (21/21) | 7 roots drawn independently (repeats in a row) | the tendrils (4 seeds: 16/16 cycle, 16/16 first face) |
+| route | random corners | SE, NE, SW, NW always | first random, then one of the other three |
+| waiting at a corner | `_end` alone, face, charge +1 (7/7) | a full volley, charge +6: 6 more ticks stood still | as recorded (tfa1 vs 4309: to the tick) |
+| threshold while walking | on a volley's tick (7/7) | any tick | on the volley's tick |
+| landing face | `instant=true` (16/16) | turned | instant |
+| corner line | three lines (21) | two | three |
+
+Open: the route's weights (uniform among the other three here; recorded 10
+anticlockwise / 3 clockwise / 6 across of 19); the first walk's path (east
+first in the recording, diagonal first here); the explode's npc spot, absent
+at 4309's corners but present in the other sessions' (kept).
 
 ## Audit: phases 2-4 and the death (2026-10-21)
 
