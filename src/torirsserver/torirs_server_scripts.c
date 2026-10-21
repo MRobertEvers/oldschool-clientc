@@ -10292,6 +10292,35 @@ script_command(
     }
 
     /*
+     * `npc_faceplayerinstant` -- `npc_faceplayer`, the client snapping to the
+     * player instead of turning (`[facing] player=..., instant=true`). The
+     * block goes out even when the latch already names that player: Moia
+     * snaps to a raider on every blink, the one she faced or another (24/24,
+     * RSProx 4314/4315).
+     */
+    case SS_OP_NPC_FACEPLAYERINSTANT:
+    {
+        struct ToriRSServerNpc* npc = active_npc(state);
+
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_faceplayerinstant with no active npc");
+            return 1;
+        }
+        if( !player || !player->active )
+        {
+            SSVM_Abort(state, "npc_faceplayerinstant with no active player");
+            return 1;
+        }
+        if( npc->turnspeed == 0 )
+            return 1;
+        npc->face_entity = TORIRSSERVER_FACE_PLAYER_BASE + player->pid;
+        npc->face_entity_instant = 1;
+        npc->masks |= TORIRSSERVER_NMASK_FACE_ENTITY;
+        return 1;
+    }
+
+    /*
      * `npc_transparency(int $start_cycle, int $end_cycle, int $from, int $to)`
      * -- the active npc fades from `$from` to `$to` (0 opaque .. 255 gone)
      * between two client cycles after arrival: the rev-241 TRANSPARENCY block

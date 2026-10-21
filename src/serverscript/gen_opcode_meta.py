@@ -1283,6 +1283,13 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # 4301 [636], [642]), so the face goes now and the mode holds it.
     "NPC_FACEPLAYER": (11233, 0, 0, 0, 0),
 
+    # npc_faceplayerinstant
+    #
+    # npc_faceplayer with the client snapping to the player instead of
+    # turning, `[facing] player=..., instant=true`, sent even when the latch
+    # already names that player (Moia on every blink, 24/24, RSProx 4314/4315).
+    "NPC_FACEPLAYERINSTANT": (11234, 0, 0, 0, 0),
+
     # npc_setbasestat(npc_stat $stat, int $level)
     #
     # The active npc's BASE level in one non-hitpoint stat until it dies or
@@ -1830,6 +1837,7 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "NPC_FACESQUAREINSTANT": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_FACENPC": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_FACEPLAYER": ((1 << POINTER_BITS["active_npc"]) | (1 << POINTER_BITS["p_active_player"]), 0),
+    "NPC_FACEPLAYERINSTANT": ((1 << POINTER_BITS["active_npc"]) | (1 << POINTER_BITS["p_active_player"]), 0),
     "REMOTE_VIEW_START": (1 << POINTER_BITS["p_active_player"], 0),
     "REMOTE_VIEW_END": (1 << POINTER_BITS["p_active_player"], 0),
     # The splat needs somebody to appear over. NPC_DAMAGE (2509) carries

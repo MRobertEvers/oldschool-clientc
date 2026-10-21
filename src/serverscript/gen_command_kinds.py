@@ -72,6 +72,7 @@ EXTRA_DECLARATIONS = [
     "[command,npc_facesquareinstant](coord $coord)",
     "[command,npc_facenpc](npc_uid $uid)",
     "[command,npc_faceplayer]",
+    "[command,npc_faceplayerinstant]",
     "[command,npc_routeapproach](coord $coord)",
     "[command,npc_tint](int $start_cycle, int $end_cycle, int $hue, int $saturation, int $lightness, int $weight)",
     "[command,hitmark_bar](int $uid, int $self, int $other, int $amount, int $healthbar, int $fill)",

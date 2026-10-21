@@ -3,7 +3,7 @@
  * reference server's content/scripts/engine.rs2. Do not edit by hand --
  * re-run the generator.
  *
- * 397 commands.
+ * 398 commands.
  */
 
 #ifndef SRC_SERVERSCRIPT_SSC_COMMAND_KINDS_GEN_H
@@ -423,6 +423,7 @@ static const struct SSC_CommandTypes g_ssc_command_types[] = {
     { 11231, "npc_facesquareinstant", "coord", "" },
     { 11232, "npc_facenpc", "npc_uid", "" },
     { 11233, "npc_faceplayer", "", "" },
+    { 11234, "npc_faceplayerinstant", "", "" },
 };
 
 #endif

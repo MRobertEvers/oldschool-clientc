@@ -5750,6 +5750,8 @@ npc_face_block(
     face->walk_mode = npc->face_walktype;
     if( has && face->kind == MOCK239_FACE_LOC )
         face->instant = npc->face_coord_instant;
+    if( has && face->kind == MOCK239_FACE_ENTITY )
+        face->instant = npc->face_entity_instant;
     return has;
 }
 

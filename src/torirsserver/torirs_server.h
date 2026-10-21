@@ -2908,6 +2908,9 @@ struct ToriRSServerNpc
     /** `npc_facesquareinstant` -- the coord FACING block snaps instead of
      *  turning (`instant=true`); a plain `npc_facesquare` clears it. */
     int face_coord_instant;
+    /** `npc_faceplayerinstant` -- this tick's entity FACING block snaps
+     *  instead of turning (`instant=true`); cleared with the masks. */
+    int face_entity_instant;
     /**
      * `npc_facenpc` -- an npc this one keeps facing with no fight and no mode
      * (Xarth's corpses walking to him, RSProx 4301 [749]): its slot + 1 (0 =

@@ -19525,6 +19525,7 @@ phase_cleanup(struct ToriRSServer* srv)
     for( int i = 0; i < srv->npc_slot_max; i++ )
     {
         srv->npcs[i].masks = 0;
+        srv->npcs[i].face_entity_instant = 0;
         /* With the masks — see the player's copy of this line. */
         srv->npcs[i].hitmark_count = 0;
         /* LostCity `Npc.processMovement`: `lastMovement = currentTick + 1`
