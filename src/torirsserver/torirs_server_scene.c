@@ -1089,7 +1089,9 @@ restamp_after_removal(const struct ToriRSServerSceneLoc* removed)
         struct ToriRSServerSceneLoc* other = &g_locs[i];
         int ox0, oz0, ox1, oz1;
 
-        if( other == removed || !other->active )
+        /* A covered square loc has no collision while its cover stands
+         * (scene_cover_static); re-stamping it here would wall the tile again. */
+        if( other == removed || !other->active || other->covered )
             continue;
         loc_stamp_box(other, &ox0, &oz0, &ox1, &oz1);
         if( ox1 < x0 || ox0 > x1 || oz1 < z0 || oz0 > z1 )
@@ -1177,6 +1179,7 @@ record_loc_at(
     /* From the map square, which is what makes its slot a tombstone rather than
      * reusable once something removes it — see ToriRSServer_SceneAddLoc. */
     loc->is_static = 1;
+    loc->covered = 0;
     /* The map square carries no menu of its own: what this loc offers is what
      * its loctype offers. */
     ToriRSServer_LocOpsDefault(&loc->ops);
@@ -1960,7 +1963,7 @@ ToriRSServer_SceneReplaceLoc(
      * already gone, so there is nothing to take away first. */
     if( getenv("TORIRSSERVER_DOORTRACE") && loc->x == 3226 && loc->z == 3223 && loc->level == 0 )
         fprintf(stderr, "  DOORTRACE replace slot=%d %d -> %d\n", slot, loc->loc_id, loc_id);
-    if( loc->active )
+    if( loc->active && !loc->covered )
         apply_loc_collision(loc, 0);
     loc->active = 1;
     loc->loc_id = loc_id;
@@ -1975,8 +1978,61 @@ ToriRSServer_SceneReplaceLoc(
         loc->size_x = config->size_x;
         loc->size_z = config->size_z;
     }
-    apply_loc_collision(loc, 1);
+    if( !loc->covered )
+        apply_loc_collision(loc, 1);
     return 1;
+}
+
+/*
+ * A `loc_add` over the map square's own loc of the same shape takes the tile,
+ * as Jagex's LOC_ADD_CHANGE does: the client drops the square's loc from that
+ * layer and draws the added one. The square's loc stays in the array (a later
+ * `loc_del` of the cover reveals it, ToriRSServer_SceneAddLoc), but its
+ * collision cannot stay with it -- ToA's room ends lay
+ * `invisible_type8_nonblocking` over the map's `toa_path_barrier` (Apmeken's
+ * (44,31..33), RSProx index 4292 [919]) and the raider was still walled in.
+ *
+ * `cover` 1 lifts the square loc's collision (before the cover stamps its
+ * own: the flags are bits, so the order is what keeps a shared bit); 0 puts it
+ * back once no added loc remains on the tile (after the cover's are gone).
+ */
+static void
+scene_cover_static(
+    int x,
+    int z,
+    int level,
+    int shape,
+    int cover)
+{
+    /* Uncovering waits for the last cover: another added loc still on the
+     * tile keeps the square's loc out of the collision. */
+    for( int i = 0; !cover && i < g_loc_count; i++ )
+    {
+        const struct ToriRSServerSceneLoc* loc = &g_locs[i];
+
+        if( loc->x == x && loc->z == z && loc->level == level && loc->shape == shape &&
+            loc->active && !loc->is_static )
+            return;
+    }
+    for( int i = 0; i < g_loc_count; i++ )
+    {
+        struct ToriRSServerSceneLoc* loc = &g_locs[i];
+
+        if( loc->x != x || loc->z != z || loc->level != level || loc->shape != shape )
+            continue;
+        if( !loc->active || !loc->is_static )
+            continue;
+        if( cover && !loc->covered )
+        {
+            apply_loc_collision(loc, 0);
+            loc->covered = 1;
+        }
+        else if( !cover && loc->covered )
+        {
+            loc->covered = 0;
+            apply_loc_collision(loc, 1);
+        }
+    }
 }
 
 int
@@ -2020,6 +2076,7 @@ ToriRSServer_SceneAddLoc(
         if( held && held->active && !held->is_static )
             ToriRSServer_SceneRemoveLoc(prior);
     }
+    scene_cover_static(x, z, level, shape, 1);
 
     /*
      * A slot a `loc_del` freed is reused before the array grows. Slots are
@@ -2075,6 +2132,7 @@ ToriRSServer_SceneAddLoc(
     /* Not from the map square, so its slot is free to be handed out again once
      * something removes it. */
     loc->is_static = 0;
+    loc->covered = 0;
     /* Neutral until a caller says otherwise. A reused slot still holds the
      * previous occupant's menu, so this is a reset and not an initialisation:
      * without it, the second loc to land in a recycled slot would inherit the
@@ -2126,8 +2184,13 @@ ToriRSServer_SceneRemoveLoc(int slot)
         return 0;
     if( getenv("TORIRSSERVER_DOORTRACE") && loc->x == 3226 && loc->z == 3223 && loc->level == 0 )
         fprintf(stderr, "  DOORTRACE remove slot=%d id=%d\n", slot, loc->loc_id);
-    apply_loc_collision(loc, 0);
+    if( loc->covered )
+        loc->covered = 0;
+    else
+        apply_loc_collision(loc, 0);
     loc->active = 0;
+    if( !loc->is_static )
+        scene_cover_static(loc->x, loc->z, loc->level, loc->shape, 0);
     return 1;
 }
 

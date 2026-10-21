@@ -112,6 +112,11 @@ struct ToriRSServerSceneLoc
      *  addressable. `changed` used to be here; see torirs_server_scene.c on why the
      *  flag could not survive the rebuild it existed for. */
     int is_static;
+    /** 1 while a `loc_add`ed loc of the same shape stands on this static loc's
+     *  tile. The client draws only the added one (LOC_ADD_CHANGE replaces the
+     *  loc in that layer), so this one's collision is lifted until the cover
+     *  goes; the slot stays active so the cover's removal reveals it. */
+    int covered;
     /** This placement's own menu (see struct ToriRSServerLocOps). A map-square loc
      *  carries the neutral value; only a `loc_add_ops` puts anything else here.
      *  Held on the scene as well as in the ZoneMap because the OPLOC validator
