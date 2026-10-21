@@ -327,6 +327,7 @@ def scan_ticklog(path, anchor, gap, names, sink, timeline):
         tick, kind = int(r[1]), r[2]
         a, b, c, d, e, f = (int(x) if x.lstrip("-").isdigit() else 0 for x in r[3:9])
         text = r[9]
+        g = int(r[10]) if len(r) > 10 and r[10].lstrip("-").isdigit() else 0
         if kind == "npc_spawn":
             slot_type[a] = b
         elif kind == "npc_retype":
@@ -347,7 +348,9 @@ def scan_ticklog(path, anchor, gap, names, sink, timeline):
         if kind == "npc_anim" and c >= 0:
             emit("npc_seq", (npc(b), seq(c), fields([("delay", d)])))
         elif kind == "npc_spotanim" and c >= 0:
-            emit("npc_spotanim", (npc(b), spot(c), fields([("delay", e), ("height", d)])))
+            # g: rev 241's loop byte, printed last as RSProx does
+            emit("npc_spotanim", (npc(b), spot(c), ", ".join(x for x in (
+                fields([("delay", e), ("height", d)]), "loop=true" if g else "") if x)))
         elif kind == "npc_spawn":
             emit("npc_add", npc(b))
         elif kind == "npc_retype":
@@ -404,7 +407,9 @@ def scan_ticklog(path, anchor, gap, names, sink, timeline):
                            # an npc's defend/death synth goes out as SYNTH_SOUND, as RSProx names it
                            "synth" if text.split(" ")[0] == "npc" else text.split(" ")[0]))
         elif kind == "music":
-            emit("midi_song_v2", "id=%d" % b)
+            # c..f: the envelope (rows from before it was logged carry zeros)
+            emit("midi_song_v2", "id=%d, fadeoutdelay=%d, fadeoutspeed=%d, fadeindelay=%d, fadeinspeed=%d"
+                 % (b, c, d, e, f))
         elif kind == "jingle":
             emit("midi_jingle", "id=%d" % b)
     return spans, "ticklog"

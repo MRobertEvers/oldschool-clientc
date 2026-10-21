@@ -3017,13 +3017,15 @@ world_set_entity_spotanim(
     struct WorldEntityFacet_EntitySpotanim* spot,
     int spotanim_id,
     int height,
-    int cycle_delay)
+    int cycle_delay,
+    bool loop)
 {
     spot->id = spotanim_id;
     spot->height = height;
     spot->last_cycle = world->cycle + cycle_delay;
     spot->frame = cycle_delay > 0 ? -1 : 0;
     spot->cycle = 0;
+    spot->loop = loop;
 }
 
 void
@@ -3033,7 +3035,8 @@ World_PlayerSetSpotanim(
     int slot,
     int spotanim_id,
     int height,
-    int cycle_delay)
+    int cycle_delay,
+    bool loop)
 {
     assert(world);
     assert(slot >= 0);
@@ -3042,7 +3045,8 @@ World_PlayerSetSpotanim(
     struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
     if( slot >= WORLD_PLAYER_SPOTANIM_SLOTS )
         slot = WORLD_PLAYER_SPOTANIM_SLOTS - 1;
-    world_set_entity_spotanim(world, &player->spotanims[slot], spotanim_id, height, cycle_delay);
+    world_set_entity_spotanim(world, &player->spotanims[slot], spotanim_id, height, cycle_delay,
+                              loop);
 }
 
 void
@@ -3100,7 +3104,8 @@ World_NpcSetSpotanim(
     int slot,
     int spotanim_id,
     int height,
-    int cycle_delay)
+    int cycle_delay,
+    bool loop)
 {
     assert(world);
     assert(slot >= 0);
@@ -3115,7 +3120,8 @@ World_NpcSetSpotanim(
         npc->spotanim_sent_cycle = world->cycle;
     }
     npc->spotanim_packet_id = (spotanim_id >= 0 && spotanim_id != 65535) ? spotanim_id : -1;
-    world_set_entity_spotanim(world, &npc->spotanims[slot], spotanim_id, height, cycle_delay);
+    world_set_entity_spotanim(world, &npc->spotanims[slot], spotanim_id, height, cycle_delay,
+                              loop);
 }
 
 void

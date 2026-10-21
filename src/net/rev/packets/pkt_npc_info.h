@@ -146,6 +146,7 @@ struct PktNpcInfo_SpotAnim
     uint8_t slot;
     int32_t spotanim_id; /* 65535 -> -1 */
     int32_t height_delay;
+    bool loop; /* rev 241's loop byte (1); false before 241 */
 };
 
 /* rev-239 headicon customisation (0x400000): the eight overhead slots the

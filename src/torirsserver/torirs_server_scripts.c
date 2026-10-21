@@ -4839,6 +4839,7 @@ player_spotanim_put(
     player->spotanims[i].slot = slot;
     player->spotanims[i].id = id;
     player->spotanims[i].height_delay = height_delay;
+    player->spotanims[i].loop = 0;
     player->spotanim_id = id;
     player->spotanim_height_delay = height_delay;
     player->masks |= TORIRSSERVER_PMASK_SPOTANIM;
@@ -4847,14 +4848,16 @@ player_spotanim_put(
 
 /* One graphic into this tick's slot list: a second send to the same slot this
  * tick replaces the first, as the reference keeps one per slot. The scalar
- * pair mirrors the last send for the classic writers. */
+ * pair mirrors the last send for the classic writers. `loop` is rev 241's
+ * replay-until-replaced byte. */
 static void
 npc_spotanim_put(
     struct ToriRSServerNpc* npc,
     int slot,
     int id,
     int height,
-    int delay)
+    int delay,
+    int loop)
 {
     int i;
     int height_delay = (height << 16) | (delay & 0xffff);
@@ -4873,10 +4876,11 @@ npc_spotanim_put(
     npc->spotanims[i].slot = slot;
     npc->spotanims[i].id = id;
     npc->spotanims[i].height_delay = height_delay;
+    npc->spotanims[i].loop = loop;
     npc->spotanim_id = id;
     npc->spotanim_height_delay = height_delay;
     npc->masks |= TORIRSSERVER_NMASK_SPOTANIM;
-    ToriRSServer_TicklogNpcSpotanim(npc, id, height, delay, slot);
+    ToriRSServer_TicklogNpcSpotanim(npc, id, height, delay, slot, loop);
 }
 
 /*
@@ -10494,7 +10498,7 @@ script_command(
             SSVM_Abort(state, "spotanim_npc with no active npc");
             return 1;
         }
-        npc_spotanim_put(npc, 0, (int)values[0], (int)values[1], (int)values[2]);
+        npc_spotanim_put(npc, 0, (int)values[0], (int)values[1], (int)values[2], 0);
         return 1;
     }
 
@@ -10503,11 +10507,19 @@ script_command(
      * of the rev-239 npc's numbered graphic slots, where it replaces only that
      * slot's graphic. A Tormented Demon's shield loop (slot 4) plays under its
      * attack graphics (slot 2); docs/rsprox-analysis/tormented_demons.
+     *
+     * spotanim_npc_slot_loop(spotanim, height, delay, slot): the same, with
+     * rev 241's loop byte set, so the client replays the graphic until the
+     * slot is sent again. Moia's binders' empower glow, its burst and its
+     * clear all carry it (`loop=true`, RSProx 4314/4315); older revisions
+     * have no byte and play it once.
      */
     case SS_OP_SPOTANIM_NPC_SLOT:
+    case SS_OP_SPOTANIM_NPC_SLOT_LOOP:
     {
         int32_t values[4];
         struct ToriRSServerNpc* npc = active_npc(state);
+        int const loop = opcode == SS_OP_SPOTANIM_NPC_SLOT_LOOP;
 
         for( int i = 3; i >= 0; i-- )
         {
@@ -10524,7 +10536,8 @@ script_command(
             SSVM_Abort(state, "spotanim_npc_slot: slot out of range");
             return 1;
         }
-        npc_spotanim_put(npc, (int)values[3], (int)values[0], (int)values[1], (int)values[2]);
+        npc_spotanim_put(npc, (int)values[3], (int)values[0], (int)values[1], (int)values[2],
+                         loop);
         return 1;
     }
 
@@ -12404,6 +12417,31 @@ script_command(
         if( npc->frozen_ticks > 0 || npc->freeze_immune_ticks > 0 )
             return 1;
         npc->frozen_ticks = (int)ticks;
+        return 1;
+    }
+
+    /*
+     * `npc_bind(ticks)` -- npc_freeze's renewing form: frozen, immune or not,
+     * the npc stands for at least `ticks` from the next tick. Scorching
+     * shackles re-bind a bound Dreadnoth on a second spec (RSProx 4303 [2680],
+     * [2757]: 13 ticks after the second's landing, 2/2); see NPC_BIND in
+     * gen_opcode_meta.py.
+     */
+    case SS_OP_NPC_BIND:
+    {
+        int32_t ticks;
+        struct ToriRSServerNpc* npc = active_npc(state);
+
+        if( !SSVM_PopInt(state, &ticks) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_bind with no active npc");
+            return 1;
+        }
+        if( ticks > npc->frozen_ticks )
+            npc->frozen_ticks = (int)ticks;
+        npc->freeze_immune_ticks = 0;
         return 1;
     }
 

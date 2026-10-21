@@ -1413,7 +1413,8 @@ World_NpcSetExactMoveDetailed(
     int facing,
     bool facing_is_yaw);
 
-/* `slot`: the rev-239 graphic slot, as World_NpcSetSpotanim's. */
+/* `slot`: the rev-239 graphic slot, as World_NpcSetSpotanim's; `loop`, as
+ * its. */
 void
 World_PlayerSetSpotanim(
     struct World* world,
@@ -1421,7 +1422,8 @@ World_PlayerSetSpotanim(
     int slot,
     int spotanim_id,
     int height,
-    int cycle_delay);
+    int cycle_delay,
+    bool loop);
 
 /* Rev-239 tinting block (Actor.method3182): the cycles are deltas from the
  * client cycle the block lands on; the four colour bytes are signed (-1 leaves
@@ -1451,7 +1453,9 @@ World_NpcSetTint(
     int weight);
 
 /* `slot`: the rev-239 graphic slot; a graphic replaces only its own slot's
- * (slots past WORLD_NPC_SPOTANIM_SLOTS - 1 share the last). */
+ * (slots past WORLD_NPC_SPOTANIM_SLOTS - 1 share the last). `loop`: rev
+ * 241's byte -- the graphic replays from its first frame each time its seq
+ * ends, until the slot is sent again (Moia's binders' empower glow). */
 void
 World_NpcSetSpotanim(
     struct World* world,
@@ -1459,7 +1463,8 @@ World_NpcSetSpotanim(
     int slot,
     int spotanim_id,
     int height,
-    int cycle_delay);
+    int cycle_delay,
+    bool loop);
 
 /* Headicon customisation: `custom` false is the type's own icons again. */
 void

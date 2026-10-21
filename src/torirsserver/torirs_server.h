@@ -938,6 +938,10 @@ struct ToriRSServerNpcSpotanim
     int id;
     /** height << 16 | delay, as the wire carries it. */
     int height_delay;
+    /** Rev 241's loop byte: the client replays the graphic until the slot is
+     *  sent again (`spotanim_npc_slot_loop`; Moia's binders' empower glow,
+     *  RSProx 4314/4315 `loop=true`). Older revisions carry no such byte. */
+    int loop;
 };
 
 struct ToriRSServerHitmark
@@ -4381,6 +4385,10 @@ struct ToriRSServerPlayer
      *  a second map square that maps to the same track does not restart it --
      *  a track restarting every 64 tiles is the tell that this is missing. */
     int music_track;
+    /** The last MIDI_SONG's envelope (fade-out delay, fade-out speed, fade-in
+     *  delay, fade-in speed; a MIDI_SONG_STOP's fade-out and two zeros), for
+     *  the tick log's music row. */
+    int music_envelope[4];
     /** Region music does not start a track before this tick (`midi_hold`): a
      *  scripted sequence that owns the music -- the Inferno's jump-in is silent
      *  from the landing until its own `midi_song` -- keeps the region's track
@@ -6066,7 +6074,8 @@ enum ToriRSServerTicklogKind
     TORIRSSERVER_TICKLOG_MARK,          /* label=the test's text */
     TORIRSSERVER_TICKLOG_NPC_ANIM,      /* a=slot b=npc type c=seq d=delay */
     TORIRSSERVER_TICKLOG_NPC_SPOTANIM,  /* a=slot b=npc type c=spotanim d=height e=delay
-                                         * f=spotanim slot (0 for `spotanim_npc`) */
+                                         * f=spotanim slot (0 for `spotanim_npc`)
+                                         * g=1 when it loops (rev 241's byte) */
     TORIRSSERVER_TICKLOG_PROJECTILE,    /* a=src coord b=dst coord c=target (wire form)
                                          * d=spotanim e=start cycle f=end cycle */
     TORIRSSERVER_TICKLOG_MAP_SPOTANIM,  /* a=coord b=spotanim c=height d=delay */
@@ -6096,8 +6105,10 @@ enum ToriRSServerTicklogKind
                                          * label=the source (enum
                                          * ToriRSServerTicklogSoundSource's name,
                                          * "npc <slot> <type>" for an npc's own) */
-    TORIRSSERVER_TICKLOG_MUSIC,         /* a=pid b=track (-1 = stop); label=the
-                                         * source: "script", "region", "login" */
+    TORIRSSERVER_TICKLOG_MUSIC,         /* a=pid b=track (-1 = stop) c=fade-out
+                                         * delay d=fade-out speed e=fade-in delay
+                                         * f=fade-in speed; label=the source:
+                                         * "script", "region", "login" */
     TORIRSSERVER_TICKLOG_JINGLE,        /* a=pid b=jingle c=length ms; label "script" */
     TORIRSSERVER_TICKLOG_PLAYER_ANIM,   /* a=pid b=seq (-1 = `anim(null)`, the cancel)
                                          * c=delay; the seq the client is sent, after
@@ -6361,7 +6372,7 @@ ToriRSServer_TicklogMark(char const* label);
  * being logged. */
 void ToriRSServer_TicklogNpcAnim(const struct ToriRSServerNpc* npc, int seq_id, int delay);
 void ToriRSServer_TicklogNpcSpotanim(const struct ToriRSServerNpc* npc, int spotanim, int height,
-                                     int delay, int slot);
+                                     int delay, int slot, int loop);
 void ToriRSServer_TicklogNpcHeadicon(const struct ToriRSServerNpc* npc, int slot, int group,
                                      int index);
 void ToriRSServer_TicklogNpcBody(const struct ToriRSServerNpc* npc, int model);
@@ -6410,7 +6421,8 @@ void ToriRSServer_TicklogSound(const struct ToriRSServer* srv,
 void ToriRSServer_TicklogSoundArea(const struct ToriRSServer* srv,
                                    const struct ToriRSServerPlayer* player, int sound, int loops,
                                    int delay, int coord, int radius, int drop_off);
-/* A MIDI_SONG (or MIDI_SONG_STOP: track -1) sent to `player`. */
+/* A MIDI_SONG (or MIDI_SONG_STOP: track -1) sent to `player`, with the
+ * envelope it carried (`player->music_envelope`). */
 void ToriRSServer_TicklogMusic(const struct ToriRSServer* srv,
                                const struct ToriRSServerPlayer* player, int track, int source);
 /* A MIDI_JINGLE sent to `player`. */

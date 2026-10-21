@@ -11,7 +11,7 @@ workflow.
   tick. In `player_info`/`npc_info`, an 8-indent line is one entity's movement or add/del, and
   12-indent lines under it are that entity's extended info.
 - **Names.** Rev 230+ prints `name (id)`. Rev 227 prints bare ids. **Every id is from the
-  recording's revision, not 239**: look it up in
+  recording's revision, not necessarily ours (241)**: look it up in
   `OSRS-Content/osrs-content/configs/all.<type>.compack` before using it. Synth and area-sound
   ids are named in `pack/4_soundeffects.pack`. Hitsplats are in `all.hitsplat.compack` (12
   block_me, 13 block_other, 16 damage_me, 17 damage_other, 18 shield_me). Healthbars are in

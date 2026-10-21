@@ -68,6 +68,7 @@ main(void)
     test_cold_seq_is_parked_not_refused();
     test_action_anim_hands_back_to_the_readyanim_loop_point();
     test_entity_spotanim_holds_until_resident();
+    test_entity_spotanim_loop_replays_until_replaced();
     test_entity_spotanim_without_a_seq_retires();
     test_player_spotanim_slots();
     test_delayed_headbar_holds_the_shown_fill();

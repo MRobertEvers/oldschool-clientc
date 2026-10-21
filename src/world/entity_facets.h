@@ -94,6 +94,7 @@ struct WorldEntityFacet_EntitySpotanim
     int last_cycle; /* absolute world cycle the graphic starts at */
     int frame;      /* -1 while delayed */
     int cycle;
+    bool loop;      /* rev 241: replay from frame 0 when the seq ends */
 };
 
 /**

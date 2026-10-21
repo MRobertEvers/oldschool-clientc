@@ -1051,7 +1051,8 @@ World_StepEntityAnimation(
 
     /* Entity-attached graphic (reference entityAnim, Client.ts 4019-4036): once
      * the start delay elapses, step the frame from the spot's own seq and clear
-     * the id when the single loop completes. The app combines the spot into the
+     * the id when the single loop completes -- or, for a rev-241 looping one,
+     * start it again. The app combines the spot into the
      * entity's rendering via a companion scene element pinned to the entity
      * (app_world_sync_entity_spotanims), driven to spot->frame. One per
      * rev-239 slot, each on its own clock (class106.getSpotAnims). */
@@ -1091,7 +1092,15 @@ World_StepEntityAnimation(
          * count > 0 so an id whose seq/model is still loading (count 0) waits
          * rather than expiring instantly (frame 0 >= count 0). */
         if( count > 0 && spot->frame >= count )
-            spot->id = -1;
+        {
+            if( spot->loop )
+            {
+                spot->frame = 0;
+                spot->cycle = 0;
+            }
+            else
+                spot->id = -1;
+        }
     }
 
     /* Primary (transient/action). */

@@ -2143,7 +2143,7 @@ test_entity_spotanim_holds_until_resident(void)
     world->seq_source.frame_duration = spot_test_frame_duration;
 
     g_spot_test_resident = 0;
-    World_NpcSetSpotanim(world, ni, 0, 369, 0, 5);
+    World_NpcSetSpotanim(world, ni, 0, 369, 0, 5, false);
     /* Far longer than the seq's 8 cycles, delay included. */
     for( int i = 0; i < 40; i++ )
         World_Cycle(world, 1);
@@ -2158,6 +2158,48 @@ test_entity_spotanim_holds_until_resident(void)
     for( int i = 0; i < 8 && npc->spotanims[0].id != -1; i++ )
         World_Cycle(world, 1);
     TEST_ASSERT(npc->spotanims[0].id == -1, "and it ends after playing its frames once");
+
+    World_Free(world);
+}
+
+/*
+ * A rev-241 looping graphic (the spotanim block's loop byte) replays until its
+ * slot is sent again. Moia's binders hold their empower glow this way for a
+ * chant's whole countdown (RSProx 4314/4315 `loop=true`), sent once.
+ */
+void
+test_entity_spotanim_loop_replays_until_replaced(void)
+{
+    printf("TEST: a looping entity graphic replays until its slot is replaced\n");
+
+    struct World* world = World_TestMakeReady(104);
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+    int ni = World_NpcSpawn(world, 7, 1234, 1, 20, 20, 5, idle);
+    struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, ni);
+
+    world->seq_source.spotanim_seq = spot_test_spotanim_seq;
+    world->seq_source.frame_count = spot_test_frame_count;
+    world->seq_source.frame_duration = spot_test_frame_duration;
+    g_spot_test_resident = 1;
+
+    World_NpcSetSpotanim(world, ni, 5, 4223, 0, 0, true);
+    /* Five times the seq's 8 cycles. */
+    int restarts = 0;
+    int last = 0;
+    for( int i = 0; i < 40; i++ )
+    {
+        World_Cycle(world, 1);
+        if( npc->spotanims[5].frame < last )
+            restarts++;
+        last = npc->spotanims[5].frame;
+    }
+    TEST_ASSERT(npc->spotanims[5].id == 4223,
+                "a looping graphic is still up after five of its lengths");
+    TEST_ASSERT(restarts >= 4, "and it went back to frame 0 each time its seq ended");
+
+    World_NpcSetSpotanim(world, ni, 5, -1, 0, 0, true);
+    TEST_ASSERT(npc->spotanims[5].id == -1,
+                "the slot sent again with no graphic ends it");
 
     World_Free(world);
 }
@@ -2184,14 +2226,14 @@ test_player_spotanim_slots(void)
     world->seq_source.frame_duration = spot_test_frame_duration;
     g_spot_test_resident = 1;
 
-    World_PlayerSetSpotanim(world, pi, 0, 2146, 0, 0);
+    World_PlayerSetSpotanim(world, pi, 0, 2146, 0, 0, false);
     World_Cycle(world, 1);
-    World_PlayerSetSpotanim(world, pi, 1, 24, 96, 0);
+    World_PlayerSetSpotanim(world, pi, 1, 24, 96, 0, false);
     World_Cycle(world, 1);
     TEST_ASSERT(player->spotanims[0].id == 2146, "the slot-0 marker is still up");
     TEST_ASSERT(player->spotanims[1].id == 24, "the slot-1 launch plays beside it");
 
-    World_PlayerSetSpotanim(world, pi, 0, 245, 124, 0);
+    World_PlayerSetSpotanim(world, pi, 0, 245, 124, 0, false);
     TEST_ASSERT(player->spotanims[0].id == 245, "a second slot-0 graphic replaces the first");
     TEST_ASSERT(player->spotanims[1].id == 24, "and leaves slot 1 alone");
 
@@ -2221,7 +2263,7 @@ test_entity_spotanim_without_a_seq_retires(void)
     world->seq_source.frame_duration = spot_test_frame_duration;
 
     g_spot_test_resident = 0;
-    World_NpcSetSpotanim(world, ni, 0, 85, 0, 2);
+    World_NpcSetSpotanim(world, ni, 0, 85, 0, 2, false);
     for( int i = 0; i < 10; i++ )
         World_Cycle(world, 1);
     TEST_ASSERT(npc->spotanims[0].id == 85, "still loading: it waits");

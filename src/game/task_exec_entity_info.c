@@ -798,7 +798,8 @@ player_apply_op(
             op->_spotanim.slot,
             op->_spotanim.spotanim_id,
             op->_spotanim.height_delay >> 16,
-            op->_spotanim.height_delay & 0xffff);
+            op->_spotanim.height_delay & 0xffff,
+            op->_spotanim.loop);
         if( op->_spotanim.spotanim_id >= 0 )
             App_EntitySpotanimPrefetch(self->app, op->_spotanim.spotanim_id);
         break;
@@ -1514,7 +1515,8 @@ npc_apply_op(
                 op->_spotanim.slot,
                 op->_spotanim.spotanim_id,
                 op->_spotanim.height_delay >> 16,
-                op->_spotanim.height_delay & 0xffff);
+                op->_spotanim.height_delay & 0xffff,
+                op->_spotanim.loop);
             if( op->_spotanim.spotanim_id >= 0 )
                 App_EntitySpotanimPrefetch(self->app, op->_spotanim.spotanim_id);
         }

@@ -976,13 +976,14 @@ player_extended(
                 int slot = tail_g1_alt2(data, len, &pos);
                 int spot = tail_g2_alt2(data, len, &pos);
                 uint32_t height_delay = tail_g4(data, len, &pos);
+                int loop = tail_g1(data, len, &pos);
 
-                (void)tail_g1(data, len, &pos); /* loop: no home in the op */
                 if( op )
                 {
                     op->_spotanim.slot = (uint8_t)slot;
                     op->_spotanim.spotanim_id = spot == 65535 ? -1 : spot;
                     op->_spotanim.height_delay = (int32_t)height_delay;
+                    op->_spotanim.loop = loop == 1;
                 }
             }
         }
@@ -1348,15 +1349,16 @@ npc_extended(
                 int slot = tail_g1_alt2(data, len, &pos);
                 int spot = tail_g2_alt3(data, len, &pos);
                 int height_delay = (int)tail_g4_alt1(data, len, &pos);
+                int loop = tail_g1(data, len, &pos);
                 struct PktNpcInfoOp* op;
 
-                (void)tail_g1(data, len, &pos); /* loop: no home in the op */
                 op = npc_op(r, PKT_NPC_INFO_OP_SPOTANIM);
                 if( op )
                 {
                     op->_spotanim.spotanim_id = spot == 65535 ? -1 : spot;
                     op->_spotanim.height_delay = height_delay;
                     op->_spotanim.slot = (uint8_t)slot;
+                    op->_spotanim.loop = loop == 1;
                 }
             }
         }

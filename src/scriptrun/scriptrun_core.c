@@ -737,7 +737,8 @@ player_apply_op(
             op->_spotanim.slot,
             op->_spotanim.spotanim_id,
             op->_spotanim.height_delay >> 16,
-            op->_spotanim.height_delay & 0xffff);
+            op->_spotanim.height_delay & 0xffff,
+            op->_spotanim.loop);
         break;
     case PKT_PLAYER_INFO_OP_EXACT_MOVE:
     {
@@ -1211,7 +1212,8 @@ npc_apply_op(
                 op->_spotanim.slot,
                 op->_spotanim.spotanim_id,
                 op->_spotanim.height_delay >> 16,
-                op->_spotanim.height_delay & 0xffff);
+                op->_spotanim.height_delay & 0xffff,
+                op->_spotanim.loop);
         break;
     case PKT_NPC_INFO_OP_EXACT_MOVE:
         if( idx >= 0 )

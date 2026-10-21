@@ -547,7 +547,8 @@ ToriRSServer_TicklogNpcSpotanim(
     int spotanim,
     int height,
     int delay,
-    int spot_slot)
+    int spot_slot,
+    int loop)
 {
     int slot;
 
@@ -556,8 +557,9 @@ ToriRSServer_TicklogNpcSpotanim(
     slot = ticklog_npc_slot(npc);
     if( slot < 0 )
         return;
-    ticklog_push(TORIRSSERVER_TICKLOG_NPC_SPOTANIM, slot, npc->type, spotanim, height, delay,
-                 spot_slot, NULL);
+    /* g: 1 for rev 241's loop byte, so a plain graphic's row is unchanged. */
+    ticklog_push_row(TORIRSSERVER_TICKLOG_NPC_SPOTANIM, slot, npc->type, spotanim, height, delay,
+                     spot_slot, loop ? 1 : 0, NULL);
 }
 
 void
@@ -933,7 +935,8 @@ ToriRSServer_TicklogMusic(
     assert(player);
     assert(source >= 0);
     assert(source < TORIRSSERVER_TICKLOG_MUSIC_SOURCE_COUNT);
-    ticklog_push(TORIRSSERVER_TICKLOG_MUSIC, player->pid, track, 0, 0, 0, 0,
+    ticklog_push(TORIRSSERVER_TICKLOG_MUSIC, player->pid, track, player->music_envelope[0],
+                 player->music_envelope[1], player->music_envelope[2], player->music_envelope[3],
                  k_music_source_names[source]);
 }
 

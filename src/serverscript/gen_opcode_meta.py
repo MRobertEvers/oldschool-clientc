@@ -400,6 +400,16 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # (it is the reference's `~pvm_freeze_allowed`); this is only how it asks.
     "NPC_FROZEN": (11019, 0, 0, 1, 0),
 
+    # npc_bind(int $ticks)
+    #
+    # npc_freeze for a bind that renews: the active npc stops moving for at
+    # least `$ticks` from the next tick, frozen or immune or not. The scorching
+    # bow's Scorching shackles bind Dreadnoth again on a second spec while the
+    # first still holds him -- he steps 13 ticks after the second's landing, 2/2
+    # (RSProx 4303 [2680], [2757]) -- where a barrage on a frozen npc is ignored
+    # (4/4 on him; Blert's crabs). The thaw sets the usual immunity.
+    "NPC_BIND": (11250, 1, 0, 0, 0),
+
     # ---- inv slot vars (11016..11017) ------------------------------------
     #
     # Per-item ints on an inventory slot, keyed by an obj id. LostCity declares
@@ -1300,6 +1310,13 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # Archive's Ezekiel (RSProx 4262, 4300..4315). `$to` below `$from` closes it.
     "P_DODGEWINDOW": (11235, 4, 0, 0, 0),
 
+    # spotanim_npc_slot_loop(spotanim $spotanim, int $height, int $delay, int $slot)
+    #
+    # spotanim_npc_slot with rev 241's loop byte set: the client replays the
+    # graphic until the slot is sent again (Moia's binders' empower glow,
+    # `loop=true`, RSProx 4314/4315).
+    "SPOTANIM_NPC_SLOT_LOOP": (11236, 4, 0, 0, 0),
+
     # npc_setbasestat(npc_stat $stat, int $level)
     #
     # The active npc's BASE level in one non-hitpoint stat until it dies or
@@ -1848,7 +1865,9 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "NPC_FACENPC": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_FACEPLAYER": ((1 << POINTER_BITS["active_npc"]) | (1 << POINTER_BITS["p_active_player"]), 0),
     "NPC_FACEPLAYERINSTANT": ((1 << POINTER_BITS["active_npc"]) | (1 << POINTER_BITS["p_active_player"]), 0),
+    "NPC_BIND": (1 << POINTER_BITS["active_npc"], 0),
     "P_DODGEWINDOW": (1 << POINTER_BITS["p_active_player"], 0),
+    "SPOTANIM_NPC_SLOT_LOOP": (1 << POINTER_BITS["active_npc"], 0),
     "REMOTE_VIEW_START": (1 << POINTER_BITS["p_active_player"], 0),
     "REMOTE_VIEW_END": (1 << POINTER_BITS["p_active_player"], 0),
     # The splat needs somebody to appear over. NPC_DAMAGE (2509) carries

@@ -88,15 +88,24 @@ return {
         t.check("moia.transporter", r == "ok", tostring(r) .. " " .. tostring(d))
         ok = t.await({ level = function() return present(t, "tfa_moia") end, note = "moia" }, 20)
         t.check("moia.add", ok == "ok", "no Moia")
+        local _, arrive = t.world.tile()
         t.prayer.set("protectfrommissiles", true)
         t.ticklog.mark("phase1")
         -- Two event rounds: blinks, an infection, refills.
         fight(t, "tfa_moia", 120)
+        -- On the track's (4,0), one east of the way in: a binder stopping
+        -- there swings at the bot under it, "Grah!", and pushes it off.
+        t.ticklog.mark("push")
+        t.player.walk_to(arrive.x + 1, arrive.z, 5)
+        fight(t, "tfa_moia", 32)
         t.ticklog.mark("change")
         t.cheat("::tfaboss 600", false)
         -- Her change and her return (P+14): keep the cough and the binders
-        -- going while she is away.
-        t.ticks(30)
+        -- going while she is away (they swing from 2 tiles: heal through it).
+        for _ = 1, 30 do
+            t.cheat("::tfaheal", false)
+            t.ticks(1)
+        end
         t.ticklog.mark("phase2")
         -- Two chants and their blasts (C+36, C'+34); the binders cleared
         -- every 10 ticks so the blasts find one or none.

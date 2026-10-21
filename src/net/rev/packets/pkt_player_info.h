@@ -201,6 +201,7 @@ struct PktPlayerInfo_SpotAnim
     uint8_t slot;
     int32_t spotanim_id; /* 65535 -> -1 */
     int32_t height_delay; /* height = >>16, cycle delay = &0xffff */
+    bool loop; /* rev 241's loop byte (1); false before 241 */
 };
 
 struct PktPlayerInfo_ExactMove

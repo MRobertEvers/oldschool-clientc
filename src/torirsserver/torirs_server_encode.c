@@ -2956,6 +2956,11 @@ ToriRSServer_SendMidiSongEnvelope(
     int fade_in_speed)
 {
     struct RSAreaBuf buf;
+
+    player->music_envelope[0] = fade_out_delay;
+    player->music_envelope[1] = fade_out_speed;
+    player->music_envelope[2] = fade_in_delay;
+    player->music_envelope[3] = fade_in_speed;
     open_packet(&buf, 16);
     {
         const struct ToriRSServerWirePayload* pl = wire_payload(player);
@@ -2975,6 +2980,10 @@ ToriRSServer_SendMidiSongStop(
     struct RSAreaBuf buf;
     const struct ToriRSServerWirePayload* pl = wire_payload(player);
 
+    player->music_envelope[0] = fade_out_delay;
+    player->music_envelope[1] = fade_out_speed;
+    player->music_envelope[2] = 0;
+    player->music_envelope[3] = 0;
     /*
      * Return rather than flush an empty body when the revision has no writer.
      *
@@ -6476,7 +6485,8 @@ put_npc_extended_v241(
     v241_put_extended_flag(buf, flag);
 
     /* decodeSpotanim: g1Alt3 count; per entry g1Alt2 slot, g2Alt3 id,
-     * g4Alt1 (height << 16 | delay), g1 loop. */
+     * g4Alt1 (height << 16 | delay), g1 loop (1 = replay until replaced;
+     * RSProx NpcInfoClient reads `loop == 1`). */
     if( flag & V241_NPC_SPOTANIM )
     {
         assert(npc->spotanim_count > 0);
@@ -6488,7 +6498,7 @@ put_npc_extended_v241(
             rsab_p1_alt2(buf, spot->slot);
             rsab_p2_alt3(buf, spot->id < 0 ? 65535 : spot->id);
             rsab_p4_alt1(buf, spot->height_delay);
-            rsab_p1(buf, 0); /* loop */
+            rsab_p1(buf, spot->loop ? 1 : 0);
         }
     }
     /* decodeExactMove: g1sAlt3 dx1, g1s dz1, g1sAlt1 dx2, g1sAlt1 dz2,

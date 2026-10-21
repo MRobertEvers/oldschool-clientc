@@ -6,7 +6,7 @@ per life (the rsprox-content skill's wire audit, "NPC INFO, EVERY BLOCK").
         [--from T0 --to T1] [--align add|seq:<id>|say:<text>] [--lives N] [--summary]
 
 Blocks compared: the add's spawn angle; [sequence] (id and delay);
-[spotanim] (id, slot, delay); [facing] (coord as an offset from the npc's own
+[spotanim] (id, slot, delay, loop); [facing] (coord as an offset from the npc's own
 tile, entity, reset, angle); [say]; [transformation]; [enabled_ops];
 [level_change]; [transparency]; [exact_move]; [headbar] ids; the movement
 kind and step length per tick; ticks from the add to the [del].
@@ -102,7 +102,8 @@ def rec_events(path, want, t0, t1):
                 continue
             slot = re.search(r"slot=(\d+)", s)
             dl = re.search(r"delay=(\d+)", s)
-            ev.append((tick, "spot", f"{sid.group(1) if sid else -1} s{slot.group(1) if slot else 0} d{dl.group(1) if dl else 0}"))
+            loop = " loop" if "loop=true" in s else ""
+            ev.append((tick, "spot", f"{sid.group(1) if sid else -1} s{slot.group(1) if slot else 0} d{dl.group(1) if dl else 0}{loop}"))
         elif s.startswith("[facing]"):
             f = s[len("[facing] "):]
             if f.startswith("coord="):
@@ -174,7 +175,9 @@ def ours_events(path, want_ids, t0, t1):
         if kind == "npc_anim":
             ev.append((tick, "seq", f"{a[2]} d{a[3]}"))
         elif kind == "npc_spotanim":
-            ev.append((tick, "spot", f"{a[2]} s{a[5]} d{a[4]}"))
+            # g (f[10]): rev 241's loop byte
+            loop = " loop" if len(f) > 10 and f[10] == "1" else ""
+            ev.append((tick, "spot", f"{a[2]} s{a[5]} d{a[4]}{loop}"))
         elif kind == "npc_face":
             if a[2] == "-1":
                 # An entity id from TORIRSSERVER_FACE_PLAYER_BASE (32768) up
