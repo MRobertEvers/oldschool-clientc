@@ -681,7 +681,12 @@ cs2_write_expr(struct cs2_writer* writer, struct RSCache_CS2_Expr* expr)
         /* The array itself, passed as its handle. Spelled like any other use
          * of the local — `$intarray0` — so a rename reaches it; the compiler
          * reads an array name without `(index)` as PUSH_STRING_LOCAL. */
-        cs2_put_char(writer, '$');
+        /* A vartransmit trigger points at a global, and is written bare —
+         * `{varp279_awarded_points}` — which is what the hook compiler reads
+         * as a varp; `$varp279_awarded_points` would be a local it has never
+         * seen (363 of 241's scripts stayed bytecode on it). */
+        if( !RSCache_CS2_VarIsGlobal(expr->variable->kind) )
+            cs2_put_char(writer, '$');
         cs2_write_var_identifier(writer, expr->variable);
         return;
     case RSCACHE_CS2_EXPR_CONSTANT:

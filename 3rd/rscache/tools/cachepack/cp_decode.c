@@ -2914,6 +2914,20 @@ script_write(
     {
         fprintf(stderr, "cachepack: script %d stays bytecode — its source %s\n", record_id,
                 compiles ? "compiles to different bytes" : verify_error);
+        /* CACHEPACK_DUMP_DECLINED=1 keeps the source that would not come back as
+         * <stem>.cs2.declined beside the bytecode, which is the only way to read
+         * what the generator wrote. */
+        if( getenv("CACHEPACK_DUMP_DECLINED") )
+        {
+            char dump[1700];
+            snprintf(dump, sizeof(dump), "%s.cs2.declined", path_stem);
+            FILE* declined = fopen(dump, "wb");
+            if( declined )
+            {
+                fputs(source, declined);
+                fclose(declined);
+            }
+        }
         free(source);
         free(name);
         return 0;
