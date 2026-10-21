@@ -59,7 +59,7 @@ return {
     run = function(t)
         t.ticklog.start()
         t.ticklog.mark("scroll")
-        local r, d = t.player.inv_op("teleportscroll_guthixian_temple", 2)
+        local r, d = t.player.inv_op("teleportscroll_guthixian_temple", 1)
         t.note("scroll: " .. tostring(r) .. " " .. tostring(d))
         await_tile(t, "scroll.land", 4063, 4557, 0, 10)
         t.ticks(4)
