@@ -142,7 +142,7 @@ The fight's init now clears only Olm's own register slots (0–79). It used to c
 
 Read from 820's four-man fight (t4759–t9387), re-transcribed with every raider shown. The archive's transcripts print the recorder alone (`PLAYER_INFO_LOCAL_PLAYER_ONLY`); `tools/cox/rsprox_olm_party.py` says how to re-transcribe into a private RSProx home, and runs every check below. Rules are judged on the tile each raider **started** the tick on: Olm acts before the players move.
 
-**This fight scaled as a 54-player party.** Grid Master added 50 to the party's 4 (`raids_client_partysize_scaled` = 54). Hitpoints and phase count follow the scaled size: claws 10,202 each (17 × 600), head 13,602 (17 × 800), and 9 hand phases (3 + ⌊54 / 8⌋). Everything else below follows the real 4: 6 bolts, not 31. Ours has no scaled size. Olm's hitpoints and phase count still read the raid-wide `~cox_olm_party_size` (1); with only two sizes recorded (1 and 54), the hitpoint formula is not pinned (base × (1 + ⌊3n / 10⌋) fits both).
+**This fight scaled as a 54-player party.** Grid Master added 50 to the party's 4 (`raids_client_partysize_scaled` = 54). Hitpoints and phase count follow the scaled size: claws 10,200 each, head 13,600 (`hpbar_hud_basehp`; osrs-dps-calc's 600 + 300f and 800 + 400f with f = 50 − 3 × ⌊50 / 8⌋ = 32; this line used to say 10,202 / 13,602), and 9 hand phases (3 + ⌊54 / 8⌋). Everything else below follows the real 4: 6 bolts, not 31. Ours scales by `cox_scaling.rs2` (osrs-dps-calc's formula), which gives both recorded sizes exactly (1: 800 / 600; 54: 13,600 / 10,200).
 
 ### The head
 

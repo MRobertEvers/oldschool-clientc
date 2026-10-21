@@ -13,8 +13,10 @@ Each splat is attributed, in this order:
          transcript) on the splat's tick or the one before, by an npc whose last face was the
          player; tried after a projectile landing on the splat's own tick and before one
          landing a tick either side
-  tile   a map spotanim on the player's tile that tick or the one before (falling rocks, pools)
-  none   nothing above: poison/venom, recoil, typeless damage, or a cause this cannot see
+  tile   a map spotanim within 2 tiles of the player that tick or the one before, nearest
+         first, with its distance: "tile <name> d1" (falling crystals, bombs, pools)
+  dot    a poison / venom / acid splat (2, 65, 66, 68): damage over time, claims nothing
+  none   nothing above: recoil, typeless damage, or a cause this cannot see
 A source claims one splat. Protection prayers come from varbit 4101 prayer_allactive, which
 every revision sends: bit 12 Protect from Magic, 13 Missiles, 14 Melee.
 
@@ -45,7 +47,9 @@ VB4101 = re.compile(r"\[varbit\] id=(?:\S+ \()?4101\)?, old=-?\d+, new=(-?\d+)")
 HPSTAT = re.compile(r"\[update_stat\w*\] stat=(?:hitpoints|3), level=(\d+)")
 MAPANIM = re.compile(r"\[map_anim\] id=" + NAMED + r".*coord=\((\d+), (\d+), (\d+)\)")
 SPLATS = {11: "11", 12: "block", 13: "block_other", 16: "dmg", 17: "dmg_other", 18: "shield",
-          43: "max", 53: "53", 65: "poison", 28: "dmg", 1: "block"}
+          43: "max", 53: "53", 65: "poison", 66: "poison", 68: "poison", 2: "poison", 28: "dmg", 1: "block"}
+# Damage over time (poison, venom, acid): its own cause; it claims no projectile, swing or tile.
+DOT = {2, 65, 66, 68}
 
 
 def prayers(bits):
@@ -82,6 +86,24 @@ def attribute(t, projs, swings):
     return None
 
 
+def near_tile(t, tiles, here, reach=2):
+    """A map spotanim within `reach` tiles (Chebyshev) of the player's tile, on the splat's tick
+    or the one before, nearest first: "tile <name> d<distance>"."""
+    if here is None:
+        return None
+    best = None
+    for tl in tiles:
+        if tl[4] or not (t - 1 <= tl[0] <= t):
+            continue
+        d = max(abs(tl[2] - here[0]), abs(tl[3] - here[1]))
+        if d <= reach and (best is None or d < best[0]):
+            best = (d, tl)
+    if best is None:
+        return None
+    best[1][4] = True
+    return "tile %s d%d" % (best[1][1], best[0])
+
+
 def read_transcript(path, who):
     """Rows: (tick, splat, value, prayers, hp_after, source)."""
     me = None
@@ -98,6 +120,7 @@ def read_transcript(path, who):
     tiles = []            # [tick, name, x, z, claimed]
     hits = []             # [tick, splat, value, prayers]
     hp_at = {}
+    tile_hist = {}
     pending = None
     for line in open(path, errors="replace"):
         if me is None and who is None:
@@ -145,6 +168,7 @@ def read_transcript(path, who):
                     actor = ("me",)
                     n = NEWCOORD.search(s)
                     mytile = (int(n.group(1)), int(n.group(2))) if n else (int(m.group(3)), int(m.group(4)))
+                    tile_hist[tick] = mytile
             elif sect and sect.startswith("[npc_info"):
                 m = NPC.search(s)
                 if m:
@@ -165,15 +189,18 @@ def read_transcript(path, who):
                 name = label(m)
                 if (m.group(1) is None or "attack" in name) and npc_face.get(actor[1]):
                     swings.append([tick, "%s %s" % (npc_name.get(actor[1]), name), False])
+    def tile_at(t):
+        return next((tile_hist[k] for k in range(t, t - 50, -1) if k in tile_hist), None)
+
     rows = []
     for t, splat, value, pr in hits:
+        if splat in DOT:
+            hpa = next((hp_at[k] for k in range(t, t + 2) if k in hp_at), None)
+            rows.append((t, SPLATS[splat], value, pr, hpa, "dot"))
+            continue
         src = attribute(t, projs, swings)
-        if not src and mytile:
-            for tl in tiles:
-                if not tl[4] and t - 1 <= tl[0] <= t and (tl[2], tl[3]) == mytile:
-                    tl[4] = True
-                    src = "tile %s" % tl[1]
-                    break
+        if not src:
+            src = near_tile(t, tiles, tile_at(t))
         hpa = next((hp_at[k] for k in range(t, t + 2) if k in hp_at), None)
         rows.append((t, SPLATS.get(splat, str(splat)), value, pr, hpa, src or "none"))
     return rows
@@ -199,7 +226,7 @@ def read_ours(path, pid=0):
     seqs = compack("all.seq.compack")
     pray = {}
     tile = {}
-    shots, projs, swings, hits = [], [], [], []
+    shots, projs, swings, hits, tiles = [], [], [], [], []
     for line in open(path, errors="replace"):
         f = line.rstrip("\n").split("\t")
         if len(f) < 9 or not f[1].isdigit():
@@ -209,6 +236,9 @@ def read_ours(path, pid=0):
             pray[tick] = int(a[3])
         elif kind == "player_tile" and int(a[0]) == pid:
             tile[tick] = (int(a[1]), int(a[2]))
+        elif kind == "map_spotanim":
+            c = int(a[0])
+            tiles.append([tick, spot.get(int(a[1]), a[1]), c >> 14 & 0x3fff, c & 0x3fff, False])
         elif kind == "projectile":
             target, dst = int(a[2]), int(a[1])
             land = tick + (int(a[5]) + 15) // 30
@@ -228,8 +258,13 @@ def read_ours(path, pid=0):
             projs.append([land, t0, name, False])
     rows = []
     for t, splat, value, slot, ntype in hits:
+        if splat in DOT:
+            rows.append((t, "poison", value, prayers(next((pray[k] for k in range(t, t - 3, -1) if k in pray), 0)), None, "dot"))
+            continue
         bits = next((pray[k] for k in range(t, t - 3, -1) if k in pray), 0)
         src = "swing %s" % npcs.get(ntype, ntype) if slot >= 0 else attribute(t, projs, swings)
+        if not src:
+            src = near_tile(t, tiles, next((tile[k] for k in range(t, t - 50, -1) if k in tile), None))
         rows.append((t, "dmg" if value else "block", value, prayers(bits), None, src or "none"))
     return rows
 
@@ -237,6 +272,8 @@ def read_ours(path, pid=0):
 def summary(rows):
     g = defaultdict(list)
     for t, splat, value, pr, hp, src in rows:
+        if splat not in ("dmg", "block", "max"):
+            src = "%s splat %s" % (src, splat)
         g[(src, pr)].append(value)
     for (src, pr), vals in sorted(g.items(), key=lambda kv: (-len(kv[1]), kv[0])):
         z = sum(1 for v in vals if v == 0)
