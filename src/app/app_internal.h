@@ -1335,6 +1335,14 @@ int
 app_pump_net_packets(struct App* app);
 
 void
+app_cs2_if_written(
+    void* user,
+    enum RS_CS2IfWrite what,
+    int com_id,
+    int value,
+    char const* text);
+
+void
 app_send_if_button(
     void* user,
     int com_id);

@@ -790,6 +790,32 @@ App_IfHideSet(
     app->need_redraw = 1;
 }
 
+/* RS_CS2Host.if_written: a script's write is the newer value of the field the
+ * server's packet set, so it replaces the stored one the next generation bump
+ * would otherwise re-apply over it. Components the server never set are left
+ * out of the stores. */
+void
+app_cs2_if_written(
+    void* user,
+    enum RS_CS2IfWrite what,
+    int com_id,
+    int value,
+    char const* text)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    if( what == RS_CS2_IF_WRITE_HIDE )
+        (void)UIIfIntStore_Update(&app->if_hides, com_id, value);
+    else if( what == RS_CS2_IF_WRITE_TEXT )
+        (void)UIIfTextStore_Update(&app->if_texts, com_id, text);
+    else
+    {
+        assert(what == RS_CS2_IF_WRITE_COLOUR);
+        (void)UIIfIntStore_Update(&app->if_colours, com_id, value);
+    }
+}
+
 void
 app_send_if_button(
     void* user,

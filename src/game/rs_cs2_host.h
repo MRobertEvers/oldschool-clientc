@@ -603,6 +603,14 @@ enum RS_CS2SoundKind
     RS_CS2_SOUND_SONG_WITHSECONDARY,
 };
 
+/** Which server-settable field a script wrote (RS_CS2Host.if_written). */
+enum RS_CS2IfWrite
+{
+    RS_CS2_IF_WRITE_HIDE = 0,
+    RS_CS2_IF_WRITE_TEXT,
+    RS_CS2_IF_WRITE_COLOUR,
+};
+
 /** Deferred native IF_SCRIPT_TRIGGER; own strings after the VM returns. */
 struct RS_CS2TriggerOpLocal
 {
@@ -767,6 +775,16 @@ struct RS_CS2Host
      */
     int (*events_override_for_component)(void* user, int com_id, int* out_events);
     void* events_user;
+    /*
+     * A script set a component's hide, text or colour: the fields the server's
+     * IF_SETHIDE / IF_SETTEXT / IF_SETCOLOUR also set. On the reference the
+     * packet and the script write one `IfType.list` field and the later write
+     * shows; the App keeps the server's in a store it re-applies on every
+     * generation bump, so it has to hear the script's too (UIIfIntStore_Update).
+     * `text` is the text for RS_CS2_IF_WRITE_TEXT, NULL otherwise. Optional.
+     */
+    void (*if_written)(void* user, enum RS_CS2IfWrite what, int com_id, int value, char const* text);
+    void* if_written_user;
     /** Synchronous named callback. Stack access is scoped to this invocation;
      * it must neither yield nor recursively execute the VM. Optional. */
     void (*script_callback)(void* user, struct CS2VM2_Thread*, char const* name);

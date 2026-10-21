@@ -21,6 +21,7 @@
  *   - growth past the initial capacity keeps every entry.
  *   - the int store's value is stored verbatim, including 0, so "hidden =
  *     false" is a real answer rather than an absent one.
+ *   - a script's write (`Update`) replaces a server entry and adds none.
  *
  * Build and run:
  *   make -C src test-uitree-if-store
@@ -141,11 +142,47 @@ test_text_store_owns_its_strings(void)
     CHECK(store.count == 0 && store.entries == NULL, "free left the store populated");
 }
 
+/*
+ * A script's write over a server value is the newer state of the one field
+ * (reference IfType.list): `Update` replaces an entry the server made, and adds
+ * none of its own. The Archive's fade hid hpbar_hud:hp (303:5) by packet,
+ * hp_hud_open showed it by script, and the store's stale "hidden" won the next
+ * generation bump -- the boss bar vanished a moment after it came up.
+ */
+static void
+test_update_replaces_only_server_entries(void)
+{
+    struct UIIfIntStore hides;
+    struct UIIfTextStore texts;
+
+    memset(&hides, 0, sizeof(hides));
+    memset(&texts, 0, sizeof(texts));
+
+    UIIfIntStore_Set(&hides, 19857413, 1);
+    CHECK(UIIfIntStore_Update(&hides, 19857413, 0), "an update of a server entry reported none");
+    CHECK(UIIfIntStore_Get(&hides, 19857413, -1) == 0, "the script's show did not replace the server's hide");
+    CHECK(!UIIfIntStore_Update(&hides, 19857414, 1), "an update of an unset component reported one");
+    CHECK(UIIfIntStore_Get(&hides, 19857414, -1) == -1, "an update added an entry for an unset component");
+    CHECK(hides.count == 1, "updates changed the count to %d", hides.count);
+
+    UIIfTextStore_Set(&texts, 10, "0:00");
+    CHECK(UIIfTextStore_Update(&texts, 10, "0:33"), "a text update of a server entry reported none");
+    CHECK(strcmp(UIIfTextStore_Get(&texts, 10), "0:33") == 0, "the script's text did not replace the server's");
+    CHECK(UIIfTextStore_Update(&texts, 10, NULL) && UIIfTextStore_Get(&texts, 10)[0] == '\0',
+        "a NULL update was not stored as the empty string");
+    CHECK(!UIIfTextStore_Update(&texts, 11, "x") && UIIfTextStore_Get(&texts, 11) == NULL,
+        "a text update added an entry for an unset component");
+
+    UIIfIntStore_Free(&hides);
+    UIIfTextStore_Free(&texts);
+}
+
 int
 main(void)
 {
     test_int_store_is_keyed();
     test_text_store_owns_its_strings();
+    test_update_replaces_only_server_entries();
 
     if( g_failures )
     {

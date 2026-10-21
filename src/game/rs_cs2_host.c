@@ -9593,6 +9593,8 @@ exec_widget_set_hide(
     if( hide_idx >= 0 )
         was_hidden = tree->components[hide_idx].behavior.hide ? 1 : 0;
     (void)UITree_ApplyHide(tree, component_id, hidden ? 1 : 0);
+    if( host->if_written )
+        host->if_written(host->if_written_user, RS_CS2_IF_WRITE_HIDE, component_id, hidden ? 1 : 0, NULL);
     if( was_hidden && !hidden )
         host->widgets_loaded_dirty = 1;
     return CS2VM_EXECNO_OK;
@@ -9796,6 +9798,8 @@ exec_widget_set_text(
      * re-picking the choice already showing is still a choice. */
     if( rs_cs2_tree(host) && UITree_ApplyText(rs_cs2_tree(host), component_id, text) )
         rs_cs2_settings_apply_cargo_privacy_dropdown(host, vm);
+    if( host->if_written )
+        host->if_written(host->if_written_user, RS_CS2_IF_WRITE_TEXT, component_id, 0, text);
     return CS2VM_EXECNO_OK;
 }
 
@@ -9829,6 +9833,8 @@ exec_widget_set_colour(
 {
     if( rs_cs2_tree(host) )
         (void)UITree_ApplyColour(rs_cs2_tree(host), component_id, colour);
+    if( host->if_written )
+        host->if_written(host->if_written_user, RS_CS2_IF_WRITE_COLOUR, component_id, colour, NULL);
     return CS2VM_EXECNO_OK;
 }
 

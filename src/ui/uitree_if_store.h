@@ -49,6 +49,24 @@ UIIfIntStore_Set(
     int com_id,
     int value);
 
+/**
+ * Replace the value of a component the store ALREADY holds; false, and nothing
+ * stored, when it holds none.
+ *
+ * For a client script's write to the same field. On the reference IF_SETHIDE
+ * and `if_sethide` set one `IfType.list` field, so whichever came last is what
+ * shows. Here the script writes the node and the store keeps the server's
+ * value, and a generation bump re-applies the stale one over it: the Fractured
+ * Archive's fade hid `hpbar_hud:hp`, `hp_hud_open` showed it, and the next
+ * mount anywhere hid the boss bar again. A component the server never set has
+ * nothing to re-apply, so nothing is added for it.
+ */
+bool
+UIIfIntStore_Update(
+    struct UIIfIntStore* store,
+    int com_id,
+    int value);
+
 /** The stored value, or `fallback` when the component has none. */
 int
 UIIfIntStore_Get(
@@ -85,6 +103,13 @@ struct UIIfTextStore
  */
 void
 UIIfTextStore_Set(
+    struct UIIfTextStore* store,
+    int com_id,
+    char const* text);
+
+/** UIIfIntStore_Update's twin: a script's `if_settext` over a server text. */
+bool
+UIIfTextStore_Update(
     struct UIIfTextStore* store,
     int com_id,
     char const* text);

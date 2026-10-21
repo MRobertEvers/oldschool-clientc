@@ -40,6 +40,24 @@ UIIfIntStore_Set(
     store->entries[index].value = value;
 }
 
+bool
+UIIfIntStore_Update(
+    struct UIIfIntStore* store,
+    int com_id,
+    int value)
+{
+    assert(store);
+    for( int i = 0; i < store->count; i++ )
+    {
+        if( store->entries[i].com_id == com_id )
+        {
+            store->entries[i].value = value;
+            return true;
+        }
+    }
+    return false;
+}
+
 int
 UIIfIntStore_Get(
     struct UIIfIntStore const* store,
@@ -92,6 +110,26 @@ UIIfTextStore_Set(
     ToriMem_Free(ToriMem_Ui(), store->entries[index].text);
     store->entries[index].text = ToriMem_Strdup(ToriMem_Ui(), text ? text : "");
     assert(store->entries[index].text);
+}
+
+bool
+UIIfTextStore_Update(
+    struct UIIfTextStore* store,
+    int com_id,
+    char const* text)
+{
+    assert(store);
+    for( int i = 0; i < store->count; i++ )
+    {
+        if( store->entries[i].com_id == com_id )
+        {
+            ToriMem_Free(ToriMem_Ui(), store->entries[i].text);
+            store->entries[i].text = ToriMem_Strdup(ToriMem_Ui(), text ? text : "");
+            assert(store->entries[i].text);
+            return true;
+        }
+    }
+    return false;
 }
 
 char const*

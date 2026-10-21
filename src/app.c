@@ -618,6 +618,8 @@ App_Init(
     app->host.loot = &app->loot;
     app->host.events_override_for_component = app_cs2_events_override_for_component;
     app->host.events_user = app;
+    app->host.if_written = app_cs2_if_written;
+    app->host.if_written_user = app;
     app->host.script_callback = app_script_callback;
     app->host.script_callback_user = app;
     app->host.loc_at_coord = app_cs2_loc_at_coord;
