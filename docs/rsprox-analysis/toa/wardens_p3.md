@@ -83,6 +83,14 @@ are exercised. `rsprox_tells.py --anchor 11762-11764,11772-11773 --gap 30
 Not in our tick log (so unchecked here): `cam_shake`, `cam_reset`, the fade
 and HUD interfaces.
 
+2026-10-21, a per-tick diff of X-2..X+40 and one charge (C..C+12) against
+14 (the kind counts above hide the tick): two fixed. The Warden's 5x5 of
+`invisible_type8_blocking` went down with it on X+12; 14 puts it on P (X+15),
+now `~toa_wd3_move`. And the obelisk sent `_charge_part1` on X itself (the
+core's pause let go when the state went to dead); now held. Slam order and
+gaps (7, 6 under 50%), charges the tick before the next slam, slams again 9
+after a stagger or release, from the east: as 14.
+
 ## Elidinis' Warden (RSProx 4292)
 
 One kill, solo, raid 160 (`toa_client_raid_level`), with Aerial Assault (her
@@ -179,3 +187,9 @@ and their five seqs, 6143 / 6044, the book, the crystal on D+13, Amascut's
 exit, glow and despawn sound on D+22, gone D+25. The per-tick timeline matches
 14's (E, E+4 rumble, E+6 first row, E+9 Amascut, E+10 / E+16 winds, E+22 flash,
 E+24 second row).
+
+2026-10-21, per tick E-8..E+24 and D-5..D+30 against 14: three fixed. The
+enrage sent the last batch's `invisible_type8_nonblocking` again (it tested
+`wd3_batch`, a count, not a batch still out); Amascut's `sucking01` skipped D
+(the Warden's last ticks returned before it) and went on after his exit to
+D+24 (14: the last on D+20).

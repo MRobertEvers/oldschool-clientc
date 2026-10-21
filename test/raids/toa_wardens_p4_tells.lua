@@ -58,6 +58,8 @@ return {
         "::clearinv", "::setlevel hitpoints 99", "::setlevel defence 99", "::setlevel prayer 99",
         "::setlevel ranged 99", "::setlevel magic 99", "::setlevel attack 99", "::setlevel strength 99",
         "::give twisted_bow", "::give dragon_arrow 5000", "::give dragon_scimitar",
+        -- phase two's shield takes its one open style (`_mage` magic, `_range` ranged), the core melee
+        "::give firerune 3000", "::give airrune 3000", "::give deathrune 1500", "::give abyssal_whip 1",
     },
     run = function(t)
         t.ticklog.start()
@@ -87,15 +89,35 @@ return {
         wait(t, 20)
         local over = false
         local since = 0
+        local whip = false
         for _ = 1, 1500 do
+            local core = nil
             for _, form in ipairs(FORMS) do
-                if t.player.attack(form, 2, 2, { quick = true }) == "ok" then break end
+                if form:find("_core", 1, true) and t.npc.by_symbol(form) == "ok" then core = form end
+            end
+            if core and not whip then t.player.equip("abyssal_whip") whip = true end
+            if not core and whip then t.player.equip("twisted_bow") whip = false end
+            for _, form in ipairs(FORMS) do
+                if form == core then
+                    t.player.attack(form, 2, 4)
+                    break
+                elseif form:find("_core", 1, true) then
+                    -- not out
+                elseif form:find("_mage", 1, true) then
+                    if t.npc.by_symbol(form) == "ok" then
+                        t.player.cast("fire_blast", form, 6)
+                        break
+                    end
+                elseif t.player.attack(form, 2, 2, { quick = true }) == "ok" then
+                    break
+                end
             end
             wait(t, 3)
             since = tally(t, {}, since)
             if said(t, "uses the last of its power") then over = true break end
         end
         t.expect("wardens.p2_over", over and "ok" or "fail")
+        if whip then t.player.equip("twisted_bow") whip = false end
         t.ticklog.mark("wardens.p3")
         local x = now(t)
         wait(t, 20)
