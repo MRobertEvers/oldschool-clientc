@@ -154,21 +154,32 @@ her in one of 8 directions to the arena edge or the first dung ("Kephri
 throws you back!", spotanim 245 at height 124, `npc_kephri_flyback` 9799,
 synth 3201, 3 ticks stunned). The direction, from the raider's tile relative
 to her middle: the diagonal while the shorter offset is more than half the
-longer, the longer axis alone below that; at exactly half, north of her is
-straight ((6,3) east) and south of her diagonal ((6,-3) south-east, 3 of 3).
-16 of 16 recorded throws. The exactmove faces back at her on a cardinal:
+longer, the longer axis alone below that. At exactly half it turns with her:
+looking out along the longer axis, an offset to its left is thrown straight,
+one to its right diagonally ((6,3) and (3,-6) straight, (6,-3) and (3,6)
+diagonal; every recorded tie that moved). 149 of 149 moved throws in all 20
+sessions. The exactmove faces back at her on a cardinal:
 thrown east 512, north 0, south 1024, west 1536, north-east 0, south-east 512
 (every throw).
 
-The 6-tile line runs from the ring 3 tiles out from her middle on the throw's
-side (the diagonal tile (3,3) for a diagonal throw; on the axis, the raider's
-own row clamped to ±2) to where the raider landed. It is a function of that
-step alone (65 lines, 21 different steps, none drawn two ways), but no single
-rounding, Bresenham variant or fixed origin draws all of them: floor
-interpolation gets 55 of 67 and the eight steps it misses are drawn their own
-way (by shorter-axis offset per tile: (5,4) and (-5,-4) `0 1 2 3 3 4`, (-5,4)
-`0 1 2 3 4 4`, (3,5) `0 1 2 2 3 3`, (3,-5) `0 1 1 2 2 3`, (1,2) `0 1 1`, (5,-2)
-`0 0 1 1 2 2`, (5,-1) `0 0 0 0 1 1`). Its locs land D+4 (the first three) and
+The thrown raider lands at the arena's edge or on the tile before dung (190 of
+190 throws, 20 sessions: 182 at the edge, 8 short with dung on the next tile).
+
+The line is drawn on D+2 to the raider's tile **then** (a raider shoved off
+their tile by dung on D+1 has the line to where they were shoved, 1746
+[19555]). It starts on the ring 3 tiles out from her middle on that tile's
+side: the diagonal tile (3,3) while the shorter offset is more than half the
+longer, else the axis with the shorter offset clamped to ±2; exactly half is
+the axis (1828 [1673], a raider at (8,-4) the throw could not move; every
+moved tie lands off the tie). 187 of 187 origins. The line is a function of
+the step from origin to end alone, and a step turned a quarter is the same
+line turned (none drawn two ways once turned). Turned so the step points east
+to north-east, the shorter axis's offset at tile k is
+floor((k x short + bias) / long): bias short - 1 when x is the longer axis
+(every recorded step), and when z is, by step: (1,2) 1, (1,5) 1, (2,5) 2,
+(3,4) 3, (3,5) 4, (4,5) 4; unrecorded z-long steps take min(short, long-1).
+187 of 187 lines drawn exactly, in all 20 sessions with Kephri (2026-10-21).
+Its locs land D+4 (the first three) and
 D+5 (the rest). A raider who steps on dung
 takes 8 at Entry (1 of 1: "Ouch!"). The third break throws every raider on
 the same tick.

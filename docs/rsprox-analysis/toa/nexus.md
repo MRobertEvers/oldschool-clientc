@@ -38,6 +38,27 @@ the next path. The completed bosses stay as their dead npcs
 `toa_midraidloot_trader` (11694) is here. Arriving opens `toa_midraid_loot`
 (777) in `toplevel_pre_eoc` (164):16 on arrival +6/7 with setevents on
 components 4, 7, 10 (2..8) and 6, 9, 12 (0..9); it closes 2 ticks later.
+He stands on his tile facing south until removed (4292, both visits).
+
+### What he offers (2026-10-21)
+
+99 rolls in the 20 sessions with a Nexus, each raid's invocations read from its
+6729 masks (bit = `toa_invocation` index; Leagues invocations are absent from
+that table, which is why a Leagues raid's level is above the sum). Five tiers:
+
+| tier | rolls | restore (nectar+tears pair, then ambrosia/silk/scarab) | balance | boost (salts, adrenaline) |
+|---|---|---|---|---|
+| Entry Mode, no spirit invocation | 6 | 17 + 5 | 13 | 3, 2 |
+| Normal / Expert, none | 39 | 11 + 4 | 9 | 2, 1 |
+| Need Some Help? | 28 | 8 + 3 (4 4 1 1 1, 28 of 28) | 7 | 2 or 1 (6 of 28), 1 |
+| Need Less Help? | 2 | 4 + 3 | 4 | 1, 1 |
+| No Help Needed | 4 | 2 + 3 | 2 | 1, 1 |
+
+On a Diet takes the silk: Normal 5 5 2 2 (4292, 2 of 2), No Help Needed
+1 1 1 1 (553, 2 of 2). Dehydration and Overly Draining change nothing. The
+wiki's 66 / 33 / 10 % does not describe these numbers. Ours:
+`toa_supply_bag.rs2` `~toa_spirit_tier` and its tables; a scratch test rolled
+every tier 6 times, 42 of 42 in the recorded shapes.
 
 ## Messages and interfaces
 

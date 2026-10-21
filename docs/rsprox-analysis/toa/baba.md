@@ -125,10 +125,15 @@ and rolls a tile west a tick (teleport + exactmove, yaw 512), gone at x 22 16
 after it came (1,921 of 1,921).
 
 A boulder that reaches a raider (its front two columns) knocks them west with
-`human_knockdown` (7210) delay 20 and `toa_human_boulder_impact_01` (6033),
-facing east (both recorded, 1.83 a kill); the distance (6, 5 with
-Boulderdash) and the hit (14 scaled) are NR's. A baboon in its path dies
-(wiki).
+`human_knockdown` (7210) delay 20 and `toa_human_boulder_impact_01` (6033)
+(1.83 a kill). RSProx 4292 (rev 241, 7 of 7): the knock is a plain teleport
+with no exactmove and no turn, 6 tiles (x 29 -> 23 at [1045]); a raider
+already at x 22 is not moved at all (6 of 6, [1052..1100]), the knockdown
+coming on the tick the boulder on their tile is removed (A + 16); the hit is
+on the next tick every time. The steps after a knockdown there are the
+raider's own path to the cracked boulder they clicked (`opnpc2`), not a
+push. Still unrecorded: Boulderdash's distance (5) and the hit (14 scaled).
+A baboon in its path dies (wiki).
 
 ## Her baboons and the sarcophagi
 

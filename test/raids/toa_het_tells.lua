@@ -88,8 +88,9 @@ return {
         t.player.click_loc("toa_het_barrier_destructable_end", 1, { radius = 20 })
         wait(t, 4)
 
-        -- two forced strikes, mining the seal from its west side each time
-        for pass = 1, 3 do
+        -- forced strikes, mining the seal from its west side each time: the statue's bronze
+        -- pickaxe swings every 8 ticks (the mining skill's rate), two hits a 24-tick window
+        for pass = 1, 8 do
             if said(t, "Challenge complete: Path of Het") then break end
             t.ticklog.mark("het.strike" .. pass)
             t.cheat("::toahetstrike", false)
