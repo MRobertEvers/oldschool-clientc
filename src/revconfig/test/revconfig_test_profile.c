@@ -263,6 +263,11 @@ test_profile(void)
         TEST_ASSERT(profile.features.painter_draw_distance == 32, "draw distance survives");
         TEST_ASSERT(
             profile.features.ground_click_nearest[0] == '\0', "nearest still unstated");
+        TEST_ASSERT(profile.features.mouseover_text[0] == '\0', "mouseover_text unstated");
+        merge_ini(&profile, "[features]\nmouseover_text=cache\n");
+        merge_ini(&profile, "[features]\nera=osrs\n");
+        TEST_ASSERT(
+            strcmp(profile.features.mouseover_text, "cache") == 0, "mouseover_text survives");
     }
 
     /* A malformed value is reported and ignored, not applied as zero: resting

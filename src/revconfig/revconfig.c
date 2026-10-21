@@ -972,6 +972,8 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_FEATURES_CLIENTTYPE";
     case RCFIELD_FEATURES_ON_MOBILE:
         return "RCFIELD_FEATURES_ON_MOBILE";
+    case RCFIELD_FEATURES_MOUSEOVER_TEXT:
+        return "RCFIELD_FEATURES_MOUSEOVER_TEXT";
     case RCFIELD_CAMERA_REST:
         return "RCFIELD_CAMERA_REST";
     case RCFIELD_CAMERA_CONTROLS:
@@ -1968,6 +1970,10 @@ revconfig_item_apply_features_field(
         break;
     case RCFIELD_FEATURES_ON_MOBILE:
         features->on_mobile = revconfig_parse_int(value) ? 1 : 0;
+        break;
+    case RCFIELD_FEATURES_MOUSEOVER_TEXT:
+        strncpy(features->mouseover_text, value, sizeof(features->mouseover_text) - 1);
+        features->mouseover_text[sizeof(features->mouseover_text) - 1] = '\0';
         break;
     default:
         break;

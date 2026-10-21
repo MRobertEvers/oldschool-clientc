@@ -24,7 +24,10 @@
  *
  * Here the same line is composed from an already-built UIMinimenu (the client
  * side of that contract: this port owns the menu model the opcodes would
- * expose) and drawn by the UIELEM_BUILTIN_HOVERTEXT emit expansion.
+ * expose) and drawn by the UIELEM_BUILTIN_HOVERTEXT emit expansion -- on lanes
+ * whose cache does not draw it. A profile whose cache does says
+ * `[features] mouseover_text=cache`, and the App then leaves this model empty
+ * so the two lines are never painted over each other.
  */
 
 #define UITREE_HOVERTEXT_LEN 192

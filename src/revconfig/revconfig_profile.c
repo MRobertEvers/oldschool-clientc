@@ -70,6 +70,8 @@ profile_merge_features(
         dst->clienttype = src->clienttype;
     if( src->on_mobile >= 0 )
         dst->on_mobile = src->on_mobile;
+    if( src->mouseover_text[0] )
+        memcpy(dst->mouseover_text, src->mouseover_text, sizeof(dst->mouseover_text));
 }
 
 /*

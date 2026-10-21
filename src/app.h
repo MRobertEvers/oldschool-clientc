@@ -2110,6 +2110,10 @@ struct App
     /** Mouseover text under the pointer, rebuilt every frame (reference: CS2
      * script 4726 rebuilds it every client cycle). */
     struct UIHoverText hover_text;
+    /** `[features] mouseover_text=cache`: the cache's clientscripts draw the
+     *  mouseover line, so `hover_text` stays empty and the native node paints
+     *  nothing. @see RevConfigFeaturesItem::mouseover_text. */
+    bool mouseover_text_by_cache;
     /* Developer overlay (src/ui/README_DEBUG_OVERLAY.md): one minimenu-styled
      * panel carrying the frame time, averaged over the last
      * APP_DEBUG_FRAME_SAMPLES frames. It is hidden until the toggle key, and a

@@ -287,6 +287,7 @@ enum RevConfigFieldKind
     RCFIELD_FEATURES_PAINTER_DRAW_DISTANCE,
     RCFIELD_FEATURES_CLIENTTYPE,
     RCFIELD_FEATURES_ON_MOBILE,
+    RCFIELD_FEATURES_MOUSEOVER_TEXT,
     RCFIELD_CAMERA_REST,
     RCFIELD_CAMERA_ZOOM_CLOSEST,
     RCFIELD_CAMERA_ZOOM_FURTHEST,
@@ -1344,6 +1345,15 @@ struct RevConfigFeaturesItem
     /* INI: on_mobile= — what the ON_MOBILE opcode answers, 0/1. -1 = not
      * stated. */
     int on_mobile;
+
+    /* INI: mouseover_text= — "client" | "cache": who draws the top-left
+     * mouseover line. "client" is the deob's own line (method6708), drawn by
+     * the native hovertext node. "cache" is a cache whose clientscripts draw
+     * it themselves for the clienttype this client reports -- rev 239's 4726
+     * -> proc 4727 cc_creates it on an enhanced client -- and the native node
+     * then draws nothing, or the two lines land on top of each other. "" = not
+     * stated, i.e. client. */
+    char mouseover_text[16];
 };
 
 /*

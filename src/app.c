@@ -785,6 +785,17 @@ App_Init(
                 app->interact.touch_scroll = app->touch_ui;
             }
         }
+        /* Who draws the mouseover line: on a cache whose own clientscripts
+         * draw it for this identity, the native node stands down or both lines
+         * paint. Unstated is the client. */
+        app->mouseover_text_by_cache = false;
+        if( strcmp(rc_features->mouseover_text, "cache") == 0 )
+            app->mouseover_text_by_cache = true;
+        else if( rc_features->mouseover_text[0] &&
+                 strcmp(rc_features->mouseover_text, "client") != 0 )
+            TORIRS_ERR(
+                "app: [features] mouseover_text must be client|cache, got '%s'\n",
+                rc_features->mouseover_text);
         if( !era_name || !era_name[0] )
             era_name = getenv("TORIRS_FEATURES_ERA");
         if( !era_name || !era_name[0] )

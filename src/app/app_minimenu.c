@@ -555,7 +555,15 @@ app_hover_text_update(
             app_minimenu_stamp_node_identities(app, &scratch);
             app_plugin_menu_build(app, &scratch, 1);
         }
-        UIHoverText_Compose(&scratch, &app->hover_text);
+        /* The menu is still built: the cache's line is composed from the
+         * entry published below. */
+        if( app->mouseover_text_by_cache )
+        {
+            app->hover_text.visible = false;
+            app->hover_text.text[0] = '\0';
+        }
+        else
+            UIHoverText_Compose(&scratch, &app->hover_text);
         app_minimenu_entry_publish(app, &scratch);
     }
 
