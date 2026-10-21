@@ -19,7 +19,7 @@ counts behind each rule, and names what no recording shows as *unverified*.
 | index 4308 | B0aty's run, spectating: Guardian [252..510], **Bork** [523..781], **Dreadnoth** [820..1027], **Xarth** [1151..1431], **Ocellus** [1458..2382], **the vault** [2407..] | 4 |
 | index 4294 | (earlier) Guardian x2, **Bork** from ~[1491] | 5 |
 
-Moia and the Dagon'hai are in no recording: not built.
+Moia and the Dagon'hai: index 4314 and 4315 (2026-10-21, B0aty / Woox / Saxerpillar spectated), `moia_plan.md` and `dagonhai_plan.md`; built (`tfa_moia.lua`, `tfa_dagonhai.lua`).
 
 All transcripts: `python3 tools/rsprox/rsprox_index.py get <id> --all-players`
 (raiders' movement, seqs and hits; the recorder spectates). Room views:
@@ -36,6 +36,8 @@ boss's south-west tile), `tools/room_inv.py <txt>:<from>:<to> ...` (counts).
 | - | atrium, after each of stages 2..4 (the nexus, plane 2) | (64,87) | see `nexus_plan.md` | `nexus_plan.md` | yes |
 | 3 east | Dreadnoth the Jellied | (65,88) | (4172,5662,0) | `dreadnoth_plan.md` | yes, audited (`tfa_dreadnoth.lua`) |
 | 4 east | Xarth | (65,86) | (4172,5535,0) | `xarth_plan.md` | yes, audited (`tfa_xarth.lua`) |
+| 3 west | Moia | (63,88) | (4080,5663,0) facing west | `moia_plan.md` | yes, audited (`tfa_moia.lua`) |
+| 4 west | the Dagon'hai | (63,87) | (4080,5599,0) facing west | `dagonhai_plan.md` | yes, audited (`tfa_dagonhai.lua`) |
 | 5 | Ocellus (plane 1) | (64,88) | (4126,5636,1) | `ocellus_plan.md` | yes, audited (`tfa_ocellus.lua`) |
 | - | the vault (plane 2) | (64,90) | (4127,5777,2) | `vault_plan.md` | yes, audited (`tfa_vault.lua`; loot per the wiki) |
 

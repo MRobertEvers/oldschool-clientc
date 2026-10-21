@@ -60,6 +60,23 @@ attacks only from a tile next to his 3x3.
   (unverified).
 - No area sound (the 211/212 pair in the room is the raiders' thralls).
 
+## 4b. Magic: the tank out of reach
+
+Not in 4300/4301 (their tanks stood in); 5/5 in today's kills (index 4314
+[562], [1057], [1161]; 4315 [898], [924]), each after he walked a tick past an
+attack's due tick without reaching his kiting tank:
+
+- Seq `npc_ezekiel_magic01` and spotanim `ezekiel_magic_attack_vfx01` on him; on
+  every raider in the room `ezekiel_magic_attack_impact_vfx01` slot 2 delay 30,
+  the same tick; each hit two ticks on: 21, 4 / 21, 21 / 8, 18, 8 / 20, 9, 10
+  (4..21; prayers not on the wire, so the effect of protect from magic is
+  unverified -- ours blocks it).
+- It comes 6 after a melee (892 -> 898, 1051 -> 1057) or 8 after a special (916
+  -> 924, 1153 -> 1161): the "8 when he had to walk" of §3.
+- The melee count starts over: 898 magic, then melee 906, 911, special 916.
+- Ours: `~tfa_ez_magic` (tfa_ezekiel.rs2), constants `^tfa_ez_magic_min/max`
+  (tfa_west.constant); `tfa_ezekiel.lua` kites him for it (two casts, 344, 350).
+
 ## 5. Special: the star and the swords
 
 On the special's tick S (10/10):
@@ -203,6 +220,9 @@ timelines: `tools/rsprox/ticklog_tells.py`.
 | raiders' roll/strafe | 63 rolls/strafes | none | **open**: the input is not recorded (§7) |
 | sword burn | hitsplat 67, 2 a splat, 16 splats | none | **open**: unverified, not built |
 | defend sound | not sent to a spectator | null | **open**: unknown |
+| magic (4314/4315) | `npc_ezekiel_magic01` when the tank is out of reach (5/5) | not built | fixed (§4b) |
+| weaken pose | `[bas]` turnleft/turnright/ready = `npc_ezekiel_weaken01` at `idle_to_weaken01`, cleared at `weaken_to_idle01` (4314 [563], [1058], [1094], [1131], [1167]) | none | **open (engine)**: no npc BAS block on our wire (the Dagon'hai's empty `[bas]` too) |
+| wipe (4314 [524..610]) | the raiders out to (4033,5505) [606], song 147 [607], bar -1 and the fade [609] | the generic `~tfa_death_spectate` | not diffed line by line |
 | damage | melee 0..23, star 20..33, sword 28..52, volley 6..19 (prayers unknown) | melee 0..28 (half under protect from melee), star 20..33, sword 28..52 (one a tick), volley 15..30 | approximate |
 | combat level | `level_change 1,043` at 3 raiders | the cache's 984 | party scaling not built (solo) |
 
@@ -238,6 +258,7 @@ the seq beside the raider.
 |---|---|---|---|---|
 | melee wave | 1..9 under protect from melee (32/38 nonzero), 14..27 unprayed | 0..28, half prayed | 0..28, a third prayed | fixed |
 | special / star | 21..33 (9) and 24..34 on the star tiles (6) | 20..33 | 21..34 | fixed |
+| special / star (4314/4315) | 20..34 (15), star tiles 21..34 (8) | | 21..34 | the floor is 20 in the new data (two 20s): **approximate** |
 | swords | 28, 51, 59, 63 | 28..52 | 28..63 | fixed |
 | sword burn | 2 every 5 ticks, three times (4304 [1411..1421]); more on its trail | none | the burn; no trail | fixed (the trail open) |
 | volley | 6, 19 (2) | 15..30 | same | unverified |

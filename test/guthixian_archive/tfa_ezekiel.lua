@@ -135,6 +135,21 @@ return {
         fight(t, "tfa_ezekiel", 6)
         t.cheat("::tfaboss_at 31 30", false)
         fight(t, "tfa_ezekiel", 114)
+        -- Kite him: run from him so his attack comes due with the tank out of
+        -- reach: his magic at every raider (4314, 4315: 5/5).
+        t.ticklog.mark("kite")
+        for k = 1, 6 do
+            local r0, here = t.world.tile()
+            if r0 == "ok" then
+                local dx = (k % 2 == 1) and 6 or -6
+                t.player.walk_to(here.x + dx, here.z + ((k % 3) - 1) * 3, 1)
+            end
+            for _ = 1, 4 do
+                t.cheat("::tfaheal", false)
+                t.ticks(1)
+            end
+        end
+        fight(t, "tfa_ezekiel", 10)
         -- Just above a third: the finale and its volleys.
         t.ticklog.mark("finale")
         t.cheat("::tfaboss 1010", false)
