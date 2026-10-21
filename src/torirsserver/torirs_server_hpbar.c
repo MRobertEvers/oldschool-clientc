@@ -69,20 +69,24 @@
  * so a send after the writes arrives after them): on the first data tick, and
  * whenever the npc it shows changes, which 2377 answers with a forced redraw
  * (a new name) rather than the var-transmit hook's plain one.
+ *
+ * The components come from the ids table by name (com_hpbar_hud_event), never
+ * as numbers: this list was rev-239 numbers after the tree moved to the 241
+ * cache, and every boss bar drew its sliding shade as the fill over a `back`
+ * resized to the trail.
  */
-static int const k_hpbar_hud_event_children[19] = {
-    0, 2, 4, 5, 8, 10, 20, 13, 14, 15, 9, 6, 7, 11, 18, 19, 16, 17, 3,
-};
-
 static void
 hpbar_send_open_event(
     struct ToriRSServerPlayer* player,
-    int iface)
+    struct ToriRSServerIds const* ids)
 {
     int args[19];
 
     for( int i = 0; i < 19; i++ )
-        args[i] = (iface << 16) | k_hpbar_hud_event_children[i];
+    {
+        assert(ids->com_hpbar_hud_event[i] > 0);
+        args[i] = ids->com_hpbar_hud_event[i];
+    }
     ToriRSServer_SendRunClientscript(player, 2376, args, 19);
 }
 
@@ -459,6 +463,6 @@ ToriRSServer_HpBarTick(
                 ToriRSServer_WorldMarkVarp(player, base);
         }
         if( first || shown_type != want_type )
-            hpbar_send_open_event(player, ids->iface_hpbar_hud);
+            hpbar_send_open_event(player, ids);
     }
 }

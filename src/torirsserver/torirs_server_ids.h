@@ -162,6 +162,15 @@ struct ToriRSServerIds
      */
     int com_gameframe_hpbar_hud;
     /**
+     * The nineteen 303 components `hp_hud_handle_event` (2376) takes, in its
+     * argument order -- the same list 303's onload hands 2099. Resolved by name
+     * because the ids move with the cache: rev 241 put `hp_bar_extra` at 303:11
+     * and shifted every child after it, and a list of rev-239 numbers then told
+     * 2103 that `inner` was the bar, `health_bar_back` the trail and
+     * `health_bar_sliding` the fill. See torirs_server_hpbar.c.
+     */
+    int com_hpbar_hud_event[19];
+    /**
      * Where the helper panel mounts.
      *
      * `helper_content`, NOT `helper`. The gameframe's helper slot is three

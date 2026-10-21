@@ -97,7 +97,7 @@ P is the wake (O + 2). Same room. 18 windows, 47 downs.
 | | Recorded |
 |---|---|
 | Shield | healthbar 38 (140 wide) **counting up** with damage; the HUD (varbit 6099/6100) the same. Pool 140 scaled like any boss: 225 at 150, 310 at 300, 420 at 500, 530 at 700, 830 two at 530, 1220 three, 1720 five at 520, 1980 six (rounded: to 5 under 300, to 10 above) |
-| Hits on it | splat 53 (own), 54 (others'), 55 (own max); always land. The style it lets through (`_mage` magic, `_range` ranged) between half the max and the max; any other a third of that (101: blowpipe 2-25 on `_range`, 2-9 on `_mage`; 1852: twisted bow 3-72 against 1-25) |
+| Hits on it | splat 53 (own), 54 (others'), 55 (own max); always land. The style it lets through (`_mage` magic, `_range` ranged) between half the max and the max; **any other nothing**: the cache's overheads are `_mage` headicon 7 (Protect from Melee + Missiles), `_range` headicon 8 (Melee + Magic). The "third of that" once read off 101 (blowpipe 2-25 on `_range`, 2-9 on `_mage`) and 1852 (twisted bow 3-72 against 1-25) is Leagues V only; the normal-world 4292 switches weapon with each form and its 1-3s on either form are the thrall's (owner 2026-10-21) |
 | Kneel K | on the hit that fills it: `npc_wardens_kneel01` (9670), facing the core's tile (three out from its middle toward its last target: (3802,5157) from (3799,5154)); attacks stop |
 | K+5 | `_phase2_exposed` (11755), headbar 21 (140 wide) at the Warden's own health; `projectile_warden_elidinis_core` (2240) to the tile: start 0, end 60, angle 127, slope 124, 95 → 12 |
 | Its health | 4500 at Entry, scaling a quarter as fast as other bosses (+0.1% a level: 5180 at 150, 6750 at 500, 7650 at 700) and with the team as usual (13080 two at 530, 31460 six at 520) |
