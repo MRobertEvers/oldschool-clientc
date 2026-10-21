@@ -11596,9 +11596,12 @@ script_command(
          * commented-out `projanim_pl` in `skill_combat/scripts/projectile.rs2`
          * was found (0 sends across a whole TzKal-Zuk fight). */
         if( getenv("TORIRSSERVER_PROJ_DEBUG") )
-            fprintf(stderr, "projanim: src=%d,%d dst=%d,%d target=%d spot=%d delay=%d dur=%d\n",
-                    ToriRSServer_CoordX(values[0]), ToriRSServer_CoordZ(values[0]), dst_x, dst_z,
-                    target, (int)values[2], (int)values[5], (int)values[6]);
+            fprintf(stderr,
+                    "projanim: tick=%d src=%d,%d dst=%d,%d target=%d spot=%d delay=%d dur=%d "
+                    "h=%d/%d angle=%d progress=%d\n",
+                    srv->tick, ToriRSServer_CoordX(values[0]), ToriRSServer_CoordZ(values[0]),
+                    dst_x, dst_z, target, (int)values[2], (int)values[5], (int)values[6],
+                    (int)values[3], (int)values[4], (int)values[7], (int)values[8]);
         ToriRSServer_ZoneProjanim(srv, ToriRSServer_CoordX(values[0]), ToriRSServer_CoordZ(values[0]),
                               ToriRSServer_CoordLevel(values[0]), dst_x, dst_z, target, source,
                               (int)values[2], (int)values[3], (int)values[4], (int)values[5],
