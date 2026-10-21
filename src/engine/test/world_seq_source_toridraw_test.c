@@ -37,6 +37,7 @@
 
 #include "toridraw_animation.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -124,6 +125,13 @@ scene_with_animation(
         for( int i = 0; i < frame_count; i++ )
             anim->frames[i].delay = delays[i];
         anim->frames[frame_count].delay = 777;
+    }
+    else
+    {
+        /* What every reader tests to call a seq skeletal (ToriDraw_ElementSetAnim,
+         * TotalDuration): the curves themselves are never sampled here. */
+        anim->skeletal = calloc(1, sizeof(*anim->skeletal));
+        assert(anim->skeletal);
     }
     ToriDraw_SceneAnimationAdd(scene, seq_id, anim);
     return scene;
@@ -214,9 +222,11 @@ test_a_skeletal_seq_has_no_per_frame_delays(void)
 
     CHECK(vtable.frame_count(&source, 5) == 10, "skeletal frame_count is not 10");
     CHECK(vtable.frame_duration(&source, 5, 4) == 1, "a skeletal frame is not one cycle");
+    /* Not 11: the classic walk's +1 has no skeletal counterpart, and the
+     * extra cycle drew the un-posed model after the last frame. */
     CHECK(
-        WorldSeqSourceToriDraw_TotalDuration(&source, 5) == 11,
-        "a 10-frame skeletal loop is %d cycles, want 11",
+        WorldSeqSourceToriDraw_TotalDuration(&source, 5) == 10,
+        "a 10-frame skeletal loop is %d cycles, want 10",
         WorldSeqSourceToriDraw_TotalDuration(&source, 5));
 
     ToriDraw_SceneFree(scene);

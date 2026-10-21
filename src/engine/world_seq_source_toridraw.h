@@ -75,6 +75,14 @@ WorldSeqSourceToriDraw_Animation(
  * finally expires. On a 37-frame splash that is 36 cycles of dead frame --
  * the visible "it plays, then freezes" at the end of every map spotanim.
  *
+ * A SKELETAL (Animaya) sequence is frame_count cycles, without the +1. The
+ * rev239 maya branch (Statics.method5261) steps the frame once a cycle and
+ * finishes the graphic the cycle it reaches the count; the scene's skeletal
+ * step drops the animation on that same cycle. One cycle more and the World
+ * keeps the element for a cycle after its animation is gone, which draws the
+ * un-posed model once: the flash on every tile a Wardens sweep strike had
+ * just left (`spotanim_amascut01_strike01`, 60 frames).
+ *
  * `delay <= 0` counts as 1 because the advance treats it that way. Never less
  * than 1, including for a seq that is not resident.
  */

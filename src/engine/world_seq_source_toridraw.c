@@ -39,6 +39,11 @@ WorldSeqSourceToriDraw_TotalDuration(
     anim = WorldSeqSourceToriDraw_Animation(source, seq_id);
     if( !anim || anim->frame_count <= 0 )
         return 1;
+    /* Skeletal: one frame a cycle, done the cycle the frame reaches the count
+     * (deob Statics.method5261, the maya branch's 0x1 that class52.method999
+     * finishes on). No strict-`>` cycle to add -- see the header. */
+    if( anim->skeletal )
+        return anim->frame_count;
     for( int frame = 0; frame < anim->frame_count; frame++ )
     {
         int delay = 1;
