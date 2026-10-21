@@ -173,7 +173,7 @@ inventory of every line and every sound pairing was made across sessions.
 
 From the live wiki (2026-10-21, not on our older copy): Bork has 12 flat armour
 and 2 magic resistance, gone while dazed, when every melee attack on him is a
-successful hit. Tested on the wire (§10): the dazed hits are, the armour is not.
+successful hit. Tested on the wire (§10): both hold; the armour fits 10.
 The owner: the Smorks' cart blocks walking (`blockwalk=all`).
 
 ### Our scriptrun against it
@@ -227,11 +227,35 @@ face, no other swing at him that tick, no thrall within a tick:
 - Dazed, melee never misses: 1 zero in 84 swings against 91 in 186. **Identified**;
   ours `~tfa_bk_dazed_hit` in the hit funnel (a missed melee roll on a dazed Bork
   rolls its damage).
-- Flat armour: a shift k of the undazed hits against the dazed (floor 1),
-  uniform rolls, M fitted per weapon. Pooled log-likelihood is best at k=5;
-  k=0 is 6.5 and k=12 is 5.5 below it; the mace alone wants k=20, the axe and
-  bludgeon k=0 (their damage climbs in a fight). **Not identified**; not
-  implemented. A thrall test (their 0..3 would floor under 12) found 2 clean splats.
+- Flat armour (the live wiki, 2026-10-21: `flatarmour = 10 (Base), 0 (Stunned),
+  2 (Magic resistance)`). First pass, every undazed swing: pooled best k=5, k=0
+  and k=12 both 6 log-units off: not identified. That pass was flawed twice: it
+  kept ticks where another raider's or a thrall's hit landed too (the mace's
+  "dazed 61" was one), and the soulreaper axe (+6% a stack) and bludgeon (more
+  as prayer drains) climb through a fight, so their undazed hits far from a
+  stun came at a higher max. Clean pass: one swing, nothing else landing on him
+  that tick, the weapon's own splat count, undazed hits within 20 ticks of a stun:
+
+  | weapon | hands | dazed / undazed | best k | 2-unit band | LL(10)-LL(0) |
+  |---|---|---|---|---|---|
+  | inquisitor's mace | one | 36 / 18 | 10 | 5..12 | +7.2 |
+  | scythe (3 kinds) | two | 19 / 8 | 0 | 0..11 | |
+  | soulreaper axe | two | 17 / 9 | 0 | 0..26 | |
+  | bludgeon | two | 18 / 3 | 0 | 0..16 | |
+  | two-handed, pooled | | | 0 | 0..9 | -2.6 |
+
+  10 on every weapon: 98:1 over none, within a log-unit of the best single k
+  (8). 10 on one-handed only fits 13.6:1 better still, but rests on the mace
+  alone, has no mechanism (the Flat armour page: every melee and ranged hit),
+  and crush-only or 4-tick-only split the weapons the same way (the bludgeon,
+  which would tell them apart, has 3 clean hits near a stun). A hit the armour
+  swallows is a 0, not a 1: 3 ones in 79 undazed hits; a floor of 1 fits 8.6
+  log-units worse. **Ours: 10 off every melee and ranged hit, none while dazed,
+  never below 0** (`~tfa_bk_flat_armour`). The 2 against magic and the Smorks'
+  2: no splats to test, not added. No other Bork session exists in the index
+  (the 12 others in square (65,87) are other rooms; 4302 has only the Smorks'
+  end). Worth recording: two-handed crush against one-handed slash or stab,
+  inside and outside a stun.
 
 **On the raiders.**
 
