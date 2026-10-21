@@ -3835,10 +3835,16 @@ gl3_ev_end_3d(
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_DRAW_RANGES, (int64_t)range_count);
     }
 
-    if( !gl3_ensure_gpu_ibo(renderer, total_indices) )
+    /* The depth pass's translucent runs ride at the tail of the same upload:
+     * a second glBufferSubData into a buffer the opaque draws are queued
+     * against makes the CPU wait for the GPU. See GL3ZB_StageAlphaPass. */
+    const uint32_t alpha_indices = renderer->alpha_index_count;
+    const uint32_t upload_indices = total_indices + alpha_indices;
+
+    if( !gl3_ensure_gpu_ibo(renderer, upload_indices) )
         goto done;
 
-    if( !trspk_ibo_reserve(renderer->ibo_staging, total_indices) )
+    if( !trspk_ibo_reserve(renderer->ibo_staging, upload_indices) )
         goto done;
 
     uint32_t* staging = renderer->ibo_staging->indices.as_u32;
@@ -3853,6 +3859,7 @@ gl3_ev_end_3d(
 
     assert(built == total_indices);
     (void)built;
+    GL3ZB_StageAlphaPass(renderer, staging + total_indices);
 
     /* TORIRS_GL3_3D_DEBUG=1: error-check the index upload and each world draw,
      * and verify the drawn range against the CPU staging. The failure this
@@ -3868,11 +3875,11 @@ gl3_ev_end_3d(
     }
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->ebo);
     glBufferSubData(
-        GL_ELEMENT_ARRAY_BUFFER, 0, (GLsizeiptr)(total_indices * sizeof(uint32_t)), staging);
+        GL_ELEMENT_ARRAY_BUFFER, 0, (GLsizeiptr)(upload_indices * sizeof(uint32_t)), staging);
     if( dbg3d )
         gl3_check_error("3d ebo upload");
     TORIRS_PERF_COUNT(
-        TORIRS_PERF_CTR_GL_IBO_UPLOAD_BYTES, (int64_t)(total_indices * sizeof(uint32_t)));
+        TORIRS_PERF_CTR_GL_IBO_UPLOAD_BYTES, (int64_t)(upload_indices * sizeof(uint32_t)));
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_IBO_UPLOADS, 1);
 
     GLuint bound_vao = 0u;
@@ -3925,7 +3932,7 @@ gl3_ev_end_3d(
     }
 
     /* Translucent models last, back to front, depth-tested but not written. */
-    GL3ZB_DrawAlphaPass(renderer);
+    GL3ZB_DrawAlphaPass(renderer, total_indices);
 
     gl3_unbind_attribs(renderer);
 

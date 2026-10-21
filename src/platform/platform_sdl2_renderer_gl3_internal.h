@@ -217,8 +217,11 @@ struct GL3MaterialTable
 struct GL3AlphaSubmission
 {
     uint32_t group;
+    /* Into alpha_indices, where SubmitModel queued the run. */
     uint32_t index_start;
     uint32_t index_count;
+    /* Into the frame's index upload, where GL3ZB_StageAlphaPass placed it. */
+    uint32_t staged_start;
     int depth;
 };
 

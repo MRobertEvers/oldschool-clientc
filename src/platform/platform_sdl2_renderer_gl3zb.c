@@ -460,35 +460,6 @@ GL3ZB_SubmitModel(
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_Z_BLENDED_TRIANGLES, written / 3u);
 }
 
-/*
- * Upload and draw one contiguous run of absolute 32-bit indices.
- *
- * The blended pass cannot share the frame's main index upload: its order is
- * only known after every model has been submitted. Runs are per translucent
- * model and there are few of them, so an upload each is cheaper than the
- * bookkeeping to merge them.
- *
- * On WebGL1 the run still has to be expressed in 16-bit windows, which is the
- * same sliding split the main pass uses — inlined here because it is over one
- * contiguous array rather than a draw-range list.
- */
-static void
-gl3_draw_indices32(
-    struct ToriPlatformSDL2_Renderer_GL3* renderer,
-    uint32_t group,
-    const uint32_t* idx,
-    uint32_t count)
-{
-    if( count < 3u || !gl3_ensure_gpu_ibo(renderer, count) )
-        return;
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->ebo);
-    glBufferSubData(
-        GL_ELEMENT_ARRAY_BUFFER, 0, (GLsizeiptr)(count * sizeof(uint32_t)), idx);
-    glBindVertexArray(renderer->groups[group].vao);
-    glDrawElements(GL_TRIANGLES, (GLsizei)count, GL_UNSIGNED_INT, (const void*)0);
-    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_DRAW_CALLS, 1);
-}
-
 static int
 gl3_alpha_order_cmp(
     void const* a,
@@ -506,21 +477,32 @@ gl3_alpha_order_cmp(
 }
 
 /*
- * Draw the translucent models, back to front, after the opaque pass.
+ * Sort the translucent models back to front and lay their indices out in that
+ * order at the tail of the frame's index staging.
  *
- * Depth-tested against the opaque geometry so a blended face behind a wall is
- * correctly hidden, but writing no depth: two translucent surfaces must both be
- * visible through each other, and a depth write from the nearer one would erase
- * the farther. That is the same split D3D9 makes.
+ * The order is only known once every model has been submitted, which is why
+ * these are not in the main chain — but by END_3D it IS known, before the
+ * frame's one upload. So they go up in that upload instead of one each.
  *
- * The index stream is rebuilt here rather than folded into the main chain
- * because the order is only known once every model has been submitted.
+ * One upload each is what this replaced, and on macOS it cost more than the
+ * whole world pass: every run was a glBufferSubData at offset 0 of the element
+ * buffer the opaque draws had just been queued against, and Apple's GL waits
+ * for the GPU to finish reading a buffer before it lets the CPU overwrite it.
+ * Live Varrock, 2026-10-21: 9 ms of a 20 ms frame blocked in
+ * GL3ZB_DrawAlphaPass -> glBufferSubData, which made the depth lane slower
+ * than soft3d.
  */
 void
-GL3ZB_DrawAlphaPass(struct ToriPlatformSDL2_Renderer_GL3* renderer)
+GL3ZB_StageAlphaPass(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    uint32_t* staging)
 {
-    if( !renderer->z_buffer_enabled || renderer->alpha_submission_count == 0u )
+    uint32_t staged = 0u;
+
+    assert(renderer);
+    if( renderer->alpha_submission_count == 0u )
         return;
+    assert(staging);
     if( renderer->alpha_submission_count > renderer->alpha_order_capacity )
     {
         uint32_t cap = renderer->alpha_order_capacity ? renderer->alpha_order_capacity : 128u;
@@ -552,18 +534,70 @@ GL3ZB_DrawAlphaPass(struct ToriPlatformSDL2_Renderer_GL3* renderer)
         renderer->alpha_order[j] = key;
     }
 
-    glDepthMask(GL_FALSE);
     for( uint32_t oi = 0u; oi < renderer->alpha_submission_count; oi++ )
     {
-        const struct GL3AlphaSubmission* sub =
+        struct GL3AlphaSubmission* sub =
             &renderer->alpha_submissions[renderer->alpha_order[oi]];
-        if( sub->index_count == 0u )
-            continue;
-        gl3_draw_indices32(
-            renderer,
-            sub->group,
+        sub->staged_start = staged;
+        memcpy(
+            staging + staged,
             renderer->alpha_indices + sub->index_start,
-            sub->index_count);
+            (size_t)sub->index_count * sizeof(uint32_t));
+        staged += sub->index_count;
+    }
+    assert(staged == renderer->alpha_index_count);
+}
+
+/*
+ * Draw the staged translucent models, back to front, after the opaque pass.
+ *
+ * Depth-tested against the opaque geometry so a blended face behind a wall is
+ * correctly hidden, but writing no depth: two translucent surfaces must both be
+ * visible through each other, and a depth write from the nearer one would erase
+ * the farther. That is the same split D3D9 makes.
+ *
+ * Neighbours in the sorted order that share a vertex group are contiguous in
+ * the staged tail, so they draw as one call without changing the order.
+ */
+void
+GL3ZB_DrawAlphaPass(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    uint32_t index_base)
+{
+    GLuint bound_vao = 0u;
+
+    assert(renderer);
+    if( renderer->alpha_submission_count == 0u )
+        return;
+
+    glDepthMask(GL_FALSE);
+    for( uint32_t oi = 0u; oi < renderer->alpha_submission_count; )
+    {
+        const struct GL3AlphaSubmission* first =
+            &renderer->alpha_submissions[renderer->alpha_order[oi]];
+        uint32_t count = first->index_count;
+        GLuint vao;
+
+        for( oi++; oi < renderer->alpha_submission_count; oi++ )
+        {
+            const struct GL3AlphaSubmission* next =
+                &renderer->alpha_submissions[renderer->alpha_order[oi]];
+            if( next->group != first->group )
+                break;
+            count += next->index_count;
+        }
+        vao = renderer->groups[first->group].vao;
+        if( vao != bound_vao )
+        {
+            glBindVertexArray(vao);
+            bound_vao = vao;
+        }
+        glDrawElements(
+            GL_TRIANGLES,
+            (GLsizei)count,
+            GL_UNSIGNED_INT,
+            (const void*)(uintptr_t)((index_base + first->staged_start) * sizeof(uint32_t)));
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_DRAW_CALLS, 1);
     }
     glDepthMask(GL_TRUE);
 }

@@ -79,9 +79,21 @@ GL3ZB_SubmitModel(
     uint32_t vertex_base,
     int face_count);
 
-/** Draw the queued translucent models, back to front. No-op when none. */
+/** Sort the queued translucent models back to front and write their indices,
+ *  in that order, to `staging` — the tail of the frame's index staging, so
+ *  they go up in the frame's one upload. `staging` must hold
+ *  renderer->alpha_index_count indices. No-op when none are queued. */
 void
-GL3ZB_DrawAlphaPass(struct ToriPlatformSDL2_Renderer_GL3* renderer);
+GL3ZB_StageAlphaPass(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    uint32_t* staging);
+
+/** Draw the staged translucent models. `index_base` is where the staged tail
+ *  starts in the uploaded element buffer. No-op when none are queued. */
+void
+GL3ZB_DrawAlphaPass(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    uint32_t index_base);
 
 /*
  * Drop a cached face classification.
