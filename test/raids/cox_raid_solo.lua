@@ -367,7 +367,7 @@ end
 return {
     id = "cox_raid_solo",
     fixture = "fresh_lumbridge.ini",
-    max_frames = 2400000, -- (scouting: up to 1,500 reloads of ~18 ticks before the raid) -- the gate's ceiling: 16,000 ticks at 30 frames a tick (raid3 whole raid: 5,321 ticks)
+    max_frames = 2400000, -- the gate's ceiling: 80,000 ticks at 30 frames a tick (scouting: up to 1,500 reloads of ~18 ticks before the raid; raid3 whole raid: 5,321 ticks)
     setup = kit(),
     run = run,
 }

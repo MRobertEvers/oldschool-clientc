@@ -30,7 +30,10 @@ DEFAULT_MAX_FRAMES = 60000
 # tick 7981 on its last leg (matthew-mbp-m4-b48 round 8). The wall-clock timeout still scales
 # with max_frames, and render skip keeps a frame cheap, so a long budget costs nothing unless
 # it is used.
-MAX_FRAMES_CEILING = 8 * DEFAULT_MAX_FRAMES
+# 40x (2400000 frames, ~80000 ticks): the CoX solo raid scouts first -- up to 1,500 reloads
+# of ~18 ticks before the raid's own ~5,300 -- and The Fractured Archive's rooms take up to
+# 900000; both exceeded 8x and stopped prepare_scripts.py for every suite.
+MAX_FRAMES_CEILING = 40 * DEFAULT_MAX_FRAMES
 MAX_FRAMES_RE = re.compile(r"(?m)^[ \t]*max_frames\s*=\s*(\d+)\s*,")
 
 

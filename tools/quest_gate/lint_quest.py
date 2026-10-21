@@ -1140,10 +1140,11 @@ def check_max_frames(text):
         frames = int(match.group(1))
         if frames <= 0 or frames > quest_list.MAX_FRAMES_CEILING:
             findings.append((_line_of(text, match.start()),
-                              "max_frames = %d is outside 1..%d (the ceiling is 4x the "
+                              "max_frames = %d is outside 1..%d (the ceiling is %dx the "
                               "default %d; a guide that needs more needs a harness hook, "
                               "not a bigger clock)"
                               % (frames, quest_list.MAX_FRAMES_CEILING,
+                                 quest_list.MAX_FRAMES_CEILING // quest_list.DEFAULT_MAX_FRAMES,
                                  quest_list.DEFAULT_MAX_FRAMES)))
     return findings
 
