@@ -56,10 +56,11 @@ rule below cites counts across those fights; tools in `tools/`
 ## 7. Shield, batteries and the ground phase
 
 - Flying (`tfa_guardian`): 550 hp is the shield (cache stat4 550; boss bar blue). Batteries `tfa_guardian_battery_active`: 180 hp, attackable, no defend sound.
-- A battery at 0: seq `guthixian_battery_despawn` (15025) and ops 0b00000; +2 -> `tfa_guardian_battery_destroyed` (headbar removed), 3 cam shakes (axes 0..2), synth 12184 to the killer; +3 the guardian takes 40% of the shield's max (220) capped at what is left (12/12), `sound_area` 12728 range 10 at its centre.
+- A battery (an "Inert Guardian", its flame) at 0: the NEXT tick seq `guthixian_battery_despawn` (15025) and ops 0b00000 (17/17, the enrage's overloads too); +2 -> `tfa_guardian_battery_destroyed` (headbar removed), 3 cam shakes (axes 0..2), synth 12184 to the killer; +3 the guardian takes 40% of the shield's max (220) capped at what is left (12/12), `sound_area` 12728 range 10 at its centre.
 - Shield at 0: 3 ticks later (5/5 solo, whatever the attack clock), `idle_to_ground01` (14747) + `vfx_guardian_idletoground_spotanim01`, -> `tfa_guardian_unshielded` (level 984), `map_anim tfa_arena_sword_drop_explosion_instant` (4389) delay 20 at its centre, the 5x5 `invisible_type8_blocking`, boss bar 1100 green (25600/576/800).
 - Grounded 35 ticks (4/4 solo): no attacks; tentacles. Then `ground_to_flying01` (14746) + `vfx_guardian_groundtoidle_spotanim01`, -> `tfa_guardian` with a full 550 shield, the 5x5 back to nonblocking, bar 550 blue; the first attack 5 ticks later.
 - Real hp (1100 solo, grounded only) carries over between ground phases.
+- A blast while grounded: one sample only (4294 [1414], the party's enrage: a hit of 1). Ours takes 220 off the real health: **approximate**.
 
 ## 8. Tentacles (ground phase)
 
@@ -107,7 +108,7 @@ over 4297 [125..262] anchored on "Challenge started" (R [131], O 96).
 | battery shakes | `cam_reset` the tick after the shakes, the blast tick (12/12) | was missing (the shakes never cleared) | fixed |
 | grounded form's bar | healthbar 19 (224 rows); the flying form's 10 (517) | was 10 on both | fixed |
 | range/special/swoosh/melee seqs and spotanims | per §3-§5 | present, same ids, heights, delays | matched |
-| battery death | despawn seq, +2 destroyed form + 3 shakes + synth 12184, +3 blast and area 12728 r10 | same | matched |
+| battery death | 0 at K; K+1 despawn seq, ops off; K+3 destroyed form + 3 shakes + synth 12184; K+4 `cam_reset`, the blast (220, or what is left: 110) and area 12728 r10 (17/17) | was one tick early (despawn on K) | fixed |
 | land / lift / tentacles / mushrooms | §6-§8 | all present (`idle_to_ground01`, `ground_to_flying01`, tentacle spawn/attack/despawn + area 12218, mushroom spawn/active/despawn + area 12175 size 2) | matched (rates follow fight length) |
 | defend sound | synth 12728 per hit on either form | same (npc config) | matched |
 | idle01 at the wake | printed under `tfa_guardian_start` | printed under `tfa_guardian` | same tick, same packet: the parser attributes before/after the transformation |
