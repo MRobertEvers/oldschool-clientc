@@ -85,8 +85,7 @@ return {
         t.prayer.set("protectfrommissiles", true)
         -- Test tooling: the shield all but gone, so it lands within a few
         -- hits; on the ground its health is set to 30, under the enrage line,
-        -- so it lifts on the first slot it may (+14) and enrages, and the kit
-        -- can finish it.
+        -- so it lifts and enrages at once and the kit can finish it.
         t.cheat("::tfahp 40 360", false)
         -- The batteries, then the guardian, until one side is down.
         t.ticklog.mark("fight")

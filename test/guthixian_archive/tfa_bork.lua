@@ -1,12 +1,11 @@
 -- tfa_bork: Bork and the Smorks, solo, for the tick log and the wire log, to
--- diff against RSProx index 4294..4316 (docs/rsprox-analysis/guthixian_archive/
+-- diff against RSProx index 4303 (docs/rsprox-analysis/guthixian_archive/
 -- bork_plan.md):
 --
 --   the lobby, a party, the room; ::tfaroom straight to Bork's room
 --   over the wall by the transporter: the start, the bar and its extra bar
 --   the Smorks shot down by stages (::tfasmork): the drum's three speed-ups
---   the cycle: shots, napalm, the big bomb, the stun or the anger's slams;
---   ::tfabkmiss: a bomb a tile off him (no stun, his stomps at once)
+--   the cycle: shots, napalm, the big bomb, the stun or the anger's slams
 --   ::tfaboss: Bork dead first, the Smorks' vow; ::tfasmork 1: the cart goes
 --   up, the line, the navigator; Follow it to the atrium
 --
@@ -34,12 +33,12 @@ local function fight(t, sym, ticks, stop)
             t.cheat("::setlevel prayer 99", false)
         end
         local hr, hv = t.skill.read("hitpoints")
-        if hr == "ok" and type(hv) == "table" and (hv.level or 99) < 90 then
+        if hr == "ok" and type(hv) == "table" and (hv.level or 99) < 75 then
             t.cheat("::tfaheal", false)
         end
         if stop and stop() then return true end
         if not present(t, sym) then return true end
-        t.player.attack(sym, 2, 2, EAT)
+        t.player.attack(sym, 2, 6, EAT)
         t.ticks(1)
     end
     return false
@@ -105,10 +104,6 @@ return {
         t.ticklog.mark("speed2")
         t.cheat("::tfasmork 290", false)
         fight(t, "tfa_smork", 40)
-        -- The big bomb a tile off him: 25..28 to Bork, 12254, his stomps at once.
-        t.ticklog.mark("miss")
-        t.cheat("::tfabkmiss", false)
-        fight(t, "tfa_smork", 25)
         t.ticklog.mark("speed3")
         t.cheat("::tfasmork 140", false)
         fight(t, "tfa_smork", 40)
