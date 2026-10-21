@@ -101,6 +101,11 @@ over 4297 [125..262] anchored on "Challenge started" (R [131], O 96).
 | SE battery ops | `enabled_ops 0b00000` on activation, 5/5 wakes | `npc_setops(0)` on battery 0 at the wake | fixed |
 | exit during the fight | re-added `opflags=0b0` at the challenge; `0b1` at the kill +7 | `loc_add_opflags` (new, opcode 11224), wire bytes `a8 00 c1 00 f5 2e` / `a8 01 ...` | fixed |
 | ranged projectile | `[source] npc=tfa_guardian` (every shot) | `npc_projanim_pl` names the npc (`proj_source` matches) | fixed (was a bare tile) |
+| ranged shot, field by field | 243/243: start 48, end 116, angle 127, progress 0, heights 0/0, from the 5x5's centre, homing on the player; the splat at throw+4 (95/102) with `human_hit` delay 20 | same on our wire (`MAP_PROJANIM_V2` layout checked against RSProx's 241 decoder; target index pid+1) | matched |
+| ranged impact | player spotanim `vfx_guardian_ranged_hitanim01` in **slot 2** (142/142) | was slot 0, which took the raider's own weapon graphic's slot | fixed |
+| enrage spotanim, death's `vfx_ocellus_null` | slot 2 (8/8, 1/1) | was slot 0 | fixed |
+| battery shakes | `cam_reset` the tick after the shakes, the blast tick (12/12) | was missing (the shakes never cleared) | fixed |
+| grounded form's bar | healthbar 19 (224 rows); the flying form's 10 (517) | was 10 on both | fixed |
 | range/special/swoosh/melee seqs and spotanims | per §3-§5 | present, same ids, heights, delays | matched |
 | battery death | despawn seq, +2 destroyed form + 3 shakes + synth 12184, +3 blast and area 12728 r10 | same | matched |
 | land / lift / tentacles / mushrooms | §6-§8 | all present (`idle_to_ground01`, `ground_to_flying01`, tentacle spawn/attack/despawn + area 12218, mushroom spawn/active/despawn + area 12175 size 2) | matched (rates follow fight length) |
