@@ -4,6 +4,7 @@ Sessions (all rev 241, world 329, recorder "Das Idle", not seasonal):
 
 | session | what it holds |
 |---|---|
+| index 4292 | the Alliance's messenger right after login: a Guardian of Armadyl brings the letter [68..85], its long scroll [85..98] |
 | index 4293 | the Guthixian Temple teleport scroll [35], the temple's climbs, crawls and jump-downs [45..137], two skull noses [146], [152], the crawl into the Archive [161], the intro cutscene [173..324], the lobby [324..] |
 | index 4294 | the lobby, spectating, two Archive Guardian fights (~[545..1043], ~[1099..1491]), Bork/Smork from ~[1491] |
 | index 4295 | a short lobby visit |
@@ -38,6 +39,28 @@ side-panel and stone `if_setevents` re-sends, `account_info_update` (2498),
 the orbs' regen syncs (4716/4717/4722), and the clocks (varbits 8354, 12391,
 12392, varps 3078, 3079, 6405, 102, 456, 3883).
 
+## The Alliance's message (4292 [0..98])
+
+`tfa_messenger.rs2`; test `tfa_messenger.lua`. Login at [0]; the wiki: "Upon
+login - assuming you've got While Guthix Sleeps completed - you'll be greeted
+by a messenger".
+
+| tick | recorded | ours |
+|---|---|---|
+| [68] | `tfa_messenger` "Guardian of Armadyl" added 4 E / 2 N of the recorder, spawnangle toward them, `[facing] coord=` their tile; the first tick the recorder was free after [62] | a normal queue 63 ticks after login (any of 63..68 fits), held by delays; a free tile 3-4 away (approximate: one roll) |
+| [69..74] | follows one tile a tick, facing the player (`[facing] player=`), while the player runs two | `playerface` + its own `npc_walk` to the tile beside the player (`playerfollow` sprints) |
+| [70] | `say` "Das Idle? I have a message for you." | spawn+2, `<displayname>` |
+| [74..75] | Talk-to; L+1 "Hello there. I have a message for you." (`chatneu1`) | `~chatnpc_anim(^chat_neutral, ...)` |
+| [79] | continue: `tfa_start_message` into the inventory, `message_game type=mesbox` + 2379 + objectbox "You've been given a message." zoom 400; the messenger walks off west (5 tiles, [79..84]), facing reset | same; the objbox page now echoes and resets the chatbox for every caller |
+| [85] | Read (`if_buttonx op=2` = `opheld1`): `wgs_tfa_shortcut_unlocked` 1, `busy` 1, the messenger deleted, script 2524 (-1,-1), `longscroll` (625) modal, `longscroll_setup` (418) ("", the letter with the name) | same |
+| [98] | `longscroll:close`: `busy` 0, closed | same |
+
+Unverified (one recording): what puts the messenger off (ours: an instance,
+re-tried every 10 ticks), how long it waits unanswered (300) or lingers after
+(100), how far it follows (20), whether it comes again for a player who has
+the letter but never read it (ours: yes, at the next login), and that
+completing the quest while logged in also sends it (ours: yes).
+
 ## Item 0: the teleport scroll (4293 [35..38])
 
 | recorded | ours | verdict |
@@ -58,10 +81,9 @@ the orbs' regen syncs (4716/4717/4722), and the clocks (varbits 8354, 12391,
 | skull noses [146], [152] | on arrival: mesbox "You don't have any reason to go crawling through there again." | same text, tick | matched (see the shared mesbox row below) |
 | raid entry [161..173] | L+1 face; L+2 `busy`, `human_longcrawl`, synth `climbing_loop` 2454 x4 delay 4, fade out; L+3 minimap 2; L+4 the cutscene | identical | matched; needed `wgs_tfa_shortcut_unlocked` (varbit 16354) = 1 or the multiloc is the blocked cavity |
 
-`wgs_tfa_shortcut_unlocked`: both sessions log in with it at 1 beside `wgs` 900;
-neither shows it being set. **Unverified**: ours sets it from While Guthix
-Sleeps' completion (login, the quest's end, `::complete`). Its varp (4234) is
-now `perm`/`transmit=yes`, as the login dump shows.
+`wgs_tfa_shortcut_unlocked`: both sessions log in with it at 1 beside `wgs` 900,
+because 4292 had read the Alliance's letter, which is what sets it (4292 [85];
+above). Its varp (4234) is `perm`/`transmit=yes`, as the login dump shows.
 
 ## Item 2: the intro cutscene (4293 [171..327])
 
@@ -116,7 +138,6 @@ recorded.
 - `cam_unlock`, `midi_song_withsecondary`, `music_current_track`: engine.
 - Instances are always multi-way (varbit 4605).
 - The mesbox's close on a walk sends script 1508 in Jagex's: engine close path.
-- `wgs_tfa_shortcut_unlocked`'s real trigger (unverified).
 - `busy` (12393) around dialogue is generic in Jagex's (a tick after a
   chatmenu opens, 0 on its resume); ours sets it only where content does
   (`guardian_plan.md`, Audit).

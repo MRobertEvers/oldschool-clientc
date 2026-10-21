@@ -31,6 +31,8 @@ return {
     setup = {
         "::clearinv",
         "::complete quest_whileguthixsleeps",
+        -- The Alliance's letter already read (tfa_messenger.lua has the messenger).
+        "::setvar varb16354_wgs_tfa_shortcut_unlocked 1",
         "::setvar varb16426_tfa_miniquest 2",
         "::setlevel attack 99",
         "::setlevel strength 99",
