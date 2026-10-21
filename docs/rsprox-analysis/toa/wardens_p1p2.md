@@ -38,7 +38,7 @@ breaks. S is the challenge's start (14: Osmumten's Begin 3585, S 3586).
 | Troughs | each side runs the three in an order of its own (one of the six; differs raid to raid and side to side) and moves on only when an orb goes |
 | Obelisk | `fx_obelisk_wardens01_cast` (9721) on every spawn tick (224 of 224 gaps); a hit sounds `toa_wardens_obelisk_hit_01` (6595) range 9 at (3808,5154) (14: 9 of 9; 1852: 372); headbar 20 (`healthbar_standard_120`); 260 at solo Entry (14: hits summed to 260) |
 | Blocking | a raider on the gap tile (3806/3810,5154) or the orb's first tile (3805/3811,5154) takes 3 on the spawn tick and that side sends nothing (14: 11 spawns on (3810,5154), none east from 3588 to 3612; 553, 101, 1779). No absorb was recorded anywhere else on a trough |
-| Charge | the Warden's headbar 36 (100 wide), every tick from S+4. In units: 2 a tick, 4 an orb (on its delete tick), full at 125, the bar `1 + u * 99 / 125` (77 of 77 fills in 14, both Wardens). The platform is `_platform_<fill / 5>` (45606..45626) every tick |
+| Charge | the Warden's headbar 36 (100 wide), every tick from S+4. In units: 2 a tick, 4 an orb (on its delete tick), full at 125, the bar `1 + u * 99 / 125` (77 of 77 fills in 14, both Wardens). A tick with an orb sends two bars, the orb's then the tick's; an orb that fills the bar ends the tick, its tick gain not carried (4292 Tumeken: the restart after its second discharge 4 then 5). **Ancient Haste: 3 a tick, 6 an orb** (101 #2-4, 553 #2-3, 1779, 1845, 1852 x7, every raid with it: the bar 3 5 8 10 12 15 17 20 from S+4 against 14's 2 4 5 7 8 10 12 13; the orb tick 24 → 30 → 33); Elidinis' free side discharges on S+28, S+52, S+76 (S+38 without). The platform is `_platform_<fill / 5>` (45606..45626) every tick |
 | Discharge (D) | the bar reads 100 and the platform 0 on D; nothing gained D+1..D+3 and no bar or platform sent; the overflow carries (14: Elidinis 100 on 3624, 6 on 3628 = 1 + 2 + an orb). `npc_wardens_impact01` (9667) with `_magic01_activate01` (2214) for pyramids or `_magic02_activate01` (2215) for the shot, alternating per Warden, pyramids first; synths 6142 d2, 6085 d40, 6043 d52, 6155 d60, 6226 d90, 6061 d99, 6220 d101, 6261 d159 |
 | Pyramids | D+3 `toa_wardens_pyramid01` (Elidinis, 30 tiles) / `02` (Tumeken, 32) and synth 6132; D+4 `_load`; D+7 `toa_wardens01_pyramid_attack` (9524); D+11 `toa_wardens01_pyarmid_leave` (9526) + `toa_wardens_magic_ceiling_lights_despawn_01` (6077) range 2 at each; D+12 `invisible_type0_nonblocking` (32545). The tiles are a 3-tile lattice from (3798,5141), 7 x 9: Elidinis' where i + j is odd, Tumeken's even, none on the obelisk. No raider was ever under one |
 | Shot | D+3 "A large ball of energy is shot your way..." (Elidinis `3366ff`, Tumeken `ff8e32`) and `spotanim_wardens_phase01_ball02` (2238) / `_ball01` (2237) from the Warden's middle (3794/3822,5154) at every raider: start 30, end 420, angle 40, slope 64, height 87 → 20; synth 6119 / 6148 d30. D+16 `tob_sotetseg_sharedattack_impact` (1605) on the raider and synth 6073 d15; D+17 the hit (1852: 24347 / 24350 / 24363 / 24364). 30 a hit in a group for Elidinis, once more per raider within a tile (30, 30); Tumeken's 7 four-stacked |
@@ -52,8 +52,8 @@ energy gain was disrupted the most will be destroyed"); Elidinis in all 8.
 
 **Unrecorded, from the reference ([nr], regarded-dev `WardenEncounter`):**
 pyramid damage, 11 x the damage factor + random(2) per tick D+6..D+10 inside
-a pyramid's 3x3; `Ancient Haste` doubling the charge (the wiki says only
-"faster"); a tie going to Tumeken. Tumeken surviving is unrecorded: its line
+a pyramid's 3x3; a tie going to Tumeken. (Its `Ancient Haste` doubling the
+charge is wrong: doubled, every recorded discharge comes 5-13 ticks early.) Tumeken surviving is unrecorded: its line
 is written in Tumeken's colour and it wakes `_phase2_range` (the wiki: ranged
 first).
 
@@ -86,7 +86,7 @@ P is the wake (O + 2). Same room. 18 windows, 47 downs.
 | Walk out | 5 tiles out of its chamber, a step a tick, P+14..P+18: Elidinis' east from (3792,5152) (18 of 18: 14, 1852), Tumeken's west from (3820,5152) (4292) |
 | Steps | a tile a tick toward the raider it faces, never on an attack tick or the 3 after (the first chase P+19, straight off the walk out; the tick after a stand-up). **Tumeken's chases to melee** [wiki]: 4 steps in every 8-tick cycle until edge-on beside its target (4292 3056..3098, 3134..3232). **Elidinis' does not chase**: she steps only while her target is more than 4 tiles from her 5x5 and stops at 4, holding the attack meanwhile (1852: 11 steps in 7 raids, each ending 4 off; the attack after a walk 8 ticks on, not 6). Target: the raider faced at the last attack; before one, the nearest to its middle [nr] |
 | Melee | edge-on beside its target on an attack tick: `npc_wardens_melee01` (9659) at that raider alone, `hacksword_slash` (2500) d26 range 16 at its middle, the hit A+1 (4292: 3 of 3 adjacent attacks; blocked under Protect from Melee, 32 through it). Elidinis' too, never recorded (no raider stood beside her) |
-| Attacks | from P+23, every **7** ticks (solos), **6** with Acceleration (553 #2-3, 1845, 1852); Tumeken's 8 (the wiki). Each attack fires at **every raider** (projectiles x the party, every attack). Faces a new raider each attack |
+| Attacks | from P+23, every **7** ticks (solos), **6** with Acceleration (553 #2-3, 1845, 1852); Tumeken's 8 (4292, no Warden invocations; with Acceleration 7, unrecorded). Each attack fires at **every raider** (projectiles x the party, every attack). Faces a new raider each attack |
 | Plain | a coin flip, 373 magic / 401 ranged: `npc_wardens_magic01` (9661) then `fx_wardens_bomb01` (2224) from SW+(4,3), or `npc_wardens_ranged01` (9660) then `projectile_warden_ranged01` (2241) from SW+(2,2); launched A+2 (start 0, end 90, angle 12, slope 128, 100 → 25), landing A+5 (373 of 377): magic with `toa_wardens_magic_impact` (2213) height 124 and `fireblast_hit`, ranged with `toa_wardens_range_projectile_impact_01` |
 | Damage | through the right prayer at most 5 at Entry, 8 at 500-530, 9 at 700; unprotected up to 50 at the cap (the wiki's 20 x 2.5) |
 | Specials | none until 4 attacks since the last; then **Entomb** at once (32 of 32 gaps exactly 4) at or below 55% health, the **Divine Projectile** above it at 30% an attack, forced on the 8th (26 gaps: 8, 5, 4, 2, 7 at 4..8). The count runs on across downs |
@@ -119,12 +119,14 @@ P is the wake (O + 2). Same room. 18 windows, 47 downs.
 | Beam | S+6 / S+12 `toa_wardens_single_tile_sweep_01` d120; S+7 `spotanim_amascut01_strike01` along x 32 (delay 24 at the ends down to 4); S+8 `spotanim_wardens01_dronestrike01_fire01` rings 0..11 out of (32,22) and (32,46), 30 a ring, lateral 10 (9 on ring 11), never on the obelisk, with `red_thunder_02..11` range 10 at both ends; S+13 / S+14 the same east-west from (21,34) and (43,34). 588 of 588 tiles, 13 uncut beams |
 | Sweep | 12 rounds, 3 ticks apart from S+3: `_strike01_highlight01` d30 on one of five 4-arm patterns in turn (toa.enum `toa_wd_sweep_0..4`, all 7 uncut sweeps identical), `red_tille_quarter_whoosh_01` d60 range 15; 3 ticks later `_strike01` on the same tiles, delay 2 a tile out |
 | Skulls | 10, one every 2 ticks from S+1, to random tiles (x 22..42, z 24..44; none followed a raider): `fx_wardens_bomb02` from (32,34) (start 23, end 120, angle 40, slope 64, 100 → 3), `gargboss_debris_shadow_120`, `obelisk_red_thunder_projectile_falling_01` range 9; +1 `_fall_impact_02` range 10; +4 `wardens_lightning_warn` 3 rings out (10 cycles a ring), the 4 tiles each way along the cardinals spared, `4_square_thunder_01` range 15 |
-| Damage | the sweep's 30-33 at the cap = 13 scaled + random(3) |
+| Damage | the sweep 33 at the cap without Penetration (101 #4) = 13 scaled + random(3) |
+| Penetration | 553 #3, 1845, 1852 (12 hits in phase two, none in a raid without it): every obelisk hit sends `You've been injured and can't use protection prayers!` and turns the overhead off (varbit 4101), even one already off (1852 19989, 19994); no lock: the next click on the prayer works (12 of 12, +3..+5). It does not raise the skulls (25 27 27 27 27 35 at the cap; without it 12 15 at Entry, 26 33 at 300) or the sweep (30 32 at the cap); the beam's rings, recorded only with it, 40 at 310 and 50 at the cap |
 
 **Unrecorded, from the reference ([nr], regarded-dev `MovingWardenNPC`,
 `WardensObelisk`):** the beam and skull damage (13 scaled + random(3), the
-skulls' outer ring a tick later), the warning ring's 9, Penetration's 18 / 14
-with prayers off, Divine's unprotected roll (22 scaled), a melee hit on the
+skulls' outer ring a tick later), the warning ring's 9, Penetration's 14 on
+it and 18 on the beam (the 18 fits the beam's two recorded hits; the sweep and
+skulls take no more), Divine's unprotected roll (22 scaled), a melee hit on the
 shield (taken as a wrong style). Tumeken's Warden surviving is unrecorded:
 its rate (8) and max (22) are the wiki's, its end line turned round.
 

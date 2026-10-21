@@ -104,6 +104,36 @@ kill), and in 554 and 553 (after their second wake).
   while shielded (+61, +62 on the overlay), the body's while enraged (+35,
   +33).
 
+## The Wardens' six
+
+Every recorded Wardens kill, its Warden invocations from the 6729 masks (index
+4292 has a rev-241 format: `id=script6729 (6729)`):
+
+| Raid | Level | Warden invocations |
+|---|---|---|
+| 14, 101 #1, 553 #1 | Entry / 150 | none |
+| index 4292 | 160 | none (Tumeken's Warden in phase two) |
+| 101 #2-4, 1779 | 300 / 500 / 700, 500 | Ancient Haste, Overclocked |
+| 553 #2 | 150 | Ancient Haste, Acceleration, Penetration, Overclocked |
+| 1845, 1852 #1-7 | 520-530 | all but Insanity |
+| 553 #3 | 310 | all six |
+
+| Invocation | Recorded | Ours |
+|---|---|---|
+| Ancient Haste | the charge 3 a tick and 6 an orb (2 and 4 without), in every raid with it ([wardens_p1p2.md](wardens_p1p2.md)) | `^toa_wd_charge_*_haste` |
+| Acceleration | the Warden every 6 (7); the obelisk open 28 / 22 (36 / 30) | `~toa_wd_rate`, `~toa_wd_ob_charge` |
+| Penetration | every obelisk hit: the message, overheads off, no lock; no harder skulls or sweeps | `~toa_wd_ob_hit` |
+| Overclocked | slams every 5 (7, 6 under half health) | `~toa_wd3_rate` |
+| Overclocked 2 | every 4, the `02` slams | `~toa_wd3_rate` |
+| Insanity | every 3; siphons released 8 after landing (18); slams resume; phantoms 7 / 6, enraged 4 / 3 (8, 5) | `~toa_wd3_rate`, `~toa_wd3_phantom_rate` |
+
+The wiki is wrong on two: Overclocked is two ticks faster, not one, and
+Insanity's enrage lightning is no faster. Ancient Haste is not the reference's
+doubling. Unrecorded, ours as the wiki or unchanged: Tumeken's Warden under
+Acceleration (7), the warning ring under Penetration (14), a beam without it
+(13), Insanity's tile rows (18) and Akkha's and Kephri's phantoms under it
+(their slots' 7 / 6). Test: `test/raids/toa_wardens_inv_tells.lua`.
+
 ## Not built: Arterial Spray
 
 Every recorded blood barrage (79 of 79) had Arterial Spray on, so the barrage
