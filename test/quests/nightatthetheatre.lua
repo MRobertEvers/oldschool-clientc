@@ -30,6 +30,32 @@ local function ticklog_leg(t, name)
     end
 end
 
+-- Quest Helper's anti-venom, drunk the way a player would: only when venomed.
+-- The egg sac's ambush bites 1 in 4 (natt_cave.rs2), nothing in the quest
+-- cures it, and venom left running takes 6..20 every 30 ticks from then on --
+-- through the Hespori and into the Theatre, whose solvers are judged on the
+-- damage they take (2026-10-21: bitten at tick 528, 126 venom damage failed
+-- Bloat).
+local function cure_venom(t, name)
+    local vr, venom = t.var.server("varp7031_venom")
+    if vr ~= "ok" or venom <= 0 then
+        return
+    end
+    for dose = 4, 1, -1 do
+        local item = "antivenom" .. dose
+        local cr, count = t.inv.count(item)
+        if cr == "ok" and count > 0 then
+            t.exec(name, t.player.inv_op, item, 1)
+            t.expect(name .. ".cured", t.await({ level = function()
+                local r, v = t.var.server("varp7031_venom")
+                return r == "ok" and v <= 0
+            end, note = "varp7031_venom <= 0" }, 5))
+            return
+        end
+    end
+    t.check(name, false, "venomed (" .. venom .. ") with no anti-venom in the pack")
+end
+
 return {
     id = "nightatthetheatre",
     fixture = "fresh_lumbridge.ini",
@@ -215,6 +241,11 @@ return {
                     local _, here = t.world.tile()
                     return here ~= nil and here.x < 6400 and here.z < 6400
                 end, note = "out of the cave's copy" }, 30))
+                -- The exit runs two more p_delay(1)s after its telejump
+                -- (natt_cave.rs2 [oploc1,araxyte_cave_exit]); a drink clicked
+                -- inside them is dropped, as on Jagex's engine.
+                t.ticks(4)
+                cure_venom(t, "useSulphuricAcidOnEggSac.antivenom")
                 t.exec("goto-returnToMysteriousStrangerWithEggs", t.player.goto_tile, STRANGER_X, STRANGER_Z, 0)
                 t.exec("returnToMysteriousStrangerWithEggs", t.player.talk_to, "tob_stranger")
                 local r1, d1 = t.chat.drain({ stop_at = "options", max_pages = 200 })
@@ -343,6 +374,8 @@ return {
             name = "theatre",
             run = function(t)
                 ticklog_leg(t, "theatre")
+                -- Before the kit, which clears the pack and the anti-venom with it.
+                cure_venom(t, "completeTob.antivenom")
                 -- The raid's own kit (script/plugins/quest_driver/tob_relay.lua
                 -- QD.raid.tob_entry_kit: the solo Entry Mode loadout, which clears the
                 -- pack -- every quest item has been handed over by now).

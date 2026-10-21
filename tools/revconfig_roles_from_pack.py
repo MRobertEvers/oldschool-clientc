@@ -4,15 +4,15 @@
 Owner: core-revconfig (docs/ARCHITECT.md). Two jobs, one file, because they
 must never disagree:
 
-  --write   regenerate the [iface:] and [role:] sections for the osrs239 dat2
+  --write   regenerate the [iface:] and [role:] sections for the osrs241 dat2
             lane from OSRS-Content/osrs-content/pack/3_interfaces.pack and
             each interface's own .compack (falling back to counting an .if
             file's `[name]` section headers, loudly, when a .compack is
-            missing), into revconfig/osrs239/osrs239_dat2_roles.gen.ini -- a
+            missing), into revconfig/osrs241/osrs241_dat2_roles.gen.ini -- a
             SEPARATE file chained by the existing loader
             (src/engine/uitree_role_load.c:206-221, and
             src/revconfig/revconfig_refs.c beside it), never into the
-            hand-edited osrs239_dat2_cache.ini. A generator that rewrites a
+            hand-edited osrs241_dat2_cache.ini. A generator that rewrites a
             file a person also edits loses that person's work the first time
             it runs.
   --check   regenerate into memory, diff against what is committed (a missing
@@ -21,7 +21,14 @@ must never disagree:
             App_RoleDeriveFallback (src/app/app_role_derive.c) knows, and that
             every `iface(<name>` a generated match= line references resolves
             to an `[iface:<name>]` section somewhere in this file or in the
-            hand-edited osrs239_dat2_cache.ini it sits beside.
+            hand-edited osrs241_dat2_cache.ini it sits beside.
+
+The lane is the content tree's revision. osrs-content is rev 241 since
+7c6ac729f, and the osrs241 file was copied from osrs239's then and never
+regenerated: 241 inserts chatbox component 48, so chat_modal_host still said
+567 where chatmodal is 568, and every quest dialogue read as "no dialogue is
+open". revconfig/osrs239/osrs239_dat2_roles.gen.ini is frozen at its last rev-239
+generation; no tree here can regenerate it.
 
 `make -C src check-revconfig-roles` runs `--check` with no arguments.
 
@@ -43,8 +50,8 @@ CONTENT_ROOT = os.path.join(REPO_ROOT, "OSRS-Content", "osrs-content")
 PACK_INTERFACES = os.path.join(CONTENT_ROOT, "pack", "3_interfaces.pack")
 INTERFACES_DIR = os.path.join(CONTENT_ROOT, "interfaces")
 
-OUT_PATH = os.path.join(REPO_ROOT, "revconfig", "osrs239", "osrs239_dat2_roles.gen.ini")
-HAND_EDITED_INI = os.path.join(REPO_ROOT, "revconfig", "osrs239", "osrs239_dat2_cache.ini")
+OUT_PATH = os.path.join(REPO_ROOT, "revconfig", "osrs241", "osrs241_dat2_roles.gen.ini")
+HAND_EDITED_INI = os.path.join(REPO_ROOT, "revconfig", "osrs241", "osrs241_dat2_cache.ini")
 
 # Every fact App_RoleDeriveFallback answers for on this lane today. Mirror
 # this list by hand when that file's vocabulary grows -- keeping the two in
@@ -249,7 +256,7 @@ def generate():
     lines.append("; `make -C src check-revconfig-roles` fails if this drifts from the pack.")
     lines.append(";")
     lines.append(
-        "; Chained beside osrs239_dat2_cache.ini (src/engine/uitree_role_load.c:206-221,"
+        "; Chained beside osrs241_dat2_cache.ini (src/engine/uitree_role_load.c:206-221,"
     )
     lines.append(
         "; src/revconfig/revconfig_refs.c), never into it. Source of truth: OSRS-Content/"
