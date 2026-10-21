@@ -841,7 +841,7 @@ app_plugin_object_build_model(
     {
         ToriDraw_ModelSetPostResize(model, spot->resizeh, spot->resizeh, spot->resizev);
         if( spot->angle != 0 )
-            ToriDraw_ModelOrient(model, spot->angle / 90);
+            ToriDraw_ModelSetPostOrient(model, spot->angle / 90);
     }
 
     ToriDraw_ModelDropNonSdTextures(app->provider, model);

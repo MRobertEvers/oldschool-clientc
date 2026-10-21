@@ -122,10 +122,18 @@ seq_apply_meta(
         .stretches = seq->stretches ? 1 : 0,
         .vertical_offset = seq->vertical_offset,
     };
+    /* Unstated, both default to MERGE when the seq has a walk-merge of either
+     * kind -- the interleave (opcode 3) or the skeletal mask (opcode 17) --
+     * and to DELAYMOVE only when it has neither (deob class371 decode, its
+     * `var13 == null && var14 == null`). Testing the interleave alone held
+     * every masked skeletal seq's walker still for the seq's length and then
+     * ran it to catch up: Ocellus stopped dead on each phase-1 volley
+     * (npc_ocellus_phase1_basic_projectile_start, masked, 3 ticks of every
+     * 5) and lurched round his arena (2026-10-21). */
     if( meta.preanim_move == -1 )
-        meta.preanim_move = meta.walkmerge ? 2 : 0;
+        meta.preanim_move = (meta.walkmerge || seq->anim_maya_masks) ? 2 : 0;
     if( meta.postanim_move == -1 )
-        meta.postanim_move = meta.walkmerge ? 2 : 0;
+        meta.postanim_move = (meta.walkmerge || seq->anim_maya_masks) ? 2 : 0;
     ToriDraw_AnimationSetSeqMeta(anim, &meta);
 }
 

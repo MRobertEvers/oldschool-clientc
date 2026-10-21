@@ -441,8 +441,14 @@ app_world_build_spotanim_model(
      * MapSpotAnim.getModel animates the copy and only then resizes it. */
     ToriDraw_ModelSetPostResize(model, spot->resizeh, spot->resizeh, spot->resizev);
 
+    /* The angle too: SpotAnimationDefinition.getModel poses the frame first
+     * and only then turns the result (rotateY90Ccw per quarter). Baked into
+     * the base, a frame's translations ran along the unturned axes, so every
+     * _90/_180/_270 variant of a classic-frame graphic drew its moving parts
+     * off its tile -- Ocellus's floor cracks, four turns of one model and
+     * one seq, stood beside the lines they belong to (2026-10-21). */
     if( spot->angle != 0 )
-        ToriDraw_ModelOrient(model, spot->angle / 90);
+        ToriDraw_ModelSetPostOrient(model, spot->angle / 90);
 
     ToriDraw_ModelDropNonSdTextures(app->provider, model);
     ToriDraw_ModelNoteTextureWants(model);
