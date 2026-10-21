@@ -44,8 +44,8 @@ breaks. S is the challenge's start (14: Osmumten's Begin 3585, S 3586).
 | Shot | D+3 "A large ball of energy is shot your way..." (Elidinis `3366ff`, Tumeken `ff8e32`) and `spotanim_wardens_phase01_ball02` (2238) / `_ball01` (2237) from the Warden's middle (3794/3822,5154) at every raider: start 30, end 420, angle 40, slope 64, height 87 → 20; synth 6119 / 6148 d30. D+16 `tob_sotetseg_sharedattack_impact` (1605) on the raider and synth 6073 d15; D+17 the hit (1852: 24347 / 24350 / 24363 / 24364). 30 a hit in a group for Elidinis, once more per raider within a tile (30, 30); Tumeken's 7 four-stacked |
 | Break | the last hitpoint on T (bar 20 at 0), **O = T+1**: `fx_obelisk_wardens01_charge` (9723) and `toa_wardens_p2_obelisk_npc` (11752); `obelisk_explode_energy` (2196) toward the destroyed Warden: (3811,5154) d6, (3812,5153..5155) d12, then x 3813..3818 at z 5152/5154/5156 d18..48; `vfx_scarab_explosion01..04` on its plinth, three on the floor height 25 d54, (3820,5153..5155) d60 and (3821,5154) d66 raised 100-200; `toa_wardens_thunder_travelling_warden_01` (6191) range 15 along z 5154, delay 0 to x 3814, 1 to 3819, 2 beyond; synths 6131, 4386 x4 |
 | After O | orbs still spawn on O+1 and move; the pyramids run on. The destroyed Warden's shot in the air does not land (1852: Tumeken's from 24357, O 24370), the survivor's does (19950: 30 on O+2) |
-| O+2 | every orb deleted; the message; the destroyed: hit 800, headbar 21 at 0, `spotanim_wardens01_explosion01_explode01` (2216), `npc_wardens_explosion01` (9669), `toa_warden_tumeken_phase3_inactive` (11760), then `_explosion01_idle01` (2217) every tick; the survivor `npc_wardens_wake01` (9663) and `toa_warden_elidinis_phase2_mage` (11753); synths 6065, 6205 d17, 6249 d109, 6167 d164, 6150 d197, 6091 d233, 6178 d269, 6101 d309, 6037 d348 |
-| O+3 | the obelisk's `fx_obelisk_wardens01_charge_part1` (9724) |
+| O+2 | every orb deleted; the message; the destroyed: hit 800, headbar 21 at 0, `spotanim_wardens01_explosion01_explode01` (2216), `npc_wardens_explosion01` (9669), `toa_warden_tumeken_phase3_inactive` (11760), then `_explosion01_idle01` (2217) every tick **from O+12 = P+10** (9 of 9: 14, 4292, 1852's seven); both charging platforms back to `_platform_0` (and again on P+14, the walk out's first tick: 9 of 9); the survivor `npc_wardens_wake01` (9663) and `toa_warden_elidinis_phase2_mage` (11753); synths 6065, 6205 d17, 6249 d109, 6167 d164, 6150 d197, 6091 d233, 6178 d269, 6101 d309, 6037 d348 |
+| O+3 | the obelisk's `fx_obelisk_wardens01_charge_part1` (9724), every 2 ticks; none under the walk out, P+14..P+18 (9 of 9: P+13 then P+19, or P+12 then P+20), the charge itself running on (open P+37) |
 
 The survivor is the Warden with more charge (the wiki: "the Warden whose
 energy gain was disrupted the most will be destroyed"); Elidinis in all 8.
@@ -83,7 +83,9 @@ P is the wake (O + 2). Same room. 18 windows, 47 downs.
 
 | | Recorded |
 |---|---|
-| Walk | 5 tiles east, a step a tick, P+14..P+18 (18 of 18); after that it steps only now and then (10 steps in 150 retargets, no distance rule) |
+| Walk out | 5 tiles out of its chamber, a step a tick, P+14..P+18: Elidinis' east from (3792,5152) (18 of 18: 14, 1852), Tumeken's west from (3820,5152) (4292) |
+| Steps | a tile a tick toward the raider it faces, never on an attack tick or the 3 after (the first chase P+19, straight off the walk out; the tick after a stand-up). **Tumeken's chases to melee** [wiki]: 4 steps in every 8-tick cycle until edge-on beside its target (4292 3056..3098, 3134..3232). **Elidinis' does not chase**: she steps only while her target is more than 4 tiles from her 5x5 and stops at 4, holding the attack meanwhile (1852: 11 steps in 7 raids, each ending 4 off; the attack after a walk 8 ticks on, not 6). Target: the raider faced at the last attack; before one, the nearest to its middle [nr] |
+| Melee | edge-on beside its target on an attack tick: `npc_wardens_melee01` (9659) at that raider alone, `hacksword_slash` (2500) d26 range 16 at its middle, the hit A+1 (4292: 3 of 3 adjacent attacks; blocked under Protect from Melee, 32 through it). Elidinis' too, never recorded (no raider stood beside her) |
 | Attacks | from P+23, every **7** ticks (solos), **6** with Acceleration (553 #2-3, 1845, 1852); Tumeken's 8 (the wiki). Each attack fires at **every raider** (projectiles x the party, every attack). Faces a new raider each attack |
 | Plain | a coin flip, 373 magic / 401 ranged: `npc_wardens_magic01` (9661) then `fx_wardens_bomb01` (2224) from SW+(4,3), or `npc_wardens_ranged01` (9660) then `projectile_warden_ranged01` (2241) from SW+(2,2); launched A+2 (start 0, end 90, angle 12, slope 128, 100 → 25), landing A+5 (373 of 377): magic with `toa_wardens_magic_impact` (2213) height 124 and `fireblast_hit`, ranged with `toa_wardens_range_projectile_impact_01` |
 | Damage | through the right prayer at most 5 at Entry, 8 at 500-530, 9 at 700; unprotected up to 50 at the cap (the wiki's 20 x 2.5) |
@@ -130,7 +132,7 @@ its rate (8) and max (22) are the wiki's, its end line turned round.
 
 `test/raids/toa_wardens_p2_tells.lua` (solo, Entry, twisted bow) and
 `rsprox_tells.py --anchor 11753-11758,11770,11771 14.txt --ours`. Every
-recorded phase-two tell kind is sent: the walk (P+14..P+18), the attacks from
+recorded phase-two tell kind is sent: the walk out (P+14..P+18), each Warden's steps and melee (test/raids/_wardens_p2_move_*.lua), the attacks from
 P+23 every 7, the specials and their sounds and impacts, the shield bar
 counting up in its own splats, the kneel, exposure, core, return, stand-up in
 the other style, the obelisk's charge, open, three specials and close, and the
