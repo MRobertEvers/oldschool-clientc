@@ -1,0 +1,51 @@
+{{New Content}}
+{{Infobox Monster
+|name = Xarth
+|image = [[File:Xarth.png|250x250px]]
+|release = [[20 October]] [[2026]]
+|update = The Fractured Archive - Out Today
+|members = Yes
+|combat = 912
+|size = 3
+|examine = A tormented demon that has long mastered its eternal burning.
+|attributes = Demon
+|xpbonus = 
+|max hit = 
+|aggressive = 
+|poisonous = 
+|attack style = 
+|attack speed = 
+|hitpoints = 2600
+|att = 250
+|str = 225
+|def = 170
+|mage = 350
+|range = 220
+|attbns = 
+|strbns = 
+|amagic = 250
+|mbns = 
+|arange = 250
+|rngbns = 
+|dstab = 115
+|dslash = 105
+|dcrush = 20
+|dmagic = 205
+|dlight = 125
+|dstandard = 230
+|dheavy = 155
+|elementalweaknesstype = Water
+|elementalweaknesspercent = 85
+|poisonresistance = 100
+|venomresistance = 
+|immunecannon = Yes
+|immunethrall = No
+|immuneburn = No
+|freezeresistance = 
+|id = 16684
+}}
+'''Xarth''' is a unique [[Tormented Demon|tormented demon]] boss that can be fought as part of [[The Fractured Archive]] raid. During a given raid, players can choose to fight Xarth or the [[Dagon'hai Elder]] and [[Dagon'hai Monk]]s as the fourth boss encounter.
+
+Like most demons, Xarth has the [[Demon (attribute)|demon attribute]] and is susceptible to [[Demonbane weapons|demonbane]].
+
+{{The Fractured Archive}}

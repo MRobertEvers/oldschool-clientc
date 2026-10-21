@@ -1,0 +1,152 @@
+{{External|rs}}
+{{New Content}}
+{{Multi Infobox
+|text1 = Hooded Figure
+|item1 =
+{{Infobox NPC
+|name = Hooded Figure
+|image = [[File:Ocellus.png|250px]]
+|release = [[20 October]] [[2026]]
+|update = The Fractured Archive - Out Today
+|members = Yes
+|size = 3
+|examine = How did they get in here?
+|options = Talk-To
+|location = [[The Fractured Archive]]
+|id = 16672
+}}
+|text2 = Ocellus
+|item2 = 
+{{Infobox Monster
+|version1 = Phase 1
+|version2 = Phase 2
+|version3 = Phase 3
+|name = Ocellus
+|image1 = [[File:Ocellus.png|250px]]
+|image2 = [[File:Ocellus_(phase_2).png|250px]]
+|image3 = [[File:Ocellus_(phase_3).png|250px]]
+|release = [[20 October]] [[2026]]
+|update = The Fractured Archive - Out Today
+|members = Yes
+|combat1 = 1121
+|combat2 = 
+|combat3 = 1601
+|size = 3
+|examine1 = The fallen guardian of the Archive.
+|examine2 = Gone crazed with power.
+|examine3 = Corrupted by imperfect magic.
+|location = [[The Fractured Archive]]
+|attributes1 = Demon
+|attributes3 = Demon
+|xpbonus = 
+|max hit = 
+|aggressive = 
+|poisonous = 
+|attack style = 
+|attack speed1 = 5
+|attack speed2 = 0
+|attack speed3 = 6
+|hitpoints1 = 2500
+|hitpoints3 = 5250
+|att1 = 1
+|att2 = 1
+|att3 = 325
+|str1 = 1
+|str2 = 1
+|str3 = 250
+|def1 = 215
+|def2 = 250
+|def3 = 250
+|mage1 = 350
+|mage2 = 220
+|mage3 = 300
+|range1 = 250
+|range2 = 1
+|range3 = 300
+|attbns1 = 1
+|attbns3 = 150
+|strbns1 = 1
+|strbns3 = 10
+|amagic1 = 150
+|amagic3 = 350
+|mbns1 = 
+|mbns3 = 10
+|arange1 = 150
+|arange3 = 0
+|rngbns1 = 0
+|rngbns3 = 0
+|dstab1 = 150
+|dstab2 = 150
+|dstab3 = 150
+|dslash1 = 95
+|dslash2 = 120
+|dslash3 = 100
+|dcrush1 = 60
+|dcrush2 = 10
+|dcrush3 = 30
+|dmagic1 = 100
+|dmagic2 = 100
+|dmagic3 = 200
+|dlight1 = 50
+|dlight2 = 100
+|dlight3 = 250
+|dstandard1 = 135
+|dstandard2 = 110
+|dstandard3 = 250
+|dheavy1 = 50
+|dheavy2 = 80
+|dheavy3 = 250
+|poisonresistance = 100
+|venomresistance = 
+|immunecannon = yes
+|immunethrall = 
+|immuneburn = 
+|freezeresistance = 
+|id1 = 16673, 16674
+|id3 = 16677
+}}
+}}
+{{Synced switch
+|version1 = [[File:Ocellus chathead.png|left]]
+|version2 = [[File:Ocellus chathead.png|left]]
+|version3 = [[File:Ocellus chathead.png|left]]
+|version4 = [[File:Orion chathead.png|left]]
+}}
+'''Ocellus''' is the fifth and final boss of [[The Fractured Archive]]. He is one of the [[Guardians of Guthix]], once responsible for guarding the Archive and its contents, but now set on ascending to godhood in [[Guthix]]'s absence.
+
+==History==
+Ocellus is a Guardian of Guthix, likely given the position at some point either during the [[Second Age|Second]] or [[Third Age]]. He was tasked with protecting [[The Fractured Archive]] from the unworthy who tried to steal Guthix's treasures.
+
+During the [[Fifth Age]], the archive was discovered during the events of [[While Guthix Sleeps]], when a human adventurer and Lucien discovered the [[Stone of Jas]]. Lucien stole the Stone, and the use of its power led to the discovery of the Archive, which was immediately noticed by various parties who sought the treasures within.
+
+After defeating [[Archive Guardian|The Archive Guardian]] and three sets of intruders, the adventurer was notified by [[Ivy Sophista]] that someone had entered the vault. The adventurer and their team went inside and found a hooded figure, who introduced himself as Ocellus and his purpose. The adventurer asked Ocellus to work together to fend the invaders off, but Ocellus refused, believing the alliance was also unworthy. With little choice, the adventurer fought Ocellus, who even utilised [[the Blade]] as the fight progressed.
+
+==Mechanics==
+<!-- Please move information to [[The Fractured Archive/Strategies#Ocellus]] -->
+Defence reduction works on all phases, However it is unknown if this resets across each of the 4 stages in the last phase. During his chargeup phase, players must stand on the long line cracks that appear in the ground as they appear to what seems to reduce his charge and possibly heal you.
+
+When Ocellus teleports to the middle of the room, he will spawn two line cracks in the direction he is facing, followed by a slam attack. Block the first crack closer to him and use melee while for the second crack, run away from the center while blocking the second crack. He will repeat this sequence time until he says "Embrace... Annihilation..." in which he will use a magic attack that will do extreme damage if Ocellus’s meter is fully charged. Preventing the meter from fully charging will significantly reduce damage
+
+Once Phase 1 is completed, Ocellus will spawn lines of portals, splitting the room into four quadrants. Most will be purple but two will be orange. Standing at the intersection of the orange portals will avoid damage. Eventually all of the portals will turn purple and purple voids will spawn on the floor, damaging you. Avoid these voids until an orange portal appears on the ground. Step on the orange portal to avoid the full quadrant attack and jump to the next quadrant. This will repeat 3 times until the next phase. 
+
+After avoiding the portal’s attacks, Ocellus will equip the sword and shatter the floor, splitting the room into four quadrants. Travelling between quadrants is possible but requires hopping on all three stepping stones. 
+
+Ocellus will then begin to melee attack you, slashing at the player twice before sending a line of smoke magic at the player. Pray melee during the first two hits and run out of the way of the smoke magic to avoid damage. 
+
+After saying “Insolence…”, Ocellus will slash at the ground three times, creating earth tremors that travel in a line and leave debris. Run out of the way of the tremors while avoiding the debris left behind. Eventually the debris will disappear shortly after the attack ends. 
+
+When Ocellus spins, turn off protection prayers, then in a moment, turn protect from melee back on. With each quadrant destroyed, Ocellus will add another spin onto this attack. 
+
+When Ocellus says "Unteather", pray mage, and avoid purple dots. Ocellus will charge up an attack, so stand underneath him, and move out from under him as he slams down to avoid all damage. 
+
+During the last phase, with one quadrant left, Ocellus uses reflection prayers and soulsplit; During the reflection phase, players will be confined to melee distance of Ocellus; Orbs will spawn that only each player can see their own, and can be collected to recover health; The longer you wait to collect the orb, the larger the heal. There also seems to be a punish mechanic of being able to 2-tick melee attack during the melee-distance phase (unsure if this is caused from collecting the orb or successfully woox-walking the tile damage).
+
+==Trivia==
+* In [[rsw:RuneScape|RuneScape 3]], Ocellus is a [[blood reaver]] who was once one of [[Zaros]]'s pets, alongside his brother. At some point after Zaros's defeat, he became bipedal and sapient, and eventually became one of the [[Guardian of Guthix|Guardians of Guthix]].
+** This is not yet confirmed in ''Old School'', but it is likely, as he shares many design similarities with blood reavers.
+** Ocellus's original (non-canonical) proposed ''RuneScape 3'' backstory had him attempting to aid his master during his clash with [[Zamorak]], which resulted in him inadvertently knocking Zaros into the Staff of Armadyl, killing him. After this, he was uplifted and given intelligence by Zamorak, using the [[Stone of Jas]].
+
+
+{{The Fractured Archive}}
+
+[[Category:Guthixians]]

@@ -1,0 +1,67 @@
+{{External|rs}}
+{{New Content}}
+{{Confuse|Bork Sigmundson}}
+{{Infobox Monster
+|name = Bork
+|image = [[File:Bork.png|250x250px]]
+|release = [[20 October]] [[2026]]
+|update = The Fractured Archive - Out Today
+|members = Yes
+|combat = 871
+|size = 4
+|examine = In fact a very large ork.
+|attributes = <!-- if no monster attributes apply, remove this parameter -->
+|xpbonus = 
+|flatarmour = 10 (Base), 0 (Stunned), 2 (Magic resistance)
+|max hit = 
+|aggressive = 
+|poisonous = 
+|attack style = [[Crush]]
+|attack speed = 7
+|hitpoints = 1500
+|att = 200
+|str = 200
+|def = 300
+|mage = 90
+|range = 200
+|attbns = 100
+|strbns = 40
+|amagic = 
+|mbns = 
+|arange = 
+|rngbns = 
+|dstab = 140
+|dslash = 130
+|dcrush = 10
+|dmagic = 300
+|dlight = 80
+|dstandard = 50
+|dheavy = 5
+|elementalweaknesstype = Earth
+|elementalweaknesspercent = 40
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = Yes
+|immunethrall = No
+|immuneburn = No
+|freezeresistance = 100
+|id = 16640
+}}
+'''Bork''' is a big [[Bandos]]ian [[ork]] who is accompanied by the [[Smorks]]. They are one of the bosses in [[The Fractured Archive]] raid. During a given raid of The Fractured Archive, players can choose to fight either Bork and the Smorks or [[Ezekiel]] as the second boss encounter.
+
+==Gallery==
+<gallery captionalign="center" widths="200">
+Summer Campfire 2026 (24).webm|3D models of Bork and the Smorks.
+Summer Campfire 2026 (25).webm|
+</gallery>
+
+==Trivia==
+[[File:Bork (2008) concept art.png|thumb|Bork's original concept art, from 2008.]]
+* Bork is a portmanteau of the words "big" and "ork".
+* In ''RuneScape 2'', {{RSL|Bork}} originally appeared as the repeatable final boss of the {{RSL|The Hunt for Surok (miniquest)|Chaos Tunnels: The Hunt for Surok}} miniquest, released on [[4 March]] 2008, where he was recruited by [[Surok Magis]] to defeat the player. Fighting Bork in this miniquest was originally a requirement for [[While Guthix Sleeps]], while in ''Old School'', he can only be fought afterwards.
+** In ''RuneScape 2'', he was accompanied by {{RSL|Ork legion}}s, which may be the inspiration for the Smorks, which is a group of miniature goblins.
+** In ''RuneScape 3'', Bork appears in the {{RSL|The Mighty Fall}} quest, released on 2 June 2014. There, he appears as the champion of the Orks in a Bandosian tournament, and is defeated by [[General Graardor]] in the second round.
+
+{{The Fractured Archive}}
+
+[[Category:Bandosians]]

@@ -1,0 +1,94 @@
+{{Otheruses|the miniquest|the raid itself|The Fractured Archive}}
+{{New Content}}
+{{Infobox Miniquest
+|name = The Fractured Archive
+|image = [[File:The Fractured Archive - Out Today newspost.png|300px]]
+|release = [[20 October]] [[2026]]
+|update = The Fractured Archive - Out Today
+|members = Yes
+|series = None
+|developer =
+}}
+
+==Details==
+{{Quest details
+|start = Near the entrance of the [[Ancient Guthixian Temple]].
+|startmap = 4052,4562,plane:0
+|difficulty = Grandmaster
+|description = The Mahjarrat Lucien's meddling with the Stone of Jas has opened an ancient entrance to a cache of Guthix's most prized possessions: the Fractured Archive.
+
+Whispers of the archive have persisted through the ages, and the gods have taken notice of this accidental grand opening. Some have sent agents to plunder the archive and bolster their strength, while other interested parties have their own motivations for making this daring descent.
+
+If even a single one of these artefacts were to fall into the wrong hands, it could spell Gielinor's ruin, so it falls to you to defend the archive from those who would misuse it.
+|length = Medium
+|requirements = {{Questreqstart|}}
+*Completion of [[While Guthix Sleeps]], which requires the following quests:
+**[[Defender of Varrock]]
+***[[Shield of Arrav]]
+***[[Temple of Ikov]]
+***[[Below Ice Mountain]]
+***[[Family Crest]]
+***[[What Lies Below]]
+***[[Romeo & Juliet]]
+***[[Demon Slayer]]
+***[[Garden of Tranquillity]]
+****[[Creature of Fenkenstrain]]
+*****[[Priest in Peril]]
+*****[[The Restless Ghost]]
+**[[The Path of Glouphrie]]
+*** [[The Eyes of Glouphrie]]
+**** [[The Grand Tree]]
+*** [[Waterfall Quest]]
+*** [[Tree Gnome Village]]
+**[[Fight Arena]]
+**[[Dream Mentor]]
+***[[Eadgar's Ruse]]
+****[[Druidic Ritual]]
+****[[Troll Stronghold]]
+*****[[Death Plateau]]
+***[[Lunar Diplomacy]]
+****[[The Fremennik Trials]]
+****[[Lost City]]
+****[[Rune Mysteries]]
+****[[Shilo Village]]
+*****[[Jungle Potion]]
+**[[The Hand in the Sand]]
+**[[Wanted!]]
+***[[Recruitment Drive]]
+****[[Black Knights' Fortress]]
+****[[Druidic Ritual]]
+***[[The Lost Tribe]]
+****[[Goblin Diplomacy]]
+**[[Temple of the Eye]]
+***[[Enter the Abyss]]
+****[[Rune Mysteries]]
+**[[Tears of Guthix]]
+**[[Nature Spirit]]
+***[[Priest in Peril]]
+***[[The Restless Ghost]]
+**[[A Tail of Two Cats]]
+***[[Icthlarin's Little Helper]]
+****[[Gertrude's Cat]]
+|items = Combat gear and supplies
+|recommended =
+* {{SCP|Combat|110|link=yes}}
+* [[Guthixian temple teleport]] to reach the starting point
+|kills =
+* Every boss encountered in [[the Fractured Archive]]:
+** [[Archive Guardian]]
+** [[Ezekiel]] or [[Bork]] and [[the Smorks]]
+** [[Moia]] or [[Dreadnoth the Jellied]]
+** [[Xarth]] or the [[Dagon'hai Elder]] and [[Dagon'hai Monk]]s
+** [[Ocellus]]
+|leagueRegion =
+}}
+
+==Walkthrough==
+{{Main|The Fractured Archive/Strategies}}
+
+==Rewards==
+
+==Transcript==
+{{hastranscript|miniquest}}
+
+{{Miniquests}}

@@ -1,0 +1,50 @@
+{{New Content}}
+{{Infobox Monster
+|name = Dagon'hai Elder
+|image = [[File:Dagon'hai Elder.png|250x250px]]
+|release = [[20 October]] [[2026]]
+|update = The Fractured Archive - Out Today
+|members = Yes
+|combat = 427
+|size = 2
+|examine = An elder of the Dagon'hai.
+|xpbonus = 
+|max hit = 
+|aggressive = 
+|poisonous = 
+|attack style = 
+|attack speed = 
+|hitpoints = 
+|att = 
+|str = 
+|def = 
+|mage = 
+|range = 
+|attbns = 
+|strbns = 
+|amagic = 
+|mbns = 
+|arange = 
+|rngbns = 
+|dstab = 
+|dslash = 
+|dcrush = 
+|dmagic = 
+|dlight = 
+|dstandard = 
+|dheavy = 
+|elementalweaknesstype = <!-- if no weakness, remove this parameter -->
+|elementalweaknesspercent = <!-- if no weakness, remove this parameter -->
+|poisonresistance = 
+|venomresistance = 
+|immunecannon = 
+|immunethrall = 
+|immuneburn = 
+|freezeresistance = 
+|id = 16643, 16644
+}}
+The '''Dagon'hai Elder''' is a boss in [[The Fractured Archive]], along with the [[Dagon'hai Monk]]s. During a given raid of The Fractured Archive, players can choose to either fight the Dagon'hai Elder and the Dagon'hai Monks or fight [[Xarth]] as the fourth boss encounter.
+
+{{The Fractured Archive}}
+
+[[Category:Zamorakians]]

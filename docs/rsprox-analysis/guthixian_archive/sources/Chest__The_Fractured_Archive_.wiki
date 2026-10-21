@@ -1,0 +1,151 @@
+{{New Content}}
+{{Multi Infobox
+|text1 = Standard
+|item1 =
+{{Infobox NPC
+|version1 = Closed, mine
+|version2 = Opened, mine
+|version3 = Closed, not mine
+|version4 = Opened, not mine
+|name1 = Chest
+|name2 = Rift
+|name3 = Chest
+|name4 = Rift
+|image1 = [[File:Chest (The Fractured Archive, standard, mine).webp|250x250px]]
+|image2 = [[File:Rift (The Fractured Archive, standard, mine).png|250x250px]]
+|image3 = [[File:Chest (The Fractured Archive, standard, not mine).png|250x250px]]
+|image4 = [[File:Rift (The Fractured Archive, standard, not mine).png|250x250px]]
+|release = [[20 October]] [[2026]]
+|update = The Fractured Archive - Out Today
+|members = Yes
+|location = [[The Fractured Archive]]
+|options1 = Open
+|options2 = Search
+|options3 = Open
+|options4 = Search
+|examine1 = It calls to you.
+|examine2 = A portal to the loot dimension?
+|examine3 = A locked container.
+|examine4 = A portal to the loot dimension?
+|map = {{Map|x=4128|y=5792|plane=1|mapID=-1}}
+|id1 = 16733
+|id2 = 16735
+|id3 = 16732
+|id4 = 16734
+}}
+|text2 = Unique
+|item2 =
+{{Infobox NPC
+|version1 = Closed
+|version2 = Opened
+|name = Chest
+|image1 = [[File:Chest (The Fractured Archive, unique, closed).png|250x250px]]
+|image2 = [[File:Chest (The Fractured Archive, unique, opened).png|250x250px]]
+|release = [[20 October]] [[2026]]
+|update = The Fractured Archive - Out Today
+|members = Yes
+|location = [[The Fractured Archive]]
+|options1 = Open
+|options2 = Search
+|examine = Its presence sends a chill up your spine. What could it contain?
+|map = {{Map|x=4128|y=5792|plane=1|mapID=-1}}
+|id1 = 16730
+|id2 = 16731
+}}
+}}
+The '''chests''' contain the rewards after completing [[The Fractured Archive]]. They are found in an otherwordly plane reached by communing with [[The Blade]]. Eight chests containing standard loot lie along the perimiter of the circular room, with a particular player only being able to open their personal chest which sparkles and shines slightly more brightly than the rest. If a unique reward has been earned, a special chest appears on an elevated platform at the northern end of the chamber.
+
+Upon opening a standard chest, its crystalline exterior shatters and leaves behind a rift. A loot interface opens from which items can be banked, taken into the inventory, or destroyed. If a player leaves the room before claiming their loot, it will be held in the [[Loot Wheelbarrow|loot wheelbarrow]] in the lobby.
+
+==Uniques==
+{{Incomplete|Items will be added once they are observed to drop.}}
+The following items are dropped by the special chest on the platform, which yields one item.
+
+{{DropsTableHead}}
+{{DropsLineReward|name=Horn of Bran|quantity=1|rarity=}}
+{{DropsLineReward|name=Rondache|quantity=1|rarity=}}
+{{DropsLineReward|name=Zorya's tome (uncharged)|quantity=1|rarity=}}
+{{DropsLineReward|name=Ascension crossbows|quantity=1|rarity=}}
+{{DropsLineReward|name=Obligator (uncharged)|quantity=1|rarity=}}
+{{DropsTableBottom}}
+
+==Standard loot==
+{{DropLogProject|kills=174}}
+
+The standard loot table is rolled three times. Under unknown conditions, one of the three rolls provides 5 times the usual quantity of an item. The base quantities are listed below, before the 5x factor is applied.
+
+===Weapons and armour===
+{{DropsTableHead}}
+{{DropsLineReward|name=Battlestaff|quantity=34-36|rolls=3|rarity=}}
+{{DropsLineReward|name=Dragon platelegs|quantity=1|rolls=3|rarity=}}
+{{DropsLineReward|name=Dragon plateskirt|quantity=1|rolls=3|rarity=}}
+{{DropsLineReward|name=Rune kiteshield|quantity=6|rolls=3|rarity=}}
+{{DropsTableBottom}}
+
+===Runes===
+{{DropsTableHead}}
+{{DropsLineReward|name=Nature rune|quantity=311-342|rolls=3|rarity=}}
+{{DropsLineReward|name=Astral rune|quantity=303-358|rolls=3|rarity=}}
+{{DropsLineReward|name=Blood rune|quantity=302-321|rolls=3|rarity=}}
+{{DropsLineReward|name=Soul rune|quantity=310-342|rolls=3|rarity=}}
+{{DropsLineReward|name=Earth rune|quantity=3063-3351|rolls=3|rarity=}}
+{{DropsTableBottom}}
+
+===Herbs===
+{{DropsTableHead}}
+{{DropsLineReward|name=Grimy harralander|quantity=60-64|rolls=3|rarity=}}
+{{DropsLineReward|name=Grimy ranarr weed|quantity=18-19|rolls=3|rarity=}}
+{{DropsLineReward|name=Grimy toadflax|quantity=24-28|rolls=3|rarity=}}
+{{DropsTableBottom}}
+
+===Seeds===
+{{DropsTableHead}}
+{{DropsLineReward|name=Snapdragon seed|quantity=3|rolls=3|rarity=}}
+{{DropsLineReward|name=Kwuarm seed|quantity=7|rolls=3|rarity=}}
+{{DropsLineReward|name=Snape grass seed|quantity=7|rolls=3|rarity=}}
+{{DropsLineReward|name=Yew seed|quantity=4|rolls=3|rarity=}}
+{{DropsTableBottom}}
+
+===Ores and gems===
+{{DropsTableHead}}
+{{DropsLineReward|name=Iron ore|quantity=859-887|rolls=3|rarity=}}
+{{DropsLineReward|name=Adamantite ore|quantity=61-67|rolls=3|rarity=}}
+{{DropsLineReward|name=Runite ore|quantity=25-26|rolls=3|rarity=}}
+{{DropsLineReward|name=Sapphire|quantity=24-25|rolls=3|rarity=}}
+{{DropsLineReward|name=Emerald|quantity=24-25|rolls=3|rarity=}}
+{{DropsLineReward|name=Ruby|quantity=24-25|rolls=3|rarity=}}
+{{DropsLineReward|name=Diamond|quantity=24-25|rolls=3|rarity=}}
+{{DropsTableBottom}}
+
+===Other===
+{{DropsTableHead}}
+{{DropsLineReward|name=Ascension shards|quantity=75-78|rolls=3|rarity=}}
+{{DropsLineReward|name=Desiccated page|quantity=31-33|rolls=3|rarity=|gemw=no}}
+{{DropsLineReward|name=Aether catalyst|quantity=182-189|rolls=3|rarity=}}
+{{DropsLineReward|name=Pure essence|quantity=1427-1630|rolls=3|rarity=}}
+{{DropsLineReward|name=Mahogany logs|quantity=140-145|rolls=3|rarity=}}
+{{DropsLineReward|name=Onyx bolt tips|quantity=50-58|rolls=3|rarity=}}
+{{DropsLineReward|name=Dragon arrowtips|quantity=351-367|rolls=3|rarity=}}
+{{DropsLineReward|name=Earth orb|quantity=68-71|rolls=3|rarity=}}
+{{DropsLineReward|name=Raw shark|quantity=81-89|rolls=3|rarity=}}
+{{DropsLineReward|name=Wine of Zamorak|quantity=32-34|rolls=3|rarity=}}
+{{DropsTableBottom}}
+
+===Tertiary===
+{{DropsTableHead}}
+{{DropsLineReward|name=Archivist's folio (inert)|quantity=1|rarity=|gemw=no}}
+{{DropsLineReward|name=Fragment of whispering wind|quantity=1|rarity=|gemw=no}}
+{{DropsLineReward|name=Fragment of deep water|quantity=1|rarity=|gemw=no}}
+{{DropsLineReward|name=Fragment of living earth|quantity=1|rarity=|gemw=no}}
+{{DropsLineReward|name=Fragment of burning fire|quantity=1|rarity=|gemw=no}}
+{{DropsLineClue|reward=yes|type=elite|rarity=}}
+{{DropsTableBottom}}
+
+==Junk==
+If players perform poorly{{Explain}} they receive only cabbage.
+
+{{DropsTableHead}}
+{{DropsLineReward|name=Cabbage|quantity=1|rarity=Always}}
+{{DropsTableBottom}}
+
+{{The Fractured Archive}}

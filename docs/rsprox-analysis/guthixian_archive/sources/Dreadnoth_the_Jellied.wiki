@@ -1,0 +1,59 @@
+{{New Content}}
+{{Infobox Monster
+|name = Dreadnoth the Jellied
+|image = [[File:Dreadnoth the Jellied.png|250x250px]]
+|release = [[20 October]] [[2026]]
+|update = The Fractured Archive - Out Today
+|members = Yes
+|combat = 888
+|size = 5
+|examine = Need to safely store a partially summoned demon? Try jelly.
+|attributes = Demon
+|xpbonus = 
+|max hit = 
+|aggressive = 
+|poisonous = 
+|attack style = 
+|attack speed = 4
+|hitpoints = 2100
+|att = 280
+|str = 285
+|def = 125
+|mage = 220
+|range = 250
+|attbns = 185
+|strbns = 35
+|amagic = 0
+|mbns = 0
+|arange = 180
+|rngbns = 20
+|dstab = 15
+|dslash = 20
+|dcrush = 5
+|dmagic = 20
+|dlight = 100
+|dstandard = 80
+|dheavy = 80
+|elementalweaknesstype = Fire
+|elementalweaknesspercent = 85
+|poisonresistance = 100
+|venomresistance = 
+|immunecannon = Yes
+|immunethrall = No
+|immuneburn = No
+|freezeresistance = 40
+|id = 16665
+}}
+'''Dreadnoth the Jellied''' is a boss in [[The Fractured Archive]] raid. He is a powerful [[Demons|demon]] that a group of [[Zamorak]]ian mages attempted to summon inside the Archive, but the ritual was performed incorrectly, and he was only able to partially make it into [[Gielinor]]. Before his corporeal form disintegrated back to [[Infernus]], he turned the mages into a jelly, encasing himself in them.
+
+During a given raid of The Fractured Archive, players can choose to fight either Dreadnoth or [[Moia]] as the third boss encounter.
+
+==Gallery==
+<gallery captionalign="center" widths="200">
+Dreadnoth concept art 1.jpg|thumb|Concept art of Dreadnoth revealed at Runefest 2026
+</gallery>
+
+==Trivia==
+*Its design appears to be based on the [[Game Jam VI#Sanguimancy|blood jelly]] idea from [[Game Jam VI]].
+
+{{The Fractured Archive}}

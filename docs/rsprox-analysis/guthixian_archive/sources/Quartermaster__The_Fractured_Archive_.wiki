@@ -1,0 +1,31 @@
+{{New Content}}
+{{Infobox NPC
+|name = Quartermaster
+|image = [[File:Quartermaster (The Fractured Archive).png|250x250px]]
+|release = [[20 October]] [[2026]]
+|update = The Fractured Archive - Out Today
+|level = <!-- if not applicable, remove this parameter -->
+|members = Yes
+|race = 
+|quest = <!-- if not applicable, remove this parameter -->
+|location = 
+|shop = <!-- if not applicable, remove this parameter -->
+|gender = <!-- if not applicable, remove this parameter -->
+|options = <!-- 'None' if no interaction options are available -->
+|examine = 
+|map = 
+|id = 
+}}
+[[File:Quartermaster (The Fractured Archive) chathead.png|left]]
+'''Quartermaster''' runs the [[Alliance Supplies]] shop, selling supplies for Supply Credits earned during the raid.
+*1 [[Alliance log]]
+*1 [[Leftovers]] <!-- Seems to be given out with poor contribution -->
+*6 [[Saradomin brew(4)]]
+*4 [[Super restore(4)]]
+*4 [[Prayer potion(4)]]
+*1 [[Prayer potion(2)]]
+*1 [[Ranging potion(2)]]
+*1 [[Super combat potion(2)]]
+*10 [[Manta ray]]s
+*5 [[Halibut]]
+*10 [[Giant krill]]

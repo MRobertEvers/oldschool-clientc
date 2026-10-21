@@ -1,0 +1,69 @@
+{{New Content}}
+{{Infobox Monster
+|name = Ezekiel
+|image = [[File:Ezekiel.png|250x250px]]
+|release = [[20 October]] [[2026]]
+|update = The Fractured Archive - Out Today
+|members = Yes
+|combat = 984 
+|size = 3
+|examine = A powerful Saradominist justiciar.
+|attributes = <!-- if no monster attributes apply, remove this parameter -->
+|xpbonus = 
+|max hit = 
+|aggressive = 
+|poisonous = 
+|attack style =melee 
+|attack speed =5 
+|slaylvl = <!-- if not a slayer monster, remove this parameter -->
+|slayxp = <!-- if not a slayer monster, remove this parameter -->
+|cat = <!-- if not a slayer monster, remove this parameter -->
+|assignedby = <!-- if not a slayer monster, remove this parameter -->
+|hitpoints =3000 
+|att =250 
+|str =150 
+|def =130 
+|mage =200 
+|range =80 
+|attbns = 
+|strbns = 
+|amagic =250 
+|mbns = 
+|arange = 
+|rngbns = 
+|dstab =150 
+|dslash =90 
+|dcrush =35 
+|dmagic =200 
+|dlight =445 
+|dstandard =370 
+|dheavy =320 
+|elementalweaknesstype = Earth
+|elementalweaknesspercent = 25
+|poisonresistance = 
+|venomresistance = 
+|immunecannon = 
+|immunethrall = 
+|immuneburn = 
+|freezeresistance = 
+|id = 16652
+}}
+'''Ezekiel''' is one of the [[boss]]es in [[The Fractured Archive]] raid. He is a [[Saradomin]]ist [[justiciar]] who came to the Fractured Archive seeking artefacts worthy of Saradomin. He believes the ends always justify the means. Players have the option during a given raid of The Fractured Archive to fight either Ezekiel or [[Bork]] and the [[Smork]]s as the second boss encounter.
+
+==Enrage Phase==
+[[File:Ezekial Enrage Phase dodged perfectly.mp4|left|thumb|width=354x354|Perfect Dodges]]
+During Enrage phase, Ezekial brings all players into a 3x3 arena and begins shooting volleys of 3 lightning attacks.
+The volley of attacks are indicated by which swords are struck with lightning.  These attacks can be dodged by running opposite of the lightning that strikes.
+{{Clear|left}}
+==Gallery==
+<gallery captionalign="center" widths="200">
+The Fractured Archive - First Look (4).png|Concept art of Ezekiel, by [[Mod Grub]]
+</gallery>
+
+==Trivia==
+* Ezekiel appears to be wearing some type of [[justiciar]] armour. However, its style does not match that of any known groups of justiciars.
+* {{wp|Ezekiel}} was a biblical priest and prophet whose name means "God is strong" or "God strengthens" in Hebrew.
+
+{{The Fractured Archive}}
+
+[[Category:Saradominists]]

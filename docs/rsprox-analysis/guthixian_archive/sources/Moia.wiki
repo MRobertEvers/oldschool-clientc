@@ -1,0 +1,50 @@
+{{External|rs=Moia#Nadir (Old)}}
+{{New Content}}
+{{Infobox Monster
+|name = Moia
+|image = [[File:Moia.png|250x250px]]
+|release = [[20 October]] [[2026]]
+|update = The Fractured Archive - Out Today
+|members = Yes
+|combat = 1064
+|size = 3
+|examine = A powerful necromancer.
+|xpbonus = 
+|max hit = 
+|aggressive = 
+|poisonous = 
+|attack style = 
+|attack speed = 5
+|hitpoints = 785
+|att = 1
+|str = 1
+|def = 195
+|mage = 350
+|range = 200
+|attbns = 
+|strbns = 
+|amagic = 300
+|mbns = 
+|arange = 350
+|rngbns = 35
+|dstab = 20
+|dslash = 110
+|dcrush = 15
+|dmagic = 30
+|dlight = 60
+|dstandard = 120 
+|dheavy = 140
+|elementalweaknesstype = Air
+|elementalweaknesspercent = 80
+|poisonresistance = 
+|venomresistance = 
+|immunecannon = 
+|immunethrall = 
+|immuneburn = 
+|freezeresistance = 
+|id = 16667
+}}
+'''Moia''' is one of the bosses in [[The Fractured Archive]]. She is the half-human, half-[[mahjarrat]] daughter of [[Lucien]]. During a given raid of The Fractured Archive, players can choose to fight either Moia or [[Dreadnoth the Jellied]] as the third boss encounter.
+
+{{The Fractured Archive}}
+[[Category:Zamorakians]]

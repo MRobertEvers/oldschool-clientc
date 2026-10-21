@@ -1,0 +1,368 @@
+==Requirements==
+* Completion of [[While Guthix Sleeps]] for access to the Archive.
+
+==Suggested Skills==
+
+* {{SCP|Hitpoints|90}}+
+* {{SCP|Attack|90}}+
+* {{SCP|Strength|90}}+
+* {{SCP|Defence|90}}+
+* {{SCP|Ranged|90}}+
+* {{SCP|Magic|96}}+
+
+==Transportation==
+The Fractured Archive is located in the [[Chasm of Tears]].
+*[[Archivist's Folio]];
+*[[Guthixian temple teleport]];
+*Teleport to [[Tears of Guthix (minigame)|Tears of Guthix]] using a [[games necklace]], then enter chasm;
+*Run to chasm from [[Lumbridge swamp caves]].
+
+==Equipment==
+<tabber>
+Melee=
+{{Recommended equipment
+|style = Melee switch
+|head1 = {{plink|Inquisitor's great helm}}
+|head2 = {{plink|Torva full helm}} / {{plink|Oathplate helm}}
+|head3 = {{plink|Neitiznot faceguard}} / {{plink|Serpentine helm}}|neck1 = {{plink|Amulet of rancour}}
+|head4 = {{plink|Void melee helm}}
+|neck1 = {{plink|Amulet of rancour}} / {{plink|Amulet of blood fury}}
+|neck2 = {{plink|Amulet of torture}}
+|neck3 = {{plink|Amulet of fury}}
+|cape1 = {{plink|Infernal cape}}
+|cape2 = {{plink|Fire cape}}
+|body1 = {{plink|Inquisitor's hauberk}}
+|body2 = {{plink|Torva platebody}} / {{plink|Oathplate chest}}
+|body3 = {{plink|Bandos chestplate}} / {{plink|Fighter torso}} / {{plink|Blood Moon chestplate}}
+|body4 = {{plink|Elite void top}}
+|legs1 = {{plink|Inquisitor's plateskirt}}
+|legs2 = {{plink|Torva platelegs}} / {{plink|Oathplate legs}}
+|legs3 = {{plink|Bandos tassets}} / {{plink|Blood Moon tassets}}
+|legs4 = {{plink|Elite void robe}}
+|weapon1 = {{plink|Obligator}}
+|weapon2 = {{plink|Scythe of Vitur}}/<br />{{plink|Soulreaper axe}} 
+|weapon3 = {{plink|Abyssal bludgeon}} /<br />{{plink|Ursine chainmace}}
+|weapon4 = {{plink|Zamorakian hasta}}
+|shield1 = {{plink|Avernic defender}}
+|shield2 = {{plink|Dragon defender}}
+|ammo1 = See [[#Ranged|Ranged]]
+|hands1 = {{plink|Ferocious gloves}}
+|hands2 = {{plink|Barrows gloves}}
+|hands3 = {{plink|Void knight gloves}}
+|feet1 = {{plink|Avernic treads (max)}}
+|feet2 = {{plink|Primordial boots}}
+|feet3 = {{plink|Dragon boots}} /<br /> {{plink|Aranea boots}} 
+|ring1 = {{plink|Ultor ring}} / {{plink|Lightbearer}}
+|ring2 = {{plink|Berserker ring (i)}}
+}}
+{{Notelist}}
+|-|
+Ranged=
+{{Recommended equipment
+|style = Ranged switch
+|head1 = {{plink|Masori mask (f)}} /<br />{{plink|Masori mask}}
+|head2 = {{plink|Void ranger helm}}{{efn|Requires the Void ranger helm, elite void top, elite void robe, and Void knight gloves to receive the set effect.|name=elitevoid}}
+|head3 = {{plink|Crystal helm}}{{efn|If bringing full [[crystal armour]] and the [[bow of Faerdhinen]].|name=crys}}
+|neck1 = {{plink|Necklace of rupture}}
+|neck2 = {{plink|Necklace of anguish}}
+|cape1 = {{plink|Dizana's quiver}}
+|cape2 = {{plink|Ava's assembler}}
+|cape3 = {{plink|Ava's accumulator}}
+|body1 = {{plink|Masori body (f)}} /<br />{{plink|Masori body}}
+|body2 = {{plink|Elite void top}}{{efn|name=elitevoid}}
+|body3 = {{plink|Crystal body}}{{efn|name=crys}}
+|legs1 = {{plink|Masori chaps (f)}} /<br />{{plink|Masori chaps}}
+|legs2 = {{plink|Elite void robe}}{{efn|name=elitevoid}}
+|legs3 = {{plink|Crystal legs}}{{efn|name=crys}}
+|weapon1 = {{plink|Twisted bow}} + {{plink|Toxic blowpipe}} + {{plink|Venator bow}}
+|weapon2 = {{plink|Zaryte crossbow}} + {{plink|Scorching bow}}
+|weapon3 = {{plink|Armadyl crossbow}} / {{plink|Dragon crossbow}} / {{plink|Bow of Faerdhinen}}{{efn|name=crys}}
+|shield1 = {{plink|Twisted buckler}}{{efn|If bringing a crossbow.|name=xbow}}
+|shield2 = {{plink|Dragonfire ward}}{{efn|name=xbow}}
+|shield3 = {{plink|Odium ward}}{{efn|name=xbow}}
+|ammo1 = {{plink|Seeking dragon arrow}}{{efn|If bringing a [[twisted bow]].|name=darrows}} /<br/>{{plink|Ruby dragon bolts (e)}}{{efn|name=xbow}} /<br/>{{plink|Rada's blessing 4}}{{efn|Only if bringing a [[bow of Faerdhinen]], [[toxic blowpipe]], or [[crystal bow]].|name=radabless}}
+|ammo2 = {{plink|Dragon arrow}}{{efn|name=darrows}} /<br/>{{plink|Ruby bolts (e)}}{{efn|name=xbow}}
+|ammo3 = {{plink|Amethyst arrow}}{{efn|name=darrows}}
+|hands1 = {{plink|Zaryte vambraces}}
+|hands2 = {{plink|Void knight gloves}}{{efn|name=elitevoid}}
+|feet1 = {{plink|Avernic treads (max)}}
+|feet2 = {{plink|Aranea boots}}
+|ring1 = {{plink|Venator ring}} / {{plink|Lightbearer}}
+|special1 = {{plink|Tonalztics of Ralos}} / {{plink|Zaryte crossbow}}
+}}
+{{Notelist}}
+ 
+|-|
+Magic=
+{{Recommended equipment
+|style = Magic switch
+|head1 = {{plink|Ancestral hat}}
+|head2 = {{plink|Virtus mask}}
+|head3 = {{plink|Ahrim's hood}} /<br /> {{plink|Blue Moon helm}}
+|neck1 = {{plink|Occult necklace}}
+|cape1 = {{plink|God capes#Imbuing|txt=Imbued god cape|pic=Imbued Saradomin cape}}
+|body1 = {{plink|Ancestral robe top}}
+|body2 = {{plink|Virtus robe top}}
+|body3 = {{plink|Ahrim's robetop}} /<br /> {{plink|Blue Moon chestplate}}
+|legs1 = {{plink|Ancestral robe bottom}}
+|legs2 = {{plink|Virtus robe bottom}}
+|legs3 = {{plink|Ahrim's robeskirt}} /<br /> {{plink|Blue Moon tassets}}
+|weapon1 = {{plink|Tumeken's shadow}}
+|shield1 = {{plink|Elidinis' ward (f)}}
+|shield2 = {{plink|Arcane spirit shield}} / {{plink|Elidinis' ward}}
+|shield3 = {{plink|Malediction ward}} / {{plink|Ancient wyvern shield}} / {{plink|Mage's book}}
+|shield4 = {{plink|Book of the Dead}}
+|ammo1 = See [[#Ranged|Ranged]]
+|hands1 = {{plink|Confliction gauntlets}}
+|hands2= {{plink|Tormented bracelet}}
+|hands3 = {{plink|Barrows gloves}}
+|feet1 = {{plink|Avernic treads (max)}}
+|feet2 = {{plink|Eternal boots}}
+|ring1 = {{plink|Magus ring}} / {{plink|Lightbearer}}
+|ring2 = {{plink|Seers ring (i)}}
+|special1 = {{plink|Eldritch Nightmare staff}} + {{plink|Eye of Ayak}}
+}}
+{{Notelist}}
+</tabber>
+
+==Bosses==
+Players must fight five bosses during the run, of which the first and final bosses are guaranteed. For the second, third, and fourth bosses, players may choose which to fight.
+
+After the third boss is defeated, a quartermaster will arrive at the atrium to provide supplies for the team.
+{| class="wikitable"
+|+Raid boss order
+!1st
+|colspan=3 | [[#The Archive Guardian|The Archive Guardian]]
+|-
+!2nd
+|[[#Ezekiel|Ezekiel]] || or || [[#Bork and the Smorks|Bork and the Smorks]]
+|-
+!3rd
+|[[#Moia|Moia]] || or || [[#Dreadnoth the Jellied|Dreadnoth the Jellied]]
+|-
+! colspan=4 |Quartermaster arrives
+|-
+!4th
+|[[#Dagon'hai Elder and Monks|Dagon'hai]] || or || [[#Xarth|Xarth]]
+|-
+!5th
+| colspan=3 | [[#Ocellus|Ocellus]]
+|}
+
+==The Archive Guardian==
+{{Main|Archive Guardian}}
+The first encounter, in the atrium of the raid, is the Archive Guardian.
+
+Upon starting the fight, the Archive Guardian will levitate in the air, giving it the [[Flying (attribute)|flying status]]; ranged, magic and halberds can damage it in this state. Once the first bar is depleted, it will crash into the ground, where it may also be attacked with melee.
+
+*Auto-attacks with ranged attacks, (targeting all players in front of it? other players should stand at a 90, not behind). You can step under him on the tick before he attacks so he slams the ground instead, stepping out will prevent damage (This is not consistent).
+
+*Attacking it will lower its shield bar; when fully depleted it will lower to the ground and become attackable with melee(think verzik web phase), damaging its main health bar.
+
+Throughout the fight, the Archive Guardian will create mushroom spores around it, dealing 3-10 damage, inflicts [[poison]] and can make players weary, lowering their attack speed and preventing them from running. Running adjacent to a mushroom, then immediately two tiles away will pop it dealing no damage.
+
+While grounded, after an initial 6 tick delay, the Archive Guardian will target the players' locations with a tendril every 3 ticks. Tendrils will spawn one after another and attack on the same 3 tick cycle with the attack being a 3x3 AoE swipe around it, dealing moderate melee damage and attacking 3 times before disappearing. Players who are using melee should try to run in sync to avoid colliding with the surrounding tiles. Praying [[Protect from Melee]] reduces the maximum damage to 10. Tendrils always spawn on the side of you opposite the boss. If the boss is west of you, tendrils spawn east of you. If you start far away from the boss, you only need to move 1 tile towards the boss to avoid tendrils and prevent the room from being filled with them.
+
+*Around the room are four inert guardians, which can be charged by attacking them (some accessible by melee; others by range, earth spells weakness; last non-attackable, hit with beam). (Charging them: causes big damage to shield?) Charging does ~40% damage to shield (596 damage to 1490 health shield in 6-scale).
+
+*When low(33%) on health, the Guardian will occasionally charge a laser attack, indicated with the message "The Archive Guardian stares intently at [player name]/[you]." This will deal fatal damage and is similar to [[Sotetseg]]'s big ball attack; players standing on the same line as the target player can share the damage. Alternatively it can be tick eaten. If the depleted guardians are still available they will deal the damage to his unshielded health in this phase. However, once the boss is in kill range they stop dealing damage to the boss.
+*Weak to Heavy Ranged, 80% fire weakness, 20 Crush Defence
+
+==Ezekiel==
+{{Main|Ezekiel}}
+
+===Tank and positioning===
+*The first player to enter the room is marked as the '''tank''' until they die.
+*Ezekiel's auto-attacks '''cleave''' almost entirely around him, leaving a '''safespot directly behind him''' (opposite of where the tank is).
+*Teammates should always stay opposite of the tank to take advantage of this.
+
+===Healing and Flying Swords===
+*After '''every two melee autoattacks''', he will perform an AoE lightning attack that must be dodged by moving at least two tiles. At the same time as this, he will also spawn four '''Flying Swords''' which will move in a straight line once fully charged.
+*If Ezekiel's '''south-west tile''' is not hit by the south-west tile of '''Flying Sword''', he heals (from 500 HP up to 660 HP).
+*Hitting the swords '''staggers''' them and '''charges''' their damage. Charged swords damage and stun the boss, preventing him from healing.
+*The swords are resistant to ranged and '''very weak to air magic''', and appear to always be hit by magic (at least air magic). A single air wave from a [[Twinflames staff]] is nearly enough to fully charge a sword.
+*'''Tip:''' You can Drakan-style dodge the swords. The moment a sword's charge is done, roll away to safety and keep Ezekiel in place so he is hit by the swords, negating the heal.
+
+===Damaging Ezekiel===
+*Ezekiel is '''weak to earth magic''' and very easy to hit, but he appears to have a mechanic that '''caps damage to single digits''', similar to [[Verzik Vitur]]'s first phase.
+
+===Enrage===
+After the enrage starts, assume the player is facing '''east''' towards Ezekiel.
+
+*Three shapes appear in a '''V''' under Ezekiel, and two of them are hit by lightning to show where to dodge.
+*This repeats '''three times in a row'''.
+*The patterns tell you which direction to dodge inside the '''9x9 grid''' the player is placed in.
+
+====Lightning patterns====
+There are three main patterns:
+
+<table><tr><td>
+{|class="wikitable" style="text-align: center;"
+!colspan="3"| Lightning pattern
+|-
+|style="background: DeepSkyBlue;"|[[File:Saradomin Strike.png|link=|Lightning strike]]|| ||style="background: white;"|
+|-
+| ||style="background: DeepSkyBlue;"| [[File:Saradomin Strike.png|link=|Lightning strike]] ||
+|-
+!colspan="3"| Safe tiles
+|-
+| {{Not okay}} || {{Not okay}} || {{Not okay}}
+|-
+| {{Not okay}} || {{Not okay}} || {{Okay}}
+|-
+| {{Not okay}} || {{Not okay}} || {{Okay}}
+|}
+</td><td>
+{|class="wikitable" style="text-align: center;"
+!colspan="3"| Lightning pattern
+|-
+|style="background: white;"| || ||style="background: DeepSkyBlue;"|[[File:Saradomin Strike.png|link=|Lightning strike]]
+|-
+| ||style="background: DeepSkyBlue;"| [[File:Saradomin Strike.png|link=|Lightning strike]] ||
+|-
+!colspan="3"| Safe tiles
+|-
+| {{Not okay}} || {{Not okay}} || {{Not okay}}
+|-
+| {{Okay}} || {{Not okay}} || {{Not okay}}
+|-
+| {{Okay}} || {{Not okay}} || {{Not okay}}
+|}
+</td><td>
+{|class="wikitable" style="text-align: center;"
+!colspan="3"| Lightning pattern
+|-
+|style="background: DeepSkyBlue;"| [[File:Saradomin Strike.png|link=|Lightning strike]] || ||style="background: DeepSkyBlue;"|[[File:Saradomin Strike.png|link=|Lightning strike]]
+|-
+| ||style="background: white;"| &nbsp; ||
+|-
+!colspan="3"| Safe tiles
+|-
+| {{Not okay}} || {{Not okay}} || {{Not okay}}
+|-
+| {{Not okay}} || {{Not okay}} || {{Not okay}}
+|-
+| {{Okay}} || {{Okay}} || {{Okay}}
+|}
+</td></tr></table>
+
+'''Easy way to remember:''' a '''flat''' pattern means the '''bottom row''' is safe. Otherwise, take the middle plus the strike direction (e.g. middle + right) and dodge to the '''opposite''' side.
+
+==Bork and the Smorks==
+{{Main|Bork|Smorks}}
+Bork and the Smorks are a duo boss fight similar to that of the Royal Titans, consisting of two different entities.
+
+Bork attacks with AoE-based melee, launching shockwaves around him. The frequency of these attacks is based on how fast he beats the drum on his stomach. (think [[Sol Heredit]])
+
+Bork will target the first player who enters the arena, chasing after them. If his target is not within melee range he will generate a stronger beat on his first attack. The second attack will only affect the tiles immediately around him.
+
+When Bork says "Bork crush now", run to the opposite side of the Smorks.
+
+The Smorks attack with both ranged and magic; ranged attacks are indicated with bones and magic attacks as a cluster of potions. Alongside these attacks, the Smorks will launch incendiary and heavy cannonballs. The Smorks are static, in the centre of the arena and block Bork's beats.
+
+Incendiary cannonballs will deal heavy damage if caught in its AoE and leave behind splatters of oil, which if stepped on will deal 6-7 damage per tick and ignite the player, inflicting a burn that starts at 2 damage. If Bork is hit by one he will take moderate damage.
+
+Heavy cannonballs will be indicated with the Smorks yelling for Bork to watch out. If the cannonball lands on Bork, he will become dazed, and all melee attacks will land as [[successful hit]]s for a short time. Do this by having people stand behind the tank, and all running away after the shadow appears. Afterwards, Bork will become angered and generate massive slams across the entire arena, which can be blocked by using the smorcs cart (run to the other side). It is possible to flinch the boss between the slams to deal more damage. The slams will also occur immediately if the cannonball fails to hit him.
+
+When one of the pair is killed, the other will become enraged and initiate the second half of the fight.
+
+*If Bork is killed first, the Smorks' attack speed will significantly increase and their attacks will hit everyone in the arena. The damage from their auto-attacks are increased.
+*If the Smorks are killed first, Bork's stomps will cover the entire arena.
+
+It is highly recommended to kill Bork first, since the Smorks' attacks are easier to handle.
+
+==Moia==
+{{Main|Moia}}
+Moia spawns outside of a ring and spawns a bunch of zombies inside that move around in fixed patterns.
+
+There's a "cough" mechanic. Zombie's can be infected by "cough" and get dealt 20 damage.
+
+[[Venator bow]] works well here for killing the zombies, zombies do respawn.
+
+She shoots a Ranged attack right before the blue special, you pray mage against the blue.
+
+==Dreadnoth the Jellied==
+{{Main|Dreadnoth the Jellied}}
+Dreadnoth moves slowly around the arena. He attacks with melee if within range, but you should be constantly running away. He can be frozen, but has 40% freeze resistance, so frequent freezing is required. 
+
+At three points (based on current health) he will do a slam, followed by three ranged attacks. Ensure protect from melee is active for the slam, and protect from range is active for the projectiles. Each sequential slam will have an additional hit, up to three slams, with ranged attacks between each. This will also spawn a lot of Jellies; protect from melee must be used to prevent damage from these. These must be killed as soon as possible as they will rapidly drain prayer if attacking the player, even if protect from melee is active. [[Ice Barrage]], [[Blood Barrage]], or the [[Venator bow]] can be used to kill them quickly. In large groups, it is easier to stack together during this phase to ensure all jellies can be killed together.
+
+When jellies die, and periodically through the fight, blood will spawn on tiles. This will do slight damage (~8) when stepped on.
+
+When the boss enters enrage (signified by a voice line), he will slam on a random player. This will do large amounts of damage and heal the boss (~30-40) if not avoided. If protect from melee is not active, players will take damage regardless of location. Following the slam, one ranged projectile will hit all players, so switch to protect from range once he lands. He will also place blood on the player's tile, so movement is required. 
+
+On death, the boss will spawn around 10 jellies. These can be easily barraged to death.
+
+==Quartermaster==
+The [[Quartermaster (The Fractured Archive)|quartermaster]] runs the [[Alliance Supplies]] shop, selling supplies for Supply Credits earned during the raid.
+*1 [[Alliance log]]
+*6 [[Saradomin brew(4)]]
+*4 [[Super restore(4)]]
+*4 [[Prayer potion(4)]]
+*1 [[Prayer potion(2)]]
+*1 [[Ranging potion(2)]]
+*1 [[Super combat potion(2)]]
+*10 [[Manta ray]]s
+*5 [[Halibut]]
+*10 [[Giant krill]]
+
+==Dagon'hai Elder Monks==
+{{Main|Dagon'hai Elder|Dagon'hai Monk}}
+Shared shield pool at the start
+
+==Xarth==
+{{Main|Xarth}}
+===Phase 1===
+The first phase of Xarth is rather simple; simply attack him from afar with ranged or magic ([[Water Surge]] and [[Twisted bow]] are effective). Attack him while remaining behind the pillars. After taking a set amount of damage, he will launch a projectile and bind the team, which functions identically to the binding attack of normal [[Tormented Demon]]s. Shortly before the fireball lands, he will also charge up a blast which can be avoided by hiding behind the nearby pillars. All team members should use the same pillar to avoid destroying them too early, pay attention to where Xarth is facing , he can potentially destroy 2 pillars if you're not careful of positioning. If caught in this blast, the player will take heavy damage and be inflicted with a burn.
+
+===Phase 2===
+Once all three pillars are destroyed, Xarth will initiate the second phase of the fight. He will attack with both melee and ranged, alongside targeting various tiles with flames that will inflict a burn status if walked on.
+
+Throughout the phase, he will additionally reanimate [[Corpse (Xarth)|corpses]] from the edges of the arena that will approach him, similar to the [[sleepwalker]]s at [[The Nightmare]]. If allowed to reach him, they will heal him for their remaining health. Corpses can be frozen, or they may be attacked with [[water spells]] to douse them, making them easier to kill. If the corpses heal Xarth for 200 health, he will respond with a large AoE blast across the entire arena.
+
+*Fire spells spawn more corpses
+*Water spells and ice spells are 1-tick on corpses
+*The corpses can be frozen to prevent them from reaching Xarth
+*The AoE blast can have reduced damage by positioning the team behind the tank
+
+==Ocellus==
+{{Main|Ocellus}}
+===Phase 1===
+Ocellus begin by moving to each corners, attacking with ranged (orange) and magic (blue) projectiles. Once a quadrant is reached, he will rapidly spawn 7 tendrils out from himself on the ground. Standing on the tendrils will deal minor chip damage, but also deny a the boss from healing itself. This can also heal the player. Once all tendrils have spawned, there is an AOE blast 2 tiles around the boss.
+
+At 66% and 25%, Ocellus will teleport to the middle and spawns tendrils in a clockwise direction. They spawn 2 at a time, followed by another AOE blast. does this in all 4 directions before returning to the corners. After this attack is complete, he will announce {{Overhead|Embrace... annihilation...}} and rapidly attack all players for 80+ damage. If attacks are blocked successfully, he may instead say {{Overhead|Death... awaits...}} and only deal ~17 damage.
+
+Ocellus is currently not immune to scorching bow special attacks, you can alternate special attacks with your team to keep him rooted and prevent him from ever reaching any quadrant, preventing any tendrils from appearing except for the ones at 66% and 25%
+
+===Phase 2===
+Once his shield is reduced to 0, Ocellus will teleport to the center of the arena and create 4 quadrants surrounded by orange and purple portals. Purple portals will spawn damaging attacks, while 2 orange portals will spawn on either side that intersect in a safe zone. After a a few sets of attacks, purple damaging pools will spawn on the floor of the arena followed by an orange portal. This will allow players to teleport to a new quadrant and avoid the incoming barrage of attacks as the quadrant becomes unsafe.
+
+===Phase 3===
+Ocellus will destroy parts of the arena to create 4 diagonal quadrants separated by floating rocks that can be jumped across. He will begin pursing players attacking with melee. If he is unable to reach a player, he will attack with a powerful spread void shot dealing 20+ damage to each player. Void pools will spawn on the floor dealing periodic damage. Ocellus will eventually shout {{Overhead|The void... will take you...}} and root 1 player in place with a [[Void Vine]] that can only be attacked by another player. Failure to break the vine in time will deal upwards of 50 damage.  [[Void Rift]]s will spawn, which when defeated will empower the player who kills it. Ocellus will begin floating in the air, unable to be reached by melee attacks. the entire ground will erupt in a void attack, dealing 40+ damage.
+
+*[[Void Augmenter]]s (blue crystals) also spawn
+
+Once enough damage is reached, Ocellus will shout {{Overhead|Obliteration...}} and destroy a quadrant. The player is killed if they do not jump to another quadrant in time. 
+
+The four censers around the room become active during this phase. Interacting with them provides certain benefits:{{Fact}}
+*[[Bandosian Censer]] - +Melee damage? - Seems to make next melee attack max hit
+*[[Armadylean Censer]] - +Ranged damage? 121 ruby bolt hit with Zaros Crossbow - Seems to make next range attack max hit
+*[[Zarosian Censer]] - Special attack - 50% spec restore?
+*[[Saradomin Censer]] - Healing - 50 healing and 50 prayer?
+*
+
+===Phase 4===
+When only one quadrant remains, Ocellus will say {{Overhead|End...}} and use a different set of attacks while utilizing the [[Ruinous Powers|Ancient Curses]] prayers. The attacks will follow the cycle described below: <br/>
+
+# Ocellus will rise into the air, turning all tiles below him and one tile away from him into void, and will begin to use the [[Deflect Melee]] prayer. Except for the start of this phase, Ocellus will additionally spawn [[Void Rift|Void Rifts]] that must be destroyed before they charge up to prevent potential damage.{{Fact}} 
+# Ocellus will perform an attack to all players (appears as a blue, wind-like attack above the player), dealing half of each player's current health as damage, rounded down. A light blue orb will spawn on a safe tile in the quadrant, and walking into the orb will heal the player for the damage that was dealt.
+# Soon after the damage from step 2 is dealt, void particles will spin around every player, indicating that Ocellus will begin a void explosion attack. Every two ticks, a void explosion will begin at each player's current tile and deal damage on the next tick, requiring players to constantly move to avoid damage. This repeats six times. Explosions for any given player will not appear for or harm other players.{{Fact}}
+# Ocellus will land on the ground, removing the floor of void around him.
+# Ocellus will switch to using the [[Soul Split]] prayer. He will then do one of three attacks that will hit the entire quadrant, requiring the correct protection prayer to be used to mitigate damage.
+# Ocellus will then turn the floor of the entire quadrant into void except for the tiles directly below him and within 1 tile of him, and will begin to use the [[Deflect Range]] prayer.
+# Ocellus will repeat the blue, wind-like attack and void explosion attack as described in step 2 and step 3.
+# The void floor will be removed, and Ocellus will repeat the sequence described in step 5. Once the attack is complete, the entire cycle repeats. This continues until Occellus is defeated.
+
+[[File:P4 Melee temp image from Gnomonkey's Stream.png|thumb|P4 Melee temp image from Gnomonkey's Stream]]
+[[File:P4 Mage temp image from Gnomonkey's Stream.png|thumb|P4 Mage temp image from Gnomonkey's Stream]]
+[[File:P4 Ranged temp image from Gnomonkey's Stream.png|thumb|P4 Ranged temp image from Gnomonkey's Stream]]

@@ -1,0 +1,70 @@
+# The Fractured Archive, room by room (RSProx index 4294..4303)
+
+The raid after the Archive Guardian (`guardian_plan.md`). One spec per room,
+then the implementation; each spec cites its sessions and ticks and the
+counts behind each rule, and names what no recording shows as *unverified*.
+
+## Sessions (rev 241, 2026-10-20/21, recorder "Das Idle", normal worlds)
+
+| session | what it holds | party |
+|---|---|---|
+| index 4298 | the recorder's own Guardian fight [127..376] (dies), the gravestone | 1 |
+| index 4299 | spectating; a Guardian kill's tail [..109] | - |
+| index 4300 | spectating: Guardian [10..847], **Ezekiel** [865..1188] (killed at 1181, session ends) | 2 |
+| index 4301 | spectating: Guardian tail [..27], **Ezekiel** [52..273], atrium 1 [286], **Dreadnoth** [307..546], atrium 2 + Quartermaster [565], **Xarth** [617..844], atrium 3 [859], **Ocellus** [875..1943], **the vault** [1969..2153] | 3 |
+| index 4302 | spectating: **Bork** tail [85..102], atrium 1 [117], **Dreadnoth** [134..409], atrium 2 [423], **Xarth** [502..749] | 5 |
+| index 4303 | spectating: Guardian [37..311], **Bork** [331..691], atrium 1 [705], **Dreadnoth** [726..~1144]; Guardian [~1260..1849], **Bork** [1876..2365], atrium 1 [2400], **Dreadnoth** [2421..] | 2, then 5 |
+| index 4304 | spectating: Guardian [..329], **Bork** [357..667], **Dreadnoth** [720..~1045]; Guardian [1050..1187]; Guardian [..1722], **Bork** [1744..2126], **Dreadnoth** [2166..2557], **Xarth** [2657..] | 3, then 2 |
+| index 4306 | spectating: Guardian [..434], **Bork** [469..~1100]; Guardian [..1147], **Bork** [1172..~1740], Guardian [1749..] | |
+| index 4308 | B0aty's run, spectating: Guardian [252..510], **Bork** [523..781], **Dreadnoth** [820..1027], **Xarth** [1151..1431], **Ocellus** [1458..2382], **the vault** [2407..] | 4 |
+| index 4294 | (earlier) Guardian x2, **Bork** from ~[1491] | 5 |
+
+Moia and the Dagon'hai are in no recording: not built.
+
+All transcripts: `python3 tools/rsprox/rsprox_index.py get <id> --all-players`
+(raiders' movement, seqs and hits; the recorder spectates). Room views:
+`tools/boss_view.py <txt> <boss regex> <from> <to>` (every tile relative to the
+boss's south-west tile), `tools/room_inv.py <txt>:<from>:<to> ...` (counts).
+
+## The rooms
+
+| stage | room | template square | arrives at | spec | built (test) |
+|---|---|---|---|---|---|
+| 1 | Archive Guardian (the nexus, plane 0) | (64,87) | (4126,5573,0) | `guardian_plan.md` | yes (`tfa_guardian*.lua`) |
+| 2 west | Ezekiel | (63,86) | (4080,5535,0) facing west | `ezekiel_plan.md` | yes, audited (`tfa_ezekiel.lua`) |
+| 2 east | Bork and the Smorks | (65,87) | (4174,5600,0) | `bork_plan.md` | yes, audited (`tfa_bork.lua`, `tfa_bork_smorks_first.lua`) |
+| - | atrium, after each of stages 2..4 (the nexus, plane 2) | (64,87) | see `nexus_plan.md` | `nexus_plan.md` | yes |
+| 3 east | Dreadnoth the Jellied | (65,88) | (4172,5662,0) | `dreadnoth_plan.md` | yes, audited (`tfa_dreadnoth.lua`) |
+| 4 east | Xarth | (65,86) | (4172,5535,0) | `xarth_plan.md` | yes, audited (`tfa_xarth.lua`) |
+| 5 | Ocellus (plane 1) | (64,88) | (4126,5636,1) | `ocellus_plan.md` | yes, audited (`tfa_ocellus.lua`) |
+| - | the vault (plane 2) | (64,90) | (4127,5777,2) | `vault_plan.md` | yes, audited (`tfa_vault.lua`; loot per the wiki) |
+
+Every room is its own instance (the raw transcripts show a new region per
+room, 4301 `--raw`), built from its template square; ours: one
+`~map_instance_from_square` per room, the raid's clock and totals carried from
+instance to instance.
+
+## Scaling (every boss bar, 8 fights)
+
+The bar's base hp at party sizes 1/2 (the two-player floor), 3 and 5:
+
+| boss | 1-2 | 3 | 5 | ratio |
+|---|---|---|---|---|
+| Guardian shield / health | 550 / 1100 | - / 1600 | 1260 / 2520 | x1.45, x2.29 |
+| Ezekiel | 3000 (4300) | 4350 (4301) | | x1.45 |
+| Bork + Smorks (`tfa_bork_smork_hp_ui_handler`) | 1500 (4303) | | 3440 (4294, 4302, 4303) | x2.29 |
+| Dreadnoth | 2100 (4303) | 3050 (4301) | 4810 (4302, 4303) | x1.45, x2.29 |
+| Xarth | | 3770 (4301) | 5950 (4302) | 2600 x1.45, x2.29 |
+| Ocellus p1 / p2 | | 3630 / 7610 (4301) | | 2500 / 5250 at 1-2 |
+
+Only a solo party is built, so every boss takes its 1-2 value (the cache's
+stat4 for Ezekiel 3000, Bork 1500, Dreadnoth 2100, Xarth 2600).
+
+## The clocks the raid carries
+
+- The HUD timer (script 10036) counts the whole raid from the Guardian's Touch
+  and never resets between rooms (4301 [24..363]: 196 -> 363 across the move to
+  Ezekiel, flag 0 all along).
+- "Challenge complete: <boss>. Duration: m:ss. Total: m:ss": duration from the
+  boss's engage to the line (Ezekiel 4301: engage [65], line [273], 208 ticks =
+  2:05), total from the raid's start (1:59 + 2:28 = 4:27).

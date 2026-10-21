@@ -4318,7 +4318,12 @@ function QD.player.click_loc(loc, op, opts)
     -- off happens HERE -- above the before-reads below -- rather than inside
     -- the projection, where it would move the player between the two loc
     -- readings the door evidence compares.
-    QD.player.walk_near(target, nil, QD.player._loc_standoff)
+    -- `from_here`: press it where the player stands, as the real client
+    -- does, for a loc nobody can walk up to that answers at range
+    -- ([aploc], e.g. Ocellus's censers behind the chasms).
+    if not (type(opts) == "table" and opts.from_here) then
+        QD.player.walk_near(target, nil, QD.player._loc_standoff)
+    end
     -- A DOOR SAYS NOTHING, and the settle has no arm for silence.
     --
     -- Measured 2026-09-19 (build/quest_gate/door_fence): the closed door
@@ -4390,6 +4395,11 @@ function QD.player.click_loc(loc, op, opts)
     end
     if click_result ~= "ok" then
         return click_result, click
+    end
+    -- A press from here answers at range or not at all: there is no walk to
+    -- settle, and the caller reads the loc's answer itself.
+    if type(opts) == "table" and opts.from_here then
+        return "ok", "click_loc " .. tostring(loc) .. ": pressed from here"
     end
     local result, detail, settle_arm = QD.player._settle_after_click(
         20, before_kind, before_text)
