@@ -105,10 +105,25 @@ through it. A form change that the engine re-reads from the config
 (`::tfaparty`): Xarth 4860 at four, Dreadnoth 4810 at five, Ocellus 3630 at
 three through his change of form.
 
-Already per party, from the rooms' own rows: Dreadnoth's blob (min(12, 3 x
-raiders x k)), Xarth's volley ((raiders + 1) / 2 fireballs). Unverified (no
-bar to read): the adds' health (jellies 75, corpses 62, Ezekiel's swords 80,
-the Guardian's batteries 180), held at the cache's.
+### The adds
+
+How many come at each event, against the raiders (`tools/adds.py`: adds of a
+type within a tick or two of each other are one event). The adds follow the
+raiders **still standing in the room**, not the party that started:
+
+| add | 1 | 2 | 3 | 4 | 5 | rule (ours) |
+|---|---|---|---|---|---|---|
+| Guardian tentacle, a wave | 1 (20/20) | 2 | 3 (17/17) | 2..4 | 2..5 | one on or beside each living raider; fewer at four and five as raiders fell |
+| Ezekiel's swords, a summon | | 3-4 | 3-4 | | | the layout's, not the party's |
+| Dreadnoth's jellies, a phase k | | 6, 12, 12 | 9, 11-12, 11-12 | 12, 11, 11 | 12, 12, 12 | min(12, 3 x living x k), split over the k slams (11 = a blocked tile); 7 at his death |
+| Xarth's corpses, a volley | 1 | 2 | 2 | 2 | 3 | max(min(n, 2), (n + 1) / 2), n living: 4304's duo drops to one a volley after a death at [3051] |
+| Ocellus's void rifts, phase 3 | | | 1 (12/12) | 2 (14/14) | | max(1, living / 2); five and more unrecorded |
+| Ocellus's void rifts, phase 4 | | | 2, 3, 4 | 2 | | two, three, four: not the party's |
+| Ocellus's void vine | | | 1 | 1 | | one |
+
+The Guardian's mushrooms are two by each raider (§6 of guardian_plan.md). Unverified
+(no bar to read): the adds' health (jellies 75, corpses 62, Ezekiel's swords
+80, the Guardian's batteries 180), held at the cache's.
 
 Open: today each raider's later rooms are their own instance (each move
 makes one), so a party's size only reaches the rooms through this lock.

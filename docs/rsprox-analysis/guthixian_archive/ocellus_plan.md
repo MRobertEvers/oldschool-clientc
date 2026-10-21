@@ -137,7 +137,7 @@ S (the same in both fights to a tick or three):
 | 33 (36 later) | "Your panic... is futile...": `npc_ocellus_phase3_basic_projectile_all`, `vfx_ocellus_magic_spotanim01` slot 4 d30, `vfx_ocellus_magic_projanim01` at everyone 45/60 a100 p100 435/124 (ours 109/31); a `tfa_ocellus_void_degen_aoe` patch (21..51 ticks) |
 | 36 (39 later) | the void vine: "The void... will take you..." or "Await... the void..."; `tfa_ocellus_p3_void_vine` (44 hp) on a raider's tile, rooting them; 14 ticks to cut it (the wiki: 50 if not) |
 | (later segments) 59 | "Insolence...": three `npc_ocellus_phase3_melee_superior_slash` d30, 5 apart, each a band 4 wide of `_superior_spotanim01` toward the target, its debris `tfa_ocellus_void_degen_aoe_insolence_1/4/7` (near, middle, far; random turns) for 16 ticks (56/56) |
-| (later segments) 3, 51, 111 | one or two void rifts (`tfa_ocellus_p3_bombportal_basic` "Void Rift" / `_buff` "Void Augmenter", 44 hp), spawn seq, despawn seq +10, gone +12 |
+| (later segments) 3, 51, 111 | void rifts, 44 hp: the second segment's are `tfa_ocellus_p3_bombportal_buff` "Void Augmenter", the third's `_basic` "Void Rift" (2/2); one at three raiders (12/12), two at four (14/14): max(1, living / 2); spawn seq, despawn seq +10, gone +12 |
 | 53 (first) / 134 (later) = U | "Untether...": he jumps to the corner with an exact move (old, 0, new, 90, the yaw), `npc_ocellus_phase3_unleash_in`; U+2 `_unleash_loop`; pools `vfx_ocellus_p2_aoe_dodge` (10..15) on the quadrant at U+6, 10, 14, 18; U+18 `vfx_ocellus_p3_unleash_spotanim` d360; U+25 `vfx_ocellus_unleash_arena` (NE `_180`, NW `_90`, SW plain) over it; U+29 `_unleash_out` |
 | U+31 | "Obliteration..." or "Run... It matters not..."; `npc_ocellus_quadrant_destroy_in`, `vfx_ocellus_phase3_arena_collapse_in` slot 2; the barriers' `_despawn` |
 | U+33 | `_destroy_loop`, `_arena_collapse_loop` slot 2 (looping) |
@@ -175,7 +175,7 @@ half a special attack; the next melee or ranged hit a max hit.
 | +21 | `_deflect_out`; the wind given back (the wiki's orb: 41, 40) |
 | +24, +52 | `npc_ocellus_phase3_melee_hybrid` with `vfx_ocellus_phase3_melee_hybrid_magic` or `_ranged` slot 2; +5 everyone hit, 5..7 under the matching prayer (4301 [1739], 4308 [2292]: 7 x7) |
 | +34 | `_soul_fragment_ocellus_idle` slot 2, `_soul_fragment_start`; +1 the wind again; +13 it is given back; +16 `_soul_fragment_end` |
-| +59 | void rifts: two, three, four (4301 [1769], [1829], [1889]) |
+| +59 | void rifts: two, three, four (4301 [1769], [1829], [1889]; 4308 [2322] two at four raiders: not the party's) |
 
 The wiki's void bursts (every 2 ticks, six times, at a raider who stands
 still) and their orbs are each raider's own and never reach a spectator.

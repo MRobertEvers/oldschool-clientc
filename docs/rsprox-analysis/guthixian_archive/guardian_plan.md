@@ -64,7 +64,7 @@ rule below cites counts across those fights; tools in `tools/`
 
 ## 8. Tentacles (ground phase)
 
-- Every 3 ticks from landing: an `archive_guardian_tentacle` ("Vine", size 1) on or next to the player's tile of the tick before (35/35), facing the player, seq `tentacle_spawn01` (14771) + spotanim `vfx_guardian_tentacle_intro_spotanim01`, `sound_area` 12218 range 4.
+- Every 3 ticks from landing: an `archive_guardian_tentacle` ("Vine", size 1) on or next to each living player's tile of the tick before (35/35 solo; a wave is one a raider: 17/17 at three, RAID_PLAN.md §Scaling), facing the player, seq `tentacle_spawn01` (14771) + spotanim `vfx_guardian_tentacle_intro_spotanim01`, `sound_area` 12218 range 4.
 - Attacks (`tentacle_attack01` 14768) at +3, +6, +9; `despawn01` (14769) +12; deleted +13 (34/35).
 - An attack hits a player exactly 1 tile away on the tick before (6 of 9; 0 of 3 standing on it, 0 of 34 at 2+): 17..19 under protect from missiles (6 hits). **Unverified**: its style, max, and protect from melee (never prayed).
 

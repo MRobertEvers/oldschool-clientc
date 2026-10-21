@@ -50,9 +50,11 @@ Melee: a target beside him is struck in whichever attack slot comes next
 [1382]): `xarth_attack_melee_01` with `luc2_undead_demon_melee_spot` slot 2,
 facing them.
 
-Checked on 4304 [2640..2960] (two raiders) and 4308 [1140..1431] (four,
-B0aty's): the 31-tick pillar cycle, the 21-tick volley, two fireballs a volley
-at four raiders, as (raiders + 1) / 2 gives.
+Checked on 4304 [2640..3107] (two raiders) and 4308 [1140..1431] (four,
+B0aty's): the 31-tick pillar cycle, the 21-tick volley. The fireballs (and so
+the corpses) a volley follow the raiders still standing: two at two, three
+and four, three at five, one once 4304's duo lost a raider ([3051]; its
+volleys at [3088], [3107] one each): max(min(n, 2), (n + 1) / 2).
 
 ## 4. The corpses
 
@@ -99,5 +101,5 @@ idx4301.txt idx4302.txt --ours <ticklog>` (counts per window).
 | music | `midi_song_v2` with fades | plain `midi_song` | **open (engine)** |
 | damage | not readable from these transcripts (hits over 99 on one raider) | fireball 0..30 + burn, arrow 0..30, AoE 20..40, blast 30..60 + burn | approximate |
 | corpse heals him / the 200-heal blast | the wiki only | a corpse reaching him heals its health; no blast | unverified / not built |
-| party scaling | 2 fireballs a volley at three or four raiders, 3 at five | (raiders + 1) / 2 | matched (4301, 4302, 4304, 4308) |
+| party scaling | fireballs a volley by the raiders standing: 1 alone, 2 at two to four, 3 at five | max(min(n, 2), (n + 1) / 2), n living | matched (4301, 4302, 4304, 4308; was (n + 1) / 2, one short for a duo) |
 | melee | `xarth_attack_melee_01` + `luc2_undead_demon_melee_spot` slot 2 on a target beside him | same | matched (not exercised by the bow test) |
