@@ -55,6 +55,7 @@
 #include <assert.h>
 #include <ctype.h>
 #include <limits.h>
+#include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -3204,6 +3205,71 @@ player_take_step(struct ToriRSServerPlayer* player)
     return dir;
 }
 
+/*
+ * A dodge (`p_dodgewindow`): the move click handled this tick, inside the
+ * window, takes up to three steps of its route now, as one exact move --
+ * the roll over 15 cycles for two or three tiles, the strafe over 8 for one
+ * -- and leaves the rest of the route for the next tick's ordinary steps.
+ *
+ * The Blood Moon Rises' Drakan (RSProx 4262, the recorder's own clicks):
+ * the click is filed on the dodge's own tick, 360 dodges, two or three tiles
+ * of the route (a click (1,5) away lands at (0,3), the route's third step),
+ * one-tile strafes, and the run to the click on the next tick (33105 ->
+ * 33106, 33129 -> 33130). A route already being walked never dodges.
+ * Ezekiel's raiders the same, 3 tiles at most (4300 [908], 4301 [132]).
+ */
+static int
+player_dodge(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player)
+{
+    int from_x = player->x;
+    int from_z = player->z;
+    int steps = 0;
+    int dx;
+    int dz;
+    int yaw;
+
+    if( player->dodge_click_tick != srv->tick || srv->tick < player->dodge_from_tick ||
+        srv->tick > player->dodge_to_tick || !player_has_waypoints(player) )
+        return 0;
+    while( steps < 3 && player_has_waypoints(player) )
+    {
+        if( player_take_step(player) < 0 )
+            break;
+        steps++;
+    }
+    if( steps == 0 )
+        return 0;
+    dx = player->x - from_x;
+    dz = player->z - from_z;
+    /* The yaw of the way it goes, 0 south, 512 west, 1024 north, 1536 east
+     * (4262: north 1024, (-2, +1) 663). */
+    yaw = (int)lround(atan2((double)-dx, (double)-dz) * 1024.0 / M_PI);
+    yaw &= 2047;
+    player->exact_start_x = from_x;
+    player->exact_start_z = from_z;
+    player->exact_end_x = player->x;
+    player->exact_end_z = player->z;
+    player->exact_start_cycle = 0;
+    player->exact_end_cycle = steps >= 2 ? 15 : 8;
+    /* The classic block's four ways: the nearest. */
+    player->exact_direction = ((yaw + 256) & 2047) / 512 == 0   ? 2
+                              : ((yaw + 256) & 2047) / 512 == 1 ? 3
+                              : ((yaw + 256) & 2047) / 512 == 2 ? 0
+                                                                : 1;
+    player->exact_yaw = yaw;
+    player->place_dirty = 1;
+    player->masks |= TORIRSSERVER_PMASK_EXACT_MOVE;
+    {
+        int seq = steps >= 2 ? player->dodge_seq_roll : player->dodge_seq_strafe;
+
+        if( ToriRSServer_AnimPlayPlayer(player, seq, 0) )
+            ToriRSServer_TicklogPlayerAnim(srv, player, seq, 0);
+    }
+    return 1;
+}
+
 void
 advance_player(struct ToriRSServer* srv)
 {
@@ -3255,6 +3321,8 @@ advance_player(struct ToriRSServer* srv)
 
     player->move_count = 0;
     player->steps_taken = 0;
+    if( player_dodge(srv, player) )
+        max_tiles = 0;
     {
         int from_x = player->x;
         int from_z = player->z;
@@ -6860,6 +6928,9 @@ handle_move(
     }
 
     ToriRSServer_WorldWalkTo(srv, dest_x, dest_z);
+    /* A click is what dodges inside a `p_dodgewindow`; a route already being
+     * walked is not (advance_player). */
+    player->dodge_click_tick = srv->tick;
 
     if( srv->verbose )
         fprintf(
@@ -15607,6 +15678,10 @@ world_seat_player(
     player->world = srv;
     player->pid = pid;
     player->login_generation = generation;
+    /* No dodge window, no click handled yet (a 0 would be tick 0's). */
+    player->exact_yaw = -1;
+    player->dodge_to_tick = -1;
+    player->dodge_click_tick = -1;
     player->session = session;
     /* A selftest player has no session (see `last_input_tick` below):
      * it logs in as the desktop client. */
@@ -16177,6 +16252,9 @@ ToriRSServer_WorldPlayerInit(struct ToriRSServerPlayer* player)
         player->pid = pid;
         player->login_generation = login_generation;
         player->active = 1;
+        player->exact_yaw = -1;
+        player->dodge_to_tick = -1;
+        player->dodge_click_tick = -1;
         if( session )
         {
             player->client_type = session->client_type;

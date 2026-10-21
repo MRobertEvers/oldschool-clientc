@@ -4198,6 +4198,23 @@ struct ToriRSServerPlayer
     int exact_start_cycle;
     int exact_end_cycle;
     int exact_direction;
+    /* A yaw (0..2047) the 239+ block sends instead of `exact_direction`'s
+     * four, -1 for none: a dodge goes any way its route does (RSProx 4262
+     * `angle=663`). `p_exactmove` clears it. */
+    int exact_yaw;
+    /*
+     * `p_dodgewindow(roll, strafe, from, to)`: a move click handled on a tick
+     * in [dodge_from_tick, dodge_to_tick] dodges -- up to three steps of its
+     * route at once as an exact move with the roll (two or three tiles) or
+     * the strafe (one) -- and the rest of the route walks on (RSProx 4262,
+     * The Blood Moon Rises; 4300..4315, Ezekiel). `dodge_click_tick` is the
+     * tick the last move click was handled on.
+     */
+    int dodge_from_tick;
+    int dodge_to_tick;
+    int dodge_seq_roll;
+    int dodge_seq_strafe;
+    int dodge_click_tick;
     /** Every splat this player takes this tick; see struct ToriRSServerHitmark.
      *  The player is the entity that most often takes several at once — in the
      *  Inferno a whole wave lands on them together. */

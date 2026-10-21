@@ -5070,7 +5070,8 @@ player_extended_v5(struct ToriRSServer* srv, struct ToriRSServerPlayer* viewer,
                 ext.exact_end_z = subject->exact_end_z - subject->z;
                 ext.exact_start_cycle = subject->exact_start_cycle;
                 ext.exact_end_cycle = subject->exact_end_cycle;
-                ext.exact_facing = exact_move_yaw(subject->exact_direction);
+                ext.exact_facing = subject->exact_yaw >= 0 ? subject->exact_yaw
+                                                           : exact_move_yaw(subject->exact_direction);
             }
             /* The player's half of TORIRSSERVER_EXT_DEBUG. The npc writer has had
              * one since it was written; without the pair, "the animation did

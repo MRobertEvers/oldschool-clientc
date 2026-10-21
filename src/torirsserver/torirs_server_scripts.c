@@ -15750,6 +15750,7 @@ script_command(
         player->exact_start_cycle = (int)start_cycle;
         player->exact_end_cycle = (int)end_cycle;
         player->exact_direction = (int)direction;
+        player->exact_yaw = -1;
 
         player->x = player->exact_end_x;
         player->z = player->exact_end_z;
@@ -15757,6 +15758,35 @@ script_command(
         player->waypoint_index = -1;
 
         player->masks |= TORIRSSERVER_PMASK_EXACT_MOVE;
+        return 1;
+    }
+
+    /*
+     * `p_dodgewindow(seq $roll, seq $strafe, int $from, int $to)` -- the active
+     * player's move clicks handled on ticks $from..$to (map_clock) dodge:
+     * advance_player's `player_dodge` (torirs_server_world.c) takes up to three
+     * steps of the route at once as an exact move with `$roll` (two or three
+     * tiles) or `$strafe` (one). `$to` below `$from` closes it.
+     */
+    case SS_OP_P_DODGEWINDOW:
+    {
+        int32_t values[4];
+
+        for( int i = 3; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        if( values[0] < 0 || values[1] < 0 )
+        {
+            SSVM_Abort(state, "p_dodgewindow(%d, %d, ..): both seqs must be set", (int)values[0],
+                       (int)values[1]);
+            return 1;
+        }
+        player->dodge_seq_roll = (int)values[0];
+        player->dodge_seq_strafe = (int)values[1];
+        player->dodge_from_tick = (int)values[2];
+        player->dodge_to_tick = (int)values[3];
         return 1;
     }
 

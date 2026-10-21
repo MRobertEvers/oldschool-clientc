@@ -6,7 +6,7 @@
 /* Included by exactly one translation unit: ss_meta.c. */
 
 /* Opcode names, for traces and the loud stub's report. */
-static const char* const g_ss_opcode_names[11235] = {
+static const char* const g_ss_opcode_names[11236] = {
     [0] = "PUSH_CONSTANT_INT",
     [1] = "PUSH_VARP",
     [2] = "POP_VARP",
@@ -590,6 +590,7 @@ static const char* const g_ss_opcode_names[11235] = {
     [11232] = "NPC_FACENPC",
     [11233] = "NPC_FACEPLAYER",
     [11234] = "NPC_FACEPLAYERINSTANT",
+    [11235] = "P_DODGEWINDOW",
 };
 
 /* Per-opcode stack signature and runtime-safety metadata.
@@ -599,7 +600,7 @@ static const char* const g_ss_opcode_names[11235] = {
  *
  * known == 0 means neither engine.rs2 nor MANUAL_META declared this
  * opcode, so its arity is unknown and it must not be executed. */
-static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11235] = {
+static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11236] = {
     [0] = { 0, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* PUSH_CONSTANT_INT */
     [1] = { 0, 0, 1, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* PUSH_VARP */
     [2] = { 1, 0, 0, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* POP_VARP */
@@ -1183,6 +1184,7 @@ static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11235] = {
     [11232] = { 1, 0, 0, 0, 1, 0, 0, 0, 0x010, 0x000 }, /* NPC_FACENPC */
     [11233] = { 0, 0, 0, 0, 1, 0, 0, 0, 0x014, 0x000 }, /* NPC_FACEPLAYER */
     [11234] = { 0, 0, 0, 0, 1, 0, 0, 0, 0x014, 0x000 }, /* NPC_FACEPLAYERINSTANT */
+    [11235] = { 4, 0, 0, 0, 1, 0, 0, 0, 0x004, 0x000 }, /* P_DODGEWINDOW */
 };
 
 /* Trigger names, for script-name parsing and diagnostics. */

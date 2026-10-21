@@ -2,7 +2,12 @@
 
 Two fights, both spectated: index 4300 [865..1188] (party of 2, Will Warlock
 tanking, killed [1181]; the session ends before the line) and index 4301
-[52..285] (party of 3, Visqo tanking, killed [262], line [273]). The wiki
+[52..285] (party of 3, Visqo tanking, killed [262], line [273]). Re-audited
+2026-10-21 over every Ezekiel life on the index: 4300, 4301, 4304 [1370..1500]
+(three raiders, a wipe), 4314 [524..610] (a wipe) and [1018..1300], and 4315
+[857..1100], [2511..2830], [4414..4600] -- 8 engages, 42 specials (§2b,
+§5, §6b; `tools/ez_spec.py`, `tools/ez_engage.py`, `tools/ez_freeze.py` on
+the `--all-players` transcripts). The wiki
 (`sources/Ezekiel.wiki`, `sources/TFA_Strategies.wiki`) has the stats and the
 finale's three patterns. Tools: `tools/boss_view.py`, `tools/ez_swords.py`,
 `tools/ez_finale.py`; tiles below are relative to Ezekiel's south-west tile
@@ -20,16 +25,42 @@ finale's three patterns. Tools: `tools/boss_view.py`, `tools/ez_swords.py`,
 
 ## 2. Before and at the engage
 
-- He wanders (4301 [62..64] SE,S,S; 4300 [870..876] SW x6) until a raider comes
-  close: engaged when one was within 2 of his 3x3 (4300 [878]: Will at +4,+3;
-  4301 [65]: Visqo adjacent); not at 6 (4301 [64]). Ours: 4 (unverified
-  between 3 and 5).
-- The engage tick: the boss bar (`hpbar_hud_npc` 16652, hp = base = 3000 solo,
-  `hpbar_hud_boss` 1), music 890, `[facing] player=` the tank; +1/+2 a line,
-  one of "You choose to stand against me? Fall then." (4300 [879]) or "To stand
-  against good is to be evil, regardless of reason." (4301 [67]).
-- The tank is the raider who engaged him (Visqo 4301, Will 4300: every melee
-  faced them, 39/39). Ours: the tank until they die, then the nearest.
+- He wanders 3 from the arena's middle cell (4062,5534): every wander tile of
+  the 8 lives is in (4059..4065, 5531..5537), all four corners seen (4300
+  [876] (4059,5531), 4304 [1372] (4065,5537), 4315 [4431] (4059,5537), [861]
+  (4065,5531)). The `[add]` tile is wherever he had wandered to.
+- The engage is the first raider through the transporter, not a distance:
+  A = the tick that raider stands on the landing tile (4066,5535), whatever
+  his distance (5 in 4300 [877] and 4315 [4435], 1 in 4314 [533]). The bar
+  (`hpbar_hud_npc` 16652, `hpbar_hud_boss` 1), music 890 and `[facing]
+  player=` the tank at A+1 (6/8; A itself in 4301 [65], 4304 [1375]); the line
+  at A+2 (8/8), the first melee at A+6 (8/8). Earlier "within 2 of his 3x3"
+  was a coincidence of the landing tile.
+- The line, one of three: "You choose to stand against me? Fall then." (3),
+  "To stand against good is to be evil, regardless of reason." (3), "Your
+  defence of this place ends with me." (2: 4314 [1030], 4315 [4437]).
+- The tank is the first raider in (8/8; the wiki: "the first player to enter
+  the room is marked as the tank until they die"). When the tank dies, the
+  raider nearest his 3x3 is the new one, faced at once with "Face me!" (3/3):
+  4304 [1437] the tick after John B Shigg's last hit (Vivoxe at 1 chosen over
+  Song19 at 2), 4304 [1476] and 4314 [572] at W+9, the tick after he rises
+  from a weaken that the tank died in.
+
+## 2b. How he moves
+
+He steps one tile a tick toward the tank (diagonals included) until the
+tank is edge-on to his 3x3, and steps out when the tank stands under him
+(4314 [558], [559], [561], [1053..1055]). Rooted, the tank out of reach:
+
+| window | steps / chances | evidence |
+|---|---|---|
+| S..S+4 (the special) | 0 / 139 | 42 specials |
+| S+5 | 38 / 39 | |
+| W+1..W+9 (weakened) | 0 / 30 | |
+
+A step that brings the tank edge-on swings on the same tick (melee 19 of 25
+times the tank was out of reach a tick before: 4314 [1034], [1051],
+[1087]).
 
 ## 3. The clock
 
@@ -41,6 +72,7 @@ One clock: melee, melee, special, repeat (4301 M M S x4; 4300 M M S x6).
 | melee -> melee, melee -> special | 5 | 38/38 |
 | special -> melee | 7 (8 when he had to walk) | 9/10 |
 | weakened (§6) -> next attack | `idle_to_weaken01` at W, `weaken_to_idle01` W+8, attack W+12, and the cycle starts over (melee first) | 6/6, 3/3 |
+| heal (§6b) -> next attack | melee at heal+5, and the cycle starts over | 3/3 (4304 [1412], 4315 [906], [2720]) |
 
 He walks to the tank (one tile a tick, `npc_ezekiel_walk01` is his walk) and
 attacks only from a tile next to his 3x3.
@@ -82,9 +114,11 @@ attack's due tick without reaching his kiting tank:
 On the special's tick S (10/10):
 
 - Seq `npc_ezekiel_special01` 14693, spotanim `ezekiel_special_crack_vfx01`
-  slot 2, `[facing] type=reset`; `say` one of "Divine consequence!" (with the
-  cross pattern), "Divine judgement!" or "Your evil plots end at me!" (with the
-  others).
+  slot 2, `[facing] type=reset`; `say` one of "Divine consequence!" (13),
+  "Divine judgement!" (13) or "Your evil plots end at me!" (16) over 42
+  specials, whatever the swords ("Divine consequence!" with the two rows at
+  4314 [585], three rows [1189], three columns 4315 [2585]). The 2-fight
+  pairing of "Divine consequence!" with the cross was chance.
 - Sounds at his centre: 12454 r31 size 31, 12441 delay 90 r31 size 31, 12441
   delay 150 r31 size 31.
 - The star (map anims, each tile three stages: `vfx_ezekiel_star_explosion_spawn01`
@@ -99,16 +133,18 @@ On the special's tick S (10/10):
   80 hp, cache) spawn with the special, one of five layouts on the arena's
   lanes (absolute; the arena's border lines x=4056/4068, z=5528/5540):
 
-  | layout | swords (sw tile -> where it flies) | seen |
+  | layout | swords (sw tile -> where it flies) | seen (42) |
   |---|---|---|
-  | cross | (4059,5540)->(4059,5528), (4059,5528)->(4059,5540), (4056,5534)->(4068,5534), (4068,5534)->(4056,5534), all together | 6 |
-  | west column | (4056,5537), (4056,5534), (4056,5531) -> east, one a tick from the north | 2 |
-  | north row | (4059,5540), (4062,5540), (4065,5540) -> south, one a tick from the west | 2 |
-  | offset cross | (4068,5537)->W, (4056,5537)->E, (4059,5540)->S, (4059,5528)->N, together | 1 |
-  | two rows | (4068,5537), (4056,5537), (4056,5532), (4068,5532) | 1 (cut by the finale) |
+  | cross | one column x of 4059/4062/4065 (from (x,5540) S and (x,5528) N) and one row z of 5531/5534/5537 (from (4056,z) E and (4068,z) W), all together | 21: (4059,5534) 6, (4065,5534) 3, (4065,5531) 3, (4065,5537) 3, (4062,5531) 2, (4062,5537) 2, (4059,5537) 1, one cut by the finale; never (4062,5534) or (4059,5531) |
+  | three rows | (4056,5537), (4056,5534), (4056,5531) -> east, one a tick from the north | 9 |
+  | three columns | (4059,5540), (4062,5540), (4065,5540) -> south, one a tick from the west | 6 |
+  | two rows | z 5532 and 5536, a sword from each end, together | 6 flown, all 5532/5536 (4300 [1056]: 5532/5537, cut by the finale) |
 
-  The first special was the cross both times; the rest look random. Ours: the
-  cross first, then any of the five.
+  The first special: the cross on (4059,5534) 4, on (4065,5537) 3, the two
+  rows 1 (4315 [4451]). After it the layouts read as random (no tie to his
+  tile or the raiders'). Ours: the first of the two crosses at even odds,
+  then a cross 2/5 on any lane pair but the middle, each other layout 1/5
+  (approximate).
 - Each sword: added facing south, `transparency` 255->0 over 30 cycles,
   `[headbar] id=87 startfill=60 endfill=0 endtime=390` (its 13-tick charge
   clock). At S+14 (one a tick for the line layouts) it flies: `teleport` 12
@@ -127,18 +163,125 @@ On the special's tick S (10/10):
 - W: `npc_ezekiel_idle_to_weaken01`, say "Agh!", sounds 7115 r10 and 12455 r20;
   W+1 `[facing] type=reset`, sound 12398 r10 (4/6); W+8
   `npc_ezekiel_weaken_to_idle01`; no attacks until W+12 (§3).
-- A miss: nothing (no heal in either fight; the `sanguinesti_staff_heal` on
-  him in 4300 is a raider's staff).
+- His tile is the one after his move on the flight tick: 4315 [899] he
+  stepped from (4060,5537) to (4061,5536) as the row 5537 flew, and healed.
+
+## 6b. A miss: the heal
+
+The wiki (TFA_Strategies: "If Ezekiel's south-west tile is not hit by the
+south-west tile of Flying Sword, he heals") and five recordings:
+
+- A cross or the two rows that all miss: at fly+2 (S+16) `npc_ezekiel_heal01`,
+  spotanims `ezekiel_heal_glow_vfx01` (slot 0) and `ezekiel_heal_spotanim_vfx01`
+  (slot 2), say "Saradomin, give me strength."; at fly+4 a heal splat
+  (`hitsplat` 6) of a tenth of his health, never past full: 300 of 3000 (4314
+  [603]), 435 of 4350 (4315 [2717]); 263, 401, 361 each cut at full (4304
+  [1409], [1440], 4315 [903]). 5/5. No sound; his face is kept.
+- A line that misses: nothing (2/2: 4300 [966] the rows, [1029] the columns;
+  the `sanguinesti_staff_heal` on him is a raider's staff).
+- The clock starts over (§3).
 - What a raider's hit on a sword does (the wiki's "charge") is in neither
   fight (no sword took a hit): ours, the sword takes damage, unverified.
 
-## 7. The raiders' roll and strafe
+## 6c. Wind surge on the swords: the charge, and the sword's hit on him
 
-On the flight ticks and in the finale's cage, raiders move by
-`tfa_ezekiel_roll` (exact move 2..3 tiles over 15 cycles) or
-`tfa_ezekiel_strafe` (1 tile over 8): 3 in the fight (each on a flight tick),
-every cage move (60). The input that does it is not recorded. Ours: not built;
-raiders walk and run (a named gap).
+`tools/ez_charge.py` (per sword) and `tools/ez_sworddmg.py` (per flight), over
+4300, 4301, 4304, 4314, 4315 (32 flights through his south-west tile, 14 of
+them charged).
+
+**The charge.** Every charge in the recordings is wind surge: 54 casts at a
+sword (B0aty, Saxerpillar, Woox; `windsurge_casting`, `windsurge_travel`,
+`windsurge_impact` on the sword), 51 landed, 3 splashed (`failedspell_impact`,
+4315 [897], [963], [1039]). A landed surge is a `hitsplat` 23 on the sword
+and its bar `headbar 42` (the 87 charge clock's partner) fills: the bar is
+the damage taken out of 80, 70 wide (54 -> fill 47, 80 -> 70). The first
+surge 48..55, the second 26..27, exactly what tops it at 80 (4314
+[1200]+[1204], 4315 [2552]+[2556], [2630]+[2632]); nothing past 80. The sword
+never dies, plays no seq when hit (0 sword seqs in 5 sessions: the wiki's
+"stagger" is not on the wire), and turns to whoever hit it (`[facing]
+player=`, kept into its flight). It flies at S+14 charged or not.
+
+**The sword's hit on him.** Every sword whose lane takes his south-west tile
+hits him, charged or not: one splat for the flight, worth the sum over those
+swords of (its charge before the flight tick + 12..15). 32/32 flights. The
+splat is the tick after the flight when the swords' npc indexes are above
+his (4300, 4301, 4314, 4315: 30/30), on the flight tick when below (4304,
+swords 33568.. against his 62765: 2/2): the hit is queued by the sword and
+taken when he is next processed. Ours: fly+1 (he is added before them).
+
+| swords through him | charge before the flight | his splat | less the charge |
+|---|---|---|---|
+| 1, uncharged | 0 | 12, 12, 13, 13, 15 | 12..15 |
+| 2, uncharged | 0 | 25, 25, 25, 26, 26, 27, 27, 28, 28, 29, 29, 30 | 25..30 |
+| 4, uncharged (a cross through both his lanes) | 0 | 53 (4304 [1503]) | 4 x 13.25 |
+| 1 | 54 | 66, 68, 69 | 12, 14, 15 |
+| 1 | 80 | 92, 94, 95, 95 | 12..15 |
+| 2 | 54 | 81, 84 (55) | 27, 29 |
+| 2 | 80 | 108 | 28 |
+| 2 | 133, 134, 134 | 159, 160, 158 | 24..26 |
+| 2 | 160 | 188 | 28 |
+
+- A charge landing on the flight tick is too late: 4314 [1094] took 52 with
+  the flight, and the splat was the bare 25 of two swords.
+- The 12..30 splats of the uncharged weakens are this, not a raider's hit
+  (no raider attack seq on the tick in 4314 [1095], 4315 [930], [1039]).
+- A spectator sees `hitsplat` 17 (another player's damage) whoever charged it.
+- A charge does not change the weaken: `weaken_to_idle01` at W+8 and the
+  attack at W+12 in every charged weaken (4314 [563], [1204], [1240]; 4315
+  [2559], [2636], [4542]). "Charged swords stun him, preventing the heal"
+  (wiki) is true of every sword through him (§6b), charged or not.
+
+**On the raiders** (unverified, prayers not on the wire): an uncharged
+sword's band 27..31 (one sword) or 52..63 (two); a charged one 75, 84, 102
+(4314 [1277], 4315 [2745], [4587]: charge + 21..30), but Woox in two bands at
+4314 [563], one of them charged to 54, took 60.
+
+**Models.** Every sword, charged or not, carries one of four models (62645..
+62648, `[body_customisation]`) on its add and its flight.
+
+**Ours (2026-10-21):** `[ai_queue2,tfa_ezekiel_sword]`: a raider's hit is a
+`hitsplat_23` of what it took, the sword's hitpoints are its charge (1 for
+none, so healthbar 42 fills), it never dies, faces the raider, and keeps
+facing them in flight. What landed before the flight tick counts: each sword
+through him adds its charge + 12..15 into one `hitsplat_damage_other` the
+tick after (his reserved point kept). A sword's band on a raider: 27..31 +
+its charge, summed over the swords holding them, one splat. The four models
+by `npc_bodymodel` on add and flight. Test: one sword through him at [258]
+and [363], his splat [259], [364]; no charges in the solo test (no magic).
+
+## 7. The raiders' dodge: roll and strafe
+
+**The model, The Blood Moon Rises** (index 4262 = rsprox.net 4288, Lowerniel
+Drakan, the recorder dodging; transcribed with the `MOVE_GAMECLICK` filter on,
+`tools/dodge_clicks.py`): a dodge is an ordinary walk click handled inside a
+window the encounter opens. That tick the player takes up to three steps of
+the click's route at once, as one teleport with an exact move
+(`human_myq6_wyrd_roll` over 15 cycles for two or three tiles,
+`myq6_strafe` over 8 for one; `angle=` the way it goes), and the rest of
+the route walks or runs on from the next tick (33105 -> 33106, 33129 ->
+33130). The click is filed on the dodge's own tick, so it was sent the tick
+before. A route already being walked never dodges. A click 5 tiles away
+lands on the route's third step ((1,5) -> (0,3)), never past 3 (360 dodges).
+Drakan's window is his jab combo after `telegraph_to_ready01`.
+
+**Ezekiel** (spectated, so no clicks on the wire; `tools/ez_dodge.py`,
+`tools/ez_dodge_band.py`): the same seqs `tfa_ezekiel_roll` (14705) and
+`tfa_ezekiel_strafe` (14706), the same exact moves (2..3 tiles over 15, 1
+over 8, four of 3 tiles: 4300 [908], [1007], 4301 [132], 4315 [2601]), and
+two windows, each the tick the hazard lands:
+
+| phase | window | dodges | ordinary steps |
+|---|---|---|---|
+| the fight | each sword's flight tick (S+14; a line's S+14..S+16) | 20/20 on a flight tick, none on S+13 or S+17 | on the same ticks, the routes already being walked (51) |
+| the cage | the three strikes of each volley, V+4..V+6 | 253/253 (83, 86, 84) | 119 from V+7; 7 on V+2..V+6, routes already being walked |
+
+**Ours:** `p_dodgewindow(roll, strafe, from, to)` (engine, opcode 11235;
+`player_dodge` in torirs_server_world.c): a move click handled on a tick in
+the window takes up to three route steps as one exact move (a free yaw,
+`exact_yaw`) with the roll or the strafe. `~tfa_ez_dodge_window` opens it
+for every raider in the room at the special (the flight ticks) and at each
+volley (V+4..V+6). Test: the cage leg of `tfa_ezekiel.lua` -- volleys [428],
+[439]; rolls [432..434], [443..445]; runs between (2026-10-21).
 
 ## 8. The finale (at a third of his health)
 
@@ -200,6 +343,29 @@ navigator, the atrium). Inventory: `tools/rsprox_tells.py --anchor
 16652,16653,16654,16655,16656 idx4301.txt idx4300.txt --ours <ticklog>`;
 timelines: `tools/rsprox/ticklog_tells.py`.
 
+### Re-audit (2026-10-21, every life on the index)
+
+Run: the same test on a private pack (`TORIRSSERVER_SCRIPTS`), tick log
+`ticklog_npc_timeline.py --ids 16652`.
+
+| rule | recording | ours before | ours now (tick log) | verdict |
+|---|---|---|---|---|
+| engage trigger | first raider on the landing tile, any distance; bar A+1 | a raider within 4 | landing [196], bar + face [197] | fixed |
+| engage face | `player=` the tank on the bar tick (8/8) | reset, face +2 | [197] | fixed |
+| engage line | A+2, one of three | one of two | [198] | fixed |
+| first melee | A+6 (8/8) | A+6 only if the landing was in reach | [202] | fixed |
+| wander | 3 from (4062,5534) | 3 from (4064,5536): his 3x3 could leave the 9x9 | spawn (4062,5534) | fixed |
+| special line | one of three, any layout | tied to the cross | random | fixed |
+| layouts | random cross lanes, two rows 5532/5536 | two fixed crosses, two rows 5532/5537 | as recorded | fixed |
+| miss | heal 10% at fly+2/+4 (cross, two rows), nothing for a line | nothing | heals [228]/[230], [276], [324] | fixed |
+| after a heal | melee +5, M M S | | [233] | fixed |
+| post-special hold | no step S..S+4 (0/139) | stepped from S+1 | special [339], first step [344] | fixed |
+| weaken hold | no step W+1..W+9 (0/30) | the queued route went on (W+1) | W [353], next step [365] | fixed |
+| tank death | nearest raider, "Face me!", face at once / W+9 | first raider in the list, no line | built; solo test cannot exercise it | unverified on our wire |
+| sword charge | wind surge fills an 80-point charge (hitsplat 23, bar 42); every sword through him hits him for its charge + 12..15 (32/32, §6c) | the sword takes damage | built (§6c) | fixed; charging not exercised by the solo test |
+
+### First audit (4300, 4301)
+
 | tell | recording | ours | verdict |
 |---|---|---|---|
 | room entry | the transporter (409, 7 tiles across, op+2) | same | matched |
@@ -217,7 +383,7 @@ timelines: `tools/rsprox/ticklog_tells.py`.
 | sword charge bar | `headbar id=87 60->0 over 390` | `npc_headbar_timed` (new, opcode 11226) | fixed (engine) |
 | glow loop | `vfx_ezekiel_finale_cast_glow_loop01` slot 5 `loop=true` | sent with loop 0 | **open (engine)**: no loop flag on `spotanim_npc_slot` |
 | music | `midi_song_v2` with fade 60/60 | plain `midi_song` | **open (engine)** (the Guardian's too) |
-| raiders' roll/strafe | 63 rolls/strafes | none | **open**: the input is not recorded (§7) |
+| raiders' roll/strafe | the dodge windows (§7) | `p_dodgewindow` | fixed (the cage tested; the flight ticks share the code, not run) |
 | sword burn | hitsplat 67, 2 a splat, 16 splats | none | **open**: unverified, not built |
 | defend sound | not sent to a spectator | null | **open**: unknown |
 | magic (4314/4315) | `npc_ezekiel_magic01` when the tank is out of reach (5/5) | not built | fixed (§4b) |
@@ -239,7 +405,7 @@ the reset, the walk type).
 | npc | block | recorded | ours now | verdict |
 |---|---|---|---|---|
 | Ezekiel | spawn | `spawnangle=east` | same | fixed |
-| Ezekiel | engage | `reset`, the entity +3 | same | fixed |
+| Ezekiel | engage | the entity on the bar tick (8/8; the `reset` at 4301 [62] was his wander) | same (re-audit) | fixed |
 | Ezekiel | special | `reset`, the entity +5; weaken: the entity at recover+1 | same | fixed |
 | Ezekiel | finale | the tile face a tick before the jump, then the angle; the vfx `angle=1024, instant=true` | same, but the jump glides (the engine moves 2 tiles as a walk) | **open (engine)** |
 | swords | flight | `angle=` the flight's | same | fixed |

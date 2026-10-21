@@ -1290,6 +1290,16 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # already names that player (Moia on every blink, 24/24, RSProx 4314/4315).
     "NPC_FACEPLAYERINSTANT": (11234, 0, 0, 0, 0),
 
+    # p_dodgewindow(seq $roll, seq $strafe, int $from, int $to)
+    #
+    # The active player dodges instead of walking: a move click handled on a
+    # tick in [$from, $to] (map_clock) takes up to three steps of its route at
+    # once as an exact move -- `$roll` over 15 cycles for two or three tiles,
+    # `$strafe` over 8 for one -- and the rest of the route walks on from the
+    # next tick. The Blood Moon Rises' Drakan combo and the Fractured
+    # Archive's Ezekiel (RSProx 4262, 4300..4315). `$to` below `$from` closes it.
+    "P_DODGEWINDOW": (11235, 4, 0, 0, 0),
+
     # npc_setbasestat(npc_stat $stat, int $level)
     #
     # The active npc's BASE level in one non-hitpoint stat until it dies or
@@ -1838,6 +1848,7 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "NPC_FACENPC": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_FACEPLAYER": ((1 << POINTER_BITS["active_npc"]) | (1 << POINTER_BITS["p_active_player"]), 0),
     "NPC_FACEPLAYERINSTANT": ((1 << POINTER_BITS["active_npc"]) | (1 << POINTER_BITS["p_active_player"]), 0),
+    "P_DODGEWINDOW": (1 << POINTER_BITS["p_active_player"], 0),
     "REMOTE_VIEW_START": (1 << POINTER_BITS["p_active_player"], 0),
     "REMOTE_VIEW_END": (1 << POINTER_BITS["p_active_player"], 0),
     # The splat needs somebody to appear over. NPC_DAMAGE (2509) carries

@@ -605,10 +605,11 @@
 #define SS_OP_NPC_FACENPC 11232
 #define SS_OP_NPC_FACEPLAYER 11233
 #define SS_OP_NPC_FACEPLAYERINSTANT 11234
+#define SS_OP_P_DODGEWINDOW 11235
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11235
+#define SS_OPCODE_MAX 11236
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 583
+#define SS_OPCODE_COUNT 584
 
 #endif

@@ -154,6 +154,17 @@ return {
         t.ticklog.mark("finale")
         t.cheat("::tfaboss 1010", false)
         fight(t, "tfa_ezekiel", 60)
+        -- In the cage, a walk click each tick, two tiles one way then the
+        -- other: on a strike tick (V+4..V+6) it dodges, `tfa_ezekiel_roll`
+        -- or `_strafe` with an exact move; between strikes it walks
+        -- (ezekiel_plan.md §7, the tick log's player_anim 14705/14706).
+        t.ticklog.mark("dodge")
+        for k = 1, 22 do
+            local r0, here = t.world.tile()
+            if r0 == "ok" then
+                t.player.walk_to(here.x + ((k % 2 == 1) and 2 or -2), here.z, 1)
+            end
+        end
         -- The kill.
         t.ticklog.mark("kill")
         t.cheat("::tfaboss 5", false)
