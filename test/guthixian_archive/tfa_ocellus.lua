@@ -47,6 +47,23 @@ local function fight(t, sym, ticks, stop, safe)
     return false
 end
 
+-- Phase 4: shoot him, take the orb and keep off the void floor (::tfaocorb
+-- walks; sent after the attack so its walk wins), health only when low.
+local function fight4(t, ticks)
+    local deadline = now(t) + ticks
+    while now(t) < deadline do
+        local hr, hv = t.skill.read("hitpoints")
+        if hr == "ok" and type(hv) == "table" and (hv.level or 99) < 50 then
+            t.cheat("::tfaheal", false)
+        end
+        if present(t, "tfa_ocellus_p3") then
+            t.player.attack("tfa_ocellus_p3", 2, 1, EAT)
+        end
+        t.cheat("::tfaocorb", false)
+        t.ticks(1)
+    end
+end
+
 -- Phase 3: shoot him, and leave a quadrant before it falls.
 local function fight3(t, ticks)
     local deadline = now(t) + ticks
@@ -149,6 +166,9 @@ return {
             or (sx < 0 and sz > 0 and "tfa_ocellus_artifact_spec")
             or (sx < 0 and "tfa_ocellus_artifact_damage_ranged")
             or "tfa_ocellus_artifact_heal"
+        -- The rift kinds by the second segment's, not the roll: Void Rifts,
+        -- then the healing rifts.
+        t.cheat("::tfaocrifts 1", false)
         t.ticklog.mark("censer")
         r, d = t.player.click_loc(censer, 1, { at = { mid.x + 11 * sx, mid.z + 11 * sz, 1 }, from_here = true })
         t.check("ocellus.censer", r == "ok", censer .. " " .. tostring(r) .. " " .. tostring(d))
@@ -157,12 +177,15 @@ return {
         local lr = t.world.loc_near(censer .. "_inactive", 16)
         t.check("ocellus.censer_spent", lr == "ok", censer .. "_inactive not there")
         fight3(t, 490)
-        -- Phase 4: two cycles of 60, then the kill.
+        -- Phase 4: two cycles of 60, then the kill. The bot takes its orb as
+        -- it comes ready and is healed only when low, so the orb's heal shows.
         t.ticklog.mark("phase4")
-        fight3(t, 125)
+        fight4(t, 125)
         t.ticklog.mark("kill")
         t.cheat("::tfaboss 1", false)
-        fight3(t, 12)
+        -- Long enough to outlast his deflect against missiles (D+31..52):
+        -- the bow does nothing under it.
+        fight3(t, 40)
         t.check("ocellus.line", t.msg.expect("Challenge complete: Ocellus."))
         t.check("ocellus.total", t.msg.expect("The Fractured Archive: Total completion time:"))
         ok = t.await({ level = function() return present(t, "tfa_blade_npc_vault_entry") end, note = "the blade" }, 30)

@@ -172,13 +172,13 @@ half a special attack; the next melee or ranged hit a max hit.
 |---|---|
 | 0 | he is at the last quadrant's corner, his 9 tiles blocked; its barriers (`_spawn`, +1 standing); +2 the stones of the arm clockwise of it blocked |
 | 3, then every 60 | `npc_ocellus_phase3_deflect_in`; +2 `_deflect_loop`; +3 `_soul_fragment_start`; +4 `vfx_ocellus_soul_fragment_ocellus_levitating_idle` slot 2 (looping) and the wind: every raider hit for half their health (4301 41/40/49, 4308 39/49/46/55) |
-| +21 | `_deflect_out`; the wind given back (the wiki's orb: 41, 40) |
-| +24, +52 | `npc_ocellus_phase3_melee_hybrid` with `vfx_ocellus_phase3_melee_hybrid_magic` or `_ranged` slot 2; +5 everyone hit, 5..7 under the matching prayer (4301 [1739], 4308 [2292]: 7 x7) |
-| +34 | `_soul_fragment_ocellus_idle` slot 2, `_soul_fragment_start`; +1 the wind again; +13 it is given back; +16 `_soul_fragment_end` |
+| +21 | `_deflect_out`; slot 2 let go |
+| +24, +52 | `npc_ocellus_phase3_melee_hybrid` with `vfx_ocellus_phase3_melee_hybrid_magic`, `_ranged` or the plain `vfx_ocellus_phase3_melee_hybrid` (melee) slot 2 (16, 13, 4 of 33; the melee only from 4312's second fight on); +5 everyone hit, 5..10 under the matching prayer |
+| +34 | `_soul_fragment_ocellus_idle` slot 2, `_soul_fragment_start`; +1 the wind again; +16 `_soul_fragment_end` |
 | +59 | void rifts: two, three, four (4301 [1769], [1829], [1889]; 4308 [2322] two at four raiders: not the party's) |
 
-The wiki's void bursts (every 2 ticks, six times, at a raider who stands
-still) and their orbs are each raider's own and never reach a spectator.
+His overheads, the void floor, the explosions, the orbs and the 2-tick
+window are in "Phase 4's private mechanics and the wiki check" below.
 
 ## 6. Death (K)
 
@@ -344,3 +344,120 @@ the seq beside the raider.
 | p4 wind | half the raider's health (both winds) | same | same | matched |
 | p4 hybrid | 5..10 under the matching prayer (37) | 5..7 | 5..10 | fixed |
 | p4 bursts | 14..16 in the range dome (18); 7..17 in the melee dome | 10..15 | 14..16 | fixed (the melee dome's lower ones open) |
+| p4 explosions | 14..16, the tick after it starts on a raider who stayed (38/43; moved 2/652) | none | 14..16 | fixed (below) |
+| p4 void floor | 10 (4309 [2210], [2143]) | none | 10 a tick on it | fixed (below; the rate unverified) |
+| p4 hybrid, melee kind | 6..7 (13) | not built | 5..10 under protect from melee | fixed |
+
+## Phase 4's private mechanics and the wiki check (2026-10-21)
+
+The wiki's Ocellus page and the strategy guide's Ocellus section
+(`The_Fractured_Archive/Strategies`), each mechanic set against the
+`--all-players` transcripts of index 4301, 4308, 4309, 4312 (two fights), 4315
+and 4316. D = the cycle's tick (D+0 his `deflect_in`, every 60); W = a wind
+(D+4 and D+35). Tools: `tools/tfa_mech.py --room ocellus4` and one-off counters
+over the same transcripts.
+
+### His prayers (headicon customisation, sprite group 440, slot 0)
+
+An empty `[headicon_customisation]` block takes the overhead off.
+
+| phase | recorded | ours |
+|---|---|---|
+| 1 | 0 (Protect from Melee) from the fight's start, each corner walk's first volley and the middle strike's first shot; off the tick before each charge, with each teleport out and at the phase's end (4301 [913]..[927], [949]..[964], [1029]..[1040], [1083]..[1090]; 19/19 over 4301, 4308, 4309, 4312). The strategy guide: "While walking to a quadrant, he will have Protect from Melee active" | the same ticks; melee does nothing while it is up |
+| 2 | none | none |
+| 3 | an EMPTY block at each "Untether..." and two at U+48..49 (11 windows, 5 sessions): the 21 October hotfix, "Ocellus's Protect from Melee overhead icon will now properly appear in phase 3". Raiders' melee outside those windows landed (288/323 swings) | Protect from Melee U..U+48, shown (0) |
+| 4 | 15 at D+0, 11 at D+25, off at D+30, 16 at D+31, 11 at D+53, off at D+59, every cycle in every session; off at his death | the same |
+
+What 15 and 16 do: under 15 the raiders only ranged (334 shots, 0 melee
+swings), under 16 they only meleed (513 swings, 1 shot), so 15 is the deflect
+against melee and 16 the one against missiles and magic (the guide: Deflect
+Melee, then Deflect Range). Ours makes the prayed style deal nothing; what a
+deflect sends back is unrecorded (no raider used the prayed style) and not
+built. 11 is Soul Split: all 18 of his phase-4 heals are the unclaimed orbs
+(below), none per hit.
+
+### The void floor
+
+The strategy guide: from D+0 "all tiles below him and one tile away from him"
+are void; from D+31 "the entire quadrant ... except for the tiles directly below
+him and within 1 tile of him". There is no loc for it; the `deflect_arena_*`
+spots on the `tfa_invisible_npc` draw it. The raiders' distance from his 3x3:
+
+| D | 1 | 2 | 3 | 4 | 5 |
+|---|---|---|---|---|---|
+| 0..21 (4301, 4308, 4312, 4316) | 0 | 227 | 468 | 55 | 26 |
+| 31..50 | 619 | 6 | 9 | | |
+
+The 2s and 3s at D+31..50 are raiders still walking in at D+31..33, who took
+nothing (4301 [1742..1744], 3/3). One raider stood on it: 4309 [2209] Woox, 1
+from him, hit 10 at [2210]; another 10 at [2143]. Ours: 10 every tick on a void
+tile, D+1..21 (his ring) and D+35..50 (the rest). How often it really hits is
+unverified (one tick on it recorded).
+
+### The explosions, the orbs, the 2-tick window
+
+| mechanic | recorded | ours |
+|---|---|---|
+| explosions | six after each wind, 2 ticks apart, starting on each raider's tile at D+9, 11, .., 19 and D+40, 42, .., 50, landing the tick after on whoever stayed: 14..16 (38/43 who stood still, 2/652 who moved). Private (`vfx_void_chain_explosion`, `spotanim_map_specific`) | the same |
+| telegraph | `vfx_void_chain_player_telegraph` slot 2 at W+2 (24/24) | the same |
+| fragment | `vfx_ocellus_soul_fragment_player_idle` slot 2 at W-1 (24/24) | the same |
+| orb ready | W+12 after the first wind (earliest takings 12), W+6 after the second (earliest 6); first orbs 2..5 from his 3x3, second 1 from it, in the quadrant | the same (`_spawn_12_ticks` / `_spawn_6_ticks`, private) |
+| orb taken | heals the wind's hit (+8 on its first ready tick), `vfx_ocellus_soul_fragment_player_regain` slot 2; latest taking ready+11 | the same |
+| orb NOT taken | at ready+13 (W+25, W+19) he is healed that raider's wind hit, a heal splat each, with `nex2021_nex_heal` (5281) once at his middle, range 9: 18 heals, each exactly an unclaimed raider's wind (4308 [2377] 26, 29, 12 = Gnomonkey, B0aty, Saxerpillar), 13 heal ticks, 13 sounds | new: the same |
+| 2-tick window | every raider's attacks 2 apart, any weapon: D+12..20 (155/177) and D+41..52 (60/77) | the same |
+
+The wiki's "the longer you wait to collect the orb, the larger the heal" is
+not what the recordings show (the bonus is for the FIRST tick).
+
+### The hybrid's three kinds
+
+16 `_magic`, 13 `_ranged`, 4 the plain `vfx_ocellus_phase3_melee_hybrid`
+(4312 [4418], 4315 [6733], 4316 [2725], [2757]), the plain one only from
+4312's second fight on (0 of 15 before, 4 of 18 after). It hits everyone at
++5 for 6..7 (13), as the others do under the matching prayer. Ours: one of the
+three at random.
+
+### Phase 3's rifts: three kinds, one a segment
+
+The second and third segments each get one kind, consecutive in the order
+Augmenter (`_buff`) -> Void Rift (`_basic`) -> healing rift (`_heal`) ->
+Augmenter: buff then basic in 4301, 4308, 4312 (twice), 4316; basic then heal
+in 4309; heal then buff in 4315 (7/7). Ours had Augmenters then Rifts every
+time; now the second segment's kind is rolled and the third's follows.
+
+The healing rift (4309 [1994..2054], 4315 [6396..6509]) fires every 4 ticks
+from its add (add+4, +8, ..): `vfx_ocellus_voidflare_healing_projanim` (0 / 30,
+angle 2, heights 160/140 raw) at his middle, and he is healed on the spot, a
+heal splat of 12 or 14 (10 heals: 12 x4, 14 x6). A raider standing on the line
+from it to him takes the shot instead and he is not healed; nothing is recorded
+on the raider (4/4: 4309 [2002] B0aty, [2050], [2054] Gnomonkey, 4315 [6400]
+Saxerpillar). Its spawn and despawn seqs are `vfx_ocellus_voidflare_heal_*`.
+
+What a killed rift gives its killer (the guide's "empower the player who kills
+it"): nothing reaches the wire. `vfx_human_ocellus_voidflare_default` and
+`_buff` are never sent; `_heal` (delay 39) only on every raider at phase 1's
+middle strike (4301 [1028], [1082]: the strike's small heal). Not built. An
+unkilled rift's "charge" is unrecorded (every basic and buff rift was killed).
+
+### Checked and unchanged
+
+- **"If he is unable to reach the targeted player, he will attack with a
+  powerful spread void shot"**: the target was beside him at every recorded
+  "Your panic... is futile..." (5/5, distance 1). It is on his schedule, not a
+  reach test.
+- **60% Defence reduction cap** (hotfix): held on his tick (40% of base), as
+  Sotetseg's floor is. **Defence not restored between phase 3's quadrants**
+  (hotfix): nothing of ours restores it.
+- **Phase 1's missed line heals him 2**: now with its heal splat (recorded:
+  4301 [970], 4308 [1520], [1522], [1585], [1640], [1668]).
+- **The censers' effects** stay the wiki's guess (no recording shows them).
+- **Phase 2, the tendrils, the untether, the slam, the quadrant destruction**:
+  as audited above.
+
+### Open
+
+- What the deflects send back (no raider used the prayed style).
+- The void floor's hit rate (one tick on it recorded).
+- A killed rift's empowerment and an unkilled one's charge (nothing on the wire).
+- The heal rift's projectile on a raider: no splat or heal recorded on them.
+
