@@ -624,7 +624,9 @@ def main() -> None:
     require(ZAMORAK_GODSWORD, "~pvm_zgs_freeze_ticks($hit)", "Ice Cleave accuracy-result freeze")
     require(proc_body(ZAMORAK_GODSWORD, "pvm_zgs_freeze_ticks"), "return(32);", "Ice Cleave successful-zero freeze")
     require(ZAMORAK_GODSWORD, "spotanim_npc(ice_barrage_impact, 92, 0);", "Ice Cleave impact graphic")
-    require(ZAMORAK_GODSWORD, "npc_freeze($freeze_ticks);", "Ice Cleave 32-tick freeze")
+    # The 32 ticks less the target's freeze_resistance (player_magic.rs2), as
+    # every freeze applies it.
+    require(ZAMORAK_GODSWORD, "npc_freeze(~npc_freeze_resisted($freeze_ticks));", "Ice Cleave 32-tick freeze")
 
     # The public barrier must both admit the player and demand-spawn the actor.
     assert FROZEN.count("~nex_spawn_if_needed;") == 1
