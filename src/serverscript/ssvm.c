@@ -4,6 +4,7 @@
 #include "ss_opcode.h"
 #include "mem/torirs_mem.h"
 
+#include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -948,6 +949,19 @@ run_number_op(struct SSVM_State* state, int opcode)
              * one, so let the stub say so rather than approximating. */
             return -1;
         }
+    }
+
+    /* atan2_deg(int $x, int $y)(int): LostCity's Trig.atan2(y, x) -- the
+     * angle of (x, y) in 16384ths of a turn, rounded and wrapped to 0..16383.
+     * The Archive Guardian's swoosh yaws its exactmove with it. */
+    case SS_OP_ATAN2_DEG:
+    {
+        int32_t y;
+        int32_t x;
+
+        if( !SSVM_PopInt(state, &y) || !SSVM_PopInt(state, &x) )
+            return 0;
+        return SSVM_PushInt(state, (int32_t)lround(atan2((double)y, (double)x) * 2607.5945876176133) & 0x3fff);
     }
 
     case SS_OP_ABS:

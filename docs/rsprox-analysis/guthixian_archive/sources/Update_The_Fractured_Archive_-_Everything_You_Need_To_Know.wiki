@@ -1,0 +1,282 @@
+{{Update|date=06 October 2026|url=https://secure.runescape.com/m=news/the-fractured-archive---everything-you-need-to-know?oldschool=1|category=future}}
+[[File:The Fractured Archive - Everything You Need To Know newspost.png|right]]
+__TOC__
+{{clear}}
+
+{{Horizontal Line}}
+
+''The Fractured Archive is almost open: prepare yourself!''
+
+==The Fractured Archive - Releasing October 20th==
+<center>
+{{Youtube|loH7UPjhWyw}}</center><center>
+If you can't see the embedded content above, [https://www.youtube.com/watch?v=loH7UPjhWyw click here].
+</center>
+
+In case you missed RuneFest's big reveal, you read that right: The Fractured Archive is coming this month. It's nearly time to gather your allies, gear up, and descend deep beneath Lumbridge into the Fractured Archive, built to house the most precious (or perhaps most dangerous) artefacts of Guthix's personal collection.
+
+Fret not, we're here today to clue you in on everything you need to know for release! While we're not going to talk about specific bosses or mechanics, we'll talk at length about systems like grouping, death/wipe mechanics, resupplies, and more so that your head-scratching is reserved for learning the encounters rather than the systems.
+
+==Raid Launch Watch Party==
+If you're not able to get a squad together, not quite ready to tackle the raid, or just can't make it on release day, then we've got you covered!
+
+Join Mod Ayiza and Mod Kieren on our Twitch channel on release day for a big ol' watch party! We know that creators all over will be streaming their progress in their bids to be the first group to clear the raid and wholeheartedly encourage you to check them out on release, but for those of you wanting to kick back or who struggle to keep up with who's furthest progressed or who's clutching up for their party, we'll try our best to keep up for you and bring you as much of the action as we can.
+
+This isn't set to be a high-octane, 'race to world first' style esports broadcast, but instead a place for you to hang out, share in the hype, and hear from special guests throughout the day, including sitting down with team members who've been working tirelessly to bring The Fractured Archive to life and can't wait to share their experiences with all of you.
+
+So for those of you who can't get your hands dirty on October 20th, grab a drink, put your feet up, and kick back with us as we celebrate the release, our creators, our team, and most importantly: our community!
+
+Now for the adventurous among you who will be getting involved on-release, let's get you prepped...
+
+==Setting the Scene & Getting There==
+[[File:The Fractured Archive - Everything You Need To Know (1).png|600px|center]]
+
+During the events of While Guthix Sleeps, the mahjarrat Lucien's meddling with the Stone of Jas has opened an ancient entrance to a cache of Guthix's most prized possessions: the Fractured Archive.
+
+Whispers of the archive have persisted through the ages, and the gods have taken notice of this accidental grand opening. Some have sent agents to plunder the archive and bolster their strength, while other interested parties have their own motivations for making this daring descent.
+
+If even a single one of these artefacts were to fall into the wrong hands, it could spell Gielinor's ruin, so it falls to you to defend the archive from those who would misuse it. Fortunately you are not alone, and the Alliance that you helped assemble during While Guthix Sleeps will join you in the depths to aid in your endeavours.
+
+Upon login - assuming you've got While Guthix Sleeps completed - you'll be greeted by a messenger, they'll give you a note to help direct you to the action.
+
+Make your way to where Lucien showed his hand, and seek the archive's entrance on a cliff face near the entrance to the Guthixian Temple. Perhaps all of those scrolls you've been accumulating will come in handy! Keep in mind that the Archivist's Folio is an untradeable reward that you'll be able to obtain from the archive and charge with Ascension shards for teleports, so it won't be long before you'll be able to return in the blink of an eye.
+
+==The Lobby & Raid Setup==
+[[File:The Fractured Archive - Everything You Need To Know (2).png|600px|center]]
+
+Just like with any good raid, you'll need somewhere to group up, gear up, and assemble your team! The Alliance have helped clear out the space in front of the entrance and are beginning construction to turn it into a proper base of operations. Let's run through the amenities.
+
+On the chamber's eastern side you'll find a bank chest, the grouping board, and the record keeper. We're going to assume that you're familiar with a bank chest, so let's take a look at the grouping board!
+
+[[File:The Fractured Archive - Everything You Need To Know (3).png|600px|center]]
+
+This is where you can make a party and accept applicants. If you've done any Tombs of Amascut or Theatre of Blood then this should look pretty familiar to you, but it's worth mentioning the ability to enable or disable spectators using the eye icon at the top of the interface - that's right, actual spectating will be available as a feature for The Fractured Archive, no more watching from the sidelines!
+
+Moving to the west, you'll find the strategy board, overseen by General Montoya. General Montoya's overseeing the Alliance's strategy for taking back control of the archive, so he'll be able to give you a rundown of the plan and how you fit into all of it (we'll go into more detail on this later on).
+
+[[File:The Fractured Archive - Everything You Need To Know (4).png|600px|center]]
+
+At the strategy board itself, you can look for specific raiding parties or recent raiding parties and spectate their efforts (assuming they didn't opt to disable spectators when making their party), perhaps you can pick up a thing or two. We've got more to say on the spectate system later on: we've made some massive improvements to it for The Fractured Archive and we think you'll enjoy it a lot more than 'sad ghost conversations while my friends kill the Wardens'.
+
+But wait, there's more! We've all been stuck waiting for a party member who's grabbing a drink or taking a quick break, so we figured we'd add an extra activity as a slightly more useful way to pass the time than running around in the same 3x3 grid of tiles.
+
+[[File:The Fractured Archive - Everything You Need To Know (5).png|600px|center]]
+
+In the south-west, the Alliance have uncovered the never-before-seen Ascension rocks. These can be mined to obtain Ascension shards passively - albeit slowly - in between raids, or at your leisure. It's a reasonably low-intensity activity, but you'll have to pay some attention - the roots wrapped around the rocks seem to move with a mind of their own and will occasionally retreat back into the ground while others surface. For those of you paying more attention, you'll occasionally encounter sprites: magical amalgamations that aren't quite solid, liquid, or gas, but will revert into Ascension shards when you interact with them.
+
+Now that you're in the right place, let's get into the nitty gritty.
+
+==Scaling==
+The Fractured Archive scales between 2 to 8 players. We'd recommend 3 to 5 players, we've found that scales around here tend to feel the best, but wanted to accommodate players who want to dive into the raid in larger groups. Duo clears are tough but manageable once you know what you're doing, and solo clears are very challenging.
+
+While the scaling for solo players is more lenient than the likes of Theatre of Blood (set to 2 players, rather than 3), soloing the Fractured Archive is closer to soloing Theatre of Blood than the Chambers of Xeric in that it's a challenge that we expect to take some time before you'd ever get comfortable doing it and might serve as an aspirational challenge for many.
+
+We do appreciate that many of you reading this would like to see the raid scaled down to solo. Part of our vision here is to deliver more pinnacle group content - even though one of Old School's biggest strengths is the ability to 'stand alone, together', we do believe there's a place for prestigious and enjoyable content aimed at groups. Designing content to incorporate solo players specifically means that any mechanics relying on co-ordination between group members are watered-down considerably, and can often lead to either everybody just doing the same thing simultaneously, or one person doing the important things while everybody else sits around hitting the boss (e.g. Akkha), which is a dynamic we've tried really hard to avoid in The Fractured Archive.
+
+Without saying too much, our recommended scale is based mostly on the encounter design. Plenty of rooms give different players opportunities to engage in distinct ways that all further the team's progress. Too few and you might find yourself overwhelmed at times, too many and you might find yourself wanting to feel more consequential.
+
+Ultimately our advice here is to play at whatever scale you find fun! If you really like the idea of duoing with your best mate, and really stick at learning it, then you'll absolutely start racking up clears.
+
+==Death, Wipes & Spectating==
+On launch, if your team wipes then you'll be removed from the Archive and find yourself back in the lobby with a gravestone nearby. Effectively the wipe system is identical to Theatre of Blood, but we're using normal gravestones rather than a Death Storage.
+
+We'd really like to keep the wipe system this way. We understand that the wipe system is part of what makes Theatre of Blood so daunting, but equally feel that a full raid wipe should feel more impactful than it often does in the Chambers of Xeric or Tombs or Amascut. One of our biggest reasons for this is that the Practice Mode for The Fractured Archive is far superior as a low-stakes learning tool compared to Entry Mode or low invocation runs in TOB or TOA respectively - we'll chat in more detail about the Practice Mode momentarily.
+
+That said, if it looks as though this decision is detracting from the intended experience for our target audience, then we do have backup approaches ready to allow for wipes but with severe penalties for unique chances and a harsher dwindling of your supplies than you'd see in some other raids.
+
+At the very least for the raid's launch, we think the team wipe system should help that feeling of a tense, challenging and competitive first clear - something we've not had in Old School for some time.
+
+The post-death spectate system has undergone some huge improvements too! Rather than frowning in a cage or solemnly watching your remaining team members in your ghostly form, you'll be able to click on the HP/party orbs to check out your team members' POVs. This means you'll be able to tune in to the action and follow their character, see their inventory, and even helpfully ping inventory slots for them - you'd never misuse a ping system to make a teammate panic, right?
+
+==Raid Layout==
+Eagle-eyed readers might have already noticed the layout of the archive itself on the strategy board that we showed earlier in the blog, but let's take a birds-eye look at the central chamber and explain how you'll actually progress through the raid.
+
+[[File:The Fractured Archive - Everything You Need To Know (6).png|600px|center]]
+
+That's a lot of doors!
+
+The Fractured Archive features eight encounters. Every single raid will start with the Archive Guardian (it's literally its job to guard the archive, after all) and end with... the final boss.
+
+Between the entrance to the central chamber, and that ominous looking door at the far end, there's a row of doors to your left and to your right. You'll work your way towards the end of the chamber, but you can choose to tackle the left door or the right door on each row. This means that the middle three encounters are up to you.
+
+We saw some chatter after some of the RuneFest panels/Q&As about this with some speculation about random bosses or needing to scout raids, so want to be clear that this is categorically not the case. The middle three bosses will always offer you the same choices, so the layout looks like:
+
+* The Archive Guardian, who will stop at nothing to defend its master's archive.
+* Choose between the ferocious Bork (and the notably less ferocious Smorks) or Ezekiel, a justiciar of Saradomin who believes his ends always justify the means.
+* Choose between Dreadnoth the Jellied, the abominable result of a demonic ritual gone wrong, or a mysterious necromancer with a mastery over undeath.
+* Choose between Xarth, a Tormented Demon unlike any you've seen before, or the highly co-ordinated Dagon'hai Trio.
+* The final boss, a mysterious hooded figure... for now.
+
+We've deliberately balanced these pairings so that they should be similar in intensity and always award the same number of total points towards reward contribution, so the key factors for your choices here come down to personal preference, perhaps the gear available to you and your party, or even just which option your current squad tends to find easier/faster.
+
+We know that it's likely a 'meta' route will form and are totally okay with that, but still want to give players the chance to switch things up to keep the raid feeling fresh! It's also our suspicion that these 'meta' routes will still depend on a variety of factors like team size, the current scope of gear in the game (meaning new items added over time might make other paths slightly more efficient for your group), the current gear available to your party, or even the skill level of your current squad and their comfort with each of the bosses. Metas forming are totally fine by us, but we're happy to give you more choice, more to discover, more to learn and ultimately more to master so that you can enjoy The Fractured Archive for as long as possible!
+
+Of course all of them will eventually have their own Combat Achievements, so the completionists among you will have to get your reps in across the board rather than getting too comfortable with a familiar set of bosses.
+
+There will be a points-based resupply during the raid, similar to the Helpful Spirit in TOA or the Supplies Chest at TOB, and your performance up until then does play a role - so do your best for your team in case people find themselves struggling for supplies. It's worth noting that there's no Overload or equivalent in this raid, nor will you be able to bank or deposit supplies during the raid, so plan accordingly!
+
+==Practice Mode==
+Like we've said many times, The Fractured Archive is tough, so we want to give you a way to get your reps in but take a different approach to the Entry Mode equivalents like we've done in the past.
+
+To preface this segment: Practice Mode will not be available on release. We'll activate this at some time following the launch, so that everybody has the same experience progressing for those prestigious early clears, rather than people playing through an easier version of the raid and witnessing all of the mechanics or bosses before those choosing to progress on the intended difficulty, which happened with Tombs of Amascut's release.
+
+Once activated, you'll be able to use Practice Mode to attempt any boss and even any boss phase so long as you've encountered the boss/boss phase before. All of your supplies will be fully refunded, and you'll be able to bring friends too. What this means is you can't use Practice Mode to perfect the final boss before having ever set foot in the raid, instead you'll need to progress up to your wall, then perhaps take some time out to really nail the parts you've gotten to so far (or practice the phase you've gotten up to that's giving you so much trouble) and keep pushing deeper.
+
+The aim here is for you to shore up what you know so that you can keep progressing via a stream of Rocky-style training arcs, but to ultimately keep you practicing at the intended difficulty, since it's quite easy to build up bad habits or get the wrong idea in Entry Mode equivalents only to find yourself more-or-less learning from scratch once you graduate to the real thing.
+
+==Loot==
+Obviously we're not going to dive heavily into specifics about weightings or unique chances here, but we wanted to provide some clarity on questions we saw with Tombs of Amascut's release, so that you can dive into your first clears here with the full picture.
+
+In case you're out of the loop, here's a rapidfire rundown of all of the unique rewards on offer! [https://secure.runescape.com/m=news/the-fractured-archive---rewards-poll-blog?oldschool=1 For a more detailed look, check out the Rewards Poll Blog from earlier this year.]
+
+* '''Elemental Fragments''', untradeable items that add +2 to your base max hit for their corresponding element. This means their additional damage will benefit from increases to Magic damage, and will be multiplied by Elemental Weaknesses. These have some dupe protection mechanics, so you shouldn't find yourself in a scenario where you've got a bunch of fragments for one element.
+* '''The Archivist's Folio''', an untradeable teleport item allowing quick returns to the archive, left behind by archivists from long ago. You can charge this with Ascension shards at a very generous rate, so these teleports won't be a pain to upkeep.
+* '''Ascension shards''', a stackable resource used to charge the Archivist's Folio and the Obligator, and to make Ascension bolts for the Ascension crossbows.
+* '''Zeal''', an unlockable upgrade to the Piety prayer, adding an additional +5% Attack and Strength. The item to unlock this will be tradeable, but you'll have to do something a little more interesting than just reading a piece of paper at a bank - perhaps the Record Keeper can help?
+* '''The Rondache''', a tradeable shield which mitigates incoming Melee, Ranged and Magic damage by 2. The mitigated damage is stored as charges, which can be fired off without delay for a rapidfire Shield Bash.
+* '''Zorya's Tome''', a tradeable, two-handed book that fires off spells every three ticks. Its primary purpose is for its Special Attack, which imbues you with arcane energy to fire off rapid hits with increased damage and accuracy.
+* '''Ascension crossbows''', tradeable, dual-wield crossbows that fire the new Ascension bolts (made using Ascension shards). These are effectively a raid-tier upgrade to the Toxic Blowpipe.
+* '''The Obligator''', a ferocious Crush-based megarare. The Obligator rolls damage multiple times depending on how weak your target is to Crush relative to other Melee styles, meaning it hits consistently hard. It's also able to slam through multiple enemies in a line, or lose its damage re-rolls and multi-target capabilities in exchange for faster attacks.
+
+To reiterate what we said above, every boss 'pairing' awards the same number of points towards your loot, so no choice will have any impact on your chance at a unique from a particular raid, but other factors like your personal performance or setup may make some choices lead to more completions per hour.
+
+Bosses with Adds will have damage dealt to these count towards your overall room contribution, however it isn't implemented in a way that allows players to farm points by stalling out fights. Each room has a finite amount of contribution it can dish out, it's just that your portion of the pie will count damage done to minions, meaning nobody feels like they're missing out for helping the team manage the encounter - you shouldn't feel bad for being a team player!
+
+While uniques always remain the focus of raiding, we're trying to have the regular loot here sit just below Theatre of Blood (since Theatre of Blood's regular loot is very generous), but it's difficult to account for the price of Ascension shards here since we can't know where they'll settle. If the dust settles and regular loot is far away from our aims then we can look to bring them more in line. We're looking to be a touch more cautious and deliberate here after our learnings from TOA, where regular loot was so generous that some resources (e.g. Torstol seeds) are still struggling to recover from the impact that the raid had on them.
+
+==Limited Accounts==
+All the way back in January, we said that we'd planned to accommodate limited builds such that they could participate in this raid, since most restricted builds are able to engage with the other three raids in the game. We'd planned a number of proposals here, but ultimately weren't comfortable navigating or delivering these changes ahead of launch with the time that we had. To be clear, these changes wouldn't have been 'just let players do the raid without the quest' and would instead have involved revisiting some older quests on While Guthix Sleeps' critical unlock path, rather than letting people bypass requirements.
+
+We genuinely believe that Old School as a sandbox is richer when people are able to engage with more challenges that push their restrictions to their limits, so do want to revisit this conversation in future, but can't point to exactly when.
+
+We wholeheartedly apologise to those of you who'd been excited to take on The Fractured Archive and won't be able to at release. Our focus will be on getting the raid into the best spot possible in the hopes that it'll be the best it can be whenever we revisit these conversations.
+
+==Closing Thoughts From The Fractured Archive Team==
+It's nearly time for all of you to take your tentative first steps into a forgotten and unfamiliar place. We genuinely cannot wait to see you take on The Fractured Archive, we've loved working on it and hope that it's as special for you as it is for all of us.
+
+We set out to make a tough piece of group content: tough to learn, fun to grind, plenty of room for mastery. You as a community have gotten pretty good at Old School over the years: it's a night and day difference between Theatre of Blood's release and now, we hope that The Fractured Archive scratches that same itch and gives you a run for your money on launch before you commit to optimising your runs forever more.
+
+To take us out, here are some words from the team who've poured blood, sweat, tears, and a lot of coffee into this release!
+
+{{Letter|'''Mod Arcane - Principal Systems Designer'''
+
+''"drop rates will be coming week 2"''
+
+''"thanks" - arcane''
+
+''"click yellow"''
+
+''"o boy im tired, hope its alright"''
+
+''"probably better than ToA"''
+
+After some pushing, we did manage to squeeze a sincere response out of him:
+
+''"This one has been cooking for a long while now, there's high expectations.''
+
+''Tombs of Amascut was basically my first really big project. It's a good, solid raid and for some it's even their favourite, but I don't think ToA was my best work. I'd say I was still a little green back then and had a lot more room to grow.''
+
+''Since then I've worked on Muspah, Vardorvis, Whisperer, Leviathan, Duke, All the Awakened boss variants, Sol Heredit, The Echo Bosses, Araxxor, Yama, and even Brutus. I've grown a lot over these projects and If I have taken at least one notable learning from every one of these to take to the future ones, then it should mean something great is brewing.''
+
+''All that being said, I sincerely believe that The Fractured Archive is my favorite PvM encounter I'll ever work on, and I hope it's some of your favorite to play."''}}
+
+{{Letter|'''Mod Jerv - Concept Artist'''
+
+''"This project has been one of my favourites to work on so far, and I'm beyond excited to see people sink their teeth into it all. It's not often we get to design something Guthix has been a part of physically creating, and designing architecture and a boss based on that fact alone was a once in a lifetime experience.''
+
+''The entire Raid takes you on a familiar emotional journey to what you have felt up until this point in your player journey; goblins, dark mages, knights, demons and getting entangled with beings of greater power. Hitting these emotional beats in a more challenging context while keeping the balance of "impressive" and "old school" was such a fun design challenge. I hope the experience leaves a great impression on you all!"''}}
+
+{{Letter|'''Mod Grub - Concept Artist'''
+
+"- .... . .-. . .----. ... / .-.. --- .- -.. ... / --- ..-. / -- --- .-. ... . / -.-. --- -.. . / .. -. / - .... . .-. ."
+
+''Yes, he said this to us out loud, it took ages.''}}
+
+{{Letter|'''Mod Halo - Senior Technical Designer'''
+
+''"Working on this raid has been such a rewarding experience. I'm a sucker for creating PvM content, and getting to help bring Old School's fourth raid to life has been genuinely special.''
+
+''Everyone on the team has poured so much passion and care into this project, and I think that really shows. Each boss has its own identity, personality, and rhythm, and it's been amazing seeing everything come together. There have also been some really fun technical challenges to solve along the way, and we've been able to use some exciting new tech that I can't wait for you all to experience.''
+
+''See you in The Archive."''}}
+
+{{Letter|'''Mod Nox - QA Analyst'''
+
+''"For those of you who know me, it'll come as no surprise that PvM content is my favourite to work on. I've had the privilege of working on quite a few end game PvM projects in my time here, however The Fractured Archive is without a doubt the project that I am most proud of so far.''
+
+''So much work has gone into creating this experience for you all - hours of playtesting, discussion going way past the end of our work day, and countless tweaks and adjustments all to try and create a raid which lives up to your incredibly high expectations. While I do hope this raid delivers on all your hopes for challenging mechanics and exciting teamplay, more than anything it's my hope that you get to create many memories with your friends here. Some of my fondest memories on OSRS have come from my friends and I doing stupid things mid-raid, so get your clipping software ready because you will be pking your pals a lot (I'd love to see these so tweet them at me), and above all enjoy having another piece of content where you can spend time with the people who make this game special for you.''
+
+''I hope you enjoy the Archive, can't wait to hear all of your thoughts."''}}
+
+{{Letter|'''Mod Goblin - Community Manager'''
+
+''"I'm writing the blog, they can't stop me adding a quote.''
+
+''Did I develop any of the content you'll be playing on launch? No.''
+
+''Did I help bring a one-of-a-kind artistic vision to life? Also no.''
+
+''Have I written 15,666 words (and counting) about The Fractured Archive so far? Absolutely!''
+
+''It's been an absolute pleasure to get involved with all of you on this raid's development, from the Rewards Primer back in March, to all of the discussion and back and forth with your feedback until we had a set of rewards locked in, to the blog you've just read and the future blogs for the release (and beyond).''
+
+''The worst part about being involved on a project like The Fractured Archive is having to keep so much under wraps while the raid takes shape and grows ever closer to the final product. I've had a blast jumping into playtests with the team over the course of this year, offering feedback (some of it useful), flaming Mod Nox, and dying to lag or "my mouse disconnected" or "it's a bug for sure guys make a ticket". I can't wait to see all of you making your own memories with friends in a genuinely special piece of content.''
+
+''I hope you have as much fun playing it as we've had making it!"''}}
+
+{{Letter|'''Mod Spacebar - QA Analyst'''
+
+''"As someone that has recently joined the company, it was my pleasure to work on Blood Moon Rises and now The Fractured Archive.''
+
+''For the past 10 years, I have enjoyed playing this amazing game, some of my best memories have been loading up CoX, ToB and ToA on release day, jumping into calls with my friends and clanmates and enjoying learning, dying and finally completing the raids. (A cheeky 1KC purple was always welcome)''
+
+''The community is what makes this game amazing and I'm so excited to tune into the streams and watch the discords as I hope you all fall in love with this raid and battle through it like i did my first time playtesting.''
+
+''I'm proud to have worked on this content and assisted the passionate team where I could and my biggest hope is that you all see the love, sweat and not too many tears, that went into this raid.''
+
+''May the RNG Gods bless you all but most importantly, have fun."''}}
+
+{{Letter|'''Mod Acorn - Lead Producer'''
+
+''"When I rejoined Jagex, I was told, “You're going to be working on Raids 4.” My first thought was: “Why on earth would anyone trust a 10HPer to lead production of a Raid?” But within those first few months, I began to understand just how much of a beast a Raid is to bring to life - and somewhere among all those moving parts, I found my place.''
+
+''A Raid is about so much more than one PvM encounter after another. It's our narrative team finding its place within the wider world of Gielinor. It's our artists creating continuity between every room, character and animation, while using the environment itself to tell a story. It's our audio team experimenting with new ways to breathe life into the voices that fill those spaces. And it's our designers making sure every boss feels distinctive, mechanically engaging and suitably challenging.''
+
+''Raids 4 could only have come together through the passion and collaboration of the entire Old School team, alongside the players who shared their feedback and helped guide us throughout the journey.''
+
+''After more than a year of development, it's an immense pleasure to finally place what we've created into your hands. We can't wait for you all to experience it."''}}
+
+{{Letter|'''Mod West - Senior Environment Artist'''
+
+''"After several years of working on massive quests and area expansion content it has been a joy to get back to the basics of the game - dungeons!''
+
+''I've had the pleasure to be involved in all of the raids to date and it's wonderful to see how the team has evolved and grown over the past decade. This will be our first Raid with the z-buffer tech and I think it really shows in the environments and animations that the team have created how much this has helped elevate what's possible - they are truly epic!''
+
+''Everyone is in for a real treat this time around, I can't wait to see you all take on the various challenges!"''}}
+
+{{Letter|'''Mod Skylark - Character Artist'''
+
+''"It’s been incredible to watch this project evolve; all the way from initially brainstorming each boss encounter, to watching the final trailer for Runefest. I had the pleasure of modelling 3 of the bosses, some of which are my favourite OSRS designs to date. The creativity of the raids 4 team has been truly inspiring, and I can’t wait to watch the players get stuck in - glhf!!"''}}
+
+{{Letter|'''Mod Squid - Systems Designer'''
+
+''"The Fractured Archive has been a beast of a project to work on. So much care and attention has been put into this raid from the bosses themselves to all the supporting systems, narrative dressing and of course incredible visual & audio design. We've really tried to push the boat out at every turn to create an epic experience that you'll love from the moment you step foot in the staging area to battling through the Archive and eventually claiming your loot.''
+
+''I hope the Fractured Archive brings you many hours of (challenging) entertainment with your friends!"''}}
+
+{{Letter|'''Mod Hend - Animator'''
+
+''"I joined the team right after Tombs of Amascut launched, and seeing the community’s reaction to it left such an impression on me, so finally getting the chance to work on a raid after four years was something I really wanted to do justice.''
+
+''The advancements in both tech and art since Tombs of Amascut have given us a lot more creative freedom in what we can do. With The Fracture Archive, we’ve been able to create some incredibly unique bosses and rewards, and I’m really excited for players to experience them for themselves. There’s been so much passion from everyone on the team throughout this project, and I hope that comes across when players finally get their hands on it. I can’t wait to see what you think!"''}}
+We're all beyond excited (and more than a little nervous) for you to get stuck in on October 20th! You've gotten ''very'' good at Old School since the days of Theatre of Blood's release, but we sincerely hope that you'll find plenty of challenges inside the archive. Above all else, we hope that you have ''fun'' playing the raid on release, and for years to come!
+
+See you on October 20th, and good luck: you'll need it!
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the official [https://discord.gg/OSRS OSRS Discord]. For more information, check the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Acorn, Ape, Arcane, Archie, Argo, Ash, Asherz, Ayiza, BigRig, Blighted, Blossom, Boko, Brooksie, Bruno, Bulb, Chilly, Criminal, Curse, Daizong, Default, Doctor, Ed, Elena, Enigma, Entropi, Frogs, Fuzz, Gecko, Ghost, Gizmo, Goblin, Grace, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Liron, Lotus, Lykos, Mack, Maeve, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nixon, Nox, Nylu, Oasis, Ori, Other, Otter, Pheasant, Philomel, Pork, Pumpkin, Puppi, Pyro, Rach, Redfield, Rice, Romy, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Spacebar, Spyro, Squid, Starry, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy, Yozora, Yume & Zaf'''
+
+''The Old School Team''

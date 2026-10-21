@@ -4051,6 +4051,16 @@ struct ToriRSServerPlayer
      * energy update that leaves under 1% (100 of TORIRSSERVER_RUN_ENERGY_MAX).
      */
     int temp_run;
+    /**
+     * `p_runblock($ticks, $text)`: until `run_block_until` (a world tick) the
+     * player walks whatever the orb or a temporary run says, and the first
+     * route that would have run is answered with `run_block_text` once. The
+     * Archive Guardian's mushrooms make a raider drowsy this way ("You're too
+     * drowsy to run!", RSProx 4297 [455..472]).
+     */
+    int run_block_until;
+    int run_block_told;
+    char run_block_text[80];
     int face_entity;
     /**
      * The latch was derived by an immediate interaction

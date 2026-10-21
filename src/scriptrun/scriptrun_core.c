@@ -1814,6 +1814,10 @@ core_wirelog(
     case PKT_NAME_VARP_LARGE:
         fprintf(f, "%d\tvarp\t%d\t%d\n", t, p->_varp_large.variable, p->_varp_large.value);
         break;
+    case PKT_NAME_VARP_LONG:
+        fprintf(f, "%d\tvarp_long\t%d\t%lld\n", t, p->_varp_long.variable,
+                (long long)p->_varp_long.value);
+        break;
     case PKT_NAME_MINIMAP_TOGGLE:
         fprintf(f, "%d\tminimap_toggle\t%d\n", t, p->_minimap_toggle.state);
         break;

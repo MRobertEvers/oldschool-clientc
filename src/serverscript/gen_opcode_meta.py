@@ -1202,6 +1202,22 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # [214], [147]); `mes` is type 0 and `mes_spam` 105.
     "MES_TYPED": (11222, 1, 1, 0, 0),
 
+    # p_runblock(int $ticks, string $text)
+    #
+    # The active player walks, whatever the run orb or a temporary run says,
+    # for `$ticks`, and the first route that would have run is answered with
+    # `$text` once. The Archive Guardian's mushrooms make a raider drowsy for
+    # 17 ticks ("You're too drowsy to run!", RSProx 4297 [455..472]).
+    "P_RUNBLOCK": (11223, 1, 1, 0, 0),
+
+    # loc_add_opflags(coord $coord, loc $loc, int $angle, locshape $shape, int $duration, int $opflags)
+    #
+    # `loc_add` with LOC_ADD_CHANGE_V2's opFlags given: bit 0 shows op1 ...
+    # bit 4 op5, the rest hidden; the loctype's own labels. The Fractured
+    # Archive's exit is re-added with 0 while its room fights (`opflags=0b0`,
+    # RSProx 4297 [131]) and with 1 when the guardian dies (4294 [1431]).
+    "LOC_ADD_OPFLAGS": (11224, 6, 0, 0, 0),
+
     # npc_setbasestat(npc_stat $stat, int $level)
     #
     # The active npc's BASE level in one non-hitpoint stat until it dies or
@@ -1634,6 +1650,7 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "NPC_SETOPS": (1 << POINTER_BITS["active_npc"], 0),
     "MES_SPAM": (1 << POINTER_BITS["active_player"], 0),
     "MES_TYPED": (1 << POINTER_BITS["active_player"], 0),
+    "P_RUNBLOCK": (1 << POINTER_BITS["active_player"], 0),
     "MIDI_SONG_ENVELOPE": (1 << POINTER_BITS["active_player"], 0),
     "NPC_SETDEATHTYPE": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_SETDEATHANIMNOW": (1 << POINTER_BITS["active_npc"], 0),
@@ -1738,6 +1755,7 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     # command names its own coord and needs no active anything. Listed rather
     # than omitted so the assert in the writer stays a whitelist.
     "LOC_ADD_OP": (0, 0),
+    "LOC_ADD_OPFLAGS": (0, 0),
     "REMOTE_VIEW_START": (1 << POINTER_BITS["p_active_player"], 0),
     "REMOTE_VIEW_END": (1 << POINTER_BITS["p_active_player"], 0),
     # The splat needs somebody to appear over. NPC_DAMAGE (2509) carries

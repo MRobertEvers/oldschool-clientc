@@ -1,16 +1,22 @@
 # The Guthixian Archive (rev 241, OSRS 2026-10-20) against RSProx
 
-Sessions (both rev 241, world 329, recorder "Das Idle", not seasonal):
+Sessions (all rev 241, world 329, recorder "Das Idle", not seasonal):
 
 | session | what it holds |
 |---|---|
 | index 4293 | the Guthixian Temple teleport scroll [35], the temple's climbs, crawls and jump-downs [45..137], two skull noses [146], [152], the crawl into the Archive [161], the intro cutscene [173..324], the lobby [324..] |
 | index 4294 | the lobby, spectating, two Archive Guardian fights (~[545..1043], ~[1099..1491]), Bork/Smork from ~[1491] |
+| index 4295 | a short lobby visit |
+| index 4296 | one solo Guardian fight [361..840] (the recorder dies) |
+| index 4297 | the lobby's party flow [327..341], three solo Guardian fights [97..259], [353..641], [817..1180] (each a wipe) |
 
 Content: `OSRS-Content/osrs-content/server/scripts/areas/area_guthixian_archive/`
-(`gt_temple.rs2` items 0 and 0b, `tfa_cutscene.rs2` item 2).
-Test: `test/guthixian_archive/gt_entry.lua` (scriptrun; replays 4293's route and
-its cutscene continues on the recorded ticks).
+(`gt_temple.rs2` items 0 and 0b, `tfa_cutscene.rs2` item 2, `tfa_raid.rs2`
+the lobby party, the room, its HUD and the deaths, `tfa_guardian.rs2` the
+Archive Guardian; its spec, audit table and gaps are `guardian_plan.md`).
+Tests: `test/guthixian_archive/gt_entry.lua` (scriptrun; replays 4293's route and
+its cutscene continues on the recorded ticks); `tfa_guardian.lua` (the fight to
+a wipe) and `tfa_guardian_win.lua` (the kill).
 
 ## How it was audited
 
@@ -91,6 +97,13 @@ recorded.
 | varps 3077 (`busy`), 3939 (`sanity`) transmit | 4293 [35], [38] and every `busy` edge | every content that sets `busy` |
 | varps 4234, 5920 perm + transmit | 4293/4294 login dumps | this area |
 | music squares 16199, 16197, 16470 | 4293 [38], [70], [173] | engine table |
+| `p_runblock(ticks, text)` (11223): walk-only for a while, the text once | 4297 [455..472] "You're too drowsy to run!" | engine |
+| `atan2_deg` implemented (LostCity semantics) | the swoosh's exactmove angle | engine |
+| `loc_add_opflags(coord, loc, angle, shape, duration, opflags)` (11224) | 4297 [131] `opflags=0b0`, 4294 [1431] `0b1` | engine |
+| eating: "You eat the <lower-case name>." and "It heals some health." (when hurt), both spam, synth `eat` 2393; karambwan's "Karambwan" | 4297 10/10; 121 lines across the cached transcripts; karambwan 314/314 | every food (`food.rs2`, `food.dbrow`) |
+| prayer-on sounds loops 1 (was 0) | ~2,000 recorded lines, all loops 1 | every prayer (`prayer.rs2`) |
+| `~p_choice_open` runs script 2379 before the menu | 4297 [125] | every chatmenu |
+| the wire log carries the player's face and exactmove | the swoosh, the climbs | `scriptrun_core.c`, `wirelog_tells.py` |
 
 ## Open (named, not fixed)
 
@@ -104,3 +117,12 @@ recorded.
 - Instances are always multi-way (varbit 4605).
 - The mesbox's close on a walk sends script 1508 in Jagex's: engine close path.
 - `wgs_tfa_shortcut_unlocked`'s real trigger (unverified).
+- `busy` (12393) around dialogue is generic in Jagex's (a tick after a
+  chatmenu opens, 0 on its resume); ours sets it only where content does
+  (`guardian_plan.md`, Audit).
+- The Archive Guardian's own open items (boss bar timing, the special's exact
+  pacing, the tentacle's style and max, the solo enrage, the melee, party
+  scaling) are listed in `guardian_plan.md`.
+- Not built yet: item 1 (spectating a party from the lobby; the client's CS2
+  long stack first) and item 4 (Bork). The lobby's gathering rocks
+  (`tfa_gathering_rock_*`, 4297 [1], [7]) belong to the lobby, not the fight.

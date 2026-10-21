@@ -1,0 +1,918 @@
+357	ZONE	message_game type=gamemessage, message="You enter the Archive..."
+361	tfa_guardian_battery_inactive#47999	add (4139,5592), creationcycle=97564, spawnangle=south
+361	tfa_guardian_battery_inactive#47998	add (4139,5605), creationcycle=97564, spawnangle=south
+361	tfa_guardian_start#47997	add (4125,5597), creationcycle=97564, spawnangle=south
+361	tfa_guardian_battery_inactive#48000	add (4114,5605), creationcycle=97564, spawnangle=south
+361	tfa_guardian_battery_inactive#48001	add (4114,5592), creationcycle=97564, spawnangle=south
+361	ZONE	loc_add_change_v2 id=tfa_nexus_section_door_closed (63094), coord=(4141, 5597, 0), shape=10, rotation=1
+361	ZONE	loc_add_change_v2 id=tfa_nexus_section_door_closed (63094), coord=(4141, 5584, 0), shape=10, rotation=1
+361	ZONE	loc_add_change_v2 id=tfa_nexus_section_door_closed (63094), coord=(4113, 5597, 0), shape=10, rotation=3
+361	ZONE	loc_add_change_v2 id=tfa_nexus_section_door_closed (63094), coord=(4113, 5584, 0), shape=10, rotation=3
+361	ZONE	loc_add_change_v2 id=tfa_exit_large (62766), coord=(4124, 5569, 0), shape=10, rotation=0
+364	tfa_guardian_start	[spotanim] id=vfx_guardian_spawn_idle_spotanim01 (4207)
+367	tfa_guardian_start	[spotanim] id=vfx_guardian_spawn_idle_spotanim01 (4207)
+370	tfa_guardian_start	[spotanim] id=vfx_guardian_spawn_idle_spotanim01 (4207)
+370	ZONE	loc_add_change_v2 id=tfa_nexus_section_door_closed (63094), coord=(4141, 5610, 0), shape=10, rotation=1
+370	ZONE	loc_add_change_v2 id=tfa_nexus_section_door_closed (63094), coord=(4113, 5610, 0), shape=10, rotation=3
+373	tfa_guardian_start	[spotanim] id=vfx_guardian_spawn_idle_spotanim01 (4207)
+375	ZONE	loc_add_change_v2 id=tfa_nexus_ocellus_door_closed (63110), coord=(4124, 5621, 0), shape=10, rotation=0
+376	tfa_guardian_start	[spotanim] id=vfx_guardian_spawn_idle_spotanim01 (4207)
+379	tfa_guardian_start	[spotanim] id=vfx_guardian_spawn_idle_spotanim01 (4207)
+382	tfa_guardian_start	[spotanim] id=vfx_guardian_spawn_idle_spotanim01 (4207)
+385	tfa_guardian_start	[spotanim] id=vfx_guardian_spawn_idle_spotanim01 (4207)
+388	tfa_guardian_start	[spotanim] id=vfx_guardian_spawn_idle_spotanim01 (4207)
+391	tfa_guardian_start	[spotanim] id=vfx_guardian_spawn_idle_spotanim01 (4207)
+394	tfa_guardian_start	[spotanim] id=vfx_guardian_spawn_idle_spotanim01 (4207)
+397	tfa_guardian_start	[spotanim] id=vfx_guardian_spawn_idle_spotanim01 (4207)
+399	ZONE	message_game type=gamemessage, message="Challenge started: Archive Guardian."
+399	tfa_guardian_start	[spotanim] id=vfx_guardian_spawn_spotanim01 (4206)
+399	tfa_guardian_start	[sequence] id=npc_archive_guardian_spawn01 (14755)
+399	ZONE	loc_add_change_v2 id=tfa_exit_large (62766), coord=(4124, 5569, 0), shape=10, rotation=0, opflags=0b0
+404	tfa_guardian_battery_inactive	[level_change] level=0
+404	tfa_guardian_battery_inactive	[enabled_ops] opflags=0b00000
+404	tfa_guardian_battery_inactive	[transformation] id=tfa_guardian_battery_active (16662)
+404	tfa_guardian_battery_inactive	[level_change] level=0
+404	tfa_guardian_battery_inactive	[enabled_ops] opflags=0b11111
+404	tfa_guardian_battery_inactive	[transformation] id=tfa_guardian_battery_active (16662)
+404	tfa_guardian_start	[level_change] level=984
+404	tfa_guardian_start	[sequence] id=npc_archive_guardian_idle01 (14745)
+404	tfa_guardian_start	[facing] coord=(4127, 5572, 0)
+404	tfa_guardian_start	[enabled_ops] opflags=0b11111
+404	tfa_guardian_start	[transformation] id=tfa_guardian (16659)
+404	tfa_guardian_battery_inactive	[level_change] level=0
+404	tfa_guardian_battery_inactive	[enabled_ops] opflags=0b11111
+404	tfa_guardian_battery_inactive	[transformation] id=tfa_guardian_battery_active (16662)
+404	tfa_guardian_battery_inactive	[level_change] level=0
+404	tfa_guardian_battery_inactive	[enabled_ops] opflags=0b11111
+404	tfa_guardian_battery_inactive	[transformation] id=tfa_guardian_battery_active (16662)
+405	tfa_guardian#47997	telejump (4125,5597), newcoord=(4130, 5587, 0)
+405	tfa_guardian	[exact_move] to1=(4125, 5597, 0), delay1=0, to2=(4130, 5587, 0), delay2=50, angle=1897
+405	tfa_guardian	[sequence] id=npc_archive_guardian_swoosh_attack01 (14750)
+405	tfa_guardian	[facing] coord=(4127, 5589, 0)
+408	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+408	tfa_guardian	[headbar] id=10, fill=100
+408	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+408	tfa_guardian	[hit] id=12, value=0
+408	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+411	tfa_guardian#47997	telejump (4130,5587), newcoord=(4126, 5583, 0)
+411	tfa_guardian	[exact_move] to1=(4130, 5587, 0), delay1=0, to2=(4126, 5583, 0), delay2=38, angle=256
+411	tfa_guardian	[sequence] id=npc_archive_guardian_swoosh_attack01 (14750)
+411	tfa_guardian	[facing] angle=256
+414	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+414	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+414	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+416	tfa_guardian	[headbar] id=10, fill=100
+416	tfa_guardian	[hit] id=12, value=0
+417	ZONE	message_game type=spam, message="You drink some of your ranging potion."
+417	ZONE	message_game type=spam, message="You have 3 doses of potion left."
+419	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+419	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+419	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+420	ZONE	loc_add_change_v2 id=tfa_nexus_ocellus_door_closed (63110), coord=(4124, 5621, 0), shape=10, rotation=0
+421	tfa_guardian	[headbar] id=10, fill=99
+421	tfa_guardian	[hit] id=16, value=1
+422	tfa_guardian#47997	telejump (4126,5583), newcoord=(4128, 5592, 0)
+422	tfa_guardian	[exact_move] to1=(4126, 5583, 0), delay1=0, to2=(4128, 5592, 0), delay2=48, angle=1096
+422	tfa_guardian	[sequence] id=npc_archive_guardian_swoosh_attack01 (14750)
+422	tfa_guardian	[facing] angle=1096
+425	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+425	tfa_guardian	[headbar] id=10, fill=99
+425	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+425	tfa_guardian	[hit] id=12, value=0
+425	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+429	tfa_guardian	[headbar] id=10, fill=91
+429	tfa_guardian	[hit] id=16, value=44
+430	tfa_guardian	[spotanim] id=vfx_guardian_special_attack_spotanim01 (4205)
+430	tfa_guardian	[sequence] id=npc_archive_guardian_special_attack01 (14753)
+430	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4121, 5588, 0), shape=10, rotation=0
+430	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4119, 5586, 0), shape=10, rotation=0
+432	ZONE	loc_add_change_v2 id=tfa_nexus_ocellus_door_closed (63110), coord=(4124, 5621, 0), shape=10, rotation=0
+433	tfa_guardian#47997	telejump (4128,5592), newcoord=(4123, 5591, 0)
+433	tfa_guardian	[exact_move] to1=(4128, 5592, 0), delay1=0, to2=(4123, 5591, 0), delay2=40, angle=447
+433	tfa_guardian	[sequence] id=npc_archive_guardian_swoosh_attack01 (14750)
+433	tfa_guardian	[facing] angle=447
+433	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4121, 5588, 0), shape=10, rotation=0
+433	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4119, 5586, 0), shape=10, rotation=0
+436	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+436	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+436	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+438	tfa_guardian_battery_active	[headbar] id=0, fill=25
+438	tfa_guardian_battery_active	[headbar] id=0, fill=25
+438	tfa_guardian_battery_active	[hit] id=16, value=29
+438	tfa_guardian#47997	telejump (4123,5591), newcoord=(4119, 5594, 0)
+438	tfa_guardian	[exact_move] to1=(4123, 5591, 0), delay1=0, to2=(4119, 5594, 0), delay2=38, angle=721
+438	tfa_guardian	[sequence] id=npc_archive_guardian_swoosh_attack01 (14750)
+438	tfa_guardian	[facing] angle=721
+439	tfa_guardian_battery_active	[headbar] id=0, fill=25
+440	tfa_guardian_battery_active	[headbar] id=0, fill=23
+440	tfa_guardian_battery_active	[headbar] id=0, fill=23
+440	tfa_guardian_battery_active	[hit] id=16, value=11
+441	tfa_guardian_battery_active	[headbar] id=0, fill=23
+441	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+441	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+441	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+442	tfa_guardian_battery_active	[headbar] id=0, fill=20
+442	tfa_guardian_battery_active	[headbar] id=0, fill=20
+442	tfa_guardian_battery_active	[hit] id=16, value=20
+443	tfa_guardian_battery_active	[headbar] id=0, fill=20
+444	tfa_guardian_battery_active	[headbar] id=0, fill=18
+444	tfa_guardian_battery_active	[headbar] id=0, fill=18
+444	tfa_guardian_battery_active	[hit] id=16, value=13
+445	tfa_guardian_battery_active	[headbar] id=0, fill=18
+446	tfa_guardian_battery_active	[headbar] id=0, fill=18
+446	tfa_guardian_battery_active	[headbar] id=0, fill=18
+446	tfa_guardian_battery_active	[hit] id=12, value=0
+446	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+446	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+446	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+447	tfa_guardian_battery_active	[headbar] id=0, fill=18
+448	tfa_guardian_battery_active	[headbar] id=0, fill=13
+448	tfa_guardian_battery_active	[headbar] id=0, fill=13
+448	tfa_guardian_battery_active	[hit] id=43, value=31
+449	tfa_guardian_battery_active	[headbar] id=0, fill=13
+450	tfa_guardian_battery_active	[headbar] id=0, fill=8
+450	tfa_guardian_battery_active	[headbar] id=0, fill=8
+450	tfa_guardian_battery_active	[hit] id=16, value=27
+451	tfa_guardian_battery_active	[headbar] id=0, fill=8
+451	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+451	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+451	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+452	tfa_guardian_battery_active	[headbar] id=0, fill=6
+452	tfa_guardian_battery_active	[headbar] id=0, fill=6
+452	tfa_guardian_battery_active	[hit] id=16, value=17
+453	tfa_guardian_battery_active	[headbar] id=0, fill=6
+454	tfa_guardian_battery_active	[headbar] id=0, fill=5
+454	tfa_guardian_battery_active	[headbar] id=0, fill=5
+454	tfa_guardian_battery_active	[hit] id=16, value=7
+455	tfa_guardian_battery_active	[headbar] id=0, fill=5
+456	tfa_guardian_battery_active	[headbar] id=0, fill=3
+456	tfa_guardian_battery_active	[headbar] id=0, fill=3
+456	tfa_guardian_battery_active	[hit] id=16, value=12
+456	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+456	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+456	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+457	tfa_guardian_battery_active	[headbar] id=0, fill=3
+458	tfa_guardian_battery_active	[headbar] id=0, fill=2
+458	tfa_guardian_battery_active	[headbar] id=0, fill=2
+458	tfa_guardian_battery_active	[hit] id=16, value=5
+459	tfa_guardian_battery_active	[headbar] id=0, fill=2
+460	tfa_guardian_battery_active	[headbar] id=0, fill=0
+460	tfa_guardian_battery_active	[headbar] id=0, fill=0
+460	tfa_guardian_battery_active	[hit] id=16, value=8
+461	tfa_guardian_battery_active	[sequence] id=guthixian_battery_despawn (15025)
+461	tfa_guardian_battery_active	[enabled_ops] opflags=0b00000
+461	tfa_guardian	[spotanim] id=vfx_guardian_special_attack_spotanim01 (4205)
+461	tfa_guardian	[sequence] id=npc_archive_guardian_special_attack01 (14753)
+461	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4116, 5595, 0), shape=10, rotation=0
+461	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4119, 5598, 0), shape=10, rotation=0
+463	tfa_guardian_battery_active	[level_change] level=0
+463	tfa_guardian_battery_active	[headbar] id=0, removed=true
+463	tfa_guardian_battery_active	[enabled_ops] opflags=0b11111
+463	tfa_guardian_battery_active	[transformation] id=tfa_guardian_battery_destroyed (16663)
+464	tfa_guardian	[headbar] id=10, fill=91
+464	tfa_guardian	[headbar] id=10, fill=52
+464	tfa_guardian	[hit] id=12, value=0
+464	tfa_guardian	[hit] id=17, value=220
+464	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4116, 5595, 0), shape=10, rotation=0
+464	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4119, 5598, 0), shape=10, rotation=0
+466	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+466	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+466	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+468	tfa_guardian	[headbar] id=10, fill=45
+468	tfa_guardian	[hit] id=16, value=39
+471	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+471	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+471	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+473	tfa_guardian	[headbar] id=10, fill=44
+473	tfa_guardian	[hit] id=16, value=2
+476	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+476	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+476	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+477	tfa_guardian	[headbar] id=10, fill=41
+477	tfa_guardian	[hit] id=16, value=20
+478	ZONE	message_game type=spam, message="You drink some of the foul liquid."
+478	ZONE	message_game type=spam, message="You have 3 doses of potion left."
+480	tfa_guardian#47997	telejump (4119,5594), newcoord=(4122, 5603, 0)
+480	tfa_guardian	[exact_move] to1=(4119, 5594, 0), delay1=0, to2=(4122, 5603, 0), delay2=48, angle=1129
+480	tfa_guardian	[sequence] id=npc_archive_guardian_swoosh_attack01 (14750)
+480	tfa_guardian	[facing] angle=1129
+482	tfa_guardian_battery_active	[headbar] id=0, fill=28
+482	tfa_guardian_battery_active	[headbar] id=0, fill=28
+482	tfa_guardian_battery_active	[hit] id=16, value=9
+483	ZONE	message_game type=spam, message="You drink some of the foul liquid."
+483	ZONE	message_game type=spam, message="You have 2 doses of potion left."
+483	tfa_guardian_battery_active	[headbar] id=0, fill=28
+483	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+483	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+483	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+484	tfa_guardian_battery_active	[headbar] id=0, fill=28
+485	tfa_guardian_battery_active	[headbar] id=0, fill=28
+486	tfa_guardian_battery_active	[headbar] id=0, fill=28
+487	tfa_guardian_battery_active	[headbar] id=0, fill=28
+488	tfa_guardian_battery_active	[headbar] id=0, fill=25
+488	tfa_guardian_battery_active	[headbar] id=0, fill=25
+488	tfa_guardian_battery_active	[hit] id=16, value=22
+488	tfa_guardian	[spotanim] id=vfx_guardian_special_attack_spotanim01 (4205)
+488	tfa_guardian	[sequence] id=npc_archive_guardian_special_attack01 (14753)
+488	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4120, 5604, 0), shape=10, rotation=0
+488	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4122, 5603, 0), shape=10, rotation=0
+489	tfa_guardian_battery_active	[headbar] id=0, fill=25
+490	tfa_guardian_battery_active	[headbar] id=0, fill=23
+490	tfa_guardian_battery_active	[headbar] id=0, fill=23
+490	tfa_guardian_battery_active	[hit] id=16, value=9
+491	tfa_guardian_battery_active	[headbar] id=0, fill=23
+491	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4120, 5604, 0), shape=10, rotation=0
+491	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4122, 5603, 0), shape=10, rotation=0
+492	tfa_guardian_battery_active	[headbar] id=0, fill=23
+493	tfa_guardian_battery_active	[headbar] id=0, fill=20
+493	tfa_guardian_battery_active	[headbar] id=0, fill=20
+493	tfa_guardian_battery_active	[hit] id=16, value=16
+493	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+493	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+493	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+493	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4120, 5604, 0), shape=10, rotation=0
+494	ZONE	message_game type=spam, message="You drink some of your ranging potion."
+494	ZONE	message_game type=spam, message="You have 2 doses of potion left."
+494	ZONE	message_game type=gamemessage, message="You have been poisoned!"
+494	tfa_guardian_battery_active	[headbar] id=0, fill=20
+494	tfa_guardian_battery_active	[headbar] id=0, fill=20
+494	tfa_guardian_battery_active	[hit] id=12, value=0
+495	tfa_guardian_battery_active	[headbar] id=0, fill=20
+496	tfa_guardian_battery_active	[headbar] id=0, fill=20
+497	tfa_guardian_battery_active	[headbar] id=0, fill=20
+497	tfa_guardian_battery_active	[headbar] id=0, fill=20
+497	tfa_guardian_battery_active	[hit] id=16, value=5
+498	tfa_guardian_battery_active	[headbar] id=0, fill=20
+498	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+498	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+498	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+499	tfa_guardian_battery_active	[headbar] id=0, fill=20
+500	tfa_guardian_battery_active	[headbar] id=0, fill=16
+500	tfa_guardian_battery_active	[headbar] id=0, fill=16
+500	tfa_guardian_battery_active	[hit] id=16, value=25
+501	tfa_guardian_battery_active	[headbar] id=0, fill=15
+501	tfa_guardian_battery_active	[headbar] id=0, fill=15
+501	tfa_guardian_battery_active	[hit] id=16, value=5
+502	tfa_guardian_battery_active	[headbar] id=0, fill=15
+503	tfa_guardian_battery_active	[headbar] id=0, fill=11
+503	tfa_guardian_battery_active	[headbar] id=0, fill=11
+503	tfa_guardian_battery_active	[hit] id=16, value=21
+503	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+503	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+503	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+504	tfa_guardian_battery_active	[headbar] id=0, fill=11
+505	tfa_guardian_battery_active	[headbar] id=0, fill=9
+505	tfa_guardian_battery_active	[headbar] id=0, fill=9
+505	tfa_guardian_battery_active	[hit] id=16, value=13
+506	tfa_guardian_battery_active	[headbar] id=0, fill=9
+507	tfa_guardian_battery_active	[headbar] id=0, fill=6
+507	tfa_guardian_battery_active	[headbar] id=0, fill=6
+507	tfa_guardian_battery_active	[hit] id=16, value=21
+508	tfa_guardian_battery_active	[headbar] id=0, fill=6
+508	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+508	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+508	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+509	tfa_guardian_battery_active	[headbar] id=0, fill=4
+509	tfa_guardian_battery_active	[headbar] id=0, fill=4
+509	tfa_guardian_battery_active	[hit] id=16, value=12
+510	tfa_guardian_battery_active	[headbar] id=0, fill=4
+511	tfa_guardian_battery_active	[headbar] id=0, fill=1
+511	tfa_guardian_battery_active	[headbar] id=0, fill=1
+511	tfa_guardian_battery_active	[hit] id=16, value=18
+512	tfa_guardian_battery_active	[headbar] id=0, fill=1
+513	tfa_guardian_battery_active	[headbar] id=0, fill=0
+513	tfa_guardian_battery_active	[headbar] id=0, fill=0
+513	tfa_guardian_battery_active	[hit] id=16, value=4
+513	tfa_guardian	[spotanim] id=vfx_guardian_special_attack_spotanim01 (4205)
+513	tfa_guardian	[sequence] id=npc_archive_guardian_special_attack01 (14753)
+513	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4120, 5604, 0), shape=10, rotation=0
+513	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4122, 5608, 0), shape=10, rotation=0
+514	tfa_guardian_battery_active	[sequence] id=guthixian_battery_despawn (15025)
+514	tfa_guardian_battery_active	[enabled_ops] opflags=0b00000
+516	tfa_guardian_battery_active	[level_change] level=0
+516	tfa_guardian_battery_active	[headbar] id=0, removed=true
+516	tfa_guardian_battery_active	[enabled_ops] opflags=0b11111
+516	tfa_guardian_battery_active	[transformation] id=tfa_guardian_battery_destroyed (16663)
+516	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4120, 5604, 0), shape=10, rotation=0
+516	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4122, 5608, 0), shape=10, rotation=0
+517	tfa_guardian	[headbar] id=10, fill=1
+517	tfa_guardian	[hit] id=17, value=220
+518	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+518	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+518	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+518	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4122, 5608, 0), shape=10, rotation=0
+522	tfa_guardian	[headbar] id=10, fill=1
+522	tfa_guardian	[hit] id=12, value=0
+523	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+523	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+523	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+526	tfa_guardian	[headbar] id=10, fill=0
+526	tfa_guardian	[facing] type=reset
+526	tfa_guardian	[hit] id=16, value=4
+529	tfa_guardian	[spotanim] id=vfx_guardian_idletoground_spotanim01 (4202)
+529	tfa_guardian	[level_change] level=984
+529	tfa_guardian	[headbar] id=19, removed=true
+529	tfa_guardian	[headbar] id=19, fill=100
+529	tfa_guardian	[sequence] id=npc_archive_guardian_idle_to_ground01 (14747)
+529	tfa_guardian	[enabled_ops] opflags=0b11111
+529	tfa_guardian	[transformation] id=tfa_guardian_unshielded (16660)
+529	ZONE	map_anim id=tfa_arena_sword_drop_explosion_instant (4389), delay=20, coord=(4124, 5605, 0)
+530	tfa_guardian_unshielded	[bas] ready=npc_archive_guardian_ground_idle01 (14746)
+534	tfa_guardian_unshielded	[headbar] id=19, fill=97
+534	tfa_guardian_unshielded	[hit] id=16, value=28
+534	archive_guardian_tentacle#52834	add (4120,5607), creationcycle=97737, spawnangle=north-west
+534	archive_guardian_tentacle	[spotanim] id=vfx_guardian_tentacle_intro_spotanim01 (4208)
+534	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_spawn01 (14771)
+534	archive_guardian_tentacle	[facing] coord=(4119, 5608, 0), instant=true
+537	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_attack01 (14768)
+537	archive_guardian_tentacle#52923	add (4119,5608), creationcycle=97740, spawnangle=south
+537	archive_guardian_tentacle	[spotanim] id=vfx_guardian_tentacle_intro_spotanim01 (4208)
+537	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_spawn01 (14771)
+537	archive_guardian_tentacle	[facing] coord=(4119, 5608, 0), instant=true
+538	tfa_guardian_unshielded	[headbar] id=19, fill=94
+538	tfa_guardian_unshielded	[hit] id=16, value=30
+540	ZONE	message_game type=spam, message="You drink some of the foul liquid."
+540	ZONE	message_game type=spam, message="You have 3 doses of potion left."
+540	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_attack01 (14768)
+540	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_attack01 (14768)
+540	archive_guardian_tentacle#53037	add (4120,5612), creationcycle=97743, spawnangle=south-east
+540	archive_guardian_tentacle	[spotanim] id=vfx_guardian_tentacle_intro_spotanim01 (4208)
+540	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_spawn01 (14771)
+540	archive_guardian_tentacle	[facing] coord=(4121, 5611, 0), instant=true
+542	tfa_guardian_unshielded	[headbar] id=19, fill=93
+542	tfa_guardian_unshielded	[hit] id=16, value=9
+543	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_attack01 (14768)
+543	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_attack01 (14768)
+543	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_attack01 (14768)
+543	archive_guardian_tentacle#53118	add (4125,5613), creationcycle=97746, spawnangle=south
+543	archive_guardian_tentacle	[spotanim] id=vfx_guardian_tentacle_intro_spotanim01 (4208)
+543	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_spawn01 (14771)
+543	archive_guardian_tentacle	[facing] coord=(4125, 5612, 0), instant=true
+546	tfa_guardian_unshielded	[headbar] id=19, fill=93
+546	tfa_guardian_unshielded	[hit] id=12, value=0
+546	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_despawn01 (14769)
+546	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_attack01 (14768)
+546	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_attack01 (14768)
+546	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_attack01 (14768)
+546	archive_guardian_tentacle#53191	add (4128,5613), creationcycle=97749, spawnangle=south-west
+546	archive_guardian_tentacle	[spotanim] id=vfx_guardian_tentacle_intro_spotanim01 (4208)
+546	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_spawn01 (14771)
+546	archive_guardian_tentacle	[facing] coord=(4127, 5612, 0), instant=true
+547	archive_guardian_tentacle#52834	del (4120,5607)
+549	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_despawn01 (14769)
+549	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_attack01 (14768)
+549	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_attack01 (14768)
+549	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_attack01 (14768)
+549	archive_guardian_tentacle#53289	add (4128,5611), creationcycle=97752, spawnangle=south-west
+549	archive_guardian_tentacle	[spotanim] id=vfx_guardian_tentacle_intro_spotanim01 (4208)
+549	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_spawn01 (14771)
+549	archive_guardian_tentacle	[facing] coord=(4127, 5610, 0), instant=true
+550	tfa_guardian_unshielded	[headbar] id=19, fill=93
+550	tfa_guardian_unshielded	[hit] id=12, value=0
+550	archive_guardian_tentacle#52923	del (4119,5608)
+552	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_despawn01 (14769)
+552	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_attack01 (14768)
+552	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_attack01 (14768)
+552	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_attack01 (14768)
+552	archive_guardian_tentacle#53349	add (4129,5609), creationcycle=97755, spawnangle=south-west
+552	archive_guardian_tentacle	[spotanim] id=vfx_guardian_tentacle_intro_spotanim01 (4208)
+552	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_spawn01 (14771)
+552	archive_guardian_tentacle	[facing] coord=(4128, 5608, 0), instant=true
+553	ZONE	message_game type=spam, message="You drink some of the foul liquid."
+553	ZONE	message_game type=spam, message="You have 2 doses of potion left."
+553	archive_guardian_tentacle#53037	del (4120,5612)
+555	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_despawn01 (14769)
+555	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_attack01 (14768)
+555	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_attack01 (14768)
+555	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_attack01 (14768)
+555	archive_guardian_tentacle#53489	add (4130,5607), creationcycle=97758, spawnangle=west
+555	archive_guardian_tentacle	[spotanim] id=vfx_guardian_tentacle_intro_spotanim01 (4208)
+555	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_spawn01 (14771)
+555	archive_guardian_tentacle	[facing] coord=(4129, 5607, 0), instant=true
+556	archive_guardian_tentacle#53118	del (4125,5613)
+557	ZONE	message_game type=spam, message="You drink some of your antipoison potion."
+557	ZONE	message_game type=spam, message="You have 3 doses of potion left."
+557	tfa_guardian_unshielded	[headbar] id=19, fill=93
+557	tfa_guardian_unshielded	[hit] id=16, value=3
+558	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_despawn01 (14769)
+558	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_attack01 (14768)
+558	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_attack01 (14768)
+558	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_attack01 (14768)
+558	archive_guardian_tentacle#53586	add (4130,5604), creationcycle=97761, spawnangle=west
+558	archive_guardian_tentacle	[spotanim] id=vfx_guardian_tentacle_intro_spotanim01 (4208)
+558	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_spawn01 (14771)
+558	archive_guardian_tentacle	[facing] coord=(4129, 5604, 0), instant=true
+559	archive_guardian_tentacle#53191	del (4128,5613)
+561	tfa_guardian_unshielded	[headbar] id=19, fill=92
+561	tfa_guardian_unshielded	[hit] id=16, value=10
+561	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_despawn01 (14769)
+561	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_attack01 (14768)
+561	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_attack01 (14768)
+561	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_attack01 (14768)
+562	archive_guardian_tentacle#53289	del (4128,5611)
+564	tfa_guardian_unshielded	[spotanim] id=vfx_guardian_groundtoidle_spotanim01 (4203)
+564	tfa_guardian_unshielded	[level_change] level=984
+564	tfa_guardian_unshielded	[headbar] id=10, removed=true
+564	tfa_guardian_unshielded	[sequence] id=npc_archive_guardian_ground_to_flying01 (14748)
+564	tfa_guardian_unshielded	[enabled_ops] opflags=0b11111
+564	tfa_guardian_unshielded	[transformation] id=tfa_guardian (16659)
+564	tfa_guardian_unshielded	[bas]
+564	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_despawn01 (14769)
+564	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_attack01 (14768)
+564	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_attack01 (14768)
+564	ZONE	loc_add_change_v2 id=tfa_exit_large (62766), coord=(4124, 5569, 0), shape=10, rotation=0, opflags=0b0
+565	archive_guardian_tentacle#53349	del (4129,5609)
+567	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_despawn01 (14769)
+567	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_attack01 (14768)
+568	archive_guardian_tentacle#53489	del (4130,5607)
+569	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+569	tfa_guardian	[headbar] id=10, fill=100
+569	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+569	tfa_guardian	[hit] id=12, value=0
+569	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+570	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_despawn01 (14769)
+571	tfa_guardian#47997	telejump (4122,5603), newcoord=(4130, 5594, 0)
+571	tfa_guardian	[exact_move] to1=(4122, 5603, 0), delay1=0, to2=(4130, 5594, 0), delay2=48, angle=1812
+571	tfa_guardian	[sequence] id=npc_archive_guardian_swoosh_attack01 (14750)
+571	tfa_guardian	[facing] angle=1812
+571	archive_guardian_tentacle#53586	del (4130,5604)
+574	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+574	tfa_guardian	[headbar] id=10, fill=100
+574	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+574	tfa_guardian	[hit] id=12, value=0
+574	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+578	tfa_guardian	[headbar] id=10, fill=100
+578	tfa_guardian	[hit] id=12, value=0
+579	tfa_guardian	[spotanim] id=vfx_guardian_special_attack_spotanim01 (4205)
+579	tfa_guardian	[sequence] id=npc_archive_guardian_special_attack01 (14753)
+579	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4125, 5590, 0), shape=10, rotation=0
+579	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4123, 5591, 0), shape=10, rotation=0
+582	tfa_guardian	[headbar] id=10, fill=100
+582	tfa_guardian	[hit] id=12, value=0
+582	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4125, 5590, 0), shape=10, rotation=0
+582	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4123, 5591, 0), shape=10, rotation=0
+583	ZONE	message_game type=spam, message="You drink some of the foul liquid."
+583	ZONE	message_game type=spam, message="You have 1 dose of potion left."
+584	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+584	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+584	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+586	tfa_guardian#47997	telejump (4130,5594), newcoord=(4132, 5584, 0)
+586	tfa_guardian	[exact_move] to1=(4130, 5594, 0), delay1=0, to2=(4132, 5584, 0), delay2=50, angle=1984
+586	tfa_guardian	[sequence] id=npc_archive_guardian_swoosh_attack01 (14750)
+586	tfa_guardian	[facing] angle=1984
+587	ZONE	message_game type=spam, message="You drink some of the foul liquid."
+587	ZONE	message_game type=spam, message="You have finished your potion."
+587	ZONE	message_game type=spam, message="You quickly smash the empty vial using the trick a Barbarian taught you."
+588	tfa_guardian	[headbar] id=10, fill=99
+588	tfa_guardian	[hit] id=16, value=3
+589	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+589	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+589	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+591	ZONE	message_game type=spam, message="You drink some of your super restore potion."
+591	ZONE	message_game type=spam, message="You have 3 doses of potion left."
+592	tfa_guardian	[headbar] id=10, fill=99
+592	tfa_guardian	[hit] id=12, value=0
+593	ZONE	loc_add_change_v2 id=tfa_nexus_ocellus_door_closed (63110), coord=(4124, 5621, 0), shape=10, rotation=0
+594	ZONE	message_game type=spam, message="You drink some of your super restore potion."
+594	ZONE	message_game type=spam, message="You have 2 doses of potion left."
+594	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+594	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+594	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+598	ZONE	message_game type=spam, message="You drink some of your ranging potion."
+598	ZONE	message_game type=spam, message="You have 1 dose of potion left."
+598	tfa_guardian#47997	telejump (4132,5584), newcoord=(4130, 5588, 0)
+598	tfa_guardian	[exact_move] to1=(4132, 5584, 0), delay1=0, to2=(4130, 5588, 0), delay2=38, angle=872
+598	tfa_guardian	[headbar] id=10, fill=96
+598	tfa_guardian	[sequence] id=npc_archive_guardian_swoosh_attack01 (14750)
+598	tfa_guardian	[facing] angle=872
+598	tfa_guardian	[hit] id=16, value=14
+601	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+601	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+601	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+603	tfa_guardian	[headbar] id=10, fill=96
+603	tfa_guardian	[hit] id=12, value=0
+605	tfa_guardian#47997	telejump (4130,5588), newcoord=(4127, 5592, 0)
+605	tfa_guardian	[exact_move] to1=(4130, 5588, 0), delay1=0, to2=(4127, 5592, 0), delay2=38, angle=814
+605	tfa_guardian	[sequence] id=npc_archive_guardian_swoosh_attack01 (14750)
+605	tfa_guardian	[facing] angle=814
+608	tfa_guardian	[spotanim] id=vfx_guardian_special_attack_spotanim01 (4205)
+608	tfa_guardian	[headbar] id=10, fill=96
+608	tfa_guardian	[sequence] id=npc_archive_guardian_special_attack01 (14753)
+608	tfa_guardian	[hit] id=12, value=0
+608	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4132, 5600, 0), shape=10, rotation=0
+608	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4135, 5601, 0), shape=10, rotation=0
+611	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4132, 5600, 0), shape=10, rotation=0
+611	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4135, 5601, 0), shape=10, rotation=0
+613	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+613	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+613	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+614	tfa_guardian	[headbar] id=10, fill=96
+614	tfa_guardian	[hit] id=12, value=0
+618	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+618	tfa_guardian	[headbar] id=10, fill=96
+618	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+618	tfa_guardian	[hit] id=12, value=0
+618	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+620	tfa_guardian#47997	telejump (4127,5592), newcoord=(4130, 5598, 0)
+620	tfa_guardian	[exact_move] to1=(4127, 5592, 0), delay1=0, to2=(4130, 5598, 0), delay2=42, angle=1176
+620	tfa_guardian	[sequence] id=npc_archive_guardian_swoosh_attack01 (14750)
+620	tfa_guardian	[facing] angle=1176
+623	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+623	tfa_guardian	[headbar] id=10, fill=96
+623	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+623	tfa_guardian	[hit] id=12, value=0
+623	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+626	tfa_guardian	[headbar] id=10, fill=96
+626	tfa_guardian	[hit] id=12, value=0
+628	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+628	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+628	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+630	tfa_guardian	[headbar] id=10, fill=90
+630	tfa_guardian	[hit] id=16, value=36
+633	tfa_guardian	[spotanim] id=vfx_guardian_special_attack_spotanim01 (4205)
+633	tfa_guardian	[sequence] id=npc_archive_guardian_special_attack01 (14753)
+633	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4131, 5606, 0), shape=10, rotation=0
+633	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4130, 5608, 0), shape=10, rotation=0
+634	tfa_guardian	[headbar] id=10, fill=90
+634	tfa_guardian	[hit] id=12, value=0
+636	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4131, 5606, 0), shape=10, rotation=0
+636	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4130, 5608, 0), shape=10, rotation=0
+638	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+638	tfa_guardian	[headbar] id=10, fill=90
+638	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+638	tfa_guardian	[hit] id=12, value=0
+638	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+641	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4135, 5601, 0), shape=10, rotation=0
+643	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+643	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+643	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+645	tfa_guardian_battery_active	[headbar] id=0, fill=25
+645	tfa_guardian_battery_active	[headbar] id=0, fill=25
+645	tfa_guardian_battery_active	[hit] id=16, value=30
+646	tfa_guardian_battery_active	[headbar] id=0, fill=25
+647	tfa_guardian_battery_active	[headbar] id=0, fill=21
+647	tfa_guardian_battery_active	[headbar] id=0, fill=21
+647	tfa_guardian_battery_active	[hit] id=16, value=21
+648	ZONE	message_game type=spam, message="You drink some of the foul liquid."
+648	ZONE	message_game type=spam, message="You have 1 dose of potion left."
+648	tfa_guardian_battery_active	[headbar] id=0, fill=21
+648	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+648	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+648	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+649	tfa_guardian_battery_active	[headbar] id=0, fill=20
+649	tfa_guardian_battery_active	[headbar] id=0, fill=20
+649	tfa_guardian_battery_active	[hit] id=16, value=5
+650	tfa_guardian_battery_active	[headbar] id=0, fill=20
+651	tfa_guardian_battery_active	[headbar] id=0, fill=19
+651	tfa_guardian_battery_active	[headbar] id=0, fill=19
+651	tfa_guardian_battery_active	[hit] id=16, value=11
+652	tfa_guardian_battery_active	[headbar] id=0, fill=19
+653	tfa_guardian_battery_active	[headbar] id=0, fill=17
+653	tfa_guardian_battery_active	[headbar] id=0, fill=17
+653	tfa_guardian_battery_active	[hit] id=16, value=10
+653	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+653	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+653	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+654	tfa_guardian_battery_active	[headbar] id=0, fill=17
+655	tfa_guardian_battery_active	[headbar] id=0, fill=13
+655	tfa_guardian_battery_active	[headbar] id=0, fill=13
+655	tfa_guardian_battery_active	[hit] id=16, value=23
+656	tfa_guardian_battery_active	[headbar] id=0, fill=13
+657	tfa_guardian_battery_active	[headbar] id=0, fill=13
+657	tfa_guardian_battery_active	[headbar] id=0, fill=13
+657	tfa_guardian_battery_active	[hit] id=16, value=5
+658	ZONE	message_game type=spam, message="You drink some of the foul liquid."
+658	ZONE	message_game type=spam, message="You have finished your potion."
+658	ZONE	message_game type=spam, message="You quickly smash the empty vial using the trick a Barbarian taught you."
+658	tfa_guardian_battery_active	[headbar] id=0, fill=13
+658	tfa_guardian	[spotanim] id=vfx_guardian_special_attack_spotanim01 (4205)
+658	tfa_guardian	[sequence] id=npc_archive_guardian_special_attack01 (14753)
+658	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4139, 5601, 0), shape=10, rotation=0
+658	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4135, 5599, 0), shape=10, rotation=0
+659	tfa_guardian_battery_active	[headbar] id=0, fill=11
+659	tfa_guardian_battery_active	[headbar] id=0, fill=11
+659	tfa_guardian_battery_active	[hit] id=16, value=12
+660	tfa_guardian_battery_active	[headbar] id=0, fill=11
+661	tfa_guardian_battery_active	[headbar] id=0, fill=10
+661	tfa_guardian_battery_active	[headbar] id=0, fill=10
+661	tfa_guardian_battery_active	[hit] id=16, value=6
+661	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4139, 5601, 0), shape=10, rotation=0
+661	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4135, 5599, 0), shape=10, rotation=0
+662	tfa_guardian_battery_active	[headbar] id=0, fill=10
+663	ZONE	message_game type=spam, message="You drink some of the foul liquid."
+663	ZONE	message_game type=spam, message="You have 3 doses of potion left."
+663	tfa_guardian_battery_active	[headbar] id=0, fill=8
+663	tfa_guardian_battery_active	[headbar] id=0, fill=8
+663	tfa_guardian_battery_active	[hit] id=16, value=9
+663	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+663	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+663	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+663	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4139, 5601, 0), shape=10, rotation=0
+664	ZONE	message_game type=gamemessage, message="You have been poisoned!"
+664	tfa_guardian_battery_active	[headbar] id=0, fill=8
+665	tfa_guardian_battery_active	[headbar] id=0, fill=8
+666	tfa_guardian_battery_active	[headbar] id=0, fill=7
+666	tfa_guardian_battery_active	[headbar] id=0, fill=7
+666	tfa_guardian_battery_active	[hit] id=16, value=10
+667	ZONE	message_game type=spam, message="You drink some of your antipoison potion."
+667	ZONE	message_game type=spam, message="You have 2 doses of potion left."
+667	tfa_guardian_battery_active	[headbar] id=0, fill=7
+668	tfa_guardian_battery_active	[headbar] id=0, fill=4
+668	tfa_guardian_battery_active	[headbar] id=0, fill=4
+668	tfa_guardian_battery_active	[hit] id=16, value=14
+668	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+668	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+668	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+669	tfa_guardian_battery_active	[headbar] id=0, fill=4
+670	tfa_guardian_battery_active	[headbar] id=0, fill=4
+670	tfa_guardian_battery_active	[headbar] id=0, fill=4
+670	tfa_guardian_battery_active	[hit] id=12, value=0
+671	tfa_guardian_battery_active	[headbar] id=0, fill=4
+672	tfa_guardian_battery_active	[headbar] id=0, fill=3
+672	tfa_guardian_battery_active	[headbar] id=0, fill=3
+672	tfa_guardian_battery_active	[hit] id=16, value=7
+673	ZONE	message_game type=spam, message="You drink some of the foul liquid."
+673	ZONE	message_game type=spam, message="You have 2 doses of potion left."
+673	tfa_guardian_battery_active	[headbar] id=0, fill=3
+673	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+673	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+673	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+674	tfa_guardian_battery_active	[headbar] id=0, fill=1
+674	tfa_guardian_battery_active	[headbar] id=0, fill=1
+674	tfa_guardian_battery_active	[hit] id=16, value=12
+675	tfa_guardian_battery_active	[headbar] id=0, fill=1
+676	tfa_guardian_battery_active	[headbar] id=0, fill=0
+676	tfa_guardian_battery_active	[headbar] id=0, fill=0
+676	tfa_guardian_battery_active	[hit] id=16, value=5
+677	tfa_guardian_battery_active	[sequence] id=guthixian_battery_despawn (15025)
+677	tfa_guardian_battery_active	[enabled_ops] opflags=0b00000
+677	ZONE	loc_add_change_v2 id=tfa_exit_large (62766), coord=(4124, 5569, 0), shape=10, rotation=0, opflags=0b0
+678	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+678	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+678	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+679	tfa_guardian_battery_active	[level_change] level=0
+679	tfa_guardian_battery_active	[headbar] id=0, removed=true
+679	tfa_guardian_battery_active	[enabled_ops] opflags=0b11111
+679	tfa_guardian_battery_active	[transformation] id=tfa_guardian_battery_destroyed (16663)
+680	tfa_guardian	[headbar] id=10, fill=50
+680	tfa_guardian	[hit] id=17, value=220
+682	tfa_guardian#47997	telejump (4130,5598), newcoord=(4133, 5584, 0)
+682	tfa_guardian	[exact_move] to1=(4130, 5598, 0), delay1=0, to2=(4133, 5584, 0), delay2=58, angle=1980
+682	tfa_guardian	[sequence] id=npc_archive_guardian_swoosh_attack01 (14750)
+682	tfa_guardian	[facing] angle=1980
+685	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+685	tfa_guardian	[headbar] id=10, fill=47
+685	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+685	tfa_guardian	[hit] id=16, value=21
+685	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+688	ZONE	message_game type=spam, message="You drink some of your super restore potion."
+688	ZONE	message_game type=spam, message="You have 1 dose of potion left."
+690	tfa_guardian	[spotanim] id=vfx_guardian_special_attack_spotanim01 (4205)
+690	tfa_guardian	[sequence] id=npc_archive_guardian_special_attack01 (14753)
+690	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4128, 5588, 0), shape=10, rotation=0
+690	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4131, 5586, 0), shape=10, rotation=0
+691	tfa_guardian	[headbar] id=10, fill=47
+691	tfa_guardian	[hit] id=12, value=0
+693	ZONE	message_game type=spam, message="You drink some of your ranging potion."
+693	ZONE	message_game type=spam, message="You have finished your potion."
+693	ZONE	message_game type=spam, message="You quickly smash the empty vial using the trick a Barbarian taught you."
+693	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4128, 5588, 0), shape=10, rotation=0
+693	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4131, 5586, 0), shape=10, rotation=0
+695	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+695	tfa_guardian	[headbar] id=10, fill=47
+695	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+695	tfa_guardian	[hit] id=12, value=0
+695	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+695	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4128, 5588, 0), shape=10, rotation=0
+699	tfa_guardian	[headbar] id=10, fill=47
+699	tfa_guardian	[hit] id=12, value=0
+700	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+700	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+700	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+703	tfa_guardian	[headbar] id=10, fill=41
+703	tfa_guardian	[hit] id=16, value=31
+705	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+705	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+705	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+707	tfa_guardian	[headbar] id=10, fill=40
+707	tfa_guardian	[hit] id=16, value=8
+710	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+710	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+710	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+711	tfa_guardian	[headbar] id=10, fill=34
+711	tfa_guardian	[hit] id=16, value=32
+715	tfa_guardian	[spotanim] id=vfx_guardian_special_attack_spotanim01 (4205)
+715	tfa_guardian	[headbar] id=10, fill=34
+715	tfa_guardian	[sequence] id=npc_archive_guardian_special_attack01 (14753)
+715	tfa_guardian	[hit] id=12, value=0
+715	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4127, 5590, 0), shape=10, rotation=0
+715	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4131, 5591, 0), shape=10, rotation=0
+718	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4127, 5590, 0), shape=10, rotation=0
+718	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4131, 5591, 0), shape=10, rotation=0
+719	tfa_guardian	[headbar] id=10, fill=34
+719	tfa_guardian	[hit] id=12, value=0
+719	ZONE	loc_add_change_v2 id=tfa_nexus_ocellus_door_closed (63110), coord=(4124, 5621, 0), shape=10, rotation=0
+720	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+720	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+720	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+723	tfa_guardian	[headbar] id=10, fill=34
+723	tfa_guardian	[hit] id=12, value=0
+725	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+725	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+725	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+727	tfa_guardian	[headbar] id=10, fill=34
+727	tfa_guardian	[hit] id=12, value=0
+730	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+730	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+730	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+731	tfa_guardian	[headbar] id=10, fill=34
+731	tfa_guardian	[hit] id=12, value=0
+733	ZONE	message_game type=spam, message="You drink some of the foul liquid."
+733	ZONE	message_game type=spam, message="You have 1 dose of potion left."
+735	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+735	tfa_guardian	[headbar] id=10, fill=32
+735	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+735	tfa_guardian	[hit] id=16, value=9
+735	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+737	ZONE	message_game type=spam, message="You drink some of the foul liquid."
+737	ZONE	message_game type=spam, message="You have finished your potion."
+737	ZONE	message_game type=spam, message="You quickly smash the empty vial using the trick a Barbarian taught you."
+739	tfa_guardian	[headbar] id=10, fill=32
+739	tfa_guardian	[hit] id=12, value=0
+740	tfa_guardian	[spotanim] id=vfx_guardian_special_attack_spotanim01 (4205)
+740	tfa_guardian	[sequence] id=npc_archive_guardian_special_attack01 (14753)
+740	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4124, 5592, 0), shape=10, rotation=0
+740	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4128, 5593, 0), shape=10, rotation=0
+743	tfa_guardian	[headbar] id=10, fill=32
+743	tfa_guardian	[hit] id=12, value=0
+743	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4124, 5592, 0), shape=10, rotation=0
+743	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4128, 5593, 0), shape=10, rotation=0
+745	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+745	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+745	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4128, 5593, 0), shape=10, rotation=0
+745	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+747	tfa_guardian#47997	telejump (4133,5584), newcoord=(4129, 5592, 0)
+747	tfa_guardian	[exact_move] to1=(4133, 5584, 0), delay1=0, to2=(4129, 5592, 0), delay2=46, angle=872
+747	tfa_guardian	[headbar] id=10, fill=32
+747	tfa_guardian	[sequence] id=npc_archive_guardian_swoosh_attack01 (14750)
+747	tfa_guardian	[facing] angle=872
+747	tfa_guardian	[hit] id=12, value=0
+750	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+750	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+750	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+753	tfa_guardian	[headbar] id=10, fill=32
+753	tfa_guardian	[hit] id=12, value=0
+755	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+755	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+755	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+757	tfa_guardian	[headbar] id=10, fill=27
+757	tfa_guardian	[hit] id=16, value=29
+760	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+760	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+760	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+761	tfa_guardian	[headbar] id=10, fill=27
+761	tfa_guardian	[hit] id=12, value=0
+765	tfa_guardian	[spotanim] id=vfx_guardian_special_attack_spotanim01 (4205)
+765	tfa_guardian	[headbar] id=10, fill=22
+765	tfa_guardian	[sequence] id=npc_archive_guardian_special_attack01 (14753)
+765	tfa_guardian	[hit] id=16, value=28
+765	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4128, 5593, 0), shape=10, rotation=0
+765	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_spawn (62578), coord=(4130, 5591, 0), shape=10, rotation=0
+768	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4128, 5593, 0), shape=10, rotation=0
+768	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_active (62579), coord=(4130, 5591, 0), shape=10, rotation=0
+769	tfa_guardian	[headbar] id=10, fill=17
+769	tfa_guardian	[hit] id=16, value=27
+770	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+770	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+770	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+770	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4128, 5593, 0), shape=10, rotation=0
+771	ZONE	message_game type=spam, message="You drink some of the foul liquid."
+771	ZONE	message_game type=spam, message="You have 3 doses of potion left."
+771	ZONE	message_game type=gamemessage, message="You have been poisoned!"
+773	tfa_guardian	[headbar] id=10, fill=11
+773	tfa_guardian	[hit] id=43, value=31
+775	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+775	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+775	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+776	ZONE	message_game type=spam, message="You drink some of your antipoison potion."
+776	ZONE	message_game type=spam, message="You have 1 dose of potion left."
+777	tfa_guardian	[headbar] id=10, fill=6
+777	tfa_guardian	[hit] id=16, value=29
+780	ZONE	message_game type=spam, message="You drink some of your super restore potion."
+780	ZONE	message_game type=spam, message="You have finished your potion."
+780	ZONE	message_game type=spam, message="You quickly smash the empty vial using the trick a Barbarian taught you."
+780	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+780	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+780	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+781	tfa_guardian	[headbar] id=10, fill=6
+781	tfa_guardian	[hit] id=12, value=0
+785	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+785	tfa_guardian	[headbar] id=10, fill=5
+785	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+785	tfa_guardian	[hit] id=16, value=8
+785	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+786	ZONE	message_game type=spam, message="You drink some of the foul liquid."
+786	ZONE	message_game type=spam, message="You have 2 doses of potion left."
+790	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+790	tfa_guardian	[headbar] id=10, fill=2
+790	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+790	tfa_guardian	[hit] id=16, value=15
+790	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+792	ZONE	message_game type=spam, message="You drink some of the foul liquid."
+792	ZONE	message_game type=spam, message="You have 1 dose of potion left."
+795	tfa_guardian	[spotanim] id=vfx_guardian_ranged_spotanim01 (4199)
+795	tfa_guardian	[sequence] id=npc_archive_guardian_range_attack01 (14751)
+795	ZONE	map_projanim_v2 id=vfx_guardian_ranged_projanim01 (4201), starttime=48, endtime=116, angle=127, progress=0, startheight=0, endheight=0
+797	ZONE	message_game type=spam, message="You drink some of the foul liquid."
+797	ZONE	message_game type=spam, message="You have finished your potion."
+797	ZONE	message_game type=spam, message="You quickly smash the empty vial using the trick a Barbarian taught you."
+797	tfa_guardian	[headbar] id=10, fill=0
+797	tfa_guardian	[facing] type=reset
+797	tfa_guardian	[hit] id=16, value=9
+800	tfa_guardian	[spotanim] id=vfx_guardian_idletoground_spotanim01 (4202)
+800	tfa_guardian	[level_change] level=984
+800	tfa_guardian	[headbar] id=19, removed=true
+800	tfa_guardian	[headbar] id=19, fill=92
+800	tfa_guardian	[sequence] id=npc_archive_guardian_idle_to_ground01 (14747)
+800	tfa_guardian	[enabled_ops] opflags=0b11111
+800	tfa_guardian	[transformation] id=tfa_guardian_unshielded (16660)
+800	ZONE	map_anim id=tfa_arena_sword_drop_explosion_instant (4389), delay=20, coord=(4131, 5594, 0)
+801	tfa_guardian_unshielded	[bas] ready=npc_archive_guardian_ground_idle01 (14746)
+804	tfa_guardian_unshielded	[headbar] id=19, fill=92
+804	tfa_guardian_unshielded	[hit] id=16, value=3
+805	archive_guardian_tentacle#59806	add (4125,5595), creationcycle=98008, spawnangle=east
+805	archive_guardian_tentacle	[spotanim] id=vfx_guardian_tentacle_intro_spotanim01 (4208)
+805	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_spawn01 (14771)
+805	archive_guardian_tentacle	[facing] coord=(4126, 5595, 0), instant=true
+808	tfa_guardian_unshielded	[headbar] id=19, fill=92
+808	tfa_guardian_unshielded	[hit] id=12, value=0
+808	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_attack01 (14768)
+808	archive_guardian_tentacle#59911	add (4127,5595), creationcycle=98011, spawnangle=west
+808	archive_guardian_tentacle	[spotanim] id=vfx_guardian_tentacle_intro_spotanim01 (4208)
+808	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_spawn01 (14771)
+808	archive_guardian_tentacle	[facing] coord=(4126, 5595, 0), instant=true
+811	tfa_guardian_unshielded	[headbar] id=19, fill=92
+811	tfa_guardian_unshielded	[hit] id=12, value=0
+811	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_attack01 (14768)
+811	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_attack01 (14768)
+811	archive_guardian_tentacle#59979	add (4127,5590), creationcycle=98014, spawnangle=north-east
+811	archive_guardian_tentacle	[spotanim] id=vfx_guardian_tentacle_intro_spotanim01 (4208)
+811	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_spawn01 (14771)
+811	archive_guardian_tentacle	[facing] coord=(4128, 5591, 0), instant=true
+811	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4127, 5590, 0), shape=10, rotation=0
+813	tfa_guardian_unshielded	[headbar] id=19, fill=91
+813	tfa_guardian_unshielded	[hit] id=16, value=7
+813	ZONE	loc_add_change_v2 id=tfa_guardian_mushroom_despawn (62580), coord=(4130, 5591, 0), shape=10, rotation=0
+814	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_attack01 (14768)
+814	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_attack01 (14768)
+814	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_attack01 (14768)
+814	archive_guardian_tentacle#60034	add (4130,5588), creationcycle=98017, spawnangle=north
+814	archive_guardian_tentacle	[spotanim] id=vfx_guardian_tentacle_intro_spotanim01 (4208)
+814	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_spawn01 (14771)
+814	archive_guardian_tentacle	[facing] coord=(4130, 5589, 0), instant=true
+816	tfa_guardian_unshielded	[headbar] id=19, fill=90
+816	tfa_guardian_unshielded	[hit] id=43, value=17
+817	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_despawn01 (14769)
+817	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_attack01 (14768)
+817	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_attack01 (14768)
+817	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_attack01 (14768)
+817	archive_guardian_tentacle#60106	add (4131,5588), creationcycle=98020, spawnangle=north
+817	archive_guardian_tentacle	[spotanim] id=vfx_guardian_tentacle_intro_spotanim01 (4208)
+817	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_spawn01 (14771)
+817	archive_guardian_tentacle	[facing] coord=(4131, 5589, 0), instant=true
+818	tfa_guardian_unshielded	[headbar] id=19, fill=90
+818	tfa_guardian_unshielded	[hit] id=12, value=0
+818	archive_guardian_tentacle#59806	del (4125,5595)
+820	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_despawn01 (14769)
+820	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_attack01 (14768)
+820	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_attack01 (14768)
+820	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_attack01 (14768)
+820	archive_guardian_tentacle#60175	add (4132,5588), creationcycle=98023, spawnangle=north
+820	archive_guardian_tentacle	[spotanim] id=vfx_guardian_tentacle_intro_spotanim01 (4208)
+820	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_spawn01 (14771)
+820	archive_guardian_tentacle	[facing] coord=(4132, 5589, 0), instant=true
+821	tfa_guardian_unshielded	[headbar] id=19, fill=90
+821	tfa_guardian_unshielded	[hit] id=12, value=0
+821	archive_guardian_tentacle#59911	del (4127,5595)
+823	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_despawn01 (14769)
+823	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_attack01 (14768)
+823	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_attack01 (14768)
+823	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_attack01 (14768)
+824	archive_guardian_tentacle#59979	del (4127,5590)
+826	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_despawn01 (14769)
+826	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_attack01 (14768)
+826	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_attack01 (14768)
+827	ZONE	message_game type=gamemessage, message="You have died. Total deaths: <col=ff0000>1</col>."
+827	archive_guardian_tentacle#60034	del (4130,5588)
+827	ZONE	loc_add_change_v2 id=tfa_nexus_ocellus_door_closed (63110), coord=(4124, 5621, 0), shape=10, rotation=0
+829	ZONE	message_game type=gamemessage, message="You failed to survive the Fractured Archive."
+829	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_despawn01 (14769)
+829	archive_guardian_tentacle	[sequence] id=npc_guardian_archive_tentacle_attack01 (14768)
+830	archive_guardian_tentacle#60106	del (4131,5588)
+832	tfa_guardian_battery_active#47999	del (10347,8152)
+832	tfa_guardian_battery_destroyed#47998	del (10347,8165)
+832	tfa_guardian_battery_destroyed#48000	del (10322,8165)
+832	tfa_guardian_battery_destroyed#48001	del (10322,8152)
+832	tfa_guardian_unshielded#47997	del (10337,8152)
+832	archive_guardian_tentacle#60175	del (10340,8148)
+833	ZONE	message_game type=gamemessage, message="Some of your dropped items are being held in a gravestone, near where you died."

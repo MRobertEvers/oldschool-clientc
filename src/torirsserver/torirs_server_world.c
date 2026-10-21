@@ -3232,6 +3232,17 @@ advance_player(struct ToriRSServer* srv)
         player->running = 0;
     else
         player->running = (player->run_toggle && player->run_energy > 0) || player->temp_run;
+    /* `p_runblock`: walk, and say why once, on the first route that would
+     * have run. */
+    if( player->running && srv->tick < player->run_block_until )
+    {
+        player->running = 0;
+        if( !player->run_block_told && player_has_waypoints(player) )
+        {
+            player->run_block_told = 1;
+            ToriRSServer_SendMessage(player, player->run_block_text);
+        }
+    }
     max_tiles = player->running ? 2 : 1;
     /* Player.ts:690: `if (!super.processMovement()) this.tempRun = 0` --
      * processMovement is false exactly when there is no route to step, so a

@@ -1,0 +1,138 @@
+# The Archive Guardian: spec from RSProx, and the implementation plan
+
+Sources: fought solo by the recorder in index 4296 [361..840] (died) and index
+4297 [97..259], [353..641], [817..1180] (died each time); spectated in a party
+in index 4294 [545..1043] (wipe) and [1099..1431] (kill, 5 players). The wiki
+(`sources/Archive_Guardian.wiki`, fetched 2026-10-20) has stats only. Every
+rule below cites counts across those fights; tools in `tools/`
+(`tfa_events.py` parser, `attack_clock.py`, `swoosh.py`, `my_hits.py`,
+`tentacles.py`, `guardian_hp.py`, `fight_view.py`), outputs in
+`guardian_actions.txt`, `fight_4297b.txt`, `room_collision.txt`.
+
+## 1. The room and its entry
+
+| fact | evidence |
+|---|---|
+| Lobby `tfa_lobby_raid_entry` (4123,5562) op1 with no party: chatmenu "You are not currently in a raiding party." / "Form or join a party.\|~~Spectate a specific party.~~\|~~Spectate a recent party.~~"; then `tfa_partylist` (977), `tfa_partydetails` (976) (script10094 rows, script10053/10060) | 4297 [327..341] |
+| Op1 again with a party: L+1 "You enter the Archive...", `tfa_lobby` HUD closed, fade out; +1 minimap 2 `busy` 1; +3 teleport into the room (4126,5573), `cam_reset`, script10013; +4 the room's locs: 4 `tfa_nexus_section_door_closed` (4141,5597 r1; 4141,5584 r1; 4113,5597 r3; 4113,5584 r3), `tfa_exit_large` (4124,5569 r0); +5 minimap 0, `busy` 0, `areasounds_override`, music 147, fade in; +7 `tfa_hud` (974) opened (setevents 974:5, 974:1), script10042 names, `tfa_client_p0` 27, script10036 (0,1) each tick | 4297 [342..357], 4296, 4294 |
+| +9..+17 more doors: `tfa_nexus_section_door_closed` (4141,5610 r1), (4113,5610 r3); `tfa_nexus_ocellus_door_closed` (4124,5621 r0) | 4297 [362], [370] |
+| The room is square (64,87); open floor in `room_collision.txt` | `::tfamap` |
+
+## 2. Spawn and the start
+
+| fact | evidence |
+|---|---|
+| On entry: `tfa_guardian_start` ("Inert Guardian", op1 Touch) at (4125,5597) spawnangle south; four `tfa_guardian_battery_inactive` at (4139,5605), (4139,5592), (4114,5605), (4114,5592), spawnangle south | 5/5 |
+| On entry, 41 `invisible_type8_blocking` (shape 10): the inert guardian's 5x5 and each battery's 2x2 | 4297 [353], [358] |
+| While inert: spotanim `vfx_guardian_spawn_idle_spotanim01` (4207) every 3 ticks | 5/5 |
+| Touch: chatmenu "Begin the challenge?" Yes./No.; on Yes "Challenge started: Archive Guardian.", `busy` 0, seq `spawn01` (14755) + spotanim `vfx_guardian_spawn_spotanim01` (4206), `tfa_exit_large` re-added with `opflags=0b0` | 4297 [125..131], [382..384]; every challenge in 4294/4296/4297 |
+| Spawn+5: start -> `tfa_guardian` (level 984, ops 0b11111, seq `idle01` 14745, faces (4127,5572)); the four batteries -> `tfa_guardian_battery_active` (ops 0b11111, except the south-east one at (4139,5592): ops 0b00000 for the whole fight, never hit by a raider, destroyed only by the enrage's first overload); 25 `invisible_type8_nonblocking` on the 5x5; boss bar opened (`hpbar_hud_npc` 16659, hp 550, basehp 550, boss 1, colours 132/623/853, script `hp_hud_open`); music 887 (re-sent every tick of the fight) | 5/5 |
+| The timer script10036(ticks since the start, 0) every tick | 4297 |
+
+## 3. The attack clock
+
+- One clock, 5 ticks: ranged, special and melee each take a slot (R->R +5 145/145, R->S 37/37, S->R 38/38).
+- A swoosh does not take a slot; the next attack comes 3 ticks after it: next = max(last + 5, swoosh + 3) (W->R +3 28/28, W->S 5/5, W->M 1/1).
+- First action after waking: a swoosh +1..3 (when the player is far) or a ranged +4..5.
+- Special every 5th slot (4 ranged between, 26 of 31 pairs); after landing, the 3rd or 4th slot. **Approximate**: 5 pairs show 5 ranged between; no rule found.
+
+## 4. Ranged attack
+
+- Seq `range_attack01` (14751), npc spotanim `vfx_guardian_ranged_spotanim01` (4199) on the slot; projectile `vfx_guardian_ranged_projanim01` (4201) guardian -> player, starttime 48, endtime 116 at every distance (243/243), angle 127, progress 0, heights 0/0.
+- Lands 4 ticks after the throw: player spotanim `vfx_guardian_ranged_hitanim01` (4200), `human_hit` synth delay 20.
+- Damage: protect from missiles on: 0..10 (137 hits, max 10, even spread); off: max 41 seen (13, 20, 20, 31, 41). Rule: max 41, protect missiles takes 75% (max 10). Read at landing.
+
+## 5. Swoosh (reposition)
+
+- Before an attack slot, if the target's distance to the guardian's 5x5 (tile of the tick before) is >= 7: telejump to a box that puts the player exactly 3 tiles away (34/34), with seq `swoosh_attack01` (14750), exactmove (old sw tile, delay1 0, new sw tile, delay2 = 30 + 2 x Chebyshev travel (33/33), angle = travel direction) and face that angle.
+- The box: the first of E, SE, S, SW (then W, NW, N, NE, unobserved) whose 25 tiles are all open (34/34 against the map): E = sw (px+3, pz-2), SE (px+3, pz-7), S (px-2, pz-7), SW (px-7, pz-7), W (px-7, pz-2), NW (px-7, pz+3), N (px-2, pz+3), NE (px+3, pz+3).
+
+## 6. Special: mushrooms
+
+- Seq `special_attack01` (14753) + spotanim `vfx_guardian_special_attack_spotanim01` (4205); two `tfa_guardian_mushroom_spawn` (62578) per player on open tiles within 3 of the player, never its own tile (60 spawns).
+- +3: `tfa_guardian_mushroom_active` (62579) with `loc_anim nightmare_infection_spotanim_idle` (8631). Mushrooms stay for the rest of the fight (39 never triggered).
+- A player within 1 tile of an active mushroom bursts it: `invisible_type8_nonblocking` + `tfa_guardian_mushroom_despawn` (62580) on the tile, `sound_area` 12175 delay 12 range 2 size 2; +2 the tile's `invisible_type8_nonblocking` again. The tick after the burst, players still within 1: "You have been poisoned!", poison 50 (a 10 splat, type 65, then every 30 ticks), drowsy for 17 ticks (`runinvert_mode` 0 -> 3; running refused with "You're too drowsy to run!").
+
+## 7. Shield, batteries and the ground phase
+
+- Flying (`tfa_guardian`): 550 hp is the shield (cache stat4 550; boss bar blue). Batteries `tfa_guardian_battery_active`: 180 hp, attackable, no defend sound.
+- A battery at 0: seq `guthixian_battery_despawn` (15025) and ops 0b00000; +2 -> `tfa_guardian_battery_destroyed` (headbar removed), 3 cam shakes (axes 0..2), synth 12184 to the killer; +3 the guardian takes 40% of the shield's max (220) capped at what is left (12/12), `sound_area` 12728 range 10 at its centre.
+- Shield at 0: 3 ticks later (5/5 solo, whatever the attack clock), `idle_to_ground01` (14747) + `vfx_guardian_idletoground_spotanim01`, -> `tfa_guardian_unshielded` (level 984), `map_anim tfa_arena_sword_drop_explosion_instant` (4389) delay 20 at its centre, the 5x5 `invisible_type8_blocking`, boss bar 1100 green (25600/576/800).
+- Grounded 35 ticks (4/4 solo): no attacks; tentacles. Then `ground_to_flying01` (14746) + `vfx_guardian_groundtoidle_spotanim01`, -> `tfa_guardian` with a full 550 shield, the 5x5 back to nonblocking, bar 550 blue; the first attack 5 ticks later.
+- Real hp (1100 solo, grounded only) carries over between ground phases.
+
+## 8. Tentacles (ground phase)
+
+- Every 3 ticks from landing: an `archive_guardian_tentacle` ("Vine", size 1) on or next to the player's tile of the tick before (35/35), facing the player, seq `tentacle_spawn01` (14771) + spotanim `vfx_guardian_tentacle_intro_spotanim01`, `sound_area` 12218 range 4.
+- Attacks (`tentacle_attack01` 14768) at +3, +6, +9; `despawn01` (14769) +12; deleted +13 (34/35).
+- An attack hits a player exactly 1 tile away on the tick before (6 of 9; 0 of 3 standing on it, 0 of 34 at 2+): 17..19 under protect from missiles (6 hits). **Unverified**: its style, max, and protect from melee (never prayed).
+
+## 9. Enrage (party only: unverified solo)
+
+- When the guardian's real hp falls to about 27% while grounded it lifts at once (4294 [969], [1350]) and enrages: S, +5 `enraged_phase01` (14754) + `vfx_guardian_enraged_phase_spotanim01`, +10 a battery is overloaded (its remaining hp as one hit, destroyed as above), every player takes the same hit (2 players: 32, 41, 48; 5 players: 8..21), the guardian takes the battery's blast; +5 S again (20-tick cycle). Order: (4139,5592), (4139,5605), (4114,5592), (4114,5605).
+- **Solo is unrecorded**: the per-player hit is taken as 64 / (players, minimum 2), rising 25% a cycle.
+
+## 10. Melee
+
+- One `melee_attack01` (4297 [547]) at distance 0 after a swoosh; "It's flying too high to hit using melee." for a player's melee on the flying guardian. **Approximate**: the guardian melees a player under its box (crush, max 25: wiki).
+
+## 11. The guardian's death
+
+- Real hp 0: `death01` + spotanim `vfx_ocellus_null` height 200, hp bar 0; +7 -> `tfa_guardian_dead`, "Challenge complete: Archive Guardian. Duration: m:ss. Total: m:ss", batteries deleted, `tfa_nexus_section1_door_west_slightly` (4113,5584 r3) / `..._east_slightly` (4141,5584 r1), `tfa_exit_large` opflags 0b1, music 147, `tfa_client_p*` 27; +3 the doors `..._slightly_opened`; +8 the boss bar cleared (4294 [1424..1439]).
+- (+15 Armacus and the Guardians of Armadyl arrive: the next stage, not implemented.)
+
+## 12. A player's death (whole team dead)
+
+- Hit to 0: D+1 `busy` 1, `tfa_client_p0` 1; D+3 `human_death`; D+7 "You have died. Total deaths: n.", prayers off, teleport to (4097,5569) (outside the room), exit opflags 0; D+10 boss bar cleared, "You failed to survive the Fractured Archive.", fade out, music 147, jingle 90; D+11 minimap 2, `busy` 1; D+13 back to the lobby (4130,5559) facing south, gravestone (1500 ticks), kept items as an ordinary unsafe death (4297 [628..641], 4/4).
+
+## Audit: our scriptrun against 4297 and 4296 (2026-10-21)
+
+Runs: `test/guthixian_archive/tfa_guardian.lua` (the batteries, then the
+guardian, until the raid wipes) and `tfa_guardian_win.lua` (`::tfahp` cuts the
+shield and the real health so the kill and its +7/+10/+15 happen in a short
+run). Inventory: `tools/rsprox_tells.py --anchor 16657-16664 idx4297.txt
+idx4296.txt --ours <both ticklogs>` (four recorded fights against two of ours,
+per-fight averages; ours are shorter, so rates differ). Wire: `wirelog_tells.py`
+over 4297 [125..262] anchored on "Challenge started" (R [131], O 96).
+
+| tell | recording | ours | verdict |
+|---|---|---|---|
+| entry blocking locs | 41 `invisible_type8_blocking` (5x5 + 4x 2x2) | same, `~tfa_g_spawn`/`~tfa_g_battery_add` | fixed (was missing) |
+| SE battery ops | `enabled_ops 0b00000` on activation, 5/5 wakes | `npc_setops(0)` on battery 0 at the wake | fixed |
+| exit during the fight | re-added `opflags=0b0` at the challenge; `0b1` at the kill +7 | `loc_add_opflags` (new, opcode 11224), wire bytes `a8 00 c1 00 f5 2e` / `a8 01 ...` | fixed |
+| ranged projectile | `[source] npc=tfa_guardian` (every shot) | `npc_projanim_pl` names the npc (`proj_source` matches) | fixed (was a bare tile) |
+| range/special/swoosh/melee seqs and spotanims | per §3-§5 | present, same ids, heights, delays | matched |
+| battery death | despawn seq, +2 destroyed form + 3 shakes + synth 12184, +3 blast and area 12728 r10 | same | matched |
+| land / lift / tentacles / mushrooms | §6-§8 | all present (`idle_to_ground01`, `ground_to_flying01`, tentacle spawn/attack/despawn + area 12218, mushroom spawn/active/despawn + area 12175 size 2) | matched (rates follow fight length) |
+| defend sound | synth 12728 per hit on either form | same (npc config) | matched |
+| idle01 at the wake | printed under `tfa_guardian_start` | printed under `tfa_guardian` | same tick, same packet: the parser attributes before/after the transformation |
+| kill | death01 + `vfx_ocellus_null` 200; +7 dead form, doors, exit 0b1, line; +10 doors opened; +15 bar off | same | matched (4294 [1424..1446]) |
+| wipe: spectate | K+7 [255]: line, sanity 100, prayers off, `tfa_client_spectate_mode` 1, teleport, `cam_reset`, side panels re-sent but 0 and 3, then sides 0,1,2,4,5,6,3 closed | same order | fixed (was missing) |
+| wipe: lobby | [259]: spectate mode 0, `cam_reset`, every side panel re-sent | same | fixed |
+| eating | "You eat the shark." + "It heals some health." (hurt only), both `type=spam`, synth `eat` 2393 | same | fixed in `food.rs2` (was "Shark", type 0, no heal line, no sound) |
+| protect from missiles on | synth 2677 loops 1 | was loops 0 | fixed in `prayer.rs2` (every prayer-on sound) |
+| R-only kit | dart 2696, whip 2720, sharp_eye 2685, potions, `tracking_*` varps, blowpipe varbit 5934, xp drops | our kit: bow of faerdhinen (crystal_bow2 1352) | the recorder's kit |
+| music | 147 before, 887 during, every 3 ticks | same cadence; phase runs from the room's entry, the Touch tick is the player's | matched |
+
+Still open, all engine-generic (not this content's to fake):
+
+- `busy` (varbit 12393) around dialogue: set 1 a tick after a chatmenu opens and 0 on the resume (4297 [125..131], [329..332], [382..384]); a delay sets it on its own tick (4293 [35]). One rule is not yet derived; ours sets it only where content does.
+- The chatmenu's options: Jagex `if_setevents 219:1 1..n`; ours `0..28` (`if_addresumebutton`, 101 call sites).
+- The boss bar: Jagex has `hpbar_hud` open already and sends the vars and `hp_hud_open` (2376) on the wake tick, then 2376 every tick; ours opens 303 on the wake and feeds it the tick after, then on change. At the end Jagex clears 1683 at once; ours holds the bar ~6 ticks (the engine's boss hold).
+- The side journal re-sent at the spectate/lobby: Jagex questlist 399, ours the journal's default 712.
+- Player facing: Jagex `face_angle` after an op and `[facing] type=reset`; ours faces the entity.
+- The gravestone line needs items to reach the gravestone; the test kit keeps all three.
+
+## Implementation map
+
+- `area_guthixian_archive/configs/tfa_guardian.npc`: server blocks for every form (timer, hp, modes, sounds: defend 12728 on both forms).
+- `scripts/tfa_raid.rs2`: lobby entry (solo party), the room instance, HUD, exit, the deaths.
+- `scripts/tfa_guardian.rs2`: the state machine in instance registers, `[ai_timer]` per form, `[ai_queue2]` for the shield and the batteries, the specials, tentacles, enrage.
+- Engine: `p_runblock` (opcode 11223) for drowsy, `atan2_deg` for the swoosh yaw, `loc_add_opflags` (11224) for the exit.
+- Test `test/guthixian_archive/tfa_guardian.lua`; audit with `wirelog_tells.py` and `rsprox_tells.py --ours` against 4297.
+
+## Open probes
+
+- What paces the special exactly (§3).
+- Tentacle damage style and max (§8); the solo enrage (§9); the melee (§10).
+- Party scaling (4294: 5 players: shield 2520? batteries 400); only solo is built.

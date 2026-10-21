@@ -52,6 +52,7 @@
 #include "ss_trigger.h"
 #include "ssvm.h"
 
+#include <stdio.h>
 #include <assert.h>
 #include <stdint.h>
 
@@ -498,6 +499,25 @@ ToriRSServer_OpsPlayer(
 
         assert(player);
         player->temp_run = 1;
+        return 1;
+    }
+
+    /* p_runblock(int $ticks, string $text): see ToriRSServerPlayer.run_block_until. */
+    case SS_OP_P_RUNBLOCK:
+    {
+        struct ToriRSServerPlayer* player =
+            (struct ToriRSServerPlayer*)SSVM_Active(state, SSVM_ENT_PLAYER);
+        struct ToriRSServer* srv = player ? player->world : NULL;
+        int32_t ticks;
+        const char* text;
+
+        if( !SSVM_PopStr(state, &text) || !SSVM_PopInt(state, &ticks) )
+            return 1;
+        assert(player);
+        assert(srv);
+        player->run_block_until = srv->tick + (int)ticks;
+        player->run_block_told = 0;
+        snprintf(player->run_block_text, sizeof(player->run_block_text), "%s", text ? text : "");
         return 1;
     }
 

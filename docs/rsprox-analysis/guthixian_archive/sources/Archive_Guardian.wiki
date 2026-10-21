@@ -1,0 +1,64 @@
+{{New Content}}
+{{HasStrategy}}
+{{Infobox Monster
+|name = Archive Guardian
+|image = [[File:Archive Guardian.png|250px]]
+|release = [[20 October]] [[2026]]
+|update = The Fractured Archive - Out Today
+|members = Yes
+|combat = 984
+|size = 5
+|examine = A manifestation of vengeance.
+|xpbonus = 
+|max hit = 25, 99+ (laser beam)
+|aggressive = Yes
+|poisonous = 
+|attack style = Crush
+|attack speed = 5
+|attributes = flying
+|hitpoints = 550
+|att = 250
+|str = 240
+|def = 260
+|mage = 250
+|range = 280
+|amagic = 350
+|mbns = 55
+|arange = 350
+|rngbns = 55
+|dstab = 120
+|dslash = 110
+|dcrush = 20
+|dmagic = 130
+|dlight = 75
+|dstandard = 120
+|dheavy = 50
+|elementalweaknesstype = Fire
+|elementalweaknesspercent = 80
+|poisonresistance = 100
+|venomresistance = 100
+|freezeresistance = 100
+|immunethrall = No
+|id = 16659
+}}
+
+The '''Archive Guardian''' is an ancient being tasked with defending [[The Fractured Archive]]. It is the first [[boss]] faced in the raid.
+
+It is immune to [[Ancient Magicks]].
+
+==Gallery==
+<gallery captionalign="center" widths="200">
+The Fractured Archive - First Look (3).png|Concept art of the Archive Guardian, by [[Mod Jerv]]
+Summer Campfire 2026 (26).webm
+Summer Campfire 2026 (27).webm
+</gallery>
+
+==Trivia==
+* The Archive Guardian's design is based on [[Guthix]]'s appearance in the [[God letters]], which depict him as a floating skull with tendrils.{{CiteReddit|author=Mod Jerv|url=https://www.reddit.com/r/2007scape/comments/1qmve5o/comment/o1scygv/|title=2004 Guthix art finally being done justice!!|quote=I’m so happy to see the love for the Archive Guardian. I was beyond excited about getting to design it, the fact that we get to design something Guthix created is an incredible experience!<br>While I don’t believe Guthix has a true depiction, he is often associated with the skull with tendrils in multiple instances. Perhaps humans trying to create logic to something of such great power? It is however something Guthix represents: the complexities of nature, life and death juxtaposed in one kind of symbol. So it felt fitting that Guthix would make the guardian tell this story visually too.<br>The environment and the Guardian feels almost like a reminder: «remember who you are in the totality of Gielinor».|date=26 January 2026|archiveurl=https://reldo.runescape.wiki/i/27964109|archivedate=12 June 2026}}
+
+==References==
+{{Reflist}}
+
+{{The Fractured Archive}}
+
+[[Category:Guthixians]]

@@ -1,0 +1,713 @@
+===== 4294 [540..1050]
+  545      start add  (4125, 5597, 0)
+  546      start spot vfx_guardian_spawn_idle_spotanim01 
+  549      start spot vfx_guardian_spawn_idle_spotanim01 
+  552      start spot vfx_guardian_spawn_idle_spotanim01 
+  553      start spot vfx_guardian_spawn_spotanim01 
+  553      start seq npc_archive_guardian_spawn01 
+  558   +5 start level 984 
+  558   +5 start seq npc_archive_guardian_idle01 
+  558   +0 start transform tfa_guardian 
+  562   +4 g seq npc_archive_guardian_range_attack01 
+  567   +5 g seq npc_archive_guardian_range_attack01 
+  572   +5 g seq npc_archive_guardian_range_attack01 
+  577   +5 g seq npc_archive_guardian_range_attack01 
+  582   +5 g spot vfx_guardian_special_attack_spotanim01 
+  582   +5 g seq npc_archive_guardian_special_attack01 
+  587   +5 g seq npc_archive_guardian_range_attack01 
+  592   +5 g seq npc_archive_guardian_range_attack01 
+  597   +5 g seq npc_archive_guardian_range_attack01 
+  602   +5 g seq npc_archive_guardian_range_attack01 
+  607   +5 g seq npc_archive_guardian_range_attack01 
+  612   +5 g seq npc_archive_guardian_range_attack01 
+  617   +5 g seq npc_archive_guardian_range_attack01 
+  623   +6 g spot vfx_guardian_idletoground_spotanim01 
+  623   +6 g level 984 
+  623   +6 g seq npc_archive_guardian_idle_to_ground01 
+  623   +0 g transform tfa_guardian_unshielded 
+  638  +15 unshielded spot sanguinesti_staff_heal 
+  654  +31 unshielded spot sanguinesti_staff_heal 
+  658  +35 unshielded spot vfx_guardian_groundtoidle_spotanim01 
+  658  +35 unshielded level 984 
+  658  +35 unshielded seq npc_archive_guardian_ground_to_flying01 
+  658   +0 unshielded transform tfa_guardian 
+  663   +5 g seq npc_archive_guardian_range_attack01 
+  668   +5 g seq npc_archive_guardian_range_attack01 
+  673   +5 g spot vfx_guardian_special_attack_spotanim01 
+  673   +5 g seq npc_archive_guardian_special_attack01 
+  678   +5 g seq npc_archive_guardian_range_attack01 
+  683   +5 g seq npc_archive_guardian_range_attack01 
+  688   +5 g seq npc_archive_guardian_range_attack01 
+  693   +5 g seq npc_archive_guardian_range_attack01 
+  698   +5 g seq npc_archive_guardian_range_attack01 
+  703   +5 g spot vfx_guardian_special_attack_spotanim01 
+  703   +5 g seq npc_archive_guardian_special_attack01 
+  708   +5 g seq npc_archive_guardian_range_attack01 
+  713   +5 g seq npc_archive_guardian_range_attack01 
+  718   +5 g seq npc_archive_guardian_range_attack01 
+  725   +7 g spot vfx_guardian_idletoground_spotanim01 
+  725   +7 g level 984 
+  725   +7 g seq npc_archive_guardian_idle_to_ground01 
+  725   +0 g transform tfa_guardian_unshielded 
+  734   +9 unshielded spot sanguinesti_staff_heal 
+  742  +17 unshielded spot sanguinesti_staff_heal 
+  746  +21 unshielded spot sanguinesti_staff_heal 
+  765  +40 unshielded spot sanguinesti_staff_heal 
+  766  +41 unshielded spot vfx_guardian_groundtoidle_spotanim01 
+  766  +41 unshielded level 984 
+  766  +41 unshielded seq npc_archive_guardian_ground_to_flying01 
+  766   +0 unshielded transform tfa_guardian 
+  771   +5 g seq npc_archive_guardian_range_attack01 
+  776   +5 g seq npc_archive_guardian_range_attack01 
+  781   +5 g seq npc_archive_guardian_range_attack01 
+  786   +5 g spot vfx_guardian_special_attack_spotanim01 
+  786   +5 g seq npc_archive_guardian_special_attack01 
+  791   +5 g seq npc_archive_guardian_range_attack01 
+  796   +5 g seq npc_archive_guardian_range_attack01 
+  801   +5 g seq npc_archive_guardian_range_attack01 
+  806   +5 g seq npc_archive_guardian_range_attack01 
+  811   +5 g spot vfx_guardian_special_attack_spotanim01 
+  811   +5 g seq npc_archive_guardian_special_attack01 
+  816   +5 g seq npc_archive_guardian_range_attack01 
+  821   +5 g seq npc_archive_guardian_range_attack01 
+  826   +5 g seq npc_archive_guardian_range_attack01 
+  830   +4 g spot vfx_guardian_idletoground_spotanim01 
+  830   +4 g level 984 
+  830   +4 g seq npc_archive_guardian_idle_to_ground01 
+  830   +0 g transform tfa_guardian_unshielded 
+  845  +15 unshielded spot sanguinesti_staff_heal 
+  877  +47 unshielded spot vfx_guardian_groundtoidle_spotanim01 
+  877  +47 unshielded level 984 
+  877  +47 unshielded seq npc_archive_guardian_ground_to_flying01 
+  877   +0 unshielded transform tfa_guardian 
+  882   +5 g seq npc_archive_guardian_range_attack01 
+  887   +5 g seq npc_archive_guardian_range_attack01 
+  892   +5 g spot vfx_guardian_special_attack_spotanim01 
+  892   +5 g seq npc_archive_guardian_special_attack01 
+  897   +5 g seq npc_archive_guardian_range_attack01 
+  902   +5 g seq npc_archive_guardian_range_attack01 
+  907   +5 g seq npc_archive_guardian_range_attack01 
+  912   +5 g seq npc_archive_guardian_range_attack01 
+  917   +5 g spot vfx_guardian_special_attack_spotanim01 
+  917   +5 g seq npc_archive_guardian_special_attack01 
+  922   +5 g seq npc_archive_guardian_range_attack01 
+  927   +5 g seq npc_archive_guardian_range_attack01 
+  932   +5 g seq npc_archive_guardian_range_attack01 
+  937   +5 g seq npc_archive_guardian_range_attack01 
+  942   +5 g seq npc_archive_guardian_range_attack01 
+  947   +5 g seq npc_archive_guardian_range_attack01 
+  952   +5 g spot vfx_guardian_idletoground_spotanim01 
+  952   +5 g level 984 
+  952   +5 g seq npc_archive_guardian_idle_to_ground01 
+  952   +0 g transform tfa_guardian_unshielded 
+  960   +8 unshielded spot sanguinesti_staff_heal 
+  969  +17 unshielded spot vfx_guardian_groundtoidle_spotanim01 
+  969  +17 unshielded level 984 
+  969  +17 unshielded seq npc_archive_guardian_ground_to_flying01 
+  969   +0 unshielded transform tfa_guardian 
+  974   +5 g spot vfx_guardian_special_attack_spotanim01 
+  974   +5 g seq npc_archive_guardian_special_attack01 
+  979   +5 g spot vfx_guardian_enraged_phase_spotanim01 
+  979   +5 g seq npc_archive_guardian_enraged_phase01 
+  994  +15 g spot vfx_guardian_special_attack_spotanim01 
+  994  +15 g seq npc_archive_guardian_special_attack01 
+  999   +5 g spot vfx_guardian_enraged_phase_spotanim01 
+  999   +5 g seq npc_archive_guardian_enraged_phase01 
+ 1014  +15 g spot vfx_guardian_special_attack_spotanim01 
+ 1014  +15 g seq npc_archive_guardian_special_attack01 
+ 1019   +5 g spot vfx_guardian_enraged_phase_spotanim01 
+ 1019   +5 g seq npc_archive_guardian_enraged_phase01 
+ 1020   +1 g level 984 
+ 1020   +1 g transform tfa_guardian_unshielded 
+ 1034  +15 unshielded spot vfx_guardian_special_attack_spotanim01 
+ 1034  +15 unshielded seq npc_archive_guardian_special_attack01 
+ 1039   +5 unshielded spot vfx_guardian_enraged_phase_spotanim01 
+ 1039   +5 unshielded seq npc_archive_guardian_enraged_phase01 
+ 1043   +4 unshielded del  
+===== 4294 [1095..1495]
+ 1099      g add  (4125, 5597, 0)
+ 1099      g level 1 
+ 1100      g seq npc_archive_guardian_range_attack01 
+ 1105   +5 g seq npc_archive_guardian_range_attack01 
+ 1110   +5 g seq npc_archive_guardian_range_attack01 
+ 1115   +5 g seq npc_archive_guardian_range_attack01 
+ 1116   +1 g spot xbows_blood_sacrifice_spot_anim 
+ 1120   +5 g spot thrall_magic_impact 
+ 1120   +5 g seq npc_archive_guardian_special_attack01 
+ 1121   +1 g spot xbows_blood_sacrifice_spot_anim 
+ 1124   +4 g spot thrall_magic_impact 
+ 1125   +5 g seq npc_archive_guardian_range_attack01 
+ 1128   +3 g spot thrall_magic_impact 
+ 1130   +5 g seq npc_archive_guardian_range_attack01 
+ 1132   +2 g spot xbows_blood_sacrifice_spot_anim 
+ 1135   +5 g seq npc_archive_guardian_range_attack01 
+ 1136   +1 g spot thrall_magic_impact 
+ 1140   +5 g spot thrall_magic_impact 
+ 1140   +5 g seq npc_archive_guardian_range_attack01 
+ 1144   +4 g spot thrall_magic_impact 
+ 1145   +5 g seq npc_archive_guardian_range_attack01 
+ 1148   +3 g spot thrall_magic_impact 
+ 1150   +5 g spot vfx_guardian_special_attack_spotanim01 
+ 1150   +5 g seq npc_archive_guardian_special_attack01 
+ 1152   +2 g spot thrall_magic_impact 
+ 1155   +5 g seq npc_archive_guardian_range_attack01 
+ 1156   +1 g spot thrall_magic_impact 
+ 1159   +4 g spot -1 
+ 1160   +5 g spot thrall_magic_impact 
+ 1160   +5 g seq npc_archive_guardian_range_attack01 
+ 1163   +3 g spot -1 
+ 1164   +4 g spot thrall_magic_impact 
+ 1165   +5 g seq npc_archive_guardian_range_attack01 
+ 1167   +2 g spot -1 
+ 1168   +3 g spot thrall_magic_impact 
+ 1170   +5 g seq npc_archive_guardian_range_attack01 
+ 1171   +1 g spot -1 
+ 1172   +2 g spot thrall_magic_impact 
+ 1175   +5 g spot -1 
+ 1175   +5 g seq npc_archive_guardian_range_attack01 
+ 1176   +1 g spot thrall_magic_impact 
+ 1179   +4 g spot xbows_diamond_tips_spotanim 
+ 1183   +8 g spot vfx_guardian_idletoground_spotanim01 
+ 1183   +8 g seq npc_archive_guardian_idle_to_ground01 
+ 1183   +0 g transform tfa_guardian_unshielded 
+ 1184   +1 unshielded spot -1 
+ 1186   +3 unshielded spot sanguinesti_staff_heal 
+ 1187   +4 unshielded spot thrall_magic_impact 
+ 1188   +5 unshielded spot -1 
+ 1189   +6 unshielded spot xbows_diamond_tips_spotanim 
+ 1191   +8 unshielded spot thrall_magic_impact 
+ 1192   +9 unshielded spot -1 
+ 1195  +12 unshielded spot thrall_magic_impact 
+ 1196  +13 unshielded spot -1 
+ 1199  +16 unshielded spot thrall_magic_impact 
+ 1200  +17 unshielded spot -1 
+ 1203  +20 unshielded spot thrall_magic_impact 
+ 1204  +21 unshielded spot -1 
+ 1207  +24 unshielded spot thrall_magic_impact 
+ 1208  +25 unshielded spot -1 
+ 1211  +28 unshielded spot thrall_magic_impact 
+ 1212  +29 unshielded spot -1 
+ 1215  +32 unshielded spot xbows_diamond_tips_spotanim 
+ 1216  +33 unshielded spot -1 
+ 1220  +37 unshielded spot -1 
+ 1221  +38 unshielded spot xbows_diamond_tips_spotanim 
+ 1224  +41 unshielded spot -1 
+ 1225  +42 unshielded spot sanguinesti_staff_heal 
+ 1228  +45 unshielded spot -1 
+ 1230  +47 unshielded spot vfx_guardian_groundtoidle_spotanim01 
+ 1230  +47 unshielded seq npc_archive_guardian_ground_to_flying01 
+ 1230   +0 unshielded transform tfa_guardian 
+ 1233   +3 g spot -1 
+ 1235   +5 g seq npc_archive_guardian_range_attack01 
+ 1240   +5 g seq npc_archive_guardian_range_attack01 
+ 1241   +1 g spot -1 
+ 1245   +5 g spot -1 
+ 1245   +5 g seq npc_archive_guardian_range_attack01 
+ 1247   +2 g spot thrall_magic_impact 
+ 1248   +3 g spot xbows_diamond_tips_spotanim 
+ 1249   +4 g spot -1 
+ 1250   +5 g seq npc_archive_guardian_range_attack01 
+ 1251   +1 g spot thrall_magic_impact 
+ 1253   +3 g spot -1 
+ 1255   +5 g spot thrall_magic_impact 
+ 1255   +5 g seq npc_archive_guardian_special_attack01 
+ 1257   +2 g spot -1 
+ 1258   +3 g spot xbows_diamond_tips_spotanim 
+ 1259   +4 g spot thrall_magic_impact 
+ 1260   +5 g seq npc_archive_guardian_range_attack01 
+ 1261   +1 g spot -1 
+ 1263   +3 g spot thrall_magic_impact 
+ 1265   +5 g spot -1 
+ 1265   +5 g seq npc_archive_guardian_range_attack01 
+ 1267   +2 g spot thrall_magic_impact 
+ 1269   +4 g spot xbows_diamond_tips_spotanim 
+ 1270   +5 g seq npc_archive_guardian_range_attack01 
+ 1271   +1 g spot thrall_magic_impact 
+ 1273   +3 g spot -1 
+ 1275   +5 g spot thrall_magic_impact 
+ 1275   +5 g seq npc_archive_guardian_range_attack01 
+ 1277   +2 g spot -1 
+ 1279   +4 g spot thrall_magic_impact 
+ 1280   +5 g seq npc_archive_guardian_range_attack01 
+ 1281   +1 g spot -1 
+ 1283   +3 g spot thrall_magic_impact 
+ 1285   +5 g spot -1 
+ 1285   +5 g seq npc_archive_guardian_special_attack01 
+ 1287   +2 g spot thrall_magic_impact 
+ 1289   +4 g spot -1 
+ 1290   +5 g seq npc_archive_guardian_range_attack01 
+ 1291   +1 g spot thrall_magic_impact 
+ 1293   +3 g spot -1 
+ 1295   +5 g spot thrall_magic_impact 
+ 1295   +5 g seq npc_archive_guardian_range_attack01 
+ 1297   +2 g spot -1 
+ 1299   +4 g spot thrall_magic_impact 
+ 1300   +5 g seq npc_archive_guardian_range_attack01 
+ 1301   +1 g spot -1 
+ 1303   +3 g spot thrall_magic_impact 
+ 1304   +4 g spot xbows_diamond_tips_spotanim 
+ 1305   +5 g spot -1 
+ 1305   +5 g seq npc_archive_guardian_range_attack01 
+ 1307   +2 g spot thrall_magic_impact 
+ 1309   +4 g spot -1 
+ 1310   +5 g spot vfx_guardian_special_attack_spotanim01 
+ 1310   +5 g seq npc_archive_guardian_special_attack01 
+ 1311   +1 g spot xbows_diamond_tips_spotanim 
+ 1313   +3 g spot -1 
+ 1315   +5 g spot thrall_magic_impact 
+ 1315   +5 g seq npc_archive_guardian_range_attack01 
+ 1317   +2 g spot -1 
+ 1319   +4 g spot thrall_magic_impact 
+ 1320   +5 g seq npc_archive_guardian_range_attack01 
+ 1321   +1 g spot -1 
+ 1323   +3 g spot thrall_magic_impact 
+ 1325   +5 g spot -1 
+ 1325   +5 g seq npc_archive_guardian_range_attack01 
+ 1329   +4 g spot -1 
+ 1330   +5 g seq npc_archive_guardian_range_attack01 
+ 1336   +6 g spot vfx_guardian_idletoground_spotanim01 
+ 1336   +6 g seq npc_archive_guardian_idle_to_ground01 
+ 1336   +0 g transform tfa_guardian_unshielded 
+ 1341   +5 unshielded spot -1 
+ 1342   +6 unshielded spot thrall_magic_impact 
+ 1345   +9 unshielded spot -1 
+ 1346  +10 unshielded spot thrall_magic_impact 
+ 1349  +13 unshielded spot -1 
+ 1350  +14 unshielded spot vfx_guardian_groundtoidle_spotanim01 
+ 1350  +14 unshielded seq npc_archive_guardian_ground_to_flying01 
+ 1350   +0 unshielded transform tfa_guardian 
+ 1354   +4 g spot -1 
+ 1355   +5 g spot vfx_guardian_special_attack_spotanim01 
+ 1355   +5 g seq npc_archive_guardian_special_attack01 
+ 1356   +1 g spot thrall_magic_impact 
+ 1358   +3 g spot -1 
+ 1360   +5 g spot thrall_magic_impact 
+ 1360   +5 g spot vfx_guardian_enraged_phase_spotanim01 
+ 1360   +5 g seq npc_archive_guardian_enraged_phase01 
+ 1364   +4 g spot thrall_magic_impact 
+ 1365   +5 g spot xbows_diamond_tips_spotanim 
+ 1368   +8 g spot thrall_magic_impact 
+ 1372  +12 g spot xbows_diamond_tips_spotanim 
+ 1375  +15 g spot vfx_guardian_special_attack_spotanim01 
+ 1375  +15 g seq npc_archive_guardian_special_attack01 
+ 1376   +1 g spot thrall_magic_impact 
+ 1377   +2 g spot -1 
+ 1380   +5 g spot thrall_magic_impact 
+ 1380   +5 g spot vfx_guardian_enraged_phase_spotanim01 
+ 1380   +5 g seq npc_archive_guardian_enraged_phase01 
+ 1381   +1 g spot -1 
+ 1384   +4 g spot thrall_magic_impact 
+ 1385   +5 g spot -1 
+ 1386   +6 g spot xbows_diamond_tips_spotanim 
+ 1388   +8 g spot thrall_magic_impact 
+ 1389   +9 g spot -1 
+ 1391  +11 g spot xbows_diamond_tips_spotanim 
+ 1392  +12 g spot thrall_magic_impact 
+ 1393  +13 g spot -1 
+ 1394  +14 g transform tfa_guardian_unshielded 
+ 1395  +15 unshielded spot vfx_guardian_special_attack_spotanim01 
+ 1395  +15 unshielded seq npc_archive_guardian_special_attack01 
+ 1400   +5 unshielded spot vfx_guardian_enraged_phase_spotanim01 
+ 1400   +5 unshielded seq npc_archive_guardian_enraged_phase01 
+ 1401   +1 unshielded spot thrall_magic_impact 
+ 1402   +2 unshielded spot -1 
+ 1405   +5 unshielded spot thrall_magic_impact 
+ 1406   +6 unshielded spot -1 
+ 1409   +9 unshielded spot thrall_magic_impact 
+ 1410  +10 unshielded spot -1 
+ 1413  +13 unshielded spot thrall_magic_impact 
+ 1414  +14 unshielded spot -1 
+ 1415  +15 unshielded spot vfx_guardian_special_attack_spotanim01 
+ 1415  +15 unshielded seq npc_archive_guardian_special_attack01 
+ 1417   +2 unshielded spot thrall_magic_impact 
+ 1418   +3 unshielded move telejump (4125, 5608, 0)
+ 1418   +3 unshielded level 1 
+ 1418   +3 unshielded seq npc_archive_guardian_swoosh_attack01 
+ 1420   +2 unshielded spot vfx_guardian_enraged_phase_spotanim01 
+ 1420   +2 unshielded seq npc_archive_guardian_enraged_phase01 
+ 1424   +4 unshielded spot vfx_ocellus_null 
+ 1424   +4 unshielded seq npc_archive_guardian_death01 
+ 1431   +7 unshielded transform tfa_guardian_dead 
+ 1491  +67 dead del  
+===== 4296 [355..840]
+  361      start add  (4125, 5597, 0)
+  364      start spot vfx_guardian_spawn_idle_spotanim01 
+  367      start spot vfx_guardian_spawn_idle_spotanim01 
+  370      start spot vfx_guardian_spawn_idle_spotanim01 
+  373      start spot vfx_guardian_spawn_idle_spotanim01 
+  376      start spot vfx_guardian_spawn_idle_spotanim01 
+  379      start spot vfx_guardian_spawn_idle_spotanim01 
+  382      start spot vfx_guardian_spawn_idle_spotanim01 
+  385      start spot vfx_guardian_spawn_idle_spotanim01 
+  388      start spot vfx_guardian_spawn_idle_spotanim01 
+  391      start spot vfx_guardian_spawn_idle_spotanim01 
+  394      start spot vfx_guardian_spawn_idle_spotanim01 
+  397      start spot vfx_guardian_spawn_idle_spotanim01 
+  399      start spot vfx_guardian_spawn_spotanim01 
+  399      start seq npc_archive_guardian_spawn01 
+  404   +5 start level 984 
+  404   +5 start seq npc_archive_guardian_idle01 
+  404   +0 start transform tfa_guardian 
+  405   +1 g move telejump (4130, 5587, 0)
+  405   +1 g seq npc_archive_guardian_swoosh_attack01 
+  408   +3 g seq npc_archive_guardian_range_attack01 
+  411   +3 g move telejump (4126, 5583, 0)
+  411   +3 g seq npc_archive_guardian_swoosh_attack01 
+  414   +3 g seq npc_archive_guardian_range_attack01 
+  419   +5 g seq npc_archive_guardian_range_attack01 
+  422   +3 g move telejump (4128, 5592, 0)
+  422   +3 g seq npc_archive_guardian_swoosh_attack01 
+  425   +3 g seq npc_archive_guardian_range_attack01 
+  430   +5 g spot vfx_guardian_special_attack_spotanim01 
+  430   +5 g seq npc_archive_guardian_special_attack01 
+  433   +3 g move telejump (4123, 5591, 0)
+  433   +3 g seq npc_archive_guardian_swoosh_attack01 
+  436   +3 g seq npc_archive_guardian_range_attack01 
+  438   +2 g move telejump (4119, 5594, 0)
+  438   +2 g seq npc_archive_guardian_swoosh_attack01 
+  441   +3 g seq npc_archive_guardian_range_attack01 
+  446   +5 g seq npc_archive_guardian_range_attack01 
+  451   +5 g seq npc_archive_guardian_range_attack01 
+  456   +5 g seq npc_archive_guardian_range_attack01 
+  461   +5 g spot vfx_guardian_special_attack_spotanim01 
+  461   +5 g seq npc_archive_guardian_special_attack01 
+  466   +5 g seq npc_archive_guardian_range_attack01 
+  471   +5 g seq npc_archive_guardian_range_attack01 
+  476   +5 g seq npc_archive_guardian_range_attack01 
+  480   +4 g move telejump (4122, 5603, 0)
+  480   +4 g seq npc_archive_guardian_swoosh_attack01 
+  483   +3 g seq npc_archive_guardian_range_attack01 
+  488   +5 g spot vfx_guardian_special_attack_spotanim01 
+  488   +5 g seq npc_archive_guardian_special_attack01 
+  493   +5 g seq npc_archive_guardian_range_attack01 
+  498   +5 g seq npc_archive_guardian_range_attack01 
+  503   +5 g seq npc_archive_guardian_range_attack01 
+  508   +5 g seq npc_archive_guardian_range_attack01 
+  513   +5 g spot vfx_guardian_special_attack_spotanim01 
+  513   +5 g seq npc_archive_guardian_special_attack01 
+  518   +5 g seq npc_archive_guardian_range_attack01 
+  523   +5 g seq npc_archive_guardian_range_attack01 
+  529   +6 g spot vfx_guardian_idletoground_spotanim01 
+  529   +6 g level 984 
+  529   +6 g seq npc_archive_guardian_idle_to_ground01 
+  529   +0 g transform tfa_guardian_unshielded 
+  564  +35 unshielded spot vfx_guardian_groundtoidle_spotanim01 
+  564  +35 unshielded level 984 
+  564  +35 unshielded seq npc_archive_guardian_ground_to_flying01 
+  564   +0 unshielded transform tfa_guardian 
+  569   +5 g seq npc_archive_guardian_range_attack01 
+  571   +2 g move telejump (4130, 5594, 0)
+  571   +2 g seq npc_archive_guardian_swoosh_attack01 
+  574   +3 g seq npc_archive_guardian_range_attack01 
+  579   +5 g spot vfx_guardian_special_attack_spotanim01 
+  579   +5 g seq npc_archive_guardian_special_attack01 
+  584   +5 g seq npc_archive_guardian_range_attack01 
+  586   +2 g move telejump (4132, 5584, 0)
+  586   +2 g seq npc_archive_guardian_swoosh_attack01 
+  589   +3 g seq npc_archive_guardian_range_attack01 
+  594   +5 g seq npc_archive_guardian_range_attack01 
+  598   +4 g move telejump (4130, 5588, 0)
+  598   +4 g seq npc_archive_guardian_swoosh_attack01 
+  601   +3 g seq npc_archive_guardian_range_attack01 
+  605   +4 g move telejump (4127, 5592, 0)
+  605   +4 g seq npc_archive_guardian_swoosh_attack01 
+  608   +3 g spot vfx_guardian_special_attack_spotanim01 
+  608   +3 g seq npc_archive_guardian_special_attack01 
+  613   +5 g seq npc_archive_guardian_range_attack01 
+  618   +5 g seq npc_archive_guardian_range_attack01 
+  620   +2 g move telejump (4130, 5598, 0)
+  620   +2 g seq npc_archive_guardian_swoosh_attack01 
+  623   +3 g seq npc_archive_guardian_range_attack01 
+  628   +5 g seq npc_archive_guardian_range_attack01 
+  633   +5 g spot vfx_guardian_special_attack_spotanim01 
+  633   +5 g seq npc_archive_guardian_special_attack01 
+  638   +5 g seq npc_archive_guardian_range_attack01 
+  643   +5 g seq npc_archive_guardian_range_attack01 
+  648   +5 g seq npc_archive_guardian_range_attack01 
+  653   +5 g seq npc_archive_guardian_range_attack01 
+  658   +5 g spot vfx_guardian_special_attack_spotanim01 
+  658   +5 g seq npc_archive_guardian_special_attack01 
+  663   +5 g seq npc_archive_guardian_range_attack01 
+  668   +5 g seq npc_archive_guardian_range_attack01 
+  673   +5 g seq npc_archive_guardian_range_attack01 
+  678   +5 g seq npc_archive_guardian_range_attack01 
+  682   +4 g move telejump (4133, 5584, 0)
+  682   +4 g seq npc_archive_guardian_swoosh_attack01 
+  685   +3 g seq npc_archive_guardian_range_attack01 
+  690   +5 g spot vfx_guardian_special_attack_spotanim01 
+  690   +5 g seq npc_archive_guardian_special_attack01 
+  695   +5 g seq npc_archive_guardian_range_attack01 
+  700   +5 g seq npc_archive_guardian_range_attack01 
+  705   +5 g seq npc_archive_guardian_range_attack01 
+  710   +5 g seq npc_archive_guardian_range_attack01 
+  715   +5 g spot vfx_guardian_special_attack_spotanim01 
+  715   +5 g seq npc_archive_guardian_special_attack01 
+  720   +5 g seq npc_archive_guardian_range_attack01 
+  725   +5 g seq npc_archive_guardian_range_attack01 
+  730   +5 g seq npc_archive_guardian_range_attack01 
+  735   +5 g seq npc_archive_guardian_range_attack01 
+  740   +5 g spot vfx_guardian_special_attack_spotanim01 
+  740   +5 g seq npc_archive_guardian_special_attack01 
+  745   +5 g seq npc_archive_guardian_range_attack01 
+  747   +2 g move telejump (4129, 5592, 0)
+  747   +2 g seq npc_archive_guardian_swoosh_attack01 
+  750   +3 g seq npc_archive_guardian_range_attack01 
+  755   +5 g seq npc_archive_guardian_range_attack01 
+  760   +5 g seq npc_archive_guardian_range_attack01 
+  765   +5 g spot vfx_guardian_special_attack_spotanim01 
+  765   +5 g seq npc_archive_guardian_special_attack01 
+  770   +5 g seq npc_archive_guardian_range_attack01 
+  775   +5 g seq npc_archive_guardian_range_attack01 
+  780   +5 g seq npc_archive_guardian_range_attack01 
+  785   +5 g seq npc_archive_guardian_range_attack01 
+  790   +5 g seq npc_archive_guardian_range_attack01 
+  795   +5 g seq npc_archive_guardian_range_attack01 
+  800   +5 g spot vfx_guardian_idletoground_spotanim01 
+  800   +5 g level 984 
+  800   +5 g seq npc_archive_guardian_idle_to_ground01 
+  800   +0 g transform tfa_guardian_unshielded 
+  832  +32 unshielded del  
+===== 4297 [90..265]
+   97      start add  (4125, 5597, 0)
+  100      start spot vfx_guardian_spawn_idle_spotanim01 
+  103      start spot vfx_guardian_spawn_idle_spotanim01 
+  106      start spot vfx_guardian_spawn_idle_spotanim01 
+  109      start spot vfx_guardian_spawn_idle_spotanim01 
+  112      start spot vfx_guardian_spawn_idle_spotanim01 
+  115      start spot vfx_guardian_spawn_idle_spotanim01 
+  118      start spot vfx_guardian_spawn_idle_spotanim01 
+  121      start spot vfx_guardian_spawn_idle_spotanim01 
+  124      start spot vfx_guardian_spawn_idle_spotanim01 
+  127      start spot vfx_guardian_spawn_idle_spotanim01 
+  130      start spot vfx_guardian_spawn_idle_spotanim01 
+  131      start spot vfx_guardian_spawn_spotanim01 
+  131      start seq npc_archive_guardian_spawn01 
+  136   +5 start level 984 
+  136   +5 start seq npc_archive_guardian_idle01 
+  136   +0 start transform tfa_guardian 
+  140   +4 g seq npc_archive_guardian_range_attack01 
+  143   +3 g move telejump (4120, 5595, 0)
+  143   +3 g seq npc_archive_guardian_swoosh_attack01 
+  146   +3 g seq npc_archive_guardian_range_attack01 
+  151   +5 g seq npc_archive_guardian_range_attack01 
+  156   +5 g seq npc_archive_guardian_range_attack01 
+  161   +5 g spot vfx_guardian_special_attack_spotanim01 
+  161   +5 g seq npc_archive_guardian_special_attack01 
+  166   +5 g seq npc_archive_guardian_range_attack01 
+  171   +5 g seq npc_archive_guardian_range_attack01 
+  176   +5 g seq npc_archive_guardian_range_attack01 
+  181   +5 g seq npc_archive_guardian_range_attack01 
+  186   +5 g spot vfx_guardian_special_attack_spotanim01 
+  186   +5 g seq npc_archive_guardian_special_attack01 
+  191   +5 g seq npc_archive_guardian_range_attack01 
+  196   +5 g seq npc_archive_guardian_range_attack01 
+  201   +5 g seq npc_archive_guardian_range_attack01 
+  206   +5 g seq npc_archive_guardian_range_attack01 
+  208   +2 g move telejump (4131, 5596, 0)
+  208   +2 g seq npc_archive_guardian_swoosh_attack01 
+  211   +3 g spot vfx_guardian_special_attack_spotanim01 
+  211   +3 g seq npc_archive_guardian_special_attack01 
+  216   +5 g seq npc_archive_guardian_range_attack01 
+  221   +5 g seq npc_archive_guardian_range_attack01 
+  226   +5 g seq npc_archive_guardian_range_attack01 
+  231   +5 g seq npc_archive_guardian_range_attack01 
+  238   +7 g spot vfx_guardian_idletoground_spotanim01 
+  238   +7 g level 984 
+  238   +7 g seq npc_archive_guardian_idle_to_ground01 
+  238   +0 g transform tfa_guardian_unshielded 
+  259  +21 unshielded del  
+===== 4297 [345..645]
+  353      start add  (4125, 5597, 0)
+  356      start spot vfx_guardian_spawn_idle_spotanim01 
+  359      start spot vfx_guardian_spawn_idle_spotanim01 
+  362      start spot vfx_guardian_spawn_idle_spotanim01 
+  365      start spot vfx_guardian_spawn_idle_spotanim01 
+  368      start spot vfx_guardian_spawn_idle_spotanim01 
+  371      start spot vfx_guardian_spawn_idle_spotanim01 
+  374      start spot vfx_guardian_spawn_idle_spotanim01 
+  377      start spot vfx_guardian_spawn_idle_spotanim01 
+  380      start spot vfx_guardian_spawn_idle_spotanim01 
+  383      start spot vfx_guardian_spawn_idle_spotanim01 
+  384      start spot vfx_guardian_spawn_spotanim01 
+  384      start seq npc_archive_guardian_spawn01 
+  389   +5 start level 984 
+  389   +5 start seq npc_archive_guardian_idle01 
+  389   +0 start transform tfa_guardian 
+  390   +1 g move telejump (4119, 5594, 0)
+  390   +1 g seq npc_archive_guardian_swoosh_attack01 
+  393   +3 g seq npc_archive_guardian_range_attack01 
+  398   +5 g seq npc_archive_guardian_range_attack01 
+  403   +5 g seq npc_archive_guardian_range_attack01 
+  408   +5 g seq npc_archive_guardian_range_attack01 
+  413   +5 g seq npc_archive_guardian_range_attack01 
+  418   +5 g seq npc_archive_guardian_range_attack01 
+  423   +5 g spot vfx_guardian_special_attack_spotanim01 
+  423   +5 g seq npc_archive_guardian_special_attack01 
+  428   +5 g seq npc_archive_guardian_range_attack01 
+  430   +2 g move telejump (4124, 5603, 0)
+  430   +2 g seq npc_archive_guardian_swoosh_attack01 
+  433   +3 g seq npc_archive_guardian_range_attack01 
+  438   +5 g seq npc_archive_guardian_range_attack01 
+  443   +5 g seq npc_archive_guardian_range_attack01 
+  448   +5 g spot vfx_guardian_special_attack_spotanim01 
+  448   +5 g seq npc_archive_guardian_special_attack01 
+  453   +5 g seq npc_archive_guardian_range_attack01 
+  458   +5 g seq npc_archive_guardian_range_attack01 
+  463   +5 g seq npc_archive_guardian_range_attack01 
+  468   +5 g seq npc_archive_guardian_range_attack01 
+  471   +3 g move telejump (4128, 5594, 0)
+  471   +3 g seq npc_archive_guardian_swoosh_attack01 
+  474   +3 g spot vfx_guardian_special_attack_spotanim01 
+  474   +3 g seq npc_archive_guardian_special_attack01 
+  479   +5 g seq npc_archive_guardian_range_attack01 
+  484   +5 g seq npc_archive_guardian_range_attack01 
+  489   +5 g seq npc_archive_guardian_range_attack01 
+  494   +5 g seq npc_archive_guardian_range_attack01 
+  501   +7 g spot vfx_guardian_idletoground_spotanim01 
+  501   +7 g level 984 
+  501   +7 g seq npc_archive_guardian_idle_to_ground01 
+  501   +0 g transform tfa_guardian_unshielded 
+  536  +35 unshielded spot vfx_guardian_groundtoidle_spotanim01 
+  536  +35 unshielded level 984 
+  536  +35 unshielded seq npc_archive_guardian_ground_to_flying01 
+  536   +0 unshielded transform tfa_guardian 
+  541   +5 g seq npc_archive_guardian_range_attack01 
+  544   +3 g move telejump (4124, 5598, 0)
+  544   +3 g seq npc_archive_guardian_swoosh_attack01 
+  547   +3 g seq npc_archive_guardian_melee_attack01 
+  551   +4 g move telejump (4131, 5589, 0)
+  551   +4 g seq npc_archive_guardian_swoosh_attack01 
+  554   +3 g spot vfx_guardian_special_attack_spotanim01 
+  554   +3 g seq npc_archive_guardian_special_attack01 
+  559   +5 g seq npc_archive_guardian_range_attack01 
+  564   +5 g seq npc_archive_guardian_range_attack01 
+  569   +5 g seq npc_archive_guardian_range_attack01 
+  574   +5 g seq npc_archive_guardian_range_attack01 
+  579   +5 g seq npc_archive_guardian_range_attack01 
+  584   +5 g spot vfx_guardian_special_attack_spotanim01 
+  584   +5 g seq npc_archive_guardian_special_attack01 
+  589   +5 g seq npc_archive_guardian_range_attack01 
+  591   +2 g move telejump (4128, 5598, 0)
+  591   +2 g seq npc_archive_guardian_swoosh_attack01 
+  594   +3 g seq npc_archive_guardian_range_attack01 
+  599   +5 g seq npc_archive_guardian_range_attack01 
+  604   +5 g seq npc_archive_guardian_range_attack01 
+  609   +5 g spot vfx_guardian_special_attack_spotanim01 
+  609   +5 g seq npc_archive_guardian_special_attack01 
+  614   +5 g seq npc_archive_guardian_range_attack01 
+  619   +5 g seq npc_archive_guardian_range_attack01 
+  624   +5 g seq npc_archive_guardian_range_attack01 
+  641  +17 g del  
+===== 4297 [810..1185]
+  817      start add  (4125, 5597, 0)
+  820      start spot vfx_guardian_spawn_idle_spotanim01 
+  823      start spot vfx_guardian_spawn_idle_spotanim01 
+  826      start spot vfx_guardian_spawn_idle_spotanim01 
+  829      start spot vfx_guardian_spawn_idle_spotanim01 
+  832      start spot vfx_guardian_spawn_idle_spotanim01 
+  835      start spot vfx_guardian_spawn_idle_spotanim01 
+  838      start spot vfx_guardian_spawn_idle_spotanim01 
+  841      start spot vfx_guardian_spawn_idle_spotanim01 
+  844      start spot vfx_guardian_spawn_idle_spotanim01 
+  846      start spot vfx_guardian_spawn_spotanim01 
+  846      start seq npc_archive_guardian_spawn01 
+  851   +5 start level 984 
+  851   +5 start seq npc_archive_guardian_idle01 
+  851   +0 start transform tfa_guardian 
+  854   +3 g move telejump (4121, 5597, 0)
+  854   +3 g seq npc_archive_guardian_swoosh_attack01 
+  857   +3 g seq npc_archive_guardian_range_attack01 
+  862   +5 g seq npc_archive_guardian_range_attack01 
+  867   +5 g seq npc_archive_guardian_range_attack01 
+  872   +5 g seq npc_archive_guardian_range_attack01 
+  877   +5 g spot vfx_guardian_special_attack_spotanim01 
+  877   +5 g seq npc_archive_guardian_special_attack01 
+  882   +5 g seq npc_archive_guardian_range_attack01 
+  887   +5 g seq npc_archive_guardian_range_attack01 
+  892   +5 g seq npc_archive_guardian_range_attack01 
+  897   +5 g seq npc_archive_guardian_range_attack01 
+  902   +5 g spot vfx_guardian_special_attack_spotanim01 
+  902   +5 g seq npc_archive_guardian_special_attack01 
+  907   +5 g seq npc_archive_guardian_range_attack01 
+  912   +5 g seq npc_archive_guardian_range_attack01 
+  917   +5 g seq npc_archive_guardian_range_attack01 
+  922   +5 g seq npc_archive_guardian_range_attack01 
+  927   +5 g spot vfx_guardian_special_attack_spotanim01 
+  927   +5 g seq npc_archive_guardian_special_attack01 
+  930   +3 g move telejump (4129, 5594, 0)
+  930   +3 g seq npc_archive_guardian_swoosh_attack01 
+  933   +3 g seq npc_archive_guardian_range_attack01 
+  938   +5 g seq npc_archive_guardian_range_attack01 
+  943   +5 g seq npc_archive_guardian_range_attack01 
+  948   +5 g seq npc_archive_guardian_range_attack01 
+  953   +5 g spot vfx_guardian_special_attack_spotanim01 
+  953   +5 g seq npc_archive_guardian_special_attack01 
+  958   +5 g seq npc_archive_guardian_range_attack01 
+  963   +5 g seq npc_archive_guardian_range_attack01 
+  970   +7 g spot vfx_guardian_idletoground_spotanim01 
+  970   +7 g level 984 
+  970   +7 g seq npc_archive_guardian_idle_to_ground01 
+  970   +0 g transform tfa_guardian_unshielded 
+ 1005  +35 unshielded spot vfx_guardian_groundtoidle_spotanim01 
+ 1005  +35 unshielded level 984 
+ 1005  +35 unshielded seq npc_archive_guardian_ground_to_flying01 
+ 1005   +0 unshielded transform tfa_guardian 
+ 1010   +5 g seq npc_archive_guardian_range_attack01 
+ 1015   +5 g seq npc_archive_guardian_range_attack01 
+ 1020   +5 g spot vfx_guardian_special_attack_spotanim01 
+ 1020   +5 g seq npc_archive_guardian_special_attack01 
+ 1025   +5 g seq npc_archive_guardian_range_attack01 
+ 1030   +5 g seq npc_archive_guardian_range_attack01 
+ 1035   +5 g seq npc_archive_guardian_range_attack01 
+ 1040   +5 g seq npc_archive_guardian_range_attack01 
+ 1045   +5 g seq npc_archive_guardian_range_attack01 
+ 1050   +5 g seq npc_archive_guardian_range_attack01 
+ 1055   +5 g seq npc_archive_guardian_range_attack01 
+ 1057   +2 g move telejump (4132, 5584, 0)
+ 1057   +2 g seq npc_archive_guardian_swoosh_attack01 
+ 1060   +3 g seq npc_archive_guardian_range_attack01 
+ 1065   +5 g spot vfx_guardian_special_attack_spotanim01 
+ 1065   +5 g seq npc_archive_guardian_special_attack01 
+ 1068   +3 g move telejump (4131, 5590, 0)
+ 1068   +3 g seq npc_archive_guardian_swoosh_attack01 
+ 1071   +3 g seq npc_archive_guardian_range_attack01 
+ 1073   +2 g move telejump (4131, 5594, 0)
+ 1073   +2 g seq npc_archive_guardian_swoosh_attack01 
+ 1076   +3 g seq npc_archive_guardian_range_attack01 
+ 1078   +2 g move telejump (4131, 5604, 0)
+ 1078   +2 g seq npc_archive_guardian_swoosh_attack01 
+ 1081   +3 g seq npc_archive_guardian_range_attack01 
+ 1083   +2 g move telejump (4134, 5611, 0)
+ 1083   +2 g seq npc_archive_guardian_swoosh_attack01 
+ 1086   +3 g seq npc_archive_guardian_range_attack01 
+ 1088   +2 g move telejump (4129, 5612, 0)
+ 1088   +2 g seq npc_archive_guardian_swoosh_attack01 
+ 1091   +3 g seq npc_archive_guardian_range_attack01 
+ 1093   +2 g move telejump (4123, 5615, 0)
+ 1093   +2 g seq npc_archive_guardian_swoosh_attack01 
+ 1096   +3 g seq npc_archive_guardian_range_attack01 
+ 1100   +4 g move telejump (4123, 5605, 0)
+ 1100   +4 g seq npc_archive_guardian_swoosh_attack01 
+ 1103   +3 g spot vfx_guardian_special_attack_spotanim01 
+ 1103   +3 g seq npc_archive_guardian_special_attack01 
+ 1108   +5 g seq npc_archive_guardian_range_attack01 
+ 1113   +5 g seq npc_archive_guardian_range_attack01 
+ 1115   +2 g move telejump (4125, 5614, 0)
+ 1115   +2 g seq npc_archive_guardian_swoosh_attack01 
+ 1118   +3 g seq npc_archive_guardian_range_attack01 
+ 1123   +5 g seq npc_archive_guardian_range_attack01 
+ 1128   +5 g spot vfx_guardian_special_attack_spotanim01 
+ 1128   +5 g seq npc_archive_guardian_special_attack01 
+ 1131   +3 g move telejump (4127, 5599, 0)
+ 1131   +3 g seq npc_archive_guardian_swoosh_attack01 
+ 1134   +3 g seq npc_archive_guardian_range_attack01 
+ 1139   +5 g seq npc_archive_guardian_range_attack01 
+ 1142   +3 g move telejump (4130, 5585, 0)
+ 1142   +3 g seq npc_archive_guardian_swoosh_attack01 
+ 1145   +3 g seq npc_archive_guardian_range_attack01 
+ 1150   +5 g seq npc_archive_guardian_range_attack01 
+ 1155   +5 g spot vfx_guardian_special_attack_spotanim01 
+ 1155   +5 g seq npc_archive_guardian_special_attack01 
+ 1160   +5 g seq npc_archive_guardian_range_attack01 
+ 1165   +5 g seq npc_archive_guardian_range_attack01 
+ 1180  +15 g del  

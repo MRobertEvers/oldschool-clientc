@@ -9368,6 +9368,69 @@ script_command(
         return 1;
     }
 
+    /*
+     * loc_add_opflags(coord, loc, angle, shape, duration, opflags)
+     *
+     * `loc_add` with the placement's shown-ops mask given (LOC_ADD_CHANGE_V2
+     * opFlags: bit 0 is op1), the loctype's own labels kept. 0 draws a loc
+     * that blocks as its type says and offers nothing: the Fractured Archive
+     * re-adds its exit that way while the room fights (RSProx 4297 [131]),
+     * then with 1 when the guardian dies (4294 [1431]). A hidden op cannot be
+     * clicked on the client, so no op trigger needs a guard for it.
+     */
+    case SS_OP_LOC_ADD_OPFLAGS:
+    {
+        int32_t coord;
+        int32_t loc_id;
+        int32_t shape;
+        int32_t angle;
+        int32_t duration;
+        int32_t opflags;
+        struct ToriRSServerLocOps ops;
+        int slot;
+
+        if( !SSVM_PopInt(state, &opflags) )
+            return 1;
+        if( !SSVM_PopInt(state, &duration) )
+            return 1;
+        if( !SSVM_PopInt(state, &shape) )
+            return 1;
+        if( !SSVM_PopInt(state, &angle) )
+            return 1;
+        if( !SSVM_PopInt(state, &loc_id) )
+            return 1;
+        if( !SSVM_PopInt(state, &coord) )
+            return 1;
+
+        if( opflags < 0 || opflags > TORIRSSERVER_LOC_OPS_ALL_SHOWN )
+        {
+            SSVM_Abort(state, "loc_add_opflags: opflags %d is not a 5-bit mask", opflags);
+            return 1;
+        }
+        memset(&ops, 0, sizeof(ops));
+        ops.flags = opflags;
+        if( !ToriRSServer_WorldLocSetOps(srv, coord_x(coord), coord_z(coord),
+                                       coord_level(coord), shape, loc_id, angle,
+                                       TORIRSSERVER_LOC_SET_ADD, &ops) )
+        {
+            SSVM_Abort(state,
+                       "loc_add_opflags %d at %d,%d failed — unknown loc or outside the scene",
+                       loc_id, coord_x(coord), coord_z(coord));
+            return 1;
+        }
+        slot = ToriRSServer_SceneFindLocExact(coord_x(coord), coord_z(coord),
+                                            coord_level(coord), shape);
+        ToriRSServer_WorldLocRevertQueue(srv, duration, -1, shape, angle, coord_x(coord),
+                                       coord_z(coord), coord_level(coord));
+        if( slot >= 0 )
+            script_set_active_loc(state, (void*)(intptr_t)(slot + 1));
+        else
+            script_set_active_loc(state,
+                           ToriRSServer_ScriptZoneLocHandle(coord_x(coord), coord_z(coord),
+                                                          coord_level(coord), shape));
+        return 1;
+    }
+
     case SS_OP_OC_PARAM:
     {
         int32_t obj_id;

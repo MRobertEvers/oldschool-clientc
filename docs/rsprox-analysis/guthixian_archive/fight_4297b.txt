@@ -1,0 +1,161 @@
+  384 me=(4124, 5600) G=(4125, 5597) d=1  | MSG Challenge started: Archive Guardian. ; G_start spot spawn_spotanim01 ; G_start#45098 seq spawn01
+  387 me=(4118, 5599) G=(4125, 5597) d=7  | LOC tfa_exit_large (4124, 5569)
+  389 me=(4116, 5596) G=(4125, 5597) d=9  | VARBIT hpbar_hud_basehp=550 ; VARBIT hpbar_hud_boss=1 ; G_battery_active#45100 -> tfa_guardian_battery_active ; G_battery_active#45099 -> tfa_guardian_battery_active ; G_start#45098 seq idle01 ; G#45098 -> tfa_guardian ; G_battery_active#45101 -> tfa_guardian_battery_active ; G_battery_active#45102 -> tfa_guardian_battery_active ; inv _nonblocking (4128, 5597) ; inv _nonblocking (4128, 5598) ; inv _nonblocking (4128, 5599) ; inv _nonblocking (4129, 5597) ; inv _nonblocking (4129, 5598) ; inv _nonblocking (4129, 5599) ; inv _nonblocking (4128, 5600) ; inv _nonblocking (4128, 5601) ; inv _nonblocking (4129, 5600) ; inv _nonblocking (4129, 5601) ; inv _nonblocking (4125, 5600) ; inv _nonblocking (4125, 5601) ; inv _nonblocking (4126, 5600) ; inv _nonblocking (4126, 5601) ; inv _nonblocking (4127, 5600) ; inv _nonblocking (4127, 5601) ; inv _nonblocking (4125, 5597) ; inv _nonblocking (4125, 5598) ; inv _nonblocking (4125, 5599) ; inv _nonblocking (4126, 5597) ; inv _nonblocking (4126, 5598) ; inv _nonblocking (4126, 5599) ; inv _nonblocking (4127, 5597) ; inv _nonblocking (4127, 5598) ; inv _nonblocking (4127, 5599)
+  390 me=(4116, 5596) G=(4119, 5594) d=3  | G#45098 telejump (4125, 5597)->(4119, 5594) ; G exactmove to1=(4125, 5597, 0), delay1=0, to2=(4119, 5594, 0), delay2=42, angle=360 ; G#45098 seq swoosh_attack01
+  391 me=(4116, 5596) G=(4119, 5594) d=3  | VARBIT fossil_mine_temp_pts=31
+  393 me=(4116, 5596) G=(4119, 5594) d=3  | VARBIT fossil_mine_temp_pts=32 ; G#45098 seq range_attack01 ; G proj
+  397 me=(4115, 5598) G=(4119, 5594) d=4  | ME spot vfx_guardian_ranged_hitanim01 ; ME hit 5 (16)
+  398 me=(4115, 5598) G=(4119, 5594) d=4  | VARBIT tfa_client_p0=25 ; VARBIT fossil_mine_temp_pts=33 ; G#45098 seq range_attack01 ; G proj
+  400 me=(4115, 5598) G=(4119, 5594) d=4  | VARBIT fossil_mine_temp_pts=34
+  402 me=(4115, 5598) G=(4119, 5594) d=4  | VARBIT fossil_mine_temp_pts=35 ; ME spot vfx_guardian_ranged_hitanim01 ; ME hit 9 (16)
+  403 me=(4115, 5598) G=(4119, 5594) d=4  | ME seq human_spear_block ; G#45098 seq range_attack01 ; G proj
+  404 me=(4115, 5598) G=(4119, 5594) d=4  | VARBIT tfa_client_p0=23 ; VARBIT fossil_mine_temp_pts=36
+  406 me=(4115, 5598) G=(4119, 5594) d=4  | VARBIT fossil_mine_temp_pts=37
+  407 me=(4115, 5598) G=(4119, 5594) d=4  | VARBIT tfa_client_p0=21 ; ME spot vfx_guardian_ranged_hitanim01 ; ME hit 8 (16)
+  408 me=(4115, 5598) G=(4119, 5594) d=4  | VARBIT fossil_mine_temp_pts=38 ; G#45098 seq range_attack01 ; G proj
+  410 me=(4115, 5598) G=(4119, 5594) d=4  | ME seq human_eat
+  411 me=(4115, 5598) G=(4119, 5594) d=4  | VARBIT fossil_mine_temp_pts=39
+  412 me=(4115, 5598) G=(4119, 5594) d=4  | ME spot vfx_guardian_ranged_hitanim01 ; ME hit 4 (16)
+  413 me=(4115, 5598) G=(4119, 5594) d=4  | VARBIT tfa_client_p0=20 ; VARBIT fossil_mine_temp_pts=40 ; G#45098 seq range_attack01 ; G proj
+  415 me=(4115, 5598) G=(4119, 5594) d=4  | VARBIT fossil_mine_temp_pts=41
+  417 me=(4115, 5598) G=(4119, 5594) d=4  | ME spot vfx_guardian_ranged_hitanim01 ; ME hit 4 (16)
+  418 me=(4117, 5599) G=(4119, 5594) d=2  | ME seq human_spear_block ; G#45098 seq range_attack01 ; G proj
+  419 me=(4119, 5601) G=(4119, 5594) d=3  | VARBIT tfa_client_p0=19
+  420 me=(4117, 5601) G=(4119, 5594) d=3  | G_battery_active#45102 seq guthixian_battery_despawn
+  421 me=(4115, 5601) G=(4119, 5594) d=4  | VARBIT fossil_mine_temp_pts=42
+  422 me=(4115, 5601) G=(4119, 5594) d=4  | ME spot vfx_guardian_ranged_hitanim01 ; ME hit 0 (12) ; G_battery_destroyed#45102 -> tfa_guardian_battery_destroyed ; SHAKE ; SHAKE ; SHAKE
+  423 me=(4115, 5601) G=(4119, 5594) d=4  | VARBIT fossil_mine_temp_pts=43 ; G spot special_attack_spotanim01 ; G#45098 seq special_attack01 ; G#45098 HIT 220 (17) ; SND 12728 (4121, 5596) r=10 d=None size=None ; LOC mushroom_spawn (4115, 5600) ; LOC mushroom_spawn (4118, 5601)
+  426 me=(4118, 5600) G=(4119, 5594) d=2  | LOC mushroom_active (4115, 5600) ; LOC mushroom_active (4118, 5601)
+  428 me=(4120, 5604) G=(4119, 5594) d=6  | ME seq human_spear_block ; G#45098 seq range_attack01 ; G proj
+  430 me=(4119, 5605) G=(4124, 5603) d=5  | G#45098 telejump (4119, 5594)->(4124, 5603) ; G exactmove to1=(4119, 5594, 0), delay1=0, to2=(4124, 5603, 0), delay2=48, angle=1190 ; G#45098 seq swoosh_attack01
+  432 me=(4119, 5605) G=(4124, 5603) d=5  | VARBIT fossil_mine_temp_pts=44 ; ME spot vfx_guardian_ranged_hitanim01 ; ME hit 9 (16)
+  433 me=(4119, 5605) G=(4124, 5603) d=5  | ME seq human_spear_block ; G#45098 seq range_attack01 ; G proj
+  434 me=(4119, 5605) G=(4124, 5603) d=5  | VARBIT tfa_client_p0=17 ; VARBIT fossil_mine_temp_pts=45
+  436 me=(4119, 5605) G=(4124, 5603) d=5  | VARBIT fossil_mine_temp_pts=46
+  437 me=(4119, 5605) G=(4124, 5603) d=5  | VARBIT tfa_client_p0=14 ; ME spot vfx_guardian_ranged_hitanim01 ; ME hit 9 (16)
+  438 me=(4119, 5605) G=(4124, 5603) d=5  | VARBIT fossil_mine_temp_pts=47 ; G#45098 seq range_attack01 ; G proj
+  442 me=(4119, 5605) G=(4124, 5603) d=5  | VARBIT fossil_mine_temp_pts=48 ; ME spot vfx_guardian_ranged_hitanim01 ; ME hit 8 (16)
+  443 me=(4119, 5605) G=(4124, 5603) d=5  | ME seq human_spear_block ; G#45098 seq range_attack01 ; G proj
+  444 me=(4119, 5605) G=(4124, 5603) d=5  | VARBIT fossil_mine_temp_pts=49
+  446 me=(4119, 5605) G=(4124, 5603) d=5  | VARBIT tfa_client_p0=15
+  447 me=(4119, 5605) G=(4124, 5603) d=5  | ME spot vfx_guardian_ranged_hitanim01 ; ME hit 4 (16)
+  448 me=(4119, 5605) G=(4124, 5603) d=5  | G spot special_attack_spotanim01 ; G#45098 seq special_attack01 ; LOC mushroom_spawn (4119, 5608) ; LOC mushroom_spawn (4119, 5604)
+  449 me=(4119, 5605) G=(4124, 5603) d=5  | VARBIT tfa_client_p0=14
+  450 me=(4119, 5605) G=(4124, 5603) d=5  | VARBIT fossil_mine_temp_pts=50
+  451 me=(4119, 5605) G=(4124, 5603) d=5  | LOC mushroom_active (4119, 5608) ; LOC mushroom_active (4119, 5604)
+  453 me=(4119, 5605) G=(4124, 5603) d=5  | VARBIT fossil_mine_temp_pts=51 ; G#45098 seq range_attack01 ; G proj
+  454 me=(4119, 5605) G=(4124, 5603) d=5  | inv _nonblocking (4119, 5604) ; LOC mushroom_despawn (4119, 5604) ; SND 12175 (4119, 5604) r=2 d=12 size=2
+  455 me=(4119, 5605) G=(4124, 5603) d=5  | VARBIT combat_weapon_category=3 ; MSG You have been poisoned! ; VARBIT runinvert_mode=0 ; VARBIT tfa_client_p0=12 ; ME hit 10 (65)
+  456 me=(4120, 5605) G=(4124, 5603) d=4  | inv _nonblocking (4119, 5604)
+  457 me=(4121, 5606) G=(4124, 5603) d=3  | ME spot vfx_guardian_ranged_hitanim01 ; ME hit 9 (16)
+  458 me=(4121, 5606) G=(4124, 5603) d=3  | VARBIT tfa_client_p0=9 ; VARBIT fossil_mine_temp_pts=52 ; G#45098 seq range_attack01 ; G proj
+  462 me=(4125, 5606) G=(4124, 5603) d=0  | ME spot vfx_guardian_ranged_hitanim01 ; ME hit 6 (16) ; G_battery_active#45101 seq guthixian_battery_despawn
+  463 me=(4126, 5606) G=(4124, 5603) d=0  | ME seq human_unarmedblock ; G#45098 seq range_attack01 ; G proj
+  464 me=(4127, 5606) G=(4124, 5603) d=0  | VARBIT tfa_client_p0=8 ; G_battery_destroyed#45101 -> tfa_guardian_battery_destroyed ; SHAKE ; SHAKE ; SHAKE
+  465 me=(4128, 5606) G=(4124, 5603) d=0  | MSG You're too drowsy to run! ; G#45098 HIT 220 (17) ; SND 12728 (4126, 5605) r=10 d=None size=None
+  467 me=(4131, 5605) G=(4124, 5603) d=3  | VARBIT tfa_client_p0=7 ; ME spot vfx_guardian_ranged_hitanim01 ; ME hit 4 (16)
+  468 me=(4133, 5605) G=(4124, 5603) d=5  | ME seq human_unarmedblock ; G#45098 seq range_attack01 ; G proj
+  471 me=(4137, 5601) G=(4128, 5594) d=5  | G#45098 telejump (4124, 5603)->(4128, 5594) ; G exactmove to1=(4124, 5603, 0), delay1=0, to2=(4128, 5594, 0), delay2=48, angle=1912 ; G#45098 seq swoosh_attack01
+  472 me=(4138, 5602) G=(4128, 5594) d=6  | VARBIT runinvert_mode=3 ; VARBIT fossil_mine_temp_pts=53 ; ME spot vfx_guardian_ranged_hitanim01 ; ME hit 0 (12)
+  474 me=(4138, 5602) G=(4128, 5594) d=6  | G spot special_attack_spotanim01 ; G#45098 seq special_attack01 ; LOC mushroom_spawn (4137, 5599) ; LOC mushroom_spawn (4138, 5601)
+  476 me=(4138, 5602) G=(4128, 5594) d=6  | VARBIT fossil_mine_temp_pts=54
+  477 me=(4138, 5602) G=(4128, 5594) d=6  | LOC mushroom_active (4137, 5599) ; LOC mushroom_active (4138, 5601)
+  479 me=(4138, 5604) G=(4128, 5594) d=6  | ME seq human_unarmedblock ; G#45098 seq range_attack01 ; G proj ; inv _nonblocking (4138, 5601) ; LOC mushroom_despawn (4138, 5601) ; SND 12175 (4138, 5601) r=2 d=12 size=2
+  481 me=(4137, 5604) G=(4128, 5594) d=6  | VARBIT fossil_mine_temp_pts=55 ; inv _nonblocking (4138, 5601)
+  483 me=(4137, 5604) G=(4128, 5594) d=6  | ME spot vfx_guardian_ranged_hitanim01 ; ME hit 2 (16)
+  484 me=(4137, 5604) G=(4128, 5594) d=6  | ME seq human_unarmedblock ; G#45098 seq range_attack01 ; G proj
+  485 me=(4137, 5604) G=(4128, 5594) d=6  | VARBIT tfa_client_p0=6 ; VARBIT fossil_mine_temp_pts=56
+  486 me=(4137, 5604) G=(4128, 5594) d=6  | ME hit 10 (65)
+  488 me=(4137, 5604) G=(4128, 5594) d=6  | VARBIT tfa_client_p0=8 ; ME spot vfx_guardian_ranged_hitanim01 ; ME hit 2 (16) ; ME seq human_eat
+  489 me=(4137, 5604) G=(4128, 5594) d=6  | ME seq human_unarmedblock ; G#45098 seq range_attack01 ; G proj
+  491 me=(4137, 5604) G=(4128, 5594) d=6  | ME seq human_eat
+  492 me=(4137, 5604) G=(4128, 5594) d=6  | VARBIT fossil_mine_temp_pts=57
+  493 me=(4137, 5604) G=(4128, 5594) d=6  | ME spot vfx_guardian_ranged_hitanim01 ; ME hit 0 (12)
+  494 me=(4137, 5604) G=(4128, 5594) d=6  | ME seq human_unarmedblock ; G#45098 seq range_attack01 ; G proj
+  495 me=(4137, 5604) G=(4128, 5594) d=6  | G_battery_active#45099 seq guthixian_battery_despawn
+  497 me=(4138, 5601) G=(4128, 5594) d=6  | VARBIT fossil_mine_temp_pts=58 ; G_battery_destroyed#45099 -> tfa_guardian_battery_destroyed ; SHAKE ; SHAKE ; SHAKE
+  498 me=(4138, 5601) G=(4128, 5594) d=6  | ME hit 0 (12) ; G#45098 HIT 110 (17) ; SND 12728 (4130, 5596) r=10 d=None size=None
+  501 me=(4138, 5601) G=(4128, 5594) d=6  | VARBIT hpbar_hud_basehp=1100 ; G spot idletoground_spotanim01 ; G#45098 seq idle_to_ground01 ; G_unshielded#45098 -> tfa_guardian_unshielded ; inv _blocking (4128, 5594) ; inv _blocking (4128, 5595) ; inv _blocking (4128, 5596) ; inv _blocking (4128, 5597) ; inv _blocking (4128, 5598) ; inv _blocking (4129, 5594) ; inv _blocking (4129, 5595) ; inv _blocking (4129, 5596) ; inv _blocking (4129, 5597) ; inv _blocking (4129, 5598) ; inv _blocking (4130, 5594) ; inv _blocking (4130, 5595) ; inv _blocking (4130, 5596) ; inv _blocking (4130, 5597) ; inv _blocking (4130, 5598) ; inv _blocking (4131, 5594) ; inv _blocking (4131, 5595) ; inv _blocking (4131, 5596) ; inv _blocking (4131, 5597) ; inv _blocking (4131, 5598) ; inv _blocking (4132, 5594) ; inv _blocking (4132, 5595) ; inv _blocking (4132, 5596) ; inv _blocking (4132, 5597) ; inv _blocking (4132, 5598) ; MAPANIM tfa_arena_sword_drop_explosion_instant (4130, 5596) d=20
+  503 me=(4134, 5601) G=(4128, 5594) d=3  | VARBIT combat_weapon_category=20
+  505 me=(4132, 5603) G=(4128, 5594) d=5  | VARBIT prayer_rigour=0 ; VARBIT prayer_piety=1
+  506 me=(4132, 5601) G=(4128, 5594) d=3  | tent#48992 ADD (4132, 5604) south ; tent spot tentacle_intro_spotanim01 ; tent#48992 seq tentacle_spawn01 ; SND 12218 (4132, 5604) r=4 d=None size=None
+  507 me=(4132, 5599) G=(4128, 5594) d=1  | LOC tfa_exit_large (4124, 5569)
+  509 me=(4132, 5599) G=(4128, 5594) d=1  | tent#48992 seq tentacle_attack01 ; tent#49068 ADD (4133, 5600) south-west ; tent spot tentacle_intro_spotanim01 ; tent#49068 seq tentacle_spawn01 ; SND 12218 (4133, 5600) r=4 d=None size=None
+  512 me=(4133, 5598) G=(4128, 5594) d=1  | tent#48992 seq tentacle_attack01 ; tent#49068 seq tentacle_attack01 ; tent#49145 ADD (4134, 5599) south-west ; tent spot tentacle_intro_spotanim01 ; tent#49145 seq tentacle_spawn01 ; SND 12218 (4134, 5599) r=4 d=None size=None
+  515 me=(4133, 5596) G=(4128, 5594) d=1  | tent#48992 seq tentacle_attack01 ; tent#49068 seq tentacle_attack01 ; tent#49145 seq tentacle_attack01 ; tent#49208 ADD (4134, 5596) west ; tent spot tentacle_intro_spotanim01 ; tent#49208 seq tentacle_spawn01 ; SND 12218 (4134, 5596) r=4 d=None size=None
+  518 me=(4132, 5593) G=(4128, 5594) d=1  | tent#48992 seq tentacle_despawn01 ; tent#49068 seq tentacle_attack01 ; tent#49145 seq tentacle_attack01 ; tent#49208 seq tentacle_attack01 ; tent#49325 ADD (4134, 5593) north-west ; tent spot tentacle_intro_spotanim01 ; tent#49325 seq tentacle_spawn01 ; SND 12218 (4134, 5593) r=4 d=None size=None
+  519 me=(4132, 5593) G=(4128, 5594) d=1  | tent#48992 DEL
+  520 me=(4132, 5593) G=(4128, 5594) d=1  | VARBIT fossil_mine_temp_pts=59
+  521 me=(4130, 5593) G=(4128, 5594) d=1  | tent#49068 seq tentacle_despawn01 ; tent#49145 seq tentacle_attack01 ; tent#49208 seq tentacle_attack01 ; tent#49325 seq tentacle_attack01 ; tent#49435 ADD (4133, 5592) north-west ; tent spot tentacle_intro_spotanim01 ; tent#49435 seq tentacle_spawn01 ; SND 12218 (4133, 5592) r=4 d=None size=None
+  522 me=(4128, 5593) G=(4128, 5594) d=1  | tent#49068 DEL
+  524 me=(4128, 5593) G=(4128, 5594) d=1  | tent#49145 seq tentacle_despawn01 ; tent#49208 seq tentacle_attack01 ; tent#49325 seq tentacle_attack01 ; tent#49435 seq tentacle_attack01 ; tent#49538 ADD (4127, 5592) north-east ; tent spot tentacle_intro_spotanim01 ; tent#49538 seq tentacle_spawn01 ; SND 12218 (4127, 5592) r=4 d=None size=None
+  525 me=(4128, 5593) G=(4128, 5594) d=1  | tent#49145 DEL
+  527 me=(4126, 5595) G=(4128, 5594) d=2  | tent#49208 seq tentacle_despawn01 ; tent#49325 seq tentacle_attack01 ; tent#49435 seq tentacle_attack01 ; tent#49538 seq tentacle_attack01 ; tent#49651 ADD (4126, 5593) north-east ; tent spot tentacle_intro_spotanim01 ; tent#49651 seq tentacle_spawn01 ; SND 12218 (4126, 5593) r=4 d=None size=None
+  528 me=(4127, 5595) G=(4128, 5594) d=1  | tent#49208 DEL
+  530 me=(4127, 5595) G=(4128, 5594) d=1  | tent#49325 seq tentacle_despawn01 ; tent#49435 seq tentacle_attack01 ; tent#49538 seq tentacle_attack01 ; tent#49651 seq tentacle_attack01 ; tent#49704 ADD (4126, 5595) east ; tent spot tentacle_intro_spotanim01 ; tent#49704 seq tentacle_spawn01 ; SND 12218 (4126, 5595) r=4 d=None size=None
+  531 me=(4127, 5595) G=(4128, 5594) d=1  | tent#49325 DEL
+  533 me=(4127, 5597) G=(4128, 5594) d=1  | VARBIT tfa_client_p0=4 ; ME hit 17 (16) ; ME seq warguild_parry_defend ; tent#49435 seq tentacle_despawn01 ; tent#49538 seq tentacle_attack01 ; tent#49651 seq tentacle_attack01 ; tent#49704 seq tentacle_attack01
+  534 me=(4127, 5597) G=(4128, 5594) d=1  | tent#49435 DEL
+  536 me=(4127, 5597) G=(4128, 5594) d=1  | VARBIT hpbar_hud_basehp=550 ; MSG It's flying too high to hit using melee. ; G_unshielded spot groundtoidle_spotanim01 ; G_unshielded#45098 seq ground_to_flying01 ; G#45098 -> tfa_guardian ; tent#49538 seq tentacle_despawn01 ; tent#49651 seq tentacle_attack01 ; tent#49704 seq tentacle_attack01 ; inv _nonblocking (4128, 5594) ; inv _nonblocking (4128, 5595) ; inv _nonblocking (4128, 5596) ; inv _nonblocking (4128, 5597) ; inv _nonblocking (4128, 5598) ; inv _nonblocking (4129, 5594) ; inv _nonblocking (4129, 5595) ; inv _nonblocking (4129, 5596) ; inv _nonblocking (4129, 5597) ; inv _nonblocking (4129, 5598) ; inv _nonblocking (4130, 5594) ; inv _nonblocking (4130, 5595) ; inv _nonblocking (4130, 5596) ; inv _nonblocking (4130, 5597) ; inv _nonblocking (4130, 5598) ; inv _nonblocking (4131, 5594) ; inv _nonblocking (4131, 5595) ; inv _nonblocking (4131, 5596) ; inv _nonblocking (4131, 5597) ; inv _nonblocking (4131, 5598) ; inv _nonblocking (4132, 5594) ; inv _nonblocking (4132, 5595) ; inv _nonblocking (4132, 5596) ; inv _nonblocking (4132, 5597) ; inv _nonblocking (4132, 5598)
+  537 me=(4127, 5597) G=(4128, 5594) d=1  | tent#49538 DEL
+  539 me=(4127, 5597) G=(4128, 5594) d=1  | tent#49651 seq tentacle_despawn01 ; tent#49704 seq tentacle_attack01
+  540 me=(4125, 5597) G=(4128, 5594) d=3  | tent#49651 DEL
+  541 me=(4123, 5598) G=(4128, 5594) d=5  | ME seq warguild_parry_defend ; G#45098 seq range_attack01 ; G proj
+  542 me=(4123, 5598) G=(4128, 5594) d=5  | VARBIT combat_weapon_category=3 ; tent#49704 seq tentacle_despawn01
+  543 me=(4121, 5600) G=(4128, 5594) d=7  | tent#49704 DEL
+  544 me=(4120, 5601) G=(4124, 5598) d=4  | G#45098 telejump (4128, 5594)->(4124, 5598) ; G exactmove to1=(4128, 5594, 0), delay1=0, to2=(4124, 5598, 0), delay2=38, angle=768 ; G#45098 seq swoosh_attack01
+  545 me=(4122, 5601) G=(4124, 5598) d=2  | VARBIT tfa_client_p0=3 ; ME spot vfx_guardian_ranged_hitanim01 ; ME hit 2 (16)
+  546 me=(4124, 5599) G=(4124, 5598) d=0  | LOC tfa_exit_large (4124, 5569)
+  547 me=(4126, 5597) G=(4124, 5598) d=1  | G#45098 seq melee_attack01
+  548 me=(4128, 5595) G=(4124, 5598) d=3  | VARBIT tfa_client_p0=9 ; ME seq human_eat
+  551 me=(4130, 5589) G=(4131, 5589) d=1  | VARBIT tfa_client_p0=14 ; ME seq human_eat ; G#45098 telejump (4124, 5598)->(4131, 5589) ; G exactmove to1=(4124, 5598, 0), delay1=0, to2=(4131, 5589, 0), delay2=48, angle=1833 ; G#45098 seq swoosh_attack01
+  554 me=(4134, 5587) G=(4131, 5589) d=2  | ME seq human_eat ; G spot special_attack_spotanim01 ; G#45098 seq special_attack01 ; LOC mushroom_spawn (4134, 5586) ; LOC mushroom_spawn (4137, 5584)
+  557 me=(4140, 5588) G=(4131, 5589) d=5  | LOC mushroom_active (4134, 5586) ; LOC mushroom_active (4137, 5584)
+  559 me=(4136, 5588) G=(4131, 5589) d=1  | ME seq human_unarmedblock ; G#45098 seq range_attack01 ; G proj
+  563 me=(4135, 5592) G=(4131, 5589) d=0  | ME spot vfx_guardian_ranged_hitanim01 ; ME hit 1 (16) ; LOC tfa_nexus_ocellus_door_closed (4124, 5621)
+  564 me=(4135, 5594) G=(4131, 5589) d=1  | ME seq human_unarmedblock ; G#45098 seq range_attack01 ; G proj
+  565 me=(4135, 5594) G=(4131, 5589) d=1  | VARBIT fossil_mine_temp_pts=60
+  568 me=(4131, 5597) G=(4131, 5589) d=4  | ME spot vfx_guardian_ranged_hitanim01 ; ME hit 0 (12)
+  569 me=(4131, 5597) G=(4131, 5589) d=4  | VARBIT fossil_mine_temp_pts=61 ; G#45098 seq range_attack01 ; G proj
+  570 me=(4131, 5597) G=(4131, 5589) d=4  | VARBIT prayer_piety=0 ; VARBIT prayer_rigour=1
+  573 me=(4127, 5594) G=(4131, 5589) d=4  | ME spot vfx_guardian_ranged_hitanim01 ; ME hit 9 (16)
+  574 me=(4127, 5594) G=(4131, 5589) d=4  | G#45098 seq range_attack01 ; G proj
+  575 me=(4127, 5594) G=(4131, 5589) d=4  | VARBIT tfa_client_p0=11
+  578 me=(4127, 5592) G=(4131, 5589) d=4  | VARBIT tfa_client_p0=9 ; ME spot vfx_guardian_ranged_hitanim01 ; ME hit 8 (16)
+  579 me=(4127, 5592) G=(4131, 5589) d=4  | ME seq human_unarmedblock ; G#45098 seq range_attack01 ; G proj
+  583 me=(4127, 5594) G=(4131, 5589) d=4  | ME spot vfx_guardian_ranged_hitanim01 ; ME hit 6 (16)
+  584 me=(4127, 5594) G=(4131, 5589) d=4  | VARBIT tfa_client_p0=8 ; G spot special_attack_spotanim01 ; G#45098 seq special_attack01 ; LOC mushroom_spawn (4130, 5596) ; LOC mushroom_spawn (4126, 5593)
+  586 me=(4127, 5594) G=(4131, 5589) d=4  | VARBIT fossil_mine_temp_pts=62
+  587 me=(4127, 5596) G=(4131, 5589) d=4  | LOC mushroom_active (4130, 5596) ; LOC mushroom_active (4126, 5593)
+  589 me=(4125, 5598) G=(4131, 5589) d=6  | ME seq human_unarmedblock ; G#45098 seq range_attack01 ; G proj
+  591 me=(4125, 5600) G=(4128, 5598) d=3  | G#45098 telejump (4131, 5589)->(4128, 5598) ; G exactmove to1=(4131, 5589, 0), delay1=0, to2=(4128, 5598, 0), delay2=48, angle=919 ; G#45098 seq swoosh_attack01
+  593 me=(4125, 5600) G=(4128, 5598) d=3  | VARBIT tfa_client_p0=6 ; ME spot vfx_guardian_ranged_hitanim01 ; ME hit 5 (16)
+  594 me=(4125, 5602) G=(4128, 5598) d=3  | ME seq human_unarmedblock ; G#45098 seq range_attack01 ; G proj
+  596 me=(4125, 5606) G=(4128, 5598) d=4  | VARBIT tfa_client_p0=12 ; ME seq human_eat
+  598 me=(4125, 5606) G=(4128, 5598) d=4  | ME spot vfx_guardian_ranged_hitanim01 ; ME hit 0 (12)
+  599 me=(4125, 5606) G=(4128, 5598) d=4  | ME seq human_unarmedblock ; G#45098 seq range_attack01 ; G proj
+  603 me=(4127, 5606) G=(4128, 5598) d=4  | ME spot vfx_guardian_ranged_hitanim01 ; ME hit 6 (16)
+  604 me=(4127, 5606) G=(4128, 5598) d=4  | ME seq human_unarmedblock ; G#45098 seq range_attack01 ; G proj
+  605 me=(4129, 5606) G=(4128, 5598) d=4  | MSG <col=7f007f>Your poison resistance is about to wear off.</col> ; VARBIT tfa_client_p0=10
+  608 me=(4131, 5608) G=(4128, 5598) d=6  | ME spot vfx_guardian_ranged_hitanim01 ; ME hit 0 (12)
+  609 me=(4131, 5606) G=(4128, 5598) d=4  | G spot special_attack_spotanim01 ; G#45098 seq special_attack01 ; LOC mushroom_spawn (4130, 5608) ; LOC mushroom_spawn (4134, 5608)
+  612 me=(4132, 5603) G=(4128, 5598) d=1  | LOC mushroom_active (4130, 5608) ; LOC mushroom_active (4134, 5608)
+  614 me=(4132, 5603) G=(4128, 5598) d=1  | ME seq human_unarmedblock ; G#45098 seq range_attack01 ; G proj
+  618 me=(4128, 5604) G=(4128, 5598) d=2  | ME spot vfx_guardian_ranged_hitanim01 ; ME hit 1 (16)
+  619 me=(4126, 5602) G=(4128, 5598) d=2  | ME seq human_unarmedblock ; G#45098 seq range_attack01 ; G proj
+  621 me=(4123, 5600) G=(4128, 5598) d=5  | MSG You have run out of prayer points, you can recharge at an altar. ; VARBIT prayer_protectfrommissiles=0 ; VARBIT prayer_rigour=0
+  623 me=(4123, 5600) G=(4128, 5598) d=5  | VARBIT tfa_client_p0=9 ; ME spot vfx_guardian_ranged_hitanim01 ; ME hit 5 (16)
+  624 me=(4123, 5600) G=(4128, 5598) d=5  | ME seq human_unarmedblock ; G#45098 seq range_attack01 ; G proj
+  625 me=(4123, 5600) G=(4128, 5598) d=5  | ME seq human_eat
+  626 me=(4123, 5600) G=(4128, 5598) d=5  | VARBIT prayer_protectfrommissiles=1
+  627 me=(4123, 5600) G=(4128, 5598) d=5  | VARBIT prayer_rigour=1
+  628 me=(4123, 5602) G=(4128, 5598) d=5  | ME spot vfx_guardian_ranged_hitanim01 ; ME hit 31 (16)
+  629 me=(4123, 5602) G=(4128, 5598) d=5  | VARBIT tfa_client_p0=1
+  631 me=(4123, 5602) G=(4128, 5598) d=5  | ME seq human_death
+  635 me=(4097, 5569) G=(4128, 5598) d=31  | MSG Looks inactive, but holding a lot of power. ; MSG You have died. Total deaths: <col=ff0000>1</col>. ; VARBIT tfa_client_p0=30 ; VARBIT prayer_protectfrommissiles=0 ; VARBIT prayer_rigour=0 ; VARBIT tfa_client_spectate_mode=1 ; ME seq -1 ; LOC tfa_exit_large (4124, 5569)
+  636 me=(4097, 5569) G=(4128, 5598) d=31  | MSG <col=7f007f>Your poison resistance has worn off.</col> ; VARBIT multiway_indicator=0
+  638 me=(4097, 5569) G=(4128, 5598) d=31  | VARBIT hpbar_hud_basehp=0 ; VARBIT hpbar_hud_boss=0 ; MSG You failed to survive the Fractured Archive.
+  639 me=(4097, 5569) G=(4128, 5598) d=31  | VARBIT minimap_state=2
+  641 me=(4130, 5559) G=(4128, 5598) d=39  | VARBIT gravestone_duration=1500 ; VARBIT gravestone_visible=56 ; VARBIT tfa_client_spectate_mode=0 ; VARBIT combat_weapon_category=0 ; ME seq -1 ; G_battery_active#45100 DEL ; G_battery_destroyed#45099 DEL ; G_battery_destroyed#45101 DEL ; G_battery_destroyed#45102 DEL ; G#45098 DEL ; LOC tfa_gathering_rock_inactive03 (4114, 5539) ; LOC tfa_gathering_rock_inactive02 (4116, 5537) ; LOC tfa_gathering_rock_active02 (4113, 5538) ; LOC tfa_gathering_rock_inactive03 (4110, 5536) ; LOC tfa_gathering_rock_inactive01 (4111, 5538) ; LOC tfa_gathering_rock_inactive03 (4111, 5535) ; LOC tfa_gathering_rock_inactive02 (4115, 5532) ; LOC tfa_gathering_rock_inactive01 (4113, 5533) ; LOC tfa_gathering_rock_active01 (4116, 5535) ; LOC tfa_gathering_rock_active03 (4117, 5534)
+  642 me=(4130, 5559) G=(4128, 5598) d=39  | VARBIT minimap_state=0 ; MSG Some of your dropped items are being held in a gravestone, near where you died. ; ME seq -1
+  644 me=(4130, 5559) G=(4128, 5598) d=39  | VARBIT tfa_client_partystatus=0 ; VARBIT gravestone_duration=1497 ; VARBIT current_hint_arrow=0 ; VARBIT current_hint_arrow=9

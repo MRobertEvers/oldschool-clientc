@@ -1,0 +1,204 @@
+{{Confuse|text=[[The Fractured Archive (miniquest)]], which unlocks the raid}}{{Dangerous|instance=yes}}{{HasStrategy}}
+{{Infobox Activity
+|name = The Fractured Archive
+|image = [[File:The Fractured Archive logo.png|250px]]
+|release = [[20 October]] [[2026]]
+|update = The Fractured Archive - Out Today
+|aka = Raids 4, TFA
+|type = Raid
+|members = Yes
+|location = [[Ancient Guthixian Temple]]
+|map = {{Map|4125,5585|plane=0|zoom=0|mapID=-1}}
+|players = 1-8
+|leagueRegion = No
+}}
+'''The Fractured Archive''' is the fourth [[Raids|raid]] in ''Old School RuneScape'', released on [[20 October]] [[2026]]. Described by [[Jagex]] as the "toughest raid yet",{{CiteNews|url=https://secure.runescape.com/m=news/a=13/the-fractured-archive---first-look?oldschool=1|title=The Fractured Archive - First Look|newsdate=25 January 2026}} the raid is heavily combat-focused, featuring minimal skilling or puzzle elements. Completion of [[While Guthix Sleeps]] is required to access the raid, and [[The Fractured Archive (miniquest)|The Fractured Archive]] miniquest starts upon attempting to enter the lobby for the first time.
+
+Deaths within the Fractured Archive are not safe deaths for [[Hardcore Ironmen]].
+==History==
+The Archive was built by followers of [[Guthix]] in order to store Guthix's knowledge and items at the bottom of the [[Chasm of Tears]]. At some point, work on the Archive was to be halted indefinitely for a higher priority. The followers who were tasked with its construction complied with the order, hoping that the work they had put in would be enough.{{CiteText|text=Grimy note|quote=Work on the Archive is to be abandoned. We must hope that the progress already made will be enough. There is a higher priority now and it will require every resource we have. Guthix guide us.}} A [[Archive Guardian|guardian]] was left within the archive to defend it.
+
+The Archive would remain undisturbed for thousands of years until the events of [[While Guthix Sleeps]], where the mahjarrat [[Lucien]] was able to claim the [[Stone of Jas]] from the nearby [[Ancient Guthixian Temple]], consequentially opening the entrance to the Archive. Various agents of [[god]]s and other interested parties took notice of this, and have moved in to claim the treasures that lie within, while the alliance of the [[Temple Knights]], [[Guardians of Armadyl]], and [[Crux Eqal]] attempts to stop them.
+
+==Transportation==
+The Fractured Archive is located in the [[Chasm of Tears]], which can be accessed by teleporting to [[Tears of Guthix (minigame)|Tears of Guthix]] using a [[Games necklace]], and having a lit [[sapphire lantern]] in your inventory to attract one of the [[light creature]]s to go into the chasm. Once inside the player can access the lobby by crawling through the opening to the southwest.
+
+The Fractured Archive can also be reached with a [[Guthixian temple teleport]], which brings you close to the entrance.
+
+==== Lobby ====
+The Lobby features the usual Bank, [[Alliance records|leaderboard]], and a [[Grouping Board]] system. The lobby is also host to a mine of [[Ascension rocks|Ascension Rocks]].
+
+The Lobby features the following NPCs
+
+* [[General Montoya]]
+* [[Banker (The Fractured Archives)|Banker]]
+* [[Record Keeper]]
+* [[Wizard apprentice]]
+* [[Druid (The Fractured Archive)|Druids]]
+* [[Temple Knight (The Fractured Archive)|Temple Knights]]
+* [[Alliance builder]]s
+
+==Official worlds==
+The following [[Server#Themed servers/worlds|official worlds]] are assigned to the Fractured Archives:
+
+{| class="wikitable sortable" style="text-align: left;"
+!World
+!Location
+!Members
+!Activity
+{{WorldLine|404|United States (east)|mems=yes|The Fractured Archives}}
+{{WorldLine|425|United Kingdom|mems=yes|The Fractured Archives}}
+{{WorldLine|566|Australia|mems=yes|The Fractured Archives}}
+|}
+
+==Mechanics==
+===Bosses===
+The Fractured Archive is a pseudo-linear raid. There are eight bosses, however only five of these will be fought per raid, with the first and final bosses being encountered in every run. After defeating the first boss, the Archive Guardian, the player can select one of two doors to the side leading to a different boss encounter. When each boss is defeated, players are returned to this room to select their next boss. This means that some bosses can be avoided.
+
+{| class="wikitable"
+|+Raid boss order
+!1st
+|colspan=3 | [[Archive Guardian]]
+|-
+!2nd
+|[[Ezekiel]] || or || [[Bork]] and the [[Smorks]]
+|-
+!3rd
+|[[Moia]] || or || [[Dreadnoth the Jellied]]
+|-
+! colspan=4 |Quartermaster arrives
+|-
+!4th
+|[[Xarth]] || or || [[Dagon'hai Elder]] and [[Dagon'hai Monk|monks]]
+|-
+!5th
+| colspan=3 | [[Ocellus]]
+|}
+
+As with all other raids, the bosses' hitpoints scale to the amount of players present in the raid, with the minimum scaling being set to two players if the player enters alone.
+
+===Practice Mode===
+This mode is not currently available upon release, however this mode is planned to be released sometime afterwards.
+
+Unique to the raid is the ability to challenge the bosses on practice mode, which is similar to Theatre of Blood's Entry Mode. However, unlike the Theatre where players have to fight towards a particular boss and its mechanics are scaled down, the Fractured Archive's practice mode provides the boss as-is, and players can even set the boss' phase before starting. In order to access these features once the mode is released, players must have encountered the boss at least once. Likewise, starting the fight at a particular phase requires the player to have encountered it at least once in an actual raid. Supplies are refunded and friends can be brought along in practice mode.
+
+===Death within the Archives===
+Following the raid's release, if the entire team is killed, they will lose all unprotected items and will be ejected from the raid, and have a gravestone located outside the entrance. Players can pay up to {{Coins|500000}} to reclaim their items, the same as dying under normal circumstances. Death costs will be reduced by 75% until the player has cleared the raid 5 times.
+
+Deaths within The Fractured Archives are not considered [[Death#Unsafe_and_safe_deaths|'safe' deaths]]. If you are a [[Hardcore iron]] or [[Hardcore group iron]] player, you '''will''' lose your status on death inside the archive.
+
+It was initially stated that in the weeks after release, deaths would not fully wipe the raid and players would be given some supplies to attempt the fight again, similar to the Tombs of Amascut's non-limited death runs. However, Jagex has since stated that they are not planning on moving forward with this system, and will instead opt into the traditional wiping system of Theatre of Blood.
+
+==Rewards==
+{{Main|Chest (The Fractured Archive)}}
+
+Upon defeating [[Ocellus]] players are able to teleport using [[The Blade]] to a reward room featuring a small island containing [[Chest (The Fractured Archive)|chests]].
+
+* {{Plink|Archivist's folio}} <sub>(Provides teleports to The Fractured Archives Entrance lobby.)</sub>
+* {{Plink|Horn of Bran}} <sub>(Used to unlock the [[Zeal]] Prayer.)</sub>
+* {{Plink|Zorya's tome}}
+* {{Plink|Rondache}}
+* {{Plink|Ascension crossbows}}
+* {{Plink|Obligator}} <sub>(Crush Mega-Rare)</sub>
+* {{Plink|Orion}} <sub>(Pet)</sub>
+
+In addition to the Standard drops, the Raid also rewards new Elemental Spell Upgrades. Each of these fragments increases the base max hit of their respective element by +2.
+
+* {{Plink|Fragment of whispering wind}}
+* {{Plink|Fragment of deep water}}
+* {{Plink|Fragment of living earth}}
+* {{Plink|Fragment of burning fire}}
+
+If the player leaves the room before opening the chest, rewards can be found through the [[Loot Wheelbarrow|loot wheelbarrow]] lobby room.
+
+==Collection Log==
+The Fractured Archive has 17 [[collection log]] items.
+{{Sync}}
+{{Collection log list|category=The Fractured Archive}}
+
+==Music==
+{| class="wikitable sortable"
+|-
+!Name
+! class="unsortable" | Unlock details
+! class="unsortable" | Music track
+|-
+|[[Into the Archive]]
+|Unlocks in the raid lobby
+|[[File:Into the Archive.ogg]]
+|-
+|[[The Archive Guardian]]
+|Unlocks during the fight against the [[Archive Guardian]]
+|[[File:The Archive Guardian.ogg]]
+|-
+|[[Blade of Forgotten Justice]]
+|Unlocks during the fight against [[Ezekiel]]
+|[[File:Blade of Forgotten Justice.ogg]]
+|-
+|[[Bork's Beats]]
+|Unlocks during the fight against [[Bork]] and [[the Smorks]]
+|[[File:Bork's Beats.ogg]]
+|-
+|[[Daughter of Darkness]]
+|Unlocks during the fight against [[Moia]]
+|[[File:Daughter of Darkness.ogg]]
+|-
+|[[Hellatine]]
+|Unlocks during the fight against [[Dreadnoth the Jellied]]
+|[[File:The Archive Guardian.ogg]]
+|-
+|[[Triple Threat]]
+|Unlocks during the fight against the Dagon'hai
+|[[File:Triple Threat.ogg]]
+|-
+|[[Forged Through Fire]]
+|Unlocks during the fight against [[Xarth]]
+|[[File:Forged Through Fire.ogg]]
+|-
+|[[Artifacts of Old]]
+|Unlocks during the fight against [[Ocellus]]
+|[[File:Artifacts of Old.ogg]]
+|-
+|[[Ascension]]
+|Unlocks during the third phase of the fight against [[Ocellus]]
+|[[File:Ascension.ogg]]
+|}
+
+==Trivia==
+* The community sometimes refers to the raid as "Fred"; this is because in its first trailer, the backlighting of the logo could read "FR-----ED".{{CiteVideo|title=OSRS Winter Summit 2026 | OSRS Livestream 25th January 2026|url=https://www.youtube.com/watch?v=Cupx0MpM86A&t=3137|timestamp=52:17|site=YouTube}}
+* The raid was first announced during the [[Winter Summit 2026]].[[File:Raids_4_fred.png|thumb|FR-----ED visible in the reveal trailer for the raid.]]
+*Scrapped rewards include:
+** A melee/magic hybrid set with bonuses slightly below that of end-game gear such as [[torva armour|Torva]] and [[ancestral robes|ancestral]] but higher than that of [[bandos armour|Bandos]] and having significant prayer bonus.
+** Gatekeeper's Cane (rethemed into Zorya's Tome)
+
+==See also==
+* Other [[raid]]s:
+** {{plink|Chambers of Xeric|pic=Twisted bow}}
+** {{plink|Theatre of Blood|pic=Scythe of Vitur}}
+** {{plink|Tombs of Amascut|pic=Tumeken's shadow}}
+
+===Newsposts===
+{|class=wikitable
+!Newspost
+!Date
+|-
+|[[Update:The Fractured Archive - First Look|First Look]]||[[25 January]] [[2026]]
+|-
+|[[Update:The Fractured Archive - Rewards Primer|Rewards Primer]]||[[5 March]] [[2026]]
+|-
+|[[Update:The Fractured Archive - First Rewards Proposal|First Rewards Proposal]]||[[16 June]] [[2026]]
+|-
+|[[Update:The Fractured Archive - Rewards Poll Blog|Rewards Poll Blog]]||[[30 July]] [[2026]]
+|-
+|[[Update:The Fractured Archive - Everything You Need To Know|Everything You Need To Know]]||[[6 October]] [[2026]]
+|-
+|[[Update:The Fractured Archive - Out Today|Out Today]]||[[20 October]] [[2026]]
+|}
+
+==References==
+{{Reflist}}
+{{Notelist}}
+
+{{The Fractured Archive}}
+{{Activities}}
+{{DEFAULTSORT|Fractured Archive, The}}

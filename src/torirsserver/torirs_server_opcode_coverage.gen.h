@@ -9,17 +9,17 @@
  * `make -C src test-torirsserver-coverage` fails when this file is stale.
  *
  * Coverage by layer:
- *     63  VM core
- *    381  host commands
+ *     64  VM core
+ *    382  host commands
  *      9  host commands (db)
  *     10  host commands (inv)
  *      8  host commands (loc)
  *      8  host commands (npc)
  *     14  host commands (obj)
  *      2  host commands (param)
- *      7  host commands (player)
+ *      8  host commands (player)
  *     18  host commands (poh)
- *    520  total, of 571 declared opcodes
+ *    523  total, of 573 declared opcodes
  */
 
 #ifndef SRC_TORIRSSERVER_TORIRS_SERVER_OPCODE_COVERAGE_GEN_H
@@ -27,8 +27,8 @@
 
 #include <stdint.h>
 
-#define TORIRSSERVER_OPCODE_COVERAGE_COUNT 520
-#define TORIRSSERVER_OPCODE_DECLARED_COUNT 571
+#define TORIRSSERVER_OPCODE_COVERAGE_COUNT 523
+#define TORIRSSERVER_OPCODE_DECLARED_COUNT 573
 
 /*
  * One past the highest opcode *value*, which is nothing like the number of
@@ -37,7 +37,7 @@
  * array by opcode wants this, not the count — using the count silently
  * treats every real opcode as out of range.
  */
-#define TORIRSSERVER_OPCODE_VALUE_LIMIT 11223
+#define TORIRSSERVER_OPCODE_VALUE_LIMIT 11225
 
 /* Ascending, so a lookup can binary-search. */
 static const uint16_t TORIRSSERVER_OPCODE_COVERAGE[TORIRSSERVER_OPCODE_COVERAGE_COUNT] = {
@@ -380,6 +380,7 @@ static const uint16_t TORIRSSERVER_OPCODE_COVERAGE[TORIRSSERVER_OPCODE_COVERAGE_
     4622, /* SS_OP_CLEARBIT_RANGE (VM core) */
     4623, /* SS_OP_GETBIT_RANGE (VM core) */
     4624, /* SS_OP_SETBIT_RANGE_TOINT (VM core) */
+    4627, /* SS_OP_ATAN2_DEG (VM core) */
     4628, /* SS_OP_ABS (VM core) */
     4629, /* SS_OP_DATE_MINUTES (host commands) */
     4630, /* SS_OP_DATE_RUNEDAY (host commands) */
@@ -561,6 +562,8 @@ static const uint16_t TORIRSSERVER_OPCODE_COVERAGE[TORIRSSERVER_OPCODE_COVERAGE_
     11220, /* SS_OP_CAM_MOVETO_CYCLES (host commands) */
     11221, /* SS_OP_CAM_ROTATETO_COORDINATE (host commands) */
     11222, /* SS_OP_MES_TYPED (host commands) */
+    11223, /* SS_OP_P_RUNBLOCK (host commands (player)) */
+    11224, /* SS_OP_LOC_ADD_OPFLAGS (host commands) */
 };
 
 #endif

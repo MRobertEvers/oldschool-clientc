@@ -6,7 +6,7 @@
 /* Included by exactly one translation unit: ss_meta.c. */
 
 /* Opcode names, for traces and the loud stub's report. */
-static const char* const g_ss_opcode_names[11223] = {
+static const char* const g_ss_opcode_names[11225] = {
     [0] = "PUSH_CONSTANT_INT",
     [1] = "PUSH_VARP",
     [2] = "POP_VARP",
@@ -578,6 +578,8 @@ static const char* const g_ss_opcode_names[11223] = {
     [11220] = "CAM_MOVETO_CYCLES",
     [11221] = "CAM_ROTATETO_COORDINATE",
     [11222] = "MES_TYPED",
+    [11223] = "P_RUNBLOCK",
+    [11224] = "LOC_ADD_OPFLAGS",
 };
 
 /* Per-opcode stack signature and runtime-safety metadata.
@@ -587,7 +589,7 @@ static const char* const g_ss_opcode_names[11223] = {
  *
  * known == 0 means neither engine.rs2 nor MANUAL_META declared this
  * opcode, so its arity is unknown and it must not be executed. */
-static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11223] = {
+static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11225] = {
     [0] = { 0, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* PUSH_CONSTANT_INT */
     [1] = { 0, 0, 1, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* PUSH_VARP */
     [2] = { 1, 0, 0, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* POP_VARP */
@@ -1159,6 +1161,8 @@ static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11223] = {
     [11220] = { 5, 0, 0, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* CAM_MOVETO_CYCLES */
     [11221] = { 4, 0, 0, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* CAM_ROTATETO_COORDINATE */
     [11222] = { 1, 1, 0, 0, 1, 0, 0, 0, 0x001, 0x000 }, /* MES_TYPED */
+    [11223] = { 1, 1, 0, 0, 1, 0, 0, 0, 0x001, 0x000 }, /* P_RUNBLOCK */
+    [11224] = { 6, 0, 0, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* LOC_ADD_OPFLAGS */
 };
 
 /* Trigger names, for script-name parsing and diagnostics. */

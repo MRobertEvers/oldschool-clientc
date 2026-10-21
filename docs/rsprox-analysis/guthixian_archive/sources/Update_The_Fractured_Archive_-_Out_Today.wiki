@@ -1,0 +1,205 @@
+{{Update|date=20 October 2026|url=https://secure.runescape.com/m=news/the-fractured-archive---out-today?oldschool=1|category=game}}
+[[File:The Fractured Archive - Out Today newspost.png|right]]
+__TOC__{{clear}}
+
+{| class="wikitable alternating-rows" style="text-align:center; width:665px;"
+!Known Issues
+!Status
+|-
+|We've identified some issues with the 'stepunder' mechanics for Araxxor's final phase, resulting on players having to adjust their movement here temporarily.
+|We'll be working on a fix, but are unlikely to deploy one until next week since we suspect rushing changes here may impact the functionality of some NPCs within The Fractured Archive.
+|-
+|Some players report that Mystic Vigour and Deadeye aren't activating after today's update.
+|We'd recommend turning off the 'Instant Inventory' RuneLite plugin if you're encountering this issue, since the RuneLite team believe that it may be causing a visual bug where prayers appear to be deactivated despite being active.
+|-
+|The Jeweller's Chisel doesn't work on Ascension shards.
+|We're certain that we'd tested this one but will develop a fix for this once we're able to. In the meantime, we'd recommend using a regular chisel like in the olden days.
+|-
+|'''Note:''' UIMs who have items stored at Pete Kayer will not be able to access the raid.
+|There's an in-game message for this, but you'll have to reclaim your stored items first.
+|-
+|Some players are reporting graphical issues on mobile and C++ clients.
+|Investigating
+|-
+|Some of the Global stat counters on the scoreboard in the lobby are displaying incorrectly.
+|Personal stats are correctly displayed, we'll be working on a fix for the Global stats (global times appear to be displaying correctly) to try and deploy next week.
+|-
+|Some players are reporting graphical issues on mobile and C++ clients.
+|Investigating
+|-
+|Some of the Global stat counters on the scoreboard in the lobby are displaying incorrectly.
+|Personal stats are correctly displayed, we'll be working on a fix for the Global stats (global times appear to be displaying correctly) to try and deploy next week.
+|-
+|
+|
+|}
+
+{{Horizontal Line}}
+
+''The Fractured Archive is open at last. Get ready for Old School's fourth raid, releasing today.''
+
+==Changelog - October 20th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''The Fractured Archive'''
+
+* The Fractured Archive will unlock today at 11:00 UTC.
+* We'd very much advise checking out the detailed blog copy for this section, there's far too much to sum up in a changelist
+* Note that players on world 345 (permanent Deadman) won't be able to access the raid on release.
+
+====Other Changes====
+
+* The Free-for-all Clan Wars arena on F2P worlds now requires 100 Total level.
+* Nex's Crush Defence has been reduced from +60 to +35. There was a lot of initial hype around the Obligator (back when it was called the TzHaar-Breaker) being a big upgrade at Nex, this change means that the final iteration will shine against Zaros' most-feared general.
+
+====PvP Rota====
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been activated with this rota.
+
+World 569 (AUS) for Bounty Hunter has been activated with this rota.
+
+The PvP Arena is using '<b>1 Def Pure</b>' loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+==The Fractured Archive - Out Today at 11:00 UTC==
+[[File:The Fractured Archive - Out Today (1).jpg|600px|center]]
+
+The Fractured Archive opens ''today''. It's time to put all of your theorycrafting, all of your best guesses, all of your PvM knowledge and perhaps even your friendships to the test as you step into Guthix's archive. If you've not already got While Guthix Sleeps completed, then you better get to it ASAP!
+
+You won't be able to access the raid immediately following today's update, we'll be running some last-minute tests after the update and once we're satisfied that nothing ''catastrophic'' seems likely (beyond the imminent threat of a mysterious figure attempting to ascend to godhood), we'll deploy a hotfix to open up the archive. Our current aim is to open the raid at 11:00 AM UTC, but if we need to delay this to make sure things run safely and smoothly then we'll keep you updated on this post and the Game Status page.
+
+Assuming all runs smoothly, we'll also be going [https://www.twitch.tv/oldschoolrs live on our Twitch channel] at 10:45 AM UTC for an all-day watch party with Mod Ayiza and Mod Kieren! They'll be tapping into Twitch streams on release while our data team behind the scenes bring you cool stats to try and give you the full picture of the initial push to raid completion. This should be a laid-back stream to chill out in throughout the day, but we'd still very much recommend you bounce around between your favourite creators to see their progress directly, hear their comms and show your support - we'd also welcome you jumping into our chat and letting us know if somebody's making solid progress and isn't on the big screen!
+
+We'll be running a number of giveaways throughout the stream for ''three'' prints of the beautiful artwork made by Enkoro (shown off just below this section) as well as twenty-six pin sets featuring the unique rewards from The Fractured Archive. Make sure to join the [https://discord.gg/osrs Official OSRS Discord] to be able to enter, tune into the stream to know when giveaways are about to start, and [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-10-20/TFAPrizeTCs.pdf check out the full T&amp;Cs here].
+
+As for the Fractured Archive itself, we'd very much recommend you [https://secure.runescape.com/m=news/the-fractured-archive---everything-you-need-to-know?oldschool=1 check out the Everything You Need To Know blog] that we released earlier this month, it covers all of the most important bases and we're not going to repeat much of it here. We will share one additional reminder, just in case anybody needed reminding:
+
+'''Deaths in The Fractured Archive are not considered 'safe' deaths. If you are a HCIM or HCGIM, you will lose your status on death inside the archive. The Fractured Archive is a tough encounter that will undoubtedly become manageable before too long, but if you are going in blind on release without knowledge of all mechanics, then you ''will'' die. You have been warned!'''
+
+===The Fractured Archive===
+[[File:The Fractured Archive - Out Today (2).jpg|thumb|600px|center|''A huge thank you to [https://x.com/enkoro_art community artist Enkoro] for this beautiful artwork!'']]
+
+During the events of While Guthix Sleeps, the Mahjarrat Lucien's meddling with the Stone of Jas has opened an ancient entrance to a cache of Guthix's most prized possessions: the Fractured Archive.
+
+Whispers of the archive have persisted through the ages, and the gods have taken notice of this accidental grand opening. Some have sent agents to plunder the archive and bolster their strength, while other interested parties have their own motivations for making this daring descent.
+
+If even a single one of these artefacts were to fall into the wrong hands, it could spell Gielinor's ruin, so it falls to you to defend the archive from those who would misuse it. Fortunately you are not alone, and the Alliance that you helped assemble during While Guthix Sleeps will join you in the depths to aid in your endeavours.
+
+Upon login after our hotfix - assuming you've got While Guthix Sleeps completed - you'll be greeted by a messenger, they'll give you a note to help direct you to the action. Note that if you're already logged in then you don't need to wait for a messenger to arrive, you can just make your way to the entrance.
+
+Make your way to where Lucien showed his hand, and seek the archive's entrance on a cliff face near the entrance to the Guthixian Temple. Perhaps all of those scrolls you've been accumulating will come in handy! Keep in mind that the Archivist's Folio is an untradeable reward that you'll be able to obtain from the archive and charge with Ascension shards for teleports, so it won't be long before you'll be able to return in the blink of an eye.
+
+[[File:The Fractured Archive - Out Today (3).png|600px|center]]
+
+We'd still advise you to check out the blog we linked earlier, but here's a rapid-fire rundown of the most important bits:
+
+* The raid scales between 2-8 players. We'd recommend you bring 3-5, since we feel these are the most enjoyable scales to run from our own testing.
+* Create a group using the Grouping Board at the eastern side of the lobby area. There's also a toggelable option on the Grouping interface to allow or disallow spectators.
+* You can spectate groups using the Strategy Board on the western side of the lobby area.
+* The spectate system has been given an overhaul, while spectating a group or if your group are carrying on with a room after you've died, you can click the party orbs to view that player's POV. Additionally, if you're in the same party as somebody that you're spectating, you can even helpfully ping inventory slots for them - click fish!
+* The raid layout offers you a handful of choices: 
+** The Archive Guardian, who will stop at nothing to defend its master's archive.
+** Choose between the ferocious Bork (and the notably less ferocious Smorks) or Ezekiel, a justiciar of Saradomin who believes his ends always justify the means.
+** Choose between Dreadnoth the Jellied, the abominable result of a demonic ritual gone wrong, or a mysterious necromancer with a mastery over undeath.
+** Choose between Xarth, a Tormented Demon unlike any you've seen before, or the highly co-ordinated Dagon'hai Trio.
+** The final boss, a mysterious hooded figure... for now.
+* All of the 'choose between' options above offer the same total number of contribution points, so there's no one option that's better than another when it comes to your chances of seeing a unique from a given raid completion.
+* If your team wipes, you'll be removed from the raid and have a gravestone placed outside. Gravestone fees will be reduced by 75% until you have at least five completions.
+* Practice Mode will not be available on release, we'll give you a full rundown whenever we opt to release it.
+
+To top this all off, our audio team have done a wonderful job bringing our artists' and designers' vision to life, so '''we'd highly recommend turning sounds and music on''' to enjoy all of their work!
+
+For those of you chasing your first-clears today, you might be able to win something in recognition of your achievement! We've got bronze, silver and gold medals to give away to all members of the first three teams to clear The Fractured Archive, as well as a number of ''exclusive'' pin sets featuring the unique rewards from the raid for all of our medallists. [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-10-20/TFAFirstTCs.pdf Full T&amp;Cs can be found here!]
+
+===Rewards===
+Obviously with a brand new raid comes brand new rewards. [https://secure.runescape.com/m=news/the-fractured-archive---rewards-poll-blog?oldschool=1 You're likely already familiar with these from our rewards poll blog] so we're not going to go into great detail on all of them.
+
+Instead we thought we'd give you a first look at them in-game, since it might be a while before you stumble across one for yourself! We're leaving the Obligator out of this so that whoever's first to get their hands on one gets to really show it off, so you'll have to wait and see for that one.
+
+Keep in mind that animations we show like this tend to be a little 'brighter' and more saturated than they appear in-game, and also that projectiles are rendered separately (which is why the Zorya's Tome animations look like you're just showing somebody a cool page from the book that you're reading).
+
+<gallery mode="packed", heights="180", style="text-align:center">
+The Fractured Archive - Out Today (4).gif
+The Fractured Archive - Out Today (5).gif
+The Fractured Archive - Out Today (6).gif
+The Fractured Archive - Out Today (7).gif
+The Fractured Archive - Out Today (8).gif
+The Fractured Archive - Out Today (9).gif
+The Fractured Archive - Out Today (10).gif
+</gallery>
+
+Those of you lucky enough to make your way to the end of The Fractured Archive could walk away with...
+
+* '''Elemental Fragments''', untradeable items that add +2 to your base max hit for their corresponding element. This means their additional damage will benefit from increases to Magic damage, and will be multiplied by Elemental Weaknesses. These have some dupe protection mechanics, so you shouldn't find yourself in a scenario where you've got a bunch of fragments for one element.
+* '''The Archivist's Folio''', an untradeable teleport item allowing quick returns to the archive, left behind by archivists from long ago. You can charge this with Ascension shards at a very generous rate, so these teleports won't be a pain to upkeep.
+* '''Ascension shards''', a stackable resource used to charge the Archivist's Folio and the Obligator, and to make Ascension bolts for the Ascension crossbows.
+* '''Zeal''', an unlockable upgrade to the Piety prayer, adding an additional +5% Attack and Strength. The item to unlock this will be tradeable, but you'll have to do something a little more interesting than just reading a piece of paper at a bank - perhaps the Record Keeper can help? Zeal will be automatically unlocked in Last Man Standing or Pete Kayer's challenges.
+* '''The Rondache''', a tradeable shield which mitigates incoming Melee, Ranged and Magic damage by 2. The mitigated damage is stored as charges, which can be fired off without delay for a rapidfire Shield Bash.
+* '''Zorya's Tome''', a tradeable, two-handed book that fires off spells every three ticks. Its primary purpose is for its Special Attack, which imbues you with arcane energy to fire off rapid hits with increased damage and accuracy.
+* '''Ascension Crossbows''', tradeable, dual-wield crossbows that fire the new Ascension bolts (made using Ascension shards). These are effectively a raid-tier upgrade to the Toxic Blowpipe.
+* '''The Obligator''', a ferocious Crush-based megarare. The Obligator rolls damage up to four times - depending on how weak your target is to Crush relative to other Melee styles - then picks the best result, meaning it hits consistently hard. Additionally, it gains 20% and 40% bonus damage vs. 2x2 and 3x3 (or bigger) targets respectively. It's also able to slam through multiple enemies in a line, or lose its damage re-rolls and multi-target capabilities in exchange for faster attacks.
+
+Most of these rewards are pretty self-explanatory and work about how you'd expect, but we'd like to dive into the Rondache a little more since we know there are lots of questions around how it might be used.
+
+[[File:The Fractured Archive - Out Today (11).png|600px|center]]
+
+When equipped alongside a weapon with no Special Attack, the Rondache will add a special attack bar to your Combat Styles tab ''and'' will override the Special Attack orb next to your minimap. Most one-handed weapons that see use fall into this category, so this seemed like an especially simple option.
+
+[[File:The Fractured Archive - Out Today (12).png|600px|center]]
+
+When equipped alongside a weapon ''with'' a Special Attack (in this example, the Abyssal Dagger), things get a little more complicated. but hopefully stay intuitive! In this scenario, you'll have your regular Special Attack bar ''and'' the Rondache's Special Attack bar in your Combat Styles tab, allowing you to use both in rapid succession. Your mainhand Special Attack orb can be found next to the minimap, but can be right-clicked to use your Rondache's Special Attack without having to navigate to your Combat Styles tab. There's a small bar just beneath your Special Attack energy on the orb that will fill up to indicate your Rondache's charge, it's subtle but should be easy enough to tell when you've got enoug charge - we didn't want to add a bunch of clutter or add any overbearing UI elements!
+
+'''Note: the Rondache's Special Attack will grant XP in your currently selected Attack Style. If you're using Aggressive, the Rondache will grant Strength XP, if you're on Shared then Shared XP, etc.'''
+
+Let us know what you make of this approach, if it works nicely for you then we can explore retrofitting this onto the Dragonfire Shield in a future update. Alternatively if you get your hands on a Rondache and find it to be clunky or annoying to use then we'd welcome and and all suggestions for improvements!
+
+If you can't jump into the raid for yourself or catch our watch party today, then check out our YouTube channel tomorrow where we'll have a highlights video for everything that you've missed, made by the wonderful Behemeth crew.
+
+We cannot stress enough how excited (and nervous) we are for you to get stuck in to Old School's fourth raid, we hope you have an absolute blast getting to grips with it and mastering it and we're looking forward to all of your feedback. Given the nature of releases like this, it's unlikely that we'll be looking to make balancing changes or significant tweaks without a lot of consideration and observation, so while we'll do our best to stay hot on any bugs or issues, don't expect us to be pumping out feedback changes all week long - we want to take our time and make sure that you've got a good understanding of the content so that you can give us informed feedback.
+
+See you in the Archive and best of luck - you're going to need it.
+
+==Vote For Us In The Golden Joystick Awards!==
+[[File:The Fractured Archive - Out Today (13).png|600px|center]]
+
+While you wait for The Fractured Archive to unlock, we'd love for you to '''The Golden Joystick Awards'''!
+
+We're honoured to have been nominated in the 'Best Still Playing (Mobile)' category which celebrates online/ongoing games like ours that keep people coming back. Nothing says 'Still Playing' like us celebrating 25 years of RuneScape this year, with many more to come!
+
+It's no secret that many of you reading play on Mobile as your primary way to play, and even more of you jump in and out of mobile for a variety tasks, so we're over the moon to be in this category against the likes of Genshin Impact, Wuthering Waves, Pokemon Go and loads more stacked titles.
+
+If you'd like to vote for us (or check out any of the twenty-five categories) then please [https://www.gamesradar.com/goldenjoystickawards/ check out this page and take a look]!
+
+==Other Changes==
+
+* The Free-for-all Clan Wars arena on F2P worlds now requires 100 Total level.
+* Nex's Crush Defence has been reduced from +60 to +35. There was a lot of initial hype around the Obligator (back when it was called the TzHaar-Breaker) being a big upgrade at Nex, this change means that the final iteration will shine against Zaros' most-feared general.
+
+==PvP World Rota==
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been activated with this rota.
+
+World 569 (AUS) for Bounty Hunter has been activated with this rota.
+
+The PvP Arena is using '<b>1 Def Pure</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the official [https://discord.gg/OSRS OSRS Discord]. For more information, check the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Acorn, Ape, Arcane, Archie, Argo, Ash, Asherz, Ayiza, BigRig, Blighted, Blossom, Boko, Brooksie, Bruno, Bulb, Chilly, Criminal, Curse, Daizong, Default, Doctor, Ed, Elena, Enigma, Entropi, Frogs, Fuzz, Gecko, Ghost, Gizmo, Goblin, Grace, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Liron, Lotus, Lykos, Mack, Maeve, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nixon, Nox, Nylu, Oasis, Ori, Other, Otter, Pheasant, Philomel, Pork, Pumpkin, Puppi, Pyro, Rach, Redfield, Rice, Romy, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Spacebar, Spyro, Squid, Starry, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy, Yozora, Yume & Zaf'''
+
+''The Old School Team''
