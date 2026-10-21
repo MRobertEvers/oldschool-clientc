@@ -75,7 +75,9 @@ rule below cites counts across those fights; tools in `tools/`
 
 ## 10. Melee
 
-- One `melee_attack01` (4297 [547]) at distance 0 after a swoosh; "It's flying too high to hit using melee." for a player's melee on the flying guardian. **Approximate**: the guardian melees a player under its box (crush, max 25: wiki).
+- **The slam** (`docs/rsprox-analysis/guthixian_archive/tools/tfa_mech.py`; every recorded `melee_attack01`, 14752, in index 4297, 4298, 4304, 4306, 4310, 4312, 4313, 4314): his attack falls to the slam when **any** raider stands under his 5x5 as it comes due (where they stood the tick before the swing: 24/24), and it lands the tick after on whoever is **still under him on the swing's tick**. Step under, then out on the swing's tick, and it hits nobody: index 4314, B0aty 10/10; 11 more in the other sessions, none hit; 4312 [303] back under at +1, not hit. Stay under and it lands: 4298 [187] 37, [367] 48, both through protect from missiles. The standard max from the cache (strength 240, bonus 0) is 25, so the slam is not the standard melee: ours 0..48 (two hits); protect from melee is unrecorded (taken to block it). "It's flying too high to hit using melee." for a player's melee on the flying guardian.
+- **His head coming down** (the landing, `idle_to_ground01`): a raider one tile from his 5x5 (where they stood the tick before) is smashed for 24..28 on the landing's tick, no zeros (6/6: 4305 [134] 26, 24; 4306 [192] 24; 4314 [209] 27, [939] 28; 4315 [4293] 24); two tiles or more out, never (136/136); the one raider recorded under him was not hit (1/1). Ours the same.
+- Ours: `test/guthixian_archive/tfa_guardian_melee.lua` (the dance, the stand, the landing): stepped out on the swing's tick 0 of 4 hit; under on it 10 of 10 hit the tick after; a tile off as he landed, 26.
 
 ## 11. The guardian's death
 
@@ -176,3 +178,5 @@ the seq beside the raider.
 | mushroom poison | 10 decaying (10, 9, 8) | 50 | same | matched |
 | tentacle | 17..19, and 10s | 17..19 | same | matched (the 10s open) |
 | poison 2..4 | single splats on a few raiders (4304) | none | none | **open** (source) |
+| the slam | any raider under his 5x5 calls it; lands +1 on whoever stayed under (stepped out 0/21 hit, stayed 2/2: 37, 48) | the target only, at once, max 25 | any raider; +1 on those still under; 0..48 | fixed |
+| his head landing | 24..28 on a raider a tile from his 5x5 (6/6), never at 2+ (136/136) | none | 24..28 on the ring | fixed |
