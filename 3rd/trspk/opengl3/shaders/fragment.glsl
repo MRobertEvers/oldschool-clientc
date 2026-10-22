@@ -6,7 +6,7 @@ layout(std140) uniform TRSPK_UboWorld {
     float uClock;
     float uAtlasDim;
     float uAtlasSlots;
-    float _pad;
+    float uDepthBias;
 } ubo;
 
 in vec4 v_color;

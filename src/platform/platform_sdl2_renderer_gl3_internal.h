@@ -91,7 +91,9 @@ typedef struct TRSPK_UboWorld
     float uClock;
     float uAtlasDim;
     float uAtlasSlots;
-    float _pad;
+    /* 1 on the depth lane: the vertex shader applies each corner's face
+     * depth bias (position.w) to its depth. 0 leaves clip z alone. */
+    float uDepthBias;
 } TRSPK_UboWorld;
 
 /* Preferred atlas: 4096^2 / 128 = 32x32 = 1024 slots. Falls back to 2048/16/256
@@ -421,6 +423,11 @@ struct ToriPlatformSDL2_Renderer_GL3
      * here, so a scene without translucency leaves them empty. */
     /* Face classification cache for the depth pass; see the table above. */
     struct GL3MaterialTable materials;
+    /* A dynamic model's classification, redone every draw: an entity's model
+     * is rebuilt per frame (a spotanim merged onto it, a fade) under an
+     * unchanged element/track/pose key, so the table would serve the first
+     * frame's alphas forever. The ES3 depth pass does the same. */
+    struct GL3MaterialPose dynamic_material;
     struct GL3AlphaSubmission* alpha_submissions;
     uint32_t alpha_submission_count;
     uint32_t alpha_submission_capacity;

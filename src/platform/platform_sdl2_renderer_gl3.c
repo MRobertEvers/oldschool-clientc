@@ -2753,6 +2753,7 @@ upload_world_ubo(
     u.uClock = (float)renderer->frame_clock;
     u.uAtlasDim = (float)renderer->atlas_dim;
     u.uAtlasSlots = (float)renderer->tex_cap;
+    u.uDepthBias = renderer->z_buffer_enabled ? 1.0f : 0.0f;
     gl3_set_world_uniforms(renderer, &u);
 }
 
@@ -3098,10 +3099,12 @@ gl3_write_vertex_opengl3(
     float u,
     float v,
     float tex_id,
-    float uv_mode)
+    float uv_mode,
+    float depth_bias)
 {
     trspk_vbo_write_vertex_opengl3(vbo, index, x, y, z, color, u, v, tex_id);
     vbo->vertices.as_opengl3[index].uv_mode = uv_mode;
+    vbo->vertices.as_opengl3[index].position[3] = depth_bias;
 }
 
 
@@ -3520,6 +3523,14 @@ gl3_bake_pose_vertices(
 
         trspk_triangles_set(triangles, (base / 3u) + face_index, TRSPK_TRIANGLES_ATLAS);
 
+        /* The rev-241 depth buffer keys a face at its camera depth less
+         * twice this [class174.field2408]: a floor glow or a sword's shadow
+         * authored on the ground wins the floor by it. */
+        float depth_bias = 0.0f;
+        if( ToriDraw_ModelKindIsFull(model_handle.kind) &&
+            model_handle.u.model.model->face_z_offsets )
+            depth_bias = 2.0f * (float)model_handle.u.model.model->face_z_offsets[face_index];
+
         gl3_write_vertex_opengl3(
             vbo,
             vi + 0u,
@@ -3530,7 +3541,8 @@ gl3_bake_pose_vertices(
             face.uv.u1,
             face.uv.v1,
             face.tex_id_encoded,
-            face.uv_mode);
+            face.uv_mode,
+            depth_bias);
         gl3_write_vertex_opengl3(
             vbo,
             vi + 1u,
@@ -3541,7 +3553,8 @@ gl3_bake_pose_vertices(
             face.uv.u2,
             face.uv.v2,
             face.tex_id_encoded,
-            face.uv_mode);
+            face.uv_mode,
+            depth_bias);
         gl3_write_vertex_opengl3(
             vbo,
             vi + 2u,
@@ -3552,7 +3565,8 @@ gl3_bake_pose_vertices(
             face.uv.u3,
             face.uv.v3,
             face.tex_id_encoded,
-            face.uv_mode);
+            face.uv_mode,
+            depth_bias);
     }
     trspk_vbo_mark_dirty_range(vbo, base, tri_count * 3u);
 }
@@ -4549,7 +4563,8 @@ gl3_bake_widget_model(
                 face.uv.u1,
                 face.uv.v1,
                 face.tex_id_encoded,
-                face.uv_mode);
+                face.uv_mode,
+                0.0f);
             gl3_write_vertex_opengl3(
                 g->vbo_cpu,
                 vi + 1u,
@@ -4560,7 +4575,8 @@ gl3_bake_widget_model(
                 face.uv.u2,
                 face.uv.v2,
                 face.tex_id_encoded,
-                face.uv_mode);
+                face.uv_mode,
+                0.0f);
             gl3_write_vertex_opengl3(
                 g->vbo_cpu,
                 vi + 2u,
@@ -4571,7 +4587,8 @@ gl3_bake_widget_model(
                 face.uv.u3,
                 face.uv.v3,
                 face.tex_id_encoded,
-                face.uv_mode);
+                face.uv_mode,
+                0.0f);
         }
     }
     *out_tri_count = tri_count;

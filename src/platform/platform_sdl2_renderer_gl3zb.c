@@ -402,9 +402,16 @@ GL3ZB_SubmitModel(
     if( anim_index >= TRSPK_POSE_TRACK_COUNT )
         anim_index = TRSPK_POSE_TRACK_COUNT - 1;
 
-    /* Classified once per baked pose, not once per frame. */
-    material = gl3_material_for(
-        renderer, mcmd->element_id, anim_index, pose_id, mcmd->model);
+    /* Classified once per baked pose, not once per frame -- except a dynamic
+     * model, whose faces' alphas change under the same key (an
+     * npc_transparency fade, a spotanim merged onto an actor). */
+    if( mcmd->dynamic )
+        material = gl3_material_pose_set(&renderer->dynamic_material, renderer, mcmd->model)
+                       ? &renderer->dynamic_material
+                       : NULL;
+    else
+        material = gl3_material_for(
+            renderer, mcmd->element_id, anim_index, pose_id, mcmd->model);
     if( !material || material->face_count != (uint32_t)face_count )
         return;
 
@@ -613,6 +620,7 @@ GL3ZB_Free(struct ToriPlatformSDL2_Renderer_GL3* renderer)
     ToriMem_Free(ToriMem_Renderer(), renderer->alpha_order);
     ToriMem_Free(ToriMem_Renderer(), renderer->model_indices);
     gl3_material_table_free(&renderer->materials);
+    gl3_material_pose_clear(&renderer->dynamic_material);
     renderer->alpha_submissions = NULL;
     renderer->alpha_indices = NULL;
     renderer->alpha_order = NULL;
