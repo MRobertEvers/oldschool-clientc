@@ -152,7 +152,12 @@ On the special's tick S (10/10):
   (approximate).
 - Each sword: added facing south, `transparency` 255->0 over 30 cycles,
   `[headbar] id=87 startfill=60 endfill=0 endtime=390` (its 13-tick charge
-  clock). At S+14 (one a tick for the line layouts) it flies: `teleport` 12
+  clock), sent 14 ticks before its own flight: a line layout's three swords
+  are all added at S, but the second and third get bar 87 alone at S+1 and
+  S+2 (15/15 line layouts: 4300 [966], [1029]; 4301 [117], [190]; 4314
+  [1116], [1189], [1262]; 4315 [988], [1061], [2585], [2662], [2730], [2807],
+  [4491], [4572]), so the bars empty in flight order. At S+14 (one a tick for
+  the line layouts) it flies: `teleport` 12
   tiles across with `exact_move` (from, 0, to, 30, angle of travel), `[facing]
   angle=` the same, `[headbar] id=42, removed=true`, `transparency` 0->255 cycles 30..60, ops
   0b00000; deleted two ticks later. A flight sound at his centre, one of
@@ -426,6 +431,7 @@ Run: the same test on a private pack (`TORIRSSERVER_SCRIPTS`), tick log
 | death | K+1 spots cleared, finale_death01, "...Formidable.", fade 210..270, ops 0, V despawns, the death sword; K+2 V gone; K+11 line, he goes, fence fades, 72 nonblocking; K+12 fence gone; K+14 navigator | same | matched |
 | npc fades | `transparency` on every add/flight/death | `npc_transparency` (new, opcode 11225) | fixed (engine) |
 | sword charge bar | `headbar id=87 60->0 over 390` | `npc_headbar_timed` (new, opcode 11226) | fixed (engine) |
+| line swords' bar 87 | at S, S+1, S+2 (15/15), each emptying on its own flight | all three at S, emptying together a tick and two before the late swords flew | fixed 2026-10-22 (`~tfa_ez_swords_tick` sends a late sword's bar) |
 | glow loop | `vfx_ezekiel_finale_cast_glow_loop01` slot 5 `loop=true` | sent with loop 0 | **open (engine)**: no loop flag on `spotanim_npc_slot` |
 | music | `midi_song_v2` with fade 60/60 | plain `midi_song` | **open (engine)** (the Guardian's too) |
 | raiders' roll/strafe | the dodge windows (§7); a roll lands before the band is judged, a walk after | `p_dodgewindow`; the roll was judged on the tile it left | fixed: the roll lands at the click (`handle_move`); the cage and a flight tick tested |
