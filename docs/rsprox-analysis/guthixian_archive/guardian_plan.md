@@ -58,6 +58,7 @@ Every special of every session with him (index 4294, 4296..4298, 4300, 4303..430
 - **The burst**: the first tick T at or after active + 1 on which a raider stands within a tile of it bursts it on T + 1 (468 of 469; a raider beside it on the active tick itself does not). On the burst: `invisible_type8_nonblocking` + `tfa_guardian_mushroom_despawn` (62580) on the tile, `sound_area` 12175 delay 12 range 2 size 2 (423/425); +2 the tile's `invisible_type8_nonblocking` again (421/425).
 - **The poison**: on burst + 1, every raider within a tile of it at the burst's end (poisoned with a fresh 10: within 1 at the burst 44/51 and 33/58 when still within 1 after; 2+ out 3/77, 6/241, the rest already poisoned) -- "You have been poisoned!", poison 50 (a 10 splat, type 65, then every 30 ticks), drowsy for 17 ticks (`runinvert_mode` 0 -> 3; running refused with "You're too drowsy to run!").
 - Ours: the same, tick for tick in `tfa_guardian.lua` / `tfa_guardian_melee.lua` (1 + 3 round last tick's tile 15/15; every burst a tick after a raider within 1, the earliest active + 2). Before 2026-10-21 ours put both within 3 at random (a third at 2) and held 30.
+- The tile of the tick before, the burst's "within a tile" and the poison's "within a tile at the burst's end" all read the raiders' tiles as the tick began from his timer (`~tfa_g_pre`, 2026-10-22): the room's tick runs in one raider's turn, after the raiders before them in the player list have moved, so in a party it read some raiders a tick late. `gv_check.py ours` over our three runs: 22/22 raiders one beside and one three out, 23/23 bursts on the rule.
 
 ## 7. Shield, batteries and the ground phase
 
@@ -71,11 +72,22 @@ Every special of every session with him (index 4294, 4296..4298, 4300, 4303..430
 - Real hp (1100 solo, grounded only) carries over between ground phases.
 - A blast while grounded: one sample only (4294 [1414], the party's enrage: a hit of 1). Ours takes 220 off the real health: **approximate**.
 
-## 8. Tentacles (ground phase)
+## 8. Vines (`archive_guardian_tentacle`, ground phase), audited 2026-10-22
 
-- Every 3 ticks from landing: an `archive_guardian_tentacle` ("Vine", size 1) on or next to each living player's tile of the tick before (35/35 solo; a wave is one a raider: 17/17 at three, RAID_PLAN.md §Scaling), facing the player, seq `tentacle_spawn01` (14771) + spotanim `vfx_guardian_tentacle_intro_spotanim01`, `sound_area` 12218 range 4.
-- Attacks (`tentacle_attack01` 14768) at +3, +6, +9; `despawn01` (14769) +12; deleted +13 (34/35).
-- An attack hits a player exactly 1 tile away on the tick before (6 of 9; 0 of 3 standing on it, 0 of 34 at 2+): 17..19 under protect from missiles (6 hits). **Unverified**: its style, max, and protect from melee (never prayed).
+Every vine of every session with him: 15 `--all-players --bas` transcripts
+(4294, 4296, 4297, 4300, 4303..4306, 4308..4310, 4312, 4314..4316), 1164
+lives, 464 waves, 106 raider-beats with a vine in reach;
+`tools/gv_check.py rec` (parser `tools/gv_events.py`; collision
+`room_collision.txt` plus his 5x5 while he is down).
+
+- **When**: landing (`idle_to_ground01`) +5, then every 3 ticks (59/59 landings); the lift rules of §7.
+- **Who**: one for each raider in the room, judged on the tile they stood on **as the tick began** (the end of the tick before): the vine faces that tile (1141 of 1143).
+- **Where** (463 of 464 waves exact, every vine's tile and face; the 464th is 4300 [679], the recorder arriving mid-phase): A = that tile plus one step in the 8-way direction from his middle (his sw + 2) to it, rounded to the nearest of the eight; if A is blocked, the step the other way (toward him); then the raider's own tile; none free, no vine. Blocked: the map, his 5x5 (blocking while he is down), or a vine, live or added earlier in the same wave (0 vines on another vine's tile against about 70 expected if they did not block). 879 on A, 10 toward him (A in a wall, 4296 [534], 4304 [236], 4306 [807], [898], [1003]), 262 on the raider (A held by a vine: 234 a stacked raider's this wave, 16 a live one; 4 in a wall with the other side his 5x5); raiders stacked four deep get two (4303 [1371]). An even pick among the eight (ours before) would put 359 on the raider's tile.
+- **On add**: spawn angle toward the raider's tile (south on it; 1143/1143), `[facing] coord=` that tile with `instant=true` (1143/1143), seq `tentacle_spawn01` (14771) delay 0, spotanim `vfx_guardian_tentacle_intro_spotanim01` (4208) height 0 delay 0, `sound_area` 12218 delay 0 range 4 no size on its tile (1141/1143, never without a vine). No other block in its life: no ops, bar or hit (never attacked).
+- **Life**: `tentacle_attack01` (14768) at +3, +6, +9, `despawn01` (14769) at +12, gone at +13 (1140 of 1140 seen whole; the three cut short are the recorder leaving on a death, 4296 [820], 4305 [163]). None alive at his death (20/20 deaths).
+- **The hit** (100 of 106 raider-beats; the rest: 5 dead raiders, not hit, and one run off its tile, 4294 [1200], hit): on the attack's own tick, every living raider exactly one tile from the vine as the tick began; on its tile is safe. One hit a raider a beat however many vines reach them (7/7 with two or three), and never a miss (101 hits, no zero or block splat).
+- **The damage**: melee. 17..19 unprayed (15) or under Protect from Missiles (6); under Protect from Melee 10 (5/5 where the overheads are on the wire); 10 x22 and 11 x6 where they are not (4294, 4300, 4306: Fortunico 4 of 10 at 11, sycq 2 of 2; Fortunico and Rewz in the same gear, Rewz 10 x5). Read as 40% off the roll (17, 18 -> 10, 19 -> 11): that gives an 11 a third of the time, the recordings 6 of 33 (P = 0.04), the one tension left. A lethal hit shows what was left (2, 3, 15).
+- Ours (`tfa_guardian.rs2` `~tfa_g_tentacle_spawn` / `_add` / `_strike`): the same rules; the raiders' tiles come from his timer (`[ai_timer]` on both fighting forms, `~tfa_g_snapshot`, the npc phase) because the room's tick runs in a raider's turn after the raiders before them have moved. Before 2026-10-22: an even pick of the nine (the raider's tile on a wall), no vine blocking, a coord face without `instant`, a third of its hits blocked, every vine in reach hitting, Protect from Melee ignored. Test: `test/guthixian_archive/tfa_guardian_vines.lua` (Protect from Melee; `gv_check.py ours`: 4/4 waves, 6/6 beats, 10 and 11); `tfa_guardian.lua`, `tfa_guardian_win.lua` 8/8 waves, 11/11 beats.
 
 ## 9. Enrage (party only: unverified solo)
 
@@ -152,7 +164,8 @@ Still open, all engine-generic (not this content's to fake):
 ## Open probes
 
 - What paces the special exactly (§3).
-- Tentacle damage style and max (§8); the solo enrage (§9); the melee (§10).
+- The vine's 11 under Protect from Melee: 6 of 33 against a third (§8). The solo enrage (§9); the melee (§10).
+- The slam's and the landing smash's "where they stood the tick before" (§10) still read `coord` in the room's tick: right solo, a tick late in a party for raiders earlier in the player list; `~tfa_g_pre` is there for them.
 - Party scaling (4294: 5 players: shield 2520? batteries 400); only solo is built.
 
 ## NPC info audit (2026-10-21)
@@ -186,7 +199,7 @@ the seq beside the raider.
 |---|---|---|---|---|
 | ranged shot | an even 1..10 under protect from missiles (the recorder's own prayers, 4296..4298), 17..34 unprayed | 0..41, 75% taken | same | matched |
 | mushroom poison | 10 decaying (10, 9, 8) | 50 | same | matched |
-| tentacle | 17..19, and 10s | 17..19 | same | matched (the 10s open) |
+| vine (tentacle) | 17..19 unprayed or missiles (21), 10 under Protect from Melee (5/5), 10/11 where prayers are unrecorded (22/6); never a miss; one a beat | 17..19, a third blocked, one per vine | 17..19, melee 40% off, no miss, one a beat | fixed (§8) |
 | poison 2..4 | single splats on a few raiders (4304) | none | none | **open** (source) |
 | the slam | any raider under his 5x5 calls it; lands +1 on whoever stayed under (stepped out 0/21 hit, stayed 2/2: 37, 48) | the target only, at once, max 25 | any raider; +1 on those still under; 0..48 | fixed |
 | his head landing | 24..28 on a raider a tile from his 5x5 (6/6), never at 2+ (136/136) | none | 24..28 on the ring | fixed |
