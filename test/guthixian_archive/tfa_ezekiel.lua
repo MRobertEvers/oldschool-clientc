@@ -66,6 +66,9 @@ return {
         "::give black_dragonhide_body 1",
         "::wield black_dragonhide_body",
         "::give shark 20",
+        -- A raider's ranged kit (twisted bow, Masori): against his wiki Defence
+        -- and ranged defence (130, 370) the bofa above lands one shot in five.
+        "::maxrange",
         "::goto 4128 5556 0",
     },
     run = function(t)
@@ -160,6 +163,9 @@ return {
         -- (ezekiel_plan.md §7, the tick log's player_anim 14705/14706).
         t.ticklog.mark("dodge")
         for k = 1, 22 do
+            -- Healed as the fights are: with his wiki stats the bot no longer
+            -- has him under a third before the volleys start.
+            t.cheat("::tfaheal", false)
             local r0, here = t.world.tile()
             if r0 == "ok" then
                 t.player.walk_to(here.x + ((k % 2 == 1) and 2 or -2), here.z, 1)
@@ -168,7 +174,9 @@ return {
         -- The kill.
         t.ticklog.mark("kill")
         t.cheat("::tfaboss 5", false)
-        fight(t, "tfa_ezekiel", 40, function() return t.msg.expect("Challenge complete: Ezekiel.") == "ok" end)
+        -- 120: with his wiki Defence and ranged defence (130, 370) the bot
+        -- lands about one shot in five.
+        fight(t, "tfa_ezekiel", 120, function() return t.msg.expect("Challenge complete: Ezekiel.") == "ok" end)
         ok = t.await({ level = function() return present(t, "tfa_room_navigator") end, note = "navigator" }, 30)
         t.check("ezekiel.navigator", ok == "ok", "no navigator")
         t.check("ezekiel.line", t.msg.expect("Challenge complete: Ezekiel."))

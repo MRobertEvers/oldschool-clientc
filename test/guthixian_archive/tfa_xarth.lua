@@ -65,6 +65,9 @@ return {
         "::give black_dragonhide_body 1",
         "::wield black_dragonhide_body",
         "::give shark 20",
+        -- A raider's ranged kit (twisted bow, Masori): against his wiki Defence
+        -- and ranged defence (170, 230) the bofa above lands one shot in five.
+        "::maxrange",
         "::goto 4128 5556 0",
     },
     run = function(t)
@@ -106,7 +109,9 @@ return {
         fight(t, "tfa_xarth", 51)
         t.ticklog.mark("kill")
         t.cheat("::tfaboss 3", false)
-        fight(t, "tfa_xarth", 60, function() return t.msg.expect("Challenge complete: Xarth.") == "ok" end)
+        -- 120: with his wiki Defence and ranged defence (170, 230) the bot
+        -- lands about one shot in five.
+        fight(t, "tfa_xarth", 120, function() return t.msg.expect("Challenge complete: Xarth.") == "ok" end)
         ok = t.await({ level = function() return present(t, "tfa_room_navigator") end, note = "navigator" }, 30)
         t.check("xarth.navigator", ok == "ok", "no navigator")
         t.check("xarth.line", t.msg.expect("Challenge complete: Xarth."))
