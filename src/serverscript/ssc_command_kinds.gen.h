@@ -3,7 +3,7 @@
  * reference server's content/scripts/engine.rs2. Do not edit by hand --
  * re-run the generator.
  *
- * 400 commands.
+ * 402 commands.
  */
 
 #ifndef SRC_SERVERSCRIPT_SSC_COMMAND_KINDS_GEN_H
@@ -426,6 +426,8 @@ static const struct SSC_CommandTypes g_ssc_command_types[] = {
     { 11234, "npc_faceplayerinstant", "", "" },
     { 11235, "p_dodgewindow", "seq seq int int", "" },
     { 11236, "spotanim_npc_slot_loop", "spotanim int int int", "" },
+    { 11260, "npc_basready", "seq", "" },
+    { 11261, "npc_basreset", "", "" },
 };
 
 #endif

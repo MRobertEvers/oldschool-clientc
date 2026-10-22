@@ -1074,6 +1074,11 @@ enum
      * FACING block's angle kind, `[facing] angle=`). Not persistent: the
      * client holds the angle until the next facing. */
     TORIRSSERVER_NMASK_FACE_ANGLE = 0x20000,
+    /* Rev-241 only: `npc_basready` / `npc_basreset` changed the npc's stance
+     * set this tick (NPC_INFO's BAS_CHANGE, flag 0x400000). The override is
+     * persistent like HEADICON: an observer the npc enters view of is sent
+     * it too, while `bas_ready_set`. */
+    TORIRSSERVER_NMASK_BAS = 0x40000,
 };
 
 /* Appearance/equipment slot numbering. The cache's wearpos fields, the worn
@@ -2912,6 +2917,14 @@ struct ToriRSServerNpc
     /** `npc_facesquareinstant` -- the coord FACING block snaps instead of
      *  turning (`instant=true`); a plain `npc_facesquare` clears it. */
     int face_coord_instant;
+    /**
+     * `npc_basready` -- the stance override the BAS_CHANGE block carries:
+     * while `bas_ready_set`, the client's ready anim is `bas_ready` and every
+     * other stance the type's own (the block replaces the whole set; deob
+     * Statics, NPC_INFO flag 0x400000). `npc_basreset` clears it.
+     */
+    int bas_ready_set;
+    int bas_ready;
     /** `npc_faceplayerinstant` -- this tick's entity FACING block snaps
      *  instead of turning (`instant=true`); cleared with the masks. */
     int face_entity_instant;
@@ -6199,7 +6212,9 @@ enum ToriRSServerTicklogKind
      * spawn angle as sent (d), 2 enabled ops (d = the hidden bits), 3 level
      * (d), 4 transparency (d = start << 16 | end, e from, f to), 5 exact move
      * (d dx1, e dz1, f dx2, g dz2; label delays and direction), 6 a timed bar
-     * (d healthbar, e start fill, f end fill, g end cycle). With npc_anim,
+     * (d healthbar, e start fill, f end fill, g end cycle), 7 the stance
+     * override (d = the ready seq, -1 a reset: `npc_basready` /
+     * `npc_basreset`). With npc_anim,
      * npc_spotanim, npc_face, npc_say, npc_retype, npc_tile, npc_headbar,
      * npc_headicon, npc_body and npc_tint it is the whole of an npc's NPC_INFO
      * (the rsprox-content skill's wire audit). */

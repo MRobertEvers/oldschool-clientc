@@ -49,8 +49,28 @@ transcripts, tools `tools/dn_rules.py`, `dn_cadence.py`, `dn_melee.py`,
   resume tick), and every third enrage landing (§6). Not the nearest, not the
   last attacker (45 of 80 switches went to a raider who was not the newest
   attacker).
-- **Frozen** he still swings (4312 [795..803], ice barrage at [795]) but does
-  not step; ours never freezes an npc from a player spell (open, below).
+- **Under him.** A raider standing under his 5x5 changes nothing unless it is
+  his target; his target under him makes him take a cardinal step at random
+  (4303 [846] west, [848] south), as his jellies step off their target's tile
+  (W 26, N 25, S 21, E 19 of 91: `tools/dn_junder.py`).
+- **Freezes.** He still swings frozen (4312 [795..803]) but does not step. He
+  resists 40%, his jellies 20%: a freeze of n ticks holds floor(n x 0.6) (0.8),
+  counted from the cast for an ice spell, from the arrow's landing for the
+  scorching bow (`tools/dn_freeze.py`, `dn_freeze4.py`):
+
+  | freeze | base | holds him | recorded | holds a jelly | recorded |
+  |---|---|---|---|---|---|
+  | Ice Barrage, kodai | 32 | 19: steps at cast + 20 | 13/13 | 25: cast + 26 | 13/14 |
+  | Ice Barrage, ice ancient sceptre (+10%, rounded down) | 35 | 21: cast + 22 | 4/4 | 28: cast + 29 | 5/5 |
+  | Scorching shackles (demons only) | 20 | 12: landing + 13 | 7/7 | - | - |
+
+  A barrage on him while frozen does nothing (4/4: 4304 [866], [2438],
+  [2440], [2445]); a second scorching spec while bound binds him again from its
+  own landing (2/2: 4303 [2680], [2757]). After a thaw he is immune 5 ticks
+  (fails 1, 3, 4 ticks after; holds 6), and his engage counts as a thaw: the
+  first barrage 3, 3, 4 ticks after his first step never held him (4302 [160],
+  4304 [742], 4308 [836]). A freeze can start inside a slam hold and outlast it
+  (4312 [865] -> [885], [3069] -> [3089], 4316 [1139] -> [1159]).
 
 ## 3. Slam phases (85%, 65%, 45%)
 
@@ -105,7 +125,7 @@ fights: 4303 [2831, 2833, 2835], [2735, 2737], [3115..3119], [1130, 1132]).
 | tick | recorded |
 |---|---|
 | E | "*glub glub*" at 23.4-25.8% (4/4) |
-| E+5, then every 8 (now and then 9..14) | `dreadnoth_jump02`; `teleport` onto his target (his 5x5 centred on them, kept within the arena: x 4184..4194, z 5656..5666; of 88 leaps with the target in view, 78 land with it the raider nearest his middle); after every third landing (+3) he turns to another raider (4301 2/2, 4303 6/6, 4304 5/5, 4312 2/2: `dn_leap.py`, `dn_switch` in `dn_clock.py`) with `exact_move` (old, 0, new, 90, the travel yaw: 4301 [476..516] 175, 1791, 511, 1279, 1279, 1968); `tfa_boss_jelly_5x5_jump` on the landing's middle |
+| E+5, then every 8 (now and then 9..14) | `dreadnoth_jump02`; `teleport` at his target, from the tile they stood on as the tick began: within 5 tiles each way of centring his 5x5 on them he lands centred, further he jumps exactly 5 tiles in the nearest of the eight directions; then the arena holds his south-west tile to x 4184..4194, z 5656..5666 (97/97 leaps: `tools/dn_leaprule.py`; 4312's two last leaps "to his spawn" are that 5-tile jump from a corner). After every third landing (+3) he turns to another raider (4301 2/2, 4303 6/6, 4304 5/5, 4312 2/2: `dn_leap.py`, `dn_clock.py`) with `exact_move` (old, 0, new, 90, the travel yaw: 4301 [476..516] 175, 1791, 511, 1279, 1279, 1968); `tfa_boss_jelly_5x5_jump` on the landing's middle |
 | +3 | the landing: `rockfall` slot 2 on every raider, 12361 r20 size 20 at his middle; to each raider a `vfx_dreadnoth_ranged_proj01` 10/90 (at them) and a `vfx_dreadnoth_ranged_proj02` 10/180 angle 30 heights 650/60 (ours 162/15) at their tile, with sound 12362 r15 size 5 there; 1-5 blood tiles in and round his new 5x5 (offsets -1..5). Whoever is under him takes 30-71 and he heals about 38 (hitsplat 6: 28..44 over 11 landings, 89 with two raiders under him at 4303 [2969]) |
 | +9 | each `proj02` lands: a blood tile on its tile (0-4 a landing), and a raider still on it is hit (4303 [2975]: 41) |
 
@@ -181,8 +201,8 @@ the seq beside the raider.
 |---|---|---|---|---|
 | slam (J+1, every raider) | 133/141 0 under protect from melee; 22..44 (8, none below 22) | 0..40 | 20..44 | fixed |
 | slam shots (proj01) | 541/581 0 under protect from missiles; 1..33 | 0..30 | 0..33 | fixed |
-| jelly swing | 640/658 0 under protect from melee; 4..12 | 0..8 | 0..12 | fixed (the drain unverified) |
-| melee | 38/71 0; 2..30 | 0..30 | same | matched |
+| jelly swing | 640/658 0 under protect from melee; 4..12 | 0..8 | 0..12 | superseded below (the fourth pass) |
+| melee | 38/71 0; 2..30 | 0..30 | same | wrong: superseded below (the fourth pass) |
 | blood tile | 7, 8 (48 of 56) every 2 ticks | 7..8 | same | matched |
 | landing, not under him | 147/174 0 under protect from melee; 16..38 | 0..40 | 15..38 | fixed |
 | landing, under his 5x5 | 26..36 (4); his heal 28..44 a raider, 89 for two | 30..71 crush, heal 34..44 | 25..44, he heals what he deals | fixed (the plan's 30..71 was his heal splat) |
@@ -220,13 +240,53 @@ lobby has no join yet) and the solo test.
 | jelly stacking | 1522 of 2235 steps onto another jelly | blocked (one jelly oscillated two tiles for 40 ticks) | 471 of 723 | fixed |
 | phrases | "*glub glub*" only, 12/12 | same | same | matched |
 
+Third pass (2026-10-21), `test/guthixian_archive/tfa_dreadnoth_freeze.lua`
+(`tools/dn_ours_freeze.py`) and the party test (`tools/dn_ours_leap.py`):
+
+| rule | recorded | ours before | ours now | verdict |
+|---|---|---|---|---|
+| kodai barrage | steps at cast + 20 (13/13) | cast + 33 (no resistance) | cast + 20 | fixed |
+| ice ancient sceptre barrage | cast + 22 (4/4) | cast + 33 (no sceptre bonus) | cast + 22 | fixed |
+| barrage inside the post-thaw immunity | ignored (3/3) | ignored | ignored | matched |
+| barrage just after his engage | ignored (3/3) | held | ignored | fixed |
+| scorching bow spec | landing + 13 (7/7) | no bind at all | landing + 13 | fixed |
+| second spec while bound | the second's landing + 13 (2/2) | - | the second's landing + 13 | fixed |
+| leap | the centred-or-5-tile rule (97/97) | centred on the target where the room tick saw them | the rule, in his own turn (16/16) | fixed |
+| target under him | a random cardinal step (2/2) | stood | a random cardinal step | fixed |
+
+The freeze rules are the combat code's, not this room's: `freeze_resistance`
+and `demon` are npc params (`skill_combat/configs/npc_combat.param`),
+`~npc_freeze_resisted` applies the first to every player freeze (ice spells,
+the ZGS, jade bolts, the scorching bow), the ancient sceptres' 10% is in
+`~pvm_freeze_effect`, and the scorching bow's bind is the new engine command
+`npc_bind` (a freeze that renews).
+
 Still open:
-- **Freezes.** He freezes (40% resistance, the wiki; 4312 [795..822]) but our
-  player spells never call `npc_freeze` on an npc, anywhere: a combat-wide gap,
-  not this room's.
-- **Under him.** Twice (4303 [846], [848]) a raider under his 5x5 made him step
-  off it; ours stands (no step clears the target).
-- **The last leap.** Both 4312 fights' last leap went to his spawn tile
-  (4189, 5661) with his target elsewhere, three ticks before his death; one
-  session, unexplained, not modelled.
 - **Switch rates** are fits (1/64, 1/2), not a rule the wire states.
+- **The scorching bow's burn** still lands on any target and as one 5-damage
+  hit (its comment; not this room's).
+- **Other demons** bind to the scorching bow only once a config sets `demon`.
+
+## Melee and the jellies' swings, by the raiders' own prayers: fourth pass (2026-10-21)
+
+The damage audit above could not see prayers (the parties were spectated) and
+took every 0 for a prayed hit. The raiders' overheads are in their appearance
+blocks: `tools/rsprox/rsprox_index.py get ... --all-players --bas` now prints
+them (`[status] overheadicon=`: 0 melee, 1 missiles, 2 magic; the `--bas`
+filter gained PLAYER_APPEARANCE_STATUS). The mapping checks out on his slam:
+245 of 246 splats 0 under protect from melee, 22..44 under protect from
+missiles. `tools/dn_prayhits.py`, `dn_style.py`, `dn_jstyle.py`.
+
+| attack | recorded | ours before | ours now |
+|---|---|---|---|
+| his melee, raider praying melee | hits through it: 33 clean swings (no jellies, not on blood), 23 hit 2..30 spread evenly; all 109: none above 30 | always 0 | after an accuracy roll, 0..45 cut to two-thirds: 0..30 |
+| his melee, raider not praying melee | 2 splats in nine sessions (7, 25): too few to say | 0..30 | 0..45 after an accuracy roll: his max-hit formula (strength 285, +35), owner's call 2026-10-21, **unverified** |
+| his melee's accuracy | 4 misses in 26; the wiki's +185 attack bonus against each raider's kit predicts 4.8..5.2 (stab, slash, crush alike); the cache record states none (0 would predict 16) | no roll | `npc_player_hit_roll`, crush, +185 |
+| his levels | stat1..6: 280/125/285/2100/250/220 | Attack 1 (no server field: the engine never reads the cache's) | the record's (set in `tfa_dreadnoth.npc` by the weapons audit, 19:05) |
+| jelly, raider praying melee | 6820 of 6938 splat 0; the rest are blood the same tick | 0, a drain | same |
+| jelly, raider not praying melee | clean tiles: 8 misses in 28, hits 5..10 evenly (5 8, 6 9, 7 11, 8 10, 9 11, 10 7), never 1..4 | 0..12, no miss | 5..10 after an accuracy roll, +100 attack bonus (a fit: it predicts 8.3..9.4 misses) |
+
+Open: his unprayed melee (2 recorded splats; 0..45 with prayer taking a third
+off is a choice, not a measurement), the melee style (the three styles
+predict within 0.4 misses of each other) and the jellies' attack bonus (a fit
+on 28 swings).

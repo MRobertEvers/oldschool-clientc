@@ -312,6 +312,63 @@ app_world_npc_mount_body(
     return mounted;
 }
 
+/* A type's whole stance set, as a spawn or a retype gives it the npc (see
+ * App_WorldApplyNpcType). */
+static struct WorldEntityFacet_IdleAnimations
+app_npc_type_idle(
+    struct ToriRS_NpcEntityFacts const* facts,
+    struct ToriRS_Npctype const* npctype)
+{
+    return (struct WorldEntityFacet_IdleAnimations){
+        .readyanim = facts->readyanim,
+        .walkanim = facts->walkanim,
+        /* The whole movement set, straight across. The Client-TS
+         * left/right crossing (Client.ts 8460-8462) is done once, in the
+         * dat1 type conversion, because rev-239 has no such swap: here
+         * `walkanim_r` already means "the step toward a higher yaw" in
+         * both eras (torirs_npctype_from_rscache.c). */
+        .turnanim = facts->turnanim,
+        .turnanim_r = facts->turnanim_r,
+        .runanim = facts->runanim,
+        .walkanim_b = facts->walkanim_b,
+        .walkanim_r = facts->walkanim_r,
+        .walkanim_l = facts->walkanim_l,
+        .runanim_b = facts->runanim_b,
+        .runanim_r = facts->runanim_r,
+        .runanim_l = facts->runanim_l,
+        .crawlanim = facts->crawlanim,
+        .crawlanim_b = facts->crawlanim_b,
+        .crawlanim_r = facts->crawlanim_r,
+        .crawlanim_l = facts->crawlanim_l,
+        /* Read off the DRAWN type, and deliberately not gap-filled from the
+         * shell the way size and readyanim are: it is a bare boolean whose
+         * absent value and whose authored-false value are the same bit, so
+         * "the rung did not state it" cannot be expressed. Same reason
+         * `turn_speed` is left out of ToriRS_NpcEntityFacts. */
+        .idle_anim_restart = npctype->idle_anim_restart ? 1 : 0,
+    };
+}
+
+int
+App_WorldNpcTypeIdle(
+    struct App* app,
+    int npc_type,
+    int base_npc_type,
+    struct WorldEntityFacet_IdleAnimations* out)
+{
+    struct ToriRS_Npctype* npctype;
+    struct ToriRS_NpcEntityFacts facts;
+
+    assert(app);
+    assert(out);
+    npctype = CacheProvider_NpctypeGet(app->provider, npc_type);
+    if( !npctype )
+        return 0;
+    app_npc_entity_facts(app, base_npc_type, npctype, &facts);
+    *out = app_npc_type_idle(&facts, npctype);
+    return 1;
+}
+
 void
 App_WorldApplyNpcType(
     struct App* app,
@@ -339,34 +396,7 @@ App_WorldApplyNpcType(
     model_mounted = app_world_npc_mount_body(app, element_id, npc_type, npctype);
 
     {
-        struct WorldEntityFacet_IdleAnimations idle = {
-            .readyanim = facts.readyanim,
-            .walkanim = facts.walkanim,
-            /* The whole movement set, straight across. The Client-TS
-             * left/right crossing (Client.ts 8460-8462) is done once, in the
-             * dat1 type conversion, because rev-239 has no such swap: here
-             * `walkanim_r` already means "the step toward a higher yaw" in
-             * both eras (torirs_npctype_from_rscache.c). */
-            .turnanim = facts.turnanim,
-            .turnanim_r = facts.turnanim_r,
-            .runanim = facts.runanim,
-            .walkanim_b = facts.walkanim_b,
-            .walkanim_r = facts.walkanim_r,
-            .walkanim_l = facts.walkanim_l,
-            .runanim_b = facts.runanim_b,
-            .runanim_r = facts.runanim_r,
-            .runanim_l = facts.runanim_l,
-            .crawlanim = facts.crawlanim,
-            .crawlanim_b = facts.crawlanim_b,
-            .crawlanim_r = facts.crawlanim_r,
-            .crawlanim_l = facts.crawlanim_l,
-            /* Read off the DRAWN type, and deliberately not gap-filled from the
-             * shell the way size and readyanim are: it is a bare boolean whose
-             * absent value and whose authored-false value are the same bit, so
-             * "the rung did not state it" cannot be expressed. Same reason
-             * `turn_speed` is left out of ToriRS_NpcEntityFacts. */
-            .idle_anim_restart = npctype->idle_anim_restart ? 1 : 0,
-        };
+        struct WorldEntityFacet_IdleAnimations const idle = app_npc_type_idle(&facts, npctype);
         World_NpcSetType(app->world, world_idx, npc_type, facts.size, &idle);
     }
     {

@@ -1259,6 +1259,22 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # (Ocellus as each phase-1 walk starts, RSProx 4301 [917], [949]).
     "NPC_FACERESET": (11228, 0, 0, 0, 0),
 
+    # npc_basready(seq $seq)
+    #
+    # The active npc's stance set replaced on the wire, its ready anim `$seq`
+    # and every other stance its type's own: the rev-241 NPC_INFO BAS_CHANGE
+    # block (flag 0x400000, `[bas] ready=..`). Held, and sent again to an
+    # observer the npc comes into view of, until `npc_basreset`. The Archive
+    # Guardian takes `ground_idle01` the tick after each landing (RSProx 4297
+    # [239], [502], [971]; every landing of ten sessions at L+1).
+    "NPC_BASREADY": (11260, 1, 0, 0, 0),
+
+    # npc_basreset
+    #
+    # The active npc's stance set back to its type's own: an empty BAS_CHANGE
+    # (`[bas]`), as the Guardian lifts (4297 [536], [1005]).
+    "NPC_BASRESET": (11261, 0, 0, 0, 0),
+
     # npc_setlevel(int $level)
     #
     # The active npc's drawn combat level, NPC_INFO's LEVEL_CHANGE now and on
@@ -1859,6 +1875,8 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "NPC_HEADBAR_TIMED": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_FACEANGLE": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_FACERESET": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_BASREADY": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_BASRESET": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_SETLEVEL": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_FACEWALKTYPE": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_FACESQUAREINSTANT": (1 << POINTER_BITS["active_npc"], 0),

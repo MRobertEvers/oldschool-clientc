@@ -1362,6 +1362,9 @@ ticklog_npc_info(
         ticklog_write_side(TORIRSSERVER_TICKLOG_NPC_INFO, slot, npc->type, 6, npc->timed_bar_type,
                            npc->timed_bar_start_fill, npc->timed_bar_end_fill,
                            npc->timed_bar_end_cycle, "timedbar");
+    if( npc->masks & TORIRSSERVER_NMASK_BAS )
+        ticklog_write_side(TORIRSSERVER_TICKLOG_NPC_INFO, slot, npc->type, 7,
+                           npc->bas_ready_set ? npc->bas_ready : -1, 0, 0, 0, "bas");
 }
 
 void

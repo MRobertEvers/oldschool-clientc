@@ -608,10 +608,12 @@
 #define SS_OP_P_DODGEWINDOW 11235
 #define SS_OP_SPOTANIM_NPC_SLOT_LOOP 11236
 #define SS_OP_NPC_BIND 11250
+#define SS_OP_NPC_BASREADY 11260
+#define SS_OP_NPC_BASRESET 11261
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11251
+#define SS_OPCODE_MAX 11262
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 586
+#define SS_OPCODE_COUNT 588
 
 #endif

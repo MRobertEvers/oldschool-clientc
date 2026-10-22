@@ -24,7 +24,7 @@ VARIANTS (each its own RSProx home, so the shared transcripts are untouched):
     --all-players  every player's movement, seqs and graphics (party rules)
     --raw          TRANSLATE_INSTANCED_COORDS=false: raw instance tiles, one frame for raider and npc
                    (anything measured between a player and an npc in a turned room)
-    --bas          the player's base animation set and worn equipment (filtered out by default)
+    --bas          the player's base animation set, worn equipment and overhead/skull icons (filtered out by default)
 
 SERVER: $RSPROX_INDEX_URL, default http://127.0.0.1:8370 (from another machine on
 the LAN: http://192.168.1.148:8370). The transcriber is the build the index server
@@ -50,7 +50,7 @@ CLASSPATH = os.environ.get("RSPROX_CLASSPATH", os.path.join(HOME, "rsprox-index-
 JAVA = os.environ.get("RSPROX_JAVA", "/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home/bin/java")
 TYPES = ("NPC", "OBJ", "LOC", "MAPSQUARE", "MESSAGE_GAME", "VARP", "VARBIT", "INTERFACE", "SEQ", "SPOTANIM",
          "MIDI", "SYNTH", "JINGLE", "CLIENTSCRIPTS", "TEXT", "AMBIENCE")
-BAS_FILTER = "version=0\ncreationtime=1\nname=bas\nactive=true\nPLAYER_APPEARANCE_BAS=true\nPLAYER_APPEARANCE_EQUIPMENT=true\n"
+BAS_FILTER = "version=0\ncreationtime=1\nname=bas\nactive=true\nPLAYER_APPEARANCE_BAS=true\nPLAYER_APPEARANCE_EQUIPMENT=true\nPLAYER_APPEARANCE_STATUS=true\n"
 
 
 def call(path, body=None):
@@ -113,11 +113,26 @@ def resolve(name):
     return table[wanted]
 
 
+def write_bas_filter(rsprox):
+    """The --bas filter file, rewritten when it is not BAS_FILTER's text. A transcript
+    made under the old one keeps it until `get --force` (pass --force after a change)."""
+    path = os.path.join(rsprox, "filters", "filters-1.txt")
+    if os.path.isfile(path):
+        with open(path, "r", encoding="utf-8") as handle:
+            if handle.read() == BAS_FILTER:
+                return
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as handle:
+        handle.write(BAS_FILTER)
+
+
 def variant_home(all_players, raw, bas):
     parts = [p for p, on in (("all", all_players), ("raw", raw), ("bas", bas)) if on]
     home = os.path.join(CACHE, "home-" + ("-".join(parts) or "default"))
     rsprox = os.path.join(home, ".rsprox")
     if os.path.isdir(os.path.join(rsprox, "settings")):
+        if bas:
+            write_bas_filter(rsprox)  # a filter added since the home was made reaches it too
         return home
     os.makedirs(os.path.join(rsprox, "binary", "archive"), exist_ok=True)
     if not os.path.lexists(os.path.join(rsprox, "caches")):
@@ -131,9 +146,7 @@ def variant_home(all_players, raw, bas):
     if raw:
         text = text.replace("TRANSLATE_INSTANCED_COORDS=true", "TRANSLATE_INSTANCED_COORDS=false")
     if bas:
-        os.makedirs(os.path.join(rsprox, "filters"), exist_ok=True)
-        with open(os.path.join(rsprox, "filters", "filters-1.txt"), "w", encoding="utf-8") as handle:
-            handle.write(BAS_FILTER)
+        write_bas_filter(rsprox)
     staging = os.path.join(rsprox, "settings.part")
     os.makedirs(staging, exist_ok=True)
     with open(os.path.join(staging, "settings-1.txt"), "w", encoding="utf-8") as handle:

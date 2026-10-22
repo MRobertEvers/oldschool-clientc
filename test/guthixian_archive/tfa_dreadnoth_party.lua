@@ -127,10 +127,13 @@ local function run(t)
     end
     -- the seven out of him swing for a while, then go (a bow is slow on them)
     local done = function() return t.msg.expect("Challenge complete: Dreadnoth the Jellied.") == "ok" end
+    local dead = function() return not present(t, "tfa_jelly_boss") end
+    t.check("dreadnoth.dead", fight(t, role, 300, dead), "still alive")
     fight(t, role, 30, done)
     if role == 1 then t.cheat("::tfadnjellies", false) end
     t.check("dreadnoth.line", fight(t, role, 60, done), "no line")
     if role == 1 then t.ticklog.mark("end") end
+    t.party.barrier("dn_end", 120)
     t.finish(0)
 end
 

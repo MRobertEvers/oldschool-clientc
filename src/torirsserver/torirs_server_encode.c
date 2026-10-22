@@ -6010,6 +6010,14 @@ npc_v5_sends_body(const struct ToriRSServerNpc* npc, int added)
     return (npc->masks & TORIRSSERVER_NMASK_BODY) != 0 || (added && npc->body_model_set);
 }
 
+/* Rev 241's stance override persists the same way: sent when it changes (a
+ * reset included), and to an observer the npc enters view of while held. */
+static int
+npc_v241_sends_bas(const struct ToriRSServerNpc* npc, int added)
+{
+    return (npc->masks & TORIRSSERVER_NMASK_BAS) != 0 || (added && npc->bas_ready_set);
+}
+
 static int
 npc_v5_sends_level(const struct ToriRSServerNpc* npc, int added)
 {
@@ -6408,6 +6416,7 @@ enum
     V241_NPC_HEADICON_CUSTOMISATION = 0x800000,
     V241_NPC_BODY_CUSTOMISATION = 0x1000000, /* RSProx BODY_CUSTOMISATION_V3 */
     V241_NPC_HEADBARS = 0x2000000,
+    V241_NPC_BAS_CHANGE = 0x400000,
 };
 
 static void
@@ -6479,6 +6488,8 @@ put_npc_extended_v241(
         flag |= V241_NPC_HEADICON_CUSTOMISATION;
     if( npc_v5_sends_body(npc, force_face_latch) )
         flag |= V241_NPC_BODY_CUSTOMISATION;
+    if( npc_v241_sends_bas(npc, force_face_latch) )
+        flag |= V241_NPC_BAS_CHANGE;
     if( getenv("TORIRSSERVER_EXT_DEBUG") )
         fprintf(stderr, "ext npc241: classic=0x%x flag=0x%x hit=%d/%d seq=%d\n", classic, flag,
                 npc->damage_type, npc->damage, npc->anim_id);
@@ -6665,6 +6676,16 @@ put_npc_extended_v241(
             v5_psmart1or2(buf, 4);
         }
     }
+    /* decodeBaseAnimationSet: g4Alt1 mask, then one id per set bit in bit
+     * order; ready (0x4000) is a plain g2. Only the ready anim is ever
+     * overridden here, and an empty mask is the reset (the client takes every
+     * unset stance from the npc's type). */
+    if( flag & V241_NPC_BAS_CHANGE )
+    {
+        rsab_p4_alt1(buf, npc->bas_ready_set ? 0x4000 : 0);
+        if( npc->bas_ready_set )
+            rsab_p2(buf, npc->bas_ready);
+    }
 }
 
 /** The npc extended block for this recipient's wire revision. */
@@ -6767,7 +6788,8 @@ npc_extended_pending_v5(
     uint32_t const supported_241 = TORIRSSERVER_NMASK_TRANSPARENCY | TORIRSSERVER_NMASK_TIMED_BAR;
     struct Mock239Face face;
 
-    if( srv_wire_revision(recipient) >= 241 && (npc->masks & supported_241) != 0 )
+    if( srv_wire_revision(recipient) >= 241 &&
+        ((npc->masks & supported_241) != 0 || npc_v241_sends_bas(npc, force_face_latch)) )
         return 1;
     return (npc->masks & supported) != 0 || npc_v5_sends_ops(npc, force_face_latch) ||
            npc_v5_sends_level(npc, force_face_latch) ||

@@ -68,6 +68,8 @@ EXTRA_DECLARATIONS = [
     "[command,npc_headbar_timed](healthbar $bar, int $startfill, int $endfill, int $endtime)",
     "[command,npc_faceangle](int $angle, boolean $instant)",
     "[command,npc_facereset]",
+    "[command,npc_basready](seq $seq)",
+    "[command,npc_basreset]",
     "[command,npc_setlevel](int $level)",
     "[command,npc_facewalktype](int $type)",
     "[command,npc_facesquareinstant](coord $coord)",

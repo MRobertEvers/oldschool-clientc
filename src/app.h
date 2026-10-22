@@ -4000,6 +4000,17 @@ App_WorldApplyNpcType(
     int npc_type,
     int base_npc_type);
 
+struct WorldEntityFacet_IdleAnimations;
+
+/** The stance set `npc_type` (drawn under the wire's `base_npc_type`) gives an
+ * npc on a spawn or a retype. 0 when the type's config is not resident. */
+int
+App_WorldNpcTypeIdle(
+    struct App* app,
+    int npc_type,
+    int base_npc_type,
+    struct WorldEntityFacet_IdleAnimations* out);
+
 /* The body NpcBodyLand waited for is resident: mount it and the type's ready
  * pose, and nothing else (the type's fields were applied with the op). */
 void

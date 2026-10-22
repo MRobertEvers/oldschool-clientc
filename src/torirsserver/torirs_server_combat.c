@@ -4387,6 +4387,11 @@ ToriRSServer_CombatRespawnTick(struct ToriRSServer* srv)
             npc->body_model = -1;
             npc->masks |= TORIRSSERVER_NMASK_BODY;
         }
+        if( npc->bas_ready_set )
+        {
+            npc->bas_ready_set = 0;
+            npc->masks |= TORIRSSERVER_NMASK_BAS;
+        }
         npc->death_seq_sent = 0;
         npc->death_seq_tick = -1;
         npc->scripted_death_pending = 0;

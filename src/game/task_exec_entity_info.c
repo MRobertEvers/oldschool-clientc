@@ -1634,7 +1634,15 @@ npc_apply_op(
             struct WorldEntity_NPC* npc =
                 World_EntityPoolAt(&world->entities.npc, idx);
             uint32_t mask = op->_bas_change.mask;
+            struct WorldEntityFacet_IdleAnimations type_idle;
 
+            /* The block replaces the whole set: a set bit's id, else the
+             * type's own (deob Statics, NPC_INFO flag 0x400000, every field
+             * `(mask & bit) == 0 ? npc.type.<anim> : read`). So an empty mask
+             * is the reset -- the Archive Guardian's `[bas]` as he lifts.
+             * A type whose config is not resident keeps what it had. */
+            if( App_WorldNpcTypeIdle(self->app, npc->npc_id, npc->base_npc_id, &type_idle) )
+                npc->idle_animations = type_idle;
             if( mask & (1u << 0) ) npc->idle_animations.turnanim = op->_bas_change.turnanim;
             if( mask & (1u << 1) ) npc->idle_animations.turnanim_r = op->_bas_change.turnanim_r;
             if( mask & (1u << 2) ) npc->idle_animations.walkanim = op->_bas_change.walkanim;

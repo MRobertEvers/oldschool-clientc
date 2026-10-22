@@ -10213,6 +10213,52 @@ script_command(
     }
 
     /*
+     * `npc_basready(seq $seq)` -- the active npc's stance set replaced, ready
+     * anim `$seq` and the rest its type's own: the rev-241 BAS_CHANGE block
+     * (`[bas] ready=..`), held for observers who arrive later. The Archive
+     * Guardian's grounded form idles on `ground_idle01` this way; its type
+     * names the flying idle (RSProx 4297 [239]: the tick after he lands).
+     * `npc_basreset` -- the same block empty, the type's set again (4297
+     * [536], with the lift's transformation).
+     */
+    case SS_OP_NPC_BASREADY:
+    {
+        int32_t seq;
+        struct ToriRSServerNpc* npc = active_npc(state);
+
+        if( !SSVM_PopInt(state, &seq) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_basready with no active npc");
+            return 1;
+        }
+        if( seq < 0 || seq > 65534 )
+        {
+            SSVM_Abort(state, "npc_basready %d: must be a seq", (int)seq);
+            return 1;
+        }
+        npc->bas_ready = (int)seq;
+        npc->bas_ready_set = 1;
+        npc->masks |= TORIRSSERVER_NMASK_BAS;
+        return 1;
+    }
+
+    case SS_OP_NPC_BASRESET:
+    {
+        struct ToriRSServerNpc* npc = active_npc(state);
+
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_basreset with no active npc");
+            return 1;
+        }
+        npc->bas_ready_set = 0;
+        npc->masks |= TORIRSSERVER_NMASK_BAS;
+        return 1;
+    }
+
+    /*
      * `npc_facesquareinstant(coord $coord)` -- `npc_facesquare`, the client
      * snapping to the tile instead of turning (`[facing] coord=...,
      * instant=true`; Xarth's corpses as they rise, RSProx 4301 [748]).
