@@ -21,7 +21,9 @@ for f in oc_p4.load():
         cur = None
         for u, l in hist.get(tile, ()):
             if u < t: cur = (u, l)
-        return cur if cur and 'degen' in cur[1] else None
+        # a patch of an earlier fight (another instance, the same template
+        # tiles) is not on this floor
+        return cur if cur and 'degen' in cur[1] and t - cur[0] < 900 else None
     pre = {}; c = {}
     for t in sorted(f.ticks):
         if t < f.E - 400 or t > (f.K or f.last): continue

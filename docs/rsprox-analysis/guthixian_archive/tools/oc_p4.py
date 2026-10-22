@@ -21,7 +21,7 @@ import sys
 from collections import defaultdict
 
 ARCH = os.path.expanduser("~/.rsprox-index-cache/home-all-bas/.rsprox/binary/archive")
-SESSIONS = (4301, 4308, 4309, 4312, 4315, 4316)
+SESSIONS = (4301, 4308, 4309, 4312, 4315, 4316, 4318, 4319, 4320)
 
 TICK = re.compile(r"^\[(\d+)\]")
 C = r"coord=\((\d+), (\d+), (\d+)\)"
@@ -132,8 +132,10 @@ def parse(path):
             elif s.startswith("- wearpos=righthand"):
                 cur.weapon = WEAR.match(s).group(1)
             elif s.startswith("[appearance]") or s.startswith("[details]") or s.startswith("- wearpos") or s.startswith("[equipment]") or s.startswith("[bas]") or s.startswith("[status]"):
-                if s.startswith("[appearance]"):
-                    cur.icon = -1 if cur.icon is None else cur.icon
+                # A status line with no overhead: no prayer. A transcript
+                # with no status lines at all (4315's) says nothing.
+                if s.startswith("[status]"):
+                    cur.icon = -1
             else:
                 cur.other.append(s)
             continue
@@ -212,11 +214,24 @@ def fights_of(sid, ticks):
                 break
         f.last = last
         f.t = {t: ticks[t] for t in order if E - 40 <= t <= last + 3}
+        # The party: the raid HUD's names (script 10042) last sent before E;
+        # a spectator sees other parties' raiders too.
+        party = None
+        for t in order:
+            if t > E:
+                break
+            for k, s in ticks[t].top:
+                if s.startswith('[runclientscript] id=script10042'):
+                    party = [x for x in re.findall(r'"([^"]*)"', s.split('values=')[1]) if x]
         names = set()
         for t in range(E, (f.K or last) + 1):
             if t in ticks:
                 names.update(ticks[t].pl)
+        if party:
+            norm = {x.replace('\xa0', ' ') for x in party}
+            names = {n for n in names if n.replace('\xa0', ' ') in norm}
         f.raiders = sorted(names)
+        f.party = party
         out.append(f)
     return out
 

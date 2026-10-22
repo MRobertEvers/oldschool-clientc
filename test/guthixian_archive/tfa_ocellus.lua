@@ -48,17 +48,23 @@ local function fight(t, sym, ticks, stop, safe)
     return false
 end
 
--- Phase 4: shoot him, take the orb and keep off the void floor (::tfaocorb
--- walks; sent after the attack so its walk wins), health only when low.
+-- Phase 4: shoot his rifts, then him, take the orb and keep off the void
+-- floor (::tfaocorb walks; sent after the attack so its walk wins), health
+-- kept full: a lone bow cannot always kill three rifts before they detonate
+-- (39..41 each).
 local function fight4(t, ticks)
     local deadline = now(t) + ticks
     while now(t) < deadline do
         local hr, hv = t.skill.read("hitpoints")
-        if hr == "ok" and type(hv) == "table" and (hv.level or 99) < 50 then
+        if hr == "ok" and type(hv) == "table" and (hv.level or 99) < 99 then
             t.cheat("::tfaheal", false)
         end
-        if present(t, "tfa_ocellus_p3") then
-            t.player.attack("tfa_ocellus_p3", 2, 1, EAT)
+        -- His rifts first: one left standing detonates (39..41 a rift on
+        -- everyone, 30 ticks from its add), as every recorded party knew.
+        if present(t, "tfa_ocellus_p3_bombportal_basic") then
+            t.player.attack("tfa_ocellus_p3_bombportal_basic", 2, 1, { quick = true, eat = EAT.eat })
+        elseif present(t, "tfa_ocellus_p3") then
+            t.player.attack("tfa_ocellus_p3", 2, 1, { quick = true, eat = EAT.eat })
         end
         t.cheat("::tfaocorb", false)
         t.ticks(1)
@@ -95,6 +101,9 @@ local function fight3(t, ticks, P)
         replay()
         t.cheat("::tfaheal", false)
         t.cheat("::tfaocsafe", false)
+        -- Phase 4 comes inside this loop: its void and orbs are walked by the
+        -- server's timer, every tick even while an attack holds the script.
+        t.cheat("::tfaocorb", false)
         if present(t, "tfa_ocellus_p3_void_vine") then
             t.player.attack("tfa_ocellus_p3_void_vine", 2, 1, EAT)
         elseif present(t, "tfa_ocellus_p3") then
@@ -215,17 +224,24 @@ return {
         local lr = t.world.loc_near(censer .. "_inactive", 16)
         t.check("ocellus.censer_spent", lr == "ok", censer .. "_inactive not there")
         fight3(t, 490, P)
-        -- Phase 4: two cycles of 60, then the kill. The bot takes its orb as
-        -- it comes ready and is healed only when low, so the orb's heal shows.
+        -- Phase 4, then the kill. The bot takes its orb as it comes ready.
         t.ticklog.mark("phase4")
-        fight4(t, 125)
+        -- About a cycle: past the first rifts' detonation, short of the
+        -- second wave's three (a lone bow cannot kill them in time, and
+        -- three on one raider are 120); tfa_ocellus_p4.lua runs three cycles.
+        fight4(t, 60)
         t.ticklog.mark("kill")
-        -- His last point: the next shot ends him, a miss too (the bow lands
-        -- 1 in 10 here, so a point to take could outlast the 40 ticks).
-        t.cheat("::tfaboss 0", false)
-        -- Long enough to outlast his deflect against missiles (D+31..52):
-        -- the bow does nothing under it.
-        fight3(t, 40)
+        -- His last point, held each tick (an unclaimed orb heals him back):
+        -- the next shot ends him, a miss too; long enough to outlast his
+        -- deflect against missiles (D+31..52), under which the bow does
+        -- nothing.
+        for _ = 1, 80 do
+            if not present(t, "tfa_ocellus_p3") then break end
+            t.cheat("::tfaboss 0", false)
+            t.cheat("::tfaheal", false)
+            t.player.attack("tfa_ocellus_p3", 2, 1, EAT)
+            t.ticks(1)
+        end
         t.check("ocellus.line", t.msg.expect("Challenge complete: Ocellus."))
         t.check("ocellus.total", t.msg.expect("The Fractured Archive: Total completion time:"))
         ok = t.await({ level = function() return present(t, "tfa_blade_npc_vault_entry") end, note = "the blade" }, 30)

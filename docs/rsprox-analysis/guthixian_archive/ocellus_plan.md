@@ -850,3 +850,67 @@ but the hybrid's random kind; faces 8 of ours on the recorded ticks.
 - One unexplained patch miss (4312 [4428], D+34).
 - The void floor's hit rate (one hit recorded).
 - The north-west quadrant's arena suffix and the north arm's stone order.
+
+## Recheck: index 4318, 4319, 4320 (2026-10-22, later)
+
+Three new sessions hold five more phase-4 fights: 4318 (a party of five
+wiped after eight cycles, then another of five who won), 4319 (five), 4320
+(three, then three). All spectated again (the recorder follows one party
+after another, so `oc_p4.py` now takes each fight's raiders from the party
+HUD's names, script 10042), 30 full cycles in all. 4315's `--bas`
+transcript had no `[status]` lines; re-transcribed (`--force`) it has them.
+A patch from a fight in another instance shares the template tiles, so
+`oc_p4_patch2.py` counts only patches laid in the same fight.
+
+### Still agreeing
+
+| rule | over 12 fights |
+|---|---|
+| his blocks by cycle tick (seqs, `[bas]`, slot-2 loops, icons, faces) | 30/30 cycles |
+| explosions: start-of-tick tile at both ends | 124/124 live stayers hit; of 1456 who moved off, none a full hit |
+| orb taken on the start-of-tick tile | 224/224; +8 on the ready tick only, never more later |
+| second-wind orbs on his ring | 89/89 |
+| unclaimed orbs heal him at W+25 / W+19, sound 5281 at his middle, range 9 | every one before his death |
+| defend seq: wind at W-1 `delay=30`; explosions, hybrid on the tick | 221, 118, 207 (the rest an attack, or dead) |
+| 2-tick attacks D+9..20, D+40..51 | 2-gaps only in the windows, but a blowpipe's own and one mace swing at D+4 (4320 [2428], two after a swing into his deflect) |
+| the quadrant's floor 2..12 out | every live raider-tick |
+| barriers by quadrant | 12/12, the first north-west fight too |
+| arena npc spot suffix | north-west `_90` (4320's second fight): as inferred |
+| patch cadence | never the tick after a void hit 0/35, two after 12/13, first contact 83/89 |
+| a new random deflect target each cycle | as before |
+
+### Answers to the open questions, and what changed
+
+| question | answer | ours now |
+|---|---|---|
+| an unkilled rift | detonates 30 ticks from its add: its detonate seq, ops none, bar off, gone +2; every raider, anywhere, `vfx_human_ocellus_voidflare_<kind>` delay 30, 39..41 a rift, the defend seq (4318 [3663] two Rifts, [3723] one; 4320 [2293] a phase-3 Augmenter). The `vfx_human_*` spots are this, not "never sent" | `~tfa_oc_rift_detonate`, phases 3 and 4 (the healing rift's unrecorded, as the others') |
+| rifts past four | 2, 3, 4, then 5 every cycle (4318's wipe: 2, 3, 4, 5, 5, 5, 5) | capped at 5 |
+| the hybrid unprayed | 35 where the party took 6 (4319 [2072]) | prayed x 35/6 |
+| the hybrid's 10s | it rises with the cycle: 5..8 in the first two, then a point a cycle, at most 3 (4318's wipe: 5,7 / 7,6 / 8,9 / 8,9 / 10,9 / 9,11 / 9; not his health: 9..11 there at 12..16%, 7..8 elsewhere at 2..5%); prayed values the same for the whole party 66/66 | `+ min(max(0, c - 1), 3)` |
+| the void floor's rate | every tick, 9..11 (9 x2, 10 x4, 11 x5), on the start-of-tick tile; never on the wind's tick (4319 [2079]: the wind only); D+5 and D+6 both (4319 [2080..2081]); ring hits D+5..18, quadrant D+37..48, none at D+50 | D+5..20 and D+36..49, 9..11 |
+| what a deflect does | blocks the hit (as ours) and turns a tenth of it back the next tick when that is 1 or more, as Ancient Curses' Deflects: 3 of 7 attacks into one (4318 [3478] 2, [5818] 3, 4320 [2337] 1, before the bow's arrow landed); other-style attacks 3 small hits in 1268 | `queue(tfa_oc_reflect, 1, damage / 10)` in phase 4 |
+| his death angle | his last face's `fallbackangle` to 8 ways: 11/11; that angle is to his target's tile as the tick began (4320 [2509] 1839 -> 1792, where the tile it reached gives 0) | the start-of-tick tile (as before; the comment corrected) |
+| the face re-sends | sent on exactly the ticks the angle to his target's start-of-tick tile changes: 800/800 deflect ticks. Pets re-send the same way: rev 241's npc info re-sends an entity face when its `fallbackangle` changes | **open (engine)**: our encoder sends `fallbackangle` 0 and the face once |
+| the arm that crumbles | the one between the last quadrant and the quadrant he jumped from: 12/12 (4319 went NE -> SE and crumbled the east arm; the fixed "clockwise" arm was wrong whenever the order turned) | from his last jump |
+| a first-wind orb in his ring | 1 of 142 (4318 [5905], taken at D+25 after the ring's void) | 2..5 kept; the one exception noted |
+
+### Found while testing
+
+- A raider killed by the hybrid under Soul Split (4319 egghead31, D+57)
+  was followed by a heal of 40 on him at D+59 with `nex2021_nex_heal`;
+  three deaths under his deflects healed nothing. One sample: not built.
+- **The raid's own death handling (not phase 4):** ours wipes the room on the
+  first raider's death (`tfa_death_spectate` sets `tfa_state_wiped`); the
+  recordings fight on until the last (4318's first fight: Solo Kev [3563],
+  Miidgeh [3621], then the rest). Our phase-4 tests keep the bots healthy.
+- Our bots shoot rifts first now (`quick` attacks), as every recorded party
+  did; a lone bow cannot kill a second wave of three in time, so the solo
+  test kills him inside a cycle.
+
+### Still open
+
+- The face re-sends with their `fallbackangle` (engine, every npc).
+- The death a tick after the killing hit: 3 of 11 (4309, 4312's first,
+  4316), no feature of the killing hits told them apart.
+- The healing rift's detonation, the north arm's stone order (no recording).
+- Two unexplained patch misses (4312 [4428] at D+34, 4318 [5318]).

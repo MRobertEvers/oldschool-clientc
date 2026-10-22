@@ -9,7 +9,7 @@
 --   all three shoot him and keep off the void with ::tfaocorb (their orbs as
 --   they come ready), Protect from Magic up throughout: the hybrid is prayed
 --   when it is magic and not otherwise
---   seat 1 takes him to his last point after three cycles; the next shot
+--   seat 1 holds him at his last point after three cycles; the next shot
 --   ends him
 --
 --   ./src/build_oc4_opt/torirsserver --scriptrun test/guthixian_archive/tfa_ocellus_p4.lua --bots 3 \
@@ -29,17 +29,23 @@ end
 local EAT = { eat = { item = "shark", below = 40 } }
 
 -- Shoot him and keep off the void (::tfaocorb walks, sent after the attack
--- so its walk wins); health only when low, so the orbs' heals show.
+-- so its walk wins); health kept full: the bots pray Magic only, so from the
+-- third cycle a hybrid of the other kinds hits them for 40..60, and a death
+-- here wipes the room (ours takes any death for the party's).
 local function fight4(t, ticks, stop)
     local deadline = now(t) + ticks
     while now(t) < deadline do
         if stop and stop() then return true end
         local hr, hv = t.skill.read("hitpoints")
-        if hr == "ok" and type(hv) == "table" and (hv.level or 99) < 40 then
+        if hr == "ok" and type(hv) == "table" and (hv.level or 99) < 99 then
             t.cheat("::tfaheal", false)
         end
-        if present(t, "tfa_ocellus_p3") then
-            t.player.attack("tfa_ocellus_p3", 2, 1, EAT)
+        -- His rifts first: one left standing detonates (39..41 a rift on
+        -- everyone, 30 ticks from its add), as every recorded party knew.
+        if present(t, "tfa_ocellus_p3_bombportal_basic") then
+            t.player.attack("tfa_ocellus_p3_bombportal_basic", 2, 1, { quick = true, eat = EAT.eat })
+        elseif present(t, "tfa_ocellus_p3") then
+            t.player.attack("tfa_ocellus_p3", 2, 1, { quick = true, eat = EAT.eat })
         end
         t.cheat("::tfaocorb", false)
         t.ticks(1)
@@ -128,9 +134,13 @@ local function run(t)
     end
     if role == 1 then
         t.ticklog.mark("kill")
-        t.cheat("::tfaboss 0", false)
     end
-    local done = function() return present(t, "tfa_blade_npc_vault_entry") end
+    -- His last point, held each tick (an unclaimed orb heals him back): the
+    -- next shot ends him, a miss too.
+    local done = function()
+        if role == 1 and present(t, "tfa_ocellus_p3") then t.cheat("::tfaboss 0", false) end
+        return present(t, "tfa_blade_npc_vault_entry")
+    end
     t.check("ocellus.blade", fight4(t, 90, done), "no Blade to the vault")
     if role == 1 then
         t.ticks(4)
