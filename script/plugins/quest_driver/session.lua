@@ -340,7 +340,14 @@ function QD.session.login(user, password)
 end
 
 -- t.session.relog() -> ok | the failing half's own answer
-function QD.session.relog(user, password)
+function QD.session.relog(user, password, offline_ticks)
+    -- Scriptrun's seats have no title screen: the host drops the seat and
+    -- logs it back in from its save itself (torirs_server_scriptrun.c
+    -- d_relog), `offline_ticks` server ticks later (default 2).
+    if api_drive.relog ~= nil then
+        local result, detail = api_drive.relog(offline_ticks or 2)
+        return result, detail or ("relogged after " .. tostring(offline_ticks or 2) .. " ticks offline")
+    end
     local out_result, out_detail = QD.session.logout()
     if out_result ~= "ok" then
         return out_result, out_detail

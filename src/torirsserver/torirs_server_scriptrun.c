@@ -58,6 +58,7 @@
 #include "net/wordpack.h"
 
 #include <assert.h>
+#include <limits.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -155,6 +156,24 @@ struct ScriptBot
     /* That spell's target mask (bits 11..16 of its effective events, shifted
      * down): which world things its "Cast" row may land on. */
     int armed_spell_mask;
+    /* drive.relog: a disconnect and a fresh login under the same name, as a
+     * client that dropped and dialled back does (d_relog). The phase moves
+     * at the tick boundary in the run loop: OUT removes the player through
+     * ToriRSServer_WorldRemovePlayer (the transport's own disconnect, so
+     * [logout] runs and the save is written), OFFLINE waits relog_until, IN
+     * logs a new player in from that save and resumes the script once its
+     * login scene is answered. */
+    int relog_phase;
+    int relog_ticks;
+    int relog_until;
+};
+
+enum
+{
+    SCRIPTBOT_RELOG_NONE = 0,
+    SCRIPTBOT_RELOG_OUT,
+    SCRIPTBOT_RELOG_OFFLINE,
+    SCRIPTBOT_RELOG_IN,
 };
 
 struct ScriptRun
@@ -305,6 +324,12 @@ handle(
 static void
 flush_inputs(struct ScriptBot* bot)
 {
+    /* Offline mid-relog: nothing to send them to. */
+    if( !bot->player )
+    {
+        bot->input_count = 0;
+        return;
+    }
     for( int i = 0; i < bot->input_count; i++ )
     {
         struct ScriptrunInput const* in = &bot->inputs[i];
@@ -576,6 +601,35 @@ d_finish(lua_State* L)
     bot->finished = 1;
     bot->exit_code = (int)luaL_optinteger(L, 1, 0);
     return push_result(L, "ok", "finish");
+}
+
+/* drive.relog([offline_ticks]): the seat drops and dials back in as the same
+ * character, `offline_ticks` (default 2) server ticks later. The live
+ * client's t.session.relog goes through the logout button and the title
+ * screen; a sessionless bot has neither, so the run loop does the two halves
+ * a host does (a socket close, then a login) at its tick boundaries. Answers
+ * once the new login's scene is answered; the seat may have a new pid. */
+static int
+d_relog(lua_State* L)
+{
+    struct ScriptBot* bot = bot_of(L);
+    int ticks = (int)luaL_optinteger(L, 1, 2);
+
+    if( ticks < 0 )
+        return luaL_error(L, "drive.relog: offline_ticks %d is negative", ticks);
+    if( bot->relog_phase != SCRIPTBOT_RELOG_NONE )
+        return luaL_error(L, "drive.relog: a relog is already under way");
+    if( !lua_isyieldable(L) )
+        return luaL_error(L, "drive.relog would suspend inside an await predicate");
+    bot->relog_phase = SCRIPTBOT_RELOG_OUT;
+    bot->relog_ticks = ticks;
+    bot->await_level_ref = LUA_NOREF;
+    bot->await_match_ref = LUA_NOREF;
+    bot->await_kind = -1;
+    bot->await_deadline = INT_MAX;
+    snprintf(bot->await_note, sizeof(bot->await_note), "relog (%d ticks offline)", ticks);
+    bot->state = SCRIPTBOT_AWAIT;
+    return lua_yield(L, 0);
 }
 
 static int
@@ -4153,6 +4207,7 @@ push_drive_table(
     bind(L, bot, "ledger", d_ledger);
     bind(L, bot, "finish", d_finish);
     bind(L, bot, "session", d_session);
+    bind(L, bot, "relog", d_relog);
     bind(L, bot, "status", d_status);
     bind(L, bot, "symbol", d_symbol);
     bind(L, bot, "symbol_name", d_symbol_name);
@@ -4764,6 +4819,61 @@ bot_step(struct ScriptBot* bot)
     }
 }
 
+/* drive.relog's halves, at the tick boundary (d_relog). OUT is the transport's
+ * disconnect: [logout] runs and the character is saved where it stands. IN
+ * is a fresh login under the same name -- a new client, so a new core, and
+ * possibly a new pid -- loading that save, as a client dialling back does. */
+static void
+relog_tick(
+    struct ScriptRun* run,
+    struct ScriptBot* bot)
+{
+    struct ToriRSServer* srv = run->srv;
+
+    if( bot->relog_phase == SCRIPTBOT_RELOG_OUT )
+    {
+        fprintf(stderr, "scriptrun: %s (pid %d) disconnects at %d,%d,%d for %d tick(s)\n",
+                bot->name, bot->player->pid, bot->player->x, bot->player->z, bot->player->level,
+                bot->relog_ticks);
+        ToriRSServer_WorldRemovePlayer(srv, bot->player);
+        bot->player = NULL;
+        bot->input_count = 0;
+        bot->relog_until = (int)srv->tick + bot->relog_ticks;
+        bot->relog_phase = SCRIPTBOT_RELOG_OFFLINE;
+    }
+    if( bot->relog_phase == SCRIPTBOT_RELOG_OFFLINE && (int)srv->tick >= bot->relog_until )
+    {
+        struct ToriRSServerPlayer* player;
+
+        ScriptrunCore_Free(bot->core);
+        bot->core = ScriptrunCore_New(run->rev);
+        bot->core->cache_disk = run->cache_disk;
+        bot->core->skillmulti_script =
+            ToriRSServer_ContentConstantInt("clientscript_skillmulti_init", -1);
+        player = ToriRSServer_WorldAddPlayer(srv, NULL);
+        assert(player);
+        bot->player = player;
+        ScriptrunCore_SetLocalIndex(bot->core, ToriRSServer_WirePlayerIndex(player->pid));
+        ToriRSServer_WorldPlayerInit(player);
+        ToriRSServer_WorldSetDisplayName(player, bot->name);
+        srv->active_player = player;
+        ToriRSServer_WorldLogin(player);
+        bot->login_tick = (int)srv->tick;
+        bot->tab = SCRIPTRUN_TAB_INVENTORY;
+        disarm(bot);
+        bot->event_cursor = bot->core->event_serial;
+        bot->relog_phase = SCRIPTBOT_RELOG_IN;
+        fprintf(stderr, "scriptrun: %s logs back in as pid %d at %d,%d,%d\n", bot->name,
+                player->pid, player->x, player->z, player->level);
+    }
+    else if( bot->relog_phase == SCRIPTBOT_RELOG_IN && (int)srv->tick > bot->login_tick + 1 &&
+             !bot->player->login_scene_pending )
+    {
+        bot->relog_phase = SCRIPTBOT_RELOG_NONE;
+        bot_settle(bot, 1);
+    }
+}
+
 /* ----------------------------------------------- the collision check */
 
 /*
@@ -5213,6 +5323,8 @@ ToriRSServer_ScriptRun(
         int live = 0;
 
         for( int i = 0; i < run.count; i++ )
+            relog_tick(&run, &run.bots[i]);
+        for( int i = 0; i < run.count; i++ )
         {
             struct ScriptrunCore* c = run.bots[i].core;
             ScriptrunCore_BeginTick(c, (int)srv->tick);
@@ -5245,7 +5357,7 @@ ToriRSServer_ScriptRun(
              * absolute stamp in the two tick logs differed by one
              * (2026-10-12, relay f1/f2). A rebuild later on is acked from
              * here, the boundary after the tick that sent it, as before. */
-            if( (int)srv->tick > bot->login_tick )
+            if( bot->player && (int)srv->tick > bot->login_tick )
                 scene_ack(bot->player);
             if( !bot->finished )
                 bot_step(bot);
@@ -5277,7 +5389,8 @@ ToriRSServer_ScriptRun(
             struct World_EntityPool* np = &c->world->entities.npc;
             fprintf(stderr, "scriptrun: %s (server truth %d,%d) perceives: scene %d zone %d,%d base %d,%d local_pid %d "
                             "players %d npcs %d msgs %d invs:",
-                    run.bots[i].name, run.bots[i].player->x, run.bots[i].player->z,
+                    run.bots[i].name, run.bots[i].player ? run.bots[i].player->x : -1,
+                    run.bots[i].player ? run.bots[i].player->z : -1,
                     c->have_scene, c->rebuild_zone_x, c->rebuild_zone_z,
                     c->world->_base_tile_x, c->world->_base_tile_z, c->esync->local_pid, pp->count,
                     np->count, c->message_serial);

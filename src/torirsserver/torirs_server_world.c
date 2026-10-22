@@ -17037,6 +17037,28 @@ ToriRSServer_WorldLogin(struct ToriRSServerPlayer* player)
 
     player->login_pending = 0;
     player->login_scene_pending = srv->wire && srv->wire->revision >= 239;
+    /*
+     * A fresh login INTO an instance (a raid room that lingered while its
+     * player was away) still needs the login rebuild's GPI init: only the
+     * REBUILD_NORMAL login variant carries it, and REBUILD_REGION, which
+     * ToriRSServer_SendRebuild sends in an instance, never does. Without it
+     * the client never tracks itself -- PLAYER_INFO reads as noise, its own
+     * actor is missing (no splats on it, a void tile) -- which is what a
+     * re-login inside the Archive got (2026-10-22, drive.relog). So the login
+     * variant goes first, at the player's own zone, seeding the table, and
+     * the region rebuild follows and draws the instanced scene. A reconnect
+     * (RECONNECT_OK already sent the init) and a login on the normal map are
+     * untouched: the first is tracked already, the second is this packet.
+     */
+    if( !player->player_tracked[player->pid] )
+    {
+        int anchor_x = player->x;
+        int anchor_z = player->z;
+
+        ToriRSServer_PlayerSceneAnchor(srv, player, &anchor_x, &anchor_z);
+        if( ToriRSServer_MapInstanceFind(anchor_x, anchor_z) != 0 )
+            ToriRSServer_SendRebuildNormal(player);
+    }
     ToriRSServer_SendRebuild(player);
     player->rebuild_pending = 0;
     if( player->login_scene_pending )
