@@ -149,8 +149,14 @@ return {
         t.cheat("::tfaboss 600", false)
         fight(t, "tfa_ocellus_p1", 90)
         t.ticklog.mark("zero")
-        t.cheat("::tfaboss 1", false)
-        fight(t, "tfa_ocellus_p1", 40, function() return present(t, "tfa_ocellus_p2") end)
+        -- Held at his last point each tick: the solo bot never blocks a line,
+        -- so every closing line heals him 2 (a line is blocked only with every
+        -- raider on it), faster than its shots take it off.
+        fight(t, "tfa_ocellus_p1", 40, function()
+            if present(t, "tfa_ocellus_p2") then return true end
+            t.cheat("::tfaboss 0", false)
+            return false
+        end)
         t.check("ocellus.phase2", present(t, "tfa_ocellus_p2"), "no phase 2")
         -- Phase 2: The Blade takes the hits; three rounds of portals; phase 3
         -- 131 ticks after the change.

@@ -34,17 +34,22 @@ His health: 2500 at 1-2 raiders (3630 at three, 4680 at four). The timetable
 | health at or under 66% or a quarter: checked after a corner's explosion, and while he walks (or waits at the corner) on each volley's tick, in its place (4301 [1040], 4309 [1546], 4312 [1508] [3660], 4315 [6088], 4316 [1982] [2073]: 7/7) | he stops where he is (a walk's last step is T-1); `npc_ocellus_phase1_teleport_out` + `vfx_ocellus_p1_teleport_out` slot 2, `transparency 30..45, 0 -> 255`, his headbar `removed=true`, his overhead cleared; +4 a `telejump` (the same index, snapped) to the middle (sw (-1,-1)) with `_teleport_in`, `transparency 0..20, 255 -> 0`, facing the side of his first cracks with `instant=true` (16/16); +5 `tfa_wallkit_archive03_center01_blockwalk` on his sw tile (12/12 teleports and 6/6 floors, 4301 [986] [1040], 4308 [1573] [1654], 4309 [1546], 4312 [1508]; §2a) |
 | +8, then every 8, four beats B | the charge seq and two diagonal cracks from neighbouring corners of his 3x3, clockwise from a random pair (the earlier at delay 0, the later at 60); `vfx_ocellus_p1_charge` at B+4 and B+6; the explosion at B+6, the blast at B+7 |
 | the last explosion +2 | "Death... awaits..." (every recorded strike); `tfa_wallkit_archive03_center01` back on his tile; the meter emptied |
-| +1 | every raider healed 4..8 (hitsplat 6) |
-| +2 | `npc_ocellus_phase1_expend`; a `scriptedproj_add` of `ocellus_proj_test` at each raider (2 / 39, curve scripts 10024 / 10018 / 10017) |
-| +3 | each raider hit 17..19 (13/13) |
+| +1 | nothing of his: the raiders' heal splats here are their own gear's, on their own attack ticks (§2b) |
+| +2 | `npc_ocellus_phase1_expend`; a `scriptedproj_add` of `ocellus_proj_test` at each raider (2 / 39 to a raider within 4 of his middle as the tick began, 2 / 54 further: 37/37 and 1/1; curve scripts 10024 / 10018 / 10017) and on each raider `vfx_human_ocellus_voidflare_heal` delayed by the shot's endtime (46/46); the shots go out with his first `[facing] player=` (13/13), on the expend's tick 10/13 and the next 3/13; his Protect from Melee headicon +1 after the expend (13/13) |
+| the shot's landing | each raider hit 17..19, its own roll (4301 [1083]: 19, 17, 18), on (endtime + 15) / 30 ticks after the shot: +1 at 39, +2 at 54 (4301 [1030]); +1 after late shots too (4309 [1590], 4312 [1461], 4315 [6132]) |
 | +8 | he walks on to the next corner |
 | nothing left | "You... will disappear..."; if not at the middle: teleport out +2 (the same fade and headbar removal), a `telejump` to the middle +4 with `seq -1` and `transparency -1..-1, 0 -> 255` (still unseen) and no floor, in +5 (`_teleport_in`, the fade in); `npc_ocellus_phase1_transformation` 3 ticks after he is at the middle; +7 phase 2 (§3), whose T+2 lays the floor (4301 [1092..1106], 4309 [1610..1624], 4316 [2136..2150]: 3/3) |
 
 **Volleys.** A shot at every raider: fire (`vfx_ocellus_fire_attack01_projanim`,
 the wiki's orange, ranged) or water (`_water_`, blue, magic), one element a
 walk, with `vfx_ocellus_<element>_attack01_spotanim` on him; 30 / 95 within 4
-tiles, 30 / 125 beyond (46/46), angle 40, progress 0, heights 578/124 (ours
-144/31).
+tiles, 30 / 125 beyond, angle 40, progress 0, heights 578/124 (ours
+144/31). Both the source and the distance are as the tick began, before
+anyone's step: his middle then (126/126 shots' source while he walked) and
+each raider's tile then (256/256; measured after the tick's moves, 30 miss).
+Ours snapshots both in his `[ai_timer]`, which runs before the players move.
+Prayed, a shot is 0; unprayed it rolls accuracy (5 of 13 unprayed shots 0),
+then 0..25.
 
 **Cracks.** A line grows from its far end toward him: the start piece at delay
 60, each tile a cycle later; it closes 5 ticks on (4 / 6 for the middle's
@@ -88,11 +93,13 @@ and the second at 60 (every beat of six sessions: 64/64), ending at (of his sw):
 The face he starts on varies (east 4, north 4, west 3, south 3 over 14 visits;
 not the raiders' side); his landing face says which.
 
-**The meter (the yellow bar).** A line that closes with nobody on it adds 2
-(4308 [1520], [1522], [1585], [1640], [1668]; 4301 [970]); he heals 2
-(hitsplat 6) and a sound plays where the line meets him (12512 or 12513, r20
-size 5). A raider on a closing line blocks it and takes 3..5 (4308 [1557..1569]:
-every raider every 2 ticks). The strike empties it. The recorded meters were
+**The meter (the yellow bar).** A closing line adds 2 and heals him 2
+(hitsplat 6) unless every raider in the room stands on it, its meet tile
+counted (261/261 closes over the six sessions; "nobody on it", the old rule,
+missed every close one raider of several blocked). Every raider on it takes
+3..5 either way (4308 [1557..1569]: every raider every 2 ticks). The sound
+(12512 or 12513, r20 size 5) plays on every close, blocked or not, on the
+meet tile: the line's tile `len`, or `len - 1` for a 6-long line. The strike empties it. The recorded meters were
 0..10 of 96 at the strikes (`hpbar_hud_extra_current` read off the bar: 4309
 [1490] 10, 4312 [3700] 8; 13 strikes), and every strike was "Death... awaits..."
 with one shot a raider for 17..19. Ours had a second shot and "Embrace..." from
@@ -140,6 +147,51 @@ Client: the TRANSPARENCY block was decoded and dropped
 (`world/entity_transparency.h`, the deob's class657 / Model.method4912;
 `app_world_sync_npc_transparency`). Not yet seen on screen: the shared tree's
 uncommitted toridraw edits stop the client linking (2026-10-21).
+
+### 2b. Healing, timing and attacks, audited (2026-10-22)
+
+Against all six `--all-players` sessions (4301, 4308, 4309, 4312, 4315,
+4316: 21 corners, 19 middle visits, 13 strikes), each mechanic aligned on its
+own anchor (the corner's first charge seq; the teleport out):
+`tools/oc_p1_check.py charge|middle <ticklog> <transcripts>` (events from
+`tools/oc_p1_events.py`). Ours: `test/guthixian_archive/tfa_ocellus.lua`, solo,
+15/15.
+
+| what | recorded | ours before | ours now | verdict |
+|---|---|---|---|---|
+| line heal | 2 unless every raider is on the line or its meet tile (261/261) | 2 when nobody was on it | the recorded rule | fixed |
+| line sound | 12512/12513 r20 s5 on every close, on the meet tile | only on a heal | every close | fixed |
+| raider heals at a line or the strike | none of his: 0 of 372 raiders on a closing line who were not attacking healed; 193 of 791 attacking off a line did (`human_inquisitors_mace_crush`, `human_bow`, the obligator, the ascension crossbow, the scythe) | 4..8 at the strike, some on lines | none | fixed (removed) |
+| volley flight | 95 / 125 by each raider's tile as the tick began, from his middle then (256/256) | after the tick's moves | as the tick began (9/9 ours) | fixed |
+| volley damage | prayed 0; unprayed 5 of 13 shots 0, the rest 2..24 | 0..25, no roll | accuracy roll, then 0..25 | fixed |
+| strike flight | 39 within 4 of his middle as the tick began, 54 beyond (37/37, 1/1) | 39, +15 a repeat | 39 / 54, +15 a repeat | fixed |
+| strike impact spot | `vfx_human_ocellus_voidflare_heal`, delay = endtime, with the shot (46/46) | not sent | sent | fixed |
+| strike hits | 17..19 each its own roll, on its shot's landing | one roll, all at +1 | each, at (end + 15) / 30 | fixed |
+| after the strike | the next volley at expend +7 (13/13, the far shot's strike too) | +7 | +7 | matched |
+| beats' facing | `angle=` +512 a beat from a random start (14/14 visits) | same | same | matched |
+| particles | `vfx_ocellus_sword_repair_particles_01` at the middle every 3 ticks through phase 1 | until the fight only (none in phase 1); phase 2 a tick off the clock | every 3 on one clock, load to phase 2 (132/132 ours) | fixed |
+| charge, middle, explosions, says, seqs, spots | the timetable above | same | same | matched (both profiles) |
+
+Our instance vars for the tick-start snapshot are 7..9; the first cut put them
+on 21 and 22, inside the shots in flight (20..25), which a party of three or
+more would have overwritten.
+
+Open:
+
+- **The late strike.** In 3 of 13 strikes (4309 [1588], 4312 [1459], 4315
+  [6130]) his face on the raider, the shots and so the hits come a tick after
+  the expend; the faced raider's tile does not say why. Ours does the 10/13.
+- **His face re-sent.** Between the expend and the next volley the recordings
+  re-send `[facing] player=` (the same raider, 13/13) up to five times; a
+  move of that raider explains some and not others (13 moves with none, 11
+  re-sends with the raider still). Ours sends it once.
+- **Regeneration.** Our engine regenerates him 1 every 100 ticks (`regen`);
+  no splat, and a 2501-health bar cannot show it. Unverifiable on the wire.
+- **The solo test** never stands on a line or far from the middle at a strike's
+  expend with one shot: the blocked-line path and the lone 54 are exercised
+  only through the rules above, not by a run.
+- **A fuller bar's extra shots** (one per 24) stay the wiki's: no recorded
+  strike had a meter above 10.
 
 ## 3. Phase 2
 
@@ -422,8 +474,8 @@ the seq beside the raider.
 | mechanic | recorded | ours before | ours now | verdict |
 |---|---|---|---|---|
 | p1 line chip | 3..5 (232) | 3..5 | same | matched |
-| p1 strike | 17..19 (13/13) | 17..19 | same | matched |
-| p1 volley | 256 shots over 4301..4316: 248 0 (prayed: no chip through), 9 hits 2..24; the prayer read on landing (a switched volley 47/50 0 vs 179/185); the element carries volley to volley and changes 14 of 65 | 0..25, prayed 0; one element a walk | 0..25, prayed 0 on landing; the element changes 14 in 65 a volley | fixed (the element); the top of 0..25 and any accuracy roll unverified |
+| p1 strike | 17..19 (13/13), a roll per raider, as each shot lands | 17..19, one roll for all, all on the expend + 1 | a roll each, on its shot's landing | fixed |
+| p1 volley | 256 shots over 4301..4316: 248 0 (prayed: no chip through), 9 hits 2..24; the prayer read on landing (a switched volley 47/50 0 vs 179/185); the element carries volley to volley and changes 14 of 65 | 0..25, prayed 0; one element a walk | 0..25, prayed 0 on landing; the element changes 14 in 65 a volley | fixed (the element; the accuracy roll added 2026-10-22: 5 of 13 unprayed shots 0); the top of 0..25 unverified |
 | p1 explode near him | 28, 28, 30 | 20..40 | 25..35 | fixed |
 | p1 routine | three volleys on the walk, the corner charge (7 lines), the explode; at 66% the middle's four beats and the strike | same (the stream's apparent extra corner was our bot's slower damage) | same | matched |
 | p2 fired line | 19..25 (10; one 29 unattributed) | 40..55 (from 42, 55 that were The Blade's) | 19..25 | fixed |
@@ -530,8 +582,8 @@ Saxerpillar). Its spawn and despawn seqs are `vfx_ocellus_voidflare_heal_*`.
 
 What a killed rift gives its killer (the guide's "empower the player who kills
 it"): nothing reaches the wire. `vfx_human_ocellus_voidflare_default` and
-`_buff` are never sent; `_heal` (delay 39) only on every raider at phase 1's
-middle strike (4301 [1028], [1082]: the strike's small heal). Not built. An
+`_buff` are never sent; `_heal` is phase 1's strike shot's impact on each
+raider, delayed by its flight (§2: 46/46), not a heal or an empowerment. An
 unkilled rift's "charge" is unrecorded (every basic and buff rift was killed).
 
 ### Checked and unchanged
@@ -543,8 +595,9 @@ unkilled rift's "charge" is unrecorded (every basic and buff rift was killed).
 - **60% Defence reduction cap** (hotfix): held on his tick (40% of base), as
   Sotetseg's floor is. **Defence not restored between phase 3's quadrants**
   (hotfix): nothing of ours restores it.
-- **Phase 1's missed line heals him 2**: now with its heal splat (recorded:
-  4301 [970], 4308 [1520], [1522], [1585], [1640], [1668]).
+- **Phase 1's unblocked line heals him 2**, with its heal splat (recorded:
+  4301 [970], 4308 [1520], [1522], [1585], [1640], [1668]); blocked only by
+  every raider (§2, 261/261).
 - **The censers' effects** stay the wiki's guess (no recording shows them).
 - **Phase 2, the tendrils, the untether, the slam, the quadrant destruction**:
   as audited above.
