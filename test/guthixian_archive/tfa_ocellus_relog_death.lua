@@ -2,7 +2,8 @@
 -- raider dropping two ticks into it, before its spectate step marks the room
 -- wiped. ~tfa_on_logout marks it in its place, and the way back in ends it as
 -- the death would have: the Archive lobby and "You failed to survive the
--- Fractured Archive." A disconnect is not a way out of a raid death.
+-- Fractured Archive.", the items past the three kept in a gravestone. A
+-- disconnect is not a way out of a raid death.
 --
 --   ./src/build_opt/torirsserver --scriptrun test/guthixian_archive/tfa_ocellus_relog_death.lua --bots 1 \
 --       --name tfa0 --ticks 3000 --session /tmp/tfa --fixture test/raids/fixtures/fresh_lumbridge.ini
@@ -109,6 +110,10 @@ local function run(t)
     t.check("relog.alive", hr == "ok" and type(hv) == "table" and (hv.level or 0) > 0, "dead after the relog")
     t.check("relog.lobby", dr == "ok" and dt.x >= 4096 and dt.x < 4160 and dt.z >= 5504 and dt.z < 5568, "not in the Archive lobby")
     t.check("relog.failed_line", t.msg.expect("You failed to survive the Fractured Archive.") == "ok", "no failure line")
+    -- The death's item loss came before its cut-off point, so the relog takes it.
+    local _, left = t.inv.count("shark")
+    t.check("relog.items_lost", type(left) == "number" and left <= 1, "kept " .. tostring(left) .. " sharks")
+    t.check("relog.grave_line", t.msg.expect("Some of your dropped items are being held in a gravestone, near where you died.") == "ok", "no gravestone line")
     t.finish(0)
 end
 
