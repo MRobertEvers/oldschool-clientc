@@ -207,26 +207,30 @@ his (4301: 7610 -> 7018 across it, carried on). His health from here: 5250 at
 | 7 | "Your time... comes..."; `tfa_the_blade1_idle0` at the middle and `tfa_ocellus_p2_sword_hitbox` ("The Blade") on his tiles |
 | 11, 53, 95 | a round R (below); the quadrant the raiders stand in first, then the next clockwise (NE, SE, SW, NW): 4301 SW, NW, NE; 4308 SE, SW, NW |
 | every 3 till 123 | `vfx_ocellus_sword_repair_particles_01` at the middle |
-| 123 | (round 3 cut short) "This... is enough..."; `npc_ocellus_p2_to_p3_part1`, `vfx_ocellus_p2_to_p3_arm_glow01` d150, `vfx_ocellus_sword_root_fire` slot 5, `vfx_ocellus_p2_to_p3_arm01` slot 2 d150; The Blade gone; 4428 r15 s15; `invisible_type8_nonblocking` and `vfx_ocellus_sword_drop` at the middle |
-| 124 | 444 r10; `tfa_arena_sword_drop_explosion` |
+| 123 | (round 3 cut short: no R+28 pools) "This... is enough..."; `npc_ocellus_p2_to_p3_part1`, `vfx_ocellus_p2_to_p3_arm_glow01` d150, `vfx_ocellus_sword_root_fire` slot 5, `vfx_ocellus_p2_to_p3_arm01` slot 2 d150; `enabled_ops 0b00000`; The Blade gone; 4428 r15 s15; `invisible_type8_nonblocking` and `vfx_ocellus_sword_drop` at the middle; song 894 from here |
+| 124 | round 3's R+29 volley still fires (the lit portals, then dark); 444 r10; `tfa_arena_sword_drop_explosion` |
+| 125 | all 24 portals `loc_anim` `vfx_ocellus_p2_portal_despawn` |
 | 127 | the hall's walls come down: `tfa_wallkit_archive03_straight_collapse_01..04` at (-1,-13), (-13,-1), (-1,3), (3,-1); `invisible_type8_blocking` (-1,-15), `invisible_type0_nonblocking` (0,-13) |
-| 131 | `npc_ocellus_p2_to_p3_part2`, `vfx_ocellus_null` h154 d300 (slots 0 and 2), he becomes `tfa_ocellus_p3` |
-| 132 | the 24 portals deleted; `invisible_type8_blocking_size5` (-2,-2), `_size3` (-1,-1); each arm breaks: `tfa_arena_collapsing_explosion02/03/04/01` 3/6/9/12 out at delays 0/15/30/45; stepping stones `tfa_ocellus_platform_jump_outer_*` at 4 and 10, `_middle` at 7 |
-| 135 | `inviswall_blockrange` along the chasms' edges (phase 3, §4) |
+| 131 | `npc_ocellus_p2_to_p3_part2`, `vfx_ocellus_null` h154 d300 (slots 0 and 2), he becomes `tfa_ocellus_p3`; `level_change` 1601, an empty `headicon_customisation`, `enabled_ops 0b00000` |
+| 132 | the 24 portals deleted; `invisible_type8_blocking_size5` (-2,-2), `_size3` (-1,-1); `tfa_arena_collapsing_explosion01` at the middle; each arm breaks: `tfa_arena_collapsing_explosion02/03/04/01` 3/6/9/12 out at delays 0/15/30/45; stepping stones `tfa_ocellus_platform_jump_outer_*` at 4 and 10, `_middle` at 7; the four walls `loc_anim` `dungeonkit_guthixian03_cracking_collapsing_01..04` |
+| 135 | `[transparency] 0, 28, 0, 255` (he fades out); the walls' `_empty`; `inviswall_blockrange` along the chasms' edges (phase 3, §4) |
+| 137 | his jump to the first corner (§4, S+0), fading in; 138 `enabled_ops 0b00010` |
+
+The change is the same to the tick in 4301, 4308, 4309 and 4316.
 
 A round R, on the quadrant's two arms:
 
 | R+ | recorded |
 |---|---|
 | 0, 5, .. 25 | ten of the twelve portals `_active`, a gap on each arm (the wiki's orange portals); the gaps' rows cross at the safe spot |
-| 4, 9, .. 29 | each lit portal fires across the quadrant along its two rows (or columns): `vfx_ocellus_portal_projectile` 0 / 6 a tile less 6, angle 127, progress 250, heights 100 (ours 25), from a pair of invisible `tfa_invisible_npc_2x2` on it (deleted +3); the portals go dark |
+| 4, 9, .. 29 | each lit portal fires across the quadrant along its two rows (or columns): `vfx_ocellus_portal_projectile` from the portal + (1,1) to the arena's wall a tile across (c the source's offset across the line: min(14, 22 - c) out on the arm's positive side, min(14, 20 + c) on its negative, 15 the cap southward); east and north 6 cycles a tile plus 6, progress 100; west and south 6 a tile less 6, progress 250; angle 127, heights 100 (ours 25); from a pair of invisible `tfa_invisible_npc_2x2` on it (deleted +3); the portals go dark (2,247 shots, every portal both ways, seven fights) |
 | 28 | 13 `vfx_ocellus_p2_aoe_dodge` pools on the quadrant; (round 1) `tfa_the_blade1_idle2` |
 | 31 | all twelve lit |
 | 33 | `vfx_ocellus_p2_safe_portal_spawn` on a pool's tile; `_idle` every tick to R+39 |
 | 34 | `vfx_ocellus_p2_sword_discharge` d30 on him; 4428 r15 s15 |
 | 35 | 444 r10 |
 | 34..39 | a raider on the safe portal is put on a random tile of the next quadrant (4301 [1153], 4308 [1761], [1763]) |
-| 40 | all twelve fire (0 / 5 a tile less 5); `_despawn` |
+| 40 | all twelve fire (5 a tile plus 5 east and north, less 5 west and south); `_despawn` |
 
 A raider in a fired line is hit (4301 [1119..]: 42, 55; ours 40..55, so off
 the safe spot, under two lines, they take ~100); on a pool 3..5 a tick (the
@@ -245,30 +249,73 @@ a teleport and a 27-cycle exact move (4301 [1327..1338]: four hops a raider, 12
 a raider over the phase).
 
 **Segments.** He jumps (P+6) to the corner of the quadrant the raiders hold;
-three segments, each ending in that quadrant's destruction, then the next
-counter-clockwise (4301 NE, NW, SW; 4308 NW, SW, SE). From the segment's start
-S (the same in both fights to a tick or three):
+three segments, each ending in that quadrant's fall, then the next
+counter-clockwise (4301 NE, NW, SW; 4308 NW, SW, SE). **What ends a segment
+is his health, not a clock** (all 21 segments of the seven fights: 4301,
+4308, 4309, 4312 twice, 4315, 4316; `p3tok.py`-style token streams in the
+audit below). From the segment's start S (the jump):
 
 | S+ | recorded |
 |---|---|
-| 0 | he is at the corner |
-| 1 / 2 | the quadrant's barriers `tfa_ocellus_quadrant_barrier_01/02` (`_spawn`, then standing): north-east's at (8,1) r1 and (1,7) r2, each quadrant clockwise turning them a quarter |
+| 0 | `telejump` to the corner, `level_change`, `[facing] coord=` the middle `instant=true`, `[transparency] 0, 28, 255, 0` (fading in), an empty `headicon_customisation` |
+| 1 / 2 | the quadrant's barriers `tfa_ocellus_quadrant_barrier_01/02` (`_spawn`, then standing): north-east's at (8,1) r1 and (1,7) r2, each quadrant clockwise turning them a quarter; `enabled_ops 0b00010` |
 | 6 (and 9 in the first) | void bombs, one on each standing quadrant: `vfx_ocellus_quadrant_bomb_idle_01` h255 at 0 and 30; +2 `_drop_01` and `_impact_01` and a `tfa_ocellus_void_degen_bomb` that stays |
-| 4, 14 | melee triples: `npc_ocellus_phase3_melee_basic`, +3 the same, +6 `_melee_slash` (a short line of `vfx_ocellus_p3_shadow_slash_spotanim01` toward the target, delay 2 a tile); he walks after his target between |
-| 24 | the spin: `npc_ocellus_phase3_prayer_in` + `vfx_ocellus_phase3_melee_prayer_in` slot 4; +1 a hit on everyone their prayer blocks (13/13 0); a loop (`_prayer`, `_prayer_loop`) for each quadrant already destroyed; `_prayer_out`; a hit of 13..23 on everyone 4 ticks in and at each loop |
-| 33 (36 later) | "Your panic... is futile...": `npc_ocellus_phase3_basic_projectile_all`, `vfx_ocellus_magic_spotanim01` slot 4 d30, `vfx_ocellus_magic_projanim01` at everyone 45/60 a100 p100 435/124 (ours 109/31); a `tfa_ocellus_void_degen_aoe` patch (21..51 ticks) |
-| 36 (39 later) | the void vine: "The void... will take you..." or "Await... the void..."; `tfa_ocellus_p3_void_vine` (44 hp) on a raider's tile, rooting them; 14 ticks to cut it (the wiki: 50 if not) |
-| (later segments) 59 | "Insolence...": three `npc_ocellus_phase3_melee_superior_slash` d30, 5 apart, each a band 4 wide of `_superior_spotanim01` toward the target, its debris `tfa_ocellus_void_degen_aoe_insolence_1/4/7` (near, middle, far; random turns) for 16 ticks (56/56) |
-| (later segments) 3, 51, 111 | void rifts, 44 hp: the second segment's are `tfa_ocellus_p3_bombportal_buff` "Void Augmenter", the third's `_basic` "Void Rift" (2/2); one at three raiders (12/12), two at four (14/14): max(1, living / 2); spawn seq, despawn seq +10, gone +12 |
-| 53 (first) / 134 (later) = U | "Untether...": he jumps to the corner with an exact move (old, 0, new, 90, the yaw), `npc_ocellus_phase3_unleash_in`; U+2 `_unleash_loop`; pools `vfx_ocellus_p2_aoe_dodge` (10..15) on the quadrant at U+6, 10, 14, 18; U+18 `vfx_ocellus_p3_unleash_spotanim` d360; U+25 `vfx_ocellus_unleash_arena` (NE `_180`, NW `_90`, SW plain) over it; U+29 `_unleash_out` |
-| U+31 | "Obliteration..." or "Run... It matters not..."; `npc_ocellus_quadrant_destroy_in`, `vfx_ocellus_phase3_arena_collapse_in` slot 2; the barriers' `_despawn` |
-| U+33 | `_destroy_loop`, `_arena_collapse_loop` slot 2 (looping) |
-| U+42 | "You can't... escape... the end..." or "This end... comes..."; `npc_ocellus_phase3_unleash_out_90f`, `_arena_collapse_out_01` slot 2, `_out_02` slot 4 |
-| U+44 | the quadrant gone: `invisible_type0_blocking` on its 84 tiles, its wall's `tfa_wallkit_archive03_slice_collapse_<quadrant>_01..03` |
-| U+48 | the next segment; after the third, U+49 "End..." (phase 4) |
+| 3, 51, 99 (later segments) | void rifts, 44 hp (the second segment's kind rolled, the third's the next of Augmenter -> Void Rift -> healing); one at three raiders, two at four. One due during a spin waits for the swing after it (S+108/111/114: 4301, 4308, 4312, 4315, 4316), during Untether for U+32 (4312 [2090]); none when the quadrant falls first (4308) |
+| 4 | the rotation's next attack (below) |
 
-His health holds at 75, 50 and 25% until each quadrant falls (4301: 74.9,
-48.4, 25.8% at the destructions; 4308: 74.4, 48.5, 25.1%).
+**The rotation** runs on across the segments: a triple, a triple, then a big
+attack, the spin and Insolence by turns (4309's and 4312's third segments open
+with Insolence because their second fell after a spin; 4/4 such carry-overs).
+
+| attack | recorded | next attack |
+|---|---|---|
+| triple | `npc_ocellus_phase3_melee_basic` +0, +3, `_melee_slash` +6 (the slash a short line of `vfx_ocellus_p3_shadow_slash_spotanim01`) | +10 |
+| the volley | when his target is not beside his 3x3 as a triple starts: `npc_ocellus_phase3_basic_projectile_all`, `vfx_ocellus_magic_spotanim01` slot 4 d30, a shot at everyone; no line of its own (4301 [1378], [1453], 4308 [2027], 4309 [1792], [1867]: 5/5 target not beside him; every triple start checked with the target beside him a swing). The wiki's "unable to reach the targeted player" | the triple 3 later |
+| the spin | `npc_ocellus_phase3_prayer_in` + slot 4 spot; a `_prayer_loop` 3 apart for each quadrant fallen; `_prayer_out` 5 + 3 x loops on | out + 4 |
+| Insolence | the line, `reset`; three `npc_ocellus_phase3_melee_superior_slash` d30 at +2, +7, +12, each its target's tile | +20 |
+| Untether (in Insolence's turn when he is within 8% of the next quarter) | see U below | the triple at U+37 if the quadrant has not fallen (4316 [2650]) |
+
+**The vine** comes with the first triple after the segment's first spin: its
+line ("The void... will take you..." 8, "Your panic... is futile..." 5,
+"Await... the void..." 4 of 17) as the triple starts, the vine 3 ticks on,
+unless he is within 8% of the next quarter (the first segments: 85.4, 84.1,
+83.8% vine; 82.9, 82.6, 82.4, 82.7% none; every later segment had one, its
+lowest 33.2%). "Your panic... is futile..." is a vine line, not the volley's.
+
+**Near and the fall.** With his health h% and the next quarter Q (75, 50, 25):
+
+- **Untether** for Insolence when h <= Q + 8: at 76.2..81.1% in the first
+  segments (7/7), 51.2..54.9 and 29.5..31.2 later (8/8); Insolence at
+  62.2..66.6 and 35.4..46.7 (14/14). The margin is 6.1..10.4 from these; 8
+  fits the vine too.
+- **The fall** when h <= Q + 1, at once unless he is spinning (through its out
+  seq and the tick after) or unleashing (to U+30): 21/21 at 73.2..76.0,
+  48.2..51.0, 24.6..25.9%, never above; not at 51.01, 51.06, 51.18, 26.12,
+  26.28%. In place of a triple's swing (4316 [2497]); 2 ticks after a spin's
+  out (4308 [2242], 4312 [4313]); after Untether at U+31 (16/21) or later
+  when the slam left him above it (4312 U+33, 4315 U+32, 4316 U+39). 5 of 21
+  fell with no Untether at all.
+- Nothing holds his health: hits land through the fall (4301 [1326..1334]
+  74.9 -> 74.2%).
+
+| U+ | recorded (Untether) |
+|---|---|
+| 0 | "Untether..."; `telejump` to the corner with `exact_move` (old, 0, new, 90, the yaw); `level_change`; `npc_ocellus_phase3_unleash_in`; `[bas]` ready and walk `_unleash_loop`; `[transparency] -1, -1, 255, 0`; empty `headicon_customisation` |
+| 2 | `_unleash_loop`; pools `vfx_ocellus_p2_aoe_dodge` (10..15) on the quadrant at U+6, 10, 14, 18 |
+| 18 | `vfx_ocellus_p3_unleash_spotanim` d360 (11 of 14) |
+| 25 | `vfx_ocellus_unleash_arena` (NE `_180`, NW `_90`, SW plain) over it |
+| 29 | `_unleash_out`, the slam |
+| 30 | `[bas]` reset, `[facing] type=reset` |
+
+| D+ | recorded (the fall, 21/21) |
+|---|---|
+| 0 | "Obliteration..." or "Run... It matters not..."; `npc_ocellus_quadrant_destroy_in`, `vfx_ocellus_phase3_arena_collapse_in` slot 2; `[bas]` ready and walk `_destroy_loop`; the barriers' `_despawn`; `[facing] type=reset` unless Untether already let it go |
+| 2 | `_destroy_loop`, `_arena_collapse_loop` slot 2 (`loop=true`) |
+| 11 | "You can't... escape... the end..." / "This end... comes..." / "Everything... ends..."; `npc_ocellus_phase3_unleash_out_90f`, `_arena_collapse_out_01` slot 2, `_out_02` slot 4; `[bas]` reset |
+| 12 | `[transparency] 0, 30, 0, 255` (fading out) |
+| 13 | the quadrant gone: `invisible_type0_blocking` on its 84 tiles, its wall's `tfa_wallkit_archive03_slice_collapse_<quadrant>_01..03` |
+| 17 | the next segment's jump (S+0 above); after the third, the same jump to the last quadrant's corner |
+| 18 | after the third: "End..." (phase 4) |
 
 **The censers** (one per quadrant's outer corner, 11 diagonal from the middle:
 NE Bandosian `_damage_melee`, NW Zarosian `_spec`, SW Armadylean
@@ -310,6 +357,71 @@ window are in "Phase 4's private mechanics and the wiki check" below.
 | 7 | seq -1, his body hidden |
 | 14 | `tfa_blade_npc_vault_entry` ("The Blade": Commune, Travel) on his tile |
 | 16 | he is deleted |
+
+## Audit: the change and phase 3 against all seven fights (2026-10-22)
+
+The earlier phase-3 audit compared one fixed timetable with two fights that
+happened to share it. Every fight that reached phase 3 (index 4301, 4308,
+4309, 4312 twice, 4315, 4316), each segment as a token stream (J jump, t
+slash, S spin, + loop, V volley, W" vine line, w vine, I Insolence, U
+Untether, D fall) with his hud health at each, showed the rotation and the
+health rules of §4. Ours: `test/guthixian_archive/tfa_ocellus_p3.lua` (phase
+2 from `::tfaocphase 2`, party of three, his health replayed from a
+recording by P+k), tick logs diffed with `oc_stream.py`, `ticklog_tells.py`
+and the tick log's `npc_info` rows.
+
+**The change (T+123..T+138), 4301:**
+
+| T+ | recording | ours before | ours now | verdict |
+|---|---|---|---|---|
+| 123 | line, part1 seq, 3 spots, ops none, Blade gone, 4428, sword drop, song 894 | song 893 until T+135, ops untouched | the same as the recording | fixed |
+| 124 | round 3's last lit volley, 444, explosion | no volley (the round's code stopped at T+123) | the volley | fixed |
+| 125 | 24 portal despawn `loc_anim`s | none | 24 | fixed |
+| 131 | part2, 2 null spots, form, level, ops none, empty headicon | ops all on (the form change) | ops none | fixed (the empty headicon block is not resent: nothing was shown) |
+| 132 | portals gone, blockers, explosions, stones, 4 wall `cracking_collapsing` anims | no wall anims | 4 | fixed |
+| 135 | fade out (0, 28, 0, 255), `_empty` walls, chasm walls | no fade | the fade | fixed |
+| 137 | jump, level, face the middle `instant`, fade in | plain face, no fade | the same | fixed |
+| 138 | his target faced, ops Attack, barriers | same | same | matched |
+| phase 2 stream | 11 rows (seq, spot, say) | | 11/11 | matched |
+| portal shots | to the wall, `6d+6` p100 / `6d-6` p250 by direction | 2 tiles short, `6d-6` p250 every way | the recorded tiles and timings | fixed (all of phase 2) |
+
+**Phase 3, 4301's health replayed** (ours from its P; the first three
+columns the recording's P+k):
+
+| | 4301 | ours | verdict |
+|---|---|---|---|
+| segment 1 | t16 t26 S30 W"39 w42 t45 t55 U59 D90 | t16 t26 S30 W"39 w42 t45 V49 t58 U62 D93 | matched but a volley: the bot stood rooted out of his reach at P+49 (the rule; 4301's raiders were beside him) |
+| segment 2 | t117 t127 S131+ V143 W"143 w146 t152 t162 I166 t192 t202 S206+ V218 t227 t237 U241 D272 | t120 t130 S134+ W"146 w149 t152 t162 I166 t192 t202 S206+ t224 t234 U238 D269 | matched (4301's two volleys were its raiders' positions) |
+| segment 3 | t299 t309 S313++ W"328 w331 t334 t344 I348 t374 t384 S388++ t409 t419 U423 D454 End472 | t296 t306 S310++ W"325 w328 t331 t341 I345 t371 t381 S385++ t406 t416 U420 D451 End469 | matched (3 early from segment 1's volley) |
+
+**4309's health replayed** (its second segment falls after a spin with no
+Untether; it is four raiders, scaled to three's health):
+
+| | 4309 | ours | verdict |
+|---|---|---|---|
+| segment 1 | t16 t26 S30 V39 t48 t58 U62 D93 | t16 t26 S30 t45 t55 U59 D90 | matched: no vine (82.7% at the line's tick), the volley again the raiders' position |
+| segment 2 | V114 t123 t133 S137+ W"149 w152 t155 t165 I169 t195 t205 S209+ D221 | t117 t127 S131+ W"143 w146 t149 t159 I163 t189 t199 S203+ D221 | matched: the fall on the same tick, no Untether |
+| segment 3 | t248 t258 I262 t288 t298 S302++ W"317 w320 t323 t333 U337 D368 End386 | the same, to the tick | matched |
+
+**His npc info in phase 3** (ours, P-relative, against 4301's offsets):
+fade out P+4, jump + level + fade in P+6, Attack P+7; each Untether: level,
+`[transparency] -1, -1, 255, 0`, exact move, `[bas]` `_unleash_loop`, reset
+U+30; each fall: `[bas]` `_destroy_loop`, reset D+11, fade out D+12, jump +
+level + fade in D+17: all on the recorded offsets (before: no `[bas]`, no
+fades, the jump's face not instant). The full fight
+(`tfa_ocellus.lua`, solo, 4301's health as a share of his) reaches "End..."
+at P+472, 4301's tick, and passes through the death and the vault.
+
+Still open:
+- Protect from Melee shown from Untether to the next jump (the 21 October
+  hotfix); the recordings, older, send only empty blocks there.
+- The Untether's `vfx_ocellus_p3_unleash_spotanim` (U+18) is in 11 of 14
+  recorded Untethers (not 4301's first two, not 4312's second); ours always.
+- A fall during Insolence: none recorded; ours holds it through the third
+  slash. Untether's next attack at U+37 is one sighting (4316).
+- An Untether from a tile already at the corner: ours sends no exact move
+  (every recorded one moved).
+- The 8% margin is bounded 7.9..8.2 by the vine, 6.1..10.4 by Untether.
 
 ## Audit: phase 1, our scriptrun against 4301, 4308 (2026-10-21)
 
@@ -426,16 +538,9 @@ turns to (4301 phase 3: 64 entity faces a solo run has no second raider for).
 | phase 3 spots | 31/33 | 33/33 |
 | phase 4 spots | 8/20 | 14/20 (the rest: the hybrid's magic or ranged, a roll) |
 
-Phase 3's timetable, from both fights: the first segment has no volley (two
-more triples after the spin, S+33 and S+43; the vine at S+36); the later
-ones run triples at S+4, S+14, S+39, S+49, S+79, S+89, S+114, S+124, spins
-at S+24 and S+99, "Insolence..." at S+59, Untether at S+134; a volley 3 ticks
-before a triple takes its first swing (4301's second segment at S+36 and
-S+111, 4308's at S+76: when he casts it is open). Debris falls on every
-raider 3 ticks into the first segment's spin and 6 into each later one, and
-leaves a void patch 5 ticks on (10/10). The vine's line comes 3 ticks before
-it, in the later segments only (3/4). Phase 4 lets slot 2's levitation go
-(`id=-1`) as each deflect and each second fragment ends.
+Phase 3's timetable in this section (a fixed schedule per segment, Untether
+at S+53 / S+134) was one roll of 4301 and 4308; it is replaced by the
+rotation and the health rules in §4 (2026-10-22).
 
 Open: the first walk's path (the recording steps east twice and then
 diagonally; ours diagonally first: the engine's route order); when the volley

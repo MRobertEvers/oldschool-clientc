@@ -65,10 +65,34 @@ local function fight4(t, ticks)
     end
 end
 
--- Phase 3: shoot him, and leave a quadrant before it falls.
-local function fight3(t, ticks)
+-- 4301's health through phase 3, per mille of his, by the tick from his
+-- change P: a quadrant falls when his health comes within 1% of the next
+-- quarter, which one bow alone would take a thousand ticks to reach.
+local P3_PERMILLE = { {0,922}, {10,920}, {12,914}, {16,910}, {18,903}, {21,898}, {22,897}, {23,894}, {24,886}, {26,885}, {28,880}, {31,870}, {33,861}, {34,856}, {36,854}, {41,844}, {44,835}, {46,830}, {48,822}, {49,816}, {53,808}, {58,807}, {59,806}, {62,798}, {65,790}, {67,785}, {71,779}, {73,768}, {77,765}, {78,761}, {82,758}, {83,754}, {87,749}, {91,745}, {93,742}, {111,739}, {113,737}, {122,733}, {124,732}, {125,727}, {127,722}, {132,711}, {136,710}, {140,709}, {145,699}, {146,690}, {149,683}, {150,676}, {151,671}, {155,670}, {160,666}, {167,665}, {170,656}, {174,655}, {175,651}, {179,650}, {188,649}, {191,648}, {192,643}, {195,641}, {198,637}, {199,631}, {202,624}, {205,614}, {206,607}, {209,595}, {210,593}, {215,592}, {218,589}, {220,585}, {222,583}, {223,582}, {225,581}, {228,580}, {231,579}, {232,577}, {233,575}, {236,569}, {238,564}, {239,556}, {241,549}, {243,538}, {244,532}, {246,528}, {247,527}, {248,526}, {249,522}, {251,517}, {254,512}, {255,511}, {256,508}, {259,505}, {260,501}, {262,500}, {264,496}, {265,491}, {268,486}, {270,484}, {273,481}, {275,476}, {278,472}, {279,471}, {303,463}, {305,457}, {317,456}, {320,437}, {328,435}, {333,434}, {334,426}, {336,404}, {337,403}, {345,402}, {355,392}, {361,391}, {368,389}, {369,388}, {370,381}, {373,374}, {380,358}, {381,357}, {388,352}, {392,342}, {394,341}, {396,337}, {400,336}, {405,326}, {406,325}, {409,315}, {412,314}, {419,305}, {420,304}, {424,286}, {428,276}, {434,272}, {435,262}, {440,259}, {450,258}, {451,257}, {456,253}, {462,248} }
+
+local function p3_permille(k)
+    local pm = P3_PERMILLE[1][2]
+    for _, row in ipairs(P3_PERMILLE) do
+        if row[1] > k then break end
+        pm = row[2]
+    end
+    return pm
+end
+
+-- Phase 3: shoot him, and leave a quadrant before it falls. With `P`, his
+-- health 4301's at P+k (a cheat lands on the next tick: the next tick's).
+local function fight3(t, ticks, P)
+    local function replay()
+        if P and present(t, "tfa_ocellus_p3") then
+            local k = now(t) - P
+            if k >= 6 then
+                t.cheat("::tfaboss " .. tostring(math.floor(5250 * p3_permille(k + 1) / 1000)), false)
+            end
+        end
+    end
     local deadline = now(t) + ticks
     while now(t) < deadline do
+        replay()
         t.cheat("::tfaheal", false)
         t.cheat("::tfaocsafe", false)
         if present(t, "tfa_ocellus_p3_void_vine") then
@@ -76,6 +100,7 @@ local function fight3(t, ticks)
         elseif present(t, "tfa_ocellus_p3") then
             t.player.attack("tfa_ocellus_p3", 2, 1, EAT)
         end
+        replay()
         t.ticks(1)
     end
 end
@@ -164,10 +189,12 @@ return {
         t.prayer.set("protectfrommissiles", false)
         fight(t, "tfa_ocellus_p2_sword_hitbox", 150, function() return present(t, "tfa_ocellus_p3") end, true)
         t.check("ocellus.phase3", present(t, "tfa_ocellus_p3"), "no phase 3")
-        -- Phase 3: three quadrant segments, each ended by its destruction.
+        -- Phase 3: three quadrant segments, each ended by its destruction (his
+        -- health replayed from 4301's).
         t.ticklog.mark("phase3")
+        local P = now(t)
         t.prayer.set("protectfrommelee", true)
-        fight3(t, 30)
+        fight3(t, 30, P)
         -- The censer of the quadrant the bot fights in, lit from where it
         -- stands (NE Bandosian, NW Zarosian, SW Armadylean, SE Saradomin).
         local _, me = t.world.tile()
@@ -187,7 +214,7 @@ return {
         t.ticks(4)
         local lr = t.world.loc_near(censer .. "_inactive", 16)
         t.check("ocellus.censer_spent", lr == "ok", censer .. "_inactive not there")
-        fight3(t, 490)
+        fight3(t, 490, P)
         -- Phase 4: two cycles of 60, then the kill. The bot takes its orb as
         -- it comes ready and is healed only when low, so the orb's heal shows.
         t.ticklog.mark("phase4")
