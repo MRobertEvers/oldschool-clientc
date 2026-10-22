@@ -3217,6 +3217,15 @@ player_take_step(struct ToriRSServerPlayer* player)
  * one-tile strafes, and the run to the click on the next tick (33105 ->
  * 33106, 33129 -> 33130). A route already being walked never dodges.
  * Ezekiel's raiders the same, 3 tiles at most (4300 [908], 4301 [132]).
+ *
+ * It lands when the click is handled (handle_move), before the npcs and
+ * every player's turn, not in advance_player: a hazard judged this tick
+ * finds the dodger where the dodge put them and a walker where they stood.
+ * Ezekiel's sword bands, every flight tick of 4300..4315: a roll or strafe
+ * out of a band 0 hits in 20, a run out of one hit 6/6 (4314 [1276],
+ * [1277]; 4315 [2677], [2745], [4586], [4587]), a run into one 0/17
+ * (ez_dodge_band.py). Run from advance_player, the room tick (a raider's
+ * queue, ahead of the move) judged every roll on the tile it left.
  */
 static int
 player_dodge(
@@ -3230,8 +3239,11 @@ player_dodge(
     int dz;
     int yaw;
 
-    if( player->dodge_click_tick != srv->tick || srv->tick < player->dodge_from_tick ||
+    if( player->dodge_tick == srv->tick || srv->tick < player->dodge_from_tick ||
         srv->tick > player->dodge_to_tick || !player_has_waypoints(player) )
+        return 0;
+    /* What would stop the walk in phase_player stops the dodge. */
+    if( player->action_locked || player->stun_ticks > 0 )
         return 0;
     while( steps < 3 && player_has_waypoints(player) )
     {
@@ -3267,6 +3279,7 @@ player_dodge(
         if( ToriRSServer_AnimPlayPlayer(player, seq, 0) )
             ToriRSServer_TicklogPlayerAnim(srv, player, seq, 0);
     }
+    player->dodge_tick = srv->tick;
     return 1;
 }
 
@@ -3321,7 +3334,8 @@ advance_player(struct ToriRSServer* srv)
 
     player->move_count = 0;
     player->steps_taken = 0;
-    if( player_dodge(srv, player) )
+    /* A dodge this tick (handle_move) was the tick's move. */
+    if( player->dodge_tick == srv->tick )
         max_tiles = 0;
     {
         int from_x = player->x;
@@ -6960,9 +6974,9 @@ handle_move(
     }
 
     ToriRSServer_WorldWalkTo(srv, dest_x, dest_z);
-    /* A click is what dodges inside a `p_dodgewindow`; a route already being
-     * walked is not (advance_player). */
-    player->dodge_click_tick = srv->tick;
+    /* A click is what dodges inside a `p_dodgewindow`, here, before any
+     * hazard this tick is judged; a route already being walked is not. */
+    player_dodge(srv, player);
 
     if( srv->verbose )
         fprintf(
@@ -15710,10 +15724,10 @@ world_seat_player(
     player->world = srv;
     player->pid = pid;
     player->login_generation = generation;
-    /* No dodge window, no click handled yet (a 0 would be tick 0's). */
+    /* No dodge window, no dodge yet (a 0 would be tick 0's). */
     player->exact_yaw = -1;
     player->dodge_to_tick = -1;
-    player->dodge_click_tick = -1;
+    player->dodge_tick = -1;
     player->session = session;
     /* A selftest player has no session (see `last_input_tick` below):
      * it logs in as the desktop client. */
@@ -16286,7 +16300,7 @@ ToriRSServer_WorldPlayerInit(struct ToriRSServerPlayer* player)
         player->active = 1;
         player->exact_yaw = -1;
         player->dodge_to_tick = -1;
-        player->dodge_click_tick = -1;
+        player->dodge_tick = -1;
         if( session )
         {
             player->client_type = session->client_type;

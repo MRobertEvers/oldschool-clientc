@@ -4240,14 +4240,15 @@ struct ToriRSServerPlayer
      * in [dodge_from_tick, dodge_to_tick] dodges -- up to three steps of its
      * route at once as an exact move with the roll (two or three tiles) or
      * the strafe (one) -- and the rest of the route walks on (RSProx 4262,
-     * The Blood Moon Rises; 4300..4315, Ezekiel). `dodge_click_tick` is the
-     * tick the last move click was handled on.
+     * The Blood Moon Rises; 4300..4315, Ezekiel). The dodge lands when the
+     * click is handled, ahead of every hazard judged that tick; `dodge_tick`
+     * is the tick the last one landed on (-1 none), the tick's whole move.
      */
     int dodge_from_tick;
     int dodge_to_tick;
     int dodge_seq_roll;
     int dodge_seq_strafe;
-    int dodge_click_tick;
+    int dodge_tick;
     /** Every splat this player takes this tick; see struct ToriRSServerHitmark.
      *  The player is the entity that most often takes several at once — in the
      *  Inferno a whole wave lands on them together. */

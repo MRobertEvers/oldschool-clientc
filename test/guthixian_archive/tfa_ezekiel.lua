@@ -26,6 +26,10 @@ end
 
 local EAT = { eat = { item = "shark", below = 50 } }
 
+-- The sword-dodge click, in the bot's ticks after it first sees the swords:
+-- the one handled on the flight tick (the swords' add + 14).
+local SWORD_CLICK_AT = 13
+
 local function fight(t, sym, ticks, stop)
     local deadline = now(t) + ticks
     while now(t) < deadline do
@@ -153,6 +157,91 @@ return {
             end
         end
         fight(t, "tfa_ezekiel", 10)
+        -- A sword's flight, dodged: in a band, one click across the lane
+        -- handled on the flight tick rolls three tiles out of it, and the
+        -- band, judged after a roll and before any walk, misses (4300..4315:
+        -- 20 rolls out of a band unhurt, 6 runs out of one all hit;
+        -- ezekiel_plan.md §7). The tick log's hit_player on the flight tick
+        -- (the sword's npc_spawn + 14) is the proof.
+        t.ticklog.mark("sworddodge")
+        local function rows_of(sym)
+            local _, _, rows = t.npc.tiles(sym, 0)
+            return rows or {}
+        end
+        fight(t, "tfa_ezekiel", 120, function() return #rows_of("tfa_ezekiel_sword") > 0 end)
+        local seen = now(t)
+        local swords, boss = rows_of("tfa_ezekiel_sword"), rows_of("tfa_ezekiel")[1]
+        -- The arena's border lines are the instance square's local 24 and 36
+        -- (4056/4068, 5528/5540 in the template). A sword on the west/east
+        -- border flies a row (its lane z), on the south/north a column (x); a
+        -- band is the lane and two more. The floor is the 9x9 inside them.
+        local ax = (boss and boss.x or swords[1].x) // 64 * 64 + 24
+        local az = (boss and boss.z or swords[1].z) // 64 * 64 + 24
+        local lanes = { x = {}, z = {} }
+        for _, s in ipairs(swords) do
+            if s.x == ax or s.x == ax + 12 then lanes.z[#lanes.z + 1] = s.z else lanes.x[#lanes.x + 1] = s.x end
+        end
+        local function in_band(axis, v)
+            for _, l in ipairs(lanes[axis]) do if v >= l and v <= l + 2 then return true end end
+            return false
+        end
+        local function free(x, z)
+            if x < ax + 3 or x > ax + 11 or z < az + 3 or z > az + 11 then return false end
+            return not (boss and x >= boss.x and x <= boss.x + 2 and z >= boss.z and z <= boss.z + 2)
+        end
+        -- A tile in the middle of a band, out of every other band, whose roll
+        -- three tiles across the lane ends out of every band.
+        local stand, roll
+        for _, l in ipairs(lanes.z) do
+            for x = ax + 3, ax + 11 do
+                for _, sgn in ipairs({ 1, -1 }) do
+                    local ez = l + 1 + 3 * sgn
+                    if not stand and free(x, l + 1) and free(x, ez) and not in_band("x", x) and not in_band("z", ez) then
+                        stand, roll = { x = x, z = l + 1 }, { x = x, z = ez }
+                    end
+                end
+            end
+        end
+        for _, l in ipairs(lanes.x) do
+            for z = az + 3, az + 11 do
+                for _, sgn in ipairs({ 1, -1 }) do
+                    local ex = l + 1 + 3 * sgn
+                    if not stand and free(l + 1, z) and free(ex, z) and not in_band("z", z) and not in_band("x", ex) then
+                        stand, roll = { x = l + 1, z = z }, { x = ex, z = z }
+                    end
+                end
+            end
+        end
+        local where = {}
+        for _, sw in ipairs(swords) do where[#where + 1] = sw.x .. "," .. sw.z end
+        t.note(string.format("sworddodge: seen %d, swords %s, him %s, stand %s, roll %s", seen,
+            table.concat(where, " "), boss and (boss.x .. "," .. boss.z) or "-", stand and (stand.x .. "," .. stand.z) or "-", roll and (roll.x .. "," .. roll.z) or "-"))
+        t.check("ezekiel.sworddodge.tile", stand ~= nil, "no tile in a band to roll out of")
+        if stand then
+            t.cheat("::setlevel hitpoints 99", false)
+            t.player.walk_to(stand.x, stand.z, 1)
+            while now(t) < seen + SWORD_CLICK_AT do t.ticks(1) end
+            local _, here = t.world.tile()
+            t.note(string.format("sworddodge: click at %d from %s", now(t), here and (here.x .. "," .. here.z) or "-"))
+            local since = now(t) - 2
+            t.player.walk_to(roll.x, roll.z, 1)
+            t.ticks(4)
+            -- The roll's tick (the flight's) carries no band hit (27..31 a
+            -- sword); before the fix the band struck the tile it left.
+            local _, anims = t.ticklog.rows({ kind = "player_anim", since = since })
+            local rolled
+            for _, a in ipairs(anims or {}) do
+                if a.seq == 14705 or a.seq == 14706 then rolled = rolled or a.tick end
+            end
+            local _, hits = t.ticklog.rows({ kind = "hit_player", since = since })
+            local struck = {}
+            for _, h in ipairs(hits or {}) do
+                if h.tick == rolled and h.raw >= 27 then struck[#struck + 1] = h.raw end
+            end
+            t.check("ezekiel.sworddodge.rolled", rolled ~= nil, "no roll after the click")
+            t.check("ezekiel.sworddodge.unhurt", rolled ~= nil and #struck == 0,
+                string.format("roll at %s, band hits %s", tostring(rolled), table.concat(struck, " ")))
+        end
         -- Just above a third: the finale and its volleys.
         t.ticklog.mark("finale")
         t.cheat("::tfaboss 1010", false)

@@ -291,6 +291,27 @@ for every raider in the room at the special (the flight ticks) and at each
 volley (V+4..V+6). Test: the cage leg of `tfa_ezekiel.lua` -- volleys [428],
 [439]; rolls [432..434], [443..445]; runs between (2026-10-21).
 
+**When the band is judged: after the roll, before the walk**
+(`tools/ez_dodge_band.py --list` over 4300, 4301, 4304, 4314, 4315, every
+raider who moved on a flight tick):
+
+| move on the flight tick | from | to | band hit |
+|---|---|---|---|
+| roll / strafe | in | out | 0/20 |
+| roll / strafe | in | in | 2/2 (4300 [1007] 52, 4304 [1467] 63) |
+| run / walk | in | out | 6/6 (4314 [1276] 30, [1277] 75; 4315 [2677] 102, [2745] 84, [4586] 29, [4587] 102) |
+| run / walk | in | in | 4/4 |
+| run / walk | out | in | 0/17 |
+
+So a roll lands before the hazard is judged and a walk after it. Ours ran
+the roll in `advance_player`, after the room tick (the first raider's queue),
+so every roll was judged on the tile it left: 2026-10-21 the owner saw
+correct dives still hurt. Now `player_dodge` runs from `handle_move` (the
+clients-in phase, ahead of the npcs and every player's turn), and the tick's
+ordinary steps are skipped. Test: the `sworddodge` leg of `tfa_ezekiel.lua`
+stands in a band and clicks three tiles across it; the roll lands on the
+flight tick [402] with no band hit (before the fix: 60, two swords).
+
 ## 8. The finale (at a third of his health)
 
 | tick | recorded | evidence |
@@ -391,7 +412,7 @@ Run: the same test on a private pack (`TORIRSSERVER_SCRIPTS`), tick log
 | sword charge bar | `headbar id=87 60->0 over 390` | `npc_headbar_timed` (new, opcode 11226) | fixed (engine) |
 | glow loop | `vfx_ezekiel_finale_cast_glow_loop01` slot 5 `loop=true` | sent with loop 0 | **open (engine)**: no loop flag on `spotanim_npc_slot` |
 | music | `midi_song_v2` with fade 60/60 | plain `midi_song` | **open (engine)** (the Guardian's too) |
-| raiders' roll/strafe | the dodge windows (§7) | `p_dodgewindow` | fixed (the cage tested; the flight ticks share the code, not run) |
+| raiders' roll/strafe | the dodge windows (§7); a roll lands before the band is judged, a walk after | `p_dodgewindow`; the roll was judged on the tile it left | fixed: the roll lands at the click (`handle_move`); the cage and a flight tick tested |
 | sword burn | hitsplat 67, 2 a splat, 16 splats | none | **open**: unverified, not built |
 | defend sound | not sent to a spectator | null | **open**: unknown |
 | magic (4314/4315) | `npc_ezekiel_magic01` when the tank is out of reach (5/5) | not built | fixed (§4b) |
