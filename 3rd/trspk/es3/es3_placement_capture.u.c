@@ -28,36 +28,20 @@ placement_capture_open(const struct TRSPK_Renderer_ES3* r)
         abort();
     }
     placement_capture.epoch = r->static_resource_epoch;
-    struct PlacementChainHeader h = { PLACEMENT_CHAIN_MAGIC,   2,
-                                      placement_capture.frame, r->batch_poses.element_count,
-                                      r->static_batch_count,   r->static_page_count,
+    /* Version 3: the world build is one Batch32, so the graph is its entries
+     * -- no batch slots, no page table. (This capture has not compiled since
+     * it was split from the GLES2 one: PlacementChainCall carries a
+     * GLES2StaticPrimary. Kept describing the live graph regardless.) */
+    struct PlacementChainHeader h = { PLACEMENT_CHAIN_MAGIC,
+                                      3,
+                                      placement_capture.frame,
+                                      trspk_batch32_entry_count(r->world),
+                                      r->world_live ? 1u : 0u,
+                                      0u,
                                       r->static_resource_epoch };
     placement_write(&h, sizeof(h));
     for( uint32_t e = 0; e < h.elements; e++ )
-        for( unsigned a = 0; a < TRSPK_POSE_TRACK_COUNT; a++ )
-        {
-            const struct TRSPK_PoseTrack* t = &r->batch_poses.elements[e].tracks[a];
-            uint32_t shape[] = { t->pose_count, t->pose_cap };
-            placement_write(shape, sizeof(shape));
-            placement_write(t->vertex_base, (size_t)t->pose_count * 4);
-        }
-    for( uint32_t i = 0; i < h.batches; i++ )
-    {
-        const struct ES3StaticBatch* b = &r->static_batches[i];
-        struct PlacementChainBatch bh = {
-            b->active, b->cpu != NULL, trspk_batch16_entry_count(b->cpu), b->page_id_capacity
-        };
-        placement_write(&bh, sizeof(bh));
-        for( uint32_t e = 0; e < bh.entries; e++ )
-            placement_write(trspk_batch16_get_entry(b->cpu, e), sizeof(struct TRSPK_Batch16Entry));
-        placement_write(b->page_ids, (size_t)bh.page_capacity * 4);
-    }
-    for( uint32_t i = 0; i < h.pages; i++ )
-    {
-        struct PlacementChainPage page = { r->static_pages[i].valid,
-                                           r->static_pages[i].gpu_offset };
-        placement_write(&page, sizeof(page));
-    }
+        placement_write(trspk_batch32_get_entry(r->world, e), sizeof(struct TRSPK_Batch32Entry));
 }
 static bool
 es3_placement_capture_wanted(const struct TRSPK_Renderer_ES3* r)

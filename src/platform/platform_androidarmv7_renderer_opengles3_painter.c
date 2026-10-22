@@ -180,12 +180,12 @@ es3p_emit_model(
      * chunk's CPU vertices for every model it places, because placing means
      * copying them.
      */
-    if( placement->binding == ES3_STATIC_PAGE_BINDING &&
+    if( placement->binding == ES3_WORLD_BINDING &&
         placement->entry_index != UINT32_MAX && placement->entry_vertex_count > 0u )
     {
         es3p_push_indexed(
             renderer,
-            ES3_STATIC_PAGE_BINDING,
+            ES3_WORLD_BINDING,
             placement->absolute_base,
             placement->entry_vertex_count / 3u,
             face_order,
@@ -194,14 +194,14 @@ es3p_emit_model(
     }
 
     /*
-     * Anything else retained -- an arena pose, or a static page whose Batch16
-     * entry is not known -- still needs its bake's extent, and only the CPU
+     * Anything else retained -- an arena pose, or a world pose whose entry is
+     * not known -- still needs its bake's extent, and only the CPU
      * copy knows it. The order names faces by their index in the MODEL, which
      * runs past the sorted count, so placement->face_count is NOT a bound on
      * face indices; the bake is.
      */
     if( !es3_binding_cpu_source(
-            renderer, placement->binding, placement->page_id, &source_vbo, &source_triangles) ||
+            renderer, placement->binding, &source_vbo, &source_triangles) ||
         source_vbo->format != TRSPK_VERTEX_FORMAT_GLES2 )
         return;
     (void)source_triangles;
@@ -288,7 +288,7 @@ es3p_sequence_issue(
             TORIRS_ERR(
                 "%s: draw audit -- items %u, drawn %u, SKIPPED %u (first binding %u, %u "
                 "indices), glGetError 0x%x | group0 gpu %u cpu_verts %u dirty %d cap %u | "
-                "group1 gpu %u | static_batch_vbo %u\n",
+                "group1 gpu %u | world_vbo %u\n",
                 es3_log_name(),
                 (unsigned)renderer->draw_item_count,
                 (unsigned)draw_calls,
@@ -305,7 +305,7 @@ es3p_sequence_issue(
                     : -1,
                 (unsigned)renderer->groups[TRSPK_VBO_GROUP_STATIC].gpu_capacity,
                 (unsigned)renderer->groups[TRSPK_VBO_GROUP_DYNAMIC].vbo_gpu,
-                (unsigned)renderer->static_batch_vbo);
+                (unsigned)renderer->world_vbo);
     }
 }
 
@@ -451,8 +451,8 @@ es3p_draw_model(
     int pose_id;
     uint32_t vertex_base;
     /* Where the model's bake begins in its binding's CPU copy, and where it
-     * begins in that binding's GPU buffer. Equal for everything but a
-     * Batch16 chunk, whose CPU copy starts at its own zero. */
+     * begins in that binding's GPU buffer. Every CPU copy is its whole
+     * buffer, so the two are the same number. */
     uint32_t chunk_base = 0u;
     uint32_t absolute_base = 0u;
     uint32_t binding;
@@ -471,8 +471,6 @@ es3p_draw_model(
 #if defined(TORIRS_MODEL_CHAIN_CAPTURE)
     es3_chain_capture(renderer, command);
 #endif
-    placement.page_id = UINT32_MAX;
-    placement.batch_slot = UINT32_MAX;
     placement.entry_index = UINT32_MAX;
     placement.entry_vertex_count = 0u;
     if( staged )
@@ -616,14 +614,12 @@ es3p_draw_model(
         if( static_state < 0 )
             return;
         renderer->stat_static_page += 1.0;
-        binding = ES3_STATIC_PAGE_BINDING;
-        placement.page_id = static_placement.page_id;
-        placement.batch_slot = static_placement.batch_slot;
+        binding = ES3_WORLD_BINDING;
         placement.entry_index = static_placement.entry_index;
         placement.entry_vertex_count = static_placement.vertex_count;
         vertex_base = static_placement.vertex_base;
         chunk_base = static_placement.vertex_base;
-        absolute_base = static_placement.page_base + static_placement.vertex_base;
+        absolute_base = static_placement.vertex_base;
     }
     else if( !trspk_pose_table_get(
                  &renderer->poses, command->element_id, anim_index, pose_id, &vertex_base) )
@@ -657,21 +653,19 @@ es3p_draw_model(
     }
     if( vertex_base == UINT32_MAX )
         return;
-    if( !dynamic && binding < ES3_STATIC_PAGE_BINDING )
+    if( !dynamic && binding < ES3_WORLD_BINDING )
         renderer->stat_static_pose_table += 1.0;
 
     /*
-     * An arena's CPU copy IS its GPU buffer's contents, so the two bases are
-     * the same number. A Batch16 chunk's CPU copy starts at the chunk's own
-     * zero while the GPU buffer packs every chunk of every batch together,
-     * so there the GPU base adds the chunk's page offset -- which the static
-     * branch above has already worked out.
+     * An arena's CPU copy IS its GPU buffer's contents, and so is the world
+     * build's, so the two bases are the same number -- the static branch
+     * above has already set them.
      *
      * Neither is split against a 64K page. The GLES2 renderer splits both,
      * because that is the only way a U16 index can name a vertex; here an
      * index reaches the whole buffer.
      */
-    if( binding < ES3_STATIC_PAGE_BINDING )
+    if( binding < ES3_WORLD_BINDING )
     {
         chunk_base = vertex_base;
         absolute_base = vertex_base;
@@ -708,8 +702,8 @@ es3p_end_3d(struct TRSPK_Renderer_ES3* renderer)
      *
      * This used to say "the frame stream is the only thing that has to go
      * up here", which was wrong in the one way that is invisible: a
-     * static element whose pose is in a recorded batch page draws from
-     * ES3_STATIC_PAGE_BINDING, but one that falls back to the model ARENA
+     * static element whose pose is in the world build draws from
+     * ES3_WORLD_BINDING, but one that falls back to the model ARENA
      * draws from TRSPK_VBO_GROUP_STATIC -- and nothing on this path ever
      * uploaded that arena. es3_bind_stream then found no buffer for the
      * binding and RETURNED FALSE, which the draw loop answered with
@@ -734,13 +728,13 @@ es3p_end_3d(struct TRSPK_Renderer_ES3* renderer)
     {
         es3_report_line(
             "opengles3 painter/frame: faces indexed %.0f actor %.0f; "
-            "draws %.1f; static pages %u %u vertices; static models: page %.1f "
+            "draws %.1f; world build %u poses %u vertices; static models: world %.1f "
             "pose_table %.1f REBAKED %.1f",
             renderer->painter_stat_faces_indexed / 300.0,
             renderer->painter_stat_faces_actor / 300.0,
             renderer->painter_stat_draws / 300.0,
-            renderer->static_page_count,
-            renderer->static_batch_gpu_vertex_used,
+            trspk_batch32_entry_count(renderer->world),
+            trspk_batch32_vbo(renderer->world)->vertex_count,
             renderer->stat_static_page / 300.0,
             renderer->stat_static_pose_table / 300.0,
             renderer->stat_static_rebake / 300.0);
@@ -913,22 +907,8 @@ es3p_batch_begin(
     struct TRSPK_Renderer_ES3* renderer,
     const struct ToriRS_RenderCommand_Batch* command)
 {
-    struct ES3StaticBatch* batch;
-    int slot;
-    assert(renderer);
     assert(command);
-    if( command->batch_id < 0 )
-        return;
-    slot = es3_static_batch_slot(renderer, command->batch_id, true);
-    if( slot < 0 )
-        return;
-    batch = &renderer->static_batches[slot];
-    es3_invalidate_batch_pages(renderer, batch);
-    trspk_batch16_begin(batch->cpu);
-    batch->active = false;
-    batch->building = true;
-    es3_rebuild_batch_pose_table(renderer);
-    renderer->current_batch_slot = slot;
+    es3_world_begin(renderer, command->batch_id);
 }
 
 
@@ -938,44 +918,9 @@ es3p_batch_add(
     const struct ToriRS_RenderCommand_Batch* command,
     bool animated)
 {
-    struct ES3StaticBatch* batch;
-    struct TRSPK_Batch16Reservation reservation;
     int anim_index;
     int pose_id;
-    int face_count;
-    assert(renderer);
-    assert(command);
-    if( command->element_id < 0 || command->model.kind == TORIDRAWMK_NONE )
-        return;
-    if( renderer->current_batch_slot < 0 ||
-        (uint32_t)renderer->current_batch_slot >= renderer->static_batch_count )
-        return;
-    batch = &renderer->static_batches[renderer->current_batch_slot];
-    if( !batch->building || batch->batch_id != command->batch_id )
-        return;
-    face_count = trspk_toridraw_face_count(command->model);
-    if( face_count <= 0 || (uint32_t)face_count > UINT32_MAX / 3u )
-        return;
-    anim_index = animated ? es3_clampi(command->anim_index, 0, TRSPK_POSE_TRACK_COUNT - 1) : 0;
-    pose_id = command->pose_id >= 0 ? command->pose_id : 0;
-    if( !trspk_batch16_reserve_pose(
-            batch->cpu,
-            command->element_id,
-            anim_index,
-            pose_id,
-            (uint32_t)face_count * 3u,
-            &reservation) )
-        return;
-    (void)es3_bake_pose_vertices(
-        renderer,
-        reservation.vbo,
-        reservation.triangles,
-        reservation.vertex_base,
-        command->model,
-        &command->world_position,
-        NULL,
-        0,
-        false);
+    (void)es3_world_add(renderer, command, animated, &anim_index, &pose_id);
 }
 
 
@@ -985,29 +930,7 @@ es3p_batch_clear(
     int batch_id,
     bool clear_all)
 {
-    uint32_t slot;
-    assert(renderer);
-    for( slot = 0u; slot < renderer->static_batch_count; slot++ )
-    {
-        struct ES3StaticBatch* batch = &renderer->static_batches[slot];
-        if( !clear_all && batch->batch_id != batch_id )
-            continue;
-        es3_invalidate_batch_pages(renderer, batch);
-        trspk_batch16_clear(batch->cpu);
-        batch->active = false;
-        batch->building = false;
-    }
-    if( clear_all )
-    {
-        /* Nothing valid remains, so the bump allocator starts over: every
-         * page re-allocates its range the next time its chunk commits. */
-        uint32_t page_id;
-        for( page_id = 0u; page_id < renderer->static_page_count; page_id++ )
-            renderer->static_pages[page_id].gpu_capacity = 0u;
-        renderer->static_batch_gpu_vertex_used = 0u;
-    }
-    es3_rebuild_batch_pose_table(renderer);
-    renderer->current_batch_slot = -1;
+    es3_world_clear(renderer, batch_id, clear_all);
 }
 
 

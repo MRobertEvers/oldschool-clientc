@@ -112,7 +112,7 @@
 #include "es3/trspk_es3.h"
 
 #include "core/trspk_atlas.h"
-#include "core/trspk_batch16.h"
+#include "core/trspk_batch32.h"
 #include "core/trspk_ibo.h"
 #include "core/trspk_modelarena.h"
 #include "core/trspk_element_mask.h"
@@ -190,7 +190,7 @@
 #define ES3_WIDGET_CONFIG_NONE (-2)
 #define ES3_WIDGET_CONFIG_SKIP (-3)
 
-/* Vertex stream bindings: the two arena groups, Batch16's page buffer, and
+/* Vertex stream bindings: the two arena groups, the world build's buffer, and
  * the per-frame ordered stream the actors are baked into.
  *
  * There is no resident-window binding here. The GLES2 renderer has one
@@ -199,19 +199,11 @@
  * painter order hops chunks tile by tile -- so it copies each drawn model
  * into a ring it CAN index. With 32-bit indices the retained buffers are
  * directly indexable and the ring has nothing to do. */
-#define ES3_STATIC_PAGE_BINDING TRSPK_VBO_GROUP_COUNT
+#define ES3_WORLD_BINDING TRSPK_VBO_GROUP_COUNT
 #define ES3_FRAME_STREAM_BINDING (TRSPK_VBO_GROUP_COUNT + 1u)
 #define ES3_BINDING_COUNT (TRSPK_VBO_GROUP_COUNT + 2u)
 /* The painter path's frame stream: a ~40k-vertex world at 28 bytes. */
 #define ES3_FRAME_STREAM_INIT_BYTES (49152u * 28u)
-/* A batch pose locates its Batch16 ENTRY: the batch slot and the entry's
- * index in it, from which the chunk, the vertex base and the GPU page all
- * follow. An entry is the unit the painter keeps residency for. */
-#define ES3_BATCH_POSE_FLAG 0x80000000u
-#define ES3_BATCH_POSE_SLOT_SHIFT 24u
-#define ES3_BATCH_POSE_SLOT_MASK 0x7fu
-#define ES3_BATCH_POSE_ENTRY_MASK 0xffffffu
-#define ES3_BATCH_PAGE_LIMIT 32768u
 
 /* Attribute locations, the same in every program. */
 #define ES3_ATTRIB_POSITION 0u
@@ -475,48 +467,8 @@ struct ES3UIBatch
     struct ES3Rect scissor;
 };
 
-struct ES3StaticBatch
-{
-    int batch_id;
-    struct TRSPK_Batch16* cpu;
-    uint32_t* page_ids;
-    uint32_t page_id_capacity;
-    bool active;
-    bool building;
-};
-
-/*
- * One Batch16 chunk's place in the static page buffer.
- *
- * Chunks are packed DENSELY: `gpu_offset` is a vertex offset handed out by a
- * bump allocator over the buffer, and a chunk keeps its range across rebuilds
- * as long as it still fits (`gpu_capacity`). They are not one chunk per
- * 64K-vertex slot, because that spacing decides what the painter can index:
- * a U16 index reaches 65536 vertices from wherever the attributes are bound,
- * and painter order hops chunks tile by tile (measured: 750 chunk changes a
- * frame for 13k faces). Packed, a whole small world lies inside one such
- * window and its faces index; spaced a page apart, every chunk change was a
- * window change and nothing did.
- */
-struct ES3StaticPageRef
-{
-    uint32_t batch_slot;
-    uint32_t chunk_index;
-    uint32_t gpu_offset;
-    uint32_t gpu_capacity;
-    /* The chunk's CPU vertex buffer, cached when the page is assigned so the
-     * painter's placement does not walk page -> batch -> chunk -> vbo per
-     * model. A Batch16 chunk and its VBO object are allocated once and
-     * reused across every begin/clear (never freed before the batch is), so
-     * the pointer is stable for as long as `valid` is; the vertex array
-     * inside it is read through the VBO at use time, never cached, because a
-     * rebuild may realloc it. NULL while !valid. */
-    const struct TRSPK_VBO* cpu_vbo;
-    bool valid;
-};
-
-/* The static page buffer starts at one window and doubles. */
-#define ES3_STATIC_BATCH_VBO_INIT_VERTICES 65536u
+/* The world build's buffer starts at one 16-bit window's worth and doubles. */
+#define ES3_WORLD_VBO_INIT_VERTICES 65536u
 
 struct ES3ModelGroup
 {
@@ -861,28 +813,31 @@ struct TRSPK_Renderer_ES3
     uint32_t ui_stat_break_overflow;
     uint32_t ui_stat_upload_bytes;
     struct TRSPK_PoseTable poses;
-    struct TRSPK_PoseTable batch_poses;
+
+    /*
+     * The world build (TORIRSRC_BATCH3D_*): one Batch32, written once between
+     * BEGIN and END, uploaded once into world_vbo, and left alone until the
+     * next build or clear -- never unloaded from, never compacted. A pose is
+     * located by its vertex base alone: with 32-bit indices there are no
+     * pages, no per-page offsets and no bump allocator (the GL3 design,
+     * platform_sdl2_renderer_gl3.c). A script's loc is not in it
+     * (world_builder spawns runtime locs off the batch path); it is a
+     * retained model in groups[TRSPK_VBO_GROUP_STATIC].
+     *
+     * world_live: the build is complete and drawable. world_upload_pending:
+     * world_vbo needs the CPU copy re-sent (a texture's scroll bytes changed,
+     * or the context came back).
+     */
+    struct TRSPK_Batch32* world;
+    int world_batch_id;
+    bool world_live;
+    bool world_upload_pending;
+    GLuint world_vbo;
+    uint32_t world_gpu_vertex_capacity;
     /* Elements the active world build no longer describes -- reloaded,
      * animated or removed since it was baked (see trspk_element_mask.h).
-     * Their batch poses are dropped and stay dropped across rebuilds. */
+     * Draws stop resolving them to the build until the next one. */
     struct TRSPK_ElementMask batch_detached;
-
-    /* Batch16 is retained build-time storage. Its logical pages live in one
-     * GL buffer sized in whole pages; a pose encodes a stable page id plus its
-     * page-local vertex base. */
-    struct ES3StaticBatch* static_batches;
-    uint32_t static_batch_count;
-    uint32_t static_batch_capacity;
-    struct ES3StaticPageRef* static_pages;
-    uint32_t static_page_count;
-    uint32_t static_page_capacity;
-    GLuint static_batch_vbo;
-    /* In vertices: the buffer's size, and the bump allocator's high-water
-     * mark over it (see struct ES3StaticPageRef). */
-    uint32_t static_batch_gpu_vertex_capacity;
-    uint32_t static_batch_gpu_vertex_used;
-    int current_batch_slot;
-    bool static_batch_upload_pending;
 
     /* Reused scratch makes each model one U16-chain append. */
     uint32_t* model_indices;
@@ -952,7 +907,7 @@ struct TRSPK_Renderer_ES3
     int pick_mouse_y;
     struct ToriRS_PickHits pick_hits;
 
-    /* Resolved primary static poses, rebuilt with batch_poses. Draw-owned. */
+    /* Resolved primary world poses, rebuilt with each build. Draw-owned. */
     struct ES3StaticPrimary* static_primary;
     uint32_t static_primary_capacity;
     uint32_t* static_primary_bits;
@@ -970,19 +925,16 @@ struct TRSPK_Renderer_ES3
  * ::binding selects the vertex stream. ::absolute_base is the model's first
  * vertex IN THAT BINDING'S BUFFER -- what an array draw wants, and, because
  * every index here is 32-bit, also what an index is written against.
- * ::chunk_base is where the model's CPU source begins (a Batch16 chunk's
- * copy starts at zero, an arena's is the whole buffer), which is a different
- * number from ::absolute_base only for the static-page binding. ::page_id
- * names the static page (ES3_STATIC_PAGE_BINDING only; UINT32_MAX
- * otherwise) for whoever needs the chunk's CPU copy.
+ * ::chunk_base is where the model's CPU source begins. Every CPU copy here --
+ * an arena's, the world build's, the frame stream's -- is the whole buffer,
+ * so it equals ::absolute_base except for a per-frame group whose GPU copy
+ * starts at its stream set's base.
  */
 struct ES3ModelPlacement
 {
     uint32_t binding;
-    uint32_t page_id;
-    /** The Batch16 entry behind a static-page placement (UINT32_MAX when the
+    /** The world-build entry behind a world placement (UINT32_MAX when the
      *  model is not a batch entry): what the painter keys residency on. */
-    uint32_t batch_slot;
     uint32_t entry_index;
     /** The entry's own baked vertex count -- the model's whole bake, which
      *  is NOT ::face_count * 3 on the painter path (there face_count is the
@@ -1139,10 +1091,10 @@ es3_zbuffer_batch_pose_baked(
     int anim_index,
     int pose_id,
     struct ToriDraw_ModelHandle handle);
+/** The world build is about to be dropped or rewritten: forget the depth
+ *  materials of every pose it holds. */
 void
-es3_zbuffer_batch_dropped(
-    struct TRSPK_Renderer_ES3* renderer,
-    struct TRSPK_Batch16* cpu);
+es3_zbuffer_batch_dropped(struct TRSPK_Renderer_ES3* renderer);
 
 
 /* ---- the toolkit the two renderers compose from ------------------------- */
@@ -1326,19 +1278,33 @@ es3_apply_animation(
     struct TRSPK_Renderer_ES3* renderer,
     const struct ToriRS_RenderCommand_Model* command);
 
-/* Static batch pages. */
-int
-es3_static_batch_slot(struct TRSPK_Renderer_ES3* renderer, int batch_id, bool create);
+/*
+ * The world build. es3_world_begin drops whatever was there and starts a new
+ * one; es3_world_add reserves and bakes one pose of it (false when the command
+ * is not for the build being written, or the model has no faces), reporting
+ * the pose's key; es3_batch_end completes it and sends it to the GPU;
+ * es3_world_clear drops it when the scene says so. The depth path wraps them
+ * with its material hooks.
+ */
 void
-es3_invalidate_batch_pages(struct TRSPK_Renderer_ES3* renderer, const struct ES3StaticBatch* batch);
-void
-es3_rebuild_batch_pose_table(struct TRSPK_Renderer_ES3* renderer);
+es3_world_begin(struct TRSPK_Renderer_ES3* renderer, int batch_id);
 bool
-es3_static_batch_commit(struct TRSPK_Renderer_ES3* renderer, uint32_t slot);
+es3_world_add(
+    struct TRSPK_Renderer_ES3* renderer,
+    const struct ToriRS_RenderCommand_Batch* command,
+    bool animated,
+    int* out_anim_index,
+    int* out_pose_id);
+void
+es3_world_clear(struct TRSPK_Renderer_ES3* renderer, int batch_id, bool clear_all);
 void
 es3_batch_end(
     struct TRSPK_Renderer_ES3* renderer,
     const struct ToriRS_RenderCommand_Batch* command);
+/** Reclaim the retained arena's unloaded ranges. Between frames only: the
+ *  frame's draw sequence holds vertex bases into it. */
+void
+es3_compact_static_group(struct TRSPK_Renderer_ES3* renderer);
 
 /** Push the per-frame stream's vertices to the GPU. */
 void
@@ -1425,13 +1391,11 @@ es3_check_error(const char* where);
 char const*
 es3_log_name(void);
 
-/** The CPU side of a binding: its vertices and triangle configs. `page_id`
- *  names the chunk for ES3_STATIC_PAGE_BINDING and is ignored otherwise. */
+/** The CPU side of a binding: its vertices and triangle configs. */
 bool
 es3_binding_cpu_source(
     struct TRSPK_Renderer_ES3* renderer,
     uint32_t binding,
-    uint32_t page_id,
     const struct TRSPK_VBO** out_vbo,
     const struct TRSPK_Triangles** out_triangles);
 

@@ -19,8 +19,9 @@
  *
  * The retained model is the D3D9 renderer's, kept on purpose (see
  * platform_win32_renderer_d3d9_core.c): two arena groups (STATIC, retained
- * across frames; DYNAMIC, refilled every frame for actors), plus Batch16 for
- * the scene build, whose pages are the pages the U16 index stream addresses.
+ * across frames; DYNAMIC, refilled every frame for actors), plus the scene
+ * build in one Batch32 buffer that nothing but the next build touches -- the
+ * GL3 renderer's three pools (platform_sdl2_renderer_gl3.c).
  */
 
 #include "es3/es3_core.h"
@@ -263,7 +264,7 @@ es3_prefetch_ahead(
 {
     assert(renderer);
     assert(frame);
-    if( !renderer->batch_poses.elements || !renderer->has_3d )
+    if( !renderer->world_live || !renderer->has_3d )
         return;
     es3_prefetch_ahead_ids(
         renderer,
@@ -995,7 +996,6 @@ es3_refresh_texture_animation(
     uint8_t anim_u;
     uint8_t anim_v;
     uint32_t group_index;
-    uint32_t batch_slot;
 
     assert(renderer);
     es3_texture_anim_bytes(texture, &anim_u, &anim_v);
@@ -1020,28 +1020,18 @@ es3_refresh_texture_animation(
                 anim_v);
         }
     }
-    for( batch_slot = 0u; batch_slot < renderer->static_batch_count; batch_slot++ )
+    if( renderer->world_live || trspk_batch32_building(renderer->world) )
     {
-        struct ES3StaticBatch* batch = &renderer->static_batches[batch_slot];
-        uint32_t chunk_count;
-        uint32_t chunk_index;
-        if( !batch->cpu || (!batch->active && !batch->building) )
-            continue;
-        chunk_count = trspk_batch16_chunk_count(batch->cpu);
-        for( chunk_index = 0u; chunk_index < chunk_count; chunk_index++ )
-        {
-            struct TRSPK_Batch16Chunk* chunk = trspk_batch16_get_chunk(batch->cpu, chunk_index);
-            if( chunk && chunk->vbo &&
-                es3_refresh_anim_range(
-                    chunk->vbo,
-                    &chunk->triangles,
-                    0u,
-                    chunk->vertex_count,
-                    tex_id,
-                    anim_u,
-                    anim_v) )
-                renderer->static_batch_upload_pending = true;
-        }
+        struct TRSPK_VBO* vbo = trspk_batch32_vbo(renderer->world);
+        if( es3_refresh_anim_range(
+                vbo,
+                trspk_batch32_triangles(renderer->world),
+                0u,
+                vbo->vertex_count,
+                tex_id,
+                anim_u,
+                anim_v) )
+            renderer->world_upload_pending = true;
     }
 }
 
@@ -1400,91 +1390,7 @@ es3_reset_group(struct ES3ModelGroup* group)
         trspk_modelarena_clear(group->arena);
 }
 
-/* ---- static batches (Batch16 pages) ------------------------------------------ */
-
-static bool
-es3_upload_dirty_static_batches(struct TRSPK_Renderer_ES3* renderer);
-
-static void
-es3_mark_active_static_batches_dirty(struct TRSPK_Renderer_ES3* renderer)
-{
-    uint32_t batch_slot;
-    assert(renderer);
-    for( batch_slot = 0u; batch_slot < renderer->static_batch_count; batch_slot++ )
-    {
-        struct ES3StaticBatch* batch = &renderer->static_batches[batch_slot];
-        uint32_t chunk_count;
-        uint32_t chunk_index;
-        if( !batch->active || !batch->cpu )
-            continue;
-        chunk_count = trspk_batch16_chunk_count(batch->cpu);
-        for( chunk_index = 0u; chunk_index < chunk_count; chunk_index++ )
-        {
-            struct TRSPK_Batch16Chunk* chunk = trspk_batch16_get_chunk(batch->cpu, chunk_index);
-            if( chunk && chunk->vbo )
-                trspk_vbo_set_dirty(chunk->vbo);
-        }
-    }
-    renderer->static_batch_upload_pending = true;
-}
-
-static void
-es3_grow_static_batches(
-    struct TRSPK_Renderer_ES3* renderer,
-    uint32_t needed)
-{
-    struct ES3StaticBatch* grown;
-    uint32_t capacity;
-    if( needed <= renderer->static_batch_capacity )
-        return;
-    capacity = renderer->static_batch_capacity ? renderer->static_batch_capacity : 8u;
-    while( capacity < needed )
-        capacity *= 2u;
-    grown = (struct ES3StaticBatch*)ToriMem_Realloc(ToriMem_Renderer(),
-        renderer->static_batches, (size_t)capacity * sizeof(*grown));
-    assert(grown);
-    memset(
-        grown + renderer->static_batch_capacity,
-        0,
-        (size_t)(capacity - renderer->static_batch_capacity) * sizeof(*grown));
-    renderer->static_batches = grown;
-    renderer->static_batch_capacity = capacity;
-}
-
-int
-es3_static_batch_slot(
-    struct TRSPK_Renderer_ES3* renderer,
-    int batch_id,
-    bool create)
-{
-    uint32_t slot;
-    uint32_t reusable = UINT32_MAX;
-    assert(renderer);
-    if( batch_id < 0 )
-        return -1;
-    for( slot = 0u; slot < renderer->static_batch_count; slot++ )
-    {
-        if( renderer->static_batches[slot].batch_id == batch_id )
-            return (int)slot;
-        if( reusable == UINT32_MAX && !renderer->static_batches[slot].active &&
-            !renderer->static_batches[slot].building &&
-            trspk_batch16_entry_count(renderer->static_batches[slot].cpu) == 0u )
-            reusable = slot;
-    }
-    if( !create )
-        return -1;
-    if( reusable != UINT32_MAX )
-    {
-        renderer->static_batches[reusable].batch_id = batch_id;
-        return (int)reusable;
-    }
-    es3_grow_static_batches(renderer, renderer->static_batch_count + 1u);
-    slot = renderer->static_batch_count++;
-    renderer->static_batches[slot].batch_id = batch_id;
-    renderer->static_batches[slot].cpu = trspk_batch16_create(TRSPK_VERTEX_FORMAT_GLES2);
-    assert(renderer->static_batches[slot].cpu);
-    return (int)slot;
-}
+/* ---- the world build (Batch32) ------------------------------------------------- */
 
 /*
  * A batched element that has been reloaded, animated or removed since the
@@ -1504,229 +1410,25 @@ es3_batch_detach(
     if( element_id < 0 )
         return;
     trspk_element_mask_set(&renderer->batch_detached, element_id);
-    trspk_pose_table_remove_element(&renderer->batch_poses, element_id);
     index = (uint32_t)ToriDraw_ElementIndexOfRaw(element_id);
     if( index < renderer->static_primary_capacity )
         renderer->static_primary_bits[index >> 5] &= ~(1u << (index & 31u));
 }
 
-void
-es3_rebuild_batch_pose_table(struct TRSPK_Renderer_ES3* renderer)
-{
-    uint32_t batch_slot;
-    assert(renderer);
-    trspk_pose_table_clear(&renderer->batch_poses);
-    /* The detach mask records how elements differ from the ACTIVE build;
-     * with none active there is nothing to differ from. */
-    {
-        bool any_active = false;
-        for( batch_slot = 0u; batch_slot < renderer->static_batch_count; batch_slot++ )
-            any_active = any_active || renderer->static_batches[batch_slot].active;
-        if( !any_active )
-            trspk_element_mask_clear(&renderer->batch_detached);
-    }
-    for( batch_slot = 0u; batch_slot < renderer->static_batch_count; batch_slot++ )
-    {
-        const struct ES3StaticBatch* batch = &renderer->static_batches[batch_slot];
-        uint32_t entry_count;
-        uint32_t entry_index;
-        if( !batch->active || !batch->cpu )
-            continue;
-        entry_count = trspk_batch16_entry_count(batch->cpu);
-        for( entry_index = 0u; entry_index < entry_count; entry_index++ )
-        {
-            const struct TRSPK_Batch16Entry* entry =
-                trspk_batch16_get_entry(batch->cpu, entry_index);
-            uint32_t page_id;
-            if( !entry || entry->element_id < 0 ||
-                trspk_element_mask_test(&renderer->batch_detached, entry->element_id) || entry->chunk_index >= batch->page_id_capacity ||
-                entry_index > ES3_BATCH_POSE_ENTRY_MASK ||
-                batch_slot > ES3_BATCH_POSE_SLOT_MASK )
-                continue;
-            page_id = batch->page_ids[entry->chunk_index];
-            if( page_id >= renderer->static_page_count || !renderer->static_pages[page_id].valid )
-                continue;
-            trspk_pose_table_set(
-                &renderer->batch_poses,
-                entry->element_id,
-                entry->anim_index,
-                entry->pose_id,
-                ES3_BATCH_POSE_FLAG | (batch_slot << ES3_BATCH_POSE_SLOT_SHIFT) |
-                    entry_index);
-        }
-    }
-    es3_static_primary_rebuild(renderer);
-}
-
+/* The build's buffer holds `required_vertices` or more; growing it is a fresh
+ * allocation, so the whole build goes up again. */
 static bool
-es3_grow_static_pages(
+es3_ensure_world_vbo(
     struct TRSPK_Renderer_ES3* renderer,
-    uint32_t needed)
-{
-    struct ES3StaticPageRef* grown;
-    uint32_t capacity;
-    if( needed <= renderer->static_page_capacity )
-        return true;
-    if( needed > ES3_BATCH_PAGE_LIMIT )
-        return false;
-    capacity = renderer->static_page_capacity ? renderer->static_page_capacity : 32u;
-    while( capacity < needed )
-    {
-        if( capacity >= ES3_BATCH_PAGE_LIMIT / 2u )
-        {
-            capacity = ES3_BATCH_PAGE_LIMIT;
-            break;
-        }
-        capacity *= 2u;
-    }
-    grown = (struct ES3StaticPageRef*)ToriMem_Realloc(ToriMem_Renderer(),
-        renderer->static_pages, (size_t)capacity * sizeof(*grown));
-    assert(grown);
-    memset(
-        grown + renderer->static_page_capacity,
-        0,
-        (size_t)(capacity - renderer->static_page_capacity) * sizeof(*grown));
-    renderer->static_pages = grown;
-    renderer->static_page_capacity = capacity;
-    return true;
-}
-
-static void
-es3_static_batch_ensure_chunk_storage(
-    struct ES3StaticBatch* batch,
-    uint32_t chunk_count)
-{
-    uint32_t* grown;
-    uint32_t old_capacity;
-    uint32_t capacity;
-    uint32_t chunk;
-    assert(batch);
-    if( chunk_count <= batch->page_id_capacity )
-        return;
-    old_capacity = batch->page_id_capacity;
-    capacity = batch->page_id_capacity ? batch->page_id_capacity : 4u;
-    while( capacity < chunk_count )
-        capacity *= 2u;
-    grown = (uint32_t*)ToriMem_Realloc(ToriMem_Renderer(), batch->page_ids, (size_t)capacity * sizeof(*grown));
-    assert(grown);
-    batch->page_ids = grown;
-    for( chunk = old_capacity; chunk < capacity; chunk++ )
-        batch->page_ids[chunk] = UINT32_MAX;
-    batch->page_id_capacity = capacity;
-}
-
-static bool
-es3_static_batch_assign_page(
-    struct TRSPK_Renderer_ES3* renderer,
-    uint32_t batch_slot,
-    uint32_t chunk_index)
-{
-    struct ES3StaticBatch* batch = &renderer->static_batches[batch_slot];
-    const struct TRSPK_Batch16Chunk* chunk;
-    struct ES3StaticPageRef* page;
-    uint32_t page_id;
-    uint32_t needed;
-    assert(chunk_index < batch->page_id_capacity);
-    chunk = trspk_batch16_get_chunk(batch->cpu, chunk_index);
-    needed = chunk ? chunk->vertex_count : 0u;
-    page_id = batch->page_ids[chunk_index];
-    if( page_id == UINT32_MAX )
-    {
-        if( renderer->static_page_count >= ES3_BATCH_PAGE_LIMIT ||
-            !es3_grow_static_pages(renderer, renderer->static_page_count + 1u) )
-            return false;
-        page_id = renderer->static_page_count++;
-        batch->page_ids[chunk_index] = page_id;
-        renderer->static_pages[page_id].gpu_offset = 0u;
-        renderer->static_pages[page_id].gpu_capacity = 0u;
-    }
-    page = &renderer->static_pages[page_id];
-    page->batch_slot = batch_slot;
-    page->chunk_index = chunk_index;
-    /* The painter's placement reads the bake through this (see the field). */
-    page->cpu_vbo = chunk ? chunk->vbo : NULL;
-    page->valid = page->cpu_vbo != NULL;
-    /* A range it outgrew is abandoned, not extended: the bump allocator only
-     * ever hands out the tail, and the commit compacts when the tail runs
-     * out (es3_compact_static_pages). */
-    if( needed > page->gpu_capacity )
-    {
-        page->gpu_offset = renderer->static_batch_gpu_vertex_used;
-        page->gpu_capacity = needed;
-        renderer->static_batch_gpu_vertex_used += needed;
-    }
-    return true;
-}
-
-/* Re-pack every valid page densely, in page order, and re-send them all.
- * Returns the packed high-water mark. */
-static uint32_t
-es3_compact_static_pages(struct TRSPK_Renderer_ES3* renderer)
-{
-    uint32_t page_id;
-    uint32_t used = 0u;
-    assert(renderer);
-    for( page_id = 0u; page_id < renderer->static_page_count; page_id++ )
-    {
-        struct ES3StaticPageRef* page = &renderer->static_pages[page_id];
-        const struct ES3StaticBatch* batch;
-        const struct TRSPK_Batch16Chunk* chunk;
-        if( !page->valid || page->batch_slot >= renderer->static_batch_count )
-        {
-            page->gpu_capacity = 0u;
-            continue;
-        }
-        batch = &renderer->static_batches[page->batch_slot];
-        chunk = batch->cpu ? trspk_batch16_get_chunk(batch->cpu, page->chunk_index) : NULL;
-        page->gpu_capacity = chunk ? chunk->vertex_count : 0u;
-        page->gpu_offset = used;
-        used += page->gpu_capacity;
-    }
-    renderer->static_batch_gpu_vertex_used = used;
-    es3_mark_active_static_batches_dirty(renderer);
-    return used;
-}
-
-void
-es3_invalidate_batch_pages(
-    struct TRSPK_Renderer_ES3* renderer,
-    const struct ES3StaticBatch* batch)
-{
-    uint32_t chunk;
-    for( chunk = 0u; chunk < batch->page_id_capacity; chunk++ )
-    {
-        uint32_t page_id = batch->page_ids[chunk];
-        if( page_id != UINT32_MAX && page_id < renderer->static_page_count )
-        {
-            renderer->static_pages[page_id].valid = false;
-            renderer->static_pages[page_id].cpu_vbo = NULL;
-        }
-    }
-}
-
-/* The page buffer holds `capacity` vertices; growing it is a fresh
- * allocation and every page has to be re-sent from its CPU chunk. */
-static bool
-es3_ensure_static_batch_vbo(
-    struct TRSPK_Renderer_ES3* renderer,
-    uint32_t required_vertices,
-    bool* out_recreated)
+    uint32_t required_vertices)
 {
     uint32_t capacity;
     uint64_t byte_capacity;
     assert(renderer);
-    assert(out_recreated);
-    *out_recreated = false;
-    if( required_vertices == 0u )
+    if( renderer->world_vbo && renderer->world_gpu_vertex_capacity >= required_vertices )
         return true;
-    if( renderer->static_batch_vbo &&
-        renderer->static_batch_gpu_vertex_capacity >= required_vertices )
-        return true;
-    if( !renderer->gl_context )
-        return true;
-    capacity = renderer->static_batch_gpu_vertex_capacity
-                   ? renderer->static_batch_gpu_vertex_capacity
-                   : ES3_STATIC_BATCH_VBO_INIT_VERTICES;
+    capacity = renderer->world_gpu_vertex_capacity ? renderer->world_gpu_vertex_capacity
+                                                   : ES3_WORLD_VBO_INIT_VERTICES;
     while( capacity < required_vertices )
     {
         if( capacity > UINT32_MAX / 2u )
@@ -1739,188 +1441,153 @@ es3_ensure_static_batch_vbo(
     byte_capacity = (uint64_t)capacity * sizeof(struct TRSPK_VertexGLES2);
     if( byte_capacity > (uint64_t)INT32_MAX )
         return false;
-    if( !renderer->static_batch_vbo )
-        glGenBuffers(1, &renderer->static_batch_vbo);
-    es3_bind_array_buffer(renderer, renderer->static_batch_vbo);
+    if( !renderer->world_vbo )
+        glGenBuffers(1, &renderer->world_vbo);
+    es3_bind_array_buffer(renderer, renderer->world_vbo);
     glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)byte_capacity, NULL, GL_STATIC_DRAW);
-    if( !es3_check_error("static batch page buffer") )
+    if( !es3_check_error("world build buffer") )
         return false;
-    renderer->static_batch_gpu_vertex_capacity = capacity;
-    *out_recreated = true;
+    renderer->world_gpu_vertex_capacity = capacity;
+    trspk_vbo_set_dirty(trspk_batch32_vbo(renderer->world));
     return true;
 }
 
+/* Send what changed of the build: all of it after a build or a new buffer,
+ * a texture's scroll bytes otherwise. */
 static bool
-es3_upload_static_batch_chunk(
-    struct TRSPK_Renderer_ES3* renderer,
-    struct ES3StaticBatch* batch,
-    uint32_t chunk_index)
+es3_upload_world(struct TRSPK_Renderer_ES3* renderer)
 {
-    struct TRSPK_Batch16Chunk* chunk;
-    uint32_t page_id;
+    struct TRSPK_VBO* vbo;
+    uint32_t count;
     uint32_t first;
     uint32_t end;
-    size_t byte_count;
-
     assert(renderer);
-    assert(batch);
-    assert(batch->cpu);
-    if( chunk_index >= batch->page_id_capacity )
-        return false;
-    chunk = trspk_batch16_get_chunk(batch->cpu, chunk_index);
-    if( !chunk || !chunk->vbo )
-        return false;
-    if( chunk->vertex_count == 0u )
-    {
-        trspk_vbo_clear_dirty(chunk->vbo);
+    if( !renderer->world_upload_pending || !renderer->gl_context )
         return true;
-    }
-    if( !renderer->gl_context )
-        return true;
-    if( !renderer->static_batch_vbo || !trspk_vbo_is_dirty(chunk->vbo) )
-        return renderer->static_batch_vbo != 0u;
-    page_id = batch->page_ids[chunk_index];
-    if( page_id == UINT32_MAX || page_id >= renderer->static_page_count ||
-        !renderer->static_pages[page_id].valid ||
-        renderer->static_pages[page_id].gpu_offset + chunk->vertex_count >
-            renderer->static_batch_gpu_vertex_capacity )
-        return false;
-    /* The chunk's own dirty span, when it has one; a fresh page sends all. */
-    first = 0u;
-    end = chunk->vertex_count;
-    if( chunk->vbo->dirty_end > chunk->vbo->dirty_first )
+    vbo = trspk_batch32_vbo(renderer->world);
+    count = vbo->vertex_count;
+    if( count > 0u )
     {
-        first = chunk->vbo->dirty_first;
-        end = chunk->vbo->dirty_end < chunk->vertex_count ? chunk->vbo->dirty_end
-                                                          : chunk->vertex_count;
-        if( first > end )
-            first = end;
+        if( !es3_ensure_world_vbo(renderer, count) )
+            return false;
+        if( trspk_vbo_is_dirty(vbo) )
+        {
+            first = vbo->dirty_first;
+            end = vbo->dirty_end < count ? vbo->dirty_end : count;
+            if( first < end )
+            {
+                size_t const byte_count = (size_t)(end - first) * sizeof(struct TRSPK_VertexGLES2);
+                es3_bind_array_buffer(renderer, renderer->world_vbo);
+                glBufferSubData(
+                    GL_ARRAY_BUFFER,
+                    (GLintptr)((uint64_t)first * sizeof(struct TRSPK_VertexGLES2)),
+                    (GLsizeiptr)byte_count,
+                    &vbo->vertices.as_gles2[first]);
+                TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_STATIC_VBO_UPLOAD_BYTES, (int64_t)byte_count);
+                TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_STATIC_VBO_UPLOADS, 1);
+            }
+        }
     }
-    byte_count = (size_t)(end - first) * sizeof(struct TRSPK_VertexGLES2);
-    if( byte_count > 0u )
-    {
-        es3_bind_array_buffer(renderer, renderer->static_batch_vbo);
-        glBufferSubData(
-            GL_ARRAY_BUFFER,
-            (GLintptr)(((uint64_t)renderer->static_pages[page_id].gpu_offset + first) *
-                       sizeof(struct TRSPK_VertexGLES2)),
-            (GLsizeiptr)byte_count,
-            &chunk->vbo->vertices.as_gles2[first]);
-        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_STATIC_VBO_UPLOAD_BYTES, (int64_t)byte_count);
-        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_STATIC_VBO_UPLOADS, 1);
-    }
-    trspk_vbo_clear_dirty(chunk->vbo);
+    trspk_vbo_clear_dirty(vbo);
+    renderer->world_upload_pending = false;
     return true;
 }
 
-static bool
-es3_upload_dirty_static_batches(struct TRSPK_Renderer_ES3* renderer)
+void
+es3_world_begin(
+    struct TRSPK_Renderer_ES3* renderer,
+    int batch_id)
 {
-    uint32_t batch_slot;
-    bool recreated = false;
     assert(renderer);
-    if( !renderer->static_batch_upload_pending )
-        return true;
-    if( !es3_ensure_static_batch_vbo(
-            renderer, renderer->static_batch_gpu_vertex_used, &recreated) )
-        return false;
-    if( recreated )
-        es3_mark_active_static_batches_dirty(renderer);
-    for( batch_slot = 0u; batch_slot < renderer->static_batch_count; batch_slot++ )
-    {
-        struct ES3StaticBatch* batch = &renderer->static_batches[batch_slot];
-        uint32_t chunk_count;
-        uint32_t chunk;
-        if( !batch->active || !batch->cpu )
-            continue;
-        chunk_count = trspk_batch16_chunk_count(batch->cpu);
-        for( chunk = 0u; chunk < chunk_count; chunk++ )
-            if( !es3_upload_static_batch_chunk(renderer, batch, chunk) )
-                return false;
-    }
-    renderer->static_batch_upload_pending = false;
-    return true;
+    if( batch_id < 0 )
+        return;
+    trspk_batch32_begin(renderer->world);
+    trspk_element_mask_clear(&renderer->batch_detached);
+    renderer->world_batch_id = batch_id;
+    renderer->world_live = false;
+    renderer->world_upload_pending = false;
+    es3_static_primary_rebuild(renderer);
 }
 
 bool
-es3_static_batch_commit(
+es3_world_add(
     struct TRSPK_Renderer_ES3* renderer,
-    uint32_t batch_slot)
+    const struct ToriRS_RenderCommand_Batch* command,
+    bool animated,
+    int* out_anim_index,
+    int* out_pose_id)
 {
-    struct ES3StaticBatch* batch;
-    uint32_t chunk_count;
-    uint32_t chunk;
-    bool recreated = false;
-
+    struct TRSPK_Batch32Reservation reservation;
+    int face_count;
     assert(renderer);
-    assert(batch_slot < renderer->static_batch_count);
-    batch = &renderer->static_batches[batch_slot];
-    assert(batch->cpu);
-    batch->active = false;
-    chunk_count = trspk_batch16_chunk_count(batch->cpu);
-    es3_static_batch_ensure_chunk_storage(batch, chunk_count);
-    es3_invalidate_batch_pages(renderer, batch);
-    for( chunk = 0u; chunk < chunk_count; chunk++ )
-        if( !es3_static_batch_assign_page(renderer, batch_slot, chunk) )
-            goto fail;
-    /* The tail ran past the buffer: pack the holes the rebuilt chunks left
-     * before buying a bigger buffer, since either way everything re-sends. */
-    if( renderer->static_batch_vbo &&
-        renderer->static_batch_gpu_vertex_used > renderer->static_batch_gpu_vertex_capacity )
-        (void)es3_compact_static_pages(renderer);
-    if( !es3_ensure_static_batch_vbo(
-            renderer, renderer->static_batch_gpu_vertex_used, &recreated) )
-        goto fail;
-    if( recreated || renderer->static_batch_upload_pending )
-    {
-        es3_mark_active_static_batches_dirty(renderer);
-        if( !es3_upload_dirty_static_batches(renderer) )
-            goto fail;
-    }
-    for( chunk = 0u; chunk < chunk_count; chunk++ )
-        if( !es3_upload_static_batch_chunk(renderer, batch, chunk) )
-            goto fail;
-    batch->active = true;
-    es3_rebuild_batch_pose_table(renderer);
-    return true;
-
-fail:
-    es3_invalidate_batch_pages(renderer, batch);
-    es3_rebuild_batch_pose_table(renderer);
-    return false;
+    assert(command);
+    assert(out_anim_index);
+    assert(out_pose_id);
+    if( !trspk_batch32_building(renderer->world) || command->batch_id != renderer->world_batch_id ||
+        command->element_id < 0 || command->model.kind == TORIDRAWMK_NONE )
+        return false;
+    face_count = trspk_toridraw_face_count(command->model);
+    if( face_count <= 0 || (uint32_t)face_count > UINT32_MAX / 3u )
+        return false;
+    *out_anim_index =
+        animated ? es3_clampi(command->anim_index, 0, TRSPK_POSE_TRACK_COUNT - 1) : 0;
+    *out_pose_id = command->pose_id >= 0 ? command->pose_id : 0;
+    trspk_batch32_reserve_pose(
+        renderer->world,
+        command->element_id,
+        *out_anim_index,
+        *out_pose_id,
+        (uint32_t)face_count * 3u,
+        &reservation);
+    return es3_bake_pose_vertices(
+        renderer,
+        reservation.vbo,
+        reservation.triangles,
+        reservation.vertex_base,
+        command->model,
+        &command->world_position,
+        NULL,
+        0,
+        false);
 }
 
-static bool
-es3_resolve_static_page(
+void
+es3_batch_end(
     struct TRSPK_Renderer_ES3* renderer,
-    uint32_t page_id,
-    struct TRSPK_Batch16Chunk** out_chunk)
+    const struct ToriRS_RenderCommand_Batch* command)
 {
-    const struct ES3StaticPageRef* ref;
-    struct ES3StaticBatch* batch;
-    struct TRSPK_Batch16Chunk* chunk;
     assert(renderer);
-    assert(out_chunk);
-    if( page_id >= renderer->static_page_count || !renderer->static_pages[page_id].valid )
-        return false;
-    ref = &renderer->static_pages[page_id];
-    if( ref->batch_slot >= renderer->static_batch_count )
-        return false;
-    batch = &renderer->static_batches[ref->batch_slot];
-    if( !batch->active || !batch->cpu || ref->chunk_index >= trspk_batch16_chunk_count(batch->cpu) )
-        return false;
-    chunk = trspk_batch16_get_chunk(batch->cpu, ref->chunk_index);
-    if( !chunk )
-        return false;
-    *out_chunk = chunk;
-    return true;
+    assert(command);
+    if( !trspk_batch32_building(renderer->world) || command->batch_id != renderer->world_batch_id )
+        return;
+    trspk_batch32_end(renderer->world);
+    renderer->world_live = true;
+    renderer->world_upload_pending = true;
+    (void)es3_upload_world(renderer);
+    es3_static_primary_rebuild(renderer);
+}
+
+void
+es3_world_clear(
+    struct TRSPK_Renderer_ES3* renderer,
+    int batch_id,
+    bool clear_all)
+{
+    assert(renderer);
+    if( !clear_all && batch_id != renderer->world_batch_id )
+        return;
+    trspk_batch32_clear(renderer->world);
+    trspk_element_mask_clear(&renderer->batch_detached);
+    renderer->world_batch_id = -1;
+    renderer->world_live = false;
+    renderer->world_upload_pending = false;
+    es3_static_primary_rebuild(renderer);
 }
 
 bool
 es3_binding_cpu_source(
     struct TRSPK_Renderer_ES3* renderer,
     uint32_t binding,
-    uint32_t page_id,
     const struct TRSPK_VBO** out_vbo,
     const struct TRSPK_Triangles** out_triangles)
 {
@@ -1933,14 +1600,13 @@ es3_binding_cpu_source(
         *out_triangles = &renderer->groups[binding].triangles;
         return *out_vbo != NULL;
     }
-    if( binding == ES3_STATIC_PAGE_BINDING )
+    if( binding == ES3_WORLD_BINDING )
     {
-        struct TRSPK_Batch16Chunk* chunk = NULL;
-        if( !es3_resolve_static_page(renderer, page_id, &chunk) )
+        if( !renderer->world_live )
             return false;
-        *out_vbo = chunk->vbo;
-        *out_triangles = &chunk->triangles;
-        return *out_vbo != NULL;
+        *out_vbo = trspk_batch32_vbo(renderer->world);
+        *out_triangles = trspk_batch32_triangles(renderer->world);
+        return true;
     }
     if( binding == ES3_FRAME_STREAM_BINDING )
     {
@@ -2365,14 +2031,6 @@ es3_bake_into_arena(
     if( face_count <= 0 || (uint32_t)face_count > UINT32_MAX / 3u )
         return UINT32_MAX;
     vertex_count = (uint32_t)face_count * 3u;
-    if( vertex_count > TRSPK_BATCH16_MAX_VERTICES )
-    {
-        TORIRS_ERR(
-            "%s: model has %lu vertices and cannot fit a 16-bit page\n",
-            g_es3_name,
-            (unsigned long)vertex_count);
-        return UINT32_MAX;
-    }
     anim_index = es3_clampi(anim_index, 0, TRSPK_POSE_TRACK_COUNT - 1);
     if( pose_id < 0 )
         pose_id = 0;
@@ -2388,8 +2046,6 @@ es3_bake_into_arena(
         if( old_slot != TRSPK_MODELSLOT_NULL_IDX )
         {
             trspk_modelarena_unload(group->arena, old_slot);
-            if( group == &renderer->groups[TRSPK_VBO_GROUP_STATIC] )
-                es3_compact_static_group(renderer);
         }
     }
     slot_index = trspk_modelarena_load(group->arena, arena_element_id, arena_pose_id, vertex_count);
@@ -2428,7 +2084,6 @@ es3_model_unload(
         return false;
     trspk_modelarena_unload_element(renderer->groups[TRSPK_VBO_GROUP_STATIC].arena, element_id);
     trspk_pose_table_remove_element(&renderer->poses, element_id);
-    es3_compact_static_group(renderer);
     return true;
 }
 
@@ -2454,7 +2109,6 @@ es3_animation_track_unload(
             trspk_modelarena_unload(arena, slot_index);
     }
     trspk_pose_table_remove_track(&renderer->poses, element_id, anim_index);
-    es3_compact_static_group(renderer);
     return true;
 }
 
@@ -2681,9 +2335,9 @@ es3_bind_stream(struct TRSPK_Renderer_ES3* renderer, uint32_t binding)
         buffer = renderer->groups[binding].vbo_gpu;
         base_vertex = renderer->groups[binding].gpu_base_vertex;
     }
-    else if( binding == ES3_STATIC_PAGE_BINDING )
+    else if( binding == ES3_WORLD_BINDING )
     {
-        buffer = renderer->static_batch_vbo;
+        buffer = renderer->world_vbo;
         base_vertex = 0u;
     }
     else if( binding == ES3_FRAME_STREAM_BINDING )
@@ -2947,7 +2601,7 @@ es3_upload_geometry(struct TRSPK_Renderer_ES3* renderer)
     for( group = 0u; group < TRSPK_VBO_GROUP_COUNT; group++ )
         if( !es3_upload_group(renderer, &renderer->groups[group]) )
             return false;
-    return es3_upload_dirty_static_batches(renderer);
+    return es3_upload_world(renderer);
 }
 
 /* ---- the draw sequence and the two per-frame rings -------------------------------- */
@@ -3186,28 +2840,6 @@ es3_set_letterbox_viewport(struct TRSPK_Renderer_ES3* renderer)
 
 
 
-void
-es3_batch_end(
-    struct TRSPK_Renderer_ES3* renderer,
-    const struct ToriRS_RenderCommand_Batch* command)
-{
-    struct ES3StaticBatch* batch;
-    int slot;
-    assert(renderer);
-    assert(command);
-    slot = renderer->current_batch_slot;
-    if( slot < 0 || (uint32_t)slot >= renderer->static_batch_count )
-        return;
-    batch = &renderer->static_batches[slot];
-    if( !batch->building || batch->batch_id != command->batch_id )
-        return;
-    trspk_batch16_end(batch->cpu);
-    batch->building = false;
-    (void)es3_static_batch_commit(renderer, (uint32_t)slot);
-    renderer->current_batch_slot = -1;
-}
-
-
 /* ---- dispatch ---------------------------------------------------------------------- */
 
 
@@ -3307,7 +2939,7 @@ TRSPK_Renderer_ES3_New(
     renderer->height = height;
     renderer->interface_scale_mode = 2;
     renderer->tex_slot_next = 1u;
-    renderer->current_batch_slot = -1;
+    renderer->world_batch_id = -1;
     /* TORIRS_ES3_DEBUG=1: the 300-frame counters and the debug-only GL
      * error checks. Read once here; it used to be a getenv in es3_end_3d. */
     renderer->debug = getenv("TORIRS_ES3_DEBUG") != NULL;
@@ -3328,7 +2960,7 @@ TRSPK_Renderer_ES3_New(
     for( texture = 0; texture < TORIDRAW_TEXTURE_ID_CAPACITY; texture++ )
         renderer->tex_slot_of_id[texture] = -1;
     trspk_pose_table_init(&renderer->poses);
-    trspk_pose_table_init(&renderer->batch_poses);
+    renderer->world = trspk_batch32_create(TRSPK_VERTEX_FORMAT_GLES2);
     renderer->frame_stream_cpu = trspk_vbo_create(0u, TRSPK_VERTEX_FORMAT_GLES2);
     assert(renderer->frame_stream_cpu);
     if( !trspk_atlas_init_grid(
@@ -3389,37 +3021,19 @@ es3_pose_table_bytes(const struct TRSPK_PoseTable* table)
 static void
 es3_report_retained_memory(struct TRSPK_Renderer_ES3* renderer)
 {
-    uint64_t batch_vbo_cpu = 0u;
-    uint64_t batch_tri_cpu = 0u;
-    uint32_t batch_chunks = 0u;
+    uint64_t world_vbo_cpu;
+    uint64_t world_tri_cpu;
     uint64_t group_vbo_cpu[TRSPK_VBO_GROUP_COUNT];
     uint64_t group_tri_cpu[TRSPK_VBO_GROUP_COUNT];
     uint64_t group_slots_cpu[TRSPK_VBO_GROUP_COUNT];
     uint64_t group_vbo_gpu[TRSPK_VBO_GROUP_COUNT];
     double pose_table_megabytes;
-    uint32_t batch;
     uint32_t group;
-    uint32_t chunk_index;
 
     assert(renderer);
-    for( batch = 0u; batch < renderer->static_batch_count; batch++ )
-    {
-        struct TRSPK_Batch16* cpu = renderer->static_batches[batch].cpu;
-        uint32_t count;
-        if( !cpu )
-            continue;
-        count = trspk_batch16_chunk_count(cpu);
-        for( chunk_index = 0u; chunk_index < count; chunk_index++ )
-        {
-            const struct TRSPK_Batch16Chunk* chunk = trspk_batch16_get_chunk(cpu, chunk_index);
-            if( !chunk )
-                continue;
-            batch_chunks++;
-            if( chunk->vbo )
-                batch_vbo_cpu += (uint64_t)chunk->vbo->capacity * sizeof(struct TRSPK_VertexGLES2);
-            batch_tri_cpu += (uint64_t)chunk->triangles.cap * sizeof(int);
-        }
-    }
+    world_vbo_cpu = (uint64_t)trspk_batch32_vbo(renderer->world)->capacity *
+                    sizeof(struct TRSPK_VertexGLES2);
+    world_tri_cpu = (uint64_t)trspk_batch32_triangles(renderer->world)->cap * sizeof(int);
     for( group = 0u; group < TRSPK_VBO_GROUP_COUNT; group++ )
     {
         const struct ES3ModelGroup* model_group = &renderer->groups[group];
@@ -3433,17 +3047,15 @@ es3_report_retained_memory(struct TRSPK_Renderer_ES3* renderer)
         group_vbo_gpu[group] =
             (uint64_t)model_group->gpu_capacity * sizeof(struct TRSPK_VertexGLES2);
     }
-    pose_table_megabytes = ((double)es3_pose_table_bytes(&renderer->poses) +
-                            (double)es3_pose_table_bytes(&renderer->batch_poses)) /
-                           1048576.0;
+    pose_table_megabytes = (double)es3_pose_table_bytes(&renderer->poses) / 1048576.0;
     /* TORIRS_LOG compiles out of a release build; the figure is still computed
      * so the function that produces it is not dead code there. */
     (void)pose_table_megabytes;
     TORIRS_LOG(
         "es3_mem: === retained memory report ===\n"
-        "es3_mem: batch16_cpu_vertices  %10.2f MB (%u chunks)\n"
-        "es3_mem: batch16_cpu_configs   %10.2f MB\n"
-        "es3_mem: static_pages_gpu      %10.2f MB (%u pages)\n"
+        "es3_mem: world_cpu_vertices    %10.2f MB (%u poses)\n"
+        "es3_mem: world_cpu_configs     %10.2f MB\n"
+        "es3_mem: world_gpu             %10.2f MB\n"
         "es3_mem: group_static_cpu      %10.2f MB (vbo) + %.2f MB (configs) + %.2f MB (slots)\n"
         "es3_mem: group_static_gpu      %10.2f MB\n"
         "es3_mem: group_dynamic_cpu     %10.2f MB (vbo) + %.2f MB (configs)\n"
@@ -3455,12 +3067,11 @@ es3_report_retained_memory(struct TRSPK_Renderer_ES3* renderer)
         "es3_mem: model_indices_cpu     %10.2f MB\n"
         "es3_mem: atlas_cpu             %10.2f MB world + %.2f MB ui\n"
         "es3_mem: pose_tables_cpu       %10.2f MB\n",
-        (double)batch_vbo_cpu / 1048576.0,
-        batch_chunks,
-        (double)batch_tri_cpu / 1048576.0,
-        (double)renderer->static_batch_gpu_vertex_capacity * sizeof(struct TRSPK_VertexGLES2) /
+        (double)world_vbo_cpu / 1048576.0,
+        trspk_batch32_entry_count(renderer->world),
+        (double)world_tri_cpu / 1048576.0,
+        (double)renderer->world_gpu_vertex_capacity * sizeof(struct TRSPK_VertexGLES2) /
             1048576.0,
-        renderer->static_page_count,
         (double)group_vbo_cpu[TRSPK_VBO_GROUP_STATIC] / 1048576.0,
         (double)group_tri_cpu[TRSPK_VBO_GROUP_STATIC] / 1048576.0,
         (double)group_slots_cpu[TRSPK_VBO_GROUP_STATIC] / 1048576.0,
@@ -3836,10 +3447,10 @@ es3_destroy_gl_resources(struct TRSPK_Renderer_ES3* renderer)
         renderer->groups[group].vbo_gpu = 0u;
         renderer->groups[group].gpu_capacity = 0u;
     }
-    if( renderer->static_batch_vbo )
-        glDeleteBuffers(1, &renderer->static_batch_vbo);
-    renderer->static_batch_vbo = 0u;
-    renderer->static_batch_gpu_vertex_capacity = 0u;
+    if( renderer->world_vbo )
+        glDeleteBuffers(1, &renderer->world_vbo);
+    renderer->world_vbo = 0u;
+    renderer->world_gpu_vertex_capacity = 0u;
     es3_stream_set_destroy(&renderer->index_stream);
     es3_stream_set_destroy(&renderer->dynamic_stream);
     es3_stream_set_destroy(&renderer->frame_stream);
@@ -3858,7 +3469,6 @@ es3_destroy_gl_resources(struct TRSPK_Renderer_ES3* renderer)
 void
 TRSPK_Renderer_ES3_Free(struct TRSPK_Renderer_ES3* renderer)
 {
-    uint32_t batch;
     uint32_t group;
     if( !renderer )
         return;
@@ -3882,24 +3492,17 @@ TRSPK_Renderer_ES3_Free(struct TRSPK_Renderer_ES3* renderer)
     trspk_triangles_free(&renderer->frame_stream_triangles);
     ToriMem_Free(ToriMem_Renderer(), renderer->draw_items);
     trspk_pose_table_free(&renderer->poses);
-    trspk_pose_table_free(&renderer->batch_poses);
     trspk_element_mask_free(&renderer->batch_detached);
     ToriMem_Free(ToriMem_Renderer(), renderer->static_primary);
     ToriMem_Free(ToriMem_Renderer(), renderer->static_primary_bits);
     es3_zbuffer_destroy(renderer);
-    for( batch = 0u; batch < renderer->static_batch_count; batch++ )
-    {
-        trspk_batch16_destroy(renderer->static_batches[batch].cpu);
-        ToriMem_Free(ToriMem_Renderer(), renderer->static_batches[batch].page_ids);
-    }
+    trspk_batch32_destroy(renderer->world);
     if( trspk_atlas_is_initialized(&renderer->atlas) )
         trspk_atlas_free(&renderer->atlas);
     es3_ui_free(renderer);
     ToriMem_Free(ToriMem_Renderer(), renderer->upload_stage);
     ToriMem_Free(ToriMem_Renderer(), renderer->ibo_staging);
     ToriMem_Free(ToriMem_Renderer(), renderer->model_indices);
-    ToriMem_Free(ToriMem_Renderer(), renderer->static_pages);
-    ToriMem_Free(ToriMem_Renderer(), renderer->static_batches);
     if( renderer->gl_context )
         ToriPlatform_GLContext_Delete(renderer->gl_context);
     ToriMem_Free(ToriMem_Renderer(), renderer);
@@ -3987,14 +3590,13 @@ es3_init_gl(
     if( !es3_check_error("init") )
         goto fail;
 
-    if( renderer->static_page_count > 0u )
+    /* A context that comes back (or comes up after the first build) gets
+     * the whole build: the new buffer has none of it. */
+    if( renderer->world_live )
     {
-        bool recreated = false;
-        if( !es3_ensure_static_batch_vbo(renderer, renderer->static_page_count, &recreated) )
-            goto fail;
-        if( recreated )
-            es3_mark_active_static_batches_dirty(renderer);
-        if( !es3_upload_dirty_static_batches(renderer) )
+        renderer->world_upload_pending = true;
+        trspk_vbo_set_dirty(trspk_batch32_vbo(renderer->world));
+        if( !es3_upload_world(renderer) )
             goto fail;
     }
     TORIRS_LOG("%s: renderer up (%s world pass)\n", g_es3_name, world_pass);
@@ -4143,6 +3745,11 @@ es3_frame_surface_begin(
     es3_update_letterbox(renderer, allow_offscreen);
     es3_state_reset(renderer);
     es3_stream_sets_begin_frame(renderer);
+    /* Before any command reads the pose table, and never mid-frame: the
+     * draw sequence holds vertex bases into the arena until it is issued.
+     * Once a frame, not once per unload -- a fight that removes two dozen
+     * locs in a tick used to compact two dozen times. */
+    es3_compact_static_group(renderer);
     return true;
 }
 
