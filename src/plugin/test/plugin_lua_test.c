@@ -1245,6 +1245,8 @@ main(void)
         "plugin/test/tile_indicator_behavior.lua","tile-behavior");
     test_product_behavior(&host,"../script/plugins/entity_highlighter.lua",
         "plugin/test/entity_highlighter_behavior.lua","entity-behavior");
+    test_product_behavior(&host,"../script/plugins/npc_indicators.lua",
+        "plugin/test/npc_indicators_behavior.lua","npc-indicators-behavior");
     test_product_behavior(&host,"../script/plugins/ground_items.lua",
         "plugin/test/ground_items_behavior.lua","ground-behavior");
     test_product_behavior(&host,"../script/plugins/loot_beam.lua",
