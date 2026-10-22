@@ -66,6 +66,102 @@ local function fight(t, role, ticks, stop)
     return false
 end
 
+-- The recorded rules this run's tick log must keep (dreadnoth_plan.md, the
+-- fifth pass; docs/rsprox-analysis/guthixian_archive/tools/dn_ours_check.py
+-- is the same check offline):
+--   every hit on a raider plays a seq on them that tick (their defend seq,
+--   or an attack of theirs that took the slot);
+--   a raider starting a tick on blood is hit 7/8 that tick, then every
+--   second tick they still start on it (blood new this tick not counting);
+--   the seven out of him stand on seven tiles of his 5x5, never the middle.
+local BLOOD, BOSS, JELLY, DEATH01 = 62609, 16665, 16666, 14782
+
+local function rules_check(t)
+    -- A kind a tick and a yield every 50 ticks: the log is read inside the
+    -- per-resume instruction budget.
+    local by, lo, hi = {}, math.huge, -math.huge
+    local function take(rows)
+        for _, r in ipairs(rows or {}) do
+            by[r.tick] = by[r.tick] or {}
+            table.insert(by[r.tick], r)
+            lo, hi = math.min(lo, r.tick), math.max(hi, r.tick)
+        end
+    end
+    local boss_slot
+    for _, kind in ipairs({ "player_tile", "loc_set", "hit_player", "player_anim", "npc_spawn", "npc_anim" }) do
+        local _, rows = t.ticklog.rows({ kind = kind })
+        take(rows)
+        for _, r in ipairs(rows or {}) do
+            if kind == "npc_spawn" and r.type == BOSS then boss_slot = r.slot end
+        end
+        t.ticks(1)
+    end
+    if boss_slot then
+        local _, rows = t.ticklog.rows({ kind = "npc_tile", slot = boss_slot })
+        take(rows)
+        t.ticks(1)
+    end
+    local function key(x, z) return x * 16384 + z end
+    local tile, blood, due = {}, {}, {}
+    local bare, missed, predicted = {}, {}, 0
+    local death, sw = nil, nil
+    for tick = lo, hi do
+        if (tick - lo) % 50 == 49 then t.ticks(1) end
+        local rows = by[tick] or {}
+        local start, before = {}, {}
+        for pid, k in pairs(tile) do start[pid] = k end
+        for k in pairs(blood) do before[k] = true end
+        local hits, anims = {}, {}
+        for _, r in ipairs(rows) do
+            if r.kind == "player_tile" then
+                tile[r.pid] = key(r.x, r.z)
+            elseif r.kind == "loc_set" then
+                local k = key((r.coord >> 14) & 0x3FFF, r.coord & 0x3FFF)
+                blood[k] = (r.loc == BLOOD) or nil
+            elseif r.kind == "hit_player" then
+                hits[r.pid] = hits[r.pid] or {}
+                table.insert(hits[r.pid], r.damage)
+            elseif r.kind == "player_anim" then
+                anims[r.pid] = true
+            elseif r.kind == "npc_anim" and r.type == BOSS and r.seq == DEATH01 then
+                death = tick
+            elseif r.kind == "npc_tile" and r.type == BOSS and not death then
+                sw = { r.x, r.z }
+            end
+        end
+        for pid in pairs(hits) do
+            if not anims[pid] then bare[#bare + 1] = tick .. ":" .. pid end
+        end
+        for pid, k in pairs(start) do
+            if not before[k] then
+                due[pid] = nil
+            elseif not due[pid] or tick >= due[pid] then
+                predicted = predicted + 1
+                due[pid] = tick + 2
+                local got = false
+                for _, v in ipairs(hits[pid] or {}) do got = got or v == 7 or v == 8 end
+                if not got then missed[#missed + 1] = tick .. ":" .. pid end
+            end
+        end
+    end
+    t.check("dreadnoth.defend_seq", #bare == 0, #bare .. " hits with no seq: " .. table.concat(bare, " ", 1, math.min(#bare, 8)))
+    t.check("dreadnoth.blood_rule", predicted > 0 and #missed == 0,
+        string.format("%d blood hits due, %d missed: %s", predicted, #missed, table.concat(missed, " ", 1, math.min(#missed, 8))))
+    local seen, out, middle = {}, 0, 0
+    for _, r in ipairs(by[(death or 0) + 3] or {}) do
+        if r.kind == "npc_spawn" and r.type == JELLY and sw then
+            local x, z = (r.coord >> 14) & 0x3FFF, r.coord & 0x3FFF
+            seen[key(x, z)] = true
+            out = out + ((x < sw[1] or x > sw[1] + 4 or z < sw[2] or z > sw[2] + 4) and 1 or 0)
+            middle = middle + ((x == sw[1] + 2 and z == sw[2] + 2) and 1 or 0)
+        end
+    end
+    local n = 0
+    for _ in pairs(seen) do n = n + 1 end
+    t.check("dreadnoth.jumpers", n == 7 and out == 0 and middle == 0,
+        string.format("death %s: %d tiles, %d outside his 5x5, %d on the middle", tostring(death), n, out, middle))
+end
+
 local function run(t)
     local role = t.party.role()
     t.player._death_fence = function() return false end
@@ -132,7 +228,10 @@ local function run(t)
     fight(t, role, 30, done)
     if role == 1 then t.cheat("::tfadnjellies", false) end
     t.check("dreadnoth.line", fight(t, role, 60, done), "no line")
-    if role == 1 then t.ticklog.mark("end") end
+    if role == 1 then
+        t.ticklog.mark("end")
+        rules_check(t)
+    end
     t.party.barrier("dn_end", 120)
     t.finish(0)
 end

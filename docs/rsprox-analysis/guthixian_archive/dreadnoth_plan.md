@@ -119,6 +119,8 @@ room is won (4301 [546]: all 99 replaced at once by `invisible_type8_nonblocking
 each at its own rotation). A raider on one is hit for 7 or 8 every 2 ticks,
 from the tick after they step on (`tools/dn_blood.py`, 14 runs over three
 fights: 4303 [2831, 2833, 2835], [2735, 2737], [3115..3119], [1130, 1132]).
+The exact rules (which tick, blood new this tick, where each source puts it)
+are in the fifth pass below.
 
 ## 6. The enrage (25%)
 
@@ -290,3 +292,56 @@ Open: his unprayed melee (2 recorded splats; 0..45 with prayer taking a third
 off is a choice, not a measurement), the melee style (the three styles
 predict within 0.4 misses of each other) and the jellies' attack bonus (a fit
 on 28 swings).
+
+## Tiles, blood and timing by the tick: fifth pass (2026-10-22)
+
+The Ezekiel dodge bug (a roll judged on the tile it left) asked the same of
+every hazard here: does a raider who moved on the hazard's tick count on the
+tile they left or the one they reached? Then every blood tile was put down to
+its source. All nine sessions (index 4301, 4302, 4303, 4304, 4308, 4309,
+4310, 4312, 4316), `--all-players` transcripts. Tools (in `tools/`):
+`dn_phase.py` (start or end tile per hazard), `dn_bloodrule.py` (the blood
+damage rule), `dn_jumpblood.py` and `dn_boxmodels.py` (blood at the jumps),
+`dn_jellyblood.py` and `dn_jellyblood_fit.py` (a jelly's blood),
+`dn_block.py` (defend seqs), `dn_ours_check.py` (the same rules on our tick
+log).
+
+**The tile a hazard judges is the one the raider stood on as the tick
+began**, every one of them (moved off it that tick / moved onto it):
+
+| hazard | moved off: hit | moved on: hit | ours |
+|---|---|---|---|
+| his melee (within 1 of his 5x5) | 38/41 | 0/1 | his timer, npc phase: start tile, matched |
+| the landing's crush (under his 5x5) | 14/14 | - | room tick before any raider moves, matched |
+| proj02 on its tile (landing +6) | 11/12 | 0/4 | same, matched |
+| a jelly's swing (a side of its raider) | 359/361 | - | same, matched |
+| a blob seed (on a raider's tile, J+4) | 6/6 | - | same, matched |
+| blood | below | | |
+
+| rule | recorded | ours before | ours now |
+|---|---|---|---|
+| blood damage | 7/8 on the first tick a raider starts on blood (the tick after stepping on: 146 of 150 stays), then every 2nd tick they still start on it (41 of 43 gaps), once more the tick after stepping off when due (96); a one-tick stay is hit. The rule places 189 of the 202 hits it predicts (the rest: dead or gone) | armed on the first tick, hit from the next: 0 of 102 predicted hits on the wire; a one-tick stay never hit | the rule (`tfa_dn_blood_tick`); our party run 586 due, 0 missed |
+| blood new this tick | hurts nobody until the next: under a raider who stays, the first hit at +1 (48/48); one who steps off that tick is never hit (47/47) | a jelly's blood went down in the npc phase, before the room's check: hit the same tick, and a raider walking off it was hit | a jelly's blood goes down after the check (`tfa_dn_jelly_blood`), on its death tick still |
+| blood at a slam / landing | 3 tries (J+1) / 5 (L+3) round his south-west tile, -1..5, on the floor (x 4184..4198, z 5656..5670), none over blood (0 of 1162 adds ever over blood); EM over 1..7 tries: 1.00, 0.99; a try drawn from the box's floor tiles (M3) beats the whole 7x7 losing wall tiles (M1) by 2 (slams) and 12 (landings) log-likelihood units | the whole 7x7 | the box's floor tiles (`tfa_dn_blood_box`) |
+| a jelly's blood | its own tile, then one floor neighbour at random, each skipped on blood: a lone death on a clean tile left two 70, one 26, none 8 (own tile 95 of 116); on blood none 64, one 33, two 4; best of six rules over 217 lone deaths (-337 against -342, -350, -355, -781, -797) | its own tile only, laid over blood if there was some: stacked jellies left one pool | the rule, through `tfa_dn_blood_try` |
+| blood over blood | never (0 of 1162) | re-sent the loc (proj02, jellies) | `tfa_dn_blood_try` everywhere |
+| his death and his shots | a landing still to come never lands (4308 [1011]); one due on the death tick does (4312 [919]); proj02 never lands after it (25 of 25 tiles, 8 deaths); proj01's hits still land (4304 [2532], 4310 [856], 4312 [922], 4316 [1313]) | landing cancelled even on the tick; proj02 landed (blood and 19..41) | the landing due that tick lands, no proj02 after; no heal for a dead boss |
+| the seven out of him | seven different tiles of his 5x5, never the middle (9/9 deaths, 63 placements; independent draws repeat a tile 60% of the time, p = 0.0003 for 9 clean) | each tile drawn on its own: repeats, the middle | seven distinct, never the middle |
+| a raider's defend seq | every hit of the room plays it, 0 or not, unless an attack of theirs takes the slot: 2167/2167 zero splats and 338/354 others on ticks with no other seq; slam 197/253, its shots 601/757, landing 177/237, jellies 462/617, blood 130/141, melee 60/70 (`dn_block.py`) | none (the solo run: 134 of 701 hits had a seq, all the raider's own) | `~tfa_dn_hurt`: `anim(%varp6959_com_defendanim)` then `~tfa_g_hurt` (every hit has a seq: 1564/1564) |
+
+`tfa_dreadnoth_party.lua` now checks three of these on its own tick log
+(`dreadnoth.defend_seq`, `dreadnoth.blood_rule`, `dreadnoth.jumpers`). On the
+content before this pass the first two fail (511 hits with no seq; 257 of 267
+due blood hits missed); `jumpers` passes by chance there (about 30% of runs).
+
+The defend seq is not every Archive room's: hits in Ezekiel's square (63,86)
+play it (202/203), but squares (64,87) and (63,88) mostly do not (0/109 and
+181/576), so it is in Dreadnoth's own `~tfa_dn_hurt`, not the shared
+`~tfa_g_hurt`. Ezekiel's room is open on this.
+
+The `rsprox_tells.py --anchor 16665,16666 --ours` inventory of the party run
+showed nothing else: its only-ours rows are the bot's kit and synth sounds (a
+spectator gets none), its only-recorded rows the raiders' kit, the
+spectators' interfaces, and the win's `invisible_type8_nonblocking` (past the
+anchor window; ours sends it).
+
