@@ -47,6 +47,12 @@ struct TRSPK_ModelArena
 
     uint32_t write_cursor;
     uint32_t page_size;
+    /* Vertices below write_cursor that no slot describes any more: a freed
+     * slot handed back out by alloc_slot before gc ran takes its new range at
+     * write_cursor and forgets the old one. No dead slot marks that hole, so
+     * gc has to be told (Ocellus phase 2, 2026-10-22: 34M orphaned vertices
+     * in GL3's static arena, re-uploaded whole on every dirty frame). */
+    uint32_t orphaned_vertices;
 
     struct TRSPK_VBO* vbo;
     struct TRSPK_VBOChain16* vbo_chain;

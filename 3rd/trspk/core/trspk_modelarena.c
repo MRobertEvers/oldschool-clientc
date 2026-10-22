@@ -222,7 +222,13 @@ alloc_slot(struct TRSPK_ModelArena* arena)
     if( arena->free_head != TRSPK_MODELSLOT_NULL_IDX )
     {
         const uint32_t idx = arena->free_head;
-        arena->free_head = arena->slots[idx].next_free;
+        const struct TRSPK_ModelSlot* slot = &arena->slots[idx];
+        arena->free_head = slot->next_free;
+        /* gc has not reclaimed this slot's range yet (it would have set
+         * vertex_base to UINT32_MAX), and the caller is about to overwrite
+         * the only record of it. */
+        if( slot->vertex_base != UINT32_MAX )
+            arena->orphaned_vertices += slot->vertex_count;
         return idx;
     }
 
@@ -505,6 +511,7 @@ trspk_modelarena_clear(struct TRSPK_ModelArena* arena)
     arena->slot_count = 0u;
     arena->free_head = TRSPK_MODELSLOT_NULL_IDX;
     arena->write_cursor = 0u;
+    arena->orphaned_vertices = 0u;
 
     /* Every bucket head names a slot that no longer exists. Leaving them
      * would let find hand back a slot index from the previous scene. */
@@ -543,8 +550,9 @@ trspk_modelarena_gc(struct TRSPK_ModelArena* arena)
     /* Replacing the most recently baked pose is the common retained-renderer
      * path.  Reclaim that dead tail without allocating or sorting the entire
      * arena.  A dead slot below the live extent is a real interior hole and
-     * needs the full compaction below. */
-    bool has_interior_hole = false;
+     * needs the full compaction below, and so does an orphaned range, which
+     * no slot -- dead or alive -- points at any more. */
+    bool has_interior_hole = arena->orphaned_vertices > 0u;
     for( uint32_t i = 0u; i < arena->slot_count; ++i )
     {
         const struct TRSPK_ModelSlot* slot = &arena->slots[i];
@@ -609,6 +617,7 @@ trspk_modelarena_gc(struct TRSPK_ModelArena* arena)
     TRSPK_FREE(alive);
 
     arena->write_cursor = write_cursor;
+    arena->orphaned_vertices = 0u;
     if( arena->vbo->vertex_count > write_cursor )
         arena->vbo->vertex_count = write_cursor;
 

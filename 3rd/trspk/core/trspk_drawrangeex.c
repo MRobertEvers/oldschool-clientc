@@ -164,7 +164,7 @@ build_ranges_for_node_u32(
 uint32_t
 trspk_drawrangeex_build16(
     struct TRSPK_DrawRangeList* draw_ranges,
-    const struct TRSPK_Triangles* const triangles_by_group[TRSPK_VBO_GROUP_COUNT],
+    const struct TRSPK_Triangles* const triangles_by_group[TRSPK_DRAW_GROUP_COUNT],
     const struct TRSPK_IBOChain* ibo_chain,
     uint16_t* dst)
 {
@@ -178,7 +178,7 @@ trspk_drawrangeex_build16(
         if( node->ibo.index_count == 0u )
             continue;
 
-        assert(node->group < TRSPK_VBO_GROUP_COUNT);
+        assert(node->group < TRSPK_DRAW_GROUP_COUNT);
 
         const uint32_t node_gpu_start = gpu_cursor;
         const uint32_t page_base = node->ibo.offset;
@@ -206,7 +206,7 @@ trspk_drawrangeex_build16(
 uint32_t
 trspk_drawrangeex_build32(
     struct TRSPK_DrawRangeList* draw_ranges,
-    const struct TRSPK_Triangles* const triangles_by_group[TRSPK_VBO_GROUP_COUNT],
+    const struct TRSPK_Triangles* const triangles_by_group[TRSPK_DRAW_GROUP_COUNT],
     const struct TRSPK_IBOChain* ibo_chain,
     uint32_t* dst)
 {
@@ -220,7 +220,7 @@ trspk_drawrangeex_build32(
         if( node->ibo.index_count == 0u )
             continue;
 
-        assert(node->group < TRSPK_VBO_GROUP_COUNT);
+        assert(node->group < TRSPK_DRAW_GROUP_COUNT);
 
         const uint32_t node_gpu_start = gpu_cursor;
         const uint32_t page_base = node->ibo.offset;

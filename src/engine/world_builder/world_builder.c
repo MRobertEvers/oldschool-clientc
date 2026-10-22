@@ -1536,7 +1536,13 @@ WorldBuilder_ApplyLocChange(
                 .chunk_pos_z = scene_z,
                 .chunk_pos_level = level,
             };
-            world_builder_batch_begin(builder);
+            /* No scene batch: a runtime loc is not world build. Its elements
+             * emit MODEL_LOAD/ANIM_LOAD and leave with MODEL_UNLOAD, which
+             * every renderer retains and frees per element. As a batch of its
+             * own, each spawn's geometry joined the static world build and
+             * nothing ever cleared it -- the scene clears batches only on a
+             * map rebuild -- so a fight that re-adds locs every round (Ocellus
+             * phase 2, 2026-10-22) grew the world build without bound. */
             builder->scenery_runtime_spawn = 1;
             /* Reuse the build path for correct per-shape model/orientation/size,
              * but suppress its single-slot painter registration (it would assert
@@ -1577,7 +1583,6 @@ WorldBuilder_ApplyLocChange(
                     }
                 }
             }
-            world_builder_batch_end(builder);
         }
         else
         {

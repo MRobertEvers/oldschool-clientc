@@ -18,6 +18,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define ELEMENTS 64
 #define POSES 8
@@ -138,6 +139,40 @@ main(void)
         trspk_modelarena_unload_element(arena, e);
     check_all(arena, "after unload_element");
     printf("  ok   unload_element removes every pose of the element\n");
+
+    /* Reload those elements before any gc: every load takes a freed slot
+     * off the free list and a new range at write_cursor, and the old range
+     * is described by no slot at all. gc must still find and reclaim it --
+     * GL3's static arena leaked 30M vertices this way in Ocellus phase 2. */
+    {
+        uint32_t alive_vertices = 0u;
+        uint32_t i;
+        struct TRSPK_ModelArenaGCResult gc;
+
+        for( e = 0; e < ELEMENTS; e += 7 )
+            for( p = 0; p < POSES; p++ )
+                slots[e][p] = trspk_modelarena_load(arena, e, p, 3u);
+        for( i = 0u; i < arena->slot_count; ++i )
+            if( (arena->slots[i].flags & TRSPK_MODELSLOT_FLAG_ALIVE) != 0u )
+                alive_vertices += arena->slots[i].vertex_count;
+        if( arena->write_cursor <= alive_vertices )
+        {
+            printf("  FAIL the reload left no orphaned range to reclaim (cursor %u, alive %u)\n",
+                (unsigned)arena->write_cursor, (unsigned)alive_vertices);
+            g_failures++;
+        }
+        gc = trspk_modelarena_gc(arena);
+        if( !gc.did_compact || arena->write_cursor != alive_vertices ||
+            arena->orphaned_vertices != 0u )
+        {
+            printf("  FAIL gc left %u vertices for %u alive (compacted %d)\n",
+                (unsigned)arena->write_cursor, (unsigned)alive_vertices, (int)gc.did_compact);
+            g_failures++;
+        }
+        else
+            printf("  ok   gc reclaims ranges orphaned by free-list reuse\n");
+        check_all(arena, "after gc of orphaned ranges");
+    }
 
     trspk_modelarena_clear(arena);
     for( e = 0; e < ELEMENTS; e++ )

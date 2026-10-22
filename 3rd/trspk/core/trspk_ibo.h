@@ -9,6 +9,12 @@
 #define TRSPK_VBO_GROUP_STATIC 0u
 #define TRSPK_VBO_GROUP_DYNAMIC 1u
 #define TRSPK_VBO_GROUP_COUNT 2u
+/* The world build: drawn like a group but not an arena -- a renderer that
+ * keeps its scene build in its own buffer (GL3's Batch32) names it with this
+ * binding. Nothing iterates it as a model group. */
+#define TRSPK_VBO_GROUP_WORLD 2u
+/* The bindings a draw range may name: the arena groups and the world build. */
+#define TRSPK_DRAW_GROUP_COUNT 3u
 
 struct TRSPK_IBO
 {

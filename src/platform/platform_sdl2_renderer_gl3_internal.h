@@ -20,6 +20,7 @@
 #include "platform/platform_sdl2_renderer_gl3.h"
 
 #include "core/trspk_atlas.h"
+#include "core/trspk_batch32.h"
 #include "core/trspk_drawrangeex.h"
 #include "core/trspk_drawrangelist.h"
 #include "core/trspk_ibo.h"
@@ -339,6 +340,10 @@ struct GL3ModelGroup
     struct TRSPK_Triangles triangles;
     GLuint vao;
     bool reset_each_frame;
+    /* Lowest vertex written since the last upload; UINT32_MAX when nothing
+     * has been. The upload sends [dirty_from, vertex_count) only, so a pose
+     * appended at the arena's tail costs its own bytes, not the arena's. */
+    uint32_t dirty_from;
 };
 
 struct ToriPlatformSDL2_Renderer_GL3
@@ -450,10 +455,31 @@ struct ToriPlatformSDL2_Renderer_GL3
     /* Track which atlas slots actually have decoded texels. */
     uint8_t tex_resident[TRSPK_GL3_TEX_CAP_MAX];
 
-    struct GL3ModelGroup groups[TRSPK_VBO_GROUP_COUNT];
+    /* One buffer per draw binding, indexed by it:
+     *   STATIC   retained models (MODEL_LOAD, ANIM_LOAD's prebaked poses),
+     *            unloaded per element and compacted between frames
+     *   DYNAMIC  the per-frame buffer, reset at BEGIN_3D
+     *   WORLD    the world build; vbo_cpu is `world`'s VBO (not owned, no
+     *            arena), uploaded once per build */
+    struct GL3ModelGroup groups[TRSPK_DRAW_GROUP_COUNT];
     uint32_t gpu_ibo_capacity;
 
     struct TRSPK_PoseTable poses;
+
+    /* The world build: written by TORIRSRC_BATCH3D_* and left alone until the
+     * next build or clear -- never unloaded from, never compacted. A script's
+     * loc is not in it (world_builder spawns runtime locs off the batch path).
+     * GL3 used to keep the world build and every retained model in one arena,
+     * and each loc a script added leaked its poses there and re-uploaded the
+     * whole world (Ocellus phase 2, 2026-10-22). world_live: the build is
+     * complete. world_detached, by element index: a batched element that has
+     * since been reloaded, animated or removed, so its batch entry no longer
+     * describes it. */
+    struct TRSPK_Batch32* world;
+    int world_batch_id;
+    bool world_live;
+    uint8_t* world_detached;
+    uint32_t world_detached_capacity;
 
     struct TRSPK_IBOChain* ibo_chain;
     struct TRSPK_IBO* ibo_staging;

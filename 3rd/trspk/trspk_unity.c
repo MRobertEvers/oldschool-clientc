@@ -5,6 +5,7 @@
 #include "trspk_alloc.c"
 #include "core/trspk_atlas.c"
 #include "core/trspk_batch16.c"
+#include "core/trspk_batch32.c"
 #include "core/trspk_core_math.c"
 #include "core/trspk_drawrangeex.c"
 #include "core/trspk_drawrangelist.c"
