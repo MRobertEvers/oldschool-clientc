@@ -10998,12 +10998,14 @@ ToriRSServer_RunCheatLadder(
         (void)sscanf(text, "god %d", &want);
         player->godmode = want != 0;
         /* Top up on the way in, so a run does not start on a sliver of health
-         * left over from before the flag was set. */
+         * left over from before the flag was set. The stat update carries the
+         * new value; no damage mask, because no hit was queued -- the mask
+         * alone made the encoder send the player's last splat again from the
+         * stale `damage` / `damage_type` mirrors. */
         if( player->godmode )
         {
             player->hitpoints = player->max_hitpoints;
             ToriRSServer_CombatSyncHitpoints(player);
-            player->masks |= TORIRSSERVER_PMASK_DAMAGE;
         }
         say(srv, "God mode %s.", player->godmode ? "on" : "off");
         return TORIRSSERVER_TRIGGER_RAN;

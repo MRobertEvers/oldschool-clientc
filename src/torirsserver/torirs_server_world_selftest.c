@@ -23783,6 +23783,21 @@ ToriRSServer_WorldSelftest(void)
                        "the same hit without ::god should land, got %d/%d dying=%d",
                        player->hitpoints, player->max_hitpoints, player->dying);
 
+        /* The cheat itself, on a fresh tick: it tops the bar up through the
+         * stat update and queues no hit. It used to raise the damage mask
+         * anyway, and with no hitmark behind it the encoder re-sent the 1
+         * just dealt above from the stale `damage` mirror -- a splat on the
+         * client that nothing dealt. */
+        player->masks = 0;
+        player->hitmark_count = 0;
+        ToriRSServer_RunCheatForTest(srv, "god 1");
+        SELFTEST_CHECK(player->godmode && player->hitpoints == player->max_hitpoints,
+                       "::god 1 should top the bar up, got god=%d %d/%d",
+                       player->godmode, player->hitpoints, player->max_hitpoints);
+        SELFTEST_CHECK(!(player->masks & (TORIRSSERVER_PMASK_DAMAGE | TORIRSSERVER_PMASK_DAMAGE2)),
+                       "::god queues no hit, so it must not raise a damage mask (masks=0x%x)",
+                       player->masks);
+
         player->godmode = saved_god;
         player->stat_level[TORIRSSERVER_STAT_HITPOINTS] = saved_level;
         player->stat_boosted[TORIRSSERVER_STAT_HITPOINTS] = saved_hp;

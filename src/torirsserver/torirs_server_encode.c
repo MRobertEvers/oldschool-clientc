@@ -4912,14 +4912,14 @@ player_extended_v5(struct ToriRSServer* srv, struct ToriRSServerPlayer* viewer,
                  * damage you did not deal, and that is exactly what setting 5
                  * tints.
                  */
+                /* The mask is only ever set beside a queued hitmark. With
+                 * none, `damage` / `damage_type` are the mirrors of whatever
+                 * hit last landed, ticks ago -- a splat nobody dealt. */
+                assert(subject->hitmark_count > 0);
                 ext.has_hit = 1;
-                ext.hit_type =
-                    subject->hitmark_count > 0
-                        ? player_hit_type_for_viewer(srv, viewer, subject, 0)
-                        : ToriRSServer_HitsplatForViewer(srv, viewer, subject->damage_type,
-                                                         subject->damage, -1, 0);
-                ext.hit_value = subject->damage;
-                ext.hit_delay = subject->hitmark_count > 0 ? subject->hitmarks[0].delay : 0;
+                ext.hit_type = player_hit_type_for_viewer(srv, viewer, subject, 0);
+                ext.hit_value = subject->hitmarks[0].damage;
+                ext.hit_delay = subject->hitmarks[0].delay;
                 /* Splats two and onward of the same tick. The mirrors above are
                  * hitmarks[0]; everything the player took alongside it goes in
                  * the list rather than being dropped (struct ToriRSServerHitmark). */
