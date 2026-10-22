@@ -45,7 +45,7 @@ local WEAPONS = {
     { "venator_bow", ammo = "dragon_arrow", ranged = true },
     { "venator_bow_ornament", ammo = "dragon_arrow", ranged = true },
     { "xbows_crossbow_dragon", ammo = "dragon_bolts", ranged = true },
-    { "zaryte_xbow", ammo = "dragon_bolts", ranged = true },
+    { "zaryte_xbow", ammo = "dragon_bolts", ranged = true, spec = true },
     { "tonalztics_of_ralos_charged", ranged = true, spec = true },
     { "toxic_tots_charged", ranged = true },
 }

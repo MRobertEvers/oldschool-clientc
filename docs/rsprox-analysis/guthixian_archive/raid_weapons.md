@@ -55,6 +55,7 @@ R = recorded (counts are actions with that look / actions of that seq).
 | soulreaper axe (+ ornament) | `ancient_axe_slash` 245/245; stance turn on the idle, run `ancient_axe_run` | crush on chop/hack/block; the ornament had no looks at all | slash/crush the right way round; stance; ornament copied |
 | venator bow (+ echo) | `arrow_venator01_launch01` slot 0; `arrow_venator01_travel01` (echo: `league_5_ventator_proj`) from 31, angle 255; no arrow launch graphic | the arrow's launch graphic and travel; echo bow had no looks | its own shot; echo copied |
 | crossbows (dragon, zaryte, armadyl, dragon hunter) | angle 5, heights 155/146; zaryte progress 72, 177; dragon bolts fly `dragon_crossbowbolt_travel` | angle 15, heights 160/144; plain/other dragon bolts flew the generic bolt | angle 5, 39/36, zaryte 44/36 progress 72; every dragon bolt 1468 |
+| zaryte crossbow special | swing `zcb_attack_pvn`, the normal attack's (42 Evokes from a zaryte holder, none with another seq); shot `zcb_specialattack` from 41, angle 5, progress 72, heights 177/146, in place of the bolt (e.g. index 4303 [650]) | `xbows_human_fire_and_reload`, the bolt's own travel at angle 15, progress 11, 40/36 | as recorded (44/36 here) |
 | bows (twisted, bofa, scorching) | 163/146 | 160/144 | 164/144 (content heights are x4) |
 | chinchompas | from 21 | from 32 | from 21 |
 | zombie axe | smash `battleaxe_crush` 27/27 | axe hack | smash stance only |
