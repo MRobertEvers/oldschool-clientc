@@ -915,3 +915,26 @@ A patch from a fight in another instance shares the template tiles, so
   4316), no feature of the killing hits told them apart.
 - The healing rift's detonation, the north arm's stone order (no recording).
 - Two unexplained patch misses (4312 [4428] at D+34, 4318 [5318]).
+
+## The Molgoatkirby guide against the recordings (2026-10-22)
+
+"Raids 4 Final Boss Ocellus Guide! - Everything we've learned!" (YouTube
+GU8_yiucWtk, transcribed locally), each claim checked against the
+`--all-players --bas` transcripts of index 4301..4320 (14 fights).
+
+| claim | recordings | ours before | now |
+|---|---|---|---|
+| P1: blue magic, red ranged volleys; seven lines a corner, a line overhead on the last; two at a time at the middle | as §2 | matched | - |
+| P2: the two gap portals' 2x2 crossing is safe; two lines hit ~50 | as §3 | matched | - |
+| P3 tank: party #2, then #3, then #4 | 14/14 fights | first raider | fixed earlier today |
+| P3: attack, attack, floor, twice, then a special | the rotation (§4) | matched | - |
+| P3 vine never on the tank unless alone | 31/31 | first raider | fixed earlier today |
+| P3 "black circles" at a segment's start on everyone but the tank | two batches a segment, one bomb per standing quadrant each (8, 6, 4), two of them on non-tanks' tiles, none on the tank's: 39/39 segments; one batch when only one raider is not the tank | one or two batches at random tiles | two batches, each on a non-tank's tile (the tank when alone) |
+| P3 Insolence picks people at random, the same one again possibly | 84 slashes: tank 26 of 75 (even draw 21.3), 17 of 28 casts repeat a raider; each at the raider's tile as the tick began (84/84) | all three at the tank | a random raider each |
+| P3 Untether: pray Magic, he "mages you constantly"; avoid the pink squares | a pool under every raider (213 of 340 standing on one as it came) and the rest on the quadrant at U+6/10/14/18, `vfx_ocellus_magic_projanim_impact01` delay 120 on each raider; it lands 4 ticks on: on a pool 23..29 unprayed (2/3), 0 under Protect from Magic (0/7); off them almost nothing (6/142); nothing 2 ticks on | random pools, a hit 2 ticks on, no prayer | pools on the raiders, landing at +4, Protect from Magic blocks (damage thin: 3 unprayed samples) |
+| P3 spin: turn Protect from Melee off, back on at the right tick | every raider with an overhead lost it within -2..+1 of each `_prayer_out` spot (61/61) and the next hit was blocked when it was back on the hit tick (175/175 at I+5); the first hit at I+1 is blocked held (212/216). Nobody held it through, so what holding costs is unrecorded (the wiki says to turn it off, not why) | held prayer blocks every hit | not built (no recorded consequence) |
+| censers ("braziers"): one use each for the team; can be wasted in phase 1 | 43 lights: phase 1 2, phase 2 5, phase 3 32, phase 4 4 | phase 3 only | any phase |
+| Defence drains carry through phase 3, cap 40% | as the 60% floor (f75a07d920) | matched | - |
+| P4: dark floor under him = he deflects melee (range him); outside = deflects missiles (melee him) | headicons 15 / 16 (§5) | matched | - |
+| P4: explosions every 2 ticks; a tile off resets the attack clock; hybrids at the floors' ends | §5 | matched | - |
+
