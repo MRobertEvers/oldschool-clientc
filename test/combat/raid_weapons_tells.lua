@@ -40,7 +40,9 @@ local WEAPONS = {
     { "chinchompa_big_captured", ranged = true, count = 50 },
     { "dragonhunter_xbow", ammo = "xbows_crossbow_bolts_runite", ranged = true },
     { "dragonhunter_xbow_kbd", ammo = "xbows_crossbow_bolts_runite", ranged = true },
-    { "scorching_bow", ammo = "dragon_arrow", ranged = true, spec = true },
+    -- Its special works on demons alone, and the battery is not one:
+    -- test/combat/scorching_bow_spec.lua.
+    { "scorching_bow", ammo = "dragon_arrow", ranged = true },
     { "twisted_bow", ammo = "dragon_arrow", ranged = true },
     { "venator_bow", ammo = "dragon_arrow", ranged = true },
     { "venator_bow_ornament", ammo = "dragon_arrow", ranged = true },
