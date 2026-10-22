@@ -31999,6 +31999,90 @@ ToriRSServer_WorldSelftest(void)
     selftest_run_energy_worn(srv);
     selftest_style_memory(srv);
 
+    fprintf(stderr, "ToriRSServer selftest: p_dodgezone and the dodge's angles\n");
+    {
+        /*
+         * Ezekiel's raiders (RSProx 4300..4315, ezekiel_plan.md §7): a click
+         * on a flight tick dodges in the sword's path and walks outside it
+         * (22/22; 0 of 41); a strafe hops backwards, the exact move's angle
+         * the way it goes turned round and four more (205/205), a roll the
+         * way it goes (248/248); a dodge out of a fight faces what was fought
+         * as an angle, with no reset (145 of 148).
+         */
+        struct ToriRSServerPlayer* player = srv->active_player;
+        int const man = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "man");
+        uint8_t move[5];
+        int slot;
+        int x;
+        int z;
+
+        selftest_park_player(srv, 3222, 3218);
+        steps_clear(player);
+        x = player->x;
+        z = player->z;
+        player->dodge_seq_roll = 14705;
+        player->dodge_seq_strafe = 14706;
+        player->dodge_zones[0].from_tick = srv->tick;
+        player->dodge_zones[0].to_tick = srv->tick + 3;
+        player->dodge_zones[0].level = player->level;
+        player->dodge_zones[0].x0 = x + 5;
+        player->dodge_zones[0].z0 = z;
+        player->dodge_zones[0].x1 = x + 7;
+        player->dodge_zones[0].z1 = z;
+        move[0] = 0;
+        move[1] = (uint8_t)((x + 1) >> 8);
+        move[2] = (uint8_t)(x + 1);
+        move[3] = (uint8_t)(z >> 8);
+        move[4] = (uint8_t)z;
+        ToriRSServer_WorldHandle(player, PKTOUT_NAME_MOVE_GAMECLICK, move, 5);
+        SELFTEST_CHECK(player->dodge_tick != srv->tick && player->x == x,
+                       "a click outside every zone walks (dodged %d, at %d)", player->dodge_tick == srv->tick,
+                       player->x - x);
+        steps_clear(player);
+
+        slot = man >= 0 ? ToriRSServer_WorldNpcSpawn(srv, man, x, z - 3, player->level) : -1;
+        SELFTEST_CHECK(slot >= 0, "dodge: the man spawns");
+        player->dodge_zones[0].x0 = x - 1;
+        player->dodge_zones[0].z0 = z - 1;
+        player->dodge_zones[0].x1 = x + 1;
+        player->dodge_zones[0].z1 = z + 1;
+        player->face_entity = slot;
+        player->masks = 0;
+        ToriRSServer_WorldHandle(player, PKTOUT_NAME_MOVE_GAMECLICK, move, 5);
+        SELFTEST_CHECK(player->dodge_tick == srv->tick && player->x == x + 1,
+                       "a one-tile click in the zone strafes there and then");
+        SELFTEST_CHECK(player->exact_end_cycle == 8 && player->exact_yaw == 516,
+                       "the strafe east: 8 cycles, angle 516 (got %d, %d)", player->exact_end_cycle,
+                       player->exact_yaw);
+        SELFTEST_CHECK((player->masks & TORIRSSERVER_PMASK_FACE_ANGLE) && player->face_angle == 0 &&
+                           player->face_entity == -1 && !(player->masks & TORIRSSERVER_PMASK_FACE_ENTITY),
+                       "out of a fight: face the man south as an angle, no reset (angle %d)", player->face_angle);
+        selftest_tick(srv);
+        steps_clear(player);
+
+        x = player->x;
+        player->dodge_zones[0].from_tick = srv->tick;
+        player->dodge_zones[0].to_tick = srv->tick + 3;
+        player->dodge_zones[0].x0 = x - 1;
+        player->dodge_zones[0].x1 = x + 1;
+        player->masks = 0;
+        move[1] = (uint8_t)((x + 2) >> 8);
+        move[2] = (uint8_t)(x + 2);
+        ToriRSServer_WorldHandle(player, PKTOUT_NAME_MOVE_GAMECLICK, move, 5);
+        SELFTEST_CHECK(player->dodge_tick == srv->tick && player->exact_end_cycle == 15 &&
+                           player->exact_yaw == 1536 && !(player->masks & TORIRSSERVER_PMASK_FACE_ANGLE),
+                       "two tiles east rolls, angle 1536, no face to break (got %d, %d)",
+                       player->exact_end_cycle, player->exact_yaw);
+
+        for( int i = 0; i < TORIRSSERVER_DODGE_ZONE_MAX; i++ )
+            player->dodge_zones[i].to_tick = -1;
+        if( slot >= 0 )
+            srv->npcs[slot].active = 0;
+        selftest_tick(srv);
+        steps_clear(player);
+        selftest_park_player(srv, 3222, 3218);
+    }
+
     fprintf(stderr, "ToriRSServer selftest: p_temprun and p_animprotect\n");
     {
         /*

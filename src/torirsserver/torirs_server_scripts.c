@@ -16136,7 +16136,9 @@ script_command(
      * player's move clicks handled on ticks $from..$to (map_clock) dodge:
      * advance_player's `player_dodge` (torirs_server_world.c) takes up to three
      * steps of the route at once as an exact move with `$roll` (two or three
-     * tiles) or `$strafe` (one). `$to` below `$from` closes it.
+     * tiles) or `$strafe` (one). `$to` below `$from` closes it, and every
+     * `p_dodgezone` with it (Ezekiel's death and finale: no dodge after
+     * either, RSProx 4300..4315).
      */
     case SS_OP_P_DODGEWINDOW:
     {
@@ -16157,6 +16159,53 @@ script_command(
         player->dodge_seq_strafe = (int)values[1];
         player->dodge_from_tick = (int)values[2];
         player->dodge_to_tick = (int)values[3];
+        if( values[3] < values[2] )
+        {
+            for( int i = 0; i < TORIRSSERVER_DODGE_ZONE_MAX; i++ )
+                player->dodge_zones[i].to_tick = -1;
+        }
+        return 1;
+    }
+
+    /*
+     * `p_dodgezone(seq $roll, seq $strafe, int $from, int $to, coord $sw,
+     * coord $ne)` -- `p_dodgewindow` held only where the player stands: a
+     * click handled on a tick in $from..$to dodges if the player's tile is in
+     * $sw..$ne then. Ezekiel's swords, a zone for each one's path on its
+     * flight tick (RSProx 4300..4315: 22/22 dodges in a path, 0 of 41
+     * raiders outside every path who moved then). A free slot, or the one
+     * ending soonest.
+     */
+    case SS_OP_P_DODGEZONE:
+    {
+        int32_t values[6];
+        int slot = 0;
+
+        for( int i = 5; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        if( values[0] < 0 || values[1] < 0 )
+        {
+            SSVM_Abort(state, "p_dodgezone(%d, %d, ..): both seqs must be set", (int)values[0],
+                       (int)values[1]);
+            return 1;
+        }
+        for( int i = 0; i < TORIRSSERVER_DODGE_ZONE_MAX; i++ )
+        {
+            if( player->dodge_zones[i].to_tick < player->dodge_zones[slot].to_tick )
+                slot = i;
+        }
+        player->dodge_seq_roll = (int)values[0];
+        player->dodge_seq_strafe = (int)values[1];
+        player->dodge_zones[slot].from_tick = (int)values[2];
+        player->dodge_zones[slot].to_tick = (int)values[3];
+        player->dodge_zones[slot].level = coord_level(values[4]);
+        player->dodge_zones[slot].x0 = coord_x(values[4]);
+        player->dodge_zones[slot].z0 = coord_z(values[4]);
+        player->dodge_zones[slot].x1 = coord_x(values[5]);
+        player->dodge_zones[slot].z1 = coord_z(values[5]);
         return 1;
     }
 

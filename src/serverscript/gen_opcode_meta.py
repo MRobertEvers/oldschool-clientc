@@ -1177,6 +1177,16 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # 0, false) on arrival (RSProx 4308 [1453], [1459]). Rev 241's writer only.
     "P_TRANSPARENCY": (11281, 5, 0, 0, 0),
 
+    # p_dodgezone(seq $roll, seq $strafe, int $from, int $to, coord $sw, coord $ne)
+    #
+    # `p_dodgewindow` held only where the player stands: a move click handled
+    # on a tick in [$from, $to] dodges if the player's tile is inside the
+    # rectangle $sw..$ne (inclusive) as it is handled. A player holds up to
+    # eight; `p_dodgewindow` with `$to` below `$from` closes them all.
+    # Ezekiel's flying swords, a zone for each sword's path on its flight
+    # tick (RSProx 4300..4315: 22/22 dodges in a path, none outside one).
+    "P_DODGEZONE": (11282, 6, 0, 0, 0),
+
     # npc_tint(int $start_cycle, int $end_cycle, int $hue, int $saturation,
     #          int $lightness, int $weight)
     #
@@ -1960,6 +1970,7 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "NPC_FACEPLAYERINSTANT": ((1 << POINTER_BITS["active_npc"]) | (1 << POINTER_BITS["p_active_player"]), 0),
     "NPC_BIND": (1 << POINTER_BITS["active_npc"], 0),
     "P_DODGEWINDOW": (1 << POINTER_BITS["p_active_player"], 0),
+    "P_DODGEZONE": (1 << POINTER_BITS["p_active_player"], 0),
     "SPOTANIM_NPC_SLOT_LOOP": (1 << POINTER_BITS["active_npc"], 0),
     "REMOTE_VIEW_START": (1 << POINTER_BITS["p_active_player"], 0),
     "REMOTE_VIEW_END": (1 << POINTER_BITS["p_active_player"], 0),

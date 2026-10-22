@@ -618,10 +618,11 @@
 #define SS_OP_NPC_BODYHIDE 11267
 #define SS_OP_P_FACEANGLE 11280
 #define SS_OP_P_TRANSPARENCY 11281
+#define SS_OP_P_DODGEZONE 11282
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11282
+#define SS_OPCODE_MAX 11283
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 596
+#define SS_OPCODE_COUNT 597
 
 #endif

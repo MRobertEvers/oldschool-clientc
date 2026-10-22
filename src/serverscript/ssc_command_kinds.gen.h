@@ -3,7 +3,7 @@
  * reference server's content/scripts/engine.rs2. Do not edit by hand --
  * re-run the generator.
  *
- * 410 commands.
+ * 411 commands.
  */
 
 #ifndef SRC_SERVERSCRIPT_SSC_COMMAND_KINDS_GEN_H
@@ -436,6 +436,7 @@ static const struct SSC_CommandTypes g_ssc_command_types[] = {
     { 11267, "npc_bodyhide", "", "" },
     { 11280, "p_faceangle", "int boolean", "" },
     { 11281, "p_transparency", "int int int int boolean", "" },
+    { 11282, "p_dodgezone", "seq seq int int coord coord", "" },
 };
 
 #endif

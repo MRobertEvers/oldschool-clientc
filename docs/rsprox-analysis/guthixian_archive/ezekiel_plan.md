@@ -272,24 +272,29 @@ before. A route already being walked never dodges. A click 5 tiles away
 lands on the route's third step ((1,5) -> (0,3)), never past 3 (360 dodges).
 Drakan's window is his jab combo after `telegraph_to_ready01`.
 
-**Ezekiel** (spectated, so no clicks on the wire; `tools/ez_dodge.py`,
-`tools/ez_dodge_band.py`): the same seqs `tfa_ezekiel_roll` (14705) and
-`tfa_ezekiel_strafe` (14706), the same exact moves (2..3 tiles over 15, 1
-over 8, four of 3 tiles: 4300 [908], [1007], 4301 [132], 4315 [2601]), and
-two windows, each the tick the hazard lands:
+**Ezekiel**, every dodge of the five sessions with him (4300, 4301, 4304,
+4314, 4315; spectated, so no clicks on the wire; `tools/ez_dodge_audit.py`,
+re-audited 2026-10-22): 453 dodges, the same seqs `tfa_ezekiel_roll` (14705)
+and `tfa_ezekiel_strafe` (14706).
 
-| phase | window | dodges | ordinary steps |
-|---|---|---|---|
-| the fight | each sword's flight tick (S+14; a line's S+14..S+16) | 20/20 on a flight tick, none on S+13 or S+17 | on the same ticks, the routes already being walked (51) |
-| the cage | the three strikes of each volley, V+4..V+6 | 253/253 (83, 86, 84) | 119 from V+7; 7 on V+2..V+6, routes already being walked |
+| what | recorded | ours |
+|---|---|---|
+| the roll | 2 tiles (244) or 3 (4), `exactmove` delay1 0, delay2 15, `angle=` the way it goes, cut toward zero: (2,-1) 1688, (-2,-1) 360 (248/248) | the same (before: rounded, 1687 and 361) |
+| the strafe | 1 tile, delay2 8 (205/205); `angle=` the other way and 4 more: north 4, east 516, south 1028, west 1540, north-east 260 (205/205): a hop backwards | the same (before: the way it went) |
+| the face | a dodge out of a face on an npc or player sends `[facing] angle=` to it (its middle) from the tile the dodge leaves, cut toward zero, and no reset (130 of 131; an ordinary walk away sends `type=reset`); none with nothing faced (305/305) | the same (before: the reset) |
+| the face on a tile | after the Obligator's charged thrust (`[facing] coord=`): an angle to that tile, 17 of 21 | **not built** |
+| the cage's window | the three strikes of each volley, V+4..V+6 (431: 143, 146, 142), every raider in the cage | `p_dodgewindow` V+4..V+6 |
+| the fight's window | a sword's flight tick, for a raider in its path (its 3-wide lane from where it starts to where it lands): 22/22; 0 of 23 raiders outside every path who moved from standing then | `p_dodgezone` per sword, on its flight tick (before: every raider, the special's whole flight span) |
+| after the finale or his death | no dodge (the cage's last volley cut by his death: walks, 4301 [264], 4300 [1184]) | closed in `~tfa_ez_swords_clear` (before: open to V+6) |
+| the rest of the route | walks or runs on the next tick | the same |
+| unexplained | 8 raiders standing in a window walked or ran instead: 6 in a flying sword's path (4300 [980], 4301 [132], 4304 [1436], 4314 [1276], 4315 [2677], [2745]: all hit), 2 in the cage (4315 [3018], [4770]); their clicks are not on the wire (a minimap click or an op's walk would not dodge) | they dodge |
 
-**Ours:** `p_dodgewindow(roll, strafe, from, to)` (engine, opcode 11235;
-`player_dodge` in torirs_server_world.c): a move click handled on a tick in
-the window takes up to three route steps as one exact move (a free yaw,
-`exact_yaw`) with the roll or the strafe. `~tfa_ez_dodge_window` opens it
-for every raider in the room at the special (the flight ticks) and at each
-volley (V+4..V+6). Test: the cage leg of `tfa_ezekiel.lua` -- volleys [428],
-[439]; rolls [432..434], [443..445]; runs between (2026-10-21).
+`p_dodgezone(roll, strafe, from, to, sw, ne)` (engine, opcode 11282): a
+`p_dodgewindow` held only for a player standing in sw..ne as the click is
+handled; eight a player; `p_dodgewindow` with `to` below `from` closes them all.
+`~tfa_ez_sword` adds one to every raider for its path and flight tick. The
+selftest "p_dodgezone and the dodge's angles" holds the zone, both angles and
+the face.
 
 **When the band is judged: after the roll, before the walk**
 (`tools/ez_dodge_band.py --list` over 4300, 4301, 4304, 4314, 4315, every
@@ -413,6 +418,7 @@ Run: the same test on a private pack (`TORIRSSERVER_SCRIPTS`), tick log
 | glow loop | `vfx_ezekiel_finale_cast_glow_loop01` slot 5 `loop=true` | sent with loop 0 | **open (engine)**: no loop flag on `spotanim_npc_slot` |
 | music | `midi_song_v2` with fade 60/60 | plain `midi_song` | **open (engine)** (the Guardian's too) |
 | raiders' roll/strafe | the dodge windows (§7); a roll lands before the band is judged, a walk after | `p_dodgewindow`; the roll was judged on the tile it left | fixed: the roll lands at the click (`handle_move`); the cage and a flight tick tested |
+| the dodge, re-audited (§7, 453 dodges) | the strafe's backward angle, angles cut toward zero, the face angle, the fight's window only in a sword's path, none after his death | the travel angle rounded, a reset, every raider's window, open past his death | fixed 2026-10-22 (`p_dodgezone`; the face on a tile and 8 unexplained walks open) |
 | sword burn | hitsplat 67, 2 a splat, 16 splats | none | **open**: unverified, not built |
 | defend sound | not sent to a spectator | null | **open**: unknown |
 | magic (4314/4315) | `npc_ezekiel_magic01` when the tank is out of reach (5/5) | not built | fixed (§4b) |

@@ -3714,6 +3714,9 @@ struct ToriRSServerPlayerZoneMap
     int built_zone_x, built_zone_z;
 };
 
+/** `p_dodgezone` windows a player holds at once (Ezekiel's cross: four swords). */
+#define TORIRSSERVER_DODGE_ZONE_MAX 8
+
 struct ToriRSServerPlayer
 {
     /** Whether a v5 update followed the most recent login init block.
@@ -4282,6 +4285,24 @@ struct ToriRSServerPlayer
     int dodge_seq_roll;
     int dodge_seq_strafe;
     int dodge_tick;
+    /**
+     * `p_dodgezone(roll, strafe, from, to, sw, ne)`: windows that hold only
+     * where the player stands -- a click handled on a tick in [from_tick,
+     * to_tick] dodges if the player's tile is inside the rectangle. Ezekiel's
+     * swords: only a raider in a flying sword's path dodges on its flight
+     * tick (22/22 dodges; 0 of 41 raiders outside every path who moved then).
+     * `to_tick` -1 marks a free slot.
+     */
+    struct
+    {
+        int from_tick;
+        int to_tick;
+        int level;
+        int x0;
+        int z0;
+        int x1;
+        int z1;
+    } dodge_zones[TORIRSSERVER_DODGE_ZONE_MAX];
     /** Every splat this player takes this tick; see struct ToriRSServerHitmark.
      *  The player is the entity that most often takes several at once — in the
      *  Inferno a whole wave lands on them together. */

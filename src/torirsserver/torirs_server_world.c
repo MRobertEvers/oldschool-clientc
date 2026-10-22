@@ -3227,6 +3227,66 @@ player_take_step(struct ToriRSServerPlayer* player)
  * (ez_dodge_band.py). Run from advance_player, the room tick (a raider's
  * queue, ahead of the move) judged every roll on the tile it left.
  */
+/* Whether a click handled now is inside a `p_dodgewindow` or, from where
+ * the player stands, a `p_dodgezone`. */
+static int
+player_in_dodge_window(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player)
+{
+    if( srv->tick >= player->dodge_from_tick && srv->tick <= player->dodge_to_tick )
+        return 1;
+    for( int i = 0; i < TORIRSSERVER_DODGE_ZONE_MAX; i++ )
+    {
+        if( srv->tick < player->dodge_zones[i].from_tick || srv->tick > player->dodge_zones[i].to_tick )
+            continue;
+        if( player->level == player->dodge_zones[i].level && player->x >= player->dodge_zones[i].x0 &&
+            player->x <= player->dodge_zones[i].x1 && player->z >= player->dodge_zones[i].z0 &&
+            player->z <= player->dodge_zones[i].z1 )
+            return 1;
+    }
+    return 0;
+}
+
+/* The yaw (0 south, 512 west, 1024 north, 1536 east) from the player's
+ * tile to what they face -- an npc's middle or a player -- or -1. */
+static int
+player_face_entity_yaw(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player)
+{
+    double tx;
+    double tz;
+    int yaw;
+
+    if( player->face_entity < 0 )
+        return -1;
+    if( player->face_entity >= TORIRSSERVER_FACE_PLAYER_BASE )
+    {
+        struct ToriRSServerPlayer const* other =
+            &srv->players[player->face_entity - TORIRSSERVER_FACE_PLAYER_BASE];
+
+        if( !other->active )
+            return -1;
+        tx = other->x;
+        tz = other->z;
+    }
+    else
+    {
+        struct ToriRSServerNpc const* npc = &srv->npcs[player->face_entity];
+
+        if( !npc->active )
+            return -1;
+        tx = npc->x + (npc->size - 1) / 2.0;
+        tz = npc->z + (npc->size - 1) / 2.0;
+    }
+    if( tx == player->x && tz == player->z )
+        return -1;
+    /* Toward zero, as the dodge's own angle (130 of 131 to the unit). */
+    yaw = (int)(atan2(player->x - tx, player->z - tz) * 1024.0 / M_PI);
+    return yaw & 2047;
+}
+
 static int
 player_dodge(
     struct ToriRSServer* srv,
@@ -3238,13 +3298,16 @@ player_dodge(
     int dx;
     int dz;
     int yaw;
+    int face_yaw;
 
-    if( player->dodge_tick == srv->tick || srv->tick < player->dodge_from_tick ||
-        srv->tick > player->dodge_to_tick || !player_has_waypoints(player) )
+    if( player->dodge_tick == srv->tick || !player_in_dodge_window(srv, player) ||
+        !player_has_waypoints(player) )
         return 0;
     /* What would stop the walk in phase_player stops the dodge. */
     if( player->action_locked || player->stun_ticks > 0 )
         return 0;
+    /* From the tile the dodge leaves (145 of 148 recorded). */
+    face_yaw = player_face_entity_yaw(srv, player);
     while( steps < 3 && player_has_waypoints(player) )
     {
         if( player_take_step(player) < 0 )
@@ -3256,9 +3319,25 @@ player_dodge(
     dx = player->x - from_x;
     dz = player->z - from_z;
     /* The yaw of the way it goes, 0 south, 512 west, 1024 north, 1536 east
-     * (4262: north 1024, (-2, +1) 663). */
-    yaw = (int)lround(atan2((double)-dx, (double)-dz) * 1024.0 / M_PI);
+     * (4262: north 1024, (-2, +1) 663; Ezekiel's 248 rolls). A strafe hops
+     * backwards, facing the other way, and four more (Ezekiel's 205 strafes,
+     * all eight ways: north 4, east 516, north-east 260, south 1028). Cut
+     * toward zero, not rounded: (2, -1) is 1688, (-2, -1) 360 (248/248). */
+    yaw = (int)(atan2((double)-dx, (double)-dz) * 1024.0 / M_PI);
+    if( steps < 2 )
+        yaw += 1028;
     yaw &= 2047;
+    /* A dodge out of a fight turns the player to face what they fought, as an
+     * angle, in place of the face's reset an ordinary walk away sends: 145 of
+     * 148 dodges that broke a face (Ezekiel's middle, a sword), none where
+     * there was none to break (RSProx 4300..4315). */
+    if( face_yaw >= 0 )
+    {
+        player->face_entity = -1;
+        player->face_angle = face_yaw;
+        player->face_angle_instant = 0;
+        player->masks |= TORIRSSERVER_PMASK_FACE_ANGLE;
+    }
     player->exact_start_x = from_x;
     player->exact_start_z = from_z;
     player->exact_end_x = player->x;
@@ -15730,6 +15809,8 @@ world_seat_player(
     player->exact_yaw = -1;
     player->dodge_to_tick = -1;
     player->dodge_tick = -1;
+    for( int i = 0; i < TORIRSSERVER_DODGE_ZONE_MAX; i++ )
+        player->dodge_zones[i].to_tick = -1;
     player->session = session;
     /* A selftest player has no session (see `last_input_tick` below):
      * it logs in as the desktop client. */
@@ -16303,6 +16384,8 @@ ToriRSServer_WorldPlayerInit(struct ToriRSServerPlayer* player)
         player->exact_yaw = -1;
         player->dodge_to_tick = -1;
         player->dodge_tick = -1;
+        for( int i = 0; i < TORIRSSERVER_DODGE_ZONE_MAX; i++ )
+            player->dodge_zones[i].to_tick = -1;
         if( session )
         {
             player->client_type = session->client_type;
