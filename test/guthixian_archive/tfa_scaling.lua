@@ -80,6 +80,8 @@ return {
         t.check("ocellus.room", ok == "ok", "no Ocellus")
         t.ticks(6)
         t.player.talk_to("tfa_ocellus_intro", 1)
+        t.chat.drain({ stop_at = "options" })
+        t.chat.choose("Yes.")
         ok = t.await({ level = function() return present(t, "tfa_ocellus_p1") end, note = "phase 1" }, 40)
         t.check("ocellus.start", ok == "ok", "no phase 1")
         expect_bar(t, "ocellus.three", 3630)

@@ -1,0 +1,101 @@
+{{New Content}}
+{{Infobox Item
+|defver = 2
+|version1 = Uncharged
+|version2 = Charged
+|name1 = Obligator (uncharged)
+|name2 = Obligator
+|image1 = [[File:Obligator (uncharged).png]]
+|image2 = [[File:Obligator.png]]
+|release = [[20 October]] [[2026]]
+|update = The Fractured Archive - Out Today
+|members = Yes
+|quest = No
+|tradeable1 = Yes
+|tradeable2 = No
+|equipable = Yes
+|stackable = No
+|noteable1 = Yes
+|noteable2 = No
+|options1 = Wield, Charge, Drop
+|options2 = Wield, Check, Charge, Uncharge
+|examine = A huge mace on a writhing vine.
+|value = 4000000
+|weight = 4.989
+|exchange1 = Yes
+|exchange2 = No
+|id1 = 34717
+|id2 = 34715
+}}
+{{Synced switch
+|version1 = [[File:Obligator (uncharged) detail.png|150px|left]]
+|version2 = [[File:Obligator detail.png|150px|left]]
+}}
+The '''Obligator''' is a two-handed [[crush weapon]] requiring 85 [[Attack]] to wield, available as a rare drop from [[The Fractured Archive]]. It has a ''thrust'' attack style option that grants it the ability to hit multiple targets at once (or hit larger targets for greater damage) at an [[attack speed]] of 5 ticks. It also has a ''smash'' attack style that will have a faster attack speed of 3 ticks, at the cost of only being able to hit one target.
+
+The Obligator is only tradeable when completely uncharged.
+
+==Charging==
+The Obligator is charged with 1 [[Ascension shard]], 20 nature runes and 20 death runes per 10 charges.
+
+==Combat stats==
+{{Infobox Bonuses
+|version1 = Uncharged
+|version2 = Charged
+|astab = +22
+|aslash = -8
+|acrush = +120
+|amagic = 0
+|arange = 0
+|dstab = 0
+|dslash = +16
+|dcrush = 0
+|dmagic = +3
+|drange = +8
+|str = +40
+|rstr = 0
+|mdmg = 0
+|prayer = +3
+|slot = 2h
+|speed = 5
+|attackrange = 1
+|combatstyle = Extending Chain Mace
+|image1 = [[File:Obligator (uncharged) equipped male.png]]
+|image2 = [[File:Obligator equipped male.png]]
+|altimage1 = [[File:Obligator (uncharged) equipped female.png]]
+|altimage2 = [[File:Obligator equipped female.png]]
+}}
+
+{{CombatStyles|Extending chain mace|speed=5|attackrange=1}}
+
+==Item sources==
+{{Drop sources|Obligator (uncharged)}}
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Obligator}}
+
+==Development history==
+During the first rewards proposal, where it was introduced as the '''TzHaar-Ket Breaker''', it was stated that the breaker would roll against every defence value that was higher than crush. Following analysis, it was discovered that the breaker would outperform the scythe even in situations where the scythe would be ideal. The passive effect was then changed to make it that one damage roll would be made normally, then two additional rolls would be made if the target's stab or slash defence values were higher. Against an enemy weakest to crush, this meant that it would make five damage rolls for each attack.
+
+The damage of the breaker was also adjusted so that bonus damage against larger NPCs would deal 20%/40% of the player's hit respectively rather than 25%/50%. 
+
+Additionally, as many players were not satisfied with the breaker's appearance as-is, Jagex also proposed two other options; the '''Titanic Breaker''' and '''Obligator'''; the former was a weapon used by an [[Xau-Tak|unknown shadow entity]], whereas the latter was a weapon used by the Archivists.
+
+A poll regarding the raid's rewards and the appearance of the breaker was [[Poll:The Fractured Archive - Rewards Lock-in Poll|polled]], with the weapon itself passing with 88.4% approval and the '''Obligator''' being chosen over the other two options, though it was also stated that the other two options could be released as cosmetic appearances in the future.
+
+==Gallery==
+<gallery mode="packed" heights="200" style="text-align:left">
+The Fractured Archive - First Rewards Proposal (11).png|Concept art of the TzHaar-Ket breaker.
+The Fractured Archive - Rewards Poll Blog (9).png|Concept art of the three options polled for the Obligator's appearance
+</gallery>
+
+==Trivia==
+* The Obligator's passive effect was based on a suggestion by Reddit user ''Fifty_shakes_of_whey'',{{CiteReddit|author=Fifty_shakes_of_whey|url=https://www.reddit.com/r/2007scape/comments/1ruceiu/the_fractured_chain/|title=The Fractured Chain|quote=|date=15 March 2026|archiveurl=|archivedate=}} who was credited as ''HuntOSRS'' in the first rewards newspost.{{CiteNews|url=https://secure.runescape.com/m=news/the-fractured-archive---first-rewards-proposal?oldschool=1|title=The Fractured Archive - First Rewards Proposal|newsdate=16 June 2026|quote=Shortly afterwards, talented community artist HuntOSRS dropped a suggestion that ''really'' seemed to resonate, so there's a great chance you've seen this concept on Hunt's [https://x.com/Huntosrs/status/2033157229516362172 X/Twitter post] or [https://www.reddit.com/r/2007scape/comments/1ruceiu/the_fractured_chain/ Reddit post]. Historically, suggestions or concepts that go down well across multiple platforms tend to prove pretty popular, so we're opting to adapt this wonderful suggestion and see if it's something you can get behind. Introducing the TzHaar-Ket Breaker: a powerful Crush weapon imbued with magicks beyond your comprehension, but was it made to serve or to break the TzHaar...?}}
+
+==See also==
+* [[Update:The Fractured Archive - First Rewards Proposal]]
+
+==References==
+{{Reflist}}
+
+{{The Fractured Archive}}

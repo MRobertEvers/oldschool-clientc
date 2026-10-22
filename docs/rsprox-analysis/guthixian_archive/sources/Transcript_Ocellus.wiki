@@ -1,0 +1,19 @@
+{{Transcript|npc}}
+{{Incomplete}}
+
+==Standard dialogue==
+===First completion===
+* '''Player:''' You... Who are you? And how did you get in here?
+* '''Hooded Figure:''' Human... You stand before Ocellus... Chosen... of Guthix...
+* '''Player:''' You serve Guthix?
+* '''Hooded Figure:''' Yes... He charged me... to guard the source of his power... But his enemies approach... They are not worthy of it...
+* '''Player:''' Well, then we're on the same side. I'm part of an alliance defending this place. The danger is mostly gone though. We held off the attackers.
+* '''Hooded Figure:''' No... Your alliance... is false... Armadyl... Saradomin... They are no better... than the rest... They are not worthy... of this power...
+* '''Player:''' We don't want it! We just want to keep this place safe!
+* '''Hooded Figure:''' Wrong... Many try... but none can resist... You will try to take it... His blade...
+* '''Hooded Figure:''' There is only one solution... Only Guthix himself is worthy... but he is long gone...
+* '''Hooded Figure:''' To keep his power safe... I will take his place...
+* '''Hooded Figure:''' The time has come... for ascension.
+* {{tselect|Are you ready for the final challenge?}}
+** {{topt|Yes.}}
+** {{topt|No.}}

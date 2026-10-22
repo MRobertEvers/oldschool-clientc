@@ -5755,6 +5755,18 @@ script_command(
         return 1;
     }
 
+    /* `console(string)` -- a line on the server's stderr, for test tooling
+     * that needs more output than a chat message carries (`::oblroll`). */
+    case SS_OP_CONSOLE:
+    {
+        const char* text;
+
+        if( !SSVM_PopStr(state, &text) )
+            return 1;
+        fprintf(stderr, "console: %s\n", text);
+        return 1;
+    }
+
     case SS_OP_MES_SPAM:
     {
         const char* text;

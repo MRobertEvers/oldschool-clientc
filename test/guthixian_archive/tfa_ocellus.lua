@@ -3,7 +3,8 @@
 -- ocellus_plan.md):
 --
 --   the lobby, a party, the room; ::tfaroom straight to Ocellus's room
---   up the hall; Proceed: the start, the bar and its meter, the song
+--   up the hall; Talk-to: his dialogue, "Yes.": the start, the bar and its
+--   meter, the song
 --   phase 1: two corners (volleys, seven cracks, the explosion), the middle
 --   at 66% (four beats, the strike), a corner, the middle at a quarter
 --   ::tfaboss 0: "You... will disappear...", the change to phase 2
@@ -132,6 +133,10 @@ return {
         t.ticks(6)
         t.ticklog.mark("proceed")
         local r, d = t.player.talk_to("tfa_ocellus_intro", 1)
+        -- The Hooded Figure's first words (the wiki's transcript), then the
+        -- question; Yes begins the fight.
+        t.exec("ocellus.dialogue", t.chat.drain, { stop_at = "options" })
+        t.chat.choose("Yes.")
         ok = t.await({ level = function() return present(t, "tfa_ocellus_p1") end, note = "phase 1" }, 40)
         t.check("ocellus.start", ok == "ok", tostring(r) .. " " .. tostring(d))
         t.prayer.set("protectfrommissiles", true)

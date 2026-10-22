@@ -1,0 +1,150 @@
+{{Update|date=30 July 2026|url=https://secure.runescape.com/m=news/the-fractured-archive---rewards-poll-blog?oldschool=1|category=future}}
+[[File:The Fractured Archive - Rewards Poll Blog newspost.png|right]]
+__TOC__{{clear}}
+
+It's finally time to cast your votes and have your say on the rewards offering for The Fractured Archive!
+
+If you've been keeping up with our [https://secure.runescape.com/m=news/the-fractured-archive---first-rewards-proposal?oldschool=1 initial proposal blog] then you'll have a solid understanding of everything here already, so make sure to check it out for a very detailed look at the rewards on offer and our reasoning. We do have a handful more changes from our last iteration ahead of today's post, so those of you who are already in the loop can check out the dropdown below for a rapid-fire look at what's different!
+
+==What's changed since last time?==
+* The Breaker now rolls damage two times by default, then an extra roll for every Melee defence that's higher than Crush. Meaning it rolls four times on an enemy who's weakest to Crush.
+** This means that it still blows the Scythe of Vitur out of water against enemies weakest to Crush, but is also a little more competitive vs. NPCs with neutral defensive stats. We still think the Scythe should win out a little on neutral NPCs, since the Breaker is much stronger in its Crush niche than the Scythe is in its Slash niche.
+* Additionally, we'll be offering a ranked-choice opinion survey question to pit three distinct Breaker concepts against each other.
+* Gatekeeper's Cane has been changed to a Guthixian book called Zorya's Tome, and is now a two-handed Magic Special Attack weapon.
+** Special attack and subsequent buff now hits with 150% increased accuracy and 60% increased damage, up from 100% and 50% respectively.
+** To compensate for becoming a two-handed weapon, Magic accuracy has increased to 45 from 30, and Magic damage has increased to 15% from 0%.
+* Zeal now has additional requirements for 75 Attack and Strength, on top of the pre-existing Piety unlock. This change aims to avoid further imbalance between some PvP builds, but shouldn't meaningfully impact many players who unlock the prayer.
+
+You might be surprised to see us polling already, but we think that the foundation here is strong and want to see how you're all feeling so that we can get a headstart on implementing any rewards that pass or making further tweaks to anything that might fall short of the threshold. It's also worth keeping in mind that we're always open to further changes, so if something passes but over time we see suggestions or feedback that could improve a reward then we're happy to act on them, similar to what happened with the Heka that was initially proposed for the Tombs of Amascut.
+
+We'll aim to keep this blog concise and detail-focused, so do make sure to [https://secure.runescape.com/m=news/the-fractured-archive---first-rewards-proposal?oldschool=1 check out the original blog] if you're interested in thought processes or the kinds of feedback that we've addressed thus far, let's get stuck in!
+
+==Untradeable - Elemental Fragments==
+While these aren't the most game-changing account unlocks you'll ever obtain, you'll absolutely want to get your hands on these Elemental motes, since consuming one for each of the elements will increase the max hit of all of that element's spell by 2. Similar to the Jewels for your Keris Partisan inside Tombs of Amascut, we expect these to be pretty common with some 'pity RNG' mechanics at play to make sure you can check them off your to-do list in a reasonable timeframe.
+
+Consume a tear that Guthix shed in remembrance of an element so that you can use that element to better exploit enemies' weaknesses and dish out more damage - we're sure that it's probably what Guthix would have wanted...
+
+Now that untradeables are out of the way, let's get to the ''good'' stuff!
+
+{{News Poll|1|Should we add the Elemental Fragments, untradeable upgrades to your Elemental Magic spells, as a reward from The Fractured Archive, as described in the blog?}}
+
+==Rondache==
+[[File:The Fractured Archive - Rewards Poll Blog (1).webp|thumb|400px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-07-30-cool/RondacheConcept.png here]!'']]
+
+The Rondache is an ancient Icyene artefact, wielded in Saradomin's name to use enemy blows against them by absorbing damage, empowering the Rondache to return that damage with a magically enhanced Shield Bash!
+
+[[File:The Fractured Archive - Rewards Poll Blog (2).png|thumb|400px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-07-30-cool/RondacheNew1.png here]!'']]
+
+Let's talk through the highlights:
+
+* +2 Flat Armour ''and'' Magic Resist, this means that ''all'' incoming damage (with the exception of typeless damage) is reduced by 2 - perfect for mitigating chip damage.
+* Mitigated damage is stored as charges, up to 20 charges.
+* These charges can be expended for the Rondache's built-in Special Attack: Shield Bash. You'll be able to use this alongside a mainhand weapon with a special attack, we'll make sure that this doesn't feel clunky to utilise, and then try to retrofit our solution onto the likes of the Dragonfire Shield once we've got it nailed down.
+* Shield Bash can be fired off instantly with no delay, similar to a Granite Maul's Special Attack.
+* Shield Bash rolls using Crush accuracy gained from Rondache charges (+6 Crush accuracy per stack), jewellery and armour. Shield Bash rolls against the opponent's Crush defence.
+* Shield Bash deals x + x% damage where x is the number of charges consumed. Meaning at 20 charges it deals 20 + 20% damage, totalling 24 - this formular is there to encourage you to stack up to maximum charges or save your Shield Bash to finish off a target.
+* The Rondache has serviceable defensive stats, Strength equivalent to the Avernic Defender, but ''no'' Accuracy bonuses, so the Avernic should almost always pull ahead in scenarios where you're not interested in mitigating chip damage.
+** As a quick note from us, we'll be keeping an eye on the Avernic and whether or not the Rondache has significant adverse effects on the viability of Theatre of Blood as a money maker, there are avenues for us to explore for combining the Rondache and the Avernic in some way to help both raids remain healthy long-term, but we don't want to overdesign a solution here where the two already have separate strengths and use-cases which we're able to design around.
+
+This makes for a strong option for countering chip damage, with an interactive twist - backhand foes with a slap of the shield, in Saradomin's name!
+
+{{News Poll|2|Should we add the Rondache, a damage-mitigating shield with a retaliatory special attack, as a reward from The Fractured Archive, as described in the blog?}}
+
+==Zorya's Tome==
+[[File:The Fractured Archive - Rewards Poll Blog (3).png|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-07-30-cool/Zorya.png here]! Apologies for the white flashbang background, but there's text here to help describe how we might animate the tome'']]
+
+Zorya's Tome is an enchanted book full of magical wisdom that would make even the Wizard's Tower's inhabitants blush. Turn to the right page and you'll be able to fire off a potent Special Attack which imbues you with lingering power, providing fast-paced burst damage for any sorcerer with somewhere to be!
+
+Magic as a style historically lacks any impactful 'DPS Specs', the Volatile Nightmare Staff enjoys some niche usage in PvP but lacks the accuracy to really shine in PvM settings. Instead, the majority of useable Magic Special Attacks focus on stat reduction to increase your overall DPS.
+
+What we're presenting here delivers that Special Attack DPS in a novel way, with far more flair than simply hitting a big number. Let's take a look!
+
+[[File:The Fractured Archive - Rewards Poll Blog (4).png|thumb|400px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-07-30-cool/Tome1.png here]!'']]
+
+If you're caught up on previous The Fractured Archives rewards blogs, then this is effectively a ''much'' cooler (and more Guthixian) spin on the Gatekeeper's Cane, here are the key points:
+
+* The Tome technically acts as a powered staff, but you shouldn't find yourself using it as a DPS weapon too often. It sports a 3-tick attack rate and a base max hit of 18, putting it below the Eye of Ayak in terms of damage.
+* Where the Tome shines is its Special Attack!
+** Zorya's Tome fires off an attack with 150% increased accuracy and 60% increased damage.If the initial attack hits, you're (cool thematic theming) which buffs your next three attacks with the Tome.
+** While buffed, your next three attacks with the Tome also gain 150% increased accuracy, 60% increased damage and attack at a faster rate, firing off every two ticks.
+
+In effect, the 'DPS' portion of this Special Attack isn't in a single hard-hitting attack, but in empowering yourself with demonic energy to dish out rapid-fire hits afterwards. What makes this particularly interesting is that because the damage is dealt by buffing you rather than just hitting an enemy, you can spread this damage across targets rather than needing to put all of your eggs in one basket.
+
+Zorya's Tome should shine vs. enemies where Dragon Claws' accuracy falls short or their Hitpoints are too low to let the Zaryte Crossbow shine. It's also really easy for us to make this Special Attack shine if we feel it's falling too far out of favour since it's simple to balance around! Even in places where the Tome doesn't win out over both of these options, there are plenty where it'll be your next-best option, and we're sure you'll find cool ways to utilise the ability to spread the damage across multiple targets. Plus, who doesn't want a giant magic book firing off spells, it's way cooler than an e-reader!
+
+{{News Poll|3|Should we add Zorya's Tome, a DPS-focused Magic Special Attack weapon, as a reward from The Fractured Archive, as described in the blog?}}
+
+==Zeal==
+While the first two rewards on offer are pretty flashy, Zeal strips things back to basics and promises a power increase that you'll take everywhere, for a style that tends to progress slower than others.
+
+Zeal is a Piety Prayer override that provides +25% Attack, +28% Strength and +25% Defence while active. You'll need Piety unlocked as well as 84 Prayer, 75 Attack and 75 Strength to be able to unlock Zeal.
+
+It sports the same drain rate as Piety so that you're free to unlock it with no downside, and effectively amounts to some bonus accuracy and an additional 6 Strength levels for players at 99 Strength using Super combat potions.
+
+Naturally this is a 'simpler' rewards than the other offerings but we think it's an extremely valuable pickup and one that you'll be pleased to see. We'd also like to say that since we're going ''beyond'' existing Prayer tiers, we're looking for a more grandiose unlock than reading a piece of paper at the bank, perhaps you'll find (or buy) a key to a room deep in the recesses of the Archive, perhaps a scroll that requires a pilgrimage, just so long as whatever we land on really ''feels'' like you're gaining an important power increase and deepening your connection with the gods!
+
+That's Zeal in a nutshell, clean and simple, now let's get back to the funky stuff!
+
+{{News Poll|4|Should we add Zeal, an upgrade to the Piety prayer, as a reward from The Fractured Archive, as described in the blog?}}
+
+==Ascension Crossbows==
+[[File:The Fractured Archive - Rewards Poll Blog (5).webp|thumb|400px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-07-30-cool/CrossbowConcept.png here]!'']]
+
+Reminiscing over your Modern Warfare 2 akimbo loadouts? We're not quite that sort of game, but we do have a dual-wield offering for you which comes with a no-rust guarantee: the Ascension Crossbows!
+
+[[File:The Fractured Archive - Rewards Poll Blog (6).png|thumb|400px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-13-69-secret/Crossbows.png here]!'']]
+
+These rapid-fire crossbows are a Heavy-ranged upgrade to the blowpipe that will have you absolutely peppering your foes with bolts of three varieties:
+
+[[File:The Fractured Archive - Rewards Poll Blog (7).png|220px|center]]
+
+[[File:The Fractured Archive - Rewards Poll Blog (8).png|thumb|220px|center|''If you can’t see the images above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-13-69-secret/Bolts.png here for regular bolts] or [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-13-69-secret/GemBolts.png here for gem-tipped bolts]!'']]
+
+For the time being we're opting to only release a handful of bolt types so that we can take a future-proof approach for an eventual bolt effect/crossbow rework, so you'll have to choose between 'regular' bolts, the armour-piercing Diamond bolts, or the high-roller life-leech Onyx bolts. To make sure that all of these benefit from the bonuses granted by Dizana's Quiver, you'll need to have the bolts equipped.
+
+We expect these to be a raid-tier replacement to the Toxic Blowpipe (especially versus tankier targets or targets who are weak to Heavy Ranged), with plenty of room to grow and develop over time if we opt to add new variants of the Ascension Bolts with neat effects.
+
+You'll be able to make Ascension Bolts from Ascension Shards, which can be earned as a reward from The Fractured Archive or mined in the raid lobby while you wait for your teammates to get ready or take a quick break - we really love the idea of giving you more stuff to do in your 'downtime' between runs so think introducing activities like this with low Inventory pressure are the perfect fit!
+
+We did love the [https://www.reddit.com/r/2007scape/comments/1uq2atf/replace_the_dual_crossbows_with_a_pair_of/ Armadylean thrownaxe suggestion] that we saw and have banked 'cool, rapid-fire thrownaxes' as an option for the future if we'd like to introduce another high performer in the Light-ranged category from somewhere that feels appropriate, so great work [https://www.reddit.com/r/2007scape/comments/1s8ncq4/fractured_archive_reward_space/ /u/Kevinista on your Law &amp; Liberty suggestion]!
+
+{{News Poll|5|Should we add the Ascension Crossbows, rapid-fire dual-wield crossbows, as a reward from The Fractured Archive, as described in the blog?}}
+
+==The Breaker==
+Notably we've not called this the TzHaar-Ket Breaker here, because we've seen your thoughts on the existing visual identity and want to give you all more of a choice! 
+
+The wonderful Mod Jerv has cooked up some additional concepts to maintain the <!-- Unsupported tag: o -->of the Breaker but change its theming so that it might not draw quite so many... unfortunate comparisons from some of you. We'll be polling the Breaker ''functionally'' as a lock-in question, but we'll be polling these concepts against each other in a ranked choice question so that we can categorically see which of these is resonating the best with as many of you as possible. It's worth noting that all of these can be tied into our narrative with ease, even if those connections might not be obvious to you right now, but we'll say no more to avoid any spoilers for the lorehounds among you!
+
+[[File:The Fractured Archive - Rewards Poll Blog (9).png|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-07-30-cool/BreakerConcepts3.png here]!'']]
+
+Now you've got three thematic identities to choose between:
+
+* The TzHaar-Ket Breaker: A weapon seemingly of TzHaar origin, but was it used ''by'' the TzHaar-Ket, or against them?
+* The Titanic Breaker: A mysterious weapon shrouded in shadows. Its creator and purpose have long since been lost to time...
+* The Obligator: While most Guthixians prefer to avoid conflict, the Guthixian Archivists obligation to defend the archive means they might have been known to wield a particularly powerful weapon from time to time.
+
+Regardless of how it looks, the Breaker should function the same as we've pitched before, so let's catch everybody up to speed!
+
+[[File:The Fractured Archive - Rewards Poll Blog (10).png|thumb|400px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-07-30-cool/BreakerNew.png here]!'']]
+
+Like we mentioned at the start of the blog, this has changed a little from our last iteration! Now, the Breaker rolls damage twice by default, three times if the enemy is second-weakest to Crush and four times if the enemy is weakest to Crush. In effect this means that the Breaker is ''by far'' the best Crush option vs. larger NPCs, beating out the Scythe of Vitur by a large margin, but competes slightly better vs. NPCs with 'neutral' defences than our previous proposal. The Scythe of Vitur does still win out in neutral scenarios, but we're comfortable with this - we think that the Breaker is much stronger in its Crush niche than the Scythe is in its Slash niche, so it's sensible for the Scythe to pull a little ahead in cases where neither niche is relevant.
+
+The Breaker has a 1-tile range but has the unique property of smashing through targets in a 3-tile line, so you'll be able to hit up to three targets at once or gain a bonus 20%/40% damage vs. bigger targets. While it doesn't sport the highest max hit of all time, your ''average'' hit is going to be consistently high, so you'll be turning even the most fearsome of foes into little more than debris in no time at all!
+
+Just like our other Melee megarare, the Scythe of Vitur, you'll need to charge the Breaker using a rune of some kind (we haven't decided which yet, good luck on your panic-buying) and Ascension Shards which you'll be able to obtain from the raid itself, much like Vials of Blood, or in the lobby area outside the raid.
+
+{{News Poll|6|Should we add the Breaker, a hard-hitting best-in-slot Crush megarare, as a reward from The Fractured Archive, as described in the blog? The visual identity will be determined by the outcome of Question #6.}}
+
+{{News Poll|7|The blog shows three concepts for the Breaker's visual identity (TzHaar-Ket Breaker, Titanic Breaker, The Obligator), please rank them from top to bottom (favourite to least favourite). Whichever option performs the best is the design we'll move ahead with, though we might revisit other designs as unlockable via ornament kits in the future.}}
+
+That should cover all of the important bits, but if you feel that you need a deeper dive before casting your vote then make sure to check out the initial proposal blogs for a more thorough rundown on our rationale throughout.
+
+We're hoping to open the polls on August 3rd, but there's a small chance that we push this back, so get those voting fingers ready to have your say!
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the official [https://discord.gg/OSRS OSRS Discord]. For more information, check the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Acorn, Ape, Arcane, Archie, Argo, Ash, Asherz, Ayiza, BigRig, Blighted, Blossom, Boko, Brooksie, Bruno, Bulb, Chilly, Criminal, Curse, Daizong, Default, Doctor, Ed, Elena, Enigma, Entropi, Frogs, Fuzz, Gecko, Ghost, Gizmo, Goblin, Grace, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lotus, Lykos, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nixon, Nox, Nylu, Oasis, Ori, Other, Otter, Pheasant, Philomel, Pork, Pumpkin, Puppi, Pyro, Rach, Redfield, Rice, Romy, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Spacebar, Spyro, Squid, Starry, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy, Yozora, Yume & Zaf'''
+
+''The Old School Team''

@@ -10,7 +10,7 @@
  *
  * Coverage by layer:
  *     64  VM core
- *    397  host commands
+ *    398  host commands
  *      9  host commands (db)
  *     10  host commands (inv)
  *      8  host commands (loc)
@@ -19,7 +19,7 @@
  *      2  host commands (param)
  *      8  host commands (player)
  *     18  host commands (poh)
- *    538  total, of 588 declared opcodes
+ *    539  total, of 588 declared opcodes
  */
 
 #ifndef SRC_TORIRSSERVER_TORIRS_SERVER_OPCODE_COVERAGE_GEN_H
@@ -27,7 +27,7 @@
 
 #include <stdint.h>
 
-#define TORIRSSERVER_OPCODE_COVERAGE_COUNT 538
+#define TORIRSSERVER_OPCODE_COVERAGE_COUNT 539
 #define TORIRSSERVER_OPCODE_DECLARED_COUNT 588
 
 /*
@@ -394,6 +394,7 @@ static const uint16_t TORIRSSERVER_OPCODE_COVERAGE[TORIRSSERVER_OPCODE_COVERAGE_
     7506, /* SS_OP_DB_FINDBYINDEX (host commands (db)) */
     7508, /* SS_OP_DB_FIND (host commands (db)) */
     7510, /* SS_OP_DB_LISTALL (host commands (db)) */
+    10000, /* SS_OP_CONSOLE (host commands) */
     10001, /* SS_OP_ERROR (host commands) */
     11000, /* SS_OP_IF_SETEVENTS (host commands) */
     11001, /* SS_OP_IF_OPENSUB (host commands) */
