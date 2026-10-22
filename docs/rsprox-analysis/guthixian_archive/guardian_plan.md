@@ -91,7 +91,7 @@ lives, 464 waves, 106 raider-beats with a vine in reach;
 
 ## 9. Enrage (party only: unverified solo)
 
-- When the guardian's real hp is under 34% at a tentacle slot while grounded it lifts 3 ticks later (§7) and enrages: S, +5 `enraged_phase01` (14754) + `vfx_guardian_enraged_phase_spotanim01`, +10 a battery is overloaded (its remaining hp as one hit, destroyed as above), every player takes the same hit (2 players: 32, 41, 48; 5 players: 8..21), the guardian takes the battery's blast; +5 S again (20-tick cycle). Order: (4139,5592), (4139,5605), (4114,5592), (4114,5605).
+- When the guardian's real hp is under 34% at a tentacle slot while grounded it lifts 3 ticks later (§7) and enrages: S, +5 `enraged_phase01` (14754) + `vfx_guardian_enraged_phase_spotanim01`, +10 a battery is overloaded (its remaining hp as one hit, destroyed as above), every raider hit by one roll of 42..49 split by the raiders in the room, x1.5 off Protect from Magic (63 blasts; `hit_causes_audit.md`), the guardian's shield takes the battery's blast; +5 S again (20-tick cycle). The enrage's lift is a lift: the flying form with the shield whole, broken by blasts and hits back to the grounded type in the air, no landing, the cycle going on (2026-10-22). Order: (4139,5592), (4139,5605), (4114,5592), (4114,5605).
 - **Solo is unrecorded**: the per-player hit is taken as 64 / (players, minimum 2), rising 25% a cycle.
 
 ## 10. Melee

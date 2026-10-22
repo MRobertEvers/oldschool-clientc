@@ -6310,6 +6310,11 @@ enum ToriRSServerTicklogKind
      * npc_headicon, npc_body and npc_tint it is the whole of an npc's NPC_INFO
      * (the rsprox-content skill's wire audit). */
     TORIRSSERVER_TICKLOG_NPC_INFO,
+    /* a=pid b=amount c=hitsplat d=the bar's fill, label the trigger>script:
+     * a heal splat on a player (`hitmark_bar` with a heal), its own kind so
+     * nothing summing hit_player damage counts it (the rsprox-content skill's
+     * every-splat audit, tools/rsprox/rsprox_hit_causes.py). */
+    TORIRSSERVER_TICKLOG_HEAL_PLAYER,
     TORIRSSERVER_TICKLOG_KIND_COUNT
 };
 
@@ -6577,6 +6582,11 @@ void ToriRSServer_TicklogConsume(const struct ToriRSServer* srv,
  * them. Set to the slot around the call and back to -1 after it.
  */
 void ToriRSServer_TicklogSetDealerNpc(int slot);
+/** The script applying an `npc_damage`, or NULL after: the HIT_NPC row's label. */
+void ToriRSServer_TicklogSetHitSource(char const* script_name);
+/** A heal splat on a player: a HEAL_PLAYER row labelled `source`. */
+void ToriRSServer_TicklogHealPlayer(const struct ToriRSServer* srv, const struct ToriRSServerPlayer* player,
+                                    int amount, int hitsplat, int fill, char const* source);
 
 /**
  * Route one decoded client packet into the game state, now.

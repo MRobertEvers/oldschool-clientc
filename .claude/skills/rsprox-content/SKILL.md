@@ -103,6 +103,11 @@ fight, cutscene, interaction), before reporting it finished:
    - **Damage, every attack** (§13): the splats on the player per cause, prayed and not --
      zero rate, max, the prayed distribution -- against ours, and the npc's levels against
      the cache.
+   - **EVERY SPLAT AND EVERY HEAL HAS A CAUSE** (§13b): run `tools/rsprox/rsprox_hit_causes.py`
+     over every session of the room and our tick logs; no leftover (`none`, REC-ONLY) and no
+     heal on either side may go unexplained. Matching each attack's values is not this: the
+     Ezekiel audit matched every attack's range and never asked what hit on the other ticks
+     (a second star beat, the melee under him: 2026-10-22).
    - **NPC INFO, EVERY BLOCK, EVERY TICK -- never skipped.** Start from the per-type, per-life
      summary (`tools/rsprox/rsprox_npcinfo.py --match <regex>`, step 3 of the loop: movement kind
      and tiles per tick, wander vs standing, headicon frames per form, hitsplat and headbar ids,
@@ -440,6 +445,54 @@ Write the table per attack in the analysis doc: recorded n, zero %, max, base-eq
 prayed distribution, ours from the test's tick log, verdict. A zero rate or a max that matches
 only one band is not a match.
 
+## 13b. Every splat and every heal: the residual audit (REQUIRED per room)
+
+§13 fits the attacks you know about. This finds the ones you don't. Ezekiel passed
+§13 with his star's second beat and his melee under him missing; the Guardian's
+enrage blast was 50% too high with no prayer; Dreadnoth's landing ate jellies and
+healed by them; Xarth absorbed corpses and capped burns -- none of it in ours,
+all of it in recordings already on the index (2026-10-22, `docs/rsprox-analysis/
+guthixian_archive/hit_causes_audit.md`).
+
+1. **Transcribe every session of the room with `--all-players --bas`**
+   (`rsprox_index.py get <ids> --all-players --bas`): every raider's splats AND their
+   overhead (`[status] overheadicon=` in the appearance block: 0 melee, 1 missiles,
+   2 magic). An absent overhead is UNKNOWN, not "none": B0aty's 27 hits in 4314 were
+   all prayed and no overhead was ever sent for him.
+2. **Run** `python3 tools/rsprox/rsprox_hit_causes.py --npc '<the room's npcs>'
+   <transcripts> --ours <the room's tick logs> --by-prayer`. Each splat gets ONE cause,
+   judged on the raider's tile at the end of the tick before:
+   `type:` (poison, burn, ...), `kit:` (the raider's own: a killerwatt shock's 10, ruby
+   bolts), `proj:` (a projectile landing on them), `spot:` (a spotanim landing on them;
+   a launch with no delay on their own swing is their weapon's), `sweep:` (a room npc
+   jumping across them: Ezekiel's swords), `loc:` (a hazard loc the room laid: blood,
+   fire), `tile:<id>@d` (a map anim on their tile sent d ticks before: d separates
+   beats), `npc:<id>:<seq>@k:<under|adj|near|far>` (the nearest room-npc seq k ticks
+   before, and where the raider stood against its footprint), else `none`. On the room's
+   npcs: `heal:` splats, and `hit:<npc>:content` -- damage no raider dealt.
+3. **Read every row**, recorded against ours, per prayer:
+   - `none` and every REC-ONLY key with more than a couple of splats: a missing
+     mechanic, or a stance our bots never take. `--show '<key>'` lists the ticks; read
+     the transcript there. A cluster that repeats (same seq offset, same `where`) is a
+     rule: count the hits AND the misses for it (Ezekiel under his 3x3: 7/8 hit).
+   - a key on both sides with different values per prayer: a wrong roll or a prayer
+     ignored (Bork's slams 14..48 under Protect from Melee, recorded 18..33).
+   - OURS-ONLY: something Jagex never showed, or our bot standing where raiders don't.
+   - heals on both sides: every recorded heal splat needs ours as a SPLAT (a silent
+     `npc_statheal` is a mismatch: `npc_hitmark(hitsplat_heal, n)` beside it).
+   - `hit:<npc>:content`: boss-side damage from the room (batteries, swords, a fall).
+4. **Decide coverage with a test, not a guess.** A REC-ONLY cause our solo bot cannot
+   produce (a raider under him, a party-only rule) gets a targeted test that stands
+   there (`test/guthixian_archive/tfa_ezekiel_under.lua`, two raiders), failing on the
+   old pack and passing on the new.
+5. **Write the per-room table** (fixed / matched / kit / open) in the analysis doc.
+
+Our tick log for this: `hit_npc` rows carry the trigger>script that dealt them
+(`[ai_queue2,X]>[proc,npc_default_damage]` a raider's attack; `[queue,..]>[proc,..]`
+the room's); `npc_hitmark` splats are rows too (`hitmark ..`); `npc_heal` labels are
+trigger>script (a cheat is `[debugproc,..]`); `heal_player` rows are heal splats on
+a raider. A cheat that sets health is not a heal; content a cheat starts still counts.
+
 ## 14. Tile hazards, random placements and the player's own reactions
 
 A rule that matches the recording's shapes can still be wrong in WHEN and WHICH TILE.
@@ -502,6 +555,8 @@ Do not close a visual complaint on a wire diff alone (Ezekiel's facing: wire mat
 - Instance tiles are template-translated. Measure player-to-npc distances on `--raw`.
 - Do not invent lines, messages or sounds the recording lacks. Do not drop ones it has.
 - A behaviour no recording shows is labelled *unverified* in the write-up, with its source (wiki/reference).
+- **A matched value range is not a matched mechanic.** Ask what hit on every other tick:
+  the residual audit (§13b) is the only check that finds an attack you never built.
 - **A tool's silence is not the wire's.** Before trusting "matched" from any timeline tool, check
   it prints the block kind at all (`npc_block_inventory.py`); `[bas]` and `[body_customisation]`
   were invisible to every audit of Ezekiel.

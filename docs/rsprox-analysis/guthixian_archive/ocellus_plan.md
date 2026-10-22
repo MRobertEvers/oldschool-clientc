@@ -650,7 +650,7 @@ the seq beside the raider.
 | p3 unleash out | 34..39 on the seq, 18..19 the tick after (3/3 raiders); two others 34 at +1 only | 40..50 once | 34..39 then 18..19 | fixed (the +1-only case open) |
 | p3 void bomb | 6..11 on its tile | none | 6..11 | fixed |
 | p3 void patch | 6, 7 every 2 ticks | 5 | 6..7 | fixed |
-| p3 unleash pools | 39 zeros, one 28 | 20..30 | same | unverified |
+| p3 unleash pools | with the overheads (2026-10-22): Protect from Magic 430/434 zero, unprayed 14..29 (12) | 20..30 | 14..29 | fixed |
 | p4 wind | half the raider's health (both winds) | same | same | matched |
 | p4 hybrid | 5..10 under the matching prayer (37) | 5..7 | 5..10 | fixed |
 | p4 bursts | 14..16 in the range dome (18); 7..17 in the melee dome | 10..15 | 14..16 | fixed (the melee dome's lower ones open) |

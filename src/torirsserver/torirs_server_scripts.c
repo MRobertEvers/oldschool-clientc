@@ -109,6 +109,39 @@ ToriRSServer_SendSynthSound(
  * where it was measured). Written only when it flips, as Jagex sends it: 12
  * writes across index 4289's 180 pages.
  */
+/*
+ * The tick log's label for a hit an npc takes from a script: the trigger it
+ * came from and the script applying it ("[ai_queue2,tfa_ezekiel]", or
+ * "[ai_queue2,tfa_guardian]>[proc,npc_default_damage]" for a raider's
+ * attack), after `prefix`. A static buffer, copied by the row it labels.
+ */
+static char const*
+ticklog_hit_source(
+    const struct SSVM_State* state,
+    char const* prefix)
+{
+    static char source[192];
+    const struct SSVM_Script* root;
+
+    assert(state);
+    assert(prefix);
+    assert(state->script);
+    root = state->fp > 0 ? state->frames[0].script : state->script;
+    assert(root);
+    if( root == state->script )
+        snprintf(source, sizeof(source), "%s%s", prefix, state->script->name);
+    else
+        snprintf(source, sizeof(source), "%s%s>%s", prefix, root->name, state->script->name);
+    return source;
+}
+
+/* The `hitsplat_heal` record's id, or -1 when the pack has none. */
+static int
+hitsplat_heal_id(void)
+{
+    return ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_HITSPLAT, "hitsplat_heal");
+}
+
 static void
 chatmodal_set_unclamp(struct ToriRSServer* srv, int group)
 {
@@ -8878,7 +8911,7 @@ script_command(
             assert(state->script);
             if( npc->hitpoints > before )
                 ToriRSServer_TicklogNpcHeal(npc, npc->hitpoints - before, npc->hitpoints,
-                                            npc->base_hitpoints, state->script->name);
+                                            npc->base_hitpoints, ticklog_hit_source(state, ""));
             return 1;
         }
         step = values[1] + (npc_base_stat(npc, values[0]) * values[2]) / 100;
@@ -8990,7 +9023,7 @@ script_command(
             if( healed > current )
             {
                 ToriRSServer_TicklogNpcHeal(npc, healed - current, healed, base,
-                                            state->script->name);
+                                            ticklog_hit_source(state, ""));
                 /* No bar for a heal: RSProx's archive shows a monster's heal
                  * (Vasa's from her crystals, Tekton's at the anvil, the
                  * Maiden's, Verzik's) only on its next splat. A bar that moves
@@ -12101,7 +12134,9 @@ script_command(
                 state, SSVM_ENT_PLAYER, SSVM_PRIMARY);
 
             ToriRSServer_WorldSetActive(srv, own);
+            ToriRSServer_TicklogSetHitSource(ticklog_hit_source(state, ""));
             ToriRSServer_CombatHitNpc(srv, slot, values[0], values[1]);
+            ToriRSServer_TicklogSetHitSource(NULL);
             ToriRSServer_WorldSetActive(srv, saved);
         }
         return 1;
@@ -12131,6 +12166,12 @@ script_command(
             return 1;
         }
         ToriRSServer_CombatHitmarkNpc(srv, slot, values[0], values[1]);
+        /* A splat with no damage behind it (the script sets the hitpoints
+         * itself): a HIT_NPC row all the same, or the tick log never shows a
+         * room's scripted damage (the Guardian's battery blasts). */
+        ToriRSServer_TicklogSetHitSource(ticklog_hit_source(state, "hitmark "));
+        ToriRSServer_TicklogHitNpc(srv, slot, values[1], values[0], values[1], -1);
+        ToriRSServer_TicklogSetHitSource(NULL);
         return 1;
     }
 
@@ -12343,6 +12384,9 @@ script_command(
         ToriRSServer_WorldSetActive(srv, target_player);
         ToriRSServer_CombatHitmarkPlayerBar(srv, values[1], values[2], values[3], values[4],
                                             values[5]);
+        if( values[1] == hitsplat_heal_id() )
+            ToriRSServer_TicklogHealPlayer(srv, target_player, values[3], values[1], values[5],
+                                           ticklog_hit_source(state, ""));
         ToriRSServer_WorldSetActive(srv, saved_player);
         return 1;
     }

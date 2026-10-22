@@ -69,9 +69,15 @@ whole arena (not built: nothing recorded to copy).
 
 ## 5. Burns
 
-Hitsplat 74, 1..5 every 4 ticks for as long as a raider keeps being set
-alight (4301: Fatalsystem [646..682], from the first fireball). Ours: five hits
-of 1..3, 4 ticks apart, restarted by each new burn (unverified length).
+Hitsplat 74, every 4 ticks from the tick after a fireball that hits, six
+beats; each fireball that hits adds 1 to it, never past 5 (980 of 983 burn
+splats 1..5 in eleven sessions; 4304 [2747] a fireball on a 5 left it 5), and
+it runs out to 1 again (2026-10-22, `hit_causes_audit.md`).
+
+A corpse reaching him is absorbed (4/4: 4304 [3044], 4312 [3409], 4318 [4734],
+4320 [11467]): `vfx_xarth_absorb_corpse_fire_01` and a heal splat of all its
+health on him, `vfx_xarth_corpse_absorbed_01` slot 2, `xarth_corpse_absorbed_01`,
+its bar removed and no ops on it, deleted two ticks later.
 
 ## 6. Death
 

@@ -73,6 +73,8 @@ QD.ticklog.FIELDS = {
     -- `raw`. nil on a binary built before seam11.
     hit_player = { "pid", "npc_slot", "damage", "hitsplat", "dealer_pid", "npc_type", "raw" },
     hit_npc = { "slot", "type", "damage", "hitsplat", "raw" },
+    -- A heal splat on a player (`hitmark_bar` with a heal); `source` the label.
+    heal_player = { "pid", "amount", "hitsplat", "fill" },
     npc_spawn = { "slot", "type", "coord" },
     -- `npc_bodymodel` / `npc_bodyhide`: the model, -1 the reset, -2 hidden.
     npc_body = { "slot", "type", "model" },

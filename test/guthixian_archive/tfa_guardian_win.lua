@@ -92,6 +92,7 @@ return {
         t.ticklog.mark("fight")
         local deadline = now(t) + 1500
         local cheated_low = false
+        local enraged = false
         while now(t) < deadline do
             local pr, pv = t.skill.read("prayer")
             -- The test's kit, not the fight: prayer topped up by cheat.
@@ -103,6 +104,12 @@ return {
             if not cheated_low and present(t, "tfa_guardian_unshielded") then
                 cheated_low = true
                 t.cheat("::tfahp 0 30", false)
+            end
+            -- Lifted again under 34%: the enrage, whose blast is magic (the
+            -- recorded raiders pray it: guardian_plan.md §9).
+            if cheated_low and not enraged and present(t, "tfa_guardian") then
+                enraged = true
+                t.prayer.set("protectfrommagic", true)
             end
             if present(t, "tfa_guardian_unshielded") then
                 t.player.attack("tfa_guardian_unshielded", 2, 6, EAT)

@@ -127,6 +127,12 @@ the reset, the walk type).
 | Bork | stun | the stun spot unless stuns=2, and his target's tile | same | fixed (the tile choice unverified) |
 | Bork | stomp, death | the entity at l=13; `reset` at death | same | fixed |
 
+## The slams by prayer (2026-10-22, `hit_causes_audit.md`)
+
+With the raiders' overheads (`--bas`): the slams after a missed bomb hit 14..50
+off Protect from Melee and 18..33 under it (13 hits); the gong under it 4..8
+(828). Ours took no prayer on the slam: now 18..33 under it.
+
 ## Damage audit (2026-10-21)
 
 Every splat on every raider of the room, put down to its mechanic by

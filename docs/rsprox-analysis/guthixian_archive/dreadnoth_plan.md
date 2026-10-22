@@ -293,6 +293,15 @@ off is a choice, not a measurement), the melee style (the three styles
 predict within 0.4 misses of each other) and the jellies' attack bonus (a fit
 on 28 swings).
 
+## The landing's heals (2026-10-22, `hit_causes_audit.md`)
+
+The crush heal is a heal splat (it was a silent heal in ours). And the jellies
+under his 5x5 as he lands are crushed into him: deleted at once (no death seq,
+no blood) and he heals their health left, one splat after the raiders' (6/6 to
+the point: 4301 [487] 28, 4304 [966] 51, 4316 [1302] 3, 4318 [4415] 281 for
+ten, 4320 [828] 75, [836] 199 for four beside a raider's 52). Built in
+`~tfa_dn_land`.
+
 ## Tiles, blood and timing by the tick: fifth pass (2026-10-22)
 
 The Ezekiel dodge bug (a roll judged on the tile it left) asked the same of

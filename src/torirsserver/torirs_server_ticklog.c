@@ -79,6 +79,10 @@ struct TicklogState
     /* The slot generation whose spawn angle has been written, plus one. */
     uint32_t npc_info_gen_plus1[TORIRSSERVER_NPC_MAX];
     int dealer_npc;
+    /* The script whose `npc_damage` is being applied, or NULL: the HIT_NPC
+     * row's label, so a room's own damage (a battery's blast, a sword) is
+     * told from a raider's attack, whose script runs as that raider too. */
+    char const* hit_source;
     /* Each player's `last_input_tick` as the previous RAIDER row saw it. The
      * stamp alone cannot say "this tick": an in-process client's packets are
      * handled BETWEEN ticks, stamped with the tick that just ended, after that
@@ -112,6 +116,7 @@ static char const* const k_kind_names[TORIRSSERVER_TICKLOG_KIND_COUNT] = {
     [TORIRSSERVER_TICKLOG_NPC_TILE] = "npc_tile",
     [TORIRSSERVER_TICKLOG_NPC_FACE] = "npc_face",
     [TORIRSSERVER_TICKLOG_NPC_INFO] = "npc_info",
+    [TORIRSSERVER_TICKLOG_HEAL_PLAYER] = "heal_player",
     [TORIRSSERVER_TICKLOG_SOUND] = "sound",
     [TORIRSSERVER_TICKLOG_MUSIC] = "music",
     [TORIRSSERVER_TICKLOG_JINGLE] = "jingle",
@@ -734,7 +739,7 @@ ToriRSServer_TicklogHitNpc(
     /* f = the dealing player's pid (-1 when no player dealt it): the lane
      * comparison needs who hit which red, not just how hard (2026-10-09). */
     ticklog_push(TORIRSSERVER_TICKLOG_HIT_NPC, slot, srv->npcs[slot].type, damage, hitsplat, raw,
-                 dealer_pid, NULL);
+                 dealer_pid, g_ticklog.hit_source);
 }
 
 void
@@ -1441,6 +1446,28 @@ void
 ToriRSServer_TicklogSetDealerNpc(int slot)
 {
     g_ticklog.dealer_npc = slot;
+}
+
+void
+ToriRSServer_TicklogSetHitSource(char const* script_name)
+{
+    g_ticklog.hit_source = script_name;
+}
+
+void
+ToriRSServer_TicklogHealPlayer(
+    const struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player,
+    int amount,
+    int hitsplat,
+    int fill,
+    char const* source)
+{
+    if( !ticklog_on_for(srv) )
+        return;
+    assert(player);
+    assert(source);
+    ticklog_push(TORIRSSERVER_TICKLOG_HEAL_PLAYER, player->pid, amount, hitsplat, fill, 0, 0, source);
 }
 
 /*
