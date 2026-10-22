@@ -16211,6 +16211,16 @@ script_command(
     }
 
     /*
+     * `p_dodgetick()(int)` -- the tick (map_clock) the active player's last
+     * dodge landed on, -1 for none. It lands as the click is handled, ahead
+     * of the room ticks, so a hazard judged on this tick sees it. Ezekiel's
+     * special attack energy for a dodge that clears a hit.
+     */
+    case SS_OP_P_DODGETICK:
+        SSVM_PushInt(state, player->dodge_tick);
+        return 1;
+
+    /*
      * The overhead icons, as an int content owns outright.
      *
      * This is the reference's whole prayer surface in its engine: `Player.ts`

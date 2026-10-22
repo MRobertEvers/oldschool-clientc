@@ -1187,6 +1187,14 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # tick (RSProx 4300..4315: 22/22 dodges in a path, none outside one).
     "P_DODGEZONE": (11282, 6, 0, 0, 0),
 
+    # p_dodgetick()(int)
+    #
+    # The tick (map_clock) the active player's last dodge landed on, -1 for
+    # none. A dodge lands as its click is handled, before the npcs and the
+    # room ticks, so a hazard judged this tick asks `p_dodgetick = map_clock`.
+    # Ezekiel gives back special attack energy for a dodge that clears a hit.
+    "P_DODGETICK": (11283, 0, 0, 1, 0),
+
     # npc_tint(int $start_cycle, int $end_cycle, int $hue, int $saturation,
     #          int $lightness, int $weight)
     #
@@ -1971,6 +1979,7 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "NPC_BIND": (1 << POINTER_BITS["active_npc"], 0),
     "P_DODGEWINDOW": (1 << POINTER_BITS["p_active_player"], 0),
     "P_DODGEZONE": (1 << POINTER_BITS["p_active_player"], 0),
+    "P_DODGETICK": (1 << POINTER_BITS["p_active_player"], 0),
     "SPOTANIM_NPC_SLOT_LOOP": (1 << POINTER_BITS["active_npc"], 0),
     "REMOTE_VIEW_START": (1 << POINTER_BITS["p_active_player"], 0),
     "REMOTE_VIEW_END": (1 << POINTER_BITS["p_active_player"], 0),

@@ -86,6 +86,7 @@ EXTRA_DECLARATIONS = [
     "[command,npc_faceplayerinstant]",
     "[command,p_dodgewindow](seq $roll, seq $strafe, int $from, int $to)",
     "[command,p_dodgezone](seq $roll, seq $strafe, int $from, int $to, coord $sw, coord $ne)",
+    "[command,p_dodgetick]()(int)",
     "[command,npc_routeapproach](coord $coord)",
     "[command,npc_tint](int $start_cycle, int $end_cycle, int $hue, int $saturation, int $lightness, int $weight)",
     "[command,hitmark_bar](int $uid, int $self, int $other, int $amount, int $healthbar, int $fill)",

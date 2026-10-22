@@ -287,6 +287,8 @@ return {
         t.check("ezekiel.sworddodge.tile", stand ~= nil, "no tile in a band to roll out of")
         if stand then
             t.cheat("::tfaheal", false)
+            -- Half a bar, so the roll's 3% shows (full energy runs no regen).
+            t.cheat("::tfaspec 500", false)
             t.player.walk_to(stand.x, stand.z, 1)
             while now(t) < seen + SWORD_CLICK_AT do t.ticks(1) end
             local _, here = t.world.tile()
@@ -309,7 +311,17 @@ return {
             t.check("ezekiel.sworddodge.rolled", rolled ~= nil, "no roll after the click")
             t.check("ezekiel.sworddodge.unhurt", rolled ~= nil and #struck == 0,
                 string.format("roll at %s, band hits %s", tostring(rolled), table.concat(struck, " ")))
+            -- A dodge that clears a hit gives back 3% (the wiki).
+            local _, energy = t.var.varp("varp300_sa_energy")
+            t.check("ezekiel.sworddodge.energy", energy == 530, "special energy " .. tostring(energy) .. ", want 530")
+            t.cheat("::tfaspec 1000", false)
         end
+        -- The Defence reduction cap: 130 drains no lower than 78 (60%).
+        t.cheat("::tfadef 200", false)
+        t.ticks(2)
+        t.cheat("::tfadef 0", false)
+        t.ticks(1)
+        t.check("ezekiel.defence_floor", t.msg.expect("Boss defence 78/130.") == "ok", "no floor at 78")
         -- Just above a third: the finale and its volleys.
         t.ticklog.mark("finale")
         t.cheat("::tfaboss 1010", false)
@@ -319,6 +331,8 @@ return {
         -- or `_strafe` with an exact move; between strikes it walks
         -- (ezekiel_plan.md §7, the tick log's player_anim 14705/14706).
         t.ticklog.mark("dodge")
+        local dodge_from = now(t)
+        t.cheat("::tfaspec 0", false)
         for k = 1, 22 do
             -- Healed as the fights are: with his wiki stats the bot no longer
             -- has him under a third before the volleys start.
@@ -327,6 +341,27 @@ return {
             if r0 == "ok" then
                 t.player.walk_to(here.x + ((k % 2 == 1) and 2 or -2), here.z, 1)
             end
+        end
+        -- Each strike dodged onto its safe tiles gives back 3%: a roll or
+        -- strafe on a tick with no strike hit (9% a volley, the wiki).
+        do
+            t.ticks(2)
+            local _, anims = t.ticklog.rows({ kind = "player_anim", since = dodge_from })
+            local _, hits = t.ticklog.rows({ kind = "hit_player", since = dodge_from })
+            -- By tick: `since` does not trim these rows (the sword roll
+            -- would count).
+            local hit_at, clean, rolls = {}, 0, {}
+            for _, h in ipairs(hits or {}) do hit_at[h.tick] = true end
+            for _, a in ipairs(anims or {}) do
+                if a.tick >= dodge_from and (a.seq == 14705 or a.seq == 14706) then
+                    rolls[#rolls + 1] = a.tick .. (hit_at[a.tick] and "h" or "")
+                    if not hit_at[a.tick] then clean = clean + 1 end
+                end
+            end
+            local _, energy = t.var.varp("varp300_sa_energy")
+            t.note(string.format("volley dodges %s (h: struck), energy %s", table.concat(rolls, " "), tostring(energy)))
+            t.check("ezekiel.volley.energy", clean > 0 and energy == 30 * clean,
+                string.format("%d clean dodges, special energy %s", clean, tostring(energy)))
         end
         -- The kill.
         t.ticklog.mark("kill")
