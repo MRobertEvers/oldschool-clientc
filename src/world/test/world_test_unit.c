@@ -135,8 +135,8 @@ test_pathing_helpers(void)
     World_EntityDrawPositionSetToTile(&draw, 3, 4, 1, 1);
     TEST_ASSERT(draw.x == 3 * 128 + 64 && draw.z == 4 * 128 + 64, "draw to tile");
 
-    uint8_t dvals[WORLD_ENTITY_DAMAGE_SLOTS] = { 0 };
-    uint8_t dtypes[WORLD_ENTITY_DAMAGE_SLOTS] = { 0 };
+    int dvals[WORLD_ENTITY_DAMAGE_SLOTS] = { 0 };
+    int dtypes[WORLD_ENTITY_DAMAGE_SLOTS] = { 0 };
     int dstarts[WORLD_ENTITY_DAMAGE_SLOTS] = { 0 };
     int dcycles[WORLD_ENTITY_DAMAGE_SLOTS] = { 0 };
 #define ADD_HITMARK(cyc, type, val, delay, lim)                                                    \
@@ -153,6 +153,8 @@ test_pathing_helpers(void)
      * lowest-free-index behaviour — and is what caught the change. */
     ADD_HITMARK(80, 3, 99, 0, 4);
     TEST_ASSERT(dvals[2] == 99 && dtypes[2] == 3, "hitmark reuse follows the cursor, not index 0");
+    ADD_HITMARK(85, 6, 300, 0, 4);
+    TEST_ASSERT(dvals[3] == 300, "a splat past 255 keeps its number (Ezekiel's heal of 300 drew 44)");
     memset(dcycles, 0, sizeof(dcycles));
     ADD_HITMARK(100, 4, 21, 6, 3);
     TEST_ASSERT(dstarts[0] == 106 && dcycles[0] == 176,

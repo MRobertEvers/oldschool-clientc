@@ -330,8 +330,14 @@ flight tick [402] with no band hit (before the fix: 60, two swords).
 | F+8 | three `tfa_ezekiel_finale_vfx` in a V in front of him: the front one on his edge tile facing the cage, two one back and to the sides, added and snapped facing the cage (north from the south, `angle=1024`; west from the east, `512`, `instant=true`); `vfx_ezekiel_finale_sword_drop01/03/04`; three sounds 12400 r15 size 15 | 2/2 |
 | F+12, then every 11 | a volley (below) | 4301 5 volleys, 4300 9 |
 
-A volley is three strikes, one per pattern in a random order (14/14 volleys
-used all three). Strike k (k = 0, 1, 2) lights two of the three swords:
+A volley is three strikes, one per pattern (83/83 volleys). The order is
+not rolled: every fight walks one cycle of six, B l r / B r l / r B l /
+l B r / B r l / B l r (B both sides lit, l front+left, r front+right),
+starting on its first entry or its fifth (4300, 4301, 4314, 4315 x3: three
+starts each). Both sides is never the last strike; a roll (ours until
+2026-10-22) put it last in 15 of 35 volleys
+(`ez_volley_rule.py` checks tiles and delays, not the order). Strike k
+(k = 0, 1, 2) lights two of the three swords:
 `vfx_ezekiel_sword_telegraph01` (front), `..03` (one side), `..04` (other
 side) as spotanims slot k, delay 30k; sound per lit sword: front 12417, left
 12413, right 12423 (r15 size 15, delay 30k). Its tiles are hit at V+4+k:
@@ -339,6 +345,11 @@ map anims `vfx_ezekiel_finale_impact_medium01` or `..._small01` (either, at
 random) with delay 124+30k (+2 per row away from him) on the unsafe tiles;
 sounds 12407 at the cage centre, delays 120/150/180; 12416 delay 225 at his
 centre; from the second volley on, his `vfx_ezekiel_finale_cast01` delay 225.
+
+From the west side (4314's every volley), his angle to the cage is 1536. Ours
+computed `modulo(1024 - 512 * 3, 2048)`, which is -512 in RuneScript, and
+`npc_faceangle` aborted the finale before any V sword was added: no
+telegraphs, no volleys, Ezekiel standing by the cage (fixed 2026-10-22).
 
 | lit | safe (in the cage, rows counted from his side) |
 |---|---|

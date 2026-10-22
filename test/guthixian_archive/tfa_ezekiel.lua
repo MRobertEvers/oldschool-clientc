@@ -30,20 +30,59 @@ local EAT = { eat = { item = "shark", below = 50 } }
 -- the one handled on the flight tick (the swords' add + 14).
 local SWORD_CLICK_AT = 13
 
+-- Out of the swords' bands while they stand (a band is a sword's lane and
+-- the two tiles past it, ezekiel_plan.md §7): a flight takes 27..31 a sword
+-- and its charge, and a bot left in three bands took 97 with a 2 beside it
+-- and died at full hitpoints (2026-10-22). The sword-dodge leg stands in one
+-- on purpose, and its fight stops before this runs.
+local function leave_bands(t)
+    local _, _, swords = t.npc.tiles("tfa_ezekiel_sword", 0)
+    if not swords or #swords == 0 then return end
+    local _, _, bosses = t.npc.tiles("tfa_ezekiel", 0)
+    local boss = bosses and bosses[1]
+    local ax = (boss and boss.x or swords[1].x) // 64 * 64 + 24
+    local az = (boss and boss.z or swords[1].z) // 64 * 64 + 24
+    local function struck(x, z)
+        for _, sw in ipairs(swords) do
+            if sw.x == ax or sw.x == ax + 12 then
+                if z >= sw.z and z <= sw.z + 2 then return true end
+            elseif x >= sw.x and x <= sw.x + 2 then
+                return true
+            end
+        end
+        return false
+    end
+    local r, here = t.world.tile()
+    if r ~= "ok" or not struck(here.x, here.z) then return end
+    local best, bd
+    for x = ax + 3, ax + 11 do
+        for z = az + 3, az + 11 do
+            local under = boss and x >= boss.x and x <= boss.x + 2 and z >= boss.z and z <= boss.z + 2
+            local d = math.max(math.abs(x - here.x), math.abs(z - here.z))
+            if not under and not struck(x, z) and (not bd or d < bd) then best, bd = { x = x, z = z }, d end
+        end
+    end
+    if best then t.player.walk_to(best.x, best.z, 1) end
+end
+
+-- The attack settles a tick at a time, so the heal below runs every tick (a
+-- cage strike lands three ticks running, 29, 25, 27) and a watch sees a
+-- spawn on its tick.
 local function fight(t, sym, ticks, stop)
     local deadline = now(t) + ticks
     while now(t) < deadline do
+        -- ::tfaheal tops up both (a mid-fight ::setlevel is no debugproc: it
+        -- answered "not found").
         local pr, pv = t.skill.read("prayer")
-        if pr == "ok" and type(pv) == "table" and (pv.level or 99) < 25 then
-            t.cheat("::setlevel prayer 99", false)
-        end
         local hr, hv = t.skill.read("hitpoints")
-        if hr == "ok" and type(hv) == "table" and (hv.level or 99) < 75 then
-            t.cheat("::setlevel hitpoints 99", false)
+        if (pr == "ok" and type(pv) == "table" and (pv.level or 99) < 25)
+            or (hr == "ok" and type(hv) == "table" and (hv.level or 99) < 75) then
+            t.cheat("::tfaheal", false)
         end
         if stop and stop() then return true end
         if not present(t, sym) then return true end
-        local ar, ad = t.player.attack(sym, 2, 6, EAT)
+        if sym == "tfa_ezekiel" then leave_bands(t) end
+        local ar, ad = t.player.attack(sym, 2, 1, EAT)
         t.ticks(1)
     end
     return false
@@ -218,7 +257,15 @@ return {
         local seen, swords, boss, stand, roll
         for _ = 1, 4 do
             fight(t, "tfa_ezekiel", 120, function() return #rows_of("tfa_ezekiel_sword") > 0 end)
+            -- Timed from the swords' add, not from when the bot looked: a
+            -- special added during the kite is standing when this leg starts.
             seen = now(t)
+            local _, adds = t.ticklog.rows({ kind = "npc_spawn" })
+            local added
+            for _, a in ipairs(adds or {}) do
+                if a.type == 16653 and a.tick <= seen and a.tick >= seen - 12 then added = a.tick end
+            end
+            seen = added or seen
             swords, boss = rows_of("tfa_ezekiel_sword"), rows_of("tfa_ezekiel")[1]
             if #swords == 0 then break end
             stand, roll = plan(swords, boss)
@@ -231,7 +278,7 @@ return {
             table.concat(where, " "), boss and (boss.x .. "," .. boss.z) or "-", stand and (stand.x .. "," .. stand.z) or "-", roll and (roll.x .. "," .. roll.z) or "-"))
         t.check("ezekiel.sworddodge.tile", stand ~= nil, "no tile in a band to roll out of")
         if stand then
-            t.cheat("::setlevel hitpoints 99", false)
+            t.cheat("::tfaheal", false)
             t.player.walk_to(stand.x, stand.z, 1)
             while now(t) < seen + SWORD_CLICK_AT do t.ticks(1) end
             local _, here = t.world.tile()

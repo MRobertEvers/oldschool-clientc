@@ -82,8 +82,8 @@ enum World_HitmarkSlotPolicy
 
 void
 World_EntityAddHitmark(
-    uint8_t* damage_values,
-    uint8_t* damage_types,
+    int* damage_values,
+    int* damage_types,
     int* damage_start_cycles,
     int* damage_cycles,
     int loop_cycle,

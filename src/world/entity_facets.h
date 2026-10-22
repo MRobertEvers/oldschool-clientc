@@ -292,8 +292,11 @@ struct WorldEntityFacet_Facing
 
 struct WorldEntityFacet_Combat
 {
-    uint8_t damage_values[WORLD_ENTITY_DAMAGE_SLOTS];
-    uint8_t damage_types[WORLD_ENTITY_DAMAGE_SLOTS];
+    /** The splat's number and hitsplat type, as wide as the wire's smarts
+     *  (up to 32767): a byte drew Ezekiel's heal of 300 as 44 (300 & 0xFF),
+     *  and every splat past 255 the same. */
+    int damage_values[WORLD_ENTITY_DAMAGE_SLOTS];
+    int damage_types[WORLD_ENTITY_DAMAGE_SLOTS];
     int damage_start_cycles[WORLD_ENTITY_DAMAGE_SLOTS];
     int damage_cycles[WORLD_ENTITY_DAMAGE_SLOTS];
     int combat_cycle;

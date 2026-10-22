@@ -9,8 +9,8 @@
 
 void
 World_EntityAddHitmark(
-    uint8_t* damage_values,
-    uint8_t* damage_types,
+    int* damage_values,
+    int* damage_types,
     int* damage_start_cycles,
     int* damage_cycles,
     int loop_cycle,
@@ -122,8 +122,8 @@ World_EntityAddHitmark(
     if( chosen < 0 )
         return;
 
-    damage_values[chosen] = (uint8_t)damage_value;
-    damage_types[chosen] = (uint8_t)damage_type;
+    damage_values[chosen] = damage_value;
+    damage_types[chosen] = damage_type;
     damage_start_cycles[chosen] = start_cycle;
     /* `duration` is the type's own `field5309` (opcode 9), defaulted by the
      * caller to the reference's pre-loop 70 when the cache has no record. This
