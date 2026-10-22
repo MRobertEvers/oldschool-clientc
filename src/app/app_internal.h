@@ -1007,6 +1007,14 @@ app_world_sync_player_tints(struct App* app);
 void
 app_world_sync_npc_tints(struct App* app);
 
+/* Npc TRANSPARENCY (rev-241 transparency block): nested inside the tint --
+ * reverted before it, applied after it. See app_entity_sync.c. */
+void
+app_world_revert_npc_transparency(struct App* app);
+
+void
+app_world_sync_npc_transparency(struct App* app);
+
 /* Mount every npc's body whose customisation changed (WorldEntity_NPC
  * body_serial), once its models are resident. Before the spotanim sync, which
  * re-snapshots a body swapped under its merge. */

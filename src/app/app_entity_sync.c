@@ -1188,3 +1188,166 @@ app_world_sync_npc_tints(struct App* app)
     }
 }
 
+/* ---- Npc TRANSPARENCY (rev-241 NPC_INFO transparency, `npc_transparency`) --
+ *
+ * The official client fades the BODY at raster time too: Npc.getModel hands
+ * the body model one alpha for the cycle (class86.method2930 ->
+ * Model.method4830), each face of alpha a < 253 draws at a + m*(253-a)>>8, and
+ * a model of alpha 255 is not drawn (Model.method4901 / method4912;
+ * world/entity_transparency.h). An attached graphic is its own model there and
+ * is never faded: Ocellus's teleport swirl plays while he goes.
+ *
+ * The same frame discipline as the tint above, and nested inside it: applied
+ * after the tint, reverted before it, so each save holds what the other left.
+ * A faded body writes its face alphas; a gone one hides its faces through
+ * channel C, which every rasteriser already skips. A body with no alpha array
+ * is given one, zeroed (opaque), and keeps it: the model owns it and frees it,
+ * and an element freed between frames never holds a buffer of ours.
+ */
+#define APP_NPC_TRANSPARENCY_SAVES 16
+
+struct AppNpcTransparencySave
+{
+    struct ToriDraw_Scene* scene;
+    int element_id;
+    struct ToriDraw_Model* model; /* NULL: free */
+    int face_count;
+    int faces; /* the body's faces: [0, faces) */
+    int hidden; /* saved holds channel C, else the face alphas */
+    hsl16_t* saved_c;
+    alphaint_t* saved_alphas;
+    int cap;
+};
+
+static struct AppNpcTransparencySave g_npc_transparency_saves[APP_NPC_TRANSPARENCY_SAVES];
+
+void
+app_world_revert_npc_transparency(struct App* app)
+{
+    assert(app);
+    for( int i = 0; i < APP_NPC_TRANSPARENCY_SAVES; i++ )
+    {
+        struct AppNpcTransparencySave* save = &g_npc_transparency_saves[i];
+        struct ToriDraw_Model* model;
+
+        if( !save->model || save->scene != app->scene )
+            continue;
+        model = app_player_tint_element_model(app->scene, save->element_id);
+        if( model == save->model && model->face_count == save->face_count )
+        {
+            model = ToriDraw_SceneElementModelForWrite(app->scene, save->element_id);
+            assert(model == save->model);
+            for( int f = 0; f < save->faces; f++ )
+            {
+                if( save->hidden )
+                    model->face_colors_c[f] = save->saved_c[f];
+                else
+                    model->face_alphas[f] = save->saved_alphas[f];
+            }
+            app->need_redraw = 1;
+        }
+        save->model = NULL;
+    }
+}
+
+/* Fade one npc's body for this frame by `alpha` (1..255). False when every
+ * save is in use, so the caller stops. */
+static int
+app_fade_element(
+    struct App* app,
+    int element_id,
+    uint32_t entity_id,
+    int alpha)
+{
+    struct AppNpcTransparencySave* save = NULL;
+    struct AppEntitySpotanim* spot;
+    struct ToriDraw_Model* model;
+    int faces;
+
+    if( !app_player_tint_element_model(app->scene, element_id) )
+        return 1;
+    for( int i = 0; i < APP_NPC_TRANSPARENCY_SAVES && !save; i++ )
+        if( !g_npc_transparency_saves[i].model )
+            save = &g_npc_transparency_saves[i];
+    /* More fading npcs on screen than saves: the rest draw opaque this frame
+     * rather than lose their alphas. */
+    if( !save )
+        return 0;
+    model = ToriDraw_SceneElementModelForWrite(app->scene, element_id);
+    assert(model);
+    /* The body's own faces, as the tint counts them. */
+    faces = model->face_count;
+    spot = app_entity_spotanim_find(app, element_id, entity_id);
+    if( spot && spot->combined == model && spot->body && spot->body->face_count < faces )
+        faces = spot->body->face_count;
+    if( faces <= 0 )
+        return 1;
+    if( save->cap < faces )
+    {
+        save->saved_c = (hsl16_t*)ToriMem_Realloc(
+            ToriMem_Render(), save->saved_c, (size_t)faces * sizeof(*save->saved_c));
+        assert(save->saved_c);
+        save->saved_alphas = (alphaint_t*)ToriMem_Realloc(
+            ToriMem_Render(), save->saved_alphas, (size_t)faces * sizeof(*save->saved_alphas));
+        assert(save->saved_alphas);
+        save->cap = faces;
+    }
+    save->scene = app->scene;
+    save->element_id = element_id;
+    save->model = model;
+    save->face_count = model->face_count;
+    save->faces = faces;
+    save->hidden = alpha >= 255;
+    if( save->hidden )
+    {
+        for( int f = 0; f < faces; f++ )
+        {
+            save->saved_c[f] = model->face_colors_c[f];
+            model->face_colors_c[f] = TORIDRAWHSL16_HIDDEN;
+        }
+    }
+    else
+    {
+        if( !model->face_alphas )
+        {
+            model->face_alphas =
+                (alphaint_t*)TORIDRAW_CALLOC((size_t)model->face_count, sizeof(alphaint_t));
+            assert(model->face_alphas);
+        }
+        for( int f = 0; f < faces; f++ )
+        {
+            save->saved_alphas[f] = model->face_alphas[f];
+            model->face_alphas[f] =
+                (alphaint_t)WorldEntityTransparency_Face(model->face_alphas[f], alpha);
+        }
+    }
+    app->need_redraw = 1;
+    return 1;
+}
+
+void
+app_world_sync_npc_transparency(struct App* app)
+{
+    struct World_EntityPool* pool;
+
+    assert(app);
+    if( !app->world )
+        return;
+    pool = &app->world->entities.npc;
+    for( int ni = World_EntityPoolHead(pool); ni != WORLD_ENTITY_NIL;
+         ni = World_EntityPoolNext(pool, ni) )
+    {
+        struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, ni);
+        int alpha;
+
+        if( !npc || npc->element_id < 0 || !npc->transparency.set )
+            continue;
+        alpha = WorldEntityTransparency_Alpha(&npc->transparency, app->world->cycle);
+        if( alpha <= 0 )
+            continue;
+        if( !app_fade_element(app, npc->element_id,
+                              WORLD_ENTITY_ID(WORLD_ENTITY_KIND_NPC, npc->server_slot), alpha) )
+            break;
+    }
+}
+

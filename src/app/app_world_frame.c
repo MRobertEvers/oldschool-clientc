@@ -235,7 +235,9 @@ app_world_frame(
         }
     }
     /* Lit colours back on every tinted body before anything below reads or
-     * snapshots one (app_entity_sync.c, player TINT). */
+     * snapshots one (app_entity_sync.c, player TINT); the npc fade's alphas
+     * first, as it went on last. */
+    app_world_revert_npc_transparency(app);
     app_world_revert_player_tints(app);
     app_world_sync_entity_animations(app);
     /*
@@ -286,6 +288,7 @@ app_world_frame(
     /* Last: the tint goes onto whatever body (or body + graphic) is mounted. */
     app_world_sync_player_tints(app);
     app_world_sync_npc_tints(app);
+    app_world_sync_npc_transparency(app);
 
     /* Expire P_LOCMERGE markers once the ride window ends. */
     {

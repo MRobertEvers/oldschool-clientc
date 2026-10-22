@@ -76,7 +76,9 @@ enum PktNpcInfoOpKind
     PKT_NPC_INFO_OP_HEADICON_CUSTOM,
     PKT_NPC_INFO_OP_BODY_CUSTOM,
     /* Revision 239's TINTING block (npc flag 0x100). */
-    PKT_NPC_INFO_OP_TINT
+    PKT_NPC_INFO_OP_TINT,
+    /* Revision 241's TRANSPARENCY block (npc flag 0x8000). */
+    PKT_NPC_INFO_OP_TRANSPARENCY
 };
 
 struct PktNpcInfo_DeltaXZ
@@ -241,6 +243,21 @@ struct PktNpcInfo_Tint
     int8_t weight;
 };
 
+/*
+ * Revision 241's TRANSPARENCY block (RSProx NpcInfoClient.decodeTransparency):
+ * signed cycle deltas from arrival (-1, -1 is "already at `to`"), the alphas
+ * (0 opaque .. 255 gone), and whether the fade starts from `from` rather than
+ * the alpha shown now.
+ */
+struct PktNpcInfo_Transparency
+{
+    int16_t start_cycle_delta;
+    int16_t end_cycle_delta;
+    uint8_t from;
+    uint8_t to;
+    bool use_start;
+};
+
 struct PktNpcInfoOp
 {
     enum PktNpcInfoOpKind kind;
@@ -264,6 +281,7 @@ struct PktNpcInfoOp
         struct PktNpcInfo_HeadiconCustom _headicon;
         struct PktNpcInfo_BodyCustom _body;
         struct PktNpcInfo_Tint _tint;
+        struct PktNpcInfo_Transparency _transparency;
     };
 };
 

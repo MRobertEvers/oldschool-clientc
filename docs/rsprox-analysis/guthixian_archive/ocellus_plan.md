@@ -31,14 +31,14 @@ His health: 2500 at 1-2 raiders (3630 at three, 4680 at four). The timetable
 | C | the charge: `npc_ocellus_phase1_charge` and a crack line every 2 ticks, seven (C..C+12); `vfx_ocellus_p1_charge` every 2 from C+5; one of "Pointless..." (9), "You... fail..." (8), "Unworthy..." (4) at C+15 (21 corners); `npc_ocellus_phase1_explode` at C+18 with `vfx_ocellus_p1_explode_npc` |
 | C+19 | the blast: `vfx_ocellus_p1_explode_floor` (a random one of `_90/_180/_270`) on every open tile beside his 3x3 at delay 0 and the next ring at delay 2 (6/6) |
 | C+21 | the next corner: one of the other three (19 recorded: the next anticlockwise 10, clockwise 3, across 6; the four that went by way of the middle were all across); he keeps it through a visit to the middle |
-| health at or under 66% or a quarter: checked after a corner's explosion, and while he walks (or waits at the corner) on each volley's tick, in its place (4301 [1040], 4309 [1546], 4312 [1508] [3660], 4315 [6088], 4316 [1982] [2073]: 7/7) | `npc_ocellus_phase1_teleport_out` + `vfx_ocellus_p1_teleport_out` slot 2; +4 he is at the middle (sw (-1,-1)) with `_teleport_in`, facing the side of his first cracks with `instant=true` (16/16), and `tfa_wallkit_archive03_center01_blockwalk` on his sw tile |
+| health at or under 66% or a quarter: checked after a corner's explosion, and while he walks (or waits at the corner) on each volley's tick, in its place (4301 [1040], 4309 [1546], 4312 [1508] [3660], 4315 [6088], 4316 [1982] [2073]: 7/7) | he stops where he is (a walk's last step is T-1); `npc_ocellus_phase1_teleport_out` + `vfx_ocellus_p1_teleport_out` slot 2, `transparency 30..45, 0 -> 255`, his headbar `removed=true`, his overhead cleared; +4 a `telejump` (the same index, snapped) to the middle (sw (-1,-1)) with `_teleport_in`, `transparency 0..20, 255 -> 0`, facing the side of his first cracks with `instant=true` (16/16); +5 `tfa_wallkit_archive03_center01_blockwalk` on his sw tile (12/12 teleports and 6/6 floors, 4301 [986] [1040], 4308 [1573] [1654], 4309 [1546], 4312 [1508]; §2a) |
 | +8, then every 8, four beats B | the charge seq and two diagonal cracks from neighbouring corners of his 3x3, clockwise from a random pair (the earlier at delay 0, the later at 60); `vfx_ocellus_p1_charge` at B+4 and B+6; the explosion at B+6, the blast at B+7 |
 | the last explosion +2 | "Death... awaits..." (every recorded strike); `tfa_wallkit_archive03_center01` back on his tile; the meter emptied |
 | +1 | every raider healed 4..8 (hitsplat 6) |
 | +2 | `npc_ocellus_phase1_expend`; a `scriptedproj_add` of `ocellus_proj_test` at each raider (2 / 39, curve scripts 10024 / 10018 / 10017) |
 | +3 | each raider hit 17..19 (13/13) |
 | +8 | he walks on to the next corner |
-| nothing left | "You... will disappear..."; if not at the middle: teleport out +2, at the middle +4, in +5; `npc_ocellus_phase1_transformation` 3 ticks after he is at the middle; +7 phase 2 (§3) |
+| nothing left | "You... will disappear..."; if not at the middle: teleport out +2 (the same fade and headbar removal), a `telejump` to the middle +4 with `seq -1` and `transparency -1..-1, 0 -> 255` (still unseen) and no floor, in +5 (`_teleport_in`, the fade in); `npc_ocellus_phase1_transformation` 3 ticks after he is at the middle; +7 phase 2 (§3), whose T+2 lays the floor (4301 [1092..1106], 4309 [1610..1624], 4316 [2136..2150]: 3/3) |
 
 **Volleys.** A shot at every raider: fire (`vfx_ocellus_fire_attack01_projanim`,
 the wiki's orange, ranged) or water (`_water_`, blue, magic), one element a
@@ -116,6 +116,30 @@ the middle at C-5 and C-1, the beats' quarter turns clockwise from a random
 side, his target at the strike). The many recorded `[facing] player=` rows in
 phases 3 and 4 are rev 241 re-sending the same target face with a new
 `fallbackangle` as the target moves (4301 [1710..1730] Visqo), not turns.
+
+### 2a. The teleport to the middle, audited (2026-10-21)
+
+Recording: every phase-1 teleport of 4301, 4308, 4309, 4312 (12, plus the
+three "nothing left" ones). Ours: `test/guthixian_archive/tfa_ocellus.lua`,
+tick log T = 202 / 283 / 366 (the last the zero path), aligned on the
+teleport-out seq.
+
+| T+ | recorded | ours before | ours now |
+|---|---|---|---|
+| -1 | his last walk step, if walking | same | same |
+| 0 | seq 14812, spot slot 2 4266, `transparency 30..45 0->255`, headbar `removed=true`, headicons cleared | seq, spot, headicons; no fade, bar kept | matched (wire: `01 0a ff ff` headbar, transparency `1e 00 00 2d 00 81 01`) |
+| 1..3 | nothing of his (hits ride as usual, the bar re-sent by them) | same | same |
+| 4 | `telejump`, the SAME index, jump bit; seq 14813, spot slot 2 4267, `transparency 0..20 255->0`, `facing coord= instant`, level_change, enabled_ops, headicon re-sent (the add) | removed and re-added under a NEW client index (55 -> 56 -> 57 -> 58); no fade; the floor loc on this tick | matched: same index kept (`TELEJUMP` trace, 55 throughout), fade in |
+| 5 | `loc_add_change` center01_blockwalk | an entity-face reset (the Talk-to's playerfaceclose mode dropped by the teleport) | the floor; no reset (the walk's reset now drops the mode, so the +5 re-face on the talker in phase 1 is gone too) |
+| 8 | charge seq, `facing angle` | same | same |
+| zero path +4 | `telejump`, seq -1, `transparency -1..-1 0->255`, instant face north, no floor | jump, seq -1, face; the floor laid | matched; floor left to phase 2's T+2 |
+| zero path +5 | seq 14813, spot 4267, fade in | seq, spot | matched |
+
+Client: the TRANSPARENCY block was decoded and dropped
+(`osrs241_entity_info.c`); it is now applied to the body's faces per frame
+(`world/entity_transparency.h`, the deob's class657 / Model.method4912;
+`app_world_sync_npc_transparency`). Not yet seen on screen: the shared tree's
+uncommitted toridraw edits stop the client linking (2026-10-21).
 
 ## 3. Phase 2
 

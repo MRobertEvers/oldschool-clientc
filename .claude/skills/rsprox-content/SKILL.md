@@ -259,7 +259,7 @@ index reuse):
   - `walk` / `run` / `crawl` carry steps.
   - `teleport` is a jump-clear shift that **the client walks** (glide; Bloat, Vasa, jugs).
   - `telejump` snaps.
-  - Ours: `npc_walk` / modes give steps, `npc_tele` ≤2 tiles glides, and further moves remove and re-add.
+  - Ours: `npc_walk` / modes give steps, `npc_tele` ≤2 tiles glides, and further moves are a `telejump` (removed and re-added under the same client index in one packet, as Jagex sends it). A boss that vanishes and reappears also fades: `npc_transparency` (Ocellus: `30, 45, 0, 255` out, `0, 20, 255, 0` in, `-1, -1, 0, 255` to stay unseen through a jump).
   - Count tiles per tick to get the speed.
 - **Facing (in npc info: diff it tick by tick, section "The wire audit" 3):**
   - Record **every** `[facing]` line the npc gets: when it turns to a tile, when it faces a raider,

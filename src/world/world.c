@@ -3138,6 +3138,26 @@ World_NpcSetTint(
 }
 
 void
+World_NpcSetTransparency(
+    struct World* world,
+    int idx,
+    int start_cycle_delta,
+    int end_cycle_delta,
+    int from,
+    int to,
+    bool use_start)
+{
+    assert(world);
+    struct World_EntityPool* pool = &world->entities.npc;
+    assert(World_EntityPoolIsActive(pool, idx));
+    struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
+
+    WorldEntityTransparency_Set(&npc->transparency, world->cycle,
+                                world->cycle + start_cycle_delta, world->cycle + end_cycle_delta,
+                                from, to, use_start);
+}
+
+void
 World_NpcSetSpotanim(
     struct World* world,
     int idx,

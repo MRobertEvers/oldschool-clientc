@@ -5,6 +5,7 @@
 
 #include "entity_facets.h"
 #include "entity_tint.h"
+#include "entity_transparency.h"
 
 /*
  * Rev-239 numbered graphic slots: an npc wears one attached graphic per slot,
@@ -69,6 +70,10 @@ struct WorldEntity_NPC
      *  recoloured while active -- Akkha and his shadows while immune.
      *  Applied per frame by app_world_sync_npc_tints. */
     struct WorldEntityTint tint;
+    /** Rev-241 NPC_INFO transparency (`npc_transparency`, flag 0x8000): the
+     *  body faded in or out -- Ocellus teleporting. Applied per frame by
+     *  app_world_sync_npc_transparency. */
+    struct WorldEntityTransparency transparency;
     /**
      * Headicon customisation (rev-239 0x400000): while `headicon_custom`, the
      * overhead draws these eight (sprite group, frame) slots instead of the

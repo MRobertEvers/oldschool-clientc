@@ -10388,7 +10388,9 @@ script_command(
      * between two client cycles after arrival: the rev-241 TRANSPARENCY block
      * (RSProx NpcInfoClient, flag 0x8000). The Fractured Archive's npcs fade
      * in with (0, 30, 255, 0) and Ezekiel out with (210, 270, 0, 255) (RSProx
-     * 4301 [42], [263]). Older revisions have no such block and send nothing.
+     * 4301 [42], [263]). The cycles are the wire's signed shorts: (-1, -1,
+     * 0, 255) is "gone already", Ocellus re-added unseen (4301 [1094]).
+     * Older revisions have no such block and send nothing.
      */
     case SS_OP_NPC_TRANSPARENCY:
     {
@@ -10405,9 +10407,9 @@ script_command(
             SSVM_Abort(state, "npc_transparency with no active npc");
             return 1;
         }
-        if( values[0] < 0 || values[0] > 0x7fff || values[1] < 0 || values[1] > 0x7fff )
+        if( values[0] < -0x8000 || values[0] > 0x7fff || values[1] < -0x8000 || values[1] > 0x7fff )
         {
-            SSVM_Abort(state, "npc_transparency cycles %d..%d: each must be 0..32767", (int)values[0],
+            SSVM_Abort(state, "npc_transparency cycles %d..%d: each must be -32768..32767", (int)values[0],
                        (int)values[1]);
             return 1;
         }
@@ -10431,6 +10433,8 @@ script_command(
      * at arrival sliding to `$endfill` over `$endtime` client cycles, in the
      * bar's own width units. Ezekiel's Animated Swords carry their 13-tick
      * charge this way (healthbar 87, 60 -> 0 over 390, RSProx 4301 [81]).
+     * `$endtime` 32767 (0x7FFF) removes the bar instead, the fills unread
+     * (Ocellus as he fades out, 4301 [986]).
      */
     case SS_OP_NPC_HEADBAR_TIMED:
     {
@@ -10448,9 +10452,9 @@ script_command(
             return 1;
         }
         if( values[0] < 0 || values[1] < 0 || values[1] > 255 || values[2] < 0 || values[2] > 255 ||
-            values[3] < 0 || values[3] > 0x7ffe )
+            values[3] < 0 || values[3] > 0x7fff )
         {
-            SSVM_Abort(state, "npc_headbar_timed(%d, %d, %d, %d): bar >= 0, fills 0..255, end 0..32766",
+            SSVM_Abort(state, "npc_headbar_timed(%d, %d, %d, %d): bar >= 0, fills 0..255, end 0..32767",
                        (int)values[0], (int)values[1], (int)values[2], (int)values[3]);
             return 1;
         }

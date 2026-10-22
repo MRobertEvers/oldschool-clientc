@@ -1240,9 +1240,10 @@ npc_target_op(
      * ENTERING VIEW: the server is telling us this slot is a NEW npc.
      *
      * The slot is the server's private per-observer name and it is REUSED --
-     * `ToriRSServer_SlotMapRelease` frees a name the moment an npc leaves view or
-     * teleports, and `ToriRSServer_SlotMapAcquire` hands it straight back out
-     * round-robin. This side only drops a name when it sees an explicit
+     * `ToriRSServer_SlotMapRelease` frees a name the moment an npc leaves view
+     * (a teleport within view keeps it: Jagex's `telejump`, a remove and an add
+     * of the same name in one packet), and `ToriRSServer_SlotMapAcquire` hands
+     * it straight back out round-robin. This side only drops a name when it sees an explicit
      * CLEAR keyed by the npc's position in the PREVIOUS packet's list, so any
      * release the client never saw a matching CLEAR for leaves a stale
      * registration behind.
@@ -1627,6 +1628,17 @@ npc_apply_op(
                 op->_tint.saturation,
                 op->_tint.lightness,
                 op->_tint.weight);
+        break;
+    case PKT_NPC_INFO_OP_TRANSPARENCY:
+        if( idx >= 0 )
+            World_NpcSetTransparency(
+                world,
+                idx,
+                op->_transparency.start_cycle_delta,
+                op->_transparency.end_cycle_delta,
+                op->_transparency.from,
+                op->_transparency.to,
+                op->_transparency.use_start);
         break;
     case PKT_NPC_INFO_OP_BAS_CHANGE:
         if( idx >= 0 )

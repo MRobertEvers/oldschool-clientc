@@ -1743,11 +1743,21 @@ npc_extended(
          * g1sAlt3 end alpha, g1 use-start. */
         if( (flag & V5_NPC_TRANSPARENCY) != 0 )
         {
-            (void)tail_g2_alt1(data, len, &pos);
-            (void)tail_g2(data, len, &pos);
-            (void)tail_g1_alt2(data, len, &pos);
-            (void)tail_g1_alt3(data, len, &pos);
-            (void)tail_g1(data, len, &pos);
+            struct PktNpcInfoOp* op = npc_op(r, PKT_NPC_INFO_OP_TRANSPARENCY);
+            int start = tail_g2_alt1(data, len, &pos);
+            int end = tail_g2(data, len, &pos);
+            int from = tail_g1_alt2(data, len, &pos);
+            int to = tail_g1_alt3(data, len, &pos);
+            int use_start = tail_g1(data, len, &pos);
+
+            if( op )
+            {
+                op->_transparency.start_cycle_delta = (int16_t)start;
+                op->_transparency.end_cycle_delta = (int16_t)end;
+                op->_transparency.from = (uint8_t)from;
+                op->_transparency.to = (uint8_t)to;
+                op->_transparency.use_start = use_start == 1;
+            }
         }
         /* decodeNameChange: gjstr. */
         if( (flag & V5_NPC_NAME_CHANGE) != 0 )

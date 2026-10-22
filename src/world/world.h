@@ -1486,6 +1486,19 @@ World_NpcSetTint(
     int lightness,
     int weight);
 
+/* Rev-241 NPC_INFO transparency: the body fades from `from` to `to` (0 opaque
+ * .. 255 gone) between now + the two signed cycle deltas
+ * (world/entity_transparency.h). */
+void
+World_NpcSetTransparency(
+    struct World* world,
+    int idx,
+    int start_cycle_delta,
+    int end_cycle_delta,
+    int from,
+    int to,
+    bool use_start);
+
 /* `slot`: the rev-239 graphic slot; a graphic replaces only its own slot's
  * (slots past WORLD_NPC_SPOTANIM_SLOTS - 1 share the last). `loop`: rev
  * 241's byte -- the graphic replays from its first frame each time its seq

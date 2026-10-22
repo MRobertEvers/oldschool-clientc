@@ -4185,6 +4185,12 @@ test-entity-tint: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/entity_tint_test world/test/entity_tint_test.c
 	./$(OBJ_DIR)/entity_tint_test
 
+# The npc TRANSPARENCY fade (world/entity_transparency.h, the rev-239 deob's
+# class657 / Model.method4912) against hand-worked numbers.
+test-entity-transparency: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/entity_transparency_test world/test/entity_transparency_test.c
+	./$(OBJ_DIR)/entity_transparency_test
+
 # PLAYER_INFO / NPC_INFO bit decode + appearance blob.
 test-entity-decode: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/entity_decode_test $(TORIMEM_SRCS) \

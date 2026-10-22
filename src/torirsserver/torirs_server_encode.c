@@ -6571,6 +6571,12 @@ put_npc_extended_v241(
         {
             v5_psmart1or2(buf, npc->timed_bar_type);
             v5_psmart1or2(buf, npc->timed_bar_end_cycle);
+        }
+        /* An end of 0x7FFF is the bar's removal, and the entry stops there
+         * (RSProx decodeHeadbars: `[headbar] id=10, removed=true`, Ocellus
+         * fading out, 4301 [986]). */
+        if( timed_bar && npc->timed_bar_end_cycle != 0x7fff )
+        {
             v5_psmart1or2(buf, 0);
             rsab_p1_alt3(buf, npc->timed_bar_start_fill);
             if( npc->timed_bar_end_cycle > 0 )
@@ -7307,6 +7313,8 @@ npc_info_encode(struct ToriRSServerPlayer* player)
         struct RSAreaBuf extended_buf;
         int adds[TORIRSSERVER_TRACKED_NPC_MAX];
         int add_count = 0;
+        int rejumped[TORIRSSERVER_TRACKED_NPC_MAX];
+        int rejumped_count;
 
         /*
          * SET_NPC_UPDATE_ORIGIN first, every tick, and it is not optional.
@@ -7351,6 +7359,7 @@ npc_info_encode(struct ToriRSServerPlayer* player)
         rsab_bits(&buf);
 
         rsab_pbit(&buf, 8, player->tracked_count);
+        rejumped_count = 0;
         for( int i = 0; i < player->tracked_count; i++ )
         {
             int slot = player->tracked[i];
@@ -7405,6 +7414,23 @@ npc_info_encode(struct ToriRSServerPlayer* player)
                  * well-formed packet every tick.
                  */
                 player->npc_tracked[slot] = 0;
+                /*
+                 * A teleport that stays in view keeps its name. Jagex's
+                 * `telejump` is this remove and an add of the SAME index in
+                 * one packet, jump bit set (RSProx NpcInfoClient: an add onto
+                 * an index removed this packet is ACTIVE, not new), so the
+                 * client moves the npc it has rather than meeting another
+                 * one: whatever names the index -- a raider's face on it, its
+                 * fade -- carries over (Ocellus to the middle, 4301 [990]).
+                 * Released after the adds if it was not re-added.
+                 */
+                if( in_range && npc->tele )
+                {
+                    ToriRSServer_NpcTrace(player, slot, ToriRSServer_SlotMapClient(player, slot),
+                                          "TELEJUMP (re-added under the same client slot)");
+                    rejumped[rejumped_count++] = slot;
+                    continue;
+                }
                 ToriRSServer_SlotMapReleaseWhy(
                     player, slot,
                     !npc->active                            ? "npc inactive"
@@ -7576,6 +7602,11 @@ npc_info_encode(struct ToriRSServerPlayer* player)
             npc_put_add_record(&buf, player, npc, client_slot, extended, dx, dz);
             if( extended )
                 npc_queue_push(queued, &queued_count, slot, 1, force_type);
+        }
+        for( int i = 0; i < rejumped_count; i++ )
+        {
+            if( !player->npc_tracked[rejumped[i]] )
+                ToriRSServer_SlotMapReleaseWhy(player, rejumped[i], "tele (not re-added this tick)");
         }
 
         /* Encode the byte-aligned tail separately. Whether a sentinel is
