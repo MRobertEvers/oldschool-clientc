@@ -276,7 +276,7 @@ A round R, on the quadrant's two arms:
 
 | R+ | recorded |
 |---|---|
-| 0, 5, .. 25 | ten of the twelve portals `_active`, a gap on each arm (the wiki's orange portals); the gaps' rows cross at the safe spot |
+| 0, 5, .. 25 | ten of the twelve portals `_active`, a gap on each arm (the wiki's orange portals); the gaps' rows cross at the safe spot. The six gaps of a round are one of three fixed sequences, (north/south gap, east/west gap) 1..6 out, mirrored into every quadrant: orange (2,2) (4,2) (2,4) (2,2) (3,3) (5,2); red (3,3) (3,4) (2,5) (3,3) (3,5) (4,4); green (2,1) (2,4) (2,6) (4,4) (3,3) (4,1). The first round's sequence is random, then orange -> red -> green in turn (39/39 rounds, 13/13 fights: index 4301, 4308, 4309, 4312 x2, 4315, 4316, 4318 x2, 4319, 4320 x4; first orange 9, red 2, green 2) |
 | 4, 9, .. 29 | each lit portal fires across the quadrant along its two rows (or columns): `vfx_ocellus_portal_projectile` from the portal + (1,1) to the arena's wall a tile across (c the source's offset across the line: min(14, 22 - c) out on the arm's positive side, min(14, 20 + c) on its negative, 15 the cap southward); east and north 6 cycles a tile plus 6, progress 100; west and south 6 a tile less 6, progress 250; angle 127, heights 100 (ours 25); from a pair of invisible `tfa_invisible_npc_2x2` on it (deleted +3); the portals go dark (2,247 shots, every portal both ways, seven fights) |
 | 28 | 13 `vfx_ocellus_p2_aoe_dodge` pools on the quadrant; (round 1) `tfa_the_blade1_idle2` |
 | 31 | all twelve lit |
@@ -575,6 +575,7 @@ angle; two engine commands send the blocks the content needs,
 | phase 1, the strike | his target (`player=`) on the expend's tick | 4/4 |
 | the change to phase 2 | `reset` with the line; north (the tile 10 north) as he lands, `seq -1` | 2/2 |
 | phase 3, each segment's jump | the middle; his target the tick after | 6/6 |
+| phase 3, who his target is | the second raider in party order (the HUD's, script 10042) in the first segment, the next in order each segment after, wrapping past the last (three raiders: #2, #3, #1; four or five: #2, #3, #4); a tank who dies passes it to the next living one in order and the rotation goes on from them (4320: Gwen Phosani #2 died at P+52, then Garfh #3, frag s #4, lumboco #1; Kenshiro #2 at P+169, then Dora Bomber #1). Vines land on anyone but the tank while another lives (31/31) | 14/14 fights |
 | phase 3, a slash | the tile 5 out from his middle toward his target; his target 2 ticks on | 24/24 |
 | phase 3, a spin | the same toward his target; his target 2 ticks after the spin ends | 10/10 |
 | phase 3, "Insolence..." | `reset`; each superior slash his target's own tile; his target 16 ticks after the line | 4/4 |
