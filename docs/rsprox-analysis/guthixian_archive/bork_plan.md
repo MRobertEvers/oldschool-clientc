@@ -77,7 +77,8 @@ R starts at 7 (Bork's drum and the Smorks alike). At 75%, 50% and 25% of the Smo
   [runescapeguides](https://www.runescapeguides.com/the-fractured-archive-beginners-guide-osrs/),
   [bald.gg](https://bald.gg/blog/osrs-raids-4-fractured-archive-guide)). Ours,
   *unverified* past 4310: the owner's description (2026-10-21) -- he says
-  "Bork kill you for that!" (the owner's wording; no source found) with the
+  "Bork kill human for that!" (a stream frame the owner sent 2026-10-22:
+  Bork at 93.3% over the Smorks' death, overhead, as an npc say) with the
   cart's going at +9, then stands and drums: the cache's
   `npc_bork_idle_to_enraged_gong_attack_in01` (+10) and
   `npc_bork_enraged_gong_attack01` (sounds 12790, 12768 in the seq), from +11
@@ -312,7 +313,7 @@ accounted for in the recordings": the thirteen fights against
 | sounds, songs, locs, projectiles, map anims | | | every signature recorded matches | matched |
 | projectile start height | 270 (v2, raw) | 268 (our v1 byte x 4) | same | **open (engine)**: our server sends the old projectile packet |
 | the Smorks' aim faces | after the first entity face, a tile every 2 ticks near the raiders: 109 of 419 on one, most within 1..3, 238 on no raider's tile in the 11 ticks before; no rule fits (not lagged, not leading, not Bork) | their target's tile every 2 ticks from A+10 | same | **open**: rule not identified |
-| Smorks first, past death + 8 | 4310 [622..630]: Bork drums on, D+7 the cart fades, D+9 it goes; Bork killed at D+8 | as recorded to D+9 | then "Bork kill you for that!" and the gong rage | **not in the recordings**: the owner's description and the wiki; rate, reach and damage ours |
+| Smorks first, past death + 8 | 4310 [622..630]: Bork drums on, D+7 the cart fades, D+9 it goes; Bork killed at D+8 | as recorded to D+9 | then "Bork kill human for that!" (a stream frame) and the gong rage | **not in the recordings**: the owner's description and the wiki; rate, reach and damage ours |
 | defend sounds | no synth in any of the nine transcripts (all spectated) | null | null | **open**: no data |
 | damage | §10 | | | as §10 (prayers not on the wire) |
 

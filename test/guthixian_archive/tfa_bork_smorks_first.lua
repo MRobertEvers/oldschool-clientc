@@ -7,7 +7,7 @@
 --   the Smorks shot down by stages (::tfasmork): the drum's three speed-ups
 --   the cycle: shots, napalm, the big bomb, the stun or the anger's slams
 --   ::tfasmork: the Smorks dead first ("No, Smorks fail Bork!", 4310 [622]),
---   the cart gone 9 on with "Bork kill you for that!", then he stands and
+--   the cart gone 9 on with "Bork kill human for that!", then he stands and
 --   drums (npc_bork_enraged_gong_attack01), each beat a smash over the whole
 --   room (the owner and the wiki; no recording); ::tfaboss:
 --   Bork's death, the line, the navigator
