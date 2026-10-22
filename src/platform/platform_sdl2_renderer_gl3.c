@@ -2938,7 +2938,6 @@ gl3_reset_model_group(struct GL3ModelGroup* g)
 {
     if( g->arena )
         trspk_modelarena_clear(g->arena);
-    g->dirty_from = 0u;
 }
 
 /*
@@ -2958,7 +2957,6 @@ gl3_compact_static_group(struct ToriPlatformSDL2_Renderer_GL3* renderer)
         return;
     if( !trspk_modelarena_gc(g->arena).did_compact )
         return;
-    g->dirty_from = 0u;
     /* Every retained pose was baked into this arena, so the arena is the
      * whole truth: rebuild the table from the slots' new bases. */
     trspk_pose_table_clear(&renderer->poses);
@@ -2992,16 +2990,21 @@ gl3_upload_group(struct GL3ModelGroup* g)
     if( !g->reset_each_frame && !trspk_vbo_is_dirty(g->vbo_cpu) )
         return true;
 
-    /* From the lowest vertex written since the last upload. A group with no
-     * record of what changed (or a GPU buffer that is about to be replaced)
-     * goes whole. */
-    uint32_t upload_from = g->dirty_from;
-    if( g->reset_each_frame || upload_from == UINT32_MAX )
-        upload_from = 0u;
-    g->dirty_from = UINT32_MAX;
+    /* Only the span the bakes since the last upload marked (TRSPK_VBO's
+     * dirty_first/dirty_end). The per-frame group and a GPU buffer about to
+     * be replaced go whole. */
+    uint32_t upload_from = 0u;
+    uint32_t upload_end = vert_count;
+    if( !g->reset_each_frame && g->vbo_cpu->dirty_end > g->vbo_cpu->dirty_first )
+    {
+        upload_from = g->vbo_cpu->dirty_first;
+        if( g->vbo_cpu->dirty_end < upload_end )
+            upload_end = g->vbo_cpu->dirty_end;
+    }
     if( vert_count > g->gpu_capacity )
     {
         upload_from = 0u;
+        upload_end = vert_count;
         uint32_t cap = g->gpu_capacity ? g->gpu_capacity : TRSPK_GL3_GPU_VBO_INIT;
         while( cap < vert_count )
             cap *= 2u;
@@ -3027,13 +3030,13 @@ gl3_upload_group(struct GL3ModelGroup* g)
         }
     }
 
-    if( upload_from >= vert_count )
+    if( upload_from >= upload_end )
     {
         trspk_vbo_clear_dirty(g->vbo_cpu);
         return true;
     }
     const GLsizeiptr byte_size =
-        (GLsizeiptr)((size_t)(vert_count - upload_from) * sizeof(struct TRSPK_VertexOpenGl3));
+        (GLsizeiptr)((size_t)(upload_end - upload_from) * sizeof(struct TRSPK_VertexOpenGl3));
     glBindBuffer(GL_ARRAY_BUFFER, g->vbo_gpu);
     glBufferSubData(
         GL_ARRAY_BUFFER,
@@ -3373,24 +3376,8 @@ gl3_world_detach(
     struct ToriPlatformSDL2_Renderer_GL3* renderer,
     int element_id)
 {
-    uint32_t index;
-    if( element_id < 0 )
-        return;
-    index = (uint32_t)ToriDraw_ElementIndexOfRaw(element_id);
-    if( index >= renderer->world_detached_capacity )
-    {
-        uint32_t cap = renderer->world_detached_capacity ? renderer->world_detached_capacity
-                                                         : 1024u;
-        uint8_t* grown;
-        while( cap <= index )
-            cap *= 2u;
-        grown = (uint8_t*)ToriMem_Realloc(ToriMem_Renderer(), renderer->world_detached, cap);
-        assert(grown);
-        memset(grown + renderer->world_detached_capacity, 0, cap - renderer->world_detached_capacity);
-        renderer->world_detached = grown;
-        renderer->world_detached_capacity = cap;
-    }
-    renderer->world_detached[index] = 1u;
+    if( element_id >= 0 )
+        trspk_element_mask_set(&renderer->world_detached, element_id);
 }
 
 /* The build's pose for this draw, or NULL when the build does not describe the
@@ -3403,11 +3390,8 @@ gl3_world_pose(
     int pose_id)
 {
     const struct TRSPK_Batch32Entry* entry;
-    uint32_t index;
-    if( !renderer->world_live || mcmd->element_id < 0 )
-        return NULL;
-    index = (uint32_t)ToriDraw_ElementIndexOfRaw(mcmd->element_id);
-    if( index < renderer->world_detached_capacity && renderer->world_detached[index] )
+    if( !renderer->world_live || mcmd->element_id < 0 ||
+        trspk_element_mask_test(&renderer->world_detached, mcmd->element_id) )
         return NULL;
     entry = trspk_batch32_find_entry(renderer->world, mcmd->element_id, anim_index, pose_id);
     if( !entry ||
@@ -3424,8 +3408,7 @@ gl3_world_drop(struct ToriPlatformSDL2_Renderer_GL3* renderer)
     const uint32_t entry_count = trspk_batch32_entry_count(renderer->world);
     for( uint32_t i = 0u; i < entry_count; i++ )
         GL3ZB_ForgetElement(renderer, trspk_batch32_get_entry(renderer->world, i)->element_id);
-    if( renderer->world_detached )
-        memset(renderer->world_detached, 0, renderer->world_detached_capacity);
+    trspk_element_mask_clear(&renderer->world_detached);
     trspk_batch32_clear(renderer->world);
     renderer->world_live = false;
     renderer->world_batch_id = -1;
@@ -3571,6 +3554,7 @@ gl3_bake_pose_vertices(
             face.tex_id_encoded,
             face.uv_mode);
     }
+    trspk_vbo_mark_dirty_range(vbo, base, tri_count * 3u);
 }
 
 static uint32_t
@@ -3611,8 +3595,6 @@ gl3_bake_into_arena(
 
     const uint32_t base = model_slot->vertex_base;
     gl3_bake_pose_vertices(renderer, g->vbo_cpu, &g->triangles, base, model_handle, world_position);
-    if( base < g->dirty_from )
-        g->dirty_from = base;
 
     if( update_pose_table )
         trspk_pose_table_set(&renderer->poses, element_id, anim_index, pose_id, base);
@@ -4910,14 +4892,12 @@ ToriPlatformSDL2_Renderer_GL3_New(
             goto fail;
 
         g->reset_each_frame = (gi == TRSPK_VBO_GROUP_DYNAMIC);
-        g->dirty_from = UINT32_MAX;
         trspk_vbo_set_dirty(g->vbo_cpu);
     }
 
     renderer->world = trspk_batch32_create(TRSPK_VERTEX_FORMAT_OPENGL3);
     renderer->world_batch_id = -1;
     renderer->groups[TRSPK_VBO_GROUP_WORLD].vbo_cpu = trspk_batch32_vbo(renderer->world);
-    renderer->groups[TRSPK_VBO_GROUP_WORLD].dirty_from = UINT32_MAX;
 
     trspk_pose_table_init(&renderer->poses);
 
@@ -5051,9 +5031,7 @@ ToriPlatformSDL2_Renderer_GL3_Free(struct ToriPlatformSDL2_Renderer_GL3* rendere
     renderer->groups[TRSPK_VBO_GROUP_WORLD].vbo_cpu = NULL;
     trspk_batch32_destroy(renderer->world);
     renderer->world = NULL;
-    ToriMem_Free(ToriMem_Renderer(), renderer->world_detached);
-    renderer->world_detached = NULL;
-    renderer->world_detached_capacity = 0u;
+    trspk_element_mask_free(&renderer->world_detached);
 
     if( renderer->ibo_chain )
     {

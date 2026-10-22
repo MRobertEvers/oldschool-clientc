@@ -8,6 +8,7 @@
 #include "core/trspk_batch32.c"
 #include "core/trspk_core_math.c"
 #include "core/trspk_drawrangeex.c"
+#include "core/trspk_element_mask.c"
 #include "core/trspk_drawrangelist.c"
 #include "core/trspk_ibo.c"
 #include "core/trspk_modelarena.c"

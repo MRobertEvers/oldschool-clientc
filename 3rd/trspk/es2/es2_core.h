@@ -76,6 +76,7 @@
 #include "core/trspk_batch16.h"
 #include "core/trspk_ibo.h"
 #include "core/trspk_modelarena.h"
+#include "core/trspk_element_mask.h"
 #include "core/trspk_pose.h"
 #include "core/trspk_triangles.h"
 #include "core/trspk_vbo.h"
@@ -791,6 +792,10 @@ struct TRSPK_Renderer_ES2
     uint32_t ui_stat_upload_bytes;
     struct TRSPK_PoseTable poses;
     struct TRSPK_PoseTable batch_poses;
+    /* Elements the active world build no longer describes -- reloaded,
+     * animated or removed since it was baked (see trspk_element_mask.h).
+     * Their batch poses are dropped and stay dropped across rebuilds. */
+    struct TRSPK_ElementMask batch_detached;
 
     /* Batch16 is retained build-time storage. Its logical pages live in one
      * GL buffer sized in whole pages; a pose encodes a stable page id plus its

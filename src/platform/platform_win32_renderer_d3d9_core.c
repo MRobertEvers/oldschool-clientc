@@ -4164,12 +4164,41 @@ d3d9_static_batch_slot(
     return (int)i;
 }
 
+/*
+ * A batched element that has been reloaded, animated or removed since the
+ * build: its batch pose is stale, so draws stop resolving it there until the
+ * next build. Runtime locs are not batches (world_builder), and the scene hands
+ * a freed element index straight back out, so the loc a script spawns over a
+ * world loc usually arrives under the world loc's id -- without this, batch-
+ * first resolution drew the old loc in its place.
+ */
+static void
+d3d9_batch_detach(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    int element_id)
+{
+    assert(renderer);
+    if( element_id < 0 )
+        return;
+    trspk_element_mask_set(&renderer->batch_detached, element_id);
+    trspk_pose_table_remove_element(&renderer->batch_poses, element_id);
+}
+
 static void
 d3d9_rebuild_batch_pose_table(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     uint32_t batch_slot;
     assert(renderer);
     trspk_pose_table_clear(&renderer->batch_poses);
+    /* The detach mask records how elements differ from the ACTIVE build;
+     * with none active there is nothing to differ from. */
+    {
+        bool any_active = false;
+        for( batch_slot = 0u; batch_slot < renderer->static_batch_count; batch_slot++ )
+            any_active = any_active || renderer->static_batches[batch_slot].active;
+        if( !any_active )
+            trspk_element_mask_clear(&renderer->batch_detached);
+    }
     for( batch_slot = 0u; batch_slot < renderer->static_batch_count; batch_slot++ )
     {
         const struct D3D9StaticBatch* batch = &renderer->static_batches[batch_slot];
@@ -4185,6 +4214,7 @@ d3d9_rebuild_batch_pose_table(struct ToriPlatformWin32_Renderer_D3D9* renderer)
             uint32_t page_id;
             uint32_t locator;
             if( !entry || entry->element_id < 0 ||
+                trspk_element_mask_test(&renderer->batch_detached, entry->element_id) ||
                 entry->chunk_index >= batch->page_id_capacity ||
                 entry->vertex_base > D3D9_BATCH_POSE_BASE_MASK )
                 continue;
@@ -4893,6 +4923,7 @@ d3d9_bake_into_arena(
             model_slot->vertex_base);
         d3d9_zbuffer_pose_baked(
             renderer, element_id, anim_index, pose_id, model_handle);
+        d3d9_batch_detach(renderer, element_id);
     }
     return model_slot->vertex_base;
 }
@@ -4900,8 +4931,10 @@ d3d9_bake_into_arena(
 static void
 d3d9_model_unload(struct ToriPlatformWin32_Renderer_D3D9* renderer, int element_id)
 {
-    /* Individual unloads own only the legacy arena. Batch geometry and its
-     * pose map remain immutable until the matching batch rebuild/clear. */
+    assert(renderer);
+    /* The arena's copy goes here; the batch's stays in its pages until the
+     * next build, but no draw resolves this element to it again. */
+    d3d9_batch_detach(renderer, element_id);
     if( !renderer || element_id < 0 ||
         !renderer->groups[TRSPK_VBO_GROUP_STATIC].arena ||
         !d3d9_pose_element_is_retained(renderer, element_id) )
@@ -6769,6 +6802,7 @@ ToriPlatformWin32_Renderer_D3D9_Free(struct ToriPlatformWin32_Renderer_D3D9* ren
         trspk_drawrangelist_free(renderer->draw_ranges);
     trspk_pose_table_free(&renderer->poses);
     trspk_pose_table_free(&renderer->batch_poses);
+    trspk_element_mask_free(&renderer->batch_detached);
     d3d9_zbuffer_destroy(renderer);
     for( batch = 0u; batch < renderer->static_batch_count; batch++ )
     {

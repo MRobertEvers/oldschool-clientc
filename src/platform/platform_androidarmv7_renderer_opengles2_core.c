@@ -1399,12 +1399,45 @@ es2_static_batch_slot(struct TRSPK_Renderer_ES2* renderer, int batch_id, bool cr
     return (int)slot;
 }
 
+/*
+ * A batched element that has been reloaded, animated or removed since the
+ * build: its batch pose is stale, so draws stop resolving it there until the
+ * next build. Runtime locs are not batches (world_builder), and the scene hands
+ * a freed element index straight back out, so the loc a script spawns over a
+ * world loc usually arrives under the world loc's id -- without this, batch-
+ * first resolution drew the old loc in its place.
+ */
+static void
+es2_batch_detach(
+    struct TRSPK_Renderer_ES2* renderer,
+    int element_id)
+{
+    uint32_t index;
+    assert(renderer);
+    if( element_id < 0 )
+        return;
+    trspk_element_mask_set(&renderer->batch_detached, element_id);
+    trspk_pose_table_remove_element(&renderer->batch_poses, element_id);
+    index = (uint32_t)ToriDraw_ElementIndexOfRaw(element_id);
+    if( index < renderer->static_primary_capacity )
+        renderer->static_primary_bits[index >> 5] &= ~(1u << (index & 31u));
+}
+
 void
 es2_rebuild_batch_pose_table(struct TRSPK_Renderer_ES2* renderer)
 {
     uint32_t batch_slot;
     assert(renderer);
     trspk_pose_table_clear(&renderer->batch_poses);
+    /* The detach mask records how elements differ from the ACTIVE build;
+     * with none active there is nothing to differ from. */
+    {
+        bool any_active = false;
+        for( batch_slot = 0u; batch_slot < renderer->static_batch_count; batch_slot++ )
+            any_active = any_active || renderer->static_batches[batch_slot].active;
+        if( !any_active )
+            trspk_element_mask_clear(&renderer->batch_detached);
+    }
     for( batch_slot = 0u; batch_slot < renderer->static_batch_count; batch_slot++ )
     {
         const struct ES2StaticBatch* batch = &renderer->static_batches[batch_slot];
@@ -1418,7 +1451,8 @@ es2_rebuild_batch_pose_table(struct TRSPK_Renderer_ES2* renderer)
             const struct TRSPK_Batch16Entry* entry =
                 trspk_batch16_get_entry(batch->cpu, entry_index);
             uint32_t page_id;
-            if( !entry || entry->element_id < 0 || entry->chunk_index >= batch->page_id_capacity ||
+            if( !entry || entry->element_id < 0 ||
+                trspk_element_mask_test(&renderer->batch_detached, entry->element_id) || entry->chunk_index >= batch->page_id_capacity ||
                 entry_index > ES2_BATCH_POSE_ENTRY_MASK ||
                 batch_slot > ES2_BATCH_POSE_SLOT_MASK )
                 continue;
@@ -2181,6 +2215,7 @@ es2_bake_into_arena(
     {
         trspk_pose_table_set(
             &renderer->poses, element_id, anim_index, pose_id, model_slot->vertex_base);
+        es2_batch_detach(renderer, element_id);
     }
     return model_slot->vertex_base;
 }
@@ -2189,8 +2224,9 @@ bool
 es2_model_unload(struct TRSPK_Renderer_ES2* renderer, int element_id)
 {
     assert(renderer);
-    /* Individual unloads own only the arena. Batch geometry and its pose map
-     * remain immutable until the matching batch rebuild/clear. */
+    /* The arena's copy goes here; the batch's stays in its pages until the
+     * next build, but no draw resolves this element to it again. */
+    es2_batch_detach(renderer, element_id);
     if( element_id < 0 || !renderer->groups[TRSPK_VBO_GROUP_STATIC].arena ||
         !es2_pose_element_is_retained(renderer, element_id) )
         return false;
@@ -3272,6 +3308,7 @@ TRSPK_Renderer_ES2_Free(struct TRSPK_Renderer_ES2* renderer)
     ToriMem_Free(ToriMem_Renderer(), renderer->draw_items);
     trspk_pose_table_free(&renderer->poses);
     trspk_pose_table_free(&renderer->batch_poses);
+    trspk_element_mask_free(&renderer->batch_detached);
     ToriMem_Free(ToriMem_Renderer(), renderer->static_primary);
     ToriMem_Free(ToriMem_Renderer(), renderer->static_primary_bits);
     es2_zbuffer_destroy(renderer);

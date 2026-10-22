@@ -21,6 +21,7 @@
 
 #include "core/trspk_atlas.h"
 #include "core/trspk_batch32.h"
+#include "core/trspk_element_mask.h"
 #include "core/trspk_drawrangeex.h"
 #include "core/trspk_drawrangelist.h"
 #include "core/trspk_ibo.h"
@@ -340,10 +341,6 @@ struct GL3ModelGroup
     struct TRSPK_Triangles triangles;
     GLuint vao;
     bool reset_each_frame;
-    /* Lowest vertex written since the last upload; UINT32_MAX when nothing
-     * has been. The upload sends [dirty_from, vertex_count) only, so a pose
-     * appended at the arena's tail costs its own bytes, not the arena's. */
-    uint32_t dirty_from;
 };
 
 struct ToriPlatformSDL2_Renderer_GL3
@@ -478,8 +475,7 @@ struct ToriPlatformSDL2_Renderer_GL3
     struct TRSPK_Batch32* world;
     int world_batch_id;
     bool world_live;
-    uint8_t* world_detached;
-    uint32_t world_detached_capacity;
+    struct TRSPK_ElementMask world_detached;
 
     struct TRSPK_IBOChain* ibo_chain;
     struct TRSPK_IBO* ibo_staging;

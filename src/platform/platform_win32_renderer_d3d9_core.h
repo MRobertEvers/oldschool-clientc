@@ -31,6 +31,7 @@
 #include "core/trspk_drawrangelist.h"
 #include "core/trspk_ibo.h"
 #include "core/trspk_modelarena.h"
+#include "core/trspk_element_mask.h"
 #include "core/trspk_pose.h"
 #include "core/trspk_triangles.h"
 #include "core/trspk_vbo.h"
@@ -345,6 +346,10 @@ struct ToriPlatformWin32_Renderer_D3D9
     uint32_t gpu_ibo_capacity;
     struct TRSPK_PoseTable poses;
     struct TRSPK_PoseTable batch_poses;
+    /* Elements the active world build no longer describes -- reloaded,
+     * animated or removed since it was baked (see trspk_element_mask.h).
+     * Their batch poses are dropped and stay dropped across rebuilds. */
+    struct TRSPK_ElementMask batch_detached;
     struct TRSPK_IBOChain* ibo_chain;
     struct TRSPK_DrawRangeList* draw_ranges;
 

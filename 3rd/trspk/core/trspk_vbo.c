@@ -97,7 +97,12 @@ trspk_vbo_growby(
     }
 
     vbo->vertex_count = new_count;
-    trspk_vbo_set_dirty(vbo);
+    /* Only what was added. Marking the whole buffer here widened every
+     * caller's dirty span to all of it -- an arena load goes through this --
+     * so a renderer's "upload what changed" re-sent its whole retained arena
+     * on every model it baked. A GPU buffer that has to grow to hold the new
+     * count is the uploader's to re-send whole, and every one does. */
+    trspk_vbo_mark_dirty_range(vbo, old_count, amount);
 }
 
 void

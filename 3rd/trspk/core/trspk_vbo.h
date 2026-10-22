@@ -171,7 +171,6 @@ trspk_vbo_write_vertex_opengl3(
     vertex->texcoord[1] = v;
     vertex->tex_id = tex_id;
     vertex->uv_mode = 0.0f;
-    trspk_vbo_set_dirty(vbo);
 }
 
 /* Pack four float [0,1] RGBA components into a D3D ARGB uint32_t. */
