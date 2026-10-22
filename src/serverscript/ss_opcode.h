@@ -611,10 +611,13 @@
 #define SS_OP_NPC_BASREADY 11260
 #define SS_OP_NPC_BASRESET 11261
 #define SS_OP_NPC_SCRIPTEDPROJ_PL 11262
+#define SS_OP_NPC_TELEJUMP 11263
+#define SS_OP_NPC_BASTURN 11264
+#define SS_OP_NPC_TELESLIDE 11265
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11263
+#define SS_OPCODE_MAX 11266
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 589
+#define SS_OPCODE_COUNT 592
 
 #endif

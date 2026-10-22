@@ -1287,6 +1287,27 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # [1140]).
     "NPC_SCRIPTEDPROJ_PL": (11262, 10, 0, 0, 0),
 
+    # npc_telejump(coord $coord)
+    #
+    # `npc_tele` that never glides: the npc removed and re-added on the tile in
+    # one packet with the jump bit (`telejump`), however short the move.
+    # Ezekiel's two-tile leap beside the cage (RSProx 4301 [204], 4300 [1068]).
+    "NPC_TELEJUMP": (11263, 1, 0, 0, 0),
+
+    # npc_basturn(seq $left, seq $right)
+    #
+    # The turn anims of the BAS_CHANGE block, beside `npc_basready` and held
+    # with it until `npc_basreset` (`[bas] turnleft=.., turnright=..`): Ezekiel
+    # weakened (RSProx 4301 [95], 4314 [563]).
+    "NPC_BASTURN": (11264, 2, 0, 0, 0),
+
+    # npc_teleslide(coord $coord)
+    #
+    # The npc removed and re-added on the tile with the jump bit clear
+    # (`[teleport]`, a set bit being `[telejump]`): the client moves the npc it
+    # has rather than placing it. Ezekiel's sword flights (RSProx 4301 [95]).
+    "NPC_TELESLIDE": (11265, 1, 0, 0, 0),
+
     # npc_setlevel(int $level)
     #
     # The active npc's drawn combat level, NPC_INFO's LEVEL_CHANGE now and on
@@ -1890,6 +1911,9 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "NPC_BASREADY": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_BASRESET": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_SCRIPTEDPROJ_PL": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_TELEJUMP": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_BASTURN": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_TELESLIDE": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_SETLEVEL": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_FACEWALKTYPE": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_FACESQUAREINSTANT": (1 << POINTER_BITS["active_npc"], 0),

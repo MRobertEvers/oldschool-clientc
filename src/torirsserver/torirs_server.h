@@ -2786,6 +2786,13 @@ struct ToriRSServerNpc
      * have been written first, or whoever is encoded first consumes it.
      */
     int tele;
+    /**
+     * This tick's `tele` re-add carries the jump bit CLEAR (`npc_teleslide`):
+     * the client moves the npc it has rather than placing it -- a walk to the
+     * tile within 8, a snap past that (deob class86.method2949) -- RSProx's
+     * `[teleport]` where a set bit is `[telejump]`. Cleared with `tele`.
+     */
+    int tele_slide;
     int last_step_x, last_step_z; /* tile before this tick's step attempt; seed (x-1,z) on spawn */
     int follow_x, follow_z;       /* snapshot of target's last_step at top of turn */
     struct ToriRSServerStep waypoints[TORIRSSERVER_WAYPOINT_MAX];
@@ -2925,6 +2932,15 @@ struct ToriRSServerNpc
      */
     int bas_ready_set;
     int bas_ready;
+    /**
+     * `npc_basturn` -- the turn anims the same block carries beside it
+     * (`[bas] turnleft=.., turnright=..`), held with it and cleared by
+     * `npc_basreset`: Ezekiel's weakened stance is all three
+     * `npc_ezekiel_weaken01` (RSProx 4301 [95], 4314 [563]).
+     */
+    int bas_turn_set;
+    int bas_turnleft;
+    int bas_turnright;
     /** `npc_faceplayerinstant` -- this tick's entity FACING block snaps
      *  instead of turning (`instant=true`); cleared with the masks. */
     int face_entity_instant;
@@ -7259,6 +7275,29 @@ ToriRSServer_WorldNpcSetBlockwalk(
  */
 void
 ToriRSServer_WorldNpcTeleport(
+    struct ToriRSServerNpc* npc,
+    int x,
+    int z,
+    int level);
+
+/**
+ * `ToriRSServer_WorldNpcTeleport` that never glides: a `telejump` however short
+ * the move, removed and re-added in place (`npc_telejump`). Ezekiel's two-tile
+ * leap beside the cage is one (RSProx 4301 [204], 4300 [1068]).
+ */
+void
+ToriRSServer_WorldNpcJump(
+    struct ToriRSServerNpc* npc,
+    int x,
+    int z,
+    int level);
+
+/**
+ * `ToriRSServer_WorldNpcJump` with the re-add's jump bit clear (`npc_teleslide`):
+ * RSProx's `[teleport]`. Ezekiel's swords fly 12 tiles this way (4301 [95]).
+ */
+void
+ToriRSServer_WorldNpcSlide(
     struct ToriRSServerNpc* npc,
     int x,
     int z,

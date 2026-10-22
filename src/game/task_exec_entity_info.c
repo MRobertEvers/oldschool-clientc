@@ -1051,6 +1051,17 @@ struct Task_ExecNpcInfo
     int old_list[RS_ENTITY_SYNC_MAX_NPCS];
     int old_count;
 
+    /* Slots this packet removed, held until its end: an add of the same slot
+     * in the same packet is the npc MOVED, not a new one (the deob keeps the
+     * Npc in npcs[] across the removal and its add finds it there: RSProx's
+     * `teleport` / `telejump`). Whatever is still here at the end is gone. */
+    int cleared[RS_ENTITY_SYNC_MAX_NPCS];
+    int cleared_count;
+    /* The current slot was one of them: its add record moves the npc it has
+     * (the jump bit decides walk or snap) and its spawn facing is not applied
+     * (deob: only `isNew` takes the angle). */
+    int cur_revived;
+
     /* The world this packet describes: SET_ACTIVE_WORLD's view when it was
      * queued (deob: NPC_INFO applies to `activeWorld`, each World holding its
      * own npcs). 0 is the root. A deck's npcs arrive in deck-local tiles and
@@ -1233,6 +1244,7 @@ npc_target_op(
      */
     case PKT_NPC_INFO_OP_ADD_NPC_OLD_OPBITS_IDX:
         self->cur_slot = (int)op->_bitvalue < self->old_count ? self->old_list[op->_bitvalue] : -1;
+        self->cur_revived = 0;
         if( *self->count < self->cap )
             self->list[(*self->count)++] = self->cur_slot;
         break;
@@ -1268,7 +1280,21 @@ npc_target_op(
         int stale_element_id = -1;
 
         self->cur_slot = (int)op->_bitvalue;
-        if( self->cur_slot >= 0 &&
+        self->cur_revived = 0;
+        for( int i = 0; i < self->cleared_count; i++ )
+        {
+            if( self->cleared[i] == self->cur_slot )
+            {
+                self->cleared[i] = self->cleared[--self->cleared_count];
+                self->cur_revived = 1;
+                break;
+            }
+        }
+        if( self->cur_revived )
+        {
+            npc_trace(self->app, -1, self->cur_slot, -1, -1, -1, "READDED_SAME_PACKET", 1);
+        }
+        else if( self->cur_slot >= 0 &&
             RS_EntitySync_FindNpc(esync, self->cur_slot, &stale_world_idx, &stale_element_id) )
         {
             TORIRS_LOG("entity_sync: npc slot %d entered view but is still registered "
@@ -1287,6 +1313,7 @@ npc_target_op(
         self->cur_slot = (int)op->_bitvalue < *self->count
                              ? self->list[op->_bitvalue]
                              : -1;
+        self->cur_revived = 0;
         break;
     case PKT_NPC_INFO_OP_CLEAR_NPC_OPBITS_IDX:
     {
@@ -1298,7 +1325,11 @@ npc_target_op(
             npc_trace(
                 self->app, npc_trace_type_of(self->app, w), slot, (int)op->_bitvalue, w, e,
                 "REMOVE", 1);
-            RS_EntitySync_RemoveNpc(esync, self->app->world, slot);
+            /* Removed at the packet's end unless this packet adds it again. */
+            if( self->cleared_count < RS_ENTITY_SYNC_MAX_NPCS )
+                self->cleared[self->cleared_count++] = slot;
+            else
+                RS_EntitySync_RemoveNpc(esync, self->app->world, slot);
         }
         self->cur_slot = -1;
         return 1;
@@ -1358,6 +1389,14 @@ npc_apply_op(
         self->pending_npc_base_type = (int)op->_bitvalue;
         if( self->cur_slot >= 0 && idx < 0 )
             return NPC_NEED_SPAWN;
+        /* Re-added under another type: the npc it has takes the new one. */
+        if( self->cur_revived && idx >= 0 )
+        {
+            struct WorldEntity_NPC const* npc = World_EntityPoolAt(&world->entities.npc, idx);
+
+            if( npc->base_npc_id != (int)op->_bitvalue )
+                return NPC_NEED_CHANGE_TYPE;
+        }
         break;
     case PKT_NPC_INFO_OPBITS_WALKDIR:
         if( idx >= 0 )
@@ -1553,7 +1592,7 @@ npc_apply_op(
         }
         break;
     case PKT_NPC_INFO_OP_FACE_ANGLE:
-        if( idx >= 0 )
+        if( idx >= 0 && !(op->_face_angle.spawn && self->cur_revived) )
         {
             struct WorldEntity_NPC* npc =
                 World_EntityPoolAt(&world->entities.npc, idx);
@@ -1725,6 +1764,8 @@ Task_ExecNpcInfo_Run(
         (size_t)self->old_count * sizeof(self->old_list[0]));
     *self->count = 0;
     self->cur_slot = -1;
+    self->cleared_count = 0;
+    self->cur_revived = 0;
 
     for( self->op_i = 0; self->op_i < self->op_count; self->op_i++ )
     {
@@ -1863,6 +1904,11 @@ Task_ExecNpcInfo_Run(
             }
         }
     }
+
+    /* Removed and not added back: gone. */
+    for( int i = 0; i < self->cleared_count; i++ )
+        RS_EntitySync_RemoveNpc(&app->esync, app->world, self->cleared[i]);
+    self->cleared_count = 0;
 
     app->need_redraw = 1;
 

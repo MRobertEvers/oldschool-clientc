@@ -58,9 +58,12 @@ tank is edge-on to his 3x3, and steps out when the tank stands under him
 | S+5 | 38 / 39 | |
 | W+1..W+9 (weakened) | 0 / 30 | |
 
-A step that brings the tank edge-on swings on the same tick (melee 19 of 25
-times the tank was out of reach a tick before: 4314 [1034], [1051],
-[1087]).
+A step that brings the tank edge-on swings on the same tick when the attack
+is due (`tools/ez_stepswing.py`: 4300 [906] melee on its due tick; after a
+special every step on S+7 or later swings with it, and a step on S+5 or S+6
+waits for S+7). At due+1 the reach is judged before the step: the tank still
+out of reach then is the magic (§4b), even when that tick's step reaches
+them (4314 [1057], 4315 [924]).
 
 ## 3. The clock
 
@@ -98,6 +101,8 @@ Not in 4300/4301 (their tanks stood in); 5/5 in today's kills (index 4314
 [562], [1057], [1161]; 4315 [898], [924]), each after he walked a tick past an
 attack's due tick without reaching his kiting tank:
 
+- Sound 12432 delay 30, range and size 7, at his middle as the tick began,
+  before that tick's step (4314 [562], [1057], 4315 [898], [924]: 4/4).
 - Seq `npc_ezekiel_magic01` and spotanim `ezekiel_magic_attack_vfx01` on him; on
   every raider in the room `ezekiel_magic_attack_impact_vfx01` slot 2 delay 30,
   the same tick; each hit two ticks on: 21, 4 / 21, 21 / 8, 18, 8 / 20, 9, 10
@@ -149,7 +154,7 @@ On the special's tick S (10/10):
   `[headbar] id=87 startfill=60 endfill=0 endtime=390` (its 13-tick charge
   clock). At S+14 (one a tick for the line layouts) it flies: `teleport` 12
   tiles across with `exact_move` (from, 0, to, 30, angle of travel), `[facing]
-  angle=` the same, headbar 42 removed, `transparency` 0->255 cycles 30..60, ops
+  angle=` the same, `[headbar] id=42, removed=true`, `transparency` 0->255 cycles 30..60, ops
   0b00000; deleted two ticks later. A flight sound at his centre, one of
   12458..12461, r10.
 - A sword's 3-wide band hits every raider in it (3 hits: 28, 31, 52) and leaves
@@ -160,9 +165,11 @@ On the special's tick S (10/10):
 
 - A sword whose lane equals his south-west tile's x (a column) or z (a row) at
   its flight weakens him (6/6 hits, 0/4 misses: 4300 [980..982], [1043..1045]).
-- W: `npc_ezekiel_idle_to_weaken01`, say "Agh!", sounds 7115 r10 and 12455 r20;
-  W+1 `[facing] type=reset`, sound 12398 r10 (4/6); W+8
-  `npc_ezekiel_weaken_to_idle01`; no attacks until W+12 (§3).
+- W: `npc_ezekiel_idle_to_weaken01`, `[bas] turnleft, turnright, ready =
+  npc_ezekiel_weaken01`, `[headbar] id=85, startfill=0, endfill=0, endtime=1`
+  (32/32 weakens), say "Agh!", sounds 7115 r10 and 12455 r20; W+1 `[facing]
+  type=reset`, sound 12398 r10 (4/6); W+8 `npc_ezekiel_weaken_to_idle01` with an
+  empty `[bas]`; no attacks until W+12 (§3).
 - His tile is the one after his move on the flight tick: 4315 [899] he
   stepped from (4060,5537) to (4061,5536) as the row 5537 flew, and healed.
 
@@ -173,7 +180,8 @@ south-west tile of Flying Sword, he heals") and five recordings:
 
 - A cross or the two rows that all miss: at fly+2 (S+16) `npc_ezekiel_heal01`,
   spotanims `ezekiel_heal_glow_vfx01` (slot 0) and `ezekiel_heal_spotanim_vfx01`
-  (slot 2), say "Saradomin, give me strength."; at fly+4 a heal splat
+  (slot 2), say "Saradomin, give me strength.", bar 85 as a weaken's (5/5);
+  at fly+4 a heal splat
   (`hitsplat` 6) of a tenth of his health, never past full: 300 of 3000 (4314
   [603]), 435 of 4350 (4315 [2717]); 263, 401, 361 each cut at full (4304
   [1409], [1440], 4315 [903]). 5/5. No sound; his face is kept.
@@ -287,13 +295,13 @@ volley (V+4..V+6). Test: the cage leg of `tfa_ezekiel.lua` -- volleys [428],
 
 | tick | recorded | evidence |
 |---|---|---|
-| F (hp <= 33.5%: 1457/4350, 1003/3000) | his swords deleted; `telejump` to the arena cell next to the cage's middle cell, the side he was nearest (south (4062,5531) 4301; east (4065,5534) 4300) with `exact_move` (old, 0, new, 60, 0), seq `npc_ezekiel_walk01`, `[facing] angle=0`; sound 12458 r10 | 2/2 |
-| F+1 | his 3x3 under 9 `invisible_type8_blocking` (4301 [209]) | |
+| F-1 (hp <= 33.5%: 1457/4350, 1003/3000) | `[facing] coord=` the middle of his 3x3 to come; his swords fade out (`transparency 0..30, 0->255`) | 4301 [203], 4300 [1067] |
+| F | his swords deleted; `telejump` (the same index, re-added: `level_change` rides it) to the arena cell next to the cage's middle cell, the side he was nearest (south (4062,5531) 4301; east (4065,5534) 4300) with `exact_move` (old, 0, new, 60, 0), seq `npc_ezekiel_walk01`, `[facing] angle=0`; sound 12458 r10 | 2/2 |
 | F+2 | `[facing] coord=` the cage's centre (4063,5535) | 2/2 |
 | F+3 | `npc_ezekiel_finale01`, spotanims `vfx_ezekiel_finale_cast01`, `vfx_ezekiel_finale_cast_glow01` slot 1 | 2/2 |
-| F+5 | `vfx_ezekiel_finale_cast_glow_loop01` slot 5; sound 12407 r20 at his centre | 2/2 |
+| F+5 | `vfx_ezekiel_finale_cast_glow_loop01` slot 5 `loop=true`; sound 12407 r20 size 20 at his centre; his 3x3 under 9 `invisible_type8_blocking` (4301 [209], 4300 [1073]; this row said F+1) | 2/2 |
 | F+6 | the 9x9 (4059..4067, 5531..5539) blocked but the cage (4062..4064, 5534..5536): 72 `invisible_type8_blocking`; raiders outside the cage moved in by `exact_move` (to (4062,5534)-ish, delay2 29); seven `tfa_ezekiel_sword_noop` (the fence) on the other 3x3 cells' sw tiles ((4059|4062|4065), (5531|5534|5537)) with `vfx_ezekiel_sword_fence_drop01..07` | 2/2 |
-| F+8 | three `tfa_ezekiel_finale_vfx` in a V in front of him: the front one on his edge tile facing the cage, two one back and to the sides; `vfx_ezekiel_finale_sword_drop01/03/04`; three sounds 12400 r15 | 2/2 |
+| F+8 | three `tfa_ezekiel_finale_vfx` in a V in front of him: the front one on his edge tile facing the cage, two one back and to the sides, added and snapped facing the cage (north from the south, `angle=1024`; west from the east, `512`, `instant=true`); `vfx_ezekiel_finale_sword_drop01/03/04`; three sounds 12400 r15 size 15 | 2/2 |
 | F+12, then every 11 | a volley (below) | 4301 5 volleys, 4300 9 |
 
 A volley is three strikes, one per pattern in a random order (14/14 volleys
@@ -320,7 +328,7 @@ hits: 6, 19); ours 15..30 (unverified).
 | tick | recorded | evidence |
 |---|---|---|
 | K | his health 0 (the last hits) | 4301 [262] |
-| K+1 | his spotanims cleared (slots 0, 5, 1, 6), `npc_ezekiel_finale_death01`, say "...Formidable.", transparency 0->255 cycles 210..270, ops 0b00000; the V `vfx_ezekiel_finale_sword_despawn01/03/04`; `tfa_ezekiel_death_sword` added on his tile, `[facing] angle=1024` | 4301 [263], 4300 [1181] |
+| K+1 | his spotanims cleared (slots 0, 5, 1, 6; 5 and 6 with `loop=true`), `npc_ezekiel_finale_death01`, say "...Formidable.", transparency 0->255 cycles 210..270, ops 0b00000; the V `vfx_ezekiel_finale_sword_despawn01/03/04`; `tfa_ezekiel_death_sword` added on his tile facing the cage (`angle=1024` from the south 4301 [263], `512` from the east 4300 [1181]) | 4301 [263], 4300 [1181] |
 | K+2 | the V deleted | 2/2 |
 | K+11 | "Challenge complete: Ezekiel. Duration: m:ss. Total: m:ss"; music 147; he is deleted; the fence's `transparency` 0->255 over 30, the 72 tiles `invisible_type8_nonblocking` | 4301 [273] |
 | K+12 | the fence deleted | 4301 [274] |
@@ -428,3 +436,44 @@ the seq beside the raider.
 | swords | 28, 51, 59, 63 | 28..52 | 28..63 | fixed |
 | sword burn | 2 every 5 ticks, three times (4304 [1411..1421]); more on its trail | none | the burn; no trail | fixed (the trail open) |
 | volley | 6, 19 (2) | 15..30 | same | unverified |
+
+## Wire audit, every block (2026-10-21, third pass)
+
+Run: `tfa_ezekiel.lua` on a private server and pack; compared with all eight
+lives of 4300, 4301, 4304, 4314, 4315.
+
+- `tools/rsprox/npc_stream.py --summary`: every NPC_INFO block of Ezekiel, the
+  swords, the fence, the V and the death sword.
+- `tools/ez_room_diff.py`: every room map anim, area sound, loc and song per
+  section, aligned on the section's own tick, tiles from his tile on the row's
+  own tick.
+- `tools/ez_sounds.py`: id, delay, range, size and loops of every area sound.
+- The geometry against its rule, on the recordings and ours:
+  `tools/ez_star_rule.py` (42/42 recorded, 6/6 ours), `tools/ez_wave_rule.py`
+  (ours 21/21), `tools/ez_volley_rule.py` (249/249 recorded strikes, ours
+  30/30).
+- The clock: `tools/ez_stepswing.py` and `tools/ez_stepswing_ours.py`.
+
+| row | recording | ours before | ours now | verdict |
+|---|---|---|---|---|
+| step and swing | the swing on the due tick's step that reaches the tank | a tick later (341 melee, step 346, swing 347) | 346 | fixed |
+| magic at due+1 | judged on the reach before the step | judged so (unchanged) | 364, on a step that reached | matched |
+| magic sound | 12432 d30 r7 s7 at his pre-step middle (4/4) | none | (6432,160) from (6431,159) | fixed |
+| weaken stance | `[bas]` turn/turn/ready `weaken01` at W, empty at W+8 (every weaken) | none | `npc_basready` + `npc_basturn` (new, opcode 11264) at W, `npc_basreset` at W+8 | fixed (engine) |
+| bar 85 | `0 -> 0` over 1 cycle on every weaken (32/32) and heal (5/5) | none | every weaken and heal | fixed |
+| sword flight bar | `[headbar] id=42, removed=true` | none | the 0x7FFF removal | fixed |
+| finale swords | fade 0..30 at F-1, deleted at F | deleted at F-1 | as recorded (per-life rates equal) | fixed |
+| finale jump | `telejump`, same index, `level_change` on the re-add | a two-tile glide (walk steps) | `npc_telejump` (new, opcode 11263) | fixed (engine) |
+| his 9 locs | F+5 (2/2) | F+1 (the doc's error) | F+5 | fixed |
+| 12407 at F+5, 12400 x3 at F+8 | size 20, size 15 | no size | sized | fixed |
+| glow loop / death clears | `loop=true` on slot 5 and the slot 5/6 clears | plain | `spotanim_npc_slot_loop` | fixed |
+| the V, the death sword | facing the cage from his side | north always | by side | fixed |
+| engage, melee, star, swords, heal, weaken, volleys, death | | matched | matched | matched |
+| sword flight's jump bit | `[teleport]`: re-added under the same index with the jump bit clear, the client moving the sword it has | re-added with the jump bit set | `npc_teleslide` (new, opcode 11265): the same index, bit clear (`TORIRS_SCRIPTRUN_NPC_MOVE_TRACE`: `jump=0` every flight, `jump=1` for his finale jump); the client keeps an npc removed and re-added in one packet and moves it by the bit (`task_exec_entity_info.c`) | fixed (engine, client) |
+| `level_change` at 1..2 raiders | none for Ezekiel (4300, 4314), though the Guardian gets 984 | 984 once | same | **open, invisible**: the drawn level is the same; the rule (skip when the level equals the type's own?) unconfirmed |
+| tank death ("Face me!") | the nearest raider (3/3) | built | built | **unverified on our wire**: needs a party test |
+| damage | melee, star, swords, volley, burn trail | §Damage audit | same | approximate (prayers not on the wire); the burn trail not built |
+
+Not compared: the raiders' own kit (wind surge's 227 and 4027 on the swords,
+a bloom's 2892).
+

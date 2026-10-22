@@ -8480,6 +8480,52 @@ script_command(
     }
 
     /*
+     * `npc_telejump(coord $coord)` -- `npc_tele` that never glides: a
+     * `telejump` (the npc removed and re-added on the tile in one packet,
+     * jump bit set) however short the move. `npc_tele` walks a move of two
+     * tiles or less; Ezekiel's two-tile leap beside the cage is a jump
+     * (RSProx 4301 [204], 4300 [1068], `level_change` riding the re-add).
+     */
+    case SS_OP_NPC_TELEJUMP:
+    {
+        int32_t coord;
+        struct ToriRSServerNpc* npc = active_npc(state);
+
+        if( !SSVM_PopInt(state, &coord) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_telejump with no active npc");
+            return 1;
+        }
+        ToriRSServer_WorldNpcJump(npc, coord_x(coord), coord_z(coord), coord_level(coord));
+        return 1;
+    }
+
+    /*
+     * `npc_teleslide(coord $coord)` -- the npc removed and re-added on the tile
+     * in one packet with the jump bit CLEAR, RSProx's `[teleport]` (a set bit
+     * is `[telejump]`): the client moves the npc it has instead of placing it
+     * there, never skipping the tiles between. Ezekiel's swords fly 12 tiles
+     * so (4301 [95]: every flight), with an exact move over the flight.
+     */
+    case SS_OP_NPC_TELESLIDE:
+    {
+        int32_t coord;
+        struct ToriRSServerNpc* npc = active_npc(state);
+
+        if( !SSVM_PopInt(state, &coord) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_teleslide with no active npc");
+            return 1;
+        }
+        ToriRSServer_WorldNpcSlide(npc, coord_x(coord), coord_z(coord), coord_level(coord));
+        return 1;
+    }
+
+    /*
      * `npc_walk` is one line in the reference — `activeNpc.queueWaypoint(x, z)`
      * (NpcOps.ts) — and deliberately not a route: the npc phase's stepper walks
      * one tile a tick toward the waypoint, so a caller that wants a path
@@ -10266,6 +10312,41 @@ script_command(
             return 1;
         }
         npc->bas_ready_set = 0;
+        npc->bas_turn_set = 0;
+        npc->masks |= TORIRSSERVER_NMASK_BAS;
+        return 1;
+    }
+
+    /*
+     * `npc_basturn(seq $left, seq $right)` -- the turn anims of the same
+     * BAS_CHANGE block, beside `npc_basready`'s ready anim and held with it
+     * until `npc_basreset` (`[bas] turnleft=.., turnright=..`). Ezekiel
+     * weakened turns on `npc_ezekiel_weaken01` (RSProx 4301 [95], 4314 [563],
+     * 4315 [930]: every weaken).
+     */
+    case SS_OP_NPC_BASTURN:
+    {
+        int32_t values[2];
+        struct ToriRSServerNpc* npc = active_npc(state);
+
+        for( int i = 1; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_basturn with no active npc");
+            return 1;
+        }
+        if( values[0] < 0 || values[0] > 65534 || values[1] < 0 || values[1] > 65534 )
+        {
+            SSVM_Abort(state, "npc_basturn %d, %d: each must be a seq", (int)values[0], (int)values[1]);
+            return 1;
+        }
+        npc->bas_turnleft = (int)values[0];
+        npc->bas_turnright = (int)values[1];
+        npc->bas_turn_set = 1;
         npc->masks |= TORIRSSERVER_NMASK_BAS;
         return 1;
     }

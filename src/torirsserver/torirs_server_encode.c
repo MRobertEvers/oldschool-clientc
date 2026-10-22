@@ -6018,7 +6018,8 @@ npc_v5_sends_body(const struct ToriRSServerNpc* npc, int added)
 static int
 npc_v241_sends_bas(const struct ToriRSServerNpc* npc, int added)
 {
-    return (npc->masks & TORIRSSERVER_NMASK_BAS) != 0 || (added && npc->bas_ready_set);
+    return (npc->masks & TORIRSSERVER_NMASK_BAS) != 0 ||
+           (added && (npc->bas_ready_set || npc->bas_turn_set));
 }
 
 static int
@@ -6691,7 +6692,14 @@ put_npc_extended_v241(
      * unset stance from the npc's type). */
     if( flag & V241_NPC_BAS_CHANGE )
     {
-        rsab_p4_alt1(buf, npc->bas_ready_set ? 0x4000 : 0);
+        rsab_p4_alt1(buf, (npc->bas_turn_set ? 0x3 : 0) | (npc->bas_ready_set ? 0x4000 : 0));
+        /* decodeBaseAnimationSet: turn left g2Alt1 (0x1), turn right g2
+         * (0x2), ..., ready g2 (0x4000), in bit order. */
+        if( npc->bas_turn_set )
+        {
+            rsab_p2_alt1(buf, npc->bas_turnleft);
+            rsab_p2(buf, npc->bas_turnright);
+        }
         if( npc->bas_ready_set )
             rsab_p2(buf, npc->bas_ready);
     }
@@ -6742,7 +6750,9 @@ npc_put_add_record(
             sel++;
         rsab_pbit(buf, 16, client_slot);
         rsab_pbit(buf, 6, dz & 0x3f);
-        rsab_pbit(buf, 1, 1); /* jump: appear on the tile */
+        /* jump: appear on the tile; clear only for `npc_teleslide`'s re-add,
+         * which the client moves to instead. */
+        rsab_pbit(buf, 1, npc->tele && npc->tele_slide ? 0 : 1);
         rsab_pbit(buf, 3, npc->face_dir & 7);
         rsab_pbit(buf, 1, 0); /* no spawn cycle */
         rsab_pbit(buf, 1, extended);
@@ -6757,7 +6767,7 @@ npc_put_add_record(
     rsab_pbit(buf, 6, dx & 0x3f);
     rsab_pbit(buf, 3, npc->face_dir & 7);
     rsab_pbit(buf, 6, dz & 0x3f);
-    rsab_pbit(buf, 1, 1); /* jump: appear on the tile */
+    rsab_pbit(buf, 1, npc->tele && npc->tele_slide ? 0 : 1); /* jump: see the 241 record */
     rsab_pbit(buf, TORIRSSERVER_NPC_TYPE_BITS, npc_initial_wire_type(npc));
 }
 
@@ -7427,7 +7437,9 @@ npc_info_encode(struct ToriRSServerPlayer* player)
                 if( in_range && npc->tele )
                 {
                     ToriRSServer_NpcTrace(player, slot, ToriRSServer_SlotMapClient(player, slot),
-                                          "TELEJUMP (re-added under the same client slot)");
+                                          npc->tele_slide
+                                              ? "TELEPORT (re-added under the same client slot, jump bit clear)"
+                                              : "TELEJUMP (re-added under the same client slot)");
                     rejumped[rejumped_count++] = slot;
                     continue;
                 }

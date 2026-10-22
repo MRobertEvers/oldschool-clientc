@@ -4136,12 +4136,13 @@ ToriRSServer_WorldRemoteViewEnd(struct ToriRSServerPlayer* player)
 /* NPCs                                                                */
 /* ------------------------------------------------------------------ */
 
-void
-ToriRSServer_WorldNpcTeleport(
+static void
+npc_teleport(
     struct ToriRSServerNpc* npc,
     int x,
     int z,
-    int level)
+    int level,
+    int allow_glide)
 {
     int dx;
     int dz;
@@ -4166,8 +4167,8 @@ ToriRSServer_WorldNpcTeleport(
      * npc has not stepped already this tick. Further, or across floors, it
      * stays a jump: removed and re-added on the tile.
      */
-    glide = level == npc->level && (dx != 0 || dz != 0) && abs(dx) <= 2 && abs(dz) <= 2 &&
-            npc->step_dir < 0 && !npc->tele;
+    glide = allow_glide && level == npc->level && (dx != 0 || dz != 0) && abs(dx) <= 2 &&
+            abs(dz) <= 2 && npc->step_dir < 0 && !npc->tele;
     npc_set_occupancy(npc, 0);
     if( glide )
     {
@@ -4204,6 +4205,37 @@ ToriRSServer_WorldNpcTeleport(
     npc->step_dir = -1;
     npc->run_dir = -1;
     npc->tele = 1;
+}
+
+void
+ToriRSServer_WorldNpcTeleport(
+    struct ToriRSServerNpc* npc,
+    int x,
+    int z,
+    int level)
+{
+    npc_teleport(npc, x, z, level, 1);
+}
+
+void
+ToriRSServer_WorldNpcJump(
+    struct ToriRSServerNpc* npc,
+    int x,
+    int z,
+    int level)
+{
+    npc_teleport(npc, x, z, level, 0);
+}
+
+void
+ToriRSServer_WorldNpcSlide(
+    struct ToriRSServerNpc* npc,
+    int x,
+    int z,
+    int level)
+{
+    npc_teleport(npc, x, z, level, 0);
+    npc->tele_slide = 1;
 }
 
 void
@@ -19618,6 +19650,7 @@ phase_cleanup(struct ToriRSServer* srv)
          * tick, and every recipient's NPC_INFO has to have been written before
          * it is dropped. See `ToriRSServerNpc.tele`. */
         srv->npcs[i].tele = 0;
+        srv->npcs[i].tele_slide = 0;
         srv->npcs[i].anim_id = -1;
         srv->npcs[i].anim_delay = 0;
         /*

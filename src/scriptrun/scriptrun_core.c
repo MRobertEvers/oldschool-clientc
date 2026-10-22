@@ -1121,6 +1121,12 @@ npc_apply_op(
         {
             int lx, lz, llevel;
             npc_apply_origin(self, &lx, &lz, &llevel);
+            /* TORIRS_SCRIPTRUN_NPC_MOVE_TRACE=1: every add record's placement
+             * as the bot read it, with the jump bit (`[teleport]` is 0,
+             * `[telejump]` and a fresh add 1). */
+            if( getenv("TORIRS_SCRIPTRUN_NPC_MOVE_TRACE") )
+                fprintf(stderr, "scriptrun_npc_move: slot=%d tile=%d,%d jump=%d\n", self->cur_slot,
+                        lx + op->_delta_xz.dx, lz + op->_delta_xz.dz, op->_delta_xz.jump ? 1 : 0);
             World_NpcPathJump(
                 world, idx, op->_delta_xz.jump, lx + op->_delta_xz.dx, lz + op->_delta_xz.dz);
         }
