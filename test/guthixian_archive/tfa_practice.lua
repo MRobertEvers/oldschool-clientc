@@ -15,9 +15,9 @@ local function present(t, sym)
 end
 
 local function kit(t)
-    local _, worn = t.inv.count_in("worn", "zaryte_xbow")
-    local _, oblig = t.inv.count("obligator")
-    return worn == 1 and oblig == 1, "zaryte_xbow worn " .. tostring(worn) .. ", obligator " .. tostring(oblig)
+    local _, worn = t.inv.count_in("worn", "scorching_bow")
+    local _, venator = t.inv.count("venator_bow")
+    return worn == 1 and venator == 1, "scorching_bow worn " .. tostring(worn) .. ", venator_bow " .. tostring(venator)
 end
 
 local function square(t)
@@ -29,9 +29,12 @@ local function square(t)
 end
 
 -- Die where you stand, then the restart: the line, a new copy of the room
--- (another map square), and the room's npc in it.
+-- (another map square), the room's npc in it, and the special bar full again
+-- (owner 2026-10-22; spent to nothing before the death).
 local function die_and_restart(t, label, boss)
     local was = square(t)
+    t.cheat("::setvar varp300_sa_energy 0", false)
+    t.ticks(1)
     t.cheat("::die", false)
     local r = t.msg.await("Practice mode: the room starts again", 15)
     t.check(label .. ".death_line", r == "ok", "no practice death line")
@@ -44,6 +47,8 @@ local function die_and_restart(t, label, boss)
     t.ticks(6)
     local kept, note = kit(t)
     t.check(label .. ".kept", kept, note)
+    local _, spec = t.var.varp("varp300_sa_energy")
+    t.check(label .. ".special", spec == 1000, "special energy " .. tostring(spec))
     t.check(label .. ".no_failure", t.msg.expect("You failed to survive") ~= "ok", "the raid was failed")
 end
 

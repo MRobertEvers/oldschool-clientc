@@ -11107,6 +11107,7 @@ script_command(
                 return 1;
         }
         ToriRSServer_SendIfSethide(srv->active_player, values[0], values[1]);
+        ToriRSServer_HpBarNoteSethide(srv->active_player, values[0], values[1]);
         return 1;
     }
 

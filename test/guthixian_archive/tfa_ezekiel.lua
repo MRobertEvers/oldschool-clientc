@@ -256,16 +256,24 @@ return {
         -- Up to four specials, until one leaves a band to roll out of.
         local seen, swords, boss, stand, roll
         for _ = 1, 4 do
-            fight(t, "tfa_ezekiel", 120, function() return #rows_of("tfa_ezekiel_sword") > 0 end)
-            -- Timed from the swords' add, not from when the bot looked: a
-            -- special added during the kite is standing when this leg starts.
-            seen = now(t)
-            local _, adds = t.ticklog.rows({ kind = "npc_spawn" })
+            -- Timed from the swords' add, watched a tick at a time in the
+            -- bot's view (the tick log's rows reach the script late): an
+            -- attack press can hold the bot for several ticks and see them
+            -- too late to stand in a band. He fights on without its swings.
+            -- Swords already standing came before the watch: let them fly.
+            local from = now(t)
             local added
-            for _, a in ipairs(adds or {}) do
-                if a.type == 16653 and a.tick <= seen and a.tick >= seen - 12 then added = a.tick end
+            local clear = false
+            while not added and now(t) < from + 120 do
+                local hr, hv = t.skill.read("hitpoints")
+                if hr == "ok" and type(hv) == "table" and (hv.level or 99) < 75 then
+                    t.cheat("::tfaheal", false)
+                end
+                local n = #rows_of("tfa_ezekiel_sword")
+                if n == 0 then clear = true end
+                if clear and n > 0 then added = now(t) else t.ticks(1) end
             end
-            seen = added or seen
+            seen = added or now(t)
             swords, boss = rows_of("tfa_ezekiel_sword"), rows_of("tfa_ezekiel")[1]
             if #swords == 0 then break end
             stand, roll = plan(swords, boss)

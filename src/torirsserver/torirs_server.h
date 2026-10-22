@@ -4835,6 +4835,11 @@ struct ToriRSServerPlayer
     int hpbar_boss_raised;
     /* The held reading's npc was a boss (`hpbar_last_*` above). */
     int hpbar_last_boss;
+    /* The npc uid the open panel last read, 0 for none, and whether a script
+     * has hidden its body (`if_sethide(hpbar_hud:hp, true)`, a fade's) since
+     * clientscript 2376 last showed it. See `ToriRSServer_HpBarNoteSethide`. */
+    int hpbar_shown_uid;
+    int hpbar_body_hidden;
 
     /*
      * The helper panel -- see torirs_server_helper.c.
@@ -9178,6 +9183,18 @@ void
 ToriRSServer_HpBarTick(
     struct ToriRSServer* srv,
     struct ToriRSServerPlayer* player);
+
+/**
+ * A script's IF_SETHIDE, seen by the overlay: hiding `hpbar_hud:hp` (a fade
+ * does) leaves the panel open and fed but invisible, and only clientscript
+ * 2376 shows it again. `ToriRSServer_HpBarTick` sends that when the panel
+ * moves on to another npc.
+ */
+void
+ToriRSServer_HpBarNoteSethide(
+    struct ToriRSServerPlayer* player,
+    int uid,
+    int hide);
 
 /** No helper is wanted. Not a helper id -- see `ToriRSServer_HelperWantedFor`. */
 #define TORIRSSERVER_HELPER_NONE 0

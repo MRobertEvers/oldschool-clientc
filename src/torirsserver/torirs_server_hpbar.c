@@ -70,6 +70,14 @@
  * whenever the npc it shows changes, which 2377 answers with a forced redraw
  * (a new name) rather than the var-transmit hook's plain one.
  *
+ * A changed npc is judged by TYPE, so a script that hid the body is a second
+ * case: a fade hides 303:5 and leaves the panel open, and when it comes back
+ * onto a new npc of the SAME type -- the Archive's practice mode rebuilding
+ * the room, a new Guardian after a death -- nothing re-showed it and the boss
+ * bar stayed gone for good. A hidden body is shown again when the panel reads
+ * a different npc (uid), never on the npc it was hidden over, so a fade or a
+ * cutscene that hides the bar mid-fight keeps it hidden.
+ *
  * The components come from the ids table by name (com_hpbar_hud_event), never
  * as numbers: this list was rev-239 numbers after the tree moved to the 241
  * cache, and every boss bar drew its sliding shade as the fill over a `back`
@@ -266,6 +274,7 @@ ToriRSServer_HpBarTick(
     int want_max = 0;
     int pinned = 0;
     int boss = 0;
+    int shown_uid = 0;
 
     assert(srv);
     assert(player);
@@ -296,6 +305,7 @@ ToriRSServer_HpBarTick(
     {
         struct ToriRSServerNpc const* npc = &srv->npcs[slot];
         want_type = npc->type;
+        shown_uid = (int)(((uint32_t)npc->generation << 16) | (uint32_t)slot);
         /* The phase's own pool, as the overhead bar draws it (`headbar_reserve`). */
         want_hp = npc->hitpoints - npc->headbar_reserve;
         if( want_hp < 0 )
@@ -389,6 +399,8 @@ ToriRSServer_HpBarTick(
             return;
         player->hpbar_open = 0;
         player->hpbar_linger = 0;
+        player->hpbar_shown_uid = 0;
+        player->hpbar_body_hidden = 0;
         if( getenv("TORIRS_HPBAR_DEBUG") )
             fprintf(stderr, "hpbar: close\n");
         ToriRSServer_WorldSetVarpOn(srv, player, ids->varp_hpbar_hud_npc, -1);
@@ -462,7 +474,30 @@ ToriRSServer_HpBarTick(
             if( base >= 0 )
                 ToriRSServer_WorldMarkVarp(player, base);
         }
-        if( first || shown_type != want_type )
+        if( first || shown_type != want_type ||
+            (player->hpbar_body_hidden && shown_uid != 0 &&
+             shown_uid != player->hpbar_shown_uid) )
+        {
             hpbar_send_open_event(player, ids);
+            player->hpbar_body_hidden = 0;
+        }
+        if( shown_uid != 0 )
+            player->hpbar_shown_uid = shown_uid;
     }
+}
+
+void
+ToriRSServer_HpBarNoteSethide(
+    struct ToriRSServerPlayer* player,
+    int uid,
+    int hide)
+{
+    struct ToriRSServerIds const* ids = ToriRSServer_Ids();
+
+    assert(player);
+
+    /* hpbar_hud:hp, the body 2376 unhides (com_hpbar_hud_event[3]). */
+    if( ids->com_hpbar_hud_event[3] <= 0 || uid != ids->com_hpbar_hud_event[3] )
+        return;
+    player->hpbar_body_hidden = hide ? 1 : 0;
 }

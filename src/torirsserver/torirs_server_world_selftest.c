@@ -5170,6 +5170,114 @@ selftest_apmeng_engine(
     selftest_park_player(srv, 3222, 3218);
 }
 
+/* RUNCLIENTSCRIPT 2376 (`hp_hud_handle_event`, the boss bar shown) in a capture. */
+static int
+selftest_capture_count_hpbar_show(
+    struct ToriRSServer* srv,
+    struct ToriRSServerCapture* capture)
+{
+    int n = 0;
+
+    for( int p = 0; p < capture->count; p++ )
+    {
+        char types[24];
+        int argc = 0;
+        int argv[19];
+        int script_id;
+
+        if( capture->packets[p].name != PKT_NAME_RUNCLIENTSCRIPT )
+            continue;
+        ToriRSServer_WireReadRunClientscript(
+            srv->wire, capture->packets[p].data, capture->packets[p].len, types,
+            (int)sizeof(types), argv, (int)(sizeof(argv) / sizeof(argv[0])), &argc,
+            &script_id);
+        n += script_id == 2376;
+    }
+    return n;
+}
+
+/*
+ * The boss bar after a fade, onto a new npc of the SAME type.
+ *
+ * A fade hides `hpbar_hud:hp` and leaves the panel open; 2376 alone shows it
+ * again, and it was sent only when the npc TYPE changed. The Fractured
+ * Archive's practice mode rebuilds the room after a death with a new Guardian
+ * of the same type, so the bar stayed hidden for good (owner 2026-10-22). A
+ * hidden body comes back for a different npc, and stays hidden over the one it
+ * was hidden on (a fade or cutscene mid-fight).
+ */
+static void
+selftest_hpbar_reshow(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player)
+{
+    static struct ToriRSServerCapture cap;
+    const struct ToriRSServerIds* ids = ToriRSServer_Ids();
+    int const man = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "man");
+    int const body = ids->com_hpbar_hud_event[3];
+    int a;
+    int b;
+    int uid_a;
+    int uid_b;
+    int shows;
+
+    fprintf(stderr, "ToriRSServer selftest: the boss bar re-shown after a hide\n");
+    selftest_reset_world(srv, player, 3222 >> 3, 3218 >> 3);
+    selftest_park_player(srv, 3222, 3218);
+    SELFTEST_CHECK(ids->iface_hpbar_hud > 0 && body > 0 && man >= 0,
+                   "hpbar: hpbar_hud, hpbar_hud:hp and man resolve");
+    if( ids->iface_hpbar_hud <= 0 || body <= 0 || man < 0 )
+        return;
+    a = ToriRSServer_WorldNpcSpawn(srv, man, 3224, 3218, 0);
+    b = ToriRSServer_WorldNpcSpawn(srv, man, 3226, 3218, 0);
+    SELFTEST_CHECK(a >= 0 && b >= 0, "hpbar: two men spawn");
+    if( a < 0 || b < 0 )
+        return;
+    uid_a = (int)(((uint32_t)srv->npcs[a].generation << 16) | (uint32_t)a);
+    uid_b = (int)(((uint32_t)srv->npcs[b].generation << 16) | (uint32_t)b);
+
+    ToriRSServer_CaptureBegin(srv, &cap);
+    player->hpbar_npc_uid = uid_a;
+    ToriRSServer_HpBarTick(srv, player); /* the open */
+    ToriRSServer_HpBarTick(srv, player); /* the first data tick */
+    shows = selftest_capture_count_hpbar_show(srv, &cap);
+    SELFTEST_CHECK(shows == 1, "hpbar: the panel's first data tick shows it once (%d)", shows);
+
+    /* A fade over the same npc: it stays hidden. */
+    ToriRSServer_CaptureReset(&cap);
+    ToriRSServer_HpBarNoteSethide(player, body, 1);
+    ToriRSServer_HpBarTick(srv, player);
+    ToriRSServer_HpBarTick(srv, player);
+    shows = selftest_capture_count_hpbar_show(srv, &cap);
+    SELFTEST_CHECK(shows == 0, "hpbar: hidden over the same npc, it is not shown again (%d)", shows);
+
+    /* The npc goes (the pin is held), then a new one of the same type. */
+    ToriRSServer_WorldNpcFree(srv, a);
+    ToriRSServer_HpBarTick(srv, player);
+    shows = selftest_capture_count_hpbar_show(srv, &cap);
+    SELFTEST_CHECK(shows == 0, "hpbar: a held pin is not shown again (%d)", shows);
+    player->hpbar_npc_uid = uid_b;
+    ToriRSServer_HpBarTick(srv, player);
+    shows = selftest_capture_count_hpbar_show(srv, &cap);
+    SELFTEST_CHECK(shows == 1,
+                   "hpbar: hidden, then a new npc of the same type -- shown again (%d)", shows);
+
+    /* Shown, then no hide: the next same-type npc needs no second show. */
+    ToriRSServer_CaptureReset(&cap);
+    a = ToriRSServer_WorldNpcSpawn(srv, man, 3224, 3218, 0);
+    if( a >= 0 )
+    {
+        player->hpbar_npc_uid = (int)(((uint32_t)srv->npcs[a].generation << 16) | (uint32_t)a);
+        ToriRSServer_HpBarTick(srv, player);
+        shows = selftest_capture_count_hpbar_show(srv, &cap);
+        SELFTEST_CHECK(shows == 0, "hpbar: not hidden, a same-type npc sends nothing (%d)", shows);
+        ToriRSServer_WorldNpcFree(srv, a);
+    }
+    ToriRSServer_CaptureEnd(srv);
+    ToriRSServer_WorldNpcFree(srv, b);
+    player->hpbar_npc_uid = 0;
+}
+
 int
 ToriRSServer_WorldSelftest(void)
 {
@@ -5384,6 +5492,16 @@ ToriRSServer_WorldSelftest(void)
         fprintf(stderr, "ToriRSServer apmeng selftest: %lu checks, %d failures\n",
                 g_selftest_checks, g_selftest_failures);
         selftest_evidence_end("apmeng");
+        return g_selftest_failures;
+    }
+
+    /* TORIRSSERVER_SELFTEST_HPBAR_ONLY=1 ./src/build_opt/torirsserver --selftest */
+    if( getenv("TORIRSSERVER_SELFTEST_HPBAR_ONLY") )
+    {
+        selftest_hpbar_reshow(srv, player);
+        fprintf(stderr, "ToriRSServer hpbar selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("hpbar");
         return g_selftest_failures;
     }
 
@@ -64432,6 +64550,7 @@ ToriRSServer_WorldSelftest(void)
         }
     }
     selftest_apmeng_engine(srv, player);
+    selftest_hpbar_reshow(srv, player);
     selftest_reset_world(srv, player, 402, 402);
 
     /* Across the WHOLE suite — see the two counters' fields. Asserted here
