@@ -1426,12 +1426,20 @@ static enum ToriRS_RendererKind renderer_active;
 static bool
 renderer_active_is_depth(void)
 {
-    return renderer_active == TORIRS_RENDERER_KIND_OPENGL3_DEPTH ||
+    return renderer_active == TORIRS_RENDERER_KIND_SOFTWARE_DEPTH ||
+           renderer_active == TORIRS_RENDERER_KIND_OPENGL3_DEPTH ||
            renderer_active == TORIRS_RENDERER_KIND_GLES2_DEPTH ||
            renderer_active == TORIRS_RENDERER_KIND_GLES3_DEPTH ||
            renderer_active == TORIRS_RENDERER_KIND_D3D9_DEPTH ||
            renderer_active == TORIRS_RENDERER_KIND_WEBGL1_DEPTH ||
            renderer_active == TORIRS_RENDERER_KIND_WEBGL2_DEPTH;
+}
+/* Soft3D, painter or depth-buffered: the kinds with no GPU handle, that read
+ * the scene directly and present a software frame. */
+static bool
+renderer_is_software(enum ToriRS_RendererKind kind)
+{
+    return kind == TORIRS_RENDERER_KIND_SOFTWARE || kind == TORIRS_RENDERER_KIND_SOFTWARE_DEPTH;
 }
 /* What the launch's flags chose -- the meaning of RS_CS2_RENDERER_LAUNCH_DEFAULT.
  * Moved to the renderer actually running if the launch's could not start. */
@@ -1448,6 +1456,7 @@ renderer_present(enum ToriRS_RendererKind kind)
     switch( kind )
     {
     case TORIRS_RENDERER_KIND_SOFTWARE:
+    case TORIRS_RENDERER_KIND_SOFTWARE_DEPTH:
         return PLATFORM_PRESENT_SOFTWARE;
     case TORIRS_RENDERER_KIND_OPENGL3:
     case TORIRS_RENDERER_KIND_OPENGL3_DEPTH:
@@ -1477,6 +1486,7 @@ renderer_built(enum ToriRS_RendererKind kind)
     switch( kind )
     {
     case TORIRS_RENDERER_KIND_SOFTWARE:
+    case TORIRS_RENDERER_KIND_SOFTWARE_DEPTH:
         return true;
     case TORIRS_RENDERER_KIND_OPENGL3:
     case TORIRS_RENDERER_KIND_OPENGL3_DEPTH:
@@ -1587,7 +1597,13 @@ renderer_start_kind(enum ToriRS_RendererKind kind)
     switch( kind )
     {
     case TORIRS_RENDERER_KIND_SOFTWARE:
-        App_SetWorldRenderMode(&app, TORIRS_WORLD_PAINTER);
+    case TORIRS_RENDERER_KIND_SOFTWARE_DEPTH:
+        /* Nothing to start. The depth kind is the world mode alone: App_Render
+         * reads it and puts Soft3D on its frame-wide z-buffer -- the same
+         * contract as every GPU depth renderer. */
+        App_SetWorldRenderMode(
+            &app,
+            kind == TORIRS_RENDERER_KIND_SOFTWARE_DEPTH ? TORIRS_WORLD_DEPTH : TORIRS_WORLD_PAINTER);
         App_SetRendererAnimatesTextures(&app, false);
         return true;
 #if defined(TORIRS_HAVE_GL3)
@@ -1845,7 +1861,7 @@ renderer_switch(enum ToriRS_RendererKind kind)
      * and needs no replay.
      */
     ToriDraw_SceneFrameEnd(app.scene);
-    if( renderer_active != TORIRS_RENDERER_KIND_SOFTWARE )
+    if( !renderer_is_software(renderer_active) )
         ToriDraw_SceneReemitRendererLoads(app.scene);
 
     TORIRS_REPORT(
@@ -2239,7 +2255,7 @@ main_dynamic_chrome_scale(
 static char const*
 main_view_split_lane_refusal(enum ToriRS_RendererKind kind)
 {
-    if( kind == TORIRS_RENDERER_KIND_SOFTWARE || kind == TORIRS_RENDERER_KIND_OPENGL3 ||
+    if( renderer_is_software(kind) || kind == TORIRS_RENDERER_KIND_OPENGL3 ||
         kind == TORIRS_RENDERER_KIND_OPENGL3_DEPTH )
         return NULL;
     return "the active renderer (D3D9, GLES or WebGL) is not built or tested with a second view: "
@@ -4941,7 +4957,7 @@ frame_loop_step(void)
          * dropped; Soft3D reads the scene directly, so the skipped frame's
          * own ToriDraw_SceneFrameEnd below is all it is owed. */
         app_redraw = App_RenderSkipFrame(
-            &app, app_redraw, content_draw || renderer_active != TORIRS_RENDERER_KIND_SOFTWARE);
+            &app, app_redraw, content_draw || !renderer_is_software(renderer_active));
     }
     /* The runner camera split: the offscreen runner frame a driver push owed
      * is drawn here, BEFORE the presented one (one branch while detached). */
@@ -6339,6 +6355,9 @@ struct MainArgState
      * ES3 core the browser runs as --webgl2, on EGL. */
     int use_gles3;
     int gles3_zbuffer;
+    /* Soft3D on a frame-wide z-buffer (--soft3d-zbuffer) rather than the
+     * painter (--soft3d). Every lane has it: it needs no GPU. */
+    int soft3d_zbuffer;
     /* A renderer flag was given, by the command line or the manifest. The
      * launch then starts with that renderer whatever Client Settings saved. */
     int renderer_flag;
@@ -6359,7 +6378,7 @@ main_print_usage(char const* program)
         "[--opengl3|--opengl3-zbuffer|--webgl1|--webgl1-zbuffer|"
         "--webgl2|--webgl2-zbuffer|--gles2|--gles2-zbuffer|--gles3|--gles3-zbuffer|"
         "--gles2-dualcore|--gles2-dualcore-zbuffer|"
-        "--d3d9|--d3d9-zbuffer|--soft3d]\n",
+        "--d3d9|--d3d9-zbuffer|--soft3d|--soft3d-zbuffer]\n",
         program);
 }
 
@@ -6792,15 +6811,26 @@ main_parse_argument_layer(
             return 0;
 #endif
         }
-        if( strcmp(argv[argi], "--soft3d") == 0 )
+        if( strcmp(argv[argi], "--soft3d") == 0 || strcmp(argv[argi], "--soft3d-zbuffer") == 0 )
         {
+            /* Built on every lane, so never refused. Clears every GPU flag an
+             * earlier layer set: the launch selection tries those first, and a
+             * manifest's --webgl2 must not outrank the command line's --soft3d. */
             state->renderer_flag = 1;
+            state->soft3d_zbuffer = strcmp(argv[argi], "--soft3d-zbuffer") == 0;
             state->use_opengl3 = 0;
+            state->gl3_zbuffer = 0;
             state->use_d3d9 = 0;
             state->d3d9_zbuffer = 0;
-            state->gl3_zbuffer = 0;
             state->use_gles2 = 0;
             state->gles2_zbuffer = 0;
+            state->gles2_dualcore = 0;
+            state->use_webgl2 = 0;
+            state->webgl2_zbuffer = 0;
+            state->use_webgl1 = 0;
+            state->webgl1_zbuffer = 0;
+            state->use_gles3 = 0;
+            state->gles3_zbuffer = 0;
             continue;
         }
         if( positional == 0 && argv[argi][0] != '-' )
@@ -6888,6 +6918,7 @@ main(
         .webgl1_zbuffer = 0,
         .use_gles3 = 0,
         .gles3_zbuffer = 0,
+        .soft3d_zbuffer = 0,
         .renderer_flag = 0,
     };
     int argi;
@@ -7000,6 +7031,7 @@ main(
     int const webgl1_zbuffer = arg_state.webgl1_zbuffer;
     int const use_gles3 = arg_state.use_gles3;
     int const gles3_zbuffer = arg_state.gles3_zbuffer;
+    int const soft3d_zbuffer = arg_state.soft3d_zbuffer;
     int const renderer_flag = arg_state.renderer_flag;
 
     /* Cache identity is required. Prefer the manifest; otherwise resolve --rev
@@ -8272,7 +8304,8 @@ main(
          */
         renderer_gles2_dualcore = gles2_dualcore != 0;
         renderer_launch_flagged = renderer_flag != 0;
-        renderer_launch = TORIRS_RENDERER_KIND_SOFTWARE;
+        renderer_launch =
+            soft3d_zbuffer ? TORIRS_RENDERER_KIND_SOFTWARE_DEPTH : TORIRS_RENDERER_KIND_SOFTWARE;
         if( use_webgl2 )
             renderer_launch =
                 webgl2_zbuffer ? TORIRS_RENDERER_KIND_WEBGL2_DEPTH : TORIRS_RENDERER_KIND_WEBGL2;

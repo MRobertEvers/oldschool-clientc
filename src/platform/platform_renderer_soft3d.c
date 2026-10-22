@@ -1281,7 +1281,8 @@ soft3d_draw_model(
     assert(cmd);
     if( !soft->has_3d )
         return;
-    kernel = ToriDraw_FrameAbEnabled() ? &soft->kernel_ab[ToriDraw_FrameAbArm()] : soft->kernel;
+    kernel = !soft->depth && ToriDraw_FrameAbEnabled() ? &soft->kernel_ab[ToriDraw_FrameAbArm()]
+                                                       : soft->kernel;
     if( cmd->model.kind == TORIDRAWMK_NONE )
         return;
 
@@ -1344,26 +1345,33 @@ soft3d_draw_model(
     if( cmd->pick_only )
         return;
 
-    int sorted = 0;
-    TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_R_SORT)
+    /* The depth table resolves faces per pixel and culls its own back faces,
+     * so stage 2 does not run for it -- ToriDraw_RenderModelWithTable's rule. */
+    if( kernel->raster->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING )
     {
-        /* Whether this leaves the batched walk's y-ordered stash behind is the
-         * TABLE's answer, not ours -- and it has to be, because the arm we
-         * hold changes under TORIDRAW_RASTER_SCANLINE and the frame A/B, and
-         * only the branching kernel has a door that reads the stash. */
-        sorted = ToriDraw_RenderModel2SortFacesWithTable(cmd->model, soft->scene, kernel);
+        int sorted = 0;
+        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_R_SORT)
+        {
+            /* Whether this leaves the batched walk's y-ordered stash behind is
+             * the TABLE's answer, not ours -- and it has to be, because the arm
+             * we hold changes under TORIDRAW_RASTER_SCANLINE and the frame A/B,
+             * and only the branching kernel has a door that reads the stash. */
+            sorted = ToriDraw_RenderModel2SortFacesWithTable(cmd->model, soft->scene, kernel);
+        }
+        soft3d_dbg_draw_trace_sorted(cmd, sorted);
+        /* Counted after the sort, not before: a model that survives both culls
+         * has already paid its whole per-vertex projection by this point, so
+         * `sorted <= 0` is work spent for no pixels and wants its own name. */
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_R_MODEL_DRAWN, 1);
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_R_MODEL_FACES, sorted > 0 ? sorted : 0);
+        if( sorted <= 0 )
+        {
+            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_R_MODEL_SORT_EMPTY, 1);
+            return;
+        }
     }
-    soft3d_dbg_draw_trace_sorted(cmd, sorted);
-    /* Counted after the sort, not before: a model that survives both culls
-     * has already paid its whole per-vertex projection by this point, so
-     * `sorted <= 0` is work spent for no pixels and wants its own name. */
-    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_R_MODEL_DRAWN, 1);
-    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_R_MODEL_FACES, sorted > 0 ? sorted : 0);
-    if( sorted <= 0 )
-    {
-        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_R_MODEL_SORT_EMPTY, 1);
-        return;
-    }
+    else
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_R_MODEL_DRAWN, 1);
     /* ABLATION (TORIRS_ABL_NORASTER): everything decided, no pixels written. */
     if( soft3d_dbg_abl_noraster() )
         return;
@@ -1581,9 +1589,17 @@ ToriPlatform_Renderer_Soft3D_Execute(
         ToriDraw_ScenePrepareProjectionCamera(soft->scene, &soft->camera_3d);
         if( soft->view_port_3d.stride <= 0 || soft->scaled )
             soft->view_port_3d.stride = soft->stride;
+        /* One buffer for the whole pass, cleared here and nowhere else: the
+         * models of a depth world are unordered, so each must see the depths
+         * every earlier one wrote. */
+        if( soft->depth )
+            ToriDraw_SceneZBufferBeginPass(
+                soft->scene, &soft->camera_3d, soft->view_port_3d.stride, soft->height);
         break;
 
     case TORIRSRC_END_3D:
+        if( soft->depth )
+            ToriDraw_SceneZBufferEndPass(soft->scene);
         ToriDraw_SceneClearProjectionCamera(soft->scene);
         soft->has_3d = false;
         break;
@@ -2290,6 +2306,19 @@ ToriPlatform_Renderer_Soft3D_SetInterfaceScaleMode(
 {
     assert(soft);
     soft->interface_scale_mode = mode < 0 ? 0 : (mode > 2 ? 2 : mode);
+}
+
+void
+ToriPlatform_Renderer_Soft3D_SetDepth(
+    struct ToriPlatform_Renderer_Soft3D* soft,
+    bool depth)
+{
+    assert(soft);
+    assert(soft->scene);
+    soft->depth = depth;
+    /* Init already took the painter's table; only the depth world swaps it. */
+    if( depth )
+        soft->kernel = ToriDraw_KernelTake(soft->scene, ToriDraw_KernelGetSoftwareZBuffered());
 }
 
 static void

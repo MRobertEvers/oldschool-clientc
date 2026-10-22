@@ -1291,6 +1291,8 @@ hd_enable_zbuffer(struct hd_ctx* ctx)
     /* Calling this entry point IS the opt-in, so the buffer is sized here rather
      * than gated on TORIDRAW_SCENE_MODEL_ZBUFFER or on a per-model flag. */
     int const rows = clip_top + ctx->screen_height;
+    /* An open pass sized the buffer for the whole frame; see ToriDraw_RasterZ. */
+    assert(!scene->zbuffer_pass_open || ToriDraw_SceneHasZBuffer(scene, ctx->stride, rows));
     if( !ToriDraw_SceneHasZBuffer(scene, ctx->stride, rows) )
     {
         bool const provisioned = ToriDraw_SceneZBufferResize(scene, ctx->stride, rows);
@@ -1327,19 +1329,21 @@ hd_enable_zbuffer(struct hd_ctx* ctx)
     ctx->zbuf_source.orthographic_vertices_z = scene->orthographic_vertices_z;
 
     /* Before the first face, not after the last: the reset is what confines the
-     * depth test to this model, so it happens even if the model draws nothing. */
-    toridraw_zbuf_reset(
-        ctx->target.zbuffer,
-        ctx->stride,
-        ctx->screen_width,
-        ctx->screen_height,
-        scene->screen_vertices_x,
-        scene->screen_vertices_y,
-        ctx->m->vertex_count,
-        ctx->offset_x,
-        ctx->offset_y,
-        scene->near_clipped,
-        ctx->parallel);
+     * depth test to this model, so it happens even if the model draws nothing.
+     * A frame-wide pass owns the buffer instead and is not reset. */
+    if( !scene->zbuffer_pass_open )
+        toridraw_zbuf_reset(
+            ctx->target.zbuffer,
+            ctx->stride,
+            ctx->screen_width,
+            ctx->screen_height,
+            scene->screen_vertices_x,
+            scene->screen_vertices_y,
+            ctx->m->vertex_count,
+            ctx->offset_x,
+            ctx->offset_y,
+            scene->near_clipped,
+            ctx->parallel);
 }
 
 static int

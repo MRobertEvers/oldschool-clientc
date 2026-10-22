@@ -44,6 +44,10 @@ enum ToriRS_RendererKind
      *  runs the same core the browser runs as WebGL2. */
     TORIRS_RENDERER_KIND_GLES3,
     TORIRS_RENDERER_KIND_GLES3_DEPTH,
+    /** Soft3D on a frame-wide z-buffer: the world collected as
+     *  TORIRS_WORLD_DEPTH like the GPU depth kinds, drawn by the CPU. Every
+     *  lane has it, as every lane has SOFTWARE. Appended, hence not beside it. */
+    TORIRS_RENDERER_KIND_SOFTWARE_DEPTH,
 
     TORIRS_RENDERER_KIND_COUNT
 };

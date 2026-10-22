@@ -37,8 +37,8 @@
  * line, call ToriDraw_SceneZBufferResize instead; the flag is not required for
  * that, and a scene that has a buffer honours the model flag either way.
  *
- * Cost is `stride * rows * sizeof(torizdepth_t)` — 2 bytes per pixel where the
- * toolchain has a real 16-bit float, 4 otherwise (graphics/zdepth.h).
+ * Cost is `stride * rows * sizeof(torizdepth_t)` — 4 bytes per pixel, a 32-bit
+ * float on every target (graphics/zdepth.h).
  */
 #define TORIDRAW_SCENE_MODEL_ZBUFFER (1u << 3)
 
@@ -219,6 +219,30 @@ ToriDraw_SceneHasZBuffer(
     const struct ToriDraw_Scene* scene,
     int stride,
     int rows);
+
+/**
+ * Open a frame-wide depth pass over `stride` x `rows`.
+ *
+ * Provisions the buffer, clears it to the farthest key for `camera`'s
+ * projection, and until ToriDraw_SceneZBufferEndPass every depth-tested model
+ * draws into it WITHOUT resetting it first -- so models occlude each other per
+ * pixel, as they do under a GPU depth buffer, instead of each resolving only
+ * against itself. Draw every model of the pass with the same camera: a
+ * perspective key and a parallel one do not compare.
+ *
+ * Passes do not nest.
+ */
+void
+ToriDraw_SceneZBufferBeginPass(
+    struct ToriDraw_Scene* scene,
+    const struct ToriDraw_Camera* camera,
+    int stride,
+    int rows);
+
+/** Close the pass ToriDraw_SceneZBufferBeginPass opened; depth-tested models
+ *  reset the buffer per model again from here on. */
+void
+ToriDraw_SceneZBufferEndPass(struct ToriDraw_Scene* scene);
 
 /* Asset registry: models */
 

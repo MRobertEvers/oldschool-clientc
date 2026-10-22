@@ -47,6 +47,10 @@ struct ToriPlatform_Renderer_Soft3D
      */
     struct ToriDraw_Kernel kernel_ab[2];
     int batch_ab[2];
+    /* The depth-buffered world (ToriPlatform_Renderer_Soft3D_SetDepth): every
+     * 3D pass is one frame-wide z-buffer and models draw unsorted through the
+     * software-zbuffered table. The frame A/B does not apply to it. */
+    bool depth;
     int* pixels;
     /* The buffer: what `pixels` holds and the world is drawn at. */
     int width;
@@ -132,6 +136,22 @@ void
 ToriPlatform_Renderer_Soft3D_SetInterfaceScaleMode(
     struct ToriPlatform_Renderer_Soft3D* soft,
     int mode);
+
+/**
+ * Draw the world through a depth buffer (the "Software (depth buffer)"
+ * renderer) instead of the painter's order. Call after Init, which resets it
+ * to the painter.
+ *
+ * Each BEGIN_3D .. END_3D pass then opens one frame-wide z-buffer
+ * (ToriDraw_SceneZBufferBeginPass) and every model of the pass draws through
+ * ToriDraw_KernelGetSoftwareZBuffered with no face sort, so models occlude
+ * each other per pixel. That is only correct when the app collects the world
+ * as TORIRS_WORLD_DEPTH -- the same contract as the GPU depth renderers.
+ */
+void
+ToriPlatform_Renderer_Soft3D_SetDepth(
+    struct ToriPlatform_Renderer_Soft3D* soft,
+    bool depth);
 
 /**
  * Draw layout-space pixels into a scaled buffer from outside the command

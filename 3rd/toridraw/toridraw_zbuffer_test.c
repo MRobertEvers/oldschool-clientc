@@ -33,6 +33,9 @@
  *     back-to-front blend still composites in order.
  *   - the buffer is reset per model, so one model's depths cannot reject
  *     another's pixels, and a model that does not opt in is unaffected.
+ *   - inside a frame-wide pass (ToriDraw_SceneZBufferBeginPass) it is NOT, so
+ *     a far model drawn after a near one stays hidden -- the software depth
+ *     renderer's contract -- and closing the pass restores the reset.
  *
  * Build and run:
  *   make -C src test-zbuffer
@@ -1085,6 +1088,41 @@ register_test_textures(struct ToriDraw_Scene* scene)
     ToriDraw_SceneSetTexture(scene, TEX_ID_RIGHT, right);
 }
 
+/* Same footprint, different depths, as two separate models. */
+static void
+build_stacked_models(struct Mesh* near_mesh, struct Mesh* far_mesh)
+{
+    mesh_init(near_mesh);
+    {
+        int const v0 = mesh_add_vertex(near_mesh, -EXTENT / 2, -EXTENT / 2, -EXTENT);
+        int const v1 = mesh_add_vertex(near_mesh, EXTENT / 2, -EXTENT / 2, -EXTENT);
+        int const v2 = mesh_add_vertex(near_mesh, EXTENT / 2, EXTENT / 2, -EXTENT);
+        int const v3 = mesh_add_vertex(near_mesh, -EXTENT / 2, EXTENT / 2, -EXTENT);
+
+        mesh_add_quad(near_mesh, v0, v1, v2, v3, HSL_NEAR_LEFT, 0);
+    }
+    mesh_init(far_mesh);
+    {
+        int const v0 = mesh_add_vertex(far_mesh, -EXTENT / 2, -EXTENT / 2, EXTENT);
+        int const v1 = mesh_add_vertex(far_mesh, EXTENT / 2, -EXTENT / 2, EXTENT);
+        int const v2 = mesh_add_vertex(far_mesh, EXTENT / 2, EXTENT / 2, EXTENT);
+        int const v3 = mesh_add_vertex(far_mesh, -EXTENT / 2, EXTENT / 2, EXTENT);
+
+        mesh_add_quad(far_mesh, v0, v1, v2, v3, HSL_NEAR_RIGHT, 0);
+    }
+}
+
+static long
+frame_count_rgb(const struct Frame* f, int rgb)
+{
+    long n = 0;
+
+    for( int i = 0; i < VIEW_W * VIEW_H; i++ )
+        if( (int)f->pixels[i] == rgb )
+            n++;
+    return n;
+}
+
 static void
 test_buffer_is_reset_per_model(struct ToriDraw_Scene* scene)
 {
@@ -1094,28 +1132,9 @@ test_buffer_is_reset_per_model(struct ToriDraw_Scene* scene)
     struct ToriDraw_ViewPort vp = viewport();
     struct ToriDraw_Camera cam = camera();
     struct ToriDraw_Position pos = position();
-    int const rgb_far = rgb_of(HSL_NEAR_RIGHT);
-    long far_pixels = 0;
+    long far_pixels;
 
-    /* Same footprint, different depths, as two separate models. */
-    mesh_init(&near_mesh);
-    {
-        int const v0 = mesh_add_vertex(&near_mesh, -EXTENT / 2, -EXTENT / 2, -EXTENT);
-        int const v1 = mesh_add_vertex(&near_mesh, EXTENT / 2, -EXTENT / 2, -EXTENT);
-        int const v2 = mesh_add_vertex(&near_mesh, EXTENT / 2, EXTENT / 2, -EXTENT);
-        int const v3 = mesh_add_vertex(&near_mesh, -EXTENT / 2, EXTENT / 2, -EXTENT);
-
-        mesh_add_quad(&near_mesh, v0, v1, v2, v3, HSL_NEAR_LEFT, 0);
-    }
-    mesh_init(&far_mesh);
-    {
-        int const v0 = mesh_add_vertex(&far_mesh, -EXTENT / 2, -EXTENT / 2, EXTENT);
-        int const v1 = mesh_add_vertex(&far_mesh, EXTENT / 2, -EXTENT / 2, EXTENT);
-        int const v2 = mesh_add_vertex(&far_mesh, EXTENT / 2, EXTENT / 2, EXTENT);
-        int const v3 = mesh_add_vertex(&far_mesh, -EXTENT / 2, EXTENT / 2, EXTENT);
-
-        mesh_add_quad(&far_mesh, v0, v1, v2, v3, HSL_NEAR_RIGHT, 0);
-    }
+    build_stacked_models(&near_mesh, &far_mesh);
 
     frame_clear(&frame);
     near_mesh.model.flags = TORIDRAW_MODEL_FLAG_ZBUFFER;
@@ -1124,9 +1143,7 @@ test_buffer_is_reset_per_model(struct ToriDraw_Scene* scene)
     ToriDraw_RenderModel(near_mesh.hnd, scene, &pos, &vp, &cam, frame.pixels);
     ToriDraw_RenderModel(far_mesh.hnd, scene, &pos, &vp, &cam, frame.pixels);
 
-    for( int i = 0; i < VIEW_W * VIEW_H; i++ )
-        if( (int)frame.pixels[i] == rgb_far )
-            far_pixels++;
+    far_pixels = frame_count_rgb(&frame, rgb_of(HSL_NEAR_RIGHT));
 
     /* The far model is drawn second and must win outright: models layer by the
      * order the scene draws them, and the buffer the first model filled has to
@@ -1136,6 +1153,56 @@ test_buffer_is_reset_per_model(struct ToriDraw_Scene* scene)
         "only %ld pixels of the second model survived the first model's depths — the "
         "buffer is not being reset per model",
         far_pixels);
+}
+
+/*
+ * The frame-wide pass: the same two models, drawn near-then-far with no face
+ * sort, as the software depth renderer draws the world. Inside the pass the far
+ * one is behind every pixel the near one wrote and must not show; the control
+ * is the identical draw with no pass open, where the per-model reset lets it
+ * through -- without that, "hidden" could be the far model failing to draw.
+ */
+static void
+test_frame_pass_spans_models(struct ToriDraw_Scene* scene)
+{
+    const struct ToriDraw_Kernel* table =
+        ToriDraw_KernelTake(scene, ToriDraw_KernelGetSoftwareZBuffered());
+    struct Mesh near_mesh;
+    struct Mesh far_mesh;
+    struct Frame in_pass;
+    struct Frame no_pass;
+    struct ToriDraw_ViewPort vp = viewport();
+    struct ToriDraw_Camera cam = camera();
+    struct ToriDraw_Position pos = position();
+    int const rgb_near = rgb_of(HSL_NEAR_LEFT);
+    int const rgb_far = rgb_of(HSL_NEAR_RIGHT);
+
+    build_stacked_models(&near_mesh, &far_mesh);
+
+    frame_clear(&in_pass);
+    ToriDraw_SceneZBufferBeginPass(scene, &cam, VIEW_W, VIEW_H);
+    ToriDraw_RenderModelWithTable(near_mesh.hnd, scene, &pos, &vp, &cam, in_pass.pixels, table);
+    ToriDraw_RenderModelWithTable(far_mesh.hnd, scene, &pos, &vp, &cam, in_pass.pixels, table);
+    ToriDraw_SceneZBufferEndPass(scene);
+
+    frame_clear(&no_pass);
+    ToriDraw_RenderModelWithTable(near_mesh.hnd, scene, &pos, &vp, &cam, no_pass.pixels, table);
+    ToriDraw_RenderModelWithTable(far_mesh.hnd, scene, &pos, &vp, &cam, no_pass.pixels, table);
+
+    CHECK(
+        frame_count_rgb(&in_pass, rgb_near) > 1000,
+        "the near model drew only %ld pixels inside the pass",
+        frame_count_rgb(&in_pass, rgb_near));
+    CHECK(
+        frame_count_rgb(&in_pass, rgb_far) == 0,
+        "%ld pixels of the far model showed through the near one inside a frame-wide "
+        "pass — the per-model reset is still running",
+        frame_count_rgb(&in_pass, rgb_far));
+    CHECK(
+        frame_count_rgb(&no_pass, rgb_far) > 1000,
+        "control: with no pass open the far model drew only %ld pixels — the reset "
+        "after EndPass is not restored",
+        frame_count_rgb(&no_pass, rgb_far));
 }
 
 static void
@@ -1251,10 +1318,7 @@ main(void)
         return 1;
     }
 
-    printf(
-        "zbuffer depth storage: %zu bytes/pixel (%s)\n",
-        sizeof(torizdepth_t),
-        TORIDRAW_ZDEPTH_HALF ? "16-bit half" : "32-bit float");
+    printf("zbuffer depth storage: %zu bytes/pixel (32-bit float)\n", sizeof(torizdepth_t));
 
     test_crossing_quads(scene);
     test_unsorted_entry_point(scene);
@@ -1267,6 +1331,7 @@ main(void)
     test_textured_faces(scene, false);
     test_textured_faces(scene, true);
     test_buffer_is_reset_per_model(scene);
+    test_frame_pass_spans_models(scene);
     test_flag_is_opt_in(scene);
     test_inert_without_a_buffer();
     test_explicit_sizing();

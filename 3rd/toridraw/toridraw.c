@@ -644,6 +644,47 @@ ToriDraw_SceneHasZBuffer(
            scene->zbuffer_rows >= rows;
 }
 
+void
+ToriDraw_SceneZBufferBeginPass(
+    struct ToriDraw_Scene* scene,
+    const struct ToriDraw_Camera* camera,
+    int stride,
+    int rows)
+{
+    torizdepth_t clear;
+    size_t count;
+    bool provisioned;
+
+    assert(scene);
+    assert(camera);
+    assert(stride > 0);
+    assert(rows > 0);
+    assert(!scene->zbuffer_pass_open);
+
+    provisioned = ToriDraw_SceneZBufferResize(scene, stride, rows);
+    assert(provisioned);
+    (void)provisioned;
+
+    /* The rasters index the buffer at the VIEWPORT's stride, so this is the
+     * region they can reach; a larger buffer kept from an earlier viewport is
+     * not read past it. */
+    clear = (torizdepth_t)toridraw_zdepth_clear_key(
+        toridraw_projection_is_parallel(camera->projection_mode));
+    count = (size_t)stride * (size_t)rows;
+    for( size_t i = 0; i < count; i++ )
+        scene->zbuffer[i] = clear;
+
+    scene->zbuffer_pass_open = true;
+}
+
+void
+ToriDraw_SceneZBufferEndPass(struct ToriDraw_Scene* scene)
+{
+    assert(scene);
+    assert(scene->zbuffer_pass_open);
+    scene->zbuffer_pass_open = false;
+}
+
 struct ToriDraw_TextureState*
 ToriDraw_SceneTexState(struct ToriDraw_Scene* scene)
 {

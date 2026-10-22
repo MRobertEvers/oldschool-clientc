@@ -313,8 +313,8 @@ The scene owns one z-buffer, and the model that draws through these kernels
 **resets it first**. That reset is the whole scoping mechanism: one model's
 depths can never reject another model's pixels, so layering *between* models is
 still the scene's painter order and the reference's rules still hold. Only a
-model's own faces are resolved differently. Storage is 2 bytes per pixel where
-the toolchain has a real `_Float16`, 4 otherwise
+model's own faces are resolved differently. Storage is a 32-bit float, 4 bytes
+per pixel, on every target
 ([`graphics/zdepth.h`](../3rd/toridraw/graphics/zdepth.h)).
 
 **The stored value is a depth KEY, not a depth**: larger is nearer, and under

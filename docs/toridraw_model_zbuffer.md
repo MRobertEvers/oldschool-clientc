@@ -65,8 +65,8 @@ again without touching any model.
 model1/model2 keeps the opt-in — which matters, because merging is what puts the
 interpenetrating parts into one face order in the first place.
 
-Cost is `stride * rows * sizeof(torizdepth_t)`: **2 bytes per pixel** where the
-toolchain has a real `_Float16`, 4 otherwise. The per-model reset covers the
+Cost is `stride * rows * sizeof(torizdepth_t)`: **4 bytes per pixel**, a 32-bit
+float on every target. The per-model reset covers the
 model's projected bounding box, not the viewport, so it scales with the model's
 size on screen.
 
@@ -86,9 +86,11 @@ Under parallel projection there is no divide, depth is already linear, and the
 key is a negated scaled `z` — negated so "larger is nearer" holds in both modes
 and the kernels need no knowledge of which they are drawing.
 
-16-bit half gives ~0.05% relative resolution, which at the QBD's viewing
-distance is about 1.5 world units. Precision is relative, so the scale factors
-exist only to keep the key inside half's exponent range.
+A 32-bit float's 24-bit mantissa resolves about 0.0002 world units at the QBD's
+viewing distance. Precision is relative, so the scale factors fix the key's
+units and buy no resolution. (Storage used to be `_Float16` on x86-64 and
+aarch64; on x86-64 without F16C that made every depth load and store a
+`__extendhfsf2`/`__truncsfhf2` call, so every target now stores `float`.)
 
 ## Translucency
 
@@ -139,6 +141,21 @@ its authoring client is the standard case — the sort then actively enforces a
 wrong answer, and the flag cannot overrule it. The entity viewer exposes it as
 the **zbuffered kernels** checkbox, next to **ignore priorities**, precisely so
 the two questions can be asked separately.
+
+## One buffer for the frame: `ToriDraw_SceneZBufferBeginPass`
+
+Everything above resolves a model against itself. A depth-buffered renderer
+wants the opposite: the world arrives unordered (`TORIRS_WORLD_DEPTH`) and
+every model must occlude every other one. Between
+`ToriDraw_SceneZBufferBeginPass(scene, camera, stride, rows)` and
+`ToriDraw_SceneZBufferEndPass(scene)` the buffer is cleared once, at the begin,
+and the depth-tested rasters skip their per-model reset. Soft3D opens one pass
+per `BEGIN_3D` .. `END_3D` when it is the "Software (depth buffer)" renderer
+(`ToriPlatform_Renderer_Soft3D_SetDepth`) and draws every model through
+`ToriDraw_KernelGetSoftwareZBuffered` with no face sort.
+
+Translucent faces still test without writing, so translucent surfaces in a
+depth world composite in the order the collector emits them, not back to front.
 
 ## Limitations
 

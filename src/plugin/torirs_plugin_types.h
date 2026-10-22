@@ -1047,6 +1047,8 @@ enum ToriRS_Renderer
     /** Android's OpenGL ES 3. */
     TORIRS_RENDERER_GLES3,
     TORIRS_RENDERER_GLES3_DEPTH,
+    /** Software, through a frame-wide depth buffer. */
+    TORIRS_RENDERER_SOFTWARE_DEPTH,
     TORIRS_RENDERER_COUNT
 };
 
@@ -1074,7 +1076,8 @@ enum ToriRS_Renderer
         "Direct3D 9", "Direct3D 9 (depth buffer)",                             \
         "WebGL 2", "WebGL 2 (depth buffer)",                                   \
         "WebGL 1", "WebGL 1 (depth buffer)",                                   \
-        "OpenGL ES 3", "OpenGL ES 3 (depth buffer)"                            \
+        "OpenGL ES 3", "OpenGL ES 3 (depth buffer)",                           \
+        "Software (depth buffer)"                                              \
     }
 
 /** TORIRS_DISPLAY_SCALE_ADJUSTED bits. */

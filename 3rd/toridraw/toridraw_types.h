@@ -924,6 +924,17 @@ struct ToriDraw_Scene
      * (Client-TS Model.worldRender:1755, consumed at render2:1876).
      */
     bool near_clipped;
+    /*
+     * Between ToriDraw_SceneZBufferBeginPass and ...EndPass the z-buffer below
+     * belongs to the PASS, not to a model: it was cleared once at the begin,
+     * and the depth-tested rasters skip their per-model reset so every model in
+     * the pass resolves against every other one. That is a depth-buffered
+     * renderer's contract (one buffer for the world), and it is only sound when
+     * the caller has dropped the painter's ordering for that pass. Kept here,
+     * beside the other flag, because the block after `zbuffer` has its layout
+     * pinned (toridraw.c's projection asserts).
+     */
+    bool zbuffer_pass_open;
 
     /*
      * Near plane ToriDraw_Project actually used for the model it last

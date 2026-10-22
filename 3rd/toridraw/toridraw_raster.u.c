@@ -1010,6 +1010,9 @@ ToriDraw_RasterZ(
             &ctx TORIDRAW_DBG_RASTER_STORAGE_ARG);
 
         rows = ctx.target.clip_origin_y + ctx.screen_height;
+        /* An open pass sized the buffer for the whole frame; growing it here
+         * would realloc away every depth the pass has written. */
+        assert(!scene->zbuffer_pass_open || ToriDraw_SceneHasZBuffer(scene, ctx.stride, rows));
         if( !ToriDraw_SceneHasZBuffer(scene, ctx.stride, rows) )
         {
             bool const provisioned = ToriDraw_SceneZBufferResize(scene, ctx.stride, rows);
@@ -1045,19 +1048,21 @@ ToriDraw_RasterZ(
         ctx.target.zbuffer = ctx.zbuf_target.zbuffer;
         ctx.target.depth_test = true;
 
-        /* The reset is what confines depth testing to this model. */
-        toridraw_zbuf_reset(
-            ctx.zbuf_target.zbuffer,
-            ctx.zbuf_target.stride,
-            ctx.screen_width,
-            ctx.screen_height,
-            ctx.vertex_x,
-            ctx.vertex_y,
-            ctx.num_vertices,
-            ctx.offset_x,
-            ctx.offset_y,
-            ctx.near_clipped,
-            ctx.zbuf_target.parallel);
+        /* The reset is what confines depth testing to this model -- unless a
+         * frame-wide pass is open, whose whole point is that it does not. */
+        if( !scene->zbuffer_pass_open )
+            toridraw_zbuf_reset(
+                ctx.zbuf_target.zbuffer,
+                ctx.zbuf_target.stride,
+                ctx.screen_width,
+                ctx.screen_height,
+                ctx.vertex_x,
+                ctx.vertex_y,
+                ctx.num_vertices,
+                ctx.offset_x,
+                ctx.offset_y,
+                ctx.near_clipped,
+                ctx.zbuf_target.parallel);
 
         toridraw_raster_draw_faces(scene, &ctx);
         TORIDRAW_DBG_RASTER_PRINT(&ctx, (void*)model_as_full(hnd));

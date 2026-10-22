@@ -652,6 +652,10 @@ App_Render(
     ToriPlatform_Renderer_Soft3D_Init(app->soft, app->scene, pixels, width, height);
     ToriPlatform_Renderer_Soft3D_SetLayout(app->soft, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
     ToriPlatform_Renderer_Soft3D_SetInterfaceScaleMode(app->soft, RS_CS2Host_UiScaleMode(&app->host));
+    /* A depth-collected world (TORIRS_WORLD_DEPTH) is unordered and is only
+     * right through a depth buffer -- whether Soft3D is the renderer the
+     * player picked or the offscreen frame under a GPU depth renderer. */
+    ToriPlatform_Renderer_Soft3D_SetDepth(app->soft, app->world_render_mode == TORIRS_WORLD_DEPTH);
 
     if( !App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
     {

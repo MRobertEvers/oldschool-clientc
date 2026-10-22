@@ -52,6 +52,15 @@ it cannot honor instead of silently falling back: desktop SDL accepts
 `--gles2` and `--gles3`, and Win32 accepts `--d3d9` and `--soft3d`. Keep shared
 manifests platform-neutral unless they are intended for one lane only.
 
+The exception is the software pair, `--soft3d` and `--soft3d-zbuffer`, which
+every lane accepts: Soft3D needs no GPU, so each lane that offers "Software"
+also offers "Software (depth buffer)" (`TORIRS_RENDERER_KIND_SOFTWARE_DEPTH`,
+appended after the GLES3 entries; `RS_CS2_RENDERER_MAX` is 14). It has the GPU
+depth kinds' contract -- the app collects the world as `TORIRS_WORLD_DEPTH` --
+and draws it through one frame-wide z-buffer per 3D pass
+(`ToriDraw_SceneZBufferBeginPass`). Either software flag clears every GPU flag
+an earlier argv layer set.
+
 ### GPU-FAMILY-001 - Two shared ES cores, four named lane renderers
 
 - **Status:** Contract

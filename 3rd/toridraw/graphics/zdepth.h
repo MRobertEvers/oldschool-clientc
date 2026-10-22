@@ -32,42 +32,27 @@
  *     holds in both modes and the kernels need no knowledge of which one they
  *     are drawing; only the clear value differs.
  *
- * 16-bit half is used when the toolchain has a real IEEE `_Float16`, halving a
- * buffer that is screen-sized. Its 11-bit mantissa gives ~0.05% relative
- * resolution, which at the QBD's ~3,000-unit viewing distance is ~1.5 world
- * units — far below the separation between the surfaces the sort gets wrong.
- * Precision is RELATIVE, so the scale factors below exist to keep the key
- * inside half's exponent range, not to buy resolution.
+ * Storage is a 32-bit float on every target. The 16-bit `_Float16` this used
+ * to take on x86-64 and aarch64 halved the buffer, but on x86-64 without F16C
+ * every load and store in the span became a conversion call, and its 11-bit
+ * mantissa left ~1.5 world units of resolution at the QBD's viewing distance.
+ * A float's 24 bits put that around 0.0002, and one type means every lane
+ * resolves the same pixels the same way.
  */
 
-#if defined(TORIDRAW_ZDEPTH_FORCE_F32)
-#define TORIDRAW_ZDEPTH_HALF 0
-#elif defined(__FLT16_MANT_DIG__) &&                                                               \
-    (defined(__x86_64__) || defined(_M_X64) || defined(__aarch64__))
-/* GCC/Clang define __FLT16_MANT_DIG__ only where _Float16 is real. The target
- * test is belt-and-braces: on 32-bit x86 the type exists but wants SSE2 that
- * the XP lane does not promise, and a soft-float half in the inner loop would
- * cost more than the memory it saves. */
-#define TORIDRAW_ZDEPTH_HALF 1
-#else
-#define TORIDRAW_ZDEPTH_HALF 0
-#endif
+#include <float.h>
+#include <stdbool.h>
 
-#if TORIDRAW_ZDEPTH_HALF
-typedef _Float16 torizdepth_t;
-/** Largest finite magnitude the storage type holds. */
-#define TORIDRAW_ZDEPTH_LIMIT 65504.0f
-#else
 typedef float torizdepth_t;
-#define TORIDRAW_ZDEPTH_LIMIT 3.0e38f
-#endif
 
-/** Perspective key numerator. Chosen so the key stays inside half's finite
- *  range for every depth a projected vertex can legally have (z >= 1). */
+/** Largest finite magnitude the storage type holds. */
+#define TORIDRAW_ZDEPTH_LIMIT FLT_MAX
+
+/** Perspective key numerator. Precision is relative, so this buys no
+ *  resolution; it only fixes the key's units. */
 #define TORIDRAW_ZDEPTH_PERSP_SCALE 4096.0f
 
-/** Parallel key divisor, same job at the other end: z is unbounded above under
- *  an orthographic camera, and z/64 keeps a 4-million-unit scene finite. */
+/** Parallel key divisor; units only, as above. */
 #define TORIDRAW_ZDEPTH_PARALLEL_DIVISOR 64.0f
 
 /**
@@ -78,17 +63,9 @@ typedef float torizdepth_t;
 static inline float
 toridraw_zdepth_key(int camera_z, bool parallel)
 {
-    float key;
-
+    /* An int z scaled down cannot leave a float's range; no clamp. */
     if( parallel )
-    {
-        key = -(float)camera_z * (1.0f / TORIDRAW_ZDEPTH_PARALLEL_DIVISOR);
-        if( key > TORIDRAW_ZDEPTH_LIMIT )
-            return TORIDRAW_ZDEPTH_LIMIT;
-        if( key < -TORIDRAW_ZDEPTH_LIMIT )
-            return -TORIDRAW_ZDEPTH_LIMIT;
-        return key;
-    }
+        return -(float)camera_z * (1.0f / TORIDRAW_ZDEPTH_PARALLEL_DIVISOR);
 
     /* A vertex at or behind the eye has no perspective key; the near clip is
      * supposed to have removed it, so answer "as near as anything can be"
