@@ -942,5 +942,5 @@ GU8_yiucWtk, transcribed locally), each claim checked against the
 | censers ("braziers"): one use each for the team; can be wasted in phase 1 | 43 lights: phase 1 2, phase 2 5, phase 3 32, phase 4 4 | phase 3 only | any phase |
 | Defence drains carry through phase 3, cap 40% | as the 60% floor (f75a07d920) | matched | - |
 | P4: dark floor under him = he deflects melee (range him); outside = deflects missiles (melee him) | headicons 15 / 16 (§5) | matched | - |
-| P4: explosions every 2 ticks; a tile off resets the attack clock; hybrids at the floors' ends | §5 | matched | - |
+| P4: explosions every 2 ticks; a tile off resets the attack clock; hybrids at the floors' ends | explosions land D+10..20 and D+41..51 every 2 ticks, on the tile the raider stood on as the tick before began (51 of 52 hits). The next attack came 2 ticks after the last for a raider exactly 1 tile off the explosion as it landed 292 of 423 times; on it (hit) 1 of 26, 2 tiles off 0 of 72, 3+ 0 of 3; hit between two attacks, 0 of 49 (all 9 Ocellus sessions, 14 fights) | every raider every 2 ticks through both runs, moving or not | only a raider 1 tile off their explosion as it lands has the attack delay reset |
 
