@@ -2655,7 +2655,8 @@ world_restart_readyanim_under_action(
 
 /* Reference readExtendedInfo ANIM application (Client.ts 8401-8430):
  * same-anim RestartMode RESET restarts frame/cycle/loop; RESETLOOP resets
- * only the loop counter; a different anim applies when no primary is playing
+ * only the loop counter; mode 0 leaves it playing (deob Statics.method7179
+ * and the npc-info SEQUENCE block); a different anim applies when no primary is playing
  * or its priority is >= the current one's. */
 static void
 world_apply_primary_animation(
@@ -2708,6 +2709,15 @@ world_apply_primary_animation(
             animation->primary.loop = 0;
             return;
         }
+        /* Mode 0: the seq plays on untouched (the deob's SEQUENCE block
+         * returns for every mode once the id matches). Falling through
+         * restarted it at frame 0 as if new: Ocellus' phase-1 charge
+         * (replyMode 0, re-sent every 2 ticks) replayed its opening 60
+         * frames seven times instead of looping 60..120 (frameStep 60).
+         * -1 is a seq not yet loaded; the pending path below re-applies it
+         * with its real mode. */
+        if( restart >= 0 )
+            return;
     }
 
     /*

@@ -2045,6 +2045,92 @@ test_cold_seq_is_parked_not_refused(void)
 }
 
 /*
+ * A seq re-sent while it is already playing obeys its replyMode, and only it.
+ *
+ * The deob's SEQUENCE block (Statics.method7179) on a matching id: mode 1
+ * restarts, mode 2 resets the loop count, and every mode returns there. Ours
+ * handled 1 and 2 and let mode 0 fall through to the new-seq path, which
+ * restarted it. Ocellus' phase-1 charge (14809: replyMode 0, frameStep 60 over
+ * 120 frames) is re-sent every 2 ticks for 14 ticks, and replayed its opening
+ * on each instead of looping its second half.
+ */
+static int
+test_reply_mode(void* userdata, int seq_id)
+{
+    (void)userdata;
+    return seq_id - 9000; /* 9000: mode 0, 9001: mode 1, 9002: mode 2 */
+}
+
+static int
+test_reply_priority(void* userdata, int seq_id)
+{
+    (void)userdata;
+    (void)seq_id;
+    return 5;
+}
+
+static int
+test_reply_frame_count(void* userdata, int seq_id)
+{
+    (void)userdata;
+    (void)seq_id;
+    return 120;
+}
+
+static int
+test_reply_frame_step(void* userdata, int seq_id)
+{
+    (void)userdata;
+    (void)seq_id;
+    return 60;
+}
+
+void
+test_resent_seq_obeys_its_reply_mode(void)
+{
+    printf("TEST: a seq re-sent while playing follows its replyMode (0 plays on)\n");
+
+    struct World* world = World_TestMakeReady(104);
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+    struct World_SeqSource seq = {
+        .userdata = NULL,
+        .frame_count = test_reply_frame_count,
+        .frame_step = test_reply_frame_step,
+        .priority = test_reply_priority,
+        .duplicate_behavior = test_reply_mode,
+    };
+    World_SetSeqSource(world, &seq);
+
+    int ni = World_NpcSpawn(world, 7, 8370, 0, 20, 20, 5, idle);
+    struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, ni);
+
+    World_NpcSetPrimaryAnimation(world, ni, 9000, 0);
+    World_Cycle(world, 150);
+    int frame = npc->animation.primary.frame;
+    int loop = npc->animation.primary.loop;
+    TEST_ASSERT(frame >= 60 && loop == 1, "mode 0 looped back onto frame 60 once");
+    World_NpcSetPrimaryAnimation(world, ni, 9000, 0);
+    TEST_ASSERT(npc->animation.primary.anim_id == 9000, "still the same seq");
+    TEST_ASSERT(npc->animation.primary.frame == frame, "mode 0: the re-send leaves the frame");
+    TEST_ASSERT(npc->animation.primary.loop == loop, "mode 0: and the loop count");
+
+    World_NpcSetPrimaryAnimation(world, ni, 9002, 0);
+    World_Cycle(world, 150);
+    frame = npc->animation.primary.frame;
+    World_NpcSetPrimaryAnimation(world, ni, 9002, 0);
+    TEST_ASSERT(npc->animation.primary.frame == frame && npc->animation.primary.loop == 0,
+                "mode 2: the frame kept, the loop count reset");
+
+    World_NpcSetPrimaryAnimation(world, ni, 9001, 0);
+    World_Cycle(world, 150);
+    World_NpcSetPrimaryAnimation(world, ni, 9001, 0);
+    TEST_ASSERT(npc->animation.primary.frame == 0 && npc->animation.primary.loop == 0,
+                "mode 1: restarted");
+
+    World_Free(world);
+}
+
+/*
  * An action animation puts the readyanim back on its loop point.
  *
  * The readyanim free-runs underneath an action animation -- it has to, its

@@ -182,6 +182,7 @@ void test_exact_move_across_far_teleport(void);
 void test_obj_raise(void);
 void test_action_anim_restarts_the_readyanim(void);
 void test_cold_seq_is_parked_not_refused(void);
+void test_resent_seq_obeys_its_reply_mode(void);
 void test_action_anim_hands_back_to_the_readyanim_loop_point(void);
 void test_entity_spotanim_holds_until_resident(void);
 void test_entity_spotanim_loop_replays_until_replaced(void);
